@@ -1,0 +1,31 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: sma_postgres
+    restart: always
+    environment:
+      POSTGRES_USER: sma_user
+      POSTGRES_PASSWORD: sma_password
+      POSTGRES_DB: sma_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build: ./backend
+    container_name: sma_backend
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://sma_user:sma_password@postgres:5432/sma_db
+      JWT_SECRET: supersecret_change_me
+    depends_on:
+      - postgres
+    volumes:
+      - ./backend:/app
+    command: npm run start:dev
+
+volumes:
+  postgres_data:

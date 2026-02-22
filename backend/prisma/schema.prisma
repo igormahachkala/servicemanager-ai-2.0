@@ -1,0 +1,143 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  DISPATCHER
+  TECHNICIAN
+  CLIENT
+  NETWORK_DIRECTOR
+}
+
+enum TicketStatus {
+  NEW
+  ASSIGNED
+  IN_PROGRESS
+  DONE
+  CANCELED
+}
+
+enum TicketUrgency {
+  URGENT
+  NOT_URGENT
+}
+
+model Company {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+
+  autoAssignEnabled Boolean @default(true)
+
+  users             User[]
+  specializations   Specialization[]
+  problemCategories ProblemCategory[]
+  tickets           Ticket[]
+}
+
+model User {
+  id        String  @id @default(uuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  email    String   @unique
+  password String
+  role     UserRole
+
+  createdAt DateTime @default(now())
+
+  technicianSpecializations TechnicianSpecialization[]
+  assignedTickets           Ticket[]                   @relation("AssignedTechnician")
+}
+
+model Specialization {
+  id        String  @id @default(uuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  name      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  problemCategoryLinks ProblemCategorySpecialization[]
+  technicianLinks      TechnicianSpecialization[]
+}
+
+model ProblemCategory {
+  id        String  @id @default(uuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  name         String
+  instructions String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  specializationLinks ProblemCategorySpecialization[]
+  tickets             Ticket[]
+
+  @@unique([companyId, name])
+}
+
+model ProblemCategorySpecialization {
+  problemCategoryId String
+  specializationId  String
+
+  problemCategory ProblemCategory @relation(fields: [problemCategoryId], references: [id], onDelete: Cascade)
+  specialization  Specialization  @relation(fields: [specializationId], references: [id], onDelete: Cascade)
+
+  @@id([problemCategoryId, specializationId])
+}
+
+model TechnicianSpecialization {
+  userId           String
+  specializationId String
+
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  specialization Specialization @relation(fields: [specializationId], references: [id], onDelete: Cascade)
+
+  @@id([userId, specializationId])
+}
+
+model Ticket {
+  id        String  @id @default(uuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  // “дочерняя заявка”
+  parentId String?
+  parent   Ticket?  @relation("TicketParent", fields: [parentId], references: [id], onDelete: SetNull)
+  children Ticket[] @relation("TicketParent")
+
+  // заявитель / точка (MVP — текст)
+  requesterName  String?
+  requesterPhone String?
+  address        String?
+  pointName      String?
+
+  problemCategoryId String
+  problemCategory   ProblemCategory @relation(fields: [problemCategoryId], references: [id], onDelete: Restrict)
+
+  problemText String
+
+  urgency TicketUrgency @default(NOT_URGENT)
+  status  TicketStatus  @default(NEW)
+
+  // SLA (в минутах), потом расширим
+  slaMinutes Int?
+
+  assignedTechnicianId String?
+  assignedTechnician   User?   @relation("AssignedTechnician", fields: [assignedTechnicianId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId, status])
+  @@index([companyId, createdAt])
+}
