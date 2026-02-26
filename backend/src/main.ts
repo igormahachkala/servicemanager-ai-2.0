@@ -5,20 +5,40 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  // Для Swagger UI и запросов из браузера
+  app.enableCors({
+    origin: true,
+    credentials: true,
+  });
+
   const config = new DocumentBuilder()
-    .setTitle('ServiceManager.AI API')
-    .setDescription('Backend API docs')
+    .setTitle('API ServiceManager.AI')
+    .setDescription('Документация по серверному API')
     .setVersion('1.0')
-    .addServer('http://127.0.0.1:3000', 'Localhost')
-    .addServer('http://172.31.224.1:3000', 'WSL from Windows')
-    .addBearerAuth({ type: 'http', scheme: 'bearer', bearerFormat: 'JWT' }, 'bearer')
+    .addBearerAuth(
+      {
+        type: 'http',
+        scheme: 'bearer',
+        bearerFormat: 'JWT',
+        in: 'header',
+        name: 'Authorization',
+      },
+      'jwt',
+    )
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
+
+  // Ключевой фикс: помечаем API как "secured" глобально,
+  // чтобы Swagger реально добавлял Authorization после Authorize.
+  (document as any).security = [{ jwt: [] }];
+
   SwaggerModule.setup('api', app, document, {
-    swaggerOptions: { persistAuthorization: true },
+    swaggerOptions: {
+      persistAuthorization: true,
+    },
   });
 
-  await app.listen(process.env.PORT ?? 3000, '0.0.0.0');
+  await app.listen(process.env.PORT ?? 3000);
 }
 bootstrap();
