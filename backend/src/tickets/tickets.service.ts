@@ -1,12 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
-import {
-  TicketStatus,
-  TicketUrgency,
-  UserRole,
-} from '@prisma/client';
 import { CreateChildTicketDto } from './dto/create-child-ticket.dto';
+import { TicketStatus, TicketUrgency, UserRole } from '@prisma/client';
 
 @Injectable()
 export class TicketsService {
@@ -61,6 +57,45 @@ export class TicketsService {
     }));
   }
 
+  /**
+   * Набор допустимых переходов статусов.
+   * Под твой enum: NEW / ASSIGNED / IN_PROGRESS / DONE / CANCELED (часто так).
+   */
+  private canTransition(from: TicketStatus, to: TicketStatus): boolean {
+    if (from === to) return false;
+
+    const allowed: Partial<Record<TicketStatus, TicketStatus[]>> = {
+      NEW: ['ASSIGNED', 'IN_PROGRESS', 'CANCELED'] as TicketStatus[],
+      ASSIGNED: ['IN_PROGRESS', 'DONE', 'CANCELED'] as TicketStatus[],
+      IN_PROGRESS: ['DONE', 'CANCELED'] as TicketStatus[],
+      DONE: [] as TicketStatus[],
+      CANCELED: [] as TicketStatus[],
+    };
+
+    const next = allowed[from] ?? [];
+    return next.includes(to);
+  }
+
+  private async writeStatusHistory(params: {
+    ticketId: string;
+    fromStatus: TicketStatus | null;
+    toStatus: TicketStatus;
+    changedByUserId: string | null;
+    comment?: string | null;
+  }) {
+    const { ticketId, fromStatus, toStatus, changedByUserId, comment } = params;
+
+    await this.prisma.ticketStatusHistory.create({
+      data: {
+        ticketId,
+        fromStatus,
+        toStatus,
+        comment: comment ?? null,
+        changedByUserId: changedByUserId ?? null,
+      },
+    });
+  }
+
   async create(companyId: string, creatorRole: UserRole, dto: CreateTicketDto) {
     if (creatorRole !== UserRole.ADMIN && creatorRole !== UserRole.DISPATCHER) {
       throw new BadRequestException('Only ADMIN or DISPATCHER can create tickets');
@@ -74,6 +109,11 @@ export class TicketsService {
 
     const shouldAutoAssign = company.autoAssignEnabled && candidates.length > 0;
     const assignedTechnicianId = shouldAutoAssign ? candidates[0].id : null;
+
+    const status = assignedTechnicianId ? TicketStatus.ASSIGNED : TicketStatus.NEW;
+
+    const slaMinutes = dto.slaMinutes ?? null;
+    const slaDueAt = slaMinutes ? new Date(Date.now() + slaMinutes * 60_000) : null;
 
     const ticket = await this.prisma.ticket.create({
       data: {
@@ -89,11 +129,20 @@ export class TicketsService {
         problemText: dto.problemText?.trim(),
 
         urgency: dto.urgency ?? TicketUrgency.NOT_URGENT,
-        slaMinutes: dto.slaMinutes ?? null,
+        slaMinutes,
+        slaDueAt,
 
-        status: assignedTechnicianId ? TicketStatus.ASSIGNED : TicketStatus.NEW,
+        status,
         assignedTechnicianId,
       },
+    });
+
+    await this.writeStatusHistory({
+      ticketId: ticket.id,
+      fromStatus: null,
+      toStatus: ticket.status,
+      changedByUserId: null,
+      comment: 'Ticket created',
     });
 
     return {
@@ -102,33 +151,6 @@ export class TicketsService {
       candidates,
       autoAssigned: !!assignedTechnicianId,
     };
-  }
-
-  async list(companyId: string, status?: TicketStatus) {
-    return this.prisma.ticket.findMany({
-      where: { companyId, status: status ?? undefined },
-      orderBy: { createdAt: 'desc' },
-      include: {
-        problemCategory: { select: { id: true, name: true } },
-        assignedTechnician: { select: { id: true, email: true } },
-      },
-    });
-  }
-
-  async assign(companyId: string, ticketId: string, technicianId: string) {
-    const ticket = await this.prisma.ticket.findFirst({ where: { id: ticketId, companyId } });
-    if (!ticket) throw new NotFoundException('Ticket not found');
-
-    const tech = await this.prisma.user.findFirst({
-      where: { id: technicianId, companyId, role: UserRole.TECHNICIAN },
-      select: { id: true },
-    });
-    if (!tech) throw new NotFoundException('Technician not found');
-
-    return this.prisma.ticket.update({
-      where: { id: ticketId },
-      data: { assignedTechnicianId: technicianId, status: TicketStatus.ASSIGNED },
-    });
   }
 
   async createChild(companyId: string, creatorRole: UserRole, parentId: string, dto: CreateChildTicketDto) {
@@ -150,6 +172,11 @@ export class TicketsService {
     const shouldAutoAssign = company.autoAssignEnabled && candidates.length > 0;
     const assignedTechnicianId = shouldAutoAssign ? candidates[0].id : null;
 
+    const status = assignedTechnicianId ? TicketStatus.ASSIGNED : TicketStatus.NEW;
+
+    const slaMinutes = dto.slaMinutes ?? null;
+    const slaDueAt = slaMinutes ? new Date(Date.now() + slaMinutes * 60_000) : null;
+
     const ticket = await this.prisma.ticket.create({
       data: {
         companyId,
@@ -164,11 +191,20 @@ export class TicketsService {
         problemText: dto.problemText?.trim(),
 
         urgency: dto.urgency ?? TicketUrgency.NOT_URGENT,
-        slaMinutes: dto.slaMinutes ?? null,
+        slaMinutes,
+        slaDueAt,
 
-        status: assignedTechnicianId ? TicketStatus.ASSIGNED : TicketStatus.NEW,
+        status,
         assignedTechnicianId,
       },
+    });
+
+    await this.writeStatusHistory({
+      ticketId: ticket.id,
+      fromStatus: null,
+      toStatus: ticket.status,
+      changedByUserId: null,
+      comment: 'Child ticket created',
     });
 
     return {
@@ -179,13 +215,27 @@ export class TicketsService {
       parentId: parent.id,
     };
   }
-}
+
+  async list(companyId: string, status?: TicketStatus) {
+    return this.prisma.ticket.findMany({
+      where: { companyId, status: status ?? undefined },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        problemCategory: { select: { id: true, name: true } },
+        assignedTechnician: { select: { id: true, email: true } },
+      },
+    });
+  }
+
   async getOne(companyId: string, ticketId: string) {
     const ticket = await this.prisma.ticket.findFirst({
       where: { id: ticketId, companyId },
       include: {
         problemCategory: { select: { id: true, name: true, instructions: true } },
         assignedTechnician: { select: { id: true, email: true } },
+        statusHistory: {
+          orderBy: { createdAt: 'asc' },
+        },
         parent: {
           select: {
             id: true,
@@ -207,12 +257,82 @@ export class TicketsService {
     if (!ticket) throw new NotFoundException('Ticket not found');
     return ticket;
   }
-async getById(id: string) {
-  return this.prisma.ticket.findUnique({
-    where: { id },
-    include: {
-      parent: true,
-      children: true,
-    },
-  });
+
+  async assign(companyId: string, ticketId: string, technicianId: string) {
+    const ticket = await this.prisma.ticket.findFirst({ where: { id: ticketId, companyId } });
+    if (!ticket) throw new NotFoundException('Ticket not found');
+
+    const tech = await this.prisma.user.findFirst({
+      where: { id: technicianId, companyId, role: UserRole.TECHNICIAN },
+      select: { id: true },
+    });
+    if (!tech) throw new NotFoundException('Technician not found');
+
+    const updated = await this.prisma.ticket.update({
+      where: { id: ticketId },
+      data: { assignedTechnicianId: technicianId, status: TicketStatus.ASSIGNED },
+    });
+
+    await this.writeStatusHistory({
+      ticketId,
+      fromStatus: ticket.status,
+      toStatus: TicketStatus.ASSIGNED,
+      changedByUserId: null,
+      comment: `Assigned to technician ${technicianId}`,
+    });
+
+    return updated;
+  }
+
+  async updateStatus(
+    companyId: string,
+    user: { id?: string } | any,
+    role: UserRole,
+    ticketId: string,
+    dto: { status: TicketStatus; comment?: string },
+  ) {
+    if (
+      role !== UserRole.ADMIN &&
+      role !== UserRole.DISPATCHER &&
+      role !== UserRole.TECHNICIAN &&
+      role !== UserRole.NETWORK_DIRECTOR
+    ) {
+      throw new BadRequestException('Role cannot change ticket status');
+    }
+
+    const ticket = await this.prisma.ticket.findFirst({
+      where: { id: ticketId, companyId },
+    });
+    if (!ticket) throw new NotFoundException('Ticket not found');
+
+    const toStatus = dto.status;
+    const fromStatus = ticket.status;
+
+    if (!this.canTransition(fromStatus, toStatus)) {
+      throw new BadRequestException(`Invalid status transition: ${fromStatus} -> ${toStatus}`);
+    }
+
+    const now = new Date();
+    const shouldMarkBreached =
+      ticket.slaDueAt && !ticket.slaBreachedAt && now > ticket.slaDueAt;
+
+    const updated = await this.prisma.ticket.update({
+      where: { id: ticketId },
+      data: {
+        status: toStatus,
+        slaBreachedAt: shouldMarkBreached ? now : ticket.slaBreachedAt,
+        closedAt: toStatus === TicketStatus.DONE ? now : ticket.closedAt,
+      },
+    });
+
+    await this.writeStatusHistory({
+      ticketId,
+      fromStatus,
+      toStatus,
+      changedByUserId: user?.id ?? null,
+      comment: dto.comment ?? null,
+    });
+
+    return updated;
+  }
 }

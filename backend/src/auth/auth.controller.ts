@@ -18,9 +18,15 @@ export class AuthController {
     return this.auth.login(dto);
   }
 
-  @UseGuards(JwtAuthGuard)
   @Get('me')
+  @UseGuards(JwtAuthGuard)
   me(@Req() req: any) {
-    return { user: req.user };
+    const u = req.user;
+    return {
+     id: u.id,
+     email: u.email,
+     role: u.role,
+     companyId: u.companyId,
+    };
   }
 }

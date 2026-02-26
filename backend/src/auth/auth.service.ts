@@ -14,17 +14,26 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto) {
-    const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
-    if (existing) throw new BadRequestException('Email already registered');
+    if (!dto.companyName?.trim()) {
+      throw new BadRequestException('Company name is required');
+    }
+
+    const existing = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+    });
+
+    if (existing) {
+      throw new BadRequestException('Email already registered');
+    }
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
 
     const company = await this.prisma.company.create({
       data: {
-        name: dto.companyName,
+        name: dto.companyName.trim(),
         users: {
           create: {
-            email: dto.email,
+            email: dto.email.toLowerCase(),
             password: passwordHash,
             role: UserRole.ADMIN,
           },
@@ -34,22 +43,53 @@ export class AuthService {
     });
 
     const user = company.users[0];
-    return this.issueToken(user.id, user.email, user.companyId, user.role);
+
+    return this.issueToken(
+      user.id,
+      user.email,
+      user.companyId,
+      user.role,
+    );
   }
 
   async login(dto: LoginDto) {
-    const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
-    if (!user) throw new UnauthorizedException('Invalid credentials');
+    const user = await this.prisma.user.findUnique({
+      where: { email: dto.email.toLowerCase() },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
 
     const ok = await bcrypt.compare(dto.password, user.password);
-    if (!ok) throw new UnauthorizedException('Invalid credentials');
 
-    return this.issueToken(user.id, user.email, user.companyId, user.role);
+    if (!ok) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    return this.issueToken(
+      user.id,
+      user.email,
+      user.companyId,
+      user.role,
+    );
   }
 
-  issueToken(userId: string, email: string, companyId: string, role: string) {
-    const payload = { sub: userId, email, companyId, role };
+  private issueToken(
+    userId: string,
+    email: string,
+    companyId: string,
+    role: string,
+  ) {
+    const payload = {
+      sub: userId,
+      email,
+      companyId,
+      role,
+    };
+
     const access_token = this.jwt.sign(payload);
+
     return { access_token };
   }
 }

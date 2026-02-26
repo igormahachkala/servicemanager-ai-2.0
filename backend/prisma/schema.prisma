@@ -52,6 +52,7 @@ model User {
 
   createdAt DateTime @default(now())
 
+  ticketStatusChanges       TicketStatusHistory[]      @relation("TicketStatusChangedBy")
   technicianSpecializations TechnicianSpecialization[]
   assignedTickets           Ticket[]                   @relation("AssignedTechnician")
 }
@@ -126,11 +127,17 @@ model Ticket {
 
   problemText String
 
-  urgency TicketUrgency @default(NOT_URGENT)
-  status  TicketStatus  @default(NEW)
+  urgency         TicketUrgency         @default(NOT_URGENT)
+  status          TicketStatus          @default(NEW)
+  statusUpdatedAt DateTime              @default(now())
+  statusHistory   TicketStatusHistory[]
 
   // SLA (в минутах), потом расширим
-  slaMinutes Int?
+  slaMinutes    Int?
+  // SLA tracking v1
+  slaDueAt      DateTime?
+  slaBreachedAt DateTime?
+  closedAt      DateTime?
 
   assignedTechnicianId String?
   assignedTechnician   User?   @relation("AssignedTechnician", fields: [assignedTechnicianId], references: [id], onDelete: SetNull)
@@ -140,4 +147,23 @@ model Ticket {
 
   @@index([companyId, status])
   @@index([companyId, createdAt])
+  @@index([status, createdAt])
+  @@index([statusUpdatedAt])
+}
+
+model TicketStatusHistory {
+  id              String        @id @default(uuid())
+  ticketId        String
+  fromStatus      TicketStatus?
+  toStatus        TicketStatus
+  comment         String?
+  changedByUserId String?
+  createdAt       DateTime      @default(now())
+
+  ticket    Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  changedBy User?  @relation("TicketStatusChangedBy", fields: [changedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([ticketId, createdAt])
+  @@index([toStatus, createdAt])
+  @@index([changedByUserId, createdAt])
 }

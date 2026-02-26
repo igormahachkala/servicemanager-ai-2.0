@@ -2,7 +2,7 @@ services:
   postgres:
     image: postgres:16
     container_name: sma_postgres
-    restart: always
+    restart: unless-stopped
     environment:
       POSTGRES_USER: sma_user
       POSTGRES_PASSWORD: sma_password
@@ -15,7 +15,7 @@ services:
   backend:
     build: ./backend
     container_name: sma_backend
-    restart: always
+    restart: unless-stopped
     ports:
       - "3000:3000"
     environment:
@@ -23,9 +23,7 @@ services:
       JWT_SECRET: supersecret_change_me
     depends_on:
       - postgres
-    volumes:
-      - ./backend:/app
-    command: npm run start:dev
+    command: npm run start
 
 volumes:
   postgres_data:

@@ -1,0 +1,16 @@
+services:
+  postgres_test:
+    image: postgres:16
+    container_name: sma_postgres_test
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sma_user
+      POSTGRES_PASSWORD: sma_password
+      POSTGRES_DB: sma_test_db
+    ports:
+      - "55432:5432"
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_test_data:

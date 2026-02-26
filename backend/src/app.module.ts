@@ -10,6 +10,8 @@ import { ProblemCategoriesModule } from './problem-categories/problem-categories
 import { TechniciansModule } from './technicians/technicians.module';
 import { CompanyModule } from './company/company.module';
 import { TicketsModule } from './tickets/tickets.module';
+import { AnalyticsModule } from './analytics/analytics.module';
+import { HealthController } from './health.controller';
 
 @Module({
   imports: [
@@ -21,8 +23,9 @@ import { TicketsModule } from './tickets/tickets.module';
     TechniciansModule,
     CompanyModule,
     TicketsModule,
+    AnalyticsModule,
   ],
-  controllers: [AppController],
+  controllers: [AppController, HealthController],
   providers: [AppService],
 })
 export class AppModule {}
