@@ -59,7 +59,7 @@ export class TicketsService {
 
   /**
    * Набор допустимых переходов статусов.
-   * Под твой enum: NEW / ASSIGNED / IN_PROGRESS / DONE / CANCELED (часто так).
+   * Под твой enum: NEW / ASSIGNED / IN_PROGRESS / DONE / CANCELED.
    */
   private canTransition(from: TicketStatus, to: TicketStatus): boolean {
     if (from === to) return false;
@@ -97,10 +97,6 @@ export class TicketsService {
   }
 
   async create(companyId: string, creatorRole: UserRole, dto: CreateTicketDto) {
-    if (creatorRole !== UserRole.ADMIN && creatorRole !== UserRole.DISPATCHER) {
-      throw new BadRequestException('Only ADMIN or DISPATCHER can create tickets');
-    }
-
     const company = await this.getCompany(companyId);
     const category = await this.getCategory(companyId, dto.problemCategoryId);
 
@@ -154,10 +150,6 @@ export class TicketsService {
   }
 
   async createChild(companyId: string, creatorRole: UserRole, parentId: string, dto: CreateChildTicketDto) {
-    if (creatorRole !== UserRole.ADMIN && creatorRole !== UserRole.DISPATCHER) {
-      throw new BadRequestException('Only ADMIN or DISPATCHER can create tickets');
-    }
-
     const parent = await this.prisma.ticket.findFirst({
       where: { id: parentId, companyId },
     });
@@ -216,7 +208,12 @@ export class TicketsService {
     };
   }
 
-  async list(companyId: string, status?: TicketStatus) {
+  async list(companyId: string, userId: string, role: UserRole, status?: TicketStatus) {
+    /**
+     * Официальное решение:
+     * TECHNICIAN может читать любые тикеты внутри company.
+     * Поэтому scope для чтения здесь одинаковый для разрешённых ролей — по companyId.
+     */
     return this.prisma.ticket.findMany({
       where: { companyId, status: status ?? undefined },
       orderBy: { createdAt: 'desc' },
@@ -227,7 +224,12 @@ export class TicketsService {
     });
   }
 
-  async getOne(companyId: string, ticketId: string) {
+  async getOne(companyId: string, userId: string, role: UserRole, ticketId: string) {
+    /**
+     * Официальное решение:
+     * TECHNICIAN может читать “чужие” заявки внутри company.
+     * Поэтому getOne — просто companyId + id (доступ по ролям обеспечивает controller guards).
+     */
     const ticket = await this.prisma.ticket.findFirst({
       where: { id: ticketId, companyId },
       include: {
@@ -258,7 +260,7 @@ export class TicketsService {
     return ticket;
   }
 
-  async assign(companyId: string, ticketId: string, technicianId: string) {
+  async assign(companyId: string, actor: any, ticketId: string, technicianId: string) {
     const ticket = await this.prisma.ticket.findFirst({ where: { id: ticketId, companyId } });
     if (!ticket) throw new NotFoundException('Ticket not found');
 
@@ -277,7 +279,7 @@ export class TicketsService {
       ticketId,
       fromStatus: ticket.status,
       toStatus: TicketStatus.ASSIGNED,
-      changedByUserId: null,
+      changedByUserId: actor?.id ?? null,
       comment: `Assigned to technician ${technicianId}`,
     });
 
@@ -293,6 +295,7 @@ export class TicketsService {
   ) {
     if (
       role !== UserRole.ADMIN &&
+      role !== UserRole.MASTER &&
       role !== UserRole.DISPATCHER &&
       role !== UserRole.TECHNICIAN &&
       role !== UserRole.NETWORK_DIRECTOR
@@ -304,6 +307,11 @@ export class TicketsService {
       where: { id: ticketId, companyId },
     });
     if (!ticket) throw new NotFoundException('Ticket not found');
+
+    // Write-scope: TECHNICIAN может менять статус только своих заявок (assigned to self)
+    if (role === UserRole.TECHNICIAN && ticket.assignedTechnicianId !== user?.id) {
+      throw new BadRequestException('Technician can change status only for own tickets');
+    }
 
     const toStatus = dto.status;
     const fromStatus = ticket.status;
@@ -334,5 +342,83 @@ export class TicketsService {
     });
 
     return updated;
+  }
+
+  async availableForTechnician(companyId: string, technicianUserId: string) {
+    // MVP: available NEW tickets by specialization (no points/zones yet)
+    const tech = await this.prisma.user.findFirst({
+      where: { id: technicianUserId, companyId, role: UserRole.TECHNICIAN },
+      select: { technicianSpecializations: { select: { specializationId: true } } },
+    });
+    if (!tech) throw new NotFoundException('Technician not found');
+
+    const specializationIds = tech.technicianSpecializations.map((x) => x.specializationId);
+    if (specializationIds.length === 0) return [];
+
+    return this.prisma.ticket.findMany({
+      where: {
+        companyId,
+        status: TicketStatus.NEW,
+        assignedTechnicianId: null,
+        problemCategory: {
+          specializationLinks: {
+            some: { specializationId: { in: specializationIds } },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+      include: {
+        problemCategory: { select: { id: true, name: true } },
+      },
+    });
+  }
+
+  async claim(companyId: string, technicianUserId: string, ticketId: string) {
+    const tech = await this.prisma.user.findFirst({
+      where: { id: technicianUserId, companyId, role: UserRole.TECHNICIAN },
+      select: { technicianSpecializations: { select: { specializationId: true } } },
+    });
+    if (!tech) throw new BadRequestException('Only TECHNICIAN can claim tickets');
+
+    const specializationIds = tech.technicianSpecializations.map((x) => x.specializationId);
+    if (specializationIds.length === 0) {
+      throw new BadRequestException('Technician has no specializations');
+    }
+
+    // Atomic claim with specialization enforcement:
+    // only NEW + not assigned + matches technician specialization (via problemCategory.specializationLinks)
+    const updated = await this.prisma.ticket.updateMany({
+      where: {
+        id: ticketId,
+        companyId,
+        status: TicketStatus.NEW,
+        assignedTechnicianId: null,
+        problemCategory: {
+          specializationLinks: {
+            some: { specializationId: { in: specializationIds } },
+          },
+        },
+      },
+      data: {
+        status: TicketStatus.ASSIGNED,
+        statusUpdatedAt: new Date(),
+        assignedTechnicianId: technicianUserId,
+      },
+    });
+
+    if (updated.count === 0) {
+      throw new BadRequestException('Ticket is not available for claim or does not match technician specialization');
+    }
+
+    await this.writeStatusHistory({
+      ticketId,
+      fromStatus: TicketStatus.NEW,
+      toStatus: TicketStatus.ASSIGNED,
+      changedByUserId: technicianUserId,
+      comment: 'Claimed by technician',
+    });
+
+    return this.getOne(companyId, technicianUserId, UserRole.TECHNICIAN, ticketId);
   }
 }
