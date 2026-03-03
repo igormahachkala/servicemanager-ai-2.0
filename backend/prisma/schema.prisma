@@ -155,6 +155,11 @@ model Ticket {
   @@index([companyId, createdAt])
   @@index([status, createdAt])
   @@index([statusUpdatedAt])
+
+  // SLA индексы (foundation v1)
+  @@index([slaDueAt])
+  @@index([slaBreachedAt])
+  @@index([companyId, slaDueAt])
 }
 
 model TicketStatusHistory {
