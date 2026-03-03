@@ -36,8 +36,15 @@ describe('SMA SaaS MVP (e2e)', () => {
     prisma = app.get(PrismaService);
 
     // Clean DB (test db only!)
+    // NB: очищаем и PBAC таблицы тоже, иначе возможны 403 на защищённых эндпоинтах,
+    // если тестовый volume уже “грязный” после прошлых прогонов.
+    await prisma.userPermission.deleteMany();
+    await prisma.rolePermission.deleteMany();
+    await prisma.permissionBlock.deleteMany();
+
     await prisma.technicianSpecialization.deleteMany();
     await prisma.problemCategorySpecialization.deleteMany();
+    await prisma.ticketStatusHistory.deleteMany();
     await prisma.ticket.deleteMany();
     await prisma.specialization.deleteMany();
     await prisma.problemCategory.deleteMany();
@@ -62,7 +69,8 @@ describe('SMA SaaS MVP (e2e)', () => {
       .set('Authorization', `Bearer ${adminTokenA}`)
       .expect(200);
 
-    expect(me.body.email).toBe('ownerA@sma.test');
+    // AuthService приводит email к lower-case
+    expect(me.body.email).toBe('ownera@sma.test');
     expect(me.body.companyId).toBeTruthy();
     companyIdA = me.body.companyId;
   });
@@ -82,6 +90,7 @@ describe('SMA SaaS MVP (e2e)', () => {
 
     companyIdB = me.body.companyId;
 
+    expect(me.body.email).toBe('ownerb@sma.test');
     expect(companyIdB).toBeTruthy();
     expect(companyIdB).not.toBe(companyIdA);
   });
