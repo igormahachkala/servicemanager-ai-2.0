@@ -13,6 +13,8 @@ import { TicketsModule } from './tickets/tickets.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { HealthController } from './health.controller';
 
+import { SlaModule } from './sla/sla.module';
+
 @Module({
   imports: [
     PrismaModule,
@@ -24,6 +26,7 @@ import { HealthController } from './health.controller';
     CompanyModule,
     TicketsModule,
     AnalyticsModule,
+    SlaModule,
   ],
   controllers: [AppController, HealthController],
   providers: [AppService],
