@@ -1,5 +1,4 @@
-import { TicketStatus, UserRole } from '@prisma/client';
-import { Prisma } from '@prisma/client';
+import { Prisma, TicketStatus, UserRole } from '@prisma/client';
 import { allow, deny, PolicyDecision } from './policy.types';
 
 export type UserCtx = {
@@ -9,7 +8,6 @@ export type UserCtx = {
 };
 
 const ASSIGN_ROLES: UserRole[] = [UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER];
-
 const MANAGEMENT_STATUS_ROLES: UserRole[] = [
   UserRole.ADMIN,
   UserRole.MASTER,
@@ -17,12 +15,11 @@ const MANAGEMENT_STATUS_ROLES: UserRole[] = [
   UserRole.NETWORK_DIRECTOR,
 ];
 
-const EDIT_ROLES: UserRole[] = [UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER];
-
 export class TicketsPolicy {
   /**
-   * Scope для списка и чтения: везде companyId — инвариант.
-   * IMPORTANT: TECHNICIAN может читать любые тикеты внутри company (официальное решение).
+   * READ SCOPE
+   * Официальное решение: TECHNICIAN может читать любые тикеты в рамках company.
+   * Поэтому scope для list/get — одинаковый по companyId.
    */
   listWhere(user: UserCtx, status?: TicketStatus): PolicyDecision<Prisma.TicketWhereInput> {
     return allow({
@@ -39,38 +36,53 @@ export class TicketsPolicy {
   }
 
   /**
-   * Write scoped rules
+   * WRITE RULES
    */
-
   canAssign(user: UserCtx): PolicyDecision {
     if (ASSIGN_ROLES.includes(user.role)) return allow();
     return deny('Role cannot assign tickets');
   }
 
-  canClaim(params: {
+  /**
+   * Claim строго scoped:
+   * - только TECHNICIAN
+   * - ticket: NEW + unassigned
+   * - specialization match (через problemCategory.specializationLinks)
+   *
+   * Возвращаем where для atomic updateMany.
+   */
+  claimWhere(params: {
     user: UserCtx;
-    ticket: { companyId: string; status: TicketStatus; assignedTechnicianId: string | null };
-  }): PolicyDecision {
-    const { user, ticket } = params;
+    ticketId: string;
+    specializationIds: string[];
+  }): PolicyDecision<Prisma.TicketWhereInput> {
+    const { user, ticketId, specializationIds } = params;
 
-    if (user.role !== UserRole.TECHNICIAN) return deny('Only TECHNICIAN can claim');
-    if (ticket.companyId !== user.companyId) return deny('Cross-company access');
-    if (ticket.status !== TicketStatus.NEW) return deny('Only NEW tickets can be claimed');
-    if (ticket.assignedTechnicianId !== null) return deny('Ticket already assigned');
+    if (user.role !== UserRole.TECHNICIAN) return deny('Only TECHNICIAN can claim tickets');
+    if (!specializationIds || specializationIds.length === 0) return deny('Technician has no specializations');
 
-    return allow();
+    return allow({
+      id: ticketId,
+      companyId: user.companyId,
+      status: TicketStatus.NEW,
+      assignedTechnicianId: null,
+      problemCategory: {
+        specializationLinks: {
+          some: { specializationId: { in: specializationIds } },
+        },
+      },
+    });
   }
 
   canChangeStatus(params: {
     user: UserCtx;
-    ticket: { companyId: string; assignedTechnicianId: string | null; status: TicketStatus };
-    nextStatus: TicketStatus;
+    ticket: { companyId: string; assignedTechnicianId: string | null };
   }): PolicyDecision {
     const { user, ticket } = params;
 
     if (ticket.companyId !== user.companyId) return deny('Cross-company access');
 
-    // TECHNICIAN: строго только свои (assigned to self)
+    // TECHNICIAN — строго только assigned-to-self
     if (user.role === UserRole.TECHNICIAN) {
       if (ticket.assignedTechnicianId !== user.id) {
         return deny('Technician can change status only for own assigned tickets');
@@ -78,14 +90,8 @@ export class TicketsPolicy {
       return allow();
     }
 
-    // Управленческие роли — можно
     if (MANAGEMENT_STATUS_ROLES.includes(user.role)) return allow();
 
     return deny('Role cannot change ticket status');
-  }
-
-  canEdit(user: UserCtx): PolicyDecision {
-    if (EDIT_ROLES.includes(user.role)) return allow();
-    return deny('Role cannot edit ticket');
   }
 }
