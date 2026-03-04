@@ -1,284 +1,430 @@
-# PLATFORM CONSTITUTION v2
-ServiceManager.AI
+# PLATFORM CONSTITUTION V2 — ServiceManager.AI
 
-Статус: Active Architecture Contract  
-Версия: 2.1  
-Тип документа: Архитектурная конституция платформы  
+Статус: Active  
+Тип: Архитектурная конституция платформы
 
----
+Этот документ фиксирует фундаментальные правила архитектуры
+ServiceManager.AI.
 
-# 1. Главный принцип платформы
+Нарушение этих правил приводит к архитектурной деградации системы.
 
-ServiceManager.AI — multi-tenant SaaS уровня enterprise.
+Документ обязателен для:
 
-Система строится по фундаментальному разделению:
+- разработчиков
+- AI-ассистентов
+- архитекторов системы
 
-КТО МОЖЕТ → Capability (Permission Blocks / PBAC)  
-ЧТО ВИДИТ И К ЧЕМУ ИМЕЕТ ДОСТУП → Data Scope (RoleScopePolicy)
-
-Эти уровни запрещено смешивать.
 
 ---
 
-# 2. Слои архитектуры
+# 1. Цель платформы
 
-Архитектура строго слоистая:
+ServiceManager.AI — это SaaS-платформа управления сервисной сетью.
 
-1. Auth Layer (JWT)
-2. Capability Layer (PBAC)
-3. Data Policy Layer (RoleScopePolicy)
-4. Service Layer (Business Logic)
-5. DB Layer (Prisma / PostgreSQL)
+Платформа должна масштабироваться до:
 
----
+- крупных сервисных компаний
+- сетевых структур
+- франчайзинговых сетей
+- enterprise-клиентов
 
-# 3. Capability Layer (PBAC)
+Система должна быть:
 
-## 3.1 Назначение
+- multi-tenant
+- безопасной
+- масштабируемой
+- расширяемой
 
-Permission Blocks отвечают только на вопрос:
-
-> Разрешено ли выполнять действие вообще?
-
-Guard НЕ:
-
-- строит where
-- фильтрует данные
-- проверяет специализации
-- проверяет assigned
-- содержит бизнес-логику
-
-Guard делает только:
-
-ALLOW / DENY действия.
 
 ---
 
-## 3.2 Правила Permission Codes
+# 2. Главные архитектурные инварианты
 
-Формат:
+Инварианты — это правила, которые **никогда нельзя нарушать**.
 
-DOMAIN_ACTION[_QUALIFIER]
+## 2.1 Multi-tenant инвариант
 
-Примеры:
-
-TICKETS_READ  
-TICKETS_CREATE  
-TICKETS_ASSIGN  
-TICKETS_CLAIM  
-TICKETS_STATUS_CHANGE  
-TICKETS_EDIT  
-ANALYTICS_VIEW  
-SLA_MANAGE  
-USERS_MANAGE  
-
-Запрещено:
-
-- Дублировать смысл
-- Создавать “почти одинаковые” коды
-- Вводить permission без документации
-
-Все коды фиксируются централизованно.
-
----
-
-## 3.3 Приоритет прав
-
-Allow = объединение:
-
-RolePermission + UserPermission
-
-Если permission отсутствует → DENY.
-
-MVP не использует explicit DENY модель.
-
----
-
-# 4. Data Policy Layer (RoleScopePolicy)
-
-## 4.1 Назначение
-
-RoleScopePolicy отвечает на вопрос:
-
-> К каким данным можно применять разрешённое действие?
-
-Policy:
-
-- строит Prisma where
-- проверяет object-access
-- определяет scope list/get
-- определяет ограничения assign/claim/status/edit
-
-Policy — единственная точка правды для data-access.
-
----
-
-## 4.2 Инварианты
-
-- Любой where обязан содержать companyId
-- Service не пишет собственные where-фильтры
-- Guard не содержит scope-логики
-- Policy не пишет в БД
-- Любой write требует и Permission, и Policy-проверки
-
----
-
-# 5. Поддерживаемые роли (UserRole enum)
-
-На текущем этапе система поддерживает:
-
-ADMIN  
-MASTER  
-DISPATCHER (совместимость)  
-TECHNICIAN  
-CLIENT  
-TERRITORIAL_MANAGER  
-NETWORK_DIRECTOR  
-STAFF  
-
-Любая новая роль должна быть отражена:
-
-- В Ticket Visibility Matrix
-- В Permission mapping
-- В e2e тестах
-
----
-
-# 6. Ticket Visibility Contract v2
-
-Официальный контракт поведения зафиксирован в:
-
-docs/TICKET_VISIBILITY_MATRIX.md
-
-Ключевые правила:
-
-ADMIN:
-- READ: ALL
-- WRITE: ALL
-
-MASTER / DISPATCHER:
-- READ: ALL
-- ASSIGN: YES
-- STATUS_CHANGE: YES
-
-NETWORK_DIRECTOR:
-- READ: ALL
-- WRITE: YES
-
-TERRITORIAL_MANAGER:
-- READ: ALL (в MVP)
-- WRITE: YES (в MVP)
-- Позже станет ZONE-scoped
-
-STAFF:
-- READ: ALL
-- WRITE: только через Permission Blocks
-
-TECHNICIAN:
-- READ: ALL within company
-- CLAIM: NEW + matching specialization
-- STATUS_CHANGE: only assigned to self
-- ASSIGN: NO
-
-CLIENT:
-- READ: CREATED_BY_ME
-- CREATE: YES
-- WRITE: ограниченно по правилам
-
-Изменение этого контракта требует:
-
-1. Обновления матрицы
-2. Обновления e2e тестов
-3. Обновления данного документа (если меняется принцип)
-
----
-
-# 7. Multi-Tenant Инвариант
-
-Любая операция обязана фильтроваться по:
+Каждая доменная сущность обязана содержать:
 
 companyId
 
-Нарушение этого правила считается критической ошибкой безопасности.
+Все запросы к базе должны фильтроваться по:
+
+req.user.companyId
+
+Запрещено:
+
+- глобальные выборки
+- cross-tenant доступ
+- отсутствие фильтра companyId
+
 
 ---
 
-# 8. SLA Foundation
+## 2.2 Backend — источник истины
 
-SLA — платформенный механизм.
+Backend является единственным источником бизнес-логики.
 
-## 8.1 Поля Ticket
+Запрещено:
 
-slaDueAt  
-slaBreachedAt  
+- переносить бизнес-логику во frontend
+- дублировать бизнес-логику
 
-## 8.2 Worker
-
-Фоновая задача:
-
-slaDueAt < now  
-AND slaBreachedAt is null  
-AND status not in (DONE, CANCELED)
-
-Отмечает breach.
-
-SLA расчёты не должны зависеть от контроллеров.
 
 ---
 
-# 9. Analytics Readiness
+## 2.3 Service-layer правило
 
-Источник правды:
+Бизнес-логика размещается только в:
 
-TicketStatusHistory
+Service
 
-Метрики v1:
+Controller отвечает только за:
 
-- Tickets count
-- Mean time to assign
-- Mean time to resolve
-- SLA breached count
-- Throughput per technician
+- HTTP
+- DTO
+- передачу данных
 
-Analytics строится на событиях, а не на текущем статусе.
 
 ---
 
-# 10. Запрещено
+# 3. Capability vs Data Scope
 
-- Хардкодить JWT
-- Хардкодить токены
-- Смешивать Guard и Policy
-- Писать where вне Policy
-- Убирать companyId фильтрацию
-- Давать TECHNICIAN изменение чужих тикетов
+Архитектура доступа разделена на два уровня.
 
----
+Capability  
+↓  
+Data Scope
 
-# 11. Стратегическая цель
-
-Перейти от:
-
-Role-based access
-
-К:
-
-Role + Permission Blocks + Centralized Scope Policy
-
-Это позволит:
-
-- Не плодить роли
-- Делать enterprise кастомизацию
-- Продавать функциональные пакеты
-- Масштабироваться до Hubex-уровня
 
 ---
 
-# 12. Итог
+## 3.1 Capability (Permission)
 
-ServiceManager.AI — не CRM для мастеров.
+Capability отвечает на вопрос:
 
-Это платформа управления сервисной сетью.
+МОЖНО ЛИ ВЫПОЛНИТЬ ДЕЙСТВИЕ
 
-Любое архитектурное решение должно быть совместимо
-с будущим масштабированием.
+
+Пример:
+
+TICKETS_ASSIGN  
+TICKETS_VIEW  
+TICKETS_CLAIM  
+TICKETS_STATUS_CHANGE
+
+
+Capability проверяется через:
+
+PermissionGuard
+
+
+---
+
+## 3.2 Data Scope (Policy)
+
+Scope отвечает на вопрос:
+
+К КАКИМ ДАННЫМ ПРИМЕНИМО ДЕЙСТВИЕ
+
+Примеры scope:
+
+ALL  
+COMPANY  
+ASSIGNED_TO_ME  
+CREATED_BY_ME
+
+
+Scope реализуется через:
+
+RoleScopePolicy
+
+
+---
+
+# 4. Архитектурные слои
+
+Система использует слоистую архитектуру.
+
+Controller  
+↓  
+Guard (PermissionGuard)  
+↓  
+Policy Layer  
+↓  
+Service  
+↓  
+Domain Events  
+↓  
+Database (Prisma)
+
+
+---
+
+## 4.1 Controller
+
+Отвечает за:
+
+- HTTP маршруты
+- DTO
+- вызов service
+
+Controller не содержит бизнес-логики.
+
+
+---
+
+## 4.2 Guard
+
+Guard проверяет:
+
+можно ли выполнить действие.
+
+
+---
+
+## 4.3 Policy
+
+Policy определяет:
+
+какие данные доступны.
+
+
+---
+
+## 4.4 Service
+
+Service выполняет:
+
+- бизнес-операции
+- работу с базой
+- создание Domain Events
+
+
+---
+
+# 5. Permission-Based Access Control (PBAC)
+
+Система использует PBAC модель.
+
+Модель:
+
+Role  
++  
+Permission Blocks
+
+
+---
+
+## 5.1 PermissionBlock
+
+Таблица:
+
+PermissionBlock
+
+Поля:
+
+id  
+code  
+name  
+description
+
+
+Примеры permission:
+
+TICKETS_CREATE  
+TICKETS_ASSIGN  
+TICKETS_VIEW  
+TICKETS_CLAIM  
+TICKETS_STATUS_CHANGE  
+USERS_MANAGE  
+ANALYTICS_VIEW  
+
+
+---
+
+## 5.2 RolePermission
+
+Связь:
+
+role → permissionBlock
+
+Это позволяет:
+
+- гибко управлять правами
+- расширять систему
+- создавать feature-packages
+
+
+---
+
+# 6. Domain Event Architecture
+
+Любое важное действие фиксируется
+в Event Store.
+
+Таблица:
+
+DomainEvent
+
+
+Примеры событий:
+
+ticket.created  
+ticket.assigned  
+ticket.claimed  
+ticket.status_changed
+
+
+Event Store используется для:
+
+- аудита
+- аналитики
+- SLA
+- workflow engine
+
+
+---
+
+# 7. Ticket System
+
+Ticket — центральная сущность платформы.
+
+Ticket содержит:
+
+id  
+companyId  
+problemCategoryId  
+problemText  
+urgency  
+status  
+assignedTechnicianId  
+slaMinutes
+
+
+---
+
+# 8. Ticket Assignment
+
+Алгоритм назначения:
+
+1. Определить специализации категории проблемы
+2. Найти техников с этими специализациями
+3. Если autoAssignEnabled:
+
+назначить первого кандидата
+
+4. Иначе:
+
+оставить NEW
+
+
+---
+
+# 9. Claim механизм
+
+Техник может забирать заявки.
+
+API:
+
+GET /tickets/available  
+POST /tickets/:id/claim
+
+
+После claim:
+
+assignedTechnicianId обновляется.
+
+
+---
+
+# 10. Ticket Board
+
+Основной интерфейс системы.
+
+Колонки:
+
+NEW  
+ASSIGNED  
+IN_PROGRESS  
+DONE  
+CANCELED
+
+
+API:
+
+GET /tickets/board
+
+
+Board поддерживает фильтры:
+
+status  
+assigneeId  
+sla  
+search
+
+
+---
+
+# 11. SLA foundation
+
+Каждый тикет содержит:
+
+slaMinutes
+
+
+Будущий SLA engine будет вычислять:
+
+deadline  
+atRisk  
+breached
+
+
+---
+
+# 12. Запрещённые архитектурные практики
+
+Нельзя:
+
+- писать бизнес-логику в controller
+- обходить guards
+- писать raw SQL без причины
+- делать запросы без companyId
+- хардкодить токены
+
+
+---
+
+# 13. Долгосрочная архитектура
+
+Платформа развивается к:
+
+Service Network Platform.
+
+Будущие модули:
+
+SLA Engine  
+Zones / Territories  
+Workflow Engine  
+Analytics Engine  
+Billing  
+Files / Media  
+Comments  
+Mobile API
+
+
+---
+
+# 14. Главная цель архитектуры
+
+ServiceManager.AI должен стать
+enterprise-уровня платформой
+управления сервисной сетью.
+
+Ключевые элементы:
+
+- PBAC
+- Policy Layer
+- Event Store
+- SLA Engine
+- Analytics

@@ -1,47 +1,145 @@
 # DEV COMMANDS — ServiceManager.AI
 
-Цель: быстрые команды для разработки без хранения токенов вручную.
+Цель документа:
+
+Стандартизировать команды разработки и тестирования API.
+
+Все команды предполагают:
+
+- локальный backend
+- Docker environment
+- JWT авторизацию
 
 Base URL (dev):
+
 http://localhost:3000
 
 ---
 
-## 1. Получить JWT токен (ADMIN)
+# 1. Установка инструментов
 
-TOKEN=$(curl -s -X POST http://localhost:3000/auth/login \
+Для удобной работы с API требуется:
+
+jq
+
+Установка:
+
+sudo apt install jq
+
+---
+
+# 2. Dev helpers (bash)
+
+Рекомендуется добавить dev helpers в:
+
+~/.bashrc
+
+Пример:
+
+# === ServiceManager.AI dev helpers ===
+
+export SMA_API_BASE="http://localhost:3000"
+export SMA_DEV_EMAIL="admin@example.com"
+export SMA_DEV_PASSWORD="admin"
+
+sma_token() {
+  curl -s -X POST "$SMA_API_BASE/auth/login" \
+    -H "Content-Type: application/json" \
+    -d "{\"email\":\"$SMA_DEV_EMAIL\",\"password\":\"$SMA_DEV_PASSWORD\"}" \
+  | jq -r .access_token
+}
+
+sma_me() {
+  local t
+  t="$(sma_token)"
+  curl -s "$SMA_API_BASE/auth/me" \
+    -H "Authorization: Bearer $t"
+}
+
+board() {
+  local qs="${1:-}"
+  local t
+  t="$(sma_token)"
+  curl -s "$SMA_API_BASE/tickets/board${qs}" \
+    -H "Authorization: Bearer $t"
+}
+
+Применить:
+
+source ~/.bashrc
+
+---
+
+# 3. Проверка авторизации
+
+Получить текущего пользователя:
+
+sma_me
+
+Ответ:
+
+{
+  "id": "...",
+  "email": "...",
+  "role": "ADMIN",
+  "companyId": "..."
+}
+
+---
+
+# 4. Получить JWT вручную
+
+curl -s -X POST http://localhost:3000/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"owner@sma.local","password":"ChangeMe123!"}' \
-  | sed -n 's/.*"access_token":"\([^"]*\)".*/\1/p')
-
-echo "TOKEN_LEN=${#TOKEN}"
+  -d '{"email":"admin@example.com","password":"admin"}' \
+  | jq
 
 ---
 
-## 2. Проверить текущего пользователя
+# 5. Tickets board
 
-curl -s http://localhost:3000/auth/me \
-  -H "Authorization: Bearer $TOKEN"
+Получить kanban board:
+
+board
+
+Фильтры:
+
+board "?status=NEW"
+
+board "?status=NEW&status=ASSIGNED"
+
+board "?assigneeId=unassigned"
+
+board "?sla=atRisk"
+
+board "?take=50"
+
+board "?q=printer"
+
+Комбинированный пример:
+
+board "?status=NEW&status=ASSIGNED&assigneeId=unassigned&sla=atRisk&take=50&q=test"
 
 ---
 
-## 3. Создать техника
+# 6. Создание пользователя
+
+TOKEN=$(sma_token)
 
 curl -s -X POST http://localhost:3000/users \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"email":"tech@test.local","password":"ChangeMe123!","role":"TECHNICIAN"}'
+  -d '{
+    "email":"tech@test.local",
+    "password":"ChangeMe123!",
+    "role":"TECHNICIAN"
+  }'
 
 ---
 
-## 4. Список техников
+# 7. Создание тикета
 
-curl -s http://localhost:3000/technicians \
-  -H "Authorization: Bearer $TOKEN"
-
----
-
-## 5. Создать тикет
+TOKEN=$(sma_token)
 
 curl -s -X POST http://localhost:3000/tickets \
   -H "Authorization: Bearer $TOKEN" \
@@ -58,75 +156,86 @@ curl -s -X POST http://localhost:3000/tickets \
 
 ---
 
-## 6. Получить список тикетов
+# 8. Назначение техника
 
-curl -s http://localhost:3000/tickets \
+TOKEN=$(sma_token)
+
+curl -X PUT http://localhost:3000/tickets/<TICKET_ID>/assign/<TECH_ID> \
   -H "Authorization: Bearer $TOKEN"
 
 ---
 
-## 7. Получить один тикет
+# 9. Claim тикета
 
-curl -s http://localhost:3000/tickets/<TICKET_ID> \
+TOKEN=$(sma_token)
+
+curl -X POST http://localhost:3000/tickets/<TICKET_ID>/claim \
   -H "Authorization: Bearer $TOKEN"
 
 ---
 
-## 8. Ручное назначение техника
+# 10. Смена статуса
 
-curl -s -X PUT http://localhost:3000/tickets/<TICKET_ID>/assign/<TECH_ID> \
-  -H "Authorization: Bearer $TOKEN"
+TOKEN=$(sma_token)
 
----
-
-## 9. Создать дочерний тикет
-
-curl -s -X POST http://localhost:3000/tickets/<PARENT_ID>/child \
+curl -X PATCH http://localhost:3000/tickets/<TICKET_ID>/status \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "problemCategoryId":"<CATEGORY_ID>",
-    "problemText":"Child task",
-    "urgency":"NOT_URGENT"
+    "status":"IN_PROGRESS"
   }'
 
 ---
 
-## 10. Включить автоназначение
-
-curl -s -X PATCH http://localhost:3000/company/auto-assign \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"enabled":true}'
-
----
-
-## 11. Выключить автоназначение
-
-curl -s -X PATCH http://localhost:3000/company/auto-assign \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{"enabled":false}'
-
----
-
-## 12. Prisma
-
-Миграция:
-npx prisma migrate dev --name <migration_name>
-
-Форматирование:
-npx prisma format
-
----
-
-## 13. Docker
+# 11. Docker
 
 Пересобрать backend:
+
 docker compose up -d --build backend
 
 Посмотреть логи:
-docker logs -n 80 sma_backend
 
-Остановить:
+docker logs -n 100 sma_backend
+
+Остановить систему:
+
 docker compose down
+
+---
+
+# 12. Prisma
+
+Создать миграцию:
+
+npx prisma migrate dev --name migration_name
+
+Форматирование:
+
+npx prisma format
+
+Открыть Prisma Studio:
+
+npx prisma studio
+
+---
+
+# 13. Полезные команды
+
+Показать пользователей:
+
+docker compose exec backend node -e "const {PrismaClient}=require('@prisma/client');const p=new PrismaClient();p.user.findMany().then(r=>console.log(r)).finally(()=>p.\$disconnect())"
+
+Показать количество сущностей:
+
+docker compose exec backend node -e "const {PrismaClient}=require('@prisma/client');const p=new PrismaClient();Promise.all([p.user.count(),p.ticket.count()]).then(r=>console.log(r)).finally(()=>p.\$disconnect())"
+
+---
+
+# 14. Dev Philosophy
+
+Dev команды должны:
+
+- не хранить JWT в репозитории
+- использовать динамический login
+- работать внутри multi-tenant модели
+- не нарушать security rules

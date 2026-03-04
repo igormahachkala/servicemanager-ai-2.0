@@ -1,129 +1,279 @@
-# TICKET VISIBILITY MATRIX v2
-ServiceManager.AI
+# TICKET VISIBILITY MATRIX — ServiceManager.AI
 
-Цель: Зафиксировать ожидаемое поведение доступа к тикетам для ВСЕХ ролей.
-Матрица = контракт. Любые изменения → обновить матрицу + e2e тесты.
+Этот документ фиксирует правила доступа к тикетам.
 
----
+Он является контрактом между:
 
-# 1) READ (list/get)
+- backend
+- frontend
+- permission системой
 
-| Role               | Scope (что видит)                         | Комментарий |
-|--------------------|-------------------------------------------|-------------|
-| ADMIN              | ALL                                       | Полный доступ внутри company |
-| NETWORK_DIRECTOR   | ALL                                       | Руководитель сети: полный обзор внутри company |
-| TERRITORIAL_MANAGER| ALL (пока)                                | MVP: пока без зон → все тикеты. Позже станет ZONE/POINT scoped |
-| MASTER             | ALL                                       | Оперативное управление |
-| DISPATCHER         | ALL                                       | Для совместимости: ведёт себя как MASTER (пока) |
-| STAFF              | ALL (read-only по умолчанию)              | Служебная роль: читает, но действия выдаются блоками |
-| TECHNICIAN         | ALL within company (READ расширен)        | Важно: чтение шире, но изменения только своей |
-| CLIENT             | CREATED_BY_ME (позже: по pointId)          | Клиент видит только свои заявки |
+Документ определяет:
+
+- кто какие тикеты видит
+- кто может назначать
+- кто может делать claim
+- кто может менять статус
+
 
 ---
 
-# 2) CREATE (создание заявок)
+# 1. Основные статусы тикетов
 
-| Role               | Allowed | Комментарий |
-|--------------------|---------|-------------|
-| ADMIN              | YES     | |
-| NETWORK_DIRECTOR   | YES     | |
-| TERRITORIAL_MANAGER| YES     | |
-| MASTER             | YES     | |
-| DISPATCHER         | YES     | |
-| STAFF              | OPTIONAL| Только если дан permission (TICKETS_CREATE) |
-| TECHNICIAN         | OPTIONAL| Иногда нужно “создать дочернюю/сопутствующую” — через permission |
-| CLIENT             | YES     | Основная функция клиента |
+Система использует следующие статусы:
+
+NEW  
+ASSIGNED  
+IN_PROGRESS  
+DONE  
+CANCELED
+
 
 ---
 
-# 3) ASSIGN (назначение техника)
+# 2. Основные роли системы
 
-| Role               | Allowed | Комментарий |
-|--------------------|---------|-------------|
-| ADMIN              | YES     | |
-| NETWORK_DIRECTOR   | YES     | |
-| TERRITORIAL_MANAGER| YES     | |
-| MASTER             | YES     | |
-| DISPATCHER         | YES     | Совместимость |
-| STAFF              | OPTIONAL| Только если дан permission (TICKETS_ASSIGN) |
-| TECHNICIAN         | NO      | Не назначает других |
-| CLIENT             | NO      | |
+Роли:
 
----
+ADMIN  
+MASTER  
+TECHNICIAN  
+CLIENT  
+NETWORK_DIRECTOR  
+STAFF
 
-# 4) CLAIM (техник забирает NEW)
-
-| Role               | Allowed | Правило |
-|--------------------|---------|--------|
-| TECHNICIAN         | YES     | Только NEW + matching specialization |
-| ADMIN              | OPTIONAL| Обычно не нужно, но можно разрешить |
-| MASTER             | OPTIONAL| Можно использовать как “назначить себя” |
-| DISPATCHER         | OPTIONAL| |
-| TERRITORIAL_MANAGER| OPTIONAL| |
-| NETWORK_DIRECTOR   | OPTIONAL| |
-| STAFF              | OPTIONAL| |
-| CLIENT             | NO      | |
 
 ---
 
-# 5) STATUS_CHANGE (смена статуса)
+# 3. Visibility matrix
 
-| Role               | Allowed | Правило |
-|--------------------|---------|--------|
-| ADMIN              | YES     | Любые тикеты |
-| NETWORK_DIRECTOR   | YES     | Любые тикеты |
-| TERRITORIAL_MANAGER| YES     | Любые тикеты (позже: scoped) |
-| MASTER             | YES     | Любые тикеты |
-| DISPATCHER         | YES     | Как MASTER |
-| STAFF              | OPTIONAL| Только при наличии permission (TICKETS_STATUS_CHANGE) |
-| TECHNICIAN         | YES     | Только assigned to self |
-| CLIENT             | NO      | (позже: может отменить/комментировать по правилам) |
+## ADMIN
 
----
+Видит:
 
-# 6) EDIT (правка полей заявки: адрес/описание/категория)
+- все тикеты компании
 
-| Role               | Allowed | Правило |
-|--------------------|---------|--------|
-| ADMIN              | YES     | Любые тикеты |
-| NETWORK_DIRECTOR   | YES     | Любые тикеты |
-| TERRITORIAL_MANAGER| YES     | Любые тикеты (позже: scoped) |
-| MASTER             | YES     | Любые тикеты |
-| DISPATCHER         | YES     | |
-| STAFF              | OPTIONAL| По permission |
-| TECHNICIAN         | OPTIONAL| Только если разрешим (обычно: ограниченно, например “комментарий/факт работ”) |
-| CLIENT             | OPTIONAL| Только до назначения / по правилам (позже) |
+Может:
+
+- создавать тикеты
+- назначать техников
+- менять статус
+- закрывать тикеты
+- просматривать аналитику
+
 
 ---
 
-# 7) CHILD TICKETS (создание дочерней заявки)
+## MASTER
 
-| Role               | Allowed | Комментарий |
-|--------------------|---------|-------------|
-| ADMIN              | YES     | |
-| NETWORK_DIRECTOR   | YES     | |
-| TERRITORIAL_MANAGER| YES     | |
-| MASTER             | YES     | Основной сценарий “не заполнять заново” |
-| DISPATCHER         | YES     | |
-| STAFF              | OPTIONAL| По permission |
-| TECHNICIAN         | OPTIONAL| Полезно в полях, но через permission |
-| CLIENT             | NO/OPTIONAL | Обычно нет, но можно разрешить как расширение |
+Видит:
 
----
+- все тикеты компании
 
-# 8) ИНВАРИАНТЫ (не обсуждаются)
+Может:
 
-1) Любая операция — строго внутри companyId  
-2) Guard (PBAC) отвечает только “можно/нельзя действие”  
-3) Policy (RoleScopePolicy) отвечает “какие данные” и “какие ограничения”  
-4) TECHNICIAN: чтение можно расширять, изменения — только своей (assigned)  
-5) Любое изменение матрицы → обновить e2e тесты и docs/PLATFORM_CONSTITUTION_V2.md (если изменили контракт)
+- создавать тикеты
+- назначать техников
+- менять статус
+- управлять заявками
+
 
 ---
 
-# 9) ПРИМЕЧАНИЕ ПРО БУДУЩЕЕ (zones/points)
+## TECHNICIAN
 
-Когда появятся zones/points:
-- TERRITORIAL_MANAGER станет scoped: POINTS_IN_ZONE / ZONES_ASSIGNED
-- NETWORK_DIRECTOR может остаться ALL
-- CLIENT может стать scoped: own pointId
+Видит:
+
+- тикеты назначенные ему
+- NEW тикеты своей специализации
+
+Не видит:
+
+- чужие назначенные тикеты
+
+Может:
+
+- claim NEW тикеты
+- менять статус назначенных тикетов
+
+
+---
+
+## CLIENT
+
+Видит:
+
+- только свои заявки
+
+Может:
+
+- создавать заявки
+- смотреть статус
+
+
+---
+
+## NETWORK_DIRECTOR
+
+Будущий функционал.
+
+Будет видеть:
+
+- тикеты всей сети
+- агрегированную аналитику
+
+
+---
+
+## STAFF
+
+Видит:
+
+- тикеты в рамках своей роли (ограничено)
+
+
+---
+
+# 4. Claim правила
+
+Claim доступен только для:
+
+TECHNICIAN
+
+Условия:
+
+- тикет имеет статус NEW
+- специализация техника совпадает
+- тикет принадлежит той же компании
+
+
+После claim:
+
+assignedTechnicianId = technicianId  
+status = ASSIGNED
+
+
+---
+
+# 5. Assignment правила
+
+Назначение выполняют:
+
+ADMIN  
+MASTER
+
+API:
+
+PUT /tickets/:id/assign/:technicianId
+
+
+После назначения:
+
+assignedTechnicianId обновляется  
+status = ASSIGNED
+
+
+---
+
+# 6. Status change правила
+
+Изменять статус могут:
+
+ADMIN  
+MASTER  
+TECHNICIAN (только свои тикеты)
+
+
+Допустимые переходы:
+
+NEW → ASSIGNED  
+ASSIGNED → IN_PROGRESS  
+IN_PROGRESS → DONE  
+IN_PROGRESS → CANCELED
+
+
+---
+
+# 7. Ticket Board правила
+
+Board показывает тикеты по колонкам:
+
+NEW  
+ASSIGNED  
+IN_PROGRESS  
+DONE  
+CANCELED
+
+
+Board фильтруется:
+
+по companyId  
+по permissions  
+по scope
+
+
+---
+
+# 8. Scope правила
+
+Scope определяет какие данные доступны.
+
+Scope уровни:
+
+ALL  
+COMPANY  
+ASSIGNED_TO_ME  
+CREATED_BY_ME
+
+
+Пример:
+
+TECHNICIAN:
+
+Permission:
+
+TICKETS_VIEW
+
+Scope:
+
+ASSIGNED_TO_ME
+
+
+---
+
+# 9. Multi-tenant правило
+
+Все запросы обязаны фильтроваться по:
+
+companyId
+
+
+Запрещено:
+
+- возвращать тикеты других компаний
+- выполнять глобальные выборки
+
+
+---
+
+# 10. Архитектурное значение документа
+
+Этот документ используется для:
+
+- реализации RoleScopePolicy
+- настройки PermissionBlocks
+- определения поведения Ticket Board
+- согласования frontend и backend логики
+
+
+---
+
+# 11. Источник истины
+
+Этот документ является:
+
+контрактом поведения системы.
+
+Любые изменения доступа к тикетам должны
+сначала обновлять этот документ,
+а затем код системы.
