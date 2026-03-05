@@ -1,6 +1,13 @@
-import { ForbiddenException } from '@nestjs/common';
-import { PolicyDecision } from './policy.types';
+// backend/src/policy/policy.utils.ts
 
-export function assertAllowed(decision: PolicyDecision): void {
-  if (!decision.allow) throw new ForbiddenException(decision.reason ?? 'Forbidden by policy');
+import { ForbiddenException } from '@nestjs/common';
+import type { AllowDecision, PolicyDecision } from './policy.types';
+
+/**
+ * ВАЖНО: это assertion-функция.
+ * После assertAllowed(decision) TypeScript знает, что decision.allowed === true,
+ * а decision.where существует (для allow(payload)).
+ */
+export function assertAllowed<T>(d: PolicyDecision<T>): asserts d is AllowDecision<T> {
+  if (!d.allowed) throw new ForbiddenException(d.reason);
 }
