@@ -219,3 +219,40 @@ model UserPermission {
   @@index([userId])
   @@index([permissionBlockId])
 }
+
+//
+// ===== Hubex Domain Events (Event Store) — v1 =====
+//
+
+model DomainEvent {
+  id          String   @id @default(uuid())
+  companyId   String
+  entityType  String
+  entityId    String
+  type        String
+  actorUserId String?
+  payload     Json?
+  createdAt   DateTime @default(now())
+
+  @@index([companyId, createdAt])
+  @@index([companyId, type, createdAt])
+  @@index([entityType, entityId])
+}
+
+//
+// ===== Assignment Cursor (Assignment v2 foundation) =====
+// Persisted cursor per (companyId, strategy).
+//
+
+model AssignmentCursor {
+  id        String   @id @default(uuid())
+  companyId String
+  strategy  String
+  cursor    Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, strategy])
+  @@index([companyId])
+  @@index([companyId, strategy])
+}
