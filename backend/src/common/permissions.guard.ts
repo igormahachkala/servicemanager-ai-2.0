@@ -1,9 +1,12 @@
+// backend/src/common/permissions.guard.ts
+
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { UserRole } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { PERMISSIONS_KEY } from './permissions.decorator';
+import type { PermissionCode } from './permissions.constants';
 
 @Injectable()
 export class PermissionsGuard implements CanActivate {
@@ -13,10 +16,10 @@ export class PermissionsGuard implements CanActivate {
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const requiredPermissions = this.reflector.getAllAndOverride<string[]>(PERMISSIONS_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ]);
+    const requiredPermissions = this.reflector.getAllAndOverride<PermissionCode[]>(
+      PERMISSIONS_KEY,
+      [context.getHandler(), context.getClass()],
+    );
 
     // Если permissions не заданы — пропускаем любого авторизованного пользователя
     if (!requiredPermissions || requiredPermissions.length === 0) return true;

@@ -1,8 +1,20 @@
 import { TicketUrgency } from '@prisma/client';
+import { IsEnum, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
 
 export class CreateChildTicketDto {
-  problemCategoryId: string;
-  problemText: string;
+  @IsUUID()
+  problemCategoryId!: string;
+
+  @IsString()
+  problemText!: string;
+
+  @IsOptional()
+  @IsEnum(TicketUrgency)
   urgency?: TicketUrgency;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(60 * 24 * 30)
   slaMinutes?: number;
 }

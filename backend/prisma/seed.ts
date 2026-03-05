@@ -1,5 +1,7 @@
 import { PrismaClient, UserRole } from '@prisma/client';
 
+import { PERMISSIONS, type PermissionCode } from '../src/common/permissions.constants';
+
 const prisma = new PrismaClient();
 
 /**
@@ -10,19 +12,64 @@ const prisma = new PrismaClient();
  * Идемпотентно: upsert по уникальным ключам.
  */
 async function main() {
-  const blocks: Array<{ code: string; name: string; description?: string }> = [
+  const blocks: Array<{ code: PermissionCode; name: string; description?: string }> = [
     // Tickets
-    { code: 'TICKETS_CREATE', name: 'Create tickets', description: 'Create tickets and child tickets' },
-    { code: 'TICKETS_VIEW', name: 'View tickets', description: 'View tickets list and single ticket' },
-    { code: 'TICKETS_VIEW_AVAILABLE', name: 'View available tickets', description: 'View available NEW tickets for technician' },
-    { code: 'TICKETS_CLAIM', name: 'Claim tickets', description: 'Claim available NEW ticket (assign to self)' },
-    { code: 'TICKETS_ASSIGN', name: 'Assign tickets', description: 'Assign ticket to technician' },
-    { code: 'TICKETS_STATUS_CHANGE', name: 'Change ticket status', description: 'Change ticket status' },
+    {
+      code: PERMISSIONS.TICKETS_CREATE,
+      name: 'Create tickets',
+      description: 'Create tickets and child tickets',
+    },
+    {
+      code: PERMISSIONS.TICKETS_VIEW,
+      name: 'View tickets',
+      description: 'View tickets list and single ticket',
+    },
+    {
+      code: PERMISSIONS.TICKETS_VIEW_AVAILABLE,
+      name: 'View available tickets',
+      description: 'View available NEW tickets for technician',
+    },
+    {
+      code: PERMISSIONS.TICKETS_CLAIM,
+      name: 'Claim tickets',
+      description: 'Claim available NEW ticket (assign to self)',
+    },
+    {
+      code: PERMISSIONS.TICKETS_ASSIGN,
+      name: 'Assign tickets',
+      description: 'Assign ticket to technician',
+    },
+    {
+      code: PERMISSIONS.TICKETS_STATUS_CHANGE,
+      name: 'Change ticket status',
+      description: 'Change ticket status',
+    },
 
-    // Future-friendly базовые
-    { code: 'ANALYTICS_VIEW', name: 'View analytics', description: 'Access analytics dashboards' },
-    { code: 'USERS_MANAGE', name: 'Manage users', description: 'Create/update users' },
-    { code: 'COMPANY_SETTINGS_EDIT', name: 'Edit company settings', description: 'Edit company settings like auto-assign' },
+    // Override scope (per-user)
+    {
+      code: PERMISSIONS.TICKETS_VIEW_ALL_COMPANY,
+      name: 'View all company tickets',
+      description: 'Override: technician can view all tickets within company (enable per-user via UserPermission)',
+    },
+
+    // Analytics
+    {
+      code: PERMISSIONS.ANALYTICS_VIEW,
+      name: 'View analytics',
+      description: 'Access analytics dashboards',
+    },
+
+    // Users / Company
+    {
+      code: PERMISSIONS.USERS_MANAGE,
+      name: 'Manage users',
+      description: 'Create/update users',
+    },
+    {
+      code: PERMISSIONS.COMPANY_SETTINGS_EDIT,
+      name: 'Edit company settings',
+      description: 'Edit company settings like auto-assign',
+    },
   ];
 
   // 1) Upsert PermissionBlock
@@ -45,41 +92,41 @@ async function main() {
   const allBlocks = await prisma.permissionBlock.findMany({ select: { id: true, code: true } });
   for (const b of allBlocks) codeToId.set(b.code, b.id);
 
-  // 2) Матрица прав по ролям (MVP: максимально близко к текущей role-модели)
-  // Важно: TECHNICIAN видит только свои в service (scope), но permission на чтение нужен чтобы пройти guard.
-  const matrix: Record<UserRole, string[]> = {
+  // 2) Матрица прав по ролям (MVP)
+  // Важно: TECHNICIAN по умолчанию НЕ получает TICKETS_VIEW_ALL_COMPANY — это включается точечно через UserPermission (тумблер).
+  const matrix: Record<UserRole, PermissionCode[]> = {
     ADMIN: [
-      'TICKETS_CREATE',
-      'TICKETS_VIEW',
-      'TICKETS_ASSIGN',
-      'TICKETS_STATUS_CHANGE',
-      'ANALYTICS_VIEW',
-      'USERS_MANAGE',
-      'COMPANY_SETTINGS_EDIT',
+      PERMISSIONS.TICKETS_CREATE,
+      PERMISSIONS.TICKETS_VIEW,
+      PERMISSIONS.TICKETS_ASSIGN,
+      PERMISSIONS.TICKETS_STATUS_CHANGE,
+      PERMISSIONS.ANALYTICS_VIEW,
+      PERMISSIONS.USERS_MANAGE,
+      PERMISSIONS.COMPANY_SETTINGS_EDIT,
     ],
     MASTER: [
-      'TICKETS_CREATE',
-      'TICKETS_VIEW',
-      'TICKETS_ASSIGN',
-      'TICKETS_STATUS_CHANGE',
-      'ANALYTICS_VIEW',
+      PERMISSIONS.TICKETS_CREATE,
+      PERMISSIONS.TICKETS_VIEW,
+      PERMISSIONS.TICKETS_ASSIGN,
+      PERMISSIONS.TICKETS_STATUS_CHANGE,
+      PERMISSIONS.ANALYTICS_VIEW,
     ],
     DISPATCHER: [
-      'TICKETS_CREATE',
-      'TICKETS_VIEW',
-      'TICKETS_ASSIGN',
-      'TICKETS_STATUS_CHANGE',
+      PERMISSIONS.TICKETS_CREATE,
+      PERMISSIONS.TICKETS_VIEW,
+      PERMISSIONS.TICKETS_ASSIGN,
+      PERMISSIONS.TICKETS_STATUS_CHANGE,
     ],
     NETWORK_DIRECTOR: [
-      'TICKETS_VIEW',
-      'TICKETS_STATUS_CHANGE',
-      'ANALYTICS_VIEW',
+      PERMISSIONS.TICKETS_VIEW,
+      PERMISSIONS.TICKETS_STATUS_CHANGE,
+      PERMISSIONS.ANALYTICS_VIEW,
     ],
     TECHNICIAN: [
-      'TICKETS_VIEW',
-      'TICKETS_VIEW_AVAILABLE',
-      'TICKETS_CLAIM',
-      'TICKETS_STATUS_CHANGE',
+      PERMISSIONS.TICKETS_VIEW,
+      PERMISSIONS.TICKETS_VIEW_AVAILABLE,
+      PERMISSIONS.TICKETS_CLAIM,
+      PERMISSIONS.TICKETS_STATUS_CHANGE,
     ],
     CLIENT: [],
     TERRITORIAL_MANAGER: [],
@@ -108,10 +155,6 @@ async function main() {
     }
   }
 
-  // Не удаляем лишние RolePermission специально (чтобы не снести enterprise кастомизацию).
-  // Если нужно будет “синхронизировать строго” — сделаем отдельную admin-команду.
-
-  // Итоговая инфа
   const totalBlocks = await prisma.permissionBlock.count();
   const totalRolePerms = await prisma.rolePermission.count();
 
