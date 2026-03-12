@@ -18,24 +18,28 @@ export class AuthService {
       throw new BadRequestException('Company name is required');
     }
 
+    const email = dto.email.toLowerCase().trim();
+    const password = dto.password.trim();
+
     const existing = await this.prisma.user.findUnique({
-      where: { email: dto.email },
+      where: { email },
     });
 
     if (existing) {
       throw new BadRequestException('Email already registered');
     }
 
-    const passwordHash = await bcrypt.hash(dto.password, 10);
+    const passwordHash = await bcrypt.hash(password, 10);
 
     const company = await this.prisma.company.create({
       data: {
         name: dto.companyName.trim(),
         users: {
           create: {
-            email: dto.email.toLowerCase(),
+            email,
             password: passwordHash,
             role: UserRole.ADMIN,
+            isActive: true,
           },
         },
       },
@@ -53,15 +57,22 @@ export class AuthService {
   }
 
   async login(dto: LoginDto) {
+    const email = dto.email.toLowerCase().trim();
+    const password = dto.password.trim();
+
     const user = await this.prisma.user.findUnique({
-      where: { email: dto.email.toLowerCase() },
+      where: { email },
     });
 
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const ok = await bcrypt.compare(dto.password, user.password);
+    if (!user.isActive) {
+      throw new UnauthorizedException('Account is deactivated');
+    }
+
+    const ok = await bcrypt.compare(password, user.password);
 
     if (!ok) {
       throw new UnauthorizedException('Invalid credentials');
@@ -79,7 +90,7 @@ export class AuthService {
     userId: string,
     email: string,
     companyId: string,
-    role: string,
+    role: UserRole,
   ) {
     const payload = {
       sub: userId,

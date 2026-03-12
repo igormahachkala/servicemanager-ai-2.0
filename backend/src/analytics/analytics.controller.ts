@@ -7,6 +7,7 @@ import { Roles } from '../common/roles.decorator';
 
 import { PermissionsGuard } from '../common/permissions.guard';
 import { RequirePermission } from '../common/permissions.decorator';
+import { PERMISSIONS } from '../common/permissions.constants';
 
 import { AnalyticsService } from './analytics.service';
 
@@ -17,7 +18,7 @@ export class AnalyticsController {
 
   @Get('overview')
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR)
-  @RequirePermission('ANALYTICS_VIEW')
+  @RequirePermission(PERMISSIONS.ANALYTICS_VIEW)
   overview(@Req() req: any) {
     return this.svc.overview(req.user.companyId);
   }

@@ -1,6 +1,10 @@
 export type AssignmentCandidate = {
   id: string;
   email?: string;
+  matchedSpecializationsCount: number;
+  assignedCount: number;
+  inProgressCount: number;
+  activeLoad: number;
 };
 
 export type AssignmentContext = {

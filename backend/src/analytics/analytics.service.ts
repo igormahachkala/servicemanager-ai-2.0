@@ -8,71 +8,154 @@ export class AnalyticsService {
 
   async overview(companyId: string) {
     const now = new Date();
-
     const TICKETS_LIMIT = 2000;
 
-    // 1) Base counts
-    const createdCount = await this.prisma.ticket.count({ where: { companyId } });
+    const createdCount = await this.prisma.ticket.count({
+      where: { companyId },
+    });
 
     const openByStatusGrouped = await this.prisma.ticket.groupBy({
       by: ['status'],
       where: {
         companyId,
-        status: { in: [TicketStatus.NEW, TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS] },
+        status: {
+          in: [TicketStatus.NEW, TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS],
+        },
       },
       _count: { _all: true },
     });
 
-    const openByStatus: Record<string, number> = {
+    const openByStatus: {
+      NEW: number;
+      ASSIGNED: number;
+      IN_PROGRESS: number;
+    } = {
       NEW: 0,
       ASSIGNED: 0,
       IN_PROGRESS: 0,
     };
-    for (const row of openByStatusGrouped) openByStatus[row.status] = row._count._all;
 
-    // 2) SLA breached count (истина теперь slaBreachedAt)
-    const slaBreachedCount = await this.prisma.ticket.count({
-      where: { companyId, slaBreachedAt: { not: null } },
+    for (const row of openByStatusGrouped) {
+      if (row.status === TicketStatus.NEW) openByStatus.NEW = row._count._all;
+      if (row.status === TicketStatus.ASSIGNED) openByStatus.ASSIGNED = row._count._all;
+      if (row.status === TicketStatus.IN_PROGRESS) openByStatus.IN_PROGRESS = row._count._all;
+    }
+
+    const backlogOpenTotal =
+      openByStatus.NEW + openByStatus.ASSIGNED + openByStatus.IN_PROGRESS;
+
+    const unassignedOpenTickets = await this.prisma.ticket.count({
+      where: {
+        companyId,
+        status: {
+          in: [TicketStatus.NEW, TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS],
+        },
+        assignedTechnicianId: null,
+      },
     });
 
-    // 3) Берём последние N тикетов — на них считаем “время до assign/done”
+    const slaEvaluatedCount = await this.prisma.ticket.count({
+      where: {
+        companyId,
+        slaDueAt: { not: null },
+      },
+    });
+
+    const slaBreachedCount = await this.prisma.ticket.count({
+      where: {
+        companyId,
+        slaBreachedAt: { not: null },
+      },
+    });
+
+    const slaOkCount = Math.max(slaEvaluatedCount - slaBreachedCount, 0);
+
+    const okPercent =
+      slaEvaluatedCount > 0
+        ? Math.round((slaOkCount / slaEvaluatedCount) * 10000) / 100
+        : 0;
+
+    const breachedPercent =
+      slaEvaluatedCount > 0
+        ? Math.round((slaBreachedCount / slaEvaluatedCount) * 10000) / 100
+        : 0;
+
     const tickets = await this.prisma.ticket.findMany({
       where: { companyId },
-      select: { id: true, createdAt: true, assignedTechnicianId: true, status: true },
+      select: {
+        id: true,
+        createdAt: true,
+        assignedTechnicianId: true,
+        status: true,
+      },
       orderBy: { createdAt: 'desc' },
       take: TICKETS_LIMIT,
     });
 
     const ticketIds = tickets.map((t) => t.id);
     const createdAtById = new Map<string, Date>();
-    for (const t of tickets) createdAtById.set(t.id, t.createdAt);
 
-    // Если тикетов нет — возвращаем базовую структуру
+    for (const t of tickets) {
+      createdAtById.set(t.id, t.createdAt);
+    }
+
+    const technicians = await this.prisma.user.findMany({
+      where: {
+        companyId,
+        role: 'TECHNICIAN',
+      },
+      select: {
+        id: true,
+        email: true,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const technicianEmailById = new Map<string, string>();
+    for (const tech of technicians) {
+      technicianEmailById.set(tech.id, tech.email);
+    }
+
     if (ticketIds.length === 0) {
       return {
         createdCount,
         openByStatus,
-        sla: { breachedCount: slaBreachedCount },
+        summary: {
+          backlogOpenTotal,
+          unassignedOpenTickets,
+        },
+        sla: {
+          evaluatedCount: slaEvaluatedCount,
+          breachedCount: slaBreachedCount,
+          okPercent,
+          breachedPercent,
+        },
         timing: {
           evaluatedTickets: 0,
           meanTimeToAssignMinutes: 0,
           meanTimeToResolveMinutes: 0,
+          note: 'Нет тикетов для расчёта средних времен',
         },
+        workloadByTechnician: [],
         throughputByTechnician: [],
-        note: 'overview v2 (empty)',
+        note: 'overview v3 (empty)',
         now,
       };
     }
 
-    // 4) История статусов по этим тикетам
     const history = await this.prisma.ticketStatusHistory.findMany({
-      where: { ticketId: { in: ticketIds } },
-      select: { ticketId: true, toStatus: true, createdAt: true },
+      where: {
+        ticketId: { in: ticketIds },
+      },
+      select: {
+        ticketId: true,
+        toStatus: true,
+        createdAt: true,
+      },
       orderBy: [{ ticketId: 'asc' }, { createdAt: 'asc' }],
       take: 100000,
     });
 
-    // 5) Находим первые моменты ASSIGNED и DONE по каждому тикету
     const firstAssignedAt = new Map<string, Date>();
     const firstDoneAt = new Map<string, Date>();
 
@@ -80,12 +163,12 @@ export class AnalyticsService {
       if (h.toStatus === TicketStatus.ASSIGNED && !firstAssignedAt.has(h.ticketId)) {
         firstAssignedAt.set(h.ticketId, h.createdAt);
       }
+
       if (h.toStatus === TicketStatus.DONE && !firstDoneAt.has(h.ticketId)) {
         firstDoneAt.set(h.ticketId, h.createdAt);
       }
     }
 
-    // 6) Считаем средние времена
     let assignSum = 0;
     let assignN = 0;
 
@@ -96,41 +179,115 @@ export class AnalyticsService {
       const createdAt = createdAtById.get(id);
       if (!createdAt) continue;
 
-      const a = firstAssignedAt.get(id);
-      if (a && a.getTime() > createdAt.getTime()) {
-        assignSum += (a.getTime() - createdAt.getTime()) / 60000;
+      const assignedAt = firstAssignedAt.get(id);
+      if (assignedAt && assignedAt.getTime() > createdAt.getTime()) {
+        assignSum += (assignedAt.getTime() - createdAt.getTime()) / 60000;
         assignN += 1;
       }
 
-      const d = firstDoneAt.get(id);
-      if (d && d.getTime() > createdAt.getTime()) {
-        resolveSum += (d.getTime() - createdAt.getTime()) / 60000;
+      const doneAt = firstDoneAt.get(id);
+      if (doneAt && doneAt.getTime() > createdAt.getTime()) {
+        resolveSum += (doneAt.getTime() - createdAt.getTime()) / 60000;
         resolveN += 1;
       }
     }
 
-    const meanTimeToAssignMinutes = assignN ? Math.round((assignSum / assignN) * 100) / 100 : 0;
-    const meanTimeToResolveMinutes = resolveN ? Math.round((resolveSum / resolveN) * 100) / 100 : 0;
+    const meanTimeToAssignMinutes =
+      assignN > 0 ? Math.round((assignSum / assignN) * 100) / 100 : 0;
 
-    // 7) Throughput by technician (DONE) по последним N тикетам
-    // Считаем по Ticket.status = DONE и assignedTechnicianId != null
+    const meanTimeToResolveMinutes =
+      resolveN > 0 ? Math.round((resolveSum / resolveN) * 100) / 100 : 0;
+
+    const openTicketsWithAssignee = await this.prisma.ticket.findMany({
+      where: {
+        companyId,
+        status: {
+          in: [TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS],
+        },
+        assignedTechnicianId: { not: null },
+      },
+      select: {
+        assignedTechnicianId: true,
+        status: true,
+      },
+    });
+
+    const workloadMap = new Map<
+      string,
+      {
+        technicianId: string;
+        technicianEmail: string;
+        assignedOpenCount: number;
+        inProgressCount: number;
+        totalOpenCount: number;
+      }
+    >();
+
+    for (const row of openTicketsWithAssignee) {
+      const technicianId = row.assignedTechnicianId;
+      if (!technicianId) continue;
+
+      const existing = workloadMap.get(technicianId) ?? {
+        technicianId,
+        technicianEmail: technicianEmailById.get(technicianId) ?? technicianId,
+        assignedOpenCount: 0,
+        inProgressCount: 0,
+        totalOpenCount: 0,
+      };
+
+      if (row.status === TicketStatus.ASSIGNED) {
+        existing.assignedOpenCount += 1;
+      }
+
+      if (row.status === TicketStatus.IN_PROGRESS) {
+        existing.inProgressCount += 1;
+      }
+
+      existing.totalOpenCount += 1;
+
+      workloadMap.set(technicianId, existing);
+    }
+
+    const workloadByTechnician = Array.from(workloadMap.values()).sort((a, b) => {
+      if (b.totalOpenCount !== a.totalOpenCount) {
+        return b.totalOpenCount - a.totalOpenCount;
+      }
+      return a.technicianEmail.localeCompare(b.technicianEmail);
+    });
+
     const doneByTech = new Map<string, number>();
+
     for (const t of tickets) {
       if (t.status !== TicketStatus.DONE) continue;
       if (!t.assignedTechnicianId) continue;
-      doneByTech.set(t.assignedTechnicianId, (doneByTech.get(t.assignedTechnicianId) ?? 0) + 1);
+
+      doneByTech.set(
+        t.assignedTechnicianId,
+        (doneByTech.get(t.assignedTechnicianId) ?? 0) + 1,
+      );
     }
 
     const throughputByTechnician = Array.from(doneByTech.entries())
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10)
-      .map(([technicianId, doneCount]) => ({ technicianId, doneCount }));
+      .map(([technicianId, doneCount]) => ({
+        technicianId,
+        technicianEmail: technicianEmailById.get(technicianId) ?? technicianId,
+        doneCount,
+      }));
 
     return {
       createdCount,
       openByStatus,
+      summary: {
+        backlogOpenTotal,
+        unassignedOpenTickets,
+      },
       sla: {
+        evaluatedCount: slaEvaluatedCount,
         breachedCount: slaBreachedCount,
+        okPercent,
+        breachedPercent,
       },
       timing: {
         evaluatedTickets: ticketIds.length,
@@ -139,9 +296,11 @@ export class AnalyticsService {
         note:
           'Mean times computed from ticket.createdAt to first ASSIGNED/DONE status history event over last N tickets',
       },
+      workloadByTechnician,
       throughputByTechnician,
       now,
-      note: 'overview v2 (counts + slaBreachedAt + mean times + throughput top10 over last N tickets)',
+      note:
+        'overview v3 (counts + backlog + sla percent + workload + throughput + mean times)',
     };
   }
 }

@@ -1,5 +1,3 @@
-// backend/src/policy/tickets.policy.ts
-
 import { Prisma, TicketStatus, UserRole } from '@prisma/client';
 import { allow, deny, PolicyDecision } from './policy.types';
 
@@ -8,7 +6,6 @@ export type UserCtx = {
   role: UserRole;
   companyId: string;
 
-  // feature toggles (из PermissionsContextGuard)
   accessFlags?: {
     canTechnicianViewAllCompanyTickets?: boolean;
   };
@@ -27,7 +24,7 @@ export type SlaBucket = 'ok' | 'atRisk' | 'breached';
 
 export type BoardQueryInput = {
   statuses?: TicketStatus[];
-  assigneeId?: string | null; // null => только unassigned, string => конкретный техник
+  assigneeId?: string | null;
   sla?: SlaBucket;
   q?: string;
   take?: number;
@@ -49,14 +46,10 @@ function normalizeAnd(where: Prisma.TicketWhereInput, extra: Prisma.TicketWhereI
 }
 
 function baseReadScope(user: UserCtx): Prisma.TicketWhereInput {
-  // Management роли: всегда company-wide
   if (user.role !== UserRole.TECHNICIAN) {
     return { companyId: user.companyId };
   }
 
-  // TECHNICIAN:
-  // - по умолчанию: только мои назначенные (модель “мои + доступные” достигается через отдельный endpoint /available)
-  // - если включен тумблер: видит всё company
   const canSeeAll = !!user.accessFlags?.canTechnicianViewAllCompanyTickets;
   if (canSeeAll) return { companyId: user.companyId };
 
@@ -161,11 +154,17 @@ export class TicketsPolicy {
     user: { id: string; role: UserRole; companyId: string };
     ticketId: string;
     specializationIds: string[];
+    allowTechnicianClaim: boolean;
   }): PolicyDecision<Prisma.TicketWhereInput> {
-    const { user, ticketId, specializationIds } = params;
+    const { user, ticketId, specializationIds, allowTechnicianClaim } = params;
 
     if (user.role !== UserRole.TECHNICIAN) return deny('Only TECHNICIAN can claim tickets');
-    if (!specializationIds || specializationIds.length === 0) return deny('Technician has no specializations');
+    if (!allowTechnicianClaim) {
+      return deny('Technician claim is disabled for this company', 'precondition');
+    }
+    if (!specializationIds || specializationIds.length === 0) {
+      return deny('Technician has no specializations', 'precondition');
+    }
 
     return allow({
       id: ticketId,

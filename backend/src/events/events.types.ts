@@ -4,7 +4,12 @@ export type DomainEventType =
   | 'ticket.created'
   | 'ticket.assigned'
   | 'ticket.claimed'
+  | 'ticket.reassigned'
+  | 'ticket.category_changed'
+  | 'ticket.updated'
   | 'ticket.status_changed'
+  | 'ticket.sla_warning'
+  | 'ticket.sla_breached'
   | 'sla.breached'
   | 'user.created';
 

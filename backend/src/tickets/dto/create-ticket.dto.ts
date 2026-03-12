@@ -6,6 +6,9 @@ export class CreateTicketDto {
   @IsUUID()
   parentId?: string | null;
 
+  @IsUUID()
+  locationId!: string;
+
   @IsOptional()
   @IsString()
   requesterName?: string;
@@ -30,11 +33,11 @@ export class CreateTicketDto {
 
   @IsOptional()
   @IsEnum(TicketUrgency)
-  urgency?: TicketUrgency; // URGENT | NOT_URGENT
+  urgency?: TicketUrgency;
 
   @IsOptional()
   @IsInt()
   @Min(1)
-  @Max(60 * 24 * 30) // до 30 дней, чтобы не было мусора
+  @Max(60 * 24 * 30)
   slaMinutes?: number;
 }

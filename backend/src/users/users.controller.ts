@@ -1,25 +1,45 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
-import { UsersService } from './users.service';
+import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { UserRole } from '@prisma/client';
+
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { Roles } from '../common/roles.decorator';
 import { RolesGuard } from '../common/roles.guard';
-import { UserRole } from '@prisma/client';
-import { CreateUserDto } from './dto/create-user.dto';
 
-@UseGuards(JwtAuthGuard, RolesGuard)
+import { PermissionsGuard } from '../common/permissions.guard';
+import { RequirePermission } from '../common/permissions.decorator';
+import { PERMISSIONS } from '../common/permissions.constants';
+
+import { UsersService } from './users.service';
+import { CreateUserDto } from './dto/create-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
+
+@UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
 @Controller('users')
 export class UsersController {
-  constructor(private users: UsersService) {}
+  constructor(private readonly users: UsersService) {}
 
   @Roles(UserRole.ADMIN)
+  @RequirePermission(PERMISSIONS.USERS_MANAGE)
   @Get()
   list(@Req() req: any) {
     return this.users.list(req.user.companyId);
   }
 
   @Roles(UserRole.ADMIN)
+  @RequirePermission(PERMISSIONS.USERS_MANAGE)
   @Post()
   create(@Req() req: any, @Body() dto: CreateUserDto) {
     return this.users.create(req.user.companyId, dto);
+  }
+
+  @Roles(UserRole.ADMIN)
+  @RequirePermission(PERMISSIONS.USERS_MANAGE)
+  @Patch(':id')
+  update(
+    @Req() req: any,
+    @Param('id') userId: string,
+    @Body() dto: UpdateUserDto,
+  ) {
+    return this.users.update(req.user.companyId, userId, dto);
   }
 }

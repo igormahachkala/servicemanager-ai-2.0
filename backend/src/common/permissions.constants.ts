@@ -29,6 +29,10 @@ export const PERMISSIONS = {
   // Users / Company
   USERS_MANAGE: 'USERS_MANAGE',
   COMPANY_SETTINGS_EDIT: 'COMPANY_SETTINGS_EDIT',
+
+  // Locations
+  LOCATIONS_VIEW: 'LOCATIONS_VIEW',
+  LOCATIONS_MANAGE: 'LOCATIONS_MANAGE',
 } as const;
 
 export type PermissionCode = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

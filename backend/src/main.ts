@@ -1,25 +1,31 @@
-import { NestFactory } from '@nestjs/core';
-import { AppModule } from './app.module';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { ValidationPipe } from '@nestjs/common';
+import { NestFactory } from '@nestjs/core';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { join } from 'path';
+
+import { AppModule } from './app.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   // Глобальная валидация DTO (enterprise baseline)
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: true, // выкидываем поля не описанные в DTO
-      forbidNonWhitelisted: true, // неизвестные поля -> 400
-      transform: true, // включаем class-transformer
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
       transformOptions: { enableImplicitConversion: true },
     }),
   );
 
-  // Для Swagger UI и запросов из браузера
   app.enableCors({
     origin: true,
     credentials: true,
+  });
+
+  app.useStaticAssets(join(process.cwd(), 'uploads'), {
+    prefix: '/uploads/',
   });
 
   const config = new DocumentBuilder()
@@ -39,9 +45,6 @@ async function bootstrap() {
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
-
-  // Ключевой фикс: помечаем API как "secured" глобально,
-  // чтобы Swagger реально добавлял Authorization после Authorize.
   (document as any).security = [{ jwt: [] }];
 
   SwaggerModule.setup('api', app, document, {
@@ -51,6 +54,8 @@ async function bootstrap() {
   });
 
   const port = Number(process.env.PORT) || 3000;
-  await app.listen(port);
+
+  // ВАЖНО: слушаем на всех интерфейсах, чтобы открывалось по IP (WSL/VM)
+  await app.listen(port, '0.0.0.0');
 }
 bootstrap();

@@ -1,26 +1,26 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
 import { TicketStatus } from '@prisma/client';
+
+import { PrismaService } from '../prisma/prisma.service';
+import { emitDomainEventTx } from '../events/events.bus';
 
 @Injectable()
 export class SlaWorkerService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(SlaWorkerService.name);
 
-  // Можно будет вынести в env, но пока фиксируем безопасный дефолт
-  private readonly intervalMs = 60_000; // 1 минута
+  private readonly intervalMs = 60_000;
+  private readonly warningBeforeMs = 60 * 60_000; // 60 минут до дедлайна
   private timer: NodeJS.Timeout | null = null;
 
   constructor(private readonly prisma: PrismaService) {}
 
   onModuleInit() {
-    // Стартуем worker после поднятия модуля
     this.timer = setInterval(() => {
       this.tick().catch((err) => {
         this.logger.error('SLA tick failed', err?.stack || String(err));
       });
     }, this.intervalMs);
 
-    // Первый прогон сразу, чтобы не ждать минуту
     this.tick().catch((err) => this.logger.error('Initial SLA tick failed', err?.stack || String(err)));
 
     this.logger.log(`SLA worker started (interval=${this.intervalMs}ms)`);
@@ -34,21 +34,121 @@ export class SlaWorkerService implements OnModuleInit, OnModuleDestroy {
 
   private async tick() {
     const now = new Date();
+    const warningFrom = new Date(now.getTime());
+    const warningTo = new Date(now.getTime() + this.warningBeforeMs);
 
-    // Обновляем пачкой: SLA просрочен, breach ещё не ставили, тикет не закрыт/не отменён
-    const res = await this.prisma.ticket.updateMany({
+    await this.emitWarnings(now, warningFrom, warningTo);
+    await this.markBreached(now);
+  }
+
+  private async emitWarnings(now: Date, warningFrom: Date, warningTo: Date) {
+    const candidates = await this.prisma.ticket.findMany({
+      where: {
+        slaDueAt: {
+          gt: warningFrom,
+          lte: warningTo,
+        },
+        slaBreachedAt: null,
+        status: {
+          notIn: [TicketStatus.DONE, TicketStatus.CANCELED],
+        },
+      },
+      select: {
+        id: true,
+        companyId: true,
+        slaDueAt: true,
+        status: true,
+      },
+    });
+
+    if (candidates.length === 0) return;
+
+    let createdCount = 0;
+
+    for (const ticket of candidates) {
+      const existing = await this.prisma.domainEvent.findFirst({
+        where: {
+          companyId: ticket.companyId,
+          entityType: 'Ticket',
+          entityId: ticket.id,
+          type: 'ticket.sla_warning',
+        },
+        select: { id: true },
+      });
+
+      if (existing) continue;
+
+      await this.prisma.$transaction(async (tx) => {
+        await emitDomainEventTx(tx, {
+          type: 'ticket.sla_warning',
+          companyId: ticket.companyId,
+          entityType: 'Ticket',
+          entityId: ticket.id,
+          actorUserId: null,
+          payload: {
+            status: ticket.status,
+            slaDueAt: ticket.slaDueAt?.toISOString() ?? null,
+            warningBeforeMinutes: Math.floor(this.warningBeforeMs / 60_000),
+            warningAt: now.toISOString(),
+          },
+        });
+      });
+
+      createdCount += 1;
+    }
+
+    if (createdCount > 0) {
+      this.logger.warn(`SLA warning emitted for ${createdCount} ticket(s)`);
+    }
+  }
+
+  private async markBreached(now: Date) {
+    const candidates = await this.prisma.ticket.findMany({
       where: {
         slaDueAt: { lt: now },
         slaBreachedAt: null,
         status: { notIn: [TicketStatus.DONE, TicketStatus.CANCELED] },
       },
-      data: {
-        slaBreachedAt: now,
+      select: {
+        id: true,
+        companyId: true,
+        slaDueAt: true,
+        status: true,
       },
     });
 
-    if (res.count > 0) {
-      this.logger.warn(`SLA breached marked for ${res.count} ticket(s)`);
+    if (candidates.length === 0) return;
+
+    let breachedCount = 0;
+
+    for (const ticket of candidates) {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.ticket.update({
+          where: { id: ticket.id },
+          data: {
+            slaBreachedAt: now,
+          },
+        });
+
+        await emitDomainEventTx(tx, {
+          type: 'ticket.sla_breached',
+          companyId: ticket.companyId,
+          entityType: 'Ticket',
+          entityId: ticket.id,
+          actorUserId: null,
+          payload: {
+            status: ticket.status,
+            slaDueAt: ticket.slaDueAt?.toISOString() ?? null,
+            breachedAt: now.toISOString(),
+          },
+        });
+      });
+
+      breachedCount += 1;
+    }
+
+    if (breachedCount > 0) {
+      this.logger.warn(`SLA breached marked for ${breachedCount} ticket(s)`);
     }
   }
 }

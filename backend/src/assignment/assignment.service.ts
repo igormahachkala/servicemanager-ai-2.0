@@ -6,17 +6,10 @@ import { decideAssignment } from './assignment.strategies';
 
 @Injectable()
 export class AssignmentService {
-  // v2: persisted cursor round-robin (позже можно сделать company setting)
   private readonly strategy: AssignmentStrategy = 'round_robin_cursor_v2';
 
   constructor(private readonly prisma: PrismaService) {}
 
-  /**
-   * Важно:
-   * - Если вызывается внутри транзакции TicketsService, передавай tx, чтобы cursor update был атомарен
-   *   вместе с созданием/изменением тикета и domain events.
-   * - Если tx не передан — используем PrismaService напрямую (будет отдельной транзакцией).
-   */
   async decide(
     ctx: AssignmentContext,
     candidates: AssignmentCandidate[],
@@ -27,15 +20,31 @@ export class AssignmentService {
     }
 
     if (this.strategy !== 'round_robin_cursor_v2') {
-      // legacy / fallback
       const seed = ctx.ticketId ?? `${ctx.companyId}:${ctx.problemCategoryId}`;
       return decideAssignment(this.strategy, candidates, { seed });
     }
 
     const prisma = tx ?? this.prisma;
-    const strategyKey = this.strategy; // string key stored in cursor table
+    const strategyKey = this.strategy;
 
-    // 1) гарантируем наличие cursor row
+    const maxMatched = Math.max(...candidates.map((c) => c.matchedSpecializationsCount));
+    const bestMatched = candidates.filter((c) => c.matchedSpecializationsCount === maxMatched);
+
+    const minActiveLoad = Math.min(...bestMatched.map((c) => c.activeLoad));
+    const leastLoaded = bestMatched.filter((c) => c.activeLoad === minActiveLoad);
+
+    const minInProgress = Math.min(...leastLoaded.map((c) => c.inProgressCount));
+    const finalists = leastLoaded.filter((c) => c.inProgressCount === minInProgress);
+
+    if (finalists.length === 1) {
+      const winner = finalists[0];
+      return {
+        assignedTechnicianId: winner.id,
+        strategy: this.strategy,
+        reason: `best_match=${winner.matchedSpecializationsCount};active_load=${winner.activeLoad};in_progress=${winner.inProgressCount};single_best`,
+      };
+    }
+
     const cursorRow = await prisma.assignmentCursor.upsert({
       where: {
         companyId_strategy: {
@@ -51,20 +60,19 @@ export class AssignmentService {
       update: {},
     });
 
-    // 2) выбираем кандидата по текущему cursor
-    const idx = cursorRow.cursor % candidates.length;
-    const assignedTechnicianId = candidates[idx].id;
+    const sortedFinalists = [...finalists].sort((a, b) => a.id.localeCompare(b.id));
+    const idx = cursorRow.cursor % sortedFinalists.length;
+    const winner = sortedFinalists[idx];
 
-    // 3) увеличиваем cursor (атомарно)
     await prisma.assignmentCursor.update({
       where: { id: cursorRow.id },
       data: { cursor: { increment: 1 } },
     });
 
     return {
-      assignedTechnicianId,
+      assignedTechnicianId: winner.id,
       strategy: this.strategy,
-      reason: `cursor=${cursorRow.cursor} idx=${idx} N=${candidates.length}`,
+      reason: `best_match=${winner.matchedSpecializationsCount};active_load=${winner.activeLoad};in_progress=${winner.inProgressCount};cursor=${cursorRow.cursor};idx=${idx};finalists=${sortedFinalists.length}`,
     };
   }
 }

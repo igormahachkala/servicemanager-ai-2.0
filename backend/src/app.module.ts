@@ -9,11 +9,14 @@ import { SpecializationsModule } from './specializations/specializations.module'
 import { ProblemCategoriesModule } from './problem-categories/problem-categories.module';
 import { TechniciansModule } from './technicians/technicians.module';
 import { CompanyModule } from './company/company.module';
+import { LocationsModule } from './locations/locations.module';
 import { TicketsModule } from './tickets/tickets.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { HealthController } from './health.controller';
 
 import { SlaModule } from './sla/sla.module';
+import { AssignmentModule } from './assignment/assignment.module';
+import { TimelineModule } from './timeline/timeline.module';
 
 @Module({
   imports: [
@@ -24,9 +27,12 @@ import { SlaModule } from './sla/sla.module';
     ProblemCategoriesModule,
     TechniciansModule,
     CompanyModule,
+    LocationsModule,
     TicketsModule,
     AnalyticsModule,
     SlaModule,
+    AssignmentModule,
+    TimelineModule,
   ],
   controllers: [AppController, HealthController],
   providers: [AppService],

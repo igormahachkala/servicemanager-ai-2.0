@@ -1,6 +1,6 @@
 // backend/src/policy/policy.utils.ts
 
-import { ForbiddenException } from '@nestjs/common';
+import { ConflictException, ForbiddenException } from '@nestjs/common';
 import type { AllowDecision, PolicyDecision } from './policy.types';
 
 /**
@@ -9,5 +9,12 @@ import type { AllowDecision, PolicyDecision } from './policy.types';
  * а decision.where существует (для allow(payload)).
  */
 export function assertAllowed<T>(d: PolicyDecision<T>): asserts d is AllowDecision<T> {
-  if (!d.allowed) throw new ForbiddenException(d.reason);
+  if (d.allowed) return;
+
+  // "не настроено" / "не выполнено обязательное условие" — это не Forbidden
+  if (d.denyCode === 'precondition') {
+    throw new ConflictException(d.reason); // 409
+  }
+
+  throw new ForbiddenException(d.reason); // 403
 }

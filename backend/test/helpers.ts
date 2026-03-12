@@ -1,6 +1,8 @@
 import { PrismaClient, TicketStatus, TicketUrgency, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
+import type { PermissionCode } from '../src/common/permissions.constants';
+
 export const prisma = new PrismaClient();
 
 export async function resetDb() {
@@ -17,11 +19,14 @@ export async function resetDb() {
   await prisma.rolePermission.deleteMany();
   await prisma.permissionBlock.deleteMany();
 
+  // Event store (не FK, но чистим для детерминизма)
+  await prisma.domainEvent.deleteMany();
+
   await prisma.user.deleteMany();
   await prisma.company.deleteMany();
 }
 
-export async function ensurePermissionBlocks(codes: string[]) {
+export async function ensurePermissionBlocks(codes: PermissionCode[]) {
   for (const code of codes) {
     await prisma.permissionBlock.upsert({
       where: { code },
@@ -35,7 +40,7 @@ export async function ensurePermissionBlocks(codes: string[]) {
   }
 }
 
-export async function grantRolePermissions(role: UserRole, codes: string[]) {
+export async function grantRolePermissions(role: UserRole, codes: PermissionCode[]) {
   const blocks = await prisma.permissionBlock.findMany({
     where: { code: { in: codes } },
     select: { id: true, code: true },
@@ -53,7 +58,7 @@ export async function grantRolePermissions(role: UserRole, codes: string[]) {
   });
 }
 
-export async function grantUserPermissions(userId: string, codes: string[]) {
+export async function grantUserPermissions(userId: string, codes: PermissionCode[]) {
   const blocks = await prisma.permissionBlock.findMany({
     where: { code: { in: codes } },
     select: { id: true, code: true },
@@ -163,7 +168,5 @@ export async function createTicket(params: {
     },
   });
 
-  // у вас логика обычно пишет history при создании через сервис,
-  // но тут нам важны только проверки доступов/claim/status_change.
   return t;
 }
