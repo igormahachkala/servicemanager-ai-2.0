@@ -40,6 +40,20 @@ export class UsersController {
     @Param('id') userId: string,
     @Body() dto: UpdateUserDto,
   ) {
-    return this.users.update(req.user.companyId, userId, dto);
+    return this.users.update(req.user.companyId, req.user.id, userId, dto);
+  }
+
+  @Roles(UserRole.ADMIN)
+  @RequirePermission(PERMISSIONS.USERS_MANAGE)
+  @Patch(':id/deactivate')
+  deactivate(@Req() req: any, @Param('id') userId: string) {
+    return this.users.deactivate(req.user.companyId, req.user.id, userId);
+  }
+
+  @Roles(UserRole.ADMIN)
+  @RequirePermission(PERMISSIONS.USERS_MANAGE)
+  @Patch(':id/activate')
+  activate(@Req() req: any, @Param('id') userId: string) {
+    return this.users.activate(req.user.companyId, userId);
   }
 }

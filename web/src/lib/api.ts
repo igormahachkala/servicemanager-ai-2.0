@@ -498,6 +498,18 @@ export async function updateUser(userId: string, input: UpdateUserInput): Promis
   })
 }
 
+export async function deactivateUser(userId: string): Promise<UserListItem> {
+  return request<UserListItem>(`/users/${userId}/deactivate`, {
+    method: 'PATCH',
+  })
+}
+
+export async function activateUser(userId: string): Promise<UserListItem> {
+  return request<UserListItem>(`/users/${userId}/activate`, {
+    method: 'PATCH',
+  })
+}
+
 export async function specializations(): Promise<SpecializationListItem[]> {
   return request<SpecializationListItem[]>('/specializations')
 }

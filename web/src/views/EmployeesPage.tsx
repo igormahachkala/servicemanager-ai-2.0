@@ -89,6 +89,11 @@ export function EmployeesPage() {
     queryFn: api.users,
   })
 
+  const meQ = useQuery({
+    queryKey: ['me'],
+    queryFn: api.me,
+  })
+
   const techniciansQ = useQuery({
     queryKey: ['technicians'],
     queryFn: api.technicians,
@@ -127,6 +132,12 @@ export function EmployeesPage() {
     rows.sort((a, b) => (a.email || '').localeCompare(b.email || ''))
     return rows
   }, [usersQ.data])
+
+  const currentUserId = meQ.data?.id || null
+
+  const activeAdminCount = useMemo(() => {
+    return sortedUsers.filter((user) => user.role === 'ADMIN' && user.isActive !== false).length
+  }, [sortedUsers])
 
   const techniciansMap = useMemo(() => {
     const map = new Map<string, api.TechnicianItem>()
@@ -208,14 +219,14 @@ export function EmployeesPage() {
 
   const toggleUserActiveM = useMutation({
     mutationFn: async (params: { user: api.UserListItem; isActive: boolean }) => {
-      return api.updateUser(params.user.id, { isActive: params.isActive })
+      return params.isActive ? api.activateUser(params.user.id) : api.deactivateUser(params.user.id)
     },
     onSuccess: async (updated, vars) => {
       setErr(null)
       setSuccess(
         vars.isActive
-          ? `Сотрудник ${updated.email} включен`
-          : `Сотрудник ${updated.email} деактивирован`,
+          ? `User ${updated.email} activated`
+          : `User ${updated.email} deactivated`,
       )
 
       if (editingUserId === vars.user.id) {
@@ -227,6 +238,7 @@ export function EmployeesPage() {
 
       await Promise.all([
         qc.invalidateQueries({ queryKey: ['users'] }),
+        qc.invalidateQueries({ queryKey: ['me'] }),
         qc.invalidateQueries({ queryKey: ['technicians'] }),
         qc.invalidateQueries({ queryKey: ['technicians-workload'] }),
       ])
@@ -374,9 +386,24 @@ export function EmployeesPage() {
 
   function handleToggleUser(user: api.UserListItem) {
     const nextIsActive = user.isActive === false
+    const isSelf = currentUserId === user.id
+    const isLastActiveAdmin = user.role === 'ADMIN' && user.isActive !== false && activeAdminCount <= 1
+
+    if (!nextIsActive && isSelf) {
+      setSuccess(null)
+      setErr('You cannot deactivate your own account')
+      return
+    }
+
+    if (!nextIsActive && isLastActiveAdmin) {
+      setSuccess(null)
+      setErr('Cannot deactivate the last active admin')
+      return
+    }
+
     const question = nextIsActive
-      ? `Включить сотрудника ${user.email}?`
-      : `Деактивировать сотрудника ${user.email}?\n\nОн останется в системе, но не сможет работать под этим аккаунтом.`
+      ? `Activate user ${user.email}?`
+      : `Deactivate user ${user.email}?\n\nThe account will stay in the system, but this user will no longer be able to sign in.`
 
     const ok = window.confirm(question)
     if (!ok) return
@@ -579,6 +606,13 @@ export function EmployeesPage() {
                 const techSpecs = (tech?.technicianSpecializations || []).map((x) => x.specialization.name)
                 const workload = workloadMap.get(user.id)
                 const isInactive = user.isActive === false
+                const isSelf = currentUserId === user.id
+                const isLastActiveAdmin = user.role === 'ADMIN' && !isInactive && activeAdminCount <= 1
+                const toggleDisabledReason = !isInactive && isSelf
+                  ? 'You cannot deactivate your own account'
+                  : !isInactive && isLastActiveAdmin
+                    ? 'Cannot deactivate the last active admin'
+                    : null
 
                 return (
                   <div key={user.id} className="panel" style={{ marginBottom: 0 }}>
@@ -588,7 +622,8 @@ export function EmployeesPage() {
                         <div className="muted small" style={{ marginTop: 4 }}>
                           Роль: {roleLabel(user.role)}
                         </div>
-                        <div className="muted small">Статус: {isInactive ? 'Выключен' : 'Активен'}</div>
+                        <div className="muted small">Status: {isInactive ? 'Inactive' : 'Active'}</div>
+                        {toggleDisabledReason ? <div className="muted small">{toggleDisabledReason}</div> : null}
                         <div className="muted small">Создан: {fmt(user.createdAt)}</div>
 
                         {user.role === 'TECHNICIAN' ? (
@@ -618,9 +653,10 @@ export function EmployeesPage() {
                         <button
                           className="ghost"
                           onClick={() => handleToggleUser(user)}
-                          disabled={isUpdating || isSavingSpecs || isTogglingUser}
+                          disabled={isUpdating || isSavingSpecs || isTogglingUser || !!toggleDisabledReason}
+                          title={toggleDisabledReason || undefined}
                         >
-                          {isInactive ? 'Включить' : 'Отключить'}
+                          {isInactive ? 'Activate' : 'Deactivate'}
                         </button>
 
                         {user.role === 'TECHNICIAN' ? (
