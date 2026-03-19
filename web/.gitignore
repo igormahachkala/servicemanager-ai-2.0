@@ -1,4 +1,6 @@
+# =========================
 # Logs
+# =========================
 logs
 *.log
 npm-debug.log*
@@ -7,18 +9,63 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-node_modules
-dist
-dist-ssr
+# =========================
+# Node
+# =========================
+node_modules/
+.npm/
+.pnpm-store/
+
+# =========================
+# Build
+# =========================
+dist/
+dist-ssr/
+build/
+coverage/
+
+# =========================
+# Env
+# =========================
+.env
+.env.*
 *.local
 
-# Editor directories and files
+# =========================
+# Cache
+# =========================
+web/.npm-cache/
+.cache/
+.tmp/
+.temp/
+
+# =========================
+# OS
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# IDE
+# =========================
 .vscode/*
 !.vscode/extensions.json
-.idea
-.DS_Store
+.idea/
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
 *.sw?
+
+# =========================
+# Docker
+# =========================
+docker-data/
+postgres-data/
+
+# =========================
+# Misc
+# =========================
+*.pid
+*.seed
+*.tgz
