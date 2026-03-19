@@ -1,22 +1,22 @@
-import React, { useState } from "react"
-import { useNavigate } from "react-router-dom"
-import * as api from "../lib/api"
+﻿import React, { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import * as api from '../lib/api'
 
-import smaLogo from "../assets/sma-tech.png"
+import smaLogo from '../assets/sma-tech.png'
 
 type LoginPageProps = {
   onLoggedIn?: (token: string) => void
 }
 
-const VERSION = "v0.1"
-const BUILD = "2026"
+const VERSION = 'v0.1'
+const BUILD = '2026'
 
 export function LoginPage({ onLoggedIn }: LoginPageProps) {
   const navigate = useNavigate()
 
   const [backendUrl, setBackendUrl] = useState(api.getBaseUrl())
-  const [email, setEmail] = useState("admin@test.com")
-  const [password, setPassword] = useState("Test1234!")
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -34,14 +34,15 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
       })
 
       api.setToken(result.access_token)
+      api.setCompanyLabel(result.user.companyName || result.user.email)
 
       if (onLoggedIn) {
         onLoggedIn(result.access_token)
       }
 
-      navigate("/board")
+      navigate('/board')
     } catch (err: any) {
-      setError(err?.message || "Login failed")
+      setError(err?.message || 'Не удалось войти')
     } finally {
       setLoading(false)
     }
@@ -49,31 +50,11 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
 
   return (
     <div className="page">
-      <div className="card" style={{ maxWidth: 520, margin: "40px auto" }}>
-
-        {/* PRODUCT LOGO */}
-
-        <div style={{ textAlign: "center", marginBottom: 20 }}>
+      <div className="card" style={{ maxWidth: 520, margin: '40px auto' }}>
+        <div style={{ textAlign: 'center', marginBottom: 20 }}>
           <h1 style={{ marginBottom: 6 }}>ServiceManager.AI</h1>
-
-          <div className="muted">
-            Service Operations Platform
-          </div>
+          <div className="muted">Service Operations Platform</div>
         </div>
-
-        {/* ROLE SWITCH */}
-
-        <div style={{ display: "flex", gap: 8, marginBottom: 20, justifyContent: "center" }}>
-          <button type="button" className="ghost">
-            Админ
-          </button>
-
-          <button type="button" className="ghost">
-            Техник
-          </button>
-        </div>
-
-        {/* LOGIN */}
 
         <h2 style={{ marginBottom: 16 }}>Вход</h2>
 
@@ -84,29 +65,25 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
         )}
 
         <form onSubmit={handleLogin} className="form">
-
           <label>
             URL backend
-
             <input
               value={backendUrl}
               onChange={(e) => setBackendUrl(e.target.value)}
-              placeholder="http://localhost:3000"
+              placeholder="http://localhost:3001"
               disabled={loading}
             />
-
             <div className="muted small" style={{ marginTop: 6 }}>
-              Пример: http://localhost:3000
+              Пример: http://localhost:3001
             </div>
           </label>
 
           <label>
             Email
-
             <input
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@test.com"
+              placeholder="admin@company.com"
               autoComplete="username"
               disabled={loading}
             />
@@ -114,7 +91,6 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
 
           <label>
             Пароль
-
             <input
               type="password"
               value={password}
@@ -126,42 +102,38 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
           </label>
 
           <button type="submit" disabled={loading}>
-            {loading ? "Входим..." : "Войти"}
+            {loading ? 'Входим...' : 'Войти'}
           </button>
-
         </form>
 
-        {/* FOOTER */}
+        <div style={{ marginTop: 16, textAlign: 'center' }}>
+          <span className="muted">Нет компании? </span>
+          <Link to="/register">Зарегистрироваться</Link>
+        </div>
 
         <div
           style={{
             marginTop: 40,
             paddingTop: 20,
-            borderTop: "1px solid rgba(255,255,255,0.06)",
-            textAlign: "center",
+            borderTop: '1px solid rgba(255,255,255,0.06)',
+            textAlign: 'center',
             fontSize: 12,
-            opacity: 0.8
+            opacity: 0.8,
           }}
         >
-
           <img
             src={smaLogo}
             alt="SMA Tech"
             style={{
               width: 120,
               marginBottom: 10,
-              opacity: 0.9
+              opacity: 0.9,
             }}
           />
 
           <div>Powered by SMA Tech</div>
-
-          <div style={{ opacity: 0.6 }}>
-            Version {VERSION} · Build {BUILD}
-          </div>
-
+          <div style={{ opacity: 0.6 }}>Version {VERSION} · Build {BUILD}</div>
         </div>
-
       </div>
     </div>
   )

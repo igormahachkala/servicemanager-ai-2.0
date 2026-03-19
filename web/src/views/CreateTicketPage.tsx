@@ -1,46 +1,58 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { z } from 'zod'
 import * as api from '../lib/api'
 
-const CreateTicketSchema = z.object({
-  problemText: z.string().min(5, 'problemText: минимум 5 символов'),
-  urgency: z.enum(['URGENT', 'NOT_URGENT']),
-  problemCategoryId: z.string().uuid('problemCategoryId: uuid'),
-  requesterName: z.string().optional().nullable(),
-  requesterPhone: z.string().optional().nullable(),
-  address: z.string().optional().nullable(),
-  pointName: z.string().optional().nullable(),
-  slaMinutes: z
-    .union([z.number().int().positive(), z.nan()])
-    .optional()
-    .transform((v) => (typeof v === 'number' && !Number.isNaN(v) ? v : undefined)),
+const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024
+
+const QuickRequestSchema = z.object({
+  locationId: z.string().uuid('locationId: uuid'),
+  categoryId: z.string().uuid('categoryId: uuid'),
+  urgency: z.enum(['URGENT', 'NOT_URGENT']).optional(),
+  attachmentIds: z.array(z.string().uuid()).optional(),
 })
 
 function urgencyLabel(value: 'URGENT' | 'NOT_URGENT') {
   return value === 'URGENT' ? 'Срочно' : 'Не срочно'
 }
 
+function locationLabel(location: api.LocationListItem) {
+  const tail = [location.city, location.address].filter(Boolean).join(' | ')
+  return tail ? `${location.name} - ${tail}` : location.name
+}
+
+function buildPreview(category: api.ProblemCategoryListItem | null, location: api.LocationListItem | null) {
+  const title = category?.name || 'Категория будет выбрана'
+  const locationText = location ? locationLabel(location) : 'Локация будет выбрана'
+  const description = category?.instructions?.trim()
+    ? `Быстрый запрос по категории "${title}". Локация: ${locationText}. Инструкция категории: ${category.instructions.trim()}.`
+    : `Быстрый запрос по категории "${title}". Локация: ${locationText}. Требуется диагностика и подтверждение причины на месте.`
+
+  return { title, description }
+}
+
 export function CreateTicketPage() {
   const nav = useNavigate()
   const qc = useQueryClient()
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const [err, setErr] = useState<string | null>(null)
-
-  const [problemText, setProblemText] = useState('Опиши проблему…')
+  const [locationId, setLocationId] = useState('')
+  const [categoryId, setCategoryId] = useState('')
   const [urgency, setUrgency] = useState<'URGENT' | 'NOT_URGENT'>('NOT_URGENT')
-  const [problemCategoryId, setProblemCategoryId] = useState('')
-
-  const [requesterName, setRequesterName] = useState<string>('')
-  const [requesterPhone, setRequesterPhone] = useState<string>('')
-  const [address, setAddress] = useState<string>('')
-  const [pointName, setPointName] = useState<string>('')
-  const [slaMinutes, setSlaMinutes] = useState<string>('')
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [draftAttachment, setDraftAttachment] = useState<api.DraftTicketAttachment | null>(null)
 
   const categoriesQ = useQuery({
     queryKey: ['problem-categories'],
     queryFn: api.problemCategories,
+  })
+
+  const locationsQ = useQuery({
+    queryKey: ['locations'],
+    queryFn: api.locations,
   })
 
   const activeCategories = useMemo(() => {
@@ -48,36 +60,60 @@ export function CreateTicketPage() {
     return rows.filter((row) => row.isActive !== false)
   }, [categoriesQ.data])
 
+  const activeLocations = useMemo(() => {
+    const rows = locationsQ.data || []
+    return rows.filter((row) => row.isActive !== false)
+  }, [locationsQ.data])
+
   useEffect(() => {
-    if (!problemCategoryId && activeCategories.length > 0) {
-      setProblemCategoryId(activeCategories[0].id)
+    if (!categoryId && activeCategories.length > 0) {
+      setCategoryId(activeCategories[0].id)
     }
-  }, [activeCategories, problemCategoryId])
+  }, [activeCategories, categoryId])
 
-  const selectedCategory = useMemo(() => {
-    return activeCategories.find((c) => c.id === problemCategoryId) || null
-  }, [activeCategories, problemCategoryId])
-
-  function resetForm(keepCategory = true) {
-    setProblemText('Опиши проблему…')
-    setUrgency('NOT_URGENT')
-    setRequesterName('')
-    setRequesterPhone('')
-    setAddress('')
-    setPointName('')
-    setSlaMinutes('')
-    setErr(null)
-
-    if (!keepCategory) {
-      setProblemCategoryId(activeCategories[0]?.id || '')
+  useEffect(() => {
+    if (!locationId && activeLocations.length > 0) {
+      setLocationId(activeLocations[0].id)
     }
-  }
+  }, [activeLocations, locationId])
+
+  const selectedCategory = useMemo(() => activeCategories.find((row) => row.id === categoryId) || null, [activeCategories, categoryId])
+  const selectedLocation = useMemo(() => activeLocations.find((row) => row.id === locationId) || null, [activeLocations, locationId])
+  const preview = useMemo(() => buildPreview(selectedCategory, selectedLocation), [selectedCategory, selectedLocation])
+
+  const uploadM = useMutation({
+    mutationFn: (file: File) => api.uploadDraftTicketAttachment(file),
+    onSuccess: (uploaded) => {
+      setErr(null)
+      setUploadError(null)
+      setDraftAttachment(uploaded)
+      setSelectedFile(null)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    },
+    onError: (e: any) => {
+      setUploadError(e?.message || String(e))
+    },
+  })
+
+  const deleteDraftM = useMutation({
+    mutationFn: (attachmentId: string) => api.deleteDraftTicketAttachment(attachmentId),
+    onSuccess: () => {
+      setDraftAttachment(null)
+      setUploadError(null)
+      setSelectedFile(null)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    },
+    onError: (e: any) => {
+      setUploadError(e?.message || String(e))
+    },
+  })
 
   const createM = useMutation({
     mutationFn: (payload: api.CreateTicketInput) => api.createTicket(payload),
     onSuccess: async (created) => {
       setErr(null)
       await qc.invalidateQueries({ queryKey: ['board'] })
+      await qc.invalidateQueries({ queryKey: ['tickets'] })
 
       const createdId = api.extractCreatedTicketId(created)
       if (!createdId) {
@@ -90,34 +126,52 @@ export function CreateTicketPage() {
     onError: (e: any) => setErr(e?.message || String(e)),
   })
 
-  const createAndNewM = useMutation({
-    mutationFn: (payload: api.CreateTicketInput) => api.createTicket(payload),
-    onSuccess: async () => {
-      setErr(null)
-      await qc.invalidateQueries({ queryKey: ['board'] })
-      resetForm(true)
-    },
-    onError: (e: any) => setErr(e?.message || String(e)),
-  })
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setUploadError(null)
+
+    const file = e.target.files?.[0] || null
+    if (!file) {
+      setSelectedFile(null)
+      return
+    }
+
+    if (!file.type.startsWith('image/')) {
+      setSelectedFile(null)
+      e.target.value = ''
+      setUploadError('Можно загружать только изображения')
+      return
+    }
+
+    if (file.size <= 0) {
+      setSelectedFile(null)
+      e.target.value = ''
+      setUploadError('Файл пустой')
+      return
+    }
+
+    if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
+      setSelectedFile(null)
+      e.target.value = ''
+      setUploadError('Изображение слишком большое (максимум 10 МБ)')
+      return
+    }
+
+    setSelectedFile(file)
+  }
 
   function buildPayload() {
     return {
-      problemText,
+      locationId,
+      categoryId,
       urgency,
-      problemCategoryId,
-      requesterName: requesterName || null,
-      requesterPhone: requesterPhone || null,
-      address: address || null,
-      pointName: pointName || null,
-      slaMinutes: slaMinutes.trim() ? Number(slaMinutes) : undefined,
+      attachmentIds: draftAttachment ? [draftAttachment.id] : [],
     }
   }
 
   function validatePayload() {
-    const parsed = CreateTicketSchema.safeParse(buildPayload())
-
+    const parsed = QuickRequestSchema.safeParse(buildPayload())
     if (!parsed.success) {
-      setErr(parsed.error.issues.map((i) => i.message).join('\n'))
+      setErr(parsed.error.issues.map((issue) => issue.message).join('\n'))
       return null
     }
 
@@ -134,23 +188,39 @@ export function CreateTicketPage() {
     createM.mutate(payload)
   }
 
-  function onCreateAndNew() {
-    setErr(null)
+  function onUpload() {
+    if (!selectedFile) {
+      setUploadError('Сначала выбери фото')
+      return
+    }
 
-    const payload = validatePayload()
-    if (!payload) return
-
-    createAndNewM.mutate(payload)
+    uploadM.mutate(selectedFile)
   }
 
-  const isBusy = createM.isPending || createAndNewM.isPending
+  function onReset() {
+    setErr(null)
+    setUploadError(null)
+    setUrgency('NOT_URGENT')
+
+    if (draftAttachment) {
+      deleteDraftM.mutate(draftAttachment.id)
+    } else {
+      setSelectedFile(null)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  const isBusy = createM.isPending || uploadM.isPending || deleteDraftM.isPending
+  const noCategories = activeCategories.length === 0
+  const noLocations = activeLocations.length === 0
+  const isBootstrapping = categoriesQ.isFetching || locationsQ.isFetching
 
   return (
     <div>
       <div className="row">
         <div>
-          <h2 style={{ marginBottom: 4 }}>Создать заявку</h2>
-          <div className="muted small">Быстрая форма создания для демо</div>
+          <h2 style={{ marginBottom: 4 }}>Quick Request</h2>
+          <div className="muted small">Выбери локацию, категорию и при необходимости приложи фото. Длинное описание не требуется.</div>
         </div>
         <div>
           <Link to="/board">
@@ -160,111 +230,94 @@ export function CreateTicketPage() {
       </div>
 
       {err ? <div className="alert">{err}</div> : null}
-      {categoriesQ.isError ? (
-        <div className="alert">{(categoriesQ.error as any)?.message || String(categoriesQ.error)}</div>
-      ) : null}
+      {uploadError ? <div className="alert">{uploadError}</div> : null}
+      {categoriesQ.isError ? <div className="alert">{(categoriesQ.error as any)?.message || String(categoriesQ.error)}</div> : null}
+      {locationsQ.isError ? <div className="alert">{(locationsQ.error as any)?.message || String(locationsQ.error)}</div> : null}
 
       <div className="panel">
         <form onSubmit={onSubmit} className="form" style={{ maxWidth: 860 }}>
           <div className="grid2" style={{ gridTemplateColumns: '1fr 1fr' }}>
             <label>
-              Срочность *
+              1. Локация *
+              <select value={locationId} onChange={(e) => setLocationId(e.target.value)} disabled={locationsQ.isFetching || noLocations}>
+                {noLocations ? <option value="">Нет доступных локаций</option> : null}
+                {activeLocations.map((location) => (
+                  <option key={location.id} value={location.id}>
+                    {locationLabel(location)}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              Срочность
               <select value={urgency} onChange={(e) => setUrgency(e.target.value as 'URGENT' | 'NOT_URGENT')}>
                 <option value="NOT_URGENT">{urgencyLabel('NOT_URGENT')}</option>
                 <option value="URGENT">{urgencyLabel('URGENT')}</option>
               </select>
             </label>
-
-            <label>
-              SLA, минут
-              <input
-                value={slaMinutes}
-                onChange={(e) => setSlaMinutes(e.target.value)}
-                placeholder="Например 120"
-                inputMode="numeric"
-              />
-            </label>
           </div>
 
           <label>
-            Описание проблемы *
-            <input value={problemText} onChange={(e) => setProblemText(e.target.value)} />
-          </label>
-
-          <label>
-            Категория проблемы *
-            <select
-              value={problemCategoryId}
-              onChange={(e) => setProblemCategoryId(e.target.value)}
-              disabled={categoriesQ.isFetching || activeCategories.length === 0}
-            >
-              {activeCategories.length === 0 ? <option value="">Нет доступных категорий</option> : null}
-
+            2. Категория *
+            <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} disabled={categoriesQ.isFetching || noCategories}>
+              {noCategories ? <option value="">Нет доступных категорий</option> : null}
               {activeCategories.map((category) => (
                 <option key={category.id} value={category.id}>
                   {category.name}
                 </option>
               ))}
             </select>
-
             <div className="muted small" style={{ marginTop: 6 }}>
-              {categoriesQ.isFetching
-                ? 'Загружаем категории…'
-                : activeCategories.length === 0
-                  ? 'Сначала создай хотя бы одну активную категорию проблем под ADMIN.'
-                  : 'Категории загружаются из backend и выбираются сотрудником без ручного UUID.'}
+              Backend сам сгенерирует title и description по выбранной категории.
             </div>
           </label>
 
-          {selectedCategory?.instructions ? (
-            <div className="panel" style={{ padding: 12 }}>
-              <div className="muted small" style={{ marginBottom: 6 }}>
-                Инструкция по выбранной категории
-              </div>
-              <div>{selectedCategory.instructions}</div>
-            </div>
-          ) : null}
-
-          <div className="grid2" style={{ gridTemplateColumns: '1fr 1fr' }}>
-            <label>
-              Имя заявителя
-              <input value={requesterName} onChange={(e) => setRequesterName(e.target.value)} />
-            </label>
-
-            <label>
-              Телефон заявителя
-              <input value={requesterPhone} onChange={(e) => setRequesterPhone(e.target.value)} />
-            </label>
+          <div className="panel" style={{ padding: 12 }}>
+            <div className="muted small" style={{ marginBottom: 6 }}>Предпросмотр того, что сформирует backend</div>
+            <div style={{ fontWeight: 700, marginBottom: 6 }}>{preview.title}</div>
+            <div style={{ whiteSpace: 'pre-wrap' }}>{preview.description}</div>
           </div>
 
-          <div className="grid2" style={{ gridTemplateColumns: '1fr 1fr' }}>
-            <label>
-              Адрес
-              <input value={address} onChange={(e) => setAddress(e.target.value)} />
-            </label>
+          <div className="panel" style={{ padding: 12 }}>
+            <div style={{ fontWeight: 700, marginBottom: 10 }}>3. Фото проблемы</div>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+              <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} disabled={isBusy || !!draftAttachment} />
+              <button type="button" onClick={onUpload} disabled={uploadM.isPending || !selectedFile || !!draftAttachment}>
+                {uploadM.isPending ? 'Загружаем...' : draftAttachment ? 'Фото загружено' : 'Загрузить фото'}
+              </button>
+              {selectedFile ? <div className="muted small">{selectedFile.name}</div> : null}
+              {uploadError && selectedFile ? (
+                <button type="button" className="ghost" onClick={onUpload} disabled={uploadM.isPending}>
+                  Повторить загрузку
+                </button>
+              ) : null}
+            </div>
 
-            <label>
-              Точка
-              <input value={pointName} onChange={(e) => setPointName(e.target.value)} />
-            </label>
+            {draftAttachment ? (
+              <div style={{ marginTop: 12, display: 'grid', gap: 10 }}>
+                <img
+                  src={api.resolveFileUrl(draftAttachment.url)}
+                  alt={draftAttachment.originalName}
+                  style={{ width: 260, maxWidth: '100%', borderRadius: 12, border: '1px solid #e5e7eb' }}
+                />
+                <div className="muted small">Фото сохранено и будет привязано к тикету при отправке.</div>
+                <div>
+                  <button type="button" className="ghost" onClick={() => deleteDraftM.mutate(draftAttachment.id)} disabled={deleteDraftM.isPending}>
+                    {deleteDraftM.isPending ? 'Удаляем...' : 'Удалить фото'}
+                  </button>
+                </div>
+              </div>
+            ) : null}
           </div>
 
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            <button type="submit" disabled={isBusy || categoriesQ.isFetching || activeCategories.length === 0}>
-              {createM.isPending ? 'Создаём…' : 'Создать'}
+            <button type="submit" disabled={isBusy || isBootstrapping || noCategories || noLocations}>
+              {createM.isPending ? 'Отправляем...' : '4. Отправить заявку'}
             </button>
 
-            <button
-              type="button"
-              className="ghost"
-              onClick={onCreateAndNew}
-              disabled={isBusy || categoriesQ.isFetching || activeCategories.length === 0}
-            >
-              {createAndNewM.isPending ? 'Создаём…' : 'Создать и новую'}
-            </button>
-
-            <button type="button" className="ghost" onClick={() => resetForm(true)} disabled={isBusy}>
-              Очистить форму
+            <button type="button" className="ghost" onClick={onReset} disabled={isBusy}>
+              Сбросить
             </button>
           </div>
         </form>

@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+﻿import { useEffect } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import * as api from '../lib/api'
@@ -51,12 +51,14 @@ export function Shell() {
   const path = loc.pathname
   const isBoard = path.startsWith('/board')
   const isCreate = path.startsWith('/tickets/new')
+  const isLocations = path.startsWith('/locations')
   const isEmployees = path.startsWith('/employees')
   const isSpecializations = path.startsWith('/specializations')
   const isAnalytics = path.startsWith('/analytics')
   const isSettings = path.startsWith('/settings')
   const isCompany = path.startsWith('/company')
   const isTechnician = path.startsWith('/technician')
+  const isMap = path.startsWith('/map')
   const isProblemCategories = path.startsWith('/problem-categories')
 
   return (
@@ -69,7 +71,9 @@ export function Shell() {
 
         <nav className="nav">
           <NavItem to="/board" label="Доска" active={isBoard} />
-          <NavItem to="/technician" label="Кабинет техника" active={isTechnician} />
+          <NavItem to="/locations" label="Локации" active={isLocations} />
+          <NavItem to="/technician" label="Техник" active={isTechnician} />
+          <NavItem to="/map" label="Карта" active={isMap} />
           <NavItem to="/tickets/new" label="Создать заявку" active={isCreate} />
           <NavItem to="/employees" label="Сотрудники" active={isEmployees} />
           <NavItem to="/specializations" label="Специализации" active={isSpecializations} />
@@ -103,8 +107,14 @@ export function Shell() {
             <Link to="/board">
               <button className="ghost">Доска</button>
             </Link>
+            <Link to="/locations">
+              <button className="ghost">Локации</button>
+            </Link>
             <Link to="/technician">
               <button className="ghost">Техник</button>
+            </Link>
+            <Link to="/map">
+              <button className="ghost">Карта</button>
             </Link>
             <Link to="/tickets/new">
               <button className="ghost">Создать</button>

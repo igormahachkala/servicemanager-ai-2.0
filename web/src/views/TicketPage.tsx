@@ -842,7 +842,7 @@ export function TicketPage() {
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                       <b>{item.title}</b>
                       <Tag>{sourceLabel(item.source)}</Tag>
-                      <Tag>{timelineTypeLabel(item.type)}</Tag>
+                      <Tag>{timelineTypeLabel(item.type || item.domainType || item.timelineEvent || 'event')}</Tag>
                     </div>
 
                     <div className="muted small">

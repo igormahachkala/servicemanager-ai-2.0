@@ -14,8 +14,13 @@ export type TicketUrgency = 'URGENT' | 'NOT_URGENT'
 export type Me = {
   id: string
   email: string
+  firstName?: string | null
+  lastName?: string | null
+  profilePhotoUrl?: string | null
   role: Role
   companyId: string
+  companyName?: string | null
+  isActive?: boolean
 }
 
 export type LoginInput = {
@@ -25,10 +30,13 @@ export type LoginInput = {
 
 export type LoginResponse = {
   access_token: string
+  user: Me
 }
 
 export type RegisterInput = {
   companyName: string
+  firstName: string
+  lastName: string
   email: string
   password: string
 }
@@ -36,19 +44,73 @@ export type RegisterInput = {
 export type UserListItem = {
   id: string
   email: string
+  firstName?: string | null
+  lastName?: string | null
+  profilePhotoUrl?: string | null
   role: Role
   isActive?: boolean
   createdAt?: string
   companyId?: string
+  technicianSpecializations?: Array<{
+    specialization: {
+      id: string
+      name: string
+      isActive?: boolean
+    }
+  }>
+}
+
+export type LocationListItem = {
+  id: string
+  clientCompanyId?: string
+  name: string
+  city?: string | null
+  region?: string | null
+  address?: string | null
+  platformCode?: string | null
+  externalCode?: string | null
+  latitude?: number | null
+  longitude?: number | null
+  isActive?: boolean
+  createdAt?: string
+  updatedAt?: string
+}
+
+export type CreateLocationInput = {
+  name: string
+  city?: string
+  address?: string
+  platformCode: string
+  externalCode?: string
+  latitude?: number
+  longitude?: number
+  isActive?: boolean
+}
+
+export type UpdateLocationInput = {
+  name?: string
+  city?: string | null
+  address?: string | null
+  platformCode?: string
+  externalCode?: string | null
+  latitude?: number | null
+  longitude?: number | null
+  isActive?: boolean
 }
 
 export type CreateUserInput = {
+  firstName?: string
+  lastName?: string
+  profilePhotoUrl?: string
   email: string
   password: string
   role: Role
 }
 
 export type UpdateUserInput = {
+  firstName?: string
+  lastName?: string
+  profilePhotoUrl?: string
   email?: string
   password?: string
   role?: Role
@@ -189,6 +251,7 @@ export type AssignmentCandidatesResponse = {
 
 export type TicketAttachmentItem = {
   id: string
+  ticketId?: string | null
   originalName: string
   mimeType: string
   sizeBytes: number
@@ -222,6 +285,8 @@ export type BoardResponse = {
 
 export type TicketGetOne = {
   id: string
+  title?: string
+  description?: string
   status: TicketStatus
   urgency: TicketUrgency
   createdAt: string
@@ -241,8 +306,10 @@ export type TicketGetOne = {
 
 export type TimelineItem = {
   at: string
-  source: 'status_history' | 'domain_event'
-  type: string
+  source: 'history' | 'event' | 'status_history' | 'domain_event'
+  timelineEvent?: string | null
+  domainType?: string
+  type?: string
   title: string
   actor: { id: string; email: string } | null
   payload: any
@@ -250,14 +317,25 @@ export type TimelineItem = {
 
 export type TimelineResponse = {
   ticketId: string
-  items: TimelineItem[]
-  meta: { statusHistoryCount: number; domainEventCount: number }
+  timeline?: TimelineItem[]
+  history?: any[]
+  events?: any[]
+  items?: TimelineItem[]
+  meta: {
+    statusHistoryCount?: number
+    domainEventCount?: number
+    historyCount?: number
+    eventCount?: number
+  }
 }
 
 export type CreateTicketInput = {
-  problemText: string
-  urgency: TicketUrgency
-  problemCategoryId: string
+  locationId: string
+  categoryId: string
+  urgency?: TicketUrgency
+  title?: string | null
+  description?: string | null
+  attachmentIds?: string[]
   requesterName?: string | null
   requesterPhone?: string | null
   address?: string | null
@@ -275,11 +353,61 @@ export type UpdateTicketInput = {
   pointName?: string | null
 }
 
-export type CreateTicketResponse = any
+export type CreateTicketResponse = {
+  ticket: {
+    id: string
+    title?: string
+    description?: string
+  }
+  generated?: {
+    title: string
+    description: string
+    possibleCauses?: string[]
+    recommendedActions?: string[]
+  }
+  autoAssigned?: boolean
+}
+
+export type DraftTicketAttachment = TicketAttachmentItem
 
 export type UpdateTicketStatusInput = {
   status: TicketStatus
   comment?: string
+}
+
+export type MapDominantStatus = 'NEW' | 'IN_PROGRESS' | 'DONE' | 'NONE'
+
+export type MapLocationItem = {
+  locationId: string
+  name: string
+  address?: string | null
+  latitude: number
+  longitude: number
+  ticketsToday: number
+  newCount: number
+  inProgressCount: number
+  doneCount: number
+  dominantStatus: MapDominantStatus
+}
+
+export type MapLocationDetail = {
+  locationId: string
+  name: string
+  address?: string | null
+  latitude: number | null
+  longitude: number | null
+  summary: {
+    total: number
+    newCount: number
+    inProgressCount: number
+    doneCount: number
+  }
+  recentTickets: Array<{
+    id: string
+    title: string
+    status: TicketStatus
+    createdAt: string
+  }>
 }
 
 export type AnalyticsOverviewResponse = {
@@ -345,12 +473,12 @@ const TOKEN_KEY = 'sm_token'
 const COMPANY_LABEL_KEY = 'sm_company_label'
 
 function readBaseUrl(): string {
-  if (typeof window === 'undefined') return 'http://localhost:3000'
-  return localStorage.getItem(BASE_URL_KEY) || 'http://localhost:3000'
+  if (typeof window === 'undefined') return 'http://localhost:3001'
+  return localStorage.getItem(BASE_URL_KEY) || 'http://localhost:3001'
 }
 
 function normalizeBaseUrl(url: string): string {
-  return (url || 'http://localhost:3000').trim().replace(/\/+$/, '')
+  return (url || 'http://localhost:3001').trim().replace(/\/+$/, '')
 }
 
 export function getBaseUrl(): string {
@@ -383,9 +511,10 @@ export function getCompanyLabel(me?: Partial<Me> | null): string {
     if (saved && saved.trim()) return saved.trim()
   }
 
-  if (!me) return 'Компания'
+  if (!me) return '????????'
+  if (me.companyName) return me.companyName
   if (me.email) return me.email
-  return 'Компания'
+  return '????????'
 }
 
 export function setCompanyLabel(label: string) {
@@ -464,16 +593,22 @@ export async function login(input: LoginInput): Promise<LoginResponse> {
   })
 }
 
-export async function registerCompany(input: RegisterInput): Promise<LoginResponse> {
+export async function register(input: RegisterInput): Promise<LoginResponse> {
   return request<LoginResponse>('/auth/register', {
     method: 'POST',
     auth: false,
     body: {
       companyName: input.companyName,
+      firstName: input.firstName,
+      lastName: input.lastName,
       email: input.email,
       password: input.password,
     },
   })
+}
+
+export async function registerCompany(input: RegisterInput): Promise<LoginResponse> {
+  return register(input)
 }
 
 export async function me(): Promise<Me> {
@@ -507,6 +642,16 @@ export async function deactivateUser(userId: string): Promise<UserListItem> {
 export async function activateUser(userId: string): Promise<UserListItem> {
   return request<UserListItem>(`/users/${userId}/activate`, {
     method: 'PATCH',
+  })
+}
+
+export async function updateUserSpecializations(
+  userId: string,
+  specializationIds: string[],
+): Promise<UserListItem> {
+  return request<UserListItem>(`/users/${userId}/specializations`, {
+    method: 'PUT',
+    body: { specializationIds },
   })
 }
 
@@ -596,6 +741,31 @@ export async function company(): Promise<CompanySettings> {
   return request<CompanySettings>('/company')
 }
 
+export async function locations(): Promise<LocationListItem[]> {
+  return request<LocationListItem[]>('/locations')
+}
+
+export async function createLocation(input: CreateLocationInput): Promise<LocationListItem> {
+  return request<LocationListItem>('/locations', {
+    method: 'POST',
+    body: input,
+  })
+}
+
+export async function updateLocation(id: string, input: UpdateLocationInput): Promise<LocationListItem> {
+  return request<LocationListItem>(`/locations/${id}`, {
+    method: 'PATCH',
+    body: input,
+  })
+}
+
+export async function setLocationStatus(id: string, isActive: boolean): Promise<LocationListItem> {
+  return request<LocationListItem>(`/locations/${id}/status`, {
+    method: 'PATCH',
+    body: { isActive },
+  })
+}
+
 export async function updateCompany(input: UpdateCompanyInput): Promise<CompanySettings> {
   return request<CompanySettings>('/company', {
     method: 'PATCH',
@@ -610,8 +780,15 @@ export async function updateCompanyAutoAssign(autoAssignEnabled: boolean): Promi
   })
 }
 
-export async function board(): Promise<BoardResponse> {
-  return request<BoardResponse>('/tickets/board')
+export async function board(params?: { take?: number }): Promise<BoardResponse> {
+  const search = new URLSearchParams()
+
+  if (params?.take) {
+    search.set('take', String(params.take))
+  }
+
+  const suffix = search.toString() ? `?${search.toString()}` : ''
+  return request<BoardResponse>(`/tickets/board${suffix}`)
 }
 
 export async function tickets(): Promise<any[]> {
@@ -631,15 +808,15 @@ export async function getTicket(id: string): Promise<TicketGetOne> {
 }
 
 export async function ticketTimeline(id: string): Promise<TimelineResponse> {
-  return request<TimelineResponse>(`/tickets/${id}/timeline`)
+  return request<TimelineResponse>(`/timeline/tickets/${id}`)
 }
 
 export async function timeline(id: string): Promise<TimelineResponse> {
   return ticketTimeline(id)
 }
 
-export async function timelineTicket(id: string): Promise<any> {
-  return request<any>(`/timeline/tickets/${id}`)
+export async function timelineTicket(id: string): Promise<TimelineResponse> {
+  return ticketTimeline(id)
 }
 
 export async function assignmentCandidates(id: string): Promise<AssignmentCandidatesResponse> {
@@ -648,6 +825,47 @@ export async function assignmentCandidates(id: string): Promise<AssignmentCandid
 
 export async function getTicketAssignmentCandidates(id: string): Promise<AssignmentCandidatesResponse> {
   return assignmentCandidates(id)
+}
+
+export async function uploadDraftTicketAttachment(file: File): Promise<DraftTicketAttachment> {
+  const token = getToken()
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const res = await fetch(`${getBaseUrl()}/tickets/attachments/upload`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: formData,
+  })
+
+  const text = await res.text()
+  let data: any = null
+
+  if (text) {
+    try {
+      data = JSON.parse(text)
+    } catch {
+      data = text
+    }
+  }
+
+  if (!res.ok) {
+    const message = data?.message
+      ? Array.isArray(data.message)
+        ? data.message.join(',')
+        : String(data.message)
+      : `HTTP ${res.status}`
+
+    throw new Error(message)
+  }
+
+  return data as DraftTicketAttachment
+}
+
+export async function deleteDraftTicketAttachment(attachmentId: string): Promise<any> {
+  return request<any>(`/tickets/attachments/${attachmentId}`, {
+    method: 'DELETE',
+  })
 }
 
 export async function createTicket(input: CreateTicketInput): Promise<CreateTicketResponse> {
@@ -688,6 +906,10 @@ export async function claimTicket(id: string): Promise<any> {
   return request<any>(`/tickets/${id}/claim`, {
     method: 'POST',
   })
+}
+
+export async function claim(id: string): Promise<any> {
+  return claimTicket(id)
 }
 
 export async function updateTicketStatus(id: string, input: UpdateTicketStatusInput): Promise<any> {
@@ -742,6 +964,21 @@ export async function deleteTicketAttachment(id: string, attachmentId: string): 
   })
 }
 
+export async function mapLocations(): Promise<MapLocationItem[]> {
+  return request<MapLocationItem[]>('/map/locations')
+}
+
+export async function mapLocation(locationId: string): Promise<MapLocationDetail> {
+  return request<MapLocationDetail>(`/map/locations/${locationId}`)
+}
+
 export async function analyticsOverview(): Promise<AnalyticsOverviewResponse> {
   return request<AnalyticsOverviewResponse>('/analytics/overview')
+}
+
+export function resolveFileUrl(url: string): string {
+  if (!url) return url
+  if (/^https?:\/\//i.test(url)) return url
+  if (url.startsWith('/')) return `${getBaseUrl()}${url}`
+  return `${getBaseUrl()}/${url}`
 }
