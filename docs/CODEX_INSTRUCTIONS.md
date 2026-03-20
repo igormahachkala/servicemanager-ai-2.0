@@ -67,6 +67,20 @@ Codex is the implementer:
 - files above 500 lines are candidates for decomposition
 - avoid giant mixed-responsibility files
 
+## Runtime rules
+- Docker-first, but local WSL backend is a first-class dev mode
+- backend local WSL runtime uses `backend/.env`
+- backend docker runtime uses `backend/.env.docker`
+- never switch `DATABASE_URL` manually inside the same env file
+- local WSL backend must use `localhost:5432`
+- docker backend must use `postgres:5432`
+- local WSL backend must use `localhost:3001`
+- docker backend must use `localhost:3000`
+- local and docker backend are expected to run side by side without port conflict
+- normal WSL dev shells must resolve to Node 20 by default
+- validate both modes when changing backend env handling
+- project root: `~/projects/sma-service`
+
 ## Current product direction
 ### Client Quick Request
 Goal: create a request in about 4 clicks:
@@ -116,13 +130,6 @@ This AI layer should support:
 - possible causes
 - execution checklist
 - routing hints
-
-## Operational environment
-- Docker-first
-- WSL + Docker
-- project root: ~/projects/sma-service
-- backend expected at localhost:3000
-- follow runbook commands when validating environment
 
 ## Standard response format
 Always answer in this structure:

@@ -7,11 +7,14 @@ import { TicketsPolicy } from '../policy/tickets.policy';
 import { assertAllowed } from '../policy/policy.utils';
 
 import { decideTicketTransition } from '../workflow/ticket.workflow';
-import { emitDomainEventTx } from '../events/events.bus';
+import { TimelineService } from '../timeline/timeline.service';
 
 @Injectable()
 export class TicketsStatusService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly timelineService: TimelineService,
+  ) {}
 
   private readonly policy = new TicketsPolicy();
 
@@ -84,11 +87,10 @@ export class TicketsStatusService {
         comment: dto.comment ?? null,
       });
 
-      await emitDomainEventTx(tx, {
-        type: 'ticket.status_changed',
+      await this.timelineService.recordTx(tx, {
+        event: 'STATUS_CHANGED',
         companyId,
-        entityType: 'Ticket',
-        entityId: ticketId,
+        ticketId,
         actorUserId: user?.id ?? null,
         payload: {
           fromStatus,
@@ -97,6 +99,21 @@ export class TicketsStatusService {
           slaBreachedMarked: shouldMarkBreached,
         },
       });
+
+      if (dto.comment?.trim()) {
+        await this.timelineService.recordTx(tx, {
+          event: 'COMMENT_ADDED',
+          companyId,
+          ticketId,
+          actorUserId: user?.id ?? null,
+          payload: {
+            comment: dto.comment.trim(),
+            fromStatus,
+            toStatus,
+            source: 'status_change',
+          },
+        });
+      }
 
       return updated;
     });

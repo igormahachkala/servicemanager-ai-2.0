@@ -1,25 +1,42 @@
-import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { JwtService } from '@nestjs/jwt';
-import * as bcrypt from 'bcrypt';
-import { RegisterDto } from './dto/register.dto';
-import { LoginDto } from './dto/login.dto';
+﻿import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
+import { JwtService } from '@nestjs/jwt';
+
+import { PrismaService } from '../prisma/prisma.service';
+
+import { LoginDto } from './dto/login.dto';
+import { RegisterDto } from './dto/register.dto';
 
 @Injectable()
 export class AuthService {
   constructor(
-    private prisma: PrismaService,
-    private jwt: JwtService,
+    private readonly prisma: PrismaService,
+    private readonly jwt: JwtService,
   ) {}
 
   async register(dto: RegisterDto) {
-    if (!dto.companyName?.trim()) {
+    const companyName = dto.companyName.trim();
+    const firstName = dto.firstName.trim();
+    const lastName = dto.lastName.trim();
+    const email = dto.email.toLowerCase().trim();
+    const password = dto.password.trim();
+
+    if (!companyName) {
       throw new BadRequestException('Company name is required');
     }
 
-    const email = dto.email.toLowerCase().trim();
-    const password = dto.password.trim();
+    if (!firstName) {
+      throw new BadRequestException('First name is required');
+    }
+
+    if (!lastName) {
+      throw new BadRequestException('Last name is required');
+    }
+
+    if (!password) {
+      throw new BadRequestException('Password is required');
+    }
 
     const existing = await this.prisma.user.findUnique({
       where: { email },
@@ -33,27 +50,39 @@ export class AuthService {
 
     const company = await this.prisma.company.create({
       data: {
-        name: dto.companyName.trim(),
+        name: companyName,
         users: {
           create: {
             email,
             password: passwordHash,
+            firstName,
+            lastName,
+            profilePhotoUrl: null,
             role: UserRole.ADMIN,
             isActive: true,
           },
         },
       },
-      include: { users: true },
+      include: {
+        users: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            profilePhotoUrl: true,
+            role: true,
+            companyId: true,
+            isActive: true,
+          },
+        },
+      },
     });
 
-    const user = company.users[0];
-
-    return this.issueToken(
-      user.id,
-      user.email,
-      user.companyId,
-      user.role,
-    );
+    return this.issueAuthPayload({
+      ...company.users[0],
+      companyName: company.name,
+    });
   }
 
   async login(dto: LoginDto) {
@@ -62,6 +91,20 @@ export class AuthService {
 
     const user = await this.prisma.user.findUnique({
       where: { email },
+      select: {
+        id: true,
+        email: true,
+        password: true,
+        firstName: true,
+        lastName: true,
+        profilePhotoUrl: true,
+        role: true,
+        companyId: true,
+        isActive: true,
+        company: {
+          select: { name: true },
+        },
+      },
     });
 
     if (!user) {
@@ -78,29 +121,107 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    return this.issueToken(
-      user.id,
-      user.email,
-      user.companyId,
-      user.role,
-    );
+    return this.issueAuthPayload({
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      profilePhotoUrl: user.profilePhotoUrl,
+      role: user.role,
+      companyId: user.companyId,
+      isActive: user.isActive,
+      companyName: user.company?.name ?? null,
+    });
   }
 
-  private issueToken(
-    userId: string,
-    email: string,
-    companyId: string,
-    role: UserRole,
-  ) {
-    const payload = {
-      sub: userId,
-      email,
-      companyId,
-      role,
+  async me(userId: string, companyId: string) {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id: userId,
+        companyId,
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        profilePhotoUrl: true,
+        role: true,
+        companyId: true,
+        isActive: true,
+        company: {
+          select: { name: true },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    if (!user.isActive) {
+      throw new UnauthorizedException('Account is deactivated');
+    }
+
+    return this.toPublicUser({
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      profilePhotoUrl: user.profilePhotoUrl ?? null,
+      role: user.role,
+      companyId: user.companyId,
+      isActive: user.isActive,
+      companyName: user.company?.name ?? null,
+    });
+  }
+
+  private issueAuthPayload(user: {
+    id: string;
+    email: string;
+    firstName: string | null;
+    lastName: string | null;
+    profilePhotoUrl?: string | null;
+    role: UserRole;
+    companyId: string;
+    isActive: boolean;
+    companyName: string | null;
+  }) {
+    const access_token = this.jwt.sign({
+      sub: user.id,
+      userId: user.id,
+      email: user.email,
+      companyId: user.companyId,
+      role: user.role,
+    });
+
+    return {
+      access_token,
+      user: this.toPublicUser(user),
     };
+  }
 
-    const access_token = this.jwt.sign(payload);
-
-    return { access_token };
+  private toPublicUser(user: {
+    id: string;
+    email: string;
+    firstName: string | null;
+    lastName: string | null;
+    profilePhotoUrl?: string | null;
+    role: UserRole;
+    companyId: string;
+    isActive: boolean;
+    companyName: string | null;
+  }) {
+    return {
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      profilePhotoUrl: user.profilePhotoUrl ?? null,
+      role: user.role,
+      companyId: user.companyId,
+      companyName: user.companyName,
+      isActive: user.isActive,
+    };
   }
 }

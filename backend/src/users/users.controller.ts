@@ -1,10 +1,9 @@
-import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Put, Req, UseGuards } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { Roles } from '../common/roles.decorator';
 import { RolesGuard } from '../common/roles.guard';
-
 import { PermissionsGuard } from '../common/permissions.guard';
 import { RequirePermission } from '../common/permissions.decorator';
 import { PERMISSIONS } from '../common/permissions.constants';
@@ -12,6 +11,7 @@ import { PERMISSIONS } from '../common/permissions.constants';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
+import { UpdateUserSpecializationsDto } from './dto/update-user-specializations.dto';
 
 @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
 @Controller('users')
@@ -55,5 +55,16 @@ export class UsersController {
   @Patch(':id/activate')
   activate(@Req() req: any, @Param('id') userId: string) {
     return this.users.activate(req.user.companyId, userId);
+  }
+
+  @Roles(UserRole.ADMIN)
+  @RequirePermission(PERMISSIONS.USERS_MANAGE)
+  @Put(':id/specializations')
+  updateSpecializations(
+    @Req() req: any,
+    @Param('id') userId: string,
+    @Body() dto: UpdateUserSpecializationsDto,
+  ) {
+    return this.users.updateSpecializations(req.user.companyId, userId, dto.specializationIds ?? []);
   }
 }

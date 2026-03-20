@@ -8,6 +8,7 @@ export type DomainEventType =
   | 'ticket.category_changed'
   | 'ticket.updated'
   | 'ticket.status_changed'
+  | 'ticket.comment_added'
   | 'ticket.sla_warning'
   | 'ticket.sla_breached'
   | 'sla.breached'

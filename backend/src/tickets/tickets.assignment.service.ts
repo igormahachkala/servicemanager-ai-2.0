@@ -11,10 +11,12 @@ import { TicketsPolicy } from '../policy/tickets.policy';
 import { assertAllowed } from '../policy/policy.utils';
 
 import { decideTicketTransition } from '../workflow/ticket.workflow';
-import { emitDomainEventTx } from '../events/events.bus';
+import { TimelineService } from '../timeline/timeline.service';
 
 import { AssignmentService } from '../assignment/assignment.service';
 import { TicketsQueryService } from './tickets.query.service';
+import { TicketAttachmentsService } from './ticket-attachments.service';
+import { buildTicketDescription } from './ticket-description.builder';
 
 @Injectable()
 export class TicketsAssignmentService {
@@ -22,6 +24,8 @@ export class TicketsAssignmentService {
     private readonly prisma: PrismaService,
     private readonly assignment: AssignmentService,
     private readonly query: TicketsQueryService,
+    private readonly timelineService: TimelineService,
+    private readonly attachments: TicketAttachmentsService,
   ) {}
 
   private readonly policy = new TicketsPolicy();
@@ -205,10 +209,38 @@ export class TicketsAssignmentService {
     });
   }
 
+  private normalizeCreateInput(dto: CreateTicketDto) {
+    const categoryId = (dto.categoryId ?? dto.problemCategoryId ?? '').trim();
+    if (!categoryId) {
+      throw new BadRequestException('categoryId is required');
+    }
+
+    return {
+      parentId: dto.parentId ?? null,
+      locationId: dto.locationId,
+      categoryId,
+      title: dto.title?.trim() || null,
+      description: dto.description?.trim() || dto.problemText?.trim() || null,
+      attachmentIds: [...new Set((dto.attachmentIds ?? []).filter(Boolean))],
+      requesterName: dto.requesterName?.trim() || null,
+      requesterPhone: dto.requesterPhone?.trim() || null,
+      address: dto.address?.trim() || null,
+      pointName: dto.pointName?.trim() || null,
+      urgency: dto.urgency,
+      slaMinutes: dto.slaMinutes ?? null,
+    };
+  }
   async create(companyId: string, creatorRole: UserRole, dto: CreateTicketDto) {
+    const input = this.normalizeCreateInput(dto);
     const company = await this.getCompany(companyId);
-    const category = await this.getCategory(companyId, dto.problemCategoryId);
-    const location = await this.getLocation(companyId, dto.locationId);
+    const category = await this.getCategory(companyId, input.categoryId);
+    const location = await this.getLocation(companyId, input.locationId);
+    const generated = buildTicketDescription({
+      category,
+      location,
+      title: input.title,
+      description: input.description,
+    });
 
     const specializationIds = category.specializationLinks.map((x) => x.specializationId);
     const candidates = await this.findCandidateTechnicians(companyId, specializationIds);
@@ -217,7 +249,7 @@ export class TicketsAssignmentService {
 
     const ticketId = randomUUID();
 
-    const slaMinutes = dto.slaMinutes ?? null;
+    const slaMinutes = input.slaMinutes;
     const slaDueAt = slaMinutes ? new Date(Date.now() + slaMinutes * 60_000) : null;
 
     const created = await this.prisma.$transaction(async (tx) => {
@@ -226,7 +258,7 @@ export class TicketsAssignmentService {
             {
               companyId,
               ticketId,
-              problemCategoryId: dto.problemCategoryId,
+              problemCategoryId: input.categoryId,
               specializationIds,
             },
             candidates.map((c) => ({
@@ -252,17 +284,17 @@ export class TicketsAssignmentService {
           id: ticketId,
           companyId,
           locationId: location.id,
-          parentId: dto.parentId ?? null,
+          parentId: input.parentId,
 
-          requesterName: dto.requesterName?.trim() || null,
-          requesterPhone: dto.requesterPhone?.trim() || null,
-          address: location.address ?? (dto.address?.trim() || null),
-          pointName: location.name ?? (dto.pointName?.trim() || null),
+          requesterName: input.requesterName,
+          requesterPhone: input.requesterPhone,
+          address: location.address ?? input.address,
+          pointName: location.name ?? input.pointName,
 
-          problemCategoryId: dto.problemCategoryId,
-          problemText: dto.problemText?.trim(),
+          problemCategoryId: input.categoryId,
+          problemText: generated.description,
 
-          urgency: dto.urgency ?? TicketUrgency.NOT_URGENT,
+          urgency: input.urgency ?? TicketUrgency.NOT_URGENT,
           slaMinutes,
           slaDueAt,
 
@@ -279,18 +311,27 @@ export class TicketsAssignmentService {
         comment: 'Ticket created',
       });
 
-      await emitDomainEventTx(tx, {
-        type: 'ticket.created',
+      const boundAttachments = await this.attachments.bindAttachmentsToTicketTx(tx, {
         companyId,
-        entityType: 'Ticket',
-        entityId: ticket.id,
+        ticketId: ticket.id,
+        attachmentIds: input.attachmentIds,
+      });
+
+      await this.timelineService.recordTx(tx, {
+        event: 'TICKET_CREATED',
+        companyId,
+        ticketId: ticket.id,
         actorUserId: null,
         payload: {
           parentId: ticket.parentId,
           locationId: location.id,
+          categoryId: input.categoryId,
+          title: generated.title,
+          description: generated.description,
           status: TicketStatus.NEW,
           urgency: ticket.urgency,
           autoAssigned: !!assignedTechnicianId,
+          attachmentCount: boundAttachments.length,
         },
       });
 
@@ -317,11 +358,10 @@ export class TicketsAssignmentService {
           comment: 'Auto assigned',
         });
 
-        await emitDomainEventTx(tx, {
-          type: 'ticket.assigned',
+        await this.timelineService.recordTx(tx, {
+          event: 'TICKET_ASSIGNED',
           companyId,
-          entityType: 'Ticket',
-          entityId: ticket.id,
+          ticketId: ticket.id,
           actorUserId: null,
           payload: {
             assignedTechnicianId,
@@ -332,11 +372,12 @@ export class TicketsAssignmentService {
         });
       }
 
-      return { ticket, assignedTechnicianId };
+      return { ticket, assignedTechnicianId, generated };
     });
 
     return {
-      ticket: created.ticket,
+      ticket: { ...created.ticket, title: created.generated.title, description: created.generated.description },
+      generated: created.generated,
       instructions: category.instructions || null,
       candidates,
       autoAssigned: !!created.assignedTechnicianId,
@@ -430,11 +471,10 @@ export class TicketsAssignmentService {
         comment: 'Child ticket created',
       });
 
-      await emitDomainEventTx(tx, {
-        type: 'ticket.created',
+      await this.timelineService.recordTx(tx, {
+        event: 'TICKET_CREATED',
         companyId,
-        entityType: 'Ticket',
-        entityId: ticket.id,
+        ticketId: ticket.id,
         actorUserId: null,
         payload: {
           parentId: parent.id,
@@ -469,11 +509,10 @@ export class TicketsAssignmentService {
           comment: 'Auto assigned',
         });
 
-        await emitDomainEventTx(tx, {
-          type: 'ticket.assigned',
+        await this.timelineService.recordTx(tx, {
+          event: 'TICKET_ASSIGNED',
           companyId,
-          entityType: 'Ticket',
-          entityId: ticket.id,
+          ticketId: ticket.id,
           actorUserId: null,
           payload: {
             assignedTechnicianId,
@@ -559,7 +598,7 @@ export class TicketsAssignmentService {
     const decision = this.policy.canAssign({ id: actor?.id, role: actor?.role, companyId });
     assertAllowed(decision);
 
-    return this.prisma.$transaction(async (tx) => {
+    const resolvedTicketId = await this.prisma.$transaction(async (tx) => {
       const ticket = await tx.ticket.findFirst({
         where: { id: ticketId, companyId },
         include: {
@@ -631,23 +670,22 @@ export class TicketsAssignmentService {
       }
 
       if (isReassign) {
-        await emitDomainEventTx(tx, {
-          type: 'ticket.reassigned',
+        await this.timelineService.recordTx(tx, {
+          event: 'TICKET_ASSIGNED',
           companyId,
-          entityType: 'Ticket',
-          entityId: ticket.id,
+          ticketId: ticket.id,
           actorUserId: actor?.id ?? null,
           payload: {
             previousAssignedTechnicianId: previousAssigneeId,
             assignedTechnicianId: technicianId,
+            mode: 'reassign',
           },
         });
       } else if (isFirstAssign || ticket.status === TicketStatus.NEW) {
-        await emitDomainEventTx(tx, {
-          type: 'ticket.assigned',
+        await this.timelineService.recordTx(tx, {
+          event: 'TICKET_ASSIGNED',
           companyId,
-          entityType: 'Ticket',
-          entityId: ticket.id,
+          ticketId: ticket.id,
           actorUserId: actor?.id ?? null,
           payload: {
             assignedTechnicianId: technicianId,
@@ -656,8 +694,10 @@ export class TicketsAssignmentService {
         });
       }
 
-      return this.query.getOne(companyId, actor?.id, actor?.role as UserRole, ticket.id);
+      return ticket.id;
     });
+
+    return this.query.getOne(companyId, actor?.id, actor?.role as UserRole, resolvedTicketId);
   }
 
   async updateCategory(companyId: string, actor: any, ticketId: string, problemCategoryId: string) {
@@ -711,7 +751,7 @@ export class TicketsAssignmentService {
         },
       });
 
-      await emitDomainEventTx(tx, {
+      await this.timelineService.recordLegacyTx(tx, {
         type: 'ticket.category_changed',
         companyId,
         entityType: 'Ticket',
@@ -723,7 +763,7 @@ export class TicketsAssignmentService {
         },
       });
 
-      await emitDomainEventTx(tx, {
+      await this.timelineService.recordLegacyTx(tx, {
         type: 'ticket.updated',
         companyId,
         entityType: 'Ticket',
@@ -836,7 +876,7 @@ export class TicketsAssignmentService {
     });
     assertAllowed(decision);
 
-    return this.prisma.$transaction(async (tx) => {
+    const resolvedTicketId = await this.prisma.$transaction(async (tx) => {
       const ticket = await tx.ticket.findFirst({
         where: {
           id: ticketId,
@@ -877,11 +917,10 @@ export class TicketsAssignmentService {
         comment: 'Claimed by technician',
       });
 
-      await emitDomainEventTx(tx, {
-        type: 'ticket.assigned',
+      await this.timelineService.recordTx(tx, {
+        event: 'TICKET_CLAIMED',
         companyId,
-        entityType: 'Ticket',
-        entityId: ticket.id,
+        ticketId: ticket.id,
         actorUserId: technicianUserId,
         payload: {
           assignedTechnicianId: technicianUserId,
@@ -889,7 +928,12 @@ export class TicketsAssignmentService {
         },
       });
 
-      return this.query.getOne(companyId, technicianUserId, UserRole.TECHNICIAN, ticket.id);
+      return ticket.id;
     });
+
+    return this.query.getOne(companyId, technicianUserId, UserRole.TECHNICIAN, resolvedTicketId);
   }
 }
+
+
+

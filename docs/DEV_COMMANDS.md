@@ -1,241 +1,141 @@
-# DEV COMMANDS — ServiceManager.AI
+# DEV COMMANDS - ServiceManager.AI
 
-Цель документа:
+Purpose:
 
-Стандартизировать команды разработки и тестирования API.
+Standardize the API development and verification commands.
 
-Все команды предполагают:
+Base URLs (dev):
 
-- локальный backend
-- Docker environment
-- JWT авторизацию
+- Docker backend: `http://localhost:3000`
+- Local WSL backend: `http://localhost:3001`
 
-Base URL (dev):
+---
 
+# 1. Runtime modes
+
+## Local WSL backend
+
+- env source: `backend/.env`
+- database host: `localhost:5432`
+- backend port: `3001`
+- docker backend can stay running on `3000`
+- command: `cd /home/igor/projects/sma-service/backend && npm run start:dev`
+
+## Docker backend
+
+- env source: `backend/.env.docker`
+- database host: `postgres:5432`
+- backend port: `3000`
+- command: `cd /home/igor/projects/sma-service && docker compose up -d --build postgres backend`
+
+Do not switch `DATABASE_URL` manually inside the same `.env` file.
+
+---
+
+# 2. Node 20 in WSL
+
+A normal WSL dev shell must use Node 20 by default.
+
+Check:
+
+```bash
+node -v
+npm -v
+```
+
+If the shell was opened before the init-file update, open a new WSL session or run:
+
+```bash
+source ~/.profile
+node -v
+npm -v
+```
+
+---
+
+# 3. Local WSL setup
+
+Start Postgres through compose:
+
+```bash
+cd /home/igor/projects/sma-service
+docker compose up -d postgres
+```
+
+Start the backend locally from WSL:
+
+```bash
+cd /home/igor/projects/sma-service/backend
+npm install
+npm run prisma:generate:local
+npm run start:dev
+```
+
+Expected local backend URL:
+
+```text
+http://localhost:3001
+```
+
+Docker backend does not need to be stopped, because it stays on `3000`.
+
+---
+
+# 4. Docker setup
+
+Start Postgres and backend in compose:
+
+```bash
+cd /home/igor/projects/sma-service
+docker compose up -d --build postgres backend
+```
+
+Expected docker backend URL:
+
+```text
 http://localhost:3000
+```
 
----
+Show backend logs:
 
-# 1. Установка инструментов
-
-Для удобной работы с API требуется:
-
-jq
-
-Установка:
-
-sudo apt install jq
-
----
-
-# 2. Dev helpers (bash)
-
-Рекомендуется добавить dev helpers в:
-
-~/.bashrc
-
-Пример:
-
-# === ServiceManager.AI dev helpers ===
-
-export SMA_API_BASE="http://localhost:3000"
-export SMA_DEV_EMAIL="admin@example.com"
-export SMA_DEV_PASSWORD="admin"
-
-sma_token() {
-  curl -s -X POST "$SMA_API_BASE/auth/login" \
-    -H "Content-Type: application/json" \
-    -d "{\"email\":\"$SMA_DEV_EMAIL\",\"password\":\"$SMA_DEV_PASSWORD\"}" \
-  | jq -r .access_token
-}
-
-sma_me() {
-  local t
-  t="$(sma_token)"
-  curl -s "$SMA_API_BASE/auth/me" \
-    -H "Authorization: Bearer $t"
-}
-
-board() {
-  local qs="${1:-}"
-  local t
-  t="$(sma_token)"
-  curl -s "$SMA_API_BASE/tickets/board${qs}" \
-    -H "Authorization: Bearer $t"
-}
-
-Применить:
-
-source ~/.bashrc
-
----
-
-# 3. Проверка авторизации
-
-Получить текущего пользователя:
-
-sma_me
-
-Ответ:
-
-{
-  "id": "...",
-  "email": "...",
-  "role": "ADMIN",
-  "companyId": "..."
-}
-
----
-
-# 4. Получить JWT вручную
-
-curl -s -X POST http://localhost:3000/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"email":"admin@example.com","password":"admin"}' \
-  | jq
-
----
-
-# 5. Tickets board
-
-Получить kanban board:
-
-board
-
-Фильтры:
-
-board "?status=NEW"
-
-board "?status=NEW&status=ASSIGNED"
-
-board "?assigneeId=unassigned"
-
-board "?sla=atRisk"
-
-board "?take=50"
-
-board "?q=printer"
-
-Комбинированный пример:
-
-board "?status=NEW&status=ASSIGNED&assigneeId=unassigned&sla=atRisk&take=50&q=test"
-
----
-
-# 6. Создание пользователя
-
-TOKEN=$(sma_token)
-
-curl -s -X POST http://localhost:3000/users \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email":"tech@test.local",
-    "password":"ChangeMe123!",
-    "role":"TECHNICIAN"
-  }'
-
----
-
-# 7. Создание тикета
-
-TOKEN=$(sma_token)
-
-curl -s -X POST http://localhost:3000/tickets \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "problemCategoryId":"<CATEGORY_ID>",
-    "problemText":"Test ticket",
-    "urgency":"NOT_URGENT",
-    "requesterName":"Test User",
-    "requesterPhone":"+7 999 000-00-00",
-    "address":"Test address",
-    "pointName":"Point A"
-  }'
-
----
-
-# 8. Назначение техника
-
-TOKEN=$(sma_token)
-
-curl -X PUT http://localhost:3000/tickets/<TICKET_ID>/assign/<TECH_ID> \
-  -H "Authorization: Bearer $TOKEN"
-
----
-
-# 9. Claim тикета
-
-TOKEN=$(sma_token)
-
-curl -X POST http://localhost:3000/tickets/<TICKET_ID>/claim \
-  -H "Authorization: Bearer $TOKEN"
-
----
-
-# 10. Смена статуса
-
-TOKEN=$(sma_token)
-
-curl -X PATCH http://localhost:3000/tickets/<TICKET_ID>/status \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "status":"IN_PROGRESS"
-  }'
-
----
-
-# 11. Docker
-
-Пересобрать backend:
-
-docker compose up -d --build backend
-
-Посмотреть логи:
-
+```bash
 docker logs -n 100 sma_backend
+```
 
-Остановить систему:
+Stop the stack:
 
+```bash
 docker compose down
+```
 
 ---
 
-# 12. Prisma
+# 5. Prisma
 
-Создать миграцию:
+Local generate:
 
-npx prisma migrate dev --name migration_name
+```bash
+cd /home/igor/projects/sma-service/backend
+npm run prisma:generate:local
+```
 
-Форматирование:
+Docker-oriented generate:
 
-npx prisma format
+```bash
+cd /home/igor/projects/sma-service/backend
+npm run prisma:generate:docker
+```
 
-Открыть Prisma Studio:
+Local migration:
 
-npx prisma studio
+```bash
+cd /home/igor/projects/sma-service/backend
+npm run prisma:migrate:dev -- --name migration_name
+```
 
----
+Studio:
 
-# 13. Полезные команды
-
-Показать пользователей:
-
-docker compose exec backend node -e "const {PrismaClient}=require('@prisma/client');const p=new PrismaClient();p.user.findMany().then(r=>console.log(r)).finally(()=>p.\$disconnect())"
-
-Показать количество сущностей:
-
-docker compose exec backend node -e "const {PrismaClient}=require('@prisma/client');const p=new PrismaClient();Promise.all([p.user.count(),p.ticket.count()]).then(r=>console.log(r)).finally(()=>p.\$disconnect())"
-
----
-
-# 14. Dev Philosophy
-
-Dev команды должны:
-
-- не хранить JWT в репозитории
-- использовать динамический login
-- работать внутри multi-tenant модели
-- не нарушать security rules
+```bash
+cd /home/igor/projects/sma-service/backend
+npm run prisma:studio
+```

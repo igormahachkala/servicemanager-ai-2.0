@@ -1,5 +1,6 @@
-import { Type } from 'class-transformer';
+﻿import { Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsNumber,
   IsOptional,
   IsString,
@@ -45,4 +46,8 @@ export class UpdateLocationDto {
   @Min(-180)
   @Max(180)
   longitude?: number | null;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }

@@ -1,10 +1,15 @@
-import { Injectable } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+﻿import { Injectable } from '@nestjs/common';
 import { TicketStatus } from '@prisma/client';
+
+import { PrismaService } from '../prisma/prisma.service';
+import { TimelineService } from '../timeline/timeline.service';
 
 @Injectable()
 export class AnalyticsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly timelineService: TimelineService,
+  ) {}
 
   async overview(companyId: string) {
     const now = new Date();
@@ -134,38 +139,35 @@ export class AnalyticsService {
           evaluatedTickets: 0,
           meanTimeToAssignMinutes: 0,
           meanTimeToResolveMinutes: 0,
-          note: 'Нет тикетов для расчёта средних времен',
+          note: 'No tickets available for timing metrics',
         },
         workloadByTechnician: [],
         throughputByTechnician: [],
-        note: 'overview v3 (empty)',
+        note: 'overview v4 (timeline-backed)',
         now,
       };
     }
 
-    const history = await this.prisma.ticketStatusHistory.findMany({
-      where: {
-        ticketId: { in: ticketIds },
-      },
-      select: {
-        ticketId: true,
-        toStatus: true,
-        createdAt: true,
-      },
-      orderBy: [{ ticketId: 'asc' }, { createdAt: 'asc' }],
-      take: 100000,
-    });
-
+    const timelineEvents = await this.timelineService.listTicketEvents(companyId, ticketIds);
     const firstAssignedAt = new Map<string, Date>();
     const firstDoneAt = new Map<string, Date>();
 
-    for (const h of history) {
-      if (h.toStatus === TicketStatus.ASSIGNED && !firstAssignedAt.has(h.ticketId)) {
-        firstAssignedAt.set(h.ticketId, h.createdAt);
+    for (const event of timelineEvents) {
+      if (
+        (event.timelineEvent === 'TICKET_ASSIGNED' || event.timelineEvent === 'TICKET_CLAIMED') &&
+        !firstAssignedAt.has(event.ticketId)
+      ) {
+        firstAssignedAt.set(event.ticketId, event.at);
       }
 
-      if (h.toStatus === TicketStatus.DONE && !firstDoneAt.has(h.ticketId)) {
-        firstDoneAt.set(h.ticketId, h.createdAt);
+      const payload = event.payload as { toStatus?: TicketStatus } | null;
+
+      if (
+        event.timelineEvent === 'STATUS_CHANGED' &&
+        payload?.toStatus === TicketStatus.DONE &&
+        !firstDoneAt.has(event.ticketId)
+      ) {
+        firstDoneAt.set(event.ticketId, event.at);
       }
     }
 
@@ -293,14 +295,12 @@ export class AnalyticsService {
         evaluatedTickets: ticketIds.length,
         meanTimeToAssignMinutes,
         meanTimeToResolveMinutes,
-        note:
-          'Mean times computed from ticket.createdAt to first ASSIGNED/DONE status history event over last N tickets',
+        note: 'Mean times computed from ticket.createdAt to first assignment/claim and DONE timeline events over last N tickets',
       },
       workloadByTechnician,
       throughputByTechnician,
       now,
-      note:
-        'overview v3 (counts + backlog + sla percent + workload + throughput + mean times)',
+      note: 'overview v4 (counts + backlog + sla percent + workload + throughput + timeline mean times)',
     };
   }
 }

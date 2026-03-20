@@ -18,12 +18,11 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
-    environment:
-      DATABASE_URL: postgresql://sma_user:sma_password@postgres:5432/sma_db
-      JWT_SECRET: supersecret_change_me
+    env_file:
+      - ./backend/.env.docker
     depends_on:
       - postgres
-    command: npm run start
+    command: npm run start:docker
 
 volumes:
   postgres_data:

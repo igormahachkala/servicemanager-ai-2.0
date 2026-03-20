@@ -17,6 +17,7 @@ import { HealthController } from './health.controller';
 import { SlaModule } from './sla/sla.module';
 import { AssignmentModule } from './assignment/assignment.module';
 import { TimelineModule } from './timeline/timeline.module';
+import { MapModule } from './map/map.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { TimelineModule } from './timeline/timeline.module';
     SlaModule,
     AssignmentModule,
     TimelineModule,
+    MapModule,
   ],
   controllers: [AppController, HealthController],
   providers: [AppService],

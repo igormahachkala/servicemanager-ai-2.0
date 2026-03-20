@@ -16,13 +16,16 @@ export class UsersService {
     return this.prisma.user.findMany({
       where: UsersPolicy.listWhere(companyId),
       select: UsersPolicy.selectPublicUser(),
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ role: 'asc' }, { email: 'asc' }],
     });
   }
 
   async create(companyId: string, dto: CreateUserDto) {
     const email = (dto.email ?? '').trim().toLowerCase();
     const password = (dto.password ?? '').trim();
+    const firstName = this.normalizeOptionalText(dto.firstName);
+    const lastName = this.normalizeOptionalText(dto.lastName);
+    const profilePhotoUrl = this.normalizeOptionalText(dto.profilePhotoUrl);
 
     if (!email) {
       throw new BadRequestException('Email is required');
@@ -42,20 +45,28 @@ export class UsersService {
 
     const passwordHash = await bcrypt.hash(password, 10);
 
-    return this.prisma.user.create({
+    const created = await this.prisma.user.create({
       data: UsersPolicy.createData(companyId, {
         email,
         password: passwordHash,
         role: dto.role,
+        firstName,
+        lastName,
+        profilePhotoUrl,
       }),
-      select: UsersPolicy.selectPublicUser(),
+      select: { id: true },
     });
+
+    return this.getPublicUserById(companyId, created.id);
   }
 
   async update(companyId: string, actorUserId: string, userId: string, dto: UpdateUserDto) {
     const existingUser = await this.findCompanyUser(companyId, userId);
 
     const nextEmail = dto.email !== undefined ? dto.email.trim().toLowerCase() : undefined;
+    const firstName = dto.firstName !== undefined ? this.normalizeOptionalText(dto.firstName) : undefined;
+    const lastName = dto.lastName !== undefined ? this.normalizeOptionalText(dto.lastName) : undefined;
+    const profilePhotoUrl = dto.profilePhotoUrl !== undefined ? this.normalizeOptionalText(dto.profilePhotoUrl) : undefined;
 
     if (dto.email !== undefined && !nextEmail) {
       throw new BadRequestException('Email is required');
@@ -71,8 +82,7 @@ export class UsersService {
       }
     }
 
-    let passwordHash: string | undefined = undefined;
-
+    let passwordHash;
     if (dto.password !== undefined) {
       const password = dto.password.trim();
 
@@ -94,16 +104,28 @@ export class UsersService {
       nextIsActive,
     });
 
-    return this.prisma.user.update({
-      where: { id: existingUser.id },
-      data: UsersPolicy.updateData({
-        email: nextEmail,
-        password: passwordHash,
-        role: dto.role,
-        isActive: dto.isActive,
-      }),
-      select: UsersPolicy.selectPublicUser(),
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
+        where: { id: existingUser.id },
+        data: UsersPolicy.updateData({
+          email: nextEmail,
+          password: passwordHash,
+          role: dto.role,
+          isActive: dto.isActive,
+          firstName,
+          lastName,
+          profilePhotoUrl,
+        }),
+      });
+
+      if (existingUser.role === UserRole.TECHNICIAN && nextRole !== UserRole.TECHNICIAN) {
+        await tx.technicianSpecialization.deleteMany({
+          where: { userId: existingUser.id },
+        });
+      }
     });
+
+    return this.getPublicUserById(companyId, existingUser.id);
   }
 
   async deactivate(companyId: string, actorUserId: string, userId: string) {
@@ -117,26 +139,94 @@ export class UsersService {
       nextIsActive: false,
     });
 
-    return this.prisma.user.update({
+    await this.prisma.user.update({
       where: { id: existingUser.id },
       data: { isActive: false },
-      select: UsersPolicy.selectPublicUser(),
     });
+
+    return this.getPublicUserById(companyId, existingUser.id);
   }
 
   async activate(companyId: string, userId: string) {
     const existingUser = await this.findCompanyUser(companyId, userId);
 
-    return this.prisma.user.update({
+    await this.prisma.user.update({
       where: { id: existingUser.id },
       data: { isActive: true },
+    });
+
+    return this.getPublicUserById(companyId, existingUser.id);
+  }
+
+  async updateSpecializations(companyId: string, userId: string, specializationIds: string[]) {
+    const existingUser = await this.findCompanyUser(companyId, userId);
+
+    if (existingUser.role !== UserRole.TECHNICIAN) {
+      throw new BadRequestException('Specializations can be assigned only to technicians');
+    }
+
+    const normalizedIds = [...new Set(
+      (specializationIds ?? [])
+        .map((id) => (id ?? '').trim())
+        .filter((id) => id.length > 0),
+    )];
+
+    const specs = await this.prisma.specialization.findMany({
+      where: {
+        companyId,
+        isActive: true,
+        id: { in: normalizedIds },
+      },
+      select: { id: true },
+    });
+
+    if (specs.length !== normalizedIds.length) {
+      throw new BadRequestException('Some specializationIds are invalid');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.technicianSpecialization.deleteMany({
+        where: { userId: existingUser.id },
+      });
+
+      if (normalizedIds.length > 0) {
+        await tx.technicianSpecialization.createMany({
+          data: normalizedIds.map((specializationId) => ({
+            userId: existingUser.id,
+            specializationId,
+          })),
+        });
+      }
+    });
+
+    return this.getPublicUserById(companyId, existingUser.id);
+  }
+
+  private async getPublicUserById(companyId: string, userId: string) {
+    const user = await this.prisma.user.findFirst({
+      where: UsersPolicy.byIdWhere(companyId, userId),
       select: UsersPolicy.selectPublicUser(),
     });
+
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    return user;
   }
 
   private async findCompanyUser(companyId: string, userId: string) {
     const existingUser = await this.prisma.user.findFirst({
       where: UsersPolicy.byIdWhere(companyId, userId),
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        profilePhotoUrl: true,
+        role: true,
+        isActive: true,
+      },
     });
 
     if (!existingUser) {
@@ -178,5 +268,11 @@ export class UsersService {
     if (otherActiveAdmins === 0) {
       throw new BadRequestException('Cannot deactivate or demote the last active admin');
     }
+  }
+
+  private normalizeOptionalText(value?: string | null) {
+    if (value === undefined) return undefined;
+    const normalized = value?.trim() ?? '';
+    return normalized.length > 0 ? normalized : null;
   }
 }

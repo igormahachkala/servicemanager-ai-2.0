@@ -1,8 +1,8 @@
 # API SPEC — ServiceManager.AI
 
-Base URL (dev):
+Base URL (dev, local WSL):
 
-http://localhost:3000
+http://localhost:3001
 
 Auth:
 
@@ -180,6 +180,7 @@ DISPATCHER
 Request
 
 {
+  "locationId": "uuid",
   "problemCategoryId": "uuid",
   "problemText": "Printer broken",
   "urgency": "NOT_URGENT",
@@ -398,3 +399,40 @@ ticket.status_changed
 - аналитики
 - SLA
 - аудита
+
+
+---
+
+## GET /tickets/:id/assignment-candidates
+
+Подбор техников для ручного назначения.
+
+Auth required.
+
+Roles allowed:
+
+ADMIN
+MASTER
+DISPATCHER
+
+Response
+
+{
+  "ticketId": "uuid",
+  "category": {
+    "id": "uuid",
+    "name": "Printer"
+  },
+  "currentAssigneeId": null,
+  "requiredSpecializations": [],
+  "matched": [],
+  "others": []
+}
+
+---
+
+## GET /timeline/tickets/:id
+
+Лента timeline / history / domain events по тикету.
+
+Auth required.

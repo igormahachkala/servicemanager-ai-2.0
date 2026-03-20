@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { TicketStatus, UserRole } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { TimelineService } from '../timeline/timeline.service';
 
 import { TicketsPolicy, type BoardQueryInput } from '../policy/tickets.policy';
 import { assertAllowed } from '../policy/policy.utils';
@@ -10,18 +11,12 @@ type AccessFlags = {
   canTechnicianViewAllCompanyTickets?: boolean;
 };
 
-type TimelineItem = {
-  at: Date;
-  source: 'status_history' | 'domain_event';
-  type: string;
-  title: string;
-  actor: { id: string; email: string } | null;
-  payload: any;
-};
-
 @Injectable()
 export class TicketsQueryService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly timelineService: TimelineService,
+  ) {}
 
   private readonly policy = new TicketsPolicy();
 
@@ -86,7 +81,8 @@ export class TicketsQueryService {
 
       const cards = byStatus.map((t) => ({
         id: t.id,
-        title: `${t.problemCategory.name}: ${t.problemText}`,
+        title: t.problemCategory.name,
+        description: t.problemText,
         status: t.status,
         urgency: t.urgency,
         createdAt: t.createdAt,
@@ -203,106 +199,14 @@ export class TicketsQueryService {
     });
 
     if (!ticket) throw new NotFoundException('Ticket not found');
-    return ticket;
-  }
-
-  async timeline(companyId: string, userId: string, role: UserRole, ticketId: string, accessFlags?: AccessFlags) {
-    const decision = this.policy.getOneWhere({ id: userId, role, companyId, accessFlags }, ticketId);
-    assertAllowed(decision);
-
-    const statusHistory = await this.prisma.ticketStatusHistory.findMany({
-      where: { ticketId },
-      orderBy: { createdAt: 'asc' },
-      select: {
-        id: true,
-        fromStatus: true,
-        toStatus: true,
-        comment: true,
-        changedByUserId: true,
-        createdAt: true,
-      },
-    });
-
-    const events = await this.prisma.domainEvent.findMany({
-      where: { companyId, entityType: 'Ticket', entityId: ticketId },
-      orderBy: { createdAt: 'asc' },
-      select: {
-        id: true,
-        type: true,
-        actorUserId: true,
-        payload: true,
-        createdAt: true,
-      },
-    });
-
-    const actorIds = new Set<string>();
-    for (const s of statusHistory) if (s.changedByUserId) actorIds.add(s.changedByUserId);
-    for (const e of events) if (e.actorUserId) actorIds.add(e.actorUserId);
-
-    const actorsArr = actorIds.size
-      ? await this.prisma.user.findMany({
-          where: { id: { in: Array.from(actorIds) }, companyId },
-          select: { id: true, email: true },
-        })
-      : [];
-
-    const actorMap = new Map<string, { id: string; email: string }>(actorsArr.map((u) => [u.id, u]));
-
-    const items: TimelineItem[] = [];
-
-    for (const s of statusHistory) {
-      const actor = s.changedByUserId ? actorMap.get(s.changedByUserId) ?? null : null;
-      items.push({
-        at: s.createdAt,
-        source: 'status_history',
-        type: `status.${s.toStatus}`,
-        title: `Status changed: ${s.toStatus}`,
-        actor,
-        payload: {
-          id: s.id,
-          from: s.fromStatus,
-          to: s.toStatus,
-          comment: s.comment ?? null,
-        },
-      });
-    }
-
-    for (const e of events) {
-      const actor = e.actorUserId ? actorMap.get(e.actorUserId) ?? null : null;
-      items.push({
-        at: e.createdAt,
-        source: 'domain_event',
-        type: e.type,
-        title: this.eventTitle(e.type),
-        actor,
-        payload: e.payload ?? null,
-      });
-    }
-
-    items.sort((a, b) => a.at.getTime() - b.at.getTime());
-
     return {
-      ticketId,
-      items,
-      meta: {
-        statusHistoryCount: statusHistory.length,
-        domainEventCount: events.length,
-      },
+      ...ticket,
+      title: ticket.problemCategory?.name || 'Ticket',
+      description: ticket.problemText,
     };
   }
 
-  private eventTitle(type: string) {
-    if (type === 'ticket.created') return 'Заявка создана';
-    if (type === 'ticket.assigned') return 'Заявка назначена';
-    if (type === 'ticket.claimed') return 'Заявка взята техником';
-    if (type === 'ticket.reassigned') return 'Заявка переназначена';
-    if (type === 'ticket.category_changed') return 'Категория изменена';
-    if (type === 'ticket.updated') return 'Заявка обновлена';
-    if (type === 'ticket.status_changed') return 'Статус изменён';
-    if (type === 'ticket.sla_warning') return 'SLA в зоне риска';
-    if (type === 'ticket.sla_breached') return 'SLA нарушен';
-    if (type === 'sla.breached') return 'SLA нарушен';
-
-    return type;
+  async timeline(companyId: string, userId: string, role: UserRole, ticketId: string, accessFlags?: AccessFlags) {
+    return this.timelineService.getTicketTimeline({ id: userId, role, companyId, accessFlags }, ticketId);
   }
 }

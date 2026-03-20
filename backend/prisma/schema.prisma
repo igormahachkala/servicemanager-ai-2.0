@@ -1,1 +1,310 @@
-[ВСТАВЬ СЮДА ПОЛНОЕ СОДЕРЖИМОЕ schema.prisma ИЗ МОЕГО СООБЩЕНИЯ]
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  DISPATCHER
+  MASTER
+  TECHNICIAN
+  CLIENT
+  TERRITORIAL_MANAGER
+  NETWORK_DIRECTOR
+  STAFF
+}
+
+enum CompanyType {
+  CLIENT
+}
+
+enum TicketStatus {
+  NEW
+  ASSIGNED
+  IN_PROGRESS
+  DONE
+  CANCELED
+}
+
+enum TicketUrgency {
+  URGENT
+  NOT_URGENT
+}
+
+model Company {
+  id                   String      @id @default(uuid())
+  name                 String
+  type                 CompanyType @default(CLIENT)
+  autoAssignEnabled    Boolean     @default(true)
+  allowTechnicianClaim Boolean     @default(true)
+  slaStrictMode        Boolean     @default(false)
+  timezone             String?     @default("UTC")
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+
+  users             User[]
+  locations         Location[]
+  specializations   Specialization[]
+  problemCategories ProblemCategory[]
+  tickets           Ticket[]
+  ticketAttachments TicketAttachment[]
+}
+
+model User {
+  id        String  @id @default(uuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  email     String   @unique
+  password  String
+  firstName String?
+  lastName  String?
+  profilePhotoUrl String?
+  role      UserRole
+  isActive  Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ticketStatusChanges       TicketStatusHistory[]      @relation("TicketStatusChangedBy")
+  technicianSpecializations TechnicianSpecialization[]
+  assignedTickets           Ticket[]                   @relation("AssignedTechnician")
+  ticketAttachmentsUploaded TicketAttachment[]         @relation("TicketAttachmentUploadedBy")
+  userPermissions           UserPermission[]
+
+  @@index([companyId, role])
+  @@index([companyId, isActive])
+}
+
+model Location {
+  id              String  @id @default(uuid())
+  clientCompanyId String
+  clientCompany   Company @relation(fields: [clientCompanyId], references: [id], onDelete: Cascade)
+
+  name         String
+  platformCode String
+  externalCode String?
+  city         String?
+  region       String?
+  address      String?
+  latitude     Float?
+  longitude    Float?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tickets Ticket[]
+
+  @@unique([clientCompanyId, platformCode])
+  @@index([clientCompanyId, isActive])
+  @@index([clientCompanyId, city])
+}
+
+model Specialization {
+  id        String  @id @default(uuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  name      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  problemCategoryLinks ProblemCategorySpecialization[]
+  technicianLinks      TechnicianSpecialization[]
+
+  @@index([companyId, isActive])
+}
+
+model ProblemCategory {
+  id        String  @id @default(uuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  name         String
+  instructions String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  specializationLinks ProblemCategorySpecialization[]
+  tickets             Ticket[]
+
+  @@unique([companyId, name])
+  @@index([companyId, isActive])
+}
+
+model ProblemCategorySpecialization {
+  problemCategoryId String
+  specializationId  String
+
+  problemCategory ProblemCategory @relation(fields: [problemCategoryId], references: [id], onDelete: Cascade)
+  specialization  Specialization  @relation(fields: [specializationId], references: [id], onDelete: Cascade)
+
+  @@id([problemCategoryId, specializationId])
+}
+
+model TechnicianSpecialization {
+  userId           String
+  specializationId String
+
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  specialization Specialization @relation(fields: [specializationId], references: [id], onDelete: Cascade)
+
+  @@id([userId, specializationId])
+}
+
+model Ticket {
+  id        String  @id @default(uuid())
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  parentId String?
+  parent   Ticket?  @relation("TicketParent", fields: [parentId], references: [id], onDelete: SetNull)
+  children Ticket[] @relation("TicketParent")
+
+  locationId String
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
+
+  requesterName  String?
+  requesterPhone String?
+  address        String?
+  pointName      String?
+
+  problemCategoryId String
+  problemCategory   ProblemCategory @relation(fields: [problemCategoryId], references: [id], onDelete: Restrict)
+
+  problemText String
+
+  urgency         TicketUrgency         @default(NOT_URGENT)
+  status          TicketStatus          @default(NEW)
+  statusUpdatedAt DateTime              @default(now())
+  statusHistory   TicketStatusHistory[]
+  attachments     TicketAttachment[]
+
+  slaMinutes    Int?
+  slaDueAt      DateTime?
+  slaBreachedAt DateTime?
+  closedAt      DateTime?
+
+  assignedTechnicianId String?
+  assignedTechnician   User?   @relation("AssignedTechnician", fields: [assignedTechnicianId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([companyId, status])
+  @@index([companyId, createdAt])
+  @@index([status, createdAt])
+  @@index([statusUpdatedAt])
+  @@index([slaDueAt])
+  @@index([slaBreachedAt])
+  @@index([companyId, slaDueAt])
+  @@index([locationId])
+}
+
+model TicketAttachment {
+  id               String   @id @default(uuid())
+  companyId        String
+  ticketId         String?
+  uploadedByUserId String?
+  originalName     String
+  storageKey       String
+  mimeType         String
+  sizeBytes        Int
+  url              String
+  createdAt        DateTime @default(now())
+
+  company    Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  ticket     Ticket? @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  uploadedBy User?   @relation("TicketAttachmentUploadedBy", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, createdAt])
+  @@index([ticketId, createdAt])
+  @@index([companyId, ticketId])
+}
+model TicketStatusHistory {
+  id              String        @id @default(uuid())
+  ticketId        String
+  fromStatus      TicketStatus?
+  toStatus        TicketStatus
+  comment         String?
+  changedByUserId String?
+  createdAt       DateTime      @default(now())
+
+  ticket    Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  changedBy User?  @relation("TicketStatusChangedBy", fields: [changedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([ticketId, createdAt])
+  @@index([toStatus, createdAt])
+  @@index([changedByUserId, createdAt])
+}
+
+model PermissionBlock {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+
+  rolePermissions RolePermission[]
+  userPermissions UserPermission[]
+}
+
+model RolePermission {
+  id                String   @id @default(uuid())
+  role              UserRole
+  permissionBlockId String
+  permissionBlock   PermissionBlock @relation(fields: [permissionBlockId], references: [id], onDelete: Cascade)
+  createdAt         DateTime @default(now())
+
+  @@unique([role, permissionBlockId])
+  @@index([role])
+  @@index([permissionBlockId])
+}
+
+model UserPermission {
+  id                String   @id @default(uuid())
+  userId            String
+  permissionBlockId String
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permissionBlock   PermissionBlock @relation(fields: [permissionBlockId], references: [id], onDelete: Cascade)
+  createdAt         DateTime @default(now())
+
+  @@unique([userId, permissionBlockId])
+  @@index([userId])
+  @@index([permissionBlockId])
+}
+
+model DomainEvent {
+  id          String   @id @default(uuid())
+  companyId   String
+  entityType  String
+  entityId    String
+  type        String
+  actorUserId String?
+  payload     Json?
+  createdAt   DateTime @default(now())
+
+  @@index([companyId, createdAt])
+  @@index([companyId, type, createdAt])
+  @@index([entityType, entityId])
+}
+
+model AssignmentCursor {
+  id        String   @id @default(uuid())
+  companyId String
+  strategy  String
+  cursor    Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, strategy])
+  @@index([companyId])
+  @@index([companyId, strategy])
+}
+

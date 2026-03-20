@@ -1,12 +1,13 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
+﻿import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
+
 import { AuthService } from './auth.service';
-import { RegisterDto } from './dto/register.dto';
-import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from './jwt.guard';
+import { LoginDto } from './dto/login.dto';
+import { RegisterDto } from './dto/register.dto';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private auth: AuthService) {}
+  constructor(private readonly auth: AuthService) {}
 
   @Post('register')
   register(@Body() dto: RegisterDto) {
@@ -21,12 +22,6 @@ export class AuthController {
   @Get('me')
   @UseGuards(JwtAuthGuard)
   me(@Req() req: any) {
-    const u = req.user;
-    return {
-     id: u.id,
-     email: u.email,
-     role: u.role,
-     companyId: u.companyId,
-    };
+    return this.auth.me(req.user.id, req.user.companyId);
   }
 }

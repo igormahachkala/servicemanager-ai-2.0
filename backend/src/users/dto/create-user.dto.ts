@@ -1,7 +1,15 @@
 import { UserRole } from '@prisma/client';
-import { IsEmail, IsEnum, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsEnum, IsOptional, IsString, IsUrl, MinLength } from 'class-validator';
 
 export class CreateUserDto {
+  @IsOptional()
+  @IsString()
+  firstName?: string;
+
+  @IsOptional()
+  @IsString()
+  lastName?: string;
+
   @IsEmail()
   email: string;
 
@@ -11,4 +19,8 @@ export class CreateUserDto {
 
   @IsEnum(UserRole)
   role: UserRole;
+
+  @IsOptional()
+  @IsUrl({ require_tld: false }, { message: 'profilePhotoUrl must be a valid URL' })
+  profilePhotoUrl?: string;
 }

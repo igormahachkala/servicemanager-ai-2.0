@@ -2,7 +2,7 @@ import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/commo
 import { TicketStatus } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
-import { emitDomainEventTx } from '../events/events.bus';
+import { TimelineService } from '../timeline/timeline.service';
 
 @Injectable()
 export class SlaWorkerService implements OnModuleInit, OnModuleDestroy {
@@ -12,7 +12,10 @@ export class SlaWorkerService implements OnModuleInit, OnModuleDestroy {
   private readonly warningBeforeMs = 60 * 60_000; // 60 минут до дедлайна
   private timer: NodeJS.Timeout | null = null;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly timelineService: TimelineService,
+  ) {}
 
   onModuleInit() {
     this.timer = setInterval(() => {
@@ -79,11 +82,10 @@ export class SlaWorkerService implements OnModuleInit, OnModuleDestroy {
       if (existing) continue;
 
       await this.prisma.$transaction(async (tx) => {
-        await emitDomainEventTx(tx, {
-          type: 'ticket.sla_warning',
+        await this.timelineService.recordTx(tx, {
+          event: 'SLA_WARNING',
           companyId: ticket.companyId,
-          entityType: 'Ticket',
-          entityId: ticket.id,
+          ticketId: ticket.id,
           actorUserId: null,
           payload: {
             status: ticket.status,
@@ -130,11 +132,10 @@ export class SlaWorkerService implements OnModuleInit, OnModuleDestroy {
           },
         });
 
-        await emitDomainEventTx(tx, {
-          type: 'ticket.sla_breached',
+        await this.timelineService.recordTx(tx, {
+          event: 'SLA_BREACH',
           companyId: ticket.companyId,
-          entityType: 'Ticket',
-          entityId: ticket.id,
+          ticketId: ticket.id,
           actorUserId: null,
           payload: {
             status: ticket.status,

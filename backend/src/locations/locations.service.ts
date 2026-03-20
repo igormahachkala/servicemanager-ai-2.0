@@ -173,6 +173,7 @@ export class LocationsService {
       address?: string | null;
       latitude?: number | null;
       longitude?: number | null;
+      isActive?: boolean;
     },
   ) {
     const current = await this.prisma.location.findFirst({
@@ -229,6 +230,7 @@ export class LocationsService {
         ...(dto.address !== undefined ? { address: dto.address?.trim() || null } : {}),
         ...(dto.latitude !== undefined ? { latitude: dto.latitude } : {}),
         ...(dto.longitude !== undefined ? { longitude: dto.longitude } : {}),
+        ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
       },
       select: {
         id: true,
