@@ -1,3 +1,3 @@
 ALTER TABLE "User"
-ADD COLUMN     "firstName" TEXT,
-ADD COLUMN     "lastName" TEXT;
+ADD COLUMN IF NOT EXISTS "firstName" TEXT,
+ADD COLUMN IF NOT EXISTS "lastName" TEXT;
