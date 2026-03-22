@@ -1,4 +1,4 @@
-﻿import React from 'react'
+import React from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import * as api from './lib/api'
 import { Shell } from './ui/Shell'
@@ -15,6 +15,7 @@ import { ProblemCategoriesPage } from './views/ProblemCategoriesPage'
 import { SpecializationsPage } from './views/SpecializationsPage'
 import { CompanyPage } from './views/CompanyPage'
 import { TechnicianPage } from './views/TechnicianPage'
+import { CompaniesPage } from './views/CompaniesPage'
 import { MapPage } from './pages/MapPage'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -24,11 +25,13 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 }
 
 export function AppRoutes() {
+  const home = api.getHomeRoute()
+
   return (
     <Routes>
-      <Route path="/" element={<Navigate to={api.getToken() ? '/board' : '/login'} replace />} />
-      <Route path="/login" element={api.getToken() ? <Navigate to="/board" replace /> : <LoginPage />} />
-      <Route path="/register" element={api.getToken() ? <Navigate to="/board" replace /> : <RegisterPage />} />
+      <Route path="/" element={<Navigate to={api.getToken() ? home : '/login'} replace />} />
+      <Route path="/login" element={api.getToken() ? <Navigate to={home} replace /> : <LoginPage />} />
+      <Route path="/register" element={api.getToken() ? <Navigate to={home} replace /> : <RegisterPage />} />
 
       <Route
         path="/"
@@ -39,6 +42,7 @@ export function AppRoutes() {
         }
       >
         <Route path="board" element={<BoardPage />} />
+        <Route path="companies" element={<CompaniesPage />} />
         <Route path="tickets/new" element={<CreateTicketPage />} />
         <Route path="tickets/:id" element={<TicketPage />} />
         <Route path="locations" element={<LocationsPage />} />

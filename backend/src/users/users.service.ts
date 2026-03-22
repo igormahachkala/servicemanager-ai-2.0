@@ -21,11 +21,13 @@ export class UsersService {
   }
 
   async create(companyId: string, dto: CreateUserDto) {
+    this.assertTenantManagedRole(dto.role);
+
     const email = (dto.email ?? '').trim().toLowerCase();
     const password = (dto.password ?? '').trim();
     const firstName = this.normalizeOptionalText(dto.firstName);
     const lastName = this.normalizeOptionalText(dto.lastName);
-    const profilePhotoUrl = this.normalizeOptionalText(dto.profilePhotoUrl);
+    const avatarUrl = this.normalizeOptionalText(dto.avatarUrl);
 
     if (!email) {
       throw new BadRequestException('Email is required');
@@ -52,7 +54,7 @@ export class UsersService {
         role: dto.role,
         firstName,
         lastName,
-        profilePhotoUrl,
+        avatarUrl,
       }),
       select: { id: true },
     });
@@ -63,10 +65,14 @@ export class UsersService {
   async update(companyId: string, actorUserId: string, userId: string, dto: UpdateUserDto) {
     const existingUser = await this.findCompanyUser(companyId, userId);
 
+    if (dto.role !== undefined) {
+      this.assertTenantManagedRole(dto.role);
+    }
+
     const nextEmail = dto.email !== undefined ? dto.email.trim().toLowerCase() : undefined;
     const firstName = dto.firstName !== undefined ? this.normalizeOptionalText(dto.firstName) : undefined;
     const lastName = dto.lastName !== undefined ? this.normalizeOptionalText(dto.lastName) : undefined;
-    const profilePhotoUrl = dto.profilePhotoUrl !== undefined ? this.normalizeOptionalText(dto.profilePhotoUrl) : undefined;
+    const avatarUrl = dto.avatarUrl !== undefined ? this.normalizeOptionalText(dto.avatarUrl) : undefined;
 
     if (dto.email !== undefined && !nextEmail) {
       throw new BadRequestException('Email is required');
@@ -114,7 +120,7 @@ export class UsersService {
           isActive: dto.isActive,
           firstName,
           lastName,
-          profilePhotoUrl,
+          avatarUrl,
         }),
       });
 
@@ -165,11 +171,13 @@ export class UsersService {
       throw new BadRequestException('Specializations can be assigned only to technicians');
     }
 
-    const normalizedIds = [...new Set(
-      (specializationIds ?? [])
-        .map((id) => (id ?? '').trim())
-        .filter((id) => id.length > 0),
-    )];
+    const normalizedIds = [
+      ...new Set(
+        (specializationIds ?? [])
+          .map((id) => (id ?? '').trim())
+          .filter((id) => id.length > 0),
+      ),
+    ];
 
     const specs = await this.prisma.specialization.findMany({
       where: {
@@ -223,7 +231,7 @@ export class UsersService {
         email: true,
         firstName: true,
         lastName: true,
-        profilePhotoUrl: true,
+        avatarUrl: true,
         role: true,
         isActive: true,
       },
@@ -267,6 +275,12 @@ export class UsersService {
 
     if (otherActiveAdmins === 0) {
       throw new BadRequestException('Cannot deactivate or demote the last active admin');
+    }
+  }
+
+  private assertTenantManagedRole(role: UserRole) {
+    if (role === UserRole.PLATFORM_ADMIN) {
+      throw new BadRequestException('PLATFORM_ADMIN cannot be managed from tenant users flow');
     }
   }
 

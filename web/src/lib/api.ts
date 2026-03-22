@@ -1,4 +1,5 @@
 export type Role =
+  | 'PLATFORM_ADMIN'
   | 'ADMIN'
   | 'DISPATCHER'
   | 'MASTER'
@@ -16,7 +17,7 @@ export type Me = {
   email: string
   firstName?: string | null
   lastName?: string | null
-  profilePhotoUrl?: string | null
+  avatarUrl?: string | null
   role: Role
   companyId: string
   companyName?: string | null
@@ -41,12 +42,49 @@ export type RegisterInput = {
   password: string
 }
 
+export type CompanyType = 'CLIENT' | 'PROVIDER'
+
+export type PlatformCompanyItem = {
+  id: string
+  name: string
+  type: CompanyType
+  timezone?: string | null
+  autoAssignEnabled: boolean
+  allowTechnicianClaim: boolean
+  slaStrictMode: boolean
+  createdAt: string
+  updatedAt: string
+  admins: Array<{
+    id: string
+    email: string
+    firstName?: string | null
+    lastName?: string | null
+    avatarUrl?: string | null
+    role: Role
+    isActive?: boolean
+    createdAt?: string
+  }>
+}
+
+export type CreateCompanyInput = {
+  name: string
+  type: CompanyType
+  timezone?: string
+}
+
+export type CreateCompanyAdminInput = {
+  firstName: string
+  lastName: string
+  email: string
+  password: string
+}
+
 export type UserListItem = {
   id: string
   email: string
   firstName?: string | null
   lastName?: string | null
-  profilePhotoUrl?: string | null
+  avatarUrl?: string | null
   role: Role
   isActive?: boolean
   createdAt?: string
@@ -101,7 +139,7 @@ export type UpdateLocationInput = {
 export type CreateUserInput = {
   firstName?: string
   lastName?: string
-  profilePhotoUrl?: string
+  avatarUrl?: string
   email: string
   password: string
   role: Role
@@ -110,7 +148,7 @@ export type CreateUserInput = {
 export type UpdateUserInput = {
   firstName?: string
   lastName?: string
-  profilePhotoUrl?: string
+  avatarUrl?: string
   email?: string
   password?: string
   role?: Role
@@ -471,6 +509,7 @@ export type UpdateCompanyInput = {
 const BASE_URL_KEY = 'sm_base_url'
 const TOKEN_KEY = 'sm_token'
 const COMPANY_LABEL_KEY = 'sm_company_label'
+const USER_ROLE_KEY = 'sm_user_role'
 
 function readBaseUrl(): string {
   if (typeof window === 'undefined') return 'http://localhost:3001'
@@ -503,6 +542,27 @@ export function setToken(token: string) {
 export function clearToken() {
   if (typeof window === 'undefined') return
   localStorage.removeItem(TOKEN_KEY)
+  localStorage.removeItem(USER_ROLE_KEY)
+}
+
+export function getUserRole(): Role | '' {
+  if (typeof window === 'undefined') return ''
+  return (localStorage.getItem(USER_ROLE_KEY) || '') as Role | ''
+}
+
+export function setUserRole(role?: string | null) {
+  if (typeof window === 'undefined') return
+  const normalized = (role || '').trim()
+  if (!normalized) {
+    localStorage.removeItem(USER_ROLE_KEY)
+    return
+  }
+  localStorage.setItem(USER_ROLE_KEY, normalized)
+}
+
+export function getHomeRoute(role?: string | null): string {
+  const resolvedRole = (role || getUserRole() || '').trim()
+  return resolvedRole === 'PLATFORM_ADMIN' ? '/companies' : '/board'
 }
 
 export function getCompanyLabel(me?: Partial<Me> | null): string {
@@ -511,10 +571,10 @@ export function getCompanyLabel(me?: Partial<Me> | null): string {
     if (saved && saved.trim()) return saved.trim()
   }
 
-  if (!me) return '????????'
+  if (!me) return 'Company'
   if (me.companyName) return me.companyName
   if (me.email) return me.email
-  return '????????'
+  return 'Company'
 }
 
 export function setCompanyLabel(label: string) {
@@ -735,6 +795,27 @@ export async function setTechnicianSpecializations(
     method: 'PUT',
     body: { specializationIds },
   })
+}
+
+export async function companies(): Promise<PlatformCompanyItem[]> {
+  return request<PlatformCompanyItem[]>('/companies')
+}
+
+export async function createCompany(input: CreateCompanyInput): Promise<PlatformCompanyItem> {
+  return request<PlatformCompanyItem>('/companies', {
+    method: 'POST',
+    body: input,
+  })
+}
+
+export async function createCompanyAdmin(companyId: string, input: CreateCompanyAdminInput): Promise<UserListItem> {
+  return request<UserListItem>(
+    "/companies/" + companyId + "/admins",
+    {
+      method: 'POST',
+      body: input,
+    },
+  )
 }
 
 export async function company(): Promise<CompanySettings> {

@@ -54,10 +54,10 @@ async function upsertDemoLocations(companyId: string) {
     {
       platformCode: 'LOC-MSK-001',
       externalCode: '15',
-      name: 'Точка Арбат',
-      city: 'Москва',
-      region: 'Москва',
-      address: 'ул. Арбат, 15',
+      name: 'РўРѕС‡РєР° РђСЂР±Р°С‚',
+      city: 'РњРѕСЃРєРІР°',
+      region: 'РњРѕСЃРєРІР°',
+      address: 'СѓР». РђСЂР±Р°С‚, 15',
       latitude: 55.749473,
       longitude: 37.591531,
       isActive: true,
@@ -65,10 +65,10 @@ async function upsertDemoLocations(companyId: string) {
     {
       platformCode: 'LOC-MSK-002',
       externalCode: '16',
-      name: 'Точка Тверская',
-      city: 'Москва',
-      region: 'Москва',
-      address: 'ул. Тверская, 16',
+      name: 'РўРѕС‡РєР° РўРІРµСЂСЃРєР°СЏ',
+      city: 'РњРѕСЃРєРІР°',
+      region: 'РњРѕСЃРєРІР°',
+      address: 'СѓР». РўРІРµСЂСЃРєР°СЏ, 16',
       latitude: 55.765869,
       longitude: 37.605194,
       isActive: true,
@@ -76,10 +76,10 @@ async function upsertDemoLocations(companyId: string) {
     {
       platformCode: 'LOC-KZN-001',
       externalCode: '15',
-      name: 'Точка Пушкина',
-      city: 'Казань',
-      region: 'Татарстан',
-      address: 'ул. Пушкина, 15',
+      name: 'РўРѕС‡РєР° РџСѓС€РєРёРЅР°',
+      city: 'РљР°Р·Р°РЅСЊ',
+      region: 'РўР°С‚Р°СЂСЃС‚Р°РЅ',
+      address: 'СѓР». РџСѓС€РєРёРЅР°, 15',
       latitude: 55.78874,
       longitude: 49.12214,
       isActive: true,
@@ -212,6 +212,7 @@ async function main() {
   }
 
   const matrix: Record<UserRole, PermissionCode[]> = {
+    PLATFORM_ADMIN: [],
     ADMIN: [
       PERMISSIONS.TICKETS_CREATE,
       PERMISSIONS.TICKETS_VIEW,

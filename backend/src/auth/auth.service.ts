@@ -1,5 +1,5 @@
-﻿import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
-import { UserRole } from '@prisma/client';
+import { BadRequestException, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { CompanyType, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
 
@@ -15,77 +15,13 @@ export class AuthService {
     private readonly jwt: JwtService,
   ) {}
 
-  async register(dto: RegisterDto) {
-    const companyName = dto.companyName.trim();
-    const firstName = dto.firstName.trim();
-    const lastName = dto.lastName.trim();
-    const email = dto.email.toLowerCase().trim();
-    const password = dto.password.trim();
-
-    if (!companyName) {
-      throw new BadRequestException('Company name is required');
-    }
-
-    if (!firstName) {
-      throw new BadRequestException('First name is required');
-    }
-
-    if (!lastName) {
-      throw new BadRequestException('Last name is required');
-    }
-
-    if (!password) {
-      throw new BadRequestException('Password is required');
-    }
-
-    const existing = await this.prisma.user.findUnique({
-      where: { email },
-    });
-
-    if (existing) {
-      throw new BadRequestException('Email already registered');
-    }
-
-    const passwordHash = await bcrypt.hash(password, 10);
-
-    const company = await this.prisma.company.create({
-      data: {
-        name: companyName,
-        users: {
-          create: {
-            email,
-            password: passwordHash,
-            firstName,
-            lastName,
-            profilePhotoUrl: null,
-            role: UserRole.ADMIN,
-            isActive: true,
-          },
-        },
-      },
-      include: {
-        users: {
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true,
-            profilePhotoUrl: true,
-            role: true,
-            companyId: true,
-            isActive: true,
-          },
-        },
-      },
-    });
-
-    return this.issueAuthPayload({
-      ...company.users[0],
-      companyName: company.name,
-    });
+  async register(_dto: RegisterDto) {
+    throw new ForbiddenException('Public registration is disabled');
   }
 
   async login(dto: LoginDto) {
+    await this.ensurePlatformAdmin();
+
     const email = dto.email.toLowerCase().trim();
     const password = dto.password.trim();
 
@@ -97,7 +33,7 @@ export class AuthService {
         password: true,
         firstName: true,
         lastName: true,
-        profilePhotoUrl: true,
+        avatarUrl: true,
         role: true,
         companyId: true,
         isActive: true,
@@ -126,7 +62,7 @@ export class AuthService {
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,
-      profilePhotoUrl: user.profilePhotoUrl,
+      avatarUrl: user.avatarUrl,
       role: user.role,
       companyId: user.companyId,
       isActive: user.isActive,
@@ -145,7 +81,7 @@ export class AuthService {
         email: true,
         firstName: true,
         lastName: true,
-        profilePhotoUrl: true,
+        avatarUrl: true,
         role: true,
         companyId: true,
         isActive: true,
@@ -168,11 +104,63 @@ export class AuthService {
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,
-      profilePhotoUrl: user.profilePhotoUrl ?? null,
+      avatarUrl: user.avatarUrl ?? null,
       role: user.role,
       companyId: user.companyId,
       isActive: user.isActive,
       companyName: user.company?.name ?? null,
+    });
+  }
+
+  private async ensurePlatformAdmin() {
+    const email = (process.env.PLATFORM_ADMIN_EMAIL || '').trim().toLowerCase();
+    const password = (process.env.PLATFORM_ADMIN_PASSWORD || '').trim();
+    const firstName = (process.env.PLATFORM_ADMIN_FIRST_NAME || 'Platform').trim();
+    const lastName = (process.env.PLATFORM_ADMIN_LAST_NAME || 'Admin').trim();
+    const companyName = (process.env.PLATFORM_COMPANY_NAME || 'ServiceManager Platform').trim();
+    const timezone = (process.env.PLATFORM_COMPANY_TIMEZONE || 'UTC').trim() || 'UTC';
+
+    if (!email && !password) return;
+    if (!email || !password) {
+      throw new BadRequestException('PLATFORM_ADMIN_EMAIL and PLATFORM_ADMIN_PASSWORD must be configured together');
+    }
+
+    const existing = await this.prisma.user.findUnique({
+      where: { email },
+      select: { id: true },
+    });
+
+    if (existing) return;
+
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    const company = await this.prisma.company.findFirst({
+      where: { name: companyName },
+      select: { id: true },
+    });
+
+    const companyId = company?.id ?? (
+      await this.prisma.company.create({
+        data: {
+          name: companyName,
+          type: CompanyType.PROVIDER,
+          timezone,
+        },
+        select: { id: true },
+      })
+    ).id;
+
+    await this.prisma.user.create({
+      data: {
+        companyId,
+        email,
+        password: passwordHash,
+        firstName: firstName || 'Platform',
+        lastName: lastName || 'Admin',
+        avatarUrl: null,
+        role: UserRole.PLATFORM_ADMIN,
+        isActive: true,
+      },
     });
   }
 
@@ -181,7 +169,7 @@ export class AuthService {
     email: string;
     firstName: string | null;
     lastName: string | null;
-    profilePhotoUrl?: string | null;
+    avatarUrl?: string | null;
     role: UserRole;
     companyId: string;
     isActive: boolean;
@@ -206,7 +194,7 @@ export class AuthService {
     email: string;
     firstName: string | null;
     lastName: string | null;
-    profilePhotoUrl?: string | null;
+    avatarUrl?: string | null;
     role: UserRole;
     companyId: string;
     isActive: boolean;
@@ -217,7 +205,7 @@ export class AuthService {
       email: user.email,
       firstName: user.firstName,
       lastName: user.lastName,
-      profilePhotoUrl: user.profilePhotoUrl ?? null,
+      avatarUrl: user.avatarUrl ?? null,
       role: user.role,
       companyId: user.companyId,
       companyName: user.companyName,

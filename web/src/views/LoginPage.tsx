@@ -1,4 +1,4 @@
-﻿import React, { useState } from 'react'
+import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import * as api from '../lib/api'
 
@@ -34,13 +34,14 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
       })
 
       api.setToken(result.access_token)
+      api.setUserRole(result.user.role)
       api.setCompanyLabel(result.user.companyName || result.user.email)
 
       if (onLoggedIn) {
         onLoggedIn(result.access_token)
       }
 
-      navigate('/board')
+      navigate(api.getHomeRoute(result.user.role))
     } catch (err: any) {
       setError(err?.message || 'Не удалось войти')
     } finally {
@@ -107,8 +108,8 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
         </form>
 
         <div style={{ marginTop: 16, textAlign: 'center' }}>
-          <span className="muted">Нет компании? </span>
-          <Link to="/register">Зарегистрироваться</Link>
+          <span className="muted">Публичная регистрация отключена. </span>
+          <Link to="/register">Подробнее</Link>
         </div>
 
         <div

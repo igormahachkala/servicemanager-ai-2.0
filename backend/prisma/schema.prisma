@@ -8,6 +8,7 @@ datasource db {
 }
 
 enum UserRole {
+  PLATFORM_ADMIN
   ADMIN
   DISPATCHER
   MASTER
@@ -20,6 +21,7 @@ enum UserRole {
 
 enum CompanyType {
   CLIENT
+  PROVIDER
 }
 
 enum TicketStatus {
@@ -63,7 +65,7 @@ model User {
   password  String
   firstName String?
   lastName  String?
-  profilePhotoUrl String?
+  avatarUrl       String? @map("profilePhotoUrl")
   role      UserRole
   isActive  Boolean  @default(true)
 
