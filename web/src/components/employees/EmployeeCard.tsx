@@ -32,7 +32,7 @@ function initials(user: api.UserListItem) {
 }
 
 export function EmployeeCard({ user, actions, children }: Props) {
-  const photoUrl = user.profilePhotoUrl ? api.resolveFileUrl(user.profilePhotoUrl) : ''
+  const photoUrl = user.avatarUrl ? api.resolveFileUrl(user.avatarUrl) : ''
   const specs = (user.technicianSpecializations || []).map((item) => item.specialization.name)
 
   return (

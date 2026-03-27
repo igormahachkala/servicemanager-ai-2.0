@@ -4,7 +4,7 @@ import { EmployeeSpecializationsField } from './EmployeeSpecializationsField'
 export type EmployeeFormValue = {
   firstName: string
   lastName: string
-  profilePhotoUrl: string
+  avatarUrl: string
   email: string
   password: string
   role: api.Role
@@ -91,8 +91,8 @@ export function EmployeeForm({
       <label>
         Фото профиля (URL)
         <input
-          value={value.profilePhotoUrl}
-          onChange={(e) => onChange({ profilePhotoUrl: e.target.value })}
+          value={value.avatarUrl}
+          onChange={(e) => onChange({ avatarUrl: e.target.value })}
           placeholder="https://..."
           disabled={submitting}
         />

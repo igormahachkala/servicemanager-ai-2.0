@@ -18,6 +18,9 @@ import { SlaModule } from './sla/sla.module';
 import { AssignmentModule } from './assignment/assignment.module';
 import { TimelineModule } from './timeline/timeline.module';
 import { MapModule } from './map/map.module';
+import { EquipmentModule } from './equipment/equipment.module';
+import { PublicRequestModule } from './public-request/public-request.module';
+import { ServiceContractsModule } from './service-contracts/service-contracts.module';
 
 @Module({
   imports: [
@@ -35,6 +38,9 @@ import { MapModule } from './map/map.module';
     AssignmentModule,
     TimelineModule,
     MapModule,
+    EquipmentModule,
+    PublicRequestModule,
+    ServiceContractsModule,
   ],
   controllers: [AppController, HealthController],
   providers: [AppService],

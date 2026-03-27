@@ -159,3 +159,10 @@ Anything not ideal, deferred, or needing next step
 - do not turn quick request into a long form
 - do not break current ticket lifecycle unless task explicitly changes it
 - preserve upload/photo support and improve it carefully
+
+
+## Closed onboarding
+- self-service company registration is disabled
+- public routes are limited to /login and /request-access
+- company provisioning happens only through PLATFORM_ADMIN
+- public quick/support intake must stay separate from tenant authentication

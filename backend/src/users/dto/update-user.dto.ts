@@ -28,6 +28,6 @@ export class UpdateUserDto {
   isActive?: boolean;
 
   @IsOptional()
-  @IsUrl({ require_tld: false }, { message: 'profilePhotoUrl must be a valid URL' })
-  profilePhotoUrl?: string;
+  @IsUrl({ require_tld: false }, { message: 'avatarUrl must be a valid URL' })
+  avatarUrl?: string;
 }

@@ -1,25 +1,62 @@
-import { IsBoolean, IsOptional, IsString, MaxLength } from 'class-validator';
+﻿import { PublicRequestType } from '@prisma/client'
+import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator'
 
 export class UpdateCompanyDto {
   @IsOptional()
   @IsString()
   @MaxLength(255)
-  name?: string;
+  name?: string
 
   @IsOptional()
   @IsBoolean()
-  autoAssignEnabled?: boolean;
+  autoAssignEnabled?: boolean
 
   @IsOptional()
   @IsString()
   @MaxLength(100)
-  timezone?: string;
+  timezone?: string
 
   @IsOptional()
   @IsBoolean()
-  allowTechnicianClaim?: boolean;
+  allowTechnicianClaim?: boolean
 
   @IsOptional()
   @IsBoolean()
-  slaStrictMode?: boolean;
+  slaStrictMode?: boolean
+
+  @IsOptional()
+  @IsBoolean()
+  publicRequestEnabled?: boolean
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  publicRequestIntro?: string | null
+
+  @IsOptional()
+  @IsBoolean()
+  publicRequestAllowPhotos?: boolean
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(3)
+  publicRequestMaxPhotos?: number
+
+  @IsOptional()
+  @IsBoolean()
+  publicRequestRequirePhone?: boolean
+
+  @IsOptional()
+  @IsEnum(PublicRequestType)
+  publicRequestDefaultType?: PublicRequestType | null
+
+  @IsOptional()
+  @IsBoolean()
+  publicRequestRateLimitEnabled?: boolean
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  publicRequestLocationPresetMode?: string | null
 }

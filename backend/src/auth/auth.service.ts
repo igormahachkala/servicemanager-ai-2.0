@@ -6,7 +6,6 @@ import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 
 import { LoginDto } from './dto/login.dto';
-import { RegisterDto } from './dto/register.dto';
 
 @Injectable()
 export class AuthService {
@@ -15,8 +14,8 @@ export class AuthService {
     private readonly jwt: JwtService,
   ) {}
 
-  async register(_dto: RegisterDto) {
-    throw new ForbiddenException('Public registration is disabled');
+  async register() {
+    throw new ForbiddenException('Self-service company registration is disabled. Contact platform administrator.');
   }
 
   async login(dto: LoginDto) {
@@ -112,6 +111,9 @@ export class AuthService {
     });
   }
 
+  // Temporary demo bootstrap: ensures one PLATFORM_ADMIN exists from env.
+  // Long-term this should move to an explicit seed/init flow, but it stays here
+  // for now to keep closed onboarding operable in demo deployments.
   private async ensurePlatformAdmin() {
     const email = (process.env.PLATFORM_ADMIN_EMAIL || '').trim().toLowerCase();
     const password = (process.env.PLATFORM_ADMIN_PASSWORD || '').trim();
@@ -145,6 +147,9 @@ export class AuthService {
           name: companyName,
           type: CompanyType.PROVIDER,
           timezone,
+          publicRequestEnabled: false,
+          publicRequestToken: null,
+          publicRequestIntro: null,
         },
         select: { id: true },
       })

@@ -11,6 +11,10 @@ export class CreateTicketDto {
 
   @IsOptional()
   @IsUUID()
+  equipmentId?: string;
+
+  @IsOptional()
+  @IsUUID()
   categoryId?: string;
 
   @IsOptional()

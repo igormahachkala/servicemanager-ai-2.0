@@ -20,7 +20,7 @@ export class UsersPolicy {
       role: UserRole;
       firstName?: string | null;
       lastName?: string | null;
-      profilePhotoUrl?: string | null;
+      avatarUrl?: string | null;
     },
   ) {
     return {
@@ -29,7 +29,7 @@ export class UsersPolicy {
       password: data.password,
       ...(data.firstName !== undefined ? { firstName: data.firstName } : {}),
       ...(data.lastName !== undefined ? { lastName: data.lastName } : {}),
-      ...(data.profilePhotoUrl !== undefined ? { profilePhotoUrl: data.profilePhotoUrl } : {}),
+      ...(data.avatarUrl !== undefined ? { avatarUrl: data.avatarUrl } : {}),
       role: data.role,
       isActive: true,
     };
@@ -42,7 +42,7 @@ export class UsersPolicy {
     isActive?: boolean;
     firstName?: string | null;
     lastName?: string | null;
-    profilePhotoUrl?: string | null;
+    avatarUrl?: string | null;
   }) {
     return {
       ...(data.email !== undefined ? { email: data.email } : {}),
@@ -51,7 +51,7 @@ export class UsersPolicy {
       ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
       ...(data.firstName !== undefined ? { firstName: data.firstName } : {}),
       ...(data.lastName !== undefined ? { lastName: data.lastName } : {}),
-      ...(data.profilePhotoUrl !== undefined ? { profilePhotoUrl: data.profilePhotoUrl } : {}),
+      ...(data.avatarUrl !== undefined ? { avatarUrl: data.avatarUrl } : {}),
     };
   }
 
@@ -61,7 +61,7 @@ export class UsersPolicy {
       email: true,
       firstName: true,
       lastName: true,
-      profilePhotoUrl: true,
+      avatarUrl: true,
       role: true,
       isActive: true,
       createdAt: true,

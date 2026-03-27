@@ -64,7 +64,7 @@ auth
 
 API:
 
-POST /auth/register  
+POST /auth/register  (disabled, returns 403)
 POST /auth/login  
 GET /auth/me
 

@@ -1,19 +1,19 @@
-import { Injectable } from '@nestjs/common';
-import { TicketStatus, UserRole } from '@prisma/client';
+﻿import { Injectable } from '@nestjs/common'
+import { PublicRequestType, TicketStatus, TicketUrgency, UserRole } from '@prisma/client'
 
-import { CreateTicketDto } from './dto/create-ticket.dto';
-import { CreateChildTicketDto } from './dto/create-child-ticket.dto';
+import { CreateTicketDto } from './dto/create-ticket.dto'
+import { CreateChildTicketDto } from './dto/create-child-ticket.dto'
 
-import { TicketsAssignmentService } from './tickets.assignment.service';
-import { TicketsQueryService } from './tickets.query.service';
-import { TicketsStatusService } from './tickets.status.service';
-import { TicketAttachmentsService } from './ticket-attachments.service';
+import { TicketsAssignmentService } from './tickets.assignment.service'
+import { TicketsQueryService } from './tickets.query.service'
+import { TicketsStatusService } from './tickets.status.service'
+import { TicketAttachmentsService } from './ticket-attachments.service'
 
-import { type BoardQueryInput } from '../policy/tickets.policy';
+import { type BoardQueryInput } from '../policy/tickets.policy'
 
 type AccessFlags = {
-  canTechnicianViewAllCompanyTickets?: boolean;
-};
+  canTechnicianViewAllCompanyTickets?: boolean
+}
 
 @Injectable()
 export class TicketsService {
@@ -25,11 +25,37 @@ export class TicketsService {
   ) {}
 
   create(companyId: string, creatorRole: UserRole, dto: CreateTicketDto) {
-    return this.assignment.create(companyId, creatorRole, dto);
+    return this.assignment.create(companyId, creatorRole, dto)
+  }
+
+  createPublic(
+    companyId: string,
+    input: {
+      locationId: string
+      equipmentId?: string | null
+      categoryId: string
+      requestType: 'repair' | 'note'
+      description: string
+      requesterName?: string | null
+      requesterPhone?: string | null
+      attachmentIds?: string[]
+      urgency?: TicketUrgency
+      channel?: string | null
+      presetLocationId?: string | null
+      publicLinkVersion?: string | null
+      ipHash?: string | null
+      phoneNormalized?: string | null
+    },
+  ) {
+    return this.assignment.createPublic(companyId, {
+      ...input,
+      publicRequestType:
+        input.requestType === 'note' ? PublicRequestType.NOTE : PublicRequestType.REPAIR,
+    })
   }
 
   createChild(companyId: string, creatorRole: UserRole, parentId: string, dto: CreateChildTicketDto) {
-    return this.assignment.createChild(companyId, creatorRole, parentId, dto);
+    return this.assignment.createChild(companyId, creatorRole, parentId, dto)
   }
 
   board(
@@ -38,8 +64,9 @@ export class TicketsService {
     role: UserRole,
     input: BoardQueryInput,
     accessFlags?: AccessFlags,
+    linkedClientCompanyId?: string,
   ) {
-    return this.query.board(companyId, userId, role, input, accessFlags);
+    return this.query.board(companyId, userId, role, input, accessFlags, linkedClientCompanyId)
   }
 
   list(
@@ -48,8 +75,9 @@ export class TicketsService {
     role: UserRole,
     status?: TicketStatus,
     accessFlags?: AccessFlags,
+    linkedClientCompanyId?: string,
   ) {
-    return this.query.list(companyId, userId, role, status, accessFlags);
+    return this.query.list(companyId, userId, role, status, accessFlags, linkedClientCompanyId)
   }
 
   getOne(
@@ -59,7 +87,7 @@ export class TicketsService {
     ticketId: string,
     accessFlags?: AccessFlags,
   ) {
-    return this.query.getOne(companyId, userId, role, ticketId, accessFlags);
+    return this.query.getOne(companyId, userId, role, ticketId, accessFlags)
   }
 
   listAttachments(
@@ -69,11 +97,11 @@ export class TicketsService {
     ticketId: string,
     accessFlags?: AccessFlags,
   ) {
-    return this.attachments.listForTicket({ id: userId, role, companyId, accessFlags }, ticketId);
+    return this.attachments.listForTicket({ id: userId, role, companyId, accessFlags }, ticketId)
   }
 
   uploadDraftAttachment(companyId: string, userId: string, file: any) {
-    return this.attachments.uploadDraftAttachment(companyId, userId, file);
+    return this.attachments.uploadDraftAttachment(companyId, userId, file)
   }
 
   uploadTicketAttachment(
@@ -84,11 +112,11 @@ export class TicketsService {
     file: any,
     accessFlags?: AccessFlags,
   ) {
-    return this.attachments.uploadToTicket({ id: userId, role, companyId, accessFlags }, ticketId, file);
+    return this.attachments.uploadToTicket({ id: userId, role, companyId, accessFlags }, ticketId, file)
   }
 
   deleteDraftAttachment(companyId: string, attachmentId: string) {
-    return this.attachments.deleteDraftAttachment(companyId, attachmentId);
+    return this.attachments.deleteDraftAttachment(companyId, attachmentId)
   }
 
   deleteTicketAttachment(
@@ -99,19 +127,19 @@ export class TicketsService {
     attachmentId: string,
     accessFlags?: AccessFlags,
   ) {
-    return this.attachments.deleteFromTicket({ id: userId, role, companyId, accessFlags }, ticketId, attachmentId);
+    return this.attachments.deleteFromTicket({ id: userId, role, companyId, accessFlags }, ticketId, attachmentId)
   }
 
   assign(companyId: string, actor: any, ticketId: string, technicianId: string) {
-    return this.assignment.assign(companyId, actor, ticketId, technicianId);
+    return this.assignment.assign(companyId, actor, ticketId, technicianId)
   }
 
   claim(companyId: string, technicianUserId: string, ticketId: string) {
-    return this.assignment.claim(companyId, technicianUserId, ticketId);
+    return this.assignment.claim(companyId, technicianUserId, ticketId)
   }
 
   listAssignmentCandidates(companyId: string, actor: any, ticketId: string) {
-    return this.assignment.listAssignmentCandidates(companyId, actor, ticketId);
+    return this.assignment.listAssignmentCandidates(companyId, actor, ticketId)
   }
 
   updateStatus(
@@ -121,10 +149,10 @@ export class TicketsService {
     ticketId: string,
     dto: { status: TicketStatus; comment?: string },
   ) {
-    return this.status.updateStatus(companyId, user, role, ticketId, dto);
+    return this.status.updateStatus(companyId, user, role, ticketId, dto)
   }
 
   availableForTechnician(companyId: string, technicianUserId: string) {
-    return this.assignment.availableForTechnician(companyId, technicianUserId);
+    return this.assignment.availableForTechnician(companyId, technicianUserId)
   }
 }

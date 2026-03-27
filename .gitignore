@@ -15,6 +15,7 @@ yarn-error.log*
 
 # archives
 *.tar.gz
+*.tgz
 *.zip
 
 # backend build/runtime
@@ -31,3 +32,6 @@ web/.vite/
 coverage/
 .tmp/
 .cache/
+
+# local docker temp
+.docker-tmp/

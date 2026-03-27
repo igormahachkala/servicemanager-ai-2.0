@@ -1,4 +1,4 @@
-FROM node:20
+﻿FROM node:20
 
 WORKDIR /app
 
@@ -7,10 +7,9 @@ RUN npm install
 
 COPY . .
 
-# Важно: Prisma Client должен быть сгенерен внутри image,
-# иначе PrismaService не будет иметь новые модели (rolePermission/userPermission).
 RUN npx prisma generate
+RUN npm run build
 
 EXPOSE 3000
 
-CMD ["npm", "run", "start:dev"]
+CMD ["npm", "run", "start:prod"]

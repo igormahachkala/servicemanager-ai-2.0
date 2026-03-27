@@ -53,9 +53,6 @@ auth.module.ts
 dto/
 
 login.dto.ts  
-register.dto.ts  
-
-
 Назначение:
 
 - регистрация компаний
@@ -65,7 +62,7 @@ register.dto.ts
 
 API:
 
-POST /auth/register  
+POST /auth/register (disabled)  
 POST /auth/login  
 GET /auth/me  
 

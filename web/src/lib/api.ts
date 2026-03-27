@@ -1,4 +1,4 @@
-export type Role =
+﻿export type Role =
   | 'PLATFORM_ADMIN'
   | 'ADMIN'
   | 'DISPATCHER'
@@ -34,15 +34,34 @@ export type LoginResponse = {
   user: Me
 }
 
-export type RegisterInput = {
-  companyName: string
-  firstName: string
-  lastName: string
-  email: string
-  password: string
-}
 
 export type CompanyType = 'CLIENT' | 'PROVIDER'
+
+export type PublicRequestDefaultType = 'REPAIR' | 'NOTE'
+export type PublicRequestLocationPresetMode = 'HIDE_WHEN_VALID' | 'ALWAYS_OPTIONAL'
+export type ServiceContractStatus = 'DRAFT' | 'ACTIVE' | 'INACTIVE' | 'ENDED'
+export type ServiceContractRole = 'PRIMARY' | 'SECONDARY'
+
+export type ServiceContractItem = {
+  id: string
+  status: ServiceContractStatus
+  role: ServiceContractRole
+  startsAt?: string | null
+  endsAt?: string | null
+  notes?: string | null
+  createdAt: string
+  updatedAt: string
+  clientCompany: {
+    id: string
+    name: string
+    type: CompanyType
+  }
+  providerCompany: {
+    id: string
+    name: string
+    type: CompanyType
+  }
+}
 
 export type PlatformCompanyItem = {
   id: string
@@ -54,6 +73,15 @@ export type PlatformCompanyItem = {
   slaStrictMode: boolean
   createdAt: string
   updatedAt: string
+  publicRequestEnabled: boolean
+  publicRequestToken?: string | null
+  publicRequestIntro?: string | null
+  publicRequestAllowPhotos: boolean
+  publicRequestMaxPhotos: number
+  publicRequestRequirePhone: boolean
+  publicRequestDefaultType?: PublicRequestDefaultType | null
+  publicRequestRateLimitEnabled: boolean
+  publicRequestLocationPresetMode?: string | null
   admins: Array<{
     id: string
     email: string
@@ -311,6 +339,14 @@ export type TicketCard = {
   assignedTechnician: { id: string; email: string } | null
 }
 
+export type LinkedClientSummary = ServiceContractItem & {
+  summary: {
+    openTickets: number
+    locations: number
+    publicRequestEnabled: boolean
+  }
+}
+
 export type BoardResponse = {
   columns: Array<{
     status: TicketStatus
@@ -318,7 +354,13 @@ export type BoardResponse = {
     sla: { breached: number; atRisk: number }
     cards: TicketCard[]
   }>
-  meta: { totalTickets: number; atRiskThresholdMinutes: number; limitedToLast: number }
+  meta: {
+    totalTickets: number
+    atRiskThresholdMinutes: number
+    limitedToLast: number
+    scopeCompanyId?: string
+    visibilityMode?: 'tenant' | 'provider_primary'
+  }
 }
 
 export type TicketGetOne = {
@@ -455,6 +497,35 @@ export type AnalyticsOverviewResponse = {
     ASSIGNED: number
     IN_PROGRESS: number
   }
+  bySource?: {
+    INTERNAL: number
+    PUBLIC_QUICK_REQUEST: number
+  }
+  publicIntake?: {
+    total: number
+    resolved: number
+    resolvedPercent: number
+    byType: {
+      REPAIR: number
+      NOTE: number
+    }
+    byDay: Array<{ day: string; total: number }>
+    byLocation: Array<{
+      locationId: string
+      locationName: string
+      city?: string | null
+      total: number
+      repairCount: number
+      noteCount: number
+      resolvedCount: number
+    }>
+    byEquipment: Array<{
+      equipmentId: string
+      name: string
+      type: string
+      total: number
+    }>
+  }
   sla: {
     breachedCount: number
     evaluatedCount?: number
@@ -485,17 +556,59 @@ export type AnalyticsOverviewResponse = {
   }
   note?: string
   now: string
+  meta?: {
+    scopeCompanyId?: string
+    visibilityMode?: 'tenant' | 'provider_primary'
+  }
 }
 
 export type CompanySettings = {
   id: string
   name: string
+  type?: CompanyType
   autoAssignEnabled: boolean
   timezone: string
   allowTechnicianClaim: boolean
   slaStrictMode: boolean
   createdAt: string
   updatedAt: string
+  publicRequestEnabled: boolean
+  publicRequestToken?: string | null
+  publicRequestIntro?: string | null
+  publicRequestAllowPhotos: boolean
+  publicRequestMaxPhotos: number
+  publicRequestRequirePhone: boolean
+  publicRequestDefaultType?: PublicRequestDefaultType | null
+  publicRequestRateLimitEnabled: boolean
+  publicRequestLocationPresetMode?: string | null
+  clientContracts?: Array<{
+    id: string
+    status: ServiceContractStatus
+    role: ServiceContractRole
+    startsAt?: string | null
+    endsAt?: string | null
+    notes?: string | null
+    updatedAt: string
+    providerCompany: {
+      id: string
+      name: string
+      type: CompanyType
+    }
+  }>
+  providerContracts?: Array<{
+    id: string
+    status: ServiceContractStatus
+    role: ServiceContractRole
+    startsAt?: string | null
+    endsAt?: string | null
+    notes?: string | null
+    updatedAt: string
+    clientCompany: {
+      id: string
+      name: string
+      type: CompanyType
+    }
+  }>
 }
 
 export type UpdateCompanyInput = {
@@ -504,6 +617,32 @@ export type UpdateCompanyInput = {
   timezone?: string
   allowTechnicianClaim?: boolean
   slaStrictMode?: boolean
+  publicRequestEnabled?: boolean
+  publicRequestIntro?: string | null
+  publicRequestAllowPhotos?: boolean
+  publicRequestMaxPhotos?: number
+  publicRequestRequirePhone?: boolean
+  publicRequestDefaultType?: PublicRequestDefaultType | null
+  publicRequestRateLimitEnabled?: boolean
+  publicRequestLocationPresetMode?: string | null
+}
+
+export type CreateServiceContractInput = {
+  clientCompanyId: string
+  providerCompanyId: string
+  status?: ServiceContractStatus
+  role?: ServiceContractRole
+  startsAt?: string
+  endsAt?: string
+  notes?: string
+}
+
+export type UpdateServiceContractInput = {
+  status?: ServiceContractStatus
+  role?: ServiceContractRole
+  startsAt?: string | null
+  endsAt?: string | null
+  notes?: string | null
 }
 
 const BASE_URL_KEY = 'sm_base_url'
@@ -522,6 +661,11 @@ function normalizeBaseUrl(url: string): string {
 
 export function getBaseUrl(): string {
   return normalizeBaseUrl(readBaseUrl())
+}
+
+export function getPublicAppBaseUrl(): string {
+  if (typeof window !== 'undefined' && window.location?.origin) return window.location.origin
+  return 'http://localhost:4173'
 }
 
 export function setBaseUrl(url: string) {
@@ -653,23 +797,6 @@ export async function login(input: LoginInput): Promise<LoginResponse> {
   })
 }
 
-export async function register(input: RegisterInput): Promise<LoginResponse> {
-  return request<LoginResponse>('/auth/register', {
-    method: 'POST',
-    auth: false,
-    body: {
-      companyName: input.companyName,
-      firstName: input.firstName,
-      lastName: input.lastName,
-      email: input.email,
-      password: input.password,
-    },
-  })
-}
-
-export async function registerCompany(input: RegisterInput): Promise<LoginResponse> {
-  return register(input)
-}
 
 export async function me(): Promise<Me> {
   return request<Me>('/auth/me')
@@ -818,8 +945,52 @@ export async function createCompanyAdmin(companyId: string, input: CreateCompany
   )
 }
 
+export async function regeneratePlatformCompanyPublicRequestToken(companyId: string): Promise<PlatformCompanyItem> {
+  return request<PlatformCompanyItem>("/companies/" + companyId + "/public-request/token", {
+    method: 'PATCH',
+  })
+}
+
 export async function company(): Promise<CompanySettings> {
   return request<CompanySettings>('/company')
+}
+
+export async function linkedClients(): Promise<LinkedClientSummary[]> {
+  return request<LinkedClientSummary[]>('/service-contracts/linked-clients')
+}
+
+export async function getLinkedClients(): Promise<LinkedClientSummary[]> {
+  return linkedClients()
+}
+
+export async function linkedProviders(): Promise<ServiceContractItem[]> {
+  return request<ServiceContractItem[]>('/service-contracts/linked-providers')
+}
+
+export async function serviceContracts(): Promise<ServiceContractItem[]> {
+  return request<ServiceContractItem[]>('/service-contracts')
+}
+
+export async function serviceContract(id: string): Promise<ServiceContractItem> {
+  return request<ServiceContractItem>('/service-contracts/' + id)
+}
+
+export async function createServiceContract(input: CreateServiceContractInput): Promise<ServiceContractItem> {
+  return request<ServiceContractItem>('/service-contracts', {
+    method: 'POST',
+    body: input,
+  })
+}
+
+export async function updateServiceContract(id: string, input: UpdateServiceContractInput): Promise<ServiceContractItem> {
+  return request<ServiceContractItem>('/service-contracts/' + id, {
+    method: 'PATCH',
+    body: input,
+  })
+}
+
+export async function companyServiceContracts(companyId: string): Promise<ServiceContractItem[]> {
+  return request<ServiceContractItem[]>('/companies/' + companyId + '/service-contracts')
 }
 
 export async function locations(): Promise<LocationListItem[]> {
@@ -861,11 +1032,27 @@ export async function updateCompanyAutoAssign(autoAssignEnabled: boolean): Promi
   })
 }
 
-export async function board(params?: { take?: number }): Promise<BoardResponse> {
+export async function regenerateCompanyPublicRequestToken(): Promise<CompanySettings> {
+  return request<CompanySettings>('/company/public-request/token', {
+    method: 'PATCH',
+  })
+}
+
+export function buildPublicRequestLink(token?: string | null, locationId?: string | null): string {
+  if (!token) return ''
+  const url = new URL('/r/' + token, getPublicAppBaseUrl())
+  if (locationId) url.searchParams.set('locationId', locationId)
+  return url.toString()
+}
+
+export async function board(params?: { take?: number; linkedClientCompanyId?: string }): Promise<BoardResponse> {
   const search = new URLSearchParams()
 
   if (params?.take) {
     search.set('take', String(params.take))
+  }
+  if (params?.linkedClientCompanyId) {
+    search.set('linkedClientCompanyId', params.linkedClientCompanyId)
   }
 
   const suffix = search.toString() ? `?${search.toString()}` : ''
@@ -1053,8 +1240,13 @@ export async function mapLocation(locationId: string): Promise<MapLocationDetail
   return request<MapLocationDetail>(`/map/locations/${locationId}`)
 }
 
-export async function analyticsOverview(): Promise<AnalyticsOverviewResponse> {
-  return request<AnalyticsOverviewResponse>('/analytics/overview')
+export async function analyticsOverview(linkedClientCompanyId?: string): Promise<AnalyticsOverviewResponse> {
+  const search = new URLSearchParams()
+  if (linkedClientCompanyId) {
+    search.set('linkedClientCompanyId', linkedClientCompanyId)
+  }
+  const suffix = search.toString() ? '?' + search.toString() : ''
+  return request<AnalyticsOverviewResponse>('/analytics/overview' + suffix)
 }
 
 export function resolveFileUrl(url: string): string {
@@ -1063,3 +1255,129 @@ export function resolveFileUrl(url: string): string {
   if (url.startsWith('/')) return `${getBaseUrl()}${url}`
   return `${getBaseUrl()}/${url}`
 }
+
+
+export type PublicRequestContext = {
+  companyName: string
+  introText: string
+  publicRequestEnabled: boolean
+  requestTypes: Array<'repair' | 'note'>
+  defaultRequestType: 'repair' | 'note'
+  featureFlags: {
+    equipmentSelection: boolean
+    photoUpload: boolean
+  }
+  limits: {
+    maxPhotos: number
+    requirePhone: boolean
+  }
+  presetLocationMode?: string | null
+  presetLocation?: PublicRequestLocation | null
+}
+
+export type PublicRequestLocation = {
+  id: string
+  name: string
+  city?: string | null
+  address?: string | null
+  externalCode?: string | null
+  platformCode?: string | null
+  equipmentCount: number
+}
+
+export type PublicRequestEquipment = {
+  id: string
+  name: string
+  type: string
+}
+
+export type PublicQuickRequestChannel = 'direct_link' | 'qr'
+
+export type PublicQuickRequestInput = {
+  locationId: string
+  equipmentId?: string | null
+  requestType: 'repair' | 'note'
+  description: string
+  phone?: string
+  name?: string | null
+  presetLocationId?: string | null
+  channel?: PublicQuickRequestChannel
+  publicLinkVersion?: string
+}
+
+export type PublicQuickRequestResponse = {
+  ticketId: string
+  ticketNumber?: string | null
+  source: 'PUBLIC_QUICK_REQUEST'
+  requestType: 'repair' | 'note'
+  presetLocation?: boolean
+  channel?: PublicQuickRequestChannel
+}
+
+export async function publicRequestContext(token: string, locationId?: string | null): Promise<PublicRequestContext> {
+  const search = new URLSearchParams()
+  if (locationId) search.set('locationId', locationId)
+  const suffix = search.toString() ? '?' + search.toString() : ''
+  return request<PublicRequestContext>('/public/request/context/' + encodeURIComponent(token) + suffix, { auth: false })
+}
+
+export async function publicRequestLocations(token: string, q?: string): Promise<PublicRequestLocation[]> {
+  const search = new URLSearchParams()
+  if (q?.trim()) search.set('q', q.trim())
+  const suffix = search.toString() ? '?' + search.toString() : ''
+  return request<PublicRequestLocation[]>('/public/request/locations/' + encodeURIComponent(token) + suffix, { auth: false })
+}
+
+export async function publicRequestLocationEquipment(token: string, locationId: string): Promise<PublicRequestEquipment[]> {
+  const search = new URLSearchParams({ token })
+  return request<PublicRequestEquipment[]>('/public/request/locations/' + locationId + '/equipment?' + search.toString(), { auth: false })
+}
+
+export async function submitPublicQuickRequest(
+  token: string,
+  input: PublicQuickRequestInput,
+  photos: File[] = [],
+): Promise<PublicQuickRequestResponse> {
+  const formData = new FormData()
+  formData.append('locationId', input.locationId)
+  if (input.equipmentId) formData.append('equipmentId', input.equipmentId)
+  formData.append('requestType', input.requestType)
+  formData.append('description', input.description)
+  if (input.phone?.trim()) formData.append('phone', input.phone)
+  if (input.name?.trim()) formData.append('name', input.name.trim())
+  if (input.presetLocationId) formData.append('presetLocationId', input.presetLocationId)
+  if (input.channel) formData.append('channel', input.channel)
+  if (input.publicLinkVersion) formData.append('publicLinkVersion', input.publicLinkVersion)
+  for (const photo of photos) {
+    formData.append('photos', photo)
+  }
+
+  const res = await fetch(getBaseUrl() + '/public/request/' + encodeURIComponent(token), {
+    method: 'POST',
+    body: formData,
+  })
+
+  const text = await res.text()
+  let data: any = null
+
+  if (text) {
+    try {
+      data = JSON.parse(text)
+    } catch {
+      data = text
+    }
+  }
+
+  if (!res.ok) {
+    const message = data?.message
+      ? Array.isArray(data.message)
+        ? data.message.join(',')
+        : String(data.message)
+      : 'HTTP ' + res.status
+
+    throw new Error(message)
+  }
+
+  return data as PublicQuickRequestResponse
+}
+

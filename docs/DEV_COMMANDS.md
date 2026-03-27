@@ -139,3 +139,18 @@ Studio:
 cd /home/igor/projects/sma-service/backend
 npm run prisma:studio
 ```
+
+---
+
+# 6. Onboarding model
+
+Self-service registration is disabled.
+
+Company provisioning path:
+- PLATFORM_ADMIN logs in
+- PLATFORM_ADMIN creates company in /companies
+- PLATFORM_ADMIN creates the first company admin
+- tenant users log in with issued credentials
+
+Public users must not use /auth/register for company creation.
+Use the public /request-access route for support and public intake instead.

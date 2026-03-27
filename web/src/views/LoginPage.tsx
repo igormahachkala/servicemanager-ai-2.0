@@ -57,7 +57,7 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
           <div className="muted">Service Operations Platform</div>
         </div>
 
-        <h2 style={{ marginBottom: 16 }}>Вход</h2>
+        <h2 style={{ marginBottom: 16 }}>Войти</h2>
 
         {error && (
           <div className="alert" style={{ marginBottom: 16 }}>
@@ -107,9 +107,14 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
           </button>
         </form>
 
-        <div style={{ marginTop: 16, textAlign: 'center' }}>
-          <span className="muted">Публичная регистрация отключена. </span>
-          <Link to="/register">Подробнее</Link>
+        <div className="panel" style={{ marginTop: 16 }}>
+          <div style={{ fontWeight: 600, marginBottom: 6 }}>Публичная регистрация компаний отключена</div>
+          <div className="muted small" style={{ marginBottom: 12 }}>
+            Новые компании и первые администраторы создаются только через platform-admin flow.
+          </div>
+          <Link to="/request-access" style={{ textDecoration: 'none' }}>
+            <button type="button" className="ghost">Связаться с поддержкой</button>
+          </Link>
         </div>
 
         <div

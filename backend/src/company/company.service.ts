@@ -1,13 +1,14 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { CompanyType, UserRole } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
+import { CompanyType, PublicRequestType, UserRole } from '@prisma/client'
+import * as bcrypt from 'bcrypt'
+import { randomUUID } from 'crypto'
 
-import { PrismaService } from '../prisma/prisma.service';
-import { UsersPolicy } from '../policy/users.policy';
+import { PrismaService } from '../prisma/prisma.service'
+import { UsersPolicy } from '../policy/users.policy'
 
-import { UpdateCompanyDto } from './dto/update-company.dto';
-import { CreateCompanyDto } from './dto/create-company.dto';
-import { CreateCompanyAdminDto } from './dto/create-company-admin.dto';
+import { UpdateCompanyDto } from './dto/update-company.dto'
+import { CreateCompanyDto } from './dto/create-company.dto'
+import { CreateCompanyAdminDto } from './dto/create-company-admin.dto'
 
 @Injectable()
 export class CompanyService {
@@ -17,13 +18,13 @@ export class CompanyService {
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
       select: this.companySelect(),
-    });
+    })
 
     if (!company) {
-      throw new NotFoundException('Company not found');
+      throw new NotFoundException('Company not found')
     }
 
-    return company;
+    return company
   }
 
   async update(companyId: string, dto: UpdateCompanyDto) {
@@ -35,9 +36,19 @@ export class CompanyService {
         ...(dto.timezone !== undefined ? { timezone: dto.timezone.trim() } : {}),
         ...(dto.allowTechnicianClaim !== undefined ? { allowTechnicianClaim: dto.allowTechnicianClaim } : {}),
         ...(dto.slaStrictMode !== undefined ? { slaStrictMode: dto.slaStrictMode } : {}),
+        ...(dto.publicRequestEnabled !== undefined ? { publicRequestEnabled: dto.publicRequestEnabled } : {}),
+        ...(dto.publicRequestIntro !== undefined ? { publicRequestIntro: dto.publicRequestIntro?.trim() || null } : {}),
+        ...(dto.publicRequestAllowPhotos !== undefined ? { publicRequestAllowPhotos: dto.publicRequestAllowPhotos } : {}),
+        ...(dto.publicRequestMaxPhotos !== undefined ? { publicRequestMaxPhotos: dto.publicRequestMaxPhotos } : {}),
+        ...(dto.publicRequestRequirePhone !== undefined ? { publicRequestRequirePhone: dto.publicRequestRequirePhone } : {}),
+        ...(dto.publicRequestDefaultType !== undefined ? { publicRequestDefaultType: dto.publicRequestDefaultType ?? null } : {}),
+        ...(dto.publicRequestRateLimitEnabled !== undefined ? { publicRequestRateLimitEnabled: dto.publicRequestRateLimitEnabled } : {}),
+        ...(dto.publicRequestLocationPresetMode !== undefined
+          ? { publicRequestLocationPresetMode: dto.publicRequestLocationPresetMode?.trim() || null }
+          : {}),
       },
       select: this.companySelect(),
-    });
+    })
   }
 
   async setAutoAssign(companyId: string, enabled: boolean) {
@@ -45,24 +56,42 @@ export class CompanyService {
       where: { id: companyId },
       data: { autoAssignEnabled: enabled },
       select: this.companySelect(),
-    });
+    })
+  }
+
+  async regeneratePublicRequestToken(companyId: string) {
+    return this.prisma.company.update({
+      where: { id: companyId },
+      data: { publicRequestToken: this.newPublicRequestToken() },
+      select: this.companySelect(),
+    })
+  }
+
+  async regeneratePlatformPublicRequestToken(companyId: string) {
+    const company = await this.prisma.company.update({
+      where: { id: companyId },
+      data: { publicRequestToken: this.newPublicRequestToken() },
+      select: this.platformCompanySelect(),
+    })
+
+    return this.toPlatformCompany(company)
   }
 
   async listAll() {
     const companies = await this.prisma.company.findMany({
       orderBy: [{ createdAt: 'desc' }, { name: 'asc' }],
       select: this.platformCompanySelect(),
-    });
+    })
 
-    return companies.map((company) => this.toPlatformCompany(company));
+    return companies.map((company) => this.toPlatformCompany(company))
   }
 
   async createPlatformCompany(dto: CreateCompanyDto) {
-    const name = dto.name.trim();
-    const timezone = dto.timezone?.trim() || 'UTC';
+    const name = dto.name.trim()
+    const timezone = dto.timezone?.trim() || 'UTC'
 
     if (!name) {
-      throw new BadRequestException('Company name is required');
+      throw new BadRequestException('Company name is required')
     }
 
     const company = await this.prisma.company.create({
@@ -70,21 +99,31 @@ export class CompanyService {
         name,
         type: dto.type ?? CompanyType.CLIENT,
         timezone,
+        publicRequestEnabled: true,
+        publicRequestToken: this.newPublicRequestToken(),
+        publicRequestIntro:
+          'Describe the issue, add a photo if needed, and leave a phone number. We will send the request directly into the company service queue.',
+        publicRequestAllowPhotos: true,
+        publicRequestMaxPhotos: 3,
+        publicRequestRequirePhone: true,
+        publicRequestDefaultType: PublicRequestType.REPAIR,
+        publicRequestRateLimitEnabled: true,
+        publicRequestLocationPresetMode: 'HIDE_WHEN_VALID',
       },
       select: this.platformCompanySelect(),
-    });
+    })
 
-    return this.toPlatformCompany(company);
+    return this.toPlatformCompany(company)
   }
 
   async createFirstAdmin(companyId: string, dto: CreateCompanyAdminDto) {
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
       select: { id: true, name: true },
-    });
+    })
 
     if (!company) {
-      throw new NotFoundException('Company not found');
+      throw new NotFoundException('Company not found')
     }
 
     const existingAdmins = await this.prisma.user.count({
@@ -92,32 +131,32 @@ export class CompanyService {
         companyId,
         role: UserRole.ADMIN,
       },
-    });
+    })
 
     if (existingAdmins > 0) {
-      throw new BadRequestException('Company already has an admin');
+      throw new BadRequestException('Company already has an admin')
     }
 
-    const email = dto.email.trim().toLowerCase();
-    const password = dto.password.trim();
-    const firstName = dto.firstName.trim();
-    const lastName = dto.lastName.trim();
+    const email = dto.email.trim().toLowerCase()
+    const password = dto.password.trim()
+    const firstName = dto.firstName.trim()
+    const lastName = dto.lastName.trim()
 
-    if (!email) throw new BadRequestException('Email is required');
-    if (!password) throw new BadRequestException('Password is required');
-    if (!firstName) throw new BadRequestException('First name is required');
-    if (!lastName) throw new BadRequestException('Last name is required');
+    if (!email) throw new BadRequestException('Email is required')
+    if (!password) throw new BadRequestException('Password is required')
+    if (!firstName) throw new BadRequestException('First name is required')
+    if (!lastName) throw new BadRequestException('Last name is required')
 
     const emailOwner = await this.prisma.user.findUnique({
       where: { email },
       select: { id: true },
-    });
+    })
 
     if (emailOwner) {
-      throw new BadRequestException('Email already registered');
+      throw new BadRequestException('Email already registered')
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await bcrypt.hash(password, 10)
 
     const created = await this.prisma.user.create({
       data: UsersPolicy.createData(companyId, {
@@ -129,12 +168,16 @@ export class CompanyService {
         avatarUrl: null,
       }),
       select: UsersPolicy.selectPublicUser(),
-    });
+    })
 
     return {
       ...created,
       companyName: company.name,
-    };
+    }
+  }
+
+  private newPublicRequestToken() {
+    return randomUUID().replace(/-/g, '')
   }
 
   private companySelect() {
@@ -148,7 +191,54 @@ export class CompanyService {
       slaStrictMode: true,
       createdAt: true,
       updatedAt: true,
-    };
+      publicRequestEnabled: true,
+      publicRequestToken: true,
+      publicRequestIntro: true,
+      publicRequestAllowPhotos: true,
+      publicRequestMaxPhotos: true,
+      publicRequestRequirePhone: true,
+      publicRequestDefaultType: true,
+      publicRequestRateLimitEnabled: true,
+      publicRequestLocationPresetMode: true,
+      clientContracts: {
+        orderBy: { updatedAt: 'desc' as const },
+        select: {
+          id: true,
+          status: true,
+          role: true,
+          startsAt: true,
+          endsAt: true,
+          notes: true,
+          updatedAt: true,
+          providerCompany: {
+            select: {
+              id: true,
+              name: true,
+              type: true,
+            },
+          },
+        },
+      },
+      providerContracts: {
+        orderBy: { updatedAt: 'desc' as const },
+        select: {
+          id: true,
+          status: true,
+          role: true,
+          startsAt: true,
+          endsAt: true,
+          notes: true,
+          updatedAt: true,
+          clientCompany: {
+            select: {
+              id: true,
+              name: true,
+              type: true,
+            },
+          },
+        },
+      },
+    }
   }
 
   private platformCompanySelect() {
@@ -167,7 +257,7 @@ export class CompanyService {
           createdAt: true,
         },
       },
-    };
+    }
   }
 
   private toPlatformCompany(company: any) {
@@ -181,7 +271,16 @@ export class CompanyService {
       slaStrictMode: company.slaStrictMode,
       createdAt: company.createdAt,
       updatedAt: company.updatedAt,
+      publicRequestEnabled: company.publicRequestEnabled,
+      publicRequestToken: company.publicRequestToken,
+      publicRequestIntro: company.publicRequestIntro,
+      publicRequestAllowPhotos: company.publicRequestAllowPhotos,
+      publicRequestMaxPhotos: company.publicRequestMaxPhotos,
+      publicRequestRequirePhone: company.publicRequestRequirePhone,
+      publicRequestDefaultType: company.publicRequestDefaultType,
+      publicRequestRateLimitEnabled: company.publicRequestRateLimitEnabled,
+      publicRequestLocationPresetMode: company.publicRequestLocationPresetMode,
       admins: company.users ?? [],
-    };
+    }
   }
 }

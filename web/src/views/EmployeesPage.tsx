@@ -9,7 +9,7 @@ import { EmployeeList } from '../components/employees/EmployeeList'
 const emptyCreateForm: EmployeeFormValue = {
   firstName: '',
   lastName: '',
-  profilePhotoUrl: '',
+  avatarUrl: '',
   email: '',
   password: '',
   role: 'TECHNICIAN',
@@ -20,7 +20,7 @@ const emptyCreateForm: EmployeeFormValue = {
 const emptyEditForm: EmployeeFormValue = {
   firstName: '',
   lastName: '',
-  profilePhotoUrl: '',
+  avatarUrl: '',
   email: '',
   password: '',
   role: 'TECHNICIAN',
@@ -56,14 +56,14 @@ function validateCreateForm(value: EmployeeFormValue) {
   if (!normalizeEmail(value.email)) return 'Email обязателен'
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(value.email))) return 'Некорректный формат email'
   if (value.password.trim().length < 8) return 'Пароль должен содержать минимум 8 символов'
-  return validateUrl(value.profilePhotoUrl)
+  return validateUrl(value.avatarUrl)
 }
 
 function validateEditForm(value: EmployeeFormValue) {
   if (!normalizeEmail(value.email)) return 'Email обязателен'
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(value.email))) return 'Некорректный формат email'
   if (value.password.trim() && value.password.trim().length < 8) return 'Пароль должен содержать минимум 8 символов'
-  return validateUrl(value.profilePhotoUrl)
+  return validateUrl(value.avatarUrl)
 }
 
 export function EmployeesPage() {
@@ -100,7 +100,7 @@ export function EmployeesPage() {
       const created = await api.createUser({
         firstName: normalizeText(value.firstName) || undefined,
         lastName: normalizeText(value.lastName) || undefined,
-        profilePhotoUrl: normalizeText(value.profilePhotoUrl) || undefined,
+        avatarUrl: normalizeText(value.avatarUrl) || undefined,
         email: normalizeEmail(value.email),
         password: value.password.trim(),
         role: value.role,
@@ -129,7 +129,7 @@ export function EmployeesPage() {
       const updated = await api.updateUser(params.userId, {
         firstName: normalizeText(params.value.firstName) || undefined,
         lastName: normalizeText(params.value.lastName) || undefined,
-        profilePhotoUrl: normalizeText(params.value.profilePhotoUrl) || undefined,
+        avatarUrl: normalizeText(params.value.avatarUrl) || undefined,
         email: normalizeEmail(params.value.email),
         password: params.value.password.trim() || undefined,
         role: params.value.role,
@@ -212,7 +212,7 @@ export function EmployeesPage() {
     setEditValue({
       firstName: user.firstName || '',
       lastName: user.lastName || '',
-      profilePhotoUrl: user.profilePhotoUrl || '',
+      avatarUrl: user.avatarUrl || '',
       email: user.email,
       password: '',
       role: user.role,

@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+﻿import React, { useEffect, useMemo, useState } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import * as api from '../lib/api'
 
@@ -45,17 +45,7 @@ function UrgencyTag({ urgency }: { urgency: api.TicketUrgency }) {
 }
 
 function SkeletonBox({ w, h }: { w: number | string; h: number }) {
-  return (
-    <div
-      style={{
-        width: w,
-        height: h,
-        borderRadius: 10,
-        background: '#eef2ff',
-        border: '1px solid #e6e8f0',
-      }}
-    />
-  )
+  return <div style={{ width: w, height: h, borderRadius: 10, background: '#eef2ff', border: '1px solid #e6e8f0' }} />
 }
 
 function TicketSkeleton() {
@@ -92,31 +82,59 @@ function ColumnSkeleton({ title }: { title: string }) {
   )
 }
 
+function providerScopeLabel(role?: api.ServiceContractRole) {
+  if (role === 'PRIMARY') return 'PRIMARY provider'
+  if (role === 'SECONDARY') return 'SECONDARY provider'
+  return ''
+}
+
 export function BoardPage() {
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [take, setTake] = useState(120)
+  const [linkedClientCompanyId, setLinkedClientCompanyId] = useState(() => searchParams.get('linkedClientCompanyId') || '')
+
+  const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
+  const linkedClientsQ = useQuery({
+    queryKey: ['linked-clients'],
+    queryFn: api.getLinkedClients,
+    enabled: meQ.data?.role === 'ADMIN' || meQ.data?.role === 'MASTER' || meQ.data?.role === 'DISPATCHER' || meQ.data?.role === 'NETWORK_DIRECTOR',
+  })
+
+  useEffect(() => {
+    const nextLinkedClientCompanyId = searchParams.get('linkedClientCompanyId') || ''
+    if (nextLinkedClientCompanyId !== linkedClientCompanyId) {
+      setLinkedClientCompanyId(nextLinkedClientCompanyId)
+    }
+  }, [searchParams, linkedClientCompanyId])
+
+  useEffect(() => {
+    if (!linkedClientCompanyId && linkedClientsQ.data?.length) {
+      const primary = linkedClientsQ.data.find((item) => item.role === 'PRIMARY')
+      if (primary) setLinkedClientCompanyId(primary.clientCompany.id)
+    }
+  }, [linkedClientsQ.data, linkedClientCompanyId])
+
+  const selectedLinkedClient = useMemo(
+    () => linkedClientsQ.data?.find((item) => item.clientCompany.id === linkedClientCompanyId) || null,
+    [linkedClientsQ.data, linkedClientCompanyId],
+  )
 
   const boardQ = useQuery({
-    queryKey: ['board', { take }],
-    queryFn: () => api.board({ take }),
+    queryKey: ['board', { take, linkedClientCompanyId }],
+    queryFn: () => api.board({ take, linkedClientCompanyId: linkedClientCompanyId || undefined }),
   })
 
   const columns = useMemo(() => boardQ.data?.columns || [], [boardQ.data])
-
-  const cardsAll = useMemo(() => {
-    const out: api.TicketCard[] = []
-    for (const c of columns) out.push(...(c.cards || []))
-    return out
-  }, [columns])
+  const cardsAll = useMemo(() => columns.flatMap((c) => c.cards || []), [columns])
 
   const stats = useMemo(() => {
     const now = new Date()
     const open = cardsAll.filter((c) => c.status !== 'DONE' && c.status !== 'CANCELED').length
     const today = cardsAll.filter((c) => sameDay(new Date(c.createdAt), now)).length
     const urgent = cardsAll.filter((c) => c.urgency === 'URGENT').length
-
     const breachedByCol = columns.reduce((sum, col) => sum + (col.sla?.breached || 0), 0)
     const atRiskByCol = columns.reduce((sum, col) => sum + (col.sla?.atRisk || 0), 0)
-
     return { open, today, urgent, breachedByCol, atRiskByCol }
   }, [cardsAll, columns])
 
@@ -131,6 +149,11 @@ export function BoardPage() {
             {boardQ.isFetching ? 'Загрузка…' : boardQ.data ? `Всего: ${boardQ.data.meta.totalTickets}` : '—'}
             {boardQ.data ? ` · лимит последних: ${boardQ.data.meta.limitedToLast}` : ''}
           </div>
+          {selectedLinkedClient ? (
+            <div className="muted small" style={{ marginTop: 4 }}>
+              Видимость по клиенту: {selectedLinkedClient.clientCompany.name} · {providerScopeLabel(selectedLinkedClient.role)}
+            </div>
+          ) : null}
         </div>
 
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -143,17 +166,51 @@ export function BoardPage() {
         </div>
       </div>
 
+      {linkedClientsQ.isLoading || (linkedClientsQ.data && linkedClientsQ.data.length > 0) ? (
+        <div className="panel" style={{ marginBottom: 12 }}>
+          <div style={{ fontWeight: 600, marginBottom: 10 }}>Мои клиенты</div>
+
+          {linkedClientsQ.isLoading ? <div className="muted small">Загрузка...</div> : null}
+
+          <div style={{ display: 'grid', gap: 10 }}>
+            {(linkedClientsQ.data || []).map((item) => (
+              <div
+                key={item.clientCompany.id}
+                className="card"
+                style={{
+                  border: linkedClientCompanyId === item.clientCompany.id ? '1px solid #c7d2fe' : '1px solid #e5e7eb',
+                  background: linkedClientCompanyId === item.clientCompany.id ? '#eef2ff' : '#fff',
+                  borderRadius: 12,
+                  padding: 12,
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  gap: 12,
+                  alignItems: 'center',
+                }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 600 }}>{item.clientCompany.name}</div>
+                  <div className="muted small">
+                    {item.role} · {item.summary.openTickets} заявок
+                  </div>
+                </div>
+
+                <button
+                  className="ghost"
+                  type="button"
+                  onClick={() => navigate(`/board?linkedClientCompanyId=${item.clientCompany.id}`)}
+                >
+                  Открыть
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       {boardQ.isError ? <div className="alert">{(boardQ.error as any)?.message || String(boardQ.error)}</div> : null}
 
-      <div
-        className="panel"
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(4, minmax(0, 1fr))',
-          gap: 12,
-          marginBottom: 12,
-        }}
-      >
+      <div className="panel" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 12 }}>
         <div>
           <div className="muted small">Заявок сегодня</div>
           <div style={{ fontSize: 18, fontWeight: 800, marginTop: 2 }}>{boardQ.isFetching ? '—' : stats.today}</div>
@@ -165,9 +222,7 @@ export function BoardPage() {
         <div>
           <div className="muted small">SLA нарушения</div>
           <div style={{ fontSize: 18, fontWeight: 800, marginTop: 2 }}>{boardQ.isFetching ? '—' : stats.breachedByCol}</div>
-          <div className="muted small" style={{ marginTop: 2 }}>
-            под риском: {boardQ.isFetching ? '—' : stats.atRiskByCol}
-          </div>
+          <div className="muted small" style={{ marginTop: 2 }}>под риском: {boardQ.isFetching ? '—' : stats.atRiskByCol}</div>
         </div>
         <div>
           <div className="muted small">Срочные</div>
@@ -181,13 +236,9 @@ export function BoardPage() {
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
             <label className="muted small" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               take
-              <input
-                style={{ width: 110 }}
-                value={String(take)}
-                onChange={(e) => setTake(Math.max(20, Math.min(1000, Number(e.target.value) || 0)))}
-              />
+              <input style={{ width: 110 }} value={String(take)} onChange={(e) => setTake(Math.max(20, Math.min(1000, Number(e.target.value) || 0)))} />
             </label>
-            <div className="muted small">Подсказка: для демо можно увеличить take, например до 300.</div>
+            <div className="muted small">Для демо можно увеличить take, например до 300.</div>
           </div>
         </div>
       </div>
@@ -195,9 +246,7 @@ export function BoardPage() {
       {isEmpty ? (
         <div className="panel">
           <h3 style={{ marginBottom: 6 }}>Заявок пока нет</h3>
-          <div className="muted small" style={{ marginBottom: 10 }}>
-            Создай тестовую заявку, чтобы доска стала живой для демонстрации.
-          </div>
+          <div className="muted small" style={{ marginBottom: 10 }}>Создай тестовую заявку, чтобы доска стала живой для демонстрации.</div>
           <Link to="/tickets/new">
             <button>Создать заявку</button>
           </Link>
@@ -234,15 +283,7 @@ export function BoardPage() {
                       <div className="ticketMeta">
                         <UrgencyTag urgency={c.urgency} />
                         {c.slaBreached ? <span className="tag danger">SLA нарушен</span> : null}
-                        {c.assignedTechnician ? (
-                          <span className="tag" title="Назначенный техник">
-                            {c.assignedTechnician.email}
-                          </span>
-                        ) : (
-                          <span className="tag" title="Не назначено">
-                            не назначено
-                          </span>
-                        )}
+                        {c.assignedTechnician ? <span className="tag">{c.assignedTechnician.email}</span> : <span className="tag">не назначено</span>}
                       </div>
 
                       <div className="muted small" style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>

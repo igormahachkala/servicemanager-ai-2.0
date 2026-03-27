@@ -2,14 +2,13 @@
 
 Base URL (dev, local WSL):
 
-http://localhost:3001
+`http://localhost:3001`
 
 Auth:
 
-Bearer JWT
+`Bearer JWT`
 
-Все запросы выполняются внутри companyId,
-который извлекается из JWT.
+All tenant-scoped operational requests must resolve `companyId` from JWT.
 
 ---
 
@@ -17,422 +16,254 @@ Bearer JWT
 
 ## POST /auth/register
 
-Регистрация новой компании и ADMIN пользователя.
+Public self-service company registration is disabled.
 
-Request
+Behavior:
 
+- does not create company
+- does not create first admin
+- always returns `403 Forbidden`
+
+Response:
+
+```json
 {
-  "companyName": "My Company",
-  "email": "admin@example.com",
-  "password": "password"
+  "statusCode": 403,
+  "message": "Self-service company registration is disabled. Contact platform administrator.",
+  "error": "Forbidden"
 }
-
-Response
-
-{
-  "access_token": "jwt"
-}
-
----
+```
 
 ## POST /auth/login
 
-Авторизация пользователя.
-
-Request
-
-{
-  "email": "admin@example.com",
-  "password": "password"
-}
-
-Response
-
-{
-  "access_token": "jwt"
-}
-
----
+Authenticates an existing user.
 
 ## GET /auth/me
 
-Возвращает текущего пользователя.
+Returns current user profile:
 
-Auth required.
-
-Response
-
-{
-  "id": "uuid",
-  "email": "user@email.com",
-  "role": "ADMIN",
-  "companyId": "uuid"
-}
+- `id`
+- `email`
+- `role`
+- `companyId`
+- `companyName`
 
 ---
 
-# 2. COMPANY
+# 2. CLOSED ONBOARDING MODEL
+
+Public user:
+
+- `/login`
+- `/request-access`
+
+`PLATFORM_ADMIN`:
+
+- `GET /companies`
+- `POST /companies`
+- `POST /companies/:id/admins`
+
+Only `PLATFORM_ADMIN` provisions companies and first tenant admins.
+
+---
+
+# 3. COMPANY MODEL V2
+
+Unified company model:
+
+- `CLIENT`
+- `PROVIDER`
+
+Company creation is platform-only. Company type is a first-class field in both backend and frontend.
+
+## GET /companies
+
+Platform-only company list. Returns companies with:
+
+- `id`
+- `name`
+- `type`
+- public intake settings
+- first admins summary
+
+## POST /companies
+
+Platform-only company creation.
+
+Request:
+
+```json
+{
+  "name": "Acme Retail",
+  "type": "CLIENT",
+  "timezone": "Europe/Moscow"
+}
+```
+
+`type` may be `CLIENT` or `PROVIDER`.
+
+## POST /companies/:id/admins
+
+Platform-only creation of the first tenant admin for a company.
 
 ## GET /company
 
-Получить данные компании.
+Tenant admin company settings. Also returns service relationship summary for the current company:
 
-Auth required.
+- `clientContracts[]` if the company acts as a client
+- `providerContracts[]` if the company acts as a provider
 
-Response
-
-{
-  "id": "uuid",
-  "name": "Company",
-  "autoAssignEnabled": true
-}
+Provider visibility in future phases will be based on active service relationships, not on role alone.
 
 ---
 
-## PATCH /company/auto-assign
+# 4. SERVICE CONTRACTS
 
-Включить или выключить автоназначение.
+Service relationships are explicit links between one `CLIENT` company and one `PROVIDER` company.
 
-Auth required.
+Status enum:
 
-Role:
+- `DRAFT`
+- `ACTIVE`
+- `INACTIVE`
+- `ENDED`
 
-ADMIN
+Role enum:
 
-Request
+- `PRIMARY`
+- `SECONDARY`
 
+Rules:
+
+- client company and provider company must be different
+- client side must be `CLIENT`
+- provider side must be `PROVIDER`
+- current write access level: `PLATFORM_ADMIN` only
+- provider visibility is granted only through an `ACTIVE` contract
+- `PRIMARY` provider may read linked client operational overview
+- `SECONDARY` provider stays restricted and does not receive full client visibility
+
+## POST /service-contracts
+
+Request:
+
+```json
 {
-  "enabled": true
+  "clientCompanyId": "uuid",
+  "providerCompanyId": "uuid",
+  "status": "ACTIVE",
+  "role": "PRIMARY",
+  "startsAt": "2026-03-26",
+  "endsAt": "2026-12-31",
+  "notes": "Pilot support contract"
 }
+```
 
-Response
+## GET /service-contracts
 
-{
-  "id": "uuid",
-  "autoAssignEnabled": true
-}
+Platform-only list of all service contracts.
+
+## GET /service-contracts/:id
+
+Platform-only single contract.
+
+## PATCH /service-contracts/:id
+
+Updates:
+
+- `status`
+- `role`
+- `startsAt`
+- `endsAt`
+- `notes`
+
+## GET /service-contracts/linked-clients
+
+Provider-company read endpoint.
+Returns only `ACTIVE` linked client companies for the current provider.
+Each item includes:
+
+- contract id, status, role
+- client company summary
+- open tickets count
+- locations count
+- public intake enabled flag
+
+## GET /service-contracts/linked-providers
+
+Client-company read endpoint.
+Returns only `ACTIVE` linked providers for the current client company.
+
+## GET /companies/:id/service-contracts
+
+Platform-only list of service contracts for a single company.
 
 ---
 
-# 3. USERS
+# 5. PROVIDER VISIBILITY PHASE B
 
-## POST /users
+Provider visibility is relationship-aware:
 
-Создать пользователя.
+- without an `ACTIVE` contract, provider sees nothing from client company
+- with an `ACTIVE PRIMARY` contract, provider may read linked client board and analytics overview
+- with an `ACTIVE SECONDARY` contract, provider remains in restricted mode
 
-Auth required.
+Read APIs re-used in Phase B:
 
-Roles allowed:
+- `GET /tickets/board?linkedClientCompanyId=...`
+- `GET /tickets?linkedClientCompanyId=...`
+- `GET /analytics/overview?linkedClientCompanyId=...`
 
-ADMIN
+# 6. PUBLIC QUICK REQUEST V2
 
-Request
+Public mobile intake without JWT.
 
-{
-  "email": "tech@test.local",
-  "password": "password",
-  "role": "TECHNICIAN"
-}
+## GET /public/request/context/:token?locationId=...
 
-Response
+Response fields:
 
-{
-  "id": "uuid",
-  "email": "tech@test.local",
-  "role": "TECHNICIAN"
-}
+- `companyName`
+- `introText`
+- `publicRequestEnabled`
+- `requestTypes`
+- `defaultRequestType`
+- `featureFlags.photoUpload`
+- `limits.maxPhotos`
+- `limits.requirePhone`
+- `presetLocationMode`
+- `presetLocation`
 
----
+## GET /public/request/locations/:token
 
-# 4. TECHNICIANS
+Returns only active locations for the company bound to the public token.
 
-## GET /technicians
+## GET /public/request/locations/:locationId/equipment?token=...
 
-Список техников.
+Returns only equipment from the selected location inside the company bound to the public token.
 
-Auth required.
+## POST /public/request/:token
 
-Response
+Creates a normal operational ticket from the public mobile flow.
 
-[
-  {
-    "id": "uuid",
-    "email": "tech@test.local"
-  }
-]
+Supported fields:
 
----
+- `locationId`
+- `equipmentId?`
+- `requestType` = `repair | note`
+- `description`
+- `phone?`
+- `name?`
+- `presetLocationId?`
+- `channel?` = `qr | direct_link`
+- `publicLinkVersion?`
+- `photos[]`
 
-# 5. TICKETS
+The created ticket stores:
 
-## POST /tickets
+- `source = PUBLIC_QUICK_REQUEST`
+- `locationId`
+- `equipmentId?`
+- `requesterPhone`
+- public intake metadata in timeline/event payloads
 
-Создание заявки.
-
-Auth required.
-
-Roles allowed:
-
-ADMIN  
-MASTER  
-DISPATCHER
-
-Request
-
-{
-  "locationId": "uuid",
-  "problemCategoryId": "uuid",
-  "problemText": "Printer broken",
-  "urgency": "NOT_URGENT",
-  "requesterName": "John",
-  "requesterPhone": "+7 999 000 00 00",
-  "address": "Some address",
-  "pointName": "Office"
-}
-
-Response
-
-{
-  "ticket": { ... },
-  "instructions": "...",
-  "candidates": [ ... ],
-  "autoAssigned": true
-}
-
----
-
-## GET /tickets
-
-Получить список тикетов.
-
-Auth required.
-
-Response
-
-[
-  {
-    "id": "uuid",
-    "status": "NEW",
-    "problemText": "...",
-    "assignedTechnicianId": null
-  }
-]
-
----
-
-## GET /tickets/:id
-
-Получить один тикет.
-
-Auth required.
-
-Response
-
-{
-  "id": "uuid",
-  "status": "NEW",
-  "problemText": "...",
-  "assignedTechnicianId": null
-}
-
----
-
-# 6. ASSIGN
-
-## PUT /tickets/:ticketId/assign/:technicianId
-
-Назначить техника.
-
-Auth required.
-
-Roles allowed:
-
-ADMIN  
-MASTER  
-DISPATCHER
-
-Response
-
-{
-  "id": "ticketId",
-  "assignedTechnicianId": "technicianId",
-  "status": "ASSIGNED"
-}
-
----
-
-# 7. CLAIM
-
-## POST /tickets/:ticketId/claim
-
-Техник забирает заявку.
-
-Auth required.
-
-Role:
-
-TECHNICIAN
-
-Правила:
-
-- статус должен быть NEW
-- специализация должна совпадать
-
-Response
-
-{
-  "id": "ticketId",
-  "assignedTechnicianId": "techId",
-  "status": "ASSIGNED"
-}
-
----
-
-# 8. STATUS CHANGE
-
-## PATCH /tickets/:ticketId/status
-
-Смена статуса заявки.
-
-Auth required.
-
-Roles allowed:
-
-ADMIN  
-MASTER  
-DISPATCHER  
-TECHNICIAN (если assigned)
-
-Request
-
-{
-  "status": "IN_PROGRESS"
-}
-
-Response
-
-{
-  "id": "ticketId",
-  "status": "IN_PROGRESS"
-}
-
----
-
-# 9. CHILD TICKETS
-
-## POST /tickets/:parentId/child
-
-Создание дочернего тикета.
-
-Auth required.
-
-Roles allowed:
-
-ADMIN  
-MASTER  
-DISPATCHER
-
-Request
-
-{
-  "problemCategoryId": "uuid",
-  "problemText": "Child issue",
-  "urgency": "NOT_URGENT"
-}
-
-Response
-
-{
-  "id": "childTicketId",
-  "parentId": "parentId"
-}
-
----
-
-# 10. BOARD API
-
-Kanban board для диспетчера.
-
-## GET /tickets/board
-
-Auth required.
-
-Query parameters
-
-status=NEW  
-status=ASSIGNED  
-assigneeId=unassigned  
-sla=atRisk  
-take=50  
-q=search
-
-Response
-
-{
-  "columns": [
-    {
-      "status": "NEW",
-      "total": 10,
-      "cards": [ ... ]
-    }
-  ],
-  "meta": {
-    "totalTickets": 100
-  }
-}
-
----
-
-# 11. EVENTS
-
-Система записывает domain events.
-
-Примеры событий:
-
-ticket.created  
-ticket.assigned  
-ticket.claimed  
-ticket.status_changed
-
-События используются для:
-
-- аналитики
-- SLA
-- аудита
-
-
----
-
-## GET /tickets/:id/assignment-candidates
-
-Подбор техников для ручного назначения.
-
-Auth required.
-
-Roles allowed:
-
-ADMIN
-MASTER
-DISPATCHER
-
-Response
-
-{
-  "ticketId": "uuid",
-  "category": {
-    "id": "uuid",
-    "name": "Printer"
-  },
-  "currentAssigneeId": null,
-  "requiredSpecializations": [],
-  "matched": [],
-  "others": []
-}
-
----
-
-## GET /timeline/tickets/:id
-
-Лента timeline / history / domain events по тикету.
-
-Auth required.
+Public endpoints may return `429` when company public intake rate limiting is enabled.

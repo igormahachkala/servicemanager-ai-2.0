@@ -1,139 +1,175 @@
-# ARCHITECTURE — ServiceManager.AI
+# Closed onboarding model
 
-Этот документ описывает текущую архитектуру платформы.
+Public self-service company registration is disabled.
 
-ServiceManager.AI — это SaaS-платформа управления сервисными заявками
-для сервисных компаний и сетей.
+Official onboarding flow:
 
-Технологический стек:
+- public user -> `/login`
+- public user -> `/request-access`
+- `PLATFORM_ADMIN` -> create company
+- `PLATFORM_ADMIN` -> create first company admin
+
+Public intake is separate from tenant auth.
+The public support/request-access route does not create companies and does not mint tenant access.
+
+Temporary demo note:
+
+- `ensurePlatformAdmin()` is still used as an env-driven bootstrap for demo deployments
+- later it should move to a dedicated seed/init command
+
+---
+
+# ARCHITECTURE вЂ” ServiceManager.AI
+
+ServiceManager.AI evolves from an isolated tenant FSM product toward a service network platform.
+
+Current stack:
 
 - Backend: NestJS
 - ORM: Prisma
 - Database: PostgreSQL
 - Auth: JWT
-- Architecture: Modular + PBAC
+- Architecture: modular service layer + PBAC
 - Deployment: Docker + local WSL runtime
 
 ---
 
-# 1. Архитектурные принципы
+# 1. Core architectural rules
 
-## 1.1 Multi-tenant архитектура
+## 1.1 Multi-tenant isolation
 
-Каждая доменная сущность содержит:
+Every tenant-scoped operational object is still anchored to:
 
-companyId
+- `companyId`
 
-Это обеспечивает:
+Source of truth:
 
-- изоляцию данных между компаниями
-- возможность SaaS-масштабирования
-- поддержку enterprise-клиентов
+- `JWT payload -> req.user.companyId`
 
-Любой запрос обязан фильтроваться по companyId.
+Rules:
 
-Источник companyId:
+- no operational cross-company reads without explicit platform scope
+- no platform behavior should bypass tenant boundaries accidentally
 
-JWT payload > req.user.companyId
+## 1.2 Unified company model
 
-Запрещено:
+There is one `Company` entity with a type:
 
-- доступ к данным другой компании
-- глобальные выборки без companyId
+- `CLIENT`
+- `PROVIDER`
 
----
+This replaces the idea of separate company entities for clients and contractors.
 
-## 1.2 API-first
+The goal is:
 
-Backend является API-платформой.
+- keep one company model
+- distinguish commercial/operational role by `type`
+- prepare the service network layer without breaking the existing FSM core
 
-Frontend, mobile app и интеграции работают через API.
+## 1.3 Service relationship foundation
 
-Все изменения должны учитывать:
+Provider visibility must not come from role alone.
 
-- обратную совместимость API
-- стабильность контрактов
-- масштабируемость
+The foundation entity is `ServiceContract`:
 
----
+- `clientCompanyId`
+- `providerCompanyId`
+- `status`
+- `role` = `PRIMARY | SECONDARY`
+- `startsAt`
+- `endsAt`
+- `notes`
 
-## 1.3 Модульная архитектура (NestJS)
+Business invariants:
 
-Система разделена на модули:
+- client and provider must be different companies
+- client side must be a `CLIENT`
+- provider side must be a `PROVIDER`
 
-AuthModule
-UsersModule
-CompanyModule
-TicketsModule
-SpecializationsModule
-ProblemCategoriesModule
-TechniciansModule
-PermissionsModule
-EventsModule
+In this phase the relationship is platform-managed only.
+Provider routing is not implemented yet.
 
-Каждый модуль содержит:
+Phase B visibility rules:
 
-controller
-service
-dto
-module
+- `PRIMARY` provider may read linked client operational slices through an `ACTIVE` contract
+- `SECONDARY` provider stays restricted and does not receive full linked client visibility
+- provider access is always resolved through relationship state, never through role alone
 
-Бизнес-логика размещается **только в service**.
+This is intentional: we are building the right network foundation first, without destabilizing the current ticket engine.
 
-Контроллеры не содержат бизнес-логики.
+## 1.4 Public intake compatibility
+
+Public quick request, QR links and company public tokens still belong to the client company.
+
+That means:
+
+- `/public/request/context/:token` stays company-bound
+- public location and equipment selection stays company-bound
+- created ticket still lands in the existing operational core for that client company
+
+Future provider assignment may later use the relationship layer, but public intake must not depend on that yet.
+
+## 1.5 API-first and service-layer discipline
+
+Controllers:
+
+- transport only
+- DTO parsing only
+- guards and role checks only
+
+Business logic:
+
+- service layer only
+
+Database access:
+
+- Prisma from service layer only
 
 ---
 
 # 2. Runtime environments
 
-Платформа поддерживает два корректных режима запуска backend.
-
 ## 2.1 Local WSL runtime
 
-Использует файл:
+Primary env file:
 
-`backend/.env`
+- `backend/.env`
 
 Database host:
 
-`localhost:5432`
-
-Этот режим нужен для запуска backend напрямую из WSL, когда Postgres поднят через Docker и опубликован на host.
+- `localhost:5432`
 
 ## 2.2 Docker runtime
 
-Использует файл:
+Primary env file:
 
-`backend/.env.docker`
+- `backend/.env.docker`
 
 Database host:
 
-`postgres:5432`
+- `postgres:5432`
 
-Этот host валиден только внутри `docker compose` сети.
+## 2.3 Important boundary
 
-## 2.3 Инвариант окружений
-
-Запрещено:
-
-- вручную переписывать `DATABASE_URL` в одном и том же `.env`
-- использовать `postgres` host для локального WSL backend
-- использовать `localhost` host внутри docker backend
+The same backend code must work in both modes.
+Only environment configuration changes between WSL-local and Docker runtime.
 
 ---
 
-# 3. Слои архитектуры
+# 3. Module structure
 
-Платформа использует слоистую модель:
+Main business modules include:
 
-Controller
-v
-Guard / PermissionGuard
-v
-Policy Layer (RoleScopePolicy)
-v
-Service Layer
-v
-Domain Events
-v
-Prisma / Database
+- `AuthModule`
+- `UsersModule`
+- `CompanyModule`
+- `ServiceContractsModule`
+- `TicketsModule`
+- `LocationsModule`
+- `EquipmentModule`
+- `PublicRequestModule`
+- `AnalyticsModule`
+
+Canonical backend flow:
+
+`Controller -> Guard -> Policy -> Service -> Prisma`

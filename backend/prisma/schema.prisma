@@ -37,6 +37,28 @@ enum TicketUrgency {
   NOT_URGENT
 }
 
+enum TicketSource {
+  INTERNAL
+  PUBLIC_QUICK_REQUEST
+}
+
+enum PublicRequestType {
+  REPAIR
+  NOTE
+}
+
+enum ServiceContractStatus {
+  DRAFT
+  ACTIVE
+  INACTIVE
+  ENDED
+}
+
+enum ServiceContractRole {
+  PRIMARY
+  SECONDARY
+}
+
 model Company {
   id                   String      @id @default(uuid())
   name                 String
@@ -45,6 +67,15 @@ model Company {
   allowTechnicianClaim Boolean     @default(true)
   slaStrictMode        Boolean     @default(false)
   timezone             String?     @default("UTC")
+  publicRequestEnabled Boolean     @default(false)
+  publicRequestToken   String?     @unique
+  publicRequestIntro   String?
+  publicRequestAllowPhotos Boolean @default(true)
+  publicRequestMaxPhotos Int @default(3)
+  publicRequestRequirePhone Boolean @default(true)
+  publicRequestDefaultType PublicRequestType?
+  publicRequestRateLimitEnabled Boolean @default(true)
+  publicRequestLocationPresetMode String? @default("HIDE_WHEN_VALID")
   createdAt            DateTime    @default(now())
   updatedAt            DateTime    @updatedAt
 
@@ -54,6 +85,10 @@ model Company {
   problemCategories ProblemCategory[]
   tickets           Ticket[]
   ticketAttachments TicketAttachment[]
+  equipment         Equipment[]
+  publicRequestLogs PublicRequestLog[]
+  clientContracts    ServiceContract[] @relation("ClientCompanyContracts")
+  providerContracts  ServiceContract[] @relation("ProviderCompanyContracts")
 }
 
 model User {
@@ -99,7 +134,8 @@ model Location {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  tickets Ticket[]
+  tickets   Ticket[]
+  equipment Equipment[]
 
   @@unique([clientCompanyId, platformCode])
   @@index([clientCompanyId, isActive])
@@ -160,6 +196,47 @@ model TechnicianSpecialization {
   @@id([userId, specializationId])
 }
 
+model Equipment {
+  id         String   @id @default(uuid())
+  companyId  String
+  locationId String
+
+  name   String
+  type   String
+  status String   @default("ACTIVE")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  tickets  Ticket[]
+
+  @@index([companyId, locationId])
+  @@index([companyId, status])
+  @@index([locationId, status])
+}
+
+model ServiceContract {
+  id                String                @id @default(uuid())
+  clientCompanyId   String
+  providerCompanyId String
+  status            ServiceContractStatus @default(DRAFT)
+  role              ServiceContractRole   @default(PRIMARY)
+  startsAt          DateTime?
+  endsAt            DateTime?
+  notes             String?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  clientCompany   Company @relation("ClientCompanyContracts", fields: [clientCompanyId], references: [id], onDelete: Cascade)
+  providerCompany Company @relation("ProviderCompanyContracts", fields: [providerCompanyId], references: [id], onDelete: Cascade)
+
+  @@unique([clientCompanyId, providerCompanyId])
+  @@index([clientCompanyId, status])
+  @@index([providerCompanyId, status])
+}
+
 model Ticket {
   id        String  @id @default(uuid())
   companyId String
@@ -171,6 +248,12 @@ model Ticket {
 
   locationId String
   location   Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
+
+  equipmentId String?
+  equipment   Equipment? @relation(fields: [equipmentId], references: [id], onDelete: SetNull)
+
+  source            TicketSource       @default(INTERNAL)
+  publicRequestType PublicRequestType?
 
   requesterName  String?
   requesterPhone String?
@@ -207,6 +290,8 @@ model Ticket {
   @@index([slaBreachedAt])
   @@index([companyId, slaDueAt])
   @@index([locationId])
+  @@index([equipmentId])
+  @@index([companyId, source])
 }
 
 model TicketAttachment {
@@ -310,3 +395,22 @@ model AssignmentCursor {
   @@index([companyId, strategy])
 }
 
+
+
+model PublicRequestLog {
+  id         String   @id @default(uuid())
+  companyId  String
+  tokenHash  String
+  ipHash     String?
+  phoneHash  String?
+  locationId String?
+  channel    String?
+  action     String
+  createdAt  DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, createdAt])
+  @@index([companyId, tokenHash, ipHash, createdAt])
+  @@index([companyId, phoneHash, locationId, createdAt])
+}
