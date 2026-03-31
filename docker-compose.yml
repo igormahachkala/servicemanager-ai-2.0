@@ -1,3 +1,5 @@
+version: "3.9"
+
 services:
   postgres:
     image: postgres:16
@@ -22,13 +24,13 @@ services:
       - ./backend/.env.docker
     depends_on:
       - postgres
-    command: sh -lc "npx prisma migrate deploy && node dist/src/main.js"
+    command: sh -lc "npx prisma migrate deploy && npm run start:prod"
 
   web:
     build:
       context: ./web
       args:
-        VITE_API_BASE_URL: http://localhost:3000
+        VITE_API_BASE_URL: http://194.67.101.37:3000
     container_name: sma_web
     restart: unless-stopped
     ports:
