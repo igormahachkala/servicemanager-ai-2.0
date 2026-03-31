@@ -35,3 +35,6 @@ coverage/
 
 # local docker temp
 .docker-tmp/
+
+backup_before_*.sql
+*.sql
