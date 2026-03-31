@@ -66,7 +66,7 @@ export class TicketsController {
   }
 
   @Get('board')
-  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TECHNICIAN)
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TECHNICIAN, UserRole.PLATFORM_ADMIN)
   @RequirePermission(PERMISSIONS.TICKETS_VIEW)
   board(@Req() req: any, @Query() q: BoardQueryDto) {
     const statuses: TicketStatus[] | undefined = q.status
@@ -84,13 +84,19 @@ export class TicketsController {
       },
       req.accessFlags,
       q.linkedClientCompanyId,
+      q.companyId,
     )
   }
 
   @Get()
-  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TECHNICIAN)
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TECHNICIAN, UserRole.PLATFORM_ADMIN)
   @RequirePermission(PERMISSIONS.TICKETS_VIEW)
-  list(@Req() req: any, @Query('status') status?: TicketStatus, @Query('linkedClientCompanyId') linkedClientCompanyId?: string) {
+  list(
+    @Req() req: any,
+    @Query('status') status?: TicketStatus,
+    @Query('linkedClientCompanyId') linkedClientCompanyId?: string,
+    @Query('companyId') companyId?: string,
+  ) {
     return this.svc.list(
       req.user.companyId,
       req.user.id,
@@ -98,6 +104,7 @@ export class TicketsController {
       status,
       req.accessFlags,
       linkedClientCompanyId,
+      companyId,
     )
   }
 
@@ -109,14 +116,14 @@ export class TicketsController {
   }
 
   @Get(':id')
-  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TECHNICIAN)
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TECHNICIAN, UserRole.PLATFORM_ADMIN)
   @RequirePermission(PERMISSIONS.TICKETS_VIEW)
-  getOne(@Req() req: any, @Param('id') id: string) {
-    return this.svc.getOne(req.user.companyId, req.user.id, req.user.role as UserRole, id, req.accessFlags)
+  getOne(@Req() req: any, @Param('id') id: string, @Query('companyId') companyId?: string) {
+    return this.svc.getOne(req.user.companyId, req.user.id, req.user.role as UserRole, id, req.accessFlags, companyId)
   }
 
   @Get(':id/attachments')
-  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TECHNICIAN)
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TECHNICIAN, UserRole.PLATFORM_ADMIN)
   @RequirePermission(PERMISSIONS.TICKETS_VIEW)
   listAttachments(@Req() req: any, @Param('id') id: string) {
     return this.svc.listAttachments(req.user.companyId, req.user.id, req.user.role as UserRole, id, req.accessFlags)

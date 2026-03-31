@@ -1,4 +1,4 @@
-export type DomainEntityType = 'Ticket' | 'User' | 'SLA';
+export type DomainEntityType = 'Ticket' | 'User' | 'SLA' | 'InspectionRun' | 'InspectionRunItem';
 
 export type DomainEventType =
   | 'ticket.created'
@@ -12,7 +12,10 @@ export type DomainEventType =
   | 'ticket.sla_warning'
   | 'ticket.sla_breached'
   | 'sla.breached'
-  | 'user.created';
+  | 'user.created'
+  | 'inspection.item_ticket_created'
+  | 'inspection.report_submitted'
+  | 'inspection.report_reviewed';
 
 export type DomainEvent = {
   type: DomainEventType;

@@ -33,6 +33,7 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
         password,
       })
 
+      api.clearImpersonationState()
       api.setToken(result.access_token)
       api.setUserRole(result.user.role)
       api.setCompanyLabel(result.user.companyName || result.user.email)

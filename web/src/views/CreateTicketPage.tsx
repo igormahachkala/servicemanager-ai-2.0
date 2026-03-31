@@ -52,7 +52,7 @@ export function CreateTicketPage() {
 
   const locationsQ = useQuery({
     queryKey: ['locations'],
-    queryFn: api.locations,
+    queryFn: () => api.locations(),
   })
 
   const activeCategories = useMemo(() => {

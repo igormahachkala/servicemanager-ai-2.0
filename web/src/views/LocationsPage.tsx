@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
@@ -63,7 +63,7 @@ export function LocationsPage() {
   const [editingLocationActive, setEditingLocationActive] = useState(true)
   const [editValue, setEditValue] = useState<LocationFormValue>(emptyForm)
 
-  const locationsQ = useQuery({ queryKey: ['locations'], queryFn: api.locations })
+  const locationsQ = useQuery({ queryKey: ['locations'], queryFn: () => api.locations() })
 
   const sortedLocations = useMemo(() => {
     const rows = [...(locationsQ.data || [])]

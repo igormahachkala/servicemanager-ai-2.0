@@ -21,6 +21,7 @@ import { MapModule } from './map/map.module';
 import { EquipmentModule } from './equipment/equipment.module';
 import { PublicRequestModule } from './public-request/public-request.module';
 import { ServiceContractsModule } from './service-contracts/service-contracts.module';
+import { InspectionModule } from './inspection/inspection.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { ServiceContractsModule } from './service-contracts/service-contracts.mo
     EquipmentModule,
     PublicRequestModule,
     ServiceContractsModule,
+    InspectionModule,
   ],
   controllers: [AppController, HealthController],
   providers: [AppService],

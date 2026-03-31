@@ -65,8 +65,9 @@ export class TicketsService {
     input: BoardQueryInput,
     accessFlags?: AccessFlags,
     linkedClientCompanyId?: string,
+    observerCompanyId?: string,
   ) {
-    return this.query.board(companyId, userId, role, input, accessFlags, linkedClientCompanyId)
+    return this.query.board(companyId, userId, role, input, accessFlags, linkedClientCompanyId, observerCompanyId)
   }
 
   list(
@@ -76,8 +77,9 @@ export class TicketsService {
     status?: TicketStatus,
     accessFlags?: AccessFlags,
     linkedClientCompanyId?: string,
+    observerCompanyId?: string,
   ) {
-    return this.query.list(companyId, userId, role, status, accessFlags, linkedClientCompanyId)
+    return this.query.list(companyId, userId, role, status, accessFlags, linkedClientCompanyId, observerCompanyId)
   }
 
   getOne(
@@ -86,8 +88,9 @@ export class TicketsService {
     role: UserRole,
     ticketId: string,
     accessFlags?: AccessFlags,
+    observerCompanyId?: string,
   ) {
-    return this.query.getOne(companyId, userId, role, ticketId, accessFlags)
+    return this.query.getOne(companyId, userId, role, ticketId, accessFlags, observerCompanyId)
   }
 
   listAttachments(

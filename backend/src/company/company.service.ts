@@ -5,6 +5,8 @@ import { randomUUID } from 'crypto'
 
 import { PrismaService } from '../prisma/prisma.service'
 import { UsersPolicy } from '../policy/users.policy'
+import { isPlatformObserverScope, resolveObserverScopeCompanyId } from '../policy/policy.utils'
+import { ServiceContractsService } from '../service-contracts/service-contracts.service'
 
 import { UpdateCompanyDto } from './dto/update-company.dto'
 import { CreateCompanyDto } from './dto/create-company.dto'
@@ -12,9 +14,13 @@ import { CreateCompanyAdminDto } from './dto/create-company-admin.dto'
 
 @Injectable()
 export class CompanyService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private serviceContractsService: ServiceContractsService,
+  ) {}
 
-  async get(companyId: string) {
+  async get(actorCompanyId: string, actorRole: UserRole, requestedCompanyId?: string, linkedClientCompanyId?: string) {
+    const companyId = await this.resolveReadableCompanyId(actorCompanyId, actorRole, requestedCompanyId, linkedClientCompanyId)
     const company = await this.prisma.company.findUnique({
       where: { id: companyId },
       select: this.companySelect(),
@@ -32,6 +38,16 @@ export class CompanyService {
       where: { id: companyId },
       data: {
         ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
+        ...(dto.brandName !== undefined ? { brandName: dto.brandName?.trim() || null } : {}),
+        ...(dto.legalName !== undefined ? { legalName: dto.legalName?.trim() || null } : {}),
+        ...(dto.address !== undefined ? { address: dto.address?.trim() || null } : {}),
+        ...(dto.phone !== undefined ? { phone: dto.phone?.trim() || null } : {}),
+        ...(dto.email !== undefined ? { email: dto.email?.trim().toLowerCase() || null } : {}),
+        ...(dto.taxId !== undefined ? { taxId: dto.taxId?.trim() || null } : {}),
+        ...(dto.registrationNumber !== undefined ? { registrationNumber: dto.registrationNumber?.trim() || null } : {}),
+        ...(dto.logoUrl !== undefined ? { logoUrl: dto.logoUrl?.trim() || null } : {}),
+        ...(dto.signatureLineName !== undefined ? { signatureLineName: dto.signatureLineName?.trim() || null } : {}),
+        ...(dto.signatureLineTitle !== undefined ? { signatureLineTitle: dto.signatureLineTitle?.trim() || null } : {}),
         ...(dto.autoAssignEnabled !== undefined ? { autoAssignEnabled: dto.autoAssignEnabled } : {}),
         ...(dto.timezone !== undefined ? { timezone: dto.timezone.trim() } : {}),
         ...(dto.allowTechnicianClaim !== undefined ? { allowTechnicianClaim: dto.allowTechnicianClaim } : {}),
@@ -97,6 +113,16 @@ export class CompanyService {
     const company = await this.prisma.company.create({
       data: {
         name,
+        brandName: name,
+        legalName: name,
+        email: null,
+        phone: null,
+        address: null,
+        taxId: null,
+        registrationNumber: null,
+        logoUrl: null,
+        signatureLineName: null,
+        signatureLineTitle: null,
         type: dto.type ?? CompanyType.CLIENT,
         timezone,
         publicRequestEnabled: true,
@@ -176,6 +202,50 @@ export class CompanyService {
     }
   }
 
+  private async resolveReadableCompanyId(
+    actorCompanyId: string,
+    actorRole: UserRole,
+    requestedCompanyId?: string,
+    linkedClientCompanyId?: string,
+  ) {
+    const observerCompanyId = resolveObserverScopeCompanyId({
+      actorCompanyId,
+      actorRole,
+      requestedCompanyId,
+    })
+
+    if (isPlatformObserverScope({ actorCompanyId, actorRole, scopeCompanyId: observerCompanyId })) {
+      await this.ensureCompanyExists(observerCompanyId)
+      return observerCompanyId
+    }
+
+    if (!linkedClientCompanyId || linkedClientCompanyId === actorCompanyId) {
+      return actorCompanyId
+    }
+
+    const access = await this.serviceContractsService.getLinkedClientAccess(actorCompanyId, linkedClientCompanyId)
+    if (!access) {
+      throw new BadRequestException('Linked client company is not available')
+    }
+
+    if (access.role !== 'PRIMARY') {
+      throw new BadRequestException('Linked client company summary is available only for PRIMARY provider')
+    }
+
+    return linkedClientCompanyId
+  }
+
+  private async ensureCompanyExists(companyId: string) {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { id: true },
+    })
+
+    if (!company) {
+      throw new NotFoundException('Company not found')
+    }
+  }
+
   private newPublicRequestToken() {
     return randomUUID().replace(/-/g, '')
   }
@@ -184,6 +254,16 @@ export class CompanyService {
     return {
       id: true,
       name: true,
+      brandName: true,
+      legalName: true,
+      address: true,
+      phone: true,
+      email: true,
+      taxId: true,
+      registrationNumber: true,
+      logoUrl: true,
+      signatureLineName: true,
+      signatureLineTitle: true,
       type: true,
       autoAssignEnabled: true,
       timezone: true,
@@ -264,6 +344,16 @@ export class CompanyService {
     return {
       id: company.id,
       name: company.name,
+      brandName: company.brandName,
+      legalName: company.legalName,
+      address: company.address,
+      phone: company.phone,
+      email: company.email,
+      taxId: company.taxId,
+      registrationNumber: company.registrationNumber,
+      logoUrl: company.logoUrl,
+      signatureLineName: company.signatureLineName,
+      signatureLineTitle: company.signatureLineTitle,
       type: company.type,
       autoAssignEnabled: company.autoAssignEnabled,
       timezone: company.timezone,

@@ -1,5 +1,5 @@
 ﻿import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
@@ -68,6 +68,7 @@ function validateEditForm(value: EmployeeFormValue) {
 
 export function EmployeesPage() {
   const qc = useQueryClient()
+  const [searchParams] = useSearchParams()
 
   const [err, setErr] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -75,9 +76,19 @@ export function EmployeesPage() {
   const [editingUserId, setEditingUserId] = useState<string | null>(null)
   const [editValue, setEditValue] = useState<EmployeeFormValue>(emptyEditForm)
 
-  const usersQ = useQuery({ queryKey: ['users'], queryFn: api.users })
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
-  const specsQ = useQuery({ queryKey: ['specializations'], queryFn: api.specializations })
+  const requestedCompanyId = useMemo(() => searchParams.get('companyId')?.trim() || '', [searchParams])
+  const observerCompanyId = meQ.data?.role === 'PLATFORM_ADMIN' ? requestedCompanyId : ''
+  const isObserverMode = !!observerCompanyId && observerCompanyId !== meQ.data?.companyId
+
+  const observerCompanyQ = useQuery({
+    queryKey: ['observer-company', observerCompanyId],
+    queryFn: () => api.company(observerCompanyId),
+    enabled: !!observerCompanyId && meQ.data?.role === 'PLATFORM_ADMIN',
+  })
+
+  const usersQ = useQuery({ queryKey: ['users', observerCompanyId], queryFn: () => api.users(observerCompanyId || undefined) })
+  const specsQ = useQuery({ queryKey: ['specializations'], queryFn: api.specializations, enabled: !isObserverMode })
 
   const activeSpecializations = useMemo(
     () => (specsQ.data || []).filter((item) => item.isActive !== false),
@@ -206,6 +217,7 @@ export function EmployeesPage() {
   }
 
   function beginEdit(user: api.UserListItem) {
+    if (isObserverMode) return
     setErr(null)
     setSuccess(null)
     setEditingUserId(user.id)
@@ -228,6 +240,7 @@ export function EmployeesPage() {
 
   function submitCreate(event: React.FormEvent) {
     event.preventDefault()
+    if (isObserverMode) return
     setErr(null)
     setSuccess(null)
     const validationError = validateCreateForm(createValue)
@@ -240,7 +253,7 @@ export function EmployeesPage() {
 
   function submitEdit(event: React.FormEvent) {
     event.preventDefault()
-    if (!editingUserId) return
+    if (!editingUserId || isObserverMode) return
     setErr(null)
     setSuccess(null)
     const validationError = validateEditForm(editValue)
@@ -252,6 +265,7 @@ export function EmployeesPage() {
   }
 
   function toggleActive(user: api.UserListItem) {
+    if (isObserverMode) return
     const isSelf = meQ.data?.id === user.id
     const isLastAdmin = user.role === 'ADMIN' && user.isActive !== false && activeAdminCount <= 1
 
@@ -271,6 +285,7 @@ export function EmployeesPage() {
   }
 
   const busy = createM.isPending || updateM.isPending || toggleActiveM.isPending
+  const observerLabel = observerCompanyQ.data?.name || observerCompanyId
 
   return (
     <div>
@@ -287,34 +302,47 @@ export function EmployeesPage() {
             className="ghost"
             onClick={() => {
               usersQ.refetch()
-              specsQ.refetch()
+              if (!isObserverMode) specsQ.refetch()
             }}
             disabled={busy}
           >
             Обновить
           </button>
-          <Link to="/board"><button className="ghost">К доске</button></Link>
+          <Link to={observerCompanyId ? `/company?companyId=${observerCompanyId}` : '/company'}><button className="ghost">К компании</button></Link>
+          <Link to={observerCompanyId ? `/board?companyId=${observerCompanyId}` : '/board'}><button className="ghost">К доске</button></Link>
         </div>
       </div>
+
+      {isObserverMode ? (
+        <div className="panel" style={{ marginBottom: 12 }}>
+          <div style={{ fontWeight: 700 }}>Режим просмотра компании: {observerLabel}</div>
+          <div className="muted small">PLATFORM_ADMIN просматривает сотрудников компании без cross-tenant изменений.</div>
+        </div>
+      ) : null}
 
       {err ? <div className="alert">{err}</div> : null}
       {success ? <div className="panel" style={{ marginBottom: 12 }}>{success}</div> : null}
       {usersQ.isError ? <div className="alert">{(usersQ.error as any)?.message || String(usersQ.error)}</div> : null}
-      {specsQ.isError ? <div className="alert">{(specsQ.error as any)?.message || String(specsQ.error)}</div> : null}
+      {observerCompanyQ.isError ? <div className="alert">{(observerCompanyQ.error as any)?.message || String(observerCompanyQ.error)}</div> : null}
+      {!isObserverMode && specsQ.isError ? <div className="alert">{(specsQ.error as any)?.message || String(specsQ.error)}</div> : null}
 
       <div className="grid2" style={{ gridTemplateColumns: '1fr 1.4fr' }}>
         <div className="panel">
-          <EmployeeForm
-            title="Добавить сотрудника"
-            submitLabel="Создать сотрудника"
-            value={createValue}
-            activeSpecializations={activeSpecializations}
-            submitting={createM.isPending}
-            passwordRequired
-            onChange={patchCreate}
-            onToggleSpecialization={toggleCreateSpecialization}
-            onSubmit={submitCreate}
-          />
+          {isObserverMode ? (
+            <div className="muted small">Создание сотрудников отключено в режиме наблюдателя. Для изменений войдите в контур самой компании.</div>
+          ) : (
+            <EmployeeForm
+              title="Добавить сотрудника"
+              submitLabel="Создать сотрудника"
+              value={createValue}
+              activeSpecializations={activeSpecializations}
+              submitting={createM.isPending}
+              passwordRequired
+              onChange={patchCreate}
+              onToggleSpecialization={toggleCreateSpecialization}
+              onSubmit={submitCreate}
+            />
+          )}
         </div>
 
         <div className="panel">
@@ -329,7 +357,7 @@ export function EmployeesPage() {
               activeSpecializations={activeSpecializations}
               editingUserId={editingUserId}
               editingValue={editValue}
-              busy={busy}
+              busy={busy || isObserverMode}
               onBeginEdit={beginEdit}
               onCancelEdit={cancelEdit}
               onEditChange={patchEdit}

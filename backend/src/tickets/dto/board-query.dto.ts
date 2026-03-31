@@ -62,4 +62,8 @@ export class BoardQueryDto {
   @IsOptional()
   @IsUUID()
   linkedClientCompanyId?: string
+
+  @IsOptional()
+  @IsUUID()
+  companyId?: string
 }

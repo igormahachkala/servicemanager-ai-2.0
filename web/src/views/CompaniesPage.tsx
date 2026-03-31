@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, Navigate } from 'react-router-dom'
+import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
@@ -67,8 +67,36 @@ async function copyText(value: string) {
   }
 }
 
+function modeBadge(label: string, tone: 'platform' | 'observer' | 'public') {
+  const palette = {
+    platform: { bg: '#eef2ff', border: '#c7d2fe', color: '#3730a3' },
+    observer: { bg: '#ecfeff', border: '#a5f3fc', color: '#155e75' },
+    public: { bg: '#f0fdf4', border: '#bbf7d0', color: '#166534' },
+  }[tone]
+
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '4px 10px',
+        borderRadius: 999,
+        fontSize: 12,
+        fontWeight: 700,
+        background: palette.bg,
+        border: `1px solid ${palette.border}`,
+        color: palette.color,
+      }}
+    >
+      {label}
+    </span>
+  )
+}
+
 export function CompaniesPage() {
   const qc = useQueryClient()
+  const navigate = useNavigate()
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
   const companiesQ = useQuery({
     queryKey: ['platform-companies'],
@@ -167,6 +195,21 @@ export function CompaniesPage() {
     },
   })
 
+  const impersonateM = useMutation({
+    mutationFn: async (company: api.PlatformCompanyItem) => api.impersonate(company.id),
+    onSuccess: (result) => {
+      setErr(null)
+      setSuccess(null)
+      api.beginImpersonationSession(result)
+      qc.clear()
+      navigate(api.getHomeRoute('ADMIN'), { replace: true })
+    },
+    onError: (error: any) => {
+      setSuccess(null)
+      setErr(error?.message || String(error))
+    },
+  })
+
   if (meQ.isLoading) {
     return <div className="panel">Проверяем доступ...</div>
   }
@@ -193,22 +236,10 @@ export function CompaniesPage() {
     setErr(null)
     setSuccess(null)
 
-    if (!adminForm.firstName.trim()) {
-      setErr('Имя обязательно')
-      return
-    }
-    if (!adminForm.lastName.trim()) {
-      setErr('Фамилия обязательна')
-      return
-    }
-    if (!adminForm.email.trim()) {
-      setErr('Email обязателен')
-      return
-    }
-    if (adminForm.password.trim().length < 8) {
-      setErr('Пароль должен содержать минимум 8 символов')
-      return
-    }
+    if (!adminForm.firstName.trim()) return setErr('Имя обязательно')
+    if (!adminForm.lastName.trim()) return setErr('Фамилия обязательна')
+    if (!adminForm.email.trim()) return setErr('Email обязателен')
+    if (adminForm.password.trim().length < 8) return setErr('Пароль должен содержать минимум 8 символов')
 
     createAdminM.mutate()
   }
@@ -243,11 +274,24 @@ export function CompaniesPage() {
       <div className="row">
         <div>
           <h2 style={{ marginBottom: 4 }}>Компании</h2>
-          <div className="muted small">Платформенное управление компаниями, типами, первыми администраторами и публичными QR-ссылками.</div>
+          <div className="muted small">Platform control center: создание компаний, observer mode, impersonation и public QR-контур.</div>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <Link to="/service-contracts"><button className="ghost">Связи клиент ↔ подрядчик</button></Link>
-          <Link to="/board"><button className="ghost">К доске</button></Link>
+          {modeBadge('Platform mode', 'platform')}
+          <Link to="/service-contracts"><button className="ghost">Связи клиент - подрядчик</button></Link>
+        </div>
+      </div>
+
+      <div className="panel" style={{ marginBottom: 12 }}>
+        <div className="row" style={{ alignItems: 'center' }}>
+          <div>
+            <div style={{ fontWeight: 700 }}>Режим платформы</div>
+            <div className="muted small">Открывайте компании в observer mode или входите внутрь tenant-контура как ADMIN без повторного логина.</div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {modeBadge('Observer mode', 'observer')}
+            {modeBadge('Public intake', 'public')}
+          </div>
         </div>
       </div>
 
@@ -368,9 +412,7 @@ export function CompaniesPage() {
           </select>
 
           {locationOptionsQ.isLoading ? <div className="muted small">Загружаем точки компании...</div> : null}
-          {!locationOptionsQ.isLoading && !(locationOptionsQ.data || []).length ? (
-            <div className="muted small">У этой компании пока нет активных публичных точек.</div>
-          ) : null}
+          {!locationOptionsQ.isLoading && !(locationOptionsQ.data || []).length ? <div className="muted small">У этой компании пока нет активных публичных точек.</div> : null}
 
           <code style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
             {selectedLocation && locationQrCompany.publicRequestToken
@@ -382,11 +424,7 @@ export function CompaniesPage() {
             <button
               type="button"
               className="ghost"
-              onClick={() =>
-                selectedLocation &&
-                locationQrCompany.publicRequestToken &&
-                void copyText(api.buildPublicRequestLink(locationQrCompany.publicRequestToken, selectedLocation.id))
-              }
+              onClick={() => selectedLocation && locationQrCompany.publicRequestToken && void copyText(api.buildPublicRequestLink(locationQrCompany.publicRequestToken, selectedLocation.id))}
               disabled={!selectedLocation || !locationQrCompany.publicRequestToken}
             >
               Скопировать ссылку
@@ -426,31 +464,65 @@ export function CompaniesPage() {
 
         <div style={{ display: 'grid', gap: 12 }}>
           {sortedCompanies.map((company) => {
-            const hasAdmin = company.admins.some((admin) => admin.isActive !== false)
+            const activeAdmins = company.admins.filter((admin) => admin.isActive !== false)
+            const hasAdmin = activeAdmins.length > 0
             const baseLink = api.buildPublicRequestLink(company.publicRequestToken)
+            const isImpersonatingThisCompany = api.getImpersonationMeta()?.companyId === company.id
+            const adminButtonTitle = hasAdmin ? 'Switch to this company tenant session' : 'At least one active ADMIN is required'
+
             return (
               <div key={company.id} className="card" style={{ padding: 16 }}>
-                <div className="row" style={{ alignItems: 'flex-start' }}>
-                  <div>
-                    <div style={{ fontWeight: 700 }}>{company.name}</div>
-                    <div className="muted small">{company.type} · {company.timezone || 'UTC'}</div>
+                <div className="row" style={{ alignItems: 'flex-start', gap: 16 }}>
+                  <div style={{ flex: 1, minWidth: 280 }}>
+                    <div className="row" style={{ alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                      <div style={{ fontWeight: 700 }}>{company.name}</div>
+                      {modeBadge(company.type, company.type === 'PROVIDER' ? 'observer' : 'platform')}
+                      {company.publicRequestEnabled ? modeBadge('Public intake включён', 'public') : null}
+                      {isImpersonatingThisCompany ? modeBadge('Impersonation mode', 'observer') : null}
+                    </div>
+
+                    <div className="muted small">Часовой пояс: {company.timezone || 'UTC'}</div>
                     <div className="muted small">Создана: {formatDate(company.createdAt)}</div>
+                    <div className="muted small">Админов: {activeAdmins.length}</div>
                     <div className="muted small">Public intake: {company.publicRequestEnabled ? 'включён' : 'выключен'}</div>
+
+                    <div className="panel" style={{ marginTop: 12, padding: 12 }}>
+                      <div className="muted small" style={{ marginBottom: 6 }}>Public link</div>
+                      <code style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{baseLink || 'Публичный токен ещё не создан'}</code>
+                    </div>
                   </div>
 
-                  <div style={{ display: 'grid', gap: 8, justifyItems: 'end' }}>
+                  <div style={{ display: 'grid', gap: 8, minWidth: 220 }}>
+                    <Link to={`/company?companyId=${company.id}`}><button className="ghost">Открыть</button></Link>
+                    <Link to={`/board?companyId=${company.id}`}><button className="ghost">Observer</button></Link>
                     <button
+                      type="button"
                       className="ghost"
-                      onClick={() => {
-                        setAdminTargetCompanyId(company.id)
-                        setAdminForm(emptyAdminForm)
-                        setErr(null)
-                        setSuccess(null)
-                      }}
-                      disabled={hasAdmin}
+                      onClick={() => impersonateM.mutate(company)}
+                      disabled={!hasAdmin || impersonateM.isPending}
+                      title={adminButtonTitle}
                     >
-                      {hasAdmin ? 'Администратор уже есть' : 'Создать первого админа'}
+                      {impersonateM.isPending ? 'Entering...' : 'Impersonate admin'}
                     </button>
+                    {!hasAdmin ? <div className="muted small">No active administrator.</div> : null}
+                    {isImpersonatingThisCompany ? <div className="muted small">You are already inside this company.</div> : null}
+                    {hasAdmin ? (
+                      <div className="muted small">????????????? ??? ????</div>
+                    ) : (
+                      <button
+                        className="ghost"
+                        onClick={() => {
+                          setAdminTargetCompanyId(company.id)
+                          setAdminForm(emptyAdminForm)
+                          setErr(null)
+                          setSuccess(null)
+                        }}
+                      >
+                        ??????? ??????? ??????
+                      </button>
+                    )}
+
+                    <Link to={`/analytics?companyId=${company.id}`}><button className="ghost">Открыть аналитику</button></Link>
                     <button type="button" className="ghost" onClick={() => void copyText(baseLink)} disabled={!baseLink}>
                       Скопировать public link
                     </button>
@@ -487,11 +559,6 @@ export function CompaniesPage() {
                       {regenerateTokenM.isPending ? 'Обновляем...' : 'Обновить public token'}
                     </button>
                   </div>
-                </div>
-
-                <div className="panel" style={{ marginTop: 12, padding: 12 }}>
-                  <div className="muted small" style={{ marginBottom: 6 }}>Public link</div>
-                  <code style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{baseLink || 'Публичный токен ещё не создан'}</code>
                 </div>
 
                 <div style={{ marginTop: 12 }}>

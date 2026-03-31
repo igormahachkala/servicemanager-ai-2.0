@@ -1,6 +1,6 @@
-import { useEffect } from 'react'
+﻿import { useEffect, useMemo } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { useWsInvalidation } from './useWsInvalidation'
 
@@ -29,6 +29,7 @@ function roleLabel(role?: string) {
 export function Shell() {
   const nav = useNavigate()
   const loc = useLocation()
+  const queryClient = useQueryClient()
 
   const meQ = useQuery({
     queryKey: ['me'],
@@ -36,6 +37,9 @@ export function Shell() {
   })
 
   useWsInvalidation()
+
+  const impersonationMeta = useMemo(() => api.getImpersonationMeta(), [meQ.data?.id, loc.key])
+  const isImpersonating = api.isImpersonating() && !!impersonationMeta
 
   useEffect(() => {
     if (meQ.isError) {
@@ -52,7 +56,14 @@ export function Shell() {
 
   function logout() {
     api.clearToken()
+    queryClient.clear()
     nav('/login')
+  }
+
+  function exitImpersonation() {
+    const restored = api.exitImpersonationSession()
+    queryClient.clear()
+    nav(restored ? '/companies' : '/login')
   }
 
   const role = meQ.data?.role
@@ -63,6 +74,7 @@ export function Shell() {
   const isCreate = path.startsWith('/tickets/new')
   const isLocations = path.startsWith('/locations')
   const isEmployees = path.startsWith('/employees')
+  const isInspection = path.startsWith('/inspection')
   const isSpecializations = path.startsWith('/specializations')
   const isAnalytics = path.startsWith('/analytics')
   const isSettings = path.startsWith('/settings')
@@ -85,6 +97,7 @@ export function Shell() {
           ) : (
             <>
               <NavItem to="/board" label="Доска" active={isBoard} />
+              <NavItem to="/inspection/templates" label="Обходы" active={isInspection} />
               <NavItem to="/locations" label="Локации" active={isLocations} />
               <NavItem to="/technician" label="Техник" active={isTechnician} />
               <NavItem to="/map" label="Карта" active={isMap} />
@@ -127,6 +140,7 @@ export function Shell() {
             ) : (
               <>
                 <Link to="/board"><button className="ghost">Доска</button></Link>
+                <Link to="/inspection/templates"><button className="ghost">Обходы</button></Link>
                 <Link to="/locations"><button className="ghost">Локации</button></Link>
                 <Link to="/technician"><button className="ghost">Техник</button></Link>
                 <Link to="/map"><button className="ghost">Карта</button></Link>
@@ -141,6 +155,28 @@ export function Shell() {
             )}
           </div>
         </header>
+
+        {isImpersonating && impersonationMeta ? (
+          <div
+            className="panel"
+            style={{
+              margin: '12px 24px 0',
+              border: '1px solid #f59e0b',
+              background: '#fff7ed',
+              color: '#7c2d12',
+            }}
+          >
+            <div className="row" style={{ alignItems: 'center' }}>
+              <div>
+                <div style={{ fontWeight: 700 }}>Режим impersonation</div>
+                <div className="small">Вы вошли как ADMIN компании {impersonationMeta.companyName}</div>
+              </div>
+              <button type="button" className="ghost" onClick={exitImpersonation}>
+                Вернуться в PLATFORM_ADMIN
+              </button>
+            </div>
+          </div>
+        ) : null}
 
         <main className="contentMain">
           <Outlet />

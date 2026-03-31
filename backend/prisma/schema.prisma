@@ -59,9 +59,39 @@ enum ServiceContractRole {
   SECONDARY
 }
 
+enum InspectionRunStatus {
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum InspectionRunItemStatus {
+  PENDING
+  OK
+  ISSUE
+  CRITICAL
+  SKIPPED
+}
+
+enum InspectionReportStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
 model Company {
   id                   String      @id @default(uuid())
   name                 String
+  brandName            String?
+  legalName            String?
+  address              String?
+  phone                String?
+  email                String?
+  taxId                String?
+  registrationNumber   String?
+  logoUrl              String?
+  signatureLineName    String?
+  signatureLineTitle   String?
   type                 CompanyType @default(CLIENT)
   autoAssignEnabled    Boolean     @default(true)
   allowTechnicianClaim Boolean     @default(true)
@@ -87,6 +117,9 @@ model Company {
   ticketAttachments TicketAttachment[]
   equipment         Equipment[]
   publicRequestLogs PublicRequestLog[]
+  inspectionTemplates InspectionTemplate[]
+  inspectionRuns      InspectionRun[]
+  inspectionRunItemAttachments InspectionRunItemAttachment[]
   clientContracts    ServiceContract[] @relation("ClientCompanyContracts")
   providerContracts  ServiceContract[] @relation("ProviderCompanyContracts")
 }
@@ -100,18 +133,21 @@ model User {
   password  String
   firstName String?
   lastName  String?
-  avatarUrl       String? @map("profilePhotoUrl")
+  avatarUrl String? @map("profilePhotoUrl")
   role      UserRole
   isActive  Boolean  @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  ticketStatusChanges       TicketStatusHistory[]      @relation("TicketStatusChangedBy")
-  technicianSpecializations TechnicianSpecialization[]
-  assignedTickets           Ticket[]                   @relation("AssignedTechnician")
-  ticketAttachmentsUploaded TicketAttachment[]         @relation("TicketAttachmentUploadedBy")
-  userPermissions           UserPermission[]
+  ticketStatusChanges        TicketStatusHistory[] @relation("TicketStatusChangedBy")
+  technicianSpecializations  TechnicianSpecialization[]
+  assignedTickets            Ticket[] @relation("AssignedTechnician")
+  ticketAttachmentsUploaded  TicketAttachment[] @relation("TicketAttachmentUploadedBy")
+  inspectionRunsPerformed    InspectionRun[] @relation("InspectionRunPerformedBy")
+  inspectionReportsSubmitted InspectionRun[] @relation("InspectionRunReportSubmittedBy")
+  inspectionReportsReviewed  InspectionRun[] @relation("InspectionRunReportReviewedBy")
+  userPermissions            UserPermission[]
 
   @@index([companyId, role])
   @@index([companyId, isActive])
@@ -136,6 +172,7 @@ model Location {
 
   tickets   Ticket[]
   equipment Equipment[]
+  inspectionRuns InspectionRun[]
 
   @@unique([clientCompanyId, platformCode])
   @@index([clientCompanyId, isActive])
@@ -211,6 +248,7 @@ model Equipment {
   company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
   tickets  Ticket[]
+  inspectionRuns InspectionRun[]
 
   @@index([companyId, locationId])
   @@index([companyId, status])
@@ -270,6 +308,7 @@ model Ticket {
   statusUpdatedAt DateTime              @default(now())
   statusHistory   TicketStatusHistory[]
   attachments     TicketAttachment[]
+  inspectionRunItem InspectionRunItem?
 
   slaMinutes    Int?
   slaDueAt      DateTime?
@@ -414,3 +453,122 @@ model PublicRequestLog {
   @@index([companyId, tokenHash, ipHash, createdAt])
   @@index([companyId, phoneHash, locationId, createdAt])
 }
+
+model InspectionTemplate {
+  id          String   @id @default(uuid())
+  companyId   String
+  name        String
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  items   InspectionTemplateItem[]
+  runs    InspectionRun[]
+
+  @@unique([companyId, name])
+  @@index([companyId, isActive])
+}
+
+model InspectionTemplateItem {
+  id          String   @id @default(uuid())
+  templateId  String
+  title       String
+  description String?
+  sortOrder   Int      @default(0)
+  isRequired  Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  template InspectionTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  runItems InspectionRunItem[]
+
+  @@index([templateId, sortOrder])
+}
+
+model InspectionRun {
+  id                      String                 @id @default(uuid())
+  companyId               String
+  templateId              String
+  locationId              String
+  equipmentId             String?
+  performedByUserId       String?
+  reportNumber            String?
+  reportDate              DateTime?
+  documentTitle           String?                @default("Work Act")
+  reportStatus            InspectionReportStatus @default(DRAFT)
+  reportSubmittedAt       DateTime?
+  reportSubmittedByUserId String?
+  reportReviewedAt        DateTime?
+  reportReviewedByUserId  String?
+  reportReviewComment     String?
+  title                   String
+  status                  InspectionRunStatus    @default(IN_PROGRESS)
+  completedAt             DateTime?
+  createdAt               DateTime               @default(now())
+  updatedAt               DateTime               @updatedAt
+
+  company           Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  template          InspectionTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  location          Location           @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  equipment         Equipment?         @relation(fields: [equipmentId], references: [id], onDelete: SetNull)
+  performedBy       User?              @relation("InspectionRunPerformedBy", fields: [performedByUserId], references: [id], onDelete: SetNull)
+  reportSubmittedBy User?              @relation("InspectionRunReportSubmittedBy", fields: [reportSubmittedByUserId], references: [id], onDelete: SetNull)
+  reportReviewedBy  User?              @relation("InspectionRunReportReviewedBy", fields: [reportReviewedByUserId], references: [id], onDelete: SetNull)
+  items             InspectionRunItem[]
+
+  @@index([companyId, status])
+  @@index([locationId, createdAt])
+  @@index([templateId, createdAt])
+  @@index([equipmentId, createdAt])
+  @@index([performedByUserId, createdAt])
+  @@index([reportStatus, createdAt])
+  @@index([reportSubmittedByUserId, createdAt])
+  @@index([reportReviewedByUserId, createdAt])
+}
+
+model InspectionRunItem {
+  id             String                  @id @default(uuid())
+  runId          String
+  templateItemId String?
+  title          String
+  description    String?
+  sortOrder      Int                     @default(0)
+  isRequired     Boolean                 @default(true)
+  status         InspectionRunItemStatus @default(PENDING)
+  requiresRepair Boolean                 @default(false)
+  comment        String?
+  ticketId       String?                 @unique
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+
+  run          InspectionRun            @relation(fields: [runId], references: [id], onDelete: Cascade)
+  templateItem InspectionTemplateItem?  @relation(fields: [templateItemId], references: [id], onDelete: SetNull)
+  ticket       Ticket?                  @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  attachments  InspectionRunItemAttachment[]
+
+  @@index([runId, sortOrder])
+  @@index([runId, status])
+  @@index([ticketId])
+}
+
+model InspectionRunItemAttachment {
+  id           String   @id @default(uuid())
+  companyId    String
+  runItemId    String
+  originalName String
+  storageKey   String
+  mimeType     String
+  sizeBytes    Int
+  url          String
+  createdAt    DateTime @default(now())
+
+  company Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  runItem  InspectionRunItem @relation(fields: [runItemId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, runItemId])
+  @@index([runItemId, createdAt])
+}
+
+

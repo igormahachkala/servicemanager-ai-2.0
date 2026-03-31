@@ -1,4 +1,4 @@
-# API SPEC — ServiceManager.AI
+# API SPEC вЂ” ServiceManager.AI
 
 Base URL (dev, local WSL):
 
@@ -267,3 +267,30 @@ The created ticket stores:
 - public intake metadata in timeline/event payloads
 
 Public endpoints may return `429` when company public intake rate limiting is enabled.
+
+---
+
+# PLATFORM ADMIN OBSERVER SCOPE
+
+`PLATFORM_ADMIN` may read tenant operational data for any company only through an explicit observer scope.
+
+Rules:
+
+- observer access is read-only in intent
+- observer scope requires explicit `companyId`
+- existing tenant behavior stays unchanged when `companyId` is absent
+- non-platform actors do not gain cross-company access through `companyId`
+
+Supported observer reads:
+
+- `GET /tickets/board?companyId=...`
+- `GET /analytics/overview?companyId=...`
+- `GET /company?companyId=...`
+- `GET /users?companyId=...`
+- `GET /locations?companyId=...`
+- `GET /tickets/:id?companyId=...`
+
+Observer responses may include:
+
+- `meta.scopeCompanyId`
+- `meta.visibilityMode = platform_observer`

@@ -1,25 +1,29 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
+﻿import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
+import { UserRole } from '@prisma/client'
+
+import { PrismaService } from '../prisma/prisma.service'
+import { resolveObserverScopeCompanyId } from '../policy/policy.utils'
 
 type ListInput = {
-  q?: string;
-  city?: string;
-  isActive?: string;
-};
+  q?: string
+  city?: string
+  isActive?: string
+}
 
 @Injectable()
 export class LocationsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async list(companyId: string, input: ListInput) {
-    const q = input.q?.trim();
-    const city = input.city?.trim();
+  async list(actorCompanyId: string, actorRole: UserRole, input: ListInput, requestedCompanyId?: string) {
+    const companyId = await this.resolveReadableCompanyId(actorCompanyId, actorRole, requestedCompanyId)
+    const q = input.q?.trim()
+    const city = input.city?.trim()
 
-    let isActiveFilter: boolean | undefined;
+    let isActiveFilter: boolean | undefined
     if (input.isActive !== undefined) {
-      if (input.isActive === 'true') isActiveFilter = true;
-      else if (input.isActive === 'false') isActiveFilter = false;
-      else throw new BadRequestException('isActive must be true or false');
+      if (input.isActive === 'true') isActiveFilter = true
+      else if (input.isActive === 'false') isActiveFilter = false
+      else throw new BadRequestException('isActive must be true or false')
     }
 
     return this.prisma.location.findMany({
@@ -56,10 +60,11 @@ export class LocationsService {
         updatedAt: true,
       },
       orderBy: [{ city: 'asc' }, { name: 'asc' }],
-    });
+    })
   }
 
-  async getOne(companyId: string, id: string) {
+  async getOne(actorCompanyId: string, actorRole: UserRole, id: string, requestedCompanyId?: string) {
+    const companyId = await this.resolveReadableCompanyId(actorCompanyId, actorRole, requestedCompanyId)
     const location = await this.prisma.location.findFirst({
       where: {
         id,
@@ -80,42 +85,42 @@ export class LocationsService {
         createdAt: true,
         updatedAt: true,
       },
-    });
+    })
 
     if (!location) {
-      throw new NotFoundException('Location not found');
+      throw new NotFoundException('Location not found')
     }
 
-    return location;
+    return location
   }
 
   async create(
     companyId: string,
     dto: {
-      name: string;
-      platformCode: string;
-      externalCode?: string;
-      city?: string;
-      region?: string;
-      address?: string;
-      latitude?: number;
-      longitude?: number;
-      isActive?: boolean;
+      name: string
+      platformCode: string
+      externalCode?: string
+      city?: string
+      region?: string
+      address?: string
+      latitude?: number
+      longitude?: number
+      isActive?: boolean
     },
   ) {
-    const name = dto.name.trim();
-    const platformCode = dto.platformCode.trim().toUpperCase();
-    const externalCode = dto.externalCode?.trim() || null;
-    const city = dto.city?.trim() || null;
-    const region = dto.region?.trim() || null;
-    const address = dto.address?.trim() || null;
+    const name = dto.name.trim()
+    const platformCode = dto.platformCode.trim().toUpperCase()
+    const externalCode = dto.externalCode?.trim() || null
+    const city = dto.city?.trim() || null
+    const region = dto.region?.trim() || null
+    const address = dto.address?.trim() || null
 
     if (!name) {
-      throw new BadRequestException('name is required');
+      throw new BadRequestException('name is required')
     }
 
     if (!platformCode) {
-      throw new BadRequestException('platformCode is required');
+      throw new BadRequestException('platformCode is required')
     }
 
     const exists = await this.prisma.location.findFirst({
@@ -124,10 +129,10 @@ export class LocationsService {
         platformCode,
       },
       select: { id: true },
-    });
+    })
 
     if (exists) {
-      throw new BadRequestException('Location with this platformCode already exists');
+      throw new BadRequestException('Location with this platformCode already exists')
     }
 
     return this.prisma.location.create({
@@ -158,22 +163,22 @@ export class LocationsService {
         createdAt: true,
         updatedAt: true,
       },
-    });
+    })
   }
 
   async update(
     companyId: string,
     id: string,
     dto: {
-      name?: string;
-      platformCode?: string;
-      externalCode?: string | null;
-      city?: string | null;
-      region?: string | null;
-      address?: string | null;
-      latitude?: number | null;
-      longitude?: number | null;
-      isActive?: boolean;
+      name?: string
+      platformCode?: string
+      externalCode?: string | null
+      city?: string | null
+      region?: string | null
+      address?: string | null
+      latitude?: number | null
+      longitude?: number | null
+      isActive?: boolean
     },
   ) {
     const current = await this.prisma.location.findFirst({
@@ -185,18 +190,18 @@ export class LocationsService {
         id: true,
         platformCode: true,
       },
-    });
+    })
 
     if (!current) {
-      throw new NotFoundException('Location not found');
+      throw new NotFoundException('Location not found')
     }
 
     const nextPlatformCode =
-      dto.platformCode !== undefined ? dto.platformCode.trim().toUpperCase() : undefined;
+      dto.platformCode !== undefined ? dto.platformCode.trim().toUpperCase() : undefined
 
     if (nextPlatformCode !== undefined) {
       if (!nextPlatformCode) {
-        throw new BadRequestException('platformCode cannot be empty');
+        throw new BadRequestException('platformCode cannot be empty')
       }
 
       const duplicate = await this.prisma.location.findFirst({
@@ -206,15 +211,15 @@ export class LocationsService {
           NOT: { id },
         },
         select: { id: true },
-      });
+      })
 
       if (duplicate) {
-        throw new BadRequestException('Location with this platformCode already exists');
+        throw new BadRequestException('Location with this platformCode already exists')
       }
     }
 
     if (dto.name !== undefined && !dto.name.trim()) {
-      throw new BadRequestException('name cannot be empty');
+      throw new BadRequestException('name cannot be empty')
     }
 
     return this.prisma.location.update({
@@ -222,9 +227,7 @@ export class LocationsService {
       data: {
         ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
         ...(nextPlatformCode !== undefined ? { platformCode: nextPlatformCode } : {}),
-        ...(dto.externalCode !== undefined
-          ? { externalCode: dto.externalCode?.trim() || null }
-          : {}),
+        ...(dto.externalCode !== undefined ? { externalCode: dto.externalCode?.trim() || null } : {}),
         ...(dto.city !== undefined ? { city: dto.city?.trim() || null } : {}),
         ...(dto.region !== undefined ? { region: dto.region?.trim() || null } : {}),
         ...(dto.address !== undefined ? { address: dto.address?.trim() || null } : {}),
@@ -247,11 +250,11 @@ export class LocationsService {
         createdAt: true,
         updatedAt: true,
       },
-    });
+    })
   }
 
   async setStatus(companyId: string, id: string, isActive: boolean) {
-    await this.ensureExists(companyId, id);
+    await this.ensureExists(companyId, id)
 
     return this.prisma.location.update({
       where: { id },
@@ -271,7 +274,28 @@ export class LocationsService {
         createdAt: true,
         updatedAt: true,
       },
-    });
+    })
+  }
+
+  private async resolveReadableCompanyId(actorCompanyId: string, actorRole: UserRole, requestedCompanyId?: string) {
+    const companyId = resolveObserverScopeCompanyId({
+      actorCompanyId,
+      actorRole,
+      requestedCompanyId,
+    })
+
+    if (companyId !== actorCompanyId) {
+      const company = await this.prisma.company.findUnique({
+        where: { id: companyId },
+        select: { id: true },
+      })
+
+      if (!company) {
+        throw new NotFoundException('Company not found')
+      }
+    }
+
+    return companyId
   }
 
   private async ensureExists(companyId: string, id: string) {
@@ -281,10 +305,10 @@ export class LocationsService {
         clientCompanyId: companyId,
       },
       select: { id: true },
-    });
+    })
 
     if (!exists) {
-      throw new NotFoundException('Location not found');
+      throw new NotFoundException('Location not found')
     }
   }
 }

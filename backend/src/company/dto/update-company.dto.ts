@@ -1,4 +1,4 @@
-﻿import { PublicRequestType } from '@prisma/client'
+import { PublicRequestType } from '@prisma/client'
 import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, Max, MaxLength, Min } from 'class-validator'
 
 export class UpdateCompanyDto {
@@ -6,6 +6,56 @@ export class UpdateCompanyDto {
   @IsString()
   @MaxLength(255)
   name?: string
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  brandName?: string | null
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  legalName?: string | null
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  address?: string | null
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  phone?: string | null
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  email?: string | null
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  taxId?: string | null
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  registrationNumber?: string | null
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  logoUrl?: string | null
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  signatureLineName?: string | null
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  signatureLineTitle?: string | null
 
   @IsOptional()
   @IsBoolean()

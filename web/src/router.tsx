@@ -1,4 +1,4 @@
-import React from 'react'
+﻿import React from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import * as api from './lib/api'
 import { Shell } from './ui/Shell'
@@ -19,6 +19,10 @@ import { CompanyPage } from './views/CompanyPage'
 import { TechnicianPage } from './views/TechnicianPage'
 import { CompaniesPage } from './views/CompaniesPage'
 import { ServiceContractsPage } from './views/ServiceContractsPage'
+import { InspectionTemplatesPage } from './views/InspectionTemplatesPage'
+import { InspectionRunsPage } from './views/InspectionRunsPage'
+import { InspectionRunPage } from './views/InspectionRunPage'
+import { InspectionRunReportPage } from './views/InspectionRunReportPage'
 import { MapPage } from './pages/MapPage'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -61,6 +65,10 @@ export function AppRoutes() {
         <Route path="technician" element={<TechnicianPage />} />
         <Route path="map" element={<MapPage />} />
         <Route path="problem-categories" element={<ProblemCategoriesPage />} />
+        <Route path="inspection/templates" element={<InspectionTemplatesPage />} />
+        <Route path="inspection/runs" element={<InspectionRunsPage />} />
+        <Route path="inspection/runs/:id" element={<InspectionRunPage />} />
+        <Route path="inspection/runs/:id/report" element={<InspectionRunReportPage />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

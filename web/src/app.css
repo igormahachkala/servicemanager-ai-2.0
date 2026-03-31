@@ -319,3 +319,284 @@ button.ghost {
   border-color: #d1d5db;
   color: #374151;
 }
+
+.no-print {}
+.print-ticket-ref { display: none; }
+
+.workActPrintRoot {
+  display: grid;
+  gap: 12px;
+}
+
+.workActSheet {
+  padding: 20px;
+}
+
+.workActHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.workActEyebrow {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #6b7280;
+  margin-bottom: 6px;
+}
+
+.workActTitle {
+  margin: 0 0 6px;
+  font-size: 28px;
+}
+
+.workActStatusBlock {
+  text-align: right;
+}
+
+.workActMetaGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.workActMetaCard {
+  background: #fff;
+  border: 1px solid #e6e8f0;
+  border-radius: 14px;
+  padding: 12px;
+}
+
+.workActStrong {
+  font-weight: 700;
+}
+
+.workActSummaryPanel,
+.workActTablePanel,
+.workActSignaturePanel {
+  margin-top: 12px;
+}
+
+.workActSummaryGrid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.workActMetric {
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.workActTableWrap {
+  overflow-x: auto;
+}
+
+.workActTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.workActTable th,
+.workActTable td {
+  border: 1px solid #d1d5db;
+  padding: 10px;
+  vertical-align: top;
+  text-align: left;
+}
+
+.workActTable th {
+  background: #f8fafc;
+  font-size: 12px;
+}
+
+.workActAttachmentGrid {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.workActAttachmentLink {
+  text-decoration: none;
+}
+
+.workActAttachmentImage {
+  width: 96px;
+  height: 96px;
+  object-fit: cover;
+  border-radius: 10px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+}
+
+.workActSignatureGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.workActSignatureLine {
+  min-height: 110px;
+  display: grid;
+  align-content: end;
+  gap: 10px;
+}
+
+.workActSignatureRule {
+  border-bottom: 1px solid #111827;
+  height: 42px;
+}
+
+@media (max-width: 960px) {
+  .workActMetaGrid,
+  .workActSummaryGrid,
+  .workActSignatureGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .workActHeader {
+    flex-direction: column;
+  }
+
+  .workActStatusBlock {
+    text-align: left;
+  }
+}
+
+@media print {
+  :root,
+  body,
+  .contentArea,
+  .contentMain,
+  .workActSheet,
+  .workActMetaCard,
+  .panel {
+    background: #fff !important;
+    box-shadow: none !important;
+  }
+
+  .sidebar,
+  .topbar,
+  .no-print,
+  .actions,
+  button,
+  .ghost {
+    display: none !important;
+  }
+
+  .appLayout {
+    display: block !important;
+    min-height: auto !important;
+    background: #fff !important;
+  }
+
+  .contentArea,
+  .contentMain {
+    display: block !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .contentMain {
+    padding: 0 !important;
+  }
+
+  .inspectionReportPage,
+  .workActPrintRoot,
+  .workActSheet {
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    border: none !important;
+  }
+
+  .workActSheet {
+    padding: 0 !important;
+  }
+
+  .workActMetaCard,
+  .workActSummaryPanel,
+  .workActTablePanel,
+  .workActSignaturePanel {
+    border: 1px solid #d1d5db !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .workActTable tr,
+  .workActSignatureLine,
+  .workActAttachmentGrid {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .workActAttachmentImage {
+    width: 72px;
+    height: 72px;
+  }
+
+  .print-ticket-ref {
+    display: block;
+    margin-top: 8px;
+    font-size: 12px;
+    color: #374151;
+  }
+
+  a {
+    color: #111 !important;
+    text-decoration: none !important;
+  }
+}
+.workActDocHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.workActBrandRow {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.workActLogo {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  border-radius: 12px;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  padding: 8px;
+}
+
+.workActPartyGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.workActPartyCard {
+  background: #fff;
+  border: 1px solid #e6e8f0;
+  border-radius: 14px;
+  padding: 12px;
+}
+
+@media (max-width: 960px) {
+  .workActPartyGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .workActDocHeader,
+  .workActBrandRow {
+    flex-direction: column;
+  }
+}

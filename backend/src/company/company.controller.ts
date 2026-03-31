@@ -1,4 +1,4 @@
-﻿import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common'
+import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common'
 import { UserRole } from '@prisma/client'
 
 import { JwtAuthGuard } from '../auth/jwt.guard'
@@ -39,10 +39,14 @@ export class CompanyController {
     return this.svc.regeneratePlatformPublicRequestToken(companyId)
   }
 
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.PLATFORM_ADMIN)
   @Get('company')
-  get(@Req() req: any) {
-    return this.svc.get(req.user.companyId)
+  get(
+    @Req() req: any,
+    @Query('companyId') companyId?: string,
+    @Query('linkedClientCompanyId') linkedClientCompanyId?: string,
+  ) {
+    return this.svc.get(req.user.companyId, req.user.role as UserRole, companyId, linkedClientCompanyId)
   }
 
   @Roles(UserRole.ADMIN)

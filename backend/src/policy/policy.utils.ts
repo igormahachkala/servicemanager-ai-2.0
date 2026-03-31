@@ -1,20 +1,34 @@
-// backend/src/policy/policy.utils.ts
+﻿import { ConflictException, ForbiddenException } from '@nestjs/common'
+import { UserRole } from '@prisma/client'
+import type { AllowDecision, PolicyDecision } from './policy.types'
 
-import { ConflictException, ForbiddenException } from '@nestjs/common';
-import type { AllowDecision, PolicyDecision } from './policy.types';
-
-/**
- * ВАЖНО: это assertion-функция.
- * После assertAllowed(decision) TypeScript знает, что decision.allowed === true,
- * а decision.where существует (для allow(payload)).
- */
 export function assertAllowed<T>(d: PolicyDecision<T>): asserts d is AllowDecision<T> {
-  if (d.allowed) return;
+  if (d.allowed) return
 
-  // "не настроено" / "не выполнено обязательное условие" — это не Forbidden
   if (d.denyCode === 'precondition') {
-    throw new ConflictException(d.reason); // 409
+    throw new ConflictException(d.reason)
   }
 
-  throw new ForbiddenException(d.reason); // 403
+  throw new ForbiddenException(d.reason)
+}
+
+export function resolveObserverScopeCompanyId(params: {
+  actorCompanyId: string
+  actorRole: UserRole
+  requestedCompanyId?: string | null
+}) {
+  const requestedCompanyId = params.requestedCompanyId?.trim()
+  if (params.actorRole === UserRole.PLATFORM_ADMIN && requestedCompanyId) {
+    return requestedCompanyId
+  }
+
+  return params.actorCompanyId
+}
+
+export function isPlatformObserverScope(params: {
+  actorCompanyId: string
+  actorRole: UserRole
+  scopeCompanyId: string
+}) {
+  return params.actorRole === UserRole.PLATFORM_ADMIN && params.scopeCompanyId !== params.actorCompanyId
 }

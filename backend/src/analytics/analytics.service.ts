@@ -1,9 +1,10 @@
-﻿import { BadRequestException, Injectable } from '@nestjs/common'
-import { TicketSource, TicketStatus } from '@prisma/client'
+﻿import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
+import { TicketSource, TicketStatus, UserRole } from '@prisma/client'
 
 import { PrismaService } from '../prisma/prisma.service'
 import { TimelineService } from '../timeline/timeline.service'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
+import { isPlatformObserverScope, resolveObserverScopeCompanyId } from '../policy/policy.utils'
 
 @Injectable()
 export class AnalyticsService {
@@ -13,32 +14,24 @@ export class AnalyticsService {
     private readonly serviceContractsService: ServiceContractsService,
   ) {}
 
-  async overview(companyId: string, linkedClientCompanyId?: string) {
-    const scopeCompanyId = await this.resolveScopeCompanyId(companyId, linkedClientCompanyId)
+  async overview(actorCompanyId: string, actorRole: UserRole, companyId?: string, linkedClientCompanyId?: string) {
+    const scope = await this.resolveScope(actorCompanyId, actorRole, companyId, linkedClientCompanyId)
+    const scopeCompanyId = scope.scopeCompanyId
     const now = new Date()
     const TICKETS_LIMIT = 2000
 
-    const createdCount = await this.prisma.ticket.count({
-      where: { companyId: scopeCompanyId },
-    })
+    const createdCount = await this.prisma.ticket.count({ where: { companyId: scopeCompanyId } })
 
     const openByStatusGrouped = await this.prisma.ticket.groupBy({
       by: ['status'],
       where: {
         companyId: scopeCompanyId,
-        status: {
-          in: [TicketStatus.NEW, TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS],
-        },
+        status: { in: [TicketStatus.NEW, TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS] },
       },
       _count: { _all: true },
     })
 
-    const openByStatus = {
-      NEW: 0,
-      ASSIGNED: 0,
-      IN_PROGRESS: 0,
-    }
-
+    const openByStatus = { NEW: 0, ASSIGNED: 0, IN_PROGRESS: 0 }
     for (const row of openByStatusGrouped) {
       if (row.status === TicketStatus.NEW) openByStatus.NEW = row._count._all
       if (row.status === TicketStatus.ASSIGNED) openByStatus.ASSIGNED = row._count._all
@@ -50,25 +43,17 @@ export class AnalyticsService {
     const unassignedOpenTickets = await this.prisma.ticket.count({
       where: {
         companyId: scopeCompanyId,
-        status: {
-          in: [TicketStatus.NEW, TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS],
-        },
+        status: { in: [TicketStatus.NEW, TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS] },
         assignedTechnicianId: null,
       },
     })
 
     const slaEvaluatedCount = await this.prisma.ticket.count({
-      where: {
-        companyId: scopeCompanyId,
-        slaDueAt: { not: null },
-      },
+      where: { companyId: scopeCompanyId, slaDueAt: { not: null } },
     })
 
     const slaBreachedCount = await this.prisma.ticket.count({
-      where: {
-        companyId: scopeCompanyId,
-        slaBreachedAt: { not: null },
-      },
+      where: { companyId: scopeCompanyId, slaBreachedAt: { not: null } },
     })
 
     const slaOkCount = Math.max(slaEvaluatedCount - slaBreachedCount, 0)
@@ -86,12 +71,8 @@ export class AnalyticsService {
         publicRequestType: true,
         locationId: true,
         equipmentId: true,
-        location: {
-          select: { id: true, name: true, city: true },
-        },
-        equipment: {
-          select: { id: true, name: true, type: true },
-        },
+        location: { select: { id: true, name: true, city: true } },
+        equipment: { select: { id: true, name: true, type: true } },
       },
       orderBy: { createdAt: 'desc' },
       take: TICKETS_LIMIT,
@@ -102,14 +83,8 @@ export class AnalyticsService {
     for (const t of tickets) createdAtById.set(t.id, t.createdAt)
 
     const technicians = await this.prisma.user.findMany({
-      where: {
-        companyId: scopeCompanyId,
-        role: 'TECHNICIAN',
-      },
-      select: {
-        id: true,
-        email: true,
-      },
+      where: { companyId: scopeCompanyId, role: 'TECHNICIAN' },
+      select: { id: true, email: true },
       orderBy: { createdAt: 'asc' },
     })
 
@@ -120,10 +95,7 @@ export class AnalyticsService {
       return {
         createdCount,
         openByStatus,
-        bySource: {
-          INTERNAL: 0,
-          PUBLIC_QUICK_REQUEST: 0,
-        },
+        bySource: { INTERNAL: 0, PUBLIC_QUICK_REQUEST: 0 },
         publicIntake: {
           total: 0,
           resolved: 0,
@@ -133,16 +105,8 @@ export class AnalyticsService {
           byLocation: [],
           byEquipment: [],
         },
-        summary: {
-          backlogOpenTotal,
-          unassignedOpenTickets,
-        },
-        sla: {
-          evaluatedCount: slaEvaluatedCount,
-          breachedCount: slaBreachedCount,
-          okPercent,
-          breachedPercent,
-        },
+        summary: { backlogOpenTotal, unassignedOpenTickets },
+        sla: { evaluatedCount: slaEvaluatedCount, breachedCount: slaBreachedCount, okPercent, breachedPercent },
         timing: {
           evaluatedTickets: 0,
           meanTimeToAssignMinutes: 0,
@@ -151,12 +115,9 @@ export class AnalyticsService {
         },
         workloadByTechnician: [],
         throughputByTechnician: [],
-        note: 'overview v6 (relationship-aware + public intake slices)',
+        note: 'overview v7 (platform observer + provider relationship aware + public intake slices)',
         now,
-        meta: {
-          scopeCompanyId,
-          visibilityMode: scopeCompanyId === companyId ? 'tenant' : 'provider_primary',
-        },
+        meta: { scopeCompanyId, visibilityMode: scope.visibilityMode },
       }
     }
 
@@ -203,15 +164,10 @@ export class AnalyticsService {
     const openTicketsWithAssignee = await this.prisma.ticket.findMany({
       where: {
         companyId: scopeCompanyId,
-        status: {
-          in: [TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS],
-        },
+        status: { in: [TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS] },
         assignedTechnicianId: { not: null },
       },
-      select: {
-        assignedTechnicianId: true,
-        status: true,
-      },
+      select: { assignedTechnicianId: true, status: true },
     })
 
     const workloadMap = new Map<string, { technicianId: string; technicianEmail: string; assignedCount: number; inProgressCount: number; activeCount: number }>()
@@ -253,11 +209,7 @@ export class AnalyticsService {
         doneCount,
       }))
 
-    const bySource = {
-      INTERNAL: 0,
-      PUBLIC_QUICK_REQUEST: 0,
-    }
-
+    const bySource = { INTERNAL: 0, PUBLIC_QUICK_REQUEST: 0 }
     const publicByType = { REPAIR: 0, NOTE: 0 }
     const publicByDay = new Map<string, number>()
     const publicByLocation = new Map<string, { locationId: string; locationName: string; city: string | null; total: number; repairCount: number; noteCount: number; resolvedCount: number }>()
@@ -317,22 +269,12 @@ export class AnalyticsService {
         resolved: publicResolved,
         resolvedPercent: publicTotal > 0 ? Math.round((publicResolved / publicTotal) * 10000) / 100 : 0,
         byType: publicByType,
-        byDay: Array.from(publicByDay.entries())
-          .sort((a, b) => a[0].localeCompare(b[0]))
-          .map(([day, total]) => ({ day, total })),
+        byDay: Array.from(publicByDay.entries()).sort((a, b) => a[0].localeCompare(b[0])).map(([day, total]) => ({ day, total })),
         byLocation: Array.from(publicByLocation.values()).sort((a, b) => b.total - a.total),
         byEquipment: Array.from(publicByEquipment.values()).sort((a, b) => b.total - a.total),
       },
-      summary: {
-        backlogOpenTotal,
-        unassignedOpenTickets,
-      },
-      sla: {
-        evaluatedCount: slaEvaluatedCount,
-        breachedCount: slaBreachedCount,
-        okPercent,
-        breachedPercent,
-      },
+      summary: { backlogOpenTotal, unassignedOpenTickets },
+      sla: { evaluatedCount: slaEvaluatedCount, breachedCount: slaBreachedCount, okPercent, breachedPercent },
       timing: {
         evaluatedTickets: ticketIds.length,
         meanTimeToAssignMinutes,
@@ -342,20 +284,36 @@ export class AnalyticsService {
       workloadByTechnician,
       throughputByTechnician,
       now,
-      meta: {
-        scopeCompanyId,
-        visibilityMode: scopeCompanyId === companyId ? 'tenant' : 'provider_primary',
-      },
-      note: 'overview v6 (counts + backlog + sla percent + workload + throughput + public intake analytics + relationship-aware provider scope)',
+      meta: { scopeCompanyId, visibilityMode: scope.visibilityMode },
+      note: 'overview v7 (counts + backlog + sla percent + workload + throughput + public intake analytics + relationship-aware provider scope + platform observer)',
     }
   }
 
-  private async resolveScopeCompanyId(companyId: string, linkedClientCompanyId?: string) {
-    if (!linkedClientCompanyId || linkedClientCompanyId === companyId) {
-      return companyId
+  private async resolveScope(actorCompanyId: string, actorRole: UserRole, companyId?: string, linkedClientCompanyId?: string) {
+    const observerCompanyId = resolveObserverScopeCompanyId({
+      actorCompanyId,
+      actorRole,
+      requestedCompanyId: companyId,
+    })
+
+    if (isPlatformObserverScope({ actorCompanyId, actorRole, scopeCompanyId: observerCompanyId })) {
+      const company = await this.prisma.company.findUnique({
+        where: { id: observerCompanyId },
+        select: { id: true },
+      })
+
+      if (!company) {
+        throw new NotFoundException('Company not found')
+      }
+
+      return { scopeCompanyId: observerCompanyId, visibilityMode: 'platform_observer' as const }
     }
 
-    const access = await this.serviceContractsService.getLinkedClientAccess(companyId, linkedClientCompanyId)
+    if (!linkedClientCompanyId || linkedClientCompanyId === actorCompanyId) {
+      return { scopeCompanyId: actorCompanyId, visibilityMode: 'tenant' as const }
+    }
+
+    const access = await this.serviceContractsService.getLinkedClientAccess(actorCompanyId, linkedClientCompanyId)
     if (!access) {
       throw new BadRequestException('Linked client analytics is not available')
     }
@@ -364,6 +322,6 @@ export class AnalyticsService {
       throw new BadRequestException('Linked client analytics is available only for PRIMARY provider')
     }
 
-    return linkedClientCompanyId
+    return { scopeCompanyId: linkedClientCompanyId, visibilityMode: 'provider_primary' as const }
   }
 }

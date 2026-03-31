@@ -6,11 +6,13 @@ import { TimelineService } from '../timeline/timeline.service'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
 
 import { TicketsPolicy, type BoardQueryInput } from '../policy/tickets.policy'
-import { assertAllowed } from '../policy/policy.utils'
+import { assertAllowed, isPlatformObserverScope, resolveObserverScopeCompanyId } from '../policy/policy.utils'
 
 type AccessFlags = {
   canTechnicianViewAllCompanyTickets?: boolean
 }
+
+type VisibilityMode = 'tenant' | 'provider_primary' | 'platform_observer'
 
 const PROVIDER_MANAGEMENT_ROLES: UserRole[] = [
   UserRole.ADMIN,
@@ -35,14 +37,56 @@ export class TicketsQueryService {
     }
   }
 
-  private async resolveScopedCompanyId(companyId: string, role: UserRole, linkedClientCompanyId?: string) {
-    if (!linkedClientCompanyId || linkedClientCompanyId === companyId) {
-      return companyId
+  private async ensureCompanyExists(companyId: string) {
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { id: true },
+    })
+
+    if (!company) {
+      throw new NotFoundException('Company not found')
+    }
+  }
+
+  private async resolveReadScope(params: {
+    actorCompanyId: string
+    role: UserRole
+    linkedClientCompanyId?: string
+    observerCompanyId?: string
+  }): Promise<{ scopeCompanyId: string; visibilityMode: VisibilityMode }> {
+    const observerCompanyId = resolveObserverScopeCompanyId({
+      actorCompanyId: params.actorCompanyId,
+      actorRole: params.role,
+      requestedCompanyId: params.observerCompanyId,
+    })
+
+    if (
+      isPlatformObserverScope({
+        actorCompanyId: params.actorCompanyId,
+        actorRole: params.role,
+        scopeCompanyId: observerCompanyId,
+      })
+    ) {
+      await this.ensureCompanyExists(observerCompanyId)
+      return {
+        scopeCompanyId: observerCompanyId,
+        visibilityMode: 'platform_observer',
+      }
     }
 
-    this.ensureProviderLinkedClientRole(role)
-    await this.serviceContractsService.assertPrimaryLinkedClientAccess(companyId, linkedClientCompanyId)
-    return linkedClientCompanyId
+    if (!params.linkedClientCompanyId || params.linkedClientCompanyId === params.actorCompanyId) {
+      return {
+        scopeCompanyId: params.actorCompanyId,
+        visibilityMode: 'tenant',
+      }
+    }
+
+    this.ensureProviderLinkedClientRole(params.role)
+    await this.serviceContractsService.assertPrimaryLinkedClientAccess(params.actorCompanyId, params.linkedClientCompanyId)
+    return {
+      scopeCompanyId: params.linkedClientCompanyId,
+      visibilityMode: 'provider_primary',
+    }
   }
 
   async board(
@@ -52,9 +96,15 @@ export class TicketsQueryService {
     input: BoardQueryInput,
     accessFlags?: AccessFlags,
     linkedClientCompanyId?: string,
+    observerCompanyId?: string,
   ) {
-    const scopedCompanyId = await this.resolveScopedCompanyId(companyId, role, linkedClientCompanyId)
-    const decision = this.policy.boardWhere({ id: userId, role, companyId: scopedCompanyId, accessFlags }, input)
+    const scope = await this.resolveReadScope({
+      actorCompanyId: companyId,
+      role,
+      linkedClientCompanyId,
+      observerCompanyId,
+    })
+    const decision = this.policy.boardWhere({ id: userId, role, companyId: scope.scopeCompanyId, accessFlags }, input)
     assertAllowed(decision)
 
     const nowMs = Date.now()
@@ -143,8 +193,8 @@ export class TicketsQueryService {
         totalTickets: tickets.length,
         atRiskThresholdMinutes: decision.where.meta.atRiskThresholdMinutes,
         limitedToLast: decision.where.meta.limitedToLast,
-        scopeCompanyId: scopedCompanyId,
-        visibilityMode: scopedCompanyId === companyId ? 'tenant' : 'provider_primary',
+        scopeCompanyId: scope.scopeCompanyId,
+        visibilityMode: scope.visibilityMode,
       },
     }
   }
@@ -156,9 +206,15 @@ export class TicketsQueryService {
     status?: TicketStatus,
     accessFlags?: AccessFlags,
     linkedClientCompanyId?: string,
+    observerCompanyId?: string,
   ) {
-    const scopedCompanyId = await this.resolveScopedCompanyId(companyId, role, linkedClientCompanyId)
-    const decision = this.policy.listWhere({ id: userId, role, companyId: scopedCompanyId, accessFlags }, status)
+    const scope = await this.resolveReadScope({
+      actorCompanyId: companyId,
+      role,
+      linkedClientCompanyId,
+      observerCompanyId,
+    })
+    const decision = this.policy.listWhere({ id: userId, role, companyId: scope.scopeCompanyId, accessFlags }, status)
     assertAllowed(decision)
 
     return this.prisma.ticket.findMany({
@@ -182,9 +238,21 @@ export class TicketsQueryService {
     })
   }
 
-  async getOne(companyId: string, userId: string, role: UserRole, ticketId: string, accessFlags?: AccessFlags) {
-    const ownDecision = this.policy.getOneWhere({ id: userId, role, companyId, accessFlags }, ticketId)
-    assertAllowed(ownDecision)
+  async getOne(
+    companyId: string,
+    userId: string,
+    role: UserRole,
+    ticketId: string,
+    accessFlags?: AccessFlags,
+    observerCompanyId?: string,
+  ) {
+    const scope = await this.resolveReadScope({
+      actorCompanyId: companyId,
+      role,
+      observerCompanyId,
+    })
+    const decision = this.policy.getOneWhere({ id: userId, role, companyId: scope.scopeCompanyId, accessFlags }, ticketId)
+    assertAllowed(decision)
 
     const include = {
       location: {
@@ -241,9 +309,16 @@ export class TicketsQueryService {
     }
 
     let ticket = await this.prisma.ticket.findFirst({
-      where: ownDecision.where,
+      where: decision.where,
       include,
     })
+
+    if (!ticket && role === UserRole.PLATFORM_ADMIN) {
+      ticket = await this.prisma.ticket.findFirst({
+        where: { id: ticketId },
+        include,
+      })
+    }
 
     if (!ticket && PROVIDER_MANAGEMENT_ROLES.includes(role)) {
       const linkedClientIds = await this.serviceContractsService.listPrimaryLinkedClientIds(companyId)

@@ -173,3 +173,17 @@ Main business modules include:
 Canonical backend flow:
 
 `Controller -> Guard -> Policy -> Service -> Prisma`
+---
+
+## Platform observer scope
+
+PLATFORM_ADMIN has an explicit observer mode for cross-company operational reads.
+
+Properties:
+
+- observer mode is read-only in intent
+- observer scope is explicit via companyId, never implicit impersonation
+- it does not weaken normal tenant isolation for non-platform actors
+- it coexists with provider visibility rules and does not replace ServiceContract-based access
+
+This gives the platform actor a control-center view across tenants while keeping ordinary company actors tenant-bound unless a relationship model explicitly opens a safe path.

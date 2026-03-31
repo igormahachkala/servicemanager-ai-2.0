@@ -1,4 +1,4 @@
-﻿export type Role =
+export type Role =
   | 'PLATFORM_ADMIN'
   | 'ADMIN'
   | 'DISPATCHER'
@@ -34,6 +34,15 @@ export type LoginResponse = {
   user: Me
 }
 
+export type ImpersonateResponse = {
+  access_token: string
+  impersonated: boolean
+  company: {
+    id: string
+    name: string
+  }
+}
+
 
 export type CompanyType = 'CLIENT' | 'PROVIDER'
 
@@ -66,6 +75,16 @@ export type ServiceContractItem = {
 export type PlatformCompanyItem = {
   id: string
   name: string
+  brandName?: string | null
+  legalName?: string | null
+  address?: string | null
+  phone?: string | null
+  email?: string | null
+  taxId?: string | null
+  registrationNumber?: string | null
+  logoUrl?: string | null
+  signatureLineName?: string | null
+  signatureLineTitle?: string | null
   type: CompanyType
   timezone?: string | null
   autoAssignEnabled: boolean
@@ -359,7 +378,7 @@ export type BoardResponse = {
     atRiskThresholdMinutes: number
     limitedToLast: number
     scopeCompanyId?: string
-    visibilityMode?: 'tenant' | 'provider_primary'
+    visibilityMode?: 'tenant' | 'provider_primary' | 'platform_observer'
   }
 }
 
@@ -558,13 +577,23 @@ export type AnalyticsOverviewResponse = {
   now: string
   meta?: {
     scopeCompanyId?: string
-    visibilityMode?: 'tenant' | 'provider_primary'
+    visibilityMode?: 'tenant' | 'provider_primary' | 'platform_observer'
   }
 }
 
 export type CompanySettings = {
   id: string
   name: string
+  brandName?: string | null
+  legalName?: string | null
+  address?: string | null
+  phone?: string | null
+  email?: string | null
+  taxId?: string | null
+  registrationNumber?: string | null
+  logoUrl?: string | null
+  signatureLineName?: string | null
+  signatureLineTitle?: string | null
   type?: CompanyType
   autoAssignEnabled: boolean
   timezone: string
@@ -613,6 +642,16 @@ export type CompanySettings = {
 
 export type UpdateCompanyInput = {
   name?: string
+  brandName?: string | null
+  legalName?: string | null
+  address?: string | null
+  phone?: string | null
+  email?: string | null
+  taxId?: string | null
+  registrationNumber?: string | null
+  logoUrl?: string | null
+  signatureLineName?: string | null
+  signatureLineTitle?: string | null
   autoAssignEnabled?: boolean
   timezone?: string
   allowTechnicianClaim?: boolean
@@ -649,6 +688,16 @@ const BASE_URL_KEY = 'sm_base_url'
 const TOKEN_KEY = 'sm_token'
 const COMPANY_LABEL_KEY = 'sm_company_label'
 const USER_ROLE_KEY = 'sm_user_role'
+const PLATFORM_BACKUP_KEY = 'platform_access_token_backup'
+const PLATFORM_BACKUP_ROLE_KEY = 'platform_user_role_backup'
+const PLATFORM_BACKUP_COMPANY_LABEL_KEY = 'platform_company_label_backup'
+const IMPERSONATION_META_KEY = 'impersonation_meta'
+
+export type ImpersonationMeta = {
+  companyId: string
+  companyName: string
+  startedAt: string
+}
 
 function readBaseUrl(): string {
   if (typeof window === 'undefined') return 'http://localhost:3001'
@@ -668,6 +717,13 @@ export function getPublicAppBaseUrl(): string {
   return 'http://localhost:4173'
 }
 
+export function resolveFileUrl(url: string): string {
+  if (!url) return ''
+  if (/^https?:\/\//i.test(url)) return url
+  const normalized = url.startsWith('/') ? url : '/' + url
+  return getBaseUrl() + normalized
+}
+
 export function setBaseUrl(url: string) {
   if (typeof window === 'undefined') return
   localStorage.setItem(BASE_URL_KEY, normalizeBaseUrl(url))
@@ -683,10 +739,81 @@ export function setToken(token: string) {
   localStorage.setItem(TOKEN_KEY, token)
 }
 
+export function getImpersonationMeta(): ImpersonationMeta | null {
+  if (typeof window === 'undefined') return null
+  const raw = localStorage.getItem(IMPERSONATION_META_KEY)
+  if (!raw) return null
+
+  try {
+    const parsed = JSON.parse(raw) as ImpersonationMeta
+    if (!parsed?.companyId || !parsed?.companyName) return null
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+export function isImpersonating(): boolean {
+  if (typeof window === 'undefined') return false
+  return !!localStorage.getItem(PLATFORM_BACKUP_KEY) && !!getImpersonationMeta()
+}
+
+export function clearImpersonationState() {
+  if (typeof window === 'undefined') return
+  localStorage.removeItem(PLATFORM_BACKUP_KEY)
+  localStorage.removeItem(PLATFORM_BACKUP_ROLE_KEY)
+  localStorage.removeItem(PLATFORM_BACKUP_COMPANY_LABEL_KEY)
+  localStorage.removeItem(IMPERSONATION_META_KEY)
+}
+
+export function beginImpersonationSession(payload: ImpersonateResponse) {
+  if (typeof window === 'undefined') return
+
+  const currentToken = getToken()
+  if (currentToken && !localStorage.getItem(PLATFORM_BACKUP_KEY)) {
+    localStorage.setItem(PLATFORM_BACKUP_KEY, currentToken)
+    localStorage.setItem(PLATFORM_BACKUP_ROLE_KEY, getUserRole() || 'PLATFORM_ADMIN')
+    localStorage.setItem(PLATFORM_BACKUP_COMPANY_LABEL_KEY, getCompanyLabel())
+  }
+
+  setToken(payload.access_token)
+  setUserRole('ADMIN')
+  setCompanyLabel(payload.company.name)
+  localStorage.setItem(
+    IMPERSONATION_META_KEY,
+    JSON.stringify({
+      companyId: payload.company.id,
+      companyName: payload.company.name,
+      startedAt: new Date().toISOString(),
+    } satisfies ImpersonationMeta),
+  )
+}
+
+export function exitImpersonationSession(): boolean {
+  if (typeof window === 'undefined') return false
+
+  const backupToken = localStorage.getItem(PLATFORM_BACKUP_KEY)
+  if (!backupToken) {
+    clearToken()
+    return false
+  }
+
+  const backupRole = localStorage.getItem(PLATFORM_BACKUP_ROLE_KEY) || 'PLATFORM_ADMIN'
+  const backupCompanyLabel = localStorage.getItem(PLATFORM_BACKUP_COMPANY_LABEL_KEY) || 'ServiceManager Platform'
+
+  setToken(backupToken)
+  setUserRole(backupRole)
+  setCompanyLabel(backupCompanyLabel)
+  clearImpersonationState()
+  return true
+}
+
 export function clearToken() {
   if (typeof window === 'undefined') return
   localStorage.removeItem(TOKEN_KEY)
   localStorage.removeItem(USER_ROLE_KEY)
+  localStorage.removeItem(COMPANY_LABEL_KEY)
+  clearImpersonationState()
 }
 
 export function getUserRole(): Role | '' {
@@ -786,6 +913,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   return data as T
 }
 
+
 export async function login(input: LoginInput): Promise<LoginResponse> {
   return request<LoginResponse>('/auth/login', {
     method: 'POST',
@@ -797,13 +925,15 @@ export async function login(input: LoginInput): Promise<LoginResponse> {
   })
 }
 
+export async function impersonate(companyId: string): Promise<ImpersonateResponse> {
+  return request<ImpersonateResponse>('/auth/impersonate', {
+    method: 'POST',
+    body: { companyId },
+  })
+}
 
 export async function me(): Promise<Me> {
   return request<Me>('/auth/me')
-}
-
-export async function users(): Promise<UserListItem[]> {
-  return request<UserListItem[]>('/users')
 }
 
 export async function createUser(input: CreateUserInput): Promise<UserListItem> {
@@ -811,6 +941,13 @@ export async function createUser(input: CreateUserInput): Promise<UserListItem> 
     method: 'POST',
     body: input,
   })
+}
+
+export async function users(companyId?: string): Promise<UserListItem[]> {
+  const search = new URLSearchParams()
+  if (companyId) search.set('companyId', companyId)
+  const suffix = search.toString() ? '?' + search.toString() : ''
+  return request<UserListItem[]>('/users' + suffix)
 }
 
 export async function updateUser(userId: string, input: UpdateUserInput): Promise<UserListItem> {
@@ -951,8 +1088,12 @@ export async function regeneratePlatformCompanyPublicRequestToken(companyId: str
   })
 }
 
-export async function company(): Promise<CompanySettings> {
-  return request<CompanySettings>('/company')
+export async function company(companyId?: string, linkedClientCompanyId?: string): Promise<CompanySettings> {
+  const search = new URLSearchParams()
+  if (companyId) search.set('companyId', companyId)
+  if (linkedClientCompanyId) search.set('linkedClientCompanyId', linkedClientCompanyId)
+  const suffix = search.toString() ? '?' + search.toString() : ''
+  return request<CompanySettings>('/company' + suffix)
 }
 
 export async function linkedClients(): Promise<LinkedClientSummary[]> {
@@ -993,8 +1134,11 @@ export async function companyServiceContracts(companyId: string): Promise<Servic
   return request<ServiceContractItem[]>('/companies/' + companyId + '/service-contracts')
 }
 
-export async function locations(): Promise<LocationListItem[]> {
-  return request<LocationListItem[]>('/locations')
+export async function locations(companyId?: string): Promise<LocationListItem[]> {
+  const search = new URLSearchParams()
+  if (companyId) search.set('companyId', companyId)
+  const suffix = search.toString() ? '?' + search.toString() : ''
+  return request<LocationListItem[]>('/locations' + suffix)
 }
 
 export async function createLocation(input: CreateLocationInput): Promise<LocationListItem> {
@@ -1045,7 +1189,7 @@ export function buildPublicRequestLink(token?: string | null, locationId?: strin
   return url.toString()
 }
 
-export async function board(params?: { take?: number; linkedClientCompanyId?: string }): Promise<BoardResponse> {
+export async function board(params?: { take?: number; linkedClientCompanyId?: string; companyId?: string }): Promise<BoardResponse> {
   const search = new URLSearchParams()
 
   if (params?.take) {
@@ -1067,18 +1211,20 @@ export async function availableTickets(): Promise<any[]> {
   return request<any[]>('/tickets/available')
 }
 
-export async function ticket(id: string): Promise<TicketGetOne> {
-  return request<TicketGetOne>(`/tickets/${id}`)
+export async function ticket(id: string, companyId?: string): Promise<TicketGetOne> {
+  const search = new URLSearchParams()
+  if (companyId) search.set('companyId', companyId)
+  const suffix = search.toString() ? '?' + search.toString() : ''
+  return request<TicketGetOne>(`/tickets/${id}${suffix}`)
 }
 
-export async function getTicket(id: string): Promise<TicketGetOne> {
-  return ticket(id)
+export async function getTicket(id: string, companyId?: string): Promise<TicketGetOne> {
+  return ticket(id, companyId)
 }
 
 export async function ticketTimeline(id: string): Promise<TimelineResponse> {
-  return request<TimelineResponse>(`/timeline/tickets/${id}`)
+  return request<TimelineResponse>(`/tickets/${id}/timeline`)
 }
-
 export async function timeline(id: string): Promise<TimelineResponse> {
   return ticketTimeline(id)
 }
@@ -1240,23 +1386,418 @@ export async function mapLocation(locationId: string): Promise<MapLocationDetail
   return request<MapLocationDetail>(`/map/locations/${locationId}`)
 }
 
-export async function analyticsOverview(linkedClientCompanyId?: string): Promise<AnalyticsOverviewResponse> {
+export async function analyticsOverview(params?: { linkedClientCompanyId?: string; companyId?: string }): Promise<AnalyticsOverviewResponse> {
   const search = new URLSearchParams()
-  if (linkedClientCompanyId) {
-    search.set('linkedClientCompanyId', linkedClientCompanyId)
+  if (params?.linkedClientCompanyId) {
+    search.set('linkedClientCompanyId', params.linkedClientCompanyId)
+  }
+  if (params?.companyId) {
+    search.set('companyId', params.companyId)
   }
   const suffix = search.toString() ? '?' + search.toString() : ''
   return request<AnalyticsOverviewResponse>('/analytics/overview' + suffix)
 }
 
-export function resolveFileUrl(url: string): string {
-  if (!url) return url
-  if (/^https?:\/\//i.test(url)) return url
-  if (url.startsWith('/')) return `${getBaseUrl()}${url}`
-  return `${getBaseUrl()}/${url}`
+
+export type EquipmentListItem = {
+  id: string
+  locationId?: string
+  name: string
+  type: string
+  status?: string
+  createdAt?: string
+  updatedAt?: string
 }
 
+export type InspectionTemplateItem = {
+  id: string
+  title: string
+  description?: string | null
+  sortOrder: number
+  isRequired: boolean
+  createdAt?: string
+  updatedAt?: string
+}
 
+export type InspectionTemplate = {
+  id: string
+  companyId: string
+  name: string
+  description?: string | null
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+  items: InspectionTemplateItem[]
+}
+
+export type InspectionRunItemStatus = 'PENDING' | 'OK' | 'ISSUE' | 'CRITICAL' | 'SKIPPED'
+export type InspectionRunStatus = 'IN_PROGRESS' | 'COMPLETED'
+export type InspectionReportStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED'
+
+export type InspectionRunItemAttachment = {
+  id: string
+  runItemId: string
+  originalName: string
+  mimeType: string
+  sizeBytes: number
+  url: string
+  createdAt: string
+}
+
+export type InspectionLinkedTicket = {
+  id: string
+  status: TicketStatus
+  urgency: TicketUrgency
+  createdAt: string
+}
+
+export type InspectionRunItem = {
+  id: string
+  runId: string
+  templateItemId?: string | null
+  title: string
+  description?: string | null
+  sortOrder: number
+  isRequired: boolean
+  status: InspectionRunItemStatus
+  requiresRepair: boolean
+  comment?: string | null
+  ticketId?: string | null
+  createdAt: string
+  updatedAt: string
+  ticket?: InspectionLinkedTicket | null
+  attachments: InspectionRunItemAttachment[]
+}
+
+export type InspectionRun = {
+  id: string
+  companyId: string
+  templateId: string
+  locationId: string
+  equipmentId?: string | null
+  title: string
+  status: InspectionRunStatus
+  reportStatus?: InspectionReportStatus
+  reportSubmittedAt?: string | null
+  reportReviewedAt?: string | null
+  completedAt?: string | null
+  createdAt: string
+  updatedAt: string
+  template: {
+    id: string
+    name: string
+  }
+  performedBy?: {
+    id: string
+    email: string
+    firstName?: string | null
+    lastName?: string | null
+  } | null
+  location: {
+    id: string
+    name: string
+    city?: string | null
+    address?: string | null
+    platformCode?: string | null
+  }
+  equipment?: {
+    id: string
+    name: string
+    type: string
+    status?: string
+  } | null
+  items: InspectionRunItem[]
+}
+
+export type InspectionRunListItem = {
+  id: string
+  title: string
+  status: InspectionRunStatus
+  reportStatus?: InspectionReportStatus
+  completedAt?: string | null
+  createdAt: string
+  updatedAt: string
+  template: {
+    id: string
+    name: string
+  }
+  location: {
+    id: string
+    name: string
+    city?: string | null
+  }
+  equipment?: {
+    id: string
+    name: string
+  } | null
+  _count: {
+    items: number
+  }
+}
+
+export type InspectionRunSummary = {
+  totalItems: number
+  okCount: number
+  issueCount: number
+  criticalCount: number
+  skippedCount?: number
+  repairRequiredCount: number
+  createdTicketsCount: number
+}
+
+export type InspectionRunReportMeta = {
+  status: InspectionReportStatus
+  approvedAt?: string | null
+  submittedAt?: string | null
+  submittedBy?: {
+    id: string
+    email: string
+    firstName?: string | null
+    lastName?: string | null
+  } | null
+  reviewedAt?: string | null
+  reviewedBy?: {
+    id: string
+    email: string
+    firstName?: string | null
+    lastName?: string | null
+  } | null
+  reviewComment?: string | null
+}
+
+export type InspectionRunReportDocumentParty = {
+  id: string
+  name: string
+  legalName?: string | null
+  address?: string | null
+  phone?: string | null
+  email?: string | null
+  logoUrl?: string | null
+  taxId?: string | null
+  registrationNumber?: string | null
+  signatureLineName?: string | null
+  signatureLineTitle?: string | null
+}
+
+export type InspectionRunReport = {
+  run: {
+    id: string
+    status: InspectionRunStatus
+    startedAt: string
+    completedAt?: string | null
+    performedBy?: {
+      id: string
+      email: string
+      firstName?: string | null
+      lastName?: string | null
+    } | null
+    template: {
+      id: string
+      name: string
+    }
+    location: {
+      id: string
+      name: string
+      platformCode?: string | null
+      city?: string | null
+      address?: string | null
+    }
+    equipment?: {
+      id: string
+      name: string
+      type: string
+    } | null
+  }
+  document: {
+    title: string
+    number: string
+    date?: string | null
+    executorCompany: InspectionRunReportDocumentParty
+    clientCompany: InspectionRunReportDocumentParty
+  }
+  reportMeta: InspectionRunReportMeta
+  items: Array<{
+    id: string
+    title: string
+    description?: string | null
+    status: InspectionRunItemStatus
+    comment?: string | null
+    requiresRepair: boolean
+    attachments: Array<{
+      id: string
+      url: string
+      mimeType: string
+      originalName?: string
+    }>
+    ticket?: {
+      id: string
+      status: TicketStatus
+      problemText: string
+    } | null
+  }>
+  summary: InspectionRunSummary
+}
+
+export type StartInspectionRunInput = {
+  templateId: string
+  locationId: string
+  equipmentId?: string
+  title?: string
+}
+
+export type UpdateInspectionRunItemInput = {
+  status?: InspectionRunItemStatus
+  requiresRepair?: boolean
+  comment?: string
+}
+
+export type CreateTicketFromInspectionItemInput = {
+  categoryId: string
+  title?: string
+  description?: string
+  urgency?: TicketUrgency
+}
+
+export type ReviewInspectionRunReportInput = {
+  decision: 'APPROVED' | 'REJECTED'
+  comment?: string
+}
+
+export type CompleteInspectionRunResponse = {
+  run: InspectionRun
+  summary: InspectionRunSummary
+}
+export async function equipmentByLocation(locationId: string): Promise<EquipmentListItem[]> {
+  return request<EquipmentListItem[]>('/equipment/location/' + locationId)
+}
+
+export async function getInspectionTemplates(): Promise<InspectionTemplate[]> {
+  return request<InspectionTemplate[]>('/inspection/templates')
+}
+
+export async function createInspectionTemplate(input: {
+  name: string
+  description?: string
+  items: Array<{
+    title: string
+    description?: string
+    sortOrder?: number
+    isRequired?: boolean
+  }>
+}): Promise<InspectionTemplate> {
+  return request<InspectionTemplate>('/inspection/templates', {
+    method: 'POST',
+    body: input,
+  })
+}
+
+export async function getInspectionRuns(): Promise<InspectionRunListItem[]> {
+  return request<InspectionRunListItem[]>('/inspection/runs')
+}
+
+export async function getInspectionRun(id: string): Promise<InspectionRun> {
+  return request<InspectionRun>('/inspection/runs/' + id)
+}
+
+export async function startInspectionRun(input: StartInspectionRunInput): Promise<InspectionRun> {
+  return request<InspectionRun>('/inspection/runs', {
+    method: 'POST',
+    body: input,
+  })
+}
+
+export async function updateInspectionRunItem(
+  runId: string,
+  itemId: string,
+  input: UpdateInspectionRunItemInput,
+): Promise<InspectionRunItem> {
+  return request<InspectionRunItem>(`/inspection/runs/${runId}/items/${itemId}`, {
+    method: 'PATCH',
+    body: input,
+  })
+}
+
+export async function uploadInspectionRunItemAttachment(
+  runId: string,
+  itemId: string,
+  file: File,
+): Promise<InspectionRunItemAttachment> {
+  const token = getToken()
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const res = await fetch(`${getBaseUrl()}/inspection/runs/${runId}/items/${itemId}/attachments`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: formData,
+  })
+
+  const text = await res.text()
+  let data: any = null
+
+  if (text) {
+    try {
+      data = JSON.parse(text)
+    } catch {
+      data = text
+    }
+  }
+
+  if (!res.ok) {
+    const message = data?.message
+      ? Array.isArray(data.message)
+        ? data.message.join(',')
+        : String(data.message)
+      : `HTTP ${res.status}`
+
+    throw new Error(message)
+  }
+
+  return data as InspectionRunItemAttachment
+}
+
+export async function createTicketFromInspectionItem(
+  runId: string,
+  itemId: string,
+  input: CreateTicketFromInspectionItemInput,
+): Promise<{
+  item: InspectionRunItem
+  ticket: CreateTicketResponse['ticket'] & { status?: TicketStatus; urgency?: TicketUrgency; createdAt?: string }
+  generated?: CreateTicketResponse['generated']
+  autoAssigned?: boolean
+}> {
+  return request(`/inspection/runs/${runId}/items/${itemId}/create-ticket`, {
+    method: 'POST',
+    body: input,
+  })
+}
+
+export async function getInspectionRunReport(id: string): Promise<InspectionRunReport> {
+  return request<InspectionRunReport>('/inspection/runs/' + id + '/report')
+}
+
+export async function submitInspectionRunReport(id: string): Promise<InspectionRunReport> {
+  return request<InspectionRunReport>('/inspection/runs/' + id + '/report/submit', {
+    method: 'POST',
+    body: {},
+  })
+}
+
+export async function reviewInspectionRunReport(
+  id: string,
+  input: ReviewInspectionRunReportInput,
+): Promise<InspectionRunReport> {
+  return request<InspectionRunReport>('/inspection/runs/' + id + '/report/review', {
+    method: 'POST',
+    body: input,
+  })
+}
+
+export async function completeInspectionRun(runId: string): Promise<CompleteInspectionRunResponse> {
+  return request<CompleteInspectionRunResponse>(`/inspection/runs/${runId}/complete`, {
+    method: 'POST',
+  })
+}
 export type PublicRequestContext = {
   companyName: string
   introText: string
@@ -1381,3 +1922,44 @@ export async function submitPublicQuickRequest(
   return data as PublicQuickRequestResponse
 }
 
+
+
+export async function downloadInspectionRunReportExport(
+  id: string,
+  format: 'docx' = 'docx',
+): Promise<{ blob: Blob; fileName: string }> {
+  const token = getToken()
+  const url = new URL(getBaseUrl() + '/inspection/runs/' + id + '/report/export')
+  url.searchParams.set('format', format)
+
+  const res = await fetch(url.toString(), {
+    method: 'GET',
+    headers: token ? { Authorization: 'Bearer ' + token } : undefined,
+  })
+
+  if (!res.ok) {
+    const text = await res.text()
+    let data: any = null
+    if (text) {
+      try {
+        data = JSON.parse(text)
+      } catch {
+        data = text
+      }
+    }
+    const message = data?.message
+      ? Array.isArray(data.message)
+        ? data.message.join(',')
+        : String(data.message)
+      : 'HTTP ' + res.status
+    throw new Error(message)
+  }
+
+  const blob = await res.blob()
+  const disposition = res.headers.get('content-disposition') || ''
+  const match = disposition.match(/filename=\"?([^\";]+)\"?/i)
+  return {
+    blob,
+    fileName: match?.[1] || 'work-act.' + format,
+  }
+}

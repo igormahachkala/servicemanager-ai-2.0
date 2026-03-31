@@ -17,9 +17,13 @@ export class AnalyticsController {
   constructor(private readonly svc: AnalyticsService) {}
 
   @Get('overview')
-  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR)
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.PLATFORM_ADMIN)
   @RequirePermission(PERMISSIONS.ANALYTICS_VIEW)
-  overview(@Req() req: any, @Query('linkedClientCompanyId') linkedClientCompanyId?: string) {
-    return this.svc.overview(req.user.companyId, linkedClientCompanyId)
+  overview(
+    @Req() req: any,
+    @Query('linkedClientCompanyId') linkedClientCompanyId?: string,
+    @Query('companyId') companyId?: string,
+  ) {
+    return this.svc.overview(req.user.companyId, req.user.role as UserRole, companyId, linkedClientCompanyId)
   }
 }

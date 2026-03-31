@@ -1,6 +1,7 @@
-﻿import React, { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+
 import * as api from '../lib/api'
 
 function fmt(dt?: string | null) {
@@ -31,11 +32,17 @@ function urgencyLabel(urgency: api.TicketUrgency) {
   return urgency
 }
 
+function providerScopeLabel(role?: api.ServiceContractRole) {
+  if (role === 'PRIMARY') return 'PRIMARY provider'
+  if (role === 'SECONDARY') return 'SECONDARY provider'
+  return ''
+}
+
 function UrgencyTag({ urgency }: { urgency: api.TicketUrgency }) {
-  const isUrgent = urgency === 'URGENT'
-  const style: React.CSSProperties = isUrgent
-    ? { background: '#fff1f2', borderColor: '#fecdd3', color: '#9f1239' }
-    : { background: '#f3f4f6', borderColor: '#e5e7eb', color: '#374151' }
+  const style =
+    urgency === 'URGENT'
+      ? { background: '#fff1f2', borderColor: '#fecdd3', color: '#9f1239' }
+      : { background: '#f3f4f6', borderColor: '#e5e7eb', color: '#374151' }
 
   return (
     <span className="tag" style={style}>
@@ -82,50 +89,131 @@ function ColumnSkeleton({ title }: { title: string }) {
   )
 }
 
-function providerScopeLabel(role?: api.ServiceContractRole) {
-  if (role === 'PRIMARY') return 'PRIMARY provider'
-  if (role === 'SECONDARY') return 'SECONDARY provider'
-  return ''
+function isProviderBoardRole(role?: api.Role) {
+  return role === 'ADMIN' || role === 'MASTER' || role === 'DISPATCHER' || role === 'NETWORK_DIRECTOR'
+}
+
+function buildBoardLink(linkedClientCompanyId?: string | null) {
+  if (!linkedClientCompanyId) return '/board'
+  return `/board?linkedClientCompanyId=${linkedClientCompanyId}`
+}
+
+function buildAnalyticsLink(params: { observerCompanyId?: string | null; linkedClientCompanyId?: string | null }) {
+  if (params.observerCompanyId) return `/analytics?companyId=${params.observerCompanyId}`
+  if (params.linkedClientCompanyId) return `/analytics?linkedClientCompanyId=${params.linkedClientCompanyId}`
+  return '/analytics'
+}
+
+function buildCompanyLink(params: { observerCompanyId?: string | null; linkedClientCompanyId?: string | null }) {
+  if (params.observerCompanyId) return `/company?companyId=${params.observerCompanyId}`
+  if (params.linkedClientCompanyId) return `/company?linkedClientCompanyId=${params.linkedClientCompanyId}`
+  return '/company'
 }
 
 export function BoardPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [take, setTake] = useState(120)
-  const [linkedClientCompanyId, setLinkedClientCompanyId] = useState(() => searchParams.get('linkedClientCompanyId') || '')
+  const boardDataRef = useRef<{ scopeKey: string; data: api.BoardResponse } | null>(null)
+  const autoSelectedPrimaryRef = useRef(false)
 
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
+  const requestedCompanyId = useMemo(() => searchParams.get('companyId')?.trim() || '', [searchParams])
+  const requestedLinkedClientCompanyId = useMemo(() => searchParams.get('linkedClientCompanyId')?.trim() || '', [searchParams])
+
+  const observerCompanyId = meQ.data?.role === 'PLATFORM_ADMIN' ? requestedCompanyId : ''
+  const isObserverMode = !!observerCompanyId && observerCompanyId !== meQ.data?.companyId
+
+  const observerCompanyQ = useQuery({
+    queryKey: ['observer-company', observerCompanyId],
+    queryFn: () => api.company(observerCompanyId),
+    enabled: !!observerCompanyId && meQ.data?.role === 'PLATFORM_ADMIN',
+  })
+
+  const ownCompanyQ = useQuery({
+    queryKey: ['board-company-context'],
+    queryFn: () => api.company(),
+    enabled: !observerCompanyId && !!meQ.data && meQ.data.role !== 'PLATFORM_ADMIN',
+  })
+
+  const isProviderCompany = !observerCompanyId && ownCompanyQ.data?.type === 'PROVIDER'
+  const canShowLinkedClients = isProviderCompany && isProviderBoardRole(meQ.data?.role)
+
   const linkedClientsQ = useQuery({
     queryKey: ['linked-clients'],
     queryFn: api.getLinkedClients,
-    enabled: meQ.data?.role === 'ADMIN' || meQ.data?.role === 'MASTER' || meQ.data?.role === 'DISPATCHER' || meQ.data?.role === 'NETWORK_DIRECTOR',
+    enabled: canShowLinkedClients,
   })
 
-  useEffect(() => {
-    const nextLinkedClientCompanyId = searchParams.get('linkedClientCompanyId') || ''
-    if (nextLinkedClientCompanyId !== linkedClientCompanyId) {
-      setLinkedClientCompanyId(nextLinkedClientCompanyId)
-    }
-  }, [searchParams, linkedClientCompanyId])
-
-  useEffect(() => {
-    if (!linkedClientCompanyId && linkedClientsQ.data?.length) {
-      const primary = linkedClientsQ.data.find((item) => item.role === 'PRIMARY')
-      if (primary) setLinkedClientCompanyId(primary.clientCompany.id)
-    }
-  }, [linkedClientsQ.data, linkedClientCompanyId])
-
+  const linkedClients = linkedClientsQ.data || []
+  const primaryLinkedClients = useMemo(() => linkedClients.filter((item) => item.role === 'PRIMARY'), [linkedClients])
+  const linkedClientsLoaded = !canShowLinkedClients || linkedClientsQ.isSuccess || linkedClientsQ.isError
   const selectedLinkedClient = useMemo(
-    () => linkedClientsQ.data?.find((item) => item.clientCompany.id === linkedClientCompanyId) || null,
-    [linkedClientsQ.data, linkedClientCompanyId],
+    () => linkedClients.find((item) => item.clientCompany.id === requestedLinkedClientCompanyId) || null,
+    [linkedClients, requestedLinkedClientCompanyId],
   )
 
+  const resolvedLinkedClientCompanyId = selectedLinkedClient?.role === 'PRIMARY' ? selectedLinkedClient.clientCompany.id : ''
+  const providerHasNoLinkedClients = canShowLinkedClients && linkedClientsLoaded && linkedClients.length === 0
+  const providerRestrictedSelection = canShowLinkedClients && !!selectedLinkedClient && selectedLinkedClient.role !== 'PRIMARY'
+
+  useEffect(() => {
+    if (!canShowLinkedClients) {
+      autoSelectedPrimaryRef.current = false
+    }
+  }, [canShowLinkedClients])
+
+  useEffect(() => {
+    if (!canShowLinkedClients) return
+    if (requestedLinkedClientCompanyId) return
+    if (!primaryLinkedClients.length) return
+    if (autoSelectedPrimaryRef.current) return
+
+    autoSelectedPrimaryRef.current = true
+    navigate(buildBoardLink(primaryLinkedClients[0].clientCompany.id), { replace: true })
+  }, [canShowLinkedClients, requestedLinkedClientCompanyId, primaryLinkedClients, navigate])
+
+  const providerContextResolved = isObserverMode
+    ? true
+    : !canShowLinkedClients
+      ? true
+      : !linkedClientsLoaded
+        ? false
+        : providerHasNoLinkedClients || providerRestrictedSelection
+          ? true
+          : !!resolvedLinkedClientCompanyId
+
+  const boardEnabled = isObserverMode
+    ? true
+    : !canShowLinkedClients
+      ? true
+      : providerContextResolved && !providerHasNoLinkedClients && !providerRestrictedSelection && !!resolvedLinkedClientCompanyId
+
+  const boardScopeKey = observerCompanyId
+    ? `observer:${observerCompanyId}`
+    : canShowLinkedClients
+      ? `provider:${resolvedLinkedClientCompanyId || 'pending'}`
+      : 'tenant:self'
+
   const boardQ = useQuery({
-    queryKey: ['board', { take, linkedClientCompanyId }],
-    queryFn: () => api.board({ take, linkedClientCompanyId: linkedClientCompanyId || undefined }),
+    queryKey: ['board', { take, observerCompanyId, resolvedLinkedClientCompanyId }],
+    queryFn: () =>
+      api.board({
+        take,
+        linkedClientCompanyId: resolvedLinkedClientCompanyId || undefined,
+        companyId: observerCompanyId || undefined,
+      }),
+    enabled: boardEnabled,
   })
 
-  const columns = useMemo(() => boardQ.data?.columns || [], [boardQ.data])
+  useEffect(() => {
+    if (boardQ.data) {
+      boardDataRef.current = { scopeKey: boardScopeKey, data: boardQ.data }
+    }
+  }, [boardQ.data, boardScopeKey])
+
+  const boardData = boardQ.data ?? (boardDataRef.current?.scopeKey === boardScopeKey ? boardDataRef.current.data : null)
+  const columns = boardData?.columns || []
   const cardsAll = useMemo(() => columns.flatMap((c) => c.cards || []), [columns])
 
   const stats = useMemo(() => {
@@ -138,95 +226,233 @@ export function BoardPage() {
     return { open, today, urgent, breachedByCol, atRiskByCol }
   }, [cardsAll, columns])
 
-  const isEmpty = !boardQ.isFetching && !boardQ.isError && columns.every((c) => (c.cards?.length || 0) === 0)
+  const isResolvingProviderContext = canShowLinkedClients && !providerContextResolved
+  const initialBoardLoading = boardEnabled && !boardData && (boardQ.isLoading || boardQ.isFetching)
+  const statsLoading = isResolvingProviderContext || initialBoardLoading
+  const isEmpty =
+    providerContextResolved &&
+    boardEnabled &&
+    !boardQ.isFetching &&
+    !boardQ.isError &&
+    !!boardData &&
+    columns.length > 0 &&
+    columns.every((column) => (column.cards?.length || 0) === 0)
+
+  const observerLabel = observerCompanyQ.data?.name || observerCompanyId
+  const providerHeaderLabel = selectedLinkedClient?.clientCompany.name || primaryLinkedClients[0]?.clientCompany.name || ''
+  const providerCanCreateTicket = !canShowLinkedClients && !isObserverMode
+  const analyticsLink = buildAnalyticsLink({ observerCompanyId, linkedClientCompanyId: resolvedLinkedClientCompanyId })
+  const companyLink = buildCompanyLink({ observerCompanyId, linkedClientCompanyId: resolvedLinkedClientCompanyId })
+
+  function onSelectLinkedClient(nextLinkedClientCompanyId: string) {
+    if (!nextLinkedClientCompanyId) return
+    navigate(buildBoardLink(nextLinkedClientCompanyId), { replace: false })
+  }
+
+  const subtitle = (() => {
+    if (isResolvingProviderContext) return 'Подбираем связанного клиента для provider board…'
+    if (!boardEnabled && canShowLinkedClients) return 'Выберите связанного клиента, чтобы открыть operational board.'
+    if (boardData) return `Всего: ${boardData.meta.totalTickets} · лимит последних: ${boardData.meta.limitedToLast}`
+    return '—'
+  })()
 
   return (
     <div>
       <div className="row">
         <div>
           <h2 style={{ marginBottom: 4 }}>Доска заявок</h2>
-          <div className="muted small">
-            {boardQ.isFetching ? 'Загрузка…' : boardQ.data ? `Всего: ${boardQ.data.meta.totalTickets}` : '—'}
-            {boardQ.data ? ` · лимит последних: ${boardQ.data.meta.limitedToLast}` : ''}
-          </div>
+          <div className="muted small">{subtitle}</div>
           {selectedLinkedClient ? (
             <div className="muted small" style={{ marginTop: 4 }}>
-              Видимость по клиенту: {selectedLinkedClient.clientCompany.name} · {providerScopeLabel(selectedLinkedClient.role)}
+              Provider mode · Клиент: {selectedLinkedClient.clientCompany.name} · {providerScopeLabel(selectedLinkedClient.role)}
             </div>
           ) : null}
         </div>
 
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <button className="ghost" onClick={() => boardQ.refetch()} disabled={boardQ.isFetching}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button className="ghost" onClick={() => boardEnabled && boardQ.refetch()} disabled={!boardEnabled || boardQ.isFetching}>
             Обновить
           </button>
-          <Link to="/tickets/new">
-            <button className="ghost">Создать заявку</button>
+          <Link to={analyticsLink}>
+            <button className="ghost">Аналитика</button>
           </Link>
+          <Link to={companyLink}>
+            <button className="ghost">Компания</button>
+          </Link>
+          {providerCanCreateTicket ? (
+            <Link to="/tickets/new">
+              <button className="ghost">Создать заявку</button>
+            </Link>
+          ) : (
+            <button className="ghost" disabled>
+              Read-only режим
+            </button>
+          )}
         </div>
       </div>
 
-      {linkedClientsQ.isLoading || (linkedClientsQ.data && linkedClientsQ.data.length > 0) ? (
-        <div className="panel" style={{ marginBottom: 12 }}>
-          <div style={{ fontWeight: 600, marginBottom: 10 }}>Мои клиенты</div>
+      <div style={{ display: 'grid', gap: 12, marginBottom: 12 }}>
+        <div className="panel" style={{ minHeight: 64, display: 'grid', alignContent: 'center' }}>
+          {isObserverMode ? (
+            <div>
+              <div style={{ fontWeight: 700 }}>Режим просмотра компании: {observerLabel}</div>
+              <div className="muted small">PLATFORM_ADMIN видит operational board компании как наблюдатель, без tenant impersonation.</div>
+            </div>
+          ) : isResolvingProviderContext ? (
+            <div style={{ display: 'grid', gap: 8 }}>
+              <SkeletonBox w={260} h={14} />
+              <SkeletonBox w={420} h={12} />
+            </div>
+          ) : canShowLinkedClients ? (
+            <div>
+              <div style={{ fontWeight: 700 }}>Provider mode</div>
+              <div className="muted small">
+                {providerHeaderLabel
+                  ? `Сейчас открыт клиент: ${providerHeaderLabel}`
+                  : 'Выберите связанного клиента, чтобы открыть его board в provider scope.'}
+              </div>
+            </div>
+          ) : ownCompanyQ.isLoading ? (
+            <div style={{ display: 'grid', gap: 8 }}>
+              <SkeletonBox w={260} h={14} />
+              <SkeletonBox w={420} h={12} />
+            </div>
+          ) : (
+            <div className="muted small">Операционный обзор текущего контура заявок.</div>
+          )}
+        </div>
 
-          {linkedClientsQ.isLoading ? <div className="muted small">Загрузка...</div> : null}
+        {canShowLinkedClients ? (
+          <div className="panel" style={{ minHeight: 172 }}>
+            <div className="row" style={{ marginBottom: 10, alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ fontWeight: 600 }}>Мои клиенты</div>
+                <div className="muted small">PRIMARY клиенты доступны для полного board visibility. SECONDARY показываются как ограниченный контур.</div>
+              </div>
+              <div style={{ minWidth: 260 }}>
+                <select
+                  value={requestedLinkedClientCompanyId}
+                  onChange={(e) => onSelectLinkedClient(e.target.value)}
+                  style={{ width: '100%' }}
+                  disabled={!linkedClientsLoaded || linkedClients.length === 0}
+                >
+                  {!requestedLinkedClientCompanyId ? <option value="">Выберите клиента</option> : null}
+                  {linkedClients.map((item) => (
+                    <option key={item.clientCompany.id} value={item.clientCompany.id}>
+                      {item.clientCompany.name} · {item.role}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
 
-          <div style={{ display: 'grid', gap: 10 }}>
-            {(linkedClientsQ.data || []).map((item) => (
-              <div
-                key={item.clientCompany.id}
-                className="card"
-                style={{
-                  border: linkedClientCompanyId === item.clientCompany.id ? '1px solid #c7d2fe' : '1px solid #e5e7eb',
-                  background: linkedClientCompanyId === item.clientCompany.id ? '#eef2ff' : '#fff',
-                  borderRadius: 12,
-                  padding: 12,
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  gap: 12,
-                  alignItems: 'center',
-                }}
-              >
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontWeight: 600 }}>{item.clientCompany.name}</div>
-                  <div className="muted small">
-                    {item.role} · {item.summary.openTickets} заявок
+            {!linkedClientsLoaded ? (
+              <div style={{ display: 'grid', gap: 10 }}>
+                <SkeletonBox w="100%" h={52} />
+                <SkeletonBox w="100%" h={52} />
+              </div>
+            ) : providerHasNoLinkedClients ? (
+              <div className="muted small">У этой provider company пока нет активных связанных клиентов.</div>
+            ) : providerRestrictedSelection && selectedLinkedClient ? (
+              <div className="card" style={{ padding: 12, borderRadius: 12 }}>
+                <div style={{ fontWeight: 600 }}>{selectedLinkedClient.clientCompany.name}</div>
+                <div className="muted small" style={{ marginTop: 4 }}>
+                  {selectedLinkedClient.role} · полный board visibility для этого клиента пока недоступен.
+                </div>
+              </div>
+            ) : isResolvingProviderContext ? (
+              <div style={{ display: 'grid', gap: 10 }}>
+                <SkeletonBox w="100%" h={56} />
+                <SkeletonBox w="100%" h={56} />
+              </div>
+            ) : selectedLinkedClient ? (
+              <div className="card" style={{ padding: 12, borderRadius: 12, border: '1px solid #c7d2fe', background: '#eef2ff' }}>
+                <div className="row" style={{ marginBottom: 0, alignItems: 'flex-start' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 700 }}>{selectedLinkedClient.clientCompany.name}</div>
+                    <div className="muted small" style={{ marginTop: 4 }}>
+                      {providerScopeLabel(selectedLinkedClient.role)} · открытые заявки: {selectedLinkedClient.summary.openTickets} · локации: {selectedLinkedClient.summary.locations}
+                    </div>
+                    <div className="muted small" style={{ marginTop: 4 }}>
+                      Public intake: {selectedLinkedClient.summary.publicRequestEnabled ? 'включён' : 'выключен'}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <button className="ghost" type="button" onClick={() => onSelectLinkedClient(selectedLinkedClient.clientCompany.id)}>
+                      Открыть доску
+                    </button>
+                    <Link to={buildAnalyticsLink({ linkedClientCompanyId: selectedLinkedClient.clientCompany.id })}>
+                      <button className="ghost" type="button">Открыть аналитику</button>
+                    </Link>
                   </div>
                 </div>
-
-                <button
-                  className="ghost"
-                  type="button"
-                  onClick={() => navigate(`/board?linkedClientCompanyId=${item.clientCompany.id}`)}
-                >
-                  Открыть
-                </button>
               </div>
-            ))}
+            ) : (
+              <div style={{ display: 'grid', gap: 10 }}>
+                {linkedClients.map((item) => (
+                  <div
+                    key={item.clientCompany.id}
+                    className="card"
+                    style={{
+                      border: '1px solid #e5e7eb',
+                      background: '#fff',
+                      borderRadius: 12,
+                      padding: 12,
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      gap: 12,
+                      alignItems: 'center',
+                    }}
+                  >
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontWeight: 600 }}>{item.clientCompany.name}</div>
+                      <div className="muted small">
+                        {item.role} · открытые заявки: {item.summary.openTickets} · локации: {item.summary.locations}
+                      </div>
+                      <div className="muted small">Public intake: {item.summary.publicRequestEnabled ? 'включён' : 'выключен'}</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <button className="ghost" type="button" onClick={() => onSelectLinkedClient(item.clientCompany.id)}>
+                        Открыть доску
+                      </button>
+                      {item.role === 'PRIMARY' ? (
+                        <Link to={buildAnalyticsLink({ linkedClientCompanyId: item.clientCompany.id })}>
+                          <button className="ghost" type="button">Аналитика</button>
+                        </Link>
+                      ) : null}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
 
       {boardQ.isError ? <div className="alert">{(boardQ.error as any)?.message || String(boardQ.error)}</div> : null}
+      {observerCompanyQ.isError ? <div className="alert">{(observerCompanyQ.error as any)?.message || String(observerCompanyQ.error)}</div> : null}
+      {ownCompanyQ.isError ? <div className="alert">{(ownCompanyQ.error as any)?.message || String(ownCompanyQ.error)}</div> : null}
+      {linkedClientsQ.isError ? <div className="alert">{(linkedClientsQ.error as any)?.message || String(linkedClientsQ.error)}</div> : null}
 
-      <div className="panel" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 12 }}>
+      <div className="panel" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 12, minHeight: 92 }}>
         <div>
           <div className="muted small">Заявок сегодня</div>
-          <div style={{ fontSize: 18, fontWeight: 800, marginTop: 2 }}>{boardQ.isFetching ? '—' : stats.today}</div>
+          <div style={{ fontSize: 18, fontWeight: 800, marginTop: 2 }}>{statsLoading ? <SkeletonBox w={44} h={24} /> : stats.today}</div>
         </div>
         <div>
           <div className="muted small">Открытые заявки</div>
-          <div style={{ fontSize: 18, fontWeight: 800, marginTop: 2 }}>{boardQ.isFetching ? '—' : stats.open}</div>
+          <div style={{ fontSize: 18, fontWeight: 800, marginTop: 2 }}>{statsLoading ? <SkeletonBox w={44} h={24} /> : stats.open}</div>
         </div>
         <div>
           <div className="muted small">SLA нарушения</div>
-          <div style={{ fontSize: 18, fontWeight: 800, marginTop: 2 }}>{boardQ.isFetching ? '—' : stats.breachedByCol}</div>
-          <div className="muted small" style={{ marginTop: 2 }}>под риском: {boardQ.isFetching ? '—' : stats.atRiskByCol}</div>
+          <div style={{ fontSize: 18, fontWeight: 800, marginTop: 2 }}>{statsLoading ? <SkeletonBox w={44} h={24} /> : stats.breachedByCol}</div>
+          <div className="muted small" style={{ marginTop: 2 }}>
+            Под риском: {statsLoading ? '…' : stats.atRiskByCol}
+          </div>
         </div>
         <div>
           <div className="muted small">Срочные</div>
-          <div style={{ fontSize: 18, fontWeight: 800, marginTop: 2 }}>{boardQ.isFetching ? '—' : stats.urgent}</div>
+          <div style={{ fontSize: 18, fontWeight: 800, marginTop: 2 }}>{statsLoading ? <SkeletonBox w={44} h={24} /> : stats.urgent}</div>
         </div>
       </div>
 
@@ -243,18 +469,40 @@ export function BoardPage() {
         </div>
       </div>
 
+      {providerHasNoLinkedClients ? (
+        <div className="panel" style={{ marginBottom: 12 }}>
+          <h3 style={{ marginBottom: 6 }}>Нет связанных клиентов</h3>
+          <div className="muted small">Когда у provider company появится ACTIVE PRIMARY ServiceContract, здесь откроется клиентская operational board.</div>
+        </div>
+      ) : null}
+
+      {providerRestrictedSelection && selectedLinkedClient ? (
+        <div className="panel" style={{ marginBottom: 12 }}>
+          <h3 style={{ marginBottom: 6 }}>Ограниченный доступ</h3>
+          <div className="muted small">
+            Для клиента {selectedLinkedClient.clientCompany.name} связь имеет роль SECONDARY, поэтому полный board visibility на этом этапе недоступен.
+          </div>
+        </div>
+      ) : null}
+
       {isEmpty ? (
         <div className="panel">
           <h3 style={{ marginBottom: 6 }}>Заявок пока нет</h3>
-          <div className="muted small" style={{ marginBottom: 10 }}>Создай тестовую заявку, чтобы доска стала живой для демонстрации.</div>
-          <Link to="/tickets/new">
-            <button>Создать заявку</button>
-          </Link>
+          <div className="muted small" style={{ marginBottom: 10 }}>
+            {canShowLinkedClients && selectedLinkedClient
+              ? `У клиента ${selectedLinkedClient.clientCompany.name} пока нет заявок.`
+              : 'Создайте тестовую заявку, чтобы доска стала живой для демонстрации.'}
+          </div>
+          {providerCanCreateTicket ? (
+            <Link to="/tickets/new">
+              <button>Создать заявку</button>
+            </Link>
+          ) : null}
         </div>
       ) : null}
 
       <div className="kanban">
-        {boardQ.isFetching ? (
+        {initialBoardLoading || isResolvingProviderContext ? (
           <>
             <ColumnSkeleton title="Новые" />
             <ColumnSkeleton title="Назначенные" />
@@ -262,7 +510,7 @@ export function BoardPage() {
             <ColumnSkeleton title="Завершённые" />
             <ColumnSkeleton title="Отменённые" />
           </>
-        ) : (
+        ) : boardEnabled && boardData ? (
           columns.map((col) => (
             <div key={col.status} className="col">
               <div className="colhead">
@@ -275,20 +523,24 @@ export function BoardPage() {
               </div>
 
               <div className="cards">
-                {col.cards.map((c) => (
-                  <Link key={c.id} to={`/tickets/${c.id}`} style={{ textDecoration: 'none' }}>
+                {col.cards.map((ticket) => (
+                  <Link
+                    key={ticket.id}
+                    to={observerCompanyId ? `/tickets/${ticket.id}?companyId=${observerCompanyId}` : `/tickets/${ticket.id}`}
+                    style={{ textDecoration: 'none' }}
+                  >
                     <div className="ticket">
-                      <div className="ticketTitle">{c.title}</div>
+                      <div className="ticketTitle">{ticket.title}</div>
 
                       <div className="ticketMeta">
-                        <UrgencyTag urgency={c.urgency} />
-                        {c.slaBreached ? <span className="tag danger">SLA нарушен</span> : null}
-                        {c.assignedTechnician ? <span className="tag">{c.assignedTechnician.email}</span> : <span className="tag">не назначено</span>}
+                        <UrgencyTag urgency={ticket.urgency} />
+                        {ticket.slaBreached ? <span className="tag danger">SLA нарушен</span> : null}
+                        {ticket.assignedTechnician ? <span className="tag">{ticket.assignedTechnician.email}</span> : <span className="tag">Не назначено</span>}
                       </div>
 
                       <div className="muted small" style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
-                        <span>{fmt(c.createdAt)}</span>
-                        <span title="Срок SLA">{c.slaDueAt ? `срок: ${fmt(c.slaDueAt)}` : 'срок: —'}</span>
+                        <span>{fmt(ticket.createdAt)}</span>
+                        <span title="Срок SLA">{ticket.slaDueAt ? `Срок: ${fmt(ticket.slaDueAt)}` : 'Срок: —'}</span>
                       </div>
                     </div>
                   </Link>
@@ -297,6 +549,10 @@ export function BoardPage() {
               </div>
             </div>
           ))
+        ) : (
+          <div className="panel" style={{ gridColumn: '1 / -1' }}>
+            <div className="muted small">Доска откроется после выбора доступного linked client.</div>
+          </div>
         )}
       </div>
     </div>
