@@ -13,6 +13,18 @@ function fmtDate(value?: string | null) {
   }
 }
 
+type TemplateDraftItem = {
+  title: string
+  description: string
+  isRequired: boolean
+}
+
+const emptyDraftItem = (): TemplateDraftItem => ({
+  title: '',
+  description: '',
+  isRequired: true,
+})
+
 export function InspectionTemplatesPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -21,7 +33,12 @@ export function InspectionTemplatesPage() {
   const [equipmentId, setEquipmentId] = useState('')
   const [customTitle, setCustomTitle] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [createOpen, setCreateOpen] = useState(false)
+  const [templateName, setTemplateName] = useState('')
+  const [templateDescription, setTemplateDescription] = useState('')
+  const [draftItems, setDraftItems] = useState<TemplateDraftItem[]>([emptyDraftItem(), emptyDraftItem()])
 
+  const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
   const templatesQ = useQuery({ queryKey: ['inspection-templates'], queryFn: api.getInspectionTemplates })
   const runsQ = useQuery({ queryKey: ['inspection-runs'], queryFn: api.getInspectionRuns })
   const locationsQ = useQuery({ queryKey: ['locations'], queryFn: () => api.locations() })
@@ -30,6 +47,8 @@ export function InspectionTemplatesPage() {
     queryFn: () => api.equipmentByLocation(locationId),
     enabled: !!locationId,
   })
+
+  const canCreateTemplate = meQ.data?.role === 'ADMIN'
 
   const activeLocations = useMemo(
     () => (locationsQ.data || []).filter((item) => item.isActive !== false),
@@ -56,6 +75,42 @@ export function InspectionTemplatesPage() {
     onError: (err: any) => setError(err?.message || String(err)),
   })
 
+  const createTemplateM = useMutation({
+    mutationFn: async () => {
+      const items = draftItems
+        .map((item, index) => ({
+          title: item.title.trim(),
+          description: item.description.trim() || undefined,
+          isRequired: item.isRequired,
+          sortOrder: index,
+        }))
+        .filter((item) => item.title)
+
+      if (!templateName.trim()) {
+        throw new Error('Название шаблона обязательно')
+      }
+      if (items.length === 0) {
+        throw new Error('Добавьте хотя бы один пункт обхода')
+      }
+
+      return api.createInspectionTemplate({
+        name: templateName.trim(),
+        description: templateDescription.trim() || undefined,
+        items,
+      })
+    },
+    onSuccess: async (template) => {
+      setError(null)
+      setCreateOpen(false)
+      setTemplateName('')
+      setTemplateDescription('')
+      setDraftItems([emptyDraftItem(), emptyDraftItem()])
+      await queryClient.invalidateQueries({ queryKey: ['inspection-templates'] })
+      setSelectedTemplateId(template.id)
+    },
+    onError: (err: any) => setError(err?.message || String(err)),
+  })
+
   function startRun() {
     if (!selectedTemplateId) {
       setError('Выберите шаблон обхода')
@@ -74,6 +129,10 @@ export function InspectionTemplatesPage() {
     })
   }
 
+  function updateDraftItem(index: number, patch: Partial<TemplateDraftItem>) {
+    setDraftItems((current) => current.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)))
+  }
+
   return (
     <div>
       <div className="row">
@@ -81,7 +140,12 @@ export function InspectionTemplatesPage() {
           <h2 style={{ marginBottom: 4 }}>Обходы</h2>
           <div className="muted small">Выберите шаблон и запустите обход по точке.</div>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {canCreateTemplate ? (
+            <button type="button" className="ghost" onClick={() => setCreateOpen((current) => !current)}>
+              {createOpen ? 'Скрыть форму' : 'Создать шаблон обхода'}
+            </button>
+          ) : null}
           <Link to="/inspection/runs"><button className="ghost">История обходов</button></Link>
         </div>
       </div>
@@ -90,9 +154,102 @@ export function InspectionTemplatesPage() {
       {templatesQ.isError ? <div className="alert">{(templatesQ.error as any)?.message || String(templatesQ.error)}</div> : null}
       {locationsQ.isError ? <div className="alert">{(locationsQ.error as any)?.message || String(locationsQ.error)}</div> : null}
 
+      {createOpen && canCreateTemplate ? (
+        <div className="panel" style={{ marginBottom: 12 }}>
+          <div className="row" style={{ marginBottom: 12 }}>
+            <div>
+              <h3 style={{ margin: 0 }}>Новый шаблон обхода</h3>
+              <div className="muted small">Создайте шаблон с базовыми пунктами проверки.</div>
+            </div>
+          </div>
+
+          <div className="form">
+            <label>
+              Название шаблона
+              <input value={templateName} onChange={(e) => setTemplateName(e.target.value)} placeholder="Ежедневный обход точки" />
+            </label>
+
+            <label>
+              Описание
+              <input value={templateDescription} onChange={(e) => setTemplateDescription(e.target.value)} placeholder="Краткое описание шаблона" />
+            </label>
+
+            <div style={{ display: 'grid', gap: 10 }}>
+              {draftItems.map((item, index) => (
+                <div key={index} className="card" style={{ padding: 12 }}>
+                  <div style={{ fontWeight: 700, marginBottom: 8 }}>Пункт {index + 1}</div>
+                  <div className="form">
+                    <label>
+                      Заголовок
+                      <input
+                        value={item.title}
+                        onChange={(e) => updateDraftItem(index, { title: e.target.value })}
+                        placeholder="Например: Проверить фасад оборудования"
+                      />
+                    </label>
+
+                    <label>
+                      Комментарий для техника
+                      <input
+                        value={item.description}
+                        onChange={(e) => updateDraftItem(index, { description: e.target.value })}
+                        placeholder="Что именно нужно проверить"
+                      />
+                    </label>
+
+                    <label className="small" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input
+                        type="checkbox"
+                        checked={item.isRequired}
+                        onChange={(e) => updateDraftItem(index, { isRequired: e.target.checked })}
+                      />
+                      Обязательный пункт
+                    </label>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button type="button" className="ghost" onClick={() => setDraftItems((current) => [...current, emptyDraftItem()])}>
+                Добавить пункт
+              </button>
+              {draftItems.length > 1 ? (
+                <button type="button" className="ghost" onClick={() => setDraftItems((current) => current.slice(0, -1))}>
+                  Удалить последний пункт
+                </button>
+              ) : null}
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button type="button" onClick={() => createTemplateM.mutate()} disabled={createTemplateM.isPending}>
+                {createTemplateM.isPending ? 'Сохраняем...' : 'Создать шаблон обхода'}
+              </button>
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => {
+                  setCreateOpen(false)
+                  setTemplateName('')
+                  setTemplateDescription('')
+                  setDraftItems([emptyDraftItem(), emptyDraftItem()])
+                }}
+              >
+                Отмена
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <div className="grid2" style={{ gridTemplateColumns: '1.3fr 0.9fr' }}>
         <div className="panel">
-          <h3 style={{ marginBottom: 10 }}>Шаблоны обхода</h3>
+          <div className="row" style={{ marginBottom: 10 }}>
+            <h3 style={{ margin: 0 }}>Шаблоны обхода</h3>
+            {!templatesQ.isLoading && activeTemplates.length > 0 ? (
+              <div className="muted small">Шаблонов: {activeTemplates.length}</div>
+            ) : null}
+          </div>
           {templatesQ.isLoading ? <div className="muted">Загружаем шаблоны…</div> : null}
           <div style={{ display: 'grid', gap: 12 }}>
             {activeTemplates.map((template) => {
@@ -118,7 +275,19 @@ export function InspectionTemplatesPage() {
               )
             })}
             {!templatesQ.isLoading && activeTemplates.length === 0 ? (
-              <div className="muted">Шаблонов пока нет.</div>
+              <div className="panel" style={{ padding: 16 }}>
+                <div style={{ fontWeight: 700, marginBottom: 6 }}>Шаблонов пока нет</div>
+                <div className="muted small" style={{ marginBottom: 10 }}>
+                  Создайте первый шаблон обхода, чтобы техники могли запускать проверки по точкам.
+                </div>
+                {canCreateTemplate ? (
+                  <button type="button" className="ghost" onClick={() => setCreateOpen(true)}>
+                    Создать шаблон обхода
+                  </button>
+                ) : (
+                  <div className="muted small">Шаблоны создаёт администратор компании.</div>
+                )}
+              </div>
             ) : null}
           </div>
         </div>

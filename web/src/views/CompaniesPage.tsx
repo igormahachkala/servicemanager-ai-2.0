@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
@@ -56,13 +56,13 @@ function locationLabel(location: api.PublicRequestLocation) {
   return [location.city, location.externalCode || location.platformCode, location.name].filter(Boolean).join(' · ')
 }
 
-async function copyText(value: string) {
+async function copyText(value: string, fallbackLabel = 'Скопируйте ссылку вручную') {
   if (!value) return false
   try {
     await navigator.clipboard.writeText(value)
     return true
   } catch {
-    window.prompt('Скопируйте ссылку вручную', value)
+    window.prompt(fallbackLabel, value)
     return false
   }
 }
@@ -274,7 +274,9 @@ export function CompaniesPage() {
       <div className="row">
         <div>
           <h2 style={{ marginBottom: 4 }}>Компании</h2>
-          <div className="muted small">Platform control center: создание компаний, observer mode, impersonation и public QR-контур.</div>
+          <div className="muted small">
+            Platform control center: создание компаний, observer mode, impersonation и управление public intake.
+          </div>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {modeBadge('Platform mode', 'platform')}
@@ -286,7 +288,9 @@ export function CompaniesPage() {
         <div className="row" style={{ alignItems: 'center' }}>
           <div>
             <div style={{ fontWeight: 700 }}>Режим платформы</div>
-            <div className="muted small">Открывайте компании в observer mode или входите внутрь tenant-контура как ADMIN без повторного логина.</div>
+            <div className="muted small">
+              Открывайте компании в observer mode или входите внутрь tenant-контура как ADMIN без повторного логина.
+            </div>
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {modeBadge('Observer mode', 'observer')}
@@ -412,7 +416,9 @@ export function CompaniesPage() {
           </select>
 
           {locationOptionsQ.isLoading ? <div className="muted small">Загружаем точки компании...</div> : null}
-          {!locationOptionsQ.isLoading && !(locationOptionsQ.data || []).length ? <div className="muted small">У этой компании пока нет активных публичных точек.</div> : null}
+          {!locationOptionsQ.isLoading && !(locationOptionsQ.data || []).length ? (
+            <div className="muted small">У этой компании пока нет активных публичных точек.</div>
+          ) : null}
 
           <code style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
             {selectedLocation && locationQrCompany.publicRequestToken
@@ -424,10 +430,27 @@ export function CompaniesPage() {
             <button
               type="button"
               className="ghost"
-              onClick={() => selectedLocation && locationQrCompany.publicRequestToken && void copyText(api.buildPublicRequestLink(locationQrCompany.publicRequestToken, selectedLocation.id))}
+              onClick={() =>
+                selectedLocation &&
+                locationQrCompany.publicRequestToken &&
+                void copyText(
+                  api.buildPublicRequestLink(locationQrCompany.publicRequestToken, selectedLocation.id),
+                )
+              }
               disabled={!selectedLocation || !locationQrCompany.publicRequestToken}
             >
               Скопировать ссылку
+            </button>
+            <button
+              type="button"
+              className="ghost"
+              onClick={() => {
+                if (!selectedLocation || !locationQrCompany.publicRequestToken) return
+                window.open(api.buildPublicRequestLink(locationQrCompany.publicRequestToken, selectedLocation.id), '_blank', 'noopener,noreferrer')
+              }}
+              disabled={!selectedLocation || !locationQrCompany.publicRequestToken}
+            >
+              Открыть ссылку
             </button>
             <button
               type="button"
@@ -444,10 +467,10 @@ export function CompaniesPage() {
               }
               disabled={!selectedLocation || !locationQrCompany.publicRequestToken}
             >
-              Показать QR точки
+              QR точки
             </button>
             <button type="button" className="ghost" onClick={() => void handleDownloadLocationQr()} disabled={!selectedLocation || !locationQrCompany.publicRequestToken}>
-              Скачать QR PNG
+              Скачать PNG
             </button>
           </div>
         </div>
@@ -473,109 +496,123 @@ export function CompaniesPage() {
             return (
               <div key={company.id} className="card" style={{ padding: 16 }}>
                 <div className="row" style={{ alignItems: 'flex-start', gap: 16 }}>
-                  <div style={{ flex: 1, minWidth: 280 }}>
-                    <div className="row" style={{ alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                      <div style={{ fontWeight: 700 }}>{company.name}</div>
-                      {modeBadge(company.type, company.type === 'PROVIDER' ? 'observer' : 'platform')}
-                      {company.publicRequestEnabled ? modeBadge('Public intake включён', 'public') : null}
-                      {isImpersonatingThisCompany ? modeBadge('Impersonation mode', 'observer') : null}
+                  <div style={{ flex: 1, minWidth: 280, display: 'grid', gap: 12 }}>
+                    <div>
+                      <div className="row" style={{ alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                        <div style={{ fontWeight: 700 }}>{company.name}</div>
+                        {modeBadge(company.type, company.type === 'PROVIDER' ? 'observer' : 'platform')}
+                        {company.publicRequestEnabled ? modeBadge('Public intake включён', 'public') : null}
+                        {isImpersonatingThisCompany ? modeBadge('Impersonation mode', 'observer') : null}
+                      </div>
+
+                      <div className="muted small">Часовой пояс: {company.timezone || 'UTC'}</div>
+                      <div className="muted small">Создана: {formatDate(company.createdAt)}</div>
+                      <div className="muted small">Админов: {activeAdmins.length}</div>
+                      <div className="muted small">Public intake: {company.publicRequestEnabled ? 'включён' : 'выключен'}</div>
                     </div>
 
-                    <div className="muted small">Часовой пояс: {company.timezone || 'UTC'}</div>
-                    <div className="muted small">Создана: {formatDate(company.createdAt)}</div>
-                    <div className="muted small">Админов: {activeAdmins.length}</div>
-                    <div className="muted small">Public intake: {company.publicRequestEnabled ? 'включён' : 'выключен'}</div>
+                    <div className="panel" style={{ padding: 12, display: 'grid', gap: 8 }}>
+                      <div style={{ fontWeight: 700 }}>Platform actions</div>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        <Link to={`/company?companyId=${company.id}`}><button className="ghost">Открыть</button></Link>
+                        <Link to={`/board?companyId=${company.id}`}><button className="ghost">Observer</button></Link>
+                        <Link to={`/analytics?companyId=${company.id}`}><button className="ghost">Открыть аналитику</button></Link>
+                        <button
+                          type="button"
+                          className="ghost"
+                          onClick={() => impersonateM.mutate(company)}
+                          disabled={!hasAdmin || impersonateM.isPending}
+                          title={adminButtonTitle}
+                        >
+                          {impersonateM.isPending ? 'Opening...' : 'Impersonate admin'}
+                        </button>
+                      </div>
+                      {!hasAdmin ? <div className="muted small">No active administrator.</div> : null}
+                      {isImpersonatingThisCompany ? <div className="muted small">You are already inside this company.</div> : null}
+                      {hasAdmin ? (
+                        <div className="muted small">Администратор уже есть</div>
+                      ) : (
+                        <button
+                          className="ghost"
+                          onClick={() => {
+                            setAdminTargetCompanyId(company.id)
+                            setAdminForm(emptyAdminForm)
+                            setErr(null)
+                            setSuccess(null)
+                          }}
+                        >
+                          Создать первого админа
+                        </button>
+                      )}
+                    </div>
 
-                    <div className="panel" style={{ marginTop: 12, padding: 12 }}>
-                      <div className="muted small" style={{ marginBottom: 6 }}>Public link</div>
-                      <code style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{baseLink || 'Публичный токен ещё не создан'}</code>
+                    <div className="panel" style={{ padding: 12, display: 'grid', gap: 8 }}>
+                      <div style={{ fontWeight: 700 }}>Public intake</div>
+                      <code style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                        {baseLink || 'Публичный токен ещё не создан'}
+                      </code>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                        <button type="button" className="ghost" onClick={() => void copyText(baseLink)} disabled={!baseLink}>
+                          Скопировать public link
+                        </button>
+                        <button
+                          type="button"
+                          className="ghost"
+                          onClick={() => baseLink && window.open(baseLink, '_blank', 'noopener,noreferrer')}
+                          disabled={!baseLink}
+                        >
+                          Открыть public link
+                        </button>
+                        <button
+                          type="button"
+                          className="ghost"
+                          onClick={() =>
+                            setQrTarget({
+                              title: company.name,
+                              subtitle: 'Общий QR компании',
+                              url: baseLink,
+                              fileName: `public-request-${company.name}.png`,
+                            })
+                          }
+                          disabled={!baseLink}
+                        >
+                          QR компании
+                        </button>
+                        <button
+                          type="button"
+                          className="ghost"
+                          onClick={() => {
+                            setLocationQrCompanyId(company.id)
+                            setSelectedLocationId('')
+                          }}
+                          disabled={!company.publicRequestToken}
+                        >
+                          QR точки
+                        </button>
+                        <button type="button" className="ghost" onClick={() => void handleDownloadCompanyQr(company)} disabled={!baseLink}>
+                          Скачать PNG
+                        </button>
+                        <button type="button" className="ghost" onClick={() => regenerateTokenM.mutate(company.id)} disabled={regenerateTokenM.isPending}>
+                          {regenerateTokenM.isPending ? 'Обновляем...' : 'Обновить public token'}
+                        </button>
+                      </div>
                     </div>
                   </div>
 
-                  <div style={{ display: 'grid', gap: 8, minWidth: 220 }}>
-                    <Link to={`/company?companyId=${company.id}`}><button className="ghost">Открыть</button></Link>
-                    <Link to={`/board?companyId=${company.id}`}><button className="ghost">Observer</button></Link>
-                    <button
-                      type="button"
-                      className="ghost"
-                      onClick={() => impersonateM.mutate(company)}
-                      disabled={!hasAdmin || impersonateM.isPending}
-                      title={adminButtonTitle}
-                    >
-                      {impersonateM.isPending ? 'Entering...' : 'Impersonate admin'}
-                    </button>
-                    {!hasAdmin ? <div className="muted small">No active administrator.</div> : null}
-                    {isImpersonatingThisCompany ? <div className="muted small">You are already inside this company.</div> : null}
-                    {hasAdmin ? (
-                      <div className="muted small">????????????? ??? ????</div>
+                  <div style={{ width: 280, display: 'grid', gap: 8 }}>
+                    <div className="muted small" style={{ marginBottom: 4 }}>Администраторы</div>
+                    {company.admins.length === 0 ? (
+                      <div className="muted small">Администраторов пока нет</div>
                     ) : (
-                      <button
-                        className="ghost"
-                        onClick={() => {
-                          setAdminTargetCompanyId(company.id)
-                          setAdminForm(emptyAdminForm)
-                          setErr(null)
-                          setSuccess(null)
-                        }}
-                      >
-                        ??????? ??????? ??????
-                      </button>
-                    )}
-
-                    <Link to={`/analytics?companyId=${company.id}`}><button className="ghost">Открыть аналитику</button></Link>
-                    <button type="button" className="ghost" onClick={() => void copyText(baseLink)} disabled={!baseLink}>
-                      Скопировать public link
-                    </button>
-                    <button
-                      type="button"
-                      className="ghost"
-                      onClick={() =>
-                        setQrTarget({
-                          title: company.name,
-                          subtitle: 'Общий QR компании',
-                          url: baseLink,
-                          fileName: `public-request-${company.name}.png`,
-                        })
-                      }
-                      disabled={!baseLink}
-                    >
-                      QR компании
-                    </button>
-                    <button
-                      type="button"
-                      className="ghost"
-                      onClick={() => {
-                        setLocationQrCompanyId(company.id)
-                        setSelectedLocationId('')
-                      }}
-                      disabled={!company.publicRequestToken}
-                    >
-                      QR точки
-                    </button>
-                    <button type="button" className="ghost" onClick={() => void handleDownloadCompanyQr(company)} disabled={!baseLink}>
-                      Скачать PNG
-                    </button>
-                    <button type="button" className="ghost" onClick={() => regenerateTokenM.mutate(company.id)} disabled={regenerateTokenM.isPending}>
-                      {regenerateTokenM.isPending ? 'Обновляем...' : 'Обновить public token'}
-                    </button>
-                  </div>
-                </div>
-
-                <div style={{ marginTop: 12 }}>
-                  <div className="muted small" style={{ marginBottom: 8 }}>Администраторы</div>
-                  {company.admins.length === 0 ? (
-                    <div className="muted small">Администраторов пока нет</div>
-                  ) : (
-                    <div style={{ display: 'grid', gap: 8 }}>
-                      {company.admins.map((admin) => (
+                      company.admins.map((admin) => (
                         <div key={admin.id} className="card" style={{ padding: 12 }}>
                           <div style={{ fontWeight: 600 }}>{displayName(admin)}</div>
                           <div className="muted small">{admin.email}</div>
                           <div className="muted small">{admin.isActive === false ? 'Неактивен' : 'Активен'}</div>
                         </div>
-                      ))}
-                    </div>
-                  )}
+                      ))
+                    )}
+                  </div>
                 </div>
               </div>
             )

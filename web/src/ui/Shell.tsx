@@ -2,13 +2,34 @@
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
+import { platformNavigation, tenantNavigation, type NavItem, type NavSection } from '../lib/navigation'
 import { useWsInvalidation } from './useWsInvalidation'
 
-function NavItem(props: { to: string; label: string; active: boolean }) {
+function NavItemButton(props: { to: string; label: string; active: boolean }) {
   return (
     <Link to={props.to} style={{ textDecoration: 'none' }}>
       <button className={props.active ? 'navBtn navBtnActive' : 'navBtn'}>{props.label}</button>
     </Link>
+  )
+}
+
+function NavSectionBlock(props: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={{ display: 'grid', gap: 8 }}>
+      <div
+        className="small"
+        style={{
+          opacity: 0.72,
+          textTransform: 'uppercase',
+          letterSpacing: '0.08em',
+          fontWeight: 700,
+          padding: '0 4px',
+        }}
+      >
+        {props.title}
+      </div>
+      <div style={{ display: 'grid', gap: 8 }}>{props.children}</div>
+    </div>
   )
 }
 
@@ -24,6 +45,23 @@ function roleLabel(role?: string) {
   if (role === 'NETWORK_DIRECTOR') return 'Сетевой директор'
   if (role === 'STAFF') return 'Сотрудник'
   return role
+}
+
+function isActivePath(currentPath: string, targetPath: string) {
+  if (targetPath === '/board') return currentPath.startsWith('/board')
+  if (targetPath === '/companies') return currentPath.startsWith('/companies')
+  if (targetPath === '/service-contracts') return currentPath.startsWith('/service-contracts')
+  if (targetPath === '/tickets/new') return currentPath.startsWith('/tickets/new')
+  if (targetPath === '/locations') return currentPath.startsWith('/locations')
+  if (targetPath === '/employees') return currentPath.startsWith('/employees')
+  if (targetPath === '/inspection/runs') return currentPath.startsWith('/inspection/runs')
+  if (targetPath === '/inspection/templates') return currentPath.startsWith('/inspection/templates')
+  if (targetPath === '/specializations') return currentPath.startsWith('/specializations')
+  if (targetPath === '/analytics') return currentPath.startsWith('/analytics')
+  if (targetPath === '/settings') return currentPath.startsWith('/settings')
+  if (targetPath === '/company') return currentPath.startsWith('/company')
+  if (targetPath === '/problem-categories') return currentPath.startsWith('/problem-categories')
+  return currentPath === targetPath
 }
 
 export function Shell() {
@@ -44,9 +82,10 @@ export function Shell() {
   useEffect(() => {
     if (meQ.isError) {
       api.clearToken()
-      nav('/login')
+      queryClient.clear()
+      nav('/login', { replace: true })
     }
-  }, [meQ.isError, nav])
+  }, [meQ.isError, nav, queryClient])
 
   useEffect(() => {
     if (!meQ.data) return
@@ -54,34 +93,50 @@ export function Shell() {
     api.setCompanyLabel(meQ.data.companyName || meQ.data.email)
   }, [meQ.data])
 
+  function hardRedirect(path: string) {
+    if (typeof window !== 'undefined') {
+      window.location.replace(path)
+      return
+    }
+    nav(path, { replace: true })
+  }
+
   function logout() {
     api.clearToken()
     queryClient.clear()
-    nav('/login')
+    hardRedirect('/login')
   }
 
   function exitImpersonation() {
     const restored = api.exitImpersonationSession()
     queryClient.clear()
-    nav(restored ? '/companies' : '/login')
+    hardRedirect(restored ? '/companies' : '/login')
   }
 
   const role = meQ.data?.role
   const isPlatformAdmin = role === 'PLATFORM_ADMIN'
-  const path = loc.pathname
-  const isBoard = path.startsWith('/board')
-  const isCompanies = path.startsWith('/companies')
-  const isCreate = path.startsWith('/tickets/new')
-  const isLocations = path.startsWith('/locations')
-  const isEmployees = path.startsWith('/employees')
-  const isInspection = path.startsWith('/inspection')
-  const isSpecializations = path.startsWith('/specializations')
-  const isAnalytics = path.startsWith('/analytics')
-  const isSettings = path.startsWith('/settings')
-  const isCompany = path.startsWith('/company')
-  const isTechnician = path.startsWith('/technician')
-  const isMap = path.startsWith('/map')
-  const isProblemCategories = path.startsWith('/problem-categories')
+  const navigation = isPlatformAdmin ? platformNavigation : tenantNavigation
+
+  const sidebarSections = useMemo(
+    () =>
+      navigation.sidebar.map((section: NavSection) => ({
+        ...section,
+        items: section.items.map((item: NavItem) => ({
+          ...item,
+          active: isActivePath(loc.pathname, item.to),
+        })),
+      })),
+    [loc.pathname, navigation.sidebar],
+  )
+
+  const topbarLinks = useMemo(
+    () =>
+      navigation.topbar.map((item: NavItem) => ({
+        ...item,
+        active: isActivePath(loc.pathname, item.to),
+      })),
+    [loc.pathname, navigation.topbar],
+  )
 
   return (
     <div className="appLayout">
@@ -91,25 +146,14 @@ export function Shell() {
           <div className="sidebarSub">{api.getCompanyLabel(meQ.data)}</div>
         </div>
 
-        <nav className="nav">
-          {isPlatformAdmin ? (
-            <NavItem to="/companies" label="Компании" active={isCompanies} />
-          ) : (
-            <>
-              <NavItem to="/board" label="Доска" active={isBoard} />
-              <NavItem to="/inspection/templates" label="Обходы" active={isInspection} />
-              <NavItem to="/locations" label="Локации" active={isLocations} />
-              <NavItem to="/technician" label="Техник" active={isTechnician} />
-              <NavItem to="/map" label="Карта" active={isMap} />
-              <NavItem to="/tickets/new" label="Создать заявку" active={isCreate} />
-              <NavItem to="/employees" label="Сотрудники" active={isEmployees} />
-              <NavItem to="/specializations" label="Специализации" active={isSpecializations} />
-              <NavItem to="/problem-categories" label="Категории" active={isProblemCategories} />
-              <NavItem to="/analytics" label="Аналитика" active={isAnalytics} />
-              <NavItem to="/settings" label="Настройки" active={isSettings} />
-              <NavItem to="/company" label="Компания" active={isCompany} />
-            </>
-          )}
+        <nav className="nav" style={{ display: 'grid', gap: 18 }}>
+          {sidebarSections.map((section) => (
+            <NavSectionBlock key={section.id} title={section.label}>
+              {section.items.map((item) => (
+                <NavItemButton key={item.id} to={item.to} label={item.label} active={item.active} />
+              ))}
+            </NavSectionBlock>
+          ))}
         </nav>
 
         <div className="sidebarFooter">
@@ -133,26 +177,11 @@ export function Shell() {
           </div>
 
           <div className="actions">
-            {isPlatformAdmin ? (
-              <Link to="/companies">
-                <button className="ghost">Компании</button>
+            {topbarLinks.map((item) => (
+              <Link key={item.id} to={item.to}>
+                <button className={item.active ? 'navBtn navBtnActive' : 'ghost'}>{item.label}</button>
               </Link>
-            ) : (
-              <>
-                <Link to="/board"><button className="ghost">Доска</button></Link>
-                <Link to="/inspection/templates"><button className="ghost">Обходы</button></Link>
-                <Link to="/locations"><button className="ghost">Локации</button></Link>
-                <Link to="/technician"><button className="ghost">Техник</button></Link>
-                <Link to="/map"><button className="ghost">Карта</button></Link>
-                <Link to="/tickets/new"><button className="ghost">Создать</button></Link>
-                <Link to="/employees"><button className="ghost">Сотрудники</button></Link>
-                <Link to="/specializations"><button className="ghost">Специализации</button></Link>
-                <Link to="/problem-categories"><button className="ghost">Категории</button></Link>
-                <Link to="/analytics"><button className="ghost">Аналитика</button></Link>
-                <Link to="/settings"><button className="ghost">Настройки</button></Link>
-                <Link to="/company"><button className="ghost">Компания</button></Link>
-              </>
-            )}
+            ))}
           </div>
         </header>
 
