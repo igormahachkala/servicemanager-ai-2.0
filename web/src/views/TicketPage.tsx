@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
+﻿import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
@@ -11,7 +11,7 @@ const STATUS_CHANGE_ROLES: api.Role[] = ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWO
 const PHOTO_ROLES: api.Role[] = ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR', 'TECHNICIAN']
 
 function fmt(dt?: string | null) {
-  if (!dt) return '—'
+  if (!dt) return 'вЂ”'
   try {
     return new Date(dt).toLocaleString('ru-RU')
   } catch {
@@ -20,36 +20,36 @@ function fmt(dt?: string | null) {
 }
 
 function fmtBytes(v?: number | null) {
-  if (!v || v <= 0) return '—'
-  if (v < 1024) return `${v} Б`
-  if (v < 1024 * 1024) return `${(v / 1024).toFixed(1)} КБ`
-  return `${(v / (1024 * 1024)).toFixed(1)} МБ`
+  if (!v || v <= 0) return 'вЂ”'
+  if (v < 1024) return `${v} Р‘`
+  if (v < 1024 * 1024) return `${(v / 1024).toFixed(1)} РљР‘`
+  return `${(v / (1024 * 1024)).toFixed(1)} РњР‘`
 }
 
 function statusLabel(status: api.TicketStatus) {
-  if (status === 'NEW') return 'Новая'
-  if (status === 'ASSIGNED') return 'Назначена'
-  if (status === 'IN_PROGRESS') return 'В работе'
-  if (status === 'DONE') return 'Завершена'
-  if (status === 'CANCELED') return 'Отменена'
+  if (status === 'NEW') return 'РќРѕРІР°СЏ'
+  if (status === 'ASSIGNED') return 'РќР°Р·РЅР°С‡РµРЅР°'
+  if (status === 'IN_PROGRESS') return 'Р’ СЂР°Р±РѕС‚Рµ'
+  if (status === 'DONE') return 'Р—Р°РІРµСЂС€РµРЅР°'
+  if (status === 'CANCELED') return 'РћС‚РјРµРЅРµРЅР°'
   return status
 }
 
 function urgencyLabel(urgency: api.TicketUrgency) {
-  if (urgency === 'URGENT') return 'Срочно'
-  if (urgency === 'NOT_URGENT') return 'Не срочно'
+  if (urgency === 'URGENT') return 'РЎСЂРѕС‡РЅРѕ'
+  if (urgency === 'NOT_URGENT') return 'РќРµ СЃСЂРѕС‡РЅРѕ'
   return urgency
 }
 
 function sourceLabel(source: api.TimelineItem['source']) {
-  if (source === 'history' || source === 'status_history') return 'История статусов'
-  if (source === 'event' || source === 'domain_event') return 'Событие системы'
+  if (source === 'history' || source === 'status_history') return 'РСЃС‚РѕСЂРёСЏ СЃС‚Р°С‚СѓСЃРѕРІ'
+  if (source === 'event' || source === 'domain_event') return 'РЎРѕР±С‹С‚РёРµ СЃРёСЃС‚РµРјС‹'
   return source
 }
 
 function timelineTypeLabel(type: string) {
-  if (type === 'ticket.sla_warning') return 'Предупреждение SLA'
-  if (type === 'ticket.sla_breached') return 'Нарушение SLA'
+  if (type === 'ticket.sla_warning') return 'РџСЂРµРґСѓРїСЂРµР¶РґРµРЅРёРµ SLA'
+  if (type === 'ticket.sla_breached') return 'РќР°СЂСѓС€РµРЅРёРµ SLA'
   return type
 }
 
@@ -123,10 +123,10 @@ function Tag({ children }: { children: ReactNode }) {
 
 function RecommendationBadge({ matched, matchedBy }: { matched: boolean; matchedBy: string[] }) {
   if (matched) {
-    return <span className="uxBadge uxBadgeSuccess">Подходит{matchedBy.length ? `: ${matchedBy.join(', ')}` : ''}</span>
+    return <span className="uxBadge uxBadgeSuccess">РџРѕРґС…РѕРґРёС‚{matchedBy.length ? `: ${matchedBy.join(', ')}` : ''}</span>
   }
 
-  return <span className="uxBadge uxBadgeWarn">Не подходит по специализациям</span>
+  return <span className="uxBadge uxBadgeWarn">РќРµ РїРѕРґС…РѕРґРёС‚ РїРѕ СЃРїРµС†РёР°Р»РёР·Р°С†РёСЏРј</span>
 }
 
 function InlineError({ message }: { message?: string | null }) {
@@ -275,7 +275,7 @@ export function TicketPage() {
 
   const assignM = useMutation({
     mutationFn: () => {
-      if (!selectedTechnicianId) throw new Error('Сначала выберите техника')
+      if (!selectedTechnicianId) throw new Error('РЎРЅР°С‡Р°Р»Р° РІС‹Р±РµСЂРёС‚Рµ С‚РµС…РЅРёРєР°')
       return api.assignTicket(ticketId, selectedTechnicianId, ticketScope)
     },
     onSuccess: async () => {
@@ -298,7 +298,7 @@ export function TicketPage() {
 
   const uploadM = useMutation({
     mutationFn: () => {
-      if (!selectedFile) throw new Error('Сначала выберите файл')
+      if (!selectedFile) throw new Error('РЎРЅР°С‡Р°Р»Р° РІС‹Р±РµСЂРёС‚Рµ С„Р°Р№Р»')
       return api.uploadTicketAttachment(ticketId, selectedFile, ticketScope)
     },
     onSuccess: async () => {
@@ -364,7 +364,6 @@ export function TicketPage() {
 
   const selectedIsMatched = !!selectedCandidate?.matched
   const selectedIsCurrent = !!assignmentData?.currentAssigneeId && assignmentData.currentAssigneeId === selectedTechnicianId
-  const assignmentUsesFallback = assignmentData?.meta?.matchingMode === 'fallback_no_category_specializations'
 
   const slaState = useMemo(() => {
     if (!ticket?.slaDueAt) {
@@ -382,9 +381,9 @@ export function TicketPage() {
   }, [ticket?.slaDueAt, ticket?.slaBreachedAt])
 
   const contextBadge = useMemo(() => {
-    if (contextMode === 'observer') return 'Режим наблюдения'
-    if (contextMode === 'provider') return 'Режим подрядчика'
-    return 'Контекст компании'
+    if (contextMode === 'observer') return 'Р РµР¶РёРј РЅР°Р±Р»СЋРґРµРЅРёСЏ'
+    if (contextMode === 'provider') return 'Р РµР¶РёРј РїРѕРґСЂСЏРґС‡РёРєР°'
+    return 'РљРѕРЅС‚РµРєСЃС‚ РєРѕРјРїР°РЅРёРё'
   }, [contextMode])
 
   function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
@@ -400,21 +399,21 @@ export function TicketPage() {
     if (!file.type.startsWith('image/')) {
       setSelectedFile(null)
       e.target.value = ''
-      setFileError('Можно загружать только изображения')
+      setFileError('РњРѕР¶РЅРѕ Р·Р°РіСЂСѓР¶Р°С‚СЊ С‚РѕР»СЊРєРѕ РёР·РѕР±СЂР°Р¶РµРЅРёСЏ')
       return
     }
 
     if (file.size <= 0) {
       setSelectedFile(null)
       e.target.value = ''
-      setFileError('Файл пустой')
+      setFileError('Р¤Р°Р№Р» РїСѓСЃС‚РѕР№')
       return
     }
 
     if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
       setSelectedFile(null)
       e.target.value = ''
-      setFileError('Изображение слишком большое. Максимум 10 МБ.')
+      setFileError('РР·РѕР±СЂР°Р¶РµРЅРёРµ СЃР»РёС€РєРѕРј Р±РѕР»СЊС€РѕРµ. РњР°РєСЃРёРјСѓРј 10 РњР‘.')
       return
     }
 
@@ -424,14 +423,14 @@ export function TicketPage() {
   return (
     <div>
       <div className="row">
-        <h2>Заявка</h2>
-        <div className="muted small">{ticketQ.isFetching && !ticket ? 'Загрузка…' : ticket?.id || '—'}</div>
+        <h2>Р—Р°СЏРІРєР°</h2>
+        <div className="muted small">{ticketQ.isFetching && !ticket ? 'Р—Р°РіСЂСѓР·РєР°вЂ¦' : ticket?.id || 'вЂ”'}</div>
       </div>
 
       <div className="panel" style={{ marginBottom: 12 }}>
         <div className="row" style={{ marginBottom: 0 }}>
           <div>
-            <div className="muted small">Контекст доступа</div>
+            <div className="muted small">РљРѕРЅС‚РµРєСЃС‚ РґРѕСЃС‚СѓРїР°</div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 4 }}>
               <Tag>{contextBadge}</Tag>
               {observerCompanyId ? <Tag>companyId: {observerCompanyId}</Tag> : null}
@@ -441,18 +440,18 @@ export function TicketPage() {
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <Link to={backToBoardHref}>
-              <button className="ghost">← Назад к доске</button>
+              <button className="ghost">в†ђ РќР°Р·Р°Рґ Рє РґРѕСЃРєРµ</button>
             </Link>
 
             {canEditTicket ? (
               <button className="ghost" onClick={() => setEditOpen((value) => !value)}>
-                {editOpen ? 'Скрыть редактирование' : 'Редактировать заявку'}
+                {editOpen ? 'РЎРєСЂС‹С‚СЊ СЂРµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ' : 'Р РµРґР°РєС‚РёСЂРѕРІР°С‚СЊ Р·Р°СЏРІРєСѓ'}
               </button>
             ) : null}
 
             {canClaim ? (
               <button onClick={() => claimM.mutate()} disabled={claimM.isPending}>
-                {claimM.isPending ? 'Забираем…' : 'Взять заявку'}
+                {claimM.isPending ? 'Р—Р°Р±РёСЂР°РµРјвЂ¦' : 'Р’Р·СЏС‚СЊ Р·Р°СЏРІРєСѓ'}
               </button>
             ) : null}
           </div>
@@ -466,20 +465,20 @@ export function TicketPage() {
         <div className="panel" style={{ marginBottom: 12 }}>
           <div className="row" style={{ marginBottom: 0 }}>
             <div style={{ minWidth: 0 }}>
-              <div className="muted small">Карточка заявки</div>
+              <div className="muted small">РљР°СЂС‚РѕС‡РєР° Р·Р°СЏРІРєРё</div>
               <div style={{ fontSize: 18, fontWeight: 800, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {ticket.id}
               </div>
               <div className="muted small" style={{ marginTop: 4 }}>
-                создана: {fmt(ticket.createdAt)} · обновлена: {fmt(ticket.updatedAt)}
+                СЃРѕР·РґР°РЅР°: {fmt(ticket.createdAt)} В· РѕР±РЅРѕРІР»РµРЅР°: {fmt(ticket.updatedAt)}
               </div>
             </div>
 
             <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
               <StatusPill status={ticket.status} />
-              {slaState.isBreached ? <span className="tag danger">SLA нарушен</span> : null}
-              {!slaState.isBreached && slaState.isAtRisk ? <span className="tag">SLA в риске</span> : null}
-              <span className="tag">срок: {ticket.slaDueAt ? fmt(ticket.slaDueAt) : '—'}</span>
+              {slaState.isBreached ? <span className="tag danger">SLA РЅР°СЂСѓС€РµРЅ</span> : null}
+              {!slaState.isBreached && slaState.isAtRisk ? <span className="tag">SLA РІ СЂРёСЃРєРµ</span> : null}
+              <span className="tag">СЃСЂРѕРє: {ticket.slaDueAt ? fmt(ticket.slaDueAt) : 'вЂ”'}</span>
             </div>
           </div>
         </div>
@@ -500,16 +499,16 @@ export function TicketPage() {
 
       {ticket && canChangeStatus ? (
         <div className="panel" style={{ marginBottom: 12 }}>
-          <h3 style={{ marginBottom: 10 }}>Действия по заявке</h3>
+          <h3 style={{ marginBottom: 10 }}>Р”РµР№СЃС‚РІРёСЏ РїРѕ Р·Р°СЏРІРєРµ</h3>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button className="ghost" disabled={statusM.isPending || ticket.status === 'IN_PROGRESS'} onClick={() => statusM.mutate('IN_PROGRESS')}>
-              {statusM.isPending ? 'Сохраняем…' : 'Начать работу'}
+              {statusM.isPending ? 'РЎРѕС…СЂР°РЅСЏРµРјвЂ¦' : 'РќР°С‡Р°С‚СЊ СЂР°Р±РѕС‚Сѓ'}
             </button>
             <button className="ghost" disabled={statusM.isPending || ticket.status === 'DONE'} onClick={() => statusM.mutate('DONE')}>
-              {statusM.isPending ? 'Сохраняем…' : 'Завершить'}
+              {statusM.isPending ? 'РЎРѕС…СЂР°РЅСЏРµРјвЂ¦' : 'Р—Р°РІРµСЂС€РёС‚СЊ'}
             </button>
             <button className="ghost" disabled={statusM.isPending || ticket.status === 'CANCELED'} onClick={() => statusM.mutate('CANCELED')}>
-              {statusM.isPending ? 'Сохраняем…' : 'Отменить'}
+              {statusM.isPending ? 'РЎРѕС…СЂР°РЅСЏРµРјвЂ¦' : 'РћС‚РјРµРЅРёС‚СЊ'}
             </button>
           </div>
           <InlineError message={statusError} />
@@ -518,47 +517,47 @@ export function TicketPage() {
 
       {ticket && canEditTicket && editOpen ? (
         <div className="panel" style={{ marginBottom: 12 }}>
-          <h3 style={{ marginBottom: 10 }}>Редактирование заявки</h3>
+          <h3 style={{ marginBottom: 10 }}>Р РµРґР°РєС‚РёСЂРѕРІР°РЅРёРµ Р·Р°СЏРІРєРё</h3>
           <div className="form">
             <label>
-              Категория
+              РљР°С‚РµРіРѕСЂРёСЏ
               <select value={editProblemCategoryId} onChange={(e) => setEditProblemCategoryId(e.target.value)} disabled={updateTicketM.isPending}>
-                <option value="">Выберите категорию</option>
+                <option value="">Р’С‹Р±РµСЂРёС‚Рµ РєР°С‚РµРіРѕСЂРёСЋ</option>
                 {(categoriesQ.data || []).filter((row) => row.isActive !== false).map((row) => (
                   <option key={row.id} value={row.id}>{row.name}</option>
                 ))}
               </select>
             </label>
             <label>
-              Описание проблемы
+              РћРїРёСЃР°РЅРёРµ РїСЂРѕР±Р»РµРјС‹
               <textarea value={editProblemText} onChange={(e) => setEditProblemText(e.target.value)} rows={5} disabled={updateTicketM.isPending} />
             </label>
             <label>
-              Срочность
+              РЎСЂРѕС‡РЅРѕСЃС‚СЊ
               <select value={editUrgency} onChange={(e) => setEditUrgency(e.target.value as api.TicketUrgency)} disabled={updateTicketM.isPending}>
-                <option value="NOT_URGENT">Не срочно</option>
-                <option value="URGENT">Срочно</option>
+                <option value="NOT_URGENT">РќРµ СЃСЂРѕС‡РЅРѕ</option>
+                <option value="URGENT">РЎСЂРѕС‡РЅРѕ</option>
               </select>
             </label>
             <label>
-              Заявитель
+              Р—Р°СЏРІРёС‚РµР»СЊ
               <input value={editRequesterName} onChange={(e) => setEditRequesterName(e.target.value)} disabled={updateTicketM.isPending} />
             </label>
             <label>
-              Телефон
+              РўРµР»РµС„РѕРЅ
               <input value={editRequesterPhone} onChange={(e) => setEditRequesterPhone(e.target.value)} disabled={updateTicketM.isPending} />
             </label>
             <label>
-              Точка
+              РўРѕС‡РєР°
               <input value={editPointName} onChange={(e) => setEditPointName(e.target.value)} disabled={updateTicketM.isPending} />
             </label>
             <label>
-              Адрес
+              РђРґСЂРµСЃ
               <input value={editAddress} onChange={(e) => setEditAddress(e.target.value)} disabled={updateTicketM.isPending} />
             </label>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button onClick={() => updateTicketM.mutate()} disabled={updateTicketM.isPending}>
-                {updateTicketM.isPending ? 'Сохраняем…' : 'Сохранить изменения'}
+                {updateTicketM.isPending ? 'РЎРѕС…СЂР°РЅСЏРµРјвЂ¦' : 'РЎРѕС…СЂР°РЅРёС‚СЊ РёР·РјРµРЅРµРЅРёСЏ'}
               </button>
               <button
                 className="ghost"
@@ -576,7 +575,7 @@ export function TicketPage() {
                 }}
                 disabled={updateTicketM.isPending}
               >
-                Отмена
+                РћС‚РјРµРЅР°
               </button>
             </div>
           </div>
@@ -586,7 +585,7 @@ export function TicketPage() {
 
       {ticket && canAssign ? (
         <div className="panel" style={{ marginBottom: 12 }}>
-          <h3 style={{ marginBottom: 10 }}>Назначить техника</h3>
+          <h3 style={{ marginBottom: 10 }}>РќР°Р·РЅР°С‡РёС‚СЊ С‚РµС…РЅРёРєР°</h3>
           {assignmentCandidatesQ.isLoading ? (
             <div style={{ display: 'grid', gap: 8 }}>
               <Skeleton w={240} h={16} />
@@ -597,53 +596,53 @@ export function TicketPage() {
           ) : assignmentData ? (
             <>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-                <Tag>Категория: {assignmentData.category.name}</Tag>
+                <Tag>РљР°С‚РµРіРѕСЂРёСЏ: {assignmentData.category.name}</Tag>
                 <Tag>
-                  Требуемые специализации: {assignmentData.requiredSpecializations.length ? assignmentData.requiredSpecializations.map((item) => item.name).join(', ') : 'не заданы'}
+                  РўСЂРµР±СѓРµРјС‹Рµ СЃРїРµС†РёР°Р»РёР·Р°С†РёРё: {assignmentData.requiredSpecializations.length ? assignmentData.requiredSpecializations.map((item) => item.name).join(', ') : 'РЅРµ Р·Р°РґР°РЅС‹'}
                 </Tag>
-                <Tag>Подходящих: {assignmentData.matched.length}</Tag>
-                <Tag>Остальных: {assignmentData.others.length}</Tag>
+                <Tag>РџРѕРґС…РѕРґСЏС‰РёС…: {assignmentData.matched.length}</Tag>
+                <Tag>РћСЃС‚Р°Р»СЊРЅС‹С…: {assignmentData.others.length}</Tag>
               </div>
               <div className="assignmentHintBox">
-                <div className="assignmentHintTitle">Рекомендация</div>
-                <div className="muted small">Сначала показаны техники, которые подходят по специализациям категории. Ниже — остальные техники компании.</div>
+                <div className="assignmentHintTitle">Р РµРєРѕРјРµРЅРґР°С†РёСЏ</div>
+                <div className="muted small">РЎРЅР°С‡Р°Р»Р° РїРѕРєР°Р·Р°РЅС‹ С‚РµС…РЅРёРєРё, РєРѕС‚РѕСЂС‹Рµ РїРѕРґС…РѕРґСЏС‚ РїРѕ СЃРїРµС†РёР°Р»РёР·Р°С†РёСЏРј РєР°С‚РµРіРѕСЂРёРё. РќРёР¶Рµ вЂ” РѕСЃС‚Р°Р»СЊРЅС‹Рµ С‚РµС…РЅРёРєРё РєРѕРјРїР°РЅРёРё.</div>
               </div>
               <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 10 }}>
                 <select value={selectedTechnicianId} onChange={(e) => setSelectedTechnicianId(e.target.value)} style={{ minWidth: 420 }}>
-                  <option value="">Выберите техника</option>
+                  <option value="">Р’С‹Р±РµСЂРёС‚Рµ С‚РµС…РЅРёРєР°</option>
                   {assignmentData.matched.length > 0 ? (
-                    <optgroup label="Подходящие техники">
+                    <optgroup label="РџРѕРґС…РѕРґСЏС‰РёРµ С‚РµС…РЅРёРєРё">
                       {assignmentData.matched.map((item) => (
                         <option key={item.id} value={item.id}>
-                          {item.email}{item.id === assignmentData.currentAssigneeId ? ' · текущий' : ''}{item.matchedBy.length ? ` · подходит: ${item.matchedBy.join(', ')}` : ''}
+                          {item.email}{item.id === assignmentData.currentAssigneeId ? ' В· С‚РµРєСѓС‰РёР№' : ''}{item.matchedBy.length ? ` В· РїРѕРґС…РѕРґРёС‚: ${item.matchedBy.join(', ')}` : ''}
                         </option>
                       ))}
                     </optgroup>
                   ) : null}
                   {assignmentData.others.length > 0 ? (
-                    <optgroup label="Остальные техники">
+                    <optgroup label="РћСЃС‚Р°Р»СЊРЅС‹Рµ С‚РµС…РЅРёРєРё">
                       {assignmentData.others.map((item) => (
                         <option key={item.id} value={item.id}>
-                          {item.email}{item.id === assignmentData.currentAssigneeId ? ' · текущий' : ''}
+                          {item.email}{item.id === assignmentData.currentAssigneeId ? ' В· С‚РµРєСѓС‰РёР№' : ''}
                         </option>
                       ))}
                     </optgroup>
                   ) : null}
                 </select>
                 <button onClick={() => assignM.mutate()} disabled={assignM.isPending || !selectedTechnicianId}>
-                  {assignM.isPending ? 'Назначаем…' : 'Назначить'}
+                  {assignM.isPending ? 'РќР°Р·РЅР°С‡Р°РµРјвЂ¦' : 'РќР°Р·РЅР°С‡РёС‚СЊ'}
                 </button>
-                <div className="muted small">Текущий: {ticket.assignedTechnician?.email || '—'}</div>
+                <div className="muted small">РўРµРєСѓС‰РёР№: {ticket.assignedTechnician?.email || 'вЂ”'}</div>
               </div>
               {selectedCandidate ? (
                 <div className="assignmentSelectedBox">
-                  <div style={{ fontWeight: 700, marginBottom: 6 }}>Выбранный техник</div>
+                  <div style={{ fontWeight: 700, marginBottom: 6 }}>Р’С‹Р±СЂР°РЅРЅС‹Р№ С‚РµС…РЅРёРє</div>
                   <div style={{ marginBottom: 6 }}>{selectedCandidate.email}</div>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
                     <RecommendationBadge matched={selectedCandidate.matched} matchedBy={selectedCandidate.matchedBy} />
-                    {selectedIsCurrent ? <span className="uxBadge uxBadgeNeutral">Текущий исполнитель</span> : null}
+                    {selectedIsCurrent ? <span className="uxBadge uxBadgeNeutral">РўРµРєСѓС‰РёР№ РёСЃРїРѕР»РЅРёС‚РµР»СЊ</span> : null}
                   </div>
-                  {!selectedIsMatched ? <div className="assignmentWarning">Внимание: выбран техник, который не входит в рекомендованный список по специализациям категории.</div> : null}
+                  {!selectedIsMatched ? <div className="assignmentWarning">Р’РЅРёРјР°РЅРёРµ: РІС‹Р±СЂР°РЅ С‚РµС…РЅРёРє, РєРѕС‚РѕСЂС‹Р№ РЅРµ РІС…РѕРґРёС‚ РІ СЂРµРєРѕРјРµРЅРґРѕРІР°РЅРЅС‹Р№ СЃРїРёСЃРѕРє РїРѕ СЃРїРµС†РёР°Р»РёР·Р°С†РёСЏРј РєР°С‚РµРіРѕСЂРёРё.</div> : null}
                 </div>
               ) : null}
               <InlineError message={assignError} />
@@ -654,13 +653,13 @@ export function TicketPage() {
 
       {ticket && canUploadPhoto ? (
         <div className="panel" style={{ marginBottom: 12 }}>
-          <h3 style={{ marginBottom: 10 }}>Фото</h3>
+          <h3 style={{ marginBottom: 10 }}>Р¤РѕС‚Рѕ</h3>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} disabled={uploadM.isPending} />
             <button onClick={() => uploadM.mutate()} disabled={uploadM.isPending || !selectedFile}>
-              {uploadM.isPending ? 'Загружаем…' : 'Загрузить фото'}
+              {uploadM.isPending ? 'Р—Р°РіСЂСѓР¶Р°РµРјвЂ¦' : 'Р—Р°РіСЂСѓР·РёС‚СЊ С„РѕС‚Рѕ'}
             </button>
-            <div className="muted small">{selectedFile ? `${selectedFile.name} · ${fmtBytes(selectedFile.size)}` : 'Выберите изображение до 10 МБ'}</div>
+            <div className="muted small">{selectedFile ? `${selectedFile.name} В· ${fmtBytes(selectedFile.size)}` : 'Р’С‹Р±РµСЂРёС‚Рµ РёР·РѕР±СЂР°Р¶РµРЅРёРµ РґРѕ 10 РњР‘'}</div>
           </div>
           <InlineError message={fileError || uploadError} />
         </div>
@@ -669,23 +668,23 @@ export function TicketPage() {
       {ticket ? (
         <>
           <div className="panel" style={{ marginBottom: 12 }}>
-            <h3 style={{ marginBottom: 10 }}>Детали заявки</h3>
+            <h3 style={{ marginBottom: 10 }}>Р”РµС‚Р°Р»Рё Р·Р°СЏРІРєРё</h3>
             <div style={{ display: 'grid', gap: 10 }}>
-              <div><b>Категория:</b> {ticket.problemCategory?.name || '—'}</div>
-              <div><b>Срочность:</b> {urgencyLabel(ticket.urgency)}</div>
-              <div><b>Назначен:</b> {ticket.assignedTechnician?.email || '—'}</div>
-              <div><b>SLA статус:</b> {slaState.isBreached ? 'Нарушен' : slaState.isAtRisk ? 'В риске' : ticket.slaDueAt ? 'В норме' : 'Не задан'}</div>
-              <div><b>Заявитель:</b> {ticket.requesterName || '—'}</div>
-              <div><b>Телефон:</b> {ticket.requesterPhone || '—'}</div>
-              <div><b>Точка:</b> {ticket.pointName || '—'}</div>
-              <div><b>Адрес:</b> {ticket.address || '—'}</div>
+              <div><b>РљР°С‚РµРіРѕСЂРёСЏ:</b> {ticket.problemCategory?.name || 'вЂ”'}</div>
+              <div><b>РЎСЂРѕС‡РЅРѕСЃС‚СЊ:</b> {urgencyLabel(ticket.urgency)}</div>
+              <div><b>РќР°Р·РЅР°С‡РµРЅ:</b> {ticket.assignedTechnician?.email || 'вЂ”'}</div>
+              <div><b>SLA СЃС‚Р°С‚СѓСЃ:</b> {slaState.isBreached ? 'РќР°СЂСѓС€РµРЅ' : slaState.isAtRisk ? 'Р’ СЂРёСЃРєРµ' : ticket.slaDueAt ? 'Р’ РЅРѕСЂРјРµ' : 'РќРµ Р·Р°РґР°РЅ'}</div>
+              <div><b>Р—Р°СЏРІРёС‚РµР»СЊ:</b> {ticket.requesterName || 'вЂ”'}</div>
+              <div><b>РўРµР»РµС„РѕРЅ:</b> {ticket.requesterPhone || 'вЂ”'}</div>
+              <div><b>РўРѕС‡РєР°:</b> {ticket.pointName || 'вЂ”'}</div>
+              <div><b>РђРґСЂРµСЃ:</b> {ticket.address || 'вЂ”'}</div>
               <div>
-                <b>Описание проблемы:</b>
-                <div style={{ marginTop: 6, whiteSpace: 'pre-wrap' }}>{ticket.problemText || '—'}</div>
+                <b>РћРїРёСЃР°РЅРёРµ РїСЂРѕР±Р»РµРјС‹:</b>
+                <div style={{ marginTop: 6, whiteSpace: 'pre-wrap' }}>{ticket.problemText || 'вЂ”'}</div>
               </div>
               {ticket.problemCategory?.instructions ? (
                 <div>
-                  <b>Инструкции категории:</b>
+                  <b>РРЅСЃС‚СЂСѓРєС†РёРё РєР°С‚РµРіРѕСЂРёРё:</b>
                   <div style={{ marginTop: 6, whiteSpace: 'pre-wrap' }}>{ticket.problemCategory.instructions}</div>
                 </div>
               ) : null}
@@ -693,7 +692,7 @@ export function TicketPage() {
           </div>
 
           <div className="panel" style={{ marginBottom: 12 }}>
-            <h3 style={{ marginBottom: 10 }}>Вложения</h3>
+            <h3 style={{ marginBottom: 10 }}>Р’Р»РѕР¶РµРЅРёСЏ</h3>
             {attachmentsQ.isLoading ? (
               <div style={{ display: 'grid', gap: 8 }}>
                 <Skeleton w={280} h={16} />
@@ -709,16 +708,16 @@ export function TicketPage() {
                       <img src={api.resolveFileUrl(attachment.url)} alt={attachment.originalName} style={{ width: 220, maxWidth: '100%', borderRadius: 10, border: '1px solid #e5e7eb', objectFit: 'cover' }} />
                       <div style={{ display: 'grid', gap: 6, minWidth: 240 }}>
                         <div><b>{attachment.originalName}</b></div>
-                        <div className="muted small">Размер: {fmtBytes(attachment.sizeBytes)}</div>
-                        <div className="muted small">Загружено: {fmt(attachment.createdAt)}</div>
-                        <div className="muted small">Кем: {attachment.uploadedBy?.email || '—'}</div>
+                        <div className="muted small">Р Р°Р·РјРµСЂ: {fmtBytes(attachment.sizeBytes)}</div>
+                        <div className="muted small">Р—Р°РіСЂСѓР¶РµРЅРѕ: {fmt(attachment.createdAt)}</div>
+                        <div className="muted small">РљРµРј: {attachment.uploadedBy?.email || 'вЂ”'}</div>
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
                           <a href={api.resolveFileUrl(attachment.url)} target="_blank" rel="noreferrer">
-                            <button className="ghost">Открыть</button>
+                            <button className="ghost">РћС‚РєСЂС‹С‚СЊ</button>
                           </a>
                           {canDeletePhoto ? (
                             <button className="ghost" onClick={() => deleteAttachmentM.mutate(attachment.id)} disabled={deleteAttachmentM.isPending}>
-                              {deleteAttachmentM.isPending ? 'Удаляем…' : 'Удалить'}
+                              {deleteAttachmentM.isPending ? 'РЈРґР°Р»СЏРµРјвЂ¦' : 'РЈРґР°Р»РёС‚СЊ'}
                             </button>
                           ) : null}
                         </div>
@@ -728,13 +727,13 @@ export function TicketPage() {
                 ))}
               </div>
             ) : (
-              <div className="muted small">Вложений пока нет</div>
+              <div className="muted small">Р’Р»РѕР¶РµРЅРёР№ РїРѕРєР° РЅРµС‚</div>
             )}
             <InlineError message={deleteAttachmentError} />
           </div>
 
           <div className="panel" style={{ marginBottom: 12 }}>
-            <h3 style={{ marginBottom: 10 }}>История</h3>
+            <h3 style={{ marginBottom: 10 }}>РСЃС‚РѕСЂРёСЏ</h3>
             {timelineQ.isLoading ? (
               <div style={{ display: 'grid', gap: 8 }}>
                 <Skeleton w={320} h={16} />
@@ -752,7 +751,7 @@ export function TicketPage() {
                       <Tag>{sourceLabel(item.source)}</Tag>
                       <Tag>{timelineTypeLabel(item.type || item.domainType || item.timelineEvent || 'event')}</Tag>
                     </div>
-                    <div className="muted small">{fmt(item.at)} · {item.actor?.email || 'система'}</div>
+                    <div className="muted small">{fmt(item.at)} В· {item.actor?.email || 'СЃРёСЃС‚РµРјР°'}</div>
                     {item.payload ? (
                       <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 10, padding: 10, fontSize: 12 }}>
                         {JSON.stringify(item.payload, null, 2)}
@@ -762,7 +761,7 @@ export function TicketPage() {
                 ))}
               </div>
             ) : (
-              <div className="muted small">Событий пока нет</div>
+              <div className="muted small">РЎРѕР±С‹С‚РёР№ РїРѕРєР° РЅРµС‚</div>
             )}
           </div>
         </>

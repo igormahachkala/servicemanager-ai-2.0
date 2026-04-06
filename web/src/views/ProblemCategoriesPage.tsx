@@ -1,11 +1,11 @@
-import { useMemo, useState } from 'react'
+﻿import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { z } from 'zod'
 import * as api from '../lib/api'
 
 const CreateCategorySchema = z.object({
-  name: z.string().min(2, 'Название: минимум 2 символа'),
+  name: z.string().min(2, 'РќР°Р·РІР°РЅРёРµ: РјРёРЅРёРјСѓРј 2 СЃРёРјРІРѕР»Р°'),
   instructions: z.string().optional(),
   isActive: z.boolean(),
 })
@@ -115,37 +115,25 @@ export function ProblemCategoriesPage() {
     })
   }
 
-  function coverageLabel(row: api.ProblemCategoryListItem) {
-    const coverage = row.coverage
-    if (!coverage) return '???????? ???? ?? ??????????'
-    if (coverage.status === 'no_specializations') {
-      return '????????????? ?? ??????. ????? ?????????????? ?????????? fallback ?? ???????? ????????.'
-    }
-    if (coverage.status === 'no_technicians') {
-      return '??? ?????????? ???????? ??? ??????? ?????????? ?????????.'
-    }
-    return `?????????? ????????: ${coverage.techniciansCount}`
-  }
-
   return (
     <div>
       <div className="row">
         <div>
-          <h2 style={{ marginBottom: 4 }}>Категории проблем</h2>
+          <h2 style={{ marginBottom: 4 }}>РљР°С‚РµРіРѕСЂРёРё РїСЂРѕР±Р»РµРј</h2>
           <div className="muted small">
-            {categoriesQ.isFetching ? 'Загрузка…' : rows.length ? `Всего категорий: ${rows.length}` : 'Категорий пока нет'}
+            {categoriesQ.isFetching ? 'Р—Р°РіСЂСѓР·РєР°вЂ¦' : rows.length ? `Р’СЃРµРіРѕ РєР°С‚РµРіРѕСЂРёР№: ${rows.length}` : 'РљР°С‚РµРіРѕСЂРёР№ РїРѕРєР° РЅРµС‚'}
           </div>
         </div>
 
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <button className="ghost" onClick={() => categoriesQ.refetch()} disabled={categoriesQ.isFetching}>
-            Обновить
+            РћР±РЅРѕРІРёС‚СЊ
           </button>
           <Link to="/tickets/new">
-            <button className="ghost">Создать заявку</button>
+            <button className="ghost">РЎРѕР·РґР°С‚СЊ Р·Р°СЏРІРєСѓ</button>
           </Link>
           <Link to="/board">
-            <button className="ghost">← Назад к доске</button>
+            <button className="ghost">в†ђ РќР°Р·Р°Рґ Рє РґРѕСЃРєРµ</button>
           </Link>
         </div>
       </div>
@@ -156,44 +144,44 @@ export function ProblemCategoriesPage() {
 
       <div className="grid2" style={{ gridTemplateColumns: '1fr 1.5fr' }}>
         <div className="panel">
-          <h3 style={{ marginBottom: 10 }}>Добавить категорию</h3>
+          <h3 style={{ marginBottom: 10 }}>Р”РѕР±Р°РІРёС‚СЊ РєР°С‚РµРіРѕСЂРёСЋ</h3>
 
           <form onSubmit={submit} className="form">
             <label>
-              Название *
-              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Сантехника" />
+              РќР°Р·РІР°РЅРёРµ *
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="РЎР°РЅС‚РµС…РЅРёРєР°" />
             </label>
 
             <label>
-              Инструкция
+              РРЅСЃС‚СЂСѓРєС†РёСЏ
               <textarea
                 value={instructions}
                 onChange={(e) => setInstructions(e.target.value)}
-                placeholder="Что должен уточнить сотрудник при создании заявки"
+                placeholder="Р§С‚Рѕ РґРѕР»Р¶РµРЅ СѓС‚РѕС‡РЅРёС‚СЊ СЃРѕС‚СЂСѓРґРЅРёРє РїСЂРё СЃРѕР·РґР°РЅРёРё Р·Р°СЏРІРєРё"
                 rows={5}
               />
             </label>
 
             <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
-              <span>Категория активна</span>
+              <span>РљР°С‚РµРіРѕСЂРёСЏ Р°РєС‚РёРІРЅР°</span>
             </label>
 
             <button type="submit" disabled={createM.isPending}>
-              {createM.isPending ? 'Создаём…' : 'Создать категорию'}
+              {createM.isPending ? 'РЎРѕР·РґР°С‘РјвЂ¦' : 'РЎРѕР·РґР°С‚СЊ РєР°С‚РµРіРѕСЂРёСЋ'}
             </button>
 
             <div className="muted small">
-              Активные категории будут доступны в форме создания заявки.
+              РђРєС‚РёРІРЅС‹Рµ РєР°С‚РµРіРѕСЂРёРё Р±СѓРґСѓС‚ РґРѕСЃС‚СѓРїРЅС‹ РІ С„РѕСЂРјРµ СЃРѕР·РґР°РЅРёСЏ Р·Р°СЏРІРєРё.
             </div>
           </form>
         </div>
 
         <div className="panel">
-          <h3 style={{ marginBottom: 10 }}>Список категорий</h3>
+          <h3 style={{ marginBottom: 10 }}>РЎРїРёСЃРѕРє РєР°С‚РµРіРѕСЂРёР№</h3>
 
-          {categoriesQ.isFetching && !categoriesQ.data ? <div className="muted small">Загрузка…</div> : null}
-          {!categoriesQ.isFetching && rows.length === 0 ? <div className="muted small">Категорий пока нет</div> : null}
+          {categoriesQ.isFetching && !categoriesQ.data ? <div className="muted small">Р—Р°РіСЂСѓР·РєР°вЂ¦</div> : null}
+          {!categoriesQ.isFetching && rows.length === 0 ? <div className="muted small">РљР°С‚РµРіРѕСЂРёР№ РїРѕРєР° РЅРµС‚</div> : null}
 
           <div style={{ display: 'grid', gap: 12 }}>
             {rows.map((row) => {
@@ -219,26 +207,26 @@ export function ProblemCategoriesPage() {
                     </div>
 
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                      <span className="tag">{row.isActive === false ? 'Неактивна' : 'Активна'}</span>
+                      <span className="tag">{row.isActive === false ? 'РќРµР°РєС‚РёРІРЅР°' : 'РђРєС‚РёРІРЅР°'}</span>
 
                       <button
                         className="ghost"
                         disabled={toggleM.isPending}
                         onClick={() => toggleM.mutate({ id: row.id, isActive: !(row.isActive !== false) })}
                       >
-                        {row.isActive === false ? 'Включить' : 'Отключить'}
+                        {row.isActive === false ? 'Р’РєР»СЋС‡РёС‚СЊ' : 'РћС‚РєР»СЋС‡РёС‚СЊ'}
                       </button>
                     </div>
                   </div>
 
                   <div className="muted small" style={{ marginBottom: 10 }}>
-                    {row.instructions?.trim() ? row.instructions : 'Инструкция не задана'}
+                    {row.instructions?.trim() ? row.instructions : 'РРЅСЃС‚СЂСѓРєС†РёСЏ РЅРµ Р·Р°РґР°РЅР°'}
                   </div>
 
-                  <div style={{ marginBottom: 8, fontSize: 13, fontWeight: 600 }}>Связанные специализации</div>
+                  <div style={{ marginBottom: 8, fontSize: 13, fontWeight: 600 }}>РЎРІСЏР·Р°РЅРЅС‹Рµ СЃРїРµС†РёР°Р»РёР·Р°С†РёРё</div>
 
                   <div className="muted small" style={{ marginBottom: 10 }}>
-                    {linkedSpecNames.length ? linkedSpecNames.join(', ') : 'Пока не привязаны'}
+                    {linkedSpecNames.length ? linkedSpecNames.join(', ') : 'РџРѕРєР° РЅРµ РїСЂРёРІСЏР·Р°РЅС‹'}
                   </div>
 
                   <div
@@ -252,7 +240,7 @@ export function ProblemCategoriesPage() {
                     }}
                   >
                     {activeSpecializations.length === 0 ? (
-                      <div className="muted small">Нет активных специализаций. Сначала создай их на странице специализаций.</div>
+                      <div className="muted small">РќРµС‚ Р°РєС‚РёРІРЅС‹С… СЃРїРµС†РёР°Р»РёР·Р°С†РёР№. РЎРЅР°С‡Р°Р»Р° СЃРѕР·РґР°Р№ РёС… РЅР° СЃС‚СЂР°РЅРёС†Рµ СЃРїРµС†РёР°Р»РёР·Р°С†РёР№.</div>
                     ) : (
                       activeSpecializations.map((spec) => (
                         <label
@@ -285,7 +273,7 @@ export function ProblemCategoriesPage() {
                           })
                         }
                       >
-                        {saveSpecsM.isPending ? 'Сохраняем…' : 'Сохранить специализации'}
+                        {saveSpecsM.isPending ? 'РЎРѕС…СЂР°РЅСЏРµРјвЂ¦' : 'РЎРѕС…СЂР°РЅРёС‚СЊ СЃРїРµС†РёР°Р»РёР·Р°С†РёРё'}
                       </button>
 
                       <button
@@ -293,7 +281,7 @@ export function ProblemCategoriesPage() {
                         disabled={saveSpecsM.isPending}
                         onClick={() => resetSpecs(row)}
                       >
-                        Сбросить
+                        РЎР±СЂРѕСЃРёС‚СЊ
                       </button>
                     </div>
                   </div>
@@ -303,7 +291,7 @@ export function ProblemCategoriesPage() {
           </div>
 
           <div className="muted small" style={{ marginTop: 10 }}>
-            После привязки специализаций система сможет показывать подходящих техников при назначении заявки.
+            РџРѕСЃР»Рµ РїСЂРёРІСЏР·РєРё СЃРїРµС†РёР°Р»РёР·Р°С†РёР№ СЃРёСЃС‚РµРјР° СЃРјРѕР¶РµС‚ РїРѕРєР°Р·С‹РІР°С‚СЊ РїРѕРґС…РѕРґСЏС‰РёС… С‚РµС…РЅРёРєРѕРІ РїСЂРё РЅР°Р·РЅР°С‡РµРЅРёРё Р·Р°СЏРІРєРё.
           </div>
         </div>
       </div>
