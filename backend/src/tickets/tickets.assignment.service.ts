@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { CreateChildTicketDto } from './dto/create-child-ticket.dto';
+import { UpdateTicketDto } from './dto/update-ticket.dto';
 
 import { TicketsPolicy } from '../policy/tickets.policy';
 import { assertAllowed } from '../policy/policy.utils';
@@ -17,6 +18,8 @@ import { AssignmentService } from '../assignment/assignment.service';
 import { TicketsQueryService } from './tickets.query.service';
 import { TicketAttachmentsService } from './ticket-attachments.service';
 import { buildTicketDescription } from './ticket-description.builder';
+import { resolveTechnicianOperationalScope, resolveTicketOperationAccess } from './ticket-access.utils';
+import { ServiceContractsService } from '../service-contracts/service-contracts.service';
 
 @Injectable()
 export class TicketsAssignmentService {
@@ -26,6 +29,7 @@ export class TicketsAssignmentService {
     private readonly query: TicketsQueryService,
     private readonly timelineService: TimelineService,
     private readonly attachments: TicketAttachmentsService,
+    private readonly serviceContractsService: ServiceContractsService,
   ) {}
 
   private readonly policy = new TicketsPolicy();
@@ -149,6 +153,7 @@ export class TicketsAssignmentService {
         id: t.id,
         email: t.email,
         matchedBy: t.technicianSpecializations.map((x) => x.specialization.name),
+        matchReason: 'category_specialization' as const,
         matchedSpecializationsCount,
         assignedCount,
         inProgressCount,
@@ -157,7 +162,13 @@ export class TicketsAssignmentService {
     });
   }
 
-  private async listAllTechnicians(companyId: string, specializationIds: string[]) {
+  private async listAllTechnicians(
+    companyId: string,
+    specializationIds: string[],
+    options?: { fallbackToAllWhenNoSpecializations?: boolean },
+  ) {
+    const fallbackToAllWhenNoSpecializations = !!options?.fallbackToAllWhenNoSpecializations && specializationIds.length === 0;
+
     const techs = await this.prisma.user.findMany({
       where: {
         companyId,
@@ -195,8 +206,13 @@ export class TicketsAssignmentService {
       return {
         id: t.id,
         email: t.email,
-        matched: matchedSpecs.length > 0,
+        matched: fallbackToAllWhenNoSpecializations || matchedSpecs.length > 0,
         matchedBy: matchedSpecs,
+        matchReason: fallbackToAllWhenNoSpecializations
+          ? ('fallback_no_category_specializations' as const)
+          : matchedSpecs.length > 0
+            ? ('category_specialization' as const)
+            : ('no_match' as const),
         assignedCount,
         inProgressCount,
         activeLoad: assignedCount + inProgressCount,
@@ -564,12 +580,24 @@ export class TicketsAssignmentService {
     };
   }
 
-  async listAssignmentCandidates(companyId: string, actor: any, ticketId: string) {
-    const decision = this.policy.canAssign({ id: actor?.id, role: actor?.role, companyId });
+  async listAssignmentCandidates(companyId: string, actor: any, ticketId: string, linkedClientCompanyId?: string) {
+    const access = await resolveTicketOperationAccess({
+      prisma: this.prisma,
+      serviceContractsService: this.serviceContractsService,
+      actor: {
+        id: actor?.id,
+        role: actor?.role,
+        companyId,
+        accessFlags: actor?.accessFlags,
+      },
+      ticketId
+    });
+
+    const decision = this.policy.canAssign({ id: actor?.id, role: actor?.role, companyId: access.operationCompanyId });
     assertAllowed(decision);
 
     const ticket = await this.prisma.ticket.findFirst({
-      where: { id: ticketId, companyId },
+      where: { id: ticketId, companyId: access.ticket.companyId },
       include: {
         location: {
           select: {
@@ -604,7 +632,10 @@ export class TicketsAssignmentService {
     }));
 
     const specializationIds = requiredSpecializations.map((x) => x.id);
-    const allTechnicians = await this.listAllTechnicians(companyId, specializationIds);
+    const fallbackMode = specializationIds.length === 0;
+    const allTechnicians = await this.listAllTechnicians(access.operationCompanyId, specializationIds, {
+      fallbackToAllWhenNoSpecializations: true,
+    });
 
     const matched = allTechnicians.filter((t) => t.matched);
     const others = allTechnicians.filter((t) => !t.matched);
@@ -620,16 +651,39 @@ export class TicketsAssignmentService {
       requiredSpecializations,
       matched,
       others,
+      meta: {
+        matchingMode: fallbackMode ? 'fallback_no_category_specializations' : 'category_specializations',
+        explanation: fallbackMode
+          ? '? ????????? ??? ??????????? ?????????????. ??????? ???????? ??? ??????? ???????? ??? ?????????? fallback.'
+          : matched.length > 0
+            ? '??????? ???????? ???????, ??????? ???????? ?? ?????????????? ?????????. ???? ? ????????? ??????? ????????.'
+            : '? ????????? ???? ?????????? ?? ??????????????, ?? ?????? ??? ?????????? ????????. ???? ???????? ????????? ??????? ????????.',
+        scopeCompanyId: access.ticket.companyId,
+        visibilityMode: access.visibilityMode,
+        workforceCompanyId: access.operationCompanyId,
+      },
     };
   }
 
-  async assign(companyId: string, actor: any, ticketId: string, technicianId: string) {
-    const decision = this.policy.canAssign({ id: actor?.id, role: actor?.role, companyId });
+  async assign(companyId: string, actor: any, ticketId: string, technicianId: string, linkedClientCompanyId?: string) {
+    const access = await resolveTicketOperationAccess({
+      prisma: this.prisma,
+      serviceContractsService: this.serviceContractsService,
+      actor: {
+        id: actor?.id,
+        role: actor?.role,
+        companyId,
+        accessFlags: actor?.accessFlags,
+      },
+      ticketId
+    });
+
+    const decision = this.policy.canAssign({ id: actor?.id, role: actor?.role, companyId: access.operationCompanyId });
     assertAllowed(decision);
 
     const resolvedTicketId = await this.prisma.$transaction(async (tx) => {
       const ticket = await tx.ticket.findFirst({
-        where: { id: ticketId, companyId },
+        where: { id: ticketId, companyId: access.ticket.companyId },
         include: {
           problemCategory: {
             include: {
@@ -650,7 +704,7 @@ export class TicketsAssignmentService {
       const tech = await tx.user.findFirst({
         where: {
           id: technicianId,
-          companyId,
+          companyId: access.operationCompanyId,
           role: UserRole.TECHNICIAN,
         },
         include: {
@@ -701,7 +755,7 @@ export class TicketsAssignmentService {
       if (isReassign) {
         await this.timelineService.recordTx(tx, {
           event: 'TICKET_ASSIGNED',
-          companyId,
+          companyId: ticket.companyId,
           ticketId: ticket.id,
           actorUserId: actor?.id ?? null,
           payload: {
@@ -713,7 +767,7 @@ export class TicketsAssignmentService {
       } else if (isFirstAssign || ticket.status === TicketStatus.NEW) {
         await this.timelineService.recordTx(tx, {
           event: 'TICKET_ASSIGNED',
-          companyId,
+          companyId: ticket.companyId,
           ticketId: ticket.id,
           actorUserId: actor?.id ?? null,
           payload: {
@@ -726,9 +780,208 @@ export class TicketsAssignmentService {
       return ticket.id;
     });
 
-    return this.query.getOne(companyId, actor?.id, actor?.role as UserRole, resolvedTicketId);
+    return this.query.getOne(
+      companyId,
+      actor?.id,
+      actor?.role as UserRole,
+      resolvedTicketId,
+      actor?.accessFlags,
+      undefined,
+      linkedClientCompanyId,
+    );
   }
 
+
+  async update(companyId: string, actor: any, ticketId: string, dto: UpdateTicketDto, linkedClientCompanyId?: string) {
+    const access = await resolveTicketOperationAccess({
+      prisma: this.prisma,
+      serviceContractsService: this.serviceContractsService,
+      actor: {
+        id: actor?.id,
+        role: actor?.role,
+        companyId,
+        accessFlags: actor?.accessFlags,
+      },
+      ticketId,
+      linkedClientCompanyId,
+    });
+
+    const decision = this.policy.canAssign({ id: actor?.id, role: actor?.role, companyId: access.operationCompanyId });
+    assertAllowed(decision);
+
+    const normalizedCategoryId = dto.problemCategoryId?.trim();
+    const normalizedLocationId = dto.locationId?.trim();
+    const normalizedProblemText = typeof dto.problemText === 'string' ? dto.problemText.trim() : undefined;
+
+    if (dto.problemText !== undefined && !normalizedProblemText) {
+      throw new BadRequestException('problemText cannot be empty');
+    }
+
+    if (dto.problemCategoryId !== undefined && !normalizedCategoryId) {
+      throw new BadRequestException('problemCategoryId cannot be empty');
+    }
+
+    if (dto.locationId !== undefined && !normalizedLocationId) {
+      throw new BadRequestException('locationId cannot be empty');
+    }
+
+    const updatedTicketId = await this.prisma.$transaction(async (tx) => {
+      const ticket = await tx.ticket.findFirst({
+        where: { id: ticketId, companyId: access.ticket.companyId },
+        select: {
+          id: true,
+          companyId: true,
+          locationId: true,
+          problemCategoryId: true,
+          problemText: true,
+          urgency: true,
+          requesterName: true,
+          requesterPhone: true,
+          address: true,
+          pointName: true,
+          status: true,
+        },
+      });
+
+      if (!ticket) {
+        throw new NotFoundException('Ticket not found');
+      }
+
+      if (ticket.status === TicketStatus.DONE || ticket.status === TicketStatus.CANCELED) {
+        throw new BadRequestException(`Ticket cannot be edited in status ${ticket.status}`);
+      }
+
+      if (normalizedCategoryId) {
+        const category = await tx.problemCategory.findFirst({
+          where: {
+            id: normalizedCategoryId,
+            companyId: access.ticket.companyId,
+            isActive: true,
+          },
+          select: { id: true },
+        });
+
+        if (!category) {
+          throw new NotFoundException('Problem category not found');
+        }
+      }
+
+      if (normalizedLocationId) {
+        const location = await tx.location.findFirst({
+          where: {
+            id: normalizedLocationId,
+            clientCompanyId: access.ticket.companyId,
+            isActive: true,
+          },
+          select: { id: true },
+        });
+
+        if (!location) {
+          throw new NotFoundException('Location not found');
+        }
+      }
+
+      const data: Prisma.TicketUpdateInput = {};
+      const changedFields: string[] = [];
+
+      if (normalizedCategoryId && normalizedCategoryId !== ticket.problemCategoryId) {
+        data.problemCategory = { connect: { id: normalizedCategoryId } };
+        changedFields.push('problemCategoryId');
+      }
+
+      if (normalizedLocationId && normalizedLocationId !== ticket.locationId) {
+        data.location = { connect: { id: normalizedLocationId } };
+        changedFields.push('locationId');
+      }
+
+      if (normalizedProblemText !== undefined && normalizedProblemText !== ticket.problemText) {
+        data.problemText = normalizedProblemText;
+        changedFields.push('problemText');
+      }
+
+      if (dto.urgency !== undefined && dto.urgency !== ticket.urgency) {
+        data.urgency = dto.urgency;
+        changedFields.push('urgency');
+      }
+
+      const normalizeNullable = (value?: string | null) => {
+        if (value === undefined) return undefined;
+        if (value === null) return null;
+        return value.trim() || null;
+      };
+
+      const requesterName = normalizeNullable(dto.requesterName);
+      if (requesterName !== undefined && requesterName !== ticket.requesterName) {
+        data.requesterName = requesterName;
+        changedFields.push('requesterName');
+      }
+
+      const requesterPhone = normalizeNullable(dto.requesterPhone);
+      if (requesterPhone !== undefined && requesterPhone !== ticket.requesterPhone) {
+        data.requesterPhone = requesterPhone;
+        changedFields.push('requesterPhone');
+      }
+
+      const address = normalizeNullable(dto.address);
+      if (address !== undefined && address !== ticket.address) {
+        data.address = address;
+        changedFields.push('address');
+      }
+
+      const pointName = normalizeNullable(dto.pointName);
+      if (pointName !== undefined && pointName !== ticket.pointName) {
+        data.pointName = pointName;
+        changedFields.push('pointName');
+      }
+
+      if (changedFields.length === 0) {
+        return ticket.id;
+      }
+
+      await tx.ticket.update({
+        where: { id: ticket.id },
+        data,
+      });
+
+      if (changedFields.includes('problemCategoryId')) {
+        await this.timelineService.recordLegacyTx(tx, {
+          type: 'ticket.category_changed',
+          companyId: ticket.companyId,
+          entityType: 'Ticket',
+          entityId: ticket.id,
+          actorUserId: actor?.id ?? null,
+          payload: {
+            previousProblemCategoryId: ticket.problemCategoryId,
+            problemCategoryId: normalizedCategoryId,
+          },
+        });
+      }
+
+      await this.timelineService.recordLegacyTx(tx, {
+        type: 'ticket.updated',
+        companyId: ticket.companyId,
+        entityType: 'Ticket',
+        entityId: ticket.id,
+        actorUserId: actor?.id ?? null,
+        payload: {
+          changedFields,
+          operationCompanyId: access.operationCompanyId,
+        },
+      });
+
+      return ticket.id;
+    });
+
+    return this.query.getOne(
+      companyId,
+      actor?.id,
+      actor?.role as UserRole,
+      updatedTicketId,
+      actor?.accessFlags,
+      undefined,
+      linkedClientCompanyId,
+    );
+  }
   async updateCategory(companyId: string, actor: any, ticketId: string, problemCategoryId: string) {
     const decision = this.policy.canAssign({ id: actor?.id, role: actor?.role, companyId });
     assertAllowed(decision);
@@ -808,47 +1061,48 @@ export class TicketsAssignmentService {
   }
 
   async availableForTechnician(companyId: string, technicianUserId: string) {
-    const company = await this.getCompany(companyId);
-
-    if (!company.allowTechnicianClaim) {
-      return [];
-    }
-
-    const tech = await this.prisma.user.findFirst({
-      where: {
+    const technicianScope = await resolveTechnicianOperationalScope({
+      prisma: this.prisma,
+      serviceContractsService: this.serviceContractsService,
+      actor: {
         id: technicianUserId,
-        companyId,
         role: UserRole.TECHNICIAN,
+        companyId,
       },
-      select: {
-        id: true,
-        technicianSpecializations: {
-          select: { specializationId: true },
-        },
-      },
-    });
+    })
 
-    if (!tech) {
-      throw new NotFoundException('Technician not found');
-    }
-
-    const specializationIds = tech.technicianSpecializations.map((x) => x.specializationId);
-    if (specializationIds.length === 0) {
-      return [];
+    if (!technicianScope.allowTechnicianClaim) {
+      return []
     }
 
     return this.prisma.ticket.findMany({
       where: {
-        companyId,
+        companyId:
+          technicianScope.companyIds.length === 1
+            ? technicianScope.companyIds[0]
+            : { in: technicianScope.companyIds },
         status: TicketStatus.NEW,
         assignedTechnicianId: null,
-        problemCategory: {
-          specializationLinks: {
-            some: {
-              specializationId: { in: specializationIds },
+        OR: [
+          ...(technicianScope.specializationIds.length > 0
+            ? [{
+                problemCategory: {
+                  specializationLinks: {
+                    some: {
+                      specializationId: { in: technicianScope.specializationIds },
+                    },
+                  },
+                },
+              }]
+            : []),
+          {
+            problemCategory: {
+              specializationLinks: {
+                none: {},
+              },
             },
           },
-        },
+        ],
       },
       include: {
         location: {
@@ -865,69 +1119,46 @@ export class TicketsAssignmentService {
       },
       orderBy: { createdAt: 'desc' },
       take: 100,
-    });
+    })
   }
 
-  async claim(companyId: string, technicianUserId: string, ticketId: string) {
-    const company = await this.getCompany(companyId);
-
-    const tech = await this.prisma.user.findFirst({
-      where: {
+  async claim(companyId: string, technicianUserId: string, ticketId: string, linkedClientCompanyId?: string) {
+    const technicianScope = await resolveTechnicianOperationalScope({
+      prisma: this.prisma,
+      serviceContractsService: this.serviceContractsService,
+      actor: {
         id: technicianUserId,
-        companyId,
         role: UserRole.TECHNICIAN,
+        companyId,
       },
-      select: {
-        id: true,
-        role: true,
-        companyId: true,
-        technicianSpecializations: {
-          select: { specializationId: true },
-        },
-      },
-    });
-
-    if (!tech) {
-      throw new NotFoundException('Technician not found');
-    }
-
-    const specializationIds = tech.technicianSpecializations.map((x) => x.specializationId);
-
+      linkedClientCompanyId,
+    })
     const decision = this.policy.claimWhere({
       user: {
-        id: tech.id,
-        role: tech.role,
-        companyId: tech.companyId,
+        id: technicianUserId,
+        role: UserRole.TECHNICIAN,
+        companyId,
       },
       ticketId,
-      specializationIds,
-      allowTechnicianClaim: company.allowTechnicianClaim,
-    });
-    assertAllowed(decision);
+      specializationIds: technicianScope.specializationIds,
+      allowTechnicianClaim: technicianScope.allowTechnicianClaim,
+      companyIds: technicianScope.companyIds,
+    })
+    assertAllowed(decision)
 
     const resolvedTicketId = await this.prisma.$transaction(async (tx) => {
       const ticket = await tx.ticket.findFirst({
-        where: {
-          id: ticketId,
-          companyId,
-          status: TicketStatus.NEW,
-          assignedTechnicianId: null,
-          problemCategory: {
-            specializationLinks: {
-              some: { specializationId: { in: specializationIds } },
-            },
-          },
-        },
-      });
+        where: decision.where,
+      })
 
       if (!ticket) {
-        throw new NotFoundException('Ticket not found or not available for claim');
+        throw new NotFoundException('Ticket not found or not available for claim')
       }
 
-      const wf = decideTicketTransition(TicketStatus.NEW, TicketStatus.ASSIGNED);
-      if (!wf.allowed) throw new BadRequestException(wf.reason);
+      const wf = decideTicketTransition(TicketStatus.NEW, TicketStatus.ASSIGNED)
+      if (!wf.allowed) throw new BadRequestException(wf.reason)
 
-      const now = new Date();
+      const now = new Date()
 
       await tx.ticket.update({
         where: { id: ticket.id },
@@ -936,7 +1167,7 @@ export class TicketsAssignmentService {
           status: TicketStatus.ASSIGNED,
           statusUpdatedAt: now,
         },
-      });
+      })
 
       await this.writeStatusHistoryTx(tx, {
         ticketId: ticket.id,
@@ -944,23 +1175,24 @@ export class TicketsAssignmentService {
         toStatus: TicketStatus.ASSIGNED,
         changedByUserId: technicianUserId,
         comment: 'Claimed by technician',
-      });
+      })
 
       await this.timelineService.recordTx(tx, {
         event: 'TICKET_CLAIMED',
-        companyId,
+        companyId: ticket.companyId,
         ticketId: ticket.id,
         actorUserId: technicianUserId,
         payload: {
           assignedTechnicianId: technicianUserId,
           mode: 'claim',
+          operationCompanyId: companyId,
         },
-      });
+      })
 
-      return ticket.id;
-    });
+      return ticket.id
+    })
 
-    return this.query.getOne(companyId, technicianUserId, UserRole.TECHNICIAN, resolvedTicketId);
+    return this.query.getOne(companyId, technicianUserId, UserRole.TECHNICIAN, resolvedTicketId, undefined, undefined, linkedClientCompanyId)
   }
   async createPublic(
     companyId: string,
@@ -1124,3 +1356,7 @@ export class TicketsAssignmentService {
     };
   }
 }
+
+
+
+

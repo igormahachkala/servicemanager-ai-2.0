@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
@@ -64,6 +64,24 @@ function isActivePath(currentPath: string, targetPath: string) {
   return currentPath === targetPath
 }
 
+function canSeeTenantCompanySettings(role?: api.Role) {
+  return role === 'ADMIN'
+}
+
+function isNavItemVisible(item: NavItem, role?: api.Role, isPlatformAdmin?: boolean) {
+  if (isPlatformAdmin) return true
+  if (item.to === '/company') return canSeeTenantCompanySettings(role)
+  if (
+    item.to === '/problem-categories' ||
+    item.to === '/specializations' ||
+    item.to === '/inspection/templates' ||
+    item.to === '/settings'
+  ) {
+    return canSeeTenantCompanySettings(role)
+  }
+  return true
+}
+
 export function Shell() {
   const nav = useNavigate()
   const loc = useLocation()
@@ -119,23 +137,29 @@ export function Shell() {
 
   const sidebarSections = useMemo(
     () =>
-      navigation.sidebar.map((section: NavSection) => ({
-        ...section,
-        items: section.items.map((item: NavItem) => ({
-          ...item,
-          active: isActivePath(loc.pathname, item.to),
-        })),
-      })),
-    [loc.pathname, navigation.sidebar],
+      navigation.sidebar
+        .map((section: NavSection) => ({
+          ...section,
+          items: section.items
+            .filter((item: NavItem) => isNavItemVisible(item, role, isPlatformAdmin))
+            .map((item: NavItem) => ({
+              ...item,
+              active: isActivePath(loc.pathname, item.to),
+            })),
+        }))
+        .filter((section) => section.items.length > 0),
+    [isPlatformAdmin, loc.pathname, navigation.sidebar, role],
   )
 
   const topbarLinks = useMemo(
     () =>
-      navigation.topbar.map((item: NavItem) => ({
-        ...item,
-        active: isActivePath(loc.pathname, item.to),
-      })),
-    [loc.pathname, navigation.topbar],
+      navigation.topbar
+        .filter((item: NavItem) => isNavItemVisible(item, role, isPlatformAdmin))
+        .map((item: NavItem) => ({
+          ...item,
+          active: isActivePath(loc.pathname, item.to),
+        })),
+    [isPlatformAdmin, loc.pathname, navigation.topbar, role],
   )
 
   return (

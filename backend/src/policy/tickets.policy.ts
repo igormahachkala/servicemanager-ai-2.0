@@ -1,4 +1,4 @@
-import { Prisma, TicketStatus, UserRole } from '@prisma/client';
+﻿import { Prisma, TicketStatus, UserRole } from '@prisma/client';
 import { allow, deny, PolicyDecision } from './policy.types';
 
 export type UserCtx = {
@@ -11,7 +11,12 @@ export type UserCtx = {
   };
 };
 
-const ASSIGN_ROLES: UserRole[] = [UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER];
+const ASSIGN_ROLES: UserRole[] = [
+  UserRole.ADMIN,
+  UserRole.MASTER,
+  UserRole.DISPATCHER,
+  UserRole.NETWORK_DIRECTOR,
+];
 
 const MANAGEMENT_STATUS_ROLES: UserRole[] = [
   UserRole.ADMIN,
@@ -155,27 +160,42 @@ export class TicketsPolicy {
     ticketId: string;
     specializationIds: string[];
     allowTechnicianClaim: boolean;
+    companyIds?: string[];
   }): PolicyDecision<Prisma.TicketWhereInput> {
-    const { user, ticketId, specializationIds, allowTechnicianClaim } = params;
+    const { user, ticketId, specializationIds, allowTechnicianClaim, companyIds } = params;
 
     if (user.role !== UserRole.TECHNICIAN) return deny('Only TECHNICIAN can claim tickets');
     if (!allowTechnicianClaim) {
       return deny('Technician claim is disabled for this company', 'precondition');
     }
-    if (!specializationIds || specializationIds.length === 0) {
-      return deny('Technician has no specializations', 'precondition');
+
+    const effectiveCompanyIds = Array.from(new Set((companyIds ?? [user.companyId]).filter(Boolean)));
+    const categoryScopeOr: Prisma.TicketWhereInput[] = [];
+
+    if (specializationIds && specializationIds.length > 0) {
+      categoryScopeOr.push({
+        problemCategory: {
+          specializationLinks: {
+            some: { specializationId: { in: specializationIds } },
+          },
+        },
+      });
     }
+
+    categoryScopeOr.push({
+      problemCategory: {
+        specializationLinks: {
+          none: {},
+        },
+      },
+    });
 
     return allow({
       id: ticketId,
-      companyId: user.companyId,
+      companyId: effectiveCompanyIds.length === 1 ? effectiveCompanyIds[0] : { in: effectiveCompanyIds },
       status: TicketStatus.NEW,
       assignedTechnicianId: null,
-      problemCategory: {
-        specializationLinks: {
-          some: { specializationId: { in: specializationIds } },
-        },
-      },
+      OR: categoryScopeOr,
     });
   }
 

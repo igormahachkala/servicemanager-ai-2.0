@@ -1,19 +1,22 @@
 ﻿import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
-import { Prisma, UserRole } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 import { mkdir, rm, writeFile } from 'fs/promises'
 import { extname, join } from 'path'
 import { randomUUID } from 'crypto'
 
 import { PrismaService } from '../prisma/prisma.service'
-import { TicketsPolicy, type UserCtx } from '../policy/tickets.policy'
-import { assertAllowed } from '../policy/policy.utils'
+import { type UserCtx } from '../policy/tickets.policy'
+import { ServiceContractsService } from '../service-contracts/service-contracts.service'
+import { resolveReadableTicketAccess } from './ticket-access.utils'
 
 @Injectable()
 export class TicketAttachmentsService {
   private readonly uploadsDir = join(process.cwd(), 'uploads', 'ticket-attachments')
-  private readonly policy = new TicketsPolicy()
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly serviceContractsService: ServiceContractsService,
+  ) {}
 
   async uploadDraftAttachment(companyId: string, uploadedByUserId: string | null, file: any) {
     this.assertImageFile(file)
@@ -81,8 +84,18 @@ export class TicketAttachmentsService {
     })
   }
 
-  async listForTicket(user: UserCtx, ticketId: string) {
-    const ticketCompanyId = await this.resolveReadableTicketCompanyId(user, ticketId)
+  async listForTicket(
+    user: UserCtx,
+    ticketId: string,
+    linkedClientCompanyId?: string,
+    observerCompanyId?: string,
+  ) {
+    const ticketCompanyId = await this.resolveReadableTicketCompanyId(
+      user,
+      ticketId,
+      linkedClientCompanyId,
+      observerCompanyId,
+    )
 
     return this.prisma.ticketAttachment.findMany({
       where: {
@@ -94,8 +107,8 @@ export class TicketAttachmentsService {
     })
   }
 
-  async uploadToTicket(user: UserCtx, ticketId: string, file: any) {
-    const ticketCompanyId = await this.resolveReadableTicketCompanyId(user, ticketId)
+  async uploadToTicket(user: UserCtx, ticketId: string, file: any, linkedClientCompanyId?: string) {
+    const ticketCompanyId = await this.resolveReadableTicketCompanyId(user, ticketId, linkedClientCompanyId)
     this.assertImageFile(file)
 
     const stored = await this.persistFile(file)
@@ -134,8 +147,8 @@ export class TicketAttachmentsService {
     return { ok: true }
   }
 
-  async deleteFromTicket(user: UserCtx, ticketId: string, attachmentId: string) {
-    const ticketCompanyId = await this.resolveReadableTicketCompanyId(user, ticketId)
+  async deleteFromTicket(user: UserCtx, ticketId: string, attachmentId: string, linkedClientCompanyId?: string) {
+    const ticketCompanyId = await this.resolveReadableTicketCompanyId(user, ticketId, linkedClientCompanyId)
 
     const attachment = await this.prisma.ticketAttachment.findFirst({
       where: {
@@ -155,31 +168,27 @@ export class TicketAttachmentsService {
     return { ok: true }
   }
 
-  private async resolveReadableTicketCompanyId(user: UserCtx, ticketId: string) {
-    const decision = this.policy.getOneWhere(user, ticketId)
-    assertAllowed(decision)
-
-    const ticket = await this.prisma.ticket.findFirst({
-      where: decision.where,
-      select: { id: true, companyId: true },
+  private async resolveReadableTicketCompanyId(
+    user: UserCtx,
+    ticketId: string,
+    linkedClientCompanyId?: string,
+    observerCompanyId?: string,
+  ) {
+    const readable = await resolveReadableTicketAccess({
+      prisma: this.prisma,
+      serviceContractsService: this.serviceContractsService,
+      actor: {
+        id: user.id,
+        role: user.role,
+        companyId: user.companyId,
+        accessFlags: user.accessFlags,
+      },
+      ticketId,
+      linkedClientCompanyId,
+      observerCompanyId,
     })
 
-    if (ticket) {
-      return ticket.companyId
-    }
-
-    if (user.role === UserRole.PLATFORM_ADMIN) {
-      const observerTicket = await this.prisma.ticket.findUnique({
-        where: { id: ticketId },
-        select: { id: true, companyId: true },
-      })
-
-      if (observerTicket) {
-        return observerTicket.companyId
-      }
-    }
-
-    throw new NotFoundException('Ticket not found')
+    return readable.ticket.companyId
   }
 
   private attachmentSelect() {
@@ -234,3 +243,4 @@ export class TicketAttachmentsService {
     await rm(join(this.uploadsDir, storageKey), { force: true })
   }
 }
+

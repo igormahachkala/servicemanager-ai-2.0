@@ -1,10 +1,12 @@
-﻿import { Injectable, NotFoundException } from '@nestjs/common'
-import { Prisma, UserRole } from '@prisma/client'
+﻿import { Injectable } from '@nestjs/common'
+import { Prisma } from '@prisma/client'
 
 import { emitDomainEvent, emitDomainEventTx } from '../events/events.bus'
 import { type DomainEvent, type DomainEventType } from '../events/events.types'
-import { TicketsPolicy, type UserCtx } from '../policy/tickets.policy'
+import { type UserCtx } from '../policy/tickets.policy'
 import { PrismaService } from '../prisma/prisma.service'
+import { ServiceContractsService } from '../service-contracts/service-contracts.service'
+import { resolveReadableTicketAccess } from '../tickets/ticket-access.utils'
 
 import {
   type TimelineActor,
@@ -16,8 +18,6 @@ import {
 
 @Injectable()
 export class TimelineService {
-  private readonly ticketsPolicy = new TicketsPolicy()
-
   private readonly eventToDomainType: Record<TimelineEvent, DomainEventType> = {
     TICKET_CREATED: 'ticket.created',
     TICKET_ASSIGNED: 'ticket.assigned',
@@ -28,7 +28,10 @@ export class TimelineService {
     SLA_BREACH: 'ticket.sla_breached',
   }
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly serviceContractsService: ServiceContractsService,
+  ) {}
 
   async recordTx(
     tx: Prisma.TransactionClient,
@@ -121,8 +124,25 @@ export class TimelineService {
       .filter((event): event is NonNullable<typeof event> => event !== null)
   }
 
-  async getTicketTimeline(user: UserCtx, ticketId: string) {
-    const ticket = await this.resolveReadableTicket(user, ticketId)
+  async getTicketTimeline(
+    user: UserCtx,
+    ticketId: string,
+    linkedClientCompanyId?: string,
+    observerCompanyId?: string,
+  ) {
+    const readable = await resolveReadableTicketAccess({
+      prisma: this.prisma,
+      serviceContractsService: this.serviceContractsService,
+      actor: {
+        id: user.id,
+        role: user.role,
+        companyId: user.companyId,
+        accessFlags: user.accessFlags,
+      },
+      ticketId,
+      linkedClientCompanyId,
+      observerCompanyId,
+    })
 
     const [historyRows, eventRows] = await Promise.all([
       this.prisma.ticketStatusHistory.findMany({
@@ -139,7 +159,7 @@ export class TimelineService {
       }),
       this.prisma.domainEvent.findMany({
         where: {
-          companyId: ticket.companyId,
+          companyId: readable.ticket.companyId,
           entityType: 'Ticket',
           entityId: ticketId,
         },
@@ -161,7 +181,7 @@ export class TimelineService {
 
     const actors = actorIds.size
       ? await this.prisma.user.findMany({
-          where: { id: { in: Array.from(actorIds) }, companyId: ticket.companyId },
+          where: { id: { in: Array.from(actorIds) } },
           select: { id: true, email: true },
         })
       : []
@@ -228,36 +248,10 @@ export class TimelineService {
       meta: {
         historyCount: history.length,
         eventCount: events.length,
+        scopeCompanyId: readable.ticket.companyId,
+        visibilityMode: readable.visibilityMode,
       },
     }
-  }
-
-  private async resolveReadableTicket(user: UserCtx, ticketId: string) {
-    const decision = this.ticketsPolicy.getOneWhere(user, ticketId)
-
-    if (decision.allowed) {
-      const ticket = await this.prisma.ticket.findFirst({
-        where: decision.where,
-        select: { id: true, companyId: true },
-      })
-
-      if (ticket) {
-        return ticket
-      }
-    }
-
-    if (user.role === UserRole.PLATFORM_ADMIN) {
-      const ticket = await this.prisma.ticket.findUnique({
-        where: { id: ticketId },
-        select: { id: true, companyId: true },
-      })
-
-      if (ticket) {
-        return ticket
-      }
-    }
-
-    throw new NotFoundException('Ticket not found')
   }
 
   private toTimelineEvent(type: string): TimelineEvent | null {
@@ -288,3 +282,4 @@ export class TimelineService {
     return type
   }
 }
+

@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+﻿import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, TicketStatus, UserRole } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
@@ -8,12 +8,15 @@ import { assertAllowed } from '../policy/policy.utils';
 
 import { decideTicketTransition } from '../workflow/ticket.workflow';
 import { TimelineService } from '../timeline/timeline.service';
+import { ServiceContractsService } from '../service-contracts/service-contracts.service';
+import { resolveTicketOperationAccess } from './ticket-access.utils';
 
 @Injectable()
 export class TicketsStatusService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly timelineService: TimelineService,
+    private readonly serviceContractsService: ServiceContractsService,
   ) {}
 
   private readonly policy = new TicketsPolicy();
@@ -47,16 +50,33 @@ export class TicketsStatusService {
     role: UserRole,
     ticketId: string,
     dto: { status: TicketStatus; comment?: string },
+    linkedClientCompanyId?: string,
   ) {
+    const access = await resolveTicketOperationAccess({
+      prisma: this.prisma,
+      serviceContractsService: this.serviceContractsService,
+      actor: {
+        id: user?.id,
+        role,
+        companyId,
+        accessFlags: user?.accessFlags,
+      },
+      ticketId,
+      linkedClientCompanyId,
+    });
+
     return this.prisma.$transaction(async (tx) => {
       const ticket = await tx.ticket.findFirst({
-        where: { id: ticketId, companyId },
+        where: { id: ticketId, companyId: access.ticket.companyId },
       });
       if (!ticket) throw new NotFoundException('Ticket not found');
 
       const decision = this.policy.canChangeStatus({
-        user: { id: user?.id, role, companyId },
-        ticket: { companyId: ticket.companyId, assignedTechnicianId: ticket.assignedTechnicianId },
+        user: { id: user?.id, role, companyId: access.operationCompanyId },
+        ticket: {
+          companyId: access.operationCompanyId,
+          assignedTechnicianId: ticket.assignedTechnicianId,
+        },
       });
       assertAllowed(decision);
 
@@ -89,7 +109,7 @@ export class TicketsStatusService {
 
       await this.timelineService.recordTx(tx, {
         event: 'STATUS_CHANGED',
-        companyId,
+        companyId: ticket.companyId,
         ticketId,
         actorUserId: user?.id ?? null,
         payload: {
@@ -103,7 +123,7 @@ export class TicketsStatusService {
       if (dto.comment?.trim()) {
         await this.timelineService.recordTx(tx, {
           event: 'COMMENT_ADDED',
-          companyId,
+          companyId: ticket.companyId,
           ticketId,
           actorUserId: user?.id ?? null,
           payload: {

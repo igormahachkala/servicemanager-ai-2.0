@@ -3,6 +3,7 @@ import { PublicRequestType, TicketStatus, TicketUrgency, UserRole } from '@prism
 
 import { CreateTicketDto } from './dto/create-ticket.dto'
 import { CreateChildTicketDto } from './dto/create-child-ticket.dto'
+import { UpdateTicketDto } from './dto/update-ticket.dto'
 
 import { TicketsAssignmentService } from './tickets.assignment.service'
 import { TicketsQueryService } from './tickets.query.service'
@@ -89,8 +90,9 @@ export class TicketsService {
     ticketId: string,
     accessFlags?: AccessFlags,
     observerCompanyId?: string,
+    linkedClientCompanyId?: string,
   ) {
-    return this.query.getOne(companyId, userId, role, ticketId, accessFlags, observerCompanyId)
+    return this.query.getOne(companyId, userId, role, ticketId, accessFlags, observerCompanyId, linkedClientCompanyId)
   }
 
   listAttachments(
@@ -99,8 +101,15 @@ export class TicketsService {
     role: UserRole,
     ticketId: string,
     accessFlags?: AccessFlags,
+    linkedClientCompanyId?: string,
+    observerCompanyId?: string,
   ) {
-    return this.attachments.listForTicket({ id: userId, role, companyId, accessFlags }, ticketId)
+    return this.attachments.listForTicket(
+      { id: userId, role, companyId, accessFlags },
+      ticketId,
+      linkedClientCompanyId,
+      observerCompanyId,
+    )
   }
 
   uploadDraftAttachment(companyId: string, userId: string, file: any) {
@@ -114,8 +123,14 @@ export class TicketsService {
     ticketId: string,
     file: any,
     accessFlags?: AccessFlags,
+    linkedClientCompanyId?: string,
   ) {
-    return this.attachments.uploadToTicket({ id: userId, role, companyId, accessFlags }, ticketId, file)
+    return this.attachments.uploadToTicket(
+      { id: userId, role, companyId, accessFlags },
+      ticketId,
+      file,
+      linkedClientCompanyId,
+    )
   }
 
   deleteDraftAttachment(companyId: string, attachmentId: string) {
@@ -129,20 +144,36 @@ export class TicketsService {
     ticketId: string,
     attachmentId: string,
     accessFlags?: AccessFlags,
+    linkedClientCompanyId?: string,
   ) {
-    return this.attachments.deleteFromTicket({ id: userId, role, companyId, accessFlags }, ticketId, attachmentId)
+    return this.attachments.deleteFromTicket(
+      { id: userId, role, companyId, accessFlags },
+      ticketId,
+      attachmentId,
+      linkedClientCompanyId,
+    )
   }
 
-  assign(companyId: string, actor: any, ticketId: string, technicianId: string) {
-    return this.assignment.assign(companyId, actor, ticketId, technicianId)
+  update(
+    companyId: string,
+    actor: any,
+    ticketId: string,
+    dto: UpdateTicketDto,
+    linkedClientCompanyId?: string,
+  ) {
+    return this.assignment.update(companyId, actor, ticketId, dto, linkedClientCompanyId)
   }
 
-  claim(companyId: string, technicianUserId: string, ticketId: string) {
-    return this.assignment.claim(companyId, technicianUserId, ticketId)
+  assign(companyId: string, actor: any, ticketId: string, technicianId: string, linkedClientCompanyId?: string) {
+    return this.assignment.assign(companyId, actor, ticketId, technicianId, linkedClientCompanyId)
   }
 
-  listAssignmentCandidates(companyId: string, actor: any, ticketId: string) {
-    return this.assignment.listAssignmentCandidates(companyId, actor, ticketId)
+  claim(companyId: string, technicianUserId: string, ticketId: string, linkedClientCompanyId?: string) {
+    return this.assignment.claim(companyId, technicianUserId, ticketId, linkedClientCompanyId)
+  }
+
+  listAssignmentCandidates(companyId: string, actor: any, ticketId: string, linkedClientCompanyId?: string) {
+    return this.assignment.listAssignmentCandidates(companyId, actor, ticketId, linkedClientCompanyId)
   }
 
   updateStatus(
@@ -151,8 +182,9 @@ export class TicketsService {
     role: UserRole,
     ticketId: string,
     dto: { status: TicketStatus; comment?: string },
+    linkedClientCompanyId?: string,
   ) {
-    return this.status.updateStatus(companyId, user, role, ticketId, dto)
+    return this.status.updateStatus(companyId, user, role, ticketId, dto, linkedClientCompanyId)
   }
 
   availableForTechnician(companyId: string, technicianUserId: string) {

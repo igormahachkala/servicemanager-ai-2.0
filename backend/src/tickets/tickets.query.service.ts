@@ -1,4 +1,4 @@
-﻿import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
+import { Injectable, NotFoundException } from '@nestjs/common'
 import { TicketStatus, UserRole } from '@prisma/client'
 
 import { PrismaService } from '../prisma/prisma.service'
@@ -6,20 +6,17 @@ import { TimelineService } from '../timeline/timeline.service'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
 
 import { TicketsPolicy, type BoardQueryInput } from '../policy/tickets.policy'
-import { assertAllowed, isPlatformObserverScope, resolveObserverScopeCompanyId } from '../policy/policy.utils'
+import { assertAllowed } from '../policy/policy.utils'
+import {
+  PROVIDER_LINKED_OVERVIEW_ROLES,
+  resolveReadableTicketAccess,
+  resolveTechnicianOperationalScope,
+  resolveTicketReadScope,
+} from './ticket-access.utils'
 
 type AccessFlags = {
   canTechnicianViewAllCompanyTickets?: boolean
 }
-
-type VisibilityMode = 'tenant' | 'provider_primary' | 'platform_observer'
-
-const PROVIDER_MANAGEMENT_ROLES: UserRole[] = [
-  UserRole.ADMIN,
-  UserRole.MASTER,
-  UserRole.DISPATCHER,
-  UserRole.NETWORK_DIRECTOR,
-]
 
 @Injectable()
 export class TicketsQueryService {
@@ -31,64 +28,162 @@ export class TicketsQueryService {
 
   private readonly policy = new TicketsPolicy()
 
-  private ensureProviderLinkedClientRole(role: UserRole) {
-    if (!PROVIDER_MANAGEMENT_ROLES.includes(role)) {
-      throw new ForbiddenException('Role cannot access linked client tickets')
-    }
+  private normalizeAnd(where: any, extra: any[]) {
+    const base = where.AND
+    const baseArr = Array.isArray(base) ? base : base ? [base] : []
+    return { ...where, AND: [...baseArr, ...extra] }
   }
 
-  private async ensureCompanyExists(companyId: string) {
-    const company = await this.prisma.company.findUnique({
-      where: { id: companyId },
-      select: { id: true },
-    })
+  private buildTechnicianBoardQuery(params: {
+    companyIds: string[]
+    userId: string
+    specializationIds: string[]
+    allowTechnicianClaim: boolean
+    input: BoardQueryInput
+  }) {
+    const atRiskThresholdMinutes = 60
+    const limitedToLast = Math.min(Math.max(params.input.take ?? 500, 1), 500)
+    const companyScope =
+      params.companyIds.length === 1 ? { companyId: params.companyIds[0] } : { companyId: { in: params.companyIds } }
 
-    if (!company) {
-      throw new NotFoundException('Company not found')
-    }
-  }
+    const visibilityOr: any[] = [{ ...companyScope, assignedTechnicianId: params.userId }]
 
-  private async resolveReadScope(params: {
-    actorCompanyId: string
-    role: UserRole
-    linkedClientCompanyId?: string
-    observerCompanyId?: string
-  }): Promise<{ scopeCompanyId: string; visibilityMode: VisibilityMode }> {
-    const observerCompanyId = resolveObserverScopeCompanyId({
-      actorCompanyId: params.actorCompanyId,
-      actorRole: params.role,
-      requestedCompanyId: params.observerCompanyId,
-    })
+    if (params.allowTechnicianClaim) {
+      if (params.specializationIds.length > 0) {
+        visibilityOr.push({
+          ...companyScope,
+          status: TicketStatus.NEW,
+          assignedTechnicianId: null,
+          problemCategory: {
+            specializationLinks: {
+              some: {
+                specializationId: { in: params.specializationIds },
+              },
+            },
+          },
+        })
+      }
 
-    if (
-      isPlatformObserverScope({
-        actorCompanyId: params.actorCompanyId,
-        actorRole: params.role,
-        scopeCompanyId: observerCompanyId,
+      visibilityOr.push({
+        ...companyScope,
+        status: TicketStatus.NEW,
+        assignedTechnicianId: null,
+        problemCategory: {
+          specializationLinks: {
+            none: {},
+          },
+        },
       })
-    ) {
-      await this.ensureCompanyExists(observerCompanyId)
-      return {
-        scopeCompanyId: observerCompanyId,
-        visibilityMode: 'platform_observer',
-      }
     }
 
-    if (!params.linkedClientCompanyId || params.linkedClientCompanyId === params.actorCompanyId) {
-      return {
-        scopeCompanyId: params.actorCompanyId,
-        visibilityMode: 'tenant',
-      }
+    let where: any = visibilityOr.length === 1 ? visibilityOr[0] : { OR: visibilityOr }
+    const extraAnd: any[] = []
+
+    if (params.input.statuses && params.input.statuses.length > 0) {
+      extraAnd.push({ status: { in: params.input.statuses } })
     }
 
-    this.ensureProviderLinkedClientRole(params.role)
-    await this.serviceContractsService.assertPrimaryLinkedClientAccess(params.actorCompanyId, params.linkedClientCompanyId)
+    if (typeof params.input.assigneeId === 'string' && params.input.assigneeId.length > 0) {
+      extraAnd.push({ assignedTechnicianId: params.input.assigneeId })
+    } else if (params.input.assigneeId === null) {
+      extraAnd.push({ assignedTechnicianId: null })
+    }
+
+    if (params.input.q && params.input.q.trim().length > 0) {
+      const q = params.input.q.trim()
+      extraAnd.push({
+        OR: [
+          { problemText: { contains: q, mode: 'insensitive' } },
+          { problemCategory: { name: { contains: q, mode: 'insensitive' } } },
+        ],
+      })
+    }
+
+    const now = new Date()
+    const threshold = new Date(now.getTime() + atRiskThresholdMinutes * 60_000)
+
+    if (params.input.sla === 'breached') {
+      extraAnd.push({
+        OR: [{ slaBreachedAt: { not: null } }, { slaDueAt: { lt: now } }],
+      })
+    }
+
+    if (params.input.sla === 'atRisk') {
+      extraAnd.push({
+        AND: [
+          { slaBreachedAt: null },
+          { slaDueAt: { not: null } },
+          { slaDueAt: { gte: now } },
+          { slaDueAt: { lte: threshold } },
+        ],
+      })
+    }
+
+    if (params.input.sla === 'ok') {
+      extraAnd.push({
+        AND: [
+          { OR: [{ slaDueAt: null }, { slaDueAt: { gt: threshold } }] },
+          { slaBreachedAt: null },
+          { OR: [{ slaDueAt: null }, { slaDueAt: { gte: now } }] },
+        ],
+      })
+    }
+
+    if (extraAnd.length > 0) {
+      where = this.normalizeAnd(where, extraAnd)
+    }
+
     return {
-      scopeCompanyId: params.linkedClientCompanyId,
-      visibilityMode: 'provider_primary',
+      where,
+      take: limitedToLast,
+      meta: { atRiskThresholdMinutes, limitedToLast },
     }
   }
 
+  private buildTechnicianListWhere(params: {
+    companyIds: string[]
+    userId: string
+    specializationIds: string[]
+    allowTechnicianClaim: boolean
+    status?: TicketStatus
+  }) {
+    const companyScope =
+      params.companyIds.length === 1 ? { companyId: params.companyIds[0] } : { companyId: { in: params.companyIds } }
+
+    const visibilityOr: any[] = [{ ...companyScope, assignedTechnicianId: params.userId }]
+
+    if (params.allowTechnicianClaim) {
+      if (params.specializationIds.length > 0) {
+        visibilityOr.push({
+          ...companyScope,
+          status: TicketStatus.NEW,
+          assignedTechnicianId: null,
+          problemCategory: {
+            specializationLinks: {
+              some: {
+                specializationId: { in: params.specializationIds },
+              },
+            },
+          },
+        })
+      }
+
+      visibilityOr.push({
+        ...companyScope,
+        status: TicketStatus.NEW,
+        assignedTechnicianId: null,
+        problemCategory: {
+          specializationLinks: {
+            none: {},
+          },
+        },
+      })
+    }
+
+    const baseWhere: any = visibilityOr.length === 1 ? visibilityOr[0] : { OR: visibilityOr }
+    if (params.status === undefined) return baseWhere
+    return this.normalizeAnd(baseWhere, [{ status: params.status }])
+  }
   async board(
     companyId: string,
     userId: string,
@@ -98,23 +193,58 @@ export class TicketsQueryService {
     linkedClientCompanyId?: string,
     observerCompanyId?: string,
   ) {
-    const scope = await this.resolveReadScope({
-      actorCompanyId: companyId,
-      role,
-      linkedClientCompanyId,
-      observerCompanyId,
-    })
-    const decision = this.policy.boardWhere({ id: userId, role, companyId: scope.scopeCompanyId, accessFlags }, input)
-    assertAllowed(decision)
+    const technicianScope = role === UserRole.TECHNICIAN && !observerCompanyId
+      ? await resolveTechnicianOperationalScope({
+          prisma: this.prisma,
+          serviceContractsService: this.serviceContractsService,
+          actor: { id: userId, role, companyId, accessFlags },
+          linkedClientCompanyId,
+        })
+      : null
+
+    const scope = technicianScope
+      ? {
+          scopeCompanyId: technicianScope.scopeCompanyId,
+          visibilityMode: technicianScope.visibilityMode,
+        }
+      : await resolveTicketReadScope({
+          prisma: this.prisma,
+          serviceContractsService: this.serviceContractsService,
+          actorCompanyId: companyId,
+          role,
+          linkedClientCompanyId,
+          observerCompanyId,
+          allowedLinkedClientRoles: PROVIDER_LINKED_OVERVIEW_ROLES,
+        })
+
+    const decision = technicianScope
+      ? this.buildTechnicianBoardQuery({
+          companyIds: technicianScope.companyIds,
+          userId,
+          specializationIds: technicianScope.specializationIds,
+          allowTechnicianClaim: technicianScope.allowTechnicianClaim,
+          input,
+        })
+      : (() => {
+          const ownTenantScopeCompanyId =
+            !observerCompanyId && !linkedClientCompanyId && (role === UserRole.CLIENT || role === UserRole.ADMIN)
+              ? companyId
+              : scope.scopeCompanyId
+
+          const policyDecision = this.policy.boardWhere({ id: userId, role, companyId: ownTenantScopeCompanyId, accessFlags }, input)
+          assertAllowed(policyDecision)
+          return policyDecision.where
+        })()
 
     const nowMs = Date.now()
-    const atRiskThresholdMs = decision.where.meta.atRiskThresholdMinutes * 60_000
+    const atRiskThresholdMs = decision.meta.atRiskThresholdMinutes * 60_000
 
     const tickets = await this.prisma.ticket.findMany({
-      where: decision.where.where,
+      where: decision.where,
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,
+        companyId: true,
         status: true,
         urgency: true,
         createdAt: true,
@@ -137,7 +267,7 @@ export class TicketsQueryService {
         assignedTechnician: { select: { id: true, email: true } },
         parentId: true,
       },
-      take: decision.where.take,
+      take: decision.take,
     })
 
     const allStatuses: TicketStatus[] = [
@@ -165,6 +295,7 @@ export class TicketsQueryService {
 
       const cards = byStatus.map((t) => ({
         id: t.id,
+        companyId: t.companyId,
         title: t.problemCategory.name,
         description: t.problemText,
         status: t.status,
@@ -191,8 +322,8 @@ export class TicketsQueryService {
       columns,
       meta: {
         totalTickets: tickets.length,
-        atRiskThresholdMinutes: decision.where.meta.atRiskThresholdMinutes,
-        limitedToLast: decision.where.meta.limitedToLast,
+        atRiskThresholdMinutes: decision.meta.atRiskThresholdMinutes,
+        limitedToLast: decision.meta.limitedToLast,
         scopeCompanyId: scope.scopeCompanyId,
         visibilityMode: scope.visibilityMode,
       },
@@ -208,17 +339,51 @@ export class TicketsQueryService {
     linkedClientCompanyId?: string,
     observerCompanyId?: string,
   ) {
-    const scope = await this.resolveReadScope({
-      actorCompanyId: companyId,
-      role,
-      linkedClientCompanyId,
-      observerCompanyId,
-    })
-    const decision = this.policy.listWhere({ id: userId, role, companyId: scope.scopeCompanyId, accessFlags }, status)
-    assertAllowed(decision)
+    const technicianScope = role === UserRole.TECHNICIAN && !observerCompanyId
+      ? await resolveTechnicianOperationalScope({
+          prisma: this.prisma,
+          serviceContractsService: this.serviceContractsService,
+          actor: { id: userId, role, companyId, accessFlags },
+          linkedClientCompanyId,
+        })
+      : null
+
+    const scope = technicianScope
+      ? {
+          scopeCompanyId: technicianScope.scopeCompanyId,
+          visibilityMode: technicianScope.visibilityMode,
+        }
+      : await resolveTicketReadScope({
+          prisma: this.prisma,
+          serviceContractsService: this.serviceContractsService,
+          actorCompanyId: companyId,
+          role,
+          linkedClientCompanyId,
+          observerCompanyId,
+          allowedLinkedClientRoles: PROVIDER_LINKED_OVERVIEW_ROLES,
+        })
+
+    const where = technicianScope
+      ? this.buildTechnicianListWhere({
+          companyIds: technicianScope.companyIds,
+          userId,
+          specializationIds: technicianScope.specializationIds,
+          allowTechnicianClaim: technicianScope.allowTechnicianClaim,
+          status,
+        })
+      : (() => {
+          const ownTenantScopeCompanyId =
+            !observerCompanyId && !linkedClientCompanyId && (role === UserRole.CLIENT || role === UserRole.ADMIN)
+              ? companyId
+              : scope.scopeCompanyId
+
+          const decision = this.policy.listWhere({ id: userId, role, companyId: ownTenantScopeCompanyId, accessFlags }, status)
+          assertAllowed(decision)
+          return decision.where
+        })()
 
     return this.prisma.ticket.findMany({
-      where: decision.where,
+      where,
       orderBy: { createdAt: 'desc' },
       include: {
         location: {
@@ -245,14 +410,16 @@ export class TicketsQueryService {
     ticketId: string,
     accessFlags?: AccessFlags,
     observerCompanyId?: string,
+    linkedClientCompanyId?: string,
   ) {
-    const scope = await this.resolveReadScope({
-      actorCompanyId: companyId,
-      role,
+    const readable = await resolveReadableTicketAccess({
+      prisma: this.prisma,
+      serviceContractsService: this.serviceContractsService,
+      actor: { id: userId, role, companyId, accessFlags },
+      ticketId,
+      linkedClientCompanyId,
       observerCompanyId,
     })
-    const decision = this.policy.getOneWhere({ id: userId, role, companyId: scope.scopeCompanyId, accessFlags }, ticketId)
-    assertAllowed(decision)
 
     const include = {
       location: {
@@ -308,40 +475,41 @@ export class TicketsQueryService {
       },
     }
 
-    let ticket = await this.prisma.ticket.findFirst({
-      where: decision.where,
+    const ticket = await this.prisma.ticket.findFirst({
+      where: {
+        id: ticketId,
+        companyId: readable.ticket.companyId,
+      },
       include,
     })
 
-    if (!ticket && role === UserRole.PLATFORM_ADMIN) {
-      ticket = await this.prisma.ticket.findFirst({
-        where: { id: ticketId },
-        include,
-      })
-    }
-
-    if (!ticket && PROVIDER_MANAGEMENT_ROLES.includes(role)) {
-      const linkedClientIds = await this.serviceContractsService.listPrimaryLinkedClientIds(companyId)
-      if (linkedClientIds.length > 0) {
-        ticket = await this.prisma.ticket.findFirst({
-          where: {
-            id: ticketId,
-            companyId: { in: linkedClientIds },
-          },
-          include,
-        })
-      }
-    }
-
     if (!ticket) throw new NotFoundException('Ticket not found')
+
     return {
       ...ticket,
       title: ticket.problemCategory?.name || 'Ticket',
       description: ticket.problemText,
+      meta: {
+        scopeCompanyId: readable.scopeCompanyId,
+        visibilityMode: readable.visibilityMode,
+      },
     }
   }
 
-  async timeline(companyId: string, userId: string, role: UserRole, ticketId: string, accessFlags?: AccessFlags) {
-    return this.timelineService.getTicketTimeline({ id: userId, role, companyId, accessFlags }, ticketId)
+  async timeline(
+    companyId: string,
+    userId: string,
+    role: UserRole,
+    ticketId: string,
+    accessFlags?: AccessFlags,
+    linkedClientCompanyId?: string,
+    observerCompanyId?: string,
+  ) {
+    return this.timelineService.getTicketTimeline(
+      { id: userId, role, companyId, accessFlags },
+      ticketId,
+      linkedClientCompanyId,
+      observerCompanyId,
+    )
   }
 }

@@ -4,23 +4,23 @@ import { useQuery } from '@tanstack/react-query'
 import * as api from '../lib/api'
 
 function fmtNumber(v?: number | null) {
-  if (typeof v !== 'number' || Number.isNaN(v)) return 'вЂ”'
+  if (typeof v !== 'number' || Number.isNaN(v)) return '—'
   return new Intl.NumberFormat('ru-RU').format(v)
 }
 
 function fmtMinutes(v?: number | null) {
-  if (typeof v !== 'number' || Number.isNaN(v)) return 'вЂ”'
-  return `${new Intl.NumberFormat('ru-RU').format(v)} РјРёРЅ`
+  if (typeof v !== 'number' || Number.isNaN(v)) return '—'
+  return `${new Intl.NumberFormat('ru-RU').format(v)} мин`
 }
 
 function fmtPercent(v?: number | null) {
-  if (typeof v !== 'number' || Number.isNaN(v)) return 'вЂ”'
+  if (typeof v !== 'number' || Number.isNaN(v)) return '—'
   return `${new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 1 }).format(v)}%`
 }
 
 function providerScopeLabel(role?: api.ServiceContractRole) {
-  if (role === 'PRIMARY') return 'PRIMARY provider'
-  if (role === 'SECONDARY') return 'SECONDARY provider'
+  if (role === 'PRIMARY') return 'Основной подрядчик'
+  if (role === 'SECONDARY') return 'Дополнительный подрядчик'
   return ''
 }
 
@@ -173,36 +173,36 @@ export function AnalyticsPage() {
     <div>
       <div className="row">
         <div>
-          <h2 style={{ marginBottom: 4 }}>РђРЅР°Р»РёС‚РёРєР°</h2>
+          <h2 style={{ marginBottom: 4 }}>Аналитика</h2>
           <div className="muted small">
             {analyticsEnabled
               ? q.isFetching
-                ? 'Р—Р°РіСЂСѓР·РєР°вЂ¦'
+                ? 'Загрузка…'
                 : raw
-                  ? `РћР±РЅРѕРІР»РµРЅРѕ: ${new Date(data.now).toLocaleString('ru-RU')}`
-                  : 'вЂ”'
+                  ? `Обновлено: ${new Date(data.now).toLocaleString('ru-RU')}`
+                  : '—'
               : canShowLinkedClients
-                ? 'Р’С‹Р±РµСЂРёС‚Рµ РєР»РёРµРЅС‚Р° РґР»СЏ РїСЂРѕСЃРјРѕС‚СЂР° Р°РЅР°Р»РёС‚РёРєРё'
-                : 'вЂ”'}
+                ? 'Выберите клиента для просмотра аналитики'
+                : '—'}
           </div>
           {selectedLinkedClient ? (
             <div className="muted small" style={{ marginTop: 4 }}>
-              Provider mode В· РљР»РёРµРЅС‚: {selectedLinkedClient.clientCompany.name} В· {providerScopeLabel(selectedLinkedClient.role)}
+              Режим подрядчика · Клиент: {selectedLinkedClient.clientCompany.name} · {providerScopeLabel(selectedLinkedClient.role)}
             </div>
           ) : null}
         </div>
 
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <button className="ghost" onClick={() => analyticsEnabled && q.refetch()} disabled={!analyticsEnabled || q.isFetching}>РћР±РЅРѕРІРёС‚СЊ</button>
-          <Link to={boardLink}><button className="ghost">Рљ РґРѕСЃРєРµ</button></Link>
-          <Link to={companyLink}><button className="ghost">Рљ РєРѕРјРїР°РЅРёРё</button></Link>
+          <button className="ghost" onClick={() => analyticsEnabled && q.refetch()} disabled={!analyticsEnabled || q.isFetching}>Обновить</button>
+          <Link to={boardLink}><button className="ghost">К доске</button></Link>
+          <Link to={companyLink}><button className="ghost">К компании</button></Link>
         </div>
       </div>
 
       {isObserverMode ? (
         <div className="panel" style={{ marginBottom: 12 }}>
-          <div style={{ fontWeight: 700 }}>Р РµР¶РёРј РїСЂРѕСЃРјРѕС‚СЂР° РєРѕРјРїР°РЅРёРё: {observerLabel}</div>
-          <div className="muted small">PLATFORM_ADMIN РїСЂРѕСЃРјР°С‚СЂРёРІР°РµС‚ Р°РЅР°Р»РёС‚РёРєСѓ РєРѕРјРїР°РЅРёРё Р±РµР· tenant-РёРјРїРµСЂСЃРѕРЅР°С†РёРё.</div>
+          <div style={{ fontWeight: 700 }}>Режим просмотра компании: {observerLabel}</div>
+          <div className="muted small">PLATFORM_ADMIN просматривает аналитику компании без tenant-имперсонации.</div>
         </div>
       ) : null}
 
@@ -210,8 +210,8 @@ export function AnalyticsPage() {
         <div className="panel" style={{ marginBottom: 12 }}>
           <div className="row" style={{ marginBottom: 8, alignItems: 'flex-start' }}>
             <div>
-              <div style={{ fontWeight: 700 }}>Provider mode</div>
-              <div className="muted small">Analytics РѕС‚РєСЂС‹РІР°РµС‚СЃСЏ С‚РѕР»СЊРєРѕ РґР»СЏ ACTIVE PRIMARY linked client Рё СЃРѕС…СЂР°РЅСЏРµС‚ С‚РѕС‚ Р¶Рµ scoped context, С‡С‚Рѕ Рё board.</div>
+              <div style={{ fontWeight: 700 }}>Режим подрядчика</div>
+              <div className="muted small">Аналитика открывается только для активного основного клиента и сохраняет тот же контекст, что и доска.</div>
             </div>
             <div style={{ minWidth: 260 }}>
               <select
@@ -220,30 +220,30 @@ export function AnalyticsPage() {
                 style={{ width: '100%' }}
                 disabled={linkedClientsQ.isLoading || (linkedClientsQ.data || []).length === 0}
               >
-                {!requestedLinkedClientCompanyId ? <option value="">Р’С‹Р±РµСЂРёС‚Рµ РєР»РёРµРЅС‚Р°</option> : null}
+                {!requestedLinkedClientCompanyId ? <option value="">Выберите клиента</option> : null}
                 {(linkedClientsQ.data || []).map((item) => (
                   <option key={item.clientCompany.id} value={item.clientCompany.id}>
-                    {item.clientCompany.name} В· {item.role}
+                    {item.clientCompany.name} · {item.role}
                   </option>
                 ))}
               </select>
             </div>
           </div>
 
-          {linkedClientsQ.isLoading ? <div className="muted small">Р—Р°РіСЂСѓР¶Р°РµРј СЃРІСЏР·Р°РЅРЅС‹С… РєР»РёРµРЅС‚РѕРІвЂ¦</div> : null}
-          {providerHasNoLinkedClients ? <div className="muted small">РЈ РІР°С€РµР№ provider company РїРѕРєР° РЅРµС‚ Р°РєС‚РёРІРЅС‹С… СЃРІСЏР·Р°РЅРЅС‹С… РєР»РёРµРЅС‚РѕРІ.</div> : null}
-          {providerNeedsClientSelection ? <div className="muted small">Р’С‹Р±РµСЂРёС‚Рµ РєР»РёРµРЅС‚Р°, С‡С‚РѕР±С‹ РѕС‚РєСЂС‹С‚СЊ analytics РІ РµРіРѕ РєРѕРЅС‚РµРєСЃС‚Рµ.</div> : null}
+          {linkedClientsQ.isLoading ? <div className="muted small">Загружаем связанных клиентов…</div> : null}
+          {providerHasNoLinkedClients ? <div className="muted small">У вашей provider company пока нет активных связанных клиентов.</div> : null}
+          {providerNeedsClientSelection ? <div className="muted small">Выберите клиента, чтобы открыть analytics в его контексте.</div> : null}
           {providerRestrictedSelection && selectedLinkedClient ? (
-            <div className="muted small">Р”Р»СЏ РєР»РёРµРЅС‚Р° {selectedLinkedClient.clientCompany.name} СЃРІСЏР·СЊ РёРјРµРµС‚ СЂРѕР»СЊ SECONDARY, РїРѕСЌС‚РѕРјСѓ РѕР±С‰РёР№ analytics overview РїРѕРєР° РЅРµРґРѕСЃС‚СѓРїРµРЅ.</div>
+            <div className="muted small">Для клиента {selectedLinkedClient.clientCompany.name} связь имеет роль SECONDARY, поэтому общий обзор аналитики пока недоступен.</div>
           ) : null}
           {selectedLinkedClient && !providerRestrictedSelection ? (
             <div className="card" style={{ padding: 12, marginTop: 8, borderRadius: 12, border: '1px solid #c7d2fe', background: '#eef2ff' }}>
               <div style={{ fontWeight: 700 }}>{selectedLinkedClient.clientCompany.name}</div>
               <div className="muted small" style={{ marginTop: 4 }}>
-                {providerScopeLabel(selectedLinkedClient.role)} В· РѕС‚РєСЂС‹С‚С‹С… Р·Р°СЏРІРѕРє: {selectedLinkedClient.summary.openTickets} В· Р»РѕРєР°С†РёР№: {selectedLinkedClient.summary.locations}
+                {providerScopeLabel(selectedLinkedClient.role)} · открытых заявок: {selectedLinkedClient.summary.openTickets} · локаций: {selectedLinkedClient.summary.locations}
               </div>
               <div className="muted small" style={{ marginTop: 4 }}>
-                Public intake: {selectedLinkedClient.summary.publicRequestEnabled ? 'РІРєР»СЋС‡С‘РЅ' : 'РІС‹РєР»СЋС‡РµРЅ'}
+                Публичные заявки: {selectedLinkedClient.summary.publicRequestEnabled ? 'включён' : 'выключен'}
               </div>
             </div>
           ) : null}
@@ -257,81 +257,81 @@ export function AnalyticsPage() {
 
       {providerHasNoLinkedClients ? (
         <div className="panel" style={{ marginBottom: 12 }}>
-          <h3 style={{ marginBottom: 6 }}>РќРµС‚ СЃРІСЏР·Р°РЅРЅС‹С… РєР»РёРµРЅС‚РѕРІ</h3>
-          <div className="muted small">РљРѕРіРґР° Сѓ provider company РїРѕСЏРІРёС‚СЃСЏ ACTIVE PRIMARY ServiceContract, Р·РґРµСЃСЊ РѕС‚РєСЂРѕРµС‚СЃСЏ Р°РЅР°Р»РёС‚РёРєР° РєР»РёРµРЅС‚Р°.</div>
+          <h3 style={{ marginBottom: 6 }}>Нет связанных клиентов</h3>
+          <div className="muted small">Когда у provider company появится ACTIVE PRIMARY ServiceContract, здесь откроется аналитика клиента.</div>
         </div>
       ) : null}
 
       {providerRestrictedSelection && selectedLinkedClient ? (
         <div className="panel" style={{ marginBottom: 12 }}>
-          <h3 style={{ marginBottom: 6 }}>РћРіСЂР°РЅРёС‡РµРЅРЅС‹Р№ РґРѕСЃС‚СѓРї</h3>
-          <div className="muted small">SECONDARY provider РЅРµ РїРѕР»СѓС‡Р°РµС‚ РѕР±С‰РёР№ analytics overview РєР»РёРµРЅС‚Р° РЅР° СЌС‚РѕРј СЌС‚Р°РїРµ.</div>
+          <h3 style={{ marginBottom: 6 }}>Ограниченный доступ</h3>
+          <div className="muted small">Дополнительный подрядчик не получает общий обзор аналитики клиента на этом этапе.</div>
         </div>
       ) : null}
 
       <div className="panel" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 12 }}>
         <div>
-          <div className="muted small">Р’СЃРµРіРѕ Р·Р°СЏРІРѕРє</div>
-          <div style={{ fontSize: 22, fontWeight: 800, marginTop: 2 }}>{analyticsEnabled && !q.isFetching ? fmtNumber(data.createdCount) : 'вЂ”'}</div>
+          <div className="muted small">Всего заявок</div>
+          <div style={{ fontSize: 22, fontWeight: 800, marginTop: 2 }}>{analyticsEnabled && !q.isFetching ? fmtNumber(data.createdCount) : '—'}</div>
         </div>
         <div>
-          <div className="muted small">Backlog open</div>
-          <div style={{ fontSize: 22, fontWeight: 800, marginTop: 2 }}>{analyticsEnabled && !q.isFetching ? fmtNumber(data.summary?.backlogOpenTotal) : 'вЂ”'}</div>
+          <div className="muted small">Открытых в бэклоге</div>
+          <div style={{ fontSize: 22, fontWeight: 800, marginTop: 2 }}>{analyticsEnabled && !q.isFetching ? fmtNumber(data.summary?.backlogOpenTotal) : '—'}</div>
         </div>
         <div>
-          <div className="muted small">SLA РЅР°СЂСѓС€РµРЅРѕ</div>
-          <div style={{ fontSize: 22, fontWeight: 800, marginTop: 2 }}>{analyticsEnabled && !q.isFetching ? fmtNumber(data.sla.breachedCount) : 'вЂ”'}</div>
+          <div className="muted small">SLA нарушено</div>
+          <div style={{ fontSize: 22, fontWeight: 800, marginTop: 2 }}>{analyticsEnabled && !q.isFetching ? fmtNumber(data.sla.breachedCount) : '—'}</div>
         </div>
         <div>
-          <div className="muted small">Public quick requests</div>
-          <div style={{ fontSize: 22, fontWeight: 800, marginTop: 2 }}>{analyticsEnabled && !q.isFetching ? fmtNumber(data.bySource?.PUBLIC_QUICK_REQUEST ?? 0) : 'вЂ”'}</div>
+          <div className="muted small">Публичные заявки</div>
+          <div style={{ fontSize: 22, fontWeight: 800, marginTop: 2 }}>{analyticsEnabled && !q.isFetching ? fmtNumber(data.bySource?.PUBLIC_QUICK_REQUEST ?? 0) : '—'}</div>
         </div>
       </div>
 
       <div className="grid2">
         <div className="panel">
-          <h3 style={{ marginBottom: 10 }}>РћС‚РєСЂС‹С‚С‹Рµ РїРѕ СЃС‚Р°С‚СѓСЃР°Рј</h3>
+          <h3 style={{ marginBottom: 10 }}>Открытые по статусам</h3>
           <div className="kv">
-            <div className="k">РќРѕРІС‹Рµ</div>
-            <div className="v">{analyticsEnabled && !q.isFetching ? fmtNumber(data.openByStatus.NEW) : 'вЂ”'}</div>
-            <div className="k">РќР°Р·РЅР°С‡РµРЅРЅС‹Рµ</div>
-            <div className="v">{analyticsEnabled && !q.isFetching ? fmtNumber(data.openByStatus.ASSIGNED) : 'вЂ”'}</div>
-            <div className="k">Р’ СЂР°Р±РѕС‚Рµ</div>
-            <div className="v">{analyticsEnabled && !q.isFetching ? fmtNumber(data.openByStatus.IN_PROGRESS) : 'вЂ”'}</div>
-            <div className="k">Р’СЃРµРіРѕ РѕС‚РєСЂС‹С‚С‹С…</div>
-            <div className="v">{analyticsEnabled && !q.isFetching ? fmtNumber(openTotal) : 'вЂ”'}</div>
-            <div className="k">Р‘РµР· РЅР°Р·РЅР°С‡РµРЅРёСЏ</div>
-            <div className="v">{analyticsEnabled && !q.isFetching ? fmtNumber(data.summary?.unassignedOpenTickets) : 'вЂ”'}</div>
+            <div className="k">Новые</div>
+            <div className="v">{analyticsEnabled && !q.isFetching ? fmtNumber(data.openByStatus.NEW) : '—'}</div>
+            <div className="k">Назначенные</div>
+            <div className="v">{analyticsEnabled && !q.isFetching ? fmtNumber(data.openByStatus.ASSIGNED) : '—'}</div>
+            <div className="k">В работе</div>
+            <div className="v">{analyticsEnabled && !q.isFetching ? fmtNumber(data.openByStatus.IN_PROGRESS) : '—'}</div>
+            <div className="k">Всего открытых</div>
+            <div className="v">{analyticsEnabled && !q.isFetching ? fmtNumber(openTotal) : '—'}</div>
+            <div className="k">Без назначения</div>
+            <div className="v">{analyticsEnabled && !q.isFetching ? fmtNumber(data.summary?.unassignedOpenTickets) : '—'}</div>
           </div>
         </div>
 
         <div className="panel">
-          <h3 style={{ marginBottom: 10 }}>SLA Рё СЃСЂРµРґРЅРёРµ РІСЂРµРјРµРЅР°</h3>
+          <h3 style={{ marginBottom: 10 }}>SLA и средние времена</h3>
           <div className="kv">
-            <div className="k">SLA evaluated</div>
-            <div className="v">{analyticsEnabled && !q.isFetching ? fmtNumber(data.sla.evaluatedCount) : 'вЂ”'}</div>
-            <div className="k">SLA OK %</div>
-            <div className="v">{analyticsEnabled && !q.isFetching ? fmtPercent(data.sla.okPercent) : 'вЂ”'}</div>
-            <div className="k">SLA breached %</div>
-            <div className="v">{analyticsEnabled && !q.isFetching ? fmtPercent(data.sla.breachedPercent) : 'вЂ”'}</div>
-            <div className="k">Р”Рѕ РЅР°Р·РЅР°С‡РµРЅРёСЏ</div>
-            <div className="v">{analyticsEnabled && !q.isFetching ? fmtMinutes(data.timing.meanTimeToAssignMinutes) : 'вЂ”'}</div>
-            <div className="k">Р”Рѕ Р·Р°РІРµСЂС€РµРЅРёСЏ</div>
-            <div className="v">{analyticsEnabled && !q.isFetching ? fmtMinutes(data.timing.meanTimeToResolveMinutes) : 'вЂ”'}</div>
+            <div className="k">Проверено по SLA</div>
+            <div className="v">{analyticsEnabled && !q.isFetching ? fmtNumber(data.sla.evaluatedCount) : '—'}</div>
+            <div className="k">SLA в норме %</div>
+            <div className="v">{analyticsEnabled && !q.isFetching ? fmtPercent(data.sla.okPercent) : '—'}</div>
+            <div className="k">SLA нарушено %</div>
+            <div className="v">{analyticsEnabled && !q.isFetching ? fmtPercent(data.sla.breachedPercent) : '—'}</div>
+            <div className="k">До назначения</div>
+            <div className="v">{analyticsEnabled && !q.isFetching ? fmtMinutes(data.timing.meanTimeToAssignMinutes) : '—'}</div>
+            <div className="k">До завершения</div>
+            <div className="v">{analyticsEnabled && !q.isFetching ? fmtMinutes(data.timing.meanTimeToResolveMinutes) : '—'}</div>
           </div>
           {analyticsEnabled && data.timing.note ? <div className="muted small" style={{ marginTop: 10 }}>{data.timing.note}</div> : null}
         </div>
       </div>
 
       <div className="panel" style={{ marginTop: 12 }}>
-        <h3 style={{ marginBottom: 10 }}>Public intake РїРѕ С‚РѕС‡РєР°Рј</h3>
-        {analyticsEnabled && !q.isFetching && !(data.publicIntake?.byLocation?.length || 0) ? <div className="muted small">РџРѕРєР° РЅРµС‚ РїСѓР±Р»РёС‡РЅС‹С… Р·Р°СЏРІРѕРє РїРѕ С‚РѕС‡РєР°Рј.</div> : null}
-        {!analyticsEnabled && canShowLinkedClients ? <div className="muted small">Р’С‹Р±РµСЂРёС‚Рµ РґРѕСЃС‚СѓРїРЅРѕРіРѕ linked client, С‡С‚РѕР±С‹ СѓРІРёРґРµС‚СЊ breakdown РїРѕ С‚РѕС‡РєР°Рј.</div> : null}
+        <h3 style={{ marginBottom: 10 }}>Публичные заявки по точкам</h3>
+        {analyticsEnabled && !q.isFetching && !(data.publicIntake?.byLocation?.length || 0) ? <div className="muted small">Пока нет публичных заявок по точкам.</div> : null}
+        {!analyticsEnabled && canShowLinkedClients ? <div className="muted small">Выберите доступного клиента, чтобы увидеть разрез по точкам.</div> : null}
         <div style={{ display: 'grid', gap: 8 }}>
           {(data.publicIntake?.byLocation || []).slice(0, 8).map((row) => (
             <div key={row.locationId} className="card" style={{ padding: 12 }}>
               <div style={{ fontWeight: 600 }}>{row.locationName}</div>
-              <div className="muted small">Р’СЃРµРіРѕ: {fmtNumber(row.total)} В· repair: {fmtNumber(row.repairCount)} В· note: {fmtNumber(row.noteCount)} В· resolved: {fmtNumber(row.resolvedCount)}</div>
+              <div className="muted small">Всего: {fmtNumber(row.total)} · ремонт: {fmtNumber(row.repairCount)} · заметка: {fmtNumber(row.noteCount)} · решено: {fmtNumber(row.resolvedCount)}</div>
             </div>
           ))}
         </div>

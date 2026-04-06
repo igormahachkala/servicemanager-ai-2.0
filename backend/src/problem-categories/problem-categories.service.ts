@@ -47,17 +47,20 @@ export class ProblemCategoriesService {
 
     return categories.map((category) => {
       const requiredSpecializationIds = category.specializationLinks.map((link) => link.specializationId);
+      const fallbackMode = requiredSpecializationIds.length === 0;
 
       const coverageTechnicians = technicians
         .map((tech) => {
-          const matchedSpecializations = tech.technicianSpecializations
-            .filter((link) => requiredSpecializationIds.includes(link.specializationId))
-            .map((link) => ({
-              id: link.specialization.id,
-              name: link.specialization.name,
-              isActive: link.specialization.isActive,
-            }))
-            .sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+          const matchedSpecializations = fallbackMode
+            ? []
+            : tech.technicianSpecializations
+                .filter((link) => requiredSpecializationIds.includes(link.specializationId))
+                .map((link) => ({
+                  id: link.specialization.id,
+                  name: link.specialization.name,
+                  isActive: link.specialization.isActive,
+                }))
+                .sort((a, b) => a.name.localeCompare(b.name, 'ru'));
 
           return {
             id: tech.id,
@@ -65,20 +68,26 @@ export class ProblemCategoriesService {
             matchedSpecializations,
           };
         })
-        .filter((tech) => tech.matchedSpecializations.length > 0);
+        .filter((tech) => fallbackMode || tech.matchedSpecializations.length > 0);
 
-      const coverageStatus =
-        requiredSpecializationIds.length === 0
-          ? 'no_specializations'
-          : coverageTechnicians.length === 0
-            ? 'no_technicians'
-            : 'covered';
+      const coverageStatus = fallbackMode
+        ? 'no_specializations'
+        : coverageTechnicians.length === 0
+          ? 'no_technicians'
+          : 'covered';
 
       return {
         ...category,
         coverage: {
           status: coverageStatus,
           techniciansCount: coverageTechnicians.length,
+          requiredSpecializationsCount: requiredSpecializationIds.length,
+          fallbackMode,
+          note: fallbackMode
+            ? '????????????? ?? ??????. ??? ?????? ?????????? ? claim ????? ?????????????? ?????????? fallback ?? ???????? ????????.'
+            : coverageTechnicians.length === 0
+              ? '? ????????? ???? ?????????? ?? ??????????????, ?? ?????? ??? ?????????? ????????.'
+              : '????????? ??????? ????????? ?? ??????????????.',
           technicians: coverageTechnicians,
         },
       };

@@ -80,6 +80,10 @@ export function CreateTicketPage() {
   const selectedCategory = useMemo(() => activeCategories.find((row) => row.id === categoryId) || null, [activeCategories, categoryId])
   const selectedLocation = useMemo(() => activeLocations.find((row) => row.id === locationId) || null, [activeLocations, locationId])
   const preview = useMemo(() => buildPreview(selectedCategory, selectedLocation), [selectedCategory, selectedLocation])
+  const selectedCategorySpecializations = useMemo(
+    () => (selectedCategory?.specializationLinks || []).map((link) => link.specialization.name),
+    [selectedCategory],
+  )
 
   const uploadM = useMutation({
     mutationFn: (file: File) => api.uploadDraftTicketAttachment(file),

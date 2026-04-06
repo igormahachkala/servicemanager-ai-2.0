@@ -215,6 +215,9 @@ export type ProblemCategoryCoverageTechnician = {
 export type ProblemCategoryCoverage = {
   status: 'covered' | 'no_technicians' | 'no_specializations'
   techniciansCount: number
+  requiredSpecializationsCount?: number
+  fallbackMode?: boolean
+  note?: string
   technicians: ProblemCategoryCoverageTechnician[]
 }
 
@@ -308,6 +311,7 @@ export type AssignmentCandidateTechnician = {
   email: string
   matched: boolean
   matchedBy: string[]
+  matchReason?: 'category_specialization' | 'fallback_no_category_specializations' | 'no_match'
   assignedCount?: number
   inProgressCount?: number
   activeLoad?: number
@@ -332,6 +336,21 @@ export type AssignmentCandidatesResponse = {
   }>
   matched: AssignmentCandidateTechnician[]
   others: AssignmentCandidateTechnician[]
+  location?: {
+    id: string
+    name: string
+    platformCode?: string | null
+    externalCode?: string | null
+    city?: string | null
+    address?: string | null
+  }
+  meta?: {
+    matchingMode?: 'category_specializations' | 'fallback_no_category_specializations'
+    explanation?: string
+    scopeCompanyId?: string
+    workforceCompanyId?: string
+    visibilityMode?: 'tenant' | 'provider_primary' | 'platform_observer'
+  }
 }
 
 export type TicketAttachmentItem = {
@@ -1189,6 +1208,27 @@ export function buildPublicRequestLink(token?: string | null, locationId?: strin
   return url.toString()
 }
 
+export type TicketScopeParams = {
+  companyId?: string
+  linkedClientCompanyId?: string
+}
+
+function normalizeTicketScope(scope?: string | TicketScopeParams): TicketScopeParams {
+  if (!scope) return {}
+  if (typeof scope === 'string') return { companyId: scope }
+  return scope
+}
+
+function buildTicketScopeSuffix(scope?: string | TicketScopeParams): string {
+  const normalized = normalizeTicketScope(scope)
+  const search = new URLSearchParams()
+
+  if (normalized.companyId) search.set('companyId', normalized.companyId)
+  if (normalized.linkedClientCompanyId) search.set('linkedClientCompanyId', normalized.linkedClientCompanyId)
+
+  return search.toString() ? `?${search.toString()}` : ''
+}
+
 export async function board(params?: { take?: number; linkedClientCompanyId?: string; companyId?: string }): Promise<BoardResponse> {
   const search = new URLSearchParams()
 
@@ -1197,6 +1237,9 @@ export async function board(params?: { take?: number; linkedClientCompanyId?: st
   }
   if (params?.linkedClientCompanyId) {
     search.set('linkedClientCompanyId', params.linkedClientCompanyId)
+  }
+  if (params?.companyId) {
+    search.set('companyId', params.companyId)
   }
 
   const suffix = search.toString() ? `?${search.toString()}` : ''
@@ -1211,34 +1254,31 @@ export async function availableTickets(): Promise<any[]> {
   return request<any[]>('/tickets/available')
 }
 
-export async function ticket(id: string, companyId?: string): Promise<TicketGetOne> {
-  const search = new URLSearchParams()
-  if (companyId) search.set('companyId', companyId)
-  const suffix = search.toString() ? '?' + search.toString() : ''
-  return request<TicketGetOne>(`/tickets/${id}${suffix}`)
+export async function ticket(id: string, scope?: string | TicketScopeParams): Promise<TicketGetOne> {
+  return request<TicketGetOne>(`/tickets/${id}${buildTicketScopeSuffix(scope)}`)
 }
 
-export async function getTicket(id: string, companyId?: string): Promise<TicketGetOne> {
-  return ticket(id, companyId)
+export async function getTicket(id: string, scope?: string | TicketScopeParams): Promise<TicketGetOne> {
+  return ticket(id, scope)
 }
 
-export async function ticketTimeline(id: string): Promise<TimelineResponse> {
-  return request<TimelineResponse>(`/tickets/${id}/timeline`)
+export async function ticketTimeline(id: string, scope?: string | TicketScopeParams): Promise<TimelineResponse> {
+  return request<TimelineResponse>(`/timeline/tickets/${id}${buildTicketScopeSuffix(scope)}`)
 }
-export async function timeline(id: string): Promise<TimelineResponse> {
-  return ticketTimeline(id)
-}
-
-export async function timelineTicket(id: string): Promise<TimelineResponse> {
-  return ticketTimeline(id)
+export async function timeline(id: string, scope?: string | TicketScopeParams): Promise<TimelineResponse> {
+  return ticketTimeline(id, scope)
 }
 
-export async function assignmentCandidates(id: string): Promise<AssignmentCandidatesResponse> {
-  return request<AssignmentCandidatesResponse>(`/tickets/${id}/assignment-candidates`)
+export async function timelineTicket(id: string, scope?: string | TicketScopeParams): Promise<TimelineResponse> {
+  return ticketTimeline(id, scope)
 }
 
-export async function getTicketAssignmentCandidates(id: string): Promise<AssignmentCandidatesResponse> {
-  return assignmentCandidates(id)
+export async function assignmentCandidates(id: string, scope?: string | TicketScopeParams): Promise<AssignmentCandidatesResponse> {
+  return request<AssignmentCandidatesResponse>(`/tickets/${id}/assignment-candidates${buildTicketScopeSuffix(scope)}`)
+}
+
+export async function getTicketAssignmentCandidates(id: string, scope?: string | TicketScopeParams): Promise<AssignmentCandidatesResponse> {
+  return assignmentCandidates(id, scope)
 }
 
 export async function uploadDraftTicketAttachment(file: File): Promise<DraftTicketAttachment> {
@@ -1296,8 +1336,8 @@ export async function createChildTicket(parentId: string, input: CreateTicketInp
   })
 }
 
-export async function updateTicket(id: string, input: UpdateTicketInput): Promise<any> {
-  return request<any>(`/tickets/${id}`, {
+export async function updateTicket(id: string, input: UpdateTicketInput, scope?: string | TicketScopeParams): Promise<any> {
+  return request<any>(`/tickets/${id}${buildTicketScopeSuffix(scope)}`, {
     method: 'PATCH',
     body: input,
   })
@@ -1310,39 +1350,39 @@ export async function changeTicketCategory(id: string, problemCategoryId: string
   })
 }
 
-export async function assignTicket(id: string, technicianId: string): Promise<any> {
-  return request<any>(`/tickets/${id}/assign/${technicianId}`, {
+export async function assignTicket(id: string, technicianId: string, scope?: string | TicketScopeParams): Promise<any> {
+  return request<any>(`/tickets/${id}/assign/${technicianId}${buildTicketScopeSuffix(scope)}`, {
     method: 'PUT',
   })
 }
 
-export async function claimTicket(id: string): Promise<any> {
-  return request<any>(`/tickets/${id}/claim`, {
+export async function claimTicket(id: string, scope?: string | TicketScopeParams): Promise<any> {
+  return request<any>(`/tickets/${id}/claim${buildTicketScopeSuffix(scope)}`, {
     method: 'POST',
   })
 }
 
-export async function claim(id: string): Promise<any> {
-  return claimTicket(id)
+export async function claim(id: string, scope?: string | TicketScopeParams): Promise<any> {
+  return claimTicket(id, scope)
 }
 
-export async function updateTicketStatus(id: string, input: UpdateTicketStatusInput): Promise<any> {
-  return request<any>(`/tickets/${id}/status`, {
+export async function updateTicketStatus(id: string, input: UpdateTicketStatusInput, scope?: string | TicketScopeParams): Promise<any> {
+  return request<any>(`/tickets/${id}/status${buildTicketScopeSuffix(scope)}`, {
     method: 'PATCH',
     body: input,
   })
 }
 
-export async function ticketAttachments(id: string): Promise<TicketAttachmentItem[]> {
-  return request<TicketAttachmentItem[]>(`/tickets/${id}/attachments`)
+export async function ticketAttachments(id: string, scope?: string | TicketScopeParams): Promise<TicketAttachmentItem[]> {
+  return request<TicketAttachmentItem[]>(`/tickets/${id}/attachments${buildTicketScopeSuffix(scope)}`)
 }
 
-export async function uploadTicketAttachment(id: string, file: File): Promise<any> {
+export async function uploadTicketAttachment(id: string, file: File, scope?: string | TicketScopeParams): Promise<any> {
   const token = getToken()
   const formData = new FormData()
   formData.append('file', file)
 
-  const res = await fetch(`${getBaseUrl()}/tickets/${id}/attachments`, {
+  const res = await fetch(`${getBaseUrl()}/tickets/${id}/attachments${buildTicketScopeSuffix(scope)}`, {
     method: 'POST',
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     body: formData,
@@ -1372,8 +1412,8 @@ export async function uploadTicketAttachment(id: string, file: File): Promise<an
   return data
 }
 
-export async function deleteTicketAttachment(id: string, attachmentId: string): Promise<any> {
-  return request<any>(`/tickets/${id}/attachments/${attachmentId}`, {
+export async function deleteTicketAttachment(id: string, attachmentId: string, scope?: string | TicketScopeParams): Promise<any> {
+  return request<any>(`/tickets/${id}/attachments/${attachmentId}${buildTicketScopeSuffix(scope)}`, {
     method: 'DELETE',
   })
 }
@@ -1963,3 +2003,6 @@ export async function downloadInspectionRunReportExport(
     fileName: match?.[1] || 'work-act.' + format,
   }
 }
+
+
+

@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 
@@ -92,6 +92,11 @@ function ColumnSkeleton({ title }: { title: string }) {
 function isProviderBoardRole(role?: api.Role) {
   return role === 'ADMIN' || role === 'MASTER' || role === 'DISPATCHER' || role === 'NETWORK_DIRECTOR'
 }
+
+function canCreateTickets(role?: api.Role) {
+  return role === 'ADMIN' || role === 'MASTER' || role === 'DISPATCHER'
+}
+
 
 function buildBoardLink(linkedClientCompanyId?: string | null) {
   if (!linkedClientCompanyId) return '/board'
@@ -240,7 +245,9 @@ export function BoardPage() {
 
   const observerLabel = observerCompanyQ.data?.name || observerCompanyId
   const providerHeaderLabel = selectedLinkedClient?.clientCompany.name || primaryLinkedClients[0]?.clientCompany.name || ''
-  const providerCanCreateTicket = !canShowLinkedClients && !isObserverMode
+  const isTechnician = meQ.data?.role === 'TECHNICIAN'
+  const isProviderTechnician = isProviderCompany && isTechnician
+  const providerCanCreateTicket = !isObserverMode && !canShowLinkedClients && canCreateTickets(meQ.data?.role)
   const analyticsLink = buildAnalyticsLink({ observerCompanyId, linkedClientCompanyId: resolvedLinkedClientCompanyId })
   const companyLink = buildCompanyLink({ observerCompanyId, linkedClientCompanyId: resolvedLinkedClientCompanyId })
 
@@ -251,6 +258,11 @@ export function BoardPage() {
 
   const subtitle = (() => {
     if (isResolvingProviderContext) return 'Подбираем связанного клиента для provider board…'
+    if (isProviderTechnician) {
+      return boardData
+        ? `Ваш operational scope: ${boardData.meta.totalTickets} заявок`
+        : 'Показываем назначенные вам и доступные для claim заявки в provider operational scope.'
+    }
     if (!boardEnabled && canShowLinkedClients) return 'Выберите связанного клиента, чтобы открыть operational board.'
     if (boardData) return `Всего: ${boardData.meta.totalTickets} · лимит последних: ${boardData.meta.limitedToLast}`
     return '—'
@@ -311,6 +323,11 @@ export function BoardPage() {
                   ? `Сейчас открыт клиент: ${providerHeaderLabel}`
                   : 'Выберите связанного клиента, чтобы открыть его board в provider scope.'}
               </div>
+            </div>
+          ) : isProviderTechnician ? (
+            <div>
+              <div style={{ fontWeight: 700 }}>Provider operational mode</div>
+              <div className="muted small">Техник видит назначенные ему заявки и, если это разрешено настройками компании, доступные заявки для claim.</div>
             </div>
           ) : ownCompanyQ.isLoading ? (
             <div style={{ display: 'grid', gap: 8 }}>
@@ -491,7 +508,11 @@ export function BoardPage() {
           <div className="muted small" style={{ marginBottom: 10 }}>
             {canShowLinkedClients && selectedLinkedClient
               ? `У клиента ${selectedLinkedClient.clientCompany.name} пока нет заявок.`
-              : 'Создайте тестовую заявку, чтобы доска стала живой для демонстрации.'}
+              : isTechnician
+                ? ownCompanyQ.data?.allowTechnicianClaim
+                  ? 'Нет назначенных заявок и доступных заявок для claim в вашем operational scope.'
+                  : 'Нет назначенных заявок. Доступ к свободным заявкам отключён настройками компании.'
+                : 'Создайте тестовую заявку, чтобы доска стала живой для демонстрации.'}
           </div>
           {providerCanCreateTicket ? (
             <Link to="/tickets/new">
@@ -526,7 +547,13 @@ export function BoardPage() {
                 {col.cards.map((ticket) => (
                   <Link
                     key={ticket.id}
-                    to={observerCompanyId ? `/tickets/${ticket.id}?companyId=${observerCompanyId}` : `/tickets/${ticket.id}`}
+                    to={
+                      observerCompanyId
+                        ? `/tickets/${ticket.id}?companyId=${observerCompanyId}`
+                        : resolvedLinkedClientCompanyId
+                          ? `/tickets/${ticket.id}?linkedClientCompanyId=${resolvedLinkedClientCompanyId}`
+                          : `/tickets/${ticket.id}`
+                    }
                     style={{ textDecoration: 'none' }}
                   >
                     <div className="ticket">
@@ -558,3 +585,5 @@ export function BoardPage() {
     </div>
   )
 }
+
+
