@@ -1,4 +1,4 @@
-﻿import { Module } from '@nestjs/common'
+import { Module } from '@nestjs/common'
 
 import { TicketsController } from './tickets.controller'
 import { TicketsService } from './tickets.service'
@@ -13,9 +13,10 @@ import { PrismaModule } from '../prisma/prisma.module'
 import { PermissionsContextGuard } from '../common/permissions-context.guard'
 import { TimelineModule } from '../timeline/timeline.module'
 import { ServiceContractsModule } from '../service-contracts/service-contracts.module'
+import { TechniciansModule } from '../technicians/technicians.module'
 
 @Module({
-  imports: [PrismaModule, AssignmentModule, TimelineModule, ServiceContractsModule],
+  imports: [PrismaModule, AssignmentModule, TimelineModule, ServiceContractsModule, TechniciansModule],
   providers: [
     TicketsService,
     TicketsQueryService,

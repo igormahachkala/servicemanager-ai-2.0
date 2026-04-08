@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+﻿import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, PublicRequestType, TicketSource, TicketStatus, TicketUrgency, UserRole } from '@prisma/client';
 import { randomUUID } from 'crypto';
 
@@ -20,6 +20,7 @@ import { TicketAttachmentsService } from './ticket-attachments.service';
 import { buildTicketDescription } from './ticket-description.builder';
 import { resolveTechnicianOperationalScope, resolveTicketOperationAccess } from './ticket-access.utils';
 import { ServiceContractsService } from '../service-contracts/service-contracts.service';
+import { TechniciansService } from '../technicians/technicians.service';
 
 @Injectable()
 export class TicketsAssignmentService {
@@ -30,6 +31,7 @@ export class TicketsAssignmentService {
     private readonly timelineService: TimelineService,
     private readonly attachments: TicketAttachmentsService,
     private readonly serviceContractsService: ServiceContractsService,
+    private readonly techniciansService: TechniciansService,
   ) {}
 
   private readonly policy = new TicketsPolicy();
@@ -92,7 +94,7 @@ export class TicketsAssignmentService {
     const equipment = await this.prisma.equipment.findFirst({
       where: {
         id: equipmentId,
-        companyId,
+        companyId: companyId,
         locationId,
       },
       select: {
@@ -116,7 +118,7 @@ export class TicketsAssignmentService {
 
     const techs = await this.prisma.user.findMany({
       where: {
-        companyId,
+        companyId: companyId,
         role: UserRole.TECHNICIAN,
         technicianSpecializations: {
           some: { specializationId: { in: specializationIds } },
@@ -171,7 +173,7 @@ export class TicketsAssignmentService {
 
     const techs = await this.prisma.user.findMany({
       where: {
-        companyId,
+        companyId: companyId,
         role: UserRole.TECHNICIAN,
       },
       select: {
@@ -256,6 +258,7 @@ export class TicketsAssignmentService {
 
     return {
       parentId: dto.parentId ?? null,
+      clientCompanyId: dto.clientCompanyId?.trim() || null,
       locationId: dto.locationId,
       equipmentId: dto.equipmentId ?? null,
       categoryId,
@@ -270,13 +273,19 @@ export class TicketsAssignmentService {
       slaMinutes: dto.slaMinutes ?? null,
     };
   }
-  async create(companyId: string, creatorRole: UserRole, dto: CreateTicketDto) {
+  async create(actorCompanyId: string, creatorUserId: string, creatorRole: UserRole, dto: CreateTicketDto) {
     const input = this.normalizeCreateInput(dto);
-    const company = await this.getCompany(companyId);
-    const category = await this.getCategory(companyId, input.categoryId);
-    const location = await this.getLocation(companyId, input.locationId);
+    const targetCompanyId =
+      creatorRole === UserRole.TECHNICIAN && input.clientCompanyId && input.clientCompanyId !== actorCompanyId
+        ? (await this.techniciansService.resolveBoundCreateScope(actorCompanyId, creatorUserId, input.clientCompanyId, input.locationId)).companyId
+        : actorCompanyId;
+    const assignmentCompanyId =
+      creatorRole === UserRole.TECHNICIAN && targetCompanyId !== actorCompanyId ? actorCompanyId : targetCompanyId;
+    const company = await this.getCompany(targetCompanyId);
+    const category = await this.getCategory(targetCompanyId, input.categoryId);
+    const location = await this.getLocation(targetCompanyId, input.locationId);
     const equipment = input.equipmentId
-      ? await this.getEquipment(companyId, location.id, input.equipmentId)
+      ? await this.getEquipment(targetCompanyId, location.id, input.equipmentId)
       : null;
     const generated = buildTicketDescription({
       category,
@@ -286,8 +295,7 @@ export class TicketsAssignmentService {
     });
 
     const specializationIds = category.specializationLinks.map((x) => x.specializationId);
-    const candidates = await this.findCandidateTechnicians(companyId, specializationIds);
-
+    const candidates = await this.findCandidateTechnicians(assignmentCompanyId, specializationIds);
     const shouldAutoAssign = company.autoAssignEnabled && candidates.length > 0;
 
     const ticketId = randomUUID();
@@ -299,7 +307,7 @@ export class TicketsAssignmentService {
       const decision = shouldAutoAssign
         ? await this.assignment.decide(
             {
-              companyId,
+              companyId: assignmentCompanyId,
               ticketId,
               problemCategoryId: input.categoryId,
               specializationIds,
@@ -325,7 +333,7 @@ export class TicketsAssignmentService {
       let ticket = await tx.ticket.create({
         data: {
           id: ticketId,
-          companyId,
+          companyId: targetCompanyId,
           locationId: location.id,
           equipmentId: equipment?.id ?? null,
           parentId: input.parentId,
@@ -356,14 +364,14 @@ export class TicketsAssignmentService {
       });
 
       const boundAttachments = await this.attachments.bindAttachmentsToTicketTx(tx, {
-        companyId,
+        companyId: targetCompanyId,
         ticketId: ticket.id,
         attachmentIds: input.attachmentIds ?? [],
       });
 
       await this.timelineService.recordTx(tx, {
         event: 'TICKET_CREATED',
-        companyId,
+        companyId: targetCompanyId,
         ticketId: ticket.id,
         actorUserId: null,
         payload: {
@@ -405,7 +413,7 @@ export class TicketsAssignmentService {
 
         await this.timelineService.recordTx(tx, {
           event: 'TICKET_ASSIGNED',
-          companyId,
+          companyId: targetCompanyId,
           ticketId: ticket.id,
           actorUserId: null,
           payload: {
@@ -461,7 +469,7 @@ export class TicketsAssignmentService {
       const decision = shouldAutoAssign
         ? await this.assignment.decide(
             {
-              companyId,
+              companyId: companyId,
               ticketId,
               problemCategoryId: dto.problemCategoryId,
               specializationIds,
@@ -487,7 +495,7 @@ export class TicketsAssignmentService {
       let ticket = await tx.ticket.create({
         data: {
           id: ticketId,
-          companyId,
+          companyId: companyId,
           locationId: parent.locationId,
           parentId: parent.id,
 
@@ -518,7 +526,7 @@ export class TicketsAssignmentService {
 
       await this.timelineService.recordTx(tx, {
         event: 'TICKET_CREATED',
-        companyId,
+        companyId: companyId,
         ticketId: ticket.id,
         actorUserId: null,
         payload: {
@@ -556,7 +564,7 @@ export class TicketsAssignmentService {
 
         await this.timelineService.recordTx(tx, {
           event: 'TICKET_ASSIGNED',
-          companyId,
+          companyId: companyId,
           ticketId: ticket.id,
           actorUserId: null,
           payload: {
@@ -587,7 +595,7 @@ export class TicketsAssignmentService {
       actor: {
         id: actor?.id,
         role: actor?.role,
-        companyId,
+        companyId: companyId,
         accessFlags: actor?.accessFlags,
       },
       ticketId
@@ -672,7 +680,7 @@ export class TicketsAssignmentService {
       actor: {
         id: actor?.id,
         role: actor?.role,
-        companyId,
+        companyId: companyId,
         accessFlags: actor?.accessFlags,
       },
       ticketId
@@ -799,7 +807,7 @@ export class TicketsAssignmentService {
       actor: {
         id: actor?.id,
         role: actor?.role,
-        companyId,
+        companyId: companyId,
         accessFlags: actor?.accessFlags,
       },
       ticketId,
@@ -811,6 +819,12 @@ export class TicketsAssignmentService {
 
     const normalizedCategoryId = dto.problemCategoryId?.trim();
     const normalizedLocationId = dto.locationId?.trim();
+    const normalizedEquipmentId =
+      dto.equipmentId === undefined
+        ? undefined
+        : dto.equipmentId === null
+          ? null
+          : dto.equipmentId.trim();
     const normalizedProblemText = typeof dto.problemText === 'string' ? dto.problemText.trim() : undefined;
 
     if (dto.problemText !== undefined && !normalizedProblemText) {
@@ -824,6 +838,9 @@ export class TicketsAssignmentService {
     if (dto.locationId !== undefined && !normalizedLocationId) {
       throw new BadRequestException('locationId cannot be empty');
     }
+    if (dto.equipmentId !== undefined && normalizedEquipmentId === '') {
+      throw new BadRequestException('equipmentId cannot be empty');
+    }
 
     const updatedTicketId = await this.prisma.$transaction(async (tx) => {
       const ticket = await tx.ticket.findFirst({
@@ -832,6 +849,7 @@ export class TicketsAssignmentService {
           id: true,
           companyId: true,
           locationId: true,
+          equipmentId: true,
           problemCategoryId: true,
           problemText: true,
           urgency: true,
@@ -881,6 +899,21 @@ export class TicketsAssignmentService {
         }
       }
 
+      const effectiveLocationId = normalizedLocationId || ticket.locationId;
+      if (normalizedEquipmentId && normalizedEquipmentId !== ticket.equipmentId) {
+        const equipment = await tx.equipment.findFirst({
+          where: {
+            id: normalizedEquipmentId,
+            companyId: access.ticket.companyId,
+            locationId: effectiveLocationId,
+          },
+          select: { id: true },
+        });
+        if (!equipment) {
+          throw new NotFoundException('Equipment not found');
+        }
+      }
+
       const data: Prisma.TicketUpdateInput = {};
       const changedFields: string[] = [];
 
@@ -892,6 +925,13 @@ export class TicketsAssignmentService {
       if (normalizedLocationId && normalizedLocationId !== ticket.locationId) {
         data.location = { connect: { id: normalizedLocationId } };
         changedFields.push('locationId');
+      }
+      if (normalizedEquipmentId === null && ticket.equipmentId !== null) {
+        data.equipment = { disconnect: true };
+        changedFields.push('equipmentId');
+      } else if (normalizedEquipmentId && normalizedEquipmentId !== ticket.equipmentId) {
+        data.equipment = { connect: { id: normalizedEquipmentId } };
+        changedFields.push('equipmentId');
       }
 
       if (normalizedProblemText !== undefined && normalizedProblemText !== ticket.problemText) {
@@ -1011,7 +1051,7 @@ export class TicketsAssignmentService {
     const category = await this.prisma.problemCategory.findFirst({
       where: {
         id: normalizedCategoryId,
-        companyId,
+        companyId: companyId,
         isActive: true,
       },
       select: { id: true },
@@ -1035,7 +1075,7 @@ export class TicketsAssignmentService {
 
       await this.timelineService.recordLegacyTx(tx, {
         type: 'ticket.category_changed',
-        companyId,
+        companyId: companyId,
         entityType: 'Ticket',
         entityId: ticket.id,
         actorUserId: actor?.id ?? null,
@@ -1047,7 +1087,7 @@ export class TicketsAssignmentService {
 
       await this.timelineService.recordLegacyTx(tx, {
         type: 'ticket.updated',
-        companyId,
+        companyId: companyId,
         entityType: 'Ticket',
         entityId: ticket.id,
         actorUserId: actor?.id ?? null,
@@ -1067,7 +1107,7 @@ export class TicketsAssignmentService {
       actor: {
         id: technicianUserId,
         role: UserRole.TECHNICIAN,
-        companyId,
+        companyId: companyId,
       },
     })
 
@@ -1129,7 +1169,7 @@ export class TicketsAssignmentService {
       actor: {
         id: technicianUserId,
         role: UserRole.TECHNICIAN,
-        companyId,
+        companyId: companyId,
       },
       linkedClientCompanyId,
     })
@@ -1137,7 +1177,7 @@ export class TicketsAssignmentService {
       user: {
         id: technicianUserId,
         role: UserRole.TECHNICIAN,
-        companyId,
+        companyId: companyId,
       },
       ticketId,
       specializationIds: technicianScope.specializationIds,
@@ -1229,7 +1269,7 @@ export class TicketsAssignmentService {
       const decision = shouldAutoAssign
         ? await this.assignment.decide(
             {
-              companyId,
+              companyId: companyId,
               ticketId,
               problemCategoryId: input.categoryId,
               specializationIds,
@@ -1255,7 +1295,7 @@ export class TicketsAssignmentService {
       let ticket = await tx.ticket.create({
         data: {
           id: ticketId,
-          companyId,
+          companyId: companyId,
           locationId: location.id,
           equipmentId: equipment?.id ?? null,
           requesterName: input.requesterName ?? null,
@@ -1281,14 +1321,14 @@ export class TicketsAssignmentService {
       });
 
       const boundAttachments = await this.attachments.bindAttachmentsToTicketTx(tx, {
-        companyId,
+        companyId: companyId,
         ticketId: ticket.id,
         attachmentIds: input.attachmentIds ?? [],
       });
 
       await this.timelineService.recordTx(tx, {
         event: 'TICKET_CREATED',
-        companyId,
+        companyId: companyId,
         ticketId: ticket.id,
         actorUserId: null,
         payload: {
@@ -1334,7 +1374,7 @@ export class TicketsAssignmentService {
 
         await this.timelineService.recordTx(tx, {
           event: 'TICKET_ASSIGNED',
-          companyId,
+          companyId: companyId,
           ticketId: ticket.id,
           actorUserId: null,
           payload: {

@@ -32,6 +32,15 @@ function urgencyLabel(urgency: api.TicketUrgency) {
   return urgency
 }
 
+function compactServiceContext(ticket: api.TicketCard) {
+  const locationText = [ticket.location?.name, ticket.location?.city].filter(Boolean).join(' · ')
+  const equipmentText = [ticket.equipment?.name, ticket.equipment?.type].filter(Boolean).join(' · ')
+  if (locationText && equipmentText) return `${locationText} · ${equipmentText}`
+  if (locationText) return locationText
+  if (equipmentText) return equipmentText
+  return ticket.pointName || ''
+}
+
 function providerScopeLabel(role?: api.ServiceContractRole) {
   if (role === 'PRIMARY') return 'PRIMARY provider'
   if (role === 'SECONDARY') return 'SECONDARY provider'
@@ -97,6 +106,10 @@ function canCreateTickets(role?: api.Role) {
   return role === 'ADMIN' || role === 'MASTER' || role === 'DISPATCHER'
 }
 
+function canReadCompanyContext(role?: api.Role) {
+  return role === 'ADMIN' || role === 'MASTER' || role === 'DISPATCHER' || role === 'NETWORK_DIRECTOR'
+}
+
 
 function buildBoardLink(linkedClientCompanyId?: string | null) {
   if (!linkedClientCompanyId) return '/board'
@@ -119,6 +132,12 @@ export function BoardPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [take, setTake] = useState(120)
+  const [selectedLocationId, setSelectedLocationId] = useState('')
+  const [selectedEquipmentId, setSelectedEquipmentId] = useState('')
+  const [selectedStatus, setSelectedStatus] = useState<api.TicketStatus | ''>('')
+  const [selectedTicketIds, setSelectedTicketIds] = useState<string[]>([])
+  const [bulkBusy, setBulkBusy] = useState(false)
+  const [bulkError, setBulkError] = useState('')
   const boardDataRef = useRef<{ scopeKey: string; data: api.BoardResponse } | null>(null)
   const autoSelectedPrimaryRef = useRef(false)
 
@@ -135,10 +154,15 @@ export function BoardPage() {
     enabled: !!observerCompanyId && meQ.data?.role === 'PLATFORM_ADMIN',
   })
 
+  const canLoadOwnCompanyContext = useMemo(
+    () => !!meQ.data && meQ.data.role !== 'PLATFORM_ADMIN' && canReadCompanyContext(meQ.data.role),
+    [meQ.data],
+  )
+
   const ownCompanyQ = useQuery({
     queryKey: ['board-company-context'],
     queryFn: () => api.company(),
-    enabled: !observerCompanyId && !!meQ.data && meQ.data.role !== 'PLATFORM_ADMIN',
+    enabled: !observerCompanyId && canLoadOwnCompanyContext,
   })
 
   const isProviderCompany = !observerCompanyId && ownCompanyQ.data?.type === 'PROVIDER'
@@ -201,12 +225,26 @@ export function BoardPage() {
       : 'tenant:self'
 
   const boardQ = useQuery({
-    queryKey: ['board', { take, observerCompanyId, resolvedLinkedClientCompanyId }],
+    queryKey: ['board', { take, observerCompanyId, resolvedLinkedClientCompanyId, selectedLocationId, selectedEquipmentId, selectedStatus }],
     queryFn: () =>
       api.board({
         take,
         linkedClientCompanyId: resolvedLinkedClientCompanyId || undefined,
         companyId: observerCompanyId || undefined,
+        locationId: selectedLocationId || undefined,
+        equipmentId: selectedEquipmentId || undefined,
+        status: selectedStatus || undefined,
+      }),
+    enabled: boardEnabled,
+  })
+  const contextAnalyticsQ = useQuery({
+    queryKey: ['board-context-analytics', { observerCompanyId, resolvedLinkedClientCompanyId, selectedLocationId, selectedEquipmentId }],
+    queryFn: () =>
+      api.ticketContextAnalytics({
+        linkedClientCompanyId: resolvedLinkedClientCompanyId || undefined,
+        companyId: observerCompanyId || undefined,
+        locationId: selectedLocationId || undefined,
+        equipmentId: selectedEquipmentId || undefined,
       }),
     enabled: boardEnabled,
   })
@@ -220,6 +258,36 @@ export function BoardPage() {
   const boardData = boardQ.data ?? (boardDataRef.current?.scopeKey === boardScopeKey ? boardDataRef.current.data : null)
   const columns = boardData?.columns || []
   const cardsAll = useMemo(() => columns.flatMap((c) => c.cards || []), [columns])
+  const locationOptions = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const card of cardsAll) {
+      if (card.location?.id) {
+        map.set(card.location.id, [card.location.name, card.location.city].filter(Boolean).join(' · '))
+      }
+    }
+    return Array.from(map.entries()).map(([id, label]) => ({ id, label }))
+  }, [cardsAll])
+  const equipmentOptions = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const card of cardsAll) {
+      if (selectedLocationId && card.location?.id !== selectedLocationId) continue
+      if (card.equipment?.id) {
+        map.set(card.equipment.id, [card.equipment.name, card.equipment.type].filter(Boolean).join(' · '))
+      }
+    }
+    return Array.from(map.entries()).map(([id, label]) => ({ id, label }))
+  }, [cardsAll, selectedLocationId])
+
+  useEffect(() => {
+    if (selectedLocationId && !locationOptions.some((item) => item.id === selectedLocationId)) {
+      setSelectedLocationId('')
+      setSelectedEquipmentId('')
+      return
+    }
+    if (selectedEquipmentId && !equipmentOptions.some((item) => item.id === selectedEquipmentId)) {
+      setSelectedEquipmentId('')
+    }
+  }, [selectedLocationId, selectedEquipmentId, locationOptions, equipmentOptions])
 
   const stats = useMemo(() => {
     const now = new Date()
@@ -250,6 +318,48 @@ export function BoardPage() {
   const providerCanCreateTicket = !isObserverMode && !canShowLinkedClients && canCreateTickets(meQ.data?.role)
   const analyticsLink = buildAnalyticsLink({ observerCompanyId, linkedClientCompanyId: resolvedLinkedClientCompanyId })
   const companyLink = buildCompanyLink({ observerCompanyId, linkedClientCompanyId: resolvedLinkedClientCompanyId })
+  const ticketScope = useMemo(
+    () =>
+      observerCompanyId
+        ? ({ companyId: observerCompanyId } satisfies api.TicketScopeParams)
+        : resolvedLinkedClientCompanyId
+          ? ({ linkedClientCompanyId: resolvedLinkedClientCompanyId } satisfies api.TicketScopeParams)
+          : undefined,
+    [observerCompanyId, resolvedLinkedClientCompanyId],
+  )
+  const allVisibleTicketIds = useMemo(() => columns.flatMap((c) => c.cards.map((card) => card.id)), [columns])
+  const allVisibleSelected = allVisibleTicketIds.length > 0 && allVisibleTicketIds.every((id) => selectedTicketIds.includes(id))
+
+  useEffect(() => {
+    if (!allVisibleTicketIds.length) {
+      setSelectedTicketIds([])
+      return
+    }
+    setSelectedTicketIds((prev) => prev.filter((id) => allVisibleTicketIds.includes(id)))
+  }, [allVisibleTicketIds])
+
+  async function runBulkAction(action: 'claim' | 'IN_PROGRESS' | 'DONE') {
+    if (!selectedTicketIds.length || bulkBusy) return
+    setBulkBusy(true)
+    setBulkError('')
+    try {
+      if (action === 'claim') {
+        await Promise.all(selectedTicketIds.map((ticketId) => api.claimTicket(ticketId, ticketScope)))
+      } else {
+        await Promise.all(
+          selectedTicketIds.map((ticketId) =>
+            api.updateTicketStatus(ticketId, { status: action }, ticketScope),
+          ),
+        )
+      }
+      setSelectedTicketIds([])
+      await Promise.all([boardQ.refetch(), contextAnalyticsQ.refetch()])
+    } catch (error: any) {
+      setBulkError(error?.message || String(error))
+    } finally {
+      setBulkBusy(false)
+    }
+  }
 
   function onSelectLinkedClient(nextLinkedClientCompanyId: string) {
     if (!nextLinkedClientCompanyId) return
@@ -262,6 +372,11 @@ export function BoardPage() {
       return boardData
         ? `Ваш operational scope: ${boardData.meta.totalTickets} заявок`
         : 'Показываем назначенные вам и доступные для claim заявки в provider operational scope.'
+    }
+    if (isTechnician) {
+      return boardData
+        ? `Ваш operational scope: ${boardData.meta.totalTickets} заявок`
+        : 'Показываем ваши назначенные заявки и доступные для claim в текущем контуре.'
     }
     if (!boardEnabled && canShowLinkedClients) return 'Выберите связанного клиента, чтобы открыть operational board.'
     if (boardData) return `Всего: ${boardData.meta.totalTickets} · лимит последних: ${boardData.meta.limitedToLast}`
@@ -328,6 +443,11 @@ export function BoardPage() {
             <div>
               <div style={{ fontWeight: 700 }}>Provider operational mode</div>
               <div className="muted small">Техник видит назначенные ему заявки и, если это разрешено настройками компании, доступные заявки для claim.</div>
+            </div>
+          ) : isTechnician ? (
+            <div>
+              <div style={{ fontWeight: 700 }}>Режим техника</div>
+              <div className="muted small">Вы видите только заявки из вашего operational scope: назначенные вам и доступные для claim.</div>
             </div>
           ) : ownCompanyQ.isLoading ? (
             <div style={{ display: 'grid', gap: 8 }}>
@@ -474,6 +594,97 @@ export function BoardPage() {
       </div>
 
       <div className="panel" style={{ marginBottom: 12 }}>
+        <div className="row" style={{ marginBottom: 10 }}>
+          <div style={{ fontWeight: 700 }}>Service context аналитика</div>
+          <div className="muted small">
+            {contextAnalyticsQ.isFetching ? 'Обновляем…' : `Тикетов в срезе: ${contextAnalyticsQ.data?.meta.totalTickets ?? '—'}`}
+          </div>
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          <div>
+            <div className="muted small" style={{ marginBottom: 6 }}>По локациям</div>
+            <div style={{ display: 'grid', gap: 6 }}>
+              {(contextAnalyticsQ.data?.byLocation || []).slice(0, 5).map((row) => (
+                <div key={row.locationId} className="muted small" style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                  <button
+                    className="ghost"
+                    type="button"
+                    onClick={() => {
+                      setSelectedLocationId(row.locationId)
+                      setSelectedEquipmentId('')
+                    }}
+                    style={{ padding: '2px 6px' }}
+                  >
+                    {row.locationName}
+                  </button>
+                  <span>
+                    всего: {row.total} ·
+                    <button className="ghost" type="button" onClick={() => setSelectedStatus('NEW')} style={{ padding: '2px 4px' }}> NEW: {row.NEW}</button> ·
+                    <button className="ghost" type="button" onClick={() => setSelectedStatus('IN_PROGRESS')} style={{ padding: '2px 4px' }}> IN_PROGRESS: {row.IN_PROGRESS}</button> ·
+                    <button className="ghost" type="button" onClick={() => setSelectedStatus('DONE')} style={{ padding: '2px 4px' }}> DONE: {row.DONE}</button>
+                  </span>
+                </div>
+              ))}
+              {!contextAnalyticsQ.isFetching && (contextAnalyticsQ.data?.byLocation?.length || 0) === 0 ? (
+                <div className="muted small">Нет данных</div>
+              ) : null}
+            </div>
+          </div>
+          <div>
+            <div className="muted small" style={{ marginBottom: 6 }}>По оборудованию</div>
+            <div style={{ display: 'grid', gap: 6 }}>
+              {(contextAnalyticsQ.data?.byEquipment || []).slice(0, 5).map((row) => (
+                <div key={row.equipmentId} className="muted small" style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                  <button
+                    className="ghost"
+                    type="button"
+                    onClick={() => {
+                      if (row.locationId) setSelectedLocationId(row.locationId)
+                      setSelectedEquipmentId(row.equipmentId)
+                    }}
+                    style={{ padding: '2px 6px' }}
+                  >
+                    {row.equipmentName}
+                  </button>
+                  <span>
+                    всего: {row.total} ·
+                    <button className="ghost" type="button" onClick={() => setSelectedStatus('NEW')} style={{ padding: '2px 4px' }}> NEW: {row.NEW}</button> ·
+                    <button className="ghost" type="button" onClick={() => setSelectedStatus('IN_PROGRESS')} style={{ padding: '2px 4px' }}> IN_PROGRESS: {row.IN_PROGRESS}</button> ·
+                    <button className="ghost" type="button" onClick={() => setSelectedStatus('DONE')} style={{ padding: '2px 4px' }}> DONE: {row.DONE}</button>
+                  </span>
+                </div>
+              ))}
+              {!contextAnalyticsQ.isFetching && (contextAnalyticsQ.data?.byEquipment?.length || 0) === 0 ? (
+                <div className="muted small">Нет данных</div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+        {(selectedLocationId || selectedEquipmentId || selectedStatus) ? (
+          <div className="muted small" style={{ marginTop: 10 }}>
+            Активные quick filters:
+            {selectedLocationId ? ` location=${selectedLocationId}` : ''}
+            {selectedEquipmentId ? ` equipment=${selectedEquipmentId}` : ''}
+            {selectedStatus ? ` status=${selectedStatus}` : ''}
+            {' · '}
+            <button
+              className="ghost"
+              type="button"
+              onClick={() => {
+                setSelectedLocationId('')
+                setSelectedEquipmentId('')
+                setSelectedStatus('')
+              }}
+              style={{ padding: '2px 6px' }}
+            >
+              Сбросить
+            </button>
+          </div>
+        ) : null}
+        {contextAnalyticsQ.isError ? <div className="alert" style={{ marginTop: 10 }}>{(contextAnalyticsQ.error as any)?.message || String(contextAnalyticsQ.error)}</div> : null}
+      </div>
+
+      <div className="panel" style={{ marginBottom: 12 }}>
         <div className="row" style={{ marginBottom: 0 }}>
           <div className="muted small">Пагинация</div>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
@@ -484,6 +695,93 @@ export function BoardPage() {
             <div className="muted small">Для демо можно увеличить take, например до 300.</div>
           </div>
         </div>
+        <div className="row" style={{ marginTop: 10, marginBottom: 0, alignItems: 'center' }}>
+          <div className="muted small">Service context фильтры</div>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <label className="muted small" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              Локация
+              <select
+                value={selectedLocationId}
+                onChange={(e) => {
+                  setSelectedLocationId(e.target.value)
+                  setSelectedEquipmentId('')
+                }}
+                style={{ minWidth: 220 }}
+              >
+                <option value="">Все</option>
+                {locationOptions.map((location) => (
+                  <option key={location.id} value={location.id}>{location.label}</option>
+                ))}
+              </select>
+            </label>
+            <label className="muted small" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              Оборудование
+              <select
+                value={selectedEquipmentId}
+                onChange={(e) => setSelectedEquipmentId(e.target.value)}
+                style={{ minWidth: 220 }}
+              >
+                <option value="">Все</option>
+                {equipmentOptions.map((equipment) => (
+                  <option key={equipment.id} value={equipment.id}>{equipment.label}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div className="panel" style={{ marginBottom: 12 }}>
+        <div className="row" style={{ marginBottom: 0, alignItems: 'center' }}>
+          <div className="muted small">Bulk actions</div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <label className="muted small" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input
+                type="checkbox"
+                checked={allVisibleSelected}
+                disabled={!allVisibleTicketIds.length || bulkBusy}
+                onChange={(e) => setSelectedTicketIds(e.target.checked ? allVisibleTicketIds : [])}
+              />
+              Выбрать все на доске
+            </label>
+            <span className="muted small">Выбрано: {selectedTicketIds.length}</span>
+            {isTechnician ? (
+              <button
+                className="ghost"
+                type="button"
+                disabled={!selectedTicketIds.length || bulkBusy}
+                onClick={() => runBulkAction('claim')}
+              >
+                Взять себе
+              </button>
+            ) : null}
+            <button
+              className="ghost"
+              type="button"
+              disabled={!selectedTicketIds.length || bulkBusy}
+              onClick={() => runBulkAction('IN_PROGRESS')}
+            >
+              В работу
+            </button>
+            <button
+              className="ghost"
+              type="button"
+              disabled={!selectedTicketIds.length || bulkBusy}
+              onClick={() => runBulkAction('DONE')}
+            >
+              Завершить
+            </button>
+            <button
+              className="ghost"
+              type="button"
+              disabled={!selectedTicketIds.length || bulkBusy}
+              onClick={() => setSelectedTicketIds([])}
+            >
+              Сбросить выбор
+            </button>
+          </div>
+        </div>
+        {bulkError ? <div className="alert" style={{ marginTop: 10 }}>{bulkError}</div> : null}
       </div>
 
       {providerHasNoLinkedClients ? (
@@ -509,9 +807,7 @@ export function BoardPage() {
             {canShowLinkedClients && selectedLinkedClient
               ? `У клиента ${selectedLinkedClient.clientCompany.name} пока нет заявок.`
               : isTechnician
-                ? ownCompanyQ.data?.allowTechnicianClaim
-                  ? 'Нет назначенных заявок и доступных заявок для claim в вашем operational scope.'
-                  : 'Нет назначенных заявок. Доступ к свободным заявкам отключён настройками компании.'
+                ? 'Нет назначенных заявок и доступных заявок для claim в вашем operational scope.'
                 : 'Создайте тестовую заявку, чтобы доска стала живой для демонстрации.'}
           </div>
           {providerCanCreateTicket ? (
@@ -545,23 +841,45 @@ export function BoardPage() {
 
               <div className="cards">
                 {col.cards.map((ticket) => (
-                  <Link
-                    key={ticket.id}
-                    to={
-                      observerCompanyId
-                        ? `/tickets/${ticket.id}?companyId=${observerCompanyId}`
-                        : resolvedLinkedClientCompanyId
-                          ? `/tickets/${ticket.id}?linkedClientCompanyId=${resolvedLinkedClientCompanyId}`
-                          : `/tickets/${ticket.id}`
-                    }
-                    style={{ textDecoration: 'none' }}
-                  >
-                    <div className="ticket">
-                      <div className="ticketTitle">{ticket.title}</div>
+                  <div key={ticket.id} className="ticket">
+                    <div className="row" style={{ marginBottom: 4, alignItems: 'flex-start', gap: 8 }}>
+                      <label style={{ display: 'flex', alignItems: 'center', marginTop: 2 }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedTicketIds.includes(ticket.id)}
+                          disabled={bulkBusy}
+                          onChange={(e) => {
+                            const checked = e.target.checked
+                            setSelectedTicketIds((prev) =>
+                              checked ? (prev.includes(ticket.id) ? prev : [...prev, ticket.id]) : prev.filter((id) => id !== ticket.id),
+                            )
+                          }}
+                        />
+                      </label>
+                      <Link
+                        to={
+                          observerCompanyId
+                            ? `/tickets/${ticket.id}?companyId=${observerCompanyId}`
+                            : resolvedLinkedClientCompanyId
+                              ? `/tickets/${ticket.id}?linkedClientCompanyId=${resolvedLinkedClientCompanyId}`
+                              : `/tickets/${ticket.id}`
+                        }
+                        style={{ textDecoration: 'none', flex: 1, minWidth: 0 }}
+                      >
+                        <div className="ticketTitle">{ticket.title}</div>
+                      </Link>
+                    </div>
+                      {compactServiceContext(ticket) ? (
+                        <div className="muted small" style={{ marginTop: 4, marginBottom: 2 }}>
+                          {compactServiceContext(ticket)}
+                        </div>
+                      ) : null}
 
                       <div className="ticketMeta">
                         <UrgencyTag urgency={ticket.urgency} />
                         {ticket.slaBreached ? <span className="tag danger">SLA нарушен</span> : null}
+                        {isTechnician && ticket.status === 'NEW' && !ticket.assignedTechnician ? <span className="tag">Можно взять</span> : null}
+                        {isTechnician && ticket.assignedTechnician?.id === meQ.data?.id ? <span className="tag">Моя заявка</span> : null}
                         {ticket.assignedTechnician ? <span className="tag">{ticket.assignedTechnician.email}</span> : <span className="tag">Не назначено</span>}
                       </div>
 
@@ -569,8 +887,7 @@ export function BoardPage() {
                         <span>{fmt(ticket.createdAt)}</span>
                         <span title="Срок SLA">{ticket.slaDueAt ? `Срок: ${fmt(ticket.slaDueAt)}` : 'Срок: —'}</span>
                       </div>
-                    </div>
-                  </Link>
+                  </div>
                 ))}
                 {col.cards.length === 0 ? <div className="muted small">Нет заявок</div> : null}
               </div>

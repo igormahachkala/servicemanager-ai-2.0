@@ -1,4 +1,4 @@
-export type Role =
+﻿export type Role =
   | 'PLATFORM_ADMIN'
   | 'ADMIN'
   | 'DISPATCHER'
@@ -283,6 +283,18 @@ export type TechnicianItem = {
   }>
 }
 
+
+export type TechnicianBoundContext = {
+  clientCompany: {
+    id: string
+    name: string
+    type: CompanyType
+  }
+  locationScope: 'ALL_COMPANY_LOCATIONS' | 'SELECTED_LOCATIONS'
+  bindingCount: number
+  locations: LocationListItem[]
+  categories: ProblemCategoryListItem[]
+}
 export type TechnicianWorkloadItem = {
   technicianId: string
   email: string
@@ -373,6 +385,21 @@ export type TicketCard = {
   slaDueAt: string | null
   slaBreached: boolean
   isChild: boolean
+  pointName?: string | null
+  location?: {
+    id: string
+    name: string
+    platformCode?: string | null
+    externalCode?: string | null
+    city?: string | null
+    address?: string | null
+  } | null
+  equipment?: {
+    id: string
+    name: string
+    type?: string | null
+    status?: string | null
+  } | null
   category: { id: string; name: string }
   assignedTechnician: { id: string; email: string } | null
 }
@@ -418,8 +445,33 @@ export type TicketGetOne = {
   slaDueAt: string | null
   slaBreachedAt: string | null
   assignedTechnicianId: string | null
+  location?: {
+    id: string
+    name: string
+    platformCode?: string | null
+    externalCode?: string | null
+    city?: string | null
+    region?: string | null
+    address?: string | null
+    latitude?: number | null
+    longitude?: number | null
+    isActive?: boolean
+  } | null
+  equipment?: {
+    id: string
+    name: string
+    type?: string | null
+    status?: string | null
+  } | null
   problemCategory: { id: string; name: string; instructions: string | null }
   assignedTechnician: { id: string; email: string } | null
+  meta?: {
+    scopeCompanyId?: string
+    visibilityMode?: 'tenant' | 'provider_primary' | 'platform_observer'
+    canClaimByCurrentUser?: boolean
+    claimAvailabilityReason?: string | null
+    availableStatusTransitions?: TicketStatus[]
+  }
 }
 
 export type TimelineItem = {
@@ -446,11 +498,12 @@ export type TimelineResponse = {
     eventCount?: number
   }
 }
-
 export type CreateTicketInput = {
   locationId: string
+  equipmentId?: string | null
   categoryId: string
   urgency?: TicketUrgency
+  clientCompanyId?: string | null
   title?: string | null
   description?: string | null
   attachmentIds?: string[]
@@ -463,6 +516,7 @@ export type CreateTicketInput = {
 
 export type UpdateTicketInput = {
   problemCategoryId?: string
+  equipmentId?: string | null
   problemText?: string
   urgency?: TicketUrgency
   requesterName?: string | null
@@ -595,6 +649,32 @@ export type AnalyticsOverviewResponse = {
   note?: string
   now: string
   meta?: {
+    scopeCompanyId?: string
+    visibilityMode?: 'tenant' | 'provider_primary' | 'platform_observer'
+  }
+}
+
+export type TicketContextAnalyticsResponse = {
+  byLocation: Array<{
+    locationId: string
+    locationName: string
+    total: number
+    NEW: number
+    IN_PROGRESS: number
+    DONE: number
+  }>
+  byEquipment: Array<{
+    equipmentId: string
+    equipmentName: string
+    locationId: string | null
+    locationName: string | null
+    total: number
+    NEW: number
+    IN_PROGRESS: number
+    DONE: number
+  }>
+  meta: {
+    totalTickets: number
     scopeCompanyId?: string
     visibilityMode?: 'tenant' | 'provider_primary' | 'platform_observer'
   }
@@ -1066,6 +1146,10 @@ export async function technicianMe(): Promise<TechnicianItem> {
   return request<TechnicianItem>('/technicians/me')
 }
 
+export async function getTechnicianBoundContexts(): Promise<TechnicianBoundContext[]> {
+  return request<TechnicianBoundContext[]>('/technicians/me/bound-contexts')
+}
+
 export async function techniciansWorkload(): Promise<TechnicianWorkloadItem[]> {
   return request<TechnicianWorkloadItem[]>('/technicians/workload')
 }
@@ -1229,17 +1313,33 @@ function buildTicketScopeSuffix(scope?: string | TicketScopeParams): string {
   return search.toString() ? `?${search.toString()}` : ''
 }
 
-export async function board(params?: { take?: number; linkedClientCompanyId?: string; companyId?: string }): Promise<BoardResponse> {
+export async function board(params?: {
+  take?: number
+  linkedClientCompanyId?: string
+  companyId?: string
+  locationId?: string
+  equipmentId?: string
+  status?: TicketStatus
+}): Promise<BoardResponse> {
   const search = new URLSearchParams()
 
   if (params?.take) {
     search.set('take', String(params.take))
+  }
+  if (params?.locationId) {
+    search.set('locationId', params.locationId)
+  }
+  if (params?.equipmentId) {
+    search.set('equipmentId', params.equipmentId)
   }
   if (params?.linkedClientCompanyId) {
     search.set('linkedClientCompanyId', params.linkedClientCompanyId)
   }
   if (params?.companyId) {
     search.set('companyId', params.companyId)
+  }
+  if (params?.status) {
+    search.set('status', params.status)
   }
 
   const suffix = search.toString() ? `?${search.toString()}` : ''
@@ -1436,6 +1536,21 @@ export async function analyticsOverview(params?: { linkedClientCompanyId?: strin
   }
   const suffix = search.toString() ? '?' + search.toString() : ''
   return request<AnalyticsOverviewResponse>('/analytics/overview' + suffix)
+}
+
+export async function ticketContextAnalytics(params?: {
+  linkedClientCompanyId?: string
+  companyId?: string
+  locationId?: string
+  equipmentId?: string
+}): Promise<TicketContextAnalyticsResponse> {
+  const search = new URLSearchParams()
+  if (params?.linkedClientCompanyId) search.set('linkedClientCompanyId', params.linkedClientCompanyId)
+  if (params?.companyId) search.set('companyId', params.companyId)
+  if (params?.locationId) search.set('locationId', params.locationId)
+  if (params?.equipmentId) search.set('equipmentId', params.equipmentId)
+  const suffix = search.toString() ? '?' + search.toString() : ''
+  return request<TicketContextAnalyticsResponse>('/tickets/analytics/context' + suffix)
 }
 
 

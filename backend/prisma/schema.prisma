@@ -122,6 +122,8 @@ model Company {
   inspectionRunItemAttachments InspectionRunItemAttachment[]
   clientContracts    ServiceContract[] @relation("ClientCompanyContracts")
   providerContracts  ServiceContract[] @relation("ProviderCompanyContracts")
+  providedTechnicianBindings TechnicianClientBinding[] @relation("TechnicianBindingProviderCompany")
+  clientTechnicianBindings   TechnicianClientBinding[] @relation("TechnicianBindingClientCompany")
 }
 
 model User {
@@ -148,6 +150,7 @@ model User {
   inspectionReportsSubmitted InspectionRun[] @relation("InspectionRunReportSubmittedBy")
   inspectionReportsReviewed  InspectionRun[] @relation("InspectionRunReportReviewedBy")
   userPermissions            UserPermission[]
+  technicianClientBindings   TechnicianClientBinding[] @relation("TechnicianClientBindings")
 
   @@index([companyId, role])
   @@index([companyId, isActive])
@@ -173,6 +176,7 @@ model Location {
   tickets   Ticket[]
   equipment Equipment[]
   inspectionRuns InspectionRun[]
+  technicianBindings TechnicianClientBinding[] @relation("TechnicianBindingLocation")
 
   @@unique([clientCompanyId, platformCode])
   @@index([clientCompanyId, isActive])
@@ -233,6 +237,25 @@ model TechnicianSpecialization {
   @@id([userId, specializationId])
 }
 
+model TechnicianClientBinding {
+  id                String   @id @default(uuid())
+  providerCompanyId String
+  technicianUserId  String
+  clientCompanyId   String
+  locationId        String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  providerCompany Company  @relation("TechnicianBindingProviderCompany", fields: [providerCompanyId], references: [id], onDelete: Cascade)
+  technician      User     @relation("TechnicianClientBindings", fields: [technicianUserId], references: [id], onDelete: Cascade)
+  clientCompany   Company  @relation("TechnicianBindingClientCompany", fields: [clientCompanyId], references: [id], onDelete: Cascade)
+  location        Location? @relation("TechnicianBindingLocation", fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@unique([technicianUserId, clientCompanyId, locationId])
+  @@index([providerCompanyId, technicianUserId])
+  @@index([clientCompanyId])
+  @@index([locationId])
+}
 model Equipment {
   id         String   @id @default(uuid())
   companyId  String

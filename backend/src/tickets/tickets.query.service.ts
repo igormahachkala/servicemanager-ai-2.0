@@ -13,6 +13,7 @@ import {
   resolveTechnicianOperationalScope,
   resolveTicketReadScope,
 } from './ticket-access.utils'
+import { TicketMetaBuilder } from './ticket-meta.builder'
 
 type AccessFlags = {
   canTechnicianViewAllCompanyTickets?: boolean
@@ -20,13 +21,29 @@ type AccessFlags = {
 
 @Injectable()
 export class TicketsQueryService {
+  private readonly ticketMetaBuilder: TicketMetaBuilder
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly timelineService: TimelineService,
     private readonly serviceContractsService: ServiceContractsService,
-  ) {}
+  ) {
+    this.ticketMetaBuilder = new TicketMetaBuilder(this.prisma, this.serviceContractsService)
+  }
 
   private readonly policy = new TicketsPolicy()
+
+  private applyContextFilters(where: any, params: { locationId?: string; equipmentId?: string }) {
+    const extraAnd: any[] = []
+    if (params.locationId && params.locationId.trim().length > 0) {
+      extraAnd.push({ locationId: params.locationId.trim() })
+    }
+    if (params.equipmentId && params.equipmentId.trim().length > 0) {
+      extraAnd.push({ equipmentId: params.equipmentId.trim() })
+    }
+    if (!extraAnd.length) return where
+    return this.normalizeAnd(where, extraAnd)
+  }
 
   private normalizeAnd(where: any, extra: any[]) {
     const base = where.AND
@@ -97,6 +114,13 @@ export class TicketsQueryService {
           { problemCategory: { name: { contains: q, mode: 'insensitive' } } },
         ],
       })
+    }
+
+    if (params.input.locationId && params.input.locationId.trim().length > 0) {
+      extraAnd.push({ locationId: params.input.locationId.trim() })
+    }
+    if (params.input.equipmentId && params.input.equipmentId.trim().length > 0) {
+      extraAnd.push({ equipmentId: params.input.equipmentId.trim() })
     }
 
     const now = new Date()
@@ -330,6 +354,115 @@ export class TicketsQueryService {
     }
   }
 
+  async contextAnalytics(
+    companyId: string,
+    userId: string,
+    role: UserRole,
+    accessFlags?: AccessFlags,
+    linkedClientCompanyId?: string,
+    observerCompanyId?: string,
+    locationId?: string,
+    equipmentId?: string,
+  ) {
+    const technicianScope = role === UserRole.TECHNICIAN && !observerCompanyId
+      ? await resolveTechnicianOperationalScope({
+          prisma: this.prisma,
+          serviceContractsService: this.serviceContractsService,
+          actor: { id: userId, role, companyId, accessFlags },
+          linkedClientCompanyId,
+        })
+      : null
+
+    const scope = technicianScope
+      ? {
+          scopeCompanyId: technicianScope.scopeCompanyId,
+          visibilityMode: technicianScope.visibilityMode,
+        }
+      : await resolveTicketReadScope({
+          prisma: this.prisma,
+          serviceContractsService: this.serviceContractsService,
+          actorCompanyId: companyId,
+          role,
+          linkedClientCompanyId,
+          observerCompanyId,
+          allowedLinkedClientRoles: PROVIDER_LINKED_OVERVIEW_ROLES,
+        })
+
+    const baseWhere = technicianScope
+      ? this.buildTechnicianBoardQuery({
+          companyIds: technicianScope.companyIds,
+          userId,
+          specializationIds: technicianScope.specializationIds,
+          allowTechnicianClaim: technicianScope.allowTechnicianClaim,
+          input: {},
+        }).where
+      : (() => {
+          const ownTenantScopeCompanyId =
+            !observerCompanyId && !linkedClientCompanyId && (role === UserRole.CLIENT || role === UserRole.ADMIN)
+              ? companyId
+              : scope.scopeCompanyId
+          const policyDecision = this.policy.boardWhere({ id: userId, role, companyId: ownTenantScopeCompanyId, accessFlags }, {})
+          assertAllowed(policyDecision)
+          return policyDecision.where
+        })()
+
+    const where = this.applyContextFilters(baseWhere, { locationId, equipmentId })
+
+    const rows = await this.prisma.ticket.findMany({
+      where,
+      select: {
+        status: true,
+        location: { select: { id: true, name: true } },
+        equipment: { select: { id: true, name: true } },
+      },
+    })
+
+    const ensureBucket = () => ({ total: 0, NEW: 0, IN_PROGRESS: 0, DONE: 0 })
+    const byLocation = new Map<string, { locationId: string; locationName: string; total: number; NEW: number; IN_PROGRESS: number; DONE: number }>()
+    const byEquipment = new Map<string, { equipmentId: string; equipmentName: string; locationId: string | null; locationName: string | null; total: number; NEW: number; IN_PROGRESS: number; DONE: number }>()
+
+    for (const row of rows) {
+      const status = row.status
+      if (row.location?.id) {
+        const current = byLocation.get(row.location.id) || {
+          locationId: row.location.id,
+          locationName: row.location.name,
+          ...ensureBucket(),
+        }
+        current.total += 1
+        if (status === TicketStatus.NEW) current.NEW += 1
+        if (status === TicketStatus.IN_PROGRESS) current.IN_PROGRESS += 1
+        if (status === TicketStatus.DONE) current.DONE += 1
+        byLocation.set(row.location.id, current)
+      }
+
+      if (row.equipment?.id) {
+        const current = byEquipment.get(row.equipment.id) || {
+          equipmentId: row.equipment.id,
+          equipmentName: row.equipment.name,
+          locationId: row.location?.id || null,
+          locationName: row.location?.name || null,
+          ...ensureBucket(),
+        }
+        current.total += 1
+        if (status === TicketStatus.NEW) current.NEW += 1
+        if (status === TicketStatus.IN_PROGRESS) current.IN_PROGRESS += 1
+        if (status === TicketStatus.DONE) current.DONE += 1
+        byEquipment.set(row.equipment.id, current)
+      }
+    }
+
+    return {
+      byLocation: Array.from(byLocation.values()).sort((a, b) => b.total - a.total),
+      byEquipment: Array.from(byEquipment.values()).sort((a, b) => b.total - a.total),
+      meta: {
+        totalTickets: rows.length,
+        scopeCompanyId: scope.scopeCompanyId,
+        visibilityMode: scope.visibilityMode,
+      },
+    }
+  }
+
   async list(
     companyId: string,
     userId: string,
@@ -485,14 +618,23 @@ export class TicketsQueryService {
 
     if (!ticket) throw new NotFoundException('Ticket not found')
 
+    const meta = await this.ticketMetaBuilder.buildForGetOne({
+      actorCompanyId: companyId,
+      userId,
+      role,
+      ticketId,
+      ticketStatus: ticket.status,
+      assignedTechnicianId: ticket.assignedTechnicianId,
+      scopeCompanyId: readable.scopeCompanyId,
+      visibilityMode: readable.visibilityMode,
+      linkedClientCompanyId,
+    })
+
     return {
       ...ticket,
       title: ticket.problemCategory?.name || 'Ticket',
       description: ticket.problemText,
-      meta: {
-        scopeCompanyId: readable.scopeCompanyId,
-        visibilityMode: readable.visibilityMode,
-      },
+      meta,
     }
   }
 

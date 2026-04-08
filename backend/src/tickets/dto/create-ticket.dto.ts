@@ -1,66 +1,70 @@
-import { TicketUrgency } from '@prisma/client';
-import { IsArray, IsEnum, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
+import { TicketUrgency } from '@prisma/client'
+import { IsArray, IsEnum, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator'
 
 export class CreateTicketDto {
   @IsOptional()
   @IsUUID()
-  parentId?: string | null;
-
-  @IsUUID()
-  locationId!: string;
+  parentId?: string | null
 
   @IsOptional()
   @IsUUID()
-  equipmentId?: string;
+  clientCompanyId?: string
+
+  @IsUUID()
+  locationId!: string
 
   @IsOptional()
   @IsUUID()
-  categoryId?: string;
+  equipmentId?: string
 
   @IsOptional()
   @IsUUID()
-  problemCategoryId?: string;
+  categoryId?: string
+
+  @IsOptional()
+  @IsUUID()
+  problemCategoryId?: string
 
   @IsOptional()
   @IsString()
-  title?: string;
+  title?: string
 
   @IsOptional()
   @IsString()
-  description?: string;
+  description?: string
 
   @IsOptional()
   @IsString()
-  problemText?: string;
+  problemText?: string
 
   @IsOptional()
   @IsArray()
   @IsUUID('4', { each: true })
-  attachmentIds?: string[];
+  attachmentIds?: string[]
 
   @IsOptional()
   @IsString()
-  requesterName?: string;
+  requesterName?: string
 
   @IsOptional()
   @IsString()
-  requesterPhone?: string;
+  requesterPhone?: string
 
   @IsOptional()
   @IsString()
-  address?: string;
+  address?: string
 
   @IsOptional()
   @IsString()
-  pointName?: string;
+  pointName?: string
 
   @IsOptional()
   @IsEnum(TicketUrgency)
-  urgency?: TicketUrgency;
+  urgency?: TicketUrgency
 
   @IsOptional()
   @IsInt()
   @Min(1)
   @Max(60 * 24 * 30)
-  slaMinutes?: number;
+  slaMinutes?: number
 }

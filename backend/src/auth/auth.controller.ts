@@ -10,8 +10,15 @@ export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
   @Post('register')
-  register() {
-    return this.auth.register()
+  register(
+    @Body()
+    dto: {
+      companyName?: string
+      email?: string
+      password?: string
+    },
+  ) {
+    return this.auth.register(dto)
   }
 
   @Post('login')

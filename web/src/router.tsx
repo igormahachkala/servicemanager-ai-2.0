@@ -23,6 +23,7 @@ import { InspectionTemplatesPage } from './views/InspectionTemplatesPage'
 import { InspectionRunsPage } from './views/InspectionRunsPage'
 import { InspectionRunPage } from './views/InspectionRunPage'
 import { InspectionRunReportPage } from './views/InspectionRunReportPage'
+import { InspectionQuickPage } from './views/InspectionQuickPage'
 import { MapPage } from './pages/MapPage'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -68,6 +69,7 @@ export function AppRoutes() {
         <Route path="inspection/templates" element={<InspectionTemplatesPage />} />
         <Route path="inspection/runs" element={<InspectionRunsPage />} />
         <Route path="inspection/runs/:id" element={<InspectionRunPage />} />
+        <Route path="inspection/quick/:runId" element={<InspectionQuickPage />} />
         <Route path="inspection/runs/:id/report" element={<InspectionRunReportPage />} />
       </Route>
 

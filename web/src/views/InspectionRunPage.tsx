@@ -229,6 +229,11 @@ export function InspectionRunPage() {
           <div className="muted small">Отметьте каждый пункт, приложите фото и создайте заявки по проблемным местам.</div>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
+          {runId ? (
+            <Link to={`/inspection/quick/${runId}`}>
+              <button className="ghost">Быстрый обход</button>
+            </Link>
+          ) : null}
           <Link to="/inspection/templates"><button className="ghost">Все шаблоны</button></Link>
           <Link to="/inspection/runs"><button className="ghost">История</button></Link>
         </div>

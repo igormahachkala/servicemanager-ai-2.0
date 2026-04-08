@@ -434,7 +434,7 @@ export class InspectionService {
       throw new BadRequestException('Ticket has already been created for this inspection item')
     }
 
-    const created = await this.tickets.create(user.companyId, user.role, {
+    const created = await this.tickets.create(user.companyId, { id: user.id, role: user.role }, {
       locationId: run.locationId,
       equipmentId: run.equipmentId ?? undefined,
       categoryId: dto.categoryId,

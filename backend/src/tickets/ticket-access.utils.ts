@@ -1,4 +1,4 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common'
+﻿import { ForbiddenException, NotFoundException } from '@nestjs/common'
 import { UserRole } from '@prisma/client'
 
 import { assertAllowed, isPlatformObserverScope, resolveObserverScopeCompanyId } from '../policy/policy.utils'
@@ -379,6 +379,72 @@ export async function resolveReadableTicketAccess(params: {
     }
   }
 
+  const directTicket = await params.prisma.ticket.findUnique({
+    where: { id: params.ticketId },
+    select: {
+      id: true,
+      companyId: true,
+      assignedTechnicianId: true,
+      status: true,
+      problemCategory: {
+        select: {
+          specializationLinks: {
+            select: {
+              specializationId: true,
+            },
+          },
+        },
+      },
+    },
+  })
+
+  if (directTicket) {
+    if (
+      PROVIDER_LINKED_OVERVIEW_ROLES.includes(params.actor.role) &&
+      directTicket.companyId !== params.actor.companyId
+    ) {
+      await params.serviceContractsService.assertPrimaryLinkedClientAccess(
+        params.actor.companyId,
+        directTicket.companyId,
+      )
+
+      return {
+        ticket: directTicket,
+        scopeCompanyId: directTicket.companyId,
+        visibilityMode: 'provider_primary' as TicketVisibilityMode,
+      }
+    }
+
+    if (params.actor.role === UserRole.TECHNICIAN && directTicket.companyId !== params.actor.companyId) {
+      const technicianScope = await resolveTechnicianOperationalScope({
+        prisma: params.prisma,
+        serviceContractsService: params.serviceContractsService,
+        actor: params.actor,
+        linkedClientCompanyId: directTicket.companyId,
+      })
+
+      const categorySpecializationIds =
+        directTicket.problemCategory?.specializationLinks?.map((item) => item.specializationId) ?? []
+      const technicianCanClaim =
+        technicianScope.allowTechnicianClaim &&
+        directTicket.status === 'NEW' &&
+        !directTicket.assignedTechnicianId &&
+        (categorySpecializationIds.length === 0 ||
+          categorySpecializationIds.some((id) => technicianScope.specializationIds.includes(id)))
+
+      const technicianCanReadLinked =
+        directTicket.assignedTechnicianId === params.actor.id || technicianCanClaim
+
+      if (technicianCanReadLinked) {
+        return {
+          ticket: directTicket,
+          scopeCompanyId: directTicket.companyId,
+          visibilityMode: 'provider_primary' as TicketVisibilityMode,
+        }
+      }
+    }
+  }
+
   throw new NotFoundException('Ticket not found')
 }
 
@@ -409,3 +475,4 @@ export async function resolveTicketOperationAccess(params: {
         : readable.ticket.companyId,
   }
 }
+

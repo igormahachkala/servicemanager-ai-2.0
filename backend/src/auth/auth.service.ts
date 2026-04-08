@@ -14,8 +14,78 @@ export class AuthService {
     private readonly jwt: JwtService,
   ) {}
 
-  async register() {
-    throw new ForbiddenException('Self-service company registration is disabled. Contact platform administrator.')
+  async register(dto?: { companyName?: string; email?: string; password?: string }) {
+    const allowRegisterInCurrentEnv = process.env.NODE_ENV === 'test' || process.env.ALLOW_TEST_REGISTER === 'true'
+    if (!allowRegisterInCurrentEnv) {
+      throw new ForbiddenException('Self-service company registration is disabled. Contact platform administrator.')
+    }
+
+    const companyName = (dto?.companyName || '').trim()
+    const email = (dto?.email || '').trim().toLowerCase()
+    const password = (dto?.password || '').trim()
+
+    if (!companyName || !email || !password) {
+      throw new BadRequestException('companyName, email and password are required')
+    }
+
+    const existsByEmail = await this.prisma.user.findUnique({
+      where: { email },
+      select: { id: true },
+    })
+    if (existsByEmail) {
+      throw new BadRequestException('User with this email already exists')
+    }
+
+    const existsByCompany = await this.prisma.company.findFirst({
+      where: { name: companyName },
+      select: { id: true },
+    })
+    if (existsByCompany) {
+      throw new BadRequestException('Company with this name already exists')
+    }
+
+    const passwordHash = await bcrypt.hash(password, 10)
+    const company = await this.prisma.company.create({
+      data: {
+        name: companyName,
+        type: CompanyType.CLIENT,
+      },
+      select: { id: true, name: true },
+    })
+
+    const user = await this.prisma.user.create({
+      data: {
+        email,
+        password: passwordHash,
+        role: UserRole.ADMIN,
+        isActive: true,
+        company: {
+          connect: { id: company.id },
+        },
+      },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        avatarUrl: true,
+        role: true,
+        companyId: true,
+        isActive: true,
+      },
+    })
+
+    return this.issueAuthPayload({
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      avatarUrl: user.avatarUrl,
+      role: user.role,
+      companyId: user.companyId,
+      isActive: user.isActive,
+      companyName: company.name,
+    })
   }
 
   async login(dto: LoginDto) {
@@ -211,7 +281,7 @@ export class AuthService {
 
     await this.prisma.user.create({
       data: {
-        companyId,
+        company: { connect: { id: companyId } },
         email,
         password: passwordHash,
         firstName: firstName || 'Platform',

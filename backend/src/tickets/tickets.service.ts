@@ -1,4 +1,4 @@
-﻿import { Injectable } from '@nestjs/common'
+import { Injectable } from '@nestjs/common'
 import { PublicRequestType, TicketStatus, TicketUrgency, UserRole } from '@prisma/client'
 
 import { CreateTicketDto } from './dto/create-ticket.dto'
@@ -25,8 +25,8 @@ export class TicketsService {
     private readonly attachments: TicketAttachmentsService,
   ) {}
 
-  create(companyId: string, creatorRole: UserRole, dto: CreateTicketDto) {
-    return this.assignment.create(companyId, creatorRole, dto)
+  create(companyId: string, actor: { id: string; role: UserRole }, dto: CreateTicketDto) {
+    return this.assignment.create(companyId, actor.id, actor.role, dto)
   }
 
   createPublic(
@@ -69,6 +69,28 @@ export class TicketsService {
     observerCompanyId?: string,
   ) {
     return this.query.board(companyId, userId, role, input, accessFlags, linkedClientCompanyId, observerCompanyId)
+  }
+
+  contextAnalytics(
+    companyId: string,
+    userId: string,
+    role: UserRole,
+    accessFlags?: AccessFlags,
+    linkedClientCompanyId?: string,
+    observerCompanyId?: string,
+    locationId?: string,
+    equipmentId?: string,
+  ) {
+    return this.query.contextAnalytics(
+      companyId,
+      userId,
+      role,
+      accessFlags,
+      linkedClientCompanyId,
+      observerCompanyId,
+      locationId,
+      equipmentId,
+    )
   }
 
   list(

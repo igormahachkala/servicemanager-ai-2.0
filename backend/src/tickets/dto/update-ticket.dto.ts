@@ -11,6 +11,10 @@ export class UpdateTicketDto {
   locationId?: string;
 
   @IsOptional()
+  @IsUUID()
+  equipmentId?: string | null;
+
+  @IsOptional()
   @IsString()
   problemText?: string;
 

@@ -66,4 +66,12 @@ export class BoardQueryDto {
   @IsOptional()
   @IsUUID()
   companyId?: string
+
+  @IsOptional()
+  @IsUUID()
+  locationId?: string
+
+  @IsOptional()
+  @IsUUID()
+  equipmentId?: string
 }

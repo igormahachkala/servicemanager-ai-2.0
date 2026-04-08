@@ -7,7 +7,9 @@ import * as api from '../lib/api'
 const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024
 
 const QuickRequestSchema = z.object({
+  clientCompanyId: z.string().uuid().optional(),
   locationId: z.string().uuid('locationId: uuid'),
+  equipmentId: z.string().uuid('equipmentId: uuid').nullable().optional(),
   categoryId: z.string().uuid('categoryId: uuid'),
   urgency: z.enum(['URGENT', 'NOT_URGENT']).optional(),
   attachmentIds: z.array(z.string().uuid()).optional(),
@@ -38,36 +40,80 @@ export function CreateTicketPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const [err, setErr] = useState<string | null>(null)
+  const [clientCompanyId, setClientCompanyId] = useState('')
   const [locationId, setLocationId] = useState('')
+  const [equipmentId, setEquipmentId] = useState('')
   const [categoryId, setCategoryId] = useState('')
   const [urgency, setUrgency] = useState<'URGENT' | 'NOT_URGENT'>('NOT_URGENT')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [draftAttachment, setDraftAttachment] = useState<api.DraftTicketAttachment | null>(null)
 
+  const meQ = useQuery({
+    queryKey: ['me'],
+    queryFn: api.me,
+  })
+
+  const isTechnician = meQ.data?.role === 'TECHNICIAN'
+
+  const technicianContextsQ = useQuery({
+    queryKey: ['technician-bound-contexts'],
+    queryFn: api.getTechnicianBoundContexts,
+    enabled: isTechnician,
+  })
+
   const categoriesQ = useQuery({
     queryKey: ['problem-categories'],
     queryFn: api.problemCategories,
+    enabled: !isTechnician,
   })
 
   const locationsQ = useQuery({
     queryKey: ['locations'],
     queryFn: () => api.locations(),
+    enabled: !isTechnician,
+  })
+  const equipmentQ = useQuery({
+    queryKey: ['equipment-by-location', locationId],
+    queryFn: () => api.equipmentByLocation(locationId),
+    enabled: !!locationId,
   })
 
+  const technicianContexts = technicianContextsQ.data || []
+  const selectedTechnicianContext = useMemo(
+    () => technicianContexts.find((row) => row.clientCompany.id === clientCompanyId) || null,
+    [clientCompanyId, technicianContexts],
+  )
+
   const activeCategories = useMemo(() => {
+    if (isTechnician) {
+      return (selectedTechnicianContext?.categories || []).filter((row) => row.isActive !== false)
+    }
     const rows = categoriesQ.data || []
     return rows.filter((row) => row.isActive !== false)
-  }, [categoriesQ.data])
+  }, [categoriesQ.data, isTechnician, selectedTechnicianContext])
 
   const activeLocations = useMemo(() => {
+    if (isTechnician) {
+      return (selectedTechnicianContext?.locations || []).filter((row) => row.isActive !== false)
+    }
     const rows = locationsQ.data || []
     return rows.filter((row) => row.isActive !== false)
-  }, [locationsQ.data])
+  }, [isTechnician, locationsQ.data, selectedTechnicianContext])
+
+  useEffect(() => {
+    if (!isTechnician) return
+    if (!clientCompanyId && technicianContexts.length > 0) {
+      setClientCompanyId(technicianContexts[0].clientCompany.id)
+    }
+  }, [clientCompanyId, isTechnician, technicianContexts])
 
   useEffect(() => {
     if (!categoryId && activeCategories.length > 0) {
       setCategoryId(activeCategories[0].id)
+    }
+    if (categoryId && !activeCategories.some((row) => row.id === categoryId)) {
+      setCategoryId(activeCategories[0]?.id || '')
     }
   }, [activeCategories, categoryId])
 
@@ -75,12 +121,25 @@ export function CreateTicketPage() {
     if (!locationId && activeLocations.length > 0) {
       setLocationId(activeLocations[0].id)
     }
+    if (locationId && !activeLocations.some((row) => row.id === locationId)) {
+      setLocationId(activeLocations[0]?.id || '')
+    }
   }, [activeLocations, locationId])
 
   const selectedCategory = useMemo(() => activeCategories.find((row) => row.id === categoryId) || null, [activeCategories, categoryId])
   const selectedLocation = useMemo(() => activeLocations.find((row) => row.id === locationId) || null, [activeLocations, locationId])
+  const locationEquipment = useMemo(() => (equipmentQ.data || []).filter((row) => row.locationId === locationId || !row.locationId), [equipmentQ.data, locationId])
   const preview = useMemo(() => buildPreview(selectedCategory, selectedLocation), [selectedCategory, selectedLocation])
 
+  useEffect(() => {
+    if (!locationId) {
+      setEquipmentId('')
+      return
+    }
+    if (equipmentId && !locationEquipment.some((row) => row.id === equipmentId)) {
+      setEquipmentId('')
+    }
+  }, [locationId, equipmentId, locationEquipment])
 
   const uploadM = useMutation({
     mutationFn: (file: File) => api.uploadDraftTicketAttachment(file),
@@ -160,9 +219,11 @@ export function CreateTicketPage() {
     setSelectedFile(file)
   }
 
-  function buildPayload() {
+  function buildPayload(): api.CreateTicketInput {
     return {
+      clientCompanyId: isTechnician ? clientCompanyId : undefined,
       locationId,
+      equipmentId: equipmentId || undefined,
       categoryId,
       urgency,
       attachmentIds: draftAttachment ? [draftAttachment.id] : [],
@@ -191,7 +252,7 @@ export function CreateTicketPage() {
 
   function onUpload() {
     if (!selectedFile) {
-      setUploadError('Сначала выбери фото')
+      setUploadError('Сначала выберите фото')
       return
     }
 
@@ -214,14 +275,21 @@ export function CreateTicketPage() {
   const isBusy = createM.isPending || uploadM.isPending || deleteDraftM.isPending
   const noCategories = activeCategories.length === 0
   const noLocations = activeLocations.length === 0
-  const isBootstrapping = categoriesQ.isFetching || locationsQ.isFetching
+  const isBootstrapping =
+    meQ.isFetching ||
+    (isTechnician ? technicianContextsQ.isFetching : categoriesQ.isFetching || locationsQ.isFetching)
+  const noTechnicianContexts = isTechnician && !technicianContextsQ.isFetching && technicianContexts.length === 0
 
   return (
     <div>
       <div className="row">
         <div>
-          <h2 style={{ marginBottom: 4 }}>Quick Request</h2>
-          <div className="muted small">Выбери локацию, категорию и при необходимости приложи фото. Длинное описание не требуется.</div>
+          <h2 style={{ marginBottom: 4 }}>Создать заявку</h2>
+          <div className="muted small">
+            {isTechnician
+              ? 'Выберите привязанную клиентскую компанию, локацию и категорию. Заявка будет создана в клиентском контуре.'
+              : 'Выберите локацию, категорию и при необходимости приложите фото. Длинное описание не требуется.'}
+          </div>
         </div>
         <div>
           <Link to="/board">
@@ -232,15 +300,60 @@ export function CreateTicketPage() {
 
       {err ? <div className="alert">{err}</div> : null}
       {uploadError ? <div className="alert">{uploadError}</div> : null}
+      {meQ.isError ? <div className="alert">{(meQ.error as any)?.message || String(meQ.error)}</div> : null}
+      {technicianContextsQ.isError ? <div className="alert">{(technicianContextsQ.error as any)?.message || String(technicianContextsQ.error)}</div> : null}
       {categoriesQ.isError ? <div className="alert">{(categoriesQ.error as any)?.message || String(categoriesQ.error)}</div> : null}
       {locationsQ.isError ? <div className="alert">{(locationsQ.error as any)?.message || String(locationsQ.error)}</div> : null}
+      {equipmentQ.isError ? <div className="alert">{(equipmentQ.error as any)?.message || String(equipmentQ.error)}</div> : null}
+
+      {noTechnicianContexts ? (
+        <div className="panel">
+          <h3 style={{ marginBottom: 6 }}>Нет привязанного клиентского контура</h3>
+          <div className="muted small">
+            Для техника ещё не настроены клиентские компании или локации, в рамках которых можно создавать заявки.
+          </div>
+        </div>
+      ) : null}
 
       <div className="panel">
         <form onSubmit={onSubmit} className="form" style={{ maxWidth: 860 }}>
+          {isTechnician && selectedTechnicianContext ? (
+            <div className="muted small" style={{ marginBottom: 4 }}>
+              Контекст создания: клиентская компания <b>{selectedTechnicianContext.clientCompany.name}</b>.
+            </div>
+          ) : null}
+          {isTechnician ? (
+            <div className="grid2" style={{ gridTemplateColumns: '1fr 1fr' }}>
+              <label>
+                1. Клиентская компания *
+                <select
+                  value={clientCompanyId}
+                  onChange={(e) => setClientCompanyId(e.target.value)}
+                  disabled={technicianContextsQ.isFetching || technicianContexts.length === 0}
+                >
+                  {technicianContexts.length === 0 ? <option value="">Нет доступных компаний</option> : null}
+                  {technicianContexts.map((context) => (
+                    <option key={context.clientCompany.id} value={context.clientCompany.id}>
+                      {context.clientCompany.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <label>
+                Срочность
+                <select value={urgency} onChange={(e) => setUrgency(e.target.value as 'URGENT' | 'NOT_URGENT')}>
+                  <option value="NOT_URGENT">{urgencyLabel('NOT_URGENT')}</option>
+                  <option value="URGENT">{urgencyLabel('URGENT')}</option>
+                </select>
+              </label>
+            </div>
+          ) : null}
+
           <div className="grid2" style={{ gridTemplateColumns: '1fr 1fr' }}>
             <label>
-              1. Локация *
-              <select value={locationId} onChange={(e) => setLocationId(e.target.value)} disabled={locationsQ.isFetching || noLocations}>
+              {isTechnician ? '2. Локация клиента *' : '1. Локация *'}
+              <select value={locationId} onChange={(e) => setLocationId(e.target.value)} disabled={isBootstrapping || noLocations}>
                 {noLocations ? <option value="">Нет доступных локаций</option> : null}
                 {activeLocations.map((location) => (
                   <option key={location.id} value={location.id}>
@@ -250,18 +363,45 @@ export function CreateTicketPage() {
               </select>
             </label>
 
-            <label>
-              Срочность
-              <select value={urgency} onChange={(e) => setUrgency(e.target.value as 'URGENT' | 'NOT_URGENT')}>
-                <option value="NOT_URGENT">{urgencyLabel('NOT_URGENT')}</option>
-                <option value="URGENT">{urgencyLabel('URGENT')}</option>
-              </select>
-            </label>
+            {!isTechnician ? (
+              <label>
+                Срочность
+                <select value={urgency} onChange={(e) => setUrgency(e.target.value as 'URGENT' | 'NOT_URGENT')}>
+                  <option value="NOT_URGENT">{urgencyLabel('NOT_URGENT')}</option>
+                  <option value="URGENT">{urgencyLabel('URGENT')}</option>
+                </select>
+              </label>
+            ) : null}
           </div>
 
           <label>
-            2. Категория *
-            <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} disabled={categoriesQ.isFetching || noCategories}>
+            {isTechnician ? '3. Оборудование / Asset (опционально)' : '2. Оборудование / Asset (опционально)'}
+            <select
+              value={equipmentId}
+              onChange={(e) => setEquipmentId(e.target.value)}
+              disabled={!locationId || equipmentQ.isFetching}
+            >
+              <option value="">Без оборудования</option>
+              {locationEquipment.map((equipment) => (
+                <option key={equipment.id} value={equipment.id}>
+                  {[equipment.name, equipment.type, equipment.status].filter(Boolean).join(' · ')}
+                </option>
+              ))}
+            </select>
+            <div className="muted small" style={{ marginTop: 6 }}>
+              {locationId
+                ? equipmentQ.isFetching
+                  ? 'Загружаем оборудование для выбранной локации...'
+                  : locationEquipment.length === 0
+                    ? 'Для этой локации оборудование не найдено. Можно создать заявку без оборудования.'
+                    : 'Оборудование фильтруется по выбранной локации.'
+                : 'Сначала выберите локацию.'}
+            </div>
+          </label>
+
+          <label>
+            {isTechnician ? '4. Категория *' : '3. Категория *'}
+            <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} disabled={isBootstrapping || noCategories}>
               {noCategories ? <option value="">Нет доступных категорий</option> : null}
               {activeCategories.map((category) => (
                 <option key={category.id} value={category.id}>
@@ -270,9 +410,21 @@ export function CreateTicketPage() {
               ))}
             </select>
             <div className="muted small" style={{ marginTop: 6 }}>
-              Backend сам сгенерирует title и description по выбранной категории.
+              Backend сам сформирует заголовок и описание по выбранной категории.
             </div>
           </label>
+
+          {isTechnician && selectedTechnicianContext ? (
+            <div className="panel" style={{ padding: 12 }}>
+              <div className="muted small" style={{ marginBottom: 6 }}>Контекст техника</div>
+              <div style={{ fontWeight: 700 }}>{selectedTechnicianContext.clientCompany.name}</div>
+              <div className="muted small" style={{ marginTop: 4 }}>
+                {selectedTechnicianContext.locationScope === 'ALL_COMPANY_LOCATIONS'
+                  ? 'Техник может создавать заявки по всем активным локациям этой компании.'
+                  : 'Техник может создавать заявки только по привязанным локациям этой компании.'}
+              </div>
+            </div>
+          ) : null}
 
           <div className="panel" style={{ padding: 12 }}>
             <div className="muted small" style={{ marginBottom: 6 }}>Предпросмотр того, что сформирует backend</div>
@@ -281,7 +433,7 @@ export function CreateTicketPage() {
           </div>
 
           <div className="panel" style={{ padding: 12 }}>
-            <div style={{ fontWeight: 700, marginBottom: 10 }}>3. Фото проблемы</div>
+            <div style={{ fontWeight: 700, marginBottom: 10 }}>{isTechnician ? '5. Фото проблемы' : '4. Фото проблемы'}</div>
             <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
               <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} disabled={isBusy || !!draftAttachment} />
               <button type="button" onClick={onUpload} disabled={uploadM.isPending || !selectedFile || !!draftAttachment}>
@@ -302,7 +454,7 @@ export function CreateTicketPage() {
                   alt={draftAttachment.originalName}
                   style={{ width: 260, maxWidth: '100%', borderRadius: 12, border: '1px solid #e5e7eb' }}
                 />
-                <div className="muted small">Фото сохранено и будет привязано к тикету при отправке.</div>
+                <div className="muted small">Фото сохранено и будет привязано к заявке при отправке.</div>
                 <div>
                   <button type="button" className="ghost" onClick={() => deleteDraftM.mutate(draftAttachment.id)} disabled={deleteDraftM.isPending}>
                     {deleteDraftM.isPending ? 'Удаляем...' : 'Удалить фото'}
@@ -313,8 +465,8 @@ export function CreateTicketPage() {
           </div>
 
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-            <button type="submit" disabled={isBusy || isBootstrapping || noCategories || noLocations}>
-              {createM.isPending ? 'Отправляем...' : '4. Отправить заявку'}
+            <button type="submit" disabled={isBusy || isBootstrapping || noCategories || noLocations || (isTechnician && !clientCompanyId)}>
+              {createM.isPending ? 'Отправляем...' : isTechnician ? '6. Создать заявку' : '5. Отправить заявку'}
             </button>
 
             <button type="button" className="ghost" onClick={onReset} disabled={isBusy}>

@@ -126,11 +126,20 @@ export async function createCompanyWithUsers(params?: {
 
 export async function createSpecAndCategory(companyId: string) {
   const spec = await prisma.specialization.create({
-    data: { companyId, name: 'E2E Spec', isActive: true },
+    data: {
+      name: 'E2E Spec',
+      isActive: true,
+      company: { connect: { id: companyId } },
+    },
   });
 
   const categoryOk = await prisma.problemCategory.create({
-    data: { companyId, name: 'E2E Category OK', isActive: true, instructions: 'ok' },
+    data: {
+      name: 'E2E Category OK',
+      isActive: true,
+      instructions: 'ok',
+      company: { connect: { id: companyId } },
+    },
   });
 
   await prisma.problemCategorySpecialization.create({
@@ -138,7 +147,11 @@ export async function createSpecAndCategory(companyId: string) {
   });
 
   const categoryNoMatch = await prisma.problemCategory.create({
-    data: { companyId, name: 'E2E Category NO_MATCH', isActive: true },
+    data: {
+      name: 'E2E Category NO_MATCH',
+      isActive: true,
+      company: { connect: { id: companyId } },
+    },
   });
 
   return { spec, categoryOk, categoryNoMatch };
@@ -159,7 +172,7 @@ export async function createTicket(params: {
 }) {
   const t = await prisma.ticket.create({
     data: {
-      companyId: params.companyId,
+      company: { connect: { id: params.companyId } },
       problemCategoryId: params.problemCategoryId,
       problemText: params.problemText ?? 'E2E problem',
       urgency: TicketUrgency.NOT_URGENT,

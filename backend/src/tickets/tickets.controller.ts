@@ -1,4 +1,4 @@
-﻿import {
+import {
   Body,
   Controller,
   Delete,
@@ -38,23 +38,23 @@ export class TicketsController {
   constructor(private readonly svc: TicketsService) {}
 
   @Post()
-  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER)
-  @RequirePermission(PERMISSIONS.TICKETS_CREATE)
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.CLIENT, UserRole.TECHNICIAN)
+  @RequirePermission(PERMISSIONS.LOCATIONS_VIEW)
   create(@Req() req: any, @Body() dto: CreateTicketDto) {
-    return this.svc.create(req.user.companyId, req.user.role as UserRole, dto)
+    return this.svc.create(req.user.companyId, { id: req.user.id, role: req.user.role as UserRole }, dto)
   }
 
   @Post('attachments/upload')
-  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER)
-  @RequirePermission(PERMISSIONS.TICKETS_CREATE)
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.CLIENT, UserRole.TECHNICIAN)
+  @RequirePermission(PERMISSIONS.LOCATIONS_VIEW)
   @UseInterceptors(FileInterceptor('file'))
   uploadDraftAttachment(@Req() req: any, @UploadedFile() file: any) {
     return this.svc.uploadDraftAttachment(req.user.companyId, req.user.id, file)
   }
 
   @Delete('attachments/:attachmentId')
-  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER)
-  @RequirePermission(PERMISSIONS.TICKETS_CREATE)
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.CLIENT, UserRole.TECHNICIAN)
+  @RequirePermission(PERMISSIONS.LOCATIONS_VIEW)
   deleteDraftAttachment(@Req() req: any, @Param('attachmentId') attachmentId: string) {
     return this.svc.deleteDraftAttachment(req.user.companyId, attachmentId)
   }
@@ -90,10 +90,42 @@ export class TicketsController {
         sla: q.sla,
         q: q.q,
         take: q.take,
+        locationId: q.locationId,
+        equipmentId: q.equipmentId,
       },
       req.accessFlags,
       q.linkedClientCompanyId,
       q.companyId,
+    )
+  }
+
+  @Get('analytics/context')
+  @Roles(
+    UserRole.ADMIN,
+    UserRole.MASTER,
+    UserRole.DISPATCHER,
+    UserRole.NETWORK_DIRECTOR,
+    UserRole.TECHNICIAN,
+    UserRole.CLIENT,
+    UserRole.PLATFORM_ADMIN,
+  )
+  @RequirePermission(PERMISSIONS.TICKETS_VIEW)
+  contextAnalytics(
+    @Req() req: any,
+    @Query('linkedClientCompanyId') linkedClientCompanyId?: string,
+    @Query('companyId') companyId?: string,
+    @Query('locationId') locationId?: string,
+    @Query('equipmentId') equipmentId?: string,
+  ) {
+    return this.svc.contextAnalytics(
+      req.user.companyId,
+      req.user.id,
+      req.user.role as UserRole,
+      req.accessFlags,
+      linkedClientCompanyId,
+      companyId,
+      locationId,
+      equipmentId,
     )
   }
 

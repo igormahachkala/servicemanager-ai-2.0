@@ -33,6 +33,8 @@ export type BoardQueryInput = {
   sla?: SlaBucket;
   q?: string;
   take?: number;
+  locationId?: string;
+  equipmentId?: string;
 };
 
 export type BoardQuery = {
@@ -107,6 +109,14 @@ export class TicketsPolicy {
           { problemCategory: { name: { contains: q, mode: 'insensitive' } } },
         ],
       });
+    }
+
+    if (input.locationId && input.locationId.trim().length > 0) {
+      extraAnd.push({ locationId: input.locationId.trim() });
+    }
+
+    if (input.equipmentId && input.equipmentId.trim().length > 0) {
+      extraAnd.push({ equipmentId: input.equipmentId.trim() });
     }
 
     const now = new Date();
