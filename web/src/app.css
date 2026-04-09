@@ -3,6 +3,11 @@
   line-height: 1.4;
   color: #111;
   background: #f6f7fb;
+  --ui-space-1: 8px;
+  --ui-space-2: 12px;
+  --ui-radius: 14px;
+  --ui-border: 1px solid #e6e8f0;
+  --ui-card-bg: #fff;
 }
 
 * { box-sizing: border-box; }
@@ -170,12 +175,15 @@ button.ghost {
 }
 .title { font-weight: 700; }
 .actions { display: flex; gap: 8px; align-items: center; }
+.mobileMenuBtn { display: none; }
+.mobileBackdrop { display: none; }
 
 .contentMain { padding: 18px; }
+.contentMain > * { min-width: 0; }
 
 /* ===== BOARD ===== */
 
-.row { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px; }
+.row { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: var(--ui-space-2); gap: var(--ui-space-1); }
 
 .kanban {
   display: grid;
@@ -223,6 +231,13 @@ button.ghost {
   background: #f3f4f6;
   border: 1px solid #e5e7eb;
 }
+.uiStatusBadge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+}
 .tag.danger {
   background: #fff1f2;
   border-color: #fecdd3;
@@ -236,13 +251,33 @@ button.ghost {
   grid-template-columns: 1fr 1fr;
   gap: 12px;
 }
-.panel {
-  background: #fff;
-  border: 1px solid #e6e8f0;
-  border-radius: 14px;
-  padding: 12px;
+.panel,
+.uiCard {
+  background: var(--ui-card-bg);
+  border: var(--ui-border);
+  border-radius: var(--ui-radius);
+  padding: var(--ui-space-2);
 }
-.kv { display: grid; grid-template-columns: 120px 1fr; gap: 8px 10px; }
+.uiSection {
+  display: grid;
+  gap: var(--ui-space-2);
+  margin-bottom: var(--ui-space-2);
+}
+.uiActions {
+  display: flex;
+  gap: var(--ui-space-1);
+  flex-wrap: wrap;
+  align-items: center;
+}
+.uiActions > * {
+  min-width: 0;
+}
+.kv,
+.uiKv {
+  display: grid;
+  grid-template-columns: minmax(110px, 140px) minmax(0, 1fr);
+  gap: 8px 10px;
+}
 .k { color: #6b7280; font-size: 12px; }
 .v { font-size: 13px; }
 
@@ -598,5 +633,145 @@ button.ghost {
   .workActDocHeader,
   .workActBrandRow {
     flex-direction: column;
+  }
+}
+
+@media (max-width: 768px) {
+  html,
+  body,
+  #root {
+    overflow-x: hidden;
+  }
+
+  .appLayout {
+    display: block;
+    min-height: 100vh;
+  }
+
+  .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: min(84vw, 320px);
+    max-width: 320px;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    z-index: 40;
+    overflow-y: auto;
+  }
+
+  .sidebar.sidebarMobileOpen {
+    transform: translateX(0);
+  }
+
+  .mobileBackdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.35);
+    z-index: 30;
+  }
+
+  .topbar {
+    padding: 12px;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .mobileMenuBtn {
+    display: inline-flex;
+    width: auto;
+    border-color: #e5e7eb;
+    background: #fff;
+    color: #111827;
+  }
+
+  .brand {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .actions a,
+  .actions button {
+    width: 100%;
+  }
+
+  .contentMain {
+    padding: 12px;
+  }
+
+  .row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .uiActions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .uiActions > * {
+    width: 100%;
+  }
+
+  .grid2,
+  .kv {
+    grid-template-columns: 1fr !important;
+  }
+
+  .kanban {
+    grid-template-columns: 1fr;
+    overflow-x: visible;
+  }
+
+  .col {
+    min-height: 0;
+  }
+
+  .panel,
+  .card,
+  .ticket {
+    width: 100%;
+    min-width: 0 !important;
+  }
+
+  label {
+    width: 100%;
+  }
+
+  input,
+  select,
+  textarea,
+  button {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0 !important;
+  }
+
+  button.ghost,
+  .navBtn {
+    width: 100%;
+  }
+
+  .topbar .navBtn {
+    width: auto;
+  }
+
+  .tlItem {
+    grid-template-columns: 1fr;
+  }
+
+  .workActMetaGrid,
+  .workActSummaryGrid,
+  .workActSignatureGrid,
+  .workActPartyGrid {
+    grid-template-columns: 1fr !important;
   }
 }

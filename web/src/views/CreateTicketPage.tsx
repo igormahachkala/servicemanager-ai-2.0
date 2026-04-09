@@ -315,7 +315,7 @@ export function CreateTicketPage() {
         </div>
       ) : null}
 
-      <div className="panel">
+      <div className="panel uiCard">
         <form onSubmit={onSubmit} className="form" style={{ maxWidth: 860 }}>
           {isTechnician && selectedTechnicianContext ? (
             <div className="muted small" style={{ marginBottom: 4 }}>
@@ -323,7 +323,7 @@ export function CreateTicketPage() {
             </div>
           ) : null}
           {isTechnician ? (
-            <div className="grid2" style={{ gridTemplateColumns: '1fr 1fr' }}>
+            <div className="grid2" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
               <label>
                 1. Клиентская компания *
                 <select
@@ -350,7 +350,7 @@ export function CreateTicketPage() {
             </div>
           ) : null}
 
-          <div className="grid2" style={{ gridTemplateColumns: '1fr 1fr' }}>
+          <div className="grid2" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
             <label>
               {isTechnician ? '2. Локация клиента *' : '1. Локация *'}
               <select value={locationId} onChange={(e) => setLocationId(e.target.value)} disabled={isBootstrapping || noLocations}>
@@ -464,7 +464,7 @@ export function CreateTicketPage() {
             ) : null}
           </div>
 
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <div className="uiActions">
             <button type="submit" disabled={isBusy || isBootstrapping || noCategories || noLocations || (isTechnician && !clientCompanyId)}>
               {createM.isPending ? 'Отправляем...' : isTechnician ? '6. Создать заявку' : '5. Отправить заявку'}
             </button>

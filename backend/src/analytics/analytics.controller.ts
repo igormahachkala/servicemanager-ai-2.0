@@ -16,6 +16,27 @@ import { AnalyticsService } from './analytics.service'
 export class AnalyticsController {
   constructor(private readonly svc: AnalyticsService) {}
 
+  @Get('categories')
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.PLATFORM_ADMIN)
+  @RequirePermission(PERMISSIONS.ANALYTICS_VIEW)
+  categories(@Req() req: any) {
+    return this.svc.getCategoriesAnalytics(req.user.companyId)
+  }
+
+  @Get('specializations')
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.PLATFORM_ADMIN)
+  @RequirePermission(PERMISSIONS.ANALYTICS_VIEW)
+  specializations(@Req() req: any) {
+    return this.svc.getSpecializationsAnalytics(req.user.companyId)
+  }
+
+  @Get('workload')
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.PLATFORM_ADMIN)
+  @RequirePermission(PERMISSIONS.ANALYTICS_VIEW)
+  workload(@Req() req: any) {
+    return this.svc.getWorkloadAnalytics(req.user.companyId)
+  }
+
   @Get('overview')
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.PLATFORM_ADMIN)
   @RequirePermission(PERMISSIONS.ANALYTICS_VIEW)

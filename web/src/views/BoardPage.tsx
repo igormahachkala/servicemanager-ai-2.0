@@ -466,7 +466,7 @@ export function BoardPage() {
                 <div style={{ fontWeight: 600 }}>Мои клиенты</div>
                 <div className="muted small">PRIMARY клиенты доступны для полного board visibility. SECONDARY показываются как ограниченный контур.</div>
               </div>
-              <div style={{ minWidth: 260 }}>
+              <div style={{ width: '100%', maxWidth: 320, minWidth: 0 }}>
                 <select
                   value={requestedLinkedClientCompanyId}
                   onChange={(e) => onSelectLinkedClient(e.target.value)}
@@ -571,7 +571,7 @@ export function BoardPage() {
       {ownCompanyQ.isError ? <div className="alert">{(ownCompanyQ.error as any)?.message || String(ownCompanyQ.error)}</div> : null}
       {linkedClientsQ.isError ? <div className="alert">{(linkedClientsQ.error as any)?.message || String(linkedClientsQ.error)}</div> : null}
 
-      <div className="panel" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 12, minHeight: 92 }}>
+      <div className="panel uiCard" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 12, minHeight: 92 }}>
         <div>
           <div className="muted small">Заявок сегодня</div>
           <div style={{ fontSize: 18, fontWeight: 800, marginTop: 2 }}>{statsLoading ? <SkeletonBox w={44} h={24} /> : stats.today}</div>
@@ -593,14 +593,14 @@ export function BoardPage() {
         </div>
       </div>
 
-      <div className="panel" style={{ marginBottom: 12 }}>
+      <div className="panel uiCard" style={{ marginBottom: 12 }}>
         <div className="row" style={{ marginBottom: 10 }}>
           <div style={{ fontWeight: 700 }}>Service context аналитика</div>
           <div className="muted small">
             {contextAnalyticsQ.isFetching ? 'Обновляем…' : `Тикетов в срезе: ${contextAnalyticsQ.data?.meta.totalTickets ?? '—'}`}
           </div>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 12 }}>
           <div>
             <div className="muted small" style={{ marginBottom: 6 }}>По локациям</div>
             <div style={{ display: 'grid', gap: 6 }}>
@@ -684,13 +684,13 @@ export function BoardPage() {
         {contextAnalyticsQ.isError ? <div className="alert" style={{ marginTop: 10 }}>{(contextAnalyticsQ.error as any)?.message || String(contextAnalyticsQ.error)}</div> : null}
       </div>
 
-      <div className="panel" style={{ marginBottom: 12 }}>
+      <div className="panel uiCard" style={{ marginBottom: 12 }}>
         <div className="row" style={{ marginBottom: 0 }}>
           <div className="muted small">Пагинация</div>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            <label className="muted small" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <label className="muted small" style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
               take
-              <input style={{ width: 110 }} value={String(take)} onChange={(e) => setTake(Math.max(20, Math.min(1000, Number(e.target.value) || 0)))} />
+              <input style={{ width: '100%', maxWidth: 110, minWidth: 0 }} value={String(take)} onChange={(e) => setTake(Math.max(20, Math.min(1000, Number(e.target.value) || 0)))} />
             </label>
             <div className="muted small">Для демо можно увеличить take, например до 300.</div>
           </div>
@@ -698,7 +698,7 @@ export function BoardPage() {
         <div className="row" style={{ marginTop: 10, marginBottom: 0, alignItems: 'center' }}>
           <div className="muted small">Service context фильтры</div>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-            <label className="muted small" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <label className="muted small" style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
               Локация
               <select
                 value={selectedLocationId}
@@ -706,7 +706,7 @@ export function BoardPage() {
                   setSelectedLocationId(e.target.value)
                   setSelectedEquipmentId('')
                 }}
-                style={{ minWidth: 220 }}
+                style={{ width: '100%', maxWidth: 320, minWidth: 0 }}
               >
                 <option value="">Все</option>
                 {locationOptions.map((location) => (
@@ -714,12 +714,12 @@ export function BoardPage() {
                 ))}
               </select>
             </label>
-            <label className="muted small" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <label className="muted small" style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
               Оборудование
               <select
                 value={selectedEquipmentId}
                 onChange={(e) => setSelectedEquipmentId(e.target.value)}
-                style={{ minWidth: 220 }}
+                style={{ width: '100%', maxWidth: 320, minWidth: 0 }}
               >
                 <option value="">Все</option>
                 {equipmentOptions.map((equipment) => (
@@ -731,7 +731,7 @@ export function BoardPage() {
         </div>
       </div>
 
-      <div className="panel" style={{ marginBottom: 12 }}>
+      <div className="panel uiCard" style={{ marginBottom: 12 }}>
         <div className="row" style={{ marginBottom: 0, alignItems: 'center' }}>
           <div className="muted small">Bulk actions</div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>

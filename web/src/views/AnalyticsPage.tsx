@@ -192,7 +192,7 @@ export function AnalyticsPage() {
           ) : null}
         </div>
 
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', minWidth: 0 }}>
           <button className="ghost" onClick={() => analyticsEnabled && q.refetch()} disabled={!analyticsEnabled || q.isFetching}>Обновить</button>
           <Link to={boardLink}><button className="ghost">К доске</button></Link>
           <Link to={companyLink}><button className="ghost">К компании</button></Link>
@@ -213,7 +213,7 @@ export function AnalyticsPage() {
               <div style={{ fontWeight: 700 }}>Режим подрядчика</div>
               <div className="muted small">Аналитика открывается только для активного основного клиента и сохраняет тот же контекст, что и доска.</div>
             </div>
-            <div style={{ minWidth: 260 }}>
+            <div style={{ width: '100%', maxWidth: 320, minWidth: 0 }}>
               <select
                 value={requestedLinkedClientCompanyId}
                 onChange={(e) => onSelectLinkedClient(e.target.value)}
@@ -269,7 +269,7 @@ export function AnalyticsPage() {
         </div>
       ) : null}
 
-      <div className="panel" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 12, marginBottom: 12 }}>
+      <div className="panel uiCard" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 12 }}>
         <div>
           <div className="muted small">Всего заявок</div>
           <div style={{ fontSize: 22, fontWeight: 800, marginTop: 2 }}>{analyticsEnabled && !q.isFetching ? fmtNumber(data.createdCount) : '—'}</div>
@@ -289,9 +289,9 @@ export function AnalyticsPage() {
       </div>
 
       <div className="grid2">
-        <div className="panel">
+        <div className="panel uiCard">
           <h3 style={{ marginBottom: 10 }}>Открытые по статусам</h3>
-          <div className="kv">
+          <div className="kv uiKv">
             <div className="k">Новые</div>
             <div className="v">{analyticsEnabled && !q.isFetching ? fmtNumber(data.openByStatus.NEW) : '—'}</div>
             <div className="k">Назначенные</div>
@@ -305,9 +305,9 @@ export function AnalyticsPage() {
           </div>
         </div>
 
-        <div className="panel">
+        <div className="panel uiCard">
           <h3 style={{ marginBottom: 10 }}>SLA и средние времена</h3>
-          <div className="kv">
+          <div className="kv uiKv">
             <div className="k">Проверено по SLA</div>
             <div className="v">{analyticsEnabled && !q.isFetching ? fmtNumber(data.sla.evaluatedCount) : '—'}</div>
             <div className="k">SLA в норме %</div>

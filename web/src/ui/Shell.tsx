@@ -1,13 +1,13 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { platformNavigation, tenantNavigation, type NavItem, type NavSection } from '../lib/navigation'
 import { useWsInvalidation } from './useWsInvalidation'
 
-function NavItemButton(props: { to: string; label: string; active: boolean }) {
+function NavItemButton(props: { to: string; label: string; active: boolean; onNavigate?: () => void }) {
   return (
-    <Link to={props.to} style={{ textDecoration: 'none' }}>
+    <Link to={props.to} style={{ textDecoration: 'none' }} onClick={props.onNavigate}>
       <button className={props.active ? 'navBtn navBtnActive' : 'navBtn'}>{props.label}</button>
     </Link>
   )
@@ -83,6 +83,8 @@ function isNavItemVisible(item: NavItem, role?: api.Role, isPlatformAdmin?: bool
 }
 
 export function Shell() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+
   const nav = useNavigate()
   const loc = useLocation()
   const queryClient = useQueryClient()
@@ -104,6 +106,10 @@ export function Shell() {
       nav('/login', { replace: true })
     }
   }, [meQ.isError, nav, queryClient])
+
+  useEffect(() => {
+    setMobileMenuOpen(false)
+  }, [loc.pathname])
 
   useEffect(() => {
     if (!meQ.data) return
@@ -164,7 +170,7 @@ export function Shell() {
 
   return (
     <div className="appLayout">
-      <aside className="sidebar">
+      <aside className={mobileMenuOpen ? 'sidebar sidebarMobileOpen' : 'sidebar'}>
         <div className="sidebarHeader">
           <div className="sidebarBrand">ServiceManager</div>
           <div className="sidebarSub">{api.getCompanyLabel(meQ.data)}</div>
@@ -174,7 +180,7 @@ export function Shell() {
           {sidebarSections.map((section) => (
             <NavSectionBlock key={section.id} title={section.label}>
               {section.items.map((item) => (
-                <NavItemButton key={item.id} to={item.to} label={item.label} active={item.active} />
+                <NavItemButton key={item.id} to={item.to} label={item.label} active={item.active} onNavigate={() => setMobileMenuOpen(false)} />
               ))}
             </NavSectionBlock>
           ))}
@@ -192,6 +198,9 @@ export function Shell() {
 
       <div className="contentArea">
         <header className="topbar">
+          <button className="navBtn mobileMenuBtn" type="button" onClick={() => setMobileMenuOpen((value) => !value)}>
+            {mobileMenuOpen ? 'Закрыть меню' : 'Меню'}
+          </button>
           <div className="brand">
             <div className="logo">SMA</div>
             <div>
@@ -235,6 +244,7 @@ export function Shell() {
           <Outlet />
         </main>
       </div>
+      {mobileMenuOpen ? <div className="mobileBackdrop" onClick={() => setMobileMenuOpen(false)} /> : null}
     </div>
   )
 }

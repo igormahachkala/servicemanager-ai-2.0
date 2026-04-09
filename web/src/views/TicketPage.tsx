@@ -4,7 +4,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { TicketAttachments } from './ticket-page/TicketAttachments'
 import { TicketHeader } from './ticket-page/TicketHeader'
-import { TicketStatusActions } from './ticket-page/TicketStatusActions'
 
 const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024
 
@@ -75,11 +74,15 @@ function roleCanUploadPhoto(role?: api.Role | null) {
 function StatusPill({ status }: { status: api.TicketStatus }) {
   const style: Record<string, string | number> = {
     borderRadius: 999,
-    padding: '4px 10px',
+    padding: '6px 12px',
     fontSize: 12,
-    border: '1px solid #e5e7eb',
+    fontWeight: 700,
+    lineHeight: 1,
+    border: '1px solid #d1d5db',
     background: '#f3f4f6',
-    color: '#374151',
+    color: '#111827',
+    minWidth: 110,
+    textAlign: 'center',
   }
 
   if (status === 'NEW') Object.assign(style, { background: '#eef2ff', borderColor: '#c7d2fe', color: '#3730a3' })
@@ -88,7 +91,31 @@ function StatusPill({ status }: { status: api.TicketStatus }) {
   if (status === 'DONE') Object.assign(style, { background: '#ecfdf5', borderColor: '#a7f3d0', color: '#065f46' })
   if (status === 'CANCELED') Object.assign(style, { background: '#f3f4f6', borderColor: '#e5e7eb', color: '#6b7280' })
 
-  return <span style={style}>{statusLabel(status)}</span>
+  return <span className="uiStatusBadge" style={style}>{statusLabel(status)}</span>
+}
+
+function SlaSignal({ hasSla, isBreached, isAtRisk }: { hasSla: boolean; isBreached: boolean; isAtRisk: boolean }) {
+  const baseStyle: Record<string, string | number> = {
+    borderRadius: 999,
+    padding: '6px 10px',
+    fontSize: 12,
+    fontWeight: 700,
+    border: '1px solid #d1d5db',
+    background: '#f3f4f6',
+    color: '#374151',
+    display: 'inline-flex',
+    alignItems: 'center',
+  }
+  if (!hasSla) {
+    return <span style={baseStyle}>SLA не задан</span>
+  }
+  if (isBreached) {
+    return <span style={{ ...baseStyle, borderColor: '#fecdd3', background: '#fff1f2', color: '#9f1239' }}>SLA просрочен</span>
+  }
+  if (isAtRisk) {
+    return <span style={{ ...baseStyle, borderColor: '#fde68a', background: '#fffbeb', color: '#92400e' }}>SLA близко</span>
+  }
+  return <span style={{ ...baseStyle, background: '#f9fafb' }}>SLA в норме</span>
 }
 
 function Skeleton({ w, h }: { w: number | string; h: number }) {
@@ -172,6 +199,8 @@ export function TicketPage() {
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [deleteAttachmentError, setDeleteAttachmentError] = useState<string | null>(null)
   const [updateError, setUpdateError] = useState<string | null>(null)
+  const [showFullTimeline, setShowFullTimeline] = useState(false)
+  const [showAssignmentEditor, setShowAssignmentEditor] = useState(false)
 
   const [editProblemCategoryId, setEditProblemCategoryId] = useState('')
   const [editProblemText, setEditProblemText] = useState('')
@@ -213,11 +242,15 @@ export function TicketPage() {
   })
 
   const role = meQ.data?.role
-  const canAssign = roleCanAssign(role)
-  const canEditTicket = roleCanEdit(role)
-  const canChangeStatus = roleCanChangeStatus(role)
-  const canUploadPhoto = roleCanUploadPhoto(role)
-  const canDeletePhoto = roleCanUploadPhoto(role)
+  const isClientRole = role === 'CLIENT'
+  const readOnlyByVisibilityMode = contextMode !== 'tenant'
+  const canMutateTicket = !readOnlyByVisibilityMode
+
+  const canAssign = canMutateTicket && !isClientRole && roleCanAssign(role)
+  const canEditTicket = canMutateTicket && roleCanEdit(role)
+  const canChangeStatus = canMutateTicket && roleCanChangeStatus(role)
+  const canUploadPhoto = canMutateTicket && roleCanUploadPhoto(role)
+  const canDeletePhoto = canMutateTicket && roleCanUploadPhoto(role)
 
   const assignmentCandidatesQ = useQuery({
     enabled: !!ticketId && canAssign,
@@ -285,7 +318,10 @@ export function TicketPage() {
   }
 
   const claimM = useMutation({
-    mutationFn: () => api.claim(ticketId, ticketScope),
+    mutationFn: () => {
+      if (!canMutateTicket) throw new Error('Изменение заявки запрещено в текущем режиме видимости')
+      return api.claim(ticketId, ticketScope)
+    },
     onSuccess: async () => {
       setClaimError(null)
       clearActionErrors()
@@ -296,6 +332,8 @@ export function TicketPage() {
 
   const assignM = useMutation({
     mutationFn: () => {
+      if (isClientRole) throw new Error('Клиент не может назначать техников')
+      if (!canMutateTicket) throw new Error('Изменение заявки запрещено в текущем режиме видимости')
       if (!selectedTechnicianId) throw new Error('Сначала выберите техника')
       return api.assignTicket(ticketId, selectedTechnicianId, ticketScope)
     },
@@ -308,7 +346,10 @@ export function TicketPage() {
   })
 
   const statusM = useMutation({
-    mutationFn: (status: api.TicketStatus) => api.updateTicketStatus(ticketId, { status }, ticketScope),
+    mutationFn: (status: api.TicketStatus) => {
+      if (!canMutateTicket) throw new Error('Изменение заявки запрещено в текущем режиме видимости')
+      return api.updateTicketStatus(ticketId, { status }, ticketScope)
+    },
     onSuccess: async () => {
       setStatusError(null)
       clearActionErrors()
@@ -319,6 +360,7 @@ export function TicketPage() {
 
   const uploadM = useMutation({
     mutationFn: () => {
+      if (!canMutateTicket) throw new Error('Изменение заявки запрещено в текущем режиме видимости')
       if (!selectedFile) throw new Error('Сначала выберите файл')
       return api.uploadTicketAttachment(ticketId, selectedFile, ticketScope)
     },
@@ -336,7 +378,10 @@ export function TicketPage() {
   })
 
   const deleteAttachmentM = useMutation({
-    mutationFn: (attachmentId: string) => api.deleteTicketAttachment(ticketId, attachmentId, ticketScope),
+    mutationFn: (attachmentId: string) => {
+      if (!canMutateTicket) throw new Error('Изменение заявки запрещено в текущем режиме видимости')
+      return api.deleteTicketAttachment(ticketId, attachmentId, ticketScope)
+    },
     onSuccess: async () => {
       setDeleteAttachmentError(null)
       clearActionErrors()
@@ -347,20 +392,23 @@ export function TicketPage() {
 
   const updateTicketM = useMutation({
     mutationFn: () =>
-      api.updateTicket(
-        ticketId,
-        {
-          problemCategoryId: editProblemCategoryId,
-          equipmentId: editEquipmentId || null,
-          problemText: editProblemText,
-          urgency: editUrgency,
-          requesterName: editRequesterName || null,
-          requesterPhone: editRequesterPhone || null,
-          address: editAddress || null,
-          pointName: editPointName || null,
-        },
-        ticketScope,
-      ),
+      {
+        if (!canMutateTicket) throw new Error('Изменение заявки запрещено в текущем режиме видимости')
+        return api.updateTicket(
+          ticketId,
+          {
+            problemCategoryId: editProblemCategoryId,
+            equipmentId: editEquipmentId || null,
+            problemText: editProblemText,
+            urgency: editUrgency,
+            requesterName: editRequesterName || null,
+            requesterPhone: editRequesterPhone || null,
+            address: editAddress || null,
+            pointName: editPointName || null,
+          },
+          ticketScope,
+        )
+      },
     onSuccess: async () => {
       setUpdateError(null)
       clearActionErrors()
@@ -372,14 +420,35 @@ export function TicketPage() {
   })
 
   const ticket = ticketQ.data
+  const hasAssignedTechnician = !!ticket?.assignedTechnician
   const canClaim = useMemo(() => {
     if (role !== 'TECHNICIAN' || !ticket) return false
+    if (!canMutateTicket) return false
     return ticket.meta?.canClaimByCurrentUser === true
-  }, [role, ticket])
+  }, [role, ticket, canMutateTicket])
 
   const assignmentData = assignmentCandidatesQ.data
   const availableStatusTransitions = ticket?.meta?.availableStatusTransitions || []
   const canTransitionTo = (status: api.TicketStatus) => availableStatusTransitions.includes(status)
+  const primaryAction = useMemo(() => {
+    if (!ticket) return null as null | { kind: 'claim' | 'in_progress' | 'done'; label: string }
+    if (ticket.status === 'DONE') return null
+
+    if (ticket.status === 'NEW') {
+      if (canClaim) return { kind: 'claim', label: 'Взять в работу' }
+      if (canChangeStatus && canTransitionTo('IN_PROGRESS')) return { kind: 'in_progress', label: 'Взять в работу' }
+      return null
+    }
+    if (ticket.status === 'ASSIGNED') {
+      if (canChangeStatus && canTransitionTo('IN_PROGRESS')) return { kind: 'in_progress', label: 'Начать выполнение' }
+      return null
+    }
+    if (ticket.status === 'IN_PROGRESS') {
+      if (canChangeStatus && canTransitionTo('DONE')) return { kind: 'done', label: 'Завершить' }
+      return null
+    }
+    return null
+  }, [ticket, canClaim, canChangeStatus, availableStatusTransitions])
 
   const selectedCandidate = useMemo(() => {
     if (!assignmentData || !selectedTechnicianId) return null
@@ -409,6 +478,16 @@ export function TicketPage() {
     if (contextMode === 'provider') return 'Режим подрядчика'
     return 'Контекст компании'
   }, [contextMode])
+  const timelineItems = timelineQ.data?.items || []
+  const timelinePreviewItems = useMemo(
+    () => (showFullTimeline ? timelineItems : timelineItems.slice(0, 5)),
+    [showFullTimeline, timelineItems],
+  )
+  const shortProblemText = useMemo(() => {
+    const text = ticket?.problemText || ''
+    if (text.length <= 180) return text
+    return `${text.slice(0, 180)}…`
+  }, [ticket?.problemText])
 
   function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
     setFileError(null)
@@ -454,11 +533,11 @@ export function TicketPage() {
         linkedClientCompanyId={linkedClientCompanyId}
         contextBadge={contextBadge}
         backToBoardHref={backToBoardHref}
-        canEditTicket={canEditTicket}
+        canEditTicket={false}
         editOpen={editOpen}
         onToggleEdit={() => setEditOpen((value) => !value)}
         role={role}
-        canClaim={canClaim}
+        canClaim={false}
         claimPending={claimM.isPending}
         meUserId={meQ.data?.id}
         onClaim={() => claimM.mutate()}
@@ -466,9 +545,16 @@ export function TicketPage() {
 
       <InlineError message={claimError} />
       {ticketQ.isError ? <div className="alert">{(ticketQ.error as any)?.message || String(ticketQ.error)}</div> : null}
+      {readOnlyByVisibilityMode ? (
+        <div className="panel uiCard" style={{ marginBottom: 12 }}>
+          <div className="muted small">
+            Режим только просмотра: изменение заявки доступно только в tenant-контуре.
+          </div>
+        </div>
+      ) : null}
 
       {ticket ? (
-        <div className="panel" style={{ marginBottom: 12 }}>
+        <div className="panel uiCard" style={{ marginBottom: 12 }}>
           <div className="row" style={{ marginBottom: 0 }}>
             <div style={{ minWidth: 0 }}>
               <div className="muted small">Карточка заявки</div>
@@ -503,17 +589,114 @@ export function TicketPage() {
         </div>
       ) : null}
 
-      <TicketStatusActions
-        ticket={ticket}
-        canChangeStatus={canChangeStatus}
-        statusPending={statusM.isPending}
-        canTransitionTo={canTransitionTo}
-        onChangeStatus={(status) => statusM.mutate(status)}
-        statusError={statusError}
-      />
+      {ticket ? (
+        <div className="panel" style={{ marginBottom: 12 }}>
+          <h3 style={{ marginBottom: 10 }}>Кратко по заявке</h3>
+          <div style={{ display: 'grid', gap: 8 }}>
+            <div><b>Категория:</b> {ticket.problemCategory?.name || '—'}</div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <b>Статус:</b> <StatusPill status={ticket.status} />
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <b>Приоритет:</b>
+              <span
+                className="tag"
+                style={
+                  ticket.urgency === 'URGENT'
+                    ? { background: '#fff1f2', borderColor: '#fecdd3', color: '#9f1239', fontWeight: 700 }
+                    : { background: '#f3f4f6', borderColor: '#e5e7eb', color: '#374151', fontWeight: 700 }
+                }
+              >
+                {urgencyLabel(ticket.urgency)}
+              </span>
+              <SlaSignal hasSla={slaState.hasSla} isBreached={slaState.isBreached} isAtRisk={slaState.isAtRisk} />
+              {ticket.slaDueAt ? <span className="muted small">срок {fmt(ticket.slaDueAt)}</span> : null}
+            </div>
+            <div>
+              <b>Локация:</b>{' '}
+              {ticket.location
+                ? [ticket.location.name, ticket.location.city, ticket.location.address].filter(Boolean).join(' · ')
+                : '—'}
+            </div>
+            <div><b>Описание:</b> {shortProblemText || '—'}</div>
+            <div className="muted small"><b>Создана:</b> {fmt(ticket.createdAt)}</div>
+          </div>
+        </div>
+      ) : null}
+
+      {ticket ? (
+        <div className="panel" style={{ marginBottom: 12 }}>
+          <h3 style={{ marginBottom: 10 }}>Действия</h3>
+          {primaryAction ? (
+            <div style={{ marginBottom: 8 }}>
+              {primaryAction.kind === 'claim' ? (
+                <button
+                  onClick={() => claimM.mutate()}
+                  disabled={claimM.isPending}
+                  style={{ width: '100%' }}
+                >
+                  {claimM.isPending ? 'Сохраняем…' : primaryAction.label}
+                </button>
+              ) : null}
+              {primaryAction.kind === 'in_progress' ? (
+                <button
+                  onClick={() => statusM.mutate('IN_PROGRESS')}
+                  disabled={statusM.isPending || !canTransitionTo('IN_PROGRESS')}
+                  style={{ width: '100%' }}
+                >
+                  {statusM.isPending ? 'Сохраняем…' : primaryAction.label}
+                </button>
+              ) : null}
+              {primaryAction.kind === 'done' ? (
+                <button
+                  onClick={() => statusM.mutate('DONE')}
+                  disabled={statusM.isPending || !canTransitionTo('DONE')}
+                  style={{ width: '100%' }}
+                >
+                  {statusM.isPending ? 'Сохраняем…' : primaryAction.label}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+
+          <div className="uiActions">
+            <a href={backToBoardHref} style={{ textDecoration: 'none' }}>
+              <button className="ghost">← Назад к доске</button>
+            </a>
+            {canEditTicket ? (
+              <button className="ghost" onClick={() => setEditOpen((value) => !value)}>
+                {editOpen ? 'Скрыть редактирование' : 'Редактировать заявку'}
+              </button>
+            ) : null}
+            {canClaim && primaryAction?.kind !== 'claim' ? (
+              <button className="ghost" onClick={() => claimM.mutate()} disabled={claimM.isPending}>
+                {claimM.isPending ? 'Забираем…' : 'Взять заявку'}
+              </button>
+            ) : null}
+            {canChangeStatus ? (
+              <>
+                {primaryAction?.kind !== 'in_progress' ? (
+                  <button className="ghost" disabled={statusM.isPending || !canTransitionTo('IN_PROGRESS')} onClick={() => statusM.mutate('IN_PROGRESS')}>
+                    {statusM.isPending ? 'Сохраняем…' : 'В работу'}
+                  </button>
+                ) : null}
+                {primaryAction?.kind !== 'done' ? (
+                  <button className="ghost" disabled={statusM.isPending || !canTransitionTo('DONE')} onClick={() => statusM.mutate('DONE')}>
+                    {statusM.isPending ? 'Сохраняем…' : 'Завершить'}
+                  </button>
+                ) : null}
+                <button className="ghost" disabled={statusM.isPending || !canTransitionTo('CANCELED')} onClick={() => statusM.mutate('CANCELED')}>
+                  {statusM.isPending ? 'Сохраняем…' : 'Отменить'}
+                </button>
+              </>
+            ) : null}
+          </div>
+          <InlineError message={statusError} />
+        </div>
+      ) : null}
 
       {ticket && canEditTicket && editOpen ? (
-        <div className="panel" style={{ marginBottom: 12 }}>
+        <div className="panel uiCard" style={{ marginBottom: 12 }}>
           <h3 style={{ marginBottom: 10 }}>Редактирование заявки</h3>
           <div className="form">
             <label>
@@ -603,9 +786,27 @@ export function TicketPage() {
         </div>
       ) : null}
 
-      {ticket && canAssign ? (
-        <div className="panel" style={{ marginBottom: 12 }}>
-          <h3 style={{ marginBottom: 10 }}>Назначить техника</h3>
+      {ticket && canAssign && !isClientRole ? (
+        <div className="panel uiCard" style={{ marginBottom: 12 }}>
+          <h3 style={{ marginBottom: 10 }}>Исполнитель</h3>
+          <div className="uiCard" style={{ marginBottom: 10, padding: 10 }}>
+            {hasAssignedTechnician ? (
+              <div style={{ display: 'grid', gap: 6 }}>
+                <div><b>Ответственный:</b> {ticket.assignedTechnician?.email}</div>
+                <div className="muted small">Заявка закреплена за техником.</div>
+              </div>
+            ) : (
+              <div style={{ display: 'grid', gap: 6 }}>
+                <div><b>Ответственный:</b> не назначен</div>
+                <div className="muted small">Назначьте техника, чтобы зафиксировать ответственность по заявке.</div>
+              </div>
+            )}
+            <div className="uiActions" style={{ marginTop: 8 }}>
+              <button className="ghost" type="button" onClick={() => setShowAssignmentEditor((value) => !value)}>
+                {showAssignmentEditor ? 'Скрыть назначение' : hasAssignedTechnician ? 'Переназначить' : 'Назначить техника'}
+              </button>
+            </div>
+          </div>
           {assignmentCandidatesQ.isLoading ? (
             <div style={{ display: 'grid', gap: 8 }}>
               <Skeleton w={240} h={16} />
@@ -613,22 +814,18 @@ export function TicketPage() {
             </div>
           ) : assignmentCandidatesQ.isError ? (
             <div className="alert">{(assignmentCandidatesQ.error as any)?.message || String(assignmentCandidatesQ.error)}</div>
-          ) : assignmentData ? (
+          ) : assignmentData && showAssignmentEditor ? (
             <>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-                <Tag>Категория: {assignmentData.category.name}</Tag>
-                <Tag>
-                  Требуемые специализации: {assignmentData.requiredSpecializations.length ? assignmentData.requiredSpecializations.map((item) => item.name).join(', ') : 'не заданы'}
-                </Tag>
+                <Tag>Текущий: {ticket.assignedTechnician?.email || 'не назначен'}</Tag>
                 <Tag>Подходящих: {assignmentData.matched.length}</Tag>
-                <Tag>Остальных: {assignmentData.others.length}</Tag>
               </div>
-              <div className="assignmentHintBox">
-                <div className="assignmentHintTitle">Рекомендация</div>
-                <div className="muted small">Сначала показаны техники, которые подходят по специализациям категории. Ниже — остальные техники компании.</div>
-              </div>
-              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginTop: 10 }}>
-                <select value={selectedTechnicianId} onChange={(e) => setSelectedTechnicianId(e.target.value)} style={{ minWidth: 420 }}>
+              <div className="uiActions" style={{ marginTop: 10 }}>
+                <select
+                  value={selectedTechnicianId}
+                  onChange={(e) => setSelectedTechnicianId(e.target.value)}
+                  style={{ width: '100%', maxWidth: 420, minWidth: 0 }}
+                >
                   <option value="">Выберите техника</option>
                   {assignmentData.matched.length > 0 ? (
                     <optgroup label="Подходящие техники">
@@ -652,8 +849,17 @@ export function TicketPage() {
                 <button onClick={() => assignM.mutate()} disabled={assignM.isPending || !selectedTechnicianId}>
                   {assignM.isPending ? 'Назначаем…' : 'Назначить'}
                 </button>
-                <div className="muted small">Текущий: {ticket.assignedTechnician?.email || '—'}</div>
               </div>
+              <details style={{ marginTop: 10 }}>
+                <summary className="muted small" style={{ cursor: 'pointer' }}>Показать рекомендации по специализациям</summary>
+                <div className="assignmentHintBox" style={{ marginTop: 8 }}>
+                  <div className="assignmentHintTitle">Рекомендация</div>
+                  <div className="muted small">Сначала показаны техники, которые подходят по специализациям категории. Ниже — остальные техники компании.</div>
+                  <div className="muted small" style={{ marginTop: 6 }}>
+                    Категория: {assignmentData.category.name} · Требуемые: {assignmentData.requiredSpecializations.length ? assignmentData.requiredSpecializations.map((item) => item.name).join(', ') : 'не заданы'}
+                  </div>
+                </div>
+              </details>
               {selectedCandidate ? (
                 <div className="assignmentSelectedBox">
                   <div style={{ fontWeight: 700, marginBottom: 6 }}>Выбранный техник</div>
@@ -667,6 +873,9 @@ export function TicketPage() {
               ) : null}
               <InlineError message={assignError} />
             </>
+          ) : null}
+          {!showAssignmentEditor && !assignmentCandidatesQ.isLoading && !assignmentCandidatesQ.isError ? (
+            <div className="muted small">Блок назначения свернут для компактного просмотра.</div>
           ) : null}
         </div>
       ) : null}
@@ -687,52 +896,71 @@ export function TicketPage() {
 
       {ticket ? (
         <>
-          <div className="panel" style={{ marginBottom: 12 }}>
-            <h3 style={{ marginBottom: 10 }}>Детали заявки</h3>
-            <div style={{ display: 'grid', gap: 10 }}>
-              <div>
-                <b>Локация:</b>{' '}
-                {ticket.location
-                  ? [
-                      ticket.location.name,
-                      ticket.location.city,
-                      ticket.location.address,
-                    ]
-                      .filter(Boolean)
-                      .join(' · ')
-                  : '—'}
-              </div>
-              {ticket.location?.platformCode || ticket.location?.externalCode ? (
-                <div className="muted small">
-                  {ticket.location?.platformCode ? `platformCode: ${ticket.location.platformCode}` : ''}
-                  {ticket.location?.platformCode && ticket.location?.externalCode ? ' · ' : ''}
-                  {ticket.location?.externalCode ? `externalCode: ${ticket.location.externalCode}` : ''}
+          <div className="panel uiCard" style={{ marginBottom: 12 }}>
+            <h3 style={{ marginBottom: 10 }}>Дополнительно</h3>
+            <div style={{ display: 'grid', gap: 8 }}>
+              <details open>
+                <summary style={{ cursor: 'pointer', fontWeight: 700 }}>Детали</summary>
+                <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
+                  <div><b>Категория:</b> {ticket.problemCategory?.name || '—'}</div>
+                  <div><b>Срочность:</b> {urgencyLabel(ticket.urgency)}</div>
+                  <div><b>SLA статус:</b> {slaState.isBreached ? 'Нарушен' : slaState.isAtRisk ? 'В риске' : ticket.slaDueAt ? 'В норме' : 'Не задан'}</div>
+                  <div>
+                    <b>Описание проблемы:</b>
+                    <div style={{ marginTop: 6, whiteSpace: 'pre-wrap' }}>{ticket.problemText || '—'}</div>
+                  </div>
                 </div>
-              ) : null}
-              <div>
-                <b>Оборудование / Asset:</b>{' '}
-                {ticket.equipment
-                  ? [ticket.equipment.name, ticket.equipment.type, ticket.equipment.status].filter(Boolean).join(' · ')
-                  : '—'}
-              </div>
-              <div><b>Категория:</b> {ticket.problemCategory?.name || '—'}</div>
-              <div><b>Срочность:</b> {urgencyLabel(ticket.urgency)}</div>
-              <div><b>Назначен:</b> {ticket.assignedTechnician?.email || '—'}</div>
-              <div><b>SLA статус:</b> {slaState.isBreached ? 'Нарушен' : slaState.isAtRisk ? 'В риске' : ticket.slaDueAt ? 'В норме' : 'Не задан'}</div>
-              <div><b>Заявитель:</b> {ticket.requesterName || '—'}</div>
-              <div><b>Телефон:</b> {ticket.requesterPhone || '—'}</div>
-              <div><b>Точка:</b> {ticket.pointName || '—'}</div>
-              <div><b>Адрес:</b> {ticket.address || '—'}</div>
-              <div>
-                <b>Описание проблемы:</b>
-                <div style={{ marginTop: 6, whiteSpace: 'pre-wrap' }}>{ticket.problemText || '—'}</div>
-              </div>
-              {ticket.problemCategory?.instructions ? (
-                <div>
-                  <b>Инструкции категории:</b>
-                  <div style={{ marginTop: 6, whiteSpace: 'pre-wrap' }}>{ticket.problemCategory.instructions}</div>
+              </details>
+
+              <details>
+                <summary style={{ cursor: 'pointer', fontWeight: 700 }}>Заявитель / контакт</summary>
+                <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
+                  <div><b>Заявитель:</b> {ticket.requesterName || '—'}</div>
+                  <div><b>Телефон:</b> {ticket.requesterPhone || '—'}</div>
+                  <div><b>Точка:</b> {ticket.pointName || '—'}</div>
+                  <div><b>Адрес:</b> {ticket.address || '—'}</div>
                 </div>
-              ) : null}
+              </details>
+
+              <details>
+                <summary style={{ cursor: 'pointer', fontWeight: 700 }}>Оборудование / локация</summary>
+                <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
+                  <div>
+                    <b>Локация:</b>{' '}
+                    {ticket.location
+                      ? [ticket.location.name, ticket.location.city, ticket.location.address].filter(Boolean).join(' · ')
+                      : '—'}
+                  </div>
+                  <div>
+                    <b>Оборудование / Asset:</b>{' '}
+                    {ticket.equipment
+                      ? [ticket.equipment.name, ticket.equipment.type, ticket.equipment.status].filter(Boolean).join(' · ')
+                      : '—'}
+                  </div>
+                </div>
+              </details>
+
+              <details>
+                <summary style={{ cursor: 'pointer', fontWeight: 700 }}>Extra info</summary>
+                <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
+                  {ticket.location?.platformCode || ticket.location?.externalCode ? (
+                    <div className="muted small">
+                      {ticket.location?.platformCode ? `platformCode: ${ticket.location.platformCode}` : ''}
+                      {ticket.location?.platformCode && ticket.location?.externalCode ? ' · ' : ''}
+                      {ticket.location?.externalCode ? `externalCode: ${ticket.location.externalCode}` : ''}
+                    </div>
+                  ) : (
+                    <div className="muted small">Коды локации не заданы</div>
+                  )}
+                  <div><b>Назначен:</b> {ticket.assignedTechnician?.email || '—'}</div>
+                  {ticket.problemCategory?.instructions ? (
+                    <div>
+                      <b>Инструкции категории:</b>
+                      <div style={{ marginTop: 6, whiteSpace: 'pre-wrap' }}>{ticket.problemCategory.instructions}</div>
+                    </div>
+                  ) : null}
+                </div>
+              </details>
             </div>
           </div>
 
@@ -749,7 +977,7 @@ export function TicketPage() {
             fmtBytes={fmtBytes}
           />
 
-          <div className="panel" style={{ marginBottom: 12 }}>
+          <div className="panel uiCard" style={{ marginBottom: 12 }}>
             <h3 style={{ marginBottom: 10 }}>История</h3>
             {timelineQ.isLoading ? (
               <div style={{ display: 'grid', gap: 8 }}>
@@ -759,9 +987,9 @@ export function TicketPage() {
               </div>
             ) : timelineQ.isError ? (
               <div className="alert">{(timelineQ.error as any)?.message || String(timelineQ.error)}</div>
-            ) : timelineQ.data?.items?.length ? (
+            ) : timelineItems.length ? (
               <div style={{ display: 'grid', gap: 10 }}>
-                {timelineQ.data.items.map((item, idx) => (
+                {timelinePreviewItems.map((item, idx) => (
                   <div key={`${item.at}-${item.type}-${idx}`} style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 12, display: 'grid', gap: 6 }}>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                       <b>{item.title}</b>
@@ -776,6 +1004,15 @@ export function TicketPage() {
                     ) : null}
                   </div>
                 ))}
+                {timelineItems.length > 5 ? (
+                  <button
+                    className="ghost"
+                    type="button"
+                    onClick={() => setShowFullTimeline((value) => !value)}
+                  >
+                    {showFullTimeline ? 'Скрыть полный таймлайн' : `Показать полный таймлайн (${timelineItems.length})`}
+                  </button>
+                ) : null}
               </div>
             ) : (
               <div className="muted small">Событий пока нет</div>

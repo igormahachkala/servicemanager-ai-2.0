@@ -14,6 +14,187 @@ export class AnalyticsService {
     private readonly serviceContractsService: ServiceContractsService,
   ) {}
 
+  async getCategoriesAnalytics(companyId: string) {
+    const categories = await this.prisma.problemCategory.findMany({
+      where: { companyId },
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
+    })
+
+    const grouped = await this.prisma.ticket.groupBy({
+      by: ['problemCategoryId', 'status'],
+      where: { companyId },
+      _count: { _all: true },
+    })
+
+    const statusToCountByCategory = new Map<string, Map<string, number>>()
+    for (const row of grouped) {
+      const byStatus = statusToCountByCategory.get(row.problemCategoryId) ?? new Map<string, number>()
+      byStatus.set(row.status, row._count._all)
+      statusToCountByCategory.set(row.problemCategoryId, byStatus)
+    }
+
+    const activeInProgressStatuses = this.resolveInProgressStatuses()
+    const doneStatuses = this.resolveDoneStatuses()
+
+    return categories.map((category) => {
+      const byStatus = statusToCountByCategory.get(category.id) ?? new Map<string, number>()
+      const total = Array.from(byStatus.values()).reduce((sum, value) => sum + value, 0)
+      const newCount = byStatus.get(TicketStatus.NEW) ?? 0
+      const inProgress = activeInProgressStatuses.reduce((sum, status) => sum + (byStatus.get(status) ?? 0), 0)
+      const done = doneStatuses.reduce((sum, status) => sum + (byStatus.get(status) ?? 0), 0)
+      return {
+        categoryId: category.id,
+        name: category.name,
+        total,
+        new: newCount,
+        inProgress,
+        done,
+      }
+    })
+  }
+
+  async getSpecializationsAnalytics(companyId: string) {
+    const specializations = await this.prisma.specialization.findMany({
+      where: { companyId },
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
+    })
+
+    const [categoryLinks, ticketsGrouped, technicianLinks] = await Promise.all([
+      this.prisma.problemCategorySpecialization.findMany({
+        where: { specialization: { companyId } },
+        select: { specializationId: true, problemCategoryId: true },
+      }),
+      this.prisma.ticket.groupBy({
+        by: ['problemCategoryId'],
+        where: { companyId },
+        _count: { _all: true },
+      }),
+      this.prisma.technicianSpecialization.findMany({
+        where: {
+          specialization: { companyId },
+          user: { companyId, role: UserRole.TECHNICIAN, isActive: true },
+        },
+        select: { specializationId: true, userId: true },
+      }),
+    ])
+
+    const ticketsByCategory = new Map<string, number>()
+    for (const row of ticketsGrouped) {
+      ticketsByCategory.set(row.problemCategoryId, row._count._all)
+    }
+
+    const categoriesBySpecialization = new Map<string, Set<string>>()
+    for (const link of categoryLinks) {
+      const set = categoriesBySpecialization.get(link.specializationId) ?? new Set<string>()
+      set.add(link.problemCategoryId)
+      categoriesBySpecialization.set(link.specializationId, set)
+    }
+
+    const techniciansBySpecialization = new Map<string, Set<string>>()
+    for (const link of technicianLinks) {
+      const set = techniciansBySpecialization.get(link.specializationId) ?? new Set<string>()
+      set.add(link.userId)
+      techniciansBySpecialization.set(link.specializationId, set)
+    }
+
+    return specializations.map((specialization) => {
+      const categoriesSet = categoriesBySpecialization.get(specialization.id) ?? new Set<string>()
+      let tickets = 0
+      for (const categoryId of categoriesSet) {
+        tickets += ticketsByCategory.get(categoryId) ?? 0
+      }
+      const technicians = (techniciansBySpecialization.get(specialization.id) ?? new Set<string>()).size
+      return {
+        specializationId: specialization.id,
+        name: specialization.name,
+        tickets,
+        technicians,
+      }
+    })
+  }
+
+  async getWorkloadAnalytics(companyId: string) {
+    const categories = await this.prisma.problemCategory.findMany({
+      where: { companyId },
+      select: { id: true, name: true },
+      orderBy: { name: 'asc' },
+    })
+
+    const openStatuses = this.resolveOpenStatuses()
+    const [categoryLinks, openTicketsGrouped, technicianLinks] = await Promise.all([
+      this.prisma.problemCategorySpecialization.findMany({
+        where: { specialization: { companyId } },
+        select: {
+          problemCategoryId: true,
+          specializationId: true,
+          specialization: { select: { name: true } },
+        },
+      }),
+      this.prisma.ticket.groupBy({
+        by: ['problemCategoryId'],
+        where: {
+          companyId,
+          status: { in: openStatuses },
+        },
+        _count: { _all: true },
+      }),
+      this.prisma.technicianSpecialization.findMany({
+        where: {
+          specialization: { companyId },
+          user: { companyId, role: UserRole.TECHNICIAN, isActive: true },
+        },
+        select: { specializationId: true, userId: true },
+      }),
+    ])
+
+    const openTicketsByCategory = new Map<string, number>()
+    for (const row of openTicketsGrouped) {
+      openTicketsByCategory.set(row.problemCategoryId, row._count._all)
+    }
+
+    const specializationNamesByCategory = new Map<string, string[]>()
+    const specializationIdsByCategory = new Map<string, Set<string>>()
+    for (const link of categoryLinks) {
+      const ids = specializationIdsByCategory.get(link.problemCategoryId) ?? new Set<string>()
+      ids.add(link.specializationId)
+      specializationIdsByCategory.set(link.problemCategoryId, ids)
+
+      const names = specializationNamesByCategory.get(link.problemCategoryId) ?? []
+      if (!names.includes(link.specialization.name)) names.push(link.specialization.name)
+      specializationNamesByCategory.set(link.problemCategoryId, names)
+    }
+
+    const technicianIdsBySpecialization = new Map<string, Set<string>>()
+    for (const link of technicianLinks) {
+      const set = technicianIdsBySpecialization.get(link.specializationId) ?? new Set<string>()
+      set.add(link.userId)
+      technicianIdsBySpecialization.set(link.specializationId, set)
+    }
+
+    return categories.map((category) => {
+      const requiredSpecializations = (specializationNamesByCategory.get(category.id) ?? []).slice().sort((a, b) => a.localeCompare(b))
+      const specializationIds = specializationIdsByCategory.get(category.id) ?? new Set<string>()
+
+      // NOTE: This is an analytics approximation, not real-time dispatch availability.
+      // We count active technicians in tenant who have at least one required specialization.
+      const availableTechIds = new Set<string>()
+      for (const specializationId of specializationIds) {
+        const techIds = technicianIdsBySpecialization.get(specializationId)
+        if (!techIds) continue
+        for (const userId of techIds) availableTechIds.add(userId)
+      }
+
+      return {
+        category: category.name,
+        requiredSpecializations,
+        openTickets: openTicketsByCategory.get(category.id) ?? 0,
+        availableTechnicians: availableTechIds.size,
+      }
+    })
+  }
+
   async overview(actorCompanyId: string, actorRole: UserRole, companyId?: string, linkedClientCompanyId?: string) {
     const scope = await this.resolveScope(actorCompanyId, actorRole, companyId, linkedClientCompanyId)
     const scopeCompanyId = scope.scopeCompanyId
@@ -323,5 +504,27 @@ export class AnalyticsService {
     }
 
     return { scopeCompanyId: linkedClientCompanyId, visibilityMode: 'provider_primary' as const }
+  }
+
+  private hasStatus(status: string) {
+    return (Object.values(TicketStatus) as string[]).includes(status)
+  }
+
+  private resolveInProgressStatuses() {
+    const statuses: TicketStatus[] = [TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS]
+    if (this.hasStatus('ON_HOLD')) statuses.push('ON_HOLD' as TicketStatus)
+    return statuses
+  }
+
+  private resolveDoneStatuses() {
+    const statuses: TicketStatus[] = [TicketStatus.DONE]
+    if (this.hasStatus('CLOSED')) statuses.push('CLOSED' as TicketStatus)
+    return statuses
+  }
+
+  private resolveOpenStatuses() {
+    const statuses: TicketStatus[] = [TicketStatus.NEW, TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS]
+    if (this.hasStatus('ON_HOLD')) statuses.push('ON_HOLD' as TicketStatus)
+    return statuses
   }
 }
