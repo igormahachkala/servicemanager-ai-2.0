@@ -233,6 +233,12 @@ export function TicketPage() {
     queryFn: () => api.ticketAttachments(ticketId, ticketScope),
   })
 
+  const role = meQ.data?.role
+  const isClientRole = role === 'CLIENT'
+  const readOnlyByVisibilityMode = contextMode === 'observer'
+  const canMutateTicket = !readOnlyByVisibilityMode && !(isClientRole && contextMode !== 'tenant')
+  const canEditTicket = canMutateTicket && roleCanEdit(role)
+
   const categoriesQ = useQuery({
     queryKey: ['problem-categories', ticketQ.data?.meta?.scopeCompanyId || ''],
     queryFn: () => api.problemCategories(ticketQ.data?.meta?.scopeCompanyId || undefined),
@@ -248,13 +254,7 @@ export function TicketPage() {
     enabled: !!(editLocationId || ticketQ.data?.location?.id) && roleCanEdit(meQ.data?.role) && editOpen,
   })
 
-  const role = meQ.data?.role
-  const isClientRole = role === 'CLIENT'
-  const readOnlyByVisibilityMode = contextMode === 'observer'
-  const canMutateTicket = !readOnlyByVisibilityMode && !(isClientRole && contextMode !== 'tenant')
-
   const canAssign = canMutateTicket && !isClientRole && roleCanAssign(role)
-  const canEditTicket = canMutateTicket && roleCanEdit(role)
   const canChangeStatus = canMutateTicket && roleCanChangeStatus(role)
   const canUploadPhoto = canMutateTicket && roleCanUploadPhoto(role)
   const canDeletePhoto = canMutateTicket && roleCanUploadPhoto(role)

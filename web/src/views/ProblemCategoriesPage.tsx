@@ -20,9 +20,9 @@ export function ProblemCategoriesPage() {
 
   const [draftSpecs, setDraftSpecs] = useState<Record<string, string[]>>({})
 
-  const categoriesQ = useQuery({
+  const categoriesQ = useQuery<api.ProblemCategoryListItem[]>({
     queryKey: ['problem-categories'],
-    queryFn: api.problemCategories,
+    queryFn: () => api.problemCategories(),
   })
 
   const specializationsQ = useQuery({

@@ -73,11 +73,14 @@ export function InspectionRunPage() {
     queryFn: () => api.getInspectionRun(runId),
     enabled: !!runId,
   })
-  const categoriesQ = useQuery({ queryKey: ['problem-categories'], queryFn: api.problemCategories })
+  const categoriesQ = useQuery<api.ProblemCategoryListItem[]>({
+    queryKey: ['problem-categories'],
+    queryFn: () => api.problemCategories(),
+  })
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
 
   const categories = useMemo(
-    () => (categoriesQ.data || []).filter((item) => item.isActive !== false),
+    () => (categoriesQ.data || []).filter((item: api.ProblemCategoryListItem) => item.isActive !== false),
     [categoriesQ.data],
   )
 

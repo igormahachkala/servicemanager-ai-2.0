@@ -38,13 +38,13 @@ export function InspectionQuickPage() {
     queryFn: () => api.getInspectionRun(runId),
     enabled: !!runId,
   })
-  const categoriesQ = useQuery({
+  const categoriesQ = useQuery<api.ProblemCategoryListItem[]>({
     queryKey: ['problem-categories'],
-    queryFn: api.problemCategories,
+    queryFn: () => api.problemCategories(),
   })
 
   const activeCategories = useMemo(
-    () => (categoriesQ.data || []).filter((row) => row.isActive !== false),
+    () => (categoriesQ.data || []).filter((row: api.ProblemCategoryListItem) => row.isActive !== false),
     [categoriesQ.data],
   )
 
