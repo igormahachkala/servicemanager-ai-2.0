@@ -31,6 +31,7 @@ import { CreateChildTicketDto } from './dto/create-child-ticket.dto'
 import { UpdateTicketDto } from './dto/update-ticket.dto'
 import { UpdateTicketStatusDto } from './dto/update-ticket-status.dto'
 import { BoardQueryDto } from './dto/board-query.dto'
+import { AddTicketCommentDto } from './dto/add-ticket-comment.dto'
 
 @UseGuards(JwtAuthGuard, RolesGuard, PermissionsContextGuard, PermissionsGuard)
 @Controller('tickets')
@@ -39,7 +40,7 @@ export class TicketsController {
 
   @Post()
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.CLIENT, UserRole.TECHNICIAN)
-  @RequirePermission(PERMISSIONS.LOCATIONS_VIEW)
+  @RequirePermission(PERMISSIONS.TICKETS_CREATE)
   create(@Req() req: any, @Body() dto: CreateTicketDto) {
     return this.svc.create(req.user.companyId, { id: req.user.id, role: req.user.role as UserRole }, dto)
   }
@@ -262,8 +263,8 @@ export class TicketsController {
   }
 
   @Patch(':id')
-  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER)
-  @RequirePermission(PERMISSIONS.TICKETS_ASSIGN)
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.CLIENT)
+  @RequirePermission(PERMISSIONS.TICKETS_EDIT)
   update(
     @Req() req: any,
     @Param('id') id: string,
@@ -313,5 +314,17 @@ export class TicketsController {
     @Query('linkedClientCompanyId') linkedClientCompanyId?: string,
   ) {
     return this.svc.updateStatus(req.user.companyId, req.user, req.user.role, id, dto, linkedClientCompanyId)
+  }
+
+  @Post(':id/comments')
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TECHNICIAN)
+  @RequirePermission(PERMISSIONS.TICKETS_STATUS_CHANGE)
+  addComment(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() dto: AddTicketCommentDto,
+    @Query('linkedClientCompanyId') linkedClientCompanyId?: string,
+  ) {
+    return this.svc.addComment(req.user.companyId, req.user, req.user.role, id, dto, linkedClientCompanyId)
   }
 }

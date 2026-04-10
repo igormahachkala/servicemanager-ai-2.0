@@ -1,4 +1,4 @@
-﻿import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+﻿import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, PublicRequestType, TicketSource, TicketStatus, TicketUrgency, UserRole } from '@prisma/client';
 import { randomUUID } from 'crypto';
 
@@ -275,10 +275,24 @@ export class TicketsAssignmentService {
   }
   async create(actorCompanyId: string, creatorUserId: string, creatorRole: UserRole, dto: CreateTicketDto) {
     const input = this.normalizeCreateInput(dto);
-    const targetCompanyId =
-      creatorRole === UserRole.TECHNICIAN && input.clientCompanyId && input.clientCompanyId !== actorCompanyId
-        ? (await this.techniciansService.resolveBoundCreateScope(actorCompanyId, creatorUserId, input.clientCompanyId, input.locationId)).companyId
-        : actorCompanyId;
+    let targetCompanyId = actorCompanyId;
+    if (input.clientCompanyId && input.clientCompanyId !== actorCompanyId) {
+      if (creatorRole === UserRole.TECHNICIAN) {
+        targetCompanyId = (
+          await this.techniciansService.resolveBoundCreateScope(
+            actorCompanyId,
+            creatorUserId,
+            input.clientCompanyId,
+            input.locationId,
+          )
+        ).companyId;
+      } else if (creatorRole === UserRole.ADMIN || creatorRole === UserRole.MASTER || creatorRole === UserRole.DISPATCHER) {
+        await this.serviceContractsService.assertPrimaryLinkedClientAccess(actorCompanyId, input.clientCompanyId);
+        targetCompanyId = input.clientCompanyId;
+      } else {
+        throw new ForbiddenException('Role cannot create ticket in linked-client scope');
+      }
+    }
     const assignmentCompanyId =
       creatorRole === UserRole.TECHNICIAN && targetCompanyId !== actorCompanyId ? actorCompanyId : targetCompanyId;
     const company = await this.getCompany(targetCompanyId);
@@ -801,6 +815,8 @@ export class TicketsAssignmentService {
 
 
   async update(companyId: string, actor: any, ticketId: string, dto: UpdateTicketDto, linkedClientCompanyId?: string) {
+    const actorRole = actor?.role as UserRole;
+    const isClientActor = actorRole === UserRole.CLIENT;
     const access = await resolveTicketOperationAccess({
       prisma: this.prisma,
       serviceContractsService: this.serviceContractsService,
@@ -814,8 +830,17 @@ export class TicketsAssignmentService {
       linkedClientCompanyId,
     });
 
-    const decision = this.policy.canAssign({ id: actor?.id, role: actor?.role, companyId: access.operationCompanyId });
-    assertAllowed(decision);
+    if (!isClientActor) {
+      const decision = this.policy.canAssign({ id: actor?.id, role: actorRole, companyId: access.operationCompanyId });
+      assertAllowed(decision);
+    } else {
+      if (linkedClientCompanyId) {
+        throw new ForbiddenException('Client cannot edit ticket in linked-client scope');
+      }
+      if (access.ticket.companyId !== companyId) {
+        throw new ForbiddenException('Client can edit only own company tickets');
+      }
+    }
 
     const normalizedCategoryId = dto.problemCategoryId?.trim();
     const normalizedLocationId = dto.locationId?.trim();
@@ -867,6 +892,10 @@ export class TicketsAssignmentService {
 
       if (ticket.status === TicketStatus.DONE || ticket.status === TicketStatus.CANCELED) {
         throw new BadRequestException(`Ticket cannot be edited in status ${ticket.status}`);
+      }
+
+      if (isClientActor && ticket.status !== TicketStatus.NEW) {
+        throw new ForbiddenException('Client can edit ticket fields only while ticket is NEW');
       }
 
       if (normalizedCategoryId) {

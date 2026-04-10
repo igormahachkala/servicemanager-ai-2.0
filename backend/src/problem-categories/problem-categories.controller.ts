@@ -1,4 +1,5 @@
 import { Body, Controller, Get, Param, Patch, Post, Put, Req, UseGuards } from '@nestjs/common'
+import { Query } from '@nestjs/common'
 import { UserRole } from '@prisma/client'
 
 import { JwtAuthGuard } from '../auth/jwt.guard'
@@ -21,8 +22,8 @@ export class ProblemCategoriesController {
   @Get()
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.CLIENT, UserRole.TECHNICIAN)
   @RequirePermission(PERMISSIONS.LOCATIONS_VIEW)
-  list(@Req() req: any) {
-    return this.svc.list(req.user.companyId)
+  list(@Req() req: any, @Query('companyId') companyId?: string) {
+    return this.svc.list(req.user.companyId, req.user.role as UserRole, companyId)
   }
 
   @Post()

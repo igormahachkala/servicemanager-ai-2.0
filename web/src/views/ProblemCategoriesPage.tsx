@@ -5,7 +5,7 @@ import { z } from 'zod'
 import * as api from '../lib/api'
 
 const CreateCategorySchema = z.object({
-  name: z.string().min(2, 'РќР°Р·РІР°РЅРёРµ: РјРёРЅРёРјСѓРј 2 СЃРёРјРІРѕР»Р°'),
+  name: z.string().min(2, 'Название: минимум 2 символа'),
   instructions: z.string().optional(),
   isActive: z.boolean(),
 })
@@ -119,21 +119,21 @@ export function ProblemCategoriesPage() {
     <div>
       <div className="row">
         <div>
-          <h2 style={{ marginBottom: 4 }}>РљР°С‚РµРіРѕСЂРёРё РїСЂРѕР±Р»РµРј</h2>
+          <h2 style={{ marginBottom: 4 }}>Категории проблем</h2>
           <div className="muted small">
-            {categoriesQ.isFetching ? 'Р—Р°РіСЂСѓР·РєР°вЂ¦' : rows.length ? `Р’СЃРµРіРѕ РєР°С‚РµРіРѕСЂРёР№: ${rows.length}` : 'РљР°С‚РµРіРѕСЂРёР№ РїРѕРєР° РЅРµС‚'}
+            {categoriesQ.isFetching ? 'Загрузка…' : rows.length ? `Всего категорий: ${rows.length}` : 'Категорий пока нет'}
           </div>
         </div>
 
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <button className="ghost" onClick={() => categoriesQ.refetch()} disabled={categoriesQ.isFetching}>
-            РћР±РЅРѕРІРёС‚СЊ
+            Обновить
           </button>
           <Link to="/tickets/new">
-            <button className="ghost">РЎРѕР·РґР°С‚СЊ Р·Р°СЏРІРєСѓ</button>
+            <button className="ghost">Создать заявку</button>
           </Link>
           <Link to="/board">
-            <button className="ghost">в†ђ РќР°Р·Р°Рґ Рє РґРѕСЃРєРµ</button>
+            <button className="ghost">← Назад к доске</button>
           </Link>
         </div>
       </div>
@@ -144,44 +144,44 @@ export function ProblemCategoriesPage() {
 
       <div className="grid2" style={{ gridTemplateColumns: '1fr 1.5fr' }}>
         <div className="panel">
-          <h3 style={{ marginBottom: 10 }}>Р”РѕР±Р°РІРёС‚СЊ РєР°С‚РµРіРѕСЂРёСЋ</h3>
+          <h3 style={{ marginBottom: 10 }}>Добавить категорию</h3>
 
           <form onSubmit={submit} className="form">
             <label>
-              РќР°Р·РІР°РЅРёРµ *
-              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="РЎР°РЅС‚РµС…РЅРёРєР°" />
+              Название *
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Сантехника" />
             </label>
 
             <label>
-              РРЅСЃС‚СЂСѓРєС†РёСЏ
+              Инструкция
               <textarea
                 value={instructions}
                 onChange={(e) => setInstructions(e.target.value)}
-                placeholder="Р§С‚Рѕ РґРѕР»Р¶РµРЅ СѓС‚РѕС‡РЅРёС‚СЊ СЃРѕС‚СЂСѓРґРЅРёРє РїСЂРё СЃРѕР·РґР°РЅРёРё Р·Р°СЏРІРєРё"
+                placeholder="Что должен уточнить сотрудник при создании заявки"
                 rows={5}
               />
             </label>
 
             <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
-              <span>РљР°С‚РµРіРѕСЂРёСЏ Р°РєС‚РёРІРЅР°</span>
+              <span>Категория активна</span>
             </label>
 
             <button type="submit" disabled={createM.isPending}>
-              {createM.isPending ? 'РЎРѕР·РґР°С‘РјвЂ¦' : 'РЎРѕР·РґР°С‚СЊ РєР°С‚РµРіРѕСЂРёСЋ'}
+              {createM.isPending ? 'Создаём…' : 'Создать категорию'}
             </button>
 
             <div className="muted small">
-              РђРєС‚РёРІРЅС‹Рµ РєР°С‚РµРіРѕСЂРёРё Р±СѓРґСѓС‚ РґРѕСЃС‚СѓРїРЅС‹ РІ С„РѕСЂРјРµ СЃРѕР·РґР°РЅРёСЏ Р·Р°СЏРІРєРё.
+              Активные категории будут доступны в форме создания заявки.
             </div>
           </form>
         </div>
 
         <div className="panel">
-          <h3 style={{ marginBottom: 10 }}>РЎРїРёСЃРѕРє РєР°С‚РµРіРѕСЂРёР№</h3>
+          <h3 style={{ marginBottom: 10 }}>Список категорий</h3>
 
-          {categoriesQ.isFetching && !categoriesQ.data ? <div className="muted small">Р—Р°РіСЂСѓР·РєР°вЂ¦</div> : null}
-          {!categoriesQ.isFetching && rows.length === 0 ? <div className="muted small">РљР°С‚РµРіРѕСЂРёР№ РїРѕРєР° РЅРµС‚</div> : null}
+          {categoriesQ.isFetching && !categoriesQ.data ? <div className="muted small">Загрузка…</div> : null}
+          {!categoriesQ.isFetching && rows.length === 0 ? <div className="muted small">Категорий пока нет</div> : null}
 
           <div style={{ display: 'grid', gap: 12 }}>
             {rows.map((row) => {
@@ -207,26 +207,26 @@ export function ProblemCategoriesPage() {
                     </div>
 
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                      <span className="tag">{row.isActive === false ? 'РќРµР°РєС‚РёРІРЅР°' : 'РђРєС‚РёРІРЅР°'}</span>
+                      <span className="tag">{row.isActive === false ? 'Неактивна' : 'Активна'}</span>
 
                       <button
                         className="ghost"
                         disabled={toggleM.isPending}
                         onClick={() => toggleM.mutate({ id: row.id, isActive: !(row.isActive !== false) })}
                       >
-                        {row.isActive === false ? 'Р’РєР»СЋС‡РёС‚СЊ' : 'РћС‚РєР»СЋС‡РёС‚СЊ'}
+                        {row.isActive === false ? 'Включить' : 'Отключить'}
                       </button>
                     </div>
                   </div>
 
                   <div className="muted small" style={{ marginBottom: 10 }}>
-                    {row.instructions?.trim() ? row.instructions : 'РРЅСЃС‚СЂСѓРєС†РёСЏ РЅРµ Р·Р°РґР°РЅР°'}
+                    {row.instructions?.trim() ? row.instructions : 'Инструкция не задана'}
                   </div>
 
-                  <div style={{ marginBottom: 8, fontSize: 13, fontWeight: 600 }}>РЎРІСЏР·Р°РЅРЅС‹Рµ СЃРїРµС†РёР°Р»РёР·Р°С†РёРё</div>
+                  <div style={{ marginBottom: 8, fontSize: 13, fontWeight: 600 }}>Связанные специализации</div>
 
                   <div className="muted small" style={{ marginBottom: 10 }}>
-                    {linkedSpecNames.length ? linkedSpecNames.join(', ') : 'РџРѕРєР° РЅРµ РїСЂРёРІСЏР·Р°РЅС‹'}
+                    {linkedSpecNames.length ? linkedSpecNames.join(', ') : 'Пока не привязаны'}
                   </div>
 
                   <div
@@ -240,7 +240,7 @@ export function ProblemCategoriesPage() {
                     }}
                   >
                     {activeSpecializations.length === 0 ? (
-                      <div className="muted small">РќРµС‚ Р°РєС‚РёРІРЅС‹С… СЃРїРµС†РёР°Р»РёР·Р°С†РёР№. РЎРЅР°С‡Р°Р»Р° СЃРѕР·РґР°Р№ РёС… РЅР° СЃС‚СЂР°РЅРёС†Рµ СЃРїРµС†РёР°Р»РёР·Р°С†РёР№.</div>
+                      <div className="muted small">Нет активных специализаций. Сначала создайте их на странице специализаций.</div>
                     ) : (
                       activeSpecializations.map((spec) => (
                         <label
@@ -273,7 +273,7 @@ export function ProblemCategoriesPage() {
                           })
                         }
                       >
-                        {saveSpecsM.isPending ? 'РЎРѕС…СЂР°РЅСЏРµРјвЂ¦' : 'РЎРѕС…СЂР°РЅРёС‚СЊ СЃРїРµС†РёР°Р»РёР·Р°С†РёРё'}
+                        {saveSpecsM.isPending ? 'Сохраняем…' : 'Сохранить специализации'}
                       </button>
 
                       <button
@@ -281,7 +281,7 @@ export function ProblemCategoriesPage() {
                         disabled={saveSpecsM.isPending}
                         onClick={() => resetSpecs(row)}
                       >
-                        РЎР±СЂРѕСЃРёС‚СЊ
+                        Сбросить
                       </button>
                     </div>
                   </div>
@@ -291,7 +291,7 @@ export function ProblemCategoriesPage() {
           </div>
 
           <div className="muted small" style={{ marginTop: 10 }}>
-            РџРѕСЃР»Рµ РїСЂРёРІСЏР·РєРё СЃРїРµС†РёР°Р»РёР·Р°С†РёР№ СЃРёСЃС‚РµРјР° СЃРјРѕР¶РµС‚ РїРѕРєР°Р·С‹РІР°С‚СЊ РїРѕРґС…РѕРґСЏС‰РёС… С‚РµС…РЅРёРєРѕРІ РїСЂРё РЅР°Р·РЅР°С‡РµРЅРёРё Р·Р°СЏРІРєРё.
+            После привязки специализаций система сможет показывать подходящих техников при назначении заявки.
           </div>
         </div>
       </div>

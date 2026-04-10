@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { z } from 'zod'
 import * as api from '../lib/api'
@@ -36,6 +36,7 @@ function buildPreview(category: api.ProblemCategoryListItem | null, location: ap
 
 export function CreateTicketPage() {
   const nav = useNavigate()
+  const [searchParams] = useSearchParams()
   const qc = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -55,6 +56,8 @@ export function CreateTicketPage() {
   })
 
   const isTechnician = meQ.data?.role === 'TECHNICIAN'
+  const linkedClientCompanyId = (searchParams.get('linkedClientCompanyId') || '').trim()
+  const isProviderLinkedCreate = !!linkedClientCompanyId && !isTechnician
 
   const technicianContextsQ = useQuery({
     queryKey: ['technician-bound-contexts'],
@@ -63,14 +66,14 @@ export function CreateTicketPage() {
   })
 
   const categoriesQ = useQuery({
-    queryKey: ['problem-categories'],
-    queryFn: api.problemCategories,
+    queryKey: ['problem-categories', linkedClientCompanyId],
+    queryFn: () => api.problemCategories(linkedClientCompanyId || undefined),
     enabled: !isTechnician,
   })
 
   const locationsQ = useQuery({
-    queryKey: ['locations'],
-    queryFn: () => api.locations(),
+    queryKey: ['locations', linkedClientCompanyId],
+    queryFn: () => api.locations(linkedClientCompanyId || undefined),
     enabled: !isTechnician,
   })
   const equipmentQ = useQuery({
@@ -221,7 +224,7 @@ export function CreateTicketPage() {
 
   function buildPayload(): api.CreateTicketInput {
     return {
-      clientCompanyId: isTechnician ? clientCompanyId : undefined,
+      clientCompanyId: isTechnician ? clientCompanyId : isProviderLinkedCreate ? linkedClientCompanyId : undefined,
       locationId,
       equipmentId: equipmentId || undefined,
       categoryId,

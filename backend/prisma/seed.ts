@@ -54,10 +54,10 @@ async function upsertDemoLocations(companyId: string) {
     {
       platformCode: 'LOC-MSK-001',
       externalCode: '15',
-      name: 'РўРѕС‡РєР° РђСЂР±Р°С‚',
-      city: 'РњРѕСЃРєРІР°',
-      region: 'РњРѕСЃРєРІР°',
-      address: 'СѓР». РђСЂР±Р°С‚, 15',
+      name: 'Точка Арбат',
+      city: 'Москва',
+      region: 'Москва',
+      address: 'ул. Арбат, 15',
       latitude: 55.749473,
       longitude: 37.591531,
       isActive: true,
@@ -65,10 +65,10 @@ async function upsertDemoLocations(companyId: string) {
     {
       platformCode: 'LOC-MSK-002',
       externalCode: '16',
-      name: 'РўРѕС‡РєР° РўРІРµСЂСЃРєР°СЏ',
-      city: 'РњРѕСЃРєРІР°',
-      region: 'РњРѕСЃРєРІР°',
-      address: 'СѓР». РўРІРµСЂСЃРєР°СЏ, 16',
+      name: 'Точка Тверская',
+      city: 'Москва',
+      region: 'Москва',
+      address: 'ул. Тверская, 16',
       latitude: 55.765869,
       longitude: 37.605194,
       isActive: true,
@@ -76,10 +76,10 @@ async function upsertDemoLocations(companyId: string) {
     {
       platformCode: 'LOC-KZN-001',
       externalCode: '15',
-      name: 'РўРѕС‡РєР° РџСѓС€РєРёРЅР°',
-      city: 'РљР°Р·Р°РЅСЊ',
-      region: 'РўР°С‚Р°СЂСЃС‚Р°РЅ',
-      address: 'СѓР». РџСѓС€РєРёРЅР°, 15',
+      name: 'Точка Пушкина',
+      city: 'Казань',
+      region: 'Татарстан',
+      address: 'ул. Пушкина, 15',
       latitude: 55.78874,
       longitude: 49.12214,
       isActive: true,
@@ -138,6 +138,11 @@ async function main() {
       code: PERMISSIONS.TICKETS_VIEW_AVAILABLE,
       name: 'View available tickets',
       description: 'View available NEW tickets for technician',
+    },
+    {
+      code: PERMISSIONS.TICKETS_EDIT,
+      name: 'Edit tickets',
+      description: 'Edit ticket fields in allowed scope',
     },
     {
       code: PERMISSIONS.TICKETS_CLAIM,
@@ -216,6 +221,7 @@ async function main() {
     ADMIN: [
       PERMISSIONS.TICKETS_CREATE,
       PERMISSIONS.TICKETS_VIEW,
+      PERMISSIONS.TICKETS_EDIT,
       PERMISSIONS.TICKETS_ASSIGN,
       PERMISSIONS.TICKETS_STATUS_CHANGE,
       PERMISSIONS.ANALYTICS_VIEW,
@@ -227,6 +233,7 @@ async function main() {
     MASTER: [
       PERMISSIONS.TICKETS_CREATE,
       PERMISSIONS.TICKETS_VIEW,
+      PERMISSIONS.TICKETS_EDIT,
       PERMISSIONS.TICKETS_ASSIGN,
       PERMISSIONS.TICKETS_STATUS_CHANGE,
       PERMISSIONS.ANALYTICS_VIEW,
@@ -236,6 +243,7 @@ async function main() {
     DISPATCHER: [
       PERMISSIONS.TICKETS_CREATE,
       PERMISSIONS.TICKETS_VIEW,
+      PERMISSIONS.TICKETS_EDIT,
       PERMISSIONS.TICKETS_ASSIGN,
       PERMISSIONS.TICKETS_STATUS_CHANGE,
       PERMISSIONS.LOCATIONS_VIEW,
@@ -254,6 +262,8 @@ async function main() {
       PERMISSIONS.LOCATIONS_VIEW,
     ],
     CLIENT: [
+      PERMISSIONS.TICKETS_CREATE,
+      PERMISSIONS.TICKETS_EDIT,
       PERMISSIONS.LOCATIONS_VIEW,
     ],
     TERRITORIAL_MANAGER: [

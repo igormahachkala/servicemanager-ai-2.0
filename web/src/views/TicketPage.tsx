@@ -8,7 +8,7 @@ import { TicketHeader } from './ticket-page/TicketHeader'
 const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024
 
 const MANAGEMENT_ROLES: api.Role[] = ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR']
-const EDIT_ROLES: api.Role[] = ['ADMIN', 'MASTER', 'DISPATCHER']
+const EDIT_ROLES: api.Role[] = ['ADMIN', 'MASTER', 'DISPATCHER', 'CLIENT']
 const STATUS_CHANGE_ROLES: api.Role[] = ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR', 'TECHNICIAN']
 const PHOTO_ROLES: api.Role[] = ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR', 'TECHNICIAN']
 
@@ -203,6 +203,7 @@ export function TicketPage() {
   const [showAssignmentEditor, setShowAssignmentEditor] = useState(false)
 
   const [editProblemCategoryId, setEditProblemCategoryId] = useState('')
+  const [editLocationId, setEditLocationId] = useState('')
   const [editProblemText, setEditProblemText] = useState('')
   const [editEquipmentId, setEditEquipmentId] = useState('')
   const [editUrgency, setEditUrgency] = useState<api.TicketUrgency>('NOT_URGENT')
@@ -210,6 +211,7 @@ export function TicketPage() {
   const [editRequesterPhone, setEditRequesterPhone] = useState('')
   const [editAddress, setEditAddress] = useState('')
   const [editPointName, setEditPointName] = useState('')
+  const [newComment, setNewComment] = useState('')
 
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
 
@@ -232,19 +234,24 @@ export function TicketPage() {
   })
 
   const categoriesQ = useQuery({
-    queryKey: ['problem-categories'],
-    queryFn: api.problemCategories,
+    queryKey: ['problem-categories', ticketQ.data?.meta?.scopeCompanyId || ''],
+    queryFn: () => api.problemCategories(ticketQ.data?.meta?.scopeCompanyId || undefined),
+  })
+  const locationsQ = useQuery({
+    queryKey: ['locations', ticketQ.data?.meta?.scopeCompanyId || ''],
+    queryFn: () => api.locations(ticketQ.data?.meta?.scopeCompanyId || undefined),
+    enabled: canEditTicket && editOpen,
   })
   const equipmentQ = useQuery({
-    queryKey: ['equipment-by-location', ticketQ.data?.location?.id || ''],
-    queryFn: () => api.equipmentByLocation(ticketQ.data?.location?.id || ''),
-    enabled: !!ticketQ.data?.location?.id && roleCanEdit(meQ.data?.role) && editOpen,
+    queryKey: ['equipment-by-location', editLocationId || ticketQ.data?.location?.id || ''],
+    queryFn: () => api.equipmentByLocation(editLocationId || ticketQ.data?.location?.id || ''),
+    enabled: !!(editLocationId || ticketQ.data?.location?.id) && roleCanEdit(meQ.data?.role) && editOpen,
   })
 
   const role = meQ.data?.role
   const isClientRole = role === 'CLIENT'
-  const readOnlyByVisibilityMode = contextMode !== 'tenant'
-  const canMutateTicket = !readOnlyByVisibilityMode
+  const readOnlyByVisibilityMode = contextMode === 'observer'
+  const canMutateTicket = !readOnlyByVisibilityMode && !(isClientRole && contextMode !== 'tenant')
 
   const canAssign = canMutateTicket && !isClientRole && roleCanAssign(role)
   const canEditTicket = canMutateTicket && roleCanEdit(role)
@@ -273,6 +280,7 @@ export function TicketPage() {
     if (!t) return
 
     setEditProblemCategoryId(t.problemCategory?.id || '')
+    setEditLocationId(t.location?.id || '')
     setEditProblemText(t.problemText || '')
     setEditEquipmentId(t.equipment?.id || '')
     setEditUrgency(t.urgency)
@@ -284,7 +292,8 @@ export function TicketPage() {
 
   useEffect(() => {
     if (!editOpen) return
-    if (!ticketQ.data?.location?.id) {
+    const currentLocationId = editLocationId || ticketQ.data?.location?.id || ''
+    if (!currentLocationId) {
       setEditEquipmentId('')
       return
     }
@@ -398,6 +407,7 @@ export function TicketPage() {
           ticketId,
           {
             problemCategoryId: editProblemCategoryId,
+            locationId: editLocationId,
             equipmentId: editEquipmentId || null,
             problemText: editProblemText,
             urgency: editUrgency,
@@ -417,6 +427,19 @@ export function TicketPage() {
       await refreshAll()
     },
     onError: (e: any) => setUpdateError(e?.message || String(e)),
+  })
+
+  const addCommentM = useMutation({
+    mutationFn: () => {
+      if (!canMutateTicket) throw new Error('Изменение заявки запрещено в текущем режиме видимости')
+      if (!newComment.trim()) throw new Error('Введите комментарий')
+      return api.addTicketComment(ticketId, newComment.trim(), ticketScope)
+    },
+    onSuccess: async () => {
+      setNewComment('')
+      await refreshAll()
+    },
+    onError: (e: any) => setStatusError(e?.message || String(e)),
   })
 
   const ticket = ticketQ.data
@@ -479,6 +502,19 @@ export function TicketPage() {
     return 'Контекст компании'
   }, [contextMode])
   const timelineItems = timelineQ.data?.items || []
+  const hasAnyCommentEvidence = useMemo(
+    () =>
+      timelineItems.some((item) => {
+        const payloadComment = typeof item.payload?.comment === 'string' ? item.payload.comment.trim() : ''
+        return payloadComment.length > 0
+      }),
+    [timelineItems],
+  )
+  const hasAnyPhotoEvidence = useMemo(
+    () => (attachmentsQ.data || []).some((item) => (item.mimeType || '').startsWith('image/')),
+    [attachmentsQ.data],
+  )
+  const canCompleteByEvidence = hasAnyCommentEvidence && hasAnyPhotoEvidence
   const timelinePreviewItems = useMemo(
     () => (showFullTimeline ? timelineItems : timelineItems.slice(0, 5)),
     [showFullTimeline, timelineItems],
@@ -650,7 +686,7 @@ export function TicketPage() {
               {primaryAction.kind === 'done' ? (
                 <button
                   onClick={() => statusM.mutate('DONE')}
-                  disabled={statusM.isPending || !canTransitionTo('DONE')}
+                    disabled={statusM.isPending || !canTransitionTo('DONE') || !canCompleteByEvidence}
                   style={{ width: '100%' }}
                 >
                   {statusM.isPending ? 'Сохраняем…' : primaryAction.label}
@@ -681,7 +717,7 @@ export function TicketPage() {
                   </button>
                 ) : null}
                 {primaryAction?.kind !== 'done' ? (
-                  <button className="ghost" disabled={statusM.isPending || !canTransitionTo('DONE')} onClick={() => statusM.mutate('DONE')}>
+                  <button className="ghost" disabled={statusM.isPending || !canTransitionTo('DONE') || !canCompleteByEvidence} onClick={() => statusM.mutate('DONE')}>
                     {statusM.isPending ? 'Сохраняем…' : 'Завершить'}
                   </button>
                 ) : null}
@@ -691,6 +727,11 @@ export function TicketPage() {
               </>
             ) : null}
           </div>
+          {!canCompleteByEvidence ? (
+            <div className="muted small" style={{ marginTop: 8 }}>
+              Для завершения нужны: минимум 1 комментарий и 1 фото.
+            </div>
+          ) : null}
           <InlineError message={statusError} />
         </div>
       ) : null}
@@ -705,6 +746,15 @@ export function TicketPage() {
                 <option value="">Выберите категорию</option>
                 {(categoriesQ.data || []).filter((row) => row.isActive !== false).map((row) => (
                   <option key={row.id} value={row.id}>{row.name}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Локация
+              <select value={editLocationId} onChange={(e) => setEditLocationId(e.target.value)} disabled={updateTicketM.isPending || locationsQ.isFetching}>
+                <option value="">Выберите локацию</option>
+                {(locationsQ.data || []).filter((row) => row.isActive !== false).map((row) => (
+                  <option key={row.id} value={row.id}>{[row.name, row.city, row.address].filter(Boolean).join(' · ')}</option>
                 ))}
               </select>
             </label>
@@ -766,6 +816,7 @@ export function TicketPage() {
                 onClick={() => {
                   if (!ticket) return
                   setEditProblemCategoryId(ticket.problemCategory?.id || '')
+                  setEditLocationId(ticket.location?.id || '')
                   setEditProblemText(ticket.problemText || '')
                   setEditEquipmentId(ticket.equipment?.id || '')
                   setEditUrgency(ticket.urgency)
@@ -782,7 +833,7 @@ export function TicketPage() {
               </button>
             </div>
           </div>
-          <InlineError message={(categoriesQ.error as any)?.message || (equipmentQ.error as any)?.message || updateError} />
+          <InlineError message={(categoriesQ.error as any)?.message || (locationsQ.error as any)?.message || (equipmentQ.error as any)?.message || updateError} />
         </div>
       ) : null}
 
@@ -891,6 +942,26 @@ export function TicketPage() {
             <div className="muted small">{selectedFile ? `${selectedFile.name} · ${fmtBytes(selectedFile.size)}` : 'Выберите изображение до 10 МБ'}</div>
           </div>
           <InlineError message={fileError || uploadError} />
+        </div>
+      ) : null}
+
+      {ticket && canChangeStatus ? (
+        <div className="panel" style={{ marginBottom: 12 }}>
+          <h3 style={{ marginBottom: 10 }}>Комментарий</h3>
+          <div className="form">
+            <textarea
+              value={newComment}
+              onChange={(e) => setNewComment(e.target.value)}
+              rows={3}
+              placeholder="Добавьте комментарий по выполненным действиям"
+              disabled={addCommentM.isPending}
+            />
+            <div className="uiActions">
+              <button onClick={() => addCommentM.mutate()} disabled={addCommentM.isPending || !newComment.trim()}>
+                {addCommentM.isPending ? 'Сохраняем…' : 'Добавить комментарий'}
+              </button>
+            </div>
+          </div>
         </div>
       ) : null}
 

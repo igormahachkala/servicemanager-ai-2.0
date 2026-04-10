@@ -106,6 +106,10 @@ function canCreateTickets(role?: api.Role) {
   return role === 'ADMIN' || role === 'MASTER' || role === 'DISPATCHER'
 }
 
+function canRunBulkOperationalActions(role?: api.Role) {
+  return role === 'ADMIN' || role === 'MASTER' || role === 'DISPATCHER' || role === 'NETWORK_DIRECTOR' || role === 'TECHNICIAN'
+}
+
 function canReadCompanyContext(role?: api.Role) {
   return role === 'ADMIN' || role === 'MASTER' || role === 'DISPATCHER' || role === 'NETWORK_DIRECTOR'
 }
@@ -114,6 +118,11 @@ function canReadCompanyContext(role?: api.Role) {
 function buildBoardLink(linkedClientCompanyId?: string | null) {
   if (!linkedClientCompanyId) return '/board'
   return `/board?linkedClientCompanyId=${linkedClientCompanyId}`
+}
+
+function buildCreateTicketLink(linkedClientCompanyId?: string | null) {
+  if (!linkedClientCompanyId) return '/tickets/new'
+  return `/tickets/new?linkedClientCompanyId=${linkedClientCompanyId}`
 }
 
 function buildAnalyticsLink(params: { observerCompanyId?: string | null; linkedClientCompanyId?: string | null }) {
@@ -315,7 +324,8 @@ export function BoardPage() {
   const providerHeaderLabel = selectedLinkedClient?.clientCompany.name || primaryLinkedClients[0]?.clientCompany.name || ''
   const isTechnician = meQ.data?.role === 'TECHNICIAN'
   const isProviderTechnician = isProviderCompany && isTechnician
-  const providerCanCreateTicket = !isObserverMode && !canShowLinkedClients && canCreateTickets(meQ.data?.role)
+  const canBulkOperate = canRunBulkOperationalActions(meQ.data?.role)
+  const providerCanCreateTicket = !isObserverMode && canCreateTickets(meQ.data?.role)
   const analyticsLink = buildAnalyticsLink({ observerCompanyId, linkedClientCompanyId: resolvedLinkedClientCompanyId })
   const companyLink = buildCompanyLink({ observerCompanyId, linkedClientCompanyId: resolvedLinkedClientCompanyId })
   const ticketScope = useMemo(
@@ -407,7 +417,7 @@ export function BoardPage() {
             <button className="ghost">Компания</button>
           </Link>
           {providerCanCreateTicket ? (
-            <Link to="/tickets/new">
+            <Link to={buildCreateTicketLink(resolvedLinkedClientCompanyId)}>
               <button className="ghost">Создать заявку</button>
             </Link>
           ) : (
@@ -731,7 +741,8 @@ export function BoardPage() {
         </div>
       </div>
 
-      <div className="panel uiCard" style={{ marginBottom: 12 }}>
+      {canBulkOperate ? (
+        <div className="panel uiCard" style={{ marginBottom: 12 }}>
         <div className="row" style={{ marginBottom: 0, alignItems: 'center' }}>
           <div className="muted small">Bulk actions</div>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -782,7 +793,8 @@ export function BoardPage() {
           </div>
         </div>
         {bulkError ? <div className="alert" style={{ marginTop: 10 }}>{bulkError}</div> : null}
-      </div>
+        </div>
+      ) : null}
 
       {providerHasNoLinkedClients ? (
         <div className="panel" style={{ marginBottom: 12 }}>
@@ -811,7 +823,7 @@ export function BoardPage() {
                 : 'Создайте тестовую заявку, чтобы доска стала живой для демонстрации.'}
           </div>
           {providerCanCreateTicket ? (
-            <Link to="/tickets/new">
+            <Link to={buildCreateTicketLink(resolvedLinkedClientCompanyId)}>
               <button>Создать заявку</button>
             </Link>
           ) : null}

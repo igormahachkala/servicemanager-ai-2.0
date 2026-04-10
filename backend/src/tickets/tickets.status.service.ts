@@ -86,6 +86,30 @@ export class TicketsStatusService {
       const wf = decideTicketTransition(fromStatus, toStatus);
       if (!wf.allowed) throw new BadRequestException(wf.reason);
 
+      if (toStatus === TicketStatus.DONE) {
+        const [commentCount, photoCount] = await Promise.all([
+          tx.ticketStatusHistory.count({
+            where: {
+              ticketId,
+              comment: { not: null },
+            },
+          }),
+          tx.ticketAttachment.count({
+            where: {
+              ticketId,
+              mimeType: { startsWith: 'image/' },
+            },
+          }),
+        ]);
+
+        if (commentCount === 0) {
+          throw new BadRequestException('Cannot set DONE: add at least one comment first');
+        }
+        if (photoCount === 0) {
+          throw new BadRequestException('Cannot set DONE: add at least one photo first');
+        }
+      }
+
       const now = new Date();
       const shouldMarkBreached = ticket.slaDueAt && !ticket.slaBreachedAt && now > ticket.slaDueAt;
 
@@ -136,6 +160,70 @@ export class TicketsStatusService {
       }
 
       return updated;
+    });
+  }
+
+  async addComment(
+    companyId: string,
+    user: { id?: string } | any,
+    role: UserRole,
+    ticketId: string,
+    dto: { comment: string },
+    linkedClientCompanyId?: string,
+  ) {
+    const comment = (dto.comment || '').trim();
+    if (!comment) {
+      throw new BadRequestException('comment is required');
+    }
+
+    const access = await resolveTicketOperationAccess({
+      prisma: this.prisma,
+      serviceContractsService: this.serviceContractsService,
+      actor: {
+        id: user?.id,
+        role,
+        companyId,
+        accessFlags: user?.accessFlags,
+      },
+      ticketId,
+      linkedClientCompanyId,
+    });
+
+    return this.prisma.$transaction(async (tx) => {
+      const ticket = await tx.ticket.findFirst({
+        where: { id: ticketId, companyId: access.ticket.companyId },
+      });
+      if (!ticket) throw new NotFoundException('Ticket not found');
+
+      const decision = this.policy.canChangeStatus({
+        user: { id: user?.id, role, companyId: access.operationCompanyId },
+        ticket: {
+          companyId: access.operationCompanyId,
+          assignedTechnicianId: ticket.assignedTechnicianId,
+        },
+      });
+      assertAllowed(decision);
+
+      await this.timelineService.recordTx(tx, {
+        event: 'COMMENT_ADDED',
+        companyId: ticket.companyId,
+        ticketId,
+        actorUserId: user?.id ?? null,
+        payload: {
+          comment,
+          source: 'manual_comment',
+        },
+      });
+
+      await this.writeStatusHistoryTx(tx, {
+        ticketId,
+        fromStatus: ticket.status,
+        toStatus: ticket.status,
+        changedByUserId: user?.id ?? null,
+        comment,
+      });
+
+      return { ok: true };
     });
   }
 }

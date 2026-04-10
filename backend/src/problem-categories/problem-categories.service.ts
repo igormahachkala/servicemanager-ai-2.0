@@ -1,14 +1,35 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { resolveObserverScopeCompanyId } from '../policy/policy.utils';
+import { ServiceContractsService } from '../service-contracts/service-contracts.service';
 import { CreateProblemCategoryDto } from './dto/create-problem-category.dto';
 import { UpdateProblemCategoryDto } from './dto/update-problem-category.dto';
 
 @Injectable()
 export class ProblemCategoriesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly serviceContractsService: ServiceContractsService,
+  ) {}
 
-  async list(companyId: string) {
+  async list(actorCompanyId: string, actorRole?: any, requestedCompanyId?: string) {
+    let companyId = actorCompanyId;
+    const requested = (requestedCompanyId || '').trim();
+    if (requested && requested !== actorCompanyId) {
+      const observerCompanyId = resolveObserverScopeCompanyId({
+        actorCompanyId,
+        actorRole,
+        requestedCompanyId: requested,
+      });
+      if (observerCompanyId !== actorCompanyId) {
+        companyId = observerCompanyId;
+      } else {
+        await this.serviceContractsService.assertPrimaryLinkedClientAccess(actorCompanyId, requested);
+        companyId = requested;
+      }
+    }
+
     const categories = await this.prisma.problemCategory.findMany({
       where: { companyId },
       include: {
@@ -84,10 +105,10 @@ export class ProblemCategoriesService {
           requiredSpecializationsCount: requiredSpecializationIds.length,
           fallbackMode,
           note: fallbackMode
-            ? '????????????? ?? ??????. ??? ?????? ?????????? ? claim ????? ?????????????? ?????????? fallback ?? ???????? ????????.'
+            ? 'Специализации не заданы. Для таких категорий в claim допускается fallback по отсутствию специализаций.'
             : coverageTechnicians.length === 0
-              ? '? ????????? ???? ?????????? ?? ??????????????, ?? ?????? ??? ?????????? ????????.'
-              : '????????? ??????? ????????? ?? ??????????????.',
+              ? 'В компании есть специализации, но нет техников с нужными навыками.'
+              : 'Категория покрыта техниками по специализациям.',
           technicians: coverageTechnicians,
         },
       };

@@ -209,6 +209,17 @@ export class TicketsService {
     return this.status.updateStatus(companyId, user, role, ticketId, dto, linkedClientCompanyId)
   }
 
+  addComment(
+    companyId: string,
+    user: { id?: string } | any,
+    role: UserRole,
+    ticketId: string,
+    dto: { comment: string },
+    linkedClientCompanyId?: string,
+  ) {
+    return this.status.addComment(companyId, user, role, ticketId, dto, linkedClientCompanyId)
+  }
+
   availableForTechnician(companyId: string, technicianUserId: string) {
     return this.assignment.availableForTechnician(companyId, technicianUserId)
   }

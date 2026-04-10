@@ -516,6 +516,7 @@ export type CreateTicketInput = {
 
 export type UpdateTicketInput = {
   problemCategoryId?: string
+  locationId?: string
   equipmentId?: string | null
   problemText?: string
   urgency?: TicketUrgency
@@ -1103,8 +1104,11 @@ export async function setSpecializationStatus(id: string, isActive: boolean): Pr
   })
 }
 
-export async function problemCategories(): Promise<ProblemCategoryListItem[]> {
-  return request<ProblemCategoryListItem[]>('/problem-categories')
+export async function problemCategories(companyId?: string): Promise<ProblemCategoryListItem[]> {
+  const search = new URLSearchParams()
+  if (companyId) search.set('companyId', companyId)
+  const suffix = search.toString() ? '?' + search.toString() : ''
+  return request<ProblemCategoryListItem[]>('/problem-categories' + suffix)
 }
 
 export async function createProblemCategory(input: CreateProblemCategoryInput): Promise<ProblemCategoryListItem> {
@@ -1470,6 +1474,13 @@ export async function updateTicketStatus(id: string, input: UpdateTicketStatusIn
   return request<any>(`/tickets/${id}/status${buildTicketScopeSuffix(scope)}`, {
     method: 'PATCH',
     body: input,
+  })
+}
+
+export async function addTicketComment(id: string, comment: string, scope?: string | TicketScopeParams): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>(`/tickets/${id}/comments${buildTicketScopeSuffix(scope)}`, {
+    method: 'POST',
+    body: { comment },
   })
 }
 
