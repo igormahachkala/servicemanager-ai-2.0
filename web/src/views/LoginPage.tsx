@@ -14,7 +14,6 @@ const BUILD = '2026'
 export function LoginPage({ onLoggedIn }: LoginPageProps) {
   const navigate = useNavigate()
 
-  const [backendUrl, setBackendUrl] = useState(api.getBaseUrl())
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -26,8 +25,6 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
     setLoading(true)
 
     try {
-      api.setBaseUrl(backendUrl)
-
       const result = await api.login({
         email: email.trim().toLowerCase(),
         password,
@@ -67,19 +64,6 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
         )}
 
         <form onSubmit={handleLogin} className="form">
-          <label>
-            URL backend
-            <input
-              value={backendUrl}
-              onChange={(e) => setBackendUrl(e.target.value)}
-              placeholder="http://localhost:3001"
-              disabled={loading}
-            />
-            <div className="muted small" style={{ marginTop: 6 }}>
-              Пример: http://localhost:3001
-            </div>
-          </label>
-
           <label>
             Email
             <input

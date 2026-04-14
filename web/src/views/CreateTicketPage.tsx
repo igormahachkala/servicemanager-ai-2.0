@@ -15,6 +15,8 @@ const QuickRequestSchema = z.object({
   attachmentIds: z.array(z.string().uuid()).optional(),
 })
 
+const CREATE_ALLOWED_ROLES: api.Role[] = ['ADMIN', 'MASTER', 'DISPATCHER', 'CLIENT', 'TECHNICIAN']
+
 function urgencyLabel(value: 'URGENT' | 'NOT_URGENT') {
   return value === 'URGENT' ? 'Срочно' : 'Не срочно'
 }
@@ -46,6 +48,8 @@ export function CreateTicketPage() {
   const [equipmentId, setEquipmentId] = useState('')
   const [categoryId, setCategoryId] = useState('')
   const [urgency, setUrgency] = useState<'URGENT' | 'NOT_URGENT'>('NOT_URGENT')
+  const [requesterName, setRequesterName] = useState('')
+  const [requesterPhone, setRequesterPhone] = useState('')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [draftAttachment, setDraftAttachment] = useState<api.DraftTicketAttachment | null>(null)
@@ -56,6 +60,7 @@ export function CreateTicketPage() {
   })
 
   const isTechnician = meQ.data?.role === 'TECHNICIAN'
+  const canCreateByRole = !!meQ.data?.role && CREATE_ALLOWED_ROLES.includes(meQ.data.role)
   const linkedClientCompanyId = (searchParams.get('linkedClientCompanyId') || '').trim()
   const isProviderLinkedCreate = !!linkedClientCompanyId && !isTechnician
 
@@ -110,6 +115,14 @@ export function CreateTicketPage() {
       setClientCompanyId(technicianContexts[0].clientCompany.id)
     }
   }, [clientCompanyId, isTechnician, technicianContexts])
+
+  useEffect(() => {
+    if (!meQ.data) return
+    const fullName = [meQ.data.firstName?.trim(), meQ.data.lastName?.trim()].filter(Boolean).join(' ').trim()
+    if (!requesterName && fullName) {
+      setRequesterName(fullName)
+    }
+  }, [meQ.data, requesterName])
 
   useEffect(() => {
     if (!categoryId && activeCategories.length > 0) {
@@ -229,6 +242,8 @@ export function CreateTicketPage() {
       equipmentId: equipmentId || undefined,
       categoryId,
       urgency,
+      requesterName: requesterName.trim() || undefined,
+      requesterPhone: requesterPhone.trim() || undefined,
       attachmentIds: draftAttachment ? [draftAttachment.id] : [],
     }
   }
@@ -246,6 +261,10 @@ export function CreateTicketPage() {
   function onSubmit(e: React.FormEvent) {
     e.preventDefault()
     setErr(null)
+    if (!canCreateByRole) {
+      setErr('Эта роль не может создавать заявки по текущей продуктовой модели')
+      return
+    }
 
     const payload = validatePayload()
     if (!payload) return
@@ -318,7 +337,16 @@ export function CreateTicketPage() {
         </div>
       ) : null}
 
-      <div className="panel uiCard">
+      {meQ.data && !canCreateByRole ? (
+        <div className="panel uiCard">
+          <h3 style={{ marginBottom: 6 }}>Создание заявки недоступно</h3>
+          <div className="muted small">
+            Роль <b>{meQ.data.role}</b> не имеет права `TICKETS_CREATE`. Для этой роли доступен только просмотр.
+          </div>
+        </div>
+      ) : null}
+
+      <div className="panel uiCard" style={{ display: meQ.data && !canCreateByRole ? 'none' : 'block' }}>
         <form onSubmit={onSubmit} className="form" style={{ maxWidth: 860 }}>
           {isTechnician && selectedTechnicianContext ? (
             <div className="muted small" style={{ marginBottom: 4 }}>
@@ -417,6 +445,27 @@ export function CreateTicketPage() {
             </div>
           </label>
 
+          <div className="grid2" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+            <label>
+              {isTechnician ? '5. Контактное имя' : '4. Контактное имя'}
+              <input
+                value={requesterName}
+                onChange={(e) => setRequesterName(e.target.value)}
+                placeholder="Кто сообщил о проблеме"
+                disabled={isBusy}
+              />
+            </label>
+            <label>
+              {isTechnician ? '6. Контактный телефон' : '5. Контактный телефон'}
+              <input
+                value={requesterPhone}
+                onChange={(e) => setRequesterPhone(e.target.value)}
+                placeholder="+7..."
+                disabled={isBusy}
+              />
+            </label>
+          </div>
+
           {isTechnician && selectedTechnicianContext ? (
             <div className="panel" style={{ padding: 12 }}>
               <div className="muted small" style={{ marginBottom: 6 }}>Контекст техника</div>
@@ -468,7 +517,7 @@ export function CreateTicketPage() {
           </div>
 
           <div className="uiActions">
-            <button type="submit" disabled={isBusy || isBootstrapping || noCategories || noLocations || (isTechnician && !clientCompanyId)}>
+            <button type="submit" disabled={!canCreateByRole || isBusy || isBootstrapping || noCategories || noLocations || (isTechnician && !clientCompanyId)}>
               {createM.isPending ? 'Отправляем...' : isTechnician ? '6. Создать заявку' : '5. Отправить заявку'}
             </button>
 

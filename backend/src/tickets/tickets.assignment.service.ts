@@ -49,6 +49,19 @@ export class TicketsAssignmentService {
     return company;
   }
 
+  private async assertExecutorOperationsAllowed(actorCompanyId: string) {
+    const actorCompany = await this.prisma.company.findUnique({
+      where: { id: actorCompanyId },
+      select: { id: true, type: true },
+    });
+    if (!actorCompany) {
+      throw new NotFoundException('Company not found');
+    }
+    if (actorCompany.type === 'CLIENT') {
+      throw new ForbiddenException('Client company cannot perform executor operations');
+    }
+  }
+
   private async getCategory(companyId: string, problemCategoryId: string) {
     const category = await this.prisma.problemCategory.findFirst({
       where: { id: problemCategoryId, companyId, isActive: true },
@@ -603,6 +616,7 @@ export class TicketsAssignmentService {
   }
 
   async listAssignmentCandidates(companyId: string, actor: any, ticketId: string, linkedClientCompanyId?: string) {
+    await this.assertExecutorOperationsAllowed(companyId);
     const access = await resolveTicketOperationAccess({
       prisma: this.prisma,
       serviceContractsService: this.serviceContractsService,
@@ -688,6 +702,7 @@ export class TicketsAssignmentService {
   }
 
   async assign(companyId: string, actor: any, ticketId: string, technicianId: string, linkedClientCompanyId?: string) {
+    await this.assertExecutorOperationsAllowed(companyId);
     const access = await resolveTicketOperationAccess({
       prisma: this.prisma,
       serviceContractsService: this.serviceContractsService,
@@ -1192,6 +1207,7 @@ export class TicketsAssignmentService {
   }
 
   async claim(companyId: string, technicianUserId: string, ticketId: string, linkedClientCompanyId?: string) {
+    await this.assertExecutorOperationsAllowed(companyId);
     const technicianScope = await resolveTechnicianOperationalScope({
       prisma: this.prisma,
       serviceContractsService: this.serviceContractsService,

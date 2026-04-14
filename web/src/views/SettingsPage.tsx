@@ -25,10 +25,13 @@ export function SettingsPage() {
   const [baseUrl, setBaseUrlState] = useState(api.getBaseUrl())
   const [companyLabel, setCompanyLabelState] = useState(api.getCompanyLabel())
   const [saved, setSaved] = useState<string | null>(null)
+  const canManualBackendConfig = api.canUseManualBackendConfig()
 
   function saveSettings(e: React.FormEvent) {
     e.preventDefault()
-    api.setBaseUrl(baseUrl)
+    if (canManualBackendConfig) {
+      api.setBaseUrl(baseUrl)
+    }
     api.setCompanyLabel(companyLabel)
     setSaved('Настройки сохранены. При необходимости обнови страницу.')
     setTimeout(() => setSaved(null), 2500)
@@ -57,10 +60,12 @@ export function SettingsPage() {
           <h3 style={{ marginBottom: 10 }}>Параметры приложения</h3>
 
           <form onSubmit={saveSettings} className="form">
-            <label>
-              URL backend
-              <input value={baseUrl} onChange={(e) => setBaseUrlState(e.target.value)} placeholder="http://localhost:3000" />
-            </label>
+            {canManualBackendConfig ? (
+              <label>
+                URL backend (dev)
+                <input value={baseUrl} onChange={(e) => setBaseUrlState(e.target.value)} placeholder="http://localhost:3000" />
+              </label>
+            ) : null}
 
             <label>
               Название компании в интерфейсе
@@ -70,7 +75,9 @@ export function SettingsPage() {
             <button type="submit">Сохранить настройки</button>
 
             <div className="muted small">
-              Эти настройки сохраняются локально в браузере и помогают быстро переключать окружение для демо.
+              {canManualBackendConfig
+                ? 'Локальные настройки сохраняются в браузере. Ручной backend URL доступен только в dev-режиме.'
+                : 'Локальные настройки сохраняются в браузере. Backend URL фиксирован через VITE_API_BASE_URL.'}
             </div>
           </form>
         </div>

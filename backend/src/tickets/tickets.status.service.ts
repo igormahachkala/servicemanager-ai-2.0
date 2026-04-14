@@ -1,4 +1,4 @@
-﻿import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+﻿import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, TicketStatus, UserRole } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
@@ -20,6 +20,19 @@ export class TicketsStatusService {
   ) {}
 
   private readonly policy = new TicketsPolicy();
+
+  private async assertExecutorOperationsAllowed(actorCompanyId: string) {
+    const actorCompany = await this.prisma.company.findUnique({
+      where: { id: actorCompanyId },
+      select: { id: true, type: true },
+    });
+    if (!actorCompany) {
+      throw new NotFoundException('Company not found');
+    }
+    if (actorCompany.type === 'CLIENT') {
+      throw new ForbiddenException('Client company cannot perform executor operations');
+    }
+  }
 
   private async writeStatusHistoryTx(
     tx: Prisma.TransactionClient,
@@ -52,6 +65,7 @@ export class TicketsStatusService {
     dto: { status: TicketStatus; comment?: string },
     linkedClientCompanyId?: string,
   ) {
+    await this.assertExecutorOperationsAllowed(companyId);
     const access = await resolveTicketOperationAccess({
       prisma: this.prisma,
       serviceContractsService: this.serviceContractsService,

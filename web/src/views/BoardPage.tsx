@@ -103,7 +103,7 @@ function isProviderBoardRole(role?: api.Role) {
 }
 
 function canCreateTickets(role?: api.Role) {
-  return role === 'ADMIN' || role === 'MASTER' || role === 'DISPATCHER'
+  return role === 'ADMIN' || role === 'MASTER' || role === 'DISPATCHER' || role === 'CLIENT' || role === 'TECHNICIAN'
 }
 
 function canRunBulkOperationalActions(role?: api.Role) {
@@ -192,6 +192,7 @@ export function BoardPage() {
   )
 
   const resolvedLinkedClientCompanyId = selectedLinkedClient?.role === 'PRIMARY' ? selectedLinkedClient.clientCompany.id : ''
+  const isClientTenantCompany = !observerCompanyId && !resolvedLinkedClientCompanyId && ownCompanyQ.data?.type === 'CLIENT'
   const providerHasNoLinkedClients = canShowLinkedClients && linkedClientsLoaded && linkedClients.length === 0
   const providerRestrictedSelection = canShowLinkedClients && !!selectedLinkedClient && selectedLinkedClient.role !== 'PRIMARY'
 
@@ -324,7 +325,7 @@ export function BoardPage() {
   const providerHeaderLabel = selectedLinkedClient?.clientCompany.name || primaryLinkedClients[0]?.clientCompany.name || ''
   const isTechnician = meQ.data?.role === 'TECHNICIAN'
   const isProviderTechnician = isProviderCompany && isTechnician
-  const canBulkOperate = canRunBulkOperationalActions(meQ.data?.role)
+  const canBulkOperate = canRunBulkOperationalActions(meQ.data?.role) && !isClientTenantCompany
   const providerCanCreateTicket = !isObserverMode && canCreateTickets(meQ.data?.role)
   const analyticsLink = buildAnalyticsLink({ observerCompanyId, linkedClientCompanyId: resolvedLinkedClientCompanyId })
   const companyLink = buildCompanyLink({ observerCompanyId, linkedClientCompanyId: resolvedLinkedClientCompanyId })

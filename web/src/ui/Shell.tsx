@@ -68,8 +68,13 @@ function canSeeTenantCompanySettings(role?: api.Role) {
   return role === 'ADMIN'
 }
 
+function canSeeCreateTicket(role?: api.Role) {
+  return role === 'ADMIN' || role === 'MASTER' || role === 'DISPATCHER' || role === 'CLIENT' || role === 'TECHNICIAN'
+}
+
 function isNavItemVisible(item: NavItem, role?: api.Role, isPlatformAdmin?: boolean) {
   if (isPlatformAdmin) return true
+  if (item.to === '/tickets/new') return canSeeCreateTicket(role)
   if (item.to === '/company') return canSeeTenantCompanySettings(role)
   if (
     item.to === '/problem-categories' ||

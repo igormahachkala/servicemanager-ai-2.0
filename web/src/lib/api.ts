@@ -793,6 +793,8 @@ const PLATFORM_BACKUP_ROLE_KEY = 'platform_user_role_backup'
 const PLATFORM_BACKUP_COMPANY_LABEL_KEY = 'platform_company_label_backup'
 const IMPERSONATION_META_KEY = 'impersonation_meta'
 
+const FALLBACK_API_BASE_URL = 'http://localhost:3001'
+
 export type ImpersonationMeta = {
   companyId: string
   companyName: string
@@ -800,16 +802,33 @@ export type ImpersonationMeta = {
 }
 
 function readBaseUrl(): string {
-  if (typeof window === 'undefined') return 'http://localhost:3001'
-  return localStorage.getItem(BASE_URL_KEY) || 'http://localhost:3001'
+  const envBaseUrl = resolveEnvApiBaseUrl()
+  if (typeof window === 'undefined') return envBaseUrl
+  if (canUseManualBackendConfig()) {
+    return normalizeBaseUrl(localStorage.getItem(BASE_URL_KEY) || envBaseUrl)
+  }
+  return envBaseUrl
 }
 
 function normalizeBaseUrl(url: string): string {
-  return (url || 'http://localhost:3001').trim().replace(/\/+$/, '')
+  return (url || '').trim().replace(/\/+$/, '')
+}
+
+function resolveEnvApiBaseUrl(): string {
+  const fromEnv = normalizeBaseUrl(String(import.meta.env.VITE_API_BASE_URL || ''))
+  if (fromEnv) return fromEnv
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return normalizeBaseUrl(window.location.origin)
+  }
+  return FALLBACK_API_BASE_URL
+}
+
+export function canUseManualBackendConfig(): boolean {
+  return !!import.meta.env.DEV
 }
 
 export function getBaseUrl(): string {
-  return normalizeBaseUrl(readBaseUrl())
+  return normalizeBaseUrl(readBaseUrl()) || FALLBACK_API_BASE_URL
 }
 
 export function getPublicAppBaseUrl(): string {
@@ -826,7 +845,13 @@ export function resolveFileUrl(url: string): string {
 
 export function setBaseUrl(url: string) {
   if (typeof window === 'undefined') return
-  localStorage.setItem(BASE_URL_KEY, normalizeBaseUrl(url))
+  if (!canUseManualBackendConfig()) return
+  const normalized = normalizeBaseUrl(url)
+  if (!normalized) {
+    localStorage.removeItem(BASE_URL_KEY)
+    return
+  }
+  localStorage.setItem(BASE_URL_KEY, normalized)
 }
 
 export function getToken(): string {

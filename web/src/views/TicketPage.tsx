@@ -214,6 +214,11 @@ export function TicketPage() {
   const [newComment, setNewComment] = useState('')
 
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
+  const ownCompanyQ = useQuery({
+    queryKey: ['ticket-own-company'],
+    queryFn: () => api.company(),
+    enabled: !observerCompanyId && !linkedClientCompanyId,
+  })
 
   const ticketQ = useQuery({
     enabled: !!ticketId,
@@ -237,6 +242,8 @@ export function TicketPage() {
   const isClientRole = role === 'CLIENT'
   const readOnlyByVisibilityMode = contextMode === 'observer'
   const canMutateTicket = !readOnlyByVisibilityMode && !(isClientRole && contextMode !== 'tenant')
+  const isClientTenantCompany = !observerCompanyId && !linkedClientCompanyId && ownCompanyQ.data?.type === 'CLIENT'
+  const executorActionsAllowed = canMutateTicket && !isClientTenantCompany
   const canEditTicket = canMutateTicket && roleCanEdit(role)
 
   const categoriesQ = useQuery({
@@ -254,8 +261,8 @@ export function TicketPage() {
     enabled: !!(editLocationId || ticketQ.data?.location?.id) && roleCanEdit(meQ.data?.role) && editOpen,
   })
 
-  const canAssign = canMutateTicket && !isClientRole && roleCanAssign(role)
-  const canChangeStatus = canMutateTicket && roleCanChangeStatus(role)
+  const canAssign = executorActionsAllowed && !isClientRole && roleCanAssign(role)
+  const canChangeStatus = executorActionsAllowed && roleCanChangeStatus(role)
   const canUploadPhoto = canMutateTicket && roleCanUploadPhoto(role)
   const canDeletePhoto = canMutateTicket && roleCanUploadPhoto(role)
 
@@ -446,9 +453,9 @@ export function TicketPage() {
   const hasAssignedTechnician = !!ticket?.assignedTechnician
   const canClaim = useMemo(() => {
     if (role !== 'TECHNICIAN' || !ticket) return false
-    if (!canMutateTicket) return false
+    if (!executorActionsAllowed) return false
     return ticket.meta?.canClaimByCurrentUser === true
-  }, [role, ticket, canMutateTicket])
+  }, [role, ticket, executorActionsAllowed])
 
   const assignmentData = assignmentCandidatesQ.data
   const availableStatusTransitions = ticket?.meta?.availableStatusTransitions || []
@@ -585,6 +592,13 @@ export function TicketPage() {
         <div className="panel uiCard" style={{ marginBottom: 12 }}>
           <div className="muted small">
             Режим только просмотра: изменение заявки доступно только в tenant-контуре.
+          </div>
+        </div>
+      ) : null}
+      {isClientTenantCompany ? (
+        <div className="panel uiCard" style={{ marginBottom: 12 }}>
+          <div className="muted small">
+            Клиентский контур: действия исполнителя (назначение, claim, операционные статусы) недоступны.
           </div>
         </div>
       ) : null}
