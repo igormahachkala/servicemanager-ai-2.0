@@ -69,12 +69,25 @@ function canSeeTenantCompanySettings(role?: api.Role) {
 }
 
 function canSeeCreateTicket(role?: api.Role) {
-  return role === 'ADMIN' || role === 'MASTER' || role === 'DISPATCHER' || role === 'CLIENT' || role === 'TECHNICIAN'
+  return (
+    role === 'ADMIN' ||
+    role === 'MASTER' ||
+    role === 'DISPATCHER' ||
+    role === 'NETWORK_DIRECTOR' ||
+    role === 'TERRITORIAL_MANAGER' ||
+    role === 'CLIENT' ||
+    role === 'TECHNICIAN'
+  )
+}
+
+function canSeeAnalytics(role?: api.Role) {
+  return role !== 'CLIENT'
 }
 
 function isNavItemVisible(item: NavItem, role?: api.Role, isPlatformAdmin?: boolean) {
   if (isPlatformAdmin) return true
   if (item.to === '/tickets/new') return canSeeCreateTicket(role)
+  if (item.to === '/analytics') return canSeeAnalytics(role)
   if (item.to === '/company') return canSeeTenantCompanySettings(role)
   if (
     item.to === '/problem-categories' ||

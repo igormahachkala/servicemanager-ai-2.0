@@ -7,6 +7,8 @@ type Props = {
   currentUserId: string | null
   activeAdminCount: number
   activeSpecializations: api.SpecializationListItem[]
+  activeLocations: api.LocationListItem[]
+  allowedRoles: api.Role[]
   editingUserId: string | null
   editingValue: EmployeeFormValue
   busy?: boolean
@@ -14,6 +16,7 @@ type Props = {
   onCancelEdit: () => void
   onEditChange: (patch: Partial<EmployeeFormValue>) => void
   onToggleEditSpecialization: (specializationId: string) => void
+  onToggleEditLocation: (locationId: string) => void
   onSubmitEdit: (event: React.FormEvent) => void
   onToggleActive: (user: api.UserListItem) => void
 }
@@ -33,6 +36,8 @@ export function EmployeeList({
   currentUserId,
   activeAdminCount,
   activeSpecializations,
+  activeLocations,
+  allowedRoles,
   editingUserId,
   editingValue,
   busy,
@@ -40,6 +45,7 @@ export function EmployeeList({
   onCancelEdit,
   onEditChange,
   onToggleEditSpecialization,
+  onToggleEditLocation,
   onSubmitEdit,
   onToggleActive,
 }: Props) {
@@ -53,6 +59,7 @@ export function EmployeeList({
         const isInactive = user.isActive === false
         const isSelf = user.id === currentUserId
         const isLastAdmin = user.role === 'ADMIN' && !isInactive && activeAdminCount <= 1
+        const canManageRole = allowedRoles.includes(user.role)
         const editTitle = displayName(user) === user.email ? 'Редактировать ' + user.email : 'Редактировать ' + displayName(user)
 
         return (
@@ -61,11 +68,11 @@ export function EmployeeList({
             user={user}
             actions={(
               <>
-                <button className="ghost" onClick={() => onBeginEdit(user)} disabled={busy}>Редактировать</button>
+                <button className="ghost" onClick={() => onBeginEdit(user)} disabled={busy || !canManageRole}>Редактировать</button>
                 <button
                   className="ghost"
                   onClick={() => onToggleActive(user)}
-                  disabled={busy || (!isInactive && (isSelf || isLastAdmin))}
+                  disabled={busy || !canManageRole || (!isInactive && (isSelf || isLastAdmin))}
                 >
                   {isInactive ? 'Активировать' : 'Деактивировать'}
                 </button>
@@ -84,10 +91,13 @@ export function EmployeeList({
                 submitLabel="Сохранить"
                 value={editingValue}
                 activeSpecializations={activeSpecializations}
+                activeLocations={activeLocations}
+                allowedRoles={allowedRoles}
                 submitting={busy}
                 passwordRequired={false}
                 onChange={onEditChange}
                 onToggleSpecialization={onToggleEditSpecialization}
+                onToggleLocation={onToggleEditLocation}
                 onSubmit={onSubmitEdit}
                 onCancel={onCancelEdit}
               />

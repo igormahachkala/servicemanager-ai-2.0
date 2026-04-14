@@ -1,5 +1,5 @@
 import { UserRole } from '@prisma/client';
-import { IsBoolean, IsEmail, IsEnum, IsOptional, IsString, IsUrl, MinLength } from 'class-validator';
+import { IsArray, IsBoolean, IsEmail, IsEnum, IsOptional, IsString, IsUrl, IsUUID, MinLength } from 'class-validator';
 
 export class UpdateUserDto {
   @IsOptional()
@@ -30,4 +30,9 @@ export class UpdateUserDto {
   @IsOptional()
   @IsUrl({ require_tld: false }, { message: 'avatarUrl must be a valid URL' })
   avatarUrl?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  locationIds?: string[];
 }

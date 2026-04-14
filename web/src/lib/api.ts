@@ -136,6 +136,16 @@ export type UserListItem = {
   isActive?: boolean
   createdAt?: string
   companyId?: string
+  locationBindings?: Array<{
+    locationId: string
+    location: {
+      id: string
+      name: string
+      city?: string | null
+      address?: string | null
+      isActive?: boolean
+    }
+  }>
   technicianSpecializations?: Array<{
     specialization: {
       id: string
@@ -190,6 +200,7 @@ export type CreateUserInput = {
   email: string
   password: string
   role: Role
+  locationIds?: string[]
 }
 
 export type UpdateUserInput = {
@@ -200,6 +211,7 @@ export type UpdateUserInput = {
   password?: string
   role?: Role
   isActive?: boolean
+  locationIds?: string[]
 }
 
 export type ProblemCategoryCoverageTechnician = {

@@ -3,6 +3,7 @@ import { UserRole } from '@prisma/client'
 
 import { PrismaService } from '../prisma/prisma.service'
 import { resolveObserverScopeCompanyId } from '../policy/policy.utils'
+import { resolveUserLocationScope } from '../policy/location-scope.utils'
 
 type ListInput = {
   q?: string
@@ -14,8 +15,15 @@ type ListInput = {
 export class LocationsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async list(actorCompanyId: string, actorRole: UserRole, input: ListInput, requestedCompanyId?: string) {
+  async list(actorCompanyId: string, actorUserId: string, actorRole: UserRole, input: ListInput, requestedCompanyId?: string) {
     const companyId = await this.resolveReadableCompanyId(actorCompanyId, actorRole, requestedCompanyId)
+    const locationScope = await resolveUserLocationScope({
+      prisma: this.prisma,
+      actorCompanyId,
+      userId: actorUserId,
+      role: actorRole,
+      scopeCompanyId: companyId,
+    })
     const q = input.q?.trim()
     const city = input.city?.trim()
 
@@ -29,6 +37,9 @@ export class LocationsService {
     return this.prisma.location.findMany({
       where: {
         clientCompanyId: companyId,
+        ...(locationScope.enabled && !locationScope.allowAll
+          ? { id: { in: locationScope.locationIds } }
+          : {}),
         ...(typeof isActiveFilter === 'boolean' ? { isActive: isActiveFilter } : {}),
         ...(city ? { city: { equals: city, mode: 'insensitive' } } : {}),
         ...(q
@@ -63,12 +74,24 @@ export class LocationsService {
     })
   }
 
-  async getOne(actorCompanyId: string, actorRole: UserRole, id: string, requestedCompanyId?: string) {
+  async getOne(actorCompanyId: string, actorUserId: string, actorRole: UserRole, id: string, requestedCompanyId?: string) {
     const companyId = await this.resolveReadableCompanyId(actorCompanyId, actorRole, requestedCompanyId)
+    const locationScope = await resolveUserLocationScope({
+      prisma: this.prisma,
+      actorCompanyId,
+      userId: actorUserId,
+      role: actorRole,
+      scopeCompanyId: companyId,
+    })
     const location = await this.prisma.location.findFirst({
       where: {
-        id,
-        clientCompanyId: companyId,
+        AND: [
+          { id },
+          { clientCompanyId: companyId },
+          ...(locationScope.enabled && !locationScope.allowAll
+            ? [{ id: { in: locationScope.locationIds } }]
+            : []),
+        ],
       },
       select: {
         id: true,

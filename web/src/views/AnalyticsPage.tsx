@@ -88,6 +88,7 @@ export function AnalyticsPage() {
   )
 
   const activeLinkedClientCompanyId = selectedLinkedClient?.role === 'PRIMARY' ? selectedLinkedClient.clientCompany.id : ''
+  const analyticsAllowedForRole = meQ.data?.role !== 'CLIENT'
   const providerNeedsClientSelection = canShowLinkedClients && !linkedClientsQ.isLoading && primaryLinkedClients.length > 0 && !activeLinkedClientCompanyId
   const providerHasNoLinkedClients = canShowLinkedClients && !linkedClientsQ.isLoading && (linkedClientsQ.data || []).length === 0
   const providerRestrictedSelection = canShowLinkedClients && !!selectedLinkedClient && selectedLinkedClient.role !== 'PRIMARY'
@@ -100,12 +101,13 @@ export function AnalyticsPage() {
   }, [canShowLinkedClients, requestedLinkedClientCompanyId, primaryLinkedClients, navigate])
 
   const analyticsEnabled = useMemo(() => {
+    if (!analyticsAllowedForRole) return false
     if (isObserverMode) return true
     if (!canShowLinkedClients) return true
     if (linkedClientsQ.isLoading) return false
     if (providerHasNoLinkedClients) return false
     return !!activeLinkedClientCompanyId
-  }, [isObserverMode, canShowLinkedClients, linkedClientsQ.isLoading, providerHasNoLinkedClients, activeLinkedClientCompanyId])
+  }, [analyticsAllowedForRole, isObserverMode, canShowLinkedClients, linkedClientsQ.isLoading, providerHasNoLinkedClients, activeLinkedClientCompanyId])
 
   const q = useQuery<api.AnalyticsOverviewResponse>({
     queryKey: ['analytics', 'overview', activeLinkedClientCompanyId, observerCompanyId],
@@ -259,6 +261,13 @@ export function AnalyticsPage() {
         <div className="panel" style={{ marginBottom: 12 }}>
           <h3 style={{ marginBottom: 6 }}>Нет связанных клиентов</h3>
           <div className="muted small">Когда у provider company появится ACTIVE PRIMARY ServiceContract, здесь откроется аналитика клиента.</div>
+        </div>
+      ) : null}
+
+      {!meQ.isLoading && meQ.data?.role === 'CLIENT' ? (
+        <div className="panel" style={{ marginBottom: 12 }}>
+          <h3 style={{ marginBottom: 6 }}>Аналитика недоступна</h3>
+          <div className="muted small">Для роли CLIENT доступ к аналитике закрыт по продуктовым правилам.</div>
         </div>
       ) : null}
 

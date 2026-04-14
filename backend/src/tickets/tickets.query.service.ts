@@ -14,6 +14,7 @@ import {
   resolveTicketReadScope,
 } from './ticket-access.utils'
 import { TicketMetaBuilder } from './ticket-meta.builder'
+import { applyLocationScopeToWhere, resolveUserLocationScope } from '../policy/location-scope.utils'
 
 type AccessFlags = {
   canTechnicianViewAllCompanyTickets?: boolean
@@ -257,14 +258,23 @@ export class TicketsQueryService {
 
           const policyDecision = this.policy.boardWhere({ id: userId, role, companyId: ownTenantScopeCompanyId, accessFlags }, input)
           assertAllowed(policyDecision)
-          return policyDecision.where
+          return policyDecision
         })()
+
+    const locationScope = await resolveUserLocationScope({
+      prisma: this.prisma,
+      actorCompanyId: companyId,
+      userId,
+      role,
+      scopeCompanyId: scope.scopeCompanyId,
+    })
+    const scopedWhere = applyLocationScopeToWhere(decision.where, locationScope)
 
     const nowMs = Date.now()
     const atRiskThresholdMs = decision.meta.atRiskThresholdMinutes * 60_000
 
     const tickets = await this.prisma.ticket.findMany({
-      where: decision.where,
+      where: scopedWhere,
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,
@@ -405,8 +415,14 @@ export class TicketsQueryService {
           assertAllowed(policyDecision)
           return policyDecision.where
         })()
-
-    const where = this.applyContextFilters(baseWhere, { locationId, equipmentId })
+    const locationScope = await resolveUserLocationScope({
+      prisma: this.prisma,
+      actorCompanyId: companyId,
+      userId,
+      role,
+      scopeCompanyId: scope.scopeCompanyId,
+    })
+    const where = this.applyContextFilters(applyLocationScopeToWhere(baseWhere, locationScope), { locationId, equipmentId })
 
     const rows = await this.prisma.ticket.findMany({
       where,
@@ -514,9 +530,17 @@ export class TicketsQueryService {
           assertAllowed(decision)
           return decision.where
         })()
+    const locationScope = await resolveUserLocationScope({
+      prisma: this.prisma,
+      actorCompanyId: companyId,
+      userId,
+      role,
+      scopeCompanyId: scope.scopeCompanyId,
+    })
+    const scopedWhere = applyLocationScopeToWhere(where, locationScope)
 
     return this.prisma.ticket.findMany({
-      where,
+      where: scopedWhere,
       orderBy: { createdAt: 'desc' },
       include: {
         location: {

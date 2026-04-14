@@ -10,6 +10,7 @@ export type EmployeeFormValue = {
   role: api.Role
   isActive: boolean
   specializationIds: string[]
+  locationIds: string[]
 }
 
 type Props = {
@@ -17,10 +18,13 @@ type Props = {
   submitLabel: string
   value: EmployeeFormValue
   activeSpecializations: api.SpecializationListItem[]
+  activeLocations: api.LocationListItem[]
   submitting?: boolean
   passwordRequired?: boolean
+  allowedRoles?: api.Role[]
   onChange: (patch: Partial<EmployeeFormValue>) => void
   onToggleSpecialization: (specializationId: string) => void
+  onToggleLocation: (locationId: string) => void
   onSubmit: (event: React.FormEvent) => void
   onCancel?: () => void
 }
@@ -50,18 +54,32 @@ function roleLabel(role: api.Role) {
   return role
 }
 
+function roleNeedsLocationBinding(role: api.Role) {
+  return role === 'CLIENT' || role === 'NETWORK_DIRECTOR' || role === 'TERRITORIAL_MANAGER'
+}
+
+function roleSingleLocationBinding(role: api.Role) {
+  return role === 'CLIENT' || role === 'NETWORK_DIRECTOR'
+}
+
 export function EmployeeForm({
   title,
   submitLabel,
   value,
   activeSpecializations,
+  activeLocations,
   submitting,
   passwordRequired,
+  allowedRoles,
   onChange,
   onToggleSpecialization,
+  onToggleLocation,
   onSubmit,
   onCancel,
 }: Props) {
+  const needsLocationBinding = roleNeedsLocationBinding(value.role)
+  const singleLocation = roleSingleLocationBinding(value.role)
+
   return (
     <form onSubmit={onSubmit} className="form">
       <h3 style={{ marginBottom: 10 }}>{title}</h3>
@@ -126,7 +144,7 @@ export function EmployeeForm({
           onChange={(e) => onChange({ role: e.target.value as api.Role })}
           disabled={submitting}
         >
-          {roleOptions().map((role) => (
+          {(allowedRoles && allowedRoles.length ? allowedRoles : roleOptions()).map((role) => (
             <option key={role} value={role}>{roleLabel(role)}</option>
           ))}
         </select>
@@ -153,6 +171,34 @@ export function EmployeeForm({
             disabled={submitting}
             onToggle={onToggleSpecialization}
           />
+        </div>
+      ) : null}
+
+      {needsLocationBinding ? (
+        <div>
+          <div style={{ fontWeight: 600, marginBottom: 8 }}>
+            Привязка к точкам {singleLocation ? '(ровно 1 точка)' : '(1+ точек)'}
+          </div>
+          <div style={{ display: 'grid', gap: 8, maxHeight: 180, overflow: 'auto', border: '1px solid #e5e7eb', borderRadius: 10, padding: 10 }}>
+            {activeLocations.length === 0 ? (
+              <div className="muted small">Нет доступных точек в вашем контуре.</div>
+            ) : activeLocations.map((location) => (
+              <label key={location.id} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <input
+                  type="checkbox"
+                  checked={value.locationIds.includes(location.id)}
+                  disabled={submitting}
+                  onChange={() => onToggleLocation(location.id)}
+                />
+                <span className="small">
+                  {[location.name, location.city, location.address].filter(Boolean).join(' · ')}
+                </span>
+              </label>
+            ))}
+          </div>
+          <div className="muted small" style={{ marginTop: 6 }}>
+            Выбрано: {value.locationIds.length}
+          </div>
         </div>
       ) : null}
 

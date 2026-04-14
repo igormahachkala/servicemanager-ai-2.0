@@ -18,39 +18,39 @@ import { UpdateUserSpecializationsDto } from './dto/update-user-specializations.
 export class UsersController {
   constructor(private readonly users: UsersService) {}
 
-  @Roles(UserRole.ADMIN, UserRole.PLATFORM_ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.NETWORK_DIRECTOR, UserRole.TERRITORIAL_MANAGER, UserRole.PLATFORM_ADMIN)
   @RequirePermission(PERMISSIONS.USERS_MANAGE)
   @Get()
   list(@Req() req: any, @Query('companyId') companyId?: string) {
     return this.users.list(req.user.companyId, req.user.role as UserRole, companyId)
   }
 
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.NETWORK_DIRECTOR, UserRole.TERRITORIAL_MANAGER)
   @RequirePermission(PERMISSIONS.USERS_MANAGE)
   @Post()
   create(@Req() req: any, @Body() dto: CreateUserDto) {
-    return this.users.create(req.user.companyId, dto)
+    return this.users.create(req.user.companyId, req.user.id, req.user.role as UserRole, dto)
   }
 
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.NETWORK_DIRECTOR, UserRole.TERRITORIAL_MANAGER)
   @RequirePermission(PERMISSIONS.USERS_MANAGE)
   @Patch(':id')
   update(@Req() req: any, @Param('id') userId: string, @Body() dto: UpdateUserDto) {
-    return this.users.update(req.user.companyId, req.user.id, userId, dto)
+    return this.users.update(req.user.companyId, req.user.id, req.user.role as UserRole, userId, dto)
   }
 
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.NETWORK_DIRECTOR, UserRole.TERRITORIAL_MANAGER)
   @RequirePermission(PERMISSIONS.USERS_MANAGE)
   @Patch(':id/deactivate')
   deactivate(@Req() req: any, @Param('id') userId: string) {
-    return this.users.deactivate(req.user.companyId, req.user.id, userId)
+    return this.users.deactivate(req.user.companyId, req.user.id, req.user.role as UserRole, userId)
   }
 
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.NETWORK_DIRECTOR, UserRole.TERRITORIAL_MANAGER)
   @RequirePermission(PERMISSIONS.USERS_MANAGE)
   @Patch(':id/activate')
   activate(@Req() req: any, @Param('id') userId: string) {
-    return this.users.activate(req.user.companyId, userId)
+    return this.users.activate(req.user.companyId, req.user.id, req.user.role as UserRole, userId)
   }
 
   @Roles(UserRole.ADMIN)

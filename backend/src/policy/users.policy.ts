@@ -55,7 +55,7 @@ export class UsersPolicy {
     };
   }
 
-  static selectPublicUser() {
+  static selectPublicUser(companyId: string) {
     return {
       id: true,
       email: true,
@@ -78,6 +78,25 @@ export class UsersPolicy {
         orderBy: {
           specialization: {
             name: 'asc',
+          },
+        },
+      },
+      technicianClientBindings: {
+        where: {
+          providerCompanyId: companyId,
+          clientCompanyId: companyId,
+        },
+        select: {
+          id: true,
+          locationId: true,
+          location: {
+            select: {
+              id: true,
+              name: true,
+              city: true,
+              address: true,
+              isActive: true,
+            },
           },
         },
       },

@@ -34,6 +34,7 @@ function initials(user: api.UserListItem) {
 export function EmployeeCard({ user, actions, children }: Props) {
   const photoUrl = user.avatarUrl ? api.resolveFileUrl(user.avatarUrl) : ''
   const specs = (user.technicianSpecializations || []).map((item) => item.specialization.name)
+  const locationNames = (user.locationBindings || []).map((item) => item.location.name)
 
   return (
     <div className="panel" style={{ marginBottom: 0 }}>
@@ -70,6 +71,11 @@ export function EmployeeCard({ user, actions, children }: Props) {
             {user.role === 'TECHNICIAN' ? (
               <div className="muted small" style={{ marginTop: 6 }}>
                 Специализации: {specs.length > 0 ? specs.join(', ') : 'не назначены'}
+              </div>
+            ) : null}
+            {(user.role === 'CLIENT' || user.role === 'NETWORK_DIRECTOR' || user.role === 'TERRITORIAL_MANAGER') ? (
+              <div className="muted small" style={{ marginTop: 6 }}>
+                Точки доступа: {locationNames.length ? locationNames.join(', ') : 'не привязаны'}
               </div>
             ) : null}
           </div>

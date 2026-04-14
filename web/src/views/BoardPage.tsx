@@ -103,7 +103,19 @@ function isProviderBoardRole(role?: api.Role) {
 }
 
 function canCreateTickets(role?: api.Role) {
-  return role === 'ADMIN' || role === 'MASTER' || role === 'DISPATCHER' || role === 'CLIENT' || role === 'TECHNICIAN'
+  return (
+    role === 'ADMIN' ||
+    role === 'MASTER' ||
+    role === 'DISPATCHER' ||
+    role === 'NETWORK_DIRECTOR' ||
+    role === 'TERRITORIAL_MANAGER' ||
+    role === 'CLIENT' ||
+    role === 'TECHNICIAN'
+  )
+}
+
+function canViewAnalytics(role?: api.Role) {
+  return role !== 'CLIENT'
 }
 
 function canRunBulkOperationalActions(role?: api.Role) {
@@ -256,7 +268,7 @@ export function BoardPage() {
         locationId: selectedLocationId || undefined,
         equipmentId: selectedEquipmentId || undefined,
       }),
-    enabled: boardEnabled,
+    enabled: boardEnabled && canViewAnalytics(meQ.data?.role),
   })
 
   useEffect(() => {
@@ -327,6 +339,7 @@ export function BoardPage() {
   const isProviderTechnician = isProviderCompany && isTechnician
   const canBulkOperate = canRunBulkOperationalActions(meQ.data?.role) && !isClientTenantCompany
   const providerCanCreateTicket = !isObserverMode && canCreateTickets(meQ.data?.role)
+  const analyticsVisible = canViewAnalytics(meQ.data?.role)
   const analyticsLink = buildAnalyticsLink({ observerCompanyId, linkedClientCompanyId: resolvedLinkedClientCompanyId })
   const companyLink = buildCompanyLink({ observerCompanyId, linkedClientCompanyId: resolvedLinkedClientCompanyId })
   const ticketScope = useMemo(
@@ -411,9 +424,11 @@ export function BoardPage() {
           <button className="ghost" onClick={() => boardEnabled && boardQ.refetch()} disabled={!boardEnabled || boardQ.isFetching}>
             Обновить
           </button>
-          <Link to={analyticsLink}>
-            <button className="ghost">Аналитика</button>
-          </Link>
+          {analyticsVisible ? (
+            <Link to={analyticsLink}>
+              <button className="ghost">Аналитика</button>
+            </Link>
+          ) : null}
           <Link to={companyLink}>
             <button className="ghost">Компания</button>
           </Link>
@@ -604,6 +619,7 @@ export function BoardPage() {
         </div>
       </div>
 
+      {analyticsVisible ? (
       <div className="panel uiCard" style={{ marginBottom: 12 }}>
         <div className="row" style={{ marginBottom: 10 }}>
           <div style={{ fontWeight: 700 }}>Service context аналитика</div>
@@ -694,6 +710,7 @@ export function BoardPage() {
         ) : null}
         {contextAnalyticsQ.isError ? <div className="alert" style={{ marginTop: 10 }}>{(contextAnalyticsQ.error as any)?.message || String(contextAnalyticsQ.error)}</div> : null}
       </div>
+      ) : null}
 
       <div className="panel uiCard" style={{ marginBottom: 12 }}>
         <div className="row" style={{ marginBottom: 0 }}>

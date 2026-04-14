@@ -15,7 +15,15 @@ const QuickRequestSchema = z.object({
   attachmentIds: z.array(z.string().uuid()).optional(),
 })
 
-const CREATE_ALLOWED_ROLES: api.Role[] = ['ADMIN', 'MASTER', 'DISPATCHER', 'CLIENT', 'TECHNICIAN']
+const CREATE_ALLOWED_ROLES: api.Role[] = [
+  'ADMIN',
+  'MASTER',
+  'DISPATCHER',
+  'NETWORK_DIRECTOR',
+  'TERRITORIAL_MANAGER',
+  'CLIENT',
+  'TECHNICIAN',
+]
 
 function urgencyLabel(value: 'URGENT' | 'NOT_URGENT') {
   return value === 'URGENT' ? 'Срочно' : 'Не срочно'
