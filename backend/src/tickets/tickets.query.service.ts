@@ -403,7 +403,17 @@ export class TicketsQueryService {
               : scope.scopeCompanyId
           const policyDecision = this.policy.listWhere({ id: userId, role, companyId: ownTenantScopeCompanyId, accessFlags })
           assertAllowed(policyDecision)
-          return policyDecision.where
+          const resolvedWhere = policyDecision.where as any
+          if (
+            resolvedWhere &&
+            typeof resolvedWhere === 'object' &&
+            'where' in resolvedWhere &&
+            resolvedWhere.where &&
+            typeof resolvedWhere.where === 'object'
+          ) {
+            return resolvedWhere.where
+          }
+          return resolvedWhere
         })()
     const where = this.applyContextFilters(baseWhere, { locationId, equipmentId })
 
