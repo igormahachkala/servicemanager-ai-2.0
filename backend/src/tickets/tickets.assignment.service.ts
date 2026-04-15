@@ -830,15 +830,19 @@ export class TicketsAssignmentService {
 
 
   async update(companyId: string, actor: any, ticketId: string, dto: UpdateTicketDto, linkedClientCompanyId?: string) {
-    const actorRole = actor?.role as UserRole;
+    if (!actor?.id || !actor?.companyId || !actor?.role) {
+      throw new ForbiddenException('Actor context is required');
+    }
+
+    const actorRole = actor.role as UserRole;
     const isClientActor = actorRole === UserRole.CLIENT;
     const access = await resolveTicketOperationAccess({
       prisma: this.prisma,
       serviceContractsService: this.serviceContractsService,
       actor: {
-        id: actor?.id,
-        role: actor?.role,
-        companyId: companyId,
+        id: actor.id,
+        role: actor.role,
+        companyId: actor.companyId,
         accessFlags: actor?.accessFlags,
       },
       ticketId,
@@ -846,7 +850,11 @@ export class TicketsAssignmentService {
     });
 
     if (!isClientActor) {
-      const decision = this.policy.canAssign({ role: actorRole as UserRole });
+      const decision = this.policy.canAssign({
+        id: actor.id,
+        role: actorRole as UserRole,
+        companyId: actor.companyId,
+      });
       assertAllowed(decision);
     } else {
       if (linkedClientCompanyId) {
