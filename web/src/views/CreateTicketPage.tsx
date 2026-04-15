@@ -12,6 +12,8 @@ const QuickRequestSchema = z.object({
   equipmentId: z.string().uuid('equipmentId: uuid').nullable().optional(),
   categoryId: z.string().uuid('categoryId: uuid'),
   urgency: z.enum(['URGENT', 'NOT_URGENT']).optional(),
+  requesterName: z.string().optional(),
+  requesterPhone: z.string().optional(),
   attachmentIds: z.array(z.string().uuid()).optional(),
 })
 

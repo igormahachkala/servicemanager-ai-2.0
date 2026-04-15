@@ -108,12 +108,20 @@ function canCreateTickets(role?: api.Role) {
     role === 'MASTER' ||
     role === 'DISPATCHER' ||
     role === 'CLIENT' ||
+    role === 'TERRITORIAL_MANAGER' ||
     role === 'TECHNICIAN'
   )
 }
 
 function canViewAnalytics(role?: api.Role) {
-  return role !== 'CLIENT'
+  return (
+    role === 'ADMIN' ||
+    role === 'MASTER' ||
+    role === 'DISPATCHER' ||
+    role === 'NETWORK_DIRECTOR' ||
+    role === 'TECHNICIAN' ||
+    role === 'PLATFORM_ADMIN'
+  )
 }
 
 function canRunBulkOperationalActions(role?: api.Role) {

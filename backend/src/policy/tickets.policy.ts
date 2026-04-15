@@ -53,7 +53,7 @@ function normalizeAnd(where: Prisma.TicketWhereInput, extra: Prisma.TicketWhereI
 }
 
 function baseReadScope(user: UserCtx): Prisma.TicketWhereInput {
-  if (user.role === UserRole.CLIENT) {
+  if (user.role === UserRole.CLIENT || user.role === UserRole.TERRITORIAL_MANAGER) {
     return { companyId: user.companyId };
   }
 

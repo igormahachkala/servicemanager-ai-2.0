@@ -401,7 +401,7 @@ export class TicketsQueryService {
             !observerCompanyId && !linkedClientCompanyId && (role === UserRole.CLIENT || role === UserRole.ADMIN)
               ? companyId
               : scope.scopeCompanyId
-          const policyDecision = this.policy.boardWhere({ id: userId, role, companyId: ownTenantScopeCompanyId, accessFlags }, {})
+          const policyDecision = this.policy.listWhere({ id: userId, role, companyId: ownTenantScopeCompanyId, accessFlags })
           assertAllowed(policyDecision)
           return policyDecision.where
         })()

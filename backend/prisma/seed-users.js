@@ -6,13 +6,13 @@ const prisma = new PrismaClient();
 const DEMO_COMPANY_ID = '00000000-0000-0000-0000-000000000001';
 const DEMO_COMPANY_NAME = 'Demo Company';
 const DEFAULT_PASSWORD = 'Test1234!';
-const CLIENT_REQUIRED_PERMISSIONS = [
+const CLIENT_LIKE_REQUIRED_PERMISSIONS = [
   { code: 'TICKETS_CREATE', name: 'Create tickets', description: 'Create tickets and child tickets' },
   { code: 'TICKETS_VIEW', name: 'View tickets', description: 'View tickets list and single ticket' },
 ];
 
 async function main() {
-  for (const block of CLIENT_REQUIRED_PERMISSIONS) {
+  for (const block of CLIENT_LIKE_REQUIRED_PERMISSIONS) {
     await prisma.permissionBlock.upsert({
       where: { code: block.code },
       update: {
@@ -27,25 +27,27 @@ async function main() {
     });
   }
 
-  const clientPermissionBlocks = await prisma.permissionBlock.findMany({
-    where: { code: { in: CLIENT_REQUIRED_PERMISSIONS.map((item) => item.code) } },
+  const clientLikePermissionBlocks = await prisma.permissionBlock.findMany({
+    where: { code: { in: CLIENT_LIKE_REQUIRED_PERMISSIONS.map((item) => item.code) } },
     select: { id: true, code: true },
   });
 
-  for (const block of clientPermissionBlocks) {
-    await prisma.rolePermission.upsert({
-      where: {
-        role_permissionBlockId: {
-          role: UserRole.CLIENT,
+  for (const role of [UserRole.CLIENT, UserRole.TERRITORIAL_MANAGER]) {
+    for (const block of clientLikePermissionBlocks) {
+      await prisma.rolePermission.upsert({
+        where: {
+          role_permissionBlockId: {
+            role,
+            permissionBlockId: block.id,
+          },
+        },
+        update: {},
+        create: {
+          role,
           permissionBlockId: block.id,
         },
-      },
-      update: {},
-      create: {
-        role: UserRole.CLIENT,
-        permissionBlockId: block.id,
-      },
-    });
+      });
+    }
   }
 
   const company = await prisma.company.upsert({
