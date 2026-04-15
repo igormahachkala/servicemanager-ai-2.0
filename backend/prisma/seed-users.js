@@ -32,17 +32,18 @@ async function main() {
     select: { id: true, code: true },
   });
 
-  for (const role of [UserRole.CLIENT, UserRole.TERRITORIAL_MANAGER, UserRole.NETWORK_DIRECTOR]) {
+  const clientLikeRoles = [UserRole.CLIENT, UserRole.TERRITORIAL_MANAGER, UserRole.NETWORK_DIRECTOR];
+
+  await prisma.rolePermission.deleteMany({
+    where: {
+      role: { in: clientLikeRoles },
+    },
+  });
+
+  for (const role of clientLikeRoles) {
     for (const block of clientLikePermissionBlocks) {
-      await prisma.rolePermission.upsert({
-        where: {
-          role_permissionBlockId: {
-            role,
-            permissionBlockId: block.id,
-          },
-        },
-        update: {},
-        create: {
+      await prisma.rolePermission.create({
+        data: {
           role,
           permissionBlockId: block.id,
         },
