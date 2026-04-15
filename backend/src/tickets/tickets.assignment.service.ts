@@ -21,7 +21,6 @@ import { buildTicketDescription } from './ticket-description.builder';
 import { resolveTechnicianOperationalScope, resolveTicketOperationAccess } from './ticket-access.utils';
 import { ServiceContractsService } from '../service-contracts/service-contracts.service';
 import { TechniciansService } from '../technicians/technicians.service';
-import { isLocationAllowedByScope, resolveUserLocationScope } from '../policy/location-scope.utils';
 
 @Injectable()
 export class TicketsAssignmentService {
@@ -60,25 +59,6 @@ export class TicketsAssignmentService {
     }
     if (actorCompany.type === 'CLIENT') {
       throw new ForbiddenException('Client company cannot perform executor operations');
-    }
-  }
-
-  private async assertLocationScopeAccess(
-    actorCompanyId: string,
-    actorUserId: string,
-    actorRole: UserRole,
-    locationId: string,
-    scopeCompanyId?: string,
-  ) {
-    const locationScope = await resolveUserLocationScope({
-      prisma: this.prisma,
-      actorCompanyId,
-      userId: actorUserId,
-      role: actorRole,
-      scopeCompanyId,
-    });
-    if (!isLocationAllowedByScope(locationScope, locationId)) {
-      throw new ForbiddenException('Location is outside of your access scope');
     }
   }
 
@@ -328,7 +308,6 @@ export class TicketsAssignmentService {
     }
     const assignmentCompanyId =
       creatorRole === UserRole.TECHNICIAN && targetCompanyId !== actorCompanyId ? actorCompanyId : targetCompanyId;
-    await this.assertLocationScopeAccess(actorCompanyId, creatorUserId, creatorRole, input.locationId, targetCompanyId);
     const company = await this.getCompany(targetCompanyId);
     const category = await this.getCategory(targetCompanyId, input.categoryId);
     const location = await this.getLocation(targetCompanyId, input.locationId);
@@ -867,15 +846,8 @@ export class TicketsAssignmentService {
     });
 
     if (!isClientActor) {
-      const canEditByRole =
-        actorRole === UserRole.ADMIN ||
-        actorRole === UserRole.MASTER ||
-        actorRole === UserRole.DISPATCHER ||
-        actorRole === UserRole.NETWORK_DIRECTOR ||
-        actorRole === UserRole.TERRITORIAL_MANAGER;
-      if (!canEditByRole) {
-        throw new ForbiddenException('Role cannot edit tickets');
-      }
+      const decision = this.policy.canAssign({ role: actorRole as UserRole });
+      assertAllowed(decision);
     } else {
       if (linkedClientCompanyId) {
         throw new ForbiddenException('Client cannot edit ticket in linked-client scope');
@@ -957,13 +929,6 @@ export class TicketsAssignmentService {
       }
 
       if (normalizedLocationId) {
-        await this.assertLocationScopeAccess(
-          companyId,
-          actor?.id,
-          actorRole,
-          normalizedLocationId,
-          access.ticket.companyId,
-        );
         const location = await tx.location.findFirst({
           where: {
             id: normalizedLocationId,
@@ -979,13 +944,6 @@ export class TicketsAssignmentService {
       }
 
       const effectiveLocationId = normalizedLocationId || ticket.locationId;
-      await this.assertLocationScopeAccess(
-        companyId,
-        actor?.id,
-        actorRole,
-        effectiveLocationId,
-        access.ticket.companyId,
-      );
       if (normalizedEquipmentId && normalizedEquipmentId !== ticket.equipmentId) {
         const equipment = await tx.equipment.findFirst({
           where: {

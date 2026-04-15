@@ -17,34 +17,34 @@ export class AnalyticsController {
   constructor(private readonly svc: AnalyticsService) {}
 
   @Get('categories')
-  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TERRITORIAL_MANAGER, UserRole.PLATFORM_ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.PLATFORM_ADMIN)
   @RequirePermission(PERMISSIONS.ANALYTICS_VIEW)
   categories(@Req() req: any) {
-    return this.svc.getCategoriesAnalytics(req.user.companyId, req.user.id, req.user.role as UserRole)
+    return this.svc.getCategoriesAnalytics(req.user.companyId)
   }
 
   @Get('specializations')
-  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TERRITORIAL_MANAGER, UserRole.PLATFORM_ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.PLATFORM_ADMIN)
   @RequirePermission(PERMISSIONS.ANALYTICS_VIEW)
   specializations(@Req() req: any) {
-    return this.svc.getSpecializationsAnalytics(req.user.companyId, req.user.id, req.user.role as UserRole)
+    return this.svc.getSpecializationsAnalytics(req.user.companyId)
   }
 
   @Get('workload')
-  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TERRITORIAL_MANAGER, UserRole.PLATFORM_ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.PLATFORM_ADMIN)
   @RequirePermission(PERMISSIONS.ANALYTICS_VIEW)
   workload(@Req() req: any) {
-    return this.svc.getWorkloadAnalytics(req.user.companyId, req.user.id, req.user.role as UserRole)
+    return this.svc.getWorkloadAnalytics(req.user.companyId)
   }
 
   @Get('overview')
-  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TERRITORIAL_MANAGER, UserRole.PLATFORM_ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.PLATFORM_ADMIN)
   @RequirePermission(PERMISSIONS.ANALYTICS_VIEW)
   overview(
     @Req() req: any,
     @Query('linkedClientCompanyId') linkedClientCompanyId?: string,
     @Query('companyId') companyId?: string,
   ) {
-    return this.svc.overview(req.user.companyId, req.user.id, req.user.role as UserRole, companyId, linkedClientCompanyId)
+    return this.svc.overview(req.user.companyId, req.user.role as UserRole, companyId, linkedClientCompanyId)
   }
 }

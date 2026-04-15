@@ -193,7 +193,7 @@ export class CompanyService {
         lastName,
         avatarUrl: null,
       }),
-      select: UsersPolicy.selectPublicUser(companyId),
+      select: UsersPolicy.selectPublicUser(),
     })
 
     return {

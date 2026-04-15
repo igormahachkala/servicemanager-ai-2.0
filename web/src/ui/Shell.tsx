@@ -73,8 +73,6 @@ function canSeeCreateTicket(role?: api.Role) {
     role === 'ADMIN' ||
     role === 'MASTER' ||
     role === 'DISPATCHER' ||
-    role === 'NETWORK_DIRECTOR' ||
-    role === 'TERRITORIAL_MANAGER' ||
     role === 'CLIENT' ||
     role === 'TECHNICIAN'
   )

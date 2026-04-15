@@ -37,7 +37,7 @@ export class EquipmentController {
   )
   @RequirePermission(PERMISSIONS.LOCATIONS_VIEW)
   findAllByLocation(@Req() req: any, @Param('locationId') locationId: string) {
-    return this.svc.findAllByLocation(req.user.companyId, req.user.id, req.user.role as UserRole, locationId);
+    return this.svc.findAllByLocation(req.user.companyId, locationId);
   }
 
   @Get(':id')
@@ -52,7 +52,7 @@ export class EquipmentController {
   )
   @RequirePermission(PERMISSIONS.LOCATIONS_VIEW)
   findOne(@Req() req: any, @Param('id') id: string) {
-    return this.svc.findOne(req.user.companyId, req.user.id, req.user.role as UserRole, id);
+    return this.svc.findOne(req.user.companyId, id);
   }
 
   @Patch(':id')

@@ -5,7 +5,6 @@ import { assertAllowed, isPlatformObserverScope, resolveObserverScopeCompanyId }
 import { TicketsPolicy, type UserCtx } from '../policy/tickets.policy'
 import { PrismaService } from '../prisma/prisma.service'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
-import { isLocationAllowedByScope, resolveUserLocationScope } from '../policy/location-scope.utils'
 
 type AccessFlags = {
   canTechnicianViewAllCompanyTickets?: boolean
@@ -210,21 +209,10 @@ export async function resolveReadableTicketAccess(params: {
       id: true,
       companyId: true,
       assignedTechnicianId: true,
-      locationId: true,
     },
   })
 
   if (tenantTicket && canAccessOwnTicket(params.actor, tenantTicket)) {
-    const locationScope = await resolveUserLocationScope({
-      prisma: params.prisma,
-      actorCompanyId: params.actor.companyId,
-      userId: params.actor.id,
-      role: params.actor.role,
-      scopeCompanyId: tenantTicket.companyId,
-    })
-    if (!isLocationAllowedByScope(locationScope, tenantTicket.locationId)) {
-      throw new NotFoundException('Ticket not found')
-    }
     return {
       ticket: tenantTicket,
       scopeCompanyId: tenantTicket.companyId,

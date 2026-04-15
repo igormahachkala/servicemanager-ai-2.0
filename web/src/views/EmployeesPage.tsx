@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+﻿import { useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
@@ -15,7 +15,6 @@ const emptyCreateForm: EmployeeFormValue = {
   role: 'TECHNICIAN',
   isActive: true,
   specializationIds: [],
-  locationIds: [],
 }
 
 const emptyEditForm: EmployeeFormValue = {
@@ -27,7 +26,6 @@ const emptyEditForm: EmployeeFormValue = {
   role: 'TECHNICIAN',
   isActive: true,
   specializationIds: [],
-  locationIds: [],
 }
 
 function normalizeEmail(email: string) {
@@ -58,12 +56,6 @@ function validateCreateForm(value: EmployeeFormValue) {
   if (!normalizeEmail(value.email)) return 'Email обязателен'
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(value.email))) return 'Некорректный формат email'
   if (value.password.trim().length < 8) return 'Пароль должен содержать минимум 8 символов'
-  if ((value.role === 'CLIENT' || value.role === 'NETWORK_DIRECTOR') && value.locationIds.length !== 1) {
-    return `${value.role} должен быть привязан ровно к одной точке`
-  }
-  if (value.role === 'TERRITORIAL_MANAGER' && value.locationIds.length < 1) {
-    return 'TERRITORIAL_MANAGER должен быть привязан минимум к одной точке'
-  }
   return validateUrl(value.avatarUrl)
 }
 
@@ -71,12 +63,6 @@ function validateEditForm(value: EmployeeFormValue) {
   if (!normalizeEmail(value.email)) return 'Email обязателен'
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(value.email))) return 'Некорректный формат email'
   if (value.password.trim() && value.password.trim().length < 8) return 'Пароль должен содержать минимум 8 символов'
-  if ((value.role === 'CLIENT' || value.role === 'NETWORK_DIRECTOR') && value.locationIds.length !== 1) {
-    return `${value.role} должен быть привязан ровно к одной точке`
-  }
-  if (value.role === 'TERRITORIAL_MANAGER' && value.locationIds.length < 1) {
-    return 'TERRITORIAL_MANAGER должен быть привязан минимум к одной точке'
-  }
   return validateUrl(value.avatarUrl)
 }
 
@@ -103,19 +89,6 @@ export function EmployeesPage() {
 
   const usersQ = useQuery({ queryKey: ['users', observerCompanyId], queryFn: () => api.users(observerCompanyId || undefined) })
   const specsQ = useQuery({ queryKey: ['specializations'], queryFn: api.specializations, enabled: !isObserverMode })
-  const locationsQ = useQuery({ queryKey: ['locations', 'employees'], queryFn: () => api.locations(), enabled: !isObserverMode })
-  const allowedRoles = useMemo<api.Role[]>(() => {
-    if (meQ.data?.role === 'NETWORK_DIRECTOR') return ['CLIENT']
-    if (meQ.data?.role === 'TERRITORIAL_MANAGER') return ['CLIENT', 'NETWORK_DIRECTOR']
-    return ['ADMIN', 'DISPATCHER', 'MASTER', 'TECHNICIAN', 'CLIENT', 'TERRITORIAL_MANAGER', 'NETWORK_DIRECTOR', 'STAFF']
-  }, [meQ.data?.role])
-
-  useEffect(() => {
-    if (!allowedRoles.length) return
-    if (!allowedRoles.includes(createValue.role)) {
-      patchCreate({ role: allowedRoles[0], specializationIds: [], locationIds: [] })
-    }
-  }, [allowedRoles, createValue.role])
 
   const activeSpecializations = useMemo(
     () => (specsQ.data || []).filter((item) => item.isActive !== false),
@@ -142,7 +115,6 @@ export function EmployeesPage() {
         email: normalizeEmail(value.email),
         password: value.password.trim(),
         role: value.role,
-        locationIds: value.locationIds,
       })
 
       if (value.role === 'TECHNICIAN') {
@@ -173,7 +145,6 @@ export function EmployeesPage() {
         password: params.value.password.trim() || undefined,
         role: params.value.role,
         isActive: params.value.isActive,
-        locationIds: params.value.locationIds,
       })
 
       if (params.value.role === 'TECHNICIAN') {
@@ -217,9 +188,6 @@ export function EmployeesPage() {
     setCreateValue((current) => {
       const next = { ...current, ...patch }
       if (next.role !== 'TECHNICIAN') next.specializationIds = []
-      if (next.role !== 'CLIENT' && next.role !== 'NETWORK_DIRECTOR' && next.role !== 'TERRITORIAL_MANAGER') {
-        next.locationIds = []
-      }
       return next
     })
   }
@@ -228,9 +196,6 @@ export function EmployeesPage() {
     setEditValue((current) => {
       const next = { ...current, ...patch }
       if (next.role !== 'TECHNICIAN') next.specializationIds = []
-      if (next.role !== 'CLIENT' && next.role !== 'NETWORK_DIRECTOR' && next.role !== 'TERRITORIAL_MANAGER') {
-        next.locationIds = []
-      }
       return next
     })
   }
@@ -251,30 +216,6 @@ export function EmployeesPage() {
     })
   }
 
-  function toggleLocationSelection(value: EmployeeFormValue, locationId: string): string[] {
-    if (value.role === 'CLIENT' || value.role === 'NETWORK_DIRECTOR') {
-      return value.locationIds.includes(locationId) ? [] : [locationId]
-    }
-    if (value.role === 'TERRITORIAL_MANAGER') {
-      return value.locationIds.includes(locationId)
-        ? value.locationIds.filter((id) => id !== locationId)
-        : [...value.locationIds, locationId]
-    }
-    return []
-  }
-
-  function toggleCreateLocation(locationId: string) {
-    patchCreate({
-      locationIds: toggleLocationSelection(createValue, locationId),
-    })
-  }
-
-  function toggleEditLocation(locationId: string) {
-    patchEdit({
-      locationIds: toggleLocationSelection(editValue, locationId),
-    })
-  }
-
   function beginEdit(user: api.UserListItem) {
     if (isObserverMode) return
     setErr(null)
@@ -289,7 +230,6 @@ export function EmployeesPage() {
       role: user.role,
       isActive: user.isActive !== false,
       specializationIds: (user.technicianSpecializations || []).map((item) => item.specialization.id),
-      locationIds: (user.locationBindings || []).map((item) => item.locationId),
     })
   }
 
@@ -385,7 +325,6 @@ export function EmployeesPage() {
       {usersQ.isError ? <div className="alert">{(usersQ.error as any)?.message || String(usersQ.error)}</div> : null}
       {observerCompanyQ.isError ? <div className="alert">{(observerCompanyQ.error as any)?.message || String(observerCompanyQ.error)}</div> : null}
       {!isObserverMode && specsQ.isError ? <div className="alert">{(specsQ.error as any)?.message || String(specsQ.error)}</div> : null}
-      {!isObserverMode && locationsQ.isError ? <div className="alert">{(locationsQ.error as any)?.message || String(locationsQ.error)}</div> : null}
 
       <div className="grid2" style={{ gridTemplateColumns: '1fr 1.4fr' }}>
         <div className="panel">
@@ -397,13 +336,10 @@ export function EmployeesPage() {
               submitLabel="Создать сотрудника"
               value={createValue}
               activeSpecializations={activeSpecializations}
-              activeLocations={locationsQ.data || []}
-              allowedRoles={allowedRoles}
               submitting={createM.isPending}
               passwordRequired
               onChange={patchCreate}
               onToggleSpecialization={toggleCreateSpecialization}
-              onToggleLocation={toggleCreateLocation}
               onSubmit={submitCreate}
             />
           )}
@@ -419,8 +355,6 @@ export function EmployeesPage() {
               currentUserId={meQ.data?.id || null}
               activeAdminCount={activeAdminCount}
               activeSpecializations={activeSpecializations}
-              activeLocations={locationsQ.data || []}
-              allowedRoles={allowedRoles}
               editingUserId={editingUserId}
               editingValue={editValue}
               busy={busy || isObserverMode}
@@ -428,7 +362,6 @@ export function EmployeesPage() {
               onCancelEdit={cancelEdit}
               onEditChange={patchEdit}
               onToggleEditSpecialization={toggleEditSpecialization}
-              onToggleEditLocation={toggleEditLocation}
               onSubmitEdit={submitEdit}
               onToggleActive={toggleActive}
             />
