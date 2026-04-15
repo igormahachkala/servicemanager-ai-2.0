@@ -39,7 +39,7 @@ export class TicketsController {
   constructor(private readonly svc: TicketsService) {}
 
   @Post()
-  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.CLIENT, UserRole.TECHNICIAN)
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.CLIENT, UserRole.TERRITORIAL_MANAGER, UserRole.TECHNICIAN)
   @RequirePermission(PERMISSIONS.TICKETS_CREATE)
   create(@Req() req: any, @Body() dto: CreateTicketDto) {
     return this.svc.create(req.user.companyId, { id: req.user.id, role: req.user.role as UserRole }, dto)
@@ -75,6 +75,7 @@ export class TicketsController {
     UserRole.NETWORK_DIRECTOR,
     UserRole.TECHNICIAN,
     UserRole.CLIENT,
+    UserRole.TERRITORIAL_MANAGER,
     UserRole.PLATFORM_ADMIN,
   )
   @RequirePermission(PERMISSIONS.TICKETS_VIEW)

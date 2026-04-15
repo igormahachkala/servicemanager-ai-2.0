@@ -32,7 +32,7 @@ async function main() {
     select: { id: true, code: true },
   });
 
-  for (const role of [UserRole.CLIENT, UserRole.TERRITORIAL_MANAGER]) {
+  for (const role of [UserRole.CLIENT, UserRole.TERRITORIAL_MANAGER, UserRole.NETWORK_DIRECTOR]) {
     for (const block of clientLikePermissionBlocks) {
       await prisma.rolePermission.upsert({
         where: {

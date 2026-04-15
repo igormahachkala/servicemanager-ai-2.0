@@ -107,6 +107,7 @@ function canCreateTickets(role?: api.Role) {
     role === 'ADMIN' ||
     role === 'MASTER' ||
     role === 'DISPATCHER' ||
+    role === 'NETWORK_DIRECTOR' ||
     role === 'CLIENT' ||
     role === 'TERRITORIAL_MANAGER' ||
     role === 'TECHNICIAN'
@@ -193,7 +194,8 @@ export function BoardPage() {
   })
 
   const isProviderCompany = !observerCompanyId && ownCompanyQ.data?.type === 'PROVIDER'
-  const canShowLinkedClients = isProviderCompany && isProviderBoardRole(meQ.data?.role)
+  const isTerritorialManager = meQ.data?.role === 'TERRITORIAL_MANAGER'
+  const canShowLinkedClients = !isTerritorialManager && isProviderCompany && isProviderBoardRole(meQ.data?.role)
 
   const linkedClientsQ = useQuery({
     queryKey: ['linked-clients'],
@@ -931,7 +933,11 @@ export function BoardPage() {
           ))
         ) : (
           <div className="panel" style={{ gridColumn: '1 / -1' }}>
-            <div className="muted small">Доска откроется после выбора доступного linked client.</div>
+            <div className="muted small">
+              {canShowLinkedClients
+                ? 'Доска откроется после выбора доступного linked client.'
+                : 'Не удалось загрузить доску. Проверьте права доступа и попробуйте обновить страницу.'}
+            </div>
           </div>
         )}
       </div>
