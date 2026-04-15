@@ -91,7 +91,10 @@ export class TicketsPolicy {
     const atRiskThresholdMinutes = 60;
     const limitedToLast = Math.min(Math.max(input.take ?? 500, 1), 500);
 
-    let where: Prisma.TicketWhereInput = baseReadScope(user);
+    let where: Prisma.TicketWhereInput =
+      user.role === UserRole.CLIENT
+        ? { companyId: user.companyId }
+        : baseReadScope(user);
 
     const extraAnd: Prisma.TicketWhereInput[] = [];
 
