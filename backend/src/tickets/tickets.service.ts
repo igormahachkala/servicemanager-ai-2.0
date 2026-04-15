@@ -16,6 +16,24 @@ type AccessFlags = {
   canTechnicianViewAllCompanyTickets?: boolean
 }
 
+function scopeForClient(
+  role: UserRole,
+  linkedClientCompanyId?: string,
+  observerCompanyId?: string,
+) {
+  if (role !== UserRole.CLIENT) {
+    return {
+      linkedClientCompanyId,
+      observerCompanyId,
+    }
+  }
+
+  return {
+    linkedClientCompanyId: undefined,
+    observerCompanyId: undefined,
+  }
+}
+
 @Injectable()
 export class TicketsService {
   constructor(
@@ -68,7 +86,16 @@ export class TicketsService {
     linkedClientCompanyId?: string,
     observerCompanyId?: string,
   ) {
-    return this.query.board(companyId, userId, role, input, accessFlags, linkedClientCompanyId, observerCompanyId)
+    const scope = scopeForClient(role, linkedClientCompanyId, observerCompanyId)
+    return this.query.board(
+      companyId,
+      userId,
+      role,
+      input,
+      accessFlags,
+      scope.linkedClientCompanyId,
+      scope.observerCompanyId,
+    )
   }
 
   contextAnalytics(
@@ -81,13 +108,14 @@ export class TicketsService {
     locationId?: string,
     equipmentId?: string,
   ) {
+    const scope = scopeForClient(role, linkedClientCompanyId, observerCompanyId)
     return this.query.contextAnalytics(
       companyId,
       userId,
       role,
       accessFlags,
-      linkedClientCompanyId,
-      observerCompanyId,
+      scope.linkedClientCompanyId,
+      scope.observerCompanyId,
       locationId,
       equipmentId,
     )
@@ -102,7 +130,16 @@ export class TicketsService {
     linkedClientCompanyId?: string,
     observerCompanyId?: string,
   ) {
-    return this.query.list(companyId, userId, role, status, accessFlags, linkedClientCompanyId, observerCompanyId)
+    const scope = scopeForClient(role, linkedClientCompanyId, observerCompanyId)
+    return this.query.list(
+      companyId,
+      userId,
+      role,
+      status,
+      accessFlags,
+      scope.linkedClientCompanyId,
+      scope.observerCompanyId,
+    )
   }
 
   getOne(
@@ -114,7 +151,16 @@ export class TicketsService {
     observerCompanyId?: string,
     linkedClientCompanyId?: string,
   ) {
-    return this.query.getOne(companyId, userId, role, ticketId, accessFlags, observerCompanyId, linkedClientCompanyId)
+    const scope = scopeForClient(role, linkedClientCompanyId, observerCompanyId)
+    return this.query.getOne(
+      companyId,
+      userId,
+      role,
+      ticketId,
+      accessFlags,
+      scope.observerCompanyId,
+      scope.linkedClientCompanyId,
+    )
   }
 
   listAttachments(
@@ -126,11 +172,12 @@ export class TicketsService {
     linkedClientCompanyId?: string,
     observerCompanyId?: string,
   ) {
+    const scope = scopeForClient(role, linkedClientCompanyId, observerCompanyId)
     return this.attachments.listForTicket(
       { id: userId, role, companyId, accessFlags },
       ticketId,
-      linkedClientCompanyId,
-      observerCompanyId,
+      scope.linkedClientCompanyId,
+      scope.observerCompanyId,
     )
   }
 
