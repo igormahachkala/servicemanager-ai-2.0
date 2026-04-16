@@ -10,6 +10,9 @@ const CLIENT_LIKE_REQUIRED_PERMISSIONS = [
   { code: 'TICKETS_CREATE', name: 'Create tickets', description: 'Create tickets and child tickets' },
   { code: 'TICKETS_VIEW', name: 'View tickets', description: 'View tickets list and single ticket' },
 ];
+const CLIENT_CREATE_SUPPORT_PERMISSIONS = [
+  { code: 'LOCATIONS_VIEW', name: 'View locations', description: 'View locations, categories, and equipment for ticket creation' },
+];
 
 async function main() {
   for (const block of CLIENT_LIKE_REQUIRED_PERMISSIONS) {
@@ -27,8 +30,28 @@ async function main() {
     });
   }
 
+  for (const block of CLIENT_CREATE_SUPPORT_PERMISSIONS) {
+    await prisma.permissionBlock.upsert({
+      where: { code: block.code },
+      update: {
+        name: block.name,
+        description: block.description,
+      },
+      create: {
+        code: block.code,
+        name: block.name,
+        description: block.description,
+      },
+    });
+  }
+
   const clientLikePermissionBlocks = await prisma.permissionBlock.findMany({
     where: { code: { in: CLIENT_LIKE_REQUIRED_PERMISSIONS.map((item) => item.code) } },
+    select: { id: true, code: true },
+  });
+
+  const clientCreateSupportPermissionBlocks = await prisma.permissionBlock.findMany({
+    where: { code: { in: CLIENT_CREATE_SUPPORT_PERMISSIONS.map((item) => item.code) } },
     select: { id: true, code: true },
   });
 
@@ -49,6 +72,15 @@ async function main() {
         },
       });
     }
+  }
+
+  for (const block of clientCreateSupportPermissionBlocks) {
+    await prisma.rolePermission.create({
+      data: {
+        role: UserRole.CLIENT,
+        permissionBlockId: block.id,
+      },
+    });
   }
 
   const company = await prisma.company.upsert({
@@ -114,3 +146,7 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
+
+
+
+
