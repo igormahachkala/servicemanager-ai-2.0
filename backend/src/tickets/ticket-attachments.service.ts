@@ -97,10 +97,14 @@ export class TicketAttachmentsService {
       observerCompanyId,
     )
 
+    const candidateCompanyIds = Array.from(new Set([ticketCompanyId, user.companyId].filter(Boolean)))
+
     return this.prisma.ticketAttachment.findMany({
       where: {
-        companyId: ticketCompanyId,
         ticketId,
+        ...(candidateCompanyIds.length === 1
+          ? { companyId: candidateCompanyIds[0] }
+          : { companyId: { in: candidateCompanyIds } }),
       },
       select: this.attachmentSelect(),
       orderBy: { createdAt: 'asc' },
