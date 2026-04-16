@@ -1,21 +1,50 @@
 const { PrismaClient, UserRole } = require('@prisma/client');
 const bcrypt = require('bcrypt');
+const { readFileSync } = require('fs');
+const { join } = require('path');
 
 const prisma = new PrismaClient();
 
 const DEMO_COMPANY_ID = '00000000-0000-0000-0000-000000000001';
 const DEMO_COMPANY_NAME = 'Demo Company';
 const DEFAULT_PASSWORD = 'Test1234!';
+
+function loadPermissionCodes() {
+  const source = readFileSync(join(__dirname, '../src/common/permissions.constants.ts'), 'utf8');
+  const entries = Array.from(source.matchAll(/([A-Z_]+):\s*'([^']+)'/g), ([, key, value]) => [key, value]);
+  const permissions = Object.fromEntries(entries);
+
+  for (const key of ['TICKETS_CREATE', 'TICKETS_VIEW', 'LOCATIONS_VIEW']) {
+    if (!permissions[key]) {
+      throw new Error(`[seed-users] failed to resolve permission code ${key} from permissions.constants.ts`);
+    }
+  }
+
+  return permissions;
+}
+
+const PERMISSIONS = loadPermissionCodes();
+
 const CLIENT_LIKE_REQUIRED_PERMISSIONS = [
-  { code: 'TICKETS_CREATE', name: 'Create tickets', description: 'Create tickets and child tickets' },
-  { code: 'TICKETS_VIEW', name: 'View tickets', description: 'View tickets list and single ticket' },
+  { code: PERMISSIONS.TICKETS_CREATE, name: 'Create tickets', description: 'Create tickets and child tickets' },
+  { code: PERMISSIONS.TICKETS_VIEW, name: 'View tickets', description: 'View tickets list and single ticket' },
 ];
+
 const CLIENT_CREATE_SUPPORT_PERMISSIONS = [
-  { code: 'LOCATIONS_VIEW', name: 'View locations', description: 'View locations, categories, and equipment for ticket creation' },
+  {
+    code: PERMISSIONS.LOCATIONS_VIEW,
+    name: 'View locations',
+    description: 'View locations, categories, and equipment for ticket creation',
+  },
+];
+
+const ALL_CLIENT_LIKE_PERMISSIONS = [
+  ...CLIENT_LIKE_REQUIRED_PERMISSIONS,
+  ...CLIENT_CREATE_SUPPORT_PERMISSIONS,
 ];
 
 async function main() {
-  for (const block of CLIENT_LIKE_REQUIRED_PERMISSIONS) {
+  for (const block of ALL_CLIENT_LIKE_PERMISSIONS) {
     await prisma.permissionBlock.upsert({
       where: { code: block.code },
       update: {
@@ -30,31 +59,12 @@ async function main() {
     });
   }
 
-  for (const block of CLIENT_CREATE_SUPPORT_PERMISSIONS) {
-    await prisma.permissionBlock.upsert({
-      where: { code: block.code },
-      update: {
-        name: block.name,
-        description: block.description,
-      },
-      create: {
-        code: block.code,
-        name: block.name,
-        description: block.description,
-      },
-    });
-  }
-
-  const clientLikePermissionBlocks = await prisma.permissionBlock.findMany({
-    where: { code: { in: CLIENT_LIKE_REQUIRED_PERMISSIONS.map((item) => item.code) } },
+  const permissionBlocks = await prisma.permissionBlock.findMany({
+    where: { code: { in: ALL_CLIENT_LIKE_PERMISSIONS.map((item) => item.code) } },
     select: { id: true, code: true },
   });
 
-  const clientCreateSupportPermissionBlocks = await prisma.permissionBlock.findMany({
-    where: { code: { in: CLIENT_CREATE_SUPPORT_PERMISSIONS.map((item) => item.code) } },
-    select: { id: true, code: true },
-  });
-
+  const permissionBlockByCode = new Map(permissionBlocks.map((block) => [block.code, block.id]));
   const clientLikeRoles = [UserRole.CLIENT, UserRole.TERRITORIAL_MANAGER, UserRole.NETWORK_DIRECTOR];
 
   await prisma.rolePermission.deleteMany({
@@ -64,23 +74,19 @@ async function main() {
   });
 
   for (const role of clientLikeRoles) {
-    for (const block of clientLikePermissionBlocks) {
+    for (const permission of ALL_CLIENT_LIKE_PERMISSIONS) {
+      const permissionBlockId = permissionBlockByCode.get(permission.code);
+      if (!permissionBlockId) {
+        throw new Error(`[seed-users] missing PermissionBlock for code ${permission.code}`);
+      }
+
       await prisma.rolePermission.create({
         data: {
           role,
-          permissionBlockId: block.id,
+          permissionBlockId,
         },
       });
     }
-  }
-
-  for (const block of clientCreateSupportPermissionBlocks) {
-    await prisma.rolePermission.create({
-      data: {
-        role: UserRole.CLIENT,
-        permissionBlockId: block.id,
-      },
-    });
   }
 
   const company = await prisma.company.upsert({
@@ -146,7 +152,3 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
-
-
-
-
