@@ -14,7 +14,7 @@ function loadPermissionCodes() {
   const entries = Array.from(source.matchAll(/([A-Z_]+):\s*'([^']+)'/g), ([, key, value]) => [key, value]);
   const permissions = Object.fromEntries(entries);
 
-  for (const key of ['TICKETS_CREATE', 'TICKETS_VIEW', 'LOCATIONS_VIEW']) {
+  for (const key of ['TICKETS_CREATE', 'TICKETS_VIEW', 'LOCATIONS_VIEW', 'TICKETS_EDIT']) {
     if (!permissions[key]) {
       throw new Error(`[seed-users] failed to resolve permission code ${key} from permissions.constants.ts`);
     }
@@ -25,12 +25,9 @@ function loadPermissionCodes() {
 
 const PERMISSIONS = loadPermissionCodes();
 
-const CLIENT_LIKE_REQUIRED_PERMISSIONS = [
+const CLIENT_LIKE_SHARED_PERMISSIONS = [
   { code: PERMISSIONS.TICKETS_CREATE, name: 'Create tickets', description: 'Create tickets and child tickets' },
   { code: PERMISSIONS.TICKETS_VIEW, name: 'View tickets', description: 'View tickets list and single ticket' },
-];
-
-const CLIENT_CREATE_SUPPORT_PERMISSIONS = [
   {
     code: PERMISSIONS.LOCATIONS_VIEW,
     name: 'View locations',
@@ -38,10 +35,19 @@ const CLIENT_CREATE_SUPPORT_PERMISSIONS = [
   },
 ];
 
-const ALL_CLIENT_LIKE_PERMISSIONS = [
-  ...CLIENT_LIKE_REQUIRED_PERMISSIONS,
-  ...CLIENT_CREATE_SUPPORT_PERMISSIONS,
-];
+const CLIENT_LIKE_ROLE_PERMISSIONS = new Map([
+  [UserRole.CLIENT, CLIENT_LIKE_SHARED_PERMISSIONS],
+  [UserRole.TERRITORIAL_MANAGER, [...CLIENT_LIKE_SHARED_PERMISSIONS, { code: PERMISSIONS.TICKETS_EDIT, name: 'Edit tickets', description: 'Edit ticket fields in current MVP flow' }]],
+  [UserRole.NETWORK_DIRECTOR, [...CLIENT_LIKE_SHARED_PERMISSIONS, { code: PERMISSIONS.TICKETS_EDIT, name: 'Edit tickets', description: 'Edit ticket fields in current MVP flow' }]],
+]);
+
+const ALL_CLIENT_LIKE_PERMISSIONS = Array.from(
+  new Map(
+    Array.from(CLIENT_LIKE_ROLE_PERMISSIONS.values())
+      .flat()
+      .map((permission) => [permission.code, permission]),
+  ).values(),
+);
 
 async function main() {
   for (const block of ALL_CLIENT_LIKE_PERMISSIONS) {
@@ -65,7 +71,7 @@ async function main() {
   });
 
   const permissionBlockByCode = new Map(permissionBlocks.map((block) => [block.code, block.id]));
-  const clientLikeRoles = [UserRole.CLIENT, UserRole.TERRITORIAL_MANAGER, UserRole.NETWORK_DIRECTOR];
+  const clientLikeRoles = Array.from(CLIENT_LIKE_ROLE_PERMISSIONS.keys());
 
   await prisma.rolePermission.deleteMany({
     where: {
@@ -74,7 +80,9 @@ async function main() {
   });
 
   for (const role of clientLikeRoles) {
-    for (const permission of ALL_CLIENT_LIKE_PERMISSIONS) {
+    const permissions = CLIENT_LIKE_ROLE_PERMISSIONS.get(role) ?? [];
+
+    for (const permission of permissions) {
       const permissionBlockId = permissionBlockByCode.get(permission.code);
       if (!permissionBlockId) {
         throw new Error(`[seed-users] missing PermissionBlock for code ${permission.code}`);

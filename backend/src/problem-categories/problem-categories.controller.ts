@@ -20,7 +20,15 @@ export class ProblemCategoriesController {
   constructor(private readonly svc: ProblemCategoriesService) {}
 
   @Get()
-  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.CLIENT, UserRole.TECHNICIAN)
+  @Roles(
+    UserRole.ADMIN,
+    UserRole.MASTER,
+    UserRole.DISPATCHER,
+    UserRole.NETWORK_DIRECTOR,
+    UserRole.TECHNICIAN,
+    UserRole.CLIENT,
+    UserRole.TERRITORIAL_MANAGER,
+  )
   @RequirePermission(PERMISSIONS.LOCATIONS_VIEW)
   list(@Req() req: any, @Query('companyId') companyId?: string) {
     return this.svc.list(req.user.companyId, req.user.role as UserRole, companyId)

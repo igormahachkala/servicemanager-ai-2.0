@@ -46,7 +46,7 @@ export class TicketsController {
   }
 
   @Post('attachments/upload')
-  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.CLIENT, UserRole.TECHNICIAN)
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.CLIENT, UserRole.TERRITORIAL_MANAGER, UserRole.TECHNICIAN)
   @RequirePermission(PERMISSIONS.LOCATIONS_VIEW)
   @UseInterceptors(FileInterceptor('file'))
   uploadDraftAttachment(@Req() req: any, @UploadedFile() file: any) {
@@ -54,7 +54,7 @@ export class TicketsController {
   }
 
   @Delete('attachments/:attachmentId')
-  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.CLIENT, UserRole.TECHNICIAN)
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.CLIENT, UserRole.TERRITORIAL_MANAGER, UserRole.TECHNICIAN)
   @RequirePermission(PERMISSIONS.LOCATIONS_VIEW)
   deleteDraftAttachment(@Req() req: any, @Param('attachmentId') attachmentId: string) {
     return this.svc.deleteDraftAttachment(req.user.companyId, attachmentId)
@@ -109,6 +109,7 @@ export class TicketsController {
     UserRole.NETWORK_DIRECTOR,
     UserRole.TECHNICIAN,
     UserRole.CLIENT,
+    UserRole.TERRITORIAL_MANAGER,
     UserRole.PLATFORM_ADMIN,
   )
   @RequirePermission(PERMISSIONS.TICKETS_VIEW)
@@ -139,6 +140,7 @@ export class TicketsController {
     UserRole.NETWORK_DIRECTOR,
     UserRole.TECHNICIAN,
     UserRole.CLIENT,
+    UserRole.TERRITORIAL_MANAGER,
     UserRole.PLATFORM_ADMIN,
   )
   @RequirePermission(PERMISSIONS.TICKETS_VIEW)
@@ -174,6 +176,7 @@ export class TicketsController {
     UserRole.NETWORK_DIRECTOR,
     UserRole.TECHNICIAN,
     UserRole.CLIENT,
+    UserRole.TERRITORIAL_MANAGER,
     UserRole.PLATFORM_ADMIN,
   )
   @RequirePermission(PERMISSIONS.TICKETS_VIEW)
@@ -202,6 +205,7 @@ export class TicketsController {
     UserRole.NETWORK_DIRECTOR,
     UserRole.TECHNICIAN,
     UserRole.CLIENT,
+    UserRole.TERRITORIAL_MANAGER,
     UserRole.PLATFORM_ADMIN,
   )
   @RequirePermission(PERMISSIONS.TICKETS_VIEW)
@@ -264,7 +268,7 @@ export class TicketsController {
   }
 
   @Patch(':id')
-  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.CLIENT)
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.CLIENT, UserRole.TERRITORIAL_MANAGER)
   @RequirePermission(PERMISSIONS.TICKETS_EDIT)
   update(
     @Req() req: any,

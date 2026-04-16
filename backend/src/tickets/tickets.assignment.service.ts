@@ -1,4 +1,4 @@
-﻿import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, PublicRequestType, TicketSource, TicketStatus, TicketUrgency, UserRole } from '@prisma/client';
 import { randomUUID } from 'crypto';
 
@@ -299,7 +299,12 @@ export class TicketsAssignmentService {
             input.locationId,
           )
         ).companyId;
-      } else if (creatorRole === UserRole.ADMIN || creatorRole === UserRole.MASTER || creatorRole === UserRole.DISPATCHER) {
+      } else if (
+        creatorRole === UserRole.ADMIN ||
+        creatorRole === UserRole.MASTER ||
+        creatorRole === UserRole.DISPATCHER ||
+        creatorRole === UserRole.NETWORK_DIRECTOR
+      ) {
         await this.serviceContractsService.assertPrimaryLinkedClientAccess(actorCompanyId, input.clientCompanyId);
         targetCompanyId = input.clientCompanyId;
       } else {
@@ -835,7 +840,7 @@ export class TicketsAssignmentService {
     }
 
     const actorRole = actor.role as UserRole;
-    const isClientActor = actorRole === UserRole.CLIENT;
+    const isClientLikeActor = actorRole === UserRole.CLIENT || actorRole === UserRole.TERRITORIAL_MANAGER;
     const access = await resolveTicketOperationAccess({
       prisma: this.prisma,
       serviceContractsService: this.serviceContractsService,
@@ -849,7 +854,7 @@ export class TicketsAssignmentService {
       linkedClientCompanyId,
     });
 
-    if (!isClientActor) {
+    if (!isClientLikeActor) {
       const decision = this.policy.canAssign({
         id: actor.id,
         role: actorRole as UserRole,
@@ -917,7 +922,7 @@ export class TicketsAssignmentService {
         throw new BadRequestException(`Ticket cannot be edited in status ${ticket.status}`);
       }
 
-      if (isClientActor && ticket.status !== TicketStatus.NEW) {
+      if (isClientLikeActor && ticket.status !== TicketStatus.NEW) {
         throw new ForbiddenException('Client can edit ticket fields only while ticket is NEW');
       }
 
@@ -1449,6 +1454,8 @@ export class TicketsAssignmentService {
     };
   }
 }
+
+
 
 
 
