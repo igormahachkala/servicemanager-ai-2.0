@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Put, Req, UseGuards } from '@nestjs/common'
+import { Body, Controller, Get, Param, Put, Query, Req, UseGuards } from '@nestjs/common'
 import { UserRole } from '@prisma/client'
 
 import { JwtAuthGuard } from '../auth/jwt.guard'
@@ -12,6 +12,7 @@ import { TechniciansService } from './technicians.service'
 import { TechniciansWorkloadService } from './technicians.workload.service'
 import { SetTechnicianSpecializationsDto } from './dto/set-technician-specializations.dto'
 import { SetTechnicianBindingsDto } from './dto/set-technician-bindings.dto'
+import { SetUserLocationBindingsDto } from './dto/set-user-location-bindings.dto'
 
 @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
 @Controller('technicians')
@@ -68,5 +69,27 @@ export class TechniciansController {
     @Body() dto: SetTechnicianBindingsDto,
   ) {
     return this.svc.setBindings(req.user.companyId, id, dto.bindings ?? [])
+  }
+
+  @Get(':id/location-bindings')
+  @Roles(UserRole.ADMIN)
+  @RequirePermission(PERMISSIONS.USERS_MANAGE)
+  getLocationBindings(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Query('companyId') companyId?: string,
+  ) {
+    return this.svc.getLocationBindings(req.user.companyId, id, companyId)
+  }
+
+  @Put(':id/location-bindings')
+  @Roles(UserRole.ADMIN)
+  @RequirePermission(PERMISSIONS.USERS_MANAGE)
+  setLocationBindings(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() dto: SetUserLocationBindingsDto,
+  ) {
+    return this.svc.setLocationBindings(req.user.companyId, id, dto)
   }
 }

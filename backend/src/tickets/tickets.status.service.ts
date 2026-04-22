@@ -101,26 +101,42 @@ export class TicketsStatusService {
       if (!wf.allowed) throw new BadRequestException(wf.reason);
 
       if (toStatus === TicketStatus.DONE) {
-        const [commentCount, photoCount] = await Promise.all([
-          tx.ticketStatusHistory.count({
-            where: {
-              ticketId,
-              comment: { not: null },
-            },
-          }),
+        const [photoCount, commentEventCount] = await Promise.all([
           tx.ticketAttachment.count({
             where: {
               ticketId,
               mimeType: { startsWith: 'image/' },
             },
           }),
+          tx.domainEvent.count({
+            where: {
+              companyId: ticket.companyId,
+              entityType: 'Ticket',
+              entityId: ticketId,
+              type: 'ticket.comment_added',
+            },
+          }),
         ]);
 
-        if (commentCount === 0) {
-          throw new BadRequestException('Cannot set DONE: add at least one comment first');
-        }
         if (photoCount === 0) {
-          throw new BadRequestException('Cannot set DONE: add at least one photo first');
+          throw new BadRequestException('Cannot complete ticket without at least 1 photo');
+        }
+
+        if (commentEventCount === 0) {
+          const legacyCommentCount = await tx.ticketStatusHistory.count({
+            where: {
+              ticketId,
+              NOT: [
+                { comment: null },
+                { comment: '' },
+                { comment: 'Ticket created' },
+              ],
+            },
+          });
+
+          if (legacyCommentCount === 0) {
+            throw new BadRequestException('Cannot complete ticket without at least 1 comment');
+          }
         }
       }
 

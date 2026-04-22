@@ -10,7 +10,7 @@ const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024
 const MANAGEMENT_ROLES: api.Role[] = ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR']
 const EDIT_ROLES: api.Role[] = ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR', 'CLIENT', 'TERRITORIAL_MANAGER']
 const STATUS_CHANGE_ROLES: api.Role[] = ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR', 'TECHNICIAN']
-const PHOTO_ROLES: api.Role[] = ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR', 'TECHNICIAN']
+const PHOTO_ROLES: api.Role[] = ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR', 'TECHNICIAN', 'CLIENT', 'TERRITORIAL_MANAGER']
 
 function fmt(dt?: string | null) {
   if (!dt) return '—'
@@ -211,6 +211,7 @@ export function TicketPage() {
   const [editRequesterPhone, setEditRequesterPhone] = useState('')
   const [editAddress, setEditAddress] = useState('')
   const [editPointName, setEditPointName] = useState('')
+  const [editComment, setEditComment] = useState('')
   const [newComment, setNewComment] = useState('')
 
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
@@ -295,6 +296,7 @@ export function TicketPage() {
     setEditRequesterPhone(t.requesterPhone || '')
     setEditAddress(t.address || '')
     setEditPointName(t.pointName || '')
+    setEditComment('')
   }, [ticketQ.data])
 
   useEffect(() => {
@@ -422,6 +424,7 @@ export function TicketPage() {
             requesterPhone: editRequesterPhone || null,
             address: editAddress || null,
             pointName: editPointName || null,
+            comment: editComment.trim() || undefined,
           },
           ticketScope,
         )
@@ -508,7 +511,7 @@ export function TicketPage() {
     if (contextMode === 'provider') return 'Режим подрядчика'
     return 'Контекст компании'
   }, [contextMode])
-  const timelineItems = timelineQ.data?.items || []
+  const timelineItems = timelineQ.data?.timeline || timelineQ.data?.items || []
   const hasAnyCommentEvidence = useMemo(
     () =>
       timelineItems.some((item) => {
@@ -576,11 +579,11 @@ export function TicketPage() {
         linkedClientCompanyId={linkedClientCompanyId}
         contextBadge={contextBadge}
         backToBoardHref={backToBoardHref}
-        canEditTicket={false}
+        canEditTicket={canEditTicket}
         editOpen={editOpen}
         onToggleEdit={() => setEditOpen((value) => !value)}
         role={role}
-        canClaim={false}
+        canClaim={canClaim}
         claimPending={claimM.isPending}
         meUserId={meQ.data?.id}
         onClaim={() => claimM.mutate()}
@@ -821,6 +824,10 @@ export function TicketPage() {
               Адрес
               <input value={editAddress} onChange={(e) => setEditAddress(e.target.value)} disabled={updateTicketM.isPending} />
             </label>
+            <label>
+              Комментарий
+              <textarea value={editComment} onChange={(e) => setEditComment(e.target.value)} rows={3} disabled={updateTicketM.isPending} />
+            </label>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button onClick={() => updateTicketM.mutate()} disabled={updateTicketM.isPending}>
                 {updateTicketM.isPending ? 'Сохраняем…' : 'Сохранить изменения'}
@@ -838,6 +845,7 @@ export function TicketPage() {
                   setEditRequesterPhone(ticket.requesterPhone || '')
                   setEditAddress(ticket.address || '')
                   setEditPointName(ticket.pointName || '')
+                  setEditComment('')
                   setEditOpen(false)
                   setUpdateError(null)
                 }}

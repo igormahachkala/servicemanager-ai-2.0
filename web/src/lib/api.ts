@@ -295,6 +295,13 @@ export type TechnicianBoundContext = {
   locations: LocationListItem[]
   categories: ProblemCategoryListItem[]
 }
+
+export type TechnicianLocationBindingsResponse = {
+  companyId: string
+  locationIds: string[]
+  hasExplicitRestrictions: boolean
+  availableLocations: LocationListItem[]
+}
 export type TechnicianWorkloadItem = {
   technicianId: string
   email: string
@@ -500,12 +507,14 @@ export type TimelineResponse = {
 }
 export type CreateTicketInput = {
   locationId: string
+  createMode?: 'quick' | 'full'
   equipmentId?: string | null
   categoryId: string
   urgency?: TicketUrgency
   clientCompanyId?: string | null
   title?: string | null
   description?: string | null
+  comment?: string | null
   attachmentIds?: string[]
   requesterName?: string | null
   requesterPhone?: string | null
@@ -524,6 +533,7 @@ export type UpdateTicketInput = {
   requesterPhone?: string | null
   address?: string | null
   pointName?: string | null
+  comment?: string | null
 }
 
 export type CreateTicketResponse = {
@@ -793,7 +803,8 @@ const PLATFORM_BACKUP_ROLE_KEY = 'platform_user_role_backup'
 const PLATFORM_BACKUP_COMPANY_LABEL_KEY = 'platform_company_label_backup'
 const IMPERSONATION_META_KEY = 'impersonation_meta'
 
-const FALLBACK_API_BASE_URL = 'http://localhost:3001'
+// Current local Docker backend runtime
+const FALLBACK_API_BASE_URL = 'http://localhost:3000'
 
 export type ImpersonationMeta = {
   companyId: string
@@ -840,6 +851,11 @@ export function resolveFileUrl(url: string): string {
   if (!url) return ''
   if (/^https?:\/\//i.test(url)) return url
   const normalized = url.startsWith('/') ? url : '/' + url
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    const envBaseUrl = normalizeBaseUrl(String(import.meta.env.VITE_API_BASE_URL || ''))
+    const baseUrl = envBaseUrl || normalizeBaseUrl(window.location.origin)
+    return baseUrl + normalized
+  }
   return getBaseUrl() + normalized
 }
 
@@ -1177,6 +1193,26 @@ export async function technicianMe(): Promise<TechnicianItem> {
 
 export async function getTechnicianBoundContexts(): Promise<TechnicianBoundContext[]> {
   return request<TechnicianBoundContext[]>('/technicians/me/bound-contexts')
+}
+
+export async function getTechnicianLocationBindings(
+  userId: string,
+  params?: { companyId?: string },
+): Promise<TechnicianLocationBindingsResponse> {
+  const search = new URLSearchParams()
+  if (params?.companyId) search.set('companyId', params.companyId)
+  const suffix = search.toString() ? '?' + search.toString() : ''
+  return request<TechnicianLocationBindingsResponse>(`/technicians/${userId}/location-bindings${suffix}`)
+}
+
+export async function setTechnicianLocationBindings(
+  userId: string,
+  payload: { companyId?: string; locationIds: string[] },
+): Promise<TechnicianLocationBindingsResponse> {
+  return request<TechnicianLocationBindingsResponse>(`/technicians/${userId}/location-bindings`, {
+    method: 'PUT',
+    body: payload,
+  })
 }
 
 export async function techniciansWorkload(): Promise<TechnicianWorkloadItem[]> {

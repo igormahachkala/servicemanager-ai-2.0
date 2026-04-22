@@ -1,6 +1,7 @@
 ﻿import * as api from '../../lib/api'
 import { EmployeeCard } from './EmployeeCard'
 import { EmployeeForm, type EmployeeFormValue } from './EmployeeForm'
+import { type ReactNode } from 'react'
 
 type Props = {
   users: api.UserListItem[]
@@ -16,6 +17,7 @@ type Props = {
   onToggleEditSpecialization: (specializationId: string) => void
   onSubmitEdit: (event: React.FormEvent) => void
   onToggleActive: (user: api.UserListItem) => void
+  editExtras?: ReactNode
 }
 
 function displayName(user: api.UserListItem) {
@@ -26,6 +28,21 @@ function displayName(user: api.UserListItem) {
 function fmt(date?: string) {
   if (!date) return '—'
   return new Date(date).toLocaleString('ru-RU')
+}
+
+function pointsWord(count: number) {
+  const mod10 = count % 10
+  const mod100 = count % 100
+  if (mod10 === 1 && mod100 !== 11) return 'точка'
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'точки'
+  return 'точек'
+}
+
+function technicianBindingsSummary(user: api.UserListItem) {
+  const bindings = ((user as any).locationBindings || []) as Array<{ locationId?: string }>
+  const locationIds = Array.from(new Set(bindings.map((item) => item.locationId).filter(Boolean)))
+  if (locationIds.length === 0) return 'Все доступные точки'
+  return `Ограничен: ${locationIds.length} ${pointsWord(locationIds.length)}`
 }
 
 export function EmployeeList({
@@ -42,6 +59,7 @@ export function EmployeeList({
   onToggleEditSpecialization,
   onSubmitEdit,
   onToggleActive,
+  editExtras,
 }: Props) {
   if (users.length === 0) {
     return <div className="muted">Сотрудников пока нет.</div>
@@ -77,20 +95,28 @@ export function EmployeeList({
               {isSelf && !isInactive ? ' · Свой аккаунт нельзя деактивировать.' : ''}
               {isLastAdmin ? ' · Это последний активный администратор.' : ''}
             </div>
+            {user.role === 'TECHNICIAN' ? (
+              <div className="muted small" style={{ marginBottom: editingUserId === user.id ? 12 : 0 }}>
+                Доступные точки: {technicianBindingsSummary(user)}
+              </div>
+            ) : null}
 
             {editingUserId === user.id ? (
-              <EmployeeForm
-                title={editTitle}
-                submitLabel="Сохранить"
-                value={editingValue}
-                activeSpecializations={activeSpecializations}
-                submitting={busy}
-                passwordRequired={false}
-                onChange={onEditChange}
-                onToggleSpecialization={onToggleEditSpecialization}
-                onSubmit={onSubmitEdit}
-                onCancel={onCancelEdit}
-              />
+              <>
+                <EmployeeForm
+                  title={editTitle}
+                  submitLabel="Сохранить"
+                  value={editingValue}
+                  activeSpecializations={activeSpecializations}
+                  submitting={busy}
+                  passwordRequired={false}
+                  onChange={onEditChange}
+                  onToggleSpecialization={onToggleEditSpecialization}
+                  onSubmit={onSubmitEdit}
+                  onCancel={onCancelEdit}
+                />
+                {editExtras}
+              </>
             ) : null}
           </EmployeeCard>
         )

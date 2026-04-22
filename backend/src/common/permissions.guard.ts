@@ -1,6 +1,6 @@
 // backend/src/common/permissions.guard.ts
 
-import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { UserRole } from '@prisma/client';
 
@@ -36,7 +36,13 @@ export class PermissionsGuard implements CanActivate {
     const userId = user?.id;
     const role = user?.role as UserRole | undefined;
 
-    if (!userId || !role) return false;
+    if (!userId || !role) {
+      const requiredPermission = requiredPermissions[0];
+      throw new ForbiddenException({
+        code: 'PERMISSION_DENIED',
+        message: `Missing permission: ${requiredPermission}`,
+      });
+    }
 
     // 1) Права через роль (RolePermission -> PermissionBlock.code)
     // 2) Индивидуальные права (UserPermission -> PermissionBlock.code)
@@ -58,6 +64,14 @@ export class PermissionsGuard implements CanActivate {
       }),
     ]);
 
-    return !!roleHit || !!userHit;
+    if (!!roleHit || !!userHit) {
+      return true;
+    }
+
+    const requiredPermission = requiredPermissions[0];
+    throw new ForbiddenException({
+      code: 'PERMISSION_DENIED',
+      message: `Missing permission: ${requiredPermission}`,
+    });
   }
 }

@@ -16,14 +16,18 @@ const CLIENT_LIKE_ROLE_PERMISSIONS = new Map([
   [UserRole.TERRITORIAL_MANAGER, [
     { code: 'TICKETS_CREATE', name: 'Create tickets', description: 'Create tickets and child tickets' },
     { code: 'TICKETS_VIEW', name: 'View tickets', description: 'View tickets list and single ticket' },
+    { code: 'TICKETS_EDIT', name: 'Edit tickets', description: 'Edit ticket fields in current MVP flow' },
     { code: 'LOCATIONS_VIEW', name: 'View locations', description: 'View locations for ticket create/edit forms' },
   ]],
   [UserRole.NETWORK_DIRECTOR, [
     { code: 'TICKETS_CREATE', name: 'Create tickets', description: 'Create tickets and child tickets' },
     { code: 'TICKETS_VIEW', name: 'View tickets', description: 'View tickets list and single ticket' },
+    { code: 'TICKETS_EDIT', name: 'Edit tickets', description: 'Edit ticket fields in current MVP flow' },
     { code: 'LOCATIONS_VIEW', name: 'View locations', description: 'View locations for ticket create/edit forms' },
   ]],
 ]);
+
+const CLIENT_REQUIRED_PERMISSION_CODES = ['TICKETS_EDIT'];
 
 const CLIENT_LIKE_REQUIRED_PERMISSIONS = Array.from(
   new Map(
@@ -34,50 +38,75 @@ const CLIENT_LIKE_REQUIRED_PERMISSIONS = Array.from(
 );
 
 async function main() {
-  for (const block of CLIENT_LIKE_REQUIRED_PERMISSIONS) {
-    await prisma.permissionBlock.upsert({
-      where: { code: block.code },
-      update: {
-        name: block.name,
-        description: block.description,
-      },
-      create: {
-        code: block.code,
-        name: block.name,
-        description: block.description,
-      },
-    });
-  }
-
-  const clientLikePermissionBlocks = await prisma.permissionBlock.findMany({
-    where: { code: { in: CLIENT_LIKE_REQUIRED_PERMISSIONS.map((item) => item.code) } },
-    select: { id: true, code: true },
-  });
-  const permissionBlockByCode = new Map(clientLikePermissionBlocks.map((block) => [block.code, block]));
-
   const clientLikeRoles = Array.from(CLIENT_LIKE_ROLE_PERMISSIONS.keys());
-
-  await prisma.rolePermission.deleteMany({
-    where: {
-      role: { in: clientLikeRoles },
-    },
-  });
-
-  for (const role of clientLikeRoles) {
-    const targetPermissions = CLIENT_LIKE_ROLE_PERMISSIONS.get(role) ?? [];
-    for (const permission of targetPermissions) {
-      const block = permissionBlockByCode.get(permission.code);
-      if (!block) {
-        throw new Error(`[seed-users] missing PermissionBlock for code ${permission.code}`);
-      }
-      await prisma.rolePermission.create({
-        data: {
-          role,
-          permissionBlockId: block.id,
+  await prisma.$transaction(async (tx) => {
+    for (const block of CLIENT_LIKE_REQUIRED_PERMISSIONS) {
+      await tx.permissionBlock.upsert({
+        where: { code: block.code },
+        update: {
+          name: block.name,
+          description: block.description,
+        },
+        create: {
+          code: block.code,
+          name: block.name,
+          description: block.description,
         },
       });
     }
-  }
+
+    const clientLikePermissionBlocks = await tx.permissionBlock.findMany({
+      where: { code: { in: CLIENT_LIKE_REQUIRED_PERMISSIONS.map((item) => item.code) } },
+      select: { id: true, code: true },
+    });
+    const permissionBlockByCode = new Map(clientLikePermissionBlocks.map((block) => [block.code, block]));
+
+    await tx.rolePermission.deleteMany({
+      where: {
+        role: { in: clientLikeRoles },
+      },
+    });
+
+    for (const role of clientLikeRoles) {
+      const targetPermissions = CLIENT_LIKE_ROLE_PERMISSIONS.get(role) ?? [];
+      for (const permission of targetPermissions) {
+        const block = permissionBlockByCode.get(permission.code);
+        if (!block) {
+          throw new Error(`[seed-users] missing PermissionBlock for code ${permission.code}`);
+        }
+        await tx.rolePermission.create({
+          data: {
+            role,
+            permissionBlockId: block.id,
+          },
+        });
+      }
+    }
+
+    const clientRolePermissions = await tx.rolePermission.findMany({
+      where: {
+        role: UserRole.CLIENT,
+      },
+      select: {
+        permissionBlock: {
+          select: {
+            code: true,
+          },
+        },
+      },
+    });
+    const clientPermissionCodes = new Set(
+      clientRolePermissions
+        .map((item) => item.permissionBlock?.code)
+        .filter(Boolean),
+    );
+
+    for (const requiredCode of CLIENT_REQUIRED_PERMISSION_CODES) {
+      if (!clientPermissionCodes.has(requiredCode)) {
+        throw new Error(`[seed-users] invariant failed: CLIENT is missing ${requiredCode}`);
+      }
+    }
+  });
 
   const company = await prisma.company.upsert({
     where: { id: DEMO_COMPANY_ID },

@@ -39,7 +39,7 @@ export class LocationsController {
     @Query('isActive') isActive?: string,
     @Query('companyId') companyId?: string,
   ) {
-    return this.svc.list(req.user.companyId, req.user.role as UserRole, {
+    return this.svc.list(req.user.companyId, req.user.role as UserRole, req.user.id, {
       q,
       city,
       isActive,
@@ -59,7 +59,7 @@ export class LocationsController {
   )
   @RequirePermission(PERMISSIONS.LOCATIONS_VIEW)
   getOne(@Req() req: any, @Param('id') id: string, @Query('companyId') companyId?: string) {
-    return this.svc.getOne(req.user.companyId, req.user.role as UserRole, id, companyId)
+    return this.svc.getOne(req.user.companyId, req.user.role as UserRole, req.user.id, id, companyId)
   }
 
   @Post()

@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
@@ -75,6 +75,8 @@ export function EmployeesPage() {
   const [createValue, setCreateValue] = useState<EmployeeFormValue>(emptyCreateForm)
   const [editingUserId, setEditingUserId] = useState<string | null>(null)
   const [editValue, setEditValue] = useState<EmployeeFormValue>(emptyEditForm)
+  const [bindingsScopeCompanyId, setBindingsScopeCompanyId] = useState('')
+  const [selectedLocationIds, setSelectedLocationIds] = useState<string[]>([])
 
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
   const requestedCompanyId = useMemo(() => searchParams.get('companyId')?.trim() || '', [searchParams])
@@ -85,6 +87,16 @@ export function EmployeesPage() {
     queryKey: ['observer-company', observerCompanyId],
     queryFn: () => api.company(observerCompanyId),
     enabled: !!observerCompanyId && meQ.data?.role === 'PLATFORM_ADMIN',
+  })
+  const ownCompanyQ = useQuery({
+    queryKey: ['own-company'],
+    queryFn: () => api.company(),
+    enabled: !isObserverMode,
+  })
+  const linkedClientsQ = useQuery({
+    queryKey: ['linked-clients-for-bindings'],
+    queryFn: api.getLinkedClients,
+    enabled: !isObserverMode && ownCompanyQ.data?.type === 'PROVIDER',
   })
 
   const usersQ = useQuery({ queryKey: ['users', observerCompanyId], queryFn: () => api.users(observerCompanyId || undefined) })
@@ -105,6 +117,62 @@ export function EmployeesPage() {
     () => sortedUsers.filter((user) => user.role === 'ADMIN' && user.isActive !== false).length,
     [sortedUsers],
   )
+  const isEditingTechnician = !!editingUserId && editValue.role === 'TECHNICIAN'
+  const providerLinkedClientOptions = useMemo(
+    () => (linkedClientsQ.data || []).map((item) => ({ id: item.clientCompany.id, name: item.clientCompany.name })),
+    [linkedClientsQ.data],
+  )
+  const effectiveBindingsCompanyId = useMemo(() => {
+    if (!isEditingTechnician) return ''
+    if (isObserverMode) return observerCompanyId
+    if (ownCompanyQ.data?.type === 'PROVIDER') return bindingsScopeCompanyId
+    return meQ.data?.companyId || ''
+  }, [isEditingTechnician, isObserverMode, observerCompanyId, ownCompanyQ.data?.type, bindingsScopeCompanyId, meQ.data?.companyId])
+  const bindingsQ = useQuery({
+    queryKey: ['technician-location-bindings', editingUserId, effectiveBindingsCompanyId],
+    queryFn: () =>
+      api.getTechnicianLocationBindings(editingUserId!, {
+        companyId: effectiveBindingsCompanyId || undefined,
+      }),
+    enabled: !!editingUserId && isEditingTechnician && !!effectiveBindingsCompanyId,
+  })
+
+  useEffect(() => {
+    if (!isEditingTechnician) {
+      setBindingsScopeCompanyId('')
+      setSelectedLocationIds([])
+      return
+    }
+    if (isObserverMode) {
+      setBindingsScopeCompanyId(observerCompanyId)
+      return
+    }
+    if (ownCompanyQ.data?.type === 'PROVIDER') {
+      if (providerLinkedClientOptions.length === 0) {
+        setBindingsScopeCompanyId('')
+        return
+      }
+      if (!providerLinkedClientOptions.some((item) => item.id === bindingsScopeCompanyId)) {
+        setBindingsScopeCompanyId(providerLinkedClientOptions[0].id)
+      }
+      return
+    }
+    setBindingsScopeCompanyId(meQ.data?.companyId || '')
+  }, [
+    isEditingTechnician,
+    isObserverMode,
+    observerCompanyId,
+    ownCompanyQ.data?.type,
+    providerLinkedClientOptions,
+    bindingsScopeCompanyId,
+    meQ.data?.companyId,
+  ])
+
+  useEffect(() => {
+    if (!isEditingTechnician) return
+    if (!bindingsQ.data) return
+    setSelectedLocationIds(bindingsQ.data.locationIds || [])
+  }, [isEditingTechnician, bindingsQ.data])
 
   const createM = useMutation({
     mutationFn: async (value: EmployeeFormValue) => {
@@ -183,6 +251,32 @@ export function EmployeesPage() {
       setErr(error?.message || String(error))
     },
   })
+  const saveBindingsM = useMutation({
+    mutationFn: async () => {
+      if (!editingUserId || !isEditingTechnician) {
+        throw new Error('Сначала выберите техника')
+      }
+      if (!effectiveBindingsCompanyId) {
+        throw new Error('Не выбран контур компании для привязки точек')
+      }
+      return api.setTechnicianLocationBindings(editingUserId, {
+        companyId: effectiveBindingsCompanyId,
+        locationIds: selectedLocationIds,
+      })
+    },
+    onSuccess: async () => {
+      setErr(null)
+      setSuccess('Доступные точки сохранены')
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['users'] }),
+        qc.invalidateQueries({ queryKey: ['technician-location-bindings', editingUserId, effectiveBindingsCompanyId] }),
+      ])
+    },
+    onError: (error: any) => {
+      setSuccess(null)
+      setErr(error?.message || String(error))
+    },
+  })
 
   function patchCreate(patch: Partial<EmployeeFormValue>) {
     setCreateValue((current) => {
@@ -231,11 +325,14 @@ export function EmployeesPage() {
       isActive: user.isActive !== false,
       specializationIds: (user.technicianSpecializations || []).map((item) => item.specialization.id),
     })
+    setSelectedLocationIds([])
   }
 
   function cancelEdit() {
     setEditingUserId(null)
     setEditValue(emptyEditForm)
+    setBindingsScopeCompanyId('')
+    setSelectedLocationIds([])
   }
 
   function submitCreate(event: React.FormEvent) {
@@ -284,8 +381,109 @@ export function EmployeesPage() {
     toggleActiveM.mutate(user)
   }
 
+  function toggleLocation(locationId: string) {
+    setSelectedLocationIds((current) =>
+      current.includes(locationId)
+        ? current.filter((id) => id !== locationId)
+        : [...current, locationId],
+    )
+  }
+
   const busy = createM.isPending || updateM.isPending || toggleActiveM.isPending
+  const bindingsBusy = bindingsQ.isFetching || saveBindingsM.isPending
   const observerLabel = observerCompanyQ.data?.name || observerCompanyId
+  const providerHasNoLinkedClients =
+    !isObserverMode &&
+    ownCompanyQ.data?.type === 'PROVIDER' &&
+    !linkedClientsQ.isFetching &&
+    providerLinkedClientOptions.length === 0
+  const bindingsAvailableLocations = bindingsQ.data?.availableLocations || []
+  const bindingsHasChanges = useMemo(() => {
+    if (!bindingsQ.data) return false
+    const current = new Set(bindingsQ.data.locationIds || [])
+    const next = new Set(selectedLocationIds)
+    if (current.size !== next.size) return true
+    for (const id of current) {
+      if (!next.has(id)) return true
+    }
+    return false
+  }, [bindingsQ.data, selectedLocationIds])
+  const technicianLocationBindingsBlock = isEditingTechnician ? (
+    <div className="panel uiCard" style={{ marginTop: 12 }}>
+      <h3 style={{ marginBottom: 8 }}>Доступные точки</h3>
+      <div className="muted small" style={{ marginBottom: 10 }}>
+        Управление location-scope для техника. Пустой список означает отсутствие явных ограничений.
+      </div>
+      {ownCompanyQ.data?.type === 'PROVIDER' && !isObserverMode ? (
+        <label>
+          Клиентский контур
+          <select
+            value={bindingsScopeCompanyId}
+            onChange={(e) => setBindingsScopeCompanyId(e.target.value)}
+            disabled={bindingsBusy || providerLinkedClientOptions.length === 0}
+          >
+            {providerLinkedClientOptions.length === 0 ? <option value="">Нет доступных linked clients</option> : null}
+            {providerLinkedClientOptions.map((item) => (
+              <option key={item.id} value={item.id}>{item.name}</option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+      {providerHasNoLinkedClients ? (
+        <div className="muted small">
+          Нет linked client контуров с PRIMARY доступом. Привязка точек недоступна.
+        </div>
+      ) : null}
+      {!providerHasNoLinkedClients && !effectiveBindingsCompanyId ? (
+        <div className="muted small">
+          Выберите контур компании для загрузки доступных точек.
+        </div>
+      ) : null}
+      {!providerHasNoLinkedClients && effectiveBindingsCompanyId ? (
+        <>
+          {bindingsQ.isLoading ? <div className="muted small">Загружаем доступные точки…</div> : null}
+          {bindingsQ.isError ? (
+            <div className="alert">{(bindingsQ.error as any)?.message || String(bindingsQ.error)}</div>
+          ) : null}
+          {!bindingsQ.isLoading && !bindingsQ.isError ? (
+            <>
+              {bindingsAvailableLocations.length === 0 ? (
+                <div className="muted small">
+                  Backend не вернул доступных точек в текущем контуре. Проверьте связи и права доступа.
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gap: 8, marginBottom: 10 }}>
+                  {bindingsAvailableLocations.map((location) => (
+                    <label key={location.id} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                      <input
+                        type="checkbox"
+                        checked={selectedLocationIds.includes(location.id)}
+                        onChange={() => toggleLocation(location.id)}
+                        disabled={bindingsBusy}
+                      />
+                      <span>{[location.name, location.city, location.address].filter(Boolean).join(' · ')}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+              <div className="muted small" style={{ marginBottom: 10 }}>
+                {selectedLocationIds.length > 0
+                  ? `Выбрано точек: ${selectedLocationIds.length}`
+                  : 'Ограничения не заданы: техник работает без явных location-bound ограничений.'}
+              </div>
+              <button
+                type="button"
+                onClick={() => saveBindingsM.mutate()}
+                disabled={bindingsBusy || !bindingsHasChanges || bindingsQ.isLoading || !!bindingsQ.isError}
+              >
+                {saveBindingsM.isPending ? 'Сохраняем…' : 'Сохранить точки'}
+              </button>
+            </>
+          ) : null}
+        </>
+      ) : null}
+    </div>
+  ) : null
 
   return (
     <div>
@@ -303,6 +501,8 @@ export function EmployeesPage() {
             onClick={() => {
               usersQ.refetch()
               if (!isObserverMode) specsQ.refetch()
+              if (!isObserverMode) ownCompanyQ.refetch()
+              if (!isObserverMode && ownCompanyQ.data?.type === 'PROVIDER') linkedClientsQ.refetch()
             }}
             disabled={busy}
           >
@@ -364,6 +564,7 @@ export function EmployeesPage() {
               onToggleEditSpecialization={toggleEditSpecialization}
               onSubmitEdit={submitEdit}
               onToggleActive={toggleActive}
+              editExtras={technicianLocationBindingsBlock}
             />
           )}
         </div>

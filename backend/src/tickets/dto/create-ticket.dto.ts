@@ -1,7 +1,11 @@
 import { TicketUrgency } from '@prisma/client'
-import { IsArray, IsEnum, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator'
+import { IsArray, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator'
 
 export class CreateTicketDto {
+  @IsOptional()
+  @IsString()
+  createMode?: 'quick' | 'full'
+
   @IsOptional()
   @IsUUID()
   parentId?: string | null
@@ -11,6 +15,7 @@ export class CreateTicketDto {
   clientCompanyId?: string
 
   @IsUUID()
+  @IsNotEmpty()
   locationId!: string
 
   @IsOptional()
@@ -36,6 +41,10 @@ export class CreateTicketDto {
   @IsOptional()
   @IsString()
   problemText?: string
+
+  @IsOptional()
+  @IsString()
+  comment?: string
 
   @IsOptional()
   @IsArray()

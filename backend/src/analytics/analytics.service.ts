@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service'
 import { TimelineService } from '../timeline/timeline.service'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
 import { isPlatformObserverScope, resolveObserverScopeCompanyId } from '../policy/policy.utils'
+import { resolveActorLocationScope } from '../tickets/ticket-access.utils'
 
 @Injectable()
 export class AnalyticsService {
@@ -14,7 +15,27 @@ export class AnalyticsService {
     private readonly serviceContractsService: ServiceContractsService,
   ) {}
 
-  async getCategoriesAnalytics(companyId: string) {
+  private async resolveScopedTicketWhere(actorCompanyId: string, actorUserId: string, actorRole: UserRole, scopeCompanyId: string) {
+    const locationScope = await resolveActorLocationScope({
+      prisma: this.prisma,
+      actor: {
+        id: actorUserId,
+        role: actorRole,
+        companyId: actorCompanyId,
+      },
+      scopeCompanyId,
+    })
+
+    return {
+      companyId: scopeCompanyId,
+      ...(locationScope.mode === 'bound_locations'
+        ? { locationId: { in: locationScope.locationIds } }
+        : {}),
+    }
+  }
+
+  async getCategoriesAnalytics(companyId: string, actorUserId: string, actorRole: UserRole) {
+    const ticketWhere = await this.resolveScopedTicketWhere(companyId, actorUserId, actorRole, companyId)
     const categories = await this.prisma.problemCategory.findMany({
       where: { companyId },
       select: { id: true, name: true },
@@ -23,7 +44,7 @@ export class AnalyticsService {
 
     const grouped = await this.prisma.ticket.groupBy({
       by: ['problemCategoryId', 'status'],
-      where: { companyId },
+      where: ticketWhere,
       _count: { _all: true },
     })
 
@@ -54,7 +75,8 @@ export class AnalyticsService {
     })
   }
 
-  async getSpecializationsAnalytics(companyId: string) {
+  async getSpecializationsAnalytics(companyId: string, actorUserId: string, actorRole: UserRole) {
+    const ticketWhere = await this.resolveScopedTicketWhere(companyId, actorUserId, actorRole, companyId)
     const specializations = await this.prisma.specialization.findMany({
       where: { companyId },
       select: { id: true, name: true },
@@ -68,7 +90,7 @@ export class AnalyticsService {
       }),
       this.prisma.ticket.groupBy({
         by: ['problemCategoryId'],
-        where: { companyId },
+        where: ticketWhere,
         _count: { _all: true },
       }),
       this.prisma.technicianSpecialization.findMany({
@@ -115,7 +137,8 @@ export class AnalyticsService {
     })
   }
 
-  async getWorkloadAnalytics(companyId: string) {
+  async getWorkloadAnalytics(companyId: string, actorUserId: string, actorRole: UserRole) {
+    const ticketWhere = await this.resolveScopedTicketWhere(companyId, actorUserId, actorRole, companyId)
     const categories = await this.prisma.problemCategory.findMany({
       where: { companyId },
       select: { id: true, name: true },
@@ -134,10 +157,7 @@ export class AnalyticsService {
       }),
       this.prisma.ticket.groupBy({
         by: ['problemCategoryId'],
-        where: {
-          companyId,
-          status: { in: openStatuses },
-        },
+        where: { ...ticketWhere, status: { in: openStatuses } },
         _count: { _all: true },
       }),
       this.prisma.technicianSpecialization.findMany({
@@ -195,18 +215,19 @@ export class AnalyticsService {
     })
   }
 
-  async overview(actorCompanyId: string, actorRole: UserRole, companyId?: string, linkedClientCompanyId?: string) {
+  async overview(actorCompanyId: string, actorUserId: string, actorRole: UserRole, companyId?: string, linkedClientCompanyId?: string) {
     const scope = await this.resolveScope(actorCompanyId, actorRole, companyId, linkedClientCompanyId)
     const scopeCompanyId = scope.scopeCompanyId
+    const ticketWhere = await this.resolveScopedTicketWhere(actorCompanyId, actorUserId, actorRole, scopeCompanyId)
     const now = new Date()
     const TICKETS_LIMIT = 2000
 
-    const createdCount = await this.prisma.ticket.count({ where: { companyId: scopeCompanyId } })
+    const createdCount = await this.prisma.ticket.count({ where: ticketWhere })
 
     const openByStatusGrouped = await this.prisma.ticket.groupBy({
       by: ['status'],
       where: {
-        companyId: scopeCompanyId,
+        ...ticketWhere,
         status: { in: [TicketStatus.NEW, TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS] },
       },
       _count: { _all: true },
@@ -223,18 +244,18 @@ export class AnalyticsService {
 
     const unassignedOpenTickets = await this.prisma.ticket.count({
       where: {
-        companyId: scopeCompanyId,
+        ...ticketWhere,
         status: { in: [TicketStatus.NEW, TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS] },
         assignedTechnicianId: null,
       },
     })
 
     const slaEvaluatedCount = await this.prisma.ticket.count({
-      where: { companyId: scopeCompanyId, slaDueAt: { not: null } },
+      where: { ...ticketWhere, slaDueAt: { not: null } },
     })
 
     const slaBreachedCount = await this.prisma.ticket.count({
-      where: { companyId: scopeCompanyId, slaBreachedAt: { not: null } },
+      where: { ...ticketWhere, slaBreachedAt: { not: null } },
     })
 
     const slaOkCount = Math.max(slaEvaluatedCount - slaBreachedCount, 0)
@@ -242,7 +263,7 @@ export class AnalyticsService {
     const breachedPercent = slaEvaluatedCount > 0 ? Math.round((slaBreachedCount / slaEvaluatedCount) * 10000) / 100 : 0
 
     const tickets = await this.prisma.ticket.findMany({
-      where: { companyId: scopeCompanyId },
+      where: ticketWhere,
       select: {
         id: true,
         createdAt: true,
@@ -344,7 +365,7 @@ export class AnalyticsService {
 
     const openTicketsWithAssignee = await this.prisma.ticket.findMany({
       where: {
-        companyId: scopeCompanyId,
+        ...ticketWhere,
         status: { in: [TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS] },
         assignedTechnicianId: { not: null },
       },

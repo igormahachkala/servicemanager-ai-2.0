@@ -8,8 +8,11 @@ import { ServiceContractsService } from '../service-contracts/service-contracts.
 import { TicketsPolicy, type BoardQueryInput } from '../policy/tickets.policy'
 import { assertAllowed } from '../policy/policy.utils'
 import {
+  applyLocationScopeToTicketWhere,
+  buildTechnicianLocationRestrictionWhere,
   PROVIDER_LINKED_OVERVIEW_ROLES,
   resolveReadableTicketAccess,
+  resolveActorLocationScope,
   resolveTechnicianOperationalScope,
   resolveTicketReadScope,
 } from './ticket-access.utils'
@@ -53,6 +56,7 @@ export class TicketsQueryService {
 
   private buildTechnicianBoardQuery(params: {
     companyIds: string[]
+    locationScopeByCompany: Record<string, string[]>
     userId: string
     specializationIds: string[]
     allowTechnicianClaim: boolean
@@ -156,6 +160,12 @@ export class TicketsQueryService {
     if (extraAnd.length > 0) {
       where = this.normalizeAnd(where, extraAnd)
     }
+    where = this.normalizeAnd(where, [
+      buildTechnicianLocationRestrictionWhere({
+        companyIds: params.companyIds,
+        locationScopeByCompany: params.locationScopeByCompany,
+      }),
+    ])
 
     return {
       where,
@@ -166,6 +176,7 @@ export class TicketsQueryService {
 
   private buildTechnicianListWhere(params: {
     companyIds: string[]
+    locationScopeByCompany: Record<string, string[]>
     userId: string
     specializationIds: string[]
     allowTechnicianClaim: boolean
@@ -205,8 +216,13 @@ export class TicketsQueryService {
     }
 
     const baseWhere: any = visibilityOr.length === 1 ? visibilityOr[0] : { OR: visibilityOr }
-    if (params.status === undefined) return baseWhere
-    return this.normalizeAnd(baseWhere, [{ status: params.status }])
+    const withStatus = params.status === undefined ? baseWhere : this.normalizeAnd(baseWhere, [{ status: params.status }])
+    return this.normalizeAnd(withStatus, [
+      buildTechnicianLocationRestrictionWhere({
+        companyIds: params.companyIds,
+        locationScopeByCompany: params.locationScopeByCompany,
+      }),
+    ])
   }
   async board(
     companyId: string,
@@ -241,9 +257,12 @@ export class TicketsQueryService {
           allowedLinkedClientRoles: PROVIDER_LINKED_OVERVIEW_ROLES,
         })
 
+    const atRiskThresholdMinutes = 60
+    const limitedToLast = Math.min(Math.max(input.take ?? 500, 1), 500)
     const decision = technicianScope
       ? this.buildTechnicianBoardQuery({
           companyIds: technicianScope.companyIds,
+          locationScopeByCompany: technicianScope.locationScopeByCompany,
           userId,
           specializationIds: technicianScope.specializationIds,
           allowTechnicianClaim: technicianScope.allowTechnicianClaim,
@@ -257,14 +276,27 @@ export class TicketsQueryService {
 
           const policyDecision = this.policy.boardWhere({ id: userId, role, companyId: ownTenantScopeCompanyId, accessFlags }, input)
           assertAllowed(policyDecision)
-          return policyDecision.where
+          return {
+            where: policyDecision.where,
+            take: limitedToLast,
+            meta: { atRiskThresholdMinutes, limitedToLast },
+          }
         })()
+
+    const locationScope = technicianScope
+      ? { mode: 'tenant_wide' as const, locationIds: [] as string[] }
+      : await resolveActorLocationScope({
+          prisma: this.prisma,
+          actor: { id: userId, role, companyId, accessFlags },
+          scopeCompanyId: scope.scopeCompanyId,
+        })
+    const whereWithLocationScope = applyLocationScopeToTicketWhere(decision.where, locationScope)
 
     const nowMs = Date.now()
     const atRiskThresholdMs = decision.meta.atRiskThresholdMinutes * 60_000
 
     const tickets = await this.prisma.ticket.findMany({
-      where: decision.where,
+      where: whereWithLocationScope,
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,
@@ -391,6 +423,7 @@ export class TicketsQueryService {
     const baseWhere = technicianScope
       ? this.buildTechnicianBoardQuery({
           companyIds: technicianScope.companyIds,
+          locationScopeByCompany: technicianScope.locationScopeByCompany,
           userId,
           specializationIds: technicianScope.specializationIds,
           allowTechnicianClaim: technicianScope.allowTechnicianClaim,
@@ -415,7 +448,15 @@ export class TicketsQueryService {
           }
           return resolvedWhere
         })()
-    const where = this.applyContextFilters(baseWhere, { locationId, equipmentId })
+    const locationScope = technicianScope
+      ? { mode: 'tenant_wide' as const, locationIds: [] as string[] }
+      : await resolveActorLocationScope({
+          prisma: this.prisma,
+          actor: { id: userId, role, companyId, accessFlags },
+          scopeCompanyId: scope.scopeCompanyId,
+        })
+    const scopedWhere = applyLocationScopeToTicketWhere(baseWhere, locationScope)
+    const where = this.applyContextFilters(scopedWhere, { locationId, equipmentId })
 
     const rows = await this.prisma.ticket.findMany({
       where,
@@ -508,6 +549,7 @@ export class TicketsQueryService {
     const where = technicianScope
       ? this.buildTechnicianListWhere({
           companyIds: technicianScope.companyIds,
+          locationScopeByCompany: technicianScope.locationScopeByCompany,
           userId,
           specializationIds: technicianScope.specializationIds,
           allowTechnicianClaim: technicianScope.allowTechnicianClaim,
@@ -523,8 +565,16 @@ export class TicketsQueryService {
           assertAllowed(decision)
           return decision.where
         })()
+    const locationScope = technicianScope
+      ? { mode: 'tenant_wide' as const, locationIds: [] as string[] }
+      : await resolveActorLocationScope({
+          prisma: this.prisma,
+          actor: { id: userId, role, companyId, accessFlags },
+          scopeCompanyId: scope.scopeCompanyId,
+        })
+    const whereWithLocationScope = applyLocationScopeToTicketWhere(where, locationScope)
     return this.prisma.ticket.findMany({
-      where,
+      where: whereWithLocationScope,
       orderBy: { createdAt: 'desc' },
       include: {
         location: {

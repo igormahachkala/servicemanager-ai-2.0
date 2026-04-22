@@ -18,7 +18,7 @@ import { AssignmentService } from '../assignment/assignment.service';
 import { TicketsQueryService } from './tickets.query.service';
 import { TicketAttachmentsService } from './ticket-attachments.service';
 import { buildTicketDescription } from './ticket-description.builder';
-import { resolveTechnicianOperationalScope, resolveTicketOperationAccess } from './ticket-access.utils';
+import { assertActorCanUseLocation, buildTechnicianLocationRestrictionWhere, resolveTechnicianOperationalScope, resolveTicketOperationAccess } from './ticket-access.utils';
 import { ServiceContractsService } from '../service-contracts/service-contracts.service';
 import { TechniciansService } from '../technicians/technicians.service';
 
@@ -240,6 +240,49 @@ export class TicketsAssignmentService {
     });
   }
 
+  private normalizeAnd(where: Prisma.TicketWhereInput, extra: Prisma.TicketWhereInput[]) {
+    const base = where.AND;
+    const baseArr = Array.isArray(base) ? base : base ? [base] : [];
+    return { ...where, AND: [...baseArr, ...extra] };
+  }
+
+  private async filterTechniciansByLocationBindings<T extends { id: string }>(
+    technicians: T[],
+    scopeCompanyId: string,
+    locationId: string,
+  ): Promise<T[]> {
+    if (technicians.length === 0) {
+      return technicians;
+    }
+    const technicianIds = Array.from(new Set(technicians.map((item) => item.id)));
+    const bindings = await this.prisma.userLocationBinding.findMany({
+      where: {
+        userId: { in: technicianIds },
+        companyId: scopeCompanyId,
+        location: { clientCompanyId: scopeCompanyId },
+      },
+      select: {
+        userId: true,
+        locationId: true,
+      },
+    });
+    const bindingsByTechnician = new Map<string, Set<string>>();
+    for (const binding of bindings) {
+      if (!bindingsByTechnician.has(binding.userId)) {
+        bindingsByTechnician.set(binding.userId, new Set<string>());
+      }
+      bindingsByTechnician.get(binding.userId)!.add(binding.locationId);
+    }
+
+    return technicians.filter((technician) => {
+      const scope = bindingsByTechnician.get(technician.id);
+      if (!scope || scope.size === 0) {
+        return true;
+      }
+      return scope.has(locationId);
+    });
+  }
+
   private async writeStatusHistoryTx(
     tx: Prisma.TransactionClient,
     params: {
@@ -268,15 +311,21 @@ export class TicketsAssignmentService {
     if (!categoryId) {
       throw new BadRequestException('categoryId is required');
     }
+    const locationId = (dto.locationId ?? '').trim();
+    if (!locationId) {
+      throw new BadRequestException('locationId is required');
+    }
 
     return {
       parentId: dto.parentId ?? null,
       clientCompanyId: dto.clientCompanyId?.trim() || null,
-      locationId: dto.locationId,
+      locationId,
       equipmentId: dto.equipmentId ?? null,
       categoryId,
       title: dto.title?.trim() || null,
       description: dto.description?.trim() || dto.problemText?.trim() || null,
+      comment: dto.comment?.trim() || null,
+      createMode: dto.createMode === 'full' ? 'full' : 'quick',
       attachmentIds: [...new Set((dto.attachmentIds ?? []).filter(Boolean))],
       requesterName: dto.requesterName?.trim() || null,
       requesterPhone: dto.requesterPhone?.trim() || null,
@@ -313,6 +362,16 @@ export class TicketsAssignmentService {
     }
     const assignmentCompanyId =
       creatorRole === UserRole.TECHNICIAN && targetCompanyId !== actorCompanyId ? actorCompanyId : targetCompanyId;
+    await assertActorCanUseLocation({
+      prisma: this.prisma,
+      actor: {
+        id: creatorUserId,
+        role: creatorRole,
+        companyId: actorCompanyId,
+      },
+      scopeCompanyId: targetCompanyId,
+      locationId: input.locationId,
+    });
     const company = await this.getCompany(targetCompanyId);
     const category = await this.getCategory(targetCompanyId, input.categoryId);
     const location = await this.getLocation(targetCompanyId, input.locationId);
@@ -327,7 +386,12 @@ export class TicketsAssignmentService {
     });
 
     const specializationIds = category.specializationLinks.map((x) => x.specializationId);
-    const candidates = await this.findCandidateTechnicians(assignmentCompanyId, specializationIds);
+    const allCandidates = await this.findCandidateTechnicians(assignmentCompanyId, specializationIds);
+    const candidates = await this.filterTechniciansByLocationBindings(
+      allCandidates,
+      targetCompanyId,
+      location.id,
+    );
     const shouldAutoAssign = company.autoAssignEnabled && candidates.length > 0;
 
     const ticketId = randomUUID();
@@ -417,8 +481,24 @@ export class TicketsAssignmentService {
           urgency: ticket.urgency,
           autoAssigned: !!assignedTechnicianId,
           attachmentCount: boundAttachments.length,
+          createMode: input.createMode,
         },
       });
+
+      if (input.comment) {
+        await this.timelineService.recordLegacyTx(tx, {
+          type: 'ticket.comment_added',
+          companyId: targetCompanyId,
+          entityType: 'Ticket',
+          entityId: ticket.id,
+          actorUserId: creatorUserId ?? null,
+          payload: {
+            comment: input.comment,
+            source: 'create_flow',
+            createMode: input.createMode,
+          },
+        });
+      }
 
       if (assignedTechnicianId) {
         const wf = decideTicketTransition(TicketStatus.NEW, TicketStatus.ASSIGNED);
@@ -488,7 +568,12 @@ export class TicketsAssignmentService {
     const category = await this.getCategory(companyId, dto.problemCategoryId);
 
     const specializationIds = category.specializationLinks.map((x) => x.specializationId);
-    const candidates = await this.findCandidateTechnicians(companyId, specializationIds);
+    const allCandidates = await this.findCandidateTechnicians(companyId, specializationIds);
+    const candidates = await this.filterTechniciansByLocationBindings(
+      allCandidates,
+      companyId,
+      parent.locationId,
+    );
 
     const shouldAutoAssign = company.autoAssignEnabled && candidates.length > 0;
 
@@ -674,9 +759,14 @@ export class TicketsAssignmentService {
 
     const specializationIds = requiredSpecializations.map((x) => x.id);
     const fallbackMode = specializationIds.length === 0;
-    const allTechnicians = await this.listAllTechnicians(access.operationCompanyId, specializationIds, {
+    const allTechniciansRaw = await this.listAllTechnicians(access.operationCompanyId, specializationIds, {
       fallbackToAllWhenNoSpecializations: true,
     });
+    const allTechnicians = await this.filterTechniciansByLocationBindings(
+      allTechniciansRaw,
+      access.ticket.companyId,
+      ticket.location.id,
+    );
 
     const matched = allTechnicians.filter((t) => t.matched);
     const others = allTechnicians.filter((t) => !t.matched);
@@ -758,6 +848,17 @@ export class TicketsAssignmentService {
 
       if (!tech) {
         throw new NotFoundException('Technician not found');
+      }
+      const technicianBindings = await tx.userLocationBinding.findMany({
+        where: {
+          userId: technicianId,
+          companyId: ticket.companyId,
+          location: { clientCompanyId: ticket.companyId },
+        },
+        select: { locationId: true },
+      });
+      if (technicianBindings.length > 0 && !technicianBindings.some((row) => row.locationId === ticket.locationId)) {
+        throw new ForbiddenException('Technician is not bound to ticket location');
       }
 
       const previousAssigneeId = ticket.assignedTechnicianId;
@@ -879,9 +980,13 @@ export class TicketsAssignmentService {
           ? null
           : dto.equipmentId.trim();
     const normalizedProblemText = typeof dto.problemText === 'string' ? dto.problemText.trim() : undefined;
+    const normalizedComment = typeof dto.comment === 'string' ? dto.comment.trim() : undefined;
 
     if (dto.problemText !== undefined && !normalizedProblemText) {
       throw new BadRequestException('problemText cannot be empty');
+    }
+    if (dto.comment !== undefined && !normalizedComment) {
+      throw new BadRequestException('comment cannot be empty');
     }
 
     if (dto.problemCategoryId !== undefined && !normalizedCategoryId) {
@@ -942,6 +1047,17 @@ export class TicketsAssignmentService {
       }
 
       if (normalizedLocationId) {
+        await assertActorCanUseLocation({
+          prisma: this.prisma,
+          actor: {
+            id: actor.id,
+            role: actor.role,
+            companyId: actor.companyId,
+            accessFlags: actor?.accessFlags,
+          },
+          scopeCompanyId: access.ticket.companyId,
+          locationId: normalizedLocationId,
+        });
         const location = await tx.location.findFirst({
           where: {
             id: normalizedLocationId,
@@ -1066,6 +1182,20 @@ export class TicketsAssignmentService {
         },
       });
 
+      if (normalizedComment) {
+        await this.timelineService.recordLegacyTx(tx, {
+          type: 'ticket.comment_added',
+          companyId: ticket.companyId,
+          entityType: 'Ticket',
+          entityId: ticket.id,
+          actorUserId: actor?.id ?? null,
+          payload: {
+            comment: normalizedComment,
+            source: 'edit_flow',
+          },
+        });
+      }
+
       return ticket.id;
     });
 
@@ -1171,33 +1301,38 @@ export class TicketsAssignmentService {
     if (!technicianScope.allowTechnicianClaim) {
       return []
     }
+    const locationRestriction = buildTechnicianLocationRestrictionWhere({
+      companyIds: technicianScope.companyIds,
+      locationScopeByCompany: technicianScope.locationScopeByCompany,
+    });
 
     return this.prisma.ticket.findMany({
       where: {
-        companyId:
-          technicianScope.companyIds.length === 1
-            ? technicianScope.companyIds[0]
-            : { in: technicianScope.companyIds },
-        status: TicketStatus.NEW,
-        assignedTechnicianId: null,
-        OR: [
-          ...(technicianScope.specializationIds.length > 0
-            ? [{
+        AND: [
+          locationRestriction,
+          {
+            status: TicketStatus.NEW,
+            assignedTechnicianId: null,
+            OR: [
+              ...(technicianScope.specializationIds.length > 0
+                ? [{
+                    problemCategory: {
+                      specializationLinks: {
+                        some: {
+                          specializationId: { in: technicianScope.specializationIds },
+                        },
+                      },
+                    },
+                  }]
+                : []),
+              {
                 problemCategory: {
                   specializationLinks: {
-                    some: {
-                      specializationId: { in: technicianScope.specializationIds },
-                    },
+                    none: {},
                   },
                 },
-              }]
-            : []),
-          {
-            problemCategory: {
-              specializationLinks: {
-                none: {},
               },
-            },
+            ],
           },
         ],
       },
@@ -1243,10 +1378,15 @@ export class TicketsAssignmentService {
       companyIds: technicianScope.companyIds,
     })
     assertAllowed(decision)
+    const locationRestriction = buildTechnicianLocationRestrictionWhere({
+      companyIds: technicianScope.companyIds,
+      locationScopeByCompany: technicianScope.locationScopeByCompany,
+    });
+    const claimWhere = this.normalizeAnd(decision.where as Prisma.TicketWhereInput, [locationRestriction]);
 
     const resolvedTicketId = await this.prisma.$transaction(async (tx) => {
       const ticket = await tx.ticket.findFirst({
-        where: decision.where,
+        where: claimWhere,
       })
 
       if (!ticket) {
@@ -1319,7 +1459,12 @@ export class TicketsAssignmentService {
       : null;
 
     const specializationIds = category.specializationLinks.map((x) => x.specializationId);
-    const candidates = await this.findCandidateTechnicians(companyId, specializationIds);
+    const allCandidates = await this.findCandidateTechnicians(companyId, specializationIds);
+    const candidates = await this.filterTechniciansByLocationBindings(
+      allCandidates,
+      companyId,
+      location.id,
+    );
     const shouldAutoAssign = company.autoAssignEnabled && candidates.length > 0;
     const ticketId = randomUUID();
 

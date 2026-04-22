@@ -37,4 +37,8 @@ export class UpdateTicketDto {
   @IsOptional()
   @IsString()
   pointName?: string;
+
+  @IsOptional()
+  @IsString()
+  comment?: string;
 }

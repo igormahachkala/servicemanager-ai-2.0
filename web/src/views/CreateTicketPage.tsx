@@ -1,21 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { z } from 'zod'
 import * as api from '../lib/api'
 
 const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024
-
-const QuickRequestSchema = z.object({
-  clientCompanyId: z.string().uuid().optional(),
-  locationId: z.string().uuid('locationId: uuid'),
-  equipmentId: z.string().uuid('equipmentId: uuid').nullable().optional(),
-  categoryId: z.string().uuid('categoryId: uuid'),
-  urgency: z.enum(['URGENT', 'NOT_URGENT']).optional(),
-  requesterName: z.string().optional(),
-  requesterPhone: z.string().optional(),
-  attachmentIds: z.array(z.string().uuid()).optional(),
-})
 
 const CREATE_ALLOWED_ROLES: api.Role[] = [
   'ADMIN',
@@ -27,6 +15,8 @@ const CREATE_ALLOWED_ROLES: api.Role[] = [
   'TECHNICIAN',
 ]
 
+type CreateMode = 'quick' | 'full'
+
 function urgencyLabel(value: 'URGENT' | 'NOT_URGENT') {
   return value === 'URGENT' ? 'Срочно' : 'Не срочно'
 }
@@ -36,22 +26,13 @@ function locationLabel(location: api.LocationListItem) {
   return tail ? `${location.name} - ${tail}` : location.name
 }
 
-function buildPreview(category: api.ProblemCategoryListItem | null, location: api.LocationListItem | null) {
-  const title = category?.name || 'Категория будет выбрана'
-  const locationText = location ? locationLabel(location) : 'Локация будет выбрана'
-  const description = category?.instructions?.trim()
-    ? `Быстрый запрос по категории "${title}". Локация: ${locationText}. Инструкция категории: ${category.instructions.trim()}.`
-    : `Быстрый запрос по категории "${title}". Локация: ${locationText}. Требуется диагностика и подтверждение причины на месте.`
-
-  return { title, description }
-}
-
 export function CreateTicketPage() {
   const nav = useNavigate()
   const [searchParams] = useSearchParams()
   const qc = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
+  const [mode, setMode] = useState<CreateMode>('quick')
   const [err, setErr] = useState<string | null>(null)
   const [clientCompanyId, setClientCompanyId] = useState('')
   const [locationId, setLocationId] = useState('')
@@ -60,35 +41,44 @@ export function CreateTicketPage() {
   const [urgency, setUrgency] = useState<'URGENT' | 'NOT_URGENT'>('NOT_URGENT')
   const [requesterName, setRequesterName] = useState('')
   const [requesterPhone, setRequesterPhone] = useState('')
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
+  const [comment, setComment] = useState('')
+  const [address, setAddress] = useState('')
+  const [pointName, setPointName] = useState('')
+  const [slaMinutes, setSlaMinutes] = useState('')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [draftAttachment, setDraftAttachment] = useState<api.DraftTicketAttachment | null>(null)
 
-  const meQ = useQuery({
-    queryKey: ['me'],
-    queryFn: api.me,
-  })
-
+  const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
   const isTechnician = meQ.data?.role === 'TECHNICIAN'
   const canCreateByRole = !!meQ.data?.role && CREATE_ALLOWED_ROLES.includes(meQ.data.role)
   const linkedClientCompanyId = (searchParams.get('linkedClientCompanyId') || '').trim()
+  const observerCompanyId = (searchParams.get('companyId') || '').trim()
+  const scopedCompanyId = linkedClientCompanyId || observerCompanyId || ''
   const isProviderLinkedCreate = !!linkedClientCompanyId && !isTechnician
+  const createContextMode = isTechnician
+    ? 'technician'
+    : linkedClientCompanyId
+      ? 'provider'
+      : observerCompanyId
+        ? 'observer'
+        : 'tenant'
 
   const technicianContextsQ = useQuery({
     queryKey: ['technician-bound-contexts'],
     queryFn: api.getTechnicianBoundContexts,
     enabled: isTechnician,
   })
-
   const categoriesQ = useQuery({
-    queryKey: ['problem-categories', linkedClientCompanyId],
-    queryFn: () => api.problemCategories(linkedClientCompanyId || undefined),
+    queryKey: ['problem-categories', scopedCompanyId],
+    queryFn: () => api.problemCategories(scopedCompanyId || undefined),
     enabled: !isTechnician,
   })
-
   const locationsQ = useQuery({
-    queryKey: ['locations', linkedClientCompanyId],
-    queryFn: () => api.locations(linkedClientCompanyId || undefined),
+    queryKey: ['locations', scopedCompanyId],
+    queryFn: () => api.locations(scopedCompanyId || undefined),
     enabled: !isTechnician,
   })
   const equipmentQ = useQuery({
@@ -104,67 +94,47 @@ export function CreateTicketPage() {
   )
 
   const activeCategories = useMemo(() => {
-    if (isTechnician) {
-      return (selectedTechnicianContext?.categories || []).filter((row) => row.isActive !== false)
-    }
-    const rows = categoriesQ.data || []
-    return rows.filter((row) => row.isActive !== false)
+    if (isTechnician) return (selectedTechnicianContext?.categories || []).filter((row) => row.isActive !== false)
+    return (categoriesQ.data || []).filter((row) => row.isActive !== false)
   }, [categoriesQ.data, isTechnician, selectedTechnicianContext])
 
   const activeLocations = useMemo(() => {
-    if (isTechnician) {
-      return (selectedTechnicianContext?.locations || []).filter((row) => row.isActive !== false)
-    }
-    const rows = locationsQ.data || []
-    return rows.filter((row) => row.isActive !== false)
+    if (isTechnician) return (selectedTechnicianContext?.locations || []).filter((row) => row.isActive !== false)
+    return (locationsQ.data || []).filter((row) => row.isActive !== false)
   }, [isTechnician, locationsQ.data, selectedTechnicianContext])
+
+  const locationEquipment = useMemo(
+    () => (equipmentQ.data || []).filter((row) => row.locationId === locationId || !row.locationId),
+    [equipmentQ.data, locationId],
+  )
 
   useEffect(() => {
     if (!isTechnician) return
-    if (!clientCompanyId && technicianContexts.length > 0) {
-      setClientCompanyId(technicianContexts[0].clientCompany.id)
-    }
+    if (!clientCompanyId && technicianContexts.length > 0) setClientCompanyId(technicianContexts[0].clientCompany.id)
   }, [clientCompanyId, isTechnician, technicianContexts])
 
   useEffect(() => {
     if (!meQ.data) return
     const fullName = [meQ.data.firstName?.trim(), meQ.data.lastName?.trim()].filter(Boolean).join(' ').trim()
-    if (!requesterName && fullName) {
-      setRequesterName(fullName)
-    }
+    if (!requesterName && fullName) setRequesterName(fullName)
   }, [meQ.data, requesterName])
 
   useEffect(() => {
-    if (!categoryId && activeCategories.length > 0) {
-      setCategoryId(activeCategories[0].id)
-    }
-    if (categoryId && !activeCategories.some((row) => row.id === categoryId)) {
-      setCategoryId(activeCategories[0]?.id || '')
-    }
+    if (!categoryId && activeCategories.length > 0) setCategoryId(activeCategories[0].id)
+    if (categoryId && !activeCategories.some((row) => row.id === categoryId)) setCategoryId(activeCategories[0]?.id || '')
   }, [activeCategories, categoryId])
 
   useEffect(() => {
-    if (!locationId && activeLocations.length > 0) {
-      setLocationId(activeLocations[0].id)
-    }
-    if (locationId && !activeLocations.some((row) => row.id === locationId)) {
-      setLocationId(activeLocations[0]?.id || '')
-    }
+    if (!locationId && activeLocations.length > 0) setLocationId(activeLocations[0].id)
+    if (locationId && !activeLocations.some((row) => row.id === locationId)) setLocationId(activeLocations[0]?.id || '')
   }, [activeLocations, locationId])
-
-  const selectedCategory = useMemo(() => activeCategories.find((row) => row.id === categoryId) || null, [activeCategories, categoryId])
-  const selectedLocation = useMemo(() => activeLocations.find((row) => row.id === locationId) || null, [activeLocations, locationId])
-  const locationEquipment = useMemo(() => (equipmentQ.data || []).filter((row) => row.locationId === locationId || !row.locationId), [equipmentQ.data, locationId])
-  const preview = useMemo(() => buildPreview(selectedCategory, selectedLocation), [selectedCategory, selectedLocation])
 
   useEffect(() => {
     if (!locationId) {
       setEquipmentId('')
       return
     }
-    if (equipmentId && !locationEquipment.some((row) => row.id === equipmentId)) {
-      setEquipmentId('')
-    }
+    if (equipmentId && !locationEquipment.some((row) => row.id === equipmentId)) setEquipmentId('')
   }, [locationId, equipmentId, locationEquipment])
 
   const uploadM = useMutation({
@@ -176,11 +146,8 @@ export function CreateTicketPage() {
       setSelectedFile(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
     },
-    onError: (e: any) => {
-      setUploadError(e?.message || String(e))
-    },
+    onError: (e: any) => setUploadError(e?.message || String(e)),
   })
-
   const deleteDraftM = useMutation({
     mutationFn: (attachmentId: string) => api.deleteDraftTicketAttachment(attachmentId),
     onSuccess: () => {
@@ -189,24 +156,19 @@ export function CreateTicketPage() {
       setSelectedFile(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
     },
-    onError: (e: any) => {
-      setUploadError(e?.message || String(e))
-    },
+    onError: (e: any) => setUploadError(e?.message || String(e)),
   })
-
   const createM = useMutation({
     mutationFn: (payload: api.CreateTicketInput) => api.createTicket(payload),
     onSuccess: async (created) => {
       setErr(null)
       await qc.invalidateQueries({ queryKey: ['board'] })
       await qc.invalidateQueries({ queryKey: ['tickets'] })
-
       const createdId = api.extractCreatedTicketId(created)
       if (!createdId) {
         setErr(`Не удалось определить id созданной заявки из ответа backend: ${JSON.stringify(created)}`)
         return
       }
-
       nav(`/tickets/${createdId}`)
     },
     onError: (e: any) => setErr(e?.message || String(e)),
@@ -214,71 +176,81 @@ export function CreateTicketPage() {
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     setUploadError(null)
-
     const file = e.target.files?.[0] || null
     if (!file) {
       setSelectedFile(null)
       return
     }
-
     if (!file.type.startsWith('image/')) {
       setSelectedFile(null)
       e.target.value = ''
       setUploadError('Можно загружать только изображения')
       return
     }
-
     if (file.size <= 0) {
       setSelectedFile(null)
       e.target.value = ''
       setUploadError('Файл пустой')
       return
     }
-
     if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
       setSelectedFile(null)
       e.target.value = ''
       setUploadError('Изображение слишком большое (максимум 10 МБ)')
       return
     }
-
     setSelectedFile(file)
   }
 
   function buildPayload(): api.CreateTicketInput {
-    return {
+    const base: api.CreateTicketInput = {
+      createMode: mode,
       clientCompanyId: isTechnician ? clientCompanyId : isProviderLinkedCreate ? linkedClientCompanyId : undefined,
       locationId,
-      equipmentId: equipmentId || undefined,
       categoryId,
-      urgency,
       requesterName: requesterName.trim() || undefined,
       requesterPhone: requesterPhone.trim() || undefined,
       attachmentIds: draftAttachment ? [draftAttachment.id] : [],
+      comment: comment.trim() || undefined,
+    }
+
+    if (mode === 'quick') {
+      return base
+    }
+
+    const parsedSla = Number(slaMinutes)
+    return {
+      ...base,
+      equipmentId: equipmentId || undefined,
+      urgency,
+      title: title.trim() || undefined,
+      description: description.trim() || undefined,
+      address: address.trim() || undefined,
+      pointName: pointName.trim() || undefined,
+      slaMinutes: Number.isFinite(parsedSla) && parsedSla > 0 ? parsedSla : undefined,
     }
   }
 
-  function validatePayload() {
-    const parsed = QuickRequestSchema.safeParse(buildPayload())
-    if (!parsed.success) {
-      setErr(parsed.error.issues.map((issue) => issue.message).join('\n'))
-      return null
-    }
-
-    return parsed.data as api.CreateTicketInput
+  function validatePayload(payload: api.CreateTicketInput) {
+    if (!payload.locationId) return 'Выберите локацию'
+    if (!payload.categoryId) return 'Выберите категорию'
+    if (isTechnician && !payload.clientCompanyId) return 'Не выбран клиентский контур'
+    return null
   }
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault()
     setErr(null)
     if (!canCreateByRole) {
-      setErr('Эта роль не может создавать заявки по текущей продуктовой модели')
+      setErr('Эта роль не может создавать заявки')
       return
     }
-
-    const payload = validatePayload()
-    if (!payload) return
-
+    const payload = buildPayload()
+    const validationError = validatePayload(payload)
+    if (validationError) {
+      setErr(validationError)
+      return
+    }
     createM.mutate(payload)
   }
 
@@ -287,7 +259,6 @@ export function CreateTicketPage() {
       setUploadError('Сначала выберите фото')
       return
     }
-
     uploadM.mutate(selectedFile)
   }
 
@@ -295,7 +266,12 @@ export function CreateTicketPage() {
     setErr(null)
     setUploadError(null)
     setUrgency('NOT_URGENT')
-
+    setTitle('')
+    setDescription('')
+    setComment('')
+    setAddress('')
+    setPointName('')
+    setSlaMinutes('')
     if (draftAttachment) {
       deleteDraftM.mutate(draftAttachment.id)
     } else {
@@ -308,8 +284,7 @@ export function CreateTicketPage() {
   const noCategories = activeCategories.length === 0
   const noLocations = activeLocations.length === 0
   const isBootstrapping =
-    meQ.isFetching ||
-    (isTechnician ? technicianContextsQ.isFetching : categoriesQ.isFetching || locationsQ.isFetching)
+    meQ.isFetching || (isTechnician ? technicianContextsQ.isFetching : categoriesQ.isFetching || locationsQ.isFetching)
   const noTechnicianContexts = isTechnician && !technicianContextsQ.isFetching && technicianContexts.length === 0
 
   return (
@@ -317,11 +292,7 @@ export function CreateTicketPage() {
       <div className="row">
         <div>
           <h2 style={{ marginBottom: 4 }}>Создать заявку</h2>
-          <div className="muted small">
-            {isTechnician
-              ? 'Выберите привязанную клиентскую компанию, локацию и категорию. Заявка будет создана в клиентском контуре.'
-              : 'Выберите локацию, категорию и при необходимости приложите фото. Длинное описание не требуется.'}
-          </div>
+          <div className="muted small">Quick: 4 шага. Full: расширенная форма с комментарием и всеми полями.</div>
         </div>
         <div>
           <Link to="/board">
@@ -341,8 +312,20 @@ export function CreateTicketPage() {
       {noTechnicianContexts ? (
         <div className="panel">
           <h3 style={{ marginBottom: 6 }}>Нет привязанного клиентского контура</h3>
+          <div className="muted small">Для техника не настроены доступные клиентские компании/локации.</div>
+        </div>
+      ) : null}
+      {canCreateByRole && !isBootstrapping && noLocations ? (
+        <div className="panel">
+          <h3 style={{ marginBottom: 6 }}>Создание заявки заблокировано: нет доступных локаций</h3>
           <div className="muted small">
-            Для техника ещё не настроены клиентские компании или локации, в рамках которых можно создавать заявки.
+            {createContextMode === 'provider'
+              ? 'Для выбранного linked-client контекста нет доступных точек. Проверьте связи с клиентом и права доступа к локациям.'
+              : createContextMode === 'observer'
+                ? 'Для выбранной компании в режиме наблюдения нет доступных точек.'
+                : createContextMode === 'technician'
+                  ? 'Для выбранного клиентского контура техника нет доступных точек.'
+                  : 'В текущем tenant-контуре нет доступных точек.'}
           </div>
         </div>
       ) : null}
@@ -350,37 +333,70 @@ export function CreateTicketPage() {
       {meQ.data && !canCreateByRole ? (
         <div className="panel uiCard">
           <h3 style={{ marginBottom: 6 }}>Создание заявки недоступно</h3>
-          <div className="muted small">
-            Роль <b>{meQ.data.role}</b> не имеет права `TICKETS_CREATE`. Для этой роли доступен только просмотр.
-          </div>
+          <div className="muted small">Роль <b>{meQ.data.role}</b> не имеет `TICKETS_CREATE`.</div>
         </div>
       ) : null}
 
       <div className="panel uiCard" style={{ display: meQ.data && !canCreateByRole ? 'none' : 'block' }}>
         <form onSubmit={onSubmit} className="form" style={{ maxWidth: 860 }}>
-          {isTechnician && selectedTechnicianContext ? (
-            <div className="muted small" style={{ marginBottom: 4 }}>
-              Контекст создания: клиентская компания <b>{selectedTechnicianContext.clientCompany.name}</b>.
-            </div>
+          <div className="uiActions">
+            <button type="button" className={mode === 'quick' ? '' : 'ghost'} onClick={() => setMode('quick')} disabled={isBusy}>
+              Быстрая заявка
+            </button>
+            <button type="button" className={mode === 'full' ? '' : 'ghost'} onClick={() => setMode('full')} disabled={isBusy}>
+              Полная заявка
+            </button>
+          </div>
+
+          {mode === 'quick' ? (
+            <div className="muted small">Шаги: 1) Локация 2) Категория 3) Контакт 4) Фото + отправка</div>
           ) : null}
+
           {isTechnician ? (
-            <div className="grid2" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+            <label>
+              Клиентская компания *
+              <select value={clientCompanyId} onChange={(e) => setClientCompanyId(e.target.value)} disabled={technicianContextsQ.isFetching || technicianContexts.length === 0}>
+                {technicianContexts.length === 0 ? <option value="">Нет доступных компаний</option> : null}
+                {technicianContexts.map((context) => (
+                  <option key={context.clientCompany.id} value={context.clientCompany.id}>{context.clientCompany.name}</option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+
+          <label>
+            {mode === 'quick' ? 'Шаг 1. Локация *' : 'Локация *'}
+            <select value={locationId} onChange={(e) => setLocationId(e.target.value)} disabled={isBootstrapping || noLocations}>
+              {noLocations ? <option value="">Локации недоступны для текущего контекста</option> : null}
+              {activeLocations.map((location) => (
+                <option key={location.id} value={location.id}>{locationLabel(location)}</option>
+              ))}
+            </select>
+          </label>
+
+          <label>
+            {mode === 'quick' ? 'Шаг 2. Категория *' : 'Категория *'}
+            <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} disabled={isBootstrapping || noCategories}>
+              {noCategories ? <option value="">Нет доступных категорий</option> : null}
+              {activeCategories.map((category) => (
+                <option key={category.id} value={category.id}>{category.name}</option>
+              ))}
+            </select>
+          </label>
+
+          {mode === 'full' ? (
+            <>
               <label>
-                1. Клиентская компания *
-                <select
-                  value={clientCompanyId}
-                  onChange={(e) => setClientCompanyId(e.target.value)}
-                  disabled={technicianContextsQ.isFetching || technicianContexts.length === 0}
-                >
-                  {technicianContexts.length === 0 ? <option value="">Нет доступных компаний</option> : null}
-                  {technicianContexts.map((context) => (
-                    <option key={context.clientCompany.id} value={context.clientCompany.id}>
-                      {context.clientCompany.name}
+                Оборудование / Asset (опционально)
+                <select value={equipmentId} onChange={(e) => setEquipmentId(e.target.value)} disabled={!locationId || equipmentQ.isFetching}>
+                  <option value="">Без оборудования</option>
+                  {locationEquipment.map((equipment) => (
+                    <option key={equipment.id} value={equipment.id}>
+                      {[equipment.name, equipment.type, equipment.status].filter(Boolean).join(' · ')}
                     </option>
                   ))}
                 </select>
               </label>
-
               <label>
                 Срочность
                 <select value={urgency} onChange={(e) => setUrgency(e.target.value as 'URGENT' | 'NOT_URGENT')}>
@@ -388,135 +404,59 @@ export function CreateTicketPage() {
                   <option value="URGENT">{urgencyLabel('URGENT')}</option>
                 </select>
               </label>
-            </div>
-          ) : null}
-
-          <div className="grid2" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
-            <label>
-              {isTechnician ? '2. Локация клиента *' : '1. Локация *'}
-              <select value={locationId} onChange={(e) => setLocationId(e.target.value)} disabled={isBootstrapping || noLocations}>
-                {noLocations ? <option value="">Нет доступных локаций</option> : null}
-                {activeLocations.map((location) => (
-                  <option key={location.id} value={location.id}>
-                    {locationLabel(location)}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            {!isTechnician ? (
               <label>
-                Срочность
-                <select value={urgency} onChange={(e) => setUrgency(e.target.value as 'URGENT' | 'NOT_URGENT')}>
-                  <option value="NOT_URGENT">{urgencyLabel('NOT_URGENT')}</option>
-                  <option value="URGENT">{urgencyLabel('URGENT')}</option>
-                </select>
+                Короткий заголовок
+                <input value={title} onChange={(e) => setTitle(e.target.value)} disabled={isBusy} />
               </label>
-            ) : null}
-          </div>
-
-          <label>
-            {isTechnician ? '3. Оборудование / Asset (опционально)' : '2. Оборудование / Asset (опционально)'}
-            <select
-              value={equipmentId}
-              onChange={(e) => setEquipmentId(e.target.value)}
-              disabled={!locationId || equipmentQ.isFetching}
-            >
-              <option value="">Без оборудования</option>
-              {locationEquipment.map((equipment) => (
-                <option key={equipment.id} value={equipment.id}>
-                  {[equipment.name, equipment.type, equipment.status].filter(Boolean).join(' · ')}
-                </option>
-              ))}
-            </select>
-            <div className="muted small" style={{ marginTop: 6 }}>
-              {locationId
-                ? equipmentQ.isFetching
-                  ? 'Загружаем оборудование для выбранной локации...'
-                  : locationEquipment.length === 0
-                    ? 'Для этой локации оборудование не найдено. Можно создать заявку без оборудования.'
-                    : 'Оборудование фильтруется по выбранной локации.'
-                : 'Сначала выберите локацию.'}
-            </div>
-          </label>
-
-          <label>
-            {isTechnician ? '4. Категория *' : '3. Категория *'}
-            <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} disabled={isBootstrapping || noCategories}>
-              {noCategories ? <option value="">Нет доступных категорий</option> : null}
-              {activeCategories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
-            <div className="muted small" style={{ marginTop: 6 }}>
-              Backend сам сформирует заголовок и описание по выбранной категории.
-            </div>
-          </label>
+              <label>
+                Комментарий / описание
+                <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} disabled={isBusy} />
+              </label>
+              <label>
+                Точка
+                <input value={pointName} onChange={(e) => setPointName(e.target.value)} disabled={isBusy} />
+              </label>
+              <label>
+                Адрес
+                <input value={address} onChange={(e) => setAddress(e.target.value)} disabled={isBusy} />
+              </label>
+              <label>
+                SLA (минуты)
+                <input value={slaMinutes} onChange={(e) => setSlaMinutes(e.target.value)} disabled={isBusy} />
+              </label>
+            </>
+          ) : null}
 
           <div className="grid2" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
             <label>
-              {isTechnician ? '5. Контактное имя' : '4. Контактное имя'}
-              <input
-                value={requesterName}
-                onChange={(e) => setRequesterName(e.target.value)}
-                placeholder="Кто сообщил о проблеме"
-                disabled={isBusy}
-              />
+              {mode === 'quick' ? 'Шаг 3. Контактное имя' : 'Контактное имя'}
+              <input value={requesterName} onChange={(e) => setRequesterName(e.target.value)} placeholder="Кто сообщил о проблеме" disabled={isBusy} />
             </label>
             <label>
-              {isTechnician ? '6. Контактный телефон' : '5. Контактный телефон'}
-              <input
-                value={requesterPhone}
-                onChange={(e) => setRequesterPhone(e.target.value)}
-                placeholder="+7..."
-                disabled={isBusy}
-              />
+              {mode === 'quick' ? 'Шаг 3. Контактный телефон' : 'Контактный телефон'}
+              <input value={requesterPhone} onChange={(e) => setRequesterPhone(e.target.value)} placeholder="+7..." disabled={isBusy} />
             </label>
           </div>
 
-          {isTechnician && selectedTechnicianContext ? (
-            <div className="panel" style={{ padding: 12 }}>
-              <div className="muted small" style={{ marginBottom: 6 }}>Контекст техника</div>
-              <div style={{ fontWeight: 700 }}>{selectedTechnicianContext.clientCompany.name}</div>
-              <div className="muted small" style={{ marginTop: 4 }}>
-                {selectedTechnicianContext.locationScope === 'ALL_COMPANY_LOCATIONS'
-                  ? 'Техник может создавать заявки по всем активным локациям этой компании.'
-                  : 'Техник может создавать заявки только по привязанным локациям этой компании.'}
-              </div>
-            </div>
-          ) : null}
+          <label>
+            Комментарий в заявку (опционально)
+            <textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={3} disabled={isBusy} />
+          </label>
 
           <div className="panel" style={{ padding: 12 }}>
-            <div className="muted small" style={{ marginBottom: 6 }}>Предпросмотр того, что сформирует backend</div>
-            <div style={{ fontWeight: 700, marginBottom: 6 }}>{preview.title}</div>
-            <div style={{ whiteSpace: 'pre-wrap' }}>{preview.description}</div>
-          </div>
-
-          <div className="panel" style={{ padding: 12 }}>
-            <div style={{ fontWeight: 700, marginBottom: 10 }}>{isTechnician ? '5. Фото проблемы' : '4. Фото проблемы'}</div>
+            <div style={{ fontWeight: 700, marginBottom: 10 }}>{mode === 'quick' ? 'Шаг 4. Фото' : 'Фото'}</div>
             <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
               <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} disabled={isBusy || !!draftAttachment} />
               <button type="button" onClick={onUpload} disabled={uploadM.isPending || !selectedFile || !!draftAttachment}>
                 {uploadM.isPending ? 'Загружаем...' : draftAttachment ? 'Фото загружено' : 'Загрузить фото'}
               </button>
               {selectedFile ? <div className="muted small">{selectedFile.name}</div> : null}
-              {uploadError && selectedFile ? (
-                <button type="button" className="ghost" onClick={onUpload} disabled={uploadM.isPending}>
-                  Повторить загрузку
-                </button>
-              ) : null}
             </div>
 
             {draftAttachment ? (
               <div style={{ marginTop: 12, display: 'grid', gap: 10 }}>
-                <img
-                  src={api.resolveFileUrl(draftAttachment.url)}
-                  alt={draftAttachment.originalName}
-                  style={{ width: 260, maxWidth: '100%', borderRadius: 12, border: '1px solid #e5e7eb' }}
-                />
-                <div className="muted small">Фото сохранено и будет привязано к заявке при отправке.</div>
+                <img src={api.resolveFileUrl(draftAttachment.url)} alt={draftAttachment.originalName} style={{ width: 260, maxWidth: '100%', borderRadius: 12, border: '1px solid #e5e7eb' }} />
+                <div className="muted small">Фото будет привязано к заявке при отправке.</div>
                 <div>
                   <button type="button" className="ghost" onClick={() => deleteDraftM.mutate(draftAttachment.id)} disabled={deleteDraftM.isPending}>
                     {deleteDraftM.isPending ? 'Удаляем...' : 'Удалить фото'}
@@ -527,10 +467,9 @@ export function CreateTicketPage() {
           </div>
 
           <div className="uiActions">
-            <button type="submit" disabled={!canCreateByRole || isBusy || isBootstrapping || noCategories || noLocations || (isTechnician && !clientCompanyId)}>
-              {createM.isPending ? 'Отправляем...' : isTechnician ? '6. Создать заявку' : '5. Отправить заявку'}
+            <button type="submit" disabled={!canCreateByRole || isBusy || isBootstrapping || noCategories || noLocations || !locationId || (isTechnician && !clientCompanyId)}>
+              {createM.isPending ? 'Отправляем...' : 'Создать заявку'}
             </button>
-
             <button type="button" className="ghost" onClick={onReset} disabled={isBusy}>
               Сбросить
             </button>

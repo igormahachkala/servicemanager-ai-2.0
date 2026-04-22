@@ -1,5 +1,5 @@
 ﻿import { ForbiddenException, NotFoundException } from '@nestjs/common'
-import { UserRole } from '@prisma/client'
+import { Prisma, UserRole } from '@prisma/client'
 
 import { assertAllowed, isPlatformObserverScope, resolveObserverScopeCompanyId } from '../policy/policy.utils'
 import { TicketsPolicy, type UserCtx } from '../policy/tickets.policy'
@@ -19,6 +19,17 @@ export type TicketAccessActor = {
 
 export type TicketVisibilityMode = 'tenant' | 'provider_primary' | 'platform_observer'
 
+export const LOCATION_SCOPED_ROLES: UserRole[] = [
+  UserRole.CLIENT,
+  UserRole.TERRITORIAL_MANAGER,
+  UserRole.NETWORK_DIRECTOR,
+  UserRole.TECHNICIAN,
+]
+
+export type LocationScope =
+  | { mode: 'tenant_wide'; locationIds: string[] }
+  | { mode: 'bound_locations'; locationIds: string[] }
+
 export const PROVIDER_LINKED_OVERVIEW_ROLES: UserRole[] = [
   UserRole.ADMIN,
   UserRole.MASTER,
@@ -32,6 +43,111 @@ export const PROVIDER_LINKED_OPERATION_ROLES: UserRole[] = [
 ]
 
 const ticketsPolicy = new TicketsPolicy()
+
+function normalizeAnd(
+  where: Prisma.TicketWhereInput,
+  extra: Prisma.TicketWhereInput[],
+): Prisma.TicketWhereInput {
+  const base = where.AND
+  const baseArr = Array.isArray(base) ? base : base ? [base] : []
+  return { ...where, AND: [...baseArr, ...extra] }
+}
+
+export function applyLocationScopeToTicketWhere(
+  where: Prisma.TicketWhereInput,
+  locationScope: LocationScope,
+): Prisma.TicketWhereInput {
+  if (locationScope.mode !== 'bound_locations') return where
+  if (locationScope.locationIds.length === 0) {
+    return normalizeAnd(where, [{ id: { equals: '__no_access__' } }])
+  }
+  return normalizeAnd(where, [{ locationId: { in: locationScope.locationIds } }])
+}
+
+export async function resolveActorLocationScope(params: {
+  prisma: PrismaService
+  actor: TicketAccessActor
+  scopeCompanyId?: string
+}): Promise<LocationScope> {
+  const scopeCompanyId = params.scopeCompanyId ?? params.actor.companyId
+  if (!LOCATION_SCOPED_ROLES.includes(params.actor.role)) {
+    return { mode: 'tenant_wide', locationIds: [] }
+  }
+
+  if (params.actor.role !== UserRole.TECHNICIAN && scopeCompanyId !== params.actor.companyId) {
+    return { mode: 'tenant_wide', locationIds: [] }
+  }
+
+  const bindings = await params.prisma.userLocationBinding.findMany({
+    where: {
+      userId: params.actor.id,
+      companyId: scopeCompanyId,
+      location: { clientCompanyId: scopeCompanyId },
+    },
+    select: { locationId: true },
+  })
+
+  const locationIds = Array.from(new Set(bindings.map((item) => item.locationId)))
+  if (locationIds.length === 0) {
+    return { mode: 'tenant_wide', locationIds: [] }
+  }
+
+  return {
+    mode: 'bound_locations',
+    locationIds,
+  }
+}
+
+export function buildTechnicianLocationRestrictionWhere(params: {
+  companyIds: string[]
+  locationScopeByCompany: Record<string, string[]>
+}): Prisma.TicketWhereInput {
+  const companyConditions = params.companyIds.map((companyId) => {
+    const locationIds = params.locationScopeByCompany[companyId] ?? []
+    if (locationIds.length === 0) {
+      return { companyId }
+    }
+    return {
+      companyId,
+      locationId: { in: locationIds },
+    }
+  })
+  if (companyConditions.length === 1) {
+    return companyConditions[0]
+  }
+  return { OR: companyConditions }
+}
+
+export function isTechnicianLocationAllowed(params: {
+  companyId: string
+  locationId: string
+  locationScopeByCompany: Record<string, string[]>
+}): boolean {
+  const locationIds = params.locationScopeByCompany[params.companyId] ?? []
+  if (locationIds.length === 0) {
+    return true
+  }
+  return locationIds.includes(params.locationId)
+}
+
+export async function assertActorCanUseLocation(params: {
+  prisma: PrismaService
+  actor: TicketAccessActor
+  scopeCompanyId: string
+  locationId: string
+}) {
+  const locationScope = await resolveActorLocationScope({
+    prisma: params.prisma,
+    actor: params.actor,
+    scopeCompanyId: params.scopeCompanyId,
+  })
+
+  if (locationScope.mode === 'bound_locations' && !locationScope.locationIds.includes(params.locationId)) {
+    throw new ForbiddenException('Location is not available in current user scope')
+  }
+
+  return locationScope
+}
 
 export function canAccessOwnTicket(
   ctx: Pick<TicketAccessActor, 'companyId'>,
@@ -87,10 +203,35 @@ export async function resolveTechnicianOperationalScope(params: {
   const specializationIds = technician.technicianSpecializations.map((item) => item.specializationId)
   const linkedScopeSelected = !!params.linkedClientCompanyId && params.linkedClientCompanyId !== params.actor.companyId
   const hasLinkedCompanies = linkedClientIds.some((id) => id !== params.actor.companyId)
+  const bindings = await params.prisma.userLocationBinding.findMany({
+    where: {
+      userId: params.actor.id,
+      companyId: { in: companyIds },
+      location: { clientCompanyId: { in: companyIds } },
+    },
+    select: {
+      companyId: true,
+      locationId: true,
+    },
+  })
+  const locationScopeByCompany: Record<string, string[]> = {}
+  for (const companyId of companyIds) {
+    locationScopeByCompany[companyId] = []
+  }
+  for (const binding of bindings) {
+    if (!locationScopeByCompany[binding.companyId]) {
+      locationScopeByCompany[binding.companyId] = []
+    }
+    locationScopeByCompany[binding.companyId].push(binding.locationId)
+  }
+  for (const companyId of Object.keys(locationScopeByCompany)) {
+    locationScopeByCompany[companyId] = Array.from(new Set(locationScopeByCompany[companyId]))
+  }
 
   return {
     companyIds,
     specializationIds,
+    locationScopeByCompany,
     allowTechnicianClaim: !!company.allowTechnicianClaim,
     scopeCompanyId: linkedScopeSelected ? params.linkedClientCompanyId! : params.actor.companyId,
     visibilityMode: hasLinkedCompanies ? ('provider_primary' as TicketVisibilityMode) : ('tenant' as TicketVisibilityMode),
@@ -200,11 +341,17 @@ export async function resolveReadableTicketAccess(params: {
   linkedClientCompanyId?: string
   observerCompanyId?: string
 }) {
+  const locationScope = await resolveActorLocationScope({
+    prisma: params.prisma,
+    actor: params.actor,
+  })
+
   const tenantDecision = ticketsPolicy.getOneWhere(params.actor as UserCtx, params.ticketId)
   assertAllowed(tenantDecision)
 
+  const tenantWhere = applyLocationScopeToTicketWhere(tenantDecision.where, locationScope)
   const tenantTicket = await params.prisma.ticket.findFirst({
-    where: tenantDecision.where,
+    where: tenantWhere,
     select: {
       id: true,
       companyId: true,
@@ -262,16 +409,21 @@ export async function resolveReadableTicketAccess(params: {
 
     const technicianTicket = await params.prisma.ticket.findFirst({
       where: {
-        id: params.ticketId,
-        companyId:
-          technicianScope.companyIds.length === 1
-            ? technicianScope.companyIds[0]
-            : { in: technicianScope.companyIds },
-        OR: visibilityOr,
+        AND: [
+          {
+            id: params.ticketId,
+            OR: visibilityOr,
+          },
+          buildTechnicianLocationRestrictionWhere({
+            companyIds: technicianScope.companyIds,
+            locationScopeByCompany: technicianScope.locationScopeByCompany,
+          }),
+        ],
       },
       select: {
         id: true,
         companyId: true,
+        locationId: true,
         assignedTechnicianId: true,
       },
     })
@@ -384,6 +536,7 @@ export async function resolveReadableTicketAccess(params: {
     select: {
       id: true,
       companyId: true,
+      locationId: true,
       assignedTechnicianId: true,
       status: true,
       problemCategory: {
@@ -399,6 +552,13 @@ export async function resolveReadableTicketAccess(params: {
   })
 
   if (directTicket) {
+    if (
+      locationScope.mode === 'bound_locations' &&
+      directTicket.companyId === params.actor.companyId &&
+      !locationScope.locationIds.includes(directTicket.locationId)
+    ) {
+      throw new NotFoundException('Ticket not found')
+    }
     if (
       PROVIDER_LINKED_OVERVIEW_ROLES.includes(params.actor.role) &&
       directTicket.companyId !== params.actor.companyId
@@ -425,15 +585,21 @@ export async function resolveReadableTicketAccess(params: {
 
       const categorySpecializationIds =
         directTicket.problemCategory?.specializationLinks?.map((item) => item.specializationId) ?? []
+      const locationAllowed = isTechnicianLocationAllowed({
+        companyId: directTicket.companyId,
+        locationId: directTicket.locationId,
+        locationScopeByCompany: technicianScope.locationScopeByCompany,
+      })
       const technicianCanClaim =
         technicianScope.allowTechnicianClaim &&
         directTicket.status === 'NEW' &&
         !directTicket.assignedTechnicianId &&
+        locationAllowed &&
         (categorySpecializationIds.length === 0 ||
           categorySpecializationIds.some((id) => technicianScope.specializationIds.includes(id)))
 
       const technicianCanReadLinked =
-        directTicket.assignedTechnicianId === params.actor.id || technicianCanClaim
+        (directTicket.assignedTechnicianId === params.actor.id && locationAllowed) || technicianCanClaim
 
       if (technicianCanReadLinked) {
         return {

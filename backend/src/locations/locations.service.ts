@@ -3,6 +3,8 @@ import { UserRole } from '@prisma/client'
 
 import { PrismaService } from '../prisma/prisma.service'
 import { resolveObserverScopeCompanyId } from '../policy/policy.utils'
+import { ServiceContractsService } from '../service-contracts/service-contracts.service'
+import { resolveActorLocationScope } from '../tickets/ticket-access.utils'
 
 type ListInput = {
   q?: string
@@ -12,10 +14,22 @@ type ListInput = {
 
 @Injectable()
 export class LocationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly serviceContractsService: ServiceContractsService,
+  ) {}
 
-  async list(actorCompanyId: string, actorRole: UserRole, input: ListInput, requestedCompanyId?: string) {
+  async list(actorCompanyId: string, actorRole: UserRole, actorUserId: string, input: ListInput, requestedCompanyId?: string) {
     const companyId = await this.resolveReadableCompanyId(actorCompanyId, actorRole, requestedCompanyId)
+    const locationScope = await resolveActorLocationScope({
+      prisma: this.prisma,
+      actor: {
+        id: actorUserId,
+        role: actorRole,
+        companyId: actorCompanyId,
+      },
+      scopeCompanyId: companyId,
+    })
     const q = input.q?.trim()
     const city = input.city?.trim()
 
@@ -29,6 +43,9 @@ export class LocationsService {
     return this.prisma.location.findMany({
       where: {
         clientCompanyId: companyId,
+        ...(locationScope.mode === 'bound_locations'
+          ? { id: { in: locationScope.locationIds } }
+          : {}),
         ...(typeof isActiveFilter === 'boolean' ? { isActive: isActiveFilter } : {}),
         ...(city ? { city: { equals: city, mode: 'insensitive' } } : {}),
         ...(q
@@ -63,12 +80,24 @@ export class LocationsService {
     })
   }
 
-  async getOne(actorCompanyId: string, actorRole: UserRole, id: string, requestedCompanyId?: string) {
+  async getOne(actorCompanyId: string, actorRole: UserRole, actorUserId: string, id: string, requestedCompanyId?: string) {
     const companyId = await this.resolveReadableCompanyId(actorCompanyId, actorRole, requestedCompanyId)
+    const locationScope = await resolveActorLocationScope({
+      prisma: this.prisma,
+      actor: {
+        id: actorUserId,
+        role: actorRole,
+        companyId: actorCompanyId,
+      },
+      scopeCompanyId: companyId,
+    })
     const location = await this.prisma.location.findFirst({
       where: {
         id,
         clientCompanyId: companyId,
+        ...(locationScope.mode === 'bound_locations'
+          ? { id: { in: locationScope.locationIds } }
+          : {}),
       },
       select: {
         id: true,
@@ -278,24 +307,27 @@ export class LocationsService {
   }
 
   private async resolveReadableCompanyId(actorCompanyId: string, actorRole: UserRole, requestedCompanyId?: string) {
-    const companyId = resolveObserverScopeCompanyId({
+    const requested = (requestedCompanyId || '').trim()
+    if (!requested || requested === actorCompanyId) {
+      return actorCompanyId
+    }
+    const observerCompanyId = resolveObserverScopeCompanyId({
       actorCompanyId,
       actorRole,
-      requestedCompanyId,
+      requestedCompanyId: requested,
     })
-
-    if (companyId !== actorCompanyId) {
+    if (observerCompanyId !== actorCompanyId) {
       const company = await this.prisma.company.findUnique({
-        where: { id: companyId },
+        where: { id: observerCompanyId },
         select: { id: true },
       })
-
       if (!company) {
         throw new NotFoundException('Company not found')
       }
+      return observerCompanyId
     }
-
-    return companyId
+    await this.serviceContractsService.assertPrimaryLinkedClientAccess(actorCompanyId, requested)
+    return requested
   }
 
   private async ensureExists(companyId: string, id: string) {

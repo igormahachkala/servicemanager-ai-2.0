@@ -27,11 +27,11 @@ export class TechniciansService {
             specialization: true,
           },
         },
-        technicianClientBindings: {
+        locationBindings: {
           select: {
             id: true,
-            clientCompanyId: true,
             locationId: true,
+            companyId: true,
           },
         },
       },
@@ -68,11 +68,11 @@ export class TechniciansService {
             },
           },
         },
-        technicianClientBindings: {
+        locationBindings: {
           select: {
             id: true,
-            clientCompanyId: true,
             locationId: true,
+            companyId: true,
           },
         },
       },
@@ -90,7 +90,7 @@ export class TechniciansService {
       createdAt: tech.createdAt,
       specializations: tech.technicianSpecializations.map((x) => x.specialization),
       specializationCount: tech.technicianSpecializations.length,
-      bindingCount: tech.technicianClientBindings.length,
+      bindingCount: tech.locationBindings.length,
     }
   }
 
@@ -102,36 +102,29 @@ export class TechniciansService {
       return []
     }
 
-    const bindings = await this.prisma.technicianClientBinding.findMany({
+    const bindings = await this.prisma.userLocationBinding.findMany({
       where: {
-        providerCompanyId,
-        technicianUserId: technicianId,
-        clientCompanyId: { in: activeClientIds },
+        userId: technicianId,
+        companyId: { in: activeClientIds },
+        location: {
+          clientCompanyId: { in: activeClientIds },
+        },
       },
       select: {
-        clientCompanyId: true,
+        companyId: true,
         locationId: true,
       },
-      orderBy: [{ clientCompanyId: 'asc' }, { locationId: 'asc' }],
+      orderBy: [{ companyId: 'asc' }, { locationId: 'asc' }],
     })
 
-    if (bindings.length === 0) {
-      return []
-    }
-
-    const grouped = new Map<string, { allLocations: boolean; locationIds: string[] }>()
+    const grouped = new Map<string, { locationIds: string[] }>()
     for (const binding of bindings) {
-      const current = grouped.get(binding.clientCompanyId) ?? { allLocations: false, locationIds: [] }
-      if (!binding.locationId) {
-        current.allLocations = true
-        current.locationIds = []
-      } else if (!current.allLocations) {
-        current.locationIds.push(binding.locationId)
-      }
-      grouped.set(binding.clientCompanyId, current)
+      const current = grouped.get(binding.companyId) ?? { locationIds: [] }
+      current.locationIds.push(binding.locationId)
+      grouped.set(binding.companyId, current)
     }
 
-    const clientCompanyIds = [...grouped.keys()]
+    const clientCompanyIds = activeClientIds
     const companies = await this.prisma.company.findMany({
       where: { id: { in: clientCompanyIds }, type: 'CLIENT' },
       select: {
@@ -182,19 +175,20 @@ export class TechniciansService {
     })
 
     return companies.map((company) => {
-      const scope = grouped.get(company.id) ?? { allLocations: false, locationIds: [] }
+      const scope = grouped.get(company.id) ?? { locationIds: [] }
+      const hasBindings = scope.locationIds.length > 0
       const visibleLocations = locations.filter((location) => {
         if (location.clientCompanyId !== company.id) return false
-        if (scope.allLocations) return true
+        if (!hasBindings) return true
         return scope.locationIds.includes(location.id)
       })
 
       return {
         clientCompany: company,
-        locationScope: scope.allLocations ? 'ALL_COMPANY_LOCATIONS' : 'SELECTED_LOCATIONS',
+        locationScope: hasBindings ? 'SELECTED_LOCATIONS' : 'ALL_COMPANY_LOCATIONS',
         locations: visibleLocations,
         categories: categories.filter((category) => category.companyId === company.id),
-        bindingCount: scope.allLocations ? 1 : visibleLocations.length,
+        bindingCount: scope.locationIds.length,
       }
     })
   }
@@ -212,12 +206,8 @@ export class TechniciansService {
     }))
 
     const clientCompanyIds = [...new Set(normalizedBindings.map((binding) => binding.clientCompanyId).filter(Boolean))]
-    const activeClientIds = await this.serviceContractsService.listPrimaryLinkedClientIds(providerCompanyId)
-
     for (const clientCompanyId of clientCompanyIds) {
-      if (!activeClientIds.includes(clientCompanyId)) {
-        throw new BadRequestException('Technician can be bound only to active PRIMARY linked clients')
-      }
+      await this.assertBindingScopeAccess(providerCompanyId, clientCompanyId)
     }
 
     const locationIds = [...new Set(normalizedBindings.flatMap((binding) => binding.locationIds))]
@@ -240,21 +230,11 @@ export class TechniciansService {
     }
 
     const locationsById = new Map(locations.map((location) => [location.id, location]))
-    const rows: Prisma.TechnicianClientBindingCreateManyInput[] = []
+    const rows: Prisma.UserLocationBindingCreateManyInput[] = []
 
     for (const binding of normalizedBindings) {
       if (!binding.clientCompanyId) {
         throw new BadRequestException('clientCompanyId is required')
-      }
-
-      if (binding.locationIds.length === 0) {
-        rows.push({
-          providerCompanyId,
-          technicianUserId: technicianId,
-          clientCompanyId: binding.clientCompanyId,
-          locationId: null,
-        })
-        continue
       }
 
       for (const locationId of binding.locationIds) {
@@ -264,24 +244,23 @@ export class TechniciansService {
         }
 
         rows.push({
-          providerCompanyId,
-          technicianUserId: technicianId,
-          clientCompanyId: binding.clientCompanyId,
+          userId: technicianId,
+          companyId: binding.clientCompanyId,
           locationId,
         })
       }
     }
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.technicianClientBinding.deleteMany({
+      await tx.userLocationBinding.deleteMany({
         where: {
-          providerCompanyId,
-          technicianUserId: technicianId,
+          userId: technicianId,
+          companyId: { in: clientCompanyIds },
         },
       })
 
       if (rows.length > 0) {
-        await tx.technicianClientBinding.createMany({
+        await tx.userLocationBinding.createMany({
           data: rows,
         })
       }
@@ -304,23 +283,19 @@ export class TechniciansService {
 
     await this.serviceContractsService.assertPrimaryLinkedClientAccess(providerCompanyId, clientCompanyId)
 
-    const bindings = await this.prisma.technicianClientBinding.findMany({
+    const bindings = await this.prisma.userLocationBinding.findMany({
       where: {
-        providerCompanyId,
-        technicianUserId: technicianId,
-        clientCompanyId,
+        userId: technicianId,
+        companyId: clientCompanyId,
+        location: { clientCompanyId },
       },
       select: {
         locationId: true,
       },
     })
 
-    if (bindings.length === 0) {
-      throw new ForbiddenException('Technician is not bound to this client company')
-    }
-
-    const hasCompanyWideBinding = bindings.some((binding) => !binding.locationId)
-    if (!hasCompanyWideBinding) {
+    const hasExplicitBindings = bindings.length > 0
+    if (hasExplicitBindings) {
       const locationAllowed = bindings.some((binding) => binding.locationId === locationId)
       if (!locationAllowed) {
         throw new ForbiddenException('Technician is not bound to this client location')
@@ -329,8 +304,97 @@ export class TechniciansService {
 
     return {
       companyId: clientCompanyId,
-      locationScope: hasCompanyWideBinding ? 'ALL_COMPANY_LOCATIONS' : 'SELECTED_LOCATIONS',
+      locationScope: hasExplicitBindings ? 'SELECTED_LOCATIONS' : 'ALL_COMPANY_LOCATIONS',
     }
+  }
+
+  async getLocationBindings(actorCompanyId: string, technicianId: string, requestedCompanyId?: string) {
+    await this.ensureTechnician(actorCompanyId, technicianId)
+    const scopeCompanyId = await this.resolveBindingScopeCompanyId(actorCompanyId, requestedCompanyId)
+
+    const [availableLocations, existingBindings] = await Promise.all([
+      this.prisma.location.findMany({
+        where: {
+          clientCompanyId: scopeCompanyId,
+          isActive: true,
+        },
+        select: {
+          id: true,
+          clientCompanyId: true,
+          name: true,
+          city: true,
+          region: true,
+          address: true,
+          platformCode: true,
+          externalCode: true,
+          isActive: true,
+        },
+        orderBy: [{ city: 'asc' }, { name: 'asc' }],
+      }),
+      this.prisma.userLocationBinding.findMany({
+        where: {
+          userId: technicianId,
+          companyId: scopeCompanyId,
+          location: { clientCompanyId: scopeCompanyId },
+        },
+        select: { locationId: true },
+      }),
+    ])
+
+    const locationIds = Array.from(new Set(existingBindings.map((item) => item.locationId)))
+
+    return {
+      companyId: scopeCompanyId,
+      locationIds,
+      availableLocations,
+      hasExplicitRestrictions: locationIds.length > 0,
+    }
+  }
+
+  async setLocationBindings(
+    actorCompanyId: string,
+    technicianId: string,
+    payload: { companyId?: string; locationIds?: string[] },
+  ) {
+    await this.ensureTechnician(actorCompanyId, technicianId)
+    const scopeCompanyId = await this.resolveBindingScopeCompanyId(actorCompanyId, payload.companyId)
+    const locationIds = Array.from(new Set((payload.locationIds ?? []).map((id) => (id ?? '').trim()).filter(Boolean)))
+
+    const validLocations = locationIds.length
+      ? await this.prisma.location.findMany({
+          where: {
+            id: { in: locationIds },
+            clientCompanyId: scopeCompanyId,
+            isActive: true,
+          },
+          select: { id: true },
+        })
+      : []
+
+    if (validLocations.length !== locationIds.length) {
+      throw new BadRequestException('Some locationIds are not available in current scope')
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.userLocationBinding.deleteMany({
+        where: {
+          userId: technicianId,
+          companyId: scopeCompanyId,
+        },
+      })
+
+      if (locationIds.length > 0) {
+        await tx.userLocationBinding.createMany({
+          data: locationIds.map((locationId) => ({
+            userId: technicianId,
+            locationId,
+            companyId: scopeCompanyId,
+          })),
+        })
+      }
+    })
+
+    return this.getLocationBindings(actorCompanyId, technicianId, scopeCompanyId)
   }
 
   async setSpecializations(companyId: string, technicianId: string, specializationIds: string[]) {
@@ -413,5 +477,21 @@ export class TechniciansService {
     }
 
     return tech
+  }
+
+  private async resolveBindingScopeCompanyId(actorCompanyId: string, requestedCompanyId?: string) {
+    const normalizedRequested = (requestedCompanyId ?? '').trim()
+    if (!normalizedRequested || normalizedRequested === actorCompanyId) {
+      return actorCompanyId
+    }
+    await this.assertBindingScopeAccess(actorCompanyId, normalizedRequested)
+    return normalizedRequested
+  }
+
+  private async assertBindingScopeAccess(actorCompanyId: string, scopeCompanyId: string) {
+    if (scopeCompanyId === actorCompanyId) {
+      return
+    }
+    await this.serviceContractsService.assertPrimaryLinkedClientAccess(actorCompanyId, scopeCompanyId)
   }
 }

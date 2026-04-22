@@ -20,21 +20,21 @@ export class AnalyticsController {
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.PLATFORM_ADMIN)
   @RequirePermission(PERMISSIONS.ANALYTICS_VIEW)
   categories(@Req() req: any) {
-    return this.svc.getCategoriesAnalytics(req.user.companyId)
+    return this.svc.getCategoriesAnalytics(req.user.companyId, req.user.id, req.user.role as UserRole)
   }
 
   @Get('specializations')
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.PLATFORM_ADMIN)
   @RequirePermission(PERMISSIONS.ANALYTICS_VIEW)
   specializations(@Req() req: any) {
-    return this.svc.getSpecializationsAnalytics(req.user.companyId)
+    return this.svc.getSpecializationsAnalytics(req.user.companyId, req.user.id, req.user.role as UserRole)
   }
 
   @Get('workload')
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.PLATFORM_ADMIN)
   @RequirePermission(PERMISSIONS.ANALYTICS_VIEW)
   workload(@Req() req: any) {
-    return this.svc.getWorkloadAnalytics(req.user.companyId)
+    return this.svc.getWorkloadAnalytics(req.user.companyId, req.user.id, req.user.role as UserRole)
   }
 
   @Get('overview')
@@ -45,6 +45,6 @@ export class AnalyticsController {
     @Query('linkedClientCompanyId') linkedClientCompanyId?: string,
     @Query('companyId') companyId?: string,
   ) {
-    return this.svc.overview(req.user.companyId, req.user.role as UserRole, companyId, linkedClientCompanyId)
+    return this.svc.overview(req.user.companyId, req.user.id, req.user.role as UserRole, companyId, linkedClientCompanyId)
   }
 }

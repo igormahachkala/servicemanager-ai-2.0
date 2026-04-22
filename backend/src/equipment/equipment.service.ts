@@ -1,12 +1,18 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { UserRole } from '@prisma/client';
 
+import { PrismaService } from '../prisma/prisma.service';
+import { resolveActorLocationScope } from '../tickets/ticket-access.utils';
 import { EquipmentRepository } from './equipment.repository';
 import { CreateEquipmentDto } from './dto/create-equipment.dto';
 import { UpdateEquipmentDto } from './dto/update-equipment.dto';
 
 @Injectable()
 export class EquipmentService {
-  constructor(private readonly repo: EquipmentRepository) {}
+  constructor(
+    private readonly repo: EquipmentRepository,
+    private readonly prisma: PrismaService,
+  ) {}
 
   async create(companyId: string, dto: CreateEquipmentDto) {
     const name = dto.name.trim();
@@ -34,7 +40,20 @@ export class EquipmentService {
     });
   }
 
-  async findAllByLocation(companyId: string, locationId: string) {
+  async findAllByLocation(companyId: string, actorUserId: string, actorRole: UserRole, locationId: string) {
+    const locationScope = await resolveActorLocationScope({
+      prisma: this.prisma,
+      actor: {
+        id: actorUserId,
+        role: actorRole,
+        companyId,
+      },
+      scopeCompanyId: companyId,
+    });
+    if (locationScope.mode === 'bound_locations' && !locationScope.locationIds.includes(locationId)) {
+      throw new NotFoundException('Location not found');
+    }
+
     const location = await this.repo.findLocation(companyId, locationId);
     if (!location) {
       throw new NotFoundException('Location not found');
@@ -43,9 +62,22 @@ export class EquipmentService {
     return this.repo.findAllByLocation(companyId, locationId);
   }
 
-  async findOne(companyId: string, id: string) {
+  async findOne(companyId: string, actorUserId: string, actorRole: UserRole, id: string) {
     const equipment = await this.repo.findOne(companyId, id);
     if (!equipment) {
+      throw new NotFoundException('Equipment not found');
+    }
+
+    const locationScope = await resolveActorLocationScope({
+      prisma: this.prisma,
+      actor: {
+        id: actorUserId,
+        role: actorRole,
+        companyId,
+      },
+      scopeCompanyId: companyId,
+    });
+    if (locationScope.mode === 'bound_locations' && !locationScope.locationIds.includes(equipment.locationId)) {
       throw new NotFoundException('Equipment not found');
     }
 
@@ -53,7 +85,10 @@ export class EquipmentService {
   }
 
   async update(companyId: string, id: string, dto: UpdateEquipmentDto) {
-    await this.findOne(companyId, id);
+    const existing = await this.repo.findOne(companyId, id);
+    if (!existing) {
+      throw new NotFoundException('Equipment not found');
+    }
 
     if (dto.name !== undefined && !dto.name.trim()) {
       throw new BadRequestException('name cannot be empty');
@@ -77,7 +112,10 @@ export class EquipmentService {
   }
 
   async remove(companyId: string, id: string) {
-    await this.findOne(companyId, id);
+    const existing = await this.repo.findOne(companyId, id);
+    if (!existing) {
+      throw new NotFoundException('Equipment not found');
+    }
 
     return this.repo.update(id, {
       status: 'INACTIVE',

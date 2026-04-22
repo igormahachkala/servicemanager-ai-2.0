@@ -14,6 +14,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common'
 import { FileInterceptor } from '@nestjs/platform-express'
+import { ApiForbiddenResponse } from '@nestjs/swagger'
 import { TicketStatus, UserRole } from '@prisma/client'
 
 import { JwtAuthGuard } from '../auth/jwt.guard'
@@ -79,6 +80,9 @@ export class TicketsController {
     UserRole.PLATFORM_ADMIN,
   )
   @RequirePermission(PERMISSIONS.TICKETS_VIEW)
+  @ApiForbiddenResponse({
+    description: 'Missing permission: TICKETS_VIEW',
+  })
   board(@Req() req: any, @Query() q: BoardQueryDto) {
     const statuses: TicketStatus[] | undefined = q.status
 
@@ -144,6 +148,9 @@ export class TicketsController {
     UserRole.PLATFORM_ADMIN,
   )
   @RequirePermission(PERMISSIONS.TICKETS_VIEW)
+  @ApiForbiddenResponse({
+    description: 'Missing permission: TICKETS_VIEW',
+  })
   list(
     @Req() req: any,
     @Query('status') status?: TicketStatus,
@@ -164,6 +171,9 @@ export class TicketsController {
   @Get('available')
   @Roles(UserRole.TECHNICIAN)
   @RequirePermission(PERMISSIONS.TICKETS_VIEW_AVAILABLE)
+  @ApiForbiddenResponse({
+    description: 'Missing permission: TICKETS_VIEW_AVAILABLE',
+  })
   available(@Req() req: any) {
     return this.svc.availableForTechnician(req.user.companyId, req.user.id)
   }
@@ -180,6 +190,9 @@ export class TicketsController {
     UserRole.PLATFORM_ADMIN,
   )
   @RequirePermission(PERMISSIONS.TICKETS_VIEW)
+  @ApiForbiddenResponse({
+    description: 'Missing permission: TICKETS_VIEW',
+  })
   getOne(
     @Req() req: any,
     @Param('id') id: string,
@@ -227,8 +240,8 @@ export class TicketsController {
   }
 
   @Post(':id/attachments')
-  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TECHNICIAN)
-  @RequirePermission(PERMISSIONS.TICKETS_STATUS_CHANGE)
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TECHNICIAN, UserRole.CLIENT, UserRole.TERRITORIAL_MANAGER)
+  @RequirePermission(PERMISSIONS.TICKETS_VIEW)
   @UseInterceptors(FileInterceptor('file'))
   uploadAttachment(
     @Req() req: any,
@@ -248,8 +261,8 @@ export class TicketsController {
   }
 
   @Delete(':id/attachments/:attachmentId')
-  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TECHNICIAN)
-  @RequirePermission(PERMISSIONS.TICKETS_STATUS_CHANGE)
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TECHNICIAN, UserRole.CLIENT, UserRole.TERRITORIAL_MANAGER)
+  @RequirePermission(PERMISSIONS.TICKETS_VIEW)
   deleteAttachment(
     @Req() req: any,
     @Param('id') id: string,
@@ -270,6 +283,9 @@ export class TicketsController {
   @Patch(':id')
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.CLIENT, UserRole.TERRITORIAL_MANAGER)
   @RequirePermission(PERMISSIONS.TICKETS_EDIT)
+  @ApiForbiddenResponse({
+    description: 'Missing permission: TICKETS_EDIT',
+  })
   update(
     @Req() req: any,
     @Param('id') id: string,

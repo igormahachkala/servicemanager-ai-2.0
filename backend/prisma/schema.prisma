@@ -124,6 +124,7 @@ model Company {
   providerContracts  ServiceContract[] @relation("ProviderCompanyContracts")
   providedTechnicianBindings TechnicianClientBinding[] @relation("TechnicianBindingProviderCompany")
   clientTechnicianBindings   TechnicianClientBinding[] @relation("TechnicianBindingClientCompany")
+  userLocationBindings UserLocationBinding[]
 }
 
 model User {
@@ -151,6 +152,7 @@ model User {
   inspectionReportsReviewed  InspectionRun[] @relation("InspectionRunReportReviewedBy")
   userPermissions            UserPermission[]
   technicianClientBindings   TechnicianClientBinding[] @relation("TechnicianClientBindings")
+  locationBindings           UserLocationBinding[]
 
   @@index([companyId, role])
   @@index([companyId, isActive])
@@ -177,6 +179,7 @@ model Location {
   equipment Equipment[]
   inspectionRuns InspectionRun[]
   technicianBindings TechnicianClientBinding[] @relation("TechnicianBindingLocation")
+  userBindings UserLocationBinding[]
 
   @@unique([clientCompanyId, platformCode])
   @@index([clientCompanyId, isActive])
@@ -255,6 +258,22 @@ model TechnicianClientBinding {
   @@index([providerCompanyId, technicianUserId])
   @@index([clientCompanyId])
   @@index([locationId])
+}
+
+model UserLocationBinding {
+  id         String   @id @default(uuid())
+  userId     String
+  locationId String
+  companyId  String
+  createdAt  DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, locationId])
+  @@index([companyId, userId])
+  @@index([companyId, locationId])
 }
 model Equipment {
   id         String   @id @default(uuid())
