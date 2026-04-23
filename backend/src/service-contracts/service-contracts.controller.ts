@@ -17,13 +17,13 @@ export class ServiceContractsController {
   @Get('service-contracts/linked-clients')
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR)
   linkedClients(@Req() req: any) {
-    return this.svc.listLinkedClients(req.user.companyId)
+    return this.svc.listLinkedClients(req?.user?.companyId)
   }
 
   @Get('service-contracts/linked-providers')
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR)
   linkedProviders(@Req() req: any) {
-    return this.svc.listLinkedProviders(req.user.companyId)
+    return this.svc.listLinkedProviders(req?.user?.companyId)
   }
 
   @Get('service-contracts')

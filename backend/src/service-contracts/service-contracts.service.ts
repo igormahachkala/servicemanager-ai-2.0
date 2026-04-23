@@ -10,6 +10,12 @@ import { UpdateServiceContractDto } from './dto/update-service-contract.dto'
 export class ServiceContractsService {
   constructor(private prisma: PrismaService) {}
 
+  private normalizeId(value?: string | null): string | null {
+    if (typeof value !== 'string') return null
+    const normalized = value.trim()
+    return normalized.length > 0 ? normalized : null
+  }
+
   async listAll() {
     return this.prisma.serviceContract.findMany({
       orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
@@ -30,18 +36,45 @@ export class ServiceContractsService {
   }
 
   async listLinkedClients(providerCompanyId: string) {
-    await this.ensureCompanyExists(providerCompanyId)
+    const normalizedProviderCompanyId = this.normalizeId(providerCompanyId)
+    if (!normalizedProviderCompanyId) {
+      return []
+    }
+
+    await this.ensureCompanyExists(normalizedProviderCompanyId)
 
     const contracts = await this.prisma.serviceContract.findMany({
       where: {
-        providerCompanyId,
+        providerCompanyId: normalizedProviderCompanyId,
         status: ServiceContractStatus.ACTIVE,
       },
       orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
       select: this.contractSelect(),
     })
 
-    const clientCompanyIds = contracts.map((contract) => contract.clientCompany.id)
+    const normalizedContracts = contracts.filter(
+      (contract) =>
+        !!contract.clientCompany &&
+        !!this.normalizeId(contract.clientCompany.id) &&
+        !!this.normalizeId(contract.clientCompany.name),
+    )
+
+    if (normalizedContracts.length === 0) {
+      return []
+    }
+
+    const clientCompanyIds = Array.from(
+      new Set(
+        normalizedContracts
+          .map((contract) => this.normalizeId(contract.clientCompany.id))
+          .filter((companyId): companyId is string => !!companyId),
+      ),
+    )
+
+    if (clientCompanyIds.length === 0) {
+      return []
+    }
+
     const [locationCounts, openTicketCounts] = await Promise.all([
       this.prisma.location.groupBy({
         by: ['clientCompanyId'],
@@ -65,14 +98,24 @@ export class ServiceContractsService {
     const locationCountByCompanyId = new Map(locationCounts.map((row) => [row.clientCompanyId, row._count._all]))
     const openTicketCountByCompanyId = new Map(openTicketCounts.map((row) => [row.companyId, row._count._all]))
 
-    return contracts.map((contract) => ({
-      ...contract,
-      summary: {
-        openTickets: openTicketCountByCompanyId.get(contract.clientCompany.id) ?? 0,
-        locations: locationCountByCompanyId.get(contract.clientCompany.id) ?? 0,
-        publicRequestEnabled: contract.clientCompany.publicRequestEnabled,
-      },
-    }))
+    return normalizedContracts.map((contract) => {
+      const clientCompanyId = this.normalizeId(contract.clientCompany.id) ?? contract.clientCompany.id
+
+      return {
+        ...contract,
+        // Flat compatibility shape for consumers expecting { id, name, type }.
+        id: clientCompanyId,
+        serviceContractId: contract.id,
+        linkedClientCompanyId: clientCompanyId,
+        name: contract.clientCompany.name,
+        type: contract.role,
+        summary: {
+          openTickets: openTicketCountByCompanyId.get(clientCompanyId) ?? 0,
+          locations: locationCountByCompanyId.get(clientCompanyId) ?? 0,
+          publicRequestEnabled: !!contract.clientCompany.publicRequestEnabled,
+        },
+      }
+    })
   }
 
   async listLinkedProviders(clientCompanyId: string) {
@@ -151,20 +194,26 @@ export class ServiceContractsService {
   }
 
   async getLinkedClientAccess(providerCompanyId: string, clientCompanyId: string) {
-    if (providerCompanyId === clientCompanyId) {
+    const normalizedProviderCompanyId = this.normalizeId(providerCompanyId)
+    const normalizedClientCompanyId = this.normalizeId(clientCompanyId)
+    if (!normalizedProviderCompanyId || !normalizedClientCompanyId) {
+      return null
+    }
+
+    if (normalizedProviderCompanyId === normalizedClientCompanyId) {
       return {
         role: ServiceContractRole.PRIMARY,
         status: ServiceContractStatus.ACTIVE,
-        clientCompanyId,
-        providerCompanyId,
+        clientCompanyId: normalizedClientCompanyId,
+        providerCompanyId: normalizedProviderCompanyId,
       }
     }
 
     const contract = await this.prisma.serviceContract.findUnique({
       where: {
         clientCompanyId_providerCompanyId: {
-          clientCompanyId,
-          providerCompanyId,
+          clientCompanyId: normalizedClientCompanyId,
+          providerCompanyId: normalizedProviderCompanyId,
         },
       },
       select: {
@@ -198,9 +247,14 @@ export class ServiceContractsService {
   }
 
   async listPrimaryLinkedClientIds(providerCompanyId: string) {
+    const normalizedProviderCompanyId = this.normalizeId(providerCompanyId)
+    if (!normalizedProviderCompanyId) {
+      return []
+    }
+
     const contracts = await this.prisma.serviceContract.findMany({
       where: {
-        providerCompanyId,
+        providerCompanyId: normalizedProviderCompanyId,
         status: ServiceContractStatus.ACTIVE,
         role: ServiceContractRole.PRIMARY,
       },
@@ -209,7 +263,9 @@ export class ServiceContractsService {
       },
     })
 
-    return contracts.map((contract) => contract.clientCompanyId)
+    return contracts
+      .map((contract) => this.normalizeId(contract.clientCompanyId))
+      .filter((companyId): companyId is string => !!companyId)
   }
 
   private async validateContractParties(clientCompanyId: string, providerCompanyId: string) {
@@ -254,8 +310,13 @@ export class ServiceContractsService {
   }
 
   private async ensureCompanyExists(companyId: string) {
+    const normalizedCompanyId = this.normalizeId(companyId)
+    if (!normalizedCompanyId) {
+      throw new NotFoundException('Company not found')
+    }
+
     const company = await this.prisma.company.findUnique({
-      where: { id: companyId },
+      where: { id: normalizedCompanyId },
       select: { id: true },
     })
 

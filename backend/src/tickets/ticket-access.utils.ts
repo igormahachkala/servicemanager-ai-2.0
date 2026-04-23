@@ -69,11 +69,26 @@ export async function resolveActorLocationScope(params: {
   actor: TicketAccessActor
   scopeCompanyId?: string
 }): Promise<LocationScope> {
-  const scopeCompanyId = params.scopeCompanyId ?? params.actor.companyId
+  const rawScopeCompanyId = params.scopeCompanyId ?? params.actor.companyId
+  const scopeCompanyId =
+    typeof rawScopeCompanyId === 'string' && rawScopeCompanyId.trim().length > 0
+      ? rawScopeCompanyId.trim()
+      : null
+
+  console.log('LOCATION_SCOPE_DEBUG', {
+    actorCompanyId: params.actor.companyId,
+    scopeCompanyId,
+  })
+
+  if (!scopeCompanyId) {
+    return { mode: 'tenant_wide', locationIds: [] }
+  }
+
   if (!LOCATION_SCOPED_ROLES.includes(params.actor.role)) {
     return { mode: 'tenant_wide', locationIds: [] }
   }
 
+  // For non-technician roles, linked-client scope stays tenant-wide by design.
   if (params.actor.role !== UserRole.TECHNICIAN && scopeCompanyId !== params.actor.companyId) {
     return { mode: 'tenant_wide', locationIds: [] }
   }

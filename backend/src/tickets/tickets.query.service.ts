@@ -36,6 +36,27 @@ export class TicketsQueryService {
 
   private readonly policy = new TicketsPolicy()
 
+  private safeTicketWhereOrNull(where: unknown) {
+    if (!where || typeof where !== 'object' || Array.isArray(where)) {
+      return null
+    }
+    return where as Record<string, unknown>
+  }
+
+  private unwrapPrismaWhere(where: unknown) {
+    const candidate = this.safeTicketWhereOrNull(where)
+    if (!candidate) {
+      return {}
+    }
+
+    if ('where' in candidate) {
+      const nestedWhere = this.safeTicketWhereOrNull(candidate.where)
+      return nestedWhere ?? {}
+    }
+
+    return candidate
+  }
+
   private applyContextFilters(where: any, params: { locationId?: string; equipmentId?: string }) {
     const extraAnd: any[] = []
     if (params.locationId && params.locationId.trim().length > 0) {
@@ -276,11 +297,28 @@ export class TicketsQueryService {
 
           const policyDecision = this.policy.boardWhere({ id: userId, role, companyId: ownTenantScopeCompanyId, accessFlags }, input)
           assertAllowed(policyDecision)
-          return {
-            where: policyDecision.where,
-            take: limitedToLast,
-            meta: { atRiskThresholdMinutes, limitedToLast },
+          const policyQuery = this.safeTicketWhereOrNull(policyDecision.where)
+          const prismaWhere = this.unwrapPrismaWhere(policyQuery?.where ?? policyDecision.where)
+
+          const take =
+            typeof policyQuery?.take === 'number'
+              ? policyQuery.take
+              : typeof (policyDecision as any).take === 'number'
+                ? (policyDecision as any).take
+                : limitedToLast
+          const queryMeta = this.safeTicketWhereOrNull(policyQuery?.meta ?? (policyDecision as any).meta)
+          const meta = {
+            atRiskThresholdMinutes:
+              typeof queryMeta?.atRiskThresholdMinutes === 'number'
+                ? queryMeta.atRiskThresholdMinutes
+                : atRiskThresholdMinutes,
+            limitedToLast:
+              typeof queryMeta?.limitedToLast === 'number'
+                ? queryMeta.limitedToLast
+                : limitedToLast,
           }
+
+          return { where: prismaWhere, take, meta }
         })()
 
     const locationScope = technicianScope
@@ -295,36 +333,52 @@ export class TicketsQueryService {
     const nowMs = Date.now()
     const atRiskThresholdMs = decision.meta.atRiskThresholdMinutes * 60_000
 
-    const tickets = await this.prisma.ticket.findMany({
-      where: whereWithLocationScope,
-      orderBy: { createdAt: 'desc' },
-      select: {
-        id: true,
-        companyId: true,
-        status: true,
-        urgency: true,
-        createdAt: true,
-        slaDueAt: true,
-        slaBreachedAt: true,
-        problemText: true,
-        pointName: true,
-        location: {
+    const safeBoardWhere = this.unwrapPrismaWhere(whereWithLocationScope)
+    console.log('FINAL_BOARD_SCOPE_DEBUG', {
+      actorCompanyId: companyId,
+      role,
+      scopeCompanyId: scope.scopeCompanyId,
+      visibilityMode: scope.visibilityMode,
+      linkedClientCompanyId: linkedClientCompanyId ?? null,
+      observerCompanyId: observerCompanyId ?? null,
+      locationScopeMode: locationScope.mode,
+      locationScopeCount: locationScope.locationIds.length,
+    })
+    console.log('FINAL_BOARD_TAKE_DEBUG', decision.take)
+    console.log('FINAL_BOARD_WHERE_DEBUG', JSON.stringify(safeBoardWhere, null, 2))
+    const tickets = safeBoardWhere
+      ? await this.prisma.ticket.findMany({
+          where: safeBoardWhere,
+          orderBy: { createdAt: 'desc' },
           select: {
             id: true,
-            name: true,
-            platformCode: true,
-            externalCode: true,
-            city: true,
-            address: true,
+            companyId: true,
+            status: true,
+            urgency: true,
+            createdAt: true,
+            slaDueAt: true,
+            slaBreachedAt: true,
+            problemText: true,
+            pointName: true,
+            location: {
+              select: {
+                id: true,
+                name: true,
+                platformCode: true,
+                externalCode: true,
+                city: true,
+                address: true,
+              },
+            },
+            problemCategory: { select: { id: true, name: true } },
+            equipment: { select: { id: true, name: true, type: true, status: true } },
+            assignedTechnician: { select: { id: true, email: true } },
+            parentId: true,
           },
-        },
-        problemCategory: { select: { id: true, name: true } },
-        equipment: { select: { id: true, name: true, type: true, status: true } },
-        assignedTechnician: { select: { id: true, email: true } },
-        parentId: true,
-      },
-      take: decision.take,
-    })
+          take: decision.take,
+        })
+      : []
+    console.log('FINAL_BOARD_TICKETS_COUNT', tickets.length)
 
     const allStatuses: TicketStatus[] = [
       TicketStatus.NEW,
@@ -458,14 +512,17 @@ export class TicketsQueryService {
     const scopedWhere = applyLocationScopeToTicketWhere(baseWhere, locationScope)
     const where = this.applyContextFilters(scopedWhere, { locationId, equipmentId })
 
-    const rows = await this.prisma.ticket.findMany({
-      where,
-      select: {
-        status: true,
-        location: { select: { id: true, name: true } },
-        equipment: { select: { id: true, name: true } },
-      },
-    })
+    const safeAnalyticsWhere = this.safeTicketWhereOrNull(where)
+    const rows = safeAnalyticsWhere
+      ? await this.prisma.ticket.findMany({
+          where: safeAnalyticsWhere,
+          select: {
+            status: true,
+            location: { select: { id: true, name: true } },
+            equipment: { select: { id: true, name: true } },
+          },
+        })
+      : []
 
     const ensureBucket = () => ({ total: 0, NEW: 0, IN_PROGRESS: 0, DONE: 0 })
     const byLocation = new Map<string, { locationId: string; locationName: string; total: number; NEW: number; IN_PROGRESS: number; DONE: number }>()
@@ -573,8 +630,12 @@ export class TicketsQueryService {
           scopeCompanyId: scope.scopeCompanyId,
         })
     const whereWithLocationScope = applyLocationScopeToTicketWhere(where, locationScope)
+    const safeListWhere = this.safeTicketWhereOrNull(whereWithLocationScope)
+    if (!safeListWhere) {
+      return []
+    }
     return this.prisma.ticket.findMany({
-      where: whereWithLocationScope,
+      where: safeListWhere,
       orderBy: { createdAt: 'desc' },
       include: {
         location: {

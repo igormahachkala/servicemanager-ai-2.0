@@ -11,6 +11,22 @@ export class TechniciansService {
     private readonly serviceContractsService: ServiceContractsService,
   ) {}
 
+  private normalizeCompanyId(value?: string | null) {
+    if (typeof value !== 'string') return ''
+    const normalized = value.trim()
+    if (!normalized || normalized === 'undefined' || normalized === 'null') {
+      return ''
+    }
+    return normalized
+  }
+
+  private isTableMissingError(error: unknown) {
+    return (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2021'
+    )
+  }
+
   async list(companyId: string) {
     return this.prisma.user.findMany({
       where: {
@@ -312,34 +328,42 @@ export class TechniciansService {
     await this.ensureTechnician(actorCompanyId, technicianId)
     const scopeCompanyId = await this.resolveBindingScopeCompanyId(actorCompanyId, requestedCompanyId)
 
-    const [availableLocations, existingBindings] = await Promise.all([
-      this.prisma.location.findMany({
-        where: {
-          clientCompanyId: scopeCompanyId,
-          isActive: true,
-        },
-        select: {
-          id: true,
-          clientCompanyId: true,
-          name: true,
-          city: true,
-          region: true,
-          address: true,
-          platformCode: true,
-          externalCode: true,
-          isActive: true,
-        },
-        orderBy: [{ city: 'asc' }, { name: 'asc' }],
-      }),
-      this.prisma.userLocationBinding.findMany({
+    const availableLocations = await this.prisma.location.findMany({
+      where: {
+        clientCompanyId: scopeCompanyId,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        clientCompanyId: true,
+        name: true,
+        city: true,
+        region: true,
+        address: true,
+        platformCode: true,
+        externalCode: true,
+        isActive: true,
+      },
+      orderBy: [{ city: 'asc' }, { name: 'asc' }],
+    })
+
+    let existingBindings: Array<{ locationId: string }>
+    try {
+      existingBindings = await this.prisma.userLocationBinding.findMany({
         where: {
           userId: technicianId,
           companyId: scopeCompanyId,
           location: { clientCompanyId: scopeCompanyId },
         },
         select: { locationId: true },
-      }),
-    ])
+      })
+    } catch (error) {
+      if (!this.isTableMissingError(error)) {
+        throw error
+      }
+      console.warn('UserLocationBinding table missing, fallback to empty')
+      existingBindings = []
+    }
 
     const locationIds = Array.from(new Set(existingBindings.map((item) => item.locationId)))
 
@@ -480,7 +504,7 @@ export class TechniciansService {
   }
 
   private async resolveBindingScopeCompanyId(actorCompanyId: string, requestedCompanyId?: string) {
-    const normalizedRequested = (requestedCompanyId ?? '').trim()
+    const normalizedRequested = this.normalizeCompanyId(requestedCompanyId)
     if (!normalizedRequested || normalizedRequested === actorCompanyId) {
       return actorCompanyId
     }

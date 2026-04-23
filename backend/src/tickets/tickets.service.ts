@@ -16,15 +16,25 @@ type AccessFlags = {
   canTechnicianViewAllCompanyTickets?: boolean
 }
 
+function normalizeScopeId(value?: string): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const normalized = value.trim()
+  if (!normalized || normalized === 'undefined' || normalized === 'null') return undefined
+  return normalized
+}
+
 function scopeForClient(
   role: UserRole,
   linkedClientCompanyId?: string,
   observerCompanyId?: string,
 ) {
+  const normalizedLinkedClientCompanyId = normalizeScopeId(linkedClientCompanyId)
+  const normalizedObserverCompanyId = normalizeScopeId(observerCompanyId)
+
   if (role !== UserRole.CLIENT) {
     return {
-      linkedClientCompanyId,
-      observerCompanyId,
+      linkedClientCompanyId: normalizedLinkedClientCompanyId,
+      observerCompanyId: normalizedObserverCompanyId,
     }
   }
 
