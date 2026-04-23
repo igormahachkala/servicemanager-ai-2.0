@@ -18,17 +18,23 @@ export type ShellNavigationConfig = {
 export const platformNavigation: ShellNavigationConfig = {
   sidebar: [
     {
-      id: 'platform',
-      label: 'Платформа',
+      id: 'operations',
+      label: 'Операции',
       items: [
-        { id: 'companies', label: 'Компании', to: '/companies' },
-        { id: 'contracts', label: 'Контракты', to: '/service-contracts' },
+        { id: 'board', label: 'Board', to: '/board' },
+        { id: 'tickets', label: 'Заявки', to: '/tickets' },
+        { id: 'employees', label: 'Сотрудники', to: '/employees' },
+        { id: 'locations', label: 'Точки', to: '/locations' },
+        { id: 'settings', label: 'Настройки', to: '/settings' },
       ],
     },
   ],
   topbar: [
-    { id: 'companies', label: 'Компании', to: '/companies' },
-    { id: 'contracts', label: 'Контракты', to: '/service-contracts' },
+    { id: 'board', label: 'Board', to: '/board' },
+    { id: 'tickets', label: 'Заявки', to: '/tickets' },
+    { id: 'employees', label: 'Сотрудники', to: '/employees' },
+    { id: 'locations', label: 'Точки', to: '/locations' },
+    { id: 'settings', label: 'Настройки', to: '/settings' },
   ],
 }
 
@@ -38,36 +44,19 @@ export const tenantNavigation: ShellNavigationConfig = {
       id: 'operations',
       label: 'Операции',
       items: [
-        { id: 'board', label: 'Доска', to: '/board' },
-        { id: 'inspection-runs', label: 'Обходы', to: '/inspection/runs' },
-        { id: 'analytics', label: 'Аналитика', to: '/analytics' },
-      ],
-    },
-    {
-      id: 'company',
-      label: 'Компания',
-      items: [
-        { id: 'company', label: 'Компания', to: '/company' },
-        { id: 'locations', label: 'Локации', to: '/locations' },
+        { id: 'board', label: 'Board', to: '/board' },
+        { id: 'tickets', label: 'Заявки', to: '/tickets' },
         { id: 'employees', label: 'Сотрудники', to: '/employees' },
-      ],
-    },
-    {
-      id: 'settings',
-      label: 'Настройки',
-      items: [
-        { id: 'categories', label: 'Категории', to: '/problem-categories' },
-        { id: 'specializations', label: 'Специализации', to: '/specializations' },
-        { id: 'inspection-templates', label: 'Шаблоны обхода', to: '/inspection/templates' },
+        { id: 'locations', label: 'Точки', to: '/locations' },
         { id: 'settings', label: 'Настройки', to: '/settings' },
       ],
     },
   ],
   topbar: [
-    { id: 'board', label: 'Доска', to: '/board' },
-    { id: 'inspection-runs', label: 'Обходы', to: '/inspection/runs' },
-    { id: 'analytics', label: 'Аналитика', to: '/analytics' },
-    { id: 'company', label: 'Компания', to: '/company' },
-    { id: 'create-ticket', label: 'Создать заявку', to: '/tickets/new' },
+    { id: 'board', label: 'Board', to: '/board' },
+    { id: 'tickets', label: 'Заявки', to: '/tickets' },
+    { id: 'employees', label: 'Сотрудники', to: '/employees' },
+    { id: 'locations', label: 'Точки', to: '/locations' },
+    { id: 'settings', label: 'Настройки', to: '/settings' },
   ],
 }

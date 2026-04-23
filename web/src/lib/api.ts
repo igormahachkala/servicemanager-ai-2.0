@@ -973,8 +973,8 @@ export function setUserRole(role?: string | null) {
 }
 
 export function getHomeRoute(role?: string | null): string {
-  const resolvedRole = (role || getUserRole() || '').trim()
-  return resolvedRole === 'PLATFORM_ADMIN' ? '/companies' : '/board'
+  void role
+  return '/board'
 }
 
 export function getCompanyLabel(me?: Partial<Me> | null): string {

@@ -49,6 +49,7 @@ function roleLabel(role?: string) {
 
 function isActivePath(currentPath: string, targetPath: string) {
   if (targetPath === '/board') return currentPath.startsWith('/board')
+  if (targetPath === '/tickets') return currentPath === '/tickets'
   if (targetPath === '/companies') return currentPath.startsWith('/companies')
   if (targetPath === '/service-contracts') return currentPath.startsWith('/service-contracts')
   if (targetPath === '/tickets/new') return currentPath.startsWith('/tickets/new')
@@ -64,38 +65,15 @@ function isActivePath(currentPath: string, targetPath: string) {
   return currentPath === targetPath
 }
 
-function canSeeTenantCompanySettings(role?: api.Role) {
-  return role === 'ADMIN'
-}
-
-function canSeeCreateTicket(role?: api.Role) {
-  return (
-    role === 'ADMIN' ||
-    role === 'MASTER' ||
-    role === 'DISPATCHER' ||
-    role === 'CLIENT' ||
-    role === 'TECHNICIAN'
-  )
-}
-
-function canSeeAnalytics(role?: api.Role) {
-  return role !== 'CLIENT'
-}
-
-function isNavItemVisible(item: NavItem, role?: api.Role, isPlatformAdmin?: boolean) {
+function isNavItemVisible(item: NavItem, isPlatformAdmin?: boolean) {
   if (isPlatformAdmin) return true
-  if (item.to === '/tickets/new') return canSeeCreateTicket(role)
-  if (item.to === '/analytics') return canSeeAnalytics(role)
-  if (item.to === '/company') return canSeeTenantCompanySettings(role)
-  if (
-    item.to === '/problem-categories' ||
-    item.to === '/specializations' ||
-    item.to === '/inspection/templates' ||
+  return (
+    item.to === '/board' ||
+    item.to === '/tickets' ||
+    item.to === '/employees' ||
+    item.to === '/locations' ||
     item.to === '/settings'
-  ) {
-    return canSeeTenantCompanySettings(role)
-  }
-  return true
+  )
 }
 
 export function Shell() {
@@ -163,7 +141,7 @@ export function Shell() {
         .map((section: NavSection) => ({
           ...section,
           items: section.items
-            .filter((item: NavItem) => isNavItemVisible(item, role, isPlatformAdmin))
+            .filter((item: NavItem) => isNavItemVisible(item, isPlatformAdmin))
             .map((item: NavItem) => ({
               ...item,
               active: isActivePath(loc.pathname, item.to),
@@ -176,7 +154,7 @@ export function Shell() {
   const topbarLinks = useMemo(
     () =>
       navigation.topbar
-        .filter((item: NavItem) => isNavItemVisible(item, role, isPlatformAdmin))
+        .filter((item: NavItem) => isNavItemVisible(item, isPlatformAdmin))
         .map((item: NavItem) => ({
           ...item,
           active: isActivePath(loc.pathname, item.to),
