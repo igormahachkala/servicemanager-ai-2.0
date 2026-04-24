@@ -1054,6 +1054,17 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   return data as T
 }
 
+function normalizeArrayResponse<T>(payload: unknown, candidates: string[]): T[] {
+  if (Array.isArray(payload)) return payload as T[]
+  if (!payload || typeof payload !== 'object') return []
+  const record = payload as Record<string, unknown>
+  for (const key of candidates) {
+    const value = record[key]
+    if (Array.isArray(value)) return value as T[]
+  }
+  return []
+}
+
 
 export async function login(input: LoginInput): Promise<LoginResponse> {
   return request<LoginResponse>('/auth/login', {
@@ -1149,7 +1160,13 @@ export async function problemCategories(companyId?: string): Promise<ProblemCate
   const search = new URLSearchParams()
   if (companyId) search.set('companyId', companyId)
   const suffix = search.toString() ? '?' + search.toString() : ''
-  return request<ProblemCategoryListItem[]>('/problem-categories' + suffix)
+  const response = await request<unknown>('/problem-categories' + suffix)
+  return normalizeArrayResponse<ProblemCategoryListItem>(response, [
+    'items',
+    'problemCategories',
+    'categories',
+    'data',
+  ])
 }
 
 export async function createProblemCategory(input: CreateProblemCategoryInput): Promise<ProblemCategoryListItem> {
@@ -1317,7 +1334,12 @@ export async function locations(companyId?: string): Promise<LocationListItem[]>
   const search = new URLSearchParams()
   if (companyId) search.set('companyId', companyId)
   const suffix = search.toString() ? '?' + search.toString() : ''
-  return request<LocationListItem[]>('/locations' + suffix)
+  const response = await request<unknown>('/locations' + suffix)
+  return normalizeArrayResponse<LocationListItem>(response, [
+    'items',
+    'locations',
+    'data',
+  ])
 }
 
 export async function createLocation(input: CreateLocationInput): Promise<LocationListItem> {
