@@ -66,6 +66,10 @@ function validateEditForm(value: EmployeeFormValue) {
   return validateUrl(value.avatarUrl)
 }
 
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+}
+
 export function EmployeesPage() {
   const qc = useQueryClient()
   const [searchParams] = useSearchParams()
@@ -117,28 +121,28 @@ export function EmployeesPage() {
     () => sortedUsers.filter((user) => user.role === 'ADMIN' && user.isActive !== false).length,
     [sortedUsers],
   )
-  const isEditingTechnician = !!editingUserId && editValue.role === 'TECHNICIAN'
+  const isEditingLocationBoundRole = !!editingUserId && (editValue.role === 'TECHNICIAN' || editValue.role === 'MASTER')
   const providerLinkedClientOptions = useMemo(
     () => (linkedClientsQ.data || []).map((item) => ({ id: item.clientCompany.id, name: item.clientCompany.name })),
     [linkedClientsQ.data],
   )
   const effectiveBindingsCompanyId = useMemo(() => {
-    if (!isEditingTechnician) return ''
+    if (!isEditingLocationBoundRole) return ''
     if (isObserverMode) return observerCompanyId
     if (ownCompanyQ.data?.type === 'PROVIDER') return bindingsScopeCompanyId
     return meQ.data?.companyId || ''
-  }, [isEditingTechnician, isObserverMode, observerCompanyId, ownCompanyQ.data?.type, bindingsScopeCompanyId, meQ.data?.companyId])
+  }, [isEditingLocationBoundRole, isObserverMode, observerCompanyId, ownCompanyQ.data?.type, bindingsScopeCompanyId, meQ.data?.companyId])
   const bindingsQ = useQuery({
     queryKey: ['technician-location-bindings', editingUserId, effectiveBindingsCompanyId],
     queryFn: () =>
       api.getTechnicianLocationBindings(editingUserId!, {
         companyId: effectiveBindingsCompanyId || undefined,
       }),
-    enabled: !!editingUserId && isEditingTechnician && !!effectiveBindingsCompanyId,
+    enabled: !!editingUserId && isEditingLocationBoundRole && !!effectiveBindingsCompanyId,
   })
 
   useEffect(() => {
-    if (!isEditingTechnician) {
+    if (!isEditingLocationBoundRole) {
       setBindingsScopeCompanyId('')
       setSelectedLocationIds([])
       return
@@ -159,7 +163,7 @@ export function EmployeesPage() {
     }
     setBindingsScopeCompanyId(meQ.data?.companyId || '')
   }, [
-    isEditingTechnician,
+    isEditingLocationBoundRole,
     isObserverMode,
     observerCompanyId,
     ownCompanyQ.data?.type,
@@ -169,10 +173,10 @@ export function EmployeesPage() {
   ])
 
   useEffect(() => {
-    if (!isEditingTechnician) return
+    if (!isEditingLocationBoundRole) return
     if (!bindingsQ.data) return
     setSelectedLocationIds(bindingsQ.data.locationIds || [])
-  }, [isEditingTechnician, bindingsQ.data])
+  }, [isEditingLocationBoundRole, bindingsQ.data])
 
   const createM = useMutation({
     mutationFn: async (value: EmployeeFormValue) => {
@@ -253,16 +257,13 @@ export function EmployeesPage() {
   })
   const saveBindingsM = useMutation({
     mutationFn: async () => {
-      if (!editingUserId || !isEditingTechnician) {
-        throw new Error('Сначала выберите техника')
+      if (!editingUserId || !isEditingLocationBoundRole) {
+        throw new Error('Сначала выберите сотрудника с role TECHNICIAN или MASTER')
       }
-      if (!effectiveBindingsCompanyId) {
-        throw new Error('Не выбран контур компании для привязки точек')
-      }
-      return api.setTechnicianLocationBindings(editingUserId, {
-        companyId: effectiveBindingsCompanyId,
-        locationIds: selectedLocationIds,
-      })
+      const scopeCompanyId = (effectiveBindingsCompanyId || bindingsQ.data?.companyId || '').trim()
+      const payload: { companyId?: string; locationIds: string[] } = { locationIds: selectedLocationIds }
+      if (scopeCompanyId && isUuid(scopeCompanyId)) payload.companyId = scopeCompanyId
+      return api.setTechnicianLocationBindings(editingUserId, payload)
     },
     onSuccess: async () => {
       setErr(null)
@@ -408,11 +409,11 @@ export function EmployeesPage() {
     }
     return false
   }, [bindingsQ.data, selectedLocationIds])
-  const technicianLocationBindingsBlock = isEditingTechnician ? (
+  const technicianLocationBindingsBlock = isEditingLocationBoundRole ? (
     <div className="panel uiCard" style={{ marginTop: 12 }}>
       <h3 style={{ marginBottom: 8 }}>Доступные точки</h3>
       <div className="muted small" style={{ marginBottom: 10 }}>
-        Управление location-scope для техника. Пустой список означает отсутствие явных ограничений.
+        Управление location-scope для роли {editValue.role}. Пустой список означает отсутствие явных ограничений.
       </div>
       {ownCompanyQ.data?.type === 'PROVIDER' && !isObserverMode ? (
         <label>
@@ -469,12 +470,17 @@ export function EmployeesPage() {
               <div className="muted small" style={{ marginBottom: 10 }}>
                 {selectedLocationIds.length > 0
                   ? `Выбрано точек: ${selectedLocationIds.length}`
-                  : 'Ограничения не заданы: техник работает без явных location-bound ограничений.'}
+                  : 'Ограничения не заданы: сотрудник работает без явных location-bound ограничений.'}
               </div>
+              {!bindingsHasChanges ? (
+                <div className="muted small" style={{ marginBottom: 10 }}>
+                  Изменений нет, но вы можете сохранить текущие привязки повторно.
+                </div>
+              ) : null}
               <button
                 type="button"
                 onClick={() => saveBindingsM.mutate()}
-                disabled={bindingsBusy || !bindingsHasChanges || bindingsQ.isLoading || !!bindingsQ.isError}
+                disabled={bindingsBusy || bindingsQ.isLoading || !!bindingsQ.isError}
               >
                 {saveBindingsM.isPending ? 'Сохраняем…' : 'Сохранить точки'}
               </button>

@@ -1205,13 +1205,24 @@ export async function getTechnicianLocationBindings(
   return request<TechnicianLocationBindingsResponse>(`/technicians/${userId}/location-bindings${suffix}`)
 }
 
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+}
+
 export async function setTechnicianLocationBindings(
   userId: string,
   payload: { companyId?: string; locationIds: string[] },
 ): Promise<TechnicianLocationBindingsResponse> {
+  const normalizedCompanyId = (payload.companyId ?? '').trim()
+  const body: { companyId?: string; locationIds: string[] } = {
+    locationIds: payload.locationIds,
+  }
+  if (normalizedCompanyId && isUuid(normalizedCompanyId)) {
+    body.companyId = normalizedCompanyId
+  }
   return request<TechnicianLocationBindingsResponse>(`/technicians/${userId}/location-bindings`, {
     method: 'PUT',
-    body: payload,
+    body,
   })
 }
 
