@@ -174,7 +174,7 @@ export function TicketPage() {
   const observerCompanyId = (searchParams.get('companyId') || '').trim()
   const linkedClientCompanyId = (searchParams.get('linkedClientCompanyId') || '').trim()
 
-  const ticketScope = useMemo<api.TicketScopeParams>(
+  const baseTicketScope = useMemo<api.TicketScopeParams>(
     () => ({
       companyId: observerCompanyId || undefined,
       linkedClientCompanyId: linkedClientCompanyId || undefined,
@@ -224,19 +224,34 @@ export function TicketPage() {
   const ticketQ = useQuery({
     enabled: !!ticketId,
     queryKey: ['ticket', ticketId, observerCompanyId, linkedClientCompanyId],
-    queryFn: () => api.getTicket(ticketId, ticketScope),
+    queryFn: () => api.getTicket(ticketId, baseTicketScope),
   })
+
+  const inferredLinkedClientCompanyId = useMemo(() => {
+    if (linkedClientCompanyId) return linkedClientCompanyId
+    if (observerCompanyId) return ''
+    if (ticketQ.data?.meta?.visibilityMode !== 'provider_primary') return ''
+    return ticketQ.data?.meta?.scopeCompanyId || ''
+  }, [linkedClientCompanyId, observerCompanyId, ticketQ.data?.meta?.visibilityMode, ticketQ.data?.meta?.scopeCompanyId])
+
+  const effectiveTicketScope = useMemo<api.TicketScopeParams>(
+    () => ({
+      companyId: observerCompanyId || undefined,
+      linkedClientCompanyId: inferredLinkedClientCompanyId || undefined,
+    }),
+    [observerCompanyId, inferredLinkedClientCompanyId],
+  )
 
   const timelineQ = useQuery({
     enabled: !!ticketId,
-    queryKey: ['timeline', ticketId, observerCompanyId, linkedClientCompanyId],
-    queryFn: () => api.timeline(ticketId, ticketScope),
+    queryKey: ['timeline', ticketId, observerCompanyId, inferredLinkedClientCompanyId],
+    queryFn: () => api.timeline(ticketId, effectiveTicketScope),
   })
 
   const attachmentsQ = useQuery({
     enabled: !!ticketId,
-    queryKey: ['ticket-attachments', ticketId, observerCompanyId, linkedClientCompanyId],
-    queryFn: () => api.ticketAttachments(ticketId, ticketScope),
+    queryKey: ['ticket-attachments', ticketId, observerCompanyId, inferredLinkedClientCompanyId],
+    queryFn: () => api.ticketAttachments(ticketId, effectiveTicketScope),
   })
 
   const role = meQ.data?.role
@@ -269,8 +284,8 @@ export function TicketPage() {
 
   const assignmentCandidatesQ = useQuery({
     enabled: !!ticketId && canAssign,
-    queryKey: ['ticket-assignment-candidates', ticketId, observerCompanyId, linkedClientCompanyId],
-    queryFn: () => api.getTicketAssignmentCandidates(ticketId, ticketScope),
+    queryKey: ['ticket-assignment-candidates', ticketId, observerCompanyId, inferredLinkedClientCompanyId],
+    queryFn: () => api.getTicketAssignmentCandidates(ticketId, effectiveTicketScope),
   })
 
   const refreshAll = async () => {
@@ -338,7 +353,7 @@ export function TicketPage() {
   const claimM = useMutation({
     mutationFn: () => {
       if (!canMutateTicket) throw new Error('Изменение заявки запрещено в текущем режиме видимости')
-      return api.claim(ticketId, ticketScope)
+      return api.claim(ticketId, effectiveTicketScope)
     },
     onSuccess: async () => {
       setClaimError(null)
@@ -353,7 +368,7 @@ export function TicketPage() {
       if (isClientRole) throw new Error('Клиент не может назначать техников')
       if (!canMutateTicket) throw new Error('Изменение заявки запрещено в текущем режиме видимости')
       if (!selectedTechnicianId) throw new Error('Сначала выберите техника')
-      return api.assignTicket(ticketId, selectedTechnicianId, ticketScope)
+      return api.assignTicket(ticketId, selectedTechnicianId, effectiveTicketScope)
     },
     onSuccess: async () => {
       setAssignError(null)
@@ -364,13 +379,14 @@ export function TicketPage() {
   })
 
   const statusM = useMutation({
-    mutationFn: (status: api.TicketStatus) => {
+    mutationFn: (input: api.UpdateTicketStatusInput) => {
       if (!canMutateTicket) throw new Error('Изменение заявки запрещено в текущем режиме видимости')
-      return api.updateTicketStatus(ticketId, { status }, ticketScope)
+      return api.updateTicketStatus(ticketId, input, effectiveTicketScope)
     },
     onSuccess: async () => {
       setStatusError(null)
       clearActionErrors()
+      setNewComment('')
       await refreshAll()
     },
     onError: (e: any) => setStatusError(e?.message || String(e)),
@@ -380,7 +396,7 @@ export function TicketPage() {
     mutationFn: () => {
       if (!canMutateTicket) throw new Error('Изменение заявки запрещено в текущем режиме видимости')
       if (!selectedFile) throw new Error('Сначала выберите файл')
-      return api.uploadTicketAttachment(ticketId, selectedFile, ticketScope)
+      return api.uploadTicketAttachment(ticketId, selectedFile, effectiveTicketScope)
     },
     onSuccess: async () => {
       setUploadError(null)
@@ -398,7 +414,7 @@ export function TicketPage() {
   const deleteAttachmentM = useMutation({
     mutationFn: (attachmentId: string) => {
       if (!canMutateTicket) throw new Error('Изменение заявки запрещено в текущем режиме видимости')
-      return api.deleteTicketAttachment(ticketId, attachmentId, ticketScope)
+      return api.deleteTicketAttachment(ticketId, attachmentId, effectiveTicketScope)
     },
     onSuccess: async () => {
       setDeleteAttachmentError(null)
@@ -426,7 +442,7 @@ export function TicketPage() {
             pointName: editPointName || null,
             comment: editComment.trim() || undefined,
           },
-          ticketScope,
+          effectiveTicketScope,
         )
       },
     onSuccess: async () => {
@@ -443,7 +459,7 @@ export function TicketPage() {
     mutationFn: () => {
       if (!canMutateTicket) throw new Error('Изменение заявки запрещено в текущем режиме видимости')
       if (!newComment.trim()) throw new Error('Введите комментарий')
-      return api.addTicketComment(ticketId, newComment.trim(), ticketScope)
+      return api.addTicketComment(ticketId, newComment.trim(), effectiveTicketScope)
     },
     onSuccess: async () => {
       setNewComment('')
@@ -520,11 +536,12 @@ export function TicketPage() {
       }),
     [timelineItems],
   )
+  const hasCommentForDone = hasAnyCommentEvidence || newComment.trim().length > 0
   const hasAnyPhotoEvidence = useMemo(
     () => (attachmentsQ.data || []).some((item) => (item.mimeType || '').startsWith('image/')),
     [attachmentsQ.data],
   )
-  const canCompleteByEvidence = hasAnyCommentEvidence && hasAnyPhotoEvidence
+  const canCompleteByEvidence = hasCommentForDone && hasAnyPhotoEvidence
   const timelinePreviewItems = useMemo(
     () => (showFullTimeline ? timelineItems : timelineItems.slice(0, 5)),
     [showFullTimeline, timelineItems],
@@ -567,6 +584,15 @@ export function TicketPage() {
     }
 
     setSelectedFile(file)
+  }
+
+  function handleUploadClick() {
+    if (uploadM.isPending) return
+    if (!selectedFile) {
+      fileInputRef.current?.click()
+      return
+    }
+    uploadM.mutate()
   }
 
   return (
@@ -693,7 +719,7 @@ export function TicketPage() {
               ) : null}
               {primaryAction.kind === 'in_progress' ? (
                 <button
-                  onClick={() => statusM.mutate('IN_PROGRESS')}
+                  onClick={() => statusM.mutate({ status: 'IN_PROGRESS' })}
                   disabled={statusM.isPending || !canTransitionTo('IN_PROGRESS')}
                   style={{ width: '100%' }}
                 >
@@ -702,7 +728,12 @@ export function TicketPage() {
               ) : null}
               {primaryAction.kind === 'done' ? (
                 <button
-                  onClick={() => statusM.mutate('DONE')}
+                  onClick={() =>
+                    statusM.mutate({
+                      status: 'DONE',
+                      comment: newComment.trim() || undefined,
+                    })
+                  }
                     disabled={statusM.isPending || !canTransitionTo('DONE') || !canCompleteByEvidence}
                   style={{ width: '100%' }}
                 >
@@ -729,16 +760,25 @@ export function TicketPage() {
             {canChangeStatus ? (
               <>
                 {primaryAction?.kind !== 'in_progress' ? (
-                  <button className="ghost" disabled={statusM.isPending || !canTransitionTo('IN_PROGRESS')} onClick={() => statusM.mutate('IN_PROGRESS')}>
+                  <button className="ghost" disabled={statusM.isPending || !canTransitionTo('IN_PROGRESS')} onClick={() => statusM.mutate({ status: 'IN_PROGRESS' })}>
                     {statusM.isPending ? 'Сохраняем…' : 'В работу'}
                   </button>
                 ) : null}
                 {primaryAction?.kind !== 'done' ? (
-                  <button className="ghost" disabled={statusM.isPending || !canTransitionTo('DONE') || !canCompleteByEvidence} onClick={() => statusM.mutate('DONE')}>
+                  <button
+                    className="ghost"
+                    disabled={statusM.isPending || !canTransitionTo('DONE') || !canCompleteByEvidence}
+                    onClick={() =>
+                      statusM.mutate({
+                        status: 'DONE',
+                        comment: newComment.trim() || undefined,
+                      })
+                    }
+                  >
                     {statusM.isPending ? 'Сохраняем…' : 'Завершить'}
                   </button>
                 ) : null}
-                <button className="ghost" disabled={statusM.isPending || !canTransitionTo('CANCELED')} onClick={() => statusM.mutate('CANCELED')}>
+                <button className="ghost" disabled={statusM.isPending || !canTransitionTo('CANCELED')} onClick={() => statusM.mutate({ status: 'CANCELED' })}>
                   {statusM.isPending ? 'Сохраняем…' : 'Отменить'}
                 </button>
               </>
@@ -958,8 +998,8 @@ export function TicketPage() {
           <h3 style={{ marginBottom: 10 }}>Фото</h3>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} disabled={uploadM.isPending} />
-            <button onClick={() => uploadM.mutate()} disabled={uploadM.isPending || !selectedFile}>
-              {uploadM.isPending ? 'Загружаем…' : 'Загрузить фото'}
+            <button onClick={handleUploadClick} disabled={uploadM.isPending}>
+              {uploadM.isPending ? 'Загружаем…' : selectedFile ? 'Загрузить фото' : 'Выбрать фото'}
             </button>
             <div className="muted small">{selectedFile ? `${selectedFile.name} · ${fmtBytes(selectedFile.size)}` : 'Выберите изображение до 10 МБ'}</div>
           </div>
