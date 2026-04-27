@@ -6,7 +6,9 @@ const prisma = new PrismaClient();
 const DEMO_COMPANY_ID = '00000000-0000-0000-0000-000000000001';
 const DEMO_COMPANY_NAME = 'Demo Company';
 const DEFAULT_PASSWORD = 'Test1234!';
-const CLIENT_LIKE_ROLE_PERMISSIONS = new Map([
+
+// Keep this helper aligned with prisma/seed.ts for every overlapping role.
+const ROLE_PERMISSION_MATRIX = new Map([
   [UserRole.CLIENT, [
     { code: 'TICKETS_CREATE', name: 'Create tickets', description: 'Create tickets and child tickets' },
     { code: 'TICKETS_VIEW', name: 'View tickets', description: 'View tickets list and single ticket' },
@@ -23,7 +25,27 @@ const CLIENT_LIKE_ROLE_PERMISSIONS = new Map([
     { code: 'TICKETS_CREATE', name: 'Create tickets', description: 'Create tickets and child tickets' },
     { code: 'TICKETS_VIEW', name: 'View tickets', description: 'View tickets list and single ticket' },
     { code: 'TICKETS_EDIT', name: 'Edit tickets', description: 'Edit ticket fields in current MVP flow' },
+    { code: 'TICKETS_STATUS_CHANGE', name: 'Change ticket status', description: 'Change ticket status in current MVP flow' },
+    { code: 'ANALYTICS_VIEW', name: 'View analytics', description: 'Access analytics dashboards' },
     { code: 'LOCATIONS_VIEW', name: 'View locations', description: 'View locations for ticket create/edit forms' },
+  ]],
+  [UserRole.TECHNICIAN, [
+    { code: 'TICKETS_CREATE', name: 'Create tickets', description: 'Create tickets in bound client location scope' },
+    { code: 'TICKETS_VIEW', name: 'View tickets', description: 'View tickets list and single ticket' },
+    { code: 'TICKETS_VIEW_AVAILABLE', name: 'View available tickets', description: 'View available NEW tickets for technician' },
+    { code: 'TICKETS_CLAIM', name: 'Claim tickets', description: 'Claim available NEW ticket (assign to self)' },
+    { code: 'TICKETS_STATUS_CHANGE', name: 'Change ticket status', description: 'Change ticket status in executor flow' },
+    { code: 'LOCATIONS_VIEW', name: 'View locations', description: 'View locations for ticket operations' },
+  ]],
+  [UserRole.MASTER, [
+    { code: 'TICKETS_CREATE', name: 'Create tickets', description: 'Create tickets in linked client location scope' },
+    { code: 'TICKETS_VIEW', name: 'View tickets', description: 'View tickets list and single ticket' },
+    { code: 'TICKETS_EDIT', name: 'Edit tickets', description: 'Edit ticket fields in current MVP flow' },
+    { code: 'TICKETS_ASSIGN', name: 'Assign tickets', description: 'Assign ticket to technician' },
+    { code: 'TICKETS_STATUS_CHANGE', name: 'Change ticket status', description: 'Change ticket status in executor flow' },
+    { code: 'ANALYTICS_VIEW', name: 'View analytics', description: 'Access analytics dashboards' },
+    { code: 'LOCATIONS_VIEW', name: 'View locations', description: 'View locations for ticket operations' },
+    { code: 'LOCATIONS_MANAGE', name: 'Manage locations', description: 'Create/update locations and change their status' },
   ]],
 ]);
 
@@ -31,14 +53,14 @@ const CLIENT_REQUIRED_PERMISSION_CODES = ['TICKETS_EDIT'];
 
 const CLIENT_LIKE_REQUIRED_PERMISSIONS = Array.from(
   new Map(
-    Array.from(CLIENT_LIKE_ROLE_PERMISSIONS.values())
+    Array.from(ROLE_PERMISSION_MATRIX.values())
       .flat()
       .map((permission) => [permission.code, permission]),
   ).values(),
 );
 
 async function main() {
-  const clientLikeRoles = Array.from(CLIENT_LIKE_ROLE_PERMISSIONS.keys());
+  const targetRoles = Array.from(ROLE_PERMISSION_MATRIX.keys());
   await prisma.$transaction(async (tx) => {
     for (const block of CLIENT_LIKE_REQUIRED_PERMISSIONS) {
       await tx.permissionBlock.upsert({
@@ -55,20 +77,20 @@ async function main() {
       });
     }
 
-    const clientLikePermissionBlocks = await tx.permissionBlock.findMany({
+    const permissionBlocks = await tx.permissionBlock.findMany({
       where: { code: { in: CLIENT_LIKE_REQUIRED_PERMISSIONS.map((item) => item.code) } },
       select: { id: true, code: true },
     });
-    const permissionBlockByCode = new Map(clientLikePermissionBlocks.map((block) => [block.code, block]));
+    const permissionBlockByCode = new Map(permissionBlocks.map((block) => [block.code, block]));
 
     await tx.rolePermission.deleteMany({
       where: {
-        role: { in: clientLikeRoles },
+        role: { in: targetRoles },
       },
     });
 
-    for (const role of clientLikeRoles) {
-      const targetPermissions = CLIENT_LIKE_ROLE_PERMISSIONS.get(role) ?? [];
+    for (const role of targetRoles) {
+      const targetPermissions = ROLE_PERMISSION_MATRIX.get(role) ?? [];
       for (const permission of targetPermissions) {
         const block = permissionBlockByCode.get(permission.code);
         if (!block) {
