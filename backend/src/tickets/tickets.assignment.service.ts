@@ -471,7 +471,7 @@ export class TicketsAssignmentService {
         event: 'TICKET_CREATED',
         companyId: targetCompanyId,
         ticketId: ticket.id,
-        actorUserId: null,
+        actorUserId: creatorUserId,
         payload: {
           parentId: ticket.parentId,
           locationId: location.id,

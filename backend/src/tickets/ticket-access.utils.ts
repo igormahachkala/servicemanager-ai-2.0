@@ -390,6 +390,56 @@ export async function resolveReadableTicketAccess(params: {
       linkedClientCompanyId: params.linkedClientCompanyId,
     })
 
+    const createdByActor = await params.prisma.domainEvent.findFirst({
+      where: {
+        companyId:
+          technicianScope.companyIds.length === 1
+            ? technicianScope.companyIds[0]
+            : { in: technicianScope.companyIds },
+        entityType: 'Ticket',
+        entityId: params.ticketId,
+        type: 'ticket.created',
+        actorUserId: params.actor.id,
+      },
+      select: { entityId: true },
+    })
+
+    if (createdByActor) {
+      const createdTicket = await params.prisma.ticket.findFirst({
+        where: {
+          id: params.ticketId,
+          companyId:
+            technicianScope.companyIds.length === 1
+              ? technicianScope.companyIds[0]
+              : { in: technicianScope.companyIds },
+        },
+        select: {
+          id: true,
+          companyId: true,
+          locationId: true,
+          assignedTechnicianId: true,
+        },
+      })
+
+      if (
+        createdTicket &&
+        isTechnicianLocationAllowed({
+          companyId: createdTicket.companyId,
+          locationId: createdTicket.locationId,
+          locationScopeByCompany: technicianScope.locationScopeByCompany,
+        })
+      ) {
+        return {
+          ticket: createdTicket,
+          scopeCompanyId: createdTicket.companyId,
+          visibilityMode:
+            createdTicket.companyId === params.actor.companyId
+              ? ('tenant' as TicketVisibilityMode)
+              : ('provider_primary' as TicketVisibilityMode),
+        }
+      }
+    }
+
     const visibilityOr: any[] = [
       {
         assignedTechnicianId: params.actor.id,

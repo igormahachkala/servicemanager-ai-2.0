@@ -75,7 +75,28 @@ export class TicketsQueryService {
     return { ...where, AND: [...baseArr, ...extra] }
   }
 
-  private buildTechnicianBoardQuery(params: {
+  private async listTechnicianCreatedTicketIds(params: {
+    companyIds: string[]
+    userId: string
+  }) {
+    if (params.companyIds.length === 0) return []
+
+    const createdEvents = await this.prisma.domainEvent.findMany({
+      where: {
+        companyId: params.companyIds.length === 1 ? params.companyIds[0] : { in: params.companyIds },
+        entityType: 'Ticket',
+        type: 'ticket.created',
+        actorUserId: params.userId,
+      },
+      select: {
+        entityId: true,
+      },
+    })
+
+    return Array.from(new Set(createdEvents.map((item) => item.entityId).filter(Boolean)))
+  }
+
+  private async buildTechnicianBoardQuery(params: {
     companyIds: string[]
     locationScopeByCompany: Record<string, string[]>
     userId: string
@@ -87,8 +108,19 @@ export class TicketsQueryService {
     const limitedToLast = Math.min(Math.max(params.input.take ?? 500, 1), 500)
     const companyScope =
       params.companyIds.length === 1 ? { companyId: params.companyIds[0] } : { companyId: { in: params.companyIds } }
+    const createdTicketIds = await this.listTechnicianCreatedTicketIds({
+      companyIds: params.companyIds,
+      userId: params.userId,
+    })
 
     const visibilityOr: any[] = [{ ...companyScope, assignedTechnicianId: params.userId }]
+
+    if (createdTicketIds.length > 0) {
+      visibilityOr.push({
+        ...companyScope,
+        id: { in: createdTicketIds },
+      })
+    }
 
     if (params.allowTechnicianClaim) {
       if (params.specializationIds.length > 0) {
@@ -195,7 +227,7 @@ export class TicketsQueryService {
     }
   }
 
-  private buildTechnicianListWhere(params: {
+  private async buildTechnicianListWhere(params: {
     companyIds: string[]
     locationScopeByCompany: Record<string, string[]>
     userId: string
@@ -205,8 +237,19 @@ export class TicketsQueryService {
   }) {
     const companyScope =
       params.companyIds.length === 1 ? { companyId: params.companyIds[0] } : { companyId: { in: params.companyIds } }
+    const createdTicketIds = await this.listTechnicianCreatedTicketIds({
+      companyIds: params.companyIds,
+      userId: params.userId,
+    })
 
     const visibilityOr: any[] = [{ ...companyScope, assignedTechnicianId: params.userId }]
+
+    if (createdTicketIds.length > 0) {
+      visibilityOr.push({
+        ...companyScope,
+        id: { in: createdTicketIds },
+      })
+    }
 
     if (params.allowTechnicianClaim) {
       if (params.specializationIds.length > 0) {
@@ -281,7 +324,7 @@ export class TicketsQueryService {
     const atRiskThresholdMinutes = 60
     const limitedToLast = Math.min(Math.max(input.take ?? 500, 1), 500)
     const decision = technicianScope
-      ? this.buildTechnicianBoardQuery({
+      ? await this.buildTechnicianBoardQuery({
           companyIds: technicianScope.companyIds,
           locationScopeByCompany: technicianScope.locationScopeByCompany,
           userId,
@@ -334,18 +377,6 @@ export class TicketsQueryService {
     const atRiskThresholdMs = decision.meta.atRiskThresholdMinutes * 60_000
 
     const safeBoardWhere = this.unwrapPrismaWhere(whereWithLocationScope)
-    console.log('FINAL_BOARD_SCOPE_DEBUG', {
-      actorCompanyId: companyId,
-      role,
-      scopeCompanyId: scope.scopeCompanyId,
-      visibilityMode: scope.visibilityMode,
-      linkedClientCompanyId: linkedClientCompanyId ?? null,
-      observerCompanyId: observerCompanyId ?? null,
-      locationScopeMode: locationScope.mode,
-      locationScopeCount: locationScope.locationIds.length,
-    })
-    console.log('FINAL_BOARD_TAKE_DEBUG', decision.take)
-    console.log('FINAL_BOARD_WHERE_DEBUG', JSON.stringify(safeBoardWhere, null, 2))
     const tickets = safeBoardWhere
       ? await this.prisma.ticket.findMany({
           where: safeBoardWhere,
@@ -378,7 +409,6 @@ export class TicketsQueryService {
           take: decision.take,
         })
       : []
-    console.log('FINAL_BOARD_TICKETS_COUNT', tickets.length)
 
     const allStatuses: TicketStatus[] = [
       TicketStatus.NEW,
@@ -475,14 +505,14 @@ export class TicketsQueryService {
         })
 
     const baseWhere = technicianScope
-      ? this.buildTechnicianBoardQuery({
+      ? (await this.buildTechnicianBoardQuery({
           companyIds: technicianScope.companyIds,
           locationScopeByCompany: technicianScope.locationScopeByCompany,
           userId,
           specializationIds: technicianScope.specializationIds,
           allowTechnicianClaim: technicianScope.allowTechnicianClaim,
           input: {},
-        }).where
+        })).where
       : (() => {
           const ownTenantScopeCompanyId =
             !observerCompanyId && !linkedClientCompanyId && (role === UserRole.CLIENT || role === UserRole.ADMIN)
@@ -604,7 +634,7 @@ export class TicketsQueryService {
         })
 
     const where = technicianScope
-      ? this.buildTechnicianListWhere({
+      ? await this.buildTechnicianListWhere({
           companyIds: technicianScope.companyIds,
           locationScopeByCompany: technicianScope.locationScopeByCompany,
           userId,
