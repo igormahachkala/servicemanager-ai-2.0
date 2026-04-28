@@ -398,6 +398,21 @@ export function BoardPage() {
     navigate(buildBoardLink(nextLinkedClientCompanyId), { replace: false })
   }
 
+  function buildTicketLink(ticket: api.TicketCard) {
+    if (observerCompanyId) {
+      return `/tickets/${ticket.id}?companyId=${observerCompanyId}`
+    }
+    if (resolvedLinkedClientCompanyId) {
+      return `/tickets/${ticket.id}?linkedClientCompanyId=${resolvedLinkedClientCompanyId}`
+    }
+    const isProviderPrimaryBoard = boardData?.meta?.visibilityMode === 'provider_primary'
+    const actorCompanyId = meQ.data?.companyId || ''
+    if (isProviderPrimaryBoard && ticket.companyId && ticket.companyId !== actorCompanyId) {
+      return `/tickets/${ticket.id}?linkedClientCompanyId=${ticket.companyId}`
+    }
+    return `/tickets/${ticket.id}`
+  }
+
   const subtitle = (() => {
     if (isResolvingProviderContext) return 'Подбираем связанного клиента для provider board…'
     if (isProviderTechnician) {
@@ -895,13 +910,7 @@ export function BoardPage() {
                         />
                       </label>
                       <Link
-                        to={
-                          observerCompanyId
-                            ? `/tickets/${ticket.id}?companyId=${observerCompanyId}`
-                            : resolvedLinkedClientCompanyId
-                              ? `/tickets/${ticket.id}?linkedClientCompanyId=${resolvedLinkedClientCompanyId}`
-                              : `/tickets/${ticket.id}`
-                        }
+                        to={buildTicketLink(ticket)}
                         style={{ textDecoration: 'none', flex: 1, minWidth: 0 }}
                       >
                         <div className="ticketTitle">{ticket.title}</div>

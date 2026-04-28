@@ -385,6 +385,7 @@ export type TicketAttachmentItem = {
 
 export type TicketCard = {
   id: string
+  companyId: string
   title: string
   status: TicketStatus
   urgency: TicketUrgency
