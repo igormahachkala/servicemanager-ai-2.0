@@ -40,19 +40,31 @@ export class TicketAttachmentsService {
 
   async bindAttachmentsToTicketTx(
     tx: Prisma.TransactionClient,
-    params: { companyId: string; ticketId: string; attachmentIds?: string[] | null },
+    params: {
+      companyId: string
+      ticketId: string
+      attachmentIds?: string[] | null
+      actorCompanyId?: string | null
+      uploadedByUserId?: string | null
+    },
   ) {
     const attachmentIds = [...new Set((params.attachmentIds || []).filter(Boolean))]
     if (attachmentIds.length === 0) return []
 
+    const allowedCompanyIds = Array.from(
+      new Set([params.companyId, params.actorCompanyId].filter((value): value is string => !!value)),
+    )
+
     const attachments = await tx.ticketAttachment.findMany({
       where: {
         id: { in: attachmentIds },
-        companyId: params.companyId,
+        companyId: { in: allowedCompanyIds },
       },
       select: {
         id: true,
+        companyId: true,
         ticketId: true,
+        uploadedByUserId: true,
       },
     })
 
@@ -65,13 +77,29 @@ export class TicketAttachmentsService {
       throw new BadRequestException('Attachment already belongs to another ticket')
     }
 
+    const invalidCrossCompanyAttachment = attachments.find((attachment) => {
+      if (attachment.companyId === params.companyId) return false
+      return (
+        !params.actorCompanyId ||
+        attachment.companyId !== params.actorCompanyId ||
+        !params.uploadedByUserId ||
+        attachment.uploadedByUserId !== params.uploadedByUserId ||
+        attachment.ticketId !== null
+      )
+    })
+
+    if (invalidCrossCompanyAttachment) {
+      throw new BadRequestException('Some attachmentIds are invalid')
+    }
+
     await tx.ticketAttachment.updateMany({
       where: {
         id: { in: attachmentIds },
-        companyId: params.companyId,
+        companyId: { in: allowedCompanyIds },
       },
       data: {
         ticketId: params.ticketId,
+        companyId: params.companyId,
       },
     })
 

@@ -463,6 +463,8 @@ export class TicketsAssignmentService {
         companyId: targetCompanyId,
         ticketId: ticket.id,
         attachmentIds: input.attachmentIds ?? [],
+        actorCompanyId,
+        uploadedByUserId: creatorUserId,
       });
 
       await this.timelineService.recordTx(tx, {
