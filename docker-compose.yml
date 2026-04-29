@@ -24,6 +24,8 @@ services:
       - ./backend/.env.docker
     depends_on:
       - postgres
+    volumes:
+      - ./uploads:/app/uploads
     command: sh -lc "npx prisma migrate deploy && npm run start:prod"
 
   web:
