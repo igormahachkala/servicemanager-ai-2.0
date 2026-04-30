@@ -479,12 +479,14 @@ export function TicketPage() {
   const assignmentData = assignmentCandidatesQ.data
   const availableStatusTransitions = ticket?.meta?.availableStatusTransitions || []
   const canTransitionTo = (status: api.TicketStatus) => availableStatusTransitions.includes(status)
+  const isClaimOnlyState = !!ticket && role === 'TECHNICIAN' && ticket.status === 'NEW' && !ticket.assignedTechnician && canClaim
+  const canUseStatusActions = canChangeStatus && availableStatusTransitions.length > 0
   const primaryAction = useMemo(() => {
     if (!ticket) return null as null | { kind: 'claim' | 'in_progress' | 'done'; label: string }
     if (ticket.status === 'DONE') return null
 
     if (ticket.status === 'NEW') {
-      if (canClaim) return { kind: 'claim', label: 'Взять в работу' }
+      if (canClaim) return { kind: 'claim', label: 'Взять себе' }
       if (canChangeStatus && canTransitionTo('IN_PROGRESS')) return { kind: 'in_progress', label: 'Взять в работу' }
       return null
     }
@@ -757,7 +759,7 @@ export function TicketPage() {
                 {claimM.isPending ? 'Забираем…' : 'Взять заявку'}
               </button>
             ) : null}
-            {canChangeStatus ? (
+            {!isClaimOnlyState && canUseStatusActions ? (
               <>
                 {primaryAction?.kind !== 'in_progress' ? (
                   <button className="ghost" disabled={statusM.isPending || !canTransitionTo('IN_PROGRESS')} onClick={() => statusM.mutate({ status: 'IN_PROGRESS' })}>
@@ -1007,7 +1009,7 @@ export function TicketPage() {
         </div>
       ) : null}
 
-      {ticket && canChangeStatus ? (
+      {ticket && canUseStatusActions ? (
         <div className="panel" style={{ marginBottom: 12 }}>
           <h3 style={{ marginBottom: 10 }}>Комментарий</h3>
           <div className="form">

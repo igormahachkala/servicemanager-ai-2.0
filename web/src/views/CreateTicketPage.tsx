@@ -16,6 +16,7 @@ const CREATE_ALLOWED_ROLES: api.Role[] = [
 ]
 
 type CreateMode = 'quick' | 'full'
+type PostCreateMode = 'redirect' | 'stay'
 
 function urgencyLabel(value: 'URGENT' | 'NOT_URGENT') {
   return value === 'URGENT' ? 'Срочно' : 'Не срочно'
@@ -50,6 +51,9 @@ export function CreateTicketPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [draftAttachment, setDraftAttachment] = useState<api.DraftTicketAttachment | null>(null)
+  const [draftAttachmentScopeKey, setDraftAttachmentScopeKey] = useState('')
+  const [postCreateMode, setPostCreateMode] = useState<PostCreateMode>('redirect')
+  const [lastCreatedTicketId, setLastCreatedTicketId] = useState('')
 
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
   const isTechnician = meQ.data?.role === 'TECHNICIAN'
@@ -58,6 +62,12 @@ export function CreateTicketPage() {
   const observerCompanyId = (searchParams.get('companyId') || '').trim()
   const scopedCompanyId = linkedClientCompanyId || observerCompanyId || ''
   const isProviderLinkedCreate = !!linkedClientCompanyId && !isTechnician
+  const currentCreateScopeKey = useMemo(() => {
+    if (isTechnician) return `technician:${clientCompanyId || 'none'}`
+    if (linkedClientCompanyId) return `provider:${linkedClientCompanyId}`
+    if (observerCompanyId) return `observer:${observerCompanyId}`
+    return 'tenant:self'
+  }, [clientCompanyId, isTechnician, linkedClientCompanyId, observerCompanyId])
   const createContextMode = isTechnician
     ? 'technician'
     : linkedClientCompanyId
@@ -130,6 +140,16 @@ export function CreateTicketPage() {
   }, [activeLocations, locationId])
 
   useEffect(() => {
+    if (!draftAttachment) return
+    if (!draftAttachmentScopeKey) return
+    if (draftAttachmentScopeKey === currentCreateScopeKey) return
+    setDraftAttachment(null)
+    setSelectedFile(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+    setUploadError('Загруженное фото сброшено: изменился контекст создания заявки.')
+  }, [currentCreateScopeKey, draftAttachment, draftAttachmentScopeKey])
+
+  useEffect(() => {
     if (!locationId) {
       setEquipmentId('')
       return
@@ -143,6 +163,7 @@ export function CreateTicketPage() {
       setErr(null)
       setUploadError(null)
       setDraftAttachment(uploaded)
+      setDraftAttachmentScopeKey(currentCreateScopeKey)
       setSelectedFile(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
     },
@@ -152,6 +173,7 @@ export function CreateTicketPage() {
     mutationFn: (attachmentId: string) => api.deleteDraftTicketAttachment(attachmentId),
     onSuccess: () => {
       setDraftAttachment(null)
+      setDraftAttachmentScopeKey('')
       setUploadError(null)
       setSelectedFile(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
@@ -161,7 +183,6 @@ export function CreateTicketPage() {
   const createM = useMutation({
     mutationFn: (payload: api.CreateTicketInput) => api.createTicket(payload),
     onSuccess: async (created) => {
-      setErr(null)
       await qc.invalidateQueries({ queryKey: ['board'] })
       await qc.invalidateQueries({ queryKey: ['tickets'] })
       const createdId = api.extractCreatedTicketId(created)
@@ -169,9 +190,32 @@ export function CreateTicketPage() {
         setErr(`Не удалось определить id созданной заявки из ответа backend: ${JSON.stringify(created)}`)
         return
       }
-      nav(`/tickets/${createdId}`)
+      setLastCreatedTicketId(createdId)
+      if (postCreateMode === 'stay') {
+        clearForNextCreate()
+        return
+      }
+      nav(buildTicketLink(createdId))
     },
-    onError: (e: any) => setErr(e?.message || String(e)),
+    onError: (e: any) => {
+      const rawMessage = e?.message || String(e)
+      if (rawMessage.includes('Some attachmentIds are invalid')) {
+        setDraftAttachment(null)
+        setDraftAttachmentScopeKey('')
+        setSelectedFile(null)
+        if (fileInputRef.current) fileInputRef.current.value = ''
+        setUploadError('Ранее загруженное фото недоступно в текущем контексте. Загрузите фото повторно.')
+        setErr('Не удалось привязать фото к заявке: attachment устарел для текущего scope.')
+        return
+      }
+      if (rawMessage.includes('Location not found')) {
+        const fallbackLocationId = activeLocations[0]?.id || ''
+        setLocationId(fallbackLocationId)
+        setErr('Выбранная локация больше недоступна в текущем контексте. Выберите локацию снова.')
+        return
+      }
+      setErr(rawMessage)
+    },
   })
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -235,6 +279,22 @@ export function CreateTicketPage() {
     if (!payload.locationId) return 'Выберите локацию'
     if (!payload.categoryId) return 'Выберите категорию'
     if (isTechnician && !payload.clientCompanyId) return 'Не выбран клиентский контур'
+    if (!activeLocations.some((row) => row.id === payload.locationId)) {
+      return 'Локация не входит в текущий scope. Обновите выбор локации.'
+    }
+    if (!activeCategories.some((row) => row.id === payload.categoryId)) {
+      return 'Категория не входит в текущий scope. Обновите выбор категории.'
+    }
+    if (payload.attachmentIds?.length) {
+      if (!draftAttachment) return 'Фото в форме устарело. Загрузите фото повторно.'
+      if (draftAttachmentScopeKey && draftAttachmentScopeKey !== currentCreateScopeKey) {
+        setDraftAttachment(null)
+        setDraftAttachmentScopeKey('')
+        setSelectedFile(null)
+        if (fileInputRef.current) fileInputRef.current.value = ''
+        return 'Фото загружено в другом контексте. Загрузите фото заново.'
+      }
+    }
     return null
   }
 
@@ -275,9 +335,38 @@ export function CreateTicketPage() {
     if (draftAttachment) {
       deleteDraftM.mutate(draftAttachment.id)
     } else {
+      setDraftAttachmentScopeKey('')
       setSelectedFile(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
     }
+  }
+
+  function buildBoardLink() {
+    if (linkedClientCompanyId) return `/board?linkedClientCompanyId=${linkedClientCompanyId}`
+    if (observerCompanyId) return `/board?companyId=${observerCompanyId}`
+    return '/board'
+  }
+
+  function buildTicketLink(ticketId: string) {
+    if (linkedClientCompanyId) return `/tickets/${ticketId}?linkedClientCompanyId=${linkedClientCompanyId}`
+    if (observerCompanyId) return `/tickets/${ticketId}?companyId=${observerCompanyId}`
+    return `/tickets/${ticketId}`
+  }
+
+  function clearForNextCreate() {
+    setErr(null)
+    setUploadError(null)
+    setDraftAttachment(null)
+    setDraftAttachmentScopeKey('')
+    setSelectedFile(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+    setComment('')
+    setDescription('')
+    setTitle('')
+    setAddress('')
+    setPointName('')
+    setSlaMinutes('')
+    setEquipmentId('')
   }
 
   const isBusy = createM.isPending || uploadM.isPending || deleteDraftM.isPending
@@ -295,7 +384,7 @@ export function CreateTicketPage() {
           <div className="muted small">Quick: 4 шага. Full: расширенная форма с комментарием и всеми полями.</div>
         </div>
         <div>
-          <Link to="/board">
+          <Link to={buildBoardLink()}>
             <button className="ghost">← Назад к доске</button>
           </Link>
         </div>
@@ -351,6 +440,16 @@ export function CreateTicketPage() {
           {mode === 'quick' ? (
             <div className="muted small">Шаги: 1) Локация 2) Категория 3) Контакт 4) Фото + отправка</div>
           ) : null}
+
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <input
+              type="checkbox"
+              checked={postCreateMode === 'stay'}
+              onChange={(e) => setPostCreateMode(e.target.checked ? 'stay' : 'redirect')}
+              disabled={isBusy}
+            />
+            Создавать несколько заявок подряд
+          </label>
 
           {isTechnician ? (
             <label>
@@ -474,6 +573,19 @@ export function CreateTicketPage() {
               Сбросить
             </button>
           </div>
+          {lastCreatedTicketId ? (
+            <div className="panel" style={{ padding: 12 }}>
+              <div className="muted small" style={{ marginBottom: 8 }}>Заявка создана: {lastCreatedTicketId}</div>
+              <div className="uiActions">
+                <button type="button" className="ghost" onClick={clearForNextCreate} disabled={isBusy}>
+                  Создать ещё
+                </button>
+                <Link to={buildTicketLink(lastCreatedTicketId)}>
+                  <button type="button" className="ghost">Открыть заявку</button>
+                </Link>
+              </div>
+            </div>
+          ) : null}
         </form>
       </div>
     </div>
