@@ -18,7 +18,7 @@ import { AssignmentService } from '../assignment/assignment.service';
 import { TicketsQueryService } from './tickets.query.service';
 import { TicketAttachmentsService } from './ticket-attachments.service';
 import { buildTicketDescription } from './ticket-description.builder';
-import { assertActorCanUseLocation, buildTechnicianLocationRestrictionWhere, resolveTechnicianOperationalScope, resolveTicketOperationAccess } from './ticket-access.utils';
+import { assertActorCanUseLocation, buildTechnicianLocationRestrictionWhere, resolveTechnicianOperationalScope, resolveTicketOperationAccess, wasTicketCreatedByActor } from './ticket-access.utils';
 import { ServiceContractsService } from '../service-contracts/service-contracts.service';
 import { TechniciansService } from '../technicians/technicians.service';
 
@@ -1385,11 +1385,34 @@ export class TicketsAssignmentService {
       locationScopeByCompany: technicianScope.locationScopeByCompany,
     });
     const claimWhere = this.normalizeAnd(decision.where as Prisma.TicketWhereInput, [locationRestriction]);
+    const selfCreatedByTechnician = await wasTicketCreatedByActor({
+      prisma: this.prisma,
+      companyIds: technicianScope.companyIds,
+      ticketId,
+      actorUserId: technicianUserId,
+    })
 
     const resolvedTicketId = await this.prisma.$transaction(async (tx) => {
-      const ticket = await tx.ticket.findFirst({
+      let ticket = await tx.ticket.findFirst({
         where: claimWhere,
       })
+
+      if (!ticket && selfCreatedByTechnician) {
+        ticket = await tx.ticket.findFirst({
+          where: this.normalizeAnd(
+            {
+              id: ticketId,
+              companyId:
+                technicianScope.companyIds.length === 1
+                  ? technicianScope.companyIds[0]
+                  : { in: technicianScope.companyIds },
+              status: TicketStatus.NEW,
+              assignedTechnicianId: null,
+            },
+            [locationRestriction],
+          ),
+        })
+      }
 
       if (!ticket) {
         throw new NotFoundException('Ticket not found or not available for claim')

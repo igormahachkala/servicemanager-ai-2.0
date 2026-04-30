@@ -4,7 +4,7 @@ import { TicketsPolicy } from '../policy/tickets.policy'
 import { PrismaService } from '../prisma/prisma.service'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
 import { decideTicketTransition } from '../workflow/ticket.workflow'
-import { resolveTechnicianOperationalScope, resolveTicketOperationAccess, type TicketVisibilityMode } from './ticket-access.utils'
+import { buildTechnicianLocationRestrictionWhere, resolveTechnicianOperationalScope, resolveTicketOperationAccess, type TicketVisibilityMode, wasTicketCreatedByActor } from './ticket-access.utils'
 
 export type TicketMetaBuildParams = {
   actorCompanyId: string
@@ -73,6 +73,10 @@ export class TicketMetaBuilder {
       allowTechnicianClaim: technicianScope.allowTechnicianClaim,
       companyIds: technicianScope.companyIds,
     })
+    const locationRestriction = buildTechnicianLocationRestrictionWhere({
+      companyIds: technicianScope.companyIds,
+      locationScopeByCompany: technicianScope.locationScopeByCompany,
+    })
 
     if (!decision.allowed) {
       return {
@@ -82,12 +86,45 @@ export class TicketMetaBuilder {
     }
 
     const claimableTicket = await this.prisma.ticket.findFirst({
-      where: decision.where,
+      where: {
+        AND: [decision.where, locationRestriction],
+      },
       select: { id: true },
     })
 
     if (claimableTicket) {
       return { canClaimByCurrentUser: true, claimAvailabilityReason: null }
+    }
+
+    const selfCreatedByCurrentUser = await wasTicketCreatedByActor({
+      prisma: this.prisma,
+      companyIds: technicianScope.companyIds,
+      ticketId: params.ticketId,
+      actorUserId: params.userId,
+    })
+
+    if (selfCreatedByCurrentUser) {
+      const selfCreatedTicket = await this.prisma.ticket.findFirst({
+        where: {
+          AND: [
+            {
+              id: params.ticketId,
+              companyId:
+                technicianScope.companyIds.length === 1
+                  ? technicianScope.companyIds[0]
+                  : { in: technicianScope.companyIds },
+              status: TicketStatus.NEW,
+              assignedTechnicianId: null,
+            },
+            locationRestriction,
+          ],
+        },
+        select: { id: true },
+      })
+
+      if (selfCreatedTicket) {
+        return { canClaimByCurrentUser: true, claimAvailabilityReason: null }
+      }
     }
 
     return {

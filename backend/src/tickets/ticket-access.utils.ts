@@ -1,4 +1,4 @@
-﻿import { ForbiddenException, NotFoundException } from '@nestjs/common'
+import { ForbiddenException, NotFoundException } from '@nestjs/common'
 import { Prisma, UserRole } from '@prisma/client'
 
 import { assertAllowed, isPlatformObserverScope, resolveObserverScopeCompanyId } from '../policy/policy.utils'
@@ -143,6 +143,27 @@ export function isTechnicianLocationAllowed(params: {
     return true
   }
   return locationIds.includes(params.locationId)
+}
+export async function wasTicketCreatedByActor(params: {
+  prisma: PrismaService
+  companyIds: string[]
+  ticketId: string
+  actorUserId: string
+}) {
+  if (params.companyIds.length === 0) return false
+
+  const createdEvent = await params.prisma.domainEvent.findFirst({
+    where: {
+      companyId: params.companyIds.length === 1 ? params.companyIds[0] : { in: params.companyIds },
+      entityType: 'Ticket',
+      entityId: params.ticketId,
+      type: 'ticket.created',
+      actorUserId: params.actorUserId,
+    },
+    select: { entityId: true },
+  })
+
+  return !!createdEvent
 }
 
 export async function assertActorCanUseLocation(params: {
