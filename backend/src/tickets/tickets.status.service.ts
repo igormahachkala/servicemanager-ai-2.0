@@ -1,5 +1,5 @@
-﻿import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, TicketStatus, UserRole } from '@prisma/client';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma, TicketAttachmentPurpose, TicketStatus, UserRole } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -101,10 +101,11 @@ export class TicketsStatusService {
       if (!wf.allowed) throw new BadRequestException(wf.reason);
 
       if (toStatus === TicketStatus.DONE) {
-        const [photoCount, commentEventCount] = await Promise.all([
+        const [workReportPhotoCount, commentEventCount] = await Promise.all([
           tx.ticketAttachment.count({
             where: {
               ticketId,
+              purpose: TicketAttachmentPurpose.WORK_REPORT,
               mimeType: { startsWith: 'image/' },
             },
           }),
@@ -118,8 +119,8 @@ export class TicketsStatusService {
           }),
         ]);
 
-        if (photoCount === 0) {
-          throw new BadRequestException('Cannot complete ticket without at least 1 photo');
+        if (workReportPhotoCount === 0) {
+          throw new BadRequestException('Cannot complete ticket without at least 1 work report photo');
         }
 
         if (commentEventCount === 0) {

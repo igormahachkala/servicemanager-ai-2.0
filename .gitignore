@@ -22,6 +22,7 @@ yarn-error.log*
 backend/node_modules/
 backend/dist/
 backend/uploads/
+uploads/
 
 # web build/runtime
 web/node_modules/

@@ -1,5 +1,5 @@
-﻿import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
-import { Prisma } from '@prisma/client'
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
+import { Prisma, TicketAttachmentPurpose } from '@prisma/client'
 import { mkdir, rm, writeFile } from 'fs/promises'
 import { extname, join } from 'path'
 import { randomUUID } from 'crypto'
@@ -28,6 +28,7 @@ export class TicketAttachmentsService {
         companyId,
         ticketId: null,
         uploadedByUserId,
+        purpose: TicketAttachmentPurpose.REQUEST,
         originalName: file.originalname,
         storageKey: stored.storageKey,
         mimeType: file.mimetype,
@@ -100,6 +101,7 @@ export class TicketAttachmentsService {
       data: {
         ticketId: params.ticketId,
         companyId: params.companyId,
+        purpose: TicketAttachmentPurpose.REQUEST,
       },
     })
 
@@ -150,6 +152,7 @@ export class TicketAttachmentsService {
         companyId: ticketCompanyId,
         ticketId,
         uploadedByUserId: user.id,
+        purpose: TicketAttachmentPurpose.WORK_REPORT,
         originalName: file.originalname,
         storageKey: stored.storageKey,
         mimeType: file.mimetype,
@@ -228,6 +231,7 @@ export class TicketAttachmentsService {
       id: true,
       ticketId: true,
       originalName: true,
+      purpose: true,
       mimeType: true,
       sizeBytes: true,
       url: true,

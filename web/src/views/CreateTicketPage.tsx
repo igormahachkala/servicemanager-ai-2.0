@@ -54,6 +54,7 @@ export function CreateTicketPage() {
   const [draftAttachmentScopeKey, setDraftAttachmentScopeKey] = useState('')
   const [postCreateMode, setPostCreateMode] = useState<PostCreateMode>('redirect')
   const [lastCreatedTicketId, setLastCreatedTicketId] = useState('')
+  const submitActionRef = useRef<'create' | 'createAndClaim'>('create')
 
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
   const isTechnician = meQ.data?.role === 'TECHNICIAN'
@@ -130,6 +131,12 @@ export function CreateTicketPage() {
   }, [meQ.data, requesterName])
 
   useEffect(() => {
+    if (!isTechnician) return
+    if (postCreateMode === 'stay') return
+    setPostCreateMode('stay')
+  }, [isTechnician, postCreateMode])
+
+  useEffect(() => {
     if (!categoryId && activeCategories.length > 0) setCategoryId(activeCategories[0].id)
     if (categoryId && !activeCategories.some((row) => row.id === categoryId)) setCategoryId(activeCategories[0]?.id || '')
   }, [activeCategories, categoryId])
@@ -191,6 +198,23 @@ export function CreateTicketPage() {
         return
       }
       setLastCreatedTicketId(createdId)
+      const submitAction = submitActionRef.current
+      submitActionRef.current = 'create'
+      if (submitAction === 'createAndClaim' && isTechnician) {
+        try {
+          await api.claim(createdId, buildTicketScope())
+          nav(buildTicketLink(createdId))
+          return
+        } catch (claimError: any) {
+          setErr(`Заявка создана, но не удалось взять в работу: ${claimError?.message || String(claimError)}`)
+          if (postCreateMode === 'stay') {
+            clearForNextCreate()
+            return
+          }
+          nav(buildTicketLink(createdId))
+          return
+        }
+      }
       if (postCreateMode === 'stay') {
         clearForNextCreate()
         return
@@ -301,6 +325,7 @@ export function CreateTicketPage() {
   function onSubmit(e: React.FormEvent) {
     e.preventDefault()
     setErr(null)
+    setLastCreatedTicketId('')
     if (!canCreateByRole) {
       setErr('Эта роль не может создавать заявки')
       return
@@ -312,6 +337,10 @@ export function CreateTicketPage() {
       return
     }
     createM.mutate(payload)
+  }
+
+  function onCreateAndClaim() {
+    submitActionRef.current = 'createAndClaim'
   }
 
   function onUpload() {
@@ -351,6 +380,12 @@ export function CreateTicketPage() {
     if (linkedClientCompanyId) return `/tickets/${ticketId}?linkedClientCompanyId=${linkedClientCompanyId}`
     if (observerCompanyId) return `/tickets/${ticketId}?companyId=${observerCompanyId}`
     return `/tickets/${ticketId}`
+  }
+
+  function buildTicketScope(): api.TicketScopeParams | undefined {
+    if (linkedClientCompanyId) return { linkedClientCompanyId }
+    if (observerCompanyId) return { companyId: observerCompanyId }
+    return undefined
   }
 
   function clearForNextCreate() {
@@ -569,6 +604,16 @@ export function CreateTicketPage() {
             <button type="submit" disabled={!canCreateByRole || isBusy || isBootstrapping || noCategories || noLocations || !locationId || (isTechnician && !clientCompanyId)}>
               {createM.isPending ? 'Отправляем...' : 'Создать заявку'}
             </button>
+            {isTechnician ? (
+              <button
+                type="submit"
+                className="ghost"
+                onClick={onCreateAndClaim}
+                disabled={!canCreateByRole || isBusy || isBootstrapping || noCategories || noLocations || !locationId || !clientCompanyId}
+              >
+                {createM.isPending ? 'Создаём и берём...' : 'Создать и взять в работу'}
+              </button>
+            ) : null}
             <button type="button" className="ghost" onClick={onReset} disabled={isBusy}>
               Сбросить
             </button>
@@ -581,7 +626,7 @@ export function CreateTicketPage() {
                   Создать ещё
                 </button>
                 <Link to={buildTicketLink(lastCreatedTicketId)}>
-                  <button type="button" className="ghost">Открыть заявку</button>
+                  <button type="button" className="ghost">Открыть последнюю заявку</button>
                 </Link>
               </div>
             </div>

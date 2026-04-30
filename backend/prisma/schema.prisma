@@ -42,6 +42,11 @@ enum TicketSource {
   PUBLIC_QUICK_REQUEST
 }
 
+enum TicketAttachmentPurpose {
+  REQUEST
+  WORK_REPORT
+}
+
 enum PublicRequestType {
   REPAIR
   NOTE
@@ -385,6 +390,7 @@ model TicketAttachment {
   mimeType         String
   sizeBytes        Int
   url              String
+  purpose          TicketAttachmentPurpose @default(REQUEST)
   createdAt        DateTime @default(now())
 
   company    Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -393,6 +399,7 @@ model TicketAttachment {
 
   @@index([companyId, createdAt])
   @@index([ticketId, createdAt])
+  @@index([ticketId, purpose, createdAt])
   @@index([companyId, ticketId])
 }
 model TicketStatusHistory {

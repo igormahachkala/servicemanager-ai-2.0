@@ -1100,6 +1100,8 @@ export function TicketPage() {
           </div>
 
           <TicketAttachments
+            title="Вложения"
+            emptyText="Фото и файлы пока не загружены."
             loading={attachmentsQ.isLoading}
             isError={attachmentsQ.isError}
             error={attachmentsQ.error}
