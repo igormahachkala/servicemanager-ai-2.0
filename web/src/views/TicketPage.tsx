@@ -11,6 +11,7 @@ const MANAGEMENT_ROLES: api.Role[] = ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_
 const EDIT_ROLES: api.Role[] = ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR', 'CLIENT', 'TERRITORIAL_MANAGER']
 const STATUS_CHANGE_ROLES: api.Role[] = ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR', 'TECHNICIAN']
 const PHOTO_ROLES: api.Role[] = ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR', 'TECHNICIAN', 'CLIENT', 'TERRITORIAL_MANAGER']
+const CHILD_CREATE_ROLES: api.Role[] = ['ADMIN', 'MASTER', 'DISPATCHER']
 
 function fmt(dt?: string | null) {
   if (!dt) return '—'
@@ -69,6 +70,10 @@ function roleCanChangeStatus(role?: api.Role | null) {
 
 function roleCanUploadPhoto(role?: api.Role | null) {
   return !!role && PHOTO_ROLES.includes(role)
+}
+
+function roleCanCreateChildTicket(role?: api.Role | null) {
+  return !!role && CHILD_CREATE_ROLES.includes(role)
 }
 
 function StatusPill({ status }: { status: api.TicketStatus }) {
@@ -171,22 +176,24 @@ export function TicketPage() {
   const qc = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
-  const observerCompanyId = (searchParams.get('companyId') || '').trim()
-  const linkedClientCompanyId = (searchParams.get('linkedClientCompanyId') || '').trim()
+  const observerCompanyId = (searchParams.get('companyId') || api.getObserverCompanyId()).trim()
+  const linkedClientCompanyId = (searchParams.get('linkedClientCompanyId') || api.getLinkedClientCompanyId()).trim()
+  const [autoLinkedClientCompanyId, setAutoLinkedClientCompanyId] = useState('')
+  const effectiveLinkedClientCompanyId = linkedClientCompanyId || autoLinkedClientCompanyId
 
   const baseTicketScope = useMemo<api.TicketScopeParams>(
     () => ({
       companyId: observerCompanyId || undefined,
-      linkedClientCompanyId: linkedClientCompanyId || undefined,
+      linkedClientCompanyId: effectiveLinkedClientCompanyId || undefined,
     }),
-    [observerCompanyId, linkedClientCompanyId],
+    [observerCompanyId, effectiveLinkedClientCompanyId],
   )
 
-  const contextMode = observerCompanyId ? 'observer' : linkedClientCompanyId ? 'provider' : 'tenant'
+  const contextMode = observerCompanyId ? 'observer' : effectiveLinkedClientCompanyId ? 'provider' : 'tenant'
   const backToBoardHref = observerCompanyId
     ? `/board?companyId=${observerCompanyId}`
-    : linkedClientCompanyId
-      ? `/board?linkedClientCompanyId=${linkedClientCompanyId}`
+    : effectiveLinkedClientCompanyId
+      ? `/board?linkedClientCompanyId=${effectiveLinkedClientCompanyId}`
       : '/board'
 
   const [editOpen, setEditOpen] = useState(false)
@@ -201,6 +208,11 @@ export function TicketPage() {
   const [updateError, setUpdateError] = useState<string | null>(null)
   const [showFullTimeline, setShowFullTimeline] = useState(false)
   const [showAssignmentEditor, setShowAssignmentEditor] = useState(false)
+  const [showChildCreateForm, setShowChildCreateForm] = useState(false)
+
+  useEffect(() => {
+    api.persistScopeFromSearchParams(searchParams, meQ.data)
+  }, [searchParams, meQ.data])
 
   const [editProblemCategoryId, setEditProblemCategoryId] = useState('')
   const [editLocationId, setEditLocationId] = useState('')
@@ -213,6 +225,11 @@ export function TicketPage() {
   const [editPointName, setEditPointName] = useState('')
   const [editComment, setEditComment] = useState('')
   const [newComment, setNewComment] = useState('')
+  const [closeReportComment, setCloseReportComment] = useState('')
+  const [childCategoryId, setChildCategoryId] = useState('')
+  const [childProblemText, setChildProblemText] = useState('')
+  const [childUrgency, setChildUrgency] = useState<api.TicketUrgency>('NOT_URGENT')
+  const [childCreateError, setChildCreateError] = useState<string | null>(null)
 
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
   const ownCompanyQ = useQuery({
@@ -220,19 +237,60 @@ export function TicketPage() {
     queryFn: () => api.company(),
     enabled: !observerCompanyId && !linkedClientCompanyId,
   })
+  const linkedClientsQ = useQuery({
+    queryKey: ['ticket-linked-clients-fallback'],
+    queryFn: api.getLinkedClients,
+    enabled: !observerCompanyId && !linkedClientCompanyId && ownCompanyQ.data?.type === 'PROVIDER',
+  })
 
   const ticketQ = useQuery({
     enabled: !!ticketId,
-    queryKey: ['ticket', ticketId, observerCompanyId, linkedClientCompanyId],
+    queryKey: ['ticket', ticketId, observerCompanyId, effectiveLinkedClientCompanyId],
     queryFn: () => api.getTicket(ticketId, baseTicketScope),
   })
 
   const inferredLinkedClientCompanyId = useMemo(() => {
-    if (linkedClientCompanyId) return linkedClientCompanyId
+    if (effectiveLinkedClientCompanyId) return effectiveLinkedClientCompanyId
     if (observerCompanyId) return ''
     if (ticketQ.data?.meta?.visibilityMode !== 'provider_primary') return ''
     return ticketQ.data?.meta?.scopeCompanyId || ''
-  }, [linkedClientCompanyId, observerCompanyId, ticketQ.data?.meta?.visibilityMode, ticketQ.data?.meta?.scopeCompanyId])
+  }, [effectiveLinkedClientCompanyId, observerCompanyId, ticketQ.data?.meta?.visibilityMode, ticketQ.data?.meta?.scopeCompanyId])
+
+  useEffect(() => {
+    if (!ticketId) return
+    if (observerCompanyId || linkedClientCompanyId || autoLinkedClientCompanyId) return
+    if (ownCompanyQ.data?.type !== 'PROVIDER') return
+    if (!ticketQ.isError) return
+    const linkedClients = linkedClientsQ.data || []
+    if (!linkedClients.length) return
+
+    let cancelled = false
+    ;(async () => {
+      for (const linkedClient of linkedClients) {
+        try {
+          await api.getTicket(ticketId, { linkedClientCompanyId: linkedClient.clientCompany.id })
+          if (!cancelled) {
+            setAutoLinkedClientCompanyId(linkedClient.clientCompany.id)
+          }
+          return
+        } catch {
+          // try next linked client scope
+        }
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    ticketId,
+    observerCompanyId,
+    linkedClientCompanyId,
+    autoLinkedClientCompanyId,
+    ownCompanyQ.data?.type,
+    ticketQ.isError,
+    linkedClientsQ.data,
+  ])
 
   const effectiveTicketScope = useMemo<api.TicketScopeParams>(
     () => ({
@@ -281,6 +339,9 @@ export function TicketPage() {
   const canChangeStatus = executorActionsAllowed && roleCanChangeStatus(role)
   const canUploadPhoto = canMutateTicket && roleCanUploadPhoto(role)
   const canDeletePhoto = canMutateTicket && roleCanUploadPhoto(role)
+  const canCreateChildTicket = canMutateTicket && roleCanCreateChildTicket(role)
+  const isTechnicianRole = role === 'TECHNICIAN'
+  const isAssignedTechnician = !!ticketQ.data?.assignedTechnician?.id && ticketQ.data.assignedTechnician.id === meQ.data?.id
 
   const assignmentCandidatesQ = useQuery({
     enabled: !!ticketId && canAssign,
@@ -468,6 +529,51 @@ export function TicketPage() {
     onError: (e: any) => setStatusError(e?.message || String(e)),
   })
 
+  const closeReportM = useMutation({
+    mutationFn: async () => {
+      if (!canMutateTicket) throw new Error('Изменение заявки запрещено в текущем режиме видимости')
+      const normalizedComment = closeReportComment.trim()
+      if (!normalizedComment) throw new Error('Добавьте комментарий к закрытию')
+      const hasPhotoAlready = hasWorkReportPhotoEvidence
+      if (!hasPhotoAlready && !selectedFile) throw new Error('Добавьте фото для закрытия')
+      if (selectedFile) {
+        await api.uploadTicketAttachment(ticketId, selectedFile, effectiveTicketScope)
+      }
+      await api.addTicketComment(ticketId, normalizedComment, effectiveTicketScope)
+      await api.updateTicketStatus(ticketId, { status: 'DONE', comment: normalizedComment }, effectiveTicketScope)
+    },
+    onSuccess: async () => {
+      setCloseReportComment('')
+      setNewComment('')
+      setSelectedFile(null)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      clearActionErrors()
+      await refreshAll()
+    },
+    onError: (e: any) => setStatusError(e?.message || String(e)),
+  })
+
+  const createChildM = useMutation({
+    mutationFn: () => {
+      if (!ticket) throw new Error('Родительская заявка не загружена')
+      if (!canCreateChildTicket) throw new Error('Недостаточно прав для создания дополнительной работы')
+      if (!childCategoryId.trim()) throw new Error('Выберите категорию')
+      if (!childProblemText.trim()) throw new Error('Опишите проблему')
+      return api.createChildTicket(ticket.id, {
+        problemCategoryId: childCategoryId.trim(),
+        problemText: childProblemText.trim(),
+        urgency: childUrgency,
+      })
+    },
+    onSuccess: async () => {
+      setChildCreateError(null)
+      setChildProblemText('')
+      setShowChildCreateForm(false)
+      await refreshAll()
+    },
+    onError: (e: any) => setChildCreateError(e?.message || String(e)),
+  })
+
   const ticket = ticketQ.data
   const hasAssignedTechnician = !!ticket?.assignedTechnician
   const canClaim = useMemo(() => {
@@ -479,8 +585,6 @@ export function TicketPage() {
   const assignmentData = assignmentCandidatesQ.data
   const availableStatusTransitions = ticket?.meta?.availableStatusTransitions || []
   const canTransitionTo = (status: api.TicketStatus) => availableStatusTransitions.includes(status)
-  const isClaimOnlyState = !!ticket && role === 'TECHNICIAN' && ticket.status === 'NEW' && !ticket.assignedTechnician && canClaim
-  const canUseStatusActions = canChangeStatus && availableStatusTransitions.length > 0
   const primaryAction = useMemo(() => {
     if (!ticket) return null as null | { kind: 'claim' | 'in_progress' | 'done'; label: string }
     if (ticket.status === 'DONE') return null
@@ -530,6 +634,7 @@ export function TicketPage() {
     return 'Контекст компании'
   }, [contextMode])
   const timelineItems = timelineQ.data?.timeline || timelineQ.data?.items || []
+  const childTickets = ticket?.children || []
   const hasAnyCommentEvidence = useMemo(
     () =>
       timelineItems.some((item) => {
@@ -542,6 +647,18 @@ export function TicketPage() {
   const hasAnyPhotoEvidence = useMemo(
     () => (attachmentsQ.data || []).some((item) => (item.mimeType || '').startsWith('image/')),
     [attachmentsQ.data],
+  )
+  const requestAttachments = useMemo(
+    () => (attachmentsQ.data || []).filter((item: any) => item?.purpose !== 'WORK_REPORT'),
+    [attachmentsQ.data],
+  )
+  const workReportAttachments = useMemo(
+    () => (attachmentsQ.data || []).filter((item: any) => item?.purpose === 'WORK_REPORT'),
+    [attachmentsQ.data],
+  )
+  const hasWorkReportPhotoEvidence = useMemo(
+    () => workReportAttachments.some((item) => (item.mimeType || '').startsWith('image/')),
+    [workReportAttachments],
   )
   const canCompleteByEvidence = hasCommentForDone && hasAnyPhotoEvidence
   const timelinePreviewItems = useMemo(
@@ -597,6 +714,12 @@ export function TicketPage() {
     uploadM.mutate()
   }
 
+  function buildTicketHref(targetTicketId: string) {
+    if (observerCompanyId) return `/tickets/${targetTicketId}?companyId=${observerCompanyId}`
+    if (inferredLinkedClientCompanyId) return `/tickets/${targetTicketId}?linkedClientCompanyId=${inferredLinkedClientCompanyId}`
+    return `/tickets/${targetTicketId}`
+  }
+
   return (
     <div>
       <TicketHeader
@@ -604,7 +727,7 @@ export function TicketPage() {
         ticketId={ticketId}
         isFetching={ticketQ.isFetching}
         observerCompanyId={observerCompanyId}
-        linkedClientCompanyId={linkedClientCompanyId}
+        linkedClientCompanyId={effectiveLinkedClientCompanyId}
         contextBadge={contextBadge}
         backToBoardHref={backToBoardHref}
         canEditTicket={canEditTicket}
@@ -749,7 +872,7 @@ export function TicketPage() {
             <a href={backToBoardHref} style={{ textDecoration: 'none' }}>
               <button className="ghost">← Назад к доске</button>
             </a>
-            {canEditTicket ? (
+            {canEditTicket && !isTechnicianRole ? (
               <button className="ghost" onClick={() => setEditOpen((value) => !value)}>
                 {editOpen ? 'Скрыть редактирование' : 'Редактировать заявку'}
               </button>
@@ -759,7 +882,7 @@ export function TicketPage() {
                 {claimM.isPending ? 'Забираем…' : 'Взять заявку'}
               </button>
             ) : null}
-            {!isClaimOnlyState && canUseStatusActions ? (
+            {canChangeStatus ? (
               <>
                 {primaryAction?.kind !== 'in_progress' ? (
                   <button className="ghost" disabled={statusM.isPending || !canTransitionTo('IN_PROGRESS')} onClick={() => statusM.mutate({ status: 'IN_PROGRESS' })}>
@@ -780,10 +903,24 @@ export function TicketPage() {
                     {statusM.isPending ? 'Сохраняем…' : 'Завершить'}
                   </button>
                 ) : null}
-                <button className="ghost" disabled={statusM.isPending || !canTransitionTo('CANCELED')} onClick={() => statusM.mutate({ status: 'CANCELED' })}>
-                  {statusM.isPending ? 'Сохраняем…' : 'Отменить'}
-                </button>
+                {!isTechnicianRole ? (
+                  <button className="ghost" disabled={statusM.isPending || !canTransitionTo('CANCELED')} onClick={() => statusM.mutate({ status: 'CANCELED' })}>
+                    {statusM.isPending ? 'Сохраняем…' : 'Отменить'}
+                  </button>
+                ) : null}
               </>
+            ) : null}
+            {canCreateChildTicket && !isTechnicianRole ? (
+              <button
+                className="ghost"
+                onClick={() => {
+                  setShowChildCreateForm((value) => !value)
+                  setChildCreateError(null)
+                }}
+                disabled={createChildM.isPending}
+              >
+                {showChildCreateForm ? 'Скрыть доп. работу' : '+ Ещё работа по этой точке'}
+              </button>
             ) : null}
           </div>
           {!canCompleteByEvidence ? (
@@ -792,6 +929,49 @@ export function TicketPage() {
             </div>
           ) : null}
           <InlineError message={statusError} />
+        </div>
+      ) : null}
+
+      {ticket && isTechnicianRole && isAssignedTechnician && canChangeStatus && canTransitionTo('DONE') ? (
+        <div className="panel uiCard" style={{ marginBottom: 12 }}>
+          <h3 style={{ marginBottom: 10 }}>Закрыть с отчётом</h3>
+          <div className="form">
+            <label>
+              Комментарий по выполнению *
+              <textarea
+                value={closeReportComment}
+                onChange={(e) => setCloseReportComment(e.target.value)}
+                rows={3}
+                placeholder="Что сделано и результат"
+                disabled={closeReportM.isPending}
+              />
+            </label>
+            <label>
+              Фото отчёта *
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleFileChange}
+                disabled={closeReportM.isPending}
+              />
+              <div className="muted small" style={{ marginTop: 6 }}>
+                Можно выбрать новое фото или использовать уже загруженное в заявку.
+              </div>
+            </label>
+            <div className="uiActions">
+              <button
+                onClick={() => closeReportM.mutate()}
+                disabled={
+                  closeReportM.isPending ||
+                  !closeReportComment.trim() ||
+                  (!hasWorkReportPhotoEvidence && !selectedFile)
+                }
+              >
+                {closeReportM.isPending ? 'Закрываем…' : 'Завершить'}
+              </button>
+            </div>
+          </div>
         </div>
       ) : null}
 
@@ -901,6 +1081,67 @@ export function TicketPage() {
         </div>
       ) : null}
 
+      {ticket && canCreateChildTicket && showChildCreateForm ? (
+        <div className="panel uiCard" style={{ marginBottom: 12 }}>
+          <h3 style={{ marginBottom: 10 }}>Новая дополнительная работа</h3>
+          <div className="muted small" style={{ marginBottom: 10 }}>
+            Локация и контакт наследуются от текущей заявки. Для MVP фото в child-ticket не прикрепляется на этапе создания.
+          </div>
+          <div className="form">
+            <label>
+              Категория *
+              <select
+                value={childCategoryId}
+                onChange={(e) => setChildCategoryId(e.target.value)}
+                disabled={createChildM.isPending}
+              >
+                <option value="">Выберите категорию</option>
+                {(categoriesQ.data || []).filter((row) => row.isActive !== false).map((row) => (
+                  <option key={row.id} value={row.id}>{row.name}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Описание проблемы *
+              <textarea
+                value={childProblemText}
+                onChange={(e) => setChildProblemText(e.target.value)}
+                rows={4}
+                disabled={createChildM.isPending}
+                placeholder="Кратко опишите дополнительную работу"
+              />
+            </label>
+            <label>
+              Срочность
+              <select
+                value={childUrgency}
+                onChange={(e) => setChildUrgency(e.target.value as api.TicketUrgency)}
+                disabled={createChildM.isPending}
+              >
+                <option value="NOT_URGENT">Не срочно</option>
+                <option value="URGENT">Срочно</option>
+              </select>
+            </label>
+            <div className="uiActions">
+              <button onClick={() => createChildM.mutate()} disabled={createChildM.isPending || !childCategoryId || !childProblemText.trim()}>
+                {createChildM.isPending ? 'Создаём…' : 'Создать доп. работу'}
+              </button>
+              <button
+                className="ghost"
+                onClick={() => {
+                  setShowChildCreateForm(false)
+                  setChildCreateError(null)
+                }}
+                disabled={createChildM.isPending}
+              >
+                Отмена
+              </button>
+            </div>
+          </div>
+          <InlineError message={(categoriesQ.error as any)?.message || childCreateError} />
+        </div>
+      ) : null}
+
       {ticket && canAssign && !isClientRole ? (
         <div className="panel uiCard" style={{ marginBottom: 12 }}>
           <h3 style={{ marginBottom: 10 }}>Исполнитель</h3>
@@ -995,7 +1236,7 @@ export function TicketPage() {
         </div>
       ) : null}
 
-      {ticket && canUploadPhoto ? (
+      {ticket && canUploadPhoto && !isTechnicianRole ? (
         <div className="panel" style={{ marginBottom: 12 }}>
           <h3 style={{ marginBottom: 10 }}>Фото</h3>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -1009,7 +1250,7 @@ export function TicketPage() {
         </div>
       ) : null}
 
-      {ticket && canUseStatusActions ? (
+      {ticket && canChangeStatus && !isTechnicianRole ? (
         <div className="panel" style={{ marginBottom: 12 }}>
           <h3 style={{ marginBottom: 10 }}>Комментарий</h3>
           <div className="form">
@@ -1100,12 +1341,12 @@ export function TicketPage() {
           </div>
 
           <TicketAttachments
-            title="Вложения"
-            emptyText="Фото и файлы пока не загружены."
+            title="Фото заявки"
+            emptyText="Нет фото заявки"
             loading={attachmentsQ.isLoading}
             isError={attachmentsQ.isError}
             error={attachmentsQ.error}
-            data={attachmentsQ.data}
+            data={requestAttachments}
             canDeletePhoto={canDeletePhoto}
             deletePending={deleteAttachmentM.isPending}
             onDelete={(attachmentId) => deleteAttachmentM.mutate(attachmentId)}
@@ -1113,6 +1354,50 @@ export function TicketPage() {
             fmt={fmt}
             fmtBytes={fmtBytes}
           />
+
+          <TicketAttachments
+            title="Отчёт техника"
+            emptyText="Нет фото отчёта"
+            loading={attachmentsQ.isLoading}
+            isError={attachmentsQ.isError}
+            error={attachmentsQ.error}
+            data={workReportAttachments}
+            canDeletePhoto={canDeletePhoto}
+            deletePending={deleteAttachmentM.isPending}
+            onDelete={(attachmentId) => deleteAttachmentM.mutate(attachmentId)}
+            deleteAttachmentError={deleteAttachmentError}
+            fmt={fmt}
+            fmtBytes={fmtBytes}
+          />
+
+          <div className="panel uiCard" style={{ marginBottom: 12 }}>
+            <h3 style={{ marginBottom: 10 }}>Дополнительные работы</h3>
+            {childTickets.length === 0 ? (
+              <div className="muted small">Дополнительных работ пока нет.</div>
+            ) : (
+              <div style={{ display: 'grid', gap: 10 }}>
+                {childTickets.map((child) => (
+                  <div key={child.id} style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
+                    <div className="row" style={{ marginBottom: 6, alignItems: 'center' }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis' }}>{child.problemText || 'Доп. работа'}</div>
+                        <div className="muted small" style={{ marginTop: 4 }}>
+                          {child.problemCategory?.name || 'Без категории'} · {fmt(child.createdAt)}
+                        </div>
+                      </div>
+                      <StatusPill status={child.status} />
+                    </div>
+                    <div className="muted small" style={{ marginBottom: 8 }}>
+                      {[child.location?.name, child.location?.city, child.location?.address].filter(Boolean).join(' · ') || 'Локация не указана'}
+                    </div>
+                    <a href={buildTicketHref(child.id)} style={{ textDecoration: 'none' }}>
+                      <button className="ghost">Открыть заявку</button>
+                    </a>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
 
           <div className="panel uiCard" style={{ marginBottom: 12 }}>
             <h3 style={{ marginBottom: 10 }}>История</h3>

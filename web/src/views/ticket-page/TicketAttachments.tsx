@@ -1,8 +1,8 @@
 import * as api from '../../lib/api'
 
 type TicketAttachmentsProps = {
-  title: string
-  emptyText: string
+  title?: string
+  emptyText?: string
   loading: boolean
   isError: boolean
   error?: unknown
@@ -33,7 +33,7 @@ export function TicketAttachments(props: TicketAttachmentsProps) {
 
   return (
     <div className="panel" style={{ marginBottom: 12 }}>
-      <h3 style={{ marginBottom: 10 }}>{title}</h3>
+      <h3 style={{ marginBottom: 10 }}>{title || 'Вложения'}</h3>
       {loading ? (
         <div style={{ display: 'grid', gap: 8 }}>
           <div style={{ width: 280, height: 16, borderRadius: 10, background: '#eef2ff', border: '1px solid #e6e8f0' }} />
@@ -68,7 +68,7 @@ export function TicketAttachments(props: TicketAttachmentsProps) {
           ))}
         </div>
       ) : (
-        <div className="muted small">{emptyText}</div>
+        <div className="muted small">{emptyText || 'Вложений пока нет'}</div>
       )}
       {deleteAttachmentError ? <div className="alert" style={{ marginTop: 10 }}>{deleteAttachmentError}</div> : null}
     </div>

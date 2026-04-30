@@ -473,6 +473,40 @@ export type TicketGetOne = {
   } | null
   problemCategory: { id: string; name: string; instructions: string | null }
   assignedTechnician: { id: string; email: string } | null
+  parentId?: string | null
+  parent?: {
+    id: string
+    problemText?: string | null
+    status: TicketStatus
+    createdAt: string
+    location?: {
+      id: string
+      name: string
+      platformCode?: string | null
+      city?: string | null
+      address?: string | null
+    } | null
+  } | null
+  children?: Array<{
+    id: string
+    status: TicketStatus
+    urgency: TicketUrgency
+    problemText?: string | null
+    createdAt: string
+    parentId?: string | null
+    location?: {
+      id: string
+      name: string
+      platformCode?: string | null
+      city?: string | null
+      address?: string | null
+    } | null
+    problemCategory?: {
+      id: string
+      name: string
+    } | null
+    assignedTechnician?: { id: string; email: string } | null
+  }>
   meta?: {
     scopeCompanyId?: string
     visibilityMode?: 'tenant' | 'provider_primary' | 'platform_observer'
@@ -550,6 +584,13 @@ export type CreateTicketResponse = {
     recommendedActions?: string[]
   }
   autoAssigned?: boolean
+}
+
+export type CreateChildTicketInput = {
+  problemCategoryId: string
+  problemText: string
+  urgency?: TicketUrgency
+  slaMinutes?: number
 }
 
 export type DraftTicketAttachment = TicketAttachmentItem
@@ -799,6 +840,10 @@ const BASE_URL_KEY = 'sm_base_url'
 const TOKEN_KEY = 'sm_token'
 const COMPANY_LABEL_KEY = 'sm_company_label'
 const USER_ROLE_KEY = 'sm_user_role'
+const LAST_SCOPE_KEY = 'sm_last_scope'
+const SCOPE_OWNER_USER_ID_KEY = 'sm_scope_owner_user_id'
+const SCOPE_OWNER_COMPANY_ID_KEY = 'sm_scope_owner_company_id'
+const SCOPE_OWNER_ROLE_KEY = 'sm_scope_owner_role'
 const PLATFORM_BACKUP_KEY = 'platform_access_token_backup'
 const PLATFORM_BACKUP_ROLE_KEY = 'platform_user_role_backup'
 const PLATFORM_BACKUP_COMPANY_LABEL_KEY = 'platform_company_label_backup'
@@ -811,6 +856,18 @@ export type ImpersonationMeta = {
   companyId: string
   companyName: string
   startedAt: string
+}
+
+type ScopeOwner = {
+  userId?: string
+  companyId?: string
+  role?: Role | string
+}
+
+type PersistedScope = TicketScopeParams & {
+  ownerUserId?: string
+  ownerCompanyId?: string
+  ownerRole?: Role | string
 }
 
 function readBaseUrl(): string {
@@ -852,11 +909,6 @@ export function resolveFileUrl(url: string): string {
   if (!url) return ''
   if (/^https?:\/\//i.test(url)) return url
   const normalized = url.startsWith('/') ? url : '/' + url
-  if (typeof window !== 'undefined' && window.location?.origin) {
-    const envBaseUrl = normalizeBaseUrl(String(import.meta.env.VITE_API_BASE_URL || ''))
-    const baseUrl = envBaseUrl || normalizeBaseUrl(window.location.origin)
-    return baseUrl + normalized
-  }
   return getBaseUrl() + normalized
 }
 
@@ -955,6 +1007,7 @@ export function clearToken() {
   localStorage.removeItem(TOKEN_KEY)
   localStorage.removeItem(USER_ROLE_KEY)
   localStorage.removeItem(COMPANY_LABEL_KEY)
+  clearPersistedScope()
   clearImpersonationState()
 }
 
@@ -974,8 +1027,160 @@ export function setUserRole(role?: string | null) {
 }
 
 export function getHomeRoute(role?: string | null): string {
-  void role
+  if (role === 'PLATFORM_ADMIN') return '/companies'
   return '/board'
+}
+
+function isClientRole(role?: string | null): boolean {
+  return role === 'CLIENT' || role === 'NETWORK_DIRECTOR'
+}
+
+function readPersistedScope(): PersistedScope | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = localStorage.getItem(LAST_SCOPE_KEY)
+    if (!raw) return null
+    return JSON.parse(raw) as PersistedScope
+  } catch {
+    return null
+  }
+}
+
+function readScopeOwnerContext(): ScopeOwner {
+  if (typeof window === 'undefined') return {}
+  return {
+    userId: localStorage.getItem(SCOPE_OWNER_USER_ID_KEY) || undefined,
+    companyId: localStorage.getItem(SCOPE_OWNER_COMPANY_ID_KEY) || undefined,
+    role: localStorage.getItem(SCOPE_OWNER_ROLE_KEY) || undefined,
+  }
+}
+
+function ownerMatches(owner?: ScopeOwner, persisted?: PersistedScope | null): boolean {
+  if (!owner?.companyId || !persisted?.ownerCompanyId) return false
+  if (owner.companyId !== persisted.ownerCompanyId) return false
+  if (owner.userId && persisted.ownerUserId && owner.userId !== persisted.ownerUserId) return false
+  return true
+}
+
+function normalizeScopeForOwner(scope: TicketScopeParams, owner?: ScopeOwner): TicketScopeParams {
+  if (isClientRole(owner?.role || null)) {
+    return { companyId: scope.companyId }
+  }
+  return scope
+}
+
+function getStoredScopeForOwner(owner?: ScopeOwner): TicketScopeParams {
+  const resolvedOwner = owner || readScopeOwnerContext()
+  const persisted = readPersistedScope()
+  if (!ownerMatches(resolvedOwner, persisted)) return {}
+  return normalizeScopeForOwner(
+    {
+      linkedClientCompanyId: persisted?.linkedClientCompanyId || undefined,
+      companyId: persisted?.companyId || undefined,
+    },
+    resolvedOwner,
+  )
+}
+
+export function syncScopeOwnerProfile(user?: Pick<Me, 'id' | 'companyId' | 'role'> | null) {
+  if (typeof window === 'undefined') return
+  if (!user?.id || !user.companyId) {
+    localStorage.removeItem(SCOPE_OWNER_USER_ID_KEY)
+    localStorage.removeItem(SCOPE_OWNER_COMPANY_ID_KEY)
+    localStorage.removeItem(SCOPE_OWNER_ROLE_KEY)
+    return
+  }
+  localStorage.setItem(SCOPE_OWNER_USER_ID_KEY, user.id)
+  localStorage.setItem(SCOPE_OWNER_COMPANY_ID_KEY, user.companyId)
+  localStorage.setItem(SCOPE_OWNER_ROLE_KEY, user.role)
+}
+
+export function clearPersistedScope() {
+  if (typeof window === 'undefined') return
+  localStorage.removeItem(LAST_SCOPE_KEY)
+  localStorage.removeItem(SCOPE_OWNER_USER_ID_KEY)
+  localStorage.removeItem(SCOPE_OWNER_COMPANY_ID_KEY)
+  localStorage.removeItem(SCOPE_OWNER_ROLE_KEY)
+}
+
+export function restoreScopeForUser(user?: Pick<Me, 'id' | 'companyId' | 'role'> | null): TicketScopeParams {
+  if (!user?.id || !user.companyId) {
+    clearPersistedScope()
+    return {}
+  }
+  const owner: ScopeOwner = { userId: user.id, companyId: user.companyId, role: user.role }
+  const persisted = readPersistedScope()
+  if (!ownerMatches(owner, persisted)) {
+    localStorage.removeItem(LAST_SCOPE_KEY)
+    syncScopeOwnerProfile(user)
+    return {}
+  }
+  syncScopeOwnerProfile(user)
+  return normalizeScopeForOwner(
+    {
+      linkedClientCompanyId: persisted?.linkedClientCompanyId || undefined,
+      companyId: persisted?.companyId || undefined,
+    },
+    owner,
+  )
+}
+
+export function getLinkedClientCompanyId(owner?: ScopeOwner): string {
+  if (typeof window === 'undefined') return ''
+  const fromUrl = new URLSearchParams(window.location.search).get('linkedClientCompanyId') || ''
+  if (fromUrl.trim()) return fromUrl.trim()
+  return (getStoredScopeForOwner(owner).linkedClientCompanyId || '').trim()
+}
+
+export function getObserverCompanyId(owner?: ScopeOwner): string {
+  if (typeof window === 'undefined') return ''
+  const fromUrl = new URLSearchParams(window.location.search).get('companyId') || ''
+  if (fromUrl.trim()) return fromUrl.trim()
+  return (getStoredScopeForOwner(owner).companyId || '').trim()
+}
+
+export function persistScopeFromSearchParams(search: URLSearchParams, owner?: ScopeOwner) {
+  if (typeof window === 'undefined') return
+  const resolvedOwner = owner || readScopeOwnerContext()
+  if (!resolvedOwner.userId || !resolvedOwner.companyId) return
+  const normalized = normalizeScopeForOwner(
+    {
+      linkedClientCompanyId: (search.get('linkedClientCompanyId') || '').trim() || undefined,
+      companyId: (search.get('companyId') || '').trim() || undefined,
+    },
+    resolvedOwner,
+  )
+  const linkedClientCompanyId = normalized.linkedClientCompanyId || ''
+  const companyId = normalized.companyId || ''
+  if (!linkedClientCompanyId && !companyId) return
+  localStorage.setItem(
+    LAST_SCOPE_KEY,
+    JSON.stringify({
+      linkedClientCompanyId,
+      companyId,
+      ownerUserId: resolvedOwner.userId,
+      ownerCompanyId: resolvedOwner.companyId,
+      ownerRole: resolvedOwner.role,
+    } satisfies PersistedScope),
+  )
+}
+
+export function getScopeSearchSuffix(scope?: TicketScopeParams, owner?: ScopeOwner): string {
+  const resolvedScope: TicketScopeParams = scope || {
+    linkedClientCompanyId: getLinkedClientCompanyId(owner) || undefined,
+    companyId: getObserverCompanyId(owner) || undefined,
+  }
+  const search = new URLSearchParams()
+  if (resolvedScope.linkedClientCompanyId) search.set('linkedClientCompanyId', resolvedScope.linkedClientCompanyId)
+  if (resolvedScope.companyId) search.set('companyId', resolvedScope.companyId)
+  const suffix = search.toString()
+  return suffix ? `?${suffix}` : ''
+}
+
+export function appendScopeToPath(path: string, scope?: TicketScopeParams, owner?: ScopeOwner): string {
+  const suffix = getScopeSearchSuffix(scope, owner)
+  if (!suffix) return path
+  return `${path}${path.includes('?') ? '&' : '?'}${suffix.slice(1)}`
 }
 
 export function getCompanyLabel(me?: Partial<Me> | null): string {
@@ -1521,14 +1726,14 @@ export async function deleteDraftTicketAttachment(attachmentId: string): Promise
   })
 }
 
-export async function createTicket(input: CreateTicketInput): Promise<CreateTicketResponse> {
-  return request<CreateTicketResponse>('/tickets', {
+export async function createTicket(input: CreateTicketInput, scope?: string | TicketScopeParams): Promise<CreateTicketResponse> {
+  return request<CreateTicketResponse>(`/tickets${buildTicketScopeSuffix(scope)}`, {
     method: 'POST',
     body: input,
   })
 }
 
-export async function createChildTicket(parentId: string, input: CreateTicketInput): Promise<CreateTicketResponse> {
+export async function createChildTicket(parentId: string, input: CreateChildTicketInput): Promise<CreateTicketResponse> {
   return request<CreateTicketResponse>(`/tickets/${parentId}/child`, {
     method: 'POST',
     body: input,

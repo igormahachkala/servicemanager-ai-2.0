@@ -59,8 +59,8 @@ export function CreateTicketPage() {
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
   const isTechnician = meQ.data?.role === 'TECHNICIAN'
   const canCreateByRole = !!meQ.data?.role && CREATE_ALLOWED_ROLES.includes(meQ.data.role)
-  const linkedClientCompanyId = (searchParams.get('linkedClientCompanyId') || '').trim()
-  const observerCompanyId = (searchParams.get('companyId') || '').trim()
+  const linkedClientCompanyId = (searchParams.get('linkedClientCompanyId') || api.getLinkedClientCompanyId()).trim()
+  const observerCompanyId = (searchParams.get('companyId') || api.getObserverCompanyId()).trim()
   const scopedCompanyId = linkedClientCompanyId || observerCompanyId || ''
   const isProviderLinkedCreate = !!linkedClientCompanyId && !isTechnician
   const currentCreateScopeKey = useMemo(() => {
@@ -76,6 +76,10 @@ export function CreateTicketPage() {
       : observerCompanyId
         ? 'observer'
         : 'tenant'
+
+  useEffect(() => {
+    api.persistScopeFromSearchParams(searchParams, meQ.data)
+  }, [searchParams, meQ.data])
 
   const technicianContextsQ = useQuery({
     queryKey: ['technician-bound-contexts'],
@@ -188,7 +192,7 @@ export function CreateTicketPage() {
     onError: (e: any) => setUploadError(e?.message || String(e)),
   })
   const createM = useMutation({
-    mutationFn: (payload: api.CreateTicketInput) => api.createTicket(payload),
+    mutationFn: (payload: api.CreateTicketInput) => api.createTicket(payload, buildTicketScope()),
     onSuccess: async (created) => {
       await qc.invalidateQueries({ queryKey: ['board'] })
       await qc.invalidateQueries({ queryKey: ['tickets'] })
@@ -628,6 +632,16 @@ export function CreateTicketPage() {
                 <Link to={buildTicketLink(lastCreatedTicketId)}>
                   <button type="button" className="ghost">Открыть последнюю заявку</button>
                 </Link>
+                {isTechnician ? (
+                  <button
+                    type="submit"
+                    className="ghost"
+                    onClick={onCreateAndClaim}
+                    disabled={!canCreateByRole || isBusy || isBootstrapping || noCategories || noLocations || !locationId || !clientCompanyId}
+                  >
+                    {createM.isPending ? 'Создаём и берём...' : 'Создать и взять в работу'}
+                  </button>
+                ) : null}
               </div>
             </div>
           ) : null}

@@ -170,8 +170,18 @@ export function BoardPage() {
   const autoSelectedPrimaryRef = useRef(false)
 
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
-  const requestedCompanyId = useMemo(() => searchParams.get('companyId')?.trim() || '', [searchParams])
-  const requestedLinkedClientCompanyId = useMemo(() => searchParams.get('linkedClientCompanyId')?.trim() || '', [searchParams])
+  const requestedCompanyId = useMemo(
+    () => searchParams.get('companyId')?.trim() || api.getObserverCompanyId(),
+    [searchParams],
+  )
+  const requestedLinkedClientCompanyId = useMemo(
+    () => searchParams.get('linkedClientCompanyId')?.trim() || api.getLinkedClientCompanyId(),
+    [searchParams],
+  )
+
+  useEffect(() => {
+    api.persistScopeFromSearchParams(searchParams, meQ.data)
+  }, [searchParams, meQ.data])
 
   const observerCompanyId = meQ.data?.role === 'PLATFORM_ADMIN' ? requestedCompanyId : ''
   const isObserverMode = !!observerCompanyId && observerCompanyId !== meQ.data?.companyId
@@ -223,6 +233,10 @@ export function BoardPage() {
   }, [canShowLinkedClients])
 
   useEffect(() => {
+    if (!searchParams.get('linkedClientCompanyId') && requestedLinkedClientCompanyId && !observerCompanyId) {
+      navigate(buildBoardLink(requestedLinkedClientCompanyId), { replace: true })
+      return
+    }
     if (!canShowLinkedClients) return
     if (requestedLinkedClientCompanyId) return
     if (!primaryLinkedClients.length) return
@@ -230,7 +244,7 @@ export function BoardPage() {
 
     autoSelectedPrimaryRef.current = true
     navigate(buildBoardLink(primaryLinkedClients[0].clientCompany.id), { replace: true })
-  }, [canShowLinkedClients, requestedLinkedClientCompanyId, primaryLinkedClients, navigate])
+  }, [canShowLinkedClients, requestedLinkedClientCompanyId, primaryLinkedClients, navigate, observerCompanyId, searchParams])
 
   const providerContextResolved = isObserverMode
     ? true
@@ -924,6 +938,7 @@ export function BoardPage() {
 
                       <div className="ticketMeta">
                         <UrgencyTag urgency={ticket.urgency} />
+                        {ticket.isChild ? <span className="tag">Доп. работа</span> : null}
                         {ticket.slaBreached ? <span className="tag danger">SLA нарушен</span> : null}
                         {isTechnician && ticket.status === 'NEW' && !ticket.assignedTechnician ? <span className="tag">Можно взять</span> : null}
                         {isTechnician && ticket.assignedTechnician?.id === meQ.data?.id ? <span className="tag">Моя заявка</span> : null}

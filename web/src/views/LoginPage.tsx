@@ -34,12 +34,13 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
       api.setToken(result.access_token)
       api.setUserRole(result.user.role)
       api.setCompanyLabel(result.user.companyName || result.user.email)
+      const restoredScope = api.restoreScopeForUser(result.user)
 
       if (onLoggedIn) {
         onLoggedIn(result.access_token)
       }
 
-      navigate(api.getHomeRoute(result.user.role))
+      navigate(api.appendScopeToPath(api.getHomeRoute(result.user.role), restoredScope, result.user))
     } catch (err: any) {
       setError(err?.message || 'Не удалось войти')
     } finally {

@@ -57,6 +57,7 @@ function isActivePath(currentPath: string, targetPath: string) {
   if (targetPath === '/employees') return currentPath.startsWith('/employees')
   if (targetPath === '/inspection/runs') return currentPath.startsWith('/inspection/runs')
   if (targetPath === '/inspection/templates') return currentPath.startsWith('/inspection/templates')
+  if (targetPath === '/map') return currentPath.startsWith('/map')
   if (targetPath === '/specializations') return currentPath.startsWith('/specializations')
   if (targetPath === '/analytics') return currentPath.startsWith('/analytics')
   if (targetPath === '/settings') return currentPath.startsWith('/settings')
@@ -65,15 +66,52 @@ function isActivePath(currentPath: string, targetPath: string) {
   return currentPath === targetPath
 }
 
-function isNavItemVisible(item: NavItem, isPlatformAdmin?: boolean) {
-  if (isPlatformAdmin) return true
-  return (
-    item.to === '/board' ||
-    item.to === '/tickets' ||
-    item.to === '/employees' ||
-    item.to === '/locations' ||
-    item.to === '/settings'
-  )
+function isNavItemVisible(item: NavItem, role?: api.Role) {
+  if (role === 'PLATFORM_ADMIN') return true
+  if (!role) return false
+
+  if (role === 'CLIENT') {
+    return (
+      item.to === '/board' ||
+      item.to === '/tickets' ||
+      item.to === '/tickets/new' ||
+      item.to === '/company' ||
+      item.to === '/settings'
+    )
+  }
+
+  if (item.to === '/companies') return false
+  if (item.to === '/service-contracts') {
+    return role === 'ADMIN' || role === 'DISPATCHER' || role === 'MASTER' || role === 'NETWORK_DIRECTOR'
+  }
+  if (item.to === '/employees' || item.to === '/locations') {
+    return role === 'ADMIN' || role === 'DISPATCHER' || role === 'MASTER' || role === 'NETWORK_DIRECTOR'
+  }
+  if (item.to === '/problem-categories' || item.to === '/specializations') {
+    return role === 'ADMIN' || role === 'DISPATCHER' || role === 'MASTER' || role === 'NETWORK_DIRECTOR'
+  }
+  if (item.to === '/inspection/templates') {
+    return role === 'ADMIN' || role === 'DISPATCHER' || role === 'MASTER' || role === 'NETWORK_DIRECTOR'
+  }
+  if (item.to === '/inspection/runs') {
+    return role !== 'CLIENT' && role !== 'STAFF'
+  }
+  if (item.to === '/analytics') {
+    return role !== 'CLIENT' && role !== 'STAFF'
+  }
+  if (item.to === '/map') {
+    return role !== 'CLIENT' && role !== 'STAFF'
+  }
+  if (item.to === '/company') {
+    return role !== 'TECHNICIAN' && role !== 'STAFF'
+  }
+  if (item.to === '/tickets/new') {
+    return role !== 'STAFF'
+  }
+  if (item.to === '/settings') {
+    return role !== 'TECHNICIAN' && role !== 'STAFF'
+  }
+  return true
 }
 
 export function Shell() {
@@ -82,6 +120,13 @@ export function Shell() {
   const nav = useNavigate()
   const loc = useLocation()
   const queryClient = useQueryClient()
+  const currentScope = useMemo(
+    () => ({
+      linkedClientCompanyId: new URLSearchParams(loc.search).get('linkedClientCompanyId') || undefined,
+      companyId: new URLSearchParams(loc.search).get('companyId') || undefined,
+    }),
+    [loc.search],
+  )
 
   const meQ = useQuery({
     queryKey: ['me'],
@@ -109,7 +154,13 @@ export function Shell() {
     if (!meQ.data) return
     api.setUserRole(meQ.data.role)
     api.setCompanyLabel(meQ.data.companyName || meQ.data.email)
+    api.syncScopeOwnerProfile(meQ.data)
   }, [meQ.data])
+
+  useEffect(() => {
+    if (!meQ.data) return
+    api.persistScopeFromSearchParams(new URLSearchParams(loc.search), meQ.data)
+  }, [loc.search, meQ.data])
 
   function hardRedirect(path: string) {
     if (typeof window !== 'undefined') {
@@ -141,7 +192,7 @@ export function Shell() {
         .map((section: NavSection) => ({
           ...section,
           items: section.items
-            .filter((item: NavItem) => isNavItemVisible(item, isPlatformAdmin))
+            .filter((item: NavItem) => isNavItemVisible(item, role))
             .map((item: NavItem) => ({
               ...item,
               active: isActivePath(loc.pathname, item.to),
@@ -154,7 +205,7 @@ export function Shell() {
   const topbarLinks = useMemo(
     () =>
       navigation.topbar
-        .filter((item: NavItem) => isNavItemVisible(item, isPlatformAdmin))
+        .filter((item: NavItem) => isNavItemVisible(item, role))
         .map((item: NavItem) => ({
           ...item,
           active: isActivePath(loc.pathname, item.to),
@@ -174,7 +225,13 @@ export function Shell() {
           {sidebarSections.map((section) => (
             <NavSectionBlock key={section.id} title={section.label}>
               {section.items.map((item) => (
-                <NavItemButton key={item.id} to={item.to} label={item.label} active={item.active} onNavigate={() => setMobileMenuOpen(false)} />
+                <NavItemButton
+                  key={item.id}
+                  to={api.appendScopeToPath(item.to, currentScope, meQ.data)}
+                  label={item.label}
+                  active={item.active}
+                  onNavigate={() => setMobileMenuOpen(false)}
+                />
               ))}
             </NavSectionBlock>
           ))}
@@ -205,7 +262,7 @@ export function Shell() {
 
           <div className="actions">
             {topbarLinks.map((item) => (
-              <Link key={item.id} to={item.to}>
+              <Link key={item.id} to={api.appendScopeToPath(item.to, currentScope, meQ.data)}>
                 <button className={item.active ? 'navBtn navBtnActive' : 'ghost'}>{item.label}</button>
               </Link>
             ))}

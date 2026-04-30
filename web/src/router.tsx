@@ -33,7 +33,7 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 }
 
 export function AppRoutes() {
-  const home = api.getHomeRoute()
+  const home = api.appendScopeToPath(api.getHomeRoute())
 
   return (
     <Routes>
