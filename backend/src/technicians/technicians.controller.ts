@@ -14,6 +14,13 @@ import { SetTechnicianSpecializationsDto } from './dto/set-technician-specializa
 import { SetTechnicianBindingsDto } from './dto/set-technician-bindings.dto'
 import { SetUserLocationBindingsDto } from './dto/set-user-location-bindings.dto'
 
+const LOCATION_BINDING_MANAGER_ROLES: UserRole[] = [
+  UserRole.ADMIN,
+  UserRole.MASTER,
+  UserRole.DISPATCHER,
+  UserRole.NETWORK_DIRECTOR,
+]
+
 @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
 @Controller('technicians')
 export class TechniciansController {
@@ -31,8 +38,8 @@ export class TechniciansController {
   @Get('me/bound-contexts')
   @Roles(UserRole.TECHNICIAN)
   @RequirePermission(PERMISSIONS.LOCATIONS_VIEW)
-  boundContexts(@Req() req: any) {
-    return this.svc.getBoundContexts(req.user.companyId, req.user.id)
+  boundContexts(@Req() req: any, @Query('linkedClientCompanyId') linkedClientCompanyId?: string) {
+    return this.svc.getBoundContexts(req.user.companyId, req.user.id, linkedClientCompanyId)
   }
 
   @Get('workload')
@@ -72,7 +79,7 @@ export class TechniciansController {
   }
 
   @Get(':id/location-bindings')
-  @Roles(UserRole.ADMIN)
+  @Roles(...LOCATION_BINDING_MANAGER_ROLES)
   @RequirePermission(PERMISSIONS.USERS_MANAGE)
   getLocationBindings(
     @Req() req: any,
@@ -83,7 +90,7 @@ export class TechniciansController {
   }
 
   @Put(':id/location-bindings')
-  @Roles(UserRole.ADMIN)
+  @Roles(...LOCATION_BINDING_MANAGER_ROLES)
   @RequirePermission(PERMISSIONS.USERS_MANAGE)
   setLocationBindings(
     @Req() req: any,

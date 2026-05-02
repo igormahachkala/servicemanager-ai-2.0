@@ -20,9 +20,12 @@ export type TicketAccessActor = {
 export type TicketVisibilityMode = 'tenant' | 'provider_primary' | 'platform_observer'
 
 export const LOCATION_SCOPED_ROLES: UserRole[] = [
+  UserRole.ADMIN,
+  UserRole.DISPATCHER,
   UserRole.CLIENT,
   UserRole.TERRITORIAL_MANAGER,
   UserRole.NETWORK_DIRECTOR,
+  UserRole.MASTER,
   UserRole.TECHNICIAN,
 ]
 
@@ -88,8 +91,10 @@ export async function resolveActorLocationScope(params: {
     return { mode: 'tenant_wide', locationIds: [] }
   }
 
-  // For non-technician roles, linked-client scope stays tenant-wide by design.
-  if (params.actor.role !== UserRole.TECHNICIAN && scopeCompanyId !== params.actor.companyId) {
+  if (
+    scopeCompanyId !== params.actor.companyId &&
+    !PROVIDER_LINKED_OPERATION_ROLES.includes(params.actor.role)
+  ) {
     return { mode: 'tenant_wide', locationIds: [] }
   }
 
@@ -144,27 +149,6 @@ export function isTechnicianLocationAllowed(params: {
   }
   return locationIds.includes(params.locationId)
 }
-export async function wasTicketCreatedByActor(params: {
-  prisma: PrismaService
-  companyIds: string[]
-  ticketId: string
-  actorUserId: string
-}) {
-  if (params.companyIds.length === 0) return false
-
-  const createdEvent = await params.prisma.domainEvent.findFirst({
-    where: {
-      companyId: params.companyIds.length === 1 ? params.companyIds[0] : { in: params.companyIds },
-      entityType: 'Ticket',
-      entityId: params.ticketId,
-      type: 'ticket.created',
-      actorUserId: params.actorUserId,
-    },
-    select: { entityId: true },
-  })
-
-  return !!createdEvent
-}
 
 export async function assertActorCanUseLocation(params: {
   prisma: PrismaService
@@ -192,6 +176,29 @@ export function canAccessOwnTicket(
   return ticket.companyId === ctx.companyId
 }
 
+export async function wasTicketCreatedByActor(params: {
+  prisma: PrismaService
+  companyIds: string[]
+  ticketId: string
+  actorUserId: string
+}) {
+  if (params.companyIds.length === 0) {
+    return false
+  }
+
+  const createdEvent = await params.prisma.domainEvent.findFirst({
+    where: {
+      companyId: params.companyIds.length === 1 ? params.companyIds[0] : { in: params.companyIds },
+      entityType: 'Ticket',
+      entityId: params.ticketId,
+      type: 'ticket.created',
+      actorUserId: params.actorUserId,
+    },
+    select: { id: true },
+  })
+
+  return !!createdEvent
+}
 export async function resolveTechnicianOperationalScope(params: {
   prisma: PrismaService
   serviceContractsService: ServiceContractsService
@@ -410,56 +417,6 @@ export async function resolveReadableTicketAccess(params: {
       actor: params.actor,
       linkedClientCompanyId: params.linkedClientCompanyId,
     })
-
-    const createdByActor = await params.prisma.domainEvent.findFirst({
-      where: {
-        companyId:
-          technicianScope.companyIds.length === 1
-            ? technicianScope.companyIds[0]
-            : { in: technicianScope.companyIds },
-        entityType: 'Ticket',
-        entityId: params.ticketId,
-        type: 'ticket.created',
-        actorUserId: params.actor.id,
-      },
-      select: { entityId: true },
-    })
-
-    if (createdByActor) {
-      const createdTicket = await params.prisma.ticket.findFirst({
-        where: {
-          id: params.ticketId,
-          companyId:
-            technicianScope.companyIds.length === 1
-              ? technicianScope.companyIds[0]
-              : { in: technicianScope.companyIds },
-        },
-        select: {
-          id: true,
-          companyId: true,
-          locationId: true,
-          assignedTechnicianId: true,
-        },
-      })
-
-      if (
-        createdTicket &&
-        isTechnicianLocationAllowed({
-          companyId: createdTicket.companyId,
-          locationId: createdTicket.locationId,
-          locationScopeByCompany: technicianScope.locationScopeByCompany,
-        })
-      ) {
-        return {
-          ticket: createdTicket,
-          scopeCompanyId: createdTicket.companyId,
-          visibilityMode:
-            createdTicket.companyId === params.actor.companyId
-              ? ('tenant' as TicketVisibilityMode)
-              : ('provider_primary' as TicketVisibilityMode),
-        }
-      }
-    }
 
     const visibilityOr: any[] = [
       {

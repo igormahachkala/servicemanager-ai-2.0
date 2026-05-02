@@ -4,6 +4,17 @@ import { Prisma, UserRole } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
 
+const LOCATION_BINDABLE_USER_ROLES: UserRole[] = [
+  UserRole.ADMIN,
+  UserRole.MASTER,
+  UserRole.DISPATCHER,
+  UserRole.TECHNICIAN,
+  UserRole.CLIENT,
+  UserRole.TERRITORIAL_MANAGER,
+  UserRole.NETWORK_DIRECTOR,
+  UserRole.STAFF,
+]
+
 @Injectable()
 export class TechniciansService {
   constructor(
@@ -110,20 +121,30 @@ export class TechniciansService {
     }
   }
 
-  async getBoundContexts(providerCompanyId: string, technicianId: string) {
+  async getBoundContexts(providerCompanyId: string, technicianId: string, linkedClientCompanyId?: string) {
     await this.ensureTechnician(providerCompanyId, technicianId)
 
     const activeClientIds = await this.serviceContractsService.listPrimaryLinkedClientIds(providerCompanyId)
     if (activeClientIds.length === 0) {
       return []
     }
+    const normalizedRequestedClientId = this.normalizeCompanyId(linkedClientCompanyId)
+    const scopedClientIds = normalizedRequestedClientId
+      ? activeClientIds.includes(normalizedRequestedClientId)
+        ? [normalizedRequestedClientId]
+        : []
+      : activeClientIds
+    if (scopedClientIds.length === 0) {
+      return []
+    }
 
     const bindings = await this.prisma.userLocationBinding.findMany({
       where: {
         userId: technicianId,
-        companyId: { in: activeClientIds },
+        companyId: { in: scopedClientIds },
         location: {
-          clientCompanyId: { in: activeClientIds },
+          clientCompanyId: { in: scopedClientIds },
+          isActive: true,
         },
       },
       select: {
@@ -140,7 +161,7 @@ export class TechniciansService {
       grouped.set(binding.companyId, current)
     }
 
-    const clientCompanyIds = activeClientIds
+    const clientCompanyIds = scopedClientIds
     const companies = await this.prisma.company.findMany({
       where: { id: { in: clientCompanyIds }, type: 'CLIENT' },
       select: {
@@ -325,7 +346,7 @@ export class TechniciansService {
   }
 
   async getLocationBindings(actorCompanyId: string, technicianId: string, requestedCompanyId?: string) {
-    await this.ensureTechnician(actorCompanyId, technicianId)
+    await this.ensureLocationBindableUser(actorCompanyId, technicianId)
     const scopeCompanyId = await this.resolveBindingScopeCompanyId(actorCompanyId, requestedCompanyId)
 
     const availableLocations = await this.prisma.location.findMany({
@@ -380,7 +401,7 @@ export class TechniciansService {
     technicianId: string,
     payload: { companyId?: string; locationIds?: string[] },
   ) {
-    await this.ensureTechnician(actorCompanyId, technicianId)
+    await this.ensureLocationBindableUser(actorCompanyId, technicianId)
     const scopeCompanyId = await this.resolveBindingScopeCompanyId(actorCompanyId, payload.companyId)
     const locationIds = Array.from(new Set((payload.locationIds ?? []).map((id) => (id ?? '').trim()).filter(Boolean)))
 
@@ -501,6 +522,25 @@ export class TechniciansService {
     }
 
     return tech
+  }
+
+  private async ensureLocationBindableUser(companyId: string, userId: string) {
+    const user = await this.prisma.user.findFirst({
+      where: {
+        id: userId,
+        companyId,
+        role: { in: LOCATION_BINDABLE_USER_ROLES },
+      },
+      select: {
+        id: true,
+      },
+    })
+
+    if (!user) {
+      throw new NotFoundException('Location-bindable user not found')
+    }
+
+    return user
   }
 
   private async resolveBindingScopeCompanyId(actorCompanyId: string, requestedCompanyId?: string) {

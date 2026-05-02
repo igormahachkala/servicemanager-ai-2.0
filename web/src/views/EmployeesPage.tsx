@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
@@ -70,6 +70,17 @@ function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
 }
 
+const LOCATION_BINDABLE_ROLES: api.Role[] = [
+  'ADMIN',
+  'MASTER',
+  'DISPATCHER',
+  'TECHNICIAN',
+  'CLIENT',
+  'TERRITORIAL_MANAGER',
+  'NETWORK_DIRECTOR',
+  'STAFF',
+]
+
 export function EmployeesPage() {
   const qc = useQueryClient()
   const [searchParams] = useSearchParams()
@@ -121,7 +132,7 @@ export function EmployeesPage() {
     () => sortedUsers.filter((user) => user.role === 'ADMIN' && user.isActive !== false).length,
     [sortedUsers],
   )
-  const isEditingLocationBoundRole = !!editingUserId && (editValue.role === 'TECHNICIAN' || editValue.role === 'MASTER')
+  const isEditingLocationBoundRole = !!editingUserId && LOCATION_BINDABLE_ROLES.includes(editValue.role)
   const providerLinkedClientOptions = useMemo(
     () => (linkedClientsQ.data || []).map((item) => ({ id: item.clientCompany.id, name: item.clientCompany.name })),
     [linkedClientsQ.data],
@@ -258,7 +269,7 @@ export function EmployeesPage() {
   const saveBindingsM = useMutation({
     mutationFn: async () => {
       if (!editingUserId || !isEditingLocationBoundRole) {
-        throw new Error('Сначала выберите сотрудника с role TECHNICIAN или MASTER')
+        throw new Error('Сначала выберите сотрудника с ролью, поддерживающей location binding')
       }
       const scopeCompanyId = (effectiveBindingsCompanyId || bindingsQ.data?.companyId || '').trim()
       const payload: { companyId?: string; locationIds: string[] } = { locationIds: selectedLocationIds }
