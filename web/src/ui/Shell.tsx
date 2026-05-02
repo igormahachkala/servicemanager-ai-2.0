@@ -94,13 +94,13 @@ function isNavItemVisible(item: NavItem, role?: api.Role) {
     return role === 'ADMIN' || role === 'DISPATCHER' || role === 'MASTER' || role === 'NETWORK_DIRECTOR'
   }
   if (item.to === '/inspection/runs') {
-    return role !== 'CLIENT' && role !== 'STAFF'
+    return role !== 'STAFF'
   }
   if (item.to === '/analytics') {
-    return role !== 'CLIENT' && role !== 'STAFF'
+    return role !== 'STAFF'
   }
   if (item.to === '/map') {
-    return role !== 'CLIENT' && role !== 'STAFF'
+    return role !== 'STAFF'
   }
   if (item.to === '/company') {
     return role !== 'TECHNICIAN' && role !== 'STAFF'

@@ -210,10 +210,6 @@ export function TicketPage() {
   const [showAssignmentEditor, setShowAssignmentEditor] = useState(false)
   const [showChildCreateForm, setShowChildCreateForm] = useState(false)
 
-  useEffect(() => {
-    api.persistScopeFromSearchParams(searchParams, meQ.data)
-  }, [searchParams, meQ.data])
-
   const [editProblemCategoryId, setEditProblemCategoryId] = useState('')
   const [editLocationId, setEditLocationId] = useState('')
   const [editProblemText, setEditProblemText] = useState('')
@@ -232,6 +228,9 @@ export function TicketPage() {
   const [childCreateError, setChildCreateError] = useState<string | null>(null)
 
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
+  useEffect(() => {
+    api.persistScopeFromSearchParams(searchParams, meQ.data)
+  }, [searchParams, meQ.data])
   const ownCompanyQ = useQuery({
     queryKey: ['ticket-own-company'],
     queryFn: () => api.company(),
