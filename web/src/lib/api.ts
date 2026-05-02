@@ -1414,8 +1414,12 @@ export async function technicianMe(): Promise<TechnicianItem> {
   return request<TechnicianItem>('/technicians/me')
 }
 
-export async function getTechnicianBoundContexts(): Promise<TechnicianBoundContext[]> {
-  return request<TechnicianBoundContext[]>('/technicians/me/bound-contexts')
+export async function getTechnicianBoundContexts(linkedClientCompanyId?: string): Promise<TechnicianBoundContext[]> {
+  const search = new URLSearchParams()
+  const linked = (linkedClientCompanyId ?? '').trim()
+  if (linked) search.set('linkedClientCompanyId', linked)
+  const suffix = search.toString() ? `?${search.toString()}` : ''
+  return request<TechnicianBoundContext[]>(`/technicians/me/bound-contexts${suffix}`)
 }
 
 export async function getTechnicianLocationBindings(

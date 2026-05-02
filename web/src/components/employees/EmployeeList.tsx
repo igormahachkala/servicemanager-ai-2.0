@@ -45,6 +45,18 @@ function technicianBindingsSummary(user: api.UserListItem) {
   return `Ограничен: ${locationIds.length} ${pointsWord(locationIds.length)}`
 }
 
+function isLocationBoundRole(role: api.Role) {
+  return (
+    role === 'ADMIN' ||
+    role === 'MASTER' ||
+    role === 'DISPATCHER' ||
+    role === 'TECHNICIAN' ||
+    role === 'CLIENT' ||
+    role === 'TERRITORIAL_MANAGER' ||
+    role === 'NETWORK_DIRECTOR'
+  )
+}
+
 export function EmployeeList({
   users,
   currentUserId,
@@ -95,7 +107,7 @@ export function EmployeeList({
               {isSelf && !isInactive ? ' · Свой аккаунт нельзя деактивировать.' : ''}
               {isLastAdmin ? ' · Это последний активный администратор.' : ''}
             </div>
-            {user.role === 'TECHNICIAN' ? (
+            {isLocationBoundRole(user.role) ? (
               <div className="muted small" style={{ marginBottom: editingUserId === user.id ? 12 : 0 }}>
                 Доступные точки: {technicianBindingsSummary(user)}
               </div>
