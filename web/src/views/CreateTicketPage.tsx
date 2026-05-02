@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 
@@ -29,7 +29,7 @@ function locationLabel(location: api.LocationListItem) {
 
 export function CreateTicketPage() {
   const nav = useNavigate()
-  const [searchParams] = useSearchParams()
+  const location = useLocation()
   const qc = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -57,10 +57,18 @@ export function CreateTicketPage() {
   const submitActionRef = useRef<'create' | 'createAndClaim'>('create')
 
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
-  const isTechnician = meQ.data?.role === 'TECHNICIAN'
+  const meReady = meQ.isSuccess
+  const isTechnician = meReady && meQ.data?.role === 'TECHNICIAN'
   const canCreateByRole = !!meQ.data?.role && CREATE_ALLOWED_ROLES.includes(meQ.data.role)
-  const linkedClientCompanyId = (searchParams.get('linkedClientCompanyId') || api.getLinkedClientCompanyId()).trim()
-  const observerCompanyId = (searchParams.get('companyId') || api.getObserverCompanyId()).trim()
+  const searchFromLocation = useMemo(() => new URLSearchParams(location.search), [location.search])
+  const linkedClientCompanyId = useMemo(
+    () => (searchFromLocation.get('linkedClientCompanyId') || api.getLinkedClientCompanyId()).trim(),
+    [searchFromLocation],
+  )
+  const observerCompanyId = useMemo(
+    () => (searchFromLocation.get('companyId') || api.getObserverCompanyId()).trim(),
+    [searchFromLocation],
+  )
   const scopedCompanyId = linkedClientCompanyId || observerCompanyId || ''
   const isProviderLinkedCreate = !!linkedClientCompanyId && !isTechnician
   const currentCreateScopeKey = useMemo(() => {
@@ -78,23 +86,39 @@ export function CreateTicketPage() {
         : 'tenant'
 
   useEffect(() => {
-    api.persistScopeFromSearchParams(searchParams, meQ.data)
-  }, [searchParams, meQ.data])
+    api.persistScopeFromSearchParams(new URLSearchParams(location.search), meQ.data)
+  }, [location.search, meQ.data])
 
   const technicianContextsQ = useQuery({
-    queryKey: ['technician-bound-contexts'],
-    queryFn: api.getTechnicianBoundContexts,
-    enabled: isTechnician,
+    queryKey: ['technician-bound-contexts', linkedClientCompanyId],
+    queryFn: () => api.getTechnicianBoundContexts(linkedClientCompanyId || undefined),
+    enabled: meReady && meQ.data?.role === 'TECHNICIAN',
   })
   const categoriesQ = useQuery({
     queryKey: ['problem-categories', scopedCompanyId],
     queryFn: () => api.problemCategories(scopedCompanyId || undefined),
-    enabled: !isTechnician,
+    enabled: meReady && meQ.data?.role !== 'TECHNICIAN',
   })
   const locationsQ = useQuery({
     queryKey: ['locations', scopedCompanyId],
     queryFn: () => api.locations(scopedCompanyId || undefined),
-    enabled: !isTechnician,
+    enabled: meReady && meQ.data?.role !== 'TECHNICIAN',
+  })
+  const technicianFallbackQ = useQuery({
+    queryKey: ['technician-fallback-scope', linkedClientCompanyId],
+    queryFn: async () => {
+      const [locations, categories] = await Promise.all([
+        api.locations(linkedClientCompanyId),
+        api.problemCategories(linkedClientCompanyId),
+      ])
+      return { locations, categories }
+    },
+    enabled:
+      meReady &&
+      meQ.data?.role === 'TECHNICIAN' &&
+      !!linkedClientCompanyId &&
+      technicianContextsQ.isSuccess &&
+      (technicianContextsQ.data || []).length === 0,
   })
   const equipmentQ = useQuery({
     queryKey: ['equipment-by-location', locationId],
@@ -103,20 +127,55 @@ export function CreateTicketPage() {
   })
 
   const technicianContexts = technicianContextsQ.data || []
+  const needsTechnicianFallback =
+    meReady &&
+    meQ.data?.role === 'TECHNICIAN' &&
+    !!linkedClientCompanyId &&
+    technicianContextsQ.isSuccess &&
+    technicianContexts.length === 0
+  const fallbackClientCompanyQ = useQuery({
+    queryKey: ['company-for-technician-fallback', linkedClientCompanyId],
+    queryFn: () => api.company(undefined, linkedClientCompanyId),
+    enabled: needsTechnicianFallback && !!linkedClientCompanyId,
+  })
   const selectedTechnicianContext = useMemo(
     () => technicianContexts.find((row) => row.clientCompany.id === clientCompanyId) || null,
     [clientCompanyId, technicianContexts],
   )
 
   const activeCategories = useMemo(() => {
-    if (isTechnician) return (selectedTechnicianContext?.categories || []).filter((row) => row.isActive !== false)
-    return (categoriesQ.data || []).filter((row) => row.isActive !== false)
-  }, [categoriesQ.data, isTechnician, selectedTechnicianContext])
+    if (!isTechnician) return (categoriesQ.data || []).filter((row) => row.isActive !== false)
+    if (selectedTechnicianContext) return (selectedTechnicianContext.categories || []).filter((row) => row.isActive !== false)
+    if (needsTechnicianFallback && technicianFallbackQ.data?.categories && clientCompanyId === linkedClientCompanyId) {
+      return (technicianFallbackQ.data.categories || []).filter((row) => row.isActive !== false)
+    }
+    return []
+  }, [
+    categoriesQ.data,
+    clientCompanyId,
+    isTechnician,
+    linkedClientCompanyId,
+    needsTechnicianFallback,
+    selectedTechnicianContext,
+    technicianFallbackQ.data,
+  ])
 
   const activeLocations = useMemo(() => {
-    if (isTechnician) return (selectedTechnicianContext?.locations || []).filter((row) => row.isActive !== false)
-    return (locationsQ.data || []).filter((row) => row.isActive !== false)
-  }, [isTechnician, locationsQ.data, selectedTechnicianContext])
+    if (!isTechnician) return (locationsQ.data || []).filter((row) => row.isActive !== false)
+    if (selectedTechnicianContext) return (selectedTechnicianContext.locations || []).filter((row) => row.isActive !== false)
+    if (needsTechnicianFallback && technicianFallbackQ.data?.locations && clientCompanyId === linkedClientCompanyId) {
+      return (technicianFallbackQ.data.locations || []).filter((row) => row.isActive !== false)
+    }
+    return []
+  }, [
+    clientCompanyId,
+    isTechnician,
+    linkedClientCompanyId,
+    locationsQ.data,
+    needsTechnicianFallback,
+    selectedTechnicianContext,
+    technicianFallbackQ.data,
+  ])
 
   const locationEquipment = useMemo(
     () => (equipmentQ.data || []).filter((row) => row.locationId === locationId || !row.locationId),
@@ -125,8 +184,16 @@ export function CreateTicketPage() {
 
   useEffect(() => {
     if (!isTechnician) return
+    if (linkedClientCompanyId && technicianContexts.some((row) => row.clientCompany.id === linkedClientCompanyId)) {
+      if (clientCompanyId !== linkedClientCompanyId) setClientCompanyId(linkedClientCompanyId)
+      return
+    }
+    if (linkedClientCompanyId && technicianContexts.length === 0 && needsTechnicianFallback) {
+      if (clientCompanyId !== linkedClientCompanyId) setClientCompanyId(linkedClientCompanyId)
+      return
+    }
     if (!clientCompanyId && technicianContexts.length > 0) setClientCompanyId(technicianContexts[0].clientCompany.id)
-  }, [clientCompanyId, isTechnician, technicianContexts])
+  }, [clientCompanyId, isTechnician, linkedClientCompanyId, technicianContexts, needsTechnicianFallback])
 
   useEffect(() => {
     if (!meQ.data) return
@@ -412,8 +479,18 @@ export function CreateTicketPage() {
   const noCategories = activeCategories.length === 0
   const noLocations = activeLocations.length === 0
   const isBootstrapping =
-    meQ.isFetching || (isTechnician ? technicianContextsQ.isFetching : categoriesQ.isFetching || locationsQ.isFetching)
-  const noTechnicianContexts = isTechnician && !technicianContextsQ.isFetching && technicianContexts.length === 0
+    !meQ.isSuccess ||
+    (meQ.data?.role === 'TECHNICIAN'
+      ? technicianContextsQ.isPending || (needsTechnicianFallback && technicianFallbackQ.isPending)
+      : categoriesQ.isPending || locationsQ.isPending)
+  const noTechnicianContexts =
+    isTechnician &&
+    technicianContextsQ.isSuccess &&
+    technicianContexts.length === 0 &&
+    (!linkedClientCompanyId ||
+      (technicianFallbackQ.isSuccess &&
+        (technicianFallbackQ.data?.locations?.length ?? 0) === 0 &&
+        (technicianFallbackQ.data?.categories?.length ?? 0) === 0))
 
   return (
     <div>
@@ -436,6 +513,9 @@ export function CreateTicketPage() {
       {categoriesQ.isError ? <div className="alert">{(categoriesQ.error as any)?.message || String(categoriesQ.error)}</div> : null}
       {locationsQ.isError ? <div className="alert">{(locationsQ.error as any)?.message || String(locationsQ.error)}</div> : null}
       {equipmentQ.isError ? <div className="alert">{(equipmentQ.error as any)?.message || String(equipmentQ.error)}</div> : null}
+      {technicianFallbackQ.isError ? (
+        <div className="alert">{(technicianFallbackQ.error as any)?.message || String(technicianFallbackQ.error)}</div>
+      ) : null}
 
       {noTechnicianContexts ? (
         <div className="panel">
@@ -493,11 +573,25 @@ export function CreateTicketPage() {
           {isTechnician ? (
             <label>
               Клиентская компания *
-              <select value={clientCompanyId} onChange={(e) => setClientCompanyId(e.target.value)} disabled={technicianContextsQ.isFetching || technicianContexts.length === 0}>
-                {technicianContexts.length === 0 ? <option value="">Нет доступных компаний</option> : null}
+              <select
+                value={clientCompanyId}
+                onChange={(e) => setClientCompanyId(e.target.value)}
+                disabled={
+                  isBootstrapping ||
+                  (technicianContexts.length === 0 && !(needsTechnicianFallback && linkedClientCompanyId))
+                }
+              >
+                {technicianContexts.length === 0 && !(needsTechnicianFallback && linkedClientCompanyId) ? (
+                  <option value="">Нет доступных компаний</option>
+                ) : null}
                 {technicianContexts.map((context) => (
                   <option key={context.clientCompany.id} value={context.clientCompany.id}>{context.clientCompany.name}</option>
                 ))}
+                {needsTechnicianFallback && linkedClientCompanyId && technicianContexts.length === 0 ? (
+                  <option value={linkedClientCompanyId}>
+                    {fallbackClientCompanyQ.data?.name?.trim() || 'Клиентский контур (linked)'}
+                  </option>
+                ) : null}
               </select>
             </label>
           ) : null}

@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+﻿import { useEffect, useMemo, useState } from 'react'
+import { Link, useLocation } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
@@ -78,12 +78,11 @@ const LOCATION_BINDABLE_ROLES: api.Role[] = [
   'CLIENT',
   'TERRITORIAL_MANAGER',
   'NETWORK_DIRECTOR',
-  'STAFF',
 ]
 
 export function EmployeesPage() {
   const qc = useQueryClient()
-  const [searchParams] = useSearchParams()
+  const location = useLocation()
 
   const [err, setErr] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -94,7 +93,10 @@ export function EmployeesPage() {
   const [selectedLocationIds, setSelectedLocationIds] = useState<string[]>([])
 
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
-  const requestedCompanyId = useMemo(() => searchParams.get('companyId')?.trim() || '', [searchParams])
+  const requestedCompanyId = useMemo(() => {
+    const sp = new URLSearchParams(location.search)
+    return (sp.get('companyId') || '').trim()
+  }, [location.search])
   const observerCompanyId = meQ.data?.role === 'PLATFORM_ADMIN' ? requestedCompanyId : ''
   const isObserverMode = !!observerCompanyId && observerCompanyId !== meQ.data?.companyId
 

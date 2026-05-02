@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
@@ -158,7 +158,7 @@ function buildCompanyLink(params: { observerCompanyId?: string | null; linkedCli
 
 export function BoardPage() {
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
+  const location = useLocation()
   const [take, setTake] = useState(120)
   const [selectedLocationId, setSelectedLocationId] = useState('')
   const [selectedEquipmentId, setSelectedEquipmentId] = useState('')
@@ -170,18 +170,18 @@ export function BoardPage() {
   const autoSelectedPrimaryRef = useRef(false)
 
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
-  const requestedCompanyId = useMemo(
-    () => searchParams.get('companyId')?.trim() || api.getObserverCompanyId(),
-    [searchParams],
-  )
-  const requestedLinkedClientCompanyId = useMemo(
-    () => searchParams.get('linkedClientCompanyId')?.trim() || api.getLinkedClientCompanyId(),
-    [searchParams],
-  )
+  const requestedCompanyId = useMemo(() => {
+    const sp = new URLSearchParams(location.search)
+    return (sp.get('companyId')?.trim() || api.getObserverCompanyId()).trim()
+  }, [location.search])
+  const requestedLinkedClientCompanyId = useMemo(() => {
+    const sp = new URLSearchParams(location.search)
+    return (sp.get('linkedClientCompanyId')?.trim() || api.getLinkedClientCompanyId()).trim()
+  }, [location.search])
 
   useEffect(() => {
-    api.persistScopeFromSearchParams(searchParams, meQ.data)
-  }, [searchParams, meQ.data])
+    api.persistScopeFromSearchParams(new URLSearchParams(location.search), meQ.data)
+  }, [location.search, meQ.data])
 
   const observerCompanyId = meQ.data?.role === 'PLATFORM_ADMIN' ? requestedCompanyId : ''
   const isObserverMode = !!observerCompanyId && observerCompanyId !== meQ.data?.companyId
@@ -222,7 +222,8 @@ export function BoardPage() {
   )
 
   const resolvedLinkedClientCompanyId = selectedLinkedClient?.role === 'PRIMARY' ? selectedLinkedClient.clientCompany.id : ''
-  const isClientTenantCompany = !observerCompanyId && !resolvedLinkedClientCompanyId && ownCompanyQ.data?.type === 'CLIENT'
+  const effectiveLinkedClientCompanyId = canShowLinkedClients ? resolvedLinkedClientCompanyId : requestedLinkedClientCompanyId
+  const isClientTenantCompany = !observerCompanyId && !effectiveLinkedClientCompanyId && ownCompanyQ.data?.type === 'CLIENT'
   const providerHasNoLinkedClients = canShowLinkedClients && linkedClientsLoaded && linkedClients.length === 0
   const providerRestrictedSelection = canShowLinkedClients && !!selectedLinkedClient && selectedLinkedClient.role !== 'PRIMARY'
 
@@ -233,7 +234,8 @@ export function BoardPage() {
   }, [canShowLinkedClients])
 
   useEffect(() => {
-    if (!searchParams.get('linkedClientCompanyId') && requestedLinkedClientCompanyId && !observerCompanyId) {
+    const sp = new URLSearchParams(location.search)
+    if (!sp.get('linkedClientCompanyId') && requestedLinkedClientCompanyId && !observerCompanyId) {
       navigate(buildBoardLink(requestedLinkedClientCompanyId), { replace: true })
       return
     }
@@ -244,7 +246,7 @@ export function BoardPage() {
 
     autoSelectedPrimaryRef.current = true
     navigate(buildBoardLink(primaryLinkedClients[0].clientCompany.id), { replace: true })
-  }, [canShowLinkedClients, requestedLinkedClientCompanyId, primaryLinkedClients, navigate, observerCompanyId, searchParams])
+  }, [canShowLinkedClients, requestedLinkedClientCompanyId, primaryLinkedClients, navigate, observerCompanyId, location.search])
 
   const providerContextResolved = isObserverMode
     ? true
@@ -254,26 +256,26 @@ export function BoardPage() {
         ? false
         : providerHasNoLinkedClients || providerRestrictedSelection
           ? true
-          : !!resolvedLinkedClientCompanyId
+          : !!effectiveLinkedClientCompanyId
 
   const boardEnabled = isObserverMode
     ? true
     : !canShowLinkedClients
       ? true
-      : providerContextResolved && !providerHasNoLinkedClients && !providerRestrictedSelection && !!resolvedLinkedClientCompanyId
+      : providerContextResolved && !providerHasNoLinkedClients && !providerRestrictedSelection && !!effectiveLinkedClientCompanyId
 
   const boardScopeKey = observerCompanyId
     ? `observer:${observerCompanyId}`
     : canShowLinkedClients
-      ? `provider:${resolvedLinkedClientCompanyId || 'pending'}`
+      ? `provider:${effectiveLinkedClientCompanyId || 'pending'}`
       : 'tenant:self'
 
   const boardQ = useQuery({
-    queryKey: ['board', { take, observerCompanyId, resolvedLinkedClientCompanyId, selectedLocationId, selectedEquipmentId, selectedStatus }],
+    queryKey: ['board', { take, observerCompanyId, effectiveLinkedClientCompanyId, selectedLocationId, selectedEquipmentId, selectedStatus }],
     queryFn: () =>
       api.board({
         take,
-        linkedClientCompanyId: resolvedLinkedClientCompanyId || undefined,
+        linkedClientCompanyId: effectiveLinkedClientCompanyId || undefined,
         companyId: observerCompanyId || undefined,
         locationId: selectedLocationId || undefined,
         equipmentId: selectedEquipmentId || undefined,
@@ -282,10 +284,10 @@ export function BoardPage() {
     enabled: boardEnabled,
   })
   const contextAnalyticsQ = useQuery({
-    queryKey: ['board-context-analytics', { observerCompanyId, resolvedLinkedClientCompanyId, selectedLocationId, selectedEquipmentId }],
+    queryKey: ['board-context-analytics', { observerCompanyId, effectiveLinkedClientCompanyId, selectedLocationId, selectedEquipmentId }],
     queryFn: () =>
       api.ticketContextAnalytics({
-        linkedClientCompanyId: resolvedLinkedClientCompanyId || undefined,
+        linkedClientCompanyId: effectiveLinkedClientCompanyId || undefined,
         companyId: observerCompanyId || undefined,
         locationId: selectedLocationId || undefined,
         equipmentId: selectedEquipmentId || undefined,
@@ -362,16 +364,16 @@ export function BoardPage() {
   const canBulkOperate = canRunBulkOperationalActions(meQ.data?.role) && !isClientTenantCompany
   const providerCanCreateTicket = !isObserverMode && canCreateTickets(meQ.data?.role)
   const analyticsVisible = canViewAnalytics(meQ.data?.role)
-  const analyticsLink = buildAnalyticsLink({ observerCompanyId, linkedClientCompanyId: resolvedLinkedClientCompanyId })
-  const companyLink = buildCompanyLink({ observerCompanyId, linkedClientCompanyId: resolvedLinkedClientCompanyId })
+  const analyticsLink = buildAnalyticsLink({ observerCompanyId, linkedClientCompanyId: effectiveLinkedClientCompanyId })
+  const companyLink = buildCompanyLink({ observerCompanyId, linkedClientCompanyId: effectiveLinkedClientCompanyId })
   const ticketScope = useMemo(
     () =>
       observerCompanyId
         ? ({ companyId: observerCompanyId } satisfies api.TicketScopeParams)
-        : resolvedLinkedClientCompanyId
-          ? ({ linkedClientCompanyId: resolvedLinkedClientCompanyId } satisfies api.TicketScopeParams)
+        : effectiveLinkedClientCompanyId
+          ? ({ linkedClientCompanyId: effectiveLinkedClientCompanyId } satisfies api.TicketScopeParams)
           : undefined,
-    [observerCompanyId, resolvedLinkedClientCompanyId],
+    [observerCompanyId, effectiveLinkedClientCompanyId],
   )
   const allVisibleTicketIds = useMemo(() => columns.flatMap((c) => c.cards.map((card) => card.id)), [columns])
   const allVisibleSelected = allVisibleTicketIds.length > 0 && allVisibleTicketIds.every((id) => selectedTicketIds.includes(id))
@@ -416,8 +418,8 @@ export function BoardPage() {
     if (observerCompanyId) {
       return `/tickets/${ticket.id}?companyId=${observerCompanyId}`
     }
-    if (resolvedLinkedClientCompanyId) {
-      return `/tickets/${ticket.id}?linkedClientCompanyId=${resolvedLinkedClientCompanyId}`
+    if (effectiveLinkedClientCompanyId) {
+      return `/tickets/${ticket.id}?linkedClientCompanyId=${effectiveLinkedClientCompanyId}`
     }
     const isProviderPrimaryBoard = boardData?.meta?.visibilityMode === 'provider_primary'
     const actorCompanyId = meQ.data?.companyId || ''
@@ -470,7 +472,7 @@ export function BoardPage() {
             <button className="ghost">Компания</button>
           </Link>
           {providerCanCreateTicket ? (
-            <Link to={buildCreateTicketLink(resolvedLinkedClientCompanyId)}>
+            <Link to={buildCreateTicketLink(effectiveLinkedClientCompanyId)}>
               <button className="ghost">Создать заявку</button>
             </Link>
           ) : (
@@ -878,7 +880,7 @@ export function BoardPage() {
                 : 'Создайте тестовую заявку, чтобы доска стала живой для демонстрации.'}
           </div>
           {providerCanCreateTicket ? (
-            <Link to={buildCreateTicketLink(resolvedLinkedClientCompanyId)}>
+            <Link to={buildCreateTicketLink(effectiveLinkedClientCompanyId)}>
               <button>Создать заявку</button>
             </Link>
           ) : null}
