@@ -18,8 +18,8 @@ function roleLabel(role?: string) {
 }
 
 export function MobileProfile() {
-  const nav = useNavigate()
   const location = useLocation()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
 
@@ -31,14 +31,29 @@ export function MobileProfile() {
   function logout() {
     api.clearToken()
     queryClient.clear()
-    nav('/login', { replace: true })
+
+    const params = new URLSearchParams()
+    params.set('next', '/m')
+    params.set('mode', 'mobile')
+    const linked = (new URLSearchParams(location.search).get('linkedClientCompanyId') || api.getLinkedClientCompanyId()).trim()
+    const observer = (new URLSearchParams(location.search).get('companyId') || api.getObserverCompanyId()).trim()
+    if (linked) params.set('linkedClientCompanyId', linked)
+    if (observer) params.set('companyId', observer)
+
+    const suffix = params.toString()
+    navigate(`/login?${suffix}`, { replace: true })
   }
 
   return (
-    <div className="mobileSection" style={{ minHeight: 'calc(100dvh - 130px)' }}>
-      <div>
-        <h1 className="mobileTitle">Профиль</h1>
-        <div className="mobileSubtitle">Ключевая информация и быстрый выход</div>
+    <div className="mobileSection">
+      <div className="mobileProfileHeader">
+        <div>
+          <h1 className="mobileTitle">Профиль</h1>
+          <div className="mobileSubtitle">Ключевая информация и быстрый выход</div>
+        </div>
+        <button type="button" className="mobileBtn mobileLogoutTop" onClick={logout}>
+          Выйти
+        </button>
       </div>
 
       {meQ.isError ? <div className="mobileNotice mobileNoticeError">{String((meQ.error as any)?.message || meQ.error)}</div> : null}
@@ -70,12 +85,6 @@ export function MobileProfile() {
             </div>
           ) : null}
         </div>
-      </div>
-
-      <div style={{ marginTop: 'auto' }}>
-        <button className="mobileBtn" onClick={logout} style={{ width: '100%' }}>
-          Выйти
-        </button>
       </div>
     </div>
   )

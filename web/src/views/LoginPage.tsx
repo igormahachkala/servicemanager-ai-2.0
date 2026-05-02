@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import React, { useMemo, useState } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import * as api from '../lib/api'
 
 import smaLogo from '../assets/sma-tech.png'
@@ -13,11 +13,20 @@ const BUILD = '2026'
 
 export function LoginPage({ onLoggedIn }: LoginPageProps) {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+
+  const mobileEntryHref = useMemo(() => {
+    const params = new URLSearchParams()
+    const existing = (searchParams.get('next') || '').trim()
+    params.set('next', existing.startsWith('/m') ? existing : '/m')
+    params.set('mode', 'mobile')
+    return `/login?${params.toString()}`
+  }, [searchParams])
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
@@ -38,6 +47,13 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
 
       if (onLoggedIn) {
         onLoggedIn(result.access_token)
+      }
+
+      const nextRaw = (searchParams.get('next') || '').trim()
+      const nextPath = nextRaw.startsWith('/') ? nextRaw : ''
+      if (nextPath.startsWith('/m')) {
+        navigate(api.appendScopeToPath(nextPath, restoredScope, result.user))
+        return
       }
 
       navigate(api.appendScopeToPath(api.getHomeRoute(result.user.role), restoredScope, result.user))
@@ -92,6 +108,17 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
             {loading ? 'Входим...' : 'Войти'}
           </button>
         </form>
+
+        <div style={{ marginTop: 12 }}>
+          <Link to={mobileEntryHref} style={{ textDecoration: 'none' }}>
+            <button type="button" className="ghost" style={{ width: '100%' }}>
+              Мобильная версия
+            </button>
+          </Link>
+          <div className="muted small" style={{ marginTop: 8 }}>
+            Откроет `/m` после входа (через `next=/m`), без ручного ввода URL.
+          </div>
+        </div>
 
         <div className="panel" style={{ marginTop: 16 }}>
           <div style={{ fontWeight: 600, marginBottom: 6 }}>Публичная регистрация компаний отключена</div>

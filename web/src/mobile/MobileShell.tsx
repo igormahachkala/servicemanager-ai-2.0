@@ -53,8 +53,9 @@ export function MobileShell() {
                 key={item.id}
                 className="mobileNavItem"
                 to={api.appendScopeToPath(item.to, scope, meQ.data)}
+                aria-current={active ? 'page' : undefined}
               >
-                <button className={active ? 'mobileNavButton mobileNavButtonActive' : 'mobileNavButton'}>
+                <button type="button" className={active ? 'mobileNavButton mobileNavButtonActive' : 'mobileNavButton'}>
                   {item.label}
                 </button>
               </Link>
