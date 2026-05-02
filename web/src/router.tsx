@@ -25,6 +25,11 @@ import { InspectionRunPage } from './views/InspectionRunPage'
 import { InspectionRunReportPage } from './views/InspectionRunReportPage'
 import { InspectionQuickPage } from './views/InspectionQuickPage'
 import { MapPage } from './pages/MapPage'
+import { MobileShell } from './mobile/MobileShell'
+import { MobileHome } from './mobile/MobileHome'
+import { MobileCreateTicket } from './mobile/MobileCreateTicket'
+import { MobileMyTickets } from './mobile/MobileMyTickets'
+import { MobileProfile } from './mobile/MobileProfile'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const token = api.getToken()
@@ -43,6 +48,20 @@ export function AppRoutes() {
       <Route path="/register" element={<Navigate to="/request-access" replace />} />
       <Route path="/r/:token" element={<PublicQuickRequestPage />} />
       <Route path="/r/:token/success" element={<PublicQuickRequestSuccessPage />} />
+
+      <Route
+        path="/m"
+        element={
+          <RequireAuth>
+            <MobileShell />
+          </RequireAuth>
+        }
+      >
+        <Route index element={<MobileHome />} />
+        <Route path="create" element={<MobileCreateTicket />} />
+        <Route path="my" element={<MobileMyTickets />} />
+        <Route path="profile" element={<MobileProfile />} />
+      </Route>
 
       <Route
         path="/"
