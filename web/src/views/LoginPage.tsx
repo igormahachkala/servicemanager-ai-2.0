@@ -4,7 +4,7 @@ import * as api from '../lib/api'
 
 import smaLogo from '../assets/sma-tech.png'
 import '../mobile/mobile.css'
-import { SupportQrModal } from '../components/SupportQrModal'
+import { SupportQrModal, SUPPORT_MAILTO_HREF } from '../components/SupportQrModal'
 
 type LoginPageProps = {
   onLoggedIn?: (token: string) => void
@@ -12,10 +12,6 @@ type LoginPageProps = {
 
 const VERSION = 'v0.1'
 const BUILD = '2026'
-
-const SUPPORT_EMAIL = 'ai.service.manager.ufa@gmail.com'
-const SUPPORT_MAILTO = `mailto:${SUPPORT_EMAIL}`
-const SUPPORT_TELEGRAM = 'https://t.me/igorpump'
 
 export function LoginPage({ onLoggedIn }: LoginPageProps) {
   const navigate = useNavigate()
@@ -231,15 +227,16 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
             Для доступа свяжитесь с поддержкой.
           </div>
           <div className="loginSupportActions">
-            <button type="button" className="loginSupportAction loginSupportActionNeutral" onClick={() => setSupportQrOpen(true)}>
-              Написать в поддержку
-            </button>
-            <a href={SUPPORT_MAILTO} className="loginSupportAction loginSupportActionPrimary">
+            <a href={SUPPORT_MAILTO_HREF} className="loginSupportAction loginSupportActionPrimary">
               Написать на email
             </a>
-            <a href={SUPPORT_TELEGRAM} target="_blank" rel="noopener noreferrer" className="loginSupportAction loginSupportActionTelegram">
+            <button
+              type="button"
+              className="loginSupportAction loginSupportActionTelegram"
+              onClick={() => setSupportQrOpen(true)}
+            >
               Написать в Telegram
-            </a>
+            </button>
           </div>
         </div>
 

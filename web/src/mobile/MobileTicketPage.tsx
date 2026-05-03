@@ -7,6 +7,9 @@ import {
   mobileTicketDetailGetOneScopes,
   mobileTicketNavState,
   mobileTicketNumberTitle,
+  mobileTicketPriorityIsUrgent,
+  mobileTicketSlaCountdownLabel,
+  mobileTicketStatusLabelRu,
   type MobileTicketListOrigin,
   type MobileTicketNavState,
 } from './mobileTicketDisplay'
@@ -17,15 +20,6 @@ import {
   saveTicketDetailCache,
   useOnlineStatus,
 } from './offlineQueue'
-
-function statusLabel(status: api.TicketStatus) {
-  if (status === 'NEW') return 'Новая'
-  if (status === 'ASSIGNED') return 'Назначена'
-  if (status === 'IN_PROGRESS') return 'В работе'
-  if (status === 'DONE') return 'Завершена'
-  if (status === 'CANCELED') return 'Отменена'
-  return status
-}
 
 function readListOrigin(location: ReturnType<typeof useLocation>): MobileTicketListOrigin {
   const raw = (location.state as MobileTicketNavState | null)?.mobileListOrigin
@@ -416,7 +410,21 @@ export function MobileTicketPage() {
 
       {ticket ? (
         <>
-          <div className="mobileCard">
+          <div
+            className={[
+              'mobileCard',
+              'mobileTicketCard',
+              `mobileTicketCard--${ticket.status}`,
+              ticket.status !== 'DONE' &&
+              ticket.status !== 'CANCELED' &&
+              (ticket.slaBreachedAt ||
+                (ticket.slaDueAt && !Number.isNaN(new Date(ticket.slaDueAt).getTime()) && Date.now() > new Date(ticket.slaDueAt).getTime()))
+                ? 'mobileTicketCardSlaOverdue'
+                : '',
+            ]
+              .filter(Boolean)
+              .join(' ')}
+          >
             <div className="mobileTicketDetailsHeadline">{mobileTicketNumberTitle(ticket.ticketNumber)}</div>
             <div className="mobileRow" style={{ marginTop: 8 }}>
               <span className="mobileMeta">ID</span>
@@ -427,7 +435,40 @@ export function MobileTicketPage() {
             </div>
             <div className="mobileRow" style={{ marginTop: 12 }}>
               <span className="mobileMeta">Статус</span>
-              <strong>{statusLabel(ticket.status)}</strong>
+              <span className={`mobileTicketStatus mobileTicketStatus--${ticket.status}`}>{mobileTicketStatusLabelRu(ticket.status)}</span>
+            </div>
+            <div style={{ marginTop: 10 }}>
+              <div className="mobileMeta" style={{ marginBottom: 4 }}>
+                SLA
+              </div>
+              <div style={{ fontSize: '0.92rem', lineHeight: 1.5 }}>
+                {mobileTicketPriorityIsUrgent(ticket.priority ?? 'NORMAL') ? (
+                  <span className="mobileSlaUrgentPill" style={{ marginRight: 8 }}>
+                    Срочно
+                  </span>
+                ) : null}
+                <span>Приоритет: {ticket.priority === 'URGENT' ? 'срочный ответ (2 ч)' : 'обычный (24 ч)'}</span>
+                {ticket.slaDueAt ? (
+                  <div style={{ marginTop: 6 }}>
+                    Дедлайн:{' '}
+                    {new Date(ticket.slaDueAt).toLocaleString('ru-RU', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </div>
+                ) : null}
+                {(() => {
+                  const line = mobileTicketSlaCountdownLabel({
+                    slaDueAt: ticket.slaDueAt,
+                    slaBreached: !!ticket.slaBreachedAt || (ticket.slaDueAt ? Date.now() > new Date(ticket.slaDueAt).getTime() : false),
+                    status: ticket.status,
+                  })
+                  return line ? <div style={{ marginTop: 4 }}>{line}</div> : null
+                })()}
+              </div>
             </div>
             <div className="mobileRow" style={{ marginTop: 10 }}>
               <span className="mobileMeta">Категория</span>
@@ -459,7 +500,7 @@ export function MobileTicketPage() {
               {meQ.data?.role === 'TECHNICIAN' && techPrimary === 'claim' ? (
                 <button
                   type="button"
-                  className="mobileBtn"
+                  className="mobileBtn mobileBtn--claim"
                   style={{ width: '100%' }}
                   disabled={techActionBusy}
                   onClick={() => techActionM.mutate('claim')}
@@ -470,7 +511,7 @@ export function MobileTicketPage() {
               {meQ.data?.role === 'TECHNICIAN' && techPrimary === 'start' ? (
                 <button
                   type="button"
-                  className="mobileBtn"
+                  className="mobileBtn mobileBtn--start"
                   style={{ width: '100%' }}
                   disabled={techActionBusy}
                   onClick={() => techActionM.mutate('start')}
@@ -607,7 +648,7 @@ export function MobileTicketPage() {
                         .map((x) => (x || '').trim())
                         .find((x) => x.length > 0),
                     )}
-                    className="mobileCard mobileCardClickable"
+                    className={`mobileCard mobileTicketCard mobileTicketCard--${ch.status} mobileCardClickable`}
                     style={{ display: 'block', padding: 12 }}
                   >
                     <div className="mobileTicketDetailsHeadline">
@@ -621,8 +662,8 @@ export function MobileTicketPage() {
                         pointName: null,
                       })}
                     </div>
-                    <div className="mobileMeta" style={{ marginTop: 4 }}>
-                      {statusLabel(ch.status)}
+                    <div style={{ marginTop: 4 }}>
+                      <span className={`mobileTicketStatus mobileTicketStatus--${ch.status}`}>{mobileTicketStatusLabelRu(ch.status)}</span>
                     </div>
                   </Link>
                 )

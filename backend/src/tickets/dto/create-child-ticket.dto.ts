@@ -1,4 +1,4 @@
-import { TicketUrgency } from '@prisma/client';
+import { TicketPriority, TicketUrgency } from '@prisma/client';
 import { IsEnum, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
 
 export class CreateChildTicketDto {
@@ -11,6 +11,10 @@ export class CreateChildTicketDto {
   @IsOptional()
   @IsEnum(TicketUrgency)
   urgency?: TicketUrgency;
+
+  @IsOptional()
+  @IsEnum(TicketPriority)
+  priority?: TicketPriority;
 
   @IsOptional()
   @IsInt()

@@ -83,8 +83,8 @@ export class TicketsService {
     })
   }
 
-  createChild(companyId: string, creatorRole: UserRole, parentId: string, dto: CreateChildTicketDto) {
-    return this.assignment.createChild(companyId, creatorRole, parentId, dto)
+  createChild(companyId: string, creatorUserId: string, creatorRole: UserRole, parentId: string, dto: CreateChildTicketDto) {
+    return this.assignment.createChild(companyId, creatorUserId, creatorRole, parentId, dto)
   }
 
   board(

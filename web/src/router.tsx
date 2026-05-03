@@ -31,6 +31,7 @@ import { MobileCreateTicket } from './mobile/MobileCreateTicket'
 import { MobileMyTickets } from './mobile/MobileMyTickets'
 import { MobileProfile } from './mobile/MobileProfile'
 import { MobileTicketPage } from './mobile/MobileTicketPage'
+import { MobileNotificationsPage } from './mobile/MobileNotificationsPage'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const token = api.getToken()
@@ -62,6 +63,7 @@ export function AppRoutes() {
         <Route path="create" element={<MobileCreateTicket />} />
         <Route path="my" element={<MobileMyTickets />} />
         <Route path="profile" element={<MobileProfile />} />
+        <Route path="notifications" element={<MobileNotificationsPage />} />
         <Route path="tickets/:id" element={<MobileTicketPage />} />
       </Route>
 

@@ -76,14 +76,37 @@ export class TicketsQueryService {
     const companyScope =
       params.companyIds.length === 1 ? { companyId: params.companyIds[0] } : { companyId: { in: params.companyIds } }
 
-    const visibilityOr: any[] = [
-      { ...companyScope, assignedTechnicianId: params.userId },
-      {
+    const visibilityOr: any[] = [{ ...companyScope, assignedTechnicianId: params.userId }]
+
+    if (params.allowTechnicianClaim) {
+      const specSome = buildSpecializationLinksSomeWhereInput({
+        specializationIds: params.specializationIds,
+        specializationNames: params.specializationNames,
+      })
+      if (specSome) {
+        visibilityOr.push({
+          ...companyScope,
+          status: TicketStatus.NEW,
+          assignedTechnicianId: null,
+          problemCategory: {
+            specializationLinks: {
+              some: specSome,
+            },
+          },
+        })
+      }
+
+      visibilityOr.push({
         ...companyScope,
         status: TicketStatus.NEW,
         assignedTechnicianId: null,
-      },
-    ]
+        problemCategory: {
+          specializationLinks: {
+            none: {},
+          },
+        },
+      })
+    }
 
     let where: any = visibilityOr.length === 1 ? visibilityOr[0] : { OR: visibilityOr }
     const extraAnd: any[] = []
@@ -329,6 +352,7 @@ export class TicketsQueryService {
             ticketNumber: true,
             status: true,
             urgency: true,
+            priority: true,
             createdAt: true,
             slaDueAt: true,
             slaBreachedAt: true,
@@ -384,6 +408,7 @@ export class TicketsQueryService {
         description: t.problemText,
         status: t.status,
         urgency: t.urgency,
+        priority: t.priority,
         createdAt: t.createdAt,
         slaDueAt: t.slaDueAt,
         slaBreached: !!t.slaBreachedAt || (t.slaDueAt ? nowMs > t.slaDueAt.getTime() : false),

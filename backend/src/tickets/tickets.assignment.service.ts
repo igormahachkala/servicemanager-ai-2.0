@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, PublicRequestType, TicketSource, TicketStatus, TicketUrgency, UserRole } from '@prisma/client';
+import { Prisma, PublicRequestType, TicketPriority, TicketSource, TicketStatus, TicketUrgency, UserRole } from '@prisma/client';
 import { randomUUID } from 'crypto';
 
 import { PrismaService } from '../prisma/prisma.service';
@@ -24,10 +24,22 @@ import {
   buildTechnicianLocationRestrictionWhere,
   resolveTechnicianOperationalScope,
   resolveTicketOperationAccess,
-  wasTicketCreatedByActor,
 } from './ticket-access.utils';
 import { ServiceContractsService } from '../service-contracts/service-contracts.service';
 import { TechniciansService } from '../technicians/technicians.service';
+import { NotificationsService } from '../notifications/notifications.service';
+
+function computeSlaFromPriorityOrExplicitMinutes(params: {
+  priority: TicketPriority;
+  explicitSlaMinutes?: number | null;
+}): { slaMinutes: number; slaDueAt: Date } {
+  const explicit = params.explicitSlaMinutes;
+  if (typeof explicit === 'number' && explicit > 0) {
+    return { slaMinutes: explicit, slaDueAt: new Date(Date.now() + explicit * 60_000) };
+  }
+  const mins = params.priority === TicketPriority.URGENT ? 120 : 24 * 60;
+  return { slaMinutes: mins, slaDueAt: new Date(Date.now() + mins * 60_000) };
+}
 
 @Injectable()
 export class TicketsAssignmentService {
@@ -39,6 +51,7 @@ export class TicketsAssignmentService {
     private readonly attachments: TicketAttachmentsService,
     private readonly serviceContractsService: ServiceContractsService,
     private readonly techniciansService: TechniciansService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   private readonly policy = new TicketsPolicy();
@@ -337,6 +350,7 @@ export class TicketsAssignmentService {
       pointName: dto.pointName?.trim() || null,
       urgency: dto.urgency,
       slaMinutes: dto.slaMinutes ?? null,
+      priority: dto.priority === TicketPriority.URGENT ? TicketPriority.URGENT : TicketPriority.NORMAL,
     };
   }
   async create(actorCompanyId: string, creatorUserId: string, creatorRole: UserRole, dto: CreateTicketDto) {
@@ -400,8 +414,10 @@ export class TicketsAssignmentService {
 
     const ticketId = randomUUID();
 
-    const slaMinutes = input.slaMinutes;
-    const slaDueAt = slaMinutes ? new Date(Date.now() + slaMinutes * 60_000) : null;
+    const { slaMinutes, slaDueAt } = computeSlaFromPriorityOrExplicitMinutes({
+      priority: input.priority,
+      explicitSlaMinutes: input.slaMinutes,
+    });
 
     const created = await this.prisma.$transaction(async (tx) => {
       const decision = shouldAutoAssign
@@ -447,6 +463,7 @@ export class TicketsAssignmentService {
           problemText: generated.description,
 
           urgency: input.urgency ?? TicketUrgency.NOT_URGENT,
+          priority: input.priority,
           slaMinutes,
           slaDueAt,
 
@@ -546,6 +563,16 @@ export class TicketsAssignmentService {
       return { ticket, assignedTechnicianId, generated };
     });
 
+    this.notifications.scheduleTicketCreated({
+      actorCompanyId,
+      creatorUserId,
+      targetCompanyId,
+      ticketId: created.ticket.id,
+      ticketNumber: created.ticket.ticketNumber,
+      summary: created.generated.title,
+      assignedTechnicianId: created.assignedTechnicianId,
+    });
+
     return {
       ticket: { ...created.ticket, title: created.generated.title, description: created.generated.description },
       generated: created.generated,
@@ -555,7 +582,13 @@ export class TicketsAssignmentService {
     };
   }
 
-  async createChild(companyId: string, creatorRole: UserRole, parentId: string, dto: CreateChildTicketDto) {
+  async createChild(
+    companyId: string,
+    creatorUserId: string | null,
+    creatorRole: UserRole,
+    parentId: string,
+    dto: CreateChildTicketDto,
+  ) {
     const parent = await this.prisma.ticket.findFirst({
       where: { id: parentId, companyId },
       select: {
@@ -585,8 +618,11 @@ export class TicketsAssignmentService {
 
     const ticketId = randomUUID();
 
-    const slaMinutes = dto.slaMinutes ?? null;
-    const slaDueAt = slaMinutes ? new Date(Date.now() + slaMinutes * 60_000) : null;
+    const childPriority = dto.priority === TicketPriority.URGENT ? TicketPriority.URGENT : TicketPriority.NORMAL;
+    const { slaMinutes, slaDueAt } = computeSlaFromPriorityOrExplicitMinutes({
+      priority: childPriority,
+      explicitSlaMinutes: dto.slaMinutes ?? null,
+    });
 
     const created = await this.prisma.$transaction(async (tx) => {
       const decision = shouldAutoAssign
@@ -631,6 +667,7 @@ export class TicketsAssignmentService {
           problemText: dto.problemText?.trim(),
 
           urgency: dto.urgency ?? TicketUrgency.NOT_URGENT,
+          priority: childPriority,
           slaMinutes,
           slaDueAt,
 
@@ -700,6 +737,15 @@ export class TicketsAssignmentService {
       }
 
       return { ticket, assignedTechnicianId };
+    });
+
+    this.notifications.scheduleTicketCreatedChild({
+      companyId,
+      creatorUserId,
+      ticketId: created.ticket.id,
+      ticketNumber: created.ticket.ticketNumber,
+      summary: (created.ticket.problemText || '').trim() || 'Дочерняя заявка',
+      assignedTechnicianId: created.assignedTechnicianId,
     });
 
     return {
@@ -819,7 +865,7 @@ export class TicketsAssignmentService {
     const decision = this.policy.canAssign({ id: actor?.id, role: actor?.role, companyId: access.operationCompanyId });
     assertAllowed(decision);
 
-    const resolvedTicketId = await this.prisma.$transaction(async (tx) => {
+    const assignResult = await this.prisma.$transaction(async (tx) => {
       const ticket = await tx.ticket.findFirst({
         where: { id: ticketId, companyId: access.ticket.companyId },
         include: {
@@ -901,7 +947,12 @@ export class TicketsAssignmentService {
         });
       }
 
+      let assignmentTimelineRecorded = false;
+      let assignMode: 'manual' | 'reassign' = 'manual';
+
       if (isReassign) {
+        assignMode = 'reassign';
+        assignmentTimelineRecorded = true;
         await this.timelineService.recordTx(tx, {
           event: 'TICKET_ASSIGNED',
           companyId: ticket.companyId,
@@ -914,6 +965,7 @@ export class TicketsAssignmentService {
           },
         });
       } else if (isFirstAssign || ticket.status === TicketStatus.NEW) {
+        assignmentTimelineRecorded = true;
         await this.timelineService.recordTx(tx, {
           event: 'TICKET_ASSIGNED',
           companyId: ticket.companyId,
@@ -926,14 +978,31 @@ export class TicketsAssignmentService {
         });
       }
 
-      return ticket.id;
+      return { ticketId: ticket.id, assignmentTimelineRecorded, assignMode };
     });
+
+    const meta = await this.prisma.ticket.findUnique({
+      where: { id: assignResult.ticketId },
+      select: { companyId: true, ticketNumber: true, problemText: true },
+    });
+
+    if (assignResult.assignmentTimelineRecorded && meta) {
+      this.notifications.scheduleTicketAssignedToTechnician({
+        assigneeUserId: technicianId,
+        ticketId: assignResult.ticketId,
+        ticketCompanyId: meta.companyId,
+        ticketNumber: meta.ticketNumber,
+        summary: (meta.problemText || '').trim() || `Заявка #${meta.ticketNumber}`,
+        actorUserId: actor?.id ?? null,
+        mode: assignResult.assignMode,
+      });
+    }
 
     return this.query.getOne(
       companyId,
       actor?.id,
       actor?.role as UserRole,
-      resolvedTicketId,
+      assignResult.ticketId,
       actor?.accessFlags,
       undefined,
       linkedClientCompanyId,
@@ -1397,50 +1466,13 @@ export class TicketsAssignmentService {
     });
     const claimWhere = this.normalizeAnd(decision.where as Prisma.TicketWhereInput, [locationRestriction]);
 
-    const selfCreatedByCurrentUser = await wasTicketCreatedByActor({
-      prisma: this.prisma,
-      companyIds: technicianScope.companyIds,
-      ticketId,
-      actorUserId: technicianUserId,
-    })
-
-    const selfCreatedClaimWhere = selfCreatedByCurrentUser
-      ? ({
-          AND: [
-            {
-              id: ticketId,
-              companyId:
-                technicianScope.companyIds.length === 1
-                  ? technicianScope.companyIds[0]
-                  : { in: technicianScope.companyIds },
-              status: TicketStatus.NEW,
-              OR: [
-                { assignedTechnicianId: null },
-                { assignedTechnicianId: technicianUserId },
-              ],
-            },
-            locationRestriction,
-          ],
-        } satisfies Prisma.TicketWhereInput)
-      : null
-
-    const resolvedTicketId = await this.prisma.$transaction(async (tx) => {
-      const ticket =
-        (await tx.ticket.findFirst({
-          where: claimWhere,
-        })) ||
-        (selfCreatedClaimWhere
-          ? await tx.ticket.findFirst({
-              where: selfCreatedClaimWhere,
-            })
-          : null)
+    const claimResult = await this.prisma.$transaction(async (tx) => {
+      const ticket = await tx.ticket.findFirst({
+        where: claimWhere,
+      })
 
       if (!ticket) {
         throw new NotFoundException('Ticket not found or not available for claim')
-      }
-
-      if (ticket.assignedTechnicianId === technicianUserId && ticket.status === TicketStatus.ASSIGNED) {
-        return ticket.id
       }
 
       const wf = decideTicketTransition(TicketStatus.NEW, TicketStatus.ASSIGNED)
@@ -1472,15 +1504,28 @@ export class TicketsAssignmentService {
         actorUserId: technicianUserId,
         payload: {
           assignedTechnicianId: technicianUserId,
-          mode: selfCreatedByCurrentUser ? 'claim_self_created' : 'claim',
+          mode: 'claim',
           operationCompanyId: companyId,
         },
       })
 
-      return ticket.id
+      return { ticketId: ticket.id, ticketCompanyId: ticket.companyId, ticketNumber: ticket.ticketNumber, problemText: ticket.problemText }
     })
 
-    return this.query.getOne(companyId, technicianUserId, UserRole.TECHNICIAN, resolvedTicketId, undefined, undefined, linkedClientCompanyId)
+    const linkedResolved =
+      linkedClientCompanyId ||
+      (claimResult.ticketCompanyId !== companyId ? claimResult.ticketCompanyId : null)
+    this.notifications.scheduleTicketClaimedDispatchers({
+      watcherCompanyId: companyId,
+      ticketCompanyId: claimResult.ticketCompanyId,
+      ticketId: claimResult.ticketId,
+      ticketNumber: claimResult.ticketNumber,
+      summary: (claimResult.problemText || '').trim() || `Заявка #${claimResult.ticketNumber}`,
+      excludeUserId: technicianUserId,
+      linkedHint: linkedResolved,
+    })
+
+    return this.query.getOne(companyId, technicianUserId, UserRole.TECHNICIAN, claimResult.ticketId, undefined, undefined, linkedClientCompanyId)
   }
   async createPublic(
     companyId: string,
@@ -1517,6 +1562,12 @@ export class TicketsAssignmentService {
     );
     const shouldAutoAssign = company.autoAssignEnabled && candidates.length > 0;
     const ticketId = randomUUID();
+
+    const publicPriority = TicketPriority.NORMAL;
+    const { slaMinutes: pubSlaMinutes, slaDueAt: pubSlaDueAt } = computeSlaFromPriorityOrExplicitMinutes({
+      priority: publicPriority,
+      explicitSlaMinutes: null,
+    });
 
     const created = await this.prisma.$transaction(async (tx) => {
       const decision = shouldAutoAssign
@@ -1558,6 +1609,9 @@ export class TicketsAssignmentService {
           problemCategoryId: input.categoryId,
           problemText: input.description.trim(),
           urgency: input.urgency ?? TicketUrgency.NOT_URGENT,
+          priority: publicPriority,
+          slaMinutes: pubSlaMinutes,
+          slaDueAt: pubSlaDueAt,
           status: TicketStatus.NEW,
           assignedTechnicianId: null,
           source: TicketSource.PUBLIC_QUICK_REQUEST,
@@ -1641,6 +1695,14 @@ export class TicketsAssignmentService {
       }
 
       return { ticket, assignedTechnicianId };
+    });
+
+    this.notifications.scheduleTicketCreatedPublic({
+      ticketCompanyId: companyId,
+      ticketId: created.ticket.id,
+      ticketNumber: created.ticket.ticketNumber,
+      summary: (created.ticket.problemText || '').trim() || `Заявка #${created.ticket.ticketNumber}`,
+      assignedTechnicianId: created.assignedTechnicianId,
     });
 
     return {

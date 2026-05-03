@@ -1,6 +1,12 @@
 import { useEffect } from 'react'
-import supportQr from '../assets/support-qr.png'
+import supportTelegramQr from '../assets/support-qr.png'
+import supportEmailQr from '../assets/support-email-qr.png'
 import '../mobile/mobile.css'
+
+/** Синхронизировать с web/scripts/gen-support-qr.mjs */
+export const SUPPORT_CONTACT_EMAIL = 'ai.service.manager.ufa@gmail.com'
+export const SUPPORT_MAILTO_HREF = `mailto:${SUPPORT_CONTACT_EMAIL}`
+export const SUPPORT_TELEGRAM_URL = 'https://t.me/igorpump'
 
 type SupportQrModalProps = {
   open: boolean
@@ -40,10 +46,37 @@ export function SupportQrModal({ open, onClose }: SupportQrModalProps) {
         <h2 id="supportQrModalTitle" className="supportQrModalTitle">
           Поддержка
         </h2>
-        <p className="supportQrModalText">Отсканируйте QR-код, чтобы написать в поддержку</p>
-        <figure className="supportQrModalFigure">
-          <img src={supportQr} alt="QR-код поддержки" width={280} height={280} decoding="async" />
-        </figure>
+
+        <div className="supportQrModalGrid">
+          <div className="supportQrModalCol">
+            <h3 className="supportQrModalColTitle">Telegram</h3>
+            <p className="supportQrModalColHint">Отсканируйте QR-код или откройте чат по ссылке.</p>
+            <figure className="supportQrModalFigure">
+              <img src={supportTelegramQr} alt="QR-код Telegram поддержки" width={240} height={240} decoding="async" />
+            </figure>
+            <a
+              href={SUPPORT_TELEGRAM_URL}
+              className="supportQrModalLinkBtn supportQrModalLinkBtnTelegram"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Открыть Telegram
+            </a>
+          </div>
+
+          <div className="supportQrModalCol">
+            <h3 className="supportQrModalColTitle">Email</h3>
+            <p className="supportQrModalColHint">Отсканируйте QR-код или напишите на почту.</p>
+            <figure className="supportQrModalFigure">
+              <img src={supportEmailQr} alt="QR-код email поддержки" width={240} height={240} decoding="async" />
+            </figure>
+            <a href={SUPPORT_MAILTO_HREF} className="supportQrModalLinkBtn supportQrModalLinkBtnEmail">
+              Написать на email
+            </a>
+            <p className="supportQrModalEmailPlain">{SUPPORT_CONTACT_EMAIL}</p>
+          </div>
+        </div>
+
         <button type="button" className="supportQrModalCloseBtn" onClick={onClose}>
           Закрыть
         </button>

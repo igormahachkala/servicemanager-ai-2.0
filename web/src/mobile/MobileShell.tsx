@@ -57,6 +57,14 @@ export function MobileShell() {
     return subscribeOfflineQueue(refresh)
   }, [])
 
+  const notifQ = useQuery({
+    queryKey: ['mobile-notifications'],
+    queryFn: api.fetchNotifications,
+    enabled: !!meQ.data,
+    staleTime: 20_000,
+    refetchOnWindowFocus: true,
+  })
+
   const retryM = useMutation({
     mutationFn: retryOfflineQueue,
     onMutate: () => setSyncMessage(''),
@@ -75,6 +83,7 @@ export function MobileShell() {
       await queryClient.invalidateQueries({ queryKey: ['mobile-ticket-attachments'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-ticket-timeline'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-my-board'] })
+      await queryClient.invalidateQueries({ queryKey: ['mobile-notifications'] })
       await queryClient.invalidateQueries({ queryKey: ['board'] })
     },
     onError: (error: any) => {
@@ -83,8 +92,27 @@ export function MobileShell() {
     },
   })
 
+  const unread = notifQ.data?.unreadCount ?? 0
+
   return (
     <div className="mobileShell">
+      <header className="mobileTopBar" aria-label="Действия">
+        <div className="mobileTopBarFill" />
+        <Link
+          className="mobileBellLink"
+          to={api.appendScopeToPath('/m/notifications', scope, meQ.data)}
+          aria-label={unread > 0 ? `Уведомления, непрочитано: ${unread}` : 'Уведомления'}
+        >
+          <span className="mobileBellIcon" aria-hidden>
+            🔔
+          </span>
+          {unread > 0 ? (
+            <span className="mobileBellBadge" aria-hidden>
+              {unread > 99 ? '99+' : unread}
+            </span>
+          ) : null}
+        </Link>
+      </header>
       <main className="mobilePage">
         {!isOnline ? (
           <div className="mobileOfflineBanner mobileOfflineBannerWarning">

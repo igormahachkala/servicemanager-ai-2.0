@@ -14,9 +14,17 @@ import { PermissionsContextGuard } from '../common/permissions-context.guard'
 import { TimelineModule } from '../timeline/timeline.module'
 import { ServiceContractsModule } from '../service-contracts/service-contracts.module'
 import { TechniciansModule } from '../technicians/technicians.module'
+import { NotificationsModule } from '../notifications/notifications.module'
 
 @Module({
-  imports: [PrismaModule, AssignmentModule, TimelineModule, ServiceContractsModule, TechniciansModule],
+  imports: [
+    PrismaModule,
+    AssignmentModule,
+    TimelineModule,
+    ServiceContractsModule,
+    TechniciansModule,
+    NotificationsModule,
+  ],
   providers: [
     TicketsService,
     TicketsQueryService,

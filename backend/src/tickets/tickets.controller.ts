@@ -65,7 +65,7 @@ export class TicketsController {
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER)
   @RequirePermission(PERMISSIONS.TICKETS_CREATE)
   createChild(@Req() req: any, @Param('id') id: string, @Body() dto: CreateChildTicketDto) {
-    return this.svc.createChild(req.user.companyId, req.user.role as UserRole, id, dto)
+    return this.svc.createChild(req.user.companyId, req.user.id, req.user.role as UserRole, id, dto)
   }
 
   @Get('board')
@@ -77,7 +77,6 @@ export class TicketsController {
     UserRole.TECHNICIAN,
     UserRole.CLIENT,
     UserRole.TERRITORIAL_MANAGER,
-    UserRole.STAFF,
     UserRole.PLATFORM_ADMIN,
   )
   @RequirePermission(PERMISSIONS.TICKETS_VIEW)
@@ -115,7 +114,6 @@ export class TicketsController {
     UserRole.TECHNICIAN,
     UserRole.CLIENT,
     UserRole.TERRITORIAL_MANAGER,
-    UserRole.STAFF,
     UserRole.PLATFORM_ADMIN,
   )
   @RequirePermission(PERMISSIONS.TICKETS_VIEW)
@@ -147,7 +145,6 @@ export class TicketsController {
     UserRole.TECHNICIAN,
     UserRole.CLIENT,
     UserRole.TERRITORIAL_MANAGER,
-    UserRole.STAFF,
     UserRole.PLATFORM_ADMIN,
   )
   @RequirePermission(PERMISSIONS.TICKETS_VIEW)
@@ -191,7 +188,6 @@ export class TicketsController {
     UserRole.TECHNICIAN,
     UserRole.CLIENT,
     UserRole.TERRITORIAL_MANAGER,
-    UserRole.STAFF,
     UserRole.PLATFORM_ADMIN,
   )
   @RequirePermission(PERMISSIONS.TICKETS_VIEW)
@@ -224,7 +220,6 @@ export class TicketsController {
     UserRole.TECHNICIAN,
     UserRole.CLIENT,
     UserRole.TERRITORIAL_MANAGER,
-    UserRole.STAFF,
     UserRole.PLATFORM_ADMIN,
   )
   @RequirePermission(PERMISSIONS.TICKETS_VIEW)
@@ -246,7 +241,7 @@ export class TicketsController {
   }
 
   @Post(':id/attachments')
-  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TECHNICIAN, UserRole.CLIENT, UserRole.TERRITORIAL_MANAGER, UserRole.STAFF)
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TECHNICIAN, UserRole.CLIENT, UserRole.TERRITORIAL_MANAGER)
   @RequirePermission(PERMISSIONS.TICKETS_VIEW)
   @UseInterceptors(FileInterceptor('file'))
   uploadAttachment(
@@ -267,7 +262,7 @@ export class TicketsController {
   }
 
   @Delete(':id/attachments/:attachmentId')
-  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TECHNICIAN, UserRole.CLIENT, UserRole.TERRITORIAL_MANAGER, UserRole.STAFF)
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TECHNICIAN, UserRole.CLIENT, UserRole.TERRITORIAL_MANAGER)
   @RequirePermission(PERMISSIONS.TICKETS_VIEW)
   deleteAttachment(
     @Req() req: any,
@@ -302,14 +297,14 @@ export class TicketsController {
   }
 
   @Get(':id/assignment-candidates')
-  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TERRITORIAL_MANAGER, UserRole.STAFF)
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR)
   @RequirePermission(PERMISSIONS.TICKETS_ASSIGN)
   assignmentCandidates(@Req() req: any, @Param('id') id: string, @Query('linkedClientCompanyId') linkedClientCompanyId?: string) {
     return this.svc.listAssignmentCandidates(req.user.companyId, req.user, id, linkedClientCompanyId)
   }
 
   @Put(':id/assign/:technicianId')
-  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TERRITORIAL_MANAGER, UserRole.STAFF)
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR)
   @RequirePermission(PERMISSIONS.TICKETS_ASSIGN)
   assign(
     @Req() req: any,
@@ -332,7 +327,7 @@ export class TicketsController {
   }
 
   @Patch(':id/status')
-  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TECHNICIAN, UserRole.STAFF)
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TECHNICIAN)
   @RequirePermission(PERMISSIONS.TICKETS_STATUS_CHANGE)
   updateStatus(
     @Req() req: any,
@@ -344,7 +339,7 @@ export class TicketsController {
   }
 
   @Post(':id/comments')
-  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TECHNICIAN, UserRole.STAFF)
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TECHNICIAN)
   @RequirePermission(PERMISSIONS.TICKETS_STATUS_CHANGE)
   addComment(
     @Req() req: any,

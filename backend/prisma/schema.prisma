@@ -37,6 +37,12 @@ enum TicketUrgency {
   NOT_URGENT
 }
 
+// SLA-окно ответа: срок считается от момента создания (см. tickets.assignment.service).
+enum TicketPriority {
+  NORMAL
+  URGENT
+}
+
 enum TicketSource {
   INTERNAL
   PUBLIC_QUICK_REQUEST
@@ -130,6 +136,7 @@ model Company {
   providedTechnicianBindings TechnicianClientBinding[] @relation("TechnicianBindingProviderCompany")
   clientTechnicianBindings   TechnicianClientBinding[] @relation("TechnicianBindingClientCompany")
   userLocationBindings UserLocationBinding[]
+  notifications      Notification[]
 }
 
 model User {
@@ -158,9 +165,29 @@ model User {
   userPermissions            UserPermission[]
   technicianClientBindings   TechnicianClientBinding[] @relation("TechnicianClientBindings")
   locationBindings           UserLocationBinding[]
+  notifications              Notification[]
 
   @@index([companyId, role])
   @@index([companyId, isActive])
+}
+
+model Notification {
+  id                    String    @id @default(uuid())
+  companyId             String
+  company               Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type                  String
+  title                 String
+  message               String
+  entityType            String
+  entityId              String
+  linkedClientCompanyId String?
+  readAt                DateTime?
+  createdAt             DateTime  @default(now())
+
+  @@index([userId, companyId, readAt])
+  @@index([userId, companyId, createdAt])
 }
 
 model Location {
@@ -352,6 +379,7 @@ model Ticket {
   problemText String
 
   urgency         TicketUrgency         @default(NOT_URGENT)
+  priority        TicketPriority        @default(NORMAL)
   status          TicketStatus          @default(NEW)
   statusUpdatedAt DateTime              @default(now())
   statusHistory   TicketStatusHistory[]

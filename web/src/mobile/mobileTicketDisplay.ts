@@ -1,4 +1,4 @@
-import type { Me, Role, TicketCard, TicketGetOne, TicketScopeParams } from '../lib/api'
+import type { Me, Role, TicketCard, TicketGetOne, TicketPriority, TicketScopeParams, TicketStatus } from '../lib/api'
 
 /** Состояние для Link: откуда открыли карточку (кнопка «Назад» на деталях). */
 export type MobileTicketListOrigin = 'home' | 'my'
@@ -144,4 +144,48 @@ export function mobileTicketNavState(
   const owner = (ticketOwnerCompanyId || '').trim()
   if (owner) return { mobileListOrigin: origin, ticketOwnerCompanyId: owner }
   return { mobileListOrigin: origin }
+}
+
+export function mobileTicketStatusLabelRu(status: TicketStatus): string {
+  if (status === 'NEW') return 'Новая'
+  if (status === 'ASSIGNED') return 'Назначена'
+  if (status === 'IN_PROGRESS') return 'В работе'
+  if (status === 'DONE') return 'Завершена'
+  if (status === 'CANCELED') return 'Отменена'
+  return status
+}
+
+/** Классы для цветного бейджа статуса на мобильных экранах. */
+export function mobileTicketStatusBadgeClassName(status: TicketStatus): string {
+  return `mobileTicketStatus mobileTicketStatus--${status}`
+}
+
+function formatDurationRu(ms: number): string {
+  if (!Number.isFinite(ms) || ms <= 0) return '0 мин'
+  const totalMin = Math.ceil(ms / 60_000)
+  const d = Math.floor(totalMin / (60 * 24))
+  const h = Math.floor((totalMin % (60 * 24)) / 60)
+  const m = totalMin % 60
+  if (d > 0) return `${d} д ${h} ч`
+  if (h > 0) return `${h} ч ${m} мин`
+  return `${m} мин`
+}
+
+/** Текст до дедлайна SLA или «Просрочено»; для завершённых — null. */
+export function mobileTicketSlaCountdownLabel(params: {
+  slaDueAt: string | null | undefined
+  slaBreached: boolean
+  status: TicketStatus
+}): string | null {
+  if (params.status === 'DONE' || params.status === 'CANCELED') return null
+  if (!params.slaDueAt) return null
+  const due = new Date(params.slaDueAt).getTime()
+  if (Number.isNaN(due)) return null
+  const now = Date.now()
+  if (params.slaBreached || now >= due) return 'Просрочено'
+  return `Осталось: ${formatDurationRu(due - now)}`
+}
+
+export function mobileTicketPriorityIsUrgent(priority: TicketPriority | null | undefined): boolean {
+  return priority === 'URGENT'
 }

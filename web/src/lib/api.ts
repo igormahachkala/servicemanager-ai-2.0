@@ -14,6 +14,9 @@
 export type TicketStatus = 'NEW' | 'ASSIGNED' | 'IN_PROGRESS' | 'DONE' | 'CANCELED'
 export type TicketUrgency = 'URGENT' | 'NOT_URGENT'
 
+/** SLA-приоритет окна ответа (срок от создания: NORMAL 24ч, URGENT 2ч на бэкенде). */
+export type TicketPriority = 'NORMAL' | 'URGENT'
+
 export type Me = {
   id: string
   email: string
@@ -27,6 +30,25 @@ export type Me = {
   /** Если бэкенд добавит подсказку контура для техника — используем при мобильном входе без getLinkedClients */
   linkedClientCompanyId?: string | null
   linkedClientCompanyIds?: string[] | null
+}
+
+export type NotificationItem = {
+  id: string
+  companyId: string
+  userId: string
+  type: string
+  title: string
+  message: string
+  entityType: string
+  entityId: string
+  linkedClientCompanyId?: string | null
+  readAt?: string | null
+  createdAt: string
+}
+
+export type NotificationsListResponse = {
+  items: NotificationItem[]
+  unreadCount: number
 }
 
 export type LoginInput = {
@@ -410,6 +432,8 @@ export type TicketCard = {
   title: string
   status: TicketStatus
   urgency: TicketUrgency
+  /** С бэкенда board; при отсутствии трактуем как NORMAL. */
+  priority?: TicketPriority
   createdAt: string
   slaDueAt: string | null
   slaBreached: boolean
@@ -464,6 +488,7 @@ export type TicketGetOne = {
   description?: string
   status: TicketStatus
   urgency: TicketUrgency
+  priority: TicketPriority
   createdAt: string
   updatedAt: string
   requesterName: string | null
@@ -513,6 +538,8 @@ export type TicketGetOne = {
     id: string
     status: TicketStatus
     urgency: TicketUrgency
+    priority?: TicketPriority
+    slaDueAt?: string | null
     problemText?: string | null
     createdAt: string
     parentId?: string | null
@@ -568,6 +595,7 @@ export type CreateTicketInput = {
   equipmentId?: string | null
   categoryId: string
   urgency?: TicketUrgency
+  priority?: TicketPriority
   clientCompanyId?: string | null
   title?: string | null
   description?: string | null
@@ -612,6 +640,7 @@ export type CreateChildTicketInput = {
   problemCategoryId: string
   problemText: string
   urgency?: TicketUrgency
+  priority?: TicketPriority
   slaMinutes?: number
 }
 
@@ -1436,6 +1465,22 @@ export async function impersonate(companyId: string): Promise<ImpersonateRespons
 
 export async function me(): Promise<Me> {
   return request<Me>('/auth/me')
+}
+
+export async function fetchNotifications(): Promise<NotificationsListResponse> {
+  return request<NotificationsListResponse>('/notifications')
+}
+
+export async function markNotificationRead(id: string): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>(`/notifications/${encodeURIComponent(id)}/read`, {
+    method: 'PATCH',
+  })
+}
+
+export async function markAllNotificationsRead(): Promise<{ ok: boolean; updated: number }> {
+  return request<{ ok: boolean; updated: number }>('/notifications/read-all', {
+    method: 'PATCH',
+  })
 }
 
 export async function createUser(input: CreateUserInput): Promise<UserListItem> {

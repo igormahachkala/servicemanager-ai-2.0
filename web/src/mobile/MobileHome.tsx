@@ -7,6 +7,9 @@ import {
   mobileTicketCategoryLocationFromCard,
   mobileTicketNavState,
   mobileTicketNumberTitle,
+  mobileTicketPriorityIsUrgent,
+  mobileTicketSlaCountdownLabel,
+  mobileTicketStatusLabelRu,
   type MobileTicketNavState,
   scopeForMobileTicketLink,
 } from './mobileTicketDisplay'
@@ -65,13 +68,29 @@ function TicketCard(props: {
     actionPending = false,
     assignFooter = null,
   } = props
+  const slaLine = mobileTicketSlaCountdownLabel({
+    slaDueAt: ticket.slaDueAt,
+    slaBreached: ticket.slaBreached,
+    status: ticket.status,
+  })
+  const urgent = mobileTicketPriorityIsUrgent(ticket.priority ?? 'NORMAL')
+  const overdue = ticket.slaBreached
+  const statusClass = `mobileTicketStatus mobileTicketStatus--${ticket.status}`
+  const cardClass = [
+    'mobileCard',
+    'mobileTicketCard',
+    `mobileTicketCard--${ticket.status}`,
+    overdue ? 'mobileTicketCardSlaOverdue' : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
   return (
-    <div className="mobileCard" style={{ padding: 0, overflow: 'hidden' }}>
+    <div className={cardClass} style={{ padding: 0, overflow: 'hidden' }}>
       <Link to={ticketHref} state={linkState ?? mobileTicketNavState('home')} className="mobileCardClickable" style={{ borderRadius: 0 }}>
         <div style={{ padding: 12 }}>
           <div className="mobileRow">
             <strong>{mobileTicketNumberTitle(ticket.ticketNumber)}</strong>
-            <span className="mobileMeta">{ticket.status}</span>
+            <span className={statusClass}>{mobileTicketStatusLabelRu(ticket.status)}</span>
           </div>
           <div className="mobileMeta" style={{ marginTop: 4 }}>
             {mobileTicketCategoryLocationFromCard(ticket)}
@@ -79,6 +98,12 @@ function TicketCard(props: {
           <div className="mobileMeta" style={{ marginTop: 4 }}>
             Исполнитель: {assignedTechnicianDisplay(ticket)}
           </div>
+          {urgent || slaLine ? (
+            <div className="mobileTicketSlaRow" style={{ marginTop: 6 }}>
+              {urgent ? <span className="mobileSlaUrgentPill">Срочно</span> : null}
+              {slaLine ? <span className="mobileTicketSlaCountdown">{slaLine}</span> : null}
+            </div>
+          ) : null}
         </div>
       </Link>
       {assignFooter ? (
@@ -102,7 +127,9 @@ function TicketCard(props: {
         <div style={{ padding: '0 12px 12px' }}>
           <button
             type="button"
-            className="mobileBtn"
+            className={`mobileBtn${
+              actionLabel === 'Взять' ? ' mobileBtn--claim' : actionLabel === 'Начать' ? ' mobileBtn--start' : ' mobileBtn--done'
+            }`}
             style={{ width: '100%' }}
             disabled={actionPending}
             onClick={(e) => {
@@ -721,7 +748,7 @@ export function MobileHome() {
               </label>
 
               <div className="mobileFormSubmitStack">
-                <button type="button" className="mobileBtn" disabled={!closeCanSubmit} onClick={() => closeM.mutate()}>
+                <button type="button" className="mobileBtn mobileBtn--done" disabled={!closeCanSubmit} onClick={() => closeM.mutate()}>
                   {closeBusy ? 'Закрываем...' : 'Загрузить отчёт и закрыть'}
                 </button>
                 <p className="mobileHint" style={{ marginBottom: 0 }}>

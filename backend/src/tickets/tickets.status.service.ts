@@ -9,6 +9,7 @@ import { assertAllowed } from '../policy/policy.utils';
 import { decideTicketTransition } from '../workflow/ticket.workflow';
 import { TimelineService } from '../timeline/timeline.service';
 import { ServiceContractsService } from '../service-contracts/service-contracts.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { resolveTicketOperationAccess } from './ticket-access.utils';
 
 @Injectable()
@@ -17,6 +18,7 @@ export class TicketsStatusService {
     private readonly prisma: PrismaService,
     private readonly timelineService: TimelineService,
     private readonly serviceContractsService: ServiceContractsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   private readonly policy = new TicketsPolicy();
@@ -79,7 +81,7 @@ export class TicketsStatusService {
       linkedClientCompanyId,
     });
 
-    return this.prisma.$transaction(async (tx) => {
+    const statusResult = await this.prisma.$transaction(async (tx) => {
       const ticket = await tx.ticket.findFirst({
         where: { id: ticketId, companyId: access.ticket.companyId },
       });
@@ -190,8 +192,34 @@ export class TicketsStatusService {
         });
       }
 
-      return updated;
+      return { updated, fromStatus, toStatus };
     });
+
+    if (
+      statusResult.fromStatus !== statusResult.toStatus &&
+      statusResult.updated.assignedTechnicianId &&
+      statusResult.updated.assignedTechnicianId !== user?.id
+    ) {
+      const linkedScope =
+        linkedClientCompanyId ??
+        (access.operationCompanyId !== access.ticket.companyId ? access.ticket.companyId : null);
+      const summaryParts = [(dto.comment || '').trim(), (statusResult.updated.problemText || '').trim()].filter(Boolean);
+      const summaryClip = (summaryParts[0] || summaryParts[1] || '').slice(0, 200);
+
+      this.notifications.scheduleTicketStatusAssignee({
+        assigneeUserId: statusResult.updated.assignedTechnicianId,
+        actorUserId: user?.id ?? null,
+        ticketId,
+        ticketCompanyId: statusResult.updated.companyId,
+        ticketNumber: statusResult.updated.ticketNumber,
+        summary: summaryClip || `Заявка #${statusResult.updated.ticketNumber}`,
+        fromStatus: statusResult.fromStatus,
+        toStatus: statusResult.toStatus,
+        linkedClientCompanyId: linkedScope,
+      });
+    }
+
+    return statusResult.updated;
   }
 
   async addComment(
