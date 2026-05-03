@@ -1,4 +1,4 @@
-export type Role =
+﻿export type Role =
   | 'PLATFORM_ADMIN'
   | 'ADMIN'
   /** Если бэкенд отдаёт отдельное значение роли провайдера-админа */
@@ -299,6 +299,15 @@ export type TechnicianBoundContext = {
   bindingCount: number
   locations: LocationListItem[]
   categories: ProblemCategoryListItem[]
+}
+
+/** Первый clientCompany.id из bound-contexts — это linkedClientCompanyId для мобильного scope техника. */
+export function pickFirstTechnicianBoundLinkedClientCompanyId(contexts: TechnicianBoundContext[]): string {
+  for (const row of contexts || []) {
+    const id = (row.clientCompany?.id || '').trim()
+    if (id) return id
+  }
+  return ''
 }
 
 export type TechnicianLocationBindingsResponse = {

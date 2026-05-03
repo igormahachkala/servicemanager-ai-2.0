@@ -4,6 +4,7 @@ import * as api from '../lib/api'
 
 import smaLogo from '../assets/sma-tech.png'
 import '../mobile/mobile.css'
+import { SupportQrModal } from '../components/SupportQrModal'
 
 type LoginPageProps = {
   onLoggedIn?: (token: string) => void
@@ -26,6 +27,7 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
   const [postLoginUser, setPostLoginUser] = useState<api.Me | null>(null)
   const [postLoginScope, setPostLoginScope] = useState<api.TicketScopeParams>({})
   const [mobileEntryLoading, setMobileEntryLoading] = useState(false)
+  const [supportQrOpen, setSupportQrOpen] = useState(false)
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
@@ -90,10 +92,18 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
       }
 
       if (role === 'TECHNICIAN') {
-        const { linkedClientCompanyId: linked } = api.resolveTechnicianMobileLinkedClientCompanyId({
+        let linked = api.resolveTechnicianMobileLinkedClientCompanyId({
           profile,
           postLoginScope,
-        })
+        }).linkedClientCompanyId
+        if (!linked) {
+          try {
+            const contexts = await api.getTechnicianBoundContexts()
+            linked = api.pickFirstTechnicianBoundLinkedClientCompanyId(contexts)
+          } catch {
+            /* сеть / 403 — без контура */
+          }
+        }
         const nextScope: api.TicketScopeParams = linked
           ? { ...postLoginScope, linkedClientCompanyId: linked }
           : { ...postLoginScope }
@@ -221,6 +231,9 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
             Для доступа свяжитесь с поддержкой.
           </div>
           <div className="loginSupportActions">
+            <button type="button" className="loginSupportAction loginSupportActionNeutral" onClick={() => setSupportQrOpen(true)}>
+              Написать в поддержку
+            </button>
             <a href={SUPPORT_MAILTO} className="loginSupportAction loginSupportActionPrimary">
               Написать на email
             </a>
@@ -254,6 +267,8 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
           <div style={{ opacity: 0.6 }}>Version {VERSION} · Build {BUILD}</div>
         </div>
       </div>
+
+      <SupportQrModal open={supportQrOpen} onClose={() => setSupportQrOpen(false)} />
     </div>
   )
 }

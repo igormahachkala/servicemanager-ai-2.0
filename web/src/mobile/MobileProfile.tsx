@@ -1,6 +1,7 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { SupportQrModal } from '../components/SupportQrModal'
 import * as api from '../lib/api'
 
 function roleLabel(role?: string) {
@@ -20,11 +21,12 @@ function roleLabel(role?: string) {
 export function MobileProfile() {
   const location = useLocation()
   const queryClient = useQueryClient()
+  const [supportQrOpen, setSupportQrOpen] = useState(false)
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
   const linkedClientsQ = useQuery({
     queryKey: ['linked-clients'],
     queryFn: () => api.getLinkedClients(),
-    enabled: !!meQ.data,
+    enabled: !!meQ.data && meQ.data.role !== 'TECHNICIAN',
   })
 
   const linkedClientCompanyId = useMemo(() => {
@@ -32,12 +34,23 @@ export function MobileProfile() {
     return (params.get('linkedClientCompanyId') || api.getLinkedClientCompanyId(meQ.data)).trim()
   }, [location.search, meQ.data])
 
+  const techBoundLabelQ = useQuery({
+    queryKey: ['mobile-profile-technician-bound', linkedClientCompanyId, meQ.data?.id],
+    queryFn: () => api.getTechnicianBoundContexts(linkedClientCompanyId),
+    enabled: !!meQ.data && meQ.data.role === 'TECHNICIAN' && !!linkedClientCompanyId,
+  })
+
   const linkedClientName = useMemo(() => {
     if (!linkedClientCompanyId) return ''
+    if (meQ.data?.role === 'TECHNICIAN') {
+      const rows = techBoundLabelQ.data || []
+      const hit = rows.find((c) => (c.clientCompany?.id || '').trim() === linkedClientCompanyId)
+      return (hit?.clientCompany?.name || '').trim()
+    }
     const row = linkedClientsQ.data?.find((c) => c.clientCompany.id === linkedClientCompanyId)
     const name = row?.clientCompany.name?.trim()
     return name || ''
-  }, [linkedClientCompanyId, linkedClientsQ.data])
+  }, [linkedClientCompanyId, linkedClientsQ.data, meQ.data?.role, techBoundLabelQ.data])
 
   function logout() {
     const params = new URLSearchParams()
@@ -93,7 +106,7 @@ export function MobileProfile() {
               <div className="mobileMeta">Текущий клиент</div>
               <div>
                 <strong>
-                  {linkedClientsQ.isLoading
+                  {(meQ.data?.role === 'TECHNICIAN' ? techBoundLabelQ.isLoading : linkedClientsQ.isLoading)
                     ? 'Загрузка…'
                     : linkedClientName || '—'}
                 </strong>
@@ -101,11 +114,27 @@ export function MobileProfile() {
             </div>
           ) : null}
         </div>
+
+        <div
+          style={{
+            display: 'grid',
+            gap: 10,
+            marginTop: 12,
+            paddingTop: 12,
+            borderTop: '1px solid #e5e7eb',
+            width: '100%',
+          }}
+        >
+          <button type="button" className="mobileBtn mobileBtnSecondary" style={{ width: '100%' }} onClick={() => setSupportQrOpen(true)}>
+            Поддержка
+          </button>
+          <button type="button" className="mobileBtn mobileLogoutBelowCard" style={{ marginTop: 0 }} onClick={logout}>
+            Выйти
+          </button>
+        </div>
       </div>
 
-      <button type="button" className="mobileBtn mobileLogoutBelowCard" onClick={logout}>
-        Выйти
-      </button>
+      <SupportQrModal open={supportQrOpen} onClose={() => setSupportQrOpen(false)} />
     </div>
   )
 }

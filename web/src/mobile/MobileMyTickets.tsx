@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import {
@@ -27,6 +27,7 @@ function formatDate(value?: string | null) {
 
 export function MobileMyTickets() {
   const location = useLocation()
+  const navigate = useNavigate()
   const search = new URLSearchParams(location.search)
   const [filter, setFilter] = useState<FilterKey>('active')
 
@@ -40,6 +41,39 @@ export function MobileMyTickets() {
     companyId: companyId || undefined,
   }
 
+  const techNoLinked = meQ.data?.role === 'TECHNICIAN' && !linkedClientCompanyId
+  const techBoundDefaultsQ = useQuery({
+    queryKey: ['technician-bound-defaults-my', meQ.data?.id],
+    queryFn: () => api.getTechnicianBoundContexts(),
+    enabled: !!meQ.data && meQ.data.role === 'TECHNICIAN' && !linkedClientCompanyId,
+  })
+
+  useEffect(() => {
+    if (meQ.data?.role !== 'TECHNICIAN') return
+    if (linkedClientCompanyId) return
+    if (!techBoundDefaultsQ.isSuccess) return
+    const picked = api.pickFirstTechnicianBoundLinkedClientCompanyId(techBoundDefaultsQ.data || [])
+    if (!picked) return
+    api.persistScopeFromSearchParams(new URLSearchParams({ linkedClientCompanyId: picked }), meQ.data)
+    const nextPath = api.appendScopeToPath(
+      location.pathname || '/m/my',
+      { linkedClientCompanyId: picked, companyId: companyId || undefined },
+      meQ.data,
+    )
+    if (nextPath !== `${location.pathname}${location.search}`) {
+      navigate(nextPath, { replace: true })
+    }
+  }, [
+    meQ.data,
+    linkedClientCompanyId,
+    techBoundDefaultsQ.isSuccess,
+    techBoundDefaultsQ.data,
+    navigate,
+    companyId,
+    location.pathname,
+    location.search,
+  ])
+
   const boardQ = useQuery({
     queryKey: ['mobile-my-board', linkedClientCompanyId, companyId],
     queryFn: () =>
@@ -48,7 +82,8 @@ export function MobileMyTickets() {
         companyId: companyId || undefined,
         take: 60,
       }),
-    enabled: !!meQ.data,
+    enabled:
+      !!meQ.data && (meQ.data.role !== 'TECHNICIAN' || !!linkedClientCompanyId),
   })
 
   const allTickets = boardQ.data?.columns.flatMap((col) => col.cards || []) || []
@@ -76,12 +111,48 @@ export function MobileMyTickets() {
     )
   }
 
+  const techWillRedirectForScope =
+    techNoLinked &&
+    techBoundDefaultsQ.isSuccess &&
+    (techBoundDefaultsQ.data?.length ?? 0) > 0
+
+  const showMyTicketsList =
+    !techNoLinked ||
+    ((techBoundDefaultsQ.isFetched || techBoundDefaultsQ.isError) && !techWillRedirectForScope)
+
   return (
     <div className="mobileSection">
       <div>
         <h1 className="mobileTitle">Мои заявки</h1>
         <div className="mobileSubtitle">Личный список без таблиц и desktop-плотности</div>
       </div>
+
+      {meQ.data.role === 'TECHNICIAN' && !linkedClientCompanyId ? (
+        <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
+          {techBoundDefaultsQ.isPending ? <div className="mobileNotice">Определяем клиентский контур…</div> : null}
+          {techWillRedirectForScope ? <div className="mobileNotice">Подключаем клиентский контур…</div> : null}
+          {techBoundDefaultsQ.isError ? (
+            <div className="mobileNotice mobileNoticeError">
+              {(techBoundDefaultsQ.error as any)?.message || String(techBoundDefaultsQ.error)}
+            </div>
+          ) : null}
+          {!techBoundDefaultsQ.isPending &&
+          !techBoundDefaultsQ.isError &&
+          techBoundDefaultsQ.isSuccess &&
+          (techBoundDefaultsQ.data?.length ?? 0) === 0 ? (
+            <div
+              className="mobileNotice"
+              style={{
+                border: '1px solid #fcd34d',
+                background: '#fffbeb',
+                color: '#92400e',
+              }}
+            >
+              Не выбран клиентский контур
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       <div className="mobileActionRow">
         <button
@@ -106,7 +177,7 @@ export function MobileMyTickets() {
 
       {boardQ.isError ? <div className="mobileNotice mobileNoticeError">{String((boardQ.error as any)?.message || boardQ.error)}</div> : null}
 
-      {filteredTickets.length === 0 ? (
+      {!showMyTicketsList ? null : filteredTickets.length === 0 ? (
         <div className="mobileCard mobileMeta">Список пуст</div>
       ) : (
         filteredTickets.map((ticket) => (

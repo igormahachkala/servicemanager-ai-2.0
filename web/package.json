@@ -4,6 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "prebuild": "node scripts/gen-support-qr.mjs",
+    "predev": "node scripts/gen-support-qr.mjs",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",

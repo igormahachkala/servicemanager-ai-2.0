@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import {
@@ -121,6 +121,7 @@ function TicketCard(props: {
 
 export function MobileHome() {
   const location = useLocation()
+  const navigate = useNavigate()
   const search = new URLSearchParams(location.search)
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
   const isOnline = useOnlineStatus()
@@ -131,6 +132,40 @@ export function MobileHome() {
     companyId: companyId || undefined,
   }
   const queryClient = useQueryClient()
+
+  const techNoLinked = meQ.data?.role === 'TECHNICIAN' && !linkedClientCompanyId
+  const techBoundDefaultsQ = useQuery({
+    queryKey: ['technician-bound-defaults', meQ.data?.id],
+    queryFn: () => api.getTechnicianBoundContexts(),
+    enabled: !!meQ.data && meQ.data.role === 'TECHNICIAN' && !linkedClientCompanyId,
+  })
+
+  useEffect(() => {
+    if (meQ.data?.role !== 'TECHNICIAN') return
+    if (linkedClientCompanyId) return
+    if (!techBoundDefaultsQ.isSuccess) return
+    const picked = api.pickFirstTechnicianBoundLinkedClientCompanyId(techBoundDefaultsQ.data || [])
+    if (!picked) return
+    api.persistScopeFromSearchParams(new URLSearchParams({ linkedClientCompanyId: picked }), meQ.data)
+    const nextPath = api.appendScopeToPath(
+      location.pathname || '/m',
+      { linkedClientCompanyId: picked, companyId: companyId || undefined },
+      meQ.data,
+    )
+    if (nextPath !== `${location.pathname}${location.search}`) {
+      navigate(nextPath, { replace: true })
+    }
+  }, [
+    meQ.data,
+    linkedClientCompanyId,
+    techBoundDefaultsQ.isSuccess,
+    techBoundDefaultsQ.data,
+    navigate,
+    companyId,
+    location.pathname,
+    location.search,
+  ])
+
   const boardQ = useQuery({
     queryKey: ['mobile-home-board', linkedClientCompanyId, companyId],
     queryFn: async () => {
@@ -147,7 +182,9 @@ export function MobileHome() {
       saveBoardCache(pageScope, data)
       return data
     },
-    enabled: !isOnline || !!meQ.data,
+    enabled:
+      (!isOnline || !!meQ.data) &&
+      (!meQ.data || meQ.data.role !== 'TECHNICIAN' || !!linkedClientCompanyId),
   })
 
   const linkedClientsQ = useQuery({
@@ -206,14 +243,22 @@ export function MobileHome() {
     return (api.getCompanyLabel(meQ.data) || '').trim() || (!isOnline ? 'Профиль недоступен (офлайн)' : '—')
   }, [meQ.data, isOnline])
 
+  const techBoundLabelQ = useQuery({
+    queryKey: ['mobile-home-technician-bound-label', linkedClientCompanyId, meQ.data?.id],
+    queryFn: () => api.getTechnicianBoundContexts(linkedClientCompanyId),
+    enabled: !!linkedClientCompanyId && meQ.data?.role === 'TECHNICIAN',
+  })
+
   const linkedClientDisplayName = useMemo(() => {
     if (!linkedClientCompanyId) return ''
     if (meQ.data?.role === 'TECHNICIAN') {
-      return ''
+      const rows = techBoundLabelQ.data || []
+      const hit = rows.find((x) => (x.clientCompany?.id || '').trim() === linkedClientCompanyId)
+      return (hit?.clientCompany?.name || '').trim()
     }
     const row = linkedClientsQ.data?.find((x) => x.clientCompany.id === linkedClientCompanyId)
     return (row?.clientCompany?.name || '').trim()
-  }, [linkedClientCompanyId, linkedClientsQ.data, meQ.data?.role])
+  }, [linkedClientCompanyId, linkedClientsQ.data, meQ.data?.role, techBoundLabelQ.data])
 
   const closeCameraInputRef = useRef<HTMLInputElement | null>(null)
   const closeGalleryInputRef = useRef<HTMLInputElement | null>(null)
@@ -338,6 +383,20 @@ export function MobileHome() {
     return !!closeModal.file && closeModal.comment.trim().length >= 3 && !closeBusy
   }, [closeBusy, closeModal])
 
+  const techWillRedirectForScope =
+    techNoLinked &&
+    techBoundDefaultsQ.isSuccess &&
+    (techBoundDefaultsQ.data?.length ?? 0) > 0
+
+  const technicianScopeGateReady =
+    !techNoLinked || techBoundDefaultsQ.isFetched || techBoundDefaultsQ.isError
+
+  const showMobileHomeTicketBoard =
+    technicianScopeGateReady &&
+    !techWillRedirectForScope &&
+    !boardQ.isError &&
+    (meQ.data || (!!boardQ.data && !isOnline))
+
   return (
     <div className="mobileSection">
       <div>
@@ -372,20 +431,33 @@ export function MobileHome() {
       {boardQ.isError ? <div className="mobileNotice mobileNoticeError">{String((boardQ.error as any)?.message || boardQ.error)}</div> : null}
 
       {meQ.data?.role === 'TECHNICIAN' && !linkedClientCompanyId ? (
-        <div
-          className="mobileNotice"
-          style={{
-            marginTop: 10,
-            border: '1px solid #fcd34d',
-            background: '#fffbeb',
-            color: '#92400e',
-          }}
-        >
-          Не выбран клиентский контур
+        <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
+          {techBoundDefaultsQ.isPending ? <div className="mobileNotice">Определяем клиентский контур…</div> : null}
+          {techWillRedirectForScope ? <div className="mobileNotice">Подключаем клиентский контур…</div> : null}
+          {techBoundDefaultsQ.isError ? (
+            <div className="mobileNotice mobileNoticeError">
+              {(techBoundDefaultsQ.error as any)?.message || String(techBoundDefaultsQ.error)}
+            </div>
+          ) : null}
+          {!techBoundDefaultsQ.isPending &&
+          !techBoundDefaultsQ.isError &&
+          techBoundDefaultsQ.isSuccess &&
+          (techBoundDefaultsQ.data?.length ?? 0) === 0 ? (
+            <div
+              className="mobileNotice"
+              style={{
+                border: '1px solid #fcd34d',
+                background: '#fffbeb',
+                color: '#92400e',
+              }}
+            >
+              Не выбран клиентский контур
+            </div>
+          ) : null}
         </div>
       ) : null}
 
-      {(meQ.data || (!!boardQ.data && !isOnline)) && !boardQ.isError ? (
+      {showMobileHomeTicketBoard ? (
         <>
           <div className="mobileFilterTabs" role="tablist" aria-label="Фильтр заявок">
             {MOBILE_HOME_TABS.map((tab) => (
