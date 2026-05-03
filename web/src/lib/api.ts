@@ -51,6 +51,76 @@ export type NotificationsListResponse = {
   unreadCount: number
 }
 
+/** Типы in-app уведомлений (расширяем по мере появления на бэкенде). */
+export type InAppNotificationType =
+  | 'ticket.created'
+  | 'ticket.assigned'
+  | 'ticket.claimed'
+  | 'ticket.status_changed'
+  | 'sla.warning'
+  | 'sla.overdue'
+  | 'urgent.created'
+  | (string & {})
+
+const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
+  'ticket.created': 'Новая заявка',
+  'ticket.assigned': 'Назначение',
+  'ticket.claimed': 'Взята в работу',
+  'ticket.status_changed': 'Статус',
+  'sla.warning': 'SLA скоро истечёт',
+  'sla.overdue': 'SLA просрочен',
+  'urgent.created': 'Срочная заявка',
+}
+
+/** Короткая метка типа для чипа в UI (fallback — сам type). */
+export function getNotificationTypeLabel(type: string): string {
+  const t = (type || '').trim()
+  if (!t) return 'Уведомление'
+  return NOTIFICATION_TYPE_LABELS[t] || t
+}
+
+/**
+ * CSS-модификатор для `mobileNotifType--*`: ticketCreated | ticketAssigned | … | other
+ */
+export function getNotificationTypeTone(type: string): string {
+  const map: Record<string, string> = {
+    'ticket.created': 'ticketCreated',
+    'ticket.assigned': 'ticketAssigned',
+    'ticket.claimed': 'ticketClaimed',
+    'ticket.status_changed': 'statusChanged',
+    'sla.warning': 'slaWarning',
+    'sla.overdue': 'slaOverdue',
+    'urgent.created': 'urgentCreated',
+  }
+  return map[(type || '').trim()] || 'other'
+}
+
+/** Дата/время уведомления: «Сегодня, 14:05» / «Вчера, …» / полная дата. */
+export function formatNotificationDateTime(iso: string): string {
+  try {
+    const d = new Date(iso)
+    if (Number.isNaN(d.getTime())) return ''
+    const now = new Date()
+    const sod = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime()
+    const diffDays = Math.round((sod(now) - sod(d)) / 86400000)
+    const timeStr = d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+    if (diffDays === 0) return `Сегодня, ${timeStr}`
+    if (diffDays === 1) return `Вчера, ${timeStr}`
+    if (d.getFullYear() !== now.getFullYear()) {
+      return d.toLocaleString('ru-RU', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    }
+    return d.toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+  } catch {
+    return ''
+  }
+}
+
 export type LoginInput = {
   email: string
   password: string
@@ -483,6 +553,8 @@ export type BoardResponse = {
 
 export type TicketGetOne = {
   id: string
+  /** Tenant заявки (у linked-client заявки — id клиента). Нужен для согласования scope мутаций. */
+  companyId?: string | null
   ticketNumber?: number | null
   title?: string
   description?: string
@@ -1127,12 +1199,13 @@ export function allowMobileHomeFieldTicketActions(role?: Role | string | null): 
 
 /** Основное действие техника на карточке заявки (мобильная деталка). */
 export function mobileTechnicianTicketPrimaryAction(
-  ticket: Pick<TicketGetOne, 'status' | 'assignedTechnicianId'>,
+  ticket: Pick<TicketGetOne, 'status' | 'assignedTechnicianId' | 'assignedTechnician'>,
   meUserId: string | undefined,
 ): 'claim' | 'start' | null {
   if (!meUserId) return null
-  if (ticket.status === 'NEW' && !ticket.assignedTechnicianId) return 'claim'
-  if (ticket.status === 'ASSIGNED' && ticket.assignedTechnicianId === meUserId) return 'start'
+  const assigneeId = (ticket.assignedTechnicianId || ticket.assignedTechnician?.id || '').trim() || null
+  if (ticket.status === 'NEW' && !assigneeId) return 'claim'
+  if (ticket.status === 'ASSIGNED' && assigneeId === meUserId) return 'start'
   return null
 }
 

@@ -41,7 +41,13 @@ function isReportTicketImage(a: api.TicketAttachmentItem) {
   return a.purpose === 'WORK_REPORT'
 }
 
-function MobileTicketAttachmentThumb({ attachment }: { attachment: api.TicketAttachmentItem }) {
+function MobileTicketAttachmentThumb({
+  attachment,
+  onOpenPreview,
+}: {
+  attachment: api.TicketAttachmentItem
+  onOpenPreview: (payload: { src: string; alt: string }) => void
+}) {
   const [broken, setBroken] = useState(false)
   const resolved = api.resolveTicketAttachmentUrl(attachment)
   const label = ticketAttachmentLabel(attachment)
@@ -56,7 +62,12 @@ function MobileTicketAttachmentThumb({ attachment }: { attachment: api.TicketAtt
   }
 
   return (
-    <a href={resolved} target="_blank" rel="noreferrer" className="mobilePhotoThumbLink">
+    <button
+      type="button"
+      className="mobilePhotoThumbLink mobilePhotoThumbOpen"
+      aria-label={`Открыть фото: ${label}`}
+      onClick={() => onOpenPreview({ src: resolved, alt: label })}
+    >
       <img
         src={resolved}
         alt={label}
@@ -64,7 +75,7 @@ function MobileTicketAttachmentThumb({ attachment }: { attachment: api.TicketAtt
         loading="lazy"
         onError={() => setBroken(true)}
       />
-    </a>
+    </button>
   )
 }
 
@@ -203,10 +214,11 @@ export function MobileTicketPage() {
 
   const inferredLinkedClientCompanyId = useMemo(() => {
     if (linkedClientCompanyId) return linkedClientCompanyId
-    if (observerCompanyId) return ''
-    if (ticketQ.data?.meta?.visibilityMode !== 'provider_primary') return ''
-    return ticketQ.data?.meta?.scopeCompanyId || ''
-  }, [linkedClientCompanyId, observerCompanyId, ticketQ.data?.meta?.visibilityMode, ticketQ.data?.meta?.scopeCompanyId])
+    if (ticketQ.data?.meta?.visibilityMode === 'provider_primary') {
+      return (ticketQ.data.meta.scopeCompanyId || '').trim()
+    }
+    return ''
+  }, [linkedClientCompanyId, ticketQ.data?.meta?.visibilityMode, ticketQ.data?.meta?.scopeCompanyId])
 
   const effectiveTicketScope = useMemo<api.TicketScopeParams>(
     () => ({
@@ -215,6 +227,26 @@ export function MobileTicketPage() {
     }),
     [observerCompanyId, inferredLinkedClientCompanyId],
   )
+
+  /**
+   * Claim / status / assign на linked-client заявке: query `linkedClientCompanyId` должен совпадать
+   * с tenant заявки (`ticket.companyId`). Иначе бэкенд сужает operational scope до «чужого» клиента и claim даёт 404.
+   */
+  const ticketMutationScope = useMemo<api.TicketScopeParams>(() => {
+    const base: api.TicketScopeParams = {
+      companyId: observerCompanyId || undefined,
+      linkedClientCompanyId: inferredLinkedClientCompanyId || undefined,
+    }
+    const t = ticketQ.data
+    if (!t || meQ.data?.role !== 'TECHNICIAN') return base
+    const meCo = (meQ.data.companyId || '').trim()
+    const tCo = (t.companyId || '').trim()
+    if (!meCo || !tCo || tCo === meCo) return base
+    return {
+      ...base,
+      linkedClientCompanyId: tCo,
+    }
+  }, [observerCompanyId, inferredLinkedClientCompanyId, ticketQ.data, meQ.data?.role, meQ.data?.companyId])
 
   const attachmentsQ = useQuery({
     enabled: !!ticketId && !!ticketQ.data,
@@ -271,14 +303,28 @@ export function MobileTicketPage() {
   const ticket = ticketQ.data
   const canAssignProvider = api.isProviderTicketAssignRole(meQ.data?.role)
   const techPrimary = ticket && meQ.data?.id ? api.mobileTechnicianTicketPrimaryAction(ticket, meQ.data.id) : null
+  const canShowTechClaim =
+    meQ.data?.role === 'TECHNICIAN' &&
+    !!ticket &&
+    ticket.status === 'NEW' &&
+    (techPrimary === 'claim' || ticket.meta?.canClaimByCurrentUser === true)
+  const canShowTechStart = meQ.data?.role === 'TECHNICIAN' && techPrimary === 'start'
 
   const [assignTicketOpen, setAssignTicketOpen] = useState(false)
   const [assignTechId, setAssignTechId] = useState('')
   const [assignErr, setAssignErr] = useState('')
+  const [techActionErr, setTechActionErr] = useState('')
+  const [photoPreview, setPhotoPreview] = useState<{ src: string; alt: string } | null>(null)
 
   const assignCandidatesQ = useQuery({
-    queryKey: ['mobile-ticket-assign-candidates', ticketId, observerCompanyId, inferredLinkedClientCompanyId],
-    queryFn: () => api.assignmentCandidates(ticketId, effectiveTicketScope),
+    queryKey: [
+      'mobile-ticket-assign-candidates',
+      ticketId,
+      observerCompanyId,
+      ticketMutationScope.linkedClientCompanyId,
+      ticketMutationScope.companyId,
+    ],
+    queryFn: () => api.assignmentCandidates(ticketId, ticketMutationScope),
     enabled: !!ticketId && !!ticket && assignTicketOpen && canAssignProvider,
   })
 
@@ -306,6 +352,20 @@ export function MobileTicketPage() {
     })
   }, [assignTechOptions])
 
+  useEffect(() => {
+    if (!photoPreview) return
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPhotoPreview(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => {
+      document.body.style.overflow = prevOverflow
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [photoPreview])
+
   const invalidateTicketQueries = async () => {
     await queryClient.invalidateQueries({ queryKey: ['mobile-ticket-detail'] })
     await queryClient.invalidateQueries({ queryKey: ['mobile-ticket-attachments'] })
@@ -319,18 +379,33 @@ export function MobileTicketPage() {
   const techActionM = useMutation({
     mutationFn: async (mode: 'claim' | 'start') => {
       if (!ticket) throw new Error('Нет заявки')
-      if (mode === 'claim') await api.claim(ticket.id, effectiveTicketScope)
-      else await api.updateTicketStatus(ticket.id, { status: 'IN_PROGRESS' }, effectiveTicketScope)
+      if (mode === 'claim') await api.claimTicket(ticket.id, ticketMutationScope)
+      else await api.updateTicketStatus(ticket.id, { status: 'IN_PROGRESS' }, ticketMutationScope)
     },
+    onMutate: () => setTechActionErr(''),
     onSuccess: async () => {
       await invalidateTicketQueries()
+      await queryClient.refetchQueries({ queryKey: ['mobile-ticket-detail', ticketId] })
+    },
+    onError: (e: unknown) => {
+      const msg =
+        e instanceof Error
+          ? e.message
+          : typeof e === 'object' && e !== null && 'message' in e
+            ? String((e as { message?: unknown }).message)
+            : String(e)
+      const hint =
+        ticket?.meta?.claimAvailabilityReason && ticket.meta.claimAvailabilityReason.trim().length > 0
+          ? ticket.meta.claimAvailabilityReason.trim()
+          : ''
+      setTechActionErr(hint && !msg.includes(hint) ? `${msg}. ${hint}` : msg)
     },
   })
 
   const assignM = useMutation({
     mutationFn: async (params: { technicianId: string }) => {
       if (!ticketId) throw new Error('Нет заявки')
-      await api.assignTicket(ticketId, params.technicianId, effectiveTicketScope)
+      await api.assignTicket(ticketId, params.technicianId, ticketMutationScope)
     },
     onMutate: () => setAssignErr(''),
     onSuccess: async () => {
@@ -347,7 +422,7 @@ export function MobileTicketPage() {
   const backPath = listOrigin === 'my' ? '/m/my' : '/m'
   const backHref = api.appendScopeToPath(backPath, scopeNorm, meQ.data)
 
-  const ticketCompanyId = (ticket as { companyId?: string } | undefined)?.companyId?.trim() || ''
+  const ticketCompanyId = (ticket?.companyId || '').trim()
 
   const childHref = (childId: string) =>
     api.appendScopeToPath(`/m/tickets/${childId}`, scopeNorm, meQ.data)
@@ -380,11 +455,15 @@ export function MobileTicketPage() {
     !ticket.assignedTechnicianId &&
     !ticket.assignedTechnician
 
+  const assigneeIdForMe =
+    ticket && meQ.data?.id
+      ? (ticket.assignedTechnicianId || ticket.assignedTechnician?.id || '').trim()
+      : ''
   const showTechnicianInProgressHint =
     !!ticket &&
     meQ.data?.role === 'TECHNICIAN' &&
     ticket.status === 'IN_PROGRESS' &&
-    ticket.assignedTechnicianId === meQ.data?.id
+    assigneeIdForMe === meQ.data.id
 
   const techActionBusy = techActionM.isPending
   const assignBusy = assignM.isPending
@@ -437,6 +516,14 @@ export function MobileTicketPage() {
               <span className="mobileMeta">Статус</span>
               <span className={`mobileTicketStatus mobileTicketStatus--${ticket.status}`}>{mobileTicketStatusLabelRu(ticket.status)}</span>
             </div>
+            {meQ.data?.role === 'TECHNICIAN' &&
+            ticket.status === 'NEW' &&
+            !canShowTechClaim &&
+            (ticket.meta?.claimAvailabilityReason || '').trim().length > 0 ? (
+              <div className="mobileNotice mobileNoticeError" style={{ marginTop: 8 }}>
+                {(ticket.meta?.claimAvailabilityReason || '').trim()}
+              </div>
+            ) : null}
             <div style={{ marginTop: 10 }}>
               <div className="mobileMeta" style={{ marginBottom: 4 }}>
                 SLA
@@ -492,12 +579,12 @@ export function MobileTicketPage() {
             </div>
           </div>
 
-          {(techPrimary || showAssignButton || showTechnicianInProgressHint) && (
+          {(canShowTechClaim || canShowTechStart || showAssignButton || showTechnicianInProgressHint) && (
             <div className="mobileCard" style={{ marginTop: 8 }}>
               <div className="mobileSectionTitle" style={{ marginBottom: 8 }}>
                 Действия
               </div>
-              {meQ.data?.role === 'TECHNICIAN' && techPrimary === 'claim' ? (
+              {canShowTechClaim ? (
                 <button
                   type="button"
                   className="mobileBtn mobileBtn--claim"
@@ -508,7 +595,7 @@ export function MobileTicketPage() {
                   {techActionBusy ? 'Выполняем…' : 'Взять заявку'}
                 </button>
               ) : null}
-              {meQ.data?.role === 'TECHNICIAN' && techPrimary === 'start' ? (
+              {canShowTechStart ? (
                 <button
                   type="button"
                   className="mobileBtn mobileBtn--start"
@@ -518,6 +605,11 @@ export function MobileTicketPage() {
                 >
                   {techActionBusy ? 'Выполняем…' : 'Начать работу'}
                 </button>
+              ) : null}
+              {techActionErr ? (
+                <div className="mobileNotice mobileNoticeError" style={{ marginTop: 10 }}>
+                  {techActionErr}
+                </div>
               ) : null}
               {showTechnicianInProgressHint ? (
                 <div className="mobileMeta" style={{ marginTop: 8 }}>
@@ -555,7 +647,7 @@ export function MobileTicketPage() {
                 ) : (
                   <div className="mobilePhotoGrid">
                     {requestImages.map((a) => (
-                      <MobileTicketAttachmentThumb key={a.id} attachment={a} />
+                      <MobileTicketAttachmentThumb key={a.id} attachment={a} onOpenPreview={setPhotoPreview} />
                     ))}
                   </div>
                 )}
@@ -567,7 +659,7 @@ export function MobileTicketPage() {
                 ) : (
                   <div className="mobilePhotoGrid">
                     {reportImages.map((a) => (
-                      <MobileTicketAttachmentThumb key={a.id} attachment={a} />
+                      <MobileTicketAttachmentThumb key={a.id} attachment={a} onOpenPreview={setPhotoPreview} />
                     ))}
                   </div>
                 )}
@@ -671,6 +763,27 @@ export function MobileTicketPage() {
             </div>
           ) : null}
         </>
+      ) : null}
+
+      {photoPreview ? (
+        <div
+          className="mobileImageLightbox"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Просмотр фото"
+          onClick={() => setPhotoPreview(null)}
+        >
+          <div className="mobileImageLightboxPanel" onClick={(e) => e.stopPropagation()}>
+            <div className="mobileImageLightboxToolbar">
+              <button type="button" className="mobileImageLightboxClose" onClick={() => setPhotoPreview(null)}>
+                Закрыть
+              </button>
+            </div>
+            <div className="mobileImageLightboxFrame">
+              <img src={photoPreview.src} alt={photoPreview.alt} className="mobileImageLightboxImg" />
+            </div>
+          </div>
+        </div>
       ) : null}
 
       {assignTicketOpen && ticket ? (
