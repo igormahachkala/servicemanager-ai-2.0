@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import * as api from '../lib/api'
 
 import smaLogo from '../assets/sma-tech.png'
+import '../mobile/mobile.css'
 
 type LoginPageProps = {
   onLoggedIn?: (token: string) => void
@@ -72,9 +73,9 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
   }
 
   return (
-    <div className="page">
-      <div className="card" style={{ maxWidth: 520, margin: '40px auto' }}>
-        <div style={{ textAlign: 'center', marginBottom: 20 }}>
+    <div className="page loginPageRoot">
+      <div className="card loginPageCard">
+        <div className="loginPageHeader">
           <h1 style={{ marginBottom: 6 }}>ServiceManager.AI</h1>
           <div className="muted">Service Operations Platform</div>
         </div>

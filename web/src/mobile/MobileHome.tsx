@@ -1,11 +1,8 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 
-function ticketLabel(card: Pick<api.TicketCard, 'ticketNumber' | 'id'>) {
-  return typeof card.ticketNumber === 'number' ? `Заявка #${card.ticketNumber}` : card.id
-}
 function ticketSubtitle(card: api.TicketCard) {
   return card.location?.name || card.pointName || 'Без локации'
 }
@@ -35,11 +32,11 @@ function TicketCard(props: {
       <Link to={ticketHref} className="mobileCardClickable" style={{ borderRadius: 0 }}>
         <div style={{ padding: 12 }}>
           <div className="mobileRow">
-            <strong>{ticketLabel(ticket)}</strong>
+            <strong>{ticketCategory(ticket)}</strong>
             <span className="mobileMeta">{ticket.status}</span>
           </div>
           <div className="mobileMeta" style={{ marginTop: 4 }}>
-            {ticketCategory(ticket)} · {ticketSubtitle(ticket)}
+            {ticketSubtitle(ticket)}
           </div>
         </div>
       </Link>
@@ -104,9 +101,18 @@ export function MobileHome() {
     ticketId: string
     title: string
     file: File | null
+    previewUrl: string
     comment: string
     err: string
   } | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (closeModal?.previewUrl) {
+        URL.revokeObjectURL(closeModal.previewUrl)
+      }
+    }
+  }, [closeModal?.previewUrl])
 
   const actionM = useMutation({
     mutationFn: async (ticket: api.TicketCard) => {
@@ -124,8 +130,9 @@ export function MobileHome() {
         }
         setCloseModal({
           ticketId: ticket.id,
-          title: `${ticketSubtitle(ticket)} · ${ticketCategory(ticket)} · {ticketSubtitle(ticket)}`,
+          title: `${ticketCategory(ticket)} · ${ticketSubtitle(ticket)}`,
           file: null,
+          previewUrl: '',
           comment: '',
           err: '',
         })
@@ -153,6 +160,9 @@ export function MobileHome() {
       await api.updateTicketStatus(closeModal.ticketId, { status: 'DONE' }, scope)
     },
     onSuccess: async () => {
+      if (closeModal?.previewUrl) {
+        URL.revokeObjectURL(closeModal.previewUrl)
+      }
       setCloseModal(null)
       if (closeCameraInputRef.current) closeCameraInputRef.current.value = ''
       if (closeGalleryInputRef.current) closeGalleryInputRef.current.value = ''
@@ -162,8 +172,7 @@ export function MobileHome() {
       await queryClient.invalidateQueries({ queryKey: ['board'] })
     },
     onError: (e: any) => {
-      if (!closeModal) return
-      setCloseModal({ ...closeModal, err: e?.message || String(e) })
+      setCloseModal((prev) => (prev ? { ...prev, err: e?.message || String(e) } : prev))
     },
   })
 
@@ -171,7 +180,7 @@ export function MobileHome() {
 
   const primaryPending = actionM.isPending || closeBusy
 
-  const ticketHref = (ticketId: string) => api.appendScopeToPath(`/tickets/${ticketId}`, scope, meQ.data)
+  const ticketHref = (ticketId: string) => api.appendScopeToPath(`/m/tickets/${ticketId}`, scope, meQ.data)
 
   const closeCanSubmit = useMemo(() => {
     if (!closeModal) return false
@@ -288,6 +297,9 @@ export function MobileHome() {
                 className="mobileBtn mobileBtnSecondary"
                 disabled={closeBusy}
                 onClick={() => {
+                  if (closeModal?.previewUrl) {
+                    URL.revokeObjectURL(closeModal.previewUrl)
+                  }
                   setCloseModal(null)
                   if (closeCameraInputRef.current) closeCameraInputRef.current.value = ''
                   if (closeGalleryInputRef.current) closeGalleryInputRef.current.value = ''
@@ -313,7 +325,12 @@ export function MobileHome() {
                   disabled={closeBusy}
                   onChange={(e) => {
                     const file = e.target.files?.[0] || null
-                    setCloseModal((prev) => (prev ? { ...prev, file, err: '' } : prev))
+                    setCloseModal((prev) => {
+                      if (!prev) return prev
+                      if (prev.previewUrl) URL.revokeObjectURL(prev.previewUrl)
+                      const previewUrl = file ? URL.createObjectURL(file) : ''
+                      return { ...prev, file, previewUrl, err: '' }
+                    })
                   }}
                 />
                 <input
@@ -324,7 +341,12 @@ export function MobileHome() {
                   disabled={closeBusy}
                   onChange={(e) => {
                     const file = e.target.files?.[0] || null
-                    setCloseModal((prev) => (prev ? { ...prev, file, err: '' } : prev))
+                    setCloseModal((prev) => {
+                      if (!prev) return prev
+                      if (prev.previewUrl) URL.revokeObjectURL(prev.previewUrl)
+                      const previewUrl = file ? URL.createObjectURL(file) : ''
+                      return { ...prev, file, previewUrl, err: '' }
+                    })
                   }}
                 />
 
@@ -347,7 +369,16 @@ export function MobileHome() {
                   </button>
                 </div>
 
-                {closeModal.file ? <div className="mobileMeta" style={{ marginTop: 10 }}>Выбрано: {closeModal.file.name}</div> : null}
+                {closeModal.previewUrl ? (
+                  <div className="mobilePhotoPreview">
+                    <img
+                      src={closeModal.previewUrl}
+                      alt={closeModal.file?.name || 'preview'}
+                      style={{ width: '100%', maxHeight: 240, objectFit: 'cover', borderRadius: 12, border: '1px solid #e5e7eb' }}
+                    />
+                  </div>
+                ) : null}
+                {closeModal.file ? <div className="mobileMeta" style={{ marginTop: 10 }}>Файл: {closeModal.file.name}</div> : null}
               </div>
 
               <label className="mobileFormFieldAfterPhoto">

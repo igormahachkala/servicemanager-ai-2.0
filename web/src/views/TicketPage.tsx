@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
-import { useParams, useSearchParams } from 'react-router-dom'
+import { useLocation, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { TicketAttachments } from './ticket-page/TicketAttachments'
@@ -172,6 +172,8 @@ function InlineError({ message }: { message?: string | null }) {
 export function TicketPage() {
   const { id } = useParams()
   const ticketId = id || ''
+  const location = useLocation()
+  const isMobileShellRoute = location.pathname.startsWith('/m/')
   const [searchParams] = useSearchParams()
   const qc = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -190,11 +192,6 @@ export function TicketPage() {
   )
 
   const contextMode = observerCompanyId ? 'observer' : effectiveLinkedClientCompanyId ? 'provider' : 'tenant'
-  const backToBoardHref = observerCompanyId
-    ? `/board?companyId=${observerCompanyId}`
-    : effectiveLinkedClientCompanyId
-      ? `/board?linkedClientCompanyId=${effectiveLinkedClientCompanyId}`
-      : '/board'
 
   const [editOpen, setEditOpen] = useState(false)
   const [selectedTechnicianId, setSelectedTechnicianId] = useState('')
@@ -228,6 +225,23 @@ export function TicketPage() {
   const [childCreateError, setChildCreateError] = useState<string | null>(null)
 
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
+
+  const backToBoardHref = useMemo(() => {
+    if (isMobileShellRoute) {
+      return api.appendScopeToPath(
+        '/m',
+        {
+          companyId: observerCompanyId || undefined,
+          linkedClientCompanyId: effectiveLinkedClientCompanyId || undefined,
+        },
+        meQ.data,
+      )
+    }
+    if (observerCompanyId) return `/board?companyId=${observerCompanyId}`
+    if (effectiveLinkedClientCompanyId) return `/board?linkedClientCompanyId=${effectiveLinkedClientCompanyId}`
+    return '/board'
+  }, [isMobileShellRoute, observerCompanyId, effectiveLinkedClientCompanyId, meQ.data])
+
   useEffect(() => {
     api.persistScopeFromSearchParams(searchParams, meQ.data)
   }, [searchParams, meQ.data])
@@ -714,9 +728,15 @@ export function TicketPage() {
   }
 
   function buildTicketHref(targetTicketId: string) {
-    if (observerCompanyId) return `/tickets/${targetTicketId}?companyId=${observerCompanyId}`
-    if (inferredLinkedClientCompanyId) return `/tickets/${targetTicketId}?linkedClientCompanyId=${inferredLinkedClientCompanyId}`
-    return `/tickets/${targetTicketId}`
+    const base = isMobileShellRoute ? `/m/tickets/${targetTicketId}` : `/tickets/${targetTicketId}`
+    return api.appendScopeToPath(
+      base,
+      {
+        companyId: observerCompanyId || undefined,
+        linkedClientCompanyId: inferredLinkedClientCompanyId || undefined,
+      },
+      meQ.data,
+    )
   }
 
   return (

@@ -1,4 +1,4 @@
-import React from 'react'
+﻿import React from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import * as api from './lib/api'
 import { Shell } from './ui/Shell'
@@ -30,7 +30,6 @@ import { MobileHome } from './mobile/MobileHome'
 import { MobileCreateTicket } from './mobile/MobileCreateTicket'
 import { MobileMyTickets } from './mobile/MobileMyTickets'
 import { MobileProfile } from './mobile/MobileProfile'
-import { MobileTicketDetails } from './mobile/MobileTicketDetails'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const token = api.getToken()
@@ -61,8 +60,8 @@ export function AppRoutes() {
         <Route index element={<MobileHome />} />
         <Route path="create" element={<MobileCreateTicket />} />
         <Route path="my" element={<MobileMyTickets />} />
-        <Route path="tickets/:id" element={<MobileTicketDetails />} />
         <Route path="profile" element={<MobileProfile />} />
+        <Route path="tickets/:id" element={<TicketPage />} />
       </Route>
 
       <Route

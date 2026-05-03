@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 
@@ -19,7 +19,6 @@ function roleLabel(role?: string) {
 
 export function MobileProfile() {
   const location = useLocation()
-  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
 
@@ -29,9 +28,6 @@ export function MobileProfile() {
   }, [location.search])
 
   function logout() {
-    api.clearToken()
-    queryClient.clear()
-
     const params = new URLSearchParams()
     params.set('next', '/m')
     params.set('mode', 'mobile')
@@ -41,19 +37,21 @@ export function MobileProfile() {
     if (observer) params.set('companyId', observer)
 
     const suffix = params.toString()
-    navigate(`/login?${suffix}`, { replace: true })
+    const target = suffix ? `/login?${suffix}` : '/login'
+
+    api.clearToken()
+    queryClient.clear()
+
+    if (typeof window !== 'undefined') {
+      window.location.assign(target)
+    }
   }
 
   return (
     <div className="mobileSection">
-      <div className="mobileProfileHeader">
-        <div>
-          <h1 className="mobileTitle">Профиль</h1>
-          <div className="mobileSubtitle">Ключевая информация и быстрый выход</div>
-        </div>
-        <button type="button" className="mobileBtn mobileLogoutTop" onClick={logout}>
-          Выйти
-        </button>
+      <div>
+        <h1 className="mobileTitle">Профиль</h1>
+        <div className="mobileSubtitle">Ключевая информация и выход из аккаунта</div>
       </div>
 
       {meQ.isError ? <div className="mobileNotice mobileNoticeError">{String((meQ.error as any)?.message || meQ.error)}</div> : null}
@@ -86,6 +84,10 @@ export function MobileProfile() {
           ) : null}
         </div>
       </div>
+
+      <button type="button" className="mobileBtn mobileLogoutBelowCard" onClick={logout}>
+        Выйти
+      </button>
     </div>
   )
 }
