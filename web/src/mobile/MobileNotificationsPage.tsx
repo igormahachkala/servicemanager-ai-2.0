@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 
@@ -27,6 +27,8 @@ export function MobileNotificationsPage() {
     }
   }, [location.search, meQ.data])
 
+  const backHref = useMemo(() => api.appendScopeToPath('/m', scope, meQ.data), [scope, meQ.data])
+
   const listQ = useQuery({
     queryKey: ['mobile-notifications'],
     queryFn: api.fetchNotifications,
@@ -48,7 +50,12 @@ export function MobileNotificationsPage() {
   const items = listQ.data?.items ?? []
 
   return (
-    <div>
+    <div className="mobileSection">
+      <div className="mobileTicketDetailsToolbar">
+        <Link to={backHref} className="mobileDetailsBackLink">
+          Назад
+        </Link>
+      </div>
       <div className="mobileNotificationsHeader">
         <h1 className="mobileTitle">Уведомления</h1>
         <button
