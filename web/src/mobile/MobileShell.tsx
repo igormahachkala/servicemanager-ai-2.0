@@ -26,13 +26,15 @@ export function MobileShell() {
   const location = useLocation()
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
 
-  const scope = useMemo(
-    () => ({
-      linkedClientCompanyId: new URLSearchParams(location.search).get('linkedClientCompanyId') || undefined,
-      companyId: new URLSearchParams(location.search).get('companyId') || undefined,
-    }),
-    [location.search],
-  )
+  const scope = useMemo(() => {
+    const params = new URLSearchParams(location.search)
+    const linked = (params.get('linkedClientCompanyId') || api.getLinkedClientCompanyId(meQ.data)).trim()
+    const company = (params.get('companyId') || api.getObserverCompanyId(meQ.data)).trim()
+    return {
+      linkedClientCompanyId: linked || undefined,
+      companyId: company || undefined,
+    }
+  }, [location.search, meQ.data])
 
   useEffect(() => {
     if (!meQ.data) return

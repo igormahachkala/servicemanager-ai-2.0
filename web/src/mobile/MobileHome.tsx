@@ -2,14 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
-
-function ticketSubtitle(card: api.TicketCard) {
-  return card.location?.name || card.pointName || 'Без локации'
-}
-
-function ticketCategory(card: api.TicketCard) {
-  return card.category?.name || card.title || 'Без категории'
-}
+import {
+  mobileTicketCategoryLocationFromCard,
+  mobileTicketNavState,
+  mobileTicketNumberTitle,
+} from './mobileTicketDisplay'
 
 function getPrimaryActionLabel(ticket: api.TicketCard, isTechnician: boolean): 'Взять' | 'Начать' | 'Закрыть' | null {
   if (!isTechnician) return null
@@ -29,14 +26,14 @@ function TicketCard(props: {
   const { ticket, ticketHref, actionLabel = null, onAction, actionPending = false } = props
   return (
     <div className="mobileCard" style={{ padding: 0, overflow: 'hidden' }}>
-      <Link to={ticketHref} className="mobileCardClickable" style={{ borderRadius: 0 }}>
+      <Link to={ticketHref} state={mobileTicketNavState('home')} className="mobileCardClickable" style={{ borderRadius: 0 }}>
         <div style={{ padding: 12 }}>
           <div className="mobileRow">
-            <strong>{ticketCategory(ticket)}</strong>
+            <strong>{mobileTicketNumberTitle(ticket.ticketNumber)}</strong>
             <span className="mobileMeta">{ticket.status}</span>
           </div>
           <div className="mobileMeta" style={{ marginTop: 4 }}>
-            {ticketSubtitle(ticket)}
+            {mobileTicketCategoryLocationFromCard(ticket)}
           </div>
         </div>
       </Link>
@@ -130,7 +127,7 @@ export function MobileHome() {
         }
         setCloseModal({
           ticketId: ticket.id,
-          title: `${ticketCategory(ticket)} · ${ticketSubtitle(ticket)}`,
+          title: `${mobileTicketNumberTitle(ticket.ticketNumber)} — ${mobileTicketCategoryLocationFromCard(ticket)}`,
           file: null,
           previewUrl: '',
           comment: '',
@@ -196,10 +193,11 @@ export function MobileHome() {
 
       <div className="mobileCard" style={{ padding: 12 }}>
         <div className="mobileMeta">{contextLabel}</div>
-        <Link to={api.appendScopeToPath('/m/create', scope, meQ.data)}>
-          <button className="mobileBtn" style={{ width: '100%', marginTop: 8 }}>
-            Создать
-          </button>
+        <Link
+          to={api.appendScopeToPath('/m/create', scope, meQ.data)}
+          className="mobileBtn mobileCreateTicketLink"
+        >
+          Создать заявку
         </Link>
       </div>
 

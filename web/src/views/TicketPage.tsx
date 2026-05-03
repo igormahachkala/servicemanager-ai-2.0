@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
-import { useLocation, useParams, useSearchParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { TicketAttachments } from './ticket-page/TicketAttachments'
@@ -172,8 +172,6 @@ function InlineError({ message }: { message?: string | null }) {
 export function TicketPage() {
   const { id } = useParams()
   const ticketId = id || ''
-  const location = useLocation()
-  const isMobileShellRoute = location.pathname.startsWith('/m/')
   const [searchParams] = useSearchParams()
   const qc = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -227,20 +225,10 @@ export function TicketPage() {
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
 
   const backToBoardHref = useMemo(() => {
-    if (isMobileShellRoute) {
-      return api.appendScopeToPath(
-        '/m',
-        {
-          companyId: observerCompanyId || undefined,
-          linkedClientCompanyId: effectiveLinkedClientCompanyId || undefined,
-        },
-        meQ.data,
-      )
-    }
     if (observerCompanyId) return `/board?companyId=${observerCompanyId}`
     if (effectiveLinkedClientCompanyId) return `/board?linkedClientCompanyId=${effectiveLinkedClientCompanyId}`
     return '/board'
-  }, [isMobileShellRoute, observerCompanyId, effectiveLinkedClientCompanyId, meQ.data])
+  }, [observerCompanyId, effectiveLinkedClientCompanyId])
 
   useEffect(() => {
     api.persistScopeFromSearchParams(searchParams, meQ.data)
@@ -728,7 +716,7 @@ export function TicketPage() {
   }
 
   function buildTicketHref(targetTicketId: string) {
-    const base = isMobileShellRoute ? `/m/tickets/${targetTicketId}` : `/tickets/${targetTicketId}`
+    const base = `/tickets/${targetTicketId}`
     return api.appendScopeToPath(
       base,
       {

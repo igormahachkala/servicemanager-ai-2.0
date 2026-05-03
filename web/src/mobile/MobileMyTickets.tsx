@@ -2,6 +2,11 @@ import { useMemo, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import * as api from '../lib/api'
+import {
+  mobileTicketCategoryLocationFromCard,
+  mobileTicketNavState,
+  mobileTicketNumberTitle,
+} from './mobileTicketDisplay'
 
 type FilterKey = 'active' | 'new' | 'closed'
 
@@ -79,13 +84,19 @@ export function MobileMyTickets() {
         <div className="mobileCard mobileMeta">Список пуст</div>
       ) : (
         filteredTickets.map((ticket) => (
-          <Link key={ticket.id} to={ticketHref(ticket.id)} className="mobileCard mobileCardClickable" style={{ display: 'block', padding: 12 }}>
+          <Link
+            key={ticket.id}
+            to={ticketHref(ticket.id)}
+            state={mobileTicketNavState('my')}
+            className="mobileCard mobileCardClickable"
+            style={{ display: 'block', padding: 12 }}
+          >
             <div className="mobileRow">
-              <strong>{ticket.category?.name || ticket.title || 'Без категории'}</strong>
+              <strong>{mobileTicketNumberTitle(ticket.ticketNumber)}</strong>
               <span className="mobileMeta">{ticket.status}</span>
             </div>
             <div className="mobileMeta" style={{ marginTop: 6 }}>
-              {ticket.location?.name || ticket.pointName || 'Без локации'}
+              {mobileTicketCategoryLocationFromCard(ticket)}
             </div>
             <div className="mobileMeta" style={{ marginTop: 6 }}>
               Обновлено: {formatDate(ticket.createdAt)}

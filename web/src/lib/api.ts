@@ -1,4 +1,4 @@
-export type Role =
+﻿export type Role =
   | 'PLATFORM_ADMIN'
   | 'ADMIN'
   | 'DISPATCHER'
@@ -386,7 +386,7 @@ export type TicketAttachmentItem = {
 
 export type TicketCard = {
   id: string
-  ticketNumber: number
+  ticketNumber?: number
   companyId: string
   title: string
   status: TicketStatus
@@ -440,7 +440,7 @@ export type BoardResponse = {
 
 export type TicketGetOne = {
   id: string
-  ticketNumber: number
+  ticketNumber?: number | null
   title?: string
   description?: string
   status: TicketStatus
@@ -577,7 +577,6 @@ export type UpdateTicketInput = {
 export type CreateTicketResponse = {
   ticket: {
     id: string
-    ticketNumber?: number
     title?: string
     description?: string
   }
@@ -1662,8 +1661,8 @@ export async function tickets(): Promise<any[]> {
   return request<any[]>('/tickets')
 }
 
-export async function availableTickets(): Promise<TicketCard[]> {
-  return request<TicketCard[]>('/tickets/available')
+export async function availableTickets(): Promise<any[]> {
+  return request<any[]>('/tickets/available')
 }
 
 export async function ticket(id: string, scope?: string | TicketScopeParams): Promise<TicketGetOne> {
