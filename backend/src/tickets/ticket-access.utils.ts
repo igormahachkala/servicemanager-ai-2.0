@@ -44,6 +44,8 @@ export const PROVIDER_LINKED_OVERVIEW_ROLES: UserRole[] = [
   UserRole.MASTER,
   UserRole.DISPATCHER,
   UserRole.NETWORK_DIRECTOR,
+  UserRole.TERRITORIAL_MANAGER,
+  UserRole.STAFF,
 ]
 
 export const PROVIDER_LINKED_OPERATION_ROLES: UserRole[] = [
@@ -446,33 +448,10 @@ export async function resolveReadableTicketAccess(params: {
       },
     ]
 
-    if (technicianScope.allowTechnicianClaim) {
-      const specSome = buildSpecializationLinksSomeWhereInput({
-        specializationIds: technicianScope.specializationIds,
-        specializationNames: technicianScope.specializationNames,
-      })
-      if (specSome) {
-        visibilityOr.push({
-          status: 'NEW',
-          assignedTechnicianId: null,
-          problemCategory: {
-            specializationLinks: {
-              some: specSome,
-            },
-          },
-        })
-      }
-
-      visibilityOr.push({
+    visibilityOr.push({
         status: 'NEW',
         assignedTechnicianId: null,
-        problemCategory: {
-          specializationLinks: {
-            none: {},
-          },
-        },
       })
-    }
 
     const technicianTicket = await params.prisma.ticket.findFirst({
       where: {
@@ -657,19 +636,13 @@ export async function resolveReadableTicketAccess(params: {
         locationId: directTicket.locationId,
         locationScopeByCompany: technicianScope.locationScopeByCompany,
       })
-      const technicianCanClaim =
-        technicianScope.allowTechnicianClaim &&
+      const technicianCanReadNewLinked =
         directTicket.status === 'NEW' &&
         !directTicket.assignedTechnicianId &&
-        locationAllowed &&
-        technicianMatchesCategorySpecializationLinks({
-          categoryLinks,
-          technicianSpecializationIds: technicianScope.specializationIds,
-          technicianSpecializationNames: technicianScope.specializationNames,
-        })
+        locationAllowed
 
       const technicianCanReadLinked =
-        (directTicket.assignedTechnicianId === params.actor.id && locationAllowed) || technicianCanClaim
+        (directTicket.assignedTechnicianId === params.actor.id && locationAllowed) || technicianCanReadNewLinked
 
       if (technicianCanReadLinked) {
         return {

@@ -1,4 +1,4 @@
-﻿export type Role =
+export type Role =
   | 'PLATFORM_ADMIN'
   | 'ADMIN'
   /** Если бэкенд отдаёт отдельное значение роли провайдера-админа */
@@ -1060,11 +1060,28 @@ export function isClientRole(role?: string | null): boolean {
   return role === 'CLIENT' || role === 'NETWORK_DIRECTOR'
 }
 
-/**
- * Роли провайдера: при выборе «мобильная версия» на /login запрашиваем getLinkedClients(),
- * выбираем дефолтного linked-клиента и кладём linkedClientCompanyId в scope/URL.
- * TECHNICIAN сюда не входит — для техника linked только из persisted/URL (без getLinkedClients).
- */
+/** Провайдерские роли: ручное назначение техника с мобильной главной (PUT /tickets/:id/assign/:technicianId). */
+export function isProviderTicketAssignRole(role?: string | null): boolean {
+  return (
+    role === 'ADMIN' ||
+    role === 'ADMIN_PROVIDER' ||
+    role === 'DISPATCHER' ||
+    role === 'MASTER' ||
+    role === 'STAFF' ||
+    role === 'TERRITORIAL_MANAGER'
+  )
+}
+
+export function isMobileFieldExecutorRole(role?: string | null): boolean {
+  return (
+    role === 'TECHNICIAN' ||
+    role === 'ADMIN' ||
+    role === 'ADMIN_PROVIDER' ||
+    role === 'MASTER' ||
+    role === 'STAFF'
+  )
+}
+
 export function shouldFetchDefaultLinkedClientOnMobileEntry(role?: Role | string | null): boolean {
   if (!role) return false
   return (
@@ -1712,11 +1729,11 @@ export async function tickets(): Promise<any[]> {
   return request<any[]>('/tickets')
 }
 
-export async function availableTickets(linkedClientCompanyId?: string): Promise<any[]> {
+export async function availableTickets(linkedClientCompanyId?: string): Promise<TicketCard[]> {
   const search = new URLSearchParams()
   if (linkedClientCompanyId) search.set('linkedClientCompanyId', linkedClientCompanyId)
   const suffix = search.toString() ? `?${search.toString()}` : ''
-  return request<any[]>(`/tickets/available${suffix}`)
+  return request<TicketCard[]>(`/tickets/available${suffix}`)
 }
 
 export async function ticket(id: string, scope?: string | TicketScopeParams): Promise<TicketGetOne> {
@@ -1726,7 +1743,6 @@ export async function ticket(id: string, scope?: string | TicketScopeParams): Pr
 export async function getTicket(id: string, scope?: string | TicketScopeParams): Promise<TicketGetOne> {
   return ticket(id, scope)
 }
-
 export async function ticketTimeline(id: string, scope?: string | TicketScopeParams): Promise<TimelineResponse> {
   return request<TimelineResponse>(`/timeline/tickets/${id}${buildTicketScopeSuffix(scope)}`)
 }
@@ -1815,6 +1831,7 @@ export async function changeTicketCategory(id: string, problemCategoryId: string
   })
 }
 
+/** PUT /tickets/:id/assign/:technicianId — scope (linkedClientCompanyId) через buildTicketScopeSuffix. */
 export async function assignTicket(id: string, technicianId: string, scope?: string | TicketScopeParams): Promise<any> {
   return request<any>(`/tickets/${id}/assign/${technicianId}${buildTicketScopeSuffix(scope)}`, {
     method: 'PUT',

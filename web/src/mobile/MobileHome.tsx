@@ -11,12 +11,29 @@ import {
   scopeForMobileTicketLink,
 } from './mobileTicketDisplay'
 
-function getPrimaryActionLabel(ticket: api.TicketCard, isTechnician: boolean): 'Взять' | 'Начать' | 'Закрыть' | null {
-  if (!isTechnician) return null
-  if (ticket.status === 'NEW') return 'Взять'
-  if (ticket.status === 'ASSIGNED') return 'Начать'
-  if (ticket.status === 'IN_PROGRESS') return 'Закрыть'
+function getPrimaryActionLabel(input: {
+  ticket: api.TicketCard
+  role?: api.Role | null
+  claimableIds?: Set<string>
+}): 'Взять' | 'Начать' | 'Закрыть' | null {
+  const { ticket, role, claimableIds } = input
+  const isTechnician = role === 'TECHNICIAN'
+  const isFieldExecutor = api.isMobileFieldExecutorRole(role)
+
+  if (ticket.status === 'NEW') {
+    return isTechnician && claimableIds?.has(ticket.id) ? 'Взять' : null
+  }
+  if (ticket.status === 'ASSIGNED') return isFieldExecutor ? 'Начать' : null
+  if (ticket.status === 'IN_PROGRESS') return isFieldExecutor ? 'Закрыть' : null
   return null
+}
+
+function assignedTechnicianDisplay(ticket: api.TicketCard): string {
+  const t = ticket.assignedTechnician
+  if (!t) return 'Не назначен'
+  const email = (t.email || '').trim()
+  if (email) return email
+  return (t.id || '').trim() || 'Не назначен'
 }
 
 function TicketCard(props: {
@@ -26,8 +43,17 @@ function TicketCard(props: {
   actionLabel?: 'Взять' | 'Начать' | 'Закрыть' | null
   onAction?: (ticket: api.TicketCard) => void
   actionPending?: boolean
+  assignFooter?: { onOpen: () => void; disabled: boolean } | null
 }) {
-  const { ticket, ticketHref, linkState, actionLabel = null, onAction, actionPending = false } = props
+  const {
+    ticket,
+    ticketHref,
+    linkState,
+    actionLabel = null,
+    onAction,
+    actionPending = false,
+    assignFooter = null,
+  } = props
   return (
     <div className="mobileCard" style={{ padding: 0, overflow: 'hidden' }}>
       <Link to={ticketHref} state={linkState ?? mobileTicketNavState('home')} className="mobileCardClickable" style={{ borderRadius: 0 }}>
@@ -39,8 +65,28 @@ function TicketCard(props: {
           <div className="mobileMeta" style={{ marginTop: 4 }}>
             {mobileTicketCategoryLocationFromCard(ticket)}
           </div>
+          <div className="mobileMeta" style={{ marginTop: 4 }}>
+            Исполнитель: {assignedTechnicianDisplay(ticket)}
+          </div>
         </div>
       </Link>
+      {assignFooter ? (
+        <div style={{ padding: '0 12px 12px' }}>
+          <button
+            type="button"
+            className="mobileBtn mobileBtnSecondary"
+            style={{ width: '100%' }}
+            disabled={assignFooter.disabled}
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              assignFooter.onOpen()
+            }}
+          >
+            Назначить
+          </button>
+        </div>
+      ) : null}
       {actionLabel ? (
         <div style={{ padding: '0 12px 12px' }}>
           <button
@@ -100,6 +146,46 @@ export function MobileHome() {
   const myTickets = cards.slice(0, 6)
   const available = (availableQ.data || []) as api.TicketCard[]
   const isTechnician = meQ.data?.role === 'TECHNICIAN'
+  const canAssignProvider = api.isProviderTicketAssignRole(meQ.data?.role)
+  const claimableIds = useMemo(() => new Set(available.map((ticket) => ticket.id)), [available])
+  const technicianVisibleNew = useMemo(
+    () => cards.filter((card) => card.status === 'NEW' && !card.assignedTechnician),
+    [cards],
+  )
+
+  const [assignTicket, setAssignTicket] = useState<api.TicketCard | null>(null)
+  const [assignTechId, setAssignTechId] = useState('')
+  const [assignErr, setAssignErr] = useState('')
+
+  const assignCandidatesQ = useQuery({
+    queryKey: ['mobile-home-assign-candidates', assignTicket?.id, linkedClientCompanyId, companyId],
+    queryFn: () => api.assignmentCandidates(assignTicket!.id, pageScope),
+    enabled: !!assignTicket && canAssignProvider,
+  })
+
+  const assignTechOptions = useMemo(() => {
+    const d = assignCandidatesQ.data
+    if (!d) return []
+    const seen = new Set<string>()
+    const out: api.AssignmentCandidateTechnician[] = []
+    for (const row of [...d.matched, ...d.others]) {
+      if (seen.has(row.id)) continue
+      seen.add(row.id)
+      out.push(row)
+    }
+    return out
+  }, [assignCandidatesQ.data])
+
+  useEffect(() => {
+    if (!assignTechOptions.length) {
+      setAssignTechId('')
+      return
+    }
+    setAssignTechId((prev) => {
+      if (prev && assignTechOptions.some((r) => r.id === prev)) return prev
+      return assignTechOptions[0]!.id
+    })
+  }, [assignTechOptions])
 
   const companyPrimaryLine = useMemo(() => {
     const fromMe = (meQ.data?.companyName || '').trim()
@@ -143,8 +229,8 @@ export function MobileHome() {
         return
       }
       if (ticket.status === 'IN_PROGRESS') {
-        if (!isTechnician) {
-          throw new Error('Закрытие доступно технику')
+        if (!api.isMobileFieldExecutorRole(meQ.data?.role)) {
+          throw new Error('Закрытие доступно полевому исполнителю')
         }
         setCloseModal({
           ticketId: ticket.id,
@@ -194,9 +280,31 @@ export function MobileHome() {
     },
   })
 
-  const closeBusy = closeM.isPending
+  const assignM = useMutation({
+    mutationFn: async (params: { ticketId: string; technicianId: string }) => {
+      await api.assignTicket(params.ticketId, params.technicianId, pageScope)
+    },
+    onMutate: () => {
+      setAssignErr('')
+    },
+    onSuccess: async () => {
+      setAssignTicket(null)
+      setAssignTechId('')
+      await queryClient.invalidateQueries({ queryKey: ['mobile-home-board'] })
+      await queryClient.invalidateQueries({ queryKey: ['mobile-home-available'] })
+      await queryClient.invalidateQueries({ queryKey: ['mobile-my-board'] })
+      await queryClient.invalidateQueries({ queryKey: ['board'] })
+      await queryClient.invalidateQueries({ queryKey: ['mobile-ticket-detail'] })
+    },
+    onError: (e: any) => {
+      setAssignErr(e?.message || String(e))
+    },
+  })
 
-  const primaryPending = actionM.isPending || closeBusy
+  const closeBusy = closeM.isPending
+  const assignBusy = assignM.isPending
+
+  const primaryPending = actionM.isPending || closeBusy || assignBusy
 
   const ticketHref = (ticket: api.TicketCard) => {
     if (!meQ.data) return `/m/tickets/${ticket.id}`
@@ -253,7 +361,7 @@ export function MobileHome() {
                   ticket={ticket}
                   ticketHref={ticketHref(ticket)}
                   linkState={ticketLinkState(ticket)}
-                  actionLabel={getPrimaryActionLabel(ticket, isTechnician)}
+                  actionLabel={getPrimaryActionLabel({ ticket, role: meQ.data?.role, claimableIds })}
                   actionPending={primaryPending}
                   onAction={(next) => actionM.mutate(next)}
                 />
@@ -263,16 +371,16 @@ export function MobileHome() {
 
           <section className="mobileSection">
             <h2 className="mobileSectionTitle">Доступные</h2>
-            {available.length === 0 ? (
+            {technicianVisibleNew.length === 0 ? (
               <div className="mobileCard mobileMeta">Нет доступных заявок</div>
             ) : (
-              available.slice(0, 4).map((ticket) => (
+              technicianVisibleNew.slice(0, 4).map((ticket) => (
                 <TicketCard
                   key={ticket.id}
                   ticket={ticket}
                   ticketHref={ticketHref(ticket)}
                   linkState={ticketLinkState(ticket)}
-                  actionLabel={getPrimaryActionLabel(ticket, isTechnician)}
+                  actionLabel={getPrimaryActionLabel({ ticket, role: meQ.data?.role, claimableIds })}
                   actionPending={primaryPending}
                   onAction={(next) => actionM.mutate(next)}
                 />
@@ -296,6 +404,9 @@ export function MobileHome() {
                     ticket={ticket}
                     ticketHref={ticketHref(ticket)}
                     linkState={ticketLinkState(ticket)}
+                    actionLabel={getPrimaryActionLabel({ ticket, role: meQ.data?.role, claimableIds })}
+                    actionPending={primaryPending}
+                    onAction={(next) => actionM.mutate(next)}
                   />
                 ))
             )}
@@ -308,18 +419,120 @@ export function MobileHome() {
               myTickets
                 .filter((row) => row.status === 'NEW')
                 .slice(0, 4)
-                .map((ticket) => (
-                  <TicketCard
-                    key={ticket.id}
-                    ticket={ticket}
-                    ticketHref={ticketHref(ticket)}
-                    linkState={ticketLinkState(ticket)}
-                  />
-                ))
+                .map((ticket) => {
+                  const showAssignFooter =
+                    canAssignProvider && ticket.status === 'NEW' && !ticket.assignedTechnician
+                  return (
+                    <TicketCard
+                      key={ticket.id}
+                      ticket={ticket}
+                      ticketHref={ticketHref(ticket)}
+                      linkState={ticketLinkState(ticket)}
+                      assignFooter={
+                        showAssignFooter
+                          ? {
+                              onOpen: () => {
+                                setAssignErr('')
+                                setAssignTicket(ticket)
+                              },
+                              disabled: primaryPending,
+                            }
+                          : null
+                      }
+                    />
+                  )
+                })
             )}
           </section>
         </>
       )}
+
+      {assignTicket ? (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(17, 24, 39, 0.55)',
+            zIndex: 62,
+            display: 'flex',
+            alignItems: 'flex-end',
+            justifyContent: 'center',
+            padding: 12,
+          }}
+        >
+          <div className="mobileCard" style={{ width: '100%', maxWidth: 720, marginBottom: 12 }}>
+            <div className="mobileRow" style={{ alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ fontWeight: 900 }}>Назначить исполнителя</div>
+                <div className="mobileMeta" style={{ marginTop: 4 }}>
+                  {mobileTicketNumberTitle(assignTicket.ticketNumber)} · {mobileTicketCategoryLocationFromCard(assignTicket)}
+                </div>
+              </div>
+              <button
+                type="button"
+                className="mobileBtn mobileBtnSecondary"
+                disabled={assignBusy}
+                onClick={() => {
+                  setAssignTicket(null)
+                  setAssignErr('')
+                }}
+              >
+                Отмена
+              </button>
+            </div>
+
+            {assignCandidatesQ.isLoading ? (
+              <div className="mobileMeta" style={{ marginTop: 12 }}>
+                Загружаем список техников…
+              </div>
+            ) : null}
+            {assignCandidatesQ.isError ? (
+              <div className="mobileNotice mobileNoticeError" style={{ marginTop: 10 }}>
+                {(assignCandidatesQ.error as any)?.message || String(assignCandidatesQ.error)}
+              </div>
+            ) : null}
+            {assignErr ? <div className="mobileNotice mobileNoticeError" style={{ marginTop: 10 }}>{assignErr}</div> : null}
+
+            {assignCandidatesQ.data && assignTechOptions.length > 0 ? (
+              <div className="mobileForm" style={{ marginTop: 12 }}>
+                <label className="mobileFormFieldAfterPhoto">
+                  Техник
+                  <select
+                    value={assignTechId}
+                    disabled={assignBusy}
+                    onChange={(e) => setAssignTechId(e.target.value)}
+                  >
+                    {assignTechOptions.map((row) => (
+                      <option key={row.id} value={row.id}>
+                        {row.email}
+                        {row.matched ? ' · рекомендован' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="mobileFormSubmitStack" style={{ marginTop: 12 }}>
+                  <button
+                    type="button"
+                    className="mobileBtn"
+                    disabled={!assignTechId || assignBusy || assignCandidatesQ.isLoading}
+                    onClick={() =>
+                      assignM.mutate({ ticketId: assignTicket.id, technicianId: assignTechId })
+                    }
+                  >
+                    {assignBusy ? 'Назначаем…' : 'Назначить'}
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            {!assignCandidatesQ.isLoading && assignCandidatesQ.data && assignTechOptions.length === 0 ? (
+              <div className="mobileMeta" style={{ marginTop: 12 }}>
+                Нет доступных техников для назначения.
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
 
       {closeModal ? (
         <div
