@@ -190,8 +190,12 @@ export class UsersService {
       select: { id: true },
     })
 
-    if (specs.length !== normalizedIds.length) {
-      throw new BadRequestException('Some specializationIds are invalid')
+    const found = new Set(specs.map((s) => s.id))
+    const invalid = normalizedIds.filter((id) => !found.has(id))
+    if (invalid.length > 0) {
+      throw new BadRequestException(
+        `Some specializationIds are invalid (inactive, wrong tenant, or unknown): ${invalid.join(', ')}`,
+      )
     }
 
     await this.prisma.$transaction(async (tx) => {

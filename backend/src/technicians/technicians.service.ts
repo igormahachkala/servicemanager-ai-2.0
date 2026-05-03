@@ -454,6 +454,7 @@ export class TechniciansService {
     const specs = await this.prisma.specialization.findMany({
       where: {
         companyId,
+        isActive: true,
         id: { in: normalizedIds },
       },
       select: {
@@ -461,8 +462,12 @@ export class TechniciansService {
       },
     })
 
-    if (specs.length !== normalizedIds.length) {
-      throw new BadRequestException('Some specializationIds are invalid')
+    const found = new Set(specs.map((s) => s.id))
+    const invalid = normalizedIds.filter((id) => !found.has(id))
+    if (invalid.length > 0) {
+      throw new BadRequestException(
+        `Some specializationIds are invalid (inactive, wrong tenant, or unknown): ${invalid.join(', ')}`,
+      )
     }
 
     await this.prisma.$transaction(async (tx) => {

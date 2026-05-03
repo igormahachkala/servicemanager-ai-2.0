@@ -35,9 +35,12 @@ function getPrimaryActionLabel(
   ticket: api.TicketCard,
   meId: string | undefined,
   role: api.Role | undefined,
-): 'Взять' | 'Начать' | 'Закрыть' | null {
+): 'Взять' | 'Запросить назначение' | 'Начать' | 'Закрыть' | null {
   if (!api.allowMobileHomeFieldTicketActions(role) || !meId) return null
-  if (ticket.status === 'NEW' && !ticket.assignedTechnician) return 'Взять'
+  if (ticket.status === 'NEW' && !ticket.assignedTechnician) {
+    if (role === 'TECHNICIAN' && ticket.canClaimByCurrentUser === false) return 'Запросить назначение'
+    return 'Взять'
+  }
   if (ticket.status === 'ASSIGNED' && ticket.assignedTechnician?.id === meId) return 'Начать'
   if (ticket.status === 'IN_PROGRESS' && ticket.assignedTechnician?.id === meId) return 'Закрыть'
   return null
@@ -62,7 +65,10 @@ function homeTicketActionProgressLabel(
   if (closeBusy && closeModalTicketId === ticket.id) return 'Завершаем…'
   if (assignBusy && assignTicketId === ticket.id) return 'Назначаем…'
   if (actionM.isPending && actionM.variables?.id === ticket.id) {
-    if (ticket.status === 'NEW') return 'Берём заявку…'
+    if (ticket.status === 'NEW') {
+      if (ticket.canClaimByCurrentUser === false) return 'Отправляем запрос…'
+      return 'Берём заявку…'
+    }
     if (ticket.status === 'ASSIGNED') return 'Начинаем…'
   }
   return null
@@ -72,7 +78,7 @@ function TicketCard(props: {
   ticket: api.TicketCard
   ticketHref: string
   linkState?: MobileTicketNavState
-  actionLabel?: 'Взять' | 'Начать' | 'Закрыть' | null
+  actionLabel?: 'Взять' | 'Запросить назначение' | 'Начать' | 'Закрыть' | null
   onAction?: (ticket: api.TicketCard) => void
   actionProgressLabel?: string | null
   assignFooter?: { onOpen: () => void; disabled: boolean } | null
@@ -147,7 +153,13 @@ function TicketCard(props: {
           <button
             type="button"
             className={`mobileBtn${
-              actionLabel === 'Взять' ? ' mobileBtn--claim' : actionLabel === 'Начать' ? ' mobileBtn--start' : ' mobileBtn--done'
+              actionLabel === 'Взять'
+                ? ' mobileBtn--claim'
+                : actionLabel === 'Запросить назначение'
+                  ? ' mobileBtnSecondary'
+                  : actionLabel === 'Начать'
+                    ? ' mobileBtn--start'
+                    : ' mobileBtn--done'
             }`}
             style={{ width: '100%' }}
             disabled={actionBusy}
@@ -333,6 +345,10 @@ export function MobileHome() {
   const actionM = useMutation({
     mutationFn: async (ticket: api.TicketCard) => {
       if (ticket.status === 'NEW') {
+        if (meQ.data?.role === 'TECHNICIAN' && ticket.canClaimByCurrentUser === false) {
+          await api.requestTicketAssignment(ticket.id, pageScope)
+          return
+        }
         await api.claim(ticket.id, pageScope)
         return
       }
@@ -367,7 +383,14 @@ export function MobileHome() {
       await queryClient.invalidateQueries({ queryKey: ['board'] })
     },
     onError: (e: unknown, ticket) => {
-      const op = ticket.status === 'NEW' ? 'claim' : ticket.status === 'ASSIGNED' ? 'start' : 'other'
+      const op =
+        ticket.status === 'NEW' && meQ.data?.role === 'TECHNICIAN' && ticket.canClaimByCurrentUser === false
+          ? 'request_assignment'
+          : ticket.status === 'NEW'
+            ? 'claim'
+            : ticket.status === 'ASSIGNED'
+              ? 'start'
+              : 'other'
       setHomeActionErr(formatMobileMutationError(e, { operation: op }))
     },
   })

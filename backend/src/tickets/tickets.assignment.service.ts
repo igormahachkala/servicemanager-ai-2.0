@@ -22,6 +22,7 @@ import {
   assertActorCanUseLocation,
   buildSpecializationLinksSomeWhereInput,
   buildTechnicianLocationRestrictionWhere,
+  resolveReadableTicketAccess,
   resolveTechnicianOperationalScope,
   resolveTicketOperationAccess,
   wasTicketCreatedByActor,
@@ -1555,7 +1556,8 @@ export class TicketsAssignmentService {
   }
 
   /**
-   * Техник запрашивает ручное назначение (видимость как на board: tenant + location, без gate по специализации).
+   * Техник запрашивает ручное назначение.
+   * Доступ синхронизирован с {@link resolveReadableTicketAccess} (как GET /tickets/:id), а не с урезанным ad-hoc OR из claim-пула.
    */
   async requestAssignment(
     providerCompanyId: string,
@@ -1569,7 +1571,7 @@ export class TicketsAssignmentService {
     }
     await this.assertExecutorOperationsAllowed(providerCompanyId);
 
-    const technicianScope = await resolveTechnicianOperationalScope({
+    const readable = await resolveReadableTicketAccess({
       prisma: this.prisma,
       serviceContractsService: this.serviceContractsService,
       actor: {
@@ -1577,45 +1579,12 @@ export class TicketsAssignmentService {
         role: UserRole.TECHNICIAN,
         companyId: providerCompanyId,
       },
+      ticketId,
       linkedClientCompanyId,
     });
 
-    const ids = technicianScope.companyIds;
-    const visibilityOr: Prisma.TicketWhereInput[] = [];
-    if (ids.length === 1) {
-      visibilityOr.push({ companyId: ids[0], assignedTechnicianId: technicianUserId });
-    } else {
-      visibilityOr.push({ companyId: { in: ids }, assignedTechnicianId: technicianUserId });
-    }
-    if (technicianScope.allowTechnicianClaim) {
-      if (ids.length === 1) {
-        visibilityOr.push({
-          companyId: ids[0],
-          status: TicketStatus.NEW,
-          assignedTechnicianId: null,
-        });
-      } else {
-        visibilityOr.push({
-          companyId: { in: ids },
-          status: TicketStatus.NEW,
-          assignedTechnicianId: null,
-        });
-      }
-    }
-
-    const locationW = buildTechnicianLocationRestrictionWhere({
-      companyIds: technicianScope.companyIds,
-      locationScopeByCompany: technicianScope.locationScopeByCompany,
-    });
-
     const ticket = await this.prisma.ticket.findFirst({
-      where: {
-        AND: [
-          { id: ticketId },
-          visibilityOr.length === 1 ? visibilityOr[0]! : { OR: visibilityOr },
-          locationW,
-        ],
-      },
+      where: { id: ticketId, companyId: readable.ticket.companyId },
       select: {
         id: true,
         status: true,

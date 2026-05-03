@@ -12,10 +12,12 @@ import {
   buildSpecializationLinksSomeWhereInput,
   buildTechnicianLocationRestrictionWhere,
   PROVIDER_LINKED_OVERVIEW_ROLES,
-  resolveReadableTicketAccess,
   resolveActorLocationScope,
+  resolveReadableTicketAccess,
   resolveTechnicianOperationalScope,
   resolveTicketReadScope,
+  isTechnicianLocationAllowed,
+  technicianMatchesCategorySpecializationLinks,
 } from './ticket-access.utils'
 import { TicketMetaBuilder } from './ticket-meta.builder'
 
@@ -339,6 +341,7 @@ export class TicketsQueryService {
             slaBreachedAt: true,
             problemText: true,
             pointName: true,
+            locationId: true,
             location: {
               select: {
                 id: true,
@@ -349,7 +352,18 @@ export class TicketsQueryService {
                 address: true,
               },
             },
-            problemCategory: { select: { id: true, name: true } },
+            problemCategory: {
+              select: {
+                id: true,
+                name: true,
+                specializationLinks: {
+                  select: {
+                    specializationId: true,
+                    specialization: { select: { name: true } },
+                  },
+                },
+              },
+            },
             equipment: { select: { id: true, name: true, type: true, status: true } },
             assignedTechnician: { select: { id: true, email: true } },
             parentId: true,
@@ -381,24 +395,47 @@ export class TicketsQueryService {
         else if (isAtRisk) atRisk += 1
       }
 
-      const cards = byStatus.map((t) => ({
-        id: t.id,
-        companyId: t.companyId,
-        ticketNumber: t.ticketNumber,
-        title: t.problemCategory.name,
-        description: t.problemText,
-        status: t.status,
-        urgency: t.urgency,
-        priority: t.priority,
-        createdAt: t.createdAt,
-        slaDueAt: t.slaDueAt,
-        slaBreached: !!t.slaBreachedAt || (t.slaDueAt ? nowMs > t.slaDueAt.getTime() : false),
-        isChild: !!t.parentId,
-        pointName: t.pointName,
-        location: t.location,
-        category: t.problemCategory,
-        assignedTechnician: t.assignedTechnician,
-      }))
+      const cards = byStatus.map((t) => {
+        const base = {
+          id: t.id,
+          companyId: t.companyId,
+          ticketNumber: t.ticketNumber,
+          title: t.problemCategory.name,
+          description: t.problemText,
+          status: t.status,
+          urgency: t.urgency,
+          priority: t.priority,
+          createdAt: t.createdAt,
+          slaDueAt: t.slaDueAt,
+          slaBreached: !!t.slaBreachedAt || (t.slaDueAt ? nowMs > t.slaDueAt.getTime() : false),
+          isChild: !!t.parentId,
+          pointName: t.pointName,
+          location: t.location,
+          category: { id: t.problemCategory.id, name: t.problemCategory.name },
+          assignedTechnician: t.assignedTechnician,
+        }
+        if (role === UserRole.TECHNICIAN && technicianScope && t.status === TicketStatus.NEW && !t.assignedTechnician) {
+          const links = t.problemCategory.specializationLinks ?? []
+          const specOk =
+            links.length === 0 ||
+            technicianMatchesCategorySpecializationLinks({
+              categoryLinks: links,
+              technicianSpecializationIds: technicianScope.specializationIds,
+              technicianSpecializationNames: technicianScope.specializationNames,
+            })
+          const locId = (t.locationId || t.location?.id || '').trim()
+          const locationOk =
+            !locId ||
+            isTechnicianLocationAllowed({
+              companyId: t.companyId,
+              locationId: locId,
+              locationScopeByCompany: technicianScope.locationScopeByCompany,
+            })
+          const canClaimByCurrentUser = technicianScope.allowTechnicianClaim && specOk && locationOk
+          return { ...base, canClaimByCurrentUser }
+        }
+        return base
+      })
 
       return {
         status: st,

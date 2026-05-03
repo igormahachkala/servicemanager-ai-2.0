@@ -533,6 +533,8 @@ export type TicketCard = {
   } | null
   category: { id: string; name: string }
   assignedTechnician: { id: string; email: string } | null
+  /** Для TECHNICIAN на board: согласовано с правилами claim по специализации (см. tickets.query.service). */
+  canClaimByCurrentUser?: boolean
 }
 
 export type LinkedClientSummary = ServiceContractItem & {

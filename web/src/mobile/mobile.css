@@ -656,189 +656,67 @@ a.mobileBtn.mobileCreateTicketLink {
   color: #6b7280;
 }
 
-.loginSupportActions {
-  display: grid;
-  gap: 10px;
+/* Поддержка: Telegram + MAX (один стиль, крупные кнопки) */
+.supportContactBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
 }
 
-a.loginSupportAction,
-button.loginSupportAction {
+.supportContactTitle {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #111827;
+  letter-spacing: 0.01em;
+}
+
+.loginPageRoot .supportContactTitle {
+  color: #f9fafb;
+}
+
+.supportContactStack {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+}
+
+.supportContactBtn {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 38px;
-  border-radius: 10px;
-  padding: 8px 12px;
-  font-size: 14px;
-  font-weight: 600;
-  text-decoration: none;
-  text-align: center;
-  box-sizing: border-box;
   width: 100%;
-}
-
-a.loginSupportActionPrimary,
-button.loginSupportActionPrimary {
-  border: 1px solid #111827;
-  background: #111827;
-  color: #fff;
-}
-
-a.loginSupportActionTelegram,
-button.loginSupportActionTelegram {
-  border: 1px solid #229ed9;
-  background: #229ed9;
-  color: #fff;
-  cursor: pointer;
-  font: inherit;
-  text-align: center;
-  text-decoration: none;
-}
-
-a.loginSupportActionNeutral,
-button.loginSupportActionNeutral {
-  border: 1px solid #cbd5e1;
-  background: #f8fafc;
-  color: #1e293b;
-  cursor: pointer;
-  font: inherit;
-}
-
-.supportQrModalBackdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 100;
-  background: rgba(17, 24, 39, 0.55);
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  padding: 16px;
-  padding-bottom: max(16px, env(safe-area-inset-bottom, 0px));
-}
-
-@media (min-width: 480px) {
-  .supportQrModalBackdrop {
-    align-items: center;
-  }
-}
-
-.supportQrModalCard {
-  width: 100%;
-  max-width: 720px;
-  background: #fff;
-  color: #111827;
-  border-radius: 16px;
-  padding: 18px 16px 16px;
-  box-shadow: 0 18px 48px rgba(17, 24, 39, 0.22);
   box-sizing: border-box;
-  max-height: min(92dvh, 720px);
-  overflow: auto;
-}
-
-.supportQrModalTitle {
-  margin: 0 0 14px;
-  font-size: 1.25rem;
-  font-weight: 800;
-}
-
-.supportQrModalGrid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 20px;
-  margin-bottom: 16px;
-}
-
-@media (min-width: 600px) {
-  .supportQrModalGrid {
-    grid-template-columns: 1fr 1fr;
-    gap: 20px 24px;
-    align-items: start;
-  }
-}
-
-.supportQrModalCol {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
-
-.supportQrModalColTitle {
-  margin: 0 0 6px;
+  min-height: 52px;
+  padding: 14px 16px;
+  border-radius: 14px;
   font-size: 1rem;
   font-weight: 700;
-  color: #111827;
-}
-
-.supportQrModalColHint {
-  margin: 0 0 10px;
-  font-size: 0.85rem;
-  line-height: 1.45;
-  color: #64748b;
-}
-
-.supportQrModalFigure {
-  margin: 0 auto 12px;
-  padding: 12px;
-  background: #f9fafb;
-  border-radius: 12px;
-  border: 1px solid #e5e7eb;
-  display: flex;
-  justify-content: center;
-}
-
-.supportQrModalFigure img {
-  display: block;
-  width: min(240px, 100%);
-  height: auto;
-}
-
-.supportQrModalLinkBtn {
-  display: block;
-  width: 100%;
-  box-sizing: border-box;
-  text-align: center;
-  text-decoration: none;
-  font-size: 0.92rem;
-  font-weight: 600;
-  padding: 10px 12px;
-  border-radius: 10px;
-  margin-bottom: 8px;
-}
-
-.supportQrModalLinkBtnTelegram {
-  border: 1px solid #229ed9;
-  background: #229ed9;
-  color: #fff;
-}
-
-.supportQrModalLinkBtnEmail {
-  border: 1px solid #2563eb;
-  background: #2563eb;
-  color: #fff;
-}
-
-.supportQrModalEmailPlain {
-  margin: 0;
-  font-size: 0.8rem;
-  word-break: break-all;
-  color: #64748b;
-  text-align: center;
-}
-
-.supportQrModalCloseBtn {
-  width: 100%;
-  min-height: 46px;
-  border-radius: 12px;
-  border: none;
-  background: #111827;
-  color: #fff;
-  font-size: 0.95rem;
-  font-weight: 600;
   cursor: pointer;
+  border: 1px solid transparent;
+  font-family: inherit;
+  line-height: 1.2;
+  text-align: center;
+  -webkit-tap-highlight-color: transparent;
 }
 
-.supportQrModalCloseBtn:active {
-  opacity: 0.92;
+.supportContactBtn:active {
+  opacity: 0.94;
+  transform: scale(0.99);
+}
+
+.supportContactBtn--telegram {
+  background: #229ed9;
+  border-color: #1b8ec4;
+  color: #fff;
+}
+
+.supportContactBtn--max {
+  background: #059669;
+  border-color: #047857;
+  color: #fff;
 }
 
 /* Бейдж статуса заявки (мобильный UI) */

@@ -4,7 +4,7 @@ import * as api from '../lib/api'
 
 import smaLogo from '../assets/sma-tech.png'
 import '../mobile/mobile.css'
-import { SupportQrModal, SUPPORT_MAILTO_HREF } from '../components/SupportQrModal'
+import { SupportContactBlock } from '../components/SupportContactBlock'
 
 type LoginPageProps = {
   onLoggedIn?: (token: string) => void
@@ -23,8 +23,6 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
   const [postLoginUser, setPostLoginUser] = useState<api.Me | null>(null)
   const [postLoginScope, setPostLoginScope] = useState<api.TicketScopeParams>({})
   const [mobileEntryLoading, setMobileEntryLoading] = useState(false)
-  const [supportQrOpen, setSupportQrOpen] = useState(false)
-
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
@@ -224,20 +222,9 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
         <div className="panel loginSupportPanel" style={{ marginTop: 16 }}>
           <div style={{ fontWeight: 600, marginBottom: 6 }}>Публичная регистрация компаний отключена</div>
           <div className="muted small" style={{ marginBottom: 12 }}>
-            Для доступа свяжитесь с поддержкой.
+            Для доступа свяжитесь с поддержкой в Telegram или MAX.
           </div>
-          <div className="loginSupportActions">
-            <a href={SUPPORT_MAILTO_HREF} className="loginSupportAction loginSupportActionPrimary">
-              Написать на email
-            </a>
-            <button
-              type="button"
-              className="loginSupportAction loginSupportActionTelegram"
-              onClick={() => setSupportQrOpen(true)}
-            >
-              Написать в Telegram
-            </button>
-          </div>
+          <SupportContactBlock titleTag="h3" />
         </div>
 
         <div
@@ -265,7 +252,6 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
         </div>
       </div>
 
-      <SupportQrModal open={supportQrOpen} onClose={() => setSupportQrOpen(false)} />
     </div>
   )
 }

@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { SupportQrModal } from '../components/SupportQrModal'
+import { SupportContactBlock } from '../components/SupportContactBlock'
 import * as api from '../lib/api'
 
 function roleLabel(role?: string) {
@@ -21,7 +21,6 @@ function roleLabel(role?: string) {
 export function MobileProfile() {
   const location = useLocation()
   const queryClient = useQueryClient()
-  const [supportQrOpen, setSupportQrOpen] = useState(false)
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
   const linkedClientsQ = useQuery({
     queryKey: ['linked-clients'],
@@ -118,23 +117,19 @@ export function MobileProfile() {
         <div
           style={{
             display: 'grid',
-            gap: 10,
+            gap: 12,
             marginTop: 12,
             paddingTop: 12,
             borderTop: '1px solid #e5e7eb',
             width: '100%',
           }}
         >
-          <button type="button" className="mobileBtn mobileBtnSecondary" style={{ width: '100%' }} onClick={() => setSupportQrOpen(true)}>
-            Поддержка
-          </button>
+          <SupportContactBlock titleTag="div" />
           <button type="button" className="mobileBtn mobileLogoutBelowCard" style={{ marginTop: 0 }} onClick={logout}>
             Выйти
           </button>
         </div>
       </div>
-
-      <SupportQrModal open={supportQrOpen} onClose={() => setSupportQrOpen(false)} />
     </div>
   )
 }
