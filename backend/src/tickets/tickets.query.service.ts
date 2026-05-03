@@ -78,33 +78,13 @@ export class TicketsQueryService {
 
     const visibilityOr: any[] = [{ ...companyScope, assignedTechnicianId: params.userId }]
 
+    // Board: NEW unassigned visibility follows company + location scope only (no category/specialization gate).
+    // Claim/available endpoints keep specialization matching in assignment/ticket-access flows.
     if (params.allowTechnicianClaim) {
-      const specSome = buildSpecializationLinksSomeWhereInput({
-        specializationIds: params.specializationIds,
-        specializationNames: params.specializationNames,
-      })
-      if (specSome) {
-        visibilityOr.push({
-          ...companyScope,
-          status: TicketStatus.NEW,
-          assignedTechnicianId: null,
-          problemCategory: {
-            specializationLinks: {
-              some: specSome,
-            },
-          },
-        })
-      }
-
       visibilityOr.push({
         ...companyScope,
         status: TicketStatus.NEW,
         assignedTechnicianId: null,
-        problemCategory: {
-          specializationLinks: {
-            none: {},
-          },
-        },
       })
     }
 
@@ -247,14 +227,15 @@ export class TicketsQueryService {
     linkedClientCompanyId?: string,
     observerCompanyId?: string,
   ) {
-    const technicianScope = role === UserRole.TECHNICIAN && !observerCompanyId
-      ? await resolveTechnicianOperationalScope({
-          prisma: this.prisma,
-          serviceContractsService: this.serviceContractsService,
-          actor: { id: userId, role, companyId, accessFlags },
-          linkedClientCompanyId,
-        })
-      : null
+    const technicianScope =
+      role === UserRole.TECHNICIAN
+        ? await resolveTechnicianOperationalScope({
+            prisma: this.prisma,
+            serviceContractsService: this.serviceContractsService,
+            actor: { id: userId, role, companyId, accessFlags },
+            linkedClientCompanyId,
+          })
+        : null
 
     const scope = technicianScope
       ? {
