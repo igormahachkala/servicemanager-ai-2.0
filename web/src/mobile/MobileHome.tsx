@@ -85,16 +85,29 @@ export function MobileHome() {
     enabled: meQ.data?.role === 'TECHNICIAN',
   })
 
+  const linkedClientsQ = useQuery({
+    queryKey: ['mobile-home-linked-clients'],
+    queryFn: api.getLinkedClients,
+    enabled: !!linkedClientCompanyId && !!meQ.data,
+  })
+
   const cards = boardQ.data?.columns.flatMap((col) => col.cards || []) || []
   const inWork = cards.filter((card) => card.status === 'IN_PROGRESS' || card.status === 'ASSIGNED')
   const myTickets = cards.slice(0, 6)
   const available = (availableQ.data || []) as api.TicketCard[]
   const isTechnician = meQ.data?.role === 'TECHNICIAN'
-  const contextLabel = linkedClientCompanyId
-    ? `Клиентский контур: ${linkedClientCompanyId}`
-    : meQ.data?.companyName
-      ? `Компания: ${meQ.data.companyName}`
-      : 'Компания: текущий контур'
+
+  const companyPrimaryLine = useMemo(() => {
+    const fromMe = (meQ.data?.companyName || '').trim()
+    if (fromMe) return fromMe
+    return (api.getCompanyLabel(meQ.data) || '').trim() || '—'
+  }, [meQ.data])
+
+  const linkedClientDisplayName = useMemo(() => {
+    if (!linkedClientCompanyId) return ''
+    const row = linkedClientsQ.data?.find((x) => x.clientCompany.id === linkedClientCompanyId)
+    return (row?.clientCompany?.name || '').trim()
+  }, [linkedClientCompanyId, linkedClientsQ.data])
 
   const closeCameraInputRef = useRef<HTMLInputElement | null>(null)
   const closeGalleryInputRef = useRef<HTMLInputElement | null>(null)
@@ -203,7 +216,16 @@ export function MobileHome() {
       </div>
 
       <div className="mobileCard" style={{ padding: 12 }}>
-        <div className="mobileMeta">{contextLabel}</div>
+        <div className="mobileMeta">
+          <div>
+            <span className="mobileContextLabel">Компания:</span> {companyPrimaryLine}
+          </div>
+          {linkedClientCompanyId ? (
+            <div style={{ marginTop: 6 }}>
+              <span className="mobileContextLabel">Клиент:</span> {linkedClientDisplayName || '—'}
+            </div>
+          ) : null}
+        </div>
         <Link
           to={api.appendScopeToPath('/m/create', scope, meQ.data)}
           className="mobileBtn mobileCreateTicketLink"

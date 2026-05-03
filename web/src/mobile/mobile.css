@@ -1,19 +1,22 @@
 .mobileShell {
-  min-height: 100vh;
+  min-height: 100%;
   min-height: 100dvh;
+  min-height: 100svh;
   background: #f3f5f8;
   color: #111827;
   width: 100%;
-  max-width: 100vw;
+  max-width: 100%;
   box-sizing: border-box;
   overflow-x: hidden;
+  min-width: 0;
 }
 
 .mobilePage {
   width: 100%;
-  max-width: 720px;
+  max-width: min(720px, 100%);
   margin: 0 auto;
   box-sizing: border-box;
+  min-width: 0;
   padding: 12px;
   padding-top: calc(12px + env(safe-area-inset-top, 0px));
   padding-left: max(12px, env(safe-area-inset-left, 0px));
@@ -40,11 +43,16 @@
   border: 1px solid #e5e7eb;
   box-shadow: 0 6px 20px rgba(17, 24, 39, 0.06);
   padding: 12px;
+  max-width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 .mobileSection {
   display: grid;
   gap: 8px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .mobileSectionTitle {
@@ -211,6 +219,34 @@
   display: block;
 }
 
+.mobilePhotoUnavailable {
+  min-height: 92px;
+  border-radius: 12px;
+  border: 1px dashed #d1d5db;
+  background: #f9fafb;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 8px;
+  text-align: center;
+  gap: 4px;
+}
+
+.mobilePhotoUnavailableName {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #111827;
+  word-break: break-word;
+  line-height: 1.25;
+  max-width: 100%;
+}
+
+.mobilePhotoUnavailableHint {
+  font-size: 0.72rem;
+  color: #6b7280;
+}
+
 .mobileNotice {
   border-radius: 12px;
   padding: 10px 12px;
@@ -235,23 +271,23 @@
   right: 0;
   bottom: 0;
   width: 100%;
-  max-width: 100vw;
+  max-width: 100%;
   box-sizing: border-box;
   background: rgba(255, 255, 255, 0.98);
   backdrop-filter: blur(6px);
   border-top: 1px solid #e5e7eb;
   z-index: 40;
-  /* Lift entire bar above Safari bottom chrome */
-  padding-bottom: env(safe-area-inset-bottom, 0px);
   padding-left: env(safe-area-inset-left, 0px);
   padding-right: env(safe-area-inset-right, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 .mobileBottomNavInner {
   width: 100%;
-  max-width: 720px;
+  max-width: min(720px, 100%);
   margin: 0 auto;
   box-sizing: border-box;
+  min-width: 0;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 4px;
@@ -288,6 +324,9 @@
   color: inherit;
   cursor: pointer;
   transition: transform 0.12s ease, box-shadow 0.12s ease;
+  max-width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 .mobileCardClickable:active {
@@ -363,60 +402,29 @@ a.mobileBtn.mobileCreateTicketLink {
   white-space: nowrap;
 }
 
-/* Login: stable mobile layout (avoid vertical centering jump when iOS keyboard opens) */
-.page.loginPageRoot {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  justify-content: flex-start;
-  min-height: 100vh;
-  min-height: 100dvh;
-  min-height: 100svh;
-  padding: calc(12px + env(safe-area-inset-top, 0px)) 16px calc(16px + env(safe-area-inset-bottom, 0px));
-}
-
+/* Login: карточка и шапка (layout .page.loginPageRoot — в app.css) */
 .loginPageCard {
   width: min(520px, 100%);
+  max-width: 100%;
   margin: 0 auto;
+  box-sizing: border-box;
 }
 
 .loginPageHeader {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  padding: 10px 0 12px;
-  margin: -6px 0 6px;
+  padding: 0 0 12px;
+  margin: 0 0 8px;
   text-align: center;
-  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.98), rgba(255, 255, 255, 0.92) 70%, rgba(255, 255, 255, 0));
-  backdrop-filter: blur(6px);
 }
 
 @media (min-width: 900px) {
   .page.loginPageRoot {
-    /* Desktop: keep it pleasant without forcing vertical centering */
     padding-top: 32px;
   }
 }
 
-.loginSupportContacts {
-  line-height: 1.45;
-  margin-bottom: 14px;
-}
-
-.loginSupportContacts > div + div {
-  margin-top: 6px;
-}
-
-.loginSupportLabel {
+.mobileContextLabel {
   font-weight: 600;
-  color: #374151;
-}
-
-.loginSupportInlineLink {
-  color: #2563eb;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  word-break: break-word;
+  color: #6b7280;
 }
 
 .loginSupportActions {

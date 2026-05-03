@@ -46,14 +46,14 @@ export function TicketAttachments(props: TicketAttachmentsProps) {
           {data.map((attachment) => (
             <div key={attachment.id} style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 12, display: 'grid', gap: 10 }}>
               <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-                <img src={api.resolveFileUrl(attachment.url)} alt={attachment.originalName} style={{ width: 220, maxWidth: '100%', borderRadius: 10, border: '1px solid #e5e7eb', objectFit: 'cover' }} />
+                <img src={api.resolveTicketAttachmentUrl(attachment)} alt={attachment.originalName} style={{ width: 220, maxWidth: '100%', borderRadius: 10, border: '1px solid #e5e7eb', objectFit: 'cover' }} />
                 <div style={{ display: 'grid', gap: 6, minWidth: 240 }}>
                   <div><b>{attachment.originalName}</b></div>
                   <div className="muted small">Размер: {fmtBytes(attachment.sizeBytes)}</div>
                   <div className="muted small">Загружено: {fmt(attachment.createdAt)}</div>
                   <div className="muted small">Кем: {attachment.uploadedBy?.email || '—'}</div>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
-                    <a href={api.resolveFileUrl(attachment.url)} target="_blank" rel="noreferrer">
+                    <a href={api.resolveTicketAttachmentUrl(attachment)} target="_blank" rel="noreferrer">
                       <button className="ghost">Открыть</button>
                     </a>
                     {canDeletePhoto ? (

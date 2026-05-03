@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import {
   mobileTicketCategoryLocationFromDetail,
+  mobileTicketDetailGetOneScopes,
   mobileTicketNavState,
   mobileTicketNumberTitle,
   type MobileTicketListOrigin,
@@ -29,11 +30,54 @@ function isImageAttachment(a: api.TicketAttachmentItem) {
   return (a.mimeType || '').toLowerCase().startsWith('image/')
 }
 
+function ticketAttachmentLabel(a: api.TicketAttachmentItem) {
+  const fn = (a.filename || '').trim()
+  if (fn) return fn
+  return (a.originalName || '').trim() || 'Вложение'
+}
+
+/** REQUEST и вложения без purpose — «фото заявки»; WORK_REPORT — «фото отчёта». */
+function isReportTicketImage(a: api.TicketAttachmentItem) {
+  return a.purpose === 'WORK_REPORT'
+}
+
+function MobileTicketAttachmentThumb({ attachment }: { attachment: api.TicketAttachmentItem }) {
+  const [broken, setBroken] = useState(false)
+  const resolved = api.resolveTicketAttachmentUrl(attachment)
+  const label = ticketAttachmentLabel(attachment)
+
+  if (!resolved || broken) {
+    return (
+      <div className="mobilePhotoUnavailable">
+        <div className="mobilePhotoUnavailableName">{label}</div>
+        <div className="mobilePhotoUnavailableHint">Фото недоступно</div>
+      </div>
+    )
+  }
+
+  return (
+    <a href={resolved} target="_blank" rel="noreferrer" className="mobilePhotoThumbLink">
+      <img
+        src={resolved}
+        alt={label}
+        className="mobilePhotoThumb"
+        loading="lazy"
+        onError={() => setBroken(true)}
+      />
+    </a>
+  )
+}
+
 function isCommentTimelineItem(item: api.TimelineItem): boolean {
   const c = typeof item.payload?.comment === 'string' ? item.payload.comment.trim() : ''
   if (c.length > 0) return true
   const t = `${item.type || ''} ${item.timelineEvent || ''} ${item.domainType || ''}`.toLowerCase()
   return t.includes('comment')
+}
+
+function isNotFoundGetTicketError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err)
+  return /\b404\b/i.test(msg) || /not\s*found/i.test(msg) || /не\s+найден/i.test(msg)
 }
 
 export function MobileTicketDetails() {
@@ -50,6 +94,7 @@ export function MobileTicketDetails() {
     [searchParams, meQ.data],
   )
 
+  /** linked: query → location.state → persisted (без «левого» fallback из appendScopeToPath). */
   const linkedClientCompanyId = useMemo(() => {
     const q = (searchParams.get('linkedClientCompanyId') || '').trim()
     if (q) return q
@@ -58,80 +103,90 @@ export function MobileTicketDetails() {
     return (api.getLinkedClientCompanyId(meQ.data) || '').trim()
   }, [searchParams, navState?.ticketOwnerCompanyId, meQ.data])
 
-  const [autoLinkedClientCompanyId, setAutoLinkedClientCompanyId] = useState('')
-  const effectiveLinkedClientCompanyId = linkedClientCompanyId || autoLinkedClientCompanyId
+  const ticketOwnerNav = (navState?.ticketOwnerCompanyId || '').trim()
 
   const scopeNorm = useMemo<api.TicketScopeParams>(
     () => ({
       companyId: observerCompanyId || undefined,
-      linkedClientCompanyId: effectiveLinkedClientCompanyId || undefined,
+      linkedClientCompanyId: linkedClientCompanyId || undefined,
     }),
-    [observerCompanyId, effectiveLinkedClientCompanyId],
+    [observerCompanyId, linkedClientCompanyId],
   )
 
   useEffect(() => {
     api.persistScopeFromSearchParams(searchParams, meQ.data)
   }, [searchParams, meQ.data])
 
-  const ownCompanyQ = useQuery({
-    queryKey: ['mobile-ticket-own-company'],
-    queryFn: () => api.company(),
-    enabled: !observerCompanyId && !linkedClientCompanyId,
-  })
-  const linkedClientsQ = useQuery({
-    queryKey: ['mobile-ticket-linked-clients-fallback'],
-    queryFn: api.getLinkedClients,
-    enabled: !observerCompanyId && !linkedClientCompanyId && ownCompanyQ.data?.type === 'PROVIDER',
-  })
-
   const ticketQ = useQuery({
     enabled: !!ticketId,
-    queryKey: ['mobile-ticket-detail', ticketId, observerCompanyId, effectiveLinkedClientCompanyId],
-    queryFn: () => api.getTicket(ticketId, scopeNorm),
-  })
+    queryKey: [
+      'mobile-ticket-detail',
+      ticketId,
+      observerCompanyId,
+      linkedClientCompanyId,
+      ticketOwnerNav,
+      meQ.data?.id,
+      meQ.data?.role,
+    ],
+    queryFn: async () => {
+      if (!ticketId) throw new Error('Нет идентификатора заявки')
 
-  useEffect(() => {
-    if (!ticketId) return
-    if (observerCompanyId || linkedClientCompanyId || autoLinkedClientCompanyId) return
-    if (ownCompanyQ.data?.type !== 'PROVIDER') return
-    if (!ticketQ.isError) return
-    const linkedClients = linkedClientsQ.data || []
-    if (!linkedClients.length) return
+      const urlCo = (searchParams.get('companyId') || '').trim()
+      const urlLi = (searchParams.get('linkedClientCompanyId') || '').trim()
+      const persistedObs = (api.getObserverCompanyId(meQ.data) || '').trim()
+      const persistedLinked = (api.getLinkedClientCompanyId(meQ.data) || '').trim()
 
-    let cancelled = false
-    ;(async () => {
-      for (const linkedClient of linkedClients) {
+      const scopes = mobileTicketDetailGetOneScopes({
+        urlCompanyId: urlCo,
+        urlLinkedClientCompanyId: urlLi,
+        stateTicketOwnerCompanyId: ticketOwnerNav,
+        persistedCompanyId: persistedObs,
+        persistedLinkedClientCompanyId: persistedLinked,
+        meRole: meQ.data?.role,
+      })
+
+      let lastErr: unknown
+      for (const sc of scopes) {
         try {
-          await api.getTicket(ticketId, { linkedClientCompanyId: linkedClient.clientCompany.id })
-          if (!cancelled) {
-            setAutoLinkedClientCompanyId(linkedClient.clientCompany.id)
-          }
-          return
-        } catch {
-          // try next linked client scope
+          return await api.getTicket(ticketId, sc)
+        } catch (e) {
+          lastErr = e
+          if (!isNotFoundGetTicketError(e)) throw e
         }
       }
-    })()
 
-    return () => {
-      cancelled = true
-    }
-  }, [
-    ticketId,
-    observerCompanyId,
-    linkedClientCompanyId,
-    autoLinkedClientCompanyId,
-    ownCompanyQ.data?.type,
-    ticketQ.isError,
-    linkedClientsQ.data,
-  ])
+      if (!urlLi) {
+        try {
+          const co = await api.company()
+          if (co.type === 'PROVIDER') {
+            const linkedClients = await api.getLinkedClients()
+            for (const lc of linkedClients) {
+              const clientId = (lc.clientCompany.id || '').trim()
+              if (!clientId) continue
+              if (scopes.some((s) => (s.linkedClientCompanyId || '').trim() === clientId)) continue
+              try {
+                return await api.getTicket(ticketId, { linkedClientCompanyId: clientId })
+              } catch (e) {
+                lastErr = e
+                if (!isNotFoundGetTicketError(e)) throw e
+              }
+            }
+          }
+        } catch (e) {
+          if (!isNotFoundGetTicketError(e)) throw e
+        }
+      }
+
+      throw lastErr instanceof Error ? lastErr : new Error(String(lastErr ?? 'Заявка не найдена'))
+    },
+  })
 
   const inferredLinkedClientCompanyId = useMemo(() => {
-    if (effectiveLinkedClientCompanyId) return effectiveLinkedClientCompanyId
+    if (linkedClientCompanyId) return linkedClientCompanyId
     if (observerCompanyId) return ''
     if (ticketQ.data?.meta?.visibilityMode !== 'provider_primary') return ''
     return ticketQ.data?.meta?.scopeCompanyId || ''
-  }, [effectiveLinkedClientCompanyId, observerCompanyId, ticketQ.data?.meta?.visibilityMode, ticketQ.data?.meta?.scopeCompanyId])
+  }, [linkedClientCompanyId, observerCompanyId, ticketQ.data?.meta?.visibilityMode, ticketQ.data?.meta?.scopeCompanyId])
 
   const effectiveTicketScope = useMemo<api.TicketScopeParams>(
     () => ({
@@ -170,12 +225,12 @@ export function MobileTicketDetails() {
 
   const requestImages = useMemo(() => {
     const imgs = (attachmentsQ.data || []).filter(isImageAttachment)
-    return imgs.filter((a) => a.purpose !== 'WORK_REPORT')
+    return imgs.filter((a) => !isReportTicketImage(a))
   }, [attachmentsQ.data])
 
   const reportImages = useMemo(() => {
     const imgs = (attachmentsQ.data || []).filter(isImageAttachment)
-    return imgs.filter((a) => a.purpose === 'WORK_REPORT')
+    return imgs.filter((a) => isReportTicketImage(a))
   }, [attachmentsQ.data])
 
   return (
@@ -231,9 +286,7 @@ export function MobileTicketDetails() {
                 ) : (
                   <div className="mobilePhotoGrid">
                     {requestImages.map((a) => (
-                      <a key={a.id} href={a.url} target="_blank" rel="noreferrer" className="mobilePhotoThumbLink">
-                        <img src={a.url} alt="" className="mobilePhotoThumb" />
-                      </a>
+                      <MobileTicketAttachmentThumb key={a.id} attachment={a} />
                     ))}
                   </div>
                 )}
@@ -245,9 +298,7 @@ export function MobileTicketDetails() {
                 ) : (
                   <div className="mobilePhotoGrid">
                     {reportImages.map((a) => (
-                      <a key={a.id} href={a.url} target="_blank" rel="noreferrer" className="mobilePhotoThumbLink">
-                        <img src={a.url} alt="" className="mobilePhotoThumb" />
-                      </a>
+                      <MobileTicketAttachmentThumb key={a.id} attachment={a} />
                     ))}
                   </div>
                 )}

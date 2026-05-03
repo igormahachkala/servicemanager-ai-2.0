@@ -10,6 +10,7 @@ export type MobileTicketNavState = {
   ticketOwnerCompanyId?: string
 }
 
+/** Роли, для которых карточка клиента на доске провайдера открывается с linkedClientCompanyId = companyId заявки и повтором getOne по владельцу при 404. */
 const MOBILE_TICKET_LINK_SCOPE_ROLES: Role[] = [
   'TECHNICIAN',
   'ADMIN',
@@ -17,16 +18,71 @@ const MOBILE_TICKET_LINK_SCOPE_ROLES: Role[] = [
   'DISPATCHER',
   'NETWORK_DIRECTOR',
   'TERRITORIAL_MANAGER',
+  'STAFF',
 ]
 
-/** Сжать scope для appendScopeToPath: пустой объект не блокирует fallback по owner. */
-export function compactTicketScope(s: TicketScopeParams): TicketScopeParams | undefined {
+function scopeFingerprint(s: TicketScopeParams): string {
+  return `${(s.companyId || '').trim()}\t${(s.linkedClientCompanyId || '').trim()}`
+}
+
+/**
+ * Пустой объект: appendScopeToPath/getScopeSearchSuffix не подставят persisted scope в URL
+ * (иначе в ссылку попадает чужой linkedClient и детали дают ложный 404).
+ */
+export function compactTicketScope(s: TicketScopeParams): TicketScopeParams {
   const companyId = (s.companyId || '').trim()
   const linked = (s.linkedClientCompanyId || '').trim()
   const out: TicketScopeParams = {}
   if (companyId) out.companyId = companyId
   if (linked) out.linkedClientCompanyId = linked
-  return Object.keys(out).length ? out : undefined
+  return Object.keys(out).length ? out : {}
+}
+
+/**
+ * Порядок полей как при чтении scope на деталях: URL → state ticketOwner → persisted.
+ * Вторая попытка (если отличается от первой): linkedClientCompanyId = ticketOwner из state — после 404 по первой.
+ */
+export function mobileTicketDetailGetOneScopes(input: {
+  urlCompanyId: string
+  urlLinkedClientCompanyId: string
+  stateTicketOwnerCompanyId: string
+  persistedCompanyId: string
+  persistedLinkedClientCompanyId: string
+  meRole: Role | undefined | null
+}): TicketScopeParams[] {
+  const urlCompanyId = (input.urlCompanyId || '').trim()
+  const urlLinkedClientCompanyId = (input.urlLinkedClientCompanyId || '').trim()
+  const stateOwner = (input.stateTicketOwnerCompanyId || '').trim()
+  const persistedCompanyId = (input.persistedCompanyId || '').trim()
+  const persistedLinked = (input.persistedLinkedClientCompanyId || '').trim()
+
+  const primary: TicketScopeParams = {
+    companyId: urlCompanyId || persistedCompanyId || undefined,
+    linkedClientCompanyId: urlLinkedClientCompanyId || stateOwner || persistedLinked || undefined,
+  }
+
+  const out: TicketScopeParams[] = []
+  const add = (s: TicketScopeParams) => {
+    const fp = scopeFingerprint(s)
+    if (!out.some((x) => scopeFingerprint(x) === fp)) out.push(s)
+  }
+
+  add(primary)
+
+  const canOwnerRetry =
+    !!stateOwner &&
+    !!input.meRole &&
+    MOBILE_TICKET_LINK_SCOPE_ROLES.includes(input.meRole) &&
+    scopeFingerprint({ ...primary, linkedClientCompanyId: stateOwner }) !== scopeFingerprint(primary)
+
+  if (canOwnerRetry) {
+    add({
+      companyId: primary.companyId,
+      linkedClientCompanyId: stateOwner,
+    })
+  }
+
+  return out
 }
 
 /**

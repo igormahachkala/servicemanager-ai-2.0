@@ -376,9 +376,14 @@ export type TicketAttachmentItem = {
   id: string
   ticketId?: string | null
   originalName: string
+  /** Некоторые ответы API могут дублировать имя файла */
+  filename?: string | null
   mimeType: string
   sizeBytes: number
   url: string
+  /** Если появится в API — приоритетнее относительного `url` для скачивания */
+  downloadUrl?: string | null
+  path?: string | null
   purpose?: 'REQUEST' | 'WORK_REPORT' | string | null
   createdAt: string
   uploadedBy?: { id: string; email: string } | null
@@ -913,6 +918,20 @@ export function resolveFileUrl(url: string): string {
   if (/^https?:\/\//i.test(url)) return url
   const normalized = url.startsWith('/') ? url : '/' + url
   return getBaseUrl() + normalized
+}
+
+/** Абсолютный URL файла вложения тикета (как на desktop TicketAttachments). */
+export function resolveTicketAttachmentUrl(attachment: {
+  url?: string | null
+  downloadUrl?: string | null
+  path?: string | null
+}): string {
+  const raw =
+    (typeof attachment.downloadUrl === 'string' && attachment.downloadUrl.trim()) ||
+    (typeof attachment.url === 'string' && attachment.url.trim()) ||
+    (typeof attachment.path === 'string' && attachment.path.trim()) ||
+    ''
+  return resolveFileUrl(raw)
 }
 
 export function setBaseUrl(url: string) {

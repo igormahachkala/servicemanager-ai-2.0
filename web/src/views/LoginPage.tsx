@@ -144,25 +144,8 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
 
         <div className="panel loginSupportPanel" style={{ marginTop: 16 }}>
           <div style={{ fontWeight: 600, marginBottom: 6 }}>Публичная регистрация компаний отключена</div>
-          <div className="muted small" style={{ marginBottom: 10 }}>
-            Новые компании и первые администраторы создаются только через platform-admin flow.
-          </div>
-          <div className="muted small" style={{ marginBottom: 10 }}>
-            Для создания компании или доступа напишите в поддержку:
-          </div>
-          <div className="loginSupportContacts muted small">
-            <div>
-              <span className="loginSupportLabel">Email:</span>{' '}
-              <a href={SUPPORT_MAILTO} className="loginSupportInlineLink">
-                {SUPPORT_EMAIL}
-              </a>
-            </div>
-            <div>
-              <span className="loginSupportLabel">Telegram:</span>{' '}
-              <a href={SUPPORT_TELEGRAM} target="_blank" rel="noopener noreferrer" className="loginSupportInlineLink">
-                @igorpump
-              </a>
-            </div>
+          <div className="muted small" style={{ marginBottom: 12 }}>
+            Для доступа свяжитесь с поддержкой.
           </div>
           <div className="loginSupportActions">
             <a href={SUPPORT_MAILTO} className="loginSupportAction loginSupportActionPrimary">

@@ -28,19 +28,22 @@ function formatDate(value?: string | null) {
 export function MobileMyTickets() {
   const location = useLocation()
   const search = new URLSearchParams(location.search)
-  const linkedClientCompanyId = (search.get('linkedClientCompanyId') || api.getLinkedClientCompanyId()).trim()
-  const companyId = (search.get('companyId') || api.getObserverCompanyId()).trim()
-  const scope = {
-    linkedClientCompanyId: linkedClientCompanyId || undefined,
-    companyId: companyId || undefined,
-  }
   const [filter, setFilter] = useState<FilterKey>('active')
 
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
 
+  const linkedClientCompanyId = (search.get('linkedClientCompanyId') || api.getLinkedClientCompanyId(meQ.data)).trim()
+  const companyId = (search.get('companyId') || api.getObserverCompanyId(meQ.data)).trim()
+  /** Тот же scope, что у board — в ссылку на детали уходит он + override по companyId карточки (scopeForMobileTicketLink). */
+  const scope = {
+    linkedClientCompanyId: linkedClientCompanyId || undefined,
+    companyId: companyId || undefined,
+  }
+
   const boardQ = useQuery({
     queryKey: ['mobile-my-board', linkedClientCompanyId, companyId],
     queryFn: () => api.board({ linkedClientCompanyId: linkedClientCompanyId || undefined, companyId: companyId || undefined, take: 60 }),
+    enabled: !!meQ.data,
   })
 
   const allTickets = boardQ.data?.columns.flatMap((col) => col.cards || []) || []
