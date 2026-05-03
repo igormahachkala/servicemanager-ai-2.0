@@ -5,6 +5,12 @@ import { assertAllowed, isPlatformObserverScope, resolveObserverScopeCompanyId }
 import { TicketsPolicy, type UserCtx } from '../policy/tickets.policy'
 import { PrismaService } from '../prisma/prisma.service'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
+import {
+  buildSpecializationLinksSomeWhereInput,
+  normalizeSpecializationLabel,
+  specializationNameMatchVariants,
+  technicianMatchesCategorySpecializationLinks,
+} from './ticket-specialization-match.utils'
 
 type AccessFlags = {
   canTechnicianViewAllCompanyTickets?: boolean
@@ -181,6 +187,13 @@ export function canAccessOwnTicket(
   return ticket.companyId === ctx.companyId
 }
 
+export {
+  normalizeSpecializationLabel,
+  specializationNameMatchVariants,
+  buildSpecializationLinksSomeWhereInput,
+  technicianMatchesCategorySpecializationLinks,
+} from './ticket-specialization-match.utils'
+
 export async function resolveTechnicianOperationalScope(params: {
   prisma: PrismaService
   serviceContractsService: ServiceContractsService
@@ -208,7 +221,11 @@ export async function resolveTechnicianOperationalScope(params: {
     select: {
       id: true,
       technicianSpecializations: {
-        select: { specializationId: true },
+        where: { specialization: { isActive: true } },
+        select: {
+          specializationId: true,
+          specialization: { select: { name: true } },
+        },
       },
     },
   })
@@ -226,6 +243,18 @@ export async function resolveTechnicianOperationalScope(params: {
 
   const companyIds = Array.from(new Set([params.actor.companyId, ...linkedClientIds]))
   const specializationIds = technician.technicianSpecializations.map((item) => item.specializationId)
+  const specializationNames = Array.from(
+    new Set(
+      technician.technicianSpecializations.flatMap((item) => {
+        const raw = item.specialization?.name?.trim() ?? ''
+        if (!raw) return []
+        const out: string[] = [raw, ...specializationNameMatchVariants(raw)]
+        const norm = normalizeSpecializationLabel(raw)
+        if (norm) out.push(norm)
+        return out
+      }),
+    ),
+  ).filter((name) => name.length > 0)
   const linkedScopeSelected = !!params.linkedClientCompanyId && params.linkedClientCompanyId !== params.actor.companyId
   const hasLinkedCompanies = linkedClientIds.some((id) => id !== params.actor.companyId)
   const bindings = await params.prisma.userLocationBinding.findMany({
@@ -256,6 +285,7 @@ export async function resolveTechnicianOperationalScope(params: {
   return {
     companyIds,
     specializationIds,
+    specializationNames,
     locationScopeByCompany,
     allowTechnicianClaim: !!company.allowTechnicianClaim,
     scopeCompanyId: linkedScopeSelected ? params.linkedClientCompanyId! : params.actor.companyId,
@@ -407,15 +437,17 @@ export async function resolveReadableTicketAccess(params: {
     ]
 
     if (technicianScope.allowTechnicianClaim) {
-      if (technicianScope.specializationIds.length > 0) {
+      const specSome = buildSpecializationLinksSomeWhereInput({
+        specializationIds: technicianScope.specializationIds,
+        specializationNames: technicianScope.specializationNames,
+      })
+      if (specSome) {
         visibilityOr.push({
           status: 'NEW',
           assignedTechnicianId: null,
           problemCategory: {
             specializationLinks: {
-              some: {
-                specializationId: { in: technicianScope.specializationIds },
-              },
+              some: specSome,
             },
           },
         })
@@ -569,6 +601,7 @@ export async function resolveReadableTicketAccess(params: {
           specializationLinks: {
             select: {
               specializationId: true,
+              specialization: { select: { name: true } },
             },
           },
         },
@@ -608,8 +641,7 @@ export async function resolveReadableTicketAccess(params: {
         linkedClientCompanyId: directTicket.companyId,
       })
 
-      const categorySpecializationIds =
-        directTicket.problemCategory?.specializationLinks?.map((item) => item.specializationId) ?? []
+      const categoryLinks = directTicket.problemCategory?.specializationLinks ?? []
       const locationAllowed = isTechnicianLocationAllowed({
         companyId: directTicket.companyId,
         locationId: directTicket.locationId,
@@ -620,8 +652,11 @@ export async function resolveReadableTicketAccess(params: {
         directTicket.status === 'NEW' &&
         !directTicket.assignedTechnicianId &&
         locationAllowed &&
-        (categorySpecializationIds.length === 0 ||
-          categorySpecializationIds.some((id) => technicianScope.specializationIds.includes(id)))
+        technicianMatchesCategorySpecializationLinks({
+          categoryLinks,
+          technicianSpecializationIds: technicianScope.specializationIds,
+          technicianSpecializationNames: technicianScope.specializationNames,
+        })
 
       const technicianCanReadLinked =
         (directTicket.assignedTechnicianId === params.actor.id && locationAllowed) || technicianCanClaim

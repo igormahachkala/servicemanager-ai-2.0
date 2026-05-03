@@ -18,7 +18,13 @@ import { AssignmentService } from '../assignment/assignment.service';
 import { TicketsQueryService } from './tickets.query.service';
 import { TicketAttachmentsService } from './ticket-attachments.service';
 import { buildTicketDescription } from './ticket-description.builder';
-import { assertActorCanUseLocation, buildTechnicianLocationRestrictionWhere, resolveTechnicianOperationalScope, resolveTicketOperationAccess } from './ticket-access.utils';
+import {
+  assertActorCanUseLocation,
+  buildSpecializationLinksSomeWhereInput,
+  buildTechnicianLocationRestrictionWhere,
+  resolveTechnicianOperationalScope,
+  resolveTicketOperationAccess,
+} from './ticket-access.utils';
 import { ServiceContractsService } from '../service-contracts/service-contracts.service';
 import { TechniciansService } from '../technicians/technicians.service';
 
@@ -1306,6 +1312,11 @@ export class TicketsAssignmentService {
       locationScopeByCompany: technicianScope.locationScopeByCompany,
     });
 
+    const specSome = buildSpecializationLinksSomeWhereInput({
+      specializationIds: technicianScope.specializationIds,
+      specializationNames: technicianScope.specializationNames,
+    })
+
     return this.prisma.ticket.findMany({
       where: {
         AND: [
@@ -1314,16 +1325,16 @@ export class TicketsAssignmentService {
             status: TicketStatus.NEW,
             assignedTechnicianId: null,
             OR: [
-              ...(technicianScope.specializationIds.length > 0
-                ? [{
-                    problemCategory: {
-                      specializationLinks: {
-                        some: {
-                          specializationId: { in: technicianScope.specializationIds },
+              ...(specSome
+                ? [
+                    {
+                      problemCategory: {
+                        specializationLinks: {
+                          some: specSome,
                         },
                       },
                     },
-                  }]
+                  ]
                 : []),
               {
                 problemCategory: {
@@ -1374,6 +1385,7 @@ export class TicketsAssignmentService {
       },
       ticketId,
       specializationIds: technicianScope.specializationIds,
+      specializationNames: technicianScope.specializationNames,
       allowTechnicianClaim: technicianScope.allowTechnicianClaim,
       companyIds: technicianScope.companyIds,
     })

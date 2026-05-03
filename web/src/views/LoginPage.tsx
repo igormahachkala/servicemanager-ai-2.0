@@ -25,6 +25,7 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
   const [loading, setLoading] = useState(false)
   const [postLoginUser, setPostLoginUser] = useState<api.Me | null>(null)
   const [postLoginScope, setPostLoginScope] = useState<api.TicketScopeParams>({})
+  const [mobileEntryLoading, setMobileEntryLoading] = useState(false)
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
@@ -60,12 +61,64 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
     navigate(api.appendScopeToPath(api.getHomeRoute(postLoginUser.role), postLoginScope, postLoginUser))
   }
 
-  function enterMobile() {
+  async function enterMobile() {
     if (!postLoginUser) return
     const token = api.getToken()
     if (onLoggedIn && token) {
       onLoggedIn(token)
     }
+
+    if (api.isClientRole(postLoginUser.role)) {
+      navigate(api.appendScopeToPath('/m', postLoginScope, postLoginUser))
+      return
+    }
+
+    if (postLoginUser.role === 'PLATFORM_ADMIN') {
+      navigate(api.appendScopeToPath('/m', postLoginScope, postLoginUser))
+      return
+    }
+
+    if (postLoginUser.role === 'TECHNICIAN') {
+      const linked = (
+        (postLoginScope.linkedClientCompanyId || '').trim() ||
+        api.getLinkedClientCompanyId(postLoginUser).trim()
+      ).trim()
+      const nextScope: api.TicketScopeParams = linked
+        ? { ...postLoginScope, linkedClientCompanyId: linked }
+        : { ...postLoginScope }
+      navigate(api.appendScopeToPath('/m', nextScope, postLoginUser))
+      return
+    }
+
+    if (api.shouldFetchDefaultLinkedClientOnMobileEntry(postLoginUser.role)) {
+      setMobileEntryLoading(true)
+      try {
+        let linkedClientCompanyId = ''
+        try {
+          const list = await api.getLinkedClients()
+          linkedClientCompanyId = api.pickDefaultLinkedClientCompanyId(list)
+        } catch {
+          /* 403 / сеть — fallback ниже */
+        }
+
+        if (!linkedClientCompanyId) {
+          linkedClientCompanyId = (
+            (postLoginScope.linkedClientCompanyId || '').trim() ||
+            api.getLinkedClientCompanyId(postLoginUser).trim()
+          ).trim()
+        }
+
+        const nextScope: api.TicketScopeParams = linkedClientCompanyId
+          ? { ...postLoginScope, linkedClientCompanyId }
+          : { ...postLoginScope }
+
+        navigate(api.appendScopeToPath('/m', nextScope, postLoginUser))
+      } finally {
+        setMobileEntryLoading(false)
+      }
+      return
+    }
+
     navigate(api.appendScopeToPath('/m', postLoginScope, postLoginUser))
   }
 
@@ -132,8 +185,13 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
               <button type="button" className="mobileBtn" onClick={enterDesktop}>
                 Вход: управленческая часть
               </button>
-              <button type="button" className="mobileBtn mobileBtnGhost" onClick={enterMobile}>
-                Вход: мобильная версия для обслуживания
+              <button
+                type="button"
+                className="mobileBtn mobileBtnGhost"
+                disabled={mobileEntryLoading}
+                onClick={() => void enterMobile()}
+              >
+                {mobileEntryLoading ? 'Открываем...' : 'Вход: мобильная версия для обслуживания'}
               </button>
               <button type="button" className="ghost" onClick={resetSession}>
                 Выйти и ввести другой аккаунт

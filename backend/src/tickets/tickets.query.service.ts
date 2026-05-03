@@ -9,6 +9,7 @@ import { TicketsPolicy, type BoardQueryInput } from '../policy/tickets.policy'
 import { assertAllowed } from '../policy/policy.utils'
 import {
   applyLocationScopeToTicketWhere,
+  buildSpecializationLinksSomeWhereInput,
   buildTechnicianLocationRestrictionWhere,
   PROVIDER_LINKED_OVERVIEW_ROLES,
   resolveReadableTicketAccess,
@@ -66,6 +67,7 @@ export class TicketsQueryService {
     locationScopeByCompany: Record<string, string[]>
     userId: string
     specializationIds: string[]
+    specializationNames: string[]
     allowTechnicianClaim: boolean
     input: BoardQueryInput
   }) {
@@ -77,16 +79,18 @@ export class TicketsQueryService {
     const visibilityOr: any[] = [{ ...companyScope, assignedTechnicianId: params.userId }]
 
     if (params.allowTechnicianClaim) {
-      if (params.specializationIds.length > 0) {
+      const specSome = buildSpecializationLinksSomeWhereInput({
+        specializationIds: params.specializationIds,
+        specializationNames: params.specializationNames,
+      })
+      if (specSome) {
         visibilityOr.push({
           ...companyScope,
           status: TicketStatus.NEW,
           assignedTechnicianId: null,
           problemCategory: {
             specializationLinks: {
-              some: {
-                specializationId: { in: params.specializationIds },
-              },
+              some: specSome,
             },
           },
         })
@@ -186,6 +190,7 @@ export class TicketsQueryService {
     locationScopeByCompany: Record<string, string[]>
     userId: string
     specializationIds: string[]
+    specializationNames: string[]
     allowTechnicianClaim: boolean
     status?: TicketStatus
   }) {
@@ -195,16 +200,18 @@ export class TicketsQueryService {
     const visibilityOr: any[] = [{ ...companyScope, assignedTechnicianId: params.userId }]
 
     if (params.allowTechnicianClaim) {
-      if (params.specializationIds.length > 0) {
+      const specSome = buildSpecializationLinksSomeWhereInput({
+        specializationIds: params.specializationIds,
+        specializationNames: params.specializationNames,
+      })
+      if (specSome) {
         visibilityOr.push({
           ...companyScope,
           status: TicketStatus.NEW,
           assignedTechnicianId: null,
           problemCategory: {
             specializationLinks: {
-              some: {
-                specializationId: { in: params.specializationIds },
-              },
+              some: specSome,
             },
           },
         })
@@ -272,6 +279,7 @@ export class TicketsQueryService {
           locationScopeByCompany: technicianScope.locationScopeByCompany,
           userId,
           specializationIds: technicianScope.specializationIds,
+          specializationNames: technicianScope.specializationNames,
           allowTechnicianClaim: technicianScope.allowTechnicianClaim,
           input,
         })
@@ -469,6 +477,7 @@ export class TicketsQueryService {
           locationScopeByCompany: technicianScope.locationScopeByCompany,
           userId,
           specializationIds: technicianScope.specializationIds,
+          specializationNames: technicianScope.specializationNames,
           allowTechnicianClaim: technicianScope.allowTechnicianClaim,
           input: {},
         }).where
@@ -598,6 +607,7 @@ export class TicketsQueryService {
           locationScopeByCompany: technicianScope.locationScopeByCompany,
           userId,
           specializationIds: technicianScope.specializationIds,
+          specializationNames: technicianScope.specializationNames,
           allowTechnicianClaim: technicianScope.allowTechnicianClaim,
           status,
         })

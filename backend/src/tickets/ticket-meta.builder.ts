@@ -4,7 +4,15 @@ import { TicketsPolicy } from '../policy/tickets.policy'
 import { PrismaService } from '../prisma/prisma.service'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
 import { decideTicketTransition } from '../workflow/ticket.workflow'
-import { buildTechnicianLocationRestrictionWhere, resolveTechnicianOperationalScope, resolveTicketOperationAccess, type TicketVisibilityMode, wasTicketCreatedByActor } from './ticket-access.utils'
+import {
+  buildTechnicianLocationRestrictionWhere,
+  isTechnicianLocationAllowed,
+  resolveTechnicianOperationalScope,
+  resolveTicketOperationAccess,
+  type TicketVisibilityMode,
+  technicianMatchesCategorySpecializationLinks,
+  wasTicketCreatedByActor,
+} from './ticket-access.utils'
 
 export type TicketMetaBuildParams = {
   actorCompanyId: string
@@ -70,6 +78,7 @@ export class TicketMetaBuilder {
       },
       ticketId: params.ticketId,
       specializationIds: technicianScope.specializationIds,
+      specializationNames: technicianScope.specializationNames,
       allowTechnicianClaim: technicianScope.allowTechnicianClaim,
       companyIds: technicianScope.companyIds,
     })
@@ -94,6 +103,68 @@ export class TicketMetaBuilder {
 
     if (claimableTicket) {
       return { canClaimByCurrentUser: true, claimAvailabilityReason: null }
+    }
+
+    const ticketForClaimDiag = await this.prisma.ticket.findFirst({
+      where: { id: params.ticketId },
+      select: {
+        status: true,
+        assignedTechnicianId: true,
+        companyId: true,
+        locationId: true,
+        problemCategory: {
+          select: {
+            specializationLinks: {
+              select: {
+                specializationId: true,
+                specialization: { select: { name: true } },
+              },
+            },
+          },
+        },
+      },
+    })
+
+    if (ticketForClaimDiag) {
+      if (ticketForClaimDiag.status !== TicketStatus.NEW) {
+        return {
+          canClaimByCurrentUser: false,
+          claimAvailabilityReason: 'Заявка не в статусе NEW: claim доступен только для новых заявок',
+        }
+      }
+      if (ticketForClaimDiag.assignedTechnicianId) {
+        return {
+          canClaimByCurrentUser: false,
+          claimAvailabilityReason: 'Заявка уже назначена: claim только для заявок без исполнителя',
+        }
+      }
+      const locationAllowed = isTechnicianLocationAllowed({
+        companyId: ticketForClaimDiag.companyId,
+        locationId: ticketForClaimDiag.locationId,
+        locationScopeByCompany: technicianScope.locationScopeByCompany,
+      })
+      if (!locationAllowed) {
+        return {
+          canClaimByCurrentUser: false,
+          claimAvailabilityReason:
+            'Локация заявки недоступна: нет привязки UserLocationBinding к этой точке в текущем scope',
+        }
+      }
+      const categoryLinks = ticketForClaimDiag.problemCategory?.specializationLinks ?? []
+      if (
+        categoryLinks.length > 0 &&
+        !technicianMatchesCategorySpecializationLinks({
+          categoryLinks,
+          technicianSpecializationIds: technicianScope.specializationIds,
+          technicianSpecializationNames: technicianScope.specializationNames,
+        })
+      ) {
+        return {
+          canClaimByCurrentUser: false,
+          claimAvailabilityReason:
+            'Нет совпадения по специализации: категория заявки не связана с вашими активными специализациями (по id или по нормализованному имени)',
+        }
+      }
     }
 
     const selfCreatedByCurrentUser = await wasTicketCreatedByActor({

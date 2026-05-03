@@ -1,6 +1,8 @@
 ﻿export type Role =
   | 'PLATFORM_ADMIN'
   | 'ADMIN'
+  /** Если бэкенд отдаёт отдельное значение роли провайдера-админа */
+  | 'ADMIN_PROVIDER'
   | 'DISPATCHER'
   | 'MASTER'
   | 'TECHNICIAN'
@@ -1053,8 +1055,36 @@ export function getHomeRoute(role?: string | null): string {
   return '/board'
 }
 
-function isClientRole(role?: string | null): boolean {
+/** Клиентские роли: linked-scope в URL для них не используется как у провайдера. */
+export function isClientRole(role?: string | null): boolean {
   return role === 'CLIENT' || role === 'NETWORK_DIRECTOR'
+}
+
+/**
+ * Роли провайдера: при выборе «мобильная версия» на /login запрашиваем getLinkedClients(),
+ * выбираем дефолтного linked-клиента и кладём linkedClientCompanyId в scope/URL.
+ * TECHNICIAN сюда не входит — для техника linked только из persisted/URL (без getLinkedClients).
+ */
+export function shouldFetchDefaultLinkedClientOnMobileEntry(role?: Role | string | null): boolean {
+  if (!role) return false
+  return (
+    role === 'ADMIN' ||
+    role === 'ADMIN_PROVIDER' ||
+    role === 'MASTER' ||
+    role === 'DISPATCHER' ||
+    role === 'TERRITORIAL_MANAGER' ||
+    role === 'STAFF'
+  )
+}
+
+/** Дефолтный linked-клиент для мобильного входа: только id из ответа API. ACTIVE+PRIMARY → ACTIVE → первый элемент. */
+export function pickDefaultLinkedClientCompanyId(contracts: LinkedClientSummary[]): string {
+  if (!contracts?.length) return ''
+  const activePrimary = contracts.find((c) => c.status === 'ACTIVE' && c.role === 'PRIMARY')
+  if (activePrimary?.clientCompany?.id) return activePrimary.clientCompany.id.trim()
+  const firstActive = contracts.find((c) => c.status === 'ACTIVE')
+  if (firstActive?.clientCompany?.id) return firstActive.clientCompany.id.trim()
+  return (contracts[0]?.clientCompany?.id || '').trim()
 }
 
 function readPersistedScope(): PersistedScope | null {
