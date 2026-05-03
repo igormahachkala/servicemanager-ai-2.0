@@ -8,7 +8,7 @@ import { CreateTicketDto } from './dto/create-ticket.dto';
 import { CreateChildTicketDto } from './dto/create-child-ticket.dto';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
 
-import { TicketsPolicy } from '../policy/tickets.policy';
+import { TicketsPolicy, type TicketsClaimWhereParams } from '../policy/tickets.policy';
 import { assertAllowed } from '../policy/policy.utils';
 
 import { decideTicketTransition } from '../workflow/ticket.workflow';
@@ -1388,7 +1388,7 @@ export class TicketsAssignmentService {
       specializationNames: technicianScope.specializationNames,
       allowTechnicianClaim: technicianScope.allowTechnicianClaim,
       companyIds: technicianScope.companyIds,
-    })
+    } satisfies TicketsClaimWhereParams)
     assertAllowed(decision)
     const locationRestriction = buildTechnicianLocationRestrictionWhere({
       companyIds: technicianScope.companyIds,

@@ -1,6 +1,6 @@
 import { TicketStatus, UserRole } from '@prisma/client'
 
-import { TicketsPolicy } from '../policy/tickets.policy'
+import { TicketsPolicy, type TicketsClaimWhereParams } from '../policy/tickets.policy'
 import { PrismaService } from '../prisma/prisma.service'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
 import { decideTicketTransition } from '../workflow/ticket.workflow'
@@ -81,7 +81,7 @@ export class TicketMetaBuilder {
       specializationNames: technicianScope.specializationNames,
       allowTechnicianClaim: technicianScope.allowTechnicianClaim,
       companyIds: technicianScope.companyIds,
-    })
+    } satisfies TicketsClaimWhereParams)
     const locationRestriction = buildTechnicianLocationRestrictionWhere({
       companyIds: technicianScope.companyIds,
       locationScopeByCompany: technicianScope.locationScopeByCompany,

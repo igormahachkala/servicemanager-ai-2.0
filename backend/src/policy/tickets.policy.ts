@@ -1,4 +1,6 @@
 ﻿import { Prisma, TicketStatus, UserRole } from '@prisma/client';
+
+import { buildSpecializationLinksSomeWhereInput } from '../tickets/ticket-specialization-match.utils'
 import { allow, deny, PolicyDecision } from './policy.types';
 
 export type UserCtx = {
@@ -44,6 +46,16 @@ export type BoardQuery = {
     atRiskThresholdMinutes: number;
     limitedToLast: number;
   };
+};
+
+/** Вход claimWhere: id + имена специализаций техника (кросс-тенантный матч с категорией заявки). */
+export type TicketsClaimWhereParams = {
+  user: { id: string; role: UserRole; companyId: string };
+  ticketId: string;
+  specializationIds: string[];
+  specializationNames?: string[];
+  allowTechnicianClaim: boolean;
+  companyIds?: string[];
 };
 
 function normalizeAnd(where: Prisma.TicketWhereInput, extra: Prisma.TicketWhereInput[]): Prisma.TicketWhereInput {
@@ -172,14 +184,8 @@ export class TicketsPolicy {
     return deny('Role cannot assign tickets');
   }
 
-  claimWhere(params: {
-    user: { id: string; role: UserRole; companyId: string };
-    ticketId: string;
-    specializationIds: string[];
-    allowTechnicianClaim: boolean;
-    companyIds?: string[];
-  }): PolicyDecision<Prisma.TicketWhereInput> {
-    const { user, ticketId, specializationIds, allowTechnicianClaim, companyIds } = params;
+  claimWhere(params: TicketsClaimWhereParams): PolicyDecision<Prisma.TicketWhereInput> {
+    const { user, ticketId, specializationIds, specializationNames, allowTechnicianClaim, companyIds } = params;
 
     if (user.role !== UserRole.TECHNICIAN) return deny('Only TECHNICIAN can claim tickets');
     if (!allowTechnicianClaim) {
@@ -189,14 +195,19 @@ export class TicketsPolicy {
     const effectiveCompanyIds = Array.from(new Set((companyIds ?? [user.companyId]).filter(Boolean)));
     const categoryScopeOr: Prisma.TicketWhereInput[] = [];
 
-    if (specializationIds && specializationIds.length > 0) {
+    const specSome = buildSpecializationLinksSomeWhereInput({
+      specializationIds: specializationIds ?? [],
+      specializationNames: specializationNames ?? [],
+    })
+
+    if (specSome) {
       categoryScopeOr.push({
         problemCategory: {
           specializationLinks: {
-            some: { specializationId: { in: specializationIds } },
+            some: specSome,
           },
         },
-      });
+      })
     }
 
     categoryScopeOr.push({

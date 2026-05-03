@@ -194,12 +194,22 @@ export {
   technicianMatchesCategorySpecializationLinks,
 } from './ticket-specialization-match.utils'
 
+export type TechnicianOperationalScope = {
+  companyIds: string[]
+  specializationIds: string[]
+  specializationNames: string[]
+  locationScopeByCompany: Record<string, string[]>
+  allowTechnicianClaim: boolean
+  scopeCompanyId: string
+  visibilityMode: TicketVisibilityMode
+}
+
 export async function resolveTechnicianOperationalScope(params: {
   prisma: PrismaService
   serviceContractsService: ServiceContractsService
   actor: TicketAccessActor
   linkedClientCompanyId?: string
-}) {
+}): Promise<TechnicianOperationalScope> {
   const company = await params.prisma.company.findUnique({
     where: { id: params.actor.companyId },
     select: {
