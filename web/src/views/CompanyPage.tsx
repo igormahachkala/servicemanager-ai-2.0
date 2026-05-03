@@ -341,6 +341,10 @@ export function CompanyPage() {
         </div>
       </div>
 
+      <div className="pageHint">
+        Настройки влияют на правила работы компании: автоназначение, доступы и поведение системы.
+      </div>
+
       {isObserverMode ? (
         <div className="panel" style={{ marginBottom: 12 }}>
           <div className="row" style={{ alignItems: 'center' }}>
@@ -384,6 +388,9 @@ export function CompanyPage() {
                 ))}
               </select>
             </div>
+          </div>
+          <div className="fieldHint">
+            Выбор клиента переключает контур: карточка, публичные ссылки и счётчики ниже относятся к выбранной связанной компании.
           </div>
 
           {linkedClientsQ.isLoading ? <div className="muted small">Загружаем связанных клиентов…</div> : null}

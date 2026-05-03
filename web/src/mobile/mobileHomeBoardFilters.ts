@@ -1,4 +1,4 @@
-import type { TicketCard } from '../lib/api'
+import type { Role, TicketCard } from '../lib/api'
 
 export type MobileHomeBoardFilterTab = 'all' | 'new' | 'mine' | 'in_work'
 
@@ -51,10 +51,38 @@ export function mobileHomeBoardTabCounts(cards: TicketCard[], meId: string | und
 
 export type MobileHomeTabEmptyCopy = { title: string; hint: string }
 
+export type MobileHomeEmptyContext = {
+  role?: Role | null
+  /** Карточек на доске после дедупа */
+  boardTotal: number
+  /** Сколько NEW без исполнителя на всей доске */
+  newUnassignedOnBoard: number
+}
+
 /** Текст пустого состояния вкладки главной (заголовок + подсказка). */
-export function mobileHomeTabEmptyCopy(tab: MobileHomeBoardFilterTab): MobileHomeTabEmptyCopy {
+export function mobileHomeTabEmptyCopy(tab: MobileHomeBoardFilterTab, ctx?: MobileHomeEmptyContext): MobileHomeTabEmptyCopy {
+  const tech = ctx?.role === 'TECHNICIAN'
+  const total = ctx?.boardTotal ?? 0
+  const newOnBoard = ctx?.newUnassignedOnBoard ?? 0
+
   switch (tab) {
     case 'new':
+      if (total === 0) {
+        return {
+          title: 'Нет доступных заявок',
+          hint: tech
+            ? 'В выбранном контуре сейчас нет заявок. Если ожидали увидеть список: проверьте клиентский контур в шапке, обновите экран позже или обратитесь к администратору.'
+            : 'Новые необработанные заявки в выбранном контуре появятся здесь после появления данных.',
+        }
+      }
+      if (newOnBoard === 0) {
+        return {
+          title: 'Новых необработанных заявок нет',
+          hint: tech
+            ? 'На доске есть заявки в других статусах — загляните во «Все» или «В работе». Новые без исполнителя появятся здесь, когда их создадут в этом контуре.'
+            : 'Новые заявки без исполнителя сейчас отсутствуют. Проверьте другие вкладки или фильтры в веб-версии.',
+        }
+      }
       return {
         title: 'Новых заявок нет',
         hint: 'Новые необработанные заявки в выбранном контуре появятся здесь.',
@@ -62,17 +90,29 @@ export function mobileHomeTabEmptyCopy(tab: MobileHomeBoardFilterTab): MobileHom
     case 'mine':
       return {
         title: 'Нет заявок на вас',
-        hint: 'После назначения исполнителем заявки отобразятся во вкладке «Мои».',
+        hint: tech
+          ? 'После того как вас назначат исполнителем (или вы возьмёте заявку самостоятельно), она появится здесь. Начните с вкладки «Новые».'
+          : 'После назначения исполнителем заявки отобразятся во вкладке «Мои».',
       }
     case 'in_work':
       return {
         title: 'Нет заявок в работе',
-        hint: 'Заявки со статусом «Назначена» или «В работе» — во вкладке «В работе».',
+        hint: tech
+          ? 'Здесь видны заявки со статусом «Назначена» и «В работе» по контуру. Если список пуст — либо всё закрыто, либо заявки ещё в статусе «Новые».'
+          : 'Заявки со статусом «Назначена» или «В работе» — во вкладке «В работе».',
       }
     default:
+      if (total === 0) {
+        return {
+          title: 'Заявок пока нет',
+          hint: tech
+            ? 'Нет заявок в этом контуре. Возможно: нет активных заявок, не выбран клиентский контур или нет совпадений по вашим точкам/доступу. Обратитесь к администратору, если ожидали данные.'
+            : 'Когда в контуре появятся заявки, список обновится автоматически.',
+        }
+      }
       return {
-        title: 'Заявок пока нет',
-        hint: 'Когда в контуре появятся заявки, список обновится автоматически.',
+        title: 'Нет заявок по фильтру',
+        hint: 'Переключите вкладку выше — например, «Новые» или «Мои».',
       }
   }
 }

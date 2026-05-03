@@ -74,7 +74,12 @@ export function EmployeeList({
   editExtras,
 }: Props) {
   if (users.length === 0) {
-    return <div className="muted">Сотрудников пока нет.</div>
+    return (
+      <div className="muted">
+        Сотрудников пока нет.
+        <div className="emptyStateNote">Создайте первого пользователя слева — после этого здесь появится список и карточки для редактирования.</div>
+      </div>
+    )
   }
 
   return (

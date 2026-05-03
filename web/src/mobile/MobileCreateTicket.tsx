@@ -316,6 +316,7 @@ export function MobileCreateTicket() {
                   </option>
                 ))}
               </select>
+              <div className="mobileFieldHint">Каталог точек и категорий подставится для выбранного клиента.</div>
             </label>
           ) : null}
 
@@ -329,6 +330,7 @@ export function MobileCreateTicket() {
                 </option>
               ))}
             </select>
+            <div className="mobileFieldHint">Точка клиента, к которой относится поломка.</div>
           </label>
 
           <label>
@@ -341,6 +343,7 @@ export function MobileCreateTicket() {
                 </option>
               ))}
             </select>
+            <div className="mobileFieldHint">По категории подбирается тип работ и исполнитель.</div>
           </label>
 
           <label>
@@ -349,6 +352,7 @@ export function MobileCreateTicket() {
               <option value="NORMAL">Не срочно (ответ до 24 ч)</option>
               <option value="URGENT">Срочно (ответ до 2 ч)</option>
             </select>
+            <div className="mobileFieldHint">Влияет на целевое время первого ответа по заявке.</div>
           </label>
 
           <label className="mobileFormFieldBeforePhoto">

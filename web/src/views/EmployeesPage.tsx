@@ -36,6 +36,16 @@ function normalizeText(value: string) {
   return value.trim()
 }
 
+/** Убирает id деактивированных/чужих специализаций, чтобы PUT /users/:id/specializations не падал на isActive=true. */
+function sanitizeTechnicianSpecializationIds(
+  ids: string[],
+  activeSpecs: api.SpecializationListItem[] | undefined,
+): string[] {
+  if (!activeSpecs?.length) return ids
+  const allowed = new Set(activeSpecs.filter((s) => s.isActive !== false).map((s) => s.id))
+  return ids.filter((id) => allowed.has(id))
+}
+
 function displayLabel(user: Pick<api.UserListItem, 'firstName' | 'lastName' | 'email'>) {
   const full = [user.firstName, user.lastName].filter(Boolean).join(' ').trim()
   return full || user.email
@@ -191,6 +201,14 @@ export function EmployeesPage() {
     setSelectedLocationIds(bindingsQ.data.locationIds || [])
   }, [isEditingLocationBoundRole, bindingsQ.data])
 
+  useEffect(() => {
+    if (!editingUserId || !specsQ.data?.length) return
+    setEditValue((prev) => ({
+      ...prev,
+      specializationIds: sanitizeTechnicianSpecializationIds(prev.specializationIds, specsQ.data),
+    }))
+  }, [editingUserId, specsQ.data])
+
   const createM = useMutation({
     mutationFn: async (value: EmployeeFormValue) => {
       const created = await api.createUser({
@@ -203,7 +221,8 @@ export function EmployeesPage() {
       })
 
       if (value.role === 'TECHNICIAN') {
-        await api.updateUserSpecializations(created.id, value.specializationIds)
+        const specIds = sanitizeTechnicianSpecializationIds(value.specializationIds, specsQ.data)
+        await api.updateUserSpecializations(created.id, specIds)
       }
 
       return created
@@ -233,7 +252,8 @@ export function EmployeesPage() {
       })
 
       if (params.value.role === 'TECHNICIAN') {
-        await api.updateUserSpecializations(params.userId, params.value.specializationIds)
+        const specIds = sanitizeTechnicianSpecializationIds(params.value.specializationIds, specsQ.data)
+        await api.updateUserSpecializations(params.userId, specIds)
       }
 
       return updated
@@ -337,7 +357,10 @@ export function EmployeesPage() {
       password: '',
       role: user.role,
       isActive: user.isActive !== false,
-      specializationIds: (user.technicianSpecializations || []).map((item) => item.specialization.id),
+      specializationIds: sanitizeTechnicianSpecializationIds(
+        (user.technicianSpecializations || []).map((item) => item.specialization.id),
+        specsQ.data,
+      ),
     })
     setSelectedLocationIds([])
   }
@@ -427,6 +450,10 @@ export function EmployeesPage() {
       <h3 style={{ marginBottom: 8 }}>Доступные точки</h3>
       <div className="muted small" style={{ marginBottom: 10 }}>
         Управление location-scope для роли {editValue.role}. Пустой список означает отсутствие явных ограничений.
+      </div>
+      <div className="fieldHint" style={{ marginBottom: 10 }}>
+        Отметьте точки, куда сотрудник может ездить. Для подрядчика сначала выберите клиентский контур — список точек подгрузится для
+        этого клиента.
       </div>
       {ownCompanyQ.data?.type === 'PROVIDER' && !isObserverMode ? (
         <label>
@@ -530,6 +557,10 @@ export function EmployeesPage() {
           <Link to={observerCompanyId ? `/company?companyId=${observerCompanyId}` : '/company'}><button className="ghost">К компании</button></Link>
           <Link to={observerCompanyId ? `/board?companyId=${observerCompanyId}` : '/board'}><button className="ghost">К доске</button></Link>
         </div>
+      </div>
+
+      <div className="pageHint">
+        Здесь создаются сотрудники и назначаются роли, специализации и доступные точки.
       </div>
 
       {isObserverMode ? (

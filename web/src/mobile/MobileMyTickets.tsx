@@ -9,6 +9,7 @@ import {
   mobileTicketNumberTitle,
   scopeForMobileTicketLink,
 } from './mobileTicketDisplay'
+import { MobileRoleContextStrip } from './MobileUxHints'
 
 type FilterKey = 'active' | 'new' | 'closed'
 
@@ -125,6 +126,7 @@ export function MobileMyTickets() {
       <div>
         <h1 className="mobileTitle">Мои заявки</h1>
         <div className="mobileSubtitle">Личный список без таблиц и desktop-плотности</div>
+        <MobileRoleContextStrip role={meQ.data.role} />
       </div>
 
       {meQ.data.role === 'TECHNICIAN' && !linkedClientCompanyId ? (
@@ -178,7 +180,16 @@ export function MobileMyTickets() {
       {boardQ.isError ? <div className="mobileNotice mobileNoticeError">{String((boardQ.error as any)?.message || boardQ.error)}</div> : null}
 
       {!showMyTicketsList ? null : filteredTickets.length === 0 ? (
-        <div className="mobileCard mobileMeta">Список пуст</div>
+        <div className="mobileCard mobileEmptyState" role="status">
+          <div className="mobileEmptyStateTitle">Список пуст</div>
+          <p className="mobileEmptyStateHint">
+            {meQ.data.role === 'TECHNICIAN' && filter === 'new'
+              ? 'Новых заявок на вас нет: они появятся после назначения или если вы возьмёте заявку с главной (вкладка «Новые»).'
+              : meQ.data.role === 'TECHNICIAN' && filter === 'active'
+                ? 'Нет активных заявок в этом контуре. Проверьте «Новые» на главной или фильтр «Закрытые».'
+                : 'В этом фильтре заявок пока нет.'}
+          </p>
+        </div>
       ) : (
         filteredTickets.map((ticket) => (
           <Link

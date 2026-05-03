@@ -747,6 +747,11 @@ export function TicketPage() {
         onClaim={() => claimM.mutate()}
       />
 
+      <div className="pageHint">
+        Карточка заявки: статус, исполнитель, вложения и история. Доступные действия зависят от роли и статуса; диспетчер назначает
+        техника, техник ведёт работу до закрытия.
+      </div>
+
       <InlineError message={claimError} />
       {ticketQ.isError ? <div className="alert">{(ticketQ.error as any)?.message || String(ticketQ.error)}</div> : null}
       {readOnlyByVisibilityMode ? (
@@ -803,6 +808,9 @@ export function TicketPage() {
       {ticket ? (
         <div className="panel" style={{ marginBottom: 12 }}>
           <h3 style={{ marginBottom: 10 }}>Кратко по заявке</h3>
+          <div className="fieldHint" style={{ marginBottom: 8 }}>
+            Срочность влияет на SLA-ожидания ответа (сроки на карточке и уведомления). Приоритет обычно задаётся при создании заявки.
+          </div>
           <div style={{ display: 'grid', gap: 8 }}>
             <div><b>Категория:</b> {ticket.problemCategory?.name || '—'}</div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -1036,6 +1044,7 @@ export function TicketPage() {
                 <option value="NOT_URGENT">Не срочно</option>
                 <option value="URGENT">Срочно</option>
               </select>
+              <div className="fieldHint">«Срочно» — более жёсткие сроки первого ответа по правилам SLA.</div>
             </label>
             <label>
               Заявитель
@@ -1128,6 +1137,7 @@ export function TicketPage() {
                 <option value="NOT_URGENT">Не срочно</option>
                 <option value="URGENT">Срочно</option>
               </select>
+              <div className="fieldHint">Для доп. работы выберите срочность отдельно от родительской заявки.</div>
             </label>
             <div className="uiActions">
               <button onClick={() => createChildM.mutate()} disabled={createChildM.isPending || !childCategoryId || !childProblemText.trim()}>

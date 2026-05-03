@@ -23,7 +23,12 @@ export function LocationList({
   onSubmitEdit,
 }: Props) {
   if (locations.length === 0) {
-    return <div className="muted">Локаций пока нет.</div>
+    return (
+      <div className="muted">
+        Локаций пока нет.
+        <div className="emptyStateNote">Создайте точку слева — она станет доступна в заявках и привязках сотрудников.</div>
+      </div>
+    )
   }
 
   return (

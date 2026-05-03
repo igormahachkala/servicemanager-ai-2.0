@@ -56,31 +56,49 @@ body,
   min-width: 0;
 }
 
+/* Горизонтальный скролл вкладок фильтра (главная /m): не обрезаем родителем grid. */
 .mobileFilterTabs {
   display: flex;
   flex-wrap: nowrap;
-  gap: 8px;
+  align-items: stretch;
+  gap: 10px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   overflow-x: auto;
+  overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
-  padding: 4px 0 8px;
-  margin-top: 4px;
+  overscroll-behavior-x: contain;
+  touch-action: pan-x;
+  scroll-snap-type: x proximity;
+  scroll-padding-inline: 6px;
+  padding: 8px 4px 12px;
+  margin-top: 6px;
+  margin-bottom: 2px;
   scrollbar-width: thin;
 }
 
 .mobileFilterTab {
   flex: 0 0 auto;
+  flex-shrink: 0;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  padding: 8px 12px;
+  min-height: 40px;
+  padding: 8px 14px;
   border-radius: 999px;
   border: 1px solid #e5e7eb;
   background: #ffffff;
-  font-size: 0.85rem;
+  font-size: 0.88rem;
   font-weight: 600;
+  line-height: 1.25;
   color: #374151;
   cursor: pointer;
   white-space: nowrap;
+  scroll-snap-align: center;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .mobileFilterTab:hover {
@@ -426,6 +444,123 @@ button.mobilePhotoThumbLink.mobilePhotoThumbOpen:focus-visible {
   max-width: 28rem;
   margin-left: auto;
   margin-right: auto;
+}
+
+/* Пояснения «почему нельзя взять» + onboarding без модалок */
+.mobileUxHintReason {
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  border: 1px solid #fcd34d;
+  background: linear-gradient(180deg, #fffbeb 0%, #fef3c7 100%);
+  color: #78350f;
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+
+.mobileUxHintReason--compact {
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  font-size: 0.8rem;
+}
+
+.mobileUxHintReasonTitle {
+  font-weight: 800;
+  margin-bottom: 4px;
+  color: #92400e;
+}
+
+.mobileUxHintReasonDetail {
+  font-size: 0.82rem;
+  color: #92400e;
+  opacity: 0.95;
+  white-space: pre-wrap;
+}
+
+.mobileUxHintIntro {
+  margin: 10px 0 12px;
+  padding: 12px 12px 10px;
+  border-radius: 12px;
+  border: 1px solid #fde68a;
+  background: #fffbeb;
+  color: #78350f;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.mobileUxHintIntro--steps {
+  border-color: #bfdbfe;
+  background: linear-gradient(180deg, #eff6ff 0%, #f8fafc 100%);
+  color: #1e3a8a;
+}
+
+.mobileUxHintIntroTitle {
+  font-weight: 800;
+  margin-bottom: 8px;
+  font-size: 0.9rem;
+}
+
+.mobileUxHintIntroList {
+  margin: 0 0 10px 1rem;
+  padding: 0;
+}
+
+.mobileUxHintIntroOrdered {
+  margin: 0 0 0 1.1rem;
+  padding: 0;
+}
+
+.mobileUxHintIntroDismiss {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.mobileUxRoleStrip {
+  margin: 8px 0 4px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: #4b5563;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+}
+
+.mobileUxRoleStrip--tech {
+  border-color: #fde68a;
+  background: #fffbeb;
+  color: #78350f;
+}
+
+.mobileUxRoleStrip--admin {
+  border-color: #c7d2fe;
+  background: #eef2ff;
+  color: #3730a3;
+}
+
+.mobileUxRoleStrip--platform {
+  border-color: #d8b4fe;
+  background: #faf5ff;
+  color: #5b21b6;
+}
+
+.mobilePageHint {
+  margin: 8px 0 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  color: #4b5563;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.mobileFieldHint {
+  font-size: 0.78rem;
+  color: #6b7280;
+  line-height: 1.35;
+  margin-top: 4px;
+  margin-bottom: 6px;
 }
 
 .mobileStaleDataBanner {

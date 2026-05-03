@@ -494,7 +494,7 @@ export class TicketsAssignmentService {
         event: 'TICKET_CREATED',
         companyId: targetCompanyId,
         ticketId: ticket.id,
-        actorUserId: null,
+        actorUserId: creatorUserId ?? null,
         payload: {
           parentId: ticket.parentId,
           locationId: location.id,
@@ -997,6 +997,14 @@ export class TicketsAssignmentService {
         summary: (meta.problemText || '').trim() || `Заявка #${meta.ticketNumber}`,
         actorUserId: actor?.id ?? null,
         mode: assignResult.assignMode,
+      });
+      this.notifications.scheduleTicketAssignedToCreator({
+        assigneeUserId: technicianId,
+        ticketId: assignResult.ticketId,
+        ticketCompanyId: meta.companyId,
+        ticketNumber: meta.ticketNumber,
+        summary: (meta.problemText || '').trim() || `Ticket #${meta.ticketNumber}`,
+        actorUserId: actor?.id ?? null,
       });
     }
 

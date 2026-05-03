@@ -124,6 +124,9 @@ export function MobileProfile() {
             width: '100%',
           }}
         >
+          <div className="mobileFieldHint" style={{ marginBottom: 4 }}>
+            Telegram и MAX — внешние чаты поддержки по вопросам системы (откроются в браузере или приложении).
+          </div>
           <SupportContactBlock titleTag="div" />
           <button type="button" className="mobileBtn mobileLogoutBelowCard" style={{ marginTop: 0 }} onClick={logout}>
             Выйти

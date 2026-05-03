@@ -93,6 +93,9 @@ export function MobileNotificationsPage() {
           {markAllM.isPending ? 'Сохраняем…' : 'Прочитать все'}
         </button>
       </div>
+      <div className="mobilePageHint">
+        Непрочитанные подсвечены; откройте заявку или нажмите «Прочитать все», чтобы убрать счётчик.
+      </div>
       {listQ.isLoading ? <div className="mobileSubtitle">Загрузка…</div> : null}
       {listQ.isError ? (
         <div className="mobileNotice mobileNoticeError">

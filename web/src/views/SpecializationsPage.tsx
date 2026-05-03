@@ -113,6 +113,8 @@ export function SpecializationsPage() {
         </div>
       </div>
 
+      <div className="pageHint">Специализации определяют, какие заявки может брать техник.</div>
+
       {err ? <div className="alert">{err}</div> : null}
       {success ? <div className="panel" style={{ marginBottom: 12 }}>{success}</div> : null}
       {specsQ.isError ? <div className="alert">{(specsQ.error as any)?.message || String(specsQ.error)}</div> : null}
@@ -156,7 +158,12 @@ export function SpecializationsPage() {
           <h3 style={{ marginBottom: 10 }}>Список специализаций</h3>
 
           {specsQ.isFetching && !specsQ.data ? <div className="muted small">Загрузка…</div> : null}
-          {!specsQ.isFetching && rows.length === 0 ? <div className="muted small">Специализаций пока нет</div> : null}
+          {!specsQ.isFetching && rows.length === 0 ? (
+            <div className="muted small">
+              Специализаций пока нет
+              <div className="emptyStateNote">Добавьте направления работ (электрика, сантехника и т.д.), затем привяжите их к техникам и категориям заявок.</div>
+            </div>
+          ) : null}
 
           <div style={{ display: 'grid', gap: 10 }}>
             {rows.map((row) => (

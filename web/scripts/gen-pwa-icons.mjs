@@ -1,7 +1,7 @@
 /**
  * Генерация PNG-иконок PWA (только Node: fs, zlib, buffer).
- * Крест: гаечный ключ + ключ; подпись SMA; фон #111827.
- * Запуск: npm run gen:pwa-icons — или из prebuild при необходимости.
+ * Красный скруглённый «плиточный» фон с лёгким 3D/глянцем; белые перекрещенные отвёртка + ключ.
+ * Запуск: npm run gen:pwa-icons
  */
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -11,8 +11,15 @@ import { deflateSync } from 'node:zlib'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const outDir = join(__dirname, '..', 'public', 'icons')
 
-const BG = { r: 0x11, g: 0x18, b: 0x27 }
 const FG = { r: 0xff, g: 0xff, b: 0xff }
+
+/** Красная палитра (основной / тёмный край / блик). */
+const RED = {
+  core: { r: 0xdc, g: 0x26, b: 0x26 },
+  deep: { r: 0x8b, g: 0x15, b: 0x18 },
+  rim: { r: 0x6d, g: 0x0f, b: 0x12 },
+  highlight: { r: 0xff, g: 0x8a, b: 0x8a },
+}
 
 function crc32(data) {
   let c = 0xffffffff
@@ -61,7 +68,6 @@ function setPixel(rgba, w, h, x, y, r, g, b) {
   rgba[i + 3] = 255
 }
 
-/** Заливка выпуклого четырёхугольника (плоский ключ / рукоятка). */
 function fillQuad(rgba, w, h, ax, ay, bx, by, cx, cy, dx, dy, r, g, b) {
   const minX = Math.max(0, Math.floor(Math.min(ax, bx, cx, dx)))
   const maxX = Math.min(w - 1, Math.ceil(Math.max(ax, bx, cx, dx)))
@@ -134,116 +140,166 @@ function fillRing(rgba, w, h, cx, cy, rOuter, rInner, r, g, b) {
   }
 }
 
-/** 5×7 псевдографика, '#' — пиксель. */
-const LETTERS = {
-  S: [' ## ', '#  #', '#   ', ' ## ', '   #', '#  #', ' ## '],
-  M: ['#   #', '## ##', '# # #', '#   #', '#   #', '#   #', '#   #'],
-  A: [' ## ', '#  #', '#  #', '####', '#  #', '#  #', '#  #'],
+/** SDF скруглённого прямоугольника (p относительно центра), bx/by — полуразмеры «острого» ящика. */
+function sdRoundedBox(px, py, bx, by, cornerR) {
+  const qx = Math.abs(px) - bx + cornerR
+  const qy = Math.abs(py) - by + cornerR
+  const ox = Math.max(qx, 0)
+  const oy = Math.max(qy, 0)
+  return Math.min(Math.max(qx, qy), 0) + Math.hypot(ox, oy) - cornerR
 }
 
-function drawLetter(rgba, w, h, letter, ox, oy, cell, r, g, b) {
-  const rows = LETTERS[letter]
-  if (!rows) return 0
-  for (let row = 0; row < rows.length; row++) {
-    const line = rows[row]
-    for (let col = 0; col < line.length; col++) {
-      if (line[col] !== '#') continue
-      const x0 = ox + col * cell
-      const y0 = oy + row * cell
-      for (let dy = 0; dy < cell; dy++) {
-        for (let dx = 0; dx < cell; dx++) {
-          setPixel(rgba, w, h, x0 + dx, y0 + dy, r, g, b)
-        }
-      }
+function lerp(a, b, t) {
+  return a + (b - a) * t
+}
+
+function lerpRgb(c0, c1, t) {
+  return {
+    r: Math.round(lerp(c0.r, c1.r, t)),
+    g: Math.round(lerp(c0.g, c1.g, t)),
+    b: Math.round(lerp(c0.b, c1.b, t)),
+  }
+}
+
+const TILE = { half: 0.44, cornerR: 0.13, outerSd: 0.02 }
+
+/** Цвет плитки в точке (для «прорезей» в белых инструментах). */
+function sampleAppTileRgb(size, x, y) {
+  const cx = size * 0.5
+  const cy = size * 0.5
+  const half = size * TILE.half
+  const cornerR = size * TILE.cornerR
+  const bx = half
+  const by = half
+  const px = x - cx
+  const py = y - cy
+  const sd = sdRoundedBox(px, py, bx, by, cornerR)
+
+  if (sd > size * TILE.outerSd) {
+    return { ...RED.rim }
+  }
+
+  const nx = x / size
+  const ny = y / size
+  const depth = nx * 0.22 + ny * 0.55
+  let col = lerpRgb(RED.core, RED.deep, Math.min(1, depth))
+
+  const edge = Math.max(0, -sd)
+  const rimW = Math.max(1.2, size * 0.018)
+  if (edge < rimW) {
+    const k = 1 - edge / rimW
+    col = lerpRgb(col, RED.rim, k * k * 0.85)
+  }
+
+  const hx = (x - cx) / (half * 1.05)
+  const hy = (y - cy) / (half * 1.05)
+  const gloss = Math.exp(-(hx * hx * 2.2 + Math.pow(hy + 0.35, 2) * 5.5) * 3.5)
+  const gloss2 = Math.exp(-(Math.pow(hx - 0.15, 2) * 8 + Math.pow(hy + 0.55, 2) * 12) * 6)
+  const spec = Math.min(1, gloss * 0.55 + gloss2 * 0.22)
+  col = lerpRgb(col, RED.highlight, spec)
+
+  const aa = Math.max(0, Math.min(1, 0.5 - sd * (size * 0.035)))
+  if (sd > -aa && sd < 0) {
+    const outT = (sd + aa) / aa
+    col = lerpRgb(RED.rim, col, outT)
+  }
+  return col
+}
+
+/** Фон: скруглённый квадрат, градиент глубины, верхний блик, тёмный «ободок». */
+function drawAppTileBackground(rgba, size) {
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const col = sampleAppTileRgb(size, x + 0.5, y + 0.5)
+      const i = (y * size + x) * 4
+      rgba[i] = col.r
+      rgba[i + 1] = col.g
+      rgba[i + 2] = col.b
+      rgba[i + 3] = 255
     }
   }
-  return rows[0].length * cell
 }
 
-function drawSma(rgba, w, h, centerX, topY, cell, r, g, b) {
-  const letters = ['S', 'M', 'A']
-  const widths = letters.map((L) => LETTERS[L][0].length * cell)
-  const gap = Math.max(2, Math.round(cell * 0.35))
-  const total = widths.reduce((a, b) => a + b, 0) + gap * (letters.length - 1)
-  let x = centerX - total * 0.5
-  for (let i = 0; i < letters.length; i++) {
-    drawLetter(rgba, w, h, letters[i], x, topY, cell, r, g, b)
-    x += widths[i] + gap
-  }
+/** Гаечный ключ (диагональ), белый на красном. */
+function drawWrench(rgba, w, h, size, cx, cy, L) {
+  const tw = size * 0.058
+  const wx1 = cx - L * 0.5
+  const wy1 = cy + L * 0.46
+  const wx2 = cx + L * 0.44
+  const wy2 = cy - L * 0.4
+  drawThickLine(rgba, w, h, wx1, wy1, wx2, wy2, tw, FG.r, FG.g, FG.b)
+
+  const jx = wx2
+  const jy = wy2
+  const jaw = size * 0.09
+  fillCircle(rgba, w, h, jx, jy, jaw * 0.55, FG.r, FG.g, FG.b)
+  const holeR = jaw * 0.3
+  const holeCol = sampleAppTileRgb(size, jx, jy)
+  fillCircle(rgba, w, h, jx, jy, holeR, holeCol.r, holeCol.g, holeCol.b)
+
+  const bowR = size * 0.065
+  const bx = wx1 + tw * 0.25
+  const by = wy1 - tw * 0.15
+  fillRing(rgba, w, h, bx, by, bowR, bowR * 0.52, FG.r, FG.g, FG.b)
+  const inner = sampleAppTileRgb(size, bx + bowR * 0.32, by)
+  fillCircle(rgba, w, h, bx + bowR * 0.32, by, bowR * 0.3, inner.r, inner.g, inner.b)
+}
+
+/** Отвёртка: рукоятка + стержень + плоский шлиц (пересекает ключ под другим углом). */
+function drawScrewdriver(rgba, w, h, size, cx, cy, L) {
+  const shaftW = size * 0.045
+  const kx1 = cx - L * 0.42
+  const ky1 = cy - L * 0.48
+  const kx2 = cx + L * 0.48
+  const ky2 = cy + L * 0.44
+  drawThickLine(rgba, w, h, kx1, ky1, kx2, ky2, shaftW, FG.r, FG.g, FG.b)
+
+  const ux = (kx2 - kx1) / Math.hypot(kx2 - kx1, ky2 - ky1)
+  const uy = (ky2 - ky1) / Math.hypot(kx2 - kx1, ky2 - ky1)
+  const px = -uy
+  const py = ux
+
+  const handleLen = L * 0.38
+  const hx1 = kx1 - ux * handleLen * 0.15
+  const hy1 = ky1 - uy * handleLen * 0.15
+  const hx2 = kx1 - ux * handleLen * 1.05
+  const hy2 = ky1 - uy * handleLen * 1.05
+  drawThickLine(rgba, w, h, hx1, hy1, hx2, hy2, shaftW * 1.35, FG.r, FG.g, FG.b)
+
+  const bit = size * 0.055
+  const tx = kx2 - ux * bit * 0.9
+  const ty = ky2 - uy * bit * 0.9
+  fillQuad(
+    rgba,
+    w,
+    h,
+    tx - px * bit * 0.55,
+    ty - py * bit * 0.55,
+    tx + px * bit * 0.55,
+    ty + py * bit * 0.55,
+    tx + px * bit * 0.55 + ux * bit * 1.0,
+    ty + py * bit * 0.55 + uy * bit * 1.0,
+    tx - px * bit * 0.55 + ux * bit * 1.0,
+    ty - py * bit * 0.55 + uy * bit * 1.0,
+    FG.r,
+    FG.g,
+    FG.b,
+  )
 }
 
 function renderIcon(size) {
   const w = size
   const h = size
   const rgba = Buffer.alloc(w * h * 4)
-  for (let i = 0; i < w * h; i++) {
-    rgba[i * 4] = BG.r
-    rgba[i * 4 + 1] = BG.g
-    rgba[i * 4 + 2] = BG.b
-    rgba[i * 4 + 3] = 255
-  }
+
+  drawAppTileBackground(rgba, size)
 
   const cx = size * 0.5
-  const cy = size * 0.36
-  const L = size * 0.34
-  const tw = size * 0.055
-  const tk = size * 0.042
+  const cy = size * 0.5
+  const L = size * 0.36
 
-  // Гаечный ключ: диагональ \ (снизу-слева → вверх-вправо)
-  const wx1 = cx - L * 0.52
-  const wy1 = cy + L * 0.48
-  const wx2 = cx + L * 0.42
-  const wy2 = cy - L * 0.42
-  drawThickLine(rgba, w, h, wx1, wy1, wx2, wy2, tw, FG.r, FG.g, FG.b)
-
-  // Рот гаечного ключа (шестигранник упрощённо — утолщение + вырез)
-  const jx = wx2
-  const jy = wy2
-  const jaw = size * 0.09
-  fillCircle(rgba, w, h, jx, jy, jaw * 0.55, FG.r, FG.g, FG.b)
-  fillCircle(rgba, w, h, jx, jy, jaw * 0.28, BG.r, BG.g, BG.b)
-
-  // Ключ: диагональ / + бородка кольца у нижнего-левого конца
-  const kx1 = cx - L * 0.48
-  const ky1 = cy - L * 0.46
-  const kx2 = cx + L * 0.5
-  const ky2 = cy + L * 0.44
-  drawThickLine(rgba, w, h, kx1, ky1, kx2, ky2, tk, FG.r, FG.g, FG.b)
-
-  const bowR = size * 0.07
-  const bx = kx1 - tk * 0.35
-  const by = ky1 + tk * 0.2
-  fillRing(rgba, w, h, bx, by, bowR, bowR * 0.55, FG.r, FG.g, FG.b)
-  fillCircle(rgba, w, h, bx + bowR * 0.35, by, bowR * 0.32, BG.r, BG.g, BG.b)
-
-  // Зубцы ключа (короткий перпендикуляр к хвосту)
-  const ux = (kx2 - kx1) / Math.hypot(kx2 - kx1, ky2 - ky1)
-  const uy = (ky2 - ky1) / Math.hypot(kx2 - kx1, ky2 - ky1)
-  const px = -uy
-  const py = ux
-  const bit = size * 0.06
-  const tx = kx2 - ux * bit * 1.2
-  const ty = ky2 - uy * bit * 1.2
-  fillQuad(
-    rgba,
-    w,
-    h,
-    tx - px * bit * 0.9,
-    ty - py * bit * 0.9,
-    tx + px * bit * 0.9,
-    ty + py * bit * 0.9,
-    tx + px * bit * 0.9 + ux * bit * 1.1,
-    ty + py * bit * 0.9 + uy * bit * 1.1,
-    tx - px * bit * 0.9 + ux * bit * 1.1,
-    ty - py * bit * 0.9 + uy * bit * 1.1,
-    FG.r,
-    FG.g,
-    FG.b,
-  )
-
-  const cell = Math.max(2, Math.round(size * 0.034))
-  const textTop = size * 0.68
-  drawSma(rgba, w, h, cx, textTop, cell, FG.r, FG.g, FG.b)
+  drawWrench(rgba, w, h, size, cx, cy, L)
+  drawScrewdriver(rgba, w, h, size, cx, cy, L)
 
   return rgba
 }

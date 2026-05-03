@@ -150,6 +150,17 @@ export class NotificationsService {
     void this.safeNotify('ticket.assigned', () => this.emitTicketAssignedToAssignee(params));
   }
 
+  scheduleTicketAssignedToCreator(params: {
+    assigneeUserId: string;
+    ticketId: string;
+    ticketCompanyId: string;
+    ticketNumber: number;
+    summary: string;
+    actorUserId: string | null;
+  }) {
+    void this.safeNotify('ticket.assigned.creator', () => this.emitTicketAssignedToCreator(params));
+  }
+
   scheduleTicketClaimedDispatchers(params: {
     watcherCompanyId: string;
     ticketCompanyId: string;
@@ -371,6 +382,54 @@ export class NotificationsService {
         entityType: 'Ticket',
         entityId: params.ticketId,
         linkedClientCompanyId: linked,
+      },
+    });
+  }
+
+  private async emitTicketAssignedToCreator(params: {
+    assigneeUserId: string;
+    ticketId: string;
+    ticketCompanyId: string;
+    ticketNumber: number;
+    summary: string;
+    actorUserId: string | null;
+  }) {
+    const createdEvent = await this.prisma.domainEvent.findFirst({
+      where: {
+        companyId: params.ticketCompanyId,
+        entityType: 'Ticket',
+        entityId: params.ticketId,
+        type: 'ticket.created',
+        actorUserId: { not: null },
+      },
+      orderBy: { createdAt: 'asc' },
+      select: { actorUserId: true },
+    });
+    const creatorUserId = (createdEvent?.actorUserId || '').trim();
+    if (!creatorUserId) return;
+    if (creatorUserId === params.assigneeUserId) return;
+    if (params.actorUserId && params.actorUserId === creatorUserId) return;
+
+    const creator = await this.prisma.user.findFirst({
+      where: {
+        id: creatorUserId,
+        companyId: params.ticketCompanyId,
+        isActive: true,
+      },
+      select: { id: true, companyId: true },
+    });
+    if (!creator) return;
+
+    await this.prisma.notification.create({
+      data: {
+        companyId: creator.companyId,
+        userId: creator.id,
+        type: 'ticket.assigned',
+        title: 'Assigned technician',
+        message: clipMessage(`${ticketLabel(params.ticketNumber)} - assigned technician. ${params.summary}`),
+        entityType: 'Ticket',
+        entityId: params.ticketId,
+        linkedClientCompanyId: null,
       },
     });
   }

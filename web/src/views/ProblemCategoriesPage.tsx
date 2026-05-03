@@ -138,6 +138,8 @@ export function ProblemCategoriesPage() {
         </div>
       </div>
 
+      <div className="pageHint">Категории связываются со специализациями и помогают системе подобрать исполнителя.</div>
+
       {err ? <div className="alert">{err}</div> : null}
       {categoriesQ.isError ? <div className="alert">{(categoriesQ.error as any)?.message || String(categoriesQ.error)}</div> : null}
       {specializationsQ.isError ? <div className="alert">{(specializationsQ.error as any)?.message || String(specializationsQ.error)}</div> : null}
@@ -181,7 +183,12 @@ export function ProblemCategoriesPage() {
           <h3 style={{ marginBottom: 10 }}>Список категорий</h3>
 
           {categoriesQ.isFetching && !categoriesQ.data ? <div className="muted small">Загрузка…</div> : null}
-          {!categoriesQ.isFetching && rows.length === 0 ? <div className="muted small">Категорий пока нет</div> : null}
+          {!categoriesQ.isFetching && rows.length === 0 ? (
+            <div className="muted small">
+              Категорий пока нет
+              <div className="emptyStateNote">Создайте категорию слева — она появится в форме новой заявки после привязки к специализациям.</div>
+            </div>
+          ) : null}
 
           <div style={{ display: 'grid', gap: 12 }}>
             {rows.map((row) => {
@@ -224,6 +231,10 @@ export function ProblemCategoriesPage() {
                   </div>
 
                   <div style={{ marginBottom: 8, fontSize: 13, fontWeight: 600 }}>Связанные специализации</div>
+                  <div className="fieldHint" style={{ marginBottom: 8 }}>
+                    Техник сможет брать (claim) заявку этой категории, только если совпадёт хотя бы одна отмеченная специализация (или у
+                    категории нет привязок — тогда claim по правилам шире).
+                  </div>
 
                   <div className="muted small" style={{ marginBottom: 10 }}>
                     {linkedSpecNames.length ? linkedSpecNames.join(', ') : 'Пока не привязаны'}

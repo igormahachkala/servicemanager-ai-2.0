@@ -201,6 +201,8 @@ export function AnalyticsPage() {
         </div>
       </div>
 
+      <div className="pageHint">Здесь собраны показатели по заявкам, SLA и работе сотрудников.</div>
+
       {isObserverMode ? (
         <div className="panel" style={{ marginBottom: 12 }}>
           <div style={{ fontWeight: 700 }}>Режим просмотра компании: {observerLabel}</div>
@@ -221,6 +223,7 @@ export function AnalyticsPage() {
                 onChange={(e) => onSelectLinkedClient(e.target.value)}
                 style={{ width: '100%' }}
                 disabled={linkedClientsQ.isLoading || (linkedClientsQ.data || []).length === 0}
+                aria-describedby="analytics-linked-client-hint"
               >
                 {!requestedLinkedClientCompanyId ? <option value="">Выберите клиента</option> : null}
                 {(linkedClientsQ.data || []).map((item) => (
@@ -230,6 +233,9 @@ export function AnalyticsPage() {
                 ))}
               </select>
             </div>
+          </div>
+          <div id="analytics-linked-client-hint" className="fieldHint">
+            Тот же клиент, что на доске: метрики считаются в контуре выбранной связанной компании.
           </div>
 
           {linkedClientsQ.isLoading ? <div className="muted small">Загружаем связанных клиентов…</div> : null}

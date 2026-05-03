@@ -130,6 +130,9 @@ export function EmployeeForm({
             <option key={role} value={role}>{roleLabel(role)}</option>
           ))}
         </select>
+        <div className="fieldHint">
+          Роль определяет права в системе. Технику после сохранения можно привязать к специализациям и точкам.
+        </div>
       </label>
 
       {!passwordRequired ? (
@@ -147,6 +150,9 @@ export function EmployeeForm({
       {value.role === 'TECHNICIAN' ? (
         <div>
           <div style={{ fontWeight: 600, marginBottom: 8 }}>Специализации</div>
+          <div className="fieldHint" style={{ marginBottom: 8 }}>
+            Отметьте направления работ техника — по ним система предложит подходящие заявки и ограничит самостоятельный claim.
+          </div>
           <EmployeeSpecializationsField
             specializations={activeSpecializations}
             selectedIds={value.specializationIds}

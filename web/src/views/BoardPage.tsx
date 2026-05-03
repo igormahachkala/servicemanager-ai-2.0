@@ -483,6 +483,10 @@ export function BoardPage() {
         </div>
       </div>
 
+      <div className="pageHint">
+        Здесь отображаются заявки по статусам. Откройте карточку, чтобы назначить исполнителя или изменить статус.
+      </div>
+
       <div style={{ display: 'grid', gap: 12, marginBottom: 12 }}>
         <div className="panel" style={{ minHeight: 64, display: 'grid', alignContent: 'center' }}>
           {isObserverMode ? (
@@ -879,6 +883,9 @@ export function BoardPage() {
                 ? 'Нет назначенных заявок и доступных заявок для claim в вашем operational scope.'
                 : 'Создайте тестовую заявку, чтобы доска стала живой для демонстрации.'}
           </div>
+          <div className="emptyStateNote">
+            Колонки «Новые» и далее показывают этапы жизненного цикла. Пустая колонка — нормально, если заявок в этом статусе нет.
+          </div>
           {providerCanCreateTicket ? (
             <Link to={buildCreateTicketLink(effectiveLinkedClientCompanyId)}>
               <button>Создать заявку</button>
@@ -953,7 +960,14 @@ export function BoardPage() {
                       </div>
                   </div>
                 ))}
-                {col.cards.length === 0 ? <div className="muted small">Нет заявок</div> : null}
+                {col.cards.length === 0 ? (
+                  <div className="muted small">
+                    Нет заявок
+                    <div className="emptyStateNote" style={{ marginTop: 4 }}>
+                      Заявки появятся здесь после создания или смены статуса.
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </div>
           ))

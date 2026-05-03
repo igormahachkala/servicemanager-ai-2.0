@@ -535,6 +535,8 @@ export type TicketCard = {
   assignedTechnician: { id: string; email: string } | null
   /** Для TECHNICIAN на board: согласовано с правилами claim по специализации (см. tickets.query.service). */
   canClaimByCurrentUser?: boolean
+  /** Если бэкенд начнёт отдавать причину на доске — покажем на карточке без отдельного getTicket. */
+  claimAvailabilityReason?: string | null
 }
 
 export type LinkedClientSummary = ServiceContractItem & {

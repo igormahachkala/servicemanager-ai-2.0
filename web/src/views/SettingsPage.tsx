@@ -52,6 +52,11 @@ export function SettingsPage() {
         </div>
       </div>
 
+      <div className="pageHint">
+        Здесь сохраняются только параметры этого браузера (адрес API в dev, подпись компании в интерфейсе). Правила автоназначения и
+        доступов настраиваются в разделе «Компания».
+      </div>
+
       {saved ? <div className="alert">{saved}</div> : null}
       {meQ.isError ? <div className="alert">{(meQ.error as any)?.message || String(meQ.error)}</div> : null}
 

@@ -21,6 +21,7 @@ import {
   useOnlineStatus,
 } from './offlineQueue'
 import { formatMobileMutationError } from './mobileActionErrors'
+import { MobileBoardClaimFallbackHint, MobileClaimReasonHintBox } from './MobileUxHints'
 
 function readListOrigin(location: ReturnType<typeof useLocation>): MobileTicketListOrigin {
   const raw = (location.state as MobileTicketNavState | null)?.mobileListOrigin
@@ -305,11 +306,6 @@ export function MobileTicketPage() {
   const canAssignProvider = api.isProviderTicketAssignRole(meQ.data?.role)
   const techPrimary = ticket && meQ.data?.id ? api.mobileTechnicianTicketPrimaryAction(ticket, meQ.data.id) : null
   const assigneePresent = !!(ticket?.assignedTechnicianId || ticket?.assignedTechnician)
-  const claimPolicyBlocked =
-    meQ.data?.role === 'TECHNICIAN' &&
-    !!ticket &&
-    ticket.status === 'NEW' &&
-    ticket.meta?.canClaimByCurrentUser === false
   const canShowTechClaimButton =
     meQ.data?.role === 'TECHNICIAN' &&
     !!ticket &&
@@ -568,11 +564,6 @@ export function MobileTicketPage() {
               <span className="mobileMeta">Статус</span>
               <span className={`mobileTicketStatus mobileTicketStatus--${ticket.status}`}>{mobileTicketStatusLabelRu(ticket.status)}</span>
             </div>
-            {claimPolicyBlocked && (ticket.meta?.claimAvailabilityReason || '').trim().length > 0 ? (
-              <div className="mobileNotice mobileNoticeError" style={{ marginTop: 8 }}>
-                {(ticket.meta?.claimAvailabilityReason || '').trim()}
-              </div>
-            ) : null}
             <div style={{ marginTop: 10 }}>
               <div className="mobileMeta" style={{ marginBottom: 4 }}>
                 SLA
@@ -637,6 +628,17 @@ export function MobileTicketPage() {
               <div className="mobileSectionTitle" style={{ marginBottom: 8 }}>
                 Действия
               </div>
+              {canShowAssignmentRequest ? (
+                (ticket.meta?.claimAvailabilityReason || '').trim() ? (
+                  <MobileClaimReasonHintBox reason={ticket.meta?.claimAvailabilityReason} />
+                ) : (
+                  <MobileBoardClaimFallbackHint />
+                )
+              ) : canShowTechClaimButton ? (
+                <div className="mobileFieldHint" style={{ marginBottom: 10 }}>
+                  «Взять заявку» — если самовзятие разрешено политикой компании и вашим профилем.
+                </div>
+              ) : null}
               {canShowTechClaimButton ? (
                 <button
                   type="button"
@@ -713,6 +715,11 @@ export function MobileTicketPage() {
                 В этом статусе с заявкой нельзя выполнить полевое действие (например, исполнитель — другой техник, или доступ только
                 на просмотр).
               </p>
+              {ticket.status === 'NEW' && (ticket.meta?.claimAvailabilityReason || '').trim() ? (
+                <div style={{ marginTop: 12, textAlign: 'left' }}>
+                  <MobileClaimReasonHintBox reason={ticket.meta?.claimAvailabilityReason} />
+                </div>
+              ) : null}
             </div>
           ) : null}
 

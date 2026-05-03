@@ -182,6 +182,8 @@ export function LocationsPage() {
         </div>
       </div>
 
+      <div className="pageHint">Точки — это реальные объекты клиента, к которым привязываются заявки.</div>
+
       {err ? <div className="alert">{err}</div> : null}
       {success ? <div className="panel" style={{ marginBottom: 12 }}>{success}</div> : null}
       {locationsQ.isError ? <div className="alert">{(locationsQ.error as any)?.message || String(locationsQ.error)}</div> : null}

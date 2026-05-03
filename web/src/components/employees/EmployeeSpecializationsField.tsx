@@ -14,7 +14,7 @@ export function EmployeeSpecializationsField({
   onToggle,
 }: Props) {
   if (specializations.length === 0) {
-    return <div className="muted small">No active specializations yet.</div>
+    return <div className="muted small">Нет активных специализаций. Создайте их в разделе «Специализации», затем вернитесь сюда.</div>
   }
 
   return (

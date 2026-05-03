@@ -19,6 +19,15 @@ import {
   mobileHomeTabEmptyCopy,
   type MobileHomeBoardFilterTab,
 } from './mobileHomeBoardFilters'
+import {
+  MobileBoardClaimFallbackHint,
+  MobileClaimReasonHintBox,
+  MobileHomeTabsIntroBanner,
+  MobileRoleContextStrip,
+  MobileTechnicianFirstStepsCard,
+  dismissMobileHomeIntro,
+  readMobileHomeIntroDismissed,
+} from './MobileUxHints'
 import { formatMobileMutationError } from './mobileActionErrors'
 import { getOnlineStatus, loadBoardCache, saveBoardCache, useOnlineStatus } from './offlineQueue'
 
@@ -92,6 +101,7 @@ function TicketCard(props: {
     actionProgressLabel = null,
     assignFooter = null,
   } = props
+  const claimReason = (ticket.claimAvailabilityReason || '').trim()
   const actionBusy = !!actionProgressLabel
   const slaLine = mobileTicketSlaCountdownLabel({
     slaDueAt: ticket.slaDueAt,
@@ -146,6 +156,15 @@ function TicketCard(props: {
           >
             Назначить
           </button>
+        </div>
+      ) : null}
+      {actionLabel === 'Запросить назначение' ? (
+        <div style={{ padding: '8px 12px 0' }}>
+          {claimReason ? (
+            <MobileClaimReasonHintBox reason={claimReason} className="mobileUxHintReason--compact" />
+          ) : (
+            <MobileBoardClaimFallbackHint />
+          )}
         </div>
       ) : null}
       {actionLabel ? (
@@ -255,6 +274,8 @@ export function MobileHome() {
   const canAssignProvider = api.isProviderTicketAssignRole(meQ.data?.role)
 
   const [boardTab, setBoardTab] = useState<MobileHomeBoardFilterTab>('all')
+  const [homeIntroDismissed, setHomeIntroDismissed] = useState(() => readMobileHomeIntroDismissed())
+  const tabButtonRefs = useRef<Partial<Record<MobileHomeBoardFilterTab, HTMLButtonElement | null>>>({})
   const tabCounts = useMemo(() => mobileHomeBoardTabCounts(cards, meQ.data?.id), [cards, meQ.data?.id])
   const filteredTickets = useMemo(
     () => filterTicketsForMobileHomeTab(cards, boardTab, meQ.data?.id),
@@ -475,11 +496,19 @@ export function MobileHome() {
     !boardQ.isError &&
     (meQ.data || (!!boardQ.data && !isOnline))
 
+  useEffect(() => {
+    if (!showMobileHomeTicketBoard) return
+    const el = tabButtonRefs.current[boardTab]
+    if (!el) return
+    el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+  }, [boardTab, showMobileHomeTicketBoard])
+
   return (
     <div className="mobileSection">
       <div>
         <h1 className="mobileTitle">Главная</h1>
         <div className="mobileSubtitle">Операционный экран без desktop-шумов</div>
+        {meQ.data ? <MobileRoleContextStrip role={meQ.data.role} /> : null}
         {!isOnline && boardQ.isSuccess && boardQ.data ? (
           <div className="mobileStaleDataBanner" role="status">
             Показаны сохранённые данные
@@ -545,6 +574,9 @@ export function MobileHome() {
             {MOBILE_HOME_TABS.map((tab) => (
               <button
                 key={tab}
+                ref={(node) => {
+                  tabButtonRefs.current[tab] = node
+                }}
                 type="button"
                 role="tab"
                 aria-selected={boardTab === tab}
@@ -556,6 +588,25 @@ export function MobileHome() {
               </button>
             ))}
           </div>
+          {meQ.data?.role === 'TECHNICIAN' && !homeIntroDismissed ? (
+            <MobileHomeTabsIntroBanner
+              role={meQ.data.role}
+              onDismiss={() => {
+                dismissMobileHomeIntro()
+                setHomeIntroDismissed(true)
+              }}
+            />
+          ) : null}
+          {meQ.data?.role === 'TECHNICIAN' && tabCounts.mine === 0 ? <MobileTechnicianFirstStepsCard show /> : null}
+          {meQ.data?.role !== 'TECHNICIAN' ? (
+            <div className="mobilePageHint">
+              Все — полный список. Новые — без исполнителя. Мои — назначены на вас. В работе — назначенные и в активной работе.
+            </div>
+          ) : homeIntroDismissed ? (
+            <div className="mobilePageHint">
+              Вкладки: все заявки · новые без исполнителя · назначенные на вас · в работе по контуру.
+            </div>
+          ) : null}
 
           <section className="mobileSection">
             {homeActionErr ? (
@@ -567,7 +618,11 @@ export function MobileHome() {
               <div className="mobileCard mobileMeta">Загрузка заявок…</div>
             ) : filteredTickets.length === 0 ? (
               (() => {
-                const empty = mobileHomeTabEmptyCopy(boardTab)
+                const empty = mobileHomeTabEmptyCopy(boardTab, {
+                  role: meQ.data?.role,
+                  boardTotal: tabCounts.all,
+                  newUnassignedOnBoard: tabCounts.new,
+                })
                 return (
                   <div className="mobileCard mobileEmptyState" role="status">
                     <div className="mobileEmptyStateTitle">{empty.title}</div>
