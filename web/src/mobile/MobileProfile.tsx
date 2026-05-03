@@ -21,11 +21,23 @@ export function MobileProfile() {
   const location = useLocation()
   const queryClient = useQueryClient()
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
+  const linkedClientsQ = useQuery({
+    queryKey: ['linked-clients'],
+    queryFn: () => api.getLinkedClients(),
+    enabled: !!meQ.data,
+  })
 
   const linkedClientCompanyId = useMemo(() => {
     const params = new URLSearchParams(location.search)
-    return (params.get('linkedClientCompanyId') || api.getLinkedClientCompanyId()).trim()
-  }, [location.search])
+    return (params.get('linkedClientCompanyId') || api.getLinkedClientCompanyId(meQ.data)).trim()
+  }, [location.search, meQ.data])
+
+  const linkedClientName = useMemo(() => {
+    if (!linkedClientCompanyId) return ''
+    const row = linkedClientsQ.data?.find((c) => c.clientCompany.id === linkedClientCompanyId)
+    const name = row?.clientCompany.name?.trim()
+    return name || ''
+  }, [linkedClientCompanyId, linkedClientsQ.data])
 
   function logout() {
     const params = new URLSearchParams()
@@ -77,9 +89,15 @@ export function MobileProfile() {
             <strong>{roleLabel(meQ.data?.role)}</strong>
           </div>
           {linkedClientCompanyId ? (
-            <div className="mobileRow">
-              <span className="mobileMeta">Текущий linked client</span>
-              <strong>{linkedClientCompanyId}</strong>
+            <div style={{ display: 'grid', gap: 4 }}>
+              <div className="mobileMeta">Текущий клиент</div>
+              <div>
+                <strong>
+                  {linkedClientsQ.isLoading
+                    ? 'Загрузка…'
+                    : linkedClientName || '—'}
+                </strong>
+              </div>
             </div>
           ) : null}
         </div>

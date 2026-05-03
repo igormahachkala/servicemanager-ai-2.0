@@ -1680,8 +1680,11 @@ export async function tickets(): Promise<any[]> {
   return request<any[]>('/tickets')
 }
 
-export async function availableTickets(): Promise<any[]> {
-  return request<any[]>('/tickets/available')
+export async function availableTickets(linkedClientCompanyId?: string): Promise<any[]> {
+  const search = new URLSearchParams()
+  if (linkedClientCompanyId) search.set('linkedClientCompanyId', linkedClientCompanyId)
+  const suffix = search.toString() ? `?${search.toString()}` : ''
+  return request<any[]>(`/tickets/available${suffix}`)
 }
 
 export async function ticket(id: string, scope?: string | TicketScopeParams): Promise<TicketGetOne> {

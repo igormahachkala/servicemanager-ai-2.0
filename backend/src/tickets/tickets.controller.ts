@@ -174,8 +174,9 @@ export class TicketsController {
   @ApiForbiddenResponse({
     description: 'Missing permission: TICKETS_VIEW_AVAILABLE',
   })
-  available(@Req() req: any) {
-    return this.svc.availableForTechnician(req.user.companyId, req.user.id)
+  available(@Req() req: any, @Query('linkedClientCompanyId') linkedClientCompanyId?: string) {
+    const linked = (linkedClientCompanyId || '').trim() || undefined
+    return this.svc.availableForTechnician(req.user.companyId, req.user.id, linked)
   }
 
   @Get(':id')

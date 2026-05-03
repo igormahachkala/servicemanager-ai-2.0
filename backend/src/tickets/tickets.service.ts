@@ -277,7 +277,7 @@ export class TicketsService {
     return this.status.addComment(companyId, user, role, ticketId, dto, linkedClientCompanyId)
   }
 
-  availableForTechnician(companyId: string, technicianUserId: string) {
-    return this.assignment.availableForTechnician(companyId, technicianUserId)
+  availableForTechnician(companyId: string, technicianUserId: string, linkedClientCompanyId?: string) {
+    return this.assignment.availableForTechnician(companyId, technicianUserId, linkedClientCompanyId)
   }
 }

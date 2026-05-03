@@ -117,7 +117,7 @@ export function TechnicianPage() {
 
   const availableQ = useQuery({
     queryKey: ['tickets-available'],
-    queryFn: api.availableTickets,
+    queryFn: () => api.availableTickets(),
   })
 
   const claimM = useMutation({

@@ -18,7 +18,7 @@ import { AssignmentService } from '../assignment/assignment.service';
 import { TicketsQueryService } from './tickets.query.service';
 import { TicketAttachmentsService } from './ticket-attachments.service';
 import { buildTicketDescription } from './ticket-description.builder';
-import { assertActorCanUseLocation, buildTechnicianLocationRestrictionWhere, resolveTechnicianOperationalScope, resolveTicketOperationAccess, wasTicketCreatedByActor } from './ticket-access.utils';
+import { assertActorCanUseLocation, buildTechnicianLocationRestrictionWhere, resolveTechnicianOperationalScope, resolveTicketOperationAccess } from './ticket-access.utils';
 import { ServiceContractsService } from '../service-contracts/service-contracts.service';
 import { TechniciansService } from '../technicians/technicians.service';
 
@@ -52,13 +52,10 @@ export class TicketsAssignmentService {
   private async assertExecutorOperationsAllowed(actorCompanyId: string) {
     const actorCompany = await this.prisma.company.findUnique({
       where: { id: actorCompanyId },
-      select: { id: true, type: true },
+      select: { id: true },
     });
     if (!actorCompany) {
       throw new NotFoundException('Company not found');
-    }
-    if (actorCompany.type === 'CLIENT') {
-      throw new ForbiddenException('Client company cannot perform executor operations');
     }
   }
 
@@ -471,7 +468,7 @@ export class TicketsAssignmentService {
         event: 'TICKET_CREATED',
         companyId: targetCompanyId,
         ticketId: ticket.id,
-        actorUserId: creatorUserId,
+        actorUserId: null,
         payload: {
           parentId: ticket.parentId,
           locationId: location.id,
@@ -1289,7 +1286,7 @@ export class TicketsAssignmentService {
     return this.query.getOne(companyId, actor?.id, actor?.role as UserRole, ticket.id);
   }
 
-  async availableForTechnician(companyId: string, technicianUserId: string) {
+  async availableForTechnician(companyId: string, technicianUserId: string, linkedClientCompanyId?: string) {
     const technicianScope = await resolveTechnicianOperationalScope({
       prisma: this.prisma,
       serviceContractsService: this.serviceContractsService,
@@ -1298,6 +1295,7 @@ export class TicketsAssignmentService {
         role: UserRole.TECHNICIAN,
         companyId: companyId,
       },
+      linkedClientCompanyId,
     })
 
     if (!technicianScope.allowTechnicianClaim) {
@@ -1353,25 +1351,7 @@ export class TicketsAssignmentService {
       },
       orderBy: { createdAt: 'desc' },
       take: 100,
-    }).then((tickets) =>
-      tickets.map((ticket) => ({
-        id: ticket.id,
-        companyId: ticket.companyId,
-        ticketNumber: ticket.ticketNumber,
-        title: ticket.problemCategory?.name || 'Ticket',
-        description: ticket.problemText,
-        status: ticket.status,
-        urgency: ticket.urgency,
-        createdAt: ticket.createdAt,
-        slaDueAt: ticket.slaDueAt,
-        slaBreached: !!ticket.slaBreachedAt || (ticket.slaDueAt ? Date.now() > ticket.slaDueAt.getTime() : false),
-        isChild: !!ticket.parentId,
-        pointName: ticket.pointName,
-        location: ticket.location,
-        category: ticket.problemCategory,
-        assignedTechnician: null,
-      })),
-    )
+    })
   }
 
   async claim(companyId: string, technicianUserId: string, ticketId: string, linkedClientCompanyId?: string) {
@@ -1403,34 +1383,11 @@ export class TicketsAssignmentService {
       locationScopeByCompany: technicianScope.locationScopeByCompany,
     });
     const claimWhere = this.normalizeAnd(decision.where as Prisma.TicketWhereInput, [locationRestriction]);
-    const selfCreatedByTechnician = await wasTicketCreatedByActor({
-      prisma: this.prisma,
-      companyIds: technicianScope.companyIds,
-      ticketId,
-      actorUserId: technicianUserId,
-    })
 
     const resolvedTicketId = await this.prisma.$transaction(async (tx) => {
-      let ticket = await tx.ticket.findFirst({
+      const ticket = await tx.ticket.findFirst({
         where: claimWhere,
       })
-
-      if (!ticket && selfCreatedByTechnician) {
-        ticket = await tx.ticket.findFirst({
-          where: this.normalizeAnd(
-            {
-              id: ticketId,
-              companyId:
-                technicianScope.companyIds.length === 1
-                  ? technicianScope.companyIds[0]
-                  : { in: technicianScope.companyIds },
-              status: TicketStatus.NEW,
-              assignedTechnicianId: null,
-            },
-            [locationRestriction],
-          ),
-        })
-      }
 
       if (!ticket) {
         throw new NotFoundException('Ticket not found or not available for claim')

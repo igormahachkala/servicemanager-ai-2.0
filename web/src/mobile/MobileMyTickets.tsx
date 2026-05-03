@@ -34,15 +34,20 @@ export function MobileMyTickets() {
 
   const linkedClientCompanyId = (search.get('linkedClientCompanyId') || api.getLinkedClientCompanyId(meQ.data)).trim()
   const companyId = (search.get('companyId') || api.getObserverCompanyId(meQ.data)).trim()
-  /** Тот же scope, что у board — в ссылку на детали уходит он + override по companyId карточки (scopeForMobileTicketLink). */
-  const scope = {
+  /** Тот же scope, что у board. */
+  const pageScope = {
     linkedClientCompanyId: linkedClientCompanyId || undefined,
     companyId: companyId || undefined,
   }
 
   const boardQ = useQuery({
     queryKey: ['mobile-my-board', linkedClientCompanyId, companyId],
-    queryFn: () => api.board({ linkedClientCompanyId: linkedClientCompanyId || undefined, companyId: companyId || undefined, take: 60 }),
+    queryFn: () =>
+      api.board({
+        linkedClientCompanyId: linkedClientCompanyId || undefined,
+        companyId: companyId || undefined,
+        take: 60,
+      }),
     enabled: !!meQ.data,
   })
 
@@ -53,12 +58,23 @@ export function MobileMyTickets() {
     [allTickets, statuses],
   )
 
-  const ticketHref = (ticket: api.TicketCard) =>
-    api.appendScopeToPath(
-      `/m/tickets/${ticket.id}`,
-      compactTicketScope(scopeForMobileTicketLink(meQ.data, scope, ticket)),
-      meQ.data,
+  const ticketHref = (ticket: api.TicketCard) => {
+    if (!meQ.data) return `/m/tickets/${ticket.id}`
+    const linkScope = scopeForMobileTicketLink(meQ.data, pageScope, ticket)
+    return api.appendScopeToPath(`/m/tickets/${ticket.id}`, compactTicketScope(linkScope), meQ.data)
+  }
+
+  if (!meQ.data) {
+    return (
+      <div className="mobileSection">
+        <div>
+          <h1 className="mobileTitle">Мои заявки</h1>
+          <div className="mobileSubtitle">Личный список без таблиц и desktop-плотности</div>
+        </div>
+        <div className="mobileCard mobileMeta">Загрузка…</div>
+      </div>
     )
+  }
 
   return (
     <div className="mobileSection">

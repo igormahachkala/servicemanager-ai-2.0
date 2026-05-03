@@ -1,4 +1,4 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common'
+﻿import { ForbiddenException, NotFoundException } from '@nestjs/common'
 import { Prisma, UserRole } from '@prisma/client'
 
 import { assertAllowed, isPlatformObserverScope, resolveObserverScopeCompanyId } from '../policy/policy.utils'
@@ -78,11 +78,6 @@ export async function resolveActorLocationScope(params: {
       ? rawScopeCompanyId.trim()
       : null
 
-  console.log('LOCATION_SCOPE_DEBUG', {
-    actorCompanyId: params.actor.companyId,
-    scopeCompanyId,
-  })
-
   if (!scopeCompanyId) {
     return { mode: 'tenant_wide', locationIds: [] }
   }
@@ -98,10 +93,20 @@ export async function resolveActorLocationScope(params: {
     return { mode: 'tenant_wide', locationIds: [] }
   }
 
+  /**
+   * UserLocationBinding.companyId — компания сотрудника (провайдер).
+   * У точки clientCompanyId = клиентский tenant.
+   * Для контура linked client ищем привязки по employer companyId + локации клиента.
+   */
+  const linkedClientScope =
+    scopeCompanyId !== params.actor.companyId &&
+    PROVIDER_LINKED_OPERATION_ROLES.includes(params.actor.role)
+  const bindingEmployerCompanyId = linkedClientScope ? params.actor.companyId : scopeCompanyId
+
   const bindings = await params.prisma.userLocationBinding.findMany({
     where: {
       userId: params.actor.id,
-      companyId: scopeCompanyId,
+      companyId: bindingEmployerCompanyId,
       location: { clientCompanyId: scopeCompanyId },
     },
     select: { locationId: true },
@@ -176,29 +181,6 @@ export function canAccessOwnTicket(
   return ticket.companyId === ctx.companyId
 }
 
-export async function wasTicketCreatedByActor(params: {
-  prisma: PrismaService
-  companyIds: string[]
-  ticketId: string
-  actorUserId: string
-}) {
-  if (params.companyIds.length === 0) {
-    return false
-  }
-
-  const createdEvent = await params.prisma.domainEvent.findFirst({
-    where: {
-      companyId: params.companyIds.length === 1 ? params.companyIds[0] : { in: params.companyIds },
-      entityType: 'Ticket',
-      entityId: params.ticketId,
-      type: 'ticket.created',
-      actorUserId: params.actorUserId,
-    },
-    select: { id: true },
-  })
-
-  return !!createdEvent
-}
 export async function resolveTechnicianOperationalScope(params: {
   prisma: PrismaService
   serviceContractsService: ServiceContractsService
@@ -683,5 +665,66 @@ export async function resolveTicketOperationAccess(params: {
         ? params.actor.companyId
         : readable.ticket.companyId,
   }
+}
+
+/**
+ * Эвристика для meta/UI: пользователь участвовал в создании заявки
+ * (вложение с uploadedByUserId или комментарий потока create).
+ * При непустом companyIds — только tenant из этого списка (заявка, вложение, событие).
+ */
+export async function wasTicketCreatedByActor(params: {
+  prisma: PrismaService
+  ticketId: string
+  userId?: string
+  actorUserId?: string
+  companyIds?: string[]
+}): Promise<boolean> {
+  const tid = (params.ticketId || '').trim()
+  const uid = ((params.userId || params.actorUserId) ?? '').trim()
+  if (!tid || !uid) return false
+  const prisma = params.prisma
+
+  const allowedCompanies = Array.from(
+    new Set((params.companyIds || []).map((c) => (c || '').trim()).filter((c) => c.length > 0)),
+  )
+  const companyScope =
+    allowedCompanies.length === 0
+      ? null
+      : allowedCompanies.length === 1
+        ? { companyId: allowedCompanies[0] }
+        : { companyId: { in: allowedCompanies } }
+
+  if (companyScope) {
+    const ticketInScope = await prisma.ticket.findFirst({
+      where: { id: tid, ...companyScope },
+      select: { id: true },
+    })
+    if (!ticketInScope) return false
+  }
+
+  const attachment = await prisma.ticketAttachment.findFirst({
+    where: {
+      ticketId: tid,
+      uploadedByUserId: uid,
+      ...(companyScope ?? {}),
+    },
+    select: { id: true },
+  })
+  if (attachment) return true
+
+  const ev = await prisma.domainEvent.findFirst({
+    where: {
+      entityType: 'Ticket',
+      entityId: tid,
+      type: 'ticket.comment_added',
+      actorUserId: uid,
+      ...(companyScope ?? {}),
+    },
+    orderBy: { createdAt: 'asc' },
+    select: { payload: true },
+  })
+  if (!ev?.payload || typeof ev.payload !== 'object' || ev.payload === null) return false
+  const src = (ev.payload as Record<string, unknown>).source
+  return src === 'create_flow'
 }
 

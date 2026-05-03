@@ -10,15 +10,19 @@ export type MobileTicketNavState = {
   ticketOwnerCompanyId?: string
 }
 
-/** Роли, для которых карточка клиента на доске провайдера открывается с linkedClientCompanyId = companyId заявки и повтором getOne по владельцу при 404. */
+/**
+ * Роли оператора по клиентским заявкам: tenant карточки ≠ company пользователя
+ * → в ссылку/getOne уходит linkedClientCompanyId = companyId заявки.
+ * (Тип компании PROVIDER в Me не приходит — у «провайдерского» контура обычно STAFF/ADMIN/TECHNICIAN.)
+ */
 const MOBILE_TICKET_LINK_SCOPE_ROLES: Role[] = [
   'TECHNICIAN',
+  'STAFF',
   'ADMIN',
   'MASTER',
   'DISPATCHER',
   'NETWORK_DIRECTOR',
   'TERRITORIAL_MANAGER',
-  'STAFF',
 ]
 
 function scopeFingerprint(s: TicketScopeParams): string {
@@ -26,16 +30,19 @@ function scopeFingerprint(s: TicketScopeParams): string {
 }
 
 /**
- * Пустой объект: appendScopeToPath/getScopeSearchSuffix не подставят persisted scope в URL
- * (иначе в ссылку попадает чужой linkedClient и детали дают ложный 404).
+ * Только явные поля; `undefined`/пустой scope → `{}`, чтобы appendScopeToPath
+ * не подмешивал persisted linked/company из localStorage (ложный tenant / 404).
  */
-export function compactTicketScope(s: TicketScopeParams): TicketScopeParams {
-  const companyId = (s.companyId || '').trim()
-  const linked = (s.linkedClientCompanyId || '').trim()
-  const out: TicketScopeParams = {}
-  if (companyId) out.companyId = companyId
-  if (linked) out.linkedClientCompanyId = linked
-  return Object.keys(out).length ? out : {}
+export function compactTicketScope(
+  scope?: Pick<TicketScopeParams, 'companyId' | 'linkedClientCompanyId'> | null,
+): TicketScopeParams {
+  if (!scope) return {}
+  const clean: TicketScopeParams = {}
+  const companyId = (scope.companyId || '').trim()
+  const linked = (scope.linkedClientCompanyId || '').trim()
+  if (companyId) clean.companyId = companyId
+  if (linked) clean.linkedClientCompanyId = linked
+  return clean
 }
 
 /**

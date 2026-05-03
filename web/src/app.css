@@ -13,10 +13,13 @@
 * { box-sizing: border-box; }
 
 .page {
-  min-height: 100vh;
-  display: grid;
-  place-items: center;
+  min-height: 100dvh;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
   padding: 24px;
+  box-sizing: border-box;
 }
 
 /* Login / mobile: не центрировать весь viewport (iOS Safari + клавиатура даёт съезд). */
@@ -25,7 +28,6 @@
   flex-direction: column;
   align-items: stretch;
   justify-content: flex-start;
-  place-items: stretch;
   min-height: 100%;
   min-height: 100dvh;
   min-height: 100svh;
@@ -668,7 +670,8 @@ button.ghost {
 
   .appLayout {
     display: block;
-    min-height: 100vh;
+    min-height: 100dvh;
+    min-height: 100%;
   }
 
   .sidebar {

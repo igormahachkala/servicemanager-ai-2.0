@@ -65,23 +65,27 @@ function TicketCard(props: {
 export function MobileHome() {
   const location = useLocation()
   const search = new URLSearchParams(location.search)
-  const linkedClientCompanyId = (search.get('linkedClientCompanyId') || api.getLinkedClientCompanyId()).trim()
-  const companyId = (search.get('companyId') || api.getObserverCompanyId()).trim()
-  const scope = {
+  const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
+  const linkedClientCompanyId = (search.get('linkedClientCompanyId') || api.getLinkedClientCompanyId(meQ.data)).trim()
+  const companyId = (search.get('companyId') || api.getObserverCompanyId(meQ.data)).trim()
+  const pageScope = {
     linkedClientCompanyId: linkedClientCompanyId || undefined,
     companyId: companyId || undefined,
   }
-
-  const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
   const queryClient = useQueryClient()
   const boardQ = useQuery({
     queryKey: ['mobile-home-board', linkedClientCompanyId, companyId],
-    queryFn: () => api.board({ linkedClientCompanyId: scope.linkedClientCompanyId, companyId: scope.companyId, take: 30 }),
+    queryFn: () =>
+      api.board({
+        linkedClientCompanyId: pageScope.linkedClientCompanyId,
+        companyId: pageScope.companyId,
+        take: 30,
+      }),
     enabled: !!meQ.data,
   })
   const availableQ = useQuery({
-    queryKey: ['mobile-home-available'],
-    queryFn: api.availableTickets,
+    queryKey: ['mobile-home-available', linkedClientCompanyId],
+    queryFn: () => api.availableTickets(linkedClientCompanyId || undefined),
     enabled: meQ.data?.role === 'TECHNICIAN',
   })
 
@@ -131,11 +135,11 @@ export function MobileHome() {
   const actionM = useMutation({
     mutationFn: async (ticket: api.TicketCard) => {
       if (ticket.status === 'NEW') {
-        await api.claim(ticket.id, scope)
+        await api.claim(ticket.id, pageScope)
         return
       }
       if (ticket.status === 'ASSIGNED') {
-        await api.updateTicketStatus(ticket.id, { status: 'IN_PROGRESS' }, scope)
+        await api.updateTicketStatus(ticket.id, { status: 'IN_PROGRESS' }, pageScope)
         return
       }
       if (ticket.status === 'IN_PROGRESS') {
@@ -169,9 +173,9 @@ export function MobileHome() {
       const comment = closeModal.comment.trim()
       if (comment.length < 3) throw new Error('Нужен короткий комментарий (backend требует комментарий для DONE)')
 
-      await api.uploadTicketAttachment(closeModal.ticketId, closeModal.file, scope)
-      await api.addTicketComment(closeModal.ticketId, comment, scope)
-      await api.updateTicketStatus(closeModal.ticketId, { status: 'DONE' }, scope)
+      await api.uploadTicketAttachment(closeModal.ticketId, closeModal.file, pageScope)
+      await api.addTicketComment(closeModal.ticketId, comment, pageScope)
+      await api.updateTicketStatus(closeModal.ticketId, { status: 'DONE' }, pageScope)
     },
     onSuccess: async () => {
       if (closeModal?.previewUrl) {
@@ -194,12 +198,11 @@ export function MobileHome() {
 
   const primaryPending = actionM.isPending || closeBusy
 
-  const ticketHref = (ticket: api.TicketCard) =>
-    api.appendScopeToPath(
-      `/m/tickets/${ticket.id}`,
-      compactTicketScope(scopeForMobileTicketLink(meQ.data, scope, ticket)),
-      meQ.data,
-    )
+  const ticketHref = (ticket: api.TicketCard) => {
+    if (!meQ.data) return `/m/tickets/${ticket.id}`
+    const linkScope = scopeForMobileTicketLink(meQ.data, pageScope, ticket)
+    return api.appendScopeToPath(`/m/tickets/${ticket.id}`, compactTicketScope(linkScope), meQ.data)
+  }
 
   const ticketLinkState = (ticket: api.TicketCard) => mobileTicketNavState('home', ticket.companyId)
 
@@ -227,7 +230,7 @@ export function MobileHome() {
           ) : null}
         </div>
         <Link
-          to={api.appendScopeToPath('/m/create', scope, meQ.data)}
+          to={api.appendScopeToPath('/m/create', pageScope, meQ.data)}
           className="mobileBtn mobileCreateTicketLink"
         >
           Создать заявку

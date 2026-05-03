@@ -16,13 +16,6 @@ type CreateResult = {
 export function MobileCreateTicket() {
   const location = useLocation()
   const search = new URLSearchParams(location.search)
-  const linkedClientCompanyId = (search.get('linkedClientCompanyId') || api.getLinkedClientCompanyId()).trim()
-  const companyId = (search.get('companyId') || api.getObserverCompanyId()).trim()
-  const scope = {
-    linkedClientCompanyId: linkedClientCompanyId || undefined,
-    companyId: companyId || undefined,
-  }
-
   const qc = useQueryClient()
   const cameraInputRef = useRef<HTMLInputElement | null>(null)
   const galleryInputRef = useRef<HTMLInputElement | null>(null)
@@ -35,6 +28,22 @@ export function MobileCreateTicket() {
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
   const meReady = meQ.isSuccess
   const isTechnician = meReady && meQ.data?.role === 'TECHNICIAN'
+
+  const linkedClientCompanyId = useMemo(
+    () => (search.get('linkedClientCompanyId') || api.getLinkedClientCompanyId(meQ.data)).trim(),
+    [location.search, meQ.data],
+  )
+  const companyId = useMemo(
+    () => (search.get('companyId') || api.getObserverCompanyId(meQ.data)).trim(),
+    [location.search, meQ.data],
+  )
+  const scope = useMemo(
+    () => ({
+      linkedClientCompanyId: linkedClientCompanyId || undefined,
+      companyId: companyId || undefined,
+    }),
+    [linkedClientCompanyId, companyId],
+  )
 
   const technicianContextsQ = useQuery({
     queryKey: ['mobile-create-technician-contexts', linkedClientCompanyId],

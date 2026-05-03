@@ -43,20 +43,6 @@ export class TicketsQueryService {
     return where as Record<string, unknown>
   }
 
-  private unwrapPrismaWhere(where: unknown) {
-    const candidate = this.safeTicketWhereOrNull(where)
-    if (!candidate) {
-      return {}
-    }
-
-    if ('where' in candidate) {
-      const nestedWhere = this.safeTicketWhereOrNull(candidate.where)
-      return nestedWhere ?? {}
-    }
-
-    return candidate
-  }
-
   private applyContextFilters(where: any, params: { locationId?: string; equipmentId?: string }) {
     const extraAnd: any[] = []
     if (params.locationId && params.locationId.trim().length > 0) {
@@ -75,28 +61,7 @@ export class TicketsQueryService {
     return { ...where, AND: [...baseArr, ...extra] }
   }
 
-  private async listTechnicianCreatedTicketIds(params: {
-    companyIds: string[]
-    userId: string
-  }) {
-    if (params.companyIds.length === 0) return []
-
-    const createdEvents = await this.prisma.domainEvent.findMany({
-      where: {
-        companyId: params.companyIds.length === 1 ? params.companyIds[0] : { in: params.companyIds },
-        entityType: 'Ticket',
-        type: 'ticket.created',
-        actorUserId: params.userId,
-      },
-      select: {
-        entityId: true,
-      },
-    })
-
-    return Array.from(new Set(createdEvents.map((item) => item.entityId).filter(Boolean)))
-  }
-
-  private async buildTechnicianBoardQuery(params: {
+  private buildTechnicianBoardQuery(params: {
     companyIds: string[]
     locationScopeByCompany: Record<string, string[]>
     userId: string
@@ -108,19 +73,8 @@ export class TicketsQueryService {
     const limitedToLast = Math.min(Math.max(params.input.take ?? 500, 1), 500)
     const companyScope =
       params.companyIds.length === 1 ? { companyId: params.companyIds[0] } : { companyId: { in: params.companyIds } }
-    const createdTicketIds = await this.listTechnicianCreatedTicketIds({
-      companyIds: params.companyIds,
-      userId: params.userId,
-    })
 
     const visibilityOr: any[] = [{ ...companyScope, assignedTechnicianId: params.userId }]
-
-    if (createdTicketIds.length > 0) {
-      visibilityOr.push({
-        ...companyScope,
-        id: { in: createdTicketIds },
-      })
-    }
 
     if (params.allowTechnicianClaim) {
       if (params.specializationIds.length > 0) {
@@ -227,7 +181,7 @@ export class TicketsQueryService {
     }
   }
 
-  private async buildTechnicianListWhere(params: {
+  private buildTechnicianListWhere(params: {
     companyIds: string[]
     locationScopeByCompany: Record<string, string[]>
     userId: string
@@ -237,19 +191,8 @@ export class TicketsQueryService {
   }) {
     const companyScope =
       params.companyIds.length === 1 ? { companyId: params.companyIds[0] } : { companyId: { in: params.companyIds } }
-    const createdTicketIds = await this.listTechnicianCreatedTicketIds({
-      companyIds: params.companyIds,
-      userId: params.userId,
-    })
 
     const visibilityOr: any[] = [{ ...companyScope, assignedTechnicianId: params.userId }]
-
-    if (createdTicketIds.length > 0) {
-      visibilityOr.push({
-        ...companyScope,
-        id: { in: createdTicketIds },
-      })
-    }
 
     if (params.allowTechnicianClaim) {
       if (params.specializationIds.length > 0) {
@@ -324,7 +267,7 @@ export class TicketsQueryService {
     const atRiskThresholdMinutes = 60
     const limitedToLast = Math.min(Math.max(input.take ?? 500, 1), 500)
     const decision = technicianScope
-      ? await this.buildTechnicianBoardQuery({
+      ? this.buildTechnicianBoardQuery({
           companyIds: technicianScope.companyIds,
           locationScopeByCompany: technicianScope.locationScopeByCompany,
           userId,
@@ -341,7 +284,15 @@ export class TicketsQueryService {
           const policyDecision = this.policy.boardWhere({ id: userId, role, companyId: ownTenantScopeCompanyId, accessFlags }, input)
           assertAllowed(policyDecision)
           const policyQuery = this.safeTicketWhereOrNull(policyDecision.where)
-          const prismaWhere = this.unwrapPrismaWhere(policyQuery?.where ?? policyDecision.where)
+          let prismaWhere = (policyQuery?.where ?? policyDecision.where) as any
+          if (!prismaWhere || typeof prismaWhere !== 'object' || Array.isArray(prismaWhere)) {
+            prismaWhere = {}
+          }
+          if ('where' in prismaWhere) {
+            const nestedWhere = prismaWhere.where
+            prismaWhere =
+              nestedWhere && typeof nestedWhere === 'object' && !Array.isArray(nestedWhere) ? nestedWhere : {}
+          }
 
           const take =
             typeof policyQuery?.take === 'number'
@@ -376,7 +327,13 @@ export class TicketsQueryService {
     const nowMs = Date.now()
     const atRiskThresholdMs = decision.meta.atRiskThresholdMinutes * 60_000
 
-    const safeBoardWhere = this.unwrapPrismaWhere(whereWithLocationScope)
+    let prismaWhere = whereWithLocationScope as any
+    if (prismaWhere && typeof prismaWhere === 'object' && !Array.isArray(prismaWhere) && 'where' in prismaWhere) {
+      const nestedWhere = prismaWhere.where
+      prismaWhere =
+        nestedWhere && typeof nestedWhere === 'object' && !Array.isArray(nestedWhere) ? nestedWhere : {}
+    }
+    const safeBoardWhere = this.safeTicketWhereOrNull(prismaWhere)
     const tickets = safeBoardWhere
       ? await this.prisma.ticket.findMany({
           where: safeBoardWhere,
@@ -384,7 +341,6 @@ export class TicketsQueryService {
           select: {
             id: true,
             companyId: true,
-            ticketNumber: true,
             status: true,
             urgency: true,
             createdAt: true,
@@ -437,7 +393,6 @@ export class TicketsQueryService {
       const cards = byStatus.map((t) => ({
         id: t.id,
         companyId: t.companyId,
-        ticketNumber: t.ticketNumber,
         title: t.problemCategory.name,
         description: t.problemText,
         status: t.status,
@@ -507,14 +462,14 @@ export class TicketsQueryService {
         })
 
     const baseWhere = technicianScope
-      ? (await this.buildTechnicianBoardQuery({
+      ? this.buildTechnicianBoardQuery({
           companyIds: technicianScope.companyIds,
           locationScopeByCompany: technicianScope.locationScopeByCompany,
           userId,
           specializationIds: technicianScope.specializationIds,
           allowTechnicianClaim: technicianScope.allowTechnicianClaim,
           input: {},
-        })).where
+        }).where
       : (() => {
           const ownTenantScopeCompanyId =
             !observerCompanyId && !linkedClientCompanyId && (role === UserRole.CLIENT || role === UserRole.ADMIN)
@@ -636,7 +591,7 @@ export class TicketsQueryService {
         })
 
     const where = technicianScope
-      ? await this.buildTechnicianListWhere({
+      ? this.buildTechnicianListWhere({
           companyIds: technicianScope.companyIds,
           locationScopeByCompany: technicianScope.locationScopeByCompany,
           userId,
