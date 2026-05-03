@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import React, { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import * as api from '../lib/api'
 
 import smaLogo from '../assets/sma-tech.png'
@@ -13,20 +13,13 @@ const BUILD = '2026'
 
 export function LoginPage({ onLoggedIn }: LoginPageProps) {
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-
-  const mobileEntryHref = useMemo(() => {
-    const params = new URLSearchParams()
-    const existing = (searchParams.get('next') || '').trim()
-    params.set('next', existing.startsWith('/m') ? existing : '/m')
-    params.set('mode', 'mobile')
-    return `/login?${params.toString()}`
-  }, [searchParams])
+  const [postLoginUser, setPostLoginUser] = useState<api.Me | null>(null)
+  const [postLoginScope, setPostLoginScope] = useState<api.TicketScopeParams>({})
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
@@ -44,24 +37,38 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
       api.setUserRole(result.user.role)
       api.setCompanyLabel(result.user.companyName || result.user.email)
       const restoredScope = api.restoreScopeForUser(result.user)
-
-      if (onLoggedIn) {
-        onLoggedIn(result.access_token)
-      }
-
-      const nextRaw = (searchParams.get('next') || '').trim()
-      const nextPath = nextRaw.startsWith('/') ? nextRaw : ''
-      if (nextPath.startsWith('/m')) {
-        navigate(api.appendScopeToPath(nextPath, restoredScope, result.user))
-        return
-      }
-
-      navigate(api.appendScopeToPath(api.getHomeRoute(result.user.role), restoredScope, result.user))
+      setPostLoginUser(result.user)
+      setPostLoginScope(restoredScope)
     } catch (err: any) {
       setError(err?.message || 'Не удалось войти')
     } finally {
       setLoading(false)
     }
+  }
+
+  function enterDesktop() {
+    if (!postLoginUser) return
+    const token = api.getToken()
+    if (onLoggedIn && token) {
+      onLoggedIn(token)
+    }
+    navigate(api.appendScopeToPath(api.getHomeRoute(postLoginUser.role), postLoginScope, postLoginUser))
+  }
+
+  function enterMobile() {
+    if (!postLoginUser) return
+    const token = api.getToken()
+    if (onLoggedIn && token) {
+      onLoggedIn(token)
+    }
+    navigate(api.appendScopeToPath('/m', postLoginScope, postLoginUser))
+  }
+
+  function resetSession() {
+    api.clearToken()
+    setPostLoginUser(null)
+    setPostLoginScope({})
+    setPassword('')
   }
 
   return (
@@ -80,45 +87,55 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
           </div>
         )}
 
-        <form onSubmit={handleLogin} className="form">
-          <label>
-            Email
-            <input
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@company.com"
-              autoComplete="username"
-              disabled={loading}
-            />
-          </label>
+        {!postLoginUser ? (
+          <form onSubmit={handleLogin} className="form">
+            <label>
+              Email
+              <input
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="admin@company.com"
+                autoComplete="username"
+                disabled={loading}
+              />
+            </label>
 
-          <label>
-            Пароль
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Введите пароль"
-              autoComplete="current-password"
-              disabled={loading}
-            />
-          </label>
+            <label>
+              Пароль
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Введите пароль"
+                autoComplete="current-password"
+                disabled={loading}
+              />
+            </label>
 
-          <button type="submit" disabled={loading}>
-            {loading ? 'Входим...' : 'Войти'}
-          </button>
-        </form>
-
-        <div style={{ marginTop: 12 }}>
-          <Link to={mobileEntryHref} style={{ textDecoration: 'none' }}>
-            <button type="button" className="ghost" style={{ width: '100%' }}>
-              Мобильная версия
+            <button type="submit" disabled={loading}>
+              {loading ? 'Входим...' : 'Войти'}
             </button>
-          </Link>
-          <div className="muted small" style={{ marginTop: 8 }}>
-            Откроет `/m` после входа (через `next=/m`), без ручного ввода URL.
+          </form>
+        ) : (
+          <div className="panel" style={{ padding: 14 }}>
+            <div style={{ fontWeight: 800, marginBottom: 6 }}>Выберите режим входа</div>
+            <div className="muted small" style={{ marginBottom: 12 }}>
+              Сессия уже создана. Куда отправить вас дальше?
+            </div>
+
+            <div style={{ display: 'grid', gap: 10 }}>
+              <button type="button" className="mobileBtn" onClick={enterDesktop}>
+                Вход: управленческая часть
+              </button>
+              <button type="button" className="mobileBtn mobileBtnGhost" onClick={enterMobile}>
+                Вход: мобильная версия для обслуживания
+              </button>
+              <button type="button" className="ghost" onClick={resetSession}>
+                Выйти и ввести другой аккаунт
+              </button>
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="panel" style={{ marginTop: 16 }}>
           <div style={{ fontWeight: 600, marginBottom: 6 }}>Публичная регистрация компаний отключена</div>

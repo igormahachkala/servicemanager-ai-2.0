@@ -5,6 +5,9 @@ import * as api from '../lib/api'
 
 const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024
 
+/** Единый текст: нет загруженного draft-фото (не дублировать другими формулировками). */
+const PHOTO_REQUIRED_MSG = 'Фото обязательно для создания заявки. Сначала загрузите снимок.'
+
 type CreateResult = {
   ticketId: string
   claimed: boolean
@@ -21,7 +24,13 @@ export function MobileCreateTicket() {
   }
 
   const qc = useQueryClient()
-  const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const cameraInputRef = useRef<HTMLInputElement | null>(null)
+  const galleryInputRef = useRef<HTMLInputElement | null>(null)
+
+  function clearPhotoInputs() {
+    if (cameraInputRef.current) cameraInputRef.current.value = ''
+    if (galleryInputRef.current) galleryInputRef.current.value = ''
+  }
 
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
   const meReady = meQ.isSuccess
@@ -75,7 +84,6 @@ export function MobileCreateTicket() {
   const [locationId, setLocationId] = useState('')
   const [categoryId, setCategoryId] = useState('')
   const [description, setDescription] = useState('')
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [draftAttachment, setDraftAttachment] = useState<api.DraftTicketAttachment | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [error, setError] = useState('')
@@ -93,36 +101,38 @@ export function MobileCreateTicket() {
 
   useEffect(() => {
     setDraftAttachment(null)
-    setSelectedFile(null)
     setUploadError(null)
-    if (fileInputRef.current) fileInputRef.current.value = ''
+    clearPhotoInputs()
   }, [clientCompanyId, isTechnician, linkedClientCompanyId, companyId])
 
   const uploadM = useMutation({
     mutationFn: (file: File) => api.uploadDraftTicketAttachment(file),
     onSuccess: (uploaded) => {
       setUploadError(null)
+      setError('')
       setDraftAttachment(uploaded)
-      setSelectedFile(null)
-      if (fileInputRef.current) fileInputRef.current.value = ''
+      clearPhotoInputs()
     },
-    onError: (e: any) => setUploadError(e?.message || String(e)),
+    onError: (e: any) => {
+      setUploadError(e?.message || String(e))
+      clearPhotoInputs()
+    },
   })
 
   const deleteDraftM = useMutation({
     mutationFn: (attachmentId: string) => api.deleteDraftTicketAttachment(attachmentId),
     onSuccess: () => {
       setDraftAttachment(null)
-      setSelectedFile(null)
-      if (fileInputRef.current) fileInputRef.current.value = ''
+      clearPhotoInputs()
       setUploadError(null)
+      setError('')
     },
     onError: (e: any) => setUploadError(e?.message || String(e)),
   })
 
   const createM = useMutation({
     mutationFn: async (shouldClaim: boolean) => {
-      if (!draftAttachment) throw new Error('Сначала загрузите фото')
+      if (!draftAttachment) throw new Error(PHOTO_REQUIRED_MSG)
       const payload: api.CreateTicketInput = {
         createMode: 'quick',
         clientCompanyId: isTechnician ? clientCompanyId : linkedClientCompanyId ? linkedClientCompanyId : undefined,
@@ -150,8 +160,7 @@ export function MobileCreateTicket() {
       setResult(created)
       setDescription('')
       setDraftAttachment(null)
-      setSelectedFile(null)
-      if (fileInputRef.current) fileInputRef.current.value = ''
+      clearPhotoInputs()
     },
     onError: (e: any) => {
       setResult(null)
@@ -159,40 +168,27 @@ export function MobileCreateTicket() {
     },
   })
 
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  function handlePickedImage(e: React.ChangeEvent<HTMLInputElement>) {
     setUploadError(null)
+    setError('')
     const file = e.target.files?.[0] || null
-    if (!file) {
-      setSelectedFile(null)
-      return
-    }
+    if (!file) return
     if (!file.type.startsWith('image/')) {
-      setSelectedFile(null)
       e.target.value = ''
       setUploadError('Можно загружать только изображения')
       return
     }
     if (file.size <= 0) {
-      setSelectedFile(null)
       e.target.value = ''
       setUploadError('Файл пустой')
       return
     }
     if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
-      setSelectedFile(null)
       e.target.value = ''
       setUploadError('Изображение слишком большое (максимум 10 МБ)')
       return
     }
-    setSelectedFile(file)
-  }
-
-  function onUpload() {
-    if (!selectedFile) {
-      setUploadError('Сначала выберите фото')
-      return
-    }
-    uploadM.mutate(selectedFile)
+    uploadM.mutate(file)
   }
 
   function onCreate(shouldClaim: boolean) {
@@ -207,7 +203,7 @@ export function MobileCreateTicket() {
       return
     }
     if (!draftAttachment) {
-      setError('Фото обязательно: загрузите изображение')
+      setError(PHOTO_REQUIRED_MSG)
       return
     }
     createM.mutate(shouldClaim)
@@ -223,8 +219,19 @@ export function MobileCreateTicket() {
       ? technicianContextsQ.isFetched
       : locationsQ.isFetched && categoriesQ.isFetched)
 
-  const hasOptions = activeLocations.length > 0 && activeCategories.length > 0
-  const canSubmit = hasOptions && !!draftAttachment && !createM.isPending && !uploadM.isPending && !deleteDraftM.isPending
+  const selectionReady =
+    !!locationId &&
+    !!categoryId &&
+    activeLocations.some((row) => row.id === locationId) &&
+    activeCategories.some((row) => row.id === categoryId) &&
+    (!isTechnician || !!clientCompanyId)
+
+  const canSubmit =
+    selectionReady &&
+    !!draftAttachment &&
+    !createM.isPending &&
+    !uploadM.isPending &&
+    !deleteDraftM.isPending
   const noTechnicianContexts = isTechnician && technicianContextsQ.isSuccess && technicianContexts.length === 0
 
   const showEmptyLocationsHint = catalogsSettled && !isBootstrapping && activeLocations.length === 0 && !noTechnicianContexts
@@ -234,7 +241,7 @@ export function MobileCreateTicket() {
     <div className="mobileSection">
       <div>
         <h1 className="mobileTitle">Создать заявку</h1>
-        <div className="mobileSubtitle">Фото обязательно (REQUEST), описание опционально</div>
+        <div className="mobileSubtitle">Укажите точку, категорию и загрузите фото — без снимка отправка недоступна.</div>
       </div>
 
       {(locationsQ.isError || categoriesQ.isError || technicianContextsQ.isError) ? (
@@ -313,45 +320,76 @@ export function MobileCreateTicket() {
             </select>
           </label>
 
-          <label>
+          <label className="mobileFormFieldBeforePhoto">
             Описание (опционально)
             <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Коротко опишите проблему" rows={3} />
           </label>
 
-          <div className="mobileCard" style={{ padding: 12 }}>
+          <div className="mobileCard mobilePhotoCard" style={{ padding: 12, position: 'relative' }}>
             <div style={{ fontWeight: 800, marginBottom: 8 }}>Фото заявки *</div>
-            <div className="muted small" style={{ marginBottom: 10 }}>
-              Загрузка идёт через draft endpoint: вложение попадёт в заявку как REQUEST (см. backend `uploadDraftAttachment`).
-            </div>
-            <div style={{ display: 'grid', gap: 10 }}>
-              <input ref={fileInputRef} type="file" accept="image/*" capture="environment" onChange={handleFileChange} disabled={!!draftAttachment} />
-              <button type="button" className="mobileBtn mobileBtnSecondary" onClick={onUpload} disabled={uploadM.isPending || !selectedFile || !!draftAttachment}>
-                {uploadM.isPending ? 'Загружаем...' : draftAttachment ? 'Фото загружено' : 'Загрузить фото'}
+            <p className="mobileHint">Снимите камерой или выберите из галереи — файл загрузится сразу после выбора.</p>
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="mobilePhotoInputHidden"
+              aria-label="Сделать фото камерой"
+              onChange={handlePickedImage}
+              disabled={!!draftAttachment || uploadM.isPending || createM.isPending}
+            />
+            <input
+              ref={galleryInputRef}
+              type="file"
+              accept="image/*"
+              className="mobilePhotoInputHidden"
+              aria-label="Выбрать фото из галереи"
+              onChange={handlePickedImage}
+              disabled={!!draftAttachment || uploadM.isPending || createM.isPending}
+            />
+            <div className="mobilePhotoSourceRow">
+              <button
+                type="button"
+                className="mobileBtn mobileBtnSecondary mobilePhotoSourceBtn"
+                disabled={!!draftAttachment || uploadM.isPending || createM.isPending}
+                onClick={() => cameraInputRef.current?.click()}
+              >
+                Сделать фото
               </button>
-              {selectedFile ? <div className="mobileMeta">{selectedFile.name}</div> : null}
-              {draftAttachment ? (
-                <div style={{ display: 'grid', gap: 8 }}>
-                  <img
-                    src={api.resolveFileUrl(draftAttachment.url)}
-                    alt={draftAttachment.originalName}
-                    style={{ width: '100%', maxHeight: 220, objectFit: 'cover', borderRadius: 12, border: '1px solid #e5e7eb' }}
-                  />
-                  <button type="button" className="mobileBtn mobileBtnGhost" onClick={() => deleteDraftM.mutate(draftAttachment.id)} disabled={deleteDraftM.isPending}>
-                    {deleteDraftM.isPending ? 'Удаляем...' : 'Удалить фото'}
-                  </button>
-                </div>
-              ) : null}
+              <button
+                type="button"
+                className="mobileBtn mobileBtnSecondary mobilePhotoSourceBtn"
+                disabled={!!draftAttachment || uploadM.isPending || createM.isPending}
+                onClick={() => galleryInputRef.current?.click()}
+              >
+                Выбрать из телефона
+              </button>
             </div>
+            {uploadM.isPending ? <div className="mobileMeta" style={{ marginTop: 10 }}>Загружаем фото…</div> : null}
+            {draftAttachment ? (
+              <div className="mobilePhotoPreview" style={{ display: 'grid', gap: 8 }}>
+                <img
+                  src={api.resolveFileUrl(draftAttachment.url)}
+                  alt={draftAttachment.originalName}
+                  style={{ width: '100%', maxHeight: 220, objectFit: 'cover', borderRadius: 12, border: '1px solid #e5e7eb' }}
+                />
+                <button type="button" className="mobileBtn mobileBtnGhost" onClick={() => deleteDraftM.mutate(draftAttachment.id)} disabled={deleteDraftM.isPending}>
+                  {deleteDraftM.isPending ? 'Удаляем...' : 'Удалить фото'}
+                </button>
+              </div>
+            ) : null}
           </div>
 
-          <button className="mobileBtn" disabled={!canSubmit} onClick={() => onCreate(false)}>
-            {createM.isPending ? 'Создаем...' : 'Создать заявку'}
-          </button>
-          {isTechnician ? (
-            <button className="mobileBtn mobileBtnGhost" disabled={!canSubmit || !clientCompanyId} onClick={() => onCreate(true)}>
-              {createM.isPending ? 'Создаем...' : 'Создать и взять'}
+          <div className="mobileFormSubmitStack">
+            <button type="button" className="mobileBtn" disabled={!canSubmit} onClick={() => onCreate(false)}>
+              {createM.isPending ? 'Создаем...' : 'Создать заявку'}
             </button>
-          ) : null}
+            {isTechnician ? (
+              <button type="button" className="mobileBtn mobileBtnGhost" disabled={!canSubmit || !clientCompanyId} onClick={() => onCreate(true)}>
+                {createM.isPending ? 'Создаем...' : 'Создать и взять'}
+              </button>
+            ) : null}
+          </div>
         </form>
       </div>
     </div>

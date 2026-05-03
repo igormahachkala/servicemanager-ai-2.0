@@ -1353,7 +1353,25 @@ export class TicketsAssignmentService {
       },
       orderBy: { createdAt: 'desc' },
       take: 100,
-    })
+    }).then((tickets) =>
+      tickets.map((ticket) => ({
+        id: ticket.id,
+        companyId: ticket.companyId,
+        ticketNumber: ticket.ticketNumber,
+        title: ticket.problemCategory?.name || 'Ticket',
+        description: ticket.problemText,
+        status: ticket.status,
+        urgency: ticket.urgency,
+        createdAt: ticket.createdAt,
+        slaDueAt: ticket.slaDueAt,
+        slaBreached: !!ticket.slaBreachedAt || (ticket.slaDueAt ? Date.now() > ticket.slaDueAt.getTime() : false),
+        isChild: !!ticket.parentId,
+        pointName: ticket.pointName,
+        location: ticket.location,
+        category: ticket.problemCategory,
+        assignedTechnician: null,
+      })),
+    )
   }
 
   async claim(companyId: string, technicianUserId: string, ticketId: string, linkedClientCompanyId?: string) {

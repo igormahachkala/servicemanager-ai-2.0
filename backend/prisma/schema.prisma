@@ -323,9 +323,10 @@ model ServiceContract {
 }
 
 model Ticket {
-  id        String  @id @default(uuid())
-  companyId String
-  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  id           String  @id @default(uuid())
+  ticketNumber Int     @unique @default(autoincrement())
+  companyId    String
+  company      Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
   parentId String?
   parent   Ticket?  @relation("TicketParent", fields: [parentId], references: [id], onDelete: SetNull)

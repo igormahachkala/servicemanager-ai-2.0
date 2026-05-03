@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import * as api from '../lib/api'
 
@@ -18,11 +18,19 @@ function formatDate(value?: string | null) {
   return date.toLocaleString('ru-RU', { hour12: false })
 }
 
+function ticketLabel(ticket: Pick<api.TicketCard, 'ticketNumber' | 'id'>) {
+  return typeof ticket.ticketNumber === 'number' ? `Заявка #${ticket.ticketNumber}` : ticket.id
+}
+
 export function MobileMyTickets() {
   const location = useLocation()
   const search = new URLSearchParams(location.search)
   const linkedClientCompanyId = (search.get('linkedClientCompanyId') || api.getLinkedClientCompanyId()).trim()
   const companyId = (search.get('companyId') || api.getObserverCompanyId()).trim()
+  const scope = {
+    linkedClientCompanyId: linkedClientCompanyId || undefined,
+    companyId: companyId || undefined,
+  }
   const [filter, setFilter] = useState<FilterKey>('active')
 
   const boardQ = useQuery({
@@ -71,18 +79,28 @@ export function MobileMyTickets() {
         <div className="mobileCard mobileMeta">Список пуст</div>
       ) : (
         filteredTickets.map((ticket) => (
-          <div className="mobileCard" key={ticket.id}>
-            <div className="mobileRow">
-              <strong>{ticket.location?.name || ticket.pointName || 'Без локации'}</strong>
-              <span className="mobileMeta">{ticket.status}</span>
+          <Link
+            key={ticket.id}
+            to={api.appendScopeToPath(`/m/tickets/${ticket.id}`, scope)}
+            className="mobileCardClickable"
+            style={{ display: 'block' }}
+          >
+            <div className="mobileCard">
+              <div className="mobileRow">
+                <strong>{ticketLabel(ticket)}</strong>
+                <span className="mobileMeta">{ticket.status}</span>
+              </div>
+              <div className="mobileMeta" style={{ marginTop: 6 }}>
+                {ticket.category?.name || ticket.title || 'Без категории'}
+              </div>
+              <div className="mobileMeta" style={{ marginTop: 6 }}>
+                {ticket.location?.name || ticket.pointName || 'Без локации'}
+              </div>
+              <div className="mobileMeta" style={{ marginTop: 6 }}>
+                Обновлено: {formatDate(ticket.createdAt)}
+              </div>
             </div>
-            <div className="mobileMeta" style={{ marginTop: 6 }}>
-              {ticket.category?.name || ticket.title || 'Без категории'}
-            </div>
-            <div className="mobileMeta" style={{ marginTop: 6 }}>
-              Обновлено: {formatDate(ticket.createdAt)}
-            </div>
-          </div>
+          </Link>
         ))
       )}
     </div>

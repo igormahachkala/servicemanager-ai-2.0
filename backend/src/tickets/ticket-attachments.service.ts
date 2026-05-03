@@ -28,12 +28,12 @@ export class TicketAttachmentsService {
         companyId,
         ticketId: null,
         uploadedByUserId,
-        purpose: TicketAttachmentPurpose.REQUEST,
         originalName: file.originalname,
         storageKey: stored.storageKey,
         mimeType: file.mimetype,
         sizeBytes: file.size,
         url: stored.url,
+        purpose: TicketAttachmentPurpose.REQUEST,
       },
       select: this.attachmentSelect(),
     })
@@ -45,7 +45,7 @@ export class TicketAttachmentsService {
       companyId: string
       ticketId: string
       attachmentIds?: string[] | null
-      actorCompanyId?: string | null
+      actorCompanyId?: string
       uploadedByUserId?: string | null
     },
   ) {
@@ -63,45 +63,38 @@ export class TicketAttachmentsService {
       },
       select: {
         id: true,
-        companyId: true,
         ticketId: true,
+        companyId: true,
         uploadedByUserId: true,
       },
     })
 
-    if (attachments.length !== attachmentIds.length) {
+    const safeAttachments = attachments.filter((attachment) => {
+      if (attachment.companyId === params.companyId) return true
+      return (
+        attachment.companyId === params.actorCompanyId &&
+        attachment.ticketId === null &&
+        !!params.uploadedByUserId &&
+        attachment.uploadedByUserId === params.uploadedByUserId
+      )
+    })
+
+    if (safeAttachments.length !== attachmentIds.length) {
       throw new BadRequestException('Some attachmentIds are invalid')
     }
 
-    const alreadyBound = attachments.find((attachment) => attachment.ticketId && attachment.ticketId !== params.ticketId)
+    const alreadyBound = safeAttachments.find((attachment) => attachment.ticketId && attachment.ticketId !== params.ticketId)
     if (alreadyBound) {
       throw new BadRequestException('Attachment already belongs to another ticket')
     }
 
-    const invalidCrossCompanyAttachment = attachments.find((attachment) => {
-      if (attachment.companyId === params.companyId) return false
-      return (
-        !params.actorCompanyId ||
-        attachment.companyId !== params.actorCompanyId ||
-        !params.uploadedByUserId ||
-        attachment.uploadedByUserId !== params.uploadedByUserId ||
-        attachment.ticketId !== null
-      )
-    })
-
-    if (invalidCrossCompanyAttachment) {
-      throw new BadRequestException('Some attachmentIds are invalid')
-    }
-
     await tx.ticketAttachment.updateMany({
       where: {
-        id: { in: attachmentIds },
-        companyId: { in: allowedCompanyIds },
+        id: { in: safeAttachments.map((attachment) => attachment.id) },
       },
       data: {
         ticketId: params.ticketId,
         companyId: params.companyId,
-        purpose: TicketAttachmentPurpose.REQUEST,
       },
     })
 
@@ -113,7 +106,6 @@ export class TicketAttachmentsService {
       orderBy: { createdAt: 'asc' },
     })
   }
-
   async listForTicket(
     user: UserCtx,
     ticketId: string,
@@ -152,12 +144,12 @@ export class TicketAttachmentsService {
         companyId: ticketCompanyId,
         ticketId,
         uploadedByUserId: user.id,
-        purpose: TicketAttachmentPurpose.WORK_REPORT,
         originalName: file.originalname,
         storageKey: stored.storageKey,
         mimeType: file.mimetype,
         sizeBytes: file.size,
         url: stored.url,
+        purpose: TicketAttachmentPurpose.WORK_REPORT,
       },
       select: this.attachmentSelect(),
     })
@@ -231,10 +223,10 @@ export class TicketAttachmentsService {
       id: true,
       ticketId: true,
       originalName: true,
-      purpose: true,
       mimeType: true,
       sizeBytes: true,
       url: true,
+      purpose: true,
       createdAt: true,
       uploadedBy: {
         select: {

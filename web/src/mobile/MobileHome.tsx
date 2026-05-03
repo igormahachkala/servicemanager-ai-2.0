@@ -3,6 +3,9 @@ import { Link, useLocation } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 
+function ticketLabel(card: Pick<api.TicketCard, 'ticketNumber' | 'id'>) {
+  return typeof card.ticketNumber === 'number' ? `Заявка #${card.ticketNumber}` : card.id
+}
 function ticketSubtitle(card: api.TicketCard) {
   return card.location?.name || card.pointName || 'Без локации'
 }
@@ -32,11 +35,11 @@ function TicketCard(props: {
       <Link to={ticketHref} className="mobileCardClickable" style={{ borderRadius: 0 }}>
         <div style={{ padding: 12 }}>
           <div className="mobileRow">
-            <strong>{ticketSubtitle(ticket)}</strong>
+            <strong>{ticketLabel(ticket)}</strong>
             <span className="mobileMeta">{ticket.status}</span>
           </div>
           <div className="mobileMeta" style={{ marginTop: 4 }}>
-            {ticketCategory(ticket)}
+            {ticketCategory(ticket)} · {ticketSubtitle(ticket)}
           </div>
         </div>
       </Link>
@@ -95,7 +98,8 @@ export function MobileHome() {
       ? `Компания: ${meQ.data.companyName}`
       : 'Компания: текущий контур'
 
-  const closeFileRef = useRef<HTMLInputElement | null>(null)
+  const closeCameraInputRef = useRef<HTMLInputElement | null>(null)
+  const closeGalleryInputRef = useRef<HTMLInputElement | null>(null)
   const [closeModal, setCloseModal] = useState<{
     ticketId: string
     title: string
@@ -120,7 +124,7 @@ export function MobileHome() {
         }
         setCloseModal({
           ticketId: ticket.id,
-          title: `${ticketSubtitle(ticket)} · ${ticketCategory(ticket)}`,
+          title: `${ticketSubtitle(ticket)} · ${ticketCategory(ticket)} · {ticketSubtitle(ticket)}`,
           file: null,
           comment: '',
           err: '',
@@ -140,16 +144,18 @@ export function MobileHome() {
   const closeM = useMutation({
     mutationFn: async () => {
       if (!closeModal) throw new Error('Нет данных для закрытия')
-      if (!closeModal.file) throw new Error('Нужно фото отчёта (WORK_REPORT)')
+      if (!closeModal.file) throw new Error('Нужно фото отчёта')
       const comment = closeModal.comment.trim()
       if (comment.length < 3) throw new Error('Нужен короткий комментарий (backend требует комментарий для DONE)')
 
       await api.uploadTicketAttachment(closeModal.ticketId, closeModal.file, scope)
-      await api.updateTicketStatus(closeModal.ticketId, { status: 'DONE', comment }, scope)
+      await api.addTicketComment(closeModal.ticketId, comment, scope)
+      await api.updateTicketStatus(closeModal.ticketId, { status: 'DONE' }, scope)
     },
     onSuccess: async () => {
       setCloseModal(null)
-      if (closeFileRef.current) closeFileRef.current.value = ''
+      if (closeCameraInputRef.current) closeCameraInputRef.current.value = ''
+      if (closeGalleryInputRef.current) closeGalleryInputRef.current.value = ''
       await queryClient.invalidateQueries({ queryKey: ['mobile-home-board'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-home-available'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-my-board'] })
@@ -283,7 +289,8 @@ export function MobileHome() {
                 disabled={closeBusy}
                 onClick={() => {
                   setCloseModal(null)
-                  if (closeFileRef.current) closeFileRef.current.value = ''
+                  if (closeCameraInputRef.current) closeCameraInputRef.current.value = ''
+                  if (closeGalleryInputRef.current) closeGalleryInputRef.current.value = ''
                 }}
               >
                 Отмена
@@ -293,10 +300,13 @@ export function MobileHome() {
             {closeModal.err ? <div className="mobileNotice mobileNoticeError" style={{ marginTop: 10 }}>{closeModal.err}</div> : null}
 
             <div className="mobileForm" style={{ marginTop: 12 }}>
-              <label>
-                Фото отчёта (WORK_REPORT) *
+              <div className="mobilePhotoCardBlock">
+                <div style={{ fontWeight: 800, marginBottom: 8 }}>Фото отчёта *</div>
+                <p className="mobileHint">Фото отчёта обязательно для закрытия заявки.</p>
+
                 <input
-                  ref={closeFileRef}
+                  ref={closeCameraInputRef}
+                  className="mobileHiddenFileInput"
                   type="file"
                   accept="image/*"
                   capture="environment"
@@ -306,9 +316,41 @@ export function MobileHome() {
                     setCloseModal((prev) => (prev ? { ...prev, file, err: '' } : prev))
                   }}
                 />
-              </label>
+                <input
+                  ref={closeGalleryInputRef}
+                  className="mobileHiddenFileInput"
+                  type="file"
+                  accept="image/*"
+                  disabled={closeBusy}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null
+                    setCloseModal((prev) => (prev ? { ...prev, file, err: '' } : prev))
+                  }}
+                />
 
-              <label>
+                <div className="mobilePhotoSourceRow">
+                  <button
+                    type="button"
+                    className="mobileBtn mobileBtnSecondary mobilePhotoSourceBtn"
+                    disabled={closeBusy}
+                    onClick={() => closeCameraInputRef.current?.click()}
+                  >
+                    Сделать фото отчёта
+                  </button>
+                  <button
+                    type="button"
+                    className="mobileBtn mobileBtnSecondary mobilePhotoSourceBtn"
+                    disabled={closeBusy}
+                    onClick={() => closeGalleryInputRef.current?.click()}
+                  >
+                    Выбрать фото из телефона
+                  </button>
+                </div>
+
+                {closeModal.file ? <div className="mobileMeta" style={{ marginTop: 10 }}>Выбрано: {closeModal.file.name}</div> : null}
+              </div>
+
+              <label className="mobileFormFieldAfterPhoto">
                 Комментарий к закрытию *
                 <textarea
                   rows={3}
@@ -319,11 +361,13 @@ export function MobileHome() {
                 />
               </label>
 
-              <button className="mobileBtn" disabled={!closeCanSubmit} onClick={() => closeM.mutate()}>
-                {closeBusy ? 'Закрываем...' : 'Загрузить отчёт и закрыть'}
-              </button>
-              <div className="mobileMeta">
-                Сначала загрузим фото на тикет (purpose WORK_REPORT), затем PATCH статуса DONE с комментарием (требование backend).
+              <div className="mobileFormSubmitStack">
+                <button type="button" className="mobileBtn" disabled={!closeCanSubmit} onClick={() => closeM.mutate()}>
+                  {closeBusy ? 'Закрываем...' : 'Загрузить отчёт и закрыть'}
+                </button>
+                <p className="mobileHint" style={{ marginBottom: 0 }}>
+                  Комментарий не короче трёх символов. Сначала сохранится фото отчёта на заявку, затем она закроется.
+                </p>
               </div>
             </div>
           </div>
