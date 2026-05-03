@@ -57,12 +57,14 @@ export function MobileShell() {
     return subscribeOfflineQueue(refresh)
   }, [])
 
+  /** Тот же queryKey, что у `/m/notifications`: оптимистичные PATCH там сразу обновляют бейдж. */
   const notifQ = useQuery({
     queryKey: ['mobile-notifications'],
     queryFn: api.fetchNotifications,
     enabled: !!meQ.data,
     staleTime: 20_000,
     refetchOnWindowFocus: true,
+    refetchOnMount: 'always',
   })
 
   const retryM = useMutation({

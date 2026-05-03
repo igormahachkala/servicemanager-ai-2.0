@@ -280,4 +280,14 @@ export class TicketsService {
   availableForTechnician(companyId: string, technicianUserId: string, linkedClientCompanyId?: string) {
     return this.assignment.availableForTechnician(companyId, technicianUserId, linkedClientCompanyId)
   }
+
+  requestAssignment(
+    companyId: string,
+    userId: string,
+    role: UserRole,
+    ticketId: string,
+    linkedClientCompanyId?: string,
+  ) {
+    return this.assignment.requestAssignment(companyId, userId, role, ticketId, linkedClientCompanyId)
+  }
 }

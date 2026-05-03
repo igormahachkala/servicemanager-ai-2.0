@@ -20,6 +20,7 @@ import {
   saveTicketDetailCache,
   useOnlineStatus,
 } from './offlineQueue'
+import { formatMobileMutationError } from './mobileActionErrors'
 
 function readListOrigin(location: ReturnType<typeof useLocation>): MobileTicketListOrigin {
   const raw = (location.state as MobileTicketNavState | null)?.mobileListOrigin
@@ -303,17 +304,34 @@ export function MobileTicketPage() {
   const ticket = ticketQ.data
   const canAssignProvider = api.isProviderTicketAssignRole(meQ.data?.role)
   const techPrimary = ticket && meQ.data?.id ? api.mobileTechnicianTicketPrimaryAction(ticket, meQ.data.id) : null
-  const canShowTechClaim =
+  const assigneePresent = !!(ticket?.assignedTechnicianId || ticket?.assignedTechnician)
+  const claimPolicyBlocked =
     meQ.data?.role === 'TECHNICIAN' &&
     !!ticket &&
     ticket.status === 'NEW' &&
-    (techPrimary === 'claim' || ticket.meta?.canClaimByCurrentUser === true)
+    ticket.meta?.canClaimByCurrentUser === false
+  const canShowTechClaimButton =
+    meQ.data?.role === 'TECHNICIAN' &&
+    !!ticket &&
+    ticket.status === 'NEW' &&
+    !assigneePresent &&
+    techPrimary === 'claim' &&
+    ticket.meta?.canClaimByCurrentUser !== false
+  const canShowAssignmentRequest =
+    meQ.data?.role === 'TECHNICIAN' &&
+    !!ticket &&
+    ticket.status === 'NEW' &&
+    !assigneePresent &&
+    techPrimary === 'claim' &&
+    ticket.meta?.canClaimByCurrentUser === false
   const canShowTechStart = meQ.data?.role === 'TECHNICIAN' && techPrimary === 'start'
 
   const [assignTicketOpen, setAssignTicketOpen] = useState(false)
   const [assignTechId, setAssignTechId] = useState('')
   const [assignErr, setAssignErr] = useState('')
   const [techActionErr, setTechActionErr] = useState('')
+  const [assignmentRequestSent, setAssignmentRequestSent] = useState(false)
+  const [assignmentRequestErr, setAssignmentRequestErr] = useState('')
   const [photoPreview, setPhotoPreview] = useState<{ src: string; alt: string } | null>(null)
 
   const assignCandidatesQ = useQuery({
@@ -376,6 +394,11 @@ export function MobileTicketPage() {
     await queryClient.invalidateQueries({ queryKey: ['board'] })
   }
 
+  useEffect(() => {
+    setAssignmentRequestSent(false)
+    setAssignmentRequestErr('')
+  }, [ticketId, ticket?.id, ticket?.status, ticket?.assignedTechnicianId])
+
   const techActionM = useMutation({
     mutationFn: async (mode: 'claim' | 'start') => {
       if (!ticket) throw new Error('Нет заявки')
@@ -387,18 +410,31 @@ export function MobileTicketPage() {
       await invalidateTicketQueries()
       await queryClient.refetchQueries({ queryKey: ['mobile-ticket-detail', ticketId] })
     },
+    onError: (e: unknown, vars: 'claim' | 'start') => {
+      setTechActionErr(
+        formatMobileMutationError(e, {
+          operation: vars,
+          claimBlockedByCategoryPolicy: vars === 'claim' && ticket?.meta?.canClaimByCurrentUser === false,
+        }),
+      )
+    },
+  })
+
+  const assignmentRequestM = useMutation({
+    mutationFn: async () => {
+      if (!ticket) throw new Error('Нет заявки')
+      return api.requestTicketAssignment(ticket.id, ticketMutationScope)
+    },
+    onMutate: () => {
+      setAssignmentRequestErr('')
+      setAssignmentRequestSent(false)
+    },
+    onSuccess: async () => {
+      setAssignmentRequestSent(true)
+      await invalidateTicketQueries()
+    },
     onError: (e: unknown) => {
-      const msg =
-        e instanceof Error
-          ? e.message
-          : typeof e === 'object' && e !== null && 'message' in e
-            ? String((e as { message?: unknown }).message)
-            : String(e)
-      const hint =
-        ticket?.meta?.claimAvailabilityReason && ticket.meta.claimAvailabilityReason.trim().length > 0
-          ? ticket.meta.claimAvailabilityReason.trim()
-          : ''
-      setTechActionErr(hint && !msg.includes(hint) ? `${msg}. ${hint}` : msg)
+      setAssignmentRequestErr(formatMobileMutationError(e, { operation: 'request_assignment' }))
     },
   })
 
@@ -413,8 +449,8 @@ export function MobileTicketPage() {
       setAssignTechId('')
       await invalidateTicketQueries()
     },
-    onError: (e: any) => {
-      setAssignErr(e?.message || String(e))
+    onError: (e: unknown) => {
+      setAssignErr(formatMobileMutationError(e, { operation: 'assign' }))
     },
   })
 
@@ -465,8 +501,22 @@ export function MobileTicketPage() {
     ticket.status === 'IN_PROGRESS' &&
     assigneeIdForMe === meQ.data.id
 
-  const techActionBusy = techActionM.isPending
+  const claimBtnPending = techActionM.isPending && techActionM.variables === 'claim'
+  const startBtnPending = techActionM.isPending && techActionM.variables === 'start'
   const assignBusy = assignM.isPending
+
+  const hasTechnicianActionsBlock =
+    canShowTechClaimButton ||
+    canShowAssignmentRequest ||
+    canShowTechStart ||
+    showAssignButton ||
+    showTechnicianInProgressHint
+  const showTechnicianNoActionsHint =
+    meQ.data?.role === 'TECHNICIAN' &&
+    !!ticket &&
+    ticket.status !== 'DONE' &&
+    ticket.status !== 'CANCELED' &&
+    !hasTechnicianActionsBlock
 
   return (
     <div className="mobileSection mobileTicketDetailsRoot">
@@ -484,7 +534,9 @@ export function MobileTicketPage() {
 
       {ticketQ.isLoading ? <div className="mobileCard mobileMeta">Загрузка…</div> : null}
       {ticketQ.isError ? (
-        <div className="mobileNotice mobileNoticeError">{String((ticketQ.error as any)?.message || ticketQ.error)}</div>
+        <div className="mobileNotice mobileNoticeError">
+          {formatMobileMutationError(ticketQ.error, { operation: 'other' })}
+        </div>
       ) : null}
 
       {ticket ? (
@@ -516,10 +568,7 @@ export function MobileTicketPage() {
               <span className="mobileMeta">Статус</span>
               <span className={`mobileTicketStatus mobileTicketStatus--${ticket.status}`}>{mobileTicketStatusLabelRu(ticket.status)}</span>
             </div>
-            {meQ.data?.role === 'TECHNICIAN' &&
-            ticket.status === 'NEW' &&
-            !canShowTechClaim &&
-            (ticket.meta?.claimAvailabilityReason || '').trim().length > 0 ? (
+            {claimPolicyBlocked && (ticket.meta?.claimAvailabilityReason || '').trim().length > 0 ? (
               <div className="mobileNotice mobileNoticeError" style={{ marginTop: 8 }}>
                 {(ticket.meta?.claimAvailabilityReason || '').trim()}
               </div>
@@ -579,20 +628,35 @@ export function MobileTicketPage() {
             </div>
           </div>
 
-          {(canShowTechClaim || canShowTechStart || showAssignButton || showTechnicianInProgressHint) && (
+          {(canShowTechClaimButton ||
+            canShowAssignmentRequest ||
+            canShowTechStart ||
+            showAssignButton ||
+            showTechnicianInProgressHint) && (
             <div className="mobileCard" style={{ marginTop: 8 }}>
               <div className="mobileSectionTitle" style={{ marginBottom: 8 }}>
                 Действия
               </div>
-              {canShowTechClaim ? (
+              {canShowTechClaimButton ? (
                 <button
                   type="button"
                   className="mobileBtn mobileBtn--claim"
                   style={{ width: '100%' }}
-                  disabled={techActionBusy}
+                  disabled={claimBtnPending || assignmentRequestM.isPending}
                   onClick={() => techActionM.mutate('claim')}
                 >
-                  {techActionBusy ? 'Выполняем…' : 'Взять заявку'}
+                  {claimBtnPending ? 'Берём заявку…' : 'Взять заявку'}
+                </button>
+              ) : null}
+              {canShowAssignmentRequest ? (
+                <button
+                  type="button"
+                  className="mobileBtn mobileBtnSecondary"
+                  style={{ width: '100%', marginTop: canShowTechClaimButton ? 8 : 0 }}
+                  disabled={assignmentRequestM.isPending || techActionM.isPending}
+                  onClick={() => assignmentRequestM.mutate()}
+                >
+                  {assignmentRequestM.isPending ? 'Отправляем запрос…' : 'Запросить назначение'}
                 </button>
               ) : null}
               {canShowTechStart ? (
@@ -600,11 +664,21 @@ export function MobileTicketPage() {
                   type="button"
                   className="mobileBtn mobileBtn--start"
                   style={{ width: '100%' }}
-                  disabled={techActionBusy}
+                  disabled={startBtnPending || assignmentRequestM.isPending}
                   onClick={() => techActionM.mutate('start')}
                 >
-                  {techActionBusy ? 'Выполняем…' : 'Начать работу'}
+                  {startBtnPending ? 'Начинаем…' : 'Начать работу'}
                 </button>
+              ) : null}
+              {assignmentRequestSent ? (
+                <div className="mobileNotice mobileNoticeSuccess" style={{ marginTop: 10 }}>
+                  Запрос отправлен
+                </div>
+              ) : null}
+              {assignmentRequestErr ? (
+                <div className="mobileNotice mobileNoticeError" style={{ marginTop: 10 }}>
+                  {assignmentRequestErr}
+                </div>
               ) : null}
               {techActionErr ? (
                 <div className="mobileNotice mobileNoticeError" style={{ marginTop: 10 }}>
@@ -631,6 +705,16 @@ export function MobileTicketPage() {
               ) : null}
             </div>
           )}
+
+          {showTechnicianNoActionsHint ? (
+            <div className="mobileCard mobileEmptyState" style={{ marginTop: 8 }} role="status">
+              <div className="mobileEmptyStateTitle">Действий нет</div>
+              <p className="mobileEmptyStateHint">
+                В этом статусе с заявкой нельзя выполнить полевое действие (например, исполнитель — другой техник, или доступ только
+                на просмотр).
+              </p>
+            </div>
+          ) : null}
 
           <div className="mobileCard" style={{ marginTop: 8 }}>
             {attachmentsQ.isLoading ? <div className="mobileMeta">Загрузка вложений…</div> : null}

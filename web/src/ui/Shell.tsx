@@ -44,15 +44,16 @@ function roleLabel(role?: string) {
   if (role === 'TERRITORIAL_MANAGER') return 'Территориальный менеджер'
   if (role === 'NETWORK_DIRECTOR') return 'Сетевой директор'
   if (role === 'STAFF') return 'Сотрудник'
+  if (role === 'ADMIN_PROVIDER') return 'Администратор (провайдер)'
   return role
 }
 
 function isActivePath(currentPath: string, targetPath: string) {
   if (targetPath === '/board') return currentPath.startsWith('/board')
   if (targetPath === '/tickets') return currentPath === '/tickets'
+  if (targetPath === '/tickets/new') return currentPath.startsWith('/tickets/new')
   if (targetPath === '/companies') return currentPath.startsWith('/companies')
   if (targetPath === '/service-contracts') return currentPath.startsWith('/service-contracts')
-  if (targetPath === '/tickets/new') return currentPath.startsWith('/tickets/new')
   if (targetPath === '/locations') return currentPath.startsWith('/locations')
   if (targetPath === '/employees') return currentPath.startsWith('/employees')
   if (targetPath === '/inspection/runs') return currentPath.startsWith('/inspection/runs')
@@ -80,26 +81,19 @@ function isNavItemVisible(item: NavItem, role?: api.Role) {
     )
   }
 
-  if (item.to === '/companies') return false
-  if (item.to === '/service-contracts') {
-    return role === 'ADMIN' || role === 'DISPATCHER' || role === 'MASTER' || role === 'NETWORK_DIRECTOR'
+  const fullAdmin = api.isFullAdminDesktopNavRole(role)
+
+  if (item.to === '/employees' || item.to === '/locations' || item.to === '/problem-categories' || item.to === '/specializations') {
+    return fullAdmin
   }
-  if (item.to === '/employees' || item.to === '/locations') {
-    return role === 'ADMIN' || role === 'DISPATCHER' || role === 'MASTER' || role === 'NETWORK_DIRECTOR'
-  }
-  if (item.to === '/problem-categories' || item.to === '/specializations') {
-    return role === 'ADMIN' || role === 'DISPATCHER' || role === 'MASTER' || role === 'NETWORK_DIRECTOR'
-  }
+
   if (item.to === '/inspection/templates') {
     return role === 'ADMIN' || role === 'DISPATCHER' || role === 'MASTER' || role === 'NETWORK_DIRECTOR'
   }
   if (item.to === '/inspection/runs') {
     return role !== 'STAFF'
   }
-  if (item.to === '/analytics') {
-    return role !== 'STAFF'
-  }
-  if (item.to === '/map') {
+  if (item.to === '/analytics' || item.to === '/map') {
     return role !== 'STAFF'
   }
   if (item.to === '/company') {

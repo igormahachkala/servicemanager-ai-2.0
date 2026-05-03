@@ -11,6 +11,14 @@ const WATCHER_ROLES: UserRole[] = [
   UserRole.TERRITORIAL_MANAGER,
 ];
 
+/** Получатели «запрос назначения» от техника (без NETWORK_DIRECTOR / TERRITORIAL_MANAGER по продуктовому ТЗ). */
+const ASSIGNMENT_REQUEST_RECIPIENT_ROLES: UserRole[] = [
+  UserRole.ADMIN,
+  UserRole.MASTER,
+  UserRole.DISPATCHER,
+  UserRole.STAFF,
+];
+
 const STATUS_RU: Record<TicketStatus, string> = {
   NEW: 'Новая',
   ASSIGNED: 'Назначена',
@@ -35,6 +43,10 @@ export class NotificationsService {
 
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * Список уведомлений только для пары (JWT companyId, JWT userId) — без кросс-тенанта и чужих userId.
+   * unreadCount считает readAt === null в том же скоупе.
+   */
   async listForUser(companyId: string, userId: string) {
     const where = { companyId, userId };
     const [items, unreadCount] = await Promise.all([
@@ -148,6 +160,61 @@ export class NotificationsService {
     linkedHint?: string | null;
   }) {
     void this.safeNotify('ticket.claimed', () => this.emitTicketClaimedDispatchersInternal(params));
+  }
+
+  /**
+   * Техник просит диспетчера назначить его (claim по специализации недоступен).
+   * linkedClientCompanyId в строке уведомления = tenant заявки (companyId заявки).
+   */
+  async notifyTicketAssignmentRequested(params: {
+    providerCompanyId: string;
+    technicianUserId: string;
+    ticketId: string;
+    ticketNumber: number | null;
+    ticketCompanyId: string;
+  }) {
+    const tech = await this.prisma.user.findFirst({
+      where: { id: params.technicianUserId, companyId: params.providerCompanyId, isActive: true },
+      select: { email: true, firstName: true, lastName: true },
+    });
+    const namePart = [tech?.firstName, tech?.lastName]
+      .map((x) => (typeof x === 'string' ? x.trim() : ''))
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+    const techLabel = namePart || (tech?.email || '').trim() || 'Техник';
+    const numLabel =
+      typeof params.ticketNumber === 'number' && !Number.isNaN(params.ticketNumber) && params.ticketNumber > 0
+        ? String(params.ticketNumber)
+        : params.ticketId.slice(0, 8).toUpperCase();
+
+    const users = await this.prisma.user.findMany({
+      where: {
+        companyId: params.providerCompanyId,
+        isActive: true,
+        role: { in: ASSIGNMENT_REQUEST_RECIPIENT_ROLES },
+      },
+      select: { id: true, companyId: true },
+    });
+    if (!users.length) {
+      return { ok: true as const, notified: 0 };
+    }
+
+    const title = 'Запрос назначения';
+    const message = clipMessage(`${techLabel} просит назначить его на заявку #${numLabel}`);
+    await this.prisma.notification.createMany({
+      data: users.map((u) => ({
+        companyId: u.companyId,
+        userId: u.id,
+        type: 'ticket.assignment_requested',
+        title,
+        message,
+        entityType: 'Ticket',
+        entityId: params.ticketId,
+        linkedClientCompanyId: params.ticketCompanyId,
+      })),
+    });
+    return { ok: true as const, notified: users.length };
   }
 
   scheduleTicketStatusAssignee(params: {

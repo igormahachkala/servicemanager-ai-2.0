@@ -11,6 +11,11 @@
   | 'NETWORK_DIRECTOR'
   | 'STAFF'
 
+/** Полное админ-меню десктопа (сотрудники, справочники, точки) — только эти роли. */
+export function isFullAdminDesktopNavRole(role?: Role | null): boolean {
+  return role === 'PLATFORM_ADMIN' || role === 'ADMIN' || role === 'ADMIN_PROVIDER'
+}
+
 export type TicketStatus = 'NEW' | 'ASSIGNED' | 'IN_PROGRESS' | 'DONE' | 'CANCELED'
 export type TicketUrgency = 'URGENT' | 'NOT_URGENT'
 
@@ -57,6 +62,7 @@ export type InAppNotificationType =
   | 'ticket.assigned'
   | 'ticket.claimed'
   | 'ticket.status_changed'
+  | 'ticket.assignment_requested'
   | 'sla.warning'
   | 'sla.overdue'
   | 'urgent.created'
@@ -67,6 +73,7 @@ const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
   'ticket.assigned': 'Назначение',
   'ticket.claimed': 'Взята в работу',
   'ticket.status_changed': 'Статус',
+  'ticket.assignment_requested': 'Запрос назначения',
   'sla.warning': 'SLA скоро истечёт',
   'sla.overdue': 'SLA просрочен',
   'urgent.created': 'Срочная заявка',
@@ -88,6 +95,7 @@ export function getNotificationTypeTone(type: string): string {
     'ticket.assigned': 'ticketAssigned',
     'ticket.claimed': 'ticketClaimed',
     'ticket.status_changed': 'statusChanged',
+    'ticket.assignment_requested': 'assignmentRequested',
     'sla.warning': 'slaWarning',
     'sla.overdue': 'slaOverdue',
     'urgent.created': 'urgentCreated',
@@ -1462,6 +1470,18 @@ type RequestOptions = {
   auth?: boolean
 }
 
+/** Ошибка HTTP API с кодом ответа (для дружелюбных сообщений на мобилке). */
+export class ApiRequestError extends Error {
+  readonly status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = 'ApiRequestError'
+    this.status = status
+    Object.setPrototypeOf(this, new.target.prototype)
+  }
+}
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const method = options.method || 'GET'
   const headers: Record<string, string> = {
@@ -1500,7 +1520,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
         : String(data.message)
       : `HTTP ${res.status}`
 
-    throw new Error(message)
+    throw new ApiRequestError(message, res.status)
   }
 
   return data as T
@@ -2040,6 +2060,13 @@ export async function claimTicket(id: string, scope?: string | TicketScopeParams
 
 export async function claim(id: string, scope?: string | TicketScopeParams): Promise<any> {
   return claimTicket(id, scope)
+}
+
+/** Техник просит диспетчера назначить его (claim по специализации недоступен). */
+export async function requestTicketAssignment(id: string, scope?: string | TicketScopeParams): Promise<{ ok: true; notified: number }> {
+  return request<{ ok: true; notified: number }>(`/tickets/${id}/request-assignment${buildTicketScopeSuffix(scope)}`, {
+    method: 'POST',
+  })
 }
 
 export async function updateTicketStatus(id: string, input: UpdateTicketStatusInput, scope?: string | TicketScopeParams): Promise<any> {

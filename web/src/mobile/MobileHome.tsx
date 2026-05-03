@@ -14,11 +14,12 @@ import {
   scopeForMobileTicketLink,
 } from './mobileTicketDisplay'
 import {
-  emptyMessageForMobileHomeTab,
   filterTicketsForMobileHomeTab,
   mobileHomeBoardTabCounts,
+  mobileHomeTabEmptyCopy,
   type MobileHomeBoardFilterTab,
 } from './mobileHomeBoardFilters'
+import { formatMobileMutationError } from './mobileActionErrors'
 import { getOnlineStatus, loadBoardCache, saveBoardCache, useOnlineStatus } from './offlineQueue'
 
 const MOBILE_HOME_TAB_LABELS: Record<MobileHomeBoardFilterTab, string> = {
@@ -50,13 +51,30 @@ function assignedTechnicianDisplay(ticket: api.TicketCard): string {
   return (t.id || '').trim() || 'Не назначен'
 }
 
+function homeTicketActionProgressLabel(
+  ticket: api.TicketCard,
+  actionM: { isPending: boolean; variables?: api.TicketCard },
+  closeBusy: boolean,
+  closeModalTicketId: string | undefined,
+  assignBusy: boolean,
+  assignTicketId: string | undefined,
+): string | null {
+  if (closeBusy && closeModalTicketId === ticket.id) return 'Завершаем…'
+  if (assignBusy && assignTicketId === ticket.id) return 'Назначаем…'
+  if (actionM.isPending && actionM.variables?.id === ticket.id) {
+    if (ticket.status === 'NEW') return 'Берём заявку…'
+    if (ticket.status === 'ASSIGNED') return 'Начинаем…'
+  }
+  return null
+}
+
 function TicketCard(props: {
   ticket: api.TicketCard
   ticketHref: string
   linkState?: MobileTicketNavState
   actionLabel?: 'Взять' | 'Начать' | 'Закрыть' | null
   onAction?: (ticket: api.TicketCard) => void
-  actionPending?: boolean
+  actionProgressLabel?: string | null
   assignFooter?: { onOpen: () => void; disabled: boolean } | null
 }) {
   const {
@@ -65,9 +83,10 @@ function TicketCard(props: {
     linkState,
     actionLabel = null,
     onAction,
-    actionPending = false,
+    actionProgressLabel = null,
     assignFooter = null,
   } = props
+  const actionBusy = !!actionProgressLabel
   const slaLine = mobileTicketSlaCountdownLabel({
     slaDueAt: ticket.slaDueAt,
     slaBreached: ticket.slaBreached,
@@ -131,14 +150,14 @@ function TicketCard(props: {
               actionLabel === 'Взять' ? ' mobileBtn--claim' : actionLabel === 'Начать' ? ' mobileBtn--start' : ' mobileBtn--done'
             }`}
             style={{ width: '100%' }}
-            disabled={actionPending}
+            disabled={actionBusy}
             onClick={(e) => {
               e.preventDefault()
               e.stopPropagation()
               onAction?.(ticket)
             }}
           >
-            {actionPending ? 'Выполняем...' : actionLabel}
+            {actionProgressLabel || actionLabel}
           </button>
         </div>
       ) : null}
@@ -233,6 +252,11 @@ export function MobileHome() {
   const [assignTicket, setAssignTicket] = useState<api.TicketCard | null>(null)
   const [assignTechId, setAssignTechId] = useState('')
   const [assignErr, setAssignErr] = useState('')
+  const [homeActionErr, setHomeActionErr] = useState('')
+
+  useEffect(() => {
+    setHomeActionErr('')
+  }, [boardTab])
 
   const assignCandidatesQ = useQuery({
     queryKey: ['mobile-home-assign-candidates', assignTicket?.id, linkedClientCompanyId, companyId],
@@ -334,12 +358,17 @@ export function MobileHome() {
         return
       }
     },
+    onMutate: () => setHomeActionErr(''),
     onSuccess: async (_data, ticket) => {
       if (ticket.status === 'IN_PROGRESS') return
       await queryClient.invalidateQueries({ queryKey: ['mobile-home-board'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-home-available'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-my-board'] })
       await queryClient.invalidateQueries({ queryKey: ['board'] })
+    },
+    onError: (e: unknown, ticket) => {
+      const op = ticket.status === 'NEW' ? 'claim' : ticket.status === 'ASSIGNED' ? 'start' : 'other'
+      setHomeActionErr(formatMobileMutationError(e, { operation: op }))
     },
   })
 
@@ -366,8 +395,9 @@ export function MobileHome() {
       await queryClient.invalidateQueries({ queryKey: ['mobile-my-board'] })
       await queryClient.invalidateQueries({ queryKey: ['board'] })
     },
-    onError: (e: any) => {
-      setCloseModal((prev) => (prev ? { ...prev, err: e?.message || String(e) } : prev))
+    onError: (e: unknown) => {
+      const text = formatMobileMutationError(e, { operation: 'close' })
+      setCloseModal((prev) => (prev ? { ...prev, err: text } : prev))
     },
   })
 
@@ -387,15 +417,13 @@ export function MobileHome() {
       await queryClient.invalidateQueries({ queryKey: ['board'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-ticket-detail'] })
     },
-    onError: (e: any) => {
-      setAssignErr(e?.message || String(e))
+    onError: (e: unknown) => {
+      setAssignErr(formatMobileMutationError(e, { operation: 'assign' }))
     },
   })
 
   const closeBusy = closeM.isPending
   const assignBusy = assignM.isPending
-
-  const primaryPending = actionM.isPending || closeBusy || assignBusy
 
   const ticketHref = (ticket: api.TicketCard) => {
     if (!meQ.data) return `/m/tickets/${ticket.id}`
@@ -455,7 +483,11 @@ export function MobileHome() {
         </Link>
       </div>
 
-      {boardQ.isError ? <div className="mobileNotice mobileNoticeError">{String((boardQ.error as any)?.message || boardQ.error)}</div> : null}
+      {boardQ.isError ? (
+        <div className="mobileNotice mobileNoticeError">
+          {formatMobileMutationError(boardQ.error, { operation: 'other' })}
+        </div>
+      ) : null}
 
       {meQ.data?.role === 'TECHNICIAN' && !linkedClientCompanyId ? (
         <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
@@ -503,14 +535,38 @@ export function MobileHome() {
           </div>
 
           <section className="mobileSection">
+            {homeActionErr ? (
+              <div className="mobileNotice mobileNoticeError" style={{ marginBottom: 8 }}>
+                {homeActionErr}
+              </div>
+            ) : null}
             {boardQ.isLoading ? (
               <div className="mobileCard mobileMeta">Загрузка заявок…</div>
             ) : filteredTickets.length === 0 ? (
-              <div className="mobileCard mobileMeta">{emptyMessageForMobileHomeTab(boardTab)}</div>
+              (() => {
+                const empty = mobileHomeTabEmptyCopy(boardTab)
+                return (
+                  <div className="mobileCard mobileEmptyState" role="status">
+                    <div className="mobileEmptyStateTitle">{empty.title}</div>
+                    <p className="mobileEmptyStateHint">{empty.hint}</p>
+                  </div>
+                )
+              })()
             ) : (
               filteredTickets.map((ticket) => {
                 const showAssignFooter =
                   canAssignProvider && ticket.status === 'NEW' && !ticket.assignedTechnician
+                const actionProgressLabel = homeTicketActionProgressLabel(
+                  ticket,
+                  actionM,
+                  closeBusy,
+                  closeModal?.ticketId,
+                  assignBusy,
+                  assignTicket?.id,
+                )
+                const cardBusy =
+                  !!actionProgressLabel ||
+                  (assignBusy && assignTicket?.id === ticket.id && showAssignFooter)
                 return (
                   <TicketCard
                     key={ticket.id}
@@ -518,7 +574,7 @@ export function MobileHome() {
                     ticketHref={ticketHref(ticket)}
                     linkState={ticketLinkState(ticket)}
                     actionLabel={getPrimaryActionLabel(ticket, meQ.data?.id, meQ.data?.role)}
-                    actionPending={primaryPending}
+                    actionProgressLabel={actionProgressLabel}
                     onAction={(next) => actionM.mutate(next)}
                     assignFooter={
                       showAssignFooter
@@ -527,7 +583,7 @@ export function MobileHome() {
                               setAssignErr('')
                               setAssignTicket(ticket)
                             },
-                            disabled: primaryPending,
+                            disabled: cardBusy,
                           }
                         : null
                     }
@@ -749,7 +805,7 @@ export function MobileHome() {
 
               <div className="mobileFormSubmitStack">
                 <button type="button" className="mobileBtn mobileBtn--done" disabled={!closeCanSubmit} onClick={() => closeM.mutate()}>
-                  {closeBusy ? 'Закрываем...' : 'Загрузить отчёт и закрыть'}
+                  {closeBusy ? 'Завершаем…' : 'Завершить'}
                 </button>
                 <p className="mobileHint" style={{ marginBottom: 0 }}>
                   Комментарий не короче трёх символов. Сначала сохранится фото отчёта на заявку, затем она закроется.

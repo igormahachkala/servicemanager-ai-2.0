@@ -179,6 +179,27 @@ export class TicketsController {
     return this.svc.availableForTechnician(req.user.companyId, req.user.id, linked)
   }
 
+  @Post(':id/request-assignment')
+  @Roles(UserRole.TECHNICIAN)
+  @RequirePermission(PERMISSIONS.TICKETS_CLAIM)
+  @ApiForbiddenResponse({
+    description: 'Missing permission: TICKETS_CLAIM',
+  })
+  requestAssignment(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Query('linkedClientCompanyId') linkedClientCompanyId?: string,
+  ) {
+    const linked = (linkedClientCompanyId || '').trim() || undefined
+    return this.svc.requestAssignment(
+      req.user.companyId,
+      req.user.id,
+      req.user.role as UserRole,
+      id,
+      linked,
+    )
+  }
+
   @Get(':id')
   @Roles(
     UserRole.ADMIN,

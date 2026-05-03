@@ -39,15 +39,58 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
+/** Сброс клиентской сессии (QA, смена аккаунта). Без запроса к API. */
+function LogoutAndRedirect() {
+  if (typeof window !== 'undefined') {
+    try {
+      sessionStorage.clear()
+    } catch {
+      /* noop */
+    }
+    try {
+      localStorage.clear()
+    } catch {
+      /* noop */
+    }
+  }
+  return <Navigate to="/login" replace />
+}
+
+/** `/login?clear=1` — очистка storage до редиректа по токену (удобно для QA без отдельного маршрута). */
+function LoginGate({ home }: { home: string }) {
+  if (typeof window !== 'undefined') {
+    const sp = new URLSearchParams(window.location.search)
+    if (sp.get('clear') === '1') {
+      try {
+        sessionStorage.clear()
+      } catch {
+        /* noop */
+      }
+      try {
+        localStorage.clear()
+      } catch {
+        /* noop */
+      }
+      const url = new URL(window.location.href)
+      url.searchParams.delete('clear')
+      const qs = url.searchParams.toString()
+      window.history.replaceState({}, '', `${url.pathname}${qs ? `?${qs}` : ''}${url.hash}`)
+    }
+  }
+  if (api.getToken()) return <Navigate to={home} replace />
+  return <LoginPage />
+}
+
 export function AppRoutes() {
   const home = api.appendScopeToPath(api.getHomeRoute())
 
   return (
     <Routes>
       <Route path="/" element={<Navigate to={api.getToken() ? home : '/login'} replace />} />
-      <Route path="/login" element={api.getToken() ? <Navigate to={home} replace /> : <LoginPage />} />
+      <Route path="/login" element={<LoginGate home={home} />} />
       <Route path="/request-access" element={api.getToken() ? <Navigate to={home} replace /> : <RequestAccessPage />} />
       <Route path="/register" element={<Navigate to="/request-access" replace />} />
+      <Route path="/logout" element={<LogoutAndRedirect />} />
       <Route path="/r/:token" element={<PublicQuickRequestPage />} />
       <Route path="/r/:token/success" element={<PublicQuickRequestSuccessPage />} />
 

@@ -24,6 +24,7 @@ import {
   buildTechnicianLocationRestrictionWhere,
   resolveTechnicianOperationalScope,
   resolveTicketOperationAccess,
+  wasTicketCreatedByActor,
 } from './ticket-access.utils';
 import { ServiceContractsService } from '../service-contracts/service-contracts.service';
 import { TechniciansService } from '../technicians/technicians.service';
@@ -1464,7 +1465,32 @@ export class TicketsAssignmentService {
       companyIds: technicianScope.companyIds,
       locationScopeByCompany: technicianScope.locationScopeByCompany,
     });
-    const claimWhere = this.normalizeAnd(decision.where as Prisma.TicketWhereInput, [locationRestriction]);
+    const baseClaimWhere = this.normalizeAnd(decision.where as Prisma.TicketWhereInput, [locationRestriction])
+
+    const selfCreated = await wasTicketCreatedByActor({
+      prisma: this.prisma,
+      companyIds: technicianScope.companyIds,
+      ticketId,
+      actorUserId: technicianUserId,
+    })
+
+    const selfCreatedClaimWhere: Prisma.TicketWhereInput | null = selfCreated
+      ? this.normalizeAnd(
+          {
+            id: ticketId,
+            status: TicketStatus.NEW,
+            assignedTechnicianId: null,
+            companyId:
+              technicianScope.companyIds.length === 1
+                ? technicianScope.companyIds[0]
+                : { in: technicianScope.companyIds },
+          },
+          [locationRestriction],
+        )
+      : null
+
+    const claimWhere: Prisma.TicketWhereInput =
+      selfCreatedClaimWhere != null ? { OR: [baseClaimWhere, selfCreatedClaimWhere] } : baseClaimWhere
 
     const claimResult = await this.prisma.$transaction(async (tx) => {
       const ticket = await tx.ticket.findFirst({
@@ -1527,6 +1553,94 @@ export class TicketsAssignmentService {
 
     return this.query.getOne(companyId, technicianUserId, UserRole.TECHNICIAN, claimResult.ticketId, undefined, undefined, linkedClientCompanyId)
   }
+
+  /**
+   * Техник запрашивает ручное назначение (видимость как на board: tenant + location, без gate по специализации).
+   */
+  async requestAssignment(
+    providerCompanyId: string,
+    technicianUserId: string,
+    technicianRole: UserRole,
+    ticketId: string,
+    linkedClientCompanyId?: string,
+  ) {
+    if (technicianRole !== UserRole.TECHNICIAN) {
+      throw new ForbiddenException('Only technicians can request assignment');
+    }
+    await this.assertExecutorOperationsAllowed(providerCompanyId);
+
+    const technicianScope = await resolveTechnicianOperationalScope({
+      prisma: this.prisma,
+      serviceContractsService: this.serviceContractsService,
+      actor: {
+        id: technicianUserId,
+        role: UserRole.TECHNICIAN,
+        companyId: providerCompanyId,
+      },
+      linkedClientCompanyId,
+    });
+
+    const ids = technicianScope.companyIds;
+    const visibilityOr: Prisma.TicketWhereInput[] = [];
+    if (ids.length === 1) {
+      visibilityOr.push({ companyId: ids[0], assignedTechnicianId: technicianUserId });
+    } else {
+      visibilityOr.push({ companyId: { in: ids }, assignedTechnicianId: technicianUserId });
+    }
+    if (technicianScope.allowTechnicianClaim) {
+      if (ids.length === 1) {
+        visibilityOr.push({
+          companyId: ids[0],
+          status: TicketStatus.NEW,
+          assignedTechnicianId: null,
+        });
+      } else {
+        visibilityOr.push({
+          companyId: { in: ids },
+          status: TicketStatus.NEW,
+          assignedTechnicianId: null,
+        });
+      }
+    }
+
+    const locationW = buildTechnicianLocationRestrictionWhere({
+      companyIds: technicianScope.companyIds,
+      locationScopeByCompany: technicianScope.locationScopeByCompany,
+    });
+
+    const ticket = await this.prisma.ticket.findFirst({
+      where: {
+        AND: [
+          { id: ticketId },
+          visibilityOr.length === 1 ? visibilityOr[0]! : { OR: visibilityOr },
+          locationW,
+        ],
+      },
+      select: {
+        id: true,
+        status: true,
+        assignedTechnicianId: true,
+        ticketNumber: true,
+        companyId: true,
+      },
+    });
+
+    if (!ticket) {
+      throw new NotFoundException('Ticket not found');
+    }
+    if (ticket.status !== TicketStatus.NEW || ticket.assignedTechnicianId) {
+      throw new BadRequestException('Заявка уже назначена или недоступна для запроса');
+    }
+
+    return this.notifications.notifyTicketAssignmentRequested({
+      providerCompanyId,
+      technicianUserId,
+      ticketId: ticket.id,
+      ticketNumber: ticket.ticketNumber,
+      ticketCompanyId: ticket.companyId,
+    });
+  }
+
   async createPublic(
     companyId: string,
     input: {

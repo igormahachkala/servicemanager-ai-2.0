@@ -404,6 +404,30 @@ button.mobilePhotoThumbLink.mobilePhotoThumbOpen:focus-visible {
   border: 1px solid #fecaca;
 }
 
+.mobileEmptyState {
+  text-align: center;
+  padding: 22px 14px 20px;
+  color: #4b5563;
+}
+
+.mobileEmptyStateTitle {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #111827;
+  margin: 0 0 8px;
+  line-height: 1.25;
+}
+
+.mobileEmptyStateHint {
+  font-size: 0.88rem;
+  color: #6b7280;
+  margin: 0;
+  line-height: 1.45;
+  max-width: 28rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
 .mobileStaleDataBanner {
   margin-top: 10px;
   border-radius: 12px;
@@ -1060,10 +1084,7 @@ button.loginSupportActionNeutral {
 }
 
 .mobileNotificationsEmpty {
-  text-align: center;
-  color: #6b7280;
-  font-size: 0.95rem;
-  padding: 20px 14px;
+  padding-bottom: 24px;
 }
 
 .mobileNotificationTop {
@@ -1119,6 +1140,12 @@ button.loginSupportActionNeutral {
   background: #e0e7ff;
   color: #3730a3;
   border-color: #c7d2fe;
+}
+
+.mobileNotifType--assignmentRequested {
+  background: #ede9fe;
+  color: #5b21b6;
+  border-color: #ddd6fe;
 }
 
 .mobileNotifType--slaWarning {

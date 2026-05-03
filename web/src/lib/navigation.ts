@@ -15,48 +15,51 @@ export type ShellNavigationConfig = {
   topbar: NavItem[]
 }
 
+/** Общий набор пунктов тенанта (без «Компании платформы»). */
+const tenantDesktopNavItems: NavItem[] = [
+  { id: 'board', label: 'Доска', to: '/board' },
+  { id: 'tickets', label: 'Заявки', to: '/tickets' },
+  { id: 'ticketsNew', label: 'Новая заявка', to: '/tickets/new' },
+  { id: 'employees', label: 'Сотрудники', to: '/employees' },
+  { id: 'specializations', label: 'Специализации', to: '/specializations' },
+  { id: 'problemCategories', label: 'Категории проблем', to: '/problem-categories' },
+  { id: 'locations', label: 'Точки', to: '/locations' },
+  { id: 'analytics', label: 'Аналитика', to: '/analytics' },
+  { id: 'map', label: 'Карта', to: '/map' },
+  { id: 'inspectionTemplates', label: 'Шаблоны обходов', to: '/inspection/templates' },
+  { id: 'inspectionRuns', label: 'Обходы', to: '/inspection/runs' },
+  { id: 'company', label: 'Компания', to: '/company' },
+  { id: 'settings', label: 'Настройки', to: '/settings' },
+]
+
+const tenantNavById = Object.fromEntries(tenantDesktopNavItems.map((item) => [item.id, item])) as Record<string, NavItem>
+
+const tenantTopbarIds = ['board', 'tickets', 'analytics', 'settings'] as const
+
 export const platformNavigation: ShellNavigationConfig = {
   sidebar: [
     {
-      id: 'operations',
-      label: 'Операции',
-      items: [
-        { id: 'board', label: 'Board', to: '/board' },
-        { id: 'tickets', label: 'Заявки', to: '/tickets' },
-        { id: 'employees', label: 'Сотрудники', to: '/employees' },
-        { id: 'locations', label: 'Точки', to: '/locations' },
-        { id: 'settings', label: 'Настройки', to: '/settings' },
-      ],
+      id: 'main',
+      label: 'Меню',
+      items: [{ id: 'companies', label: 'Компании', to: '/companies' }, ...tenantDesktopNavItems],
     },
   ],
   topbar: [
-    { id: 'board', label: 'Board', to: '/board' },
-    { id: 'tickets', label: 'Заявки', to: '/tickets' },
-    { id: 'employees', label: 'Сотрудники', to: '/employees' },
-    { id: 'locations', label: 'Точки', to: '/locations' },
-    { id: 'settings', label: 'Настройки', to: '/settings' },
+    { id: 'companies', label: 'Компании', to: '/companies' },
+    tenantNavById.board,
+    tenantNavById.tickets,
+    tenantNavById.analytics,
+    tenantNavById.settings,
   ],
 }
 
 export const tenantNavigation: ShellNavigationConfig = {
   sidebar: [
     {
-      id: 'operations',
-      label: 'Операции',
-      items: [
-        { id: 'board', label: 'Board', to: '/board' },
-        { id: 'tickets', label: 'Заявки', to: '/tickets' },
-        { id: 'employees', label: 'Сотрудники', to: '/employees' },
-        { id: 'locations', label: 'Точки', to: '/locations' },
-        { id: 'settings', label: 'Настройки', to: '/settings' },
-      ],
+      id: 'main',
+      label: 'Меню',
+      items: tenantDesktopNavItems,
     },
   ],
-  topbar: [
-    { id: 'board', label: 'Board', to: '/board' },
-    { id: 'tickets', label: 'Заявки', to: '/tickets' },
-    { id: 'employees', label: 'Сотрудники', to: '/employees' },
-    { id: 'locations', label: 'Точки', to: '/locations' },
-    { id: 'settings', label: 'Настройки', to: '/settings' },
-  ],
+  topbar: tenantTopbarIds.map((id) => tenantNavById[id]).filter(Boolean),
 }

@@ -7,6 +7,11 @@ import { RolesGuard } from '../common/roles.guard';
 
 import { NotificationsService } from './notifications.service';
 
+/**
+ * In-app уведомления: GET возвращает { items, unreadCount };
+ * PATCH read-all — массовое прочтение в рамках tenant+user;
+ * PATCH :id/read — одно уведомление (404 если не своё).
+ */
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Controller('notifications')
 export class NotificationsController {

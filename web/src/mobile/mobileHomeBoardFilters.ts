@@ -49,15 +49,35 @@ export function mobileHomeBoardTabCounts(cards: TicketCard[], meId: string | und
   }
 }
 
-export function emptyMessageForMobileHomeTab(tab: MobileHomeBoardFilterTab): string {
+export type MobileHomeTabEmptyCopy = { title: string; hint: string }
+
+/** Текст пустого состояния вкладки главной (заголовок + подсказка). */
+export function mobileHomeTabEmptyCopy(tab: MobileHomeBoardFilterTab): MobileHomeTabEmptyCopy {
   switch (tab) {
     case 'new':
-      return 'Нет новых заявок'
+      return {
+        title: 'Новых заявок нет',
+        hint: 'Новые необработанные заявки в выбранном контуре появятся здесь.',
+      }
     case 'mine':
-      return 'Нет назначенных заявок'
+      return {
+        title: 'Нет заявок на вас',
+        hint: 'После назначения исполнителем заявки отобразятся во вкладке «Мои».',
+      }
     case 'in_work':
-      return 'Нет заявок в работе'
+      return {
+        title: 'Нет заявок в работе',
+        hint: 'Заявки со статусом «Назначена» или «В работе» — во вкладке «В работе».',
+      }
     default:
-      return 'Нет заявок'
+      return {
+        title: 'Заявок пока нет',
+        hint: 'Когда в контуре появятся заявки, список обновится автоматически.',
+      }
   }
+}
+
+/** @deprecated Используйте mobileHomeTabEmptyCopy для подсказки; оставлено для совместимости. */
+export function emptyMessageForMobileHomeTab(tab: MobileHomeBoardFilterTab): string {
+  return mobileHomeTabEmptyCopy(tab).title
 }
