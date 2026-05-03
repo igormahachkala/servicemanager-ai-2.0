@@ -397,3 +397,55 @@ a.mobileBtn.mobileCreateTicketLink {
     padding-top: 32px;
   }
 }
+
+.loginSupportContacts {
+  line-height: 1.45;
+  margin-bottom: 14px;
+}
+
+.loginSupportContacts > div + div {
+  margin-top: 6px;
+}
+
+.loginSupportLabel {
+  font-weight: 600;
+  color: #374151;
+}
+
+.loginSupportInlineLink {
+  color: #2563eb;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  word-break: break-word;
+}
+
+.loginSupportActions {
+  display: grid;
+  gap: 10px;
+}
+
+a.loginSupportAction {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+a.loginSupportActionPrimary {
+  border: 1px solid #111827;
+  background: #111827;
+  color: #fff;
+}
+
+a.loginSupportActionTelegram {
+  border: 1px solid #229ed9;
+  background: #229ed9;
+  color: #fff;
+}

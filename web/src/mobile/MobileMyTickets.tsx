@@ -3,9 +3,11 @@ import { Link, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import {
+  compactTicketScope,
   mobileTicketCategoryLocationFromCard,
   mobileTicketNavState,
   mobileTicketNumberTitle,
+  scopeForMobileTicketLink,
 } from './mobileTicketDisplay'
 
 type FilterKey = 'active' | 'new' | 'closed'
@@ -48,7 +50,12 @@ export function MobileMyTickets() {
     [allTickets, statuses],
   )
 
-  const ticketHref = (ticketId: string) => api.appendScopeToPath(`/m/tickets/${ticketId}`, scope, meQ.data)
+  const ticketHref = (ticket: api.TicketCard) =>
+    api.appendScopeToPath(
+      `/m/tickets/${ticket.id}`,
+      compactTicketScope(scopeForMobileTicketLink(meQ.data, scope, ticket)),
+      meQ.data,
+    )
 
   return (
     <div className="mobileSection">
@@ -86,8 +93,8 @@ export function MobileMyTickets() {
         filteredTickets.map((ticket) => (
           <Link
             key={ticket.id}
-            to={ticketHref(ticket.id)}
-            state={mobileTicketNavState('my')}
+            to={ticketHref(ticket)}
+            state={mobileTicketNavState('my', ticket.companyId)}
             className="mobileCard mobileCardClickable"
             style={{ display: 'block', padding: 12 }}
           >

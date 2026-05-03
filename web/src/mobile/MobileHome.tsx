@@ -3,9 +3,12 @@ import { Link, useLocation } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import {
+  compactTicketScope,
   mobileTicketCategoryLocationFromCard,
   mobileTicketNavState,
   mobileTicketNumberTitle,
+  type MobileTicketNavState,
+  scopeForMobileTicketLink,
 } from './mobileTicketDisplay'
 
 function getPrimaryActionLabel(ticket: api.TicketCard, isTechnician: boolean): 'Взять' | 'Начать' | 'Закрыть' | null {
@@ -19,14 +22,15 @@ function getPrimaryActionLabel(ticket: api.TicketCard, isTechnician: boolean): '
 function TicketCard(props: {
   ticket: api.TicketCard
   ticketHref: string
+  linkState?: MobileTicketNavState
   actionLabel?: 'Взять' | 'Начать' | 'Закрыть' | null
   onAction?: (ticket: api.TicketCard) => void
   actionPending?: boolean
 }) {
-  const { ticket, ticketHref, actionLabel = null, onAction, actionPending = false } = props
+  const { ticket, ticketHref, linkState, actionLabel = null, onAction, actionPending = false } = props
   return (
     <div className="mobileCard" style={{ padding: 0, overflow: 'hidden' }}>
-      <Link to={ticketHref} state={mobileTicketNavState('home')} className="mobileCardClickable" style={{ borderRadius: 0 }}>
+      <Link to={ticketHref} state={linkState ?? mobileTicketNavState('home')} className="mobileCardClickable" style={{ borderRadius: 0 }}>
         <div style={{ padding: 12 }}>
           <div className="mobileRow">
             <strong>{mobileTicketNumberTitle(ticket.ticketNumber)}</strong>
@@ -177,7 +181,14 @@ export function MobileHome() {
 
   const primaryPending = actionM.isPending || closeBusy
 
-  const ticketHref = (ticketId: string) => api.appendScopeToPath(`/m/tickets/${ticketId}`, scope, meQ.data)
+  const ticketHref = (ticket: api.TicketCard) =>
+    api.appendScopeToPath(
+      `/m/tickets/${ticket.id}`,
+      compactTicketScope(scopeForMobileTicketLink(meQ.data, scope, ticket)),
+      meQ.data,
+    )
+
+  const ticketLinkState = (ticket: api.TicketCard) => mobileTicketNavState('home', ticket.companyId)
 
   const closeCanSubmit = useMemo(() => {
     if (!closeModal) return false
@@ -215,7 +226,8 @@ export function MobileHome() {
                 <TicketCard
                   key={ticket.id}
                   ticket={ticket}
-                  ticketHref={ticketHref(ticket.id)}
+                  ticketHref={ticketHref(ticket)}
+                  linkState={ticketLinkState(ticket)}
                   actionLabel={getPrimaryActionLabel(ticket, isTechnician)}
                   actionPending={primaryPending}
                   onAction={(next) => actionM.mutate(next)}
@@ -233,7 +245,8 @@ export function MobileHome() {
                 <TicketCard
                   key={ticket.id}
                   ticket={ticket}
-                  ticketHref={ticketHref(ticket.id)}
+                  ticketHref={ticketHref(ticket)}
+                  linkState={ticketLinkState(ticket)}
                   actionLabel={getPrimaryActionLabel(ticket, isTechnician)}
                   actionPending={primaryPending}
                   onAction={(next) => actionM.mutate(next)}
@@ -252,7 +265,14 @@ export function MobileHome() {
               myTickets
                 .filter((row) => row.status === 'ASSIGNED' || row.status === 'IN_PROGRESS')
                 .slice(0, 4)
-                .map((ticket) => <TicketCard key={ticket.id} ticket={ticket} ticketHref={ticketHref(ticket.id)} />)
+                .map((ticket) => (
+                  <TicketCard
+                    key={ticket.id}
+                    ticket={ticket}
+                    ticketHref={ticketHref(ticket)}
+                    linkState={ticketLinkState(ticket)}
+                  />
+                ))
             )}
           </section>
           <section className="mobileSection">
@@ -263,7 +283,14 @@ export function MobileHome() {
               myTickets
                 .filter((row) => row.status === 'NEW')
                 .slice(0, 4)
-                .map((ticket) => <TicketCard key={ticket.id} ticket={ticket} ticketHref={ticketHref(ticket.id)} />)
+                .map((ticket) => (
+                  <TicketCard
+                    key={ticket.id}
+                    ticket={ticket}
+                    ticketHref={ticketHref(ticket)}
+                    linkState={ticketLinkState(ticket)}
+                  />
+                ))
             )}
           </section>
         </>

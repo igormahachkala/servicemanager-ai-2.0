@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import * as api from '../lib/api'
 
 import smaLogo from '../assets/sma-tech.png'
@@ -11,6 +11,10 @@ type LoginPageProps = {
 
 const VERSION = 'v0.1'
 const BUILD = '2026'
+
+const SUPPORT_EMAIL = 'ai.service.manager.ufa@gmail.com'
+const SUPPORT_MAILTO = `mailto:${SUPPORT_EMAIL}`
+const SUPPORT_TELEGRAM = 'https://t.me/igorpump'
 
 export function LoginPage({ onLoggedIn }: LoginPageProps) {
   const navigate = useNavigate()
@@ -138,14 +142,36 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
           </div>
         )}
 
-        <div className="panel" style={{ marginTop: 16 }}>
+        <div className="panel loginSupportPanel" style={{ marginTop: 16 }}>
           <div style={{ fontWeight: 600, marginBottom: 6 }}>Публичная регистрация компаний отключена</div>
-          <div className="muted small" style={{ marginBottom: 12 }}>
+          <div className="muted small" style={{ marginBottom: 10 }}>
             Новые компании и первые администраторы создаются только через platform-admin flow.
           </div>
-          <Link to="/request-access" style={{ textDecoration: 'none' }}>
-            <button type="button" className="ghost">Связаться с поддержкой</button>
-          </Link>
+          <div className="muted small" style={{ marginBottom: 10 }}>
+            Для создания компании или доступа напишите в поддержку:
+          </div>
+          <div className="loginSupportContacts muted small">
+            <div>
+              <span className="loginSupportLabel">Email:</span>{' '}
+              <a href={SUPPORT_MAILTO} className="loginSupportInlineLink">
+                {SUPPORT_EMAIL}
+              </a>
+            </div>
+            <div>
+              <span className="loginSupportLabel">Telegram:</span>{' '}
+              <a href={SUPPORT_TELEGRAM} target="_blank" rel="noopener noreferrer" className="loginSupportInlineLink">
+                @igorpump
+              </a>
+            </div>
+          </div>
+          <div className="loginSupportActions">
+            <a href={SUPPORT_MAILTO} className="loginSupportAction loginSupportActionPrimary">
+              Написать на email
+            </a>
+            <a href={SUPPORT_TELEGRAM} target="_blank" rel="noopener noreferrer" className="loginSupportAction loginSupportActionTelegram">
+              Написать в Telegram
+            </a>
+          </div>
         </div>
 
         <div

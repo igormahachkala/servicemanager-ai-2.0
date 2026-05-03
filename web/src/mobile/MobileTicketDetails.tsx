@@ -7,6 +7,7 @@ import {
   mobileTicketNavState,
   mobileTicketNumberTitle,
   type MobileTicketListOrigin,
+  type MobileTicketNavState,
 } from './mobileTicketDisplay'
 
 function statusLabel(status: api.TicketStatus) {
@@ -19,9 +20,20 @@ function statusLabel(status: api.TicketStatus) {
 }
 
 function readListOrigin(location: ReturnType<typeof useLocation>): MobileTicketListOrigin {
-  const raw = (location.state as { mobileListOrigin?: string } | null)?.mobileListOrigin
+  const raw = (location.state as MobileTicketNavState | null)?.mobileListOrigin
   if (raw === 'my') return 'my'
   return 'home'
+}
+
+function isImageAttachment(a: api.TicketAttachmentItem) {
+  return (a.mimeType || '').toLowerCase().startsWith('image/')
+}
+
+function isCommentTimelineItem(item: api.TimelineItem): boolean {
+  const c = typeof item.payload?.comment === 'string' ? item.payload.comment.trim() : ''
+  if (c.length > 0) return true
+  const t = `${item.type || ''} ${item.timelineEvent || ''} ${item.domainType || ''}`.toLowerCase()
+  return t.includes('comment')
 }
 
 export function MobileTicketDetails() {
@@ -29,9 +41,23 @@ export function MobileTicketDetails() {
   const ticketId = id || ''
   const location = useLocation()
   const [searchParams] = useSearchParams()
+  const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
 
-  const observerCompanyId = (searchParams.get('companyId') || api.getObserverCompanyId()).trim()
-  const linkedClientCompanyId = (searchParams.get('linkedClientCompanyId') || api.getLinkedClientCompanyId()).trim()
+  const navState = location.state as MobileTicketNavState | null | undefined
+
+  const observerCompanyId = useMemo(
+    () => (searchParams.get('companyId') || api.getObserverCompanyId(meQ.data)).trim(),
+    [searchParams, meQ.data],
+  )
+
+  const linkedClientCompanyId = useMemo(() => {
+    const q = (searchParams.get('linkedClientCompanyId') || '').trim()
+    if (q) return q
+    const fromNav = (navState?.ticketOwnerCompanyId || '').trim()
+    if (fromNav) return fromNav
+    return (api.getLinkedClientCompanyId(meQ.data) || '').trim()
+  }, [searchParams, navState?.ticketOwnerCompanyId, meQ.data])
+
   const [autoLinkedClientCompanyId, setAutoLinkedClientCompanyId] = useState('')
   const effectiveLinkedClientCompanyId = linkedClientCompanyId || autoLinkedClientCompanyId
 
@@ -42,8 +68,6 @@ export function MobileTicketDetails() {
     }),
     [observerCompanyId, effectiveLinkedClientCompanyId],
   )
-
-  const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
 
   useEffect(() => {
     api.persistScopeFromSearchParams(searchParams, meQ.data)
@@ -102,15 +126,57 @@ export function MobileTicketDetails() {
     linkedClientsQ.data,
   ])
 
+  const inferredLinkedClientCompanyId = useMemo(() => {
+    if (effectiveLinkedClientCompanyId) return effectiveLinkedClientCompanyId
+    if (observerCompanyId) return ''
+    if (ticketQ.data?.meta?.visibilityMode !== 'provider_primary') return ''
+    return ticketQ.data?.meta?.scopeCompanyId || ''
+  }, [effectiveLinkedClientCompanyId, observerCompanyId, ticketQ.data?.meta?.visibilityMode, ticketQ.data?.meta?.scopeCompanyId])
+
+  const effectiveTicketScope = useMemo<api.TicketScopeParams>(
+    () => ({
+      companyId: observerCompanyId || undefined,
+      linkedClientCompanyId: inferredLinkedClientCompanyId || undefined,
+    }),
+    [observerCompanyId, inferredLinkedClientCompanyId],
+  )
+
+  const attachmentsQ = useQuery({
+    enabled: !!ticketId && !!ticketQ.data,
+    queryKey: ['mobile-ticket-attachments', ticketId, observerCompanyId, inferredLinkedClientCompanyId],
+    queryFn: () => api.ticketAttachments(ticketId, effectiveTicketScope),
+  })
+
+  const timelineQ = useQuery({
+    enabled: !!ticketId && !!ticketQ.data,
+    queryKey: ['mobile-ticket-timeline', ticketId, observerCompanyId, inferredLinkedClientCompanyId],
+    queryFn: () => api.timeline(ticketId, effectiveTicketScope),
+  })
+
   const listOrigin = readListOrigin(location)
   const backPath = listOrigin === 'my' ? '/m/my' : '/m'
   const backHref = api.appendScopeToPath(backPath, scopeNorm, meQ.data)
 
+  const ticket = ticketQ.data
+  const ticketCompanyId = (ticket as { companyId?: string } | undefined)?.companyId?.trim() || ''
+
   const childHref = (childId: string) =>
     api.appendScopeToPath(`/m/tickets/${childId}`, scopeNorm, meQ.data)
 
-  const ticket = ticketQ.data
   const desc = ticket ? `${ticket.problemText || ''}`.trim() || ticket.description?.trim() || '—' : '—'
+
+  const timelineItems = timelineQ.data?.timeline || timelineQ.data?.items || []
+  const commentItems = useMemo(() => timelineItems.filter(isCommentTimelineItem), [timelineItems])
+
+  const requestImages = useMemo(() => {
+    const imgs = (attachmentsQ.data || []).filter(isImageAttachment)
+    return imgs.filter((a) => a.purpose !== 'WORK_REPORT')
+  }, [attachmentsQ.data])
+
+  const reportImages = useMemo(() => {
+    const imgs = (attachmentsQ.data || []).filter(isImageAttachment)
+    return imgs.filter((a) => a.purpose === 'WORK_REPORT')
+  }, [attachmentsQ.data])
 
   return (
     <div className="mobileSection mobileTicketDetailsRoot">
@@ -150,6 +216,75 @@ export function MobileTicketDetails() {
             ) : null}
           </div>
 
+          <div className="mobileCard" style={{ marginTop: 8 }}>
+            {attachmentsQ.isLoading ? <div className="mobileMeta">Загрузка вложений…</div> : null}
+            {attachmentsQ.isError ? (
+              <div className="mobileNotice mobileNoticeError">{String((attachmentsQ.error as any)?.message || attachmentsQ.error)}</div>
+            ) : null}
+            {!attachmentsQ.isLoading && !attachmentsQ.isError ? (
+              <>
+                <div className="mobileSectionTitle" style={{ marginBottom: 8 }}>
+                  Фото заявки
+                </div>
+                {requestImages.length === 0 ? (
+                  <div className="mobileMeta">Нет фото</div>
+                ) : (
+                  <div className="mobilePhotoGrid">
+                    {requestImages.map((a) => (
+                      <a key={a.id} href={a.url} target="_blank" rel="noreferrer" className="mobilePhotoThumbLink">
+                        <img src={a.url} alt="" className="mobilePhotoThumb" />
+                      </a>
+                    ))}
+                  </div>
+                )}
+                <div className="mobileSectionTitle" style={{ marginTop: 14, marginBottom: 8 }}>
+                  Фото отчёта
+                </div>
+                {reportImages.length === 0 ? (
+                  <div className="mobileMeta">Нет фото отчёта</div>
+                ) : (
+                  <div className="mobilePhotoGrid">
+                    {reportImages.map((a) => (
+                      <a key={a.id} href={a.url} target="_blank" rel="noreferrer" className="mobilePhotoThumbLink">
+                        <img src={a.url} alt="" className="mobilePhotoThumb" />
+                      </a>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : null}
+          </div>
+
+          <div className="mobileCard" style={{ marginTop: 8 }}>
+            <div className="mobileSectionTitle" style={{ marginBottom: 8 }}>
+              Комментарии
+            </div>
+            {timelineQ.isLoading ? <div className="mobileMeta">Загрузка…</div> : null}
+            {!timelineQ.isLoading && (timelineQ.isError || commentItems.length === 0) ? (
+              <div className="mobileMeta">Комментариев пока нет</div>
+            ) : null}
+            {!timelineQ.isLoading && !timelineQ.isError && commentItems.length > 0 ? (
+              <div className="mobileSection" style={{ gap: 10 }}>
+                {commentItems.map((item, idx) => {
+                  const text =
+                    typeof item.payload?.comment === 'string' && item.payload.comment.trim()
+                      ? item.payload.comment.trim()
+                      : item.title || '—'
+                  const who = item.actor?.email || '—'
+                  return (
+                    <div key={`${item.at}-${idx}`} style={{ borderTop: idx ? '1px solid #e5e7eb' : undefined, paddingTop: idx ? 10 : 0 }}>
+                      <div className="mobileMeta">{who}</div>
+                      <div style={{ marginTop: 4, fontSize: '0.92rem', whiteSpace: 'pre-wrap' }}>{text}</div>
+                      <div className="mobileMeta" style={{ marginTop: 4 }}>
+                        {item.at}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : null}
+          </div>
+
           {ticket.children?.length ? (
             <div className="mobileSection" style={{ marginTop: 4 }}>
               <h2 className="mobileSectionTitle">Связанные заявки</h2>
@@ -164,7 +299,12 @@ export function MobileTicketDetails() {
                   <Link
                     key={ch.id}
                     to={childHref(ch.id)}
-                    state={mobileTicketNavState(listOrigin)}
+                    state={mobileTicketNavState(
+                      listOrigin,
+                      [navState?.ticketOwnerCompanyId, ticketCompanyId, inferredLinkedClientCompanyId, linkedClientCompanyId]
+                        .map((x) => (x || '').trim())
+                        .find((x) => x.length > 0),
+                    )}
                     className="mobileCard mobileCardClickable"
                     style={{ display: 'block', padding: 12 }}
                   >
