@@ -1384,6 +1384,7 @@ export async function setSpecializationStatus(id: string, isActive: boolean): Pr
   })
 }
 
+/** `companyId` — query для GET /problem-categories: tenant, чьи категории нужны (у провайдера в linked-scope это id клиента). */
 export async function problemCategories(companyId?: string): Promise<ProblemCategoryListItem[]> {
   const search = new URLSearchParams()
   if (companyId) search.set('companyId', companyId)
@@ -1562,6 +1563,7 @@ export async function companyServiceContracts(companyId: string): Promise<Servic
   return request<ServiceContractItem[]>('/companies/' + companyId + '/service-contracts')
 }
 
+/** `companyId` — query для GET /locations: tenant локаций (у провайдера в linked-scope это id клиента). */
 export async function locations(companyId?: string): Promise<LocationListItem[]> {
   const search = new URLSearchParams()
   if (companyId) search.set('companyId', companyId)

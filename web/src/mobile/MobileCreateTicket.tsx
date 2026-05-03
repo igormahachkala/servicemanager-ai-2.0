@@ -45,21 +45,32 @@ export function MobileCreateTicket() {
     [linkedClientCompanyId, companyId],
   )
 
+  /** Для GET /locations и GET /problem-categories backend ждёт query `companyId` (клиентский tenant каталога). */
+  const effectiveClientCompanyId = useMemo(() => {
+    if (!meReady || !meQ.data) return ''
+    const role = meQ.data.role
+    if (role === 'CLIENT' || role === 'NETWORK_DIRECTOR') {
+      return (meQ.data.companyId || '').trim()
+    }
+    const linked = linkedClientCompanyId.trim()
+    if (linked) return linked
+    return (companyId || '').trim()
+  }, [meReady, meQ.data, linkedClientCompanyId, companyId])
+
   const technicianContextsQ = useQuery({
     queryKey: ['mobile-create-technician-contexts', linkedClientCompanyId],
     queryFn: () => api.getTechnicianBoundContexts(linkedClientCompanyId || undefined),
     enabled: meReady && meQ.data?.role === 'TECHNICIAN',
   })
 
-  const scopedCompanyId = linkedClientCompanyId || companyId || ''
   const categoriesQ = useQuery({
-    queryKey: ['mobile-create-categories', scopedCompanyId, isTechnician ? 'tech' : 'tenant'],
-    queryFn: () => api.problemCategories(scopedCompanyId || undefined),
+    queryKey: ['mobile-create-categories', effectiveClientCompanyId, isTechnician ? 'tech' : 'tenant'],
+    queryFn: () => api.problemCategories(effectiveClientCompanyId || undefined),
     enabled: meReady && meQ.data?.role !== 'TECHNICIAN',
   })
   const locationsQ = useQuery({
-    queryKey: ['mobile-create-locations', scopedCompanyId, isTechnician ? 'tech' : 'tenant'],
-    queryFn: () => api.locations(scopedCompanyId || undefined),
+    queryKey: ['mobile-create-locations', effectiveClientCompanyId, isTechnician ? 'tech' : 'tenant'],
+    queryFn: () => api.locations(effectiveClientCompanyId || undefined),
     enabled: meReady && meQ.data?.role !== 'TECHNICIAN',
   })
 

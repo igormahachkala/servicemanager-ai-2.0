@@ -341,6 +341,7 @@ export class TicketsQueryService {
           select: {
             id: true,
             companyId: true,
+            ticketNumber: true,
             status: true,
             urgency: true,
             createdAt: true,
@@ -393,6 +394,7 @@ export class TicketsQueryService {
       const cards = byStatus.map((t) => ({
         id: t.id,
         companyId: t.companyId,
+        ticketNumber: t.ticketNumber,
         title: t.problemCategory.name,
         description: t.problemText,
         status: t.status,
