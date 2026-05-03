@@ -68,31 +68,43 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
       onLoggedIn(token)
     }
 
-    if (api.isClientRole(postLoginUser.role)) {
-      navigate(api.appendScopeToPath('/m', postLoginScope, postLoginUser))
-      return
-    }
-
-    if (postLoginUser.role === 'PLATFORM_ADMIN') {
-      navigate(api.appendScopeToPath('/m', postLoginScope, postLoginUser))
-      return
-    }
-
-    if (postLoginUser.role === 'TECHNICIAN') {
-      const linked = (
-        (postLoginScope.linkedClientCompanyId || '').trim() ||
-        api.getLinkedClientCompanyId(postLoginUser).trim()
-      ).trim()
-      const nextScope: api.TicketScopeParams = linked
-        ? { ...postLoginScope, linkedClientCompanyId: linked }
-        : { ...postLoginScope }
-      navigate(api.appendScopeToPath('/m', nextScope, postLoginUser))
-      return
-    }
-
-    if (api.shouldFetchDefaultLinkedClientOnMobileEntry(postLoginUser.role)) {
-      setMobileEntryLoading(true)
+    setMobileEntryLoading(true)
+    try {
+      let profile: api.Me = postLoginUser
       try {
+        profile = await api.me()
+      } catch {
+        /* сеть — используем ответ логина */
+      }
+
+      const role = profile.role
+
+      if (api.isClientRole(role)) {
+        navigate(api.appendScopeToPath('/m', postLoginScope, profile))
+        return
+      }
+
+      if (role === 'PLATFORM_ADMIN') {
+        navigate(api.appendScopeToPath('/m', postLoginScope, profile))
+        return
+      }
+
+      if (role === 'TECHNICIAN') {
+        const { linkedClientCompanyId: linked } = api.resolveTechnicianMobileLinkedClientCompanyId({
+          profile,
+          postLoginScope,
+        })
+        const nextScope: api.TicketScopeParams = linked
+          ? { ...postLoginScope, linkedClientCompanyId: linked }
+          : { ...postLoginScope }
+        if (linked) {
+          api.persistScopeFromSearchParams(new URLSearchParams({ linkedClientCompanyId: linked }), profile)
+        }
+        navigate(api.appendScopeToPath('/m', nextScope, profile))
+        return
+      }
+
+      if (api.shouldFetchDefaultLinkedClientOnMobileEntry(role)) {
         let linkedClientCompanyId = ''
         try {
           const list = await api.getLinkedClients()
@@ -104,7 +116,7 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
         if (!linkedClientCompanyId) {
           linkedClientCompanyId = (
             (postLoginScope.linkedClientCompanyId || '').trim() ||
-            api.getLinkedClientCompanyId(postLoginUser).trim()
+            api.getLinkedClientCompanyId(profile).trim()
           ).trim()
         }
 
@@ -112,14 +124,17 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
           ? { ...postLoginScope, linkedClientCompanyId }
           : { ...postLoginScope }
 
-        navigate(api.appendScopeToPath('/m', nextScope, postLoginUser))
-      } finally {
-        setMobileEntryLoading(false)
+        if (linkedClientCompanyId) {
+          api.persistScopeFromSearchParams(new URLSearchParams({ linkedClientCompanyId }), profile)
+        }
+        navigate(api.appendScopeToPath('/m', nextScope, profile))
+        return
       }
-      return
-    }
 
-    navigate(api.appendScopeToPath('/m', postLoginScope, postLoginUser))
+      navigate(api.appendScopeToPath('/m', postLoginScope, profile))
+    } finally {
+      setMobileEntryLoading(false)
+    }
   }
 
   function resetSession() {

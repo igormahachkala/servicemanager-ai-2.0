@@ -10,21 +10,37 @@ import {
   type MobileTicketNavState,
   scopeForMobileTicketLink,
 } from './mobileTicketDisplay'
+import {
+  emptyMessageForMobileHomeTab,
+  filterTicketsForMobileHomeTab,
+  mobileHomeBoardTabCounts,
+  type MobileHomeBoardFilterTab,
+} from './mobileHomeBoardFilters'
+import {
+  enqueueOfflineStatusChange,
+  loadBoardCache,
+  saveBoardCache,
+  useOnlineStatus,
+} from './offlineQueue'
 
-function getPrimaryActionLabel(input: {
-  ticket: api.TicketCard
-  role?: api.Role | null
-  claimableIds?: Set<string>
-}): 'Взять' | 'Начать' | 'Закрыть' | null {
-  const { ticket, role, claimableIds } = input
-  const isTechnician = role === 'TECHNICIAN'
-  const isFieldExecutor = api.isMobileFieldExecutorRole(role)
+const MOBILE_HOME_TAB_LABELS: Record<MobileHomeBoardFilterTab, string> = {
+  all: 'Все',
+  new: 'Новые',
+  mine: 'Мои',
+  in_work: 'В работе',
+}
 
-  if (ticket.status === 'NEW') {
-    return isTechnician && claimableIds?.has(ticket.id) ? 'Взять' : null
-  }
-  if (ticket.status === 'ASSIGNED') return isFieldExecutor ? 'Начать' : null
-  if (ticket.status === 'IN_PROGRESS') return isFieldExecutor ? 'Закрыть' : null
+const MOBILE_HOME_TABS: MobileHomeBoardFilterTab[] = ['all', 'new', 'mine', 'in_work']
+
+function getPrimaryActionLabel(
+  ticket: api.TicketCard,
+  meId: string | undefined,
+  role: api.Role | undefined,
+): 'Взять' | 'Начать' | 'Закрыть' | null {
+  if (!api.allowMobileHomeFieldTicketActions(role) || !meId) return null
+  if (ticket.status === 'NEW' && !ticket.assignedTechnician) return 'Взять'
+  if (ticket.status === 'ASSIGNED' && ticket.assignedTechnician?.id === meId) return 'Начать'
+  if (ticket.status === 'IN_PROGRESS' && ticket.assignedTechnician?.id === meId) return 'Закрыть'
   return null
 }
 
@@ -119,38 +135,47 @@ export function MobileHome() {
     companyId: companyId || undefined,
   }
   const queryClient = useQueryClient()
+  const isOnline = useOnlineStatus()
+  const [cachedBoardSavedAt, setCachedBoardSavedAt] = useState('')
+  const [queueNotice, setQueueNotice] = useState('')
   const boardQ = useQuery({
     queryKey: ['mobile-home-board', linkedClientCompanyId, companyId],
-    queryFn: () =>
-      api.board({
-        linkedClientCompanyId: pageScope.linkedClientCompanyId,
-        companyId: pageScope.companyId,
-        take: 30,
-      }),
+    queryFn: async () => {
+      try {
+        const data = await api.board({
+          linkedClientCompanyId: pageScope.linkedClientCompanyId,
+          companyId: pageScope.companyId,
+          take: 30,
+        })
+        saveBoardCache(pageScope, data)
+        setCachedBoardSavedAt('')
+        return data
+      } catch (error) {
+        const cached = loadBoardCache(pageScope)
+        if (cached) {
+          setCachedBoardSavedAt(cached.savedAt)
+          return cached.data
+        }
+        throw error
+      }
+    },
     enabled: !!meQ.data,
-  })
-  const availableQ = useQuery({
-    queryKey: ['mobile-home-available', linkedClientCompanyId],
-    queryFn: () => api.availableTickets(linkedClientCompanyId || undefined),
-    enabled: meQ.data?.role === 'TECHNICIAN',
   })
 
   const linkedClientsQ = useQuery({
     queryKey: ['mobile-home-linked-clients'],
     queryFn: api.getLinkedClients,
-    enabled: !!linkedClientCompanyId && !!meQ.data,
+    enabled: !!linkedClientCompanyId && !!meQ.data && meQ.data.role !== 'TECHNICIAN',
   })
 
   const cards = boardQ.data?.columns.flatMap((col) => col.cards || []) || []
-  const inWork = cards.filter((card) => card.status === 'IN_PROGRESS' || card.status === 'ASSIGNED')
-  const myTickets = cards.slice(0, 6)
-  const available = (availableQ.data || []) as api.TicketCard[]
-  const isTechnician = meQ.data?.role === 'TECHNICIAN'
   const canAssignProvider = api.isProviderTicketAssignRole(meQ.data?.role)
-  const claimableIds = useMemo(() => new Set(available.map((ticket) => ticket.id)), [available])
-  const technicianVisibleNew = useMemo(
-    () => cards.filter((card) => card.status === 'NEW' && !card.assignedTechnician),
-    [cards],
+
+  const [boardTab, setBoardTab] = useState<MobileHomeBoardFilterTab>('all')
+  const tabCounts = useMemo(() => mobileHomeBoardTabCounts(cards, meQ.data?.id), [cards, meQ.data?.id])
+  const filteredTickets = useMemo(
+    () => filterTicketsForMobileHomeTab(cards, boardTab, meQ.data?.id),
+    [cards, boardTab, meQ.data?.id],
   )
 
   const [assignTicket, setAssignTicket] = useState<api.TicketCard | null>(null)
@@ -195,9 +220,12 @@ export function MobileHome() {
 
   const linkedClientDisplayName = useMemo(() => {
     if (!linkedClientCompanyId) return ''
+    if (meQ.data?.role === 'TECHNICIAN') {
+      return ''
+    }
     const row = linkedClientsQ.data?.find((x) => x.clientCompany.id === linkedClientCompanyId)
     return (row?.clientCompany?.name || '').trim()
-  }, [linkedClientCompanyId, linkedClientsQ.data])
+  }, [linkedClientCompanyId, linkedClientsQ.data, meQ.data?.role])
 
   const closeCameraInputRef = useRef<HTMLInputElement | null>(null)
   const closeGalleryInputRef = useRef<HTMLInputElement | null>(null)
@@ -221,29 +249,43 @@ export function MobileHome() {
   const actionM = useMutation({
     mutationFn: async (ticket: api.TicketCard) => {
       if (ticket.status === 'NEW') {
+        if (!isOnline) throw new Error('\u0412\u0437\u044f\u0442\u044c \u0437\u0430\u044f\u0432\u043a\u0443 \u043c\u043e\u0436\u043d\u043e \u0442\u043e\u043b\u044c\u043a\u043e \u043e\u043d\u043b\u0430\u0439\u043d')
         await api.claim(ticket.id, pageScope)
-        return
+        return 'claimed' as const
       }
       if (ticket.status === 'ASSIGNED') {
+        if (!isOnline) {
+          enqueueOfflineStatusChange({ ticketId: ticket.id, scope: pageScope, status: 'IN_PROGRESS' })
+          return 'queued_start' as const
+        }
         await api.updateTicketStatus(ticket.id, { status: 'IN_PROGRESS' }, pageScope)
-        return
+        return 'started' as const
       }
       if (ticket.status === 'IN_PROGRESS') {
-        if (!api.isMobileFieldExecutorRole(meQ.data?.role)) {
-          throw new Error('Закрытие доступно полевому исполнителю')
+        if (!isOnline) throw new Error('\u0424\u043e\u0442\u043e \u043c\u043e\u0436\u043d\u043e \u043e\u0442\u043f\u0440\u0430\u0432\u0438\u0442\u044c \u0442\u043e\u043b\u044c\u043a\u043e \u043e\u043d\u043b\u0430\u0439\u043d')
+        if (
+          !api.allowMobileHomeFieldTicketActions(meQ.data?.role) ||
+          ticket.assignedTechnician?.id !== meQ.data?.id
+        ) {
+          throw new Error('\u0417\u0430\u043a\u0440\u044b\u0442\u0438\u0435 \u043d\u0435\u0434\u043e\u0441\u0442\u0443\u043f\u043d\u043e \u0434\u043b\u044f \u044d\u0442\u043e\u0439 \u0437\u0430\u044f\u0432\u043a\u0438')
         }
         setCloseModal({
           ticketId: ticket.id,
-          title: `${mobileTicketNumberTitle(ticket.ticketNumber)} — ${mobileTicketCategoryLocationFromCard(ticket)}`,
+          title: `${mobileTicketNumberTitle(ticket.ticketNumber)} - ${mobileTicketCategoryLocationFromCard(ticket)}`,
           file: null,
           previewUrl: '',
           comment: '',
           err: '',
         })
+        return 'open_close' as const
+      }
+      return 'noop' as const
+    },
+    onSuccess: async (result, ticket) => {
+      if (result === 'queued_start') {
+        setQueueNotice('\u0418\u0437\u043c\u0435\u043d\u0435\u043d\u0438\u0435 \u0441\u043e\u0445\u0440\u0430\u043d\u0435\u043d\u043e \u043b\u043e\u043a\u0430\u043b\u044c\u043d\u043e. \u041e\u0442\u043f\u0440\u0430\u0432\u044c\u0442\u0435 \u0435\u0433\u043e, \u043a\u043e\u0433\u0434\u0430 \u0441\u0435\u0442\u044c \u043f\u043e\u044f\u0432\u0438\u0442\u0441\u044f.')
         return
       }
-    },
-    onSuccess: async (_data, ticket) => {
       if (ticket.status === 'IN_PROGRESS') return
       await queryClient.invalidateQueries({ queryKey: ['mobile-home-board'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-home-available'] })
@@ -346,106 +388,84 @@ export function MobileHome() {
       </div>
 
       {boardQ.isError ? <div className="mobileNotice mobileNoticeError">{String((boardQ.error as any)?.message || boardQ.error)}</div> : null}
-      {availableQ.isError ? <div className="mobileNotice mobileNoticeError">{String((availableQ.error as any)?.message || availableQ.error)}</div> : null}
+      {cachedBoardSavedAt ? <div className="mobileCachedLabel">???????? ??????????? ??????</div> : null}
+      {queueNotice ? <div className="mobileNotice mobileNoticeSuccess">{queueNotice}</div> : null}
+      {!isOnline && canAssignProvider ? <div className="mobileNotice">?????????? ???????? ?????? ??????</div> : null}
+      {cachedBoardSavedAt ? <div className="mobileCachedLabel">???????? ??????????? ??????</div> : null}
+      {queueNotice ? <div className="mobileNotice mobileNoticeSuccess">{queueNotice}</div> : null}
+      {!isOnline && canAssignProvider ? <div className="mobileNotice">?????????? ???????? ?????? ??????</div> : null}
+      {cachedBoardSavedAt ? <div className="mobileCachedLabel">???????? ??????????? ??????</div> : null}
+      {queueNotice ? <div className="mobileNotice mobileNoticeSuccess">{queueNotice}</div> : null}
+      {!isOnline && canAssignProvider ? <div className="mobileNotice">?????????? ???????? ?????? ??????</div> : null}
 
-      {isTechnician ? (
+      {meQ.data?.role === 'TECHNICIAN' && !linkedClientCompanyId ? (
+        <div
+          className="mobileNotice"
+          style={{
+            marginTop: 10,
+            border: '1px solid #fcd34d',
+            background: '#fffbeb',
+            color: '#92400e',
+          }}
+        >
+          Не выбран клиентский контур
+        </div>
+      ) : null}
+
+      {meQ.data && !boardQ.isError ? (
         <>
-          <section className="mobileSection">
-            <h2 className="mobileSectionTitle">В работе</h2>
-            {inWork.length === 0 ? (
-              <div className="mobileCard mobileMeta">Нет заявок в работе</div>
-            ) : (
-              inWork.slice(0, 4).map((ticket) => (
-                <TicketCard
-                  key={ticket.id}
-                  ticket={ticket}
-                  ticketHref={ticketHref(ticket)}
-                  linkState={ticketLinkState(ticket)}
-                  actionLabel={getPrimaryActionLabel({ ticket, role: meQ.data?.role, claimableIds })}
-                  actionPending={primaryPending}
-                  onAction={(next) => actionM.mutate(next)}
-                />
-              ))
-            )}
-          </section>
+          <div className="mobileFilterTabs" role="tablist" aria-label="Фильтр заявок">
+            {MOBILE_HOME_TABS.map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                role="tab"
+                aria-selected={boardTab === tab}
+                className={`mobileFilterTab${boardTab === tab ? ' mobileFilterTabActive' : ''}`}
+                onClick={() => setBoardTab(tab)}
+              >
+                {MOBILE_HOME_TAB_LABELS[tab]}
+                <span className="mobileFilterTabCount">{tabCounts[tab]}</span>
+              </button>
+            ))}
+          </div>
 
           <section className="mobileSection">
-            <h2 className="mobileSectionTitle">Доступные</h2>
-            {technicianVisibleNew.length === 0 ? (
-              <div className="mobileCard mobileMeta">Нет доступных заявок</div>
+            {boardQ.isLoading ? (
+              <div className="mobileCard mobileMeta">Загрузка заявок…</div>
+            ) : filteredTickets.length === 0 ? (
+              <div className="mobileCard mobileMeta">{emptyMessageForMobileHomeTab(boardTab)}</div>
             ) : (
-              technicianVisibleNew.slice(0, 4).map((ticket) => (
-                <TicketCard
-                  key={ticket.id}
-                  ticket={ticket}
-                  ticketHref={ticketHref(ticket)}
-                  linkState={ticketLinkState(ticket)}
-                  actionLabel={getPrimaryActionLabel({ ticket, role: meQ.data?.role, claimableIds })}
-                  actionPending={primaryPending}
-                  onAction={(next) => actionM.mutate(next)}
-                />
-              ))
-            )}
-          </section>
-        </>
-      ) : (
-        <>
-          <section className="mobileSection">
-            <h2 className="mobileSectionTitle">В работе</h2>
-            {myTickets.filter((row) => row.status === 'ASSIGNED' || row.status === 'IN_PROGRESS').length === 0 ? (
-              <div className="mobileCard mobileMeta">Нет заявок в работе</div>
-            ) : (
-              myTickets
-                .filter((row) => row.status === 'ASSIGNED' || row.status === 'IN_PROGRESS')
-                .slice(0, 4)
-                .map((ticket) => (
+              filteredTickets.map((ticket) => {
+                const showAssignFooter =
+                  canAssignProvider && ticket.status === 'NEW' && !ticket.assignedTechnician
+                return (
                   <TicketCard
                     key={ticket.id}
                     ticket={ticket}
                     ticketHref={ticketHref(ticket)}
                     linkState={ticketLinkState(ticket)}
-                    actionLabel={getPrimaryActionLabel({ ticket, role: meQ.data?.role, claimableIds })}
+                    actionLabel={getPrimaryActionLabel(ticket, meQ.data?.id, meQ.data?.role)}
                     actionPending={primaryPending}
                     onAction={(next) => actionM.mutate(next)}
+                    assignFooter={
+                      showAssignFooter
+                        ? {
+                            onOpen: () => {
+                              setAssignErr('')
+                              setAssignTicket(ticket)
+                            },
+                            disabled: primaryPending || !isOnline,
+                          }
+                        : null
+                    }
                   />
-                ))
-            )}
-          </section>
-          <section className="mobileSection">
-            <h2 className="mobileSectionTitle">Доступные</h2>
-            {myTickets.filter((row) => row.status === 'NEW').length === 0 ? (
-              <div className="mobileCard mobileMeta">Нет доступных заявок</div>
-            ) : (
-              myTickets
-                .filter((row) => row.status === 'NEW')
-                .slice(0, 4)
-                .map((ticket) => {
-                  const showAssignFooter =
-                    canAssignProvider && ticket.status === 'NEW' && !ticket.assignedTechnician
-                  return (
-                    <TicketCard
-                      key={ticket.id}
-                      ticket={ticket}
-                      ticketHref={ticketHref(ticket)}
-                      linkState={ticketLinkState(ticket)}
-                      assignFooter={
-                        showAssignFooter
-                          ? {
-                              onOpen: () => {
-                                setAssignErr('')
-                                setAssignTicket(ticket)
-                              },
-                              disabled: primaryPending,
-                            }
-                          : null
-                      }
-                    />
-                  )
-                })
+                )
+              })
             )}
           </section>
         </>
-      )}
+      ) : null}
 
       {assignTicket ? (
         <div
@@ -585,7 +605,7 @@ export function MobileHome() {
                   type="file"
                   accept="image/*"
                   capture="environment"
-                  disabled={closeBusy}
+                  disabled={closeBusy || !isOnline}
                   onChange={(e) => {
                     const file = e.target.files?.[0] || null
                     setCloseModal((prev) => {
@@ -601,7 +621,7 @@ export function MobileHome() {
                   className="mobileHiddenFileInput"
                   type="file"
                   accept="image/*"
-                  disabled={closeBusy}
+                  disabled={closeBusy || !isOnline}
                   onChange={(e) => {
                     const file = e.target.files?.[0] || null
                     setCloseModal((prev) => {
@@ -617,7 +637,7 @@ export function MobileHome() {
                   <button
                     type="button"
                     className="mobileBtn mobileBtnSecondary mobilePhotoSourceBtn"
-                    disabled={closeBusy}
+                    disabled={closeBusy || !isOnline}
                     onClick={() => closeCameraInputRef.current?.click()}
                   >
                     Сделать фото отчёта
@@ -625,13 +645,14 @@ export function MobileHome() {
                   <button
                     type="button"
                     className="mobileBtn mobileBtnSecondary mobilePhotoSourceBtn"
-                    disabled={closeBusy}
+                    disabled={closeBusy || !isOnline}
                     onClick={() => closeGalleryInputRef.current?.click()}
                   >
                     Выбрать фото из телефона
                   </button>
                 </div>
 
+                {!isOnline ? <div className="mobileMeta" style={{ marginTop: 10 }}>???? ????? ????????? ?????? ??????</div> : null}
                 {closeModal.previewUrl ? (
                   <div className="mobilePhotoPreview">
                     <img
@@ -656,7 +677,7 @@ export function MobileHome() {
               </label>
 
               <div className="mobileFormSubmitStack">
-                <button type="button" className="mobileBtn" disabled={!closeCanSubmit} onClick={() => closeM.mutate()}>
+                <button type="button" className="mobileBtn" disabled={!isOnline || !closeCanSubmit} onClick={() => closeM.mutate()}>
                   {closeBusy ? 'Закрываем...' : 'Загрузить отчёт и закрыть'}
                 </button>
                 <p className="mobileHint" style={{ marginBottom: 0 }}>

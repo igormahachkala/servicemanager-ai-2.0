@@ -24,6 +24,9 @@ export type Me = {
   companyId: string
   companyName?: string | null
   isActive?: boolean
+  /** Если бэкенд добавит подсказку контура для техника — используем при мобильном входе без getLinkedClients */
+  linkedClientCompanyId?: string | null
+  linkedClientCompanyIds?: string[] | null
 }
 
 export type LoginInput = {
@@ -1067,12 +1070,14 @@ export function isProviderTicketAssignRole(role?: string | null): boolean {
     role === 'ADMIN_PROVIDER' ||
     role === 'DISPATCHER' ||
     role === 'MASTER' ||
-    role === 'STAFF' ||
-    role === 'TERRITORIAL_MANAGER'
+    role === 'STAFF'
   )
 }
 
-export function isMobileFieldExecutorRole(role?: string | null): boolean {
+/** Мобильная главная: полевые действия (взять/начать/закрыть). DISPATCHER — только назначение, без полевых кнопок. */
+export function allowMobileHomeFieldTicketActions(role?: Role | string | null): boolean {
+  if (!role) return false
+  if (role === 'DISPATCHER') return false
   return (
     role === 'TECHNICIAN' ||
     role === 'ADMIN' ||
@@ -1082,6 +1087,22 @@ export function isMobileFieldExecutorRole(role?: string | null): boolean {
   )
 }
 
+/** Основное действие техника на карточке заявки (мобильная деталка). */
+export function mobileTechnicianTicketPrimaryAction(
+  ticket: Pick<TicketGetOne, 'status' | 'assignedTechnicianId'>,
+  meUserId: string | undefined,
+): 'claim' | 'start' | null {
+  if (!meUserId) return null
+  if (ticket.status === 'NEW' && !ticket.assignedTechnicianId) return 'claim'
+  if (ticket.status === 'ASSIGNED' && ticket.assignedTechnicianId === meUserId) return 'start'
+  return null
+}
+
+/**
+ * Роли провайдера: при выборе «мобильная версия» на /login запрашиваем getLinkedClients(),
+ * выбираем дефолтного linked-клиента и кладём linkedClientCompanyId в scope/URL.
+ * TECHNICIAN сюда не входит — для техника linked только из persisted/URL (без getLinkedClients).
+ */
 export function shouldFetchDefaultLinkedClientOnMobileEntry(role?: Role | string | null): boolean {
   if (!role) return false
   return (
@@ -1092,6 +1113,51 @@ export function shouldFetchDefaultLinkedClientOnMobileEntry(role?: Role | string
     role === 'TERRITORIAL_MANAGER' ||
     role === 'STAFF'
   )
+}
+
+/** Linked-клиент из профиля `/auth/me` (без запроса service-contracts). */
+export function getLinkedClientCompanyIdFromMe(me?: Pick<Me, 'linkedClientCompanyId' | 'linkedClientCompanyIds'> | null): string {
+  if (!me) return ''
+  const single = typeof me.linkedClientCompanyId === 'string' ? me.linkedClientCompanyId.trim() : ''
+  if (single) return single
+  const ids = me.linkedClientCompanyIds
+  if (Array.isArray(ids)) {
+    for (const raw of ids) {
+      const id = typeof raw === 'string' ? raw.trim() : ''
+      if (id) return id
+    }
+  }
+  return ''
+}
+
+export type TechnicianMobileLinkedSource = 'persisted' | 'me' | 'none'
+
+/**
+ * Для TECHNICIAN: только persisted/URL scope и поля me — без getLinkedClients.
+ * Приоритет: явный postLoginScope → localStorage scope для owner → поля me.
+ */
+export function resolveTechnicianMobileLinkedClientCompanyId(params: {
+  profile: Me
+  postLoginScope: TicketScopeParams
+}): { linkedClientCompanyId: string; source: TechnicianMobileLinkedSource } {
+  const owner: ScopeOwner = {
+    userId: params.profile.id,
+    companyId: params.profile.companyId,
+    role: params.profile.role,
+  }
+  const fromExplicit = (params.postLoginScope.linkedClientCompanyId || '').trim()
+  if (fromExplicit) {
+    return { linkedClientCompanyId: fromExplicit, source: 'persisted' }
+  }
+  const fromStorage = getLinkedClientCompanyId(owner).trim()
+  if (fromStorage) {
+    return { linkedClientCompanyId: fromStorage, source: 'persisted' }
+  }
+  const fromMe = getLinkedClientCompanyIdFromMe(params.profile).trim()
+  if (fromMe) {
+    return { linkedClientCompanyId: fromMe, source: 'me' }
+  }
+  return { linkedClientCompanyId: '', source: 'none' }
 }
 
 /** Дефолтный linked-клиент для мобильного входа: только id из ответа API. ACTIVE+PRIMARY → ACTIVE → первый элемент. */
@@ -1729,11 +1795,11 @@ export async function tickets(): Promise<any[]> {
   return request<any[]>('/tickets')
 }
 
-export async function availableTickets(linkedClientCompanyId?: string): Promise<TicketCard[]> {
+export async function availableTickets(linkedClientCompanyId?: string): Promise<any[]> {
   const search = new URLSearchParams()
   if (linkedClientCompanyId) search.set('linkedClientCompanyId', linkedClientCompanyId)
   const suffix = search.toString() ? `?${search.toString()}` : ''
-  return request<TicketCard[]>(`/tickets/available${suffix}`)
+  return request<any[]>(`/tickets/available${suffix}`)
 }
 
 export async function ticket(id: string, scope?: string | TicketScopeParams): Promise<TicketGetOne> {
@@ -1743,6 +1809,7 @@ export async function ticket(id: string, scope?: string | TicketScopeParams): Pr
 export async function getTicket(id: string, scope?: string | TicketScopeParams): Promise<TicketGetOne> {
   return ticket(id, scope)
 }
+
 export async function ticketTimeline(id: string, scope?: string | TicketScopeParams): Promise<TimelineResponse> {
   return request<TimelineResponse>(`/timeline/tickets/${id}${buildTicketScopeSuffix(scope)}`)
 }

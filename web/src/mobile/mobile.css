@@ -56,6 +56,53 @@ body,
   min-width: 0;
 }
 
+.mobileFilterTabs {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 4px 0 8px;
+  margin-top: 4px;
+  scrollbar-width: thin;
+}
+
+.mobileFilterTab {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #374151;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.mobileFilterTab:hover {
+  border-color: #cbd5e1;
+}
+
+.mobileFilterTabActive {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.mobileFilterTabCount {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #6b7280;
+}
+
+.mobileFilterTabActive .mobileFilterTabCount {
+  color: #1e40af;
+}
+
 .mobileSection {
   display: grid;
   gap: 8px;
@@ -464,4 +511,41 @@ a.loginSupportActionTelegram {
   border: 1px solid #229ed9;
   background: #229ed9;
   color: #fff;
+}
+
+
+.mobileOfflineBanner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 0.9rem;
+  margin-bottom: 8px;
+}
+
+.mobileOfflineBannerWarning {
+  background: #fff7ed;
+  color: #9a3412;
+  border: 1px solid #fdba74;
+}
+
+.mobileOfflineBannerPending {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #93c5fd;
+}
+
+.mobileOfflineBannerBtn {
+  min-height: 38px;
+  padding: 8px 12px;
+  font-size: 0.82rem;
+  flex: 0 0 auto;
+}
+
+.mobileCachedLabel {
+  color: #6b7280;
+  font-size: 0.8rem;
+  margin-top: -2px;
 }

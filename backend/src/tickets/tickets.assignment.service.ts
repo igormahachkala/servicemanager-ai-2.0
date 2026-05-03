@@ -24,6 +24,7 @@ import {
   buildTechnicianLocationRestrictionWhere,
   resolveTechnicianOperationalScope,
   resolveTicketOperationAccess,
+  wasTicketCreatedByActor,
 } from './ticket-access.utils';
 import { ServiceContractsService } from '../service-contracts/service-contracts.service';
 import { TechniciansService } from '../technicians/technicians.service';
@@ -1396,13 +1397,50 @@ export class TicketsAssignmentService {
     });
     const claimWhere = this.normalizeAnd(decision.where as Prisma.TicketWhereInput, [locationRestriction]);
 
+    const selfCreatedByCurrentUser = await wasTicketCreatedByActor({
+      prisma: this.prisma,
+      companyIds: technicianScope.companyIds,
+      ticketId,
+      actorUserId: technicianUserId,
+    })
+
+    const selfCreatedClaimWhere = selfCreatedByCurrentUser
+      ? ({
+          AND: [
+            {
+              id: ticketId,
+              companyId:
+                technicianScope.companyIds.length === 1
+                  ? technicianScope.companyIds[0]
+                  : { in: technicianScope.companyIds },
+              status: TicketStatus.NEW,
+              OR: [
+                { assignedTechnicianId: null },
+                { assignedTechnicianId: technicianUserId },
+              ],
+            },
+            locationRestriction,
+          ],
+        } satisfies Prisma.TicketWhereInput)
+      : null
+
     const resolvedTicketId = await this.prisma.$transaction(async (tx) => {
-      const ticket = await tx.ticket.findFirst({
-        where: claimWhere,
-      })
+      const ticket =
+        (await tx.ticket.findFirst({
+          where: claimWhere,
+        })) ||
+        (selfCreatedClaimWhere
+          ? await tx.ticket.findFirst({
+              where: selfCreatedClaimWhere,
+            })
+          : null)
 
       if (!ticket) {
         throw new NotFoundException('Ticket not found or not available for claim')
+      }
+
+      if (ticket.assignedTechnicianId === technicianUserId && ticket.status === TicketStatus.ASSIGNED) {
+        return ticket.id
       }
 
       const wf = decideTicketTransition(TicketStatus.NEW, TicketStatus.ASSIGNED)
@@ -1434,7 +1472,7 @@ export class TicketsAssignmentService {
         actorUserId: technicianUserId,
         payload: {
           assignedTechnicianId: technicianUserId,
-          mode: 'claim',
+          mode: selfCreatedByCurrentUser ? 'claim_self_created' : 'claim',
           operationCompanyId: companyId,
         },
       })

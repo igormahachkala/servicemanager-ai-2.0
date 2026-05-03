@@ -1,7 +1,13 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
+import {
+  getPendingOfflineActionsCount,
+  retryOfflineQueue,
+  subscribeOfflineQueue,
+  useOnlineStatus,
+} from './offlineQueue'
 import './mobile.css'
 
 type MobileNavItem = {
@@ -25,6 +31,10 @@ function isActivePath(pathname: string, target: string) {
 export function MobileShell() {
   const location = useLocation()
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
+  const queryClient = useQueryClient()
+  const isOnline = useOnlineStatus()
+  const [pendingCount, setPendingCount] = useState(getPendingOfflineActionsCount())
+  const [syncMessage, setSyncMessage] = useState('')
 
   const scope = useMemo(() => {
     const params = new URLSearchParams(location.search)
@@ -41,9 +51,55 @@ export function MobileShell() {
     api.persistScopeFromSearchParams(new URLSearchParams(location.search), meQ.data)
   }, [location.search, meQ.data])
 
+  useEffect(() => {
+    const refresh = () => setPendingCount(getPendingOfflineActionsCount())
+    refresh()
+    return subscribeOfflineQueue(refresh)
+  }, [])
+
+  const retryM = useMutation({
+    mutationFn: retryOfflineQueue,
+    onMutate: () => setSyncMessage(''),
+    onSuccess: async (result) => {
+      const { synced, failed } = result
+      if (failed > 0) {
+        setSyncMessage(`Не удалось отправить: ${failed}. Успешно синхронизировано: ${synced}.`)
+      } else if (synced > 0) {
+        setSyncMessage(`Изменения отправлены: ${synced}.`)
+      } else {
+        setSyncMessage('Очередь уже пуста.')
+      }
+      setPendingCount(getPendingOfflineActionsCount())
+      await queryClient.invalidateQueries({ queryKey: ['mobile-home-board'] })
+      await queryClient.invalidateQueries({ queryKey: ['mobile-ticket-detail'] })
+      await queryClient.invalidateQueries({ queryKey: ['mobile-ticket-attachments'] })
+      await queryClient.invalidateQueries({ queryKey: ['mobile-ticket-timeline'] })
+      await queryClient.invalidateQueries({ queryKey: ['mobile-my-board'] })
+      await queryClient.invalidateQueries({ queryKey: ['board'] })
+    },
+    onError: (error: any) => {
+      setSyncMessage(error?.message || String(error))
+      setPendingCount(getPendingOfflineActionsCount())
+    },
+  })
+
   return (
     <div className="mobileShell">
       <main className="mobilePage">
+        {!isOnline ? (
+          <div className="mobileOfflineBanner mobileOfflineBannerWarning">
+            <div>Офлайн-режим: данные могут быть устаревшими</div>
+          </div>
+        ) : null}
+        {isOnline && pendingCount > 0 ? (
+          <div className="mobileOfflineBanner mobileOfflineBannerPending">
+            <div>Есть несинхронизированные изменения</div>
+            <button type="button" className="mobileBtn mobileOfflineBannerBtn" disabled={retryM.isPending} onClick={() => retryM.mutate()}>
+              {retryM.isPending ? 'Отправляем…' : 'Отправить изменения'}
+            </button>
+          </div>
+        ) : null}
+        {syncMessage ? <div className="mobileNotice mobileNoticeSuccess">{syncMessage}</div> : null}
         <Outlet />
       </main>
       <nav className="mobileBottomNav" aria-label="Мобильная навигация">

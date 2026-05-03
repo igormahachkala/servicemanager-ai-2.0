@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
+import { useOnlineStatus } from './offlineQueue'
 
 const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024
 
@@ -26,6 +27,7 @@ export function MobileCreateTicket() {
   }
 
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
+  const isOnline = useOnlineStatus()
   const meReady = meQ.isSuccess
   const isTechnician = meReady && meQ.data?.role === 'TECHNICIAN'
 
@@ -214,6 +216,10 @@ export function MobileCreateTicket() {
   function onCreate(shouldClaim: boolean) {
     setError('')
     setResult(null)
+    if (!isOnline) {
+      setError('???? ????? ????????? ?????? ??????')
+      return
+    }
     if (!locationId || !categoryId) {
       setError('Выберите локацию и категорию')
       return
@@ -247,6 +253,7 @@ export function MobileCreateTicket() {
     (!isTechnician || !!clientCompanyId)
 
   const canSubmit =
+    isOnline &&
     selectionReady &&
     !!draftAttachment &&
     !createM.isPending &&
@@ -276,6 +283,7 @@ export function MobileCreateTicket() {
       ) : null}
       {error ? <div className="mobileNotice mobileNoticeError">{error}</div> : null}
       {uploadError ? <div className="mobileNotice mobileNoticeError">{uploadError}</div> : null}
+      {!isOnline ? <div className="mobileNotice">???? ????? ????????? ?????? ??????</div> : null}
       {result ? (
         <div className="mobileNotice mobileNoticeSuccess">
           Заявка создана: {result.ticketId}
@@ -356,7 +364,7 @@ export function MobileCreateTicket() {
               className="mobilePhotoInputHidden"
               aria-label="Сделать фото камерой"
               onChange={handlePickedImage}
-              disabled={!!draftAttachment || uploadM.isPending || createM.isPending}
+              disabled={!isOnline || !!draftAttachment || uploadM.isPending || createM.isPending}
             />
             <input
               ref={galleryInputRef}
@@ -365,13 +373,13 @@ export function MobileCreateTicket() {
               className="mobilePhotoInputHidden"
               aria-label="Выбрать фото из галереи"
               onChange={handlePickedImage}
-              disabled={!!draftAttachment || uploadM.isPending || createM.isPending}
+              disabled={!isOnline || !!draftAttachment || uploadM.isPending || createM.isPending}
             />
             <div className="mobilePhotoSourceRow">
               <button
                 type="button"
                 className="mobileBtn mobileBtnSecondary mobilePhotoSourceBtn"
-                disabled={!!draftAttachment || uploadM.isPending || createM.isPending}
+                disabled={!isOnline || !!draftAttachment || uploadM.isPending || createM.isPending}
                 onClick={() => cameraInputRef.current?.click()}
               >
                 Сделать фото
@@ -379,7 +387,7 @@ export function MobileCreateTicket() {
               <button
                 type="button"
                 className="mobileBtn mobileBtnSecondary mobilePhotoSourceBtn"
-                disabled={!!draftAttachment || uploadM.isPending || createM.isPending}
+                disabled={!isOnline || !!draftAttachment || uploadM.isPending || createM.isPending}
                 onClick={() => galleryInputRef.current?.click()}
               >
                 Выбрать из телефона
