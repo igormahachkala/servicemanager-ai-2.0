@@ -99,6 +99,12 @@ export function MobileShell() {
             </button>
           </div>
         ) : null}
+        {import.meta.env.DEV ? (
+          <div className="mobileDevConnectivityDebug" aria-hidden>
+            UI: {isOnline ? 'online' : 'offline'} · navigator.onLine:{' '}
+            {typeof navigator !== 'undefined' ? String(navigator.onLine) : 'n/a'} · очередь: {pendingCount}
+          </div>
+        ) : null}
         {syncMessage ? <div className="mobileNotice mobileNoticeSuccess">{syncMessage}</div> : null}
         <Outlet />
       </main>

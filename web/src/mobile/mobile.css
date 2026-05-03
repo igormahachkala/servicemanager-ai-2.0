@@ -320,6 +320,72 @@ body,
   border: 1px solid #fecaca;
 }
 
+.mobileStaleDataBanner {
+  margin-top: 10px;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  border: 1px solid #93c5fd;
+  background: #eff6ff;
+  color: #1e3a8a;
+}
+
+.mobileOfflineBanner {
+  position: sticky;
+  top: 0;
+  z-index: 45;
+  margin: -12px -12px 12px;
+  margin-top: calc(-12px - env(safe-area-inset-top, 0px));
+  padding: 12px 12px;
+  padding-top: calc(12px + env(safe-area-inset-top, 0px));
+  padding-left: max(12px, env(safe-area-inset-left, 0px));
+  padding-right: max(12px, env(safe-area-inset-right, 0px));
+  box-sizing: border-box;
+  width: calc(100% + 24px);
+  max-width: none;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.35;
+  box-shadow: 0 4px 14px rgba(17, 24, 39, 0.12);
+}
+
+.mobileOfflineBannerWarning {
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #f59e0b;
+}
+
+.mobileOfflineBannerPending {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: #fff7ed;
+  color: #9a3412;
+  border-bottom: 2px solid #fb923c;
+}
+
+.mobileOfflineBannerBtn {
+  flex: 0 0 auto;
+  min-height: 40px;
+  padding: 8px 12px;
+  font-size: 0.85rem;
+}
+
+.mobileDevConnectivityDebug {
+  margin: 0 0 10px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  background: #1f2937;
+  color: #f9fafb;
+  word-break: break-word;
+}
+
 .mobileBottomNav {
   position: fixed;
   left: 0;
@@ -511,41 +577,4 @@ a.loginSupportActionTelegram {
   border: 1px solid #229ed9;
   background: #229ed9;
   color: #fff;
-}
-
-
-.mobileOfflineBanner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  border-radius: 12px;
-  padding: 10px 12px;
-  font-size: 0.9rem;
-  margin-bottom: 8px;
-}
-
-.mobileOfflineBannerWarning {
-  background: #fff7ed;
-  color: #9a3412;
-  border: 1px solid #fdba74;
-}
-
-.mobileOfflineBannerPending {
-  background: #eff6ff;
-  color: #1d4ed8;
-  border: 1px solid #93c5fd;
-}
-
-.mobileOfflineBannerBtn {
-  min-height: 38px;
-  padding: 8px 12px;
-  font-size: 0.82rem;
-  flex: 0 0 auto;
-}
-
-.mobileCachedLabel {
-  color: #6b7280;
-  font-size: 0.8rem;
-  margin-top: -2px;
 }

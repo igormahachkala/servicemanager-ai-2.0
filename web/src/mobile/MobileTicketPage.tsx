@@ -11,7 +11,8 @@ import {
   type MobileTicketNavState,
 } from './mobileTicketDisplay'
 import {
-  enqueueOfflineStatusChange,
+  getOnlineStatus,
+  loadAnyTicketDetailCache,
   loadTicketDetailCache,
   saveTicketDetailCache,
   useOnlineStatus,
@@ -104,9 +105,6 @@ export function MobileTicketPage() {
   const [searchParams] = useSearchParams()
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
   const queryClient = useQueryClient()
-  const isOnline = useOnlineStatus()
-  const [cachedDetailSavedAt, setCachedDetailSavedAt] = useState('')
-  const [queueNotice, setQueueNotice] = useState('')
 
   const navState = location.state as MobileTicketNavState | null | undefined
 
@@ -137,6 +135,8 @@ export function MobileTicketPage() {
     api.persistScopeFromSearchParams(searchParams, meQ.data)
   }, [searchParams, meQ.data])
 
+  const isOnline = useOnlineStatus()
+
   const ticketQ = useQuery({
     enabled: !!ticketId,
     queryKey: [
@@ -150,6 +150,12 @@ export function MobileTicketPage() {
     ],
     queryFn: async () => {
       if (!ticketId) throw new Error('Нет идентификатора заявки')
+
+      if (!getOnlineStatus()) {
+        const cached = loadTicketDetailCache(ticketId, scopeNorm) ?? loadAnyTicketDetailCache(ticketId)
+        if (cached?.data?.ticket) return cached.data.ticket
+        throw new Error('Нет сохранённой заявки. Откройте заявку при подключении к сети хотя бы раз.')
+      }
 
       const urlCo = (searchParams.get('companyId') || '').trim()
       const urlLi = (searchParams.get('linkedClientCompanyId') || '').trim()
@@ -220,17 +226,12 @@ export function MobileTicketPage() {
     enabled: !!ticketId && !!ticketQ.data,
     queryKey: ['mobile-ticket-attachments', ticketId, observerCompanyId, inferredLinkedClientCompanyId],
     queryFn: async () => {
-      try {
-        const data = await api.ticketAttachments(ticketId, effectiveTicketScope)
-        return data
-      } catch (error) {
-        const cached = loadTicketDetailCache(ticketId, effectiveTicketScope)
-        if (cached) {
-          setCachedDetailSavedAt(cached.savedAt)
-          return cached.data.attachments
-        }
-        throw error
+      if (!getOnlineStatus()) {
+        const cached = loadTicketDetailCache(ticketId, scopeNorm) ?? loadAnyTicketDetailCache(ticketId)
+        if (cached?.data) return cached.data.attachments
+        throw new Error('Нет сохранённых вложений для офлайна.')
       }
+      return api.ticketAttachments(ticketId, effectiveTicketScope)
     },
   })
 
@@ -238,19 +239,40 @@ export function MobileTicketPage() {
     enabled: !!ticketId && !!ticketQ.data,
     queryKey: ['mobile-ticket-timeline', ticketId, observerCompanyId, inferredLinkedClientCompanyId],
     queryFn: async () => {
-      try {
-        const data = await api.timeline(ticketId, effectiveTicketScope)
-        return data
-      } catch (error) {
-        const cached = loadTicketDetailCache(ticketId, effectiveTicketScope)
-        if (cached?.data.timeline) {
-          setCachedDetailSavedAt(cached.savedAt)
-          return cached.data.timeline
-        }
-        throw error
+      if (!getOnlineStatus()) {
+        const cached = loadTicketDetailCache(ticketId, scopeNorm) ?? loadAnyTicketDetailCache(ticketId)
+        if (cached?.data) return cached.data.timeline ?? null
+        throw new Error('Нет сохранённой истории для офлайна.')
       }
+      return api.timeline(ticketId, effectiveTicketScope)
     },
   })
+
+  useEffect(() => {
+    if (!getOnlineStatus()) return
+    if (!ticketQ.isSuccess || !ticketId || !ticketQ.data) return
+    if (!attachmentsQ.isSuccess) return
+    if (timelineQ.isError) return
+    if (!timelineQ.isFetched) return
+    saveTicketDetailCache({
+      ticketId,
+      scope: effectiveTicketScope,
+      ticket: ticketQ.data,
+      attachments: attachmentsQ.data ?? [],
+      timeline: timelineQ.data ?? null,
+    })
+  }, [
+    ticketId,
+    effectiveTicketScope.companyId,
+    effectiveTicketScope.linkedClientCompanyId,
+    ticketQ.isSuccess,
+    ticketQ.data,
+    attachmentsQ.isSuccess,
+    attachmentsQ.data,
+    timelineQ.isFetched,
+    timelineQ.isError,
+    timelineQ.data,
+  ])
 
   const ticket = ticketQ.data
   const canAssignProvider = api.isProviderTicketAssignRole(meQ.data?.role)
@@ -265,32 +287,6 @@ export function MobileTicketPage() {
     queryFn: () => api.assignmentCandidates(ticketId, effectiveTicketScope),
     enabled: !!ticketId && !!ticket && assignTicketOpen && canAssignProvider,
   })
-
-  useEffect(() => {
-    if (!ticketQ.data) return
-    setCachedDetailSavedAt('')
-  }, [ticketQ.data])
-
-  useEffect(() => {
-    if (!ticketId || !ticketQ.data || !attachmentsQ.data || attachmentsQ.isError) return
-    if (timelineQ.isLoading || timelineQ.isError) return
-    saveTicketDetailCache({
-      ticketId,
-      scope: effectiveTicketScope,
-      ticket: ticketQ.data,
-      attachments: attachmentsQ.data,
-      timeline: timelineQ.data || null,
-    })
-  }, [
-    ticketId,
-    effectiveTicketScope,
-    ticketQ.data,
-    attachmentsQ.data,
-    attachmentsQ.isError,
-    timelineQ.data,
-    timelineQ.isLoading,
-    timelineQ.isError,
-  ])
 
   const assignTechOptions = useMemo(() => {
     const d = assignCandidatesQ.data
@@ -328,24 +324,11 @@ export function MobileTicketPage() {
 
   const techActionM = useMutation({
     mutationFn: async (mode: 'claim' | 'start') => {
-      if (!ticket) throw new Error('\u041d\u0435\u0442 \u0437\u0430\u044f\u0432\u043a\u0438')
-      if (mode === 'claim') {
-        if (!isOnline) throw new Error('\u0412\u0437\u044f\u0442\u044c \u0437\u0430\u044f\u0432\u043a\u0443 \u043c\u043e\u0436\u043d\u043e \u0442\u043e\u043b\u044c\u043a\u043e \u043e\u043d\u043b\u0430\u0439\u043d')
-        await api.claim(ticket.id, effectiveTicketScope)
-        return 'claimed' as const
-      }
-      if (!isOnline) {
-        enqueueOfflineStatusChange({ ticketId: ticket.id, scope: effectiveTicketScope, status: 'IN_PROGRESS' })
-        return 'queued' as const
-      }
-      await api.updateTicketStatus(ticket.id, { status: 'IN_PROGRESS' }, effectiveTicketScope)
-      return 'started' as const
+      if (!ticket) throw new Error('Нет заявки')
+      if (mode === 'claim') await api.claim(ticket.id, effectiveTicketScope)
+      else await api.updateTicketStatus(ticket.id, { status: 'IN_PROGRESS' }, effectiveTicketScope)
     },
-    onSuccess: async (result) => {
-      if (result === 'queued') {
-        setQueueNotice('\u0418\u0437\u043c\u0435\u043d\u0435\u043d\u0438\u0435 \u0441\u043e\u0445\u0440\u0430\u043d\u0435\u043d\u043e \u043b\u043e\u043a\u0430\u043b\u044c\u043d\u043e. \u041e\u0442\u043f\u0440\u0430\u0432\u044c\u0442\u0435 \u0435\u0433\u043e, \u043a\u043e\u0433\u0434\u0430 \u0441\u0435\u0442\u044c \u043f\u043e\u044f\u0432\u0438\u0442\u0441\u044f.')
-        return
-      }
+    onSuccess: async () => {
       await invalidateTicketQueries()
     },
   })
@@ -353,7 +336,6 @@ export function MobileTicketPage() {
   const assignM = useMutation({
     mutationFn: async (params: { technicianId: string }) => {
       if (!ticketId) throw new Error('Нет заявки')
-      if (!isOnline) throw new Error('\u041d\u0430\u0437\u043d\u0430\u0447\u0435\u043d\u0438\u0435 \u0434\u043e\u0441\u0442\u0443\u043f\u043d\u043e \u0442\u043e\u043b\u044c\u043a\u043e \u043e\u043d\u043b\u0430\u0439\u043d')
       await api.assignTicket(ticketId, params.technicianId, effectiveTicketScope)
     },
     onMutate: () => setAssignErr(''),
@@ -421,12 +403,17 @@ export function MobileTicketPage() {
         </Link>
       </div>
 
+      {!isOnline && ticketQ.isSuccess && ticket ? (
+        <div className="mobileStaleDataBanner" role="status">
+          Показаны сохранённые данные
+        </div>
+      ) : null}
+
       {ticketQ.isLoading ? <div className="mobileCard mobileMeta">Загрузка…</div> : null}
       {ticketQ.isError ? (
         <div className="mobileNotice mobileNoticeError">{String((ticketQ.error as any)?.message || ticketQ.error)}</div>
       ) : null}
-      {cachedDetailSavedAt ? <div className="mobileCachedLabel">{'\u041f\u043e\u043a\u0430\u0437\u0430\u043d\u044b \u0441\u043e\u0445\u0440\u0430\u043d\u0451\u043d\u043d\u044b\u0435 \u0434\u0430\u043d\u043d\u044b\u0435'}</div> : null}
-      {queueNotice ? <div className="mobileNotice mobileNoticeSuccess">{queueNotice}</div> : null}
+
       {ticket ? (
         <>
           <div className="mobileCard">
@@ -474,7 +461,7 @@ export function MobileTicketPage() {
                   type="button"
                   className="mobileBtn"
                   style={{ width: '100%' }}
-                  disabled={techActionBusy || !isOnline}
+                  disabled={techActionBusy}
                   onClick={() => techActionM.mutate('claim')}
                 >
                   {techActionBusy ? 'Выполняем…' : 'Взять заявку'}
@@ -491,24 +478,6 @@ export function MobileTicketPage() {
                   {techActionBusy ? 'Выполняем…' : 'Начать работу'}
                 </button>
               ) : null}
-              {!isOnline && techPrimary === 'claim' ? (
-                <div className="mobileMeta" style={{ marginTop: 8 }}>{'\u0412\u0437\u044f\u0442\u044c \u0437\u0430\u044f\u0432\u043a\u0443 \u043c\u043e\u0436\u043d\u043e \u0442\u043e\u043b\u044c\u043a\u043e \u043e\u043d\u043b\u0430\u0439\u043d.'}</div>
-              ) : null}
-              {!isOnline && showAssignButton ? (
-                <div className="mobileMeta" style={{ marginTop: 8 }}>{'\u041d\u0430\u0437\u043d\u0430\u0447\u0435\u043d\u0438\u0435 \u0434\u043e\u0441\u0442\u0443\u043f\u043d\u043e \u0442\u043e\u043b\u044c\u043a\u043e \u043e\u043d\u043b\u0430\u0439\u043d.'}</div>
-              ) : null}
-              {!isOnline && techPrimary === 'claim' ? (
-                <div className="mobileMeta" style={{ marginTop: 8 }}>{'\u0412\u0437\u044f\u0442\u044c \u0437\u0430\u044f\u0432\u043a\u0443 \u043c\u043e\u0436\u043d\u043e \u0442\u043e\u043b\u044c\u043a\u043e \u043e\u043d\u043b\u0430\u0439\u043d.'}</div>
-              ) : null}
-              {!isOnline && showAssignButton ? (
-                <div className="mobileMeta" style={{ marginTop: 8 }}>{'\u041d\u0430\u0437\u043d\u0430\u0447\u0435\u043d\u0438\u0435 \u0434\u043e\u0441\u0442\u0443\u043f\u043d\u043e \u0442\u043e\u043b\u044c\u043a\u043e \u043e\u043d\u043b\u0430\u0439\u043d.'}</div>
-              ) : null}
-              {!isOnline && techPrimary === 'claim' ? (
-                <div className="mobileMeta" style={{ marginTop: 8 }}>{'\u0412\u0437\u044f\u0442\u044c \u0437\u0430\u044f\u0432\u043a\u0443 \u043c\u043e\u0436\u043d\u043e \u0442\u043e\u043b\u044c\u043a\u043e \u043e\u043d\u043b\u0430\u0439\u043d.'}</div>
-              ) : null}
-              {!isOnline && showAssignButton ? (
-                <div className="mobileMeta" style={{ marginTop: 8 }}>{'\u041d\u0430\u0437\u043d\u0430\u0447\u0435\u043d\u0438\u0435 \u0434\u043e\u0441\u0442\u0443\u043f\u043d\u043e \u0442\u043e\u043b\u044c\u043a\u043e \u043e\u043d\u043b\u0430\u0439\u043d.'}</div>
-              ) : null}
               {showTechnicianInProgressHint ? (
                 <div className="mobileMeta" style={{ marginTop: 8 }}>
                   Закрытие с фото отчёта — на вкладке «Главная» в списке «В работе».
@@ -519,7 +488,6 @@ export function MobileTicketPage() {
                   type="button"
                   className="mobileBtn mobileBtnSecondary"
                   style={{ width: '100%', marginTop: techPrimary ? 8 : 0 }}
-                  disabled={!isOnline}
                   onClick={() => {
                     setAssignErr('')
                     setAssignTicketOpen(true)
@@ -688,7 +656,7 @@ export function MobileTicketPage() {
               <button
                 type="button"
                 className="mobileBtn mobileBtnSecondary"
-                disabled={assignBusy || !isOnline}
+                disabled={assignBusy}
                 onClick={() => {
                   setAssignTicketOpen(false)
                   setAssignErr('')

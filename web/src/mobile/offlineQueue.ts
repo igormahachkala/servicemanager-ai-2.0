@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useState } from 'react'
 import * as api from '../lib/api'
 
 export type OfflineQueueActionType = 'ticket_status_change' | 'ticket_comment'
@@ -94,7 +94,11 @@ export function getOnlineStatus(): boolean {
 }
 
 export function useOnlineStatus(): boolean {
-  const [isOnline, setIsOnline] = useState(getOnlineStatus())
+  const [isOnline, setIsOnline] = useState(() => getOnlineStatus())
+
+  useLayoutEffect(() => {
+    setIsOnline(getOnlineStatus())
+  }, [])
 
   useEffect(() => {
     const sync = () => setIsOnline(getOnlineStatus())
@@ -300,4 +304,16 @@ export function saveTicketDetailCache(params: {
 export function loadTicketDetailCache(ticketId: string, scope?: api.TicketScopeParams): OfflineTicketDetailCacheEntry | null {
   const current = safeReadJson<Record<string, OfflineTicketDetailCacheEntry>>(OFFLINE_TICKET_CACHE_KEY, {})
   return current[ticketDetailKey(ticketId, scope)] || null
+}
+
+/** Любой сохранённый срез заявки по id (разные scope в ключе). Только для офлайн-чтения кэша. */
+export function loadAnyTicketDetailCache(ticketId: string): OfflineTicketDetailCacheEntry | null {
+  const id = (ticketId || '').trim()
+  if (!id) return null
+  const current = safeReadJson<Record<string, OfflineTicketDetailCacheEntry>>(OFFLINE_TICKET_CACHE_KEY, {})
+  const prefix = `${id}::`
+  for (const [key, entry] of Object.entries(current)) {
+    if (key.startsWith(prefix)) return entry
+  }
+  return null
 }

@@ -16,12 +16,7 @@ import {
   mobileHomeBoardTabCounts,
   type MobileHomeBoardFilterTab,
 } from './mobileHomeBoardFilters'
-import {
-  enqueueOfflineStatusChange,
-  loadBoardCache,
-  saveBoardCache,
-  useOnlineStatus,
-} from './offlineQueue'
+import { getOnlineStatus, loadBoardCache, saveBoardCache, useOnlineStatus } from './offlineQueue'
 
 const MOBILE_HOME_TAB_LABELS: Record<MobileHomeBoardFilterTab, string> = {
   all: 'Все',
@@ -128,6 +123,7 @@ export function MobileHome() {
   const location = useLocation()
   const search = new URLSearchParams(location.search)
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
+  const isOnline = useOnlineStatus()
   const linkedClientCompanyId = (search.get('linkedClientCompanyId') || api.getLinkedClientCompanyId(meQ.data)).trim()
   const companyId = (search.get('companyId') || api.getObserverCompanyId(meQ.data)).trim()
   const pageScope = {
@@ -135,31 +131,23 @@ export function MobileHome() {
     companyId: companyId || undefined,
   }
   const queryClient = useQueryClient()
-  const isOnline = useOnlineStatus()
-  const [cachedBoardSavedAt, setCachedBoardSavedAt] = useState('')
-  const [queueNotice, setQueueNotice] = useState('')
   const boardQ = useQuery({
     queryKey: ['mobile-home-board', linkedClientCompanyId, companyId],
     queryFn: async () => {
-      try {
-        const data = await api.board({
-          linkedClientCompanyId: pageScope.linkedClientCompanyId,
-          companyId: pageScope.companyId,
-          take: 30,
-        })
-        saveBoardCache(pageScope, data)
-        setCachedBoardSavedAt('')
-        return data
-      } catch (error) {
+      if (!getOnlineStatus()) {
         const cached = loadBoardCache(pageScope)
-        if (cached) {
-          setCachedBoardSavedAt(cached.savedAt)
-          return cached.data
-        }
-        throw error
+        if (cached?.data) return cached.data
+        throw new Error('Нет сохранённых заявок. Откройте главную при подключении к сети хотя бы раз.')
       }
+      const data = await api.board({
+        linkedClientCompanyId: pageScope.linkedClientCompanyId,
+        companyId: pageScope.companyId,
+        take: 30,
+      })
+      saveBoardCache(pageScope, data)
+      return data
     },
-    enabled: !!meQ.data,
+    enabled: !isOnline || !!meQ.data,
   })
 
   const linkedClientsQ = useQuery({
@@ -215,8 +203,8 @@ export function MobileHome() {
   const companyPrimaryLine = useMemo(() => {
     const fromMe = (meQ.data?.companyName || '').trim()
     if (fromMe) return fromMe
-    return (api.getCompanyLabel(meQ.data) || '').trim() || '—'
-  }, [meQ.data])
+    return (api.getCompanyLabel(meQ.data) || '').trim() || (!isOnline ? 'Профиль недоступен (офлайн)' : '—')
+  }, [meQ.data, isOnline])
 
   const linkedClientDisplayName = useMemo(() => {
     if (!linkedClientCompanyId) return ''
@@ -249,43 +237,32 @@ export function MobileHome() {
   const actionM = useMutation({
     mutationFn: async (ticket: api.TicketCard) => {
       if (ticket.status === 'NEW') {
-        if (!isOnline) throw new Error('\u0412\u0437\u044f\u0442\u044c \u0437\u0430\u044f\u0432\u043a\u0443 \u043c\u043e\u0436\u043d\u043e \u0442\u043e\u043b\u044c\u043a\u043e \u043e\u043d\u043b\u0430\u0439\u043d')
         await api.claim(ticket.id, pageScope)
-        return 'claimed' as const
+        return
       }
       if (ticket.status === 'ASSIGNED') {
-        if (!isOnline) {
-          enqueueOfflineStatusChange({ ticketId: ticket.id, scope: pageScope, status: 'IN_PROGRESS' })
-          return 'queued_start' as const
-        }
         await api.updateTicketStatus(ticket.id, { status: 'IN_PROGRESS' }, pageScope)
-        return 'started' as const
+        return
       }
       if (ticket.status === 'IN_PROGRESS') {
-        if (!isOnline) throw new Error('\u0424\u043e\u0442\u043e \u043c\u043e\u0436\u043d\u043e \u043e\u0442\u043f\u0440\u0430\u0432\u0438\u0442\u044c \u0442\u043e\u043b\u044c\u043a\u043e \u043e\u043d\u043b\u0430\u0439\u043d')
         if (
           !api.allowMobileHomeFieldTicketActions(meQ.data?.role) ||
           ticket.assignedTechnician?.id !== meQ.data?.id
         ) {
-          throw new Error('\u0417\u0430\u043a\u0440\u044b\u0442\u0438\u0435 \u043d\u0435\u0434\u043e\u0441\u0442\u0443\u043f\u043d\u043e \u0434\u043b\u044f \u044d\u0442\u043e\u0439 \u0437\u0430\u044f\u0432\u043a\u0438')
+          throw new Error('Закрытие недоступно для этой заявки')
         }
         setCloseModal({
           ticketId: ticket.id,
-          title: `${mobileTicketNumberTitle(ticket.ticketNumber)} - ${mobileTicketCategoryLocationFromCard(ticket)}`,
+          title: `${mobileTicketNumberTitle(ticket.ticketNumber)} — ${mobileTicketCategoryLocationFromCard(ticket)}`,
           file: null,
           previewUrl: '',
           comment: '',
           err: '',
         })
-        return 'open_close' as const
-      }
-      return 'noop' as const
-    },
-    onSuccess: async (result, ticket) => {
-      if (result === 'queued_start') {
-        setQueueNotice('\u0418\u0437\u043c\u0435\u043d\u0435\u043d\u0438\u0435 \u0441\u043e\u0445\u0440\u0430\u043d\u0435\u043d\u043e \u043b\u043e\u043a\u0430\u043b\u044c\u043d\u043e. \u041e\u0442\u043f\u0440\u0430\u0432\u044c\u0442\u0435 \u0435\u0433\u043e, \u043a\u043e\u0433\u0434\u0430 \u0441\u0435\u0442\u044c \u043f\u043e\u044f\u0432\u0438\u0442\u0441\u044f.')
         return
       }
+    },
+    onSuccess: async (_data, ticket) => {
       if (ticket.status === 'IN_PROGRESS') return
       await queryClient.invalidateQueries({ queryKey: ['mobile-home-board'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-home-available'] })
@@ -366,6 +343,11 @@ export function MobileHome() {
       <div>
         <h1 className="mobileTitle">Главная</h1>
         <div className="mobileSubtitle">Операционный экран без desktop-шумов</div>
+        {!isOnline && boardQ.isSuccess && boardQ.data ? (
+          <div className="mobileStaleDataBanner" role="status">
+            Показаны сохранённые данные
+          </div>
+        ) : null}
       </div>
 
       <div className="mobileCard" style={{ padding: 12 }}>
@@ -388,15 +370,6 @@ export function MobileHome() {
       </div>
 
       {boardQ.isError ? <div className="mobileNotice mobileNoticeError">{String((boardQ.error as any)?.message || boardQ.error)}</div> : null}
-      {cachedBoardSavedAt ? <div className="mobileCachedLabel">???????? ??????????? ??????</div> : null}
-      {queueNotice ? <div className="mobileNotice mobileNoticeSuccess">{queueNotice}</div> : null}
-      {!isOnline && canAssignProvider ? <div className="mobileNotice">?????????? ???????? ?????? ??????</div> : null}
-      {cachedBoardSavedAt ? <div className="mobileCachedLabel">???????? ??????????? ??????</div> : null}
-      {queueNotice ? <div className="mobileNotice mobileNoticeSuccess">{queueNotice}</div> : null}
-      {!isOnline && canAssignProvider ? <div className="mobileNotice">?????????? ???????? ?????? ??????</div> : null}
-      {cachedBoardSavedAt ? <div className="mobileCachedLabel">???????? ??????????? ??????</div> : null}
-      {queueNotice ? <div className="mobileNotice mobileNoticeSuccess">{queueNotice}</div> : null}
-      {!isOnline && canAssignProvider ? <div className="mobileNotice">?????????? ???????? ?????? ??????</div> : null}
 
       {meQ.data?.role === 'TECHNICIAN' && !linkedClientCompanyId ? (
         <div
@@ -412,7 +385,7 @@ export function MobileHome() {
         </div>
       ) : null}
 
-      {meQ.data && !boardQ.isError ? (
+      {(meQ.data || (!!boardQ.data && !isOnline)) && !boardQ.isError ? (
         <>
           <div className="mobileFilterTabs" role="tablist" aria-label="Фильтр заявок">
             {MOBILE_HOME_TABS.map((tab) => (
@@ -455,7 +428,7 @@ export function MobileHome() {
                               setAssignErr('')
                               setAssignTicket(ticket)
                             },
-                            disabled: primaryPending || !isOnline,
+                            disabled: primaryPending,
                           }
                         : null
                     }
@@ -605,7 +578,7 @@ export function MobileHome() {
                   type="file"
                   accept="image/*"
                   capture="environment"
-                  disabled={closeBusy || !isOnline}
+                  disabled={closeBusy}
                   onChange={(e) => {
                     const file = e.target.files?.[0] || null
                     setCloseModal((prev) => {
@@ -621,7 +594,7 @@ export function MobileHome() {
                   className="mobileHiddenFileInput"
                   type="file"
                   accept="image/*"
-                  disabled={closeBusy || !isOnline}
+                  disabled={closeBusy}
                   onChange={(e) => {
                     const file = e.target.files?.[0] || null
                     setCloseModal((prev) => {
@@ -637,7 +610,7 @@ export function MobileHome() {
                   <button
                     type="button"
                     className="mobileBtn mobileBtnSecondary mobilePhotoSourceBtn"
-                    disabled={closeBusy || !isOnline}
+                    disabled={closeBusy}
                     onClick={() => closeCameraInputRef.current?.click()}
                   >
                     Сделать фото отчёта
@@ -645,14 +618,13 @@ export function MobileHome() {
                   <button
                     type="button"
                     className="mobileBtn mobileBtnSecondary mobilePhotoSourceBtn"
-                    disabled={closeBusy || !isOnline}
+                    disabled={closeBusy}
                     onClick={() => closeGalleryInputRef.current?.click()}
                   >
                     Выбрать фото из телефона
                   </button>
                 </div>
 
-                {!isOnline ? <div className="mobileMeta" style={{ marginTop: 10 }}>???? ????? ????????? ?????? ??????</div> : null}
                 {closeModal.previewUrl ? (
                   <div className="mobilePhotoPreview">
                     <img
@@ -677,7 +649,7 @@ export function MobileHome() {
               </label>
 
               <div className="mobileFormSubmitStack">
-                <button type="button" className="mobileBtn" disabled={!isOnline || !closeCanSubmit} onClick={() => closeM.mutate()}>
+                <button type="button" className="mobileBtn" disabled={!closeCanSubmit} onClick={() => closeM.mutate()}>
                   {closeBusy ? 'Закрываем...' : 'Загрузить отчёт и закрыть'}
                 </button>
                 <p className="mobileHint" style={{ marginBottom: 0 }}>
