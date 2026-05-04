@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
@@ -10,6 +10,7 @@ import {
   mobileTicketPriorityIsUrgent,
   mobileTicketSlaCountdownLabel,
   mobileTicketStatusLabelRu,
+  stripMobileHomeRestoreFromNavState,
   type MobileTicketNavState,
   scopeForMobileTicketLink,
 } from './mobileTicketDisplay'
@@ -17,8 +18,17 @@ import {
   filterTicketsForMobileHomeTab,
   mobileHomeBoardTabCounts,
   mobileHomeTabEmptyCopy,
+  MOBILE_HOME_BOARD_CHIP_IDS,
+  MOBILE_HOME_BOARD_CHIP_LABELS,
+  type MobileHomeBoardChipId,
   type MobileHomeBoardFilterTab,
 } from './mobileHomeBoardFilters'
+import {
+  buildMobileHomeVisibleTickets,
+  formatActiveMobileHomeFiltersSummary,
+  readPersistedMobileHomeBoardUi,
+  writePersistedMobileHomeBoardUi,
+} from './mobileHomeListUtils'
 import {
   MobileBoardClaimFallbackHint,
   MobileClaimReasonHintBox,
@@ -47,6 +57,7 @@ function getPrimaryActionLabel(
 ): 'Взять' | 'Запросить назначение' | 'Начать' | 'Закрыть' | null {
   if (!api.allowMobileHomeFieldTicketActions(role) || !meId) return null
   if (ticket.status === 'NEW' && !ticket.assignedTechnician) {
+    if (role === 'TECHNICIAN' && ticket.assignmentRequestedByCurrentUser) return null
     if (role === 'TECHNICIAN' && ticket.canClaimByCurrentUser === false) return 'Запросить назначение'
     return 'Взять'
   }
@@ -75,7 +86,8 @@ function homeTicketActionProgressLabel(
   if (assignBusy && assignTicketId === ticket.id) return 'Назначаем…'
   if (actionM.isPending && actionM.variables?.id === ticket.id) {
     if (ticket.status === 'NEW') {
-      if (ticket.canClaimByCurrentUser === false) return 'Отправляем запрос…'
+      if (ticket.canClaimByCurrentUser === false && !ticket.assignmentRequestedByCurrentUser)
+        return 'Отправляем запрос…'
       return 'Берём заявку…'
     }
     if (ticket.status === 'ASSIGNED') return 'Начинаем…'
@@ -110,6 +122,11 @@ function TicketCard(props: {
   })
   const urgent = mobileTicketPriorityIsUrgent(ticket.priority ?? 'NORMAL')
   const overdue = ticket.slaBreached
+  const problemPreview = (() => {
+    const t = (ticket.description || '').trim()
+    if (t) return t
+    return (ticket.title || '').trim() || '—'
+  })()
   const statusClass = `mobileTicketStatus mobileTicketStatus--${ticket.status}`
   const cardClass = [
     'mobileCard',
@@ -127,16 +144,35 @@ function TicketCard(props: {
             <strong>{mobileTicketNumberTitle(ticket.ticketNumber)}</strong>
             <span className={statusClass}>{mobileTicketStatusLabelRu(ticket.status)}</span>
           </div>
+          <div className="mobileTicketCardPriorityRow" style={{ marginTop: 6 }}>
+            {urgent ? (
+              <span className="mobileSlaUrgentPill">Срочный приоритет</span>
+            ) : (
+              <span className="mobileMeta">Приоритет: обычный</span>
+            )}
+            {ticket.urgency === 'URGENT' && !urgent ? <span className="mobileSlaUrgentPill">Срочная заявка</span> : null}
+          </div>
+          {ticket.assignmentRequestedByCurrentUser ? (
+            <div className="mobileAssignmentRequestedRow" style={{ marginTop: 8 }}>
+              <span className="mobileAssignmentRequestedBadge">Запрос отправлен</span>
+              <span className="mobileMeta mobileAssignmentRequestedRowHint">Ожидайте назначение диспетчером</span>
+            </div>
+          ) : null}
           <div className="mobileMeta" style={{ marginTop: 4 }}>
             {mobileTicketCategoryLocationFromCard(ticket)}
           </div>
-          <div className="mobileMeta" style={{ marginTop: 4 }}>
+          {(ticket.requesterName || '').trim() ? (
+            <div className="mobileMeta" style={{ marginTop: 4 }}>
+              Заявитель: {(ticket.requesterName || '').trim()}
+            </div>
+          ) : null}
+          <div className="mobileTicketProblemPreview">{problemPreview}</div>
+          <div className="mobileMeta" style={{ marginTop: 6 }}>
             Исполнитель: {assignedTechnicianDisplay(ticket)}
           </div>
-          {urgent || slaLine ? (
+          {slaLine ? (
             <div className="mobileTicketSlaRow" style={{ marginTop: 6 }}>
-              {urgent ? <span className="mobileSlaUrgentPill">Срочно</span> : null}
-              {slaLine ? <span className="mobileTicketSlaCountdown">{slaLine}</span> : null}
+              <span className="mobileTicketSlaCountdown">{slaLine}</span>
             </div>
           ) : null}
         </div>
@@ -209,6 +245,12 @@ export function MobileHome() {
     companyId: companyId || undefined,
   }
   const queryClient = useQueryClient()
+  const [mobileActionToast, setMobileActionToast] = useState('')
+  useEffect(() => {
+    if (!mobileActionToast) return
+    const tid = window.setTimeout(() => setMobileActionToast(''), 2800)
+    return () => window.clearTimeout(tid)
+  }, [mobileActionToast])
 
   const techNoLinked = meQ.data?.role === 'TECHNICIAN' && !linkedClientCompanyId
   const techBoundDefaultsQ = useQuery({
@@ -254,7 +296,7 @@ export function MobileHome() {
       const data = await api.board({
         linkedClientCompanyId: pageScope.linkedClientCompanyId,
         companyId: pageScope.companyId,
-        take: 30,
+        take: 100,
       })
       saveBoardCache(pageScope, data)
       return data
@@ -273,14 +315,87 @@ export function MobileHome() {
   const cards = boardQ.data?.columns.flatMap((col) => col.cards || []) || []
   const canAssignProvider = api.isProviderTicketAssignRole(meQ.data?.role)
 
-  const [boardTab, setBoardTab] = useState<MobileHomeBoardFilterTab>('all')
+  const persistedBoardUi = useMemo(() => readPersistedMobileHomeBoardUi(), [])
+  const [boardTab, setBoardTab] = useState<MobileHomeBoardFilterTab>(persistedBoardUi.tab)
+  const [activeChips, setActiveChips] = useState<Set<MobileHomeBoardChipId>>(
+    () => new Set(persistedBoardUi.chips),
+  )
+  const [searchQuery, setSearchQuery] = useState('')
   const [homeIntroDismissed, setHomeIntroDismissed] = useState(() => readMobileHomeIntroDismissed())
-  const tabButtonRefs = useRef<Partial<Record<MobileHomeBoardFilterTab, HTMLButtonElement | null>>>({})
+
+  useLayoutEffect(() => {
+    const s = location.state as MobileTicketNavState | null | undefined
+    if (!s || typeof s !== 'object') return
+    const hasTab = !!(s.homeBoardTab && MOBILE_HOME_TABS.includes(s.homeBoardTab))
+    const hasChips = Array.isArray(s.homeBoardChips)
+    const hasSearch = typeof s.homeBoardSearch === 'string'
+    if (!hasTab && !hasChips && !hasSearch) return
+    if (hasTab && s.homeBoardTab) setBoardTab(s.homeBoardTab)
+    if (hasChips) {
+      setActiveChips(
+        new Set(
+          s.homeBoardChips!.filter((c): c is MobileHomeBoardChipId =>
+            MOBILE_HOME_BOARD_CHIP_IDS.includes(c as MobileHomeBoardChipId),
+          ),
+        ),
+      )
+    }
+    if (hasSearch) setSearchQuery((s.homeBoardSearch || '').slice(0, 240))
+    navigate(`${location.pathname}${location.search}`, {
+      replace: true,
+      state: stripMobileHomeRestoreFromNavState(s) ?? undefined,
+    })
+  }, [location.key, location.pathname, location.search, navigate])
+
+  useEffect(() => {
+    writePersistedMobileHomeBoardUi(boardTab, activeChips)
+  }, [boardTab, activeChips])
+
   const tabCounts = useMemo(() => mobileHomeBoardTabCounts(cards, meQ.data?.id), [cards, meQ.data?.id])
-  const filteredTickets = useMemo(
+  const atRiskThresholdMinutes = boardQ.data?.meta.atRiskThresholdMinutes ?? 60
+
+  const visibleTickets = useMemo(
+    () =>
+      buildMobileHomeVisibleTickets({
+        cards,
+        tab: boardTab,
+        meId: meQ.data?.id,
+        chips: activeChips,
+        searchQuery,
+        atRiskThresholdMinutes,
+      }),
+    [cards, boardTab, meQ.data?.id, activeChips, searchQuery, atRiskThresholdMinutes],
+  )
+
+  const tabOnlyTickets = useMemo(
     () => filterTicketsForMobileHomeTab(cards, boardTab, meQ.data?.id),
     [cards, boardTab, meQ.data?.id],
   )
+
+  const hasHomeListFilters = !!searchQuery.trim() || activeChips.size > 0
+  const filterSummary = useMemo(
+    () =>
+      formatActiveMobileHomeFiltersSummary({
+        searchQuery,
+        chips: activeChips,
+        chipLabels: MOBILE_HOME_BOARD_CHIP_LABELS,
+      }),
+    [searchQuery, activeChips],
+  )
+
+  function toggleChip(id: MobileHomeBoardChipId) {
+    setActiveChips((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function resetHomeListFilters() {
+    setSearchQuery('')
+    setActiveChips(new Set())
+  }
 
   const [assignTicket, setAssignTicket] = useState<api.TicketCard | null>(null)
   const [assignTechId, setAssignTechId] = useState('')
@@ -289,7 +404,7 @@ export function MobileHome() {
 
   useEffect(() => {
     setHomeActionErr('')
-  }, [boardTab])
+  }, [boardTab, activeChips, searchQuery])
 
   const assignCandidatesQ = useQuery({
     queryKey: ['mobile-home-assign-candidates', assignTicket?.id, linkedClientCompanyId, companyId],
@@ -367,6 +482,7 @@ export function MobileHome() {
     mutationFn: async (ticket: api.TicketCard) => {
       if (ticket.status === 'NEW') {
         if (meQ.data?.role === 'TECHNICIAN' && ticket.canClaimByCurrentUser === false) {
+          if (ticket.assignmentRequestedByCurrentUser) return
           await api.requestTicketAssignment(ticket.id, pageScope)
           return
         }
@@ -398,6 +514,13 @@ export function MobileHome() {
     onMutate: () => setHomeActionErr(''),
     onSuccess: async (_data, ticket) => {
       if (ticket.status === 'IN_PROGRESS') return
+      if (
+        ticket.status === 'NEW' &&
+        meQ.data?.role === 'TECHNICIAN' &&
+        ticket.canClaimByCurrentUser === false
+      ) {
+        setMobileActionToast('Запрос отправлен')
+      }
       await queryClient.invalidateQueries({ queryKey: ['mobile-home-board'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-home-available'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-my-board'] })
@@ -475,7 +598,12 @@ export function MobileHome() {
     return api.appendScopeToPath(`/m/tickets/${ticket.id}`, compactTicketScope(linkScope), meQ.data)
   }
 
-  const ticketLinkState = (ticket: api.TicketCard) => mobileTicketNavState('home', ticket.companyId)
+  const ticketLinkState = (ticket: api.TicketCard) =>
+    mobileTicketNavState('home', ticket.companyId, {
+      tab: boardTab,
+      chips: [...activeChips],
+      search: searchQuery.trim() || undefined,
+    })
 
   const closeCanSubmit = useMemo(() => {
     if (!closeModal) return false
@@ -495,13 +623,6 @@ export function MobileHome() {
     !techWillRedirectForScope &&
     !boardQ.isError &&
     (meQ.data || (!!boardQ.data && !isOnline))
-
-  useEffect(() => {
-    if (!showMobileHomeTicketBoard) return
-    const el = tabButtonRefs.current[boardTab]
-    if (!el) return
-    el.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
-  }, [boardTab, showMobileHomeTicketBoard])
 
   return (
     <div className="mobileSection">
@@ -570,23 +691,57 @@ export function MobileHome() {
 
       {showMobileHomeTicketBoard ? (
         <>
-          <div className="mobileFilterTabs" role="tablist" aria-label="Фильтр заявок">
-            {MOBILE_HOME_TABS.map((tab) => (
-              <button
-                key={tab}
-                ref={(node) => {
-                  tabButtonRefs.current[tab] = node
-                }}
-                type="button"
-                role="tab"
-                aria-selected={boardTab === tab}
-                className={`mobileFilterTab${boardTab === tab ? ' mobileFilterTabActive' : ''}`}
-                onClick={() => setBoardTab(tab)}
-              >
-                {MOBILE_HOME_TAB_LABELS[tab]}
-                <span className="mobileFilterTabCount">{tabCounts[tab]}</span>
-              </button>
-            ))}
+          <div className="mobileHomeBoardSticky">
+            <div className="mobileFilterTabs mobileHomeStatusTabs" role="tablist" aria-label="Статус заявок">
+              {MOBILE_HOME_TABS.map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  role="tab"
+                  aria-selected={boardTab === tab}
+                  className={`mobileFilterTab${boardTab === tab ? ' mobileFilterTabActive' : ''}`}
+                  onClick={() => setBoardTab(tab)}
+                >
+                  {MOBILE_HOME_TAB_LABELS[tab]}
+                  <span className="mobileFilterTabCount">{tabCounts[tab]}</span>
+                </button>
+              ))}
+            </div>
+            <label className="mobileHomeSearchWrap">
+              <span className="mobileVisuallyHidden">Поиск заявок по загруженному списку</span>
+              <input
+                className="mobileHomeSearchInput"
+                type="search"
+                enterKeyHint="search"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                placeholder="Поиск: номер, адрес, точка, проблема"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </label>
+            <div className="mobileChipRow" role="group" aria-label="Быстрые фильтры">
+              {MOBILE_HOME_BOARD_CHIP_IDS.map((id) => (
+                <button
+                  key={id}
+                  type="button"
+                  className={`mobileFilterChip${activeChips.has(id) ? ' mobileFilterChipActive' : ''}`}
+                  aria-pressed={activeChips.has(id)}
+                  onClick={() => toggleChip(id)}
+                >
+                  {MOBILE_HOME_BOARD_CHIP_LABELS[id]}
+                </button>
+              ))}
+            </div>
+            <div className="mobileHomeResultRow">
+              <span className="mobileMeta">Найдено: {visibleTickets.length}</span>
+              {filterSummary ? (
+                <span className="mobileMeta mobileHomeResultFilters" title={filterSummary}>
+                  {filterSummary}
+                </span>
+              ) : null}
+            </div>
           </div>
           {meQ.data?.role === 'TECHNICIAN' && !homeIntroDismissed ? (
             <MobileHomeTabsIntroBanner
@@ -616,7 +771,7 @@ export function MobileHome() {
             ) : null}
             {boardQ.isLoading ? (
               <div className="mobileCard mobileMeta">Загрузка заявок…</div>
-            ) : filteredTickets.length === 0 ? (
+            ) : tabOnlyTickets.length === 0 && !hasHomeListFilters ? (
               (() => {
                 const empty = mobileHomeTabEmptyCopy(boardTab, {
                   role: meQ.data?.role,
@@ -630,8 +785,18 @@ export function MobileHome() {
                   </div>
                 )
               })()
+            ) : visibleTickets.length === 0 ? (
+              <div className="mobileCard mobileEmptyState" role="status">
+                <div className="mobileEmptyStateTitle">Ничего не найдено</div>
+                <p className="mobileEmptyStateHint">
+                  Активные условия: {filterSummary || '—'}
+                </p>
+                <button type="button" className="mobileBtn mobileBtnSecondary" onClick={resetHomeListFilters}>
+                  Сбросить фильтры
+                </button>
+              </div>
             ) : (
-              filteredTickets.map((ticket) => {
+              visibleTickets.map((ticket) => {
                 const showAssignFooter =
                   canAssignProvider && ticket.status === 'NEW' && !ticket.assignedTechnician
                 const actionProgressLabel = homeTicketActionProgressLabel(
@@ -891,6 +1056,11 @@ export function MobileHome() {
               </div>
             </div>
           </div>
+        </div>
+      ) : null}
+      {mobileActionToast ? (
+        <div className="mobileToastHost" role="status">
+          <div className="mobileToast">{mobileActionToast}</div>
         </div>
       ) : null}
     </div>

@@ -2,6 +2,19 @@ import type { Role, TicketCard } from '../lib/api'
 
 export type MobileHomeBoardFilterTab = 'all' | 'new' | 'mine' | 'in_work'
 
+/** Быстрые фильтры на главной /m (комбинируются с поиском и вкладкой). */
+export type MobileHomeBoardChipId = 'urgent' | 'overdue' | 'unassigned' | 'mine' | 'today'
+
+export const MOBILE_HOME_BOARD_CHIP_IDS: MobileHomeBoardChipId[] = ['urgent', 'overdue', 'unassigned', 'mine', 'today']
+
+export const MOBILE_HOME_BOARD_CHIP_LABELS: Record<MobileHomeBoardChipId, string> = {
+  urgent: 'Срочные',
+  overdue: 'Просроченные',
+  unassigned: 'Без исполнителя',
+  mine: 'Мои',
+  today: 'Сегодня',
+}
+
 export function dedupeBoardCards(cards: TicketCard[]): TicketCard[] {
   const seen = new Set<string>()
   const out: TicketCard[] = []

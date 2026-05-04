@@ -1,6 +1,6 @@
 /**
  * Генерация PNG-иконок PWA (только Node: fs, zlib, buffer).
- * Красный скруглённый «плиточный» фон с лёгким 3D/глянцем; белые перекрещенные отвёртка + ключ.
+ * Красная скруглённая «плитка» с 3D; белые перекрещенные отвёртка + ключ (читаемо с 192px, без текста).
  * Запуск: npm run gen:pwa-icons
  */
 import { mkdirSync, writeFileSync } from 'node:fs'
@@ -13,13 +13,15 @@ const outDir = join(__dirname, '..', 'public', 'icons')
 
 const FG = { r: 0xff, g: 0xff, b: 0xff }
 
-/** Красная палитра (основной / тёмный край / блик). */
+/** Красная палитра плитки (основной / тёмный край / блик). */
 const RED = {
   core: { r: 0xdc, g: 0x26, b: 0x26 },
   deep: { r: 0x8b, g: 0x15, b: 0x18 },
   rim: { r: 0x6d, g: 0x0f, b: 0x12 },
   highlight: { r: 0xff, g: 0x8a, b: 0x8a },
 }
+
+const TILE_GEOM = { half: 0.44, cornerR: 0.13, outerSd: 0.02 }
 
 function crc32(data) {
   let c = 0xffffffff
@@ -161,21 +163,19 @@ function lerpRgb(c0, c1, t) {
   }
 }
 
-const TILE = { half: 0.44, cornerR: 0.13, outerSd: 0.02 }
-
-/** Цвет плитки в точке (для «прорезей» в белых инструментах). */
+/** Цвет плитки в точке (для «прорезей» в инструментах). */
 function sampleAppTileRgb(size, x, y) {
   const cx = size * 0.5
   const cy = size * 0.5
-  const half = size * TILE.half
-  const cornerR = size * TILE.cornerR
+  const half = size * TILE_GEOM.half
+  const cornerR = size * TILE_GEOM.cornerR
   const bx = half
   const by = half
   const px = x - cx
   const py = y - cy
   const sd = sdRoundedBox(px, py, bx, by, cornerR)
 
-  if (sd > size * TILE.outerSd) {
+  if (sd > size * TILE_GEOM.outerSd) {
     return { ...RED.rim }
   }
 
@@ -220,9 +220,9 @@ function drawAppTileBackground(rgba, size) {
   }
 }
 
-/** Гаечный ключ (диагональ), белый на красном. */
+/** Гаечный ключ (диагональ). */
 function drawWrench(rgba, w, h, size, cx, cy, L) {
-  const tw = size * 0.058
+  const tw = size * 0.076
   const wx1 = cx - L * 0.5
   const wy1 = cy + L * 0.46
   const wx2 = cx + L * 0.44
@@ -247,7 +247,7 @@ function drawWrench(rgba, w, h, size, cx, cy, L) {
 
 /** Отвёртка: рукоятка + стержень + плоский шлиц (пересекает ключ под другим углом). */
 function drawScrewdriver(rgba, w, h, size, cx, cy, L) {
-  const shaftW = size * 0.045
+  const shaftW = size * 0.058
   const kx1 = cx - L * 0.42
   const ky1 = cy - L * 0.48
   const kx2 = cx + L * 0.48
@@ -296,7 +296,7 @@ function renderIcon(size) {
 
   const cx = size * 0.5
   const cy = size * 0.5
-  const L = size * 0.36
+  const L = size * 0.42
 
   drawWrench(rgba, w, h, size, cx, cy, L)
   drawScrewdriver(rgba, w, h, size, cx, cy, L)

@@ -22,6 +22,7 @@ export class TimelineService {
     TICKET_CREATED: 'ticket.created',
     TICKET_ASSIGNED: 'ticket.assigned',
     TICKET_CLAIMED: 'ticket.claimed',
+    TICKET_ASSIGNMENT_REQUESTED: 'ticket.assignment_requested',
     STATUS_CHANGED: 'ticket.status_changed',
     COMMENT_ADDED: 'ticket.comment_added',
     SLA_WARNING: 'ticket.sla_warning',
@@ -258,6 +259,7 @@ export class TimelineService {
     if (type === 'ticket.created') return 'TICKET_CREATED'
     if (type === 'ticket.assigned') return 'TICKET_ASSIGNED'
     if (type === 'ticket.claimed') return 'TICKET_CLAIMED'
+    if (type === 'ticket.assignment_requested') return 'TICKET_ASSIGNMENT_REQUESTED'
     if (type === 'ticket.status_changed') return 'STATUS_CHANGED'
     if (type === 'ticket.comment_added') return 'COMMENT_ADDED'
     if (type === 'ticket.sla_warning') return 'SLA_WARNING'
@@ -270,6 +272,7 @@ export class TimelineService {
     if (type === 'ticket.created') return 'Ticket created'
     if (type === 'ticket.assigned') return 'Ticket assigned'
     if (type === 'ticket.claimed') return 'Ticket claimed'
+    if (type === 'ticket.assignment_requested') return 'Запрос назначения'
     if (type === 'ticket.reassigned') return 'Ticket reassigned'
     if (type === 'ticket.category_changed') return 'Ticket category changed'
     if (type === 'ticket.updated') return 'Ticket updated'

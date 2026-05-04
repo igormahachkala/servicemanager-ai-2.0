@@ -30,6 +30,10 @@ import {
 import { ServiceContractsService } from '../service-contracts/service-contracts.service';
 import { TechniciansService } from '../technicians/technicians.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import {
+  TICKET_ASSIGNMENT_REQUESTED_ENTITY,
+  TICKET_ASSIGNMENT_REQUESTED_EVENT,
+} from './ticket-domain-event.types';
 
 function computeSlaFromPriorityOrExplicitMinutes(params: {
   priority: TicketPriority;
@@ -494,7 +498,7 @@ export class TicketsAssignmentService {
         event: 'TICKET_CREATED',
         companyId: targetCompanyId,
         ticketId: ticket.id,
-        actorUserId: creatorUserId ?? null,
+        actorUserId: null,
         payload: {
           parentId: ticket.parentId,
           locationId: location.id,
@@ -998,14 +1002,22 @@ export class TicketsAssignmentService {
         actorUserId: actor?.id ?? null,
         mode: assignResult.assignMode,
       });
-      this.notifications.scheduleTicketAssignedToCreator({
-        assigneeUserId: technicianId,
-        ticketId: assignResult.ticketId,
-        ticketCompanyId: meta.companyId,
-        ticketNumber: meta.ticketNumber,
-        summary: (meta.problemText || '').trim() || `Ticket #${meta.ticketNumber}`,
-        actorUserId: actor?.id ?? null,
-      });
+
+      const assigneeCompany = await this.prisma.user.findUnique({
+        where: { id: technicianId },
+        select: { companyId: true, email: true },
+      })
+      if (assigneeCompany && assigneeCompany.companyId !== meta.companyId) {
+        this.notifications.scheduleTicketAssignedClientCompany({
+          ticketCompanyId: meta.companyId,
+          assigneeUserId: technicianId,
+          assigneeEmail: (assigneeCompany.email || '').trim(),
+          actorUserId: actor?.id ?? null,
+          ticketId: assignResult.ticketId,
+          ticketNumber: meta.ticketNumber,
+          summary: (meta.problemText || '').trim() || `Заявка #${meta.ticketNumber}`,
+        })
+      }
     }
 
     return this.query.getOne(
@@ -1609,13 +1621,49 @@ export class TicketsAssignmentService {
       throw new BadRequestException('Заявка уже назначена или недоступна для запроса');
     }
 
-    return this.notifications.notifyTicketAssignmentRequested({
+    const createdAtIso = new Date().toISOString()
+    const txResult = await this.prisma.$transaction(async (tx) => {
+      const existingRequest = await tx.domainEvent.findFirst({
+        where: {
+          type: TICKET_ASSIGNMENT_REQUESTED_EVENT,
+          entityType: TICKET_ASSIGNMENT_REQUESTED_ENTITY,
+          entityId: ticket.id,
+          companyId: ticket.companyId,
+          actorUserId: technicianUserId,
+        },
+        select: { id: true },
+      })
+      if (existingRequest) {
+        return { alreadyRequested: true as const }
+      }
+      await this.timelineService.recordLegacyTx(tx, {
+        type: TICKET_ASSIGNMENT_REQUESTED_EVENT,
+        companyId: ticket.companyId,
+        entityType: TICKET_ASSIGNMENT_REQUESTED_ENTITY,
+        entityId: ticket.id,
+        actorUserId: technicianUserId,
+        payload: {
+          ticketId: ticket.id,
+          requestedByUserId: technicianUserId,
+          linkedClientCompanyId: linkedClientCompanyId?.trim() || null,
+          createdAt: createdAtIso,
+        },
+      })
+      return { alreadyRequested: false as const }
+    })
+
+    if (txResult.alreadyRequested) {
+      return { ok: true as const, alreadyRequested: true as const, notified: 0 }
+    }
+
+    const notify = await this.notifications.notifyTicketAssignmentRequested({
       providerCompanyId,
       technicianUserId,
       ticketId: ticket.id,
       ticketNumber: ticket.ticketNumber,
       ticketCompanyId: ticket.companyId,
-    });
+    })
+    return { ok: true as const, alreadyRequested: false as const, notified: notify.notified }
   }
 
   async createPublic(

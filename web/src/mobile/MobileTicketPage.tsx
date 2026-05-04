@@ -312,22 +312,31 @@ export function MobileTicketPage() {
     ticket.status === 'NEW' &&
     !assigneePresent &&
     techPrimary === 'claim' &&
-    ticket.meta?.canClaimByCurrentUser !== false
+    ticket.meta?.canClaimByCurrentUser !== false &&
+    !ticket.meta?.assignmentRequestedByCurrentUser
   const canShowAssignmentRequest =
     meQ.data?.role === 'TECHNICIAN' &&
     !!ticket &&
     ticket.status === 'NEW' &&
     !assigneePresent &&
     techPrimary === 'claim' &&
-    ticket.meta?.canClaimByCurrentUser === false
+    ticket.meta?.canClaimByCurrentUser === false &&
+    !ticket.meta?.assignmentRequestedByCurrentUser
+  const showAssignmentRequestAck =
+    meQ.data?.role === 'TECHNICIAN' &&
+    !!ticket &&
+    ticket.status === 'NEW' &&
+    !assigneePresent &&
+    techPrimary === 'claim' &&
+    ticket.meta?.assignmentRequestedByCurrentUser === true
   const canShowTechStart = meQ.data?.role === 'TECHNICIAN' && techPrimary === 'start'
 
   const [assignTicketOpen, setAssignTicketOpen] = useState(false)
   const [assignTechId, setAssignTechId] = useState('')
   const [assignErr, setAssignErr] = useState('')
   const [techActionErr, setTechActionErr] = useState('')
-  const [assignmentRequestSent, setAssignmentRequestSent] = useState(false)
   const [assignmentRequestErr, setAssignmentRequestErr] = useState('')
+  const [assignmentRequestToast, setAssignmentRequestToast] = useState('')
   const [photoPreview, setPhotoPreview] = useState<{ src: string; alt: string } | null>(null)
 
   const assignCandidatesQ = useQuery({
@@ -391,9 +400,14 @@ export function MobileTicketPage() {
   }
 
   useEffect(() => {
-    setAssignmentRequestSent(false)
     setAssignmentRequestErr('')
   }, [ticketId, ticket?.id, ticket?.status, ticket?.assignedTechnicianId])
+
+  useEffect(() => {
+    if (!assignmentRequestToast) return
+    const tid = window.setTimeout(() => setAssignmentRequestToast(''), 2800)
+    return () => window.clearTimeout(tid)
+  }, [assignmentRequestToast])
 
   const techActionM = useMutation({
     mutationFn: async (mode: 'claim' | 'start') => {
@@ -423,11 +437,13 @@ export function MobileTicketPage() {
     },
     onMutate: () => {
       setAssignmentRequestErr('')
-      setAssignmentRequestSent(false)
     },
-    onSuccess: async () => {
-      setAssignmentRequestSent(true)
+    onSuccess: async (data) => {
+      setAssignmentRequestToast(
+        data?.alreadyRequested ? 'Запрос уже был отправлен' : 'Запрос отправлен',
+      )
       await invalidateTicketQueries()
+      await queryClient.refetchQueries({ queryKey: ['mobile-ticket-detail', ticketId] })
     },
     onError: (e: unknown) => {
       setAssignmentRequestErr(formatMobileMutationError(e, { operation: 'request_assignment' }))
@@ -504,6 +520,7 @@ export function MobileTicketPage() {
   const hasTechnicianActionsBlock =
     canShowTechClaimButton ||
     canShowAssignmentRequest ||
+    showAssignmentRequestAck ||
     canShowTechStart ||
     showAssignButton ||
     showTechnicianInProgressHint
@@ -517,7 +534,11 @@ export function MobileTicketPage() {
   return (
     <div className="mobileSection mobileTicketDetailsRoot">
       <div className="mobileTicketDetailsToolbar">
-        <Link to={backHref} className="mobileDetailsBackLink">
+        <Link
+          to={backHref}
+          state={(location.state as MobileTicketNavState | null | undefined) ?? undefined}
+          className="mobileDetailsBackLink"
+        >
           Назад
         </Link>
       </div>
@@ -621,6 +642,7 @@ export function MobileTicketPage() {
 
           {(canShowTechClaimButton ||
             canShowAssignmentRequest ||
+            showAssignmentRequestAck ||
             canShowTechStart ||
             showAssignButton ||
             showTechnicianInProgressHint) && (
@@ -628,6 +650,12 @@ export function MobileTicketPage() {
               <div className="mobileSectionTitle" style={{ marginBottom: 8 }}>
                 Действия
               </div>
+              {showAssignmentRequestAck ? (
+                <div className="mobileUxHintReason mobileUxHintReason--compact" role="status" style={{ marginBottom: 10 }}>
+                  <div className="mobileUxHintReasonTitle">Запрос отправлен</div>
+                  <div className="mobileUxHintReasonDetail">Диспетчер получил запрос на назначение. Повторно отправлять не нужно.</div>
+                </div>
+              ) : null}
               {canShowAssignmentRequest ? (
                 (ticket.meta?.claimAvailabilityReason || '').trim() ? (
                   <MobileClaimReasonHintBox reason={ticket.meta?.claimAvailabilityReason} />
@@ -650,15 +678,24 @@ export function MobileTicketPage() {
                   {claimBtnPending ? 'Берём заявку…' : 'Взять заявку'}
                 </button>
               ) : null}
-              {canShowAssignmentRequest ? (
+              {canShowAssignmentRequest || showAssignmentRequestAck ? (
                 <button
                   type="button"
                   className="mobileBtn mobileBtnSecondary"
                   style={{ width: '100%', marginTop: canShowTechClaimButton ? 8 : 0 }}
-                  disabled={assignmentRequestM.isPending || techActionM.isPending}
-                  onClick={() => assignmentRequestM.mutate()}
+                  disabled={
+                    showAssignmentRequestAck || assignmentRequestM.isPending || techActionM.isPending
+                  }
+                  onClick={() => {
+                    if (showAssignmentRequestAck) return
+                    assignmentRequestM.mutate()
+                  }}
                 >
-                  {assignmentRequestM.isPending ? 'Отправляем запрос…' : 'Запросить назначение'}
+                  {showAssignmentRequestAck
+                    ? 'Запрос отправлен'
+                    : assignmentRequestM.isPending
+                      ? 'Отправляем запрос…'
+                      : 'Запросить назначение'}
                 </button>
               ) : null}
               {canShowTechStart ? (
@@ -671,11 +708,6 @@ export function MobileTicketPage() {
                 >
                   {startBtnPending ? 'Начинаем…' : 'Начать работу'}
                 </button>
-              ) : null}
-              {assignmentRequestSent ? (
-                <div className="mobileNotice mobileNoticeSuccess" style={{ marginTop: 10 }}>
-                  Запрос отправлен
-                </div>
               ) : null}
               {assignmentRequestErr ? (
                 <div className="mobileNotice mobileNoticeError" style={{ marginTop: 10 }}>
@@ -952,6 +984,11 @@ export function MobileTicketPage() {
               </div>
             ) : null}
           </div>
+        </div>
+      ) : null}
+      {assignmentRequestToast ? (
+        <div className="mobileToastHost" role="status">
+          <div className="mobileToast">{assignmentRequestToast}</div>
         </div>
       ) : null}
     </div>

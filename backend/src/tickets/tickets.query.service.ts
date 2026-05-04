@@ -20,6 +20,7 @@ import {
   technicianMatchesCategorySpecializationLinks,
 } from './ticket-access.utils'
 import { TicketMetaBuilder } from './ticket-meta.builder'
+import { TICKET_ASSIGNMENT_REQUESTED_ENTITY, TICKET_ASSIGNMENT_REQUESTED_EVENT } from './ticket-domain-event.types'
 
 type AccessFlags = {
   canTechnicianViewAllCompanyTickets?: boolean
@@ -340,6 +341,7 @@ export class TicketsQueryService {
             slaDueAt: true,
             slaBreachedAt: true,
             problemText: true,
+            requesterName: true,
             pointName: true,
             locationId: true,
             location: {
@@ -372,6 +374,29 @@ export class TicketsQueryService {
         })
       : []
 
+    const assignmentRequestedByCurrentUserIds = new Set<string>()
+    if (role === UserRole.TECHNICIAN) {
+      const candidateTickets = tickets.filter((t) => t.status === TicketStatus.NEW && !t.assignedTechnician)
+      const candidateIds = candidateTickets.map((t) => t.id)
+      if (candidateIds.length) {
+        const events = await this.prisma.domainEvent.findMany({
+          where: {
+            type: TICKET_ASSIGNMENT_REQUESTED_EVENT,
+            entityType: TICKET_ASSIGNMENT_REQUESTED_ENTITY,
+            entityId: { in: candidateIds },
+            actorUserId: userId,
+          },
+          select: { entityId: true, companyId: true },
+        })
+        const tenantByTicketId = new Map(candidateTickets.map((t) => [t.id, t.companyId]))
+        for (const ev of events) {
+          if (tenantByTicketId.get(ev.entityId) === ev.companyId) {
+            assignmentRequestedByCurrentUserIds.add(ev.entityId)
+          }
+        }
+      }
+    }
+
     const allStatuses: TicketStatus[] = [
       TicketStatus.NEW,
       TicketStatus.ASSIGNED,
@@ -402,6 +427,7 @@ export class TicketsQueryService {
           ticketNumber: t.ticketNumber,
           title: t.problemCategory.name,
           description: t.problemText,
+          requesterName: t.requesterName ?? null,
           status: t.status,
           urgency: t.urgency,
           priority: t.priority,
@@ -432,7 +458,8 @@ export class TicketsQueryService {
               locationScopeByCompany: technicianScope.locationScopeByCompany,
             })
           const canClaimByCurrentUser = technicianScope.allowTechnicianClaim && specOk && locationOk
-          return { ...base, canClaimByCurrentUser }
+          const assignmentRequestedByCurrentUser = assignmentRequestedByCurrentUserIds.has(t.id)
+          return { ...base, canClaimByCurrentUser, assignmentRequestedByCurrentUser }
         }
         return base
       })
@@ -761,6 +788,7 @@ export class TicketsQueryService {
       userId,
       role,
       ticketId,
+      ticketCompanyId: ticket.companyId,
       ticketStatus: ticket.status,
       assignedTechnicianId: ticket.assignedTechnicianId,
       scopeCompanyId: readable.scopeCompanyId,

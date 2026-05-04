@@ -13,12 +13,15 @@ import {
   technicianMatchesCategorySpecializationLinks,
   wasTicketCreatedByActor,
 } from './ticket-access.utils'
+import { TICKET_ASSIGNMENT_REQUESTED_ENTITY, TICKET_ASSIGNMENT_REQUESTED_EVENT } from './ticket-domain-event.types'
 
 export type TicketMetaBuildParams = {
   actorCompanyId: string
   userId: string
   role: UserRole
   ticketId: string
+  /** companyId тенанта заявки (DomainEvent.companyId при запросе назначения). */
+  ticketCompanyId: string
   ticketStatus: TicketStatus
   assignedTechnicianId: string | null
   scopeCompanyId: string
@@ -37,14 +40,32 @@ export class TicketMetaBuilder {
   async buildForGetOne(params: TicketMetaBuildParams) {
     const claimAvailability = await this.resolveClaimAvailability(params)
     const availableStatusTransitions = await this.resolveAvailableStatusTransitions(params)
+    const assignmentRequestedByCurrentUser = await this.resolveAssignmentRequestedByCurrentUser(params)
 
     return {
       scopeCompanyId: params.scopeCompanyId,
       visibilityMode: params.visibilityMode,
       canClaimByCurrentUser: claimAvailability.canClaimByCurrentUser,
       claimAvailabilityReason: claimAvailability.claimAvailabilityReason,
+      assignmentRequestedByCurrentUser,
       availableStatusTransitions,
     }
+  }
+
+  private async resolveAssignmentRequestedByCurrentUser(params: TicketMetaBuildParams): Promise<boolean> {
+    if (params.role !== UserRole.TECHNICIAN) return false
+    if (params.ticketStatus !== TicketStatus.NEW || params.assignedTechnicianId) return false
+    const ev = await this.prisma.domainEvent.findFirst({
+      where: {
+        type: TICKET_ASSIGNMENT_REQUESTED_EVENT,
+        entityType: TICKET_ASSIGNMENT_REQUESTED_ENTITY,
+        entityId: params.ticketId,
+        companyId: params.ticketCompanyId,
+        actorUserId: params.userId,
+      },
+      select: { id: true },
+    })
+    return !!ev
   }
 
   private async resolveClaimAvailability(params: TicketMetaBuildParams): Promise<{ canClaimByCurrentUser: boolean; claimAvailabilityReason: string | null }> {

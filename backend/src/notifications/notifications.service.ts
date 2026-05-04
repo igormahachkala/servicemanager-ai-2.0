@@ -11,6 +11,15 @@ const WATCHER_ROLES: UserRole[] = [
   UserRole.TERRITORIAL_MANAGER,
 ];
 
+/** Клиентский тенант: кого уведомить, когда подрядчик назначил своего техника на заявку клиента. */
+const CLIENT_COMPANY_ASSIGNEE_NOTIFY_ROLES: UserRole[] = [
+  UserRole.ADMIN,
+  UserRole.MASTER,
+  UserRole.DISPATCHER,
+  UserRole.NETWORK_DIRECTOR,
+  UserRole.TERRITORIAL_MANAGER,
+];
+
 /** Получатели «запрос назначения» от техника (без NETWORK_DIRECTOR / TERRITORIAL_MANAGER по продуктовому ТЗ). */
 const ASSIGNMENT_REQUEST_RECIPIENT_ROLES: UserRole[] = [
   UserRole.ADMIN,
@@ -150,15 +159,20 @@ export class NotificationsService {
     void this.safeNotify('ticket.assigned', () => this.emitTicketAssignedToAssignee(params));
   }
 
-  scheduleTicketAssignedToCreator(params: {
-    assigneeUserId: string;
-    ticketId: string;
+  /**
+   * Клиентская компания заявки: уведомить операционных ролей о назначении техника подрядчика.
+   * companyId уведомлений = ticketCompanyId (тенант клиента). Без кросс-тенанта.
+   */
+  scheduleTicketAssignedClientCompany(params: {
     ticketCompanyId: string;
+    assigneeUserId: string;
+    assigneeEmail: string;
+    actorUserId: string | null;
+    ticketId: string;
     ticketNumber: number;
     summary: string;
-    actorUserId: string | null;
   }) {
-    void this.safeNotify('ticket.assigned.creator', () => this.emitTicketAssignedToCreator(params));
+    void this.safeNotify('ticket.assigned_client', () => this.emitTicketAssignedClientCompanyInternal(params));
   }
 
   scheduleTicketClaimedDispatchers(params: {
@@ -344,6 +358,45 @@ export class NotificationsService {
     });
   }
 
+  private async emitTicketAssignedClientCompanyInternal(params: {
+    ticketCompanyId: string
+    assigneeUserId: string
+    assigneeEmail: string
+    actorUserId: string | null
+    ticketId: string
+    ticketNumber: number
+    summary: string
+  }) {
+    const excludeIds = [params.assigneeUserId, params.actorUserId].filter((x): x is string => !!x && x.length > 0)
+    const users = await this.prisma.user.findMany({
+      where: {
+        companyId: params.ticketCompanyId,
+        isActive: true,
+        role: { in: CLIENT_COMPANY_ASSIGNEE_NOTIFY_ROLES },
+        ...(excludeIds.length ? { id: { notIn: excludeIds } } : {}),
+      },
+      select: { id: true, companyId: true },
+    })
+    if (!users.length) return
+
+    const tech = (params.assigneeEmail || '').trim() || 'Исполнитель подрядчика'
+    const title = 'Назначен исполнитель'
+    const message = clipMessage(`${ticketLabel(params.ticketNumber)} — ${tech}. ${params.summary}`)
+
+    await this.prisma.notification.createMany({
+      data: users.map((u) => ({
+        companyId: u.companyId,
+        userId: u.id,
+        type: 'ticket.assigned_external',
+        title,
+        message,
+        entityType: 'Ticket',
+        entityId: params.ticketId,
+        linkedClientCompanyId: null,
+      })),
+    })
+  }
+
   private async emitTicketAssignedToAssignee(params: {
     assigneeUserId: string;
     ticketId: string;
@@ -382,54 +435,6 @@ export class NotificationsService {
         entityType: 'Ticket',
         entityId: params.ticketId,
         linkedClientCompanyId: linked,
-      },
-    });
-  }
-
-  private async emitTicketAssignedToCreator(params: {
-    assigneeUserId: string;
-    ticketId: string;
-    ticketCompanyId: string;
-    ticketNumber: number;
-    summary: string;
-    actorUserId: string | null;
-  }) {
-    const createdEvent = await this.prisma.domainEvent.findFirst({
-      where: {
-        companyId: params.ticketCompanyId,
-        entityType: 'Ticket',
-        entityId: params.ticketId,
-        type: 'ticket.created',
-        actorUserId: { not: null },
-      },
-      orderBy: { createdAt: 'asc' },
-      select: { actorUserId: true },
-    });
-    const creatorUserId = (createdEvent?.actorUserId || '').trim();
-    if (!creatorUserId) return;
-    if (creatorUserId === params.assigneeUserId) return;
-    if (params.actorUserId && params.actorUserId === creatorUserId) return;
-
-    const creator = await this.prisma.user.findFirst({
-      where: {
-        id: creatorUserId,
-        companyId: params.ticketCompanyId,
-        isActive: true,
-      },
-      select: { id: true, companyId: true },
-    });
-    if (!creator) return;
-
-    await this.prisma.notification.create({
-      data: {
-        companyId: creator.companyId,
-        userId: creator.id,
-        type: 'ticket.assigned',
-        title: 'Assigned technician',
-        message: clipMessage(`${ticketLabel(params.ticketNumber)} - assigned technician. ${params.summary}`),
-        entityType: 'Ticket',
-        entityId: params.ticketId,
-        linkedClientCompanyId: null,
       },
     });
   }

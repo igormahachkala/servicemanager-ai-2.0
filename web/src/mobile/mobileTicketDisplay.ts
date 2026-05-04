@@ -1,4 +1,5 @@
 import type { Me, Role, TicketCard, TicketGetOne, TicketPriority, TicketScopeParams, TicketStatus } from '../lib/api'
+import type { MobileHomeBoardChipId, MobileHomeBoardFilterTab } from './mobileHomeBoardFilters'
 
 /** Состояние для Link: откуда открыли карточку (кнопка «Назад» на деталях). */
 export type MobileTicketListOrigin = 'home' | 'my'
@@ -8,6 +9,10 @@ export type MobileTicketNavState = {
   mobileListOrigin: MobileTicketListOrigin
   /** companyId владельца заявки (tenant), если заявка не в компании текущего пользователя — для getOne/attachments. */
   ticketOwnerCompanyId?: string
+  /** Восстановление списка главной после «Назад» с деталки (не пишем в localStorage). */
+  homeBoardTab?: MobileHomeBoardFilterTab
+  homeBoardChips?: MobileHomeBoardChipId[]
+  homeBoardSearch?: string
 }
 
 /**
@@ -140,10 +145,26 @@ export function mobileTicketCategoryLocationFromDetail(
 export function mobileTicketNavState(
   origin: MobileTicketListOrigin,
   ticketOwnerCompanyId?: string,
+  homeRestore?: { tab?: MobileHomeBoardFilterTab; chips?: MobileHomeBoardChipId[]; search?: string },
 ): MobileTicketNavState {
   const owner = (ticketOwnerCompanyId || '').trim()
-  if (owner) return { mobileListOrigin: origin, ticketOwnerCompanyId: owner }
-  return { mobileListOrigin: origin }
+  const base: MobileTicketNavState = owner ? { mobileListOrigin: origin, ticketOwnerCompanyId: owner } : { mobileListOrigin: origin }
+  if (!homeRestore) return base
+  if (homeRestore.tab) base.homeBoardTab = homeRestore.tab
+  if (homeRestore.chips !== undefined) base.homeBoardChips = homeRestore.chips
+  const q = (homeRestore.search || '').trim()
+  if (q) base.homeBoardSearch = q.slice(0, 240)
+  return base
+}
+
+/** Оставить в state только поля, нужные вне экрана списка (после replace при восстановлении фильтров). */
+export function stripMobileHomeRestoreFromNavState(state: MobileTicketNavState | null | undefined): MobileTicketNavState | undefined {
+  if (!state) return undefined
+  const next: MobileTicketNavState = {
+    mobileListOrigin: state.mobileListOrigin,
+  }
+  if (state.ticketOwnerCompanyId) next.ticketOwnerCompanyId = state.ticketOwnerCompanyId
+  return next
 }
 
 export function mobileTicketStatusLabelRu(status: TicketStatus): string {

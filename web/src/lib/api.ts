@@ -63,6 +63,7 @@ export type InAppNotificationType =
   | 'ticket.claimed'
   | 'ticket.status_changed'
   | 'ticket.assignment_requested'
+  | 'ticket.assigned_external'
   | 'sla.warning'
   | 'sla.overdue'
   | 'urgent.created'
@@ -74,6 +75,7 @@ const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
   'ticket.claimed': 'Взята в работу',
   'ticket.status_changed': 'Статус',
   'ticket.assignment_requested': 'Запрос назначения',
+  'ticket.assigned_external': 'Исполнитель подрядчика',
   'sla.warning': 'SLA скоро истечёт',
   'sla.overdue': 'SLA просрочен',
   'urgent.created': 'Срочная заявка',
@@ -96,6 +98,7 @@ export function getNotificationTypeTone(type: string): string {
     'ticket.claimed': 'ticketClaimed',
     'ticket.status_changed': 'statusChanged',
     'ticket.assignment_requested': 'assignmentRequested',
+    'ticket.assigned_external': 'ticketAssignedExternal',
     'sla.warning': 'slaWarning',
     'sla.overdue': 'slaOverdue',
     'urgent.created': 'urgentCreated',
@@ -533,8 +536,14 @@ export type TicketCard = {
   } | null
   category: { id: string; name: string }
   assignedTechnician: { id: string; email: string } | null
+  /** Текст заявки (с board). */
+  description?: string
+  /** Имя заявителя, если есть (с board). */
+  requesterName?: string | null
   /** Для TECHNICIAN на board: согласовано с правилами claim по специализации (см. tickets.query.service). */
   canClaimByCurrentUser?: boolean
+  /** Техник уже отправил запрос назначения по этой NEW-заявке (см. tickets.query.service). */
+  assignmentRequestedByCurrentUser?: boolean
   /** Если бэкенд начнёт отдавать причину на доске — покажем на карточке без отдельного getTicket. */
   claimAvailabilityReason?: string | null
 }
@@ -645,6 +654,7 @@ export type TicketGetOne = {
     visibilityMode?: 'tenant' | 'provider_primary' | 'platform_observer'
     canClaimByCurrentUser?: boolean
     claimAvailabilityReason?: string | null
+    assignmentRequestedByCurrentUser?: boolean
     availableStatusTransitions?: TicketStatus[]
   }
 }
@@ -2067,10 +2077,16 @@ export async function claim(id: string, scope?: string | TicketScopeParams): Pro
 }
 
 /** Техник просит диспетчера назначить его (claim по специализации недоступен). */
-export async function requestTicketAssignment(id: string, scope?: string | TicketScopeParams): Promise<{ ok: true; notified: number }> {
-  return request<{ ok: true; notified: number }>(`/tickets/${id}/request-assignment${buildTicketScopeSuffix(scope)}`, {
-    method: 'POST',
-  })
+export async function requestTicketAssignment(
+  id: string,
+  scope?: string | TicketScopeParams,
+): Promise<{ ok: true; notified: number; alreadyRequested: boolean }> {
+  return request<{ ok: true; notified: number; alreadyRequested: boolean }>(
+    `/tickets/${id}/request-assignment${buildTicketScopeSuffix(scope)}`,
+    {
+      method: 'POST',
+    },
+  )
 }
 
 export async function updateTicketStatus(id: string, input: UpdateTicketStatusInput, scope?: string | TicketScopeParams): Promise<any> {
