@@ -195,6 +195,10 @@ export class TicketsStatusService {
       return { updated, fromStatus, toStatus };
     });
 
+    const summaryParts = [(dto.comment || '').trim(), (statusResult.updated.problemText || '').trim()].filter(Boolean);
+    const summaryClip = (summaryParts[0] || summaryParts[1] || '').slice(0, 200);
+    const summaryLine = summaryClip || `Заявка #${statusResult.updated.ticketNumber}`;
+
     if (
       statusResult.fromStatus !== statusResult.toStatus &&
       statusResult.updated.assignedTechnicianId &&
@@ -203,8 +207,6 @@ export class TicketsStatusService {
       const linkedScope =
         linkedClientCompanyId ??
         (access.operationCompanyId !== access.ticket.companyId ? access.ticket.companyId : null);
-      const summaryParts = [(dto.comment || '').trim(), (statusResult.updated.problemText || '').trim()].filter(Boolean);
-      const summaryClip = (summaryParts[0] || summaryParts[1] || '').slice(0, 200);
 
       this.notifications.scheduleTicketStatusAssignee({
         assigneeUserId: statusResult.updated.assignedTechnicianId,
@@ -212,10 +214,22 @@ export class TicketsStatusService {
         ticketId,
         ticketCompanyId: statusResult.updated.companyId,
         ticketNumber: statusResult.updated.ticketNumber,
-        summary: summaryClip || `Заявка #${statusResult.updated.ticketNumber}`,
+        summary: summaryLine,
         fromStatus: statusResult.fromStatus,
         toStatus: statusResult.toStatus,
         linkedClientCompanyId: linkedScope,
+      });
+    }
+
+    if (statusResult.fromStatus !== statusResult.toStatus) {
+      this.notifications.scheduleTicketStatusForClientCompany({
+        ticketCompanyId: statusResult.updated.companyId,
+        actorUserId: user?.id ?? null,
+        ticketId,
+        ticketNumber: statusResult.updated.ticketNumber,
+        summary: summaryLine,
+        fromStatus: statusResult.fromStatus,
+        toStatus: statusResult.toStatus,
       });
     }
 

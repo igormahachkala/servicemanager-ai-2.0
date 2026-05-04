@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { useLocation } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
+import { POST_CREATE_HEADLINE, POST_CREATE_SUBLINE } from '../lib/postCreateTicketGuidance'
+import { CategoryGuidancePanel } from '../components/CategoryGuidancePanel'
 
 const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024
 
@@ -11,6 +13,8 @@ const PHOTO_REQUIRED_MSG = 'Фото обязательно для создан�
 type CreateResult = {
   ticketId: string
   claimed: boolean
+  /** Имя категории на момент успешного создания (для подсказок заказчику). */
+  categoryNameForGuidance?: string
 }
 
 export function MobileCreateTicket() {
@@ -105,8 +109,9 @@ export function MobileCreateTicket() {
   const [categoryId, setCategoryId] = useState('')
   const [description, setDescription] = useState('')
   const [slaPriority, setSlaPriority] = useState<api.TicketPriority>('NORMAL')
-  const [draftAttachment, setDraftAttachment] = useState<api.DraftTicketAttachment | null>(null)
+  const [draftAttachments, setDraftAttachments] = useState<api.DraftTicketAttachment[]>([])
   const [uploadError, setUploadError] = useState<string | null>(null)
+  const [draftUploadProgress, setDraftUploadProgress] = useState<{ current: number; total: number } | null>(null)
   const [error, setError] = useState('')
   const [result, setResult] = useState<CreateResult | null>(null)
 
@@ -115,35 +120,48 @@ export function MobileCreateTicket() {
     if (categoryId && !activeCategories.some((row) => row.id === categoryId)) setCategoryId(activeCategories[0]?.id || '')
   }, [activeCategories, categoryId])
 
+  const selectedCategory = useMemo(
+    () => activeCategories.find((row) => row.id === categoryId) || null,
+    [activeCategories, categoryId],
+  )
+
   useEffect(() => {
     if (!locationId && activeLocations.length > 0) setLocationId(activeLocations[0].id)
     if (locationId && !activeLocations.some((row) => row.id === locationId)) setLocationId(activeLocations[0]?.id || '')
   }, [activeLocations, locationId])
 
   useEffect(() => {
-    setDraftAttachment(null)
+    setDraftAttachments([])
     setUploadError(null)
+    setDraftUploadProgress(null)
     clearPhotoInputs()
   }, [clientCompanyId, isTechnician, linkedClientCompanyId, companyId])
 
-  const uploadM = useMutation({
-    mutationFn: (file: File) => api.uploadDraftTicketAttachment(file),
-    onSuccess: (uploaded) => {
-      setUploadError(null)
-      setError('')
-      setDraftAttachment(uploaded)
-      clearPhotoInputs()
-    },
-    onError: (e: any) => {
+  const isUploadingDrafts = draftUploadProgress !== null
+
+  async function uploadDraftFiles(files: File[]) {
+    if (files.length === 0) return
+    setUploadError(null)
+    setError('')
+    setDraftUploadProgress({ current: 0, total: files.length })
+    try {
+      for (let i = 0; i < files.length; i++) {
+        setDraftUploadProgress({ current: i + 1, total: files.length })
+        const uploaded = await api.uploadDraftTicketAttachment(files[i])
+        setDraftAttachments((prev) => [...prev, uploaded])
+      }
+    } catch (e: any) {
       setUploadError(e?.message || String(e))
+    } finally {
+      setDraftUploadProgress(null)
       clearPhotoInputs()
-    },
-  })
+    }
+  }
 
   const deleteDraftM = useMutation({
     mutationFn: (attachmentId: string) => api.deleteDraftTicketAttachment(attachmentId),
-    onSuccess: () => {
-      setDraftAttachment(null)
+    onSuccess: (_data, attachmentId) => {
+      setDraftAttachments((prev) => prev.filter((d) => d.id !== attachmentId))
       clearPhotoInputs()
       setUploadError(null)
       setError('')
@@ -153,14 +171,14 @@ export function MobileCreateTicket() {
 
   const createM = useMutation({
     mutationFn: async (shouldClaim: boolean) => {
-      if (!draftAttachment) throw new Error(PHOTO_REQUIRED_MSG)
+      if (draftAttachments.length === 0) throw new Error(PHOTO_REQUIRED_MSG)
       const payload: api.CreateTicketInput = {
         createMode: 'quick',
         clientCompanyId: isTechnician ? clientCompanyId : linkedClientCompanyId ? linkedClientCompanyId : undefined,
         locationId,
         categoryId,
         description: description.trim() || undefined,
-        attachmentIds: [draftAttachment.id],
+        attachmentIds: draftAttachments.map((d) => d.id),
         priority: slaPriority,
       }
 
@@ -177,12 +195,15 @@ export function MobileCreateTicket() {
       await qc.invalidateQueries({ queryKey: ['mobile-home-available'] })
       await qc.invalidateQueries({ queryKey: ['mobile-my-board'] })
       await qc.invalidateQueries({ queryKey: ['board'] })
+      await qc.invalidateQueries({ queryKey: ['mobile-notifications'] })
 
       setError('')
-      setResult(created)
+      const categoryNameForGuidance =
+        !isTechnician ? activeCategories.find((r) => r.id === categoryId)?.name : undefined
+      setResult({ ...created, categoryNameForGuidance })
       setDescription('')
       setSlaPriority('NORMAL')
-      setDraftAttachment(null)
+      setDraftAttachments([])
       clearPhotoInputs()
     },
     onError: (e: any) => {
@@ -194,24 +215,27 @@ export function MobileCreateTicket() {
   function handlePickedImage(e: React.ChangeEvent<HTMLInputElement>) {
     setUploadError(null)
     setError('')
-    const file = e.target.files?.[0] || null
-    if (!file) return
-    if (!file.type.startsWith('image/')) {
-      e.target.value = ''
-      setUploadError('Можно загружать только изображения')
-      return
+    const list = e.target.files
+    const files = list ? Array.from(list) : []
+    e.target.value = ''
+    if (files.length === 0) return
+    const valid: File[] = []
+    for (const file of files) {
+      if (!file.type.startsWith('image/')) {
+        setUploadError('Можно загружать только изображения')
+        return
+      }
+      if (file.size <= 0) {
+        setUploadError('Файл пустой')
+        return
+      }
+      if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
+        setUploadError('Изображение слишком большое (максимум 10 МБ)')
+        return
+      }
+      valid.push(file)
     }
-    if (file.size <= 0) {
-      e.target.value = ''
-      setUploadError('Файл пустой')
-      return
-    }
-    if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
-      e.target.value = ''
-      setUploadError('Изображение слишком большое (максимум 10 МБ)')
-      return
-    }
-    uploadM.mutate(file)
+    void uploadDraftFiles(valid)
   }
 
   function onCreate(shouldClaim: boolean) {
@@ -225,7 +249,7 @@ export function MobileCreateTicket() {
       setError('Не выбран клиентский контур')
       return
     }
-    if (!draftAttachment) {
+    if (draftAttachments.length === 0) {
       setError(PHOTO_REQUIRED_MSG)
       return
     }
@@ -251,9 +275,9 @@ export function MobileCreateTicket() {
 
   const canSubmit =
     selectionReady &&
-    !!draftAttachment &&
+    draftAttachments.length > 0 &&
     !createM.isPending &&
-    !uploadM.isPending &&
+    !isUploadingDrafts &&
     !deleteDraftM.isPending
   const noTechnicianContexts = isTechnician && technicianContextsQ.isSuccess && technicianContexts.length === 0
 
@@ -264,7 +288,7 @@ export function MobileCreateTicket() {
     <div className="mobileSection">
       <div>
         <h1 className="mobileTitle">Создать заявку</h1>
-        <div className="mobileSubtitle">Укажите точку, категорию и загрузите фото — без снимка отправка недоступна.</div>
+        <div className="mobileSubtitle">Укажите точку, категорию и загрузите фото — без снимков отправка недоступна.</div>
       </div>
 
       {(locationsQ.isError || categoriesQ.isError || technicianContextsQ.isError) ? (
@@ -280,9 +304,37 @@ export function MobileCreateTicket() {
       {error ? <div className="mobileNotice mobileNoticeError">{error}</div> : null}
       {uploadError ? <div className="mobileNotice mobileNoticeError">{uploadError}</div> : null}
       {result ? (
-        <div className="mobileNotice mobileNoticeSuccess">
-          Заявка создана: {result.ticketId}
-          {result.claimed ? ' (взята в работу)' : ''}.
+        <div className="mobileCard mobilePostCreateSuccess">
+          <div className="mobilePostCreateSuccessTitle">{POST_CREATE_HEADLINE}</div>
+          <p className="mobilePostCreateSuccessSub">{POST_CREATE_SUBLINE}</p>
+          {!isTechnician ? (
+            <>
+              <div className="mobileMeta mobilePostCreateSectionLabel">До приезда техника:</div>
+              <CategoryGuidancePanel
+                categoryName={result.categoryNameForGuidance}
+                variant="mobile"
+                stepsOnly
+              />
+              <p className="mobileMeta mobilePostCreateNotifyHint">
+                Статус заявки — в «Мои заявки» и в разделе «Уведомления» на главной.
+              </p>
+            </>
+          ) : (
+            <p className="mobileMeta" style={{ marginTop: 8 }}>
+              {result.claimed ? 'Заявка создана и закреплена за вами.' : 'Заявка создана для выбранного клиента.'}
+            </p>
+          )}
+          <div className="mobilePostCreateActions">
+            <Link to={api.appendScopeToPath(`/m/tickets/${encodeURIComponent(result.ticketId)}`, scope, meQ.data)} className="mobileBtn">
+              Открыть заявку
+            </Link>
+            <Link to={api.appendScopeToPath('/m/my', scope, meQ.data)} className="mobileBtn mobileBtnSecondary">
+              Мои заявки
+            </Link>
+            <button type="button" className="mobileBtn mobileBtnGhost" onClick={() => setResult(null)}>
+              Создать ещё
+            </button>
+          </div>
         </div>
       ) : null}
 
@@ -346,6 +398,10 @@ export function MobileCreateTicket() {
             <div className="mobileFieldHint">По категории подбирается тип работ и исполнитель.</div>
           </label>
 
+          {!isTechnician && selectedCategory?.name ? (
+            <CategoryGuidancePanel categoryName={selectedCategory.name} variant="mobile" />
+          ) : null}
+
           <label>
             Срочность (SLA)
             <select value={slaPriority} onChange={(e) => setSlaPriority(e.target.value as api.TicketPriority)} disabled={createM.isPending}>
@@ -362,7 +418,7 @@ export function MobileCreateTicket() {
 
           <div className="mobileCard mobilePhotoCard" style={{ padding: 12, position: 'relative' }}>
             <div style={{ fontWeight: 800, marginBottom: 8 }}>Фото заявки *</div>
-            <p className="mobileHint">Снимите камерой или выберите из галереи — файл загрузится сразу после выбора.</p>
+            <p className="mobileHint">Снимите камерой или выберите из галереи — можно несколько; файлы загрузятся после выбора.</p>
             <input
               ref={cameraInputRef}
               type="file"
@@ -371,22 +427,23 @@ export function MobileCreateTicket() {
               className="mobilePhotoInputHidden"
               aria-label="Сделать фото камерой"
               onChange={handlePickedImage}
-              disabled={!!draftAttachment || uploadM.isPending || createM.isPending}
+              disabled={isUploadingDrafts || createM.isPending}
             />
             <input
               ref={galleryInputRef}
               type="file"
               accept="image/*"
+              multiple
               className="mobilePhotoInputHidden"
               aria-label="Выбрать фото из галереи"
               onChange={handlePickedImage}
-              disabled={!!draftAttachment || uploadM.isPending || createM.isPending}
+              disabled={isUploadingDrafts || createM.isPending}
             />
             <div className="mobilePhotoSourceRow">
               <button
                 type="button"
                 className="mobileBtn mobileBtnSecondary mobilePhotoSourceBtn"
-                disabled={!!draftAttachment || uploadM.isPending || createM.isPending}
+                disabled={isUploadingDrafts || createM.isPending}
                 onClick={() => cameraInputRef.current?.click()}
               >
                 Сделать фото
@@ -394,23 +451,39 @@ export function MobileCreateTicket() {
               <button
                 type="button"
                 className="mobileBtn mobileBtnSecondary mobilePhotoSourceBtn"
-                disabled={!!draftAttachment || uploadM.isPending || createM.isPending}
+                disabled={isUploadingDrafts || createM.isPending}
                 onClick={() => galleryInputRef.current?.click()}
               >
                 Выбрать из телефона
               </button>
             </div>
-            {uploadM.isPending ? <div className="mobileMeta" style={{ marginTop: 10 }}>Загружаем фото…</div> : null}
-            {draftAttachment ? (
-              <div className="mobilePhotoPreview" style={{ display: 'grid', gap: 8 }}>
-                <img
-                  src={api.resolveFileUrl(draftAttachment.url)}
-                  alt={draftAttachment.originalName}
-                  style={{ width: '100%', maxHeight: 220, objectFit: 'cover', borderRadius: 12, border: '1px solid #e5e7eb' }}
-                />
-                <button type="button" className="mobileBtn mobileBtnGhost" onClick={() => deleteDraftM.mutate(draftAttachment.id)} disabled={deleteDraftM.isPending}>
-                  {deleteDraftM.isPending ? 'Удаляем...' : 'Удалить фото'}
-                </button>
+            {isUploadingDrafts && draftUploadProgress ? (
+              <div className="mobileMeta" style={{ marginTop: 10 }}>
+                Загружаем фото… {draftUploadProgress.current} из {draftUploadProgress.total}
+              </div>
+            ) : null}
+            {draftAttachments.length > 0 ? (
+              <div className="mobilePhotoPreview">
+                <div className="mobilePhotoGrid">
+                  {draftAttachments.map((d) => (
+                    <div key={d.id} className="mobileDraftThumbCell">
+                      <img
+                        src={api.resolveFileUrl(d.url)}
+                        alt={d.originalName || ''}
+                        className="mobilePhotoThumb"
+                      />
+                      <button
+                        type="button"
+                        className="mobileDraftThumbRemove"
+                        aria-label="Удалить фото"
+                        disabled={deleteDraftM.isPending || isUploadingDrafts || createM.isPending}
+                        onClick={() => deleteDraftM.mutate(d.id)}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
             ) : null}
           </div>

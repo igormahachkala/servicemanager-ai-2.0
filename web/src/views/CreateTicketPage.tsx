@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
+import { POST_CREATE_HEADLINE, POST_CREATE_SUBLINE } from '../lib/postCreateTicketGuidance'
+import { CategoryGuidancePanel } from '../components/CategoryGuidancePanel'
 
 const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024
 
@@ -160,6 +162,11 @@ export function CreateTicketPage() {
     technicianFallbackQ.data,
   ])
 
+  const selectedCategoryName = useMemo(
+    () => activeCategories.find((row) => row.id === categoryId)?.name,
+    [activeCategories, categoryId],
+  )
+
   const activeLocations = useMemo(() => {
     if (!isTechnician) return (locationsQ.data || []).filter((row) => row.isActive !== false)
     if (selectedTechnicianContext) return (selectedTechnicianContext.locations || []).filter((row) => row.isActive !== false)
@@ -263,6 +270,7 @@ export function CreateTicketPage() {
     onSuccess: async (created) => {
       await qc.invalidateQueries({ queryKey: ['board'] })
       await qc.invalidateQueries({ queryKey: ['tickets'] })
+      await qc.invalidateQueries({ queryKey: ['mobile-notifications'] })
       const createdId = api.extractCreatedTicketId(created)
       if (!createdId) {
         setErr(`Не удалось определить id созданной заявки из ответа backend: ${JSON.stringify(created)}`)
@@ -286,7 +294,7 @@ export function CreateTicketPage() {
           return
         }
       }
-      if (postCreateMode === 'stay') {
+      if (postCreateMode === 'stay' || !isTechnician) {
         clearForNextCreate()
         return
       }
@@ -717,15 +725,44 @@ export function CreateTicketPage() {
             </button>
           </div>
           {lastCreatedTicketId ? (
-            <div className="panel" style={{ padding: 12 }}>
-              <div className="muted small" style={{ marginBottom: 8 }}>Заявка создана: {lastCreatedTicketId}</div>
-              <div className="uiActions">
-                <button type="button" className="ghost" onClick={clearForNextCreate} disabled={isBusy}>
+            <div className="panel uiCard" style={{ padding: 14, borderColor: '#a7f3d0', background: 'linear-gradient(180deg, #ecfdf5 0%, #fff 45%)' }}>
+              <div style={{ fontWeight: 900, fontSize: 16, color: '#065f46' }}>{POST_CREATE_HEADLINE}</div>
+              <p className="muted" style={{ margin: '6px 0 0', lineHeight: 1.5 }}>
+                {POST_CREATE_SUBLINE}
+              </p>
+              {!isTechnician ? (
+                <>
+                  <div style={{ marginTop: 12, fontWeight: 800, fontSize: 14 }}>До приезда техника:</div>
+                  <CategoryGuidancePanel categoryName={selectedCategoryName} variant="desktop" stepsOnly />
+                  <p className="muted small" style={{ marginTop: 12, lineHeight: 1.45 }}>
+                    Статус и push/in-app уведомления — в списке уведомлений аккаунта и в карточке заявки.
+                  </p>
+                </>
+              ) : (
+                <p className="muted small" style={{ marginTop: 10 }}>
+                  Заявка создана для выбранного клиента.
+                </p>
+              )}
+              <div className="uiActions" style={{ marginTop: 14 }}>
+                <Link to={buildTicketLink(lastCreatedTicketId)}>
+                  <button type="button">Открыть заявку</button>
+                </Link>
+                <Link to={api.appendScopeToPath('/tickets', { companyId: observerCompanyId || undefined, linkedClientCompanyId: linkedClientCompanyId || undefined }, meQ.data)}>
+                  <button type="button" className="ghost">
+                    Мои заявки
+                  </button>
+                </Link>
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => {
+                    setLastCreatedTicketId('')
+                    clearForNextCreate()
+                  }}
+                  disabled={isBusy}
+                >
                   Создать ещё
                 </button>
-                <Link to={buildTicketLink(lastCreatedTicketId)}>
-                  <button type="button" className="ghost">Открыть последнюю заявку</button>
-                </Link>
                 {isTechnician ? (
                   <button
                     type="submit"

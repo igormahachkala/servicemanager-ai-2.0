@@ -29,6 +29,7 @@
     "test:e2e:run": "dotenv -e .env.test -- npx prisma migrate deploy && jest --config ./test/jest-e2e.json",
     "test:e2e": "npm run test:e2e:db && npm run test:e2e:run",
     "db:seed": "dotenv -e .env -- prisma db seed",
+    "seed:standard-catalog": "dotenv -e .env -- ts-node scripts/seed-standard-catalog.ts",
     "prisma:generate": "dotenv -e .env -- npx prisma generate",
     "prisma:generate:local": "dotenv -e .env -- npx prisma generate",
     "prisma:generate:docker": "dotenv -e .env.docker -- npx prisma generate",

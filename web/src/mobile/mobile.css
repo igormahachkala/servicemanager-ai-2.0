@@ -405,6 +405,46 @@ body,
   gap: 8px;
 }
 
+.mobileDraftThumbCell {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+}
+
+.mobileDraftThumbRemove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0;
+  border-radius: 10px;
+  border: 1px solid rgba(17, 24, 39, 0.15);
+  background: rgba(255, 255, 255, 0.95);
+  color: #111827;
+  font-size: 1.25rem;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.mobileDraftThumbRemove:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.mobileTicketAddPhotos {
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
 .mobilePhotoThumbLink {
   display: block;
   border-radius: 12px;
@@ -689,6 +729,42 @@ button.mobilePhotoThumbLink.mobilePhotoThumbOpen:focus-visible {
   line-height: 1.35;
   margin-top: 4px;
   margin-bottom: 6px;
+}
+
+.mobileCategoryGuidance {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: #fafafa;
+  font-size: 0.84rem;
+  line-height: 1.4;
+  color: #374151;
+}
+
+.mobileCategoryGuidance--caution {
+  border-color: #fcd34d;
+  background: #fffbeb;
+  color: #78350f;
+}
+
+.mobileCategoryGuidance--urgent {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.mobileCategoryGuidanceTitle {
+  font-weight: 800;
+  margin-bottom: 8px;
+  font-size: 0.86rem;
+}
+
+.mobileCategoryGuidanceList {
+  margin: 0;
+  padding-left: 1.15rem;
+  display: grid;
+  gap: 4px;
 }
 
 .mobileAssignmentRequestedRow {
@@ -1392,4 +1468,63 @@ a.mobileBtn.mobileCreateTicketLink {
   color: #374151;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* После создания заявки (клиент) */
+.mobilePostCreateSuccess {
+  border: 1px solid #a7f3d0;
+  background: linear-gradient(180deg, #ecfdf5 0%, #ffffff 40%);
+  margin-bottom: 12px;
+}
+
+.mobilePostCreateSuccessTitle {
+  font-size: 1.15rem;
+  font-weight: 900;
+  margin: 0 0 6px;
+  color: #065f46;
+}
+
+.mobilePostCreateSuccessSub {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: #374151;
+}
+
+.mobilePostCreateSectionLabel {
+  margin-top: 12px;
+  font-weight: 800;
+  color: #111827;
+}
+
+.mobilePostCreateNotifyHint {
+  margin-top: 12px;
+  line-height: 1.4;
+}
+
+.mobilePostCreateActions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.mobilePostCreateActions .mobileBtn {
+  text-align: center;
+  text-decoration: none;
+  display: block;
+}
+
+/* Подсказка по статусу для заказчика на деталях */
+.mobileClientLifecycleHint {
+  border: 1px solid #c7d2fe;
+  background: #f8fafc;
+  margin-bottom: 12px;
+}
+
+.mobileClientLifecycleHintText {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  color: #334155;
 }

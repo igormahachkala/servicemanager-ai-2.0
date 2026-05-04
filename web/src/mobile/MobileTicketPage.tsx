@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
@@ -21,6 +21,11 @@ import {
   useOnlineStatus,
 } from './offlineQueue'
 import { formatMobileMutationError } from './mobileActionErrors'
+import {
+  clientTicketLifecycleHintText,
+  shouldShowClientTicketLifecycleHint,
+} from '../lib/ticketClientGuidance'
+import { CategoryGuidancePanel } from '../components/CategoryGuidancePanel'
 import { MobileBoardClaimFallbackHint, MobileClaimReasonHintBox } from './MobileUxHints'
 
 function readListOrigin(location: ReturnType<typeof useLocation>): MobileTicketListOrigin {
@@ -91,6 +96,22 @@ function isCommentTimelineItem(item: api.TimelineItem): boolean {
 function isNotFoundGetTicketError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err)
   return /\b404\b/i.test(msg) || /not\s*found/i.test(msg) || /не\s+найден/i.test(msg)
+}
+
+const MAX_TICKET_PAGE_ATTACHMENT_BYTES = 10 * 1024 * 1024
+
+const PHOTO_ROLES: api.Role[] = [
+  'ADMIN',
+  'MASTER',
+  'DISPATCHER',
+  'NETWORK_DIRECTOR',
+  'TECHNICIAN',
+  'CLIENT',
+  'TERRITORIAL_MANAGER',
+]
+
+function roleCanUploadTicketPhoto(role?: api.Role | null) {
+  return !!role && PHOTO_ROLES.includes(role)
 }
 
 function formatAddressBlock(ticket: api.TicketGetOne): string {
@@ -230,6 +251,15 @@ export function MobileTicketPage() {
     [observerCompanyId, inferredLinkedClientCompanyId],
   )
 
+  const canUploadTicketPhotos = useMemo(() => {
+    const role = meQ.data?.role
+    const isClientRole = role === 'CLIENT'
+    const contextMode = observerCompanyId ? 'observer' : inferredLinkedClientCompanyId ? 'provider' : 'tenant'
+    const readOnlyByVisibilityMode = contextMode === 'observer'
+    const canMutateTicket = !readOnlyByVisibilityMode && !(isClientRole && contextMode !== 'tenant')
+    return canMutateTicket && roleCanUploadTicketPhoto(role)
+  }, [meQ.data?.role, observerCompanyId, inferredLinkedClientCompanyId])
+
   /**
    * Claim / status / assign на linked-client заявке: query `linkedClientCompanyId` должен совпадать
    * с tenant заявки (`ticket.companyId`). Иначе бэкенд сужает operational scope до «чужого» клиента и claim даёт 404.
@@ -338,6 +368,10 @@ export function MobileTicketPage() {
   const [assignmentRequestErr, setAssignmentRequestErr] = useState('')
   const [assignmentRequestToast, setAssignmentRequestToast] = useState('')
   const [photoPreview, setPhotoPreview] = useState<{ src: string; alt: string } | null>(null)
+  const addTicketCameraRef = useRef<HTMLInputElement | null>(null)
+  const addTicketGalleryRef = useRef<HTMLInputElement | null>(null)
+  const [ticketAddPhotoError, setTicketAddPhotoError] = useState<string | null>(null)
+  const [ticketAddPhotoProgress, setTicketAddPhotoProgress] = useState<{ current: number; total: number } | null>(null)
 
   const assignCandidatesQ = useQuery({
     queryKey: [
@@ -397,6 +431,63 @@ export function MobileTicketPage() {
     await queryClient.invalidateQueries({ queryKey: ['mobile-home-available'] })
     await queryClient.invalidateQueries({ queryKey: ['mobile-my-board'] })
     await queryClient.invalidateQueries({ queryKey: ['board'] })
+  }
+
+  const isTicketAddPhotoUploading = ticketAddPhotoProgress !== null
+
+  function clearTicketAddPhotoInputs() {
+    if (addTicketCameraRef.current) addTicketCameraRef.current.value = ''
+    if (addTicketGalleryRef.current) addTicketGalleryRef.current.value = ''
+  }
+
+  async function uploadFilesToExistingTicket(files: File[]) {
+    if (files.length === 0) return
+    if (!ticketId) return
+    if (!canUploadTicketPhotos) {
+      setTicketAddPhotoError('Недостаточно прав для загрузки')
+      return
+    }
+    if (!isOnline) {
+      setTicketAddPhotoError('Нужно подключение к сети, чтобы загрузить фото')
+      return
+    }
+    setTicketAddPhotoError(null)
+    setTicketAddPhotoProgress({ current: 0, total: files.length })
+    try {
+      for (let i = 0; i < files.length; i++) {
+        setTicketAddPhotoProgress({ current: i + 1, total: files.length })
+        await api.uploadTicketAttachment(ticketId, files[i], effectiveTicketScope)
+      }
+      await invalidateTicketQueries()
+    } catch (e: unknown) {
+      setTicketAddPhotoError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setTicketAddPhotoProgress(null)
+      clearTicketAddPhotoInputs()
+    }
+  }
+
+  function handleTicketAddPhotos(e: ChangeEvent<HTMLInputElement>) {
+    setTicketAddPhotoError(null)
+    const list = e.target.files
+    const files = list ? Array.from(list) : []
+    e.target.value = ''
+    if (files.length === 0) return
+    for (const file of files) {
+      if (!file.type.startsWith('image/')) {
+        setTicketAddPhotoError('Можно загружать только изображения')
+        return
+      }
+      if (file.size <= 0) {
+        setTicketAddPhotoError('Файл пустой')
+        return
+      }
+      if (file.size > MAX_TICKET_PAGE_ATTACHMENT_BYTES) {
+        setTicketAddPhotoError('Изображение слишком большое (максимум 10 МБ)')
+        return
+      }
+    }
+    void uploadFilesToExistingTicket(files)
   }
 
   useEffect(() => {
@@ -558,6 +649,14 @@ export function MobileTicketPage() {
 
       {ticket ? (
         <>
+          {shouldShowClientTicketLifecycleHint(meQ.data, ticket) ? (
+            <div className="mobileCard mobileClientLifecycleHint" role="status">
+              <div className="mobileMeta" style={{ fontWeight: 800, marginBottom: 6 }}>
+                Для вас
+              </div>
+              <p className="mobileClientLifecycleHintText">{clientTicketLifecycleHintText(ticket.status)}</p>
+            </div>
+          ) : null}
           <div
             className={[
               'mobileCard',
@@ -622,6 +721,9 @@ export function MobileTicketPage() {
               <span className="mobileMeta">Категория</span>
               <strong style={{ textAlign: 'right', fontSize: '0.9rem' }}>{ticket.problemCategory?.name || '—'}</strong>
             </div>
+            {shouldShowClientTicketLifecycleHint(meQ.data, ticket) && ticket.problemCategory?.name ? (
+              <CategoryGuidancePanel categoryName={ticket.problemCategory.name} variant="mobile" />
+            ) : null}
             <div style={{ marginTop: 10 }}>
               <div className="mobileMeta" style={{ marginBottom: 4 }}>
                 Локация / адрес
@@ -756,6 +858,65 @@ export function MobileTicketPage() {
           ) : null}
 
           <div className="mobileCard" style={{ marginTop: 8 }}>
+            {canUploadTicketPhotos && !isOnline ? (
+              <div className="mobileMeta" style={{ marginBottom: 10 }}>
+                Офлайн: загрузка фото недоступна. Подключитесь к сети, чтобы добавить снимки.
+              </div>
+            ) : null}
+            {canUploadTicketPhotos && isOnline ? (
+              <div className="mobileTicketAddPhotos">
+                <div className="mobileSectionTitle" style={{ marginBottom: 8 }}>
+                  Добавить фото
+                </div>
+                <p className="mobileHint" style={{ marginTop: 0 }}>
+                  Несколько файлов — из галереи; камера добавляет по одному снимку за раз.
+                </p>
+                <input
+                  ref={addTicketCameraRef}
+                  type="file"
+                  accept="image/*"
+                  capture="environment"
+                  className="mobilePhotoInputHidden"
+                  aria-label="Сделать фото для заявки"
+                  onChange={handleTicketAddPhotos}
+                  disabled={isTicketAddPhotoUploading}
+                />
+                <input
+                  ref={addTicketGalleryRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  className="mobilePhotoInputHidden"
+                  aria-label="Выбрать фото из галереи для заявки"
+                  onChange={handleTicketAddPhotos}
+                  disabled={isTicketAddPhotoUploading}
+                />
+                <div className="mobilePhotoSourceRow">
+                  <button
+                    type="button"
+                    className="mobileBtn mobileBtnSecondary mobilePhotoSourceBtn"
+                    disabled={isTicketAddPhotoUploading}
+                    onClick={() => addTicketCameraRef.current?.click()}
+                  >
+                    Сделать фото
+                  </button>
+                  <button
+                    type="button"
+                    className="mobileBtn mobileBtnSecondary mobilePhotoSourceBtn"
+                    disabled={isTicketAddPhotoUploading}
+                    onClick={() => addTicketGalleryRef.current?.click()}
+                  >
+                    Из галереи
+                  </button>
+                </div>
+                {isTicketAddPhotoUploading && ticketAddPhotoProgress ? (
+                  <div className="mobileMeta" style={{ marginTop: 10 }}>
+                    Загружаем… {ticketAddPhotoProgress.current} из {ticketAddPhotoProgress.total}
+                  </div>
+                ) : null}
+                {ticketAddPhotoError ? <div className="mobileNotice mobileNoticeError" style={{ marginTop: 10 }}>{ticketAddPhotoError}</div> : null}
+              </div>
+            ) : null}
             {attachmentsQ.isLoading ? <div className="mobileMeta">Загрузка вложений…</div> : null}
             {attachmentsQ.isError ? (
               <div className="mobileNotice mobileNoticeError">{String((attachmentsQ.error as any)?.message || attachmentsQ.error)}</div>

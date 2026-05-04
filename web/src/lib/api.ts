@@ -70,14 +70,14 @@ export type InAppNotificationType =
   | (string & {})
 
 const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
-  'ticket.created': 'Новая заявка',
-  'ticket.assigned': 'Назначение',
+  'ticket.created': 'Заявка создана',
+  'ticket.assigned': 'Техник назначен',
   'ticket.claimed': 'Взята в работу',
-  'ticket.status_changed': 'Статус',
+  'ticket.status_changed': 'Статус изменён',
   'ticket.assignment_requested': 'Запрос назначения',
-  'ticket.assigned_external': 'Исполнитель подрядчика',
-  'sla.warning': 'SLA скоро истечёт',
-  'sla.overdue': 'SLA просрочен',
+  'ticket.assigned_external': 'Назначен исполнитель',
+  'sla.warning': 'Скоро дедлайн',
+  'sla.overdue': 'Просрочка SLA',
   'urgent.created': 'Срочная заявка',
 }
 

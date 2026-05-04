@@ -94,7 +94,8 @@ export function MobileNotificationsPage() {
         </button>
       </div>
       <div className="mobilePageHint">
-        Непрочитанные подсвечены; откройте заявку или нажмите «Прочитать все», чтобы убрать счётчик.
+        Создание заявки, назначение техника и смена статуса отображаются здесь. Непрочитанные подсвечены; откройте
+        заявку или нажмите «Прочитать все», чтобы убрать счётчик.
       </div>
       {listQ.isLoading ? <div className="mobileSubtitle">Загрузка…</div> : null}
       {listQ.isError ? (

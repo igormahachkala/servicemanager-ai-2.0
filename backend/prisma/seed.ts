@@ -2,6 +2,7 @@ import { PrismaClient, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 import { PERMISSIONS, type PermissionCode } from '../src/common/permissions.constants';
+import { runStandardCatalogSeed } from '../scripts/seed-standard-catalog';
 
 const prisma = new PrismaClient();
 
@@ -316,6 +317,7 @@ async function main() {
 
   await upsertDemoUsers(company.id);
   await upsertDemoLocations(company.id);
+  await runStandardCatalogSeed(prisma, company.id);
 
   const totalBlocks = await prisma.permissionBlock.count();
   const totalRolePerms = await prisma.rolePermission.count();

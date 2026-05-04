@@ -2,6 +2,11 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode 
 import { useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
+import {
+  clientTicketLifecycleHintText,
+  shouldShowClientTicketLifecycleHint,
+} from '../lib/ticketClientGuidance'
+import { CategoryGuidancePanel } from '../components/CategoryGuidancePanel'
 import { TicketAttachments } from './ticket-page/TicketAttachments'
 import { TicketHeader } from './ticket-page/TicketHeader'
 
@@ -747,6 +752,15 @@ export function TicketPage() {
         onClaim={() => claimM.mutate()}
       />
 
+      {ticket && shouldShowClientTicketLifecycleHint(meQ.data, ticket) ? (
+        <div className="panel uiCard" style={{ marginBottom: 12, borderColor: '#c7d2fe', background: '#f8fafc' }}>
+          <div style={{ fontWeight: 800, marginBottom: 6 }}>Что дальше</div>
+          <div className="muted" style={{ lineHeight: 1.55 }}>
+            {clientTicketLifecycleHintText(ticket.status)}
+          </div>
+        </div>
+      ) : null}
+
       <div className="pageHint">
         Карточка заявки: статус, исполнитель, вложения и история. Доступные действия зависят от роли и статуса; диспетчер назначает
         техника, техник ведёт работу до закрытия.
@@ -813,6 +827,9 @@ export function TicketPage() {
           </div>
           <div style={{ display: 'grid', gap: 8 }}>
             <div><b>Категория:</b> {ticket.problemCategory?.name || '—'}</div>
+            {shouldShowClientTicketLifecycleHint(meQ.data, ticket) && ticket.problemCategory?.name ? (
+              <CategoryGuidancePanel categoryName={ticket.problemCategory.name} variant="desktop" />
+            ) : null}
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               <b>Статус:</b> <StatusPill status={ticket.status} />
             </div>
