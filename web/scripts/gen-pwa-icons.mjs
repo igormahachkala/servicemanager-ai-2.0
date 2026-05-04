@@ -1,7 +1,7 @@
 /**
  * Генерация PNG-иконок PWA (только Node: fs, zlib, buffer).
- * Красная скруглённая «плитка» с 3D; белые перекрещенные отвёртка + ключ (читаемо с 192px, без текста).
- * Запуск: npm run gen:pwa-icons
+ * Красная iOS-плитка (скруглённый квадрат), глянец; белые перекрещенные ключ + отвёртка.
+ * Без текста, без SMA. Запуск: npm run gen:pwa-icons
  */
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -11,17 +11,22 @@ import { deflateSync } from 'node:zlib'
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const outDir = join(__dirname, '..', 'public', 'icons')
 
+/** Белый инструмент (#ffffff). */
 const FG = { r: 0xff, g: 0xff, b: 0xff }
+/** Тень под инструментами (мягкая, не чистый чёрный). */
+const SHADOW = { r: 0x4a, g: 0x0c, b: 0x0e }
+const SHADOW_SOFT = { r: 0x6e, g: 0x14, b: 0x16 }
 
-/** Красная палитра плитки (основной / тёмный край / блик). */
-const RED = {
-  core: { r: 0xdc, g: 0x26, b: 0x26 },
-  deep: { r: 0x8b, g: 0x15, b: 0x18 },
-  rim: { r: 0x6d, g: 0x0f, b: 0x12 },
-  highlight: { r: 0xff, g: 0x8a, b: 0x8a },
-}
+/** Градиент плитки: верхний левый → нижний правый. */
+const RED_TL = { r: 0xff, g: 0x3b, b: 0x30 }
+const RED_BR = { r: 0xb7, g: 0x1c, b: 0x1c }
+const RED_EDGE = { r: 0x6d, g: 0x0f, b: 0x12 }
 
-const TILE_GEOM = { half: 0.44, cornerR: 0.13, outerSd: 0.02 }
+/** Плитка: полуразмер «короба», радиус скругления ~24% стороны иконки (в диапазоне 22–26%). */
+const TILE = { half: 0.42, cornerR: 0.24, outerSd: 0.02 }
+
+/** Инструменты: характерная длина от центра ~33% размера → визуально ~65–70% иконки, поля ~12–15%. */
+const TOOL = { halfSpan: 0.33 }
 
 function crc32(data) {
   let c = 0xffffffff
@@ -70,6 +75,18 @@ function setPixel(rgba, w, h, x, y, r, g, b) {
   rgba[i + 3] = 255
 }
 
+function blendPixel(rgba, w, h, x, y, r, g, b, a) {
+  const xi = Math.floor(x)
+  const yi = Math.floor(y)
+  if (xi < 0 || xi >= w || yi < 0 || yi >= h) return
+  const i = (yi * w + xi) * 4
+  const ia = 1 - a
+  rgba[i] = Math.round(r * a + rgba[i] * ia)
+  rgba[i + 1] = Math.round(g * a + rgba[i + 1] * ia)
+  rgba[i + 2] = Math.round(b * a + rgba[i + 2] * ia)
+  rgba[i + 3] = 255
+}
+
 function fillQuad(rgba, w, h, ax, ay, bx, by, cx, cy, dx, dy, r, g, b) {
   const minX = Math.max(0, Math.floor(Math.min(ax, bx, cx, dx)))
   const maxX = Math.min(w - 1, Math.ceil(Math.max(ax, bx, cx, dx)))
@@ -110,6 +127,21 @@ function drawThickLine(rgba, w, h, x1, y1, x2, y2, thickness, r, g, b) {
   }
 }
 
+function drawThickLineBlend(rgba, w, h, x1, y1, x2, y2, thickness, r, g, b, alpha) {
+  const half = thickness * 0.5
+  const r2 = half * half
+  const pad = Math.ceil(half) + 2
+  const minX = Math.max(0, Math.floor(Math.min(x1, x2) - pad))
+  const maxX = Math.min(w - 1, Math.ceil(Math.max(x1, x2) + pad))
+  const minY = Math.max(0, Math.floor(Math.min(y1, y2) - pad))
+  const maxY = Math.min(h - 1, Math.ceil(Math.max(y1, y2) + pad))
+  for (let y = minY; y <= maxY; y++) {
+    for (let x = minX; x <= maxX; x++) {
+      if (distPointToSegmentSq(x + 0.5, y + 0.5, x1, y1, x2, y2) <= r2) blendPixel(rgba, w, h, x, y, r, g, b, alpha)
+    }
+  }
+}
+
 function fillCircle(rgba, w, h, cx, cy, rad, r, g, b) {
   const r2 = rad * rad
   const minX = Math.max(0, Math.floor(cx - rad - 1))
@@ -142,7 +174,7 @@ function fillRing(rgba, w, h, cx, cy, rOuter, rInner, r, g, b) {
   }
 }
 
-/** SDF скруглённого прямоугольника (p относительно центра), bx/by — полуразмеры «острого» ящика. */
+/** SDF скруглённого прямоугольника (центр холста). */
 function sdRoundedBox(px, py, bx, by, cornerR) {
   const qx = Math.abs(px) - bx + cornerR
   const qy = Math.abs(py) - by + cornerR
@@ -163,50 +195,55 @@ function lerpRgb(c0, c1, t) {
   }
 }
 
-/** Цвет плитки в точке (для «прорезей» в инструментах). */
+/** Точка в локальных осях: u — вдоль (+1,+1), v — вдоль (-1,+1), нормализовано. */
+function toGlobal(cx, cy, u, v) {
+  const n = Math.SQRT1_2
+  const gx = cx + (u - v) * n
+  const gy = cy + (u + v) * n
+  return { x: gx, y: gy }
+}
+
+/** Цвет плитки (для «дыр» в ключе). */
 function sampleAppTileRgb(size, x, y) {
   const cx = size * 0.5
   const cy = size * 0.5
-  const half = size * TILE_GEOM.half
-  const cornerR = size * TILE_GEOM.cornerR
-  const bx = half
-  const by = half
+  const half = size * TILE.half
+  const cornerR = size * TILE.cornerR
   const px = x - cx
   const py = y - cy
-  const sd = sdRoundedBox(px, py, bx, by, cornerR)
+  const sd = sdRoundedBox(px, py, half, half, cornerR)
 
-  if (sd > size * TILE_GEOM.outerSd) {
-    return { ...RED.rim }
+  if (sd > size * TILE.outerSd) {
+    return { ...RED_EDGE }
   }
 
   const nx = x / size
   const ny = y / size
-  const depth = nx * 0.22 + ny * 0.55
-  let col = lerpRgb(RED.core, RED.deep, Math.min(1, depth))
+  const tDiag = Math.min(1, Math.max(0, (nx + ny) * 0.5))
+  let col = lerpRgb(RED_TL, RED_BR, tDiag)
 
   const edge = Math.max(0, -sd)
-  const rimW = Math.max(1.2, size * 0.018)
-  if (edge < rimW) {
-    const k = 1 - edge / rimW
-    col = lerpRgb(col, RED.rim, k * k * 0.85)
+  const innerW = Math.max(2, size * 0.05)
+  if (edge < innerW) {
+    const k = 1 - edge / innerW
+    col = lerpRgb(col, RED_EDGE, k * k * 0.55)
   }
 
-  const hx = (x - cx) / (half * 1.05)
-  const hy = (y - cy) / (half * 1.05)
-  const gloss = Math.exp(-(hx * hx * 2.2 + Math.pow(hy + 0.35, 2) * 5.5) * 3.5)
-  const gloss2 = Math.exp(-(Math.pow(hx - 0.15, 2) * 8 + Math.pow(hy + 0.55, 2) * 12) * 6)
-  const spec = Math.min(1, gloss * 0.55 + gloss2 * 0.22)
-  col = lerpRgb(col, RED.highlight, spec)
+  const hx = (x - cx) / (half * 1.02)
+  const hy = (y - cy) / (half * 1.02)
+  const gloss = Math.exp(-(hx * hx * 2.0 + Math.pow(hy + 0.42, 2) * 5.0) * 4.0)
+  const glossWide = Math.exp(-(Math.pow(hy + 0.55, 2) * 10 + hx * hx * 1.5) * 2.5)
+  const spec = Math.min(1, gloss * 0.42 + glossWide * 0.18)
+  col = lerpRgb(col, { r: 0xff, g: 0xf5, b: 0xf4 }, spec)
 
-  const aa = Math.max(0, Math.min(1, 0.5 - sd * (size * 0.035)))
+  const aa = Math.max(0, Math.min(1, 0.5 - sd * (size * 0.032)))
   if (sd > -aa && sd < 0) {
     const outT = (sd + aa) / aa
-    col = lerpRgb(RED.rim, col, outT)
+    col = lerpRgb(RED_EDGE, col, outT)
   }
   return col
 }
 
-/** Фон: скруглённый квадрат, градиент глубины, верхний блик, тёмный «ободок». */
 function drawAppTileBackground(rgba, size) {
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
@@ -220,71 +257,101 @@ function drawAppTileBackground(rgba, size) {
   }
 }
 
-/** Гаечный ключ (диагональ). */
-function drawWrench(rgba, w, h, size, cx, cy, L) {
-  const tw = size * 0.076
-  const wx1 = cx - L * 0.5
-  const wy1 = cy + L * 0.46
-  const wx2 = cx + L * 0.44
-  const wy2 = cy - L * 0.4
-  drawThickLine(rgba, w, h, wx1, wy1, wx2, wy2, tw, FG.r, FG.g, FG.b)
+/**
+ * Ключ: тело вдоль диагонали +45° (u-ось), раскрытая головка (кольцо с вырезом снизу).
+ * u: от центра к «голове» положительное.
+ */
+function drawWrench(rgba, w, h, size, cx, cy, S, color, alpha = 1) {
+  const draw = alpha >= 0.99 ? (a, b, c, d, t, rr, gg, bb) => drawThickLine(rgba, w, h, a, b, c, d, t, rr, gg, bb) : (a, b, c, d, t, rr, gg, bb) => drawThickLineBlend(rgba, w, h, a, b, c, d, t, rr, gg, bb, alpha)
 
-  const jx = wx2
-  const jy = wy2
-  const jaw = size * 0.09
-  fillCircle(rgba, w, h, jx, jy, jaw * 0.55, FG.r, FG.g, FG.b)
-  const holeR = jaw * 0.3
-  const holeCol = sampleAppTileRgb(size, jx, jy)
-  fillCircle(rgba, w, h, jx, jy, holeR, holeCol.r, holeCol.g, holeCol.b)
+  const tw = size * 0.095
+  const u0 = -S * 0.72
+  const u1 = S * 0.38
+  const p0 = toGlobal(cx, cy, u0, 0)
+  const p1 = toGlobal(cx, cy, u1, 0)
+  draw(p0.x, p0.y, p1.x, p1.y, tw, color.r, color.g, color.b)
 
-  const bowR = size * 0.065
-  const bx = wx1 + tw * 0.25
-  const by = wy1 - tw * 0.15
-  fillRing(rgba, w, h, bx, by, bowR, bowR * 0.52, FG.r, FG.g, FG.b)
-  const inner = sampleAppTileRgb(size, bx + bowR * 0.32, by)
-  fillCircle(rgba, w, h, bx + bowR * 0.32, by, bowR * 0.3, inner.r, inner.g, inner.b)
+  const headU = S * 0.52
+  const headV = 0
+  const hc = toGlobal(cx, cy, headU, headV)
+  const jawR = size * 0.11
+  fillCircle(rgba, w, h, hc.x, hc.y, jawR * 0.52, color.r, color.g, color.b)
+  const holeCol = sampleAppTileRgb(size, hc.x, hc.y)
+  fillCircle(rgba, w, h, hc.x, hc.y, jawR * 0.32, holeCol.r, holeCol.g, holeCol.b)
+
+  const bowU = -S * 0.48
+  const bowV = 0
+  const bc = toGlobal(cx, cy, bowU, bowV)
+  const bowR = size * 0.078
+  fillRing(rgba, w, h, bc.x, bc.y, bowR, bowR * 0.48, color.r, color.g, color.b)
+  const inner = sampleAppTileRgb(size, bc.x + bowR * 0.28, bc.y)
+  fillCircle(rgba, w, h, bc.x + bowR * 0.28, bc.y, bowR * 0.28, inner.r, inner.g, inner.b)
 }
 
-/** Отвёртка: рукоятка + стержень + плоский шлиц (пересекает ключ под другим углом). */
-function drawScrewdriver(rgba, w, h, size, cx, cy, L) {
-  const shaftW = size * 0.058
-  const kx1 = cx - L * 0.42
-  const ky1 = cy - L * 0.48
-  const kx2 = cx + L * 0.48
-  const ky2 = cy + L * 0.44
-  drawThickLine(rgba, w, h, kx1, ky1, kx2, ky2, shaftW, FG.r, FG.g, FG.b)
+/**
+ * Отвёртка: вдоль −45° (v-ось), рукоятка (толстая), стержень, плоский наконечник.
+ */
+function drawScrewdriver(rgba, w, h, size, cx, cy, S, color, alpha = 1) {
+  const draw = alpha >= 0.99 ? (a, b, c, d, t, rr, gg, bb) => drawThickLine(rgba, w, h, a, b, c, d, t, rr, gg, bb) : (a, b, c, d, t, rr, gg, bb) => drawThickLineBlend(rgba, w, h, a, b, c, d, t, rr, gg, bb, alpha)
 
-  const ux = (kx2 - kx1) / Math.hypot(kx2 - kx1, ky2 - ky1)
-  const uy = (ky2 - ky1) / Math.hypot(kx2 - kx1, ky2 - ky1)
+  const shaftW = size * 0.072
+  const vShaft0 = -S * 0.55
+  const vShaft1 = S * 0.62
+  const s0 = toGlobal(cx, cy, 0, vShaft0)
+  const s1 = toGlobal(cx, cy, 0, vShaft1)
+  draw(s0.x, s0.y, s1.x, s1.y, shaftW, color.r, color.g, color.b)
+
+  const dx = s1.x - s0.x
+  const dy = s1.y - s0.y
+  const len = Math.hypot(dx, dy) || 1
+  const ux = dx / len
+  const uy = dy / len
   const px = -uy
   const py = ux
 
-  const handleLen = L * 0.38
-  const hx1 = kx1 - ux * handleLen * 0.15
-  const hy1 = ky1 - uy * handleLen * 0.15
-  const hx2 = kx1 - ux * handleLen * 1.05
-  const hy2 = ky1 - uy * handleLen * 1.05
-  drawThickLine(rgba, w, h, hx1, hy1, hx2, hy2, shaftW * 1.35, FG.r, FG.g, FG.b)
+  const handleLen = S * 0.42
+  const handleW = shaftW * 1.45
+  const h1 = toGlobal(cx, cy, 0, vShaft0)
+  const h2x = h1.x - ux * handleLen
+  const h2y = h1.y - uy * handleLen
+  draw(h1.x, h1.y, h2x, h2y, handleW, color.r, color.g, color.b)
 
-  const bit = size * 0.055
-  const tx = kx2 - ux * bit * 0.9
-  const ty = ky2 - uy * bit * 0.9
+  fillCircle(rgba, w, h, h2x, h2y, handleW * 0.52, color.r, color.g, color.b)
+
+  const bit = size * 0.065
+  const tx = s1.x + ux * bit * 0.15
+  const ty = s1.y + uy * bit * 0.15
   fillQuad(
     rgba,
     w,
     h,
-    tx - px * bit * 0.55,
-    ty - py * bit * 0.55,
-    tx + px * bit * 0.55,
-    ty + py * bit * 0.55,
-    tx + px * bit * 0.55 + ux * bit * 1.0,
-    ty + py * bit * 0.55 + uy * bit * 1.0,
-    tx - px * bit * 0.55 + ux * bit * 1.0,
-    ty - py * bit * 0.55 + uy * bit * 1.0,
-    FG.r,
-    FG.g,
-    FG.b,
+    tx - px * bit * 0.62,
+    ty - py * bit * 0.62,
+    tx + px * bit * 0.62,
+    ty + py * bit * 0.62,
+    tx + px * bit * 0.62 + ux * bit * 1.05,
+    ty + py * bit * 0.62 + uy * bit * 1.05,
+    tx - px * bit * 0.62 + ux * bit * 1.05,
+    ty - py * bit * 0.62 + uy * bit * 1.05,
+    color.r,
+    color.g,
+    color.b,
   )
+}
+
+function drawToolShadows(rgba, w, h, size, cx, cy, S) {
+  const ox = size * 0.018
+  const oy = size * 0.026
+  const layers = [
+    { dx: ox * 1.2, dy: oy * 1.2, a: 0.22, c: SHADOW },
+    { dx: ox * 0.7, dy: oy * 0.9, a: 0.16, c: SHADOW_SOFT },
+  ]
+  for (const layer of layers) {
+    const tcx = cx + layer.dx
+    const tcy = cy + layer.dy
+    drawWrench(rgba, w, h, size, tcx, tcy, S, layer.c, layer.a)
+    drawScrewdriver(rgba, w, h, size, tcx, tcy, S, layer.c, layer.a)
+  }
 }
 
 function renderIcon(size) {
@@ -296,10 +363,11 @@ function renderIcon(size) {
 
   const cx = size * 0.5
   const cy = size * 0.5
-  const L = size * 0.42
+  const S = size * TOOL.halfSpan
 
-  drawWrench(rgba, w, h, size, cx, cy, L)
-  drawScrewdriver(rgba, w, h, size, cx, cy, L)
+  drawToolShadows(rgba, w, h, size, cx, cy, S)
+  drawWrench(rgba, w, h, size, cx, cy, S, FG, 1)
+  drawScrewdriver(rgba, w, h, size, cx, cy, S, FG, 1)
 
   return rgba
 }
