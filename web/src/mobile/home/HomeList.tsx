@@ -20,7 +20,6 @@ type Props = {
   visibleTickets: api.TicketCard[]
   tabOnlyTickets: api.TicketCard[]
   boardTab: MobileHomeBoardFilterTab
-  tabCounts: Record<MobileHomeBoardFilterTab, number>
   role: api.Role | undefined
   meId: string | undefined
   boardTotal: number
@@ -59,7 +58,6 @@ export function HomeList(props: Props) {
     visibleTickets,
     tabOnlyTickets,
     boardTab,
-    tabCounts,
     role,
     meId,
     boardTotal,
@@ -99,7 +97,7 @@ export function HomeList(props: Props) {
         {boardIsLoading ? (
           <div className="mobileCard mobileMeta">Загрузка заявок…</div>
         ) : tabOnlyTickets.length === 0 && !hasHomeListFilters ? (
-          <TabEmpty boardTab={boardTab} role={role} boardTotal={boardTotal} tabCounts={tabCounts} />
+          <TabEmpty boardTab={boardTab} role={role} boardTotal={boardTotal} />
         ) : visibleTickets.length === 0 ? (
           <FilteredEmpty filterSummary={filterSummary} onReset={resetHomeListFilters} />
         ) : (
@@ -175,17 +173,14 @@ function TabEmpty({
   boardTab,
   role,
   boardTotal,
-  tabCounts,
 }: {
   boardTab: MobileHomeBoardFilterTab
   role: api.Role | undefined
   boardTotal: number
-  tabCounts: Record<MobileHomeBoardFilterTab, number>
 }) {
   const empty = mobileHomeTabEmptyCopy(boardTab, {
     role,
     boardTotal,
-    newUnassignedOnBoard: tabCounts.new,
   })
   return (
     <div className="mobileCard mobileEmptyState" role="status">
