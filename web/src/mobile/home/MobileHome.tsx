@@ -357,7 +357,6 @@ export function MobileHome() {
             visibleTickets={visibleTickets}
             tabOnlyTickets={tabOnlyTickets}
             boardTab={boardTab}
-            tabCounts={tabCounts}
             role={meQ.data?.role}
             meId={meQ.data?.id}
             boardTotal={tabCounts.all}
