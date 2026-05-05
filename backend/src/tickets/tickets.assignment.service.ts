@@ -25,6 +25,7 @@ import {
   resolveReadableTicketAccess,
   resolveTechnicianOperationalScope,
   resolveTicketOperationAccess,
+  type TicketAccessActor,
   wasTicketCreatedByActor,
 } from './ticket-access.utils';
 import { ServiceContractsService } from '../service-contracts/service-contracts.service';
@@ -63,6 +64,18 @@ export class TicketsAssignmentService {
   ) {}
 
   private readonly policy = new TicketsPolicy();
+
+  private requireAccessActor(actor: any, companyId: string): TicketAccessActor {
+    if (!actor?.id || !actor?.role) {
+      throw new Error('Actor is required for ticket access check');
+    }
+    return {
+      id: actor.id,
+      role: actor.role as UserRole,
+      companyId,
+      accessFlags: actor?.accessFlags,
+    };
+  }
 
   private async getCompany(companyId: string) {
     const company = await this.prisma.company.findUnique({
@@ -755,19 +768,19 @@ export class TicketsAssignmentService {
 
   async listAssignmentCandidates(companyId: string, actor: any, ticketId: string, linkedClientCompanyId?: string) {
     await this.assertExecutorOperationsAllowed(companyId);
+    const accessActor = this.requireAccessActor(actor, companyId);
     const access = await resolveTicketOperationAccess({
       prisma: this.prisma,
       serviceContractsService: this.serviceContractsService,
-      actor: {
-        id: actor?.id,
-        role: actor?.role,
-        companyId: companyId,
-        accessFlags: actor?.accessFlags,
-      },
+      actor: accessActor,
       ticketId
     });
 
-    const decision = this.policy.canAssign({ id: actor?.id, role: actor?.role, companyId: access.operationCompanyId });
+    const decision = this.policy.canAssign({
+      id: accessActor.id,
+      role: accessActor.role,
+      companyId: access.operationCompanyId,
+    });
     assertAllowed(decision);
 
     const ticket = await this.prisma.ticket.findFirst({
@@ -846,19 +859,19 @@ export class TicketsAssignmentService {
 
   async assign(companyId: string, actor: any, ticketId: string, technicianId: string, linkedClientCompanyId?: string) {
     await this.assertExecutorOperationsAllowed(companyId);
+    const accessActor = this.requireAccessActor(actor, companyId);
     const access = await resolveTicketOperationAccess({
       prisma: this.prisma,
       serviceContractsService: this.serviceContractsService,
-      actor: {
-        id: actor?.id,
-        role: actor?.role,
-        companyId: companyId,
-        accessFlags: actor?.accessFlags,
-      },
+      actor: accessActor,
       ticketId
     });
 
-    const decision = this.policy.canAssign({ id: actor?.id, role: actor?.role, companyId: access.operationCompanyId });
+    const decision = this.policy.canAssign({
+      id: accessActor.id,
+      role: accessActor.role,
+      companyId: access.operationCompanyId,
+    });
     assertAllowed(decision);
 
     const assignResult = await this.prisma.$transaction(async (tx) => {
@@ -1054,21 +1067,17 @@ export class TicketsAssignmentService {
     linkedClientCompanyId?: string,
   ) {
     await this.assertExecutorOperationsAllowed(companyId);
+    const accessActor = this.requireAccessActor(actor, companyId);
     const access = await resolveTicketOperationAccess({
       prisma: this.prisma,
       serviceContractsService: this.serviceContractsService,
-      actor: {
-        id: actor?.id,
-        role: actor?.role,
-        companyId: companyId,
-        accessFlags: actor?.accessFlags,
-      },
+      actor: accessActor,
       ticketId,
     });
 
     const decision = this.policy.canAssign({
-      id: actor?.id,
-      role: actor?.role,
+      id: accessActor.id,
+      role: accessActor.role,
       companyId: access.operationCompanyId,
     });
     assertAllowed(decision);
@@ -1421,15 +1430,11 @@ export class TicketsAssignmentService {
     ticketId: string,
     linkedClientCompanyId?: string,
   ) {
+    const accessActor = this.requireAccessActor(actor, companyId);
     await resolveReadableTicketAccess({
       prisma: this.prisma,
       serviceContractsService: this.serviceContractsService,
-      actor: {
-        id: actor?.id,
-        role: actor?.role,
-        companyId,
-        accessFlags: actor?.accessFlags,
-      },
+      actor: accessActor,
       ticketId,
       linkedClientCompanyId,
     });
