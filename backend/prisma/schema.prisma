@@ -37,7 +37,7 @@ enum TicketUrgency {
   NOT_URGENT
 }
 
-/** SLA-окно ответа: срок считается от момента создания (см. tickets.assignment.service). */
+// SLA-окно ответа: срок считается от момента создания (см. tickets.assignment.service)
 enum TicketPriority {
   NORMAL
   URGENT
