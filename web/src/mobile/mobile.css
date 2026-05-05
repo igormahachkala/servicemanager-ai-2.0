@@ -1209,6 +1209,42 @@ a.mobileBtn.mobileCreateTicketLink {
   border-color: #fca5a5;
 }
 
+.mobileTicketCardSlaWarning {
+  box-shadow: 0 0 0 2px #fed7aa, 0 6px 20px rgba(17, 24, 39, 0.08);
+  border-color: #fdba74;
+}
+
+.mobileTicketCardSlaOk {
+  border-color: #86efac;
+}
+
+.mobileSlaBadgeRow {
+  margin-top: 6px;
+}
+
+.mobileSlaStateBadge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.1;
+  border: 1px solid transparent;
+}
+
+.mobileSlaStateBadge--breached {
+  color: #991b1b;
+  background: #fee2e2;
+  border-color: #fecaca;
+}
+
+.mobileSlaStateBadge--warning {
+  color: #9a3412;
+  background: #ffedd5;
+  border-color: #fed7aa;
+}
+
 /* Полевые действия: claim / start / завершение (DONE) */
 .mobileBtn.mobileBtn--claim {
   background: #2563eb;
@@ -1238,6 +1274,70 @@ a.mobileBtn.mobileCreateTicketLink {
 .mobileBtn.mobileBtn--done:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+
+.mobileBtnBusy {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mobileBtnSpinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  border-top-color: #fff;
+  animation: mobileSpin 0.8s linear infinite;
+}
+
+.mobileCardBusyOverlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.46);
+  backdrop-filter: blur(0.6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+}
+
+.mobileCardBusyOverlaySpinner {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 2px solid rgba(37, 99, 235, 0.3);
+  border-top-color: #2563eb;
+  animation: mobileSpin 0.8s linear infinite;
+}
+
+.mobileCardInlineError {
+  margin: 0 12px 12px;
+  padding: 8px 10px;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  background: #fff1f2;
+  color: #9f1239;
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.mobileCardInlineSuccess {
+  margin: 0 12px 8px;
+  padding: 8px 10px;
+  border: 1px solid #a7f3d0;
+  border-radius: 10px;
+  background: #ecfdf5;
+  color: #065f46;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+@keyframes mobileSpin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .mobileTopBar {

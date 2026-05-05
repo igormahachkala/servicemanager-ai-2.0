@@ -23,6 +23,7 @@ export function MobileCreateTicket() {
   const qc = useQueryClient()
   const cameraInputRef = useRef<HTMLInputElement | null>(null)
   const galleryInputRef = useRef<HTMLInputElement | null>(null)
+  const successRef = useRef<HTMLDivElement | null>(null)
 
   function clearPhotoInputs() {
     if (cameraInputRef.current) cameraInputRef.current.value = ''
@@ -114,6 +115,14 @@ export function MobileCreateTicket() {
   const [draftUploadProgress, setDraftUploadProgress] = useState<{ current: number; total: number } | null>(null)
   const [error, setError] = useState('')
   const [result, setResult] = useState<CreateResult | null>(null)
+
+  useEffect(() => {
+    if (!result?.ticketId || !successRef.current) return
+    const el = successRef.current
+    requestAnimationFrame(() => {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }, [result?.ticketId])
 
   useEffect(() => {
     if (!categoryId && activeCategories.length > 0) setCategoryId(activeCategories[0].id)
@@ -304,7 +313,7 @@ export function MobileCreateTicket() {
       {error ? <div className="mobileNotice mobileNoticeError">{error}</div> : null}
       {uploadError ? <div className="mobileNotice mobileNoticeError">{uploadError}</div> : null}
       {result ? (
-        <div className="mobileCard mobilePostCreateSuccess">
+        <div ref={successRef} className="mobileCard mobilePostCreateSuccess">
           <div className="mobilePostCreateSuccessTitle">{POST_CREATE_HEADLINE}</div>
           <p className="mobilePostCreateSuccessSub">{POST_CREATE_SUBLINE}</p>
           {!isTechnician ? (

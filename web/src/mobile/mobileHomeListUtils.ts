@@ -1,4 +1,4 @@
-import type { TicketCard } from '../lib/api'
+import type { Role, TicketCard } from '../lib/api'
 import {
   dedupeBoardCards,
   filterTicketsForMobileHomeTab,
@@ -9,7 +9,7 @@ import {
 
 const LS_KEY = 'sma.mobileHome.boardUi.v1'
 
-const MOBILE_HOME_TABS: MobileHomeBoardFilterTab[] = ['all', 'new', 'mine', 'in_work']
+const MOBILE_HOME_TABS: MobileHomeBoardFilterTab[] = ['all', 'mine', 'in_work']
 
 export function readPersistedMobileHomeBoardUi(): { tab: MobileHomeBoardFilterTab; chips: MobileHomeBoardChipId[] } {
   try {
@@ -66,11 +66,16 @@ function isUrgentTicket(t: TicketCard): boolean {
   return (t.priority ?? 'NORMAL') === 'URGENT' || t.urgency === 'URGENT'
 }
 
-function isOverdueTicket(t: TicketCard, nowMs: number): boolean {
-  if (t.slaBreached) return true
-  if (!t.slaDueAt) return false
-  const due = new Date(t.slaDueAt).getTime()
-  return !Number.isNaN(due) && nowMs >= due
+export type TicketSlaState = 'none' | 'breached' | 'warning' | 'ok'
+
+export function getSlaState(ticket: TicketCard, nowMs: number): TicketSlaState {
+  if (!ticket.slaDueAt) return 'none'
+  const due = new Date(ticket.slaDueAt).getTime()
+  if (Number.isNaN(due)) return 'none'
+  if (due < nowMs) return 'breached'
+  const diff = due - nowMs
+  if (diff < 60 * 60 * 1000) return 'warning'
+  return 'ok'
 }
 
 function isNearDeadlineTicket(t: TicketCard, nowMs: number, atRiskThresholdMs: number): boolean {
@@ -93,18 +98,17 @@ function isTodayTicket(t: TicketCard, nowMs: number): boolean {
 function ticketMatchesChip(
   ticket: TicketCard,
   chip: MobileHomeBoardChipId,
-  meId: string | undefined,
+  _meId: string | undefined,
+  _meRole: Role | undefined | null,
   nowMs: number,
 ): boolean {
   switch (chip) {
     case 'urgent':
-      return isUrgentTicket(ticket)
+      return getSlaState(ticket, nowMs) === 'warning'
     case 'overdue':
-      return isOverdueTicket(ticket, nowMs)
+      return getSlaState(ticket, nowMs) === 'breached'
     case 'unassigned':
       return ticket.status === 'NEW' && !ticket.assignedTechnician
-    case 'mine':
-      return !!meId && (ticket.assignedTechnician?.id || '').trim() === meId.trim()
     case 'today':
       return isTodayTicket(ticket, nowMs)
     default:
@@ -116,12 +120,13 @@ export function filterTicketsByChips(
   tickets: TicketCard[],
   chips: ReadonlySet<MobileHomeBoardChipId>,
   meId: string | undefined,
+  meRole: Role | undefined | null,
   nowMs: number,
 ): TicketCard[] {
   if (!chips.size) return tickets
   return tickets.filter((t) => {
     for (const c of chips) {
-      if (!ticketMatchesChip(t, c, meId, nowMs)) return false
+      if (!ticketMatchesChip(t, c, meId, meRole, nowMs)) return false
     }
     return true
   })
@@ -133,14 +138,22 @@ export function sortTicketsForMobileHome(
   atRiskThresholdMinutes: number,
 ): TicketCard[] {
   const atRiskMs = Math.max(1, atRiskThresholdMinutes) * 60_000
-  const score = (t: TicketCard): [number, number, number, number] => {
+  const slaPriority: Record<TicketSlaState, number> = {
+    breached: 0,
+    warning: 1,
+    ok: 2,
+    none: 3,
+  }
+  const score = (t: TicketCard): [number, number, number, number, number] => {
+    const slaState = getSlaState(t, nowMs)
+    const slaRank = slaPriority[slaState]
     const urgent = isUrgentTicket(t) ? 0 : 1
     const deadlinePressure =
-      isOverdueTicket(t, nowMs) || isNearDeadlineTicket(t, nowMs, atRiskMs) ? 0 : 1
+      slaState === 'breached' || slaState === 'warning' || isNearDeadlineTicket(t, nowMs, atRiskMs) ? 0 : 1
     const newUn = t.status === 'NEW' && !t.assignedTechnician ? 0 : 1
     const created = new Date(t.createdAt).getTime()
     const createdKey = Number.isNaN(created) ? 0 : -created
-    return [urgent, deadlinePressure, newUn, createdKey]
+    return [slaRank, urgent, deadlinePressure, newUn, createdKey]
   }
   const cmp = (a: TicketCard, b: TicketCard) => {
     const sa = score(a)
@@ -157,15 +170,16 @@ export function buildMobileHomeVisibleTickets(params: {
   cards: TicketCard[]
   tab: MobileHomeBoardFilterTab
   meId: string | undefined
+  meRole?: Role | null
   chips: ReadonlySet<MobileHomeBoardChipId>
   searchQuery: string
   atRiskThresholdMinutes: number
   nowMs?: number
 }): TicketCard[] {
   const nowMs = params.nowMs ?? Date.now()
-  const tabbed = filterTicketsForMobileHomeTab(params.cards, params.tab, params.meId)
+  const tabbed = filterTicketsForMobileHomeTab(params.cards, params.tab, params.meId, params.meRole)
   const deduped = dedupeBoardCards(tabbed)
-  const chipped = filterTicketsByChips(deduped, params.chips, params.meId, nowMs)
+  const chipped = filterTicketsByChips(deduped, params.chips, params.meId, params.meRole, nowMs)
   const searched = chipped.filter((t) => ticketMatchesMobileHomeSearch(t, params.searchQuery))
   return sortTicketsForMobileHome(searched, nowMs, params.atRiskThresholdMinutes)
 }

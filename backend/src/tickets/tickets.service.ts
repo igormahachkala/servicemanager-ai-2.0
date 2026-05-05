@@ -247,12 +247,25 @@ export class TicketsService {
     return this.assignment.assign(companyId, actor, ticketId, technicianId, linkedClientCompanyId)
   }
 
+  assignSmart(companyId: string, actor: any, ticketId: string, linkedClientCompanyId?: string) {
+    return this.assignment.assignSmart(companyId, actor, ticketId, linkedClientCompanyId)
+  }
+
   claim(companyId: string, technicianUserId: string, ticketId: string, linkedClientCompanyId?: string) {
     return this.assignment.claim(companyId, technicianUserId, ticketId, linkedClientCompanyId)
   }
 
   listAssignmentCandidates(companyId: string, actor: any, ticketId: string, linkedClientCompanyId?: string) {
     return this.assignment.listAssignmentCandidates(companyId, actor, ticketId, linkedClientCompanyId)
+  }
+
+  latestAssignmentDecision(companyId: string, actor: any, ticketId: string, linkedClientCompanyId?: string) {
+    return this.assignment.getLatestAssignmentDecision(
+      companyId,
+      { id: actor?.id, role: actor?.role as UserRole, accessFlags: actor?.accessFlags },
+      ticketId,
+      linkedClientCompanyId,
+    )
   }
 
   updateStatus(

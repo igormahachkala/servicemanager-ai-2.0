@@ -34,6 +34,7 @@ export function CreateTicketPage() {
   const location = useLocation()
   const qc = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const successRef = useRef<HTMLDivElement | null>(null)
 
   const [mode, setMode] = useState<CreateMode>('quick')
   const [err, setErr] = useState<string | null>(null)
@@ -223,6 +224,14 @@ export function CreateTicketPage() {
     if (!locationId && activeLocations.length > 0) setLocationId(activeLocations[0].id)
     if (locationId && !activeLocations.some((row) => row.id === locationId)) setLocationId(activeLocations[0]?.id || '')
   }, [activeLocations, locationId])
+
+  useEffect(() => {
+    if (!lastCreatedTicketId || !successRef.current) return
+    const el = successRef.current
+    requestAnimationFrame(() => {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }, [lastCreatedTicketId])
 
   useEffect(() => {
     if (!draftAttachment) return
@@ -725,7 +734,11 @@ export function CreateTicketPage() {
             </button>
           </div>
           {lastCreatedTicketId ? (
-            <div className="panel uiCard" style={{ padding: 14, borderColor: '#a7f3d0', background: 'linear-gradient(180deg, #ecfdf5 0%, #fff 45%)' }}>
+            <div
+              ref={successRef}
+              className="panel uiCard"
+              style={{ padding: 14, borderColor: '#a7f3d0', background: 'linear-gradient(180deg, #ecfdf5 0%, #fff 45%)' }}
+            >
               <div style={{ fontWeight: 900, fontSize: 16, color: '#065f46' }}>{POST_CREATE_HEADLINE}</div>
               <p className="muted" style={{ margin: '6px 0 0', lineHeight: 1.5 }}>
                 {POST_CREATE_SUBLINE}

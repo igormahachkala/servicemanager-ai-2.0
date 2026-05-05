@@ -1,17 +1,16 @@
 import type { Role, TicketCard } from '../lib/api'
 
-export type MobileHomeBoardFilterTab = 'all' | 'new' | 'mine' | 'in_work'
+export type MobileHomeBoardFilterTab = 'all' | 'mine' | 'in_work'
 
 /** Быстрые фильтры на главной /m (комбинируются с поиском и вкладкой). */
-export type MobileHomeBoardChipId = 'urgent' | 'overdue' | 'unassigned' | 'mine' | 'today'
+export type MobileHomeBoardChipId = 'urgent' | 'overdue' | 'unassigned' | 'today'
 
-export const MOBILE_HOME_BOARD_CHIP_IDS: MobileHomeBoardChipId[] = ['urgent', 'overdue', 'unassigned', 'mine', 'today']
+export const MOBILE_HOME_BOARD_CHIP_IDS: MobileHomeBoardChipId[] = ['urgent', 'overdue', 'unassigned', 'today']
 
 export const MOBILE_HOME_BOARD_CHIP_LABELS: Record<MobileHomeBoardChipId, string> = {
   urgent: 'Срочные',
   overdue: 'Просроченные',
   unassigned: 'Без исполнителя',
-  mine: 'Мои',
   today: 'Сегодня',
 }
 
@@ -32,7 +31,22 @@ export function isNewUnassignedTicket(ticket: TicketCard): boolean {
 
 export function isTicketAssignedToMe(ticket: TicketCard, meId: string | undefined): boolean {
   if (!meId) return false
-  return (ticket.assignedTechnician?.id || '').trim() === meId.trim()
+  return (ticket.assignedTechnicianId || ticket.assignedTechnician?.id || '').trim() === meId.trim()
+}
+
+/**
+ * Ролевая семантика «Мои заявки»:
+ * - TECHNICIAN: назначенные на текущего пользователя.
+ * - Остальные роли: созданные текущим пользователем.
+ */
+export function isMineTicketForRole(
+  ticket: TicketCard,
+  meId: string | undefined,
+  role: Role | undefined | null,
+): boolean {
+  if (!role || !meId) return false
+  if (role === 'TECHNICIAN') return isTicketAssignedToMe(ticket, meId)
+  return (ticket.createdByUserId || '').trim() === meId.trim()
 }
 
 export function isTicketInWorkStatus(ticket: TicketCard): boolean {
@@ -43,21 +57,20 @@ export function filterTicketsForMobileHomeTab(
   cards: TicketCard[],
   tab: MobileHomeBoardFilterTab,
   meId: string | undefined,
+  role?: Role | null,
 ): TicketCard[] {
   const list = dedupeBoardCards(cards)
   if (tab === 'all') return list
-  if (tab === 'new') return list.filter(isNewUnassignedTicket)
-  if (tab === 'mine') return list.filter((t) => isTicketAssignedToMe(t, meId))
+  if (tab === 'mine') return list.filter((t) => isMineTicketForRole(t, meId, role))
   if (tab === 'in_work') return list.filter(isTicketInWorkStatus)
   return list
 }
 
-export function mobileHomeBoardTabCounts(cards: TicketCard[], meId: string | undefined) {
+export function mobileHomeBoardTabCounts(cards: TicketCard[], meId: string | undefined, role?: Role | null) {
   const list = dedupeBoardCards(cards)
   return {
     all: list.length,
-    new: list.filter(isNewUnassignedTicket).length,
-    mine: list.filter((t) => isTicketAssignedToMe(t, meId)).length,
+    mine: list.filter((t) => isMineTicketForRole(t, meId, role)).length,
     in_work: list.filter(isTicketInWorkStatus).length,
   }
 }
@@ -68,44 +81,19 @@ export type MobileHomeEmptyContext = {
   role?: Role | null
   /** Карточек на доске после дедупа */
   boardTotal: number
-  /** Сколько NEW без исполнителя на всей доске */
-  newUnassignedOnBoard: number
 }
 
 /** Текст пустого состояния вкладки главной (заголовок + подсказка). */
 export function mobileHomeTabEmptyCopy(tab: MobileHomeBoardFilterTab, ctx?: MobileHomeEmptyContext): MobileHomeTabEmptyCopy {
   const tech = ctx?.role === 'TECHNICIAN'
   const total = ctx?.boardTotal ?? 0
-  const newOnBoard = ctx?.newUnassignedOnBoard ?? 0
-
   switch (tab) {
-    case 'new':
-      if (total === 0) {
-        return {
-          title: 'Нет доступных заявок',
-          hint: tech
-            ? 'В выбранном контуре сейчас нет заявок. Если ожидали увидеть список: проверьте клиентский контур в шапке, обновите экран позже или обратитесь к администратору.'
-            : 'Новые необработанные заявки в выбранном контуре появятся здесь после появления данных.',
-        }
-      }
-      if (newOnBoard === 0) {
-        return {
-          title: 'Новых необработанных заявок нет',
-          hint: tech
-            ? 'На доске есть заявки в других статусах — загляните во «Все» или «В работе». Новые без исполнителя появятся здесь, когда их создадут в этом контуре.'
-            : 'Новые заявки без исполнителя сейчас отсутствуют. Проверьте другие вкладки или фильтры в веб-версии.',
-        }
-      }
-      return {
-        title: 'Новых заявок нет',
-        hint: 'Новые необработанные заявки в выбранном контуре появятся здесь.',
-      }
     case 'mine':
       return {
-        title: 'Нет заявок на вас',
+        title: tech ? 'Нет заявок на вас' : 'Нет созданных вами заявок',
         hint: tech
-          ? 'После того как вас назначат исполнителем (или вы возьмёте заявку самостоятельно), она появится здесь. Начните с вкладки «Новые».'
-          : 'После назначения исполнителем заявки отобразятся во вкладке «Мои».',
+          ? 'Техник: здесь только заявки, назначенные на вас.'
+          : 'Клиент: здесь только заявки, созданные вами.',
       }
     case 'in_work':
       return {
@@ -125,7 +113,7 @@ export function mobileHomeTabEmptyCopy(tab: MobileHomeBoardFilterTab, ctx?: Mobi
       }
       return {
         title: 'Нет заявок по фильтру',
-        hint: 'Переключите вкладку выше — например, «Новые» или «Мои».',
+        hint: 'Переключите вкладку выше — например, «Все» или «Мои заявки».',
       }
   }
 }

@@ -324,6 +324,26 @@ export class TicketsController {
     return this.svc.listAssignmentCandidates(req.user.companyId, req.user, id, linkedClientCompanyId)
   }
 
+  @Get(':id/assignment-decision')
+  @Roles(
+    UserRole.ADMIN,
+    UserRole.MASTER,
+    UserRole.DISPATCHER,
+    UserRole.NETWORK_DIRECTOR,
+    UserRole.TECHNICIAN,
+    UserRole.CLIENT,
+    UserRole.TERRITORIAL_MANAGER,
+    UserRole.PLATFORM_ADMIN,
+  )
+  @RequirePermission(PERMISSIONS.TICKETS_VIEW)
+  latestAssignmentDecision(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Query('linkedClientCompanyId') linkedClientCompanyId?: string,
+  ) {
+    return this.svc.latestAssignmentDecision(req.user.companyId, req.user, id, linkedClientCompanyId)
+  }
+
   @Put(':id/assign/:technicianId')
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR)
   @RequirePermission(PERMISSIONS.TICKETS_ASSIGN)
@@ -334,6 +354,17 @@ export class TicketsController {
     @Query('linkedClientCompanyId') linkedClientCompanyId?: string,
   ) {
     return this.svc.assign(req.user.companyId, req.user, id, technicianId, linkedClientCompanyId)
+  }
+
+  @Post(':id/assign-smart')
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR)
+  @RequirePermission(PERMISSIONS.TICKETS_ASSIGN)
+  assignSmart(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Query('linkedClientCompanyId') linkedClientCompanyId?: string,
+  ) {
+    return this.svc.assignSmart(req.user.companyId, req.user, id, linkedClientCompanyId)
   }
 
   @Post(':id/claim')

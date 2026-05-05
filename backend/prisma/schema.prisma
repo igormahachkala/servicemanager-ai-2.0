@@ -37,7 +37,7 @@ enum TicketUrgency {
   NOT_URGENT
 }
 
-// SLA-окно ответа: срок считается от момента создания (см. tickets.assignment.service).
+/** SLA-окно ответа: срок считается от момента создания (см. tickets.assignment.service). */
 enum TicketPriority {
   NORMAL
   URGENT
@@ -158,6 +158,7 @@ model User {
   ticketStatusChanges        TicketStatusHistory[] @relation("TicketStatusChangedBy")
   technicianSpecializations  TechnicianSpecialization[]
   assignedTickets            Ticket[] @relation("AssignedTechnician")
+  createdTickets             Ticket[] @relation("TicketCreatedBy")
   ticketAttachmentsUploaded  TicketAttachment[] @relation("TicketAttachmentUploadedBy")
   inspectionRunsPerformed    InspectionRun[] @relation("InspectionRunPerformedBy")
   inspectionReportsSubmitted InspectionRun[] @relation("InspectionRunReportSubmittedBy")
@@ -393,12 +394,15 @@ model Ticket {
 
   assignedTechnicianId String?
   assignedTechnician   User?   @relation("AssignedTechnician", fields: [assignedTechnicianId], references: [id], onDelete: SetNull)
+  createdByUserId      String?
+  createdByUser        User?   @relation("TicketCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([companyId, status])
   @@index([companyId, createdAt])
+  @@index([companyId, createdByUserId])
   @@index([status, createdAt])
   @@index([statusUpdatedAt])
   @@index([slaDueAt])
@@ -510,6 +514,19 @@ model AssignmentCursor {
   @@unique([companyId, strategy])
   @@index([companyId])
   @@index([companyId, strategy])
+}
+
+model AssignmentDecision {
+  id              String   @id @default(uuid())
+  ticketId        String
+  technicianId    String?
+  candidatesCount Int
+  reason          String
+  createdAt       DateTime @default(now())
+
+  @@index([ticketId, createdAt])
+  @@index([technicianId, createdAt])
+  @@index([createdAt])
 }
 
 

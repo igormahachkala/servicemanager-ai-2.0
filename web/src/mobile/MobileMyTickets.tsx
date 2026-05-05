@@ -10,6 +10,7 @@ import {
   scopeForMobileTicketLink,
 } from './mobileTicketDisplay'
 import { MobileRoleContextStrip } from './MobileUxHints'
+import { isMineTicketForRole } from './mobileHomeBoardFilters'
 
 type FilterKey = 'active' | 'new' | 'closed'
 
@@ -88,10 +89,14 @@ export function MobileMyTickets() {
   })
 
   const allTickets = boardQ.data?.columns.flatMap((col) => col.cards || []) || []
+  const mineScopedTickets = useMemo(
+    () => allTickets.filter((ticket) => isMineTicketForRole(ticket, meQ.data?.id, meQ.data?.role)),
+    [allTickets, meQ.data?.id, meQ.data?.role],
+  )
   const statuses = filterMap[filter]
   const filteredTickets = useMemo(
-    () => allTickets.filter((ticket) => statuses.includes(ticket.status)),
-    [allTickets, statuses],
+    () => mineScopedTickets.filter((ticket) => statuses.includes(ticket.status)),
+    [mineScopedTickets, statuses],
   )
 
   const ticketHref = (ticket: api.TicketCard) => {

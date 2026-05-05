@@ -116,6 +116,18 @@ export class NotificationsService {
     void this.safeNotify('ticket.created+assign', () => this.emitTicketCreatedAndMaybeAssign(params));
   }
 
+  onTicketCreated(params: {
+    actorCompanyId: string;
+    creatorUserId: string | null;
+    targetCompanyId: string;
+    ticketId: string;
+    ticketNumber: number;
+    summary: string;
+    assignedTechnicianId: string | null;
+  }) {
+    this.scheduleTicketCreated(params);
+  }
+
   scheduleTicketCreatedPublic(params: {
     ticketCompanyId: string;
     ticketId: string;
@@ -173,6 +185,18 @@ export class NotificationsService {
     summary: string;
   }) {
     void this.safeNotify('ticket.assigned_client', () => this.emitTicketAssignedClientCompanyInternal(params));
+  }
+
+  onTicketAssigned(params: {
+    ticketCompanyId: string;
+    assigneeUserId: string;
+    assigneeEmail: string;
+    actorUserId: string | null;
+    ticketId: string;
+    ticketNumber: number;
+    summary: string;
+  }) {
+    this.scheduleTicketAssignedClientCompany(params);
   }
 
   scheduleTicketClaimedDispatchers(params: {
@@ -285,6 +309,34 @@ export class NotificationsService {
     toStatus: TicketStatus;
   }) {
     void this.safeNotify('ticket.status_client', () => this.emitTicketStatusForClientCompanyInternal(params));
+  }
+
+  onTicketInProgress(params: {
+    ticketCompanyId: string;
+    actorUserId: string | null;
+    ticketId: string;
+    ticketNumber: number;
+    summary: string;
+    fromStatus: TicketStatus;
+  }) {
+    this.scheduleTicketStatusForClientCompany({
+      ...params,
+      toStatus: TicketStatus.IN_PROGRESS,
+    });
+  }
+
+  onTicketDone(params: {
+    ticketCompanyId: string;
+    actorUserId: string | null;
+    ticketId: string;
+    ticketNumber: number;
+    summary: string;
+    fromStatus: TicketStatus;
+  }) {
+    this.scheduleTicketStatusForClientCompany({
+      ...params,
+      toStatus: TicketStatus.DONE,
+    });
   }
 
   private async emitTicketCreatedPublicInternal(params: {
@@ -461,7 +513,7 @@ export class NotificationsService {
       data: users.map((u) => ({
         companyId: u.companyId,
         userId: u.id,
-        type: 'ticket.assigned_external',
+        type: 'ticket.assigned',
         title,
         message,
         entityType: 'Ticket',
@@ -594,11 +646,14 @@ export class NotificationsService {
     if (!users.length) return;
 
     const title = 'Статус изменён';
+    let notificationType: 'ticket.in_progress' | 'ticket.done' = 'ticket.in_progress';
     let body = '';
     if (params.toStatus === TicketStatus.IN_PROGRESS) {
       body = `${ticketLabel(params.ticketNumber)} — техник приступил к работам.`;
+      notificationType = 'ticket.in_progress';
     } else if (params.toStatus === TicketStatus.DONE) {
       body = `${ticketLabel(params.ticketNumber)} — работы завершены. Проверьте результат и отчёт в карточке заявки.`;
+      notificationType = 'ticket.done';
     }
     const message = clipMessage(`${body} ${params.summary}`.trim());
 
@@ -606,7 +661,7 @@ export class NotificationsService {
       data: users.map((u) => ({
         companyId: u.companyId,
         userId: u.id,
-        type: 'ticket.status_changed',
+        type: notificationType,
         title,
         message,
         entityType: 'Ticket',

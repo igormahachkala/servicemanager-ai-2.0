@@ -60,6 +60,8 @@ export type NotificationsListResponse = {
 export type InAppNotificationType =
   | 'ticket.created'
   | 'ticket.assigned'
+  | 'ticket.in_progress'
+  | 'ticket.done'
   | 'ticket.claimed'
   | 'ticket.status_changed'
   | 'ticket.assignment_requested'
@@ -72,6 +74,8 @@ export type InAppNotificationType =
 const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
   'ticket.created': 'Заявка создана',
   'ticket.assigned': 'Техник назначен',
+  'ticket.in_progress': 'Работы начаты',
+  'ticket.done': 'Работы завершены',
   'ticket.claimed': 'Взята в работу',
   'ticket.status_changed': 'Статус изменён',
   'ticket.assignment_requested': 'Запрос назначения',
@@ -95,6 +99,8 @@ export function getNotificationTypeTone(type: string): string {
   const map: Record<string, string> = {
     'ticket.created': 'ticketCreated',
     'ticket.assigned': 'ticketAssigned',
+    'ticket.in_progress': 'statusChanged',
+    'ticket.done': 'statusChanged',
     'ticket.claimed': 'ticketClaimed',
     'ticket.status_changed': 'statusChanged',
     'ticket.assignment_requested': 'assignmentRequested',
@@ -458,6 +464,29 @@ export type AssignmentCandidateTechnician = {
   }>
 }
 
+export type SmartAssignResult = {
+  assigned: boolean
+  technicianId: string | null
+  technicianName: string | null
+  reason: string
+  candidatesCount: number
+  assignmentDecision?: {
+    ticketId: string
+    technicianId: string
+    reason: string
+    createdAt: string
+  }
+  ticket?: TicketGetOne
+}
+
+export type AssignmentDecisionItem = {
+  ticketId: string
+  technicianId: string | null
+  candidatesCount: number
+  reason: string
+  createdAt: string
+}
+
 export type AssignmentCandidatesResponse = {
   ticketId: string
   category: {
@@ -535,11 +564,15 @@ export type TicketCard = {
     status?: string | null
   } | null
   category: { id: string; name: string }
-  assignedTechnician: { id: string; email: string } | null
+  assignedTechnician: { id: string; email: string; firstName?: string | null; lastName?: string | null } | null
   /** Текст заявки (с board). */
   description?: string
   /** Имя заявителя, если есть (с board). */
   requesterName?: string | null
+  /** Кто создал заявку (для честного фильтра «Мои заявки»). */
+  createdByUserId?: string | null
+  /** Дублируем id исполнителя отдельно от объекта исполнителя. */
+  assignedTechnicianId?: string | null
   /** Для TECHNICIAN на board: согласовано с правилами claim по специализации (см. tickets.query.service). */
   canClaimByCurrentUser?: boolean
   /** Техник уже отправил запрос назначения по этой NEW-заявке (см. tickets.query.service). */
@@ -2064,6 +2097,21 @@ export async function assignTicket(id: string, technicianId: string, scope?: str
   return request<any>(`/tickets/${id}/assign/${technicianId}${buildTicketScopeSuffix(scope)}`, {
     method: 'PUT',
   })
+}
+
+export async function smartAssignTicket(id: string, scope?: string | TicketScopeParams): Promise<SmartAssignResult> {
+  return request<SmartAssignResult>(`/tickets/${id}/assign-smart${buildTicketScopeSuffix(scope)}`, {
+    method: 'POST',
+  })
+}
+
+export async function latestAssignmentDecision(
+  id: string,
+  scope?: string | TicketScopeParams,
+): Promise<AssignmentDecisionItem | null> {
+  return request<AssignmentDecisionItem | null>(
+    `/tickets/${id}/assignment-decision${buildTicketScopeSuffix(scope)}`,
+  )
 }
 
 export async function claimTicket(id: string, scope?: string | TicketScopeParams): Promise<any> {

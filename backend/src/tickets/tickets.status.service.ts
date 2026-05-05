@@ -222,15 +222,25 @@ export class TicketsStatusService {
     }
 
     if (statusResult.fromStatus !== statusResult.toStatus) {
-      this.notifications.scheduleTicketStatusForClientCompany({
-        ticketCompanyId: statusResult.updated.companyId,
-        actorUserId: user?.id ?? null,
-        ticketId,
-        ticketNumber: statusResult.updated.ticketNumber,
-        summary: summaryLine,
-        fromStatus: statusResult.fromStatus,
-        toStatus: statusResult.toStatus,
-      });
+      if (statusResult.toStatus === TicketStatus.IN_PROGRESS) {
+        this.notifications.onTicketInProgress({
+          ticketCompanyId: statusResult.updated.companyId,
+          actorUserId: user?.id ?? null,
+          ticketId,
+          ticketNumber: statusResult.updated.ticketNumber,
+          summary: summaryLine,
+          fromStatus: statusResult.fromStatus,
+        });
+      } else if (statusResult.toStatus === TicketStatus.DONE) {
+        this.notifications.onTicketDone({
+          ticketCompanyId: statusResult.updated.companyId,
+          actorUserId: user?.id ?? null,
+          ticketId,
+          ticketNumber: statusResult.updated.ticketNumber,
+          summary: summaryLine,
+          fromStatus: statusResult.fromStatus,
+        });
+      }
     }
 
     return statusResult.updated;

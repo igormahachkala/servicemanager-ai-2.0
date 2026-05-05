@@ -1,3 +1,4 @@
+export { MobileHome } from './home/MobileHome'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
@@ -26,6 +27,7 @@ import {
 import {
   buildMobileHomeVisibleTickets,
   formatActiveMobileHomeFiltersSummary,
+  getSlaState,
   readPersistedMobileHomeBoardUi,
   writePersistedMobileHomeBoardUi,
 } from './mobileHomeListUtils'
@@ -43,32 +45,33 @@ import { getOnlineStatus, loadBoardCache, saveBoardCache, useOnlineStatus } from
 
 const MOBILE_HOME_TAB_LABELS: Record<MobileHomeBoardFilterTab, string> = {
   all: 'Все',
-  new: 'Новые',
   mine: 'Мои',
   in_work: 'В работе',
 }
 
-const MOBILE_HOME_TABS: MobileHomeBoardFilterTab[] = ['all', 'new', 'mine', 'in_work']
+const MOBILE_HOME_TABS: MobileHomeBoardFilterTab[] = ['all', 'mine', 'in_work']
 
 function getPrimaryActionLabel(
   ticket: api.TicketCard,
   meId: string | undefined,
   role: api.Role | undefined,
-): 'Взять' | 'Запросить назначение' | 'Начать' | 'Закрыть' | null {
+): 'Взять в работу' | 'Запросить назначение' | 'Начать' | 'Завершить' | null {
   if (!api.allowMobileHomeFieldTicketActions(role) || !meId) return null
   if (ticket.status === 'NEW' && !ticket.assignedTechnician) {
     if (role === 'TECHNICIAN' && ticket.assignmentRequestedByCurrentUser) return null
     if (role === 'TECHNICIAN' && ticket.canClaimByCurrentUser === false) return 'Запросить назначение'
-    return 'Взять'
+    return 'Взять в работу'
   }
   if (ticket.status === 'ASSIGNED' && ticket.assignedTechnician?.id === meId) return 'Начать'
-  if (ticket.status === 'IN_PROGRESS' && ticket.assignedTechnician?.id === meId) return 'Закрыть'
+  if (ticket.status === 'IN_PROGRESS' && ticket.assignedTechnician?.id === meId) return 'Завершить'
   return null
 }
 
 function assignedTechnicianDisplay(ticket: api.TicketCard): string {
   const t = ticket.assignedTechnician
   if (!t) return 'Не назначен'
+  const fullName = [t.firstName?.trim(), t.lastName?.trim()].filter(Boolean).join(' ').trim()
+  if (fullName) return fullName
   const email = (t.email || '').trim()
   if (email) return email
   return (t.id || '').trim() || 'Не назначен'
@@ -95,14 +98,32 @@ function homeTicketActionProgressLabel(
   return null
 }
 
+function patchBoardCards(
+  board: api.BoardResponse | undefined,
+  ticketId: string,
+  patch: (ticket: api.TicketCard) => api.TicketCard,
+): api.BoardResponse | undefined {
+  if (!board) return board
+  return {
+    ...board,
+    columns: board.columns.map((column) => ({
+      ...column,
+      cards: column.cards.map((ticket) => (ticket.id === ticketId ? patch(ticket) : ticket)),
+    })),
+  }
+}
+
 function TicketCard(props: {
   ticket: api.TicketCard
   ticketHref: string
   linkState?: MobileTicketNavState
-  actionLabel?: 'Взять' | 'Запросить назначение' | 'Начать' | 'Закрыть' | null
+  actionLabel?: 'Взять в работу' | 'Запросить назначение' | 'Начать' | 'Завершить' | null
   onAction?: (ticket: api.TicketCard) => void
   actionProgressLabel?: string | null
   assignFooter?: { onOpen: () => void; disabled: boolean } | null
+  inlineError?: string | null
+  inlineSuccess?: string | null
+  disabledOverlay?: boolean
 }) {
   const {
     ticket,
@@ -112,6 +133,9 @@ function TicketCard(props: {
     onAction,
     actionProgressLabel = null,
     assignFooter = null,
+    inlineError = null,
+    inlineSuccess = null,
+    disabledOverlay = false,
   } = props
   const claimReason = (ticket.claimAvailabilityReason || '').trim()
   const actionBusy = !!actionProgressLabel
@@ -122,6 +146,7 @@ function TicketCard(props: {
   })
   const urgent = mobileTicketPriorityIsUrgent(ticket.priority ?? 'NORMAL')
   const overdue = ticket.slaBreached
+  const slaState = getSlaState(ticket, Date.now())
   const problemPreview = (() => {
     const t = (ticket.description || '').trim()
     if (t) return t
@@ -133,17 +158,29 @@ function TicketCard(props: {
     'mobileTicketCard',
     `mobileTicketCard--${ticket.status}`,
     overdue ? 'mobileTicketCardSlaOverdue' : '',
+    slaState === 'warning' ? 'mobileTicketCardSlaWarning' : '',
+    slaState === 'ok' ? 'mobileTicketCardSlaOk' : '',
   ]
     .filter(Boolean)
     .join(' ')
   return (
-    <div className={cardClass} style={{ padding: 0, overflow: 'hidden' }}>
+    <div className={cardClass} style={{ padding: 0, overflow: 'hidden', position: 'relative' }}>
       <Link to={ticketHref} state={linkState ?? mobileTicketNavState('home')} className="mobileCardClickable" style={{ borderRadius: 0 }}>
         <div style={{ padding: 12 }}>
           <div className="mobileRow">
             <strong>{mobileTicketNumberTitle(ticket.ticketNumber)}</strong>
             <span className={statusClass}>{mobileTicketStatusLabelRu(ticket.status)}</span>
           </div>
+          {slaState === 'breached' ? (
+            <div className="mobileSlaBadgeRow">
+              <span className="mobileSlaStateBadge mobileSlaStateBadge--breached">Просрочено</span>
+            </div>
+          ) : null}
+          {slaState === 'warning' ? (
+            <div className="mobileSlaBadgeRow">
+              <span className="mobileSlaStateBadge mobileSlaStateBadge--warning">Скоро дедлайн</span>
+            </div>
+          ) : null}
           <div className="mobileTicketCardPriorityRow" style={{ marginTop: 6 }}>
             {urgent ? (
               <span className="mobileSlaUrgentPill">Срочный приоритет</span>
@@ -158,9 +195,8 @@ function TicketCard(props: {
               <span className="mobileMeta mobileAssignmentRequestedRowHint">Ожидайте назначение диспетчером</span>
             </div>
           ) : null}
-          <div className="mobileMeta" style={{ marginTop: 4 }}>
-            {mobileTicketCategoryLocationFromCard(ticket)}
-          </div>
+          <div className="mobileMeta" style={{ marginTop: 4 }}>Локация: {ticket.location?.name || ticket.pointName || 'Не указана'}</div>
+          <div className="mobileMeta" style={{ marginTop: 4 }}>Категория: {ticket.category?.name || ticket.title || 'Без категории'}</div>
           {(ticket.requesterName || '').trim() ? (
             <div className="mobileMeta" style={{ marginTop: 4 }}>
               Заявитель: {(ticket.requesterName || '').trim()}
@@ -208,7 +244,7 @@ function TicketCard(props: {
           <button
             type="button"
             className={`mobileBtn${
-              actionLabel === 'Взять'
+              actionLabel === 'Взять в работу'
                 ? ' mobileBtn--claim'
                 : actionLabel === 'Запросить назначение'
                   ? ' mobileBtnSecondary'
@@ -224,8 +260,22 @@ function TicketCard(props: {
               onAction?.(ticket)
             }}
           >
-            {actionProgressLabel || actionLabel}
+            {actionProgressLabel ? (
+              <span className="mobileBtnBusy">
+                <span className="mobileBtnSpinner" aria-hidden="true" />
+                {actionProgressLabel}
+              </span>
+            ) : (
+              actionLabel
+            )}
           </button>
+        </div>
+      ) : null}
+      {inlineSuccess ? <div className="mobileCardInlineSuccess">{inlineSuccess}</div> : null}
+      {inlineError ? <div className="mobileCardInlineError">{inlineError}</div> : null}
+      {disabledOverlay ? (
+        <div className="mobileCardBusyOverlay" aria-hidden="true">
+          <span className="mobileCardBusyOverlaySpinner" />
         </div>
       ) : null}
     </div>
@@ -351,7 +401,10 @@ export function MobileHome() {
     writePersistedMobileHomeBoardUi(boardTab, activeChips)
   }, [boardTab, activeChips])
 
-  const tabCounts = useMemo(() => mobileHomeBoardTabCounts(cards, meQ.data?.id), [cards, meQ.data?.id])
+  const tabCounts = useMemo(
+    () => mobileHomeBoardTabCounts(cards, meQ.data?.id, meQ.data?.role),
+    [cards, meQ.data?.id, meQ.data?.role],
+  )
   const atRiskThresholdMinutes = boardQ.data?.meta.atRiskThresholdMinutes ?? 60
 
   const visibleTickets = useMemo(
@@ -360,16 +413,17 @@ export function MobileHome() {
         cards,
         tab: boardTab,
         meId: meQ.data?.id,
+        meRole: meQ.data?.role,
         chips: activeChips,
         searchQuery,
         atRiskThresholdMinutes,
       }),
-    [cards, boardTab, meQ.data?.id, activeChips, searchQuery, atRiskThresholdMinutes],
+    [cards, boardTab, meQ.data?.id, meQ.data?.role, activeChips, searchQuery, atRiskThresholdMinutes],
   )
 
   const tabOnlyTickets = useMemo(
-    () => filterTicketsForMobileHomeTab(cards, boardTab, meQ.data?.id),
-    [cards, boardTab, meQ.data?.id],
+    () => filterTicketsForMobileHomeTab(cards, boardTab, meQ.data?.id, meQ.data?.role),
+    [cards, boardTab, meQ.data?.id, meQ.data?.role],
   )
 
   const hasHomeListFilters = !!searchQuery.trim() || activeChips.size > 0
@@ -401,9 +455,29 @@ export function MobileHome() {
   const [assignTechId, setAssignTechId] = useState('')
   const [assignErr, setAssignErr] = useState('')
   const [homeActionErr, setHomeActionErr] = useState('')
+  const [actionErrorByTicketId, setActionErrorByTicketId] = useState<Record<string, string>>({})
+  const [actionSuccessByTicketId, setActionSuccessByTicketId] = useState<Record<string, string>>({})
+
+  function showActionSuccess(ticketId: string, message: string) {
+    if (!ticketId) return
+    setActionSuccessByTicketId((prev) => ({ ...prev, [ticketId]: message }))
+    window.setTimeout(() => {
+      setActionSuccessByTicketId((prev) => {
+        if (!prev[ticketId]) return prev
+        const next = { ...prev }
+        delete next[ticketId]
+        return next
+      })
+    }, 2800)
+  }
+
+  const mobileHomeBoardKey = ['mobile-home-board', linkedClientCompanyId, companyId] as const
+  const mobileMyBoardKey = ['mobile-my-board', linkedClientCompanyId, companyId] as const
 
   useEffect(() => {
     setHomeActionErr('')
+    setActionErrorByTicketId({})
+    setActionSuccessByTicketId({})
   }, [boardTab, activeChips, searchQuery])
 
   const assignCandidatesQ = useQuery({
@@ -494,6 +568,7 @@ export function MobileHome() {
         return
       }
       if (ticket.status === 'IN_PROGRESS') {
+        if (!window.confirm('Завершить заявку?')) return
         if (
           !api.allowMobileHomeFieldTicketActions(meQ.data?.role) ||
           ticket.assignedTechnician?.id !== meQ.data?.id
@@ -511,7 +586,56 @@ export function MobileHome() {
         return
       }
     },
-    onMutate: () => setHomeActionErr(''),
+    onMutate: async (ticket) => {
+      await queryClient.cancelQueries({ queryKey: mobileHomeBoardKey })
+      await queryClient.cancelQueries({ queryKey: mobileMyBoardKey })
+
+      const previousHomeBoard = queryClient.getQueryData<api.BoardResponse>(mobileHomeBoardKey)
+      const previousMyBoard = queryClient.getQueryData<api.BoardResponse>(mobileMyBoardKey)
+
+      if (ticket.status === 'NEW' && meQ.data?.id) {
+        const patchedAssignee: api.TicketCard['assignedTechnician'] = {
+          id: meQ.data.id,
+          email: (meQ.data.email || '').trim(),
+          firstName: meQ.data.firstName,
+          lastName: meQ.data.lastName,
+        }
+        queryClient.setQueryData<api.BoardResponse>(mobileHomeBoardKey, (current) =>
+          patchBoardCards(current, ticket.id, (item) => ({
+            ...item,
+            status: 'ASSIGNED',
+            assignedTechnicianId: meQ.data!.id,
+            assignedTechnician: patchedAssignee,
+          })),
+        )
+        queryClient.setQueryData<api.BoardResponse>(mobileMyBoardKey, (current) =>
+          patchBoardCards(current, ticket.id, (item) => ({
+            ...item,
+            status: 'ASSIGNED',
+            assignedTechnicianId: meQ.data!.id,
+            assignedTechnician: patchedAssignee,
+          })),
+        )
+      } else if (ticket.status === 'ASSIGNED') {
+        queryClient.setQueryData<api.BoardResponse>(mobileHomeBoardKey, (current) =>
+          patchBoardCards(current, ticket.id, (item) => ({ ...item, status: 'IN_PROGRESS' })),
+        )
+        queryClient.setQueryData<api.BoardResponse>(mobileMyBoardKey, (current) =>
+          patchBoardCards(current, ticket.id, (item) => ({ ...item, status: 'IN_PROGRESS' })),
+        )
+      }
+
+      setHomeActionErr('')
+      if (ticket?.id) {
+        setActionErrorByTicketId((prev) => {
+          if (!prev[ticket.id]) return prev
+          const next = { ...prev }
+          delete next[ticket.id]
+          return next
+        })
+      }
+      return { previousHomeBoard, previousMyBoard, ticketId: ticket.id }
+    },
     onSuccess: async (_data, ticket) => {
       if (ticket.status === 'IN_PROGRESS') return
       if (
@@ -520,13 +644,22 @@ export function MobileHome() {
         ticket.canClaimByCurrentUser === false
       ) {
         setMobileActionToast('Запрос отправлен')
+        showActionSuccess(ticket.id, 'Запрос назначения отправлен')
+      } else if (ticket.status === 'NEW') {
+        setMobileActionToast('Взято в работу')
+        showActionSuccess(ticket.id, 'Взято в работу')
+      } else if (ticket.status === 'ASSIGNED') {
+        setMobileActionToast('Работы начаты')
+        showActionSuccess(ticket.id, 'Работы начаты')
       }
-      await queryClient.invalidateQueries({ queryKey: ['mobile-home-board'] })
-      await queryClient.invalidateQueries({ queryKey: ['mobile-home-available'] })
-      await queryClient.invalidateQueries({ queryKey: ['mobile-my-board'] })
-      await queryClient.invalidateQueries({ queryKey: ['board'] })
     },
-    onError: (e: unknown, ticket) => {
+    onError: (e: unknown, ticket, context) => {
+      if (context?.previousHomeBoard) {
+        queryClient.setQueryData(mobileHomeBoardKey, context.previousHomeBoard)
+      }
+      if (context?.previousMyBoard) {
+        queryClient.setQueryData(mobileMyBoardKey, context.previousMyBoard)
+      }
       const op =
         ticket.status === 'NEW' && meQ.data?.role === 'TECHNICIAN' && ticket.canClaimByCurrentUser === false
           ? 'request_assignment'
@@ -535,7 +668,18 @@ export function MobileHome() {
             : ticket.status === 'ASSIGNED'
               ? 'start'
               : 'other'
-      setHomeActionErr(formatMobileMutationError(e, { operation: op }))
+      const msg = formatMobileMutationError(e, { operation: op })
+      setHomeActionErr(msg)
+      setMobileActionToast(msg)
+      if (ticket?.id) {
+        setActionErrorByTicketId((prev) => ({ ...prev, [ticket.id]: msg }))
+      }
+    },
+    onSettled: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['mobile-home-board'] })
+      await queryClient.invalidateQueries({ queryKey: ['mobile-home-available'] })
+      await queryClient.invalidateQueries({ queryKey: ['mobile-my-board'] })
+      await queryClient.invalidateQueries({ queryKey: ['board'] })
     },
   })
 
@@ -550,21 +694,57 @@ export function MobileHome() {
       await api.addTicketComment(closeModal.ticketId, comment, pageScope)
       await api.updateTicketStatus(closeModal.ticketId, { status: 'DONE' }, pageScope)
     },
-    onSuccess: async () => {
+    onMutate: async () => {
+      if (!closeModal?.ticketId) return { ticketId: '' }
+      await queryClient.cancelQueries({ queryKey: mobileHomeBoardKey })
+      await queryClient.cancelQueries({ queryKey: mobileMyBoardKey })
+      const previousHomeBoard = queryClient.getQueryData<api.BoardResponse>(mobileHomeBoardKey)
+      const previousMyBoard = queryClient.getQueryData<api.BoardResponse>(mobileMyBoardKey)
+      queryClient.setQueryData<api.BoardResponse>(mobileHomeBoardKey, (current) =>
+        patchBoardCards(current, closeModal.ticketId, (item) => ({ ...item, status: 'DONE' })),
+      )
+      queryClient.setQueryData<api.BoardResponse>(mobileMyBoardKey, (current) =>
+        patchBoardCards(current, closeModal.ticketId, (item) => ({ ...item, status: 'DONE' })),
+      )
+      setActionErrorByTicketId((prev) => {
+        if (!prev[closeModal.ticketId]) return prev
+        const next = { ...prev }
+        delete next[closeModal.ticketId]
+        return next
+      })
+      return { previousHomeBoard, previousMyBoard, ticketId: closeModal.ticketId }
+    },
+    onSuccess: async (_data, _vars, context) => {
       if (closeModal?.previewUrl) {
         URL.revokeObjectURL(closeModal.previewUrl)
+      }
+      if (context?.ticketId) {
+        setMobileActionToast('Заявка завершена')
+        showActionSuccess(context.ticketId, 'Заявка завершена')
       }
       setCloseModal(null)
       if (closeCameraInputRef.current) closeCameraInputRef.current.value = ''
       if (closeGalleryInputRef.current) closeGalleryInputRef.current.value = ''
+    },
+    onError: (e: unknown, _vars, context) => {
+      if (context?.previousHomeBoard) {
+        queryClient.setQueryData(mobileHomeBoardKey, context.previousHomeBoard)
+      }
+      if (context?.previousMyBoard) {
+        queryClient.setQueryData(mobileMyBoardKey, context.previousMyBoard)
+      }
+      const text = formatMobileMutationError(e, { operation: 'close' })
+      setCloseModal((prev) => (prev ? { ...prev, err: text } : prev))
+      setMobileActionToast(text)
+      if (context?.ticketId) {
+        setActionErrorByTicketId((prev) => ({ ...prev, [context.ticketId]: text }))
+      }
+    },
+    onSettled: async () => {
       await queryClient.invalidateQueries({ queryKey: ['mobile-home-board'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-home-available'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-my-board'] })
       await queryClient.invalidateQueries({ queryKey: ['board'] })
-    },
-    onError: (e: unknown) => {
-      const text = formatMobileMutationError(e, { operation: 'close' })
-      setCloseModal((prev) => (prev ? { ...prev, err: text } : prev))
     },
   })
 
@@ -575,7 +755,11 @@ export function MobileHome() {
     onMutate: () => {
       setAssignErr('')
     },
-    onSuccess: async () => {
+    onSuccess: async (_data, params) => {
+      const assigned = assignTechOptions.find((x) => x.id === params.technicianId)
+      const techLabel = (assigned?.email || '').trim() || (assigned?.id || '').trim() || 'исполнитель'
+      setMobileActionToast(`Назначен: ${techLabel}`)
+      showActionSuccess(params.ticketId, `Назначен: ${techLabel}`)
       setAssignTicket(null)
       setAssignTechId('')
       await queryClient.invalidateQueries({ queryKey: ['mobile-home-board'] })
@@ -701,8 +885,15 @@ export function MobileHome() {
                   aria-selected={boardTab === tab}
                   className={`mobileFilterTab${boardTab === tab ? ' mobileFilterTabActive' : ''}`}
                   onClick={() => setBoardTab(tab)}
+                  title={
+                    tab === 'mine'
+                      ? meQ.data?.role === 'TECHNICIAN'
+                        ? 'Техник: назначенные на вас'
+                        : 'Клиент: созданные вами'
+                      : undefined
+                  }
                 >
-                  {MOBILE_HOME_TAB_LABELS[tab]}
+                  {tab === 'mine' && meQ.data?.role !== 'TECHNICIAN' ? 'Мои заявки' : MOBILE_HOME_TAB_LABELS[tab]}
                   <span className="mobileFilterTabCount">{tabCounts[tab]}</span>
                 </button>
               ))}
@@ -755,11 +946,11 @@ export function MobileHome() {
           {meQ.data?.role === 'TECHNICIAN' && tabCounts.mine === 0 ? <MobileTechnicianFirstStepsCard show /> : null}
           {meQ.data?.role !== 'TECHNICIAN' ? (
             <div className="mobilePageHint">
-              Все — полный список. Новые — без исполнителя. Мои — назначены на вас. В работе — назначенные и в активной работе.
+              Все — полный список. Мои заявки — созданные вами. В работе — назначенные и в активной работе.
             </div>
           ) : homeIntroDismissed ? (
             <div className="mobilePageHint">
-              Вкладки: все заявки · новые без исполнителя · назначенные на вас · в работе по контуру.
+              Вкладки: все заявки · назначенные на вас · в работе по контуру.
             </div>
           ) : null}
 
@@ -776,7 +967,6 @@ export function MobileHome() {
                 const empty = mobileHomeTabEmptyCopy(boardTab, {
                   role: meQ.data?.role,
                   boardTotal: tabCounts.all,
-                  newUnassignedOnBoard: tabCounts.new,
                 })
                 return (
                   <div className="mobileCard mobileEmptyState" role="status">
@@ -819,6 +1009,9 @@ export function MobileHome() {
                     actionLabel={getPrimaryActionLabel(ticket, meQ.data?.id, meQ.data?.role)}
                     actionProgressLabel={actionProgressLabel}
                     onAction={(next) => actionM.mutate(next)}
+                    inlineError={actionErrorByTicketId[ticket.id] || null}
+                    inlineSuccess={actionSuccessByTicketId[ticket.id] || null}
+                    disabledOverlay={cardBusy}
                     assignFooter={
                       showAssignFooter
                         ? {

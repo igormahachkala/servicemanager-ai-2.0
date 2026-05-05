@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
+import { mapReason } from '../lib/assignmentExplain'
 
 function fmt(dt?: string | null) {
   if (!dt) return '—'
@@ -159,6 +160,7 @@ function buildCompanyLink(params: { observerCompanyId?: string | null; linkedCli
 export function BoardPage() {
   const navigate = useNavigate()
   const location = useLocation()
+  const queryClient = useQueryClient()
   const [take, setTake] = useState(120)
   const [selectedLocationId, setSelectedLocationId] = useState('')
   const [selectedEquipmentId, setSelectedEquipmentId] = useState('')
@@ -377,6 +379,66 @@ export function BoardPage() {
   )
   const allVisibleTicketIds = useMemo(() => columns.flatMap((c) => c.cards.map((card) => card.id)), [columns])
   const allVisibleSelected = allVisibleTicketIds.length > 0 && allVisibleTicketIds.every((id) => selectedTicketIds.includes(id))
+  const [quickActionError, setQuickActionError] = useState('')
+  const [quickActionSuccess, setQuickActionSuccess] = useState('')
+  const [smartAssignByTicket, setSmartAssignByTicket] = useState<
+    Record<string, { technicianName: string; reason: string }>
+  >({})
+
+  const quickActionM = useMutation({
+    mutationFn: async (payload: { ticket: api.TicketCard; action: 'open' | 'claim' | 'start' | 'done' | 'assign' }) => {
+      const { ticket, action } = payload
+      if (action === 'open') return
+      if (action === 'claim') {
+        await api.claimTicket(ticket.id, ticketScope)
+        return
+      }
+      if (action === 'start') {
+        await api.updateTicketStatus(ticket.id, { status: 'IN_PROGRESS' }, ticketScope)
+        return
+      }
+      if (action === 'done') {
+        await api.updateTicketStatus(ticket.id, { status: 'DONE' }, ticketScope)
+        return
+      }
+      if (action === 'assign') {
+        return api.smartAssignTicket(ticket.id, ticketScope)
+      }
+    },
+    onMutate: () => setQuickActionError(''),
+    onSuccess: async (result, payload) => {
+      if (payload.action === 'claim') setQuickActionSuccess('✔ Взято в работу')
+      else if (payload.action === 'start') setQuickActionSuccess('✔ Работы начаты')
+      else if (payload.action === 'done') setQuickActionSuccess('✔ Заявка завершена')
+      if (payload.action === 'assign' && result && typeof result === 'object') {
+        const assignRes = result as api.SmartAssignResult
+        if (assignRes.assigned && assignRes.technicianId) {
+          const readableReason = mapReason(assignRes.reason)
+          setSmartAssignByTicket((prev) => ({
+            ...prev,
+            [payload.ticket.id]: {
+              technicianName: assignRes.technicianName || assignRes.technicianId,
+              reason: readableReason,
+            },
+          }))
+          setQuickActionSuccess(`✔ Назначен: ${assignRes.technicianName || assignRes.technicianId}`)
+        }
+      }
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['board'] }),
+        queryClient.invalidateQueries({ queryKey: ['mobile-home-board'] }),
+        queryClient.invalidateQueries({ queryKey: ['mobile-my-board'] }),
+        queryClient.invalidateQueries({ queryKey: ['mobile-ticket-detail'] }),
+      ])
+    },
+    onError: (e: any) => setQuickActionError(e?.message || String(e)),
+  })
+
+  useEffect(() => {
+    if (!quickActionSuccess) return
+    const t = window.setTimeout(() => setQuickActionSuccess(''), 3000)
+    return () => window.clearTimeout(t)
+  }, [quickActionSuccess])
 
   useEffect(() => {
     if (!allVisibleTicketIds.length) {
@@ -856,6 +918,12 @@ export function BoardPage() {
         {bulkError ? <div className="alert" style={{ marginTop: 10 }}>{bulkError}</div> : null}
         </div>
       ) : null}
+      {quickActionSuccess ? (
+        <div className="panel" style={{ marginBottom: 12, border: '1px solid #86efac', background: '#f0fdf4', color: '#166534' }}>
+          {quickActionSuccess}
+        </div>
+      ) : null}
+      {quickActionError ? <div className="alert" style={{ marginBottom: 12 }}>{quickActionError}</div> : null}
 
       {providerHasNoLinkedClients ? (
         <div className="panel" style={{ marginBottom: 12 }}>
@@ -957,6 +1025,65 @@ export function BoardPage() {
                       <div className="muted small" style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
                         <span>{fmt(ticket.createdAt)}</span>
                         <span title="Срок SLA">{ticket.slaDueAt ? `Срок: ${fmt(ticket.slaDueAt)}` : 'Срок: —'}</span>
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                        {meQ.data?.role === 'TECHNICIAN' ? (
+                          <>
+                            {(ticket.status === 'NEW' && !ticket.assignedTechnician) || (ticket.status === 'ASSIGNED' && ticket.assignedTechnician?.id === meQ.data?.id) ? (
+                              <button
+                                type="button"
+                                className="ghost"
+                                disabled={quickActionM.isPending}
+                                onClick={() =>
+                                  quickActionM.mutate({
+                                    ticket,
+                                    action: ticket.status === 'NEW' ? 'claim' : 'start',
+                                  })
+                                }
+                              >
+                                Взять в работу
+                              </button>
+                            ) : null}
+                            {ticket.status === 'IN_PROGRESS' && ticket.assignedTechnician?.id === meQ.data?.id ? (
+                              <button
+                                type="button"
+                                className="ghost"
+                                disabled={quickActionM.isPending}
+                                onClick={() => quickActionM.mutate({ ticket, action: 'done' })}
+                              >
+                                Завершить
+                              </button>
+                            ) : null}
+                          </>
+                        ) : null}
+                        {meQ.data?.role === 'CLIENT' ? (
+                          <Link to={buildTicketLink(ticket)}>
+                            <button type="button" className="ghost">Открыть</button>
+                          </Link>
+                        ) : null}
+                        {meQ.data?.role === 'DISPATCHER' && ticket.status === 'NEW' && !ticket.assignedTechnician ? (
+                          <>
+                            <button
+                              type="button"
+                              className="ghost"
+                              disabled={quickActionM.isPending}
+                              onClick={() => quickActionM.mutate({ ticket, action: 'assign' })}
+                            >
+                              Назначить
+                            </button>
+                            {smartAssignByTicket[ticket.id] ? (
+                              <div className="muted small" style={{ marginTop: 6 }}>
+                                <div>Назначен: {smartAssignByTicket[ticket.id].technicianName}</div>
+                                <div>Причина: {smartAssignByTicket[ticket.id].reason}</div>
+                                <Link to={buildTicketLink(ticket)} style={{ textDecoration: 'none' }}>
+                                  <button type="button" className="ghost" style={{ marginTop: 6 }}>
+                                    Сменить
+                                  </button>
+                                </Link>
+                              </div>
+                            ) : null}
+                          </>
+                        ) : null}
                       </div>
                   </div>
                 ))}

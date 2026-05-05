@@ -342,6 +342,7 @@ export class TicketsQueryService {
             slaBreachedAt: true,
             problemText: true,
             requesterName: true,
+            createdByUserId: true,
             pointName: true,
             locationId: true,
             location: {
@@ -367,7 +368,8 @@ export class TicketsQueryService {
               },
             },
             equipment: { select: { id: true, name: true, type: true, status: true } },
-            assignedTechnician: { select: { id: true, email: true } },
+            assignedTechnicianId: true,
+            assignedTechnician: { select: { id: true, email: true, firstName: true, lastName: true } },
             parentId: true,
           },
           take: decision.take,
@@ -428,6 +430,7 @@ export class TicketsQueryService {
           title: t.problemCategory.name,
           description: t.problemText,
           requesterName: t.requesterName ?? null,
+          createdByUserId: t.createdByUserId ?? null,
           status: t.status,
           urgency: t.urgency,
           priority: t.priority,
@@ -438,6 +441,7 @@ export class TicketsQueryService {
           pointName: t.pointName,
           location: t.location,
           category: { id: t.problemCategory.id, name: t.problemCategory.name },
+          assignedTechnicianId: t.assignedTechnicianId ?? null,
           assignedTechnician: t.assignedTechnician,
         }
         if (role === UserRole.TECHNICIAN && technicianScope && t.status === TicketStatus.NEW && !t.assignedTechnician) {

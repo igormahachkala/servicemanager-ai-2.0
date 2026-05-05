@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode 
 import { useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
+import { mapReason } from '../lib/assignmentExplain'
 import {
   clientTicketLifecycleHintText,
   shouldShowClientTicketLifecycleHint,
@@ -353,6 +354,12 @@ export function TicketPage() {
     enabled: !!ticketId && canAssign,
     queryKey: ['ticket-assignment-candidates', ticketId, observerCompanyId, inferredLinkedClientCompanyId],
     queryFn: () => api.getTicketAssignmentCandidates(ticketId, effectiveTicketScope),
+  })
+
+  const assignmentDecisionQ = useQuery({
+    enabled: !!ticketId,
+    queryKey: ['ticket-assignment-decision', ticketId, observerCompanyId, inferredLinkedClientCompanyId],
+    queryFn: () => api.latestAssignmentDecision(ticketId, effectiveTicketScope),
   })
 
   const refreshAll = async () => {
@@ -1184,6 +1191,17 @@ export function TicketPage() {
               <div style={{ display: 'grid', gap: 6 }}>
                 <div><b>Ответственный:</b> {ticket.assignedTechnician?.email}</div>
                 <div className="muted small">Заявка закреплена за техником.</div>
+                {assignmentDecisionQ.data ? (
+                  <div className="uiCard" style={{ padding: 10, marginTop: 6 }}>
+                    <div style={{ fontWeight: 700, marginBottom: 4 }}>Назначение</div>
+                    <div className="muted small">
+                      Исполнитель: {ticket.assignedTechnician?.email || '—'}
+                    </div>
+                    <div className="muted small">
+                      Причина: {mapReason(assignmentDecisionQ.data.reason)}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             ) : (
               <div style={{ display: 'grid', gap: 6 }}>
@@ -1453,6 +1471,11 @@ export function TicketPage() {
                       <Tag>{timelineTypeLabel(item.type || item.domainType || item.timelineEvent || 'event')}</Tag>
                     </div>
                     <div className="muted small">{fmt(item.at)} · {item.actor?.email || 'система'}</div>
+                    {String(item.type || item.timelineEvent || '').toLowerCase().includes('assign') ? (
+                      <div className="muted small">
+                        Система назначила исполнителя. Причина: {mapReason(String(item.payload?.reason || 'решение системы'))}
+                      </div>
+                    ) : null}
                     {item.payload ? (
                       <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 10, padding: 10, fontSize: 12 }}>
                         {JSON.stringify(item.payload, null, 2)}

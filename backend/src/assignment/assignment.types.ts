@@ -1,3 +1,19 @@
+export type AssignmentInput = {
+  ticketId: string;
+  companyId: string;
+  locationId: string;
+  categoryId?: string;
+};
+
+export type AssignmentResult = {
+  technicianId: string;
+  reason: string;
+};
+
+export type AssignmentSelectionResult = AssignmentResult & {
+  candidatesCount: number;
+};
+
 export type AssignmentCandidate = {
   id: string;
   email?: string;

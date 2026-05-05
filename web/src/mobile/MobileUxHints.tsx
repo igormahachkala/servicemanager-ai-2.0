@@ -44,10 +44,10 @@ export function MobileHomeTabsIntroBanner(props: { role: Role | undefined; onDis
       <div className="mobileUxHintIntroTitle">Как пользоваться списком</div>
       <ul className="mobileUxHintIntroList">
         <li>
-          <strong>Новые</strong> — необработанные заявки; отсюда можно «Взять» или «Запросить назначение».
+          <strong>Все</strong> — полный список заявок в контуре; отсюда можно «Взять» или «Запросить назначение».
         </li>
         <li>
-          <strong>Мои</strong> — заявки, где вы исполнитель.
+          <strong>Мои</strong> — заявки, назначенные на вас.
         </li>
         <li>
           <strong>В работе</strong> — назначенные и начатые по контуру.
@@ -66,7 +66,7 @@ export function MobileTechnicianFirstStepsCard(props: { show: boolean }) {
     <div className="mobileUxHintIntro mobileUxHintIntro--steps" role="region" aria-label="С чего начать">
       <div className="mobileUxHintIntroTitle">Чтобы начать работу</div>
       <ol className="mobileUxHintIntroOrdered">
-        <li>Найдите заявку во вкладке «Новые».</li>
+        <li>Найдите заявку во вкладке «Все».</li>
         <li>Нажмите «Взять» (если доступно) или «Запросить назначение».</li>
         <li>После назначения заявка появится во вкладке «Мои».</li>
       </ol>
