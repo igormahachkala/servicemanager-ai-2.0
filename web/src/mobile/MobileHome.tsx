@@ -1,4 +1,5 @@
 export { MobileHome } from './home/MobileHome'
+export { MobileHome } from './home/MobileHome'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'

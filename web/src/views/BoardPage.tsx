@@ -385,8 +385,12 @@ export function BoardPage() {
     Record<string, { technicianName: string; reason: string }>
   >({})
 
-  const quickActionM = useMutation({
-    mutationFn: async (payload: { ticket: api.TicketCard; action: 'open' | 'claim' | 'start' | 'done' | 'assign' }) => {
+  const quickActionM = useMutation<
+    void | api.SmartAssignResult,
+    unknown,
+    { ticket: api.TicketCard; action: 'open' | 'claim' | 'start' | 'done' | 'assign' }
+  >({
+    mutationFn: async (payload) => {
       const { ticket, action } = payload
       if (action === 'open') return
       if (action === 'claim') {
@@ -414,14 +418,19 @@ export function BoardPage() {
         const assignRes = result as api.SmartAssignResult
         if (assignRes.assigned && assignRes.technicianId) {
           const readableReason = mapReason(assignRes.reason)
+          const techName = (
+            assignRes.technicianName ||
+            assignRes.technicianId ||
+            'исполнитель'
+          ).trim()
           setSmartAssignByTicket((prev) => ({
             ...prev,
             [payload.ticket.id]: {
-              technicianName: assignRes.technicianName || assignRes.technicianId,
+              technicianName: techName,
               reason: readableReason,
             },
           }))
-          setQuickActionSuccess(`✔ Назначен: ${assignRes.technicianName || assignRes.technicianId}`)
+          setQuickActionSuccess(`✔ Назначен: ${techName}`)
         }
       }
       await Promise.all([

@@ -101,7 +101,12 @@ export function MobileHome() {
   useLayoutEffect(() => {
     const s = location.state as MobileTicketNavState | null | undefined
     if (!s || typeof s !== 'object') return
-    const hasTab = !!(s.homeBoardTab && ['all', 'new', 'mine', 'in_work'].includes(s.homeBoardTab))
+    const hasTab = !!(
+      s.homeBoardTab &&
+      (['all', 'mine', 'in_work'] as MobileHomeBoardFilterTab[]).includes(
+        s.homeBoardTab as MobileHomeBoardFilterTab,
+      )
+    )
     const hasChips = Array.isArray(s.homeBoardChips)
     const hasSearch = typeof s.homeBoardSearch === 'string'
     if (!hasTab && !hasChips && !hasSearch) return
