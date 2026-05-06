@@ -1,18 +1,21 @@
 import { Injectable } from '@nestjs/common';
 import { TicketStatus, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { matchCategorySpecializationLinks } from '../tickets/ticket-specialization-match.utils';
 
 export type AssignmentInput = {
   ticketId: string;
   companyId: string;
   locationId: string;
   categoryId?: string;
+  categoryCompanyId?: string;
 };
 
 type TechnicianCandidate = {
   technicianId: string;
   locationBindings: string[];
   specializationIds: string[];
+  specializationNames: string[];
   activeTicketsCount: number;
 };
 
@@ -45,18 +48,22 @@ export class AssignmentEngine {
     );
 
     let filtered = withLocationAccess;
-    let categorySpecIds: string[] = [];
+    let categoryLinks: { specializationId: string; specialization: { name: string | null } | null }[] = [];
     let reason = 'least_loaded + location_match';
     if (params.categoryId) {
-      categorySpecIds = await this.getCategorySpecializationIds(
-        params.companyId,
+      categoryLinks = await this.getCategorySpecializationLinks(
+        params.categoryCompanyId ?? params.companyId,
         params.categoryId,
       );
-      if (categorySpecIds.length > 0) {
-        const required = new Set(categorySpecIds);
-        filtered = filtered.filter((t) =>
-          t.specializationIds.some((id) => required.has(id)),
-        );
+      if (categoryLinks.length > 0) {
+        filtered = filtered.filter((t) => {
+          const matched = matchCategorySpecializationLinks({
+            categoryLinks,
+            technicianSpecializationIds: t.specializationIds,
+            technicianSpecializationNames: t.specializationNames,
+          });
+          return matched.length > 0;
+        });
         reason = 'least_loaded + location_match + category_match';
       }
     }
@@ -72,13 +79,15 @@ export class AssignmentEngine {
       return null;
     }
 
-    const requiredSpecs = new Set(categorySpecIds);
     const scored = filtered.map((candidate) => {
       const locationMatch = candidate.locationBindings.includes(params.locationId);
       const categoryMatch =
-        requiredSpecs.size === 0
-          ? false
-          : candidate.specializationIds.some((id) => requiredSpecs.has(id));
+        categoryLinks.length > 0 &&
+        matchCategorySpecializationLinks({
+          categoryLinks,
+          technicianSpecializationIds: candidate.specializationIds,
+          technicianSpecializationNames: candidate.specializationNames,
+        }).length > 0;
       const score =
         (locationMatch ? 50 : 0) +
         (categoryMatch ? 30 : 0) -
@@ -122,18 +131,21 @@ export class AssignmentEngine {
     });
   }
 
-  private async getCategorySpecializationIds(
+  private async getCategorySpecializationLinks(
     companyId: string,
     categoryId: string,
-  ): Promise<string[]> {
+  ): Promise<{ specializationId: string; specialization: { name: string | null } | null }[]> {
     const links = await this.prisma.problemCategorySpecialization.findMany({
       where: {
         problemCategoryId: categoryId,
         problemCategory: { companyId, isActive: true },
       },
-      select: { specializationId: true },
+      select: {
+        specializationId: true,
+        specialization: { select: { name: true } },
+      },
     });
-    return links.map((x) => x.specializationId);
+    return links;
   }
 
   private async getAvailableTechnicians(
@@ -155,7 +167,10 @@ export class AssignmentEngine {
           select: { locationId: true },
         },
         technicianSpecializations: {
-          select: { specializationId: true },
+          select: {
+            specializationId: true,
+            specialization: { select: { name: true } },
+          },
         },
         assignedTickets: {
           where: {
@@ -172,6 +187,9 @@ export class AssignmentEngine {
       specializationIds: u.technicianSpecializations.map(
         (x) => x.specializationId,
       ),
+      specializationNames: u.technicianSpecializations
+        .map((x) => (x.specialization?.name || '').trim())
+        .filter((x) => x.length > 0),
       activeTicketsCount: u.assignedTickets.length,
     }));
   }

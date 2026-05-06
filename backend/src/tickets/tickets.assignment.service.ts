@@ -28,6 +28,7 @@ import {
   type TicketAccessActor,
   wasTicketCreatedByActor,
 } from './ticket-access.utils';
+import { matchCategorySpecializationLinks } from './ticket-specialization-match.utils';
 import { ServiceContractsService } from '../service-contracts/service-contracts.service';
 import { TechniciansService } from '../technicians/technicians.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -217,10 +218,12 @@ export class TicketsAssignmentService {
 
   private async listAllTechnicians(
     companyId: string,
-    specializationIds: string[],
+    requiredSpecializations: { id: string; name: string; isActive: boolean }[],
     options?: { fallbackToAllWhenNoSpecializations?: boolean },
   ) {
-    const fallbackToAllWhenNoSpecializations = !!options?.fallbackToAllWhenNoSpecializations && specializationIds.length === 0;
+    const requiredIds = requiredSpecializations.map((x) => x.id);
+    const fallbackToAllWhenNoSpecializations =
+      !!options?.fallbackToAllWhenNoSpecializations && requiredIds.length === 0;
 
     const techs = await this.prisma.user.findMany({
       where: {
@@ -249,9 +252,14 @@ export class TicketsAssignmentService {
     });
 
     return techs.map((t) => {
-      const matchedSpecs = t.technicianSpecializations
-        .filter((x) => specializationIds.includes(x.specializationId))
-        .map((x) => x.specialization.name);
+      const matchedLabels = matchCategorySpecializationLinks({
+        categoryLinks: requiredSpecializations.map((s) => ({
+          specializationId: s.id,
+          specialization: { name: s.name },
+        })),
+        technicianSpecializationIds: t.technicianSpecializations.map((x) => x.specializationId),
+        technicianSpecializationNames: t.technicianSpecializations.map((x) => x.specialization.name),
+      });
 
       const assignedCount = t.assignedTickets.filter((x) => x.status === TicketStatus.ASSIGNED).length;
       const inProgressCount = t.assignedTickets.filter((x) => x.status === TicketStatus.IN_PROGRESS).length;
@@ -259,11 +267,11 @@ export class TicketsAssignmentService {
       return {
         id: t.id,
         email: t.email,
-        matched: fallbackToAllWhenNoSpecializations || matchedSpecs.length > 0,
-        matchedBy: matchedSpecs,
+        matched: fallbackToAllWhenNoSpecializations || matchedLabels.length > 0,
+        matchedBy: matchedLabels,
         matchReason: fallbackToAllWhenNoSpecializations
           ? ('fallback_no_category_specializations' as const)
-          : matchedSpecs.length > 0
+          : matchedLabels.length > 0
             ? ('category_specialization' as const)
             : ('no_match' as const),
         assignedCount,
@@ -818,9 +826,8 @@ export class TicketsAssignmentService {
       isActive: x.specialization.isActive,
     }));
 
-    const specializationIds = requiredSpecializations.map((x) => x.id);
-    const fallbackMode = specializationIds.length === 0;
-    const allTechniciansRaw = await this.listAllTechnicians(access.operationCompanyId, specializationIds, {
+    const fallbackMode = requiredSpecializations.length === 0;
+    const allTechniciansRaw = await this.listAllTechnicians(access.operationCompanyId, requiredSpecializations, {
       fallbackToAllWhenNoSpecializations: true,
     });
     const allTechnicians = await this.filterTechniciansByLocationBindings(
@@ -1098,6 +1105,7 @@ export class TicketsAssignmentService {
       companyId: access.operationCompanyId,
       locationId: ticket.locationId,
       categoryId: ticket.problemCategoryId,
+      categoryCompanyId: access.ticket.companyId,
     });
 
     if (!selected) {

@@ -1,3 +1,62 @@
+import { AssignmentEngine } from './assignment.engine'
+
+describe('AssignmentEngine cross-tenant category matching', () => {
+  function makePrismaMock() {
+    return {
+      user: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'tech-1',
+            locationBindings: [{ locationId: 'loc-1' }],
+            technicianSpecializations: [
+              {
+                specializationId: 'provider-spec-1',
+                specialization: { name: 'Сантехника' },
+              },
+            ],
+            assignedTickets: [],
+          },
+        ]),
+      },
+      problemCategorySpecialization: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            specializationId: 'client-spec-1',
+            specialization: { name: 'Сантехника' },
+          },
+        ]),
+      },
+      assignmentDecision: {
+        create: jest.fn().mockResolvedValue({}),
+      },
+    }
+  }
+
+  it('adds category_match reason when ids differ but names match', async () => {
+    const prisma = makePrismaMock()
+    const engine = new AssignmentEngine(prisma as any)
+
+    const selected = await engine.selectTechnicianForTicket({
+      ticketId: 'ticket-1',
+      companyId: 'provider-company',
+      categoryCompanyId: 'client-company',
+      locationId: 'loc-1',
+      categoryId: 'cat-1',
+    })
+
+    expect(selected).not.toBeNull()
+    expect(selected?.technicianId).toBe('tech-1')
+    expect(selected?.reason).toContain('category_match')
+    expect(prisma.problemCategorySpecialization.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          problemCategory: { companyId: 'client-company', isActive: true },
+        }),
+      }),
+    )
+  })
+})
+
 import { TicketStatus, UserRole } from '@prisma/client';
 
 import { AssignmentEngine } from './assignment.engine';

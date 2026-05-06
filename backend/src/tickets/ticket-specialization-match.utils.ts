@@ -84,9 +84,23 @@ export function technicianMatchesCategorySpecializationLinks(params: {
   technicianSpecializationIds: string[]
   technicianSpecializationNames: string[]
 }): boolean {
+  return (
+    matchCategorySpecializationLinks({
+      categoryLinks: params.categoryLinks,
+      technicianSpecializationIds: params.technicianSpecializationIds,
+      technicianSpecializationNames: params.technicianSpecializationNames,
+    }).length > 0
+  )
+}
+
+export function matchCategorySpecializationLinks(params: {
+  categoryLinks: { specializationId: string; specialization?: { name: string | null } | null }[]
+  technicianSpecializationIds: string[]
+  technicianSpecializationNames: string[]
+}): string[] {
   const links = params.categoryLinks ?? []
   if (links.length === 0) {
-    return true
+    return []
   }
   const techIds = new Set(
     params.technicianSpecializationIds.map((id) => id.trim()).filter((id) => id.length > 0),
@@ -96,14 +110,16 @@ export function technicianMatchesCategorySpecializationLinks(params: {
       .map((n) => normalizeSpecializationLabel(n))
       .filter((n) => n.length > 0),
   )
+  const matched = new Set<string>()
   for (const link of links) {
-    if (techIds.has(link.specializationId.trim())) {
-      return true
-    }
     const nm = normalizeSpecializationLabel(link.specialization?.name ?? '')
+    if (techIds.has(link.specializationId.trim())) {
+      if (nm) matched.add(nm)
+      continue
+    }
     if (nm && techLabels.has(nm)) {
-      return true
+      matched.add(nm)
     }
   }
-  return false
+  return [...matched]
 }
