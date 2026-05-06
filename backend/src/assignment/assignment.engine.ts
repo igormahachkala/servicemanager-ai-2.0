@@ -7,6 +7,7 @@ export type AssignmentInput = {
   ticketId: string;
   companyId: string;
   locationId: string;
+  locationCompanyId?: string;
   categoryId?: string;
   categoryCompanyId?: string;
 };
@@ -41,11 +42,13 @@ export class AssignmentEngine {
   async selectTechnicianForTicket(
     params: AssignmentInput,
   ): Promise<AssignmentSelectedTechnician | null> {
-    const candidates = await this.getAvailableTechnicians(params.companyId);
+    const locationCompanyId = params.locationCompanyId ?? params.companyId;
+    const candidates = await this.getAvailableTechnicians(params.companyId, locationCompanyId);
 
-    const withLocationAccess = candidates.filter((t) =>
-      t.locationBindings.includes(params.locationId),
-    );
+    const withLocationAccess = candidates.filter((t) => {
+      if (t.locationBindings.length === 0) return true;
+      return t.locationBindings.includes(params.locationId);
+    });
 
     let filtered = withLocationAccess;
     let categoryLinks: { specializationId: string; specialization: { name: string | null } | null }[] = [];
@@ -150,6 +153,7 @@ export class AssignmentEngine {
 
   private async getAvailableTechnicians(
     companyId: string,
+    locationCompanyId: string,
   ): Promise<TechnicianCandidate[]> {
     const users = await this.prisma.user.findMany({
       where: {
@@ -161,8 +165,8 @@ export class AssignmentEngine {
         id: true,
         locationBindings: {
           where: {
-            companyId,
-            location: { clientCompanyId: companyId, isActive: true },
+            companyId: locationCompanyId,
+            location: { clientCompanyId: locationCompanyId, isActive: true },
           },
           select: { locationId: true },
         },
