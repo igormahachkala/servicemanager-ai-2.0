@@ -1,9 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
 import { mapReason } from '../lib/assignmentExplain'
+import {
+  sanitizeBoardNavigationContext,
+  type BoardTicketNavState,
+} from '../lib/boardNavigationContext'
 
 function fmt(dt?: string | null) {
   if (!dt) return '—'
@@ -165,11 +169,30 @@ export function BoardPage() {
   const [selectedLocationId, setSelectedLocationId] = useState('')
   const [selectedEquipmentId, setSelectedEquipmentId] = useState('')
   const [selectedStatus, setSelectedStatus] = useState<api.TicketStatus | ''>('')
+  const [includeArchived, setIncludeArchived] = useState(false)
+  function resetBoardFilters() {
+    setSelectedLocationId('')
+    setSelectedEquipmentId('')
+    setSelectedStatus('')
+    setIncludeArchived(false)
+  }
+
   const [selectedTicketIds, setSelectedTicketIds] = useState<string[]>([])
   const [bulkBusy, setBulkBusy] = useState(false)
   const [bulkError, setBulkError] = useState('')
   const boardDataRef = useRef<{ scopeKey: string; data: api.BoardResponse } | null>(null)
   const autoSelectedPrimaryRef = useRef(false)
+
+  useLayoutEffect(() => {
+    const navState = location.state as BoardTicketNavState | null | undefined
+    const restore = sanitizeBoardNavigationContext(navState?.boardContext)
+    if (!restore) return
+    setSelectedLocationId(restore.selectedLocationId || '')
+    setSelectedEquipmentId(restore.selectedEquipmentId || '')
+    setSelectedStatus(restore.selectedStatus || '')
+    setIncludeArchived(!!restore.includeArchived)
+    navigate(`${location.pathname}${location.search}`, { replace: true, state: undefined })
+  }, [location.key, location.pathname, location.search, navigate])
 
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
   const requestedCompanyId = useMemo(() => {
@@ -273,7 +296,7 @@ export function BoardPage() {
       : 'tenant:self'
 
   const boardQ = useQuery({
-    queryKey: ['board', { take, observerCompanyId, effectiveLinkedClientCompanyId, selectedLocationId, selectedEquipmentId, selectedStatus }],
+    queryKey: ['board', { take, observerCompanyId, effectiveLinkedClientCompanyId, selectedLocationId, selectedEquipmentId, selectedStatus, includeArchived }],
     queryFn: () =>
       api.board({
         take,
@@ -282,6 +305,7 @@ export function BoardPage() {
         locationId: selectedLocationId || undefined,
         equipmentId: selectedEquipmentId || undefined,
         status: selectedStatus || undefined,
+        includeArchived,
       }),
     enabled: boardEnabled,
   })
@@ -498,6 +522,16 @@ export function BoardPage() {
       return `/tickets/${ticket.id}?linkedClientCompanyId=${ticket.companyId}`
     }
     return `/tickets/${ticket.id}`
+  }
+
+  function buildTicketLinkState(): BoardTicketNavState | undefined {
+    const boardContext = sanitizeBoardNavigationContext({
+      selectedLocationId,
+      selectedEquipmentId,
+      selectedStatus,
+      includeArchived,
+    })
+    return boardContext ? { boardContext } : undefined
   }
 
   const subtitle = (() => {
@@ -801,12 +835,13 @@ export function BoardPage() {
             </div>
           </div>
         </div>
-        {(selectedLocationId || selectedEquipmentId || selectedStatus) ? (
+        {(selectedLocationId || selectedEquipmentId || selectedStatus || includeArchived) ? (
           <div className="muted small" style={{ marginTop: 10 }}>
             Активные quick filters:
             {selectedLocationId ? ` location=${selectedLocationId}` : ''}
             {selectedEquipmentId ? ` equipment=${selectedEquipmentId}` : ''}
             {selectedStatus ? ` status=${selectedStatus}` : ''}
+            {includeArchived ? ' includeArchived=true' : ''}
             {' · '}
             <button
               className="ghost"
@@ -815,10 +850,11 @@ export function BoardPage() {
                 setSelectedLocationId('')
                 setSelectedEquipmentId('')
                 setSelectedStatus('')
+                setIncludeArchived(false)
               }}
               style={{ padding: '2px 6px' }}
             >
-              Сбросить
+              Без фильтров
             </button>
           </div>
         ) : null}
@@ -869,6 +905,17 @@ export function BoardPage() {
                 ))}
               </select>
             </label>
+            <label className="muted small" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <input
+                type="checkbox"
+                checked={includeArchived}
+                onChange={(e) => setIncludeArchived(e.target.checked)}
+              />
+              Архив (DONE {'>'} 7 дней)
+            </label>
+            <button className="ghost" type="button" onClick={resetBoardFilters}>
+              Без фильтров
+            </button>
           </div>
         </div>
       </div>
@@ -1011,6 +1058,7 @@ export function BoardPage() {
                       </label>
                       <Link
                         to={buildTicketLink(ticket)}
+                        state={buildTicketLinkState()}
                         style={{ textDecoration: 'none', flex: 1, minWidth: 0 }}
                       >
                         <div className="ticketTitle">{ticket.title}</div>
@@ -1066,7 +1114,7 @@ export function BoardPage() {
                           </>
                         ) : null}
                         {meQ.data?.role === 'CLIENT' ? (
-                          <Link to={buildTicketLink(ticket)}>
+                          <Link to={buildTicketLink(ticket)} state={buildTicketLinkState()}>
                             <button type="button" className="ghost">Открыть</button>
                           </Link>
                         ) : null}
@@ -1084,7 +1132,11 @@ export function BoardPage() {
                               <div className="muted small" style={{ marginTop: 6 }}>
                                 <div>Назначен: {smartAssignByTicket[ticket.id].technicianName}</div>
                                 <div>Причина: {smartAssignByTicket[ticket.id].reason}</div>
-                                <Link to={buildTicketLink(ticket)} style={{ textDecoration: 'none' }}>
+                                <Link
+                                  to={buildTicketLink(ticket)}
+                                  state={buildTicketLinkState()}
+                                  style={{ textDecoration: 'none' }}
+                                >
                                   <button type="button" className="ghost" style={{ marginTop: 6 }}>
                                     Сменить
                                   </button>

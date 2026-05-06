@@ -14,6 +14,11 @@ import {
   type MobileTicketNavState,
 } from './mobileTicketDisplay'
 import {
+  MOBILE_HOME_BOARD_CHIP_LABELS,
+  type MobileHomeBoardChipId,
+  type MobileHomeBoardFilterTab,
+} from './mobileHomeBoardFilters'
+import {
   getOnlineStatus,
   loadAnyTicketDetailCache,
   loadTicketDetailCache,
@@ -32,6 +37,12 @@ function readListOrigin(location: ReturnType<typeof useLocation>): MobileTicketL
   const raw = (location.state as MobileTicketNavState | null)?.mobileListOrigin
   if (raw === 'my') return 'my'
   return 'home'
+}
+
+const MOBILE_HOME_TAB_LABELS: Record<MobileHomeBoardFilterTab, string> = {
+  all: 'Все',
+  mine: 'Мои заявки',
+  in_work: 'В работе',
 }
 
 function isImageAttachment(a: api.TicketAttachmentItem) {
@@ -560,6 +571,26 @@ export function MobileTicketPage() {
   const listOrigin = readListOrigin(location)
   const backPath = listOrigin === 'my' ? '/m/my' : '/m'
   const backHref = api.appendScopeToPath(backPath, scopeNorm, meQ.data)
+  const boardTabLabel = navState?.homeBoardTab ? MOBILE_HOME_TAB_LABELS[navState.homeBoardTab] : ''
+  const boardChipLabels = useMemo(() => {
+    const chips = navState?.homeBoardChips
+    if (!Array.isArray(chips) || chips.length === 0) return []
+    return chips
+      .filter((chip): chip is MobileHomeBoardChipId => chip in MOBILE_HOME_BOARD_CHIP_LABELS)
+      .map((chip) => MOBILE_HOME_BOARD_CHIP_LABELS[chip])
+  }, [navState?.homeBoardChips])
+  const boardSearchLabel = (navState?.homeBoardSearch || '').trim()
+  const hasBoardContext = !!boardTabLabel || boardChipLabels.length > 0 || !!boardSearchLabel
+  const resetBoardContextState: MobileTicketNavState | undefined = useMemo(() => {
+    if (listOrigin !== 'home') return undefined
+    return {
+      mobileListOrigin: 'home',
+      ticketOwnerCompanyId: navState?.ticketOwnerCompanyId,
+      homeBoardTab: 'all',
+      homeBoardChips: [],
+      homeBoardSearch: '',
+    }
+  }, [listOrigin, navState?.ticketOwnerCompanyId])
 
   const ticketCompanyId = (ticket?.companyId || '').trim()
 
@@ -633,6 +664,25 @@ export function MobileTicketPage() {
           Назад
         </Link>
       </div>
+
+      {hasBoardContext ? (
+        <div className="mobileCard" style={{ marginBottom: 8 }}>
+          <div className="mobileRow" style={{ marginBottom: 6 }}>
+            <strong style={{ fontSize: '0.9rem' }}>Контекст доски</strong>
+            <Link
+              to={backHref}
+              state={resetBoardContextState}
+              className="mobileBtn mobileBtnSecondary"
+              style={{ padding: '6px 10px', minHeight: 'auto' }}
+            >
+              Без фильтров
+            </Link>
+          </div>
+          {boardTabLabel ? <div className="mobileMeta">Вкладка: {boardTabLabel}</div> : null}
+          {boardChipLabels.length > 0 ? <div className="mobileMeta">Фильтры: {boardChipLabels.join(', ')}</div> : null}
+          {boardSearchLabel ? <div className="mobileMeta">Поиск: {boardSearchLabel}</div> : null}
+        </div>
+      ) : null}
 
       {!isOnline && ticketQ.isSuccess && ticket ? (
         <div className="mobileStaleDataBanner" role="status">

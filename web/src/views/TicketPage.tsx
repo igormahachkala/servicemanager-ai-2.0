@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
-import { useParams, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { mapReason } from '../lib/assignmentExplain'
@@ -10,6 +10,10 @@ import {
 import { CategoryGuidancePanel } from '../components/CategoryGuidancePanel'
 import { TicketAttachments } from './ticket-page/TicketAttachments'
 import { TicketHeader } from './ticket-page/TicketHeader'
+import {
+  sanitizeBoardNavigationContext,
+  type BoardTicketNavState,
+} from '../lib/boardNavigationContext'
 
 const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024
 
@@ -178,6 +182,7 @@ function InlineError({ message }: { message?: string | null }) {
 export function TicketPage() {
   const { id } = useParams()
   const ticketId = id || ''
+  const location = useLocation()
   const [searchParams] = useSearchParams()
   const qc = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -235,6 +240,14 @@ export function TicketPage() {
     if (effectiveLinkedClientCompanyId) return `/board?linkedClientCompanyId=${effectiveLinkedClientCompanyId}`
     return '/board'
   }, [observerCompanyId, effectiveLinkedClientCompanyId])
+  const boardNavContext = useMemo(() => {
+    const state = location.state as BoardTicketNavState | null | undefined
+    return sanitizeBoardNavigationContext(state?.boardContext)
+  }, [location.state])
+  const backToBoardState = useMemo<BoardTicketNavState | undefined>(
+    () => (boardNavContext ? { boardContext: boardNavContext } : undefined),
+    [boardNavContext],
+  )
 
   useEffect(() => {
     api.persistScopeFromSearchParams(searchParams, meQ.data)
@@ -749,6 +762,7 @@ export function TicketPage() {
         linkedClientCompanyId={effectiveLinkedClientCompanyId}
         contextBadge={contextBadge}
         backToBoardHref={backToBoardHref}
+        backToBoardState={backToBoardState}
         canEditTicket={canEditTicket}
         editOpen={editOpen}
         onToggleEdit={() => setEditOpen((value) => !value)}
@@ -758,6 +772,23 @@ export function TicketPage() {
         meUserId={meQ.data?.id}
         onClaim={() => claimM.mutate()}
       />
+
+      {boardNavContext ? (
+        <div className="panel uiCard" style={{ marginBottom: 12 }}>
+          <div className="row" style={{ marginBottom: 8 }}>
+            <div style={{ fontWeight: 700 }}>Контекст доски</div>
+            <Link to={backToBoardHref} style={{ textDecoration: 'none' }}>
+              <button className="ghost">Без фильтров</button>
+            </Link>
+          </div>
+          <div className="muted small">
+            {boardNavContext.selectedStatus ? `Статус: ${statusLabel(boardNavContext.selectedStatus)} · ` : ''}
+            {boardNavContext.selectedLocationId ? `Локация: ${boardNavContext.selectedLocationId} · ` : ''}
+            {boardNavContext.selectedEquipmentId ? `Оборудование: ${boardNavContext.selectedEquipmentId} · ` : ''}
+            {boardNavContext.includeArchived ? 'Архив: включён' : 'Архив: выключен'}
+          </div>
+        </div>
+      ) : null}
 
       {ticket && shouldShowClientTicketLifecycleHint(meQ.data, ticket) ? (
         <div className="panel uiCard" style={{ marginBottom: 12, borderColor: '#c7d2fe', background: '#f8fafc' }}>

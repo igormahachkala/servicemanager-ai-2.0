@@ -21,7 +21,6 @@ import { buildTicketDescription } from './ticket-description.builder';
 import {
   assertActorCanUseLocation,
   buildSpecializationLinksSomeWhereInput,
-  matchCategorySpecializationLinks,
   buildTechnicianLocationRestrictionWhere,
   resolveReadableTicketAccess,
   resolveTechnicianOperationalScope,
@@ -29,6 +28,7 @@ import {
   type TicketAccessActor,
   wasTicketCreatedByActor,
 } from './ticket-access.utils';
+import { matchCategorySpecializationLinks } from './ticket-specialization-match.utils';
 import { ServiceContractsService } from '../service-contracts/service-contracts.service';
 import { TechniciansService } from '../technicians/technicians.service';
 import { NotificationsService } from '../notifications/notifications.service';

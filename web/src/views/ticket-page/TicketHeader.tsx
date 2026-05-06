@@ -10,6 +10,7 @@ type TicketHeaderProps = {
   linkedClientCompanyId: string
   contextBadge: string
   backToBoardHref: string
+  backToBoardState?: unknown
   canEditTicket: boolean
   editOpen: boolean
   onToggleEdit: () => void
@@ -29,6 +30,7 @@ export function TicketHeader(props: TicketHeaderProps) {
     linkedClientCompanyId,
     contextBadge,
     backToBoardHref,
+    backToBoardState,
     canEditTicket,
     editOpen,
     onToggleEdit,
@@ -58,7 +60,7 @@ export function TicketHeader(props: TicketHeaderProps) {
           </div>
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <Link to={backToBoardHref}>
+            <Link to={backToBoardHref} state={backToBoardState}>
               <button className="ghost">← Назад к доске</button>
             </Link>
 
