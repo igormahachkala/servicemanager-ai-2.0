@@ -506,7 +506,7 @@ export class TicketsAssignmentService {
         event: 'TICKET_CREATED',
         companyId: targetCompanyId,
         ticketId: ticket.id,
-        actorUserId: null,
+        actorUserId: creatorUserId,
         payload: {
           parentId: ticket.parentId,
           locationId: location.id,
@@ -581,6 +581,7 @@ export class TicketsAssignmentService {
       actorCompanyId,
       creatorUserId,
       targetCompanyId,
+      locationId: location.id,
       ticketId: created.ticket.id,
       ticketNumber: created.ticket.ticketNumber,
       summary: created.generated.title,
@@ -759,6 +760,7 @@ export class TicketsAssignmentService {
     this.notifications.scheduleTicketCreatedChild({
       companyId,
       creatorUserId,
+      locationId: parent.locationId,
       ticketId: created.ticket.id,
       ticketNumber: created.ticket.ticketNumber,
       summary: (created.ticket.problemText || '').trim() || 'Дочерняя заявка',
@@ -1979,6 +1981,7 @@ export class TicketsAssignmentService {
       actorCompanyId: companyId,
       creatorUserId: null,
       targetCompanyId: companyId,
+      locationId: location.id,
       ticketId: created.ticket.id,
       ticketNumber: created.ticket.ticketNumber,
       summary: (created.ticket.problemText || '').trim() || `Заявка #${created.ticket.ticketNumber}`,

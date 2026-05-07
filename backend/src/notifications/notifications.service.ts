@@ -1,5 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { CompanyType, TicketStatus, UserRole } from '@prisma/client';
+import { CompanyType, ServiceContractRole, ServiceContractStatus, TicketStatus, UserRole } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -9,6 +9,22 @@ const WATCHER_ROLES: UserRole[] = [
   UserRole.DISPATCHER,
   UserRole.NETWORK_DIRECTOR,
   UserRole.TERRITORIAL_MANAGER,
+];
+
+const CLIENT_CREATED_NOTIFY_ROLES: UserRole[] = [
+  UserRole.ADMIN,
+  UserRole.NETWORK_DIRECTOR,
+  UserRole.TERRITORIAL_MANAGER,
+];
+
+const PROVIDER_CREATED_NOTIFY_ROLES: UserRole[] = [
+  UserRole.ADMIN,
+  UserRole.DISPATCHER,
+];
+
+const CLIENT_CROSS_COMPANY_CREATED_NOTIFY_ROLES: UserRole[] = [
+  ...CLIENT_CREATED_NOTIFY_ROLES,
+  UserRole.CLIENT,
 ];
 
 /** Клиентский тенант: кого уведомить, когда подрядчик назначил своего техника на заявку клиента. */
@@ -108,6 +124,7 @@ export class NotificationsService {
     actorCompanyId: string;
     creatorUserId: string | null;
     targetCompanyId: string;
+    locationId: string;
     ticketId: string;
     ticketNumber: number;
     summary: string;
@@ -120,6 +137,7 @@ export class NotificationsService {
     actorCompanyId: string;
     creatorUserId: string | null;
     targetCompanyId: string;
+    locationId: string;
     ticketId: string;
     ticketNumber: number;
     summary: string;
@@ -141,6 +159,7 @@ export class NotificationsService {
   scheduleTicketCreatedChild(params: {
     companyId: string;
     creatorUserId: string | null;
+    locationId: string;
     ticketId: string;
     ticketNumber: number;
     summary: string;
@@ -151,6 +170,7 @@ export class NotificationsService {
         actorCompanyId: params.companyId,
         creatorUserId: params.creatorUserId,
         targetCompanyId: params.companyId,
+        locationId: params.locationId,
         ticketId: params.ticketId,
         ticketNumber: params.ticketNumber,
         summary: params.summary,
@@ -371,23 +391,13 @@ export class NotificationsService {
     actorCompanyId: string;
     creatorUserId: string | null;
     targetCompanyId: string;
+    locationId: string;
     ticketId: string;
     ticketNumber: number;
     summary: string;
     assignedTechnicianId: string | null;
   }) {
-    const exclude = params.creatorUserId ? [params.creatorUserId] : [];
-    const watcherCompanyId =
-      params.actorCompanyId === params.targetCompanyId ? params.targetCompanyId : params.actorCompanyId;
-
-    await this.notifyDispatchersNewTicket({
-      watcherCompanyId,
-      ticketCompanyId: params.targetCompanyId,
-      ticketId: params.ticketId,
-      ticketNumber: params.ticketNumber,
-      summary: params.summary,
-      excludeUserIds: exclude,
-    });
+    await this.emitTicketCreatedWatchers(params);
 
     await this.emitTicketCreatedConfirmationForCreator(params);
 
@@ -402,6 +412,211 @@ export class NotificationsService {
         mode: 'auto',
       });
     }
+  }
+
+  private async emitTicketCreatedWatchers(params: {
+    actorCompanyId: string;
+    creatorUserId: string | null;
+    targetCompanyId: string;
+    locationId: string;
+    ticketId: string;
+    ticketNumber: number;
+    summary: string;
+  }) {
+    const scopes = await this.resolveTicketCreatedNotificationScopes({
+      actorCompanyId: params.actorCompanyId,
+      targetCompanyId: params.targetCompanyId,
+    });
+    if (!scopes.length) return;
+
+    const creator = params.creatorUserId
+      ? await this.prisma.user.findFirst({
+          where: { id: params.creatorUserId, isActive: true },
+          select: { id: true, companyId: true },
+        })
+      : null;
+
+    const recipientMap = new Map<
+      string,
+      {
+        companyId: string;
+        userId: string;
+        linkedClientCompanyId: string | null;
+      }
+    >();
+
+    for (const scope of scopes) {
+      let users = await this.prisma.user.findMany({
+        where: {
+          companyId: scope.companyId,
+          isActive: true,
+          role: { in: scope.roles },
+          ...(creator?.companyId === scope.companyId ? { id: { not: creator.id } } : {}),
+        },
+        select: { id: true, companyId: true, role: true },
+      });
+
+      users = await this.filterTicketCreatedUsersByLocationScope({
+        users,
+        ticketCompanyId: params.targetCompanyId,
+        locationId: params.locationId,
+      });
+
+      for (const user of users) {
+        recipientMap.set(`${user.companyId}:${user.id}`, {
+          companyId: user.companyId,
+          userId: user.id,
+          linkedClientCompanyId: scope.linkedClientCompanyId,
+        });
+      }
+    }
+
+    const recipients = Array.from(recipientMap.values());
+    if (!recipients.length) return;
+
+    const existing = await this.prisma.notification.findMany({
+      where: {
+        type: 'ticket.created',
+        entityType: 'Ticket',
+        entityId: params.ticketId,
+        OR: recipients.map((recipient) => ({
+          companyId: recipient.companyId,
+          userId: recipient.userId,
+        })),
+      },
+      select: { companyId: true, userId: true },
+    });
+    const existingKeys = new Set(existing.map((row) => `${row.companyId}:${row.userId}`));
+    const freshRecipients = recipients.filter((recipient) => !existingKeys.has(`${recipient.companyId}:${recipient.userId}`));
+    if (!freshRecipients.length) return;
+
+    const title = 'Новая заявка';
+    const message = clipMessage(`${ticketLabel(params.ticketNumber)} — ${params.summary}`);
+
+    await this.prisma.notification.createMany({
+      data: freshRecipients.map((recipient) => ({
+        companyId: recipient.companyId,
+        userId: recipient.userId,
+        type: 'ticket.created',
+        title,
+        message,
+        entityType: 'Ticket',
+        entityId: params.ticketId,
+        linkedClientCompanyId: recipient.linkedClientCompanyId,
+      })),
+    });
+  }
+
+  private async resolveTicketCreatedNotificationScopes(params: {
+    actorCompanyId: string;
+    targetCompanyId: string;
+  }) {
+    const companies = await this.prisma.company.findMany({
+      where: { id: { in: Array.from(new Set([params.actorCompanyId, params.targetCompanyId])) } },
+      select: { id: true, type: true },
+    });
+    const companyTypeById = new Map(companies.map((company) => [company.id, company.type]));
+    const targetType = companyTypeById.get(params.targetCompanyId);
+    if (!targetType) return [];
+
+    const scopes = new Map<
+      string,
+      {
+        companyId: string;
+        roles: UserRole[];
+        linkedClientCompanyId: string | null;
+      }
+    >();
+    const addScope = (companyId: string, roles: UserRole[], linkedClientCompanyId: string | null) => {
+      scopes.set(companyId, { companyId, roles, linkedClientCompanyId });
+    };
+
+    if (targetType === CompanyType.CLIENT) {
+      addScope(
+        params.targetCompanyId,
+        params.actorCompanyId !== params.targetCompanyId
+          ? CLIENT_CROSS_COMPANY_CREATED_NOTIFY_ROLES
+          : CLIENT_CREATED_NOTIFY_ROLES,
+        null,
+      );
+
+      if (params.actorCompanyId !== params.targetCompanyId) {
+        const contract = await this.prisma.serviceContract.findFirst({
+          where: {
+            clientCompanyId: params.targetCompanyId,
+            providerCompanyId: params.actorCompanyId,
+            status: ServiceContractStatus.ACTIVE,
+            role: ServiceContractRole.PRIMARY,
+          },
+          select: { providerCompanyId: true },
+        });
+        if (contract) {
+          addScope(contract.providerCompanyId, PROVIDER_CREATED_NOTIFY_ROLES, params.targetCompanyId);
+        }
+      } else {
+        const providerContracts = await this.prisma.serviceContract.findMany({
+          where: {
+            clientCompanyId: params.targetCompanyId,
+            status: ServiceContractStatus.ACTIVE,
+            role: ServiceContractRole.PRIMARY,
+          },
+          select: { providerCompanyId: true },
+        });
+        for (const contract of providerContracts) {
+          addScope(contract.providerCompanyId, PROVIDER_CREATED_NOTIFY_ROLES, params.targetCompanyId);
+        }
+      }
+    } else {
+      addScope(params.targetCompanyId, PROVIDER_CREATED_NOTIFY_ROLES, null);
+    }
+
+    return Array.from(scopes.values());
+  }
+
+  private async filterTicketCreatedUsersByLocationScope(params: {
+    users: { id: string; companyId: string; role: UserRole }[];
+    ticketCompanyId: string;
+    locationId: string;
+  }) {
+    const scopedUsers = params.users.filter(
+      (user) =>
+        user.role === UserRole.NETWORK_DIRECTOR ||
+        user.role === UserRole.TERRITORIAL_MANAGER ||
+        user.role === UserRole.CLIENT,
+    );
+    if (!scopedUsers.length) {
+      return params.users;
+    }
+
+    const bindings = await this.prisma.userLocationBinding.findMany({
+      where: {
+        companyId: params.ticketCompanyId,
+        userId: { in: scopedUsers.map((user) => user.id) },
+        location: { clientCompanyId: params.ticketCompanyId },
+      },
+      select: { userId: true, locationId: true },
+    });
+    const locationIdsByUser = new Map<string, Set<string>>();
+    for (const binding of bindings) {
+      if (!locationIdsByUser.has(binding.userId)) {
+        locationIdsByUser.set(binding.userId, new Set<string>());
+      }
+      locationIdsByUser.get(binding.userId)!.add(binding.locationId);
+    }
+
+    return params.users.filter((user) => {
+      const boundLocationIds = locationIdsByUser.get(user.id);
+      if (user.role === UserRole.CLIENT) {
+        return !!boundLocationIds && boundLocationIds.has(params.locationId);
+      }
+      if (user.role !== UserRole.NETWORK_DIRECTOR && user.role !== UserRole.TERRITORIAL_MANAGER) {
+        return true;
+      }
+      if (!boundLocationIds || boundLocationIds.size === 0) {
+        return true;
+      }
+      return boundLocationIds.has(params.locationId);
+    });
   }
 
   /** Подтверждение автору заявки (полезное уведомление о своём действии). companyId = tenant получателя уведомления. */
