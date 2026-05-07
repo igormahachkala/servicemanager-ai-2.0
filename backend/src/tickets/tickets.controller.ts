@@ -98,6 +98,7 @@ export class TicketsController {
         take: q.take,
         locationId: q.locationId,
         equipmentId: q.equipmentId,
+        includeArchived: q.includeArchived,
       },
       req.accessFlags,
       q.linkedClientCompanyId,

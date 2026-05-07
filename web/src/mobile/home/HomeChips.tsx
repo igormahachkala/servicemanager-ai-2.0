@@ -11,6 +11,8 @@ type Props = {
   toggleChip: (id: MobileHomeBoardChipId) => void
   visibleCount: number
   filterSummary: string
+  onResetAll: () => void
+  hasActiveFilters: boolean
 }
 
 export function HomeChips({
@@ -20,6 +22,8 @@ export function HomeChips({
   toggleChip,
   visibleCount,
   filterSummary,
+  onResetAll,
+  hasActiveFilters,
 }: Props) {
   return (
     <>
@@ -59,6 +63,14 @@ export function HomeChips({
             {filterSummary}
           </span>
         ) : null}
+        <button
+          type="button"
+          className="mobileBtn mobileBtnSecondary"
+          onClick={onResetAll}
+          disabled={!hasActiveFilters}
+        >
+          Без фильтров
+        </button>
       </div>
     </>
   )

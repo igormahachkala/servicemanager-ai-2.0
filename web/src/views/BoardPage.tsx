@@ -5,7 +5,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { mapReason } from '../lib/assignmentExplain'
 import {
+  appendBoardNavigationContextToPath,
+  consumeBoardScrollPosition,
+  readBoardNavigationContextFromSearch,
   sanitizeBoardNavigationContext,
+  saveBoardScrollPosition,
   type BoardTicketNavState,
 } from '../lib/boardNavigationContext'
 
@@ -165,11 +169,15 @@ export function BoardPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const queryClient = useQueryClient()
-  const [take, setTake] = useState(120)
-  const [selectedLocationId, setSelectedLocationId] = useState('')
-  const [selectedEquipmentId, setSelectedEquipmentId] = useState('')
-  const [selectedStatus, setSelectedStatus] = useState<api.TicketStatus | ''>('')
-  const [includeArchived, setIncludeArchived] = useState(false)
+  const initialBoardContext = useMemo(
+    () => readBoardNavigationContextFromSearch(new URLSearchParams(location.search)),
+    [location.search],
+  )
+  const [take, setTake] = useState(initialBoardContext?.take || 120)
+  const [selectedLocationId, setSelectedLocationId] = useState(initialBoardContext?.selectedLocationId || '')
+  const [selectedEquipmentId, setSelectedEquipmentId] = useState(initialBoardContext?.selectedEquipmentId || '')
+  const [selectedStatus, setSelectedStatus] = useState<api.TicketStatus | ''>(initialBoardContext?.selectedStatus || '')
+  const [includeArchived, setIncludeArchived] = useState(!!initialBoardContext?.includeArchived)
   function resetBoardFilters() {
     setSelectedLocationId('')
     setSelectedEquipmentId('')
@@ -191,6 +199,7 @@ export function BoardPage() {
     setSelectedEquipmentId(restore.selectedEquipmentId || '')
     setSelectedStatus(restore.selectedStatus || '')
     setIncludeArchived(!!restore.includeArchived)
+    setTake(restore.take || 120)
     navigate(`${location.pathname}${location.search}`, { replace: true, state: undefined })
   }, [location.key, location.pathname, location.search, navigate])
 
@@ -385,6 +394,32 @@ export function BoardPage() {
 
   const observerLabel = observerCompanyQ.data?.name || observerCompanyId
   const providerHeaderLabel = selectedLinkedClient?.clientCompany.name || primaryLinkedClients[0]?.clientCompany.name || ''
+  const boardScopeLabel = useMemo(() => {
+    if (observerLabel) return observerLabel
+    if (selectedLinkedClient?.clientCompany.name) return selectedLinkedClient.clientCompany.name
+    if (providerHeaderLabel) return providerHeaderLabel
+    if (ownCompanyQ.data?.name) return ownCompanyQ.data.name
+    return ''
+  }, [observerLabel, selectedLinkedClient, providerHeaderLabel, ownCompanyQ.data?.name])
+  const boardNavigationContext = useMemo(
+    () =>
+      sanitizeBoardNavigationContext({
+        take,
+        selectedLocationId,
+        selectedEquipmentId,
+        selectedStatus,
+        includeArchived,
+        scopeLabel: boardScopeLabel,
+      }),
+    [take, selectedLocationId, selectedEquipmentId, selectedStatus, includeArchived, boardScopeLabel],
+  )
+
+  useEffect(() => {
+    const nextPath = appendBoardNavigationContextToPath(location.pathname + location.search, boardNavigationContext)
+    if (nextPath !== `${location.pathname}${location.search}`) {
+      navigate(nextPath, { replace: true, state: location.state })
+    }
+  }, [boardNavigationContext, location.pathname, location.search, location.state, navigate])
   const isTechnician = meQ.data?.role === 'TECHNICIAN'
   const isProviderTechnician = isProviderCompany && isTechnician
   const canBulkOperate = canRunBulkOperationalActions(meQ.data?.role) && !isClientTenantCompany
@@ -510,29 +545,37 @@ export function BoardPage() {
   }
 
   function buildTicketLink(ticket: api.TicketCard) {
+    let nextPath = ''
     if (observerCompanyId) {
-      return `/tickets/${ticket.id}?companyId=${observerCompanyId}`
+      nextPath = `/tickets/${ticket.id}?companyId=${observerCompanyId}`
+    } else if (effectiveLinkedClientCompanyId) {
+      nextPath = `/tickets/${ticket.id}?linkedClientCompanyId=${effectiveLinkedClientCompanyId}`
+    } else {
+      const isProviderPrimaryBoard = boardData?.meta?.visibilityMode === 'provider_primary'
+      const actorCompanyId = meQ.data?.companyId || ''
+      if (isProviderPrimaryBoard && ticket.companyId && ticket.companyId !== actorCompanyId) {
+        nextPath = `/tickets/${ticket.id}?linkedClientCompanyId=${ticket.companyId}`
+      } else {
+        nextPath = `/tickets/${ticket.id}`
+      }
     }
-    if (effectiveLinkedClientCompanyId) {
-      return `/tickets/${ticket.id}?linkedClientCompanyId=${effectiveLinkedClientCompanyId}`
-    }
-    const isProviderPrimaryBoard = boardData?.meta?.visibilityMode === 'provider_primary'
-    const actorCompanyId = meQ.data?.companyId || ''
-    if (isProviderPrimaryBoard && ticket.companyId && ticket.companyId !== actorCompanyId) {
-      return `/tickets/${ticket.id}?linkedClientCompanyId=${ticket.companyId}`
-    }
-    return `/tickets/${ticket.id}`
+    return appendBoardNavigationContextToPath(nextPath, boardNavigationContext)
   }
 
   function buildTicketLinkState(): BoardTicketNavState | undefined {
-    const boardContext = sanitizeBoardNavigationContext({
-      selectedLocationId,
-      selectedEquipmentId,
-      selectedStatus,
-      includeArchived,
-    })
-    return boardContext ? { boardContext } : undefined
+    return boardNavigationContext ? { boardContext: boardNavigationContext } : undefined
   }
+
+  function rememberBoardScroll() {
+    saveBoardScrollPosition(`${location.pathname}${location.search}`, window.scrollY)
+  }
+
+  useLayoutEffect(() => {
+    if (boardQ.isLoading || isResolvingProviderContext) return
+    const restoreY = consumeBoardScrollPosition(`${location.pathname}${location.search}`)
+    if (restoreY == null) return
+    window.requestAnimationFrame(() => window.scrollTo({ top: restoreY, behavior: 'auto' }))
+  }, [boardQ.isLoading, isResolvingProviderContext, location.pathname, location.search])
 
   const subtitle = (() => {
     if (isResolvingProviderContext) return 'Подбираем связанного клиента для provider board…'
@@ -1059,6 +1102,7 @@ export function BoardPage() {
                       <Link
                         to={buildTicketLink(ticket)}
                         state={buildTicketLinkState()}
+                        onClick={rememberBoardScroll}
                         style={{ textDecoration: 'none', flex: 1, minWidth: 0 }}
                       >
                         <div className="ticketTitle">{ticket.title}</div>
@@ -1114,7 +1158,7 @@ export function BoardPage() {
                           </>
                         ) : null}
                         {meQ.data?.role === 'CLIENT' ? (
-                          <Link to={buildTicketLink(ticket)} state={buildTicketLinkState()}>
+                          <Link to={buildTicketLink(ticket)} state={buildTicketLinkState()} onClick={rememberBoardScroll}>
                             <button type="button" className="ghost">Открыть</button>
                           </Link>
                         ) : null}
@@ -1135,6 +1179,7 @@ export function BoardPage() {
                                 <Link
                                   to={buildTicketLink(ticket)}
                                   state={buildTicketLinkState()}
+                                  onClick={rememberBoardScroll}
                                   style={{ textDecoration: 'none' }}
                                 >
                                   <button type="button" className="ghost" style={{ marginTop: 6 }}>

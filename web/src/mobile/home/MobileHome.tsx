@@ -28,6 +28,7 @@ import {
 import { formatMobileMutationError } from '../mobileActionErrors'
 import { getOnlineStatus, loadBoardCache, saveBoardCache, useOnlineStatus } from '../offlineQueue'
 import { readMobileHomeIntroDismissed } from '../MobileUxHints'
+import { appendBoardNavigationContextToPath, readBoardNavigationContextFromSearch, sanitizeBoardNavigationContext } from '../../lib/boardNavigationContext'
 import { HomeHeader } from './HomeHeader'
 import { HomeTabs } from './HomeTabs'
 import { HomeChips } from './HomeChips'
@@ -93,9 +94,24 @@ export function MobileHome() {
   const canAssignProvider = api.isProviderTicketAssignRole(meQ.data?.role)
 
   const persistedBoardUi = useMemo(() => readPersistedMobileHomeBoardUi(), [])
-  const [boardTab, setBoardTab] = useState<MobileHomeBoardFilterTab>(persistedBoardUi.tab)
-  const [activeChips, setActiveChips] = useState<Set<MobileHomeBoardChipId>>(() => new Set(persistedBoardUi.chips))
-  const [searchQuery, setSearchQuery] = useState('')
+  const initialBoardContext = useMemo(
+    () => readBoardNavigationContextFromSearch(new URLSearchParams(location.search)),
+    [location.search],
+  )
+  const initialBoardTab = useMemo<MobileHomeBoardFilterTab>(() => {
+    const tab = (initialBoardContext?.tab || '').trim() as MobileHomeBoardFilterTab
+    return tab === 'mine' || tab === 'in_work' || tab === 'all' ? tab : persistedBoardUi.tab
+  }, [initialBoardContext?.tab, persistedBoardUi.tab])
+  const initialBoardChips = useMemo(
+    () =>
+      initialBoardContext?.chips?.filter((chip): chip is MobileHomeBoardChipId =>
+        MOBILE_HOME_BOARD_CHIP_IDS.includes(chip as MobileHomeBoardChipId),
+      ) || persistedBoardUi.chips,
+    [initialBoardContext?.chips, persistedBoardUi.chips],
+  )
+  const [boardTab, setBoardTab] = useState<MobileHomeBoardFilterTab>(initialBoardTab)
+  const [activeChips, setActiveChips] = useState<Set<MobileHomeBoardChipId>>(() => new Set(initialBoardChips))
+  const [searchQuery, setSearchQuery] = useState((initialBoardContext?.search || '').slice(0, 240))
   const [homeIntroDismissed, setHomeIntroDismissed] = useState(() => readMobileHomeIntroDismissed())
 
   useLayoutEffect(() => {
@@ -146,6 +162,7 @@ export function MobileHome() {
     })
   }
   function resetHomeListFilters() {
+    setBoardTab('all')
     setSearchQuery('')
     setActiveChips(new Set())
   }
@@ -205,6 +222,25 @@ export function MobileHome() {
     const row = linkedClientsQ.data?.find((x) => x.clientCompany.id === linkedClientCompanyId)
     return (row?.clientCompany?.name || '').trim()
   }, [linkedClientCompanyId, linkedClientsQ.data, meQ.data?.role, techBoundLabelQ.data])
+
+  const boardNavigationContext = useMemo(
+    () =>
+      sanitizeBoardNavigationContext({
+        tab: boardTab,
+        chips: [...activeChips],
+        search: searchQuery.trim() || undefined,
+        scopeLabel: linkedClientDisplayName || companyPrimaryLine || undefined,
+      }),
+    [boardTab, activeChips, searchQuery, linkedClientDisplayName, companyPrimaryLine],
+  )
+
+  useEffect(() => {
+    const basePath = api.appendScopeToPath('/m', pageScope, meQ.data)
+    const nextPath = appendBoardNavigationContextToPath(basePath, boardNavigationContext)
+    if (nextPath !== `${location.pathname}${location.search}`) {
+      navigate(nextPath, { replace: true, state: location.state })
+    }
+  }, [boardNavigationContext, pageScope.linkedClientCompanyId, pageScope.companyId, meQ.data, navigate, location.pathname, location.search, location.state])
 
   const closeCameraInputRef = useRef<HTMLInputElement | null>(null)
   const closeGalleryInputRef = useRef<HTMLInputElement | null>(null)
@@ -307,7 +343,8 @@ export function MobileHome() {
   const ticketHref = (ticket: api.TicketCard) => {
     if (!meQ.data) return `/m/tickets/${ticket.id}`
     const linkScope = scopeForMobileTicketLink(meQ.data, pageScope, ticket)
-    return api.appendScopeToPath(`/m/tickets/${ticket.id}`, compactTicketScope(linkScope), meQ.data)
+    const basePath = api.appendScopeToPath(`/m/tickets/${ticket.id}`, compactTicketScope(linkScope), meQ.data)
+    return appendBoardNavigationContextToPath(basePath, boardNavigationContext)
   }
   const ticketLinkState = (ticket: api.TicketCard) => mobileTicketNavState('home', ticket.companyId, { tab: boardTab, chips: [...activeChips], search: searchQuery.trim() || undefined })
   const closeCanSubmit = !!closeModal?.file && closeModal.comment.trim().length >= 3 && !closeBusy
@@ -350,6 +387,8 @@ export function MobileHome() {
               toggleChip={toggleChip}
               visibleCount={visibleTickets.length}
               filterSummary={filterSummary}
+              onResetAll={resetHomeListFilters}
+              hasActiveFilters={boardTab !== 'all' || !!searchQuery.trim() || activeChips.size > 0}
             />
           </div>
           <HomeList

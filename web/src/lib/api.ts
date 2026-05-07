@@ -1959,6 +1959,7 @@ export async function board(params?: {
   locationId?: string
   equipmentId?: string
   status?: TicketStatus
+  includeArchived?: boolean
 }): Promise<BoardResponse> {
   const search = new URLSearchParams()
 
@@ -1979,6 +1980,9 @@ export async function board(params?: {
   }
   if (params?.status) {
     search.set('status', params.status)
+  }
+  if (params?.includeArchived) {
+    search.set('includeArchived', 'true')
   }
 
   const suffix = search.toString() ? `?${search.toString()}` : ''

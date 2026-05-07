@@ -18,8 +18,6 @@ const ASSIGN_ROLES: UserRole[] = [
   UserRole.MASTER,
   UserRole.DISPATCHER,
   UserRole.NETWORK_DIRECTOR,
-  UserRole.TERRITORIAL_MANAGER,
-  UserRole.STAFF,
 ];
 
 const MANAGEMENT_STATUS_ROLES: UserRole[] = [
@@ -27,7 +25,6 @@ const MANAGEMENT_STATUS_ROLES: UserRole[] = [
   UserRole.MASTER,
   UserRole.DISPATCHER,
   UserRole.NETWORK_DIRECTOR,
-  UserRole.STAFF,
 ];
 
 export type SlaBucket = 'ok' | 'atRisk' | 'breached';
@@ -40,6 +37,7 @@ export type BoardQueryInput = {
   take?: number;
   locationId?: string;
   equipmentId?: string;
+  includeArchived?: boolean;
 };
 
 export type BoardQuery = {

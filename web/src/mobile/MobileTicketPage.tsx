@@ -32,6 +32,7 @@ import {
 } from '../lib/ticketClientGuidance'
 import { CategoryGuidancePanel } from '../components/CategoryGuidancePanel'
 import { MobileBoardClaimFallbackHint, MobileClaimReasonHintBox } from './MobileUxHints'
+import { appendBoardNavigationContextToPath, readBoardNavigationContextFromSearch, sanitizeBoardNavigationContext } from '../lib/boardNavigationContext'
 
 function readListOrigin(location: ReturnType<typeof useLocation>): MobileTicketListOrigin {
   const raw = (location.state as MobileTicketNavState | null)?.mobileListOrigin
@@ -570,17 +571,49 @@ export function MobileTicketPage() {
 
   const listOrigin = readListOrigin(location)
   const backPath = listOrigin === 'my' ? '/m/my' : '/m'
-  const backHref = api.appendScopeToPath(backPath, scopeNorm, meQ.data)
-  const boardTabLabel = navState?.homeBoardTab ? MOBILE_HOME_TAB_LABELS[navState.homeBoardTab] : ''
+  const backBaseHref = api.appendScopeToPath(backPath, scopeNorm, meQ.data)
+  const fallbackBoardContext = useMemo(
+    () =>
+      sanitizeBoardNavigationContext(
+        listOrigin === 'home'
+          ? {
+              tab: navState?.homeBoardTab,
+              chips: navState?.homeBoardChips,
+              search: navState?.homeBoardSearch,
+            }
+          : undefined,
+      ),
+    [listOrigin, navState?.homeBoardChips, navState?.homeBoardSearch, navState?.homeBoardTab],
+  )
+  const boardContext = useMemo(() => {
+    const fromSearch = readBoardNavigationContextFromSearch(searchParams)
+    return sanitizeBoardNavigationContext({
+      ...(fallbackBoardContext || {}),
+      ...(fromSearch || {}),
+    })
+  }, [fallbackBoardContext, searchParams])
+  const backHref = appendBoardNavigationContextToPath(backBaseHref, boardContext)
+  const boardTabLabel = useMemo(() => {
+    const tab = (boardContext?.tab || '').trim()
+    if (!tab) return ''
+    if (listOrigin === 'my') {
+      if (tab === 'active') return '????????'
+      if (tab === 'new') return '?????'
+      if (tab === 'closed') return '????????'
+      return tab
+    }
+    return tab in MOBILE_HOME_TAB_LABELS ? MOBILE_HOME_TAB_LABELS[tab as MobileHomeBoardFilterTab] : tab
+  }, [boardContext?.tab, listOrigin])
   const boardChipLabels = useMemo(() => {
-    const chips = navState?.homeBoardChips
+    const chips = boardContext?.chips
     if (!Array.isArray(chips) || chips.length === 0) return []
     return chips
       .filter((chip): chip is MobileHomeBoardChipId => chip in MOBILE_HOME_BOARD_CHIP_LABELS)
       .map((chip) => MOBILE_HOME_BOARD_CHIP_LABELS[chip])
-  }, [navState?.homeBoardChips])
-  const boardSearchLabel = (navState?.homeBoardSearch || '').trim()
-  const hasBoardContext = !!boardTabLabel || boardChipLabels.length > 0 || !!boardSearchLabel
+  }, [boardContext?.chips])
+  const boardSearchLabel = (boardContext?.search || '').trim()
+  const hasBoardContext = !!boardContext?.scopeLabel || !!boardTabLabel || boardChipLabels.length > 0 || !!boardSearchLabel
+  const resetBoardContextHref = appendBoardNavigationContextToPath(backBaseHref, undefined)
   const resetBoardContextState: MobileTicketNavState | undefined = useMemo(() => {
     if (listOrigin !== 'home') return undefined
     return {
@@ -670,7 +703,7 @@ export function MobileTicketPage() {
           <div className="mobileRow" style={{ marginBottom: 6 }}>
             <strong style={{ fontSize: '0.9rem' }}>Контекст доски</strong>
             <Link
-              to={backHref}
+              to={resetBoardContextHref}
               state={resetBoardContextState}
               className="mobileBtn mobileBtnSecondary"
               style={{ padding: '6px 10px', minHeight: 'auto' }}

@@ -1,6 +1,6 @@
 ﻿import { TicketStatus } from '@prisma/client'
 import { Transform, Type } from 'class-transformer'
-import { IsEnum, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator'
+import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator'
 
 export type BoardSlaBucket = 'breached' | 'atRisk' | 'ok'
 
@@ -74,4 +74,16 @@ export class BoardQueryDto {
   @IsOptional()
   @IsUUID()
   equipmentId?: string
+
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (value === undefined || value === null || value === '') return undefined
+    if (typeof value === 'boolean') return value
+    const normalized = String(value).trim().toLowerCase()
+    if (normalized === 'true' || normalized === '1') return true
+    if (normalized === 'false' || normalized === '0') return false
+    return undefined
+  })
+  @IsBoolean()
+  includeArchived?: boolean
 }

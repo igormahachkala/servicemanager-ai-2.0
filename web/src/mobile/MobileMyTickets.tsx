@@ -11,6 +11,7 @@ import {
 } from './mobileTicketDisplay'
 import { MobileRoleContextStrip } from './MobileUxHints'
 import { isMineTicketForRole } from './mobileHomeBoardFilters'
+import { appendBoardNavigationContextToPath, readBoardNavigationContextFromSearch } from '../lib/boardNavigationContext'
 
 type FilterKey = 'active' | 'new' | 'closed'
 
@@ -31,7 +32,12 @@ export function MobileMyTickets() {
   const location = useLocation()
   const navigate = useNavigate()
   const search = new URLSearchParams(location.search)
-  const [filter, setFilter] = useState<FilterKey>('active')
+  const initialBoardContext = useMemo(() => readBoardNavigationContextFromSearch(search), [location.search])
+  const initialFilter = useMemo<FilterKey>(() => {
+    const tab = (initialBoardContext?.tab || '').trim()
+    return tab === 'new' || tab === 'closed' || tab === 'active' ? (tab as FilterKey) : 'active'
+  }, [initialBoardContext?.tab])
+  const [filter, setFilter] = useState<FilterKey>(initialFilter)
 
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
 
@@ -99,10 +105,19 @@ export function MobileMyTickets() {
     [mineScopedTickets, statuses],
   )
 
+  useEffect(() => {
+    const basePath = api.appendScopeToPath('/m/my', pageScope, meQ.data)
+    const nextPath = appendBoardNavigationContextToPath(basePath, { tab: filter, scopeLabel: 'Мои заявки' })
+    if (nextPath !== `${location.pathname}${location.search}`) {
+      navigate(nextPath, { replace: true, state: location.state })
+    }
+  }, [filter, pageScope.linkedClientCompanyId, pageScope.companyId, meQ.data, navigate, location.pathname, location.search, location.state])
+
   const ticketHref = (ticket: api.TicketCard) => {
     if (!meQ.data) return `/m/tickets/${ticket.id}`
     const linkScope = scopeForMobileTicketLink(meQ.data, pageScope, ticket)
-    return api.appendScopeToPath(`/m/tickets/${ticket.id}`, compactTicketScope(linkScope), meQ.data)
+    const basePath = api.appendScopeToPath(`/m/tickets/${ticket.id}`, compactTicketScope(linkScope), meQ.data)
+    return appendBoardNavigationContextToPath(basePath, { tab: filter, scopeLabel: 'Мои заявки' })
   }
 
   if (!meQ.data) {

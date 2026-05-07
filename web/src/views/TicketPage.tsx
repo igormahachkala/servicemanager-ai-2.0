@@ -11,6 +11,8 @@ import { CategoryGuidancePanel } from '../components/CategoryGuidancePanel'
 import { TicketAttachments } from './ticket-page/TicketAttachments'
 import { TicketHeader } from './ticket-page/TicketHeader'
 import {
+  appendBoardNavigationContextToPath,
+  readBoardNavigationContextFromSearch,
   sanitizeBoardNavigationContext,
   type BoardTicketNavState,
 } from '../lib/boardNavigationContext'
@@ -235,15 +237,23 @@ export function TicketPage() {
 
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
 
-  const backToBoardHref = useMemo(() => {
+  const backToBoardBaseHref = useMemo(() => {
     if (observerCompanyId) return `/board?companyId=${observerCompanyId}`
     if (effectiveLinkedClientCompanyId) return `/board?linkedClientCompanyId=${effectiveLinkedClientCompanyId}`
     return '/board'
   }, [observerCompanyId, effectiveLinkedClientCompanyId])
   const boardNavContext = useMemo(() => {
     const state = location.state as BoardTicketNavState | null | undefined
-    return sanitizeBoardNavigationContext(state?.boardContext)
-  }, [location.state])
+    const fromSearch = readBoardNavigationContextFromSearch(searchParams)
+    return sanitizeBoardNavigationContext({
+      ...(state?.boardContext || {}),
+      ...(fromSearch || {}),
+    })
+  }, [location.state, searchParams])
+  const backToBoardHref = useMemo(
+    () => appendBoardNavigationContextToPath(backToBoardBaseHref, boardNavContext),
+    [backToBoardBaseHref, boardNavContext],
+  )
   const backToBoardState = useMemo<BoardTicketNavState | undefined>(
     () => (boardNavContext ? { boardContext: boardNavContext } : undefined),
     [boardNavContext],

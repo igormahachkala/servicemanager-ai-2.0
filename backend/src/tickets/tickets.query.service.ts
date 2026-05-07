@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common'
-import { TicketStatus, UserRole } from '@prisma/client'
+import { Prisma, TicketStatus, UserRole } from '@prisma/client'
 
 import { PrismaService } from '../prisma/prisma.service'
 import { TimelineService } from '../timeline/timeline.service'
@@ -63,6 +63,22 @@ export class TicketsQueryService {
     const base = where.AND
     const baseArr = Array.isArray(base) ? base : base ? [base] : []
     return { ...where, AND: [...baseArr, ...extra] }
+  }
+
+  private applyArchivedFilter(where: Prisma.TicketWhereInput, includeArchived?: boolean): Prisma.TicketWhereInput {
+    if (includeArchived) return where
+    const archiveThreshold = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+    return this.normalizeAnd(where, [
+      {
+        OR: [
+          { status: { not: TicketStatus.DONE } },
+          { closedAt: { gte: archiveThreshold } },
+          {
+            AND: [{ closedAt: null }, { updatedAt: { gte: archiveThreshold } }],
+          },
+        ],
+      },
+    ]) as Prisma.TicketWhereInput
   }
 
   private buildTechnicianBoardQuery(params: {
@@ -315,11 +331,12 @@ export class TicketsQueryService {
           scopeCompanyId: scope.scopeCompanyId,
         })
     const whereWithLocationScope = applyLocationScopeToTicketWhere(decision.where, locationScope)
+    const whereWithArchiveFilter = this.applyArchivedFilter(whereWithLocationScope, input.includeArchived)
 
     const nowMs = Date.now()
     const atRiskThresholdMs = decision.meta.atRiskThresholdMinutes * 60_000
 
-    let prismaWhere = whereWithLocationScope as any
+    let prismaWhere = whereWithArchiveFilter as any
     if (prismaWhere && typeof prismaWhere === 'object' && !Array.isArray(prismaWhere) && 'where' in prismaWhere) {
       const nestedWhere = prismaWhere.where
       prismaWhere =
