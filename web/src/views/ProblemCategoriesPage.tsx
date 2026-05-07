@@ -14,6 +14,7 @@ export function ProblemCategoriesPage() {
   const qc = useQueryClient()
 
   const [err, setErr] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
   const [name, setName] = useState('')
   const [instructions, setInstructions] = useState('')
   const [isActive, setIsActive] = useState(true)
@@ -34,21 +35,29 @@ export function ProblemCategoriesPage() {
     mutationFn: (payload: api.CreateProblemCategoryInput) => api.createProblemCategory(payload),
     onSuccess: async () => {
       setErr(null)
+      setSuccess('????????? ???????')
       setName('')
       setInstructions('')
       setIsActive(true)
       await qc.invalidateQueries({ queryKey: ['problem-categories'] })
     },
-    onError: (e: any) => setErr(e?.message || String(e)),
+    onError: (e: any) => {
+      setSuccess(null)
+      setErr(e?.message || String(e))
+    },
   })
 
   const toggleM = useMutation({
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) => api.setProblemCategoryStatus(id, isActive),
     onSuccess: async () => {
       setErr(null)
+      setSuccess('????? ????????????? ?????????')
       await qc.invalidateQueries({ queryKey: ['problem-categories'] })
     },
-    onError: (e: any) => setErr(e?.message || String(e)),
+    onError: (e: any) => {
+      setSuccess(null)
+      setErr(e?.message || String(e))
+    },
   })
 
   const saveSpecsM = useMutation({
@@ -56,9 +65,26 @@ export function ProblemCategoriesPage() {
       api.setProblemCategorySpecializations(id, specializationIds),
     onSuccess: async () => {
       setErr(null)
+      setSuccess('????? ????????????? ?????????')
       await qc.invalidateQueries({ queryKey: ['problem-categories'] })
     },
-    onError: (e: any) => setErr(e?.message || String(e)),
+    onError: (e: any) => {
+      setSuccess(null)
+      setErr(e?.message || String(e))
+    },
+  })
+
+  const deleteM = useMutation({
+    mutationFn: (id: string) => api.deleteProblemCategory(id),
+    onSuccess: async () => {
+      setErr(null)
+      setSuccess('????????? ???????')
+      await qc.invalidateQueries({ queryKey: ['problem-categories'] })
+    },
+    onError: (e: any) => {
+      setSuccess(null)
+      setErr(e?.message || String(e))
+    },
   })
 
   const rows = useMemo(() => categoriesQ.data || [], [categoriesQ.data])
@@ -126,7 +152,7 @@ export function ProblemCategoriesPage() {
         </div>
 
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <button className="ghost" onClick={() => categoriesQ.refetch()} disabled={categoriesQ.isFetching}>
+          <button className="ghost" onClick={() => categoriesQ.refetch()} disabled={categoriesQ.isFetching || deleteM.isPending}>
             Обновить
           </button>
           <Link to="/tickets/new">
@@ -141,6 +167,7 @@ export function ProblemCategoriesPage() {
       <div className="pageHint">Категории связываются со специализациями и помогают системе подобрать исполнителя.</div>
 
       {err ? <div className="alert">{err}</div> : null}
+      {success ? <div className="panel" style={{ marginBottom: 12 }}>{success}</div> : null}
       {categoriesQ.isError ? <div className="alert">{(categoriesQ.error as any)?.message || String(categoriesQ.error)}</div> : null}
       {specializationsQ.isError ? <div className="alert">{(specializationsQ.error as any)?.message || String(specializationsQ.error)}</div> : null}
 
@@ -169,7 +196,7 @@ export function ProblemCategoriesPage() {
               <span>Категория активна</span>
             </label>
 
-            <button type="submit" disabled={createM.isPending}>
+            <button type="submit" disabled={createM.isPending || deleteM.isPending}>
               {createM.isPending ? 'Создаём…' : 'Создать категорию'}
             </button>
 

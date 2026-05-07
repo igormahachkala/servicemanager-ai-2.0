@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { resolveObserverScopeCompanyId } from '../policy/policy.utils';
@@ -181,6 +182,38 @@ export class ProblemCategoriesService {
 
   async setStatus(companyId: string, id: string, isActive: boolean) {
     return this.update(companyId, id, { isActive });
+  }
+
+  async remove(companyId: string, id: string) {
+    const existing = await this.prisma.problemCategory.findFirst({
+      where: { id, companyId },
+      select: { id: true },
+    });
+
+    if (!existing) {
+      throw new NotFoundException('Not found');
+    }
+
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.problemCategorySpecialization.deleteMany({
+          where: {
+            problemCategoryId: id,
+          },
+        });
+
+        await tx.problemCategory.delete({
+          where: { id },
+        });
+      });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
+        throw new BadRequestException('????????? ?????? ???????: ??? ???????????? ? ???????');
+      }
+      throw error;
+    }
+
+    return { ok: true, id };
   }
 
   async setSpecializations(companyId: string, id: string, specializationIds: string[]) {

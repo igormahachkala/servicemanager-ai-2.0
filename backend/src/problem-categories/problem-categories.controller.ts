@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Put, Req, UseGuards } from '@nestjs/common'
+﻿import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Req, UseGuards } from '@nestjs/common'
 import { Query } from '@nestjs/common'
 import { UserRole } from '@prisma/client'
 
@@ -64,5 +64,12 @@ export class ProblemCategoriesController {
     @Body() dto: SetProblemCategorySpecializationsDto,
   ) {
     return this.svc.setSpecializations(req.user.companyId, id, dto.specializationIds ?? [])
+  }
+
+  @Delete(':id')
+  @Roles(UserRole.ADMIN)
+  @RequirePermission(PERMISSIONS.COMPANY_SETTINGS_EDIT)
+  remove(@Req() req: any, @Param('id') id: string) {
+    return this.svc.remove(req.user.companyId, id)
   }
 }

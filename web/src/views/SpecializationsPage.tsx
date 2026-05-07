@@ -67,6 +67,23 @@ export function SpecializationsPage() {
     },
   })
 
+  const deleteM = useMutation({
+    mutationFn: (id: string) => api.deleteSpecialization(id),
+    onSuccess: async () => {
+      setErr(null)
+      setSuccess('????????????? ???????')
+
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ['specializations'] }),
+        qc.invalidateQueries({ queryKey: ['technicians'] }),
+      ])
+    },
+    onError: (e: any) => {
+      setSuccess(null)
+      setErr(e?.message || String(e))
+    },
+  })
+
   const rows = useMemo(() => specsQ.data || [], [specsQ.data])
 
   function submit(e: React.FormEvent) {
@@ -101,7 +118,7 @@ export function SpecializationsPage() {
         </div>
 
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <button className="ghost" onClick={() => specsQ.refetch()} disabled={specsQ.isFetching || createM.isPending || toggleM.isPending}>
+          <button className="ghost" onClick={() => specsQ.refetch()} disabled={specsQ.isFetching || createM.isPending || toggleM.isPending || deleteM.isPending}>
             Обновить
           </button>
           <Link to="/employees">
@@ -144,7 +161,7 @@ export function SpecializationsPage() {
               <span>Специализация активна</span>
             </label>
 
-            <button type="submit" disabled={createM.isPending || toggleM.isPending}>
+            <button type="submit" disabled={createM.isPending || toggleM.isPending || deleteM.isPending}>
               {createM.isPending ? 'Создаём…' : 'Создать специализацию'}
             </button>
 
