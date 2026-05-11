@@ -7,6 +7,9 @@ export type MobileMutationOperation =
   | 'create_ticket'
   | 'request_assignment'
   | 'assign'
+  | 'upload_attachment'
+  | 'assign_candidates'
+  | 'attachments_list'
   | 'other'
 
 const FALLBACK = 'Не удалось выполнить действие'
@@ -18,9 +21,14 @@ const NETWORK = 'Нет соединения. Попробуйте позже'
 const NOT_FOUND = 'Заявка не найдена или недоступна'
 const SPEC = 'Заявка не подходит по специализации'
 const ASSIGNED_OTHER = 'Заявку уже назначили другому исполнителю'
+const UPLOAD_FORBIDDEN = 'Недостаточно прав для загрузки файла в эту заявку.'
+const UPLOAD_TOO_LARGE = 'Файл слишком большой или не подходит. Попробуйте другое изображение (до 10 МБ).'
+const ASSIGN_CANDIDATES_FAIL = 'Не удалось загрузить список техников. Проверьте доступ в этом контуре.'
+const ATTACHMENTS_LIST_FAIL = 'Не удалось загрузить вложения. Проверьте доступ или подключение.'
 
 /** Сохраняем сырое исключение в консоль для отладки (сообщение на экране — человекочитаемое). */
 export function logMobileMutationDebug(e: unknown) {
+  if (!import.meta.env.DEV) return
   try {
     console.debug('[mobileMutation]', e)
   } catch {
@@ -109,6 +117,27 @@ export function formatMobileMutationError(
     if (m.includes('comment') || m.includes('комментар') || m.includes('коротк')) return CLOSE_INCOMPLETE
     if (status === 403) return 'Завершить заявку сейчас нельзя: проверьте роль и назначение.'
     if (status === 400) return CLOSE_INCOMPLETE
+  }
+
+  if (ctx.operation === 'upload_attachment') {
+    const m = msg.toLowerCase()
+    if (status === 413 || m.includes('payload too large') || m.includes('too large') || m.includes('413')) return UPLOAD_TOO_LARGE
+    if (status === 403) return UPLOAD_FORBIDDEN
+    if (status === 404) return NOT_FOUND
+    if (status === 400 && (m.includes('mime') || m.includes('image') || m.includes('file'))) return UPLOAD_TOO_LARGE
+    return FALLBACK
+  }
+
+  if (ctx.operation === 'assign_candidates') {
+    if (status === 403) return ASSIGN_CANDIDATES_FAIL
+    if (status === 404) return NOT_FOUND
+    return FALLBACK
+  }
+
+  if (ctx.operation === 'attachments_list') {
+    if (status === 403) return ATTACHMENTS_LIST_FAIL
+    if (status === 404) return NOT_FOUND
+    return FALLBACK
   }
 
   return FALLBACK

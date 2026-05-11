@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { POST_CREATE_HEADLINE, POST_CREATE_SUBLINE } from '../lib/postCreateTicketGuidance'
@@ -31,7 +31,6 @@ function locationLabel(location: api.LocationListItem) {
 }
 
 export function CreateTicketPage() {
-  const nav = useNavigate()
   const location = useLocation()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const successRef = useRef<HTMLDivElement | null>(null)

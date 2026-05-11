@@ -513,7 +513,7 @@ export function MobileTicketPage() {
       }
       await invalidateTicketQueries()
     } catch (e: unknown) {
-      setTicketAddPhotoError(e instanceof Error ? e.message : String(e))
+      setTicketAddPhotoError(formatMobileMutationError(e, { operation: 'upload_attachment' }))
     } finally {
       setTicketAddPhotoProgress(null)
       clearTicketAddPhotoInputs()
@@ -629,6 +629,7 @@ export function MobileTicketPage() {
       if (closeModalCameraRef.current) closeModalCameraRef.current.value = ''
       if (closeModalGalleryRef.current) closeModalGalleryRef.current.value = ''
       await invalidateTicketQueries()
+      await queryClient.invalidateQueries({ queryKey: ['mobile-home-available'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-notifications'] })
       await queryClient.refetchQueries({ queryKey: ['mobile-ticket-detail', ticketId] })
       setOperationalToast('Заявка завершена.')
@@ -982,7 +983,7 @@ export function MobileTicketPage() {
                 </button>
               ) : null}
             </div>
-          )}
+          ) : null}
 
           {showTechnicianNoActionsHint ? (
             <div className="mobileCard mobileEmptyState" style={{ marginTop: 8 }} role="status">
@@ -1061,7 +1062,9 @@ export function MobileTicketPage() {
             ) : null}
             {attachmentsQ.isLoading ? <div className="mobileMeta">Загрузка вложений…</div> : null}
             {attachmentsQ.isError ? (
-              <div className="mobileNotice mobileNoticeError">{String((attachmentsQ.error as any)?.message || attachmentsQ.error)}</div>
+              <div className="mobileNotice mobileNoticeError">
+                {formatMobileMutationError(attachmentsQ.error, { operation: 'attachments_list' })}
+              </div>
             ) : null}
             {!attachmentsQ.isLoading && !attachmentsQ.isError ? (
               <>
@@ -1252,7 +1255,7 @@ export function MobileTicketPage() {
             ) : null}
             {assignCandidatesQ.isError ? (
               <div className="mobileNotice mobileNoticeError" style={{ marginTop: 10 }}>
-                {(assignCandidatesQ.error as any)?.message || String(assignCandidatesQ.error)}
+                {formatMobileMutationError(assignCandidatesQ.error, { operation: 'assign_candidates' })}
               </div>
             ) : null}
             {assignErr ? <div className="mobileNotice mobileNoticeError" style={{ marginTop: 10 }}>{assignErr}</div> : null}
@@ -1289,14 +1292,13 @@ export function MobileTicketPage() {
           </div>
         </div>
       ) : null}
-      {assignmentRequestToast ? (
-        <div className="mobileToastHost" role="status">
-          <div className="mobileToast">{assignmentRequestToast}</div>
-        </div>
-      ) : null}
-      {operationalToast ? (
-        <div className="mobileToastHost" role="status">
-          <div className="mobileToast">{operationalToast}</div>
+      {assignmentRequestToast || operationalToast ? (
+        <div
+          className={`mobileToastHost${assignmentRequestToast && operationalToast ? ' mobileToastHost--stack' : ''}`}
+          role="status"
+        >
+          {assignmentRequestToast ? <div className="mobileToast">{assignmentRequestToast}</div> : null}
+          {operationalToast ? <div className="mobileToast">{operationalToast}</div> : null}
         </div>
       ) : null}
 

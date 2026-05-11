@@ -28,6 +28,7 @@
     "test:e2e:db:down": "docker compose -f ../test/docker-compose.test.yml down -v",
     "test:e2e:run": "dotenv -e .env.test -- npx prisma migrate deploy && jest --config ./test/jest-e2e.json",
     "test:e2e": "npm run test:e2e:db && npm run test:e2e:run",
+    "platform:admin:create": "ts-node scripts/create-platform-admin.ts",
     "db:seed": "dotenv -e .env -- prisma db seed",
     "seed:standard-catalog": "dotenv -e .env -- ts-node scripts/seed-standard-catalog.ts",
     "prisma:generate": "dotenv -e .env -- npx prisma generate",

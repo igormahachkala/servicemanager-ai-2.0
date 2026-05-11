@@ -1705,6 +1705,12 @@ export async function setSpecializationStatus(id: string, isActive: boolean): Pr
   })
 }
 
+export async function deleteSpecialization(id: string): Promise<void> {
+  await request<unknown>(`/specializations/${id}`, {
+    method: 'DELETE',
+  })
+}
+
 /** `companyId` — query для GET /problem-categories: tenant, чьи категории нужны (у провайдера в linked-scope это id клиента). */
 export async function problemCategories(companyId?: string): Promise<ProblemCategoryListItem[]> {
   const search = new URLSearchParams()
@@ -1737,6 +1743,12 @@ export async function setProblemCategoryStatus(id: string, isActive: boolean): P
   return request<ProblemCategoryListItem>(`/problem-categories/${id}/status`, {
     method: 'PATCH',
     body: { isActive },
+  })
+}
+
+export async function deleteProblemCategory(id: string): Promise<void> {
+  await request<unknown>(`/problem-categories/${id}`, {
+    method: 'DELETE',
   })
 }
 

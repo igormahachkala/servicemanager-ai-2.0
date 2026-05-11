@@ -819,7 +819,7 @@ export function TicketPage() {
       fileInputRef.current?.click()
       return
     }
-    uploadM.mutate()
+    uploadM.mutate(selectedFile)
   }
 
   function buildTicketHref(targetTicketId: string) {
@@ -833,6 +833,8 @@ export function TicketPage() {
       meQ.data,
     )
   }
+
+  const showTechnicianActionBar = !!(ticket && isTechnicianRole && executorActionsAllowed)
 
   return (
     <div>

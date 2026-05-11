@@ -473,7 +473,11 @@ export function BoardPage() {
         queryClient.invalidateQueries({ queryKey: ['mobile-ticket-detail'] }),
       ])
     },
-    onError: (e: any) => setQuickActionError(e?.message || String(e)),
+    onError: (e: any) => {
+      const raw = e?.message || String(e)
+      logTicketActionError('board_quick_action', raw)
+      setQuickActionError(mapTicketActionError(raw))
+    },
   })
 
   useEffect(() => {

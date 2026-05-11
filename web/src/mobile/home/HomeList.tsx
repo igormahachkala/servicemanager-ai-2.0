@@ -5,6 +5,7 @@ import { mobileTicketCategoryLocationFromCard, mobileTicketNumberTitle } from '.
 import { mobileHomeTabEmptyCopy, type MobileHomeBoardFilterTab } from '../mobileHomeBoardFilters'
 import { TicketCard } from './TicketCard'
 import { getPrimaryActionLabel, homeTicketActionProgressLabel } from './utils'
+import { formatMobileMutationError } from '../mobileActionErrors'
 
 export type TicketCloseModalState = {
   ticketId: string
@@ -226,7 +227,11 @@ function AssignModal(props: {
           <button type="button" className="mobileBtn mobileBtnSecondary" disabled={assignBusy} onClick={() => setAssignTicket(null)}>Отмена</button>
         </div>
         {assignCandidatesQ.isLoading ? <div className="mobileMeta" style={{ marginTop: 12 }}>Загружаем список техников…</div> : null}
-        {assignCandidatesQ.isError ? <div className="mobileNotice mobileNoticeError" style={{ marginTop: 10 }}>{(assignCandidatesQ.error as any)?.message || String(assignCandidatesQ.error)}</div> : null}
+        {assignCandidatesQ.isError ? (
+          <div className="mobileNotice mobileNoticeError" style={{ marginTop: 10 }}>
+            {formatMobileMutationError(assignCandidatesQ.error, { operation: 'assign_candidates' })}
+          </div>
+        ) : null}
         {assignErr ? <div className="mobileNotice mobileNoticeError" style={{ marginTop: 10 }}>{assignErr}</div> : null}
         {assignCandidatesQ.data && assignTechOptions.length > 0 ? (
           <div className="mobileForm" style={{ marginTop: 12 }}>

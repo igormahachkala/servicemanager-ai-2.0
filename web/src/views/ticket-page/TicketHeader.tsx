@@ -35,12 +35,8 @@ export function TicketHeader(props: TicketHeaderProps) {
     onToggleEdit,
     role,
     meUserId,
+    hintCanClaim,
   } = props
-
-  const canClaim =
-    role === 'TECHNICIAN' &&
-    !!ticket &&
-    (ticket.meta?.availableActions?.canClaim ?? ticket.meta?.canClaimByCurrentUser === true)
 
   return (
     <>
