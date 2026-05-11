@@ -1,0 +1,44 @@
+services:
+  stage_postgres:
+    image: postgres:16
+    container_name: sma_stage_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: sma_user
+      POSTGRES_PASSWORD: sma_password
+      POSTGRES_DB: sma_stage_db
+    ports:
+      - "55433:5432"
+    volumes:
+      - postgres_stage_data:/var/lib/postgresql/data
+
+  stage_backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sma_stage_backend
+    restart: unless-stopped
+    depends_on:
+      - stage_postgres
+    environment:
+      DATABASE_URL: postgresql://sma_user:sma_password@stage_postgres:5432/sma_stage_db?schema=public
+      JWT_SECRET: dev-secret-change-me
+      PORT: 3000
+    ports:
+      - "3001:3000"
+
+  stage_web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: http://194.67.101.37:3001
+    container_name: sma_stage_web
+    restart: unless-stopped
+    depends_on:
+      - stage_backend
+    ports:
+      - "4174:4173"
+
+volumes:
+  postgres_stage_data:
