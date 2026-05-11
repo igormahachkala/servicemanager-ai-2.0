@@ -6,7 +6,7 @@ import { mobileHomeTabEmptyCopy, type MobileHomeBoardFilterTab } from '../mobile
 import { TicketCard } from './TicketCard'
 import { getPrimaryActionLabel, homeTicketActionProgressLabel } from './utils'
 
-type CloseModalState = {
+export type TicketCloseModalState = {
   ticketId: string
   title: string
   file: File | null
@@ -30,7 +30,7 @@ type Props = {
   canAssignProvider: boolean
   actionM: UseMutationResult<void, unknown, api.TicketCard, unknown>
   closeBusy: boolean
-  closeModal: CloseModalState
+  closeModal: TicketCloseModalState
   assignBusy: boolean
   assignTicket: api.TicketCard | null
   ticketHref: (ticket: api.TicketCard) => string
@@ -46,7 +46,7 @@ type Props = {
   assignM: UseMutationResult<void, unknown, { ticketId: string; technicianId: string }, unknown>
   closeCameraInputRef: MutableRefObject<HTMLInputElement | null>
   closeGalleryInputRef: MutableRefObject<HTMLInputElement | null>
-  setCloseModal: (next: CloseModalState | ((prev: CloseModalState) => CloseModalState)) => void
+  setCloseModal: (next: TicketCloseModalState | ((prev: TicketCloseModalState) => TicketCloseModalState)) => void
   closeCanSubmit: boolean
   closeM: UseMutationResult<void, unknown, void, unknown>
   mobileActionToast: string
@@ -150,7 +150,7 @@ export function HomeList(props: Props) {
         onAssign={() => assignTicket && assignM.mutate({ ticketId: assignTicket.id, technicianId: assignTechId })}
       />
 
-      <CloseModal
+      <TicketCloseModal
         closeModal={closeModal}
         closeBusy={closeBusy}
         closeCameraInputRef={closeCameraInputRef}
@@ -256,12 +256,12 @@ function AssignModal(props: {
   )
 }
 
-function CloseModal(props: {
-  closeModal: CloseModalState
+export function TicketCloseModal(props: {
+  closeModal: TicketCloseModalState
   closeBusy: boolean
   closeCameraInputRef: MutableRefObject<HTMLInputElement | null>
   closeGalleryInputRef: MutableRefObject<HTMLInputElement | null>
-  setCloseModal: (next: CloseModalState | ((prev: CloseModalState) => CloseModalState)) => void
+  setCloseModal: (next: TicketCloseModalState | ((prev: TicketCloseModalState) => TicketCloseModalState)) => void
   closeCanSubmit: boolean
   closeM: UseMutationResult<void, unknown, void, unknown>
 }) {

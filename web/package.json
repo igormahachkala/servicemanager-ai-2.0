@@ -10,7 +10,9 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "gen:pwa-icons": "node scripts/gen-pwa-icons.mjs"
+    "gen:pwa-icons": "node scripts/gen-pwa-icons.mjs",
+    "split:api": "node scripts/split-api-layer.mjs",
+    "split:api:apply": "node scripts/split-api-layer.mjs --apply-barrel"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.90.21",

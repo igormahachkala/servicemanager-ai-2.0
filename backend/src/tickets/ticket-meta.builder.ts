@@ -41,6 +41,11 @@ export class TicketMetaBuilder {
     const claimAvailability = await this.resolveClaimAvailability(params)
     const availableStatusTransitions = await this.resolveAvailableStatusTransitions(params)
     const assignmentRequestedByCurrentUser = await this.resolveAssignmentRequestedByCurrentUser(params)
+    const { availableActions, availableActionHints } = this.deriveAvailableActions(
+      params,
+      claimAvailability,
+      availableStatusTransitions,
+    )
 
     return {
       scopeCompanyId: params.scopeCompanyId,
@@ -49,6 +54,73 @@ export class TicketMetaBuilder {
       claimAvailabilityReason: claimAvailability.claimAvailabilityReason,
       assignmentRequestedByCurrentUser,
       availableStatusTransitions,
+      availableActions,
+      ...(availableActionHints ? { availableActionHints } : {}),
+    }
+  }
+
+  /**
+   * Единый источник правды для UI: какие операционные действия разрешены политикой/воркфлоу.
+   * Техник: при NEW с доступным claim не подсвечиваем «Начать» через переход NEW→IN_PROGRESS — сначала claim/назначение.
+   */
+  private deriveAvailableActions(
+    params: TicketMetaBuildParams,
+    claim: { canClaimByCurrentUser: boolean; claimAvailabilityReason: string | null },
+    transitions: TicketStatus[],
+  ): {
+    availableActions: {
+      canClaim: boolean
+      canStart: boolean
+      canComplete: boolean
+      canClose: boolean
+    }
+    availableActionHints?: Partial<Record<'canClaim' | 'canStart' | 'canComplete' | 'canClose', string | null>>
+  } {
+    const isTechnician = params.role === UserRole.TECHNICIAN
+    const hints: Partial<Record<'canClaim' | 'canStart' | 'canComplete' | 'canClose', string | null>> = {}
+
+    const canClaim =
+      isTechnician &&
+      claim.canClaimByCurrentUser &&
+      params.ticketStatus === TicketStatus.NEW &&
+      !params.assignedTechnicianId
+
+    if (
+      isTechnician &&
+      params.ticketStatus === TicketStatus.NEW &&
+      !params.assignedTechnicianId &&
+      !canClaim &&
+      claim.claimAvailabilityReason
+    ) {
+      hints.canClaim = claim.claimAvailabilityReason
+    }
+
+    const preferClaimOverDirectInProgress =
+      isTechnician &&
+      params.ticketStatus === TicketStatus.NEW &&
+      claim.canClaimByCurrentUser &&
+      !params.assignedTechnicianId
+
+    const canStart =
+      transitions.includes(TicketStatus.IN_PROGRESS) && !preferClaimOverDirectInProgress
+
+    if (!canStart && transitions.includes(TicketStatus.IN_PROGRESS) && preferClaimOverDirectInProgress) {
+      hints.canStart = 'Сначала закрепите заявку за собой (самовзятие), затем можно начать работу.'
+    } else if (!canStart && params.ticketStatus === TicketStatus.ASSIGNED) {
+      hints.canStart = 'Перевод в «В работе» сейчас недоступен для вашей роли или назначения.'
+    }
+
+    const canComplete = transitions.includes(TicketStatus.DONE)
+    if (!canComplete && params.ticketStatus === TicketStatus.IN_PROGRESS) {
+      hints.canComplete = 'Завершение сейчас недоступно: проверьте права, назначение или требования к отчёту (комментарий и фото).'
+    }
+
+    const canClose = transitions.includes(TicketStatus.CANCELED)
+
+    const outHints = Object.values(hints).some((v) => (v || '').length > 0) ? hints : undefined
+    return {
+      availableActions: { canClaim, canStart, canComplete, canClose },
+      availableActionHints: outHints,
     }
   }
 

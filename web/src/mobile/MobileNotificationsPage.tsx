@@ -93,7 +93,7 @@ export function MobileNotificationsPage() {
           {markAllM.isPending ? 'Сохраняем…' : 'Прочитать все'}
         </button>
       </div>
-      <div className="mobilePageHint">
+      <div className="mobilePageHint mobileNotificationsPageHint">
         Создание заявки, назначение техника и смена статуса отображаются здесь. Непрочитанные подсвечены; откройте
         заявку или нажмите «Прочитать все», чтобы убрать счётчик.
       </div>

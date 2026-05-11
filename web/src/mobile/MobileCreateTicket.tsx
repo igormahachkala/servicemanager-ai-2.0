@@ -1,29 +1,39 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
-import { POST_CREATE_HEADLINE, POST_CREATE_SUBLINE } from '../lib/postCreateTicketGuidance'
 import { CategoryGuidancePanel } from '../components/CategoryGuidancePanel'
+import { formatMobileMutationError } from './mobileActionErrors'
+import { mobileTicketNavState } from './mobileTicketDisplay'
 
 const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024
 
 /** Единый текст: нет загруженного draft-фото (не дублировать другими формулировками). */
 const PHOTO_REQUIRED_MSG = 'Фото обязательно для создания заявки. Сначала загрузите снимок.'
 
-type CreateResult = {
-  ticketId: string
-  claimed: boolean
-  /** Имя категории на момент успешного создания (для подсказок заказчику). */
-  categoryNameForGuidance?: string
+function categoryEligibleForTechnician(cat: api.ProblemCategoryListItem): boolean {
+  if (!cat.coverage) return true
+  return cat.coverage.status === 'covered'
+}
+
+function categoryBlockedTitle(cat: api.ProblemCategoryListItem): string {
+  const st = cat.coverage?.status
+  if (st === 'no_specializations') {
+    return 'Категория требует специализации, которой нет в вашем профиле. Выберите другую категорию.'
+  }
+  if (st === 'no_technicians') {
+    return 'По этой категории в контуре нет доступных исполнителей — создание может быть отклонено.'
+  }
+  return 'Категория сейчас недоступна для создания заявки с вашей ролью.'
 }
 
 export function MobileCreateTicket() {
   const location = useLocation()
+  const navigate = useNavigate()
   const search = new URLSearchParams(location.search)
   const qc = useQueryClient()
   const cameraInputRef = useRef<HTMLInputElement | null>(null)
   const galleryInputRef = useRef<HTMLInputElement | null>(null)
-  const successRef = useRef<HTMLDivElement | null>(null)
 
   function clearPhotoInputs() {
     if (cameraInputRef.current) cameraInputRef.current.value = ''
@@ -114,20 +124,19 @@ export function MobileCreateTicket() {
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [draftUploadProgress, setDraftUploadProgress] = useState<{ current: number; total: number } | null>(null)
   const [error, setError] = useState('')
-  const [result, setResult] = useState<CreateResult | null>(null)
-
-  useEffect(() => {
-    if (!result?.ticketId || !successRef.current) return
-    const el = successRef.current
-    requestAnimationFrame(() => {
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    })
-  }, [result?.ticketId])
 
   useEffect(() => {
     if (!categoryId && activeCategories.length > 0) setCategoryId(activeCategories[0].id)
     if (categoryId && !activeCategories.some((row) => row.id === categoryId)) setCategoryId(activeCategories[0]?.id || '')
   }, [activeCategories, categoryId])
+
+  useEffect(() => {
+    if (!isTechnician) return
+    const sel = activeCategories.find((row) => row.id === categoryId)
+    if (sel && categoryEligibleForTechnician(sel)) return
+    const firstOk = activeCategories.find((row) => categoryEligibleForTechnician(row))
+    if (firstOk) setCategoryId(firstOk.id)
+  }, [isTechnician, activeCategories, categoryId])
 
   const selectedCategory = useMemo(
     () => activeCategories.find((row) => row.id === categoryId) || null,
@@ -195,9 +204,18 @@ export function MobileCreateTicket() {
       const createdId = api.extractCreatedTicketId(created)
       if (!createdId) throw new Error('Не удалось определить id созданной заявки')
       if (shouldClaim) {
-        await api.claim(createdId, scope)
+        try {
+          await api.claim(createdId, scope)
+        } catch (claimErr) {
+          return {
+            ticketId: createdId,
+            claimed: false,
+            claimFailed: true as const,
+            claimErr,
+          }
+        }
       }
-      return { ticketId: createdId, claimed: shouldClaim }
+      return { ticketId: createdId, claimed: shouldClaim, claimFailed: false as const }
     },
     onSuccess: async (created) => {
       await qc.invalidateQueries({ queryKey: ['mobile-home-board'] })
@@ -207,17 +225,26 @@ export function MobileCreateTicket() {
       await qc.invalidateQueries({ queryKey: ['mobile-notifications'] })
 
       setError('')
-      const categoryNameForGuidance =
-        !isTechnician ? activeCategories.find((r) => r.id === categoryId)?.name : undefined
-      setResult({ ...created, categoryNameForGuidance })
       setDescription('')
       setSlaPriority('NORMAL')
       setDraftAttachments([])
       clearPhotoInputs()
+
+      const toast = created.claimFailed
+        ? 'Заявка создана, но закрепить её за собой не удалось. На карточке нажмите «Взять заявку» или запросите назначение.'
+        : created.claimed
+          ? 'Заявка создана и закреплена за вами. Статус: назначена.'
+          : 'Заявка создана. Открываем карточку…'
+      const ticketOwnerForNav = isTechnician
+        ? (clientCompanyId || '').trim()
+        : (linkedClientCompanyId || effectiveClientCompanyId || '').trim() || undefined
+      const path = api.appendScopeToPath(`/m/tickets/${encodeURIComponent(created.ticketId)}`, scope, meQ.data)
+      navigate(path, {
+        state: mobileTicketNavState(created.claimed ? 'my' : 'home', ticketOwnerForNav, undefined, toast),
+      })
     },
-    onError: (e: any) => {
-      setResult(null)
-      setError(e?.message || String(e))
+    onError: (e: unknown) => {
+      setError(formatMobileMutationError(e, { operation: 'create_ticket' }))
     },
   })
 
@@ -249,7 +276,6 @@ export function MobileCreateTicket() {
 
   function onCreate(shouldClaim: boolean) {
     setError('')
-    setResult(null)
     if (!locationId || !categoryId) {
       setError('Выберите локацию и категорию')
       return
@@ -275,12 +301,15 @@ export function MobileCreateTicket() {
       ? technicianContextsQ.isFetched
       : locationsQ.isFetched && categoriesQ.isFetched)
 
+  const selectedCategoryEligible = !selectedCategory || !isTechnician || categoryEligibleForTechnician(selectedCategory)
+
   const selectionReady =
     !!locationId &&
     !!categoryId &&
     activeLocations.some((row) => row.id === locationId) &&
     activeCategories.some((row) => row.id === categoryId) &&
-    (!isTechnician || !!clientCompanyId)
+    (!isTechnician || !!clientCompanyId) &&
+    selectedCategoryEligible
 
   const canSubmit =
     selectionReady &&
@@ -312,41 +341,6 @@ export function MobileCreateTicket() {
       ) : null}
       {error ? <div className="mobileNotice mobileNoticeError">{error}</div> : null}
       {uploadError ? <div className="mobileNotice mobileNoticeError">{uploadError}</div> : null}
-      {result ? (
-        <div ref={successRef} className="mobileCard mobilePostCreateSuccess">
-          <div className="mobilePostCreateSuccessTitle">{POST_CREATE_HEADLINE}</div>
-          <p className="mobilePostCreateSuccessSub">{POST_CREATE_SUBLINE}</p>
-          {!isTechnician ? (
-            <>
-              <div className="mobileMeta mobilePostCreateSectionLabel">До приезда техника:</div>
-              <CategoryGuidancePanel
-                categoryName={result.categoryNameForGuidance}
-                variant="mobile"
-                stepsOnly
-              />
-              <p className="mobileMeta mobilePostCreateNotifyHint">
-                Статус заявки — в «Мои заявки» и в разделе «Уведомления» на главной.
-              </p>
-            </>
-          ) : (
-            <p className="mobileMeta" style={{ marginTop: 8 }}>
-              {result.claimed ? 'Заявка создана и закреплена за вами.' : 'Заявка создана для выбранного клиента.'}
-            </p>
-          )}
-          <div className="mobilePostCreateActions">
-            <Link to={api.appendScopeToPath(`/m/tickets/${encodeURIComponent(result.ticketId)}`, scope, meQ.data)} className="mobileBtn">
-              Открыть заявку
-            </Link>
-            <Link to={api.appendScopeToPath('/m/my', scope, meQ.data)} className="mobileBtn mobileBtnSecondary">
-              Мои заявки
-            </Link>
-            <button type="button" className="mobileBtn mobileBtnGhost" onClick={() => setResult(null)}>
-              Создать ещё
-            </button>
-          </div>
-        </div>
-      ) : null}
-
       {noTechnicianContexts ? (
         <div className="mobileNotice mobileNoticeError">
           Нет привязанного клиентского контура для техника. Проверьте привязку к точкам и linked-scope.
@@ -398,11 +392,15 @@ export function MobileCreateTicket() {
             Категория *
             <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} disabled={isBootstrapping || !activeCategories.length}>
               {activeCategories.length === 0 ? <option value="">—</option> : null}
-              {activeCategories.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name}
-                </option>
-              ))}
+              {activeCategories.map((item) => {
+                const blocked = isTechnician && !categoryEligibleForTechnician(item)
+                return (
+                  <option key={item.id} value={item.id} disabled={blocked} title={blocked ? categoryBlockedTitle(item) : undefined}>
+                    {item.name}
+                    {blocked ? ' — недоступно' : ''}
+                  </option>
+                )
+              })}
             </select>
             <div className="mobileFieldHint">По категории подбирается тип работ и исполнитель.</div>
           </label>
@@ -498,12 +496,17 @@ export function MobileCreateTicket() {
           </div>
 
           <div className="mobileFormSubmitStack">
-            <button type="button" className="mobileBtn" disabled={!canSubmit} onClick={() => onCreate(false)}>
-              {createM.isPending ? 'Создаем...' : 'Создать заявку'}
+            <button type="button" className="mobileBtn" disabled={!canSubmit || createM.isPending} onClick={() => onCreate(false)}>
+              {createM.isPending ? 'Создаём…' : 'Создать заявку'}
             </button>
             {isTechnician ? (
-              <button type="button" className="mobileBtn mobileBtnGhost" disabled={!canSubmit || !clientCompanyId} onClick={() => onCreate(true)}>
-                {createM.isPending ? 'Создаем...' : 'Создать и взять'}
+              <button
+                type="button"
+                className="mobileBtn mobileBtnGhost"
+                disabled={!canSubmit || !clientCompanyId || createM.isPending}
+                onClick={() => onCreate(true)}
+              >
+                {createM.isPending ? 'Создаём…' : 'Создать и взять'}
               </button>
             ) : null}
           </div>

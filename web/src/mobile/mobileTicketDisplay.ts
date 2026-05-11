@@ -13,6 +13,8 @@ export type MobileTicketNavState = {
   homeBoardTab?: MobileHomeBoardFilterTab
   homeBoardChips?: MobileHomeBoardChipId[]
   homeBoardSearch?: string
+  /** Одноразовый toast после редиректа (например create/create&claim). */
+  mobileOperationalToast?: string
 }
 
 /**
@@ -146,14 +148,21 @@ export function mobileTicketNavState(
   origin: MobileTicketListOrigin,
   ticketOwnerCompanyId?: string,
   homeRestore?: { tab?: MobileHomeBoardFilterTab; chips?: MobileHomeBoardChipId[]; search?: string },
+  operationalToast?: string,
 ): MobileTicketNavState {
   const owner = (ticketOwnerCompanyId || '').trim()
   const base: MobileTicketNavState = owner ? { mobileListOrigin: origin, ticketOwnerCompanyId: owner } : { mobileListOrigin: origin }
-  if (!homeRestore) return base
+  if (!homeRestore) {
+    const t = (operationalToast || '').trim()
+    if (t) base.mobileOperationalToast = t.slice(0, 500)
+    return base
+  }
   if (homeRestore.tab) base.homeBoardTab = homeRestore.tab
   if (homeRestore.chips !== undefined) base.homeBoardChips = homeRestore.chips
   const q = (homeRestore.search || '').trim()
   if (q) base.homeBoardSearch = q.slice(0, 240)
+  const t2 = (operationalToast || '').trim()
+  if (t2) base.mobileOperationalToast = t2.slice(0, 500)
   return base
 }
 

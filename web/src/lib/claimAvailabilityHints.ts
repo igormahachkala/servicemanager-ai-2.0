@@ -21,7 +21,7 @@ export function classifyClaimAvailabilityReason(raw: string | null | undefined):
   if (t.includes('уже назначена')) return 'assigned'
   if (t.includes('не в статусе new') || low.includes('не в статусе new')) return 'status_new'
   if (t.includes('отключен') && low.includes('claim')) return 'claim_disabled'
-  if (t.includes('специализац')) return 'specialization'
+  if (t.includes('специализац') || low.includes('specialization')) return 'specialization'
   if (t.includes('Локация заявки недоступна') || t.includes('UserLocationBinding') || t.includes('к этой точке'))
     return 'location'
   if (t.includes('operational scope') || t.includes('операцион') || t.includes('operational')) return 'scope'
@@ -32,7 +32,7 @@ export function classifyClaimAvailabilityReason(raw: string | null | undefined):
 export function shortTitleForClaimUnavailable(kind: ClaimUnavailableKind): string {
   switch (kind) {
     case 'specialization':
-      return 'Заявка не подходит по специализации'
+      return 'Вы не можете взять эту заявку: категория не входит в ваши специализации.'
     case 'location':
       return 'Нет доступа к этой точке'
     case 'assigned':
@@ -62,6 +62,9 @@ export function explainClaimUnavailable(raw: string | null | undefined): { title
   const kind = classifyClaimAvailabilityReason(trimmed)
   const title = shortTitleForClaimUnavailable(kind)
   if (!trimmed) return { title, detail: null }
+  if (kind === 'specialization' || kind === 'location' || kind === 'scope' || kind === 'claim_disabled') {
+    return { title, detail: null }
+  }
   if (kind === 'unknown') return { title: shortTitleForClaimUnavailable('unknown'), detail: truncateDetail(trimmed) }
   const detail = truncateDetail(trimmed)
   if (detail.length < 24) return { title, detail: null }

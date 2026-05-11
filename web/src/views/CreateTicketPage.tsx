@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { POST_CREATE_HEADLINE, POST_CREATE_SUBLINE } from '../lib/postCreateTicketGuidance'
 import { CategoryGuidancePanel } from '../components/CategoryGuidancePanel'
+import { useCreateTicketFlow } from '../hooks/useCreateTicketFlow'
 
 const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024
 
@@ -32,7 +33,6 @@ function locationLabel(location: api.LocationListItem) {
 export function CreateTicketPage() {
   const nav = useNavigate()
   const location = useLocation()
-  const qc = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const successRef = useRef<HTMLDivElement | null>(null)
 
@@ -57,7 +57,6 @@ export function CreateTicketPage() {
   const [draftAttachmentScopeKey, setDraftAttachmentScopeKey] = useState('')
   const [postCreateMode, setPostCreateMode] = useState<PostCreateMode>('redirect')
   const [lastCreatedTicketId, setLastCreatedTicketId] = useState('')
-  const submitActionRef = useRef<'create' | 'createAndClaim'>('create')
 
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
   const meReady = meQ.isSuccess
@@ -210,12 +209,6 @@ export function CreateTicketPage() {
   }, [meQ.data, requesterName])
 
   useEffect(() => {
-    if (!isTechnician) return
-    if (postCreateMode === 'stay') return
-    setPostCreateMode('stay')
-  }, [isTechnician, postCreateMode])
-
-  useEffect(() => {
     if (!categoryId && activeCategories.length > 0) setCategoryId(activeCategories[0].id)
     if (categoryId && !activeCategories.some((row) => row.id === categoryId)) setCategoryId(activeCategories[0]?.id || '')
   }, [activeCategories, categoryId])
@@ -274,60 +267,20 @@ export function CreateTicketPage() {
     },
     onError: (e: any) => setUploadError(e?.message || String(e)),
   })
-  const createM = useMutation({
-    mutationFn: (payload: api.CreateTicketInput) => api.createTicket(payload, buildTicketScope()),
-    onSuccess: async (created) => {
-      await qc.invalidateQueries({ queryKey: ['board'] })
-      await qc.invalidateQueries({ queryKey: ['tickets'] })
-      await qc.invalidateQueries({ queryKey: ['mobile-notifications'] })
-      const createdId = api.extractCreatedTicketId(created)
-      if (!createdId) {
-        setErr(`Не удалось определить id созданной заявки из ответа backend: ${JSON.stringify(created)}`)
-        return
-      }
-      setLastCreatedTicketId(createdId)
-      const submitAction = submitActionRef.current
-      submitActionRef.current = 'create'
-      if (submitAction === 'createAndClaim' && isTechnician) {
-        try {
-          await api.claim(createdId, buildTicketScope())
-          nav(buildTicketLink(createdId))
-          return
-        } catch (claimError: any) {
-          setErr(`Заявка создана, но не удалось взять в работу: ${claimError?.message || String(claimError)}`)
-          if (postCreateMode === 'stay') {
-            clearForNextCreate()
-            return
-          }
-          nav(buildTicketLink(createdId))
-          return
-        }
-      }
-      if (postCreateMode === 'stay' || !isTechnician) {
-        clearForNextCreate()
-        return
-      }
-      nav(buildTicketLink(createdId))
-    },
-    onError: (e: any) => {
-      const rawMessage = e?.message || String(e)
-      if (rawMessage.includes('Some attachmentIds are invalid')) {
-        setDraftAttachment(null)
-        setDraftAttachmentScopeKey('')
-        setSelectedFile(null)
-        if (fileInputRef.current) fileInputRef.current.value = ''
-        setUploadError('Ранее загруженное фото недоступно в текущем контексте. Загрузите фото повторно.')
-        setErr('Не удалось привязать фото к заявке: attachment устарел для текущего scope.')
-        return
-      }
-      if (rawMessage.includes('Location not found')) {
-        const fallbackLocationId = activeLocations[0]?.id || ''
-        setLocationId(fallbackLocationId)
-        setErr('Выбранная локация больше недоступна в текущем контексте. Выберите локацию снова.')
-        return
-      }
-      setErr(rawMessage)
-    },
+  const { createM, submitActionRef } = useCreateTicketFlow({
+    isTechnician: !!isTechnician,
+    postCreateMode,
+    buildTicketLink,
+    buildTicketScope,
+    setErr,
+    setLastCreatedTicketId,
+    clearForNextCreate,
+    activeLocations,
+    setLocationId,
+    setDraftAttachment,
+    setDraftAttachmentScopeKey,
+    setSelectedFile,
+    fileInputRef,
   })
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -412,8 +365,10 @@ export function CreateTicketPage() {
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (createM.isPending) return
     setErr(null)
     setLastCreatedTicketId('')
+    submitActionRef.current = 'create'
     if (!canCreateByRole) {
       setErr('Эта роль не может создавать заявки')
       return
@@ -563,7 +518,24 @@ export function CreateTicketPage() {
       ) : null}
 
       <div className="panel uiCard" style={{ display: meQ.data && !canCreateByRole ? 'none' : 'block' }}>
-        <form onSubmit={onSubmit} className="form" style={{ maxWidth: 860 }}>
+        <form onSubmit={onSubmit} className="form" style={{ maxWidth: 860, position: 'relative' }}>
+          {createM.isPending ? (
+            <div
+              className="panel"
+              style={{
+                position: 'absolute',
+                inset: 0,
+                zIndex: 2,
+                opacity: 0.72,
+                display: 'grid',
+                placeItems: 'center',
+                fontWeight: 800,
+                pointerEvents: 'all',
+              }}
+            >
+              Отправляем…
+            </div>
+          ) : null}
           <div className="uiActions">
             <button type="button" className={mode === 'quick' ? '' : 'ghost'} onClick={() => setMode('quick')} disabled={isBusy}>
               Быстрая заявка

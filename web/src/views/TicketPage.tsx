@@ -11,11 +11,13 @@ import { CategoryGuidancePanel } from '../components/CategoryGuidancePanel'
 import { TicketAttachments } from './ticket-page/TicketAttachments'
 import { TicketHeader } from './ticket-page/TicketHeader'
 import {
-  appendBoardNavigationContextToPath,
-  readBoardNavigationContextFromSearch,
   sanitizeBoardNavigationContext,
   type BoardTicketNavState,
 } from '../lib/boardNavigationContext'
+import { pushToast } from '../lib/appToast'
+import { logTicketActionError, mapTicketActionError } from '../lib/ticketOperationalErrors'
+import { computePrimaryTicketAction } from '../lib/ticketOperationalModel'
+import { TicketActionBar } from '../components/ticket-page/TicketActionBar'
 
 const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024
 
@@ -188,6 +190,7 @@ export function TicketPage() {
   const [searchParams] = useSearchParams()
   const qc = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const operationalFileInputRef = useRef<HTMLInputElement | null>(null)
 
   const observerCompanyId = (searchParams.get('companyId') || api.getObserverCompanyId()).trim()
   const linkedClientCompanyId = (searchParams.get('linkedClientCompanyId') || api.getLinkedClientCompanyId()).trim()
@@ -237,23 +240,15 @@ export function TicketPage() {
 
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
 
-  const backToBoardBaseHref = useMemo(() => {
+  const backToBoardHref = useMemo(() => {
     if (observerCompanyId) return `/board?companyId=${observerCompanyId}`
     if (effectiveLinkedClientCompanyId) return `/board?linkedClientCompanyId=${effectiveLinkedClientCompanyId}`
     return '/board'
   }, [observerCompanyId, effectiveLinkedClientCompanyId])
   const boardNavContext = useMemo(() => {
     const state = location.state as BoardTicketNavState | null | undefined
-    const fromSearch = readBoardNavigationContextFromSearch(searchParams)
-    return sanitizeBoardNavigationContext({
-      ...(state?.boardContext || {}),
-      ...(fromSearch || {}),
-    })
-  }, [location.state, searchParams])
-  const backToBoardHref = useMemo(
-    () => appendBoardNavigationContextToPath(backToBoardBaseHref, boardNavContext),
-    [backToBoardBaseHref, boardNavContext],
-  )
+    return sanitizeBoardNavigationContext(state?.boardContext)
+  }, [location.state])
   const backToBoardState = useMemo<BoardTicketNavState | undefined>(
     () => (boardNavContext ? { boardContext: boardNavContext } : undefined),
     [boardNavContext],
@@ -392,6 +387,10 @@ export function TicketPage() {
       qc.invalidateQueries({ queryKey: ['ticket-attachments', ticketId] }),
       qc.invalidateQueries({ queryKey: ['ticket-assignment-candidates', ticketId] }),
       qc.invalidateQueries({ queryKey: ['board'] }),
+      qc.invalidateQueries({ queryKey: ['mobile-home-board'] }),
+      qc.invalidateQueries({ queryKey: ['mobile-my-board'] }),
+      qc.invalidateQueries({ queryKey: ['mobile-ticket-detail'] }),
+      qc.invalidateQueries({ queryKey: ['tickets'] }),
     ])
   }
 
@@ -455,9 +454,14 @@ export function TicketPage() {
     onSuccess: async () => {
       setClaimError(null)
       clearActionErrors()
+      pushToast('Заявка закреплена за вами', 'success')
       await refreshAll()
     },
-    onError: (e: any) => setClaimError(e?.message || String(e)),
+    onError: (e: any) => {
+      const raw = e?.message || String(e)
+      logTicketActionError('claim', raw)
+      setClaimError(mapTicketActionError(raw))
+    },
   })
 
   const assignM = useMutation({
@@ -472,7 +476,11 @@ export function TicketPage() {
       clearActionErrors()
       await refreshAll()
     },
-    onError: (e: any) => setAssignError(e?.message || String(e)),
+    onError: (e: any) => {
+      const raw = e?.message || String(e)
+      logTicketActionError('assign', raw)
+      setAssignError(mapTicketActionError(raw))
+    },
   })
 
   const statusM = useMutation({
@@ -480,20 +488,28 @@ export function TicketPage() {
       if (!canMutateTicket) throw new Error('Изменение заявки запрещено в текущем режиме видимости')
       return api.updateTicketStatus(ticketId, input, effectiveTicketScope)
     },
-    onSuccess: async () => {
+    onSuccess: async (_data, vars) => {
       setStatusError(null)
       clearActionErrors()
+      if (vars.status === 'DONE') pushToast('Заявка завершена', 'success')
+      else if (vars.status === 'IN_PROGRESS') pushToast('Работы начаты', 'success')
+      else if (vars.status === 'CANCELED') pushToast('Заявка отменена', 'info')
       setNewComment('')
       await refreshAll()
     },
-    onError: (e: any) => setStatusError(e?.message || String(e)),
+    onError: (e: any) => {
+      const raw = e?.message || String(e)
+      logTicketActionError('status', raw)
+      setStatusError(mapTicketActionError(raw))
+    },
   })
 
   const uploadM = useMutation({
-    mutationFn: () => {
+    mutationFn: (fileOverride?: File | null) => {
       if (!canMutateTicket) throw new Error('Изменение заявки запрещено в текущем режиме видимости')
-      if (!selectedFile) throw new Error('Сначала выберите файл')
-      return api.uploadTicketAttachment(ticketId, selectedFile, effectiveTicketScope)
+      const file = fileOverride ?? selectedFile
+      if (!file) throw new Error('Сначала выберите файл')
+      return api.uploadTicketAttachment(ticketId, file, effectiveTicketScope)
     },
     onSuccess: async () => {
       setUploadError(null)
@@ -503,9 +519,17 @@ export function TicketPage() {
       if (fileInputRef.current) {
         fileInputRef.current.value = ''
       }
+      if (operationalFileInputRef.current) {
+        operationalFileInputRef.current.value = ''
+      }
+      pushToast('Фото добавлено', 'success')
       await refreshAll()
     },
-    onError: (e: any) => setUploadError(e?.message || String(e)),
+    onError: (e: any) => {
+      const raw = e?.message || String(e)
+      logTicketActionError('upload', raw)
+      setUploadError(mapTicketActionError(raw))
+    },
   })
 
   const deleteAttachmentM = useMutation({
@@ -518,7 +542,11 @@ export function TicketPage() {
       clearActionErrors()
       await refreshAll()
     },
-    onError: (e: any) => setDeleteAttachmentError(e?.message || String(e)),
+    onError: (e: any) => {
+      const raw = e?.message || String(e)
+      logTicketActionError('delete_attachment', raw)
+      setDeleteAttachmentError(mapTicketActionError(raw))
+    },
   })
 
   const updateTicketM = useMutation({
@@ -549,7 +577,11 @@ export function TicketPage() {
       setSelectedTechnicianId('')
       await refreshAll()
     },
-    onError: (e: any) => setUpdateError(e?.message || String(e)),
+    onError: (e: any) => {
+      const raw = e?.message || String(e)
+      logTicketActionError('update_ticket', raw)
+      setUpdateError(mapTicketActionError(raw))
+    },
   })
 
   const addCommentM = useMutation({
@@ -560,9 +592,14 @@ export function TicketPage() {
     },
     onSuccess: async () => {
       setNewComment('')
+      pushToast('Комментарий добавлен', 'success')
       await refreshAll()
     },
-    onError: (e: any) => setStatusError(e?.message || String(e)),
+    onError: (e: any) => {
+      const raw = e?.message || String(e)
+      logTicketActionError('comment', raw)
+      setStatusError(mapTicketActionError(raw))
+    },
   })
 
   const closeReportM = useMutation({
@@ -584,9 +621,14 @@ export function TicketPage() {
       setSelectedFile(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
       clearActionErrors()
+      pushToast('Заявка завершена', 'success')
       await refreshAll()
     },
-    onError: (e: any) => setStatusError(e?.message || String(e)),
+    onError: (e: any) => {
+      const raw = e?.message || String(e)
+      logTicketActionError('close_report', raw)
+      setStatusError(mapTicketActionError(raw))
+    },
   })
 
   const createChildM = useMutation({
@@ -607,7 +649,11 @@ export function TicketPage() {
       setShowChildCreateForm(false)
       await refreshAll()
     },
-    onError: (e: any) => setChildCreateError(e?.message || String(e)),
+    onError: (e: any) => {
+      const raw = e?.message || String(e)
+      logTicketActionError('child_ticket', raw)
+      setChildCreateError(mapTicketActionError(raw))
+    },
   })
 
   const ticket = ticketQ.data
@@ -615,31 +661,34 @@ export function TicketPage() {
   const canClaim = useMemo(() => {
     if (role !== 'TECHNICIAN' || !ticket) return false
     if (!executorActionsAllowed) return false
+    const aa = ticket.meta?.availableActions
+    if (aa) return aa.canClaim
     return ticket.meta?.canClaimByCurrentUser === true
   }, [role, ticket, executorActionsAllowed])
 
   const assignmentData = assignmentCandidatesQ.data
   const availableStatusTransitions = ticket?.meta?.availableStatusTransitions || []
   const canTransitionTo = (status: api.TicketStatus) => availableStatusTransitions.includes(status)
-  const primaryAction = useMemo(() => {
-    if (!ticket) return null as null | { kind: 'claim' | 'in_progress' | 'done'; label: string }
-    if (ticket.status === 'DONE') return null
+  const primaryAction = useMemo(
+    () =>
+      ticket
+        ? computePrimaryTicketAction({
+            ticket,
+            canClaim,
+            canChangeStatus,
+            availableStatusTransitions,
+          })
+        : null,
+    [ticket, canClaim, canChangeStatus, availableStatusTransitions],
+  )
 
-    if (ticket.status === 'NEW') {
-      if (canClaim) return { kind: 'claim', label: 'Взять себе' }
-      if (canChangeStatus && canTransitionTo('IN_PROGRESS')) return { kind: 'in_progress', label: 'Взять в работу' }
-      return null
-    }
-    if (ticket.status === 'ASSIGNED') {
-      if (canChangeStatus && canTransitionTo('IN_PROGRESS')) return { kind: 'in_progress', label: 'Начать выполнение' }
-      return null
-    }
-    if (ticket.status === 'IN_PROGRESS') {
-      if (canChangeStatus && canTransitionTo('DONE')) return { kind: 'done', label: 'Завершить' }
-      return null
-    }
-    return null
-  }, [ticket, canClaim, canChangeStatus, availableStatusTransitions])
+  const showCancelInTechnicianBar =
+    !!ticket &&
+    canChangeStatus &&
+    canTransitionTo('CANCELED') &&
+    (!isTechnicianRole || !!ticket.meta?.availableActions?.canClose)
+
+  const technicianBarCloseHint = ticket?.meta?.availableActionHints?.canClose ?? null
 
   const selectedCandidate = useMemo(() => {
     if (!assignmentData || !selectedTechnicianId) return null
@@ -741,6 +790,29 @@ export function TicketPage() {
     setSelectedFile(file)
   }
 
+  function handleOperationalPhotoPick(e: ChangeEvent<HTMLInputElement>) {
+    setFileError(null)
+    setUploadError(null)
+    const file = e.target.files?.[0] || null
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      e.target.value = ''
+      setFileError('Можно загружать только изображения')
+      return
+    }
+    if (file.size <= 0) {
+      e.target.value = ''
+      setFileError('Файл пустой')
+      return
+    }
+    if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
+      e.target.value = ''
+      setFileError('Изображение слишком большое. Максимум 10 МБ.')
+      return
+    }
+    uploadM.mutate(file)
+  }
+
   function handleUploadClick() {
     if (uploadM.isPending) return
     if (!selectedFile) {
@@ -777,10 +849,8 @@ export function TicketPage() {
         editOpen={editOpen}
         onToggleEdit={() => setEditOpen((value) => !value)}
         role={role}
-        canClaim={canClaim}
-        claimPending={claimM.isPending}
         meUserId={meQ.data?.id}
-        onClaim={() => claimM.mutate()}
+        hintCanClaim={canClaim}
       />
 
       {boardNavContext ? (
@@ -814,8 +884,10 @@ export function TicketPage() {
         техника, техник ведёт работу до закрытия.
       </div>
 
-      <InlineError message={claimError} />
-      {ticketQ.isError ? <div className="alert">{(ticketQ.error as any)?.message || String(ticketQ.error)}</div> : null}
+      {!showTechnicianActionBar ? <InlineError message={claimError} /> : null}
+      {ticketQ.isError ? (
+        <div className="alert">{mapTicketActionError((ticketQ.error as any)?.message || String(ticketQ.error))}</div>
+      ) : null}
       {readOnlyByVisibilityMode ? (
         <div className="panel uiCard" style={{ marginBottom: 12 }}>
           <div className="muted small">
@@ -908,7 +980,41 @@ export function TicketPage() {
         </div>
       ) : null}
 
-      {ticket ? (
+      {showTechnicianActionBar && ticket ? (
+        <>
+          <input
+            ref={operationalFileInputRef}
+            type="file"
+            accept="image/*"
+            style={{ display: 'none' }}
+            onChange={handleOperationalPhotoPick}
+          />
+          <TicketActionBar
+            ticketStatus={ticket.status}
+            backToBoardHref={backToBoardHref}
+            primaryAction={primaryAction}
+            canClaim={canClaim}
+            canChangeStatus={canChangeStatus}
+            canTransitionTo={canTransitionTo}
+            canCompleteByEvidence={canCompleteByEvidence}
+            showCancel={showCancelInTechnicianBar}
+            closeHint={technicianBarCloseHint}
+            claimPending={claimM.isPending}
+            statusPending={statusM.isPending}
+            newComment={newComment}
+            onNewCommentChange={setNewComment}
+            onAddComment={() => addCommentM.mutate()}
+            addCommentPending={addCommentM.isPending}
+            onClaim={() => claimM.mutate()}
+            onSetStatus={(input) => statusM.mutate(input)}
+            onPickOperationalPhoto={() => operationalFileInputRef.current?.click()}
+            operationalPhotoPending={uploadM.isPending}
+            hasOperationalPhotoSelected={false}
+            claimError={claimError}
+            statusError={statusError}
+          />
+        </>
+      ) : ticket ? (
         <div className="panel" style={{ marginBottom: 12 }}>
           <h3 style={{ marginBottom: 10 }}>Действия</h3>
           {primaryAction ? (
@@ -939,7 +1045,7 @@ export function TicketPage() {
                       comment: newComment.trim() || undefined,
                     })
                   }
-                    disabled={statusM.isPending || !canTransitionTo('DONE') || !canCompleteByEvidence}
+                  disabled={statusM.isPending || !canTransitionTo('DONE') || !canCompleteByEvidence}
                   style={{ width: '100%' }}
                 >
                   {statusM.isPending ? 'Сохраняем…' : primaryAction.label}

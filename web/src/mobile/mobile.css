@@ -977,6 +977,29 @@ a.mobileBtn.mobileCreateTicketLink {
   min-width: 0;
 }
 
+/** Нижняя панель действий на карточке заявки — не перекрывать контент скролла. */
+.mobileTicketDetailsRoot--opsDock {
+  padding-bottom: calc(132px + env(safe-area-inset-bottom, 0px));
+}
+
+.mobileTicketOpsDock.mobileTicketOpsDock--fixed {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 45;
+  margin: 0 auto;
+  margin-top: 0 !important;
+  width: 100%;
+  max-width: 720px;
+  border-radius: 16px 16px 0 0;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -8px 24px rgba(17, 24, 39, 0.12);
+  border: 1px solid #e5e7eb;
+  border-bottom: none;
+  background: #ffffff;
+}
+
 .mobileTicketDetailsToolbar {
   margin-bottom: 4px;
 }
@@ -1398,16 +1421,26 @@ a.mobileBtn.mobileCreateTicketLink {
 
 .mobileNotificationsHeader {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: 8px;
+  margin-bottom: 8px;
 }
 
 .mobileNotificationsMarkAll {
   flex-shrink: 0;
-  font-size: 0.82rem;
-  padding: 8px 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 5px 8px;
+  min-height: auto;
+  line-height: 1.2;
+}
+
+.mobileNotificationsPageHint {
+  margin-top: 4px;
+  margin-bottom: 8px;
+  font-size: 0.84rem;
+  line-height: 1.35;
 }
 
 .mobileNotificationsList {
@@ -1416,7 +1449,7 @@ a.mobileBtn.mobileCreateTicketLink {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .mobileNotificationRow {

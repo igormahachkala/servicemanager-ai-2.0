@@ -689,6 +689,20 @@ export type TicketGetOne = {
     claimAvailabilityReason?: string | null
     assignmentRequestedByCurrentUser?: boolean
     availableStatusTransitions?: TicketStatus[]
+    /** Политика + воркфлоу: единый источник для кнопок (без хардкода прав на фронте). */
+    availableActions?: {
+      canClaim: boolean
+      canStart: boolean
+      canComplete: boolean
+      canClose: boolean
+    }
+    /** Подсказки, когда действие недоступно (ключи совпадают с availableActions). */
+    availableActionHints?: Partial<{
+      canClaim: string | null
+      canStart: string | null
+      canComplete: string | null
+      canClose: string | null
+    }>
   }
 }
 
@@ -1691,12 +1705,6 @@ export async function setSpecializationStatus(id: string, isActive: boolean): Pr
   })
 }
 
-export async function deleteSpecialization(id: string): Promise<{ ok: true; id: string }> {
-  return request<{ ok: true; id: string }>(`/specializations/${id}`, {
-    method: 'DELETE',
-  })
-}
-
 /** `companyId` — query для GET /problem-categories: tenant, чьи категории нужны (у провайдера в linked-scope это id клиента). */
 export async function problemCategories(companyId?: string): Promise<ProblemCategoryListItem[]> {
   const search = new URLSearchParams()
@@ -1729,12 +1737,6 @@ export async function setProblemCategoryStatus(id: string, isActive: boolean): P
   return request<ProblemCategoryListItem>(`/problem-categories/${id}/status`, {
     method: 'PATCH',
     body: { isActive },
-  })
-}
-
-export async function deleteProblemCategory(id: string): Promise<{ ok: true; id: string }> {
-  return request<{ ok: true; id: string }>(`/problem-categories/${id}`, {
-    method: 'DELETE',
   })
 }
 

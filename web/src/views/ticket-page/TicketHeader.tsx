@@ -15,10 +15,9 @@ type TicketHeaderProps = {
   editOpen: boolean
   onToggleEdit: () => void
   role?: api.Role | null
-  canClaim: boolean
-  claimPending: boolean
   meUserId?: string
-  onClaim: () => void
+  /** Подсказки claim: совпадает с доступом к кнопке на странице (учитывает режим видимости). */
+  hintCanClaim: boolean
 }
 
 export function TicketHeader(props: TicketHeaderProps) {
@@ -35,11 +34,13 @@ export function TicketHeader(props: TicketHeaderProps) {
     editOpen,
     onToggleEdit,
     role,
-    canClaim,
-    claimPending,
     meUserId,
-    onClaim,
   } = props
+
+  const canClaim =
+    role === 'TECHNICIAN' &&
+    !!ticket &&
+    (ticket.meta?.availableActions?.canClaim ?? ticket.meta?.canClaimByCurrentUser === true)
 
   return (
     <>
@@ -69,17 +70,11 @@ export function TicketHeader(props: TicketHeaderProps) {
                 {editOpen ? 'Скрыть редактирование' : 'Редактировать заявку'}
               </button>
             ) : null}
-
-            {canClaim ? (
-              <button onClick={onClaim} disabled={claimPending}>
-                {claimPending ? 'Забираем…' : 'Взять заявку'}
-              </button>
-            ) : null}
           </div>
         </div>
         <TicketClaimBlock
           role={role}
-          canClaim={canClaim}
+          canClaim={hintCanClaim}
           ticket={ticket}
           meUserId={meUserId}
         />

@@ -2,6 +2,7 @@ import { BrowserRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ErrorBoundary, type FallbackProps } from 'react-error-boundary'
 import { AppRoutes } from './router'
+import { ToastViewport } from './components/ToastViewport'
 import './app.css'
 
 const queryClient = new QueryClient({
@@ -34,6 +35,7 @@ export default function App() {
       <ErrorBoundary FallbackComponent={ErrorFallback}>
         <BrowserRouter>
           <AppRoutes />
+          <ToastViewport />
         </BrowserRouter>
       </ErrorBoundary>
     </QueryClientProvider>

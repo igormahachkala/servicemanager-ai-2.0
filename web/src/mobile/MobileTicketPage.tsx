@@ -1,5 +1,5 @@
 import { type ChangeEvent, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import {
@@ -32,7 +32,7 @@ import {
 } from '../lib/ticketClientGuidance'
 import { CategoryGuidancePanel } from '../components/CategoryGuidancePanel'
 import { MobileBoardClaimFallbackHint, MobileClaimReasonHintBox } from './MobileUxHints'
-import { appendBoardNavigationContextToPath, readBoardNavigationContextFromSearch, sanitizeBoardNavigationContext } from '../lib/boardNavigationContext'
+import { TicketCloseModal, type TicketCloseModalState } from './home/HomeList'
 
 function readListOrigin(location: ReturnType<typeof useLocation>): MobileTicketListOrigin {
   const raw = (location.state as MobileTicketNavState | null)?.mobileListOrigin
@@ -142,11 +142,43 @@ export function MobileTicketPage() {
   const { id } = useParams()
   const ticketId = id || ''
   const location = useLocation()
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
   const queryClient = useQueryClient()
 
+  const [operationalToast, setOperationalToast] = useState('')
+  const [closeModal, setCloseModal] = useState<TicketCloseModalState>(null)
+  const closeModalCameraRef = useRef<HTMLInputElement | null>(null)
+  const closeModalGalleryRef = useRef<HTMLInputElement | null>(null)
+
   const navState = location.state as MobileTicketNavState | null | undefined
+
+  useEffect(() => {
+    const st = (location.state || null) as MobileTicketNavState | null
+    if (!st) return
+    const t = (st.mobileOperationalToast || '').trim()
+    if (!t) return
+    setOperationalToast(t)
+    const next: MobileTicketNavState = { ...st }
+    delete next.mobileOperationalToast
+    navigate(
+      { pathname: location.pathname, search: location.search },
+      { replace: true, state: Object.keys(next).length ? next : null },
+    )
+  }, [location.key, location.pathname, location.search, navigate])
+
+  useEffect(() => {
+    if (!operationalToast) return
+    const tid = window.setTimeout(() => setOperationalToast(''), 3400)
+    return () => window.clearTimeout(tid)
+  }, [operationalToast])
+
+  useEffect(() => {
+    return () => {
+      if (closeModal?.previewUrl) URL.revokeObjectURL(closeModal.previewUrl)
+    }
+  }, [closeModal?.previewUrl])
 
   const observerCompanyId = useMemo(
     () => (searchParams.get('companyId') || api.getObserverCompanyId(meQ.data)).trim(),
@@ -348,30 +380,39 @@ export function MobileTicketPage() {
   const canAssignProvider = api.isProviderTicketAssignRole(meQ.data?.role)
   const techPrimary = ticket && meQ.data?.id ? api.mobileTechnicianTicketPrimaryAction(ticket, meQ.data.id) : null
   const assigneePresent = !!(ticket?.assignedTechnicianId || ticket?.assignedTechnician)
+  const aa = ticket?.meta?.availableActions
+  const transitions = ticket?.meta?.availableStatusTransitions || []
   const canShowTechClaimButton =
     meQ.data?.role === 'TECHNICIAN' &&
     !!ticket &&
     ticket.status === 'NEW' &&
     !assigneePresent &&
-    techPrimary === 'claim' &&
-    ticket.meta?.canClaimByCurrentUser !== false &&
+    (aa ? aa.canClaim : techPrimary === 'claim' && ticket.meta?.canClaimByCurrentUser !== false) &&
     !ticket.meta?.assignmentRequestedByCurrentUser
   const canShowAssignmentRequest =
     meQ.data?.role === 'TECHNICIAN' &&
     !!ticket &&
     ticket.status === 'NEW' &&
     !assigneePresent &&
-    techPrimary === 'claim' &&
-    ticket.meta?.canClaimByCurrentUser === false &&
+    (aa ? !aa.canClaim : techPrimary === 'claim' && ticket.meta?.canClaimByCurrentUser === false) &&
     !ticket.meta?.assignmentRequestedByCurrentUser
   const showAssignmentRequestAck =
     meQ.data?.role === 'TECHNICIAN' &&
     !!ticket &&
     ticket.status === 'NEW' &&
     !assigneePresent &&
-    techPrimary === 'claim' &&
+    (aa ? !aa.canClaim : techPrimary === 'claim') &&
     ticket.meta?.assignmentRequestedByCurrentUser === true
-  const canShowTechStart = meQ.data?.role === 'TECHNICIAN' && techPrimary === 'start'
+  const canShowTechStart =
+    meQ.data?.role === 'TECHNICIAN' && !!ticket && (aa ? aa.canStart : techPrimary === 'start')
+  const assigneeIdForMe =
+    ticket && meQ.data?.id ? (ticket.assignedTechnicianId || ticket.assignedTechnician?.id || '').trim() : ''
+  const canShowComplete =
+    meQ.data?.role === 'TECHNICIAN' &&
+    !!ticket &&
+    ticket.status === 'IN_PROGRESS' &&
+    assigneeIdForMe === meQ.data.id &&
+    (aa ? aa.canComplete : transitions.includes('DONE'))
 
   const [assignTicketOpen, setAssignTicketOpen] = useState(false)
   const [assignTechId, setAssignTechId] = useState('')
@@ -524,10 +565,13 @@ export function MobileTicketPage() {
       await queryClient.refetchQueries({ queryKey: ['mobile-ticket-detail', ticketId] })
     },
     onError: (e: unknown, vars: 'claim' | 'start') => {
+      const claimBlocked = ticket?.meta?.availableActions
+        ? !ticket.meta.availableActions.canClaim
+        : ticket?.meta?.canClaimByCurrentUser === false
       setTechActionErr(
         formatMobileMutationError(e, {
           operation: vars,
-          claimBlockedByCategoryPolicy: vars === 'claim' && ticket?.meta?.canClaimByCurrentUser === false,
+          claimBlockedByCategoryPolicy: vars === 'claim' && claimBlocked,
         }),
       )
     },
@@ -569,51 +613,44 @@ export function MobileTicketPage() {
     },
   })
 
+  const closeM = useMutation({
+    mutationFn: async () => {
+      if (!closeModal) throw new Error('Нет данных для закрытия')
+      if (!closeModal.file) throw new Error('Нужно фото отчёта')
+      const comment = closeModal.comment.trim()
+      if (comment.length < 3) throw new Error('Нужен комментарий не короче 3 символов')
+      await api.uploadTicketAttachment(closeModal.ticketId, closeModal.file, ticketMutationScope)
+      await api.addTicketComment(closeModal.ticketId, comment, ticketMutationScope)
+      await api.updateTicketStatus(closeModal.ticketId, { status: 'DONE' }, ticketMutationScope)
+    },
+    onSuccess: async () => {
+      if (closeModal?.previewUrl) URL.revokeObjectURL(closeModal.previewUrl)
+      setCloseModal(null)
+      if (closeModalCameraRef.current) closeModalCameraRef.current.value = ''
+      if (closeModalGalleryRef.current) closeModalGalleryRef.current.value = ''
+      await invalidateTicketQueries()
+      await queryClient.invalidateQueries({ queryKey: ['mobile-notifications'] })
+      await queryClient.refetchQueries({ queryKey: ['mobile-ticket-detail', ticketId] })
+      setOperationalToast('Заявка завершена.')
+    },
+    onError: (e: unknown) => {
+      setCloseModal((prev) => (prev ? { ...prev, err: formatMobileMutationError(e, { operation: 'close' }) } : prev))
+    },
+  })
+
   const listOrigin = readListOrigin(location)
   const backPath = listOrigin === 'my' ? '/m/my' : '/m'
-  const backBaseHref = api.appendScopeToPath(backPath, scopeNorm, meQ.data)
-  const fallbackBoardContext = useMemo(
-    () =>
-      sanitizeBoardNavigationContext(
-        listOrigin === 'home'
-          ? {
-              tab: navState?.homeBoardTab,
-              chips: navState?.homeBoardChips,
-              search: navState?.homeBoardSearch,
-            }
-          : undefined,
-      ),
-    [listOrigin, navState?.homeBoardChips, navState?.homeBoardSearch, navState?.homeBoardTab],
-  )
-  const boardContext = useMemo(() => {
-    const fromSearch = readBoardNavigationContextFromSearch(searchParams)
-    return sanitizeBoardNavigationContext({
-      ...(fallbackBoardContext || {}),
-      ...(fromSearch || {}),
-    })
-  }, [fallbackBoardContext, searchParams])
-  const backHref = appendBoardNavigationContextToPath(backBaseHref, boardContext)
-  const boardTabLabel = useMemo(() => {
-    const tab = (boardContext?.tab || '').trim()
-    if (!tab) return ''
-    if (listOrigin === 'my') {
-      if (tab === 'active') return '????????'
-      if (tab === 'new') return '?????'
-      if (tab === 'closed') return '????????'
-      return tab
-    }
-    return tab in MOBILE_HOME_TAB_LABELS ? MOBILE_HOME_TAB_LABELS[tab as MobileHomeBoardFilterTab] : tab
-  }, [boardContext?.tab, listOrigin])
+  const backHref = api.appendScopeToPath(backPath, scopeNorm, meQ.data)
+  const boardTabLabel = navState?.homeBoardTab ? MOBILE_HOME_TAB_LABELS[navState.homeBoardTab] : ''
   const boardChipLabels = useMemo(() => {
-    const chips = boardContext?.chips
+    const chips = navState?.homeBoardChips
     if (!Array.isArray(chips) || chips.length === 0) return []
     return chips
       .filter((chip): chip is MobileHomeBoardChipId => chip in MOBILE_HOME_BOARD_CHIP_LABELS)
       .map((chip) => MOBILE_HOME_BOARD_CHIP_LABELS[chip])
-  }, [boardContext?.chips])
-  const boardSearchLabel = (boardContext?.search || '').trim()
-  const hasBoardContext = !!boardContext?.scopeLabel || !!boardTabLabel || boardChipLabels.length > 0 || !!boardSearchLabel
-  const resetBoardContextHref = appendBoardNavigationContextToPath(backBaseHref, undefined)
+  }, [navState?.homeBoardChips])
+  const boardSearchLabel = (navState?.homeBoardSearch || '').trim()
+  const hasBoardContext = !!boardTabLabel || boardChipLabels.length > 0 || !!boardSearchLabel
   const resetBoardContextState: MobileTicketNavState | undefined = useMemo(() => {
     if (listOrigin !== 'home') return undefined
     return {
@@ -658,19 +695,18 @@ export function MobileTicketPage() {
     !ticket.assignedTechnicianId &&
     !ticket.assignedTechnician
 
-  const assigneeIdForMe =
-    ticket && meQ.data?.id
-      ? (ticket.assignedTechnicianId || ticket.assignedTechnician?.id || '').trim()
-      : ''
-  const showTechnicianInProgressHint =
-    !!ticket &&
-    meQ.data?.role === 'TECHNICIAN' &&
-    ticket.status === 'IN_PROGRESS' &&
-    assigneeIdForMe === meQ.data.id
-
   const claimBtnPending = techActionM.isPending && techActionM.variables === 'claim'
   const startBtnPending = techActionM.isPending && techActionM.variables === 'start'
   const assignBusy = assignM.isPending
+  const closeBusy = closeM.isPending
+  const closeCanSubmit = !!closeModal?.file && closeModal.comment.trim().length >= 3 && !closeBusy
+
+  const showCompleteBlockedHint =
+    meQ.data?.role === 'TECHNICIAN' &&
+    !!ticket &&
+    ticket.status === 'IN_PROGRESS' &&
+    assigneeIdForMe === meQ.data.id &&
+    !canShowComplete
 
   const hasTechnicianActionsBlock =
     canShowTechClaimButton ||
@@ -678,7 +714,8 @@ export function MobileTicketPage() {
     showAssignmentRequestAck ||
     canShowTechStart ||
     showAssignButton ||
-    showTechnicianInProgressHint
+    canShowComplete ||
+    showCompleteBlockedHint
   const showTechnicianNoActionsHint =
     meQ.data?.role === 'TECHNICIAN' &&
     !!ticket &&
@@ -686,8 +723,10 @@ export function MobileTicketPage() {
     ticket.status !== 'CANCELED' &&
     !hasTechnicianActionsBlock
 
+  const padBottomForOpsDock = hasTechnicianActionsBlock
+
   return (
-    <div className="mobileSection mobileTicketDetailsRoot">
+    <div className={`mobileSection mobileTicketDetailsRoot${padBottomForOpsDock ? ' mobileTicketDetailsRoot--opsDock' : ''}`}>
       <div className="mobileTicketDetailsToolbar">
         <Link
           to={backHref}
@@ -703,7 +742,7 @@ export function MobileTicketPage() {
           <div className="mobileRow" style={{ marginBottom: 6 }}>
             <strong style={{ fontSize: '0.9rem' }}>Контекст доски</strong>
             <Link
-              to={resetBoardContextHref}
+              to={backHref}
               state={resetBoardContextState}
               className="mobileBtn mobileBtnSecondary"
               style={{ padding: '6px 10px', minHeight: 'auto' }}
@@ -825,13 +864,8 @@ export function MobileTicketPage() {
             </div>
           </div>
 
-          {(canShowTechClaimButton ||
-            canShowAssignmentRequest ||
-            showAssignmentRequestAck ||
-            canShowTechStart ||
-            showAssignButton ||
-            showTechnicianInProgressHint) && (
-            <div className="mobileCard" style={{ marginTop: 8 }}>
+          {hasTechnicianActionsBlock ? (
+            <div className="mobileCard mobileTicketOpsDock mobileTicketOpsDock--fixed">
               <div className="mobileSectionTitle" style={{ marginBottom: 8 }}>
                 Действия
               </div>
@@ -904,9 +938,34 @@ export function MobileTicketPage() {
                   {techActionErr}
                 </div>
               ) : null}
-              {showTechnicianInProgressHint ? (
-                <div className="mobileMeta" style={{ marginTop: 8 }}>
-                  Закрытие с фото отчёта — на вкладке «Главная» в списке «В работе».
+              {canShowComplete ? (
+                <button
+                  type="button"
+                  className="mobileBtn mobileBtn--done"
+                  style={{ width: '100%', marginTop: 8, minHeight: 48 }}
+                  disabled={closeBusy || techActionM.isPending || assignmentRequestM.isPending || !isOnline}
+                  onClick={() => {
+                    if (!ticket) return
+                    setCloseModal({
+                      ticketId: ticket.id,
+                      title: `${mobileTicketNumberTitle(ticket.ticketNumber)} — ${mobileTicketCategoryLocationFromDetail(ticket)}`,
+                      file: null,
+                      previewUrl: '',
+                      comment: '',
+                      err: '',
+                    })
+                  }}
+                >
+                  Завершить работу (фото отчёта)
+                </button>
+              ) : null}
+              {showCompleteBlockedHint ? (
+                <div className="mobileUxHintReason mobileUxHintReason--compact" role="status" style={{ marginTop: 10 }}>
+                  <div className="mobileUxHintReasonTitle">Завершение недоступно</div>
+                  <div className="mobileUxHintReasonDetail">
+                    {(ticket.meta?.availableActionHints?.canComplete || '').trim() ||
+                      'Политика или отсутствие данных (комментарий, фото) не позволяют закрыть заявку из приложения.'}
+                  </div>
                 </div>
               ) : null}
               {showAssignButton ? (
@@ -1235,6 +1294,21 @@ export function MobileTicketPage() {
           <div className="mobileToast">{assignmentRequestToast}</div>
         </div>
       ) : null}
+      {operationalToast ? (
+        <div className="mobileToastHost" role="status">
+          <div className="mobileToast">{operationalToast}</div>
+        </div>
+      ) : null}
+
+      <TicketCloseModal
+        closeModal={closeModal}
+        closeBusy={closeBusy}
+        closeCameraInputRef={closeModalCameraRef}
+        closeGalleryInputRef={closeModalGalleryRef}
+        setCloseModal={setCloseModal}
+        closeCanSubmit={closeCanSubmit}
+        closeM={closeM}
+      />
     </div>
   )
 }

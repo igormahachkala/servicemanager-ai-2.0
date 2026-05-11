@@ -1,8 +1,19 @@
 import { ApiRequestError } from '../lib/api'
 
-export type MobileMutationOperation = 'claim' | 'start' | 'close' | 'request_assignment' | 'assign' | 'other'
+export type MobileMutationOperation =
+  | 'claim'
+  | 'start'
+  | 'close'
+  | 'create_ticket'
+  | 'request_assignment'
+  | 'assign'
+  | 'other'
 
 const FALLBACK = 'Не удалось выполнить действие'
+const CREATE_CATEGORY =
+  'Не удалось создать заявку: выберите другую категорию или проверьте специализации в профиле.'
+const CREATE_FORBIDDEN = 'Недостаточно прав для создания заявки в этом контуре.'
+const CLOSE_INCOMPLETE = 'Не удалось завершить заявку: проверьте фото отчёта, комментарий (не короче 3 символов) и подключение к сети.'
 const NETWORK = 'Нет соединения. Попробуйте позже'
 const NOT_FOUND = 'Заявка не найдена или недоступна'
 const SPEC = 'Заявка не подходит по специализации'
@@ -72,7 +83,33 @@ export function formatMobileMutationError(
 
   if (ctx.operation === 'claim' && status === 403) return SPEC
 
+  if (ctx.operation === 'start' && status === 403) {
+    return 'Начать работу сейчас нельзя: проверьте, что заявка назначена на вас, и права в контуре.'
+  }
+
   if (ctx.operation === 'request_assignment' && status === 400 && looksLikeAlreadyAssigned(msg)) return ASSIGNED_OTHER
+
+  if (ctx.operation === 'create_ticket') {
+    const m = msg.toLowerCase()
+    if (status === 403 || m.includes('forbidden')) return CREATE_FORBIDDEN
+    if (
+      m.includes('specialization') ||
+      m.includes('специализац') ||
+      m.includes('category') ||
+      m.includes('категор')
+    ) {
+      return CREATE_CATEGORY
+    }
+    if (status === 404) return NOT_FOUND
+    if (m.includes('validation') || m.includes('bad request') || status === 400) return CREATE_CATEGORY
+  }
+
+  if (ctx.operation === 'close') {
+    const m = msg.toLowerCase()
+    if (m.includes('comment') || m.includes('комментар') || m.includes('коротк')) return CLOSE_INCOMPLETE
+    if (status === 403) return 'Завершить заявку сейчас нельзя: проверьте роль и назначение.'
+    if (status === 400) return CLOSE_INCOMPLETE
+  }
 
   return FALLBACK
 }
