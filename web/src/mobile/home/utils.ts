@@ -7,12 +7,14 @@ export function getPrimaryActionLabel(
   meId: string | undefined,
   role: api.Role | undefined,
 ): HomePrimaryActionLabel {
-  if (!api.allowMobileHomeFieldTicketActions(role) || !meId) return null
+  if (role !== 'TECHNICIAN' || !meId) return null
+
   if (ticket.status === 'NEW' && !ticket.assignedTechnician) {
-    if (role === 'TECHNICIAN' && ticket.assignmentRequestedByCurrentUser) return null
-    if (role === 'TECHNICIAN' && ticket.canClaimByCurrentUser === false) return 'Запросить назначение'
+    if (ticket.assignmentRequestedByCurrentUser) return null
+    if (ticket.canClaimByCurrentUser === false) return 'Запросить назначение'
     return 'Взять'
   }
+
   if (ticket.status === 'ASSIGNED' && ticket.assignedTechnician?.id === meId) return 'Начать'
   if (ticket.status === 'IN_PROGRESS' && ticket.assignedTechnician?.id === meId) return 'Закрыть'
   return null

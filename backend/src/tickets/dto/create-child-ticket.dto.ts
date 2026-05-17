@@ -2,7 +2,7 @@ import { TicketPriority, TicketUrgency } from '@prisma/client';
 import { IsEnum, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
 
 export class CreateChildTicketDto {
-  @IsUUID()
+  @IsUUID('all')
   problemCategoryId!: string;
 
   @IsString()

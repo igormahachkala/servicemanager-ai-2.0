@@ -3,15 +3,15 @@ import { IsEnum, IsOptional, IsString, IsUUID } from 'class-validator';
 
 export class UpdateTicketDto {
   @IsOptional()
-  @IsUUID()
+  @IsUUID('all')
   problemCategoryId?: string;
 
   @IsOptional()
-  @IsUUID()
+  @IsUUID('all')
   locationId?: string;
 
   @IsOptional()
-  @IsUUID()
+  @IsUUID('all')
   equipmentId?: string | null;
 
   @IsOptional()

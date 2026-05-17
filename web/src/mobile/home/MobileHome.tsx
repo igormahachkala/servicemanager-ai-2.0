@@ -219,8 +219,12 @@ export function MobileHome() {
 
   const actionM = useMutation({
     mutationFn: async (ticket: api.TicketCard) => {
+      const role = meQ.data?.role
       if (ticket.status === 'NEW') {
-        if (meQ.data?.role === 'TECHNICIAN' && ticket.canClaimByCurrentUser === false) {
+        if (role !== 'TECHNICIAN') {
+          throw new Error('Полевое действие «Взять» доступно только технику')
+        }
+        if (ticket.canClaimByCurrentUser === false) {
           if (ticket.assignmentRequestedByCurrentUser) return
           await api.requestTicketAssignment(ticket.id, pageScope)
           return
@@ -229,11 +233,14 @@ export function MobileHome() {
         return
       }
       if (ticket.status === 'ASSIGNED') {
+        if (role !== 'TECHNICIAN' || ticket.assignedTechnician?.id !== meQ.data?.id) {
+          throw new Error('Начать работу может только назначенный техник')
+        }
         await api.updateTicketStatus(ticket.id, { status: 'IN_PROGRESS' }, pageScope)
         return
       }
       if (ticket.status === 'IN_PROGRESS') {
-        if (!api.allowMobileHomeFieldTicketActions(meQ.data?.role) || ticket.assignedTechnician?.id !== meQ.data?.id) {
+        if (role !== 'TECHNICIAN' || ticket.assignedTechnician?.id !== meQ.data?.id) {
           throw new Error('Закрытие недоступно для этой заявки')
         }
         setCloseModal({
@@ -258,7 +265,16 @@ export function MobileHome() {
       await queryClient.invalidateQueries({ queryKey: ['board'] })
     },
     onError: (e: unknown, ticket) => {
-      const op = ticket.status === 'NEW' && meQ.data?.role === 'TECHNICIAN' && ticket.canClaimByCurrentUser === false ? 'request_assignment' : ticket.status === 'NEW' ? 'claim' : ticket.status === 'ASSIGNED' ? 'start' : 'other'
+      const op =
+        ticket.status === 'NEW' &&
+        meQ.data?.role === 'TECHNICIAN' &&
+        ticket.canClaimByCurrentUser === false
+          ? 'request_assignment'
+          : ticket.status === 'NEW'
+            ? 'claim'
+            : ticket.status === 'ASSIGNED'
+              ? 'start'
+              : 'other'
       setHomeActionErr(formatMobileMutationError(e, { operation: op }))
     },
   })

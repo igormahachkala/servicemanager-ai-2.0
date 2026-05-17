@@ -2,8 +2,8 @@ import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import * as api from '../lib/api'
 
-import smaLogo from '../assets/sma-tech.png'
 import '../mobile/mobile.css'
+import { SmaBrandLogo } from '../components/SmaBrandLogo'
 import { SupportContactBlock } from '../components/SupportContactBlock'
 
 type LoginPageProps = {
@@ -237,18 +237,8 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
             opacity: 0.8,
           }}
         >
-          <img
-            src={smaLogo}
-            alt="SMA Tech"
-            style={{
-              width: 120,
-              marginBottom: 10,
-              opacity: 0.9,
-            }}
-          />
-
-          <div>Powered by SMA Tech</div>
-          <div style={{ opacity: 0.6 }}>Version {VERSION} · Build {BUILD}</div>
+          <SmaBrandLogo variant="footer" style={{ marginBottom: 10, opacity: 0.9 }} />
+          <div style={{ opacity: 0.6, marginTop: 8 }}>Version {VERSION} · Build {BUILD}</div>
         </div>
       </div>
 

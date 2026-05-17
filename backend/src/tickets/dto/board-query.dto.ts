@@ -41,7 +41,7 @@ export class BoardQueryDto {
 
     return v
   })
-  @IsUUID(undefined, { each: false })
+  @IsUUID('all', { each: false })
   assigneeId?: string | null
 
   @IsOptional()
@@ -60,19 +60,19 @@ export class BoardQueryDto {
   take?: number
 
   @IsOptional()
-  @IsUUID()
+  @IsUUID('all')
   linkedClientCompanyId?: string
 
   @IsOptional()
-  @IsUUID()
+  @IsUUID('all')
   companyId?: string
 
   @IsOptional()
-  @IsUUID()
+  @IsUUID('all')
   locationId?: string
 
   @IsOptional()
-  @IsUUID()
+  @IsUUID('all')
   equipmentId?: string
 
   @IsOptional()

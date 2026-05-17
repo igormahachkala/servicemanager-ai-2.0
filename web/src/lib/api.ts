@@ -1104,18 +1104,40 @@ export function resolveFileUrl(url: string): string {
   return getBaseUrl() + normalized
 }
 
+/** Scope query для защищённой раздачи /uploads/ticket-attachments (JWT в query для <img>). */
+export type TicketAttachmentUrlScope = Pick<TicketScopeParams, 'linkedClientCompanyId' | 'companyId'>
+
 /** Абсолютный URL файла вложения тикета (как на desktop TicketAttachments). */
-export function resolveTicketAttachmentUrl(attachment: {
-  url?: string | null
-  downloadUrl?: string | null
-  path?: string | null
-}): string {
+export function resolveTicketAttachmentUrl(
+  attachment: {
+    url?: string | null
+    downloadUrl?: string | null
+    path?: string | null
+  },
+  scope?: TicketAttachmentUrlScope,
+): string {
   const raw =
     (typeof attachment.downloadUrl === 'string' && attachment.downloadUrl.trim()) ||
     (typeof attachment.url === 'string' && attachment.url.trim()) ||
     (typeof attachment.path === 'string' && attachment.path.trim()) ||
     ''
-  return resolveFileUrl(raw)
+  const base = resolveFileUrl(raw)
+  if (!base.includes('/uploads/ticket-attachments/')) return base
+
+  const token = getToken()
+  if (!token) return base
+
+  try {
+    const parsed = new URL(base)
+    parsed.searchParams.set('access_token', token)
+    const linked = (scope?.linkedClientCompanyId || '').trim()
+    const companyId = (scope?.companyId || '').trim()
+    if (linked) parsed.searchParams.set('linkedClientCompanyId', linked)
+    if (companyId) parsed.searchParams.set('companyId', companyId)
+    return parsed.toString()
+  } catch {
+    return base
+  }
 }
 
 export function setBaseUrl(url: string) {
@@ -1253,17 +1275,9 @@ export function isProviderTicketAssignRole(role?: string | null): boolean {
   )
 }
 
-/** Мобильная главная: полевые действия (взять/начать/закрыть). DISPATCHER — только назначение, без полевых кнопок. */
+/** Мобильная главная: полевые действия (взять/начать/закрыть) — только TECHNICIAN (POST /claim и start/done на бэкенде). */
 export function allowMobileHomeFieldTicketActions(role?: Role | string | null): boolean {
-  if (!role) return false
-  if (role === 'DISPATCHER') return false
-  return (
-    role === 'TECHNICIAN' ||
-    role === 'ADMIN' ||
-    role === 'ADMIN_PROVIDER' ||
-    role === 'MASTER' ||
-    role === 'STAFF'
-  )
+  return role === 'TECHNICIAN'
 }
 
 /** Основное действие техника на карточке заявки (мобильная деталка). */

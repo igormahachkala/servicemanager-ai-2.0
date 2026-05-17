@@ -7,27 +7,27 @@ export class CreateTicketDto {
   createMode?: 'quick' | 'full'
 
   @IsOptional()
-  @IsUUID()
+  @IsUUID('all')
   parentId?: string | null
 
   @IsOptional()
-  @IsUUID()
+  @IsUUID('all')
   clientCompanyId?: string
 
-  @IsUUID()
+  @IsUUID('all')
   @IsNotEmpty()
   locationId!: string
 
   @IsOptional()
-  @IsUUID()
+  @IsUUID('all')
   equipmentId?: string
 
   @IsOptional()
-  @IsUUID()
+  @IsUUID('all')
   categoryId?: string
 
   @IsOptional()
-  @IsUUID()
+  @IsUUID('all')
   problemCategoryId?: string
 
   @IsOptional()
@@ -48,7 +48,7 @@ export class CreateTicketDto {
 
   @IsOptional()
   @IsArray()
-  @IsUUID('4', { each: true })
+  @IsUUID('all', { each: true })
   attachmentIds?: string[]
 
   @IsOptional()
