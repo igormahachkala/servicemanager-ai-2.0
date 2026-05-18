@@ -237,13 +237,22 @@ export class TicketAttachmentsService {
     } satisfies Prisma.TicketAttachmentSelect
   }
 
+  private static readonly ALLOWED_MIME_TYPES = new Set([
+    'image/jpeg',
+    'image/png',
+    'image/webp',
+    'image/heic',
+    'image/heif',
+  ])
+
   private assertImageFile(file: any) {
     if (!file) {
       throw new BadRequestException('file is required')
     }
 
-    if (!file.mimetype || !String(file.mimetype).startsWith('image/')) {
-      throw new BadRequestException('Only image uploads are supported')
+    const mime = String(file.mimetype || '').toLowerCase()
+    if (!TicketAttachmentsService.ALLOWED_MIME_TYPES.has(mime)) {
+      throw new BadRequestException('Only JPEG, PNG, WebP, HEIC and HEIF images are supported')
     }
 
     if (!file.buffer || !file.size) {

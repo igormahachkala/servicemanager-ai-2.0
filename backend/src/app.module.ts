@@ -23,6 +23,7 @@ import { PublicRequestModule } from './public-request/public-request.module';
 import { ServiceContractsModule } from './service-contracts/service-contracts.module';
 import { InspectionModule } from './inspection/inspection.module';
 import { RealtimeModule } from './realtime/realtime.module';
+import { UploadsModule } from './uploads/uploads.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { RealtimeModule } from './realtime/realtime.module';
     ServiceContractsModule,
     InspectionModule,
     RealtimeModule,
+    UploadsModule,
   ],
   controllers: [AppController, HealthController],
   providers: [AppService],

@@ -4,10 +4,14 @@ import { AuthService } from './auth.service'
 import { JwtAuthGuard } from './jwt.guard'
 import { ImpersonateDto } from './dto/impersonate.dto'
 import { LoginDto } from './dto/login.dto'
+import { LoginRateLimiterService } from './login-rate-limiter.service'
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly auth: AuthService) {}
+  constructor(
+    private readonly auth: AuthService,
+    private readonly loginRateLimiter: LoginRateLimiterService,
+  ) {}
 
   @Post('register')
   register(
@@ -22,7 +26,8 @@ export class AuthController {
   }
 
   @Post('login')
-  login(@Body() dto: LoginDto) {
+  login(@Req() req: any, @Body() dto: LoginDto) {
+    this.loginRateLimiter.consume(dto.email, req)
     return this.auth.login(dto)
   }
 

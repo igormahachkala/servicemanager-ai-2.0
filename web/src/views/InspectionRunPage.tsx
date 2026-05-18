@@ -362,9 +362,9 @@ export function InspectionRunPage() {
                     />
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 10 }}>
                       {item.attachments.map((attachment) => (
-                        <a key={attachment.id} href={api.resolveFileUrl(attachment.url)} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
+                        <a key={attachment.id} href={api.resolveInspectionAttachmentUrl(attachment)} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
                           <img
-                            src={api.resolveFileUrl(attachment.url)}
+                            src={api.resolveInspectionAttachmentUrl(attachment)}
                             alt={attachment.originalName}
                             style={{ width: 120, height: 120, objectFit: 'cover', borderRadius: 12, border: '1px solid #e5e7eb' }}
                           />

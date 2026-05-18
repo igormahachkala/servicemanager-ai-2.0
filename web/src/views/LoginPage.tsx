@@ -20,9 +20,7 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
-  const [postLoginUser, setPostLoginUser] = useState<api.Me | null>(null)
-  const [postLoginScope, setPostLoginScope] = useState<api.TicketScopeParams>({})
-  const [mobileEntryLoading, setMobileEntryLoading] = useState(false)
+
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
@@ -39,113 +37,17 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
       api.setUserRole(result.user.role)
       api.setCompanyLabel(result.user.companyName || result.user.email)
       const restoredScope = api.restoreScopeForUser(result.user)
-      setPostLoginUser(result.user)
-      setPostLoginScope(restoredScope)
+
+      if (onLoggedIn) {
+        onLoggedIn(result.access_token)
+      }
+
+      const nextPath = api.appendScopeToPath(api.getHomeRoute(result.user.role), restoredScope, result.user)
+      navigate(nextPath, { replace: true })
     } catch (err: any) {
       setError(err?.message || 'Не удалось войти')
-    } finally {
       setLoading(false)
     }
-  }
-
-  function enterDesktop() {
-    if (!postLoginUser) return
-    const token = api.getToken()
-    if (onLoggedIn && token) {
-      onLoggedIn(token)
-    }
-    navigate(api.appendScopeToPath(api.getHomeRoute(postLoginUser.role), postLoginScope, postLoginUser))
-  }
-
-  async function enterMobile() {
-    if (!postLoginUser) return
-    const token = api.getToken()
-    if (onLoggedIn && token) {
-      onLoggedIn(token)
-    }
-
-    setMobileEntryLoading(true)
-    try {
-      let profile: api.Me = postLoginUser
-      try {
-        profile = await api.me()
-      } catch {
-        /* сеть — используем ответ логина */
-      }
-
-      const role = profile.role
-
-      if (api.isClientRole(role)) {
-        navigate(api.appendScopeToPath('/m', postLoginScope, profile))
-        return
-      }
-
-      if (role === 'PLATFORM_ADMIN') {
-        navigate(api.appendScopeToPath('/m', postLoginScope, profile))
-        return
-      }
-
-      if (role === 'TECHNICIAN') {
-        let linked = api.resolveTechnicianMobileLinkedClientCompanyId({
-          profile,
-          postLoginScope,
-        }).linkedClientCompanyId
-        if (!linked) {
-          try {
-            const contexts = await api.getTechnicianBoundContexts()
-            linked = api.pickFirstTechnicianBoundLinkedClientCompanyId(contexts)
-          } catch {
-            /* сеть / 403 — без контура */
-          }
-        }
-        const nextScope: api.TicketScopeParams = linked
-          ? { ...postLoginScope, linkedClientCompanyId: linked }
-          : { ...postLoginScope }
-        if (linked) {
-          api.persistScopeFromSearchParams(new URLSearchParams({ linkedClientCompanyId: linked }), profile)
-        }
-        navigate(api.appendScopeToPath('/m', nextScope, profile))
-        return
-      }
-
-      if (api.shouldFetchDefaultLinkedClientOnMobileEntry(role)) {
-        let linkedClientCompanyId = ''
-        try {
-          const list = await api.getLinkedClients()
-          linkedClientCompanyId = api.pickDefaultLinkedClientCompanyId(list)
-        } catch {
-          /* 403 / сеть — fallback ниже */
-        }
-
-        if (!linkedClientCompanyId) {
-          linkedClientCompanyId = (
-            (postLoginScope.linkedClientCompanyId || '').trim() ||
-            api.getLinkedClientCompanyId(profile).trim()
-          ).trim()
-        }
-
-        const nextScope: api.TicketScopeParams = linkedClientCompanyId
-          ? { ...postLoginScope, linkedClientCompanyId }
-          : { ...postLoginScope }
-
-        if (linkedClientCompanyId) {
-          api.persistScopeFromSearchParams(new URLSearchParams({ linkedClientCompanyId }), profile)
-        }
-        navigate(api.appendScopeToPath('/m', nextScope, profile))
-        return
-      }
-
-      navigate(api.appendScopeToPath('/m', postLoginScope, profile))
-    } finally {
-      setMobileEntryLoading(false)
-    }
-  }
-
-  function resetSession() {
-    api.clearToken()
-    setPostLoginUser(null)
-    setPostLoginScope({})
-    setPassword('')
   }
 
   return (
@@ -164,60 +66,34 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
           </div>
         )}
 
-        {!postLoginUser ? (
-          <form onSubmit={handleLogin} className="form">
-            <label>
-              Email
-              <input
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@company.com"
-                autoComplete="username"
-                disabled={loading}
-              />
-            </label>
+        <form onSubmit={handleLogin} className="form">
+          <label>
+            Email
+            <input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="admin@company.com"
+              autoComplete="username"
+              disabled={loading}
+            />
+          </label>
 
-            <label>
-              Пароль
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Введите пароль"
-                autoComplete="current-password"
-                disabled={loading}
-              />
-            </label>
+          <label>
+            Пароль
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Введите пароль"
+              autoComplete="current-password"
+              disabled={loading}
+            />
+          </label>
 
-            <button type="submit" disabled={loading}>
-              {loading ? 'Входим...' : 'Войти'}
-            </button>
-          </form>
-        ) : (
-          <div className="panel" style={{ padding: 14 }}>
-            <div style={{ fontWeight: 800, marginBottom: 6 }}>Выберите режим входа</div>
-            <div className="muted small" style={{ marginBottom: 12 }}>
-              Сессия уже создана. Куда отправить вас дальше?
-            </div>
-
-            <div style={{ display: 'grid', gap: 10 }}>
-              <button type="button" className="mobileBtn" onClick={enterDesktop}>
-                Вход: управленческая часть
-              </button>
-              <button
-                type="button"
-                className="mobileBtn mobileBtnGhost"
-                disabled={mobileEntryLoading}
-                onClick={() => void enterMobile()}
-              >
-                {mobileEntryLoading ? 'Открываем...' : 'Вход: мобильная версия для обслуживания'}
-              </button>
-              <button type="button" className="ghost" onClick={resetSession}>
-                Выйти и ввести другой аккаунт
-              </button>
-            </div>
-          </div>
-        )}
+          <button type="submit" disabled={loading}>
+            {loading ? 'Входим...' : 'Войти'}
+          </button>
+        </form>
 
         <div className="panel loginSupportPanel" style={{ marginTop: 16 }}>
           <div style={{ fontWeight: 600, marginBottom: 6 }}>Публичная регистрация компаний отключена</div>

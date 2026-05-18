@@ -2,7 +2,6 @@ import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { join } from 'path';
 
 import { AppModule } from './app.module';
 import { RealtimeService } from './realtime/realtime.service';
@@ -20,13 +19,17 @@ async function bootstrap() {
     }),
   );
 
-  app.enableCors({
-    origin: true,
-    credentials: true,
-  });
+  const rawOrigins = (process.env.CORS_ALLOWED_ORIGINS || '').split(',').map((o) => o.trim()).filter(Boolean);
+  const allowedOrigins = new Set(rawOrigins);
 
-  app.useStaticAssets(join(process.cwd(), 'uploads'), {
-    prefix: '/uploads/',
+  app.enableCors({
+    origin: (origin, callback) => {
+      // No Origin header = curl / server-side request: allow
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.has(origin)) return callback(null, true);
+      callback(null, false);
+    },
+    credentials: true,
   });
 
   const config = new DocumentBuilder()

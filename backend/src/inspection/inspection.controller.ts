@@ -118,7 +118,7 @@ export class InspectionController {
   @Post('runs/:runId/items/:itemId/attachments')
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TECHNICIAN)
   @RequirePermission(PERMISSIONS.LOCATIONS_VIEW)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
   uploadRunItemAttachment(@Req() req: any, @Param('runId') runId: string, @Param('itemId') itemId: string, @UploadedFile() file: any) {
     return this.svc.uploadRunItemAttachment(this.userFromRequest(req), runId, itemId, file)
   }

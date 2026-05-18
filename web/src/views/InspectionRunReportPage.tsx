@@ -301,8 +301,8 @@ export function InspectionRunReportPage() {
                         {item.attachments.length ? (
                           <div className="workActAttachmentGrid">
                             {item.attachments.map((attachment) => (
-                              <a key={attachment.id} href={api.resolveFileUrl(attachment.url)} target="_blank" rel="noreferrer" className="workActAttachmentLink">
-                                <img src={api.resolveFileUrl(attachment.url)} alt={attachment.originalName || 'inspection attachment'} className="workActAttachmentImage" />
+                              <a key={attachment.id} href={api.resolveInspectionAttachmentUrl(attachment)} target="_blank" rel="noreferrer" className="workActAttachmentLink">
+                                <img src={api.resolveInspectionAttachmentUrl(attachment)} alt={attachment.originalName || 'inspection attachment'} className="workActAttachmentImage" />
                               </a>
                             ))}
                           </div>

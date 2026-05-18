@@ -1104,17 +1104,13 @@ export function resolveFileUrl(url: string): string {
   return getBaseUrl() + normalized
 }
 
-/** Scope query для защищённой раздачи /uploads/ticket-attachments (JWT в query для <img>). */
-export type TicketAttachmentUrlScope = Pick<TicketScopeParams, 'linkedClientCompanyId' | 'companyId'>
-
-/** Абсолютный URL файла вложения тикета (как на desktop TicketAttachments). */
+/** Абсолютный URL файла вложения тикета с JWT-токеном в query (?token=) для <img> тегов. */
 export function resolveTicketAttachmentUrl(
   attachment: {
     url?: string | null
     downloadUrl?: string | null
     path?: string | null
   },
-  scope?: TicketAttachmentUrlScope,
 ): string {
   const raw =
     (typeof attachment.downloadUrl === 'string' && attachment.downloadUrl.trim()) ||
@@ -1123,17 +1119,28 @@ export function resolveTicketAttachmentUrl(
     ''
   const base = resolveFileUrl(raw)
   if (!base.includes('/uploads/ticket-attachments/')) return base
+  return appendUploadToken(base)
+}
 
+/** Абсолютный URL файла вложения чек-листа с JWT-токеном в query (?token=) для <img> тегов. */
+export function resolveInspectionAttachmentUrl(
+  attachment: {
+    url?: string | null
+  },
+): string {
+  const raw = (typeof attachment.url === 'string' && attachment.url.trim()) || ''
+  const base = resolveFileUrl(raw)
+  if (!base.includes('/uploads/inspection-run-items/')) return base
+  return appendUploadToken(base)
+}
+
+/** Appends ?token=<jwt> to a protected /uploads/* URL. Safe to call on already-signed URLs. */
+function appendUploadToken(base: string): string {
   const token = getToken()
   if (!token) return base
-
   try {
     const parsed = new URL(base)
-    parsed.searchParams.set('access_token', token)
-    const linked = (scope?.linkedClientCompanyId || '').trim()
-    const companyId = (scope?.companyId || '').trim()
-    if (linked) parsed.searchParams.set('linkedClientCompanyId', linked)
-    if (companyId) parsed.searchParams.set('companyId', companyId)
+    parsed.searchParams.set('token', token)
     return parsed.toString()
   } catch {
     return base
@@ -1255,7 +1262,9 @@ export function setUserRole(role?: string | null) {
 }
 
 export function getHomeRoute(role?: string | null): string {
-  if (role === 'PLATFORM_ADMIN') return '/companies'
+  const resolvedRole = role || getUserRole()
+  if (resolvedRole === 'PLATFORM_ADMIN') return '/companies'
+  if (resolvedRole === 'TECHNICIAN') return '/m'
   return '/board'
 }
 
@@ -2840,6 +2849,4 @@ export async function downloadInspectionRunReportExport(
     fileName: match?.[1] || 'work-act.' + format,
   }
 }
-
-
 

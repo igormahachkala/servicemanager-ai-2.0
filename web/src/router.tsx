@@ -57,7 +57,11 @@ function LogoutAndRedirect() {
 }
 
 /** `/login?clear=1` — очистка storage до редиректа по токену (удобно для QA без отдельного маршрута). */
-function LoginGate({ home }: { home: string }) {
+function authHomePath() {
+  return api.appendScopeToPath(api.getHomeRoute())
+}
+
+function LoginGate() {
   if (typeof window !== 'undefined') {
     const sp = new URLSearchParams(window.location.search)
     if (sp.get('clear') === '1') {
@@ -77,18 +81,16 @@ function LoginGate({ home }: { home: string }) {
       window.history.replaceState({}, '', `${url.pathname}${qs ? `?${qs}` : ''}${url.hash}`)
     }
   }
-  if (api.getToken()) return <Navigate to={home} replace />
+  if (api.getToken()) return <Navigate to={authHomePath()} replace />
   return <LoginPage />
 }
 
 export function AppRoutes() {
-  const home = api.appendScopeToPath(api.getHomeRoute())
-
   return (
     <Routes>
-      <Route path="/" element={<Navigate to={api.getToken() ? home : '/login'} replace />} />
-      <Route path="/login" element={<LoginGate home={home} />} />
-      <Route path="/request-access" element={api.getToken() ? <Navigate to={home} replace /> : <RequestAccessPage />} />
+      <Route path="/" element={<Navigate to={api.getToken() ? authHomePath() : '/login'} replace />} />
+      <Route path="/login" element={<LoginGate />} />
+      <Route path="/request-access" element={api.getToken() ? <Navigate to={authHomePath()} replace /> : <RequestAccessPage />} />
       <Route path="/register" element={<Navigate to="/request-access" replace />} />
       <Route path="/logout" element={<LogoutAndRedirect />} />
       <Route path="/r/:token" element={<PublicQuickRequestPage />} />
