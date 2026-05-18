@@ -2,13 +2,22 @@ import { useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 
+type WsBoardScope = {
+  linkedClientCompanyId?: string
+  companyId?: string
+}
+
 function defaultWsUrl() {
   const base = api.getBaseUrl()
   const wsBase = base.replace(/^http/i, 'ws')
   return `${wsBase}/ws`
 }
 
-export function useWsInvalidation() {
+function hasTarget(msg: any, target: string) {
+  return Array.isArray(msg?.targets) && msg.targets.includes(target)
+}
+
+export function useWsInvalidation(scope?: WsBoardScope) {
   const qc = useQueryClient()
 
   useEffect(() => {
@@ -40,10 +49,43 @@ export function useWsInvalidation() {
         try {
           const msg = JSON.parse(ev.data)
           const t = msg?.type || ''
+          if (t === 'session.ready') {
+            ws?.send(JSON.stringify({ type: 'subscribe', scope: 'board', params: scope || {} }))
+            ws?.send(JSON.stringify({ type: 'subscribe', scope: 'notifications' }))
+            return
+          }
+
+          if (t === 'invalidate' && (hasTarget(msg, 'board') || hasTarget(msg, 'tickets') || hasTarget(msg, 'ticket'))) {
+            qc.invalidateQueries({ queryKey: ['board'] })
+            if (msg.ticketId) qc.invalidateQueries({ queryKey: ['ticket', msg.ticketId] })
+            if (msg.ticketId) qc.invalidateQueries({ queryKey: ['timeline', msg.ticketId] })
+            qc.invalidateQueries({ queryKey: ['tickets'] })
+            qc.invalidateQueries({ queryKey: ['mobile-home-board'] })
+            qc.invalidateQueries({ queryKey: ['mobile-my-board'] })
+            qc.invalidateQueries({ queryKey: ['mobile-ticket-detail'] })
+            qc.invalidateQueries({ queryKey: ['mobile-ticket-timeline'] })
+            qc.invalidateQueries({ queryKey: ['mobile-ticket-attachments'] })
+          }
+
+          if (t === 'invalidate' && hasTarget(msg, 'notifications')) {
+            qc.invalidateQueries({ queryKey: ['mobile-notifications'] })
+          }
+
+          if (t.startsWith('notifications.')) {
+            qc.invalidateQueries({ queryKey: ['mobile-notifications'] })
+          }
+
           if (t.startsWith('ticket.') || t.includes('ticket')) {
             qc.invalidateQueries({ queryKey: ['board'] })
             if (msg.ticketId) qc.invalidateQueries({ queryKey: ['ticket', msg.ticketId] })
             if (msg.ticketId) qc.invalidateQueries({ queryKey: ['timeline', msg.ticketId] })
+            qc.invalidateQueries({ queryKey: ['tickets'] })
+            qc.invalidateQueries({ queryKey: ['mobile-home-board'] })
+            qc.invalidateQueries({ queryKey: ['mobile-my-board'] })
+            qc.invalidateQueries({ queryKey: ['mobile-ticket-detail'] })
+            qc.invalidateQueries({ queryKey: ['mobile-ticket-timeline'] })
+            qc.invalidateQueries({ queryKey: ['mobile-ticket-attachments'] })
+            if (hasTarget(msg, 'notifications')) qc.invalidateQueries({ queryKey: ['mobile-notifications'] })
           }
         } catch {}
       }
@@ -74,5 +116,5 @@ export function useWsInvalidation() {
       } catch {}
       ws = null
     }
-  }, [qc])
+  }, [qc, scope?.companyId, scope?.linkedClientCompanyId])
 }

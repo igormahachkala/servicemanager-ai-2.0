@@ -5,6 +5,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { join } from 'path';
 
 import { AppModule } from './app.module';
+import { RealtimeService } from './realtime/realtime.service';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -54,6 +55,8 @@ async function bootstrap() {
   });
 
   const port = Number(process.env.PORT) || 3000;
+  const realtime = app.get(RealtimeService, { strict: false });
+  realtime.attach(app.getHttpServer());
 
   // ВАЖНО: слушаем на всех интерфейсах, чтобы открывалось по IP (WSL/VM)
   await app.listen(port, '0.0.0.0');

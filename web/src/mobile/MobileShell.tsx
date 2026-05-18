@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
+import { useWsInvalidation } from '../ui/useWsInvalidation'
 import {
   getPendingOfflineActionsCount,
   retryOfflineQueue,
@@ -45,6 +46,8 @@ export function MobileShell() {
       companyId: company || undefined,
     }
   }, [location.search, meQ.data])
+
+  useWsInvalidation(scope)
 
   useEffect(() => {
     if (!meQ.data) return

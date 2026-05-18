@@ -22,6 +22,7 @@ import { EquipmentModule } from './equipment/equipment.module';
 import { PublicRequestModule } from './public-request/public-request.module';
 import { ServiceContractsModule } from './service-contracts/service-contracts.module';
 import { InspectionModule } from './inspection/inspection.module';
+import { RealtimeModule } from './realtime/realtime.module';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { InspectionModule } from './inspection/inspection.module';
     PublicRequestModule,
     ServiceContractsModule,
     InspectionModule,
+    RealtimeModule,
   ],
   controllers: [AppController, HealthController],
   providers: [AppService],

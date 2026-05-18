@@ -127,7 +127,7 @@ export function Shell() {
     queryFn: api.me,
   })
 
-  useWsInvalidation()
+  useWsInvalidation(currentScope)
 
   const impersonationMeta = useMemo(() => api.getImpersonationMeta(), [meQ.data?.id, loc.key])
   const isImpersonating = api.isImpersonating() && !!impersonationMeta
