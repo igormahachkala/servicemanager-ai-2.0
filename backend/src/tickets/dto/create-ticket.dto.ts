@@ -1,5 +1,7 @@
 import { TicketPriority, TicketUrgency } from '@prisma/client'
-import { IsArray, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator'
+import { IsArray, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, Max, Min } from 'class-validator'
+
+import { IsCanonicalUuid } from '../../common/validators/is-canonical-uuid.decorator'
 
 export class CreateTicketDto {
   @IsOptional()
@@ -7,27 +9,27 @@ export class CreateTicketDto {
   createMode?: 'quick' | 'full'
 
   @IsOptional()
-  @IsUUID('all')
+  @IsCanonicalUuid()
   parentId?: string | null
 
   @IsOptional()
-  @IsUUID('all')
+  @IsCanonicalUuid()
   clientCompanyId?: string
 
-  @IsUUID('all')
+  @IsCanonicalUuid()
   @IsNotEmpty()
   locationId!: string
 
   @IsOptional()
-  @IsUUID('all')
+  @IsCanonicalUuid()
   equipmentId?: string
 
   @IsOptional()
-  @IsUUID('all')
+  @IsCanonicalUuid()
   categoryId?: string
 
   @IsOptional()
-  @IsUUID('all')
+  @IsCanonicalUuid()
   problemCategoryId?: string
 
   @IsOptional()
@@ -48,7 +50,7 @@ export class CreateTicketDto {
 
   @IsOptional()
   @IsArray()
-  @IsUUID('all', { each: true })
+  @IsCanonicalUuid({ each: true })
   attachmentIds?: string[]
 
   @IsOptional()

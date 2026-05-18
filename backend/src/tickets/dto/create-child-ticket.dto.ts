@@ -1,24 +1,26 @@
-import { TicketPriority, TicketUrgency } from '@prisma/client';
-import { IsEnum, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
+import { TicketPriority, TicketUrgency } from '@prisma/client'
+import { IsEnum, IsInt, IsOptional, IsString, Max, Min } from 'class-validator'
+
+import { IsCanonicalUuid } from '../../common/validators/is-canonical-uuid.decorator'
 
 export class CreateChildTicketDto {
-  @IsUUID('all')
-  problemCategoryId!: string;
+  @IsCanonicalUuid()
+  problemCategoryId!: string
 
   @IsString()
-  problemText!: string;
+  problemText!: string
 
   @IsOptional()
   @IsEnum(TicketUrgency)
-  urgency?: TicketUrgency;
+  urgency?: TicketUrgency
 
   @IsOptional()
   @IsEnum(TicketPriority)
-  priority?: TicketPriority;
+  priority?: TicketPriority
 
   @IsOptional()
   @IsInt()
   @Min(1)
   @Max(60 * 24 * 30)
-  slaMinutes?: number;
+  slaMinutes?: number
 }

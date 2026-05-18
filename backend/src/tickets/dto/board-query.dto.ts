@@ -1,6 +1,8 @@
 ﻿import { TicketStatus } from '@prisma/client'
 import { Transform, Type } from 'class-transformer'
-import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator'
+import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, Max, Min } from 'class-validator'
+
+import { IsCanonicalUuid } from '../../common/validators/is-canonical-uuid.decorator'
 
 export type BoardSlaBucket = 'breached' | 'atRisk' | 'ok'
 
@@ -41,7 +43,7 @@ export class BoardQueryDto {
 
     return v
   })
-  @IsUUID('all', { each: false })
+  @IsCanonicalUuid()
   assigneeId?: string | null
 
   @IsOptional()
@@ -60,19 +62,19 @@ export class BoardQueryDto {
   take?: number
 
   @IsOptional()
-  @IsUUID('all')
+  @IsCanonicalUuid()
   linkedClientCompanyId?: string
 
   @IsOptional()
-  @IsUUID('all')
+  @IsCanonicalUuid()
   companyId?: string
 
   @IsOptional()
-  @IsUUID('all')
+  @IsCanonicalUuid()
   locationId?: string
 
   @IsOptional()
-  @IsUUID('all')
+  @IsCanonicalUuid()
   equipmentId?: string
 
   @IsOptional()

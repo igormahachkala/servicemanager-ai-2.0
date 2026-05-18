@@ -3,6 +3,7 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { platformNavigation, tenantNavigation, type NavItem, type NavSection } from '../lib/navigation'
+import { SmaBrandLogo } from '../components/SmaBrandLogo'
 import { useWsInvalidation } from './useWsInvalidation'
 
 function NavItemButton(props: { to: string; label: string; active: boolean; onNavigate?: () => void }) {
@@ -114,18 +115,21 @@ export function Shell() {
   const nav = useNavigate()
   const loc = useLocation()
   const queryClient = useQueryClient()
-  const currentScope = useMemo(
-    () => ({
-      linkedClientCompanyId: new URLSearchParams(loc.search).get('linkedClientCompanyId') || undefined,
-      companyId: new URLSearchParams(loc.search).get('companyId') || undefined,
-    }),
-    [loc.search],
-  )
 
   const meQ = useQuery({
     queryKey: ['me'],
     queryFn: api.me,
   })
+
+  const currentScope = useMemo(() => {
+    const params = new URLSearchParams(loc.search)
+    const linked = (params.get('linkedClientCompanyId') || api.getLinkedClientCompanyId(meQ.data)).trim()
+    const company = (params.get('companyId') || api.getObserverCompanyId(meQ.data)).trim()
+    return {
+      linkedClientCompanyId: linked || undefined,
+      companyId: company || undefined,
+    }
+  }, [loc.search, meQ.data])
 
   useWsInvalidation(currentScope)
 
@@ -211,7 +215,7 @@ export function Shell() {
     <div className="appLayout">
       <aside className={mobileMenuOpen ? 'sidebar sidebarMobileOpen' : 'sidebar'}>
         <div className="sidebarHeader">
-          <div className="sidebarBrand">ServiceManager</div>
+          <SmaBrandLogo variant="sidebar" />
           <div className="sidebarSub">{api.getCompanyLabel(meQ.data)}</div>
         </div>
 
@@ -247,10 +251,10 @@ export function Shell() {
             {mobileMenuOpen ? 'Закрыть меню' : 'Меню'}
           </button>
           <div className="brand">
-            <div className="logo">SMA</div>
+            <div className="logo">СМА</div>
             <div>
               <div className="title">ServiceManager.AI</div>
-              <div className="muted small">{api.getBaseUrl()}</div>
+              <div className="muted small">Технологии для сервиса</div>
             </div>
           </div>
 
