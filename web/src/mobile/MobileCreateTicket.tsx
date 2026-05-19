@@ -5,6 +5,7 @@ import * as api from '../lib/api'
 import { CategoryGuidancePanel } from '../components/CategoryGuidancePanel'
 import { formatMobileMutationError } from './mobileActionErrors'
 import { mobileTicketNavState } from './mobileTicketDisplay'
+import { MobileAttachmentThumb } from './MobileAttachmentThumb'
 
 const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024
 
@@ -13,9 +14,12 @@ const PHOTO_REQUIRED_MSG = 'Фото обязательно для создан�
 
 type CreatedTicketState = {
   ticketId: string
+  ticketNumber?: number | null
   claimed: boolean
   claimFailed: boolean
   ticketOwnerCompanyId?: string
+  categoryName?: string
+  locationName?: string
 }
 
 function categoryEligibleForTechnician(cat: api.ProblemCategoryListItem): boolean {
@@ -217,13 +221,19 @@ export function MobileCreateTicket() {
         } catch (claimErr) {
           return {
             ticketId: createdId,
+            ticketNumber: created.ticket?.ticketNumber,
             claimed: false,
             claimFailed: true as const,
             claimErr,
           }
         }
       }
-      return { ticketId: createdId, claimed: shouldClaim, claimFailed: false as const }
+      return {
+        ticketId: createdId,
+        ticketNumber: created.ticket?.ticketNumber,
+        claimed: shouldClaim,
+        claimFailed: false as const,
+      }
     },
     onSuccess: async (created) => {
       await qc.invalidateQueries({ queryKey: ['mobile-home-board'] })
@@ -243,9 +253,12 @@ export function MobileCreateTicket() {
         : (linkedClientCompanyId || effectiveClientCompanyId || '').trim() || undefined
       setCreatedTicket({
         ticketId: created.ticketId,
+        ticketNumber: created.ticketNumber,
         claimed: created.claimed,
         claimFailed: created.claimFailed,
         ticketOwnerCompanyId: ticketOwnerForNav,
+        categoryName: selectedCategory?.name || undefined,
+        locationName: activeLocations.find((row) => row.id === locationId)?.name || undefined,
       })
     },
     onError: (e: unknown) => {
@@ -479,11 +492,7 @@ export function MobileCreateTicket() {
                 <div className="mobilePhotoGrid">
                   {draftAttachments.map((d) => (
                     <div key={d.id} className="mobileDraftThumbCell">
-                      <img
-                        src={api.resolveTicketAttachmentUrl(d)}
-                        alt={d.originalName || ''}
-                        className="mobilePhotoThumb"
-                      />
+                      <MobileAttachmentThumb attachment={d} />
                       <button
                         type="button"
                         className="mobileDraftThumbRemove"
@@ -526,6 +535,13 @@ export function MobileCreateTicket() {
         >
           <div className="successDialogPanel successDialogPanelMobile">
             <div id="mobile-create-ticket-success-title" className="successDialogTitle">Заявка создана</div>
+            <div className="successDialogTicket">
+              {createdTicket.ticketNumber ? `Заявка #${createdTicket.ticketNumber}` : 'Заявка создана'}
+            </div>
+            <div className="successDialogMeta">
+              <div>{createdTicket.categoryName || 'Без категории'}</div>
+              <div>{createdTicket.locationName || 'Без локации'}</div>
+            </div>
             <p className="successDialogText">
               {createdTicket.claimFailed
                 ? 'Заявка создана, но закрепить её за собой не удалось. Откройте карточку и нажмите «Взять заявку» или запросите назначение.'

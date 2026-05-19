@@ -2,9 +2,17 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import * as api from '../lib/api'
-import { POST_CREATE_HEADLINE, POST_CREATE_SUBLINE } from '../lib/postCreateTicketGuidance'
 import { CategoryGuidancePanel } from '../components/CategoryGuidancePanel'
-import { useCreateTicketFlow } from '../hooks/useCreateTicketFlow'
+import { useCreateTicketFlow, type CreateSuccessResult } from '../hooks/useCreateTicketFlow'
+
+type SuccessPayload = {
+  ticketId: string
+  ticketNumber?: number | null
+  autoAssigned?: boolean
+  generatedTitle?: string
+  categoryName: string
+  locationName: string
+}
 
 const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024
 
@@ -32,6 +40,7 @@ function locationLabel(location: api.LocationListItem) {
 export function CreateTicketPage() {
   const location = useLocation()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
+  const preCreateSnapshotRef = useRef({ categoryName: '', locationName: '' })
 
   const [mode, setMode] = useState<CreateMode>('quick')
   const [err, setErr] = useState<string | null>(null)
@@ -52,7 +61,7 @@ export function CreateTicketPage() {
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [draftAttachment, setDraftAttachment] = useState<api.DraftTicketAttachment | null>(null)
   const [draftAttachmentScopeKey, setDraftAttachmentScopeKey] = useState('')
-  const [lastCreatedTicketId, setLastCreatedTicketId] = useState('')
+  const [successPayload, setSuccessPayload] = useState<SuccessPayload | null>(null)
 
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
   const meReady = meQ.isSuccess
@@ -255,12 +264,23 @@ export function CreateTicketPage() {
     },
     onError: (e: any) => setUploadError(e?.message || String(e)),
   })
+  function handleCreateSuccess(result: CreateSuccessResult) {
+    setSuccessPayload({
+      ticketId: result.ticketId,
+      ticketNumber: result.ticketNumber,
+      autoAssigned: result.autoAssigned,
+      generatedTitle: result.generatedTitle,
+      categoryName: preCreateSnapshotRef.current.categoryName,
+      locationName: preCreateSnapshotRef.current.locationName,
+    })
+  }
+
   const { createM, submitActionRef } = useCreateTicketFlow({
     isTechnician: !!isTechnician,
     buildTicketLink,
     buildTicketScope,
     setErr,
-    setLastCreatedTicketId,
+    onCreateSuccess: handleCreateSuccess,
     clearForNextCreate,
     activeLocations,
     setLocationId,
@@ -354,7 +374,7 @@ export function CreateTicketPage() {
     e.preventDefault()
     if (createM.isPending) return
     setErr(null)
-    setLastCreatedTicketId('')
+    setSuccessPayload(null)
     submitActionRef.current = 'create'
     if (!canCreateByRole) {
       setErr('Эта роль не может создавать заявки')
@@ -365,6 +385,10 @@ export function CreateTicketPage() {
     if (validationError) {
       setErr(validationError)
       return
+    }
+    preCreateSnapshotRef.current = {
+      categoryName: selectedCategoryName || '',
+      locationName: activeLocations.find((l) => l.id === locationId)?.name || '',
     }
     createM.mutate(payload)
   }
@@ -682,55 +706,75 @@ export function CreateTicketPage() {
               Сбросить
             </button>
           </div>
-          {lastCreatedTicketId ? (
-            <div
-              className="successDialogBackdrop"
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="create-ticket-success-title"
-            >
-              <div className="successDialogPanel">
-                <div id="create-ticket-success-title" className="successDialogTitle">{POST_CREATE_HEADLINE}</div>
-                <p className="successDialogText">{POST_CREATE_SUBLINE}</p>
-                {!isTechnician ? (
-                  <>
-                    <div className="successDialogSubhead">До приезда техника:</div>
-                    <CategoryGuidancePanel categoryName={selectedCategoryName} variant="desktop" stepsOnly />
-                    <p className="muted small" style={{ marginTop: 12, lineHeight: 1.45 }}>
-                      Статус и push/in-app уведомления — в списке уведомлений аккаунта и в карточке заявки.
-                    </p>
-                  </>
-                ) : (
-                  <p className="muted small" style={{ marginTop: 10 }}>
-                    Заявка создана для выбранного клиента.
-                  </p>
-                )}
-                <div className="successDialogActions">
-                  <Link to={buildTicketLink(lastCreatedTicketId)}>
-                    <button type="button">Открыть заявку</button>
-                  </Link>
-                  <Link to={api.appendScopeToPath('/tickets', { companyId: observerCompanyId || undefined, linkedClientCompanyId: linkedClientCompanyId || undefined }, meQ.data)}>
-                    <button type="button" className="ghost">
-                      Мои заявки
-                    </button>
-                  </Link>
-                  <button
-                    type="button"
-                    className="ghost"
-                    onClick={() => {
-                      setLastCreatedTicketId('')
-                      clearForNextCreate()
-                    }}
-                    disabled={isBusy}
-                  >
-                    Создать ещё
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : null}
         </form>
       </div>
+
+      {successPayload ? (
+        <div
+          className="successDialogBackdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="create-ticket-success-title"
+          onClick={() => setSuccessPayload(null)}
+        >
+          <div className="successDialogPanel" onClick={(e) => e.stopPropagation()}>
+            <div className="successDialogIcon" aria-hidden>✓</div>
+
+            <div id="create-ticket-success-title" className="successDialogTitle">
+              Заявка успешно создана
+            </div>
+
+            <div className="successDialogNumber">
+              {successPayload.ticketNumber != null
+                ? `#${successPayload.ticketNumber}`
+                : `ID: ${successPayload.ticketId.slice(0, 8)}…`}
+            </div>
+
+            <div className="successDialogMeta">
+              {successPayload.categoryName ? (
+                <div className="successDialogMetaRow">
+                  <span className="successDialogMetaLabel">Категория</span>
+                  <span className="successDialogMetaValue">{successPayload.categoryName}</span>
+                </div>
+              ) : null}
+              {successPayload.locationName ? (
+                <div className="successDialogMetaRow">
+                  <span className="successDialogMetaLabel">Локация</span>
+                  <span className="successDialogMetaValue">{successPayload.locationName}</span>
+                </div>
+              ) : null}
+              <div className="successDialogMetaRow">
+                <span className="successDialogMetaLabel">Статус</span>
+                <span className="successDialogMetaValue successDialogStatusBadge">
+                  {successPayload.autoAssigned ? 'Назначена' : 'Новая'}
+                </span>
+              </div>
+            </div>
+
+            {successPayload.autoAssigned ? (
+              <div className="successDialogAssigned">Техник назначен автоматически</div>
+            ) : null}
+
+            {!isTechnician && successPayload.categoryName ? (
+              <div style={{ marginTop: 16 }}>
+                <CategoryGuidancePanel categoryName={successPayload.categoryName} variant="desktop" stepsOnly />
+              </div>
+            ) : null}
+
+            <div className="successDialogActions">
+              <Link to={buildTicketLink(successPayload.ticketId)} onClick={() => setSuccessPayload(null)}>
+                <button type="button">Открыть заявку</button>
+              </Link>
+              <button type="button" className="ghost" onClick={() => setSuccessPayload(null)}>
+                Создать ещё
+              </button>
+              <Link to={buildBoardLink()} onClick={() => setSuccessPayload(null)}>
+                <button type="button" className="ghost">На главную</button>
+              </Link>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

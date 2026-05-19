@@ -5,12 +5,19 @@ import * as api from '../lib/api'
 import { pushToast } from '../lib/appToast'
 import { mapTicketActionError } from '../lib/ticketOperationalErrors'
 
+export type CreateSuccessResult = {
+  ticketId: string
+  ticketNumber?: number | null
+  autoAssigned?: boolean
+  generatedTitle?: string
+}
+
 export type UseCreateTicketFlowParams = {
   isTechnician: boolean
   buildTicketLink: (ticketId: string) => string
   buildTicketScope: () => api.TicketScopeParams | undefined
   setErr: (v: string | null) => void
-  setLastCreatedTicketId: (v: string) => void
+  onCreateSuccess: (result: CreateSuccessResult) => void
   clearForNextCreate: () => void
   activeLocations: { id: string }[]
   setLocationId: (v: string) => void
@@ -47,7 +54,12 @@ export function useCreateTicketFlow(p: UseCreateTicketFlowParams) {
       if (submitAction === 'createAndClaim' && p.isTechnician) {
         try {
           await api.claim(createdId, p.buildTicketScope())
-          p.setLastCreatedTicketId(createdId)
+          p.onCreateSuccess({
+            ticketId: createdId,
+            ticketNumber: created.ticket?.ticketNumber,
+            autoAssigned: true,
+            generatedTitle: created.generated?.title,
+          })
           p.clearForNextCreate()
           return
         } catch (claimError: unknown) {
@@ -59,7 +71,12 @@ export function useCreateTicketFlow(p: UseCreateTicketFlowParams) {
         }
       }
 
-      p.setLastCreatedTicketId(createdId)
+      p.onCreateSuccess({
+        ticketId: createdId,
+        ticketNumber: created.ticket?.ticketNumber,
+        autoAssigned: created.autoAssigned,
+        generatedTitle: created.generated?.title,
+      })
       p.clearForNextCreate()
     },
     onError: (e: unknown) => {

@@ -765,6 +765,7 @@ export type UpdateTicketInput = {
 export type CreateTicketResponse = {
   ticket: {
     id: string
+    ticketNumber?: number | null
     title?: string
     description?: string
   }

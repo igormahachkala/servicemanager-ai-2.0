@@ -545,6 +545,42 @@ button.mobilePhotoThumbLink.mobilePhotoThumbOpen:focus-visible {
   display: block;
 }
 
+.mobilePhotoFallbackLink {
+  min-height: 92px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid #c7d2fe;
+  background: #eef2ff;
+  color: #1e3a8a;
+  text-decoration: none;
+  line-height: 1.25;
+}
+
+.mobilePhotoFallbackLinkStatic {
+  border-color: #e5e7eb;
+  background: #f9fafb;
+  color: #374151;
+}
+
+.mobilePhotoFallbackTitle {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.mobilePhotoFallbackAction {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
 .successDialogBackdropMobile {
   align-items: flex-end;
 }
@@ -565,33 +601,6 @@ button.mobilePhotoThumbLink.mobilePhotoThumbOpen:focus-visible {
   width: 100%;
 }
 
-.mobilePhotoUnavailable {
-  min-height: 92px;
-  border-radius: 12px;
-  border: 1px dashed #d1d5db;
-  background: #f9fafb;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 10px 8px;
-  text-align: center;
-  gap: 4px;
-}
-
-.mobilePhotoUnavailableName {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: #111827;
-  word-break: break-word;
-  line-height: 1.25;
-  max-width: 100%;
-}
-
-.mobilePhotoUnavailableHint {
-  font-size: 0.72rem;
-  color: #6b7280;
-}
 
 .mobileNotice {
   border-radius: 12px;

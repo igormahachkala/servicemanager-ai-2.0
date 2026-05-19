@@ -33,6 +33,7 @@ import {
 import { CategoryGuidancePanel } from '../components/CategoryGuidancePanel'
 import { MobileBoardClaimFallbackHint, MobileClaimReasonHintBox } from './MobileUxHints'
 import { TicketCloseModal, type TicketCloseModalState } from './home/HomeList'
+import { MobileAttachmentThumb, mobileAttachmentLabel } from './MobileAttachmentThumb'
 
 function readListOrigin(location: ReturnType<typeof useLocation>): MobileTicketListOrigin {
   const raw = (location.state as MobileTicketNavState | null)?.mobileListOrigin
@@ -50,52 +51,8 @@ function isImageAttachment(a: api.TicketAttachmentItem) {
   return (a.mimeType || '').toLowerCase().startsWith('image/')
 }
 
-function ticketAttachmentLabel(a: api.TicketAttachmentItem) {
-  const fn = (a.filename || '').trim()
-  if (fn) return fn
-  return (a.originalName || '').trim() || 'Вложение'
-}
-
 function isReportTicketImage(a: api.TicketAttachmentItem) {
   return a.purpose === 'WORK_REPORT'
-}
-
-function MobileTicketAttachmentThumb({
-  attachment,
-  onOpenPreview,
-}: {
-  attachment: api.TicketAttachmentItem
-  onOpenPreview: (payload: { src: string; alt: string }) => void
-}) {
-  const [broken, setBroken] = useState(false)
-  const resolved = api.resolveTicketAttachmentUrl(attachment)
-  const label = ticketAttachmentLabel(attachment)
-
-  if (!resolved || broken) {
-    return (
-      <div className="mobilePhotoUnavailable">
-        <div className="mobilePhotoUnavailableName">{label}</div>
-        <div className="mobilePhotoUnavailableHint">Фото недоступно</div>
-      </div>
-    )
-  }
-
-  return (
-    <button
-      type="button"
-      className="mobilePhotoThumbLink mobilePhotoThumbOpen"
-      aria-label={`Открыть фото: ${label}`}
-      onClick={() => onOpenPreview({ src: resolved, alt: label })}
-    >
-      <img
-        src={resolved}
-        alt={label}
-        className="mobilePhotoThumb"
-        loading="lazy"
-        onError={() => setBroken(true)}
-      />
-    </button>
-  )
 }
 
 function isCommentTimelineItem(item: api.TimelineItem): boolean {
@@ -1076,7 +1033,7 @@ export function MobileTicketPage() {
                 ) : (
                   <div className="mobilePhotoGrid">
                     {requestImages.map((a) => (
-                      <MobileTicketAttachmentThumb key={a.id} attachment={a} onOpenPreview={setPhotoPreview} />
+                      <MobileAttachmentThumb key={a.id} attachment={a} onOpenPreview={setPhotoPreview} />
                     ))}
                   </div>
                 )}
@@ -1088,7 +1045,7 @@ export function MobileTicketPage() {
                 ) : (
                   <div className="mobilePhotoGrid">
                     {reportImages.map((a) => (
-                      <MobileTicketAttachmentThumb key={a.id} attachment={a} onOpenPreview={setPhotoPreview} />
+                      <MobileAttachmentThumb key={a.id} attachment={a} onOpenPreview={setPhotoPreview} />
                     ))}
                   </div>
                 )}
@@ -1104,10 +1061,10 @@ export function MobileTicketPage() {
                           <li key={a.id} style={{ marginBottom: 6 }}>
                             {href ? (
                               <a href={href} target="_blank" rel="noreferrer">
-                                {ticketAttachmentLabel(a)}
+                                {mobileAttachmentLabel(a)}
                               </a>
                             ) : (
-                              ticketAttachmentLabel(a)
+                              mobileAttachmentLabel(a)
                             )}
                           </li>
                         )
