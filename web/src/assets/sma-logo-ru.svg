@@ -1,4 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 76" role="img" aria-label="!  "5E=>;>388 4;O A5@28A0">
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 76" role="img" aria-label="СМА — Технологии для сервиса">
   <text
     x="150"
     y="40"
@@ -7,7 +8,7 @@
     font-size="40"
     font-weight="700"
     fill="#2f3d4f"
-  >!</text>
+  >СМА</text>
   <text
     x="150"
     y="64"
@@ -16,5 +17,5 @@
     font-size="15"
     font-weight="400"
     fill="#2f3d4f"
-  >"5E=>;>388 4;O A5@28A0</text>
+  >Технологии для сервиса</text>
 </svg>

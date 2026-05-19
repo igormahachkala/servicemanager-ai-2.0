@@ -251,7 +251,7 @@ button.ghost {
   border-bottom: 1px solid #e6e8f0;
 }
 
-.brand { display: flex; gap: 10px; align-items: center; }
+.brand { display: flex; gap: 10px; align-items: center; min-width: 0; }
 .logo {
   width: 36px; height: 36px;
   border-radius: 12px;
@@ -262,6 +262,38 @@ button.ghost {
   font-weight: 700;
   font-size: 11px;
   letter-spacing: -0.02em;
+}
+.smaBrandLogo {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.smaBrandLogo img {
+  display: block;
+  width: 180px;
+  max-width: 100%;
+  height: auto;
+}
+.smaBrandLogoCompact img {
+  width: 82px;
+}
+.smaBrandLogo-sidebar {
+  width: 100%;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: #fff;
+}
+.smaBrandLogo-sidebar img {
+  width: 100%;
+}
+.smaBrandLogo-header {
+  flex: 0 0 auto;
+}
+.smaBrandLogo-footer {
+  justify-content: center;
+}
+.smaBrandLogo-footer img {
+  width: min(220px, 100%);
 }
 .title { font-weight: 700; }
 .actions { display: flex; gap: 8px; align-items: center; }
@@ -879,6 +911,16 @@ button.ghost {
   pointer-events: none;
 }
 
+/* On mobile-width screens, lift toast above the fixed bottom nav bar (≈74px) */
+@media (max-width: 639px) {
+  .toastViewport {
+    bottom: calc(82px + env(safe-area-inset-bottom, 0px));
+    right: 12px;
+    left: 12px;
+    max-width: 100%;
+  }
+}
+
 .toastItem {
   pointer-events: auto;
   border-radius: 12px;
@@ -906,6 +948,94 @@ button.ghost {
   background: #fff;
   border-color: #e5e7eb;
   color: #111827;
+}
+
+.successDialogBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(18px, env(safe-area-inset-top, 0px)) max(18px, env(safe-area-inset-right, 0px))
+    max(18px, env(safe-area-inset-bottom, 0px)) max(18px, env(safe-area-inset-left, 0px));
+  background: rgba(15, 23, 42, 0.56);
+}
+
+.successDialogPanel {
+  width: min(620px, 100%);
+  max-height: min(86vh, 720px);
+  overflow: auto;
+  border-radius: 16px;
+  border: 1px solid #a7f3d0;
+  background: linear-gradient(180deg, #ecfdf5 0%, #fff 42%);
+  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.28);
+  padding: 22px;
+}
+
+.successDialogTitle {
+  font-weight: 900;
+  font-size: 26px;
+  line-height: 1.15;
+  color: #065f46;
+}
+
+.successDialogText {
+  margin: 8px 0 0;
+  color: #374151;
+  line-height: 1.55;
+}
+
+.successDialogSubhead {
+  margin-top: 16px;
+  font-weight: 800;
+  font-size: 14px;
+}
+
+.successDialogActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.successDialogActions a {
+  text-decoration: none;
+}
+
+.loginModePicker {
+  display: grid;
+  gap: 16px;
+}
+
+.loginModeGrid {
+  display: grid;
+  gap: 10px;
+}
+
+.loginModeBtn {
+  height: auto;
+  min-height: 78px;
+  padding: 14px;
+  text-align: left;
+  display: grid;
+  gap: 6px;
+  border-color: #111827;
+}
+
+.loginModeTitle {
+  font-weight: 900;
+  font-size: 15px;
+}
+
+.loginModeHint {
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.loginModeReset {
+  width: 100%;
 }
 
 .ticketActionBarSticky {

@@ -19,7 +19,6 @@ const CREATE_ALLOWED_ROLES: api.Role[] = [
 ]
 
 type CreateMode = 'quick' | 'full'
-type PostCreateMode = 'redirect' | 'stay'
 
 function urgencyLabel(value: 'URGENT' | 'NOT_URGENT') {
   return value === 'URGENT' ? 'Срочно' : 'Не срочно'
@@ -33,7 +32,6 @@ function locationLabel(location: api.LocationListItem) {
 export function CreateTicketPage() {
   const location = useLocation()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
-  const successRef = useRef<HTMLDivElement | null>(null)
 
   const [mode, setMode] = useState<CreateMode>('quick')
   const [err, setErr] = useState<string | null>(null)
@@ -54,7 +52,6 @@ export function CreateTicketPage() {
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [draftAttachment, setDraftAttachment] = useState<api.DraftTicketAttachment | null>(null)
   const [draftAttachmentScopeKey, setDraftAttachmentScopeKey] = useState('')
-  const [postCreateMode, setPostCreateMode] = useState<PostCreateMode>('redirect')
   const [lastCreatedTicketId, setLastCreatedTicketId] = useState('')
 
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
@@ -218,14 +215,6 @@ export function CreateTicketPage() {
   }, [activeLocations, locationId])
 
   useEffect(() => {
-    if (!lastCreatedTicketId || !successRef.current) return
-    const el = successRef.current
-    requestAnimationFrame(() => {
-      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    })
-  }, [lastCreatedTicketId])
-
-  useEffect(() => {
     if (!draftAttachment) return
     if (!draftAttachmentScopeKey) return
     if (draftAttachmentScopeKey === currentCreateScopeKey) return
@@ -268,7 +257,6 @@ export function CreateTicketPage() {
   })
   const { createM, submitActionRef } = useCreateTicketFlow({
     isTechnician: !!isTechnician,
-    postCreateMode,
     buildTicketLink,
     buildTicketScope,
     setErr,
@@ -548,16 +536,6 @@ export function CreateTicketPage() {
             <div className="muted small">Шаги: 1) Локация 2) Категория 3) Контакт 4) Фото + отправка</div>
           ) : null}
 
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <input
-              type="checkbox"
-              checked={postCreateMode === 'stay'}
-              onChange={(e) => setPostCreateMode(e.target.checked ? 'stay' : 'redirect')}
-              disabled={isBusy}
-            />
-            Создавать несколько заявок подряд
-          </label>
-
           {isTechnician ? (
             <label>
               Клиентская компания *
@@ -675,7 +653,7 @@ export function CreateTicketPage() {
 
             {draftAttachment ? (
               <div style={{ marginTop: 12, display: 'grid', gap: 10 }}>
-                <img src={api.resolveFileUrl(draftAttachment.url)} alt={draftAttachment.originalName} style={{ width: 260, maxWidth: '100%', borderRadius: 12, border: '1px solid #e5e7eb' }} />
+                <img src={api.resolveTicketAttachmentUrl(draftAttachment)} alt={draftAttachment.originalName} style={{ width: 260, maxWidth: '100%', borderRadius: 12, border: '1px solid #e5e7eb' }} />
                 <div className="muted small">Фото будет привязано к заявке при отправке.</div>
                 <div>
                   <button type="button" className="ghost" onClick={() => deleteDraftM.mutate(draftAttachment.id)} disabled={deleteDraftM.isPending}>
@@ -706,57 +684,48 @@ export function CreateTicketPage() {
           </div>
           {lastCreatedTicketId ? (
             <div
-              ref={successRef}
-              className="panel uiCard"
-              style={{ padding: 14, borderColor: '#a7f3d0', background: 'linear-gradient(180deg, #ecfdf5 0%, #fff 45%)' }}
+              className="successDialogBackdrop"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="create-ticket-success-title"
             >
-              <div style={{ fontWeight: 900, fontSize: 16, color: '#065f46' }}>{POST_CREATE_HEADLINE}</div>
-              <p className="muted" style={{ margin: '6px 0 0', lineHeight: 1.5 }}>
-                {POST_CREATE_SUBLINE}
-              </p>
-              {!isTechnician ? (
-                <>
-                  <div style={{ marginTop: 12, fontWeight: 800, fontSize: 14 }}>До приезда техника:</div>
-                  <CategoryGuidancePanel categoryName={selectedCategoryName} variant="desktop" stepsOnly />
-                  <p className="muted small" style={{ marginTop: 12, lineHeight: 1.45 }}>
-                    Статус и push/in-app уведомления — в списке уведомлений аккаунта и в карточке заявки.
+              <div className="successDialogPanel">
+                <div id="create-ticket-success-title" className="successDialogTitle">{POST_CREATE_HEADLINE}</div>
+                <p className="successDialogText">{POST_CREATE_SUBLINE}</p>
+                {!isTechnician ? (
+                  <>
+                    <div className="successDialogSubhead">До приезда техника:</div>
+                    <CategoryGuidancePanel categoryName={selectedCategoryName} variant="desktop" stepsOnly />
+                    <p className="muted small" style={{ marginTop: 12, lineHeight: 1.45 }}>
+                      Статус и push/in-app уведомления — в списке уведомлений аккаунта и в карточке заявки.
+                    </p>
+                  </>
+                ) : (
+                  <p className="muted small" style={{ marginTop: 10 }}>
+                    Заявка создана для выбранного клиента.
                   </p>
-                </>
-              ) : (
-                <p className="muted small" style={{ marginTop: 10 }}>
-                  Заявка создана для выбранного клиента.
-                </p>
-              )}
-              <div className="uiActions" style={{ marginTop: 14 }}>
-                <Link to={buildTicketLink(lastCreatedTicketId)}>
-                  <button type="button">Открыть заявку</button>
-                </Link>
-                <Link to={api.appendScopeToPath('/tickets', { companyId: observerCompanyId || undefined, linkedClientCompanyId: linkedClientCompanyId || undefined }, meQ.data)}>
-                  <button type="button" className="ghost">
-                    Мои заявки
-                  </button>
-                </Link>
-                <button
-                  type="button"
-                  className="ghost"
-                  onClick={() => {
-                    setLastCreatedTicketId('')
-                    clearForNextCreate()
-                  }}
-                  disabled={isBusy}
-                >
-                  Создать ещё
-                </button>
-                {isTechnician ? (
+                )}
+                <div className="successDialogActions">
+                  <Link to={buildTicketLink(lastCreatedTicketId)}>
+                    <button type="button">Открыть заявку</button>
+                  </Link>
+                  <Link to={api.appendScopeToPath('/tickets', { companyId: observerCompanyId || undefined, linkedClientCompanyId: linkedClientCompanyId || undefined }, meQ.data)}>
+                    <button type="button" className="ghost">
+                      Мои заявки
+                    </button>
+                  </Link>
                   <button
-                    type="submit"
+                    type="button"
                     className="ghost"
-                    onClick={onCreateAndClaim}
-                    disabled={!canCreateByRole || isBusy || isBootstrapping || noCategories || noLocations || !locationId || !clientCompanyId}
+                    onClick={() => {
+                      setLastCreatedTicketId('')
+                      clearForNextCreate()
+                    }}
+                    disabled={isBusy}
                   >
-                    {createM.isPending ? 'Создаём и берём...' : 'Создать и взять в работу'}
+                    Создать ещё
                   </button>
-                ) : null}
+                </div>
               </div>
             </div>
           ) : null}

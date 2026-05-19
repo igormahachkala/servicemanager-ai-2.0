@@ -5,11 +5,8 @@ import * as api from '../lib/api'
 import { pushToast } from '../lib/appToast'
 import { mapTicketActionError } from '../lib/ticketOperationalErrors'
 
-export type PostCreateMode = 'redirect' | 'stay'
-
 export type UseCreateTicketFlowParams = {
   isTechnician: boolean
-  postCreateMode: PostCreateMode
   buildTicketLink: (ticketId: string) => string
   buildTicketScope: () => api.TicketScopeParams | undefined
   setErr: (v: string | null) => void
@@ -50,8 +47,7 @@ export function useCreateTicketFlow(p: UseCreateTicketFlowParams) {
       if (submitAction === 'createAndClaim' && p.isTechnician) {
         try {
           await api.claim(createdId, p.buildTicketScope())
-          pushToast('Заявка создана и взята в работу', 'success')
-          nav(p.buildTicketLink(createdId))
+          p.setLastCreatedTicketId(createdId)
           p.clearForNextCreate()
           return
         } catch (claimError: unknown) {
@@ -63,15 +59,7 @@ export function useCreateTicketFlow(p: UseCreateTicketFlowParams) {
         }
       }
 
-      if (p.postCreateMode === 'stay') {
-        p.setLastCreatedTicketId(createdId)
-        p.clearForNextCreate()
-        pushToast('Заявка создана', 'success')
-        return
-      }
-
-      pushToast('Заявка создана', 'success')
-      nav(p.buildTicketLink(createdId))
+      p.setLastCreatedTicketId(createdId)
       p.clearForNextCreate()
     },
     onError: (e: unknown) => {

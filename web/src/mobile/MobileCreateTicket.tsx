@@ -11,6 +11,13 @@ const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024
 /** Единый текст: нет загруженного draft-фото (не дублировать другими формулировками). */
 const PHOTO_REQUIRED_MSG = 'Фото обязательно для создания заявки. Сначала загрузите снимок.'
 
+type CreatedTicketState = {
+  ticketId: string
+  claimed: boolean
+  claimFailed: boolean
+  ticketOwnerCompanyId?: string
+}
+
 function categoryEligibleForTechnician(cat: api.ProblemCategoryListItem): boolean {
   if (!cat.coverage) return true
   return cat.coverage.status === 'covered'
@@ -124,6 +131,7 @@ export function MobileCreateTicket() {
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [draftUploadProgress, setDraftUploadProgress] = useState<{ current: number; total: number } | null>(null)
   const [error, setError] = useState('')
+  const [createdTicket, setCreatedTicket] = useState<CreatedTicketState | null>(null)
 
   useEffect(() => {
     if (!categoryId && activeCategories.length > 0) setCategoryId(activeCategories[0].id)
@@ -230,17 +238,14 @@ export function MobileCreateTicket() {
       setDraftAttachments([])
       clearPhotoInputs()
 
-      const toast = created.claimFailed
-        ? 'Заявка создана, но закрепить её за собой не удалось. На карточке нажмите «Взять заявку» или запросите назначение.'
-        : created.claimed
-          ? 'Заявка создана и закреплена за вами. Статус: назначена.'
-          : 'Заявка создана. Открываем карточку…'
       const ticketOwnerForNav = isTechnician
         ? (clientCompanyId || '').trim()
         : (linkedClientCompanyId || effectiveClientCompanyId || '').trim() || undefined
-      const path = api.appendScopeToPath(`/m/tickets/${encodeURIComponent(created.ticketId)}`, scope, meQ.data)
-      navigate(path, {
-        state: mobileTicketNavState(created.claimed ? 'my' : 'home', ticketOwnerForNav, undefined, toast),
+      setCreatedTicket({
+        ticketId: created.ticketId,
+        claimed: created.claimed,
+        claimFailed: created.claimFailed,
+        ticketOwnerCompanyId: ticketOwnerForNav,
       })
     },
     onError: (e: unknown) => {
@@ -475,7 +480,7 @@ export function MobileCreateTicket() {
                   {draftAttachments.map((d) => (
                     <div key={d.id} className="mobileDraftThumbCell">
                       <img
-                        src={api.resolveFileUrl(d.url)}
+                        src={api.resolveTicketAttachmentUrl(d)}
                         alt={d.originalName || ''}
                         className="mobilePhotoThumb"
                       />
@@ -512,6 +517,53 @@ export function MobileCreateTicket() {
           </div>
         </form>
       </div>
+      {createdTicket ? (
+        <div
+          className="successDialogBackdrop successDialogBackdropMobile"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="mobile-create-ticket-success-title"
+        >
+          <div className="successDialogPanel successDialogPanelMobile">
+            <div id="mobile-create-ticket-success-title" className="successDialogTitle">Заявка создана</div>
+            <p className="successDialogText">
+              {createdTicket.claimFailed
+                ? 'Заявка создана, но закрепить её за собой не удалось. Откройте карточку и нажмите «Взять заявку» или запросите назначение.'
+                : createdTicket.claimed
+                  ? 'Заявка создана и закреплена за вами.'
+                  : 'Заявка сохранена и доступна в списке.'}
+            </p>
+            <div className="successDialogActions successDialogActionsMobile">
+              <button
+                type="button"
+                onClick={() => {
+                  const path = api.appendScopeToPath(`/m/tickets/${encodeURIComponent(createdTicket.ticketId)}`, scope, meQ.data)
+                  navigate(path, {
+                    state: mobileTicketNavState(
+                      createdTicket.claimed ? 'my' : 'home',
+                      createdTicket.ticketOwnerCompanyId,
+                    ),
+                  })
+                }}
+              >
+                Открыть заявку
+              </button>
+              <button
+                type="button"
+                className="ghost"
+                onClick={() => {
+                  navigate(api.appendScopeToPath('/m/my', scope, meQ.data))
+                }}
+              >
+                Мои заявки
+              </button>
+              <button type="button" className="ghost" onClick={() => setCreatedTicket(null)}>
+                Создать ещё
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react'
+import smaLogoRu from '../assets/sma-logo-ru.svg'
 
 type SmaBrandLogoProps = {
   compact?: boolean
@@ -17,7 +18,7 @@ export function SmaBrandLogo({ compact = false, variant, style }: SmaBrandLogoPr
 
   return (
     <div className={classes} aria-label="СМА" style={style}>
-      <img src="/src/assets/sma-logo-ru.svg" alt="СМА — Технологии для сервиса" />
+      <img src={smaLogoRu} alt="СМА — Технологии для сервиса" />
     </div>
   )
 }

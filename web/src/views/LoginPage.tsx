@@ -10,8 +10,18 @@ type LoginPageProps = {
   onLoggedIn?: (token: string) => void
 }
 
+type PostLoginChoice = {
+  user: api.Me
+  scope: api.TicketScopeParams
+}
+
 const VERSION = 'v0.1'
 const BUILD = '2026'
+
+function desktopHomeRoute(role?: api.Role | null) {
+  if (role === 'PLATFORM_ADMIN') return '/companies'
+  return '/board'
+}
 
 export function LoginPage({ onLoggedIn }: LoginPageProps) {
   const navigate = useNavigate()
@@ -20,6 +30,7 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [postLoginChoice, setPostLoginChoice] = useState<PostLoginChoice | null>(null)
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
@@ -42,12 +53,38 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
         onLoggedIn(result.access_token)
       }
 
-      const nextPath = api.appendScopeToPath(api.getHomeRoute(result.user.role), restoredScope, result.user)
-      navigate(nextPath, { replace: true })
+      setPostLoginChoice({
+        user: result.user,
+        scope: restoredScope,
+      })
+      setPassword('')
     } catch (err: any) {
       setError(err?.message || 'Не удалось войти')
+    } finally {
       setLoading(false)
     }
+  }
+
+  function enterDesktop() {
+    if (!postLoginChoice) return
+    const nextPath = api.appendScopeToPath(
+      desktopHomeRoute(postLoginChoice.user.role),
+      postLoginChoice.scope,
+      postLoginChoice.user,
+    )
+    navigate(nextPath, { replace: true })
+  }
+
+  function enterMobile() {
+    if (!postLoginChoice) return
+    const nextPath = api.appendScopeToPath('/m', postLoginChoice.scope, postLoginChoice.user)
+    navigate(nextPath, { replace: true })
+  }
+
+  function resetLoginChoice() {
+    api.clearToken()
+    setPostLoginChoice(null)
+    setError(null)
   }
 
   return (
@@ -58,50 +95,76 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
           <div className="muted">Service Operations Platform</div>
         </div>
 
-        <h2 style={{ marginBottom: 16 }}>Войти</h2>
-
-        {error && (
-          <div className="alert" style={{ marginBottom: 16 }}>
-            {error}
+        {postLoginChoice ? (
+          <div className="loginModePicker">
+            <div>
+              <h2 style={{ marginBottom: 6 }}>Выберите режим</h2>
+              <div className="muted small">
+                {postLoginChoice.user.email}
+              </div>
+            </div>
+            <div className="loginModeGrid">
+              <button type="button" className="loginModeBtn" onClick={enterDesktop}>
+                <span className="loginModeTitle">Управленческая часть</span>
+                <span className="loginModeHint">Доска, заявки, справочники и отчёты</span>
+              </button>
+              <button type="button" className="loginModeBtn" onClick={enterMobile}>
+                <span className="loginModeTitle">Мобильная версия</span>
+                <span className="loginModeHint">Быстрые действия, фото и уведомления</span>
+              </button>
+            </div>
+            <button type="button" className="ghost loginModeReset" onClick={resetLoginChoice}>
+              Войти другим аккаунтом
+            </button>
           </div>
+        ) : (
+          <>
+            <h2 style={{ marginBottom: 16 }}>Войти</h2>
+
+            {error && (
+              <div className="alert" style={{ marginBottom: 16 }}>
+                {error}
+              </div>
+            )}
+
+            <form onSubmit={handleLogin} className="form">
+              <label>
+                Email
+                <input
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="admin@company.com"
+                  autoComplete="username"
+                  disabled={loading}
+                />
+              </label>
+
+              <label>
+                Пароль
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Введите пароль"
+                  autoComplete="current-password"
+                  disabled={loading}
+                />
+              </label>
+
+              <button type="submit" disabled={loading}>
+                {loading ? 'Входим...' : 'Войти'}
+              </button>
+            </form>
+
+            <div className="panel loginSupportPanel" style={{ marginTop: 16 }}>
+              <div style={{ fontWeight: 600, marginBottom: 6 }}>Публичная регистрация компаний отключена</div>
+              <div className="muted small" style={{ marginBottom: 12 }}>
+                Для доступа свяжитесь с поддержкой в Telegram или MAX.
+              </div>
+              <SupportContactBlock titleTag="h3" />
+            </div>
+          </>
         )}
-
-        <form onSubmit={handleLogin} className="form">
-          <label>
-            Email
-            <input
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@company.com"
-              autoComplete="username"
-              disabled={loading}
-            />
-          </label>
-
-          <label>
-            Пароль
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Введите пароль"
-              autoComplete="current-password"
-              disabled={loading}
-            />
-          </label>
-
-          <button type="submit" disabled={loading}>
-            {loading ? 'Входим...' : 'Войти'}
-          </button>
-        </form>
-
-        <div className="panel loginSupportPanel" style={{ marginTop: 16 }}>
-          <div style={{ fontWeight: 600, marginBottom: 6 }}>Публичная регистрация компаний отключена</div>
-          <div className="muted small" style={{ marginBottom: 12 }}>
-            Для доступа свяжитесь с поддержкой в Telegram или MAX.
-          </div>
-          <SupportContactBlock titleTag="h3" />
-        </div>
 
         <div
           style={{

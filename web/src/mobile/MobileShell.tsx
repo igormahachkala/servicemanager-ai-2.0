@@ -84,6 +84,7 @@ export function MobileShell() {
       }
       setPendingCount(getPendingOfflineActionsCount())
       await queryClient.invalidateQueries({ queryKey: ['mobile-home-board'] })
+      await queryClient.invalidateQueries({ queryKey: ['mobile-home-available'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-ticket-detail'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-ticket-attachments'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-ticket-timeline'] })

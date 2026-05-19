@@ -20,6 +20,7 @@ const CLIENT_CREATED_NOTIFY_ROLES: UserRole[] = [
 const PROVIDER_CREATED_NOTIFY_ROLES: UserRole[] = [
   UserRole.ADMIN,
   UserRole.DISPATCHER,
+  UserRole.TECHNICIAN,
 ];
 
 const CLIENT_CROSS_COMPANY_CREATED_NOTIFY_ROLES: UserRole[] = [
@@ -582,7 +583,8 @@ export class NotificationsService {
       (user) =>
         user.role === UserRole.NETWORK_DIRECTOR ||
         user.role === UserRole.TERRITORIAL_MANAGER ||
-        user.role === UserRole.CLIENT,
+        user.role === UserRole.CLIENT ||
+        user.role === UserRole.TECHNICIAN,
     );
     if (!scopedUsers.length) {
       return params.users;
@@ -608,6 +610,9 @@ export class NotificationsService {
       const boundLocationIds = locationIdsByUser.get(user.id);
       if (user.role === UserRole.CLIENT) {
         return !!boundLocationIds && boundLocationIds.has(params.locationId);
+      }
+      if (user.role === UserRole.TECHNICIAN) {
+        return !boundLocationIds || boundLocationIds.size === 0 || boundLocationIds.has(params.locationId);
       }
       if (user.role !== UserRole.NETWORK_DIRECTOR && user.role !== UserRole.TERRITORIAL_MANAGER) {
         return true;

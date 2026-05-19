@@ -27,9 +27,10 @@ function urgencyLabel(urgency?: string) {
 }
 
 function toTitle(ticket: any) {
+  if (ticket?.ticketNumber != null && Number.isFinite(Number(ticket.ticketNumber))) return `Заявка #${ticket.ticketNumber}`
   if (ticket?.title) return ticket.title
   if (ticket?.problemText) return ticket.problemText
-  return `Заявка ${ticket?.id || ''}`.trim()
+  return 'Заявка'
 }
 
 function toCategory(ticket: any) {

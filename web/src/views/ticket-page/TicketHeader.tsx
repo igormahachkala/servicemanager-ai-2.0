@@ -37,12 +37,13 @@ export function TicketHeader(props: TicketHeaderProps) {
     meUserId,
     hintCanClaim,
   } = props
+  const title = ticket?.ticketNumber != null ? `Заявка #${ticket.ticketNumber}` : 'Заявка'
 
   return (
     <>
       <div className="row">
-        <h2>Заявка</h2>
-        <div className="muted small">{isFetching && !ticket ? 'Загрузка…' : ticketId || '—'}</div>
+        <h2>{title}</h2>
+        <div className="muted small">{isFetching && !ticket ? 'Загрузка…' : ticketId ? `ID: ${ticketId}` : '—'}</div>
       </div>
 
       <div className="panel" style={{ marginBottom: 12 }}>

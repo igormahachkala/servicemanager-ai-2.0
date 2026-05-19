@@ -251,7 +251,7 @@ export function Shell() {
             {mobileMenuOpen ? 'Закрыть меню' : 'Меню'}
           </button>
           <div className="brand">
-            <div className="logo">СМА</div>
+            <SmaBrandLogo variant="header" compact />
             <div>
               <div className="title">ServiceManager.AI</div>
               <div className="muted small">Технологии для сервиса</div>

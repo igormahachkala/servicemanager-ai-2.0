@@ -911,10 +911,13 @@ export function TicketPage() {
             <div style={{ minWidth: 0 }}>
               <div className="muted small">Карточка заявки</div>
               <div style={{ fontSize: 18, fontWeight: 800, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {ticket.id}
+                {ticket.ticketNumber != null ? `Заявка #${ticket.ticketNumber}` : 'Заявка'}
               </div>
               <div className="muted small" style={{ marginTop: 4 }}>
                 создана: {fmt(ticket.createdAt)} · обновлена: {fmt(ticket.updatedAt)}
+              </div>
+              <div className="muted small" style={{ marginTop: 2 }}>
+                ID: {ticket.id}
               </div>
             </div>
 
@@ -1651,4 +1654,3 @@ export function TicketPage() {
     </div>
   )
 }
-
