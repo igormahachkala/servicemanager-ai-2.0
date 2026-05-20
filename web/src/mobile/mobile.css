@@ -563,6 +563,10 @@ button.mobilePhotoThumbLink.mobilePhotoThumbOpen:focus-visible {
   display: block;
 }
 
+.mobilePhotoThumbPending {
+  opacity: 0;
+}
+
 .mobilePhotoFallbackLink {
   min-height: 92px;
   width: 100%;

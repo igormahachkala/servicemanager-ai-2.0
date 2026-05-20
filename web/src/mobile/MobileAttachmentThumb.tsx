@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import * as api from '../lib/api'
 
 export type MobileAttachmentLike = {
@@ -50,13 +50,15 @@ export function MobileAttachmentThumb({
   className?: string
 }) {
   const [broken, setBroken] = useState(false)
-  const resolved = useMemo(() => api.resolveTicketAttachmentUrl(attachment), [attachment])
+  const [loaded, setLoaded] = useState(false)
+  const resolved = api.resolveTicketAttachmentUrl(attachment)
   const label = mobileAttachmentLabel(attachment)
   const canPreview = canPreviewInBrowser(attachment.mimeType)
 
   useEffect(() => {
     setBroken(false)
-  }, [attachment.id, resolved])
+    setLoaded(false)
+  }, [attachment.id, attachment.url, attachment.downloadUrl, attachment.path, attachment.mimeType, attachment.filename, attachment.originalName])
 
   if (!resolved) {
     return (
@@ -75,8 +77,9 @@ export function MobileAttachmentThumb({
     <img
       src={resolved}
       alt={label}
-      className={className}
+      className={loaded ? className : `${className} mobilePhotoThumbPending`}
       loading="lazy"
+      onLoad={() => setLoaded(true)}
       onError={() => setBroken(true)}
     />
   )
@@ -87,7 +90,7 @@ export function MobileAttachmentThumb({
         type="button"
         className="mobilePhotoThumbLink mobilePhotoThumbOpen"
         aria-label={`Открыть фото: ${label}`}
-        onClick={() => onOpenPreview({ src: resolved, alt: label })}
+        onClick={() => onOpenPreview({ src: api.resolveTicketAttachmentUrl(attachment), alt: label })}
       >
         {img}
       </button>
@@ -95,7 +98,7 @@ export function MobileAttachmentThumb({
   }
 
   return (
-    <a className="mobilePhotoThumbLink" href={resolved} target="_blank" rel="noreferrer">
+    <a className="mobilePhotoThumbLink" href={api.resolveTicketAttachmentUrl(attachment)} target="_blank" rel="noreferrer">
       {img}
     </a>
   )
