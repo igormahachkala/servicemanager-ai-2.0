@@ -34,6 +34,7 @@ import { CategoryGuidancePanel } from '../components/CategoryGuidancePanel'
 import { MobileBoardClaimFallbackHint, MobileClaimReasonHintBox } from './MobileUxHints'
 import { TicketCloseModal, type TicketCloseModalState } from './home/HomeList'
 import { MobileAttachmentThumb, mobileAttachmentLabel } from './MobileAttachmentThumb'
+import { MobilePhotoLightbox } from './MobilePhotoLightbox'
 
 function readListOrigin(location: ReturnType<typeof useLocation>): MobileTicketListOrigin {
   const raw = (location.state as MobileTicketNavState | null)?.mobileListOrigin
@@ -418,20 +419,6 @@ export function MobileTicketPage() {
       return assignTechOptions[0]!.id
     })
   }, [assignTechOptions])
-
-  useEffect(() => {
-    if (!photoPreview) return
-    const prevOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setPhotoPreview(null)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => {
-      document.body.style.overflow = prevOverflow
-      window.removeEventListener('keydown', onKey)
-    }
-  }, [photoPreview])
 
   const invalidateTicketQueries = async () => {
     await queryClient.invalidateQueries({ queryKey: ['mobile-ticket-detail'] })
@@ -1151,26 +1138,7 @@ export function MobileTicketPage() {
         </>
       ) : null}
 
-      {photoPreview ? (
-        <div
-          className="mobileImageLightbox"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Просмотр фото"
-          onClick={() => setPhotoPreview(null)}
-        >
-          <div className="mobileImageLightboxPanel" onClick={(e) => e.stopPropagation()}>
-            <div className="mobileImageLightboxToolbar">
-              <button type="button" className="mobileImageLightboxClose" onClick={() => setPhotoPreview(null)}>
-                Закрыть
-              </button>
-            </div>
-            <div className="mobileImageLightboxFrame">
-              <img src={photoPreview.src} alt={photoPreview.alt} className="mobileImageLightboxImg" />
-            </div>
-          </div>
-        </div>
-      ) : null}
+      <MobilePhotoLightbox preview={photoPreview} onClose={() => setPhotoPreview(null)} />
 
       {assignTicketOpen && ticket ? (
         <div

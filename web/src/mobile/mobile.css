@@ -399,6 +399,24 @@ body,
   margin-top: 12px;
 }
 
+.mobilePhotoPreviewButton {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.mobilePhotoPreviewImg {
+  display: block;
+  width: 100%;
+  max-height: 240px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+}
+
 .mobilePhotoGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

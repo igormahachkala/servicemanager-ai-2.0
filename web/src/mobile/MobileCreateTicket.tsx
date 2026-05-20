@@ -6,6 +6,7 @@ import { CategoryGuidancePanel } from '../components/CategoryGuidancePanel'
 import { formatMobileMutationError } from './mobileActionErrors'
 import { mobileTicketNavState } from './mobileTicketDisplay'
 import { MobileAttachmentThumb } from './MobileAttachmentThumb'
+import { MobilePhotoLightbox } from './MobilePhotoLightbox'
 
 const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024
 
@@ -136,6 +137,7 @@ export function MobileCreateTicket() {
   const [draftUploadProgress, setDraftUploadProgress] = useState<{ current: number; total: number } | null>(null)
   const [error, setError] = useState('')
   const [createdTicket, setCreatedTicket] = useState<CreatedTicketState | null>(null)
+  const [photoPreview, setPhotoPreview] = useState<{ src: string; alt: string } | null>(null)
 
   useEffect(() => {
     if (!categoryId && activeCategories.length > 0) setCategoryId(activeCategories[0].id)
@@ -164,6 +166,7 @@ export function MobileCreateTicket() {
     setDraftAttachments([])
     setUploadError(null)
     setDraftUploadProgress(null)
+    setPhotoPreview(null)
     clearPhotoInputs()
   }, [clientCompanyId, isTechnician, linkedClientCompanyId, companyId])
 
@@ -246,6 +249,7 @@ export function MobileCreateTicket() {
       setDescription('')
       setSlaPriority('NORMAL')
       setDraftAttachments([])
+      setPhotoPreview(null)
       clearPhotoInputs()
 
       const ticketOwnerForNav = isTechnician
@@ -492,7 +496,7 @@ export function MobileCreateTicket() {
                 <div className="mobilePhotoGrid">
                   {draftAttachments.map((d) => (
                     <div key={d.id} className="mobileDraftThumbCell">
-                      <MobileAttachmentThumb attachment={d} />
+                      <MobileAttachmentThumb attachment={d} onOpenPreview={setPhotoPreview} />
                       <button
                         type="button"
                         className="mobileDraftThumbRemove"
@@ -580,6 +584,8 @@ export function MobileCreateTicket() {
           </div>
         </div>
       ) : null}
+
+      <MobilePhotoLightbox preview={photoPreview} onClose={() => setPhotoPreview(null)} />
     </div>
   )
 }
