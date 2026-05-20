@@ -39,12 +39,21 @@ export function MobileHome() {
   const navigate = useNavigate()
   const search = new URLSearchParams(location.search)
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
+  const companyQ = useQuery({
+    queryKey: ['mobile-home-company'],
+    queryFn: () => api.company(),
+    enabled: !!meQ.data && meQ.data.role !== 'CLIENT' && meQ.data.role !== 'TECHNICIAN',
+  })
   const isOnline = useOnlineStatus()
   const linkedClientCompanyId = (search.get('linkedClientCompanyId') || api.getLinkedClientCompanyId(meQ.data)).trim()
   const companyId = (search.get('companyId') || api.getObserverCompanyId(meQ.data)).trim()
   const pageScope = { linkedClientCompanyId: linkedClientCompanyId || undefined, companyId: companyId || undefined }
   const queryClient = useQueryClient()
   const [mobileActionToast, setMobileActionToast] = useState('')
+
+  const providerContextKnown =
+    !meQ.data || meQ.data.role === 'CLIENT' || meQ.data.role === 'TECHNICIAN' || companyQ.isSuccess || companyQ.isError
+  const providerNeedsLinkedClient = !!meQ.data && companyQ.data?.type === 'PROVIDER' && meQ.data.role !== 'TECHNICIAN' && !linkedClientCompanyId
 
   useEffect(() => {
     if (!mobileActionToast) return
@@ -80,7 +89,10 @@ export function MobileHome() {
       saveBoardCache(pageScope, data)
       return data
     },
-    enabled: (!isOnline || !!meQ.data) && (!meQ.data || meQ.data.role !== 'TECHNICIAN' || !!linkedClientCompanyId),
+    enabled:
+      providerContextKnown &&
+      ((!isOnline || !!meQ.data) && (!meQ.data || meQ.data.role !== 'TECHNICIAN' || !!linkedClientCompanyId)) &&
+      !providerNeedsLinkedClient,
   })
 
   const linkedClientsQ = useQuery({
@@ -332,6 +344,20 @@ export function MobileHome() {
   const techWillRedirectForScope = techNoLinked && techBoundDefaultsQ.isSuccess && (techBoundDefaultsQ.data?.length ?? 0) > 0
   const technicianScopeGateReady = !techNoLinked || techBoundDefaultsQ.isFetched || techBoundDefaultsQ.isError
   const showMobileHomeTicketBoard = technicianScopeGateReady && !techWillRedirectForScope && !boardQ.isError && (meQ.data || (!!boardQ.data && !isOnline))
+
+  if (providerNeedsLinkedClient) {
+    return (
+      <div className="mobileSection">
+        <div>
+          <h1 className="mobileTitle">Главная</h1>
+          <div className="mobileSubtitle">Операционный экран без desktop-шумов</div>
+        </div>
+        <div className="mobileNotice" role="status">
+          Выберите клиентский контур в верхней панели, чтобы открыть заявки.
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="mobileSection">

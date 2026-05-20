@@ -1455,6 +1455,53 @@ a.mobileBtn.mobileCreateTicketLink {
   color: inherit;
 }
 
+.mobileProviderContextCard {
+  width: min(720px, calc(100% - 24px));
+  margin: 10px auto 0;
+  padding: 12px;
+  box-sizing: border-box;
+  border: 1px solid #dbeafe;
+  border-radius: 16px;
+  background: #eff6ff;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.08);
+}
+
+.mobileProviderContextLabel {
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #1d4ed8;
+}
+
+.mobileProviderContextValue {
+  margin-top: 6px;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #111827;
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.mobileProviderContextSelect {
+  width: 100%;
+  margin-top: 8px;
+  min-height: 44px;
+  border-radius: 12px;
+  border: 1px solid #bfdbfe;
+  background: #ffffff;
+  color: #111827;
+  padding: 10px 12px;
+  box-sizing: border-box;
+}
+
+.mobileProviderContextHint {
+  margin-top: 8px;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: #475569;
+}
+
 .mobileBellIcon {
   font-size: 1.2rem;
   line-height: 1;

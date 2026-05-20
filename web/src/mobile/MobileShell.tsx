@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, Outlet, useLocation } from 'react-router-dom'
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { useWsInvalidation } from '../ui/useWsInvalidation'
@@ -30,23 +30,95 @@ function isActivePath(pathname: string, target: string) {
   return pathname.startsWith(target)
 }
 
+function isProviderLinkedClientRole(role?: api.Role | null) {
+  return (
+    role === 'ADMIN' ||
+    role === 'ADMIN_PROVIDER' ||
+    role === 'MASTER' ||
+    role === 'DISPATCHER' ||
+    role === 'NETWORK_DIRECTOR'
+  )
+}
+
 export function MobileShell() {
   const location = useLocation()
+  const navigate = useNavigate()
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
   const queryClient = useQueryClient()
   const isOnline = useOnlineStatus()
   const [pendingCount, setPendingCount] = useState(getPendingOfflineActionsCount())
   const [syncMessage, setSyncMessage] = useState('')
 
+  const companyQ = useQuery({
+    queryKey: ['mobile-shell-company'],
+    queryFn: () => api.company(),
+    enabled: !!meQ.data && meQ.data.role !== 'CLIENT' && meQ.data.role !== 'TECHNICIAN',
+  })
+
+  const isProviderCompany = companyQ.data?.type === 'PROVIDER'
+  const canShowLinkedClients = !!meQ.data && isProviderCompany && isProviderLinkedClientRole(meQ.data.role)
+
+  const linkedClientsQ = useQuery({
+    queryKey: ['mobile-shell-linked-clients'],
+    queryFn: api.getLinkedClients,
+    enabled: canShowLinkedClients,
+  })
+
+  const linkedClients = linkedClientsQ.data || []
+  const linkedClientsLoaded = !canShowLinkedClients || linkedClientsQ.isSuccess || linkedClientsQ.isError
+  const selectedLinkedClientCompanyId = (new URLSearchParams(location.search).get('linkedClientCompanyId') || api.getLinkedClientCompanyId(meQ.data)).trim()
+  const selectedLinkedClient = useMemo(
+    () => linkedClients.find((row) => row.clientCompany.id === selectedLinkedClientCompanyId) || null,
+    [linkedClients, selectedLinkedClientCompanyId],
+  )
+
   const scope = useMemo(() => {
     const params = new URLSearchParams(location.search)
     const linked = (params.get('linkedClientCompanyId') || api.getLinkedClientCompanyId(meQ.data)).trim()
-    const company = (params.get('companyId') || api.getObserverCompanyId(meQ.data)).trim()
+    const company = canShowLinkedClients ? '' : (params.get('companyId') || api.getObserverCompanyId(meQ.data)).trim()
     return {
       linkedClientCompanyId: linked || undefined,
       companyId: company || undefined,
     }
-  }, [location.search, meQ.data])
+  }, [location.search, meQ.data, canShowLinkedClients])
+
+  function updateProviderScope(nextLinkedClientCompanyId: string) {
+    const params = new URLSearchParams(location.search)
+    params.delete('companyId')
+    if (nextLinkedClientCompanyId.trim()) {
+      params.set('linkedClientCompanyId', nextLinkedClientCompanyId.trim())
+    } else {
+      params.delete('linkedClientCompanyId')
+    }
+    api.persistScopeFromSearchParams(params, meQ.data)
+    const next = `${location.pathname}${params.toString() ? `?${params.toString()}` : ''}`
+    if (next !== `${location.pathname}${location.search}`) {
+      navigate(next, { replace: true })
+    }
+  }
+
+  useEffect(() => {
+    if (!canShowLinkedClients) return
+    if (!linkedClientsLoaded) return
+    const params = new URLSearchParams(location.search)
+    const nextLinkedClientCompanyId = selectedLinkedClientCompanyId || api.pickDefaultLinkedClientCompanyId(linkedClients)
+    const currentNext = nextLinkedClientCompanyId.trim()
+    const needsCompanyCleanup = params.has('companyId')
+    const needsLinkedSync = currentNext ? params.get('linkedClientCompanyId') !== currentNext : params.has('linkedClientCompanyId')
+    if (!needsCompanyCleanup && !needsLinkedSync) return
+
+    params.delete('companyId')
+    if (currentNext) {
+      params.set('linkedClientCompanyId', currentNext)
+    } else {
+      params.delete('linkedClientCompanyId')
+    }
+    api.persistScopeFromSearchParams(params, meQ.data)
+    const next = `${location.pathname}${params.toString() ? `?${params.toString()}` : ''}`
+    if (next !== `${location.pathname}${location.search}`) {
+      navigate(next, { replace: true })
+    }
+  }, [canShowLinkedClients, linkedClients, linkedClientsLoaded, selectedLinkedClientCompanyId, location.pathname, location.search, meQ.data, navigate])
 
   const onNotification = useRealtimeNotifications('/m/tickets/')
   useWsInvalidation(scope, { onNotification })
@@ -121,6 +193,44 @@ export function MobileShell() {
           ) : null}
         </Link>
       </header>
+      {canShowLinkedClients ? (
+        <div className="mobileProviderContextCard">
+          <div className="mobileProviderContextLabel">Клиентский контур</div>
+          {linkedClientsLoaded ? (
+            linkedClients.length > 0 ? (
+              <>
+                <div className="mobileProviderContextValue">
+                  {selectedLinkedClient?.clientCompany.name || 'Выберите клиента'}
+                </div>
+                <select
+                  className="mobileProviderContextSelect"
+                  value={selectedLinkedClientCompanyId}
+                  onChange={(e) => updateProviderScope(e.target.value)}
+                >
+                  <option value="">Выберите клиента</option>
+                  {linkedClients.map((item) => (
+                    <option key={item.clientCompany.id} value={item.clientCompany.id}>
+                      {item.clientCompany.name} · {item.role}
+                    </option>
+                  ))}
+                </select>
+                <div className="mobileProviderContextHint">
+                  Контекст применяется к доске, созданию заявки и карточкам заявок.
+                </div>
+              </>
+            ) : (
+              <div className="mobileProviderContextHint">У этой компании пока нет связанных клиентов.</div>
+            )
+          ) : (
+            <div className="mobileProviderContextHint">Загружаем список клиентов…</div>
+          )}
+          {linkedClientsQ.isError ? (
+            <div className="mobileNotice mobileNoticeError" style={{ marginTop: 8 }}>
+              {(linkedClientsQ.error as any)?.message || String(linkedClientsQ.error)}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
       <main className="mobilePage">
         {!isOnline ? (
           <div className="mobileOfflineBanner mobileOfflineBannerWarning">

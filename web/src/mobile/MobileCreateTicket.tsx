@@ -55,6 +55,11 @@ export function MobileCreateTicket() {
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
   const meReady = meQ.isSuccess
   const isTechnician = meReady && meQ.data?.role === 'TECHNICIAN'
+  const companyQ = useQuery({
+    queryKey: ['mobile-create-company'],
+    queryFn: () => api.company(),
+    enabled: !!meQ.data && meQ.data.role !== 'CLIENT' && meQ.data.role !== 'TECHNICIAN',
+  })
 
   const linkedClientCompanyId = useMemo(
     () => (search.get('linkedClientCompanyId') || api.getLinkedClientCompanyId(meQ.data)).trim(),
@@ -71,6 +76,9 @@ export function MobileCreateTicket() {
     }),
     [linkedClientCompanyId, companyId],
   )
+  const providerContextKnown =
+    !meQ.data || meQ.data.role === 'CLIENT' || meQ.data.role === 'TECHNICIAN' || companyQ.isSuccess || companyQ.isError
+  const providerNeedsLinkedClient = !!meQ.data && companyQ.data?.type === 'PROVIDER' && meQ.data.role !== 'TECHNICIAN' && !linkedClientCompanyId
 
   /** Для GET /locations и GET /problem-categories backend ждёт query `companyId` (клиентский tenant каталога). */
   const effectiveClientCompanyId = useMemo(() => {
@@ -93,12 +101,12 @@ export function MobileCreateTicket() {
   const categoriesQ = useQuery({
     queryKey: ['mobile-create-categories', effectiveClientCompanyId, isTechnician ? 'tech' : 'tenant'],
     queryFn: () => api.problemCategories(effectiveClientCompanyId || undefined),
-    enabled: meReady && meQ.data?.role !== 'TECHNICIAN',
+    enabled: meReady && meQ.data?.role !== 'TECHNICIAN' && providerContextKnown && !providerNeedsLinkedClient,
   })
   const locationsQ = useQuery({
     queryKey: ['mobile-create-locations', effectiveClientCompanyId, isTechnician ? 'tech' : 'tenant'],
     queryFn: () => api.locations(effectiveClientCompanyId || undefined),
-    enabled: meReady && meQ.data?.role !== 'TECHNICIAN',
+    enabled: meReady && meQ.data?.role !== 'TECHNICIAN' && providerContextKnown && !providerNeedsLinkedClient,
   })
 
   const [clientCompanyId, setClientCompanyId] = useState('')
@@ -340,6 +348,21 @@ export function MobileCreateTicket() {
     !isUploadingDrafts &&
     !deleteDraftM.isPending
   const noTechnicianContexts = isTechnician && technicianContextsQ.isSuccess && technicianContexts.length === 0
+  const providerGuardActive = providerNeedsLinkedClient && providerContextKnown
+
+  if (providerGuardActive) {
+    return (
+      <div className="mobileSection">
+        <div>
+          <h1 className="mobileTitle">Создать заявку</h1>
+          <div className="mobileSubtitle">Укажите точку, категорию и загрузите фото — без снимков отправка недоступна.</div>
+        </div>
+        <div className="mobileNotice" role="status">
+          Выберите клиентский контур в верхней панели перед созданием заявки.
+        </div>
+      </div>
+    )
+  }
 
   const showEmptyLocationsHint = catalogsSettled && !isBootstrapping && activeLocations.length === 0 && !noTechnicianContexts
   const showEmptyCategoriesHint = catalogsSettled && !isBootstrapping && activeCategories.length === 0 && !noTechnicianContexts
