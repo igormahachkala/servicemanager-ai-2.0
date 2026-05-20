@@ -5,6 +5,7 @@ import * as api from '../lib/api'
 import { platformNavigation, tenantNavigation, type NavItem, type NavSection } from '../lib/navigation'
 import { SmaBrandLogo } from '../components/SmaBrandLogo'
 import { useWsInvalidation } from './useWsInvalidation'
+import { useRealtimeNotifications } from '../hooks/useRealtimeNotifications'
 
 function NavItemButton(props: { to: string; label: string; active: boolean; onNavigate?: () => void }) {
   return (
@@ -131,7 +132,8 @@ export function Shell() {
     }
   }, [loc.search, meQ.data])
 
-  useWsInvalidation(currentScope)
+  const onNotification = useRealtimeNotifications('/tickets/')
+  useWsInvalidation(currentScope, { onNotification })
 
   const impersonationMeta = useMemo(() => api.getImpersonationMeta(), [meQ.data?.id, loc.key])
   const isImpersonating = api.isImpersonating() && !!impersonationMeta

@@ -80,6 +80,8 @@ const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
   'ticket.status_changed': 'Статус изменён',
   'ticket.assignment_requested': 'Запрос назначения',
   'ticket.assigned_external': 'Назначен исполнитель',
+  'ticket.comment_added': 'Новый комментарий',
+  'ticket.attachment_uploaded': 'Новое фото',
   'sla.warning': 'Скоро дедлайн',
   'sla.overdue': 'Просрочка SLA',
   'urgent.created': 'Срочная заявка',

@@ -950,6 +950,41 @@ button.ghost {
   color: #111827;
 }
 
+/* Reset <button> defaults for clickable notification toasts */
+button.toastItem {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  background: inherit;
+  border-color: inherit;
+  color: inherit;
+}
+
+button.toastItem:hover {
+  filter: brightness(0.97);
+}
+
+button.toastItem:active {
+  filter: brightness(0.94);
+}
+
+.toastItemTitle {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.toastItemBody {
+  display: block;
+  font-size: 12px;
+  font-weight: 400;
+  margin-top: 2px;
+  opacity: 0.72;
+}
+
 @keyframes successFadeIn {
   from { opacity: 0; }
   to   { opacity: 1; }

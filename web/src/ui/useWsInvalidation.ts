@@ -1,10 +1,16 @@
 import { useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
+import type { WsNotifMsg } from '../lib/realtimeNotificationToast'
 
 type WsBoardScope = {
   linkedClientCompanyId?: string
   companyId?: string
+}
+
+type UseWsInvalidationOpts = {
+  /** Called once per new notification WS message; responsible for showing a toast. */
+  onNotification?: (msg: WsNotifMsg) => void
 }
 
 function defaultWsUrl() {
@@ -17,7 +23,7 @@ function hasTarget(msg: any, target: string) {
   return Array.isArray(msg?.targets) && msg.targets.includes(target)
 }
 
-export function useWsInvalidation(scope?: WsBoardScope) {
+export function useWsInvalidation(scope?: WsBoardScope, opts?: UseWsInvalidationOpts) {
   const qc = useQueryClient()
 
   useEffect(() => {
@@ -72,7 +78,12 @@ export function useWsInvalidation(scope?: WsBoardScope) {
             qc.invalidateQueries({ queryKey: ['mobile-notifications'] })
           }
 
-          if (t.startsWith('notifications.')) {
+          if (t === 'notifications.invalidate') {
+            qc.invalidateQueries({ queryKey: ['mobile-notifications'] })
+            opts?.onNotification?.(msg)
+          }
+
+          if (t.startsWith('notifications.') && t !== 'notifications.invalidate') {
             qc.invalidateQueries({ queryKey: ['mobile-notifications'] })
           }
 
@@ -118,5 +129,5 @@ export function useWsInvalidation(scope?: WsBoardScope) {
       } catch {}
       ws = null
     }
-  }, [qc, scope?.companyId, scope?.linkedClientCompanyId])
+  }, [qc, scope?.companyId, scope?.linkedClientCompanyId, opts?.onNotification])
 }

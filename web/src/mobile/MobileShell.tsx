@@ -3,6 +3,7 @@ import { Link, Outlet, useLocation } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { useWsInvalidation } from '../ui/useWsInvalidation'
+import { useRealtimeNotifications } from '../hooks/useRealtimeNotifications'
 import {
   getPendingOfflineActionsCount,
   retryOfflineQueue,
@@ -47,7 +48,8 @@ export function MobileShell() {
     }
   }, [location.search, meQ.data])
 
-  useWsInvalidation(scope)
+  const onNotification = useRealtimeNotifications('/m/tickets/')
+  useWsInvalidation(scope, { onNotification })
 
   useEffect(() => {
     if (!meQ.data) return
