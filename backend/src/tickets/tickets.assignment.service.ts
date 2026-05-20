@@ -502,7 +502,7 @@ export class TicketsAssignmentService {
         uploadedByUserId: creatorUserId,
       });
 
-      await this.timelineService.recordTx(tx, {
+      const createdEvent = await this.timelineService.recordTx(tx, {
         event: 'TICKET_CREATED',
         companyId: targetCompanyId,
         ticketId: ticket.id,
@@ -522,8 +522,8 @@ export class TicketsAssignmentService {
         },
       });
 
-      if (input.comment) {
-        await this.timelineService.recordLegacyTx(tx, {
+      const commentEvent = input.comment
+        ? await this.timelineService.recordLegacyTx(tx, {
           type: 'ticket.comment_added',
           companyId: targetCompanyId,
           entityType: 'Ticket',
@@ -534,8 +534,10 @@ export class TicketsAssignmentService {
             source: 'create_flow',
             createMode: input.createMode,
           },
-        });
-      }
+        })
+        : null;
+
+      let assignedEventId: string | null = null;
 
       if (assignedTechnicianId) {
         const wf = decideTicketTransition(TicketStatus.NEW, TicketStatus.ASSIGNED);
@@ -560,7 +562,7 @@ export class TicketsAssignmentService {
           comment: 'Auto assigned',
         });
 
-        await this.timelineService.recordTx(tx, {
+        const assignedEvent = await this.timelineService.recordTx(tx, {
           event: 'TICKET_ASSIGNED',
           companyId: targetCompanyId,
           ticketId: ticket.id,
@@ -572,9 +574,11 @@ export class TicketsAssignmentService {
             reason: 'assignment_engine_v1',
           },
         });
+
+        return { ticket, assignedTechnicianId, generated, createdEventId: createdEvent.id, commentEventId: commentEvent?.id ?? null, assignedEventId: assignedEvent.id };
       }
 
-      return { ticket, assignedTechnicianId, generated };
+      return { ticket, assignedTechnicianId, generated, createdEventId: createdEvent.id, commentEventId: commentEvent?.id ?? null, assignedEventId: null };
     });
 
     this.notifications.onTicketCreated({
@@ -586,7 +590,27 @@ export class TicketsAssignmentService {
       ticketNumber: created.ticket.ticketNumber,
       summary: created.generated.title,
       assignedTechnicianId: created.assignedTechnicianId,
+      sourceEventId: created.createdEventId,
     });
+
+    if (created.commentEventId) {
+      const assignee = created.assignedTechnicianId
+        ? await this.prisma.user.findUnique({
+            where: { id: created.assignedTechnicianId },
+            select: { companyId: true },
+          })
+        : null;
+      this.notifications.scheduleTicketCommentAdded({
+        ticketCompanyId: created.ticket.companyId,
+        ticketId: created.ticket.id,
+        ticketNumber: created.ticket.ticketNumber,
+        summary: input.comment!.trim(),
+        actorUserId: creatorUserId,
+        assigneeUserId: created.assignedTechnicianId,
+        assigneeCompanyId: assignee?.companyId ?? null,
+        sourceEventId: created.commentEventId,
+      });
+    }
 
     if (created.assignedTechnicianId) {
       const assignee = await this.prisma.user.findUnique({
@@ -602,6 +626,7 @@ export class TicketsAssignmentService {
           ticketId: created.ticket.id,
           ticketNumber: created.ticket.ticketNumber,
           summary: created.generated.title,
+          sourceEventId: created.assignedEventId || created.createdEventId,
         });
       }
     }
@@ -702,7 +727,7 @@ export class TicketsAssignmentService {
         comment: 'Child ticket created',
       });
 
-      await this.timelineService.recordTx(tx, {
+      const createdEvent = await this.timelineService.recordTx(tx, {
         event: 'TICKET_CREATED',
         companyId: companyId,
         ticketId: ticket.id,
@@ -716,6 +741,8 @@ export class TicketsAssignmentService {
           isChild: true,
         },
       });
+
+      let assignedEventId: string | null = null;
 
       if (assignedTechnicianId) {
         const wf = decideTicketTransition(TicketStatus.NEW, TicketStatus.ASSIGNED);
@@ -740,7 +767,7 @@ export class TicketsAssignmentService {
           comment: 'Auto assigned',
         });
 
-        await this.timelineService.recordTx(tx, {
+        const assignedEvent = await this.timelineService.recordTx(tx, {
           event: 'TICKET_ASSIGNED',
           companyId: companyId,
           ticketId: ticket.id,
@@ -752,9 +779,11 @@ export class TicketsAssignmentService {
             reason: 'assignment_engine_v1',
           },
         });
+
+        return { ticket, assignedTechnicianId, createdEventId: createdEvent.id, assignedEventId: assignedEvent.id };
       }
 
-      return { ticket, assignedTechnicianId };
+      return { ticket, assignedTechnicianId, createdEventId: createdEvent.id, assignedEventId: null };
     });
 
     this.notifications.scheduleTicketCreatedChild({
@@ -765,6 +794,7 @@ export class TicketsAssignmentService {
       ticketNumber: created.ticket.ticketNumber,
       summary: (created.ticket.problemText || '').trim() || 'Дочерняя заявка',
       assignedTechnicianId: created.assignedTechnicianId,
+      sourceEventId: created.createdEventId,
     });
 
     return {
@@ -966,12 +996,13 @@ export class TicketsAssignmentService {
       }
 
       let assignmentTimelineRecorded = false;
+      let assignmentEventId: string | null = null;
       let assignMode: 'manual' | 'reassign' = 'manual';
 
       if (isReassign) {
         assignMode = 'reassign';
         assignmentTimelineRecorded = true;
-        await this.timelineService.recordTx(tx, {
+        const assignmentEvent = await this.timelineService.recordTx(tx, {
           event: 'TICKET_ASSIGNED',
           companyId: ticket.companyId,
           ticketId: ticket.id,
@@ -982,9 +1013,10 @@ export class TicketsAssignmentService {
             mode: 'reassign',
           },
         });
+        assignmentEventId = assignmentEvent.id;
       } else if (isFirstAssign || ticket.status === TicketStatus.NEW) {
         assignmentTimelineRecorded = true;
-        await this.timelineService.recordTx(tx, {
+        const assignmentEvent = await this.timelineService.recordTx(tx, {
           event: 'TICKET_ASSIGNED',
           companyId: ticket.companyId,
           ticketId: ticket.id,
@@ -994,9 +1026,10 @@ export class TicketsAssignmentService {
             mode: 'manual',
           },
         });
+        assignmentEventId = assignmentEvent.id;
       }
 
-      return { ticketId: ticket.id, assignmentTimelineRecorded, assignMode };
+      return { ticketId: ticket.id, assignmentTimelineRecorded, assignMode, assignmentEventId };
     });
 
     const meta = await this.prisma.ticket.findUnique({
@@ -1021,6 +1054,7 @@ export class TicketsAssignmentService {
         summary: (meta.problemText || '').trim() || `Заявка #${meta.ticketNumber}`,
         actorUserId: actor?.id ?? null,
         mode: assignResult.assignMode,
+        sourceEventId: assignResult.assignmentEventId,
       });
 
       const assigneeCompany = await this.prisma.user.findUnique({
@@ -1036,6 +1070,7 @@ export class TicketsAssignmentService {
           ticketId: assignResult.ticketId,
           ticketNumber: meta.ticketNumber,
           summary: (meta.problemText || '').trim() || `Заявка #${meta.ticketNumber}`,
+          sourceEventId: assignResult.assignmentEventId,
         })
       }
     }
@@ -1700,7 +1735,7 @@ export class TicketsAssignmentService {
         comment: 'Claimed by technician',
       })
 
-      await this.timelineService.recordTx(tx, {
+      const claimEvent = await this.timelineService.recordTx(tx, {
         event: 'TICKET_CLAIMED',
         companyId: ticket.companyId,
         ticketId: ticket.id,
@@ -1712,7 +1747,13 @@ export class TicketsAssignmentService {
         },
       })
 
-      return { ticketId: ticket.id, ticketCompanyId: ticket.companyId, ticketNumber: ticket.ticketNumber, problemText: ticket.problemText }
+      return {
+        ticketId: ticket.id,
+        ticketCompanyId: ticket.companyId,
+        ticketNumber: ticket.ticketNumber,
+        problemText: ticket.problemText,
+        claimEventId: claimEvent.id,
+      }
     })
 
     const linkedResolved =
@@ -1726,6 +1767,7 @@ export class TicketsAssignmentService {
       summary: (claimResult.problemText || '').trim() || `Заявка #${claimResult.ticketNumber}`,
       excludeUserId: technicianUserId,
       linkedHint: linkedResolved,
+      sourceEventId: claimResult.claimEventId,
     })
 
     return this.query.getOne(companyId, technicianUserId, UserRole.TECHNICIAN, claimResult.ticketId, undefined, undefined, linkedClientCompanyId)
@@ -1792,7 +1834,7 @@ export class TicketsAssignmentService {
       if (existingRequest) {
         return { alreadyRequested: true as const }
       }
-      await this.timelineService.recordLegacyTx(tx, {
+      const requestEvent = await this.timelineService.recordLegacyTx(tx, {
         type: TICKET_ASSIGNMENT_REQUESTED_EVENT,
         companyId: ticket.companyId,
         entityType: TICKET_ASSIGNMENT_REQUESTED_ENTITY,
@@ -1805,7 +1847,7 @@ export class TicketsAssignmentService {
           createdAt: createdAtIso,
         },
       })
-      return { alreadyRequested: false as const }
+      return { alreadyRequested: false as const, sourceEventId: requestEvent.id }
     })
 
     if (txResult.alreadyRequested) {
@@ -1818,6 +1860,7 @@ export class TicketsAssignmentService {
       ticketId: ticket.id,
       ticketNumber: ticket.ticketNumber,
       ticketCompanyId: ticket.companyId,
+      sourceEventId: txResult.sourceEventId,
     })
     return { ok: true as const, alreadyRequested: false as const, notified: notify.notified }
   }
@@ -1913,7 +1956,7 @@ export class TicketsAssignmentService {
         attachmentIds: input.attachmentIds ?? [],
       });
 
-      await this.timelineService.recordTx(tx, {
+      const createdEvent = await this.timelineService.recordTx(tx, {
         event: 'TICKET_CREATED',
         companyId: companyId,
         ticketId: ticket.id,
@@ -1938,6 +1981,8 @@ export class TicketsAssignmentService {
         },
       });
 
+      let assignedEventId: string | null = null;
+
       if (assignedTechnicianId) {
         const wf = decideTicketTransition(TicketStatus.NEW, TicketStatus.ASSIGNED);
         if (!wf.allowed) throw new BadRequestException(wf.reason);
@@ -1959,7 +2004,7 @@ export class TicketsAssignmentService {
           comment: 'Auto assigned',
         });
 
-        await this.timelineService.recordTx(tx, {
+        const assignedEvent = await this.timelineService.recordTx(tx, {
           event: 'TICKET_ASSIGNED',
           companyId: companyId,
           ticketId: ticket.id,
@@ -1972,9 +2017,10 @@ export class TicketsAssignmentService {
             source: TicketSource.PUBLIC_QUICK_REQUEST,
           },
         });
+        assignedEventId = assignedEvent.id;
       }
 
-      return { ticket, assignedTechnicianId };
+      return { ticket, assignedTechnicianId, createdEventId: createdEvent.id, assignedEventId };
     });
 
     this.notifications.onTicketCreated({
@@ -1986,6 +2032,7 @@ export class TicketsAssignmentService {
       ticketNumber: created.ticket.ticketNumber,
       summary: (created.ticket.problemText || '').trim() || `Заявка #${created.ticket.ticketNumber}`,
       assignedTechnicianId: created.assignedTechnicianId,
+      sourceEventId: created.createdEventId,
     });
 
     if (created.assignedTechnicianId) {
@@ -2002,6 +2049,7 @@ export class TicketsAssignmentService {
           ticketId: created.ticket.id,
           ticketNumber: created.ticket.ticketNumber,
           summary: (created.ticket.problemText || '').trim() || `Заявка #${created.ticket.ticketNumber}`,
+          sourceEventId: created.assignedEventId || created.createdEventId,
         });
       }
     }
@@ -2012,9 +2060,3 @@ export class TicketsAssignmentService {
     };
   }
 }
-
-
-
-
-
-

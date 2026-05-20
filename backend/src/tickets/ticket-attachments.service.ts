@@ -5,6 +5,8 @@ import { extname, join } from 'path'
 import { randomUUID } from 'crypto'
 
 import { PrismaService } from '../prisma/prisma.service'
+import { TimelineService } from '../timeline/timeline.service'
+import { NotificationsService } from '../notifications/notifications.service'
 import { type UserCtx } from '../policy/tickets.policy'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
 import { resolveReadableTicketAccess } from './ticket-access.utils'
@@ -16,6 +18,8 @@ export class TicketAttachmentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly serviceContractsService: ServiceContractsService,
+    private readonly timeline: TimelineService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   async uploadDraftAttachment(companyId: string, uploadedByUserId: string | null, file: any) {
@@ -139,7 +143,7 @@ export class TicketAttachmentsService {
 
     const stored = await this.persistFile(file)
 
-    return this.prisma.ticketAttachment.create({
+    const attachment = await this.prisma.ticketAttachment.create({
       data: {
         companyId: ticketCompanyId,
         ticketId,
@@ -153,6 +157,50 @@ export class TicketAttachmentsService {
       },
       select: this.attachmentSelect(),
     })
+
+    const ticket = await this.prisma.ticket.findFirst({
+      where: { id: ticketId, companyId: ticketCompanyId },
+      select: {
+        id: true,
+        companyId: true,
+        ticketNumber: true,
+        problemText: true,
+        assignedTechnicianId: true,
+      },
+    })
+    if (ticket) {
+      const event = (await this.timeline.record({
+        event: 'TICKET_ATTACHMENT_UPLOADED',
+        companyId: ticket.companyId,
+        ticketId: ticket.id,
+        actorUserId: user.id,
+        payload: {
+          attachmentId: attachment.id,
+          attachmentPurpose: attachment.purpose,
+          mimeType: attachment.mimeType,
+        },
+      })) as { id: string }
+
+      const assignee = ticket.assignedTechnicianId
+        ? await this.prisma.user.findUnique({
+            where: { id: ticket.assignedTechnicianId },
+            select: { companyId: true },
+          })
+        : null
+
+      this.notifications.scheduleTicketAttachmentUploaded({
+        ticketCompanyId: ticket.companyId,
+        ticketId: ticket.id,
+        ticketNumber: ticket.ticketNumber,
+        summary: (ticket.problemText || '').trim() || `Заявка #${ticket.ticketNumber}`,
+        actorUserId: user.id,
+        assigneeUserId: ticket.assignedTechnicianId,
+        assigneeCompanyId: assignee?.companyId ?? null,
+        sourceEventId: event.id,
+      })
+    }
+
+    return attachment
   }
 
   async deleteDraftAttachment(companyId: string, attachmentId: string) {
@@ -280,4 +328,3 @@ export class TicketAttachmentsService {
     await rm(join(this.uploadsDir, storageKey), { force: true })
   }
 }
-

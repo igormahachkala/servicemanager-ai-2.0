@@ -33,6 +33,23 @@ export class NotificationsController {
     return this.notifications.listForUser(req.user.companyId, req.user.id);
   }
 
+  @Get('unread-count')
+  @Roles(
+    UserRole.ADMIN,
+    UserRole.MASTER,
+    UserRole.DISPATCHER,
+    UserRole.NETWORK_DIRECTOR,
+    UserRole.TECHNICIAN,
+    UserRole.CLIENT,
+    UserRole.TERRITORIAL_MANAGER,
+    UserRole.STAFF,
+    UserRole.PLATFORM_ADMIN,
+  )
+  async unreadCount(@Req() req: any) {
+    const unreadCount = await this.notifications.unreadCountForUser(req.user.companyId, req.user.id);
+    return { unreadCount };
+  }
+
   @Patch('read-all')
   @Roles(
     UserRole.ADMIN,

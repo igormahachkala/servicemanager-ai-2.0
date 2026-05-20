@@ -1,5 +1,12 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { CompanyType, ServiceContractRole, ServiceContractStatus, TicketStatus, UserRole } from '@prisma/client';
+import {
+  CompanyType,
+  Prisma,
+  ServiceContractRole,
+  ServiceContractStatus,
+  TicketStatus,
+  UserRole,
+} from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -121,6 +128,50 @@ export class NotificationsService {
     }
   }
 
+  private notificationDedupeKey(kind: string, ...parts: Array<string | number | null | undefined>) {
+    return [kind, ...parts.map((part) => {
+      if (part === null || part === undefined) return '-';
+      const text = String(part).trim();
+      return text.length > 0 ? text : '-';
+    })].join('|');
+  }
+
+  private isUniqueViolation(err: unknown) {
+    return (
+      !!err &&
+      typeof err === 'object' &&
+      'code' in err &&
+      (err as { code?: string }).code === 'P2002'
+    );
+  }
+
+  private async createNotification(data: Prisma.NotificationUncheckedCreateInput & { dedupeKey: string }) {
+    try {
+      return await this.prisma.notification.create({ data });
+    } catch (err) {
+      if (this.isUniqueViolation(err)) {
+        return null;
+      }
+      throw err;
+    }
+  }
+
+  private async createNotifications(
+    data: Array<Prisma.NotificationCreateManyInput & { dedupeKey: string }>,
+  ) {
+    if (!data.length) return { count: 0 };
+    return this.prisma.notification.createMany({
+      data,
+      skipDuplicates: true,
+    });
+  }
+
+  async unreadCountForUser(companyId: string, userId: string) {
+    return this.prisma.notification.count({
+      where: { companyId, userId, readAt: null },
+    });
+  }
+
   scheduleTicketCreated(params: {
     actorCompanyId: string;
     creatorUserId: string | null;
@@ -130,6 +181,7 @@ export class NotificationsService {
     ticketNumber: number;
     summary: string;
     assignedTechnicianId: string | null;
+    sourceEventId?: string | null;
   }) {
     void this.safeNotify('ticket.created+assign', () => this.emitTicketCreatedAndMaybeAssign(params));
   }
@@ -143,6 +195,7 @@ export class NotificationsService {
     ticketNumber: number;
     summary: string;
     assignedTechnicianId: string | null;
+    sourceEventId?: string | null;
   }) {
     this.scheduleTicketCreated(params);
   }
@@ -153,6 +206,7 @@ export class NotificationsService {
     ticketNumber: number;
     summary: string;
     assignedTechnicianId: string | null;
+    sourceEventId?: string | null;
   }) {
     void this.safeNotify('ticket.created.public', () => this.emitTicketCreatedPublicInternal(params));
   }
@@ -165,6 +219,7 @@ export class NotificationsService {
     ticketNumber: number;
     summary: string;
     assignedTechnicianId: string | null;
+    sourceEventId?: string | null;
   }) {
     void this.safeNotify('ticket.created.child', () =>
       this.emitTicketCreatedAndMaybeAssign({
@@ -176,6 +231,7 @@ export class NotificationsService {
         ticketNumber: params.ticketNumber,
         summary: params.summary,
         assignedTechnicianId: params.assignedTechnicianId,
+        sourceEventId: params.sourceEventId,
       }),
     );
   }
@@ -188,6 +244,7 @@ export class NotificationsService {
     summary: string;
     actorUserId: string | null;
     mode: 'manual' | 'auto' | 'reassign' | 'claim';
+    sourceEventId?: string | null;
   }) {
     void this.safeNotify('ticket.assigned', () => this.emitTicketAssignedToAssignee(params));
   }
@@ -204,6 +261,7 @@ export class NotificationsService {
     ticketId: string;
     ticketNumber: number;
     summary: string;
+    sourceEventId?: string | null;
   }) {
     void this.safeNotify('ticket.assigned_client', () => this.emitTicketAssignedClientCompanyInternal(params));
   }
@@ -216,6 +274,7 @@ export class NotificationsService {
     ticketId: string;
     ticketNumber: number;
     summary: string;
+    sourceEventId?: string | null;
   }) {
     this.scheduleTicketAssignedClientCompany(params);
   }
@@ -228,6 +287,7 @@ export class NotificationsService {
     summary: string;
     excludeUserId: string;
     linkedHint?: string | null;
+    sourceEventId?: string | null;
   }) {
     void this.safeNotify('ticket.claimed', () => this.emitTicketClaimedDispatchersInternal(params));
   }
@@ -242,6 +302,7 @@ export class NotificationsService {
     ticketId: string;
     ticketNumber: number | null;
     ticketCompanyId: string;
+    sourceEventId?: string | null;
   }) {
     const tech = await this.prisma.user.findFirst({
       where: { id: params.technicianUserId, companyId: params.providerCompanyId, isActive: true },
@@ -264,18 +325,6 @@ export class NotificationsService {
     const innerClip = inner.length <= maxInner ? inner : `${inner.slice(0, Math.max(0, maxInner - 1))}…`;
     const messageWithRef = `${innerClip}${refSuffix}`;
 
-    const dup = await this.prisma.notification.findFirst({
-      where: {
-        type: 'ticket.assignment_requested',
-        entityId: params.ticketId,
-        companyId: params.providerCompanyId,
-        message: { endsWith: refSuffix },
-      },
-    });
-    if (dup) {
-      return { ok: true as const, notified: 0 };
-    }
-
     const users = await this.prisma.user.findMany({
       where: {
         companyId: params.providerCompanyId,
@@ -290,8 +339,8 @@ export class NotificationsService {
 
     const title = 'Запрос назначения';
     const message = messageWithRef.length <= 400 ? messageWithRef : clipMessage(messageWithRef);
-    await this.prisma.notification.createMany({
-      data: users.map((u) => ({
+    const created = await this.createNotifications(
+      users.map((u) => ({
         companyId: u.companyId,
         userId: u.id,
         type: 'ticket.assignment_requested',
@@ -300,9 +349,15 @@ export class NotificationsService {
         entityType: 'Ticket',
         entityId: params.ticketId,
         linkedClientCompanyId: params.ticketCompanyId,
+        dedupeKey: this.notificationDedupeKey(
+          'ticket.assignment_requested',
+          params.sourceEventId || params.ticketId,
+          u.companyId,
+          u.id,
+        ),
       })),
-    });
-    return { ok: true as const, notified: users.length };
+    );
+    return { ok: true as const, notified: created.count };
   }
 
   scheduleTicketStatusAssignee(params: {
@@ -315,6 +370,7 @@ export class NotificationsService {
     fromStatus: TicketStatus;
     toStatus: TicketStatus;
     linkedClientCompanyId: string | null;
+    sourceEventId?: string | null;
   }) {
     void this.safeNotify('ticket.status_changed', () => this.emitTicketStatusChangedForAssignee(params));
   }
@@ -328,6 +384,7 @@ export class NotificationsService {
     summary: string;
     fromStatus: TicketStatus;
     toStatus: TicketStatus;
+    sourceEventId?: string | null;
   }) {
     void this.safeNotify('ticket.status_client', () => this.emitTicketStatusForClientCompanyInternal(params));
   }
@@ -339,6 +396,7 @@ export class NotificationsService {
     ticketNumber: number;
     summary: string;
     fromStatus: TicketStatus;
+    sourceEventId?: string | null;
   }) {
     this.scheduleTicketStatusForClientCompany({
       ...params,
@@ -353,10 +411,175 @@ export class NotificationsService {
     ticketNumber: number;
     summary: string;
     fromStatus: TicketStatus;
+    sourceEventId?: string | null;
   }) {
     this.scheduleTicketStatusForClientCompany({
       ...params,
       toStatus: TicketStatus.DONE,
+    });
+  }
+
+  scheduleTicketCommentAdded(params: {
+    ticketCompanyId: string;
+    ticketId: string;
+    ticketNumber: number;
+    summary: string;
+    actorUserId: string | null;
+    assigneeUserId: string | null;
+    assigneeCompanyId: string | null;
+    sourceEventId?: string | null;
+  }) {
+    void this.safeNotify('ticket.comment_added', () => this.emitTicketCommentAddedInternal(params));
+  }
+
+  scheduleTicketAttachmentUploaded(params: {
+    ticketCompanyId: string;
+    ticketId: string;
+    ticketNumber: number;
+    summary: string;
+    actorUserId: string | null;
+    assigneeUserId: string | null;
+    assigneeCompanyId: string | null;
+    sourceEventId?: string | null;
+  }) {
+    void this.safeNotify('ticket.attachment_uploaded', () => this.emitTicketAttachmentUploadedInternal(params));
+  }
+
+  private async emitTicketCommentAddedInternal(params: {
+    ticketCompanyId: string;
+    ticketId: string;
+    ticketNumber: number;
+    summary: string;
+    actorUserId: string | null;
+    assigneeUserId: string | null;
+    assigneeCompanyId: string | null;
+    sourceEventId?: string | null;
+  }) {
+    const excludeIds = [params.actorUserId, params.assigneeUserId]
+      .filter((value): value is string => !!value && value.length > 0)
+      .filter((value, index, arr) => arr.indexOf(value) === index);
+
+    const users = await this.prisma.user.findMany({
+      where: {
+        companyId: params.ticketCompanyId,
+        isActive: true,
+        role: { in: WATCHER_ROLES },
+        ...(excludeIds.length ? { id: { notIn: excludeIds } } : {}),
+      },
+      select: { id: true, companyId: true },
+    });
+
+    const title = 'Комментарий к заявке';
+    const message = clipMessage(`${ticketLabel(params.ticketNumber)} — ${params.summary}`);
+
+    await this.createNotifications(
+      users.map((u) => ({
+        companyId: u.companyId,
+        userId: u.id,
+        type: 'ticket.comment_added',
+        title,
+        message,
+        entityType: 'Ticket',
+        entityId: params.ticketId,
+        linkedClientCompanyId: null,
+        dedupeKey: this.notificationDedupeKey(
+          'ticket.comment_added.watchers',
+          params.sourceEventId || params.ticketId,
+          u.companyId,
+          u.id,
+        ),
+      })),
+    );
+
+    if (!params.assigneeUserId || !params.assigneeCompanyId) return;
+
+    const linked =
+      params.assigneeCompanyId !== params.ticketCompanyId ? params.ticketCompanyId : null;
+
+    await this.createNotification({
+      companyId: params.assigneeCompanyId,
+      userId: params.assigneeUserId,
+      type: 'ticket.comment_added',
+      title,
+      message,
+      entityType: 'Ticket',
+      entityId: params.ticketId,
+      linkedClientCompanyId: linked,
+      dedupeKey: this.notificationDedupeKey(
+        'ticket.comment_added.assignee',
+        params.sourceEventId || params.ticketId,
+        params.assigneeCompanyId,
+        params.assigneeUserId,
+      ),
+    });
+  }
+
+  private async emitTicketAttachmentUploadedInternal(params: {
+    ticketCompanyId: string;
+    ticketId: string;
+    ticketNumber: number;
+    summary: string;
+    actorUserId: string | null;
+    assigneeUserId: string | null;
+    assigneeCompanyId: string | null;
+    sourceEventId?: string | null;
+  }) {
+    const excludeIds = [params.actorUserId, params.assigneeUserId]
+      .filter((value): value is string => !!value && value.length > 0)
+      .filter((value, index, arr) => arr.indexOf(value) === index);
+
+    const users = await this.prisma.user.findMany({
+      where: {
+        companyId: params.ticketCompanyId,
+        isActive: true,
+        role: { in: WATCHER_ROLES },
+        ...(excludeIds.length ? { id: { notIn: excludeIds } } : {}),
+      },
+      select: { id: true, companyId: true },
+    });
+
+    const title = 'Фото добавлено';
+    const message = clipMessage(`${ticketLabel(params.ticketNumber)} — ${params.summary}`);
+
+    await this.createNotifications(
+      users.map((u) => ({
+        companyId: u.companyId,
+        userId: u.id,
+        type: 'ticket.attachment_uploaded',
+        title,
+        message,
+        entityType: 'Ticket',
+        entityId: params.ticketId,
+        linkedClientCompanyId: null,
+        dedupeKey: this.notificationDedupeKey(
+          'ticket.attachment_uploaded.watchers',
+          params.sourceEventId || params.ticketId,
+          u.companyId,
+          u.id,
+        ),
+      })),
+    );
+
+    if (!params.assigneeUserId || !params.assigneeCompanyId) return;
+
+    const linked =
+      params.assigneeCompanyId !== params.ticketCompanyId ? params.ticketCompanyId : null;
+
+    await this.createNotification({
+      companyId: params.assigneeCompanyId,
+      userId: params.assigneeUserId,
+      type: 'ticket.attachment_uploaded',
+      title,
+      message,
+      entityType: 'Ticket',
+      entityId: params.ticketId,
+      linkedClientCompanyId: linked,
+      dedupeKey: this.notificationDedupeKey(
+        'ticket.attachment_uploaded.assignee',
+        params.sourceEventId || params.ticketId,
+        params.assigneeCompanyId,
+        params.assigneeUserId,
+      ),
     });
   }
 
@@ -366,6 +589,7 @@ export class NotificationsService {
     ticketNumber: number;
     summary: string;
     assignedTechnicianId: string | null;
+    sourceEventId?: string | null;
   }) {
     await this.notifyDispatchersNewTicket({
       watcherCompanyId: params.ticketCompanyId,
@@ -374,6 +598,7 @@ export class NotificationsService {
       ticketNumber: params.ticketNumber,
       summary: params.summary,
       excludeUserIds: [],
+      sourceEventId: params.sourceEventId,
     });
     if (params.assignedTechnicianId) {
       await this.emitTicketAssignedToAssignee({
@@ -384,6 +609,7 @@ export class NotificationsService {
         summary: params.summary,
         actorUserId: null,
         mode: 'auto',
+        sourceEventId: params.sourceEventId,
       });
     }
   }
@@ -397,6 +623,7 @@ export class NotificationsService {
     ticketNumber: number;
     summary: string;
     assignedTechnicianId: string | null;
+    sourceEventId?: string | null;
   }) {
     await this.emitTicketCreatedWatchers(params);
 
@@ -411,6 +638,7 @@ export class NotificationsService {
         summary: params.summary,
         actorUserId: null,
         mode: 'auto',
+        sourceEventId: params.sourceEventId,
       });
     }
   }
@@ -423,6 +651,7 @@ export class NotificationsService {
     ticketId: string;
     ticketNumber: number;
     summary: string;
+    sourceEventId?: string | null;
   }) {
     const scopes = await this.resolveTicketCreatedNotificationScopes({
       actorCompanyId: params.actorCompanyId,
@@ -475,27 +704,11 @@ export class NotificationsService {
     const recipients = Array.from(recipientMap.values());
     if (!recipients.length) return;
 
-    const existing = await this.prisma.notification.findMany({
-      where: {
-        type: 'ticket.created',
-        entityType: 'Ticket',
-        entityId: params.ticketId,
-        OR: recipients.map((recipient) => ({
-          companyId: recipient.companyId,
-          userId: recipient.userId,
-        })),
-      },
-      select: { companyId: true, userId: true },
-    });
-    const existingKeys = new Set(existing.map((row) => `${row.companyId}:${row.userId}`));
-    const freshRecipients = recipients.filter((recipient) => !existingKeys.has(`${recipient.companyId}:${recipient.userId}`));
-    if (!freshRecipients.length) return;
-
     const title = 'Новая заявка';
     const message = clipMessage(`${ticketLabel(params.ticketNumber)} — ${params.summary}`);
 
-    await this.prisma.notification.createMany({
-      data: freshRecipients.map((recipient) => ({
+    await this.createNotifications(
+      recipients.map((recipient) => ({
         companyId: recipient.companyId,
         userId: recipient.userId,
         type: 'ticket.created',
@@ -504,8 +717,14 @@ export class NotificationsService {
         entityType: 'Ticket',
         entityId: params.ticketId,
         linkedClientCompanyId: recipient.linkedClientCompanyId,
+        dedupeKey: this.notificationDedupeKey(
+          'ticket.created.watchers',
+          params.sourceEventId || params.ticketId,
+          recipient.companyId,
+          recipient.userId,
+        ),
       })),
-    });
+    );
   }
 
   private async resolveTicketCreatedNotificationScopes(params: {
@@ -632,6 +851,7 @@ export class NotificationsService {
     ticketId: string;
     ticketNumber: number;
     summary: string;
+    sourceEventId?: string | null;
   }) {
     if (!params.creatorUserId) return;
 
@@ -651,17 +871,21 @@ export class NotificationsService {
       `${ticketLabel(params.ticketNumber)} принята. Следите за статусом в разделе «Мои заявки» и в уведомлениях. ${params.summary}`,
     );
 
-    await this.prisma.notification.create({
-      data: {
-        companyId: notifCompanyId,
-        userId: creator.id,
-        type: 'ticket.created',
-        title,
-        message,
-        entityType: 'Ticket',
-        entityId: params.ticketId,
-        linkedClientCompanyId: linked,
-      },
+    await this.createNotification({
+      companyId: notifCompanyId,
+      userId: creator.id,
+      type: 'ticket.created',
+      title,
+      message,
+      entityType: 'Ticket',
+      entityId: params.ticketId,
+      linkedClientCompanyId: linked,
+      dedupeKey: this.notificationDedupeKey(
+        'ticket.created.creator',
+        params.sourceEventId || params.ticketId,
+        notifCompanyId,
+        creator.id,
+      ),
     });
   }
 
@@ -672,6 +896,7 @@ export class NotificationsService {
     ticketNumber: number;
     summary: string;
     excludeUserIds: string[];
+    sourceEventId?: string | null;
   }) {
     const linked =
       params.watcherCompanyId !== params.ticketCompanyId ? params.ticketCompanyId : null;
@@ -690,8 +915,8 @@ export class NotificationsService {
 
     const title = 'Новая заявка';
     const message = clipMessage(`${ticketLabel(params.ticketNumber)} — ${params.summary}`);
-    await this.prisma.notification.createMany({
-      data: users.map((u) => ({
+    await this.createNotifications(
+      users.map((u) => ({
         companyId: u.companyId,
         userId: u.id,
         type: 'ticket.created',
@@ -700,8 +925,14 @@ export class NotificationsService {
         entityType: 'Ticket',
         entityId: params.ticketId,
         linkedClientCompanyId: linked,
+        dedupeKey: this.notificationDedupeKey(
+          'ticket.created.public',
+          params.sourceEventId || params.ticketId,
+          u.companyId,
+          u.id,
+        ),
       })),
-    });
+    );
   }
 
   private async emitTicketAssignedClientCompanyInternal(params: {
@@ -712,6 +943,7 @@ export class NotificationsService {
     ticketId: string
     ticketNumber: number
     summary: string
+    sourceEventId?: string | null
   }) {
     const excludeIds = [params.assigneeUserId, params.actorUserId].filter((x): x is string => !!x && x.length > 0)
     const users = await this.prisma.user.findMany({
@@ -729,8 +961,8 @@ export class NotificationsService {
     const title = 'Назначен исполнитель'
     const message = clipMessage(`${ticketLabel(params.ticketNumber)} — ${tech}. ${params.summary}`)
 
-    await this.prisma.notification.createMany({
-      data: users.map((u) => ({
+    await this.createNotifications(
+      users.map((u) => ({
         companyId: u.companyId,
         userId: u.id,
         type: 'ticket.assigned',
@@ -739,8 +971,14 @@ export class NotificationsService {
         entityType: 'Ticket',
         entityId: params.ticketId,
         linkedClientCompanyId: null,
+        dedupeKey: this.notificationDedupeKey(
+          'ticket.assigned.client',
+          params.sourceEventId || params.ticketId,
+          u.companyId,
+          u.id,
+        ),
       })),
-    })
+    )
   }
 
   private async emitTicketAssignedToAssignee(params: {
@@ -751,6 +989,7 @@ export class NotificationsService {
     summary: string;
     actorUserId: string | null;
     mode: 'manual' | 'auto' | 'reassign' | 'claim';
+    sourceEventId?: string | null;
   }) {
     if (params.actorUserId && params.actorUserId === params.assigneeUserId) {
       if (params.mode === 'manual' || params.mode === 'reassign') return;
@@ -771,17 +1010,22 @@ export class NotificationsService {
           : 'Вам назначена заявка';
     const message = clipMessage(`${ticketLabel(params.ticketNumber)} — ${params.summary}`);
 
-    await this.prisma.notification.create({
-      data: {
-        companyId: assignee.companyId,
-        userId: assignee.id,
-        type: 'ticket.assigned',
-        title,
-        message,
-        entityType: 'Ticket',
-        entityId: params.ticketId,
-        linkedClientCompanyId: linked,
-      },
+    await this.createNotification({
+      companyId: assignee.companyId,
+      userId: assignee.id,
+      type: 'ticket.assigned',
+      title,
+      message,
+      entityType: 'Ticket',
+      entityId: params.ticketId,
+      linkedClientCompanyId: linked,
+      dedupeKey: this.notificationDedupeKey(
+        'ticket.assigned.assignee',
+        params.sourceEventId || params.ticketId,
+        assignee.companyId,
+        assignee.id,
+        params.mode,
+      ),
     });
   }
 
@@ -793,6 +1037,7 @@ export class NotificationsService {
     summary: string;
     excludeUserId: string;
     linkedHint?: string | null;
+    sourceEventId?: string | null;
   }) {
     const linkedResolved =
       params.linkedHint ??
@@ -811,8 +1056,8 @@ export class NotificationsService {
 
     const title = 'Заявку забрал исполнитель';
     const message = clipMessage(`${ticketLabel(params.ticketNumber)} — ${params.summary}`);
-    await this.prisma.notification.createMany({
-      data: users.map((u) => ({
+    await this.createNotifications(
+      users.map((u) => ({
         companyId: u.companyId,
         userId: u.id,
         type: 'ticket.claimed',
@@ -821,8 +1066,14 @@ export class NotificationsService {
         entityType: 'Ticket',
         entityId: params.ticketId,
         linkedClientCompanyId: linkedResolved,
+        dedupeKey: this.notificationDedupeKey(
+          'ticket.claimed',
+          params.sourceEventId || params.ticketId,
+          u.companyId,
+          u.id,
+        ),
       })),
-    });
+    );
   }
 
   private async emitTicketStatusForClientCompanyInternal(params: {
@@ -833,6 +1084,7 @@ export class NotificationsService {
     summary: string;
     fromStatus: TicketStatus;
     toStatus: TicketStatus;
+    sourceEventId?: string | null;
   }) {
     if (params.fromStatus === params.toStatus) return;
     if (params.toStatus !== TicketStatus.IN_PROGRESS && params.toStatus !== TicketStatus.DONE) return;
@@ -877,8 +1129,8 @@ export class NotificationsService {
     }
     const message = clipMessage(`${body} ${params.summary}`.trim());
 
-    await this.prisma.notification.createMany({
-      data: users.map((u) => ({
+    await this.createNotifications(
+      users.map((u) => ({
         companyId: u.companyId,
         userId: u.id,
         type: notificationType,
@@ -887,8 +1139,14 @@ export class NotificationsService {
         entityType: 'Ticket',
         entityId: params.ticketId,
         linkedClientCompanyId: null,
+        dedupeKey: this.notificationDedupeKey(
+          notificationType,
+          params.sourceEventId || params.ticketId,
+          u.companyId,
+          u.id,
+        ),
       })),
-    });
+    );
   }
 
   private async emitTicketStatusChangedForAssignee(params: {
@@ -901,6 +1159,7 @@ export class NotificationsService {
     fromStatus: TicketStatus;
     toStatus: TicketStatus;
     linkedClientCompanyId: string | null;
+    sourceEventId?: string | null;
   }) {
     if (params.actorUserId && params.actorUserId === params.assigneeUserId) {
       return;
@@ -920,17 +1179,23 @@ export class NotificationsService {
       `${ticketLabel(params.ticketNumber)} — ${STATUS_RU[params.fromStatus]} → ${STATUS_RU[params.toStatus]}. ${params.summary}`,
     );
 
-    await this.prisma.notification.create({
-      data: {
-        companyId: assignee.companyId,
-        userId: assignee.id,
-        type: 'ticket.status_changed',
-        title,
-        message,
-        entityType: 'Ticket',
-        entityId: params.ticketId,
-        linkedClientCompanyId: linked,
-      },
+    await this.createNotification({
+      companyId: assignee.companyId,
+      userId: assignee.id,
+      type: 'ticket.status_changed',
+      title,
+      message,
+      entityType: 'Ticket',
+      entityId: params.ticketId,
+      linkedClientCompanyId: linked,
+      dedupeKey: this.notificationDedupeKey(
+        'ticket.status_changed.assignee',
+        params.sourceEventId || params.ticketId,
+        assignee.companyId,
+        assignee.id,
+        params.fromStatus,
+        params.toStatus,
+      ),
     });
   }
 }

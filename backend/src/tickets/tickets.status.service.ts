@@ -164,7 +164,7 @@ export class TicketsStatusService {
         comment: dto.comment ?? null,
       });
 
-      await this.timelineService.recordTx(tx, {
+      const statusEvent = await this.timelineService.recordTx(tx, {
         event: 'STATUS_CHANGED',
         companyId: ticket.companyId,
         ticketId,
@@ -177,8 +177,8 @@ export class TicketsStatusService {
         },
       });
 
-      if (dto.comment?.trim()) {
-        await this.timelineService.recordTx(tx, {
+      const commentEvent = dto.comment?.trim()
+        ? await this.timelineService.recordTx(tx, {
           event: 'COMMENT_ADDED',
           companyId: ticket.companyId,
           ticketId,
@@ -189,10 +189,10 @@ export class TicketsStatusService {
             toStatus,
             source: 'status_change',
           },
-        });
-      }
+        })
+        : null;
 
-      return { updated, fromStatus, toStatus };
+      return { updated, fromStatus, toStatus, statusEventId: statusEvent.id, commentEventId: commentEvent?.id ?? null };
     });
 
     const summaryParts = [(dto.comment || '').trim(), (statusResult.updated.problemText || '').trim()].filter(Boolean);
@@ -218,6 +218,7 @@ export class TicketsStatusService {
         fromStatus: statusResult.fromStatus,
         toStatus: statusResult.toStatus,
         linkedClientCompanyId: linkedScope,
+        sourceEventId: statusResult.statusEventId,
       });
     }
 
@@ -230,6 +231,7 @@ export class TicketsStatusService {
           ticketNumber: statusResult.updated.ticketNumber,
           summary: summaryLine,
           fromStatus: statusResult.fromStatus,
+          sourceEventId: statusResult.statusEventId,
         });
       } else if (statusResult.toStatus === TicketStatus.DONE) {
         this.notifications.onTicketDone({
@@ -239,8 +241,28 @@ export class TicketsStatusService {
           ticketNumber: statusResult.updated.ticketNumber,
           summary: summaryLine,
           fromStatus: statusResult.fromStatus,
+          sourceEventId: statusResult.statusEventId,
         });
       }
+    }
+
+    if (statusResult.commentEventId && dto.comment?.trim()) {
+      const assignee = statusResult.updated.assignedTechnicianId
+        ? await this.prisma.user.findUnique({
+            where: { id: statusResult.updated.assignedTechnicianId },
+            select: { companyId: true },
+          })
+        : null;
+      this.notifications.scheduleTicketCommentAdded({
+        ticketCompanyId: statusResult.updated.companyId,
+        ticketId,
+        ticketNumber: statusResult.updated.ticketNumber,
+        summary: dto.comment.trim(),
+        actorUserId: user?.id ?? null,
+        assigneeUserId: statusResult.updated.assignedTechnicianId,
+        assigneeCompanyId: assignee?.companyId ?? null,
+        sourceEventId: statusResult.commentEventId,
+      });
     }
 
     return statusResult.updated;
@@ -272,7 +294,7 @@ export class TicketsStatusService {
       linkedClientCompanyId,
     });
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const ticket = await tx.ticket.findFirst({
         where: { id: ticketId, companyId: access.ticket.companyId },
       });
@@ -287,7 +309,7 @@ export class TicketsStatusService {
       });
       assertAllowed(decision);
 
-      await this.timelineService.recordTx(tx, {
+      const commentEvent = await this.timelineService.recordTx(tx, {
         event: 'COMMENT_ADDED',
         companyId: ticket.companyId,
         ticketId,
@@ -306,7 +328,32 @@ export class TicketsStatusService {
         comment,
       });
 
-      return { ok: true };
+      return {
+        ok: true,
+        ticketCompanyId: ticket.companyId,
+        ticketNumber: ticket.ticketNumber,
+        assignedTechnicianId: ticket.assignedTechnicianId,
+        sourceEventId: commentEvent.id,
+      };
     });
+
+    const assignee = result.assignedTechnicianId
+      ? await this.prisma.user.findUnique({
+          where: { id: result.assignedTechnicianId },
+          select: { companyId: true },
+        })
+      : null;
+    this.notifications.scheduleTicketCommentAdded({
+      ticketCompanyId: result.ticketCompanyId,
+      ticketId,
+      ticketNumber: result.ticketNumber,
+      summary: comment,
+      actorUserId: user?.id ?? null,
+      assigneeUserId: result.assignedTechnicianId,
+      assigneeCompanyId: assignee?.companyId ?? null,
+      sourceEventId: result.sourceEventId,
+    });
+
+    return { ok: true };
   }
 }

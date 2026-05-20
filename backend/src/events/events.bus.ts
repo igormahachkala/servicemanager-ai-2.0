@@ -40,7 +40,7 @@ function toCreateData(ev: DomainEvent, createdAt: Date) {
 export async function emitDomainEventTx(tx: Prisma.TransactionClient, ev: DomainEvent) {
   const createdAt = ev.createdAt ?? new Date();
 
-  await tx.domainEvent.create({
+  return tx.domainEvent.create({
     data: toCreateData(ev, createdAt),
   });
 
@@ -57,7 +57,7 @@ export async function emitDomainEventTx(tx: Prisma.TransactionClient, ev: Domain
 export function emitDomainEvent(ev: DomainEvent) {
   const createdAt = ev.createdAt ?? new Date();
 
-  prisma.domainEvent
+  const created = prisma.domainEvent
     .create({
       data: toCreateData(ev, createdAt),
     })
@@ -70,4 +70,6 @@ export function emitDomainEvent(ev: DomainEvent) {
     // eslint-disable-next-line no-console
     console.log('[domain_event]', { ...ev, createdAt: createdAt.toISOString() });
   }
+
+  return created;
 }
