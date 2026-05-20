@@ -300,7 +300,11 @@ button.ghost {
 .mobileMenuBtn { display: none; }
 .mobileBackdrop { display: none; }
 
-.contentMain { padding: 18px; }
+.contentMain {
+  padding: 18px;
+  flex: 1 1 auto;
+  min-width: 0;
+}
 .contentMain > * { min-width: 0; }
 
 /* ===== BOARD ===== */
@@ -308,13 +312,15 @@ button.ghost {
 .row { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: var(--ui-space-2); gap: var(--ui-space-1); }
 
 .kanban {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(220px, 1fr));
+  display: flex;
+  align-items: flex-start;
   gap: 12px;
   overflow-x: auto;
-  padding-bottom: 6px;
+  padding-bottom: 8px;
+  width: 100%;
 }
 .col {
+  flex: 0 0 280px;
   background: #fff;
   border: 1px solid #e6e8f0;
   border-radius: 14px;
@@ -850,7 +856,7 @@ button.ghost {
   }
 
   .kanban {
-    grid-template-columns: 1fr;
+    flex-direction: column;
     overflow-x: visible;
   }
 
