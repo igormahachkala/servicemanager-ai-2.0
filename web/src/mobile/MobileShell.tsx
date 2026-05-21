@@ -174,6 +174,8 @@ export function MobileShell() {
 
   const unread = notifQ.data?.unreadCount ?? 0
 
+  const isOnTicketDetail = location.pathname.startsWith('/m/tickets/')
+
   return (
     <div className="mobileShell">
       <header className="mobileTopBar" aria-label="Действия">
@@ -206,6 +208,7 @@ export function MobileShell() {
                   className="mobileProviderContextSelect"
                   value={selectedLinkedClientCompanyId}
                   onChange={(e) => updateProviderScope(e.target.value)}
+                  disabled={isOnTicketDetail}
                 >
                   <option value="">Выберите клиента</option>
                   {linkedClients.map((item) => (
@@ -215,7 +218,9 @@ export function MobileShell() {
                   ))}
                 </select>
                 <div className="mobileProviderContextHint">
-                  Контекст применяется к доске, созданию заявки и карточкам заявок.
+                  {isOnTicketDetail
+                    ? 'Сменить клиента можно с главной страницы.'
+                    : 'Контекст применяется к доске, созданию заявки и карточкам заявок.'}
                 </div>
               </>
             ) : (
