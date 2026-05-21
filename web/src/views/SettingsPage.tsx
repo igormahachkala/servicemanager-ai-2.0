@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { BrowserNotificationsCard } from '../components/BrowserNotificationsCard'
 import * as api from '../lib/api'
 
 function roleLabel(role?: string) {
@@ -130,6 +131,10 @@ export function SettingsPage() {
           Редактирование профиля компании, правила SLA, настройки ролей, специализации техников, загрузку логотипа и параметры
           уведомлений.
         </div>
+      </div>
+
+      <div className="panel" style={{ marginTop: 12 }}>
+        <BrowserNotificationsCard />
       </div>
     </div>
   )

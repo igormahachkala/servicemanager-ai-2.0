@@ -2,6 +2,11 @@ import { useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
+import {
+  canUseBrowserNotifications,
+  getBrowserNotificationsEnabled,
+  showBrowserNotification,
+} from '../lib/browserNotifications'
 import { pushRichToast } from '../lib/appToast'
 import { shouldShowNotificationToast, type WsNotifMsg } from '../lib/realtimeNotificationToast'
 
@@ -37,6 +42,22 @@ export function useRealtimeNotifications(ticketBasePath = '/m/tickets/') {
         title,
         body: href ? 'Нажмите, чтобы открыть заявку' : undefined,
         tone: 'info',
+        onClick: href
+          ? () => {
+              api.markNotificationRead(notificationId).catch(() => {})
+              qc.invalidateQueries({ queryKey: ['mobile-notifications'] })
+              navigate(href!)
+            }
+          : undefined,
+      })
+
+      if (!canUseBrowserNotifications()) return
+      if (!getBrowserNotificationsEnabled()) return
+      if (Notification.permission !== 'granted') return
+
+      showBrowserNotification({
+        title,
+        body: href ? 'Нажмите, чтобы открыть заявку' : undefined,
         onClick: href
           ? () => {
               api.markNotificationRead(notificationId).catch(() => {})

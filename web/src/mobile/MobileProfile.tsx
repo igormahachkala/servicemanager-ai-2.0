@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useLocation } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { BrowserNotificationsCard } from '../components/BrowserNotificationsCard'
 import { SupportContactBlock } from '../components/SupportContactBlock'
 import * as api from '../lib/api'
 
@@ -81,6 +82,12 @@ export function MobileProfile() {
       {meQ.isError ? <div className="mobileNotice mobileNoticeError">{String((meQ.error as any)?.message || meQ.error)}</div> : null}
 
       <div className="mobileCard">
+        <BrowserNotificationsCard
+          className="mobileSection"
+          title="Браузерные уведомления"
+          description="Системные уведомления для realtime-событий, пока приложение открыто."
+        />
+
         <div className="mobileSection" style={{ gap: 8 }}>
           <div className="mobileRow">
             <span className="mobileMeta">Пользователь</span>
