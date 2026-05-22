@@ -1,5 +1,5 @@
 ﻿import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
-import { UserRole } from '@prisma/client'
+import { CompanyType, UserRole } from '@prisma/client'
 
 import { PrismaService } from '../prisma/prisma.service'
 import { resolveObserverScopeCompanyId } from '../policy/policy.utils'
@@ -14,6 +14,8 @@ type ListInput = {
 
 @Injectable()
 export class LocationsService {
+  private readonly clientLeadershipRoles = new Set<UserRole>([UserRole.ADMIN, UserRole.NETWORK_DIRECTOR])
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly serviceContractsService: ServiceContractsService,
@@ -21,15 +23,7 @@ export class LocationsService {
 
   async list(actorCompanyId: string, actorRole: UserRole, actorUserId: string, input: ListInput, requestedCompanyId?: string) {
     const companyId = await this.resolveReadableCompanyId(actorCompanyId, actorRole, requestedCompanyId)
-    const locationScope = await resolveActorLocationScope({
-      prisma: this.prisma,
-      actor: {
-        id: actorUserId,
-        role: actorRole,
-        companyId: actorCompanyId,
-      },
-      scopeCompanyId: companyId,
-    })
+    const locationScope = await this.resolveLocationScope(actorCompanyId, actorRole, actorUserId, companyId)
     const q = input.q?.trim()
     const city = input.city?.trim()
 
@@ -82,15 +76,7 @@ export class LocationsService {
 
   async getOne(actorCompanyId: string, actorRole: UserRole, actorUserId: string, id: string, requestedCompanyId?: string) {
     const companyId = await this.resolveReadableCompanyId(actorCompanyId, actorRole, requestedCompanyId)
-    const locationScope = await resolveActorLocationScope({
-      prisma: this.prisma,
-      actor: {
-        id: actorUserId,
-        role: actorRole,
-        companyId: actorCompanyId,
-      },
-      scopeCompanyId: companyId,
-    })
+    const locationScope = await this.resolveLocationScope(actorCompanyId, actorRole, actorUserId, companyId)
     const location = await this.prisma.location.findFirst({
       where: {
         id,
@@ -328,6 +314,36 @@ export class LocationsService {
     }
     await this.serviceContractsService.assertPrimaryLinkedClientAccess(actorCompanyId, requested)
     return requested
+  }
+
+  private async resolveLocationScope(
+    actorCompanyId: string,
+    actorRole: UserRole,
+    actorUserId: string,
+    scopeCompanyId: string,
+  ) {
+    const actorCompany = await this.prisma.company.findUnique({
+      where: { id: actorCompanyId },
+      select: { type: true },
+    })
+
+    if (
+      scopeCompanyId === actorCompanyId &&
+      actorCompany?.type === CompanyType.CLIENT &&
+      this.clientLeadershipRoles.has(actorRole)
+    ) {
+      return { mode: 'tenant_wide' as const, locationIds: [] as string[] }
+    }
+
+    return resolveActorLocationScope({
+      prisma: this.prisma,
+      actor: {
+        id: actorUserId,
+        role: actorRole,
+        companyId: actorCompanyId,
+      },
+      scopeCompanyId,
+    })
   }
 
   private async ensureExists(companyId: string, id: string) {
