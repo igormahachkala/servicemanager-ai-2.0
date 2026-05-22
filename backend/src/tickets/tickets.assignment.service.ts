@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { Prisma, PublicRequestType, TicketPriority, TicketSource, TicketStatus, TicketUrgency, UserRole } from '@prisma/client';
+import { CompanyType, Prisma, PublicRequestType, TicketPriority, TicketSource, TicketStatus, TicketUrgency, UserRole } from '@prisma/client';
 import { randomUUID } from 'crypto';
 
 import { PrismaService } from '../prisma/prisma.service';
@@ -99,6 +99,47 @@ export class TicketsAssignmentService {
     if (!actorCompany) {
       throw new NotFoundException('Company not found');
     }
+  }
+
+  private async canUseOwnClientLocationsForScope(actorCompanyId: string, actorRole: UserRole, scopeCompanyId: string) {
+    if (scopeCompanyId !== actorCompanyId) return false;
+    if (actorRole !== UserRole.ADMIN && actorRole !== UserRole.NETWORK_DIRECTOR) return false;
+
+    const company = await this.prisma.company.findUnique({
+      where: { id: actorCompanyId },
+      select: { type: true },
+    });
+
+    return company?.type === CompanyType.CLIENT;
+  }
+
+  private async assertActorCanUseLocationForScope(params: {
+    actor: { id: string; role: UserRole; companyId: string; accessFlags?: any }
+    scopeCompanyId: string
+    locationId: string
+  }) {
+    if (await this.canUseOwnClientLocationsForScope(params.actor.companyId, params.actor.role, params.scopeCompanyId)) {
+      const location = await this.prisma.location.findFirst({
+        where: {
+          id: params.locationId,
+          clientCompanyId: params.scopeCompanyId,
+          isActive: true,
+        },
+        select: { id: true },
+      });
+
+      if (!location) {
+        throw new NotFoundException('Location not found');
+      }
+      return;
+    }
+
+    await assertActorCanUseLocation({
+      prisma: this.prisma,
+      actor: params.actor,
+      scopeCompanyId: params.scopeCompanyId,
+      locationId: params.locationId,
+    });
   }
 
   private async getCategory(companyId: string, problemCategoryId: string) {
@@ -409,8 +450,7 @@ export class TicketsAssignmentService {
     }
     const assignmentCompanyId =
       creatorRole === UserRole.TECHNICIAN && targetCompanyId !== actorCompanyId ? actorCompanyId : targetCompanyId;
-    await assertActorCanUseLocation({
-      prisma: this.prisma,
+    await this.assertActorCanUseLocationForScope({
       actor: {
         id: creatorUserId,
         role: creatorRole,
@@ -1307,8 +1347,7 @@ export class TicketsAssignmentService {
       }
 
       if (normalizedLocationId) {
-        await assertActorCanUseLocation({
-          prisma: this.prisma,
+        await this.assertActorCanUseLocationForScope({
           actor: {
             id: actor.id,
             role: actor.role,
