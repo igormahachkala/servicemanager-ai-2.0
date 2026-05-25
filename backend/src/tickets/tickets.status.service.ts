@@ -199,6 +199,16 @@ export class TicketsStatusService {
     const summaryClip = (summaryParts[0] || summaryParts[1] || '').slice(0, 200);
     const summaryLine = summaryClip || `Заявка #${statusResult.updated.ticketNumber}`;
 
+    if (statusResult.fromStatus !== statusResult.toStatus) {
+      this.notifications.scheduleTicketStatusChanged({
+        ticketId,
+        ticketNumber: statusResult.updated.ticketNumber,
+        fromStatus: statusResult.fromStatus,
+        toStatus: statusResult.toStatus,
+        sourceEventId: statusResult.statusEventId,
+      });
+    }
+
     if (
       statusResult.fromStatus !== statusResult.toStatus &&
       statusResult.updated.assignedTechnicianId &&

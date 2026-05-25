@@ -24,6 +24,7 @@ import { ServiceContractsModule } from './service-contracts/service-contracts.mo
 import { InspectionModule } from './inspection/inspection.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { UploadsModule } from './uploads/uploads.module';
+import { MaxBotModule } from './max-bot/max-bot.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { UploadsModule } from './uploads/uploads.module';
     InspectionModule,
     RealtimeModule,
     UploadsModule,
+    MaxBotModule,
   ],
   controllers: [AppController, HealthController],
   providers: [AppService],

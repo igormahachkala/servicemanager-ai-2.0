@@ -9,6 +9,7 @@ import {
 } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { MaxBotService } from '../max-bot/max-bot.service';
 
 const WATCHER_ROLES: UserRole[] = [
   UserRole.ADMIN,
@@ -74,7 +75,10 @@ function clipMessage(text: string, max = 400) {
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly maxBot: MaxBotService,
+  ) {}
 
   /**
    * Список уведомлений только для пары (JWT companyId, JWT userId) — без кросс-тенанта и чужих userId.
@@ -172,11 +176,84 @@ export class NotificationsService {
     });
   }
 
+  private formatUserLabel(user?: { email?: string | null; firstName?: string | null; lastName?: string | null } | null) {
+    if (!user) return 'Исполнитель';
+    const namePart = [user.firstName, user.lastName]
+      .map((value) => (typeof value === 'string' ? value.trim() : ''))
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+    return namePart || (user.email || '').trim() || 'Исполнитель';
+  }
+
+  private async resolveUserLabel(userId: string) {
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, isActive: true },
+      select: { email: true, firstName: true, lastName: true },
+    });
+    return this.formatUserLabel(user);
+  }
+
+  private async sendMaxTicketCreated(params: {
+    ticketId: string;
+    ticketNumber: number;
+    pointName?: string | null;
+    address?: string | null;
+    categoryName?: string | null;
+    urgency?: string | null;
+  }) {
+    await this.maxBot.sendTicketCreatedMessage(params);
+  }
+
+  private async sendMaxTicketAssigned(params: {
+    ticketId: string;
+    ticketNumber: number;
+    technicianUserId: string;
+  }) {
+    const technicianLabel = await this.resolveUserLabel(params.technicianUserId);
+    await this.maxBot.sendTicketAssignedMessage({
+      ticketId: params.ticketId,
+      ticketNumber: params.ticketNumber,
+      technicianLabel,
+    });
+  }
+
+  private async sendMaxTicketClaimed(params: {
+    ticketId: string;
+    ticketNumber: number;
+    technicianUserId: string;
+  }) {
+    const technicianLabel = await this.resolveUserLabel(params.technicianUserId);
+    await this.maxBot.sendTicketClaimedMessage({
+      ticketId: params.ticketId,
+      ticketNumber: params.ticketNumber,
+      technicianLabel,
+    });
+  }
+
+  private async sendMaxTicketStatusChanged(params: {
+    ticketId: string;
+    ticketNumber: number;
+    fromStatus: TicketStatus;
+    toStatus: TicketStatus;
+  }) {
+    await this.maxBot.sendTicketStatusChangedMessage({
+      ticketId: params.ticketId,
+      ticketNumber: params.ticketNumber,
+      fromStatus: params.fromStatus,
+      toStatus: params.toStatus,
+    });
+  }
+
   scheduleTicketCreated(params: {
     actorCompanyId: string;
     creatorUserId: string | null;
     targetCompanyId: string;
     locationId: string;
+    locationName?: string | null;
+    locationAddress?: string | null;
+    categoryName?: string | null;
+    urgency?: string | null;
     ticketId: string;
     ticketNumber: number;
     summary: string;
@@ -184,6 +261,16 @@ export class NotificationsService {
     sourceEventId?: string | null;
   }) {
     void this.safeNotify('ticket.created+assign', () => this.emitTicketCreatedAndMaybeAssign(params));
+    void this.safeNotify('max.ticket.created', () =>
+      this.sendMaxTicketCreated({
+        ticketId: params.ticketId,
+        ticketNumber: params.ticketNumber,
+        pointName: params.locationName,
+        address: params.locationAddress,
+        categoryName: params.categoryName,
+        urgency: params.urgency,
+      }),
+    );
   }
 
   onTicketCreated(params: {
@@ -191,6 +278,10 @@ export class NotificationsService {
     creatorUserId: string | null;
     targetCompanyId: string;
     locationId: string;
+    locationName?: string | null;
+    locationAddress?: string | null;
+    categoryName?: string | null;
+    urgency?: string | null;
     ticketId: string;
     ticketNumber: number;
     summary: string;
@@ -202,6 +293,10 @@ export class NotificationsService {
 
   scheduleTicketCreatedPublic(params: {
     ticketCompanyId: string;
+    locationName?: string | null;
+    locationAddress?: string | null;
+    categoryName?: string | null;
+    urgency?: string | null;
     ticketId: string;
     ticketNumber: number;
     summary: string;
@@ -209,12 +304,26 @@ export class NotificationsService {
     sourceEventId?: string | null;
   }) {
     void this.safeNotify('ticket.created.public', () => this.emitTicketCreatedPublicInternal(params));
+    void this.safeNotify('max.ticket.created.public', () =>
+      this.sendMaxTicketCreated({
+        ticketId: params.ticketId,
+        ticketNumber: params.ticketNumber,
+        pointName: params.locationName,
+        address: params.locationAddress,
+        categoryName: params.categoryName,
+        urgency: params.urgency,
+      }),
+    );
   }
 
   scheduleTicketCreatedChild(params: {
     companyId: string;
     creatorUserId: string | null;
     locationId: string;
+    locationName?: string | null;
+    locationAddress?: string | null;
+    categoryName?: string | null;
+    urgency?: string | null;
     ticketId: string;
     ticketNumber: number;
     summary: string;
@@ -234,6 +343,16 @@ export class NotificationsService {
         sourceEventId: params.sourceEventId,
       }),
     );
+    void this.safeNotify('max.ticket.created.child', () =>
+      this.sendMaxTicketCreated({
+        ticketId: params.ticketId,
+        ticketNumber: params.ticketNumber,
+        pointName: params.locationName,
+        address: params.locationAddress,
+        categoryName: params.categoryName,
+        urgency: params.urgency,
+      }),
+    );
   }
 
   scheduleTicketAssignedToTechnician(params: {
@@ -247,6 +366,13 @@ export class NotificationsService {
     sourceEventId?: string | null;
   }) {
     void this.safeNotify('ticket.assigned', () => this.emitTicketAssignedToAssignee(params));
+    void this.safeNotify('max.ticket.assigned', () =>
+      this.sendMaxTicketAssigned({
+        ticketId: params.ticketId,
+        ticketNumber: params.ticketNumber,
+        technicianUserId: params.assigneeUserId,
+      }),
+    );
   }
 
   /**
@@ -290,6 +416,13 @@ export class NotificationsService {
     sourceEventId?: string | null;
   }) {
     void this.safeNotify('ticket.claimed', () => this.emitTicketClaimedDispatchersInternal(params));
+    void this.safeNotify('max.ticket.claimed', () =>
+      this.sendMaxTicketClaimed({
+        ticketId: params.ticketId,
+        ticketNumber: params.ticketNumber,
+        technicianUserId: params.excludeUserId,
+      }),
+    );
   }
 
   /**
@@ -373,6 +506,23 @@ export class NotificationsService {
     sourceEventId?: string | null;
   }) {
     void this.safeNotify('ticket.status_changed', () => this.emitTicketStatusChangedForAssignee(params));
+  }
+
+  scheduleTicketStatusChanged(params: {
+    ticketId: string;
+    ticketNumber: number;
+    fromStatus: TicketStatus;
+    toStatus: TicketStatus;
+    sourceEventId?: string | null;
+  }) {
+    void this.safeNotify('max.ticket.status_changed', () =>
+      this.sendMaxTicketStatusChanged({
+        ticketId: params.ticketId,
+        ticketNumber: params.ticketNumber,
+        fromStatus: params.fromStatus,
+        toStatus: params.toStatus,
+      }),
+    );
   }
 
   /** Уведомления операторам клиентского tenant о смене статуса (работы начаты / завершены). */
