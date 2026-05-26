@@ -24,6 +24,9 @@ type SendMessageParams = {
 type TicketCreatedMessageParams = {
   ticketId: string;
   ticketNumber: number;
+  requesterLabel?: string | null;
+  requesterPhone?: string | null;
+  description?: string | null;
   pointName?: string | null;
   address?: string | null;
   categoryName?: string | null;
@@ -125,9 +128,34 @@ export class MaxBotService {
     }
   }
 
-  private clip(text: string, max = 900) {
+  private clip(text: string, max = 1200) {
     const normalized = (text || '').trim();
     if (normalized.length <= max) return normalized;
+    return `${normalized.slice(0, max - 1)}…`;
+  }
+
+  private normalizeSingleLine(value?: string | null) {
+    const normalized = (value || '').replace(/\s+/g, ' ').trim();
+    return normalized.length > 0 ? normalized : null;
+  }
+
+  private normalizeMultiline(value?: string | null, max = 650) {
+    const normalized = (value || '')
+      .replace(/\r\n?/g, '\n')
+      .split('\n')
+      .map((line) => line.trim())
+      .join('\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+
+    if (!normalized) {
+      return null;
+    }
+
+    if (normalized.length <= max) {
+      return normalized;
+    }
+
     return `${normalized.slice(0, max - 1)}…`;
   }
 
@@ -176,6 +204,11 @@ export class MaxBotService {
     const lines = ['🆕 Новая заявка'];
     lines.push(`Заявка: ${this.formatShortTicketLabel(params.ticketNumber, params.ticketId)}`);
 
+    const requester = this.normalizeSingleLine(params.requesterLabel) || 'Не указан';
+    const phone = this.normalizeSingleLine(params.requesterPhone) || 'Не указан';
+    lines.push(`Отправитель: ${requester}`);
+    lines.push(`Телефон: ${phone}`);
+
     const point = (params.pointName || '').trim() || (params.address || '').trim();
     if (point) {
       lines.push(`Точка: ${point}`);
@@ -188,9 +221,14 @@ export class MaxBotService {
       lines.push(`Срочность: ${urgency}`);
     }
 
+    lines.push('Комментарий:');
+    const comment = this.normalizeMultiline(params.description) || 'Комментарий отсутствует';
+    lines.push(`"${comment}"`);
+
     const link = this.buildTicketLink(params.ticketId);
     if (link) {
-      lines.push(`Открыть: ${link}`);
+      lines.push(`Открыть:`);
+      lines.push(link);
     }
 
     return this.sendOperationalMessage(this.clip(lines.join('\n')));

@@ -150,6 +150,9 @@ describe('MaxBotService', () => {
     await service.sendTicketCreatedMessage({
       ticketId: 'ticket-123',
       ticketNumber: 123,
+      requesterLabel: 'Иван Петров',
+      requesterPhone: '+7 999 123-45-67',
+      description: '  Не работает вывеска\n\nТребуется проверить  ',
       pointName: 'Уфа 1',
       address: 'ул. Ленина, 1',
       categoryName: 'Электрика',
@@ -170,7 +173,16 @@ describe('MaxBotService', () => {
     const calls = (global.fetch as jest.Mock).mock.calls;
     expect(calls[0][0]).toBe('https://platform-api.max.ru/messages?chat_id=-75137613795359');
     expect(JSON.parse(calls[0][1].body)).toMatchObject({
-      text: expect.stringContaining('http://194.67.101.37:4173/m/tickets/ticket-123'),
+      text: expect.stringContaining('Отправитель: Иван Петров'),
+    });
+    expect(JSON.parse(calls[0][1].body)).toMatchObject({
+      text: expect.stringContaining('Телефон: +7 999 123-45-67'),
+    });
+    expect(JSON.parse(calls[0][1].body)).toMatchObject({
+      text: expect.stringContaining('Комментарий:\n"Не работает вывеска\n\nТребуется проверить"'),
+    });
+    expect(JSON.parse(calls[0][1].body)).toMatchObject({
+      text: expect.stringContaining('Открыть:\nhttp://194.67.101.37:4173/m/tickets/ticket-123'),
     });
     expect(JSON.parse(calls[1][1].body)).toMatchObject({
       text: expect.stringContaining('Исполнитель: Иван Иванов / ivan@test.local'),

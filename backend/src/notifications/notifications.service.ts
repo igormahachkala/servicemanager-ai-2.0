@@ -194,15 +194,47 @@ export class NotificationsService {
     return this.formatUserLabel(user);
   }
 
+  private async resolveCompanyPhone(companyId: string) {
+    const company = await this.prisma.company.findFirst({
+      where: { id: companyId },
+      select: { phone: true },
+    });
+    return company?.phone?.trim() || null;
+  }
+
   private async sendMaxTicketCreated(params: {
     ticketId: string;
     ticketNumber: number;
+    targetCompanyId: string;
+    creatorUserId: string | null;
+    requesterName?: string | null;
+    requesterPhone?: string | null;
+    description?: string | null;
     pointName?: string | null;
     address?: string | null;
     categoryName?: string | null;
     urgency?: string | null;
   }) {
-    await this.maxBot.sendTicketCreatedMessage(params);
+    const [requesterLabel, fallbackPhone] = await Promise.all([
+      params.requesterName?.trim()
+        ? Promise.resolve(params.requesterName.trim())
+        : params.creatorUserId
+          ? this.resolveUserLabel(params.creatorUserId)
+          : Promise.resolve('Не указан'),
+      this.resolveCompanyPhone(params.targetCompanyId),
+    ]);
+
+    await this.maxBot.sendTicketCreatedMessage({
+      ticketId: params.ticketId,
+      ticketNumber: params.ticketNumber,
+      requesterLabel,
+      requesterPhone: params.requesterPhone?.trim() || fallbackPhone || null,
+      description: params.description,
+      pointName: params.pointName,
+      address: params.address,
+      categoryName: params.categoryName,
+      urgency: params.urgency,
+    });
   }
 
   private async sendMaxTicketAssigned(params: {
@@ -254,6 +286,9 @@ export class NotificationsService {
     locationAddress?: string | null;
     categoryName?: string | null;
     urgency?: string | null;
+    requesterName?: string | null;
+    requesterPhone?: string | null;
+    description?: string | null;
     ticketId: string;
     ticketNumber: number;
     summary: string;
@@ -265,6 +300,11 @@ export class NotificationsService {
       this.sendMaxTicketCreated({
         ticketId: params.ticketId,
         ticketNumber: params.ticketNumber,
+        targetCompanyId: params.targetCompanyId,
+        creatorUserId: params.creatorUserId,
+        requesterName: params.requesterName,
+        requesterPhone: params.requesterPhone,
+        description: params.description,
         pointName: params.locationName,
         address: params.locationAddress,
         categoryName: params.categoryName,
@@ -282,6 +322,9 @@ export class NotificationsService {
     locationAddress?: string | null;
     categoryName?: string | null;
     urgency?: string | null;
+    requesterName?: string | null;
+    requesterPhone?: string | null;
+    description?: string | null;
     ticketId: string;
     ticketNumber: number;
     summary: string;
@@ -297,6 +340,9 @@ export class NotificationsService {
     locationAddress?: string | null;
     categoryName?: string | null;
     urgency?: string | null;
+    requesterName?: string | null;
+    requesterPhone?: string | null;
+    description?: string | null;
     ticketId: string;
     ticketNumber: number;
     summary: string;
@@ -308,6 +354,11 @@ export class NotificationsService {
       this.sendMaxTicketCreated({
         ticketId: params.ticketId,
         ticketNumber: params.ticketNumber,
+        targetCompanyId: params.ticketCompanyId,
+        creatorUserId: null,
+        requesterName: params.requesterName,
+        requesterPhone: params.requesterPhone,
+        description: params.description,
         pointName: params.locationName,
         address: params.locationAddress,
         categoryName: params.categoryName,
@@ -324,6 +375,9 @@ export class NotificationsService {
     locationAddress?: string | null;
     categoryName?: string | null;
     urgency?: string | null;
+    requesterName?: string | null;
+    requesterPhone?: string | null;
+    description?: string | null;
     ticketId: string;
     ticketNumber: number;
     summary: string;
@@ -347,6 +401,11 @@ export class NotificationsService {
       this.sendMaxTicketCreated({
         ticketId: params.ticketId,
         ticketNumber: params.ticketNumber,
+        targetCompanyId: params.companyId,
+        creatorUserId: params.creatorUserId,
+        requesterName: params.requesterName,
+        requesterPhone: params.requesterPhone,
+        description: params.description,
         pointName: params.locationName,
         address: params.locationAddress,
         categoryName: params.categoryName,
