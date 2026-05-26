@@ -12,6 +12,7 @@ import {
 import { MobileRoleContextStrip } from './MobileUxHints'
 import { isMineTicketForRole } from './mobileHomeBoardFilters'
 import { appendBoardNavigationContextToPath, readBoardNavigationContextFromSearch } from '../lib/boardNavigationContext'
+import { mobilePath } from './mobileRoute'
 
 type FilterKey = 'active' | 'new' | 'closed'
 
@@ -64,7 +65,7 @@ export function MobileMyTickets() {
     if (!picked) return
     api.persistScopeFromSearchParams(new URLSearchParams({ linkedClientCompanyId: picked }), meQ.data)
     const nextPath = api.appendScopeToPath(
-      location.pathname || '/m/my',
+      location.pathname || mobilePath(location.pathname, '/my'),
       { linkedClientCompanyId: picked, companyId: companyId || undefined },
       meQ.data,
     )
@@ -106,7 +107,7 @@ export function MobileMyTickets() {
   )
 
   useEffect(() => {
-    const basePath = api.appendScopeToPath('/m/my', pageScope, meQ.data)
+    const basePath = api.appendScopeToPath(mobilePath(location.pathname, '/my'), pageScope, meQ.data)
     const nextPath = appendBoardNavigationContextToPath(basePath, { tab: filter, scopeLabel: 'Мои заявки' })
     if (nextPath !== `${location.pathname}${location.search}`) {
       navigate(nextPath, { replace: true, state: location.state })
@@ -114,9 +115,9 @@ export function MobileMyTickets() {
   }, [filter, pageScope.linkedClientCompanyId, pageScope.companyId, meQ.data, navigate, location.pathname, location.search, location.state])
 
   const ticketHref = (ticket: api.TicketCard) => {
-    if (!meQ.data) return `/m/tickets/${ticket.id}`
+    if (!meQ.data) return mobilePath(location.pathname, `/tickets/${ticket.id}`)
     const linkScope = scopeForMobileTicketLink(meQ.data, pageScope, ticket)
-    const basePath = api.appendScopeToPath(`/m/tickets/${ticket.id}`, compactTicketScope(linkScope), meQ.data)
+    const basePath = api.appendScopeToPath(mobilePath(location.pathname, `/tickets/${ticket.id}`), compactTicketScope(linkScope), meQ.data)
     return appendBoardNavigationContextToPath(basePath, { tab: filter, scopeLabel: 'Мои заявки' })
   }
 

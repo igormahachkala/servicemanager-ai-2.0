@@ -143,7 +143,16 @@ export function AppRoutes() {
         <Route path="inspection/runs/:id/report" element={<InspectionRunReportPage />} />
       </Route>
 
-      <Route path="/max" element={<MaxApp />} />
+      <Route path="/max" element={<MaxApp />}>
+        <Route element={<MobileShell />}>
+          <Route index element={<MobileHome />} />
+          <Route path="create" element={<MobileCreateTicket />} />
+          <Route path="my" element={<MobileMyTickets />} />
+          <Route path="profile" element={<MobileProfile />} />
+          <Route path="notifications" element={<MobileNotificationsPage />} />
+          <Route path="tickets/:id" element={<MobileTicketPage />} />
+        </Route>
+      </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

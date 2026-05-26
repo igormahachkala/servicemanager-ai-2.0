@@ -10,6 +10,7 @@ import {
   subscribeOfflineQueue,
   useOnlineStatus,
 } from './offlineQueue'
+import { getMobileRouteRoot, mobilePath } from './mobileRoute'
 import './mobile.css'
 
 type MobileNavItem = {
@@ -18,15 +19,9 @@ type MobileNavItem = {
   to: string
 }
 
-const mobileNavItems: MobileNavItem[] = [
-  { id: 'home', label: 'Главная', to: '/m' },
-  { id: 'create', label: 'Создать', to: '/m/create' },
-  { id: 'my', label: 'Мои', to: '/m/my' },
-  { id: 'profile', label: 'Профиль', to: '/m/profile' },
-]
-
 function isActivePath(pathname: string, target: string) {
-  if (target === '/m') return pathname === '/m'
+  const root = getMobileRouteRoot(pathname)
+  if (target === root) return pathname === root
   return pathname.startsWith(target)
 }
 
@@ -120,7 +115,7 @@ export function MobileShell() {
     }
   }, [canShowLinkedClients, linkedClients, linkedClientsLoaded, selectedLinkedClientCompanyId, location.pathname, location.search, meQ.data, navigate])
 
-  const onNotification = useRealtimeNotifications('/m/tickets/')
+  const onNotification = useRealtimeNotifications(`${getMobileRouteRoot(location.pathname)}/tickets/`)
   useWsInvalidation(scope, { onNotification })
 
   useEffect(() => {
@@ -173,8 +168,15 @@ export function MobileShell() {
   })
 
   const unread = notifQ.data?.unreadCount ?? 0
+  const mobileRoot = getMobileRouteRoot(location.pathname)
+  const mobileNavItems: MobileNavItem[] = [
+    { id: 'home', label: 'Главная', to: mobileRoot },
+    { id: 'create', label: 'Создать', to: mobilePath(location.pathname, '/create') },
+    { id: 'my', label: 'Мои', to: mobilePath(location.pathname, '/my') },
+    { id: 'profile', label: 'Профиль', to: mobilePath(location.pathname, '/profile') },
+  ]
 
-  const isOnTicketDetail = location.pathname.startsWith('/m/tickets/')
+  const isOnTicketDetail = location.pathname.startsWith(`${mobileRoot}/tickets/`)
 
   return (
     <div className="mobileShell">
@@ -182,7 +184,7 @@ export function MobileShell() {
         <div className="mobileTopBarFill" />
         <Link
           className="mobileBellLink"
-          to={api.appendScopeToPath('/m/notifications', scope, meQ.data)}
+          to={api.appendScopeToPath(mobilePath(location.pathname, '/notifications'), scope, meQ.data)}
           aria-label={unread > 0 ? `Уведомления, непрочитано: ${unread}` : 'Уведомления'}
         >
           <span className="mobileBellIcon" aria-hidden>

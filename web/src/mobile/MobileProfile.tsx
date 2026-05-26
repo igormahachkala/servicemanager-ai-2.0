@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { BrowserNotificationsCard } from '../components/BrowserNotificationsCard'
 import { SupportContactBlock } from '../components/SupportContactBlock'
 import * as api from '../lib/api'
+import { mobilePath } from './mobileRoute'
 
 function roleLabel(role?: string) {
   if (!role) return '—'
@@ -54,7 +55,7 @@ export function MobileProfile() {
 
   function logout() {
     const params = new URLSearchParams()
-    params.set('next', '/m')
+    params.set('next', mobilePath(location.pathname, ''))
     params.set('mode', 'mobile')
     const linked = (new URLSearchParams(location.search).get('linkedClientCompanyId') || api.getLinkedClientCompanyId()).trim()
     const observer = (new URLSearchParams(location.search).get('companyId') || api.getObserverCompanyId()).trim()

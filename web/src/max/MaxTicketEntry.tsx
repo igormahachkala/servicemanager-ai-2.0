@@ -23,7 +23,7 @@ export function MaxTicketEntry({ ticketId, webApp }: Props) {
   }, [webApp, navigate])
 
   useEffect(() => {
-    navigate(`/m/tickets/${encodeURIComponent(ticketId)}`, { replace: true })
+    navigate(`/max/tickets/${encodeURIComponent(ticketId)}`, { replace: true })
   }, [ticketId, navigate])
 
   return (

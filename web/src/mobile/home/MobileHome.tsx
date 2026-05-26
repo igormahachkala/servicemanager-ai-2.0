@@ -28,6 +28,7 @@ import {
 import { formatMobileMutationError } from '../mobileActionErrors'
 import { getOnlineStatus, loadBoardCache, saveBoardCache, useOnlineStatus } from '../offlineQueue'
 import { readMobileHomeIntroDismissed } from '../MobileUxHints'
+import { mobilePath } from '../mobileRoute'
 import { HomeHeader } from './HomeHeader'
 import { HomeTabs } from './HomeTabs'
 import { HomeChips } from './HomeChips'
@@ -73,7 +74,7 @@ export function MobileHome() {
     const picked = api.pickFirstTechnicianBoundLinkedClientCompanyId(techBoundDefaultsQ.data || [])
     if (!picked) return
     api.persistScopeFromSearchParams(new URLSearchParams({ linkedClientCompanyId: picked }), meQ.data)
-    const nextPath = api.appendScopeToPath(location.pathname || '/m', { linkedClientCompanyId: picked, companyId: companyId || undefined }, meQ.data)
+    const nextPath = api.appendScopeToPath(location.pathname || mobilePath(location.pathname, ''), { linkedClientCompanyId: picked, companyId: companyId || undefined }, meQ.data)
     if (nextPath !== `${location.pathname}${location.search}`) navigate(nextPath, { replace: true })
   }, [meQ.data, linkedClientCompanyId, techBoundDefaultsQ.isSuccess, techBoundDefaultsQ.data, navigate, companyId, location.pathname, location.search])
 
@@ -336,7 +337,7 @@ export function MobileHome() {
   const ticketHref = (ticket: api.TicketCard) => {
     if (!meQ.data) return `/m/tickets/${ticket.id}`
     const linkScope = scopeForMobileTicketLink(meQ.data, pageScope, ticket)
-    return api.appendScopeToPath(`/m/tickets/${ticket.id}`, compactTicketScope(linkScope), meQ.data)
+    return api.appendScopeToPath(mobilePath(location.pathname, `/tickets/${ticket.id}`), compactTicketScope(linkScope), meQ.data)
   }
   const ticketLinkState = (ticket: api.TicketCard) => mobileTicketNavState('home', ticket.companyId, { tab: boardTab, chips: [...activeChips], search: searchQuery.trim() || undefined })
   const closeCanSubmit = !!closeModal?.file && closeModal.comment.trim().length >= 3 && !closeBusy

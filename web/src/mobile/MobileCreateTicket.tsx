@@ -7,6 +7,7 @@ import { formatMobileMutationError } from './mobileActionErrors'
 import { mobileTicketNavState } from './mobileTicketDisplay'
 import { MobileAttachmentThumb } from './MobileAttachmentThumb'
 import { MobilePhotoLightbox } from './MobilePhotoLightbox'
+import { mobilePath } from './mobileRoute'
 
 const MAX_ATTACHMENT_SIZE_BYTES = 25 * 1024 * 1024
 
@@ -621,7 +622,7 @@ export function MobileCreateTicket() {
                 type="button"
                 className="ghost"
                 onClick={() => {
-                  navigate(api.appendScopeToPath('/m/my', scope, meQ.data))
+                  navigate(api.appendScopeToPath(mobilePath(location.pathname, '/my'), scope, meQ.data))
                 }}
               >
                 Мои заявки

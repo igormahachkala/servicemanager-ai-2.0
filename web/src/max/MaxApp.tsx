@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   getMaxEnvironmentContext,
   getWebApp,
@@ -44,10 +44,12 @@ const btnGhostStyle: React.CSSProperties = {
 }
 
 export function MaxApp() {
+  const location = useLocation()
   const navigate = useNavigate()
   const [loadState, setLoadState] = useState<LoadState>('loading')
   const [webApp, setWebApp] = useState<MaxWebApp | null>(null)
   const [loadError, setLoadError] = useState('')
+  const loggedRef = useRef(false)
 
   useEffect(() => {
     loadMaxBridgeScript()
@@ -66,6 +68,20 @@ export function MaxApp() {
     webApp.ready?.()
     webApp.BackButton?.hide()
   }, [webApp])
+
+  useEffect(() => {
+    const ctx = getMaxEnvironmentContext()
+    if (!ctx.detected || loggedRef.current) return
+    loggedRef.current = true
+    console.info('[MAX mini app]', {
+      platform: ctx.platform || null,
+      version: ctx.version || null,
+      hasUser: !!ctx.user,
+      hasChat: !!ctx.chat,
+      startParam: ctx.startParam || null,
+      path: location.pathname,
+    })
+  }, [location.pathname, webApp])
 
   if (loadState === 'loading') {
     return (
@@ -90,7 +106,7 @@ export function MaxApp() {
   const rawStartParam = envContext.startParam || getStartParamFromLocation()
   const parsed = parseStartParam(rawStartParam)
 
-  if (inMax && parsed.type === 'ticket') {
+  if (inMax && parsed.type === 'ticket' && location.pathname === '/max') {
     return <MaxTicketEntry ticketId={parsed.ticketId} webApp={webApp} />
   }
 
@@ -120,28 +136,14 @@ export function MaxApp() {
     )
   }
 
-  const user = envContext.user
-  const displayName = user?.first_name ? `${user.first_name}${user.last_name ? ' ' + user.last_name : ''}` : null
-
   return (
-    <div style={rootStyle}>
-      <h2 style={{ margin: '0 0 6px', fontSize: 20 }}>ServiceManager.AI в MAX</h2>
-      {displayName ? (
-        <p style={{ color: '#555', fontSize: 14, margin: '0 0 24px' }}>Привет, {displayName}!</p>
-      ) : (
-        <p style={{ color: '#555', fontSize: 14, margin: '0 0 24px' }}>Управление заявками в сервисе</p>
-      )}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <button style={btnStyle} onClick={() => navigate('/m')}>Открыть мобильную версию</button>
-        <button style={btnGhostStyle} onClick={() => navigate('/m')}>Открыть заявки</button>
-      </div>
-      <div style={{ marginTop: 28, fontSize: 11, color: '#bbb', lineHeight: 1.6 }}>
-        <div>platform: {envContext.platform || '—'}</div>
-        <div>version: {envContext.version || '—'}</div>
-        <div>start_param: {rawStartParam || '(нет)'}</div>
-        <div>user: {envContext.user ? 'есть' : 'нет'}</div>
-        <div>chat: {envContext.chat ? 'есть' : 'нет'}</div>
-      </div>
+    <div style={{ minHeight: '100dvh', background: '#f3f4f6' }}>
+      <Outlet />
+      {import.meta.env.DEV ? (
+        <div style={{ position: 'fixed', left: 8, bottom: 8, zIndex: 9999, fontSize: 10, color: '#6b7280', background: 'rgba(255,255,255,0.9)', padding: '4px 6px', borderRadius: 6 }}>
+          MAX: {envContext.platform || '—'} · {envContext.version || '—'} · user:{envContext.user ? 'y' : 'n'} · start:{rawStartParam || '—'}
+        </div>
+      ) : null}
     </div>
   )
 }

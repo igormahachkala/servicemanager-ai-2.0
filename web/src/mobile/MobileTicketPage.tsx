@@ -26,6 +26,7 @@ import {
   useOnlineStatus,
 } from './offlineQueue'
 import { formatMobileMutationError } from './mobileActionErrors'
+import { mobilePath } from './mobileRoute'
 import {
   clientTicketLifecycleHintText,
   shouldShowClientTicketLifecycleHint,
@@ -584,7 +585,7 @@ export function MobileTicketPage() {
   })
 
   const listOrigin = readListOrigin(location)
-  const backPath = listOrigin === 'my' ? '/m/my' : '/m'
+  const backPath = listOrigin === 'my' ? mobilePath(location.pathname, '/my') : mobilePath(location.pathname, '')
   const backHref = api.appendScopeToPath(backPath, scopeNorm, meQ.data)
   const boardTabLabel = navState?.homeBoardTab ? MOBILE_HOME_TAB_LABELS[navState.homeBoardTab] : ''
   const boardChipLabels = useMemo(() => {
@@ -610,7 +611,7 @@ export function MobileTicketPage() {
   const ticketCompanyId = (ticket?.companyId || '').trim()
 
   const childHref = (childId: string) =>
-    api.appendScopeToPath(`/m/tickets/${childId}`, scopeNorm, meQ.data)
+    api.appendScopeToPath(mobilePath(location.pathname, `/tickets/${childId}`), scopeNorm, meQ.data)
 
   const desc = ticket ? `${ticket.problemText || ''}`.trim() || ticket.description?.trim() || '—' : '—'
 

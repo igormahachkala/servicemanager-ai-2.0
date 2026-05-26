@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { formatMobileMutationError } from './mobileActionErrors'
+import { mobilePath } from './mobileRoute'
 
 export function MobileNotificationsPage() {
   const location = useLocation()
@@ -18,7 +19,7 @@ export function MobileNotificationsPage() {
     }
   }, [location.search, meQ.data])
 
-  const backHref = useMemo(() => api.appendScopeToPath('/m', scope, meQ.data), [scope, meQ.data])
+  const backHref = useMemo(() => api.appendScopeToPath(mobilePath(location.pathname, ''), scope, meQ.data), [scope, meQ.data, location.pathname])
 
   const listQ = useQuery({
     queryKey: ['mobile-notifications'],
@@ -118,7 +119,7 @@ export function MobileNotificationsPage() {
             }
             const href =
               n.entityType === 'Ticket'
-                ? api.appendScopeToPath(`/m/tickets/${encodeURIComponent(n.entityId)}`, ticketScope, meQ.data)
+                ? api.appendScopeToPath(mobilePath(location.pathname, `/tickets/${encodeURIComponent(n.entityId)}`), ticketScope, meQ.data)
                 : undefined
             const unread = !n.readAt
             const tone = api.getNotificationTypeTone(n.type)
