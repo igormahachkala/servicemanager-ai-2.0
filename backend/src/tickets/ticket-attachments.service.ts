@@ -293,12 +293,33 @@ export class TicketAttachmentsService {
     'image/heif',
   ])
 
+  private static readonly EXT_MIME_MAP: Record<string, string> = {
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    webp: 'image/webp',
+    heic: 'image/heic',
+    heif: 'image/heif',
+  }
+
   private assertImageFile(file: any) {
     if (!file) {
       throw new BadRequestException('file is required')
     }
 
-    const mime = String(file.mimetype || '').toLowerCase()
+    let mime = String(file.mimetype || '').toLowerCase().trim()
+
+    // iOS/MAX WebView camera uploads sometimes arrive as application/octet-stream.
+    // Fall back to extension-based detection before rejecting.
+    if (!mime || mime === 'application/octet-stream') {
+      const ext = (file.originalname || '').split('.').pop()?.toLowerCase() ?? ''
+      const inferred = TicketAttachmentsService.EXT_MIME_MAP[ext]
+      if (inferred) {
+        mime = inferred
+        file.mimetype = inferred
+      }
+    }
+
     if (!TicketAttachmentsService.ALLOWED_MIME_TYPES.has(mime)) {
       throw new BadRequestException('Only JPEG, PNG, WebP, HEIC and HEIF images are supported')
     }
@@ -308,10 +329,21 @@ export class TicketAttachmentsService {
     }
   }
 
+  private mimeExtension(mime: string): string {
+    const map: Record<string, string> = {
+      'image/jpeg': '.jpg',
+      'image/png': '.png',
+      'image/webp': '.webp',
+      'image/heic': '.heic',
+      'image/heif': '.heif',
+    }
+    return map[mime] ?? '.bin'
+  }
+
   private async persistFile(file: any) {
     await mkdir(this.uploadsDir, { recursive: true })
 
-    const ext = extname(file.originalname || '') || '.bin'
+    const ext = extname(file.originalname || '') || this.mimeExtension(file.mimetype || '')
     const storageKey = `${randomUUID()}${ext}`
     const absolutePath = join(this.uploadsDir, storageKey)
 

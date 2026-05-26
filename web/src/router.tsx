@@ -32,6 +32,7 @@ import { MobileMyTickets } from './mobile/MobileMyTickets'
 import { MobileProfile } from './mobile/MobileProfile'
 import { MobileTicketPage } from './mobile/MobileTicketPage'
 import { MobileNotificationsPage } from './mobile/MobileNotificationsPage'
+import { MaxApp } from './max/MaxApp'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const token = api.getToken()
@@ -141,6 +142,8 @@ export function AppRoutes() {
         <Route path="inspection/quick/:runId" element={<InspectionQuickPage />} />
         <Route path="inspection/runs/:id/report" element={<InspectionRunReportPage />} />
       </Route>
+
+      <Route path="/max" element={<MaxApp />} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

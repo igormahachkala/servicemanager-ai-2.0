@@ -8,7 +8,7 @@ import { mobileTicketNavState } from './mobileTicketDisplay'
 import { MobileAttachmentThumb } from './MobileAttachmentThumb'
 import { MobilePhotoLightbox } from './MobilePhotoLightbox'
 
-const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024
+const MAX_ATTACHMENT_SIZE_BYTES = 25 * 1024 * 1024
 
 /** Единый текст: нет загруженного draft-фото (не дублировать другими формулировками). */
 const PHOTO_REQUIRED_MSG = 'Фото обязательно для создания заявки. Сначала загрузите снимок.'
@@ -23,9 +23,11 @@ function detectMimeFromName(file: File): string {
 }
 
 function normalizePickedFile(file: File): File {
-  if (file.type && file.type.startsWith('image/')) return file
+  const type = (file.type || '').trim()
+  // Treat missing type and generic octet-stream the same: infer from filename
+  if (type && type !== 'application/octet-stream' && type.startsWith('image/')) return file
   const guessedType = detectMimeFromName(file)
-  const filename = file.name || `photo.${guessedType.split('/')[1] || 'jpg'}`
+  const filename = file.name || `camera-photo-${Date.now()}.jpg`
   try {
     return new File([file], filename, {
       type: guessedType,
@@ -309,9 +311,9 @@ export function MobileCreateTicket() {
     e.target.value = ''
     if (files.length === 0) return
     const valid: File[] = []
-    for (const file of files) {
-      const normalizedType = file.type || detectMimeFromName(file)
-      if (!normalizedType.startsWith('image/')) {
+    for (const rawFile of files) {
+      const file = normalizePickedFile(rawFile)
+      if (!file.type.startsWith('image/')) {
         setUploadError('Можно загружать только изображения')
         return
       }
@@ -320,7 +322,7 @@ export function MobileCreateTicket() {
         return
       }
       if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
-        setUploadError('Изображение слишком большое (максимум 10 МБ)')
+        setUploadError(`Изображение слишком большое (максимум ${MAX_ATTACHMENT_SIZE_BYTES / 1024 / 1024} МБ)`)
         return
       }
       valid.push(file)
