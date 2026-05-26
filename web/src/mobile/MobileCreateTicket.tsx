@@ -13,6 +13,29 @@ const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024
 /** Единый текст: нет загруженного draft-фото (не дублировать другими формулировками). */
 const PHOTO_REQUIRED_MSG = 'Фото обязательно для создания заявки. Сначала загрузите снимок.'
 
+function detectMimeFromName(file: File): string {
+  const name = (file.name || '').toLowerCase()
+  if (name.endsWith('.png')) return 'image/png'
+  if (name.endsWith('.webp')) return 'image/webp'
+  if (name.endsWith('.heic')) return 'image/heic'
+  if (name.endsWith('.heif')) return 'image/heif'
+  return 'image/jpeg'
+}
+
+function normalizePickedFile(file: File): File {
+  if (file.type && file.type.startsWith('image/')) return file
+  const guessedType = detectMimeFromName(file)
+  const filename = file.name || `photo.${guessedType.split('/')[1] || 'jpg'}`
+  try {
+    return new File([file], filename, {
+      type: guessedType,
+      lastModified: file.lastModified || Date.now(),
+    })
+  } catch {
+    return file
+  }
+}
+
 type CreatedTicketState = {
   ticketId: string
   ticketNumber?: number | null
@@ -188,11 +211,11 @@ export function MobileCreateTicket() {
     try {
       for (let i = 0; i < files.length; i++) {
         setDraftUploadProgress({ current: i + 1, total: files.length })
-        const uploaded = await api.uploadDraftTicketAttachment(files[i])
+        const uploaded = await api.uploadDraftTicketAttachment(normalizePickedFile(files[i]))
         setDraftAttachments((prev) => [...prev, uploaded])
       }
     } catch (e: any) {
-      setUploadError(e?.message || String(e))
+      setUploadError(formatMobileMutationError(e, { operation: 'upload_attachment' }))
     } finally {
       setDraftUploadProgress(null)
       clearPhotoInputs()
@@ -287,7 +310,8 @@ export function MobileCreateTicket() {
     if (files.length === 0) return
     const valid: File[] = []
     for (const file of files) {
-      if (!file.type.startsWith('image/')) {
+      const normalizedType = file.type || detectMimeFromName(file)
+      if (!normalizedType.startsWith('image/')) {
         setUploadError('Можно загружать только изображения')
         return
       }

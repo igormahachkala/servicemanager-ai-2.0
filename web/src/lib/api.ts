@@ -2082,7 +2082,7 @@ export async function getTicketAssignmentCandidates(id: string, scope?: string |
 export async function uploadDraftTicketAttachment(file: File): Promise<DraftTicketAttachment> {
   const token = getToken()
   const formData = new FormData()
-  formData.append('file', file)
+  formData.append('file', file, file.name || 'photo.jpg')
 
   const res = await fetch(`${getBaseUrl()}/tickets/attachments/upload`, {
     method: 'POST',
@@ -2852,4 +2852,3 @@ export async function downloadInspectionRunReportExport(
     fileName: match?.[1] || 'work-act.' + format,
   }
 }
-
