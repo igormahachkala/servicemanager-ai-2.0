@@ -18,6 +18,7 @@ export function MaxTicketEntry({ ticketId, webApp }: Props) {
     bb.onClick(goRoot)
     return () => {
       bb.offClick(goRoot)
+      bb.hide()
     }
   }, [webApp, navigate])
 

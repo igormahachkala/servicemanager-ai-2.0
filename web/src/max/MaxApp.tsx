@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
+  getMaxEnvironmentContext,
   getWebApp,
   isMaxEnvironment,
+  getStartParamFromLocation,
   loadMaxBridgeScript,
   parseStartParam,
   type MaxWebApp,
@@ -84,19 +86,20 @@ export function MaxApp() {
   }
 
   const inMax = isMaxEnvironment()
-  const startParam = webApp?.initDataUnsafe?.start_param
-  const parsed = parseStartParam(startParam)
+  const envContext = getMaxEnvironmentContext()
+  const rawStartParam = envContext.startParam || getStartParamFromLocation()
+  const parsed = parseStartParam(rawStartParam)
 
-  if (parsed.type === 'ticket') {
+  if (inMax && parsed.type === 'ticket') {
     return <MaxTicketEntry ticketId={parsed.ticketId} webApp={webApp} />
   }
 
   if (!inMax) {
     return (
       <div style={rootStyle}>
-        <h2 style={{ margin: '0 0 16px', fontSize: 20 }}>ServiceManager.AI</h2>
+        <h2 style={{ margin: '0 0 16px', fontSize: 20 }}>MAX Mini App context not detected</h2>
         <div style={{ padding: '12px 16px', background: '#fff8e1', border: '1px solid #ffe082', borderRadius: 10, fontSize: 14, marginBottom: 24 }}>
-          <strong>Открыто вне MAX</strong>
+          <strong>MAX Mini App context not detected</strong>
           <div style={{ marginTop: 4, color: '#666' }}>
             window.WebApp не обнаружен. Откройте через приложение MAX.
           </div>
@@ -106,15 +109,18 @@ export function MaxApp() {
           <button style={btnGhostStyle} onClick={() => navigate('/m')}>Открыть заявки</button>
         </div>
         <div style={{ marginTop: 28, fontSize: 11, color: '#bbb', lineHeight: 1.6 }}>
-          <div>start_param: {startParam || '(нет)'}</div>
-          <div>platform: (не определена)</div>
-          <div>WebApp: не найден</div>
+          <div>start_param: {rawStartParam || '(нет)'}</div>
+          <div>platform: {envContext.platform || '(не определена)'}</div>
+          <div>version: {envContext.version || '(не определена)'}</div>
+          <div>initData: {envContext.initData ? 'есть' : 'нет'}</div>
+          <div>user: {envContext.user ? 'есть' : 'нет'}</div>
+          <div>chat: {envContext.chat ? 'есть' : 'нет'}</div>
         </div>
       </div>
     )
   }
 
-  const user = webApp?.initDataUnsafe?.user
+  const user = envContext.user
   const displayName = user?.first_name ? `${user.first_name}${user.last_name ? ' ' + user.last_name : ''}` : null
 
   return (
@@ -130,9 +136,11 @@ export function MaxApp() {
         <button style={btnGhostStyle} onClick={() => navigate('/m')}>Открыть заявки</button>
       </div>
       <div style={{ marginTop: 28, fontSize: 11, color: '#bbb', lineHeight: 1.6 }}>
-        <div>platform: {webApp?.platform || '—'}</div>
-        <div>version: {webApp?.version || '—'}</div>
-        <div>start_param: {startParam || '(нет)'}</div>
+        <div>platform: {envContext.platform || '—'}</div>
+        <div>version: {envContext.version || '—'}</div>
+        <div>start_param: {rawStartParam || '(нет)'}</div>
+        <div>user: {envContext.user ? 'есть' : 'нет'}</div>
+        <div>chat: {envContext.chat ? 'есть' : 'нет'}</div>
       </div>
     </div>
   )

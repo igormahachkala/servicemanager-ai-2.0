@@ -27,6 +27,7 @@ export type MaxBackButton = {
 export type MaxWebApp = {
   platform?: string
   version?: string
+  initData?: string
   initDataUnsafe?: MaxWebAppInitDataUnsafe
   BackButton?: MaxBackButton
   ready?(): void
@@ -46,7 +47,35 @@ export function getWebApp(): MaxWebApp | null {
 }
 
 export function isMaxEnvironment(): boolean {
-  return getWebApp() !== null
+  const webApp = getWebApp()
+  if (!webApp) return false
+  if (typeof webApp.initData === 'string' && webApp.initData.trim()) return true
+  const unsafe = webApp.initDataUnsafe
+  return Boolean(unsafe?.user || unsafe?.chat || unsafe?.start_param)
+}
+
+export type MaxEnvironmentContext = {
+  platform?: string
+  version?: string
+  initData?: string
+  user?: MaxWebAppUser
+  chat?: Record<string, unknown>
+  startParam?: string
+  detected: boolean
+}
+
+export function getMaxEnvironmentContext(): MaxEnvironmentContext {
+  const webApp = getWebApp()
+  const unsafe = webApp?.initDataUnsafe
+  return {
+    platform: webApp?.platform,
+    version: webApp?.version,
+    initData: webApp?.initData,
+    user: unsafe?.user,
+    chat: unsafe?.chat,
+    startParam: unsafe?.start_param,
+    detected: isMaxEnvironment(),
+  }
 }
 
 export type ParsedStartParam =
@@ -61,6 +90,19 @@ export function parseStartParam(startParam?: string | null): ParsedStartParam {
     if (ticketId) return { type: 'ticket', ticketId }
   }
   return { type: 'unknown', raw: startParam }
+}
+
+export function getStartParamFromLocation(): string | null {
+  if (typeof window === 'undefined') return null
+  const fromSearch = new URLSearchParams(window.location.search)
+  const searchValue =
+    fromSearch.get('startapp') || fromSearch.get('start_param') || fromSearch.get('startParam')
+  if (searchValue) return searchValue
+
+  const hash = window.location.hash.startsWith('#') ? window.location.hash.slice(1) : window.location.hash
+  if (!hash) return null
+  const hashParams = new URLSearchParams(hash.startsWith('?') ? hash.slice(1) : hash)
+  return hashParams.get('startapp') || hashParams.get('start_param') || hashParams.get('startParam')
 }
 
 export function loadMaxBridgeScript(): Promise<void> {
