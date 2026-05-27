@@ -203,6 +203,8 @@ export class NotificationsService {
   }
 
   private async sendMaxTicketCreated(params: {
+    companyId: string;
+    locationId: string;
     ticketId: string;
     ticketNumber: number;
     targetCompanyId: string;
@@ -225,6 +227,9 @@ export class NotificationsService {
     ]);
 
     await this.maxBot.sendTicketCreatedMessage({
+      companyId: params.targetCompanyId,
+      locationId: params.locationId,
+      locationName: params.pointName,
       ticketId: params.ticketId,
       ticketNumber: params.ticketNumber,
       requesterLabel,
@@ -238,12 +243,18 @@ export class NotificationsService {
   }
 
   private async sendMaxTicketAssigned(params: {
+    companyId: string;
+    locationId: string | null;
+    locationName?: string | null;
     ticketId: string;
     ticketNumber: number;
     technicianUserId: string;
   }) {
     const technicianLabel = await this.resolveUserLabel(params.technicianUserId);
     await this.maxBot.sendTicketAssignedMessage({
+      companyId: params.companyId,
+      locationId: params.locationId,
+      locationName: params.locationName,
       ticketId: params.ticketId,
       ticketNumber: params.ticketNumber,
       technicianLabel,
@@ -251,12 +262,18 @@ export class NotificationsService {
   }
 
   private async sendMaxTicketClaimed(params: {
+    companyId: string;
+    locationId: string | null;
+    locationName?: string | null;
     ticketId: string;
     ticketNumber: number;
     technicianUserId: string;
   }) {
     const technicianLabel = await this.resolveUserLabel(params.technicianUserId);
     await this.maxBot.sendTicketClaimedMessage({
+      companyId: params.companyId,
+      locationId: params.locationId,
+      locationName: params.locationName,
       ticketId: params.ticketId,
       ticketNumber: params.ticketNumber,
       technicianLabel,
@@ -264,12 +281,18 @@ export class NotificationsService {
   }
 
   private async sendMaxTicketStatusChanged(params: {
+    companyId: string;
+    locationId: string | null;
+    locationName?: string | null;
     ticketId: string;
     ticketNumber: number;
     fromStatus: TicketStatus;
     toStatus: TicketStatus;
   }) {
     await this.maxBot.sendTicketStatusChangedMessage({
+      companyId: params.companyId,
+      locationId: params.locationId,
+      locationName: params.locationName,
       ticketId: params.ticketId,
       ticketNumber: params.ticketNumber,
       fromStatus: params.fromStatus,
@@ -298,6 +321,8 @@ export class NotificationsService {
     void this.safeNotify('ticket.created+assign', () => this.emitTicketCreatedAndMaybeAssign(params));
     void this.safeNotify('max.ticket.created', () =>
       this.sendMaxTicketCreated({
+        companyId: params.targetCompanyId,
+        locationId: params.locationId,
         ticketId: params.ticketId,
         ticketNumber: params.ticketNumber,
         targetCompanyId: params.targetCompanyId,
@@ -336,6 +361,7 @@ export class NotificationsService {
 
   scheduleTicketCreatedPublic(params: {
     ticketCompanyId: string;
+    locationId: string;
     locationName?: string | null;
     locationAddress?: string | null;
     categoryName?: string | null;
@@ -352,6 +378,8 @@ export class NotificationsService {
     void this.safeNotify('ticket.created.public', () => this.emitTicketCreatedPublicInternal(params));
     void this.safeNotify('max.ticket.created.public', () =>
       this.sendMaxTicketCreated({
+        companyId: params.ticketCompanyId,
+        locationId: params.locationId,
         ticketId: params.ticketId,
         ticketNumber: params.ticketNumber,
         targetCompanyId: params.ticketCompanyId,
@@ -399,6 +427,8 @@ export class NotificationsService {
     );
     void this.safeNotify('max.ticket.created.child', () =>
       this.sendMaxTicketCreated({
+        companyId: params.companyId,
+        locationId: params.locationId,
         ticketId: params.ticketId,
         ticketNumber: params.ticketNumber,
         targetCompanyId: params.companyId,
@@ -418,6 +448,8 @@ export class NotificationsService {
     assigneeUserId: string;
     ticketId: string;
     ticketCompanyId: string;
+    locationId?: string | null;
+    locationName?: string | null;
     ticketNumber: number;
     summary: string;
     actorUserId: string | null;
@@ -427,6 +459,9 @@ export class NotificationsService {
     void this.safeNotify('ticket.assigned', () => this.emitTicketAssignedToAssignee(params));
     void this.safeNotify('max.ticket.assigned', () =>
       this.sendMaxTicketAssigned({
+        companyId: params.ticketCompanyId,
+        locationId: params.locationId ?? null,
+        locationName: params.locationName,
         ticketId: params.ticketId,
         ticketNumber: params.ticketNumber,
         technicianUserId: params.assigneeUserId,
@@ -467,6 +502,8 @@ export class NotificationsService {
   scheduleTicketClaimedDispatchers(params: {
     watcherCompanyId: string;
     ticketCompanyId: string;
+    locationId?: string | null;
+    locationName?: string | null;
     ticketId: string;
     ticketNumber: number;
     summary: string;
@@ -477,6 +514,9 @@ export class NotificationsService {
     void this.safeNotify('ticket.claimed', () => this.emitTicketClaimedDispatchersInternal(params));
     void this.safeNotify('max.ticket.claimed', () =>
       this.sendMaxTicketClaimed({
+        companyId: params.ticketCompanyId,
+        locationId: params.locationId ?? null,
+        locationName: params.locationName,
         ticketId: params.ticketId,
         ticketNumber: params.ticketNumber,
         technicianUserId: params.excludeUserId,
@@ -568,6 +608,9 @@ export class NotificationsService {
   }
 
   scheduleTicketStatusChanged(params: {
+    ticketCompanyId: string;
+    locationId: string | null;
+    locationName?: string | null;
     ticketId: string;
     ticketNumber: number;
     fromStatus: TicketStatus;
@@ -576,6 +619,9 @@ export class NotificationsService {
   }) {
     void this.safeNotify('max.ticket.status_changed', () =>
       this.sendMaxTicketStatusChanged({
+        companyId: params.ticketCompanyId,
+        locationId: params.locationId,
+        locationName: params.locationName,
         ticketId: params.ticketId,
         ticketNumber: params.ticketNumber,
         fromStatus: params.fromStatus,

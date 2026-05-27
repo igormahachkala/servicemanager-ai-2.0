@@ -1088,7 +1088,7 @@ export class TicketsAssignmentService {
 
     const meta = await this.prisma.ticket.findUnique({
       where: { id: assignResult.ticketId },
-      select: { companyId: true, ticketNumber: true, problemText: true },
+      select: { companyId: true, locationId: true, ticketNumber: true, problemText: true },
     });
 
     if (assignResult.assignmentTimelineRecorded && meta) {
@@ -1104,6 +1104,7 @@ export class TicketsAssignmentService {
         assigneeUserId: technicianId,
         ticketId: assignResult.ticketId,
         ticketCompanyId: meta.companyId,
+        locationId: meta.locationId,
         ticketNumber: meta.ticketNumber,
         summary: (meta.problemText || '').trim() || `Заявка #${meta.ticketNumber}`,
         actorUserId: actor?.id ?? null,
@@ -1803,6 +1804,7 @@ export class TicketsAssignmentService {
       return {
         ticketId: ticket.id,
         ticketCompanyId: ticket.companyId,
+        locationId: ticket.locationId,
         ticketNumber: ticket.ticketNumber,
         problemText: ticket.problemText,
         claimEventId: claimEvent.id,
@@ -1815,6 +1817,7 @@ export class TicketsAssignmentService {
     this.notifications.scheduleTicketClaimedDispatchers({
       watcherCompanyId: companyId,
       ticketCompanyId: claimResult.ticketCompanyId,
+      locationId: claimResult.locationId,
       ticketId: claimResult.ticketId,
       ticketNumber: claimResult.ticketNumber,
       summary: (claimResult.problemText || '').trim() || `Заявка #${claimResult.ticketNumber}`,

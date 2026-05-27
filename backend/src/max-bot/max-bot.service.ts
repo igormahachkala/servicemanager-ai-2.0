@@ -5,6 +5,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { TicketStatus, TicketUrgency } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
 
 import { MaxBotSendMessageResponse, MaxBotUpdate, MaxBotUpdatesResponse } from './max-bot.types';
 
@@ -22,6 +23,9 @@ type SendMessageParams = {
 };
 
 type TicketCreatedMessageParams = {
+  companyId: string;
+  locationId?: string | null;
+  locationName?: string | null;
   ticketId: string;
   ticketNumber: number;
   requesterLabel?: string | null;
@@ -34,22 +38,40 @@ type TicketCreatedMessageParams = {
 };
 
 type TicketAssignedMessageParams = {
+  companyId: string;
+  locationId?: string | null;
+  locationName?: string | null;
   ticketId: string;
   ticketNumber: number;
   technicianLabel?: string | null;
 };
 
 type TicketClaimedMessageParams = {
+  companyId: string;
+  locationId?: string | null;
+  locationName?: string | null;
   ticketId: string;
   ticketNumber: number;
   technicianLabel?: string | null;
 };
 
 type TicketStatusChangedMessageParams = {
+  companyId: string;
+  locationId?: string | null;
+  locationName?: string | null;
   ticketId: string;
   ticketNumber: number;
   fromStatus: TicketStatus;
   toStatus: TicketStatus;
+};
+
+type LocationAnchor = {
+  id: string;
+  companyId: string;
+  locationId: string;
+  chatId: bigint;
+  anchorMessageId: string;
+  anchorMessageCreatedAt: Date | null;
 };
 
 @Injectable()
@@ -59,8 +81,11 @@ export class MaxBotService {
   private readonly token = (process.env.MAX_BOT_API_TOKEN || '').trim();
   private readonly frontendUrl = this.resolveFrontendUrl();
   private readonly groupChatId = this.resolveGroupChatId();
+  private readonly locationAnchorLocks = new Map<string, Promise<LocationAnchor | null>>();
   private lastChatId: number | null = null;
   private lastMarker: number | null = null;
+
+  constructor(private readonly prisma?: PrismaService) {}
 
   private normalizeBaseUrl(value: string) {
     return value.trim().replace(/\/+$/, '');
@@ -178,22 +203,195 @@ export class MaxBotService {
     return this.sendRawMessage(groupChatId, payload);
   }
 
-  private async sendRawMessage(chatId: number, text: string) {
+  private extractMessageId(payload: unknown): string | null {
+    if (!payload || typeof payload !== 'object') return null;
+    const root = payload as Record<string, unknown>;
+    const message = root.message && typeof root.message === 'object' ? (root.message as Record<string, unknown>) : null;
+    const candidates = [
+      message?.mid,
+      message?.message_id,
+      message?.messageId,
+      message?.id,
+      root.mid,
+      root.message_id,
+      root.messageId,
+      root.id,
+    ];
+    for (const candidate of candidates) {
+      if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+      if (typeof candidate === 'number' && Number.isFinite(candidate)) return String(candidate);
+      if (typeof candidate === 'bigint') return candidate.toString();
+    }
+    return null;
+  }
+
+  private parseReplyMessageId(messageId: string) {
+    const numeric = Number(messageId);
+    if (Number.isFinite(numeric) && String(Math.trunc(numeric)) === messageId.trim()) {
+      return { reply_to_message_id: messageId, reply_to_mid: Math.trunc(numeric) };
+    }
+    return { reply_to_message_id: messageId };
+  }
+
+  private async sendRawMessage(chatId: number, text: string, replyToMessageId?: string | null) {
+    const body: Record<string, unknown> = { text };
+    if (replyToMessageId) {
+      Object.assign(body, this.parseReplyMessageId(replyToMessageId));
+    }
+
     const result = await this.requestJson<MaxBotSendMessageResponse>(
       `/messages?chat_id=${encodeURIComponent(String(chatId))}`,
       {
         method: 'POST',
-        body: JSON.stringify({ text }),
+        body: JSON.stringify(body),
       },
     );
 
+    const messageId = this.extractMessageId(result);
     this.logger.log({ chatId, text: text.slice(0, 220) }, 'max_bot_message_sent');
 
     return {
       chatId,
       text,
+      messageId,
       ...result,
     };
+  }
+
+  private async findLocationAnchorRecord(companyId: string, locationId: string): Promise<LocationAnchor | null> {
+    if (!this.prisma || this.groupChatId === null) return null;
+    return this.prisma.maxLocationThread.findUnique({
+      where: {
+        locationId_chatId: {
+          locationId,
+          chatId: BigInt(this.groupChatId),
+        },
+      },
+    });
+  }
+
+  private async loadLocationName(companyId: string, locationId: string, fallback?: string | null) {
+    const fallbackName = this.normalizeSingleLine(fallback);
+    if (!this.prisma) return fallbackName || 'Локация';
+    const location = await this.prisma.location.findFirst({
+      where: {
+        id: locationId,
+        clientCompanyId: companyId,
+        isActive: true,
+      },
+      select: { name: true },
+    });
+    return this.normalizeSingleLine(location?.name) || fallbackName || 'Локация';
+  }
+
+  async getOrCreateLocationAnchor(params: {
+    companyId: string;
+    locationId: string;
+    locationName?: string | null;
+  }): Promise<LocationAnchor | null> {
+    const prisma = this.prisma;
+    const groupChatId = this.groupChatId;
+    if (!prisma || groupChatId === null) return null;
+    const lockKey = `${params.companyId}:${params.locationId}:${groupChatId}`;
+    const existingLock = this.locationAnchorLocks.get(lockKey);
+    if (existingLock) return existingLock;
+
+    const task = (async () => {
+      const existing = await this.findLocationAnchorRecord(params.companyId, params.locationId);
+      if (existing?.anchorMessageId) {
+        return existing;
+      }
+
+      const locationName = await this.loadLocationName(params.companyId, params.locationId, params.locationName);
+      const sent = await this.sendRawMessage(groupChatId, `🏪 ${locationName}`);
+      const anchorMessageId = sent.messageId;
+      if (!anchorMessageId) {
+        this.logger.warn(
+          { companyId: params.companyId, locationId: params.locationId, chatId: groupChatId },
+          'max_location_anchor_message_id_missing',
+        );
+        return null;
+      }
+
+      const createdAt = new Date();
+      const data = {
+        companyId: params.companyId,
+        locationId: params.locationId,
+        chatId: BigInt(groupChatId),
+        anchorMessageId,
+        anchorMessageCreatedAt: createdAt,
+      };
+
+      if (existing) {
+        return prisma.maxLocationThread.update({
+          where: {
+            locationId_chatId: {
+              locationId: params.locationId,
+              chatId: BigInt(groupChatId),
+            },
+          },
+          data,
+        });
+      }
+
+      try {
+        return await prisma.maxLocationThread.create({ data });
+      } catch (err) {
+        if (this.isUniqueViolation(err)) {
+          return prisma.maxLocationThread.findUnique({
+            where: {
+              locationId_chatId: {
+                locationId: params.locationId,
+                chatId: BigInt(groupChatId),
+              },
+            },
+          });
+        }
+        throw err;
+      }
+    })();
+
+    this.locationAnchorLocks.set(lockKey, task);
+    try {
+      return await task;
+    } finally {
+      if (this.locationAnchorLocks.get(lockKey) === task) {
+        this.locationAnchorLocks.delete(lockKey);
+      }
+    }
+  }
+
+  async sendLocationReplyNotification(params: {
+    companyId: string;
+    locationId?: string | null;
+    locationName?: string | null;
+    text: string;
+  }) {
+    if (!params.locationId?.trim()) {
+      return this.sendOperationalMessage(params.text);
+    }
+    const anchor = await this.getOrCreateLocationAnchor({
+      companyId: params.companyId,
+      locationId: params.locationId.trim(),
+      locationName: params.locationName,
+    });
+    if (!anchor?.anchorMessageId) {
+      return this.sendOperationalMessage(params.text);
+    }
+    try {
+      return await this.sendRawMessage(this.groupChatId!, params.text, anchor.anchorMessageId);
+    } catch (err) {
+      this.logger.warn(
+        {
+          err,
+          companyId: params.companyId,
+          locationId: params.locationId,
+          anchorMessageId: anchor.anchorMessageId,
+        },
+        'max_location_reply_failed_fallback_to_group',
+      );
+      return this.sendOperationalMessage(params.text);
+    }
   }
 
   private async sendOperationalMessage(text: string) {
@@ -231,7 +429,12 @@ export class MaxBotService {
       lines.push(link);
     }
 
-    return this.sendOperationalMessage(this.clip(lines.join('\n')));
+    return this.sendLocationReplyNotification({
+      companyId: params.companyId,
+      locationId: params.locationId,
+      locationName: params.locationName,
+      text: this.clip(lines.join('\n')),
+    });
   }
 
   async sendTicketAssignedMessage(params: TicketAssignedMessageParams) {
@@ -245,7 +448,12 @@ export class MaxBotService {
       lines.push(`Открыть: ${link}`);
     }
 
-    return this.sendOperationalMessage(this.clip(lines.join('\n')));
+    return this.sendLocationReplyNotification({
+      companyId: params.companyId,
+      locationId: params.locationId,
+      locationName: params.locationName,
+      text: this.clip(lines.join('\n')),
+    });
   }
 
   async sendTicketClaimedMessage(params: TicketClaimedMessageParams) {
@@ -259,7 +467,12 @@ export class MaxBotService {
       lines.push(`Открыть: ${link}`);
     }
 
-    return this.sendOperationalMessage(this.clip(lines.join('\n')));
+    return this.sendLocationReplyNotification({
+      companyId: params.companyId,
+      locationId: params.locationId,
+      locationName: params.locationName,
+      text: this.clip(lines.join('\n')),
+    });
   }
 
   async sendTicketStatusChangedMessage(params: TicketStatusChangedMessageParams) {
@@ -272,7 +485,12 @@ export class MaxBotService {
       lines.push(`Открыть: ${link}`);
     }
 
-    return this.sendOperationalMessage(this.clip(lines.join('\n')));
+    return this.sendLocationReplyNotification({
+      companyId: params.companyId,
+      locationId: params.locationId,
+      locationName: params.locationName,
+      text: this.clip(lines.join('\n')),
+    });
   }
 
   private composeTestMessage(params: SendMessageParams) {
@@ -347,6 +565,15 @@ export class MaxBotService {
     } catch {
       return { raw: text } as T;
     }
+  }
+
+  private isUniqueViolation(err: unknown) {
+    return (
+      !!err &&
+      typeof err === 'object' &&
+      'code' in err &&
+      (err as { code?: string }).code === 'P2002'
+    );
   }
 
   private parseChatId(value: unknown): number | null {

@@ -122,6 +122,7 @@ model Company {
 
   users             User[]
   locations         Location[]
+  maxLocationThreads MaxLocationThread[]
   specializations   Specialization[]
   problemCategories ProblemCategory[]
   tickets           Ticket[]
@@ -214,10 +215,27 @@ model Location {
   inspectionRuns InspectionRun[]
   technicianBindings TechnicianClientBinding[] @relation("TechnicianBindingLocation")
   userBindings UserLocationBinding[]
+  maxLocationThreads MaxLocationThread[]
 
   @@unique([clientCompanyId, platformCode])
   @@index([clientCompanyId, isActive])
   @@index([clientCompanyId, city])
+}
+
+model MaxLocationThread {
+  id                  String   @id @default(uuid())
+  companyId           String
+  company             Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  locationId          String
+  location            Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  chatId              BigInt
+  anchorMessageId     String
+  anchorMessageCreatedAt DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([locationId, chatId])
+  @@index([companyId, chatId])
 }
 
 model Specialization {
@@ -666,4 +684,3 @@ model InspectionRunItemAttachment {
   @@index([companyId, runItemId])
   @@index([runItemId, createdAt])
 }
-

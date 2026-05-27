@@ -201,6 +201,8 @@ export class TicketsStatusService {
 
     if (statusResult.fromStatus !== statusResult.toStatus) {
       this.notifications.scheduleTicketStatusChanged({
+        ticketCompanyId: statusResult.updated.companyId,
+        locationId: statusResult.updated.locationId,
         ticketId,
         ticketNumber: statusResult.updated.ticketNumber,
         fromStatus: statusResult.fromStatus,

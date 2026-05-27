@@ -148,6 +148,8 @@ describe('MaxBotService', () => {
 
     const service = new MaxBotService();
     await service.sendTicketCreatedMessage({
+      companyId: 'company-1',
+      locationId: 'location-1',
       ticketId: 'ticket-123',
       ticketNumber: 123,
       requesterLabel: 'Иван Петров',
@@ -159,11 +161,15 @@ describe('MaxBotService', () => {
       urgency: 'URGENT',
     });
     await service.sendTicketAssignedMessage({
+      companyId: 'company-1',
+      locationId: 'location-1',
       ticketId: 'ticket-123',
       ticketNumber: 123,
       technicianLabel: 'Иван Иванов / ivan@test.local',
     });
     await service.sendTicketStatusChangedMessage({
+      companyId: 'company-1',
+      locationId: 'location-1',
       ticketId: 'ticket-123',
       ticketNumber: 123,
       fromStatus: 'NEW' as any,
@@ -189,6 +195,165 @@ describe('MaxBotService', () => {
     });
     expect(JSON.parse(calls[2][1].body)).toMatchObject({
       text: expect.stringContaining('Статус: Новая → В работе'),
+    });
+  });
+
+  it('creates one MAX anchor per location and replies to it', async () => {
+    process.env.MAX_BOT_API_BASE_URL = 'https://platform-api.max.ru';
+    process.env.MAX_BOT_API_TOKEN = 'test-token';
+    process.env.MAX_GROUP_CHAT_ID = '-75137613795359';
+    process.env.FRONTEND_URL = 'https://servicemanagerai.ru';
+
+    const threadState: any = { value: null };
+    const prisma = {
+      location: {
+        findFirst: jest.fn().mockResolvedValue({ name: 'Кофейня U' }),
+      },
+      maxLocationThread: {
+        findUnique: jest.fn(async () => threadState.value),
+        create: jest.fn(async ({ data }: any) => {
+          threadState.value = {
+            id: 'thread-1',
+            ...data,
+            anchorMessageCreatedAt: data.anchorMessageCreatedAt || null,
+          };
+          return threadState.value;
+        }),
+        update: jest.fn(async ({ data }: any) => {
+          threadState.value = {
+            ...threadState.value,
+            ...data,
+          };
+          return threadState.value;
+        }),
+      },
+    };
+
+    const fetchMock = jest.fn().mockImplementation(async () => {
+      const payload = sendResponses.shift() || { message: { mid: 1239 } };
+      return {
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify(payload),
+      } as any;
+    });
+    const sendResponses = [
+      { message: { mid: 1234 } },
+      { message: { mid: 1235 } },
+      { message: { mid: 1236 } },
+      { message: { mid: 1237 } },
+    ];
+    global.fetch = fetchMock as any;
+
+    const service = new MaxBotService(prisma as any);
+    await service.sendTicketCreatedMessage({
+      companyId: 'company-1',
+      locationId: 'location-1',
+      ticketId: 'ticket-1',
+      ticketNumber: 1,
+      requesterLabel: 'Сергей Тестов',
+      requesterPhone: '+7 999 888-77-66',
+      description: 'Проблема',
+      pointName: 'Кофейня U',
+      categoryName: 'Электрика',
+      urgency: 'URGENT',
+    });
+    await service.sendTicketAssignedMessage({
+      companyId: 'company-1',
+      locationId: 'location-1',
+      ticketId: 'ticket-1',
+      ticketNumber: 1,
+      technicianLabel: 'Иван Иванов',
+    });
+    await service.sendTicketCreatedMessage({
+      companyId: 'company-1',
+      locationId: 'location-1',
+      ticketId: 'ticket-2',
+      ticketNumber: 2,
+      requesterLabel: 'Сергей Тестов',
+      requesterPhone: '+7 999 888-77-66',
+      description: 'Вторая проблема',
+      pointName: 'Кофейня U',
+      categoryName: 'Электрика',
+      urgency: 'URGENT',
+    });
+
+    expect(prisma.maxLocationThread.create).toHaveBeenCalledTimes(1);
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      1,
+      'https://platform-api.max.ru/messages?chat_id=-75137613795359',
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ text: '🏪 Кофейня U' }),
+      }),
+    );
+    expect(JSON.parse((global.fetch as jest.Mock).mock.calls[1][1].body)).toMatchObject({
+      reply_to_message_id: '1234',
+      reply_to_mid: 1234,
+    });
+    expect(JSON.parse((global.fetch as jest.Mock).mock.calls[2][1].body)).toMatchObject({
+      reply_to_message_id: '1234',
+      reply_to_mid: 1234,
+    });
+  });
+
+  it('falls back to normal MAX send if threaded reply fails', async () => {
+    process.env.MAX_BOT_API_BASE_URL = 'https://platform-api.max.ru';
+    process.env.MAX_BOT_API_TOKEN = 'test-token';
+    process.env.MAX_GROUP_CHAT_ID = '-75137613795359';
+    process.env.FRONTEND_URL = 'https://servicemanagerai.ru';
+
+    const prisma = {
+      location: {
+        findFirst: jest.fn().mockResolvedValue({ name: 'Кофейня U' }),
+      },
+      maxLocationThread: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({
+          id: 'thread-1',
+          companyId: 'company-1',
+          locationId: 'location-1',
+          chatId: BigInt(-75137613795359),
+          anchorMessageId: '1234',
+          anchorMessageCreatedAt: new Date(),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }),
+        update: jest.fn(),
+      },
+    };
+
+    global.fetch = jest
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ message: { mid: 1234 } }),
+      })
+      .mockRejectedValueOnce(new Error('reply failed'))
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ message: { mid: 1236 } }),
+      }) as any;
+
+    const service = new MaxBotService(prisma as any);
+    await service.sendTicketCreatedMessage({
+      companyId: 'company-1',
+      locationId: 'location-1',
+      ticketId: 'ticket-1',
+      ticketNumber: 1,
+      requesterLabel: 'Сергей Тестов',
+      requesterPhone: '+7 999 888-77-66',
+      description: 'Проблема',
+      pointName: 'Кофейня U',
+      categoryName: 'Электрика',
+      urgency: 'URGENT',
+    });
+
+    expect(global.fetch).toHaveBeenCalledTimes(3);
+    expect(JSON.parse((global.fetch as jest.Mock).mock.calls[2][1].body)).toMatchObject({
+      text: expect.stringContaining('🆕 Новая заявка'),
     });
   });
 });
