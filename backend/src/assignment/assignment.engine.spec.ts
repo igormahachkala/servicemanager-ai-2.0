@@ -1,4 +1,6 @@
-import { AssignmentEngine } from './assignment.engine'
+import { TicketStatus, UserRole } from '@prisma/client';
+
+import { AssignmentEngine } from './assignment.engine';
 
 describe('AssignmentEngine cross-tenant category matching', () => {
   function makePrismaMock() {
@@ -29,12 +31,12 @@ describe('AssignmentEngine cross-tenant category matching', () => {
       assignmentDecision: {
         create: jest.fn().mockResolvedValue({}),
       },
-    }
+    };
   }
 
   it('adds category_match reason when ids differ but names match', async () => {
-    const prisma = makePrismaMock()
-    const engine = new AssignmentEngine(prisma as any)
+    const prisma = makePrismaMock();
+    const engine = new AssignmentEngine(prisma as any);
 
     const selected = await engine.selectTechnicianForTicket({
       ticketId: 'ticket-1',
@@ -42,24 +44,20 @@ describe('AssignmentEngine cross-tenant category matching', () => {
       categoryCompanyId: 'client-company',
       locationId: 'loc-1',
       categoryId: 'cat-1',
-    })
+    });
 
-    expect(selected).not.toBeNull()
-    expect(selected?.technicianId).toBe('tech-1')
-    expect(selected?.reason).toContain('category_match')
+    expect(selected).not.toBeNull();
+    expect(selected?.technicianId).toBe('tech-1');
+    expect(selected?.reason).toContain('category_match');
     expect(prisma.problemCategorySpecialization.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
           problemCategory: { companyId: 'client-company', isActive: true },
         }),
       }),
-    )
-  })
-})
-
-import { TicketStatus, UserRole } from '@prisma/client';
-
-import { AssignmentEngine } from './assignment.engine';
+    );
+  });
+});
 
 describe('AssignmentEngine', () => {
   function createPrismaMock() {
@@ -70,6 +68,9 @@ describe('AssignmentEngine', () => {
       problemCategorySpecialization: {
         findMany: jest.fn(),
       },
+      assignmentDecision: {
+        create: jest.fn().mockResolvedValue({}),
+      },
     };
   }
 
@@ -79,29 +80,28 @@ describe('AssignmentEngine', () => {
       {
         id: 'tech-b',
         locationBindings: [{ locationId: 'loc-1' }],
-        technicianSpecializations: [{ specializationId: 'spec-1' }],
+        technicianSpecializations: [{ specializationId: 'spec-1', specialization: { name: 'Сантехника' } }],
         assignedTickets: [{ id: 't-1' }],
       },
       {
         id: 'tech-a',
         locationBindings: [{ locationId: 'loc-1' }],
-        technicianSpecializations: [{ specializationId: 'spec-1' }],
+        technicianSpecializations: [{ specializationId: 'spec-1', specialization: { name: 'Сантехника' } }],
         assignedTickets: [{ id: 't-2' }, { id: 't-3' }],
       },
       {
         id: 'tech-c',
         locationBindings: [{ locationId: 'loc-2' }],
-        technicianSpecializations: [{ specializationId: 'spec-1' }],
+        technicianSpecializations: [{ specializationId: 'spec-1', specialization: { name: 'Сантехника' } }],
         assignedTickets: [],
       },
     ]);
     prisma.problemCategorySpecialization.findMany.mockResolvedValue([
-      { specializationId: 'spec-1' },
+      { specializationId: 'spec-1', specialization: { name: 'Сантехника' } },
     ]);
 
     const engine = new AssignmentEngine(prisma as any);
-
-    const result = await engine.selectTechnician({
+    const result = await engine.selectTechnicianForTicket({
       ticketId: 'ticket-1',
       companyId: 'company-1',
       locationId: 'loc-1',
@@ -111,7 +111,8 @@ describe('AssignmentEngine', () => {
     expect(prisma.user.findMany).toHaveBeenCalledWith({
       where: {
         companyId: 'company-1',
-        role: UserRole.TECHNICIAN,
+        isExecutor: true,
+        role: { in: [UserRole.TECHNICIAN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.ADMIN] },
         isActive: true,
       },
       select: {
@@ -124,7 +125,10 @@ describe('AssignmentEngine', () => {
           select: { locationId: true },
         },
         technicianSpecializations: {
-          select: { specializationId: true },
+          select: {
+            specializationId: true,
+            specialization: { select: { name: true } },
+          },
         },
         assignedTickets: {
           where: {
@@ -134,10 +138,15 @@ describe('AssignmentEngine', () => {
         },
       },
     });
+
+    // tech-b: score = location(+50) + category(+30) - tickets(1×10) = 70
+    // tech-a: score = 50 + 30 - 20 = 60 — loses on score
+    // tech-c: filtered out (loc-2 ≠ loc-1)
     expect(result).toEqual({
       technicianId: 'tech-b',
       reason: 'least_loaded + location_match + category_match',
       candidatesCount: 2,
+      score: 70,
     });
   });
 
@@ -147,15 +156,14 @@ describe('AssignmentEngine', () => {
       {
         id: 'tech-a',
         locationBindings: [{ locationId: 'loc-2' }],
-        technicianSpecializations: [{ specializationId: 'spec-1' }],
+        technicianSpecializations: [{ specializationId: 'spec-1', specialization: { name: 'Сантехника' } }],
         assignedTickets: [],
       },
     ]);
     prisma.problemCategorySpecialization.findMany.mockResolvedValue([]);
 
     const engine = new AssignmentEngine(prisma as any);
-
-    const result = await engine.selectTechnician({
+    const result = await engine.selectTechnicianForTicket({
       ticketId: 'ticket-2',
       companyId: 'company-1',
       locationId: 'loc-1',

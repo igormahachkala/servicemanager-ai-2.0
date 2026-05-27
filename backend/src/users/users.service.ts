@@ -1,10 +1,16 @@
-﻿import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
+﻿import { BadRequestException, Injectable, NotFoundException, UnprocessableEntityException } from '@nestjs/common'
 import { UserRole } from '@prisma/client'
 import * as bcrypt from 'bcrypt'
 
 import { PrismaService } from '../prisma/prisma.service'
 import { UsersPolicy } from '../policy/users.policy'
 import { resolveObserverScopeCompanyId } from '../policy/policy.utils'
+import { isExecutorCapableRole } from '../common/executor.utils'
+
+/** True when a role transition exits the executor-capable set. */
+function isLeavingExecutorRole(fromRole: UserRole, toRole: UserRole): boolean {
+  return isExecutorCapableRole(fromRole) && !isExecutorCapableRole(toRole)
+}
 
 import { CreateUserDto } from './dto/create-user.dto'
 import { UpdateUserDto } from './dto/update-user.dto'
@@ -71,6 +77,15 @@ export class UsersService {
       this.assertTenantManagedRole(dto.role)
     }
 
+    if (dto.isExecutor === true) {
+      const effectiveRole = dto.role ?? existingUser.role;
+      if (!isExecutorCapableRole(effectiveRole)) {
+        throw new UnprocessableEntityException(
+          `isExecutor=true is not allowed for role ${effectiveRole}`,
+        );
+      }
+    }
+
     const nextEmail = dto.email !== undefined ? dto.email.trim().toLowerCase() : undefined
     const firstName = dto.firstName !== undefined ? this.normalizeOptionalText(dto.firstName) : undefined
     const lastName = dto.lastName !== undefined ? this.normalizeOptionalText(dto.lastName) : undefined
@@ -112,6 +127,11 @@ export class UsersService {
       nextIsActive,
     })
 
+    const leavingExecutorRole = isLeavingExecutorRole(existingUser.role, nextRole)
+
+    // When leaving the executor-capable set, force isExecutor=false and clear executor scope.
+    const effectiveIsExecutor = leavingExecutorRole ? false : dto.isExecutor
+
     await this.prisma.$transaction(async (tx) => {
       await tx.user.update({
         where: { id: existingUser.id },
@@ -120,14 +140,18 @@ export class UsersService {
           password: passwordHash,
           role: dto.role,
           isActive: dto.isActive,
+          isExecutor: effectiveIsExecutor,
           firstName,
           lastName,
           avatarUrl,
         }),
       })
 
-      if (existingUser.role === UserRole.TECHNICIAN && nextRole !== UserRole.TECHNICIAN) {
+      if (leavingExecutorRole) {
         await tx.technicianSpecialization.deleteMany({
+          where: { userId: existingUser.id },
+        })
+        await tx.userLocationBinding.deleteMany({
           where: { userId: existingUser.id },
         })
       }
@@ -169,8 +193,8 @@ export class UsersService {
   async updateSpecializations(companyId: string, userId: string, specializationIds: string[]) {
     const existingUser = await this.findCompanyUser(companyId, userId)
 
-    if (existingUser.role !== UserRole.TECHNICIAN) {
-      throw new BadRequestException('Specializations can be assigned only to technicians')
+    if (!isExecutorCapableRole(existingUser.role)) {
+      throw new BadRequestException('Specializations can only be assigned to executor-capable roles')
     }
 
     const normalizedIds = [
@@ -261,6 +285,7 @@ export class UsersService {
         avatarUrl: true,
         role: true,
         isActive: true,
+        isExecutor: true,
       },
     })
 

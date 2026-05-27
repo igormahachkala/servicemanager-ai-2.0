@@ -170,7 +170,7 @@ export class TicketsController {
   }
 
   @Get('available')
-  @Roles(UserRole.TECHNICIAN)
+  @Roles(UserRole.TECHNICIAN, UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER)
   @RequirePermission(PERMISSIONS.TICKETS_VIEW_AVAILABLE)
   @ApiForbiddenResponse({
     description: 'Missing permission: TICKETS_VIEW_AVAILABLE',
@@ -181,7 +181,7 @@ export class TicketsController {
   }
 
   @Post(':id/request-assignment')
-  @Roles(UserRole.TECHNICIAN)
+  @Roles(UserRole.TECHNICIAN, UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER)
   @RequirePermission(PERMISSIONS.TICKETS_CLAIM)
   @ApiForbiddenResponse({
     description: 'Missing permission: TICKETS_CLAIM',
@@ -369,7 +369,7 @@ export class TicketsController {
   }
 
   @Post(':id/claim')
-  @Roles(UserRole.TECHNICIAN)
+  @Roles(UserRole.TECHNICIAN, UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER)
   @RequirePermission(PERMISSIONS.TICKETS_CLAIM)
   claim(
     @Req() req: any,

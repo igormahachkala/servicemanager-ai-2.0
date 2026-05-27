@@ -1,5 +1,6 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma, TicketAttachmentPurpose, TicketStatus, UserRole } from '@prisma/client';
+import { isExecutorCapableRole } from '../common/executor.utils';
 
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -22,6 +23,7 @@ export class TicketsStatusService {
   ) {}
 
   private readonly policy = new TicketsPolicy();
+  private readonly logger = new Logger(TicketsStatusService.name);
 
   private async assertExecutorOperationsAllowed(actorCompanyId: string) {
     const actorCompany = await this.prisma.company.findUnique({
@@ -87,12 +89,24 @@ export class TicketsStatusService {
       });
       if (!ticket) throw new NotFoundException('Ticket not found');
 
+      const actorIsExecutor = isExecutorCapableRole(role)
+        ? (await this.prisma.user.findFirst({ where: { id: user?.id }, select: { isExecutor: true } }))?.isExecutor ?? false
+        : false;
       const decision = this.policy.canChangeStatus({
-        user: { id: user?.id, role, companyId: access.operationCompanyId },
+        user: { id: user?.id, role, isExecutor: actorIsExecutor, companyId: access.operationCompanyId },
         ticket: {
           companyId: access.operationCompanyId,
           assignedTechnicianId: ticket.assignedTechnicianId,
         },
+      });
+      this.logger.log({
+        event: 'executor_status_change_decision',
+        actorUserId: user?.id,
+        actorRole: role,
+        actorIsExecutor,
+        ticketId,
+        allowed: decision.allowed,
+        denialReason: decision.allowed ? undefined : (decision as { reason?: string }).reason,
       });
       assertAllowed(decision);
 
@@ -312,12 +326,24 @@ export class TicketsStatusService {
       });
       if (!ticket) throw new NotFoundException('Ticket not found');
 
+      const actorIsExecutor2 = isExecutorCapableRole(role)
+        ? (await this.prisma.user.findFirst({ where: { id: user?.id }, select: { isExecutor: true } }))?.isExecutor ?? false
+        : false;
       const decision = this.policy.canChangeStatus({
-        user: { id: user?.id, role, companyId: access.operationCompanyId },
+        user: { id: user?.id, role, isExecutor: actorIsExecutor2, companyId: access.operationCompanyId },
         ticket: {
           companyId: access.operationCompanyId,
           assignedTechnicianId: ticket.assignedTechnicianId,
         },
+      });
+      this.logger.log({
+        event: 'executor_comment_decision',
+        actorUserId: user?.id,
+        actorRole: role,
+        actorIsExecutor: actorIsExecutor2,
+        ticketId,
+        allowed: decision.allowed,
+        denialReason: decision.allowed ? undefined : (decision as { reason?: string }).reason,
       });
       assertAllowed(decision);
 

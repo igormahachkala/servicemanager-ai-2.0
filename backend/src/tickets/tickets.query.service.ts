@@ -21,6 +21,7 @@ import {
 } from './ticket-access.utils'
 import { TicketMetaBuilder } from './ticket-meta.builder'
 import { TICKET_ASSIGNMENT_REQUESTED_ENTITY, TICKET_ASSIGNMENT_REQUESTED_EVENT } from './ticket-domain-event.types'
+import { isExecutorCapableRole } from '../common/executor.utils'
 
 type AccessFlags = {
   canTechnicianViewAllCompanyTickets?: boolean
@@ -394,7 +395,7 @@ export class TicketsQueryService {
       : []
 
     const assignmentRequestedByCurrentUserIds = new Set<string>()
-    if (role === UserRole.TECHNICIAN) {
+    if (isExecutorCapableRole(role)) {
       const candidateTickets = tickets.filter((t) => t.status === TicketStatus.NEW && !t.assignedTechnician)
       const candidateIds = candidateTickets.map((t) => t.id)
       if (candidateIds.length) {
@@ -804,10 +805,15 @@ export class TicketsQueryService {
 
     if (!ticket) throw new NotFoundException('Ticket not found')
 
+    const actorUserMeta = await this.prisma.user.findFirst({
+      where: { id: userId, companyId },
+      select: { isExecutor: true },
+    })
     const meta = await this.ticketMetaBuilder.buildForGetOne({
       actorCompanyId: companyId,
       userId,
       role,
+      isExecutor: actorUserMeta?.isExecutor ?? false,
       ticketId,
       ticketCompanyId: ticket.companyId,
       ticketStatus: ticket.status,

@@ -626,6 +626,30 @@ export class MaxBotService {
     return [...chatIds];
   }
 
+  async handleWebhookUpdate(update: MaxBotUpdate) {
+    await this.processCommandUpdates([update]);
+  }
+
+  async getSubscriptions() {
+    return this.requestJson<unknown>('/subscriptions');
+  }
+
+  async registerWebhook(params: { url: string; updateTypes?: string[]; secret?: string }) {
+    const body: Record<string, unknown> = {
+      url: params.url,
+      update_types: params.updateTypes ?? ['message_created'],
+    };
+    if (params.secret) body.secret = params.secret;
+    return this.requestJson<unknown>('/subscriptions', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    });
+  }
+
+  async deleteSubscriptions() {
+    return this.requestJson<unknown>('/subscriptions', { method: 'DELETE' });
+  }
+
   private async processCommandUpdates(updates: MaxBotUpdate[]) {
     const commandService = this.commandService;
     const groupChatId = this.groupChatId;

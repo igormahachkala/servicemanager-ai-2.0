@@ -3,6 +3,7 @@ import { Prisma, UserRole } from '@prisma/client'
 
 import { PrismaService } from '../prisma/prisma.service'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
+import { EXECUTOR_CAPABLE_ROLES } from '../common/executor.utils'
 
 const LOCATION_BINDABLE_USER_ROLES: UserRole[] = [
   UserRole.ADMIN,
@@ -42,12 +43,14 @@ export class TechniciansService {
     return this.prisma.user.findMany({
       where: {
         companyId,
-        role: UserRole.TECHNICIAN,
+        isExecutor: true,
+        role: { in: Array.from(EXECUTOR_CAPABLE_ROLES) },
       },
       select: {
         id: true,
         email: true,
         role: true,
+        isExecutor: true,
         createdAt: true,
         technicianSpecializations: {
           include: {
@@ -494,12 +497,12 @@ export class TechniciansService {
       where: {
         id: tech.id,
         companyId,
-        role: UserRole.TECHNICIAN,
       },
       select: {
         id: true,
         email: true,
         role: true,
+        isExecutor: true,
         createdAt: true,
         technicianSpecializations: {
           include: {
@@ -515,7 +518,8 @@ export class TechniciansService {
       where: {
         id: technicianId,
         companyId,
-        role: UserRole.TECHNICIAN,
+        isExecutor: true,
+        role: { in: Array.from(EXECUTOR_CAPABLE_ROLES) },
       },
       select: {
         id: true,
@@ -523,7 +527,7 @@ export class TechniciansService {
     })
 
     if (!tech) {
-      throw new NotFoundException('Technician not found')
+      throw new NotFoundException('Executor not found')
     }
 
     return tech

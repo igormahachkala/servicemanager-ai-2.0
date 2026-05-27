@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { CompanyType, Prisma, PublicRequestType, TicketPriority, TicketSource, TicketStatus, TicketUrgency, UserRole } from '@prisma/client';
+import { EXECUTOR_CAPABLE_ROLES, isExecutorEligible } from '../common/executor.utils';
 import { randomUUID } from 'crypto';
 
 import { PrismaService } from '../prisma/prisma.service';
@@ -212,7 +213,8 @@ export class TicketsAssignmentService {
     const techs = await this.prisma.user.findMany({
       where: {
         companyId: companyId,
-        role: UserRole.TECHNICIAN,
+        isExecutor: true,
+        role: { in: Array.from(EXECUTOR_CAPABLE_ROLES) },
         technicianSpecializations: {
           some: { specializationId: { in: specializationIds } },
         },
@@ -269,7 +271,8 @@ export class TicketsAssignmentService {
     const techs = await this.prisma.user.findMany({
       where: {
         companyId: companyId,
-        role: UserRole.TECHNICIAN,
+        isExecutor: true,
+        role: { in: Array.from(EXECUTOR_CAPABLE_ROLES) },
       },
       select: {
         id: true,
@@ -991,7 +994,8 @@ export class TicketsAssignmentService {
         where: {
           id: technicianId,
           companyId: access.operationCompanyId,
-          role: UserRole.TECHNICIAN,
+          isExecutor: true,
+          role: { in: Array.from(EXECUTOR_CAPABLE_ROLES) },
         },
         include: {
           technicianSpecializations: {
@@ -1629,13 +1633,28 @@ export class TicketsAssignmentService {
     return this.query.getOne(companyId, actor?.id, actor?.role as UserRole, ticket.id);
   }
 
-  async availableForTechnician(companyId: string, technicianUserId: string, linkedClientCompanyId?: string) {
+  async availableForTechnician(companyId: string, executorUserId: string, linkedClientCompanyId?: string) {
+    const executorUser = await this.prisma.user.findFirst({
+      where: { id: executorUserId, companyId, isActive: true },
+      select: { role: true, isExecutor: true },
+    });
+    if (!executorUser || !isExecutorEligible(executorUser)) {
+      throw new ForbiddenException('User is not an eligible executor');
+    }
+    this.logger.log({
+      event: 'executor_available_tickets_scope',
+      executorUserId,
+      executorRole: executorUser.role,
+      isExecutor: executorUser.isExecutor,
+      companyId,
+    });
+
     const technicianScope = await resolveTechnicianOperationalScope({
       prisma: this.prisma,
       serviceContractsService: this.serviceContractsService,
       actor: {
-        id: technicianUserId,
-        role: UserRole.TECHNICIAN,
+        id: executorUserId,
+        role: executorUser.role,
         companyId: companyId,
       },
       linkedClientCompanyId,
@@ -1702,22 +1721,32 @@ export class TicketsAssignmentService {
     })
   }
 
-  async claim(companyId: string, technicianUserId: string, ticketId: string, linkedClientCompanyId?: string) {
+  async claim(companyId: string, executorUserId: string, ticketId: string, linkedClientCompanyId?: string) {
     await this.assertExecutorOperationsAllowed(companyId);
+
+    const executorUser = await this.prisma.user.findFirst({
+      where: { id: executorUserId, companyId, isActive: true },
+      select: { role: true, isExecutor: true },
+    });
+    if (!executorUser || !isExecutorEligible(executorUser)) {
+      throw new ForbiddenException('User is not an eligible executor');
+    }
+
     const technicianScope = await resolveTechnicianOperationalScope({
       prisma: this.prisma,
       serviceContractsService: this.serviceContractsService,
       actor: {
-        id: technicianUserId,
-        role: UserRole.TECHNICIAN,
+        id: executorUserId,
+        role: executorUser.role,
         companyId: companyId,
       },
       linkedClientCompanyId,
     })
     const decision = this.policy.claimWhere({
       user: {
-        id: technicianUserId,
-        role: UserRole.TECHNICIAN,
+        id: executorUserId,
+        role: executorUser.role,
+        isExecutor: executorUser.isExecutor,
         companyId: companyId,
       },
       ticketId,
@@ -1726,6 +1755,19 @@ export class TicketsAssignmentService {
       allowTechnicianClaim: technicianScope.allowTechnicianClaim,
       companyIds: technicianScope.companyIds,
     } satisfies TicketsClaimWhereParams)
+    this.logger.log({
+      event: 'executor_claim_decision',
+      executorUserId,
+      executorRole: executorUser.role,
+      isExecutor: executorUser.isExecutor,
+      ticketId,
+      companyId,
+      allowed: decision.allowed,
+      allowTechnicianClaim: technicianScope.allowTechnicianClaim,
+      scopeCompanyIds: technicianScope.companyIds,
+      specializationCount: technicianScope.specializationIds.length,
+      denialReason: decision.allowed ? undefined : (decision as { reason?: string }).reason,
+    });
     assertAllowed(decision)
     const locationRestriction = buildTechnicianLocationRestrictionWhere({
       companyIds: technicianScope.companyIds,
@@ -1737,7 +1779,7 @@ export class TicketsAssignmentService {
       prisma: this.prisma,
       companyIds: technicianScope.companyIds,
       ticketId,
-      actorUserId: technicianUserId,
+      actorUserId: executorUserId,
     })
 
     const selfCreatedClaimWhere: Prisma.TicketWhereInput | null = selfCreated
@@ -1775,7 +1817,7 @@ export class TicketsAssignmentService {
       await tx.ticket.update({
         where: { id: ticket.id },
         data: {
-          assignedTechnicianId: technicianUserId,
+          assignedTechnicianId: executorUserId,
           status: TicketStatus.ASSIGNED,
           statusUpdatedAt: now,
         },
@@ -1785,17 +1827,17 @@ export class TicketsAssignmentService {
         ticketId: ticket.id,
         fromStatus: TicketStatus.NEW,
         toStatus: TicketStatus.ASSIGNED,
-        changedByUserId: technicianUserId,
-        comment: 'Claimed by technician',
+        changedByUserId: executorUserId,
+        comment: 'Claimed by executor',
       })
 
       const claimEvent = await this.timelineService.recordTx(tx, {
         event: 'TICKET_CLAIMED',
         companyId: ticket.companyId,
         ticketId: ticket.id,
-        actorUserId: technicianUserId,
+        actorUserId: executorUserId,
         payload: {
-          assignedTechnicianId: technicianUserId,
+          assignedTechnicianId: executorUserId,
           mode: 'claim',
           operationCompanyId: companyId,
         },
@@ -1821,12 +1863,12 @@ export class TicketsAssignmentService {
       ticketId: claimResult.ticketId,
       ticketNumber: claimResult.ticketNumber,
       summary: (claimResult.problemText || '').trim() || `Заявка #${claimResult.ticketNumber}`,
-      excludeUserId: technicianUserId,
+      excludeUserId: executorUserId,
       linkedHint: linkedResolved,
       sourceEventId: claimResult.claimEventId,
     })
 
-    return this.query.getOne(companyId, technicianUserId, UserRole.TECHNICIAN, claimResult.ticketId, undefined, undefined, linkedClientCompanyId)
+    return this.query.getOne(companyId, executorUserId, executorUser.role, claimResult.ticketId, undefined, undefined, linkedClientCompanyId)
   }
 
   /**
@@ -1835,22 +1877,34 @@ export class TicketsAssignmentService {
    */
   async requestAssignment(
     providerCompanyId: string,
-    technicianUserId: string,
-    technicianRole: UserRole,
+    executorUserId: string,
+    executorRole: UserRole,
     ticketId: string,
     linkedClientCompanyId?: string,
   ) {
-    if (technicianRole !== UserRole.TECHNICIAN) {
-      throw new ForbiddenException('Only technicians can request assignment');
+    const executorUser = await this.prisma.user.findFirst({
+      where: { id: executorUserId, companyId: providerCompanyId, isActive: true },
+      select: { role: true, isExecutor: true },
+    });
+    if (!executorUser || !isExecutorEligible(executorUser)) {
+      throw new ForbiddenException('User is not an eligible executor');
     }
+    this.logger.log({
+      event: 'executor_request_assignment',
+      executorUserId,
+      executorRole: executorUser.role,
+      isExecutor: executorUser.isExecutor,
+      ticketId,
+      providerCompanyId,
+    });
     await this.assertExecutorOperationsAllowed(providerCompanyId);
 
     const readable = await resolveReadableTicketAccess({
       prisma: this.prisma,
       serviceContractsService: this.serviceContractsService,
       actor: {
-        id: technicianUserId,
-        role: UserRole.TECHNICIAN,
+        id: executorUserId,
+        role: executorRole,
         companyId: providerCompanyId,
       },
       ticketId,
@@ -1883,7 +1937,7 @@ export class TicketsAssignmentService {
           entityType: TICKET_ASSIGNMENT_REQUESTED_ENTITY,
           entityId: ticket.id,
           companyId: ticket.companyId,
-          actorUserId: technicianUserId,
+          actorUserId: executorUserId,
         },
         select: { id: true },
       })
@@ -1895,10 +1949,10 @@ export class TicketsAssignmentService {
         companyId: ticket.companyId,
         entityType: TICKET_ASSIGNMENT_REQUESTED_ENTITY,
         entityId: ticket.id,
-        actorUserId: technicianUserId,
+        actorUserId: executorUserId,
         payload: {
           ticketId: ticket.id,
-          requestedByUserId: technicianUserId,
+          requestedByUserId: executorUserId,
           linkedClientCompanyId: linkedClientCompanyId?.trim() || null,
           createdAt: createdAtIso,
         },
@@ -1912,7 +1966,7 @@ export class TicketsAssignmentService {
 
     const notify = await this.notifications.notifyTicketAssignmentRequested({
       providerCompanyId,
-      technicianUserId,
+      technicianUserId: executorUserId,
       ticketId: ticket.id,
       ticketNumber: ticket.ticketNumber,
       ticketCompanyId: ticket.companyId,

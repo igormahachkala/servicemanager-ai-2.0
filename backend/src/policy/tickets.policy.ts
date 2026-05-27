@@ -2,6 +2,7 @@
 
 import { buildSpecializationLinksSomeWhereInput } from '../tickets/ticket-specialization-match.utils'
 import { allow, deny, PolicyDecision } from './policy.types';
+import { isExecutorEligible } from '../common/executor.utils';
 
 export type UserCtx = {
   id: string;
@@ -49,9 +50,9 @@ export type BoardQuery = {
   };
 };
 
-/** Вход claimWhere: id + имена специализаций техника (кросс-тенантный матч с категорией заявки). */
+/** Вход claimWhere: id + имена специализаций исполнителя (кросс-тенантный матч с категорией заявки). */
 export type TicketsClaimWhereParams = {
-  user: { id: string; role: UserRole; companyId: string };
+  user: { id: string; role: UserRole; isExecutor: boolean; companyId: string };
   ticketId: string;
   specializationIds: string[];
   specializationNames?: string[];
@@ -188,9 +189,9 @@ export class TicketsPolicy {
   claimWhere(params: TicketsClaimWhereParams): PolicyDecision<Prisma.TicketWhereInput> {
     const { user, ticketId, specializationIds, specializationNames, allowTechnicianClaim, companyIds } = params;
 
-    if (user.role !== UserRole.TECHNICIAN) return deny('Only TECHNICIAN can claim tickets');
+    if (!isExecutorEligible(user)) return deny('Only executor-capable users can claim tickets');
     if (!allowTechnicianClaim) {
-      return deny('Technician claim is disabled for this company', 'precondition');
+      return deny('Executor claim is disabled for this company', 'precondition');
     }
 
     const effectiveCompanyIds = Array.from(new Set((companyIds ?? [user.companyId]).filter(Boolean)));
@@ -229,21 +230,23 @@ export class TicketsPolicy {
   }
 
   canChangeStatus(params: {
-    user: { id: string; role: UserRole; companyId: string };
+    user: { id: string; role: UserRole; isExecutor: boolean; companyId: string };
     ticket: { companyId: string; assignedTechnicianId: string | null };
   }): PolicyDecision {
     const { user, ticket } = params;
 
     if (ticket.companyId !== user.companyId) return deny('Cross-company access');
 
-    if (user.role === UserRole.TECHNICIAN) {
+    // Management roles get full status access regardless of executor flag.
+    if (MANAGEMENT_STATUS_ROLES.includes(user.role)) return allow();
+
+    // Pure executor (e.g. TECHNICIAN) may only change status on own assigned ticket.
+    if (isExecutorEligible(user)) {
       if (ticket.assignedTechnicianId !== user.id) {
-        return deny('Technician can change status only for own assigned tickets');
+        return deny('Executor can change status only for own assigned tickets');
       }
       return allow();
     }
-
-    if (MANAGEMENT_STATUS_ROLES.includes(user.role)) return allow();
 
     return deny('Role cannot change ticket status');
   }

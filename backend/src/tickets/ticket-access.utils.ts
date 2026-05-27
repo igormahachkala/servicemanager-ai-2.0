@@ -224,11 +224,10 @@ export async function resolveTechnicianOperationalScope(params: {
     throw new NotFoundException('Company not found')
   }
 
-  const technician = await params.prisma.user.findFirst({
+  const executor = await params.prisma.user.findFirst({
     where: {
       id: params.actor.id,
       companyId: params.actor.companyId,
-      role: UserRole.TECHNICIAN,
     },
     select: {
       id: true,
@@ -242,8 +241,8 @@ export async function resolveTechnicianOperationalScope(params: {
     },
   })
 
-  if (!technician) {
-    throw new NotFoundException('Technician not found')
+  if (!executor) {
+    throw new NotFoundException('Executor not found')
   }
 
   const linkedClientIds = await resolvePrimaryLinkedClientIds({
@@ -254,10 +253,10 @@ export async function resolveTechnicianOperationalScope(params: {
   })
 
   const companyIds = Array.from(new Set([params.actor.companyId, ...linkedClientIds]))
-  const specializationIds = technician.technicianSpecializations.map((item) => item.specializationId)
+  const specializationIds = executor.technicianSpecializations.map((item) => item.specializationId)
   const specializationNames = Array.from(
     new Set(
-      technician.technicianSpecializations.flatMap((item) => {
+      executor.technicianSpecializations.flatMap((item) => {
         const raw = item.specialization?.name?.trim() ?? ''
         if (!raw) return []
         const out: string[] = [raw, ...specializationNameMatchVariants(raw)]

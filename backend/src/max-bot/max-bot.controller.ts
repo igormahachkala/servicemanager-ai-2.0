@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 
 import { JwtAuthGuard } from '../auth/jwt.guard';
@@ -54,5 +54,26 @@ export class MaxBotController {
       ticketId: typeof body.ticketId === 'string' ? body.ticketId : undefined,
       text: body.text,
     });
+  }
+
+  @Get('subscriptions')
+  getSubscriptions() {
+    return this.maxBot.getSubscriptions();
+  }
+
+  @Post('subscriptions/register')
+  registerWebhook(@Body() body: { url?: string; secret?: string; updateTypes?: string[] }) {
+    const url = (body.url || process.env.MAX_BOT_WEBHOOK_URL || '').trim();
+    if (!url) throw new BadRequestException('url is required (or set MAX_BOT_WEBHOOK_URL)');
+    return this.maxBot.registerWebhook({
+      url,
+      secret: body.secret || process.env.MAX_BOT_WEBHOOK_SECRET || undefined,
+      updateTypes: body.updateTypes,
+    });
+  }
+
+  @Delete('subscriptions')
+  deleteSubscriptions() {
+    return this.maxBot.deleteSubscriptions();
   }
 }

@@ -1,8 +1,9 @@
 import { MaxBotPollingService } from './max-bot-polling.service';
 
-function makeMockService(overrides?: Partial<{ pollUpdates: jest.Mock }>) {
+function makeMockService(overrides?: Partial<{ pollUpdates: jest.Mock; registerWebhook: jest.Mock }>) {
   return {
     pollUpdates: jest.fn().mockResolvedValue({ savedMarker: null, updates: [] }),
+    registerWebhook: jest.fn().mockResolvedValue({ ok: true }),
     ...overrides,
   };
 }
@@ -13,6 +14,9 @@ describe('MaxBotPollingService', () => {
     delete process.env.MAX_BOT_COMMANDS_ENABLED;
     delete process.env.MAX_BOT_POLL_INTERVAL_MS;
     delete process.env.MAX_BOT_POLL_TIMEOUT_SECONDS;
+    delete process.env.MAX_BOT_WEBHOOK_ENABLED;
+    delete process.env.MAX_BOT_WEBHOOK_URL;
+    delete process.env.MAX_BOT_WEBHOOK_SECRET;
   });
 
   afterEach(() => {
@@ -131,6 +135,36 @@ describe('MaxBotPollingService', () => {
     service.onModuleDestroy();
     jest.advanceTimersByTime(5000);
     expect(mock.pollUpdates).not.toHaveBeenCalled();
+  });
+
+  it('does not start polling when webhook mode is active', () => {
+    process.env.MAX_BOT_COMMANDS_ENABLED = 'true';
+    process.env.MAX_BOT_WEBHOOK_ENABLED = 'true';
+    process.env.MAX_BOT_POLL_INTERVAL_MS = '1000';
+    const mock = makeMockService();
+    const service = new MaxBotPollingService(mock as any);
+    service.onModuleInit();
+    jest.advanceTimersByTime(10_000);
+    expect(mock.pollUpdates).not.toHaveBeenCalled();
+    service.onModuleDestroy();
+  });
+
+  it('registers webhook on startup when webhook mode is active', async () => {
+    process.env.MAX_BOT_COMMANDS_ENABLED = 'true';
+    process.env.MAX_BOT_WEBHOOK_ENABLED = 'true';
+    process.env.MAX_BOT_WEBHOOK_URL = 'https://api.example.com/max-bot/webhook';
+    process.env.MAX_BOT_WEBHOOK_SECRET = 'my-secret';
+    const mock = makeMockService();
+    const service = new MaxBotPollingService(mock as any);
+    service.onModuleInit();
+    await Promise.resolve(); // flush registration promise
+    await Promise.resolve();
+    expect(mock.registerWebhook).toHaveBeenCalledWith({
+      url: 'https://api.example.com/max-bot/webhook',
+      secret: 'my-secret',
+      updateTypes: ['message_created'],
+    });
+    service.onModuleDestroy();
   });
 
   it('resets running flag after error so next tick can proceed', async () => {

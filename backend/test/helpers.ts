@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { PrismaClient, TicketStatus, TicketUrgency, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
@@ -166,13 +167,28 @@ export async function linkTechToSpec(techUserId: string, specId: string) {
 export async function createTicket(params: {
   companyId: string;
   problemCategoryId: string;
+  locationId?: string;
   problemText?: string;
   status?: TicketStatus;
   assignedTechnicianId?: string | null;
 }) {
+  let locationId = params.locationId;
+  if (!locationId) {
+    const loc = await prisma.location.create({
+      data: {
+        clientCompanyId: params.companyId,
+        name: 'E2E Location',
+        platformCode: `e2e-${randomUUID()}`,
+        isActive: true,
+      },
+    });
+    locationId = loc.id;
+  }
+
   const t = await prisma.ticket.create({
     data: {
-      company: { connect: { id: params.companyId } },
+      companyId: params.companyId,
+      locationId,
       problemCategoryId: params.problemCategoryId,
       problemText: params.problemText ?? 'E2E problem',
       urgency: TicketUrgency.NOT_URGENT,

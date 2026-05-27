@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { DebugController } from './common/debug.controller'; // TODO_REMOVE_AFTER_STABILIZATION
 
 import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './auth/auth.module';
@@ -50,7 +51,7 @@ import { MaxBotModule } from './max-bot/max-bot.module';
     UploadsModule,
     MaxBotModule,
   ],
-  controllers: [AppController, HealthController],
+  controllers: [AppController, HealthController, DebugController], // DebugController: TODO_REMOVE_AFTER_STABILIZATION
   providers: [AppService],
 })
 export class AppModule {}

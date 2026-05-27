@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { TicketStatus, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { matchCategorySpecializationLinks } from '../tickets/ticket-specialization-match.utils';
+import { EXECUTOR_CAPABLE_ROLES } from '../common/executor.utils';
 
 export type AssignmentInput = {
   ticketId: string;
@@ -37,6 +38,8 @@ export type AssignmentDecisionLog = {
 
 @Injectable()
 export class AssignmentEngine {
+  private readonly logger = new Logger(AssignmentEngine.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   async selectTechnicianForTicket(
@@ -158,7 +161,8 @@ export class AssignmentEngine {
     const users = await this.prisma.user.findMany({
       where: {
         companyId,
-        role: UserRole.TECHNICIAN,
+        isExecutor: true,
+        role: { in: Array.from(EXECUTOR_CAPABLE_ROLES) },
         isActive: true,
       },
       select: {
@@ -185,7 +189,7 @@ export class AssignmentEngine {
       },
     });
 
-    return users.map((u) => ({
+    const candidates = users.map((u) => ({
       technicianId: u.id,
       locationBindings: u.locationBindings.map((x) => x.locationId),
       specializationIds: u.technicianSpecializations.map(
@@ -196,5 +200,12 @@ export class AssignmentEngine {
         .filter((x) => x.length > 0),
       activeTicketsCount: u.assignedTickets.length,
     }));
+    this.logger.log({
+      event: 'assignment_candidate_pool',
+      companyId,
+      candidateCount: candidates.length,
+      candidateIds: candidates.map((c) => c.technicianId),
+    });
+    return candidates;
   }
 }

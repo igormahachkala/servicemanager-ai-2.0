@@ -1,6 +1,7 @@
 import { TicketStatus, UserRole } from '@prisma/client'
 
 import { TicketsPolicy, type TicketsClaimWhereParams } from '../policy/tickets.policy'
+import { isExecutorEligible } from '../common/executor.utils'
 import { PrismaService } from '../prisma/prisma.service'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
 import { decideTicketTransition } from '../workflow/ticket.workflow'
@@ -19,6 +20,7 @@ export type TicketMetaBuildParams = {
   actorCompanyId: string
   userId: string
   role: UserRole
+  isExecutor: boolean
   ticketId: string
   /** companyId тенанта заявки (DomainEvent.companyId при запросе назначения). */
   ticketCompanyId: string
@@ -76,17 +78,17 @@ export class TicketMetaBuilder {
     }
     availableActionHints?: Partial<Record<'canClaim' | 'canStart' | 'canComplete' | 'canClose', string | null>>
   } {
-    const isTechnician = params.role === UserRole.TECHNICIAN
+    const isExec = isExecutorEligible({ role: params.role, isExecutor: params.isExecutor })
     const hints: Partial<Record<'canClaim' | 'canStart' | 'canComplete' | 'canClose', string | null>> = {}
 
     const canClaim =
-      isTechnician &&
+      isExec &&
       claim.canClaimByCurrentUser &&
       params.ticketStatus === TicketStatus.NEW &&
       !params.assignedTechnicianId
 
     if (
-      isTechnician &&
+      isExec &&
       params.ticketStatus === TicketStatus.NEW &&
       !params.assignedTechnicianId &&
       !canClaim &&
@@ -96,7 +98,7 @@ export class TicketMetaBuilder {
     }
 
     const preferClaimOverDirectInProgress =
-      isTechnician &&
+      isExec &&
       params.ticketStatus === TicketStatus.NEW &&
       claim.canClaimByCurrentUser &&
       !params.assignedTechnicianId
@@ -125,7 +127,7 @@ export class TicketMetaBuilder {
   }
 
   private async resolveAssignmentRequestedByCurrentUser(params: TicketMetaBuildParams): Promise<boolean> {
-    if (params.role !== UserRole.TECHNICIAN) return false
+    if (!isExecutorEligible({ role: params.role, isExecutor: params.isExecutor })) return false
     if (params.ticketStatus !== TicketStatus.NEW || params.assignedTechnicianId) return false
     const ev = await this.prisma.domainEvent.findFirst({
       where: {
@@ -141,7 +143,7 @@ export class TicketMetaBuilder {
   }
 
   private async resolveClaimAvailability(params: TicketMetaBuildParams): Promise<{ canClaimByCurrentUser: boolean; claimAvailabilityReason: string | null }> {
-    if (params.role !== UserRole.TECHNICIAN) {
+    if (!isExecutorEligible({ role: params.role, isExecutor: params.isExecutor })) {
       return { canClaimByCurrentUser: false, claimAvailabilityReason: null }
     }
 
@@ -166,7 +168,8 @@ export class TicketMetaBuilder {
     const decision = this.policy.claimWhere({
       user: {
         id: params.userId,
-        role: UserRole.TECHNICIAN,
+        role: params.role,
+        isExecutor: params.isExecutor,
         companyId: params.actorCompanyId,
       },
       ticketId: params.ticketId,
@@ -315,6 +318,7 @@ export class TicketMetaBuilder {
         user: {
           id: params.userId,
           role: params.role,
+          isExecutor: params.isExecutor,
           companyId: access.operationCompanyId,
         },
         ticket: {

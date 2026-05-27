@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { TicketStatus, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { EXECUTOR_CAPABLE_ROLES } from '../common/executor.utils';
 
 @Injectable()
 export class TechniciansWorkloadService {
@@ -10,11 +11,14 @@ export class TechniciansWorkloadService {
     const technicians = await this.prisma.user.findMany({
       where: {
         companyId,
-        role: UserRole.TECHNICIAN,
+        isExecutor: true,
+        role: { in: Array.from(EXECUTOR_CAPABLE_ROLES) },
       },
       select: {
         id: true,
         email: true,
+        role: true,
+        isExecutor: true,
         createdAt: true,
         technicianSpecializations: {
           include: {

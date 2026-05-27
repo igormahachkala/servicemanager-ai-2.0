@@ -6,6 +6,7 @@ import { TimelineService } from '../timeline/timeline.service'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
 import { isPlatformObserverScope, resolveObserverScopeCompanyId } from '../policy/policy.utils'
 import { resolveActorLocationScope } from '../tickets/ticket-access.utils'
+import { EXECUTOR_CAPABLE_ROLES } from '../common/executor.utils'
 
 @Injectable()
 export class AnalyticsService {
@@ -96,7 +97,7 @@ export class AnalyticsService {
       this.prisma.technicianSpecialization.findMany({
         where: {
           specialization: { companyId },
-          user: { companyId, role: UserRole.TECHNICIAN, isActive: true },
+          user: { companyId, isExecutor: true, role: { in: Array.from(EXECUTOR_CAPABLE_ROLES) }, isActive: true },
         },
         select: { specializationId: true, userId: true },
       }),
@@ -163,7 +164,7 @@ export class AnalyticsService {
       this.prisma.technicianSpecialization.findMany({
         where: {
           specialization: { companyId },
-          user: { companyId, role: UserRole.TECHNICIAN, isActive: true },
+          user: { companyId, isExecutor: true, role: { in: Array.from(EXECUTOR_CAPABLE_ROLES) }, isActive: true },
         },
         select: { specializationId: true, userId: true },
       }),

@@ -30,4 +30,8 @@ export class UpdateUserDto {
   @IsOptional()
   @IsUrl({ require_tld: false }, { message: 'avatarUrl must be a valid URL' })
   avatarUrl?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isExecutor?: boolean;
 }

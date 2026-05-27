@@ -40,6 +40,7 @@ export class UsersPolicy {
     password?: string;
     role?: UserRole;
     isActive?: boolean;
+    isExecutor?: boolean;
     firstName?: string | null;
     lastName?: string | null;
     avatarUrl?: string | null;
@@ -49,6 +50,7 @@ export class UsersPolicy {
       ...(data.password !== undefined ? { password: data.password } : {}),
       ...(data.role !== undefined ? { role: data.role } : {}),
       ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
+      ...(data.isExecutor !== undefined ? { isExecutor: data.isExecutor } : {}),
       ...(data.firstName !== undefined ? { firstName: data.firstName } : {}),
       ...(data.lastName !== undefined ? { lastName: data.lastName } : {}),
       ...(data.avatarUrl !== undefined ? { avatarUrl: data.avatarUrl } : {}),
@@ -64,6 +66,7 @@ export class UsersPolicy {
       avatarUrl: true,
       role: true,
       isActive: true,
+      isExecutor: true,
       createdAt: true,
       technicianSpecializations: {
         select: {

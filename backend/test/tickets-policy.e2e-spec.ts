@@ -3,6 +3,8 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { AppModule } from '../src/app.module';
 import { TicketStatus } from '@prisma/client';
+import { PERMISSIONS } from '../src/common/permissions.constants';
+import type { PermissionCode } from '../src/common/permissions.constants';
 
 import {
   prisma,
@@ -19,14 +21,14 @@ import {
 describe('Tickets Policy Contract (e2e)', () => {
   let app: INestApplication;
 
-  const PERMS = [
-    'TICKETS_CREATE',
-    'TICKETS_VIEW',
-    'TICKETS_ASSIGN',
-    'TICKETS_CLAIM',
-    'TICKETS_STATUS_CHANGE',
-    'TICKETS_VIEW_AVAILABLE',
-    'ANALYTICS_VIEW',
+  const PERMS: PermissionCode[] = [
+    PERMISSIONS.TICKETS_CREATE,
+    PERMISSIONS.TICKETS_VIEW,
+    PERMISSIONS.TICKETS_ASSIGN,
+    PERMISSIONS.TICKETS_CLAIM,
+    PERMISSIONS.TICKETS_STATUS_CHANGE,
+    PERMISSIONS.TICKETS_VIEW_AVAILABLE,
+    PERMISSIONS.ANALYTICS_VIEW,
   ];
 
   async function login(email: string, password: string) {
@@ -64,9 +66,9 @@ describe('Tickets Policy Contract (e2e)', () => {
     await grantRolePermissions('MASTER' as any, PERMS);
     await grantRolePermissions('DISPATCHER' as any, PERMS);
     await grantRolePermissions('NETWORK_DIRECTOR' as any, [
-      'ANALYTICS_VIEW',
-      'TICKETS_VIEW',
-      'TICKETS_STATUS_CHANGE',
+      PERMISSIONS.ANALYTICS_VIEW,
+      PERMISSIONS.TICKETS_VIEW,
+      PERMISSIONS.TICKETS_STATUS_CHANGE,
     ]);
     // TECHNICIAN по умолчанию НЕ даём прав — будем выдавать точечно через UserPermission,
     // чтобы проверить, что PBAC реально работает.
@@ -89,7 +91,7 @@ describe('Tickets Policy Contract (e2e)', () => {
     await linkTechToSpec(tech.id, spec.id);
 
     // выдаём tech право на чтение тикетов
-    await grantUserPermissions(tech.id, ['TICKETS_VIEW']);
+    await grantUserPermissions(tech.id, [PERMISSIONS.TICKETS_VIEW]);
 
     // тикет назначен ДРУГОМУ технику
     const ticket = await createTicket({
@@ -116,7 +118,7 @@ describe('Tickets Policy Contract (e2e)', () => {
 
     await linkTechToSpec(tech.id, spec.id);
 
-    await grantUserPermissions(tech.id, ['TICKETS_VIEW', 'TICKETS_CLAIM']);
+    await grantUserPermissions(tech.id, [PERMISSIONS.TICKETS_VIEW, PERMISSIONS.TICKETS_CLAIM]);
 
     const okTicket = await createTicket({
       companyId: company.id,
@@ -160,7 +162,7 @@ describe('Tickets Policy Contract (e2e)', () => {
     await linkTechToSpec(tech.id, spec.id);
 
     // выдаём tech права на просмотр и смену статуса
-    await grantUserPermissions(tech.id, ['TICKETS_VIEW', 'TICKETS_STATUS_CHANGE']);
+    await grantUserPermissions(tech.id, [PERMISSIONS.TICKETS_VIEW, PERMISSIONS.TICKETS_STATUS_CHANGE]);
 
     const чужой = await createTicket({
       companyId: company.id,
