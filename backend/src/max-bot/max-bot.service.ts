@@ -7,6 +7,7 @@ import {
 import { TicketStatus, TicketUrgency } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
+import { MaxBotCommandService } from './max-bot-command.service';
 import { MaxBotSendMessageResponse, MaxBotUpdate, MaxBotUpdatesResponse } from './max-bot.types';
 
 type PollParams = {
@@ -85,7 +86,10 @@ export class MaxBotService {
   private lastChatId: number | null = null;
   private lastMarker: number | null = null;
 
-  constructor(private readonly prisma?: PrismaService) {}
+  constructor(
+    private readonly prisma?: PrismaService,
+    private readonly commandService?: MaxBotCommandService,
+  ) {}
 
   private normalizeBaseUrl(value: string) {
     return value.trim().replace(/\/+$/, '');
@@ -622,6 +626,32 @@ export class MaxBotService {
     return [...chatIds];
   }
 
+  private async processCommandUpdates(updates: MaxBotUpdate[]) {
+    const commandService = this.commandService;
+    const groupChatId = this.groupChatId;
+    if (!commandService || groupChatId === null) return;
+
+    for (const update of updates) {
+      if (update.update_type !== 'message_created') continue;
+      const chatId = this.extractChatId(update);
+      if (chatId !== groupChatId) continue;
+
+      let responseText: string | null = null;
+      try {
+        responseText = await commandService.handleUpdate(update);
+      } catch (err) {
+        this.logger.warn({ err }, 'max_bot_command_handle_error');
+      }
+      if (!responseText) continue;
+
+      try {
+        await this.sendRawMessage(chatId, responseText);
+      } catch (err) {
+        this.logger.warn({ err, chatId }, 'max_bot_command_reply_failed');
+      }
+    }
+  }
+
   async pollUpdates(params: PollParams) {
     const query = new URLSearchParams();
 
@@ -655,6 +685,8 @@ export class MaxBotService {
       },
       'max_bot_updates_polled',
     );
+
+    await this.processCommandUpdates(updates);
 
     return {
       ...result,
