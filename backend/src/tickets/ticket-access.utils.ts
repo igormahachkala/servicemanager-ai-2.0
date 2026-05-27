@@ -1,10 +1,11 @@
-﻿import { ForbiddenException, NotFoundException } from '@nestjs/common'
-import { Prisma, UserRole } from '@prisma/client'
+﻿import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common'
+import { Prisma, ServiceContractRole, UserRole } from '@prisma/client'
 
 import { assertAllowed, isPlatformObserverScope, resolveObserverScopeCompanyId } from '../policy/policy.utils'
 import { TicketsPolicy, type UserCtx } from '../policy/tickets.policy'
 import { PrismaService } from '../prisma/prisma.service'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
+import { isExecutorCapableRole } from '../common/executor.utils'
 import {
   buildSpecializationLinksSomeWhereInput,
   normalizeSpecializationLabel,
@@ -245,12 +246,42 @@ export async function resolveTechnicianOperationalScope(params: {
     throw new NotFoundException('Executor not found')
   }
 
-  const linkedClientIds = await resolvePrimaryLinkedClientIds({
-    serviceContractsService: params.serviceContractsService,
-    actor: params.actor,
-    linkedClientCompanyId: params.linkedClientCompanyId,
-    allowedRoles: [UserRole.TECHNICIAN],
-  })
+  // PRIMARY contracts: TECHNICIAN role only (management roles use the management path)
+  // SECONDARY contracts: any executor-capable role
+  const requestedLinked =
+    params.linkedClientCompanyId && params.linkedClientCompanyId !== params.actor.companyId
+      ? params.linkedClientCompanyId
+      : null
+
+  let linkedClientIds: string[]
+
+  if (requestedLinked) {
+    const access = await params.serviceContractsService.getLinkedClientAccess(
+      params.actor.companyId,
+      requestedLinked,
+    )
+    if (!access) {
+      throw new ForbiddenException('Linked client access is not available')
+    }
+    const isPrimary = access.role === ServiceContractRole.PRIMARY
+    const isSecondary = access.role === ServiceContractRole.SECONDARY
+    if (isPrimary && params.actor.role !== UserRole.TECHNICIAN) {
+      throw new ForbiddenException('Role cannot access primary-linked client tickets via executor scope')
+    }
+    if (!isPrimary && !isSecondary) {
+      throw new ForbiddenException('Linked client access is not available')
+    }
+    linkedClientIds = [requestedLinked]
+  } else {
+    const primaryIds =
+      params.actor.role === UserRole.TECHNICIAN
+        ? await params.serviceContractsService.listPrimaryLinkedClientIds(params.actor.companyId)
+        : []
+    const secondaryIds = isExecutorCapableRole(params.actor.role)
+      ? await params.serviceContractsService.listSecondaryLinkedClientIds(params.actor.companyId)
+      : []
+    linkedClientIds = [...new Set([...primaryIds, ...secondaryIds])]
+  }
 
   const companyIds = Array.from(new Set([params.actor.companyId, ...linkedClientIds]))
   const specializationIds = executor.technicianSpecializations.map((item) => item.specializationId)
@@ -266,7 +297,7 @@ export async function resolveTechnicianOperationalScope(params: {
       }),
     ),
   ).filter((name) => name.length > 0)
-  const linkedScopeSelected = !!params.linkedClientCompanyId && params.linkedClientCompanyId !== params.actor.companyId
+  const linkedScopeSelected = !!requestedLinked
   const hasLinkedCompanies = linkedClientIds.some((id) => id !== params.actor.companyId)
   const bindings = await params.prisma.userLocationBinding.findMany({
     where: {
@@ -314,23 +345,31 @@ async function ensureCompanyExists(prisma: PrismaService, companyId: string) {
   }
 }
 
-async function resolvePrimaryLinkedClientIds(params: {
+async function resolveLinkedClientIds(params: {
   serviceContractsService: ServiceContractsService
   actor: TicketAccessActor
   linkedClientCompanyId?: string
   allowedRoles?: UserRole[]
+  allowedContractRoles?: ServiceContractRole[]
 }) {
   const allowedRoles = params.allowedRoles ?? PROVIDER_LINKED_OPERATION_ROLES
+  const allowedContractRoles = params.allowedContractRoles ?? [ServiceContractRole.PRIMARY]
 
   if (params.linkedClientCompanyId && params.linkedClientCompanyId !== params.actor.companyId) {
     if (!allowedRoles.includes(params.actor.role)) {
       throw new ForbiddenException('Role cannot access linked client tickets')
     }
 
-    await params.serviceContractsService.assertPrimaryLinkedClientAccess(
+    const access = await params.serviceContractsService.getLinkedClientAccess(
       params.actor.companyId,
       params.linkedClientCompanyId,
     )
+    if (!access) {
+      throw new ForbiddenException('Linked client access is not available')
+    }
+    if (!allowedContractRoles.includes(access.role)) {
+      throw new BadRequestException('Linked client visibility is restricted for SECONDARY provider')
+    }
 
     return [params.linkedClientCompanyId]
   }
@@ -339,7 +378,22 @@ async function resolvePrimaryLinkedClientIds(params: {
     return []
   }
 
-  return params.serviceContractsService.listPrimaryLinkedClientIds(params.actor.companyId)
+  const contracts = await params.serviceContractsService.listLinkedClients(params.actor.companyId)
+  return contracts
+    .filter((contract) => allowedContractRoles.includes(contract.role))
+    .map((contract) => contract.linkedClientCompanyId)
+}
+
+export async function resolvePrimaryLinkedClientIds(params: {
+  serviceContractsService: ServiceContractsService
+  actor: TicketAccessActor
+  linkedClientCompanyId?: string
+  allowedRoles?: UserRole[]
+}) {
+  return resolveLinkedClientIds({
+    ...params,
+    allowedContractRoles: [ServiceContractRole.PRIMARY],
+  })
 }
 
 export async function resolveTicketReadScope(params: {
@@ -350,6 +404,7 @@ export async function resolveTicketReadScope(params: {
   linkedClientCompanyId?: string
   observerCompanyId?: string
   allowedLinkedClientRoles?: UserRole[]
+  allowedLinkedClientContractRoles?: ServiceContractRole[]
 }): Promise<{ scopeCompanyId: string; visibilityMode: TicketVisibilityMode }> {
   const observerCompanyId = resolveObserverScopeCompanyId({
     actorCompanyId: params.actorCompanyId,
@@ -378,7 +433,7 @@ export async function resolveTicketReadScope(params: {
     }
   }
 
-  const linkedClientIds = await resolvePrimaryLinkedClientIds({
+  const linkedClientIds = await resolveLinkedClientIds({
     serviceContractsService: params.serviceContractsService,
     actor: {
       id: '',
@@ -387,6 +442,7 @@ export async function resolveTicketReadScope(params: {
     },
     linkedClientCompanyId: params.linkedClientCompanyId,
     allowedRoles: params.allowedLinkedClientRoles ?? PROVIDER_LINKED_OVERVIEW_ROLES,
+    allowedContractRoles: params.allowedLinkedClientContractRoles ?? [ServiceContractRole.PRIMARY],
   })
 
   if (!linkedClientIds.includes(params.linkedClientCompanyId)) {
@@ -406,6 +462,7 @@ export async function resolveReadableTicketAccess(params: {
   ticketId: string
   linkedClientCompanyId?: string
   observerCompanyId?: string
+  allowedLinkedClientContractRoles?: ServiceContractRole[]
 }) {
   const locationScope = await resolveActorLocationScope({
     prisma: params.prisma,
@@ -433,7 +490,7 @@ export async function resolveReadableTicketAccess(params: {
     }
   }
 
-  if (params.actor.role === UserRole.TECHNICIAN) {
+  if (isExecutorCapableRole(params.actor.role)) {
     const technicianScope = await resolveTechnicianOperationalScope({
       prisma: params.prisma,
       serviceContractsService: params.serviceContractsService,
@@ -441,23 +498,15 @@ export async function resolveReadableTicketAccess(params: {
       linkedClientCompanyId: params.linkedClientCompanyId,
     })
 
-    const visibilityOr: any[] = [
-      {
-        assignedTechnicianId: params.actor.id,
-      },
-    ]
-
-    visibilityOr.push({
-        status: 'NEW',
-        assignedTechnicianId: null,
-      })
-
-    const technicianTicket = await params.prisma.ticket.findFirst({
+    const executorTicket = await params.prisma.ticket.findFirst({
       where: {
         AND: [
           {
             id: params.ticketId,
-            OR: visibilityOr,
+            OR: [
+              { assignedTechnicianId: params.actor.id },
+              { status: 'NEW', assignedTechnicianId: null },
+            ],
           },
           buildTechnicianLocationRestrictionWhere({
             companyIds: technicianScope.companyIds,
@@ -473,12 +522,12 @@ export async function resolveReadableTicketAccess(params: {
       },
     })
 
-    if (technicianTicket) {
+    if (executorTicket) {
       return {
-        ticket: technicianTicket,
-        scopeCompanyId: technicianTicket.companyId,
+        ticket: executorTicket,
+        scopeCompanyId: executorTicket.companyId,
         visibilityMode:
-          technicianTicket.companyId === params.actor.companyId
+          executorTicket.companyId === params.actor.companyId
             ? ('tenant' as TicketVisibilityMode)
             : ('provider_primary' as TicketVisibilityMode),
       }
@@ -538,10 +587,11 @@ export async function resolveReadableTicketAccess(params: {
     }
   }
 
-  const linkedClientIds = await resolvePrimaryLinkedClientIds({
+  const linkedClientIds = await resolveLinkedClientIds({
     serviceContractsService: params.serviceContractsService,
     actor: params.actor,
     linkedClientCompanyId: params.linkedClientCompanyId,
+    allowedContractRoles: params.allowedLinkedClientContractRoles ?? [ServiceContractRole.PRIMARY],
   })
 
   if (linkedClientIds.length > 0) {
@@ -621,29 +671,25 @@ export async function resolveReadableTicketAccess(params: {
       }
     }
 
-    if (params.actor.role === UserRole.TECHNICIAN && directTicket.companyId !== params.actor.companyId) {
-      const technicianScope = await resolveTechnicianOperationalScope({
+    if (isExecutorCapableRole(params.actor.role) && directTicket.companyId !== params.actor.companyId) {
+      const executorScope = await resolveTechnicianOperationalScope({
         prisma: params.prisma,
         serviceContractsService: params.serviceContractsService,
         actor: params.actor,
         linkedClientCompanyId: directTicket.companyId,
       })
 
-      const categoryLinks = directTicket.problemCategory?.specializationLinks ?? []
       const locationAllowed = isTechnicianLocationAllowed({
         companyId: directTicket.companyId,
         locationId: directTicket.locationId,
-        locationScopeByCompany: technicianScope.locationScopeByCompany,
+        locationScopeByCompany: executorScope.locationScopeByCompany,
       })
-      const technicianCanReadNewLinked =
-        directTicket.status === 'NEW' &&
-        !directTicket.assignedTechnicianId &&
-        locationAllowed
+      const canReadNew =
+        directTicket.status === 'NEW' && !directTicket.assignedTechnicianId && locationAllowed
+      const canReadAssigned =
+        directTicket.assignedTechnicianId === params.actor.id && locationAllowed
 
-      const technicianCanReadLinked =
-        (directTicket.assignedTechnicianId === params.actor.id && locationAllowed) || technicianCanReadNewLinked
-
-      if (technicianCanReadLinked) {
+      if (canReadAssigned || canReadNew) {
         return {
           ticket: directTicket,
           scopeCompanyId: directTicket.companyId,
@@ -744,4 +790,3 @@ export async function wasTicketCreatedByActor(params: {
   const src = (ev.payload as Record<string, unknown>).source
   return src === 'create_flow'
 }
-

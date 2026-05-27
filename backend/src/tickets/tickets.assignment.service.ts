@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { CompanyType, Prisma, PublicRequestType, TicketPriority, TicketSource, TicketStatus, TicketUrgency, UserRole } from '@prisma/client';
+import { CompanyType, Prisma, PublicRequestType, ServiceContractRole, TicketPriority, TicketSource, TicketStatus, TicketUrgency, UserRole } from '@prisma/client';
 import { EXECUTOR_CAPABLE_ROLES, isExecutorEligible } from '../common/executor.utils';
 import { randomUUID } from 'crypto';
 
@@ -260,17 +260,18 @@ export class TicketsAssignmentService {
   }
 
   private async listAllTechnicians(
-    companyId: string,
+    companyIds: string | string[],
     requiredSpecializations: { id: string; name: string; isActive: boolean }[],
     options?: { fallbackToAllWhenNoSpecializations?: boolean },
   ) {
+    const companyIdsArray = Array.isArray(companyIds) ? companyIds : [companyIds];
     const requiredIds = requiredSpecializations.map((x) => x.id);
     const fallbackToAllWhenNoSpecializations =
       !!options?.fallbackToAllWhenNoSpecializations && requiredIds.length === 0;
 
     const techs = await this.prisma.user.findMany({
       where: {
-        companyId: companyId,
+        companyId: companyIdsArray.length === 1 ? companyIdsArray[0] : { in: companyIdsArray },
         isExecutor: true,
         role: { in: Array.from(EXECUTOR_CAPABLE_ROLES) },
       },
@@ -916,7 +917,12 @@ export class TicketsAssignmentService {
     }));
 
     const fallbackMode = requiredSpecializations.length === 0;
-    const allTechniciansRaw = await this.listAllTechnicians(access.operationCompanyId, requiredSpecializations, {
+    // Include executors from SECONDARY providers that have an active contract with the ticket's client.
+    const secondaryProviderIds = await this.serviceContractsService.listSecondaryProviderCompanyIds(
+      access.ticket.companyId,
+    );
+    const allProviderIds = [...new Set([access.operationCompanyId, ...secondaryProviderIds])];
+    const allTechniciansRaw = await this.listAllTechnicians(allProviderIds, requiredSpecializations, {
       fallbackToAllWhenNoSpecializations: true,
     });
     const allTechnicians = await this.filterTechniciansByLocationBindings(
@@ -993,7 +999,6 @@ export class TicketsAssignmentService {
       const tech = await tx.user.findFirst({
         where: {
           id: technicianId,
-          companyId: access.operationCompanyId,
           isExecutor: true,
           role: { in: Array.from(EXECUTOR_CAPABLE_ROLES) },
         },
@@ -1006,6 +1011,17 @@ export class TicketsAssignmentService {
 
       if (!tech) {
         throw new NotFoundException('Technician not found');
+      }
+
+      // If the executor belongs to a different company, verify SECONDARY contract access.
+      if (tech.companyId !== access.operationCompanyId) {
+        const linkedAccess = await this.serviceContractsService.getLinkedClientAccess(
+          tech.companyId,
+          access.ticket.companyId,
+        );
+        if (!linkedAccess || linkedAccess.role !== ServiceContractRole.SECONDARY) {
+          throw new NotFoundException('Technician not found');
+        }
       }
       const technicianBindings = await tx.userLocationBinding.findMany({
         where: {

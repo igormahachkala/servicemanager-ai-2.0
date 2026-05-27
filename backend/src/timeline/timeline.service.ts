@@ -1,5 +1,5 @@
 ﻿import { Injectable } from '@nestjs/common'
-import { Prisma } from '@prisma/client'
+import { Prisma, ServiceContractRole } from '@prisma/client'
 
 import { emitDomainEvent, emitDomainEventTx } from '../events/events.bus'
 import { type DomainEvent, type DomainEventType } from '../events/events.types'
@@ -144,6 +144,7 @@ export class TimelineService {
       ticketId,
       linkedClientCompanyId,
       observerCompanyId,
+      allowedLinkedClientContractRoles: [ServiceContractRole.PRIMARY, ServiceContractRole.SECONDARY],
     })
 
     const [historyRows, eventRows] = await Promise.all([

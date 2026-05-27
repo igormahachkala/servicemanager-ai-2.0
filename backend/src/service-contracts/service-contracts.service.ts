@@ -268,6 +268,42 @@ export class ServiceContractsService {
       .filter((companyId): companyId is string => !!companyId)
   }
 
+  async listSecondaryLinkedClientIds(providerCompanyId: string): Promise<string[]> {
+    const normalized = this.normalizeId(providerCompanyId)
+    if (!normalized) return []
+
+    const contracts = await this.prisma.serviceContract.findMany({
+      where: {
+        providerCompanyId: normalized,
+        status: ServiceContractStatus.ACTIVE,
+        role: ServiceContractRole.SECONDARY,
+      },
+      select: { clientCompanyId: true },
+    })
+
+    return contracts
+      .map((c) => this.normalizeId(c.clientCompanyId))
+      .filter((id): id is string => !!id)
+  }
+
+  async listSecondaryProviderCompanyIds(clientCompanyId: string): Promise<string[]> {
+    const normalized = this.normalizeId(clientCompanyId)
+    if (!normalized) return []
+
+    const contracts = await this.prisma.serviceContract.findMany({
+      where: {
+        clientCompanyId: normalized,
+        status: ServiceContractStatus.ACTIVE,
+        role: ServiceContractRole.SECONDARY,
+      },
+      select: { providerCompanyId: true },
+    })
+
+    return contracts
+      .map((c) => this.normalizeId(c.providerCompanyId))
+      .filter((id): id is string => !!id)
+  }
+
   private async validateContractParties(clientCompanyId: string, providerCompanyId: string) {
     if (clientCompanyId === providerCompanyId) {
       throw new BadRequestException('Client company and provider company must be different')

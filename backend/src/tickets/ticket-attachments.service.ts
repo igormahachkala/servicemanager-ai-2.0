@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
 import { Prisma, TicketAttachmentPurpose } from '@prisma/client'
+import { ServiceContractRole } from '@prisma/client'
 import { mkdir, rm, writeFile } from 'fs/promises'
 import { extname, join } from 'path'
 import { randomUUID } from 'crypto'
@@ -261,6 +262,7 @@ export class TicketAttachmentsService {
       ticketId,
       linkedClientCompanyId,
       observerCompanyId,
+      allowedLinkedClientContractRoles: [ServiceContractRole.PRIMARY, ServiceContractRole.SECONDARY],
     })
 
     return readable.ticket.companyId

@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common'
-import { Prisma, TicketStatus, UserRole } from '@prisma/client'
+import { Prisma, ServiceContractRole, TicketStatus, UserRole } from '@prisma/client'
 
 import { PrismaService } from '../prisma/prisma.service'
 import { TimelineService } from '../timeline/timeline.service'
@@ -262,7 +262,7 @@ export class TicketsQueryService {
           scopeCompanyId: technicianScope.scopeCompanyId,
           visibilityMode: technicianScope.visibilityMode,
         }
-      : await resolveTicketReadScope({
+        : await resolveTicketReadScope({
           prisma: this.prisma,
           serviceContractsService: this.serviceContractsService,
           actorCompanyId: companyId,
@@ -270,6 +270,7 @@ export class TicketsQueryService {
           linkedClientCompanyId,
           observerCompanyId,
           allowedLinkedClientRoles: PROVIDER_LINKED_OVERVIEW_ROLES,
+          allowedLinkedClientContractRoles: [ServiceContractRole.PRIMARY, ServiceContractRole.SECONDARY],
         })
 
     const atRiskThresholdMinutes = 60
@@ -530,7 +531,7 @@ export class TicketsQueryService {
           scopeCompanyId: technicianScope.scopeCompanyId,
           visibilityMode: technicianScope.visibilityMode,
         }
-      : await resolveTicketReadScope({
+        : await resolveTicketReadScope({
           prisma: this.prisma,
           serviceContractsService: this.serviceContractsService,
           actorCompanyId: companyId,
@@ -538,6 +539,7 @@ export class TicketsQueryService {
           linkedClientCompanyId,
           observerCompanyId,
           allowedLinkedClientRoles: PROVIDER_LINKED_OVERVIEW_ROLES,
+          allowedLinkedClientContractRoles: [ServiceContractRole.PRIMARY, ServiceContractRole.SECONDARY],
         })
 
     const baseWhere = technicianScope
@@ -660,7 +662,7 @@ export class TicketsQueryService {
           scopeCompanyId: technicianScope.scopeCompanyId,
           visibilityMode: technicianScope.visibilityMode,
         }
-      : await resolveTicketReadScope({
+        : await resolveTicketReadScope({
           prisma: this.prisma,
           serviceContractsService: this.serviceContractsService,
           actorCompanyId: companyId,
@@ -668,6 +670,7 @@ export class TicketsQueryService {
           linkedClientCompanyId,
           observerCompanyId,
           allowedLinkedClientRoles: PROVIDER_LINKED_OVERVIEW_ROLES,
+          allowedLinkedClientContractRoles: [ServiceContractRole.PRIMARY, ServiceContractRole.SECONDARY],
         })
 
     const where = technicianScope
@@ -739,6 +742,7 @@ export class TicketsQueryService {
       ticketId,
       linkedClientCompanyId,
       observerCompanyId,
+      allowedLinkedClientContractRoles: [ServiceContractRole.PRIMARY, ServiceContractRole.SECONDARY],
     })
 
     const include = {
