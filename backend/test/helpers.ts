@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { PrismaClient, TicketStatus, TicketUrgency, UserRole } from '@prisma/client';
+import { CompanyType, PrismaClient, TicketStatus, TicketUrgency, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 import type { PermissionCode } from '../src/common/permissions.constants';
@@ -101,12 +101,13 @@ export async function createCompanyWithUsers(params?: {
   const company = await prisma.company.create({
     data: {
       name: companyName,
+      type: CompanyType.PROVIDER, // executor operations (claim, status_change) require PROVIDER
       autoAssignEnabled: false, // в e2e выключаем автоназначение, чтобы тесты были детерминированные
       users: {
         create: [
           { email: adminEmail, password: adminHash, role: UserRole.ADMIN },
-          { email: techEmail, password: techHash, role: UserRole.TECHNICIAN },
-          { email: otherTechEmail, password: otherTechHash, role: UserRole.TECHNICIAN },
+          { email: techEmail, password: techHash, role: UserRole.TECHNICIAN, isExecutor: true },
+          { email: otherTechEmail, password: otherTechHash, role: UserRole.TECHNICIAN, isExecutor: true },
         ],
       },
     },
@@ -147,12 +148,26 @@ export async function createSpecAndCategory(companyId: string) {
     data: { problemCategoryId: categoryOk.id, specializationId: spec.id },
   });
 
+  // A second spec NOT assigned to any technician — linking categoryNoMatch to it
+  // ensures a tech with only the first spec cannot claim tickets in this category.
+  const specNoMatch = await prisma.specialization.create({
+    data: {
+      name: 'E2E Spec NO_MATCH',
+      isActive: true,
+      company: { connect: { id: companyId } },
+    },
+  });
+
   const categoryNoMatch = await prisma.problemCategory.create({
     data: {
       name: 'E2E Category NO_MATCH',
       isActive: true,
       company: { connect: { id: companyId } },
     },
+  });
+
+  await prisma.problemCategorySpecialization.create({
+    data: { problemCategoryId: categoryNoMatch.id, specializationId: specNoMatch.id },
   });
 
   return { spec, categoryOk, categoryNoMatch };

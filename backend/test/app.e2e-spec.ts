@@ -23,6 +23,7 @@ describe('SMA SaaS MVP (e2e)', () => {
   let specIT_A = '';
   let catIT_A = '';
   let techIdA = '';
+  let locationIdA = '';
 
   beforeAll(async () => {
     // IMPORTANT: tests use .env.test (set by test script)
@@ -73,6 +74,9 @@ describe('SMA SaaS MVP (e2e)', () => {
     expect(me.body.email).toBe('ownera@sma.test');
     expect(me.body.companyId).toBeTruthy();
     companyIdA = me.body.companyId;
+
+    // Executor operations require PROVIDER company type; register creates CLIENT by default.
+    await prisma.company.update({ where: { id: companyIdA }, data: { type: 'PROVIDER' } });
   });
 
   it('B) register second tenant admin', async () => {
@@ -131,6 +135,14 @@ describe('SMA SaaS MVP (e2e)', () => {
     techIdA = u.body.id;
     expect(techIdA).toBeTruthy();
 
+    // New users are created with isExecutor: false by default.
+    // Set it to true so ensureTechnician passes and the tech appears in assignment candidates.
+    await request(app.getHttpServer())
+      .patch(`/users/${techIdA}`)
+      .set('Authorization', `Bearer ${adminTokenA}`)
+      .send({ isExecutor: true })
+      .expect(200);
+
     await request(app.getHttpServer())
       .put(`/technicians/${techIdA}/specializations`)
       .set('Authorization', `Bearer ${adminTokenA}`)
@@ -145,6 +157,15 @@ describe('SMA SaaS MVP (e2e)', () => {
     expect(Array.isArray(techs.body)).toBe(true);
     expect(techs.body.length).toBe(1);
     expect(techs.body[0].id).toBe(techIdA);
+
+    // Create a location to use in subsequent ticket tests (locationId is required in CreateTicketDto)
+    const loc = await request(app.getHttpServer())
+      .post('/locations')
+      .set('Authorization', `Bearer ${adminTokenA}`)
+      .send({ name: 'Точка 1', platformCode: 'E2E-LOC-A', city: 'Уфа', address: 'Уфа, ул. Тест, 1' })
+      .expect(201);
+    locationIdA = loc.body.id;
+    expect(locationIdA).toBeTruthy();
   });
 
   it('E) autoAssign ON → ticket becomes ASSIGNED', async () => {
@@ -158,13 +179,12 @@ describe('SMA SaaS MVP (e2e)', () => {
       .post('/tickets')
       .set('Authorization', `Bearer ${adminTokenA}`)
       .send({
+        locationId: locationIdA,
         problemCategoryId: catIT_A,
         problemText: 'Не работает интернет, красный индикатор',
         urgency: 'URGENT',
         requesterName: 'Админ точки',
         requesterPhone: '+7 999 000-00-00',
-        address: 'Уфа, ул. Тест, 1',
-        pointName: 'Точка 1',
       })
       .expect(201);
 
@@ -185,13 +205,12 @@ describe('SMA SaaS MVP (e2e)', () => {
       .post('/tickets')
       .set('Authorization', `Bearer ${adminTokenA}`)
       .send({
+        locationId: locationIdA,
         problemCategoryId: catIT_A,
         problemText: 'ТЕСТ: автоназначение выключено',
         urgency: 'NOT_URGENT',
         requesterName: 'Админ точки',
         requesterPhone: '+7 999 000-00-00',
-        address: 'Уфа, ул. Тест, 1',
-        pointName: 'Точка 1',
       })
       .expect(201);
 

@@ -84,7 +84,7 @@ describe('Tickets Policy Contract (e2e)', () => {
       .expect(403);
   });
 
-  it('TECHNICIAN can read чужой тикет внутри company (official rule)', async () => {
+  it('TECHNICIAN can read own assigned ticket but NOT another tech\'s assigned ticket', async () => {
     const { company, tech, otherTech } = await createCompanyWithUsers();
     const { spec, categoryOk } = await createSpecAndCategory(company.id);
 
@@ -93,8 +93,8 @@ describe('Tickets Policy Contract (e2e)', () => {
     // выдаём tech право на чтение тикетов
     await grantUserPermissions(tech.id, [PERMISSIONS.TICKETS_VIEW]);
 
-    // тикет назначен ДРУГОМУ технику
-    const ticket = await createTicket({
+    // тикет назначен ДРУГОМУ технику — tech не должен его видеть
+    const otherTicket = await createTicket({
       companyId: company.id,
       problemCategoryId: categoryOk.id,
       status: TicketStatus.ASSIGNED,
@@ -102,14 +102,30 @@ describe('Tickets Policy Contract (e2e)', () => {
       problemText: 'Assigned to other tech',
     });
 
+    // тикет назначен самому tech — должен видеть
+    const myTicket = await createTicket({
+      companyId: company.id,
+      problemCategoryId: categoryOk.id,
+      status: TicketStatus.ASSIGNED,
+      assignedTechnicianId: tech.id,
+      problemText: 'Assigned to me',
+    });
+
     const token = await login(tech.email, tech.passwordPlain);
 
+    // чужой тикет → 404 (policy: только свои)
+    await request(app.getHttpServer())
+      .get(`/tickets/${otherTicket.id}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(404);
+
+    // свой тикет → 200
     const res = await request(app.getHttpServer())
-      .get(`/tickets/${ticket.id}`)
+      .get(`/tickets/${myTicket.id}`)
       .set('Authorization', `Bearer ${token}`)
       .expect(200);
 
-    expect(res.body.id).toBe(ticket.id);
+    expect(res.body.id).toBe(myTicket.id);
   });
 
   it('TECHNICIAN claim: only NEW + unassigned + specialization match', async () => {
@@ -148,11 +164,11 @@ describe('Tickets Policy Contract (e2e)', () => {
     expect(okRes.body.status).toBe('ASSIGNED');
     expect(okRes.body.assignedTechnicianId).toBe(tech.id);
 
-    // NO MATCH claim -> 400
+    // NO MATCH claim -> 404 (ticket not in claimable scope for this tech's specializations)
     await request(app.getHttpServer())
       .post(`/tickets/${badTicket.id}/claim`)
       .set('Authorization', `Bearer ${token}`)
-      .expect(400);
+      .expect(404);
   });
 
   it('TECHNICIAN status_change: only assigned to self', async () => {
@@ -182,12 +198,12 @@ describe('Tickets Policy Contract (e2e)', () => {
 
     const token = await login(tech.email, tech.passwordPlain);
 
-    // чужой -> 403 (policy deny -> Forbidden)
+    // чужой -> 404 (ticket not in tech's readable scope — assigned to another, not NEW/unassigned)
     await request(app.getHttpServer())
       .patch(`/tickets/${чужой.id}/status`)
       .set('Authorization', `Bearer ${token}`)
       .send({ status: 'IN_PROGRESS' })
-      .expect(403);
+      .expect(404);
 
     // мой -> 200
     const res = await request(app.getHttpServer())

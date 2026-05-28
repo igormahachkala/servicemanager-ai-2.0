@@ -4,6 +4,8 @@ import request from 'supertest';
 import { TicketStatus } from '@prisma/client';
 
 import { AppModule } from '../src/app.module';
+import { PERMISSIONS } from '../src/common/permissions.constants';
+import { prisma, ensurePermissionBlocks, grantRolePermissions } from './helpers';
 
 function pickToken(body: any): string {
   const t = body?.access_token;
@@ -16,6 +18,7 @@ describe('Tickets Board (e2e)', () => {
 
   let token = '';
   let catId = '';
+  let locationId = '';
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -25,6 +28,17 @@ describe('Tickets Board (e2e)', () => {
     app = moduleRef.createNestApplication();
     await app.init();
 
+    // Ensure PBAC is set up for ADMIN regardless of DB state from other test files
+    const ADMIN_PERMS = [
+      PERMISSIONS.LOCATIONS_MANAGE,
+      PERMISSIONS.LOCATIONS_VIEW,
+      PERMISSIONS.COMPANY_SETTINGS_EDIT,
+      PERMISSIONS.TICKETS_CREATE,
+      PERMISSIONS.TICKETS_VIEW,
+    ] as const;
+    await ensurePermissionBlocks([...ADMIN_PERMS]);
+    await grantRolePermissions('ADMIN' as any, [...ADMIN_PERMS]);
+
     // register admin
     const reg = await request(app.getHttpServer())
       .post('/auth/register')
@@ -32,10 +46,19 @@ describe('Tickets Board (e2e)', () => {
       .expect(201);
 
     token = pickToken(reg.body);
+
+    // create location (required by CreateTicketDto)
+    const loc = await request(app.getHttpServer())
+      .post('/locations')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ name: 'Board Location', platformCode: 'BOARD-LOC-1', city: 'Test', address: 'Test St 1' })
+      .expect(201);
+    locationId = loc.body.id;
   });
 
   afterAll(async () => {
     await app.close();
+    await prisma.$disconnect();
   });
 
   it('creates category+spec, creates ticket, board returns it in NEW column', async () => {
@@ -67,6 +90,7 @@ describe('Tickets Board (e2e)', () => {
       .post('/tickets')
       .set('Authorization', `Bearer ${token}`)
       .send({
+        locationId,
         problemCategoryId: catId,
         problemText: 'Не работает интернет',
         urgency: 'URGENT',

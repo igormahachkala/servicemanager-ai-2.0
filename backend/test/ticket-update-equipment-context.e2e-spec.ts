@@ -3,6 +3,8 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 
 import { AppModule } from '../src/app.module';
+import { PERMISSIONS } from '../src/common/permissions.constants';
+import { prisma, ensurePermissionBlocks, grantRolePermissions } from './helpers';
 
 function pickToken(body: any): string {
   const t = body?.access_token;
@@ -29,6 +31,18 @@ describe('Ticket update equipment context consistency (e2e)', () => {
 
     app = moduleRef.createNestApplication();
     await app.init();
+
+    // Ensure PBAC is set up for ADMIN regardless of DB state from other test files
+    const ADMIN_PERMS = [
+      PERMISSIONS.LOCATIONS_MANAGE,
+      PERMISSIONS.LOCATIONS_VIEW,
+      PERMISSIONS.COMPANY_SETTINGS_EDIT,
+      PERMISSIONS.TICKETS_CREATE,
+      PERMISSIONS.TICKETS_EDIT,
+      PERMISSIONS.TICKETS_VIEW,
+    ] as const;
+    await ensurePermissionBlocks([...ADMIN_PERMS]);
+    await grantRolePermissions('ADMIN' as any, [...ADMIN_PERMS]);
 
     const suffix = Date.now();
 
@@ -121,6 +135,7 @@ describe('Ticket update equipment context consistency (e2e)', () => {
 
   afterAll(async () => {
     await app.close();
+    await prisma.$disconnect();
   });
 
   it('sets equipment in same location and keeps location unchanged', async () => {
