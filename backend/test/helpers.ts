@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { CompanyType, PrismaClient, TicketStatus, TicketUrgency, UserRole } from '@prisma/client';
+import { CompanyType, PrismaClient, ServiceContractRole, ServiceContractStatus, TicketStatus, TicketUrgency, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 import type { PermissionCode } from '../src/common/permissions.constants';
@@ -213,4 +213,90 @@ export async function createTicket(params: {
   });
 
   return t;
+}
+
+/**
+ * Creates a CLIENT company and a PROVIDER company connected by a service contract.
+ * The provider admin is set up with ADMIN role. Tech is executor-capable.
+ */
+export async function createProviderClientSetup(params: {
+  contractRole: ServiceContractRole;
+  providerSuffix?: string;
+  clientSuffix?: string;
+}) {
+  const suffix = params.providerSuffix ?? randomUUID().slice(0, 8);
+  const clientSuffix = params.clientSuffix ?? randomUUID().slice(0, 8);
+  const adminPassword = 'Passw0rd!';
+  const techPassword = 'Passw0rd!';
+
+  const adminHash = await bcrypt.hash(adminPassword, 10);
+  const techHash = await bcrypt.hash(techPassword, 10);
+
+  const client = await prisma.company.create({
+    data: {
+      name: `Client-${clientSuffix}`,
+      type: CompanyType.CLIENT,
+      autoAssignEnabled: false,
+    },
+  });
+
+  const provider = await prisma.company.create({
+    data: {
+      name: `Provider-${suffix}`,
+      type: CompanyType.PROVIDER,
+      autoAssignEnabled: false,
+      users: {
+        create: [
+          { email: `admin-${suffix}@example.com`, password: adminHash, role: UserRole.ADMIN },
+          { email: `tech-${suffix}@example.com`, password: techHash, role: UserRole.TECHNICIAN, isExecutor: true },
+        ],
+      },
+    },
+    include: { users: true },
+  });
+
+  await prisma.serviceContract.create({
+    data: {
+      clientCompanyId: client.id,
+      providerCompanyId: provider.id,
+      role: params.contractRole,
+      status: ServiceContractStatus.ACTIVE,
+    },
+  });
+
+  const admin = provider.users.find((u) => u.role === UserRole.ADMIN)!;
+  const tech = provider.users.find((u) => u.role === UserRole.TECHNICIAN)!;
+
+  return {
+    client,
+    provider,
+    admin: { ...admin, passwordPlain: adminPassword },
+    tech: { ...tech, passwordPlain: techPassword },
+  };
+}
+
+/**
+ * Reset includes service contracts (needed for multi-tenant tests).
+ */
+export async function resetDbFull() {
+  await prisma.ticketStatusHistory.deleteMany();
+  await prisma.assignmentDecision.deleteMany();
+  await prisma.ticket.deleteMany();
+
+  await prisma.technicianSpecialization.deleteMany();
+  await prisma.problemCategorySpecialization.deleteMany();
+  await prisma.problemCategory.deleteMany();
+  await prisma.specialization.deleteMany();
+
+  await prisma.userPermission.deleteMany();
+  await prisma.rolePermission.deleteMany();
+  await prisma.permissionBlock.deleteMany();
+
+  await prisma.domainEvent.deleteMany();
+
+  await prisma.userLocationBinding.deleteMany();
+  await prisma.serviceContract.deleteMany();
+  await prisma.user.deleteMany();
+  await prisma.location.deleteMany();
+  await prisma.company.deleteMany();
 }
