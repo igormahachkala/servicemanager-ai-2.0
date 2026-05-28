@@ -41,6 +41,10 @@ lerna-debug.log*
 .env.test.local
 .env.production.local
 .env.local
+# Runtime env files with real secrets — never commit these
+.env.docker
+.env.stage
+.env.production
 
 # temp directory
 .temp
