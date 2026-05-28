@@ -90,6 +90,36 @@ describe('MaxBotService', () => {
     await expect(service.sendTestMessage({})).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('logs status, statusText, path and body on non-2xx — without leaking the token', async () => {
+    process.env.MAX_BOT_API_BASE_URL = 'https://platform-api.max.ru';
+    process.env.MAX_BOT_API_TOKEN = 'secret-token-do-not-log';
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      statusText: 'Unauthorized',
+      text: async () => 'verify.token: "Invalid access_token"',
+    }) as any;
+
+    const service = new MaxBotService();
+    const loggerWarnSpy = jest.spyOn((service as any).logger, 'warn');
+
+    await expect(service.pollUpdates({})).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(loggerWarnSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 401,
+        statusText: 'Unauthorized',
+        path: expect.stringContaining('/updates'),
+        body: expect.stringContaining('Invalid access_token'),
+      }),
+      'max_api_request_failed',
+    );
+
+    const [loggedObj] = loggerWarnSpy.mock.calls[0];
+    expect(JSON.stringify(loggedObj)).not.toContain('secret-token-do-not-log');
+  });
+
   it('uses ticket-specific frontend links when ticketId is provided', async () => {
     process.env.MAX_BOT_API_BASE_URL = 'https://platform-api.max.ru';
     process.env.MAX_BOT_API_TOKEN = 'test-token';

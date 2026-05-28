@@ -553,10 +553,20 @@ export class MaxBotService {
     const text = raw.trim();
 
     if (!response.ok) {
+      const safeBody = text.slice(0, 500);
+      this.logger.warn(
+        {
+          status: response.status,
+          statusText: response.statusText,
+          path,
+          body: safeBody,
+        },
+        'max_api_request_failed',
+      );
       throw new BadRequestException({
         message: 'MAX API request failed',
         status: response.status,
-        body: text.slice(0, 1000),
+        body: safeBody,
       });
     }
 
@@ -653,12 +663,58 @@ export class MaxBotService {
   private async processCommandUpdates(updates: MaxBotUpdate[]) {
     const commandService = this.commandService;
     const groupChatId = this.groupChatId;
-    if (!commandService || groupChatId === null) return;
+    if (!commandService) {
+      this.logger.warn(
+        {
+          reason: 'command_service_missing',
+          updates: updates.length,
+        },
+        'max_bot_command_ignored',
+      );
+      return;
+    }
+    if (groupChatId === null) {
+      this.logger.warn(
+        {
+          reason: 'group_chat_missing',
+          updates: updates.length,
+        },
+        'max_bot_command_ignored',
+      );
+      return;
+    }
 
     for (const update of updates) {
-      if (update.update_type !== 'message_created') continue;
       const chatId = this.extractChatId(update);
-      if (chatId !== groupChatId) continue;
+      this.logger.log(
+        {
+          update_type: typeof update.update_type === 'string' ? update.update_type : null,
+          chatId,
+          hasMessage: !!update.message,
+        },
+        'max_bot_update_received',
+      );
+      if (chatId === null) {
+        this.logger.log(
+          {
+            reason: 'missing_chat_id',
+            update_type: typeof update.update_type === 'string' ? update.update_type : null,
+          },
+          'max_bot_update_ignored',
+        );
+        continue;
+      }
+      if (chatId !== groupChatId) {
+        this.logger.log(
+          {
+            reason: 'chat_mismatch',
+            chatId,
+            groupChatId,
+          },
+          'max_bot_update_ignored',
+        );
+        continue;
+      }
 
       let responseText: string | null = null;
       try {
@@ -668,8 +724,23 @@ export class MaxBotService {
       }
       if (!responseText) continue;
 
+      this.logger.log(
+        {
+          chatId,
+          responseLength: responseText.length,
+        },
+        'max_bot_command_handled',
+      );
+
       try {
         await this.sendRawMessage(chatId, responseText);
+        this.logger.log(
+          {
+            chatId,
+            responseLength: responseText.length,
+          },
+          'max_bot_command_response_sent',
+        );
       } catch (err) {
         this.logger.warn({ err, chatId }, 'max_bot_command_reply_failed');
       }
