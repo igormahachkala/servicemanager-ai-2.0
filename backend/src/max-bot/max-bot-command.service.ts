@@ -24,37 +24,95 @@ export class MaxBotCommandService {
   }
 
   async handleUpdate(update: MaxBotUpdate): Promise<string | null> {
-    const text = this.extractMessageText(update);
-    if (!text) return null;
-    const trimmed = text.trim();
-    if (!trimmed.startsWith('/')) return null;
+    const extracted = this.extractMessageText(update);
+    if (!extracted) {
+      this.logger.log(
+        {
+          update_type: this.safeString(update.update_type),
+          reason: 'missing_message_text',
+        },
+        'max_bot_command_ignored',
+      );
+      return null;
+    }
+
+    const trimmed = extracted.text.trim();
+    if (!trimmed.startsWith('/')) {
+      this.logger.log(
+        {
+          update_type: this.safeString(update.update_type),
+          source: extracted.source,
+          reason: 'not_a_command',
+        },
+        'max_bot_command_ignored',
+      );
+      return null;
+    }
 
     const parts = trimmed.split(/\s+/);
     const cmd = parts[0].toLowerCase();
     const arg = parts[1];
 
+    this.logger.log(
+      {
+        update_type: this.safeString(update.update_type),
+        source: extracted.source,
+        command: cmd,
+        has_arg: !!arg,
+      },
+      'max_bot_command_parsed',
+    );
+
     try {
-      if (cmd === '/help') return this.helpText();
-      if (cmd === '/status') return this.statusText();
-      if (cmd === '/tickets') return this.ticketListText();
-      if (cmd === '/ticket') return this.ticketDetailText(arg);
-      if (cmd === '/open') return this.ticketOpenText(arg);
+      if (cmd === '/help') return this.handleParsedCommand(cmd, this.helpText());
+      if (cmd === '/status') return this.handleParsedCommand(cmd, this.statusText());
+      if (cmd === '/tickets') return this.handleParsedCommand(cmd, this.ticketListText());
+      if (cmd === '/ticket') return this.handleParsedCommand(cmd, this.ticketDetailText(arg));
+      if (cmd === '/open') return this.handleParsedCommand(cmd, this.ticketOpenText(arg));
     } catch (err) {
       this.logger.warn({ err, cmd }, 'max_bot_command_error');
       return '⚠️ Произошла ошибка при выполнении команды.';
     }
 
+    this.logger.log(
+      {
+        update_type: this.safeString(update.update_type),
+        source: extracted.source,
+        command: cmd,
+        reason: 'unknown_command',
+      },
+      'max_bot_command_ignored',
+    );
     return null;
   }
 
-  private extractMessageText(update: MaxBotUpdate): string | null {
+  private handleParsedCommand(cmd: string, response: string | Promise<string>) {
+    this.logger.log(
+      {
+        command: cmd,
+      },
+      'max_bot_command_handled',
+    );
+    return response;
+  }
+
+  private safeString(value: unknown) {
+    return typeof value === 'string' ? value : null;
+  }
+
+  private extractMessageText(update: MaxBotUpdate): { text: string; source: string } | null {
     const message = update.message;
     if (message && typeof message === 'object') {
       const msg = message as Record<string, unknown>;
-      if (typeof msg.text === 'string') return msg.text;
-      if (typeof msg.body === 'string') return msg.body;
+      if (typeof msg.text === 'string') return { text: msg.text, source: 'message.text' };
+      if (typeof msg.body === 'string') return { text: msg.body, source: 'message.body' };
+      // MAX webhook: message.body is an object { mid, seq, text }
+      if (msg.body && typeof msg.body === 'object') {
+        const bodyObj = msg.body as Record<string, unknown>;
+        if (typeof bodyObj.text === 'string') return { text: bodyObj.text, source: 'message.body.text' };
+      }
     }
-    if (typeof update.text === 'string') return update.text;
+    if (typeof update.text === 'string') return { text: update.text, source: 'update.text' };
     return null;
   }
 
@@ -72,7 +130,8 @@ export class MaxBotCommandService {
   private statusText(): string {
     const now = new Date().toISOString();
     const env = process.env.NODE_ENV || 'production';
-    return `✅ ServiceManager.AI бот онлайн\nВремя: ${now}\nСреда: ${env}`;
+    const mode = process.env.MAX_BOT_WEBHOOK_ENABLED === 'true' ? 'webhook' : 'polling'
+    return `✅ ServiceManager.AI бот онлайн\nВремя: ${now}\nСреда: ${env}\nРежим: ${mode}`;
   }
 
   private async ticketListText(): Promise<string> {

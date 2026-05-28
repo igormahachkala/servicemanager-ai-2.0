@@ -152,4 +152,38 @@ describe('MaxBotCommandService', () => {
     const result = await service.handleUpdate(makeUpdate('/HELP'));
     expect(result).toContain('/tickets');
   });
+
+  it('extracts text from message.body.text (MAX webhook actual structure)', async () => {
+    const service = new MaxBotCommandService();
+    const update = {
+      update_type: 'message_created',
+      message: {
+        sender: { user_id: 42 },
+        recipient: { chat_id: -75137613795359 },
+        body: { mid: 'mid1', seq: 1, text: '/help' },
+      },
+    };
+    const result = await service.handleUpdate(update);
+    expect(result).toContain('/tickets');
+  });
+
+  it('extracts text from message.body.text for /status (MAX webhook)', async () => {
+    const service = new MaxBotCommandService();
+    const update = {
+      update_type: 'message_created',
+      message: { body: { text: '/status', mid: 'mid2', seq: 2 } },
+    };
+    const result = await service.handleUpdate(update);
+    expect(result).toContain('онлайн');
+  });
+
+  it('returns null when message.body is an object with no text field', async () => {
+    const service = new MaxBotCommandService();
+    const update = {
+      update_type: 'message_created',
+      message: { body: { mid: 'mid3', seq: 3 } },
+    };
+    const result = await service.handleUpdate(update);
+    expect(result).toBeNull();
+  });
 });

@@ -3,11 +3,13 @@ import {
   Injectable,
   InternalServerErrorException,
   Logger,
+  OnModuleInit,
 } from '@nestjs/common';
 import { TicketStatus, TicketUrgency } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 import { MaxBotCommandService } from './max-bot-command.service';
+import { getMaxBotRuntimeDiagnostics, type MaxBotRuntimeDiagnostics } from './max-bot-runtime';
 import { MaxBotSendMessageResponse, MaxBotUpdate, MaxBotUpdatesResponse } from './max-bot.types';
 
 type PollParams = {
@@ -75,13 +77,23 @@ type LocationAnchor = {
   anchorMessageCreatedAt: Date | null;
 };
 
+type MaxBotTokenValidation = {
+  required: boolean;
+  ok: boolean;
+  status: number | null;
+  statusText: string | null;
+  path: string;
+  reason: string | null;
+};
+
 @Injectable()
-export class MaxBotService {
+export class MaxBotService implements OnModuleInit {
   private readonly logger = new Logger(MaxBotService.name);
   private readonly baseUrl = this.normalizeBaseUrl(process.env.MAX_BOT_API_BASE_URL || 'https://platform-api.max.ru');
   private readonly token = (process.env.MAX_BOT_API_TOKEN || '').trim();
   private readonly frontendUrl = this.resolveFrontendUrl();
   private readonly groupChatId = this.resolveGroupChatId();
+  private readonly runtimeDiagnostics: MaxBotRuntimeDiagnostics = getMaxBotRuntimeDiagnostics();
   private readonly locationAnchorLocks = new Map<string, Promise<LocationAnchor | null>>();
   private lastChatId: number | null = null;
   private lastMarker: number | null = null;
@@ -90,6 +102,108 @@ export class MaxBotService {
     private readonly prisma?: PrismaService,
     private readonly commandService?: MaxBotCommandService,
   ) {}
+
+  onModuleInit() {
+    this.logRuntimeDiagnostics('service_init');
+  }
+
+  getRuntimeDiagnostics() {
+    return this.runtimeDiagnostics;
+  }
+
+  private async validateTokenConnectivity(): Promise<MaxBotTokenValidation> {
+    const required = this.runtimeDiagnostics.commandsEnabled || this.runtimeDiagnostics.webhookEnabled;
+    const path = '/subscriptions?limit=1';
+    if (!required) {
+      return {
+        required: false,
+        ok: true,
+        status: null,
+        statusText: null,
+        path,
+        reason: null,
+      };
+    }
+    if (!this.token) {
+      return {
+        required: true,
+        ok: false,
+        status: null,
+        statusText: null,
+        path,
+        reason: 'missing_token',
+      };
+    }
+
+    try {
+      const response = await fetch(`${this.baseUrl}${path}`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${this.token}`,
+        },
+      });
+
+      if (response.ok) {
+        return {
+          required: true,
+          ok: true,
+          status: response.status,
+          statusText: response.statusText,
+          path,
+          reason: null,
+        };
+      }
+
+      const body = this.clip(await response.text(), 240);
+      return {
+        required: true,
+        ok: false,
+        status: response.status,
+        statusText: response.statusText,
+        path,
+        reason: body || 'request_failed',
+      };
+    } catch (err) {
+      return {
+        required: true,
+        ok: false,
+        status: null,
+        statusText: null,
+        path,
+        reason: err instanceof Error ? err.message : 'request_failed',
+      };
+    }
+  }
+
+  async getHealthDiagnostics() {
+    const tokenValidation = await this.validateTokenConnectivity();
+    const status =
+      this.runtimeDiagnostics.status === 'ok' && tokenValidation.ok ? 'ok' : 'degraded';
+    return {
+      status,
+      diagnostics: this.runtimeDiagnostics,
+      tokenValidation,
+    };
+  }
+
+  logRuntimeDiagnostics(context: string = 'startup') {
+    this.logger.log(
+      {
+        context,
+        ...this.runtimeDiagnostics,
+      },
+      'max_bot_env_diagnostics',
+    );
+    if (this.runtimeDiagnostics.issues.length > 0) {
+      this.logger.warn(
+        {
+          context,
+          issues: this.runtimeDiagnostics.issues,
+        },
+        'max_bot_env_validation_warn',
+      );
+    }
+  }
 
   private normalizeBaseUrl(value: string) {
     return value.trim().replace(/\/+$/, '');
@@ -110,6 +224,12 @@ export class MaxBotService {
 
   private ensureConfigured() {
     if (!this.token) {
+      this.logger.warn(
+        {
+          ...this.runtimeDiagnostics,
+        },
+        'max_bot_token_missing',
+      );
       throw new InternalServerErrorException('MAX bot token is not configured');
     }
   }
@@ -604,15 +724,36 @@ export class MaxBotService {
   }
 
   private extractChatId(update: MaxBotUpdate): number | null {
+    const msg = update.message && typeof update.message === 'object'
+      ? (update.message as Record<string, unknown>) : null;
+    const topChat = update.chat && typeof update.chat === 'object'
+      ? (update.chat as Record<string, unknown>) : null;
+    const topRecipient = update.recipient && typeof update.recipient === 'object'
+      ? (update.recipient as Record<string, unknown>) : null;
+    const msgRecipient = msg?.recipient && typeof msg.recipient === 'object'
+      ? (msg.recipient as Record<string, unknown>) : null;
+    const msgChat = msg?.chat && typeof msg.chat === 'object'
+      ? (msg.chat as Record<string, unknown>) : null;
+
     const candidates = [
+      // top-level flat fields (polling responses)
       update.chat_id,
-      (update as Record<string, unknown>).chatId,
-      (update as Record<string, unknown>).message && typeof update.message === 'object'
-        ? (update.message as Record<string, unknown>).chat_id
-        : null,
-      (update as Record<string, unknown>).chat && typeof update.chat === 'object'
-        ? (update.chat as Record<string, unknown>).chat_id
-        : null,
+      update.chatId,
+      update.dialog_id,
+      // top-level nested objects
+      topChat?.chat_id,
+      topChat?.id,
+      topRecipient?.chat_id,
+      topRecipient?.chatId,
+      // message-level fields (webhook: message.chat_id or message.dialog_id)
+      msg?.chat_id,
+      msg?.dialog_id,
+      // message.recipient.chat_id — actual MAX webhook structure
+      msgRecipient?.chat_id,
+      msgRecipient?.chatId,
+      // message.chat.id — alternative nested shape
+      msgChat?.chat_id,
+      msgChat?.id,
     ];
 
     for (const candidate of candidates) {

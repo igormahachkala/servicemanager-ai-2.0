@@ -149,6 +149,59 @@ describe('MaxBotService', () => {
     expect(result.text).toContain('http://194.67.101.37:4174/m/tickets/ticket-123');
   });
 
+  it('reports health ok when MAX token validation succeeds', async () => {
+    process.env.MAX_BOT_API_BASE_URL = 'https://platform-api.max.ru';
+    process.env.MAX_BOT_API_TOKEN = 'test-token';
+    process.env.MAX_BOT_COMMANDS_ENABLED = 'true';
+    process.env.MAX_BOT_WEBHOOK_ENABLED = 'false';
+    process.env.MAX_GROUP_CHAT_ID = '-75137613795359';
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      statusText: 'OK',
+      text: async () => '[]',
+    }) as any;
+
+    const service = new MaxBotService();
+    const health = await service.getHealthDiagnostics();
+
+    expect(health.status).toBe('ok');
+    expect(health.tokenValidation.ok).toBe(true);
+    expect(global.fetch).toHaveBeenCalledWith(
+      'https://platform-api.max.ru/subscriptions?limit=1',
+      expect.objectContaining({
+        method: 'GET',
+        headers: expect.objectContaining({
+          Authorization: 'Bearer test-token',
+        }),
+      }),
+    );
+  });
+
+  it('reports health degraded when MAX token validation fails', async () => {
+    process.env.MAX_BOT_API_BASE_URL = 'https://platform-api.max.ru';
+    process.env.MAX_BOT_API_TOKEN = 'test-token';
+    process.env.MAX_BOT_COMMANDS_ENABLED = 'true';
+    process.env.MAX_BOT_WEBHOOK_ENABLED = 'false';
+    process.env.MAX_GROUP_CHAT_ID = '-75137613795359';
+
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 401,
+      statusText: 'Unauthorized',
+      text: async () => '{"code":"verify.token","message":"Invalid access_token"}',
+    }) as any;
+
+    const service = new MaxBotService();
+    const health = await service.getHealthDiagnostics();
+
+    expect(health.status).toBe('degraded');
+    expect(health.tokenValidation.ok).toBe(false);
+    expect(health.tokenValidation.status).toBe(401);
+    expect(health.tokenValidation.reason).toContain('Invalid access_token');
+  });
+
   it('builds operational MAX messages against the configured frontend url and group chat', async () => {
     process.env.MAX_BOT_API_BASE_URL = 'https://platform-api.max.ru';
     process.env.MAX_BOT_API_TOKEN = 'test-token';
@@ -385,5 +438,160 @@ describe('MaxBotService', () => {
     expect(JSON.parse((global.fetch as jest.Mock).mock.calls[2][1].body)).toMatchObject({
       text: expect.stringContaining('🆕 Новая заявка'),
     });
+  });
+});
+
+// ── extractChatId — webhook payload shapes ────────────────────────────────────
+
+describe('MaxBotService.extractChatId — webhook payload shapes', () => {
+  // Exercises the private extractChatId via pollUpdates (which calls collectChatIds)
+  async function chatIdsFrom(updates: unknown[]) {
+    process.env.MAX_BOT_API_BASE_URL = 'https://platform-api.max.ru';
+    process.env.MAX_BOT_API_TOKEN = 'test-token';
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ updates, marker: 1 }),
+    }) as any;
+    const svc = new MaxBotService();
+    const result = await svc.pollUpdates({});
+    return result.chatIds;
+  }
+
+  afterEach(() => {
+    const orig = (global as any).__originalFetch;
+    if (orig) global.fetch = orig;
+    jest.restoreAllMocks();
+  });
+
+  it('flat chat_id on update root (polling)', async () => {
+    expect(await chatIdsFrom([{ update_type: 'message_created', chat_id: -111 }])).toEqual([-111]);
+  });
+
+  it('message.chat_id (polling variant)', async () => {
+    expect(await chatIdsFrom([{ update_type: 'message_created', message: { chat_id: -222 } }])).toEqual([-222]);
+  });
+
+  it('message.recipient.chat_id (MAX webhook actual structure)', async () => {
+    const update = {
+      update_type: 'message_created',
+      timestamp: 1700000000000,
+      message: {
+        sender: { user_id: 42, name: 'Test' },
+        recipient: { chat_id: -75137613795359, chat_type: 'chat' },
+        body: { mid: 'mid1', seq: 1, text: '/help' },
+        timestamp: 1700000000000,
+      },
+    };
+    expect(await chatIdsFrom([update])).toEqual([-75137613795359]);
+  });
+
+  it('message.recipient.chatId (camelCase variant)', async () => {
+    expect(await chatIdsFrom([
+      { update_type: 'message_created', message: { recipient: { chatId: -333 } } },
+    ])).toEqual([-333]);
+  });
+
+  it('chat.id on update root', async () => {
+    expect(await chatIdsFrom([{ update_type: 'message_created', chat: { id: -444 } }])).toEqual([-444]);
+  });
+
+  it('dialog_id on update root', async () => {
+    expect(await chatIdsFrom([{ update_type: 'message_created', dialog_id: -555 }])).toEqual([-555]);
+  });
+
+  it('returns no chatIds when structure is unrecognised', async () => {
+    expect(await chatIdsFrom([{ update_type: 'message_created', unknown_field: 'x' }])).toEqual([]);
+  });
+});
+
+// ── handleWebhookUpdate — full MAX webhook payload ────────────────────────────
+
+describe('MaxBotService.handleWebhookUpdate — MAX webhook payload', () => {
+  const GROUP_CHAT_ID = -75137613795359;
+
+  function makeWebhookUpdate(text: string) {
+    return {
+      update_type: 'message_created',
+      timestamp: 1700000000000,
+      message: {
+        sender: { user_id: 42, name: 'Dispatcher' },
+        recipient: { chat_id: GROUP_CHAT_ID, chat_type: 'chat' },
+        body: { mid: 'mid1', seq: 1, text },
+        timestamp: 1700000000000,
+      },
+    };
+  }
+
+  beforeEach(() => {
+    process.env.MAX_BOT_API_BASE_URL = 'https://platform-api.max.ru';
+    process.env.MAX_BOT_API_TOKEN = 'test-token';
+    process.env.MAX_GROUP_CHAT_ID = String(GROUP_CHAT_ID);
+    process.env.MAX_BOT_COMMANDS_ENABLED = 'true';
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+    delete process.env.MAX_GROUP_CHAT_ID;
+    delete process.env.MAX_BOT_COMMANDS_ENABLED;
+  });
+
+  it('parses /help from message.recipient.chat_id + message.body.text and sends response', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ message: { mid: 'resp1' } }),
+    }) as any;
+
+    const commandService = { handleUpdate: jest.fn().mockResolvedValue('📋 Доступные команды...') } as any;
+    const svc = new MaxBotService(undefined, commandService);
+    const logSpy = jest.spyOn((svc as any).logger, 'log');
+
+    await svc.handleWebhookUpdate(makeWebhookUpdate('/help'));
+
+    expect(commandService.handleUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ update_type: 'message_created' }),
+    );
+
+    const loggedEvents = logSpy.mock.calls.map(([, event]) => event);
+    expect(loggedEvents).toContain('max_bot_update_received');
+    expect(loggedEvents).toContain('max_bot_command_handled');
+    expect(loggedEvents).toContain('max_bot_command_response_sent');
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining(`/messages?chat_id=${encodeURIComponent(String(GROUP_CHAT_ID))}`),
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  it('ignores update when chat_id does not match MAX_GROUP_CHAT_ID', async () => {
+    const commandService = { handleUpdate: jest.fn() } as any;
+    const svc = new MaxBotService(undefined, commandService);
+    const logSpy = jest.spyOn((svc as any).logger, 'log');
+
+    const wrongChatUpdate = {
+      update_type: 'message_created',
+      message: {
+        recipient: { chat_id: -999 },
+        body: { text: '/help' },
+      },
+    };
+    await svc.handleWebhookUpdate(wrongChatUpdate);
+
+    expect(commandService.handleUpdate).not.toHaveBeenCalled();
+    const ignored = logSpy.mock.calls.find(([obj, event]) => event === 'max_bot_update_ignored' && obj?.reason === 'chat_mismatch');
+    expect(ignored).toBeDefined();
+  });
+
+  it('ignores non-command text silently', async () => {
+    const fetchMock = jest.fn() as jest.Mock;
+    global.fetch = fetchMock;
+
+    const commandService = { handleUpdate: jest.fn().mockResolvedValue(null) } as any;
+    const svc = new MaxBotService(undefined, commandService);
+
+    await svc.handleWebhookUpdate(makeWebhookUpdate('Привет!'));
+
+    expect(commandService.handleUpdate).toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
