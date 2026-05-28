@@ -71,6 +71,30 @@ describe('TicketsPolicy — executor-capability model', () => {
       expect(result.allowed).toBe(true);
     });
 
+    it('MASTER with isExecutor=true is allowed', () => {
+      const result = policy.claimWhere({
+        ...baseParams,
+        user: { id: 'user-1', role: UserRole.MASTER, isExecutor: true, companyId: 'company-1' },
+      });
+      expect(result.allowed).toBe(true);
+    });
+
+    it('MASTER with isExecutor=false is denied', () => {
+      const result = policy.claimWhere({
+        ...baseParams,
+        user: { id: 'user-1', role: UserRole.MASTER, isExecutor: false, companyId: 'company-1' },
+      });
+      expect(result.allowed).toBe(false);
+    });
+
+    it('DISPATCHER with isExecutor=false is denied', () => {
+      const result = policy.claimWhere({
+        ...baseParams,
+        user: { id: 'user-1', role: UserRole.DISPATCHER, isExecutor: false, companyId: 'company-1' },
+      });
+      expect(result.allowed).toBe(false);
+    });
+
     it('executor with claim disabled is denied', () => {
       const result = policy.claimWhere({
         ...baseParams,
@@ -117,6 +141,20 @@ describe('TicketsPolicy — executor-capability model', () => {
     it('ADMIN (isExecutor=true) gets full management access on any ticket', () => {
       expect(policy.canChangeStatus({
         user: { id: 'user-2', role: UserRole.ADMIN, isExecutor: true, companyId: 'company-1' },
+        ticket,
+      }).allowed).toBe(true);
+    });
+
+    it('MASTER (isExecutor=true) gets full management access on any ticket', () => {
+      expect(policy.canChangeStatus({
+        user: { id: 'user-2', role: UserRole.MASTER, isExecutor: true, companyId: 'company-1' },
+        ticket,
+      }).allowed).toBe(true);
+    });
+
+    it('DISPATCHER (isExecutor=true) gets full management access on any ticket', () => {
+      expect(policy.canChangeStatus({
+        user: { id: 'user-2', role: UserRole.DISPATCHER, isExecutor: true, companyId: 'company-1' },
         ticket,
       }).allowed).toBe(true);
     });

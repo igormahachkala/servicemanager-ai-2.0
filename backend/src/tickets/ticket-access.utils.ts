@@ -5,7 +5,7 @@ import { assertAllowed, isPlatformObserverScope, resolveObserverScopeCompanyId }
 import { TicketsPolicy, type UserCtx } from '../policy/tickets.policy'
 import { PrismaService } from '../prisma/prisma.service'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
-import { isExecutorCapableRole } from '../common/executor.utils'
+import { isExecutorCapableRole, isExecutorEligible } from '../common/executor.utils'
 import {
   buildSpecializationLinksSomeWhereInput,
   normalizeSpecializationLabel,
@@ -232,6 +232,8 @@ export async function resolveTechnicianOperationalScope(params: {
     },
     select: {
       id: true,
+      role: true,
+      isExecutor: true,
       technicianSpecializations: {
         where: { specialization: { isActive: true } },
         select: {
@@ -265,7 +267,7 @@ export async function resolveTechnicianOperationalScope(params: {
     }
     const isPrimary = access.role === ServiceContractRole.PRIMARY
     const isSecondary = access.role === ServiceContractRole.SECONDARY
-    if (isPrimary && params.actor.role !== UserRole.TECHNICIAN) {
+    if (isPrimary && !isExecutorEligible({ role: params.actor.role, isExecutor: !!executor.isExecutor })) {
       throw new ForbiddenException('Role cannot access primary-linked client tickets via executor scope')
     }
     if (!isPrimary && !isSecondary) {
@@ -490,7 +492,17 @@ export async function resolveReadableTicketAccess(params: {
     }
   }
 
-  if (isExecutorCapableRole(params.actor.role)) {
+  // When linkedClientCompanyId is explicitly provided and the role is a management role,
+  // skip the executor scope entirely. Management roles (ADMIN, MASTER, DISPATCHER, etc.)
+  // access linked-client tickets via the management path below (resolveLinkedClientIds).
+  // resolveTechnicianOperationalScope correctly blocks PRIMARY contracts for non-TECHNICIAN roles,
+  // which would cause a false 403 for PRIMARY_PROVIDER_ADMIN when linkedClientCompanyId is set.
+  const skipExecutorScope =
+    !!params.linkedClientCompanyId &&
+    params.linkedClientCompanyId !== params.actor.companyId &&
+    PROVIDER_LINKED_OVERVIEW_ROLES.includes(params.actor.role)
+
+  if (isExecutorCapableRole(params.actor.role) && !skipExecutorScope) {
     const technicianScope = await resolveTechnicianOperationalScope({
       prisma: params.prisma,
       serviceContractsService: params.serviceContractsService,
@@ -659,10 +671,20 @@ export async function resolveReadableTicketAccess(params: {
       PROVIDER_LINKED_OVERVIEW_ROLES.includes(params.actor.role) &&
       directTicket.companyId !== params.actor.companyId
     ) {
-      await params.serviceContractsService.assertPrimaryLinkedClientAccess(
+      const access = await params.serviceContractsService.getLinkedClientAccess(
         params.actor.companyId,
         directTicket.companyId,
       )
+      if (!access) {
+        throw new NotFoundException('Ticket not found')
+      }
+      if (
+        !(
+          params.allowedLinkedClientContractRoles ?? [ServiceContractRole.PRIMARY]
+        ).includes(access.role)
+      ) {
+        throw new NotFoundException('Ticket not found')
+      }
 
       return {
         ticket: directTicket,

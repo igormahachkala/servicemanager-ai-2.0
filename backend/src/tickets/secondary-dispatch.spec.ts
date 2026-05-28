@@ -149,7 +149,7 @@ describe('resolveTechnicianOperationalScope — SECONDARY scope', () => {
     expect(serviceContractsService.listSecondaryLinkedClientIds).not.toHaveBeenCalled();
   });
 
-  it('ADMIN with PRIMARY linkedClientCompanyId is denied via executor scope', async () => {
+  it('ADMIN executor with PRIMARY linkedClientCompanyId is allowed via executor scope', async () => {
     const serviceContractsService = {
       getLinkedClientAccess: jest.fn().mockResolvedValue({
         role: ServiceContractRole.PRIMARY,
@@ -165,7 +165,39 @@ describe('resolveTechnicianOperationalScope — SECONDARY scope', () => {
         findUnique: jest.fn().mockResolvedValue({ id: SECONDARY_PROVIDER_ID, allowTechnicianClaim: true }),
       },
       user: {
-        findFirst: jest.fn().mockResolvedValue({ id: 'admin-1', technicianSpecializations: [] }),
+        findFirst: jest.fn().mockResolvedValue({ id: 'admin-1', role: UserRole.ADMIN, isExecutor: true, technicianSpecializations: [] }),
+      },
+      userLocationBinding: { findMany: jest.fn().mockResolvedValue([]) },
+    } as any;
+
+    const scope = await resolveTechnicianOperationalScope({
+      prisma,
+      serviceContractsService: serviceContractsService as any,
+      actor: { id: 'admin-1', role: UserRole.ADMIN, companyId: SECONDARY_PROVIDER_ID },
+      linkedClientCompanyId: CLIENT_ID,
+    });
+
+    expect(scope.companyIds).toContain(CLIENT_ID);
+    expect(serviceContractsService.getLinkedClientAccess).toHaveBeenCalledWith(SECONDARY_PROVIDER_ID, CLIENT_ID);
+  });
+
+  it('ADMIN without isExecutor is denied for PRIMARY linkedClientCompanyId via executor scope', async () => {
+    const serviceContractsService = {
+      getLinkedClientAccess: jest.fn().mockResolvedValue({
+        role: ServiceContractRole.PRIMARY,
+        status: 'ACTIVE',
+        clientCompanyId: CLIENT_ID,
+        providerCompanyId: SECONDARY_PROVIDER_ID,
+      }),
+      listPrimaryLinkedClientIds: jest.fn(),
+      listSecondaryLinkedClientIds: jest.fn(),
+    };
+    const prisma = {
+      company: {
+        findUnique: jest.fn().mockResolvedValue({ id: SECONDARY_PROVIDER_ID, allowTechnicianClaim: true }),
+      },
+      user: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'admin-1', role: UserRole.ADMIN, isExecutor: false, technicianSpecializations: [] }),
       },
       userLocationBinding: { findMany: jest.fn().mockResolvedValue([]) },
     } as any;

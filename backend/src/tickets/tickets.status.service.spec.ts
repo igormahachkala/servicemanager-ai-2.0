@@ -113,6 +113,31 @@ describe('TicketsStatusService.updateStatus', () => {
     expect(notifications.onTicketInProgress).toHaveBeenCalled()
   })
 
+  it.each([
+    [UserRole.MASTER, 'MASTER'],
+    [UserRole.DISPATCHER, 'DISPATCHER'],
+  ])('%s executor changes ASSIGNED→IN_PROGRESS on own ticket', async (role) => {
+    const txTicket = makeTxTicket({ companyId: PROVIDER_ID, assignedTechnicianId: USER_ID })
+    const { svc, tx, notifications } = makeSetup({ isExecutor: true, txTicket })
+    mockResolveAccess.mockResolvedValue(
+      makeAccess({
+        ticket: { id: TICKET_ID, companyId: PROVIDER_ID, assignedTechnicianId: USER_ID },
+        operationCompanyId: PROVIDER_ID,
+        visibilityMode: 'tenant',
+      }),
+    )
+
+    await svc.updateStatus(PROVIDER_ID, { id: USER_ID }, role, TICKET_ID, {
+      status: TicketStatus.IN_PROGRESS,
+    })
+
+    expect(tx.ticket.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: TicketStatus.IN_PROGRESS }) }),
+    )
+    expect(notifications.scheduleTicketStatusChanged).toHaveBeenCalled()
+    expect(notifications.onTicketInProgress).toHaveBeenCalled()
+  })
+
   it('TECHNICIAN executor changes status on own assigned ticket', async () => {
     const txTicket = makeTxTicket({ companyId: PROVIDER_ID, assignedTechnicianId: TECH_ID })
     const { svc, tx } = makeSetup({ isExecutor: true, txTicket })
