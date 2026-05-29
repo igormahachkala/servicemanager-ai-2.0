@@ -775,7 +775,16 @@ export class TicketsQueryService {
           scopeCompanyId: scope.scopeCompanyId,
         })
     const whereWithLocationScope = applyLocationScopeToTicketWhere(where, locationScope)
-    const safeListWhere = this.safeTicketWhereOrNull(whereWithLocationScope)
+    const secondaryOperationalWhere = await this.resolveSecondaryOperationalWhere({
+      providerCompanyId: companyId,
+      linkedClientCompanyId,
+      technicianScope,
+    })
+    const whereAfterSecondary =
+      secondaryOperationalWhere !== null
+        ? { AND: [whereWithLocationScope, secondaryOperationalWhere] }
+        : whereWithLocationScope
+    const safeListWhere = this.safeTicketWhereOrNull(whereAfterSecondary)
     if (!safeListWhere) {
       return []
     }
