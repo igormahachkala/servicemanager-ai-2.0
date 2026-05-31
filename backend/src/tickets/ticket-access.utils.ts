@@ -457,6 +457,71 @@ export async function resolveTicketReadScope(params: {
   }
 }
 
+/**
+ * Operational-scope WHERE for a SECONDARY provider on a given client, ignoring the
+ * contract role (callers must have already established the contract is SECONDARY).
+ * Scope = tickets assigned to the provider's executor users OR at locations the
+ * provider's users are bound to for that client. No scope ⇒ deny-all sentinel.
+ */
+async function buildSecondaryOperationalScopeWhere(params: {
+  prisma: PrismaService
+  providerCompanyId: string
+  linkedClientCompanyId: string
+}): Promise<Prisma.TicketWhereInput> {
+  const executors = await params.prisma.user.findMany({
+    where: { companyId: params.providerCompanyId, isExecutor: true },
+    select: { id: true },
+  })
+  const executorIds = executors.map((u) => u.id)
+
+  const locationBindings = await params.prisma.userLocationBinding.findMany({
+    where: {
+      companyId: params.providerCompanyId,
+      location: { clientCompanyId: params.linkedClientCompanyId },
+    },
+    select: { locationId: true },
+  })
+  const boundLocationIds = Array.from(new Set(locationBindings.map((b) => b.locationId)))
+
+  const orClauses: Prisma.TicketWhereInput[] = []
+  if (executorIds.length > 0) {
+    orClauses.push({ assignedTechnicianId: { in: executorIds } })
+  }
+  if (boundLocationIds.length > 0) {
+    orClauses.push({ locationId: { in: boundLocationIds } })
+  }
+
+  if (orClauses.length === 0) {
+    return { id: { equals: '__no_access__' } }
+  }
+  return { OR: orClauses }
+}
+
+/**
+ * SECONDARY operational restriction shared by board/list and readable-ticket access.
+ * Returns null when the (provider → client) contract is NOT SECONDARY (no restriction),
+ * otherwise the operational-scope WHERE. Keeps board, list, detail and attachments aligned.
+ */
+export async function buildSecondaryOperationalTicketWhere(params: {
+  prisma: PrismaService
+  serviceContractsService: ServiceContractsService
+  providerCompanyId: string
+  linkedClientCompanyId: string
+}): Promise<Prisma.TicketWhereInput | null> {
+  const access = await params.serviceContractsService.getLinkedClientAccess(
+    params.providerCompanyId,
+    params.linkedClientCompanyId,
+  )
+  if (!access || access.role !== ServiceContractRole.SECONDARY) {
+    return null
+  }
+  return buildSecondaryOperationalScopeWhere({
+    prisma: params.prisma,
+    providerCompanyId: params.providerCompanyId,
+    linkedClientCompanyId: params.linkedClientCompanyId,
+  })
+}
+
 export async function resolveReadableTicketAccess(params: {
   prisma: PrismaService
   serviceContractsService: ServiceContractsService
@@ -607,21 +672,30 @@ export async function resolveReadableTicketAccess(params: {
   })
 
   if (linkedClientIds.length > 0) {
-    const providerWhere: {
-      id: string
-      companyId: { in: string[] }
-      assignedTechnicianId?: string
-    } = {
-      id: params.ticketId,
-      companyId: { in: linkedClientIds },
-    }
-
-    if (params.actor.role === UserRole.TECHNICIAN) {
-      providerWhere.assignedTechnicianId = params.actor.id
+    // Build one clause per linked client. PRIMARY clients stay unrestricted; SECONDARY
+    // clients are narrowed to their operational scope (assigned executor / bound location)
+    // so detail access matches the board/list restriction and never leaks unrelated tickets.
+    const perClientClauses: Prisma.TicketWhereInput[] = []
+    for (const clientId of linkedClientIds) {
+      const clause: Prisma.TicketWhereInput = { companyId: clientId }
+      if (params.actor.role === UserRole.TECHNICIAN) {
+        clause.assignedTechnicianId = params.actor.id
+      } else {
+        const secondaryWhere = await buildSecondaryOperationalTicketWhere({
+          prisma: params.prisma,
+          serviceContractsService: params.serviceContractsService,
+          providerCompanyId: params.actor.companyId,
+          linkedClientCompanyId: clientId,
+        })
+        if (secondaryWhere) {
+          clause.AND = [secondaryWhere]
+        }
+      }
+      perClientClauses.push(clause)
     }
 
     const providerTicket = await params.prisma.ticket.findFirst({
-      where: providerWhere,
+      where: { id: params.ticketId, OR: perClientClauses },
       select: {
         id: true,
         companyId: true,
@@ -684,6 +758,23 @@ export async function resolveReadableTicketAccess(params: {
         ).includes(access.role)
       ) {
         throw new NotFoundException('Ticket not found')
+      }
+
+      // SECONDARY providers only get detail access inside their operational scope
+      // (assigned executor / bound location) — same restriction as board/list.
+      if (access.role === ServiceContractRole.SECONDARY) {
+        const secondaryScopeWhere = await buildSecondaryOperationalScopeWhere({
+          prisma: params.prisma,
+          providerCompanyId: params.actor.companyId,
+          linkedClientCompanyId: directTicket.companyId,
+        })
+        const inScope = await params.prisma.ticket.findFirst({
+          where: { AND: [{ id: params.ticketId, companyId: directTicket.companyId }, secondaryScopeWhere] },
+          select: { id: true },
+        })
+        if (!inScope) {
+          throw new NotFoundException('Ticket not found')
+        }
       }
 
       return {

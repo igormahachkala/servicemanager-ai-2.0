@@ -42,9 +42,12 @@ function makePrisma() {
 }
 
 function makeService(prisma: any) {
-  // Pass empty stubs for TimelineService and ServiceContractsService —
-  // they are used only by TicketMetaBuilder (getOne path) and resolveTicketReadScope (mocked).
-  return new TicketsQueryService(prisma, {} as any, {} as any)
+  // TimelineService is only used by TicketMetaBuilder (getOne path).
+  // ServiceContractsService.getLinkedClientAccess is consulted by the SECONDARY
+  // operational-scope check; default to null (no SECONDARY restriction) so these
+  // tests exercise the management/technician scoping they target.
+  const serviceContracts = { getLinkedClientAccess: jest.fn().mockResolvedValue(null) }
+  return new TicketsQueryService(prisma, {} as any, serviceContracts as any)
 }
 
 const wideLocationScope = { mode: 'tenant_wide' as const, locationIds: [] as string[] }

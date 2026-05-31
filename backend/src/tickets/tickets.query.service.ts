@@ -9,6 +9,7 @@ import { TicketsPolicy, type BoardQueryInput } from '../policy/tickets.policy'
 import { assertAllowed } from '../policy/policy.utils'
 import {
   applyLocationScopeToTicketWhere,
+  buildSecondaryOperationalTicketWhere,
   buildSpecializationLinksSomeWhereInput,
   buildTechnicianLocationRestrictionWhere,
   PROVIDER_LINKED_OVERVIEW_ROLES,
@@ -256,46 +257,12 @@ export class TicketsQueryService {
     if (params.technicianScope) return null
     if (!params.linkedClientCompanyId || params.linkedClientCompanyId === params.providerCompanyId) return null
 
-    const access = await this.serviceContractsService.getLinkedClientAccess(
-      params.providerCompanyId,
-      params.linkedClientCompanyId,
-    )
-
-    if (!access || access.role !== ServiceContractRole.SECONDARY) return null
-
-    // Collect executor user IDs from the SECONDARY provider company
-    const executors = await this.prisma.user.findMany({
-      where: { companyId: params.providerCompanyId, isExecutor: true },
-      select: { id: true },
+    return buildSecondaryOperationalTicketWhere({
+      prisma: this.prisma,
+      serviceContractsService: this.serviceContractsService,
+      providerCompanyId: params.providerCompanyId,
+      linkedClientCompanyId: params.linkedClientCompanyId,
     })
-    const executorIds = executors.map((u) => u.id)
-
-    // Collect location IDs bound to users of the SECONDARY provider for the client
-    const locationBindings = await this.prisma.userLocationBinding.findMany({
-      where: {
-        companyId: params.providerCompanyId,
-        location: { clientCompanyId: params.linkedClientCompanyId },
-      },
-      select: { locationId: true },
-    })
-    const boundLocationIds = Array.from(new Set(locationBindings.map((b) => b.locationId)))
-
-    const orClauses: Prisma.TicketWhereInput[] = []
-
-    if (executorIds.length > 0) {
-      orClauses.push({ assignedTechnicianId: { in: executorIds } })
-    }
-
-    if (boundLocationIds.length > 0) {
-      orClauses.push({ locationId: { in: boundLocationIds } })
-    }
-
-    // If no executors and no location bindings, deny access entirely
-    if (orClauses.length === 0) {
-      return { id: { equals: '__no_access__' } }
-    }
-
-    return { OR: orClauses }
   }
 
   async board(

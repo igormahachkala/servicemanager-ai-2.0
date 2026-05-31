@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common'
+import { BadRequestException, NotFoundException } from '@nestjs/common'
 import { ServiceContractRole, UserRole } from '@prisma/client'
 
 import { resolveReadableTicketAccess, resolveTicketReadScope } from './ticket-access.utils'
@@ -27,32 +27,67 @@ describe('ticket-access utils SECONDARY provider visibility', () => {
     }
   }
 
-  function makePrismaTicketMock(readableTicketCompanyId = clientCompanyId) {
+  // Evaluates a SECONDARY operational-scope WHERE (the shape produced by
+  // buildSecondaryOperationalScopeWhere) against a ticket row.
+  function ticketMatchesScope(scopeWhere: any, ticket: any): boolean {
+    if (!scopeWhere) return true
+    if (scopeWhere.id?.equals === '__no_access__') return false
+    if (Array.isArray(scopeWhere.OR)) {
+      return scopeWhere.OR.some(
+        (clause: any) =>
+          clause.assignedTechnicianId?.in?.includes(ticket.assignedTechnicianId) ||
+          clause.locationId?.in?.includes(ticket.locationId),
+      )
+    }
+    return true
+  }
+
+  function makePrismaTicketMock(
+    opts: {
+      ticketCompanyId?: string
+      ticketAssignedTechnicianId?: string | null
+      ticketLocationId?: string | null
+      executorIds?: string[]
+      directTicket?: any
+    } = {},
+  ) {
     const ticket = {
       id: ticketId,
-      companyId: readableTicketCompanyId,
-      assignedTechnicianId: null,
+      companyId: opts.ticketCompanyId ?? clientCompanyId,
+      locationId: opts.ticketLocationId ?? null,
+      assignedTechnicianId: opts.ticketAssignedTechnicianId ?? null,
     }
+    const executorIds = opts.executorIds ?? []
 
     return {
       ticket: {
         findFirst: jest.fn().mockImplementation(async ({ where }: any) => {
-          const companyId = where?.companyId
-          if (companyId === providerCompanyId) {
-            return null
+          // own-company tenant check
+          if (where?.companyId === providerCompanyId) return null
+          // management path: { id, OR: [{ companyId, AND?: [scopeWhere] }, ...] }
+          if (Array.isArray(where?.OR)) {
+            const hit = where.OR.some((clause: any) => {
+              if (clause.companyId !== ticket.companyId) return false
+              if (!clause.AND) return true
+              return clause.AND.every((scope: any) => ticketMatchesScope(scope, ticket))
+            })
+            return hit ? { ...ticket } : null
           }
-          if (companyId?.in && Array.isArray(companyId.in) && companyId.in.includes(clientCompanyId)) {
-            return ticket
+          // direct-fallback in-scope check: { AND: [{ id, companyId }, scopeWhere] }
+          if (Array.isArray(where?.AND)) {
+            const scope = where.AND[where.AND.length - 1]
+            return ticketMatchesScope(scope, ticket) ? { id: ticket.id } : null
           }
           return null
         }),
-        findUnique: jest.fn().mockResolvedValue(null),
+        findUnique: jest.fn().mockResolvedValue(opts.directTicket ?? null),
       },
       company: {
         findUnique: jest.fn().mockResolvedValue({ id: providerCompanyId }),
       },
       user: {
         findFirst: jest.fn().mockResolvedValue({ isExecutor: false, technicianSpecializations: [] }),
+        findMany: jest.fn().mockResolvedValue(executorIds.map((id) => ({ id }))),
       },
       userLocationBinding: {
         findMany: jest.fn().mockResolvedValue([]),
@@ -87,9 +122,13 @@ describe('ticket-access utils SECONDARY provider visibility', () => {
     expect(serviceContractsService.getLinkedClientAccess).toHaveBeenCalledWith(providerCompanyId, clientCompanyId)
   })
 
-  it('allows explicit SECONDARY contract access for operational ticket reads when enabled (management path)', async () => {
-    // Use NETWORK_DIRECTOR to test the management board path with SECONDARY explicitly enabled.
-    const prisma = makePrismaTicketMock()
+  it('SECONDARY management path: grants detail only within operational scope (assigned executor)', async () => {
+    // Ticket is assigned to the provider's executor, so it falls inside the SECONDARY
+    // operational scope and detail access is granted — matching the board/list view.
+    const prisma = makePrismaTicketMock({
+      executorIds: ['exec-1'],
+      ticketAssignedTechnicianId: 'exec-1',
+    })
     const serviceContractsService = makeServiceContractsService(ServiceContractRole.SECONDARY)
 
     const result = await resolveReadableTicketAccess({
@@ -105,43 +144,110 @@ describe('ticket-access utils SECONDARY provider visibility', () => {
       allowedLinkedClientContractRoles: [ServiceContractRole.PRIMARY, ServiceContractRole.SECONDARY],
     })
 
-    expect(result).toEqual({
-      ticket: {
-        id: ticketId,
-        companyId: clientCompanyId,
-        assignedTechnicianId: null,
-      },
-      scopeCompanyId: clientCompanyId,
-      visibilityMode: 'provider_primary',
-    })
+    expect(result.ticket.id).toBe(ticketId)
+    expect(result.scopeCompanyId).toBe(clientCompanyId)
+    expect(result.visibilityMode).toBe('provider_primary')
   })
 
-  it('allows explicit SECONDARY contract access via direct ticket fallback when enabled', async () => {
-    const prisma = {
-      ticket: {
-        findFirst: jest.fn().mockImplementation(async ({ where }: any) => {
-          if (where?.companyId?.in) {
-            return null
-          }
-          return null
-        }),
-        findUnique: jest.fn().mockResolvedValue({
-          id: ticketId,
-          companyId: clientCompanyId,
-          assignedTechnicianId: null,
-        }),
+  it('SECONDARY management path: denies detail outside operational scope (leak closed)', async () => {
+    // No executors and no location bindings ⇒ empty operational scope ⇒ deny-all.
+    // The unrelated linked-client ticket must NOT leak through the management path.
+    const prisma = makePrismaTicketMock({
+      executorIds: [],
+      ticketAssignedTechnicianId: 'someone-else',
+      directTicket: {
+        id: ticketId,
+        companyId: clientCompanyId,
+        locationId: 'loc-x',
+        assignedTechnicianId: 'someone-else',
+        status: 'IN_PROGRESS',
+        problemCategory: { specializationLinks: [] },
       },
-      company: {
-        findUnique: jest.fn().mockResolvedValue({ id: providerCompanyId }),
-      },
-      user: {
-        findFirst: jest.fn().mockResolvedValue({ isExecutor: false }),
-      },
-      userLocationBinding: {
-        findMany: jest.fn().mockResolvedValue([]),
-      },
-    } as any
+    })
     const serviceContractsService = makeServiceContractsService(ServiceContractRole.SECONDARY)
+
+    await expect(
+      resolveReadableTicketAccess({
+        prisma,
+        serviceContractsService: serviceContractsService as any,
+        actor: {
+          id: 'user-1',
+          role: UserRole.NETWORK_DIRECTOR,
+          companyId: providerCompanyId,
+        },
+        ticketId,
+        linkedClientCompanyId: clientCompanyId,
+        allowedLinkedClientContractRoles: [ServiceContractRole.PRIMARY, ServiceContractRole.SECONDARY],
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException)
+  })
+
+  it('SECONDARY direct fallback: denies detail outside operational scope (leak closed)', async () => {
+    // linkedClientCompanyId is not supplied and the provider has no linked-clients listed,
+    // so resolution reaches the direct-ticket fallback. SECONDARY with empty scope must deny.
+    const prisma = makePrismaTicketMock({
+      executorIds: [],
+      ticketAssignedTechnicianId: 'someone-else',
+      directTicket: {
+        id: ticketId,
+        companyId: clientCompanyId,
+        locationId: 'loc-x',
+        assignedTechnicianId: 'someone-else',
+        status: 'IN_PROGRESS',
+        problemCategory: { specializationLinks: [] },
+      },
+    })
+    const serviceContractsService = {
+      getLinkedClientAccess: jest.fn().mockResolvedValue({
+        role: ServiceContractRole.SECONDARY,
+        status: 'ACTIVE',
+        clientCompanyId,
+        providerCompanyId,
+      }),
+      listLinkedClients: jest.fn().mockResolvedValue([]),
+      listPrimaryLinkedClientIds: jest.fn().mockResolvedValue([]),
+      listSecondaryLinkedClientIds: jest.fn().mockResolvedValue([]),
+    }
+
+    await expect(
+      resolveReadableTicketAccess({
+        prisma,
+        serviceContractsService: serviceContractsService as any,
+        actor: {
+          id: 'user-1',
+          role: UserRole.NETWORK_DIRECTOR,
+          companyId: providerCompanyId,
+        },
+        ticketId,
+        allowedLinkedClientContractRoles: [ServiceContractRole.PRIMARY, ServiceContractRole.SECONDARY],
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException)
+  })
+
+  it('SECONDARY direct fallback: grants detail within operational scope (assigned executor)', async () => {
+    const prisma = makePrismaTicketMock({
+      executorIds: ['exec-1'],
+      ticketAssignedTechnicianId: 'exec-1',
+      directTicket: {
+        id: ticketId,
+        companyId: clientCompanyId,
+        locationId: null,
+        assignedTechnicianId: 'exec-1',
+        status: 'ASSIGNED',
+        problemCategory: { specializationLinks: [] },
+      },
+    })
+    const serviceContractsService = {
+      getLinkedClientAccess: jest.fn().mockResolvedValue({
+        role: ServiceContractRole.SECONDARY,
+        status: 'ACTIVE',
+        clientCompanyId,
+        providerCompanyId,
+      }),
+      listLinkedClients: jest.fn().mockResolvedValue([]),
+      listPrimaryLinkedClientIds: jest.fn().mockResolvedValue([]),
+      listSecondaryLinkedClientIds: jest.fn().mockResolvedValue([]),
+    }
 
     const result = await resolveReadableTicketAccess({
       prisma,
@@ -152,19 +258,11 @@ describe('ticket-access utils SECONDARY provider visibility', () => {
         companyId: providerCompanyId,
       },
       ticketId,
-      linkedClientCompanyId: clientCompanyId,
       allowedLinkedClientContractRoles: [ServiceContractRole.PRIMARY, ServiceContractRole.SECONDARY],
     })
 
-    expect(result).toEqual({
-      ticket: {
-        id: ticketId,
-        companyId: clientCompanyId,
-        assignedTechnicianId: null,
-      },
-      scopeCompanyId: clientCompanyId,
-      visibilityMode: 'provider_primary',
-    })
+    expect(result.ticket.id).toBe(ticketId)
+    expect(result.visibilityMode).toBe('provider_primary')
   })
 
   it('keeps company/analytics scope PRIMARY-only by default', async () => {

@@ -319,16 +319,27 @@ describe('TicketsAssignmentService.assign — SECONDARY executor', () => {
   /** Build a service-contracts mock that returns a given contract role for the SECONDARY lookup. */
   function makeContracts(linkedAccessRole: ServiceContractRole | null) {
     return {
-      getLinkedClientAccess: jest.fn().mockResolvedValue(
-        linkedAccessRole
+      // Arg-aware: the acting PRIMARY provider holds PRIMARY access to the client
+      // (so its detail read is unrestricted), while the cross-company executor's
+      // SECONDARY_PROVIDER_ID resolves to the role under test.
+      getLinkedClientAccess: jest.fn().mockImplementation(async (providerCompanyId: string) => {
+        if (providerCompanyId === PRIMARY_PROVIDER_ID) {
+          return {
+            role: ServiceContractRole.PRIMARY,
+            status: 'ACTIVE',
+            clientCompanyId: CLIENT_ID,
+            providerCompanyId: PRIMARY_PROVIDER_ID,
+          }
+        }
+        return linkedAccessRole
           ? {
               role: linkedAccessRole,
               status: 'ACTIVE',
               clientCompanyId: CLIENT_ID,
               providerCompanyId: SECONDARY_PROVIDER_ID,
             }
-          : null,
-      ),
+          : null
+      }),
       listPrimaryLinkedClientIds: jest.fn().mockResolvedValue([CLIENT_ID]),
       listSecondaryLinkedClientIds: jest.fn().mockResolvedValue([]),
       listSecondaryProviderCompanyIds: jest.fn().mockResolvedValue([SECONDARY_PROVIDER_ID]),
