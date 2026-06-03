@@ -180,4 +180,45 @@ describe('TicketsPolicy — executor-capability model', () => {
       }).allowed).toBe(false);
     });
   });
+
+  // ── canAddComment ────────────────────────────────────────────────────────
+
+  describe('canAddComment', () => {
+    const ticket = { companyId: 'company-1' };
+
+    it.each([
+      [UserRole.CLIENT, false],
+      [UserRole.ADMIN, false],
+      [UserRole.MASTER, false],
+      [UserRole.DISPATCHER, false],
+      [UserRole.NETWORK_DIRECTOR, false],
+      [UserRole.TERRITORIAL_MANAGER, false],
+    ])('%s can add comment (isExecutor=%s)', (role, isExecutor) => {
+      expect(policy.canAddComment({
+        user: { id: 'user-1', role, isExecutor, companyId: 'company-1' },
+        ticket,
+      }).allowed).toBe(true);
+    });
+
+    it('TECHNICIAN (isExecutor=true) can add comment', () => {
+      expect(policy.canAddComment({
+        user: { id: 'user-1', role: UserRole.TECHNICIAN, isExecutor: true, companyId: 'company-1' },
+        ticket,
+      }).allowed).toBe(true);
+    });
+
+    it('TECHNICIAN (isExecutor=false) is denied', () => {
+      expect(policy.canAddComment({
+        user: { id: 'user-1', role: UserRole.TECHNICIAN, isExecutor: false, companyId: 'company-1' },
+        ticket,
+      }).allowed).toBe(false);
+    });
+
+    it('cross-company is denied', () => {
+      expect(policy.canAddComment({
+        user: { id: 'user-1', role: UserRole.CLIENT, isExecutor: false, companyId: 'company-2' },
+        ticket,
+      }).allowed).toBe(false);
+    });
+  });
 });

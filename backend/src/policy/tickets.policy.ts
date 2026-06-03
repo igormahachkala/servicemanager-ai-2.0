@@ -28,6 +28,15 @@ const MANAGEMENT_STATUS_ROLES: UserRole[] = [
   UserRole.NETWORK_DIRECTOR,
 ];
 
+const COMMENT_ALLOWED_ROLES: UserRole[] = [
+  UserRole.ADMIN,
+  UserRole.MASTER,
+  UserRole.DISPATCHER,
+  UserRole.NETWORK_DIRECTOR,
+  UserRole.TERRITORIAL_MANAGER,
+  UserRole.CLIENT,
+];
+
 export type SlaBucket = 'ok' | 'atRisk' | 'breached';
 
 export type BoardQueryInput = {
@@ -249,5 +258,21 @@ export class TicketsPolicy {
     }
 
     return deny('Role cannot change ticket status');
+  }
+
+  canAddComment(params: {
+    user: { id: string; role: UserRole; isExecutor: boolean; companyId: string };
+    ticket: { companyId: string };
+  }): PolicyDecision {
+    const { user, ticket } = params;
+
+    if (ticket.companyId !== user.companyId) return deny('Cross-company access');
+
+    if (COMMENT_ALLOWED_ROLES.includes(user.role)) return allow();
+
+    // Executor-capable roles (TECHNICIAN, ADMIN+isExecutor, etc.) can comment on accessible tickets.
+    if (isExecutorEligible(user)) return allow();
+
+    return deny('Role cannot add comments');
   }
 }

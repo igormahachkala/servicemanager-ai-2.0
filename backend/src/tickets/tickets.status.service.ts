@@ -329,15 +329,12 @@ export class TicketsStatusService {
       const actorIsExecutor2 = isExecutorCapableRole(role)
         ? (await this.prisma.user.findFirst({ where: { id: user?.id }, select: { isExecutor: true } }))?.isExecutor ?? false
         : false;
-      const decision = this.policy.canChangeStatus({
+      const decision = this.policy.canAddComment({
         user: { id: user?.id, role, isExecutor: actorIsExecutor2, companyId: access.operationCompanyId },
-        ticket: {
-          companyId: access.operationCompanyId,
-          assignedTechnicianId: ticket.assignedTechnicianId,
-        },
+        ticket: { companyId: access.operationCompanyId },
       });
       this.logger.log({
-        event: 'executor_comment_decision',
+        event: 'comment_add_decision',
         actorUserId: user?.id,
         actorRole: role,
         actorIsExecutor: actorIsExecutor2,

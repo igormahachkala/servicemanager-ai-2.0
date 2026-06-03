@@ -227,3 +227,69 @@ describe('TicketsStatusService.updateStatus', () => {
     )
   })
 })
+
+describe('TicketsStatusService.addComment', () => {
+  beforeEach(() => jest.clearAllMocks())
+
+  function makeCommentSetup(opts: { companyType?: string; isExecutor?: boolean; role?: UserRole } = {}) {
+    const { companyType = 'CLIENT', isExecutor = false, role: _role = UserRole.CLIENT } = opts
+    const txTicket = makeTxTicket({ companyId: CLIENT_ID, assignedTechnicianId: null })
+    const tx = {
+      ticket: { findFirst: jest.fn().mockResolvedValue(txTicket) },
+      ticketStatusHistory: { create: jest.fn().mockResolvedValue({}) },
+    }
+    const prisma = {
+      user: { findFirst: jest.fn().mockResolvedValue({ isExecutor }), findUnique: jest.fn().mockResolvedValue(null) },
+      $transaction: jest.fn().mockImplementation(async (cb: any) => cb(tx)),
+    } as any
+    const timeline = { recordTx: jest.fn().mockResolvedValue({ id: 'ev-1' }) }
+    const notifications = { scheduleTicketCommentAdded: jest.fn() }
+    const svc = new TicketsStatusService(prisma, timeline as any, {} as any, notifications as any)
+    return { svc, prisma, tx, timeline, notifications }
+  }
+
+  it('CLIENT can add comment on own tenant ticket', async () => {
+    const { svc, timeline } = makeCommentSetup()
+    mockResolveAccess.mockResolvedValue(
+      makeAccess({ ticket: { id: TICKET_ID, companyId: CLIENT_ID, assignedTechnicianId: null }, operationCompanyId: CLIENT_ID, visibilityMode: 'tenant' }),
+    )
+
+    const result = await svc.addComment(CLIENT_ID, { id: USER_ID }, UserRole.CLIENT, TICKET_ID, { comment: 'Hello' })
+
+    expect(result).toEqual({ ok: true })
+    expect(timeline.recordTx).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ event: 'COMMENT_ADDED' }),
+    )
+  })
+
+  it('ADMIN can add comment', async () => {
+    const { svc } = makeCommentSetup()
+    mockResolveAccess.mockResolvedValue(makeAccess({ operationCompanyId: PROVIDER_ID }))
+
+    await expect(
+      svc.addComment(PROVIDER_ID, { id: USER_ID }, UserRole.ADMIN, TICKET_ID, { comment: 'Checking' }),
+    ).resolves.toEqual({ ok: true })
+  })
+
+  it('TECHNICIAN executor can add comment', async () => {
+    const { svc } = makeCommentSetup({ isExecutor: true })
+    mockResolveAccess.mockResolvedValue(
+      makeAccess({ ticket: { id: TICKET_ID, companyId: PROVIDER_ID, assignedTechnicianId: TECH_ID }, operationCompanyId: PROVIDER_ID, visibilityMode: 'tenant' }),
+    )
+
+    await expect(
+      svc.addComment(PROVIDER_ID, { id: TECH_ID }, UserRole.TECHNICIAN, TICKET_ID, { comment: 'Done' }),
+    ).resolves.toEqual({ ok: true })
+  })
+
+  it('rejects empty comment (BadRequestException)', async () => {
+    const { svc } = makeCommentSetup()
+
+    await expect(
+      svc.addComment(CLIENT_ID, { id: USER_ID }, UserRole.CLIENT, TICKET_ID, { comment: '   ' }),
+    ).rejects.toBeInstanceOf(BadRequestException)
+
+    expect(mockResolveAccess).not.toHaveBeenCalled()
+  })
+})
