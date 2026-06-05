@@ -2,6 +2,8 @@ import * as api from '../../lib/api'
 import { MobileHomeTabsIntroBanner, MobileTechnicianFirstStepsCard, dismissMobileHomeIntro } from '../MobileUxHints'
 import { MOBILE_HOME_TABS, MOBILE_HOME_TAB_LABELS, type MobileHomeBoardFilterTab } from '../mobileHomeBoardFilters'
 
+const COLLAPSED_TABS: MobileHomeBoardFilterTab[] = ['all', 'mine', 'new']
+
 type Props = {
   role: api.Role | undefined
   boardTab: MobileHomeBoardFilterTab
@@ -9,14 +11,16 @@ type Props = {
   tabCounts: Record<MobileHomeBoardFilterTab, number>
   homeIntroDismissed: boolean
   setHomeIntroDismissed: (value: boolean) => void
+  collapsed?: boolean
 }
 
 export function HomeTabs(props: Props) {
-  const { role, boardTab, setBoardTab, tabCounts, homeIntroDismissed, setHomeIntroDismissed } = props
+  const { role, boardTab, setBoardTab, tabCounts, homeIntroDismissed, setHomeIntroDismissed, collapsed } = props
+  const visibleTabs = collapsed ? COLLAPSED_TABS : MOBILE_HOME_TABS
   return (
     <>
       <div className="mobileFilterTabs mobileHomeStatusTabs" role="tablist" aria-label="Статус заявок">
-        {MOBILE_HOME_TABS.map((tab) => (
+        {visibleTabs.map((tab) => (
           <button
             key={tab}
             type="button"

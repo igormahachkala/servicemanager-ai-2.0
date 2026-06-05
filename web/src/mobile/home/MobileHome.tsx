@@ -111,6 +111,7 @@ export function MobileHome() {
   const [activeChips, setActiveChips] = useState<Set<MobileHomeBoardChipId>>(() => new Set(persistedBoardUi.chips))
   const [searchQuery, setSearchQuery] = useState('')
   const [homeIntroDismissed, setHomeIntroDismissed] = useState(() => readMobileHomeIntroDismissed())
+  const [filtersExpanded, setFiltersExpanded] = useState(false)
 
   useLayoutEffect(() => {
     const s = location.state as MobileTicketNavState | null | undefined
@@ -145,6 +146,20 @@ export function MobileHome() {
     () => formatActiveMobileHomeFiltersSummary({ searchQuery, chips: activeChips, chipLabels: MOBILE_HOME_BOARD_CHIP_LABELS }),
     [searchQuery, activeChips],
   )
+
+  const EXTRA_TABS: MobileHomeBoardFilterTab[] = ['in_work', 'overdue', 'done']
+
+  function toggleFiltersExpanded() {
+    setFiltersExpanded((prev) => {
+      if (prev) {
+        // collapse: reset extra tabs to 'all'
+        if (EXTRA_TABS.includes(boardTab)) setBoardTab('all')
+        setSearchQuery('')
+        setActiveChips(new Set())
+      }
+      return !prev
+    })
+  }
 
   function toggleChip(id: MobileHomeBoardChipId) {
     setActiveChips((prev) => {
@@ -382,17 +397,30 @@ export function MobileHome() {
               tabCounts={tabCounts}
               homeIntroDismissed={homeIntroDismissed}
               setHomeIntroDismissed={setHomeIntroDismissed}
+              collapsed={!filtersExpanded}
             />
-            <HomeChips
-              searchQuery={searchQuery}
-              setSearchQuery={setSearchQuery}
-              activeChips={activeChips}
-              toggleChip={toggleChip}
-              visibleCount={visibleTickets.length}
-              filterSummary={filterSummary}
-              onResetAll={resetHomeListFilters}
-              hasActiveFilters={boardTab !== 'all' || !!searchQuery.trim() || activeChips.size > 0}
-            />
+            <div style={{ display: 'flex', justifyContent: 'center', padding: '4px 0' }}>
+              <button
+                type="button"
+                className="mobileBtn mobileBtnSecondary"
+                style={{ fontSize: '0.78rem', padding: '4px 14px', minHeight: 32 }}
+                onClick={toggleFiltersExpanded}
+              >
+                {filtersExpanded ? 'Скрыть фильтры' : 'Показать фильтры'}
+              </button>
+            </div>
+            {filtersExpanded ? (
+              <HomeChips
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                activeChips={activeChips}
+                toggleChip={toggleChip}
+                visibleCount={visibleTickets.length}
+                filterSummary={filterSummary}
+                onResetAll={resetHomeListFilters}
+                hasActiveFilters={boardTab !== 'all' || !!searchQuery.trim() || activeChips.size > 0}
+              />
+            ) : null}
           </div>
           <HomeList
             boardIsLoading={boardQ.isLoading}
