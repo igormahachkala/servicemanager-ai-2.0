@@ -50,7 +50,7 @@ export function TicketChatPanel({ messages, loading, canSend, onSend }: Props) {
 
   return (
     <div className="panel uiCard" style={{ marginBottom: 12, display: 'flex', flexDirection: 'column' }}>
-      <h3 style={{ marginBottom: 10, flexShrink: 0 }}>Чат</h3>
+      <h3 style={{ marginBottom: 10, flexShrink: 0 }}>Чат заявки</h3>
 
       <div
         style={{
