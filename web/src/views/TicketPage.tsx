@@ -18,6 +18,8 @@ import { pushToast } from '../lib/appToast'
 import { logTicketActionError, mapTicketActionError } from '../lib/ticketOperationalErrors'
 import { computePrimaryTicketAction } from '../lib/ticketOperationalModel'
 import { TicketActionBar } from '../components/ticket-page/TicketActionBar'
+import { TicketChatPanel } from '../components/ticket-page/TicketChatPanel'
+import { toChatMessages } from '../lib/ticketChat'
 
 const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024
 
@@ -749,6 +751,10 @@ export function TicketPage() {
   const timelinePreviewItems = useMemo(
     () => (showFullTimeline ? timelineItems : timelineItems.slice(0, 5)),
     [showFullTimeline, timelineItems],
+  )
+  const chatMessages = useMemo(
+    () => toChatMessages(timelineItems, meQ.data?.id ?? ''),
+    [timelineItems, meQ.data?.id],
   )
   const shortProblemText = useMemo(() => {
     const text = ticket?.problemText || ''
@@ -1602,6 +1608,16 @@ export function TicketPage() {
               </div>
             )}
           </div>
+
+          <TicketChatPanel
+            messages={chatMessages}
+            loading={timelineQ.isLoading}
+            canSend={canMutateTicket}
+            onSend={async (text) => {
+              await api.addTicketComment(ticketId, text, effectiveTicketScope)
+              await refreshAll()
+            }}
+          />
 
           <div className="panel uiCard" style={{ marginBottom: 12 }}>
             <h3 style={{ marginBottom: 10 }}>История</h3>
