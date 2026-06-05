@@ -6,6 +6,7 @@ import type { IncomingMessage, Server as HttpServer } from 'node:http';
 import type { Socket } from 'node:net';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { getJwtSecret } from '../config/required-env';
 
 type RealtimeUser = {
   id: string;
@@ -337,7 +338,7 @@ export class RealtimeService implements OnModuleInit, OnModuleDestroy {
   private async authenticateClient(client: RealtimeClient, token: string) {
     try {
       const payload = await this.jwt.verifyAsync(token, {
-        secret: process.env.JWT_SECRET || 'dev_secret',
+        secret: getJwtSecret(),
       });
       const userId = typeof payload?.sub === 'string' ? payload.sub : payload?.userId;
       const companyId = typeof payload?.companyId === 'string' ? payload.companyId : '';

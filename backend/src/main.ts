@@ -5,8 +5,12 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 import { AppModule } from './app.module';
 import { RealtimeService } from './realtime/realtime.service';
+import { getJwtSecret } from './config/required-env';
 
 async function bootstrap() {
+  // Fail fast before any network binding if required secrets are absent or weak.
+  getJwtSecret();
+
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   // Глобальная валидация DTO (enterprise baseline)
