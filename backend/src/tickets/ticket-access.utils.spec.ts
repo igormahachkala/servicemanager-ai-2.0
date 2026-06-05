@@ -305,6 +305,78 @@ describe('ticket-access utils SECONDARY provider visibility', () => {
   })
 })
 
+describe('resolveReadableTicketAccess — cross-company ticket with no contract (403→404 leak fix)', () => {
+  const providerCompanyId = 'provider-co'
+  const unrelatedCompanyId = 'unrelated-co'
+  const ticketId = 'ticket-x'
+
+  function makeServiceContracts() {
+    return {
+      getLinkedClientAccess: jest.fn().mockResolvedValue(null),
+      listLinkedClients: jest.fn().mockResolvedValue([]),
+      listPrimaryLinkedClientIds: jest.fn().mockResolvedValue([]),
+      listSecondaryLinkedClientIds: jest.fn().mockResolvedValue([]),
+    }
+  }
+
+  function makePrisma() {
+    const directTicket = {
+      id: ticketId,
+      companyId: unrelatedCompanyId,
+      locationId: 'loc-1',
+      assignedTechnicianId: null,
+      status: 'NEW',
+      problemCategory: { specializationLinks: [] },
+    }
+    return {
+      ticket: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        findUnique: jest.fn().mockResolvedValue(directTicket),
+      },
+      company: {
+        findUnique: jest.fn().mockResolvedValue({ id: providerCompanyId, allowTechnicianClaim: false }),
+      },
+      user: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'tech-1', isExecutor: true, technicianSpecializations: [] }),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      userLocationBinding: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+    } as any
+  }
+
+  afterEach(() => jest.restoreAllMocks())
+
+  it('TECHNICIAN getOne on ticket in unrelated company (no contract) → NotFoundException not ForbiddenException', async () => {
+    const prisma = makePrisma()
+    const svc = makeServiceContracts()
+
+    await expect(
+      resolveReadableTicketAccess({
+        prisma,
+        serviceContractsService: svc as any,
+        actor: { id: 'tech-1', role: UserRole.TECHNICIAN, companyId: providerCompanyId },
+        ticketId,
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException)
+  })
+
+  it('ADMIN getOne on ticket in unrelated company (no contract) → NotFoundException', async () => {
+    const prisma = makePrisma()
+    const svc = makeServiceContracts()
+
+    await expect(
+      resolveReadableTicketAccess({
+        prisma,
+        serviceContractsService: svc as any,
+        actor: { id: 'admin-1', role: UserRole.ADMIN, companyId: providerCompanyId },
+        ticketId,
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException)
+  })
+})
+
 describe('resolveReadableTicketAccess — PRIMARY provider ADMIN with linkedClientCompanyId', () => {
   // Regression test for Failure 2:
   // PRIMARY_PROVIDER_ADMIN calling getOne/assign with linkedClientCompanyId was hitting

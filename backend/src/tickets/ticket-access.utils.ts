@@ -785,29 +785,35 @@ export async function resolveReadableTicketAccess(params: {
     }
 
     if (isExecutorCapableRole(params.actor.role) && directTicket.companyId !== params.actor.companyId) {
-      const executorScope = await resolveTechnicianOperationalScope({
-        prisma: params.prisma,
-        serviceContractsService: params.serviceContractsService,
-        actor: params.actor,
-        linkedClientCompanyId: directTicket.companyId,
-      })
+      try {
+        const executorScope = await resolveTechnicianOperationalScope({
+          prisma: params.prisma,
+          serviceContractsService: params.serviceContractsService,
+          actor: params.actor,
+          linkedClientCompanyId: directTicket.companyId,
+        })
 
-      const locationAllowed = isTechnicianLocationAllowed({
-        companyId: directTicket.companyId,
-        locationId: directTicket.locationId,
-        locationScopeByCompany: executorScope.locationScopeByCompany,
-      })
-      const canReadNew =
-        directTicket.status === 'NEW' && !directTicket.assignedTechnicianId && locationAllowed
-      const canReadAssigned =
-        directTicket.assignedTechnicianId === params.actor.id && locationAllowed
+        const locationAllowed = isTechnicianLocationAllowed({
+          companyId: directTicket.companyId,
+          locationId: directTicket.locationId,
+          locationScopeByCompany: executorScope.locationScopeByCompany,
+        })
+        const canReadNew =
+          directTicket.status === 'NEW' && !directTicket.assignedTechnicianId && locationAllowed
+        const canReadAssigned =
+          directTicket.assignedTechnicianId === params.actor.id && locationAllowed
 
-      if (canReadAssigned || canReadNew) {
-        return {
-          ticket: directTicket,
-          scopeCompanyId: directTicket.companyId,
-          visibilityMode: 'provider_primary' as TicketVisibilityMode,
+        if (canReadAssigned || canReadNew) {
+          return {
+            ticket: directTicket,
+            scopeCompanyId: directTicket.companyId,
+            visibilityMode: 'provider_primary' as TicketVisibilityMode,
+          }
         }
+      } catch (err) {
+        // No contractual relationship with this company: actor has no access.
+        // Any non-Forbidden error is unexpected and must propagate.
+        if (!(err instanceof ForbiddenException)) throw err
       }
     }
   }
