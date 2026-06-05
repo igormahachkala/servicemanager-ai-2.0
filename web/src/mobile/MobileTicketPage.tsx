@@ -15,8 +15,8 @@ import {
 } from './mobileTicketDisplay'
 import {
   MOBILE_HOME_BOARD_CHIP_LABELS,
+  MOBILE_HOME_TAB_LABELS,
   type MobileHomeBoardChipId,
-  type MobileHomeBoardFilterTab,
 } from './mobileHomeBoardFilters'
 import {
   getOnlineStatus,
@@ -41,12 +41,6 @@ function readListOrigin(location: ReturnType<typeof useLocation>): MobileTicketL
   const raw = (location.state as MobileTicketNavState | null)?.mobileListOrigin
   if (raw === 'my') return 'my'
   return 'home'
-}
-
-const MOBILE_HOME_TAB_LABELS: Record<MobileHomeBoardFilterTab, string> = {
-  all: 'Все',
-  mine: 'Мои заявки',
-  in_work: 'В работе',
 }
 
 function isImageAttachment(a: api.TicketAttachmentItem) {

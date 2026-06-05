@@ -2,6 +2,7 @@ import type { Role, TicketCard } from '../lib/api'
 import {
   dedupeBoardCards,
   filterTicketsForMobileHomeTab,
+  isMobileHomeBoardFilterTab,
   type MobileHomeBoardChipId,
   type MobileHomeBoardFilterTab,
   MOBILE_HOME_BOARD_CHIP_IDS,
@@ -9,14 +10,12 @@ import {
 
 const LS_KEY = 'sma.mobileHome.boardUi.v1'
 
-const MOBILE_HOME_TABS: MobileHomeBoardFilterTab[] = ['all', 'mine', 'in_work']
-
 export function readPersistedMobileHomeBoardUi(): { tab: MobileHomeBoardFilterTab; chips: MobileHomeBoardChipId[] } {
   try {
     const raw = localStorage.getItem(LS_KEY)
     if (!raw) return { tab: 'all', chips: [] }
     const o = JSON.parse(raw) as { tab?: string; chips?: unknown }
-    const tab = MOBILE_HOME_TABS.includes(o.tab as MobileHomeBoardFilterTab) ? (o.tab as MobileHomeBoardFilterTab) : 'all'
+    const tab = isMobileHomeBoardFilterTab(o.tab) ? o.tab : 'all'
     const chipsRaw = Array.isArray(o.chips) ? o.chips : []
     const chips = chipsRaw.filter((c): c is MobileHomeBoardChipId =>
       MOBILE_HOME_BOARD_CHIP_IDS.includes(c as MobileHomeBoardChipId),

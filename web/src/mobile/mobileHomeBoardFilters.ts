@@ -1,6 +1,22 @@
 import type { Role, TicketCard } from '../lib/api'
 
-export type MobileHomeBoardFilterTab = 'all' | 'mine' | 'in_work'
+export type MobileHomeBoardFilterTab = 'all' | 'mine' | 'new' | 'in_work' | 'overdue' | 'done'
+
+/** Канонический порядок и подписи быстрых фильтров на /m (единый источник). */
+export const MOBILE_HOME_TABS: MobileHomeBoardFilterTab[] = ['all', 'mine', 'new', 'in_work', 'overdue', 'done']
+
+export const MOBILE_HOME_TAB_LABELS: Record<MobileHomeBoardFilterTab, string> = {
+  all: 'Все',
+  mine: 'Мои',
+  new: 'Новые',
+  in_work: 'В работе',
+  overdue: 'Просроченные',
+  done: 'Завершенные',
+}
+
+export function isMobileHomeBoardFilterTab(value: unknown): value is MobileHomeBoardFilterTab {
+  return typeof value === 'string' && (MOBILE_HOME_TABS as string[]).includes(value)
+}
 
 /** Быстрые фильтры на главной /m (комбинируются с поиском и вкладкой). */
 export type MobileHomeBoardChipId = 'urgent' | 'overdue' | 'unassigned' | 'today'
@@ -53,6 +69,44 @@ export function isTicketInWorkStatus(ticket: TicketCard): boolean {
   return ticket.status === 'ASSIGNED' || ticket.status === 'IN_PROGRESS'
 }
 
+export function isNewTicket(ticket: TicketCard): boolean {
+  return ticket.status === 'NEW'
+}
+
+export function isDoneTicket(ticket: TicketCard): boolean {
+  return ticket.status === 'DONE'
+}
+
+/** Просроченные: SLA нарушен и заявка ещё в работе (не закрыта/не отменена). */
+export function isOverdueTicket(ticket: TicketCard): boolean {
+  if (ticket.status === 'DONE' || ticket.status === 'CANCELED') return false
+  return ticket.slaBreached === true
+}
+
+function matchesMobileHomeTab(
+  ticket: TicketCard,
+  tab: MobileHomeBoardFilterTab,
+  meId: string | undefined,
+  role?: Role | null,
+): boolean {
+  switch (tab) {
+    case 'all':
+      return true
+    case 'mine':
+      return isMineTicketForRole(ticket, meId, role)
+    case 'new':
+      return isNewTicket(ticket)
+    case 'in_work':
+      return isTicketInWorkStatus(ticket)
+    case 'overdue':
+      return isOverdueTicket(ticket)
+    case 'done':
+      return isDoneTicket(ticket)
+    default:
+      return true
+  }
+}
+
 export function filterTicketsForMobileHomeTab(
   cards: TicketCard[],
   tab: MobileHomeBoardFilterTab,
@@ -61,18 +115,27 @@ export function filterTicketsForMobileHomeTab(
 ): TicketCard[] {
   const list = dedupeBoardCards(cards)
   if (tab === 'all') return list
-  if (tab === 'mine') return list.filter((t) => isMineTicketForRole(t, meId, role))
-  if (tab === 'in_work') return list.filter(isTicketInWorkStatus)
-  return list
+  return list.filter((t) => matchesMobileHomeTab(t, tab, meId, role))
 }
 
-export function mobileHomeBoardTabCounts(cards: TicketCard[], meId: string | undefined, role?: Role | null) {
+export function mobileHomeBoardTabCounts(
+  cards: TicketCard[],
+  meId: string | undefined,
+  role?: Role | null,
+): Record<MobileHomeBoardFilterTab, number> {
   const list = dedupeBoardCards(cards)
-  return {
-    all: list.length,
-    mine: list.filter((t) => isMineTicketForRole(t, meId, role)).length,
-    in_work: list.filter(isTicketInWorkStatus).length,
+  const counts = {
+    all: 0,
+    mine: 0,
+    new: 0,
+    in_work: 0,
+    overdue: 0,
+    done: 0,
+  } as Record<MobileHomeBoardFilterTab, number>
+  for (const tab of MOBILE_HOME_TABS) {
+    counts[tab] = list.filter((t) => matchesMobileHomeTab(t, tab, meId, role)).length
   }
+  return counts
 }
 
 export type MobileHomeTabEmptyCopy = { title: string; hint: string }
@@ -101,6 +164,21 @@ export function mobileHomeTabEmptyCopy(tab: MobileHomeBoardFilterTab, ctx?: Mobi
         hint: tech
           ? 'Здесь видны заявки со статусом «Назначена» и «В работе» по контуру. Если список пуст — либо всё закрыто, либо заявки ещё в статусе «Новые».'
           : 'Заявки со статусом «Назначена» или «В работе» — во вкладке «В работе».',
+      }
+    case 'new':
+      return {
+        title: 'Нет новых заявок',
+        hint: 'Здесь только заявки в статусе «Новая». Когда появится новая заявка, она отобразится тут.',
+      }
+    case 'overdue':
+      return {
+        title: 'Нет просроченных заявок',
+        hint: 'Здесь заявки с нарушенным SLA, которые ещё не закрыты. Пусто — значит сроки в норме.',
+      }
+    case 'done':
+      return {
+        title: 'Нет завершённых заявок',
+        hint: 'Здесь недавно завершённые заявки. Полный архив доступен на десктопе во вкладке «Архив».',
       }
     default:
       if (total === 0) {

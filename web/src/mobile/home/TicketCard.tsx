@@ -38,45 +38,38 @@ export function TicketCard({
     slaBreached: ticket.slaBreached,
     status: ticket.status,
   })
-  const urgent = mobileTicketPriorityIsUrgent(ticket.priority ?? 'NORMAL')
+  const urgent = mobileTicketPriorityIsUrgent(ticket.priority ?? 'NORMAL') || ticket.urgency === 'URGENT'
   const overdue = ticket.slaBreached
-  const problemPreview = (() => {
-    const t = (ticket.description || '').trim()
-    if (t) return t
-    return (ticket.title || '').trim() || '—'
-  })()
   const statusClass = `mobileTicketStatus mobileTicketStatus--${ticket.status}`
-  const cardClass = ['mobileCard', 'mobileTicketCard', `mobileTicketCard--${ticket.status}`, overdue ? 'mobileTicketCardSlaOverdue' : '']
+  const cardClass = ['mobileCard', 'mobileTicketCard', 'mobileTicketCardCompact', `mobileTicketCard--${ticket.status}`, overdue ? 'mobileTicketCardSlaOverdue' : '']
     .filter(Boolean)
     .join(' ')
 
   return (
     <div className={cardClass} style={{ padding: 0, overflow: 'hidden' }}>
       <Link to={ticketHref} state={linkState ?? mobileTicketNavState('home')} className="mobileCardClickable" style={{ borderRadius: 0 }}>
-        <div style={{ padding: 12 }}>
+        <div className="mobileTicketCardBody">
+          {/* Номер + статус */}
           <div className="mobileRow">
             <strong>{mobileTicketNumberTitle(ticket.ticketNumber)}</strong>
             <span className={statusClass}>{mobileTicketStatusLabelRu(ticket.status)}</span>
           </div>
-          <div className="mobileTicketCardPriorityRow" style={{ marginTop: 6 }}>
-            {urgent ? <span className="mobileSlaUrgentPill">Срочный приоритет</span> : <span className="mobileMeta">Приоритет: обычный</span>}
-            {ticket.urgency === 'URGENT' && !urgent ? <span className="mobileSlaUrgentPill">Срочная заявка</span> : null}
+          {/* Объект (категория · точка) */}
+          <div className="mobileMeta mobileTicketCardObject">{mobileTicketCategoryLocationFromCard(ticket)}</div>
+          {/* Исполнитель + срочность */}
+          <div className="mobileTicketCardMetaRow">
+            <span className="mobileMeta mobileTicketCardAssignee">Исполнитель: {assignedTechnicianDisplay(ticket)}</span>
+            {urgent ? <span className="mobileSlaUrgentPill">Срочно</span> : null}
           </div>
-          {ticket.assignmentRequestedByCurrentUser ? (
-            <div className="mobileAssignmentRequestedRow" style={{ marginTop: 8 }}>
-              <span className="mobileAssignmentRequestedBadge">Запрос отправлен</span>
-              <span className="mobileMeta mobileAssignmentRequestedRowHint">Ожидайте назначение диспетчером</span>
+          {/* SLA */}
+          {slaLine ? (
+            <div className="mobileTicketSlaRow">
+              <span className="mobileTicketSlaCountdown">{slaLine}</span>
             </div>
           ) : null}
-          <div className="mobileMeta" style={{ marginTop: 4 }}>{mobileTicketCategoryLocationFromCard(ticket)}</div>
-          {(ticket.requesterName || '').trim() ? (
-            <div className="mobileMeta" style={{ marginTop: 4 }}>Заявитель: {(ticket.requesterName || '').trim()}</div>
-          ) : null}
-          <div className="mobileTicketProblemPreview">{problemPreview}</div>
-          <div className="mobileMeta" style={{ marginTop: 6 }}>Исполнитель: {assignedTechnicianDisplay(ticket)}</div>
-          {slaLine ? (
-            <div className="mobileTicketSlaRow" style={{ marginTop: 6 }}>
-              <span className="mobileTicketSlaCountdown">{slaLine}</span>
+          {ticket.assignmentRequestedByCurrentUser ? (
+            <div className="mobileAssignmentRequestedRow">
+              <span className="mobileAssignmentRequestedBadge">Запрос отправлен</span>
             </div>
           ) : null}
         </div>

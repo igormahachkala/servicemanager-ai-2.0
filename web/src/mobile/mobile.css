@@ -59,7 +59,7 @@ body,
 /* Вкладки статусов на главной /m: четыре колонки без горизонтального скролла. */
 .mobileFilterTabs {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   align-items: stretch;
   gap: 6px;
   width: 100%;
@@ -1258,6 +1258,45 @@ a.mobileBtn.mobileCreateTicketLink {
 
 .mobileTicketCard--CANCELED {
   border-left-color: #dc2626;
+}
+
+/* SMA-022.1 — компактная карточка: номер · объект · статус · исполнитель · SLA/срочность */
+.mobileTicketCardBody {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+}
+
+.mobileTicketCardObject {
+  font-weight: 600;
+  color: #374151;
+  font-size: 0.82rem;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+.mobileTicketCardMetaRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mobileTicketCardAssignee {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobileTicketCardCompact .mobileSlaUrgentPill {
+  font-size: 0.64rem;
+  padding: 2px 8px;
 }
 
 .mobileSlaUrgentPill {

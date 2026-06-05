@@ -1,14 +1,6 @@
 import * as api from '../../lib/api'
 import { MobileHomeTabsIntroBanner, MobileTechnicianFirstStepsCard, dismissMobileHomeIntro } from '../MobileUxHints'
-import { type MobileHomeBoardFilterTab } from '../mobileHomeBoardFilters'
-
-const MOBILE_HOME_TAB_LABELS: Record<MobileHomeBoardFilterTab, string> = {
-  all: 'Все',
-  mine: 'Мои',
-  in_work: 'В работе',
-}
-
-const MOBILE_HOME_TABS: MobileHomeBoardFilterTab[] = ['all', 'mine', 'in_work']
+import { MOBILE_HOME_TABS, MOBILE_HOME_TAB_LABELS, type MobileHomeBoardFilterTab } from '../mobileHomeBoardFilters'
 
 type Props = {
   role: api.Role | undefined
@@ -50,10 +42,10 @@ export function HomeTabs(props: Props) {
       {role === 'TECHNICIAN' && tabCounts.mine === 0 ? <MobileTechnicianFirstStepsCard show /> : null}
       {role !== 'TECHNICIAN' ? (
         <div className="mobilePageHint">
-          Все — полный список. Мои — рабочий список текущего контура. В работе — назначенные и в активной работе.
+          Все · Мои · Новые · В работе · Просроченные (SLA) · Завершенные.
         </div>
       ) : homeIntroDismissed ? (
-        <div className="mobilePageHint">Вкладки: все заявки · назначенные на вас · в работе по контуру.</div>
+        <div className="mobilePageHint">Фильтры: все · назначенные на вас · новые · в работе · просроченные · завершённые.</div>
       ) : null}
     </>
   )
