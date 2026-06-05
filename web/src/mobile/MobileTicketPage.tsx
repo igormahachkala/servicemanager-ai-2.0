@@ -235,14 +235,6 @@ export function MobileTicketPage() {
     return ''
   }, [linkedClientCompanyId, ticketQ.data?.meta?.visibilityMode, ticketQ.data?.meta?.scopeCompanyId])
 
-  const effectiveTicketScope = useMemo<api.TicketScopeParams>(
-    () => ({
-      companyId: observerCompanyId || undefined,
-      linkedClientCompanyId: inferredLinkedClientCompanyId || undefined,
-    }),
-    [observerCompanyId, inferredLinkedClientCompanyId],
-  )
-
   const canUploadTicketPhotos = useMemo(() => {
     const role = meQ.data?.role
     const isClientRole = role === 'CLIENT'
@@ -261,10 +253,10 @@ export function MobileTicketPage() {
   }, [meQ.data?.role, observerCompanyId, inferredLinkedClientCompanyId])
 
   /**
-   * Claim / status / assign на linked-client заявке: query `linkedClientCompanyId` должен совпадать
-   * с tenant заявки (`ticket.companyId`). Иначе бэкенд сужает operational scope до «чужого» клиента и claim даёт 404.
+   * Scope для чтения/записи ресурсов заявки (вложения, timeline, комментарии, статус).
+   * На linked-client заявке `linkedClientCompanyId` должен совпадать с tenant заявки (`ticket.companyId`).
    */
-  const ticketMutationScope = useMemo<api.TicketScopeParams>(() => {
+  const ticketResourceScope = useMemo<api.TicketScopeParams>(() => {
     const base: api.TicketScopeParams = {
       companyId: observerCompanyId || undefined,
       linkedClientCompanyId: inferredLinkedClientCompanyId || undefined,
@@ -282,27 +274,37 @@ export function MobileTicketPage() {
 
   const attachmentsQ = useQuery({
     enabled: !!ticketId && !!ticketQ.data,
-    queryKey: ['mobile-ticket-attachments', ticketId, observerCompanyId, inferredLinkedClientCompanyId],
+    queryKey: [
+      'mobile-ticket-attachments',
+      ticketId,
+      ticketResourceScope.companyId,
+      ticketResourceScope.linkedClientCompanyId,
+    ],
     queryFn: async () => {
       if (!getOnlineStatus()) {
         const cached = loadTicketDetailCache(ticketId, scopeNorm) ?? loadAnyTicketDetailCache(ticketId)
         if (cached?.data) return cached.data.attachments
         throw new Error('Нет сохранённых вложений для офлайна.')
       }
-      return api.ticketAttachments(ticketId, effectiveTicketScope)
+      return api.ticketAttachments(ticketId, ticketResourceScope)
     },
   })
 
   const timelineQ = useQuery({
     enabled: !!ticketId && !!ticketQ.data,
-    queryKey: ['mobile-ticket-timeline', ticketId, observerCompanyId, inferredLinkedClientCompanyId],
+    queryKey: [
+      'mobile-ticket-timeline',
+      ticketId,
+      ticketResourceScope.companyId,
+      ticketResourceScope.linkedClientCompanyId,
+    ],
     queryFn: async () => {
       if (!getOnlineStatus()) {
         const cached = loadTicketDetailCache(ticketId, scopeNorm) ?? loadAnyTicketDetailCache(ticketId)
         if (cached?.data) return cached.data.timeline ?? null
         throw new Error('Нет сохранённой истории для офлайна.')
       }
-      return api.timeline(ticketId, effectiveTicketScope)
+      return api.timeline(ticketId, ticketResourceScope)
     },
   })
 
@@ -314,15 +316,15 @@ export function MobileTicketPage() {
     if (!timelineQ.isFetched) return
     saveTicketDetailCache({
       ticketId,
-      scope: effectiveTicketScope,
+      scope: ticketResourceScope,
       ticket: ticketQ.data,
       attachments: attachmentsQ.data ?? [],
       timeline: timelineQ.data ?? null,
     })
   }, [
     ticketId,
-    effectiveTicketScope.companyId,
-    effectiveTicketScope.linkedClientCompanyId,
+    ticketResourceScope.companyId,
+    ticketResourceScope.linkedClientCompanyId,
     ticketQ.isSuccess,
     ticketQ.data,
     attachmentsQ.isSuccess,
@@ -391,10 +393,10 @@ export function MobileTicketPage() {
       'mobile-ticket-assign-candidates',
       ticketId,
       observerCompanyId,
-      ticketMutationScope.linkedClientCompanyId,
-      ticketMutationScope.companyId,
+      ticketResourceScope.linkedClientCompanyId,
+      ticketResourceScope.companyId,
     ],
-    queryFn: () => api.assignmentCandidates(ticketId, ticketMutationScope),
+    queryFn: () => api.assignmentCandidates(ticketId, ticketResourceScope),
     enabled: !!ticketId && !!ticket && assignTicketOpen && canAssignProvider,
   })
 
@@ -455,7 +457,7 @@ export function MobileTicketPage() {
     try {
       for (let i = 0; i < files.length; i++) {
         setTicketAddPhotoProgress({ current: i + 1, total: files.length })
-        await api.uploadTicketAttachment(ticketId, files[i], effectiveTicketScope)
+        await api.uploadTicketAttachment(ticketId, files[i], ticketResourceScope)
       }
       await invalidateTicketQueries()
     } catch (e: unknown) {
@@ -502,8 +504,8 @@ export function MobileTicketPage() {
   const techActionM = useMutation({
     mutationFn: async (mode: 'claim' | 'start') => {
       if (!ticket) throw new Error('Нет заявки')
-      if (mode === 'claim') await api.claimTicket(ticket.id, ticketMutationScope)
-      else await api.updateTicketStatus(ticket.id, { status: 'IN_PROGRESS' }, ticketMutationScope)
+      if (mode === 'claim') await api.claimTicket(ticket.id, ticketResourceScope)
+      else await api.updateTicketStatus(ticket.id, { status: 'IN_PROGRESS' }, ticketResourceScope)
     },
     onMutate: () => setTechActionErr(''),
     onSuccess: async () => {
@@ -526,7 +528,7 @@ export function MobileTicketPage() {
   const assignmentRequestM = useMutation({
     mutationFn: async () => {
       if (!ticket) throw new Error('Нет заявки')
-      return api.requestTicketAssignment(ticket.id, ticketMutationScope)
+      return api.requestTicketAssignment(ticket.id, ticketResourceScope)
     },
     onMutate: () => {
       setAssignmentRequestErr('')
@@ -546,7 +548,7 @@ export function MobileTicketPage() {
   const assignM = useMutation({
     mutationFn: async (params: { technicianId: string }) => {
       if (!ticketId) throw new Error('Нет заявки')
-      await api.assignTicket(ticketId, params.technicianId, ticketMutationScope)
+      await api.assignTicket(ticketId, params.technicianId, ticketResourceScope)
     },
     onMutate: () => setAssignErr(''),
     onSuccess: async () => {
@@ -565,9 +567,9 @@ export function MobileTicketPage() {
       if (!closeModal.file) throw new Error('Нужно фото отчёта')
       const comment = closeModal.comment.trim()
       if (comment.length < 3) throw new Error('Нужен комментарий не короче 3 символов')
-      await api.uploadTicketAttachment(closeModal.ticketId, closeModal.file, ticketMutationScope)
-      await api.addTicketComment(closeModal.ticketId, comment, ticketMutationScope)
-      await api.updateTicketStatus(closeModal.ticketId, { status: 'DONE' }, ticketMutationScope)
+      await api.uploadTicketAttachment(closeModal.ticketId, closeModal.file, ticketResourceScope)
+      await api.addTicketComment(closeModal.ticketId, comment, ticketResourceScope)
+      await api.updateTicketStatus(closeModal.ticketId, { status: 'DONE' }, ticketResourceScope)
     },
     onSuccess: async () => {
       if (closeModal?.previewUrl) URL.revokeObjectURL(closeModal.previewUrl)
@@ -689,9 +691,9 @@ export function MobileTicketPage() {
     setChatSendError(null)
     setChatSending(true)
     try {
-      await api.addTicketComment(ticketId, trimmed, effectiveTicketScope)
+      await api.addTicketComment(ticketId, trimmed, ticketResourceScope)
       setChatText('')
-      await queryClient.invalidateQueries({ queryKey: ['mobile-ticket-timeline', ticketId] })
+      await invalidateTicketQueries()
     } catch (e: unknown) {
       setChatSendError(formatMobileMutationError(e, { operation: 'other' }))
     } finally {
@@ -1128,7 +1130,7 @@ export function MobileTicketPage() {
                   onChange={(e) => setChatText(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); void handleChatSend() } }}
                   placeholder="Написать комментарий…"
-                  disabled={chatSending}
+                  disabled={chatSending || !isOnline}
                   rows={2}
                   style={{ flex: 1, resize: 'none', borderRadius: 10, border: '1px solid #e5e7eb', padding: '8px 10px', fontSize: '0.92rem', fontFamily: 'inherit' }}
                 />
@@ -1136,11 +1138,16 @@ export function MobileTicketPage() {
                   type="button"
                   className="mobileBtn"
                   style={{ alignSelf: 'flex-end', flexShrink: 0, padding: '8px 14px', minHeight: 44 }}
-                  disabled={chatSending || !chatText.trim()}
+                  disabled={chatSending || !chatText.trim() || !isOnline}
                   onClick={() => void handleChatSend()}
                 >
                   {chatSending ? '…' : '→'}
                 </button>
+              </div>
+            ) : null}
+            {!isOnline && canSendComment ? (
+              <div className="mobileMeta" style={{ marginTop: 8 }}>
+                Офлайн: отправка сообщений недоступна.
               </div>
             ) : null}
             {chatSendError ? <div className="mobileNotice mobileNoticeError" style={{ marginTop: 8 }}>{chatSendError}</div> : null}

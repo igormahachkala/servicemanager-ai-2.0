@@ -1819,3 +1819,32 @@ a.mobileBtn.mobileCreateTicketLink {
   line-height: 1.45;
   color: #334155;
 }
+
+.mobileTicketChatHost .panel.uiCard {
+  margin: 0;
+  padding: 0;
+  border: none;
+  box-shadow: none;
+  background: transparent;
+}
+
+.mobileTicketChatHost h3 {
+  font-size: 1rem;
+  font-weight: 800;
+  margin: 0 0 10px;
+}
+
+.mobileTicketChatHost textarea {
+  min-height: 72px;
+  font-size: 1rem;
+}
+
+.mobileTicketChatHost button[type='button'] {
+  min-height: 44px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: none;
+  background: #4f46e5;
+  color: #fff;
+  font-weight: 700;
+}

@@ -12,6 +12,7 @@ import {
 import { MobileRoleContextStrip } from './MobileUxHints'
 import { isMineTicketForRole } from './mobileHomeBoardFilters'
 import { appendBoardNavigationContextToPath, readBoardNavigationContextFromSearch } from '../lib/boardNavigationContext'
+import { ticketMatchesMobileHomeSearch } from './mobileHomeListUtils'
 import { mobilePath } from './mobileRoute'
 
 type FilterKey = 'active' | 'new' | 'archive'
@@ -39,6 +40,7 @@ export function MobileMyTickets() {
     return tab === 'new' || tab === 'archive' || tab === 'active' ? (tab as FilterKey) : 'active'
   }, [initialBoardContext?.tab])
   const [filter, setFilter] = useState<FilterKey>(initialFilter)
+  const [archiveSearch, setArchiveSearch] = useState(() => (initialBoardContext?.search || '').trim().slice(0, 240))
 
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
 
@@ -95,8 +97,6 @@ export function MobileMyTickets() {
       !!meQ.data && (meQ.data.role !== 'TECHNICIAN' || !!linkedClientCompanyId),
   })
 
-  const [archiveSearch, setArchiveSearch] = useState('')
-
   const allTickets = boardQ.data?.columns.flatMap((col) => col.cards || []) || []
   const mineScopedTickets = useMemo(
     () => allTickets.filter((ticket) => isMineTicketForRole(ticket, meQ.data?.id, meQ.data?.role)),
@@ -106,23 +106,20 @@ export function MobileMyTickets() {
   const filteredTickets = useMemo(() => {
     const byStatus = mineScopedTickets.filter((ticket) => statuses.includes(ticket.status))
     if (filter !== 'archive' || !archiveSearch.trim()) return byStatus
-    const q = archiveSearch.trim().toLowerCase()
-    return byStatus.filter((ticket) => {
-      const num = String(ticket.ticketNumber ?? '')
-      const loc = [ticket.pointName, ticket.location?.name, ticket.location?.city, ticket.location?.address]
-        .filter(Boolean).join(' ').toLowerCase()
-      const title = (ticket.title || '').toLowerCase()
-      return num.includes(q) || loc.includes(q) || title.includes(q)
-    })
+    return byStatus.filter((ticket) => ticketMatchesMobileHomeSearch(ticket, archiveSearch))
   }, [mineScopedTickets, statuses, filter, archiveSearch])
 
   useEffect(() => {
     const basePath = api.appendScopeToPath(mobilePath(location.pathname, '/my'), pageScope, meQ.data)
-    const nextPath = appendBoardNavigationContextToPath(basePath, { tab: filter, scopeLabel: 'Мои заявки' })
+    const nextPath = appendBoardNavigationContextToPath(basePath, {
+      tab: filter,
+      scopeLabel: 'Мои заявки',
+      search: filter === 'archive' && archiveSearch.trim() ? archiveSearch.trim() : undefined,
+    })
     if (nextPath !== `${location.pathname}${location.search}`) {
       navigate(nextPath, { replace: true, state: location.state })
     }
-  }, [filter, pageScope.linkedClientCompanyId, pageScope.companyId, meQ.data, navigate, location.pathname, location.search, location.state])
+  }, [filter, archiveSearch, pageScope.linkedClientCompanyId, pageScope.companyId, meQ.data, navigate, location.pathname, location.search, location.state])
 
   const ticketHref = (ticket: api.TicketCard) => {
     if (!meQ.data) return mobilePath(location.pathname, `/tickets/${ticket.id}`)
@@ -218,9 +215,9 @@ export function MobileMyTickets() {
             autoCapitalize="none"
             autoCorrect="off"
             spellCheck={false}
-            placeholder="Поиск: номер, адрес, точка"
+            placeholder="Поиск: номер, адрес, точка, проблема"
             value={archiveSearch}
-            onChange={(e) => setArchiveSearch(e.target.value)}
+            onChange={(e) => setArchiveSearch(e.target.value.slice(0, 240))}
           />
         </label>
       ) : null}
@@ -232,11 +229,13 @@ export function MobileMyTickets() {
           <div className="mobileEmptyStateTitle">{filter === 'archive' ? 'В архиве пока нет заявок' : 'Список пуст'}</div>
           <p className="mobileEmptyStateHint">
             {filter === 'archive'
-              ? 'Здесь заявки со статусом «Выполнена» и «Отменена».'
+              ? archiveSearch.trim()
+                ? 'По этому запросу в архиве ничего не найдено. Проверьте номер или сбросьте поиск.'
+                : 'Здесь заявки со статусом «Выполнена» и «Отменена».'
               : meQ.data.role === 'TECHNICIAN' && filter === 'new'
               ? 'Новых заявок на вас нет: они появятся после назначения или если вы возьмёте заявку с главной (вкладка «Новые»).'
               : meQ.data.role === 'TECHNICIAN' && filter === 'active'
-                ? 'Нет активных заявок в этом контуре. Проверьте «Новые» на главной или фильтр «Архив».'
+                ? 'Нет активных заявок в этом контуре. Проверьте «Новые» на главной или вкладку «Архив».'
                 : 'В этом фильтре заявок пока нет.'}
           </p>
         </div>
