@@ -36,6 +36,7 @@ import { MobileBoardClaimFallbackHint, MobileClaimReasonHintBox } from './Mobile
 import { TicketCloseModal, type TicketCloseModalState } from './home/HomeList'
 import { MobileAttachmentThumb, mobileAttachmentLabel } from './MobileAttachmentThumb'
 import { MobilePhotoLightbox } from './MobilePhotoLightbox'
+import { toChatMessages } from '../lib/ticketChat'
 
 function readListOrigin(location: ReturnType<typeof useLocation>): MobileTicketListOrigin {
   const raw = (location.state as MobileTicketNavState | null)?.mobileListOrigin
@@ -49,13 +50,6 @@ function isImageAttachment(a: api.TicketAttachmentItem) {
 
 function isReportTicketImage(a: api.TicketAttachmentItem) {
   return a.purpose === 'WORK_REPORT'
-}
-
-function isCommentTimelineItem(item: api.TimelineItem): boolean {
-  const c = typeof item.payload?.comment === 'string' ? item.payload.comment.trim() : ''
-  if (c.length > 0) return true
-  const t = `${item.type || ''} ${item.timelineEvent || ''} ${item.domainType || ''}`.toLowerCase()
-  return t.includes('comment')
 }
 
 function isNotFoundGetTicketError(err: unknown): boolean {
@@ -257,6 +251,14 @@ export function MobileTicketPage() {
     return canMutateTicket && roleCanUploadTicketPhoto(role)
   }, [meQ.data?.role, observerCompanyId, inferredLinkedClientCompanyId])
 
+  const canSendComment = useMemo(() => {
+    const role = meQ.data?.role
+    if (!role) return false
+    const isClientRole = role === 'CLIENT'
+    const contextMode = observerCompanyId ? 'observer' : inferredLinkedClientCompanyId ? 'provider' : 'tenant'
+    return contextMode !== 'observer' && !(isClientRole && contextMode !== 'tenant')
+  }, [meQ.data?.role, observerCompanyId, inferredLinkedClientCompanyId])
+
   /**
    * Claim / status / assign на linked-client заявке: query `linkedClientCompanyId` должен совпадать
    * с tenant заявки (`ticket.companyId`). Иначе бэкенд сужает operational scope до «чужого» клиента и claim даёт 404.
@@ -374,6 +376,9 @@ export function MobileTicketPage() {
   const [assignmentRequestErr, setAssignmentRequestErr] = useState('')
   const [assignmentRequestToast, setAssignmentRequestToast] = useState('')
   const [photoPreview, setPhotoPreview] = useState<{ src: string; alt: string } | null>(null)
+  const [chatText, setChatText] = useState('')
+  const [chatSending, setChatSending] = useState(false)
+  const [chatSendError, setChatSendError] = useState<string | null>(null)
   const addTicketCameraRef = useRef<HTMLInputElement | null>(null)
   const addTicketGalleryRef = useRef<HTMLInputElement | null>(null)
   const [ticketAddPhotoError, setTicketAddPhotoError] = useState<string | null>(null)
@@ -610,7 +615,7 @@ export function MobileTicketPage() {
   const desc = ticket ? `${ticket.problemText || ''}`.trim() || ticket.description?.trim() || '—' : '—'
 
   const timelineItems = timelineQ.data?.timeline || timelineQ.data?.items || []
-  const commentItems = useMemo(() => timelineItems.filter(isCommentTimelineItem), [timelineItems])
+  const chatMessages = useMemo(() => toChatMessages(timelineItems, meQ.data?.id ?? ''), [timelineItems, meQ.data?.id])
 
   const requestImages = useMemo(() => {
     const imgs = (attachmentsQ.data || []).filter(isImageAttachment)
@@ -664,6 +669,23 @@ export function MobileTicketPage() {
     !hasTechnicianActionsBlock
 
   const padBottomForOpsDock = hasTechnicianActionsBlock
+
+  async function handleChatSend() {
+    const trimmed = chatText.trim()
+    if (!trimmed || chatSending) return
+    if (!isOnline) { setChatSendError('Нет подключения к сети'); return }
+    setChatSendError(null)
+    setChatSending(true)
+    try {
+      await api.addTicketComment(ticketId, trimmed, effectiveTicketScope)
+      setChatText('')
+      await queryClient.invalidateQueries({ queryKey: ['mobile-ticket-timeline', ticketId] })
+    } catch (e: unknown) {
+      setChatSendError(formatMobileMutationError(e, { operation: 'other' }))
+    } finally {
+      setChatSending(false)
+    }
+  }
 
   return (
     <div className={`mobileSection mobileTicketDetailsRoot${padBottomForOpsDock ? ' mobileTicketDetailsRoot--opsDock' : ''}`}>
@@ -1059,33 +1081,57 @@ export function MobileTicketPage() {
           </div>
 
           <div className="mobileCard" style={{ marginTop: 8 }}>
-            <div className="mobileSectionTitle" style={{ marginBottom: 8 }}>
-              Комментарии
-            </div>
+            <div className="mobileSectionTitle" style={{ marginBottom: 8 }}>Чат заявки</div>
             {timelineQ.isLoading ? <div className="mobileMeta">Загрузка…</div> : null}
-            {!timelineQ.isLoading && (timelineQ.isError || commentItems.length === 0) ? (
-              <div className="mobileMeta">Комментариев пока нет</div>
+            {!timelineQ.isLoading && chatMessages.length === 0 ? (
+              <div className="mobileMeta" style={{ marginBottom: canSendComment ? 10 : 0 }}>Комментариев пока нет</div>
             ) : null}
-            {!timelineQ.isLoading && !timelineQ.isError && commentItems.length > 0 ? (
-              <div className="mobileSection" style={{ gap: 10 }}>
-                {commentItems.map((item, idx) => {
-                  const text =
-                    typeof item.payload?.comment === 'string' && item.payload.comment.trim()
-                      ? item.payload.comment.trim()
-                      : item.title || '—'
-                  const who = item.actor?.email || '—'
-                  return (
-                    <div key={`${item.at}-${idx}`} style={{ borderTop: idx ? '1px solid #e5e7eb' : undefined, paddingTop: idx ? 10 : 0 }}>
-                      <div className="mobileMeta">{who}</div>
-                      <div style={{ marginTop: 4, fontSize: '0.92rem', whiteSpace: 'pre-wrap' }}>{text}</div>
-                      <div className="mobileMeta" style={{ marginTop: 4 }}>
-                        {item.at}
-                      </div>
+            {chatMessages.length > 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto', paddingRight: 4, marginBottom: 10 }}>
+                {chatMessages.map((msg) => (
+                  <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.isOwn ? 'flex-end' : 'flex-start' }}>
+                    <div style={{
+                      maxWidth: '82%',
+                      background: msg.isOwn ? '#4f46e5' : '#f3f4f6',
+                      color: msg.isOwn ? '#fff' : '#111827',
+                      borderRadius: msg.isOwn ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
+                      padding: '8px 12px',
+                      wordBreak: 'break-word',
+                      whiteSpace: 'pre-wrap',
+                      fontSize: '0.92rem',
+                    }}>
+                      {msg.text}
                     </div>
-                  )
-                })}
+                    <div className="mobileMeta" style={{ marginTop: 2, fontSize: '0.72rem' }}>
+                      {msg.authorEmail || 'система'} · {new Date(msg.at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : null}
+            {canSendComment ? (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <textarea
+                  value={chatText}
+                  onChange={(e) => setChatText(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); void handleChatSend() } }}
+                  placeholder="Написать комментарий…"
+                  disabled={chatSending}
+                  rows={2}
+                  style={{ flex: 1, resize: 'none', borderRadius: 10, border: '1px solid #e5e7eb', padding: '8px 10px', fontSize: '0.92rem', fontFamily: 'inherit' }}
+                />
+                <button
+                  type="button"
+                  className="mobileBtn"
+                  style={{ alignSelf: 'flex-end', flexShrink: 0, padding: '8px 14px', minHeight: 44 }}
+                  disabled={chatSending || !chatText.trim()}
+                  onClick={() => void handleChatSend()}
+                >
+                  {chatSending ? '…' : '→'}
+                </button>
+              </div>
+            ) : null}
+            {chatSendError ? <div className="mobileNotice mobileNoticeError" style={{ marginTop: 8 }}>{chatSendError}</div> : null}
           </div>
 
           {ticket.children?.length ? (
