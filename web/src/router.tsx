@@ -7,6 +7,7 @@ import { RequestAccessPage } from './views/RequestAccessPage'
 import { PublicQuickRequestPage } from './views/PublicQuickRequestPage'
 import { PublicQuickRequestSuccessPage } from './views/PublicQuickRequestSuccessPage'
 import { BoardPage } from './views/BoardPage'
+import { ArchivePage } from './views/ArchivePage'
 import { TicketPage } from './views/TicketPage'
 import { CreateTicketPage } from './views/CreateTicketPage'
 import { EmployeesPage } from './views/EmployeesPage'
@@ -122,6 +123,7 @@ export function AppRoutes() {
         }
       >
         <Route path="board" element={<BoardPage />} />
+        <Route path="archive" element={<ArchivePage />} />
         <Route path="tickets" element={<BoardPage />} />
         <Route path="companies" element={<CompaniesPage />} />
         <Route path="service-contracts" element={<ServiceContractsPage />} />

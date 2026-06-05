@@ -52,6 +52,7 @@ function roleLabel(role?: string) {
 
 function isActivePath(currentPath: string, targetPath: string) {
   if (targetPath === '/board') return currentPath.startsWith('/board')
+  if (targetPath === '/archive') return currentPath.startsWith('/archive')
   if (targetPath === '/tickets') return currentPath === '/tickets'
   if (targetPath === '/tickets/new') return currentPath.startsWith('/tickets/new')
   if (targetPath === '/companies') return currentPath.startsWith('/companies')
@@ -76,6 +77,7 @@ function isNavItemVisible(item: NavItem, role?: api.Role) {
   if (role === 'CLIENT') {
     return (
       item.to === '/board' ||
+      item.to === '/archive' ||
       item.to === '/tickets' ||
       item.to === '/tickets/new' ||
       item.to === '/company' ||
