@@ -14,12 +14,12 @@ import { isMineTicketForRole } from './mobileHomeBoardFilters'
 import { appendBoardNavigationContextToPath, readBoardNavigationContextFromSearch } from '../lib/boardNavigationContext'
 import { mobilePath } from './mobileRoute'
 
-type FilterKey = 'active' | 'new' | 'closed'
+type FilterKey = 'active' | 'new' | 'archive'
 
 const filterMap: Record<FilterKey, api.TicketStatus[]> = {
   active: ['ASSIGNED', 'IN_PROGRESS'],
   new: ['NEW'],
-  closed: ['DONE', 'CANCELED'],
+  archive: ['DONE', 'CANCELED'],
 }
 
 function formatDate(value?: string | null) {
@@ -36,7 +36,7 @@ export function MobileMyTickets() {
   const initialBoardContext = useMemo(() => readBoardNavigationContextFromSearch(search), [location.search])
   const initialFilter = useMemo<FilterKey>(() => {
     const tab = (initialBoardContext?.tab || '').trim()
-    return tab === 'new' || tab === 'closed' || tab === 'active' ? (tab as FilterKey) : 'active'
+    return tab === 'new' || tab === 'archive' || tab === 'active' ? (tab as FilterKey) : 'active'
   }, [initialBoardContext?.tab])
   const [filter, setFilter] = useState<FilterKey>(initialFilter)
 
@@ -95,16 +95,26 @@ export function MobileMyTickets() {
       !!meQ.data && (meQ.data.role !== 'TECHNICIAN' || !!linkedClientCompanyId),
   })
 
+  const [archiveSearch, setArchiveSearch] = useState('')
+
   const allTickets = boardQ.data?.columns.flatMap((col) => col.cards || []) || []
   const mineScopedTickets = useMemo(
     () => allTickets.filter((ticket) => isMineTicketForRole(ticket, meQ.data?.id, meQ.data?.role)),
     [allTickets, meQ.data?.id, meQ.data?.role],
   )
   const statuses = filterMap[filter]
-  const filteredTickets = useMemo(
-    () => mineScopedTickets.filter((ticket) => statuses.includes(ticket.status)),
-    [mineScopedTickets, statuses],
-  )
+  const filteredTickets = useMemo(() => {
+    const byStatus = mineScopedTickets.filter((ticket) => statuses.includes(ticket.status))
+    if (filter !== 'archive' || !archiveSearch.trim()) return byStatus
+    const q = archiveSearch.trim().toLowerCase()
+    return byStatus.filter((ticket) => {
+      const num = String(ticket.ticketNumber ?? '')
+      const loc = [ticket.pointName, ticket.location?.name, ticket.location?.city, ticket.location?.address]
+        .filter(Boolean).join(' ').toLowerCase()
+      const title = (ticket.title || '').toLowerCase()
+      return num.includes(q) || loc.includes(q) || title.includes(q)
+    })
+  }, [mineScopedTickets, statuses, filter, archiveSearch])
 
   useEffect(() => {
     const basePath = api.appendScopeToPath(mobilePath(location.pathname, '/my'), pageScope, meQ.data)
@@ -191,23 +201,42 @@ export function MobileMyTickets() {
           Новые
         </button>
         <button
-          className={filter === 'closed' ? 'mobileBtn' : 'mobileBtn mobileBtnSecondary'}
-          onClick={() => setFilter('closed')}
+          className={filter === 'archive' ? 'mobileBtn' : 'mobileBtn mobileBtnSecondary'}
+          onClick={() => { setFilter('archive'); setArchiveSearch('') }}
         >
-          Закрытые
+          Архив
         </button>
       </div>
+
+      {filter === 'archive' ? (
+        <label className="mobileHomeSearchWrap" style={{ marginTop: 8 }}>
+          <span className="mobileVisuallyHidden">Поиск по архиву</span>
+          <input
+            className="mobileHomeSearchInput"
+            type="search"
+            enterKeyHint="search"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            placeholder="Поиск: номер, адрес, точка"
+            value={archiveSearch}
+            onChange={(e) => setArchiveSearch(e.target.value)}
+          />
+        </label>
+      ) : null}
 
       {boardQ.isError ? <div className="mobileNotice mobileNoticeError">{String((boardQ.error as any)?.message || boardQ.error)}</div> : null}
 
       {!showMyTicketsList ? null : filteredTickets.length === 0 ? (
         <div className="mobileCard mobileEmptyState" role="status">
-          <div className="mobileEmptyStateTitle">Список пуст</div>
+          <div className="mobileEmptyStateTitle">{filter === 'archive' ? 'В архиве пока нет заявок' : 'Список пуст'}</div>
           <p className="mobileEmptyStateHint">
-            {meQ.data.role === 'TECHNICIAN' && filter === 'new'
+            {filter === 'archive'
+              ? 'Здесь заявки со статусом «Выполнена» и «Отменена».'
+              : meQ.data.role === 'TECHNICIAN' && filter === 'new'
               ? 'Новых заявок на вас нет: они появятся после назначения или если вы возьмёте заявку с главной (вкладка «Новые»).'
               : meQ.data.role === 'TECHNICIAN' && filter === 'active'
-                ? 'Нет активных заявок в этом контуре. Проверьте «Новые» на главной или фильтр «Закрытые».'
+                ? 'Нет активных заявок в этом контуре. Проверьте «Новые» на главной или фильтр «Архив».'
                 : 'В этом фильтре заявок пока нет.'}
           </p>
         </div>
