@@ -18,6 +18,7 @@ export type ShellNavigationConfig = {
 /** Общий набор пунктов тенанта (без «Компании платформы»). */
 const tenantDesktopNavItems: NavItem[] = [
   { id: 'board', label: 'Доска', to: '/board' },
+  { id: 'archive', label: 'Архив', to: '/archive' },
   { id: 'tickets', label: 'Заявки', to: '/tickets' },
   { id: 'ticketsNew', label: 'Новая заявка', to: '/tickets/new' },
   { id: 'employees', label: 'Сотрудники', to: '/employees' },
@@ -34,7 +35,7 @@ const tenantDesktopNavItems: NavItem[] = [
 
 const tenantNavById = Object.fromEntries(tenantDesktopNavItems.map((item) => [item.id, item])) as Record<string, NavItem>
 
-const tenantTopbarIds = ['board', 'tickets', 'analytics', 'settings'] as const
+const tenantTopbarIds = ['board', 'archive', 'tickets', 'analytics', 'settings'] as const
 
 export const platformNavigation: ShellNavigationConfig = {
   sidebar: [
