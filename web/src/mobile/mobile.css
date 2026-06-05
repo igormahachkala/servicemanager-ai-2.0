@@ -423,6 +423,19 @@ body,
   gap: 8px;
 }
 
+.mobilePhotoGridLarge {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.mobilePhotoThumbLarge {
+  width: 100%;
+  height: 160px;
+  object-fit: cover;
+  display: block;
+}
+
 .mobileDraftThumbCell {
   position: relative;
   border-radius: 12px;
