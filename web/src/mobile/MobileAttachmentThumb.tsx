@@ -11,6 +11,11 @@ export type MobileAttachmentLike = {
   mimeType?: string | null
 }
 
+export type MobileAttachmentPreviewPayload = {
+  src: string
+  alt: string
+}
+
 export function mobileAttachmentLabel(attachment: MobileAttachmentLike) {
   const filename = (attachment.filename || '').trim()
   if (filename) return filename
@@ -20,15 +25,7 @@ export function mobileAttachmentLabel(attachment: MobileAttachmentLike) {
 function canPreviewInBrowser(mimeType?: string | null) {
   const mime = (mimeType || '').trim().toLowerCase()
   if (!mime) return true
-  return (
-    mime === 'image/jpeg' ||
-    mime === 'image/jpg' ||
-    mime === 'image/png' ||
-    mime === 'image/webp' ||
-    mime === 'image/gif' ||
-    mime === 'image/avif' ||
-    mime === 'image/svg+xml'
-  )
+  return mime.startsWith('image/')
 }
 
 function FallbackLink({ href, label }: { href: string; label: string }) {
@@ -46,19 +43,58 @@ export function MobileAttachmentThumb({
   className = 'mobilePhotoThumb',
 }: {
   attachment: MobileAttachmentLike
-  onOpenPreview?: (payload: { src: string; alt: string }) => void
+  onOpenPreview?: (payload: MobileAttachmentPreviewPayload) => void
   className?: string
 }) {
   const [broken, setBroken] = useState(false)
   const [loaded, setLoaded] = useState(false)
+  const [objectUrl, setObjectUrl] = useState<string | null>(null)
+  const [fetchFailed, setFetchFailed] = useState(false)
   const resolved = api.resolveTicketAttachmentUrl(attachment)
+  const previewSrc = objectUrl || resolved
   const label = mobileAttachmentLabel(attachment)
   const canPreview = canPreviewInBrowser(attachment.mimeType)
 
   useEffect(() => {
     setBroken(false)
     setLoaded(false)
-  }, [attachment.id, attachment.url, attachment.downloadUrl, attachment.path, attachment.mimeType, attachment.filename, attachment.originalName])
+    setObjectUrl(null)
+    setFetchFailed(false)
+  }, [
+    attachment.id,
+    attachment.url,
+    attachment.downloadUrl,
+    attachment.path,
+    attachment.mimeType,
+    attachment.filename,
+    attachment.originalName,
+  ])
+
+  useEffect(() => {
+    return () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [objectUrl])
+
+  useEffect(() => {
+    if (!broken || objectUrl || fetchFailed || !resolved || !api.isProtectedUploadUrl(resolved)) return
+
+    let cancelled = false
+    void api.fetchProtectedUploadBlob(resolved).then((blob) => {
+      if (cancelled) return
+      if (!blob) {
+        setFetchFailed(true)
+        return
+      }
+      setObjectUrl(URL.createObjectURL(blob))
+      setBroken(false)
+      setLoaded(false)
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [broken, fetchFailed, objectUrl, resolved])
 
   if (!resolved) {
     return (
@@ -69,18 +105,33 @@ export function MobileAttachmentThumb({
     )
   }
 
-  if (broken || !canPreview) {
+  if (!canPreview || (broken && fetchFailed)) {
     return <FallbackLink href={resolved} label={label} />
+  }
+
+  if (broken && !objectUrl) {
+    return (
+      <div className="mobilePhotoFallbackLink mobilePhotoFallbackLinkStatic">
+        <span className="mobilePhotoFallbackTitle">{label}</span>
+        <span className="mobilePhotoFallbackAction">Загрузка…</span>
+      </div>
+    )
   }
 
   const img = (
     <img
-      src={resolved}
+      src={previewSrc}
       alt={label}
       className={loaded ? className : `${className} mobilePhotoThumbPending`}
       loading="lazy"
       onLoad={() => setLoaded(true)}
-      onError={() => setBroken(true)}
+      onError={() => {
+        if (objectUrl) {
+          setFetchFailed(true)
+          return
+        }
+        setBroken(true)
+      }}
     />
   )
 
@@ -90,7 +141,7 @@ export function MobileAttachmentThumb({
         type="button"
         className="mobilePhotoThumbLink mobilePhotoThumbOpen"
         aria-label={`Открыть фото: ${label}`}
-        onClick={() => onOpenPreview({ src: api.resolveTicketAttachmentUrl(attachment), alt: label })}
+        onClick={() => onOpenPreview({ src: previewSrc, alt: label })}
       >
         {img}
       </button>
@@ -98,7 +149,7 @@ export function MobileAttachmentThumb({
   }
 
   return (
-    <a className="mobilePhotoThumbLink" href={api.resolveTicketAttachmentUrl(attachment)} target="_blank" rel="noreferrer">
+    <a className="mobilePhotoThumbLink" href={previewSrc} target="_blank" rel="noreferrer">
       {img}
     </a>
   )

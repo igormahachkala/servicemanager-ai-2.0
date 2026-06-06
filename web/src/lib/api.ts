@@ -1150,6 +1150,27 @@ function appendUploadToken(base: string): string {
   }
 }
 
+export function isProtectedUploadUrl(url: string): boolean {
+  return url.includes('/uploads/ticket-attachments/') || url.includes('/uploads/inspection-run-items/')
+}
+
+/** Loads a protected upload with Authorization header when <img> cannot render it. */
+export async function fetchProtectedUploadBlob(url: string): Promise<Blob | null> {
+  const token = getToken()
+  if (!token || !url) return null
+
+  try {
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+      credentials: 'include',
+    })
+    if (!response.ok) return null
+    return await response.blob()
+  } catch {
+    return null
+  }
+}
+
 export function setBaseUrl(url: string) {
   if (typeof window === 'undefined') return
   if (!canUseManualBackendConfig()) return

@@ -659,7 +659,8 @@ export function MobileTicketPage() {
   ], [requestImages, reportImages])
 
   function openPhotoByUrl(payload: { src: string; alt: string }) {
-    const idx = photoItems.findIndex((p) => p.src === payload.src)
+    let idx = photoItems.findIndex((p) => p.src === payload.src)
+    if (idx < 0) idx = photoItems.findIndex((p) => p.alt === payload.alt)
     setPhotoPreviewIndex(idx >= 0 ? idx : 0)
   }
 

@@ -11,11 +11,15 @@ import {
   UnauthorizedException,
 } from '@nestjs/common'
 import { JwtService } from '@nestjs/jwt'
+import { ServiceContractRole, UserRole } from '@prisma/client'
 import type { Response } from 'express'
 import { createReadStream, existsSync } from 'fs'
 import { join } from 'path'
 
+import { isExecutorCapableRole } from '../common/executor.utils'
 import { PrismaService } from '../prisma/prisma.service'
+import { ServiceContractsService } from '../service-contracts/service-contracts.service'
+import { resolveReadableTicketAccess } from '../tickets/ticket-access.utils'
 
 const ALLOWED_FOLDERS = new Set(['ticket-attachments', 'inspection-run-items'])
 
@@ -37,6 +41,7 @@ export class UploadsController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
+    private readonly serviceContractsService: ServiceContractsService,
   ) {}
 
   @Get(':folder/:filename')
@@ -115,7 +120,7 @@ export class UploadsController {
   ): Promise<{ mimeType: string; originalName: string }> {
     const attachment = await this.prisma.ticketAttachment.findFirst({
       where: { storageKey },
-      select: { companyId: true, mimeType: true, originalName: true },
+      select: { companyId: true, mimeType: true, originalName: true, ticketId: true },
     })
 
     if (!attachment) {
@@ -143,6 +148,38 @@ export class UploadsController {
 
     if (contract?.status === 'ACTIVE' && contract.role === 'PRIMARY') {
       return { mimeType: attachment.mimeType, originalName: attachment.originalName }
+    }
+
+    // Executor roles (technician, etc.) with ticket read access via binding / assignment
+    if (attachment.ticketId) {
+      const userId = user.userId || user.sub
+      const role = user.role as UserRole
+      if (userId && isExecutorCapableRole(role)) {
+        try {
+          await resolveReadableTicketAccess({
+            prisma: this.prisma,
+            serviceContractsService: this.serviceContractsService,
+            actor: {
+              id: userId,
+              role,
+              companyId: user.companyId,
+            },
+            ticketId: attachment.ticketId,
+            linkedClientCompanyId:
+              attachment.companyId !== user.companyId ? attachment.companyId : undefined,
+            allowedLinkedClientContractRoles: [
+              ServiceContractRole.PRIMARY,
+              ServiceContractRole.SECONDARY,
+            ],
+          })
+          return { mimeType: attachment.mimeType, originalName: attachment.originalName }
+        } catch (err) {
+          if (err instanceof NotFoundException || err instanceof ForbiddenException) {
+            throw new ForbiddenException('Access denied')
+          }
+          throw err
+        }
+      }
     }
 
     throw new ForbiddenException('Access denied')
