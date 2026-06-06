@@ -121,6 +121,108 @@ export function scopeForMobileTicketLink(
   }
 }
 
+export type MobileTicketContextMode = 'observer' | 'provider' | 'tenant'
+
+/** Режим видимости для mobile ticket UI (composer, upload). Не смешивать с API linked scope. */
+export function resolveMobileTicketContextMode(
+  me: Pick<Me, 'companyId' | 'role'> | null | undefined,
+  ticket: Pick<TicketGetOne, 'companyId'> | null | undefined,
+  observerCompanyId: string,
+): MobileTicketContextMode {
+  if ((observerCompanyId || '').trim()) return 'observer'
+  if (!me?.role || !ticket) return 'tenant'
+  if (me.role === 'CLIENT') return 'tenant'
+  const meCo = (me.companyId || '').trim()
+  const tCo = (ticket.companyId || '').trim()
+  if (meCo && tCo && meCo !== tCo) return 'provider'
+  return 'tenant'
+}
+
+export function resolveMobileCanSendComment(
+  me: Pick<Me, 'companyId' | 'role'> | null | undefined,
+  ticket: Pick<TicketGetOne, 'companyId'> | null | undefined,
+  observerCompanyId: string,
+): boolean {
+  const mode = resolveMobileTicketContextMode(me, ticket, observerCompanyId)
+  if (mode === 'observer') return false
+  if (me?.role === 'CLIENT') return mode === 'tenant'
+  return true
+}
+
+/**
+ * Scope для attachments / timeline / comments / status на деталке.
+ * Cross-tenant: linkedClientCompanyId = ticket.companyId (tenant заявки).
+ * Own-tenant (CLIENT на своей заявке): без linked-параметра.
+ */
+export function resolveMobileTicketResourceScope(
+  me: Pick<Me, 'companyId' | 'role'> | null | undefined,
+  ticket: Pick<TicketGetOne, 'companyId'> | null | undefined,
+  opts: { observerCompanyId?: string; urlLinkedClientCompanyId?: string },
+): TicketScopeParams {
+  const observerCompanyId = (opts.observerCompanyId || '').trim()
+  if (observerCompanyId) {
+    return { companyId: observerCompanyId }
+  }
+
+  const meCo = (me?.companyId || '').trim()
+  const tCo = (ticket?.companyId || '').trim()
+
+  if (meCo && tCo && meCo === tCo) {
+    return {}
+  }
+
+  if (tCo && me?.role && MOBILE_TICKET_LINK_SCOPE_ROLES.includes(me.role)) {
+    return { linkedClientCompanyId: tCo }
+  }
+
+  const urlLinked = (opts.urlLinkedClientCompanyId || '').trim()
+  if (urlLinked) {
+    return { linkedClientCompanyId: urlLinked }
+  }
+
+  return {}
+}
+
+export function mobileTicketAttachmentReadScopes(input: {
+  me: Pick<Me, 'companyId' | 'role'> | null | undefined
+  ticket: Pick<TicketGetOne, 'companyId'>
+  observerCompanyId: string
+  urlLinkedClientCompanyId: string
+  stateTicketOwnerCompanyId: string
+  persistedCompanyId: string
+  persistedLinkedClientCompanyId: string
+}): TicketScopeParams[] {
+  const primary = resolveMobileTicketResourceScope(input.me, input.ticket, {
+    observerCompanyId: input.observerCompanyId,
+    urlLinkedClientCompanyId: input.urlLinkedClientCompanyId,
+  })
+
+  const out: TicketScopeParams[] = []
+  const add = (s: TicketScopeParams) => {
+    const fp = scopeFingerprint(s)
+    if (!out.some((x) => scopeFingerprint(x) === fp)) out.push(s)
+  }
+
+  add(primary)
+
+  for (const sc of mobileTicketDetailGetOneScopes({
+    urlCompanyId: input.observerCompanyId,
+    urlLinkedClientCompanyId: input.urlLinkedClientCompanyId,
+    stateTicketOwnerCompanyId: input.stateTicketOwnerCompanyId,
+    persistedCompanyId: input.persistedCompanyId,
+    persistedLinkedClientCompanyId: input.persistedLinkedClientCompanyId,
+    meRole: input.me?.role,
+  })) {
+    add(sc)
+  }
+
+  const tCo = (input.ticket.companyId || '').trim()
+  if (tCo) add({ linkedClientCompanyId: tCo })
+  add({})
+
+  return out
+}
+
 export function mobileTicketNumberTitle(ticketNumber?: number | null): string {
   if (ticketNumber != null && Number.isFinite(Number(ticketNumber))) {
     return `Заявка #${ticketNumber}`

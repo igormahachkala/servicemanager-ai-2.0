@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'reac
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import {
+  mobileTicketAttachmentReadScopes,
   mobileTicketCategoryLocationFromDetail,
   mobileTicketDetailGetOneScopes,
   mobileTicketNavState,
@@ -10,6 +11,9 @@ import {
   mobileTicketPriorityIsUrgent,
   mobileTicketSlaCountdownLabel,
   mobileTicketStatusLabelRu,
+  resolveMobileCanSendComment,
+  resolveMobileTicketContextMode,
+  resolveMobileTicketResourceScope,
   type MobileTicketListOrigin,
   type MobileTicketNavState,
 } from './mobileTicketDisplay'
@@ -133,22 +137,20 @@ export function MobileTicketPage() {
     [searchParams, meQ.data],
   )
 
-  const linkedClientCompanyId = useMemo(() => {
+  const urlLinkedClientCompanyId = useMemo(() => {
     const q = (searchParams.get('linkedClientCompanyId') || '').trim()
     if (q) return q
-    const fromNav = (navState?.ticketOwnerCompanyId || '').trim()
-    if (fromNav) return fromNav
     return (api.getLinkedClientCompanyId(meQ.data) || '').trim()
-  }, [searchParams, navState?.ticketOwnerCompanyId, meQ.data])
+  }, [searchParams, meQ.data])
 
-  const ticketOwnerNav = (navState?.ticketOwnerCompanyId || '').trim()
+  const navTicketOwnerCompanyId = (navState?.ticketOwnerCompanyId || '').trim()
 
   const scopeNorm = useMemo<api.TicketScopeParams>(
     () => ({
       companyId: observerCompanyId || undefined,
-      linkedClientCompanyId: linkedClientCompanyId || undefined,
+      linkedClientCompanyId: urlLinkedClientCompanyId || undefined,
     }),
-    [observerCompanyId, linkedClientCompanyId],
+    [observerCompanyId, urlLinkedClientCompanyId],
   )
 
   useEffect(() => {
@@ -163,8 +165,8 @@ export function MobileTicketPage() {
       'mobile-ticket-detail',
       ticketId,
       observerCompanyId,
-      linkedClientCompanyId,
-      ticketOwnerNav,
+      urlLinkedClientCompanyId,
+      navTicketOwnerCompanyId,
       meQ.data?.id,
       meQ.data?.role,
     ],
@@ -185,7 +187,7 @@ export function MobileTicketPage() {
       const scopes = mobileTicketDetailGetOneScopes({
         urlCompanyId: urlCo,
         urlLinkedClientCompanyId: urlLi,
-        stateTicketOwnerCompanyId: ticketOwnerNav,
+        stateTicketOwnerCompanyId: navTicketOwnerCompanyId,
         persistedCompanyId: persistedObs,
         persistedLinkedClientCompanyId: persistedLinked,
         meRole: meQ.data?.role,
@@ -227,71 +229,90 @@ export function MobileTicketPage() {
     },
   })
 
-  const inferredLinkedClientCompanyId = useMemo(() => {
-    if (linkedClientCompanyId) return linkedClientCompanyId
-    if (ticketQ.data?.meta?.visibilityMode === 'provider_primary') {
-      return (ticketQ.data.meta.scopeCompanyId || '').trim()
-    }
-    return ''
-  }, [linkedClientCompanyId, ticketQ.data?.meta?.visibilityMode, ticketQ.data?.meta?.scopeCompanyId])
+  const ticket = ticketQ.data
+
+  const ticketResourceScope = useMemo<api.TicketScopeParams>(
+    () =>
+      resolveMobileTicketResourceScope(meQ.data, ticket, {
+        observerCompanyId,
+        urlLinkedClientCompanyId,
+      }),
+    [meQ.data, ticket, observerCompanyId, urlLinkedClientCompanyId],
+  )
+
+  const contextMode = useMemo(
+    () => resolveMobileTicketContextMode(meQ.data, ticket, observerCompanyId),
+    [meQ.data, ticket, observerCompanyId],
+  )
 
   const canUploadTicketPhotos = useMemo(() => {
     const role = meQ.data?.role
     const isClientRole = role === 'CLIENT'
-    const contextMode = observerCompanyId ? 'observer' : inferredLinkedClientCompanyId ? 'provider' : 'tenant'
     const readOnlyByVisibilityMode = contextMode === 'observer'
     const canMutateTicket = !readOnlyByVisibilityMode && !(isClientRole && contextMode !== 'tenant')
     return canMutateTicket && roleCanUploadTicketPhoto(role)
-  }, [meQ.data?.role, observerCompanyId, inferredLinkedClientCompanyId])
+  }, [meQ.data?.role, contextMode])
 
-  const canSendComment = useMemo(() => {
-    const role = meQ.data?.role
-    if (!role) return false
-    const isClientRole = role === 'CLIENT'
-    const contextMode = observerCompanyId ? 'observer' : inferredLinkedClientCompanyId ? 'provider' : 'tenant'
-    return contextMode !== 'observer' && !(isClientRole && contextMode !== 'tenant')
-  }, [meQ.data?.role, observerCompanyId, inferredLinkedClientCompanyId])
-
-  /**
-   * Scope для чтения/записи ресурсов заявки (вложения, timeline, комментарии, статус).
-   * На linked-client заявке `linkedClientCompanyId` должен совпадать с tenant заявки (`ticket.companyId`).
-   */
-  const ticketResourceScope = useMemo<api.TicketScopeParams>(() => {
-    const base: api.TicketScopeParams = {
-      companyId: observerCompanyId || undefined,
-      linkedClientCompanyId: inferredLinkedClientCompanyId || undefined,
-    }
-    const t = ticketQ.data
-    if (!t || meQ.data?.role !== 'TECHNICIAN') return base
-    const meCo = (meQ.data.companyId || '').trim()
-    const tCo = (t.companyId || '').trim()
-    if (!meCo || !tCo || tCo === meCo) return base
-    return {
-      ...base,
-      linkedClientCompanyId: tCo,
-    }
-  }, [observerCompanyId, inferredLinkedClientCompanyId, ticketQ.data, meQ.data?.role, meQ.data?.companyId])
+  const canSendComment = useMemo(
+    () => resolveMobileCanSendComment(meQ.data, ticket, observerCompanyId),
+    [meQ.data, ticket, observerCompanyId],
+  )
 
   const attachmentsQ = useQuery({
-    enabled: !!ticketId && !!ticketQ.data,
+    enabled: !!ticketId && !!ticket,
     queryKey: [
       'mobile-ticket-attachments',
       ticketId,
       ticketResourceScope.companyId,
       ticketResourceScope.linkedClientCompanyId,
+      meQ.data?.id,
+      meQ.data?.role,
+      ticket?.companyId,
     ],
     queryFn: async () => {
+      if (!ticket) return [] as api.TicketAttachmentItem[]
+
       if (!getOnlineStatus()) {
-        const cached = loadTicketDetailCache(ticketId, scopeNorm) ?? loadAnyTicketDetailCache(ticketId)
+        const cached =
+          loadTicketDetailCache(ticketId, ticketResourceScope) ??
+          loadTicketDetailCache(ticketId, scopeNorm) ??
+          loadAnyTicketDetailCache(ticketId)
         if (cached?.data) return cached.data.attachments
         throw new Error('Нет сохранённых вложений для офлайна.')
       }
-      return api.ticketAttachments(ticketId, ticketResourceScope)
+
+      const scopes = mobileTicketAttachmentReadScopes({
+        me: meQ.data,
+        ticket,
+        observerCompanyId,
+        urlLinkedClientCompanyId,
+        stateTicketOwnerCompanyId: navTicketOwnerCompanyId,
+        persistedCompanyId: (api.getObserverCompanyId(meQ.data) || '').trim(),
+        persistedLinkedClientCompanyId: (api.getLinkedClientCompanyId(meQ.data) || '').trim(),
+      })
+
+      let lastEmpty: api.TicketAttachmentItem[] = []
+      let lastErr: unknown
+      for (const sc of scopes) {
+        try {
+          const data = await api.ticketAttachments(ticketId, sc)
+          if (Array.isArray(data) && data.length > 0) return data
+          lastEmpty = Array.isArray(data) ? data : []
+        } catch (e) {
+          lastErr = e
+          if (!isNotFoundGetTicketError(e)) throw e
+        }
+      }
+
+      if (lastErr && lastEmpty.length === 0) {
+        throw lastErr instanceof Error ? lastErr : new Error(String(lastErr ?? 'Вложения недоступны'))
+      }
+      return lastEmpty
     },
   })
 
   const timelineQ = useQuery({
-    enabled: !!ticketId && !!ticketQ.data,
+    enabled: !!ticketId && !!ticket,
     queryKey: [
       'mobile-ticket-timeline',
       ticketId,
@@ -334,7 +355,6 @@ export function MobileTicketPage() {
     timelineQ.data,
   ])
 
-  const ticket = ticketQ.data
   const canAssignProvider = api.isProviderTicketAssignRole(meQ.data?.role)
   const techPrimary = ticket && meQ.data?.id ? api.mobileTechnicianTicketPrimaryAction(ticket, meQ.data.id) : null
   const assigneePresent = !!(ticket?.assignedTechnicianId || ticket?.assignedTechnician)
@@ -1169,7 +1189,7 @@ export function MobileTicketPage() {
                     to={childHref(ch.id)}
                     state={mobileTicketNavState(
                       listOrigin,
-                      [navState?.ticketOwnerCompanyId, ticketCompanyId, inferredLinkedClientCompanyId, linkedClientCompanyId]
+                      [navState?.ticketOwnerCompanyId, ticketCompanyId, urlLinkedClientCompanyId, ticket?.companyId]
                         .map((x) => (x || '').trim())
                         .find((x) => x.length > 0),
                     )}
