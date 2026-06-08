@@ -653,15 +653,34 @@ export function MobileTicketPage() {
 
   const otherFiles = useMemo(() => (attachmentsQ.data || []).filter((a) => !isImageAttachment(a)), [attachmentsQ.data])
 
-  const requestPhotoItems = useMemo<PhotoViewerItem[]>(
-    () => requestImages.map((a) => ({ src: api.resolveTicketAttachmentUrl(a), alt: a.originalName || 'Фото' })),
-    [requestImages],
-  )
+  const [requestPhotoItems, setRequestPhotoItems] = useState<PhotoViewerItem[]>([])
+  const [reportPhotoItems, setReportPhotoItems] = useState<PhotoViewerItem[]>([])
 
-  const reportPhotoItems = useMemo<PhotoViewerItem[]>(
-    () => reportImages.map((a) => ({ src: api.resolveTicketAttachmentUrl(a), alt: a.originalName || 'Фото отчёта' })),
-    [reportImages],
-  )
+  useEffect(() => {
+    setRequestPhotoItems(requestImages.map((a) => ({ src: api.resolveTicketAttachmentUrl(a), alt: a.originalName || 'Фото' })))
+  }, [requestImages])
+
+  useEffect(() => {
+    setReportPhotoItems(reportImages.map((a) => ({ src: api.resolveTicketAttachmentUrl(a), alt: a.originalName || 'Фото отчёта' })))
+  }, [reportImages])
+
+  function openRequestPhoto(idx: number, resolvedSrc: string) {
+    setRequestPhotoItems((prev) => {
+      const next = [...prev]
+      if (next[idx]) next[idx] = { ...next[idx]!, src: resolvedSrc }
+      return next
+    })
+    setRequestPhotoIndex(idx)
+  }
+
+  function openReportPhoto(idx: number, resolvedSrc: string) {
+    setReportPhotoItems((prev) => {
+      const next = [...prev]
+      if (next[idx]) next[idx] = { ...next[idx]!, src: resolvedSrc }
+      return next
+    })
+    setReportPhotoIndex(idx)
+  }
 
   const executorLine = ticket
     ? (ticket.assignedTechnician?.email || '').trim() || 'Не назначен'
@@ -1067,14 +1086,14 @@ export function MobileTicketPage() {
                   title="Фото заявки"
                   photos={requestImages}
                   emptyText="Нет фото"
-                  onOpen={(i) => setRequestPhotoIndex(i)}
+                  onOpen={openRequestPhoto}
                 />
                 <div style={{ marginTop: 14 }}>
                   <MobileTicketPhotoGallery
                     title="Фото отчёта"
                     photos={reportImages}
                     emptyText="Нет фото отчёта"
-                    onOpen={(i) => setReportPhotoIndex(i)}
+                    onOpen={openReportPhoto}
                   />
                 </div>
                 {otherFiles.length > 0 ? (

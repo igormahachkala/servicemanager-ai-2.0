@@ -6,25 +6,49 @@ const MAX_DOTS = 9
 
 type HeroImageProps = {
   photo: MobileAttachmentLike
-  onTap: () => void
+  onTap: (src: string) => void
 }
 
 function HeroImage({ photo, onTap }: HeroImageProps) {
   const [broken, setBroken] = useState(false)
   const [loaded, setLoaded] = useState(false)
+  const [objectUrl, setObjectUrl] = useState<string | null>(null)
+  const [fetchFailed, setFetchFailed] = useState(false)
   const resolved = api.resolveTicketAttachmentUrl(photo)
+  const previewSrc = objectUrl || resolved
   const label = mobileAttachmentLabel(photo)
 
   useEffect(() => {
     setBroken(false)
     setLoaded(false)
+    setObjectUrl(null)
+    setFetchFailed(false)
   }, [photo.id, photo.url, photo.downloadUrl, photo.path, photo.filename, photo.originalName])
+
+  useEffect(() => {
+    return () => {
+      if (objectUrl) URL.revokeObjectURL(objectUrl)
+    }
+  }, [objectUrl])
+
+  useEffect(() => {
+    if (!broken || objectUrl || fetchFailed || !resolved || !api.isProtectedUploadUrl(resolved)) return
+    let cancelled = false
+    void api.fetchProtectedUploadBlob(resolved).then((blob) => {
+      if (cancelled) return
+      if (!blob) { setFetchFailed(true); return }
+      setObjectUrl(URL.createObjectURL(blob))
+      setBroken(false)
+      setLoaded(false)
+    })
+    return () => { cancelled = true }
+  }, [broken, fetchFailed, objectUrl, resolved])
 
   if (!resolved) {
     return <div className="mobileTicketPhotoHeroPlaceholder">{label}</div>
   }
 
-  if (broken) {
+  if (!canPreviewInBrowser(photo.mimeType) || (broken && fetchFailed)) {
     return (
       <a
         className="mobileTicketPhotoHeroPlaceholder mobileTicketPhotoHeroPlaceholder--link"
@@ -37,31 +61,47 @@ function HeroImage({ photo, onTap }: HeroImageProps) {
     )
   }
 
+  if (broken && !objectUrl) {
+    return (
+      <div className="mobileTicketPhotoHeroPlaceholder">
+        <span style={{ fontSize: '0.78rem' }}>Загрузка…</span>
+      </div>
+    )
+  }
+
   return (
     <button
       type="button"
       className="mobileTicketPhotoHeroBtn"
       aria-label={`Открыть: ${label}`}
-      onClick={onTap}
+      onClick={() => onTap(previewSrc)}
     >
       <img
-        src={resolved}
+        src={previewSrc}
         alt={label}
         className={`mobileTicketPhotoHeroImg${loaded ? '' : ' mobileTicketPhotoHeroImgPending'}`}
         loading="lazy"
         onLoad={() => setLoaded(true)}
-        onError={() => setBroken(true)}
+        onError={() => {
+          if (objectUrl) { setFetchFailed(true); return }
+          setBroken(true)
+        }}
         draggable={false}
       />
     </button>
   )
 }
 
+function canPreviewInBrowser(mimeType?: string | null) {
+  const mime = (mimeType || '').trim().toLowerCase()
+  return !mime || mime.startsWith('image/')
+}
+
 type Props = {
   title: string
   photos: MobileAttachmentLike[]
   emptyText: string
-  onOpen: (index: number) => void
+  onOpen: (index: number, resolvedSrc: string) => void
 }
 
 export function MobileTicketPhotoGallery({ title, photos, emptyText, onOpen }: Props) {
@@ -85,7 +125,7 @@ export function MobileTicketPhotoGallery({ title, photos, emptyText, onOpen }: P
       ) : (
         <>
           <div className="mobileTicketPhotoHero">
-            {current ? <HeroImage photo={current} onTap={() => onOpen(idx)} /> : null}
+            {current ? <HeroImage photo={current} onTap={(src) => onOpen(idx, src)} /> : null}
           </div>
           <div className="mobileTicketPhotoDots">
             {count <= MAX_DOTS
