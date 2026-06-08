@@ -405,6 +405,7 @@ export function MobileTicketPage() {
   const [chatSendError, setChatSendError] = useState<string | null>(null)
   const addTicketCameraRef = useRef<HTMLInputElement | null>(null)
   const addTicketGalleryRef = useRef<HTMLInputElement | null>(null)
+  const chatInputRef = useRef<HTMLTextAreaElement | null>(null)
   const [ticketAddPhotoError, setTicketAddPhotoError] = useState<string | null>(null)
   const [ticketAddPhotoProgress, setTicketAddPhotoProgress] = useState<{ current: number; total: number } | null>(null)
 
@@ -722,6 +723,14 @@ export function MobileTicketPage() {
     !hasTechnicianActionsBlock
 
   const padBottomForOpsDock = hasTechnicianActionsBlock
+
+  useEffect(() => {
+    const el = chatInputRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    const next = Math.min(Math.max(el.scrollHeight, 48), 140)
+    el.style.height = `${next}px`
+  }, [chatText])
 
   async function handleChatSend() {
     const trimmed = chatText.trim()
@@ -1153,20 +1162,21 @@ export function MobileTicketPage() {
               </div>
             ) : null}
             {canSendComment ? (
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div className="mobileTicketChatComposer">
                 <textarea
+                  ref={chatInputRef}
+                  className="mobileTicketChatInput"
                   value={chatText}
                   onChange={(e) => setChatText(e.target.value)}
                   onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); void handleChatSend() } }}
                   placeholder="Написать комментарий…"
                   disabled={chatSending || !isOnline}
-                  rows={2}
-                  style={{ flex: 1, resize: 'none', borderRadius: 10, border: '1px solid #e5e7eb', padding: '8px 10px', fontSize: '0.92rem', fontFamily: 'inherit' }}
+                  rows={1}
                 />
                 <button
                   type="button"
-                  className="mobileBtn"
-                  style={{ alignSelf: 'flex-end', flexShrink: 0, padding: '8px 14px', minHeight: 44 }}
+                  className="mobileTicketChatSendButton"
+                  aria-label="Отправить сообщение"
                   disabled={chatSending || !chatText.trim() || !isOnline}
                   onClick={() => void handleChatSend()}
                 >

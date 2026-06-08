@@ -200,3 +200,26 @@ export function mobileHomeTabEmptyCopy(tab: MobileHomeBoardFilterTab, ctx?: Mobi
 export function emptyMessageForMobileHomeTab(tab: MobileHomeBoardFilterTab): string {
   return mobileHomeTabEmptyCopy(tab).title
 }
+
+export type MobileMyTicketsFilterKey = 'active' | 'new' | 'archive'
+
+/**
+ * Архив в /m/my: история контура для provider/admin, личные — для TECH (assigned) и CLIENT (created).
+ * Active/new остаются «мои» по ролевой семантике isMineTicketForRole.
+ */
+export function usesContourArchiveScope(role: Role | undefined | null): boolean {
+  if (!role) return false
+  if (role === 'TECHNICIAN' || role === 'CLIENT' || role === 'STAFF') return false
+  return true
+}
+
+export function ticketsForMobileMyPage(
+  allTickets: TicketCard[],
+  filter: MobileMyTicketsFilterKey,
+  meId: string | undefined,
+  role: Role | undefined | null,
+): TicketCard[] {
+  const list = dedupeBoardCards(allTickets)
+  if (filter === 'archive' && usesContourArchiveScope(role)) return list
+  return list.filter((ticket) => isMineTicketForRole(ticket, meId, role))
+}

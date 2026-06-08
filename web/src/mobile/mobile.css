@@ -1916,6 +1916,74 @@ a.mobileBtn.mobileCreateTicketLink {
   color: #334155;
 }
 
+.mobileTicketChatComposer {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  width: 100%;
+}
+
+.mobileTicketChatInput {
+  flex: 1;
+  min-width: 0;
+  min-height: 48px;
+  max-height: 140px;
+  resize: none;
+  overflow-y: auto;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  padding: 10px 12px;
+  font-size: 0.92rem;
+  font-family: inherit;
+  line-height: 1.4;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.mobileTicketChatInput:focus {
+  outline: 2px solid #86efac;
+  outline-offset: 0;
+  border-color: #22c55e;
+}
+
+.mobileTicketChatInput:disabled {
+  background: #f9fafb;
+  color: #9ca3af;
+}
+
+.mobileTicketChatSendButton {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  min-height: 48px;
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-radius: 12px;
+  background: #16a34a;
+  color: #fff;
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.mobileTicketChatSendButton:active:not(:disabled) {
+  background: #15803d;
+}
+
+.mobileTicketChatSendButton:disabled {
+  background: #d1d5db;
+  color: #9ca3af;
+  cursor: not-allowed;
+}
+
 .mobileTicketChatHost .panel.uiCard {
   margin: 0;
   padding: 0;

@@ -10,7 +10,7 @@ import {
   scopeForMobileTicketLink,
 } from './mobileTicketDisplay'
 import { MobileRoleContextStrip } from './MobileUxHints'
-import { isMineTicketForRole } from './mobileHomeBoardFilters'
+import { ticketsForMobileMyPage } from './mobileHomeBoardFilters'
 import { appendBoardNavigationContextToPath, readBoardNavigationContextFromSearch } from '../lib/boardNavigationContext'
 import { ticketMatchesMobileHomeSearch } from './mobileHomeListUtils'
 import { mobilePath } from './mobileRoute'
@@ -86,28 +86,28 @@ export function MobileMyTickets() {
   ])
 
   const boardQ = useQuery({
-    queryKey: ['mobile-my-board', linkedClientCompanyId, companyId],
+    queryKey: ['mobile-my-board', linkedClientCompanyId, companyId, filter],
     queryFn: () =>
       api.board({
         linkedClientCompanyId: linkedClientCompanyId || undefined,
         companyId: companyId || undefined,
-        take: 60,
+        take: filter === 'archive' ? 200 : 60,
       }),
     enabled:
       !!meQ.data && (meQ.data.role !== 'TECHNICIAN' || !!linkedClientCompanyId),
   })
 
   const allTickets = boardQ.data?.columns.flatMap((col) => col.cards || []) || []
-  const mineScopedTickets = useMemo(
-    () => allTickets.filter((ticket) => isMineTicketForRole(ticket, meQ.data?.id, meQ.data?.role)),
-    [allTickets, meQ.data?.id, meQ.data?.role],
+  const pageScopedTickets = useMemo(
+    () => ticketsForMobileMyPage(allTickets, filter, meQ.data?.id, meQ.data?.role),
+    [allTickets, filter, meQ.data?.id, meQ.data?.role],
   )
   const statuses = filterMap[filter]
   const filteredTickets = useMemo(() => {
-    const byStatus = mineScopedTickets.filter((ticket) => statuses.includes(ticket.status))
+    const byStatus = pageScopedTickets.filter((ticket) => statuses.includes(ticket.status))
     if (filter !== 'archive' || !archiveSearch.trim()) return byStatus
     return byStatus.filter((ticket) => ticketMatchesMobileHomeSearch(ticket, archiveSearch))
-  }, [mineScopedTickets, statuses, filter, archiveSearch])
+  }, [pageScopedTickets, statuses, filter, archiveSearch])
 
   useEffect(() => {
     const basePath = api.appendScopeToPath(mobilePath(location.pathname, '/my'), pageScope, meQ.data)

@@ -2,7 +2,14 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
-import { platformNavigation, tenantNavigation, type NavItem, type NavSection } from '../lib/navigation'
+import {
+  canAccessMobileApp,
+  mobileAppNavItem,
+  platformNavigation,
+  tenantNavigation,
+  type NavItem,
+  type NavSection,
+} from '../lib/navigation'
 import { SmaBrandLogo } from '../components/SmaBrandLogo'
 import { useWsInvalidation } from './useWsInvalidation'
 import { useRealtimeNotifications } from '../hooks/useRealtimeNotifications'
@@ -239,6 +246,17 @@ export function Shell() {
           ))}
         </nav>
 
+        {canAccessMobileApp(role) ? (
+          <div style={{ marginTop: 8 }}>
+            <NavItemButton
+              to={api.appendScopeToPath(mobileAppNavItem.to, currentScope, meQ.data)}
+              label={mobileAppNavItem.label}
+              active={loc.pathname.startsWith('/m') || loc.pathname.startsWith('/max')}
+              onNavigate={() => setMobileMenuOpen(false)}
+            />
+          </div>
+        ) : null}
+
         <div className="sidebarFooter">
           <div className="small" style={{ opacity: 0.75 }}>
             {meQ.data ? `${meQ.data.email} (${roleLabel(meQ.data.role)})` : '—'}
@@ -268,6 +286,13 @@ export function Shell() {
                 <button className={item.active ? 'navBtn navBtnActive' : 'ghost'}>{item.label}</button>
               </Link>
             ))}
+            {canAccessMobileApp(role) ? (
+              <Link to={api.appendScopeToPath(mobileAppNavItem.to, currentScope, meQ.data)}>
+                <button className={loc.pathname.startsWith('/m') || loc.pathname.startsWith('/max') ? 'navBtn navBtnActive' : 'ghost'}>
+                  {mobileAppNavItem.label}
+                </button>
+              </Link>
+            ) : null}
           </div>
         </header>
 

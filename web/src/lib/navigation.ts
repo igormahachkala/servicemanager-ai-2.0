@@ -64,3 +64,40 @@ export const tenantNavigation: ShellNavigationConfig = {
   ],
   topbar: tenantTopbarIds.map((id) => tenantNavById[id]).filter(Boolean),
 }
+
+/** Ссылка на мобильный shell из управленческой части. */
+export const mobileAppNavItem: NavItem = {
+  id: 'mobileApp',
+  label: 'Мобильная версия',
+  to: '/m',
+}
+
+const MOBILE_APP_ROLES = new Set([
+  'PLATFORM_ADMIN',
+  'ADMIN',
+  'MASTER',
+  'DISPATCHER',
+  'NETWORK_DIRECTOR',
+  'TECHNICIAN',
+  'CLIENT',
+  'TERRITORIAL_MANAGER',
+])
+
+const MANAGEMENT_DESKTOP_ROLES = new Set([
+  'PLATFORM_ADMIN',
+  'ADMIN',
+  'MASTER',
+  'DISPATCHER',
+  'NETWORK_DIRECTOR',
+  'TECHNICIAN',
+  'CLIENT',
+  'TERRITORIAL_MANAGER',
+])
+
+export function canAccessMobileApp(role?: string | null): boolean {
+  return !!role && MOBILE_APP_ROLES.has(role)
+}
+
+export function canAccessManagementDesktop(role?: string | null): boolean {
+  return !!role && MANAGEMENT_DESKTOP_ROLES.has(role)
+}

@@ -1,9 +1,10 @@
 import { useMemo } from 'react'
-import { useLocation } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { BrowserNotificationsCard } from '../components/BrowserNotificationsCard'
 import { SupportContactBlock } from '../components/SupportContactBlock'
 import * as api from '../lib/api'
+import { canAccessManagementDesktop } from '../lib/navigation'
 import { mobilePath } from './mobileRoute'
 
 function roleLabel(role?: string) {
@@ -34,6 +35,23 @@ export function MobileProfile() {
     const params = new URLSearchParams(location.search)
     return (params.get('linkedClientCompanyId') || api.getLinkedClientCompanyId(meQ.data)).trim()
   }, [location.search, meQ.data])
+
+  const observerCompanyId = useMemo(() => {
+    const params = new URLSearchParams(location.search)
+    return (params.get('companyId') || api.getObserverCompanyId(meQ.data)).trim()
+  }, [location.search, meQ.data])
+
+  const managementHref = useMemo(() => {
+    if (!meQ.data) return '/board'
+    return api.appendScopeToPath(
+      '/board',
+      {
+        linkedClientCompanyId: linkedClientCompanyId || undefined,
+        companyId: observerCompanyId || undefined,
+      },
+      meQ.data,
+    )
+  }, [linkedClientCompanyId, observerCompanyId, meQ.data])
 
   const techBoundLabelQ = useQuery({
     queryKey: ['mobile-profile-technician-bound', linkedClientCompanyId, meQ.data?.id],
@@ -136,6 +154,11 @@ export function MobileProfile() {
             Telegram и MAX — внешние чаты поддержки по вопросам системы (откроются в браузере или приложении).
           </div>
           <SupportContactBlock titleTag="div" />
+          {canAccessManagementDesktop(meQ.data?.role) ? (
+            <Link to={managementHref} className="mobileBtn mobileBtnSecondary" style={{ textAlign: 'center', textDecoration: 'none' }}>
+              Управленческая часть
+            </Link>
+          ) : null}
           <button type="button" className="mobileBtn mobileLogoutBelowCard" style={{ marginTop: 0 }} onClick={logout}>
             Выйти
           </button>
