@@ -5,7 +5,6 @@ import * as api from '../lib/api'
 import { CategoryGuidancePanel } from '../components/CategoryGuidancePanel'
 import { formatMobileMutationError } from './mobileActionErrors'
 import { mobileTicketNavState } from './mobileTicketDisplay'
-import { MobileAttachmentThumb } from './MobileAttachmentThumb'
 import { MobilePhotoLightbox } from './MobilePhotoLightbox'
 import { mobilePath } from './mobileRoute'
 
@@ -542,14 +541,27 @@ export function MobileCreateTicket() {
               </div>
             ) : null}
             {draftAttachments.length > 0 ? (
-              <div className="mobilePhotoPreview">
-                <div className="mobilePhotoGrid">
-                  {draftAttachments.map((d) => (
-                    <div key={d.id} className="mobileDraftThumbCell">
-                      <MobileAttachmentThumb attachment={d} onOpenPreview={setPhotoPreview} />
+              <div className="mobileCreateDraftList">
+                {draftAttachments.map((d) => {
+                  const src = api.resolveTicketAttachmentUrl(d)
+                  const alt = d.filename || d.originalName || 'Фото'
+                  return (
+                    <div key={d.id} className="mobileCreateDraftItem">
+                      {src ? (
+                        <button
+                          type="button"
+                          className="mobileCreateDraftImgBtn"
+                          aria-label={`Просмотр: ${alt}`}
+                          onClick={() => setPhotoPreview({ src, alt })}
+                        >
+                          <img src={src} alt={alt} className="mobileCreateDraftImg" />
+                        </button>
+                      ) : (
+                        <div className="mobileCreateDraftEmpty">Нет превью</div>
+                      )}
                       <button
                         type="button"
-                        className="mobileDraftThumbRemove"
+                        className="mobileCreateDraftRemove"
                         aria-label="Удалить фото"
                         disabled={deleteDraftM.isPending || isUploadingDrafts || createM.isPending}
                         onClick={() => deleteDraftM.mutate(d.id)}
@@ -557,8 +569,8 @@ export function MobileCreateTicket() {
                         ×
                       </button>
                     </div>
-                  ))}
-                </div>
+                  )
+                })}
               </div>
             ) : null}
           </div>

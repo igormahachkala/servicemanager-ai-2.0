@@ -91,9 +91,9 @@ function matchesMobileHomeTab(
 ): boolean {
   switch (tab) {
     case 'all':
-      return true
+      return ticket.status !== 'DONE' && ticket.status !== 'CANCELED'
     case 'mine':
-      return isMineTicketForRole(ticket, meId, role)
+      return isMineTicketForRole(ticket, meId, role) && ticket.status !== 'DONE' && ticket.status !== 'CANCELED'
     case 'new':
       return isNewTicket(ticket)
     case 'in_work':

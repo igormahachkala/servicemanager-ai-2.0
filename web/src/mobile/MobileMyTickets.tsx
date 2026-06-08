@@ -7,6 +7,7 @@ import {
   mobileTicketCategoryLocationFromCard,
   mobileTicketNavState,
   mobileTicketNumberTitle,
+  mobileTicketStatusLabelRu,
   scopeForMobileTicketLink,
 } from './mobileTicketDisplay'
 import { MobileRoleContextStrip } from './MobileUxHints'
@@ -245,18 +246,25 @@ export function MobileMyTickets() {
             key={ticket.id}
             to={ticketHref(ticket)}
             state={mobileTicketNavState('my', ticket.companyId)}
-            className="mobileCard mobileCardClickable"
-            style={{ display: 'block', padding: 12 }}
+            className="mobileCard mobileCardClickable mobileMyTicketCard"
           >
-            <div className="mobileRow">
-              <strong>{mobileTicketNumberTitle(ticket.ticketNumber)}</strong>
-              <span className="mobileMeta">{ticket.status}</span>
+            <div className="mobileMyTicketThumb" aria-hidden="true">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                <circle cx="12" cy="13" r="4"/>
+              </svg>
             </div>
-            <div className="mobileMeta" style={{ marginTop: 6 }}>
-              {mobileTicketCategoryLocationFromCard(ticket)}
-            </div>
-            <div className="mobileMeta" style={{ marginTop: 6 }}>
-              Обновлено: {formatDate(ticket.createdAt)}
+            <div className="mobileMyTicketInfo">
+              <div className="mobileRow">
+                <strong>{mobileTicketNumberTitle(ticket.ticketNumber)}</strong>
+                <span className={`mobileTicketStatus mobileTicketStatus--${ticket.status}`}>{mobileTicketStatusLabelRu(ticket.status)}</span>
+              </div>
+              <div className="mobileMeta mobileTicketCardObject" style={{ marginTop: 4 }}>
+                {mobileTicketCategoryLocationFromCard(ticket)}
+              </div>
+              <div className="mobileMeta" style={{ marginTop: 4 }}>
+                {formatDate(ticket.createdAt)}
+              </div>
             </div>
           </Link>
         ))
