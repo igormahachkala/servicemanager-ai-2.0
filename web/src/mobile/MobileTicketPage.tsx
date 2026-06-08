@@ -38,10 +38,10 @@ import {
 import { CategoryGuidancePanel } from '../components/CategoryGuidancePanel'
 import { MobileBoardClaimFallbackHint, MobileClaimReasonHintBox } from './MobileUxHints'
 import { TicketCloseModal, type TicketCloseModalState } from './home/HomeList'
-import { MobileAttachmentThumb, mobileAttachmentLabel } from './MobileAttachmentThumb'
-import { MobilePhotoLightbox } from './MobilePhotoLightbox'
+import { mobileAttachmentLabel } from './MobileAttachmentThumb'
 import { toChatMessages } from '../lib/ticketChat'
 import { FullscreenPhotoViewer, type PhotoViewerItem } from '../components/FullscreenPhotoViewer'
+import { MobileTicketPhotoGallery } from './MobileTicketPhotoGallery'
 
 function readListOrigin(location: ReturnType<typeof useLocation>): MobileTicketListOrigin {
   const raw = (location.state as MobileTicketNavState | null)?.mobileListOrigin
@@ -398,8 +398,8 @@ export function MobileTicketPage() {
   const [techActionErr, setTechActionErr] = useState('')
   const [assignmentRequestErr, setAssignmentRequestErr] = useState('')
   const [assignmentRequestToast, setAssignmentRequestToast] = useState('')
-  const [photoPreview, setPhotoPreview] = useState<{ src: string; alt: string } | null>(null)
-  const [photoPreviewIndex, setPhotoPreviewIndex] = useState<number | null>(null)
+  const [requestPhotoIndex, setRequestPhotoIndex] = useState<number | null>(null)
+  const [reportPhotoIndex, setReportPhotoIndex] = useState<number | null>(null)
   const [chatText, setChatText] = useState('')
   const [chatSending, setChatSending] = useState(false)
   const [chatSendError, setChatSendError] = useState<string | null>(null)
@@ -653,16 +653,15 @@ export function MobileTicketPage() {
 
   const otherFiles = useMemo(() => (attachmentsQ.data || []).filter((a) => !isImageAttachment(a)), [attachmentsQ.data])
 
-  const photoItems = useMemo<PhotoViewerItem[]>(() => [
-    ...requestImages.map((a) => ({ src: api.resolveTicketAttachmentUrl(a), alt: a.originalName || 'Фото' })),
-    ...reportImages.map((a) => ({ src: api.resolveTicketAttachmentUrl(a), alt: a.originalName || 'Фото отчёта' })),
-  ], [requestImages, reportImages])
+  const requestPhotoItems = useMemo<PhotoViewerItem[]>(
+    () => requestImages.map((a) => ({ src: api.resolveTicketAttachmentUrl(a), alt: a.originalName || 'Фото' })),
+    [requestImages],
+  )
 
-  function openPhotoByUrl(payload: { src: string; alt: string }) {
-    let idx = photoItems.findIndex((p) => p.src === payload.src)
-    if (idx < 0) idx = photoItems.findIndex((p) => p.alt === payload.alt)
-    setPhotoPreviewIndex(idx >= 0 ? idx : 0)
-  }
+  const reportPhotoItems = useMemo<PhotoViewerItem[]>(
+    () => reportImages.map((a) => ({ src: api.resolveTicketAttachmentUrl(a), alt: a.originalName || 'Фото отчёта' })),
+    [reportImages],
+  )
 
   const executorLine = ticket
     ? (ticket.assignedTechnician?.email || '').trim() || 'Не назначен'
@@ -1064,30 +1063,20 @@ export function MobileTicketPage() {
             ) : null}
             {!attachmentsQ.isLoading && !attachmentsQ.isError ? (
               <>
-                <div className="mobileSectionTitle" style={{ marginBottom: 8 }}>
-                  Фото заявки
+                <MobileTicketPhotoGallery
+                  title="Фото заявки"
+                  photos={requestImages}
+                  emptyText="Нет фото"
+                  onOpen={(i) => setRequestPhotoIndex(i)}
+                />
+                <div style={{ marginTop: 14 }}>
+                  <MobileTicketPhotoGallery
+                    title="Фото отчёта"
+                    photos={reportImages}
+                    emptyText="Нет фото отчёта"
+                    onOpen={(i) => setReportPhotoIndex(i)}
+                  />
                 </div>
-                {requestImages.length === 0 ? (
-                  <div className="mobileMeta">Нет фото</div>
-                ) : (
-                  <div className="mobilePhotoGridLarge">
-                    {requestImages.map((a) => (
-                      <MobileAttachmentThumb key={a.id} attachment={a} className="mobilePhotoThumbLarge" onOpenPreview={openPhotoByUrl} />
-                    ))}
-                  </div>
-                )}
-                <div className="mobileSectionTitle" style={{ marginTop: 14, marginBottom: 8 }}>
-                  Фото отчёта
-                </div>
-                {reportImages.length === 0 ? (
-                  <div className="mobileMeta">Нет фото отчёта</div>
-                ) : (
-                  <div className="mobilePhotoGridLarge">
-                    {reportImages.map((a) => (
-                      <MobileAttachmentThumb key={a.id} attachment={a} className="mobilePhotoThumbLarge" onOpenPreview={openPhotoByUrl} />
-                    ))}
-                  </div>
-                )}
                 {otherFiles.length > 0 ? (
                   <>
                     <div className="mobileSectionTitle" style={{ marginTop: 14, marginBottom: 8 }}>
@@ -1219,12 +1208,18 @@ export function MobileTicketPage() {
         </>
       ) : null}
 
-      <MobilePhotoLightbox preview={photoPreview} onClose={() => setPhotoPreview(null)} />
-      {photoPreviewIndex !== null && photoItems.length > 0 ? (
+      {requestPhotoIndex !== null && requestPhotoItems.length > 0 ? (
         <FullscreenPhotoViewer
-          items={photoItems}
-          initialIndex={photoPreviewIndex}
-          onClose={() => setPhotoPreviewIndex(null)}
+          items={requestPhotoItems}
+          initialIndex={requestPhotoIndex}
+          onClose={() => setRequestPhotoIndex(null)}
+        />
+      ) : null}
+      {reportPhotoIndex !== null && reportPhotoItems.length > 0 ? (
+        <FullscreenPhotoViewer
+          items={reportPhotoItems}
+          initialIndex={reportPhotoIndex}
+          onClose={() => setReportPhotoIndex(null)}
         />
       ) : null}
 

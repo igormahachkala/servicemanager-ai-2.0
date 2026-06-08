@@ -502,6 +502,102 @@ button.mobilePhotoThumbLink.mobilePhotoThumbOpen:focus-visible {
   outline-offset: 2px;
 }
 
+/* ── Ticket Photo Gallery (hero square + dots) ─────────── */
+.mobileTicketPhotoGallery {
+  margin-bottom: 4px;
+}
+
+.mobileTicketPhotoHero {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #f3f4f6;
+  position: relative;
+}
+
+.mobileTicketPhotoHeroBtn {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  line-height: 0;
+}
+
+.mobileTicketPhotoHeroImg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: opacity 0.2s;
+}
+
+.mobileTicketPhotoHeroImgPending {
+  opacity: 0;
+}
+
+.mobileTicketPhotoHeroPlaceholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 0.85rem;
+  color: #6b7280;
+  text-decoration: none;
+}
+
+.mobileTicketPhotoHeroPlaceholder--link {
+  text-decoration: underline;
+  color: #2563eb;
+}
+
+.mobileTicketPhotoDots {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  min-height: 12px;
+}
+
+.mobileTicketPhotoDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  background: #d1d5db;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  transition: background 0.15s, transform 0.15s;
+  flex-shrink: 0;
+}
+
+.mobileTicketPhotoDot:active {
+  transform: scale(0.85);
+}
+
+.mobileTicketPhotoDotActive {
+  background: #4f46e5;
+  transform: scale(1.25);
+}
+
+.mobileTicketPhotoCounter {
+  text-align: center;
+  font-size: 0.78rem;
+  color: #6b7280;
+  margin-top: 6px;
+  margin-bottom: 2px;
+}
+
 .mobileImageLightbox {
   position: fixed;
   inset: 0;
