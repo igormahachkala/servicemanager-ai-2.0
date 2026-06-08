@@ -23,6 +23,7 @@ import {
 import { TicketMetaBuilder } from './ticket-meta.builder'
 import { TICKET_ASSIGNMENT_REQUESTED_ENTITY, TICKET_ASSIGNMENT_REQUESTED_EVENT } from './ticket-domain-event.types'
 import { isExecutorCapableRole } from '../common/executor.utils'
+import { loadBoardImageAttachmentSummaries } from './board-attachment-summary'
 
 type AccessFlags = {
   canTechnicianViewAllCompanyTickets?: boolean
@@ -436,6 +437,11 @@ export class TicketsQueryService {
         })
       : []
 
+    const imageAttachmentSummaries = await loadBoardImageAttachmentSummaries(
+      this.prisma,
+      tickets.map((ticket) => ticket.id),
+    )
+
     const assignmentRequestedByCurrentUserIds = new Set<string>()
     if (isExecutorCapableRole(role)) {
       const candidateTickets = tickets.filter((t) => t.status === TicketStatus.NEW && !t.assignedTechnician)
@@ -483,6 +489,7 @@ export class TicketsQueryService {
       }
 
       const cards = byStatus.map((t) => {
+        const attachmentSummary = imageAttachmentSummaries.get(t.id)
         const base = {
           id: t.id,
           companyId: t.companyId,
@@ -503,6 +510,8 @@ export class TicketsQueryService {
           category: { id: t.problemCategory.id, name: t.problemCategory.name },
           assignedTechnicianId: t.assignedTechnicianId ?? null,
           assignedTechnician: t.assignedTechnician,
+          attachmentPreviewUrl: attachmentSummary?.previewUrl ?? null,
+          imageAttachmentCount: attachmentSummary?.imageCount ?? 0,
         }
         if (role === UserRole.TECHNICIAN && technicianScope && t.status === TicketStatus.NEW && !t.assignedTechnician) {
           const links = t.problemCategory.specializationLinks ?? []

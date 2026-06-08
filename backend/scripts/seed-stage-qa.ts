@@ -86,6 +86,7 @@ const TCB = {
   zosimovTech1: '70000000-0000-4000-8000-000000000001', // Zosimov tech1 @ FJ-001
   zosimovTech2: '70000000-0000-4000-8000-000000000002', // Zosimov tech2 @ FJ-001
   otherSubTech: '70000000-0000-4000-8000-000000000003', // Other Subcontractor tech @ FJ-002
+  secondaryTech: '70000000-0000-4000-8000-000000000004', // tech@test.local @ FJ-002 (Arbat)
 }
 
 async function main() {
@@ -181,6 +182,7 @@ async function main() {
     { id: '60000000-0000-4000-8000-000000000001', userId: USR.zosimovTech1, locationId: LOC.zosimovBound, companyId: CO.zosimov },
     // Other Subcontractor tech is bound to the Other location.
     { id: '60000000-0000-4000-8000-000000000002', userId: USR.otherSubTech, locationId: LOC.otherBound, companyId: CO.otherSub },
+    { id: '60000000-0000-4000-8000-000000000003', userId: USR.secondaryTech, locationId: LOC.otherBound, companyId: CO.secondary },
   ]
 
   for (const b of bindings) {
@@ -207,6 +209,7 @@ async function main() {
     { id: TCB.zosimovTech1, providerCompanyId: CO.zosimov, technicianUserId: USR.zosimovTech1, clientCompanyId: CO.client, locationId: LOC.zosimovBound },
     { id: TCB.zosimovTech2, providerCompanyId: CO.zosimov, technicianUserId: USR.zosimovTech2, clientCompanyId: CO.client, locationId: LOC.zosimovBound },
     { id: TCB.otherSubTech, providerCompanyId: CO.otherSub, technicianUserId: USR.otherSubTech, clientCompanyId: CO.client, locationId: LOC.otherBound },
+    { id: TCB.secondaryTech, providerCompanyId: CO.secondary, technicianUserId: USR.secondaryTech, clientCompanyId: CO.client, locationId: LOC.otherBound },
   ]
 
   for (const b of technicianClientBindings) {

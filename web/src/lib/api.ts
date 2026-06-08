@@ -581,6 +581,10 @@ export type TicketCard = {
   assignmentRequestedByCurrentUser?: boolean
   /** Если бэкенд начнёт отдавать причину на доске — покажем на карточке без отдельного getTicket. */
   claimAvailabilityReason?: string | null
+  /** Первое image-вложение (REQUEST приоритетнее) для превью на карточке. */
+  attachmentPreviewUrl?: string | null
+  /** Количество image-вложений на заявке. */
+  imageAttachmentCount?: number
 }
 
 export type LinkedClientSummary = ServiceContractItem & {

@@ -10,6 +10,7 @@ import {
   type MobileTicketNavState,
 } from '../mobileTicketDisplay'
 import { MobileBoardClaimFallbackHint, MobileClaimReasonHintBox } from '../MobileUxHints'
+import { MobileTicketCardPhoto } from '../MobileTicketCardPhoto'
 import { assignedTechnicianDisplay, type HomePrimaryActionLabel } from './utils'
 
 type Props = {
@@ -48,7 +49,13 @@ export function TicketCard({
   return (
     <div className={cardClass} style={{ padding: 0, overflow: 'hidden' }}>
       <Link to={ticketHref} state={linkState ?? mobileTicketNavState('home')} className="mobileCardClickable" style={{ borderRadius: 0 }}>
-        <div className="mobileTicketCardBody">
+        <div className="mobileTicketCardLayout">
+          <MobileTicketCardPhoto
+            previewUrl={ticket.attachmentPreviewUrl}
+            imageCount={ticket.imageAttachmentCount}
+            alt={mobileTicketNumberTitle(ticket.ticketNumber)}
+          />
+          <div className="mobileTicketCardBody">
           {/* Номер + статус */}
           <div className="mobileRow">
             <strong>{mobileTicketNumberTitle(ticket.ticketNumber)}</strong>
@@ -72,6 +79,7 @@ export function TicketCard({
               <span className="mobileAssignmentRequestedBadge">Запрос отправлен</span>
             </div>
           ) : null}
+          </div>
         </div>
       </Link>
 

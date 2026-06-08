@@ -42,6 +42,7 @@ import { mobileAttachmentLabel } from './MobileAttachmentThumb'
 import { toChatMessages } from '../lib/ticketChat'
 import { FullscreenPhotoViewer, type PhotoViewerItem } from '../components/FullscreenPhotoViewer'
 import { MobileTicketPhotoGallery } from './MobileTicketPhotoGallery'
+import { MobileModalBackdrop } from './MobileModalBackdrop'
 
 function readListOrigin(location: ReturnType<typeof useLocation>): MobileTicketListOrigin {
   const raw = (location.state as MobileTicketNavState | null)?.mobileListOrigin
@@ -1253,19 +1254,15 @@ export function MobileTicketPage() {
       ) : null}
 
       {assignTicketOpen && ticket ? (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(17, 24, 39, 0.55)',
-            zIndex: 62,
-            display: 'flex',
-            alignItems: 'flex-end',
-            justifyContent: 'center',
-            padding: 12,
+        <MobileModalBackdrop
+          ariaLabel="Назначить исполнителя"
+          onClose={() => {
+            if (assignBusy) return
+            setAssignTicketOpen(false)
+            setAssignErr('')
           }}
         >
-          <div className="mobileCard" style={{ width: '100%', maxWidth: 720, marginBottom: 12 }}>
+          <div className="mobileAssignModal">
             <div className="mobileRow" style={{ alignItems: 'flex-start' }}>
               <div>
                 <div style={{ fontWeight: 900 }}>Назначить исполнителя</div>
@@ -1312,7 +1309,7 @@ export function MobileTicketPage() {
                 <div className="mobileFormSubmitStack" style={{ marginTop: 12 }}>
                   <button
                     type="button"
-                    className="mobileBtn"
+                    className="mobileBtn mobileAssignModalConfirm"
                     disabled={!assignTechId || assignBusy || assignCandidatesQ.isLoading}
                     onClick={() => assignM.mutate({ technicianId: assignTechId })}
                   >
@@ -1327,7 +1324,7 @@ export function MobileTicketPage() {
               </div>
             ) : null}
           </div>
-        </div>
+        </MobileModalBackdrop>
       ) : null}
       {assignmentRequestToast || operationalToast ? (
         <div
