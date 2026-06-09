@@ -821,7 +821,7 @@ export class TicketsQueryService {
       },
       problemCategory: { select: { id: true, name: true, instructions: true } },
       equipment: { select: { id: true, name: true, type: true, status: true } },
-      assignedTechnician: { select: { id: true, email: true } },
+      assignedTechnician: { select: { id: true, email: true, firstName: true, lastName: true, phone: true } },
       statusHistory: { orderBy: { createdAt: 'asc' as const } },
       parent: {
         select: {
