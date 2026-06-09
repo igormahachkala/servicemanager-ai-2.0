@@ -377,7 +377,7 @@ export class TechniciansService {
         where: {
           userId: technicianId,
           companyId: scopeCompanyId,
-          location: { clientCompanyId: scopeCompanyId },
+          location: { clientCompanyId: scopeCompanyId, isActive: true },
         },
         select: { locationId: true },
       })
@@ -420,7 +420,11 @@ export class TechniciansService {
       : []
 
     if (validLocations.length !== locationIds.length) {
-      throw new BadRequestException('Some locationIds are not available in current scope')
+      const validSet = new Set(validLocations.map((l) => l.id))
+      const rejected = locationIds.filter((id) => !validSet.has(id))
+      throw new BadRequestException(
+        `Some locationIds are not available in current scope. scopeCompanyId=${scopeCompanyId}, submitted=${locationIds.length}, available=${validLocations.length}, rejected=[${rejected.join(', ')}]`,
+      )
     }
 
     await this.prisma.$transaction(async (tx) => {

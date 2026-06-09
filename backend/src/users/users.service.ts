@@ -130,7 +130,15 @@ export class UsersService {
     const leavingExecutorRole = isLeavingExecutorRole(existingUser.role, nextRole)
 
     // When leaving the executor-capable set, force isExecutor=false and clear executor scope.
-    const effectiveIsExecutor = leavingExecutorRole ? false : dto.isExecutor
+    // When explicitly set in DTO, respect it.
+    // When role is TECHNICIAN, auto-enable (TECHNICIAN is always executor by definition).
+    const effectiveIsExecutor = leavingExecutorRole
+      ? false
+      : dto.isExecutor !== undefined
+        ? dto.isExecutor
+        : nextRole === UserRole.TECHNICIAN
+          ? true
+          : undefined
 
     await this.prisma.$transaction(async (tx) => {
       await tx.user.update({

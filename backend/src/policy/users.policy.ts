@@ -1,4 +1,5 @@
 import { UserRole } from '@prisma/client';
+import { isExecutorCapableRole } from '../common/executor.utils';
 
 export class UsersPolicy {
   static listWhere(companyId: string) {
@@ -32,6 +33,8 @@ export class UsersPolicy {
       ...(data.avatarUrl !== undefined ? { avatarUrl: data.avatarUrl } : {}),
       role: data.role,
       isActive: true,
+      // TECHNICIAN is always executor; ADMIN/MASTER/DISPATCHER require explicit opt-in via update
+      isExecutor: data.role === UserRole.TECHNICIAN,
     };
   }
 

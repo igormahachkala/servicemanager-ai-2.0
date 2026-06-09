@@ -201,6 +201,11 @@ export function EmployeesPage() {
     setSelectedLocationIds(bindingsQ.data.locationIds || [])
   }, [isEditingLocationBoundRole, bindingsQ.data])
 
+  // Clear stale selection whenever scope changes (before new data loads).
+  useEffect(() => {
+    setSelectedLocationIds([])
+  }, [effectiveBindingsCompanyId])
+
   useEffect(() => {
     if (!editingUserId || !specsQ.data?.length) return
     setEditValue((prev) => ({
@@ -294,7 +299,7 @@ export function EmployeesPage() {
         throw new Error('Сначала выберите сотрудника с ролью, поддерживающей location binding')
       }
       const scopeCompanyId = (effectiveBindingsCompanyId || bindingsQ.data?.companyId || '').trim()
-      const payload: { companyId?: string; locationIds: string[] } = { locationIds: selectedLocationIds }
+      const payload: { companyId?: string; locationIds: string[] } = { locationIds: visibleSelectedLocationIds }
       if (scopeCompanyId && isUuid(scopeCompanyId)) payload.companyId = scopeCompanyId
       return api.setTechnicianLocationBindings(editingUserId, payload)
     },
@@ -435,16 +440,21 @@ export function EmployeesPage() {
     !linkedClientsQ.isFetching &&
     providerLinkedClientOptions.length === 0
   const bindingsAvailableLocations = bindingsQ.data?.availableLocations || []
+  // Only IDs that are currently visible in the available list — prevents stale/inactive IDs in save payload.
+  const visibleSelectedLocationIds = useMemo(() => {
+    const availableIds = new Set(bindingsAvailableLocations.map((l) => l.id))
+    return selectedLocationIds.filter((id) => availableIds.has(id))
+  }, [selectedLocationIds, bindingsAvailableLocations])
   const bindingsHasChanges = useMemo(() => {
     if (!bindingsQ.data) return false
     const current = new Set(bindingsQ.data.locationIds || [])
-    const next = new Set(selectedLocationIds)
+    const next = new Set(visibleSelectedLocationIds)
     if (current.size !== next.size) return true
     for (const id of current) {
       if (!next.has(id)) return true
     }
     return false
-  }, [bindingsQ.data, selectedLocationIds])
+  }, [bindingsQ.data, visibleSelectedLocationIds])
   const technicianLocationBindingsBlock = isEditingLocationBoundRole ? (
     <div className="panel uiCard" style={{ marginTop: 12 }}>
       <h3 style={{ marginBottom: 8 }}>Доступные точки</h3>
@@ -508,8 +518,8 @@ export function EmployeesPage() {
                 </div>
               )}
               <div className="muted small" style={{ marginBottom: 10 }}>
-                {selectedLocationIds.length > 0
-                  ? `Выбрано точек: ${selectedLocationIds.length}`
+                {visibleSelectedLocationIds.length > 0
+                  ? `Выбрано точек: ${visibleSelectedLocationIds.length}`
                   : 'Ограничения не заданы: сотрудник работает без явных location-bound ограничений.'}
               </div>
               {!bindingsHasChanges ? (
