@@ -62,8 +62,9 @@ export function LocationsPage() {
   const [editingLocationId, setEditingLocationId] = useState<string | null>(null)
   const [editingLocationActive, setEditingLocationActive] = useState(true)
   const [editValue, setEditValue] = useState<LocationFormValue>(emptyForm)
+  const [showDeleted, setShowDeleted] = useState(false)
 
-  const locationsQ = useQuery({ queryKey: ['locations'], queryFn: () => api.locations() })
+  const locationsQ = useQuery({ queryKey: ['locations', showDeleted], queryFn: () => api.locations(undefined, { includeDeleted: showDeleted }) })
 
   const sortedLocations = useMemo(() => {
     const rows = [...(locationsQ.data || [])]
@@ -161,7 +162,46 @@ export function LocationsPage() {
     updateM.mutate({ id: editingLocationId, value: editValue, initialIsActive: editingLocationActive })
   }
 
-  const busy = createM.isPending || updateM.isPending
+  const deleteLocationM = useMutation({
+    mutationFn: (id: string) => api.deleteLocation(id),
+    onSuccess: async (deleted) => {
+      setErr(null)
+      setSuccess(`Точка «${deleted.name}» удалена`)
+      if (editingLocationId === deleted.id) {
+        setEditingLocationId(null)
+        setEditValue(emptyForm)
+      }
+      await invalidateLocationQueries()
+    },
+    onError: (error: any) => {
+      setSuccess(null)
+      setErr(error?.message || String(error))
+    },
+  })
+
+  const restoreLocationM = useMutation({
+    mutationFn: (id: string) => api.restoreLocation(id),
+    onSuccess: async (restored) => {
+      setErr(null)
+      setSuccess(`Точка «${restored.name}» восстановлена`)
+      await invalidateLocationQueries()
+    },
+    onError: (error: any) => {
+      setSuccess(null)
+      setErr(error?.message || String(error))
+    },
+  })
+
+  function deleteLocation(location: api.LocationListItem) {
+    if (!window.confirm(`Удалить точку «${location.name}»? Можно восстановить через переключатель «Показать удалённые».`)) return
+    deleteLocationM.mutate(location.id)
+  }
+
+  function restoreLocation(location: api.LocationListItem) {
+    restoreLocationM.mutate(location.id)
+  }
+
+  const busy = createM.isPending || updateM.isPending || deleteLocationM.isPending || restoreLocationM.isPending
 
   return (
     <div>
@@ -201,7 +241,13 @@ export function LocationsPage() {
         </div>
 
         <div className="panel">
-          <h3 style={{ marginBottom: 10 }}>Список локаций</h3>
+          <div className="row" style={{ marginBottom: 10, gap: 8 }}>
+            <h3 style={{ margin: 0 }}>Список локаций</h3>
+            <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: '0.9rem' }}>
+              <input type="checkbox" checked={showDeleted} onChange={(e) => setShowDeleted(e.target.checked)} />
+              Показать удалённые
+            </label>
+          </div>
           {locationsQ.isLoading ? (
             <div className="muted">Загружаем локации…</div>
           ) : (
@@ -214,6 +260,8 @@ export function LocationsPage() {
               onCancelEdit={cancelEdit}
               onEditChange={patchEdit}
               onSubmitEdit={submitEdit}
+              onDelete={deleteLocation}
+              onRestore={restoreLocation}
             />
           )}
         </div>

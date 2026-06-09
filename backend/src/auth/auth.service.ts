@@ -203,6 +203,7 @@ export class AuthService {
         firstName: true,
         lastName: true,
         avatarUrl: true,
+        phone: true,
         role: true,
         companyId: true,
         isActive: true,
@@ -226,6 +227,7 @@ export class AuthService {
       firstName: user.firstName,
       lastName: user.lastName,
       avatarUrl: user.avatarUrl ?? null,
+      phone: user.phone ?? null,
       role: user.role,
       companyId: user.companyId,
       isActive: user.isActive,
@@ -324,6 +326,7 @@ export class AuthService {
     firstName: string | null
     lastName: string | null
     avatarUrl?: string | null
+    phone?: string | null
     role: UserRole
     companyId: string
     isActive: boolean
@@ -335,6 +338,7 @@ export class AuthService {
       firstName: user.firstName,
       lastName: user.lastName,
       avatarUrl: user.avatarUrl ?? null,
+      phone: user.phone ?? null,
       role: user.role,
       companyId: user.companyId,
       companyName: user.companyName,

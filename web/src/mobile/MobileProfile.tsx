@@ -118,6 +118,12 @@ export function MobileProfile() {
             <span className="mobileMeta">Email</span>
             <strong>{meQ.data?.email || '—'}</strong>
           </div>
+          {meQ.data?.phone ? (
+            <div className="mobileRow">
+              <span className="mobileMeta">Телефон</span>
+              <strong>{meQ.data.phone}</strong>
+            </div>
+          ) : null}
           <div className="mobileRow">
             <span className="mobileMeta">Компания</span>
             <strong>{meQ.data?.companyName || '—'}</strong>

@@ -23,4 +23,8 @@ export class CreateUserDto {
   @IsOptional()
   @IsUrl({ require_tld: false }, { message: 'avatarUrl must be a valid URL' })
   avatarUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  phone?: string;
 }

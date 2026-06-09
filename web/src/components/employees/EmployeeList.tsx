@@ -17,6 +17,8 @@ type Props = {
   onToggleEditSpecialization: (specializationId: string) => void
   onSubmitEdit: (event: React.FormEvent) => void
   onToggleActive: (user: api.UserListItem) => void
+  onDelete?: (user: api.UserListItem) => void
+  onRestore?: (user: api.UserListItem) => void
   editExtras?: ReactNode
 }
 
@@ -71,6 +73,8 @@ export function EmployeeList({
   onToggleEditSpecialization,
   onSubmitEdit,
   onToggleActive,
+  onDelete,
+  onRestore,
   editExtras,
 }: Props) {
   if (users.length === 0) {
@@ -90,20 +94,33 @@ export function EmployeeList({
         const isLastAdmin = user.role === 'ADMIN' && !isInactive && activeAdminCount <= 1
         const editTitle = displayName(user) === user.email ? 'Редактировать ' + user.email : 'Редактировать ' + displayName(user)
 
+        const isDeleted = !!(user as any).deletedAt
+
         return (
           <EmployeeCard
             key={user.id}
             user={user}
             actions={(
               <>
-                <button className="ghost" onClick={() => onBeginEdit(user)} disabled={busy}>Редактировать</button>
-                <button
-                  className="ghost"
-                  onClick={() => onToggleActive(user)}
-                  disabled={busy || (!isInactive && (isSelf || isLastAdmin))}
-                >
-                  {isInactive ? 'Активировать' : 'Деактивировать'}
-                </button>
+                {!isDeleted ? (
+                  <>
+                    <button className="ghost" onClick={() => onBeginEdit(user)} disabled={busy}>Редактировать</button>
+                    <button
+                      className="ghost"
+                      onClick={() => onToggleActive(user)}
+                      disabled={busy || (!isInactive && (isSelf || isLastAdmin))}
+                    >
+                      {isInactive ? 'Активировать' : 'Деактивировать'}
+                    </button>
+                    {onDelete && !isSelf && !(isLastAdmin && !isInactive) ? (
+                      <button className="ghost" style={{ color: '#dc2626' }} onClick={() => onDelete(user)} disabled={busy}>Удалить</button>
+                    ) : null}
+                  </>
+                ) : (
+                  onRestore ? (
+                    <button className="ghost" onClick={() => onRestore(user)} disabled={busy}>Восстановить</button>
+                  ) : null
+                )}
               </>
             )}
           >

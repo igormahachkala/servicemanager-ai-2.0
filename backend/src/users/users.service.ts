@@ -19,11 +19,21 @@ import { UpdateUserDto } from './dto/update-user.dto'
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async list(actorCompanyId: string, actorRole: UserRole, requestedCompanyId?: string) {
+  async list(actorCompanyId: string, actorRole: UserRole, requestedCompanyId?: string, q?: string, includeDeleted?: boolean) {
     const companyId = await this.resolveReadableCompanyId(actorCompanyId, actorRole, requestedCompanyId)
+    const search = (q || '').trim()
+    const where: any = UsersPolicy.listWhere(companyId, includeDeleted)
+    if (search) {
+      where.OR = [
+        { email: { contains: search, mode: 'insensitive' } },
+        { firstName: { contains: search, mode: 'insensitive' } },
+        { lastName: { contains: search, mode: 'insensitive' } },
+        { phone: { contains: search, mode: 'insensitive' } },
+      ]
+    }
 
     return this.prisma.user.findMany({
-      where: UsersPolicy.listWhere(companyId),
+      where,
       select: UsersPolicy.selectPublicUser(),
       orderBy: [{ role: 'asc' }, { email: 'asc' }],
     })
@@ -54,6 +64,8 @@ export class UsersService {
       throw new BadRequestException('Email already registered')
     }
 
+    const phone = this.normalizeOptionalText(dto.phone) || null
+
     const passwordHash = await bcrypt.hash(password, 10)
     const created = await this.prisma.user.create({
       data: UsersPolicy.createData(companyId, {
@@ -63,6 +75,7 @@ export class UsersService {
         firstName,
         lastName,
         avatarUrl,
+        phone,
       }),
       select: { id: true },
     })
@@ -90,6 +103,7 @@ export class UsersService {
     const firstName = dto.firstName !== undefined ? this.normalizeOptionalText(dto.firstName) : undefined
     const lastName = dto.lastName !== undefined ? this.normalizeOptionalText(dto.lastName) : undefined
     const avatarUrl = dto.avatarUrl !== undefined ? this.normalizeOptionalText(dto.avatarUrl) : undefined
+    const phone = dto.phone !== undefined ? (this.normalizeOptionalText(dto.phone) || null) : undefined
 
     if (dto.email !== undefined && !nextEmail) {
       throw new BadRequestException('Email is required')
@@ -152,6 +166,7 @@ export class UsersService {
           firstName,
           lastName,
           avatarUrl,
+          phone,
         }),
       })
 
@@ -196,6 +211,46 @@ export class UsersService {
     })
 
     return this.getPublicUserById(companyId, existingUser.id)
+  }
+
+  async softDelete(companyId: string, actorUserId: string, userId: string) {
+    const existingUser = await this.findCompanyUser(companyId, userId)
+
+    if (existingUser.id === actorUserId) {
+      throw new BadRequestException('You cannot delete your own account')
+    }
+
+    const removesAdminAccess = existingUser.role === UserRole.ADMIN && existingUser.isActive
+    if (removesAdminAccess) {
+      const otherActiveAdmins = await this.prisma.user.count({
+        where: { companyId, role: UserRole.ADMIN, isActive: true, id: { not: existingUser.id } },
+      })
+      if (otherActiveAdmins === 0) {
+        throw new BadRequestException('Cannot delete the last active admin')
+      }
+    }
+
+    await this.prisma.user.update({
+      where: { id: existingUser.id },
+      data: { isActive: false, deletedAt: new Date() },
+    })
+
+    return this.getPublicUserByIdIncludeDeleted(companyId, existingUser.id)
+  }
+
+  async restore(companyId: string, userId: string) {
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, companyId },
+      select: { id: true },
+    })
+    if (!user) throw new NotFoundException('User not found')
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { deletedAt: null, isActive: true },
+    })
+
+    return this.getPublicUserById(companyId, user.id)
   }
 
   async updateSpecializations(companyId: string, userId: string, specializationIds: string[]) {
@@ -272,6 +327,19 @@ export class UsersService {
   private async getPublicUserById(companyId: string, userId: string) {
     const user = await this.prisma.user.findFirst({
       where: UsersPolicy.byIdWhere(companyId, userId),
+      select: UsersPolicy.selectPublicUser(),
+    })
+
+    if (!user) {
+      throw new NotFoundException('User not found')
+    }
+
+    return user
+  }
+
+  private async getPublicUserByIdIncludeDeleted(companyId: string, userId: string) {
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, companyId },
       select: UsersPolicy.selectPublicUser(),
     })
 

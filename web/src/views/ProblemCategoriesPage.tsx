@@ -35,7 +35,7 @@ export function ProblemCategoriesPage() {
     mutationFn: (payload: api.CreateProblemCategoryInput) => api.createProblemCategory(payload),
     onSuccess: async () => {
       setErr(null)
-      setSuccess('????????? ???????')
+      setSuccess('Категория создана')
       setName('')
       setInstructions('')
       setIsActive(true)
@@ -51,7 +51,7 @@ export function ProblemCategoriesPage() {
     mutationFn: ({ id, isActive }: { id: string; isActive: boolean }) => api.setProblemCategoryStatus(id, isActive),
     onSuccess: async () => {
       setErr(null)
-      setSuccess('????? ????????????? ?????????')
+      setSuccess('Статус категории обновлён')
       await qc.invalidateQueries({ queryKey: ['problem-categories'] })
     },
     onError: (e: any) => {
@@ -65,7 +65,7 @@ export function ProblemCategoriesPage() {
       api.setProblemCategorySpecializations(id, specializationIds),
     onSuccess: async () => {
       setErr(null)
-      setSuccess('????? ????????????? ?????????')
+      setSuccess('Специализации сохранены')
       await qc.invalidateQueries({ queryKey: ['problem-categories'] })
     },
     onError: (e: any) => {
@@ -78,7 +78,7 @@ export function ProblemCategoriesPage() {
     mutationFn: (id: string) => api.deleteProblemCategory(id),
     onSuccess: async () => {
       setErr(null)
-      setSuccess('????????? ???????')
+      setSuccess('Категория удалена')
       await qc.invalidateQueries({ queryKey: ['problem-categories'] })
     },
     onError: (e: any) => {
@@ -245,10 +245,22 @@ export function ProblemCategoriesPage() {
 
                       <button
                         className="ghost"
-                        disabled={toggleM.isPending}
+                        disabled={toggleM.isPending || deleteM.isPending}
                         onClick={() => toggleM.mutate({ id: row.id, isActive: !(row.isActive !== false) })}
                       >
                         {row.isActive === false ? 'Включить' : 'Отключить'}
+                      </button>
+
+                      <button
+                        className="ghost"
+                        style={{ color: '#dc2626' }}
+                        disabled={toggleM.isPending || deleteM.isPending}
+                        onClick={() => {
+                          if (!window.confirm(`Удалить категорию «${row.name}»?\n\nЕсли категория используется в заявках — связи будут удалены автоматически. Продолжить?`)) return
+                          deleteM.mutate(row.id)
+                        }}
+                      >
+                        Удалить
                       </button>
                     </div>
                   </div>

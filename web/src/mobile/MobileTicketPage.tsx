@@ -685,7 +685,12 @@ export function MobileTicketPage() {
   }
 
   const executorLine = ticket
-    ? (ticket.assignedTechnician?.email || '').trim() || 'Не назначен'
+    ? (() => {
+        if (!ticket.assignedTechnician) return 'Не назначен'
+        const name = [ticket.assignedTechnician.firstName, ticket.assignedTechnician.lastName].filter(Boolean).join(' ').trim()
+        const label = name || ticket.assignedTechnician.email
+        return ticket.assignedTechnician.phone ? `${label}\n${ticket.assignedTechnician.phone}` : label
+      })()
     : '—'
 
   const showAssignButton =
@@ -879,7 +884,7 @@ export function MobileTicketPage() {
             </div>
             <div className="mobileRow" style={{ marginTop: 12 }}>
               <span className="mobileMeta">Исполнитель</span>
-              <strong style={{ textAlign: 'right', fontSize: '0.9rem' }}>{executorLine}</strong>
+              <strong style={{ textAlign: 'right', fontSize: '0.9rem', whiteSpace: 'pre-line' }}>{executorLine}</strong>
             </div>
             <div style={{ marginTop: 12 }}>
               <div className="mobileMeta" style={{ marginBottom: 6 }}>

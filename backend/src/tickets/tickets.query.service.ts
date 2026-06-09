@@ -430,7 +430,7 @@ export class TicketsQueryService {
             },
             equipment: { select: { id: true, name: true, type: true, status: true } },
             assignedTechnicianId: true,
-            assignedTechnician: { select: { id: true, email: true, firstName: true, lastName: true } },
+            assignedTechnician: { select: { id: true, email: true, firstName: true, lastName: true, phone: true } },
             parentId: true,
           },
           take: decision.take,
@@ -780,7 +780,7 @@ export class TicketsQueryService {
           },
         },
         problemCategory: { select: { id: true, name: true } },
-        assignedTechnician: { select: { id: true, email: true } },
+        assignedTechnician: { select: { id: true, email: true, firstName: true, lastName: true, phone: true } },
       },
     })
   }
@@ -853,7 +853,7 @@ export class TicketsQueryService {
             },
           },
           problemCategory: { select: { id: true, name: true } },
-          assignedTechnician: { select: { id: true, email: true } },
+          assignedTechnician: { select: { id: true, email: true, firstName: true, lastName: true, phone: true } },
         },
       },
     }

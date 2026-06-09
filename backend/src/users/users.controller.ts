@@ -1,4 +1,4 @@
-﻿import { Body, Controller, Get, Param, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req, UseGuards } from '@nestjs/common'
 import { UserRole } from '@prisma/client'
 
 import { JwtAuthGuard } from '../auth/jwt.guard'
@@ -21,8 +21,13 @@ export class UsersController {
   @Roles(UserRole.ADMIN, UserRole.PLATFORM_ADMIN)
   @RequirePermission(PERMISSIONS.USERS_MANAGE)
   @Get()
-  list(@Req() req: any, @Query('companyId') companyId?: string) {
-    return this.users.list(req.user.companyId, req.user.role as UserRole, companyId)
+  list(
+    @Req() req: any,
+    @Query('companyId') companyId?: string,
+    @Query('q') q?: string,
+    @Query('includeDeleted') includeDeleted?: string,
+  ) {
+    return this.users.list(req.user.companyId, req.user.role as UserRole, companyId, q, includeDeleted === 'true')
   }
 
   @Roles(UserRole.ADMIN)
@@ -51,6 +56,20 @@ export class UsersController {
   @Patch(':id/activate')
   activate(@Req() req: any, @Param('id') userId: string) {
     return this.users.activate(req.user.companyId, userId)
+  }
+
+  @Roles(UserRole.ADMIN)
+  @RequirePermission(PERMISSIONS.USERS_MANAGE)
+  @Delete(':id')
+  softDelete(@Req() req: any, @Param('id') userId: string) {
+    return this.users.softDelete(req.user.companyId, req.user.id, userId)
+  }
+
+  @Roles(UserRole.ADMIN)
+  @RequirePermission(PERMISSIONS.USERS_MANAGE)
+  @Patch(':id/restore')
+  restore(@Req() req: any, @Param('id') userId: string) {
+    return this.users.restore(req.user.companyId, userId)
   }
 
   @Roles(UserRole.ADMIN)

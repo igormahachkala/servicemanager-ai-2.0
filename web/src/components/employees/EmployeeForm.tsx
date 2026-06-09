@@ -5,6 +5,7 @@ export type EmployeeFormValue = {
   firstName: string
   lastName: string
   avatarUrl: string
+  phone: string
   email: string
   password: string
   role: api.Role
@@ -104,6 +105,16 @@ export function EmployeeForm({
           value={value.email}
           onChange={(e) => onChange({ email: e.target.value })}
           placeholder="employee@company.com"
+          disabled={submitting}
+        />
+      </label>
+
+      <label>
+        Телефон
+        <input
+          value={value.phone}
+          onChange={(e) => onChange({ phone: e.target.value })}
+          placeholder="+7 999 123 45 67"
           disabled={submitting}
         />
       </label>

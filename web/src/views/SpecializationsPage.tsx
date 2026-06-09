@@ -71,7 +71,7 @@ export function SpecializationsPage() {
     mutationFn: (id: string) => api.deleteSpecialization(id),
     onSuccess: async () => {
       setErr(null)
-      setSuccess('????????????? ???????')
+      setSuccess('Специализация удалена')
 
       await Promise.all([
         qc.invalidateQueries({ queryKey: ['specializations'] }),
@@ -209,10 +209,22 @@ export function SpecializationsPage() {
 
                     <button
                       className="ghost"
-                      disabled={toggleM.isPending || createM.isPending}
+                      disabled={toggleM.isPending || createM.isPending || deleteM.isPending}
                       onClick={() => toggleM.mutate({ id: row.id, isActive: !(row.isActive !== false) })}
                     >
                       {row.isActive === false ? 'Включить' : 'Отключить'}
+                    </button>
+
+                    <button
+                      className="ghost"
+                      style={{ color: '#dc2626' }}
+                      disabled={toggleM.isPending || createM.isPending || deleteM.isPending}
+                      onClick={() => {
+                        if (!window.confirm(`Удалить специализацию «${row.name}»?\n\nЕсли она привязана к сотрудникам или категориям — связи будут удалены автоматически.`)) return
+                        deleteM.mutate(row.id)
+                      }}
+                    >
+                      Удалить
                     </button>
                   </div>
                 </div>

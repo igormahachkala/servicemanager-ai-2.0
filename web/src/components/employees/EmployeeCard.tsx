@@ -65,8 +65,9 @@ export function EmployeeCard({ user, actions, children }: Props) {
           <div>
             <div style={{ fontWeight: 700, fontSize: 16 }}>{displayName(user)}</div>
             <div className="muted small" style={{ marginTop: 4 }}>{user.email}</div>
+            {(user as any).phone ? <div className="muted small">{(user as any).phone}</div> : null}
             <div className="muted small" style={{ marginTop: 6 }}>Роль: {roleLabel(user.role)}</div>
-            <div className="muted small">Статус: {user.isActive === false ? 'Неактивен' : 'Активен'}</div>
+            <div className="muted small">Статус: {user.isActive === false ? 'Неактивен' : 'Активен'}{(user as any).deletedAt ? ' · Удалён' : ''}</div>
             {user.role === 'TECHNICIAN' ? (
               <div className="muted small" style={{ marginTop: 6 }}>
                 Специализации: {specs.length > 0 ? specs.join(', ') : 'не назначены'}

@@ -34,4 +34,8 @@ export class UpdateUserDto {
   @IsOptional()
   @IsBoolean()
   isExecutor?: boolean;
+
+  @IsOptional()
+  @IsString()
+  phone?: string;
 }

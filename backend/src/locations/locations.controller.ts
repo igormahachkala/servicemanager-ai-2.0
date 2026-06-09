@@ -1,4 +1,4 @@
-﻿import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common'
+﻿import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common'
 import { UserRole } from '@prisma/client'
 
 import { JwtAuthGuard } from '../auth/jwt.guard'
@@ -37,12 +37,14 @@ export class LocationsController {
     @Query('q') q?: string,
     @Query('city') city?: string,
     @Query('isActive') isActive?: string,
+    @Query('includeDeleted') includeDeleted?: string,
     @Query('companyId') companyId?: string,
   ) {
     return this.svc.list(req.user.companyId, req.user.role as UserRole, req.user.id, {
       q,
       city,
       isActive,
+      includeDeleted: includeDeleted === 'true',
     }, companyId)
   }
 
@@ -81,5 +83,19 @@ export class LocationsController {
   @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
   setStatus(@Req() req: any, @Param('id') id: string, @Body() dto: SetLocationStatusDto) {
     return this.svc.setStatus(req.user.companyId, id, dto.isActive)
+  }
+
+  @Delete(':id')
+  @Roles(UserRole.ADMIN, UserRole.MASTER)
+  @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
+  softDelete(@Req() req: any, @Param('id') id: string) {
+    return this.svc.softDelete(req.user.companyId, id)
+  }
+
+  @Patch(':id/restore')
+  @Roles(UserRole.ADMIN, UserRole.MASTER)
+  @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
+  restore(@Req() req: any, @Param('id') id: string) {
+    return this.svc.restore(req.user.companyId, id)
   }
 }

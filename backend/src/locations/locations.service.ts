@@ -21,7 +21,7 @@ export class LocationsService {
     private readonly serviceContractsService: ServiceContractsService,
   ) {}
 
-  async list(actorCompanyId: string, actorRole: UserRole, actorUserId: string, input: ListInput, requestedCompanyId?: string) {
+  async list(actorCompanyId: string, actorRole: UserRole, actorUserId: string, input: ListInput & { includeDeleted?: boolean }, requestedCompanyId?: string) {
     const companyId = await this.resolveReadableCompanyId(actorCompanyId, actorRole, requestedCompanyId)
     const locationScope = await this.resolveLocationScope(actorCompanyId, actorRole, actorUserId, companyId)
     const q = input.q?.trim()
@@ -37,6 +37,7 @@ export class LocationsService {
     return this.prisma.location.findMany({
       where: {
         clientCompanyId: companyId,
+        ...(input.includeDeleted ? {} : { deletedAt: null }),
         ...(locationScope.mode === 'bound_locations'
           ? { id: { in: locationScope.locationIds } }
           : {}),
@@ -67,6 +68,7 @@ export class LocationsService {
         latitude: true,
         longitude: true,
         isActive: true,
+        deletedAt: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -85,21 +87,7 @@ export class LocationsService {
           ? { id: { in: locationScope.locationIds } }
           : {}),
       },
-      select: {
-        id: true,
-        clientCompanyId: true,
-        name: true,
-        platformCode: true,
-        externalCode: true,
-        city: true,
-        region: true,
-        address: true,
-        latitude: true,
-        longitude: true,
-        isActive: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+      select: this.locationSelect(),
     })
 
     if (!location) {
@@ -163,21 +151,7 @@ export class LocationsService {
         longitude: dto.longitude ?? null,
         isActive: dto.isActive ?? true,
       },
-      select: {
-        id: true,
-        clientCompanyId: true,
-        name: true,
-        platformCode: true,
-        externalCode: true,
-        city: true,
-        region: true,
-        address: true,
-        latitude: true,
-        longitude: true,
-        isActive: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+      select: this.locationSelect(),
     })
   }
 
@@ -250,21 +224,7 @@ export class LocationsService {
         ...(dto.longitude !== undefined ? { longitude: dto.longitude } : {}),
         ...(dto.isActive !== undefined ? { isActive: dto.isActive } : {}),
       },
-      select: {
-        id: true,
-        clientCompanyId: true,
-        name: true,
-        platformCode: true,
-        externalCode: true,
-        city: true,
-        region: true,
-        address: true,
-        latitude: true,
-        longitude: true,
-        isActive: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+      select: this.locationSelect(),
     })
   }
 
@@ -274,22 +234,51 @@ export class LocationsService {
     return this.prisma.location.update({
       where: { id },
       data: { isActive },
-      select: {
-        id: true,
-        clientCompanyId: true,
-        name: true,
-        platformCode: true,
-        externalCode: true,
-        city: true,
-        region: true,
-        address: true,
-        latitude: true,
-        longitude: true,
-        isActive: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+      select: this.locationSelect(),
     })
+  }
+
+  async softDelete(companyId: string, id: string) {
+    await this.ensureExists(companyId, id)
+
+    return this.prisma.location.update({
+      where: { id },
+      data: { isActive: false, deletedAt: new Date() },
+      select: this.locationSelect(),
+    })
+  }
+
+  async restore(companyId: string, id: string) {
+    const existing = await this.prisma.location.findFirst({
+      where: { id, clientCompanyId: companyId },
+      select: { id: true },
+    })
+    if (!existing) throw new NotFoundException('Location not found')
+
+    return this.prisma.location.update({
+      where: { id },
+      data: { isActive: true, deletedAt: null },
+      select: this.locationSelect(),
+    })
+  }
+
+  private locationSelect() {
+    return {
+      id: true,
+      clientCompanyId: true,
+      name: true,
+      platformCode: true,
+      externalCode: true,
+      city: true,
+      region: true,
+      address: true,
+      latitude: true,
+      longitude: true,
+      isActive: true,
+      deletedAt: true,
+      createdAt: true,
+      updatedAt: true,
+    } as const
   }
 
   private async resolveReadableCompanyId(actorCompanyId: string, actorRole: UserRole, requestedCompanyId?: string) {

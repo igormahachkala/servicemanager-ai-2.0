@@ -1347,7 +1347,11 @@ export function TicketPage() {
           <div className="uiCard" style={{ marginBottom: 10, padding: 10 }}>
             {hasAssignedTechnician ? (
               <div style={{ display: 'grid', gap: 6 }}>
-                <div><b>Ответственный:</b> {ticket.assignedTechnician?.email}</div>
+                <div>
+                  <b>Ответственный:</b>{' '}
+                  {[ticket.assignedTechnician?.firstName, ticket.assignedTechnician?.lastName].filter(Boolean).join(' ') || ticket.assignedTechnician?.email}
+                </div>
+                {ticket.assignedTechnician?.phone ? <div className="muted small">{ticket.assignedTechnician.phone}</div> : null}
                 <div className="muted small">Заявка закреплена за техником.</div>
                 {assignmentDecisionQ.data ? (
                   <div className="uiCard" style={{ padding: 10, marginTop: 6 }}>

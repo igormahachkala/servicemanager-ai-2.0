@@ -10,6 +10,7 @@ const emptyCreateForm: EmployeeFormValue = {
   firstName: '',
   lastName: '',
   avatarUrl: '',
+  phone: '',
   email: '',
   password: '',
   role: 'TECHNICIAN',
@@ -21,6 +22,7 @@ const emptyEditForm: EmployeeFormValue = {
   firstName: '',
   lastName: '',
   avatarUrl: '',
+  phone: '',
   email: '',
   password: '',
   role: 'TECHNICIAN',
@@ -101,6 +103,8 @@ export function EmployeesPage() {
   const [editValue, setEditValue] = useState<EmployeeFormValue>(emptyEditForm)
   const [bindingsScopeCompanyId, setBindingsScopeCompanyId] = useState('')
   const [selectedLocationIds, setSelectedLocationIds] = useState<string[]>([])
+  const [searchQ, setSearchQ] = useState('')
+  const [showDeleted, setShowDeleted] = useState(false)
 
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
   const requestedCompanyId = useMemo(() => {
@@ -126,7 +130,7 @@ export function EmployeesPage() {
     enabled: !isObserverMode && ownCompanyQ.data?.type === 'PROVIDER',
   })
 
-  const usersQ = useQuery({ queryKey: ['users', observerCompanyId], queryFn: () => api.users(observerCompanyId || undefined) })
+  const usersQ = useQuery({ queryKey: ['users', observerCompanyId, showDeleted], queryFn: () => api.users(observerCompanyId || undefined, { includeDeleted: showDeleted }) })
   const specsQ = useQuery({ queryKey: ['specializations'], queryFn: api.specializations, enabled: !isObserverMode })
 
   const activeSpecializations = useMemo(
@@ -135,10 +139,21 @@ export function EmployeesPage() {
   )
 
   const sortedUsers = useMemo(() => {
-    const rows = [...(usersQ.data || [])]
+    const q = searchQ.trim().toLowerCase()
+    let rows = [...(usersQ.data || [])]
+    if (q) {
+      rows = rows.filter((u) => {
+        const name = [u.firstName, u.lastName].filter(Boolean).join(' ').toLowerCase()
+        return (
+          u.email.toLowerCase().includes(q) ||
+          name.includes(q) ||
+          (u.phone || '').toLowerCase().includes(q)
+        )
+      })
+    }
     rows.sort((a, b) => displayLabel(a).localeCompare(displayLabel(b), 'ru'))
     return rows
-  }, [usersQ.data])
+  }, [usersQ.data, searchQ])
 
   const activeAdminCount = useMemo(
     () => sortedUsers.filter((user) => user.role === 'ADMIN' && user.isActive !== false).length,
@@ -220,6 +235,7 @@ export function EmployeesPage() {
         firstName: normalizeText(value.firstName) || undefined,
         lastName: normalizeText(value.lastName) || undefined,
         avatarUrl: normalizeText(value.avatarUrl) || undefined,
+        phone: normalizeText(value.phone) || undefined,
         email: normalizeEmail(value.email),
         password: value.password.trim(),
         role: value.role,
@@ -250,6 +266,7 @@ export function EmployeesPage() {
         firstName: normalizeText(params.value.firstName) || undefined,
         lastName: normalizeText(params.value.lastName) || undefined,
         avatarUrl: normalizeText(params.value.avatarUrl) || undefined,
+        phone: normalizeText(params.value.phone) || undefined,
         email: normalizeEmail(params.value.email),
         password: params.value.password.trim() || undefined,
         role: params.value.role,
@@ -293,6 +310,36 @@ export function EmployeesPage() {
       setErr(error?.message || String(error))
     },
   })
+  const deleteM = useMutation({
+    mutationFn: (user: api.UserListItem) => api.deleteUser(user.id),
+    onSuccess: async (deleted) => {
+      setErr(null)
+      setSuccess(`Сотрудник ${displayLabel(deleted)} удалён`)
+      if (editingUserId === deleted.id) {
+        setEditingUserId(null)
+        setEditValue(emptyEditForm)
+      }
+      await qc.invalidateQueries({ queryKey: ['users'] })
+    },
+    onError: (error: any) => {
+      setSuccess(null)
+      setErr(error?.message || String(error))
+    },
+  })
+
+  const restoreM = useMutation({
+    mutationFn: (user: api.UserListItem) => api.restoreUser(user.id),
+    onSuccess: async (restored) => {
+      setErr(null)
+      setSuccess(`Сотрудник ${displayLabel(restored)} восстановлен`)
+      await qc.invalidateQueries({ queryKey: ['users'] })
+    },
+    onError: (error: any) => {
+      setSuccess(null)
+      setErr(error?.message || String(error))
+    },
+  })
+
   const saveBindingsM = useMutation({
     mutationFn: async () => {
       if (!editingUserId || !isEditingLocationBoundRole) {
@@ -358,6 +405,7 @@ export function EmployeesPage() {
       firstName: user.firstName || '',
       lastName: user.lastName || '',
       avatarUrl: user.avatarUrl || '',
+      phone: user.phone || '',
       email: user.email,
       password: '',
       role: user.role,
@@ -423,6 +471,17 @@ export function EmployeesPage() {
     toggleActiveM.mutate(user)
   }
 
+  function deleteEmployee(user: api.UserListItem) {
+    if (isObserverMode) return
+    if (!window.confirm(`Удалить сотрудника ${displayLabel(user)}? Это действие можно отменить через восстановление.`)) return
+    deleteM.mutate(user)
+  }
+
+  function restoreEmployee(user: api.UserListItem) {
+    if (isObserverMode) return
+    restoreM.mutate(user)
+  }
+
   function toggleLocation(locationId: string) {
     setSelectedLocationIds((current) =>
       current.includes(locationId)
@@ -431,7 +490,7 @@ export function EmployeesPage() {
     )
   }
 
-  const busy = createM.isPending || updateM.isPending || toggleActiveM.isPending
+  const busy = createM.isPending || updateM.isPending || toggleActiveM.isPending || deleteM.isPending || restoreM.isPending
   const bindingsBusy = bindingsQ.isFetching || saveBindingsM.isPending
   const observerLabel = observerCompanyQ.data?.name || observerCompanyId
   const providerHasNoLinkedClients =
@@ -606,7 +665,22 @@ export function EmployeesPage() {
         </div>
 
         <div className="panel">
-          <h3 style={{ marginBottom: 10 }}>Список сотрудников</h3>
+          <div className="row" style={{ marginBottom: 10, gap: 8, flexWrap: 'wrap' }}>
+            <h3 style={{ margin: 0 }}>Список сотрудников</h3>
+            <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: '0.9rem' }}>
+              <input type="checkbox" checked={showDeleted} onChange={(e) => setShowDeleted(e.target.checked)} />
+              Показать удалённых
+            </label>
+          </div>
+          <div style={{ marginBottom: 10 }}>
+            <input
+              type="search"
+              placeholder="Поиск: имя, email, телефон"
+              value={searchQ}
+              onChange={(e) => setSearchQ(e.target.value)}
+              style={{ width: '100%' }}
+            />
+          </div>
           {usersQ.isLoading ? (
             <div className="muted">Загружаем сотрудников…</div>
           ) : (
@@ -624,6 +698,8 @@ export function EmployeesPage() {
               onToggleEditSpecialization={toggleEditSpecialization}
               onSubmitEdit={submitEdit}
               onToggleActive={toggleActive}
+              onDelete={deleteEmployee}
+              onRestore={restoreEmployee}
               editExtras={technicianLocationBindingsBlock}
             />
           )}

@@ -2,8 +2,11 @@ import { UserRole } from '@prisma/client';
 import { isExecutorCapableRole } from '../common/executor.utils';
 
 export class UsersPolicy {
-  static listWhere(companyId: string) {
-    return { companyId };
+  static listWhere(companyId: string, includeDeleted = false) {
+    return {
+      companyId,
+      ...(includeDeleted ? {} : { deletedAt: null }),
+    };
   }
 
   static byIdWhere(companyId: string, userId: string) {
@@ -22,6 +25,7 @@ export class UsersPolicy {
       firstName?: string | null;
       lastName?: string | null;
       avatarUrl?: string | null;
+      phone?: string | null;
     },
   ) {
     return {
@@ -31,6 +35,7 @@ export class UsersPolicy {
       ...(data.firstName !== undefined ? { firstName: data.firstName } : {}),
       ...(data.lastName !== undefined ? { lastName: data.lastName } : {}),
       ...(data.avatarUrl !== undefined ? { avatarUrl: data.avatarUrl } : {}),
+      ...(data.phone !== undefined ? { phone: data.phone } : {}),
       role: data.role,
       isActive: true,
       // TECHNICIAN is always executor; ADMIN/MASTER/DISPATCHER require explicit opt-in via update
@@ -47,6 +52,7 @@ export class UsersPolicy {
     firstName?: string | null;
     lastName?: string | null;
     avatarUrl?: string | null;
+    phone?: string | null;
   }) {
     return {
       ...(data.email !== undefined ? { email: data.email } : {}),
@@ -57,6 +63,7 @@ export class UsersPolicy {
       ...(data.firstName !== undefined ? { firstName: data.firstName } : {}),
       ...(data.lastName !== undefined ? { lastName: data.lastName } : {}),
       ...(data.avatarUrl !== undefined ? { avatarUrl: data.avatarUrl } : {}),
+      ...(data.phone !== undefined ? { phone: data.phone } : {}),
     };
   }
 
@@ -67,9 +74,11 @@ export class UsersPolicy {
       firstName: true,
       lastName: true,
       avatarUrl: true,
+      phone: true,
       role: true,
       isActive: true,
       isExecutor: true,
+      deletedAt: true,
       createdAt: true,
       technicianSpecializations: {
         select: {

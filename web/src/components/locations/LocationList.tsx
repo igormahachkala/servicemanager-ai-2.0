@@ -10,6 +10,8 @@ type Props = {
   onCancelEdit: () => void
   onEditChange: (patch: Partial<LocationFormValue>) => void
   onSubmitEdit: (event: React.FormEvent) => void
+  onDelete?: (location: api.LocationListItem) => void
+  onRestore?: (location: api.LocationListItem) => void
 }
 
 export function LocationList({
@@ -21,6 +23,8 @@ export function LocationList({
   onCancelEdit,
   onEditChange,
   onSubmitEdit,
+  onDelete,
+  onRestore,
 }: Props) {
   if (locations.length === 0) {
     return (
@@ -35,12 +39,13 @@ export function LocationList({
     <div style={{ display: 'grid', gap: 12 }}>
       {locations.map((location) => {
         const isEditing = editingLocationId === location.id
+        const isDeleted = !!location.deletedAt
 
         return (
-          <div key={location.id} className="panel" style={{ marginBottom: 0 }}>
+          <div key={location.id} className="panel" style={{ marginBottom: 0, opacity: isDeleted ? 0.65 : 1 }}>
             <div className="row" style={{ alignItems: 'flex-start' }}>
               <div>
-                <div style={{ fontWeight: 700 }}>{location.name}</div>
+                <div style={{ fontWeight: 700 }}>{location.name}{isDeleted ? ' · Удалена' : ''}</div>
                 <div className="muted small" style={{ marginTop: 4 }}>
                   Номер точки: {location.platformCode || '—'}
                 </div>
@@ -49,10 +54,25 @@ export function LocationList({
                 <div className="muted small">Статус: {location.isActive === false ? 'Неактивна' : 'Активна'}</div>
               </div>
 
-              <div>
-                <button className="ghost" onClick={() => onBeginEdit(location)} disabled={busy}>
-                  Редактировать
-                </button>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {!isDeleted ? (
+                  <>
+                    <button className="ghost" onClick={() => onBeginEdit(location)} disabled={busy}>
+                      Редактировать
+                    </button>
+                    {onDelete ? (
+                      <button className="ghost" style={{ color: '#dc2626' }} onClick={() => onDelete(location)} disabled={busy}>
+                        Удалить
+                      </button>
+                    ) : null}
+                  </>
+                ) : (
+                  onRestore ? (
+                    <button className="ghost" onClick={() => onRestore(location)} disabled={busy}>
+                      Восстановить
+                    </button>
+                  ) : null
+                )}
               </div>
             </div>
 

@@ -153,6 +153,8 @@ model User {
   role       UserRole
   isActive   Boolean  @default(true)
   isExecutor Boolean  @default(false)
+  phone      String?
+  deletedAt  DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -208,6 +210,7 @@ model Location {
   latitude     Float?
   longitude    Float?
   isActive     Boolean  @default(true)
+  deletedAt    DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

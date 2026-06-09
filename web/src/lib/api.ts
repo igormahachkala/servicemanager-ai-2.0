@@ -28,6 +28,7 @@ export type Me = {
   firstName?: string | null
   lastName?: string | null
   avatarUrl?: string | null
+  phone?: string | null
   role: Role
   companyId: string
   companyName?: string | null
@@ -248,8 +249,11 @@ export type UserListItem = {
   firstName?: string | null
   lastName?: string | null
   avatarUrl?: string | null
+  phone?: string | null
   role: Role
   isActive?: boolean
+  isExecutor?: boolean
+  deletedAt?: string | null
   createdAt?: string
   companyId?: string
   technicianSpecializations?: Array<{
@@ -273,6 +277,7 @@ export type LocationListItem = {
   latitude?: number | null
   longitude?: number | null
   isActive?: boolean
+  deletedAt?: string | null
   createdAt?: string
   updatedAt?: string
 }
@@ -303,6 +308,7 @@ export type CreateUserInput = {
   firstName?: string
   lastName?: string
   avatarUrl?: string
+  phone?: string
   email: string
   password: string
   role: Role
@@ -312,6 +318,7 @@ export type UpdateUserInput = {
   firstName?: string
   lastName?: string
   avatarUrl?: string
+  phone?: string
   email?: string
   password?: string
   role?: Role
@@ -651,7 +658,7 @@ export type TicketGetOne = {
     status?: string | null
   } | null
   problemCategory: { id: string; name: string; instructions: string | null }
-  assignedTechnician: { id: string; email: string } | null
+  assignedTechnician: { id: string; email: string; firstName?: string | null; lastName?: string | null; phone?: string | null } | null
   parentId?: string | null
   parent?: {
     id: string
@@ -1695,9 +1702,11 @@ export async function createUser(input: CreateUserInput): Promise<UserListItem> 
   })
 }
 
-export async function users(companyId?: string): Promise<UserListItem[]> {
+export async function users(companyId?: string, opts?: { q?: string; includeDeleted?: boolean }): Promise<UserListItem[]> {
   const search = new URLSearchParams()
   if (companyId) search.set('companyId', companyId)
+  if (opts?.q) search.set('q', opts.q)
+  if (opts?.includeDeleted) search.set('includeDeleted', 'true')
   const suffix = search.toString() ? '?' + search.toString() : ''
   return request<UserListItem[]>('/users' + suffix)
 }
@@ -1717,6 +1726,18 @@ export async function deactivateUser(userId: string): Promise<UserListItem> {
 
 export async function activateUser(userId: string): Promise<UserListItem> {
   return request<UserListItem>(`/users/${userId}/activate`, {
+    method: 'PATCH',
+  })
+}
+
+export async function deleteUser(userId: string): Promise<UserListItem> {
+  return request<UserListItem>(`/users/${userId}`, {
+    method: 'DELETE',
+  })
+}
+
+export async function restoreUser(userId: string): Promise<UserListItem> {
+  return request<UserListItem>(`/users/${userId}/restore`, {
     method: 'PATCH',
   })
 }
@@ -1948,9 +1969,10 @@ export async function companyServiceContracts(companyId: string): Promise<Servic
 }
 
 /** `companyId` — query для GET /locations: tenant локаций (у провайдера в linked-scope это id клиента). */
-export async function locations(companyId?: string): Promise<LocationListItem[]> {
+export async function locations(companyId?: string, opts?: { includeDeleted?: boolean }): Promise<LocationListItem[]> {
   const search = new URLSearchParams()
   if (companyId) search.set('companyId', companyId)
+  if (opts?.includeDeleted) search.set('includeDeleted', 'true')
   const suffix = search.toString() ? '?' + search.toString() : ''
   const response = await request<unknown>('/locations' + suffix)
   return normalizeArrayResponse<LocationListItem>(response, [
@@ -1978,6 +2000,18 @@ export async function setLocationStatus(id: string, isActive: boolean): Promise<
   return request<LocationListItem>(`/locations/${id}/status`, {
     method: 'PATCH',
     body: { isActive },
+  })
+}
+
+export async function deleteLocation(id: string): Promise<LocationListItem> {
+  return request<LocationListItem>(`/locations/${id}`, {
+    method: 'DELETE',
+  })
+}
+
+export async function restoreLocation(id: string): Promise<LocationListItem> {
+  return request<LocationListItem>(`/locations/${id}/restore`, {
+    method: 'PATCH',
   })
 }
 
