@@ -210,16 +210,17 @@ export function EmployeesPage() {
     meQ.data?.companyId,
   ])
 
+  // Single effect: load from cache when data exists, clear when scope changes before data loads.
+  // Merged from two effects to prevent the clear (B) from racing and overwriting the load (A)
+  // in the same render cycle when bindingsQ has cached data and effectiveBindingsCompanyId changes.
   useEffect(() => {
     if (!isEditingLocationBoundRole) return
-    if (!bindingsQ.data) return
-    setSelectedLocationIds(bindingsQ.data.locationIds || [])
-  }, [isEditingLocationBoundRole, bindingsQ.data])
-
-  // Clear stale selection whenever scope changes (before new data loads).
-  useEffect(() => {
-    setSelectedLocationIds([])
-  }, [effectiveBindingsCompanyId])
+    if (bindingsQ.data) {
+      setSelectedLocationIds(bindingsQ.data.locationIds || [])
+    } else {
+      setSelectedLocationIds([])
+    }
+  }, [isEditingLocationBoundRole, effectiveBindingsCompanyId, bindingsQ.data])
 
   useEffect(() => {
     if (!editingUserId || !specsQ.data?.length) return
