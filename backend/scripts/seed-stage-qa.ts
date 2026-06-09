@@ -176,13 +176,18 @@ async function main() {
   })
 
   // ---- Provider-user → client-location bindings -----------------------------
-  // companyId = the provider company that owns the binding; location belongs to the client.
+  // companyId semantics depend on the tech's contract type:
+  //   • Sub-contractor techs (zosimov/otherSub): companyId = their PROVIDER company (scoping via TechnicianClientBinding)
+  //   • PRIMARY-contract techs (secondaryTech): companyId = CLIENT company
+  //     because getBoundContexts queries `companyId IN (clientIds)` — it expects the client side.
   const bindings: Array<{ id: string; userId: string; locationId: string; companyId: string }> = [
-    // Zosimov tech1 is bound to the Zosimov location.
+    // Zosimov tech1 is bound to the Zosimov location (provider-scoped via TechnicianClientBinding flow).
     { id: '60000000-0000-4000-8000-000000000001', userId: USR.zosimovTech1, locationId: LOC.zosimovBound, companyId: CO.zosimov },
-    // Other Subcontractor tech is bound to the Other location.
+    // Other Subcontractor tech is bound to the Other location (provider-scoped).
     { id: '60000000-0000-4000-8000-000000000002', userId: USR.otherSubTech, locationId: LOC.otherBound, companyId: CO.otherSub },
-    { id: '60000000-0000-4000-8000-000000000003', userId: USR.secondaryTech, locationId: LOC.otherBound, companyId: CO.secondary },
+    // tech@test.local (CO.secondary PRIMARY tech): bound to Фудзияма–Арбат via CLIENT company ID
+    // so that getBoundContexts returns QA Client Co / Фудзияма–Арбат.
+    { id: '60000000-0000-4000-8000-000000000003', userId: USR.secondaryTech, locationId: LOC.otherBound, companyId: CO.client },
   ]
 
   for (const b of bindings) {
@@ -311,14 +316,16 @@ async function main() {
     },
   })
 
-  // QA Secondary Provider → QA Client as SECONDARY
+  // QA Secondary Provider → QA Client as PRIMARY
+  // PRIMARY (not SECONDARY) so that getBoundContexts → listPrimaryLinkedClientIds returns
+  // CO.client for tech@test.local, enabling the mobile bound-context flow.
   await prisma.serviceContract.upsert({
     where: { clientCompanyId_providerCompanyId: { clientCompanyId: CO.client, providerCompanyId: CO.secondary } },
-    update: { role: ServiceContractRole.SECONDARY, status: ServiceContractStatus.ACTIVE },
+    update: { role: ServiceContractRole.PRIMARY, status: ServiceContractStatus.ACTIVE },
     create: {
       clientCompanyId: CO.client,
       providerCompanyId: CO.secondary,
-      role: ServiceContractRole.SECONDARY,
+      role: ServiceContractRole.PRIMARY,
       status: ServiceContractStatus.ACTIVE,
     },
   })
