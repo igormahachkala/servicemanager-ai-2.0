@@ -95,10 +95,16 @@ export class TicketsAssignmentService {
   private async assertExecutorOperationsAllowed(actorCompanyId: string) {
     const actorCompany = await this.prisma.company.findUnique({
       where: { id: actorCompanyId },
-      select: { id: true },
+      select: { id: true, type: true },
     });
     if (!actorCompany) {
       throw new NotFoundException('Company not found');
+    }
+    if (actorCompany.type === CompanyType.CLIENT) {
+      throw new ForbiddenException({
+        code: 'PERMISSION_DENIED',
+        message: 'Client companies cannot perform assignment operations',
+      });
     }
   }
 

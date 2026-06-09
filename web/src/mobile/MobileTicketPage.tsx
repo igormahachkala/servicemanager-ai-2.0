@@ -138,6 +138,12 @@ export function MobileTicketPage() {
     [searchParams, meQ.data],
   )
 
+  const ownCompanyQ = useQuery({
+    queryKey: ['mobile-own-company'],
+    queryFn: () => api.company(),
+    enabled: !observerCompanyId,
+  })
+
   const urlLinkedClientCompanyId = useMemo(() => {
     const q = (searchParams.get('linkedClientCompanyId') || '').trim()
     if (q) return q
@@ -356,7 +362,8 @@ export function MobileTicketPage() {
     timelineQ.data,
   ])
 
-  const canAssignProvider = api.isProviderTicketAssignRole(meQ.data?.role)
+  const isOwnCompanyClient = !observerCompanyId && ownCompanyQ.data?.type === 'CLIENT'
+  const canAssignProvider = !isOwnCompanyClient && api.isProviderTicketAssignRole(meQ.data?.role)
   const techPrimary = ticket && meQ.data?.id ? api.mobileTechnicianTicketPrimaryAction(ticket, meQ.data.id) : null
   const assigneePresent = !!(ticket?.assignedTechnicianId || ticket?.assignedTechnician)
   const aa = ticket?.meta?.availableActions
