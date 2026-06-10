@@ -2202,3 +2202,278 @@ a.mobileBtn.mobileCreateTicketLink {
   color: #fff;
   font-weight: 700;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   SMA REDESIGN V1 — Mobile Workspace Design System
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── 5-item bottom nav with raised center Create button ──── */
+.mobileBottomNavInner {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 2px;
+  padding: 6px 4px 10px;
+}
+
+.mobileNavItemCreate {
+  text-decoration: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.mobileNavCreateButton {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #3b82f6, #2563eb);
+  color: #fff;
+  font-size: 1.75rem;
+  font-weight: 300;
+  line-height: 1;
+  border: none;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translateY(-10px);
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+  flex-shrink: 0;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.mobileNavCreateButton:active {
+  transform: translateY(-7px);
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+}
+
+.mobileNavButton {
+  min-height: 44px;
+  font-size: 0.72rem;
+}
+
+/* ── Stats grid on home screen ──────────────────────────── */
+.mobileStatsGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.mobileStatBlock {
+  background: #fff;
+  border-radius: 16px;
+  padding: 14px 14px 12px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 2px 8px rgba(17, 24, 39, 0.04);
+}
+
+.mobileStatValue {
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+
+.mobileStatLabel {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.mobileStatBlock--new .mobileStatValue  { color: #2563eb; }
+.mobileStatBlock--inwork .mobileStatValue { color: #d97706; }
+.mobileStatBlock--overdue .mobileStatValue { color: #dc2626; }
+.mobileStatBlock--done .mobileStatValue  { color: #059669; }
+
+/* ── V2 ticket list card (no thumbnail, clean text) ─────── */
+.mobileTicketCardV2 {
+  padding: 14px 14px 12px;
+  display: grid;
+  gap: 5px;
+}
+
+.mobileTicketCardV2Top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 0;
+}
+
+.mobileTicketCardV2Number {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #111827;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobileTicketCardV2Cat {
+  font-weight: 400;
+  color: #6b7280;
+}
+
+.mobileTicketCardV2Time {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.mobileTicketCardV2Location {
+  font-size: 0.8rem;
+  color: #6b7280;
+  line-height: 1.35;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+}
+
+.mobileTicketCardV2Desc {
+  font-size: 0.85rem;
+  color: #374151;
+  line-height: 1.4;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.mobileTicketCardV2Bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* ── Horizontal scrollable segment filter (MobileMyTickets) */
+.mobileSegments {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 4px 0 8px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.mobileSegments::-webkit-scrollbar { display: none; }
+
+.mobileSegmentBtn {
+  flex-shrink: 0;
+  padding: 7px 16px;
+  border-radius: 20px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  border: 2px solid #e5e7eb;
+  background: #fff;
+  color: #374151;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  -webkit-appearance: none;
+  appearance: none;
+  line-height: 1.4;
+}
+
+.mobileSegmentBtn--active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+}
+
+/* ── Ticket detail: large status pill at top ─────────────── */
+.mobileTicketStatusLarge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  padding: 6px 14px 6px 10px;
+  border-radius: 20px;
+  letter-spacing: 0.01em;
+}
+
+.mobileTicketStatusLarge::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.mobileTicketStatusLarge--NEW        { background: #eff6ff; color: #1d4ed8; }
+.mobileTicketStatusLarge--NEW::before { background: #2563eb; }
+.mobileTicketStatusLarge--ASSIGNED        { background: #ecfeff; color: #0e7490; }
+.mobileTicketStatusLarge--ASSIGNED::before { background: #06b6d4; }
+.mobileTicketStatusLarge--IN_PROGRESS        { background: #fffbeb; color: #92400e; }
+.mobileTicketStatusLarge--IN_PROGRESS::before { background: #f59e0b; }
+.mobileTicketStatusLarge--DONE        { background: #f0fdf4; color: #166534; }
+.mobileTicketStatusLarge--DONE::before { background: #22c55e; }
+.mobileTicketStatusLarge--CANCELED        { background: #f3f4f6; color: #6b7280; }
+.mobileTicketStatusLarge--CANCELED::before { background: #9ca3af; }
+
+/* ── Ticket detail: field rows ───────────────────────────── */
+.mobileDetailSection {
+  display: grid;
+  gap: 0;
+  margin-top: 12px;
+}
+
+.mobileDetailRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid #f3f4f6;
+  min-width: 0;
+}
+
+.mobileDetailRow:last-child { border-bottom: none; }
+
+.mobileDetailRowLabel {
+  font-size: 0.78rem;
+  color: #9ca3af;
+  font-weight: 600;
+  flex-shrink: 0;
+  padding-top: 1px;
+}
+
+.mobileDetailRowValue {
+  font-size: 0.9rem;
+  color: #111827;
+  line-height: 1.45;
+  text-align: right;
+  word-break: break-word;
+}
+
+.mobileTicketDescBlock {
+  margin-top: 12px;
+  padding: 12px;
+  background: #f8f9fb;
+  border-radius: 12px;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: #1f2937;
+  white-space: pre-wrap;
+}
+
+.mobileDetailTitle {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #111827;
+  line-height: 1.35;
+  margin-top: 10px;
+  margin-bottom: 4px;
+}

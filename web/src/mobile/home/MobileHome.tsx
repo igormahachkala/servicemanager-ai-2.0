@@ -386,6 +386,7 @@ export function MobileHome() {
         techWillRedirectForScope={techWillRedirectForScope}
         techBoundError={techBoundDefaultsQ.isError ? techBoundDefaultsQ.error : null}
         techBoundEmpty={!techBoundDefaultsQ.isPending && !techBoundDefaultsQ.isError && techBoundDefaultsQ.isSuccess && (techBoundDefaultsQ.data?.length ?? 0) === 0}
+        tabCounts={tabCounts}
       />
       {showMobileHomeTicketBoard ? (
         <>

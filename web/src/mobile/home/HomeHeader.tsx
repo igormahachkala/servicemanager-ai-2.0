@@ -1,6 +1,7 @@
 import * as api from '../../lib/api'
 import { MobileRoleContextStrip } from '../MobileUxHints'
 import { formatMobileMutationError } from '../mobileActionErrors'
+import type { MobileHomeBoardFilterTab } from '../mobileHomeBoardFilters'
 
 type Props = {
   me: Awaited<ReturnType<typeof api.me>> | undefined
@@ -15,6 +16,7 @@ type Props = {
   techWillRedirectForScope: boolean
   techBoundError: unknown
   techBoundEmpty: boolean
+  tabCounts?: Record<MobileHomeBoardFilterTab, number>
 }
 
 export function HomeHeader(props: Props) {
@@ -31,27 +33,50 @@ export function HomeHeader(props: Props) {
     techWillRedirectForScope,
     techBoundError,
     techBoundEmpty,
+    tabCounts,
   } = props
 
   return (
     <>
-      <div>
-        <h1 className="mobileTitle">Главная</h1>
-        <div className="mobileSubtitle">Операционный экран без desktop-шумов</div>
+      <div style={{ marginBottom: 4 }}>
+        <h1 className="mobileTitle">Мои заявки</h1>
         {me ? <MobileRoleContextStrip role={me.role} /> : null}
         {!isOnline && boardHasData ? <div className="mobileStaleDataBanner" role="status">Показаны сохранённые данные</div> : null}
       </div>
 
-      <div className="mobileCard" style={{ padding: 12 }}>
-        <div className="mobileMeta">
-          <div><span className="mobileContextLabel">Компания:</span> {companyPrimaryLine}</div>
-          {linkedClientCompanyId ? (
-            <div style={{ marginTop: 6 }}>
-              <span className="mobileContextLabel">Клиент:</span> {linkedClientDisplayName || '—'}
-            </div>
-          ) : null}
+      {tabCounts ? (
+        <div className="mobileStatsGrid">
+          <div className="mobileStatBlock mobileStatBlock--new">
+            <div className="mobileStatValue">{tabCounts.new}</div>
+            <div className="mobileStatLabel">Новые</div>
+          </div>
+          <div className="mobileStatBlock mobileStatBlock--inwork">
+            <div className="mobileStatValue">{tabCounts.in_work}</div>
+            <div className="mobileStatLabel">В работе</div>
+          </div>
+          <div className="mobileStatBlock mobileStatBlock--overdue">
+            <div className="mobileStatValue">{tabCounts.overdue}</div>
+            <div className="mobileStatLabel">Просроченные</div>
+          </div>
+          <div className="mobileStatBlock mobileStatBlock--done">
+            <div className="mobileStatValue">{tabCounts.done}</div>
+            <div className="mobileStatLabel">Завершённые</div>
+          </div>
         </div>
-      </div>
+      ) : null}
+
+      {(companyPrimaryLine || linkedClientCompanyId) ? (
+        <div className="mobileCard" style={{ padding: '10px 12px', marginBottom: 4 }}>
+          <div className="mobileMeta">
+            <div><span className="mobileContextLabel">Компания:</span> {companyPrimaryLine}</div>
+            {linkedClientCompanyId ? (
+              <div style={{ marginTop: 4 }}>
+                <span className="mobileContextLabel">Клиент:</span> {linkedClientDisplayName || '—'}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
 
       {boardError ? (
         <div className="mobileNotice mobileNoticeError">

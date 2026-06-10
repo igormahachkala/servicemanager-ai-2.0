@@ -171,8 +171,9 @@ export function MobileShell() {
   const mobileRoot = getMobileRouteRoot(location.pathname)
   const mobileNavItems: MobileNavItem[] = [
     { id: 'home', label: 'Главная', to: mobileRoot },
-    { id: 'create', label: 'Создать', to: mobilePath(location.pathname, '/create') },
-    { id: 'my', label: 'Мои', to: mobilePath(location.pathname, '/my') },
+    { id: 'tickets', label: 'Заявки', to: mobilePath(location.pathname, '/my') },
+    { id: 'create', label: '+', to: mobilePath(location.pathname, '/create') },
+    { id: 'chat', label: 'Чат', to: mobilePath(location.pathname, '/notifications') },
     { id: 'profile', label: 'Профиль', to: mobilePath(location.pathname, '/profile') },
   ]
 
@@ -265,6 +266,21 @@ export function MobileShell() {
         <div className="mobileBottomNavInner">
           {mobileNavItems.map((item) => {
             const active = isActivePath(location.pathname, item.to)
+            const isCreate = item.id === 'create'
+            if (isCreate) {
+              return (
+                <Link
+                  key={item.id}
+                  className="mobileNavItemCreate"
+                  to={api.appendScopeToPath(item.to, scope, meQ.data)}
+                  aria-label="Создать заявку"
+                >
+                  <button type="button" className="mobileNavCreateButton" aria-hidden>
+                    +
+                  </button>
+                </Link>
+              )
+            }
             return (
               <Link
                 key={item.id}

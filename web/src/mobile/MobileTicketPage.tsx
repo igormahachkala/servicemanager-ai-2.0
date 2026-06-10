@@ -831,32 +831,56 @@ export function MobileTicketPage() {
               .filter(Boolean)
               .join(' ')}
           >
-            <div className="mobileTicketDetailsHeadline">{mobileTicketNumberTitle(ticket.ticketNumber)}</div>
-            <div className="mobileRow" style={{ marginTop: 8 }}>
-              <span className="mobileMeta">ID</span>
-              <span style={{ fontSize: '0.78rem', textAlign: 'right', wordBreak: 'break-all' }}>{ticket.id}</span>
+            {/* Status badge + number */}
+            <div className="mobileRow" style={{ marginBottom: 4 }}>
+              <span className={`mobileTicketStatusLarge mobileTicketStatusLarge--${ticket.status}`}>
+                {mobileTicketStatusLabelRu(ticket.status)}
+              </span>
+              <span style={{ fontSize: '0.78rem', color: '#9ca3af' }}>
+                {mobileTicketNumberTitle(ticket.ticketNumber)}
+              </span>
             </div>
-            <div className="mobileMeta" style={{ marginTop: 8 }}>
-              {mobileTicketCategoryLocationFromDetail(ticket)}
-            </div>
-            <div className="mobileRow" style={{ marginTop: 12 }}>
-              <span className="mobileMeta">Статус</span>
-              <span className={`mobileTicketStatus mobileTicketStatus--${ticket.status}`}>{mobileTicketStatusLabelRu(ticket.status)}</span>
-            </div>
-            <div style={{ marginTop: 10 }}>
-              <div className="mobileMeta" style={{ marginBottom: 4 }}>
-                SLA
+
+            {/* Problem description (title) */}
+            <div className="mobileDetailTitle">{desc}</div>
+
+            {/* Field rows */}
+            <div className="mobileDetailSection">
+              {ticket.problemCategory?.name ? (
+                <div className="mobileDetailRow">
+                  <span className="mobileDetailRowLabel">Категория</span>
+                  <span className="mobileDetailRowValue">{ticket.problemCategory.name}</span>
+                </div>
+              ) : null}
+              <div className="mobileDetailRow">
+                <span className="mobileDetailRowLabel">Объект</span>
+                <span className="mobileDetailRowValue">{formatAddressBlock(ticket)}</span>
               </div>
-              <div style={{ fontSize: '0.92rem', lineHeight: 1.5 }}>
-                {mobileTicketPriorityIsUrgent(ticket.priority ?? 'NORMAL') ? (
-                  <span className="mobileSlaUrgentPill" style={{ marginRight: 8 }}>
-                    Срочно
-                  </span>
-                ) : null}
-                <span>Приоритет: {ticket.priority === 'URGENT' ? 'срочный ответ (2 ч)' : 'обычный (24 ч)'}</span>
-                {ticket.slaDueAt ? (
-                  <div style={{ marginTop: 6 }}>
-                    Дедлайн:{' '}
+              <div className="mobileDetailRow">
+                <span className="mobileDetailRowLabel">Приоритет</span>
+                <span className="mobileDetailRowValue">
+                  {mobileTicketPriorityIsUrgent(ticket.priority ?? 'NORMAL') ? (
+                    <span className="mobileSlaUrgentPill" style={{ marginRight: 6 }}>Срочно</span>
+                  ) : null}
+                  {ticket.priority === 'URGENT' ? 'Срочный (2 ч)' : 'Обычный (24 ч)'}
+                  {(() => {
+                    const line = mobileTicketSlaCountdownLabel({
+                      slaDueAt: ticket.slaDueAt,
+                      slaBreached: !!ticket.slaBreachedAt || (ticket.slaDueAt ? Date.now() > new Date(ticket.slaDueAt).getTime() : false),
+                      status: ticket.status,
+                    })
+                    return line ? <span style={{ marginLeft: 8, color: '#dc2626', fontWeight: 700 }}>{line}</span> : null
+                  })()}
+                </span>
+              </div>
+              <div className="mobileDetailRow">
+                <span className="mobileDetailRowLabel">Исполнитель</span>
+                <span className="mobileDetailRowValue" style={{ whiteSpace: 'pre-line' }}>{executorLine}</span>
+              </div>
+              {ticket.slaDueAt ? (
+                <div className="mobileDetailRow">
+                  <span className="mobileDetailRowLabel">SLA</span>
+                  <span className="mobileDetailRowValue">
                     {new Date(ticket.slaDueAt).toLocaleString('ru-RU', {
                       day: '2-digit',
                       month: '2-digit',
@@ -864,41 +888,18 @@ export function MobileTicketPage() {
                       hour: '2-digit',
                       minute: '2-digit',
                     })}
-                  </div>
-                ) : null}
-                {(() => {
-                  const line = mobileTicketSlaCountdownLabel({
-                    slaDueAt: ticket.slaDueAt,
-                    slaBreached: !!ticket.slaBreachedAt || (ticket.slaDueAt ? Date.now() > new Date(ticket.slaDueAt).getTime() : false),
-                    status: ticket.status,
-                  })
-                  return line ? <div style={{ marginTop: 4 }}>{line}</div> : null
-                })()}
+                  </span>
+                </div>
+              ) : null}
+              <div className="mobileDetailRow" style={{ borderBottom: 'none' }}>
+                <span className="mobileDetailRowLabel">ID</span>
+                <span className="mobileDetailRowValue" style={{ fontSize: '0.72rem', color: '#9ca3af', wordBreak: 'break-all' }}>{ticket.id}</span>
               </div>
             </div>
-            <div className="mobileRow" style={{ marginTop: 10 }}>
-              <span className="mobileMeta">Категория</span>
-              <strong style={{ textAlign: 'right', fontSize: '0.9rem' }}>{ticket.problemCategory?.name || '—'}</strong>
-            </div>
+
             {shouldShowClientTicketLifecycleHint(meQ.data, ticket) && ticket.problemCategory?.name ? (
               <CategoryGuidancePanel categoryName={ticket.problemCategory.name} variant="mobile" />
             ) : null}
-            <div style={{ marginTop: 10 }}>
-              <div className="mobileMeta" style={{ marginBottom: 4 }}>
-                Локация / адрес
-              </div>
-              <div style={{ fontSize: '0.95rem', lineHeight: 1.45 }}>{formatAddressBlock(ticket)}</div>
-            </div>
-            <div className="mobileRow" style={{ marginTop: 12 }}>
-              <span className="mobileMeta">Исполнитель</span>
-              <strong style={{ textAlign: 'right', fontSize: '0.9rem', whiteSpace: 'pre-line' }}>{executorLine}</strong>
-            </div>
-            <div style={{ marginTop: 12 }}>
-              <div className="mobileMeta" style={{ marginBottom: 6 }}>
-                Описание
-              </div>
-              <div style={{ whiteSpace: 'pre-wrap', fontSize: '0.95rem', lineHeight: 1.45 }}>{desc}</div>
-            </div>
           </div>
 
           {hasTechnicianActionsBlock ? (

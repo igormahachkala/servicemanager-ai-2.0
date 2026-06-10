@@ -14,17 +14,28 @@ import { appendBoardNavigationContextToPath, readBoardNavigationContextFromSearc
 import { ticketMatchesMobileHomeSearch } from './mobileHomeListUtils'
 import { mobilePath } from './mobileRoute'
 
-type FilterKey = 'active' | 'new' | 'archive'
+type FilterKey = 'all' | 'new' | 'active' | 'overdue' | 'archive'
 
 function ticketLinkState(ticketCompanyId?: string | null) {
   return mobileTicketNavState('my', ticketCompanyId || undefined)
 }
 
-const filterMap: Record<FilterKey, api.TicketStatus[]> = {
+const filterStatuses: Partial<Record<FilterKey, api.TicketStatus[]>> = {
+  all: ['NEW', 'ASSIGNED', 'IN_PROGRESS'],
   active: ['ASSIGNED', 'IN_PROGRESS'],
   new: ['NEW'],
   archive: ['DONE', 'CANCELED'],
 }
+
+const SEGMENT_LABELS: Record<FilterKey, string> = {
+  all: 'Все',
+  new: 'Новые',
+  active: 'В работе',
+  overdue: 'Просроченные',
+  archive: 'Архив',
+}
+
+const SEGMENTS: FilterKey[] = ['all', 'new', 'active', 'overdue', 'archive']
 
 export function MobileMyTickets() {
   const location = useLocation()
@@ -33,7 +44,7 @@ export function MobileMyTickets() {
   const initialBoardContext = useMemo(() => readBoardNavigationContextFromSearch(search), [location.search])
   const initialFilter = useMemo<FilterKey>(() => {
     const tab = (initialBoardContext?.tab || '').trim()
-    return tab === 'new' || tab === 'archive' || tab === 'active' ? (tab as FilterKey) : 'active'
+    return (SEGMENTS as string[]).includes(tab) ? (tab as FilterKey) : 'all'
   }, [initialBoardContext?.tab])
   const [filter, setFilter] = useState<FilterKey>(initialFilter)
   const [archiveSearch, setArchiveSearch] = useState(() => (initialBoardContext?.search || '').trim().slice(0, 240))
@@ -87,7 +98,7 @@ export function MobileMyTickets() {
       api.board({
         linkedClientCompanyId: linkedClientCompanyId || undefined,
         companyId: companyId || undefined,
-        take: filter === 'archive' ? 200 : 60,
+        take: filter === 'archive' ? 200 : 100,
       }),
     enabled:
       !!meQ.data && (meQ.data.role !== 'TECHNICIAN' || !!linkedClientCompanyId),
@@ -95,15 +106,22 @@ export function MobileMyTickets() {
 
   const allTickets = boardQ.data?.columns.flatMap((col) => col.cards || []) || []
   const pageScopedTickets = useMemo(
-    () => ticketsForMobileMyPage(allTickets, filter, meQ.data?.id, meQ.data?.role),
+    () => ticketsForMobileMyPage(allTickets, filter === 'archive' ? 'archive' : 'active', meQ.data?.id, meQ.data?.role),
     [allTickets, filter, meQ.data?.id, meQ.data?.role],
   )
-  const statuses = filterMap[filter]
   const filteredTickets = useMemo(() => {
-    const byStatus = pageScopedTickets.filter((ticket) => statuses.includes(ticket.status))
-    if (filter !== 'archive' || !archiveSearch.trim()) return byStatus
-    return byStatus.filter((ticket) => ticketMatchesMobileHomeSearch(ticket, archiveSearch))
-  }, [pageScopedTickets, statuses, filter, archiveSearch])
+    let result = pageScopedTickets
+    if (filter === 'overdue') {
+      result = result.filter((t) => t.slaBreached && ['NEW', 'ASSIGNED', 'IN_PROGRESS'].includes(t.status))
+    } else {
+      const statuses = filterStatuses[filter]
+      if (statuses) result = result.filter((t) => statuses.includes(t.status))
+    }
+    if (filter === 'archive' && archiveSearch.trim()) {
+      result = result.filter((t) => ticketMatchesMobileHomeSearch(t, archiveSearch))
+    }
+    return result
+  }, [pageScopedTickets, filter, archiveSearch])
 
   useEffect(() => {
     const basePath = api.appendScopeToPath(mobilePath(location.pathname, '/my'), pageScope, meQ.data)
@@ -128,8 +146,7 @@ export function MobileMyTickets() {
     return (
       <div className="mobileSection">
         <div>
-          <h1 className="mobileTitle">Мои заявки</h1>
-          <div className="mobileSubtitle">Личный список без таблиц и desktop-плотности</div>
+          <h1 className="mobileTitle">Заявки</h1>
         </div>
         <div className="mobileCard mobileMeta">Загрузка…</div>
       </div>
@@ -147,9 +164,8 @@ export function MobileMyTickets() {
 
   return (
     <div className="mobileSection">
-      <div>
-        <h1 className="mobileTitle">Мои заявки</h1>
-        <div className="mobileSubtitle">Личный список без таблиц и desktop-плотности</div>
+      <div style={{ marginBottom: 4 }}>
+        <h1 className="mobileTitle">Заявки</h1>
         <MobileRoleContextStrip role={meQ.data.role} />
       </div>
 
@@ -180,25 +196,17 @@ export function MobileMyTickets() {
         </div>
       ) : null}
 
-      <div className="mobileActionRow">
-        <button
-          className={filter === 'active' ? 'mobileBtn' : 'mobileBtn mobileBtnSecondary'}
-          onClick={() => setFilter('active')}
-        >
-          Активные
-        </button>
-        <button
-          className={filter === 'new' ? 'mobileBtn' : 'mobileBtn mobileBtnSecondary'}
-          onClick={() => setFilter('new')}
-        >
-          Новые
-        </button>
-        <button
-          className={filter === 'archive' ? 'mobileBtn' : 'mobileBtn mobileBtnSecondary'}
-          onClick={() => { setFilter('archive'); setArchiveSearch('') }}
-        >
-          Архив
-        </button>
+      <div className="mobileSegments">
+        {SEGMENTS.map((seg) => (
+          <button
+            key={seg}
+            type="button"
+            className={`mobileSegmentBtn${filter === seg ? ' mobileSegmentBtn--active' : ''}`}
+            onClick={() => { setFilter(seg); if (seg !== 'archive') setArchiveSearch('') }}
+          >
+            {SEGMENT_LABELS[seg]}
+          </button>
+        ))}
       </div>
 
       {filter === 'archive' ? (
