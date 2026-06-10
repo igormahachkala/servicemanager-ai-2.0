@@ -91,84 +91,65 @@ export function MobileProfile() {
     }
   }
 
+  const fullName = [meQ.data?.firstName, meQ.data?.lastName].filter(Boolean).join(' ').trim()
+  const initials = fullName
+    ? fullName.split(/\s+/).map((n) => n[0]).join('').toUpperCase().slice(0, 2)
+    : (meQ.data?.email || '?')[0].toUpperCase()
+  const notificationsPath = mobilePath(location.pathname, '/notifications')
+
   return (
     <div className="mobileSection">
-      <div>
-        <h1 className="mobileTitle">Профиль</h1>
-        <div className="mobileSubtitle">Ключевая информация и выход из аккаунта</div>
-      </div>
-
       {meQ.isError ? <div className="mobileNotice mobileNoticeError">{String((meQ.error as any)?.message || meQ.error)}</div> : null}
 
-      <div className="mobileCard">
+      {/* Hero card */}
+      <div className="mobileProfileHero">
+        <div className="mobileProfileAvatar">{initials}</div>
+        <div className="mobileProfileName">{fullName || meQ.data?.email || '—'}</div>
+        <span className="mobileProfileRoleBadge">{roleLabel(meQ.data?.role)}</span>
+        {meQ.data?.companyName ? <div className="mobileProfileCompany">{meQ.data.companyName}</div> : null}
+        {linkedClientCompanyId ? (
+          <div className="mobileProfileLinkedClient">
+            {(meQ.data?.role === 'TECHNICIAN' ? techBoundLabelQ.isLoading : linkedClientsQ.isLoading)
+              ? 'Загрузка клиента…'
+              : linkedClientName || linkedClientCompanyId}
+          </div>
+        ) : null}
+        {meQ.data?.phone ? (
+          <div className="mobileProfileCompany" style={{ marginTop: 4 }}>{meQ.data.phone}</div>
+        ) : null}
+      </div>
+
+      {/* Menu */}
+      <div className="mobileCard mobileProfileMenu">
+        <Link to={notificationsPath} className="mobileProfileMenuItem">
+          <span>Уведомления</span>
+          <span className="mobileProfileMenuChevron">›</span>
+        </Link>
+        {canAccessManagementDesktop(meQ.data?.role) ? (
+          <Link to={managementHref} className="mobileProfileMenuItem">
+            <span>Управленческая часть</span>
+            <span className="mobileProfileMenuChevron">›</span>
+          </Link>
+        ) : null}
+        <button type="button" className="mobileProfileMenuItem mobileProfileMenuItem--danger" onClick={logout}>
+          <span>Выйти</span>
+        </button>
+      </div>
+
+      {/* Support + notifications */}
+      <div className="mobileCard" style={{ marginTop: 8 }}>
+        <div className="mobileSectionTitle" style={{ marginBottom: 8 }}>Поддержка</div>
+        <div className="mobileFieldHint" style={{ marginBottom: 8 }}>
+          Telegram и MAX — внешние чаты поддержки (откроются в браузере или приложении).
+        </div>
+        <SupportContactBlock titleTag="div" />
+      </div>
+
+      <div className="mobileCard" style={{ marginTop: 8 }}>
         <BrowserNotificationsCard
-          className="mobileSection"
-          title="Браузерные уведомления"
+          title="Push-уведомления браузера"
           description="Системные уведомления для realtime-событий, пока приложение открыто."
         />
-
-        <div className="mobileSection" style={{ gap: 8 }}>
-          <div className="mobileRow">
-            <span className="mobileMeta">Пользователь</span>
-            <strong>
-              {[meQ.data?.firstName, meQ.data?.lastName].filter(Boolean).join(' ') || meQ.data?.email || '—'}
-            </strong>
-          </div>
-          <div className="mobileRow">
-            <span className="mobileMeta">Email</span>
-            <strong>{meQ.data?.email || '—'}</strong>
-          </div>
-          {meQ.data?.phone ? (
-            <div className="mobileRow">
-              <span className="mobileMeta">Телефон</span>
-              <strong>{meQ.data.phone}</strong>
-            </div>
-          ) : null}
-          <div className="mobileRow">
-            <span className="mobileMeta">Компания</span>
-            <strong>{meQ.data?.companyName || '—'}</strong>
-          </div>
-          <div className="mobileRow">
-            <span className="mobileMeta">Роль</span>
-            <strong>{roleLabel(meQ.data?.role)}</strong>
-          </div>
-          {linkedClientCompanyId ? (
-            <div style={{ display: 'grid', gap: 4 }}>
-              <div className="mobileMeta">Текущий клиент</div>
-              <div>
-                <strong>
-                  {(meQ.data?.role === 'TECHNICIAN' ? techBoundLabelQ.isLoading : linkedClientsQ.isLoading)
-                    ? 'Загрузка…'
-                    : linkedClientName || '—'}
-                </strong>
-              </div>
-            </div>
-          ) : null}
-        </div>
-
-        <div
-          style={{
-            display: 'grid',
-            gap: 12,
-            marginTop: 12,
-            paddingTop: 12,
-            borderTop: '1px solid #e5e7eb',
-            width: '100%',
-          }}
-        >
-          <div className="mobileFieldHint" style={{ marginBottom: 4 }}>
-            Telegram и MAX — внешние чаты поддержки по вопросам системы (откроются в браузере или приложении).
-          </div>
-          <SupportContactBlock titleTag="div" />
-          {canAccessManagementDesktop(meQ.data?.role) ? (
-            <Link to={managementHref} className="mobileBtn mobileBtnSecondary" style={{ textAlign: 'center', textDecoration: 'none' }}>
-              Управленческая часть
-            </Link>
-          ) : null}
-          <button type="button" className="mobileBtn mobileLogoutBelowCard" style={{ marginTop: 0 }} onClick={logout}>
-            Выйти
-          </button>
-        </div>
       </div>
     </div>
   )

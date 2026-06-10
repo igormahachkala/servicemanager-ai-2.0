@@ -26,52 +26,61 @@ export function HomeChips({
   hasActiveFilters,
 }: Props) {
   return (
-    <>
-      <label className="mobileHomeSearchWrap">
-        <span className="mobileVisuallyHidden">Поиск заявок по загруженному списку</span>
-        <input
-          className="mobileHomeSearchInput"
-          type="search"
-          enterKeyHint="search"
-          autoCapitalize="none"
-          autoCorrect="off"
-          spellCheck={false}
-          placeholder="Поиск: номер, адрес, точка, проблема"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-        />
-      </label>
-
-      <div className="mobileChipRow" role="group" aria-label="Быстрые фильтры">
-        {MOBILE_HOME_BOARD_CHIP_IDS.map((id) => (
-          <button
-            key={id}
-            type="button"
-            className={`mobileFilterChip${activeChips.has(id) ? ' mobileFilterChipActive' : ''}`}
-            aria-pressed={activeChips.has(id)}
-            onClick={() => toggleChip(id)}
-          >
-            {MOBILE_HOME_BOARD_CHIP_LABELS[id]}
-          </button>
-        ))}
-      </div>
-
-      <div className="mobileHomeResultRow">
-        <span className="mobileMeta">Найдено: {visibleCount}</span>
-        {filterSummary ? (
-          <span className="mobileMeta mobileHomeResultFilters" title={filterSummary}>
-            {filterSummary}
-          </span>
-        ) : null}
+    <div className="mobileFiltersPanel">
+      <div className="mobileFiltersPanelHeader">
+        <span className="mobileFiltersPanelTitle">Фильтры</span>
         <button
           type="button"
           className="mobileBtn mobileBtnSecondary"
+          style={{ fontSize: '0.78rem', padding: '4px 12px', minHeight: 30 }}
           onClick={onResetAll}
           disabled={!hasActiveFilters}
         >
-          Без фильтров
+          Сбросить
         </button>
       </div>
-    </>
+      <div className="mobileFiltersPanelBody">
+        <label className="mobileHomeSearchWrap" style={{ margin: 0 }}>
+          <span className="mobileVisuallyHidden">Поиск заявок по загруженному списку</span>
+          <input
+            className="mobileHomeSearchInput"
+            type="search"
+            enterKeyHint="search"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            placeholder="Поиск: номер, адрес, точка, проблема"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+        </label>
+
+        <div>
+          <div className="mobileMeta" style={{ marginBottom: 6, fontWeight: 600 }}>Быстрые фильтры</div>
+          <div className="mobileChipRow" role="group" aria-label="Быстрые фильтры" style={{ flexWrap: 'wrap', gap: 6 }}>
+            {MOBILE_HOME_BOARD_CHIP_IDS.map((id) => (
+              <button
+                key={id}
+                type="button"
+                className={`mobileFilterChip${activeChips.has(id) ? ' mobileFilterChipActive' : ''}`}
+                aria-pressed={activeChips.has(id)}
+                onClick={() => toggleChip(id)}
+              >
+                {MOBILE_HOME_BOARD_CHIP_LABELS[id]}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="mobileRow" style={{ paddingTop: 4 }}>
+          <span className="mobileMeta">Найдено: <strong>{visibleCount}</strong></span>
+          {filterSummary ? (
+            <span className="mobileMeta" style={{ maxWidth: '60%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={filterSummary}>
+              {filterSummary}
+            </span>
+          ) : null}
+        </div>
+      </div>
+    </div>
   )
 }

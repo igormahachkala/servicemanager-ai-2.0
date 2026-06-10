@@ -79,6 +79,21 @@ function roleCanUploadTicketPhoto(role?: api.Role | null) {
   return !!role && PHOTO_ROLES.includes(role)
 }
 
+function timelineEventColor(item: api.TimelineItem): string {
+  const ev = ((item.timelineEvent || item.type || item.domainType) ?? '').toUpperCase()
+  const src = item.source ?? ''
+  if (ev.includes('CREATED') || ev.includes('CREATE')) return '#2563eb'
+  if (ev.includes('CLAIMED') || ev.includes('CLAIM')) return '#0e7490'
+  if (ev.includes('ASSIGNED') || ev.includes('ASSIGN')) return '#0e7490'
+  if (ev.includes('COMMENT') || ev.includes('CHAT')) return '#7c3aed'
+  if (ev.includes('ATTACHMENT') || ev.includes('PHOTO') || ev.includes('FILE')) return '#9333ea'
+  if (ev.includes('DONE') || ev.includes('COMPLETED')) return '#16a34a'
+  if (ev.includes('CANCELED') || ev.includes('CANCEL')) return '#6b7280'
+  if (ev.includes('STATUS') || ev.includes('TRANSITION') || src === 'status_history') return '#d97706'
+  if (ev.includes('RATING') || ev.includes('REVIEW')) return '#f59e0b'
+  return '#9ca3af'
+}
+
 function formatAddressBlock(ticket: api.TicketGetOne): string {
   const loc = ticket.location
   const parts: string[] = []
@@ -400,7 +415,7 @@ export function MobileTicketPage() {
     assigneeIdForMe === meQ.data.id &&
     (aa ? aa.canComplete : transitions.includes('DONE'))
 
-  const [detailTab, setDetailTab] = useState<'info' | 'chat' | 'photos'>('info')
+  const [detailTab, setDetailTab] = useState<'info' | 'chat' | 'photos' | 'history'>('info')
 
   const [assignTicketOpen, setAssignTicketOpen] = useState(false)
   const [assignTechId, setAssignTechId] = useState('')
@@ -839,6 +854,16 @@ export function MobileTicketPage() {
                 <span className="mobileDetailTabBadge">{requestImages.length + reportImages.length}</span>
               ) : null}
             </button>
+            <button
+              type="button"
+              className={`mobileDetailTab${detailTab === 'history' ? ' mobileDetailTab--active' : ''}`}
+              onClick={() => setDetailTab('history')}
+            >
+              История
+              {timelineItems.length > 0 ? (
+                <span className="mobileDetailTabBadge">{timelineItems.length}</span>
+              ) : null}
+            </button>
           </div>
 
           {/* ── Info tab ─────────────────────────────────────── */}
@@ -1232,32 +1257,37 @@ export function MobileTicketPage() {
 
           {/* ── Chat tab ─────────────────────────────────────── */}
           {detailTab === 'chat' ? (
-            <div className="mobileCard">
+            <div className="mobileCard mobileTicketChatCard">
               {timelineQ.isLoading ? <div className="mobileMeta">Загрузка…</div> : null}
               {!timelineQ.isLoading && chatMessages.length === 0 ? (
                 <div className="mobileMeta" style={{ marginBottom: canSendComment ? 10 : 0 }}>Комментариев пока нет</div>
               ) : null}
               {chatMessages.length > 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 420, overflowY: 'auto', paddingRight: 4, marginBottom: 10 }}>
-                  {chatMessages.map((msg) => (
-                    <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.isOwn ? 'flex-end' : 'flex-start' }}>
-                      <div style={{
-                        maxWidth: '82%',
-                        background: msg.isOwn ? '#4f46e5' : '#f3f4f6',
-                        color: msg.isOwn ? '#fff' : '#111827',
-                        borderRadius: msg.isOwn ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
-                        padding: '8px 12px',
-                        wordBreak: 'break-word',
-                        whiteSpace: 'pre-wrap',
-                        fontSize: '0.92rem',
-                      }}>
-                        {msg.text}
+                <div className="mobileTicketChatMessages">
+                  {chatMessages.map((msg) => {
+                    const authorDisplay = msg.authorEmail ? msg.authorEmail.split('@')[0] : 'система'
+                    const timeStr = new Date(msg.at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+                    return (
+                      <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.isOwn ? 'flex-end' : 'flex-start' }}>
+                        <div className="mobileTicketChatAuthor" style={{ textAlign: msg.isOwn ? 'right' : 'left' }}>
+                          {authorDisplay} · {timeStr}
+                        </div>
+                        <div style={{
+                          maxWidth: '82%',
+                          background: msg.isOwn ? '#4f46e5' : '#f3f4f6',
+                          color: msg.isOwn ? '#fff' : '#111827',
+                          borderRadius: msg.isOwn ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
+                          padding: '9px 13px',
+                          wordBreak: 'break-word',
+                          whiteSpace: 'pre-wrap',
+                          fontSize: '0.9rem',
+                          lineHeight: 1.5,
+                        }}>
+                          {msg.text}
+                        </div>
                       </div>
-                      <div className="mobileMeta" style={{ marginTop: 2, fontSize: '0.72rem' }}>
-                        {msg.authorEmail || 'система'} · {new Date(msg.at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               ) : null}
               {canSendComment ? (
@@ -1284,11 +1314,53 @@ export function MobileTicketPage() {
                 </div>
               ) : null}
               {!isOnline && canSendComment ? (
-                <div className="mobileMeta" style={{ marginTop: 8 }}>
-                  Офлайн: отправка сообщений недоступна.
-                </div>
+                <div className="mobileMeta" style={{ marginTop: 6 }}>Офлайн: отправка недоступна.</div>
               ) : null}
               {chatSendError ? <div className="mobileNotice mobileNoticeError" style={{ marginTop: 8 }}>{chatSendError}</div> : null}
+            </div>
+          ) : null}
+
+          {/* ── History tab ──────────────────────────────────── */}
+          {detailTab === 'history' ? (
+            <div className="mobileCard">
+              {timelineQ.isLoading ? <div className="mobileMeta">Загрузка истории…</div> : null}
+              {timelineQ.isError ? (
+                <div className="mobileNotice mobileNoticeError">
+                  {formatMobileMutationError(timelineQ.error, { operation: 'other' })}
+                </div>
+              ) : null}
+              {!timelineQ.isLoading && !timelineQ.isError && timelineItems.length === 0 ? (
+                <div className="mobileMeta">История пуста</div>
+              ) : null}
+              {timelineItems.length > 0 ? (
+                <div className="mobileTimeline">
+                  {timelineItems.map((item, idx) => {
+                    const isLast = idx === timelineItems.length - 1
+                    const color = timelineEventColor(item)
+                    const comment = (item.payload?.comment || item.payload?.text || '').trim()
+                    const authorName = item.actor?.email ? item.actor.email.split('@')[0] : null
+                    const timeStr = new Date(item.at).toLocaleString('ru-RU', {
+                      day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+                    })
+                    return (
+                      <div key={`${item.at}-${idx}`} className={`mobileTimelineItem${isLast ? ' mobileTimelineItem--last' : ''}`}>
+                        <div className="mobileTimelineLeft">
+                          <div className="mobileTimelineDot" style={{ background: color }} />
+                          {!isLast ? <div className="mobileTimelineLine" /> : null}
+                        </div>
+                        <div className="mobileTimelineContent">
+                          <div className="mobileTimelineTitle">{item.title}</div>
+                          {comment ? <div className="mobileTimelineComment">{comment}</div> : null}
+                          <div className="mobileTimelineMeta">
+                            {authorName ? <span>{authorName}</span> : null}
+                            <span className="mobileTimelineTime">{timeStr}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : null}
             </div>
           ) : null}
         </>

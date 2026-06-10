@@ -401,14 +401,16 @@ export function MobileHome() {
               setHomeIntroDismissed={setHomeIntroDismissed}
               collapsed={!filtersExpanded}
             />
-            <div style={{ display: 'flex', justifyContent: 'center', padding: '4px 0' }}>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '4px 0' }}>
               <button
                 type="button"
-                className="mobileBtn mobileBtnSecondary"
-                style={{ fontSize: '0.78rem', padding: '4px 14px', minHeight: 32 }}
+                className={`mobileFiltersToggleBtn${filtersExpanded ? ' mobileFiltersToggleBtn--active' : ''}`}
                 onClick={toggleFiltersExpanded}
               >
-                {filtersExpanded ? 'Скрыть фильтры' : 'Показать фильтры'}
+                {filtersExpanded ? (
+                  <span className="mobileFiltersToggleDot" />
+                ) : null}
+                {filtersExpanded ? 'Скрыть фильтры' : 'Фильтры'}
               </button>
             </div>
             {filtersExpanded ? (
