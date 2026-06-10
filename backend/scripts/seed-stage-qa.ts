@@ -54,6 +54,8 @@ const CO = {
 
 const USR = {
   client: '20000000-0000-4000-8000-000000000001',
+  // CLIENT-company ADMIN — for Phase 1.5 verification (ADMIN+CLIENT cannot assign).
+  clientAdmin: '20000000-0000-4000-8000-000000000010',
   general: '20000000-0000-4000-8000-000000000002',
   secondary: '20000000-0000-4000-8000-000000000003',
   secondaryTech: '20000000-0000-4000-8000-000000000004',
@@ -112,6 +114,8 @@ async function main() {
   // ---- Users ----------------------------------------------------------------
   const users: Array<{ id: string; email: string; role: UserRole; companyId: string; isExecutor: boolean }> = [
     { id: USR.client, email: 'client@test.local', role: UserRole.CLIENT, companyId: CO.client, isExecutor: false },
+    // CLIENT-company ADMIN: can view/comment/create, but NOT assign/claim/change-status (Phase 1.5 matrix).
+    { id: USR.clientAdmin, email: 'client.admin@test.local', role: UserRole.ADMIN, companyId: CO.client, isExecutor: false },
     { id: USR.general, email: 'provider@test.local', role: UserRole.ADMIN, companyId: CO.general, isExecutor: false },
     { id: USR.secondary, email: 'secondary.provider@test.local', role: UserRole.ADMIN, companyId: CO.secondary, isExecutor: false },
     { id: USR.secondaryTech, email: 'tech@test.local', role: UserRole.TECHNICIAN, companyId: CO.secondary, isExecutor: true },
