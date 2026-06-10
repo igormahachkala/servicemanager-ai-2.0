@@ -2,11 +2,15 @@
 
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { UserRole } from '@prisma/client';
+import { CompanyType, UserRole } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { PERMISSIONS_KEY } from './permissions.decorator';
 import type { PermissionCode } from './permissions.constants';
+
+/** Лёгкий кэш companyId -> CompanyType (тип компании меняется крайне редко). */
+const COMPANY_TYPE_TTL_MS = 5 * 60 * 1000;
+const companyTypeCache = new Map<string, { type: CompanyType; at: number }>();
 
 @Injectable()
 export class PermissionsGuard implements CanActivate {
@@ -14,6 +18,19 @@ export class PermissionsGuard implements CanActivate {
     private readonly reflector: Reflector,
     private readonly prisma: PrismaService,
   ) {}
+
+  private async resolveCompanyType(companyId?: string): Promise<CompanyType | null> {
+    if (!companyId) return null;
+    const cached = companyTypeCache.get(companyId);
+    if (cached && Date.now() - cached.at < COMPANY_TYPE_TTL_MS) return cached.type;
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { type: true },
+    });
+    if (!company) return null;
+    companyTypeCache.set(companyId, { type: company.type, at: Date.now() });
+    return company.type;
+  }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const requiredPermissions = this.reflector.getAllAndOverride<PermissionCode[]>(
@@ -31,7 +48,7 @@ export class PermissionsGuard implements CanActivate {
     if (blocksCount === 0) return true;
 
     const req = context.switchToHttp().getRequest();
-    const user = req.user as { id?: string; role?: UserRole | string } | undefined;
+    const user = req.user as { id?: string; role?: UserRole | string; companyId?: string } | undefined;
 
     const userId = user?.id;
     const role = user?.role as UserRole | undefined;
@@ -44,13 +61,19 @@ export class PermissionsGuard implements CanActivate {
       });
     }
 
-    // 1) Права через роль (RolePermission -> PermissionBlock.code)
+    // Phase 1.5: гранты ключуются по (role, companyType). Тип компании резолвим
+    // по companyId пользователя (его нет в JWT), с кэшем.
+    const companyType = await this.resolveCompanyType(user?.companyId);
+
+    // 1) Права через роль (RolePermission -> PermissionBlock.code), матч по типу
+    //    компании ИЛИ wildcard (companyType IS NULL).
     // 2) Индивидуальные права (UserPermission -> PermissionBlock.code)
-    // Достаточно совпадения хотя бы по одному коду (OR)
+    // Достаточно совпадения хотя бы по одному коду (OR).
     const [roleHit, userHit] = await Promise.all([
       this.prisma.rolePermission.findFirst({
         where: {
           role,
+          OR: [{ companyType }, { companyType: null }],
           permissionBlock: { code: { in: requiredPermissions } },
         },
         select: { id: true },

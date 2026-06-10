@@ -487,14 +487,21 @@ model PermissionBlock {
 }
 
 model RolePermission {
-  id                String   @id @default(uuid())
+  id                String       @id @default(uuid())
   role              UserRole
+  // Phase 1.5: ADMIN is shared between CLIENT and PROVIDER companies, so grants
+  // are keyed by (role, companyType). NULL = wildcard (applies to any company type),
+  // used for cross-type roles like PLATFORM_ADMIN / STAFF.
+  companyType       CompanyType?
   permissionBlockId String
   permissionBlock   PermissionBlock @relation(fields: [permissionBlockId], references: [id], onDelete: Cascade)
-  createdAt         DateTime @default(now())
+  createdAt         DateTime     @default(now())
 
-  @@unique([role, permissionBlockId])
-  @@index([role])
+  // Non-null rows are deduped by this composite. NULL (wildcard) rows are deduped
+  // by a partial unique index added in the migration (Postgres treats NULLs as
+  // distinct, so the composite alone would not prevent wildcard duplicates).
+  @@unique([role, companyType, permissionBlockId])
+  @@index([role, companyType])
   @@index([permissionBlockId])
 }
 
