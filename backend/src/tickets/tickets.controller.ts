@@ -392,7 +392,7 @@ export class TicketsController {
   }
 
   @Post(':id/comments')
-  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TECHNICIAN, UserRole.CLIENT)
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TECHNICIAN, UserRole.CLIENT, UserRole.TERRITORIAL_MANAGER)
   @RequirePermission(PERMISSIONS.TICKETS_VIEW)
   addComment(
     @Req() req: any,
