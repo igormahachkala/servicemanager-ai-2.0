@@ -387,6 +387,7 @@ export function MobileHome() {
         techBoundError={techBoundDefaultsQ.isError ? techBoundDefaultsQ.error : null}
         techBoundEmpty={!techBoundDefaultsQ.isPending && !techBoundDefaultsQ.isError && techBoundDefaultsQ.isSuccess && (techBoundDefaultsQ.data?.length ?? 0) === 0}
         tabCounts={tabCounts}
+        onStatClick={(tab) => setBoardTab(tab)}
       />
       {showMobileHomeTicketBoard ? (
         <>

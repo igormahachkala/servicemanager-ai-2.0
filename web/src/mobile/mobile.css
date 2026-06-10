@@ -2477,3 +2477,180 @@ a.mobileBtn.mobileCreateTicketLink {
   margin-top: 10px;
   margin-bottom: 4px;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   SMA REDESIGN V1 — Phase 2
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Nav: icon + label layout (overrides Phase 1 text-only) */
+.mobileNavButton {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  padding: 4px 2px 2px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 48px;
+  width: 100%;
+  font-size: 0.72rem;
+}
+
+.mobileNavButtonActive {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.mobileNavIconWrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+}
+
+.mobileNavBadgeDot {
+  position: absolute;
+  top: 0;
+  right: -1px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ef4444;
+  border: 1.5px solid #fff;
+}
+
+.mobileNavLabel {
+  font-size: 0.62rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: #9ca3af;
+  letter-spacing: 0.01em;
+}
+
+.mobileNavButtonActive .mobileNavLabel {
+  color: #2563eb;
+}
+
+/* ── Ticket detail: segmented tab bar ───────────────────── */
+.mobileDetailTabs {
+  display: flex;
+  gap: 4px;
+  border-radius: 14px;
+  background: #f3f4f6;
+  padding: 3px;
+  margin-bottom: 10px;
+}
+
+.mobileDetailTab {
+  flex: 1;
+  padding: 9px 4px;
+  border-radius: 11px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobileDetailTab--active {
+  background: #fff;
+  color: #111827;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.08);
+}
+
+.mobileDetailTabBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  background: #e5e7eb;
+  color: #6b7280;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.mobileDetailTab--active .mobileDetailTabBadge {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+/* ── Stats grid: tappable modifier ──────────────────────── */
+.mobileStatBlock--tap {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.12s;
+}
+
+.mobileStatBlock--tap:active {
+  transform: scale(0.96);
+}
+
+/* ── Ticket card V2: flex layout for thumbnail column ───── */
+.mobileTicketCardV2 {
+  padding: 14px 14px 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.mobileTicketCardV2Body {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.mobileTicketCardV2 > .mobileTicketCardPhoto {
+  width: 64px;
+  min-width: 64px;
+  height: 64px;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+/* ── Gallery: 4:3 hero + header row ─────────────────────── */
+.mobileTicketPhotoHero {
+  aspect-ratio: 4 / 3;
+  border-radius: 14px;
+}
+
+.mobileTicketPhotoGalleryHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.mobileTicketPhotoGalleryCount {
+  font-size: 0.78rem;
+  color: #9ca3af;
+  font-weight: 600;
+}
+
+.mobileTicketPhotoDot {
+  width: 7px;
+  height: 7px;
+}
+
+.mobileTicketPhotoDotActive {
+  background: #2563eb;
+  transform: scale(1.25);
+}

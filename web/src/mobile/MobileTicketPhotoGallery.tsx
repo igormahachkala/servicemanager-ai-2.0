@@ -117,8 +117,9 @@ export function MobileTicketPhotoGallery({ title, photos, emptyText, onOpen }: P
 
   return (
     <div className="mobileTicketPhotoGallery">
-      <div className="mobileSectionTitle" style={{ marginBottom: 10 }}>
-        {title}
+      <div className="mobileTicketPhotoGalleryHeader">
+        <span className="mobileSectionTitle">{title}</span>
+        {count > 0 ? <span className="mobileTicketPhotoGalleryCount">{count} фото</span> : null}
       </div>
       {count === 0 ? (
         <div className="mobileMeta">{emptyText}</div>
@@ -127,22 +128,26 @@ export function MobileTicketPhotoGallery({ title, photos, emptyText, onOpen }: P
           <div className="mobileTicketPhotoHero">
             {current ? <HeroImage photo={current} onTap={(src) => onOpen(idx, src)} /> : null}
           </div>
-          <div className="mobileTicketPhotoDots">
-            {count <= MAX_DOTS
-              ? photos.map((_, i) => (
-                  <button
-                    key={i}
-                    type="button"
-                    className={`mobileTicketPhotoDot${i === idx ? ' mobileTicketPhotoDotActive' : ''}`}
-                    aria-label={`Перейти к фото ${i + 1}`}
-                    onClick={() => setActiveIndex(i)}
-                  />
-                ))
-              : null}
-          </div>
-          <div className="mobileTicketPhotoCounter">
-            Фото {idx + 1} из {count}
-          </div>
+          {count > 1 ? (
+            <div className="mobileTicketPhotoDots">
+              {count <= MAX_DOTS
+                ? photos.map((_, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      className={`mobileTicketPhotoDot${i === idx ? ' mobileTicketPhotoDotActive' : ''}`}
+                      aria-label={`Перейти к фото ${i + 1}`}
+                      onClick={() => setActiveIndex(i)}
+                    />
+                  ))
+                : null}
+            </div>
+          ) : null}
+          {count > 1 ? (
+            <div className="mobileTicketPhotoCounter">
+              {idx + 1} / {count}
+            </div>
+          ) : null}
         </>
       )}
     </div>

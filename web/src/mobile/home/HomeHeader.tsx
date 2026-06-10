@@ -17,6 +17,7 @@ type Props = {
   techBoundError: unknown
   techBoundEmpty: boolean
   tabCounts?: Record<MobileHomeBoardFilterTab, number>
+  onStatClick?: (tab: MobileHomeBoardFilterTab) => void
 }
 
 export function HomeHeader(props: Props) {
@@ -34,6 +35,7 @@ export function HomeHeader(props: Props) {
     techBoundError,
     techBoundEmpty,
     tabCounts,
+    onStatClick,
   } = props
 
   return (
@@ -46,22 +48,23 @@ export function HomeHeader(props: Props) {
 
       {tabCounts ? (
         <div className="mobileStatsGrid">
-          <div className="mobileStatBlock mobileStatBlock--new">
-            <div className="mobileStatValue">{tabCounts.new}</div>
-            <div className="mobileStatLabel">Новые</div>
-          </div>
-          <div className="mobileStatBlock mobileStatBlock--inwork">
-            <div className="mobileStatValue">{tabCounts.in_work}</div>
-            <div className="mobileStatLabel">В работе</div>
-          </div>
-          <div className="mobileStatBlock mobileStatBlock--overdue">
-            <div className="mobileStatValue">{tabCounts.overdue}</div>
-            <div className="mobileStatLabel">Просроченные</div>
-          </div>
-          <div className="mobileStatBlock mobileStatBlock--done">
-            <div className="mobileStatValue">{tabCounts.done}</div>
-            <div className="mobileStatLabel">Завершённые</div>
-          </div>
+          {(
+            [
+              { tab: 'new' as MobileHomeBoardFilterTab, count: tabCounts.new, label: 'Новые', cls: 'mobileStatBlock--new' },
+              { tab: 'in_work' as MobileHomeBoardFilterTab, count: tabCounts.in_work, label: 'В работе', cls: 'mobileStatBlock--inwork' },
+              { tab: 'overdue' as MobileHomeBoardFilterTab, count: tabCounts.overdue, label: 'Просроченные', cls: 'mobileStatBlock--overdue' },
+              { tab: 'done' as MobileHomeBoardFilterTab, count: tabCounts.done, label: 'Завершённые', cls: 'mobileStatBlock--done' },
+            ] as const
+          ).map(({ tab, count, label, cls }) => (
+            <div
+              key={tab}
+              className={`mobileStatBlock ${cls}${onStatClick ? ' mobileStatBlock--tap' : ''}`}
+              onClick={onStatClick ? () => onStatClick(tab) : undefined}
+            >
+              <div className="mobileStatValue">{count}</div>
+              <div className="mobileStatLabel">{label}</div>
+            </div>
+          ))}
         </div>
       ) : null}
 

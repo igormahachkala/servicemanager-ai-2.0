@@ -19,6 +19,36 @@ type MobileNavItem = {
   to: string
 }
 
+function NavIcon({ id, active }: { id: string; active: boolean }) {
+  const stroke = active ? '#2563eb' : '#9ca3af'
+  const base = { fill: 'none' as const, stroke, strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
+  if (id === 'home') return (
+    <svg width={22} height={22} viewBox="0 0 24 24" {...base} aria-hidden>
+      <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+      <polyline points="9 22 9 12 15 12 15 22"/>
+    </svg>
+  )
+  if (id === 'tickets') return (
+    <svg width={22} height={22} viewBox="0 0 24 24" {...base} aria-hidden>
+      <rect x="5" y="2" width="14" height="20" rx="2"/>
+      <line x1="9" y1="8" x2="15" y2="8"/>
+      <line x1="9" y1="12" x2="15" y2="12"/>
+      <line x1="9" y1="16" x2="13" y2="16"/>
+    </svg>
+  )
+  if (id === 'chat') return (
+    <svg width={22} height={22} viewBox="0 0 24 24" {...base} aria-hidden>
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+    </svg>
+  )
+  return (
+    <svg width={22} height={22} viewBox="0 0 24 24" {...base} aria-hidden>
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+      <circle cx="12" cy="7" r="4"/>
+    </svg>
+  )
+}
+
 function isActivePath(pathname: string, target: string) {
   const root = getMobileRouteRoot(pathname)
   if (target === root) return pathname === root
@@ -288,9 +318,13 @@ export function MobileShell() {
                 to={api.appendScopeToPath(item.to, scope, meQ.data)}
                 aria-current={active ? 'page' : undefined}
               >
-                <button type="button" className={active ? 'mobileNavButton mobileNavButtonActive' : 'mobileNavButton'}>
-                  {item.label}
-                </button>
+                <div className={active ? 'mobileNavButton mobileNavButtonActive' : 'mobileNavButton'}>
+                  <span className="mobileNavIconWrap">
+                    <NavIcon id={item.id} active={active} />
+                    {item.id === 'chat' && unread > 0 ? <span className="mobileNavBadgeDot" aria-hidden /> : null}
+                  </span>
+                  <span className="mobileNavLabel">{item.label}</span>
+                </div>
               </Link>
             )
           })}

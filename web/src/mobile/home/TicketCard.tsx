@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import * as api from '../../lib/api'
+import { MobileTicketCardPhoto } from '../MobileTicketCardPhoto'
 import {
   mobileTicketNavState,
   mobileTicketNumberTitle,
@@ -79,37 +80,46 @@ export function TicketCard({
     <div className={cardClass} style={{ padding: 0, overflow: 'hidden' }}>
       <Link to={ticketHref} state={linkState ?? mobileTicketNavState('home')} className="mobileCardClickable" style={{ borderRadius: 0 }}>
         <div className="mobileTicketCardV2">
-          {/* Row 1: number · category + time */}
-          <div className="mobileTicketCardV2Top">
-            <span className="mobileTicketCardV2Number">
-              {mobileTicketNumberTitle(ticket.ticketNumber)}
-              {ticket.category?.name ? (
-                <span className="mobileTicketCardV2Cat"> · {ticket.category.name}</span>
-              ) : null}
-            </span>
-            {timeText ? <span className="mobileTicketCardV2Time">{timeText}</span> : null}
-          </div>
-
-          {/* Row 2: location */}
-          {locationText ? <div className="mobileTicketCardV2Location">{locationText}</div> : null}
-
-          {/* Row 3: description snippet */}
-          {descText ? <div className="mobileTicketCardV2Desc">{descText}</div> : null}
-
-          {/* Row 4: assignee (small) + urgent badge + sla + status */}
-          <div className="mobileTicketCardV2Bottom">
-            <span className="mobileMeta" style={{ fontSize: '0.75rem' }}>
-              {assigneeText !== '—' ? assigneeText : null}
-              {urgent ? <span className="mobileSlaUrgentPill" style={{ marginLeft: 6 }}>Срочно</span> : null}
-              {slaLine ? <span className="mobileTicketSlaCountdown" style={{ marginLeft: 6 }}>{slaLine}</span> : null}
-            </span>
-            <span className={statusClass}>{mobileTicketStatusLabelRu(ticket.status)}</span>
-          </div>
-
-          {ticket.assignmentRequestedByCurrentUser ? (
-            <div className="mobileAssignmentRequestedRow">
-              <span className="mobileAssignmentRequestedBadge">Запрос отправлен</span>
+          <div className="mobileTicketCardV2Body">
+            {/* Row 1: number · category + time */}
+            <div className="mobileTicketCardV2Top">
+              <span className="mobileTicketCardV2Number">
+                {mobileTicketNumberTitle(ticket.ticketNumber)}
+                {ticket.category?.name ? (
+                  <span className="mobileTicketCardV2Cat"> · {ticket.category.name}</span>
+                ) : null}
+              </span>
+              {timeText ? <span className="mobileTicketCardV2Time">{timeText}</span> : null}
             </div>
+
+            {/* Row 2: location */}
+            {locationText ? <div className="mobileTicketCardV2Location">{locationText}</div> : null}
+
+            {/* Row 3: description snippet */}
+            {descText ? <div className="mobileTicketCardV2Desc">{descText}</div> : null}
+
+            {/* Row 4: assignee (small) + urgent badge + sla + status */}
+            <div className="mobileTicketCardV2Bottom">
+              <span className="mobileMeta" style={{ fontSize: '0.75rem' }}>
+                {assigneeText !== '—' ? assigneeText : null}
+                {urgent ? <span className="mobileSlaUrgentPill" style={{ marginLeft: 6 }}>Срочно</span> : null}
+                {slaLine ? <span className="mobileTicketSlaCountdown" style={{ marginLeft: 6 }}>{slaLine}</span> : null}
+              </span>
+              <span className={statusClass}>{mobileTicketStatusLabelRu(ticket.status)}</span>
+            </div>
+
+            {ticket.assignmentRequestedByCurrentUser ? (
+              <div className="mobileAssignmentRequestedRow">
+                <span className="mobileAssignmentRequestedBadge">Запрос отправлен</span>
+              </div>
+            ) : null}
+          </div>
+          {ticket.attachmentPreviewUrl ? (
+            <MobileTicketCardPhoto
+              previewUrl={ticket.attachmentPreviewUrl}
+              imageCount={ticket.imageAttachmentCount ?? 0}
+              alt="Фото"
+            />
           ) : null}
         </div>
       </Link>

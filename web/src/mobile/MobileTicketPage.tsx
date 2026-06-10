@@ -400,6 +400,8 @@ export function MobileTicketPage() {
     assigneeIdForMe === meQ.data.id &&
     (aa ? aa.canComplete : transitions.includes('DONE'))
 
+  const [detailTab, setDetailTab] = useState<'info' | 'chat' | 'photos'>('info')
+
   const [assignTicketOpen, setAssignTicketOpen] = useState(false)
   const [assignTechId, setAssignTechId] = useState('')
   const [assignErr, setAssignErr] = useState('')
@@ -735,7 +737,7 @@ export function MobileTicketPage() {
     ticket.status !== 'CANCELED' &&
     !hasTechnicianActionsBlock
 
-  const padBottomForOpsDock = hasTechnicianActionsBlock
+  const padBottomForOpsDock = hasTechnicianActionsBlock && detailTab === 'info'
 
   useEffect(() => {
     const el = chatInputRef.current
@@ -808,6 +810,40 @@ export function MobileTicketPage() {
 
       {ticket ? (
         <>
+          {/* ── Tab bar ─────────────────────────────────────── */}
+          <div className="mobileDetailTabs">
+            <button
+              type="button"
+              className={`mobileDetailTab${detailTab === 'info' ? ' mobileDetailTab--active' : ''}`}
+              onClick={() => setDetailTab('info')}
+            >
+              Инфо
+            </button>
+            <button
+              type="button"
+              className={`mobileDetailTab${detailTab === 'chat' ? ' mobileDetailTab--active' : ''}`}
+              onClick={() => setDetailTab('chat')}
+            >
+              Чат
+              {chatMessages.length > 0 ? (
+                <span className="mobileDetailTabBadge">{chatMessages.length}</span>
+              ) : null}
+            </button>
+            <button
+              type="button"
+              className={`mobileDetailTab${detailTab === 'photos' ? ' mobileDetailTab--active' : ''}`}
+              onClick={() => setDetailTab('photos')}
+            >
+              Фото
+              {requestImages.length + reportImages.length > 0 ? (
+                <span className="mobileDetailTabBadge">{requestImages.length + reportImages.length}</span>
+              ) : null}
+            </button>
+          </div>
+
+          {/* ── Info tab ─────────────────────────────────────── */}
+          {detailTab === 'info' ? (
+          <>
           {shouldShowClientTicketLifecycleHint(meQ.data, ticket) ? (
             <div className="mobileCard mobileClientLifecycleHint" role="status">
               <div className="mobileMeta" style={{ fontWeight: 800, marginBottom: 6 }}>
@@ -1037,175 +1073,6 @@ export function MobileTicketPage() {
             </div>
           ) : null}
 
-          <div className="mobileCard" style={{ marginTop: 8 }}>
-            {canUploadTicketPhotos && !isOnline ? (
-              <div className="mobileMeta" style={{ marginBottom: 10 }}>
-                Офлайн: загрузка фото недоступна. Подключитесь к сети, чтобы добавить снимки.
-              </div>
-            ) : null}
-            {canUploadTicketPhotos && isOnline ? (
-              <div className="mobileTicketAddPhotos">
-                <div className="mobileSectionTitle" style={{ marginBottom: 8 }}>
-                  Добавить фото
-                </div>
-                <p className="mobileHint" style={{ marginTop: 0 }}>
-                  Несколько файлов — из галереи; камера добавляет по одному снимку за раз.
-                </p>
-                <input
-                  ref={addTicketCameraRef}
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  className="mobilePhotoInputHidden"
-                  aria-label="Сделать фото для заявки"
-                  onChange={handleTicketAddPhotos}
-                  disabled={isTicketAddPhotoUploading}
-                />
-                <input
-                  ref={addTicketGalleryRef}
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  className="mobilePhotoInputHidden"
-                  aria-label="Выбрать фото из галереи для заявки"
-                  onChange={handleTicketAddPhotos}
-                  disabled={isTicketAddPhotoUploading}
-                />
-                <div className="mobilePhotoSourceRow">
-                  <button
-                    type="button"
-                    className="mobileBtn mobileBtnSecondary mobilePhotoSourceBtn"
-                    disabled={isTicketAddPhotoUploading}
-                    onClick={() => addTicketCameraRef.current?.click()}
-                  >
-                    Сделать фото
-                  </button>
-                  <button
-                    type="button"
-                    className="mobileBtn mobileBtnSecondary mobilePhotoSourceBtn"
-                    disabled={isTicketAddPhotoUploading}
-                    onClick={() => addTicketGalleryRef.current?.click()}
-                  >
-                    Из галереи
-                  </button>
-                </div>
-                {isTicketAddPhotoUploading && ticketAddPhotoProgress ? (
-                  <div className="mobileMeta" style={{ marginTop: 10 }}>
-                    Загружаем… {ticketAddPhotoProgress.current} из {ticketAddPhotoProgress.total}
-                  </div>
-                ) : null}
-                {ticketAddPhotoError ? <div className="mobileNotice mobileNoticeError" style={{ marginTop: 10 }}>{ticketAddPhotoError}</div> : null}
-              </div>
-            ) : null}
-            {attachmentsQ.isLoading ? <div className="mobileMeta">Загрузка вложений…</div> : null}
-            {attachmentsQ.isError ? (
-              <div className="mobileNotice mobileNoticeError">
-                {formatMobileMutationError(attachmentsQ.error, { operation: 'attachments_list' })}
-              </div>
-            ) : null}
-            {!attachmentsQ.isLoading && !attachmentsQ.isError ? (
-              <>
-                <MobileTicketPhotoGallery
-                  title="Фото заявки"
-                  photos={requestImages}
-                  emptyText="Нет фото"
-                  onOpen={openRequestPhoto}
-                />
-                <div style={{ marginTop: 14 }}>
-                  <MobileTicketPhotoGallery
-                    title="Фото отчёта"
-                    photos={reportImages}
-                    emptyText="Нет фото отчёта"
-                    onOpen={openReportPhoto}
-                  />
-                </div>
-                {otherFiles.length > 0 ? (
-                  <>
-                    <div className="mobileSectionTitle" style={{ marginTop: 14, marginBottom: 8 }}>
-                      Другие вложения
-                    </div>
-                    <ul className="mobileMeta" style={{ margin: 0, paddingLeft: 18 }}>
-                      {otherFiles.map((a) => {
-                        const href = api.resolveTicketAttachmentUrl(a)
-                        return (
-                          <li key={a.id} style={{ marginBottom: 6 }}>
-                            {href ? (
-                              <a href={href} target="_blank" rel="noreferrer">
-                                {mobileAttachmentLabel(a)}
-                              </a>
-                            ) : (
-                              mobileAttachmentLabel(a)
-                            )}
-                          </li>
-                        )
-                      })}
-                    </ul>
-                  </>
-                ) : null}
-              </>
-            ) : null}
-          </div>
-
-          <div className="mobileCard" style={{ marginTop: 8 }}>
-            <div className="mobileSectionTitle" style={{ marginBottom: 8 }}>Чат заявки</div>
-            {timelineQ.isLoading ? <div className="mobileMeta">Загрузка…</div> : null}
-            {!timelineQ.isLoading && chatMessages.length === 0 ? (
-              <div className="mobileMeta" style={{ marginBottom: canSendComment ? 10 : 0 }}>Комментариев пока нет</div>
-            ) : null}
-            {chatMessages.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 320, overflowY: 'auto', paddingRight: 4, marginBottom: 10 }}>
-                {chatMessages.map((msg) => (
-                  <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.isOwn ? 'flex-end' : 'flex-start' }}>
-                    <div style={{
-                      maxWidth: '82%',
-                      background: msg.isOwn ? '#4f46e5' : '#f3f4f6',
-                      color: msg.isOwn ? '#fff' : '#111827',
-                      borderRadius: msg.isOwn ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
-                      padding: '8px 12px',
-                      wordBreak: 'break-word',
-                      whiteSpace: 'pre-wrap',
-                      fontSize: '0.92rem',
-                    }}>
-                      {msg.text}
-                    </div>
-                    <div className="mobileMeta" style={{ marginTop: 2, fontSize: '0.72rem' }}>
-                      {msg.authorEmail || 'система'} · {new Date(msg.at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : null}
-            {canSendComment ? (
-              <div className="mobileTicketChatComposer">
-                <textarea
-                  ref={chatInputRef}
-                  className="mobileTicketChatInput"
-                  value={chatText}
-                  onChange={(e) => setChatText(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); void handleChatSend() } }}
-                  placeholder="Написать комментарий…"
-                  disabled={chatSending || !isOnline}
-                  rows={1}
-                />
-                <button
-                  type="button"
-                  className="mobileTicketChatSendButton"
-                  aria-label="Отправить сообщение"
-                  disabled={chatSending || !chatText.trim() || !isOnline}
-                  onClick={() => void handleChatSend()}
-                >
-                  {chatSending ? '…' : '→'}
-                </button>
-              </div>
-            ) : null}
-            {!isOnline && canSendComment ? (
-              <div className="mobileMeta" style={{ marginTop: 8 }}>
-                Офлайн: отправка сообщений недоступна.
-              </div>
-            ) : null}
-            {chatSendError ? <div className="mobileNotice mobileNoticeError" style={{ marginTop: 8 }}>{chatSendError}</div> : null}
-          </div>
-
           {ticket.children?.length ? (
             <div className="mobileSection" style={{ marginTop: 4 }}>
               <h2 className="mobileSectionTitle">Связанные заявки</h2>
@@ -1246,6 +1113,182 @@ export function MobileTicketPage() {
                   </Link>
                 )
               })}
+            </div>
+          ) : null}
+          </>
+          ) : null}
+
+          {/* ── Photos tab ───────────────────────────────────── */}
+          {detailTab === 'photos' ? (
+            <div className="mobileCard">
+              {canUploadTicketPhotos && !isOnline ? (
+                <div className="mobileMeta" style={{ marginBottom: 10 }}>
+                  Офлайн: загрузка фото недоступна. Подключитесь к сети, чтобы добавить снимки.
+                </div>
+              ) : null}
+              {canUploadTicketPhotos && isOnline ? (
+                <div className="mobileTicketAddPhotos">
+                  <div className="mobileSectionTitle" style={{ marginBottom: 8 }}>
+                    Добавить фото
+                  </div>
+                  <p className="mobileHint" style={{ marginTop: 0 }}>
+                    Несколько файлов — из галереи; камера добавляет по одному снимку за раз.
+                  </p>
+                  <input
+                    ref={addTicketCameraRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="mobilePhotoInputHidden"
+                    aria-label="Сделать фото для заявки"
+                    onChange={handleTicketAddPhotos}
+                    disabled={isTicketAddPhotoUploading}
+                  />
+                  <input
+                    ref={addTicketGalleryRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="mobilePhotoInputHidden"
+                    aria-label="Выбрать фото из галереи для заявки"
+                    onChange={handleTicketAddPhotos}
+                    disabled={isTicketAddPhotoUploading}
+                  />
+                  <div className="mobilePhotoSourceRow">
+                    <button
+                      type="button"
+                      className="mobileBtn mobileBtnSecondary mobilePhotoSourceBtn"
+                      disabled={isTicketAddPhotoUploading}
+                      onClick={() => addTicketCameraRef.current?.click()}
+                    >
+                      Сделать фото
+                    </button>
+                    <button
+                      type="button"
+                      className="mobileBtn mobileBtnSecondary mobilePhotoSourceBtn"
+                      disabled={isTicketAddPhotoUploading}
+                      onClick={() => addTicketGalleryRef.current?.click()}
+                    >
+                      Из галереи
+                    </button>
+                  </div>
+                  {isTicketAddPhotoUploading && ticketAddPhotoProgress ? (
+                    <div className="mobileMeta" style={{ marginTop: 10 }}>
+                      Загружаем… {ticketAddPhotoProgress.current} из {ticketAddPhotoProgress.total}
+                    </div>
+                  ) : null}
+                  {ticketAddPhotoError ? <div className="mobileNotice mobileNoticeError" style={{ marginTop: 10 }}>{ticketAddPhotoError}</div> : null}
+                </div>
+              ) : null}
+              {attachmentsQ.isLoading ? <div className="mobileMeta">Загрузка вложений…</div> : null}
+              {attachmentsQ.isError ? (
+                <div className="mobileNotice mobileNoticeError">
+                  {formatMobileMutationError(attachmentsQ.error, { operation: 'attachments_list' })}
+                </div>
+              ) : null}
+              {!attachmentsQ.isLoading && !attachmentsQ.isError ? (
+                <>
+                  <MobileTicketPhotoGallery
+                    title="Фото заявки"
+                    photos={requestImages}
+                    emptyText="Нет фото"
+                    onOpen={openRequestPhoto}
+                  />
+                  <div style={{ marginTop: 14 }}>
+                    <MobileTicketPhotoGallery
+                      title="Фото отчёта"
+                      photos={reportImages}
+                      emptyText="Нет фото отчёта"
+                      onOpen={openReportPhoto}
+                    />
+                  </div>
+                  {otherFiles.length > 0 ? (
+                    <>
+                      <div className="mobileSectionTitle" style={{ marginTop: 14, marginBottom: 8 }}>
+                        Другие вложения
+                      </div>
+                      <ul className="mobileMeta" style={{ margin: 0, paddingLeft: 18 }}>
+                        {otherFiles.map((a) => {
+                          const href = api.resolveTicketAttachmentUrl(a)
+                          return (
+                            <li key={a.id} style={{ marginBottom: 6 }}>
+                              {href ? (
+                                <a href={href} target="_blank" rel="noreferrer">
+                                  {mobileAttachmentLabel(a)}
+                                </a>
+                              ) : (
+                                mobileAttachmentLabel(a)
+                              )}
+                            </li>
+                          )
+                        })}
+                      </ul>
+                    </>
+                  ) : null}
+                </>
+              ) : null}
+            </div>
+          ) : null}
+
+          {/* ── Chat tab ─────────────────────────────────────── */}
+          {detailTab === 'chat' ? (
+            <div className="mobileCard">
+              {timelineQ.isLoading ? <div className="mobileMeta">Загрузка…</div> : null}
+              {!timelineQ.isLoading && chatMessages.length === 0 ? (
+                <div className="mobileMeta" style={{ marginBottom: canSendComment ? 10 : 0 }}>Комментариев пока нет</div>
+              ) : null}
+              {chatMessages.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 420, overflowY: 'auto', paddingRight: 4, marginBottom: 10 }}>
+                  {chatMessages.map((msg) => (
+                    <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.isOwn ? 'flex-end' : 'flex-start' }}>
+                      <div style={{
+                        maxWidth: '82%',
+                        background: msg.isOwn ? '#4f46e5' : '#f3f4f6',
+                        color: msg.isOwn ? '#fff' : '#111827',
+                        borderRadius: msg.isOwn ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
+                        padding: '8px 12px',
+                        wordBreak: 'break-word',
+                        whiteSpace: 'pre-wrap',
+                        fontSize: '0.92rem',
+                      }}>
+                        {msg.text}
+                      </div>
+                      <div className="mobileMeta" style={{ marginTop: 2, fontSize: '0.72rem' }}>
+                        {msg.authorEmail || 'система'} · {new Date(msg.at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              {canSendComment ? (
+                <div className="mobileTicketChatComposer">
+                  <textarea
+                    ref={chatInputRef}
+                    className="mobileTicketChatInput"
+                    value={chatText}
+                    onChange={(e) => setChatText(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); void handleChatSend() } }}
+                    placeholder="Написать комментарий…"
+                    disabled={chatSending || !isOnline}
+                    rows={1}
+                  />
+                  <button
+                    type="button"
+                    className="mobileTicketChatSendButton"
+                    aria-label="Отправить сообщение"
+                    disabled={chatSending || !chatText.trim() || !isOnline}
+                    onClick={() => void handleChatSend()}
+                  >
+                    {chatSending ? '…' : '→'}
+                  </button>
+                </div>
+              ) : null}
+              {!isOnline && canSendComment ? (
+                <div className="mobileMeta" style={{ marginTop: 8 }}>
+                  Офлайн: отправка сообщений недоступна.
+                </div>
+              ) : null}
+              {chatSendError ? <div className="mobileNotice mobileNoticeError" style={{ marginTop: 8 }}>{chatSendError}</div> : null}
             </div>
           ) : null}
         </>
