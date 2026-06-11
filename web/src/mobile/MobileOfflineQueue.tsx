@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import {
   deleteSingleQueueItem,
-  getPendingAndFailedCounts,
   readOfflineQueue,
   retrySingleQueueItem,
   retryOfflineQueue,
@@ -111,13 +110,11 @@ export function MobileOfflineQueue() {
       setPendingDeleteId(null)
     } else {
       setPendingDeleteId(id)
-      if (pendingDeleteId && pendingDeleteId !== id) {
-        setPendingDeleteId(id)
-      }
     }
   }
 
-  const { pending, failed } = getPendingAndFailedCounts()
+  const pendingCount = items.filter((i) => i.status === 'pending' || i.status === 'syncing').length
+  const failedCount = items.filter((i) => i.status === 'failed').length
   const backPath = mobilePath(location.pathname, '/profile')
   const isEmpty = items.length === 0
   const syncAllDisabled = !isOnline || syncStatus === 'syncing'
@@ -131,18 +128,18 @@ export function MobileOfflineQueue() {
       </div>
 
       <div className="mobileRow" style={{ marginBottom: 12, alignItems: 'center' }}>
-        <h1 className="mobileSectionTitle" style={{ margin: 0 }}>
+        <h1 className="mobileTitle" style={{ margin: 0, fontSize: '1.2rem' }}>
           Очередь отправки
         </h1>
-        {(pending > 0 || failed > 0) ? (
+        {(pendingCount > 0 || failedCount > 0) ? (
           <span className="mobileOfflineQueueCountBadge">
-            {pending + failed}
+            {pendingCount + failedCount}
           </span>
         ) : null}
       </div>
 
       {!isOnline ? (
-        <div className="mobileOfflineBanner mobileOfflineBannerWarning" style={{ marginBottom: 10, position: 'static', margin: '0 0 10px' }}>
+        <div className="mobileNotice" style={{ background: '#fef3c7', border: '1px solid #fcd34d', color: '#78350f' }}>
           Нет соединения. Синхронизация выполнится автоматически после восстановления сети.
         </div>
       ) : null}

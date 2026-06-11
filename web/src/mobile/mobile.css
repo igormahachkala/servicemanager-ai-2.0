@@ -322,6 +322,14 @@ body,
   font-weight: 600;
 }
 
+a.mobileBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  box-sizing: border-box;
+}
+
 .mobileBtnSecondary {
   background: #e5e7eb;
   color: #111827;
@@ -3205,7 +3213,6 @@ a.mobileBtn.mobileCreateTicketLink {
 }
 
 .mobileOfflineQueueItem {
-  margin-bottom: 10px;
 }
 
 .mobileOfflineQueueStatusBadge {
