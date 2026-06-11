@@ -76,6 +76,7 @@ export function MobileShell() {
   const [pendingCount, setPendingCount] = useState(getPendingOfflineActionsCount())
   const [queueCounts, setQueueCounts] = useState(() => getPendingAndFailedCounts())
   const [syncMessage, setSyncMessage] = useState('')
+  const [isProviderContextExpanded, setIsProviderContextExpanded] = useState(false)
 
   const companyQ = useQuery({
     queryKey: ['mobile-shell-company'],
@@ -253,44 +254,75 @@ export function MobileShell() {
         </Link>
       </header>
       {canShowLinkedClients ? (
-        <div className="mobileProviderContextCard">
-          <div className="mobileProviderContextLabel">Клиентский контур</div>
-          {linkedClientsLoaded ? (
-            linkedClients.length > 0 ? (
-              <>
-                <div className="mobileProviderContextValue">
-                  {selectedLinkedClient?.clientCompany.name || 'Выберите клиента'}
-                </div>
-                <select
-                  className="mobileProviderContextSelect"
-                  value={selectedLinkedClientCompanyId}
-                  onChange={(e) => updateProviderScope(e.target.value)}
-                  disabled={isOnTicketDetail}
-                >
-                  <option value="">Выберите клиента</option>
-                  {linkedClients.map((item) => (
-                    <option key={item.clientCompany.id} value={item.clientCompany.id}>
-                      {item.clientCompany.name} · {item.role}
-                    </option>
-                  ))}
-                </select>
-                <div className="mobileProviderContextHint">
-                  {isOnTicketDetail
-                    ? 'Сменить клиента можно с главной страницы.'
-                    : 'Контекст применяется к доске, созданию заявки и карточкам заявок.'}
-                </div>
-              </>
-            ) : (
-              <div className="mobileProviderContextHint">У этой компании пока нет связанных клиентов.</div>
-            )
-          ) : (
-            <div className="mobileProviderContextHint">Загружаем список клиентов…</div>
-          )}
-          {linkedClientsQ.isError ? (
-            <div className="mobileNotice mobileNoticeError" style={{ marginTop: 8 }}>
-              {(linkedClientsQ.error as any)?.message || String(linkedClientsQ.error)}
+        <div className={`mobileProviderContextCard ${isProviderContextExpanded ? 'mobileProviderContextCard--open' : ''}`}>
+          <button
+            type="button"
+            className="mobileProviderContextToggle"
+            onClick={() => setIsProviderContextExpanded((v) => !v)}
+            aria-expanded={isProviderContextExpanded}
+            aria-controls="mobile-provider-context-body"
+          >
+            <div className="mobileProviderContextToggleText">
+              <div className="mobileProviderContextLabel">Клиентский контур</div>
+              <div className="mobileProviderContextValue">
+                {selectedLinkedClient?.clientCompany.name || 'Выберите клиента'}
+              </div>
             </div>
-          ) : null}
+            <svg
+              className={`mobileProviderContextChevron ${isProviderContextExpanded ? 'mobileProviderContextChevron--open' : ''}`}
+              width={18}
+              height={18}
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </button>
+          <div id="mobile-provider-context-body" className={`mobileProviderContextBody ${isProviderContextExpanded ? 'mobileProviderContextBody--open' : ''}`}>
+            <div className="mobileProviderContextBodyInner">
+              {linkedClientsLoaded ? (
+                linkedClients.length > 0 ? (
+                  <>
+                    <select
+                      className="mobileProviderContextSelect"
+                      value={selectedLinkedClientCompanyId}
+                      onChange={(e) => updateProviderScope(e.target.value)}
+                      disabled={isOnTicketDetail}
+                    >
+                      <option value="">Выберите клиента</option>
+                      {linkedClients.map((item) => (
+                        <option key={item.clientCompany.id} value={item.clientCompany.id}>
+                          {item.clientCompany.name} · {item.role}
+                        </option>
+                      ))}
+                    </select>
+                    <div className="mobileProviderContextHint">
+                      {isOnTicketDetail
+                        ? 'Сменить клиента можно с главной страницы.'
+                        : 'Контекст применяется к доске, созданию заявки и карточкам заявок.'}
+                    </div>
+                    <div className="mobileProviderContextHint">
+                      {selectedLinkedClient ? `Роль: ${selectedLinkedClient.role}` : 'Контекст не выбран'}
+                    </div>
+                  </>
+                ) : (
+                  <div className="mobileProviderContextHint">У этой компании пока нет связанных клиентов.</div>
+                )
+              ) : (
+                <div className="mobileProviderContextHint">Загружаем список клиентов…</div>
+              )}
+              {linkedClientsQ.isError ? (
+                <div className="mobileNotice mobileNoticeError" style={{ marginTop: 8 }}>
+                  {(linkedClientsQ.error as any)?.message || String(linkedClientsQ.error)}
+                </div>
+              ) : null}
+            </div>
+          </div>
         </div>
       ) : null}
       <main className="mobilePage">

@@ -1835,12 +1835,32 @@ a.mobileBtn.mobileCreateTicketLink {
 .mobileProviderContextCard {
   width: min(720px, calc(100% - 24px));
   margin: 10px auto 0;
-  padding: 12px;
+  padding: 10px 12px;
   box-sizing: border-box;
   border: 1px solid #dbeafe;
   border-radius: 16px;
   background: #eff6ff;
   box-shadow: 0 4px 14px rgba(37, 99, 235, 0.08);
+}
+
+.mobileProviderContextToggle {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobileProviderContextToggleText {
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .mobileProviderContextLabel {
@@ -1852,7 +1872,7 @@ a.mobileBtn.mobileCreateTicketLink {
 }
 
 .mobileProviderContextValue {
-  margin-top: 6px;
+  margin-top: 4px;
   font-size: 0.95rem;
   font-weight: 800;
   color: #111827;
@@ -1860,9 +1880,40 @@ a.mobileBtn.mobileCreateTicketLink {
   word-break: break-word;
 }
 
+.mobileProviderContextChevron {
+  flex: 0 0 auto;
+  margin-top: 6px;
+  color: #2563eb;
+  transition: transform 180ms ease;
+}
+
+.mobileProviderContextChevron--open {
+  transform: rotate(180deg);
+}
+
+.mobileProviderContextBody {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 180ms ease, opacity 180ms ease, margin-top 180ms ease;
+  opacity: 0;
+  margin-top: 0;
+  overflow: hidden;
+}
+
+.mobileProviderContextBody--open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  margin-top: 10px;
+}
+
+.mobileProviderContextBodyInner {
+  min-height: 0;
+  overflow: hidden;
+}
+
 .mobileProviderContextSelect {
   width: 100%;
-  margin-top: 8px;
+  margin-top: 0;
   min-height: 44px;
   border-radius: 12px;
   border: 1px solid #bfdbfe;
@@ -2331,11 +2382,6 @@ a.mobileBtn.mobileCreateTicketLink {
 .mobileStatBlock--done .mobileStatValue  { color: #059669; }
 
 /* ── V2 ticket list card (no thumbnail, clean text) ─────── */
-.mobileTicketCardV2 {
-  padding: 14px 14px 12px;
-  display: grid;
-  gap: 5px;
-}
 
 .mobileTicketCardV2Top {
   display: flex;
@@ -2654,15 +2700,15 @@ a.mobileBtn.mobileCreateTicketLink {
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  max-width: 100%;
+  width: 100%;
   min-width: 0;
   box-sizing: border-box;
 }
 
 .mobileTicketCardV2Body {
-  flex: 1 1 auto;
+  /* SMA-114: flex-basis:0% prevents Safari from using intrinsic content width */
+  flex: 1 1 0%;
   min-width: 0;
-  max-width: 100%;
   overflow: hidden;
   display: grid;
   gap: 5px;
