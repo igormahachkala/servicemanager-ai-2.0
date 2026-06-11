@@ -188,16 +188,32 @@ export type MobileHomeLocationGroup = {
   locationName: string
   city: string | null
   address: string | null
+  /** SMA-112: только активные заявки (NEW/ASSIGNED/IN_PROGRESS) — для раскрытого списка. */
   tickets: TicketCard[]
+  /** Полный счётчик: все статусы (включая DONE/CANCELED). */
   totalTickets: number
   newTickets: number
   inProgressTickets: number
+  /** Активные = NEW + ASSIGNED + IN_PROGRESS. */
+  activeTickets: number
+  doneTickets: number
+  canceledTickets: number
+  /** Просроченные только среди активных заявок. */
   overdueTickets: number
+}
+
+/** SMA-112: активная заявка для главной (диспетчерский экран). */
+function isActiveHomeTicketStatus(status: TicketCard['status']): boolean {
+  return status === 'NEW' || status === 'ASSIGNED' || status === 'IN_PROGRESS'
 }
 
 /**
  * Group an already-sorted ticket list by location, preserving ticket sort order within
  * each group. Group order = insertion order (first group contains the globally most-critical ticket).
+ *
+ * SMA-112: счётчики точки считаются по ВСЕМ статусам (total/active/done/canceled/overdue),
+ * но в `tickets` (для раскрытого списка) попадают ТОЛЬКО активные заявки.
+ * Группа создаётся даже если у точки нет активных заявок (карточка остаётся видимой).
  */
 export function groupTicketsByLocation(tickets: TicketCard[]): MobileHomeLocationGroup[] {
   const map = new Map<string, MobileHomeLocationGroup>()
@@ -213,15 +229,23 @@ export function groupTicketsByLocation(tickets: TicketCard[]): MobileHomeLocatio
         totalTickets: 0,
         newTickets: 0,
         inProgressTickets: 0,
+        activeTickets: 0,
+        doneTickets: 0,
+        canceledTickets: 0,
         overdueTickets: 0,
       })
     }
     const g = map.get(locId)!
-    g.tickets.push(t)
     g.totalTickets++
     if (t.status === 'NEW') g.newTickets++
     if (t.status === 'IN_PROGRESS' || t.status === 'ASSIGNED') g.inProgressTickets++
-    if (t.slaBreached && t.status !== 'DONE' && t.status !== 'CANCELED') g.overdueTickets++
+    if (t.status === 'DONE') g.doneTickets++
+    if (t.status === 'CANCELED') g.canceledTickets++
+    if (isActiveHomeTicketStatus(t.status)) {
+      g.activeTickets++
+      g.tickets.push(t) // раскрытый список — только активные
+      if (t.slaBreached) g.overdueTickets++
+    }
   }
   return [...map.values()]
 }

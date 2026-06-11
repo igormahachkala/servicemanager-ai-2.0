@@ -232,21 +232,22 @@ function LocationGroupCard({
           ) : null}
           <div className="mobileLocationGroupStats">
             <span className="mobileLocationGroupStat mobileLocationGroupStat--total">
-              {group.totalTickets} заявок
+              Всего: {group.totalTickets}
             </span>
-            {group.newTickets > 0 ? (
-              <span className="mobileLocationGroupStat mobileLocationGroupStat--new">
-                {group.newTickets} новых
-              </span>
-            ) : null}
-            {group.inProgressTickets > 0 ? (
-              <span className="mobileLocationGroupStat mobileLocationGroupStat--inprogress">
-                {group.inProgressTickets} в работе
+            <span className="mobileLocationGroupStat mobileLocationGroupStat--active">
+              Активных: {group.activeTickets}
+            </span>
+            <span className="mobileLocationGroupStat mobileLocationGroupStat--done">
+              Завершено: {group.doneTickets}
+            </span>
+            {group.canceledTickets > 0 ? (
+              <span className="mobileLocationGroupStat mobileLocationGroupStat--canceled">
+                Отменено: {group.canceledTickets}
               </span>
             ) : null}
             {group.overdueTickets > 0 ? (
               <span className="mobileLocationGroupStat mobileLocationGroupStat--overdue">
-                {group.overdueTickets} просрочено
+                Просрочено: {group.overdueTickets}
               </span>
             ) : null}
           </div>
@@ -255,7 +256,11 @@ function LocationGroupCard({
       </div>
       {expanded ? (
         <div className="mobileLocationGroupTickets">
-          {group.tickets.map((t) => renderTicket(t))}
+          {group.tickets.length > 0 ? (
+            group.tickets.map((t) => renderTicket(t))
+          ) : (
+            <div className="mobileLocationGroupEmptyActive mobileMeta">Нет активных заявок</div>
+          )}
         </div>
       ) : null}
     </div>

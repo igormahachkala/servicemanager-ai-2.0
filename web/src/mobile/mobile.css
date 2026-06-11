@@ -3347,6 +3347,26 @@ a.mobileBtn.mobileCreateTicketLink {
   color: #9f1239;
 }
 
+.mobileLocationGroupStat--active {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.mobileLocationGroupStat--done {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.mobileLocationGroupStat--canceled {
+  background: #f3f4f6;
+  color: #6b7280;
+}
+
+.mobileLocationGroupEmptyActive {
+  padding: 12px;
+  text-align: center;
+}
+
 .mobileLocationGroupChevron {
   font-size: 0.7rem;
   color: #9ca3af;
