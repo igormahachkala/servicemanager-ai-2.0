@@ -913,6 +913,39 @@ export type AnalyticsOverviewResponse = {
   }
 }
 
+export type LocationAnalyticsItem = {
+  locationId: string
+  locationName: string
+  city: string | null
+  address: string | null
+  totalTickets: number
+  newTickets: number
+  inProgressTickets: number
+  doneTickets: number
+  overdueTickets: number
+  categories: Array<{
+    categoryId: string
+    categoryName: string
+    ticketsCount: number
+    overdueCount: number
+  }>
+}
+
+export type LocationAnalyticsResponse = {
+  items: LocationAnalyticsItem[]
+  summary: {
+    totalLocations: number
+    totalTickets: number
+    totalOverdue: number
+    inProgressTotal: number
+    doneTotal: number
+  }
+  meta?: {
+    scopeCompanyId?: string
+    visibilityMode?: string
+  }
+}
+
 export type TicketContextAnalyticsResponse = {
   byLocation: Array<{
     locationId: string
@@ -2353,6 +2386,27 @@ export async function analyticsOverview(params?: { linkedClientCompanyId?: strin
   }
   const suffix = search.toString() ? '?' + search.toString() : ''
   return request<AnalyticsOverviewResponse>('/analytics/overview' + suffix)
+}
+
+export async function analyticsLocations(params?: {
+  linkedClientCompanyId?: string
+  companyId?: string
+  locationId?: string
+  categoryId?: string
+  from?: string
+  to?: string
+  minTickets?: number
+}): Promise<LocationAnalyticsResponse> {
+  const search = new URLSearchParams()
+  if (params?.linkedClientCompanyId) search.set('linkedClientCompanyId', params.linkedClientCompanyId)
+  if (params?.companyId) search.set('companyId', params.companyId)
+  if (params?.locationId) search.set('locationId', params.locationId)
+  if (params?.categoryId) search.set('categoryId', params.categoryId)
+  if (params?.from) search.set('from', params.from)
+  if (params?.to) search.set('to', params.to)
+  if (params?.minTickets != null) search.set('minTickets', String(params.minTickets))
+  const suffix = search.toString() ? '?' + search.toString() : ''
+  return request<LocationAnalyticsResponse>('/analytics/locations' + suffix)
 }
 
 export async function ticketContextAnalytics(params?: {

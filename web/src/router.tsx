@@ -13,6 +13,7 @@ import { CreateTicketPage } from './views/CreateTicketPage'
 import { EmployeesPage } from './views/EmployeesPage'
 import { LocationsPage } from './views/LocationsPage'
 import { AnalyticsPage } from './views/AnalyticsPage'
+import { LocationAnalyticsPage } from './views/LocationAnalyticsPage'
 import { SettingsPage } from './views/SettingsPage'
 import { ProblemCategoriesPage } from './views/ProblemCategoriesPage'
 import { SpecializationsPage } from './views/SpecializationsPage'
@@ -136,6 +137,7 @@ export function AppRoutes() {
         <Route path="employees" element={<EmployeesPage />} />
         <Route path="specializations" element={<SpecializationsPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />
+        <Route path="analytics/locations" element={<LocationAnalyticsPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="company" element={<CompanyPage />} />
         <Route path="platform/permissions" element={<PermissionsPage />} />
