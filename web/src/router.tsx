@@ -26,6 +26,7 @@ import { InspectionRunPage } from './views/InspectionRunPage'
 import { InspectionRunReportPage } from './views/InspectionRunReportPage'
 import { InspectionQuickPage } from './views/InspectionQuickPage'
 import { MapPage } from './pages/MapPage'
+import { PermissionsPage } from './pages/platform/PermissionsPage'
 import { MobileShell } from './mobile/MobileShell'
 import { MobileHome } from './mobile/MobileHome'
 import { MobileCreateTicket } from './mobile/MobileCreateTicket'
@@ -137,6 +138,7 @@ export function AppRoutes() {
         <Route path="analytics" element={<AnalyticsPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="company" element={<CompanyPage />} />
+        <Route path="platform/permissions" element={<PermissionsPage />} />
         <Route path="technician" element={<TechnicianPage />} />
         <Route path="map" element={<MapPage />} />
         <Route path="problem-categories" element={<ProblemCategoriesPage />} />

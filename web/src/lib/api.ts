@@ -1934,6 +1934,30 @@ export async function linkedClients(): Promise<LinkedClientSummary[]> {
   return request<LinkedClientSummary[]>('/service-contracts/linked-clients')
 }
 
+// ── Permissions (read-only catalog/matrix; PLATFORM_ADMIN) ─────────────────────
+export type PermissionCatalogItem = {
+  code: string
+  name: string
+  category: string
+  description?: string | null
+}
+
+export type PermissionMatrixEntry = {
+  role: string
+  companyType: 'CLIENT' | 'PROVIDER' | null
+  permissions: string[]
+}
+
+export async function fetchPermissionCatalog(): Promise<PermissionCatalogItem[]> {
+  const res = await request<{ blocks: PermissionCatalogItem[] }>('/permissions/catalog')
+  return res.blocks || []
+}
+
+export async function fetchPermissionMatrix(): Promise<PermissionMatrixEntry[]> {
+  const res = await request<{ roles: PermissionMatrixEntry[] }>('/permissions/matrix')
+  return res.roles || []
+}
+
 export async function getLinkedClients(): Promise<LinkedClientSummary[]> {
   return linkedClients()
 }

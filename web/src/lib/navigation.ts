@@ -44,6 +44,11 @@ export const platformNavigation: ShellNavigationConfig = {
       label: 'Меню',
       items: [{ id: 'companies', label: 'Компании', to: '/companies' }, ...tenantDesktopNavItems],
     },
+    {
+      id: 'platform',
+      label: 'Платформа',
+      items: [{ id: 'permissions', label: 'Роли и права', to: '/platform/permissions' }],
+    },
   ],
   topbar: [
     { id: 'companies', label: 'Компании', to: '/companies' },
