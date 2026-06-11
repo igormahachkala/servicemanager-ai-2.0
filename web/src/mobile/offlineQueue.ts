@@ -134,6 +134,22 @@ export function getPendingOfflineActionsCount(): number {
   return readOfflineQueue().filter((item) => item.status === 'pending' || item.status === 'failed').length
 }
 
+export function getPendingAndFailedCounts(): { pending: number; failed: number } {
+  const queue = readOfflineQueue()
+  let pending = 0
+  let failed = 0
+  for (const item of queue) {
+    if (item.status === 'pending' || item.status === 'syncing') pending++
+    else if (item.status === 'failed') failed++
+  }
+  return { pending, failed }
+}
+
+export function deleteSingleQueueItem(id: string): void {
+  const updated = readOfflineQueue().filter((item) => item.id !== id)
+  writeOfflineQueue(updated)
+}
+
 function findPendingOrFailedStatusChangeDuplicate(
   queue: OfflineQueueItem[],
   ticketId: string,
@@ -205,54 +221,86 @@ export function enqueueOfflineComment(params: {
 
 let retryInFlight: Promise<OfflineQueueRetryResult> | null = null
 
-async function runRetryOfflineQueue(): Promise<OfflineQueueRetryResult> {
-  const stored = readOfflineQueue()
-  const withoutLegacySynced = stored.filter((row) => row.status !== 'synced')
-  if (withoutLegacySynced.length !== stored.length) {
-    writeOfflineQueue(withoutLegacySynced)
+async function processOneItem(item: OfflineQueueItem): Promise<void> {
+  if (item.type === 'ticket_comment') {
+    const comment = item.payload.comment?.trim()
+    if (!comment) throw new Error('Пустой комментарий')
+    await api.addTicketComment(item.ticketId, comment, item.scope)
+  } else if (item.type === 'ticket_status_change') {
+    const status = item.payload.status
+    if (!status) throw new Error('Не указан статус')
+    const comment = item.payload.comment?.trim()
+    if (comment) {
+      await api.addTicketComment(item.ticketId, comment, item.scope)
+    }
+    await api.updateTicketStatus(item.ticketId, { status }, item.scope)
   }
-  const next = [...withoutLegacySynced]
+}
+
+async function runRetryOfflineQueue(): Promise<OfflineQueueRetryResult> {
+  const stored = readOfflineQueue().filter((row) => row.status !== 'synced')
+  writeOfflineQueue(stored)
+
   let synced = 0
   let failed = 0
 
-  for (let i = 0; i < next.length; i += 1) {
-    const item = next[i]
-    if (!item || item.status === 'synced') continue
+  const toProcess = stored
+    .filter((row) => row.status === 'pending' || row.status === 'failed')
+    .map((row) => row.id)
+
+  for (const id of toProcess) {
+    const current = readOfflineQueue()
+    const idx = current.findIndex((r) => r.id === id)
+    if (idx === -1) continue
+    const item = current[idx]!
+    if (item.status === 'synced') continue
+
+    current[idx] = { ...item, status: 'syncing' }
+    writeOfflineQueue(current)
 
     try {
-      if (item.type === 'ticket_comment') {
-        const comment = item.payload.comment?.trim()
-        if (!comment) throw new Error('Пустой комментарий')
-        await api.addTicketComment(item.ticketId, comment, item.scope)
-      } else if (item.type === 'ticket_status_change') {
-        const status = item.payload.status
-        if (!status) throw new Error('Не указан статус')
-        const comment = item.payload.comment?.trim()
-        if (comment) {
-          await api.addTicketComment(item.ticketId, comment, item.scope)
-        }
-        await api.updateTicketStatus(item.ticketId, { status }, item.scope)
-      }
-
-      next[i] = {
-        ...item,
-        status: 'synced',
-        lastError: undefined,
-      }
+      await processOneItem(item)
+      writeOfflineQueue(readOfflineQueue().filter((r) => r.id !== id))
       synced += 1
     } catch (error) {
-      next[i] = {
-        ...item,
-        status: 'failed',
-        lastError: error instanceof Error ? error.message : String(error),
+      const errMsg = error instanceof Error ? error.message : String(error)
+      const after = readOfflineQueue()
+      const fi = after.findIndex((r) => r.id === id)
+      if (fi !== -1) {
+        after[fi] = { ...after[fi]!, status: 'failed', lastError: errMsg }
+        writeOfflineQueue(after)
       }
       failed += 1
     }
   }
 
-  const compacted = next.filter((row) => row.status !== 'synced')
-  writeOfflineQueue(compacted)
-  return { queue: compacted, synced, failed }
+  return { queue: readOfflineQueue(), synced, failed }
+}
+
+export async function retrySingleQueueItem(id: string): Promise<{ ok: boolean; error?: string }> {
+  const queue = readOfflineQueue()
+  const idx = queue.findIndex((r) => r.id === id)
+  if (idx === -1) return { ok: false, error: 'Действие не найдено' }
+  const item = queue[idx]!
+  if (item.status === 'synced') return { ok: true }
+
+  queue[idx] = { ...item, status: 'syncing' }
+  writeOfflineQueue(queue)
+
+  try {
+    await processOneItem(item)
+    writeOfflineQueue(readOfflineQueue().filter((r) => r.id !== id))
+    return { ok: true }
+  } catch (error) {
+    const errMsg = error instanceof Error ? error.message : String(error)
+    const after = readOfflineQueue()
+    const fi = after.findIndex((r) => r.id === id)
+    if (fi !== -1) {
+      after[fi] = { ...after[fi]!, status: 'failed', lastError: errMsg }
+      writeOfflineQueue(after)
+    }
+    return { ok: false, error: errMsg }
+  }
 }
 
 /**

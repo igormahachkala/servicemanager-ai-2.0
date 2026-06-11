@@ -5,6 +5,7 @@ import * as api from '../lib/api'
 import { useWsInvalidation } from '../ui/useWsInvalidation'
 import { useRealtimeNotifications } from '../hooks/useRealtimeNotifications'
 import {
+  getPendingAndFailedCounts,
   getPendingOfflineActionsCount,
   retryOfflineQueue,
   subscribeOfflineQueue,
@@ -73,6 +74,7 @@ export function MobileShell() {
   const queryClient = useQueryClient()
   const isOnline = useOnlineStatus()
   const [pendingCount, setPendingCount] = useState(getPendingOfflineActionsCount())
+  const [queueCounts, setQueueCounts] = useState(() => getPendingAndFailedCounts())
   const [syncMessage, setSyncMessage] = useState('')
 
   const companyQ = useQuery({
@@ -155,7 +157,10 @@ export function MobileShell() {
   }, [location.search, meQ.data])
 
   useEffect(() => {
-    const refresh = () => setPendingCount(getPendingOfflineActionsCount())
+    const refresh = () => {
+      setPendingCount(getPendingOfflineActionsCount())
+      setQueueCounts(getPendingAndFailedCounts())
+    }
     refresh()
     return subscribeOfflineQueue(refresh)
   }, [])
@@ -289,17 +294,39 @@ export function MobileShell() {
         </div>
       ) : null}
       <main className="mobilePage">
-        {!isOnline ? (
+        {!isOnline && pendingCount > 0 ? (
+          <Link
+            className="mobileOfflineBanner mobileOfflineBannerWarning mobileOfflineBannerLink"
+            to={mobilePath(location.pathname, '/offline-queue')}
+          >
+            <div>Офлайн. Ожидает отправки: {pendingCount}</div>
+          </Link>
+        ) : !isOnline ? (
           <div className="mobileOfflineBanner mobileOfflineBannerWarning">
-            <div>Нет соединения. Показываем сохранённые данные, действия будут доступны после восстановления сети.</div>
+            <div>Нет соединения. Показываем сохранённые данные.</div>
           </div>
-        ) : null}
-        {isOnline && pendingCount > 0 ? (
+        ) : queueCounts.failed > 0 ? (
+          <Link
+            className="mobileOfflineBanner mobileOfflineBannerFailed mobileOfflineBannerLink"
+            to={mobilePath(location.pathname, '/offline-queue')}
+          >
+            <div>Ошибка отправки: {queueCounts.failed}</div>
+            <span className="mobileOfflineBannerLinkHint">Открыть очередь ›</span>
+          </Link>
+        ) : isOnline && pendingCount > 0 ? (
           <div className="mobileOfflineBanner mobileOfflineBannerPending">
             <div>{retryM.isPending ? 'Синхронизация…' : `Ожидает отправки: ${pendingCount}`}</div>
-            <button type="button" className="mobileBtn mobileOfflineBannerBtn" disabled={retryM.isPending} onClick={() => retryM.mutate()}>
-              {retryM.isPending ? '…' : 'Отправить'}
-            </button>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button type="button" className="mobileBtn mobileOfflineBannerBtn" disabled={retryM.isPending} onClick={() => retryM.mutate()}>
+                {retryM.isPending ? '…' : 'Отправить'}
+              </button>
+              <Link
+                className="mobileBtn mobileBtnSecondary mobileOfflineBannerBtn"
+                to={mobilePath(location.pathname, '/offline-queue')}
+              >
+                Очередь
+              </Link>
+            </div>
           </div>
         ) : null}
         {import.meta.env.DEV ? (

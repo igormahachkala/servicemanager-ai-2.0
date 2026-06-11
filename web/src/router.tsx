@@ -33,6 +33,7 @@ import { MobileMyTickets } from './mobile/MobileMyTickets'
 import { MobileProfile } from './mobile/MobileProfile'
 import { MobileTicketPage } from './mobile/MobileTicketPage'
 import { MobileNotificationsPage } from './mobile/MobileNotificationsPage'
+import { MobileOfflineQueue } from './mobile/MobileOfflineQueue'
 import { MaxApp } from './max/MaxApp'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -112,6 +113,7 @@ export function AppRoutes() {
         <Route path="profile" element={<MobileProfile />} />
         <Route path="notifications" element={<MobileNotificationsPage />} />
         <Route path="tickets/:id" element={<MobileTicketPage />} />
+        <Route path="offline-queue" element={<MobileOfflineQueue />} />
       </Route>
 
       <Route
@@ -153,6 +155,7 @@ export function AppRoutes() {
           <Route path="profile" element={<MobileProfile />} />
           <Route path="notifications" element={<MobileNotificationsPage />} />
           <Route path="tickets/:id" element={<MobileTicketPage />} />
+          <Route path="offline-queue" element={<MobileOfflineQueue />} />
         </Route>
       </Route>
 

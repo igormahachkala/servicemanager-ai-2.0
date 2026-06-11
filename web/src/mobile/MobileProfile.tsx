@@ -1,10 +1,11 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { BrowserNotificationsCard } from '../components/BrowserNotificationsCard'
 import { SupportContactBlock } from '../components/SupportContactBlock'
 import * as api from '../lib/api'
 import { canAccessManagementDesktop } from '../lib/navigation'
+import { getPendingAndFailedCounts, subscribeOfflineQueue } from './offlineQueue'
 import { mobilePath } from './mobileRoute'
 
 function roleLabel(role?: string) {
@@ -25,6 +26,13 @@ export function MobileProfile() {
   const location = useLocation()
   const queryClient = useQueryClient()
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
+
+  const [queueCounts, setQueueCounts] = useState(() => getPendingAndFailedCounts())
+  useEffect(() => {
+    const refresh = () => setQueueCounts(getPendingAndFailedCounts())
+    refresh()
+    return subscribeOfflineQueue(refresh)
+  }, [])
   const linkedClientsQ = useQuery({
     queryKey: ['linked-clients'],
     queryFn: () => api.getLinkedClients(),
@@ -171,6 +179,17 @@ export function MobileProfile() {
       <div className="mobileCard mobileProfileMenu">
         <Link to={notificationsPath} className="mobileProfileMenuItem">
           <span>Уведомления</span>
+          <span className="mobileProfileMenuChevron">›</span>
+        </Link>
+        <Link to={mobilePath(location.pathname, '/offline-queue')} className="mobileProfileMenuItem">
+          <span>
+            Очередь отправки
+            {queueCounts.pending + queueCounts.failed > 0 ? (
+              <span className="mobileProfileMenuBadge mobileProfileMenuBadge--queue">
+                {queueCounts.pending + queueCounts.failed}
+              </span>
+            ) : null}
+          </span>
           <span className="mobileProfileMenuChevron">›</span>
         </Link>
         <div className="mobileProfileMenuItem mobileProfileMenuItem--static" aria-disabled="true">

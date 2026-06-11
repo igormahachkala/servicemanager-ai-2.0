@@ -3141,3 +3141,116 @@ a.mobileBtn.mobileCreateTicketLink {
   color: rgba(255, 255, 255, 0.75);
   letter-spacing: 0.02em;
 }
+
+/* ── SMA-MOBILE-105: Offline queue review screen ───────── */
+.mobileOfflineBannerFailed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: #fff1f2;
+  color: #9f1239;
+  border-bottom: 2px solid #f43f5e;
+}
+
+.mobileOfflineBannerLink {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.mobileOfflineBannerLinkHint {
+  font-size: 0.85rem;
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+
+.mobileProfileMenuBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0 5px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.mobileProfileMenuBadge--queue {
+  background: #f43f5e;
+  color: #fff;
+}
+
+.mobileOfflineQueueCountBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  border-radius: 11px;
+  background: #f43f5e;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0 6px;
+  margin-left: 8px;
+}
+
+.mobileOfflineQueueItem {
+  margin-bottom: 10px;
+}
+
+.mobileOfflineQueueStatusBadge {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0 8px;
+  letter-spacing: 0.01em;
+}
+
+.mobileOfflineQueueStatusBadge--pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.mobileOfflineQueueStatusBadge--syncing {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.mobileOfflineQueueStatusBadge--failed {
+  background: #ffe4e6;
+  color: #9f1239;
+}
+
+.mobileOfflineQueueStatusBadge--synced {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.mobileOfflineQueueAction {
+  flex: 1;
+  font-size: 0.82rem !important;
+  min-height: 36px !important;
+  padding: 6px 10px !important;
+}
+
+.mobileOfflineQueueAction--danger {
+  background: #f43f5e;
+  color: #fff;
+  border: 1.5px solid #f43f5e;
+  border-radius: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
