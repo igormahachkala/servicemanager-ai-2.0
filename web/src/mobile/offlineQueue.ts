@@ -1,8 +1,8 @@
 import { useEffect, useLayoutEffect, useState } from 'react'
 import * as api from '../lib/api'
 
-export type OfflineQueueActionType = 'ticket_status_change' | 'ticket_comment'
-export type OfflineQueueItemStatus = 'pending' | 'failed' | 'synced'
+export type OfflineQueueActionType = 'ticket_status_change' | 'ticket_comment' | 'ticket_photo_upload'
+export type OfflineQueueItemStatus = 'pending' | 'syncing' | 'failed' | 'synced'
 
 export type OfflineQueueItem = {
   id: string

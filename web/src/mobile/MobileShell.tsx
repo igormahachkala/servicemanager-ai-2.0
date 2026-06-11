@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
@@ -198,6 +198,15 @@ export function MobileShell() {
     },
   })
 
+  const prevIsOnlineRef = useRef(isOnline)
+  useEffect(() => {
+    const wasOffline = !prevIsOnlineRef.current
+    prevIsOnlineRef.current = isOnline
+    if (wasOffline && isOnline && getPendingOfflineActionsCount() > 0 && !retryM.isPending) {
+      retryM.mutate()
+    }
+  }, [isOnline])
+
   const unread = notifQ.data?.unreadCount ?? 0
   const mobileRoot = getMobileRouteRoot(location.pathname)
   const mobileNavItems: MobileNavItem[] = [
@@ -287,9 +296,9 @@ export function MobileShell() {
         ) : null}
         {isOnline && pendingCount > 0 ? (
           <div className="mobileOfflineBanner mobileOfflineBannerPending">
-            <div>Есть несинхронизированные изменения</div>
+            <div>{retryM.isPending ? 'Синхронизация…' : `Ожидает отправки: ${pendingCount}`}</div>
             <button type="button" className="mobileBtn mobileOfflineBannerBtn" disabled={retryM.isPending} onClick={() => retryM.mutate()}>
-              {retryM.isPending ? 'Отправляем…' : 'Отправить изменения'}
+              {retryM.isPending ? '…' : 'Отправить'}
             </button>
           </div>
         ) : null}
