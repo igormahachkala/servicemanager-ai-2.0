@@ -108,7 +108,18 @@ function timelineEventLabel(item: api.TimelineItem): string {
   if (ev.includes('DONE') || ev.includes('COMPLETED')) return 'Заявка завершена'
   if (ev.includes('CANCELED') || ev.includes('CANCEL')) return 'Заявка отменена'
   if (ev.includes('RATING') || ev.includes('REVIEW')) return 'Оценка выставлена'
-  if (ev.includes('STATUS') || ev.includes('TRANSITION')) return 'Изменён статус'
+  if (ev.includes('STATUS') || ev.includes('TRANSITION')) {
+    const TO_LABELS: Record<string, string> = {
+      NEW: 'Новая',
+      ASSIGNED: 'Назначена',
+      IN_PROGRESS: 'В работе',
+      DONE: 'Завершена',
+      CANCELED: 'Отменена',
+    }
+    const to: unknown = (item.payload as any)?.toStatus ?? (item.payload as any)?.to ?? (item as any).toStatus
+    const label = typeof to === 'string' ? TO_LABELS[to] : undefined
+    return label ? `Изменён статус → ${label}` : 'Изменён статус'
+  }
   return item.title || 'Событие'
 }
 
