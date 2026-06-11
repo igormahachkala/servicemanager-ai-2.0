@@ -94,6 +94,89 @@ function timelineEventColor(item: api.TimelineItem): string {
   return '#9ca3af'
 }
 
+function timelineEventLabel(item: api.TimelineItem): string {
+  const ev = ((item.timelineEvent || item.type || item.domainType) ?? '').toUpperCase()
+  if (ev.includes('CREATED') || ev.includes('CREATE')) return 'Заявка создана'
+  if (ev.includes('CLAIMED') || ev.includes('CLAIM')) return 'Взята в работу'
+  if (ev.includes('ASSIGNED') || ev.includes('ASSIGN')) return 'Назначен исполнитель'
+  if (ev.includes('STARTED') || ev.includes('IN_PROGRESS')) return 'Начата работа'
+  if (ev.includes('COMMENT') || ev.includes('CHAT')) return 'Комментарий'
+  if (ev.includes('ATTACHMENT') || ev.includes('PHOTO')) return 'Фото добавлено'
+  if (ev.includes('FILE')) return 'Файл добавлен'
+  if (ev.includes('DONE') || ev.includes('COMPLETED')) return 'Заявка завершена'
+  if (ev.includes('CANCELED') || ev.includes('CANCEL')) return 'Заявка отменена'
+  if (ev.includes('RATING') || ev.includes('REVIEW')) return 'Оценка выставлена'
+  if (ev.includes('STATUS') || ev.includes('TRANSITION')) return 'Изменён статус'
+  return item.title || 'Событие'
+}
+
+function dedupeTimeline(items: api.TimelineItem[]): api.TimelineItem[] {
+  const seen = new Set<string>()
+  return items.filter((item) => {
+    const ev = ((item.timelineEvent || item.type || item.domainType) ?? '').toUpperCase()
+    const key = `${item.at}|${ev}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+function TimelineIcon({ item }: { item: api.TimelineItem }) {
+  const ev = ((item.timelineEvent || item.type || item.domainType) ?? '').toUpperCase()
+  const color = timelineEventColor(item)
+  const base = { fill: 'none' as const, stroke: color, strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
+  if (ev.includes('CREATED') || ev.includes('CREATE')) return (
+    <svg width={18} height={18} viewBox="0 0 24 24" {...base} aria-hidden>
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="12" y1="8" x2="12" y2="16"/>
+      <line x1="8" y1="12" x2="16" y2="12"/>
+    </svg>
+  )
+  if (ev.includes('CLAIMED') || ev.includes('CLAIM') || ev.includes('ASSIGNED') || ev.includes('ASSIGN')) return (
+    <svg width={18} height={18} viewBox="0 0 24 24" {...base} aria-hidden>
+      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+      <circle cx="12" cy="7" r="4"/>
+    </svg>
+  )
+  if (ev.includes('COMMENT') || ev.includes('CHAT')) return (
+    <svg width={18} height={18} viewBox="0 0 24 24" {...base} aria-hidden>
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+    </svg>
+  )
+  if (ev.includes('ATTACHMENT') || ev.includes('PHOTO') || ev.includes('FILE')) return (
+    <svg width={18} height={18} viewBox="0 0 24 24" {...base} aria-hidden>
+      <rect x="3" y="3" width="18" height="18" rx="2"/>
+      <circle cx="8.5" cy="8.5" r="1.5" fill={color} stroke="none"/>
+      <polyline points="21 15 16 10 5 21"/>
+    </svg>
+  )
+  if (ev.includes('DONE') || ev.includes('COMPLETED')) return (
+    <svg width={18} height={18} viewBox="0 0 24 24" {...base} aria-hidden>
+      <polyline points="20 6 9 17 4 12"/>
+    </svg>
+  )
+  if (ev.includes('CANCELED') || ev.includes('CANCEL')) return (
+    <svg width={18} height={18} viewBox="0 0 24 24" {...base} aria-hidden>
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="15" y1="9" x2="9" y2="15"/>
+      <line x1="9" y1="9" x2="15" y2="15"/>
+    </svg>
+  )
+  if (ev.includes('STATUS') || ev.includes('TRANSITION')) return (
+    <svg width={18} height={18} viewBox="0 0 24 24" {...base} aria-hidden>
+      <polyline points="17 1 21 5 17 9"/>
+      <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+      <polyline points="7 23 3 19 7 15"/>
+      <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+    </svg>
+  )
+  return (
+    <svg width={18} height={18} viewBox="0 0 24 24" aria-hidden>
+      <circle cx="12" cy="12" r="5" fill={color} stroke="none"/>
+    </svg>
+  )
+}
+
 function formatAddressBlock(ticket: api.TicketGetOne): string {
   const loc = ticket.location
   const parts: string[] = []
@@ -664,7 +747,10 @@ export function MobileTicketPage() {
 
   const desc = ticket ? `${ticket.problemText || ''}`.trim() || ticket.description?.trim() || '—' : '—'
 
-  const timelineItems = timelineQ.data?.timeline || timelineQ.data?.items || []
+  const timelineItems = useMemo(
+    () => dedupeTimeline(timelineQ.data?.timeline || timelineQ.data?.items || []),
+    [timelineQ.data],
+  )
   const chatMessages = useMemo(() => toChatMessages(timelineItems, meQ.data?.id ?? ''), [timelineItems, meQ.data?.id])
 
   const requestImages = useMemo(() => {
@@ -1336,7 +1422,6 @@ export function MobileTicketPage() {
                 <div className="mobileTimeline">
                   {timelineItems.map((item, idx) => {
                     const isLast = idx === timelineItems.length - 1
-                    const color = timelineEventColor(item)
                     const comment = (item.payload?.comment || item.payload?.text || '').trim()
                     const authorName = item.actor?.email ? item.actor.email.split('@')[0] : null
                     const timeStr = new Date(item.at).toLocaleString('ru-RU', {
@@ -1345,11 +1430,11 @@ export function MobileTicketPage() {
                     return (
                       <div key={`${item.at}-${idx}`} className={`mobileTimelineItem${isLast ? ' mobileTimelineItem--last' : ''}`}>
                         <div className="mobileTimelineLeft">
-                          <div className="mobileTimelineDot" style={{ background: color }} />
+                          <div className="mobileTimelineIcon"><TimelineIcon item={item} /></div>
                           {!isLast ? <div className="mobileTimelineLine" /> : null}
                         </div>
                         <div className="mobileTimelineContent">
-                          <div className="mobileTimelineTitle">{item.title}</div>
+                          <div className="mobileTimelineTitle">{timelineEventLabel(item)}</div>
                           {comment ? <div className="mobileTimelineComment">{comment}</div> : null}
                           <div className="mobileTimelineMeta">
                             {authorName ? <span>{authorName}</span> : null}

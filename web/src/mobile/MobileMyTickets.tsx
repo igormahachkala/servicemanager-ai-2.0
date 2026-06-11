@@ -14,28 +14,25 @@ import { appendBoardNavigationContextToPath, readBoardNavigationContextFromSearc
 import { ticketMatchesMobileHomeSearch } from './mobileHomeListUtils'
 import { mobilePath } from './mobileRoute'
 
-type FilterKey = 'all' | 'new' | 'active' | 'overdue' | 'archive'
+type FilterKey = 'active' | 'done' | 'archive'
 
 function ticketLinkState(ticketCompanyId?: string | null) {
   return mobileTicketNavState('my', ticketCompanyId || undefined)
 }
 
 const filterStatuses: Partial<Record<FilterKey, api.TicketStatus[]>> = {
-  all: ['NEW', 'ASSIGNED', 'IN_PROGRESS'],
-  active: ['ASSIGNED', 'IN_PROGRESS'],
-  new: ['NEW'],
-  archive: ['DONE', 'CANCELED'],
+  active: ['NEW', 'ASSIGNED', 'IN_PROGRESS'],
+  done: ['DONE'],
+  archive: ['CANCELED'],
 }
 
 const SEGMENT_LABELS: Record<FilterKey, string> = {
-  all: 'Все',
-  new: 'Новые',
-  active: 'В работе',
-  overdue: 'Просроченные',
+  active: 'Активные',
+  done: 'Завершённые',
   archive: 'Архив',
 }
 
-const SEGMENTS: FilterKey[] = ['all', 'new', 'active', 'overdue', 'archive']
+const SEGMENTS: FilterKey[] = ['active', 'done', 'archive']
 
 export function MobileMyTickets() {
   const location = useLocation()
@@ -44,7 +41,7 @@ export function MobileMyTickets() {
   const initialBoardContext = useMemo(() => readBoardNavigationContextFromSearch(search), [location.search])
   const initialFilter = useMemo<FilterKey>(() => {
     const tab = (initialBoardContext?.tab || '').trim()
-    return (SEGMENTS as string[]).includes(tab) ? (tab as FilterKey) : 'all'
+    return (SEGMENTS as string[]).includes(tab) ? (tab as FilterKey) : 'active'
   }, [initialBoardContext?.tab])
   const [filter, setFilter] = useState<FilterKey>(initialFilter)
   const [archiveSearch, setArchiveSearch] = useState(() => (initialBoardContext?.search || '').trim().slice(0, 240))
@@ -98,7 +95,7 @@ export function MobileMyTickets() {
       api.board({
         linkedClientCompanyId: linkedClientCompanyId || undefined,
         companyId: companyId || undefined,
-        take: filter === 'archive' ? 200 : 100,
+        take: filter === 'active' ? 100 : 200,
       }),
     enabled:
       !!meQ.data && (meQ.data.role !== 'TECHNICIAN' || !!linkedClientCompanyId),
@@ -106,18 +103,14 @@ export function MobileMyTickets() {
 
   const allTickets = boardQ.data?.columns.flatMap((col) => col.cards || []) || []
   const pageScopedTickets = useMemo(
-    () => ticketsForMobileMyPage(allTickets, filter === 'archive' ? 'archive' : 'active', meQ.data?.id, meQ.data?.role),
+    () => ticketsForMobileMyPage(allTickets, filter === 'active' ? 'active' : 'archive', meQ.data?.id, meQ.data?.role),
     [allTickets, filter, meQ.data?.id, meQ.data?.role],
   )
   const filteredTickets = useMemo(() => {
     let result = pageScopedTickets
-    if (filter === 'overdue') {
-      result = result.filter((t) => t.slaBreached && ['NEW', 'ASSIGNED', 'IN_PROGRESS'].includes(t.status))
-    } else {
-      const statuses = filterStatuses[filter]
-      if (statuses) result = result.filter((t) => statuses.includes(t.status))
-    }
-    if (filter === 'archive' && archiveSearch.trim()) {
+    const statuses = filterStatuses[filter]
+    if (statuses) result = result.filter((t) => statuses.includes(t.status))
+    if (filter !== 'active' && archiveSearch.trim()) {
       result = result.filter((t) => ticketMatchesMobileHomeSearch(t, archiveSearch))
     }
     return result
@@ -128,7 +121,7 @@ export function MobileMyTickets() {
     const nextPath = appendBoardNavigationContextToPath(basePath, {
       tab: filter,
       scopeLabel: 'Мои заявки',
-      search: filter === 'archive' && archiveSearch.trim() ? archiveSearch.trim() : undefined,
+      search: filter !== 'active' && archiveSearch.trim() ? archiveSearch.trim() : undefined,
     })
     if (nextPath !== `${location.pathname}${location.search}`) {
       navigate(nextPath, { replace: true, state: location.state })
@@ -202,14 +195,14 @@ export function MobileMyTickets() {
             key={seg}
             type="button"
             className={`mobileSegmentBtn${filter === seg ? ' mobileSegmentBtn--active' : ''}`}
-            onClick={() => { setFilter(seg); if (seg !== 'archive') setArchiveSearch('') }}
+            onClick={() => { setFilter(seg); if (seg === 'active') setArchiveSearch('') }}
           >
             {SEGMENT_LABELS[seg]}
           </button>
         ))}
       </div>
 
-      {filter === 'archive' ? (
+      {filter !== 'active' ? (
         <label className="mobileHomeSearchWrap" style={{ marginTop: 8 }}>
           <span className="mobileVisuallyHidden">Поиск по архиву</span>
           <input
@@ -230,17 +223,21 @@ export function MobileMyTickets() {
 
       {!showMyTicketsList ? null : filteredTickets.length === 0 ? (
         <div className="mobileCard mobileEmptyState" role="status">
-          <div className="mobileEmptyStateTitle">{filter === 'archive' ? 'В архиве пока нет заявок' : 'Список пуст'}</div>
+          <div className="mobileEmptyStateTitle">
+            {filter === 'done' ? 'Завершённых заявок нет' : filter === 'archive' ? 'В архиве пока нет заявок' : 'Список пуст'}
+          </div>
           <p className="mobileEmptyStateHint">
-            {filter === 'archive'
+            {filter === 'done'
+              ? archiveSearch.trim()
+                ? 'По этому запросу ничего не найдено.'
+                : 'Здесь появятся завершённые заявки.'
+              : filter === 'archive'
               ? archiveSearch.trim()
                 ? 'По этому запросу в архиве ничего не найдено. Проверьте номер или сбросьте поиск.'
-                : 'Здесь заявки со статусом «Выполнена» и «Отменена».'
-              : meQ.data.role === 'TECHNICIAN' && filter === 'new'
-              ? 'Новых заявок на вас нет: они появятся после назначения или если вы возьмёте заявку с главной (вкладка «Новые»).'
-              : meQ.data.role === 'TECHNICIAN' && filter === 'active'
-                ? 'Нет активных заявок в этом контуре. Проверьте «Новые» на главной или вкладку «Архив».'
-                : 'В этом фильтре заявок пока нет.'}
+                : 'Здесь отменённые заявки.'
+              : meQ.data.role === 'TECHNICIAN'
+                ? 'Нет активных заявок в этом контуре. Проверьте главную страницу.'
+                : 'Активных заявок пока нет.'}
           </p>
         </div>
       ) : (

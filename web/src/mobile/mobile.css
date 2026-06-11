@@ -2690,6 +2690,19 @@ a.mobileBtn.mobileCreateTicketLink {
   z-index: 1;
 }
 
+.mobileTimelineIcon {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: #fff;
+  border-radius: 50%;
+  border: 1.5px solid #e5e7eb;
+  z-index: 1;
+}
+
 .mobileTimelineLine {
   width: 2px;
   flex: 1;
