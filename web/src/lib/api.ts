@@ -1958,6 +1958,22 @@ export async function fetchPermissionMatrix(): Promise<PermissionMatrixEntry[]> 
   return res.roles || []
 }
 
+export type PermissionMatrixChange = {
+  role: string
+  companyType: 'CLIENT' | 'PROVIDER' | null
+  add: string[]
+  remove: string[]
+}
+
+/** PATCH /permissions/matrix — применить add/remove дельты (PLATFORM_ADMIN). Возвращает обновлённую матрицу. */
+export async function applyPermissionChanges(changes: PermissionMatrixChange[]): Promise<PermissionMatrixEntry[]> {
+  const res = await request<{ roles: PermissionMatrixEntry[] }>('/permissions/matrix', {
+    method: 'PATCH',
+    body: { changes },
+  })
+  return res.roles || []
+}
+
 export async function getLinkedClients(): Promise<LinkedClientSummary[]> {
   return linkedClients()
 }

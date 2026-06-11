@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../../lib/api'
 import { PermissionFilters } from '../../components/permissions/PermissionFilters'
@@ -33,6 +33,9 @@ export function PermissionsPage() {
   const [companyTypeFilter, setCompanyTypeFilter] = useState('')
   const [editMode, setEditMode] = useState(false)
   const [draft, setDraft] = useState<DraftMap>({})
+  const [showConfirm, setShowConfirm] = useState(false)
+  const [applyError, setApplyError] = useState('')
+  const queryClient = useQueryClient()
 
   const matrix = matrixQ.data || []
   const catalog = catalogQ.data || []
@@ -79,6 +82,27 @@ export function PermissionsPage() {
   }, [editMode, matrix, originalMap, draft])
 
   const hasChanges = changes.length > 0
+
+  // Применение дельт на сервер (PATCH). Только по явному подтверждению.
+  const applyM = useMutation({
+    mutationFn: () =>
+      api.applyPermissionChanges(
+        changes.map((c) => ({ role: c.role, companyType: c.companyType, add: c.add, remove: c.remove })),
+      ),
+    onMutate: () => setApplyError(''),
+    onSuccess: async () => {
+      try {
+        localStorage.removeItem(DRAFT_LS_KEY)
+      } catch {
+        /* ignore */
+      }
+      setDraft({})
+      setEditMode(false)
+      setShowConfirm(false)
+      await queryClient.invalidateQueries({ queryKey: ['permissions-matrix'] })
+    },
+    onError: (e: any) => setApplyError(e?.message || String(e)),
+  })
 
   function enterEdit() {
     // Инициализируем черновик из сохранённого (localStorage) либо из исходной матрицы.
@@ -166,7 +190,10 @@ export function PermissionsPage() {
             editMode ? (
               <>
                 <button className="ghost" onClick={exportJson} disabled={!hasChanges}>Экспорт JSON</button>
-                <button onClick={saveDraft} disabled={!hasChanges}>Сохранить черновик</button>
+                <button className="ghost" onClick={saveDraft} disabled={!hasChanges}>Сохранить черновик</button>
+                <button onClick={() => setShowConfirm(true)} disabled={!hasChanges || applyM.isPending}>
+                  Применить изменения
+                </button>
                 <button className="ghost" onClick={cancelEdit}>Отмена</button>
               </>
             ) : (
@@ -223,6 +250,38 @@ export function PermissionsPage() {
             onToggle={toggle}
           />
         </>
+      ) : null}
+
+      {showConfirm ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{ position: 'fixed', inset: 0, background: 'rgba(17,24,39,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}
+          onClick={() => !applyM.isPending && setShowConfirm(false)}
+        >
+          <div className="panel" style={{ maxWidth: 520, width: '100%', maxHeight: '80vh', overflow: 'auto' }} onClick={(e) => e.stopPropagation()}>
+            <h3 style={{ marginTop: 0, marginBottom: 6 }}>Применить изменения прав?</h3>
+            <div className="muted small" style={{ marginBottom: 10 }}>
+              Будут изменены гранты для {changes.length} строк(и) матрицы. Действие применяется к системе и влияет на доступ пользователей.
+            </div>
+            <div style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
+              {changes.map((c) => (
+                <div key={entryKey(c.role, c.companyType)} className="card" style={{ border: '1px solid #e5e7eb', borderRadius: 8, padding: 8 }}>
+                  <div style={{ fontWeight: 700 }}>{c.role} · {c.companyType ?? 'Любой тип'}</div>
+                  {c.add.map((x) => <div key={`a-${x}`} className="small" style={{ color: '#15803d' }}>+ {x}</div>)}
+                  {c.remove.map((x) => <div key={`r-${x}`} className="small" style={{ color: '#b91c1c' }}>− {x}</div>)}
+                </div>
+              ))}
+            </div>
+            {applyError ? <div className="alert" style={{ marginBottom: 10 }}>{applyError}</div> : null}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button className="ghost" onClick={() => setShowConfirm(false)} disabled={applyM.isPending}>Отмена</button>
+              <button onClick={() => applyM.mutate()} disabled={applyM.isPending}>
+                {applyM.isPending ? 'Применяем…' : 'Подтвердить'}
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
     </div>
   )
