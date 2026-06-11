@@ -1,4 +1,4 @@
-import { type MutableRefObject } from 'react'
+import { type MutableRefObject, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { type UseMutationResult, type UseQueryResult } from '@tanstack/react-query'
 import * as api from '../../lib/api'
 import { mobileTicketCategoryLocationFromCard, mobileTicketNumberTitle } from '../mobileTicketDisplay'
@@ -6,6 +6,7 @@ import { mobileHomeTabEmptyCopy, type MobileHomeBoardFilterTab } from '../mobile
 import { TicketCard } from './TicketCard'
 import { getPrimaryActionLabel, homeTicketActionProgressLabel } from './utils'
 import { formatMobileMutationError } from '../mobileActionErrors'
+import { defaultExpandedLocationIds, groupTicketsByLocation, type MobileHomeLocationGroup } from '../mobileHomeListUtils'
 
 export type TicketCloseModalState = {
   ticketId: string
@@ -91,6 +92,62 @@ export function HomeList(props: Props) {
     mobileActionToast,
   } = props
 
+  const groups = useMemo(() => groupTicketsByLocation(visibleTickets), [visibleTickets])
+
+  const [expandedLocations, setExpandedLocations] = useState<Set<string>>(() => defaultExpandedLocationIds(groups))
+
+  const prevGroupKeyRef = useRef('')
+  useEffect(() => {
+    const key = groups.map((g) => g.locationId).join('\x00')
+    if (key === prevGroupKeyRef.current) return
+    prevGroupKeyRef.current = key
+    setExpandedLocations(defaultExpandedLocationIds(groups))
+  }, [groups])
+
+  function toggleLocation(locationId: string) {
+    setExpandedLocations((prev) => {
+      const next = new Set(prev)
+      if (next.has(locationId)) next.delete(locationId)
+      else next.add(locationId)
+      return next
+    })
+  }
+
+  function renderTicket(ticket: api.TicketCard) {
+    const showAssignFooter = canAssignProvider && ticket.status === 'NEW' && !ticket.assignedTechnician
+    const actionProgressLabel = homeTicketActionProgressLabel(
+      ticket,
+      actionM,
+      closeBusy,
+      closeModal?.ticketId,
+      assignBusy,
+      assignTicket?.id,
+    )
+    const cardBusy = !!actionProgressLabel || (assignBusy && assignTicket?.id === ticket.id && showAssignFooter)
+    return (
+      <TicketCard
+        key={ticket.id}
+        ticket={ticket}
+        ticketHref={ticketHref(ticket)}
+        linkState={ticketLinkState(ticket)}
+        actionLabel={getPrimaryActionLabel(ticket, meId, role)}
+        actionProgressLabel={actionProgressLabel}
+        onAction={onAction}
+        assignFooter={
+          showAssignFooter
+            ? {
+                onOpen: () => {
+                  setAssignErr('')
+                  setAssignTicket(ticket)
+                },
+                disabled: cardBusy,
+              }
+            : null
+        }
+      />
+    )
+  }
+
   return (
     <>
       <section className="mobileSection">
@@ -102,40 +159,15 @@ export function HomeList(props: Props) {
         ) : visibleTickets.length === 0 ? (
           <FilteredEmpty filterSummary={filterSummary} onReset={resetHomeListFilters} />
         ) : (
-          visibleTickets.map((ticket) => {
-            const showAssignFooter = canAssignProvider && ticket.status === 'NEW' && !ticket.assignedTechnician
-            const actionProgressLabel = homeTicketActionProgressLabel(
-              ticket,
-              actionM,
-              closeBusy,
-              closeModal?.ticketId,
-              assignBusy,
-              assignTicket?.id,
-            )
-            const cardBusy = !!actionProgressLabel || (assignBusy && assignTicket?.id === ticket.id && showAssignFooter)
-            return (
-              <TicketCard
-                key={ticket.id}
-                ticket={ticket}
-                ticketHref={ticketHref(ticket)}
-                linkState={ticketLinkState(ticket)}
-                actionLabel={getPrimaryActionLabel(ticket, meId, role)}
-                actionProgressLabel={actionProgressLabel}
-                onAction={onAction}
-                assignFooter={
-                  showAssignFooter
-                    ? {
-                        onOpen: () => {
-                          setAssignErr('')
-                          setAssignTicket(ticket)
-                        },
-                        disabled: cardBusy,
-                      }
-                    : null
-                }
-              />
-            )
-          })
+          groups.map((group) => (
+            <LocationGroupCard
+              key={group.locationId}
+              group={group}
+              expanded={expandedLocations.has(group.locationId)}
+              onToggle={() => toggleLocation(group.locationId)}
+              renderTicket={renderTicket}
+            />
+          ))
         )}
       </section>
 
@@ -167,6 +199,66 @@ export function HomeList(props: Props) {
         </div>
       ) : null}
     </>
+  )
+}
+
+function LocationGroupCard({
+  group,
+  expanded,
+  onToggle,
+  renderTicket,
+}: {
+  group: MobileHomeLocationGroup
+  expanded: boolean
+  onToggle: () => void
+  renderTicket: (ticket: api.TicketCard) => ReactNode
+}) {
+  return (
+    <div className="mobileLocationGroup">
+      <div
+        className="mobileLocationGroupHeader"
+        role="button"
+        tabIndex={0}
+        onClick={onToggle}
+        onKeyDown={(e) => e.key === 'Enter' && onToggle()}
+        aria-expanded={expanded}
+      >
+        <div className="mobileLocationGroupInfo">
+          <div className="mobileLocationGroupName">{group.locationName}</div>
+          {(group.city || group.address) ? (
+            <div className="mobileLocationGroupMeta">
+              {[group.city, group.address].filter(Boolean).join(', ')}
+            </div>
+          ) : null}
+          <div className="mobileLocationGroupStats">
+            <span className="mobileLocationGroupStat mobileLocationGroupStat--total">
+              {group.totalTickets} заявок
+            </span>
+            {group.newTickets > 0 ? (
+              <span className="mobileLocationGroupStat mobileLocationGroupStat--new">
+                {group.newTickets} новых
+              </span>
+            ) : null}
+            {group.inProgressTickets > 0 ? (
+              <span className="mobileLocationGroupStat mobileLocationGroupStat--inprogress">
+                {group.inProgressTickets} в работе
+              </span>
+            ) : null}
+            {group.overdueTickets > 0 ? (
+              <span className="mobileLocationGroupStat mobileLocationGroupStat--overdue">
+                {group.overdueTickets} просрочено
+              </span>
+            ) : null}
+          </div>
+        </div>
+        <span className="mobileLocationGroupChevron" aria-hidden>{expanded ? '▲' : '▼'}</span>
+      </div>
+      {expanded ? (
+        <div className="mobileLocationGroupTickets">
+          {group.tickets.map((t) => renderTicket(t))}
+        </div>
+      ) : null}
+    </div>
   )
 }
 

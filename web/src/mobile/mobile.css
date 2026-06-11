@@ -3261,3 +3261,113 @@ a.mobileBtn.mobileCreateTicketLink {
   font-weight: 700;
   cursor: pointer;
 }
+
+/* ── Location group cards (SMA-MOBILE-111) ─────────────────────────── */
+.mobileLocationGroup {
+  border-radius: 14px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+  margin-bottom: 10px;
+}
+
+.mobileLocationGroupHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 16px 12px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobileLocationGroupHeader:active {
+  background: #f9fafb;
+}
+
+.mobileLocationGroupHeader:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: -2px;
+}
+
+.mobileLocationGroupInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.mobileLocationGroupName {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #111827;
+  line-height: 1.25;
+}
+
+.mobileLocationGroupMeta {
+  font-size: 0.78rem;
+  color: #6b7280;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mobileLocationGroupStats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.mobileLocationGroupStat {
+  font-size: 0.72rem;
+  font-weight: 700;
+  border-radius: 20px;
+  padding: 2px 9px;
+  white-space: nowrap;
+}
+
+.mobileLocationGroupStat--total {
+  background: #f3f4f6;
+  color: #374151;
+}
+
+.mobileLocationGroupStat--new {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.mobileLocationGroupStat--inprogress {
+  background: #fef9c3;
+  color: #854d0e;
+}
+
+.mobileLocationGroupStat--overdue {
+  background: #ffe4e6;
+  color: #9f1239;
+}
+
+.mobileLocationGroupChevron {
+  font-size: 0.7rem;
+  color: #9ca3af;
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+
+.mobileLocationGroupTickets {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border-top: 1px solid #f3f4f6;
+}
+
+.mobileLocationGroupTickets > * {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  border-bottom: 1px solid #f3f4f6;
+  margin-bottom: 0 !important;
+}
+
+.mobileLocationGroupTickets > *:last-child {
+  border-bottom: none;
+}

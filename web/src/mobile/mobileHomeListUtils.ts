@@ -183,6 +183,56 @@ export function buildMobileHomeVisibleTickets(params: {
   return sortTicketsForMobileHome(searched, nowMs, params.atRiskThresholdMinutes)
 }
 
+export type MobileHomeLocationGroup = {
+  locationId: string
+  locationName: string
+  city: string | null
+  address: string | null
+  tickets: TicketCard[]
+  totalTickets: number
+  newTickets: number
+  inProgressTickets: number
+  overdueTickets: number
+}
+
+/**
+ * Group an already-sorted ticket list by location, preserving ticket sort order within
+ * each group. Group order = insertion order (first group contains the globally most-critical ticket).
+ */
+export function groupTicketsByLocation(tickets: TicketCard[]): MobileHomeLocationGroup[] {
+  const map = new Map<string, MobileHomeLocationGroup>()
+  for (const t of tickets) {
+    const locId = t.location?.id ?? '__none__'
+    if (!map.has(locId)) {
+      map.set(locId, {
+        locationId: locId,
+        locationName: t.location?.name ?? (t.pointName || null) ?? 'Без точки',
+        city: t.location?.city ?? null,
+        address: t.location?.address ?? null,
+        tickets: [],
+        totalTickets: 0,
+        newTickets: 0,
+        inProgressTickets: 0,
+        overdueTickets: 0,
+      })
+    }
+    const g = map.get(locId)!
+    g.tickets.push(t)
+    g.totalTickets++
+    if (t.status === 'NEW') g.newTickets++
+    if (t.status === 'IN_PROGRESS' || t.status === 'ASSIGNED') g.inProgressTickets++
+    if (t.slaBreached && t.status !== 'DONE' && t.status !== 'CANCELED') g.overdueTickets++
+  }
+  return [...map.values()]
+}
+
+/** Default expanded set: first group when ≤3 groups, else all collapsed. */
+export function defaultExpandedLocationIds(groups: MobileHomeLocationGroup[]): Set<string> {
+  if (groups.length === 0) return new Set()
+  if (groups.length <= 3) return new Set([groups[0].locationId])
+  return new Set()
+}
+
 export function formatActiveMobileHomeFiltersSummary(params: {
   searchQuery: string
   chips: ReadonlySet<MobileHomeBoardChipId>
