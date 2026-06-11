@@ -26,6 +26,7 @@ import { InspectionModule } from './inspection/inspection.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { UploadsModule } from './uploads/uploads.module';
 import { MaxBotModule } from './max-bot/max-bot.module';
+import { PermissionsModule } from './permissions/permissions.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { MaxBotModule } from './max-bot/max-bot.module';
     RealtimeModule,
     UploadsModule,
     MaxBotModule,
+    PermissionsModule,
   ],
   controllers: [AppController, HealthController, DebugController], // DebugController: TODO_REMOVE_AFTER_STABILIZATION
   providers: [AppService],
