@@ -71,6 +71,38 @@ export function MobileProfile() {
     return name || ''
   }, [linkedClientCompanyId, linkedClientsQ.data, meQ.data?.role, techBoundLabelQ.data])
 
+  const statsBoardQ = useQuery({
+    queryKey: ['mobile-profile-board', linkedClientCompanyId, observerCompanyId],
+    queryFn: () =>
+      api.board({
+        linkedClientCompanyId: linkedClientCompanyId || undefined,
+        companyId: observerCompanyId || undefined,
+        take: 200,
+      }),
+    enabled: !!meQ.data,
+  })
+
+  const stats = useMemo(() => {
+    const cols = statsBoardQ.data?.columns || []
+    const totalFor = (status: string) => cols.find((c) => c.status === status)?.total ?? null
+    return {
+      assigned: totalFor('ASSIGNED'),
+      inProgress: totalFor('IN_PROGRESS'),
+      done: totalFor('DONE'),
+    }
+  }, [statsBoardQ.data])
+  const statsReady = statsBoardQ.isSuccess && !!statsBoardQ.data
+  const fmtStat = (n: number | null) => (statsReady && n != null ? String(n) : '—')
+
+  const appContour = useMemo(() => {
+    if (typeof window === 'undefined') return '—'
+    const h = window.location.hostname
+    if (h.includes('194.67.101.37') || h.includes('stage')) return 'Stage'
+    if (h.includes('servicemanagerai.ru')) return 'Production'
+    if (h === 'localhost' || h === '127.0.0.1') return 'Локально'
+    return h || '—'
+  }, [])
+
   function logout() {
     const params = new URLSearchParams()
     params.set('next', mobilePath(location.pathname, ''))
@@ -119,12 +151,32 @@ export function MobileProfile() {
         ) : null}
       </div>
 
+      {/* Stats */}
+      <div className="mobileCard mobileProfileStats" aria-label="Статистика заявок">
+        <div className="mobileProfileStat">
+          <div className="mobileProfileStatValue">{fmtStat(stats.assigned)}</div>
+          <div className="mobileProfileStatLabel">Назначено</div>
+        </div>
+        <div className="mobileProfileStat">
+          <div className="mobileProfileStatValue">{fmtStat(stats.inProgress)}</div>
+          <div className="mobileProfileStatLabel">В работе</div>
+        </div>
+        <div className="mobileProfileStat">
+          <div className="mobileProfileStatValue">{fmtStat(stats.done)}</div>
+          <div className="mobileProfileStatLabel">Завершено</div>
+        </div>
+      </div>
+
       {/* Menu */}
       <div className="mobileCard mobileProfileMenu">
         <Link to={notificationsPath} className="mobileProfileMenuItem">
           <span>Уведомления</span>
           <span className="mobileProfileMenuChevron">›</span>
         </Link>
+        <div className="mobileProfileMenuItem mobileProfileMenuItem--static" aria-disabled="true">
+          <span>Режим работы</span>
+          <span className="mobileProfileMenuSoon">Скоро</span>
+        </div>
         {canAccessManagementDesktop(meQ.data?.role) ? (
           <Link to={managementHref} className="mobileProfileMenuItem">
             <span>Управленческая часть</span>
@@ -150,6 +202,25 @@ export function MobileProfile() {
           title="Push-уведомления браузера"
           description="Системные уведомления для realtime-событий, пока приложение открыто."
         />
+      </div>
+
+      {/* Specializations */}
+      <div className="mobileCard" style={{ marginTop: 8 }}>
+        <div className="mobileSectionTitle" style={{ marginBottom: 8 }}>Мои специализации</div>
+        <div className="mobileFieldHint">Специализации будут доступны позже.</div>
+      </div>
+
+      {/* App info */}
+      <div className="mobileCard" style={{ marginTop: 8 }}>
+        <div className="mobileSectionTitle" style={{ marginBottom: 8 }}>О приложении</div>
+        <div className="mobileProfileInfoRow">
+          <span className="mobileMeta">Контур</span>
+          <span>{appContour}</span>
+        </div>
+        <div className="mobileProfileInfoRow">
+          <span className="mobileMeta">Версия</span>
+          <span>Mobile Workspace V1</span>
+        </div>
       </div>
     </div>
   )

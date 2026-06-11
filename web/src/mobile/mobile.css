@@ -1778,6 +1778,37 @@ a.mobileBtn.mobileCreateTicketLink {
   flex: 1;
 }
 
+/* SMA-MOBILE-103: online/offline connection indicator in the top bar */
+.mobileConnStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+.mobileConnDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+  background: #9ca3af;
+}
+.mobileConnStatus--online .mobileConnDot {
+  background: #16a34a;
+}
+.mobileConnStatus--offline .mobileConnDot {
+  background: #dc2626;
+}
+.mobileConnStatus--online .mobileConnText {
+  color: #15803d;
+}
+.mobileConnStatus--offline .mobileConnText {
+  color: #b91c1c;
+}
+
 .mobileBellLink {
   position: relative;
   display: inline-flex;
@@ -2944,9 +2975,159 @@ a.mobileBtn.mobileCreateTicketLink {
   flex-shrink: 0;
 }
 
+/* SMA-MOBILE-103: profile stats, static menu row, app info */
+.mobileProfileStats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  text-align: center;
+}
+.mobileProfileStat {
+  min-width: 0;
+}
+.mobileProfileStatValue {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #111827;
+}
+.mobileProfileStatLabel {
+  margin-top: 2px;
+  font-size: 0.72rem;
+  color: #6b7280;
+}
+.mobileProfileMenuItem--static {
+  cursor: default;
+  color: #6b7280;
+}
+.mobileProfileMenuSoon {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #92400e;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  border-radius: 999px;
+  padding: 2px 8px;
+  flex-shrink: 0;
+}
+.mobileProfileInfoRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 0;
+  font-size: 0.9rem;
+}
+.mobileProfileInfoRow + .mobileProfileInfoRow {
+  border-top: 1px solid #f1f5f9;
+}
+
 .mobileProfileMenuIcon {
   font-size: 1.1rem;
   flex-shrink: 0;
   width: 28px;
   text-align: center;
+}
+
+/* ── SMA-MOBILE-102: Advanced filters & active states ─────── */
+
+.mobileStatBlock--active {
+  outline: 2.5px solid #2563eb;
+  background: #eff6ff;
+}
+
+.mobileMyTicketsControls {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.mobileMyTicketsControls .mobileSegments {
+  flex: 1;
+  min-width: 0;
+  padding-bottom: 4px;
+}
+
+.mobileSegmentBtnBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  background: rgba(0, 0, 0, 0.08);
+  color: inherit;
+  padding: 0 4px;
+  margin-left: 5px;
+  vertical-align: middle;
+  line-height: 1;
+}
+
+.mobileSegmentBtn--active .mobileSegmentBtnBadge {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.mobileAdvFilterLabel {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+}
+
+.mobileFilterSelect {
+  width: 100%;
+  padding: 9px 36px 9px 12px;
+  border-radius: 10px;
+  border: 1.5px solid #e5e7eb;
+  background: #f9fafb url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat right 10px center;
+  -webkit-appearance: none;
+  appearance: none;
+  font-size: 0.88rem;
+  color: #111827;
+  cursor: pointer;
+}
+
+.mobileFilterSelect:focus {
+  outline: none;
+  border-color: #2563eb;
+}
+
+.mobileActiveFilterChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 0 6px;
+}
+
+.mobileActiveFilterChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px 4px 10px;
+  border-radius: 999px;
+  background: #eff6ff;
+  border: 1.5px solid #bfdbfe;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #1d4ed8;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobileActiveFilterChipX {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+  color: #60a5fa;
+  -webkit-tap-highlight-color: transparent;
 }

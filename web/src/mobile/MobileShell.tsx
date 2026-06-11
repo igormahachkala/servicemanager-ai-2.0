@@ -213,6 +213,14 @@ export function MobileShell() {
   return (
     <div className="mobileShell">
       <header className="mobileTopBar" aria-label="Действия">
+        <div
+          className={`mobileConnStatus ${isOnline ? 'mobileConnStatus--online' : 'mobileConnStatus--offline'}`}
+          role="status"
+          aria-live="polite"
+        >
+          <span className="mobileConnDot" aria-hidden />
+          <span className="mobileConnText">{isOnline ? 'Онлайн' : 'Офлайн'}</span>
+        </div>
         <div className="mobileTopBarFill" />
         <Link
           className="mobileBellLink"
@@ -274,7 +282,7 @@ export function MobileShell() {
       <main className="mobilePage">
         {!isOnline ? (
           <div className="mobileOfflineBanner mobileOfflineBannerWarning">
-            <div>Офлайн-режим: данные могут быть устаревшими</div>
+            <div>Нет соединения. Показываем сохранённые данные, действия будут доступны после восстановления сети.</div>
           </div>
         ) : null}
         {isOnline && pendingCount > 0 ? (

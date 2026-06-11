@@ -18,6 +18,7 @@ type Props = {
   techBoundEmpty: boolean
   tabCounts?: Record<MobileHomeBoardFilterTab, number>
   onStatClick?: (tab: MobileHomeBoardFilterTab) => void
+  activeBoardTab?: MobileHomeBoardFilterTab
 }
 
 export function HomeHeader(props: Props) {
@@ -36,6 +37,7 @@ export function HomeHeader(props: Props) {
     techBoundEmpty,
     tabCounts,
     onStatClick,
+    activeBoardTab,
   } = props
 
   return (
@@ -58,7 +60,7 @@ export function HomeHeader(props: Props) {
           ).map(({ tab, count, label, cls }) => (
             <div
               key={tab}
-              className={`mobileStatBlock ${cls}${onStatClick ? ' mobileStatBlock--tap' : ''}`}
+              className={`mobileStatBlock ${cls}${onStatClick ? ' mobileStatBlock--tap' : ''}${activeBoardTab === tab ? ' mobileStatBlock--active' : ''}`}
               onClick={onStatClick ? () => onStatClick(tab) : undefined}
             >
               <div className="mobileStatValue">{count}</div>
