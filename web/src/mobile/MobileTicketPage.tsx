@@ -23,6 +23,8 @@ import {
   type MobileHomeBoardChipId,
 } from './mobileHomeBoardFilters'
 import {
+  enqueueOfflineComment,
+  enqueueOfflineStatusChange,
   getOnlineStatus,
   loadAnyTicketDetailCache,
   loadTicketDetailCache,
@@ -500,6 +502,11 @@ export function MobileTicketPage() {
 
   const [detailTab, setDetailTab] = useState<'info' | 'chat' | 'photos' | 'history'>('info')
 
+  type OfflinePendingComment = { queueId: string; text: string; at: string }
+  const [offlinePendingComments, setOfflinePendingComments] = useState<OfflinePendingComment[]>([])
+  const [offlineQueuedNotice, setOfflineQueuedNotice] = useState('')
+  const timelineFirstMountRef = useRef(true)
+
   const [assignTicketOpen, setAssignTicketOpen] = useState(false)
   const [assignTechId, setAssignTechId] = useState('')
   const [assignErr, setAssignErr] = useState('')
@@ -629,6 +636,17 @@ export function MobileTicketPage() {
     const tid = window.setTimeout(() => setAssignmentRequestToast(''), 2800)
     return () => window.clearTimeout(tid)
   }, [assignmentRequestToast])
+
+  useEffect(() => {
+    if (!offlineQueuedNotice) return
+    const tid = window.setTimeout(() => setOfflineQueuedNotice(''), 3200)
+    return () => window.clearTimeout(tid)
+  }, [offlineQueuedNotice])
+
+  useEffect(() => {
+    if (timelineFirstMountRef.current) { timelineFirstMountRef.current = false; return }
+    if (isOnline) setOfflinePendingComments([])
+  }, [timelineQ.dataUpdatedAt])
 
   const techActionM = useMutation({
     mutationFn: async (mode: 'claim' | 'start') => {
@@ -851,7 +869,14 @@ export function MobileTicketPage() {
   async function handleChatSend() {
     const trimmed = chatText.trim()
     if (!trimmed || chatSending) return
-    if (!isOnline) { setChatSendError('Нет подключения к сети'); return }
+
+    if (!isOnline) {
+      const queued = enqueueOfflineComment({ ticketId, scope: ticketResourceScope, comment: trimmed })
+      setChatText('')
+      setOfflinePendingComments((prev) => [...prev, { queueId: queued.id, text: trimmed, at: queued.createdAt }])
+      return
+    }
+
     setChatSendError(null)
     setChatSending(true)
     try {
@@ -863,6 +888,19 @@ export function MobileTicketPage() {
     } finally {
       setChatSending(false)
     }
+  }
+
+  function handleTechActionWithOfflineSupport(mode: 'claim' | 'start') {
+    if (!getOnlineStatus()) {
+      if (mode === 'start' && ticket) {
+        enqueueOfflineStatusChange({ ticketId: ticket.id, scope: ticketResourceScope, status: 'IN_PROGRESS' })
+        setOfflineQueuedNotice('Действие сохранено и будет отправлено после восстановления сети.')
+        return
+      }
+      setTechActionErr('Нет соединения. Действие требует подключения к сети.')
+      return
+    }
+    techActionM.mutate(mode)
   }
 
   return (
@@ -1077,7 +1115,7 @@ export function MobileTicketPage() {
                   className="mobileBtn mobileBtn--claim"
                   style={{ width: '100%' }}
                   disabled={claimBtnPending || assignmentRequestM.isPending}
-                  onClick={() => techActionM.mutate('claim')}
+                  onClick={() => handleTechActionWithOfflineSupport('claim')}
                 >
                   {claimBtnPending ? 'Берём заявку…' : 'Взять заявку'}
                 </button>
@@ -1108,7 +1146,7 @@ export function MobileTicketPage() {
                   className="mobileBtn mobileBtn--start"
                   style={{ width: '100%' }}
                   disabled={startBtnPending || assignmentRequestM.isPending}
-                  onClick={() => techActionM.mutate('start')}
+                  onClick={() => handleTechActionWithOfflineSupport('start')}
                 >
                   {startBtnPending ? 'Начинаем…' : 'Начать работу'}
                 </button>
@@ -1376,6 +1414,34 @@ export function MobileTicketPage() {
                   })}
                 </div>
               ) : null}
+              {offlinePendingComments.length > 0 ? (
+                <div className="mobileTicketChatMessages" style={{ marginTop: chatMessages.length > 0 ? 0 : undefined }}>
+                  {offlinePendingComments.map((pending) => {
+                    const timeStr = new Date(pending.at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+                    return (
+                      <div key={pending.queueId} style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', opacity: 0.65 }}>
+                        <div className="mobileTicketChatAuthor" style={{ textAlign: 'right' }}>
+                          я · {timeStr}
+                        </div>
+                        <div style={{
+                          maxWidth: '82%',
+                          background: '#4f46e5',
+                          color: '#fff',
+                          borderRadius: '14px 14px 4px 14px',
+                          padding: '9px 13px',
+                          wordBreak: 'break-word',
+                          whiteSpace: 'pre-wrap',
+                          fontSize: '0.9rem',
+                          lineHeight: 1.5,
+                        }}>
+                          {pending.text}
+                          <span className="mobileOfflinePendingBadge">Ожидает отправки</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : null}
               {canSendComment ? (
                 <div className="mobileTicketChatComposer">
                   <textarea
@@ -1384,15 +1450,15 @@ export function MobileTicketPage() {
                     value={chatText}
                     onChange={(e) => setChatText(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); void handleChatSend() } }}
-                    placeholder="Написать комментарий…"
-                    disabled={chatSending || !isOnline}
+                    placeholder={isOnline ? 'Написать комментарий…' : 'Офлайн: сохранится в очередь…'}
+                    disabled={chatSending}
                     rows={1}
                   />
                   <button
                     type="button"
                     className="mobileTicketChatSendButton"
                     aria-label="Отправить сообщение"
-                    disabled={chatSending || !chatText.trim() || !isOnline}
+                    disabled={chatSending || !chatText.trim()}
                     onClick={() => void handleChatSend()}
                   >
                     {chatSending ? '…' : '→'}
@@ -1400,7 +1466,7 @@ export function MobileTicketPage() {
                 </div>
               ) : null}
               {!isOnline && canSendComment ? (
-                <div className="mobileMeta" style={{ marginTop: 6 }}>Офлайн: отправка недоступна.</div>
+                <div className="mobileMeta" style={{ marginTop: 6 }}>Офлайн: комментарий будет отправлен после восстановления сети.</div>
               ) : null}
               {chatSendError ? <div className="mobileNotice mobileNoticeError" style={{ marginTop: 8 }}>{chatSendError}</div> : null}
             </div>
@@ -1539,11 +1605,12 @@ export function MobileTicketPage() {
           </div>
         </MobileModalBackdrop>
       ) : null}
-      {assignmentRequestToast || operationalToast ? (
+      {assignmentRequestToast || operationalToast || offlineQueuedNotice ? (
         <div
-          className={`mobileToastHost${assignmentRequestToast && operationalToast ? ' mobileToastHost--stack' : ''}`}
+          className="mobileToastHost mobileToastHost--stack"
           role="status"
         >
+          {offlineQueuedNotice ? <div className="mobileToast">{offlineQueuedNotice}</div> : null}
           {assignmentRequestToast ? <div className="mobileToast">{assignmentRequestToast}</div> : null}
           {operationalToast ? <div className="mobileToast">{operationalToast}</div> : null}
         </div>

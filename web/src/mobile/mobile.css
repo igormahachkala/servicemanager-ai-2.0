@@ -3131,3 +3131,13 @@ a.mobileBtn.mobileCreateTicketLink {
   color: #60a5fa;
   -webkit-tap-highlight-color: transparent;
 }
+
+/* ── SMA-MOBILE-104: Offline pending badge ─────────────── */
+.mobileOfflinePendingBadge {
+  display: block;
+  margin-top: 5px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.75);
+  letter-spacing: 0.02em;
+}
