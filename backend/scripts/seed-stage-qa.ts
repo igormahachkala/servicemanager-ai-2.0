@@ -56,6 +56,8 @@ const USR = {
   client: '20000000-0000-4000-8000-000000000001',
   // CLIENT-company ADMIN — for Phase 1.5 verification (ADMIN+CLIENT cannot assign).
   clientAdmin: '20000000-0000-4000-8000-000000000010',
+  // CLIENT-company TERRITORIAL_MANAGER — for Phase 1.5 verification (can comment, cannot assign).
+  clientTerritorialManager: '20000000-0000-4000-8000-000000000011',
   general: '20000000-0000-4000-8000-000000000002',
   secondary: '20000000-0000-4000-8000-000000000003',
   secondaryTech: '20000000-0000-4000-8000-000000000004',
@@ -116,6 +118,8 @@ async function main() {
     { id: USR.client, email: 'client@test.local', role: UserRole.CLIENT, companyId: CO.client, isExecutor: false },
     // CLIENT-company ADMIN: can view/comment/create, but NOT assign/claim/change-status (Phase 1.5 matrix).
     { id: USR.clientAdmin, email: 'client.admin@test.local', role: UserRole.ADMIN, companyId: CO.client, isExecutor: false },
+    // CLIENT-company TERRITORIAL_MANAGER: can view/comment scoped tickets, NOT assign/claim/change-status.
+    { id: USR.clientTerritorialManager, email: 'territorial.manager@test.local', role: UserRole.TERRITORIAL_MANAGER, companyId: CO.client, isExecutor: false },
     { id: USR.general, email: 'provider@test.local', role: UserRole.ADMIN, companyId: CO.general, isExecutor: false },
     { id: USR.secondary, email: 'secondary.provider@test.local', role: UserRole.ADMIN, companyId: CO.secondary, isExecutor: false },
     { id: USR.secondaryTech, email: 'tech@test.local', role: UserRole.TECHNICIAN, companyId: CO.secondary, isExecutor: true },
@@ -192,6 +196,8 @@ async function main() {
     // tech@test.local (CO.secondary PRIMARY tech): bound to Фудзияма–Арбат via CLIENT company ID
     // so that getBoundContexts returns QA Client Co / Фудзияма–Арбат.
     { id: '60000000-0000-4000-8000-000000000003', userId: USR.secondaryTech, locationId: LOC.otherBound, companyId: CO.client },
+    // CLIENT-company TERRITORIAL_MANAGER: scoped to Фудзияма — Арбат (client-owned location).
+    { id: '60000000-0000-4000-8000-000000000004', userId: USR.clientTerritorialManager, locationId: LOC.otherBound, companyId: CO.client },
   ]
 
   for (const b of bindings) {
