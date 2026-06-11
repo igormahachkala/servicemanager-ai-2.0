@@ -1,7 +1,7 @@
 import { PrismaClient, UserRole } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
-import { PERMISSIONS, type PermissionCode } from '../src/common/permissions.constants';
+import { PERMISSION_BLOCKS, ROLE_GRANTS } from '../src/common/permissions-matrix';
 import { runStandardCatalogSeed } from '../scripts/seed-standard-catalog';
 
 const prisma = new PrismaClient();
@@ -124,87 +124,12 @@ async function upsertDemoLocations(companyId: string) {
 }
 
 async function main() {
-  const blocks: Array<{ code: PermissionCode; name: string; description?: string }> = [
-    {
-      code: PERMISSIONS.TICKETS_CREATE,
-      name: 'Create tickets',
-      description: 'Create tickets and child tickets',
-    },
-    {
-      code: PERMISSIONS.TICKETS_VIEW,
-      name: 'View tickets',
-      description: 'View tickets list and single ticket',
-    },
-    {
-      code: PERMISSIONS.TICKETS_VIEW_AVAILABLE,
-      name: 'View available tickets',
-      description: 'View available NEW tickets for technician',
-    },
-    {
-      code: PERMISSIONS.TICKETS_EDIT,
-      name: 'Edit tickets',
-      description: 'Edit ticket fields in allowed scope',
-    },
-    {
-      code: PERMISSIONS.TICKETS_CLAIM,
-      name: 'Claim tickets',
-      description: 'Claim available NEW ticket (assign to self)',
-    },
-    {
-      code: PERMISSIONS.TICKETS_ASSIGN,
-      name: 'Assign tickets',
-      description: 'Assign ticket to technician',
-    },
-    {
-      code: PERMISSIONS.TICKETS_STATUS_CHANGE,
-      name: 'Change ticket status',
-      description: 'Change ticket status',
-    },
-    {
-      code: PERMISSIONS.TICKETS_VIEW_ALL_COMPANY,
-      name: 'View all company tickets',
-      description:
-        'Override: technician can view all tickets within company (enable per-user via UserPermission)',
-    },
-    {
-      code: PERMISSIONS.ANALYTICS_VIEW,
-      name: 'View analytics',
-      description: 'Access analytics dashboards',
-    },
-    {
-      code: PERMISSIONS.USERS_MANAGE,
-      name: 'Manage users',
-      description: 'Create/update users',
-    },
-    {
-      code: PERMISSIONS.COMPANY_SETTINGS_EDIT,
-      name: 'Edit company settings',
-      description: 'Edit company settings like auto-assign',
-    },
-    {
-      code: PERMISSIONS.LOCATIONS_VIEW,
-      name: 'View locations',
-      description: 'View locations list and single location',
-    },
-    {
-      code: PERMISSIONS.LOCATIONS_MANAGE,
-      name: 'Manage locations',
-      description: 'Create/update locations and change their status',
-    },
-  ];
-
-  for (const b of blocks) {
+  // Phase 1.5: блоки и гранты берём из единого источника (companyType-aware).
+  for (const b of PERMISSION_BLOCKS) {
     await prisma.permissionBlock.upsert({
       where: { code: b.code },
-      update: {
-        name: b.name,
-        description: b.description ?? null,
-      },
-      create: {
-        code: b.code,
-        name: b.name,
-        description: b.description ?? null,
-      },
+      update: { name: b.name, description: b.description ?? null },
+      create: { code: b.code, name: b.name, description: b.description ?? null },
     });
   }
 
@@ -212,95 +137,24 @@ async function main() {
   const allBlocks = await prisma.permissionBlock.findMany({
     select: { id: true, code: true },
   });
-
   for (const b of allBlocks) {
     codeToId.set(b.code, b.id);
   }
 
-  const matrix: Record<UserRole, PermissionCode[]> = {
-    PLATFORM_ADMIN: [],
-    ADMIN: [
-      PERMISSIONS.TICKETS_CREATE,
-      PERMISSIONS.TICKETS_VIEW,
-      PERMISSIONS.TICKETS_EDIT,
-      PERMISSIONS.TICKETS_ASSIGN,
-      PERMISSIONS.TICKETS_STATUS_CHANGE,
-      PERMISSIONS.ANALYTICS_VIEW,
-      PERMISSIONS.USERS_MANAGE,
-      PERMISSIONS.COMPANY_SETTINGS_EDIT,
-      PERMISSIONS.LOCATIONS_VIEW,
-      PERMISSIONS.LOCATIONS_MANAGE,
-    ],
-    MASTER: [
-      PERMISSIONS.TICKETS_CREATE,
-      PERMISSIONS.TICKETS_VIEW,
-      PERMISSIONS.TICKETS_EDIT,
-      PERMISSIONS.TICKETS_ASSIGN,
-      PERMISSIONS.TICKETS_STATUS_CHANGE,
-      PERMISSIONS.ANALYTICS_VIEW,
-      PERMISSIONS.LOCATIONS_VIEW,
-      PERMISSIONS.LOCATIONS_MANAGE,
-    ],
-    DISPATCHER: [
-      PERMISSIONS.TICKETS_CREATE,
-      PERMISSIONS.TICKETS_VIEW,
-      PERMISSIONS.TICKETS_EDIT,
-      PERMISSIONS.TICKETS_ASSIGN,
-      PERMISSIONS.TICKETS_STATUS_CHANGE,
-      PERMISSIONS.ANALYTICS_VIEW,
-      PERMISSIONS.LOCATIONS_VIEW,
-    ],
-    NETWORK_DIRECTOR: [
-      PERMISSIONS.TICKETS_CREATE,
-      PERMISSIONS.TICKETS_VIEW,
-      PERMISSIONS.TICKETS_EDIT,
-      PERMISSIONS.TICKETS_STATUS_CHANGE,
-      PERMISSIONS.ANALYTICS_VIEW,
-      PERMISSIONS.LOCATIONS_VIEW,
-    ],
-    TECHNICIAN: [
-      PERMISSIONS.TICKETS_CREATE,
-      PERMISSIONS.TICKETS_VIEW,
-      PERMISSIONS.TICKETS_VIEW_AVAILABLE,
-      PERMISSIONS.TICKETS_CLAIM,
-      PERMISSIONS.TICKETS_STATUS_CHANGE,
-      PERMISSIONS.LOCATIONS_VIEW,
-    ],
-    CLIENT: [
-      PERMISSIONS.TICKETS_CREATE,
-      PERMISSIONS.TICKETS_VIEW,
-      PERMISSIONS.TICKETS_EDIT,
-      PERMISSIONS.LOCATIONS_VIEW,
-    ],
-    TERRITORIAL_MANAGER: [
-      PERMISSIONS.TICKETS_CREATE,
-      PERMISSIONS.TICKETS_VIEW,
-      PERMISSIONS.TICKETS_EDIT,
-      PERMISSIONS.LOCATIONS_VIEW,
-    ],
-    STAFF: [],
-  };
-
-  for (const role of Object.keys(matrix) as UserRole[]) {
-    for (const code of matrix[role]) {
+  // Полный пересоздаём RolePermission по матрице (role, companyType),
+  // чтобы demo-seed не оставлял устаревших/wildcard-грантов.
+  const grantRows: { role: UserRole; companyType: any; permissionBlockId: string }[] = [];
+  for (const grant of ROLE_GRANTS) {
+    for (const code of grant.codes) {
       const permissionBlockId = codeToId.get(code);
       if (!permissionBlockId) continue;
-
-      await prisma.rolePermission.upsert({
-        where: {
-          role_permissionBlockId: {
-            role,
-            permissionBlockId,
-          },
-        },
-        update: {},
-        create: {
-          role,
-          permissionBlockId,
-        },
-      });
+      grantRows.push({ role: grant.role, companyType: grant.companyType, permissionBlockId });
     }
   }
+  await prisma.$transaction([
+    prisma.rolePermission.deleteMany({}),
+    prisma.rolePermission.createMany({ data: grantRows, skipDuplicates: true }),
+  ]);
 
   const company = await prisma.company.upsert({
     where: { id: DEMO_COMPANY_ID },
