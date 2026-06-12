@@ -4350,3 +4350,95 @@ a.mobileBtn.mobileCreateTicketLink {
 }
 .mobileAnalyticsQuickBadge--danger  { background: #fee2e2; color: #b91c1c; }
 .mobileAnalyticsQuickBadge--warning { background: #fef3c7; color: #92400e; }
+
+/* Mobile ticket actions: ⋯ trigger + bottom sheet */
+.mobileTicketDetailsToolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mobileTicketActionsTrigger {
+  margin-left: auto;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  border-radius: 10px;
+  min-width: 40px;
+  height: 36px;
+  font-size: 1.3rem;
+  line-height: 1;
+  color: #374151;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.mobileTicketActionsTrigger:active { background: #f3f4f6; }
+
+.mobileSheetBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(17, 24, 39, 0.45);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.mobileSheet {
+  width: 100%;
+  max-width: 560px;
+  background: #fff;
+  border-radius: 18px 18px 0 0;
+  box-sizing: border-box;
+  padding: 8px 14px calc(16px + env(safe-area-inset-bottom, 0px));
+  max-height: 85vh;
+  overflow-y: auto;
+  animation: mobileSheetUp 180ms ease-out;
+}
+@keyframes mobileSheetUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+.mobileSheetGrip {
+  width: 40px;
+  height: 4px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  margin: 4px auto 8px;
+}
+.mobileSheetHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.mobileSheetTitle { font-weight: 800; font-size: 1rem; }
+.mobileSheetClose {
+  border: none;
+  background: transparent;
+  font-size: 1rem;
+  color: #6b7280;
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+}
+.mobileSheetActions { display: grid; gap: 2px; }
+.mobileSheetAction {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 13px 6px;
+  font-size: 0.98rem;
+  color: #111827;
+  cursor: pointer;
+  border-radius: 10px;
+}
+.mobileSheetAction:active { background: #f3f4f6; }
+.mobileSheetAction:disabled { opacity: 0.45; cursor: not-allowed; }
+.mobileSheetAction + .mobileSheetAction { border-top: 1px solid #f3f4f6; }
+.mobileSheetAction--danger { color: #b91c1c; }
+.mobileSheetActionIcon { font-size: 1.2rem; width: 26px; text-align: center; flex-shrink: 0; }
+.mobileSheetActionLabel { flex: 1; min-width: 0; }
+.mobileSheetActionChevron { color: #d1d5db; flex-shrink: 0; }
+.mobileSheetCancel { width: 100%; margin-top: 10px; }

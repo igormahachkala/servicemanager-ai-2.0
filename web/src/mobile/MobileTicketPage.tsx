@@ -44,6 +44,7 @@ import { mobileAttachmentLabel } from './MobileAttachmentThumb'
 import { toChatMessages } from '../lib/ticketChat'
 import { FullscreenPhotoViewer, type PhotoViewerItem } from '../components/FullscreenPhotoViewer'
 import { MobileTicketPhotoGallery } from './MobileTicketPhotoGallery'
+import { MobileTicketActionsSheet, type TicketSheetAction } from './MobileTicketActionsSheet'
 import { MobileModalBackdrop } from './MobileModalBackdrop'
 
 function readListOrigin(location: ReturnType<typeof useLocation>): MobileTicketListOrigin {
@@ -519,6 +520,7 @@ export function MobileTicketPage() {
   const timelineFirstMountRef = useRef(true)
 
   const [assignTicketOpen, setAssignTicketOpen] = useState(false)
+  const [actionsSheetOpen, setActionsSheetOpen] = useState(false)
   const [assignTechId, setAssignTechId] = useState('')
   const [assignErr, setAssignErr] = useState('')
   const [techActionErr, setTechActionErr] = useState('')
@@ -914,8 +916,50 @@ export function MobileTicketPage() {
     techActionM.mutate(mode)
   }
 
+  function openChatComposer() {
+    setDetailTab('chat')
+    window.setTimeout(() => chatInputRef.current?.focus(), 60)
+  }
+
+  const ticketSheetActions: TicketSheetAction[] = ticket
+    ? ([
+        meQ.data?.role === 'TECHNICIAN' && ticket.status === 'NEW' && !assigneePresent
+          ? { id: 'take', label: 'Взять в работу', icon: '🙋', onClick: () => handleTechActionWithOfflineSupport('claim') }
+          : null,
+        showAssignButton
+          ? { id: 'assign', label: 'Назначить исполнителя', icon: '👷', onClick: () => { setAssignErr(''); setAssignTicketOpen(true) } }
+          : null,
+        { id: 'comment', label: 'Добавить комментарий', icon: '💬', onClick: openChatComposer },
+        { id: 'photo', label: 'Добавить фото', icon: '📷', onClick: () => setDetailTab('photos') },
+        { id: 'chat', label: 'Открыть чат', icon: '🗨️', onClick: () => setDetailTab('chat') },
+        { id: 'history', label: 'Открыть историю', icon: '🕘', onClick: () => setDetailTab('history') },
+        { id: 'object', label: 'Открыть объект', icon: '📍', onClick: () => setDetailTab('info') },
+        canShowComplete
+          ? {
+              id: 'close',
+              label: 'Закрыть заявку',
+              icon: '✅',
+              onClick: () =>
+                setCloseModal({
+                  ticketId: ticket.id,
+                  title: `${mobileTicketNumberTitle(ticket.ticketNumber)} — ${mobileTicketCategoryLocationFromDetail(ticket)}`,
+                  file: null,
+                  previewUrl: '',
+                  comment: '',
+                  err: '',
+                }),
+            }
+          : null,
+      ].filter(Boolean) as TicketSheetAction[])
+    : []
+
   return (
     <div className={`mobileSection mobileTicketDetailsRoot${padBottomForOpsDock ? ' mobileTicketDetailsRoot--opsDock' : ''}`}>
+      <MobileTicketActionsSheet
+        open={actionsSheetOpen}
+        onClose={() => setActionsSheetOpen(false)}
+        actions={ticketSheetActions}
+      />
       <div className="mobileTicketDetailsToolbar">
         <Link
           to={backHref}
@@ -924,6 +968,16 @@ export function MobileTicketPage() {
         >
           Назад
         </Link>
+        {ticket ? (
+          <button
+            type="button"
+            className="mobileTicketActionsTrigger"
+            aria-label="Действия с заявкой"
+            onClick={() => setActionsSheetOpen(true)}
+          >
+            ⋯
+          </button>
+        ) : null}
       </div>
 
       {hasBoardContext ? (
