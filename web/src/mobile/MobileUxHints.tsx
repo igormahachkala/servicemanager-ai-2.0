@@ -98,7 +98,7 @@ export function MobileRoleContextStrip(props: { role: Role | undefined }) {
   if (isProviderStaffRole(role)) {
     return (
       <div className="mobileUxRoleStrip mobileUxRoleStrip--admin" role="note">
-        Если техник не видит заявку или не может взять её: проверьте специализации, привязку категорий к специализациям и доступ к точкам (UserLocationBinding) в веб-версии.
+        Если техник не видит заявку или не может взять её: проверьте специализации, привязку категорий и доступ к точкам.
       </div>
     )
   }

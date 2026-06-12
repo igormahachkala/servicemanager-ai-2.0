@@ -25,12 +25,12 @@ body,
   box-sizing: border-box;
   min-width: 0;
   min-height: 100dvh;
-  padding: 12px;
-  padding-top: calc(12px + env(safe-area-inset-top, 0px));
-  padding-left: max(12px, env(safe-area-inset-left, 0px));
-  padding-right: max(12px, env(safe-area-inset-right, 0px));
+  padding: 10px;
+  padding-top: calc(8px + env(safe-area-inset-top, 0px));
+  padding-left: max(10px, env(safe-area-inset-left, 0px));
+  padding-right: max(10px, env(safe-area-inset-right, 0px));
   /* Extra space under content: bottom nav + Safari home indicator + breathing room */
-  padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px) + 12px);
+  padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px) + 10px);
 }
 
 .mobileTitle {
@@ -951,11 +951,11 @@ button.mobilePhotoThumbLink.mobilePhotoThumbOpen:focus-visible {
 }
 
 .mobileUxRoleStrip {
-  margin: 8px 0 4px;
-  padding: 8px 10px;
+  margin: 6px 0 4px;
+  padding: 7px 10px;
   border-radius: 12px;
-  font-size: 0.78rem;
-  line-height: 1.4;
+  font-size: 0.74rem;
+  line-height: 1.35;
   color: #4b5563;
   border: 1px solid #e5e7eb;
   background: #f9fafb;
@@ -1275,19 +1275,19 @@ a.mobileBtn.mobileCreateTicketLink {
 }
 
 .mobileTicketDetailsToolbar {
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .mobileDetailsBackLink {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 44px;
-  padding: 8px 14px;
-  border-radius: 12px;
+  min-height: 34px;
+  padding: 6px 10px;
+  border-radius: 10px;
   background: #e5e7eb;
   color: #111827;
-  font-size: 0.92rem;
+  font-size: 0.82rem;
   font-weight: 700;
   text-decoration: none;
   border: 1px solid #d1d5db;
@@ -1773,17 +1773,111 @@ a.mobileBtn.mobileCreateTicketLink {
   max-width: min(720px, 100%);
   margin: 0 auto;
   box-sizing: border-box;
+  position: sticky;
+  top: 0;
+  z-index: 18;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 6px 12px 0;
-  padding-top: max(6px, env(safe-area-inset-top, 0px));
-  min-height: 44px;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 10px 8px;
+  padding-top: calc(6px + env(safe-area-inset-top, 0px));
+  min-height: 52px;
+  background: linear-gradient(180deg, rgba(243, 245, 248, 0.98) 0%, rgba(243, 245, 248, 0.94) 100%);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgba(229, 231, 235, 0.85);
 }
 
-.mobileTopBarFill {
-  flex: 1;
+.mobileTopBarMain {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.mobileTopBarBrandRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+
+.mobileTopBarBrand {
+  font-size: 0.98rem;
+  font-weight: 900;
+  color: #111827;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  min-width: 0;
+}
+
+.mobileTopBarStatusChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+}
+
+.mobileTopBarStatusChip--online {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.mobileTopBarStatusChip--offline {
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.mobileTopBarSubline {
+  margin-top: 3px;
+  min-width: 0;
+  font-size: 0.77rem;
+  line-height: 1.25;
+  color: #6b7280;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.mobileTopBarActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.mobileTopBarAction {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 4px 14px rgba(17, 24, 39, 0.06);
+  color: inherit;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
+}
+
+.mobileTopBarAction:active {
+  transform: translateY(1px);
+}
+
+.mobileTopBarActionIcon {
+  display: block;
 }
 
 /* SMA-MOBILE-103: online/offline connection indicator in the top bar */
@@ -1817,25 +1911,10 @@ a.mobileBtn.mobileCreateTicketLink {
   color: #b91c1c;
 }
 
-.mobileBellLink {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
-  box-shadow: 0 4px 14px rgba(17, 24, 39, 0.06);
-  text-decoration: none;
-  color: inherit;
-}
-
 .mobileProviderContextCard {
   width: min(720px, calc(100% - 24px));
-  margin: 10px auto 0;
-  padding: 10px 12px;
+  margin: 6px auto 0;
+  padding: 8px 10px;
   box-sizing: border-box;
   border: 1px solid #dbeafe;
   border-radius: 16px;
@@ -1864,7 +1943,7 @@ a.mobileBtn.mobileCreateTicketLink {
 }
 
 .mobileProviderContextLabel {
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -1873,16 +1952,16 @@ a.mobileBtn.mobileCreateTicketLink {
 
 .mobileProviderContextValue {
   margin-top: 4px;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   font-weight: 800;
   color: #111827;
-  line-height: 1.35;
+  line-height: 1.3;
   word-break: break-word;
 }
 
 .mobileProviderContextChevron {
   flex: 0 0 auto;
-  margin-top: 6px;
+  margin-top: 4px;
   color: #2563eb;
   transition: transform 180ms ease;
 }
@@ -1903,7 +1982,7 @@ a.mobileBtn.mobileCreateTicketLink {
 .mobileProviderContextBody--open {
   grid-template-rows: 1fr;
   opacity: 1;
-  margin-top: 10px;
+  margin-top: 8px;
 }
 
 .mobileProviderContextBodyInner {
@@ -1924,9 +2003,9 @@ a.mobileBtn.mobileCreateTicketLink {
 }
 
 .mobileProviderContextHint {
-  margin-top: 8px;
-  font-size: 0.8rem;
-  line-height: 1.4;
+  margin-top: 6px;
+  font-size: 0.76rem;
+  line-height: 1.35;
   color: #475569;
 }
 
@@ -1958,23 +2037,24 @@ a.mobileBtn.mobileCreateTicketLink {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
 }
 
 .mobileNotificationsMarkAll {
   flex-shrink: 0;
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   font-weight: 700;
-  padding: 5px 8px;
+  padding: 4px 8px;
   min-height: auto;
   line-height: 1.2;
 }
 
 .mobileNotificationsPageHint {
-  margin-top: 4px;
-  margin-bottom: 8px;
-  font-size: 0.84rem;
-  line-height: 1.35;
+  margin-top: 2px;
+  margin-bottom: 6px;
+  font-size: 0.8rem;
+  line-height: 1.3;
 }
 
 .mobileNotificationsList {
@@ -1988,7 +2068,7 @@ a.mobileBtn.mobileCreateTicketLink {
 
 .mobileNotificationRow {
   position: relative;
-  border-radius: 16px;
+  border-radius: 14px;
   border: 1px solid #e5e7eb;
   background: #ffffff;
   overflow: hidden;
@@ -2026,7 +2106,8 @@ a.mobileBtn.mobileCreateTicketLink {
   align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
+  min-width: 0;
 }
 
 .mobileNotificationTime {
@@ -2110,13 +2191,14 @@ a.mobileBtn.mobileCreateTicketLink {
   display: block;
   width: 100%;
   text-align: left;
-  padding: 12px;
+  padding: 10px 12px;
   border: none;
   background: transparent;
   cursor: pointer;
   font: inherit;
   color: inherit;
   box-sizing: border-box;
+  min-width: 0;
 }
 
 .mobileNotificationBtn:disabled {
@@ -2126,15 +2208,28 @@ a.mobileBtn.mobileCreateTicketLink {
 
 .mobileNotificationTitle {
   font-weight: 800;
-  font-size: 0.95rem;
+  font-size: 0.9rem;
   margin-bottom: 4px;
+  min-width: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 .mobileNotificationMessage {
-  font-size: 0.88rem;
+  font-size: 0.84rem;
   color: #374151;
   white-space: pre-wrap;
   word-break: break-word;
+  min-width: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
 }
 
 /* После создания заявки (клиент) */
@@ -3382,9 +3477,12 @@ a.mobileBtn.mobileCreateTicketLink {
   font-size: 0.78rem;
   color: #6b7280;
   margin-top: 2px;
-  white-space: nowrap;
   overflow: hidden;
-  text-overflow: ellipsis;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 .mobileLocationGroupStats {

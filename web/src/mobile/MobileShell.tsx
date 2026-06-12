@@ -224,34 +224,53 @@ export function MobileShell() {
   ]
 
   const isOnTicketDetail = location.pathname.startsWith(`${mobileRoot}/tickets/`)
+  const notificationsHref = api.appendScopeToPath(mobilePath(location.pathname, '/notifications'), scope, meQ.data)
+  const profileHref = api.appendScopeToPath(mobilePath(location.pathname, '/profile'), scope, meQ.data)
 
   return (
     <div className="mobileShell">
-      <header className="mobileTopBar" aria-label="Действия">
-        <div
-          className={`mobileConnStatus ${isOnline ? 'mobileConnStatus--online' : 'mobileConnStatus--offline'}`}
-          role="status"
-          aria-live="polite"
-        >
-          <span className="mobileConnDot" aria-hidden />
-          <span className="mobileConnText">{isOnline ? 'Онлайн' : 'Офлайн'}</span>
-        </div>
-        <div className="mobileTopBarFill" />
-        <Link
-          className="mobileBellLink"
-          to={api.appendScopeToPath(mobilePath(location.pathname, '/notifications'), scope, meQ.data)}
-          aria-label={unread > 0 ? `Уведомления, непрочитано: ${unread}` : 'Уведомления'}
-        >
-          <svg className="mobileBellIcon" width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-          </svg>
-          {unread > 0 ? (
-            <span className="mobileBellBadge" aria-hidden>
-              {unread > 99 ? '99+' : unread}
-            </span>
+      <header className="mobileTopBar" aria-label="Панель приложения">
+        <div className="mobileTopBarMain">
+          <div className="mobileTopBarBrandRow">
+            <div className="mobileTopBarBrand">ServiceManager</div>
+            <div
+              className={`mobileTopBarStatusChip ${isOnline ? 'mobileTopBarStatusChip--online' : 'mobileTopBarStatusChip--offline'}`}
+              role="status"
+              aria-live="polite"
+            >
+              <span className="mobileConnDot" aria-hidden />
+              <span className="mobileConnText">{isOnline ? 'Онлайн' : 'Офлайн'}</span>
+            </div>
+          </div>
+          {canShowLinkedClients ? (
+            <div className="mobileTopBarSubline">
+              {selectedLinkedClient?.clientCompany.name || 'Клиентский контур'}
+            </div>
           ) : null}
-        </Link>
+        </div>
+        <div className="mobileTopBarActions">
+          <Link
+            className="mobileTopBarAction"
+            to={notificationsHref}
+            aria-label={unread > 0 ? `Уведомления, непрочитано: ${unread}` : 'Уведомления'}
+          >
+            <svg className="mobileTopBarActionIcon" width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+            </svg>
+            {unread > 0 ? <span className="mobileNavBadgeDot" aria-hidden /> : null}
+          </Link>
+          <Link
+            className="mobileTopBarAction"
+            to={profileHref}
+            aria-label="Профиль"
+          >
+            <svg className="mobileTopBarActionIcon" width={18} height={18} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+              <circle cx="12" cy="7" r="4"/>
+            </svg>
+          </Link>
+        </div>
       </header>
       {canShowLinkedClients ? (
         <div className={`mobileProviderContextCard ${isProviderContextExpanded ? 'mobileProviderContextCard--open' : ''}`}>
