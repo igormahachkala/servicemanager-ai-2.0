@@ -13,6 +13,7 @@ import { ticketsForMobileMyPage } from './mobileHomeBoardFilters'
 import { appendBoardNavigationContextToPath, readBoardNavigationContextFromSearch } from '../lib/boardNavigationContext'
 import { ticketMatchesMobileHomeSearch } from './mobileHomeListUtils'
 import { mobilePath } from './mobileRoute'
+import { MobileInspectionList } from './MobileInspectionList'
 
 type FilterKey = 'active' | 'done' | 'archive'
 
@@ -69,10 +70,13 @@ function isTicketInPeriod(t: api.TicketCard, period: string): boolean {
 const PERIOD_LABELS: Record<string, string> = { today: 'Сегодня', '7d': '7 дней', '30d': '30 дней' }
 const PRIORITY_LABELS: Record<string, string> = { NORMAL: 'Обычный', URGENT: 'Срочный' }
 
+type ScreenMode = 'tickets' | 'patrols'
+
 export function MobileMyTickets() {
   const location = useLocation()
   const navigate = useNavigate()
   const search = new URLSearchParams(location.search)
+  const [screenMode, setScreenMode] = useState<ScreenMode>('tickets')
   const initialBoardContext = useMemo(() => readBoardNavigationContextFromSearch(search), [location.search])
   const initialFilter = useMemo<FilterKey>(() => {
     const tab = (initialBoardContext?.tab || '').trim()
@@ -251,6 +255,29 @@ export function MobileMyTickets() {
         <h1 className="mobileTitle">Заявки</h1>
         <MobileRoleContextStrip role={meQ.data.role} />
       </div>
+
+      {/* Top-level mode switcher */}
+      <div className="mobileScreenTabs">
+        <button
+          type="button"
+          className={`mobileScreenTab${screenMode === 'tickets' ? ' mobileScreenTab--active' : ''}`}
+          onClick={() => setScreenMode('tickets')}
+        >
+          Заявки
+        </button>
+        <button
+          type="button"
+          className={`mobileScreenTab${screenMode === 'patrols' ? ' mobileScreenTab--active' : ''}`}
+          onClick={() => setScreenMode('patrols')}
+        >
+          Обходы
+        </button>
+      </div>
+
+      {screenMode === 'patrols' ? (
+        <MobileInspectionList />
+      ) : (
+      <>
 
       {meQ.data.role === 'TECHNICIAN' && !linkedClientCompanyId ? (
         <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
@@ -485,6 +512,8 @@ export function MobileMyTickets() {
             linkState={ticketLinkState(ticket.companyId)}
           />
         ))
+      )}
+      </>
       )}
     </div>
   )

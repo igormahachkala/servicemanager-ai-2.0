@@ -4496,3 +4496,190 @@ a.mobileBtn.mobileCreateTicketLink {
 .mobileSheetActionLabel { flex: 1; min-width: 0; }
 .mobileSheetActionChevron { color: #d1d5db; flex-shrink: 0; }
 .mobileSheetCancel { width: 100%; margin-top: 10px; }
+
+/* ── Patrol / Inspection ─────────────────────────────────── */
+
+/* Top-level Заявки / Обходы switcher */
+.mobileScreenTabs {
+  display: flex;
+  gap: 2px;
+  background: #f1f5f9;
+  border-radius: 12px;
+  padding: 3px;
+  margin-bottom: 4px;
+}
+.mobileScreenTab {
+  flex: 1;
+  padding: 8px 0;
+  border-radius: 9px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.mobileScreenTab--active {
+  background: #fff;
+  color: #1d4ed8;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Patrol run list card */
+.mobilePatrolCard { display: grid; gap: 6px; }
+
+.mobilePatrolCardTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.mobilePatrolCardTitle {
+  font-size: 0.94rem;
+  font-weight: 600;
+  color: #111827;
+  min-width: 0;
+  flex: 1;
+}
+.mobilePatrolCardMeta {
+  font-size: 0.82rem;
+  color: #6b7280;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* Run status badge */
+.mobilePatrolRunStatus {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.mobilePatrolRunStatus--inprogress { background: #dbeafe; color: #1e40af; }
+.mobilePatrolRunStatus--completed  { background: #dcfce7; color: #15803d; }
+
+/* Report status badge */
+.mobilePatrolReportBadge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 8px;
+  background: #f3f4f6;
+  color: #374151;
+}
+.mobilePatrolReportBadge--submitted { background: #e0e7ff; color: #4338ca; }
+.mobilePatrolReportBadge--approved  { background: #dcfce7; color: #15803d; }
+.mobilePatrolReportBadge--rejected  { background: #fee2e2; color: #b91c1c; }
+
+/* Run detail page: meta rows */
+.mobilePatrolMeta { display: grid; gap: 4px; }
+.mobilePatrolMetaRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.mobilePatrolMetaLabel { font-size: 0.8rem; color: #6b7280; flex-shrink: 0; }
+
+/* Progress summary 4-cell grid */
+.mobilePatrolSummary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+.mobilePatrolSummaryCell {
+  text-align: center;
+  padding: 8px 4px;
+  border-radius: 8px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+}
+.mobilePatrolSummaryValue {
+  font-size: 1.25rem;
+  font-weight: 800;
+  line-height: 1;
+}
+.mobilePatrolSummaryLabel {
+  font-size: 0.65rem;
+  color: #6b7280;
+  margin-top: 3px;
+}
+.mobilePatrolSummaryCell--ok .mobilePatrolSummaryValue       { color: #16a34a; }
+.mobilePatrolSummaryCell--issue .mobilePatrolSummaryValue    { color: #d97706; }
+.mobilePatrolSummaryCell--critical .mobilePatrolSummaryValue { color: #dc2626; }
+.mobilePatrolSummaryCell--pending .mobilePatrolSummaryValue  { color: #6b7280; }
+
+/* Checklist items */
+.mobilePatrolItems { display: grid; gap: 8px; }
+
+.mobilePatrolItem {
+  border-radius: 10px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+.mobilePatrolItem--ok       { border-color: #86efac; background: #f0fdf4; }
+.mobilePatrolItem--issue    { border-color: #fdba74; background: #fff7ed; }
+.mobilePatrolItem--critical { border-color: #fca5a5; background: #fef2f2; }
+.mobilePatrolItem--skipped  { opacity: 0.55; }
+
+.mobilePatrolItemTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.mobilePatrolItemTitle {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #111827;
+  flex: 1;
+  min-width: 0;
+}
+.mobilePatrolItemBadge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.mobilePatrolItemBadge--pending  { background: #f3f4f6; color: #6b7280; }
+.mobilePatrolItemBadge--ok       { background: #dcfce7; color: #15803d; }
+.mobilePatrolItemBadge--issue    { background: #fef3c7; color: #92400e; }
+.mobilePatrolItemBadge--critical { background: #fee2e2; color: #b91c1c; }
+.mobilePatrolItemBadge--skipped  { background: #f3f4f6; color: #9ca3af; }
+
+.mobilePatrolItemComment { font-size: 0.82rem; color: #4b5563; font-style: italic; }
+.mobilePatrolItemPhotos  { font-size: 0.78rem; color: #6b7280; }
+
+.mobilePatrolItemActions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.mobilePatrolItemIssueForm {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  background: #fff7ed;
+  border-radius: 8px;
+  border: 1px solid #fed7aa;
+}
+.mobilePatrolItemIssueFormTextarea {
+  width: 100%;
+  min-height: 60px;
+  padding: 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 0.88rem;
+  resize: vertical;
+  box-sizing: border-box;
+  font-family: inherit;
+}

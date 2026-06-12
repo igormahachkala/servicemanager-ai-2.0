@@ -38,6 +38,8 @@ import { MobileNotificationsPage } from './mobile/MobileNotificationsPage'
 import { MobileAnalytics } from './mobile/MobileAnalytics'
 import { MobileChatsPage } from './mobile/MobileChatsPage'
 import { MobileOfflineQueue } from './mobile/MobileOfflineQueue'
+import { MobileInspectionList } from './mobile/MobileInspectionList'
+import { MobileInspectionRunPage } from './mobile/MobileInspectionRunPage'
 import { MaxApp } from './max/MaxApp'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -121,6 +123,8 @@ export function AppRoutes() {
         <Route path="chats/:ticketId" element={<MobileChatsPage />} />
         <Route path="tickets/:id" element={<MobileTicketPage />} />
         <Route path="offline-queue" element={<MobileOfflineQueue />} />
+        <Route path="inspection" element={<MobileInspectionList standalone />} />
+        <Route path="inspection/:runId" element={<MobileInspectionRunPage />} />
       </Route>
 
       <Route
@@ -168,6 +172,8 @@ export function AppRoutes() {
           <Route path="chats/:ticketId" element={<MobileChatsPage />} />
           <Route path="tickets/:id" element={<MobileTicketPage />} />
           <Route path="offline-queue" element={<MobileOfflineQueue />} />
+          <Route path="inspection" element={<MobileInspectionList standalone />} />
+          <Route path="inspection/:runId" element={<MobileInspectionRunPage />} />
         </Route>
       </Route>
 

@@ -1,0 +1,350 @@
+import { useMemo, useState } from 'react'
+import { Link, useLocation, useParams } from 'react-router-dom'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import * as api from '../lib/api'
+import { mobilePath } from './mobileRoute'
+
+function fmtDateTime(value?: string | null): string {
+  if (!value) return '—'
+  try {
+    return new Date(value).toLocaleString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  } catch {
+    return value
+  }
+}
+
+const STATUS_LABEL: Record<api.InspectionRunItemStatus, string> = {
+  PENDING: 'Ожидает',
+  OK: 'OK',
+  ISSUE: 'Нарушение',
+  CRITICAL: 'Критично',
+  SKIPPED: 'Пропущен',
+}
+
+const ITEM_MOD: Record<api.InspectionRunItemStatus, string> = {
+  PENDING: 'pending',
+  OK: 'ok',
+  ISSUE: 'issue',
+  CRITICAL: 'critical',
+  SKIPPED: 'skipped',
+}
+
+export function MobileInspectionRunPage() {
+  const params = useParams<{ runId: string }>()
+  const runId = params.runId || ''
+  const location = useLocation()
+  const queryClient = useQueryClient()
+
+  const [busyItemIds, setBusyItemIds] = useState<Set<string>>(new Set())
+  const [activeIssueItemId, setActiveIssueItemId] = useState<string | null>(null)
+  const [issueComment, setIssueComment] = useState('')
+  const [confirmComplete, setConfirmComplete] = useState(false)
+  const [completeBusy, setCompleteBusy] = useState(false)
+  const [flashMsg, setFlashMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
+
+  const runQ = useQuery({
+    queryKey: ['inspection-run', runId],
+    queryFn: () => api.getInspectionRun(runId),
+    enabled: !!runId,
+  })
+
+  const updateM = useMutation({
+    mutationFn: (input: { itemId: string; payload: api.UpdateInspectionRunItemInput }) =>
+      api.updateInspectionRunItem(runId, input.itemId, input.payload),
+  })
+
+  const backHref = mobilePath(location.pathname, '/my')
+
+  async function invalidate() {
+    await queryClient.invalidateQueries({ queryKey: ['inspection-run', runId] })
+    await queryClient.invalidateQueries({ queryKey: ['inspection-runs'] })
+  }
+
+  function flash(type: 'ok' | 'err', text: string) {
+    setFlashMsg({ type, text })
+    setTimeout(() => setFlashMsg(null), 3000)
+  }
+
+  async function markOk(itemId: string) {
+    if (busyItemIds.has(itemId)) return
+    setBusyItemIds((s) => new Set(s).add(itemId))
+    try {
+      await updateM.mutateAsync({ itemId, payload: { status: 'OK', requiresRepair: false } })
+      await invalidate()
+    } catch (err: any) {
+      flash('err', err?.message || String(err))
+    } finally {
+      setBusyItemIds((s) => { const n = new Set(s); n.delete(itemId); return n })
+    }
+  }
+
+  async function markIssue(itemId: string) {
+    if (busyItemIds.has(itemId)) return
+    setBusyItemIds((s) => new Set(s).add(itemId))
+    try {
+      await updateM.mutateAsync({
+        itemId,
+        payload: { status: 'ISSUE', requiresRepair: true, comment: issueComment.trim() || undefined },
+      })
+      await invalidate()
+      setActiveIssueItemId(null)
+      setIssueComment('')
+    } catch (err: any) {
+      flash('err', err?.message || String(err))
+    } finally {
+      setBusyItemIds((s) => { const n = new Set(s); n.delete(itemId); return n })
+    }
+  }
+
+  async function completeRun() {
+    setCompleteBusy(true)
+    try {
+      await api.completeInspectionRun(runId)
+      await invalidate()
+      setConfirmComplete(false)
+      flash('ok', 'Обход завершён')
+    } catch (err: any) {
+      flash('err', err?.message || String(err))
+    } finally {
+      setCompleteBusy(false)
+    }
+  }
+
+  const run = runQ.data
+
+  const summary = useMemo(() => {
+    if (!run) return { ok: 0, issue: 0, critical: 0, pending: 0, total: 0 }
+    return {
+      ok: run.items.filter((i) => i.status === 'OK').length,
+      issue: run.items.filter((i) => i.status === 'ISSUE').length,
+      critical: run.items.filter((i) => i.status === 'CRITICAL').length,
+      pending: run.items.filter((i) => i.status === 'PENDING').length,
+      total: run.items.length,
+    }
+  }, [run])
+
+  const isInProgress = run?.status === 'IN_PROGRESS'
+
+  return (
+    <>
+      <div className="mobileTicketDetailsToolbar">
+        <Link to={backHref} className="mobileDetailsBackLink">← Назад</Link>
+      </div>
+
+      <div className="mobileSection">
+        {runQ.isError ? (
+          <div className="mobileNotice mobileNoticeError">
+            {(runQ.error as any)?.message || String(runQ.error)}
+          </div>
+        ) : null}
+
+        {flashMsg ? (
+          <div className={`mobileNotice${flashMsg.type === 'err' ? ' mobileNoticeError' : ' mobileNoticeSuccess'}`}>
+            {flashMsg.text}
+          </div>
+        ) : null}
+
+        {runQ.isLoading ? (
+          <div className="mobileCard mobileMeta">Загружаем обход…</div>
+        ) : null}
+
+        {run ? (
+          <>
+            {/* Run info */}
+            <div className="mobileCard">
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+                <div style={{ fontWeight: 700, fontSize: '1rem', color: '#111827', flex: 1, minWidth: 0 }}>
+                  {run.title}
+                </div>
+                <span className={`mobilePatrolRunStatus mobilePatrolRunStatus--${run.status === 'IN_PROGRESS' ? 'inprogress' : 'completed'}`}>
+                  {run.status === 'IN_PROGRESS' ? 'В процессе' : 'Завершён'}
+                </span>
+              </div>
+              <div className="mobilePatrolMeta">
+                <div className="mobilePatrolMetaRow">
+                  <span className="mobilePatrolMetaLabel">Локация</span>
+                  <span style={{ fontSize: '0.88rem' }}>
+                    {run.location.name}
+                    {run.location.city ? ` · ${run.location.city}` : ''}
+                  </span>
+                </div>
+                <div className="mobilePatrolMetaRow">
+                  <span className="mobilePatrolMetaLabel">Шаблон</span>
+                  <span style={{ fontSize: '0.88rem' }}>{run.template.name}</span>
+                </div>
+                {run.performedBy ? (
+                  <div className="mobilePatrolMetaRow">
+                    <span className="mobilePatrolMetaLabel">Исполнитель</span>
+                    <span style={{ fontSize: '0.88rem' }}>
+                      {[run.performedBy.firstName, run.performedBy.lastName].filter(Boolean).join(' ') || run.performedBy.email}
+                    </span>
+                  </div>
+                ) : null}
+                <div className="mobilePatrolMetaRow">
+                  <span className="mobilePatrolMetaLabel">Начат</span>
+                  <span style={{ fontSize: '0.88rem' }}>{fmtDateTime(run.createdAt)}</span>
+                </div>
+                {run.completedAt ? (
+                  <div className="mobilePatrolMetaRow">
+                    <span className="mobilePatrolMetaLabel">Завершён</span>
+                    <span style={{ fontSize: '0.88rem' }}>{fmtDateTime(run.completedAt)}</span>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+
+            {/* Progress summary */}
+            <div className="mobilePatrolSummary">
+              <div className="mobilePatrolSummaryCell mobilePatrolSummaryCell--ok">
+                <div className="mobilePatrolSummaryValue">{summary.ok}</div>
+                <div className="mobilePatrolSummaryLabel">OK</div>
+              </div>
+              <div className="mobilePatrolSummaryCell mobilePatrolSummaryCell--issue">
+                <div className="mobilePatrolSummaryValue">{summary.issue}</div>
+                <div className="mobilePatrolSummaryLabel">Нарушений</div>
+              </div>
+              <div className="mobilePatrolSummaryCell mobilePatrolSummaryCell--critical">
+                <div className="mobilePatrolSummaryValue">{summary.critical}</div>
+                <div className="mobilePatrolSummaryLabel">Критично</div>
+              </div>
+              <div className="mobilePatrolSummaryCell mobilePatrolSummaryCell--pending">
+                <div className="mobilePatrolSummaryValue">{summary.pending}</div>
+                <div className="mobilePatrolSummaryLabel">Ожидает</div>
+              </div>
+            </div>
+
+            {/* Checklist items */}
+            <div className="mobilePatrolItems">
+              {run.items.map((item) => {
+                const mod = ITEM_MOD[item.status]
+                const busy = busyItemIds.has(item.id)
+                const isShowingIssueForm = activeIssueItemId === item.id
+                return (
+                  <div key={item.id} className={`mobilePatrolItem mobilePatrolItem--${mod}`}>
+                    <div className="mobilePatrolItemTop">
+                      <div className="mobilePatrolItemTitle">{item.title}</div>
+                      <span className={`mobilePatrolItemBadge mobilePatrolItemBadge--${mod}`}>
+                        {STATUS_LABEL[item.status]}
+                      </span>
+                    </div>
+
+                    {item.description ? (
+                      <div style={{ fontSize: '0.82rem', color: '#6b7280' }}>{item.description}</div>
+                    ) : null}
+                    {item.comment ? (
+                      <div className="mobilePatrolItemComment">"{item.comment}"</div>
+                    ) : null}
+                    {item.attachments.length > 0 ? (
+                      <div className="mobilePatrolItemPhotos">📷 {item.attachments.length} фото</div>
+                    ) : null}
+                    {item.ticketId ? (
+                      <div style={{ fontSize: '0.8rem', color: '#2563eb', fontWeight: 600 }}>
+                        Заявка создана
+                      </div>
+                    ) : null}
+
+                    {isInProgress && !busy ? (
+                      <div className="mobilePatrolItemActions">
+                        {item.status !== 'OK' ? (
+                          <button
+                            type="button"
+                            className="mobileBtn"
+                            style={{ minHeight: 34, padding: '6px 14px', fontSize: '0.82rem', borderRadius: 8 }}
+                            disabled={busy}
+                            onClick={() => markOk(item.id)}
+                          >
+                            ✓ OK
+                          </button>
+                        ) : null}
+                        {item.status !== 'ISSUE' && item.status !== 'CRITICAL' ? (
+                          <button
+                            type="button"
+                            className="mobileBtn mobileBtnSecondary"
+                            style={{ minHeight: 34, padding: '6px 14px', fontSize: '0.82rem', borderRadius: 8 }}
+                            disabled={busy}
+                            onClick={() => {
+                              setActiveIssueItemId(isShowingIssueForm ? null : item.id)
+                              setIssueComment(item.comment || '')
+                            }}
+                          >
+                            {isShowingIssueForm ? 'Отмена' : 'Нарушение'}
+                          </button>
+                        ) : null}
+                      </div>
+                    ) : busy ? (
+                      <div className="mobileMeta" style={{ fontSize: '0.82rem' }}>Сохраняем…</div>
+                    ) : null}
+
+                    {isShowingIssueForm ? (
+                      <div className="mobilePatrolItemIssueForm">
+                        <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#92400e' }}>Комментарий к нарушению</div>
+                        <textarea
+                          className="mobilePatrolItemIssueFormTextarea"
+                          rows={2}
+                          placeholder="Опишите нарушение…"
+                          value={issueComment}
+                          onChange={(e) => setIssueComment(e.target.value)}
+                        />
+                        <button
+                          type="button"
+                          className="mobileBtn"
+                          style={{ minHeight: 36, padding: '6px 14px', fontSize: '0.84rem', borderRadius: 8, background: '#d97706' }}
+                          disabled={busyItemIds.has(item.id)}
+                          onClick={() => markIssue(item.id)}
+                        >
+                          Подтвердить нарушение
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Complete run */}
+            {isInProgress ? (
+              <div className="mobileCard" style={{ display: 'grid', gap: 8 }}>
+                {!confirmComplete ? (
+                  <button
+                    type="button"
+                    className="mobileBtn mobileBtnSecondary"
+                    onClick={() => setConfirmComplete(true)}
+                    disabled={completeBusy}
+                  >
+                    Завершить обход
+                  </button>
+                ) : (
+                  <>
+                    <div style={{ fontSize: '0.88rem', color: '#374151' }}>
+                      Завершить обход? Отменить нельзя. Незаполненные пункты останутся в статусе «Ожидает».
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        type="button"
+                        className="mobileBtn"
+                        style={{ flex: 1 }}
+                        onClick={completeRun}
+                        disabled={completeBusy}
+                      >
+                        {completeBusy ? 'Завершаем…' : 'Да, завершить'}
+                      </button>
+                      <button
+                        type="button"
+                        className="mobileBtn mobileBtnSecondary"
+                        style={{ flex: 1 }}
+                        onClick={() => setConfirmComplete(false)}
+                        disabled={completeBusy}
+                      >
+                        Отмена
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            ) : null}
+          </>
+        ) : null}
+      </div>
+    </>
+  )
+}
