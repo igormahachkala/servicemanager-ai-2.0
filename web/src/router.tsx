@@ -35,6 +35,8 @@ import { MobileMyTickets } from './mobile/MobileMyTickets'
 import { MobileProfile } from './mobile/MobileProfile'
 import { MobileTicketPage } from './mobile/MobileTicketPage'
 import { MobileNotificationsPage } from './mobile/MobileNotificationsPage'
+import { MobileAnalytics } from './mobile/MobileAnalytics'
+import { MobileChatsPage } from './mobile/MobileChatsPage'
 import { MobileOfflineQueue } from './mobile/MobileOfflineQueue'
 import { MaxApp } from './max/MaxApp'
 
@@ -114,6 +116,8 @@ export function AppRoutes() {
         <Route path="my" element={<MobileMyTickets />} />
         <Route path="profile" element={<MobileProfile />} />
         <Route path="notifications" element={<MobileNotificationsPage />} />
+        <Route path="analytics" element={<MobileAnalytics />} />
+        <Route path="chats" element={<MobileChatsPage />} />
         <Route path="tickets/:id" element={<MobileTicketPage />} />
         <Route path="offline-queue" element={<MobileOfflineQueue />} />
       </Route>
@@ -155,12 +159,14 @@ export function AppRoutes() {
         <Route element={<MobileShell />}>
           <Route index element={<MobileHome />} />
           <Route path="create" element={<MobileCreateTicket />} />
-          <Route path="my" element={<MobileMyTickets />} />
-          <Route path="profile" element={<MobileProfile />} />
-          <Route path="notifications" element={<MobileNotificationsPage />} />
-          <Route path="tickets/:id" element={<MobileTicketPage />} />
-          <Route path="offline-queue" element={<MobileOfflineQueue />} />
-        </Route>
+        <Route path="my" element={<MobileMyTickets />} />
+        <Route path="profile" element={<MobileProfile />} />
+        <Route path="notifications" element={<MobileNotificationsPage />} />
+        <Route path="analytics" element={<MobileAnalytics />} />
+        <Route path="chats" element={<MobileChatsPage />} />
+        <Route path="tickets/:id" element={<MobileTicketPage />} />
+        <Route path="offline-queue" element={<MobileOfflineQueue />} />
+      </Route>
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

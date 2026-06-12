@@ -43,6 +43,14 @@ function NavIcon({ id, active }: { id: string; active: boolean }) {
       <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
     </svg>
   )
+  if (id === 'analytics') return (
+    <svg width={22} height={22} viewBox="0 0 24 24" {...base} aria-hidden>
+      <line x1="3" y1="21" x2="21" y2="21"/>
+      <rect x="6" y="11" width="3" height="7"/>
+      <rect x="11" y="7" width="3" height="11"/>
+      <rect x="16" y="13" width="3" height="5"/>
+    </svg>
+  )
   return (
     <svg width={22} height={22} viewBox="0 0 24 24" {...base} aria-hidden>
       <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
@@ -219,7 +227,7 @@ export function MobileShell() {
     { id: 'home', label: 'Главная', to: mobileRoot },
     { id: 'tickets', label: 'Заявки', to: mobilePath(location.pathname, '/my') },
     { id: 'create', label: '+', to: mobilePath(location.pathname, '/create') },
-    { id: 'notifications', label: 'Уведомления', to: mobilePath(location.pathname, '/notifications') },
+    { id: 'analytics', label: 'Аналитика', to: mobilePath(location.pathname, '/analytics') },
     { id: 'profile', label: 'Профиль', to: mobilePath(location.pathname, '/profile') },
   ]
 
