@@ -1,532 +1,660 @@
-import { useMemo, useState } from 'react'
-import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useLocation, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+
 import * as api from '../lib/api'
-import { toChatMessages } from '../lib/ticketChat'
+import { useLinkedBoardScope } from '../hooks/useLinkedBoardScope'
 import { mobilePath } from './mobileRoute'
+import { isMineTicketForRole } from './mobileHomeBoardFilters'
+import {
+  mobileTicketCategoryLocationFromDetail,
+  mobileTicketDetailGetOneScopes,
+  mobileTicketNumberTitle,
+  mobileTicketStatusLabelRu,
+  resolveMobileTicketResourceScope,
+} from './mobileTicketDisplay'
+import { MobileTicketPhotoGallery } from './MobileTicketPhotoGallery'
+import { FullscreenPhotoViewer, type PhotoViewerItem } from '../components/FullscreenPhotoViewer'
+import { toChatMessages } from '../lib/ticketChat'
 
-function formatRealChatTime(at: string): string {
-  try {
-    const d = new Date(at)
-    if (Number.isNaN(d.getTime())) return ''
-    return d.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
-  } catch {
-    return ''
-  }
+type ChatsFilter = 'all' | 'mine' | 'active' | 'with_photo'
+type ChatTab = 'chat' | 'info' | 'files' | 'history'
+
+type ChatsListItem = api.TicketCard & {
+  lastActivityAt: string
 }
 
-type ChatKind = 'ticket' | 'object' | 'company' | 'private'
-type ChatFilter = 'all' | 'unread' | ChatKind
-
-type ChatMessage = {
-  id: string
-  author: string
-  role: string
-  text: string
-  time: string
-  own?: boolean
-  system?: boolean
-  photo?: boolean
-}
-
-type ChatThread = {
-  headerTitle: string
-  headerSubtitle: string
-  ticketLinkLabel: string
-  ticketLinkId: string
-  relationLabel: string
-  relationHint: string
-  messages: ChatMessage[]
-  photoLabel?: string
-}
-
-type ChatRoom = {
-  id: string
-  section: 'Заявки' | 'Объекты' | 'Компания'
-  kind: ChatKind
-  color: 'orange' | 'blue' | 'teal' | 'violet' | 'green'
-  icon: string
-  title: string
-  preview: string
-  speaker: string
-  time: string
-  unread: number
-  meta: string
-  pinned?: boolean
-  thread: ChatThread
-}
-
-const MOCK_THREADS: Record<string, ChatThread> = {
-  '251': {
-    headerTitle: 'Заявка #251',
-    headerSubtitle: 'Не работает кондиционер',
-    ticketLinkLabel: 'Открыть заявку',
-    ticketLinkId: '251',
-    relationLabel: 'Заявка #251 · ТЦ Мега',
-    relationHint: 'Чат привязан к заявке, фото и история видны в одном месте.',
-    photoLabel: 'Фото наружного блока',
-    messages: [
-      { id: 'm1', author: 'Иван (Клиент)', role: 'Клиент', text: 'Добрый день. Кондиционер не охлаждает, дует тёплым воздухом.', time: '10:32' },
-      { id: 'm2', author: 'Петров (Исполнитель)', role: 'Исполнитель', text: 'Добрый день! Принял заявку, выезжаю.', time: '10:35', own: true },
-      { id: 's1', author: 'Система', role: 'Событие', text: 'Заявка взята в работу', time: '10:35', system: true },
-      { id: 'm3', author: 'Иван (Клиент)', role: 'Клиент', text: 'Хорошо, жду.', time: '10:36' },
-      { id: 'm4', author: 'Иван (Клиент)', role: 'Клиент', text: 'Вот фото наружного блока.', time: '11:25', photo: true },
-      { id: 'm5', author: 'Петров (Исполнитель)', role: 'Исполнитель', text: 'Понял, проблема в компрессоре. Заказываю запчасть.', time: '11:27', own: true },
-      { id: 'm6', author: 'Иван (Клиент)', role: 'Клиент', text: 'Хорошо, спасибо!', time: '11:28' },
-    ],
-  },
-  '248': {
-    headerTitle: 'Заявка #248',
-    headerSubtitle: 'Протечка в санузле',
-    ticketLinkLabel: 'Открыть заявку',
-    ticketLinkId: '248',
-    relationLabel: 'Заявка #248 · Ленина 5',
-    relationHint: 'Сообщения, фото и договорённости по заявке собраны в одном чате.',
-    photoLabel: 'Фото протечки',
-    messages: [
-      { id: 'm1', author: 'Клиент', role: 'Клиент', text: 'Вода течёт из-под раковины.', time: '09:12' },
-      { id: 'm2', author: 'Петров', role: 'Исполнитель', text: 'Принял. Буду через 20 минут.', time: '09:14', own: true },
-      { id: 's1', author: 'Система', role: 'Событие', text: 'Статус изменён: ASSIGNED → IN_PROGRESS', time: '09:15', system: true },
-      { id: 'm3', author: 'Клиент', role: 'Клиент', text: 'Спасибо, жду.', time: '09:16' },
-    ],
-  },
-  '243': {
-    headerTitle: 'ТЦ Мега',
-    headerSubtitle: 'Групповой чат объекта',
-    ticketLinkLabel: 'Открыть объект',
-    ticketLinkId: '243',
-    relationLabel: 'Объект · ТЦ Мега',
-    relationHint: 'Внутри объекта обсуждают несколько заявок и общие вопросы доступа.',
-    messages: [
-      { id: 'm1', author: 'Диспетчер', role: 'Диспетчер', text: 'Доброе утро, у объекта сегодня плановый обход.', time: '08:05' },
-      { id: 'm2', author: 'Анна', role: 'Сотрудник', text: 'Нужен водитель на 11:00.', time: '08:11' },
-      { id: 'm3', author: 'Иван', role: 'Клиент', text: 'Фото отправил в карточку заявки #243.', time: '08:19', photo: true },
-    ],
-  },
-  '241': {
-    headerTitle: 'Диспетчерская',
-    headerSubtitle: 'Внутренняя группа компании',
-    ticketLinkLabel: 'Открыть чат',
-    ticketLinkId: '241',
-    relationLabel: 'Компания · Диспетчерская',
-    relationHint: 'Внутренний чат для коротких операционных сообщений.',
-    messages: [
-      { id: 'm1', author: 'Анна', role: 'Сотрудник', text: 'Нужен водитель сегодня.', time: '09:41' },
-      { id: 'm2', author: 'Сергей', role: 'Сотрудник', text: 'Понял, передал на смену.', time: '09:43', own: true },
-      { id: 'm3', author: 'Система', role: 'Событие', text: 'Уведомление прочитано 3 участниками', time: '09:44', system: true },
-    ],
-  },
-  'team-1': {
-    headerTitle: 'Техподдержка',
-    headerSubtitle: 'Чат подрядчика',
-    ticketLinkLabel: 'Открыть заявку',
-    ticketLinkId: '251',
-    relationLabel: 'Подрядчик · Техподдержка',
-    relationHint: 'Подрядчики видят только свои заявки и связанные фото/отчёты.',
-    messages: [
-      { id: 'm1', author: 'Координатор', role: 'Координатор', text: 'Нужен выезд на объект до 15:00.', time: '12:04' },
-      { id: 'm2', author: 'Подрядчик', role: 'Подрядчик', text: 'Принял, специалист уже в пути.', time: '12:08', own: true },
-    ],
-  },
-}
-
-const STATIC_ROOMS: ChatRoom[] = [
-  {
-    id: '251',
-    section: 'Заявки',
-    kind: 'ticket',
-    color: 'orange',
-    icon: '🛠',
-    title: 'Не работает кондиционер',
-    preview: 'Иван: Фото отправил',
-    speaker: 'Иван',
-    time: '13:42',
-    unread: 2,
-    meta: 'ТЦ Мега',
-    pinned: true,
-    thread: MOCK_THREADS['251'],
-  },
-  {
-    id: '248',
-    section: 'Заявки',
-    kind: 'ticket',
-    color: 'blue',
-    icon: '💧',
-    title: 'Протечка в санузле',
-    preview: 'Петров: Выезжаю на объект',
-    speaker: 'Петров',
-    time: '12:15',
-    unread: 1,
-    meta: 'Ленина 5',
-    thread: MOCK_THREADS['248'],
-  },
-  {
-    id: '243',
-    section: 'Объекты',
-    kind: 'object',
-    color: 'teal',
-    icon: '🏢',
-    title: 'ТЦ Мега',
-    preview: 'Диспетчер: Всем доброе утро!',
-    speaker: 'Диспетчер',
-    time: 'Пн',
-    unread: 0,
-    meta: 'Группа объектов',
-    thread: MOCK_THREADS['243'],
-  },
-  {
-    id: '241',
-    section: 'Компания',
-    kind: 'company',
-    color: 'violet',
-    icon: '👥',
-    title: 'Диспетчерская',
-    preview: 'Анна: Нужен водитель сегодня',
-    speaker: 'Анна',
-    time: 'Пн',
-    unread: 3,
-    meta: 'Внутренняя группа',
-    thread: MOCK_THREADS['241'],
-  },
-  {
-    id: 'team-1',
-    section: 'Компания',
-    kind: 'private',
-    color: 'green',
-    icon: '💬',
-    title: 'Техподдержка',
-    preview: 'Координатор: Нужен выезд до 15:00',
-    speaker: 'Координатор',
-    time: '10:03',
-    unread: 0,
-    meta: 'Чат подрядчика',
-    thread: MOCK_THREADS['team-1'],
-  },
-]
-
-const FILTERS: Array<{ id: ChatFilter; label: string }> = [
+const CHAT_FILTERS: Array<{ id: ChatsFilter; label: string }> = [
   { id: 'all', label: 'Все' },
-  { id: 'unread', label: 'Непрочит.' },
-  { id: 'ticket', label: 'Заявки' },
-  { id: 'object', label: 'Объекты' },
-  { id: 'company', label: 'Компания' },
+  { id: 'mine', label: 'Мои' },
+  { id: 'active', label: 'Активные' },
+  { id: 'with_photo', label: 'С фото' },
 ]
 
-const MOCK_PHOTO_SRC =
-  'data:image/svg+xml;utf8,' +
-  encodeURIComponent(`
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 540 360">
-      <defs>
-        <linearGradient id="g" x1="0" x2="1">
-          <stop offset="0" stop-color="#dfe7ef"/>
-          <stop offset="1" stop-color="#f8fafc"/>
-        </linearGradient>
-      </defs>
-      <rect width="540" height="360" rx="24" fill="url(#g)"/>
-      <rect x="108" y="68" width="324" height="236" rx="18" fill="#f3f4f6" stroke="#cbd5e1" stroke-width="4"/>
-      <circle cx="270" cy="186" r="64" fill="#fff" stroke="#94a3b8" stroke-width="10"/>
-      <circle cx="270" cy="186" r="22" fill="#e2e8f0"/>
-      <path d="M270 122c16 10 28 30 28 64s-12 54-28 64c-16-10-28-30-28-64s12-54 28-64Z" fill="#cbd5e1"/>
-      <path d="M206 186c10-16 30-28 64-28s54 12 64 28c-10 16-30 28-64 28s-54-12-64-28Z" fill="#cbd5e1"/>
-      <rect x="95" y="41" width="350" height="286" rx="24" fill="none" stroke="#cbd5e1" stroke-width="4" opacity="0.45"/>
-    </svg>
-  `)
-
-function roomToneClass(color: ChatRoom['color']): string {
-  return `mobileChatsRoomIcon mobileChatsRoomIcon--${color}`
+function normalizeSearchText(value: string): string {
+  return (value || '').trim().toLowerCase()
 }
 
-function roomMatchesFilter(room: ChatRoom, filter: ChatFilter, search: string): boolean {
-  const query = search.trim().toLowerCase()
-  const haystack = [room.title, room.preview, room.meta, room.speaker, room.thread.headerSubtitle, room.thread.headerTitle]
-    .join(' ')
-    .toLowerCase()
-  const filterOk =
-    filter === 'all' ||
-    (filter === 'unread' ? room.unread > 0 : room.kind === filter)
-  return filterOk && (!query || haystack.includes(query))
+function formatLastActivity(iso?: string | null): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const now = new Date()
+  const sameDay = d.toDateString() === now.toDateString()
+  if (sameDay) {
+    return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+  }
+  const y = new Date(now)
+  y.setDate(now.getDate() - 1)
+  if (d.toDateString() === y.toDateString()) {
+    return `Вчера, ${d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`
+  }
+  return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })
 }
 
-function fmtSectionTitle(section: ChatRoom['section']): string {
-  return section
+function ticketLastActivity(ticket: api.TicketCard): string {
+  const maybeUpdated = (ticket as api.TicketCard & { updatedAt?: string }).updatedAt
+  return maybeUpdated || ticket.createdAt
+}
+
+function ticketSearchBlob(ticket: api.TicketCard): string {
+  const statusLabel = mobileTicketStatusLabelRu(ticket.status)
+  const locationText = ticket.location?.name || ticket.pointName || ''
+  return normalizeSearchText(
+    [
+      ticket.ticketNumber != null ? `заявка ${ticket.ticketNumber}` : 'заявка',
+      ticket.ticketNumber != null ? String(ticket.ticketNumber) : '',
+      ticket.title || '',
+      ticket.description || '',
+      ticket.location?.name || '',
+      ticket.location?.address || '',
+      ticket.pointName || '',
+      ticket.status || '',
+      statusLabel,
+      ticket.category?.name || '',
+      locationText,
+    ]
+      .filter(Boolean)
+      .join(' '),
+  )
+}
+
+function ticketHasPhoto(ticket: api.TicketCard): boolean {
+  return !!ticket.attachmentPreviewUrl || (ticket.imageAttachmentCount ?? 0) > 0
+}
+
+function ticketPrimaryLabel(ticket: api.TicketCard): string {
+  return (ticket.description || ticket.title || ticket.category?.name || 'Без темы').trim()
+}
+
+function ticketLocationLabel(ticket: api.TicketCard): string {
+  return (ticket.location?.name || ticket.pointName || 'Без локации').trim()
+}
+
+function ticketStatusTone(status: api.TicketStatus): string {
+  if (status === 'NEW') return 'orange'
+  if (status === 'ASSIGNED') return 'blue'
+  if (status === 'IN_PROGRESS') return 'violet'
+  if (status === 'DONE') return 'green'
+  return 'green'
+}
+
+function ticketDetailTitle(ticket: api.TicketGetOne): string {
+  return (ticket.description || ticket.title || ticket.problemText || ticket.problemCategory?.name || 'Заявка').trim()
+}
+
+function ticketDetailLocation(ticket: api.TicketGetOne): string {
+  const loc = ticket.location
+  const parts: string[] = []
+  const name = (loc?.name || ticket.pointName || '').trim()
+  if (name) parts.push(name)
+  const addr = (loc?.address || ticket.address || '').trim()
+  if (addr) parts.push(addr)
+  return parts.length ? parts.join(' · ') : 'Без локации'
+}
+
+function isNotFoundGetTicketError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err)
+  return /\b404\b/i.test(msg) || /not\s*found/i.test(msg) || /не\s+найден/i.test(msg)
+}
+
+function chatListIconClass(status: api.TicketStatus) {
+  return `mobileChatsRoomIcon mobileChatsRoomIcon--${ticketStatusTone(status)}`
 }
 
 export function MobileChatsPage() {
   const location = useLocation()
-  const navigate = useNavigate()
-  const params = useParams()
-  const ticketId = (params.ticketId || '').trim()
+  const { ticketId = '' } = useParams()
+  const { me, isMeReady, boardParams } = useLinkedBoardScope()
+  const queryClient = useQueryClient()
 
   const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState<ChatFilter>('all')
+  const [filter, setFilter] = useState<ChatsFilter>('all')
   const [composerText, setComposerText] = useState('')
   const [composerError, setComposerError] = useState('')
+  const [activeTab, setActiveTab] = useState<ChatTab>('chat')
+  const [viewer, setViewer] = useState<{ items: PhotoViewerItem[]; index: number } | null>(null)
 
-  const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
-  const queryClient = useQueryClient()
-  const chatScope = useMemo(() => {
-    const sp = new URLSearchParams(location.search)
-    return {
-      linkedClientCompanyId: (sp.get('linkedClientCompanyId') || api.getLinkedClientCompanyId(meQ.data)).trim() || undefined,
-      companyId: (sp.get('companyId') || api.getObserverCompanyId(meQ.data)).trim() || undefined,
-    }
-  }, [location.search, meQ.data])
-  const timelineQ = useQuery({
-    queryKey: ['mobile-chats-timeline', ticketId, chatScope.linkedClientCompanyId, chatScope.companyId],
-    queryFn: () => api.timeline(ticketId, chatScope),
-    enabled: !!ticketId,
+  const boardQ = useQuery({
+    queryKey: ['mobile-chats-board', boardParams.companyId || '', boardParams.linkedClientCompanyId || ''],
+    queryFn: () =>
+      api.board({
+        companyId: boardParams.companyId || undefined,
+        linkedClientCompanyId: boardParams.linkedClientCompanyId || undefined,
+        take: 200,
+        includeArchived: true,
+      }),
+    enabled: isMeReady,
   })
-  const sendM = useMutation({
-    mutationFn: (text: string) => api.addTicketComment(ticketId, text, chatScope),
+
+  const allTickets = useMemo<ChatsListItem[]>(() => {
+    const flattened = (boardQ.data?.columns || []).flatMap((col) => col.cards || [])
+    const seen = new Set<string>()
+    const out: ChatsListItem[] = []
+    for (const ticket of flattened) {
+      if (seen.has(ticket.id)) continue
+      seen.add(ticket.id)
+      out.push({ ...ticket, lastActivityAt: ticketLastActivity(ticket) })
+    }
+    out.sort((a, b) => {
+      const at = new Date(a.lastActivityAt).getTime()
+      const bt = new Date(b.lastActivityAt).getTime()
+      return (Number.isFinite(bt) ? bt : 0) - (Number.isFinite(at) ? at : 0)
+    })
+    return out
+  }, [boardQ.data])
+
+  const filteredTickets = useMemo(() => {
+    const q = normalizeSearchText(search)
+    return allTickets.filter((ticket) => {
+      if (filter === 'mine' && !isMineTicketForRole(ticket, me?.id, me?.role)) return false
+      if (filter === 'active' && (ticket.status === 'DONE' || ticket.status === 'CANCELED')) return false
+      if (filter === 'with_photo' && !ticketHasPhoto(ticket)) return false
+      if (!q) return true
+      return ticketSearchBlob(ticket).includes(q)
+    })
+  }, [allTickets, filter, me?.id, me?.role, search])
+
+  const ticketReadScopes = useMemo(
+    () =>
+      ticketId
+        ? mobileTicketDetailGetOneScopes({
+            urlCompanyId: boardParams.companyId || '',
+            urlLinkedClientCompanyId: boardParams.linkedClientCompanyId || '',
+            stateTicketOwnerCompanyId: '',
+            persistedCompanyId: api.getObserverCompanyId(me),
+            persistedLinkedClientCompanyId: api.getLinkedClientCompanyId(me),
+            meRole: me?.role,
+          })
+        : [],
+    [boardParams.companyId, boardParams.linkedClientCompanyId, me, ticketId],
+  )
+
+  const ticketQ = useQuery({
+    queryKey: ['mobile-chats-ticket', ticketId, boardParams.companyId || '', boardParams.linkedClientCompanyId || ''],
+    queryFn: async () => {
+      if (!ticketId) throw new Error('ticketId is empty')
+      let lastErr: unknown = null
+      for (const scope of ticketReadScopes) {
+        try {
+          return await api.getTicket(ticketId, scope)
+        } catch (err) {
+          lastErr = err
+          if (!isNotFoundGetTicketError(err)) throw err
+        }
+      }
+      throw lastErr || new Error('Ticket not found')
+    },
+    enabled: !!ticketId && isMeReady,
+  })
+
+  const ticketResourceScope = useMemo(
+    () =>
+      ticketQ.data
+        ? resolveMobileTicketResourceScope(me, ticketQ.data, {
+            observerCompanyId: boardParams.companyId,
+            urlLinkedClientCompanyId: boardParams.linkedClientCompanyId,
+          })
+        : undefined,
+    [boardParams.companyId, boardParams.linkedClientCompanyId, me, ticketQ.data],
+  )
+
+  const timelineQ = useQuery({
+    queryKey: ['mobile-chats-timeline', ticketId, ticketResourceScope?.companyId || '', ticketResourceScope?.linkedClientCompanyId || ''],
+    queryFn: () => api.ticketTimeline(ticketId, ticketResourceScope),
+    enabled: !!ticketQ.data,
+  })
+
+  const attachmentsQ = useQuery({
+    queryKey: ['mobile-chats-attachments', ticketId, ticketResourceScope?.companyId || '', ticketResourceScope?.linkedClientCompanyId || ''],
+    queryFn: () => api.ticketAttachments(ticketId, ticketResourceScope),
+    enabled: !!ticketQ.data,
+  })
+
+  const timelineItems = useMemo(() => {
+    const items = timelineQ.data?.timeline || timelineQ.data?.items || timelineQ.data?.events || []
+    const seen = new Set<string>()
+    return items.filter((item) => {
+      const key = `${item.at}|${item.timelineEvent || item.type || item.domainType || item.title}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  }, [timelineQ.data])
+
+  const chatMessages = useMemo(() => toChatMessages(timelineItems, me?.id ?? ''), [timelineItems, me?.id])
+  const photoAttachments = useMemo(
+    () => (attachmentsQ.data || []).filter((a) => (a.mimeType || '').toLowerCase().startsWith('image/')),
+    [attachmentsQ.data],
+  )
+  const photoViewerItems = useMemo<PhotoViewerItem[]>(
+    () =>
+      photoAttachments.map((a) => ({
+        src: api.resolveTicketAttachmentUrl(a),
+        alt: a.originalName || a.filename || 'Фото',
+      })),
+    [photoAttachments],
+  )
+
+  const sendCommentM = useMutation({
+    mutationFn: (comment: string) => {
+      if (!ticketQ.data) throw new Error('Ticket not loaded')
+      return api.addTicketComment(ticketId, comment, ticketResourceScope)
+    },
     onMutate: () => setComposerError(''),
     onSuccess: async () => {
       setComposerText('')
       await queryClient.invalidateQueries({ queryKey: ['mobile-chats-timeline', ticketId] })
+      await queryClient.invalidateQueries({ queryKey: ['mobile-chats-ticket', ticketId] })
+      await queryClient.invalidateQueries({ queryKey: ['mobile-chats-board'] })
     },
-    onError: (e: any) => setComposerError(e?.message || 'Не удалось отправить сообщение'),
+    onError: (err: any) => {
+      setComposerError(err?.message || 'Не удалось отправить сообщение')
+    },
   })
 
-  const selectedRoom = useMemo(() => {
-    if (!ticketId) return null
-    return STATIC_ROOMS.find((room) => room.id === ticketId) || STATIC_ROOMS[0]
+  useEffect(() => {
+    if (!ticketId) {
+      setActiveTab('chat')
+      setComposerText('')
+      setComposerError('')
+      setViewer(null)
+    }
   }, [ticketId])
 
-  const filteredRooms = useMemo(() => {
-    return STATIC_ROOMS.filter((room) => roomMatchesFilter(room, filter, search))
-  }, [filter, search])
-
-  const sections = useMemo(() => {
-    const ordered: ChatRoom['section'][] = ['Заявки', 'Объекты', 'Компания']
-    return ordered
-      .map((section) => ({
-        section,
-        rooms: filteredRooms.filter((room) => room.section === section),
-      }))
-      .filter((entry) => entry.rooms.length > 0)
-  }, [filteredRooms])
-
-  const activeRoom = selectedRoom ? { ...selectedRoom, thread: selectedRoom.thread } : null
-  // SMA-CHAT-127: реальные сообщения = комментарии заявки из timeline.
-  const threadMessages = useMemo<ChatMessage[]>(() => {
-    const items = timelineQ.data?.timeline || timelineQ.data?.items || []
-    return toChatMessages(items, meQ.data?.id ?? '').map((m, i) => ({
-      id: m.id || `msg-${i}`,
-      author: m.isOwn ? 'Вы' : (m.authorEmail || 'Участник'),
-      role: '',
-      text: m.text,
-      time: formatRealChatTime(m.at),
-      own: m.isOwn,
-    }))
-  }, [timelineQ.data, meQ.data?.id])
-
-  function openRoom(room: ChatRoom) {
-    navigate(mobilePath(location.pathname, `/chats/${room.id}`))
-  }
-
-  function sendLocalMessage() {
-    const trimmed = composerText.trim()
-    if (!trimmed || !ticketId || sendM.isPending) return
-    sendM.mutate(trimmed)
-  }
-
-  if (ticketId && activeRoom) {
+  if (!isMeReady || (!boardQ.data && !ticketId)) {
     return (
-      <div className="mobileSection mobileChatsDialog">
-        <div className="mobileChatsDialogHeader">
-          <Link to={mobilePath(location.pathname, '/chats')} className="mobileChatsDialogBack">
-            ←
-          </Link>
-          <div className="mobileChatsDialogHeaderMain">
-            <div className="mobileChatsDialogTitleRow">
-              <h1 className="mobileChatsDialogTitle">{activeRoom.thread.headerTitle}</h1>
-              <span className="mobileChatsStatusDot" aria-hidden />
-            </div>
-            <div className="mobileChatsDialogSubtitle">{activeRoom.thread.headerSubtitle}</div>
+      <div className="mobileSection mobileChatsScreen">
+        <div className="mobileChatsTop">
+          <div>
+            <h1 className="mobileTitle mobileChatsAppTitle">Чаты</h1>
+            <div className="mobileSubtitle">Загрузка заявок…</div>
           </div>
-          <button type="button" className="mobileChatsDialogMenu" aria-label="Меню">
-            ⋯
-          </button>
         </div>
-
-        <div className="mobileChatsDialogTabs" role="tablist" aria-label="Разделы чата">
-          <button type="button" className="mobileChatsDialogTab mobileChatsDialogTab--active" aria-selected="true">
-            Чат
-          </button>
-          <button type="button" className="mobileChatsDialogTab" aria-selected="false">
-            Инфо
-          </button>
-          <button type="button" className="mobileChatsDialogTab" aria-selected="false">
-            Файлы
-          </button>
-          <button type="button" className="mobileChatsDialogTab" aria-selected="false">
-            История
-          </button>
-        </div>
-
-        <div className="mobileChatsRelationCard">
-          <div className="mobileChatsRelationTop">
-            <div className="mobileChatsRelationLabel">{activeRoom.thread.relationLabel}</div>
-            <Link to={mobilePath(location.pathname, `/tickets/${activeRoom.thread.ticketLinkId}`)} className="mobileChatsRelationLink">
-              {activeRoom.thread.ticketLinkLabel}
-            </Link>
-          </div>
-          <div className="mobileChatsRelationHint">{activeRoom.thread.relationHint}</div>
-        </div>
-
-        <div className="mobileChatsDatePill">12 июня</div>
-
-        <div className="mobileChatsMessages">
-          {timelineQ.isError ? (
-            <div className="mobileNotice mobileNoticeError">Не удалось загрузить сообщения.</div>
-          ) : null}
-          {timelineQ.isLoading && threadMessages.length === 0 ? (
-            <div className="mobileMeta" style={{ textAlign: 'center' }}>Загрузка сообщений…</div>
-          ) : null}
-          {!timelineQ.isLoading && !timelineQ.isError && threadMessages.length === 0 ? (
-            <div className="mobileMeta" style={{ textAlign: 'center' }}>Пока нет сообщений. Напишите первое.</div>
-          ) : null}
-          {threadMessages.map((msg) => {
-            if (msg.system) {
-              return (
-                <div key={msg.id} className="mobileChatsSystemRow">
-                  <div className="mobileChatsSystemPill">
-                    <div className="mobileChatsSystemText">{msg.text}</div>
-                    <div className="mobileChatsSystemTime">{msg.time}</div>
-                  </div>
-                </div>
-              )
-            }
-
-            const own = !!msg.own
-            return (
-              <div key={msg.id} className={own ? 'mobileChatsBubbleRow mobileChatsBubbleRow--own' : 'mobileChatsBubbleRow'}>
-                {!own ? <div className="mobileChatsAvatar">{msg.author.slice(0, 1).toUpperCase()}</div> : null}
-                <div className={own ? 'mobileChatsBubble mobileChatsBubble--own' : 'mobileChatsBubble'}>
-                  <div className="mobileChatsBubbleAuthor">{msg.author} <span>{msg.role}</span></div>
-                  <div className="mobileChatsBubbleText">{msg.text}</div>
-                  {msg.photo ? (
-                    <div className="mobileChatsPhotoBlock">
-                      <div className="mobileChatsPhotoPreview" style={{ backgroundImage: `url(${MOCK_PHOTO_SRC})` }} aria-label={activeRoom.thread.photoLabel || 'Фото'} role="img" />
-                      <div className="mobileChatsPhotoCaption">{activeRoom.thread.photoLabel || 'Фото'}</div>
-                    </div>
-                  ) : null}
-                  <div className="mobileChatsBubbleFooter">
-                    <span className="mobileChatsBubbleTime">{msg.time}</span>
-                    {own ? <span className="mobileChatsBubbleRead">✓✓</span> : null}
-                  </div>
-                </div>
-              </div>
-            )
-          })}
-        </div>
-
-        {composerError ? (
-          <div className="mobileNotice mobileNoticeError" style={{ margin: '0 12px 6px' }}>{composerError}</div>
-        ) : null}
-        <div className="mobileChatsComposer">
-          <button type="button" className="mobileChatsComposerButton" aria-label="Вложение">＋</button>
-          <button type="button" className="mobileChatsComposerButton" aria-label="Фото">📷</button>
-          <textarea
-            className="mobileChatsComposerInput"
-            value={composerText}
-            onChange={(e) => setComposerText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                sendLocalMessage()
-              }
-            }}
-            placeholder="Сообщение..."
-            rows={1}
-            disabled={sendM.isPending}
-          />
-          <button
-            type="button"
-            className="mobileChatsComposerSend"
-            onClick={sendLocalMessage}
-            disabled={!composerText.trim() || sendM.isPending}
-          >
-            {sendM.isPending ? '…' : '➤'}
-          </button>
-        </div>
+        <div className="mobileCard mobileMeta">Подтягиваем список чатов.</div>
       </div>
     )
   }
 
+  if (ticketId) {
+    if (ticketQ.isLoading) {
+      return (
+        <div className="mobileSection mobileChatsDialog">
+          <div className="mobileCard mobileMeta">Открываем чат…</div>
+        </div>
+      )
+    }
+
+    if (ticketQ.isError || !ticketQ.data) {
+      const reason = isNotFoundGetTicketError(ticketQ.error)
+        ? 'Чат по этой заявке не найден или недоступен в текущем контексте.'
+        : (ticketQ.error instanceof Error ? ticketQ.error.message : 'Не удалось загрузить чат.')
+      return (
+        <div className="mobileSection mobileChatsDialog">
+          <div className="mobileChatsDialogHeader">
+            <Link className="mobileChatsDialogBack" to={`${mobilePath(location.pathname, '/chats')}${location.search}`}>
+              ←
+            </Link>
+            <div className="mobileChatsDialogHeaderMain">
+              <div className="mobileChatsDialogTitleRow">
+                <h1 className="mobileChatsDialogTitle">Чат не найден</h1>
+              </div>
+              <div className="mobileChatsDialogSubtitle">Заявка недоступна в текущем контуре</div>
+            </div>
+            <span className="mobileChatsDialogMenu" aria-hidden="true">⋯</span>
+          </div>
+          <div className="mobileEmptyState mobileCard">
+            <p className="mobileEmptyStateTitle">Не удалось открыть чат</p>
+            <p className="mobileEmptyStateHint">{reason}</p>
+            <Link className="mobileChatsDialogBack" to={`${mobilePath(location.pathname, '/chats')}${location.search}`}>
+              Назад
+            </Link>
+          </div>
+        </div>
+      )
+    }
+
+    const currentTicket = ticketQ.data
+    const currentTicketTitle = ticketDetailTitle(currentTicket)
+    const currentTicketStatus = mobileTicketStatusLabelRu(currentTicket.status)
+    const commentMessages = chatMessages
+    const fallbackMessage = currentTicket.problemText || currentTicket.description || currentTicket.title || 'Обсуждение по заявке'
+    const messages = commentMessages.length
+      ? commentMessages
+      : [
+          {
+            id: `${currentTicket.id}-fallback`,
+            at: currentTicket.createdAt,
+            text: fallbackMessage,
+            authorId: currentTicket.assignedTechnicianId || null,
+            authorEmail: currentTicket.assignedTechnician?.email || null,
+            isOwn: false,
+          },
+        ]
+
+    const systemRows = timelineItems.filter((item) => !(item.type === 'ticket.comment_added' || item.timelineEvent === 'COMMENT_ADDED'))
+    const hasPhotos = photoAttachments.length > 0
+    const composerDisabled = sendCommentM.isPending || !composerText.trim()
+
+    return (
+      <div className="mobileSection mobileChatsDialog">
+        {viewer ? (
+          <FullscreenPhotoViewer items={viewer.items} initialIndex={viewer.index} onClose={() => setViewer(null)} />
+        ) : null}
+
+        <div className="mobileChatsDialogHeader">
+          <Link className="mobileChatsDialogBack" to={`${mobilePath(location.pathname, '/chats')}${location.search}`}>
+            ←
+          </Link>
+          <div className="mobileChatsDialogHeaderMain">
+            <div className="mobileChatsDialogTitleRow">
+              <h1 className="mobileChatsDialogTitle">{mobileTicketNumberTitle(currentTicket.ticketNumber)}</h1>
+              <span className="mobileChatsStatusDot" aria-hidden="true" />
+            </div>
+            <div className="mobileChatsDialogSubtitle">{currentTicketTitle}</div>
+          </div>
+          <button className="mobileChatsDialogMenu" type="button" aria-label="Меню чата">
+            ⋯
+          </button>
+        </div>
+
+        <div className="mobileChatsDialogTabs">
+          {(['chat', 'info', 'files', 'history'] as ChatTab[]).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              className={`mobileChatsDialogTab${activeTab === tab ? ' mobileChatsDialogTab--active' : ''}`}
+              onClick={() => setActiveTab(tab)}
+            >
+              {tab === 'chat' ? 'Чат' : tab === 'info' ? 'Инфо' : tab === 'files' ? 'Файлы' : 'История'}
+            </button>
+          ))}
+        </div>
+
+        <div className="mobileChatsRelationCard">
+          <div className="mobileChatsRelationTop">
+            <div className="mobileChatsRelationLabel">{mobileTicketNumberTitle(currentTicket.ticketNumber)}</div>
+            <Link className="mobileChatsRelationLink" to={`${mobilePath(location.pathname, `/tickets/${currentTicket.id}`)}${location.search}`}>
+              Открыть
+            </Link>
+          </div>
+          <div className="mobileChatsRelationHint">{mobileTicketCategoryLocationFromDetail(currentTicket)}</div>
+          <div className="mobileChatsRelationHint">
+            <span className={`mobileTicketStatus mobileTicketStatus--${currentTicket.status}`}>{currentTicketStatus}</span>
+            <span style={{ marginLeft: 8 }}>{ticketDetailLocation(currentTicket)}</span>
+          </div>
+        </div>
+
+        {activeTab === 'chat' ? (
+          <>
+            <div className="mobileChatsDatePill">{formatLastActivity(currentTicket.updatedAt || currentTicket.createdAt)}</div>
+
+            <div className="mobileChatsMessages">
+              {messages.map((msg) => {
+                const own = !!msg.isOwn
+                return (
+                  <div className={`mobileChatsBubbleRow${own ? ' mobileChatsBubbleRow--own' : ''}`} key={msg.id}>
+                    {!own ? <div className="mobileChatsAvatar" aria-hidden="true">💬</div> : null}
+                    <div className={`mobileChatsBubble${own ? ' mobileChatsBubble--own' : ''}`}>
+                      <div className="mobileChatsBubbleAuthor">
+                        {own ? 'Вы' : (currentTicket.requesterName || 'Клиент')}
+                        <span>{own ? ' · Исполнитель' : ' · Заявка'}</span>
+                      </div>
+                      <div className="mobileChatsBubbleText">{msg.text}</div>
+                      <div className="mobileChatsBubbleFooter">
+                        <span>{formatLastActivity(msg.at)}</span>
+                        {own ? <span className="mobileChatsBubbleRead">✓✓</span> : null}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+
+              {!commentMessages.length ? (
+                <div className="mobileChatsSystemRow">
+                  <div className="mobileChatsSystemPill">
+                    <div className="mobileChatsSystemText">Обсуждение по заявке</div>
+                    <div className="mobileChatsSystemTime">
+                      {currentTicket.problemText || currentTicket.description || currentTicket.title || 'Без описания'}
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {systemRows.map((item) => (
+                <div className="mobileChatsSystemRow" key={`${item.at}-${item.timelineEvent || item.type || item.title}`}>
+                  <div className="mobileChatsSystemPill">
+                    <div className="mobileChatsSystemText">{item.title || 'Системное событие'}</div>
+                    <div className="mobileChatsSystemTime">{formatLastActivity(item.at)}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {hasPhotos ? (
+              <div className="mobileCard">
+                <MobileTicketPhotoGallery
+                  title="Фото"
+                  photos={photoAttachments}
+                  emptyText="Фото к заявке пока нет"
+                  onOpen={(index) => {
+                    setViewer({
+                      index,
+                      items: photoViewerItems,
+                    })
+                  }}
+                />
+              </div>
+            ) : null}
+
+            <div className="mobileChatsComposer">
+              <button className="mobileChatsComposerButton" type="button" aria-label="Вложение">
+                +
+              </button>
+              <button className="mobileChatsComposerButton" type="button" aria-label="Фото">
+                📷
+              </button>
+              <textarea
+                className="mobileChatsComposerInput"
+                placeholder="Сообщение..."
+                value={composerText}
+                onChange={(e) => setComposerText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    if (!composerDisabled) sendCommentM.mutate(composerText.trim())
+                  }
+                }}
+                rows={1}
+                disabled={sendCommentM.isPending}
+              />
+              <button
+                className="mobileChatsComposerSend"
+                type="button"
+                aria-label="Отправить"
+                onClick={() => sendCommentM.mutate(composerText.trim())}
+                disabled={composerDisabled}
+              >
+                {sendCommentM.isPending ? '…' : '➤'}
+              </button>
+            </div>
+            {composerError ? <div className="mobileNotice mobileNoticeError">{composerError}</div> : null}
+          </>
+        ) : null}
+
+        {activeTab === 'info' ? (
+          <div className="mobileCard mobileChatsPlaceholder">
+            <div className="mobileChatsSectionTitle" style={{ padding: 0, marginBottom: 8 }}>
+              Информация
+            </div>
+            <div style={{ display: 'grid', gap: 6, fontSize: '0.88rem', lineHeight: 1.4 }}>
+              <div><strong>Статус:</strong> {currentTicketStatus}</div>
+              <div><strong>Локация:</strong> {ticketDetailLocation(currentTicket)}</div>
+              <div><strong>Заявка:</strong> {currentTicketTitle}</div>
+              <div><strong>Комментарий:</strong> {currentTicket.problemText || currentTicket.description || '—'}</div>
+            </div>
+          </div>
+        ) : null}
+
+        {activeTab === 'files' ? (
+          <div className="mobileCard">
+            <MobileTicketPhotoGallery
+              title="Файлы"
+              photos={photoAttachments}
+              emptyText="Файлов и фото пока нет"
+              onOpen={(index) => {
+                setViewer({
+                  index,
+                  items: photoViewerItems,
+                })
+              }}
+            />
+          </div>
+        ) : null}
+
+        {activeTab === 'history' ? (
+          <div className="mobileChatsMessages">
+            {timelineItems.length ? (
+              timelineItems.map((item) => (
+                <div className="mobileChatsSystemRow" key={`${item.at}-${item.timelineEvent || item.type || item.title}`}>
+                  <div className="mobileChatsSystemPill">
+                    <div className="mobileChatsSystemText">{item.title || 'Событие'}</div>
+                    <div className="mobileChatsSystemTime">{formatLastActivity(item.at)}</div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="mobileEmptyState mobileCard">
+                <p className="mobileEmptyStateTitle">История пуста</p>
+                <p className="mobileEmptyStateHint">Системные события появятся, когда по заявке начнётся работа.</p>
+              </div>
+            )}
+          </div>
+        ) : null}
+      </div>
+    )
+  }
+
+  const hasAnyTickets = (boardQ.data?.columns || []).some((col) => (col.cards || []).length > 0)
+  const emptyTitle = hasAnyTickets ? 'Нет заявок по фильтру' : 'Заявок пока нет'
+  const emptyHint = hasAnyTickets
+    ? 'Измените поиск или фильтр, чтобы увидеть чаты.'
+    : 'Когда заявки появятся, они отобразятся здесь как чаты по заявкам.'
+
   return (
     <div className="mobileSection mobileChatsScreen">
       <div className="mobileChatsTop">
-        <div className="mobileChatsAppTitleRow">
+        <div>
           <h1 className="mobileTitle mobileChatsAppTitle">Чаты</h1>
+          <div className="mobileSubtitle">Разговоры по реальным заявкам</div>
         </div>
+
         <div className="mobileChatsSearchRow">
           <input
             className="mobileChatsSearchInput"
+            placeholder="Поиск по заявкам, локациям и статусам"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Поиск по чату, заявке, объекту"
-            aria-label="Поиск по чатам"
           />
         </div>
-      </div>
 
-      <div className="mobileChatsFilters" role="tablist" aria-label="Фильтры чатов">
-        {FILTERS.map((item) => {
-          const active = filter === item.id
-          return (
+        <div className="mobileChatsFilters" role="tablist" aria-label="Фильтры чатов">
+          {CHAT_FILTERS.map((item) => (
             <button
               key={item.id}
               type="button"
-              className={active ? 'mobileChatsFilterChip mobileChatsFilterChip--active' : 'mobileChatsFilterChip'}
-              aria-selected={active}
+              className={`mobileChatsFilterChip${filter === item.id ? ' mobileChatsFilterChip--active' : ''}`}
               onClick={() => setFilter(item.id)}
             >
               {item.label}
             </button>
-          )
-        })}
-      </div>
+          ))}
+        </div>
 
-      <div className="mobileChatsHintCard mobileCard">
-        Чаты скоро появятся. Пока это визуальный MVP: заявки, объекты, компания и подрядчики.
+        <div className="mobileChatsHintCard mobileCard">
+          Список строится из существующих заявок. Фото-метка показывается только если у заявки есть вложения.
+        </div>
       </div>
 
       <div className="mobileChatsSections">
-        {sections.map((group) => (
-          <section key={group.section} className="mobileChatsSection">
-            <div className="mobileChatsSectionTitle">{fmtSectionTitle(group.section)}</div>
+        <section className="mobileChatsSection" aria-label="Заявки">
+          <div className="mobileChatsSectionTitle">Заявки</div>
+
+          {filteredTickets.length ? (
             <div className="mobileChatsList">
-              {group.rooms.map((room) => (
-                <button
-                  key={room.id}
-                  type="button"
-                  className="mobileChatsRow"
-                  onClick={() => openRoom(room)}
-                >
-                  <div className={roomToneClass(room.color)} aria-hidden>
-                    <span className="mobileChatsRoomIconEmoji">{room.icon}</span>
-                  </div>
-                  <div className="mobileChatsRowBody">
-                    <div className="mobileChatsRowTop">
-                      <div className="mobileChatsRowTitle">
-                        {room.kind === 'ticket' ? `Заявка #${room.id}` : room.title}
-                      </div>
-                      <div className="mobileChatsRowTime">{room.time}</div>
+              {filteredTickets.map((ticket) => {
+                const href = `${mobilePath(location.pathname, `/chats/${ticket.id}`)}${location.search}`
+                return (
+                  <Link key={ticket.id} className="mobileChatsItem" to={href}>
+                    <div className={chatListIconClass(ticket.status)} aria-hidden="true">
+                      <span className="mobileChatsRoomIconEmoji">💬</span>
                     </div>
-                    <div className="mobileChatsRowMiddle">{room.title}</div>
-                    <div className="mobileChatsRowBottom">
-                      <div className="mobileChatsRowPreview">
-                        <span className="mobileChatsRowSpeaker">{room.speaker}:</span> {room.preview}
+
+                    <div className="mobileChatsItemBody">
+                      <div className="mobileChatsItemTop">
+                        <div className="mobileChatsItemTitle">{mobileTicketNumberTitle(ticket.ticketNumber)}</div>
+                        <div className="mobileChatsItemTime">{formatLastActivity(ticket.lastActivityAt)}</div>
                       </div>
-                      {room.unread > 0 ? <span className="mobileChatsUnread">{room.unread}</span> : null}
+
+                      <div className="mobileChatsItemPreview" style={{ color: '#111827', fontWeight: 700 }}>
+                        {ticketPrimaryLabel(ticket)}
+                      </div>
+
+                      <div className="mobileChatsItemPreview">Обсуждение по заявке</div>
+
+                      <div className="mobileChatsItemMeta">
+                        <div className="mobileChatsItemMetaLeft">{ticketLocationLabel(ticket)}</div>
+                        <div className="mobileChatsItemMetaRight">
+                          {ticketHasPhoto(ticket) ? <span className="mobileChatsPhotoChip">Фото</span> : null}
+                          <span className={`mobileTicketStatus mobileTicketStatus--${ticket.status}`}>
+                            {mobileTicketStatusLabelRu(ticket.status)}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="mobileChatsRowMeta">{room.meta}</div>
-                  </div>
-                </button>
-              ))}
+                  </Link>
+                )
+              })}
             </div>
-          </section>
-        ))}
+          ) : (
+            <div className="mobileEmptyState mobileCard">
+              <p className="mobileEmptyStateTitle">{emptyTitle}</p>
+              <p className="mobileEmptyStateHint">{emptyHint}</p>
+              {search || filter !== 'all' ? (
+                <button
+                  type="button"
+                  className="mobileChatsDialogBack"
+                  onClick={() => {
+                    setSearch('')
+                    setFilter('all')
+                  }}
+                >
+                  Сбросить
+                </button>
+              ) : null}
+            </div>
+          )}
+        </section>
       </div>
     </div>
   )

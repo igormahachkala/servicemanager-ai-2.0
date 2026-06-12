@@ -2196,6 +2196,94 @@ a.mobileBtn.mobileCreateTicketLink {
   cursor: pointer;
 }
 
+.mobileChatsItem {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  width: 100%;
+  padding: 12px 12px 12px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 18px;
+  background: #ffffff;
+  box-shadow: 0 4px 14px rgba(17, 24, 39, 0.05);
+  text-align: left;
+  overflow: hidden;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+
+.mobileChatsItemBody {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: grid;
+  gap: 4px;
+}
+
+.mobileChatsItemTop {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.mobileChatsItemTitle {
+  min-width: 0;
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: #111827;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobileChatsItemMetaLeft {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobileChatsItemMetaRight {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mobileChatsItemMeta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  align-items: center;
+  font-size: 0.74rem;
+  line-height: 1.25;
+  color: #6b7280;
+  overflow-wrap: anywhere;
+}
+
+.mobileChatsPhotoChip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+
 .mobileChatsRoomIcon {
   width: 48px;
   height: 48px;
@@ -2232,6 +2320,10 @@ a.mobileBtn.mobileCreateTicketLink {
   justify-content: space-between;
   gap: 8px;
   min-width: 0;
+}
+
+.mobileChatsRowBottom {
+  align-items: center;
 }
 
 .mobileChatsRowTitle {
@@ -2279,6 +2371,14 @@ a.mobileBtn.mobileCreateTicketLink {
 }
 
 .mobileChatsRowTime {
+  flex: 0 0 auto;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+.mobileChatsItemTime {
   flex: 0 0 auto;
   font-size: 0.74rem;
   font-weight: 700;
@@ -2653,6 +2753,11 @@ a.mobileBtn.mobileCreateTicketLink {
   box-shadow: none;
 }
 
+.mobileChatsDialogTicketStatus {
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
 .mobileChatsPlaceholder {
   margin: 8px 0 12px;
   padding: 10px 12px;
@@ -2670,45 +2775,6 @@ a.mobileBtn.mobileCreateTicketLink {
   min-width: 0;
 }
 
-.mobileChatsItem {
-  display: block;
-  padding: 12px 14px;
-  border-radius: 14px;
-  border: 1px solid #e5e7eb;
-  background: #ffffff;
-  color: inherit;
-  text-decoration: none;
-  box-shadow: 0 4px 14px rgba(17, 24, 39, 0.05);
-  min-width: 0;
-  overflow: hidden;
-}
-
-.mobileChatsItemTop {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  align-items: baseline;
-  min-width: 0;
-}
-
-.mobileChatsItemTitle {
-  min-width: 0;
-  font-size: 0.92rem;
-  font-weight: 800;
-  color: #111827;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.mobileChatsItemStatus {
-  flex: 0 0 auto;
-  font-size: 0.72rem;
-  font-weight: 800;
-  color: #2563eb;
-  white-space: nowrap;
-}
-
 .mobileChatsItemPreview {
   margin-top: 4px;
   font-size: 0.88rem;
@@ -2716,18 +2782,6 @@ a.mobileBtn.mobileCreateTicketLink {
   color: #374151;
   overflow-wrap: anywhere;
   word-break: break-word;
-}
-
-.mobileChatsItemMeta {
-  margin-top: 6px;
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  min-width: 0;
-  font-size: 0.74rem;
-  line-height: 1.25;
-  color: #6b7280;
-  overflow-wrap: anywhere;
 }
 
 .mobileNotificationRow {
