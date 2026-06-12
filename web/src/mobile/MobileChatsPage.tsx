@@ -1,6 +1,19 @@
 import { useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import * as api from '../lib/api'
+import { toChatMessages } from '../lib/ticketChat'
 import { mobilePath } from './mobileRoute'
+
+function formatRealChatTime(at: string): string {
+  try {
+    const d = new Date(at)
+    if (Number.isNaN(d.getTime())) return ''
+    return d.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+  } catch {
+    return ''
+  }
+}
 
 type ChatKind = 'ticket' | 'object' | 'company' | 'private'
 type ChatFilter = 'all' | 'unread' | ChatKind
@@ -247,7 +260,31 @@ export function MobileChatsPage() {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<ChatFilter>('all')
   const [composerText, setComposerText] = useState('')
-  const [localDrafts, setLocalDrafts] = useState<Record<string, ChatMessage[]>>({})
+  const [composerError, setComposerError] = useState('')
+
+  const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
+  const queryClient = useQueryClient()
+  const chatScope = useMemo(() => {
+    const sp = new URLSearchParams(location.search)
+    return {
+      linkedClientCompanyId: (sp.get('linkedClientCompanyId') || api.getLinkedClientCompanyId(meQ.data)).trim() || undefined,
+      companyId: (sp.get('companyId') || api.getObserverCompanyId(meQ.data)).trim() || undefined,
+    }
+  }, [location.search, meQ.data])
+  const timelineQ = useQuery({
+    queryKey: ['mobile-chats-timeline', ticketId, chatScope.linkedClientCompanyId, chatScope.companyId],
+    queryFn: () => api.timeline(ticketId, chatScope),
+    enabled: !!ticketId,
+  })
+  const sendM = useMutation({
+    mutationFn: (text: string) => api.addTicketComment(ticketId, text, chatScope),
+    onMutate: () => setComposerError(''),
+    onSuccess: async () => {
+      setComposerText('')
+      await queryClient.invalidateQueries({ queryKey: ['mobile-chats-timeline', ticketId] })
+    },
+    onError: (e: any) => setComposerError(e?.message || 'Не удалось отправить сообщение'),
+  })
 
   const selectedRoom = useMemo(() => {
     if (!ticketId) return null
@@ -269,29 +306,27 @@ export function MobileChatsPage() {
   }, [filteredRooms])
 
   const activeRoom = selectedRoom ? { ...selectedRoom, thread: selectedRoom.thread } : null
-  const threadMessages = useMemo(() => {
-    if (!activeRoom) return []
-    return [...activeRoom.thread.messages, ...(localDrafts[activeRoom.id] || [])]
-  }, [activeRoom, localDrafts])
+  // SMA-CHAT-127: реальные сообщения = комментарии заявки из timeline.
+  const threadMessages = useMemo<ChatMessage[]>(() => {
+    const items = timelineQ.data?.timeline || timelineQ.data?.items || []
+    return toChatMessages(items, meQ.data?.id ?? '').map((m, i) => ({
+      id: m.id || `msg-${i}`,
+      author: m.isOwn ? 'Вы' : (m.authorEmail || 'Участник'),
+      role: '',
+      text: m.text,
+      time: formatRealChatTime(m.at),
+      own: m.isOwn,
+    }))
+  }, [timelineQ.data, meQ.data?.id])
 
   function openRoom(room: ChatRoom) {
     navigate(mobilePath(location.pathname, `/chats/${room.id}`))
   }
 
   function sendLocalMessage() {
-    if (!activeRoom) return
     const trimmed = composerText.trim()
-    if (!trimmed) return
-    const next: ChatMessage = {
-      id: `${activeRoom.id}-${Date.now()}`,
-      author: 'Вы',
-      role: 'Исполнитель',
-      text: trimmed,
-      time: 'сейчас',
-      own: true,
-    }
-    setLocalDrafts((prev) => ({ ...prev, [activeRoom.id]: [...(prev[activeRoom.id] || []), next] }))
-    setComposerText('')
+    if (!trimmed || !ticketId || sendM.isPending) return
+    sendM.mutate(trimmed)
   }
 
   if (ticketId && activeRoom) {
@@ -341,6 +376,15 @@ export function MobileChatsPage() {
         <div className="mobileChatsDatePill">12 июня</div>
 
         <div className="mobileChatsMessages">
+          {timelineQ.isError ? (
+            <div className="mobileNotice mobileNoticeError">Не удалось загрузить сообщения.</div>
+          ) : null}
+          {timelineQ.isLoading && threadMessages.length === 0 ? (
+            <div className="mobileMeta" style={{ textAlign: 'center' }}>Загрузка сообщений…</div>
+          ) : null}
+          {!timelineQ.isLoading && !timelineQ.isError && threadMessages.length === 0 ? (
+            <div className="mobileMeta" style={{ textAlign: 'center' }}>Пока нет сообщений. Напишите первое.</div>
+          ) : null}
           {threadMessages.map((msg) => {
             if (msg.system) {
               return (
@@ -376,6 +420,9 @@ export function MobileChatsPage() {
           })}
         </div>
 
+        {composerError ? (
+          <div className="mobileNotice mobileNoticeError" style={{ margin: '0 12px 6px' }}>{composerError}</div>
+        ) : null}
         <div className="mobileChatsComposer">
           <button type="button" className="mobileChatsComposerButton" aria-label="Вложение">＋</button>
           <button type="button" className="mobileChatsComposerButton" aria-label="Фото">📷</button>
@@ -383,11 +430,23 @@ export function MobileChatsPage() {
             className="mobileChatsComposerInput"
             value={composerText}
             onChange={(e) => setComposerText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                sendLocalMessage()
+              }
+            }}
             placeholder="Сообщение..."
             rows={1}
+            disabled={sendM.isPending}
           />
-          <button type="button" className="mobileChatsComposerSend" onClick={sendLocalMessage} disabled={!composerText.trim()}>
-            ➤
+          <button
+            type="button"
+            className="mobileChatsComposerSend"
+            onClick={sendLocalMessage}
+            disabled={!composerText.trim() || sendM.isPending}
+          >
+            {sendM.isPending ? '…' : '➤'}
           </button>
         </div>
       </div>
