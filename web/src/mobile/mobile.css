@@ -2068,6 +2068,83 @@ a.mobileBtn.mobileCreateTicketLink {
   gap: 8px;
 }
 
+.mobileChatsPlaceholder {
+  margin: 8px 0 12px;
+  padding: 10px 12px;
+  background: #eff6ff;
+  border-color: #dbeafe;
+  box-shadow: none;
+  color: #1e3a8a;
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.mobileChatsList {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.mobileChatsItem {
+  display: block;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: inherit;
+  text-decoration: none;
+  box-shadow: 0 4px 14px rgba(17, 24, 39, 0.05);
+  min-width: 0;
+  overflow: hidden;
+}
+
+.mobileChatsItemTop {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.mobileChatsItemTitle {
+  min-width: 0;
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: #111827;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobileChatsItemStatus {
+  flex: 0 0 auto;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #2563eb;
+  white-space: nowrap;
+}
+
+.mobileChatsItemPreview {
+  margin-top: 4px;
+  font-size: 0.88rem;
+  line-height: 1.35;
+  color: #374151;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.mobileChatsItemMeta {
+  margin-top: 6px;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  font-size: 0.74rem;
+  line-height: 1.25;
+  color: #6b7280;
+  overflow-wrap: anywhere;
+}
+
 .mobileNotificationRow {
   position: relative;
   border-radius: 14px;

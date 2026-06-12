@@ -159,14 +159,14 @@ export function AppRoutes() {
         <Route element={<MobileShell />}>
           <Route index element={<MobileHome />} />
           <Route path="create" element={<MobileCreateTicket />} />
-        <Route path="my" element={<MobileMyTickets />} />
-        <Route path="profile" element={<MobileProfile />} />
-        <Route path="notifications" element={<MobileNotificationsPage />} />
-        <Route path="analytics" element={<MobileAnalytics />} />
-        <Route path="chats" element={<MobileChatsPage />} />
-        <Route path="tickets/:id" element={<MobileTicketPage />} />
-        <Route path="offline-queue" element={<MobileOfflineQueue />} />
-      </Route>
+          <Route path="my" element={<MobileMyTickets />} />
+          <Route path="profile" element={<MobileProfile />} />
+          <Route path="notifications" element={<MobileNotificationsPage />} />
+          <Route path="analytics" element={<MobileAnalytics />} />
+          <Route path="chats" element={<MobileChatsPage />} />
+          <Route path="tickets/:id" element={<MobileTicketPage />} />
+          <Route path="offline-queue" element={<MobileOfflineQueue />} />
+        </Route>
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />
