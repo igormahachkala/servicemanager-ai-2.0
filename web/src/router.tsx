@@ -118,6 +118,7 @@ export function AppRoutes() {
         <Route path="notifications" element={<MobileNotificationsPage />} />
         <Route path="analytics" element={<MobileAnalytics />} />
         <Route path="chats" element={<MobileChatsPage />} />
+        <Route path="chats/:ticketId" element={<MobileChatsPage />} />
         <Route path="tickets/:id" element={<MobileTicketPage />} />
         <Route path="offline-queue" element={<MobileOfflineQueue />} />
       </Route>
@@ -164,6 +165,7 @@ export function AppRoutes() {
           <Route path="notifications" element={<MobileNotificationsPage />} />
           <Route path="analytics" element={<MobileAnalytics />} />
           <Route path="chats" element={<MobileChatsPage />} />
+          <Route path="chats/:ticketId" element={<MobileChatsPage />} />
           <Route path="tickets/:id" element={<MobileTicketPage />} />
           <Route path="offline-queue" element={<MobileOfflineQueue />} />
         </Route>
