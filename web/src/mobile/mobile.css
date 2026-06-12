@@ -251,6 +251,7 @@ body,
 
 .mobileSection {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 8px;
   min-width: 0;
   max-width: 100%;
@@ -1216,6 +1217,7 @@ button.mobilePhotoThumbLink.mobilePhotoThumbOpen:focus-visible {
   color: inherit;
   cursor: pointer;
   transition: transform 0.12s ease, box-shadow 0.12s ease;
+  width: 100%;
   max-width: 100%;
   box-sizing: border-box;
   min-width: 0;
