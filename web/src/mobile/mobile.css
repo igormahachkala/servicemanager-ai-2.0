@@ -4278,3 +4278,75 @@ a.mobileBtn.mobileCreateTicketLink {
   font-weight: 600;
   padding: 14px;
 }
+
+/* Bar chart rows */
+.mobileAnalyticsBarRows { display: grid; gap: 0; }
+
+.mobileAnalyticsBarRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 2px 8px;
+  padding: 8px 0;
+}
+.mobileAnalyticsBarRow + .mobileAnalyticsBarRow { border-top: 1px solid #f1f5f9; }
+
+.mobileAnalyticsBarName {
+  font-size: 0.88rem;
+  font-weight: 500;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mobileAnalyticsBarCount {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #111827;
+}
+.mobileAnalyticsBarTrack {
+  grid-column: 1 / -1;
+  height: 5px;
+  background: #e5e7eb;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.mobileAnalyticsBarFill {
+  height: 100%;
+  border-radius: 3px;
+  background: #2563eb;
+}
+.mobileAnalyticsBarFill--location  { background: #0891b2; }
+.mobileAnalyticsBarFill--new       { background: #2563eb; }
+.mobileAnalyticsBarFill--assigned  { background: #d97706; }
+.mobileAnalyticsBarFill--inprogress { background: #7c3aed; }
+.mobileAnalyticsBarFill--done      { background: #16a34a; }
+
+/* Quick links */
+.mobileAnalyticsQuickLinks { display: grid; gap: 0; }
+
+.mobileAnalyticsQuickLink {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  font-size: 0.92rem;
+  font-weight: 500;
+  text-decoration: none;
+  color: #111827;
+  gap: 10px;
+}
+.mobileAnalyticsQuickLink + .mobileAnalyticsQuickLink { border-top: 1px solid #f1f5f9; }
+
+.mobileAnalyticsQuickBadge {
+  font-size: 0.78rem;
+  font-weight: 700;
+  background: #f1f5f9;
+  color: #374151;
+  border-radius: 10px;
+  padding: 2px 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.mobileAnalyticsQuickBadge--danger  { background: #fee2e2; color: #b91c1c; }
+.mobileAnalyticsQuickBadge--warning { background: #fef3c7; color: #92400e; }

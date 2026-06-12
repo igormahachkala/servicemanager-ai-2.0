@@ -7,11 +7,6 @@ import { mobilePath } from './mobileRoute'
 
 const ACTIVE_STATUSES = new Set(['NEW', 'ASSIGNED', 'IN_PROGRESS'])
 
-/**
- * SMA-MOBILE-122: лёгкий мобильный экран аналитики.
- * Источник — существующий board endpoint (как на главной), без новых API.
- * Показывает: Активные / Просроченные / Выполненные / SLA (под риском).
- */
 export function MobileAnalytics() {
   const location = useLocation()
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
@@ -39,13 +34,33 @@ export function MobileAnalytics() {
   const stats = useMemo(() => {
     const cols = boardQ.data?.columns || []
     const totalFor = (status: string) => cols.find((c) => c.status === status)?.total ?? 0
-    const active = cols
-      .filter((c) => ACTIVE_STATUSES.has(c.status))
-      .reduce((sum, c) => sum + (c.total || 0), 0)
-    // Просрочено и под риском считаем только среди активных колонок.
     const activeCols = cols.filter((c) => ACTIVE_STATUSES.has(c.status))
+    const active = activeCols.reduce((sum, c) => sum + (c.total || 0), 0)
     const overdue = activeCols.reduce((sum, c) => sum + (c.sla?.breached || 0), 0)
     const atRisk = activeCols.reduce((sum, c) => sum + (c.sla?.atRisk || 0), 0)
+
+    const categoryMap = new Map<string, number>()
+    for (const col of cols) {
+      for (const card of col.cards) {
+        const cat = card.category?.name || 'Прочее'
+        categoryMap.set(cat, (categoryMap.get(cat) || 0) + 1)
+      }
+    }
+
+    const locationMap = new Map<string, number>()
+    for (const col of activeCols) {
+      for (const card of col.cards) {
+        const loc = card.location?.name || card.pointName || 'Без точки'
+        locationMap.set(loc, (locationMap.get(loc) || 0) + 1)
+      }
+    }
+
+    const urgentFromCards = cols.reduce(
+      (sum, c) =>
+        sum + c.cards.filter((t) => (t.priority ?? 'NORMAL') === 'URGENT' || t.urgency === 'URGENT').length,
+      0,
+    )
+
     return {
       active,
       overdue,
@@ -56,13 +71,24 @@ export function MobileAnalytics() {
       inProgress: totalFor('IN_PROGRESS'),
       canceled: totalFor('CANCELED'),
       total: boardQ.data?.meta?.totalTickets ?? 0,
+      topCategories: [...categoryMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5),
+      topLocations: [...locationMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5),
+      urgentFromCards,
     }
   }, [boardQ.data])
+
+  const scope = { linkedClientCompanyId: linkedClientCompanyId || undefined, companyId: companyId || undefined }
+  const homeHref = api.appendScopeToPath(mobilePath(location.pathname, ''), scope, meQ.data)
 
   const isLoading = boardQ.isLoading || boardQ.isFetching
   const isError = boardQ.isError
   const ready = boardQ.isSuccess && !!boardQ.data
   const val = (n: number) => (ready ? String(n) : '—')
+
+  const maxCat = stats.topCategories[0]?.[1] || 1
+  const maxLoc = stats.topLocations[0]?.[1] || 1
+  const statusMax = Math.max(stats.newCount, stats.assigned, stats.inProgress, stats.done, 1)
+  const pct = (n: number, max: number) => (ready ? Math.round((n / max) * 100) : 0)
 
   return (
     <div className="mobileSection">
@@ -77,7 +103,7 @@ export function MobileAnalytics() {
         </div>
       ) : null}
 
-      {/* Главные метрики */}
+      {/* KPI */}
       <div className="mobileAnalyticsGrid">
         <div className="mobileCard mobileAnalyticsCard mobileAnalyticsCard--active">
           <div className="mobileAnalyticsValue">{isLoading && !ready ? '…' : val(stats.active)}</div>
@@ -97,32 +123,106 @@ export function MobileAnalytics() {
         </div>
       </div>
 
-      {/* Разбивка по статусам */}
+      {/* Section 1: Top problem categories */}
       <div className="mobileCard">
-        <div className="mobileSectionTitle" style={{ marginBottom: 8 }}>По статусам</div>
-        <div className="mobileAnalyticsRows">
-          <div className="mobileAnalyticsRow"><span className="mobileMeta">Новые</span><span>{val(stats.newCount)}</span></div>
-          <div className="mobileAnalyticsRow"><span className="mobileMeta">Назначенные</span><span>{val(stats.assigned)}</span></div>
-          <div className="mobileAnalyticsRow"><span className="mobileMeta">В работе</span><span>{val(stats.inProgress)}</span></div>
-          <div className="mobileAnalyticsRow"><span className="mobileMeta">Выполненные</span><span>{val(stats.done)}</span></div>
-          {ready && stats.canceled > 0 ? (
-            <div className="mobileAnalyticsRow"><span className="mobileMeta">Отменённые</span><span>{val(stats.canceled)}</span></div>
-          ) : null}
-          <div className="mobileAnalyticsRow"><span className="mobileMeta">Всего</span><span style={{ fontWeight: 700 }}>{val(stats.total)}</span></div>
+        <div className="mobileSectionTitle" style={{ marginBottom: 10 }}>Топ категорий проблем</div>
+        {ready && stats.topCategories.length > 0 ? (
+          <div className="mobileAnalyticsBarRows">
+            {stats.topCategories.map(([name, count]) => (
+              <div key={name} className="mobileAnalyticsBarRow">
+                <span className="mobileAnalyticsBarName">{name}</span>
+                <span className="mobileAnalyticsBarCount">{count}</span>
+                <div className="mobileAnalyticsBarTrack">
+                  <div className="mobileAnalyticsBarFill" style={{ width: `${pct(count, maxCat)}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="mobileMeta">{isLoading && !ready ? 'Загрузка…' : 'Нет данных'}</div>
+        )}
+      </div>
+
+      {/* Section 2: Top locations */}
+      <div className="mobileCard">
+        <div className="mobileSectionTitle" style={{ marginBottom: 10 }}>Точки с наибольшим числом активных заявок</div>
+        {ready && stats.topLocations.length > 0 ? (
+          <div className="mobileAnalyticsBarRows">
+            {stats.topLocations.map(([name, count]) => (
+              <div key={name} className="mobileAnalyticsBarRow">
+                <span className="mobileAnalyticsBarName">{name}</span>
+                <span className="mobileAnalyticsBarCount">{count}</span>
+                <div className="mobileAnalyticsBarTrack">
+                  <div
+                    className="mobileAnalyticsBarFill mobileAnalyticsBarFill--location"
+                    style={{ width: `${pct(count, maxLoc)}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="mobileMeta">{isLoading && !ready ? 'Загрузка…' : 'Нет данных'}</div>
+        )}
+      </div>
+
+      {/* Section 3: Status distribution */}
+      <div className="mobileCard">
+        <div className="mobileSectionTitle" style={{ marginBottom: 10 }}>Распределение по статусам</div>
+        <div className="mobileAnalyticsBarRows">
+          {([
+            { label: 'Новые', value: stats.newCount, mod: 'new' },
+            { label: 'Назначенные', value: stats.assigned, mod: 'assigned' },
+            { label: 'В работе', value: stats.inProgress, mod: 'inprogress' },
+            { label: 'Выполненные', value: stats.done, mod: 'done' },
+          ] as const).map(({ label, value, mod }) => (
+            <div key={mod} className="mobileAnalyticsBarRow">
+              <span className="mobileAnalyticsBarName">{label}</span>
+              <span className="mobileAnalyticsBarCount">{val(value)}</span>
+              <div className="mobileAnalyticsBarTrack">
+                <div
+                  className={`mobileAnalyticsBarFill mobileAnalyticsBarFill--${mod}`}
+                  style={{ width: `${pct(value, statusMax)}%` }}
+                />
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* Ссылка на полную аналитику (десктоп) */}
-      <Link to={api.appendScopeToPath('/analytics', { linkedClientCompanyId: linkedClientCompanyId || undefined, companyId: companyId || undefined }, meQ.data)} className="mobileCard mobileAnalyticsMoreLink">
+      {/* Section 4: Quick links */}
+      <div className="mobileCard">
+        <div className="mobileSectionTitle" style={{ marginBottom: 10 }}>Быстрые переходы</div>
+        <div className="mobileAnalyticsQuickLinks">
+          <Link to={homeHref} className="mobileAnalyticsQuickLink">
+            <span>Все заявки</span>
+            <span className="mobileAnalyticsQuickBadge">{val(stats.total)}</span>
+          </Link>
+          <Link to={homeHref} className="mobileAnalyticsQuickLink">
+            <span>Просроченные</span>
+            <span className={`mobileAnalyticsQuickBadge${stats.overdue > 0 && ready ? ' mobileAnalyticsQuickBadge--danger' : ''}`}>
+              {val(stats.overdue)}
+            </span>
+          </Link>
+          <Link to={homeHref} className="mobileAnalyticsQuickLink">
+            <span>Высокий приоритет</span>
+            <span className={`mobileAnalyticsQuickBadge${stats.urgentFromCards > 0 && ready ? ' mobileAnalyticsQuickBadge--warning' : ''}`}>
+              {ready ? String(stats.urgentFromCards) : '—'}
+            </span>
+          </Link>
+        </div>
+      </div>
+
+      <Link
+        to={api.appendScopeToPath('/analytics', scope, meQ.data)}
+        className="mobileCard mobileAnalyticsMoreLink"
+      >
         <span>Подробная аналитика</span>
         <span aria-hidden>›</span>
       </Link>
 
       <div className="mobileMeta" style={{ textAlign: 'center', opacity: 0.7 }}>
-        {/* keep mobilePath import used; deep links keep scope */}
-        <Link to={api.appendScopeToPath(mobilePath(location.pathname, ''), undefined, meQ.data)} style={{ color: 'inherit' }}>
-          ← На главную
-        </Link>
+        <Link to={homeHref} style={{ color: 'inherit' }}>← На главную</Link>
       </div>
     </div>
   )
