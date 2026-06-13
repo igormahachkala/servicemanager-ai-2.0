@@ -3,6 +3,7 @@ import { Link, useLocation, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
+import { SUPPORT_MAX_URL, SUPPORT_TELEGRAM_URL } from '../lib/supportUrls'
 import { useLinkedBoardScope } from '../hooks/useLinkedBoardScope'
 import { mobilePath } from './mobileRoute'
 import { isMineTicketForRole } from './mobileHomeBoardFilters'
@@ -18,33 +19,29 @@ import { FullscreenPhotoViewer, type PhotoViewerItem } from '../components/Fulls
 import { toChatMessages } from '../lib/ticketChat'
 
 type ChatsFilter = 'all' | 'mine' | 'active' | 'with_photo'
-type ChatsView = 'active' | 'archive'
 type ChatTab = 'chat' | 'info' | 'files' | 'history'
 
 type ChatsListItem = api.TicketCard & {
   lastActivityAt: string
 }
 
-type ChatsObjectItem = {
+type ChatsCompanyItem = {
   id: string
   title: string
-  activeCount: number
   preview: string
-  timeLabel: string
-  lastActivityAt: string
+  iconTone: string
+}
+
+type ChatsPromoItem = {
+  id: string
+  title: string
+  description: string
+  actionLabel: string
   href: string
   iconTone: string
 }
 
-type ChatsInternalItem = {
-  id: string
-  title: string
-  preview: string
-  timeLabel: string
-  iconTone: string
-}
-
-type ChatsSectionId = 'tickets' | 'objects' | 'internal'
+type ChatsSectionId = 'my_work' | 'objects' | 'company' | 'max' | 'support' | 'archive'
 
 const ACTIVE_STATUSES = new Set<api.TicketStatus>(['NEW', 'ASSIGNED', 'IN_PROGRESS'])
 const ARCHIVE_STATUSES = new Set<api.TicketStatus>(['DONE', 'CANCELED'])
@@ -108,6 +105,10 @@ function ticketHasPhoto(ticket: api.TicketCard): boolean {
   return !!ticket.attachmentPreviewUrl || (ticket.imageAttachmentCount ?? 0) > 0
 }
 
+function isUrgentTicket(ticket: api.TicketCard): boolean {
+  return ticket.urgency === 'URGENT' || ticket.priority === 'URGENT' || ticket.slaBreached === true
+}
+
 function ticketChatTitle(ticket: api.TicketCard): string {
   return (ticket.title || ticket.description || ticket.category?.name || 'Без темы').trim()
 }
@@ -118,6 +119,23 @@ function ticketChatPreview(ticket: api.TicketCard): string {
 
 function ticketLocationLabel(ticket: api.TicketCard): string {
   return (ticket.location?.name || ticket.pointName || 'Без локации').trim()
+}
+
+function isMyWorkTicket(ticket: api.TicketCard, meId?: string, role?: api.Role | null): boolean {
+  const directMine = isMineTicketForRole(ticket, meId, role)
+  const assignedToMe = !!meId && (ticket.assignedTechnicianId || ticket.assignedTechnician?.id || '').trim() === meId.trim()
+  return directMine || assignedToMe || ACTIVE_STATUSES.has(ticket.status) || isUrgentTicket(ticket)
+}
+
+function ticketWorkTags(ticket: api.TicketCard, meId?: string, role?: api.Role | null): string[] {
+  const tags: string[] = []
+  if (isMineTicketForRole(ticket, meId, role)) tags.push('Моя')
+  if (meId && (ticket.assignedTechnicianId || ticket.assignedTechnician?.id || '').trim() === meId.trim()) tags.push('Назначена мне')
+  if (isUrgentTicket(ticket)) tags.push('Срочная')
+  if (ticket.status === 'NEW') tags.push('Новая')
+  if (ticket.status === 'ASSIGNED') tags.push('Назначена')
+  if (ticket.status === 'IN_PROGRESS') tags.push('В работе')
+  return Array.from(new Set(tags))
 }
 
 function ticketStatusTone(status: api.TicketStatus): string {
@@ -151,10 +169,6 @@ function chatListIconClass(status: api.TicketStatus) {
   return `mobileChatsRoomIcon mobileChatsRoomIcon--${ticketStatusTone(status)}`
 }
 
-function objectChatSearchBlob(item: ChatsObjectItem): string {
-  return normalizeSearchText([item.title, item.preview, item.timeLabel, String(item.activeCount)].filter(Boolean).join(' '))
-}
-
 export function MobileChatsPage() {
   const location = useLocation()
   const { ticketId = '' } = useParams()
@@ -163,12 +177,12 @@ export function MobileChatsPage() {
 
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<ChatsFilter>('all')
-  const [chatView, setChatView] = useState<ChatsView>('active')
   const [composerText, setComposerText] = useState('')
   const [composerError, setComposerError] = useState('')
   const [activeTab, setActiveTab] = useState<ChatTab>('chat')
   const [viewer, setViewer] = useState<{ items: PhotoViewerItem[]; index: number } | null>(null)
   const [collapsedSections, setCollapsedSections] = useState<Partial<Record<ChatsSectionId, boolean>>>({})
+  const [expandedObjectIds, setExpandedObjectIds] = useState<Record<string, boolean>>({})
 
   const boardQ = useQuery({
     queryKey: ['mobile-chats-board', boardParams.companyId || '', boardParams.linkedClientCompanyId || ''],
@@ -199,125 +213,133 @@ export function MobileChatsPage() {
     return out
   }, [boardQ.data])
 
-  const filteredTickets = useMemo(() => {
+  const visibleTickets = useMemo(() => {
     const q = normalizeSearchText(search)
     return allTickets.filter((ticket) => {
-      // Primary view filter
-      if (chatView === 'active' && !ACTIVE_STATUSES.has(ticket.status)) return false
-      if (chatView === 'archive' && !ARCHIVE_STATUSES.has(ticket.status)) return false
-      // Sub-filters
       if (filter === 'mine' && !isMineTicketForRole(ticket, me?.id, me?.role)) return false
       if (filter === 'active' && !ACTIVE_STATUSES.has(ticket.status)) return false
       if (filter === 'with_photo' && !ticketHasPhoto(ticket)) return false
       if (!q) return true
       return ticketSearchBlob(ticket).includes(q)
     })
-  }, [allTickets, chatView, filter, me?.id, me?.role, search])
+  }, [allTickets, filter, me?.id, me?.role, search])
 
-  const ticketRows = useMemo(() => {
-    return filteredTickets.map((ticket) => ({
-      ticket,
-      href: `${mobilePath(location.pathname, `/chats/${ticket.id}`)}${location.search}`,
-      preview: ticketChatPreview(ticket),
-    }))
-  }, [filteredTickets, location.pathname, location.search])
-
-  const objectRows = useMemo<ChatsObjectItem[]>(() => {
+  const myWorkTickets = useMemo(() => {
     const q = normalizeSearchText(search)
+    return visibleTickets
+      .filter((ticket) => isMyWorkTicket(ticket, me?.id, me?.role))
+      .filter((ticket) => !q || ticketSearchBlob(ticket).includes(q))
+  }, [me?.id, me?.role, search, visibleTickets])
+
+  const archiveTickets = useMemo(() => {
+    return visibleTickets.filter((ticket) => ARCHIVE_STATUSES.has(ticket.status))
+  }, [visibleTickets])
+
+  const objectRows = useMemo(() => {
     const map = new Map<string, {
+      id: string
       title: string
       activeCount: number
       preview: string
       timeLabel: string
       lastActivityAt: string
-      ticketId: string
+      tickets: ChatsListItem[]
       iconTone: string
     }>()
 
-    for (const ticket of filteredTickets) {
+    for (const ticket of myWorkTickets) {
       const key = ticket.location?.id || ticket.location?.name || ticket.pointName || `ticket:${ticket.id}`
       const title = ticket.location?.name || ticket.pointName || ticket.location?.address || 'Без объекта'
       const current = map.get(key)
       const lastActivityAt = ticket.lastActivityAt
-      // Since filteredTickets is pre-filtered by chatView, every ticket here counts as 1
-      const activeCount = 1
-      const preview = ticket.description || ticket.title || ticket.category?.name || 'Обсуждение по заявке'
-      const nextPreview = current && current.lastActivityAt >= lastActivityAt ? current.preview : preview
-      const nextTicketId = current && current.lastActivityAt >= lastActivityAt ? current.ticketId : ticket.id
-      const nextTone = current && current.lastActivityAt >= lastActivityAt ? current.iconTone : ticketStatusTone(ticket.status)
+      const tickets = current ? [...current.tickets, ticket] : [ticket]
+      const currentPreview = ticket.description || ticket.title || ticket.category?.name || 'Обсуждение по заявке'
+      const nextPreview = current && current.lastActivityAt >= lastActivityAt ? current.preview : currentPreview
+      const nextLast = current && current.lastActivityAt > lastActivityAt ? current.lastActivityAt : lastActivityAt
       map.set(key, {
+        id: key,
         title,
-        activeCount: (current?.activeCount || 0) + activeCount,
+        activeCount: tickets.filter((row) => ACTIVE_STATUSES.has(row.status)).length,
         preview: nextPreview,
-        timeLabel: formatLastActivity(lastActivityAt),
-        lastActivityAt: current && current.lastActivityAt > lastActivityAt ? current.lastActivityAt : lastActivityAt,
-        ticketId: nextTicketId,
-        iconTone: nextTone,
+        timeLabel: formatLastActivity(nextLast),
+        lastActivityAt: nextLast,
+        tickets,
+        iconTone: ticketStatusTone(ticket.status),
       })
     }
 
-    return Array.from(map.entries())
-      .map(([id, item]) => ({
-        id,
-        title: item.title,
-        activeCount: item.activeCount,
-        preview: item.preview,
-        timeLabel: item.timeLabel,
-        lastActivityAt: item.lastActivityAt,
-        href: `${mobilePath(location.pathname, `/chats/${item.ticketId}`)}${location.search}`,
-        iconTone: item.iconTone,
-      }))
-      .filter((item) => {
-        if (!q) return true
-        return objectChatSearchBlob(item).includes(q)
-      })
-      .sort((a, b) => {
-        const at = new Date(a.lastActivityAt).getTime()
-        const bt = new Date(b.lastActivityAt).getTime()
-        return (Number.isFinite(bt) ? bt : 0) - (Number.isFinite(at) ? at : 0)
-      })
-  }, [filteredTickets, location.pathname, location.search, search])
+    return Array.from(map.values())
+      .sort((a, b) => new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime())
+  }, [myWorkTickets])
 
-  const internalRows = useMemo<ChatsInternalItem[]>(() => {
-    const rows: ChatsInternalItem[] = [
+  const companyRows = useMemo<ChatsCompanyItem[]>(() => {
+    const rows: ChatsCompanyItem[] = [
       {
         id: 'dispatch',
         title: 'Диспетчерская',
-        preview: 'Внутренний чат',
-        timeLabel: 'Сейчас',
+        preview: 'Внутренний чат компании',
         iconTone: 'violet',
       },
       {
         id: 'contractors',
         title: 'Подрядчики',
-        preview: 'Чаты с подрядчиками',
-        timeLabel: 'Скоро',
+        preview: 'Координация подрядных работ',
         iconTone: 'teal',
       },
     ]
     const q = normalizeSearchText(search)
     if (!q) return rows
-    return rows.filter((row) => normalizeSearchText([row.title, row.preview, row.timeLabel].join(' ')).includes(q))
+    return rows.filter((row) => normalizeSearchText([row.title, row.preview].join(' ')).includes(q))
   }, [search])
+
+  const maxCard = useMemo<ChatsPromoItem>(
+    () => ({
+      id: 'max',
+      title: 'MAX',
+      description: 'Перейти к ассистенту ServiceManager.AI в MAX.',
+      actionLabel: 'Открыть MAX',
+      href: '/max',
+      iconTone: 'violet',
+    }),
+    [],
+  )
+
+  const supportCard = useMemo<ChatsPromoItem>(
+    () => ({
+      id: 'support',
+      title: 'Поддержка',
+      description: 'Быстрая связь с командой поддержки в Telegram или MAX.',
+      actionLabel: 'Написать в поддержку',
+      href: SUPPORT_MAX_URL,
+      iconTone: 'green',
+    }),
+    [],
+  )
 
   const searchQuery = normalizeSearchText(search)
 
   const sectionCounts = useMemo(
     () => ({
-      tickets: ticketRows.length,
+      my_work: myWorkTickets.length,
       objects: objectRows.length,
-      internal: internalRows.length,
+      company: companyRows.length,
+      max: 1,
+      support: 1,
+      archive: archiveTickets.length,
     }),
-    [internalRows.length, objectRows.length, ticketRows.length],
+    [archiveTickets.length, companyRows.length, myWorkTickets.length, objectRows.length],
   )
 
   const sectionDefaults = useMemo(
     () => ({
-      tickets: false,
-      objects: sectionCounts.objects > 3,
-      internal: true,
+      my_work: true,
+      objects: objectRows.length > 3 ? false : true,
+      company: false,
+      max: true,
+      support: true,
+      archive: false,
     }),
-    [sectionCounts.objects],
+    [objectRows.length],
   )
 
   const sectionIsExpanded = (section: ChatsSectionId): boolean => {
@@ -325,7 +347,7 @@ export function MobileChatsPage() {
     if (hasSearchMatches) return true
     const explicit = collapsedSections[section]
     if (typeof explicit === 'boolean') return !explicit
-    return !sectionDefaults[section]
+    return sectionDefaults[section]
   }
 
   const toggleSection = (section: ChatsSectionId) => {
@@ -334,6 +356,61 @@ export function MobileChatsPage() {
       ...current,
       [section]: !nextExpanded,
     }))
+  }
+
+  const toggleObject = (id: string) => {
+    setExpandedObjectIds((current) => ({
+      ...current,
+      [id]: !current[id],
+    }))
+  }
+
+  const objectIsExpanded = (id: string): boolean => {
+    if (searchQuery.length > 0) return true
+    return !!expandedObjectIds[id]
+  }
+
+  function renderTicketRow(ticket: ChatsListItem, href: string, variant: 'work' | 'nested' | 'archive' = 'work') {
+    const badges = variant === 'work' ? ticketWorkTags(ticket, me?.id, me?.role) : []
+    const compact = variant !== 'work'
+    return (
+      <Link key={ticket.id} className={`mobileChatsItem${compact ? ' mobileChatsItem--compact' : ''}`} to={href}>
+        <div className={chatListIconClass(ticket.status)} aria-hidden="true">
+          <span className="mobileChatsRoomIconEmoji">💬</span>
+        </div>
+
+        <div className="mobileChatsItemBody">
+          <div className="mobileChatsItemTop">
+            <div className="mobileChatsItemTopLeft">
+              <div className="mobileChatsItemTitle">{mobileTicketNumberTitle(ticket.ticketNumber)}</div>
+              <span className={`mobileChatsIndicator mobileChatsIndicator--${ticket.status}`} aria-hidden="true" />
+            </div>
+            <div className="mobileChatsItemTime">{formatLastActivity(ticket.lastActivityAt)}</div>
+          </div>
+
+          <div className="mobileChatsItemTitleSecondary">{ticketChatTitle(ticket)}</div>
+          <div className="mobileChatsItemPreview">{ticketChatPreview(ticket)}</div>
+
+          <div className="mobileChatsItemMeta">
+            <div className="mobileChatsItemMetaLeft">{ticketLocationLabel(ticket)}</div>
+            <div className="mobileChatsItemMetaRight">
+              {ticketHasPhoto(ticket) ? <span className="mobileChatsPhotoChip">Фото</span> : null}
+              <span className={`mobileTicketStatus mobileTicketStatus--${ticket.status}`}>
+                {mobileTicketStatusLabelRu(ticket.status)}
+              </span>
+            </div>
+          </div>
+
+          {badges.length ? (
+            <div className="mobileChatsBadges">
+              {badges.map((badge) => (
+                <span key={badge} className="mobileChatsBadge">{badge}</span>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </Link>
+    )
   }
 
   const ticketReadScopes = useMemo(
@@ -442,11 +519,6 @@ export function MobileChatsPage() {
       setViewer(null)
     }
   }, [ticketId])
-
-  // Reset sub-filter when switching view to avoid empty-list confusion
-  useEffect(() => {
-    setFilter('all')
-  }, [chatView])
 
   if (!isMeReady || (!boardQ.data && !ticketId)) {
     return (
@@ -734,62 +806,43 @@ export function MobileChatsPage() {
 
   // --- List view ---
 
-  const emptyTitle = chatView === 'archive'
-    ? 'Нет архивных чатов'
-    : ((boardQ.data?.columns || []).some((col) => (col.cards || []).length > 0)
-        ? 'Нет заявок по фильтру'
-        : 'Заявок пока нет')
-  const emptyHint = chatView === 'archive'
-    ? 'Завершённые и отменённые заявки появятся здесь.'
-    : (filteredTickets.length === 0 && allTickets.length > 0
-        ? 'Измените поиск или фильтр, чтобы увидеть чаты.'
-        : 'Когда заявки появятся, они отобразятся здесь как чаты по заявкам.')
+  const myWorkEmptyTitle = visibleTickets.length > 0 ? 'Нет чатов по фильтру' : 'Заявок пока нет'
+  const myWorkEmptyHint = visibleTickets.length > 0
+    ? 'Измените поиск или фильтр, чтобы увидеть рабочие чаты.'
+    : 'Когда заявки появятся, они отобразятся здесь как рабочие чаты.'
 
-  // In archive view hide the 'active' sub-filter chip (it's contradictory)
-  const visibleFilters = chatView === 'archive'
-    ? CHAT_FILTERS.filter((f) => f.id !== 'active')
-    : CHAT_FILTERS
+  const archiveEmptyTitle = archiveTickets.length > 0 ? 'Нет архивных чатов' : 'Архив пуст'
+  const archiveEmptyHint = archiveTickets.length > 0
+    ? 'Измените поиск или фильтр, чтобы увидеть архив.'
+    : 'Завершённые и отменённые заявки появятся здесь.'
+
+  const sectionRows: Array<{ id: ChatsSectionId; title: string; count: number }> = [
+    { id: 'my_work', title: '🔥 Моя работа', count: sectionCounts.my_work },
+    { id: 'objects', title: '🏢 Объекты', count: sectionCounts.objects },
+    { id: 'company', title: '🏢 Компания', count: sectionCounts.company },
+    { id: 'max', title: '🤖 MAX', count: sectionCounts.max },
+    { id: 'support', title: '🛟 Поддержка', count: sectionCounts.support },
+  ]
 
   return (
     <div className="mobileSection mobileChatsScreen">
       <div className="mobileChatsTop">
         <div>
           <h1 className="mobileTitle mobileChatsAppTitle">Чаты</h1>
-          <div className="mobileSubtitle">
-            {chatView === 'active'
-              ? 'Разговоры по заявкам, объектам и внутренним группам'
-              : 'Завершённые и отменённые заявки'}
-          </div>
-        </div>
-
-        <div className="mobileScreenTabs">
-          <button
-            type="button"
-            className={`mobileScreenTab${chatView === 'active' ? ' mobileScreenTab--active' : ''}`}
-            onClick={() => setChatView('active')}
-          >
-            Активные
-          </button>
-          <button
-            type="button"
-            className={`mobileScreenTab${chatView === 'archive' ? ' mobileScreenTab--active' : ''}`}
-            onClick={() => setChatView('archive')}
-          >
-            Архив
-          </button>
+          <div className="mobileSubtitle">Рабочие каналы по заявкам, объектам, компании и поддержке</div>
         </div>
 
         <div className="mobileChatsSearchRow">
           <input
             className="mobileChatsSearchInput"
-            placeholder="Поиск по заявкам, локациям и статусам"
+            placeholder="Поиск по заявкам, объектам, статусам"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
 
         <div className="mobileChatsFilters" role="tablist" aria-label="Фильтры чатов">
-          {visibleFilters.map((item) => (
+          {CHAT_FILTERS.map((item) => (
             <button
               key={item.id}
               type="button"
@@ -800,166 +853,202 @@ export function MobileChatsPage() {
             </button>
           ))}
         </div>
+
+        <div className="mobileChatsHintCard mobileCard">
+          Чаты сгруппированы как рабочий мессенджер: моя работа, объекты, внутренние каналы и переходы в MAX и поддержку.
+        </div>
       </div>
 
       <div className="mobileChatsSections">
-        <section className="mobileChatsSection" aria-label="Заявки">
-          <button
-            type="button"
-            className="mobileChatsSectionHeader"
-            aria-expanded={sectionIsExpanded('tickets')}
-            onClick={() => toggleSection('tickets')}
-          >
-            <span className="mobileChatsSectionHeaderLabel">Заявки</span>
-            <span className="mobileChatsSectionHeaderMeta">
-              <span className="mobileChatsSectionHeaderCount">{sectionCounts.tickets}</span>
-              <span className={`mobileChatsSectionHeaderChevron${sectionIsExpanded('tickets') ? ' mobileChatsSectionHeaderChevron--open' : ''}`}>▼</span>
-            </span>
-          </button>
-
-          {sectionCounts.tickets === 0 ? (
-            <div className="mobileEmptyState mobileCard">
-              <p className="mobileEmptyStateTitle">{emptyTitle}</p>
-              <p className="mobileEmptyStateHint">{emptyHint}</p>
-              {search || filter !== 'all' ? (
-                <button
-                  type="button"
-                  className="mobileChatsDialogBack"
-                  onClick={() => {
-                    setSearch('')
-                    setFilter('all')
-                  }}
-                >
-                  Сбросить
-                </button>
-              ) : null}
-            </div>
-          ) : sectionIsExpanded('tickets') ? (
-            <div className="mobileChatsList">
-              {ticketRows.map(({ ticket, href, preview }) => {
-                return (
-                  <Link key={ticket.id} className="mobileChatsItem" to={href}>
-                    <div className={chatListIconClass(ticket.status)} aria-hidden="true">
-                      <span className="mobileChatsRoomIconEmoji">💬</span>
-                    </div>
-
-                    <div className="mobileChatsItemBody">
-                      <div className="mobileChatsItemTop">
-                        <div className="mobileChatsItemTopLeft">
-                          <div className="mobileChatsItemTitle">{mobileTicketNumberTitle(ticket.ticketNumber)}</div>
-                          <span className={`mobileChatsIndicator mobileChatsIndicator--${ticket.status}`} aria-hidden="true" />
-                        </div>
-                        <div className="mobileChatsItemTime">{formatLastActivity(ticket.lastActivityAt)}</div>
-                      </div>
-
-                      <div className="mobileChatsItemTitleSecondary">{ticketChatTitle(ticket)}</div>
-
-                      <div className="mobileChatsItemPreview">{preview}</div>
-
-                      <div className="mobileChatsItemMeta">
-                        <div className="mobileChatsItemMetaLeft">{ticketLocationLabel(ticket)}</div>
-                        <div className="mobileChatsItemMetaRight">
-                          {ticketHasPhoto(ticket) ? <span className="mobileChatsPhotoChip">Фото</span> : null}
-                          <span className={`mobileTicketStatus mobileTicketStatus--${ticket.status}`}>
-                            {mobileTicketStatusLabelRu(ticket.status)}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </Link>
-                )
-              })}
-            </div>
-          ) : null}
-        </section>
-
-        <section className="mobileChatsSection" aria-label="Объекты">
-          <button
-            type="button"
-            className="mobileChatsSectionHeader"
-            aria-expanded={sectionIsExpanded('objects')}
-            onClick={() => toggleSection('objects')}
-          >
-            <span className="mobileChatsSectionHeaderLabel">Объекты</span>
-            <span className="mobileChatsSectionHeaderMeta">
-              <span className="mobileChatsSectionHeaderCount">{sectionCounts.objects}</span>
-              <span className={`mobileChatsSectionHeaderChevron${sectionIsExpanded('objects') ? ' mobileChatsSectionHeaderChevron--open' : ''}`}>▼</span>
-            </span>
-          </button>
-
-          {sectionCounts.objects === 0 ? (
-            <div className="mobileEmptyState mobileCard">
-              <p className="mobileEmptyStateTitle">Объекты не найдены</p>
-              <p className="mobileEmptyStateHint">По текущему фильтру нет заявок, сгруппированных по объектам.</p>
-            </div>
-          ) : sectionIsExpanded('objects') ? (
-            <div className="mobileChatsList">
-              {objectRows.map((item) => (
-                <Link key={item.id} className="mobileChatsItem mobileChatsItem--object" to={item.href}>
-                  <div className={`mobileChatsRoomIcon mobileChatsRoomIcon--${item.iconTone}`} aria-hidden="true">
-                    <span className="mobileChatsRoomIconEmoji">🏢</span>
-                  </div>
-                  <div className="mobileChatsItemBody">
-                    <div className="mobileChatsItemTop">
-                      <div className="mobileChatsItemTitle">{item.title}</div>
-                      <div className="mobileChatsItemTime">
-                        {item.timeLabel}
-                        <span className="mobileChatsItemCount">{item.activeCount}</span>
-                      </div>
-                    </div>
-                    <div className="mobileChatsItemPreview mobileChatsItemPreview--strong">
-                      {chatView === 'active'
-                        ? `${item.activeCount} активных заявок`
-                        : `${item.activeCount} в архиве`}
-                    </div>
-                    <div className="mobileChatsItemPreview mobileChatsItemPreview--muted">{item.preview}</div>
-                  </div>
-                </Link>
-              ))}
-            </div>
-          ) : null}
-        </section>
-
-        {chatView === 'active' ? (
-          <section className="mobileChatsSection" aria-label="Внутренние">
+        {sectionRows.map((section) => (
+          <section className="mobileChatsSection" aria-label={section.title} key={section.id}>
             <button
               type="button"
               className="mobileChatsSectionHeader"
-              aria-expanded={sectionIsExpanded('internal')}
-              onClick={() => toggleSection('internal')}
+              aria-expanded={sectionIsExpanded(section.id)}
+              onClick={() => toggleSection(section.id)}
             >
-              <span className="mobileChatsSectionHeaderLabel">Внутренние</span>
+              <span className="mobileChatsSectionHeaderLabel">{section.title}</span>
               <span className="mobileChatsSectionHeaderMeta">
-                <span className="mobileChatsSectionHeaderCount">{sectionCounts.internal}</span>
-                <span className={`mobileChatsSectionHeaderChevron${sectionIsExpanded('internal') ? ' mobileChatsSectionHeaderChevron--open' : ''}`}>▼</span>
+                <span className="mobileChatsSectionHeaderCount">{section.count}</span>
+                <span className={`mobileChatsSectionHeaderChevron${sectionIsExpanded(section.id) ? ' mobileChatsSectionHeaderChevron--open' : ''}`}>▼</span>
               </span>
             </button>
 
-            {sectionCounts.internal === 0 ? (
-              <div className="mobileEmptyState mobileCard">
-                <p className="mobileEmptyStateTitle">Ничего не найдено</p>
-                <p className="mobileEmptyStateHint">Попробуйте другой поисковый запрос.</p>
-              </div>
-            ) : sectionIsExpanded('internal') ? (
-              <div className="mobileChatsList">
-                {internalRows.map((item) => (
-                  <div key={item.id} className="mobileChatsItem mobileChatsItem--static" aria-disabled="true">
-                    <div className={`mobileChatsRoomIcon mobileChatsRoomIcon--${item.iconTone}`} aria-hidden="true">
-                      <span className="mobileChatsRoomIconEmoji">{item.id === 'dispatch' ? '👥' : '🤝'}</span>
+            {section.id === 'my_work' ? (
+              section.count === 0 ? (
+                <div className="mobileEmptyState mobileCard">
+                  <p className="mobileEmptyStateTitle">{myWorkEmptyTitle}</p>
+                  <p className="mobileEmptyStateHint">{myWorkEmptyHint}</p>
+                  {search || filter !== 'all' ? (
+                    <button
+                      type="button"
+                      className="mobileChatsDialogBack"
+                      onClick={() => {
+                        setSearch('')
+                        setFilter('all')
+                      }}
+                    >
+                      Сбросить
+                    </button>
+                  ) : null}
+                </div>
+              ) : sectionIsExpanded(section.id) ? (
+                <div className="mobileChatsList">
+                  {myWorkTickets.map((ticket) =>
+                    renderTicketRow(ticket, `${mobilePath(location.pathname, `/chats/${ticket.id}`)}${location.search}`, 'work'),
+                  )}
+                </div>
+              ) : null
+            ) : null}
+
+            {section.id === 'objects' ? (
+              section.count === 0 ? (
+                <div className="mobileEmptyState mobileCard">
+                  <p className="mobileEmptyStateTitle">Объекты не найдены</p>
+                  <p className="mobileEmptyStateHint">По текущему фильтру нет рабочих заявок, сгруппированных по объектам.</p>
+                </div>
+              ) : sectionIsExpanded(section.id) ? (
+                <div className="mobileChatsList">
+                  {objectRows.map((item) => (
+                    <div key={item.id} className="mobileChatsObjectGroup">
+                      <button
+                        type="button"
+                        className="mobileChatsItem mobileChatsItem--object mobileChatsObjectRow"
+                        onClick={() => toggleObject(item.id)}
+                        aria-expanded={objectIsExpanded(item.id)}
+                      >
+                        <div className={`mobileChatsRoomIcon mobileChatsRoomIcon--${item.iconTone}`} aria-hidden="true">
+                          <span className="mobileChatsRoomIconEmoji">🏢</span>
+                        </div>
+                        <div className="mobileChatsItemBody">
+                          <div className="mobileChatsItemTop">
+                            <div className="mobileChatsItemTitle">{item.title}</div>
+                            <div className="mobileChatsItemTime">
+                              {item.timeLabel}
+                              <span className="mobileChatsItemCount">{item.activeCount}</span>
+                              <span className={`mobileChatsSectionHeaderChevron${objectIsExpanded(item.id) ? ' mobileChatsSectionHeaderChevron--open' : ''}`}>▼</span>
+                            </div>
+                          </div>
+                          <div className="mobileChatsItemPreview mobileChatsItemPreview--strong">
+                            {item.activeCount > 0 ? `${item.activeCount} активных заявок` : 'Нет активных заявок'}
+                          </div>
+                          <div className="mobileChatsItemPreview mobileChatsItemPreview--muted">{item.preview}</div>
+                        </div>
+                      </button>
+
+                      {objectIsExpanded(item.id) ? (
+                        <div className="mobileChatsNestedList">
+                          {item.tickets.map((ticket) =>
+                            renderTicketRow(ticket, `${mobilePath(location.pathname, `/chats/${ticket.id}`)}${location.search}`, 'nested'),
+                          )}
+                        </div>
+                      ) : null}
                     </div>
-                    <div className="mobileChatsItemBody">
-                      <div className="mobileChatsItemTop">
-                        <div className="mobileChatsItemTitle">{item.title}</div>
-                        <div className="mobileChatsItemTime">{item.timeLabel}</div>
+                  ))}
+                </div>
+              ) : null
+            ) : null}
+
+            {section.id === 'company' ? (
+              section.count === 0 ? (
+                <div className="mobileEmptyState mobileCard">
+                  <p className="mobileEmptyStateTitle">Внутренних каналов пока нет</p>
+                  <p className="mobileEmptyStateHint">Компания не содержит доступных внутренних каналов в этом контуре.</p>
+                </div>
+              ) : sectionIsExpanded(section.id) ? (
+                <div className="mobileChatsList">
+                  {companyRows.map((item) => (
+                    <div key={item.id} className="mobileChatsItem mobileChatsItem--static mobileChatsCompanyRow" aria-disabled="true">
+                      <div className={`mobileChatsRoomIcon mobileChatsRoomIcon--${item.iconTone}`} aria-hidden="true">
+                        <span className="mobileChatsRoomIconEmoji">💬</span>
                       </div>
-                      <div className="mobileChatsItemPreview mobileChatsItemPreview--strong">
-                        {item.preview}
+                      <div className="mobileChatsItemBody">
+                        <div className="mobileChatsItemTop">
+                          <div className="mobileChatsItemTitle">{item.title}</div>
+                          <div className="mobileChatsItemTime">Канал</div>
+                        </div>
+                        <div className="mobileChatsItemTitleSecondary">{item.preview}</div>
                       </div>
-                      <div className="mobileChatsItemPreview mobileChatsItemPreview--muted">Внутренний контур</div>
+                    </div>
+                  ))}
+                </div>
+              ) : null
+            ) : null}
+
+            {section.id === 'max' ? (
+              sectionIsExpanded(section.id) ? (
+                <div className="mobileChatsPromoCard mobileCard">
+                  <div className="mobileChatsPromoTop">
+                    <div className={`mobileChatsRoomIcon mobileChatsRoomIcon--${maxCard.iconTone}`} aria-hidden="true">
+                      <span className="mobileChatsRoomIconEmoji">🤖</span>
+                    </div>
+                    <div className="mobileChatsPromoBody">
+                      <div className="mobileChatsPromoTitle">{maxCard.title}</div>
+                      <div className="mobileChatsPromoText">{maxCard.description}</div>
                     </div>
                   </div>
-                ))}
-              </div>
+                  <Link className="mobileChatsPromoAction" to={maxCard.href}>
+                    {maxCard.actionLabel}
+                  </Link>
+                </div>
+              ) : null
+            ) : null}
+
+            {section.id === 'support' ? (
+              sectionIsExpanded(section.id) ? (
+                <div className="mobileChatsPromoCard mobileCard">
+                  <div className="mobileChatsPromoTop">
+                    <div className={`mobileChatsRoomIcon mobileChatsRoomIcon--${supportCard.iconTone}`} aria-hidden="true">
+                      <span className="mobileChatsRoomIconEmoji">🛟</span>
+                    </div>
+                    <div className="mobileChatsPromoBody">
+                      <div className="mobileChatsPromoTitle">{supportCard.title}</div>
+                      <div className="mobileChatsPromoText">{supportCard.description}</div>
+                    </div>
+                  </div>
+                  <div className="mobileChatsPromoActions">
+                    <a className="mobileChatsPromoAction mobileChatsPromoAction--secondary" href={SUPPORT_TELEGRAM_URL} target="_blank" rel="noreferrer">
+                      Telegram
+                    </a>
+                    <a className="mobileChatsPromoAction" href={SUPPORT_MAX_URL} target="_blank" rel="noreferrer">
+                      MAX
+                    </a>
+                  </div>
+                </div>
+              ) : null
+            ) : null}
+          </section>
+        ))}
+
+        {archiveTickets.length > 0 ? (
+          <section className="mobileChatsSection" aria-label="Архив">
+            <button
+              type="button"
+              className="mobileChatsSectionHeader"
+              aria-expanded={sectionIsExpanded('archive')}
+              onClick={() => toggleSection('archive')}
+            >
+              <span className="mobileChatsSectionHeaderLabel">Архив</span>
+              <span className="mobileChatsSectionHeaderMeta">
+                <span className="mobileChatsSectionHeaderCount">{sectionCounts.archive}</span>
+                <span className={`mobileChatsSectionHeaderChevron${sectionIsExpanded('archive') ? ' mobileChatsSectionHeaderChevron--open' : ''}`}>▼</span>
+              </span>
+            </button>
+
+            {sectionIsExpanded('archive') ? (
+              archiveTickets.length ? (
+                <div className="mobileChatsList">
+                  {archiveTickets.map((ticket) =>
+                    renderTicketRow(ticket, `${mobilePath(location.pathname, `/chats/${ticket.id}`)}${location.search}`, 'archive'),
+                  )}
+                </div>
+              ) : (
+                <div className="mobileEmptyState mobileCard">
+                  <p className="mobileEmptyStateTitle">{archiveEmptyTitle}</p>
+                  <p className="mobileEmptyStateHint">{archiveEmptyHint}</p>
+                </div>
+              )
             ) : null}
           </section>
         ) : null}

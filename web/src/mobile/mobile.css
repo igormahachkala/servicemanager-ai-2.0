@@ -2235,6 +2235,121 @@ a.mobileBtn.mobileCreateTicketLink {
   min-width: 0;
 }
 
+.mobileChatsObjectGroup {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.mobileChatsNestedList {
+  display: grid;
+  gap: 6px;
+  padding-left: 10px;
+  border-left: 1px solid #e5e7eb;
+  margin-left: 12px;
+  min-width: 0;
+}
+
+.mobileChatsObjectRow {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 12px;
+  box-shadow: 0 4px 14px rgba(17, 24, 39, 0.04);
+}
+
+.mobileChatsCompanyRow {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 12px;
+}
+
+.mobileChatsItem--compact {
+  padding: 10px 2px 10px 4px;
+}
+
+.mobileChatsItem--compact .mobileChatsRoomIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+}
+
+.mobileChatsItem--compact .mobileChatsItemTitle {
+  font-size: 0.88rem;
+}
+
+.mobileChatsItem--compact .mobileChatsItemTitleSecondary,
+.mobileChatsItem--compact .mobileChatsItemPreview {
+  font-size: 0.82rem;
+}
+
+.mobileChatsPromoCard {
+  display: grid;
+  gap: 12px;
+  padding: 14px !important;
+  border-radius: 18px;
+  border: 1px solid #dbeafe;
+  background: linear-gradient(180deg, #f8fbff 0%, #eef6ff 100%);
+}
+
+.mobileChatsPromoTop {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.mobileChatsPromoBody {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.mobileChatsPromoTitle {
+  font-size: 0.98rem;
+  font-weight: 900;
+  color: #111827;
+}
+
+.mobileChatsPromoText {
+  font-size: 0.84rem;
+  line-height: 1.35;
+  color: #475569;
+  overflow-wrap: anywhere;
+}
+
+.mobileChatsPromoActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mobileChatsPromoAction {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 40px;
+  border-radius: 12px;
+  border: 1px solid #2563eb;
+  background: #2563eb;
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  text-decoration: none;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.mobileChatsPromoAction--secondary {
+  background: #ffffff;
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+}
+
 .mobileChatsRow {
   display: flex;
   gap: 12px;
