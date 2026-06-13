@@ -4844,3 +4844,41 @@ a.mobileBtn.mobileCreateTicketLink {
 }
 .mobileSummaryChevron { font-size: 0.7rem; color: #9ca3af; flex-shrink: 0; }
 .mobileSummaryBlock .mobileStatsGrid { margin-top: 6px; }
+
+/* SMA-CHAT-136: compact Telegram-style chat rows (denser, more per screen) */
+.mobileChatsItem {
+  padding: 9px 4px;
+  gap: 10px;
+  align-items: center;
+}
+.mobileChatsItemBody {
+  gap: 1px;
+}
+.mobileChatsItemTop {
+  align-items: center;
+}
+.mobileChatsItemTitle {
+  font-size: 0.9rem;
+}
+/* Last-message line: single row with ellipsis, like a messenger */
+.mobileChatsItemPreview {
+  margin-top: 0;
+  font-size: 0.82rem;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mobileChatsItemTitleSecondary {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #4b5563;
+}
+.mobileChatsItemMeta {
+  font-size: 0.72rem;
+}
+.mobileChatsItemTime {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  color: #9ca3af;
+}
