@@ -931,7 +931,7 @@ export function MobileTicketPage() {
           : null,
         { id: 'comment', label: 'Добавить комментарий', icon: '💬', onClick: openChatComposer },
         { id: 'photo', label: 'Добавить фото', icon: '📷', onClick: () => setDetailTab('photos') },
-        { id: 'chat', label: 'Открыть чат', icon: '🗨️', onClick: () => setDetailTab('chat') },
+        { id: 'chat', label: 'Открыть чат', icon: '🗨️', onClick: () => navigate(api.appendScopeToPath(mobilePath(location.pathname, `/chats/${ticket.id}`), scopeNorm, meQ.data)) },
         { id: 'history', label: 'Открыть историю', icon: '🕘', onClick: () => setDetailTab('history') },
         { id: 'object', label: 'Открыть объект', icon: '📍', onClick: () => setDetailTab('info') },
         canShowComplete
