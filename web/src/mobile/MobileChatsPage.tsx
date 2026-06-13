@@ -43,6 +43,8 @@ type ChatsInternalItem = {
   iconTone: string
 }
 
+type ChatsSectionId = 'tickets' | 'objects' | 'internal'
+
 const CHAT_FILTERS: Array<{ id: ChatsFilter; label: string }> = [
   { id: 'all', label: 'Все' },
   { id: 'mine', label: 'Мои' },
@@ -161,6 +163,7 @@ export function MobileChatsPage() {
   const [composerError, setComposerError] = useState('')
   const [activeTab, setActiveTab] = useState<ChatTab>('chat')
   const [viewer, setViewer] = useState<{ items: PhotoViewerItem[]; index: number } | null>(null)
+  const [collapsedSections, setCollapsedSections] = useState<Partial<Record<ChatsSectionId, boolean>>>({})
 
   const boardQ = useQuery({
     queryKey: ['mobile-chats-board', boardParams.companyId || '', boardParams.linkedClientCompanyId || ''],
@@ -286,6 +289,42 @@ export function MobileChatsPage() {
     if (!q) return rows
     return rows.filter((row) => normalizeSearchText([row.title, row.preview, row.timeLabel].join(' ')).includes(q))
   }, [search])
+
+  const searchQuery = normalizeSearchText(search)
+
+  const sectionCounts = useMemo(
+    () => ({
+      tickets: ticketRows.length,
+      objects: objectRows.length,
+      internal: internalRows.length,
+    }),
+    [internalRows.length, objectRows.length, ticketRows.length],
+  )
+
+  const sectionDefaults = useMemo(
+    () => ({
+      tickets: false,
+      objects: sectionCounts.objects > 3,
+      internal: true,
+    }),
+    [sectionCounts.objects],
+  )
+
+  const sectionIsExpanded = (section: ChatsSectionId): boolean => {
+    const hasSearchMatches = searchQuery.length > 0 && sectionCounts[section] > 0
+    if (hasSearchMatches) return true
+    const explicit = collapsedSections[section]
+    if (typeof explicit === 'boolean') return !explicit
+    return !sectionDefaults[section]
+  }
+
+  const toggleSection = (section: ChatsSectionId) => {
+    const nextExpanded = !sectionIsExpanded(section)
+    setCollapsedSections((current) => ({
+      ...current,
+      [section]: !nextExpanded,
+    }))
+  }
 
   const ticketReadScopes = useMemo(
     () =>
@@ -721,9 +760,37 @@ export function MobileChatsPage() {
 
       <div className="mobileChatsSections">
         <section className="mobileChatsSection" aria-label="Заявки">
-          <div className="mobileChatsSectionTitle">Заявки</div>
+          <button
+            type="button"
+            className="mobileChatsSectionHeader"
+            aria-expanded={sectionIsExpanded('tickets')}
+            onClick={() => toggleSection('tickets')}
+          >
+            <span className="mobileChatsSectionHeaderLabel">Заявки</span>
+            <span className="mobileChatsSectionHeaderMeta">
+              <span className="mobileChatsSectionHeaderCount">{sectionCounts.tickets}</span>
+              <span className={`mobileChatsSectionHeaderChevron${sectionIsExpanded('tickets') ? ' mobileChatsSectionHeaderChevron--open' : ''}`}>▼</span>
+            </span>
+          </button>
 
-          {ticketRows.length ? (
+          {sectionCounts.tickets === 0 ? (
+            <div className="mobileEmptyState mobileCard">
+              <p className="mobileEmptyStateTitle">{emptyTitle}</p>
+              <p className="mobileEmptyStateHint">{emptyHint}</p>
+              {search || filter !== 'all' ? (
+                <button
+                  type="button"
+                  className="mobileChatsDialogBack"
+                  onClick={() => {
+                    setSearch('')
+                    setFilter('all')
+                  }}
+                >
+                  Сбросить
+                </button>
+              ) : null}
+            </div>
+          ) : sectionIsExpanded('tickets') ? (
             <div className="mobileChatsList">
               {ticketRows.map(({ ticket, href, preview }) => {
                 return (
@@ -743,9 +810,7 @@ export function MobileChatsPage() {
 
                       <div className="mobileChatsItemTitleSecondary">{ticketChatTitle(ticket)}</div>
 
-                      <div className="mobileChatsItemPreview">
-                        {preview}
-                      </div>
+                      <div className="mobileChatsItemPreview">{preview}</div>
 
                       <div className="mobileChatsItemMeta">
                         <div className="mobileChatsItemMetaLeft">{ticketLocationLabel(ticket)}</div>
@@ -761,29 +826,29 @@ export function MobileChatsPage() {
                 )
               })}
             </div>
-          ) : (
-            <div className="mobileEmptyState mobileCard">
-              <p className="mobileEmptyStateTitle">{emptyTitle}</p>
-              <p className="mobileEmptyStateHint">{emptyHint}</p>
-              {search || filter !== 'all' ? (
-                <button
-                  type="button"
-                  className="mobileChatsDialogBack"
-                  onClick={() => {
-                    setSearch('')
-                    setFilter('all')
-                  }}
-                >
-                  Сбросить
-                </button>
-              ) : null}
-            </div>
-          )}
+          ) : null}
         </section>
 
         <section className="mobileChatsSection" aria-label="Объекты">
-          <div className="mobileChatsSectionTitle">Объекты</div>
-          {objectRows.length ? (
+          <button
+            type="button"
+            className="mobileChatsSectionHeader"
+            aria-expanded={sectionIsExpanded('objects')}
+            onClick={() => toggleSection('objects')}
+          >
+            <span className="mobileChatsSectionHeaderLabel">Объекты</span>
+            <span className="mobileChatsSectionHeaderMeta">
+              <span className="mobileChatsSectionHeaderCount">{sectionCounts.objects}</span>
+              <span className={`mobileChatsSectionHeaderChevron${sectionIsExpanded('objects') ? ' mobileChatsSectionHeaderChevron--open' : ''}`}>▼</span>
+            </span>
+          </button>
+
+          {sectionCounts.objects === 0 ? (
+            <div className="mobileEmptyState mobileCard">
+              <p className="mobileEmptyStateTitle">Объекты не найдены</p>
+              <p className="mobileEmptyStateHint">По текущему фильтру нет заявок, сгруппированных по объектам.</p>
+            </div>
+          ) : sectionIsExpanded('objects') ? (
             <div className="mobileChatsList">
               {objectRows.map((item) => (
                 <Link key={item.id} className="mobileChatsItem mobileChatsItem--object" to={item.href}>
@@ -806,17 +871,29 @@ export function MobileChatsPage() {
                 </Link>
               ))}
             </div>
-          ) : (
-            <div className="mobileEmptyState mobileCard">
-              <p className="mobileEmptyStateTitle">Объекты не найдены</p>
-              <p className="mobileEmptyStateHint">По текущему фильтру нет заявок, сгруппированных по объектам.</p>
-            </div>
-          )}
+          ) : null}
         </section>
 
         <section className="mobileChatsSection" aria-label="Внутренние">
-          <div className="mobileChatsSectionTitle">Внутренние</div>
-          {internalRows.length ? (
+          <button
+            type="button"
+            className="mobileChatsSectionHeader"
+            aria-expanded={sectionIsExpanded('internal')}
+            onClick={() => toggleSection('internal')}
+          >
+            <span className="mobileChatsSectionHeaderLabel">Внутренние</span>
+            <span className="mobileChatsSectionHeaderMeta">
+              <span className="mobileChatsSectionHeaderCount">{sectionCounts.internal}</span>
+              <span className={`mobileChatsSectionHeaderChevron${sectionIsExpanded('internal') ? ' mobileChatsSectionHeaderChevron--open' : ''}`}>▼</span>
+            </span>
+          </button>
+
+          {sectionCounts.internal === 0 ? (
+            <div className="mobileEmptyState mobileCard">
+              <p className="mobileEmptyStateTitle">Ничего не найдено</p>
+              <p className="mobileEmptyStateHint">Попробуйте другой поисковый запрос.</p>
+            </div>
+          ) : sectionIsExpanded('internal') ? (
             <div className="mobileChatsList">
               {internalRows.map((item) => (
                 <div key={item.id} className="mobileChatsItem mobileChatsItem--static" aria-disabled="true">
@@ -836,12 +913,7 @@ export function MobileChatsPage() {
                 </div>
               ))}
             </div>
-          ) : (
-            <div className="mobileEmptyState mobileCard">
-              <p className="mobileEmptyStateTitle">Ничего не найдено</p>
-              <p className="mobileEmptyStateHint">Попробуйте другой поисковый запрос.</p>
-            </div>
-          )}
+          ) : null}
         </section>
       </div>
     </div>
