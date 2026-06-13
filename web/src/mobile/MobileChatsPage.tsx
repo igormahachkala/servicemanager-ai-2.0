@@ -24,6 +24,25 @@ type ChatsListItem = api.TicketCard & {
   lastActivityAt: string
 }
 
+type ChatsObjectItem = {
+  id: string
+  title: string
+  activeCount: number
+  preview: string
+  timeLabel: string
+  lastActivityAt: string
+  href: string
+  iconTone: string
+}
+
+type ChatsInternalItem = {
+  id: string
+  title: string
+  preview: string
+  timeLabel: string
+  iconTone: string
+}
+
 const CHAT_FILTERS: Array<{ id: ChatsFilter; label: string }> = [
   { id: 'all', label: 'Все' },
   { id: 'mine', label: 'Мои' },
@@ -83,8 +102,12 @@ function ticketHasPhoto(ticket: api.TicketCard): boolean {
   return !!ticket.attachmentPreviewUrl || (ticket.imageAttachmentCount ?? 0) > 0
 }
 
-function ticketPrimaryLabel(ticket: api.TicketCard): string {
-  return (ticket.description || ticket.title || ticket.category?.name || 'Без темы').trim()
+function ticketChatTitle(ticket: api.TicketCard): string {
+  return (ticket.title || ticket.description || ticket.category?.name || 'Без темы').trim()
+}
+
+function ticketChatPreview(ticket: api.TicketCard): string {
+  return (ticket.description || 'Обсуждение по заявке').trim()
 }
 
 function ticketLocationLabel(ticket: api.TicketCard): string {
@@ -120,6 +143,10 @@ function isNotFoundGetTicketError(err: unknown): boolean {
 
 function chatListIconClass(status: api.TicketStatus) {
   return `mobileChatsRoomIcon mobileChatsRoomIcon--${ticketStatusTone(status)}`
+}
+
+function objectChatSearchBlob(item: ChatsObjectItem): string {
+  return normalizeSearchText([item.title, item.preview, item.timeLabel, String(item.activeCount)].filter(Boolean).join(' '))
 }
 
 export function MobileChatsPage() {
@@ -174,6 +201,91 @@ export function MobileChatsPage() {
       return ticketSearchBlob(ticket).includes(q)
     })
   }, [allTickets, filter, me?.id, me?.role, search])
+
+  const ticketRows = useMemo(() => {
+    return filteredTickets.map((ticket) => ({
+      ticket,
+      href: `${mobilePath(location.pathname, `/chats/${ticket.id}`)}${location.search}`,
+      preview: ticketChatPreview(ticket),
+    }))
+  }, [filteredTickets, location.pathname, location.search])
+
+  const objectRows = useMemo<ChatsObjectItem[]>(() => {
+    const q = normalizeSearchText(search)
+    const map = new Map<string, {
+      title: string
+      activeCount: number
+      preview: string
+      timeLabel: string
+      lastActivityAt: string
+      ticketId: string
+      iconTone: string
+    }>()
+
+    for (const ticket of filteredTickets) {
+      const key = ticket.location?.id || ticket.location?.name || ticket.pointName || `ticket:${ticket.id}`
+      const title = ticket.location?.name || ticket.pointName || ticket.location?.address || 'Без объекта'
+      const current = map.get(key)
+      const lastActivityAt = ticket.lastActivityAt
+      const activeCount = ticket.status === 'DONE' || ticket.status === 'CANCELED' ? 0 : 1
+      const preview = ticket.description || ticket.title || ticket.category?.name || 'Обсуждение по заявке'
+      const nextPreview = current && current.lastActivityAt >= lastActivityAt ? current.preview : preview
+      const nextTicketId = current && current.lastActivityAt >= lastActivityAt ? current.ticketId : ticket.id
+      const nextTone = current && current.lastActivityAt >= lastActivityAt ? current.iconTone : ticketStatusTone(ticket.status)
+      map.set(key, {
+        title,
+        activeCount: (current?.activeCount || 0) + activeCount,
+        preview: nextPreview,
+        timeLabel: formatLastActivity(lastActivityAt),
+        lastActivityAt: current && current.lastActivityAt > lastActivityAt ? current.lastActivityAt : lastActivityAt,
+        ticketId: nextTicketId,
+        iconTone: nextTone,
+      })
+    }
+
+    return Array.from(map.entries())
+      .map(([id, item]) => ({
+        id,
+        title: item.title,
+        activeCount: item.activeCount,
+        preview: item.preview,
+        timeLabel: item.timeLabel,
+        lastActivityAt: item.lastActivityAt,
+        href: `${mobilePath(location.pathname, `/chats/${item.ticketId}`)}${location.search}`,
+        iconTone: item.iconTone,
+      }))
+      .filter((item) => {
+        if (!q) return true
+        return objectChatSearchBlob(item).includes(q)
+      })
+      .sort((a, b) => {
+        const at = new Date(a.lastActivityAt).getTime()
+        const bt = new Date(b.lastActivityAt).getTime()
+        return (Number.isFinite(bt) ? bt : 0) - (Number.isFinite(at) ? at : 0)
+      })
+  }, [filteredTickets, location.pathname, location.search, search])
+
+  const internalRows = useMemo<ChatsInternalItem[]>(() => {
+    const rows: ChatsInternalItem[] = [
+      {
+        id: 'dispatch',
+        title: 'Диспетчерская',
+        preview: 'Внутренний чат',
+        timeLabel: 'Сейчас',
+        iconTone: 'violet',
+      },
+      {
+        id: 'contractors',
+        title: 'Подрядчики',
+        preview: 'Чаты с подрядчиками',
+        timeLabel: 'Скоро',
+        iconTone: 'teal',
+      },
+    ]
+    const q = normalizeSearchText(search)
+    if (!q) return rows
+    return rows.filter((row) => normalizeSearchText([row.title, row.preview, row.timeLabel].join(' ')).includes(q))
+  }, [search])
 
   const ticketReadScopes = useMemo(
     () =>
@@ -577,7 +689,7 @@ export function MobileChatsPage() {
       <div className="mobileChatsTop">
         <div>
           <h1 className="mobileTitle mobileChatsAppTitle">Чаты</h1>
-          <div className="mobileSubtitle">Разговоры по реальным заявкам</div>
+          <div className="mobileSubtitle">Разговоры по заявкам, объектам и внутренним группам</div>
         </div>
 
         <div className="mobileChatsSearchRow">
@@ -611,10 +723,9 @@ export function MobileChatsPage() {
         <section className="mobileChatsSection" aria-label="Заявки">
           <div className="mobileChatsSectionTitle">Заявки</div>
 
-          {filteredTickets.length ? (
+          {ticketRows.length ? (
             <div className="mobileChatsList">
-              {filteredTickets.map((ticket) => {
-                const href = `${mobilePath(location.pathname, `/chats/${ticket.id}`)}${location.search}`
+              {ticketRows.map(({ ticket, href, preview }) => {
                 return (
                   <Link key={ticket.id} className="mobileChatsItem" to={href}>
                     <div className={chatListIconClass(ticket.status)} aria-hidden="true">
@@ -623,15 +734,18 @@ export function MobileChatsPage() {
 
                     <div className="mobileChatsItemBody">
                       <div className="mobileChatsItemTop">
-                        <div className="mobileChatsItemTitle">{mobileTicketNumberTitle(ticket.ticketNumber)}</div>
+                        <div className="mobileChatsItemTopLeft">
+                          <div className="mobileChatsItemTitle">{mobileTicketNumberTitle(ticket.ticketNumber)}</div>
+                          <span className={`mobileChatsIndicator mobileChatsIndicator--${ticket.status}`} aria-hidden="true" />
+                        </div>
                         <div className="mobileChatsItemTime">{formatLastActivity(ticket.lastActivityAt)}</div>
                       </div>
 
-                      <div className="mobileChatsItemPreview" style={{ color: '#111827', fontWeight: 700 }}>
-                        {ticketPrimaryLabel(ticket)}
-                      </div>
+                      <div className="mobileChatsItemTitleSecondary">{ticketChatTitle(ticket)}</div>
 
-                      <div className="mobileChatsItemPreview">Обсуждение по заявке</div>
+                      <div className="mobileChatsItemPreview">
+                        {preview}
+                      </div>
 
                       <div className="mobileChatsItemMeta">
                         <div className="mobileChatsItemMetaLeft">{ticketLocationLabel(ticket)}</div>
@@ -663,6 +777,69 @@ export function MobileChatsPage() {
                   Сбросить
                 </button>
               ) : null}
+            </div>
+          )}
+        </section>
+
+        <section className="mobileChatsSection" aria-label="Объекты">
+          <div className="mobileChatsSectionTitle">Объекты</div>
+          {objectRows.length ? (
+            <div className="mobileChatsList">
+              {objectRows.map((item) => (
+                <Link key={item.id} className="mobileChatsItem mobileChatsItem--object" to={item.href}>
+                  <div className={`mobileChatsRoomIcon mobileChatsRoomIcon--${item.iconTone}`} aria-hidden="true">
+                    <span className="mobileChatsRoomIconEmoji">🏢</span>
+                  </div>
+                  <div className="mobileChatsItemBody">
+                    <div className="mobileChatsItemTop">
+                      <div className="mobileChatsItemTitle">{item.title}</div>
+                      <div className="mobileChatsItemTime">
+                        {item.timeLabel}
+                        <span className="mobileChatsItemCount">{item.activeCount}</span>
+                      </div>
+                    </div>
+                    <div className="mobileChatsItemPreview mobileChatsItemPreview--strong">
+                      {item.activeCount > 0 ? `${item.activeCount} активных заявок` : 'Нет активных заявок'}
+                    </div>
+                    <div className="mobileChatsItemPreview mobileChatsItemPreview--muted">{item.preview}</div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <div className="mobileEmptyState mobileCard">
+              <p className="mobileEmptyStateTitle">Объекты не найдены</p>
+              <p className="mobileEmptyStateHint">По текущему фильтру нет заявок, сгруппированных по объектам.</p>
+            </div>
+          )}
+        </section>
+
+        <section className="mobileChatsSection" aria-label="Внутренние">
+          <div className="mobileChatsSectionTitle">Внутренние</div>
+          {internalRows.length ? (
+            <div className="mobileChatsList">
+              {internalRows.map((item) => (
+                <div key={item.id} className="mobileChatsItem mobileChatsItem--static" aria-disabled="true">
+                  <div className={`mobileChatsRoomIcon mobileChatsRoomIcon--${item.iconTone}`} aria-hidden="true">
+                    <span className="mobileChatsRoomIconEmoji">{item.id === 'dispatch' ? '👥' : '🤝'}</span>
+                  </div>
+                  <div className="mobileChatsItemBody">
+                    <div className="mobileChatsItemTop">
+                      <div className="mobileChatsItemTitle">{item.title}</div>
+                      <div className="mobileChatsItemTime">{item.timeLabel}</div>
+                    </div>
+                    <div className="mobileChatsItemPreview mobileChatsItemPreview--strong">
+                      {item.preview}
+                    </div>
+                    <div className="mobileChatsItemPreview mobileChatsItemPreview--muted">Внутренний контур</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="mobileEmptyState mobileCard">
+              <p className="mobileEmptyStateTitle">Ничего не найдено</p>
+              <p className="mobileEmptyStateHint">Попробуйте другой поисковый запрос.</p>
             </div>
           )}
         </section>

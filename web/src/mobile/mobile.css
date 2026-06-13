@@ -2182,11 +2182,8 @@ a.mobileBtn.mobileCreateTicketLink {
   gap: 12px;
   align-items: flex-start;
   width: 100%;
-  padding: 12px 12px 12px 10px;
-  border: 1px solid #e5e7eb;
-  border-radius: 18px;
-  background: #ffffff;
-  box-shadow: 0 4px 14px rgba(17, 24, 39, 0.05);
+  padding: 12px 4px;
+  border-bottom: 1px solid #e5e7eb;
   text-align: left;
   overflow: hidden;
   min-width: 0;
@@ -2201,11 +2198,11 @@ a.mobileBtn.mobileCreateTicketLink {
   gap: 12px;
   align-items: flex-start;
   width: 100%;
-  padding: 12px 12px 12px 10px;
-  border: 1px solid #e5e7eb;
-  border-radius: 18px;
-  background: #ffffff;
-  box-shadow: 0 4px 14px rgba(17, 24, 39, 0.05);
+  padding: 12px 4px;
+  border-bottom: 1px solid #e5e7eb;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
   text-align: left;
   overflow: hidden;
   min-width: 0;
@@ -2214,6 +2211,14 @@ a.mobileBtn.mobileCreateTicketLink {
   appearance: none;
   -webkit-appearance: none;
   cursor: pointer;
+}
+
+.mobileChatsItem--static {
+  opacity: 0.96;
+}
+
+.mobileChatsItem--object {
+  align-items: center;
 }
 
 .mobileChatsItemBody {
@@ -2231,11 +2236,30 @@ a.mobileBtn.mobileCreateTicketLink {
   min-width: 0;
 }
 
+.mobileChatsItemTopLeft {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 auto;
+}
+
 .mobileChatsItemTitle {
   min-width: 0;
   font-size: 0.92rem;
   font-weight: 800;
   color: #111827;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobileChatsItemTitleSecondary {
+  min-width: 0;
+  font-size: 0.88rem;
+  line-height: 1.28;
+  color: #111827;
+  font-weight: 700;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2266,6 +2290,15 @@ a.mobileBtn.mobileCreateTicketLink {
   line-height: 1.25;
   color: #6b7280;
   overflow-wrap: anywhere;
+}
+
+.mobileChatsItemPreview--strong {
+  color: #111827;
+  font-weight: 700;
+}
+
+.mobileChatsItemPreview--muted {
+  color: #6b7280;
 }
 
 .mobileChatsPhotoChip {
@@ -2304,6 +2337,48 @@ a.mobileBtn.mobileCreateTicketLink {
 .mobileChatsRoomIconEmoji {
   font-size: 1.1rem;
   line-height: 1;
+}
+
+.mobileChatsItemCount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.mobileChatsIndicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+  background: #cbd5e1;
+}
+
+.mobileChatsIndicator--NEW {
+  background: #f59e0b;
+}
+
+.mobileChatsIndicator--ASSIGNED {
+  background: #3b82f6;
+}
+
+.mobileChatsIndicator--IN_PROGRESS {
+  background: #7c3aed;
+}
+
+.mobileChatsIndicator--DONE {
+  background: #10b981;
+}
+
+.mobileChatsIndicator--CANCELED {
+  background: #94a3b8;
 }
 
 .mobileChatsRowBody {
