@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
@@ -29,6 +29,11 @@ const ITEM_MOD: Record<api.InspectionRunItemStatus, string> = {
   SKIPPED: 'skipped',
 }
 
+type CreatedInspectionTicket = {
+  ticketId: string
+  ticketNumber?: number | null
+}
+
 export function MobileInspectionRunPage() {
   const params = useParams<{ runId: string }>()
   const runId = params.runId || ''
@@ -41,11 +46,19 @@ export function MobileInspectionRunPage() {
   const [confirmComplete, setConfirmComplete] = useState(false)
   const [completeBusy, setCompleteBusy] = useState(false)
   const [flashMsg, setFlashMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
+  const [createdTicketsByItemId, setCreatedTicketsByItemId] = useState<Record<string, CreatedInspectionTicket>>({})
+  const [uploadBusyItemIds, setUploadBusyItemIds] = useState<Set<string>>(new Set())
+  const [uploadTargetItemId, setUploadTargetItemId] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const runQ = useQuery({
     queryKey: ['inspection-run', runId],
     queryFn: () => api.getInspectionRun(runId),
     enabled: !!runId,
+  })
+  const categoriesQ = useQuery<api.ProblemCategoryListItem[]>({
+    queryKey: ['problem-categories'],
+    queryFn: () => api.problemCategories(),
   })
 
   const updateM = useMutation({
@@ -53,16 +66,32 @@ export function MobileInspectionRunPage() {
       api.updateInspectionRunItem(runId, input.itemId, input.payload),
   })
 
+  const uploadM = useMutation({
+    mutationFn: (input: { itemId: string; file: File }) =>
+      api.uploadInspectionRunItemAttachment(runId, input.itemId, input.file),
+  })
+
   const backHref = mobilePath(location.pathname, '/my')
+
+  const activeCategories = useMemo(
+    () => (categoriesQ.data || []).filter((row) => row.isActive !== false),
+    [categoriesQ.data],
+  )
 
   async function invalidate() {
     await queryClient.invalidateQueries({ queryKey: ['inspection-run', runId] })
     await queryClient.invalidateQueries({ queryKey: ['inspection-runs'] })
+    await queryClient.invalidateQueries({ queryKey: ['board'] })
+    await queryClient.invalidateQueries({ queryKey: ['tickets'] })
   }
 
   function flash(type: 'ok' | 'err', text: string) {
     setFlashMsg({ type, text })
     setTimeout(() => setFlashMsg(null), 3000)
+  }
+
+  function getCreatedTicketId(item: api.InspectionRunItem): string {
+    return (item.ticketId || item.ticket?.id || createdTicketsByItemId[item.id]?.ticketId || '').trim()
   }
 
   async function markOk(itemId: string) {
@@ -96,6 +125,43 @@ export function MobileInspectionRunPage() {
     }
   }
 
+  async function createTicket(item: api.InspectionRunItem) {
+    if (busyItemIds.has(item.id)) return
+    const categoryId = activeCategories[0]?.id || ''
+    if (!categoryId) {
+      flash('err', 'Нет активной категории для создания заявки')
+      return
+    }
+    if (getCreatedTicketId(item)) return
+    setBusyItemIds((s) => new Set(s).add(item.id))
+    try {
+      const created = await api.createTicketFromInspectionItem(runId, item.id, {
+        categoryId,
+        title: item.title?.trim() || undefined,
+        description: item.comment?.trim() || item.description?.trim() || undefined,
+        urgency: item.status === 'CRITICAL' ? 'URGENT' : 'NOT_URGENT',
+      })
+      const ticketId = created.ticket?.id || ''
+      const ticketNumber = created.ticket?.ticketNumber ?? null
+      if (ticketId) {
+        setCreatedTicketsByItemId((current) => ({
+          ...current,
+          [item.id]: { ticketId, ticketNumber },
+        }))
+      }
+      flash('ok', ticketNumber != null ? `Заявка #${ticketNumber} создана` : 'Заявка создана')
+      await invalidate()
+    } catch (err: any) {
+      flash('err', err?.message || String(err))
+    } finally {
+      setBusyItemIds((s) => {
+        const n = new Set(s)
+        n.delete(item.id)
+        return n
+      })
+    }
+  }
+
   async function completeRun() {
     setCompleteBusy(true)
     try {
@@ -107,6 +173,24 @@ export function MobileInspectionRunPage() {
       flash('err', err?.message || String(err))
     } finally {
       setCompleteBusy(false)
+    }
+  }
+
+  async function handleFilesSelected(files: FileList | null) {
+    if (!files || files.length === 0 || !uploadTargetItemId) return
+    const itemId = uploadTargetItemId
+    setUploadBusyItemIds((s) => new Set(s).add(itemId))
+    try {
+      for (const file of Array.from(files)) {
+        await uploadM.mutateAsync({ itemId, file })
+      }
+      await invalidate()
+    } catch (err: any) {
+      flash('err', err?.message || String(err))
+    } finally {
+      setUploadBusyItemIds((s) => { const n = new Set(s); n.delete(itemId); return n })
+      setUploadTargetItemId(null)
+      if (fileInputRef.current) fileInputRef.current.value = ''
     }
   }
 
@@ -218,7 +302,11 @@ export function MobileInspectionRunPage() {
               {run.items.map((item) => {
                 const mod = ITEM_MOD[item.status]
                 const busy = busyItemIds.has(item.id)
+                const uploadBusy = uploadBusyItemIds.has(item.id)
                 const isShowingIssueForm = activeIssueItemId === item.id
+                const createdTicketId = getCreatedTicketId(item)
+                const createdTicketNumber = createdTicketsByItemId[item.id]?.ticketNumber ?? null
+                const canCreateTicket = (item.status === 'ISSUE' || item.status === 'CRITICAL') && !createdTicketId
                 return (
                   <div key={item.id} className={`mobilePatrolItem mobilePatrolItem--${mod}`}>
                     <div className="mobilePatrolItemTop">
@@ -235,11 +323,20 @@ export function MobileInspectionRunPage() {
                       <div className="mobilePatrolItemComment">"{item.comment}"</div>
                     ) : null}
                     {item.attachments.length > 0 ? (
-                      <div className="mobilePatrolItemPhotos">📷 {item.attachments.length} фото</div>
+                      <div className="mobilePatrolItemPhotos">
+                        {item.attachments.map((a) => (
+                          <img
+                            key={a.id}
+                            src={api.resolveInspectionAttachmentUrl(a)}
+                            alt=""
+                            className="mobilePatrolItemPhoto"
+                          />
+                        ))}
+                      </div>
                     ) : null}
-                    {item.ticketId ? (
+                    {createdTicketId ? (
                       <div style={{ fontSize: '0.8rem', color: '#2563eb', fontWeight: 600 }}>
-                        Заявка создана
+                        {createdTicketNumber != null ? `Заявка #${createdTicketNumber} создана` : 'Заявка создана'}
                       </div>
                     ) : null}
 
@@ -270,6 +367,18 @@ export function MobileInspectionRunPage() {
                             {isShowingIssueForm ? 'Отмена' : 'Нарушение'}
                           </button>
                         ) : null}
+                        <button
+                          type="button"
+                          className="mobileBtn mobileBtnSecondary"
+                          style={{ minHeight: 34, padding: '6px 14px', fontSize: '0.82rem', borderRadius: 8 }}
+                          disabled={uploadBusy}
+                          onClick={() => {
+                            setUploadTargetItemId(item.id)
+                            fileInputRef.current?.click()
+                          }}
+                        >
+                          {uploadBusy ? 'Загружаем…' : '📷 Фото'}
+                        </button>
                       </div>
                     ) : busy ? (
                       <div className="mobileMeta" style={{ fontSize: '0.82rem' }}>Сохраняем…</div>
@@ -294,6 +403,32 @@ export function MobileInspectionRunPage() {
                         >
                           Подтвердить нарушение
                         </button>
+                      </div>
+                    ) : null}
+
+                    {canCreateTicket ? (
+                      <div className="mobilePatrolItemActions">
+                        <button
+                          type="button"
+                          className="mobileBtn"
+                          style={{ minHeight: 34, padding: '6px 14px', fontSize: '0.82rem', borderRadius: 8 }}
+                          disabled={busy}
+                          onClick={() => createTicket(item)}
+                        >
+                          {busy ? 'Создаём…' : 'Создать заявку'}
+                        </button>
+                      </div>
+                    ) : null}
+
+                    {createdTicketId ? (
+                      <div className="mobilePatrolItemActions">
+                        <Link
+                          to={mobilePath(location.pathname, `/tickets/${createdTicketId}`)}
+                          className="mobileBtn mobileBtnSecondary"
+                          style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minHeight: 34, padding: '6px 14px', fontSize: '0.82rem', borderRadius: 8 }}
+                        >
+                          Открыть заявку
+                        </Link>
                       </div>
                     ) : null}
                   </div>
@@ -345,6 +480,15 @@ export function MobileInspectionRunPage() {
           </>
         ) : null}
       </div>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        style={{ display: 'none' }}
+        onChange={(e) => handleFilesSelected(e.target.files)}
+      />
     </>
   )
 }

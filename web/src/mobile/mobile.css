@@ -4735,7 +4735,8 @@ a.mobileBtn.mobileCreateTicketLink {
 .mobilePatrolItemBadge--skipped  { background: #f3f4f6; color: #9ca3af; }
 
 .mobilePatrolItemComment { font-size: 0.82rem; color: #4b5563; font-style: italic; }
-.mobilePatrolItemPhotos  { font-size: 0.78rem; color: #6b7280; }
+.mobilePatrolItemPhotos  { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.mobilePatrolItemPhoto   { width: 72px; height: 72px; object-fit: cover; border-radius: 8px; border: 1px solid #e5e7eb; background: #f3f4f6; flex-shrink: 0; }
 
 .mobilePatrolItemActions { display: flex; gap: 8px; flex-wrap: wrap; }
 
