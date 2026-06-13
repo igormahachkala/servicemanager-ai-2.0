@@ -369,13 +369,24 @@ export function MobileChatsPage() {
           <div className="mobileChatsDialogHeaderMain">
             <div className="mobileChatsDialogTitleRow">
               <h1 className="mobileChatsDialogTitle">{mobileTicketNumberTitle(currentTicket.ticketNumber)}</h1>
-              <span className="mobileChatsStatusDot" aria-hidden="true" />
+              <span className={`mobileTicketStatus mobileTicketStatus--${currentTicket.status}`}>
+                {currentTicketStatus}
+              </span>
             </div>
-            <div className="mobileChatsDialogSubtitle">{currentTicketTitle}</div>
+            <div className="mobileChatsDialogSubtitle">
+              {currentTicketTitle}
+              {(currentTicket.location?.name || currentTicket.pointName)
+                ? ` · ${(currentTicket.location?.name || currentTicket.pointName || '').trim()}`
+                : null}
+            </div>
           </div>
-          <button className="mobileChatsDialogMenu" type="button" aria-label="Меню чата">
-            ⋯
-          </button>
+          <Link
+            className="mobileChatsDialogMenu"
+            to={`${mobilePath(location.pathname, `/tickets/${currentTicket.id}`)}${location.search}`}
+            aria-label="Открыть заявку"
+          >
+            →
+          </Link>
         </div>
 
         <div className="mobileChatsDialogTabs">
