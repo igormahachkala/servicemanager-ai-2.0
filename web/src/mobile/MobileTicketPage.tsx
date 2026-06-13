@@ -975,7 +975,7 @@ export function MobileTicketPage() {
             aria-label="Действия с заявкой"
             onClick={() => setActionsSheetOpen(true)}
           >
-            ⋯
+            Действия
           </button>
         ) : null}
       </div>
