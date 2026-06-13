@@ -18,6 +18,7 @@ import { FullscreenPhotoViewer, type PhotoViewerItem } from '../components/Fulls
 import { toChatMessages } from '../lib/ticketChat'
 
 type ChatsFilter = 'all' | 'mine' | 'active' | 'with_photo'
+type ChatsView = 'active' | 'archive'
 type ChatTab = 'chat' | 'info' | 'files' | 'history'
 
 type ChatsListItem = api.TicketCard & {
@@ -44,6 +45,9 @@ type ChatsInternalItem = {
 }
 
 type ChatsSectionId = 'tickets' | 'objects' | 'internal'
+
+const ACTIVE_STATUSES = new Set<api.TicketStatus>(['NEW', 'ASSIGNED', 'IN_PROGRESS'])
+const ARCHIVE_STATUSES = new Set<api.TicketStatus>(['DONE', 'CANCELED'])
 
 const CHAT_FILTERS: Array<{ id: ChatsFilter; label: string }> = [
   { id: 'all', label: 'Все' },
@@ -159,6 +163,7 @@ export function MobileChatsPage() {
 
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<ChatsFilter>('all')
+  const [chatView, setChatView] = useState<ChatsView>('active')
   const [composerText, setComposerText] = useState('')
   const [composerError, setComposerError] = useState('')
   const [activeTab, setActiveTab] = useState<ChatTab>('chat')
@@ -197,13 +202,17 @@ export function MobileChatsPage() {
   const filteredTickets = useMemo(() => {
     const q = normalizeSearchText(search)
     return allTickets.filter((ticket) => {
+      // Primary view filter
+      if (chatView === 'active' && !ACTIVE_STATUSES.has(ticket.status)) return false
+      if (chatView === 'archive' && !ARCHIVE_STATUSES.has(ticket.status)) return false
+      // Sub-filters
       if (filter === 'mine' && !isMineTicketForRole(ticket, me?.id, me?.role)) return false
-      if (filter === 'active' && (ticket.status === 'DONE' || ticket.status === 'CANCELED')) return false
+      if (filter === 'active' && !ACTIVE_STATUSES.has(ticket.status)) return false
       if (filter === 'with_photo' && !ticketHasPhoto(ticket)) return false
       if (!q) return true
       return ticketSearchBlob(ticket).includes(q)
     })
-  }, [allTickets, filter, me?.id, me?.role, search])
+  }, [allTickets, chatView, filter, me?.id, me?.role, search])
 
   const ticketRows = useMemo(() => {
     return filteredTickets.map((ticket) => ({
@@ -230,7 +239,8 @@ export function MobileChatsPage() {
       const title = ticket.location?.name || ticket.pointName || ticket.location?.address || 'Без объекта'
       const current = map.get(key)
       const lastActivityAt = ticket.lastActivityAt
-      const activeCount = ticket.status === 'DONE' || ticket.status === 'CANCELED' ? 0 : 1
+      // Since filteredTickets is pre-filtered by chatView, every ticket here counts as 1
+      const activeCount = 1
       const preview = ticket.description || ticket.title || ticket.category?.name || 'Обсуждение по заявке'
       const nextPreview = current && current.lastActivityAt >= lastActivityAt ? current.preview : preview
       const nextTicketId = current && current.lastActivityAt >= lastActivityAt ? current.ticketId : ticket.id
@@ -432,6 +442,11 @@ export function MobileChatsPage() {
       setViewer(null)
     }
   }, [ticketId])
+
+  // Reset sub-filter when switching view to avoid empty-list confusion
+  useEffect(() => {
+    setFilter('all')
+  }, [chatView])
 
   if (!isMeReady || (!boardQ.data && !ticketId)) {
     return (
@@ -717,18 +732,51 @@ export function MobileChatsPage() {
     )
   }
 
-  const hasAnyTickets = (boardQ.data?.columns || []).some((col) => (col.cards || []).length > 0)
-  const emptyTitle = hasAnyTickets ? 'Нет заявок по фильтру' : 'Заявок пока нет'
-  const emptyHint = hasAnyTickets
-    ? 'Измените поиск или фильтр, чтобы увидеть чаты.'
-    : 'Когда заявки появятся, они отобразятся здесь как чаты по заявкам.'
+  // --- List view ---
+
+  const emptyTitle = chatView === 'archive'
+    ? 'Нет архивных чатов'
+    : ((boardQ.data?.columns || []).some((col) => (col.cards || []).length > 0)
+        ? 'Нет заявок по фильтру'
+        : 'Заявок пока нет')
+  const emptyHint = chatView === 'archive'
+    ? 'Завершённые и отменённые заявки появятся здесь.'
+    : (filteredTickets.length === 0 && allTickets.length > 0
+        ? 'Измените поиск или фильтр, чтобы увидеть чаты.'
+        : 'Когда заявки появятся, они отобразятся здесь как чаты по заявкам.')
+
+  // In archive view hide the 'active' sub-filter chip (it's contradictory)
+  const visibleFilters = chatView === 'archive'
+    ? CHAT_FILTERS.filter((f) => f.id !== 'active')
+    : CHAT_FILTERS
 
   return (
     <div className="mobileSection mobileChatsScreen">
       <div className="mobileChatsTop">
         <div>
           <h1 className="mobileTitle mobileChatsAppTitle">Чаты</h1>
-          <div className="mobileSubtitle">Разговоры по заявкам, объектам и внутренним группам</div>
+          <div className="mobileSubtitle">
+            {chatView === 'active'
+              ? 'Разговоры по заявкам, объектам и внутренним группам'
+              : 'Завершённые и отменённые заявки'}
+          </div>
+        </div>
+
+        <div className="mobileScreenTabs">
+          <button
+            type="button"
+            className={`mobileScreenTab${chatView === 'active' ? ' mobileScreenTab--active' : ''}`}
+            onClick={() => setChatView('active')}
+          >
+            Активные
+          </button>
+          <button
+            type="button"
+            className={`mobileScreenTab${chatView === 'archive' ? ' mobileScreenTab--active' : ''}`}
+            onClick={() => setChatView('archive')}
+          >
+            Архив
+          </button>
         </div>
 
         <div className="mobileChatsSearchRow">
@@ -741,7 +789,7 @@ export function MobileChatsPage() {
         </div>
 
         <div className="mobileChatsFilters" role="tablist" aria-label="Фильтры чатов">
-          {CHAT_FILTERS.map((item) => (
+          {visibleFilters.map((item) => (
             <button
               key={item.id}
               type="button"
@@ -751,10 +799,6 @@ export function MobileChatsPage() {
               {item.label}
             </button>
           ))}
-        </div>
-
-        <div className="mobileChatsHintCard mobileCard">
-          Список строится из существующих заявок. Фото-метка показывается только если у заявки есть вложения.
         </div>
       </div>
 
@@ -864,7 +908,9 @@ export function MobileChatsPage() {
                       </div>
                     </div>
                     <div className="mobileChatsItemPreview mobileChatsItemPreview--strong">
-                      {item.activeCount > 0 ? `${item.activeCount} активных заявок` : 'Нет активных заявок'}
+                      {chatView === 'active'
+                        ? `${item.activeCount} активных заявок`
+                        : `${item.activeCount} в архиве`}
                     </div>
                     <div className="mobileChatsItemPreview mobileChatsItemPreview--muted">{item.preview}</div>
                   </div>
@@ -874,47 +920,49 @@ export function MobileChatsPage() {
           ) : null}
         </section>
 
-        <section className="mobileChatsSection" aria-label="Внутренние">
-          <button
-            type="button"
-            className="mobileChatsSectionHeader"
-            aria-expanded={sectionIsExpanded('internal')}
-            onClick={() => toggleSection('internal')}
-          >
-            <span className="mobileChatsSectionHeaderLabel">Внутренние</span>
-            <span className="mobileChatsSectionHeaderMeta">
-              <span className="mobileChatsSectionHeaderCount">{sectionCounts.internal}</span>
-              <span className={`mobileChatsSectionHeaderChevron${sectionIsExpanded('internal') ? ' mobileChatsSectionHeaderChevron--open' : ''}`}>▼</span>
-            </span>
-          </button>
+        {chatView === 'active' ? (
+          <section className="mobileChatsSection" aria-label="Внутренние">
+            <button
+              type="button"
+              className="mobileChatsSectionHeader"
+              aria-expanded={sectionIsExpanded('internal')}
+              onClick={() => toggleSection('internal')}
+            >
+              <span className="mobileChatsSectionHeaderLabel">Внутренние</span>
+              <span className="mobileChatsSectionHeaderMeta">
+                <span className="mobileChatsSectionHeaderCount">{sectionCounts.internal}</span>
+                <span className={`mobileChatsSectionHeaderChevron${sectionIsExpanded('internal') ? ' mobileChatsSectionHeaderChevron--open' : ''}`}>▼</span>
+              </span>
+            </button>
 
-          {sectionCounts.internal === 0 ? (
-            <div className="mobileEmptyState mobileCard">
-              <p className="mobileEmptyStateTitle">Ничего не найдено</p>
-              <p className="mobileEmptyStateHint">Попробуйте другой поисковый запрос.</p>
-            </div>
-          ) : sectionIsExpanded('internal') ? (
-            <div className="mobileChatsList">
-              {internalRows.map((item) => (
-                <div key={item.id} className="mobileChatsItem mobileChatsItem--static" aria-disabled="true">
-                  <div className={`mobileChatsRoomIcon mobileChatsRoomIcon--${item.iconTone}`} aria-hidden="true">
-                    <span className="mobileChatsRoomIconEmoji">{item.id === 'dispatch' ? '👥' : '🤝'}</span>
-                  </div>
-                  <div className="mobileChatsItemBody">
-                    <div className="mobileChatsItemTop">
-                      <div className="mobileChatsItemTitle">{item.title}</div>
-                      <div className="mobileChatsItemTime">{item.timeLabel}</div>
+            {sectionCounts.internal === 0 ? (
+              <div className="mobileEmptyState mobileCard">
+                <p className="mobileEmptyStateTitle">Ничего не найдено</p>
+                <p className="mobileEmptyStateHint">Попробуйте другой поисковый запрос.</p>
+              </div>
+            ) : sectionIsExpanded('internal') ? (
+              <div className="mobileChatsList">
+                {internalRows.map((item) => (
+                  <div key={item.id} className="mobileChatsItem mobileChatsItem--static" aria-disabled="true">
+                    <div className={`mobileChatsRoomIcon mobileChatsRoomIcon--${item.iconTone}`} aria-hidden="true">
+                      <span className="mobileChatsRoomIconEmoji">{item.id === 'dispatch' ? '👥' : '🤝'}</span>
                     </div>
-                    <div className="mobileChatsItemPreview mobileChatsItemPreview--strong">
-                      {item.preview}
+                    <div className="mobileChatsItemBody">
+                      <div className="mobileChatsItemTop">
+                        <div className="mobileChatsItemTitle">{item.title}</div>
+                        <div className="mobileChatsItemTime">{item.timeLabel}</div>
+                      </div>
+                      <div className="mobileChatsItemPreview mobileChatsItemPreview--strong">
+                        {item.preview}
+                      </div>
+                      <div className="mobileChatsItemPreview mobileChatsItemPreview--muted">Внутренний контур</div>
                     </div>
-                    <div className="mobileChatsItemPreview mobileChatsItemPreview--muted">Внутренний контур</div>
                   </div>
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </section>
+                ))}
+              </div>
+            ) : null}
+          </section>
+        ) : null}
       </div>
     </div>
   )
