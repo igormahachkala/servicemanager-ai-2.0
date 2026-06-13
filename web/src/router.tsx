@@ -125,6 +125,7 @@ export function AppRoutes() {
         <Route path="offline-queue" element={<MobileOfflineQueue />} />
         <Route path="inspection" element={<MobileInspectionList standalone />} />
         <Route path="inspection/:runId" element={<MobileInspectionRunPage />} />
+        <Route path="inspection/object/:locationId" element={<MobileInspectionList />} />
       </Route>
 
       <Route
@@ -174,6 +175,7 @@ export function AppRoutes() {
           <Route path="offline-queue" element={<MobileOfflineQueue />} />
           <Route path="inspection" element={<MobileInspectionList standalone />} />
           <Route path="inspection/:runId" element={<MobileInspectionRunPage />} />
+        <Route path="inspection/object/:locationId" element={<MobileInspectionList />} />
         </Route>
       </Route>
 

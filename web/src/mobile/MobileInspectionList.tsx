@@ -1,5 +1,6 @@
-import { Link, useLocation } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useMemo } from 'react'
+import { Link, useLocation, useParams } from 'react-router-dom'
+import { useQueries, useQuery } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { mobilePath } from './mobileRoute'
 
@@ -41,6 +42,91 @@ export function MobileInspectionList({ standalone = false }: { standalone?: bool
     queryKey: ['inspection-runs'],
     queryFn: api.getInspectionRuns,
   })
+
+  // SMA-PATROLS-005: история обходов конкретного объекта (/m/inspection/object/:locationId).
+  const params = useParams<{ locationId?: string }>()
+  const objectLocationId = (params.locationId || '').trim()
+  const isObjectHistory = !!objectLocationId
+
+  const objectRuns = useMemo(() => {
+    if (!isObjectHistory) return []
+    return (runsQ.data || [])
+      .filter((r) => r.location?.id === objectLocationId)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 20)
+  }, [runsQ.data, isObjectHistory, objectLocationId])
+
+  // Список не содержит исполнителя/нарушений/созданных заявок — тянем из детали обхода.
+  const detailQs = useQueries({
+    queries: objectRuns.map((r) => ({
+      queryKey: ['inspection-run', r.id],
+      queryFn: () => api.getInspectionRun(r.id),
+    })),
+  })
+
+  if (isObjectHistory) {
+    const objectName = objectRuns[0]?.location?.name || 'Объект'
+    return (
+      <div className="mobileSection">
+        <div className="mobileTicketDetailsToolbar">
+          <Link to={mobilePath(location.pathname, '/inspection')} className="mobileDetailsBackLink">← Обходы</Link>
+        </div>
+        <div>
+          <h1 className="mobileTitle">История обходов</h1>
+          <div className="mobileSubtitle">{objectName}</div>
+        </div>
+        {runsQ.isLoading ? (
+          <div className="mobileCard mobileMeta">Загружаем обходы…</div>
+        ) : runsQ.isError ? (
+          <div className="mobileNotice mobileNoticeError">{(runsQ.error as any)?.message || String(runsQ.error)}</div>
+        ) : objectRuns.length === 0 ? (
+          <div className="mobileCard mobileEmptyState" role="status">
+            <div className="mobileEmptyStateTitle">По этому объекту обходов пока нет</div>
+          </div>
+        ) : (
+          objectRuns.map((run, i) => {
+            const dq = detailQs[i]
+            const items = dq?.data?.items || []
+            const violations = items.filter((it) => it.status === 'ISSUE' || it.status === 'CRITICAL').length
+            const tickets = items.filter((it) => !!it.ticketId).length
+            const pb = dq?.data?.performedBy
+            const performer = pb
+              ? ([pb.firstName, pb.lastName].filter(Boolean).join(' ').trim() || pb.email)
+              : dq?.isLoading
+                ? '…'
+                : '—'
+            const loading = dq?.isLoading
+            return (
+              <div key={run.id} className="mobileCard mobilePatrolCard">
+                <div className="mobilePatrolCardTop">
+                  <div className="mobilePatrolCardTitle">{run.title}</div>
+                  <span className={`mobilePatrolRunStatus mobilePatrolRunStatus--${run.status === 'IN_PROGRESS' ? 'inprogress' : 'completed'}`}>
+                    {runStatusLabel(run.status)}
+                  </span>
+                </div>
+                <div className="mobilePatrolCardMeta">
+                  <span>{fmtDate(run.completedAt || run.createdAt)}</span>
+                  <span>· {performer}</span>
+                  {run.reportStatus ? (
+                    <span className={`mobilePatrolReportBadge mobilePatrolReportBadge--${reportStatusMod(run.reportStatus)}`}>
+                      {reportStatusLabel(run.reportStatus)}
+                    </span>
+                  ) : null}
+                </div>
+                <div className="mobilePatrolCardMeta">
+                  <span>Нарушений: {loading ? '…' : violations}</span>
+                  <span>· Заявок создано: {loading ? '…' : tickets}</span>
+                </div>
+                <Link to={mobilePath(location.pathname, `/inspection/${run.id}`)} className="mobileBtn mobileBtnGhost" style={{ textAlign: 'center', marginTop: 2 }}>
+                  Открыть
+                </Link>
+              </div>
+            )
+          })
+        )}
+      </div>
+    )
+  }
 
   const content = (() => {
     if (runsQ.isLoading) {

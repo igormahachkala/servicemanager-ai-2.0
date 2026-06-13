@@ -252,6 +252,15 @@ export function MobileInspectionRunPage() {
                     {run.location.city ? ` · ${run.location.city}` : ''}
                   </span>
                 </div>
+                {run.location?.id ? (
+                  <Link
+                    to={mobilePath(location.pathname, `/inspection/object/${run.location.id}`)}
+                    className="mobileBtn mobileBtnGhost"
+                    style={{ textAlign: 'center', marginTop: 4 }}
+                  >
+                    История обходов объекта
+                  </Link>
+                ) : null}
                 <div className="mobilePatrolMetaRow">
                   <span className="mobilePatrolMetaLabel">Шаблон</span>
                   <span style={{ fontSize: '0.88rem' }}>{run.template.name}</span>
