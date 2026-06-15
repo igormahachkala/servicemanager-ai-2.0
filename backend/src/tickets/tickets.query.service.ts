@@ -469,6 +469,7 @@ export class TicketsQueryService {
       TicketStatus.NEW,
       TicketStatus.ASSIGNED,
       TicketStatus.IN_PROGRESS,
+      TicketStatus.AWAITING_ACCEPTANCE,
       TicketStatus.DONE,
       TicketStatus.CANCELED,
     ]
@@ -643,9 +644,9 @@ export class TicketsQueryService {
         })
       : []
 
-    const ensureBucket = () => ({ total: 0, NEW: 0, IN_PROGRESS: 0, DONE: 0 })
-    const byLocation = new Map<string, { locationId: string; locationName: string; total: number; NEW: number; IN_PROGRESS: number; DONE: number }>()
-    const byEquipment = new Map<string, { equipmentId: string; equipmentName: string; locationId: string | null; locationName: string | null; total: number; NEW: number; IN_PROGRESS: number; DONE: number }>()
+    const ensureBucket = () => ({ total: 0, NEW: 0, IN_PROGRESS: 0, AWAITING_ACCEPTANCE: 0, DONE: 0 })
+    const byLocation = new Map<string, { locationId: string; locationName: string; total: number; NEW: number; IN_PROGRESS: number; AWAITING_ACCEPTANCE: number; DONE: number }>()
+    const byEquipment = new Map<string, { equipmentId: string; equipmentName: string; locationId: string | null; locationName: string | null; total: number; NEW: number; IN_PROGRESS: number; AWAITING_ACCEPTANCE: number; DONE: number }>()
 
     for (const row of rows) {
       const status = row.status
@@ -658,6 +659,7 @@ export class TicketsQueryService {
         current.total += 1
         if (status === TicketStatus.NEW) current.NEW += 1
         if (status === TicketStatus.IN_PROGRESS) current.IN_PROGRESS += 1
+        if (status === TicketStatus.AWAITING_ACCEPTANCE) current.AWAITING_ACCEPTANCE += 1
         if (status === TicketStatus.DONE) current.DONE += 1
         byLocation.set(row.location.id, current)
       }
@@ -673,6 +675,7 @@ export class TicketsQueryService {
         current.total += 1
         if (status === TicketStatus.NEW) current.NEW += 1
         if (status === TicketStatus.IN_PROGRESS) current.IN_PROGRESS += 1
+        if (status === TicketStatus.AWAITING_ACCEPTANCE) current.AWAITING_ACCEPTANCE += 1
         if (status === TicketStatus.DONE) current.DONE += 1
         byEquipment.set(row.equipment.id, current)
       }

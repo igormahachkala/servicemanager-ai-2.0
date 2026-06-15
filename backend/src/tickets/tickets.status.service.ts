@@ -110,13 +110,16 @@ export class TicketsStatusService {
       });
       assertAllowed(decision);
 
-      const toStatus = dto.status;
+      const toStatus =
+        dto.status === TicketStatus.DONE && ticket.status !== TicketStatus.AWAITING_ACCEPTANCE
+          ? TicketStatus.AWAITING_ACCEPTANCE
+          : dto.status;
       const fromStatus = ticket.status;
 
       const wf = decideTicketTransition(fromStatus, toStatus);
       if (!wf.allowed) throw new BadRequestException(wf.reason);
 
-      if (toStatus === TicketStatus.DONE) {
+      if (toStatus === TicketStatus.AWAITING_ACCEPTANCE) {
         const [workReportPhotoCount, commentEventCount] = await Promise.all([
           tx.ticketAttachment.count({
             where: {

@@ -81,7 +81,7 @@ export class TicketsAcceptanceService {
         const purpose =
           dto.decision === AcceptanceDecision.REJECT
             ? TicketAttachmentPurpose.DECLINE_REPORT
-            : TicketAttachmentPurpose.REQUEST
+            : TicketAttachmentPurpose.WORK_REPORT
 
         await tx.ticketAttachment.updateMany({
           where: {

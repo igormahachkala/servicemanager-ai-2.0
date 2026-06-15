@@ -268,6 +268,8 @@ export class MaxBotService implements OnModuleInit {
         return 'Назначена';
       case TicketStatus.IN_PROGRESS:
         return 'В работе';
+      case TicketStatus.AWAITING_ACCEPTANCE:
+        return 'На приёмке';
       case TicketStatus.DONE:
         return 'Выполнена';
       case TicketStatus.CANCELED:
