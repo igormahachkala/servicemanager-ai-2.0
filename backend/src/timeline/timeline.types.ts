@@ -7,7 +7,10 @@ export type TimelineEvent =
   | 'STATUS_CHANGED'
   | 'COMMENT_ADDED'
   | 'SLA_WARNING'
-  | 'SLA_BREACH';
+  | 'SLA_BREACH'
+  | 'TICKET_READY_FOR_ACCEPTANCE'
+  | 'TICKET_ACCEPTED'
+  | 'TICKET_REJECTED';
 
 export type TimelineActor = {
   id: string;

@@ -57,6 +57,7 @@ const STATUS_RU: Record<TicketStatus, string> = {
   NEW: 'Новая',
   ASSIGNED: 'Назначена',
   IN_PROGRESS: 'В работе',
+  AWAITING_ACCEPTANCE: 'На приёмке',
   DONE: 'Выполнена',
   CANCELED: 'Отменена',
 };

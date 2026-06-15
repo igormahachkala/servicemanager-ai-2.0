@@ -9,6 +9,8 @@ import { TicketsAssignmentService } from './tickets.assignment.service'
 import { TicketsQueryService } from './tickets.query.service'
 import { TicketsStatusService } from './tickets.status.service'
 import { TicketAttachmentsService } from './ticket-attachments.service'
+import { TicketsAcceptanceService } from './tickets.acceptance.service'
+import { TicketAcceptanceDto } from './dto/ticket-acceptance.dto'
 
 import { type BoardQueryInput } from '../policy/tickets.policy'
 
@@ -51,6 +53,7 @@ export class TicketsService {
     private readonly assignment: TicketsAssignmentService,
     private readonly status: TicketsStatusService,
     private readonly attachments: TicketAttachmentsService,
+    private readonly acceptance: TicketsAcceptanceService,
   ) {}
 
   create(companyId: string, actor: { id: string; role: UserRole }, dto: CreateTicketDto) {
@@ -302,5 +305,14 @@ export class TicketsService {
     linkedClientCompanyId?: string,
   ) {
     return this.assignment.requestAssignment(companyId, userId, role, ticketId, linkedClientCompanyId)
+  }
+
+  decide(
+    actor: { id: string; role: UserRole; companyId: string; accessFlags?: Record<string, any> },
+    ticketId: string,
+    dto: TicketAcceptanceDto,
+    linkedClientCompanyId?: string,
+  ) {
+    return this.acceptance.decide(actor, ticketId, dto, linkedClientCompanyId)
   }
 }

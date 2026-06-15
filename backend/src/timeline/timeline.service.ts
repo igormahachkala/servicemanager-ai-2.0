@@ -28,6 +28,9 @@ export class TimelineService {
     COMMENT_ADDED: 'ticket.comment_added',
     SLA_WARNING: 'ticket.sla_warning',
     SLA_BREACH: 'ticket.sla_breached',
+    TICKET_READY_FOR_ACCEPTANCE: 'ticket.ready_for_acceptance',
+    TICKET_ACCEPTED: 'ticket.accepted',
+    TICKET_REJECTED: 'ticket.rejected',
   }
 
   constructor(
@@ -267,6 +270,9 @@ export class TimelineService {
     if (type === 'ticket.comment_added') return 'COMMENT_ADDED'
     if (type === 'ticket.sla_warning') return 'SLA_WARNING'
     if (type === 'ticket.sla_breached' || type === 'sla.breached') return 'SLA_BREACH'
+    if (type === 'ticket.ready_for_acceptance') return 'TICKET_READY_FOR_ACCEPTANCE'
+    if (type === 'ticket.accepted') return 'TICKET_ACCEPTED'
+    if (type === 'ticket.rejected') return 'TICKET_REJECTED'
 
     return null
   }
@@ -284,6 +290,9 @@ export class TimelineService {
     if (type === 'ticket.comment_added') return 'Comment added'
     if (type === 'ticket.sla_warning') return 'SLA warning'
     if (type === 'ticket.sla_breached' || type === 'sla.breached') return 'SLA breach'
+    if (type === 'ticket.ready_for_acceptance') return 'Отправлено на приёмку'
+    if (type === 'ticket.accepted') return 'Работа принята'
+    if (type === 'ticket.rejected') return 'Работа отклонена'
     if (type === 'user.created') return 'User created'
 
     return type

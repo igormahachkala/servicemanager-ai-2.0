@@ -33,6 +33,7 @@ import { UpdateTicketDto } from './dto/update-ticket.dto'
 import { UpdateTicketStatusDto } from './dto/update-ticket-status.dto'
 import { BoardQueryDto } from './dto/board-query.dto'
 import { AddTicketCommentDto } from './dto/add-ticket-comment.dto'
+import { TicketAcceptanceDto } from './dto/ticket-acceptance.dto'
 
 @UseGuards(JwtAuthGuard, RolesGuard, PermissionsContextGuard, PermissionsGuard)
 @Controller('tickets')
@@ -401,5 +402,22 @@ export class TicketsController {
     @Query('linkedClientCompanyId') linkedClientCompanyId?: string,
   ) {
     return this.svc.addComment(req.user.companyId, req.user, req.user.role, id, dto, linkedClientCompanyId)
+  }
+
+  @Post(':id/acceptance')
+  @Roles(UserRole.CLIENT, UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TERRITORIAL_MANAGER)
+  @RequirePermission(PERMISSIONS.TICKETS_VIEW)
+  decide(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() dto: TicketAcceptanceDto,
+    @Query('linkedClientCompanyId') linkedClientCompanyId?: string,
+  ) {
+    return this.svc.decide(
+      { id: req.user.id, role: req.user.role, companyId: req.user.companyId, accessFlags: req.accessFlags },
+      id,
+      dto,
+      linkedClientCompanyId,
+    )
   }
 }
