@@ -309,9 +309,11 @@ export function MobileChatsPage() {
     [internalRows.length, objectRows.length, ticketRows.length],
   )
 
+  // SMA-CHAT-UX-004: объекты раскрыты по умолчанию (сразу видны); заявки внутри объектов остаются
+  // свёрнутыми по умолчанию (expandedObjects стартует пустым) — лента не растягивается.
   const sectionDefaults = useMemo(
-    () => ({ tickets: false, objects: sectionCounts.objects > 3, internal: true }),
-    [sectionCounts.objects],
+    () => ({ tickets: false, objects: false, internal: true }),
+    [],
   )
 
   const sectionIsExpanded = (section: ChatsSectionId): boolean => {
@@ -532,6 +534,7 @@ export function MobileChatsPage() {
           <Link
             className="mobileChatsDialogMenu"
             to={`${mobilePath(location.pathname, `/tickets/${currentTicket.id}`)}${location.search}`}
+            state={{ mobileListOrigin: 'chat' }}
             aria-label="Открыть заявку"
           >
             →
@@ -554,7 +557,7 @@ export function MobileChatsPage() {
         <div className="mobileChatsRelationCard">
           <div className="mobileChatsRelationTop">
             <div className="mobileChatsRelationLabel">{mobileTicketNumberTitle(currentTicket.ticketNumber)}</div>
-            <Link className="mobileChatsRelationLink" to={`${mobilePath(location.pathname, `/tickets/${currentTicket.id}`)}${location.search}`}>
+            <Link className="mobileChatsRelationLink" to={`${mobilePath(location.pathname, `/tickets/${currentTicket.id}`)}${location.search}`} state={{ mobileListOrigin: 'chat' }}>
               Открыть
             </Link>
           </div>
