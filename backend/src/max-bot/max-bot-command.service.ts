@@ -9,6 +9,7 @@ const STATUS_LABELS: Record<TicketStatus, string> = {
   [TicketStatus.NEW]: 'Новая',
   [TicketStatus.ASSIGNED]: 'Назначена',
   [TicketStatus.IN_PROGRESS]: 'В работе',
+  [TicketStatus.AWAITING_ACCEPTANCE]: 'На приёмке',
   [TicketStatus.DONE]: 'Выполнена',
   [TicketStatus.CANCELED]: 'Отменена',
 };

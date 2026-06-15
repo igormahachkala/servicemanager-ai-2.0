@@ -24,10 +24,18 @@ enum CompanyType {
   PROVIDER
 }
 
+enum AgentTaskStatus {
+  NEW
+  IN_PROGRESS
+  DONE
+  FAILED
+}
+
 enum TicketStatus {
   NEW
   ASSIGNED
   IN_PROGRESS
+  AWAITING_ACCEPTANCE
   DONE
   CANCELED
 }
@@ -51,6 +59,7 @@ enum TicketSource {
 enum TicketAttachmentPurpose {
   REQUEST
   WORK_REPORT
+  DECLINE_REPORT
 }
 
 enum PublicRequestType {
@@ -88,6 +97,17 @@ enum InspectionReportStatus {
   SUBMITTED
   APPROVED
   REJECTED
+}
+
+enum InspectionFrequency {
+  DAILY
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+  QUARTERLY
+  SEMIANNUAL
+  ANNUAL
+  CUSTOM
 }
 
 model Company {
@@ -131,6 +151,7 @@ model Company {
   publicRequestLogs PublicRequestLog[]
   inspectionTemplates InspectionTemplate[]
   inspectionRuns      InspectionRun[]
+  inspectionSchedules InspectionSchedule[]
   inspectionRunItemAttachments InspectionRunItemAttachment[]
   clientContracts    ServiceContract[] @relation("ClientCompanyContracts")
   providerContracts  ServiceContract[] @relation("ProviderCompanyContracts")
@@ -138,6 +159,7 @@ model Company {
   clientTechnicianBindings   TechnicianClientBinding[] @relation("TechnicianBindingClientCompany")
   userLocationBindings UserLocationBinding[]
   notifications      Notification[]
+  agentTasks         AgentTask[]
 }
 
 model User {
@@ -167,6 +189,9 @@ model User {
   inspectionRunsPerformed    InspectionRun[] @relation("InspectionRunPerformedBy")
   inspectionReportsSubmitted InspectionRun[] @relation("InspectionRunReportSubmittedBy")
   inspectionReportsReviewed  InspectionRun[] @relation("InspectionRunReportReviewedBy")
+  inspectionSchedulesAssigned InspectionSchedule[] @relation("InspectionScheduleAssignee")
+  inspectionSchedulesCreated  InspectionSchedule[] @relation("InspectionScheduleCreatedBy")
+  agentTasksCreated           AgentTask[] @relation("AgentTaskCreatedBy")
   userPermissions            UserPermission[]
   technicianClientBindings   TechnicianClientBinding[] @relation("TechnicianClientBindings")
   locationBindings           UserLocationBinding[]
@@ -217,6 +242,7 @@ model Location {
   tickets   Ticket[]
   equipment Equipment[]
   inspectionRuns InspectionRun[]
+  inspectionSchedules InspectionSchedule[]
   technicianBindings TechnicianClientBinding[] @relation("TechnicianBindingLocation")
   userBindings UserLocationBinding[]
   maxLocationThreads MaxLocationThread[]
@@ -347,6 +373,7 @@ model Equipment {
   location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
   tickets  Ticket[]
   inspectionRuns InspectionRun[]
+  inspectionSchedules InspectionSchedule[]
 
   @@index([companyId, locationId])
   @@index([companyId, status])
@@ -581,9 +608,10 @@ model InspectionTemplate {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  items   InspectionTemplateItem[]
-  runs    InspectionRun[]
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  items     InspectionTemplateItem[]
+  runs      InspectionRun[]
+  schedules InspectionSchedule[]
 
   @@unique([companyId, name])
   @@index([companyId, isActive])
@@ -623,17 +651,21 @@ model InspectionRun {
   reportReviewComment     String?
   title                   String
   status                  InspectionRunStatus    @default(IN_PROGRESS)
+  scheduleId              String?
+  dueAt                   DateTime?
+  overdueAt               DateTime?
   completedAt             DateTime?
   createdAt               DateTime               @default(now())
   updatedAt               DateTime               @updatedAt
 
-  company           Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  template          InspectionTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
-  location          Location           @relation(fields: [locationId], references: [id], onDelete: Restrict)
-  equipment         Equipment?         @relation(fields: [equipmentId], references: [id], onDelete: SetNull)
-  performedBy       User?              @relation("InspectionRunPerformedBy", fields: [performedByUserId], references: [id], onDelete: SetNull)
-  reportSubmittedBy User?              @relation("InspectionRunReportSubmittedBy", fields: [reportSubmittedByUserId], references: [id], onDelete: SetNull)
-  reportReviewedBy  User?              @relation("InspectionRunReportReviewedBy", fields: [reportReviewedByUserId], references: [id], onDelete: SetNull)
+  company           Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  template          InspectionTemplate  @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  location          Location            @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  equipment         Equipment?          @relation(fields: [equipmentId], references: [id], onDelete: SetNull)
+  schedule          InspectionSchedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
+  performedBy       User?               @relation("InspectionRunPerformedBy", fields: [performedByUserId], references: [id], onDelete: SetNull)
+  reportSubmittedBy User?               @relation("InspectionRunReportSubmittedBy", fields: [reportSubmittedByUserId], references: [id], onDelete: SetNull)
+  reportReviewedBy  User?               @relation("InspectionRunReportReviewedBy", fields: [reportReviewedByUserId], references: [id], onDelete: SetNull)
   items             InspectionRunItem[]
 
   @@index([companyId, status])
@@ -644,6 +676,44 @@ model InspectionRun {
   @@index([reportStatus, createdAt])
   @@index([reportSubmittedByUserId, createdAt])
   @@index([reportReviewedByUserId, createdAt])
+  @@index([scheduleId, createdAt])
+  @@index([companyId, dueAt])
+}
+
+model InspectionSchedule {
+  id               String              @id @default(uuid())
+  companyId        String
+  templateId       String
+  locationId       String
+  equipmentId      String?
+  assignedToUserId String?
+  createdByUserId  String?
+  name             String
+  frequency        InspectionFrequency @default(MONTHLY)
+  intervalDays     Int?
+  startDate        DateTime
+  nextDueAt        DateTime
+  leadTimeDays     Int                 @default(0)
+  graceDays        Int                 @default(0)
+  isActive         Boolean             @default(true)
+  lastGeneratedAt  DateTime?
+  lastRunId        String?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  company    Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  template   InspectionTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  location   Location           @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  equipment  Equipment?         @relation(fields: [equipmentId], references: [id], onDelete: SetNull)
+  assignedTo User?              @relation("InspectionScheduleAssignee", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  createdBy  User?              @relation("InspectionScheduleCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  runs       InspectionRun[]
+
+  @@index([companyId, isActive])
+  @@index([isActive, nextDueAt])
+  @@index([locationId, isActive])
+  @@index([assignedToUserId, isActive])
+  @@index([templateId])
 }
 
 model InspectionRunItem {
@@ -687,4 +757,22 @@ model InspectionRunItemAttachment {
 
   @@index([companyId, runItemId])
   @@index([runItemId, createdAt])
+}
+
+model AgentTask {
+  id              String          @id @default(uuid())
+  companyId       String
+  createdByUserId String?
+  title           String
+  prompt          String
+  status          AgentTaskStatus @default(NEW)
+  result          String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy User?   @relation("AgentTaskCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, status])
+  @@index([companyId, createdAt])
 }
