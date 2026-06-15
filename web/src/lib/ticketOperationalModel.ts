@@ -16,7 +16,7 @@ export function computePrimaryTicketAction(params: {
   const { ticket, canClaim, canChangeStatus, availableStatusTransitions } = params
   const canTransitionTo = (status: TicketStatus) => availableStatusTransitions.includes(status)
 
-  if (ticket.status === 'DONE') return null
+  if (ticket.status === 'DONE' || ticket.status === 'AWAITING_ACCEPTANCE') return null
 
   const aa = ticket.meta?.availableActions
 
@@ -32,8 +32,8 @@ export function computePrimaryTicketAction(params: {
     return null
   }
   if (ticket.status === 'IN_PROGRESS') {
-    if (aa?.canComplete || (!aa && canChangeStatus && canTransitionTo('DONE')))
-      return { kind: 'done', label: 'Завершить' }
+    if (aa?.canComplete || (!aa && canChangeStatus && canTransitionTo('AWAITING_ACCEPTANCE')))
+      return { kind: 'done', label: 'Отправить на приёмку' }
     return null
   }
   return null

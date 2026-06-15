@@ -87,11 +87,11 @@ export function TicketActionBar(props: TicketActionBarProps) {
               <TicketActionButton
                 onClick={() =>
                   onSetStatus({
-                    status: 'DONE',
+                    status: 'AWAITING_ACCEPTANCE',
                     comment: newComment.trim() || undefined,
                   })
                 }
-                disabled={statusPending || busy || !canTransitionTo('DONE') || !canCompleteByEvidence}
+                disabled={statusPending || busy || !canTransitionTo('AWAITING_ACCEPTANCE') || !canCompleteByEvidence}
                 style={{ width: '100%' }}
               >
                 {statusPending ? 'Сохраняем…' : primaryAction.label}
@@ -126,15 +126,15 @@ export function TicketActionBar(props: TicketActionBarProps) {
           {canChangeStatus && primaryAction?.kind !== 'done' ? (
             <TicketActionButton
               variant="ghost"
-              disabled={statusPending || busy || !canTransitionTo('DONE') || !canCompleteByEvidence}
+              disabled={statusPending || busy || !canTransitionTo('AWAITING_ACCEPTANCE') || !canCompleteByEvidence}
               onClick={() =>
                 onSetStatus({
-                  status: 'DONE',
+                  status: 'AWAITING_ACCEPTANCE',
                   comment: newComment.trim() || undefined,
                 })
               }
             >
-              Завершить
+              Отправить на приёмку
             </TicketActionButton>
           ) : null}
 
@@ -176,7 +176,7 @@ export function TicketActionBar(props: TicketActionBarProps) {
 
         {!canCompleteByEvidence && ticketStatus === 'IN_PROGRESS' ? (
           <div className="muted small" style={{ marginTop: 8 }}>
-            Для завершения нужны комментарий в истории и фото в заявке.
+            Для отправки на приёмку нужны комментарий в истории и фото в заявке.
           </div>
         ) : null}
 

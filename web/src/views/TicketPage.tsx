@@ -49,6 +49,7 @@ function statusLabel(status: api.TicketStatus) {
   if (status === 'NEW') return 'Новая'
   if (status === 'ASSIGNED') return 'Назначена'
   if (status === 'IN_PROGRESS') return 'В работе'
+  if (status === 'AWAITING_ACCEPTANCE') return 'Ожидает приёмки'
   if (status === 'DONE') return 'Завершена'
   if (status === 'CANCELED') return 'Отменена'
   return status
@@ -109,6 +110,7 @@ function StatusPill({ status }: { status: api.TicketStatus }) {
   if (status === 'NEW') Object.assign(style, { background: '#eef2ff', borderColor: '#c7d2fe', color: '#3730a3' })
   if (status === 'ASSIGNED') Object.assign(style, { background: '#ecfeff', borderColor: '#a5f3fc', color: '#155e75' })
   if (status === 'IN_PROGRESS') Object.assign(style, { background: '#fffbeb', borderColor: '#fde68a', color: '#92400e' })
+  if (status === 'AWAITING_ACCEPTANCE') Object.assign(style, { background: '#fff7ed', borderColor: '#fdba74', color: '#9a3412' })
   if (status === 'DONE') Object.assign(style, { background: '#ecfdf5', borderColor: '#a7f3d0', color: '#065f46' })
   if (status === 'CANCELED') Object.assign(style, { background: '#f3f4f6', borderColor: '#e5e7eb', color: '#6b7280' })
 
@@ -193,6 +195,7 @@ export function TicketPage() {
   const qc = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const operationalFileInputRef = useRef<HTMLInputElement | null>(null)
+  const acceptanceFileInputRef = useRef<HTMLInputElement | null>(null)
 
   const observerCompanyId = (searchParams.get('companyId') || api.getObserverCompanyId()).trim()
   const linkedClientCompanyId = (searchParams.get('linkedClientCompanyId') || api.getLinkedClientCompanyId()).trim()
@@ -212,7 +215,9 @@ export function TicketPage() {
   const [editOpen, setEditOpen] = useState(false)
   const [selectedTechnicianId, setSelectedTechnicianId] = useState('')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [acceptanceFile, setAcceptanceFile] = useState<File | null>(null)
   const [fileError, setFileError] = useState<string | null>(null)
+  const [acceptanceFileError, setAcceptanceFileError] = useState<string | null>(null)
   const [claimError, setClaimError] = useState<string | null>(null)
   const [assignError, setAssignError] = useState<string | null>(null)
   const [statusError, setStatusError] = useState<string | null>(null)
@@ -234,6 +239,7 @@ export function TicketPage() {
   const [editPointName, setEditPointName] = useState('')
   const [editComment, setEditComment] = useState('')
   const [newComment, setNewComment] = useState('')
+  const [acceptanceComment, setAcceptanceComment] = useState('')
   const [closeReportComment, setCloseReportComment] = useState('')
   const [childCategoryId, setChildCategoryId] = useState('')
   const [childProblemText, setChildProblemText] = useState('')
@@ -493,7 +499,8 @@ export function TicketPage() {
     onSuccess: async (_data, vars) => {
       setStatusError(null)
       clearActionErrors()
-      if (vars.status === 'DONE') pushToast('Заявка завершена', 'success')
+      if (vars.status === 'AWAITING_ACCEPTANCE') pushToast('Заявка отправлена на приёмку', 'success')
+      else if (vars.status === 'DONE') pushToast('Заявка завершена', 'success')
       else if (vars.status === 'IN_PROGRESS') pushToast('Работы начаты', 'success')
       else if (vars.status === 'CANCELED') pushToast('Заявка отменена', 'info')
       setNewComment('')
@@ -502,6 +509,48 @@ export function TicketPage() {
     onError: (e: any) => {
       const raw = e?.message || String(e)
       logTicketActionError('status', raw)
+      setStatusError(mapTicketActionError(raw))
+    },
+  })
+
+  const acceptanceM = useMutation({
+    mutationFn: async (decision: api.TicketAcceptanceDecision) => {
+      if (!ticket) throw new Error('Заявка не загружена')
+      if (!canMutateTicket) throw new Error('Изменение заявки запрещено в текущем режиме видимости')
+
+      const normalizedComment = acceptanceComment.trim()
+      if (decision === 'REJECT' && !normalizedComment) {
+        throw new Error('Добавьте комментарий при отказе')
+      }
+
+      const attachmentIds: string[] = []
+      if (acceptanceFile) {
+        const uploaded = await api.uploadTicketAttachment(ticketId, acceptanceFile, effectiveTicketScope)
+        if (uploaded?.id) attachmentIds.push(uploaded.id)
+      }
+
+      return api.decideTicketAcceptance(
+        ticketId,
+        {
+          decision,
+          comment: normalizedComment || undefined,
+          attachmentIds: attachmentIds.length ? attachmentIds : undefined,
+        },
+        effectiveTicketScope,
+      )
+    },
+    onSuccess: async (_data, decision) => {
+      setAcceptanceComment('')
+      setAcceptanceFile(null)
+      setAcceptanceFileError(null)
+      if (acceptanceFileInputRef.current) acceptanceFileInputRef.current.value = ''
+      clearActionErrors()
+      pushToast(decision === 'ACCEPT' ? 'Работа принята' : 'Заявка возвращена в работу', 'success')
+      await refreshAll()
+    },
+    onError: (e: any) => {
+      const raw = e?.message || String(e)
+      logTicketActionError('acceptance', raw)
       setStatusError(mapTicketActionError(raw))
     },
   })
@@ -610,12 +659,16 @@ export function TicketPage() {
       const normalizedComment = closeReportComment.trim()
       if (!normalizedComment) throw new Error('Добавьте комментарий к закрытию')
       const hasPhotoAlready = hasWorkReportPhotoEvidence
-      if (!hasPhotoAlready && !selectedFile) throw new Error('Добавьте фото для закрытия')
+      if (!hasPhotoAlready && !selectedFile) throw new Error('Добавьте фото для отправки на приёмку')
       if (selectedFile) {
         await api.uploadTicketAttachment(ticketId, selectedFile, effectiveTicketScope)
       }
       await api.addTicketComment(ticketId, normalizedComment, effectiveTicketScope)
-      await api.updateTicketStatus(ticketId, { status: 'DONE', comment: normalizedComment }, effectiveTicketScope)
+      await api.updateTicketStatus(
+        ticketId,
+        { status: 'AWAITING_ACCEPTANCE', comment: normalizedComment },
+        effectiveTicketScope,
+      )
     },
     onSuccess: async () => {
       setCloseReportComment('')
@@ -623,7 +676,7 @@ export function TicketPage() {
       setSelectedFile(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
       clearActionErrors()
-      pushToast('Заявка завершена', 'success')
+      pushToast('Заявка отправлена на приёмку', 'success')
       await refreshAll()
     },
     onError: (e: any) => {
@@ -722,6 +775,7 @@ export function TicketPage() {
   }, [contextMode])
   const timelineItems = timelineQ.data?.timeline || timelineQ.data?.items || []
   const childTickets = ticket?.children || []
+  const isAwaitingAcceptanceClient = !!ticket && canMutateTicket && isClientRole && ticket.status === 'AWAITING_ACCEPTANCE'
   const hasAnyCommentEvidence = useMemo(
     () =>
       timelineItems.some((item) => {
@@ -818,6 +872,47 @@ export function TicketPage() {
     }
     uploadM.mutate(file)
   }
+
+  function handleAcceptanceFileChange(e: ChangeEvent<HTMLInputElement>) {
+    setAcceptanceFileError(null)
+    const file = e.target.files?.[0] || null
+    if (!file) {
+      setAcceptanceFile(null)
+      return
+    }
+
+    if (!file.type.startsWith('image/')) {
+      setAcceptanceFile(null)
+      e.target.value = ''
+      setAcceptanceFileError('Можно загружать только изображения')
+      return
+    }
+
+    if (file.size <= 0) {
+      setAcceptanceFile(null)
+      e.target.value = ''
+      setAcceptanceFileError('Файл пустой')
+      return
+    }
+
+    if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
+      setAcceptanceFile(null)
+      e.target.value = ''
+      setAcceptanceFileError('Изображение слишком большое. Максимум 10 МБ.')
+      return
+    }
+
+    setAcceptanceFile(file)
+  }
+
+  useEffect(() => {
+    setAcceptanceComment('')
+    setAcceptanceFile(null)
+    setAcceptanceFileError(null)
+    if (acceptanceFileInputRef.current) {
+      acceptanceFileInputRef.current.value = ''
+    }
+  }, [ticketId])
 
   function handleUploadClick() {
     if (uploadM.isPending) return
@@ -991,6 +1086,57 @@ export function TicketPage() {
         </div>
       ) : null}
 
+      {isAwaitingAcceptanceClient && ticket ? (
+        <div className="panel uiCard" style={{ marginBottom: 12, borderColor: '#fdba74', background: '#fff7ed' }}>
+          <h3 style={{ marginBottom: 8 }}>Приёмка работы</h3>
+          <div className="muted small" style={{ marginBottom: 10, lineHeight: 1.5 }}>
+            Техник отметил работу как завершённую. Проверьте результат и примите заявку либо верните её в работу с комментарием.
+          </div>
+          <div className="form">
+            <label>
+              Комментарий при отказе
+              <textarea
+                value={acceptanceComment}
+                onChange={(e) => setAcceptanceComment(e.target.value)}
+                rows={3}
+                placeholder="Объясните, что нужно исправить. Обязательно при отказе."
+                disabled={acceptanceM.isPending}
+              />
+            </label>
+            <label>
+              Фото при отказе / приёмке (необязательно)
+              <input
+                ref={acceptanceFileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleAcceptanceFileChange}
+                disabled={acceptanceM.isPending}
+              />
+              <div className="muted small" style={{ marginTop: 6 }}>
+                Можно приложить фото результата. При приёмке фото не обязательно.
+              </div>
+            </label>
+            <div className="uiActions">
+              <button
+                onClick={() => acceptanceM.mutate('ACCEPT')}
+                disabled={acceptanceM.isPending}
+              >
+                {acceptanceM.isPending ? 'Сохраняем…' : 'Принять работу'}
+              </button>
+              <button
+                className="ghost"
+                onClick={() => acceptanceM.mutate('REJECT')}
+                disabled={acceptanceM.isPending || !acceptanceComment.trim()}
+                title={!acceptanceComment.trim() ? 'Комментарий обязателен при отказе' : undefined}
+              >
+                {acceptanceM.isPending ? 'Сохраняем…' : 'Не принять работу'}
+              </button>
+            </div>
+          </div>
+          <InlineError message={acceptanceFileError || statusError} />
+        </div>
+      ) : null}
+
       {showTechnicianActionBar && ticket ? (
         <>
           <input
@@ -1052,11 +1198,11 @@ export function TicketPage() {
                 <button
                   onClick={() =>
                     statusM.mutate({
-                      status: 'DONE',
+                      status: 'AWAITING_ACCEPTANCE',
                       comment: newComment.trim() || undefined,
                     })
                   }
-                  disabled={statusM.isPending || !canTransitionTo('DONE') || !canCompleteByEvidence}
+                  disabled={statusM.isPending || !canTransitionTo('AWAITING_ACCEPTANCE') || !canCompleteByEvidence}
                   style={{ width: '100%' }}
                 >
                   {statusM.isPending ? 'Сохраняем…' : primaryAction.label}
@@ -1089,15 +1235,15 @@ export function TicketPage() {
                 {primaryAction?.kind !== 'done' ? (
                   <button
                     className="ghost"
-                    disabled={statusM.isPending || !canTransitionTo('DONE') || !canCompleteByEvidence}
+                    disabled={statusM.isPending || !canTransitionTo('AWAITING_ACCEPTANCE') || !canCompleteByEvidence}
                     onClick={() =>
                       statusM.mutate({
-                        status: 'DONE',
+                        status: 'AWAITING_ACCEPTANCE',
                         comment: newComment.trim() || undefined,
                       })
                     }
                   >
-                    {statusM.isPending ? 'Сохраняем…' : 'Завершить'}
+                    {statusM.isPending ? 'Сохраняем…' : 'Отправить на приёмку'}
                   </button>
                 ) : null}
                 {!isTechnicianRole ? (
@@ -1122,16 +1268,16 @@ export function TicketPage() {
           </div>
           {!canCompleteByEvidence ? (
             <div className="muted small" style={{ marginTop: 8 }}>
-              Для завершения нужны: минимум 1 комментарий и 1 фото.
+              Для отправки на приёмку нужны: минимум 1 комментарий и 1 фото.
             </div>
           ) : null}
           <InlineError message={statusError} />
         </div>
       ) : null}
 
-      {ticket && isTechnicianRole && isAssignedTechnician && canChangeStatus && canTransitionTo('DONE') ? (
+      {ticket && isTechnicianRole && isAssignedTechnician && canChangeStatus && canTransitionTo('AWAITING_ACCEPTANCE') ? (
         <div className="panel uiCard" style={{ marginBottom: 12 }}>
-          <h3 style={{ marginBottom: 10 }}>Закрыть с отчётом</h3>
+          <h3 style={{ marginBottom: 10 }}>Отправить на приёмку</h3>
           <div className="form">
             <label>
               Комментарий по выполнению *
@@ -1165,7 +1311,7 @@ export function TicketPage() {
                   (!hasWorkReportPhotoEvidence && !selectedFile)
                 }
               >
-                {closeReportM.isPending ? 'Закрываем…' : 'Завершить'}
+                {closeReportM.isPending ? 'Сохраняем…' : 'Отправить на приёмку'}
               </button>
             </div>
           </div>
