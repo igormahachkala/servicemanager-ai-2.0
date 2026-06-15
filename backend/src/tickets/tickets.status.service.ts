@@ -209,7 +209,19 @@ export class TicketsStatusService {
         })
         : null;
 
-      return { updated, fromStatus, toStatus, statusEventId: statusEvent.id, commentEventId: commentEvent?.id ?? null };
+      let readyForAcceptanceEventId: string | null = null;
+      if (toStatus === TicketStatus.AWAITING_ACCEPTANCE) {
+        const readyEv = await this.timelineService.recordTx(tx, {
+          event: 'TICKET_READY_FOR_ACCEPTANCE',
+          companyId: ticket.companyId,
+          ticketId,
+          actorUserId: user?.id ?? null,
+          payload: { fromStatus, toStatus },
+        });
+        readyForAcceptanceEventId = readyEv.id;
+      }
+
+      return { updated, fromStatus, toStatus, statusEventId: statusEvent.id, commentEventId: commentEvent?.id ?? null, readyForAcceptanceEventId };
     });
 
     const summaryParts = [(dto.comment || '').trim(), (statusResult.updated.problemText || '').trim()].filter(Boolean);
@@ -248,6 +260,16 @@ export class TicketsStatusService {
         toStatus: statusResult.toStatus,
         linkedClientCompanyId: linkedScope,
         sourceEventId: statusResult.statusEventId,
+      });
+    }
+
+    if (statusResult.toStatus === TicketStatus.AWAITING_ACCEPTANCE) {
+      this.notifications.onTicketAwaitingAcceptance({
+        ticketCompanyId: statusResult.updated.companyId,
+        actorUserId: user?.id ?? null,
+        ticketId,
+        ticketNumber: statusResult.updated.ticketNumber,
+        sourceEventId: statusResult.readyForAcceptanceEventId,
       });
     }
 

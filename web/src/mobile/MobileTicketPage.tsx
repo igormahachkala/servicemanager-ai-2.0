@@ -138,6 +138,7 @@ function ClientAcceptanceRejectModal(props: {
 function readListOrigin(location: ReturnType<typeof useLocation>): MobileTicketListOrigin {
   const raw = (location.state as MobileTicketNavState | null)?.mobileListOrigin
   if (raw === 'my') return 'my'
+  if (raw === 'chat') return 'chat'
   return 'home'
 }
 
@@ -173,6 +174,9 @@ function roleCanUploadTicketPhoto(role?: api.Role | null) {
 function timelineEventColor(item: api.TimelineItem): string {
   const ev = ((item.timelineEvent || item.type || item.domainType) ?? '').toUpperCase()
   const src = item.source ?? ''
+  if (ev === 'TICKET_ACCEPTED') return '#16a34a'
+  if (ev === 'TICKET_REJECTED') return '#dc2626'
+  if (ev === 'TICKET_READY_FOR_ACCEPTANCE') return '#d97706'
   if (ev.includes('CREATED') || ev.includes('CREATE')) return '#2563eb'
   if (ev.includes('CLAIMED') || ev.includes('CLAIM')) return '#0e7490'
   if (ev.includes('ASSIGNED') || ev.includes('ASSIGN')) return '#0e7490'
@@ -187,6 +191,12 @@ function timelineEventColor(item: api.TimelineItem): string {
 
 function timelineEventLabel(item: api.TimelineItem): string {
   const ev = ((item.timelineEvent || item.type || item.domainType) ?? '').toUpperCase()
+  if (ev === 'TICKET_READY_FOR_ACCEPTANCE') return 'Работа отправлена на приёмку'
+  if (ev === 'TICKET_ACCEPTED') return 'Работа принята клиентом'
+  if (ev === 'TICKET_REJECTED') {
+    const comment = (item.payload as any)?.comment
+    return comment ? `Работа не принята: ${comment}` : 'Работа не принята'
+  }
   if (ev.includes('CREATED') || ev.includes('CREATE')) return 'Заявка создана'
   if (ev.includes('CLAIMED') || ev.includes('CLAIM')) return 'Взята в работу'
   if (ev.includes('ASSIGNED') || ev.includes('ASSIGN')) return 'Назначен исполнитель'
@@ -202,6 +212,7 @@ function timelineEventLabel(item: api.TimelineItem): string {
       NEW: 'Новая',
       ASSIGNED: 'Назначена',
       IN_PROGRESS: 'В работе',
+      AWAITING_ACCEPTANCE: 'На приёмке',
       DONE: 'Завершена',
       CANCELED: 'Отменена',
     }
@@ -227,6 +238,25 @@ function TimelineIcon({ item }: { item: api.TimelineItem }) {
   const ev = ((item.timelineEvent || item.type || item.domainType) ?? '').toUpperCase()
   const color = timelineEventColor(item)
   const base = { fill: 'none' as const, stroke: color, strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
+  if (ev === 'TICKET_ACCEPTED') return (
+    <svg width={18} height={18} viewBox="0 0 24 24" {...base} aria-hidden>
+      <circle cx="12" cy="12" r="10"/>
+      <polyline points="9 12 11 14 15 10"/>
+    </svg>
+  )
+  if (ev === 'TICKET_REJECTED') return (
+    <svg width={18} height={18} viewBox="0 0 24 24" {...base} aria-hidden>
+      <circle cx="12" cy="12" r="10"/>
+      <line x1="15" y1="9" x2="9" y2="15"/>
+      <line x1="9" y1="9" x2="15" y2="15"/>
+    </svg>
+  )
+  if (ev === 'TICKET_READY_FOR_ACCEPTANCE') return (
+    <svg width={18} height={18} viewBox="0 0 24 24" {...base} aria-hidden>
+      <circle cx="12" cy="12" r="10"/>
+      <polyline points="12 6 12 12 16 14"/>
+    </svg>
+  )
   if (ev.includes('CREATED') || ev.includes('CREATE')) return (
     <svg width={18} height={18} viewBox="0 0 24 24" {...base} aria-hidden>
       <circle cx="12" cy="12" r="10"/>
@@ -894,7 +924,13 @@ export function MobileTicketPage() {
   })
 
   const listOrigin = readListOrigin(location)
-  const backPath = listOrigin === 'my' ? mobilePath(location.pathname, '/my') : mobilePath(location.pathname, '')
+  // SMA-CHAT-UX-004: если пришли из чата — «Назад» возвращает в чат заявки, а не на главную.
+  const backPath =
+    listOrigin === 'chat'
+      ? mobilePath(location.pathname, `/chats/${ticketId}`)
+      : listOrigin === 'my'
+        ? mobilePath(location.pathname, '/my')
+        : mobilePath(location.pathname, '')
   const backHref = api.appendScopeToPath(backPath, scopeNorm, meQ.data)
   const boardTabLabel = navState?.homeBoardTab ? MOBILE_HOME_TAB_LABELS[navState.homeBoardTab] : ''
   const boardChipLabels = useMemo(() => {
