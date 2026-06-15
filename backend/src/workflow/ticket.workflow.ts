@@ -9,7 +9,7 @@ import { WorkflowDecision, allow, deny } from './workflow.types';
  */
 const ALLOWED: Partial<Record<TicketStatus, TicketStatus[]>> = {
   NEW: ['ASSIGNED', 'IN_PROGRESS', 'CANCELED'] as TicketStatus[],
-  ASSIGNED: ['IN_PROGRESS', 'DONE', 'CANCELED'] as TicketStatus[],
+  ASSIGNED: ['IN_PROGRESS', 'AWAITING_ACCEPTANCE', 'DONE', 'CANCELED'] as TicketStatus[],
   IN_PROGRESS: ['AWAITING_ACCEPTANCE', 'DONE', 'CANCELED'] as TicketStatus[],
   AWAITING_ACCEPTANCE: ['DONE', 'IN_PROGRESS'] as TicketStatus[],
   DONE: [] as TicketStatus[],

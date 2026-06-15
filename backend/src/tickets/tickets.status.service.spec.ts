@@ -156,6 +156,33 @@ describe('TicketsStatusService.updateStatus', () => {
     expect(tx.ticket.update).toHaveBeenCalled()
   })
 
+  it('maps technician completion DONE→AWAITING_ACCEPTANCE', async () => {
+    const txTicket = makeTxTicket({ status: TicketStatus.IN_PROGRESS, companyId: PROVIDER_ID, assignedTechnicianId: TECH_ID })
+    const { svc, tx, notifications } = makeSetup({
+      isExecutor: true,
+      txTicket,
+      updatedStatus: TicketStatus.AWAITING_ACCEPTANCE,
+    })
+    tx.ticketAttachment.count.mockResolvedValue(1)
+    tx.domainEvent.count.mockResolvedValue(1)
+    mockResolveAccess.mockResolvedValue(
+      makeAccess({
+        ticket: { id: TICKET_ID, companyId: PROVIDER_ID, assignedTechnicianId: TECH_ID },
+        operationCompanyId: PROVIDER_ID,
+        visibilityMode: 'tenant',
+      }),
+    )
+
+    await svc.updateStatus(PROVIDER_ID, { id: TECH_ID }, UserRole.TECHNICIAN, TICKET_ID, {
+      status: TicketStatus.DONE,
+    })
+
+    expect(tx.ticket.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ status: TicketStatus.AWAITING_ACCEPTANCE }) }),
+    )
+    expect(notifications.onTicketDone).not.toHaveBeenCalled()
+  })
+
   it('denies executor not assigned to the ticket (ForbiddenException)', async () => {
     const txTicket = makeTxTicket({ companyId: PROVIDER_ID, assignedTechnicianId: 'other-tech' })
     const { svc } = makeSetup({ isExecutor: true, txTicket })
@@ -197,9 +224,9 @@ describe('TicketsStatusService.updateStatus', () => {
     expect(mockResolveAccess).not.toHaveBeenCalled()
   })
 
-  it('rejects DONE without work report photo (BadRequestException)', async () => {
+  it('rejects completion without work report photo (BadRequestException)', async () => {
     const txTicket = makeTxTicket({ status: TicketStatus.IN_PROGRESS })
-    const { svc, tx } = makeSetup({ txTicket, updatedStatus: TicketStatus.DONE })
+    const { svc, tx } = makeSetup({ txTicket, updatedStatus: TicketStatus.AWAITING_ACCEPTANCE })
     tx.ticketAttachment.count.mockResolvedValue(0)
     mockResolveAccess.mockResolvedValue(makeAccess())
 

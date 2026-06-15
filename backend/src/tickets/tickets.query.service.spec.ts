@@ -152,19 +152,20 @@ describe('TicketsQueryService.board', () => {
 
   afterEach(() => jest.restoreAllMocks())
 
-  it('returns exactly 5 columns covering all ticket statuses', async () => {
+  it('returns exactly 6 columns covering all ticket statuses', async () => {
     spyTechScope.mockResolvedValue(makeTechScope())
     const svc = makeService(makePrisma())
 
     const result = await svc.board(PROVIDER_ID, USER_ID, UserRole.TECHNICIAN, {})
 
-    expect(result.columns).toHaveLength(5)
+    expect(result.columns).toHaveLength(6)
     const statuses = result.columns.map((c) => c.status)
     expect(statuses).toEqual(
       expect.arrayContaining([
         TicketStatus.NEW,
         TicketStatus.ASSIGNED,
         TicketStatus.IN_PROGRESS,
+        TicketStatus.AWAITING_ACCEPTANCE,
         TicketStatus.DONE,
         TicketStatus.CANCELED,
       ]),

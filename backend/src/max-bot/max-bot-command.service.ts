@@ -3,7 +3,12 @@ import { TicketStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MaxBotUpdate } from './max-bot.types';
 
-const OPEN_STATUSES = [TicketStatus.NEW, TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS];
+const OPEN_STATUSES = [
+  TicketStatus.NEW,
+  TicketStatus.ASSIGNED,
+  TicketStatus.IN_PROGRESS,
+  TicketStatus.AWAITING_ACCEPTANCE,
+];
 
 const STATUS_LABELS: Record<TicketStatus, string> = {
   [TicketStatus.NEW]: 'Новая',
