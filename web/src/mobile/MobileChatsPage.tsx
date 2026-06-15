@@ -58,7 +58,7 @@ type ChatsInternalItem = {
 
 type ChatsSectionId = 'tickets' | 'objects' | 'internal'
 
-const ACTIVE_STATUSES = new Set<api.TicketStatus>(['NEW', 'ASSIGNED', 'IN_PROGRESS'])
+const ACTIVE_STATUSES = new Set<api.TicketStatus>(['NEW', 'ASSIGNED', 'IN_PROGRESS', 'AWAITING_ACCEPTANCE'])
 const ARCHIVE_STATUSES = new Set<api.TicketStatus>(['DONE', 'CANCELED'])
 
 const CHAT_FILTERS: Array<{ id: ChatsFilter; label: string }> = [
@@ -136,6 +136,7 @@ function ticketStatusTone(status: api.TicketStatus): string {
   if (status === 'NEW') return 'orange'
   if (status === 'ASSIGNED') return 'blue'
   if (status === 'IN_PROGRESS') return 'violet'
+  if (status === 'AWAITING_ACCEPTANCE') return 'orange'
   if (status === 'DONE') return 'green'
   return 'green'
 }

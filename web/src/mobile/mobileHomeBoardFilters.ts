@@ -66,7 +66,12 @@ export function isMineTicketForRole(
 }
 
 export function isTicketInWorkStatus(ticket: TicketCard): boolean {
-  return ticket.status === 'ASSIGNED' || ticket.status === 'IN_PROGRESS'
+  // SMA-ACCEPTANCE-005: заявка на приёмке у клиента остаётся активной (в работе по контуру).
+  return (
+    ticket.status === 'ASSIGNED' ||
+    ticket.status === 'IN_PROGRESS' ||
+    ticket.status === 'AWAITING_ACCEPTANCE'
+  )
 }
 
 export function isNewTicket(ticket: TicketCard): boolean {

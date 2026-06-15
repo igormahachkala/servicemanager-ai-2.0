@@ -16,7 +16,7 @@ export function isFullAdminDesktopNavRole(role?: Role | null): boolean {
   return role === 'PLATFORM_ADMIN' || role === 'ADMIN' || role === 'ADMIN_PROVIDER'
 }
 
-export type TicketStatus = 'NEW' | 'ASSIGNED' | 'IN_PROGRESS' | 'DONE' | 'CANCELED'
+export type TicketStatus = 'NEW' | 'ASSIGNED' | 'IN_PROGRESS' | 'AWAITING_ACCEPTANCE' | 'DONE' | 'CANCELED'
 export type TicketUrgency = 'URGENT' | 'NOT_URGENT'
 
 /** SLA-приоритет окна ответа (срок от создания: NORMAL 24ч, URGENT 2ч на бэкенде). */
@@ -2312,6 +2312,20 @@ export async function requestTicketAssignment(
 export async function updateTicketStatus(id: string, input: UpdateTicketStatusInput, scope?: string | TicketScopeParams): Promise<any> {
   return request<any>(`/tickets/${id}/status${buildTicketScopeSuffix(scope)}`, {
     method: 'PATCH',
+    body: input,
+  })
+}
+
+/** SMA-ACCEPTANCE-005: клиентское решение по приёмке работ (контракт backend: POST /tickets/:id/acceptance). */
+export type TicketAcceptanceDecision = 'ACCEPT' | 'REJECT'
+export type TicketAcceptanceInput = {
+  decision: TicketAcceptanceDecision
+  comment?: string
+  attachmentIds?: string[]
+}
+export async function decideTicketAcceptance(id: string, input: TicketAcceptanceInput, scope?: string | TicketScopeParams): Promise<any> {
+  return request<any>(`/tickets/${id}/acceptance${buildTicketScopeSuffix(scope)}`, {
+    method: 'POST',
     body: input,
   })
 }

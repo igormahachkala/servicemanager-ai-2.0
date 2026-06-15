@@ -29,7 +29,7 @@ function ticketLinkState(ticketCompanyId?: string | null) {
 }
 
 const filterStatuses: Partial<Record<FilterKey, api.TicketStatus[]>> = {
-  active: ['NEW', 'ASSIGNED', 'IN_PROGRESS'],
+  active: ['NEW', 'ASSIGNED', 'IN_PROGRESS', 'AWAITING_ACCEPTANCE'],
   done: ['DONE'],
   archive: ['CANCELED'],
 }

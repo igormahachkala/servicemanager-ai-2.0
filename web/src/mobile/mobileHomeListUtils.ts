@@ -204,7 +204,13 @@ export type MobileHomeLocationGroup = {
 
 /** SMA-112: активная заявка для главной (диспетчерский экран). */
 function isActiveHomeTicketStatus(status: TicketCard['status']): boolean {
-  return status === 'NEW' || status === 'ASSIGNED' || status === 'IN_PROGRESS'
+  // SMA-ACCEPTANCE-005: заявка на приёмке у клиента ещё активна и остаётся на главной доске.
+  return (
+    status === 'NEW' ||
+    status === 'ASSIGNED' ||
+    status === 'IN_PROGRESS' ||
+    status === 'AWAITING_ACCEPTANCE'
+  )
 }
 
 /**
@@ -238,7 +244,7 @@ export function groupTicketsByLocation(tickets: TicketCard[]): MobileHomeLocatio
     const g = map.get(locId)!
     g.totalTickets++
     if (t.status === 'NEW') g.newTickets++
-    if (t.status === 'IN_PROGRESS' || t.status === 'ASSIGNED') g.inProgressTickets++
+    if (t.status === 'IN_PROGRESS' || t.status === 'ASSIGNED' || t.status === 'AWAITING_ACCEPTANCE') g.inProgressTickets++
     if (t.status === 'DONE') g.doneTickets++
     if (t.status === 'CANCELED') g.canceledTickets++
     if (isActiveHomeTicketStatus(t.status)) {

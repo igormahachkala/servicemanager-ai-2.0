@@ -282,6 +282,7 @@ export function mobileTicketStatusLabelRu(status: TicketStatus): string {
   if (status === 'NEW') return 'Новая'
   if (status === 'ASSIGNED') return 'Назначена'
   if (status === 'IN_PROGRESS') return 'В работе'
+  if (status === 'AWAITING_ACCEPTANCE') return 'Ожидает приёмки'
   if (status === 'DONE') return 'Завершена'
   if (status === 'CANCELED') return 'Отменена'
   return status

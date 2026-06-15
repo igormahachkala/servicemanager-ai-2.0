@@ -1439,6 +1439,12 @@ a.mobileBtn.mobileCreateTicketLink {
   border-color: #f97316;
 }
 
+.mobileTicketStatus--AWAITING_ACCEPTANCE {
+  background: #ccfbf1;
+  color: #115e59;
+  border-color: #14b8a6;
+}
+
 .mobileTicketStatus--DONE {
   background: #dcfce7;
   color: #14532d;
@@ -1467,6 +1473,10 @@ a.mobileBtn.mobileCreateTicketLink {
 
 .mobileTicketCard--IN_PROGRESS {
   border-left-color: #ea580c;
+}
+
+.mobileTicketCard--AWAITING_ACCEPTANCE {
+  border-left-color: #14b8a6;
 }
 
 .mobileTicketCard--DONE {

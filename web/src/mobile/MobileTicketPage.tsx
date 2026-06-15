@@ -47,6 +47,94 @@ import { MobileTicketPhotoGallery } from './MobileTicketPhotoGallery'
 import { MobileTicketActionsSheet, type TicketSheetAction } from './MobileTicketActionsSheet'
 import { MobileModalBackdrop } from './MobileModalBackdrop'
 
+// SMA-ACCEPTANCE-005: модалка клиентского отказа в приёмке (комментарий обязателен, фото — желательно).
+type ClientRejectModalState =
+  | { ticketId: string; title: string; file: File | null; previewUrl: string; comment: string; err: string }
+  | null
+
+function ClientAcceptanceRejectModal(props: {
+  state: ClientRejectModalState
+  busy: boolean
+  cameraInputRef: { current: HTMLInputElement | null }
+  galleryInputRef: { current: HTMLInputElement | null }
+  setState: (next: ClientRejectModalState | ((prev: ClientRejectModalState) => ClientRejectModalState)) => void
+  canSubmit: boolean
+  onSubmit: () => void
+}) {
+  const { state, busy, cameraInputRef, galleryInputRef, setState, canSubmit, onSubmit } = props
+  if (!state) return null
+  const pickFile = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null
+    setState((prev) => {
+      if (!prev) return prev
+      if (prev.previewUrl) URL.revokeObjectURL(prev.previewUrl)
+      const previewUrl = file ? URL.createObjectURL(file) : ''
+      return { ...prev, file, previewUrl, err: '' }
+    })
+  }
+  const cancel = () => {
+    if (state.previewUrl) URL.revokeObjectURL(state.previewUrl)
+    setState(null)
+    if (cameraInputRef.current) cameraInputRef.current.value = ''
+    if (galleryInputRef.current) galleryInputRef.current.value = ''
+  }
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(17, 24, 39, 0.55)', zIndex: 60, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: 12 }}>
+      <div className="mobileCard" style={{ width: '100%', maxWidth: 720, marginBottom: 12 }}>
+        <div className="mobileRow" style={{ alignItems: 'flex-start' }}>
+          <div>
+            <div style={{ fontWeight: 900 }}>Не принять работу</div>
+            <div className="mobileMeta" style={{ marginTop: 4 }}>{state.title}</div>
+          </div>
+          <button type="button" className="mobileBtn mobileBtnSecondary" disabled={busy} onClick={cancel}>
+            Отмена
+          </button>
+        </div>
+        {state.err ? <div className="mobileNotice mobileNoticeError" style={{ marginTop: 10 }}>{state.err}</div> : null}
+        <div className="mobileForm" style={{ marginTop: 12 }}>
+          <label className="mobileFormField">
+            Причина отказа *
+            <textarea
+              rows={3}
+              value={state.comment}
+              disabled={busy}
+              placeholder="Что не так с работой / что нужно доделать"
+              onChange={(e) => setState((prev) => (prev ? { ...prev, comment: e.target.value, err: '' } : prev))}
+            />
+          </label>
+          <div className="mobilePhotoCardBlock" style={{ marginTop: 12 }}>
+            <div style={{ fontWeight: 800, marginBottom: 8 }}>Фото (необязательно)</div>
+            <input ref={cameraInputRef} className="mobileHiddenFileInput" type="file" accept="image/*" capture="environment" disabled={busy} onChange={pickFile} />
+            <input ref={galleryInputRef} className="mobileHiddenFileInput" type="file" accept="image/*" disabled={busy} onChange={pickFile} />
+            <div className="mobilePhotoSourceRow">
+              <button type="button" className="mobileBtn mobileBtnSecondary mobilePhotoSourceBtn" disabled={busy} onClick={() => cameraInputRef.current?.click()}>
+                Сделать фото
+              </button>
+              <button type="button" className="mobileBtn mobileBtnSecondary mobilePhotoSourceBtn" disabled={busy} onClick={() => galleryInputRef.current?.click()}>
+                Выбрать из телефона
+              </button>
+            </div>
+            {state.previewUrl ? (
+              <div className="mobilePhotoPreview">
+                <img src={state.previewUrl} alt={state.file?.name || 'preview'} style={{ width: '100%', maxHeight: 240, objectFit: 'cover', borderRadius: 12, border: '1px solid #e5e7eb' }} />
+              </div>
+            ) : null}
+            {state.file ? <div className="mobileMeta" style={{ marginTop: 10 }}>Файл: {state.file.name}</div> : null}
+          </div>
+          <div className="mobileFormSubmitStack">
+            <button type="button" className="mobileBtn mobileBtnSecondary" disabled={!canSubmit} onClick={onSubmit}>
+              {busy ? 'Отправляем…' : 'Отправить на доработку'}
+            </button>
+            <p className="mobileHint" style={{ marginBottom: 0 }}>
+              Комментарий обязателен (не короче трёх символов). Заявка вернётся в статус «В работе».
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function readListOrigin(location: ReturnType<typeof useLocation>): MobileTicketListOrigin {
   const raw = (location.state as MobileTicketNavState | null)?.mobileListOrigin
   if (raw === 'my') return 'my'
@@ -216,6 +304,10 @@ export function MobileTicketPage() {
   const [closeModal, setCloseModal] = useState<TicketCloseModalState>(null)
   const closeModalCameraRef = useRef<HTMLInputElement | null>(null)
   const closeModalGalleryRef = useRef<HTMLInputElement | null>(null)
+  // SMA-ACCEPTANCE-005: клиентский отказ в приёмке (комментарий обязателен, фото — желательно).
+  const [rejectModal, setRejectModal] = useState<ClientRejectModalState>(null)
+  const rejectCameraRef = useRef<HTMLInputElement | null>(null)
+  const rejectGalleryRef = useRef<HTMLInputElement | null>(null)
 
   const navState = location.state as MobileTicketNavState | null | undefined
 
@@ -244,6 +336,12 @@ export function MobileTicketPage() {
       if (closeModal?.previewUrl) URL.revokeObjectURL(closeModal.previewUrl)
     }
   }, [closeModal?.previewUrl])
+
+  useEffect(() => {
+    return () => {
+      if (rejectModal?.previewUrl) URL.revokeObjectURL(rejectModal.previewUrl)
+    }
+  }, [rejectModal?.previewUrl])
 
   const observerCompanyId = useMemo(
     () => (searchParams.get('companyId') || api.getObserverCompanyId(meQ.data)).trim(),
@@ -512,6 +610,10 @@ export function MobileTicketPage() {
     assigneeIdForMe === meQ.data.id &&
     (aa ? aa.canComplete : transitions.includes('DONE'))
 
+  // SMA-ACCEPTANCE-005: клиент видит «Принять/Не принять», когда работа отправлена на приёмку.
+  const canShowClientAcceptance =
+    meQ.data?.role === 'CLIENT' && !!ticket && ticket.status === 'AWAITING_ACCEPTANCE'
+
   const [detailTab, setDetailTab] = useState<'info' | 'chat' | 'photos' | 'history'>('info')
 
   type OfflinePendingComment = { queueId: string; text: string; at: string }
@@ -524,6 +626,7 @@ export function MobileTicketPage() {
   const [assignTechId, setAssignTechId] = useState('')
   const [assignErr, setAssignErr] = useState('')
   const [techActionErr, setTechActionErr] = useState('')
+  const [acceptanceErr, setAcceptanceErr] = useState('')
   const [assignmentRequestErr, setAssignmentRequestErr] = useState('')
   const [assignmentRequestToast, setAssignmentRequestToast] = useState('')
   const [requestPhotoIndex, setRequestPhotoIndex] = useState<number | null>(null)
@@ -729,7 +832,8 @@ export function MobileTicketPage() {
       if (comment.length < 3) throw new Error('Нужен комментарий не короче 3 символов')
       await api.uploadTicketAttachment(closeModal.ticketId, closeModal.file, ticketResourceScope)
       await api.addTicketComment(closeModal.ticketId, comment, ticketResourceScope)
-      await api.updateTicketStatus(closeModal.ticketId, { status: 'DONE' }, ticketResourceScope)
+      // SMA-ACCEPTANCE-005: техник отправляет работу на клиентскую приёмку, а не закрывает напрямую.
+      await api.updateTicketStatus(closeModal.ticketId, { status: 'AWAITING_ACCEPTANCE' }, ticketResourceScope)
     },
     onSuccess: async () => {
       if (closeModal?.previewUrl) URL.revokeObjectURL(closeModal.previewUrl)
@@ -740,10 +844,52 @@ export function MobileTicketPage() {
       await queryClient.invalidateQueries({ queryKey: ['mobile-home-available'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-notifications'] })
       await queryClient.refetchQueries({ queryKey: ['mobile-ticket-detail', ticketId] })
-      setOperationalToast('Заявка завершена.')
+      setOperationalToast('Работа отправлена на приёмку клиенту.')
     },
     onError: (e: unknown) => {
       setCloseModal((prev) => (prev ? { ...prev, err: formatMobileMutationError(e, { operation: 'close' }) } : prev))
+    },
+  })
+
+  // SMA-ACCEPTANCE-005: клиент принимает работу (контракт POST /tickets/:id/acceptance, decision=ACCEPT → DONE).
+  const acceptM = useMutation({
+    mutationFn: async () => {
+      if (!ticket) throw new Error('Нет заявки')
+      await api.decideTicketAcceptance(ticket.id, { decision: 'ACCEPT' }, ticketResourceScope)
+    },
+    onSuccess: async () => {
+      await invalidateTicketQueries()
+      await queryClient.invalidateQueries({ queryKey: ['mobile-home-available'] })
+      await queryClient.invalidateQueries({ queryKey: ['mobile-notifications'] })
+      await queryClient.refetchQueries({ queryKey: ['mobile-ticket-detail', ticketId] })
+      setOperationalToast('Работа принята. Заявка завершена.')
+    },
+    onError: (e: unknown) => setAcceptanceErr(formatMobileMutationError(e, { operation: 'other' })),
+  })
+
+  // SMA-ACCEPTANCE-005: клиент не принимает работу (decision=REJECT → IN_PROGRESS). Комментарий обязателен, фото желательно.
+  const rejectM = useMutation({
+    mutationFn: async () => {
+      if (!rejectModal) throw new Error('Нет данных для отказа')
+      const comment = rejectModal.comment.trim()
+      if (comment.length < 3) throw new Error('Нужен комментарий не короче 3 символов')
+      // Фото (по желанию) прикрепляем к заявке до решения, чтобы оно осталось в истории.
+      if (rejectModal.file) await api.uploadTicketAttachment(rejectModal.ticketId, rejectModal.file, ticketResourceScope)
+      await api.decideTicketAcceptance(rejectModal.ticketId, { decision: 'REJECT', comment }, ticketResourceScope)
+    },
+    onSuccess: async () => {
+      if (rejectModal?.previewUrl) URL.revokeObjectURL(rejectModal.previewUrl)
+      setRejectModal(null)
+      if (rejectCameraRef.current) rejectCameraRef.current.value = ''
+      if (rejectGalleryRef.current) rejectGalleryRef.current.value = ''
+      await invalidateTicketQueries()
+      await queryClient.invalidateQueries({ queryKey: ['mobile-home-available'] })
+      await queryClient.invalidateQueries({ queryKey: ['mobile-notifications'] })
+      await queryClient.refetchQueries({ queryKey: ['mobile-ticket-detail', ticketId] })
+      setOperationalToast('Работа отправлена на доработку.')
+    },
+    onError: (e: unknown) => {
+      setRejectModal((prev) => (prev ? { ...prev, err: formatMobileMutationError(e, { operation: 'other' }) } : prev))
     },
   })
 
@@ -846,6 +992,8 @@ export function MobileTicketPage() {
   const assignBusy = assignM.isPending
   const closeBusy = closeM.isPending
   const closeCanSubmit = !!closeModal?.file && closeModal.comment.trim().length >= 3 && !closeBusy
+  // SMA-ACCEPTANCE-005: для отказа достаточно комментария (фото — по желанию).
+  const rejectCanSubmit = !!rejectModal && rejectModal.comment.trim().length >= 3 && !rejectM.isPending
 
   const showCompleteBlockedHint =
     meQ.data?.role === 'TECHNICIAN' &&
@@ -869,7 +1017,7 @@ export function MobileTicketPage() {
     ticket.status !== 'CANCELED' &&
     !hasTechnicianActionsBlock
 
-  const padBottomForOpsDock = hasTechnicianActionsBlock && detailTab === 'info'
+  const padBottomForOpsDock = (hasTechnicianActionsBlock || canShowClientAcceptance) && detailTab === 'info'
 
   useEffect(() => {
     const el = chatInputRef.current
@@ -937,7 +1085,7 @@ export function MobileTicketPage() {
         canShowComplete
           ? {
               id: 'close',
-              label: 'Закрыть заявку',
+              label: 'Отправить на приёмку',
               icon: '✅',
               onClick: () =>
                 setCloseModal({
@@ -948,6 +1096,27 @@ export function MobileTicketPage() {
                   comment: '',
                   err: '',
                 }),
+            }
+          : null,
+        canShowClientAcceptance
+          ? { id: 'accept', label: 'Принять работу', icon: '✅', onClick: () => { setAcceptanceErr(''); acceptM.mutate() } }
+          : null,
+        canShowClientAcceptance
+          ? {
+              id: 'reject',
+              label: 'Не принять работу',
+              icon: '↩️',
+              onClick: () => {
+                setAcceptanceErr('')
+                setRejectModal({
+                  ticketId: ticket.id,
+                  title: `${mobileTicketNumberTitle(ticket.ticketNumber)} — ${mobileTicketCategoryLocationFromDetail(ticket)}`,
+                  file: null,
+                  previewUrl: '',
+                  comment: '',
+                  err: '',
+                })
+              },
             }
           : null,
       ].filter(Boolean) as TicketSheetAction[])
@@ -1152,6 +1321,49 @@ export function MobileTicketPage() {
             ) : null}
           </div>
 
+          {canShowClientAcceptance ? (
+            <div className="mobileCard mobileTicketOpsDock mobileTicketOpsDock--fixed">
+              <div className="mobileSectionTitle" style={{ marginBottom: 8 }}>
+                Приёмка работ
+              </div>
+              <p className="mobileFieldHint" style={{ marginBottom: 10 }}>
+                Исполнитель отправил работу на приёмку. Примите её или отправьте на доработку с комментарием.
+              </p>
+              {acceptanceErr ? (
+                <div className="mobileNotice mobileNoticeError" style={{ marginBottom: 10 }}>{acceptanceErr}</div>
+              ) : null}
+              <button
+                type="button"
+                className="mobileBtn mobileBtn--done"
+                style={{ width: '100%', minHeight: 48 }}
+                disabled={acceptM.isPending || rejectM.isPending || !isOnline}
+                onClick={() => { setAcceptanceErr(''); acceptM.mutate() }}
+              >
+                {acceptM.isPending ? 'Принимаем…' : 'Принять работу'}
+              </button>
+              <button
+                type="button"
+                className="mobileBtn mobileBtnSecondary"
+                style={{ width: '100%', marginTop: 8, minHeight: 48 }}
+                disabled={acceptM.isPending || rejectM.isPending || !isOnline}
+                onClick={() => {
+                  if (!ticket) return
+                  setAcceptanceErr('')
+                  setRejectModal({
+                    ticketId: ticket.id,
+                    title: `${mobileTicketNumberTitle(ticket.ticketNumber)} — ${mobileTicketCategoryLocationFromDetail(ticket)}`,
+                    file: null,
+                    previewUrl: '',
+                    comment: '',
+                    err: '',
+                  })
+                }}
+              >
+                Не принять работу
+              </button>
+            </div>
+          ) : null}
+
           {hasTechnicianActionsBlock ? (
             <div className="mobileCard mobileTicketOpsDock mobileTicketOpsDock--fixed">
               <div className="mobileSectionTitle" style={{ marginBottom: 8 }}>
@@ -1244,7 +1456,7 @@ export function MobileTicketPage() {
                     })
                   }}
                 >
-                  Завершить работу (фото отчёта)
+                  Отправить на приёмку (фото отчёта)
                 </button>
               ) : null}
               {showCompleteBlockedHint ? (
@@ -1689,6 +1901,18 @@ export function MobileTicketPage() {
         setCloseModal={setCloseModal}
         closeCanSubmit={closeCanSubmit}
         closeM={closeM}
+        heading="Отправить на приёмку"
+        submitLabel="Отправить на приёмку"
+        submitBusyLabel="Отправляем…"
+      />
+      <ClientAcceptanceRejectModal
+        state={rejectModal}
+        busy={rejectM.isPending}
+        cameraInputRef={rejectCameraRef}
+        galleryInputRef={rejectGalleryRef}
+        setState={setRejectModal}
+        canSubmit={rejectCanSubmit}
+        onSubmit={() => rejectM.mutate()}
       />
     </div>
   )

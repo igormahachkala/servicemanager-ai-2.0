@@ -366,15 +366,22 @@ export function TicketCloseModal(props: {
   setCloseModal: (next: TicketCloseModalState | ((prev: TicketCloseModalState) => TicketCloseModalState)) => void
   closeCanSubmit: boolean
   closeM: UseMutationResult<void, unknown, void, unknown>
+  /** SMA-ACCEPTANCE-005: переопределение текстов для сценария «Отправить на приёмку». */
+  heading?: string
+  submitLabel?: string
+  submitBusyLabel?: string
 }) {
   const { closeModal, closeBusy, closeCameraInputRef, closeGalleryInputRef, setCloseModal, closeCanSubmit, closeM } = props
+  const heading = props.heading ?? 'Закрыть заявку'
+  const submitLabel = props.submitLabel ?? 'Завершить'
+  const submitBusyLabel = props.submitBusyLabel ?? 'Завершаем…'
   if (!closeModal) return null
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(17, 24, 39, 0.55)', zIndex: 60, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: 12 }}>
       <div className="mobileCard" style={{ width: '100%', maxWidth: 720, marginBottom: 12 }}>
         <div className="mobileRow" style={{ alignItems: 'flex-start' }}>
           <div>
-            <div style={{ fontWeight: 900 }}>Закрыть заявку</div>
+            <div style={{ fontWeight: 900 }}>{heading}</div>
             <div className="mobileMeta" style={{ marginTop: 4 }}>{closeModal.title}</div>
           </div>
           <button
@@ -456,7 +463,7 @@ export function TicketCloseModal(props: {
           </label>
           <div className="mobileFormSubmitStack">
             <button type="button" className="mobileBtn mobileBtn--done" disabled={!closeCanSubmit} onClick={() => closeM.mutate()}>
-              {closeBusy ? 'Завершаем…' : 'Завершить'}
+              {closeBusy ? submitBusyLabel : submitLabel}
             </button>
             <p className="mobileHint" style={{ marginBottom: 0 }}>
               Комментарий не короче трёх символов. Сначала сохранится фото отчёта на заявку, затем она закроется.
