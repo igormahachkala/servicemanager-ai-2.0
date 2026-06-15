@@ -4,6 +4,7 @@ import * as bcrypt from 'bcrypt'
 import { JwtService } from '@nestjs/jwt'
 
 import { PrismaService } from '../prisma/prisma.service'
+import { isEngineeringAgentOwner } from '../agent-tasks/agent-tasks.access'
 
 import { LoginDto } from './dto/login.dto'
 
@@ -343,6 +344,7 @@ export class AuthService {
       companyId: user.companyId,
       companyName: user.companyName,
       isActive: user.isActive,
+      canAccessEngineeringAgent: isEngineeringAgentOwner({ role: user.role, email: user.email }),
     }
   }
 }

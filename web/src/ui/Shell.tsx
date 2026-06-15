@@ -77,7 +77,11 @@ function isActivePath(currentPath: string, targetPath: string) {
   return currentPath === targetPath
 }
 
-function isNavItemVisible(item: NavItem, role?: api.Role) {
+function isNavItemVisible(item: NavItem, role?: api.Role, canAccessEngineeringAgent?: boolean) {
+  // Owner-only hidden module: gated purely by the server-computed flag,
+  // independent of role (an owner email may have a non-platform role).
+  if (item.to === '/agents/engineering') return !!canAccessEngineeringAgent
+
   if (role === 'PLATFORM_ADMIN') return true
   if (!role) return false
 
@@ -192,6 +196,7 @@ export function Shell() {
   }
 
   const role = meQ.data?.role
+  const canAccessEngineeringAgent = !!meQ.data?.canAccessEngineeringAgent
   const isPlatformAdmin = role === 'PLATFORM_ADMIN'
   const navigation = isPlatformAdmin ? platformNavigation : tenantNavigation
 
@@ -201,25 +206,25 @@ export function Shell() {
         .map((section: NavSection) => ({
           ...section,
           items: section.items
-            .filter((item: NavItem) => isNavItemVisible(item, role))
+            .filter((item: NavItem) => isNavItemVisible(item, role, canAccessEngineeringAgent))
             .map((item: NavItem) => ({
               ...item,
               active: isActivePath(loc.pathname, item.to),
             })),
         }))
         .filter((section) => section.items.length > 0),
-    [isPlatformAdmin, loc.pathname, navigation.sidebar, role],
+    [isPlatformAdmin, loc.pathname, navigation.sidebar, role, canAccessEngineeringAgent],
   )
 
   const topbarLinks = useMemo(
     () =>
       navigation.topbar
-        .filter((item: NavItem) => isNavItemVisible(item, role))
+        .filter((item: NavItem) => isNavItemVisible(item, role, canAccessEngineeringAgent))
         .map((item: NavItem) => ({
           ...item,
           active: isActivePath(loc.pathname, item.to),
         })),
-    [isPlatformAdmin, loc.pathname, navigation.topbar, role],
+    [isPlatformAdmin, loc.pathname, navigation.topbar, role, canAccessEngineeringAgent],
   )
 
   return (

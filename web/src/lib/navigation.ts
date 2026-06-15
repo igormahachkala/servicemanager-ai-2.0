@@ -31,6 +31,8 @@ const tenantDesktopNavItems: NavItem[] = [
   { id: 'inspectionRuns', label: 'Обходы', to: '/inspection/runs' },
   { id: 'company', label: 'Компания', to: '/company' },
   { id: 'settings', label: 'Настройки', to: '/settings' },
+  // Скрытый owner-only модуль — виден только при me.canAccessEngineeringAgent.
+  { id: 'engineeringAgent', label: 'Engineering Agent', to: '/agents/engineering' },
 ]
 
 const tenantNavById = Object.fromEntries(tenantDesktopNavItems.map((item) => [item.id, item])) as Record<string, NavItem>

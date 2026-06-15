@@ -33,6 +33,8 @@ export type Me = {
   companyId: string
   companyName?: string | null
   isActive?: boolean
+  /** Серверный флаг доступа к скрытому модулю Engineering Agent (owner-only). */
+  canAccessEngineeringAgent?: boolean
   /** Если бэкенд добавит подсказку контура для техника — используем при мобильном входе без getLinkedClients */
   linkedClientCompanyId?: string | null
   linkedClientCompanyIds?: string[] | null
@@ -3002,4 +3004,40 @@ export async function downloadInspectionRunReportExport(
     blob,
     fileName: match?.[1] || 'work-act.' + format,
   }
+}
+
+// --- Engineering Agent (owner-only) ---------------------------------------
+
+export type AgentTaskStatus = 'NEW' | 'IN_PROGRESS' | 'DONE' | 'FAILED'
+
+export type AgentTask = {
+  id: string
+  companyId: string
+  title: string
+  prompt: string
+  status: AgentTaskStatus
+  result?: string | null
+  createdAt: string
+  updatedAt: string
+  createdBy?: { id: string; email: string; firstName?: string | null; lastName?: string | null } | null
+}
+
+export async function listAgentTasks(): Promise<AgentTask[]> {
+  return request<AgentTask[]>('/agent-tasks')
+}
+
+export async function getAgentTask(id: string): Promise<AgentTask> {
+  return request<AgentTask>('/agent-tasks/' + id)
+}
+
+export async function createAgentTask(input: { title: string; prompt: string }): Promise<AgentTask> {
+  return request<AgentTask>('/agent-tasks', { method: 'POST', body: input })
+}
+
+export async function updateAgentTaskStatus(id: string, status: AgentTaskStatus): Promise<AgentTask> {
+  return request<AgentTask>('/agent-tasks/' + id + '/status', { method: 'PATCH', body: { status } })
+}
+
+export async function updateAgentTaskResult(id: string, result: string): Promise<AgentTask> {
+  return request<AgentTask>('/agent-tasks/' + id + '/result', { method: 'PATCH', body: { result } })
 }

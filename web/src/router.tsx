@@ -22,6 +22,7 @@ import { TechnicianPage } from './views/TechnicianPage'
 import { CompaniesPage } from './views/CompaniesPage'
 import { ServiceContractsPage } from './views/ServiceContractsPage'
 import { InspectionTemplatesPage } from './views/InspectionTemplatesPage'
+import { EngineeringAgentPage } from './views/EngineeringAgentPage'
 import { InspectionRunsPage } from './views/InspectionRunsPage'
 import { InspectionRunPage } from './views/InspectionRunPage'
 import { InspectionRunReportPage } from './views/InspectionRunReportPage'
@@ -159,6 +160,7 @@ export function AppRoutes() {
         <Route path="inspection/runs/:id" element={<InspectionRunPage />} />
         <Route path="inspection/quick/:runId" element={<InspectionQuickPage />} />
         <Route path="inspection/runs/:id/report" element={<InspectionRunReportPage />} />
+        <Route path="agents/engineering" element={<EngineeringAgentPage />} />
       </Route>
 
       <Route path="/max" element={<MaxApp />}>
