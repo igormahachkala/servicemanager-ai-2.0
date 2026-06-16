@@ -20,6 +20,16 @@ export interface Config {
   ollamaModel: string
   pollIntervalMs: number
   taskTimeoutMs: number
+  // V1 code-aware context. codeRoot empty => prompt-only (MVP) behaviour.
+  codeRoot: string
+  maxContextFiles: number
+  maxFileBytes: number
+  maxContextBytes: number
+  // Project Intelligence infrastructure (caches live under agent-runner/.cache/).
+  projectIndexPath: string
+  fileSummaryCachePath: string
+  enableSummaryCache: boolean
+  enableModuleProfiles: boolean
 }
 
 export interface LoadResult {
@@ -43,6 +53,11 @@ const PRODUCTION_DENYLIST = ['servicemanagerai.ru', 'servicemanager.ai', 'www.se
 function num(envValue: string | undefined, fallback: number): number {
   const n = Number(envValue)
   return Number.isFinite(n) && n > 0 ? n : fallback
+}
+
+function bool(envValue: string | undefined, fallback: boolean): boolean {
+  if (envValue === undefined || envValue.trim() === '') return fallback
+  return !/^(0|false|no|off)$/i.test(envValue.trim())
 }
 
 function allowedHosts(): string[] {
@@ -94,6 +109,14 @@ export function loadConfig(argv: string[]): LoadResult {
     ollamaModel: (process.env.OLLAMA_MODEL || 'qwen3.6:27b').trim(),
     pollIntervalMs: num(process.env.POLL_INTERVAL_MS, 15000),
     taskTimeoutMs: num(process.env.TASK_TIMEOUT_MS, 120000),
+    codeRoot: (process.env.CODE_ROOT || '').trim(),
+    maxContextFiles: num(process.env.MAX_CONTEXT_FILES, 20),
+    maxFileBytes: num(process.env.MAX_FILE_BYTES, 12000),
+    maxContextBytes: num(process.env.MAX_CONTEXT_BYTES, 80000),
+    projectIndexPath: (process.env.PROJECT_INDEX_PATH || '.cache/project-index.json').trim(),
+    fileSummaryCachePath: (process.env.FILE_SUMMARY_CACHE_PATH || '.cache/file-summaries.json').trim(),
+    enableSummaryCache: bool(process.env.ENABLE_SUMMARY_CACHE, true),
+    enableModuleProfiles: bool(process.env.ENABLE_MODULE_PROFILES, true),
   }
 
   const missing: string[] = []

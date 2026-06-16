@@ -1,9 +1,48 @@
 # agent-runner (Engineering Agent v0.1 — MVP executor)
 
 Read-only worker that picks up `AgentTask`s with status `NEW` from the
-ServiceManager.AI Engineering Agent, runs a **read-only** analysis via a
-**local Ollama model** (e.g. Qwen — no external AI API or keys), writes the
-result back, and marks the task `DONE` (or `FAILED`).
+ServiceManager.AI Engineering Agent, **selects relevant project source files**
+(V1 code-aware context), runs a **read-only** analysis via a **local Ollama
+model** (e.g. Qwen — no external AI API or keys), writes the result back (with a
+context manifest), and marks the task `DONE` (or `FAILED`).
+
+## V1 code context
+
+When `CODE_ROOT` is set, each task is enriched with real source files:
+
+- **FileSelector** maps the task text to files via a keyword map
+  (`tickets → backend/src/tickets|workflow, web mobile/views`, `auth → backend/src/auth`,
+  `permissions → backend/src/common|policy`, `analytics → backend/src/analytics|web views`,
+  `mobile → web/src/mobile`) with a path/token fallback.
+- **ContextLoader** reads only from the allowlist (`backend/src/**`, `web/src/**`,
+  `backend/prisma/schema.prisma`); denies `.env*`, `*.pem`, `*.key`, `id_rsa*`,
+  `*secret*`, `*credential*`, `node_modules`, `dist`, `.git`, binaries; enforces
+  path-traversal protection and per-file / total byte budgets; redacts secrets.
+- **PromptBuilder** assembles system + PROJECT CONTEXT + task; a manifest of the
+  exact files used (and skipped) is prepended to the result.
+
+If `CODE_ROOT` is unset, the runner falls back to prompt-only (MVP) behaviour.
+
+## Project Intelligence (Fast Context Mode)
+
+So the agent doesn't re-discover the codebase every task, it keeps caches under
+`agent-runner/.cache/` (the only place it writes):
+
+- **Project index** (`projectIndex.ts`) — per file: module, type
+  (controller/service/module/dto/util/policy/test), size, and resolved relative
+  imports. Cached as `.cache/project-index.json` (`PROJECT_INDEX_PATH`).
+- **Module profiles** (`moduleProfiles.ts`) — tickets / auth / permissions /
+  mobile / analytics / inspections, each with anchor files loaded first.
+- **File summary cache** (`fileSummaryCache.ts`) — a deterministic per-file
+  summary (role, key symbols, risk flags) keyed by content hash; unchanged files
+  reuse the cached summary. `.cache/file-summaries.json` (`FILE_SUMMARY_CACHE_PATH`).
+- **Context planner** (`contextPlanner.ts`) — detects the module, picks files via
+  the profile + index (no reads), loads the top files FULLY within the byte
+  budget and represents the rest as compact SUMMARIES (full read only when needed).
+
+Toggles: `ENABLE_SUMMARY_CACHE`, `ENABLE_MODULE_PROFILES`. `dry-run` prints the
+chosen profile, files read fully, files served from summary (cache vs computed),
+skipped files, and the context-planning time — with no model call.
 
 It talks to ServiceManager **only over the public HTTP API** — never the
 database, the filesystem, the repository, or a shell.
@@ -46,8 +85,11 @@ The backend must list `SMA_AGENT_EMAIL` in `ENGINEERING_AGENT_OWNER_EMAILS`
 ## Run
 
 ```bash
-# Safe: validate config + print plan, no network, no mutations
-npm run dry-run
+# Safe: validate config + print plan. With CODE_ROOT set it ALSO previews the
+# context selection (files + sizes + skipped) for a sample task — no model call,
+# no AgentTask access. Override the sample with --task "..." or DRY_RUN_TASK.
+CODE_ROOT=/path/to/checkout npm run dry-run
+node dist/index.js --dry-run --task "Проверить логику tickets"
 
 # Live (requires approval + all env set). One cycle:
 node dist/index.js --live --once

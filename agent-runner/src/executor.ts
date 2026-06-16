@@ -14,22 +14,15 @@
  */
 
 import type { Config } from './config'
-import type { AgentTask } from './smaClient'
-
-const SYSTEM_PROMPT = [
-  'You are the Engineering Agent executor for ServiceManager.AI, running in READ-ONLY MVP mode.',
-  'You receive an engineering task and must produce a clear, actionable WRITTEN analysis.',
-  'Strict rules:',
-  '- You CANNOT execute code, run shell commands, access a repository, or change any files.',
-  '- Do NOT claim to have made changes. Only analyze, plan, and advise.',
-  '- Never invent or echo secrets, tokens, passwords, or API keys.',
-  '- If the task requires code changes, describe the plan and the proposed diff in prose; do not pretend it was applied.',
-  'Output a concise, structured analysis (findings, recommended approach, risks, next steps).',
-].join('\n')
 
 export interface ExecutionResult {
   text: string
   model: string
+}
+
+export interface BuiltMessages {
+  system: string
+  prompt: string
 }
 
 /**
@@ -38,11 +31,11 @@ export interface ExecutionResult {
  * chunk.response, and stops at the chunk with done:true. Aborts (and reports a
  * timeout) after config.taskTimeoutMs.
  */
-export async function runAnalysis(config: Config, task: AgentTask): Promise<ExecutionResult> {
+export async function runAnalysis(config: Config, messages: BuiltMessages): Promise<ExecutionResult> {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), config.taskTimeoutMs)
 
-  const prompt = [`Task title: ${task.title}`, '', 'Task prompt:', task.prompt].join('\n')
+  const { system, prompt } = messages
   const url = config.ollamaBaseUrl.replace(/\/+$/, '') + '/api/generate'
 
   let reader: ReadableStreamDefaultReader<Uint8Array> | undefined
@@ -54,7 +47,7 @@ export async function runAnalysis(config: Config, task: AgentTask): Promise<Exec
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         model: config.ollamaModel,
-        system: SYSTEM_PROMPT,
+        system,
         prompt,
         stream: true,
         think: false,
