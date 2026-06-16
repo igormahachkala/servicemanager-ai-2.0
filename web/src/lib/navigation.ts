@@ -31,6 +31,8 @@ const tenantDesktopNavItems: NavItem[] = [
   { id: 'inspectionRuns', label: 'Обходы', to: '/inspection/runs' },
   { id: 'company', label: 'Компания', to: '/company' },
   { id: 'settings', label: 'Настройки', to: '/settings' },
+  // Раздел IT Company — виден только PLATFORM_ADMIN (gating в isNavItemVisible).
+  { id: 'itCompany', label: 'IT Company', to: '/it' },
   // Скрытый owner-only модуль — виден только при me.canAccessEngineeringAgent.
   { id: 'engineeringAgent', label: 'Engineering Agent', to: '/agents/engineering' },
 ]

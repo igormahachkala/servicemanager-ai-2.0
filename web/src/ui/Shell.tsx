@@ -74,6 +74,7 @@ function isActivePath(currentPath: string, targetPath: string) {
   if (targetPath === '/settings') return currentPath.startsWith('/settings')
   if (targetPath === '/company') return currentPath.startsWith('/company')
   if (targetPath === '/problem-categories') return currentPath.startsWith('/problem-categories')
+  if (targetPath === '/it') return currentPath === '/it' || currentPath.startsWith('/it/')
   return currentPath === targetPath
 }
 
@@ -81,6 +82,10 @@ function isNavItemVisible(item: NavItem, role?: api.Role, canAccessEngineeringAg
   // Owner-only hidden module: gated purely by the server-computed flag,
   // independent of role (an owner email may have a non-platform role).
   if (item.to === '/agents/engineering') return !!canAccessEngineeringAgent
+
+  // IT Company — строго PLATFORM_ADMIN. Проверяем до общего short-circuit ниже,
+  // т.к. для прочих ролей ветка по умолчанию возвращает true.
+  if (item.to === '/it' || item.to.startsWith('/it/')) return role === 'PLATFORM_ADMIN'
 
   if (role === 'PLATFORM_ADMIN') return true
   if (!role) return false
