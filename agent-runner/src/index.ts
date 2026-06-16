@@ -22,6 +22,7 @@ import { type SelectionResult } from './fileSelector'
 import { type LoadedContext } from './contextLoader'
 import { buildPrompt } from './promptBuilder'
 import { planContext, planToContext, type ContextPlan } from './contextPlanner'
+import { detectMode } from './taskModeDetector'
 
 function mask(value: string): string {
   if (!value) return '(unset)'
@@ -106,7 +107,9 @@ async function processOne(client: SmaClient, config: Config, task: AgentTask): P
     } else {
       log('context: prompt-only (CODE_ROOT unset)')
     }
-    const built = buildPrompt(task, selection, context, { codeCommit: null })
+    const detection = detectMode(task)
+    log(`mode: ${detection.mode} (${detection.confidence}) — ${detection.reason}`)
+    const built = buildPrompt(task, selection, context, { codeCommit: null, mode: detection.mode })
     const messages: BuiltMessages = { system: built.system, prompt: built.prompt }
 
     const result = await runAnalysis(config, messages)
@@ -137,11 +140,13 @@ async function dryRunContextPreview(config: Config, argv: string[]): Promise<voi
   const promptText = getArg(argv, '--task') || process.env.DRY_RUN_TASK ||
     'Аудит модуля заявок (tickets): архитектура, риски, рекомендации.'
   const sample: AgentTask = {
-    id: 'dry-run', companyId: 'dry-run', title: 'dry-run preview',
+    id: 'dry-run', companyId: 'dry-run', title: '',
     prompt: promptText, status: 'NEW', createdAt: '', updatedAt: '',
   }
   log(`--- context plan (sample task) ---`)
   log(`sample task: ${promptText}`)
+  const detection = detectMode(sample)
+  log(`detected mode:   ${detection.mode} (${detection.confidence}) — ${detection.reason}`)
   const plan = await planContext(config, sample, secretValues(config))
   log(`module profile:  ${plan.profileId ?? '(none — token fallback)'}`)
   log(`selection mode:  ${plan.selectionMode}, candidates: ${plan.candidates}`)

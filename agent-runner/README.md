@@ -23,6 +23,18 @@ When `CODE_ROOT` is set, each task is enriched with real source files:
 
 If `CODE_ROOT` is unset, the runner falls back to prompt-only (MVP) behaviour.
 
+## Task modes (AUDIT / PLAN)
+
+`taskModeDetector.ts` infers the task mode from its text:
+
+- **AUDIT** (review/analysis) → result format: `Problem / Risk / Recommendation / Effort`.
+- **PLAN** (change request) → result format: `Task / Files / Changes / Constraints / Checks / Expected Result`.
+
+Cyrillic stems match as substrings; Latin keywords match on word boundaries
+(so "preview" never triggers "review"). Low confidence defaults to **PLAN**.
+The chosen mode is shown in dry-run and prepended to the result as
+`Task Type: AUDIT|PLAN`.
+
 ## Project Intelligence (Fast Context Mode)
 
 So the agent doesn't re-discover the codebase every task, it keeps caches under
