@@ -964,7 +964,24 @@ export function MobileTicketPage() {
     () => dedupeTimeline(timelineQ.data?.timeline || timelineQ.data?.items || []),
     [timelineQ.data],
   )
-  const chatMessages = useMemo(() => toChatMessages(timelineItems, meQ.data?.id ?? ''), [timelineItems, meQ.data?.id])
+  const chatMessages = useMemo(
+    () =>
+      toChatMessages(timelineItems, meQ.data?.id ?? '', {
+        categoryName: ticket?.problemCategory?.name ?? null,
+        locationName: ticket?.location?.name || ticket?.pointName || null,
+        description: ticket?.problemText || ticket?.description || ticket?.title || null,
+      }),
+    [
+      timelineItems,
+      meQ.data?.id,
+      ticket?.description,
+      ticket?.location?.name,
+      ticket?.pointName,
+      ticket?.problemCategory?.name,
+      ticket?.problemText,
+      ticket?.title,
+    ],
+  )
 
   const requestImages = useMemo(() => {
     const imgs = (attachmentsQ.data || []).filter(isImageAttachment)
@@ -1702,6 +1719,16 @@ export function MobileTicketPage() {
               {chatMessages.length > 0 ? (
                 <div className="mobileTicketChatMessages">
                   {chatMessages.map((msg) => {
+                    if (msg.kind === 'system') {
+                      return (
+                        <div className="mobileChatsSystemRow" key={msg.id}>
+                          <div className="mobileChatsSystemPill">
+                            <div className="mobileChatsSystemText">{msg.text}</div>
+                            <div className="mobileChatsSystemTime">{new Date(msg.at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>
+                          </div>
+                        </div>
+                      )
+                    }
                     const authorDisplay = msg.authorEmail ? msg.authorEmail.split('@')[0] : 'система'
                     const timeStr = new Date(msg.at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
                     return (

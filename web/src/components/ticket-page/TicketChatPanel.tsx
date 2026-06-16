@@ -69,32 +69,56 @@ export function TicketChatPanel({ messages, loading, canSend, onSend }: Props) {
           <div className="muted small">Комментариев пока нет</div>
         ) : (
           messages.map((msg) => (
-            <div
-              key={msg.id}
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: msg.isOwn ? 'flex-end' : 'flex-start',
-              }}
-            >
+            msg.kind === 'system' ? (
+              <div key={msg.id} style={{ display: 'flex', justifyContent: 'center' }}>
+                <div
+                  style={{
+                    maxWidth: '85%',
+                    background: '#f3f4f6',
+                    color: '#374151',
+                    borderRadius: 999,
+                    padding: '8px 12px',
+                    wordBreak: 'break-word',
+                    whiteSpace: 'pre-wrap',
+                    fontSize: '0.85rem',
+                    textAlign: 'center',
+                    lineHeight: 1.4,
+                  }}
+                >
+                  <div style={{ fontWeight: 600 }}>{msg.text}</div>
+                  <div className="muted small" style={{ marginTop: 2, fontSize: '0.72rem' }}>
+                    {fmt(msg.at)}
+                  </div>
+                </div>
+              </div>
+            ) : (
               <div
+                key={msg.id}
                 style={{
-                  maxWidth: '75%',
-                  background: msg.isOwn ? '#4f46e5' : '#f3f4f6',
-                  color: msg.isOwn ? '#fff' : '#111827',
-                  borderRadius: msg.isOwn ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
-                  padding: '8px 12px',
-                  wordBreak: 'break-word',
-                  whiteSpace: 'pre-wrap',
-                  fontSize: '0.9rem',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: msg.isOwn ? 'flex-end' : 'flex-start',
                 }}
               >
-                {msg.text}
+                <div
+                  style={{
+                    maxWidth: '75%',
+                    background: msg.isOwn ? '#4f46e5' : '#f3f4f6',
+                    color: msg.isOwn ? '#fff' : '#111827',
+                    borderRadius: msg.isOwn ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
+                    padding: '8px 12px',
+                    wordBreak: 'break-word',
+                    whiteSpace: 'pre-wrap',
+                    fontSize: '0.9rem',
+                  }}
+                >
+                  {msg.text}
+                </div>
+                <div className="muted small" style={{ marginTop: 2, fontSize: '0.72rem' }}>
+                  {msg.authorEmail || 'система'} · {fmt(msg.at)}
+                </div>
               </div>
-              <div className="muted small" style={{ marginTop: 2, fontSize: '0.72rem' }}>
-                {msg.authorEmail || 'система'} · {fmt(msg.at)}
-              </div>
-            </div>
+            )
           ))
         )}
         <div ref={bottomRef} />
