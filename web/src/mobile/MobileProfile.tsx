@@ -126,7 +126,7 @@ export function MobileProfile() {
       api.board({
         linkedClientCompanyId: linkedClientCompanyId || undefined,
         companyId: observerCompanyId || undefined,
-        take: 200,
+        take: 500,
       }),
     enabled: !!meQ.data,
   })

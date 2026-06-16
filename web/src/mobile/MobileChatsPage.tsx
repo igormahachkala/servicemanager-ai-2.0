@@ -35,7 +35,8 @@ type ChatsObjectTicket = {
   status: api.TicketStatus
   lastActivityAt: string
   href: string
-  title: string
+  categoryTitle: string
+  preview: string
 }
 
 type ChatsObjectItem = {
@@ -128,6 +129,12 @@ function ticketChatPreview(ticket: api.TicketCard): string {
   return (ticket.description || 'Обсуждение по заявке').trim()
 }
 
+function ticketObjectPreview(ticket: api.TicketCard): string {
+  const raw = (ticket.description || ticket.title || 'Обсуждение по заявке').trim()
+  if (raw.length <= 72) return raw
+  return `${raw.slice(0, 72).trimEnd()}…`
+}
+
 function ticketLocationLabel(ticket: api.TicketCard): string {
   return (ticket.location?.name || ticket.pointName || 'Без локации').trim()
 }
@@ -179,14 +186,19 @@ export function MobileChatsPage() {
   const [viewer, setViewer] = useState<{ items: PhotoViewerItem[]; index: number } | null>(null)
   const [collapsedSections, setCollapsedSections] = useState<Partial<Record<ChatsSectionId, boolean>>>({})
   const [expandedObjects, setExpandedObjects] = useState<Set<string>>(new Set())
+  const [take, setTake] = useState(50)
+
+  useEffect(() => {
+    setTake(50)
+  }, [boardParams.companyId, boardParams.linkedClientCompanyId])
 
   const boardQ = useQuery({
-    queryKey: ['mobile-chats-board', boardParams.companyId || '', boardParams.linkedClientCompanyId || ''],
+    queryKey: ['mobile-chats-board', boardParams.companyId || '', boardParams.linkedClientCompanyId || '', take],
     queryFn: () =>
       api.board({
         companyId: boardParams.companyId || undefined,
         linkedClientCompanyId: boardParams.linkedClientCompanyId || undefined,
-        take: 200,
+        take,
         includeArchived: true,
       }),
     enabled: isMeReady,
@@ -208,6 +220,9 @@ export function MobileChatsPage() {
     })
     return out
   }, [boardQ.data])
+
+  const isTruncated = (boardQ.data?.meta.totalTickets ?? 0) >= (boardQ.data?.meta.limitedToLast ?? 1)
+  const canLoadMore = isTruncated && take < 500
 
   const filteredTickets = useMemo(() => {
     const q = normalizeSearchText(search)
@@ -242,7 +257,8 @@ export function MobileChatsPage() {
       const title = ticket.location?.name || ticket.pointName || ticket.location?.address || 'Без объекта'
       const lastActivityAt = ticket.lastActivityAt
       const ticketHref = `${mobilePath(location.pathname, `/chats/${ticket.id}`)}${location.search}`
-      const ticketTitle = (ticket.title || ticket.description || ticket.category?.name || 'Без темы').trim()
+      const ticketCategoryTitle = (ticket.category?.name || 'Без категории').trim()
+      const ticketPreview = ticketObjectPreview(ticket)
       const current = map.get(key)
       const nextLastActivity = current && current.lastActivityAt > lastActivityAt ? current.lastActivityAt : lastActivityAt
       const nextTone = current && current.lastActivityAt >= lastActivityAt ? current.iconTone : ticketStatusTone(ticket.status)
@@ -250,7 +266,15 @@ export function MobileChatsPage() {
         title,
         tickets: [
           ...(current?.tickets || []),
-          { id: ticket.id, ticketNumber: ticket.ticketNumber ?? null, status: ticket.status, lastActivityAt, href: ticketHref, title: ticketTitle },
+          {
+            id: ticket.id,
+            ticketNumber: ticket.ticketNumber ?? null,
+            status: ticket.status,
+            lastActivityAt,
+            href: ticketHref,
+            categoryTitle: ticketCategoryTitle,
+            preview: ticketPreview,
+          },
         ],
         iconTone: nextTone,
         lastActivityAt: nextLastActivity,
@@ -273,7 +297,9 @@ export function MobileChatsPage() {
       }))
       .filter((item) => {
         if (!q) return true
-        const blob = normalizeSearchText([item.title, ...item.tickets.map((t) => t.title), String(item.activeCount)].join(' '))
+        const blob = normalizeSearchText(
+          [item.title, ...item.tickets.map((t) => [t.categoryTitle, t.preview].join(' ')), String(item.activeCount)].join(' '),
+        )
         return blob.includes(q)
       })
       .sort((a, b) => {
@@ -396,7 +422,24 @@ export function MobileChatsPage() {
     })
   }, [timelineQ.data])
 
-  const chatMessages = useMemo(() => toChatMessages(timelineItems, me?.id ?? ''), [timelineItems, me?.id])
+  const chatMessages = useMemo(
+    () =>
+      toChatMessages(timelineItems, me?.id ?? '', {
+        categoryName: ticketQ.data?.problemCategory?.name ?? null,
+        locationName: ticketQ.data?.location?.name || ticketQ.data?.pointName || null,
+        description: ticketQ.data?.problemText || ticketQ.data?.description || ticketQ.data?.title || null,
+      }),
+    [
+      ticketQ.data?.description,
+      ticketQ.data?.location?.name,
+      ticketQ.data?.pointName,
+      ticketQ.data?.problemCategory?.name,
+      ticketQ.data?.problemText,
+      ticketQ.data?.title,
+      timelineItems,
+      me?.id,
+    ],
+  )
   const photoAttachments = useMemo(
     () => (attachmentsQ.data || []).filter((a) => (a.mimeType || '').toLowerCase().startsWith('image/')),
     [attachmentsQ.data],
@@ -490,23 +533,12 @@ export function MobileChatsPage() {
     const currentTicketTitle = ticketDetailTitle(currentTicket)
     const currentTicketStatus = mobileTicketStatusLabelRu(currentTicket.status)
 
-    // Unified chronological feed: comments + system events merged and sorted by time
-    const unifiedFeed: UnifiedFeedEntry[] = []
-    for (const msg of chatMessages) {
-      unifiedFeed.push({ kind: 'comment', id: msg.id, at: msg.at, text: msg.text, isOwn: msg.isOwn })
-    }
-    for (const item of timelineItems) {
-      const isComment = item.type === 'ticket.comment_added' || item.timelineEvent === 'COMMENT_ADDED'
-      if (!isComment) {
-        unifiedFeed.push({
-          kind: 'system',
-          key: `${item.at}-${item.timelineEvent || item.type || item.title}`,
-          at: item.at,
-          text: item.title || 'Системное событие',
-        })
-      }
-    }
-    unifiedFeed.sort((a, b) => new Date(a.at).getTime() - new Date(b.at).getTime())
+    // Unified chronological feed built from chatMessages (already in order, deduped)
+    const unifiedFeed: UnifiedFeedEntry[] = chatMessages.map((msg) =>
+      msg.kind === 'system'
+        ? { kind: 'system' as const, key: msg.id, at: msg.at, text: msg.text }
+        : { kind: 'comment' as const, id: msg.id, at: msg.at, text: msg.text, isOwn: msg.isOwn },
+    )
 
     const hasPhotos = photoAttachments.length > 0
     const composerDisabled = sendCommentM.isPending || !composerText.trim()
@@ -822,6 +854,21 @@ export function MobileChatsPage() {
                   </div>
                 </Link>
               ))}
+              {canLoadMore ? (
+                <button
+                  type="button"
+                  className="mobileBtn mobileBtnSecondary"
+                  style={{ width: '100%', margin: '8px 0' }}
+                  onClick={() => setTake((t) => Math.min(t + 50, 500))}
+                  disabled={boardQ.isFetching}
+                >
+                  {boardQ.isFetching ? 'Загрузка…' : 'Загрузить ещё'}
+                </button>
+              ) : isTruncated ? (
+                <div className="mobileNotice" style={{ textAlign: 'center', fontSize: '0.82rem', margin: '4px 0' }}>
+                  Показано максимум 500 заявок.
+                </div>
+              ) : null}
             </div>
           ) : null}
         </section>
@@ -878,8 +925,11 @@ export function MobileChatsPage() {
                         {item.tickets.map((t) => (
                           <Link key={t.id} className="mobileChatsObjectTicketRow" to={t.href}>
                             <span className={`mobileChatsIndicator mobileChatsIndicator--${t.status}`} />
-                            <span className="mobileChatsObjectTicketTitle">{mobileTicketNumberTitle(t.ticketNumber)}</span>
-                            <span className="mobileChatsObjectTicketSubtitle">{t.title}</span>
+                            <div className="mobileChatsObjectTicketBody">
+                              <span className="mobileChatsObjectTicketTitle">{mobileTicketNumberTitle(t.ticketNumber)}</span>
+                              <span className="mobileChatsObjectTicketCategory">{t.categoryTitle}</span>
+                              <span className="mobileChatsObjectTicketPreview">{t.preview}</span>
+                            </div>
                             <span className="mobileChatsObjectTicketTime">{formatLastActivity(t.lastActivityAt)}</span>
                           </Link>
                         ))}
