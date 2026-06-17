@@ -2041,8 +2041,14 @@ export async function locations(companyId?: string, opts?: { includeDeleted?: bo
   ])
 }
 
-export async function createLocation(input: CreateLocationInput): Promise<LocationListItem> {
-  return request<LocationListItem>('/locations', {
+/**
+ * `companyId` — query для POST /locations: контур клиента, которому принадлежит точка.
+ * У провайдера в linked-scope это id выбранного клиента; для клиента — не передаётся (свой tenant).
+ * Бэкенд резолвит владельца как CLIENT (см. SMA-P0-CREATE-TICKET-DATA-CONSISTENCY-001).
+ */
+export async function createLocation(input: CreateLocationInput, companyId?: string): Promise<LocationListItem> {
+  const suffix = companyId ? '?companyId=' + encodeURIComponent(companyId) : ''
+  return request<LocationListItem>('/locations' + suffix, {
     method: 'POST',
     body: input,
   })
