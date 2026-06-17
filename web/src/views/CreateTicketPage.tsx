@@ -69,12 +69,12 @@ export function CreateTicketPage() {
   const canCreateByRole = !!meQ.data?.role && CREATE_ALLOWED_ROLES.includes(meQ.data.role)
   const searchFromLocation = useMemo(() => new URLSearchParams(location.search), [location.search])
   const linkedClientCompanyId = useMemo(
-    () => (searchFromLocation.get('linkedClientCompanyId') || api.getLinkedClientCompanyId()).trim(),
-    [searchFromLocation],
+    () => (searchFromLocation.get('linkedClientCompanyId') || api.getLinkedClientCompanyId(meQ.data)).trim(),
+    [searchFromLocation, meQ.data],
   )
   const observerCompanyId = useMemo(
-    () => (searchFromLocation.get('companyId') || api.getObserverCompanyId()).trim(),
-    [searchFromLocation],
+    () => (searchFromLocation.get('companyId') || api.getObserverCompanyId(meQ.data)).trim(),
+    [searchFromLocation, meQ.data],
   )
   const scopedCompanyId = linkedClientCompanyId || observerCompanyId || ''
   const isProviderLinkedCreate = !!linkedClientCompanyId && !isTechnician
