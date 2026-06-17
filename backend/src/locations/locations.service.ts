@@ -294,14 +294,24 @@ export class LocationsService {
     if (observerCompanyId !== actorCompanyId) {
       const company = await this.prisma.company.findUnique({
         where: { id: observerCompanyId },
-        select: { id: true },
+        select: { id: true, type: true },
       })
       if (!company) {
         throw new NotFoundException('Company not found')
       }
+      if (company.type !== CompanyType.CLIENT) {
+        throw new BadRequestException('Observer scope must be a CLIENT company')
+      }
       return observerCompanyId
     }
     await this.serviceContractsService.assertPrimaryLinkedClientAccess(actorCompanyId, requested)
+    const linkedCompany = await this.prisma.company.findUnique({
+      where: { id: requested },
+      select: { type: true },
+    })
+    if (!linkedCompany || linkedCompany.type !== CompanyType.CLIENT) {
+      throw new BadRequestException('Linked client scope must be a CLIENT company')
+    }
     return requested
   }
 
