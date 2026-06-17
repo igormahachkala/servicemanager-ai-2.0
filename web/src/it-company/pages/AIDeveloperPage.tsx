@@ -3,28 +3,14 @@ import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../../lib/api'
+import { canViewITCompany } from '../access'
+import { AGENT_TASK_STATUS_COLOR, fmtDateTime } from '../components/agentTaskStatus'
 
 const STATUS_LABEL: Record<api.AgentTaskStatus, string> = {
   NEW: 'Новая',
   IN_PROGRESS: 'В работе',
   DONE: 'Готово',
   FAILED: 'Ошибка',
-}
-
-const STATUS_COLOR: Record<api.AgentTaskStatus, string> = {
-  NEW: '#2563eb',
-  IN_PROGRESS: '#d97706',
-  DONE: '#16a34a',
-  FAILED: '#dc2626',
-}
-
-function fmtDateTime(value?: string | null) {
-  if (!value) return '—'
-  try {
-    return new Date(value).toLocaleString('ru-RU')
-  } catch {
-    return value
-  }
 }
 
 export function AIDeveloperPage() {
@@ -35,12 +21,12 @@ export function AIDeveloperPage() {
   const [error, setError] = useState<string | null>(null)
 
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
-  const isPlatformAdmin = meQ.data?.role === 'PLATFORM_ADMIN'
+  const canView = canViewITCompany(meQ.data)
 
   const tasksQ = useQuery({
     queryKey: ['agent-tasks'],
     queryFn: api.listAgentTasks,
-    enabled: isPlatformAdmin === true,
+    enabled: canView === true,
   })
 
   const createM = useMutation({
@@ -65,7 +51,7 @@ export function AIDeveloperPage() {
   if (meQ.isLoading) {
     return <div className="muted">Загрузка…</div>
   }
-  if (!isPlatformAdmin) {
+  if (!canView) {
     return (
       <div className="panel" style={{ padding: 16 }}>
         <div style={{ fontWeight: 700, marginBottom: 6 }}>Раздел недоступен</div>
@@ -140,7 +126,7 @@ export function AIDeveloperPage() {
             <div key={task.id} className="card" style={{ padding: 14, border: '1px solid #e5e7eb', borderRadius: 12 }}>
               <div className="row" style={{ alignItems: 'flex-start', marginBottom: 8 }}>
                 <div style={{ fontWeight: 700 }}>{task.title}</div>
-                <span className="tag" style={{ background: STATUS_COLOR[task.status], color: '#fff' }}>
+                <span className="tag" style={{ background: AGENT_TASK_STATUS_COLOR[task.status], color: '#fff' }}>
                   {STATUS_LABEL[task.status]}
                 </span>
               </div>

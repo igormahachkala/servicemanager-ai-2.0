@@ -23,8 +23,7 @@ import { CompaniesPage } from './views/CompaniesPage'
 import { ServiceContractsPage } from './views/ServiceContractsPage'
 import { InspectionTemplatesPage } from './views/InspectionTemplatesPage'
 import { EngineeringAgentPage } from './views/EngineeringAgentPage'
-import { ITCompanyPage } from './views/it/ITCompanyPage'
-import { AIDeveloperPage } from './views/it/AIDeveloperPage'
+import { IT_COMPANY_ROUTES } from './it-company'
 import { InspectionRunsPage } from './views/InspectionRunsPage'
 import { InspectionRunPage } from './views/InspectionRunPage'
 import { InspectionRunReportPage } from './views/InspectionRunReportPage'
@@ -163,8 +162,9 @@ export function AppRoutes() {
         <Route path="inspection/quick/:runId" element={<InspectionQuickPage />} />
         <Route path="inspection/runs/:id/report" element={<InspectionRunReportPage />} />
         <Route path="agents/engineering" element={<EngineeringAgentPage />} />
-        <Route path="it" element={<ITCompanyPage />} />
-        <Route path="it/ai-developer" element={<AIDeveloperPage />} />
+        {IT_COMPANY_ROUTES.map(({ path, Component }) => (
+          <Route key={path} path={path} element={<Component />} />
+        ))}
       </Route>
 
       <Route path="/max" element={<MaxApp />}>

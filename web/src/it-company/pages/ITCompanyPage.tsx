@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 
 import * as api from '../../lib/api'
+import { canViewITCompany } from '../access'
+import { AGENT_TASK_STATUS_COLOR } from '../components/agentTaskStatus'
 
 const STATUS_LABEL: Record<api.AgentTaskStatus, string> = {
   NEW: 'Новые',
@@ -11,23 +13,16 @@ const STATUS_LABEL: Record<api.AgentTaskStatus, string> = {
   FAILED: 'Ошибки',
 }
 
-const STATUS_COLOR: Record<api.AgentTaskStatus, string> = {
-  NEW: '#2563eb',
-  IN_PROGRESS: '#d97706',
-  DONE: '#16a34a',
-  FAILED: '#dc2626',
-}
-
 const STATUS_ORDER: api.AgentTaskStatus[] = ['NEW', 'IN_PROGRESS', 'DONE', 'FAILED']
 
 export function ITCompanyPage() {
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
-  const isPlatformAdmin = meQ.data?.role === 'PLATFORM_ADMIN'
+  const canView = canViewITCompany(meQ.data)
 
   const tasksQ = useQuery({
     queryKey: ['agent-tasks'],
     queryFn: api.listAgentTasks,
-    enabled: isPlatformAdmin === true,
+    enabled: canView === true,
   })
 
   const tasks = useMemo(() => tasksQ.data || [], [tasksQ.data])
@@ -47,7 +42,7 @@ export function ITCompanyPage() {
   if (meQ.isLoading) {
     return <div className="muted">Загрузка…</div>
   }
-  if (!isPlatformAdmin) {
+  if (!canView) {
     return (
       <div className="panel" style={{ padding: 16 }}>
         <div style={{ fontWeight: 700, marginBottom: 6 }}>Раздел недоступен</div>
@@ -100,7 +95,7 @@ export function ITCompanyPage() {
                 className="card"
                 style={{ padding: 10, border: '1px solid #e5e7eb', borderRadius: 12, textAlign: 'center' }}
               >
-                <div style={{ fontWeight: 700, fontSize: 20, color: STATUS_COLOR[status] }}>
+                <div style={{ fontWeight: 700, fontSize: 20, color: AGENT_TASK_STATUS_COLOR[status] }}>
                   {tasksQ.isLoading ? '…' : counts[status]}
                 </div>
                 <div className="muted small">{STATUS_LABEL[status]}</div>

@@ -11,6 +11,7 @@ import {
   type NavSection,
 } from '../lib/navigation'
 import { SmaBrandLogo } from '../components/SmaBrandLogo'
+import { canViewITCompany } from '../it-company'
 import { useWsInvalidation } from './useWsInvalidation'
 import { useRealtimeNotifications } from '../hooks/useRealtimeNotifications'
 
@@ -83,9 +84,9 @@ function isNavItemVisible(item: NavItem, role?: api.Role, canAccessEngineeringAg
   // independent of role (an owner email may have a non-platform role).
   if (item.to === '/agents/engineering') return !!canAccessEngineeringAgent
 
-  // IT Company — строго PLATFORM_ADMIN. Проверяем до общего short-circuit ниже,
-  // т.к. для прочих ролей ветка по умолчанию возвращает true.
-  if (item.to === '/it' || item.to.startsWith('/it/')) return role === 'PLATFORM_ADMIN'
+  // IT Company — доступ через it-company/access (строго PLATFORM_ADMIN). Проверяем
+  // до общего short-circuit ниже, т.к. для прочих ролей ветка по умолчанию → true.
+  if (item.to === '/it' || item.to.startsWith('/it/')) return canViewITCompany({ role })
 
   if (role === 'PLATFORM_ADMIN') return true
   if (!role) return false
