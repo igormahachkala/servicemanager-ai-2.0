@@ -93,7 +93,6 @@ export function CreateTicketPage() {
   }, [meReady, meQ.data, linkedClientCompanyId, observerCompanyId])
   const providerNeedsLinkedClient =
     !!meQ.data && companyQ.data?.type === 'PROVIDER' && meQ.data.role !== 'TECHNICIAN' && !linkedClientCompanyId
-  const isProviderLinkedCreate = !!linkedClientCompanyId && !isTechnician
   const currentCreateScopeKey = useMemo(() => {
     if (isTechnician) return `technician:${clientCompanyId || 'none'}`
     if (linkedClientCompanyId) return `provider:${linkedClientCompanyId}`
@@ -337,7 +336,7 @@ export function CreateTicketPage() {
   function buildPayload(): api.CreateTicketInput {
     const base: api.CreateTicketInput = {
       createMode: mode,
-      clientCompanyId: isTechnician ? clientCompanyId : isProviderLinkedCreate ? linkedClientCompanyId : undefined,
+      clientCompanyId: isTechnician ? clientCompanyId : (linkedClientCompanyId || observerCompanyId) || undefined,
       locationId,
       categoryId,
       requesterName: requesterName.trim() || undefined,
