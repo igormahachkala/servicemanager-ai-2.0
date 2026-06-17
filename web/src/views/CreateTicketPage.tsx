@@ -64,6 +64,11 @@ export function CreateTicketPage() {
   const [successPayload, setSuccessPayload] = useState<SuccessPayload | null>(null)
 
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
+  const companyQ = useQuery({
+    queryKey: ['mobile-shell-company'],
+    queryFn: () => api.company(),
+    enabled: !!meQ.data && meQ.data.role !== 'CLIENT' && meQ.data.role !== 'TECHNICIAN',
+  })
   const meReady = meQ.isSuccess
   const isTechnician = meReady && meQ.data?.role === 'TECHNICIAN'
   const canCreateByRole = !!meQ.data?.role && CREATE_ALLOWED_ROLES.includes(meQ.data.role)
@@ -76,7 +81,18 @@ export function CreateTicketPage() {
     () => (searchFromLocation.get('companyId') || api.getObserverCompanyId(meQ.data)).trim(),
     [searchFromLocation, meQ.data],
   )
-  const scopedCompanyId = linkedClientCompanyId || observerCompanyId || ''
+  const effectiveClientCompanyId = useMemo(() => {
+    if (!meReady || !meQ.data) return ''
+    const role = meQ.data.role
+    if (role === 'CLIENT' || role === 'NETWORK_DIRECTOR') {
+      return (meQ.data.companyId || '').trim()
+    }
+    const linked = linkedClientCompanyId.trim()
+    if (linked) return linked
+    return (observerCompanyId || '').trim()
+  }, [meReady, meQ.data, linkedClientCompanyId, observerCompanyId])
+  const providerNeedsLinkedClient =
+    !!meQ.data && companyQ.data?.type === 'PROVIDER' && meQ.data.role !== 'TECHNICIAN' && !linkedClientCompanyId
   const isProviderLinkedCreate = !!linkedClientCompanyId && !isTechnician
   const currentCreateScopeKey = useMemo(() => {
     if (isTechnician) return `technician:${clientCompanyId || 'none'}`
@@ -102,13 +118,13 @@ export function CreateTicketPage() {
     enabled: meReady && meQ.data?.role === 'TECHNICIAN',
   })
   const categoriesQ = useQuery({
-    queryKey: ['problem-categories', scopedCompanyId],
-    queryFn: () => api.problemCategories(scopedCompanyId || undefined),
+    queryKey: ['problem-categories', effectiveClientCompanyId],
+    queryFn: () => api.problemCategories(effectiveClientCompanyId || undefined),
     enabled: meReady && meQ.data?.role !== 'TECHNICIAN',
   })
   const locationsQ = useQuery({
-    queryKey: ['locations', scopedCompanyId],
-    queryFn: () => api.locations(scopedCompanyId || undefined),
+    queryKey: ['locations', effectiveClientCompanyId],
+    queryFn: () => api.locations(effectiveClientCompanyId || undefined),
     enabled: meReady && meQ.data?.role !== 'TECHNICIAN',
   })
   const technicianFallbackQ = useQuery({
@@ -500,6 +516,13 @@ export function CreateTicketPage() {
         <div className="alert">{(technicianFallbackQ.error as any)?.message || String(technicianFallbackQ.error)}</div>
       ) : null}
 
+      {providerNeedsLinkedClient ? (
+        <div className="panel">
+          <h3 style={{ marginBottom: 6 }}>Выберите клиентский контур</h3>
+          <div className="muted small">Для создания заявки необходимо выбрать клиентский контур. Перейдите на доску и выберите клиента через верхнюю панель.</div>
+        </div>
+      ) : null}
+
       {noTechnicianContexts ? (
         <div className="panel">
           <h3 style={{ marginBottom: 6 }}>Нет привязанного клиентского контура</h3>
@@ -528,7 +551,7 @@ export function CreateTicketPage() {
         </div>
       ) : null}
 
-      <div className="panel uiCard" style={{ display: meQ.data && !canCreateByRole ? 'none' : 'block' }}>
+      <div className="panel uiCard" style={{ display: (meQ.data && !canCreateByRole) || providerNeedsLinkedClient ? 'none' : 'block' }}>
         <form onSubmit={onSubmit} className="form" style={{ maxWidth: 860, position: 'relative' }}>
           {createM.isPending ? (
             <div
