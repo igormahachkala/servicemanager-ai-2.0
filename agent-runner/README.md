@@ -23,17 +23,45 @@ When `CODE_ROOT` is set, each task is enriched with real source files:
 
 If `CODE_ROOT` is unset, the runner falls back to prompt-only (MVP) behaviour.
 
-## Task modes (AUDIT / PLAN)
+## Task modes (AUDIT / PLAN / IMPLEMENT_DRY_RUN)
 
 `taskModeDetector.ts` infers the task mode from its text:
 
 - **AUDIT** (review/analysis) → result format: `Problem / Risk / Recommendation / Effort`.
 - **PLAN** (change request) → result format: `Task / Files / Changes / Constraints / Checks / Expected Result`.
+- **IMPLEMENT_DRY_RUN** (preview a future IMPLEMENT) → result format:
+  `Task / Branch / PR Title / Files / Proposed Changes / Patch Preview / Checks / Risks / Rollback / Expected Result`.
 
 Cyrillic stems match as substrings; Latin keywords match on word boundaries
 (so "preview" never triggers "review"). Low confidence defaults to **PLAN**.
 The chosen mode is shown in dry-run and prepended to the result as
-`Task Type: AUDIT|PLAN`.
+`Task Type: AUDIT|PLAN|IMPLEMENT_DRY_RUN`.
+
+### IMPLEMENT_DRY_RUN (safe preview, opt-in only)
+
+`IMPLEMENT_DRY_RUN` is **never inferred from keywords** — it activates *only* when
+the task text contains the explicit literal marker `IMPLEMENT_DRY_RUN`, and then
+overrides every other signal (`implementDryRun.ts`).
+
+It is a **preview of a future IMPLEMENT**: the agent proposes a branch, PR title
+and diff but **writes nothing**. It computes a deterministic
+`agent/<task-id>-<slug>` branch name and a `[AI Developer] <title>` PR title
+(never model-invented), and asks the model to fill in the sectioned preview.
+
+It performs **no file writes, no branch creation, no git push, no PR** — the
+result manifest records this explicitly:
+
+```
+Task Type: IMPLEMENT_DRY_RUN
+Proposed branch: agent/<task-id>-<slug>
+No files written: true
+No git push: true
+No PR created: true
+```
+
+The reserved env `ENABLE_IMPLEMENT` (default `false`) gates the *future* write-mode
+IMPLEMENT (see `docs/SMA-AI-001-implement-mode-design.md`); `IMPLEMENT_DRY_RUN`
+ignores it and is always safe.
 
 ## Project Intelligence (Fast Context Mode)
 

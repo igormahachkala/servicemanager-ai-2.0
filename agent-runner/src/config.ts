@@ -30,6 +30,10 @@ export interface Config {
   fileSummaryCachePath: string
   enableSummaryCache: boolean
   enableModuleProfiles: boolean
+  // Reserved capability for the FUTURE write-mode IMPLEMENT (SMA-AI-001). Default
+  // off. IMPLEMENT_DRY_RUN (SMA-AI-002) is always safe and ignores this flag — it
+  // never writes files, creates branches, pushes, or opens PRs.
+  enableImplement: boolean
 }
 
 export interface LoadResult {
@@ -117,6 +121,7 @@ export function loadConfig(argv: string[]): LoadResult {
     fileSummaryCachePath: (process.env.FILE_SUMMARY_CACHE_PATH || '.cache/file-summaries.json').trim(),
     enableSummaryCache: bool(process.env.ENABLE_SUMMARY_CACHE, true),
     enableModuleProfiles: bool(process.env.ENABLE_MODULE_PROFILES, true),
+    enableImplement: bool(process.env.ENABLE_IMPLEMENT, false),
   }
 
   const missing: string[] = []

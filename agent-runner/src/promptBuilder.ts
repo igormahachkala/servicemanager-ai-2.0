@@ -8,6 +8,7 @@ import type { AgentTask } from './smaClient'
 import type { LoadedContext } from './contextLoader'
 import type { SelectionResult } from './fileSelector'
 import type { TaskMode } from './taskModeDetector'
+import { DRY_RUN_OUTPUT_SECTIONS, dryRunManifestExtra } from './implementDryRun'
 
 const COMMON_RULES = [
   'You are the Engineering Agent executor for ServiceManager.AI, running in READ-ONLY mode.',
@@ -40,8 +41,20 @@ const PLAN_SYSTEM = [
   'Expected Result: <observable outcome when done>',
 ].join('\n')
 
+const IMPLEMENT_DRY_RUN_SYSTEM = [
+  ...COMMON_RULES,
+  '- This is a DRY RUN. You MUST NOT claim any file was changed, branch created, pushed, or PR opened.',
+  '- Describe only the PROPOSED change. Provide the patch as a proposed unified-diff-style preview in prose.',
+  '- Use the EXACT Branch and PR Title given in the task input verbatim; do NOT invent different ones.',
+  '- Limit "Files" and "Patch Preview" to files you can justify from the PROJECT CONTEXT.',
+  'Produce an IMPLEMENT DRY-RUN PREVIEW. Output exactly these sections, each as "Section: <content>":',
+  ...DRY_RUN_OUTPUT_SECTIONS.map((s) => `${s}: <...>`),
+].join('\n')
+
 export function systemFor(mode: TaskMode): string {
-  return mode === 'AUDIT' ? AUDIT_SYSTEM : PLAN_SYSTEM
+  if (mode === 'AUDIT') return AUDIT_SYSTEM
+  if (mode === 'IMPLEMENT_DRY_RUN') return IMPLEMENT_DRY_RUN_SYSTEM
+  return PLAN_SYSTEM
 }
 
 export interface BuiltPrompt {
@@ -50,11 +63,19 @@ export interface BuiltPrompt {
   manifest: string
 }
 
+export interface PromptMeta {
+  codeCommit?: string | null
+  mode: TaskMode
+  /** Deterministic, authoritative facts for IMPLEMENT_DRY_RUN (never model-invented). */
+  branchName?: string
+  prTitle?: string
+}
+
 export function buildPrompt(
   task: AgentTask,
   selection: SelectionResult,
   context: LoadedContext,
-  meta: { codeCommit?: string | null; mode: TaskMode },
+  meta: PromptMeta,
 ): BuiltPrompt {
   const contextBlock = context.files
     .map(
@@ -63,10 +84,16 @@ export function buildPrompt(
     )
     .join('\n\n')
 
+  const dryRunFacts =
+    meta.mode === 'IMPLEMENT_DRY_RUN' && meta.branchName
+      ? ['', 'DRY-RUN FACTS (use verbatim):', `Branch: ${meta.branchName}`, `PR Title: ${meta.prTitle ?? ''}`]
+      : []
+
   const prompt = [
     'TASK:',
     `Title: ${task.title}`,
     task.prompt,
+    ...dryRunFacts,
     '',
     `PROJECT CONTEXT (${context.files.length} files, ${context.totalBytes} bytes):`,
     contextBlock || '(no files selected — analyze from the task text and state what context is missing)',
@@ -80,11 +107,15 @@ export function buildPrompt(
 export function buildManifest(
   selection: SelectionResult,
   context: LoadedContext,
-  meta: { codeCommit?: string | null; mode: TaskMode },
+  meta: PromptMeta,
 ): string {
   const lines: string[] = []
   lines.push('<!-- agent-runner context manifest -->')
   lines.push(`Task Type: ${meta.mode}`)
+  if (meta.mode === 'IMPLEMENT_DRY_RUN') {
+    if (meta.branchName) lines.push(`Proposed branch: ${meta.branchName}`)
+    lines.push(...dryRunManifestExtra())
+  }
   if (meta.codeCommit) lines.push(`Code commit: ${meta.codeCommit}`)
   lines.push(`Selection mode: ${selection.mode}${selection.matchedGroups.length ? ` (${selection.matchedGroups.join(', ')})` : ''}`)
   lines.push(`Files in context (${context.files.length}, ${context.totalBytes} bytes):`)

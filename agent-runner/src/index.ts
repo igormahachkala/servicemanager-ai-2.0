@@ -23,6 +23,7 @@ import { type LoadedContext } from './contextLoader'
 import { buildPrompt } from './promptBuilder'
 import { planContext, planToContext, type ContextPlan } from './contextPlanner'
 import { detectMode } from './taskModeDetector'
+import { proposedBranchName, proposedPrTitle, dryRunNoWriteConfirmation } from './implementDryRun'
 
 function mask(value: string): string {
   if (!value) return '(unset)'
@@ -57,6 +58,8 @@ function printPlan(config: Config, missing: string[], baseUrlReason: string): vo
   log(`maxContextBytes: ${config.maxContextBytes}`)
   log(`pollIntervalMs:  ${config.pollIntervalMs}`)
   log(`taskTimeoutMs:   ${config.taskTimeoutMs}`)
+  log(`task modes:      AUDIT | PLAN | IMPLEMENT_DRY_RUN (marker-only, no writes)`)
+  log(`enableImplement: ${config.enableImplement} (reserved write-mode; IMPLEMENT_DRY_RUN ignores it)`)
   if (missing.length) log(`missing env:     ${missing.join(', ')}`)
   log('--- planned steps (per task) ---')
   log('1. POST /auth/login                       -> cache JWT')
@@ -109,7 +112,22 @@ async function processOne(client: SmaClient, config: Config, task: AgentTask): P
     }
     const detection = detectMode(task)
     log(`mode: ${detection.mode} (${detection.confidence}) — ${detection.reason}`)
-    const built = buildPrompt(task, selection, context, { codeCommit: null, mode: detection.mode })
+
+    let branchName: string | undefined
+    let prTitle: string | undefined
+    if (detection.mode === 'IMPLEMENT_DRY_RUN') {
+      branchName = proposedBranchName(task.id, task.title)
+      prTitle = proposedPrTitle(task)
+      log(`proposed branch: ${branchName}`)
+      log(dryRunNoWriteConfirmation())
+    }
+
+    const built = buildPrompt(task, selection, context, {
+      codeCommit: null,
+      mode: detection.mode,
+      branchName,
+      prTitle,
+    })
     const messages: BuiltMessages = { system: built.system, prompt: built.prompt }
 
     const result = await runAnalysis(config, messages)
@@ -147,6 +165,11 @@ async function dryRunContextPreview(config: Config, argv: string[]): Promise<voi
   log(`sample task: ${promptText}`)
   const detection = detectMode(sample)
   log(`detected mode:   ${detection.mode} (${detection.confidence}) — ${detection.reason}`)
+  if (detection.mode === 'IMPLEMENT_DRY_RUN') {
+    log(`proposed branch: ${proposedBranchName(sample.id, sample.title)}`)
+    log(`PR title:        ${proposedPrTitle(sample)}`)
+    log(dryRunNoWriteConfirmation())
+  }
   const plan = await planContext(config, sample, secretValues(config))
   log(`module profile:  ${plan.profileId ?? '(none — token fallback)'}`)
   log(`selection mode:  ${plan.selectionMode}, candidates: ${plan.candidates}`)

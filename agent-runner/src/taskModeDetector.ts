@@ -1,10 +1,17 @@
 /**
  * Task mode detection: decide whether a task asks for an AUDIT (analyse and
- * report) or a PLAN (propose concrete engineering changes). Pure heuristic over
- * the task text — no model, no I/O. Low confidence defaults to PLAN.
+ * report), a PLAN (propose concrete engineering changes), or an
+ * IMPLEMENT_DRY_RUN (preview a future IMPLEMENT). Pure heuristic over the task
+ * text — no model, no I/O. Low confidence defaults to PLAN.
+ *
+ * IMPLEMENT_DRY_RUN is special: it is NEVER inferred from keywords. It activates
+ * ONLY when the explicit IMPLEMENT_DRY_RUN marker is present, and then wins over
+ * every other signal.
  */
 
-export type TaskMode = 'AUDIT' | 'PLAN'
+import { IMPLEMENT_DRY_RUN_MARKER, hasImplementDryRunMarker } from './implementDryRun'
+
+export type TaskMode = 'AUDIT' | 'PLAN' | 'IMPLEMENT_DRY_RUN'
 
 // Cyrillic stems are matched as substrings (prefix-style); Latin words are
 // matched with word boundaries so "preview" does NOT trigger "review", nor
@@ -32,6 +39,11 @@ export interface ModeDetection {
 }
 
 export function detectMode(task: { title: string; prompt: string }): ModeDetection {
+  // Explicit opt-in wins over all heuristics. Never inferred from keywords.
+  if (hasImplementDryRunMarker(task)) {
+    return mk('IMPLEMENT_DRY_RUN', 'high', `explicit ${IMPLEMENT_DRY_RUN_MARKER} marker`, [], [])
+  }
+
   const text = `${task.title}\n${task.prompt}`.toLowerCase()
   const auditHits = matches(text, AUDIT_STEMS, AUDIT_WORDS)
   const planHits = matches(text, PLAN_STEMS, PLAN_WORDS)
