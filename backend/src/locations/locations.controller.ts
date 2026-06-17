@@ -67,8 +67,8 @@ export class LocationsController {
   @Post()
   @Roles(UserRole.ADMIN, UserRole.MASTER)
   @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
-  create(@Req() req: any, @Body() dto: CreateLocationDto) {
-    return this.svc.create(req.user.companyId, dto)
+  create(@Req() req: any, @Body() dto: CreateLocationDto, @Query('companyId') companyId?: string) {
+    return this.svc.create(req.user.companyId, req.user.role as UserRole, dto, companyId)
   }
 
   @Patch(':id')
