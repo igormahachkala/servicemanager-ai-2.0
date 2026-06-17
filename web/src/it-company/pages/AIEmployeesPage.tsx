@@ -48,20 +48,25 @@ export function AIEmployeesPage() {
 
       <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
         {AI_EMPLOYEES.map((e) => (
-          <div
+          <Link
             key={e.id}
-            className="card"
-            style={{ padding: 14, border: '1px solid #e5e7eb', borderRadius: 12 }}
+            to={`/it/employees/${e.slug}`}
+            style={{ textDecoration: 'none', color: 'inherit' }}
           >
-            <div className="row" style={{ alignItems: 'center', marginBottom: 6 }}>
-              <div style={{ fontWeight: 700 }}>
-                {e.role}
-                {e.codename ? <span className="muted" style={{ fontWeight: 400 }}> · {e.codename}</span> : null}
+            <div
+              className="card"
+              style={{ padding: 14, border: '1px solid #e5e7eb', borderRadius: 12, cursor: 'pointer' }}
+            >
+              <div className="row" style={{ alignItems: 'center', marginBottom: 6 }}>
+                <div style={{ fontWeight: 700 }}>
+                  {e.role}
+                  {e.codename ? <span className="muted" style={{ fontWeight: 400 }}> · {e.codename}</span> : null}
+                </div>
+                <span className="tag" style={statusStyle(e.status)}>{e.status}</span>
               </div>
-              <span className="tag" style={statusStyle(e.status)}>{e.status}</span>
+              <div className="muted small">{e.mission}</div>
             </div>
-            <div className="muted small">{e.mission}</div>
-          </div>
+          </Link>
         ))}
       </div>
     </div>

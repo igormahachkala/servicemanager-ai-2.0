@@ -9,3 +9,4 @@ export { IT_COMPANY_ROUTES, IT_COMPANY_BASE_PATH, type ItCompanyRoute } from './
 export { ITCompanyPage } from './pages/ITCompanyPage'
 export { AIDeveloperPage } from './pages/AIDeveloperPage'
 export { AIEmployeesPage } from './pages/AIEmployeesPage'
+export { AIEmployeeDetailsPage } from './pages/AIEmployeeDetailsPage'

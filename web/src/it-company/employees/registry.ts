@@ -1,39 +1,35 @@
 /**
- * AI Employees registry (mock).
+ * AI Employees registry (summary list for the IT Company staff screen).
  *
- * Single source for the IT Company "staff list" — the current and planned
- * digital roles. Data is mock for now; later this can be backed by an API.
- * Mirrors the roles documented in docs/ai-company/.
+ * Derived from the canonical profiles (profiles.ts) so there is a single source
+ * of truth. Mock data; later this can be backed by an API.
  */
 
-export type AIEmployeeStatus = 'Active' | 'Planned'
+import { AI_EMPLOYEE_PROFILES, type AIEmployeeStatus } from './profiles'
+
+export type { AIEmployeeStatus }
 
 export interface AIEmployee {
   id: string
+  /** URL slug → /it/employees/<slug>. */
+  slug: string
   /** Codename, if the role has one (e.g. MAX). */
   codename?: string
-  /** Role title. */
+  /** Role / workspace title. */
   role: string
   status: AIEmployeeStatus
   /** One-line mission. */
   mission: string
 }
 
-export const AI_EMPLOYEES: AIEmployee[] = [
-  {
-    id: 'ai-developer',
-    codename: 'MAX',
-    role: 'AI Developer',
-    status: 'Active',
-    mission: 'Берёт задачи AgentTask, делает code-aware аудит/план через локальную модель.',
-  },
-  { id: 'ai-qa', role: 'AI QA', status: 'Planned', mission: 'Проверяет изменения: тесты и smoke до ревью человеком.' },
-  { id: 'ai-architect', role: 'AI Architect', status: 'Planned', mission: 'Декомпозиция задач и безопасные планы изменений.' },
-  { id: 'ai-devops', role: 'AI DevOps', status: 'Planned', mission: 'Готовит деплой-планы и smoke; деплой только после approval.' },
-  { id: 'ai-pm', role: 'AI Product Manager', status: 'Planned', mission: 'Превращает запросы в задачи, отслеживает статусы и отчёты.' },
-  { id: 'ai-designer', role: 'AI Designer', status: 'Planned', mission: 'Синхронизация дизайна и кода, поддержка дизайн-системы.' },
-  { id: 'ai-support', role: 'AI Support Engineer', status: 'Planned', mission: 'Ответы по runbook и операционным вопросам из документации.' },
-]
+export const AI_EMPLOYEES: AIEmployee[] = AI_EMPLOYEE_PROFILES.map((p) => ({
+  id: p.id,
+  slug: p.slug,
+  codename: p.codename,
+  role: p.workspace,
+  status: p.status,
+  mission: p.mission,
+}))
 
 export function countByStatus(status: AIEmployeeStatus): number {
   return AI_EMPLOYEES.filter((e) => e.status === status).length
