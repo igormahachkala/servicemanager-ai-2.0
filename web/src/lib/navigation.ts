@@ -31,7 +31,6 @@ const tenantDesktopNavItems: NavItem[] = [
   { id: 'analytics', label: 'Аналитика', to: '/analytics' },
   { id: 'map', label: 'Карта', to: '/map' },
   { id: 'inspectionTemplates', label: 'Шаблоны обходов', to: '/inspection/templates' },
-  { id: 'inspectionSchedules', label: 'Планировщик обходов', to: '/inspection/schedules' },
   { id: 'inspectionRuns', label: 'Обходы', to: '/inspection/runs' },
   { id: 'company', label: 'Компания', to: '/company' },
   { id: 'settings', label: 'Настройки', to: '/settings' },
