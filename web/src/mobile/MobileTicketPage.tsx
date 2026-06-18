@@ -500,6 +500,14 @@ export function MobileTicketPage() {
     assigneeIdForMe === meQ.data.id &&
     (aa ? aa.canComplete : transitions.includes('DONE'))
 
+  // SMA-ACCEPTANCE-ROLE-GAP-001: «Принять/Не принять» — только клиентские управленческие роли
+  // (ADMIN / TERRITORIAL_MANAGER / NETWORK_DIRECTOR) в client-компании; CLIENT-заявитель исключён.
+  const canShowClientAcceptance =
+    isOwnCompanyClient &&
+    api.isClientAcceptanceRole(meQ.data?.role) &&
+    !!ticket &&
+    ticket.status === 'AWAITING_ACCEPTANCE'
+
   const [detailTab, setDetailTab] = useState<'info' | 'chat' | 'photos' | 'history'>('info')
 
   type OfflinePendingComment = { queueId: string; text: string; at: string }

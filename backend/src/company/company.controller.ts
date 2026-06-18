@@ -39,7 +39,7 @@ export class CompanyController {
     return this.svc.regeneratePlatformPublicRequestToken(companyId)
   }
 
-  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.PLATFORM_ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TERRITORIAL_MANAGER, UserRole.PLATFORM_ADMIN)
   @Get('company')
   get(
     @Req() req: any,

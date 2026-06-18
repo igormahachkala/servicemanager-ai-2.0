@@ -24,7 +24,8 @@ import { toChatMessages } from '../lib/ticketChat'
 const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024
 
 const MANAGEMENT_ROLES: api.Role[] = ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR']
-const EDIT_ROLES: api.Role[] = ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR', 'CLIENT', 'TERRITORIAL_MANAGER']
+// SMA-ACCEPTANCE-ROLE-GAP-001: CLIENT requester can create/comment/photo but cannot edit.
+const EDIT_ROLES: api.Role[] = ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR', 'TERRITORIAL_MANAGER']
 const STATUS_CHANGE_ROLES: api.Role[] = ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR', 'TECHNICIAN']
 const PHOTO_ROLES: api.Role[] = ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR', 'TECHNICIAN', 'CLIENT', 'TERRITORIAL_MANAGER']
 const CHILD_CREATE_ROLES: api.Role[] = ['ADMIN', 'MASTER', 'DISPATCHER']
@@ -735,6 +736,13 @@ export function TicketPage() {
     () => (attachmentsQ.data || []).some((item) => (item.mimeType || '').startsWith('image/')),
     [attachmentsQ.data],
   )
+  // SMA-ACCEPTANCE-ROLE-GAP-001: accept/reject only for client-company ADMIN / TERRITORIAL_MANAGER / NETWORK_DIRECTOR.
+  const isAwaitingAcceptanceClient =
+    !!ticket &&
+    canMutateTicket &&
+    isClientTenantCompany &&
+    api.isClientAcceptanceRole(role) &&
+    ticket.status === 'AWAITING_ACCEPTANCE'
   const requestAttachments = useMemo(
     () => (attachmentsQ.data || []).filter((item: any) => item?.purpose !== 'WORK_REPORT'),
     [attachmentsQ.data],
