@@ -1354,6 +1354,15 @@ export function isProviderTicketAssignRole(role?: string | null): boolean {
   )
 }
 
+/**
+ * SMA-ACCEPTANCE-ROLE-GAP-001: client-company management roles allowed to accept/reject work.
+ * Must be combined with a client-company (tenant) check at the call site — the CLIENT requester
+ * and all provider-side roles are excluded.
+ */
+export function isClientAcceptanceRole(role?: string | null): boolean {
+  return role === 'ADMIN' || role === 'TERRITORIAL_MANAGER' || role === 'NETWORK_DIRECTOR'
+}
+
 /** Мобильная главная: полевые действия (взять/начать/закрыть) — только TECHNICIAN (POST /claim и start/done на бэкенде). */
 export function allowMobileHomeFieldTicketActions(role?: Role | string | null): boolean {
   return role === 'TECHNICIAN'
@@ -2845,6 +2854,90 @@ export async function completeInspectionRun(runId: string): Promise<CompleteInsp
   return request<CompleteInspectionRunResponse>(`/inspection/runs/${runId}/complete`, {
     method: 'POST',
   })
+}
+
+export type InspectionFrequency =
+  | 'DAILY'
+  | 'WEEKLY'
+  | 'BIWEEKLY'
+  | 'MONTHLY'
+  | 'QUARTERLY'
+  | 'SEMIANNUAL'
+  | 'ANNUAL'
+  | 'CUSTOM'
+
+export type InspectionSchedule = {
+  id: string
+  companyId: string
+  name: string
+  frequency: InspectionFrequency
+  intervalDays?: number | null
+  startDate: string
+  nextDueAt: string
+  leadTimeDays: number
+  graceDays: number
+  isActive: boolean
+  lastGeneratedAt?: string | null
+  lastRunId?: string | null
+  createdAt: string
+  updatedAt: string
+  template: { id: string; name: string }
+  location: { id: string; name: string; city?: string | null; platformCode?: string | null }
+  equipment?: { id: string; name: string; type?: string | null } | null
+  assignedTo?: { id: string; email: string; firstName?: string | null; lastName?: string | null } | null
+  _count?: { runs: number }
+}
+
+export type CreateInspectionScheduleInput = {
+  templateId: string
+  locationId: string
+  equipmentId?: string
+  assignedToUserId?: string
+  name?: string
+  frequency: InspectionFrequency
+  intervalDays?: number
+  startDate: string
+  leadTimeDays?: number
+  graceDays?: number
+}
+
+export type UpdateInspectionScheduleInput = Partial<{
+  templateId: string
+  locationId: string
+  equipmentId: string | null
+  assignedToUserId: string | null
+  name: string
+  frequency: InspectionFrequency
+  intervalDays: number | null
+  startDate: string
+  leadTimeDays: number
+  graceDays: number
+  isActive: boolean
+}>
+
+export async function getInspectionSchedules(): Promise<InspectionSchedule[]> {
+  return request<InspectionSchedule[]>('/inspection/schedules')
+}
+
+export async function createInspectionSchedule(
+  input: CreateInspectionScheduleInput,
+): Promise<InspectionSchedule> {
+  return request<InspectionSchedule>('/inspection/schedules', { method: 'POST', body: input })
+}
+
+export async function updateInspectionSchedule(
+  id: string,
+  input: UpdateInspectionScheduleInput,
+): Promise<InspectionSchedule> {
+  return request<InspectionSchedule>('/inspection/schedules/' + id, { method: 'PATCH', body: input })
+}
+
+export async function deleteInspectionSchedule(id: string): Promise<{ id: string; deleted: boolean }> {
+  return request<{ id: string; deleted: boolean }>('/inspection/schedules/' + id, { method: 'DELETE' })
+}
+
+export async function runInspectionScheduleNow(id: string): Promise<InspectionRun> {
+  return request<InspectionRun>('/inspection/schedules/' + id + '/run-now', { method: 'POST' })
 }
 export type PublicRequestContext = {
   companyName: string

@@ -1,5 +1,5 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
-import { Prisma, ServiceContractRole, TicketAttachmentPurpose, TicketStatus } from '@prisma/client'
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
+import { CompanyType, Prisma, ServiceContractRole, TicketAttachmentPurpose, TicketStatus, UserRole } from '@prisma/client'
 
 import { PrismaService } from '../prisma/prisma.service'
 import { TimelineService } from '../timeline/timeline.service'
@@ -16,6 +16,15 @@ type ActorCtx = {
   accessFlags?: Record<string, any>
 }
 
+// SMA-ACCEPTANCE-ROLE-GAP-001: only client-company management roles may accept/reject.
+// CLIENT (requester) and all provider-side roles are excluded; the actor must also
+// belong to a CLIENT-type company (so a provider cannot accept its own work).
+const ACCEPTANCE_ROLES: UserRole[] = [
+  UserRole.ADMIN,
+  UserRole.TERRITORIAL_MANAGER,
+  UserRole.NETWORK_DIRECTOR,
+]
+
 @Injectable()
 export class TicketsAcceptanceService {
   constructor(
@@ -24,6 +33,23 @@ export class TicketsAcceptanceService {
     private readonly serviceContractsService: ServiceContractsService,
     private readonly notifications: NotificationsService,
   ) {}
+
+  // SMA-ACCEPTANCE-ROLE-GAP-001: gate accept/reject to client-company management roles.
+  private async assertClientAcceptanceActor(actor: ActorCtx) {
+    if (!ACCEPTANCE_ROLES.includes(actor.role)) {
+      throw new ForbiddenException('Role cannot accept or reject work')
+    }
+    const company = await this.prisma.company.findUnique({
+      where: { id: actor.companyId },
+      select: { id: true, type: true },
+    })
+    if (!company) {
+      throw new NotFoundException('Company not found')
+    }
+    if (company.type !== CompanyType.CLIENT) {
+      throw new ForbiddenException('Only the client company can accept or reject work')
+    }
+  }
 
   async decide(
     actor: ActorCtx,
@@ -35,6 +61,8 @@ export class TicketsAcceptanceService {
     if (dto.decision === AcceptanceDecision.REJECT && !comment) {
       throw new BadRequestException('Comment is required when rejecting')
     }
+
+    await this.assertClientAcceptanceActor(actor)
 
     const access = await resolveReadableTicketAccess({
       prisma: this.prisma,

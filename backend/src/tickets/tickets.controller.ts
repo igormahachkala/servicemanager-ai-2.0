@@ -305,7 +305,8 @@ export class TicketsController {
   }
 
   @Patch(':id')
-  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.CLIENT, UserRole.TERRITORIAL_MANAGER)
+  // SMA-ACCEPTANCE-ROLE-GAP-001: CLIENT requester may create/comment/photo but not edit.
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TERRITORIAL_MANAGER)
   @RequirePermission(PERMISSIONS.TICKETS_EDIT)
   @ApiForbiddenResponse({
     description: 'Missing permission: TICKETS_EDIT',
@@ -405,7 +406,9 @@ export class TicketsController {
   }
 
   @Post(':id/acceptance')
-  @Roles(UserRole.CLIENT, UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TERRITORIAL_MANAGER)
+  // SMA-ACCEPTANCE-ROLE-GAP-001: accept/reject is a client-company decision only.
+  // Coarse role gate here; client-company (vs provider) enforced in the service.
+  @Roles(UserRole.ADMIN, UserRole.TERRITORIAL_MANAGER, UserRole.NETWORK_DIRECTOR)
   @RequirePermission(PERMISSIONS.TICKETS_VIEW)
   decide(
     @Req() req: any,
