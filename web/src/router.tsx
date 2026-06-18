@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import * as api from './lib/api'
 import { Shell } from './ui/Shell'
 import { LoginPage } from './views/LoginPage'
+import { WorkspaceSelectorPage } from './views/WorkspaceSelectorPage'
 import { RequestAccessPage } from './views/RequestAccessPage'
 import { PublicQuickRequestPage } from './views/PublicQuickRequestPage'
 import { PublicQuickRequestSuccessPage } from './views/PublicQuickRequestSuccessPage'
@@ -22,6 +23,7 @@ import { TechnicianPage } from './views/TechnicianPage'
 import { CompaniesPage } from './views/CompaniesPage'
 import { ServiceContractsPage } from './views/ServiceContractsPage'
 import { InspectionTemplatesPage } from './views/InspectionTemplatesPage'
+import { InspectionSchedulesPage } from './views/InspectionSchedulesPage'
 import { EngineeringAgentPage } from './views/EngineeringAgentPage'
 import { IT_COMPANY_ROUTES } from './it-company'
 import { InspectionRunsPage } from './views/InspectionRunsPage'
@@ -104,6 +106,14 @@ export function AppRoutes() {
       <Route path="/request-access" element={api.getToken() ? <Navigate to={authHomePath()} replace /> : <RequestAccessPage />} />
       <Route path="/register" element={<Navigate to="/request-access" replace />} />
       <Route path="/logout" element={<LogoutAndRedirect />} />
+      <Route
+        path="/workspaces"
+        element={
+          <RequireAuth>
+            <WorkspaceSelectorPage />
+          </RequireAuth>
+        }
+      />
       <Route path="/r/:token" element={<PublicQuickRequestPage />} />
       <Route path="/r/:token/success" element={<PublicQuickRequestSuccessPage />} />
 
@@ -157,6 +167,7 @@ export function AppRoutes() {
         <Route path="map" element={<MapPage />} />
         <Route path="problem-categories" element={<ProblemCategoriesPage />} />
         <Route path="inspection/templates" element={<InspectionTemplatesPage />} />
+        <Route path="inspection/schedules" element={<InspectionSchedulesPage />} />
         <Route path="inspection/runs" element={<InspectionRunsPage />} />
         <Route path="inspection/runs/:id" element={<InspectionRunPage />} />
         <Route path="inspection/quick/:runId" element={<InspectionQuickPage />} />
