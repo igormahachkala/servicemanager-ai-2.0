@@ -507,9 +507,12 @@ export function MobileTicketPage() {
   const isSelfAssigned = !!meQ.data?.id && assigneeIdForMe === meQ.data.id
   const canShowTechStart =
     !!ticket &&
+    ticket.status !== 'AWAITING_ACCEPTANCE' &&
     (
       (meQ.data?.role === 'TECHNICIAN' && (aa ? aa.canStart : techPrimary === 'start')) ||
-      (canAssignProvider && isSelfAssigned && (aa ? aa.canStart : false))
+      (canAssignProvider && isSelfAssigned &&
+        (ticket.status === 'ASSIGNED' || ticket.status === 'NEW') &&
+        (aa ? aa.canStart : false))
     )
   const canShowComplete =
     !!ticket &&

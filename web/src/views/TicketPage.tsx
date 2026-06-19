@@ -492,6 +492,24 @@ export function TicketPage() {
     },
   })
 
+  const selfAssignM = useMutation({
+    mutationFn: () => {
+      if (!canMutateTicket) throw new Error('Изменение заявки запрещено в текущем режиме видимости')
+      if (!meQ.data?.id) throw new Error('Не удалось определить пользователя')
+      return api.assignTicket(ticketId, meQ.data.id, effectiveTicketScope)
+    },
+    onSuccess: async () => {
+      clearActionErrors()
+      pushToast('Заявка взята на себя', 'success')
+      await refreshAll()
+    },
+    onError: (e: any) => {
+      const raw = e?.message || String(e)
+      logTicketActionError('self_assign', raw)
+      setAssignError(mapTicketActionError(raw))
+    },
+  })
+
   const statusM = useMutation({
     mutationFn: (input: api.UpdateTicketStatusInput) => {
       if (!canMutateTicket) throw new Error('Изменение заявки запрещено в текущем режиме видимости')
@@ -722,6 +740,12 @@ export function TicketPage() {
     if (aa) return aa.canClaim
     return ticket.meta?.canClaimByCurrentUser === true
   }, [role, ticket, executorActionsAllowed])
+
+  const showSelfAssign =
+    canAssign &&
+    !!ticket &&
+    ticket.status === 'NEW' &&
+    !hasAssignedTechnician
 
   const assignmentData = assignmentCandidatesQ.data
   const availableStatusTransitions = ticket?.meta?.availableStatusTransitions || []
@@ -1159,7 +1183,7 @@ export function TicketPage() {
             backToBoardHref={backToBoardHref}
             primaryAction={primaryAction}
             canClaim={canClaim}
-            canChangeStatus={canChangeStatus}
+            canChangeStatus={canChangeStatus && ticket.status !== 'AWAITING_ACCEPTANCE'}
             canTransitionTo={canTransitionTo}
             showCancel={showCancelInTechnicianBar}
             closeHint={technicianBarCloseHint}
@@ -1182,6 +1206,17 @@ export function TicketPage() {
       ) : ticket ? (
         <div className="panel" style={{ marginBottom: 12 }}>
           <h3 style={{ marginBottom: 10 }}>Действия</h3>
+          {showSelfAssign ? (
+            <div style={{ marginBottom: 8 }}>
+              <button
+                onClick={() => selfAssignM.mutate()}
+                disabled={selfAssignM.isPending}
+                style={{ width: '100%' }}
+              >
+                {selfAssignM.isPending ? 'Берём заявку…' : 'Взять заявку себе'}
+              </button>
+            </div>
+          ) : null}
           {primaryAction ? (
             <div style={{ marginBottom: 8 }}>
               {primaryAction.kind === 'claim' ? (
@@ -1230,7 +1265,7 @@ export function TicketPage() {
             ) : null}
             {canChangeStatus ? (
               <>
-                {primaryAction?.kind !== 'in_progress' ? (
+                {primaryAction?.kind !== 'in_progress' && ticket.status !== 'AWAITING_ACCEPTANCE' ? (
                   <button className="ghost" disabled={statusM.isPending || !canTransitionTo('IN_PROGRESS')} onClick={() => statusM.mutate({ status: 'IN_PROGRESS' })}>
                     {statusM.isPending ? 'Сохраняем…' : 'В работу'}
                   </button>
