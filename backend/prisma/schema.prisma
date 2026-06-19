@@ -124,7 +124,7 @@ model Company {
   signatureLineName    String?
   signatureLineTitle   String?
   type                 CompanyType @default(CLIENT)
-  autoAssignEnabled    Boolean     @default(true)
+  autoAssignEnabled    Boolean     @default(false)
   allowTechnicianClaim Boolean     @default(true)
   slaStrictMode        Boolean     @default(false)
   timezone             String?     @default("UTC")
