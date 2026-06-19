@@ -139,6 +139,7 @@ function readListOrigin(location: ReturnType<typeof useLocation>): MobileTicketL
   const raw = (location.state as MobileTicketNavState | null)?.mobileListOrigin
   if (raw === 'my') return 'my'
   if (raw === 'chat') return 'chat'
+  if (raw === 'notifications') return 'notifications'
   return 'home'
 }
 
@@ -815,7 +816,9 @@ export function MobileTicketPage() {
       ? mobilePath(location.pathname, '/chats')
       : listOrigin === 'my'
         ? mobilePath(location.pathname, '/my')
-        : mobilePath(location.pathname, '')
+        : listOrigin === 'notifications'
+          ? mobilePath(location.pathname, '/notifications')
+          : mobilePath(location.pathname, '')
   const backHref = api.appendScopeToPath(backPath, scopeNorm, meQ.data)
   const boardTabLabel = navState?.homeBoardTab ? MOBILE_HOME_TAB_LABELS[navState.homeBoardTab] : ''
   const boardChipLabels = useMemo(() => {

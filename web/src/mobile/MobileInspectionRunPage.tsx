@@ -3,6 +3,7 @@ import { Link, useLocation, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { mobilePath } from './mobileRoute'
+import { mobileTicketNavState } from './mobileTicketDisplay'
 
 function fmtDateTime(value?: string | null): string {
   if (!value) return '—'
@@ -432,7 +433,8 @@ export function MobileInspectionRunPage() {
                     {createdTicketId ? (
                       <div className="mobilePatrolItemActions">
                         <Link
-                          to={mobilePath(location.pathname, `/tickets/${createdTicketId}`)}
+                          to={`${mobilePath(location.pathname, `/tickets/${createdTicketId}`)}${location.search}`}
+                          state={mobileTicketNavState('home', run?.companyId)}
                           className="mobileBtn mobileBtnSecondary"
                           style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minHeight: 34, padding: '6px 14px', fontSize: '0.82rem', borderRadius: 8 }}
                         >

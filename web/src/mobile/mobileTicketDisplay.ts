@@ -2,7 +2,7 @@ import type { Me, Role, TicketCard, TicketGetOne, TicketPriority, TicketScopePar
 import type { MobileHomeBoardChipId, MobileHomeBoardFilterTab } from './mobileHomeBoardFilters'
 
 /** Состояние для Link: откуда открыли карточку (кнопка «Назад» на деталях). */
-export type MobileTicketListOrigin = 'home' | 'my' | 'chat'
+export type MobileTicketListOrigin = 'home' | 'my' | 'chat' | 'notifications'
 
 /** Данные навигации с списка → детали (scope + «Назад»). */
 export type MobileTicketNavState = {

@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { formatMobileMutationError } from './mobileActionErrors'
 import { mobilePath } from './mobileRoute'
+import { mobileTicketNavState } from './mobileTicketDisplay'
 
 export function MobileNotificationsPage() {
   const location = useLocation()
@@ -121,6 +122,10 @@ export function MobileNotificationsPage() {
               n.entityType === 'Ticket'
                 ? api.appendScopeToPath(mobilePath(location.pathname, `/tickets/${encodeURIComponent(n.entityId)}`), ticketScope, meQ.data)
                 : undefined
+            const ticketNavState = mobileTicketNavState(
+              'notifications',
+              n.linkedClientCompanyId || scope.linkedClientCompanyId,
+            )
             const unread = !n.readAt
             const tone = api.getNotificationTypeTone(n.type)
             const typeLabel = api.getNotificationTypeLabel(n.type)
@@ -147,7 +152,7 @@ export function MobileNotificationsPage() {
                           /* навигация всё равно полезна */
                         }
                       }
-                      navigate(href)
+                      navigate(href, { state: ticketNavState })
                     }}
                   >
                     <div className="mobileNotificationTop">

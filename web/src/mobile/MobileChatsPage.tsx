@@ -7,11 +7,14 @@ import { useLinkedBoardScope } from '../hooks/useLinkedBoardScope'
 import { mobilePath } from './mobileRoute'
 import { isMineTicketForRole } from './mobileHomeBoardFilters'
 import {
+  compactTicketScope,
   mobileTicketCategoryLocationFromDetail,
   mobileTicketDetailGetOneScopes,
+  mobileTicketNavState,
   mobileTicketNumberTitle,
   mobileTicketStatusLabelRu,
   resolveMobileTicketResourceScope,
+  scopeForMobileTicketLink,
 } from './mobileTicketDisplay'
 import { MobileTicketPhotoGallery } from './MobileTicketPhotoGallery'
 import { FullscreenPhotoViewer, type PhotoViewerItem } from '../components/FullscreenPhotoViewer'
@@ -532,6 +535,13 @@ export function MobileChatsPage() {
     const currentTicket = ticketQ.data
     const currentTicketTitle = ticketDetailTitle(currentTicket)
     const currentTicketStatus = mobileTicketStatusLabelRu(currentTicket.status)
+    const currentTicketCompanyId = (currentTicket.companyId || '').trim()
+    const currentTicketHref = api.appendScopeToPath(
+      mobilePath(location.pathname, `/tickets/${currentTicket.id}`),
+      compactTicketScope(scopeForMobileTicketLink(me, boardParams, { companyId: currentTicketCompanyId })),
+      me,
+    )
+    const currentTicketNavState = mobileTicketNavState('chat', currentTicketCompanyId || undefined)
 
     // Unified chronological feed built from chatMessages (already in order, deduped)
     const unifiedFeed: UnifiedFeedEntry[] = chatMessages.map((msg) =>
@@ -565,8 +575,8 @@ export function MobileChatsPage() {
           </div>
           <Link
             className="mobileChatsDialogMenu"
-            to={`${mobilePath(location.pathname, `/tickets/${currentTicket.id}`)}${location.search}`}
-            state={{ mobileListOrigin: 'chat' }}
+            to={currentTicketHref}
+            state={currentTicketNavState}
             aria-label="Открыть заявку"
           >
             →
@@ -589,7 +599,7 @@ export function MobileChatsPage() {
         <div className="mobileChatsRelationCard">
           <div className="mobileChatsRelationTop">
             <div className="mobileChatsRelationLabel">{mobileTicketNumberTitle(currentTicket.ticketNumber)}</div>
-            <Link className="mobileChatsRelationLink" to={`${mobilePath(location.pathname, `/tickets/${currentTicket.id}`)}${location.search}`} state={{ mobileListOrigin: 'chat' }}>
+            <Link className="mobileChatsRelationLink" to={currentTicketHref} state={currentTicketNavState}>
               Открыть
             </Link>
           </div>
@@ -828,7 +838,7 @@ export function MobileChatsPage() {
           ) : sectionIsExpanded('tickets') ? (
             <div className="mobileChatsList">
               {ticketRows.map(({ ticket, href, preview }) => (
-                <Link key={ticket.id} className="mobileChatsItem" to={href}>
+                <Link key={ticket.id} className="mobileChatsItem" to={href} state={mobileTicketNavState('chat', ticket.companyId)}>
                   <div className={chatListIconClass(ticket.status)} aria-hidden="true">
                     <span className="mobileChatsRoomIconEmoji">💬</span>
                   </div>
