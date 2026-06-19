@@ -1062,10 +1062,17 @@ export class TicketsAssignmentService {
         throw new BadRequestException(`Ticket cannot be assigned in status ${ticket.status}`);
       }
 
+      // ADMIN/MASTER/DISPATCHER self-assigning don't need the isExecutor flag —
+      // canAssign policy already gates who can call this path.
+      const MANAGEMENT_SELF_ASSIGN_ROLES: UserRole[] = [UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER];
+      const skipExecutorFlag =
+        technicianId === accessActor.id &&
+        MANAGEMENT_SELF_ASSIGN_ROLES.includes(accessActor.role as UserRole);
+
       const tech = await tx.user.findFirst({
         where: {
           id: technicianId,
-          isExecutor: true,
+          ...(skipExecutorFlag ? {} : { isExecutor: true }),
           role: { in: Array.from(EXECUTOR_CAPABLE_ROLES) },
         },
         include: {
