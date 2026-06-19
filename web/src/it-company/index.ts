@@ -10,8 +10,6 @@ export { ITCompanyPage } from './pages/ITCompanyPage'
 export { AIDeveloperPage } from './pages/AIDeveloperPage'
 export { AIEmployeesPage } from './pages/AIEmployeesPage'
 export { AIEmployeeDetailsPage } from './pages/AIEmployeeDetailsPage'
-export { OrgChartPage } from './pages/OrgChartPage'
-export { AITasksPage } from './pages/AITasksPage'
 export { MissionControlPage } from './pages/MissionControlPage'
 export {
   MISSION_CONTROL_ACTIVITY,
