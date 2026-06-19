@@ -33,8 +33,17 @@ export function ITCompanyPage() {
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <span className="tag">демо-данные</span>
+          <Link to="/it/org-chart" style={{ textDecoration: 'none' }}>
+            <button type="button" className="ghost">Org Chart</button>
+          </Link>
           <Link to="/it/employees" style={{ textDecoration: 'none' }}>
             <button type="button" className="ghost">AI Employees</button>
+          </Link>
+          <Link to="/it/tasks" style={{ textDecoration: 'none' }}>
+            <button type="button" className="ghost">Tasks</button>
+          </Link>
+          <Link to="/it/mission-control" style={{ textDecoration: 'none' }}>
+            <button type="button" className="ghost">Mission Control</button>
           </Link>
           <Link to="/it/ai-developer" style={{ textDecoration: 'none' }}>
             <button type="button">Открыть AI Developer</button>
