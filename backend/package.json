@@ -32,6 +32,7 @@
     "db:seed": "dotenv -e .env -- prisma db seed",
     "seed:standard-catalog": "dotenv -e .env -- ts-node scripts/seed-standard-catalog.ts",
     "seed:stage-qa": "dotenv -e .env -- ts-node scripts/seed-stage-qa.ts",
+    "seed:pbac:freeze": "dotenv -e .env -- ts-node scripts/seed-pbac-freeze.ts",
     "prisma:generate": "dotenv -e .env -- npx prisma generate",
     "prisma:generate:local": "dotenv -e .env -- npx prisma generate",
     "prisma:generate:docker": "dotenv -e .env.docker -- npx prisma generate",
