@@ -16,6 +16,7 @@ import { AnalyticsPage } from './views/AnalyticsPage'
 import { SettingsPage } from './views/SettingsPage'
 import { ProblemCategoriesPage } from './views/ProblemCategoriesPage'
 import { SpecializationsPage } from './views/SpecializationsPage'
+import { UserPermissionsPage } from './views/UserPermissionsPage'
 import { CompanyPage } from './views/CompanyPage'
 import { TechnicianPage } from './views/TechnicianPage'
 import { CompaniesPage } from './views/CompaniesPage'
@@ -131,6 +132,7 @@ export function AppRoutes() {
         <Route path="tickets/:id" element={<TicketPage />} />
         <Route path="locations" element={<LocationsPage />} />
         <Route path="employees" element={<EmployeesPage />} />
+        <Route path="permissions/users" element={<UserPermissionsPage />} />
         <Route path="specializations" element={<SpecializationsPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />
         <Route path="settings" element={<SettingsPage />} />

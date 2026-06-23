@@ -66,6 +66,7 @@ function isActivePath(currentPath: string, targetPath: string) {
   if (targetPath === '/service-contracts') return currentPath.startsWith('/service-contracts')
   if (targetPath === '/locations') return currentPath.startsWith('/locations')
   if (targetPath === '/employees') return currentPath.startsWith('/employees')
+  if (targetPath === '/permissions/users') return currentPath.startsWith('/permissions/users')
   if (targetPath === '/inspection/runs') return currentPath.startsWith('/inspection/runs')
   if (targetPath === '/inspection/templates') return currentPath.startsWith('/inspection/templates')
   if (targetPath === '/map') return currentPath.startsWith('/map')
@@ -95,6 +96,9 @@ function isNavItemVisible(item: NavItem, role?: api.Role) {
   const fullAdmin = api.isFullAdminDesktopNavRole(role)
 
   if (item.to === '/employees' || item.to === '/locations' || item.to === '/problem-categories' || item.to === '/specializations') {
+    return fullAdmin
+  }
+  if (item.to === '/permissions/users') {
     return fullAdmin
   }
 
