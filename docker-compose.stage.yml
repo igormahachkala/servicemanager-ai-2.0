@@ -29,7 +29,8 @@ services:
       PLATFORM_ADMIN_EMAIL: admin@stage.local
       PLATFORM_ADMIN_PASSWORD: StageAdmin_2026!
       PLATFORM_COMPANY_NAME: ServiceManager Stage Platform
-      CORS_ALLOWED_ORIGINS: http://194.67.101.37:4174,http://127.0.0.1:4174,http://localhost:4174
+      ENGINEERING_AGENT_OWNER_EMAILS: agent-runner@servicemanager.ai
+      CORS_ALLOWED_ORIGINS: http://194.67.101.37:4174,http://127.0.0.1:4174,http://localhost:4174,http://127.0.0.1:3001
       MAX_BOT_API_TOKEN: ${MAX_BOT_API_TOKEN}
       MAX_BOT_API_BASE_URL: ${MAX_BOT_API_BASE_URL}
       MAX_GROUP_CHAT_ID: ${MAX_GROUP_CHAT_ID}
@@ -43,7 +44,7 @@ services:
       context: ./web
       dockerfile: Dockerfile
       args:
-        VITE_API_BASE_URL: http://194.67.101.37:3001
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://127.0.0.1:3001}
     container_name: sma_stage_web
     restart: unless-stopped
     depends_on:
