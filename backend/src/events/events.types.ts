@@ -17,7 +17,8 @@ export type DomainEventType =
   | 'user.created'
   | 'inspection.item_ticket_created'
   | 'inspection.report_submitted'
-  | 'inspection.report_reviewed';
+  | 'inspection.report_reviewed'
+  | 'user.permission_overrides_updated';
 
 export type DomainEvent = {
   type: DomainEventType;
