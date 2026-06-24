@@ -47,6 +47,56 @@ export const ru: Messages = {
       'V1 — активные агенты работают сейчас; планируемые видны для проектирования оргструктуры.',
     agents: 'агентов',
   },
+  organization: {
+    description: 'Операционные squads, домены и capacity — не HR org chart.',
+    customEmployees: 'Custom Employees',
+  },
+  employeeBuilder: {
+    title: 'Создать сотрудника',
+    description: 'Локальный AI-сотрудник: роль, модели, инструменты и права.',
+    createButton: 'Создать сотрудника',
+    cancel: 'Отмена',
+    submit: 'Сохранить',
+    sections: {
+      identity: 'Идентичность',
+      models: 'Модели',
+      tools: 'Инструменты',
+      permissions: 'Права',
+      mission: 'Миссия',
+    },
+    fields: {
+      name: 'Имя',
+      codename: 'Codename',
+      role: 'Роль',
+      status: 'Статус',
+      primaryModel: 'Основная модель',
+      fallbackModels: 'Fallback-модели',
+      description: 'Описание / миссия',
+    },
+    placeholders: {
+      name: 'например, Research Analyst',
+      codename: 'например, SCOUT',
+      role: 'например, AI Research Lead',
+      selectModel: 'Выберите основную модель',
+      description: 'Миссия, scope и ограничения',
+    },
+    status: {
+      active: 'Active',
+      planned: 'Planned',
+      disabled: 'Disabled',
+    },
+    permissions: {
+      read: 'Read',
+      write: 'Write',
+      enabled: 'Enabled',
+    },
+    permissionsHint:
+      'Production Deploy, Database write и GitHub write по умолчанию выключены.',
+    errors: {
+      required: 'Имя, codename и роль обязательны.',
+      primaryModel: 'Выберите основную модель.',
+    },
+  },
   tools: {
     pageDescription: 'Модели, coding agents и интеграции — локальный реестр V1.',
     modelsDescription: 'LLM-рантаймы, доступные агентам',

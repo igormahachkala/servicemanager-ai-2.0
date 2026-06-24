@@ -1,12 +1,17 @@
 import { PageHeader, Panel, capFillClass } from '../components/ui'
 import { agentsBySquad, domains, squads } from '../data/mock'
+import { useCustomEmployees } from '../hooks/useCustomEmployees'
+import { useI18n } from '../../i18n'
 
 export function OrganizationPage() {
+  const { t } = useI18n()
+  const { employees: customEmployees } = useCustomEmployees()
+
   return (
     <>
       <PageHeader
-        title="Organization"
-        description="Operational squads, domains, and capacity — not an HR org chart."
+        title={t.pages.organization}
+        description={t.organization.description}
       />
 
       <div className="mcDomainGrid">
@@ -80,6 +85,42 @@ export function OrganizationPage() {
           </table>
         </Panel>
       </div>
+
+      {customEmployees.length > 0 ? (
+        <div style={{ marginTop: 16 }}>
+          <Panel
+            title={t.organization.customEmployees}
+            right={
+              <span className="mcMono mcMuted">
+                {customEmployees.length} {t.employees.agents}
+              </span>
+            }
+          >
+            <table className="mcTable">
+              <thead>
+                <tr>
+                  <th>{t.employeeBuilder.fields.name}</th>
+                  <th>{t.employeeBuilder.fields.codename}</th>
+                  <th>{t.labels.role}</th>
+                  <th>{t.labels.model}</th>
+                  <th>{t.labels.status}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {customEmployees.map((employee) => (
+                  <tr key={employee.id}>
+                    <td style={{ fontWeight: 600 }}>{employee.name}</td>
+                    <td className="mcMono">{employee.codename}</td>
+                    <td>{employee.role}</td>
+                    <td className="mcMono mcMuted">{employee.primaryModel}</td>
+                    <td className="mcMono">{employee.status}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </Panel>
+        </div>
+      ) : null}
     </>
   )
 }

@@ -44,6 +44,56 @@ export const en = {
     description: 'V1 agent roster — active agents run now; planned agents visible for org design.',
     agents: 'agents',
   },
+  organization: {
+    description: 'Operational squads, domains, and capacity — not an HR org chart.',
+    customEmployees: 'Custom Employees',
+  },
+  employeeBuilder: {
+    title: 'Create Employee',
+    description: 'Define a local AI employee with role, models, tools, and permissions.',
+    createButton: 'Create Employee',
+    cancel: 'Cancel',
+    submit: 'Save Employee',
+    sections: {
+      identity: 'Identity',
+      models: 'Models',
+      tools: 'Tools',
+      permissions: 'Permissions',
+      mission: 'Mission',
+    },
+    fields: {
+      name: 'Name',
+      codename: 'Codename',
+      role: 'Role',
+      status: 'Status',
+      primaryModel: 'Primary model',
+      fallbackModels: 'Fallback models',
+      description: 'Description / Mission',
+    },
+    placeholders: {
+      name: 'e.g. Research Analyst',
+      codename: 'e.g. SCOUT',
+      role: 'e.g. AI Research Lead',
+      selectModel: 'Select primary model',
+      description: 'Mission statement, scope, and operating constraints',
+    },
+    status: {
+      active: 'Active',
+      planned: 'Planned',
+      disabled: 'Disabled',
+    },
+    permissions: {
+      read: 'Read',
+      write: 'Write',
+      enabled: 'Enabled',
+    },
+    permissionsHint:
+      'Production Deploy, Database write, and GitHub write are off by default for safety.',
+    errors: {
+      required: 'Name, codename, and role are required.',
+      primaryModel: 'Select a primary model.',
+    },
+  },
   tools: {
     pageDescription: 'Models, coding agents, and integrations — V1 local inventory.',
     modelsDescription: 'LLM runtimes available to agents',

@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import {
   PageHeader,
   Panel,
@@ -6,6 +7,9 @@ import {
   loadFillClass,
 } from '../components/ui'
 import { activeAgents, plannedAgents } from '../data/mock'
+import { customEmployeeToAgent } from '../data/customEmployees'
+import { useCustomEmployees } from '../hooks/useCustomEmployees'
+import type { Agent } from '../data/types'
 import { useI18n } from '../../i18n'
 
 function statusDotKind(status: string, lifecycle: string): 'green' | 'amber' | 'red' | 'gray' {
@@ -19,7 +23,7 @@ function AgentTable({
   rows,
   showLoad,
 }: {
-  rows: typeof activeAgents
+  rows: Agent[]
   showLoad: boolean
 }) {
   const { t } = useI18n()
@@ -78,20 +82,39 @@ function AgentTable({
 
 export function EmployeesPage() {
   const { t } = useI18n()
+  const { employees: customEmployees } = useCustomEmployees()
+
+  const customActive = customEmployees
+    .filter((employee) => employee.status === 'active')
+    .map(customEmployeeToAgent)
+  const customPlanned = customEmployees
+    .filter((employee) => employee.status === 'planned')
+    .map(customEmployeeToAgent)
+  const customDisabled = customEmployees
+    .filter((employee) => employee.status === 'disabled')
+    .map(customEmployeeToAgent)
+
+  const activeRows = [...activeAgents, ...customActive]
+  const plannedRows = [...plannedAgents, ...customPlanned]
 
   return (
     <>
-      <PageHeader title={t.pages.employees} description={t.employees.description} />
+      <div className="mcPageHeaderRow">
+        <PageHeader title={t.pages.employees} description={t.employees.description} />
+        <Link to="/ops/employees/new" className="mcBtn mcBtnPrimary">
+          {t.employeeBuilder.createButton}
+        </Link>
+      </div>
 
       <Panel
         title={t.labels.active}
         right={
           <span className="mcMono mcMuted">
-            {activeAgents.length} {t.employees.agents}
+            {activeRows.length} {t.employees.agents}
           </span>
         }
       >
-        <AgentTable rows={activeAgents} showLoad />
+        <AgentTable rows={activeRows} showLoad />
       </Panel>
 
       <div style={{ marginTop: 16 }}>
@@ -99,13 +122,28 @@ export function EmployeesPage() {
           title={t.labels.planned}
           right={
             <span className="mcMono mcMuted">
-              {plannedAgents.length} {t.employees.agents}
+              {plannedRows.length} {t.employees.agents}
             </span>
           }
         >
-          <AgentTable rows={plannedAgents} showLoad={false} />
+          <AgentTable rows={plannedRows} showLoad={false} />
         </Panel>
       </div>
+
+      {customDisabled.length > 0 ? (
+        <div style={{ marginTop: 16 }}>
+          <Panel
+            title={t.employeeBuilder.status.disabled}
+            right={
+              <span className="mcMono mcMuted">
+                {customDisabled.length} {t.employees.agents}
+              </span>
+            }
+          >
+            <AgentTable rows={customDisabled} showLoad={false} />
+          </Panel>
+        </div>
+      ) : null}
     </>
   )
 }

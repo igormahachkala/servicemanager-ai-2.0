@@ -500,3 +500,183 @@
   align-items: center;
   gap: 8px;
 }
+
+.mcPageHeaderRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.mcPageHeaderRow .mcPageHeader {
+  margin-bottom: 0;
+  flex: 1;
+}
+
+.mcBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  border: 1px solid var(--mc-border);
+  background: var(--mc-surface-2);
+  color: var(--mc-text);
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.mcBtn:hover {
+  background: var(--mc-surface);
+  border-color: var(--mc-muted-2);
+}
+
+.mcBtnPrimary {
+  background: var(--mc-accent);
+  border-color: rgba(59, 130, 246, 0.6);
+  color: #fff;
+}
+
+.mcBtnPrimary:hover {
+  background: #2563eb;
+  border-color: #2563eb;
+}
+
+.mcBtnSecondary {
+  color: var(--mc-muted);
+}
+
+.mcFormBody {
+  padding: 16px;
+}
+
+.mcFormGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+@media (max-width: 900px) {
+  .mcFormGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mcField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mcFieldLabel {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--mc-muted);
+}
+
+.mcInput,
+.mcSelect,
+.mcTextarea {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--mc-border);
+  background: var(--mc-bg);
+  color: var(--mc-text);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.mcInput:focus,
+.mcSelect:focus,
+.mcTextarea:focus {
+  outline: none;
+  border-color: var(--mc-accent);
+  box-shadow: 0 0 0 2px var(--mc-accent-dim);
+}
+
+.mcTextarea {
+  resize: vertical;
+  min-height: 96px;
+}
+
+.mcCheckGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px 12px;
+}
+
+@media (max-width: 900px) {
+  .mcCheckGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.mcCheckLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--mc-text);
+  cursor: pointer;
+}
+
+.mcCheckLabel input {
+  accent-color: var(--mc-accent);
+}
+
+.mcPermList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mcPermRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--mc-border-subtle);
+  border-radius: 6px;
+  background: var(--mc-surface-2);
+}
+
+.mcPermLabel {
+  font-weight: 500;
+  min-width: 140px;
+}
+
+.mcPermToggles {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.mcFormHint {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--mc-muted);
+}
+
+.mcFormError {
+  padding: 10px 14px;
+  border-radius: 6px;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.08);
+  color: #fca5a5;
+  font-size: 13px;
+}
+
+.mcFormActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}

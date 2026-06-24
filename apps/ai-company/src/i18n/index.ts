@@ -63,6 +63,7 @@ export function pageTitle(pathname: string, t: Messages): string {
   if (pathname === '/ops') return t.pages.missionControl
   if (pathname === '/ops/organization') return t.pages.organization
   if (pathname === '/ops/employees') return t.pages.employees
+  if (pathname === '/ops/employees/new') return t.employeeBuilder.title
   if (pathname === '/ops/tasks') return t.pages.tasks
   if (pathname === '/ops/feed') return t.pages.missionFeed
   if (pathname === '/ops/tools') return t.pages.toolsRegistry
