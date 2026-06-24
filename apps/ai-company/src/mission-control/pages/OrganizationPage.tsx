@@ -37,33 +37,37 @@ export function OrganizationPage() {
           const agents = squads
             .filter((s) => s.domain === domain)
             .reduce((n, s) => n + s.headcount, 0)
+          const domainLabel = t.organization.domains[domain as keyof typeof t.organization.domains] ?? domain
+
           return (
             <div key={domain} className="mcDomainCard">
-              <div className="mcDomainName">{domain}</div>
+              <div className="mcDomainName">{domainLabel}</div>
               <div className="mcDomainCount">
-                {count} squads · {agents} agents
+                {count} {t.organization.squadsUnit} · {agents} {t.organization.agentsUnit}
               </div>
             </div>
           )
         })}
       </div>
 
-      <Panel title="Squads">
+      <Panel title={t.organization.squads}>
         <table className="mcTable">
           <thead>
             <tr>
-              <th>Squad</th>
-              <th>Domain</th>
-              <th>Lead agent</th>
-              <th>Headcount</th>
-              <th>Capacity</th>
+              <th>{t.labels.squad}</th>
+              <th>{t.labels.domain}</th>
+              <th>{t.labels.leadAgent}</th>
+              <th>{t.labels.headcount}</th>
+              <th>{t.labels.capacity}</th>
             </tr>
           </thead>
           <tbody>
             {squads.map((s) => (
               <tr key={s.id}>
                 <td style={{ fontWeight: 600 }}>{s.name}</td>
-                <td className="mcMuted">{s.domain}</td>
+                <td className="mcMuted">
+                  {t.organization.domains[s.domain as keyof typeof t.organization.domains] ?? s.domain}
+                </td>
                 <td className="mcMono">{s.leadAgent}</td>
                 <td className="mcMono">{s.headcount}</td>
                 <td style={{ minWidth: 140 }}>
@@ -79,13 +83,13 @@ export function OrganizationPage() {
       </Panel>
 
       <div style={{ marginTop: 16 }}>
-        <Panel title="Squad roster snapshot">
+        <Panel title={t.organization.squadRoster}>
           <table className="mcTable">
             <thead>
               <tr>
-                <th>Squad</th>
-                <th>Agent</th>
-                <th>Role</th>
+                <th>{t.labels.squad}</th>
+                <th>{t.labels.agent}</th>
+                <th>{t.labels.role}</th>
               </tr>
             </thead>
             <tbody>
@@ -136,7 +140,7 @@ export function OrganizationPage() {
                         items={employee.skills.map((skill) =>
                           optionLabel(t.employeeBuilder.options.skills, skill),
                         )}
-                        emptyLabel="—"
+                        emptyLabel={t.common.empty}
                       />
                     </td>
                     <td>
@@ -144,7 +148,7 @@ export function OrganizationPage() {
                         items={employee.memoryScope.map((scope) =>
                           optionLabel(t.employeeBuilder.options.memoryScope, scope),
                         )}
-                        emptyLabel="—"
+                        emptyLabel={t.common.empty}
                       />
                     </td>
                   </tr>

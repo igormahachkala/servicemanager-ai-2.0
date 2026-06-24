@@ -14,6 +14,7 @@ import {
   type CustomEmployeePermissions,
   type IntegrationPermission,
 } from '../data/customEmployees'
+import { EMPLOYEE_TEMPLATES, templateToDraft } from '../data/employeeTemplates'
 import { useCustomEmployees } from '../hooks/useCustomEmployees'
 import { useI18n } from '../../i18n'
 
@@ -102,7 +103,17 @@ export function NewEmployeePage() {
   const navigate = useNavigate()
   const { addEmployee } = useCustomEmployees()
   const [draft, setDraft] = useState<CustomEmployeeDraft>(emptyDraft)
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('')
   const [error, setError] = useState<string | null>(null)
+
+  const handleTemplateSelect = (templateId: string) => {
+    setSelectedTemplateId(templateId)
+    const template = EMPLOYEE_TEMPLATES.find((item) => item.id === templateId)
+    if (template) {
+      setDraft(templateToDraft(template))
+      setError(null)
+    }
+  }
 
   const updateIntegrationPermission = (
     key: Exclude<keyof CustomEmployeePermissions, 'productionDeploy'>,
@@ -162,6 +173,32 @@ export function NewEmployeePage() {
       </div>
 
       <form onSubmit={handleSubmit} className="mcStack">
+        <Panel title={t.employees.employeeTemplates}>
+          <div className="mcFormBody">
+            <p className="mcFormHint" style={{ marginTop: 0 }}>
+              {t.employees.selectTemplate}
+            </p>
+            <div className="mcTemplateGrid">
+              {EMPLOYEE_TEMPLATES.map((template) => (
+                <button
+                  key={template.id}
+                  type="button"
+                  className={`mcTemplateCard${
+                    selectedTemplateId === template.id ? ' mcTemplateCardActive' : ''
+                  }`}
+                  onClick={() => handleTemplateSelect(template.id)}
+                >
+                  <span className="mcTemplateCardTitle">
+                    {optionLabel(t.employees.templates, template.id)}
+                  </span>
+                  <span className="mcTemplateCardRole">{template.role}</span>
+                  <span className="mcTemplateCardMeta">{template.primaryModel}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </Panel>
+
         <Panel title={t.employeeBuilder.sections.identity}>
           <div className="mcFormBody">
             <div className="mcFormGrid">

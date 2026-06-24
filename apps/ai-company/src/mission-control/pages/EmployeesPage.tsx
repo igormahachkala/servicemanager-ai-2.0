@@ -42,6 +42,13 @@ function TagList({ items, emptyLabel }: { items: string[]; emptyLabel: string })
 
 function CustomEmployeeDetailTable({ rows }: { rows: CustomEmployee[] }) {
   const { t } = useI18n()
+  const permissionLabels = {
+    permissionLabels: t.employeeBuilder.options.permissions,
+    readShort: t.employeeBuilder.permissions.readShort,
+    writeShort: t.employeeBuilder.permissions.writeShort,
+    readWriteShort: t.employeeBuilder.permissions.readWriteShort,
+    empty: t.common.empty,
+  }
 
   return (
     <table className="mcTable">
@@ -71,15 +78,15 @@ function CustomEmployeeDetailTable({ rows }: { rows: CustomEmployee[] }) {
                 items={employee.skills.map((skill) =>
                   optionLabel(t.employeeBuilder.options.skills, skill),
                 )}
-                emptyLabel="—"
+                emptyLabel={t.common.empty}
               />
             </td>
             <td>
-              <TagList items={employee.tools} emptyLabel="—" />
+              <TagList items={employee.tools} emptyLabel={t.common.empty} />
             </td>
             <td>
               <span className="mcMuted" style={{ fontSize: 12 }}>
-                {summarizePermissions(employee.permissions)}
+                {summarizePermissions(employee.permissions, permissionLabels)}
               </span>
             </td>
             <td>
@@ -87,7 +94,7 @@ function CustomEmployeeDetailTable({ rows }: { rows: CustomEmployee[] }) {
                 items={employee.restrictions.map((item) =>
                   optionLabel(t.employeeBuilder.options.restrictions, item),
                 )}
-                emptyLabel="—"
+                emptyLabel={t.common.empty}
               />
             </td>
           </tr>
@@ -100,11 +107,16 @@ function CustomEmployeeDetailTable({ rows }: { rows: CustomEmployee[] }) {
 function AgentTable({
   rows,
   showLoad,
+  customIds,
+  onDuplicate,
 }: {
   rows: Agent[]
   showLoad: boolean
+  customIds?: Set<string>
+  onDuplicate?: (id: string) => void
 }) {
   const { t } = useI18n()
+  const showActions = Boolean(onDuplicate && customIds && customIds.size > 0)
 
   return (
     <table className="mcTable">
@@ -112,11 +124,12 @@ function AgentTable({
         <tr>
           <th>{t.labels.agent}</th>
           <th>{t.labels.role}</th>
-          <th>Squad</th>
+          <th>{t.labels.squad}</th>
           <th>{t.labels.model}</th>
           <th>{t.labels.status}</th>
           <th>{t.labels.currentTask}</th>
           {showLoad ? <th>{t.labels.load}</th> : <th>{t.labels.lastActivity}</th>}
+          {showActions ? <th>{t.employees.actions}</th> : null}
         </tr>
       </thead>
       <tbody>
@@ -134,9 +147,11 @@ function AgentTable({
             <td className="mcMuted">{a.squad}</td>
             <td className="mcMono mcMuted">{a.model}</td>
             <td className={agentStatusClass(a.lifecycle === 'planned' ? 'offline' : a.status)}>
-              {a.lifecycle === 'planned' ? t.labels.planned.toLowerCase() : a.status}
+              {a.lifecycle === 'planned'
+                ? t.labels.planned.toLowerCase()
+                : t.agentStatus[a.status]}
             </td>
-            <td className="mcMono">{a.currentTaskId ?? '—'}</td>
+            <td className="mcMono">{a.currentTaskId ?? t.common.empty}</td>
             <td>
               {showLoad ? (
                 <div className="mcRowFlex">
@@ -151,6 +166,21 @@ function AgentTable({
                 </span>
               )}
             </td>
+            {showActions ? (
+              <td>
+                {customIds?.has(a.id) ? (
+                  <button
+                    type="button"
+                    className="mcBtn mcBtnSecondary mcBtnSmall"
+                    onClick={() => onDuplicate?.(a.id)}
+                  >
+                    {t.employees.duplicate}
+                  </button>
+                ) : (
+                  <span className="mcMuted">{t.common.empty}</span>
+                )}
+              </td>
+            ) : null}
           </tr>
         ))}
       </tbody>
@@ -160,7 +190,14 @@ function AgentTable({
 
 export function EmployeesPage() {
   const { t } = useI18n()
-  const { employees: customEmployees } = useCustomEmployees()
+  const { employees: customEmployees, duplicateEmployee } = useCustomEmployees()
+
+  const customIds = new Set(customEmployees.map((employee) => employee.id))
+
+  const handleDuplicate = (id: string) => {
+    const source = customEmployees.find((employee) => employee.id === id)
+    if (source) duplicateEmployee(source, t.employees.copyOf)
+  }
 
   const customActive = customEmployees
     .filter((employee) => employee.status === 'active')
@@ -179,9 +216,14 @@ export function EmployeesPage() {
     <>
       <div className="mcPageHeaderRow">
         <PageHeader title={t.pages.employees} description={t.employees.description} />
-        <Link to="/ops/employees/new" className="mcBtn mcBtnPrimary">
-          {t.employeeBuilder.createButton}
-        </Link>
+        <div className="mcPageHeaderActions">
+          <Link to="/ops/employees/new" className="mcBtn mcBtnSecondary">
+            {t.employees.createFromTemplate}
+          </Link>
+          <Link to="/ops/employees/new" className="mcBtn mcBtnPrimary">
+            {t.employeeBuilder.createButton}
+          </Link>
+        </div>
       </div>
 
       <Panel
@@ -192,7 +234,12 @@ export function EmployeesPage() {
           </span>
         }
       >
-        <AgentTable rows={activeRows} showLoad />
+        <AgentTable
+          rows={activeRows}
+          showLoad
+          customIds={customIds}
+          onDuplicate={handleDuplicate}
+        />
       </Panel>
 
       <div style={{ marginTop: 16 }}>
@@ -204,7 +251,12 @@ export function EmployeesPage() {
             </span>
           }
         >
-          <AgentTable rows={plannedRows} showLoad={false} />
+          <AgentTable
+            rows={plannedRows}
+            showLoad={false}
+            customIds={customIds}
+            onDuplicate={handleDuplicate}
+          />
         </Panel>
       </div>
 
@@ -218,7 +270,12 @@ export function EmployeesPage() {
               </span>
             }
           >
-            <AgentTable rows={customDisabled} showLoad={false} />
+            <AgentTable
+              rows={customDisabled}
+              showLoad={false}
+              customIds={customIds}
+              onDuplicate={handleDuplicate}
+            />
           </Panel>
         </div>
       ) : null}

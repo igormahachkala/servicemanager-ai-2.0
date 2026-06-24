@@ -14,7 +14,9 @@ export function MissionControlShell() {
         <div className="mcMain" style={{ width: '100%' }}>
           <header className="mcTopbar">
             <span className="mcTopbarTitle">{title}</span>
-            <span className="mcTopbarMeta">UTC {now}Z · mock telemetry</span>
+            <span className="mcTopbarMeta">
+              UTC {now}Z · {t.shell.mockTelemetry}
+            </span>
           </header>
           <main className="mcContent">
             <Outlet />

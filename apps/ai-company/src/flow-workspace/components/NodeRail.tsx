@@ -1,6 +1,7 @@
 import type { Employee } from '../types';
 import { STATUS_META } from '../lib/status';
 import { ShapeGlyph } from '../lib/shapes';
+import { useI18n } from '../../i18n';
 
 interface Props {
   employees: Employee[];
@@ -10,6 +11,8 @@ interface Props {
 
 /** Slim 62px vertical rail of node tiles, one per employee, in org order. */
 export function NodeRail({ employees, selectedId, onSelect }: Props) {
+  const { t } = useI18n();
+
   return (
     <aside
       style={{
@@ -18,15 +21,15 @@ export function NodeRail({ employees, selectedId, onSelect }: Props) {
         alignItems: 'center', padding: '14px 0', gap: 6, overflow: 'hidden', minWidth: 0,
       }}
     >
-      {employees.map((e) => {
-        const meta = STATUS_META[e.status];
-        const selected = e.id === selectedId;
+      {employees.map((employee) => {
+        const meta = STATUS_META[employee.status];
+        const selected = employee.id === selectedId;
         return (
           <button
-            key={e.id}
+            key={employee.id}
             className="itc-btn"
-            title={`${e.name} · ${e.role}`}
-            onClick={() => onSelect(e.id)}
+            title={`${employee.name} · ${employee.role}`}
+            onClick={() => onSelect(employee.id)}
             style={{
               width: 40, height: 40, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
               cursor: 'pointer', position: 'relative',
@@ -34,7 +37,7 @@ export function NodeRail({ employees, selectedId, onSelect }: Props) {
               background: selected ? 'rgba(139,124,255,.12)' : 'rgba(255,255,255,.02)',
             }}
           >
-            <ShapeGlyph shape={e.shape} size={13} color={e.kind === 'human' ? '#e6e8eb' : '#aeb4ff'} />
+            <ShapeGlyph shape={employee.shape} size={13} color={employee.kind === 'human' ? '#e6e8eb' : '#aeb4ff'} />
             <span style={{ position: 'absolute', top: 5, right: 5, width: 6, height: 6, borderRadius: '50%', background: meta.color, boxShadow: `0 0 6px ${meta.color}` }} />
           </button>
         );
@@ -42,7 +45,7 @@ export function NodeRail({ employees, selectedId, onSelect }: Props) {
 
       <div style={{ flex: 1 }} />
       <div
-        title="Add node"
+        title={t.flow.addNode}
         style={{
           width: 40, height: 40, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
           color: '#5b6068', border: '1px dashed rgba(255,255,255,.12)', cursor: 'pointer',

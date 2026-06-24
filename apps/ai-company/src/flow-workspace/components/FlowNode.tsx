@@ -134,7 +134,7 @@ export function FlowNode({ employee, selected, onSelect }: Props) {
             border: `1px solid ${isPlanned ? 'rgba(255,255,255,.08)' : `${meta.color}40`}`,
           }}
         >
-          {isPlanned ? t.labels.planned.toLowerCase() : meta.label}
+          {isPlanned ? t.labels.planned.toLowerCase() : t.status[employee.status]}
         </span>
         <span
           style={{

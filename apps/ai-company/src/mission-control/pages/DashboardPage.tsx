@@ -12,27 +12,26 @@ import {
   runningTasks,
   systemHealth,
 } from '../data/mock'
+import { useI18n } from '../../i18n'
 
 export function DashboardPage() {
+  const { t } = useI18n()
   const m = dashboardMetrics
   const alerts = recentAlerts()
   const active = runningTasks()
 
   return (
     <>
-      <PageHeader
-        title="Dashboard"
-        description="Operational overview — company health, active missions, alerts."
-      />
+      <PageHeader title={t.pages.dashboard} description={t.dashboard.description} />
 
       <div className="mcGrid4" style={{ marginBottom: 16 }}>
-        <Metric label="Active agents" value={m.activeAgents} sub="of 7 registered" />
-        <Metric label="Running tasks" value={m.runningTasks} sub="in flight now" />
-        <Metric label="Queue depth" value={m.queueDepth} sub="backlog + blocked" />
+        <Metric label={t.dashboard.activeAgents} value={m.activeAgents} sub={t.dashboard.activeAgentsSub} />
+        <Metric label={t.dashboard.runningTasks} value={m.runningTasks} sub={t.dashboard.runningTasksSub} />
+        <Metric label={t.dashboard.queueDepth} value={m.queueDepth} sub={t.dashboard.queueDepthSub} />
         <Metric
-          label="Tools healthy"
+          label={t.dashboard.toolsHealthy}
           value={`${m.toolsHealthy}/${m.toolsTotal}`}
-          sub="registry probes ok"
+          sub={t.dashboard.toolsHealthySub}
         />
       </div>
 
@@ -49,27 +48,27 @@ export function DashboardPage() {
       </div>
 
       <div className="mcGrid2">
-        <Panel title="Active missions">
+        <Panel title={t.dashboard.activeMissions}>
           <table className="mcTable">
             <thead>
               <tr>
-                <th>ID</th>
-                <th>Title</th>
-                <th>Assignee</th>
-                <th>SLA</th>
+                <th>{t.labels.id}</th>
+                <th>{t.labels.title}</th>
+                <th>{t.labels.assignee}</th>
+                <th>{t.labels.sla}</th>
               </tr>
             </thead>
             <tbody>
-              {active.map((t) => (
-                <tr key={t.id}>
-                  <td className="mcMono">{t.id}</td>
-                  <td>{t.title}</td>
-                  <td className="mcMono mcMuted">{t.assignee}</td>
+              {active.map((task) => (
+                <tr key={task.id}>
+                  <td className="mcMono">{task.id}</td>
+                  <td>{task.title}</td>
+                  <td className="mcMono mcMuted">{task.assignee}</td>
                   <td className="mcMono">
-                    {t.slaBreached ? (
-                      <span style={{ color: 'var(--mc-red)' }}>breach</span>
+                    {task.slaBreached ? (
+                      <span style={{ color: 'var(--mc-red)' }}>{t.dashboard.slaBreach}</span>
                     ) : (
-                      `${t.slaMinutes}m`
+                      `${task.slaMinutes}m`
                     )}
                   </td>
                 </tr>
@@ -78,10 +77,10 @@ export function DashboardPage() {
           </table>
         </Panel>
 
-        <Panel title="Alerts">
+        <Panel title={t.dashboard.alerts}>
           <div className="mcAlertStrip" style={{ padding: 12 }}>
             {alerts.length === 0 ? (
-              <div className="mcMuted">No active alerts</div>
+              <div className="mcMuted">{t.dashboard.noActiveAlerts}</div>
             ) : (
               alerts.map((a) => (
                 <div key={a.id} className="mcAlertRow">

@@ -1,29 +1,32 @@
 import { NavLink } from 'react-router-dom'
+import { useI18n } from '../../i18n'
 
 const OPS = '/ops'
 
-const NAV = [
-  { to: OPS, label: 'Dashboard', icon: '◫', end: true },
-  { to: `${OPS}/organization`, label: 'Organization', icon: '⬡', end: false },
-  { to: `${OPS}/employees`, label: 'Employees', icon: '◎', end: false },
-  { to: `${OPS}/tasks`, label: 'Tasks', icon: '▤', end: false },
-  { to: `${OPS}/feed`, label: 'Mission Feed', icon: '≡', end: false },
-  { to: `${OPS}/tools`, label: 'AI Tools Registry', icon: '⚙', end: false },
-] as const
-
 export function SideNav() {
+  const { t } = useI18n()
+
+  const nav = [
+    { to: OPS, page: 'dashboard' as const, icon: '◫', end: true },
+    { to: `${OPS}/organization`, page: 'organization' as const, icon: '⬡', end: false },
+    { to: `${OPS}/employees`, page: 'employees' as const, icon: '◎', end: false },
+    { to: `${OPS}/tasks`, page: 'tasks' as const, icon: '▤', end: false },
+    { to: `${OPS}/feed`, page: 'missionFeed' as const, icon: '≡', end: false },
+    { to: `${OPS}/tools`, page: 'toolsRegistry' as const, icon: '⚙', end: false },
+  ] as const
+
   return (
     <aside className="mcSidebar">
       <div className="mcBrand">
         <div className="mcBrandMark" aria-hidden />
         <div>
-          <div className="mcBrandTitle">Mission Control</div>
-          <div className="mcBrandSub">AI Company · NOC</div>
+          <div className="mcBrandTitle">{t.sideNav.title}</div>
+          <div className="mcBrandSub">{t.sideNav.subtitle}</div>
         </div>
       </div>
 
-      <nav className="mcNav" aria-label="Mission Control">
-        {NAV.map((item) => (
+      <nav className="mcNav" aria-label={t.aria.missionControlNav}>
+        {nav.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}
@@ -33,7 +36,7 @@ export function SideNav() {
             <span className="mcNavIcon" aria-hidden>
               {item.icon}
             </span>
-            {item.label}
+            {t.pages[item.page]}
           </NavLink>
         ))}
       </nav>
@@ -43,22 +46,13 @@ export function SideNav() {
           <span className="mcNavIcon" aria-hidden>
             ⎈
           </span>
-          Flow Workspace
+          {t.sideNav.flowWorkspace}
         </NavLink>
         <span className="mcEnvBadge">
           <span className="mcDot mcDotGreen" />
-          local / mock
+          {t.sideNav.env}
         </span>
       </div>
     </aside>
   )
-}
-
-export const PAGE_TITLES: Record<string, string> = {
-  [OPS]: 'Dashboard',
-  [`${OPS}/organization`]: 'Organization',
-  [`${OPS}/employees`]: 'Employees',
-  [`${OPS}/tasks`]: 'Tasks',
-  [`${OPS}/feed`]: 'Mission Feed',
-  [`${OPS}/tools`]: 'AI Tools Registry',
 }

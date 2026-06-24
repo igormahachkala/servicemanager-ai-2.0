@@ -3,76 +3,81 @@ import {
   PageHeader,
   Panel,
   priorityBadgeClass,
-  taskStatusLabel,
 } from '../components/ui'
 import { tasks } from '../data/mock'
 import type { TaskStatus } from '../data/types'
-
-const FILTERS: Array<{ id: 'all' | TaskStatus; label: string }> = [
-  { id: 'all', label: 'All' },
-  { id: 'backlog', label: 'backlog' },
-  { id: 'running', label: 'running' },
-  { id: 'blocked', label: 'blocked' },
-  { id: 'done', label: 'done' },
-]
+import { useI18n } from '../../i18n'
 
 export function TasksPage() {
+  const { t } = useI18n()
   const [filter, setFilter] = useState<'all' | TaskStatus>('all')
+
+  const filters: Array<{ id: 'all' | TaskStatus; label: string }> = [
+    { id: 'all', label: t.common.all },
+    { id: 'backlog', label: t.taskStatus.backlog },
+    { id: 'running', label: t.taskStatus.running },
+    { id: 'blocked', label: t.taskStatus.blocked },
+    { id: 'done', label: t.taskStatus.done },
+  ]
 
   const rows = useMemo(() => {
     if (filter === 'all') return tasks
-    return tasks.filter((t) => t.status === filter)
+    return tasks.filter((task) => task.status === filter)
   }, [filter])
 
   return (
     <>
-      <PageHeader
-        title="Tasks"
-        description="Company work queue — operational tasks with assignee, priority, and SLA."
-      />
+      <PageHeader title={t.pages.tasks} description={t.tasks.description} />
 
       <div className="mcChipRow">
-        {FILTERS.map((f) => (
+        {filters.map((item) => (
           <button
-            key={f.id}
+            key={item.id}
             type="button"
-            className={filter === f.id ? 'mcChip mcChipActive' : 'mcChip'}
-            onClick={() => setFilter(f.id)}
+            className={filter === item.id ? 'mcChip mcChipActive' : 'mcChip'}
+            onClick={() => setFilter(item.id)}
           >
-            {f.label}
+            {item.label}
           </button>
         ))}
       </div>
 
-      <Panel title="Task queue" right={<span className="mcMono mcMuted">{rows.length} items</span>}>
+      <Panel
+        title={t.tasks.queue}
+        right={
+          <span className="mcMono mcMuted">
+            {rows.length} {t.tools.items}
+          </span>
+        }
+      >
         <table className="mcTable">
           <thead>
             <tr>
-              <th>ID</th>
-              <th>Title</th>
-              <th>Assignee</th>
-              <th>Priority</th>
-              <th>Status</th>
-              <th>SLA</th>
+              <th>{t.labels.id}</th>
+              <th>{t.labels.title}</th>
+              <th>{t.labels.assignee}</th>
+              <th>{t.labels.priority}</th>
+              <th>{t.labels.status}</th>
+              <th>{t.labels.sla}</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((t) => (
-              <tr key={t.id}>
-                <td className="mcMono">{t.id}</td>
-                <td>{t.title}</td>
-                <td className="mcMono mcMuted">{t.assignee}</td>
+            {rows.map((task) => (
+              <tr key={task.id}>
+                <td className="mcMono">{task.id}</td>
+                <td>{task.title}</td>
+                <td className="mcMono mcMuted">{task.assignee}</td>
                 <td>
-                  <span className={priorityBadgeClass(t.priority)}>{t.priority}</span>
+                  <span className={priorityBadgeClass(task.priority)}>{task.priority}</span>
                 </td>
-                <td className="mcMono">{taskStatusLabel(t.status)}</td>
+                <td className="mcMono">{t.taskStatus[task.status]}</td>
                 <td className="mcMono">
-                  {t.status === 'done' ? (
-                    '—'
-                  ) : t.slaBreached ? (
-                    <span style={{ color: 'var(--mc-red)' }}>breach</span>
+                  {task.status === 'done' ? (
+                    t.common.empty
+                  ) : task.slaBreached ? (
+                    <span style={{ color: 'var(--mc-red)' }}>{t.tasks.slaBreach}</span>
                   ) : (
-                    `${t.slaMinutes}m left`
+                    t.tasks.slaLeft.replace('{minutes}', String(task.slaMinutes))
                   )}
                 </td>
               </tr>

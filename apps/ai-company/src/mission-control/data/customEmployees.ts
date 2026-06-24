@@ -215,22 +215,35 @@ export function optionLabel(options: Record<string, string>, value: string): str
   return options[value] ?? value
 }
 
-export function summarizePermissions(permissions: CustomEmployeePermissions): string {
+export type PermissionSummaryLabels = {
+  permissionLabels: Record<string, string>
+  readShort: string
+  writeShort: string
+  readWriteShort: string
+  empty: string
+}
+
+export function summarizePermissions(
+  permissions: CustomEmployeePermissions,
+  labels: PermissionSummaryLabels,
+): string {
   const parts: string[] = []
 
   for (const category of PERMISSION_CATEGORIES) {
+    const name = labels.permissionLabels[category.key] ?? category.label
+
     if (category.key === 'productionDeploy') {
-      if (permissions.productionDeploy) parts.push(`${category.label}`)
+      if (permissions.productionDeploy) parts.push(name)
       continue
     }
 
     const perm = permissions[category.key]
-    if (perm.read && perm.write) parts.push(`${category.label} R/W`)
-    else if (perm.read) parts.push(`${category.label} R`)
-    else if (perm.write) parts.push(`${category.label} W`)
+    if (perm.read && perm.write) parts.push(`${name} ${labels.readWriteShort}`)
+    else if (perm.read) parts.push(`${name} ${labels.readShort}`)
+    else if (perm.write) parts.push(`${name} ${labels.writeShort}`)
   }
 
-  return parts.length > 0 ? parts.join(', ') : '—'
+  return parts.length > 0 ? parts.join(', ') : labels.empty
 }
 
 export function loadCustomEmployees(): CustomEmployee[] {
@@ -264,6 +277,38 @@ export function createCustomEmployee(draft: CustomEmployeeDraft): CustomEmployee
   const next = [...loadCustomEmployees(), employee]
   saveCustomEmployees(next)
   return employee
+}
+
+export function employeeToDraft(employee: CustomEmployee): CustomEmployeeDraft {
+  const { id: _id, createdAt: _createdAt, ...rest } = employee
+  return {
+    ...rest,
+    fallbackModels: [...employee.fallbackModels],
+    tools: [...employee.tools],
+    skills: [...employee.skills],
+    restrictions: [...employee.restrictions],
+    memoryScope: [...employee.memoryScope],
+    permissions: {
+      github: { ...employee.permissions.github },
+      docker: { ...employee.permissions.docker },
+      postgresql: { ...employee.permissions.postgresql },
+      figma: { ...employee.permissions.figma },
+      n8n: { ...employee.permissions.n8n },
+      filesystem: { ...employee.permissions.filesystem },
+      servicemanagerApi: { ...employee.permissions.servicemanagerApi },
+      productionDeploy: employee.permissions.productionDeploy,
+    },
+  }
+}
+
+export function duplicateCustomEmployee(
+  source: CustomEmployee,
+  copyOfLabel: string,
+): CustomEmployee {
+  const draft = employeeToDraft(source)
+  draft.name = `${copyOfLabel} ${source.name}`.trim()
+  draft.codename = `${source.codename}-copy`
+  return createCustomEmployee(draft)
 }
 
 export function customEmployeesByStatus(status: CustomEmployeeStatus): CustomEmployee[] {

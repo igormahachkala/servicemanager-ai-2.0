@@ -1,35 +1,37 @@
 import { PageHeader, Panel, StatusDot, toolStatusDot } from '../components/ui'
 import { tools, toolsByCategory } from '../data/mock'
-import type { ToolCategory } from '../data/types'
+import type { Tool, ToolCategory } from '../data/types'
 import { useI18n } from '../../i18n'
 
-function ToolTable({ rows }: { rows: ReturnType<typeof toolsByCategory> }) {
+function ToolTable({ rows }: { rows: Tool[] }) {
+  const { t } = useI18n()
+
   return (
     <table className="mcTable">
       <thead>
         <tr>
-          <th>Name</th>
-          <th>Version</th>
-          <th>Scope</th>
-          <th>Status</th>
-          <th>Last check</th>
-          <th>Used by</th>
+          <th>{t.labels.name}</th>
+          <th>{t.labels.version}</th>
+          <th>{t.labels.scope}</th>
+          <th>{t.labels.status}</th>
+          <th>{t.labels.lastCheck}</th>
+          <th>{t.labels.usedBy}</th>
         </tr>
       </thead>
       <tbody>
-        {rows.map((t) => (
-          <tr key={t.id}>
+        {rows.map((tool) => (
+          <tr key={tool.id}>
             <td>
               <span className="mcRowFlex">
-                <StatusDot kind={toolStatusDot(t.status)} />
-                <span style={{ fontWeight: 600 }}>{t.name}</span>
+                <StatusDot kind={toolStatusDot(tool.status)} />
+                <span style={{ fontWeight: 600 }}>{tool.name}</span>
               </span>
             </td>
-            <td className="mcMono">{t.version}</td>
-            <td className="mcMono mcMuted">{t.scope}</td>
-            <td className="mcMono">{t.status}</td>
-            <td className="mcMono mcMuted">{t.lastCheck}</td>
-            <td className="mcMuted">{t.usedBy.join(', ')}</td>
+            <td className="mcMono">{tool.version}</td>
+            <td className="mcMono mcMuted">{tool.scope}</td>
+            <td className="mcMono">{t.toolStatus[tool.status]}</td>
+            <td className="mcMono mcMuted">{tool.lastCheck}</td>
+            <td className="mcMuted">{tool.usedBy.join(', ')}</td>
           </tr>
         ))}
       </tbody>
@@ -53,19 +55,19 @@ export function AiToolsRegistryPage() {
 
       <div className="mcGrid4" style={{ marginBottom: 16 }}>
         <div className="mcMetric">
-          <div className="mcMetricLabel">Registered</div>
+          <div className="mcMetricLabel">{t.tools.registered}</div>
           <div className="mcMetricValue">{tools.length}</div>
         </div>
         <div className="mcMetric">
-          <div className="mcMetricLabel">Healthy</div>
+          <div className="mcMetricLabel">{t.tools.healthy}</div>
           <div className="mcMetricValue">{healthy}</div>
         </div>
         <div className="mcMetric">
-          <div className="mcMetricLabel">Categories</div>
+          <div className="mcMetricLabel">{t.tools.categories}</div>
           <div className="mcMetricValue">3</div>
         </div>
         <div className="mcMetric">
-          <div className="mcMetricLabel">Degraded</div>
+          <div className="mcMetricLabel">{t.tools.degraded}</div>
           <div className="mcMetricValue">{tools.filter((item) => item.status === 'degraded').length}</div>
         </div>
       </div>

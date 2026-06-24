@@ -16,7 +16,7 @@ export function TopNav() {
   const { t } = useI18n()
 
   return (
-    <header className="acTopNav" aria-label="AI Company">
+    <header className="acTopNav" aria-label={t.aria.topNav}>
       <div className="acBrand">
         <div className="acBrandMark" aria-hidden />
         <div>

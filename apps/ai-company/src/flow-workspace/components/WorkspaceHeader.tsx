@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react';
 import { FONT_MONO } from '../lib/tokens';
+import { useI18n } from '../../i18n';
 
 interface Props {
   leftOpen: boolean;
@@ -14,6 +15,8 @@ interface Props {
 export function WorkspaceHeader({
   leftOpen, rightOpen, onToggleLeft, onToggleRight, nodeCount = 8, runningCount = 12,
 }: Props) {
+  const { t } = useI18n();
+
   return (
     <header
       style={{
@@ -21,49 +24,44 @@ export function WorkspaceHeader({
         padding: '0 16px', borderBottom: '1px solid rgba(255,255,255,.06)', background: '#0c0d10', minWidth: 0,
       }}
     >
-      {/* Brand */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, paddingRight: 14, borderRight: '1px solid rgba(255,255,255,.07)' }}>
         <div style={{ width: 28, height: 28, borderRadius: 8, background: 'linear-gradient(135deg,#8b7cff,#5a4fcf)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 10px -2px rgba(139,124,255,.7)' }}>
           <div style={{ width: 10, height: 10, background: '#fff', transform: 'rotate(45deg)', borderRadius: 2 }} />
         </div>
         <div>
           <div style={{ fontSize: 13, fontWeight: 600, color: '#f0f1f3', display: 'flex', alignItems: 'center', gap: 6 }}>
-            IT Company
-            <span style={{ fontSize: 9, letterSpacing: '.12em', color: '#8b7cff', border: '1px solid rgba(139,124,255,.35)', borderRadius: 5, padding: '1px 6px', fontWeight: 600 }}>WORKFLOW</span>
+            {t.flow.brand}
+            <span style={{ fontSize: 9, letterSpacing: '.12em', color: '#8b7cff', border: '1px solid rgba(139,124,255,.35)', borderRadius: 5, padding: '1px 6px', fontWeight: 600 }}>{t.flow.workflow}</span>
           </div>
-          <div style={{ fontSize: 10, color: '#6b7280', marginTop: 1 }}>Engineering automation · v1.4</div>
+          <div style={{ fontSize: 10, color: '#6b7280', marginTop: 1 }}>{t.flow.subtitle}</div>
         </div>
       </div>
 
-      {/* Live status */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 11.5, color: '#7c828c' }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#3fb950', boxShadow: '0 0 8px #3fb950', animation: 'itcBlink 1.6s ease-in-out infinite' }} />
-          Execution active
+          {t.flow.executionActive}
         </span>
         <span style={{ color: '#3a3f48' }}>·</span>
-        <span style={{ fontFamily: FONT_MONO }}>{nodeCount} nodes</span>
+        <span style={{ fontFamily: FONT_MONO }}>{nodeCount} {t.flow.nodes}</span>
         <span style={{ color: '#3a3f48' }}>·</span>
-        <span style={{ fontFamily: FONT_MONO }}>{runningCount} active</span>
+        <span style={{ fontFamily: FONT_MONO }}>{runningCount} {t.flow.activeCount}</span>
       </div>
 
       <div style={{ flex: 1 }} />
 
-      {/* Panel toggles */}
-      <PanelToggle side="left" active={leftOpen} onClick={onToggleLeft} title="Toggle node rail" />
-      <PanelToggle side="right" active={rightOpen} onClick={onToggleRight} title="Toggle inspector" />
+      <PanelToggle side="left" active={leftOpen} onClick={onToggleLeft} title={t.flow.toggleNodeRail} />
+      <PanelToggle side="right" active={rightOpen} onClick={onToggleRight} title={t.flow.toggleInspector} />
       <div style={{ width: 1, height: 20, background: 'rgba(255,255,255,.1)' }} />
 
-      {/* History */}
       <button className="itc-btn" onClick={() => { /* TODO: open run history */ }} style={ghostBtn}>
         <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5}><path d="M8 2v6l4 2" strokeLinecap="round" /><circle cx="8" cy="8" r="6.2" /></svg>
-        History
+        {t.flow.history}
       </button>
 
-      {/* Execute */}
       <button onClick={() => { /* TODO: trigger orchestrator (out of scope for this task) */ }} style={primaryBtn}>
         <svg width="11" height="12" viewBox="0 0 12 14" fill="#fff"><path d="M1 1l10 6L1 13z" /></svg>
-        Execute Workflow
+        {t.flow.executeWorkflow}
       </button>
     </header>
   );
