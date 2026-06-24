@@ -1,7 +1,24 @@
 import { PageHeader, Panel, capFillClass } from '../components/ui'
 import { agentsBySquad, domains, squads } from '../data/mock'
+import { optionLabel } from '../data/customEmployees'
 import { useCustomEmployees } from '../hooks/useCustomEmployees'
 import { useI18n } from '../../i18n'
+
+function TagList({ items, emptyLabel }: { items: string[]; emptyLabel: string }) {
+  if (items.length === 0) {
+    return <span className="mcMuted">{emptyLabel}</span>
+  }
+
+  return (
+    <div className="mcTagRow">
+      {items.map((item) => (
+        <span key={item} className="mcTag">
+          {item}
+        </span>
+      ))}
+    </div>
+  )
+}
 
 export function OrganizationPage() {
   const { t } = useI18n()
@@ -99,21 +116,37 @@ export function OrganizationPage() {
             <table className="mcTable">
               <thead>
                 <tr>
-                  <th>{t.employeeBuilder.fields.name}</th>
                   <th>{t.employeeBuilder.fields.codename}</th>
                   <th>{t.labels.role}</th>
-                  <th>{t.labels.model}</th>
                   <th>{t.labels.status}</th>
+                  <th>{t.employeeBuilder.fields.skills}</th>
+                  <th>{t.employeeBuilder.fields.memoryScope}</th>
                 </tr>
               </thead>
               <tbody>
                 {customEmployees.map((employee) => (
                   <tr key={employee.id}>
-                    <td style={{ fontWeight: 600 }}>{employee.name}</td>
-                    <td className="mcMono">{employee.codename}</td>
+                    <td className="mcMono" style={{ fontWeight: 600 }}>
+                      {employee.codename}
+                    </td>
                     <td>{employee.role}</td>
-                    <td className="mcMono mcMuted">{employee.primaryModel}</td>
-                    <td className="mcMono">{employee.status}</td>
+                    <td className="mcMono">{t.employeeBuilder.status[employee.status]}</td>
+                    <td>
+                      <TagList
+                        items={employee.skills.map((skill) =>
+                          optionLabel(t.employeeBuilder.options.skills, skill),
+                        )}
+                        emptyLabel="—"
+                      />
+                    </td>
+                    <td>
+                      <TagList
+                        items={employee.memoryScope.map((scope) =>
+                          optionLabel(t.employeeBuilder.options.memoryScope, scope),
+                        )}
+                        emptyLabel="—"
+                      />
+                    </td>
                   </tr>
                 ))}
               </tbody>

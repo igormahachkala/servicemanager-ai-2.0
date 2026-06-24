@@ -680,3 +680,27 @@
   justify-content: flex-end;
   gap: 10px;
 }
+
+.mcTextareaCode {
+  font-family: var(--mc-mono);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.mcTagRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.mcTag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--mc-border);
+  background: var(--mc-surface-2);
+  font-size: 11px;
+  color: var(--mc-text);
+  white-space: nowrap;
+}

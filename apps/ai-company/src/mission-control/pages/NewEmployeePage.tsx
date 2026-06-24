@@ -2,10 +2,14 @@ import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { PageHeader, Panel } from '../components/ui'
 import {
+  MEMORY_SCOPE_OPTIONS,
   MODEL_OPTIONS,
   PERMISSION_CATEGORIES,
+  RESTRICTION_OPTIONS,
+  SKILL_OPTIONS,
   TOOL_OPTIONS,
   emptyDraft,
+  optionLabel,
   type CustomEmployeeDraft,
   type CustomEmployeePermissions,
   type IntegrationPermission,
@@ -71,6 +75,28 @@ function PermissionRow(props: {
   )
 }
 
+function OptionCheckGrid(props: {
+  options: string[]
+  selected: string[]
+  labelFor: (option: string) => string
+  onToggle: (option: string) => void
+}) {
+  return (
+    <div className="mcCheckGrid">
+      {props.options.map((option) => (
+        <label key={option} className="mcCheckLabel">
+          <input
+            type="checkbox"
+            checked={props.selected.includes(option)}
+            onChange={() => props.onToggle(option)}
+          />
+          {props.labelFor(option)}
+        </label>
+      ))}
+    </div>
+  )
+}
+
 export function NewEmployeePage() {
   const { t } = useI18n()
   const navigate = useNavigate()
@@ -120,6 +146,8 @@ export function NewEmployeePage() {
       codename: draft.codename.trim(),
       role: draft.role.trim(),
       description: draft.description.trim(),
+      systemPrompt: draft.systemPrompt.trim(),
+      workflow: draft.workflow.trim(),
     })
     navigate('/ops/employees')
   }
@@ -204,43 +232,45 @@ export function NewEmployeePage() {
             </label>
             <div className="mcField">
               <span className="mcFieldLabel">{t.employeeBuilder.fields.fallbackModels}</span>
-              <div className="mcCheckGrid">
-                {MODEL_OPTIONS.filter((model) => model !== draft.primaryModel).map((model) => (
-                  <label key={model} className="mcCheckLabel">
-                    <input
-                      type="checkbox"
-                      checked={draft.fallbackModels.includes(model)}
-                      onChange={() =>
-                        setDraft({
-                          ...draft,
-                          fallbackModels: toggleListItem(draft.fallbackModels, model),
-                        })
-                      }
-                    />
-                    {model}
-                  </label>
-                ))}
-              </div>
+              <OptionCheckGrid
+                options={MODEL_OPTIONS.filter((model) => model !== draft.primaryModel)}
+                selected={draft.fallbackModels}
+                labelFor={(option) => option}
+                onToggle={(option) =>
+                  setDraft({
+                    ...draft,
+                    fallbackModels: toggleListItem(draft.fallbackModels, option),
+                  })
+                }
+              />
             </div>
+          </div>
+        </Panel>
+
+        <Panel title={t.employeeBuilder.sections.skills}>
+          <div className="mcFormBody">
+            <p className="mcFormHint">{t.employeeBuilder.hints.skills}</p>
+            <OptionCheckGrid
+              options={[...SKILL_OPTIONS]}
+              selected={draft.skills}
+              labelFor={(option) => optionLabel(t.employeeBuilder.options.skills, option)}
+              onToggle={(option) =>
+                setDraft({ ...draft, skills: toggleListItem(draft.skills, option) })
+              }
+            />
           </div>
         </Panel>
 
         <Panel title={t.employeeBuilder.sections.tools}>
           <div className="mcFormBody">
-            <div className="mcCheckGrid">
-              {TOOL_OPTIONS.map((tool) => (
-                <label key={tool} className="mcCheckLabel">
-                  <input
-                    type="checkbox"
-                    checked={draft.tools.includes(tool)}
-                    onChange={() =>
-                      setDraft({ ...draft, tools: toggleListItem(draft.tools, tool) })
-                    }
-                  />
-                  {tool}
-                </label>
-              ))}
-            </div>
+            <OptionCheckGrid
+              options={[...TOOL_OPTIONS]}
+              selected={draft.tools}
+              labelFor={(option) => option}
+              onToggle={(option) =>
+                setDraft({ ...draft, tools: toggleListItem(draft.tools, option) })
+              }
+            />
           </div>
         </Panel>
 
@@ -251,7 +281,7 @@ export function NewEmployeePage() {
                 return (
                   <PermissionRow
                     key={category.key}
-                    label={category.label}
+                    label={t.employeeBuilder.options.permissions[category.key]}
                     hasWrite={false}
                     read={false}
                     write={false}
@@ -270,7 +300,7 @@ export function NewEmployeePage() {
               return (
                 <PermissionRow
                   key={category.key}
-                  label={category.label}
+                  label={t.employeeBuilder.options.permissions[category.key]}
                   hasWrite={category.hasWrite}
                   read={perm.read}
                   write={perm.write}
@@ -285,6 +315,64 @@ export function NewEmployeePage() {
               )
             })}
             <p className="mcFormHint">{t.employeeBuilder.permissionsHint}</p>
+          </div>
+        </Panel>
+
+        <Panel title={t.employeeBuilder.sections.restrictions}>
+          <div className="mcFormBody">
+            <p className="mcFormHint">{t.employeeBuilder.hints.restrictions}</p>
+            <OptionCheckGrid
+              options={[...RESTRICTION_OPTIONS]}
+              selected={draft.restrictions}
+              labelFor={(option) => optionLabel(t.employeeBuilder.options.restrictions, option)}
+              onToggle={(option) =>
+                setDraft({ ...draft, restrictions: toggleListItem(draft.restrictions, option) })
+              }
+            />
+          </div>
+        </Panel>
+
+        <Panel title={t.employeeBuilder.sections.systemPrompt}>
+          <div className="mcFormBody">
+            <label className="mcField">
+              <span className="mcFieldLabel">{t.employeeBuilder.fields.systemPrompt}</span>
+              <textarea
+                className="mcTextarea mcTextareaCode"
+                rows={6}
+                value={draft.systemPrompt}
+                onChange={(event) => setDraft({ ...draft, systemPrompt: event.target.value })}
+                placeholder={t.employeeBuilder.placeholders.systemPrompt}
+              />
+            </label>
+          </div>
+        </Panel>
+
+        <Panel title={t.employeeBuilder.sections.workflow}>
+          <div className="mcFormBody">
+            <label className="mcField">
+              <span className="mcFieldLabel">{t.employeeBuilder.fields.workflow}</span>
+              <textarea
+                className="mcTextarea"
+                rows={4}
+                value={draft.workflow}
+                onChange={(event) => setDraft({ ...draft, workflow: event.target.value })}
+                placeholder={t.employeeBuilder.placeholders.workflow}
+              />
+            </label>
+          </div>
+        </Panel>
+
+        <Panel title={t.employeeBuilder.sections.memoryScope}>
+          <div className="mcFormBody">
+            <p className="mcFormHint">{t.employeeBuilder.hints.memoryScope}</p>
+            <OptionCheckGrid
+              options={[...MEMORY_SCOPE_OPTIONS]}
+              selected={draft.memoryScope}
+              labelFor={(option) => optionLabel(t.employeeBuilder.options.memoryScope, option)}
+              onToggle={(option) =>
+                setDraft({ ...draft, memoryScope: toggleListItem(draft.memoryScope, option) })
+              }
+            />
           </div>
         </Panel>
 

@@ -29,6 +29,11 @@ export type CustomEmployee = {
   tools: string[]
   permissions: CustomEmployeePermissions
   description: string
+  skills: string[]
+  restrictions: string[]
+  systemPrompt: string
+  workflow: string
+  memoryScope: string[]
   createdAt: string
 }
 
@@ -70,6 +75,37 @@ export const TOOL_OPTIONS = [
   'Aider',
 ]
 
+export const SKILL_OPTIONS = [
+  'Business Analysis',
+  'Architecture',
+  'Coding',
+  'Testing',
+  'Research',
+  'Documentation',
+  'Marketing',
+  'Finance',
+  'DevOps',
+  'Product Management',
+]
+
+export const RESTRICTION_OPTIONS = [
+  'No Production Deploy',
+  'No Backend Changes',
+  'No Database Write',
+  'No Git Push',
+  'No Delete Operations',
+  'Requires Approval',
+]
+
+export const MEMORY_SCOPE_OPTIONS = [
+  'AI Company',
+  'ServiceManager.AI',
+  'MAX Assistant',
+  'Photo Inspection AI',
+  'Finance',
+  'Operations',
+]
+
 const STORAGE_KEY = 'ai-company-custom-employees'
 
 export function defaultPermissions(): CustomEmployeePermissions {
@@ -96,11 +132,21 @@ export function emptyDraft(): CustomEmployeeDraft {
     tools: [],
     permissions: defaultPermissions(),
     description: '',
+    skills: [],
+    restrictions: [],
+    systemPrompt: '',
+    workflow: '',
+    memoryScope: [],
   }
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null
+}
+
+function parseStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value.filter((item): item is string => typeof item === 'string')
 }
 
 function parsePermission(value: unknown, fallback: IntegrationPermission): IntegrationPermission {
@@ -114,12 +160,6 @@ function parsePermission(value: unknown, fallback: IntegrationPermission): Integ
 function parseEmployee(value: unknown): CustomEmployee | null {
   if (!isRecord(value)) return null
   const defaults = defaultPermissions()
-  const fallbackModels = Array.isArray(value.fallbackModels)
-    ? value.fallbackModels.filter((item): item is string => typeof item === 'string')
-    : []
-  const tools = Array.isArray(value.tools)
-    ? value.tools.filter((item): item is string => typeof item === 'string')
-    : []
   const permissionsRaw = isRecord(value.permissions) ? value.permissions : {}
 
   const status =
@@ -146,8 +186,8 @@ function parseEmployee(value: unknown): CustomEmployee | null {
     role: value.role,
     status,
     primaryModel: value.primaryModel,
-    fallbackModels,
-    tools,
+    fallbackModels: parseStringArray(value.fallbackModels),
+    tools: parseStringArray(value.tools),
     permissions: {
       github: parsePermission(permissionsRaw.github, defaults.github),
       docker: parsePermission(permissionsRaw.docker, defaults.docker),
@@ -162,8 +202,35 @@ function parseEmployee(value: unknown): CustomEmployee | null {
           : defaults.productionDeploy,
     },
     description: value.description,
+    skills: parseStringArray(value.skills),
+    restrictions: parseStringArray(value.restrictions),
+    systemPrompt: typeof value.systemPrompt === 'string' ? value.systemPrompt : '',
+    workflow: typeof value.workflow === 'string' ? value.workflow : '',
+    memoryScope: parseStringArray(value.memoryScope),
     createdAt: value.createdAt,
   }
+}
+
+export function optionLabel(options: Record<string, string>, value: string): string {
+  return options[value] ?? value
+}
+
+export function summarizePermissions(permissions: CustomEmployeePermissions): string {
+  const parts: string[] = []
+
+  for (const category of PERMISSION_CATEGORIES) {
+    if (category.key === 'productionDeploy') {
+      if (permissions.productionDeploy) parts.push(`${category.label}`)
+      continue
+    }
+
+    const perm = permissions[category.key]
+    if (perm.read && perm.write) parts.push(`${category.label} R/W`)
+    else if (perm.read) parts.push(`${category.label} R`)
+    else if (perm.write) parts.push(`${category.label} W`)
+  }
+
+  return parts.length > 0 ? parts.join(', ') : '—'
 }
 
 export function loadCustomEmployees(): CustomEmployee[] {
@@ -208,6 +275,11 @@ export function customEmployeeToAgent(employee: CustomEmployee): Agent {
   const status =
     employee.status === 'active' ? 'idle' : employee.status === 'disabled' ? 'offline' : 'offline'
 
+  const activityParts = [
+    employee.skills.length > 0 ? employee.skills.slice(0, 2).join(', ') : '',
+    employee.description.trim(),
+  ].filter(Boolean)
+
   return {
     id: employee.id,
     codename: employee.codename,
@@ -219,8 +291,8 @@ export function customEmployeeToAgent(employee: CustomEmployee): Agent {
     currentTaskId: null,
     loadPct: 0,
     tools: employee.tools,
-    lastActivity: employee.description.trim()
-      ? employee.description.slice(0, 48)
+    lastActivity: activityParts[0]
+      ? activityParts[0].slice(0, 48)
       : `Created · ${new Date(employee.createdAt).toLocaleDateString()}`,
   }
 }
