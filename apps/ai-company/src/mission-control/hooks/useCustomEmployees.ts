@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
   createCustomEmployee,
+  duplicateCustomEmployee,
   loadCustomEmployees,
   type CustomEmployee,
   type CustomEmployeeDraft,
@@ -30,5 +31,14 @@ export function useCustomEmployees() {
     [],
   )
 
-  return { employees, addEmployee, refresh }
+  const duplicateEmployee = useCallback(
+    (source: CustomEmployee, copyOfLabel: string): CustomEmployee => {
+      const created = duplicateCustomEmployee(source, copyOfLabel)
+      setEmployees(loadCustomEmployees())
+      return created
+    },
+    [],
+  )
+
+  return { employees, addEmployee, duplicateEmployee, refresh }
 }

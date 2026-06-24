@@ -509,6 +509,13 @@
   margin-bottom: 20px;
 }
 
+.mcPageHeaderActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
 .mcPageHeaderRow .mcPageHeader {
   margin-bottom: 0;
   flex: 1;
@@ -549,6 +556,70 @@
 
 .mcBtnSecondary {
   color: var(--mc-muted);
+}
+
+.mcBtnSmall {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.mcTemplateGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+@media (max-width: 900px) {
+  .mcTemplateGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .mcTemplateGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mcTemplateCard {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--mc-border-subtle);
+  background: var(--mc-surface-2);
+  color: var(--mc-text);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.mcTemplateCard:hover {
+  border-color: var(--mc-muted-2);
+  background: var(--mc-surface);
+}
+
+.mcTemplateCardActive {
+  border-color: rgba(59, 130, 246, 0.55);
+  background: var(--mc-accent-dim);
+}
+
+.mcTemplateCardTitle {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.mcTemplateCardRole {
+  font-size: 12px;
+  color: var(--mc-muted);
+}
+
+.mcTemplateCardMeta {
+  font-size: 11px;
+  color: var(--mc-muted-2);
+  font-family: var(--mc-mono);
 }
 
 .mcFormBody {
