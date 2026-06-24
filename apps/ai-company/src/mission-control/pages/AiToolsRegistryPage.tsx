@@ -1,12 +1,7 @@
 import { PageHeader, Panel, StatusDot, toolStatusDot } from '../components/ui'
 import { tools, toolsByCategory } from '../data/mock'
 import type { ToolCategory } from '../data/types'
-
-const CATEGORIES: { id: ToolCategory; title: string; description: string }[] = [
-  { id: 'models', title: 'Models', description: 'LLM runtimes available to agents' },
-  { id: 'coding-agents', title: 'Coding Agents', description: 'Autonomous coding and IDE agents' },
-  { id: 'integrations', title: 'Integrations', description: 'MCP and infrastructure connectors' },
-]
+import { useI18n } from '../../i18n'
 
 function ToolTable({ rows }: { rows: ReturnType<typeof toolsByCategory> }) {
   return (
@@ -43,14 +38,18 @@ function ToolTable({ rows }: { rows: ReturnType<typeof toolsByCategory> }) {
 }
 
 export function AiToolsRegistryPage() {
-  const healthy = tools.filter((t) => t.status === 'healthy').length
+  const { t } = useI18n()
+  const healthy = tools.filter((item) => item.status === 'healthy').length
+
+  const categories: { id: ToolCategory; title: string; description: string }[] = [
+    { id: 'models', title: t.labels.models, description: t.tools.modelsDescription },
+    { id: 'coding-agents', title: t.labels.codingAgents, description: t.tools.codingAgentsDescription },
+    { id: 'integrations', title: t.labels.integrations, description: t.tools.integrationsDescription },
+  ]
 
   return (
     <>
-      <PageHeader
-        title="AI Tools Registry"
-        description="Models, coding agents, and integrations — V1 local inventory."
-      />
+      <PageHeader title={t.pages.toolsRegistry} description={t.tools.pageDescription} />
 
       <div className="mcGrid4" style={{ marginBottom: 16 }}>
         <div className="mcMetric">
@@ -67,16 +66,20 @@ export function AiToolsRegistryPage() {
         </div>
         <div className="mcMetric">
           <div className="mcMetricLabel">Degraded</div>
-          <div className="mcMetricValue">{tools.filter((t) => t.status === 'degraded').length}</div>
+          <div className="mcMetricValue">{tools.filter((item) => item.status === 'degraded').length}</div>
         </div>
       </div>
 
       <div className="mcStack">
-        {CATEGORIES.map((cat) => (
+        {categories.map((cat) => (
           <Panel
             key={cat.id}
             title={cat.title}
-            right={<span className="mcMono mcMuted">{toolsByCategory(cat.id).length} items</span>}
+            right={
+              <span className="mcMono mcMuted">
+                {toolsByCategory(cat.id).length} {t.tools.items}
+              </span>
+            }
           >
             <p className="mcMuted" style={{ padding: '12px 16px 0', margin: 0, fontSize: 12 }}>
               {cat.description}

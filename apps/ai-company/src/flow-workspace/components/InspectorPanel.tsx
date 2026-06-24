@@ -1,9 +1,10 @@
 import type { CSSProperties, ReactNode } from 'react';
-import type { Employee } from '../types';
+import type { Employee, EmployeeStatus } from '../types';
 import { STATUS_META } from '../lib/status';
 import { ShapeGlyph } from '../lib/shapes';
 import { FONT_MONO } from '../lib/tokens';
 import { StatusDot } from './StatusDot';
+import { useI18n } from '../../i18n';
 
 interface Props {
   employee: Employee;
@@ -29,8 +30,13 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
+function statusLabel(status: EmployeeStatus, t: ReturnType<typeof useI18n>['t']) {
+  return t.status[status] ?? STATUS_META[status].label;
+}
+
 /** Employee Inspector — V1 profile panel for selected flow node. */
 export function InspectorPanel({ employee, onCollapse }: Props) {
+  const { t } = useI18n();
   const meta = STATUS_META[employee.status];
   const isPlanned = employee.lifecycle === 'planned';
   const hasProgress = employee.progress != null && !isPlanned;
@@ -60,11 +66,11 @@ export function InspectorPanel({ employee, onCollapse }: Props) {
         }}
       >
         <span style={{ fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', color: '#7c828c', fontWeight: 600 }}>
-          Employee Inspector
+          {t.inspector.title}
         </span>
         <button
           className="itc-btn"
-          title="Collapse inspector"
+          title={t.inspector.collapse}
           onClick={onCollapse}
           style={{
             width: 22,
@@ -119,26 +125,28 @@ export function InspectorPanel({ employee, onCollapse }: Props) {
                   background: isPlanned ? 'rgba(255,255,255,.04)' : 'rgba(63,185,80,.1)',
                 }}
               >
-                {isPlanned ? 'planned' : 'active'}
+                {isPlanned ? t.labels.planned.toLowerCase() : t.labels.active.toLowerCase()}
               </span>
             </div>
             <div style={{ fontSize: 12, color: '#9aa0aa', marginTop: 4 }}>{employee.role}</div>
           </div>
         </div>
 
-        <Field label="Status">
+        <Field label={t.labels.status}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <StatusDot status={employee.status} size={8} />
-            <span style={{ fontSize: 13, fontWeight: 600, color: meta.color }}>{meta.label}</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: meta.color }}>
+              {statusLabel(employee.status, t)}
+            </span>
             {!isPlanned && (
               <span style={{ fontFamily: FONT_MONO, fontSize: 10, color: '#5b6068', marginLeft: 'auto' }}>
-                last run {employee.lastRun}
+                {t.inspector.lastRun} {employee.lastRun}
               </span>
             )}
           </div>
         </Field>
 
-        <Field label="Current task">
+        <Field label={t.labels.currentTask}>
           <div
             style={{
               border: '1px solid rgba(255,255,255,.07)',
@@ -163,7 +171,7 @@ export function InspectorPanel({ employee, onCollapse }: Props) {
           </div>
         </Field>
 
-        <Field label="Model">
+        <Field label={t.labels.model}>
           <div
             style={{
               display: 'inline-flex',
@@ -179,7 +187,7 @@ export function InspectorPanel({ employee, onCollapse }: Props) {
           </div>
         </Field>
 
-        <Field label="Available tools">
+        <Field label={t.labels.availableTools}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
             {employee.mcp.map((tool) => (
               <div
@@ -203,7 +211,7 @@ export function InspectorPanel({ employee, onCollapse }: Props) {
           </div>
         </Field>
 
-        <Field label="Last activity">
+        <Field label={t.labels.lastActivity}>
           {lastActivity ? (
             <div
               style={{
@@ -215,16 +223,18 @@ export function InspectorPanel({ employee, onCollapse }: Props) {
             >
               <div style={{ fontSize: 12.5, color: '#cfd3da', lineHeight: 1.45 }}>{lastActivity.text}</div>
               <div style={{ fontSize: 10, color: '#5b6068', marginTop: 4, fontFamily: FONT_MONO }}>
-                {lastActivity.t === '—' ? 'no events yet' : `${lastActivity.t} ago`}
+                {lastActivity.t === '—'
+                  ? t.inspector.noEventsYet
+                  : `${lastActivity.t} ${t.inspector.ago}`}
               </div>
             </div>
           ) : (
-            <div style={{ fontSize: 12, color: '#5b6068' }}>No recent activity</div>
+            <div style={{ fontSize: 12, color: '#5b6068' }}>{t.inspector.noRecentActivity}</div>
           )}
         </Field>
 
         {!!employee.activity && employee.activity.length > 1 && (
-          <Field label="Activity timeline">
+          <Field label={t.inspector.activityTimeline}>
             {employee.activity.slice(1, 4).map((a, i) => (
               <div
                 key={i}

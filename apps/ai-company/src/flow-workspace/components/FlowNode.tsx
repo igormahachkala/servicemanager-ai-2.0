@@ -4,6 +4,7 @@ import { ShapeGlyph } from '../lib/shapes';
 import { NODE_POS } from '../lib/layout';
 import { FONT_MONO } from '../lib/tokens';
 import { StatusDot } from './StatusDot';
+import { useI18n } from '../../i18n';
 
 const AI_ICON_BG = 'radial-gradient(circle at 30% 25%,rgba(139,124,255,.25),rgba(139,124,255,.05))';
 
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export function FlowNode({ employee, selected, onSelect }: Props) {
+  const { t } = useI18n();
   const pos = NODE_POS[employee.id];
   const meta = STATUS_META[employee.status];
   const isPlanned = employee.lifecycle === 'planned';
@@ -132,7 +134,7 @@ export function FlowNode({ employee, selected, onSelect }: Props) {
             border: `1px solid ${isPlanned ? 'rgba(255,255,255,.08)' : `${meta.color}40`}`,
           }}
         >
-          {isPlanned ? 'planned' : meta.label}
+          {isPlanned ? t.labels.planned.toLowerCase() : meta.label}
         </span>
         <span
           style={{

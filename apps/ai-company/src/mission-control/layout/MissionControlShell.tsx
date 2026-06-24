@@ -1,18 +1,11 @@
 import { Outlet, useLocation } from 'react-router-dom'
+import { pageTitle, useI18n } from '../../i18n'
 import '../styles/mission-control.css'
-
-const PAGE_TITLES: Record<string, string> = {
-  '/ops': 'Mission Control',
-  '/ops/organization': 'Organization',
-  '/ops/employees': 'Employees',
-  '/ops/tasks': 'Tasks',
-  '/ops/feed': 'Mission Feed',
-  '/ops/tools': 'AI Tools Registry',
-}
 
 export function MissionControlShell() {
   const { pathname } = useLocation()
-  const title = PAGE_TITLES[pathname] ?? 'Mission Control'
+  const { t } = useI18n()
+  const title = pageTitle(pathname, t)
   const now = new Date().toISOString().slice(0, 19).replace('T', ' ')
 
   return (

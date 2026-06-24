@@ -1,0 +1,68 @@
+export const en = {
+  nav: {
+    flow: 'Flow',
+    missionControl: 'Mission Control',
+    organization: 'Organization',
+    employees: 'Employees',
+    tasks: 'Tasks',
+    feed: 'Feed',
+    tools: 'Tools',
+  },
+  labels: {
+    active: 'Active',
+    planned: 'Planned',
+    models: 'Models',
+    codingAgents: 'Coding Agents',
+    integrations: 'Integrations',
+    currentTask: 'Current task',
+    availableTools: 'Available tools',
+    lastActivity: 'Last activity',
+    status: 'Status',
+    model: 'Model',
+    role: 'Role',
+    agent: 'Agent',
+    load: 'Load',
+  },
+  pages: {
+    missionControl: 'Mission Control',
+    missionFeed: 'Mission Feed',
+    toolsRegistry: 'AI Tools Registry',
+    employees: 'Employees',
+    organization: 'Organization',
+    tasks: 'Tasks',
+  },
+  inspector: {
+    title: 'Employee Inspector',
+    collapse: 'Collapse inspector',
+    activityTimeline: 'Activity timeline',
+    lastRun: 'last run',
+    noEventsYet: 'no events yet',
+    ago: 'ago',
+    noRecentActivity: 'No recent activity',
+  },
+  employees: {
+    description: 'V1 agent roster — active agents run now; planned agents visible for org design.',
+    agents: 'agents',
+  },
+  tools: {
+    pageDescription: 'Models, coding agents, and integrations — V1 local inventory.',
+    modelsDescription: 'LLM runtimes available to agents',
+    codingAgentsDescription: 'Autonomous coding and IDE agents',
+    integrationsDescription: 'MCP and infrastructure connectors',
+    items: 'items',
+  },
+  status: {
+    online: 'Online',
+    working: 'Working',
+    building: 'Building',
+    reviewing: 'Reviewing',
+    idle: 'Idle',
+  },
+  brand: {
+    title: 'AI Company',
+    subtitle: 'local V1',
+    env: 'mock · localhost',
+  },
+}
+
+export type Messages = typeof en
