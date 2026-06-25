@@ -44,6 +44,7 @@ import { EmployeeCompetenciesPage } from '../pages/EmployeeCompetenciesPage'
 import { EmployeeLearningPage } from '../pages/EmployeeLearningPage'
 import { CollaborationPage } from '../pages/CollaborationPage'
 import { ExecutionPage } from '../pages/ExecutionPage'
+import { CompanyCanvasPage } from '../pages/CompanyCanvasPage'
 import { ToolExecutionsPage } from '../pages/ToolExecutionsPage'
 
 function LegacyConversationRedirect() {
@@ -64,6 +65,7 @@ export function MissionControlRoutes() {
     <Routes>
       <Route element={<MissionControlShell />}>
         <Route index element={<DashboardPage />} />
+        <Route path="canvas" element={<CompanyCanvasPage />} />
         <Route path="companies" element={<CompaniesPage />} />
         <Route path="companies/new" element={<NewCompanyPage />} />
         <Route path="companies/:id" element={<CompanyPage />} />

@@ -261,6 +261,9 @@ export function ExecutiveDashboard() {
               <Link to="/ops/tasks" className="acQuickActionBtn">
                 {t.executiveDashboard.actionTasks}
               </Link>
+              <Link to="/ops/canvas" className="acQuickActionBtn acQuickActionBtnPrimary">
+                {t.executiveDashboard.actionOpenCanvas}
+              </Link>
               <Link to="/ops/runtime" className="acQuickActionBtn">
                 {t.platformNav.settings}
               </Link>

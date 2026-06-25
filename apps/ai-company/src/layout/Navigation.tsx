@@ -5,6 +5,7 @@ const OPS = '/ops'
 
 const NAV_ITEMS = [
   { to: OPS, key: 'home' as const, icon: '🏠', end: true },
+  { to: `${OPS}/canvas`, key: 'canvas' as const, icon: '🗺', end: false },
   { to: `${OPS}/chats`, key: 'chats' as const, icon: '💬', end: false },
   { to: `${OPS}/employees`, key: 'employees' as const, icon: '👥', end: false },
   { to: `${OPS}/presence`, key: 'presence' as const, icon: '🟢', end: false },

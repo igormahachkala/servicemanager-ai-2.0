@@ -62,6 +62,7 @@ export function useI18n(): LanguageContextValue {
 export function pageTitle(pathname: string, t: Messages): string {
   if (pathname === '/') return t.pages.flow
   if (pathname === '/ops') return t.pages.dashboard
+  if (pathname === '/ops/canvas') return t.pages.canvas
   if (pathname === '/ops/organization') return t.pages.organization
   if (pathname.startsWith('/ops/organization/departments/')) return t.organizationEngine.departmentPage
   if (pathname.startsWith('/ops/organization/teams/')) return t.organizationEngine.teamPage

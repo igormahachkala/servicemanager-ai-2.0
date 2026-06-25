@@ -8,6 +8,7 @@ export function SideNav() {
 
   const nav = [
     { to: OPS, page: 'dashboard' as const, icon: '◫', end: true },
+    { to: `${OPS}/canvas`, page: 'canvas' as const, icon: '◫', end: false },
     { to: `${OPS}/companies`, page: 'companies' as const, icon: '🏢', end: false },
     { to: `${OPS}/organization`, page: 'organization' as const, icon: '⬡', end: false },
     { to: `${OPS}/presence`, page: 'presence' as const, icon: '◉', end: false },

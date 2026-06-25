@@ -41,7 +41,8 @@ export const ru: Messages = {
     timeline: "Хронология",
     approvals: "Согласования",
     settings: "Настройки",
-    presence: "Присутствие"
+    presence: "Присутствие",
+    canvas: "Canvas компании"
   },
   labels: {
     active: "Активные",
@@ -76,6 +77,7 @@ export const ru: Messages = {
   pages: {
     flow: "Flow Workspace",
     dashboard: "Дашборд",
+    canvas: "Canvas компании",
     missionControl: "Mission Control",
     missionFeed: "Лента событий",
     companyTimeline: "Хронология компании",
@@ -589,6 +591,7 @@ export const ru: Messages = {
     actionNewChat: "Новый чат",
     actionNewEmployee: "Новый сотрудник",
     actionTasks: "Задачи",
+    actionOpenCanvas: "Открыть canvas компании",
     actionFlow: "Flow workspace",
     projectsOverview: "Активные проекты",
     projectsSub: "delivery entities в реестре",
@@ -1867,6 +1870,67 @@ export const ru: Messages = {
       cancel: "Отмена",
       retry: "Повторить",
       complete: "Завершить"
+    }
+  },
+  canvasEngine: {
+    pageDescription:
+      "Живой operational canvas — кто работает, как движутся задачи, где ждут approvals и где активен Runtime.",
+    nodes: "узлов",
+    connections: "связей",
+    liveOn: "Live вкл",
+    liveOff: "Live выкл",
+    zoomIn: "Приблизить",
+    zoomOut: "Отдалить",
+    fitView: "Вписать",
+    resetView: "Сбросить вид",
+    refresh: "Обновить",
+    inspectorEmptyTitle: "Выберите узел",
+    inspectorEmptyDescription:
+      "Нажмите на employee, task, run, approval или runtime, чтобы увидеть связи и перейти на страницу сущности.",
+    openEntity: "Открыть страницу",
+    inbound: "Входящие",
+    outbound: "Исходящие",
+    noConnections: "Нет связей в этом представлении.",
+    futureRealtime: "Будущее: realtime WebSocket sync с Runtime и presence.",
+    futureWebSocket: "Будущее: WebSocket event stream для live-обновлений графа.",
+    futureStreaming: "Будущее: runtime streaming overlays на execution и run edges.",
+    modes: {
+      company: "Компания",
+      project: "Проект",
+      runtime: "Runtime",
+      knowledge: "Knowledge",
+      organization: "Организация",
+      live: "Live"
+    },
+    liveStatuses: {
+      working: "Работает",
+      thinking: "Думает",
+      waiting: "Ждёт",
+      running: "Выполняется",
+      review: "Проверка",
+      completed: "Завершено"
+    },
+    nodeKinds: {
+      employee: "Employee",
+      project: "Project",
+      workspace: "Workspace",
+      task: "Task",
+      runtime: "Runtime",
+      run: "Run",
+      report: "Report",
+      approval: "Approval",
+      knowledge: "Knowledge",
+      tool: "Tool"
+    },
+    connectionTypes: {
+      assignment: "Assignment",
+      execution: "Execution",
+      runtime: "Runtime",
+      report: "Report",
+      approval: "Approval",
+      knowledge: "Knowledge",
+      tool: "Tool",
+      chat: "Chat"
     }
   },
   runtimeEngine: {
