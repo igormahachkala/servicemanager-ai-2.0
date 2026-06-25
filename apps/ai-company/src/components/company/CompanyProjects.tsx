@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import type { Project } from '../../domain/projects'
 import { useI18n } from '../../i18n'
 
@@ -13,7 +14,9 @@ export function CompanyProjects(props: { projects: Project[] }) {
       {props.projects.map((project) => (
         <article key={project.id} className="mcListRow">
           <div>
-            <div className="mcListRowTitle">{project.title}</div>
+            <Link to={`/ops/projects/${project.id}`} className="mcListRowTitle acLink">
+              {project.title}
+            </Link>
             <div className="mcMuted">{project.description || t.companyEngine.noDescription}</div>
           </div>
           <span className="mcBadge">{t.companyEngine.projectStatus[project.status]}</span>

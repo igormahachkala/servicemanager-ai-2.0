@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
+import { initializeCompanyEngine } from '../domain/company/companyMigration'
 import {
   createProject,
-  ensureSeedProjects,
   getProjectById,
   getProjectsByWorkspaceId,
   loadProjects,
@@ -12,12 +12,12 @@ import {
 
 export function useProjects() {
   const [projects, setProjects] = useState<Project[]>(() => {
-    ensureSeedProjects()
+    initializeCompanyEngine()
     return loadProjects()
   })
 
   const refresh = useCallback(() => {
-    ensureSeedProjects()
+    initializeCompanyEngine()
     setProjects(loadProjects())
   }, [])
 
