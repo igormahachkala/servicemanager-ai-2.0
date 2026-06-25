@@ -16,6 +16,7 @@ import { WorkspacesPage } from './pages/WorkspacesPage'
 import { NewWorkspacePage } from './pages/NewWorkspacePage'
 import { WorkspacePage } from './pages/WorkspacePage'
 import { ConversationPage } from './pages/ConversationPage'
+import { EmployeeMemoryPage } from '../pages/EmployeeMemoryPage'
 
 /** NOC panel routes under /ops — mock data only. */
 export function MissionControlRoutes() {
@@ -27,6 +28,7 @@ export function MissionControlRoutes() {
         <Route path="employees" element={<EmployeesPage />} />
         <Route path="employees/new" element={<NewEmployeePage />} />
         <Route path="employees/:id/conversation" element={<ConversationPage />} />
+        <Route path="employees/:id/memory" element={<EmployeeMemoryPage />} />
         <Route path="employees/:id" element={<EmployeeProfilePage />} />
         <Route path="tasks" element={<TasksPage />} />
         <Route path="feed" element={<MissionFeedPage />} />

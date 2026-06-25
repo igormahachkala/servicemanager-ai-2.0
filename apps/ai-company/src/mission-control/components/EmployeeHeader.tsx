@@ -50,6 +50,12 @@ export function EmployeeHeader({ employee }: { employee: CustomEmployee }) {
             >
               {t.conversations.openConversation}
             </Link>
+            <Link
+              to={`/ops/employees/${employee.id}/memory`}
+              className="mcBtn mcBtnSecondary mcBtnSmall"
+            >
+              {t.memoryEngine.openMemory}
+            </Link>
           </div>
         </div>
       </div>
