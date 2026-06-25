@@ -28,9 +28,9 @@ textarea {
   flex-direction: column;
   height: 100%;
   min-height: 100vh;
-  background: #09090b;
-  color: #fafafa;
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  background: var(--ac-bg, #09090b);
+  color: var(--ac-text, #fafafa);
+  font-family: var(--ac-font, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif);
 }
 
 .acMain {
@@ -47,8 +47,8 @@ textarea {
   align-items: center;
   gap: 4px;
   padding: 0 12px;
-  border-bottom: 1px solid #27272a;
-  background: #0c0d10;
+  border-bottom: 1px solid var(--ac-divider, rgba(255, 255, 255, 0.06));
+  background: var(--ac-bg-elevated, #0c0d10);
 }
 
 .acBrand {

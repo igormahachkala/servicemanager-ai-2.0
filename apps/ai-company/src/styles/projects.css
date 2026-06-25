@@ -14,12 +14,17 @@
 
 .acProjectCard {
   background: var(--ac-surface);
-  border: 1px solid var(--ac-border);
+  border: none;
   border-radius: var(--ac-radius-lg);
-  padding: var(--ac-space-4);
+  padding: var(--ac-space-5);
   display: flex;
   flex-direction: column;
   gap: var(--ac-space-3);
+  transition: background var(--ac-transition);
+}
+
+.acProjectCard:hover {
+  background: var(--ac-surface-2);
 }
 
 .acProjectCardHead {

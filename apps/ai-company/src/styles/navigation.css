@@ -1,13 +1,13 @@
-/* UX Bible v1 — Platform navigation */
+/* Design System V2 — Platform navigation */
 
 .acSidebar {
   width: var(--ac-sidebar-w);
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  border-right: 1px solid var(--ac-border);
+  border-right: 1px solid var(--ac-border-subtle);
   background: var(--ac-bg);
-  padding: var(--ac-space-4) var(--ac-space-3);
+  padding: var(--ac-space-5) var(--ac-space-3);
   overflow: auto;
 }
 
@@ -15,19 +15,19 @@
   display: flex;
   align-items: center;
   gap: var(--ac-space-3);
-  padding: var(--ac-space-1) var(--ac-space-2) var(--ac-space-5);
+  padding: var(--ac-space-1) var(--ac-space-2) var(--ac-space-6);
 }
 
 .acSidebarBrandMark {
   width: 28px;
   height: 28px;
-  border-radius: var(--ac-radius-sm);
-  background: linear-gradient(135deg, var(--ac-accent) 0%, #8b5cf6 100%);
+  border-radius: var(--ac-radius-md);
+  background: var(--ac-accent);
 }
 
 .acSidebarBrandTitle {
   font-size: 14px;
-  font-weight: 650;
+  font-weight: 600;
   letter-spacing: -0.02em;
 }
 
@@ -57,14 +57,14 @@
 }
 
 .acNavLink:hover {
-  background: var(--ac-surface);
+  background: rgba(255, 255, 255, 0.03);
   color: var(--ac-text);
 }
 
 .acNavLinkActive {
   background: var(--ac-accent-dim);
   color: var(--ac-text);
-  box-shadow: inset 0 0 0 1px var(--ac-accent-border);
+  box-shadow: none;
 }
 
 .acNavIcon {
@@ -72,12 +72,17 @@
   text-align: center;
   font-size: 14px;
   flex-shrink: 0;
+  opacity: 0.72;
+}
+
+.acNavLinkActive .acNavIcon {
+  opacity: 1;
 }
 
 .acSidebarFooter {
   margin-top: var(--ac-space-4);
   padding-top: var(--ac-space-4);
-  border-top: 1px solid var(--ac-border-subtle);
+  border-top: 1px solid var(--ac-divider);
 }
 
 .acBreadcrumbs {
@@ -102,12 +107,12 @@
 }
 
 .acBreadcrumbItem:hover {
-  color: var(--ac-text);
+  color: var(--ac-text-secondary);
 }
 
 .acBreadcrumbItemActive {
   color: var(--ac-text);
-  font-weight: 600;
+  font-weight: 500;
   pointer-events: none;
 }
 

@@ -6,6 +6,7 @@ import { StatusBar } from './StatusBar'
 import { TopBar } from './TopBar'
 import '../mission-control/styles/mission-control.css'
 import '../mission-control/styles/company.css'
+import '../styles/polish-v2.css'
 
 export function PlatformShell() {
   const [sidebarOpen, setSidebarOpen] = useState(false)

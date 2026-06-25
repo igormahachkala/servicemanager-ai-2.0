@@ -4,18 +4,18 @@
   --mc-bg: #09090b;
   --mc-surface: #111113;
   --mc-surface-2: #18181b;
-  --mc-border: #27272a;
-  --mc-border-subtle: #1f1f23;
+  --mc-border: rgba(255, 255, 255, 0.08);
+  --mc-border-subtle: rgba(255, 255, 255, 0.04);
   --mc-text: #fafafa;
   --mc-muted: #71717a;
   --mc-muted-2: #52525b;
-  --mc-accent: #3b82f6;
-  --mc-accent-dim: rgba(59, 130, 246, 0.12);
+  --mc-accent: #6366f1;
+  --mc-accent-dim: rgba(99, 102, 241, 0.1);
   --mc-green: #22c55e;
   --mc-amber: #f59e0b;
   --mc-red: #ef4444;
   --mc-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  --mc-sidebar-w: 220px;
+  --mc-sidebar-w: 248px;
   min-height: 100vh;
   background: var(--mc-bg);
   color: var(--mc-text);
@@ -53,8 +53,7 @@
   width: 24px;
   height: 24px;
   border-radius: 6px;
-  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
-  box-shadow: 0 0 20px rgba(59, 130, 246, 0.25);
+  background: var(--mc-accent);
 }
 
 .mcBrandTitle {

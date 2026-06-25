@@ -7,7 +7,7 @@ export function PageHeader(props: {
 }) {
   return (
     <header className="acPageHeader">
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+      <div className="acPageHeaderRow">
         <div>
           <h1 className="acPageTitle">{props.title}</h1>
           {props.description ? <p className="acPageDesc">{props.description}</p> : null}

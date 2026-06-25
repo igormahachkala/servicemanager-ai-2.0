@@ -30,15 +30,21 @@
   width: 100%;
   text-align: left;
   border: 1px solid var(--ac-border);
-  background: var(--ac-surface-1);
-  border-radius: 10px;
-  padding: 8px;
+  background: transparent;
+  border-radius: var(--ac-radius-md);
+  padding: 10px 12px;
   cursor: pointer;
+  transition: background var(--ac-transition), border-color var(--ac-transition);
+}
+
+.acToolExecutionPickerItem:hover {
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .acToolExecutionPickerItemActive {
   border-color: var(--ac-accent);
-  box-shadow: 0 0 0 1px var(--ac-accent-dim);
+  background: var(--ac-accent-dim);
+  box-shadow: none;
 }
 
 .acToolRequestCard {

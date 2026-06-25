@@ -1,30 +1,36 @@
-/* UX Bible v1 — design tokens (AI Company Platform) */
+/* Design System V2 — AI Company Platform tokens & primitives */
 
 :root {
   --ac-bg: #09090b;
   --ac-bg-elevated: #0c0d10;
+  --ac-bg-subtle: #0f1014;
   --ac-surface: #111113;
   --ac-surface-2: #18181b;
   --ac-surface-hover: #1f1f23;
-  --ac-border: #27272a;
-  --ac-border-subtle: #1f1f23;
+  --ac-surface-active: #27272a;
+  --ac-border: rgba(255, 255, 255, 0.08);
+  --ac-border-subtle: rgba(255, 255, 255, 0.04);
+  --ac-border-strong: rgba(255, 255, 255, 0.12);
+  --ac-divider: rgba(255, 255, 255, 0.06);
   --ac-text: #fafafa;
+  --ac-text-secondary: #a1a1aa;
   --ac-text-muted: #71717a;
   --ac-text-subtle: #52525b;
+  --ac-text-disabled: #3f3f46;
   --ac-accent: #6366f1;
   --ac-accent-hover: #818cf8;
-  --ac-accent-dim: rgba(99, 102, 241, 0.12);
-  --ac-accent-border: rgba(99, 102, 241, 0.35);
+  --ac-accent-dim: rgba(99, 102, 241, 0.1);
+  --ac-accent-border: rgba(99, 102, 241, 0.28);
   --ac-green: #22c55e;
-  --ac-green-dim: rgba(34, 197, 94, 0.12);
+  --ac-green-dim: rgba(34, 197, 94, 0.1);
   --ac-amber: #f59e0b;
-  --ac-amber-dim: rgba(245, 158, 11, 0.12);
+  --ac-amber-dim: rgba(245, 158, 11, 0.1);
   --ac-red: #ef4444;
-  --ac-red-dim: rgba(239, 68, 68, 0.12);
+  --ac-red-dim: rgba(239, 68, 68, 0.1);
   --ac-blue: #3b82f6;
-  --ac-blue-dim: rgba(59, 130, 246, 0.12);
+  --ac-blue-dim: rgba(59, 130, 246, 0.1);
   --ac-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  --ac-font: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  --ac-font: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
 
   --ac-space-1: 4px;
   --ac-space-2: 8px;
@@ -33,20 +39,23 @@
   --ac-space-5: 20px;
   --ac-space-6: 24px;
   --ac-space-8: 32px;
+  --ac-space-10: 40px;
 
   --ac-radius-sm: 6px;
   --ac-radius-md: 8px;
   --ac-radius-lg: 12px;
+  --ac-radius-xl: 16px;
 
-  --ac-sidebar-w: 240px;
+  --ac-sidebar-w: 248px;
   --ac-topbar-h: 52px;
   --ac-statusbar-h: 28px;
 
-  --ac-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --ac-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.35);
-  --ac-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.45);
+  --ac-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.24);
+  --ac-shadow-md: 0 8px 24px rgba(0, 0, 0, 0.28);
+  --ac-shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.32);
 
-  --ac-transition: 0.12s ease;
+  --ac-transition: 0.15s cubic-bezier(0.2, 0, 0, 1);
+  --ac-focus-ring: 0 0 0 2px rgba(99, 102, 241, 0.35);
 }
 
 .acBadge {
@@ -57,50 +66,44 @@
   border-radius: 999px;
   font-size: 11px;
   font-weight: 600;
-  letter-spacing: 0.01em;
-  border: 1px solid transparent;
+  letter-spacing: 0.02em;
+  border: none;
   white-space: nowrap;
 }
 
 .acBadgeDefault {
-  background: var(--ac-surface-2);
-  color: var(--ac-text-muted);
-  border-color: var(--ac-border);
+  background: var(--ac-surface-hover);
+  color: var(--ac-text-secondary);
 }
 
 .acBadgeSuccess {
   background: var(--ac-green-dim);
   color: var(--ac-green);
-  border-color: rgba(34, 197, 94, 0.25);
 }
 
 .acBadgeWarning {
   background: var(--ac-amber-dim);
   color: var(--ac-amber);
-  border-color: rgba(245, 158, 11, 0.25);
 }
 
 .acBadgeDanger {
   background: var(--ac-red-dim);
   color: var(--ac-red);
-  border-color: rgba(239, 68, 68, 0.25);
 }
 
 .acBadgeInfo {
   background: var(--ac-blue-dim);
   color: var(--ac-blue);
-  border-color: rgba(59, 130, 246, 0.25);
 }
 
 .acBadgeAccent {
   background: var(--ac-accent-dim);
   color: var(--ac-accent-hover);
-  border-color: var(--ac-accent-border);
 }
 
 .acCard {
   background: var(--ac-surface);
-  border: 1px solid var(--ac-border);
+  border: none;
   border-radius: var(--ac-radius-lg);
   overflow: hidden;
 }
@@ -110,43 +113,67 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--ac-space-3);
-  padding: var(--ac-space-3) var(--ac-space-4);
-  border-bottom: 1px solid var(--ac-border-subtle);
+  padding: var(--ac-space-4) var(--ac-space-5) var(--ac-space-2);
 }
 
 .acCardTitle {
   font-size: 13px;
   font-weight: 600;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.02em;
+  color: var(--ac-text);
 }
 
 .acCardBody {
-  padding: var(--ac-space-4);
+  padding: var(--ac-space-2) var(--ac-space-5) var(--ac-space-5);
 }
 
 .acCardFooter {
-  padding: var(--ac-space-3) var(--ac-space-4);
-  border-top: 1px solid var(--ac-border-subtle);
+  padding: var(--ac-space-3) var(--ac-space-5) var(--ac-space-4);
+  border-top: 1px solid var(--ac-divider);
+}
+
+.acCard .acPresenceCard,
+.acCard .acHealthItem,
+.acCard .acCard {
+  border: none;
+  background: var(--ac-bg-subtle);
+  box-shadow: none;
 }
 
 .acPageHeader {
-  margin-bottom: var(--ac-space-6);
+  margin-bottom: var(--ac-space-8);
+}
+
+.acPageHeaderRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ac-space-4);
 }
 
 .acPageTitle {
   margin: 0 0 var(--ac-space-2);
-  font-size: 22px;
-  font-weight: 650;
+  font-size: 28px;
+  font-weight: 600;
   letter-spacing: -0.03em;
-  line-height: 1.2;
+  line-height: 1.15;
 }
 
 .acPageDesc {
   margin: 0;
-  font-size: 13px;
+  font-size: 14px;
+  color: var(--ac-text-secondary);
+  line-height: 1.55;
+  max-width: 56ch;
+}
+
+.acSectionLabel {
+  margin: 0 0 var(--ac-space-3);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   color: var(--ac-text-muted);
-  line-height: 1.5;
-  max-width: 640px;
 }
 
 .acTableWrap {
@@ -156,22 +183,23 @@
 .acTable {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .acTable th {
   text-align: left;
-  padding: var(--ac-space-2) var(--ac-space-3);
+  padding: 10px var(--ac-space-3);
   color: var(--ac-text-muted);
   font-weight: 600;
   font-size: 11px;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  border-bottom: 1px solid var(--ac-border);
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--ac-divider);
+  background: transparent;
 }
 
 .acTable td {
-  padding: var(--ac-space-3);
+  padding: 12px var(--ac-space-3);
   border-bottom: 1px solid var(--ac-border-subtle);
   vertical-align: middle;
 }
@@ -180,8 +208,12 @@
   border-bottom: none;
 }
 
-.acTable tr:hover td {
-  background: var(--ac-surface-hover);
+.acTable tbody tr {
+  transition: background var(--ac-transition);
+}
+
+.acTable tbody tr:hover td {
+  background: rgba(255, 255, 255, 0.02);
 }
 
 .acMuted {
@@ -191,15 +223,18 @@
 .acMono {
   font-family: var(--ac-mono);
   font-size: 11px;
+  color: var(--ac-text-secondary);
 }
 
 .acLink {
-  color: var(--ac-accent-hover);
+  color: var(--ac-text-secondary);
   text-decoration: none;
+  transition: color var(--ac-transition);
 }
 
 .acLink:hover {
-  text-decoration: underline;
+  color: var(--ac-accent-hover);
+  text-decoration: none;
 }
 
 .acDot {
@@ -211,6 +246,7 @@
 
 .acDotGreen {
   background: var(--ac-green);
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.45);
 }
 
 .acDotAmber {
@@ -223,4 +259,22 @@
 
 .acDotGray {
   background: var(--ac-text-subtle);
+}
+
+.acInput,
+.acSelect,
+.acTextarea {
+  border: 1px solid var(--ac-border);
+  border-radius: var(--ac-radius-sm);
+  background: var(--ac-bg-elevated);
+  color: var(--ac-text);
+  transition: border-color var(--ac-transition), box-shadow var(--ac-transition);
+}
+
+.acInput:focus,
+.acSelect:focus,
+.acTextarea:focus {
+  outline: none;
+  border-color: var(--ac-accent);
+  box-shadow: var(--ac-focus-ring);
 }

@@ -1,0 +1,328 @@
+/* Design System V2 — Mission Control & legacy mc* polish layer */
+
+:root,
+.acApp,
+.acPlatform,
+.mcRoot {
+  --mc-bg: var(--ac-bg, #09090b);
+  --mc-surface: var(--ac-surface, #111113);
+  --mc-surface-2: var(--ac-surface-2, #18181b);
+  --mc-border: var(--ac-border, rgba(255, 255, 255, 0.08));
+  --mc-border-subtle: var(--ac-border-subtle, rgba(255, 255, 255, 0.04));
+  --mc-text: var(--ac-text, #fafafa);
+  --mc-muted: var(--ac-text-muted, #71717a);
+  --mc-muted-2: var(--ac-text-subtle, #52525b);
+  --mc-accent: var(--ac-accent, #6366f1);
+  --mc-accent-dim: var(--ac-accent-dim, rgba(99, 102, 241, 0.1));
+  --mc-green: var(--ac-green, #22c55e);
+  --mc-amber: var(--ac-amber, #f59e0b);
+  --mc-red: var(--ac-red, #ef4444);
+  --mc-divider: var(--ac-divider, rgba(255, 255, 255, 0.06));
+}
+
+.mcSidebar,
+.acSidebar {
+  border-right-color: var(--mc-border-subtle);
+}
+
+.mcBrandMark,
+.acSidebarBrandMark {
+  background: var(--mc-accent) !important;
+  box-shadow: none !important;
+}
+
+.mcTopbar {
+  border-bottom-color: var(--mc-divider);
+  background: rgba(9, 9, 11, 0.92);
+  backdrop-filter: blur(10px);
+}
+
+.mcContent {
+  padding: 32px 40px;
+}
+
+.mcPageHeader {
+  margin-bottom: 28px;
+}
+
+.mcPageTitle {
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+}
+
+.mcPageDesc {
+  font-size: 14px;
+  color: var(--ac-text-secondary, #a1a1aa);
+  line-height: 1.55;
+  max-width: 56ch;
+}
+
+.mcNavLink {
+  color: var(--mc-muted);
+}
+
+.mcNavLink:hover {
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--mc-text);
+}
+
+.mcNavLinkActive {
+  background: var(--mc-accent-dim);
+  box-shadow: none;
+  color: var(--mc-text);
+}
+
+.mcNavIcon {
+  opacity: 0.72;
+}
+
+.mcNavLinkActive .mcNavIcon {
+  opacity: 1;
+}
+
+.mcSidebarFooter {
+  border-top-color: var(--mc-divider);
+}
+
+.mcPanel {
+  border: none;
+  border-radius: 12px;
+  background: var(--mc-surface);
+}
+
+.mcPanelHeader {
+  border-bottom: none;
+  padding: 16px 20px 8px;
+}
+
+.mcPanelTitle {
+  text-transform: none;
+  letter-spacing: -0.02em;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--mc-text);
+}
+
+.mcProfilePanelBody {
+  padding: 8px 20px 20px;
+}
+
+.mcMetric,
+.mcRunStatCard,
+.mcExecStatCard,
+.mcToolExecutionStatCard,
+.mcNotificationStat {
+  border: none;
+  background: var(--mc-surface-2);
+  border-radius: 12px;
+}
+
+.mcMetricLabel,
+.mcRunStatLabel,
+.mcExecStatLabel {
+  letter-spacing: 0.06em;
+}
+
+.mcMetricValue,
+.mcRunStatValue,
+.mcExecStatValue {
+  font-weight: 600;
+}
+
+.mcGrid4,
+.mcRunStatsGrid,
+.mcExecStatsGrid {
+  gap: 16px;
+}
+
+.mcTable th {
+  background: transparent;
+  border-bottom: 1px solid var(--mc-divider);
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.mcTable td {
+  border-bottom: 1px solid var(--mc-border-subtle);
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.mcTable tbody tr:hover td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.mcBtn {
+  border-color: transparent;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--mc-text);
+}
+
+.mcBtn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: transparent;
+}
+
+.mcBtnSecondary {
+  background: transparent;
+  border-color: var(--mc-border);
+  color: var(--mc-muted);
+}
+
+.mcBtnSecondary:hover {
+  color: var(--mc-text);
+  border-color: var(--ac-border-strong, rgba(255, 255, 255, 0.12));
+}
+
+.mcBtnPrimary {
+  background: var(--mc-accent);
+  border-color: transparent;
+  color: #fff;
+}
+
+.mcBtnPrimary:hover {
+  background: var(--ac-accent-hover, #818cf8);
+  border-color: transparent;
+}
+
+.mcChip {
+  border: none;
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--mc-muted);
+}
+
+.mcChip:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--mc-text);
+}
+
+.mcChipActive {
+  background: var(--mc-accent-dim);
+  color: var(--ac-accent-hover, #818cf8);
+}
+
+.mcBadge {
+  border: none;
+}
+
+.mcInput,
+.mcField input,
+.mcField select,
+.mcField textarea,
+.mcRunFilterField select,
+.mcRunFilterField input,
+.mcExecScopeField select {
+  border: 1px solid var(--mc-border);
+  background: var(--mc-bg);
+}
+
+.mcInput:focus,
+.mcField input:focus,
+.mcField select:focus,
+.mcField textarea:focus {
+  outline: none;
+  border-color: var(--mc-accent);
+  box-shadow: var(--ac-focus-ring, 0 0 0 2px rgba(99, 102, 241, 0.35));
+}
+
+.mcRunCard,
+.mcRunCardLink,
+.mcExecCard,
+.mcExecCardSelectable,
+.mcProjectCard,
+.mcWorkspaceCard,
+.mcToolCard,
+.mcNotificationCard,
+.mcAuditEventCard {
+  border: none;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 12px;
+  transition: background 0.15s ease;
+}
+
+.mcRunCardLink:hover,
+.mcExecCardSelectable:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.mcExecCardSelected,
+.mcExecCardSelectable.mcExecCardSelected {
+  background: var(--mc-accent-dim);
+  box-shadow: inset 0 0 0 1px var(--ac-accent-border, rgba(99, 102, 241, 0.28));
+}
+
+.mcPanel .mcRunCard,
+.mcPanel .mcExecCard,
+.mcPanel .mcTemplateCard,
+.mcProfilePanelBody .mcRunCard {
+  background: var(--mc-bg);
+}
+
+.mcMono,
+.mcMuted {
+  color: var(--mc-muted);
+}
+
+.mcMuted {
+  color: var(--ac-text-secondary, #a1a1aa);
+}
+
+.mcLink,
+.acLink {
+  color: var(--ac-text-secondary, #a1a1aa);
+}
+
+.mcLink:hover,
+.acLink:hover {
+  color: var(--ac-accent-hover, #818cf8);
+}
+
+.mcEnvBadge {
+  border: none;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.mcProfileSection,
+.mcRuntimeSection,
+.mcProjectSection {
+  border: none;
+  background: var(--mc-surface);
+  border-radius: 12px;
+}
+
+.mcProfileSectionHeader,
+.mcRuntimeSectionHeader {
+  border-bottom: none;
+  padding-bottom: 8px;
+}
+
+.mcTimelineItem,
+.mcAuditTimelineItem,
+.mcExecTimelineStep {
+  border-color: var(--mc-border-subtle);
+}
+
+.mcRunEmpty,
+.mcExecEmpty,
+.mcToolExecutionEmpty {
+  border: none;
+  background: transparent;
+}
+
+.mcPageHeaderRow {
+  margin-bottom: 28px;
+}
+
+@media (max-width: 900px) {
+  .mcContent {
+    padding: 20px 16px;
+  }
+
+  .acPlatformContent {
+    padding: 20px 16px;
+  }
+}

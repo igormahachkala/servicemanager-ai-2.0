@@ -9,6 +9,7 @@ import './styles/projects.css'
 import './styles/presence.css'
 import './styles/execution.css'
 import './styles/toolExecution.css'
+import './styles/polish-v2.css'
 import './styles.css'
 
 createRoot(document.getElementById('root')!).render(

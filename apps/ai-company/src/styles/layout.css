@@ -23,7 +23,7 @@
   flex: 1;
   min-height: 0;
   overflow: auto;
-  padding: var(--ac-space-6);
+  padding: var(--ac-space-8) var(--ac-space-10);
 }
 
 .acPlatformOverlay {
@@ -36,9 +36,10 @@
   display: flex;
   align-items: center;
   gap: var(--ac-space-3);
-  padding: 0 var(--ac-space-4);
-  border-bottom: 1px solid var(--ac-border);
-  background: var(--ac-bg-elevated);
+  padding: 0 var(--ac-space-5);
+  border-bottom: 1px solid var(--ac-divider);
+  background: rgba(12, 13, 16, 0.92);
+  backdrop-filter: blur(10px);
 }
 
 .acTopBarMenuBtn {
@@ -49,7 +50,7 @@
   height: 36px;
   border: 1px solid var(--ac-border);
   border-radius: var(--ac-radius-sm);
-  background: var(--ac-surface);
+  background: transparent;
   color: var(--ac-text);
   cursor: pointer;
 }
@@ -64,7 +65,7 @@
   gap: var(--ac-space-2);
   padding-right: var(--ac-space-3);
   margin-right: var(--ac-space-2);
-  border-right: 1px solid var(--ac-border);
+  border-right: 1px solid var(--ac-divider);
   flex-shrink: 0;
 }
 
@@ -72,8 +73,7 @@
   width: 24px;
   height: 24px;
   border-radius: var(--ac-radius-sm);
-  background: linear-gradient(135deg, var(--ac-accent) 0%, #8b5cf6 100%);
-  box-shadow: 0 0 16px rgba(99, 102, 241, 0.25);
+  background: var(--ac-accent);
 }
 
 .acTopBarBrandTitle {
@@ -106,9 +106,9 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--ac-space-3);
-  padding: 0 var(--ac-space-4);
-  border-top: 1px solid var(--ac-border);
-  background: var(--ac-bg-elevated);
+  padding: 0 var(--ac-space-5);
+  border-top: 1px solid var(--ac-divider);
+  background: var(--ac-bg);
   font-size: 11px;
   color: var(--ac-text-muted);
   font-family: var(--ac-mono);
@@ -126,8 +126,8 @@
   align-items: center;
   padding: 2px 8px;
   border-radius: 999px;
-  border: 1px solid var(--ac-border);
-  background: var(--ac-surface);
+  border: none;
+  background: rgba(255, 255, 255, 0.04);
   font-size: 10px;
   color: var(--ac-text-muted);
   font-family: var(--ac-mono);
@@ -146,15 +146,15 @@
   padding: 6px 10px;
   border: 1px solid var(--ac-border);
   border-radius: var(--ac-radius-sm);
-  background: var(--ac-surface);
+  background: transparent;
   color: var(--ac-text);
   cursor: pointer;
   text-align: left;
 }
 
 .acWorkspaceSwitcherBtn:hover {
-  background: var(--ac-surface-hover);
-  border-color: var(--ac-accent-border);
+  background: rgba(255, 255, 255, 0.03);
+  border-color: var(--ac-border-strong);
 }
 
 .acWorkspaceSwitcherLabel {
@@ -258,31 +258,36 @@
   align-items: center;
   gap: 6px;
   padding: 6px 10px;
-  border: 1px solid var(--ac-border);
+  border: 1px solid transparent;
   border-radius: var(--ac-radius-sm);
-  background: var(--ac-surface);
-  color: var(--ac-text);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--ac-text-secondary);
   font-size: 12px;
   font-weight: 500;
   text-decoration: none;
   cursor: pointer;
   white-space: nowrap;
+  transition: background var(--ac-transition), color var(--ac-transition);
 }
 
 .acQuickActionBtn:hover {
-  background: var(--ac-surface-hover);
-  border-color: var(--ac-accent-border);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--ac-text);
 }
 
 .acQuickActionBtnPrimary {
-  background: var(--ac-accent-dim);
-  border-color: var(--ac-accent-border);
-  color: var(--ac-accent-hover);
+  background: var(--ac-accent);
+  color: #fff;
+}
+
+.acQuickActionBtnPrimary:hover {
+  background: var(--ac-accent-hover);
+  color: #fff;
 }
 
 .acDashboardGrid {
   display: grid;
-  gap: var(--ac-space-4);
+  gap: var(--ac-space-5);
 }
 
 .acDashboardGridMetrics {
@@ -310,9 +315,9 @@
 }
 
 .acMetricTile {
-  padding: var(--ac-space-4);
-  background: var(--ac-surface);
-  border: 1px solid var(--ac-border);
+  padding: var(--ac-space-5);
+  background: var(--ac-surface-2);
+  border: none;
   border-radius: var(--ac-radius-lg);
 }
 
@@ -320,14 +325,15 @@
   font-size: 11px;
   color: var(--ac-text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
   margin-bottom: var(--ac-space-2);
 }
 
 .acMetricTileValue {
-  font-size: 24px;
-  font-weight: 700;
-  letter-spacing: -0.03em;
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
 }
 
 .acMetricTileSub {
@@ -359,8 +365,8 @@
   align-items: center;
   gap: var(--ac-space-3);
   padding: var(--ac-space-3) var(--ac-space-4);
-  background: var(--ac-surface);
-  border: 1px solid var(--ac-border);
+  background: var(--ac-bg-subtle);
+  border: none;
   border-radius: var(--ac-radius-md);
   flex: 1;
   min-width: 160px;
@@ -378,9 +384,9 @@
   justify-content: center;
   width: 36px;
   height: 36px;
-  border: 1px solid var(--ac-border);
+  border: none;
   border-radius: var(--ac-radius-sm);
-  background: var(--ac-surface);
+  background: rgba(255, 255, 255, 0.04);
   color: var(--ac-text);
   cursor: pointer;
 }
@@ -460,9 +466,14 @@
 
 .acNotificationCard {
   padding: 10px 12px;
-  border: 1px solid var(--ac-border-subtle);
+  border: none;
   border-radius: var(--ac-radius-md);
-  background: var(--ac-surface);
+  background: rgba(255, 255, 255, 0.02);
+  transition: background var(--ac-transition);
+}
+
+.acNotificationCard:hover {
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .acNotificationCardRead {
@@ -470,15 +481,15 @@
 }
 
 .acNotificationCardWarn {
-  border-color: rgba(245, 158, 11, 0.35);
+  background: var(--ac-amber-dim);
 }
 
 .acNotificationCardDanger {
-  border-color: rgba(239, 68, 68, 0.35);
+  background: var(--ac-red-dim);
 }
 
 .acNotificationCardSuccess {
-  border-color: rgba(34, 197, 94, 0.35);
+  background: var(--ac-green-dim);
 }
 
 .acNotificationCardCompact {
