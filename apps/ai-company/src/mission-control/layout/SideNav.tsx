@@ -14,6 +14,7 @@ export function SideNav() {
     { to: `${OPS}/tasks`, page: 'tasks' as const, icon: '▤', end: false },
     { to: `${OPS}/chats`, page: 'chats' as const, icon: '💬', end: false },
     { to: `${OPS}/feed`, page: 'missionFeed' as const, icon: '≡', end: false },
+    { to: `${OPS}/approvals`, page: 'approvals' as const, icon: '✓', end: false },
     { to: `${OPS}/reports`, page: 'reports' as const, icon: '📋', end: false },
     { to: `${OPS}/audit`, page: 'audit' as const, icon: '🔍', end: false },
     { to: `${OPS}/tools`, page: 'toolsRegistry' as const, icon: '⚙', end: false },

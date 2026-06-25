@@ -15,6 +15,11 @@ import { WorkspacesPage } from './pages/WorkspacesPage'
 import { NewWorkspacePage } from './pages/NewWorkspacePage'
 import { WorkspacePage } from './pages/WorkspacePage'
 import { EmployeeMemoryPage } from '../pages/EmployeeMemoryPage'
+import { ApprovalsPage } from '../pages/ApprovalsPage'
+import { ApprovalDetailsPage } from '../pages/ApprovalDetailsPage'
+import { ReportsPage } from '../pages/ReportsPage'
+import { ReportPage } from '../pages/ReportPage'
+import { AuditPage } from '../pages/AuditPage'
 import { ChatsPage } from '../pages/ChatsPage'
 import { ChatPage } from '../pages/ChatPage'
 import { NewChatPage } from '../pages/NewChatPage'
@@ -47,6 +52,11 @@ export function MissionControlRoutes() {
         <Route path="employees/:id" element={<EmployeeProfilePage />} />
         <Route path="tasks" element={<TasksPage />} />
         <Route path="feed" element={<MissionFeedPage />} />
+        <Route path="approvals" element={<ApprovalsPage />} />
+        <Route path="approvals/:id" element={<ApprovalDetailsPage />} />
+        <Route path="reports" element={<ReportsPage />} />
+        <Route path="reports/:id" element={<ReportPage />} />
+        <Route path="audit" element={<AuditPage />} />
         <Route path="chats" element={<ChatsPage />} />
         <Route path="chats/new" element={<NewChatPage />} />
         <Route path="chats/:id" element={<ChatPage />} />

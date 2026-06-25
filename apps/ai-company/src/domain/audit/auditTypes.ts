@@ -12,6 +12,7 @@ export const AUDIT_TARGET_TYPES = [
   'assignment',
   'discussion',
   'memory',
+  'approval',
   'system',
 ] as const
 
