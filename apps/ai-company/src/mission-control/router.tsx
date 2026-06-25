@@ -7,7 +7,8 @@ import { NewEmployeePage } from './pages/NewEmployeePage'
 import { EmployeeProfilePage } from './pages/EmployeeProfilePage'
 import { TasksPage } from './pages/TasksPage'
 import { MissionFeedPage } from './pages/MissionFeedPage'
-import { AiToolsRegistryPage } from './pages/AiToolsRegistryPage'
+import { ToolsCatalogPage } from './pages/ToolsCatalogPage'
+import { ToolDetailsPage } from './pages/ToolDetailsPage'
 import { DiscussionListPage } from './pages/DiscussionListPage'
 import { NewDiscussionPage } from './pages/NewDiscussionPage'
 import { DiscussionPage } from './pages/DiscussionPage'
@@ -35,7 +36,8 @@ export function MissionControlRoutes() {
         <Route path="workspaces" element={<WorkspacesPage />} />
         <Route path="workspaces/new" element={<NewWorkspacePage />} />
         <Route path="workspaces/:id" element={<WorkspacePage />} />
-        <Route path="tools" element={<AiToolsRegistryPage />} />
+        <Route path="tools" element={<ToolsCatalogPage />} />
+        <Route path="tools/:id" element={<ToolDetailsPage />} />
         <Route path="*" element={<Navigate to="/ops" replace />} />
       </Route>
     </Routes>

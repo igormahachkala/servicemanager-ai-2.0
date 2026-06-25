@@ -76,5 +76,6 @@ export function pageTitle(pathname: string, t: Messages): string {
   if (pathname.startsWith('/ops/workspaces/')) return t.pages.workspaces
   if (pathname === '/ops/feed') return t.pages.missionFeed
   if (pathname === '/ops/tools') return t.pages.toolsRegistry
+  if (pathname.startsWith('/ops/tools/')) return t.toolRegistry.detailsTitle
   return t.pages.missionControl
 }

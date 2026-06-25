@@ -1793,3 +1793,320 @@
 .mcWorkspaceTabAction {
   margin-top: 12px;
 }
+
+/* Tool Registry V1 */
+.mcToolGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 14px;
+  padding: 16px;
+}
+
+.mcToolProviderGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+  padding: 16px;
+}
+
+.mcToolCard {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.mcToolCardHead {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.mcToolCardIcon {
+  font-size: 20px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.mcToolCardTitleBlock {
+  flex: 1;
+  min-width: 0;
+}
+
+.mcToolCardTitle {
+  margin: 0 0 2px;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.mcToolCardCategory {
+  font-size: 11px;
+  color: var(--mc-muted);
+}
+
+.mcToolCardDesc {
+  margin: 0;
+  font-size: 12px;
+  color: var(--mc-muted);
+  line-height: 1.45;
+  flex: 1;
+}
+
+.mcToolCardMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.mcToolBadge {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.mcToolBadgeWarn {
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.mcToolProviderCard {
+  padding: 14px;
+  border: 1px solid var(--mc-border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.mcToolProviderCardTitle {
+  font-weight: 650;
+  font-size: 14px;
+  margin-bottom: 6px;
+}
+
+.mcToolProviderCardDesc {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--mc-muted);
+  line-height: 1.45;
+}
+
+.mcToolProviderCardMeta {
+  font-size: 11px;
+}
+
+.mcToolFilters {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 12px;
+  padding: 16px 16px 0;
+}
+
+.mcToolFilterField {
+  margin: 0;
+}
+
+.mcToolRegistryNote {
+  margin: 16px 0 0;
+  padding: 12px 14px;
+  border: 1px dashed var(--mc-border);
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--mc-muted);
+  line-height: 1.5;
+}
+
+.mcToolConn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.mcToolConnDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.mcToolConnConnected {
+  color: #22c55e;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.mcToolConnDisconnected {
+  color: var(--mc-muted);
+  border: 1px solid var(--mc-border);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.mcToolConnDegraded {
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.mcToolConnPending {
+  color: #60a5fa;
+  border: 1px solid rgba(96, 165, 250, 0.35);
+  background: rgba(96, 165, 250, 0.08);
+}
+
+.mcToolDetailsPage {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.mcToolDetailsHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mcToolDetailsTitleRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.mcToolDetailsIcon {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.mcToolDetailsTitle {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 650;
+}
+
+.mcToolDetailsSub {
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.mcToolDetailsDesc {
+  margin: 0;
+  font-size: 14px;
+  color: var(--mc-muted);
+  line-height: 1.5;
+  max-width: 720px;
+}
+
+.mcToolMatrix {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.mcToolMatrixCell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid var(--mc-border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  opacity: 0.55;
+}
+
+.mcToolMatrixCellActive {
+  opacity: 1;
+  border-color: rgba(59, 130, 246, 0.4);
+  background: rgba(59, 130, 246, 0.06);
+}
+
+.mcToolMatrixLabel {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.mcToolMatrixState {
+  font-size: 10px;
+  font-family: var(--mc-mono);
+  color: var(--mc-muted);
+  text-transform: uppercase;
+}
+
+.mcToolPolicyMatrix {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mcToolPolicyRow {
+  display: grid;
+  grid-template-columns: 160px 80px 1fr;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid var(--mc-border);
+  border-radius: 8px;
+  opacity: 0.5;
+}
+
+@media (max-width: 720px) {
+  .mcToolPolicyRow {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}
+
+.mcToolPolicyRowActive {
+  opacity: 1;
+}
+
+.mcToolPolicyRowLow {
+  border-color: rgba(34, 197, 94, 0.35);
+  background: rgba(34, 197, 94, 0.05);
+}
+
+.mcToolPolicyRowMedium {
+  border-color: rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.05);
+}
+
+.mcToolPolicyRowHigh {
+  border-color: rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.05);
+}
+
+.mcToolPolicyRowBlocked {
+  border-color: rgba(148, 163, 184, 0.35);
+  background: rgba(148, 163, 184, 0.05);
+}
+
+.mcToolPolicyLabel {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.mcToolPolicyState {
+  font-size: 11px;
+  font-family: var(--mc-mono);
+  color: var(--mc-muted);
+}
+
+.mcToolPolicyHint {
+  font-size: 12px;
+  color: var(--mc-muted);
+  line-height: 1.4;
+}
