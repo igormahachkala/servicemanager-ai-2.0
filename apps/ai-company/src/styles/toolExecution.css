@@ -1,0 +1,193 @@
+/* Tool Execution Gateway */
+
+.acToolExecutionFilters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.acToolExecutionLog,
+.acToolExecutionLogCompact {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.acToolExecutionLogRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.acToolExecutionPicker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.acToolExecutionPickerItem {
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--ac-border);
+  background: var(--ac-surface-1);
+  border-radius: 10px;
+  padding: 8px;
+  cursor: pointer;
+}
+
+.acToolExecutionPickerItemActive {
+  border-color: var(--ac-accent);
+  box-shadow: 0 0 0 1px var(--ac-accent-dim);
+}
+
+.acToolRequestCard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.acToolRequestCardCompact {
+  gap: 4px;
+}
+
+.acToolRequestCardHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.acToolRequestCardTitle {
+  font-weight: 700;
+}
+
+.acToolRequestCardMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--ac-text-muted);
+}
+
+.acToolRequestArgs {
+  margin: 0;
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--ac-surface-2);
+  font-size: 11px;
+  overflow: auto;
+}
+
+.acToolStatusBadge {
+  display: inline-flex;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.acToolStatusBadgeCreated,
+.acToolStatusBadgeApproved {
+  background: var(--ac-surface-2);
+  color: var(--ac-text-muted);
+}
+
+.acToolStatusBadgeWaitingApproval {
+  background: var(--ac-amber-dim);
+  color: var(--ac-amber);
+}
+
+.acToolStatusBadgeRunning {
+  background: var(--ac-blue-dim);
+  color: var(--ac-blue);
+}
+
+.acToolStatusBadgeCompleted {
+  background: var(--ac-green-dim);
+  color: var(--ac-green);
+}
+
+.acToolStatusBadgeFailed {
+  background: rgba(239, 68, 68, 0.12);
+  color: #f87171;
+}
+
+.acToolStatusBadgeCancelled {
+  background: var(--ac-surface-2);
+  color: var(--ac-text-muted);
+}
+
+.acToolApprovalPanel {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px dashed var(--ac-amber);
+  background: var(--ac-amber-dim);
+}
+
+.acToolApprovalPanelTitle {
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.acToolApprovalPanelActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.acToolResultViewer {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.acToolResultSummary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.acToolResultOk {
+  color: var(--ac-green);
+  font-weight: 700;
+}
+
+.acToolResultError {
+  color: #f87171;
+  font-weight: 700;
+}
+
+.acToolResultErrorBox {
+  padding: 10px;
+  border-radius: 8px;
+  background: rgba(239, 68, 68, 0.08);
+  color: #fca5a5;
+  font-size: 13px;
+}
+
+.acToolResultOutput {
+  margin: 0;
+  padding: 10px;
+  border-radius: 8px;
+  background: var(--ac-surface-2);
+  font-size: 11px;
+  overflow: auto;
+}
+
+.acToolMockTag {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--ac-accent-dim);
+  color: var(--ac-accent-hover);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}

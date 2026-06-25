@@ -9,6 +9,8 @@ import { RuntimeStateBadge } from '../components/runtime/RuntimeStateBadge'
 import { RuntimeWarnings } from '../components/runtime/RuntimeWarnings'
 import { useRuntime } from '../hooks/useRuntime'
 import { getModelById, getProviderById } from '../domain/runtime/runtimeStorage'
+import { ToolExecutionLog } from '../components/toolExecution'
+import { listToolExecutionsForRun } from '../domain/toolExecution'
 import { resolveEmployee } from '../mission-control/data/conversation'
 import { useI18n } from '../i18n'
 
@@ -19,6 +21,10 @@ export function RuntimeRunPage() {
   const { runs, getRun, approveRun } = useRuntime()
 
   const run = useMemo(() => (id ? getRun(id) : null), [id, runs, getRun])
+  const toolExecutions = useMemo(
+    () => (run ? listToolExecutionsForRun(run.id) : []),
+    [run],
+  )
   const employee = run ? resolveEmployee(run.employeeId) : null
   const model = run ? getModelById(run.modelId) : null
   const provider = run ? getProviderById(run.providerId) : null
@@ -146,6 +152,17 @@ export function RuntimeRunPage() {
         <div className="mcProfilePanelBody">
           <RuntimeContextCard context={run.context} />
         </div>
+      </Panel>
+
+      <Panel title={t.pages.toolExecutions}>
+        <ToolExecutionLog
+          executions={toolExecutions}
+          selectedId={null}
+          onSelect={() => undefined}
+        />
+        <Link to="/ops/tool-executions" className="acLink" style={{ marginTop: 12, display: 'inline-block' }}>
+          {t.pages.toolExecutions}
+        </Link>
       </Panel>
 
       <p className="mcReportPrincipleNote">{t.runtimeOrchestrator.principleNote}</p>

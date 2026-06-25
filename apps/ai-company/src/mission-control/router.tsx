@@ -43,6 +43,7 @@ import { NewChatPage } from '../pages/NewChatPage'
 import { EmployeeCompetenciesPage } from '../pages/EmployeeCompetenciesPage'
 import { EmployeeLearningPage } from '../pages/EmployeeLearningPage'
 import { ExecutionPage } from '../pages/ExecutionPage'
+import { ToolExecutionsPage } from '../pages/ToolExecutionsPage'
 
 function LegacyConversationRedirect() {
   const { id } = useParams<{ id: string }>()
@@ -109,6 +110,7 @@ export function MissionControlRoutes() {
         <Route path="knowledge" element={<KnowledgePage />} />
         <Route path="tools" element={<ToolsCatalogPage />} />
         <Route path="tools/:id" element={<ToolDetailsPage />} />
+        <Route path="tool-executions" element={<ToolExecutionsPage />} />
         <Route path="*" element={<Navigate to="/ops" replace />} />
       </Route>
     </Routes>

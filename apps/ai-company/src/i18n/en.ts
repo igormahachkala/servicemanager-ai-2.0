@@ -85,6 +85,7 @@ export const en = {
     organization: 'Organization',
     tasks: 'Tasks',
     execution: 'Execution Queue',
+    toolExecutions: 'Tool Executions',
     discussions: 'Discussions',
     chats: 'Chats',
     workspaces: 'Workspaces',

@@ -54,6 +54,12 @@ export function ToolDetailsPage() {
         <p className="mcToolDetailsDesc">
           {t.toolRegistry.descriptions[tool.descriptionKey as keyof typeof t.toolRegistry.descriptions]}
         </p>
+        <Link
+          to={`/ops/tool-executions?tool=${encodeURIComponent(tool.id)}`}
+          className="mcBtn mcBtnSecondary"
+        >
+          {t.pages.toolExecutions}
+        </Link>
       </div>
 
       <div className="mcProfileGrid">

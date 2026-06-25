@@ -28,6 +28,12 @@ import {
 } from './runtimeStorage'
 import type { RuntimePipelineStep, RuntimeRunState } from './runtimeState'
 import { mapRuntimeRunToRunHistory, recordRunHistory } from '../run/runStorage'
+import {
+  createToolRequestApproval,
+  submitToolRequestFromRuntime,
+  type ToolExecutionProvider,
+} from '../toolExecution'
+import { registryTools } from '../../mission-control/data/tools'
 
 const STORAGE_KEY = 'ai-company-runtime-runs'
 
@@ -41,6 +47,7 @@ const PIPELINE_STEP_IDS = [
   'load_runtime_profile',
   'run_model_router',
   'approval_check',
+  'tool_gateway',
   'create_run',
   'emit_event',
   'create_report',
@@ -278,6 +285,43 @@ function resolveEmployeeTools(employeeId: string): string[] {
   const custom = resolveCustomEmployee(employeeId)
   if (custom) return custom.tools
   return agents.find((item) => item.id === employeeId)?.tools ?? []
+}
+
+function resolveRegistryToolRef(toolRef: string): (typeof registryTools)[number] | null {
+  return (
+    registryTools.find((item) => item.id === toolRef) ??
+    registryTools.find((item) => item.name.toLowerCase() === toolRef.toLowerCase()) ??
+    null
+  )
+}
+
+function mapRegistryToolProvider(toolId: string): ToolExecutionProvider {
+  switch (toolId) {
+    case 'tool-github':
+      return 'github'
+    case 'tool-docker':
+      return 'docker'
+    case 'tool-filesystem':
+      return 'filesystem'
+    case 'tool-browser':
+      return 'browser'
+    case 'tool-postgresql':
+      return 'postgresql'
+    case 'tool-telegram':
+      return 'telegram'
+    case 'tool-openrouter':
+      return 'openrouter'
+    case 'tool-ollama':
+      return 'ollama'
+    case 'tool-google-drive':
+      return 'google'
+    case 'tool-rest':
+      return 'rest'
+    case 'tool-ssh':
+      return 'ssh'
+    default:
+      return 'mock'
+  }
 }
 
 function resolveEmployeePermissionsSummary(employeeId: string): string {
@@ -581,6 +625,49 @@ export function orchestrateRuntimeRun(request: RuntimeRunRequest): RuntimeRun {
 
   const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
   let status: RuntimeRunState = requiresApproval ? 'waiting_approval' : 'running'
+
+  const primaryToolRef = resolveEmployeeTools(request.employeeId)[0]
+  const registryTool = primaryToolRef ? resolveRegistryToolRef(primaryToolRef) : null
+  if (request.requiresExternalTools && registryTool) {
+    try {
+      const toolExecution = submitToolRequestFromRuntime({
+        employeeId: request.employeeId,
+        toolId: registryTool.id,
+        provider: mapRegistryToolProvider(registryTool.id),
+        action: 'invoke',
+        arguments: {
+          runId,
+          taskId: request.taskId ?? null,
+          chatId: request.chatId ?? null,
+        },
+        approval: createToolRequestApproval(
+          requiresApproval || registryTool.requiresApproval,
+          null,
+        ),
+      })
+      pipeline = updatePipelineStep(
+        pipeline,
+        'tool_gateway',
+        'done',
+        `${toolExecution.status} · ${registryTool.id}`,
+      )
+    } catch (error) {
+      pipeline = updatePipelineStep(
+        pipeline,
+        'tool_gateway',
+        'failed',
+        error instanceof Error ? error.message : 'Tool gateway error',
+      )
+    }
+  } else {
+    pipeline = updatePipelineStep(
+      pipeline,
+      'tool_gateway',
+      'skipped',
+      request.requiresExternalTools ? 'No registered tool' : 'External tools not required',
+    )
+  }
+
   pipeline = updatePipelineStep(pipeline, 'create_run', 'done', runId)
 
   emitEvent({

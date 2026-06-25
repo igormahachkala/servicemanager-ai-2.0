@@ -37,6 +37,9 @@ export function RuntimeSettingsPage() {
           <Link to="/ops/notifications?type=runtime" className="mcBtn mcBtnSecondary">
             {t.notificationEngine.runtimeInbox}
           </Link>
+          <Link to="/ops/tool-executions" className="mcBtn mcBtnSecondary">
+            {t.pages.toolExecutions}
+          </Link>
           <Link to="/ops/employees/ag-max/learning" className="mcBtn mcBtnSecondary">
             {t.learningEngine.teamLearning}
           </Link>

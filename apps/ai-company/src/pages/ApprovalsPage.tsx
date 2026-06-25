@@ -21,6 +21,9 @@ export function ApprovalsPage() {
         <Link to="/ops/audit" className="mcBtn mcBtnSecondary">
           {t.approvalEngine.openAudit}
         </Link>
+        <Link to="/ops/tool-executions" className="mcBtn mcBtnSecondary">
+          {t.pages.toolExecutions}
+        </Link>
       </div>
 
       <ApprovalSummary stats={stats} />

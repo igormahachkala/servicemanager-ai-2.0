@@ -8,6 +8,7 @@ import './styles/navigation.css'
 import './styles/projects.css'
 import './styles/presence.css'
 import './styles/execution.css'
+import './styles/toolExecution.css'
 import './styles.css'
 
 createRoot(document.getElementById('root')!).render(

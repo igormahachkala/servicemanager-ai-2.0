@@ -11,6 +11,7 @@ function resolveCategory(event: CompanyEvent): NotificationCategory {
   const { type, sourceType } = event
 
   if (type.startsWith('approval.')) return 'approval'
+  if (type.startsWith('tool.')) return 'runtime'
   if (type.startsWith('runtime.') || type.startsWith('run.')) return 'runtime'
   if (type.startsWith('report.')) return 'report'
   if (type.startsWith('chat.')) return 'chat'
@@ -98,6 +99,9 @@ function resolveAction(event: CompanyEvent, category: NotificationCategory): Not
         ? { href: `/ops/reports/${encodeURIComponent(event.reportId)}` }
         : { href: '/ops/reports' }
     case 'runtime':
+      if (event.type.startsWith('tool.')) {
+        return { href: `/ops/tool-executions?focus=${encodeURIComponent(sourceId)}` }
+      }
       return { href: `/ops/runtime/runs/${encodeURIComponent(sourceId)}` }
     case 'chat':
     case 'discussion':
