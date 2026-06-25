@@ -1,6 +1,9 @@
 import { Navigate, Route, Routes, useParams } from 'react-router-dom'
 import { MissionControlShell } from './layout/MissionControlShell'
 import { DashboardPage } from './pages/DashboardPage'
+import { CompaniesPage } from '../pages/CompaniesPage'
+import { CompanyPage } from '../pages/CompanyPage'
+import { NewCompanyPage } from '../pages/NewCompanyPage'
 import { OrganizationChartPage } from '../pages/OrganizationChartPage'
 import { DepartmentPage } from '../pages/DepartmentPage'
 import { TeamPage } from '../pages/TeamPage'
@@ -10,6 +13,9 @@ import { EmployeeProfilePage } from './pages/EmployeeProfilePage'
 import { TasksPage } from './pages/TasksPage'
 import { ToolsCatalogPage } from './pages/ToolsCatalogPage'
 import { ToolDetailsPage } from './pages/ToolDetailsPage'
+import { ProjectsPage } from '../pages/ProjectsPage'
+import { NewProjectPage } from '../pages/NewProjectPage'
+import { ProjectPage } from '../pages/ProjectPage'
 import { WorkspacesPage } from './pages/WorkspacesPage'
 import { NewWorkspacePage } from './pages/NewWorkspacePage'
 import { WorkspacePage } from './pages/WorkspacePage'
@@ -51,6 +57,9 @@ export function MissionControlRoutes() {
     <Routes>
       <Route element={<MissionControlShell />}>
         <Route index element={<DashboardPage />} />
+        <Route path="companies" element={<CompaniesPage />} />
+        <Route path="companies/new" element={<NewCompanyPage />} />
+        <Route path="companies/:id" element={<CompanyPage />} />
         <Route path="organization" element={<OrganizationChartPage />} />
         <Route path="organization/departments/:id" element={<DepartmentPage />} />
         <Route path="organization/teams/:id" element={<TeamPage />} />
@@ -79,6 +88,9 @@ export function MissionControlRoutes() {
         <Route path="discussions" element={<Navigate to="/ops/chats" replace />} />
         <Route path="discussions/new" element={<Navigate to="/ops/chats/new" replace />} />
         <Route path="discussions/:id" element={<LegacyDiscussionRedirect />} />
+        <Route path="projects" element={<ProjectsPage />} />
+        <Route path="projects/new" element={<NewProjectPage />} />
+        <Route path="projects/:id" element={<ProjectPage />} />
         <Route path="workspaces" element={<WorkspacesPage />} />
         <Route path="workspaces/new" element={<NewWorkspacePage />} />
         <Route path="workspaces/:id" element={<WorkspacePage />} />

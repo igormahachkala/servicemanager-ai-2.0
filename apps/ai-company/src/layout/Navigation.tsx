@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { to: OPS, key: 'home' as const, icon: '🏠', end: true },
   { to: `${OPS}/chats`, key: 'chats' as const, icon: '💬', end: false },
   { to: `${OPS}/employees`, key: 'employees' as const, icon: '👥', end: false },
+  { to: `${OPS}/projects`, key: 'projects' as const, icon: '🚀', end: false },
   { to: `${OPS}/workspaces`, key: 'workspaces' as const, icon: '🏢', end: false },
   { to: `${OPS}/knowledge`, key: 'knowledge' as const, icon: '📚', end: false },
   { to: `${OPS}/tasks`, key: 'tasks' as const, icon: '📋', end: false },

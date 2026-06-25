@@ -9,8 +9,10 @@ export const ru: Messages = {
     flow: "Flow",
     missionControl: "Mission Control",
     organization: "Организация",
+    companies: "Companies",
     employees: "Сотрудники",
     workspaces: "Рабочие пространства",
+    projects: "Проекты",
     tasks: "Задачи",
     feed: "Лента",
     timeline: "Хронология",
@@ -30,6 +32,7 @@ export const ru: Messages = {
     chats: "Чаты",
     employees: "Сотрудники",
     workspaces: "Рабочие пространства",
+    projects: "Проекты",
     knowledge: "База знаний",
     tasks: "Задачи",
     tools: "Инструменты",
@@ -77,11 +80,13 @@ export const ru: Messages = {
     activity: "Активность",
     toolsRegistry: "Реестр AI-инструментов",
     employees: "Сотрудники",
+    companies: "Companies",
     organization: "Организация",
     tasks: "Задачи",
     discussions: "Обсуждения",
     chats: "Чаты",
     workspaces: "Рабочие пространства",
+    projects: "Проекты",
     reports: "Отчёты",
     runs: "История запусков",
     knowledge: "База знаний",
@@ -156,6 +161,131 @@ export const ru: Messages = {
       Engineering: "Инженерия",
       Leadership: "Лидерство",
       Operations: "Операции"
+    }
+  },
+  companyEngine: {
+    listDescription: "Company is the top-level tenant — security, ownership, and isolation boundary. Projects, departments, workspaces, reports, and audit events belong to a Company. Employees remain platform identities linked via Company Assignment.",
+    newCompany: "New Company",
+    createCompany: "Create Company",
+    openCompany: "Open Company",
+    backToList: "Back to Companies",
+    newDescription: "Register a new company tenant — the root of your multi-organization platform.",
+    newFormTitle: "Company profile",
+    namePlaceholder: "e.g. Acme Retail Group",
+    slugPlaceholder: "auto-generated from name if empty",
+    descriptionPlaceholder: "Mission, scope, and context for this company…",
+    countryPlaceholder: "e.g. RU",
+    noDescription: "Описание не указано.",
+    owner: "Владелец",
+    notFoundTitle: "Company not found",
+    notFoundDescription: "This company does not exist in local storage.",
+    emptyListTitle: "No companies yet",
+    emptyListDescription: "Create the first company to begin multi-tenant organization.",
+    navLabel: "Company sections",
+    fields: {
+      slug: "Slug",
+      description: "Описание",
+      industry: "Industry",
+      country: "Country",
+      timezone: "Timezone",
+      company: "Company"
+    },
+    status: {
+      draft: "Черновик",
+      active: "Активные",
+      suspended: "Suspended",
+      archived: "В архиве"
+    },
+    industry: {
+      technology: "Technology",
+      retail: "Retail",
+      finance: "Финансы",
+      healthcare: "Healthcare",
+      manufacturing: "Manufacturing",
+      other: "Other"
+    },
+    projectStatus: {
+      planning: "Планирование",
+      active: "Активные",
+      on_hold: "On hold",
+      completed: "Завершено",
+      archived: "В архиве"
+    },
+    assignmentStatus: {
+      active: "Активные",
+      paused: "На паузе",
+      ended: "Завершено"
+    },
+    tabs: {
+      overview: "Обзор",
+      projects: "Projects",
+      departments: "Departments",
+      employees: "Сотрудники",
+      statistics: "Statistics",
+      settings: "Настройки",
+      future: "Будущее"
+    },
+    overview: {
+      boundaryTitle: "Isolation boundary",
+      boundaryDesc: "Everything below the platform layer is scoped to this Company. Digital employees keep platform identity and connect through assignments.",
+      pointProjects: "Projects belong to Company",
+      pointDepartments: "Departments belong to Company",
+      pointWorkspaces: "Workspaces belong to Company",
+      pointReports: "Reports belong to Company",
+      pointEmployees: "Employees link via Company Assignment — identity stays platform-wide",
+      branding: "Branding tagline"
+    },
+    stats: {
+      projects: "Projects",
+      projectsShort: "projects",
+      departments: "Departments",
+      workspaces: "Рабочие пространства",
+      employees: "Сотрудники",
+      employeesShort: "employees",
+      reports: "Отчёты",
+      auditEvents: "Audit events",
+      count: "Count",
+      activeSub: "Активные"
+    },
+    projects: {
+      empty: "No projects for this company yet.",
+      footnote: "Projects group workspaces and delivery scope under the Company tenant.",
+      viewWorkspaces: "View workspaces"
+    },
+    departments: {
+      empty: "No departments scoped to this company.",
+      open: "Открыть",
+      viewOrg: "View organization chart"
+    },
+    employees: {
+      empty: "No company assignments yet.",
+      hint: "Platform employees work for this company through Assignment — identity is not transferred.",
+      openProfile: "Profile"
+    },
+    settings: {
+      save: "Save settings",
+      saved: "Saved"
+    },
+    future: {
+      branding: {
+        title: "Branding",
+        desc: "Logo, colors, and white-label portal for this company tenant."
+      },
+      subscription: {
+        title: "Subscription",
+        desc: "Plan, billing, seat limits, and usage quotas per company."
+      },
+      marketplace: {
+        title: "Marketplace",
+        desc: "Install tools, templates, and employee packs scoped to this company."
+      },
+      aiWorkforce: {
+        title: "AI Workforce",
+        desc: "Company-scoped roster policies, hiring workflows, and capacity planning."
+      }
+    },
+    errors: {
+      nameRequired: "Company name is required."
     }
   },
   organizationEngine: {
@@ -452,7 +582,10 @@ export const ru: Messages = {
     actionNewChat: "Новый чат",
     actionNewEmployee: "Новый сотрудник",
     actionTasks: "Задачи",
-    actionFlow: "Flow workspace"
+    actionFlow: "Flow workspace",
+    projectsOverview: "Активные проекты",
+    projectsSub: "delivery entities в реестре",
+    actionNewProject: "Новый проект"
   },
   tasks: {
     description: "Рабочая очередь компании — операционные задачи с исполнителем, приоритетом и SLA.",
@@ -1082,6 +1215,161 @@ export const ru: Messages = {
       nameRequired: "Название workspace обязательно."
     }
   },
+  projects: {
+    listDescription: "Delivery entities, где digital employees строят продукты — Company → Project → Workspace → Assignments → Runtime.",
+    newDescription: "Создайте проект и привяжите к operational workspace.",
+    newProject: "Новый проект",
+    createProject: "Создать проект",
+    openProject: "Открыть проект",
+    backToList: "Назад к проектам",
+    localOnly: "Хранится локально — backend не подключён",
+    noDescription: "Описание не указано.",
+    navLabel: "Разделы проекта",
+    owner: "Владелец",
+    noOwner: "Owner не назначен",
+    ownerPlaceholder: "напр. Igor — product owner",
+    titlePlaceholder: "напр. AI Photo Lab",
+    descriptionPlaceholder: "Цели, scope и контекст delivery для проекта…",
+    workspaceLabel: "Связанный workspace",
+    noWorkspaces: "Сначала создайте workspace",
+    deadline: "Дедлайн",
+    progress: "Прогресс",
+    updated: "Обновлено",
+    emptyListTitle: "Проектов пока нет",
+    emptyListDescription: "Проекты — место, где digital employees доставляют software. Создайте первый.",
+    notFoundTitle: "Проект не найден",
+    notFoundDescription: "Проект отсутствует в local storage или был удалён.",
+    newFormTitle: "Настройка проекта",
+    status: {
+      planning: "Планирование",
+      active: "Активные",
+      on_hold: "На паузе",
+      completed: "Завершено",
+      archived: "В архиве"
+    },
+    priority: {
+      low: "Низкий",
+      medium: "Средний",
+      high: "Высокий",
+      critical: "Критический"
+    },
+    tabs: {
+      overview: "Обзор",
+      team: "Команда",
+      board: "Доска",
+      milestones: "Milestones",
+      roadmap: "Roadmap",
+      timeline: "Хронология",
+      assignments: "Назначения",
+      runtime: "Runtime",
+      reports: "Отчёты",
+      activity: "Активность",
+      chats: "Чаты",
+      knowledge: "База знаний"
+    },
+    dashboard: {
+      health: "Project Health",
+      healthSub: "общий прогресс",
+      sprintProgress: "Sprint Progress",
+      milestonesDone: "milestones выполнено",
+      runtimeQueue: "Runtime Queue",
+      waitingApproval: "ожидают approval",
+      teamActivity: "Team Activity",
+      assignmentsSub: "active workspace assignments",
+      approvals: "Согласования",
+      approvalsSub: "pending decisions",
+      recentDiscussions: "Recent Discussions",
+      risks: "Open Risks",
+      risksSub: "в project register"
+    },
+    team: {
+      title: "Project Team",
+      empty: "Члены команды не назначены.",
+      viewProfile: "Профиль",
+      roles: {
+        lead: "Lead",
+        developer: "Developer",
+        qa: "QA",
+        architect: "Architect",
+        pm: "PM",
+        designer: "Designer",
+        member: "Участник"
+      }
+    },
+    board: {
+      title: "Project Board",
+      description: "Milestone kanban — статус milestone → колонка delivery.",
+      empty: "Пусто",
+      columns: {
+        backlog: "Backlog",
+        in_progress: "In Progress",
+        review: "Blocked",
+        done: "Готово"
+      }
+    },
+    milestones: {
+      title: "Milestones",
+      short: "milestones",
+      empty: "Milestones не определены.",
+      status: {
+        planned: "Планируемые",
+        in_progress: "В процессе",
+        done: "Готово",
+        blocked: "Blocked"
+      }
+    },
+    roadmap: {
+      title: "Roadmap",
+      empty: "Ничего не запланировано",
+      horizons: {
+        now: "Now",
+        next: "Next",
+        later: "Later"
+      }
+    },
+    timeline: {
+      title: "Project Timeline",
+      description: "Даты milestones и recent company events для delivery.",
+      viewCompany: "Company timeline"
+    },
+    reports: {
+      title: "Project Reports",
+      description: "Reports от digital employees — project scope в V2.",
+      empty: "Reports пока нет.",
+      viewAll: "Все reports"
+    },
+    runtime: {
+      title: "Runtime Queue",
+      description: "Runtime runs для workspace {workspace} — company-wide queue в V1.",
+      empty: "Runtime runs пока нет.",
+      viewRuns: "Run history",
+      settings: "Runtime settings"
+    },
+    activity: {
+      title: "Project Activity",
+      description: "Recent company events — project-scoped audit в V2.",
+      empty: "Активности пока нет."
+    },
+    chats: {
+      description: "Project-scoped chats появятся здесь — в V1 используйте global chats.",
+      open: "Открыть чаты"
+    },
+    knowledge: {
+      description: "Knowledge управляется через linked workspace.",
+      openWorkspace: "Открыть рабочее пространство"
+    },
+    future: {
+      label: "Будущее",
+      budget: "Budget",
+      client: "Client",
+      invoices: "Invoices",
+      releases: "Releases"
+    },
+    errors: {
+      titleRequired: "Название проекта обязательно.",
+      workspaceRequired: "Выберите linked workspace."
+    }
+  },
   reports: {
     pageDescription: "Structured reports от digital employees — explainable, reviewable, Owner-facing до Runtime.",
     catalogTitle: "Каталог отчётов",
@@ -1195,7 +1483,9 @@ export const ru: Messages = {
       memory: "Память",
       approval: "Согласование",
       run: "Запуск",
-      system: "Система"
+      system: "Система",
+      company: "Company",
+      project: "Project"
     }
   },
   eventEngine: {

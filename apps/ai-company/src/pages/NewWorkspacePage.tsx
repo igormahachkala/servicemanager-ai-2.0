@@ -7,6 +7,8 @@ import {
   type WorkspaceType,
 } from '../domain/workspaces/workspace'
 import { useWorkspaces } from '../hooks/useWorkspaces'
+import { useCompanies } from '../hooks/useCompanies'
+import { useActiveCompany } from '../hooks/useActiveCompany'
 import { setActiveWorkspaceId } from '../hooks/useActiveWorkspace'
 import { useI18n } from '../i18n'
 
@@ -16,6 +18,9 @@ export function NewWorkspacePage() {
   const { t } = useI18n()
   const navigate = useNavigate()
   const { create } = useWorkspaces()
+  const { companies } = useCompanies()
+  const { activeId: activeCompanyId } = useActiveCompany()
+  const [companyId, setCompanyId] = useState(activeCompanyId ?? companies[0]?.id ?? '')
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [type, setType] = useState<WorkspaceType>('general')
@@ -35,6 +40,7 @@ export function NewWorkspacePage() {
     const workspace = create({
       name: name.trim(),
       description: description.trim(),
+      companyId,
       type,
       owner: owner.trim(),
       status,
@@ -55,6 +61,21 @@ export function NewWorkspacePage() {
       <form onSubmit={handleSubmit} className="mcStack">
         <Panel title={t.workspaces.newFormTitle}>
           <div className="mcFormBody">
+            <label className="mcField">
+              <span className="mcFieldLabel">{t.companyEngine.fields.company}</span>
+              <select
+                className="mcInput"
+                value={companyId}
+                onChange={(event) => setCompanyId(event.target.value)}
+              >
+                {companies.map((company) => (
+                  <option key={company.id} value={company.id}>
+                    {company.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+
             <label className="mcField">
               <span className="mcFieldLabel">{t.labels.name}</span>
               <input

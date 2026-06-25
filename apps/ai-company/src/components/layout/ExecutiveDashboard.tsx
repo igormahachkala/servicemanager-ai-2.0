@@ -9,6 +9,7 @@ import { useReports } from '../../hooks/useReports'
 import { useRuntime } from '../../hooks/useRuntime'
 import { useRuntimeProfiles } from '../../hooks/useRuntimeProfiles'
 import { useActiveWorkspace } from '../../hooks/useActiveWorkspace'
+import { useProjects } from '../../hooks/useProjects'
 import { useWorkspaces } from '../../hooks/useWorkspaces'
 import { useCustomEmployees } from '../../mission-control/hooks/useCustomEmployees'
 import { useI18n } from '../../i18n'
@@ -23,6 +24,7 @@ export function ExecutiveDashboard() {
   const { grouped } = useEvents()
   const { chats } = useChats()
   const { workspaces } = useWorkspaces()
+  const { projects } = useProjects()
   const { activeWorkspace } = useActiveWorkspace()
 
   const alerts = recentAlerts()
@@ -88,6 +90,18 @@ export function ExecutiveDashboard() {
                 </div>
               ))}
             </div>
+          </Card>
+        </div>
+
+        <div className="acDashboardSpan4">
+          <Card title={t.executiveDashboard.projectsOverview}>
+            <div className="acMetricTileValue" style={{ fontSize: 20 }}>
+              {projects.length}
+            </div>
+            <div className="acMetricTileSub">{t.executiveDashboard.projectsSub}</div>
+            <Link to="/ops/projects" className="acLink" style={{ marginTop: 8, display: 'inline-block' }}>
+              {t.executiveDashboard.viewAll}
+            </Link>
           </Card>
         </div>
 
@@ -180,6 +194,9 @@ export function ExecutiveDashboard() {
               </Link>
               <Link to="/ops/employees/new" className="acQuickActionBtn">
                 {t.executiveDashboard.actionNewEmployee}
+              </Link>
+              <Link to="/ops/projects/new" className="acQuickActionBtn">
+                {t.executiveDashboard.actionNewProject}
               </Link>
               <Link to="/ops/tasks" className="acQuickActionBtn">
                 {t.executiveDashboard.actionTasks}

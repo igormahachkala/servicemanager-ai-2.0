@@ -1,3 +1,4 @@
+import { DEFAULT_COMPANY_ID } from '../company/company'
 import { REPORT_STATUSES, REPORT_TYPES } from './reportTypes'
 import type { ReportStatus, ReportType } from './reportTypes'
 import type { Report, ReportEvidence, ReportFilter } from './report'
@@ -61,6 +62,7 @@ function parseReport(value: unknown): Report | null {
 
   return {
     id: value.id,
+    companyId: typeof value.companyId === 'string' ? value.companyId : '',
     title: value.title,
     type,
     employeeId: typeof value.employeeId === 'string' ? value.employeeId : null,
@@ -104,6 +106,9 @@ export function getReportById(id: string): Report | null {
 
 export function filterReports(reports: Report[], filter: ReportFilter): Report[] {
   return reports.filter((report) => {
+    if (filter.companyId && filter.companyId !== 'all' && report.companyId !== filter.companyId) {
+      return false
+    }
     if (filter.type && filter.type !== 'all' && report.type !== filter.type) return false
     if (filter.status && filter.status !== 'all' && report.status !== filter.status) return false
     if (filter.employeeId && filter.employeeId !== 'all' && report.employeeId !== filter.employeeId) {
@@ -132,6 +137,7 @@ export function searchReports(reports: Report[], query: string): Report[] {
   })
 }
 
+
 function daysAgo(days: number): string {
   return new Date(Date.now() - days * 86400000).toISOString()
 }
@@ -142,6 +148,7 @@ export function ensureSeedReports(): void {
   const seeds: Report[] = [
     {
       id: 'report-arch-v1',
+      companyId: DEFAULT_COMPANY_ID,
       title: 'Platform Core Architecture Review',
       type: 'architecture',
       employeeId: 'ag-cto',
@@ -181,6 +188,7 @@ export function ensureSeedReports(): void {
     },
     {
       id: 'report-qa-build',
+      companyId: DEFAULT_COMPANY_ID,
       title: 'V1 Build Verification — ai-company',
       type: 'qa',
       employeeId: 'ag-qa',
@@ -209,6 +217,7 @@ export function ensureSeedReports(): void {
     },
     {
       id: 'report-devops-local',
+      companyId: DEFAULT_COMPANY_ID,
       title: 'Local Dev Environment Health',
       type: 'devops',
       employeeId: 'ag-devops',
@@ -237,6 +246,7 @@ export function ensureSeedReports(): void {
     },
     {
       id: 'report-ops-workspace',
+      companyId: DEFAULT_COMPANY_ID,
       title: 'Workspace Assignment Audit Summary',
       type: 'operations',
       employeeId: null,
@@ -259,6 +269,7 @@ export function ensureSeedReports(): void {
     },
     {
       id: 'report-system-foundation',
+      companyId: DEFAULT_COMPANY_ID,
       title: 'Reports & Audit Foundation V1',
       type: 'system',
       employeeId: null,

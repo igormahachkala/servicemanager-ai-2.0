@@ -5,6 +5,7 @@ import { ensureSeedMemories, getMemoriesByEmployee } from '../memory/memory'
 import { queryKnowledgeForRuntime } from '../knowledge/knowledgeStorage'
 import { loadReports, saveReports } from '../reports/reportStorage'
 import type { Report } from '../reports/report'
+import { DEFAULT_COMPANY_ID } from '../projects/project'
 import { getWorkspaceById } from '../workspaces/workspace'
 import { resolveEmployee } from '../../mission-control/data/conversation'
 import {
@@ -401,6 +402,7 @@ function createRuntimeReport(
   const now = new Date().toISOString()
   const report: Report = {
     id: `report-run-${run.id}`,
+    companyId: DEFAULT_COMPANY_ID,
     title: `Runtime run · ${employeeName}`,
     type: 'system',
     employeeId: run.employeeId,

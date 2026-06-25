@@ -9,6 +9,7 @@ export type ReportEvidence = {
 
 export type Report = {
   id: string
+  companyId: string
   title: string
   type: ReportType
   employeeId: string | null
@@ -24,6 +25,7 @@ export type Report = {
 }
 
 export type ReportFilter = {
+  companyId?: string | 'all'
   type?: ReportType | 'all'
   status?: ReportStatus | 'all'
   employeeId?: string | 'all'

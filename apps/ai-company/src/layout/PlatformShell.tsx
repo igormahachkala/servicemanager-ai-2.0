@@ -4,6 +4,7 @@ import { Sidebar } from './Sidebar'
 import { StatusBar } from './StatusBar'
 import { TopBar } from './TopBar'
 import '../mission-control/styles/mission-control.css'
+import '../mission-control/styles/company.css'
 
 export function PlatformShell() {
   const [sidebarOpen, setSidebarOpen] = useState(false)

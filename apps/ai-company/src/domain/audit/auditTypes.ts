@@ -15,6 +15,8 @@ export const AUDIT_TARGET_TYPES = [
   'approval',
   'run',
   'system',
+  'company',
+  'project',
 ] as const
 
 export type AuditTargetType = (typeof AUDIT_TARGET_TYPES)[number]

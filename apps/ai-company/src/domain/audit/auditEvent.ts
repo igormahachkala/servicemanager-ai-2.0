@@ -4,6 +4,7 @@ export type AuditMetadata = Record<string, string | number | boolean | null>
 
 export type AuditEvent = {
   id: string
+  companyId: string
   actorType: AuditActorType
   actorId: string
   action: AuditAction
@@ -15,6 +16,7 @@ export type AuditEvent = {
 }
 
 export type AuditFilter = {
+  companyId?: string | 'all'
   actorType?: AuditActorType | 'all'
   action?: AuditAction | 'all'
   targetType?: AuditTargetType | 'all'

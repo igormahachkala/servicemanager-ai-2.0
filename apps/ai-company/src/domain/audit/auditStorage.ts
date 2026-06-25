@@ -1,3 +1,4 @@
+import { DEFAULT_COMPANY_ID } from '../company/company'
 import {
   AUDIT_ACTIONS,
   AUDIT_ACTOR_TYPES,
@@ -65,6 +66,7 @@ function parseAuditEvent(value: unknown): AuditEvent | null {
 
   return {
     id: value.id,
+    companyId: typeof value.companyId === 'string' ? value.companyId : '',
     actorType,
     actorId: value.actorId,
     action,
@@ -102,10 +104,15 @@ export function saveAuditEvents(events: AuditEvent[]): void {
 }
 
 export function appendAuditEvent(
-  event: Omit<AuditEvent, 'id' | 'createdAt'> & { id?: string; createdAt?: string },
+  event: Omit<AuditEvent, 'id' | 'createdAt' | 'companyId'> & {
+    id?: string
+    createdAt?: string
+    companyId?: string
+  },
 ): AuditEvent {
   const created: AuditEvent = {
     id: event.id ?? `audit-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    companyId: event.companyId ?? DEFAULT_COMPANY_ID,
     actorType: event.actorType,
     actorId: event.actorId,
     action: event.action,
@@ -121,6 +128,9 @@ export function appendAuditEvent(
 
 export function filterAuditEvents(events: AuditEvent[], filter: AuditFilter): AuditEvent[] {
   return events.filter((event) => {
+    if (filter.companyId && filter.companyId !== 'all' && event.companyId !== filter.companyId) {
+      return false
+    }
     if (filter.actorType && filter.actorType !== 'all' && event.actorType !== filter.actorType) {
       return false
     }
@@ -165,6 +175,7 @@ export function ensureSeedAuditEvents(): void {
   const seeds: AuditEvent[] = [
     {
       id: 'audit-001',
+      companyId: DEFAULT_COMPANY_ID,
       actorType: 'employee',
       actorId: 'ag-cto',
       action: 'review',
@@ -176,6 +187,7 @@ export function ensureSeedAuditEvents(): void {
     },
     {
       id: 'audit-002',
+      companyId: DEFAULT_COMPANY_ID,
       actorType: 'owner',
       actorId: 'owner',
       action: 'create',
@@ -187,6 +199,7 @@ export function ensureSeedAuditEvents(): void {
     },
     {
       id: 'audit-003',
+      companyId: DEFAULT_COMPANY_ID,
       actorType: 'employee',
       actorId: 'ag-max',
       action: 'assign',
@@ -198,6 +211,7 @@ export function ensureSeedAuditEvents(): void {
     },
     {
       id: 'audit-004',
+      companyId: DEFAULT_COMPANY_ID,
       actorType: 'employee',
       actorId: 'ag-cto',
       action: 'invoke',
@@ -209,6 +223,7 @@ export function ensureSeedAuditEvents(): void {
     },
     {
       id: 'audit-005',
+      companyId: DEFAULT_COMPANY_ID,
       actorType: 'system',
       actorId: 'platform',
       action: 'publish',
@@ -220,6 +235,7 @@ export function ensureSeedAuditEvents(): void {
     },
     {
       id: 'audit-006',
+      companyId: DEFAULT_COMPANY_ID,
       actorType: 'employee',
       actorId: 'ag-qa',
       action: 'configure',
@@ -231,6 +247,7 @@ export function ensureSeedAuditEvents(): void {
     },
     {
       id: 'audit-007',
+      companyId: DEFAULT_COMPANY_ID,
       actorType: 'owner',
       actorId: 'owner',
       action: 'approve',
@@ -242,6 +259,7 @@ export function ensureSeedAuditEvents(): void {
     },
     {
       id: 'audit-008',
+      companyId: DEFAULT_COMPANY_ID,
       actorType: 'employee',
       actorId: 'ag-cto',
       action: 'create',
@@ -253,6 +271,7 @@ export function ensureSeedAuditEvents(): void {
     },
     {
       id: 'audit-009',
+      companyId: DEFAULT_COMPANY_ID,
       actorType: 'system',
       actorId: 'platform',
       action: 'create',
@@ -264,6 +283,7 @@ export function ensureSeedAuditEvents(): void {
     },
     {
       id: 'audit-010',
+      companyId: DEFAULT_COMPANY_ID,
       actorType: 'owner',
       actorId: 'owner',
       action: 'review',

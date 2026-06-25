@@ -1,3 +1,4 @@
+import { DEFAULT_COMPANY_ID } from '../company/company'
 import { agents } from '../../mission-control/data/mock'
 import { loadCustomEmployees } from '../../mission-control/data/customEmployees'
 import { resolveEmployee } from '../../mission-control/data/conversation'
@@ -43,6 +44,7 @@ function parseDepartment(value: unknown): Department | null {
   }
   return {
     id: value.id,
+    companyId: typeof value.companyId === 'string' ? value.companyId : '',
     name: value.name,
     description: value.description,
     headEmployeeId: typeof value.headEmployeeId === 'string' ? value.headEmployeeId : null,
@@ -135,48 +137,56 @@ export function ensureSeedOrganization(): OrganizationData {
     departments: [
       {
         id: 'dept-executive',
+        companyId: DEFAULT_COMPANY_ID,
         name: 'Executive',
         description: 'Company leadership — strategy, governance, and Owner alignment.',
         headEmployeeId: 'ag-ceo',
       },
       {
         id: 'dept-engineering',
+        companyId: DEFAULT_COMPANY_ID,
         name: 'Engineering',
         description: 'Product engineering — architecture, development, and platform delivery.',
         headEmployeeId: 'ag-cto',
       },
       {
         id: 'dept-qa',
+        companyId: DEFAULT_COMPANY_ID,
         name: 'Quality Assurance',
         description: 'Quality gates, acceptance criteria, and release verification.',
         headEmployeeId: 'ag-qa',
       },
       {
         id: 'dept-marketing',
+        companyId: DEFAULT_COMPANY_ID,
         name: 'Marketing',
         description: 'Brand, growth, and go-to-market — digital employee-led campaigns.',
         headEmployeeId: null,
       },
       {
         id: 'dept-finance',
+        companyId: DEFAULT_COMPANY_ID,
         name: 'Finance',
         description: 'Financial planning, billing, and cost allocation for AI operations.',
         headEmployeeId: 'ag-cfo',
       },
       {
         id: 'dept-operations',
+        companyId: DEFAULT_COMPANY_ID,
         name: 'Operations & Support',
         description: 'DevOps, internal tooling, and customer support operations.',
         headEmployeeId: 'ag-coo',
       },
       {
         id: 'dept-hr',
+        companyId: DEFAULT_COMPANY_ID,
         name: 'Human Resources',
         description: 'Talent, onboarding, and employee lifecycle for digital workforce.',
         headEmployeeId: null,
       },
       {
         id: 'dept-custom',
+        companyId: DEFAULT_COMPANY_ID,
         name: 'Custom Talent',
         description: 'Owner-created digital employees — belong to company, not Workspace.',
         headEmployeeId: null,

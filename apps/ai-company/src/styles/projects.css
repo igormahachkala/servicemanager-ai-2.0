@@ -1,0 +1,424 @@
+/* Project Delivery Engine — AI Company */
+
+.acProjectPage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ac-space-4);
+}
+
+.acProjectGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: var(--ac-space-4);
+}
+
+.acProjectCard {
+  background: var(--ac-surface);
+  border: 1px solid var(--ac-border);
+  border-radius: var(--ac-radius-lg);
+  padding: var(--ac-space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ac-space-3);
+}
+
+.acProjectCardHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ac-space-3);
+}
+
+.acProjectCardTitle {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.acProjectCardDesc {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ac-text-muted);
+  line-height: 1.45;
+  min-height: 2.9em;
+}
+
+.acProjectCardMeta {
+  font-size: 11px;
+}
+
+.acProjectHeader {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ac-space-3);
+}
+
+.acProjectHeaderTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ac-space-3);
+  flex-wrap: wrap;
+}
+
+.acProjectHeaderBadges {
+  display: flex;
+  gap: var(--ac-space-2);
+  flex-wrap: wrap;
+}
+
+.acProjectTitle {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.acProjectHeaderDesc {
+  margin: 0;
+  color: var(--ac-text-muted);
+  line-height: 1.5;
+}
+
+.acProjectHeaderMeta {
+  font-size: 12px;
+}
+
+.acProjectProgressBar {
+  height: 6px;
+  background: var(--ac-surface-2);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.acProjectProgressBarSmall {
+  height: 4px;
+}
+
+.acProjectProgressFill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--ac-accent), var(--ac-green));
+  border-radius: 999px;
+}
+
+.acProjectStatus,
+.acProjectPriority {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.acProjectStatusPlanning {
+  background: var(--ac-blue-dim);
+  color: var(--ac-blue);
+}
+
+.acProjectStatusActive {
+  background: var(--ac-green-dim);
+  color: var(--ac-green);
+}
+
+.acProjectStatusOn_hold {
+  background: var(--ac-amber-dim);
+  color: var(--ac-amber);
+}
+
+.acProjectStatusCompleted {
+  background: var(--ac-accent-dim);
+  color: var(--ac-accent-hover);
+}
+
+.acProjectStatusArchived {
+  background: var(--ac-surface-2);
+  color: var(--ac-text-muted);
+}
+
+.acProjectPriorityLow {
+  background: var(--ac-surface-2);
+  color: var(--ac-text-muted);
+}
+
+.acProjectPriorityMedium {
+  background: var(--ac-blue-dim);
+  color: var(--ac-blue);
+}
+
+.acProjectPriorityHigh {
+  background: var(--ac-amber-dim);
+  color: var(--ac-amber);
+}
+
+.acProjectPriorityCritical {
+  background: var(--ac-red-dim);
+  color: var(--ac-red);
+}
+
+.acProjectNav {
+  flex-wrap: wrap;
+}
+
+.acProjectOverview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ac-space-4);
+}
+
+.acProjectTeamGrid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ac-space-3);
+}
+
+.acProjectTeamCard {
+  display: grid;
+  grid-template-columns: 40px 1fr auto;
+  align-items: center;
+  gap: var(--ac-space-3);
+  padding: var(--ac-space-3);
+  background: var(--ac-surface-2);
+  border-radius: var(--ac-radius-md);
+}
+
+.acProjectTeamAvatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--ac-accent-dim);
+  color: var(--ac-accent-hover);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+
+.acProjectTeamName {
+  font-weight: 600;
+}
+
+.acProjectBoard {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(160px, 1fr));
+  gap: var(--ac-space-3);
+  overflow-x: auto;
+}
+
+.acProjectBoardColumn {
+  background: var(--ac-surface-2);
+  border-radius: var(--ac-radius-md);
+  padding: var(--ac-space-3);
+  min-height: 180px;
+}
+
+.acProjectBoardColumnHead {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: var(--ac-space-3);
+  color: var(--ac-text-muted);
+}
+
+.acProjectBoardCards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ac-space-2);
+}
+
+.acProjectBoardCard {
+  background: var(--ac-surface);
+  border: 1px solid var(--ac-border);
+  border-radius: var(--ac-radius-sm);
+  padding: var(--ac-space-3);
+}
+
+.acProjectBoardCardTitle {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.acProjectBoardEmpty {
+  font-size: 12px;
+  color: var(--ac-text-subtle);
+}
+
+.acProjectMilestoneList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ac-space-4);
+}
+
+.acProjectMilestoneRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ac-space-2);
+  padding-bottom: var(--ac-space-3);
+  border-bottom: 1px solid var(--ac-border-subtle);
+}
+
+.acProjectMilestoneMain {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.acProjectMilestoneTitle {
+  font-weight: 600;
+}
+
+.acProjectMilestoneMeta {
+  display: flex;
+  gap: var(--ac-space-3);
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.acProjectMilestoneStatus {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.acProjectMilestoneStatusPlanned {
+  background: var(--ac-surface-2);
+  color: var(--ac-text-muted);
+}
+
+.acProjectMilestoneStatusIn_progress {
+  background: var(--ac-blue-dim);
+  color: var(--ac-blue);
+}
+
+.acProjectMilestoneStatusDone {
+  background: var(--ac-green-dim);
+  color: var(--ac-green);
+}
+
+.acProjectMilestoneStatusBlocked {
+  background: var(--ac-red-dim);
+  color: var(--ac-red);
+}
+
+.acProjectRoadmapGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  gap: var(--ac-space-4);
+}
+
+.acProjectRoadmapColumn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ac-space-3);
+}
+
+.acProjectRoadmapHead {
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.acProjectRoadmapCard {
+  background: var(--ac-surface-2);
+  border-radius: var(--ac-radius-md);
+  padding: var(--ac-space-3);
+}
+
+.acProjectRoadmapTitle {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.acProjectTimeline,
+.acProjectActivityList,
+.acProjectReportList,
+.acProjectRuntimeList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ac-space-2);
+}
+
+.acProjectTimelineRow,
+.acProjectActivityRow,
+.acProjectReportRow,
+.acProjectRuntimeRow {
+  display: flex;
+  gap: var(--ac-space-3);
+  align-items: center;
+  padding: var(--ac-space-2) 0;
+  border-bottom: 1px solid var(--ac-border-subtle);
+  font-size: 13px;
+}
+
+.acProjectReportRow,
+.acProjectRuntimeRow {
+  text-decoration: none;
+  color: inherit;
+}
+
+.acProjectReportRow:hover,
+.acProjectRuntimeRow:hover {
+  color: var(--ac-accent-hover);
+}
+
+.acProjectFuturePlaceholders {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ac-space-2);
+  align-items: center;
+  padding: var(--ac-space-3);
+  border: 1px dashed var(--ac-border);
+  border-radius: var(--ac-radius-md);
+}
+
+.acProjectFutureBadge {
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--ac-surface-2);
+  color: var(--ac-text-muted);
+}
+
+.acProjectEmpty {
+  text-align: center;
+  padding: var(--ac-space-8) var(--ac-space-4);
+  border: 1px dashed var(--ac-border);
+  border-radius: var(--ac-radius-lg);
+}
+
+.acProjectEmptyTitle {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: var(--ac-space-2);
+}
+
+.acProjectEmptyDesc {
+  color: var(--ac-text-muted);
+  margin: 0 0 var(--ac-space-4);
+}
+
+.acProjectEmptyHint {
+  display: block;
+  margin-top: var(--ac-space-4);
+  font-size: 11px;
+  color: var(--ac-text-subtle);
+}
+
+.acProjectPlaceholder {
+  padding: var(--ac-space-6);
+  border: 1px dashed var(--ac-border);
+  border-radius: var(--ac-radius-lg);
+  color: var(--ac-text-muted);
+}
+
+@media (max-width: 900px) {
+  .acProjectBoard {
+    grid-template-columns: repeat(2, minmax(140px, 1fr));
+  }
+
+  .acProjectRoadmapGrid {
+    grid-template-columns: 1fr;
+  }
+}

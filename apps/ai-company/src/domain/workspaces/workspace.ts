@@ -4,6 +4,7 @@ export type WorkspaceType = 'general' | 'product' | 'engineering' | 'operations'
 
 export type Workspace = {
   id: string
+  companyId: string
   name: string
   description: string
   type: WorkspaceType
@@ -16,6 +17,7 @@ export type Workspace = {
 export type CreateWorkspaceInput = {
   name: string
   description: string
+  companyId?: string
   type?: WorkspaceType
   status?: WorkspaceStatus
   owner?: string
@@ -65,6 +67,7 @@ function parseWorkspace(value: unknown): Workspace | null {
 
   return {
     id: value.id,
+    companyId: typeof value.companyId === 'string' ? value.companyId : '',
     name: value.name,
     description: value.description,
     type: parseWorkspaceType(value.type),
@@ -105,6 +108,7 @@ export function createWorkspace(input: CreateWorkspaceInput): Workspace {
   const now = new Date().toISOString()
   const workspace: Workspace = {
     id: `workspace-${Date.now()}`,
+    companyId: (input.companyId ?? '').trim(),
     name: input.name.trim(),
     description: input.description.trim(),
     type: input.type ?? 'general',
@@ -120,7 +124,7 @@ export function createWorkspace(input: CreateWorkspaceInput): Workspace {
 
 export function updateWorkspace(
   id: string,
-  patch: Partial<Pick<Workspace, 'name' | 'description' | 'type' | 'status' | 'owner'>>,
+  patch: Partial<Pick<Workspace, 'name' | 'description' | 'type' | 'status' | 'owner' | 'companyId'>>,
 ): Workspace | null {
   const workspaces = loadWorkspaces()
   const index = workspaces.findIndex((item) => item.id === id)
@@ -135,6 +139,7 @@ export function updateWorkspace(
     type: patch.type ?? current.type,
     status: patch.status ?? current.status,
     owner: patch.owner !== undefined ? patch.owner.trim() : current.owner,
+    companyId: patch.companyId !== undefined ? patch.companyId.trim() : current.companyId,
     updatedAt: now,
   }
 
