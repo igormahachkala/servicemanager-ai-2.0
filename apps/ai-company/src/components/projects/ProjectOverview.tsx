@@ -1,3 +1,4 @@
+import { AI_PHOTO_LAB_CHAT_ID } from '../../domain/projects'
 import { Link } from 'react-router-dom'
 import { Badge, Card } from '../layout'
 import type { Project } from '../../domain/projects'
@@ -26,6 +27,9 @@ export function ProjectOverview({ project }: { project: Project }) {
       : project.progress
 
   const recentChats = [...chats]
+    .filter(
+      (chat) => chat.workspaceId === project.workspaceId || chat.id === AI_PHOTO_LAB_CHAT_ID,
+    )
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
     .slice(0, 3)
 

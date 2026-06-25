@@ -38,6 +38,7 @@ export const en = {
     timeline: 'Timeline',
     approvals: 'Approvals',
     settings: 'Settings',
+    presence: 'Presence',
   },
   labels: {
     active: 'Active',
@@ -91,6 +92,7 @@ export const en = {
     audit: 'Audit',
     runtimeSettings: 'Runtime Settings',
     approvals: 'Approvals',
+    presence: 'Presence',
   },
   agentStatus: {
     online: 'online',
@@ -596,6 +598,9 @@ export const en = {
     projectsOverview: 'Active Projects',
     projectsSub: 'delivery entities in registry',
     actionNewProject: 'New project',
+    presenceOverview: 'Team Presence',
+    presenceSub: '{working} working · {waiting} waiting',
+    actionOpenPresence: 'Open presence',
   },
   tasks: {
     description: 'Company work queue — operational tasks with assignee, priority, and SLA.',
@@ -1277,6 +1282,7 @@ export const en = {
     tabs: {
       overview: 'Overview',
       team: 'Team',
+      tasks: 'Tasks',
       board: 'Board',
       milestones: 'Milestones',
       roadmap: 'Roadmap',
@@ -1319,7 +1325,7 @@ export const en = {
     },
     board: {
       title: 'Project Board',
-      description: 'Milestone-driven kanban — maps milestone status to delivery columns.',
+      description: 'Delivery task kanban — backlog, in progress, review, and done.',
       empty: 'Empty',
       columns: {
         backlog: 'Backlog',
@@ -1372,12 +1378,36 @@ export const en = {
       empty: 'No activity yet.',
     },
     chats: {
-      description: 'Project-scoped chats will appear here — use global chats in V1.',
+      title: 'Project Chats',
+      description: 'Delivery discussions for this project — including #ai-photo-lab-delivery.',
+      empty: 'No project chats yet.',
+      messages: 'messages',
       open: 'Open chats',
     },
     knowledge: {
-      description: 'Knowledge is managed through the linked workspace.',
+      title: 'Project Knowledge',
+      description: 'Knowledge base entries scoped to the linked workspace.',
+      empty: 'No knowledge entries for this workspace yet.',
       openWorkspace: 'Open workspace',
+    },
+    tasks: {
+      title: 'Delivery Tasks',
+      description: 'Assigned work items with priority, status, and expected output.',
+      empty: 'No delivery tasks yet.',
+      expectedOutput: 'Expected output',
+    },
+    taskStatus: {
+      backlog: 'Backlog',
+      in_progress: 'In progress',
+      review: 'Review',
+      done: 'Done',
+      blocked: 'Blocked',
+    },
+    taskPriority: {
+      low: 'Low',
+      medium: 'Medium',
+      high: 'High',
+      critical: 'Critical',
     },
     future: {
       label: 'Future',
@@ -1389,6 +1419,65 @@ export const en = {
     errors: {
       titleRequired: 'Project title is required.',
       workspaceRequired: 'Select a linked workspace.',
+    },
+  },
+  presence: {
+    pageDescription:
+      'Operational workday layer — who is working, waiting, in discussion, or needs Owner attention. Mock engine only, no Runtime execution.',
+    localOnly: 'Derived locally from tasks, runtime queue, chats, projects, and approvals — no live execution.',
+    since: 'Since',
+    expected: 'ETA',
+    status: {
+      offline: 'Offline',
+      available: 'Available',
+      busy: 'Busy',
+      in_discussion: 'In Discussion',
+      working: 'Working',
+      waiting_approval: 'Waiting Approval',
+      reviewing: 'Reviewing',
+      learning: 'Learning',
+      break: 'Break',
+    },
+    dashboard: {
+      nowWorking: 'Now Working',
+      waiting: 'Waiting',
+      needsAttention: 'Needs Attention',
+      available: 'Available',
+      recentlyFinished: 'Recently Finished',
+      todaysActivity: "Today's Activity",
+      currentAssignment: 'Current Assignment',
+      recentReports: 'Recent Reports',
+      noWorking: 'No employees are actively working right now.',
+      noWaiting: 'Nobody is waiting for approval.',
+      noFinished: 'No completed work blocks recorded today.',
+      noAssignments: 'No active workspace assignments.',
+      noReports: 'No recent reports.',
+    },
+    currentWork: {
+      title: 'Current Work',
+      offline: 'Employee is offline or not activated.',
+      project: 'Project',
+      workspace: 'Workspace',
+      task: 'Task',
+      run: 'Runtime run',
+      started: 'Started',
+      expectedFinish: 'Expected finish',
+    },
+    workday: {
+      empty: 'No workday events yet.',
+    },
+    workdayTypes: {
+      work_started: 'Started',
+      work_finished: 'Finished',
+      discussion: 'Discussion',
+      approval_wait: 'Approval',
+      review: 'Review',
+      learning: 'Learning',
+      break: 'Break',
+    },
+    timeline: {
+      title: 'Workday Timeline',
+      description: 'Today’s digital employee activity derived from presence transitions.',
     },
   },
   reports: {
@@ -2109,6 +2198,7 @@ export const en = {
       assignments: 'Assignments',
       activity: 'Activity',
       runtime: 'Runtime',
+      presence: 'Presence',
     },
     assignments: {
       emptyTitle: 'No workspace assignments',

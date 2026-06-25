@@ -5,11 +5,14 @@ import {
   Milestones,
   ProjectActivity,
   ProjectBoard,
+  ProjectChats,
   ProjectEmptyState,
   ProjectHeader,
+  ProjectKnowledge,
   ProjectOverview,
   ProjectReports,
   ProjectRuntime,
+  ProjectTasks,
   ProjectTeam,
   ProjectTimeline,
   Roadmap,
@@ -21,6 +24,7 @@ import { useI18n } from '../i18n'
 type ProjectSection =
   | 'overview'
   | 'team'
+  | 'tasks'
   | 'board'
   | 'milestones'
   | 'roadmap'
@@ -46,6 +50,7 @@ export function ProjectPage() {
   const sections: ProjectSection[] = [
     'overview',
     'team',
+    'tasks',
     'board',
     'milestones',
     'roadmap',
@@ -95,6 +100,7 @@ export function ProjectPage() {
       <div className="mcProfileContent">
         {section === 'overview' ? <ProjectOverview project={project} /> : null}
         {section === 'team' ? <ProjectTeam project={project} /> : null}
+        {section === 'tasks' ? <ProjectTasks project={project} /> : null}
         {section === 'board' ? <ProjectBoard project={project} /> : null}
         {section === 'milestones' ? <Milestones project={project} /> : null}
         {section === 'roadmap' ? <Roadmap project={project} /> : null}
@@ -105,25 +111,8 @@ export function ProjectPage() {
         {section === 'runtime' ? <ProjectRuntime project={project} /> : null}
         {section === 'reports' ? <ProjectReports project={project} /> : null}
         {section === 'activity' ? <ProjectActivity project={project} /> : null}
-        {section === 'chats' ? (
-          <div className="acProjectPlaceholder">
-            <p>{t.projects.chats.description}</p>
-            <Link to="/ops/chats" className="mcBtn mcBtnSecondary mcBtnSmall">
-              {t.projects.chats.open}
-            </Link>
-          </div>
-        ) : null}
-        {section === 'knowledge' ? (
-          <div className="acProjectPlaceholder">
-            <p>{t.projects.knowledge.description}</p>
-            <Link
-              to={`/ops/workspaces/${encodeURIComponent(project.workspaceId)}`}
-              className="mcBtn mcBtnSecondary mcBtnSmall"
-            >
-              {t.projects.knowledge.openWorkspace}
-            </Link>
-          </div>
-        ) : null}
+        {section === 'chats' ? <ProjectChats project={project} /> : null}
+        {section === 'knowledge' ? <ProjectKnowledge project={project} /> : null}
       </div>
     </div>
   )

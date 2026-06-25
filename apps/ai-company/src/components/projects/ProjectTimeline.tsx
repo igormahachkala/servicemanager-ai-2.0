@@ -5,19 +5,23 @@ import { useEvents } from '../../hooks/useEvents'
 import { useI18n } from '../../i18n'
 import { formatFeedTime } from '../../mission-control/components/ui'
 
+function eventLabel(event: ReturnType<typeof useEvents>['grouped'][number]['events'][number]): string {
+  if (typeof event.metadata.message === 'string') return event.metadata.message
+  if (typeof event.metadata.title === 'string') return event.metadata.title
+  if (typeof event.metadata.preview === 'string') return event.metadata.preview
+  return event.type
+}
+
 export function ProjectTimeline({ project }: { project: Project }) {
   const { t } = useI18n()
-  const { grouped } = useEvents()
+  const { grouped } = useEvents({ scope: 'workspace', scopeId: project.workspaceId })
 
-  const events = grouped
-    .flatMap((group) => group.events)
-    .slice(0, 12)
+  const events = grouped.flatMap((group) => group.events).slice(0, 12)
 
   const milestoneEvents = project.milestones.map((item) => ({
     id: item.id,
     at: item.dueDate ?? project.updatedAt,
     label: `${item.title} — ${item.progress}%`,
-    kind: item.status === 'done' ? 'success' : 'default',
   }))
 
   return (
@@ -32,14 +36,10 @@ export function ProjectTimeline({ project }: { project: Project }) {
             <span>{item.label}</span>
           </div>
         ))}
-        {events.slice(0, 5).map((event) => (
+        {events.map((event) => (
           <div key={event.id} className="acProjectTimelineRow">
             <span className="acMono acMuted">{formatFeedTime(event.createdAt)}</span>
-            <span>
-              {typeof event.metadata.message === 'string'
-                ? event.metadata.message
-                : event.type}
-            </span>
+            <span>{eventLabel(event)}</span>
           </div>
         ))}
       </div>

@@ -39,7 +39,8 @@ export const ru: Messages = {
     reports: "Отчёты",
     timeline: "Хронология",
     approvals: "Согласования",
-    settings: "Настройки"
+    settings: "Настройки",
+    presence: "Присутствие"
   },
   labels: {
     active: "Активные",
@@ -92,7 +93,8 @@ export const ru: Messages = {
     knowledge: "База знаний",
     audit: "Аудит",
     runtimeSettings: "Настройки Runtime",
-    approvals: "Согласования"
+    approvals: "Согласования",
+    presence: "Присутствие"
   },
   agentStatus: {
     online: "онлайн",
@@ -585,7 +587,10 @@ export const ru: Messages = {
     actionFlow: "Flow workspace",
     projectsOverview: "Активные проекты",
     projectsSub: "delivery entities в реестре",
-    actionNewProject: "Новый проект"
+    actionNewProject: "Новый проект",
+    presenceOverview: "Присутствие команды",
+    presenceSub: "{working} работают · {waiting} ждут",
+    actionOpenPresence: "Открыть presence"
   },
   tasks: {
     description: "Рабочая очередь компании — операционные задачи с исполнителем, приоритетом и SLA.",
@@ -1256,6 +1261,7 @@ export const ru: Messages = {
     tabs: {
       overview: "Обзор",
       team: "Команда",
+      tasks: "Задачи",
       board: "Доска",
       milestones: "Milestones",
       roadmap: "Roadmap",
@@ -1298,7 +1304,7 @@ export const ru: Messages = {
     },
     board: {
       title: "Project Board",
-      description: "Milestone kanban — статус milestone → колонка delivery.",
+      description: "Delivery task kanban — backlog, in progress, review, done.",
       empty: "Пусто",
       columns: {
         backlog: "Backlog",
@@ -1351,12 +1357,36 @@ export const ru: Messages = {
       empty: "Активности пока нет."
     },
     chats: {
-      description: "Project-scoped chats появятся здесь — в V1 используйте global chats.",
+      title: "Project Chats",
+      description: "Delivery discussions — включая #ai-photo-lab-delivery.",
+      empty: "Project chats пока нет.",
+      messages: "сообщений",
       open: "Открыть чаты"
     },
     knowledge: {
-      description: "Knowledge управляется через linked workspace.",
+      title: "Project Knowledge",
+      description: "Knowledge entries для linked workspace.",
+      empty: "Knowledge entries для workspace пока нет.",
       openWorkspace: "Открыть рабочее пространство"
+    },
+    tasks: {
+      title: "Delivery Tasks",
+      description: "Назначенные задачи с priority, status и expected output.",
+      empty: "Delivery tasks пока нет.",
+      expectedOutput: "Expected output"
+    },
+    taskStatus: {
+      backlog: "Backlog",
+      in_progress: "In progress",
+      review: "Review",
+      done: "Done",
+      blocked: "Blocked"
+    },
+    taskPriority: {
+      low: "Low",
+      medium: "Medium",
+      high: "High",
+      critical: "Critical"
     },
     future: {
       label: "Будущее",
@@ -1368,6 +1398,65 @@ export const ru: Messages = {
     errors: {
       titleRequired: "Название проекта обязательно.",
       workspaceRequired: "Выберите linked workspace."
+    }
+  },
+  presence: {
+    pageDescription:
+      "Operational workday layer — кто работает, ждёт, в discussion или требует внимания Owner. Mock engine, без Runtime execution.",
+    localOnly: "Вычисляется локально из tasks, runtime queue, chats, projects и approvals.",
+    since: "С",
+    expected: "ETA",
+    status: {
+      offline: "Offline",
+      available: "Available",
+      busy: "Busy",
+      in_discussion: "In Discussion",
+      working: "Working",
+      waiting_approval: "Waiting Approval",
+      reviewing: "Reviewing",
+      learning: "Learning",
+      break: "Break"
+    },
+    dashboard: {
+      nowWorking: "Now Working",
+      waiting: "Waiting",
+      needsAttention: "Needs Attention",
+      available: "Available",
+      recentlyFinished: "Recently Finished",
+      todaysActivity: "Today's Activity",
+      currentAssignment: "Current Assignment",
+      recentReports: "Recent Reports",
+      noWorking: "Сейчас никто активно не работает.",
+      noWaiting: "Никто не ждёт approval.",
+      noFinished: "Завершённых work blocks сегодня нет.",
+      noAssignments: "Active workspace assignments нет.",
+      noReports: "Recent reports нет."
+    },
+    currentWork: {
+      title: "Current Work",
+      offline: "Employee offline или не активирован.",
+      project: "Project",
+      workspace: "Workspace",
+      task: "Task",
+      run: "Runtime run",
+      started: "Started",
+      expectedFinish: "Expected finish"
+    },
+    workday: {
+      empty: "Workday events пока нет."
+    },
+    workdayTypes: {
+      work_started: "Started",
+      work_finished: "Finished",
+      discussion: "Discussion",
+      approval_wait: "Approval",
+      review: "Review",
+      learning: "Learning",
+      break: "Break"
+    },
+    timeline: {
+      title: "Workday Timeline",
+      description: "Сегодняшняя активность digital employees из presence transitions."
     }
   },
   reports: {
@@ -2066,7 +2155,8 @@ export const ru: Messages = {
       relationships: "Связи",
       assignments: "Назначения",
       activity: "Активность",
-      runtime: "Runtime"
+      runtime: "Runtime",
+      presence: "Presence"
     },
     assignments: {
       emptyTitle: "Нет workspace assignments",

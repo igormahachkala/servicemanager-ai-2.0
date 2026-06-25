@@ -9,7 +9,7 @@ export function ProjectRuntime({ project }: { project: Project }) {
   const { t } = useI18n()
   const { runs } = useRuntime()
 
-  const queue = runs.slice(0, 8)
+  const queue = runs.filter((run) => run.workspaceId === project.workspaceId).slice(0, 8)
 
   return (
     <Panel title={t.projects.runtime.title}>
@@ -26,7 +26,7 @@ export function ProjectRuntime({ project }: { project: Project }) {
               to={`/ops/runtime/runs/${encodeURIComponent(run.id)}`}
               className="acProjectRuntimeRow"
             >
-              <span className="acMono">{run.id.slice(0, 12)}</span>
+              <span className="acMono">{run.id.slice(0, 20)}</span>
               <RuntimeStateBadge state={run.status} />
             </Link>
           ))}

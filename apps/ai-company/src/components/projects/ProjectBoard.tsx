@@ -1,24 +1,23 @@
 import { Panel } from '../../mission-control/components/ui'
 import type { Project } from '../../domain/projects'
+import { useProjectTasks } from '../../hooks/useProjectTasks'
 import { useI18n } from '../../i18n'
 
 const BOARD_COLUMNS = ['backlog', 'in_progress', 'review', 'done'] as const
 
+const STATUS_MAP: Record<(typeof BOARD_COLUMNS)[number], string[]> = {
+  backlog: ['backlog'],
+  in_progress: ['in_progress'],
+  review: ['review', 'blocked'],
+  done: ['done'],
+}
+
 export function ProjectBoard({ project }: { project: Project }) {
   const { t } = useI18n()
+  const { tasks } = useProjectTasks(project.id)
 
-  const itemsByColumn = (column: (typeof BOARD_COLUMNS)[number]) => {
-    if (column === 'backlog') {
-      return project.milestones.filter((item) => item.status === 'planned')
-    }
-    if (column === 'in_progress') {
-      return project.milestones.filter((item) => item.status === 'in_progress')
-    }
-    if (column === 'review') {
-      return project.milestones.filter((item) => item.status === 'blocked')
-    }
-    return project.milestones.filter((item) => item.status === 'done')
-  }
+  const itemsByColumn = (column: (typeof BOARD_COLUMNS)[number]) =>
+    tasks.filter((item) => STATUS_MAP[column].includes(item.status))
 
   return (
     <Panel title={t.projects.board.title}>
@@ -37,7 +36,7 @@ export function ProjectBoard({ project }: { project: Project }) {
                   <div key={item.id} className="acProjectBoardCard">
                     <div className="acProjectBoardCardTitle">{item.title}</div>
                     <div className="acMuted" style={{ fontSize: 12 }}>
-                      {item.progress}%
+                      {t.projects.taskPriority[item.priority]} · {item.id}
                     </div>
                   </div>
                 ))
