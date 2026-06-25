@@ -15,6 +15,7 @@ function resolveCategory(event: CompanyEvent): NotificationCategory {
   if (type.startsWith('runtime.') || type.startsWith('run.')) return 'runtime'
   if (type.startsWith('report.')) return 'report'
   if (type.startsWith('chat.')) return 'chat'
+  if (type.startsWith('collaboration.')) return 'discussion'
   if (type.startsWith('conversation.')) return 'discussion'
   if (type.startsWith('knowledge.')) return 'knowledge'
   if (type.startsWith('task.')) return 'task'
@@ -36,6 +37,7 @@ function mapSourceToCategory(sourceType: EventSourceType): NotificationCategory 
     case 'chat':
       return 'chat'
     case 'conversation':
+    case 'collaboration':
       return 'discussion'
     case 'knowledge':
     case 'memory':
@@ -104,7 +106,11 @@ function resolveAction(event: CompanyEvent, category: NotificationCategory): Not
       }
       return { href: `/ops/runtime/runs/${encodeURIComponent(sourceId)}` }
     case 'chat':
+      return { href: `/ops/chats/${encodeURIComponent(sourceId)}` }
     case 'discussion':
+      if (event.type.startsWith('collaboration.')) {
+        return { href: `/ops/collaboration/${encodeURIComponent(sourceId)}` }
+      }
       return { href: `/ops/chats/${encodeURIComponent(sourceId)}` }
     case 'employee':
       return event.employeeId

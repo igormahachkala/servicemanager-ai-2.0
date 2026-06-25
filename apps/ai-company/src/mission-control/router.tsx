@@ -42,6 +42,7 @@ import { ChatPage } from '../pages/ChatPage'
 import { NewChatPage } from '../pages/NewChatPage'
 import { EmployeeCompetenciesPage } from '../pages/EmployeeCompetenciesPage'
 import { EmployeeLearningPage } from '../pages/EmployeeLearningPage'
+import { CollaborationPage } from '../pages/CollaborationPage'
 import { ExecutionPage } from '../pages/ExecutionPage'
 import { ToolExecutionsPage } from '../pages/ToolExecutionsPage'
 
@@ -95,6 +96,8 @@ export function MissionControlRoutes() {
         <Route path="chats" element={<ChatsPage />} />
         <Route path="chats/new" element={<NewChatPage />} />
         <Route path="chats/:id" element={<ChatPage />} />
+        <Route path="collaboration" element={<CollaborationPage />} />
+        <Route path="collaboration/:id" element={<CollaborationPage />} />
         <Route path="discussions" element={<Navigate to="/ops/chats" replace />} />
         <Route path="discussions/new" element={<Navigate to="/ops/chats/new" replace />} />
         <Route path="discussions/:id" element={<LegacyDiscussionRedirect />} />

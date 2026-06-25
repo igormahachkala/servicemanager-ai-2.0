@@ -11,6 +11,7 @@ export const EVENT_SOURCE_TYPES = [
   'task',
   'runtime',
   'run',
+  'collaboration',
   'system',
   'owner',
 ] as const

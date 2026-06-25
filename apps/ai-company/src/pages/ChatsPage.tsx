@@ -16,6 +16,9 @@ export function ChatsPage() {
         <Link to="/ops/notifications?type=chat" className="mcBtn mcBtnSecondary">
           {t.notificationEngine.chatInbox}
         </Link>
+        <Link to="/ops/collaboration" className="mcBtn mcBtnSecondary">
+          {t.pages.collaboration}
+        </Link>
         <Link to="/ops/chats/new" className="mcBtn mcBtnPrimary">
           {t.chats.newChat}
         </Link>

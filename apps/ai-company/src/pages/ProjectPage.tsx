@@ -83,6 +83,14 @@ export function ProjectPage() {
   return (
     <div className="acProjectPage">
       <ProjectHeader project={project} />
+      <div className="mcPageHeaderRow" style={{ marginBottom: 12 }}>
+        <Link
+          to={`/ops/collaboration?project=${encodeURIComponent(project.id)}`}
+          className="mcBtn mcBtnSecondary mcBtnSmall"
+        >
+          {t.collaborationEngine.openProjectCollaborations}
+        </Link>
+      </div>
 
       <nav className="mcProfileNav acProjectNav" aria-label={t.projects.navLabel}>
         {sections.map((key) => (

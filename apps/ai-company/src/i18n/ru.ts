@@ -90,6 +90,7 @@ export const ru: Messages = {
     toolExecutions: "Вызовы инструментов",
     discussions: "Обсуждения",
     chats: "Чаты",
+    collaboration: "Collaboration",
     workspaces: "Рабочие пространства",
     projects: "Проекты",
     reports: "Отчёты",
@@ -1688,7 +1689,11 @@ export const ru: Messages = {
       "task.created": "Задача создана",
       "task.completed": "Задача завершена",
       "runtime.started": "Runtime Started",
-      "run.completed": "Запуск завершён"
+      "run.completed": "Запуск завершён",
+      "collaboration.started": "Collaboration Started",
+      "collaboration.message": "Collaboration Message",
+      "collaboration.consensus": "Collaboration Consensus",
+      "collaboration.completed": "Collaboration Completed"
     }
   },
   runEngine: {
@@ -1975,6 +1980,25 @@ export const ru: Messages = {
       conversation: "Беседа",
       embedding: "Эмбеддинг",
       vision: "Видение"
+    }
+  },
+  runtimeProviders: {
+    healthPanelTitle: "Runtime provider adapter",
+    healthPanelDescription: "Слой execution adapter — orchestrator вызывает только active provider. Model Router по-прежнему выбирает catalog model metadata.",
+    currentProvider: "Active adapter",
+    providerStatus: "Статус provider",
+    lastCheck: "Последняя health check",
+    refreshHealth: "Обновить health",
+    switchProvider: "Переключить execution provider",
+    capabilities: {
+      embeddings: "Эмбеддинги"
+    },
+    healthStatuses: {
+      healthy: "Исправен",
+      degraded: "Деградация",
+      unavailable: "Unavailable",
+      mock: "Mock",
+      unknown: "Unknown"
     }
   },
   runtimeOrchestrator: {
@@ -2334,6 +2358,88 @@ export const ru: Messages = {
       skills: "No skill progress tracked yet.",
       growthChart: "Skill growth history will appear after learning sessions.",
       sessions: "No learning sessions recorded yet."
+    }
+  },
+  collaborationEngine: {
+    title: "Collaboration",
+    pageDescription: "Multi-agent collaboration — digital employees discuss work, propose decisions, and reach consensus without Owner intervention.",
+    backToList: "Back to Collaboration",
+    catalogTitle: "Collaboration Sessions",
+    sessionCount: "sessions",
+    searchLabel: "Поиск",
+    searchPlaceholder: "Search sessions, goals, participants…",
+    observerNote: "Owner can observe this discussion — employees coordinate autonomously.",
+    localOnly: "Stored in localStorage — mock multi-agent thread in V1; future Runtime will emit real LLM messages.",
+    futureNote: "Future: Runtime messages and real LLM collaboration between digital employees.",
+    timelinePreview: "Recent Collaborations",
+    openProjectCollaborations: "Project Collaborations",
+    participants: "Участники",
+    messages: "Сообщения",
+    approvals: "approvals",
+    votes: "votes",
+    finalDecision: "Final Decision",
+    viewConsensus: "View consensus",
+    inReplyTo: "In reply to",
+    sections: {
+      timeline: "Session Timeline",
+      conversation: "Agent Conversation",
+      decisions: "Intermediate Decisions",
+      consensus: "Final Consensus",
+      graph: "Discussion Graph",
+      artifacts: "Артефакты",
+      participants: "Участники"
+    },
+    stats: {
+      total: "Total sessions",
+      active: "Активные",
+      consensus: "At consensus",
+      participants: "Unique agents"
+    },
+    filters: {
+      status: "Статус"
+    },
+    status: {
+      started: "Начало",
+      discussing: "Discussing",
+      research: "Исследование",
+      review: "Проверка",
+      consensus: "Consensus",
+      completed: "Завершено"
+    },
+    messageKinds: {
+      question: "Question",
+      answer: "Answer",
+      comment: "Комментарий",
+      issue: "Issue",
+      suggestion: "Suggestion",
+      consensus: "Consensus"
+    },
+    decisionStatus: {
+      proposed: "Proposed",
+      accepted: "Accepted",
+      rejected: "Отклонено",
+      superseded: "Superseded",
+      final: "Final"
+    },
+    vote: {
+      approve: "Одобрить",
+      reject: "Отклонить",
+      abstain: "Abstain"
+    },
+    artifactKinds: {
+      report: "Отчёт",
+      knowledge: "База знаний",
+      runtime: "Runtime",
+      project: "Project",
+      decision: "Решение"
+    },
+    empty: {
+      sessions: "No collaboration sessions match the current filters.",
+      messages: "No agent messages recorded yet.",
+      decisions: "No intermediate decisions yet.",
+      consensus: "Consensus has not been reached yet.",
+      graph: "Reply edges will appear once agents respond to each other.",
+      artifacts: "No linked artifacts yet."
     }
   },
   employeeProfile: {

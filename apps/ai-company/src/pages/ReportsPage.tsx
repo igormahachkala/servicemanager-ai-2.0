@@ -27,6 +27,9 @@ export function ReportsPage() {
         <Link to="/ops/employees/ag-max/learning" className="mcBtn mcBtnSecondary">
           {t.learningEngine.teamLearning}
         </Link>
+        <Link to="/ops/collaboration" className="mcBtn mcBtnSecondary">
+          {t.pages.collaboration}
+        </Link>
         <Link to="/ops/audit" className="mcBtn mcBtnSecondary">
           {t.pages.audit}
         </Link>

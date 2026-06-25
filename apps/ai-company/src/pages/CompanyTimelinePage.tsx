@@ -5,6 +5,7 @@ import { EventSummary } from '../components/events/EventSummary'
 import { Timeline } from '../components/events/Timeline'
 import { WorkdayTimeline } from '../components/presence'
 import { ToolExecutionLog } from '../components/toolExecution'
+import { getRecentCollaborationSessions } from '../domain/collaboration/collaborationStorage'
 import { listToolExecutions } from '../domain/toolExecution'
 import { useEvents } from '../hooks/useEvents'
 import { usePresence } from '../hooks/usePresence'
@@ -16,6 +17,7 @@ export function CompanyTimelinePage() {
   const { filtered, grouped, stats, query, setQuery, filter, setFilter } = useEvents({
     scope: 'company',
   })
+  const recentCollaborations = getRecentCollaborationSessions(3)
 
   return (
     <>
@@ -27,6 +29,9 @@ export function CompanyTimelinePage() {
         <Link to="/ops/activity" className="mcBtn mcBtnSecondary">
           {t.pages.activity}
         </Link>
+        <Link to="/ops/collaboration" className="mcBtn mcBtnSecondary">
+          {t.pages.collaboration}
+        </Link>
       </div>
 
       <EventSummary stats={stats} />
@@ -36,6 +41,29 @@ export function CompanyTimelinePage() {
           {t.presence.timeline.description}
         </p>
         <WorkdayTimeline events={todayEvents.slice(0, 10)} />
+      </Panel>
+
+      <Panel title={t.collaborationEngine.timelinePreview}>
+        <div className="mcProfilePanelBody">
+          {recentCollaborations.length === 0 ? (
+            <p className="mcMuted">{t.collaborationEngine.empty.sessions}</p>
+          ) : (
+            <ul className="mcCollabPreviewList">
+              {recentCollaborations.map((session) => (
+                <li key={session.id}>
+                  <Link to={`/ops/collaboration/${session.id}`}>{session.title}</Link>
+                  <span className="mcMuted">
+                    {t.collaborationEngine.status[session.status]} ·{' '}
+                    {session.participants.map((item) => item.codename).join(', ')}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <Link to="/ops/collaboration" className="acLink" style={{ marginTop: 12, display: 'inline-block' }}>
+            {t.pages.collaboration}
+          </Link>
+        </div>
       </Panel>
 
       <Panel title={t.pages.toolExecutions}>

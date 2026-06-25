@@ -37,6 +37,9 @@ export function KnowledgePage() {
         <Link to="/ops/knowledge/collections" className="mcBtn mcBtnSecondary">
           {t.knowledgeEngine.openCollections}
         </Link>
+        <Link to="/ops/collaboration" className="mcBtn mcBtnSecondary">
+          {t.pages.collaboration}
+        </Link>
       </div>
 
       <KnowledgeSummary stats={stats} />

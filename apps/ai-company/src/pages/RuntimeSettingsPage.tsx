@@ -1,6 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { PageHeader, Panel } from '../mission-control/components/ui'
 import { ModelProviderCard } from '../components/runtime/ModelProviderCard'
+import { RuntimeProviderHealthPanel } from '../components/runtime/RuntimeProviderHealthPanel'
 import { RuntimeProfileCard } from '../components/runtime/RuntimeProfileCard'
 import { RuntimeRunCard } from '../components/runtime/RuntimeRunCard'
 import { useRuntime } from '../hooks/useRuntime'
@@ -42,6 +43,9 @@ export function RuntimeSettingsPage() {
           </Link>
           <Link to="/ops/employees/ag-max/learning" className="mcBtn mcBtnSecondary">
             {t.learningEngine.teamLearning}
+          </Link>
+          <Link to="/ops/collaboration" className="mcBtn mcBtnSecondary">
+            {t.pages.collaboration}
           </Link>
           <button type="button" className="mcBtn mcBtnPrimary" onClick={handleDemoRun}>
             {t.runtimeOrchestrator.startRun}
@@ -111,6 +115,12 @@ export function RuntimeSettingsPage() {
               ))}
             </div>
           )}
+        </div>
+      </Panel>
+
+      <Panel title={t.runtimeProviders.healthPanelTitle}>
+        <div className="mcProfilePanelBody">
+          <RuntimeProviderHealthPanel />
         </div>
       </Panel>
 

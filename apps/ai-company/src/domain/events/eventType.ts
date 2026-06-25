@@ -16,6 +16,10 @@ export const EVENT_TYPES = [
   'task.completed',
   'runtime.started',
   'run.completed',
+  'collaboration.started',
+  'collaboration.message',
+  'collaboration.consensus',
+  'collaboration.completed',
 ] as const
 
 export type EventType = (typeof EVENT_TYPES)[number]
