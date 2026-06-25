@@ -7,6 +7,7 @@ import './styles/layout.css'
 import './styles/navigation.css'
 import './styles/projects.css'
 import './styles/presence.css'
+import './styles/execution.css'
 import './styles.css'
 
 createRoot(document.getElementById('root')!).render(

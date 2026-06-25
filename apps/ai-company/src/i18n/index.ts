@@ -71,6 +71,7 @@ export function pageTitle(pathname: string, t: Messages): string {
   if (pathname.includes('/memory')) return t.memoryEngine.title
   if (pathname.startsWith('/ops/employees/')) return t.employeeProfile.title
   if (pathname === '/ops/tasks') return t.pages.tasks
+  if (pathname === '/ops/execution') return t.pages.execution
   if (pathname === '/ops/chats') return t.pages.chats
   if (pathname === '/ops/chats/new') return t.chats.newChat
   if (pathname.startsWith('/ops/chats/')) return t.pages.chats

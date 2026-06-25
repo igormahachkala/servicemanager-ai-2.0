@@ -16,6 +16,7 @@ export function SideNav() {
     { to: `${OPS}/knowledge`, page: 'knowledge' as const, icon: '📚', end: false },
     { to: `${OPS}/employees`, page: 'employees' as const, icon: '◎', end: false },
     { to: `${OPS}/tasks`, page: 'tasks' as const, icon: '▤', end: false },
+    { to: `${OPS}/execution`, page: 'execution' as const, icon: '⚡', end: false },
     { to: `${OPS}/chats`, page: 'chats' as const, icon: '💬', end: false },
     { to: `${OPS}/timeline`, page: 'companyTimeline' as const, icon: '⏱', end: false },
     { to: `${OPS}/activity`, page: 'activity' as const, icon: '◉', end: false },

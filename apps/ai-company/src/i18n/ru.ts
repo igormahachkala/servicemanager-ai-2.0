@@ -86,6 +86,7 @@ export const ru: Messages = {
     companies: "Companies",
     organization: "Организация",
     tasks: "Задачи",
+    execution: "Очередь выполнения",
     discussions: "Обсуждения",
     chats: "Чаты",
     workspaces: "Рабочие пространства",

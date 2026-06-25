@@ -84,6 +84,7 @@ export const en = {
     companies: 'Companies',
     organization: 'Organization',
     tasks: 'Tasks',
+    execution: 'Execution Queue',
     discussions: 'Discussions',
     chats: 'Chats',
     workspaces: 'Workspaces',

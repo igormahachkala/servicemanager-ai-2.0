@@ -1,0 +1,299 @@
+.mcExecStatsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.mcExecStatCard {
+  padding: 16px;
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-md);
+  background: var(--mc-surface);
+}
+
+.mcExecStatValue {
+  font-size: 28px;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.mcExecStatLabel {
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+.mcExecLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(320px, 0.9fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.mcExecMain {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.mcExecSplitPanels {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.mcExecScopeRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.mcExecScopeField {
+  min-width: 180px;
+  flex: 1;
+}
+
+.mcExecCardGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+}
+
+.mcExecCardGridCompact {
+  grid-template-columns: 1fr;
+}
+
+.mcExecCard,
+.mcExecCardSelectable {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 14px;
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius-md);
+  background: var(--mc-surface);
+  color: inherit;
+}
+
+.mcExecCardSelectable {
+  cursor: pointer;
+}
+
+.mcExecCardSelectable:hover,
+.mcExecCardSelected {
+  border-color: var(--mc-accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--mc-accent) 35%, transparent);
+}
+
+.mcExecCardHeader,
+.mcExecCardMeta,
+.mcExecCardStats,
+.mcExecCardFooter {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+}
+
+.mcExecCardHeader {
+  margin-bottom: 8px;
+}
+
+.mcExecCardTitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.mcExecCardMeta,
+.mcExecCardStats {
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.mcExecCardFooter {
+  font-size: 12px;
+}
+
+.mcExecCardLink {
+  color: var(--mc-accent);
+  text-decoration: none;
+}
+
+.mcExecCardLink:hover {
+  text-decoration: underline;
+}
+
+.mcExecStatusBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+.mcExecStatusBadgeCompact {
+  font-size: 10px;
+}
+
+.mcExecStatusQueued {
+  background: color-mix(in srgb, var(--mc-muted) 12%, transparent);
+  color: var(--mc-text);
+}
+
+.mcExecStatusRunning,
+.mcExecStatusReview {
+  background: color-mix(in srgb, var(--mc-accent) 14%, transparent);
+  color: var(--mc-accent);
+}
+
+.mcExecStatusWaiting {
+  background: color-mix(in srgb, var(--mc-yellow, #d4a017) 18%, transparent);
+  color: var(--mc-yellow, #b8860b);
+}
+
+.mcExecStatusCompleted {
+  background: color-mix(in srgb, var(--mc-green) 16%, transparent);
+  color: var(--mc-green);
+}
+
+.mcExecStatusFailed {
+  background: color-mix(in srgb, var(--mc-red) 14%, transparent);
+  color: var(--mc-red);
+}
+
+.mcExecStatusCancelled {
+  background: color-mix(in srgb, var(--mc-muted) 18%, transparent);
+  color: var(--mc-muted);
+}
+
+.mcExecTimeline {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.mcExecTimelineStep {
+  display: grid;
+  grid-template-columns: 16px 1fr;
+  gap: 12px;
+  padding-bottom: 14px;
+  position: relative;
+}
+
+.mcExecTimelineStep:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 18px;
+  bottom: 0;
+  width: 2px;
+  background: var(--mc-border);
+}
+
+.mcExecTimelineStepDone .mcExecTimelineMarker {
+  background: var(--mc-green);
+  border-color: var(--mc-green);
+}
+
+.mcExecTimelineMarker {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--mc-border);
+  background: var(--mc-surface);
+  margin-top: 2px;
+}
+
+.mcExecTimelineHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.mcExecTimelineLabel {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.mcExecInspector {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.mcExecInspectorEmpty {
+  padding: 12px 0;
+}
+
+.mcExecInspectorHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.mcExecInspectorTitle {
+  margin: 0 0 4px;
+  font-size: 16px;
+}
+
+.mcExecInspectorMeta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 16px;
+  margin: 0;
+}
+
+.mcExecInspectorMeta dt {
+  font-size: 11px;
+  color: var(--mc-muted);
+  margin-bottom: 2px;
+}
+
+.mcExecInspectorMeta dd {
+  margin: 0;
+  font-size: 13px;
+}
+
+.mcExecInspectorActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mcExecSectionTitle {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+
+.mcExecEmpty {
+  padding: 24px 12px;
+  text-align: center;
+}
+
+.mcExecEmptyTitle {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.mcExecEmptyDesc {
+  margin: 0;
+  color: var(--mc-muted);
+  font-size: 13px;
+}
+
+@media (max-width: 1100px) {
+  .mcExecLayout {
+    grid-template-columns: 1fr;
+  }
+
+  .mcExecStatsGrid,
+  .mcExecSplitPanels {
+    grid-template-columns: 1fr;
+  }
+}
