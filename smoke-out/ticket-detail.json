@@ -1,0 +1,76 @@
+{
+  "id": "459cdff4-c086-44ad-8c0c-3d7b9c714ba3",
+  "ticketNumber": 28,
+  "companyId": "10000000-0000-4000-8000-000000000001",
+  "parentId": null,
+  "locationId": "30000000-0000-4000-8000-000000000002",
+  "equipmentId": null,
+  "source": "INTERNAL",
+  "publicRequestType": null,
+  "requesterName": null,
+  "requesterPhone": null,
+  "address": null,
+  "pointName": "Фудзияма — Арбат",
+  "problemCategoryId": "40000000-0000-4000-8000-000000000001",
+  "problemText": "probe create shape",
+  "urgency": "NOT_URGENT",
+  "priority": "NORMAL",
+  "status": "NEW",
+  "statusUpdatedAt": "2026-06-23T17:34:30.704Z",
+  "slaMinutes": 1440,
+  "slaDueAt": "2026-06-24T17:34:30.701Z",
+  "slaBreachedAt": null,
+  "closedAt": null,
+  "assignedTechnicianId": null,
+  "createdByUserId": "20000000-0000-4000-8000-000000000010",
+  "createdAt": "2026-06-23T17:34:30.704Z",
+  "updatedAt": "2026-06-23T17:34:30.704Z",
+  "location": {
+    "id": "30000000-0000-4000-8000-000000000002",
+    "name": "Фудзияма — Арбат",
+    "platformCode": "FJ-002",
+    "externalCode": null,
+    "city": "Москва",
+    "region": null,
+    "address": null,
+    "latitude": null,
+    "longitude": null,
+    "isActive": true
+  },
+  "problemCategory": {
+    "id": "40000000-0000-4000-8000-000000000001",
+    "name": "Общее обслуживание",
+    "instructions": null
+  },
+  "equipment": null,
+  "assignedTechnician": null,
+  "statusHistory": [
+    {
+      "id": "8abad355-9e12-4f96-b79f-b587a5ed718f",
+      "ticketId": "459cdff4-c086-44ad-8c0c-3d7b9c714ba3",
+      "fromStatus": null,
+      "toStatus": "NEW",
+      "comment": "Ticket created",
+      "changedByUserId": null,
+      "createdAt": "2026-06-23T17:34:30.706Z"
+    }
+  ],
+  "parent": null,
+  "children": [],
+  "title": "Общее обслуживание",
+  "description": "probe create shape",
+  "meta": {
+    "scopeCompanyId": "10000000-0000-4000-8000-000000000001",
+    "visibilityMode": "provider_primary",
+    "canClaimByCurrentUser": true,
+    "claimAvailabilityReason": null,
+    "assignmentRequestedByCurrentUser": false,
+    "availableStatusTransitions": [],
+    "availableActions": {
+      "canClaim": true,
+      "canStart": false,
+      "canComplete": false,
+      "canClose": false
+    }
+  }
+}

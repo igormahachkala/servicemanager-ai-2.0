@@ -1,0 +1,330 @@
+{
+  "columns": [
+    {
+      "status": "NEW",
+      "total": 3,
+      "sla": {
+        "breached": 0,
+        "atRisk": 0
+      },
+      "cards": [
+        {
+          "id": "459cdff4-c086-44ad-8c0c-3d7b9c714ba3",
+          "companyId": "10000000-0000-4000-8000-000000000001",
+          "ticketNumber": 28,
+          "title": "Общее обслуживание",
+          "description": "probe create shape",
+          "requesterName": null,
+          "createdByUserId": "20000000-0000-4000-8000-000000000010",
+          "status": "NEW",
+          "urgency": "NOT_URGENT",
+          "priority": "NORMAL",
+          "createdAt": "2026-06-23T17:34:30.704Z",
+          "slaDueAt": "2026-06-24T17:34:30.701Z",
+          "slaBreached": false,
+          "isChild": false,
+          "pointName": "Фудзияма — Арбат",
+          "location": {
+            "id": "30000000-0000-4000-8000-000000000002",
+            "name": "Фудзияма — Арбат",
+            "platformCode": "FJ-002",
+            "externalCode": null,
+            "city": "Москва",
+            "address": null
+          },
+          "category": {
+            "id": "40000000-0000-4000-8000-000000000001",
+            "name": "Общее обслуживание"
+          },
+          "assignedTechnicianId": null,
+          "assignedTechnician": null,
+          "attachmentPreviewUrl": null,
+          "imageAttachmentCount": 0,
+          "canClaimByCurrentUser": true,
+          "assignmentRequestedByCurrentUser": false
+        },
+        {
+          "id": "db51b19f-e62b-41e9-b365-b34331d75949",
+          "companyId": "10000000-0000-4000-8000-000000000001",
+          "ticketNumber": 27,
+          "title": "Общее обслуживание",
+          "description": "Контур приёмки — REJECT",
+          "requesterName": "QA Acceptance",
+          "createdByUserId": "20000000-0000-4000-8000-000000000010",
+          "status": "NEW",
+          "urgency": "NOT_URGENT",
+          "priority": "NORMAL",
+          "createdAt": "2026-06-23T17:33:57.263Z",
+          "slaDueAt": "2026-06-24T17:33:57.260Z",
+          "slaBreached": false,
+          "isChild": false,
+          "pointName": "Фудзияма — Арбат",
+          "location": {
+            "id": "30000000-0000-4000-8000-000000000002",
+            "name": "Фудзияма — Арбат",
+            "platformCode": "FJ-002",
+            "externalCode": null,
+            "city": "Москва",
+            "address": null
+          },
+          "category": {
+            "id": "40000000-0000-4000-8000-000000000001",
+            "name": "Общее обслуживание"
+          },
+          "assignedTechnicianId": null,
+          "assignedTechnician": null,
+          "attachmentPreviewUrl": null,
+          "imageAttachmentCount": 0,
+          "canClaimByCurrentUser": true,
+          "assignmentRequestedByCurrentUser": false
+        },
+        {
+          "id": "1b440916-ec48-47a8-afdf-c78dc0250e4b",
+          "companyId": "10000000-0000-4000-8000-000000000001",
+          "ticketNumber": 26,
+          "title": "Общее обслуживание",
+          "description": "Контур приёмки — ACCEPT",
+          "requesterName": "QA Acceptance",
+          "createdByUserId": "20000000-0000-4000-8000-000000000010",
+          "status": "NEW",
+          "urgency": "NOT_URGENT",
+          "priority": "NORMAL",
+          "createdAt": "2026-06-23T17:33:57.244Z",
+          "slaDueAt": "2026-06-24T17:33:57.241Z",
+          "slaBreached": false,
+          "isChild": false,
+          "pointName": "Фудзияма — Арбат",
+          "location": {
+            "id": "30000000-0000-4000-8000-000000000002",
+            "name": "Фудзияма — Арбат",
+            "platformCode": "FJ-002",
+            "externalCode": null,
+            "city": "Москва",
+            "address": null
+          },
+          "category": {
+            "id": "40000000-0000-4000-8000-000000000001",
+            "name": "Общее обслуживание"
+          },
+          "assignedTechnicianId": null,
+          "assignedTechnician": null,
+          "attachmentPreviewUrl": null,
+          "imageAttachmentCount": 0,
+          "canClaimByCurrentUser": true,
+          "assignmentRequestedByCurrentUser": false
+        }
+      ]
+    },
+    {
+      "status": "ASSIGNED",
+      "total": 1,
+      "sla": {
+        "breached": 0,
+        "atRisk": 0
+      },
+      "cards": [
+        {
+          "id": "aceb417e-0cc5-4f0a-9822-feec17401a3f",
+          "companyId": "10000000-0000-4000-8000-000000000001",
+          "ticketNumber": 32,
+          "title": "Общее обслуживание",
+          "description": "UI-тест создания заявки: проверка контура «Создание заявки»",
+          "requesterName": null,
+          "createdByUserId": "20000000-0000-4000-8000-000000000004",
+          "status": "ASSIGNED",
+          "urgency": "NOT_URGENT",
+          "priority": "NORMAL",
+          "createdAt": "2026-06-23T17:54:28.786Z",
+          "slaDueAt": "2026-06-24T17:54:28.781Z",
+          "slaBreached": false,
+          "isChild": false,
+          "pointName": "Фудзияма — Арбат",
+          "location": {
+            "id": "30000000-0000-4000-8000-000000000002",
+            "name": "Фудзияма — Арбат",
+            "platformCode": "FJ-002",
+            "externalCode": null,
+            "city": "Москва",
+            "address": null
+          },
+          "category": {
+            "id": "40000000-0000-4000-8000-000000000001",
+            "name": "Общее обслуживание"
+          },
+          "assignedTechnicianId": "20000000-0000-4000-8000-000000000004",
+          "assignedTechnician": {
+            "id": "20000000-0000-4000-8000-000000000004",
+            "email": "tech@test.local",
+            "firstName": "tech",
+            "lastName": null,
+            "phone": null
+          },
+          "attachmentPreviewUrl": null,
+          "imageAttachmentCount": 0
+        }
+      ]
+    },
+    {
+      "status": "IN_PROGRESS",
+      "total": 1,
+      "sla": {
+        "breached": 0,
+        "atRisk": 0
+      },
+      "cards": [
+        {
+          "id": "ca53f658-526e-4347-86c5-85cdeee65ebe",
+          "companyId": "10000000-0000-4000-8000-000000000001",
+          "ticketNumber": 30,
+          "title": "Общее обслуживание",
+          "description": "Контур приёмки — REJECT",
+          "requesterName": "QA Acceptance",
+          "createdByUserId": "20000000-0000-4000-8000-000000000010",
+          "status": "IN_PROGRESS",
+          "urgency": "NOT_URGENT",
+          "priority": "NORMAL",
+          "createdAt": "2026-06-23T17:35:01.567Z",
+          "slaDueAt": "2026-06-24T17:35:01.564Z",
+          "slaBreached": false,
+          "isChild": false,
+          "pointName": "Фудзияма — Арбат",
+          "location": {
+            "id": "30000000-0000-4000-8000-000000000002",
+            "name": "Фудзияма — Арбат",
+            "platformCode": "FJ-002",
+            "externalCode": null,
+            "city": "Москва",
+            "address": null
+          },
+          "category": {
+            "id": "40000000-0000-4000-8000-000000000001",
+            "name": "Общее обслуживание"
+          },
+          "assignedTechnicianId": "20000000-0000-4000-8000-000000000004",
+          "assignedTechnician": {
+            "id": "20000000-0000-4000-8000-000000000004",
+            "email": "tech@test.local",
+            "firstName": "tech",
+            "lastName": null,
+            "phone": null
+          },
+          "attachmentPreviewUrl": "/uploads/ticket-attachments/a06f2e19-07e8-409b-866a-b73fc658e459.png",
+          "imageAttachmentCount": 1
+        }
+      ]
+    },
+    {
+      "status": "AWAITING_ACCEPTANCE",
+      "total": 0,
+      "sla": {
+        "breached": 0,
+        "atRisk": 0
+      },
+      "cards": []
+    },
+    {
+      "status": "DONE",
+      "total": 2,
+      "sla": {
+        "breached": 0,
+        "atRisk": 0
+      },
+      "cards": [
+        {
+          "id": "e480a6ca-78aa-4e04-b00b-2917dcb307df",
+          "companyId": "10000000-0000-4000-8000-000000000001",
+          "ticketNumber": 31,
+          "title": "Общее обслуживание",
+          "description": "UI-демо приёмки",
+          "requesterName": null,
+          "createdByUserId": "20000000-0000-4000-8000-000000000010",
+          "status": "DONE",
+          "urgency": "NOT_URGENT",
+          "priority": "NORMAL",
+          "createdAt": "2026-06-23T17:35:46.685Z",
+          "slaDueAt": "2026-06-24T17:35:46.683Z",
+          "slaBreached": false,
+          "isChild": false,
+          "pointName": "Фудзияма — Арбат",
+          "location": {
+            "id": "30000000-0000-4000-8000-000000000002",
+            "name": "Фудзияма — Арбат",
+            "platformCode": "FJ-002",
+            "externalCode": null,
+            "city": "Москва",
+            "address": null
+          },
+          "category": {
+            "id": "40000000-0000-4000-8000-000000000001",
+            "name": "Общее обслуживание"
+          },
+          "assignedTechnicianId": "20000000-0000-4000-8000-000000000004",
+          "assignedTechnician": {
+            "id": "20000000-0000-4000-8000-000000000004",
+            "email": "tech@test.local",
+            "firstName": "tech",
+            "lastName": null,
+            "phone": null
+          },
+          "attachmentPreviewUrl": "/uploads/ticket-attachments/f7778950-fe78-46e1-94c8-6a06a7c15385.png",
+          "imageAttachmentCount": 1
+        },
+        {
+          "id": "2eee3d78-5747-4c9b-94bc-3081b61852c2",
+          "companyId": "10000000-0000-4000-8000-000000000001",
+          "ticketNumber": 29,
+          "title": "Общее обслуживание",
+          "description": "Контур приёмки — ACCEPT",
+          "requesterName": "QA Acceptance",
+          "createdByUserId": "20000000-0000-4000-8000-000000000010",
+          "status": "DONE",
+          "urgency": "NOT_URGENT",
+          "priority": "NORMAL",
+          "createdAt": "2026-06-23T17:35:01.553Z",
+          "slaDueAt": "2026-06-24T17:35:01.550Z",
+          "slaBreached": false,
+          "isChild": false,
+          "pointName": "Фудзияма — Арбат",
+          "location": {
+            "id": "30000000-0000-4000-8000-000000000002",
+            "name": "Фудзияма — Арбат",
+            "platformCode": "FJ-002",
+            "externalCode": null,
+            "city": "Москва",
+            "address": null
+          },
+          "category": {
+            "id": "40000000-0000-4000-8000-000000000001",
+            "name": "Общее обслуживание"
+          },
+          "assignedTechnicianId": "20000000-0000-4000-8000-000000000004",
+          "assignedTechnician": {
+            "id": "20000000-0000-4000-8000-000000000004",
+            "email": "tech@test.local",
+            "firstName": "tech",
+            "lastName": null,
+            "phone": null
+          },
+          "attachmentPreviewUrl": "/uploads/ticket-attachments/f059aaa8-8e43-4d93-9f9a-a9a74a85ebfb.png",
+          "imageAttachmentCount": 1
+        }
+      ]
+    },
+    {
+      "status": "CANCELED",
+      "total": 0,
+      "sla": {
+        "breached": 0,
+        "atRisk": 0
+      },
+      "cards": []
+    }
+  ],
+  "meta": {
+    "totalTickets": 7,
+    "atRiskThresholdMinutes": 60,
+    "limitedToLast": 500,
+    "scopeCompanyId": "10000000-0000-4000-8000-000000000003",
+    "visibilityMode": "provider_primary"
+  }
+}

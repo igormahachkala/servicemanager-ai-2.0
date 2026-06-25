@@ -1,0 +1,45 @@
+{
+  "ticket": {
+    "id": "4adae6cd-0d7a-4ce3-8b34-ced5f925c2b3",
+    "ticketNumber": 33,
+    "companyId": "10000000-0000-4000-8000-000000000001",
+    "parentId": null,
+    "locationId": "30000000-0000-4000-8000-000000000002",
+    "equipmentId": null,
+    "source": "INTERNAL",
+    "publicRequestType": null,
+    "requesterName": null,
+    "requesterPhone": null,
+    "address": null,
+    "pointName": "Фудзияма — Арбат",
+    "problemCategoryId": "40000000-0000-4000-8000-000000000001",
+    "problemText": "smoke-test: проверка POST /tickets",
+    "urgency": "NOT_URGENT",
+    "priority": "NORMAL",
+    "status": "ASSIGNED",
+    "statusUpdatedAt": "2026-06-23T17:58:56.147Z",
+    "slaMinutes": 1440,
+    "slaDueAt": "2026-06-24T17:58:56.142Z",
+    "slaBreachedAt": null,
+    "closedAt": null,
+    "assignedTechnicianId": "20000000-0000-4000-8000-000000000004",
+    "createdByUserId": "20000000-0000-4000-8000-000000000004",
+    "createdAt": "2026-06-23T17:58:56.145Z",
+    "updatedAt": "2026-06-23T17:58:56.147Z",
+    "title": "Общее обслуживание",
+    "description": "smoke-test: проверка POST /tickets"
+  },
+  "generated": {
+    "title": "Общее обслуживание",
+    "description": "smoke-test: проверка POST /tickets",
+    "possibleCauses": [],
+    "recommendedActions": [
+      "Проверить точку Фудзияма — Арбат (Москва).",
+      "Подтвердить категорию \"Общее обслуживание\" на месте.",
+      "Выполнить первичную диагностику по категории."
+    ]
+  },
+  "instructions": null,
+  "candidates": [],
+  "autoAssigned": true
+}
