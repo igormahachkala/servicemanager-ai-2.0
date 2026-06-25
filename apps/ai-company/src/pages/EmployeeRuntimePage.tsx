@@ -4,6 +4,7 @@ import { PageHeader, Panel } from '../mission-control/components/ui'
 import { ModelRouteMatrix } from '../components/runtime/ModelRouteMatrix'
 import { RuntimeFallbackList } from '../components/runtime/RuntimeFallbackList'
 import { RuntimePolicyPanel } from '../components/runtime/RuntimePolicyPanel'
+import { RuntimeProviderHealthPanel } from '../components/runtime/RuntimeProviderHealthPanel'
 import { RuntimeStatusBadge } from '../components/runtime/RuntimeStatusBadge'
 import { useModelRouter } from '../hooks/useModelRouter'
 import { useRuntime } from '../hooks/useRuntime'
@@ -208,6 +209,12 @@ export function EmployeeRuntimePage() {
           </div>
         </Panel>
       </div>
+
+      <Panel title={t.runtimeProviders.healthPanelTitle}>
+        <div className="mcProfilePanelBody">
+          <RuntimeProviderHealthPanel compact />
+        </div>
+      </Panel>
 
       <Panel title={t.runtimeEngine.routingRules}>
         <div className="mcProfilePanelBody">

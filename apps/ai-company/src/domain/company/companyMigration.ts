@@ -4,6 +4,7 @@ import { ensureSeedReports, loadReports, saveReports } from '../reports/reportSt
 import { ensureSeedExecutions } from '../execution/executionSeed'
 import { ensureSeedProjects } from '../projects/projectSeed'
 import { initializePresenceEngine } from '../presence/presenceEngine'
+import { initializeRuntimeProviders } from '../runtime/providers/runtimeAdapter'
 import { initializeToolExecutionEngine } from '../toolExecution/toolExecutionStorage'
 import { loadWorkspaces, saveWorkspaces } from '../workspaces/workspace'
 import { DEFAULT_COMPANY_ID } from './company'
@@ -21,6 +22,7 @@ export function migrateEntitiesToCompanies(): string {
   ensureSeedProjects()
   ensureSeedExecutions()
   initializePresenceEngine()
+  initializeRuntimeProviders()
   initializeToolExecutionEngine()
 
   if (!migrated) {

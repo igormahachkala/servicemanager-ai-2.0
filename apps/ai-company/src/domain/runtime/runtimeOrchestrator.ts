@@ -19,7 +19,6 @@ import { RUNTIME_CONTEXT_LAYER_ORDER } from './runtimeContext'
 import type { RuntimeResult, RuntimeArtifact, RuntimeWarning } from './runtimeResult'
 import type { RuntimeRun } from './runtimeRun'
 import {
-  getModelById,
   getOrCreateRuntimeProfile,
   getProviderForModel,
   selectModelForTask,
@@ -34,6 +33,10 @@ import {
   type ToolExecutionProvider,
 } from '../toolExecution'
 import { registryTools } from '../../mission-control/data/tools'
+import {
+  executeViaRuntimeAdapter,
+  getActiveRuntimeProviderId,
+} from './providers/runtimeAdapter'
 
 const STORAGE_KEY = 'ai-company-runtime-runs'
 
@@ -433,12 +436,6 @@ function estimateTokens(context: RuntimeContext, profileMaxTokens: number): numb
   return Math.min(profileMaxTokens, Math.max(512, layerTokens))
 }
 
-function estimateCost(modelId: string, tokens: number): number {
-  const model = getModelById(modelId)
-  if (!model || model.costPer1kTokens === null) return 0
-  return (tokens / 1000) * model.costPer1kTokens
-}
-
 function createRuntimeReport(
   run: RuntimeRun,
   result: RuntimeResult,
@@ -452,7 +449,7 @@ function createRuntimeReport(
     type: 'system',
     employeeId: run.employeeId,
     workspaceId: run.workspaceId,
-    summary: `Mock orchestrator run completed via Model Router (${result.selectedModel}). No LLM inference in V1.`,
+    summary: `Runtime run completed via provider adapter (${getActiveRuntimeProviderId()}) and Model Router (${result.selectedModel}).`,
     findings: [
       `Model ${result.selectedModel} selected through Model Router`,
       `Context assembled from ${result.contextSize} layers`,
@@ -680,7 +677,8 @@ export function orchestrateRuntimeRun(request: RuntimeRunRequest): RuntimeRun {
     metadata: {
       modelId: selection.selectedModelId,
       providerId: selection.selectedProviderId,
-      mock: true,
+      providerAdapter: getActiveRuntimeProviderId(),
+      mock: getActiveRuntimeProviderId() === 'mock',
     },
     severity: 'info',
   })
@@ -692,26 +690,18 @@ export function orchestrateRuntimeRun(request: RuntimeRunRequest): RuntimeRun {
 
   if (!requiresApproval) {
     status = 'running'
-    const artifacts: RuntimeArtifact[] = [
-      {
-        id: `artifact-ctx-${runId}`,
-        kind: 'context_snapshot',
-        label: 'Context snapshot',
-        refId: runId,
-      },
-    ]
-
-    result = {
-      selectedModel: selection.selectedModelId,
-      selectedProvider: selection.selectedProviderId,
+    const execution = executeViaRuntimeAdapter({
+      runId,
+      employeeId: request.employeeId,
+      modelId: selection.selectedModelId,
+      catalogProviderId: selection.selectedProviderId,
+      estimatedTokens,
       contextSize: context.layers.filter((layer) => layer.loaded).length,
       knowledgeUsed: knowledge.length,
       memoryUsed: memories.length,
-      estimatedCost: estimateCost(selection.selectedModelId, estimatedTokens),
-      estimatedTokens,
       warnings,
-      artifacts,
-    }
+    })
+    result = execution.result
 
     const report = createRuntimeReport(
       {
@@ -749,13 +739,22 @@ export function orchestrateRuntimeRun(request: RuntimeRunRequest): RuntimeRun {
       employeeId: request.employeeId,
       workspaceId: request.workspaceId ?? null,
       reportId: report.id,
-      metadata: { mock: true, status: 'completed' },
+      metadata: {
+        mock: execution.mock,
+        providerAdapter: execution.providerId,
+        status: 'completed',
+      },
       severity: 'success',
     })
     recordRuntimeLearning(request.employeeId, runId, report.id)
 
     pipeline = updatePipelineStep(pipeline, 'create_report', 'done', report.id)
-    pipeline = updatePipelineStep(pipeline, 'complete', 'done', 'Mock execution complete')
+    pipeline = updatePipelineStep(
+      pipeline,
+      'complete',
+      'done',
+      execution.mock ? 'Mock execution complete' : `${execution.providerId} execution complete`,
+    )
     status = 'completed'
     finishedAt = new Date().toISOString()
   } else {
@@ -803,31 +802,19 @@ export function completeRuntimeRunAfterApproval(runId: string): RuntimeRun | nul
     existing.context.layers.find((layer: RuntimeContextLayer) => layer.key === 'memory')?.itemCount ??
     0
 
-  const result: RuntimeResult = {
-    selectedModel: existing.modelId,
-    selectedProvider: existing.providerId,
+  const execution = executeViaRuntimeAdapter({
+    runId: existing.id,
+    employeeId: existing.employeeId,
+    modelId: existing.modelId,
+    catalogProviderId: existing.providerId,
+    estimatedTokens: 4096,
     contextSize: existing.context.layers.filter((layer: RuntimeContextLayer) => layer.loaded)
       .length,
     knowledgeUsed: knowledgeCount,
     memoryUsed: memoryCount,
-    estimatedCost: estimateCost(existing.modelId, 4096),
-    estimatedTokens: 4096,
-    warnings: [
-      {
-        code: 'MOCK_EXECUTION',
-        message: 'Mock orchestrator completion — no provider inference.',
-        severity: 'info',
-      },
-    ],
-    artifacts: [
-      {
-        id: `artifact-ctx-${existing.id}`,
-        kind: 'context_snapshot',
-        label: 'Context snapshot',
-        refId: existing.id,
-      },
-    ],
-  }
+    warnings: existing.result?.warnings ?? [],
+  })
+  const result: RuntimeResult = execution.result
 
   const report = createRuntimeReport(existing, result, employee.codename)
   result.artifacts.push({
@@ -844,13 +831,23 @@ export function completeRuntimeRunAfterApproval(runId: string): RuntimeRun | nul
     employeeId: existing.employeeId,
     workspaceId: existing.workspaceId,
     reportId: report.id,
-    metadata: { mock: true, status: 'completed', afterApproval: true },
+    metadata: {
+      mock: execution.mock,
+      providerAdapter: execution.providerId,
+      status: 'completed',
+      afterApproval: true,
+    },
     severity: 'success',
   })
   recordRuntimeLearning(existing.employeeId, existing.id, report.id)
 
   pipeline = updatePipelineStep(pipeline, 'create_report', 'done', report.id)
-  pipeline = updatePipelineStep(pipeline, 'complete', 'done', 'Mock execution complete')
+  pipeline = updatePipelineStep(
+    pipeline,
+    'complete',
+    'done',
+    execution.mock ? 'Mock execution complete' : `${execution.providerId} execution complete`,
+  )
 
   const completed: RuntimeRun = {
     ...existing,

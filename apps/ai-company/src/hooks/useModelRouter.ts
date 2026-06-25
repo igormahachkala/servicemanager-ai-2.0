@@ -1,5 +1,10 @@
 import { useMemo } from 'react'
 import {
+  getActiveRuntimeProviderId,
+  getRuntimeProvider,
+  initializeRuntimeProviders,
+} from '../domain/runtime/providers/runtimeAdapter'
+import {
   getModelById,
   getProviderForModel,
   selectModelForTask,
@@ -9,6 +14,8 @@ import {
 } from '../domain/runtime/runtimeStorage'
 
 export function useModelRouter(profile: RuntimeProfile | null, taskContext: TaskContext) {
+  initializeRuntimeProviders()
+
   const selection = useMemo<ModelSelection | null>(() => {
     if (!profile) return null
     return selectModelForTask(profile, taskContext)
@@ -24,7 +31,19 @@ export function useModelRouter(profile: RuntimeProfile | null, taskContext: Task
     [selection],
   )
 
-  return { selection, selectedModel, selectedProvider }
+  const executionProviderId = useMemo(() => getActiveRuntimeProviderId(), [])
+  const executionProvider = useMemo(
+    () => getRuntimeProvider(executionProviderId),
+    [executionProviderId],
+  )
+
+  return {
+    selection,
+    selectedModel,
+    selectedProvider,
+    executionProviderId,
+    executionProvider,
+  }
 }
 
 export { selectModelForTask } from '../domain/runtime/runtimeStorage'
