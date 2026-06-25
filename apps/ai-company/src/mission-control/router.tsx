@@ -1,7 +1,9 @@
 import { Navigate, Route, Routes, useParams } from 'react-router-dom'
 import { MissionControlShell } from './layout/MissionControlShell'
 import { DashboardPage } from './pages/DashboardPage'
-import { OrganizationPage } from './pages/OrganizationPage'
+import { OrganizationChartPage } from '../pages/OrganizationChartPage'
+import { DepartmentPage } from '../pages/DepartmentPage'
+import { TeamPage } from '../pages/TeamPage'
 import { EmployeesPage } from './pages/EmployeesPage'
 import { NewEmployeePage } from './pages/NewEmployeePage'
 import { EmployeeProfilePage } from './pages/EmployeeProfilePage'
@@ -35,7 +37,9 @@ export function MissionControlRoutes() {
     <Routes>
       <Route element={<MissionControlShell />}>
         <Route index element={<DashboardPage />} />
-        <Route path="organization" element={<OrganizationPage />} />
+        <Route path="organization" element={<OrganizationChartPage />} />
+        <Route path="organization/departments/:id" element={<DepartmentPage />} />
+        <Route path="organization/teams/:id" element={<TeamPage />} />
         <Route path="employees" element={<EmployeesPage />} />
         <Route path="employees/new" element={<NewEmployeePage />} />
         <Route path="employees/:id/conversation" element={<LegacyConversationRedirect />} />

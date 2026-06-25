@@ -82,7 +82,7 @@ export function EmployeeProfilePage() {
         {section === 'skills' ? <EmployeeSkills employee={employee} /> : null}
         {section === 'permissions' ? <EmployeePermissions employee={employee} /> : null}
         {section === 'memory' ? <EmployeeMemory employee={employee} /> : null}
-        {section === 'relationships' ? <EmployeeRelationships /> : null}
+        {section === 'relationships' ? <EmployeeRelationships employeeId={employee.id} /> : null}
         {section === 'assignments' ? <EmployeeAssignments employeeId={employee.id} /> : null}
         {section === 'activity' ? <EmployeeActivity /> : null}
       </div>

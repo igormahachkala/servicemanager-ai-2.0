@@ -3182,3 +3182,317 @@
   font-size: 11px;
   color: var(--mc-muted);
 }
+
+/* Organization engine */
+.mcOrgStatsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.mcOrgStatCard {
+  padding: 14px 16px;
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius);
+  background: var(--mc-surface);
+}
+
+.mcOrgStatValue {
+  font-size: 22px;
+  font-weight: 700;
+  font-family: var(--mc-mono);
+  line-height: 1.2;
+}
+
+.mcOrgStatLabel {
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.mcOrgSectionGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.mcOrgCardGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 10px;
+}
+
+.mcOrgCard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius);
+  background: var(--mc-surface);
+}
+
+.mcOrgCardLink {
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.mcOrgCardLink:hover {
+  border-color: rgba(59, 130, 246, 0.45);
+  background: rgba(59, 130, 246, 0.04);
+}
+
+.mcOrgCardHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mcOrgCardTitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.mcOrgCardBadge {
+  font-size: 10px;
+  color: var(--mc-muted);
+  font-family: var(--mc-mono);
+  white-space: nowrap;
+}
+
+.mcOrgCardDesc {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.mcOrgCardMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.mcOrgCardMetaLabel {
+  color: var(--mc-muted);
+}
+
+.mcOrgTree {
+  padding: 4px 0;
+}
+
+.mcOrgTreeHeader {
+  margin-bottom: 12px;
+}
+
+.mcOrgTreeTitle {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.mcOrgTreeCaption {
+  font-size: 12px;
+}
+
+.mcOrgTreeRoot,
+.mcOrgTreeChildren {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.mcOrgTreeItem {
+  margin: 0;
+}
+
+.mcOrgTreeRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.mcOrgTreeRowowner .mcOrgTreeLabel {
+  font-weight: 700;
+}
+
+.mcOrgTreeConnector {
+  font-family: var(--mc-mono);
+  color: var(--mc-muted-2);
+  flex-shrink: 0;
+  width: 16px;
+}
+
+.mcOrgTreeBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.mcOrgTreeLabelRow {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mcOrgTreeLabel {
+  font-weight: 650;
+  font-size: 13px;
+}
+
+.mcOrgTreeSubtitle {
+  font-size: 12px;
+}
+
+.mcOrgTreeActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.mcOrgTreeHint {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+}
+
+.mcOrgTreeFootnote {
+  margin: 12px 0 0;
+  font-size: 11px;
+}
+
+.mcOrgFutureGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.mcOrgFutureCard {
+  padding: 12px;
+  border: 1px dashed var(--mc-border);
+  border-radius: 8px;
+}
+
+.mcOrgFutureBadge {
+  display: inline-flex;
+  margin-bottom: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.mcOrgFutureTitle {
+  font-weight: 650;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.mcOrgFutureDesc {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.mcOrgDetailGrid {
+  display: grid;
+  gap: 16px;
+}
+
+.mcOrgPageTop {
+  margin-bottom: 12px;
+}
+
+.mcOrgEmpty,
+.mcOrgEmptyInline {
+  padding: 24px;
+  text-align: center;
+}
+
+.mcOrgManagerCard {
+  padding: 12px;
+  border: 1px solid var(--mc-border);
+  border-radius: 8px;
+  background: var(--mc-surface);
+}
+
+.mcOrgManagerCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.mcOrgManagerCardLabel {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--mc-muted);
+}
+
+.mcOrgManagerCardRole {
+  font-size: 11px;
+}
+
+.mcOrgManagerCardName {
+  font-weight: 650;
+  font-size: 14px;
+}
+
+.mcOrgManagerCardActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.mcOrgReportingLine {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 0;
+  font-size: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.mcOrgReportingLineArrow {
+  color: var(--mc-muted-2);
+}
+
+.mcOrgRelationshipsBody {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.mcOrgDirectReportsList {
+  display: grid;
+  gap: 8px;
+}
+
+.mcOrgSectionLabel {
+  font-size: 12px;
+  font-weight: 650;
+  margin-bottom: 8px;
+}
+
+.mcOrgFootnote {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.45;
+}
