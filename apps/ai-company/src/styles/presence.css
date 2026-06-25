@@ -1,0 +1,143 @@
+/* Employee Presence & Workday Engine */
+
+.acPresenceBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.acPresenceBadgeCompact {
+  padding: 2px 8px;
+  font-size: 10px;
+}
+
+.acPresenceBadgeOffline {
+  background: var(--ac-surface-2);
+  color: var(--ac-text-muted);
+}
+
+.acPresenceBadgeAvailable {
+  background: var(--ac-green-dim);
+  color: var(--ac-green);
+}
+
+.acPresenceBadgeBusy,
+.acPresenceBadgeWorking {
+  background: var(--ac-blue-dim);
+  color: var(--ac-blue);
+}
+
+.acPresenceBadgeInDiscussion {
+  background: var(--ac-accent-dim);
+  color: var(--ac-accent-hover);
+}
+
+.acPresenceBadgeWaitingApproval {
+  background: var(--ac-amber-dim);
+  color: var(--ac-amber);
+}
+
+.acPresenceBadgeReviewing,
+.acPresenceBadgeLearning {
+  background: rgba(168, 85, 247, 0.12);
+  color: #c084fc;
+}
+
+.acPresenceBadgeBreak {
+  background: var(--ac-surface-2);
+  color: var(--ac-text-subtle);
+}
+
+.acPresenceCardGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--ac-space-3);
+}
+
+.acPresenceCard {
+  background: var(--ac-surface-2);
+  border: 1px solid var(--ac-border);
+  border-radius: var(--ac-radius-md);
+  padding: var(--ac-space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ac-space-2);
+}
+
+.acPresenceCardHead {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--ac-space-3);
+  align-items: flex-start;
+}
+
+.acPresenceCardName {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.acPresenceCardActivity {
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.acPresenceCardMeta {
+  font-size: 11px;
+}
+
+.acPresenceActivityRow,
+.acPresenceWorkday .acPresenceActivityRow {
+  display: grid;
+  grid-template-columns: 72px 96px 1fr auto;
+  gap: var(--ac-space-3);
+  align-items: center;
+  padding: var(--ac-space-2) 0;
+  border-bottom: 1px solid var(--ac-border-subtle);
+  font-size: 13px;
+}
+
+.acPresenceActivityName {
+  font-weight: 600;
+}
+
+.acPresenceActivityType {
+  font-size: 11px;
+  color: var(--ac-text-muted);
+  text-transform: uppercase;
+}
+
+.acPresenceCurrentWork {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ac-space-4);
+}
+
+.acPresenceCurrentWorkHead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ac-space-3);
+  align-items: center;
+}
+
+.acPresenceCurrentWorkActivity {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.acPresenceAssignmentList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ac-space-2);
+}
+
+@media (max-width: 760px) {
+  .acPresenceActivityRow {
+    grid-template-columns: 1fr;
+    gap: 4px;
+  }
+}

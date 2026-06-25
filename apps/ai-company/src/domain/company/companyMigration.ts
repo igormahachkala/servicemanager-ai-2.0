@@ -2,6 +2,7 @@ import { loadAuditEvents, saveAuditEvents } from '../audit/auditStorage'
 import { ensureSeedOrganization, saveOrganization } from '../organization/organizationStorage'
 import { ensureSeedReports, loadReports, saveReports } from '../reports/reportStorage'
 import { ensureSeedProjects } from '../projects/projectSeed'
+import { initializePresenceEngine } from '../presence/presenceEngine'
 import { loadWorkspaces, saveWorkspaces } from '../workspaces/workspace'
 import { DEFAULT_COMPANY_ID } from './company'
 import { ensureSeedCompanies } from './companyStorage'
@@ -16,6 +17,7 @@ export function migrateEntitiesToCompanies(): string {
 
   ensureSeedCompanyAssignments(defaultId)
   ensureSeedProjects()
+  initializePresenceEngine()
 
   if (!migrated) {
     const workspaces = loadWorkspaces()

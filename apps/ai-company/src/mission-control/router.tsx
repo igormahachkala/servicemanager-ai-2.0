@@ -4,6 +4,7 @@ import { DashboardPage } from './pages/DashboardPage'
 import { CompaniesPage } from '../pages/CompaniesPage'
 import { CompanyPage } from '../pages/CompanyPage'
 import { NewCompanyPage } from '../pages/NewCompanyPage'
+import { NotificationsPage } from '../pages/NotificationsPage'
 import { OrganizationChartPage } from '../pages/OrganizationChartPage'
 import { DepartmentPage } from '../pages/DepartmentPage'
 import { TeamPage } from '../pages/TeamPage'
@@ -13,6 +14,7 @@ import { EmployeeProfilePage } from './pages/EmployeeProfilePage'
 import { TasksPage } from './pages/TasksPage'
 import { ToolsCatalogPage } from './pages/ToolsCatalogPage'
 import { ToolDetailsPage } from './pages/ToolDetailsPage'
+import { PresencePage } from '../pages/PresencePage'
 import { ProjectsPage } from '../pages/ProjectsPage'
 import { NewProjectPage } from '../pages/NewProjectPage'
 import { ProjectPage } from '../pages/ProjectPage'
@@ -73,6 +75,7 @@ export function MissionControlRoutes() {
         <Route path="feed" element={<Navigate to="/ops/timeline" replace />} />
         <Route path="timeline" element={<CompanyTimelinePage />} />
         <Route path="activity" element={<ActivityPage />} />
+        <Route path="notifications" element={<NotificationsPage />} />
         <Route path="approvals" element={<ApprovalsPage />} />
         <Route path="approvals/:id" element={<ApprovalDetailsPage />} />
         <Route path="reports" element={<ReportsPage />} />
@@ -88,6 +91,7 @@ export function MissionControlRoutes() {
         <Route path="discussions" element={<Navigate to="/ops/chats" replace />} />
         <Route path="discussions/new" element={<Navigate to="/ops/chats/new" replace />} />
         <Route path="discussions/:id" element={<LegacyDiscussionRedirect />} />
+        <Route path="presence" element={<PresencePage />} />
         <Route path="projects" element={<ProjectsPage />} />
         <Route path="projects/new" element={<NewProjectPage />} />
         <Route path="projects/:id" element={<ProjectPage />} />

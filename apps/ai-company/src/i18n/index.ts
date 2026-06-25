@@ -77,6 +77,7 @@ export function pageTitle(pathname: string, t: Messages): string {
   if (pathname === '/ops/discussions') return t.pages.chats
   if (pathname === '/ops/discussions/new') return t.chats.newChat
   if (pathname.startsWith('/ops/discussions/')) return t.pages.chats
+  if (pathname === '/ops/presence') return t.pages.presence
   if (pathname === '/ops/projects') return t.pages.projects
   if (pathname === '/ops/projects/new') return t.projects.newProject
   if (pathname.startsWith('/ops/projects/')) return t.pages.projects

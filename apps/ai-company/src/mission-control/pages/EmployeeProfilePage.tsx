@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { PageHeader } from '../components/ui'
+import { PageHeader, Panel } from '../components/ui'
 import { EmployeeHeader } from '../components/EmployeeHeader'
 import { EmployeeOverview } from '../components/EmployeeOverview'
 import { EmployeeSkills } from '../components/EmployeeSkills'
@@ -10,6 +10,8 @@ import { EmployeeRelationships } from '../components/EmployeeRelationships'
 import { EmployeeAssignedKnowledge } from '../../components/knowledge/EmployeeAssignedKnowledge'
 import { EmployeeAssignments } from '../components/EmployeeAssignments'
 import { EmployeeActivity } from '../components/EmployeeActivity'
+import { CurrentWorkPanel, WorkdayTimeline } from '../../components/presence'
+import { usePresence } from '../../hooks/usePresence'
 import { EmployeeRuntime } from '../../components/EmployeeRuntime'
 import { useCustomEmployees } from '../hooks/useCustomEmployees'
 import { useI18n } from '../../i18n'
@@ -24,11 +26,13 @@ type ProfileSection =
   | 'assignments'
   | 'activity'
   | 'runtime'
+  | 'presence'
 
 export function EmployeeProfilePage() {
   const { id } = useParams<{ id: string }>()
   const { t } = useI18n()
   const { employees } = useCustomEmployees()
+  const { getByEmployeeId, getWorkdayEventsForEmployee } = usePresence()
   const [section, setSection] = useState<ProfileSection>('overview')
 
   const employee = useMemo(
@@ -46,6 +50,7 @@ export function EmployeeProfilePage() {
     'assignments',
     'activity',
     'runtime',
+    'presence',
   ]
 
   if (!employee) {
@@ -93,6 +98,17 @@ export function EmployeeProfilePage() {
         {section === 'assignments' ? <EmployeeAssignments employeeId={employee.id} /> : null}
         {section === 'activity' ? <EmployeeActivity employeeId={employee.id} /> : null}
         {section === 'runtime' ? <EmployeeRuntime employee={employee} /> : null}
+        {section === 'presence' ? (
+          <div className="mcProfileGrid">
+            <CurrentWorkPanel presence={getByEmployeeId(employee.id)} employeeId={employee.id} />
+            <Panel title={t.presence.timeline.title}>
+              <p className="acMuted" style={{ marginBottom: 12 }}>
+                {t.presence.timeline.description}
+              </p>
+              <WorkdayTimeline events={getWorkdayEventsForEmployee(employee.id)} />
+            </Panel>
+          </div>
+        ) : null}
       </div>
     </div>
   )

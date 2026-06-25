@@ -17,6 +17,7 @@ export const ru: Messages = {
     feed: "Лента",
     timeline: "Хронология",
     activity: "Активность",
+    notifications: "Notifications",
     reports: "Отчёты",
     runs: "История запусков",
     audit: "Аудит",
@@ -79,6 +80,7 @@ export const ru: Messages = {
     missionFeed: "Лента событий",
     companyTimeline: "Хронология компании",
     activity: "Активность",
+    notifications: "Уведомления",
     toolsRegistry: "Реестр AI-инструментов",
     employees: "Сотрудники",
     companies: "Companies",
@@ -1377,16 +1379,16 @@ export const ru: Messages = {
     },
     taskStatus: {
       backlog: "Backlog",
-      in_progress: "In progress",
-      review: "Review",
-      done: "Done",
+      in_progress: "В процессе",
+      review: "Проверка",
+      done: "Готово",
       blocked: "Blocked"
     },
     taskPriority: {
-      low: "Low",
-      medium: "Medium",
-      high: "High",
-      critical: "Critical"
+      low: "Низкий",
+      medium: "Средний",
+      high: "Высокий",
+      critical: "Критический"
     },
     future: {
       label: "Будущее",
@@ -1401,8 +1403,7 @@ export const ru: Messages = {
     }
   },
   presence: {
-    pageDescription:
-      "Operational workday layer — кто работает, ждёт, в discussion или требует внимания Owner. Mock engine, без Runtime execution.",
+    pageDescription: "Operational workday layer — кто работает, ждёт, в discussion или требует внимания Owner. Mock engine, без Runtime execution.",
     localOnly: "Вычисляется локально из tasks, runtime queue, chats, projects и approvals.",
     since: "С",
     expected: "ETA",
@@ -1411,9 +1412,9 @@ export const ru: Messages = {
       available: "Available",
       busy: "Busy",
       in_discussion: "In Discussion",
-      working: "Working",
+      working: "Работает",
       waiting_approval: "Waiting Approval",
-      reviewing: "Reviewing",
+      reviewing: "На проверке",
       learning: "Learning",
       break: "Break"
     },
@@ -1436,21 +1437,21 @@ export const ru: Messages = {
       title: "Current Work",
       offline: "Employee offline или не активирован.",
       project: "Project",
-      workspace: "Workspace",
-      task: "Task",
+      workspace: "Рабочее пространство",
+      task: "Задача",
       run: "Runtime run",
-      started: "Started",
+      started: "Начало",
       expectedFinish: "Expected finish"
     },
     workday: {
       empty: "Workday events пока нет."
     },
     workdayTypes: {
-      work_started: "Started",
-      work_finished: "Finished",
-      discussion: "Discussion",
-      approval_wait: "Approval",
-      review: "Review",
+      work_started: "Начало",
+      work_finished: "Окончание",
+      discussion: "Обсуждение",
+      approval_wait: "Согласование",
+      review: "Проверка",
       learning: "Learning",
       break: "Break"
     },
@@ -1575,6 +1576,58 @@ export const ru: Messages = {
       system: "Система",
       company: "Company",
       project: "Project"
+    }
+  },
+  notificationEngine: {
+    pageDescription: "Unified operational inbox — every important platform event produces an owner-facing notification with severity, context, and deep links.",
+    inboxTitle: "Notifications",
+    bellLabel: "Notifications",
+    emptyInbox: "Notifications пока нет.",
+    markRead: "Mark read",
+    markAllRead: "Mark all read",
+    openAction: "Открыть",
+    viewInbox: "View inbox",
+    itemCount: "элементов",
+    unreadCount: "{count} unread notifications",
+    searchLabel: "Поиск",
+    searchPlaceholder: "Title, summary, category, employee…",
+    principleNote: "Notification principle: emitEvent() and audit actions automatically enqueue inbox items — Owner reviews one surface instead of every module page.",
+    localOnly: "Stored in localStorage (ai-company-notifications) — synced from events and audit in V1.",
+    timelineHint: "Timeline events also appear in the Notification Center with actionable links.",
+    approvalInbox: "Approval notifications",
+    reportInbox: "Report notifications",
+    chatInbox: "Chat notifications",
+    runtimeInbox: "Runtime notifications",
+    filters: {
+      category: "Категория",
+      severity: "Критичность",
+      read: "Чтение",
+      unread: "Unread"
+    },
+    severity: {
+      info: "Инфо",
+      success: "Успех",
+      warn: "Предупреждение",
+      error: "Ошибка"
+    },
+    stats: {
+      total: "Всего",
+      unread: "Unread",
+      approval: "Unread approvals",
+      runtime: "Unread runtime"
+    },
+    categories: {
+      approval: "Согласование",
+      runtime: "Runtime",
+      project: "Project",
+      employee: "Сотрудник",
+      knowledge: "База знаний",
+      chat: "Chat",
+      discussion: "Обсуждение",
+      task: "Задача",
+      report: "Отчёт",
+      audit: "Аудит",
+      system: "Система"
     }
   },
   eventEngine: {

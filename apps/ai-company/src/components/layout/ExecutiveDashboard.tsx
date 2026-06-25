@@ -10,7 +10,9 @@ import { useRuntime } from '../../hooks/useRuntime'
 import { useRuntimeProfiles } from '../../hooks/useRuntimeProfiles'
 import { useActiveWorkspace } from '../../hooks/useActiveWorkspace'
 import { useProjects } from '../../hooks/useProjects'
+import { usePresence } from '../../hooks/usePresence'
 import { useWorkspaces } from '../../hooks/useWorkspaces'
+import { EmployeePresenceCard } from '../presence'
 import { useCustomEmployees } from '../../mission-control/hooks/useCustomEmployees'
 import { useI18n } from '../../i18n'
 
@@ -25,6 +27,7 @@ export function ExecutiveDashboard() {
   const { chats } = useChats()
   const { workspaces } = useWorkspaces()
   const { projects } = useProjects()
+  const { stats: presenceStats, nowWorking, waiting } = usePresence()
   const { activeWorkspace } = useActiveWorkspace()
 
   const alerts = recentAlerts()
@@ -73,6 +76,30 @@ export function ExecutiveDashboard() {
       </div>
 
       <div className="acDashboardGrid acDashboardGridMain">
+        <div className="acDashboardSpan8">
+          <Card
+            title={t.executiveDashboard.presenceOverview}
+            action={<Link to="/ops/presence" className="acLink">{t.executiveDashboard.actionOpenPresence}</Link>}
+          >
+            <div className="acMetricTileSub" style={{ marginBottom: 12 }}>
+              {t.executiveDashboard.presenceSub
+                .replace('{working}', String(presenceStats.nowWorking))
+                .replace('{waiting}', String(presenceStats.waiting))}
+            </div>
+            <div className="acPresenceCardGrid">
+              {nowWorking.slice(0, 3).map((presence) => (
+                <EmployeePresenceCard key={presence.employeeId} presence={presence} />
+              ))}
+              {waiting.slice(0, 2).map((presence) => (
+                <EmployeePresenceCard key={presence.employeeId} presence={presence} />
+              ))}
+              {nowWorking.length === 0 && waiting.length === 0 ? (
+                <div className="acMuted">{t.presence.dashboard.noWorking}</div>
+              ) : null}
+            </div>
+          </Card>
+        </div>
+
         <div className="acDashboardSpan8">
           <Card
             title={t.executiveDashboard.companyHealth}

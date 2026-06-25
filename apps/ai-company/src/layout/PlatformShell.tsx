@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Outlet } from 'react-router-dom'
+import { PresenceRouteBridge } from '../components/presence'
 import { Sidebar } from './Sidebar'
 import { StatusBar } from './StatusBar'
 import { TopBar } from './TopBar'
@@ -26,6 +27,7 @@ export function PlatformShell() {
 
       <div className="acPlatformMain">
         <TopBar onMenuToggle={() => setSidebarOpen((value) => !value)} />
+        <PresenceRouteBridge />
         <main className="acPlatformContent">
           <Outlet />
         </main>

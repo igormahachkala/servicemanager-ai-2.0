@@ -4,6 +4,8 @@ import type { CustomEmployee } from '../data/customEmployees'
 import { getModelById } from '../../domain/runtime/runtimeStorage'
 import { useRuntimeProfiles } from '../../hooks/useRuntimeProfiles'
 import { RuntimeStatusBadge } from '../../components/runtime/RuntimeStatusBadge'
+import { EmployeeStatusBadge } from '../../components/presence'
+import { usePresence } from '../../hooks/usePresence'
 import { useI18n } from '../../i18n'
 
 function statusDotKind(status: CustomEmployee['status']): 'green' | 'amber' | 'red' | 'gray' {
@@ -15,7 +17,9 @@ function statusDotKind(status: CustomEmployee['status']): 'green' | 'amber' | 'r
 export function EmployeeHeader({ employee }: { employee: CustomEmployee }) {
   const { t } = useI18n()
   const { getProfile } = useRuntimeProfiles()
+  const { getByEmployeeId } = usePresence()
   const profile = getProfile(employee.id, employee.primaryModel)
+  const presence = getByEmployeeId(employee.id)
   const primaryModel = getModelById(profile.primaryModelId)
 
   return (
@@ -40,6 +44,7 @@ export function EmployeeHeader({ employee }: { employee: CustomEmployee }) {
               {t.employeeBuilder.status[employee.status]}
             </span>
             <RuntimeStatusBadge status={profile.status} compact />
+            {presence ? <EmployeeStatusBadge status={presence.status} compact /> : null}
           </div>
           <div className="mcProfileSubtitle">{employee.role}</div>
           <div className="mcProfileMetaRow">
