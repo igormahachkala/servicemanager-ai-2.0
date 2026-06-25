@@ -10,6 +10,7 @@ export function SideNav() {
     { to: OPS, page: 'dashboard' as const, icon: '◫', end: true },
     { to: `${OPS}/organization`, page: 'organization' as const, icon: '⬡', end: false },
     { to: `${OPS}/workspaces`, page: 'workspaces' as const, icon: '◧', end: false },
+    { to: `${OPS}/knowledge`, page: 'knowledge' as const, icon: '📚', end: false },
     { to: `${OPS}/employees`, page: 'employees' as const, icon: '◎', end: false },
     { to: `${OPS}/tasks`, page: 'tasks' as const, icon: '▤', end: false },
     { to: `${OPS}/chats`, page: 'chats' as const, icon: '💬', end: false },
@@ -19,6 +20,7 @@ export function SideNav() {
     { to: `${OPS}/approvals`, page: 'approvals' as const, icon: '✓', end: false },
     { to: `${OPS}/reports`, page: 'reports' as const, icon: '📋', end: false },
     { to: `${OPS}/audit`, page: 'audit' as const, icon: '🔍', end: false },
+    { to: `${OPS}/runtime`, page: 'runtimeSettings' as const, icon: '⎈', end: false },
     { to: `${OPS}/tools`, page: 'toolsRegistry' as const, icon: '⚙', end: false },
   ] as const
 

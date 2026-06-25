@@ -14,6 +14,9 @@ import { WorkspacesPage } from './pages/WorkspacesPage'
 import { NewWorkspacePage } from './pages/NewWorkspacePage'
 import { WorkspacePage } from './pages/WorkspacePage'
 import { EmployeeMemoryPage } from '../pages/EmployeeMemoryPage'
+import { KnowledgePage } from '../pages/KnowledgePage'
+import { KnowledgeItemPage } from '../pages/KnowledgeItemPage'
+import { KnowledgeCollectionsPage } from '../pages/KnowledgeCollectionsPage'
 import { ApprovalsPage } from '../pages/ApprovalsPage'
 import { ApprovalDetailsPage } from '../pages/ApprovalDetailsPage'
 import { ReportsPage } from '../pages/ReportsPage'
@@ -21,6 +24,8 @@ import { ReportPage } from '../pages/ReportPage'
 import { AuditPage } from '../pages/AuditPage'
 import { CompanyTimelinePage } from '../pages/CompanyTimelinePage'
 import { ActivityPage } from '../pages/ActivityPage'
+import { EmployeeRuntimePage } from '../pages/EmployeeRuntimePage'
+import { RuntimeSettingsPage } from '../pages/RuntimeSettingsPage'
 import { ChatsPage } from '../pages/ChatsPage'
 import { ChatPage } from '../pages/ChatPage'
 import { NewChatPage } from '../pages/NewChatPage'
@@ -50,6 +55,7 @@ export function MissionControlRoutes() {
         <Route path="employees/new" element={<NewEmployeePage />} />
         <Route path="employees/:id/conversation" element={<LegacyConversationRedirect />} />
         <Route path="employees/:id/memory" element={<EmployeeMemoryPage />} />
+        <Route path="employees/:id/runtime" element={<EmployeeRuntimePage />} />
         <Route path="employees/:id" element={<EmployeeProfilePage />} />
         <Route path="tasks" element={<TasksPage />} />
         <Route path="feed" element={<Navigate to="/ops/timeline" replace />} />
@@ -60,6 +66,7 @@ export function MissionControlRoutes() {
         <Route path="reports" element={<ReportsPage />} />
         <Route path="reports/:id" element={<ReportPage />} />
         <Route path="audit" element={<AuditPage />} />
+        <Route path="runtime" element={<RuntimeSettingsPage />} />
         <Route path="chats" element={<ChatsPage />} />
         <Route path="chats/new" element={<NewChatPage />} />
         <Route path="chats/:id" element={<ChatPage />} />
@@ -69,6 +76,9 @@ export function MissionControlRoutes() {
         <Route path="workspaces" element={<WorkspacesPage />} />
         <Route path="workspaces/new" element={<NewWorkspacePage />} />
         <Route path="workspaces/:id" element={<WorkspacePage />} />
+        <Route path="knowledge/collections" element={<KnowledgeCollectionsPage />} />
+        <Route path="knowledge/:id" element={<KnowledgeItemPage />} />
+        <Route path="knowledge" element={<KnowledgePage />} />
         <Route path="tools" element={<ToolsCatalogPage />} />
         <Route path="tools/:id" element={<ToolDetailsPage />} />
         <Route path="*" element={<Navigate to="/ops" replace />} />

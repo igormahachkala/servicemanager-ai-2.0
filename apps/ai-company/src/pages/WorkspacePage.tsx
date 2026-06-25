@@ -96,7 +96,7 @@ export function WorkspacePage() {
           <WorkspaceOverview workspace={workspace} assignmentCount={assignmentCount} />
         ) : null}
         {section === 'employees' ? <WorkspaceAssignments workspaceId={workspace.id} /> : null}
-        {section === 'knowledge' ? <WorkspaceKnowledge /> : null}
+        {section === 'knowledge' ? <WorkspaceKnowledge workspaceId={workspace.id} /> : null}
         {section === 'documents' ? <WorkspaceDocuments /> : null}
         {section === 'activity' ? <WorkspaceActivity /> : null}
         {section === 'tools' ? <WorkspaceTools /> : null}

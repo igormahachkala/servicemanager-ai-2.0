@@ -1,6 +1,9 @@
 import { Link } from 'react-router-dom'
 import { StatusDot } from './ui'
 import type { CustomEmployee } from '../data/customEmployees'
+import { getModelById } from '../../domain/runtime/runtimeStorage'
+import { useRuntimeProfiles } from '../../hooks/useRuntimeProfiles'
+import { RuntimeStatusBadge } from '../../components/runtime/RuntimeStatusBadge'
 import { useI18n } from '../../i18n'
 
 function statusDotKind(status: CustomEmployee['status']): 'green' | 'amber' | 'red' | 'gray' {
@@ -11,6 +14,9 @@ function statusDotKind(status: CustomEmployee['status']): 'green' | 'amber' | 'r
 
 export function EmployeeHeader({ employee }: { employee: CustomEmployee }) {
   const { t } = useI18n()
+  const { getProfile } = useRuntimeProfiles()
+  const profile = getProfile(employee.id, employee.primaryModel)
+  const primaryModel = getModelById(profile.primaryModelId)
 
   return (
     <header className="mcProfileHeader">
@@ -33,10 +39,13 @@ export function EmployeeHeader({ employee }: { employee: CustomEmployee }) {
               <StatusDot kind={statusDotKind(employee.status)} />
               {t.employeeBuilder.status[employee.status]}
             </span>
+            <RuntimeStatusBadge status={profile.status} compact />
           </div>
           <div className="mcProfileSubtitle">{employee.role}</div>
           <div className="mcProfileMetaRow">
-            <span className="mcMono mcMuted">{employee.primaryModel}</span>
+            <span className="mcMono mcMuted">
+              {primaryModel?.name ?? profile.primaryModelId}
+            </span>
             <span className="mcMuted">·</span>
             <span className="mcMuted">
               {t.employeeProfile.created}{' '}
@@ -55,6 +64,12 @@ export function EmployeeHeader({ employee }: { employee: CustomEmployee }) {
               className="mcBtn mcBtnSecondary mcBtnSmall"
             >
               {t.memoryEngine.openMemory}
+            </Link>
+            <Link
+              to={`/ops/employees/${employee.id}/runtime`}
+              className="mcBtn mcBtnSecondary mcBtnSmall"
+            >
+              {t.runtimeEngine.openRuntime}
             </Link>
           </div>
         </div>

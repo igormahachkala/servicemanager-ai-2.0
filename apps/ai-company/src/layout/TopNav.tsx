@@ -8,6 +8,7 @@ const NAV = [
   { to: '/ops', key: 'missionControl' as const, end: true },
   { to: '/ops/organization', key: 'organization' as const, end: false },
   { to: '/ops/workspaces', key: 'workspaces' as const, end: false },
+  { to: '/ops/knowledge', key: 'knowledge' as const, end: false },
   { to: '/ops/employees', key: 'employees' as const, end: false },
   { to: '/ops/tasks', key: 'tasks' as const, end: false },
   { to: '/ops/chats', key: 'chats' as const, end: false },
@@ -16,6 +17,7 @@ const NAV = [
   { to: '/ops/feed', key: 'feed' as const, end: false },
   { to: '/ops/approvals', key: 'approvals' as const, end: false },
   { to: '/ops/reports', key: 'reports' as const, end: false },
+  { to: '/ops/runtime', key: 'runtime' as const, end: false },
   { to: '/ops/audit', key: 'audit' as const, end: false },
   { to: '/ops/tools', key: 'tools' as const, end: false },
 ] as const

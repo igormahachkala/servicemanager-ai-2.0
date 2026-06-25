@@ -80,6 +80,9 @@ export function pageTitle(pathname: string, t: Messages): string {
   if (pathname === '/ops/workspaces') return t.pages.workspaces
   if (pathname === '/ops/workspaces/new') return t.workspaces.newWorkspace
   if (pathname.startsWith('/ops/workspaces/')) return t.pages.workspaces
+  if (pathname === '/ops/knowledge') return t.pages.knowledge
+  if (pathname === '/ops/knowledge/collections') return t.knowledgeEngine.collectionsTitle
+  if (pathname.startsWith('/ops/knowledge/')) return t.pages.knowledge
   if (pathname === '/ops/feed') return t.pages.missionFeed
   if (pathname === '/ops/timeline') return t.pages.companyTimeline
   if (pathname === '/ops/activity') return t.pages.activity
@@ -90,5 +93,9 @@ export function pageTitle(pathname: string, t: Messages): string {
   if (pathname === '/ops/reports') return t.pages.reports
   if (pathname.startsWith('/ops/reports/')) return t.pages.reports
   if (pathname === '/ops/audit') return t.pages.audit
+  if (pathname === '/ops/runtime') return t.pages.runtimeSettings
+  if (pathname.startsWith('/ops/employees/') && pathname.endsWith('/runtime')) {
+    return t.runtimeEngine.employeeRuntimePage
+  }
   return t.pages.missionControl
 }

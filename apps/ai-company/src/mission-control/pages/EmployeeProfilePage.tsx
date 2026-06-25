@@ -7,8 +7,10 @@ import { EmployeeSkills } from '../components/EmployeeSkills'
 import { EmployeePermissions } from '../components/EmployeePermissions'
 import { EmployeeMemory } from '../components/EmployeeMemory'
 import { EmployeeRelationships } from '../components/EmployeeRelationships'
+import { EmployeeAssignedKnowledge } from '../../components/knowledge/EmployeeAssignedKnowledge'
 import { EmployeeAssignments } from '../components/EmployeeAssignments'
 import { EmployeeActivity } from '../components/EmployeeActivity'
+import { EmployeeRuntime } from '../../components/EmployeeRuntime'
 import { useCustomEmployees } from '../hooks/useCustomEmployees'
 import { useI18n } from '../../i18n'
 
@@ -17,9 +19,11 @@ type ProfileSection =
   | 'skills'
   | 'permissions'
   | 'memory'
+  | 'knowledge'
   | 'relationships'
   | 'assignments'
   | 'activity'
+  | 'runtime'
 
 export function EmployeeProfilePage() {
   const { id } = useParams<{ id: string }>()
@@ -37,9 +41,11 @@ export function EmployeeProfilePage() {
     'skills',
     'permissions',
     'memory',
+    'knowledge',
     'relationships',
     'assignments',
     'activity',
+    'runtime',
   ]
 
   if (!employee) {
@@ -82,9 +88,11 @@ export function EmployeeProfilePage() {
         {section === 'skills' ? <EmployeeSkills employee={employee} /> : null}
         {section === 'permissions' ? <EmployeePermissions employee={employee} /> : null}
         {section === 'memory' ? <EmployeeMemory employee={employee} /> : null}
+        {section === 'knowledge' ? <EmployeeAssignedKnowledge employeeId={employee.id} /> : null}
         {section === 'relationships' ? <EmployeeRelationships employeeId={employee.id} /> : null}
         {section === 'assignments' ? <EmployeeAssignments employeeId={employee.id} /> : null}
         {section === 'activity' ? <EmployeeActivity /> : null}
+        {section === 'runtime' ? <EmployeeRuntime employee={employee} /> : null}
       </div>
     </div>
   )

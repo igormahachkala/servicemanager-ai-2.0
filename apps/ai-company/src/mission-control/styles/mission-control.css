@@ -2898,6 +2898,294 @@
   text-decoration: underline;
 }
 
+/* Runtime Profile & Model Router */
+.mcRuntimeProfileGrid,
+.mcRuntimeProviderGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.mcRuntimeProfileLink {
+  color: inherit;
+  text-decoration: none;
+}
+
+.mcRuntimeProfileLink:hover .mcRuntimeProfileCard {
+  border-color: rgba(147, 197, 253, 0.35);
+}
+
+.mcRuntimeProfileCard,
+.mcRuntimeProviderCard {
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius);
+  background: rgba(255, 255, 255, 0.02);
+  overflow: hidden;
+}
+
+.mcRuntimeProfileHead,
+.mcRuntimeProviderHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border-bottom: 1px solid var(--mc-border);
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.mcRuntimeProfileTitle,
+.mcRuntimeProviderTitle {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.mcRuntimeProfileMeta,
+.mcRuntimeProviderMeta {
+  margin-top: 4px;
+  font-size: 11px;
+}
+
+.mcRuntimeProfileBody,
+.mcRuntimeProviderBody {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+}
+
+.mcRuntimeProfileRow,
+.mcRuntimeProviderRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.mcRuntimeProviderType {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid var(--mc-border);
+}
+
+.mcRuntimeProviderTypeLocal {
+  background: rgba(34, 197, 94, 0.12);
+  color: #86efac;
+}
+
+.mcRuntimeProviderTypeCloud {
+  background: rgba(59, 130, 246, 0.12);
+  color: #93c5fd;
+}
+
+.mcRuntimeProviderTypeHybrid {
+  background: rgba(234, 179, 8, 0.12);
+  color: #fde047;
+}
+
+.mcRuntimeCapabilityRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.mcRuntimeCapability {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--mc-border);
+}
+
+.mcRuntimeCapabilityWarn {
+  color: #fde047;
+}
+
+.mcRuntimeModelList {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--mc-muted);
+}
+
+.mcRuntimeModelListItem {
+  margin-bottom: 4px;
+}
+
+.mcRuntimeStatusBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid var(--mc-border);
+}
+
+.mcRuntimeStatusBadgeCompact {
+  font-size: 10px;
+}
+
+.mcRuntimeStatusActive {
+  background: rgba(34, 197, 94, 0.12);
+  color: #86efac;
+}
+
+.mcRuntimeStatusPaused {
+  background: rgba(234, 179, 8, 0.12);
+  color: #fde047;
+}
+
+.mcRuntimeStatusDraft {
+  background: rgba(148, 163, 184, 0.12);
+  color: #cbd5e1;
+}
+
+.mcRuntimeRouteMatrix {
+  overflow-x: auto;
+}
+
+.mcRuntimePolicyGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+}
+
+.mcRuntimePolicyCard {
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius);
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.mcRuntimePolicyTitle {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.mcRuntimePolicyList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mcRuntimePolicyList li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.mcRuntimeFallbackList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mcRuntimeSelectionPrimary {
+  padding: 12px;
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius);
+  background: rgba(99, 102, 241, 0.08);
+}
+
+.mcRuntimeSelectionLabel {
+  font-size: 11px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--mc-muted);
+  margin-bottom: 6px;
+}
+
+.mcRuntimeSelectionValue {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.mcRuntimeSelectionReason {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--mc-muted);
+}
+
+.mcRuntimeApprovalFlag {
+  margin-top: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+  background: rgba(234, 179, 8, 0.12);
+  color: #fde047;
+}
+
+.mcRuntimeFallbackChain {
+  margin: 6px 0 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--mc-muted);
+}
+
+.mcRuntimeEmpty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 24px 16px;
+  border: 1px dashed var(--mc-border);
+  border-radius: var(--mc-radius);
+  text-align: center;
+}
+
+.mcRuntimeEmptyTitle {
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.mcRuntimeEmptyDesc {
+  margin: 0;
+  font-size: 13px;
+  color: var(--mc-muted);
+}
+
+.mcRuntimeFutureGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+.mcRuntimeFutureItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px dashed var(--mc-border);
+  border-radius: var(--mc-radius);
+  font-size: 13px;
+}
+
+.mcRuntimeFutureBadge {
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  background: rgba(148, 163, 184, 0.15);
+  color: var(--mc-muted);
+}
+
+.mcFieldInline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 /* Unified Chats V1 */
 .mcChatPage {
   display: flex;
@@ -4290,6 +4578,398 @@
 
 .mcApprovalEmptyDesc {
   margin: 0;
+  font-size: 13px;
+  color: var(--mc-muted);
+  line-height: 1.5;
+}
+
+/* Knowledge engine */
+.mcKnowledgeStatsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+.mcKnowledgeStatCard {
+  padding: 14px 16px;
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius);
+  background: var(--mc-surface);
+}
+
+.mcKnowledgeStatValue {
+  font-size: 22px;
+  font-weight: 700;
+  font-family: var(--mc-mono);
+}
+
+.mcKnowledgeStatLabel {
+  margin-top: 4px;
+  font-size: 11px;
+}
+
+.mcKnowledgeFilters {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.mcKnowledgeFilterField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mcKnowledgeCardGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+}
+
+.mcKnowledgeCard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius);
+  background: var(--mc-surface);
+}
+
+.mcKnowledgeCardLink {
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.mcKnowledgeCardLink:hover {
+  border-color: rgba(59, 130, 246, 0.45);
+  background: rgba(59, 130, 246, 0.04);
+}
+
+.mcKnowledgeCardHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mcKnowledgeCardTitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.mcKnowledgeCardSummary {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.mcKnowledgeCardMeta,
+.mcKnowledgeCardFooter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.mcKnowledgeCardFooter {
+  justify-content: space-between;
+  margin-top: 4px;
+}
+
+.mcKnowledgeTypeBadge,
+.mcKnowledgeStatusBadge,
+.mcKnowledgeAssignBadge {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.mcKnowledgeTypeBadge {
+  color: #60a5fa;
+  border: 1px solid rgba(96, 165, 250, 0.25);
+  background: rgba(96, 165, 250, 0.06);
+}
+
+.mcKnowledgeStatusPublished {
+  color: #22c55e;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.mcKnowledgeStatusDraft {
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.mcKnowledgeStatusArchived {
+  color: var(--mc-muted);
+  border: 1px solid var(--mc-border);
+}
+
+.mcKnowledgeAssignAssigned {
+  color: var(--mc-muted);
+  border: 1px solid var(--mc-border);
+}
+
+.mcKnowledgeAssignProgress {
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.mcKnowledgeAssignCompleted {
+  color: #22c55e;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.mcKnowledgeSectionGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.mcKnowledgeSourcesGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  gap: 8px;
+}
+
+.mcKnowledgeSourceCard {
+  padding: 10px;
+  border: 1px solid var(--mc-border);
+  border-radius: 8px;
+  text-align: center;
+}
+
+.mcKnowledgeSourceLabel {
+  font-size: 11px;
+  color: var(--mc-muted);
+}
+
+.mcKnowledgeSourceCount {
+  font-size: 18px;
+  font-weight: 700;
+  font-family: var(--mc-mono);
+}
+
+.mcKnowledgeCollectionGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+}
+
+.mcKnowledgeCollectionListCompact {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mcKnowledgeCollectionCard {
+  padding: 12px;
+  border: 1px solid var(--mc-border);
+  border-radius: 8px;
+}
+
+.mcKnowledgeCollectionHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.mcKnowledgeCollectionTitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.mcKnowledgeCollectionDesc {
+  margin: 0 0 8px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.mcKnowledgeCollectionItems {
+  margin: 0 0 8px;
+  padding-left: 18px;
+  font-size: 12px;
+}
+
+.mcKnowledgeCollectionPreview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mcKnowledgeCollectionPreviewRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.mcKnowledgeAssignmentList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mcKnowledgeAssignmentRow {
+  padding: 12px;
+  border: 1px solid var(--mc-border);
+  border-radius: 8px;
+}
+
+.mcKnowledgeAssignmentHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.mcKnowledgeAssignmentTarget {
+  font-weight: 650;
+  font-size: 13px;
+}
+
+.mcKnowledgeAssignmentNote {
+  margin: 0 0 8px;
+  font-size: 12px;
+}
+
+.mcKnowledgeAssignmentLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.mcKnowledgeHeader {
+  margin-bottom: 16px;
+}
+
+.mcKnowledgeHeaderTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.mcKnowledgeHeaderMain {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mcKnowledgeHeaderTitleRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.mcKnowledgeTitle {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.mcKnowledgeSubtitle {
+  margin: 0;
+  font-size: 14px;
+  color: var(--mc-muted);
+  line-height: 1.5;
+}
+
+.mcKnowledgeHeaderMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+}
+
+.mcKnowledgeContentBody {
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: var(--mc-mono);
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--mc-text);
+}
+
+.mcKnowledgeFutureGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.mcKnowledgeFutureCard {
+  padding: 12px;
+  border: 1px dashed var(--mc-border);
+  border-radius: 8px;
+}
+
+.mcKnowledgeFutureBadge {
+  display: inline-flex;
+  margin-bottom: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.mcKnowledgeFutureTitle {
+  font-weight: 650;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.mcKnowledgeFutureDesc {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.mcKnowledgeEmpty,
+.mcKnowledgeEmptyInline {
+  padding: 24px;
+  text-align: center;
+}
+
+.mcKnowledgeEmpty {
+  border: 1px dashed var(--mc-border);
+  border-radius: var(--mc-radius);
+}
+
+.mcKnowledgeEmptyTitle {
+  font-size: 16px;
+  font-weight: 650;
+  margin-bottom: 8px;
+}
+
+.mcKnowledgeEmptyDesc {
+  margin: 0 0 16px;
   font-size: 13px;
   color: var(--mc-muted);
   line-height: 1.5;
