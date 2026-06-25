@@ -1,10 +1,11 @@
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import type { CustomEmployee } from '../mission-control/data/customEmployees'
 import { ModelRouteMatrix } from './runtime/ModelRouteMatrix'
 import { RuntimeFallbackList } from './runtime/RuntimeFallbackList'
 import { RuntimePolicyPanel } from './runtime/RuntimePolicyPanel'
 import { RuntimeStatusBadge } from './runtime/RuntimeStatusBadge'
 import { useModelRouter } from '../hooks/useModelRouter'
+import { useRuntime } from '../hooks/useRuntime'
 import { useRuntimeProfiles } from '../hooks/useRuntimeProfiles'
 import {
   getModelById,
@@ -16,7 +17,9 @@ import { Panel } from '../mission-control/components/ui'
 
 export function EmployeeRuntime({ employee }: { employee: CustomEmployee }) {
   const { t } = useI18n()
+  const navigate = useNavigate()
   const { getProfile } = useRuntimeProfiles()
+  const { startRun } = useRuntime()
   const profile = getProfile(employee.id, employee.primaryModel)
   const previewContext = {
     taskType: 'conversation' as const,
@@ -25,6 +28,16 @@ export function EmployeeRuntime({ employee }: { employee: CustomEmployee }) {
     requiresTools: true,
   }
   const { selection } = useModelRouter(profile, previewContext)
+
+  const handleStartRun = () => {
+    const run = startRun({
+      employeeId: employee.id,
+      workspaceId: null,
+      taskType: 'conversation',
+      forceApproval: selection?.requiresApproval ?? false,
+    })
+    navigate(`/ops/runtime/runs/${run.id}`)
+  }
 
   const primaryModel = getModelById(profile.primaryModelId)
   const primaryProvider = getProviderForModel(profile.primaryModelId)
@@ -39,6 +52,9 @@ export function EmployeeRuntime({ employee }: { employee: CustomEmployee }) {
         <Link to={`/ops/employees/${employee.id}/runtime`} className="mcBtn mcBtnSecondary">
           {t.runtimeEngine.openFullRuntime}
         </Link>
+        <button type="button" className="mcBtn mcBtnPrimary" onClick={handleStartRun}>
+          {t.runtimeOrchestrator.startRun}
+        </button>
       </div>
 
       <div className="mcGrid2">

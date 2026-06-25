@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { PageHeader, Panel } from '../mission-control/components/ui'
 import { ModelRouteMatrix } from '../components/runtime/ModelRouteMatrix'
 import { RuntimeFallbackList } from '../components/runtime/RuntimeFallbackList'
 import { RuntimePolicyPanel } from '../components/runtime/RuntimePolicyPanel'
 import { RuntimeStatusBadge } from '../components/runtime/RuntimeStatusBadge'
 import { useModelRouter } from '../hooks/useModelRouter'
+import { useRuntime } from '../hooks/useRuntime'
 import { useRuntimeProfiles } from '../hooks/useRuntimeProfiles'
 import {
   getModelById,
@@ -23,7 +24,9 @@ import { useI18n } from '../i18n'
 export function EmployeeRuntimePage() {
   const { id } = useParams<{ id: string }>()
   const { t } = useI18n()
+  const navigate = useNavigate()
   const { getProfile } = useRuntimeProfiles()
+  const { startRun } = useRuntime()
   const [taskType, setTaskType] = useState<TaskType>('conversation')
   const [hasSensitiveData, setHasSensitiveData] = useState(false)
   const [requiresExternalTools, setRequiresExternalTools] = useState(false)
@@ -53,6 +56,19 @@ export function EmployeeRuntimePage() {
 
   const { selection } = useModelRouter(profile, taskContext)
 
+  const handleStartRun = () => {
+    if (!id || !profile) return
+    const run = startRun({
+      employeeId: id,
+      workspaceId: null,
+      taskType,
+      hasSensitiveData,
+      requiresExternalTools,
+      forceApproval: selection?.requiresApproval ?? false,
+    })
+    navigate(`/ops/runtime/runs/${run.id}`)
+  }
+
   if (!id || !employeeRef || !profile) {
     return (
       <>
@@ -80,6 +96,9 @@ export function EmployeeRuntimePage() {
         <Link to={`/ops/employees/${id}`} className="mcBtn mcBtnSecondary">
           {t.employeeProfile.title}
         </Link>
+        <button type="button" className="mcBtn mcBtnPrimary" onClick={handleStartRun}>
+          {t.runtimeOrchestrator.startRun}
+        </button>
       </div>
 
       <div className="mcGrid4" style={{ marginBottom: 16 }}>

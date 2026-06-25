@@ -25,6 +25,7 @@ import { AuditPage } from '../pages/AuditPage'
 import { CompanyTimelinePage } from '../pages/CompanyTimelinePage'
 import { ActivityPage } from '../pages/ActivityPage'
 import { EmployeeRuntimePage } from '../pages/EmployeeRuntimePage'
+import { RuntimeRunPage } from '../pages/RuntimeRunPage'
 import { RuntimeSettingsPage } from '../pages/RuntimeSettingsPage'
 import { ChatsPage } from '../pages/ChatsPage'
 import { ChatPage } from '../pages/ChatPage'
@@ -66,6 +67,7 @@ export function MissionControlRoutes() {
         <Route path="reports" element={<ReportsPage />} />
         <Route path="reports/:id" element={<ReportPage />} />
         <Route path="audit" element={<AuditPage />} />
+        <Route path="runtime/runs/:id" element={<RuntimeRunPage />} />
         <Route path="runtime" element={<RuntimeSettingsPage />} />
         <Route path="chats" element={<ChatsPage />} />
         <Route path="chats/new" element={<NewChatPage />} />

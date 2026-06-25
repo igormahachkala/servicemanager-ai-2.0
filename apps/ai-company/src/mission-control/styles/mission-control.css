@@ -3186,6 +3186,256 @@
   gap: 8px;
 }
 
+/* Runtime Orchestrator */
+.mcRuntimeRunCard {
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.mcRuntimeRunCardHead,
+.mcRuntimeRunCardBody {
+  padding: 12px;
+}
+
+.mcRuntimeRunCardHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--mc-border);
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.mcRuntimeRunCardTitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.mcRuntimeRunCardMeta {
+  margin-top: 4px;
+  font-size: 11px;
+}
+
+.mcRuntimeRunCardBody {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mcRuntimeRunStateBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid var(--mc-border);
+}
+
+.mcRuntimeRunStateBadgeCompact {
+  font-size: 10px;
+}
+
+.mcRuntimeRunStateQueued,
+.mcRuntimeRunStatePreparingContext {
+  background: rgba(148, 163, 184, 0.12);
+  color: #cbd5e1;
+}
+
+.mcRuntimeRunStateWaitingApproval {
+  background: rgba(234, 179, 8, 0.12);
+  color: #fde047;
+}
+
+.mcRuntimeRunStateRunning {
+  background: rgba(59, 130, 246, 0.12);
+  color: #93c5fd;
+}
+
+.mcRuntimeRunStateCompleted {
+  background: rgba(34, 197, 94, 0.12);
+  color: #86efac;
+}
+
+.mcRuntimeRunStateCancelled {
+  background: rgba(148, 163, 184, 0.12);
+  color: #94a3b8;
+}
+
+.mcRuntimeRunStateFailed {
+  background: rgba(239, 68, 68, 0.12);
+  color: #fca5a5;
+}
+
+.mcRuntimePipeline {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mcRuntimePipelineStep {
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius);
+  padding: 10px 12px;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.mcRuntimePipelineStepDone {
+  border-color: rgba(34, 197, 94, 0.25);
+}
+
+.mcRuntimePipelineStepActive {
+  border-color: rgba(59, 130, 246, 0.35);
+}
+
+.mcRuntimePipelineStepFailed {
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+.mcRuntimePipelineStepHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mcRuntimePipelineOrder {
+  font-size: 11px;
+  color: var(--mc-muted);
+}
+
+.mcRuntimePipelineStatus {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--mc-muted);
+}
+
+.mcRuntimePipelineDetail {
+  margin-top: 6px;
+  font-size: 12px;
+}
+
+.mcRuntimeContextCard {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mcRuntimeContextMeta {
+  font-size: 11px;
+}
+
+.mcRuntimeContextLayers {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mcRuntimeContextLayer {
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius);
+  padding: 10px 12px;
+}
+
+.mcRuntimeContextLayerHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.mcRuntimeContextLayerSummary {
+  font-size: 13px;
+  color: var(--mc-muted);
+}
+
+.mcRuntimeContextLayerEmpty {
+  display: inline-block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--mc-muted);
+}
+
+.mcRuntimeWarnings {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mcRuntimeWarning {
+  display: flex;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.mcRuntimeWarningWarn {
+  background: rgba(234, 179, 8, 0.12);
+}
+
+.mcRuntimeWarningError {
+  background: rgba(239, 68, 68, 0.12);
+}
+
+.mcRuntimeWarningInfo {
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.mcRuntimeArtifacts {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mcRuntimeArtifactItem {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--mc-border);
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.mcRuntimeArtifactKind {
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.mcRuntimeApprovalBanner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid rgba(234, 179, 8, 0.35);
+  border-radius: var(--mc-radius);
+  background: rgba(234, 179, 8, 0.08);
+}
+
+.mcRuntimeApprovalBanner p {
+  margin: 0;
+}
+
 /* Unified Chats V1 */
 .mcChatPage {
   display: flex;

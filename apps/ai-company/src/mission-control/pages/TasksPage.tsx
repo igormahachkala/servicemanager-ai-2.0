@@ -1,15 +1,19 @@
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   PageHeader,
   Panel,
   priorityBadgeClass,
 } from '../components/ui'
-import { tasks } from '../data/mock'
+import { tasks, agents } from '../data/mock'
 import type { TaskStatus } from '../data/types'
+import { useRuntime } from '../../hooks/useRuntime'
 import { useI18n } from '../../i18n'
 
 export function TasksPage() {
   const { t } = useI18n()
+  const navigate = useNavigate()
+  const { startRun } = useRuntime()
   const [filter, setFilter] = useState<'all' | TaskStatus>('all')
 
   const filters: Array<{ id: 'all' | TaskStatus; label: string }> = [
@@ -59,10 +63,13 @@ export function TasksPage() {
               <th>{t.labels.priority}</th>
               <th>{t.labels.status}</th>
               <th>{t.labels.sla}</th>
+              <th>{t.runtimeOrchestrator.startRunFromTask}</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((task) => (
+            {rows.map((task) => {
+              const employeeId = agents.find((agent) => agent.codename === task.assignee)?.id
+              return (
               <tr key={task.id}>
                 <td className="mcMono">{task.id}</td>
                 <td>{task.title}</td>
@@ -80,8 +87,28 @@ export function TasksPage() {
                     t.tasks.slaLeft.replace('{minutes}', String(task.slaMinutes))
                   )}
                 </td>
+                <td>
+                  {employeeId ? (
+                    <button
+                      type="button"
+                      className="mcBtn mcBtnSecondary mcBtnSmall"
+                      onClick={() => {
+                        const run = startRun({
+                          employeeId,
+                          taskId: task.id,
+                          taskType: 'general',
+                        })
+                        navigate(`/ops/runtime/runs/${run.id}`)
+                      }}
+                    >
+                      {t.runtimeOrchestrator.startRun}
+                    </button>
+                  ) : (
+                    <span className="mcMuted">{t.common.empty}</span>
+                  )}
+                </td>
               </tr>
-            ))}
+            )})}
           </tbody>
         </table>
       </Panel>
