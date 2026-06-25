@@ -7,6 +7,7 @@ import type {
   EventSeverity,
 } from './event'
 import { EVENT_SEVERITIES } from './event'
+import { emitNotificationFromEvent } from '../notifications/notificationStorage'
 import { EVENT_SOURCE_TYPES, type EventSourceType } from './eventSource'
 import { EVENT_TYPES, type EventType } from './eventType'
 
@@ -128,7 +129,9 @@ export function appendEvent(
 export function emitEvent(
   event: Omit<CompanyEvent, 'id' | 'createdAt'> & { id?: string; createdAt?: string },
 ): CompanyEvent {
-  return appendEvent(event)
+  const created = appendEvent(event)
+  emitNotificationFromEvent(created)
+  return created
 }
 
 export function filterEvents(events: CompanyEvent[], filter: EventFilter): CompanyEvent[] {

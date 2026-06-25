@@ -9,6 +9,7 @@ import { useReports } from '../../hooks/useReports'
 import { useRuntime } from '../../hooks/useRuntime'
 import { useRuntimeProfiles } from '../../hooks/useRuntimeProfiles'
 import { useActiveWorkspace } from '../../hooks/useActiveWorkspace'
+import { useNotifications } from '../../hooks/useNotifications'
 import { useProjects } from '../../hooks/useProjects'
 import { usePresence } from '../../hooks/usePresence'
 import { useWorkspaces } from '../../hooks/useWorkspaces'
@@ -26,6 +27,7 @@ export function ExecutiveDashboard() {
   const { grouped } = useEvents()
   const { chats } = useChats()
   const { workspaces } = useWorkspaces()
+  const { unread, unreadCount, markRead } = useNotifications()
   const { projects } = useProjects()
   const { stats: presenceStats, nowWorking, waiting } = usePresence()
   const { activeWorkspace } = useActiveWorkspace()
@@ -214,6 +216,37 @@ export function ExecutiveDashboard() {
         </div>
 
         <div className="acDashboardSpan6">
+          <Card
+            title={t.notificationEngine.inboxTitle}
+            action={
+              <Link to="/ops/notifications" className="acLink">
+                {t.executiveDashboard.viewAll}
+                {unreadCount > 0 ? ` (${unreadCount})` : ''}
+              </Link>
+            }
+          >
+            {unread.length === 0 ? (
+              <div className="acMuted">{t.notificationEngine.emptyInbox}</div>
+            ) : (
+              unread.slice(0, 5).map((item) => (
+                <div key={item.id} className="acListRow">
+                  <span className="acMono acMuted">{formatFeedTime(item.createdAt)}</span>
+                  <span>{item.title}</span>
+                  <Badge variant={item.severity === 'error' ? 'danger' : item.severity === 'warn' ? 'warning' : 'default'}>
+                    {item.type}
+                  </Badge>
+                  {item.action ? (
+                    <Link to={item.action.href} className="acLink" onClick={() => markRead(item.id)}>
+                      →
+                    </Link>
+                  ) : null}
+                </div>
+              ))
+            )}
+          </Card>
+        </div>
+
+        <div className="acDashboardSpan6">
           <Card title={t.executiveDashboard.quickActions}>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               <Link to="/ops/chats/new" className="acQuickActionBtn acQuickActionBtnPrimary">
@@ -230,6 +263,9 @@ export function ExecutiveDashboard() {
               </Link>
               <Link to="/ops/runtime" className="acQuickActionBtn">
                 {t.platformNav.settings}
+              </Link>
+              <Link to="/ops/notifications" className="acQuickActionBtn">
+                {t.pages.notifications}
               </Link>
               <Link to="/" className="acQuickActionBtn">
                 {t.executiveDashboard.actionFlow}

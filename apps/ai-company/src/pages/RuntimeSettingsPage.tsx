@@ -33,9 +33,14 @@ export function RuntimeSettingsPage() {
 
       <div className="mcPageHeaderRow" style={{ marginBottom: 16 }}>
         <p className="mcMuted">{t.runtimeEngine.pageDescription}</p>
-        <button type="button" className="mcBtn mcBtnPrimary" onClick={handleDemoRun}>
-          {t.runtimeOrchestrator.startRun}
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Link to="/ops/notifications?type=runtime" className="mcBtn mcBtnSecondary">
+            {t.notificationEngine.runtimeInbox}
+          </Link>
+          <button type="button" className="mcBtn mcBtnPrimary" onClick={handleDemoRun}>
+            {t.runtimeOrchestrator.startRun}
+          </button>
+        </div>
       </div>
 
       <div className="mcGrid4" style={{ marginBottom: 16 }}>

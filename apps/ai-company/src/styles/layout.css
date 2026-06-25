@@ -366,6 +366,172 @@
   min-width: 160px;
 }
 
+/* Notification Center V1 */
+.acNotificationCenter {
+  position: relative;
+}
+
+.acNotificationBell {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--ac-border);
+  border-radius: var(--ac-radius-sm);
+  background: var(--ac-surface);
+  color: var(--ac-text);
+  cursor: pointer;
+}
+
+.acNotificationBell:hover {
+  background: var(--ac-surface-hover);
+}
+
+.acNotificationBadge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--ac-red);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+
+.acNotificationBadgeCompact {
+  min-width: 16px;
+  height: 16px;
+  line-height: 16px;
+  font-size: 9px;
+}
+
+.acNotificationDropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 50;
+  width: min(420px, calc(100vw - 24px));
+  max-height: 70vh;
+  overflow: auto;
+  border: 1px solid var(--ac-border);
+  border-radius: var(--ac-radius-lg);
+  background: var(--ac-bg-elevated);
+  box-shadow: var(--ac-shadow-lg);
+}
+
+.acNotificationDropdownHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--ac-border-subtle);
+}
+
+.acNotificationQuickActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 14px;
+  border-top: 1px solid var(--ac-border-subtle);
+}
+
+.acNotificationInboxToolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 14px;
+}
+
+.acNotificationInboxList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 10px 10px;
+}
+
+.acNotificationCard {
+  padding: 10px 12px;
+  border: 1px solid var(--ac-border-subtle);
+  border-radius: var(--ac-radius-md);
+  background: var(--ac-surface);
+}
+
+.acNotificationCardRead {
+  opacity: 0.72;
+}
+
+.acNotificationCardWarn {
+  border-color: rgba(245, 158, 11, 0.35);
+}
+
+.acNotificationCardDanger {
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+.acNotificationCardSuccess {
+  border-color: rgba(34, 197, 94, 0.35);
+}
+
+.acNotificationCardCompact {
+  padding: 8px 10px;
+}
+
+.acNotificationCardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.acNotificationCategory {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ac-accent-hover);
+}
+
+.acNotificationCardTitle {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.acNotificationCardSummary {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--ac-text-muted);
+  line-height: 1.4;
+}
+
+.acNotificationCardActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.acNotificationEmpty {
+  padding: 20px 14px;
+  text-align: center;
+  color: var(--ac-text-muted);
+}
+
+.acNotificationFilters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
 @media (max-width: 1200px) {
   .acDashboardGridMetrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -397,6 +563,10 @@
 
   .acQuickActions {
     display: none;
+  }
+
+  .acNotificationFilters {
+    grid-template-columns: 1fr;
   }
 }
 

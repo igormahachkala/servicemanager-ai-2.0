@@ -1,5 +1,6 @@
 import { Breadcrumbs } from './Breadcrumbs'
 import { LanguageToggle } from './LanguageToggle'
+import { NotificationCenter } from '../components/notifications/NotificationCenter'
 import { QuickActions } from './QuickActions'
 import { WorkspaceSwitcher } from './WorkspaceSwitcher'
 import { useI18n } from '../i18n'
@@ -38,6 +39,7 @@ export function TopBar({ onMenuToggle }: TopBarProps) {
       <QuickActions />
 
       <div className="acTopBarActions">
+        <NotificationCenter />
         <LanguageToggle />
       </div>
     </header>

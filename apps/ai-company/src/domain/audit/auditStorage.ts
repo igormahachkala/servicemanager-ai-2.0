@@ -1,4 +1,5 @@
 import { DEFAULT_COMPANY_ID } from '../company/company'
+import { emitNotificationFromAudit } from '../notifications/notificationStorage'
 import {
   AUDIT_ACTIONS,
   AUDIT_ACTOR_TYPES,
@@ -123,6 +124,16 @@ export function appendAuditEvent(
     createdAt: event.createdAt ?? new Date().toISOString(),
   }
   saveAuditEvents([created, ...loadAuditEvents()])
+  emitNotificationFromAudit({
+    id: created.id,
+    action: created.action,
+    targetType: created.targetType,
+    targetId: created.targetId,
+    actorId: created.actorId,
+    workspaceId: created.workspaceId,
+    metadata: created.metadata,
+    createdAt: created.createdAt,
+  })
   return created
 }
 

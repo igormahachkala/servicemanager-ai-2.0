@@ -21,6 +21,9 @@ export function ReportsPage() {
     <>
       <div className="mcPageHeaderRow">
         <PageHeader title={t.pages.reports} description={t.reports.pageDescription} />
+        <Link to="/ops/notifications?type=report" className="mcBtn mcBtnSecondary">
+          {t.notificationEngine.reportInbox}
+        </Link>
         <Link to="/ops/audit" className="mcBtn mcBtnSecondary">
           {t.pages.audit}
         </Link>

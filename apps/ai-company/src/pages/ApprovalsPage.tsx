@@ -15,6 +15,9 @@ export function ApprovalsPage() {
     <>
       <div className="mcPageHeaderRow">
         <PageHeader title={t.pages.approvals} description={t.approvalEngine.pageDescription} />
+        <Link to="/ops/notifications?type=approval" className="mcBtn mcBtnSecondary">
+          {t.notificationEngine.approvalInbox}
+        </Link>
         <Link to="/ops/audit" className="mcBtn mcBtnSecondary">
           {t.approvalEngine.openAudit}
         </Link>
