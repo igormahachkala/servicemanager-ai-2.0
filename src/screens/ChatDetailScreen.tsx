@@ -13,13 +13,9 @@ function shortAuthor(email: string | null): string {
   return email.split('@')[0]
 }
 
-// Тред заявки: timeline → пузыри сообщений + системные строки; отправка через POST /comments.
-export function ChatDetailScreen({ ticketId, ticketTitle, currentUserId, onBack }: {
-  ticketId: string
-  ticketTitle: string
-  currentUserId: string | null
-  onBack: () => void
-}) {
+// Переиспользуемый тред заявки (лента timeline + composer, без шапки).
+// Используется и в ChatDetailScreen, и в ChatTab (WorkspaceScreen). Все запросы через withScope.
+export function ChatThread({ ticketId, currentUserId }: { ticketId: string; currentUserId: string | null }) {
   const [items, setItems] = useState<ChatItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -62,11 +58,6 @@ export function ChatDetailScreen({ ticketId, ticketTitle, currentUserId, onBack 
 
   return (
     <div className="flex-1 overflow-hidden flex flex-col">
-      <div className="bg-white border-b border-slate-100 flex-shrink-0 flex items-center gap-2 px-3 py-2.5">
-        <button onClick={onBack} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0 active:bg-slate-200"><IconChevronLeft size={18} className="text-slate-700" /></button>
-        <h1 className="text-[14px] font-bold text-slate-900 truncate">{ticketTitle}</h1>
-      </div>
-
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-4 bg-slate-50 flex flex-col gap-2" style={{ scrollbarWidth: 'none' }}>
         {loading && <div className="flex flex-col items-center gap-2 py-12"><span className="text-[28px] animate-pulse">⏳</span><p className="text-[13px] text-slate-500">Загрузка…</p></div>}
         {error && !loading && (
@@ -112,6 +103,24 @@ export function ChatDetailScreen({ ticketId, ticketTitle, currentUserId, onBack 
           <IconSend size={18} className="text-white" />
         </button>
       </div>
+    </div>
+  )
+}
+
+// Полноэкранный чат заявки (шапка с «назад» + тред). Используется из live-Чатов / Awaiting.
+export function ChatDetailScreen({ ticketId, ticketTitle, currentUserId, onBack }: {
+  ticketId: string
+  ticketTitle: string
+  currentUserId: string | null
+  onBack: () => void
+}) {
+  return (
+    <div className="flex-1 overflow-hidden flex flex-col">
+      <div className="bg-white border-b border-slate-100 flex-shrink-0 flex items-center gap-2 px-3 py-2.5">
+        <button onClick={onBack} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0 active:bg-slate-200"><IconChevronLeft size={18} className="text-slate-700" /></button>
+        <h1 className="text-[14px] font-bold text-slate-900 truncate">{ticketTitle}</h1>
+      </div>
+      <ChatThread ticketId={ticketId} currentUserId={currentUserId} />
     </div>
   )
 }

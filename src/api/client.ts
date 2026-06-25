@@ -192,7 +192,10 @@ function withScope(path: string): string {
 export async function login(input: LoginInput): Promise<LoginResponse> {
   const res = await request<LoginResponse>('/auth/login', { method: 'POST', auth: false, body: input })
   if (res?.access_token) setToken(res.access_token)
-  // Резолв linked-scope провайдер-техника (как в web): первый clientCompany.id из bound-contexts.
+  // Резолв linked-scope (как в web):
+  //  • TECHNICIAN → первый clientCompany.id из bound-contexts;
+  //  • прочие провайдер-роли (ADMIN/DISPATCHER…) → из service-contracts/linked-clients (ACTIVE+PRIMARY → ACTIVE → первый).
+  // CLIENT-компания linked-клиентов не имеет → scope останется null (она владеет своими заявками).
   setLinkedScope(null)
   if (res?.user?.role === 'TECHNICIAN') {
     try {
@@ -200,6 +203,13 @@ export async function login(input: LoginInput): Promise<LoginResponse> {
       const picked = (Array.isArray(ctxs) ? ctxs : []).map((c) => c?.clientCompany?.id).find(Boolean) || null
       setLinkedScope(picked)
     } catch { /* scope опционален — не валим логин */ }
+  } else {
+    try {
+      const rows = await serviceContractsLinkedClients()
+      const arr = Array.isArray(rows) ? rows : []
+      const pick = arr.find((r) => r.status === 'ACTIVE' && r.role === 'PRIMARY') || arr.find((r) => r.status === 'ACTIVE') || arr[0]
+      setLinkedScope(pick?.clientCompany?.id || null)
+    } catch { /* нет linked-клиентов (напр. CLIENT-компания) — scope null */ }
   }
   return res
 }
@@ -389,6 +399,42 @@ export async function technicianBoundContexts(): Promise<BoundContext[]> {
 
 export async function createTicket(input: CreateTicketInput): Promise<CreateTicketResult> {
   return request<CreateTicketResult>(withScope('/tickets'), { method: 'POST', body: input })
+}
+
+// ─── Назначение техника (провайдер-сторона; клиент → 403) ──────────────────────
+// GET /tickets/:id/assignment-candidates → {matched[], others[], ...}; PUT /tickets/:id/assign/:technicianId.
+export type AssignmentCandidate = {
+  id: string
+  email: string
+  matched?: boolean
+  matchReason?: string
+  assignedCount: number
+  inProgressCount: number
+  activeLoad: number
+  specializations: unknown[]
+}
+export type AssignmentCandidatesResponse = {
+  ticketId: string
+  category?: { id: string; name: string } | null
+  location?: { id: string; name: string } | null
+  currentAssigneeId: string | null
+  requiredSpecializations: unknown[]
+  matched: AssignmentCandidate[]
+  others: AssignmentCandidate[]
+  meta?: Record<string, unknown>
+}
+export async function getAssignmentCandidates(ticketId: string): Promise<AssignmentCandidatesResponse> {
+  return request<AssignmentCandidatesResponse>(withScope(`/tickets/${ticketId}/assignment-candidates`))
+}
+/** Назначить техника. ВНИМАНИЕ: реальный контракт — PUT /assign/:technicianId (id в пути, не тело). */
+export async function assignTicket(ticketId: string, technicianId: string): Promise<TicketGetOne> {
+  return request<TicketGetOne>(withScope(`/tickets/${ticketId}/assign/${technicianId}`), { method: 'PUT' })
+}
+
+// Linked-клиенты провайдера (для scope не-техника) — GET /service-contracts/linked-clients.
+export type LinkedClientRow = { id: string; status?: string; role?: string; clientCompany?: { id: string; name: string } | null }
+export async function serviceContractsLinkedClients(): Promise<LinkedClientRow[]> {
+  return request<LinkedClientRow[]>('/service-contracts/linked-clients')
 }
 
 // ─── Обходы (inspection) ───────────────────────────────────────────────────────

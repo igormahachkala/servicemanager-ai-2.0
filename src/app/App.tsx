@@ -1,12 +1,12 @@
 /// <reference types="vite/client" />
 import { useState, useRef, useEffect, useCallback, createContext, useContext } from 'react'
 import * as api from '../api/client'
-import { boardToObjects } from '../api/mappers'
+import { boardToObjects, apiTicketToTicket } from '../api/mappers'
 import { IconChevronDown, IconCamera, IconBolt, IconTool } from '@tabler/icons-react'
 import { EquipmentScreen as EquipmentListScreen } from '../screens/EquipmentScreen'
 import { EquipmentDetailScreen as LiveEquipmentDetailScreen } from '../screens/EquipmentDetailScreen'
 import { ChatsScreen as LiveChatsScreen } from '../screens/ChatsScreen'
-import { ChatDetailScreen } from '../screens/ChatDetailScreen'
+import { ChatDetailScreen, ChatThread } from '../screens/ChatDetailScreen'
 import { AnalyticsScreen as LiveAnalyticsScreen } from '../screens/AnalyticsScreen'
 import { ProfileScreen as LiveProfileScreen } from '../screens/ProfileScreen'
 import { SettingsScreen as LiveSettingsScreen } from '../screens/SettingsScreen'
@@ -2422,11 +2422,14 @@ function SettingsScreen({onBack}:{onBack:()=>void}) {
 
 // ─── Workspace ────────────────────────────────────────────────────────────────
 function ChatTab({ticket}:{ticket:Ticket}) {
+  const {demo,meId}=useLive()
   const [msgs,setMsgs]=useState<ChatMsg[]>(INIT_MSGS)
   const [input,setInput]=useState('')
   const scrollRef=useRef<HTMLDivElement>(null)
   useEffect(()=>{const el=scrollRef.current;if(el)el.scrollTop=el.scrollHeight},[msgs])
   const send=()=>{if(!input.trim())return;const t=new Date().toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});setMsgs(p=>[...p,{id:`u${Date.now()}`,kind:'outgoing',time:t,text:input.trim()}]);setInput('')}
+  // Живой режим: переиспользуем ChatThread (timeline + composer, withScope). Демо — мок ниже.
+  if(!demo) return <ChatThread ticketId={ticket.id} currentUserId={meId}/>
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 py-3 bg-[#F7F9FC]" style={{scrollbarWidth:'none'}}>
@@ -2451,13 +2454,111 @@ function ChatTab({ticket}:{ticket:Ticket}) {
   )
 }
 
+function fmtInfoDate(iso?:string|null):string{if(!iso)return '—';const d=new Date(iso);if(isNaN(d.getTime()))return '—';const p=(n:number)=>String(n).padStart(2,'0');return `${p(d.getDate())}.${p(d.getMonth()+1)}.${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`}
+
 function InfoTab({ticket}:{ticket:Ticket}) {
-  const rows=[{e:'🎫',l:'Номер',v:`#${ticket.number}`,st:false},{e:'📌',l:'Статус',v:sLabel(ticket.status),st:true},{e:'📝',l:'Описание',v:ticket.problem,st:false},{e:'👤',l:'Заявитель',v:ticket.requester,st:false},{e:'📞',l:'Телефон',v:ticket.phone,st:false},{e:'📍',l:'Локация',v:ticket.location,st:false},{e:'🏠',l:'Адрес',v:ticket.address,st:false},{e:'🔧',l:'Категория',v:ticket.category,st:false},{e:'⚡',l:'Приоритет',v:ticket.priority==='URGENT'?'Срочный':'Обычный',st:false},...(ticket.urgencyReason?[{e:'🚨',l:'Причина срочности',v:ticket.urgencyReason,st:false}]:[]),{e:'👷',l:'Исполнитель',v:ticket.assignee||'Не назначен',st:false},{e:'⏱️',l:'SLA до',v:ticket.sla!=='—'?`Сегодня, ${ticket.sla}`:'—',st:false},{e:'📅',l:'Создана',v:ticket.created,st:false}]
-  return <div className="flex-1 overflow-y-auto px-4 py-4 bg-slate-50" style={{scrollbarWidth:'none'}}><div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">{rows.map((r,i)=><div key={r.l} className={`flex items-start gap-3 px-4 py-3.5 ${i<rows.length-1?'border-b border-slate-50':''}`}><span className="text-[16px] flex-shrink-0 w-6 text-center mt-0.5">{r.e}</span><div className="flex-1 min-w-0"><p className="text-[10px] text-slate-400 font-medium mb-0.5">{r.l}</p>{r.st?<span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${sBadge(ticket.status)}`}>{r.v}</span>:<p className="text-[13px] font-semibold text-slate-800 leading-snug">{r.v}</p>}</div></div>)}</div></div>
+  const {demo}=useLive()
+  const [detail,setDetail]=useState<api.TicketGetOne|null>(null)
+  const [loading,setLoading]=useState(!demo)
+  const [error,setError]=useState<string|null>(null)
+  const load=useCallback(async()=>{
+    if(demo)return
+    setLoading(true);setError(null)
+    try{ setDetail(await api.ticket(ticket.id)) }catch(e:any){ setError(e?.message||'Не удалось загрузить заявку') }
+    finally{ setLoading(false) }
+  },[demo,ticket.id])
+  useEffect(()=>{ load() },[load])
+
+  // Демо: статика из пропа (как было)
+  const demoRows=[{e:'🎫',l:'Номер',v:`#${ticket.number}`,st:false,mono:false},{e:'📌',l:'Статус',v:sLabel(ticket.status),st:true,mono:false},{e:'📝',l:'Описание',v:ticket.problem,st:false,mono:false},{e:'👤',l:'Заявитель',v:ticket.requester,st:false,mono:false},{e:'📞',l:'Телефон',v:ticket.phone,st:false,mono:false},{e:'📍',l:'Локация',v:ticket.location,st:false,mono:false},{e:'🏠',l:'Адрес',v:ticket.address,st:false,mono:false},{e:'🔧',l:'Категория',v:ticket.category,st:false,mono:false},{e:'⚡',l:'Приоритет',v:ticket.priority==='URGENT'?'Срочный':'Обычный',st:false,mono:false},...(ticket.urgencyReason?[{e:'🚨',l:'Причина срочности',v:ticket.urgencyReason,st:false,mono:false}]:[]),{e:'👷',l:'Исполнитель',v:ticket.assignee||'Не назначен',st:false,mono:false},{e:'⏱️',l:'SLA до',v:ticket.sla!=='—'?`Сегодня, ${ticket.sla}`:'—',st:false,mono:false},{e:'📅',l:'Создана',v:ticket.created,st:false,mono:false}]
+
+  // Живой режим: реальные поля из GET /tickets/:id
+  function liveRows(d:api.TicketGetOne){
+    const tech=d.assignedTechnician?([d.assignedTechnician.firstName,d.assignedTechnician.lastName].filter(Boolean).join(' ').trim()||d.assignedTechnician.email):'Не назначен'
+    return [
+      {e:'🎫',l:'Номер',v:`#${d.ticketNumber??'—'}`,st:false,mono:false},
+      {e:'📌',l:'Статус',v:sLabel(d.status),st:true,mono:false},
+      {e:'📝',l:'Описание',v:d.problemText||d.title||'—',st:false,mono:false},
+      {e:'🔧',l:'Категория',v:d.problemCategory?.name||'—',st:false,mono:false},
+      {e:'⚡',l:'Срочность',v:d.urgency==='URGENT'?'Срочно':'Не срочно',st:false,mono:false},
+      {e:'🏷️',l:'Приоритет',v:d.priority==='URGENT'?'Срочный':'Обычный',st:false,mono:false},
+      {e:'📍',l:'Локация',v:d.location?.name||d.pointName||'—',st:false,mono:false},
+      {e:'🏠',l:'Адрес',v:d.location?.address||d.address||d.location?.city||'—',st:false,mono:false},
+      {e:'🛠️',l:'Оборудование',v:d.equipment?.name||'—',st:false,mono:false},
+      {e:'👤',l:'Заявитель',v:d.requesterName||'—',st:false,mono:false},
+      {e:'📞',l:'Телефон',v:d.requesterPhone||'—',st:false,mono:false},
+      {e:'👷',l:'Исполнитель',v:tech,st:false,mono:false},
+      {e:'⏱️',l:'SLA до',v:d.slaDueAt?fmtInfoDate(d.slaDueAt)+(d.slaBreachedAt?' · просрочено':''):'—',st:false,mono:true},
+      {e:'📅',l:'Создана',v:fmtInfoDate(d.createdAt),st:false,mono:true},
+      {e:'🔄',l:'Обновлена',v:fmtInfoDate(d.updatedAt),st:false,mono:true},
+      {e:'🆔',l:'ID',v:d.id,st:false,mono:true},
+      // TODO: urgencyReason — нет в API (в TicketGetOne поля причины срочности нет)
+    ]
+  }
+
+  if(!demo&&loading) return <div className="flex-1 flex flex-col items-center justify-center gap-2 bg-slate-50"><span className="text-[28px] animate-pulse">⏳</span><p className="text-[13px] text-slate-500">Загрузка…</p></div>
+  if(!demo&&error) return <div className="flex-1 flex flex-col items-center justify-center gap-3 bg-slate-50 px-6"><span className="text-[36px]">⚠️</span><p className="text-[13px] text-slate-600 text-center">{error}</p><button onClick={load} className="text-[12px] font-bold text-white bg-blue-600 px-4 py-2 rounded-xl">Повторить</button></div>
+  const rows=demo?demoRows:(detail?liveRows(detail):[])
+  const statusForBadge=demo?ticket.status:(detail?.status||ticket.status)
+  return <div className="flex-1 overflow-y-auto px-4 py-4 bg-slate-50" style={{scrollbarWidth:'none'}}><div className="bg-white rounded-2xl border border-slate-100 overflow-hidden shadow-sm">{rows.map((r,i)=><div key={r.l} className={`flex items-start gap-3 px-4 py-3.5 ${i<rows.length-1?'border-b border-slate-50':''}`}><span className="text-[16px] flex-shrink-0 w-6 text-center mt-0.5">{r.e}</span><div className="flex-1 min-w-0"><p className="text-[10px] text-slate-400 font-medium mb-0.5">{r.l}</p>{r.st?<span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full ${sBadge(statusForBadge)}`}>{r.v}</span>:<p className={`text-[13px] font-semibold text-slate-800 leading-snug break-all ${(r as any).mono?'font-mono text-[11px] text-slate-600':''}`}>{r.v}</p>}</div></div>)}</div></div>
 }
 
-function PhotosTab({onOpenPhoto}:{onOpenPhoto:(s:string)=>void}) {
-  return <div className="flex-1 overflow-y-auto px-4 py-4 bg-slate-50" style={{scrollbarWidth:'none'}}>{(['issue','report'] as const).map(purpose=><div key={purpose} className="mb-4"><p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">{purpose==='issue'?'Фото проблемы':'Фото выполненной работы'}</p><div className="grid grid-cols-2 gap-2">{PHOTOS_DATA.filter(p=>p.purpose===purpose).map(p=><div key={p.id} onClick={()=>onOpenPhoto(p.full)} className="relative rounded-2xl overflow-hidden bg-slate-200 cursor-pointer active:scale-[0.97] shadow-sm" style={{height:120}}><img src={p.thumb} alt={p.label} className="w-full h-full object-cover"/><div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"/><p className="absolute bottom-2 left-2 text-[10px] text-white font-semibold">{p.label}</p>{purpose==='report'&&<span className="absolute top-2 right-2 text-[9px] font-bold bg-emerald-500 text-white px-1.5 py-0.5 rounded-full">Отчёт</span>}</div>)}</div></div>)}<div className="grid grid-cols-2 gap-2"><button className="flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-200 bg-white text-slate-400" style={{height:90}}><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg><span className="text-[10px] font-semibold">Сделать фото</span></button><button className="flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-200 bg-white text-slate-400" style={{height:90}}><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg><span className="text-[10px] font-semibold">Из галереи</span></button></div></div>
+function PhotosTab({ticket,role,onOpenPhoto,addToast}:{ticket:Ticket;role:UserRole;onOpenPhoto:(s:string)=>void;addToast:(t:string,tp?:ToastMsg['type'])=>void}) {
+  const {demo}=useLive()
+  const [atts,setAtts]=useState<api.TicketAttachment[]>([])
+  const [loading,setLoading]=useState(!demo)
+  const [error,setError]=useState<string|null>(null)
+  const [uploading,setUploading]=useState(false)
+  const cameraRef=useRef<HTMLInputElement|null>(null)
+  const galleryRef=useRef<HTMLInputElement|null>(null)
+  const load=useCallback(async()=>{
+    if(demo)return
+    setLoading(true);setError(null)
+    try{ setAtts(await api.listAttachments(ticket.id)) }catch(e:any){ setError(e?.message||'Не удалось загрузить фото') }
+    finally{ setLoading(false) }
+  },[demo,ticket.id])
+  useEffect(()=>{ load() },[load])
+
+  async function onPick(e:any){
+    const file:File|undefined=e?.target?.files?.[0]
+    if(e?.target)e.target.value=''
+    if(!file)return
+    const okType=api.ATTACHMENT_ALLOWED_MIME.includes(file.type)||/\.(jpe?g|png|webp|heic|heif)$/i.test(file.name)
+    if(!okType){ addToast('Только изображения: JPEG/PNG/WebP/HEIC/HEIF','error'); return }
+    if(file.size>api.ATTACHMENT_MAX_BYTES){ addToast('Файл больше 25 МБ','error'); return }
+    setUploading(true)
+    try{ await api.uploadAttachment(ticket.id,file); addToast('Фото загружено','success'); await load() }
+    catch(err:any){ addToast(err?.message||'Не удалось загрузить фото','error') }
+    finally{ setUploading(false) }
+  }
+
+  // Демо: мок PHOTOS_DATA (как было)
+  if(demo) return <div className="flex-1 overflow-y-auto px-4 py-4 bg-slate-50" style={{scrollbarWidth:'none'}}>{(['issue','report'] as const).map(purpose=><div key={purpose} className="mb-4"><p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">{purpose==='issue'?'Фото проблемы':'Фото выполненной работы'}</p><div className="grid grid-cols-2 gap-2">{PHOTOS_DATA.filter(p=>p.purpose===purpose).map(p=><div key={p.id} onClick={()=>onOpenPhoto(p.full)} className="relative rounded-2xl overflow-hidden bg-slate-200 cursor-pointer active:scale-[0.97] shadow-sm" style={{height:120}}><img src={p.thumb} alt={p.label} className="w-full h-full object-cover"/><div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"/><p className="absolute bottom-2 left-2 text-[10px] text-white font-semibold">{p.label}</p>{purpose==='report'&&<span className="absolute top-2 right-2 text-[9px] font-bold bg-emerald-500 text-white px-1.5 py-0.5 rounded-full">Отчёт</span>}</div>)}</div></div>)}</div>
+
+  // Живой режим: реальные вложения, делим по purpose (REQUEST → проблема, WORK_REPORT → отчёт)
+  const groups:[string,api.TicketAttachmentPurpose][]=[['Фото проблемы','REQUEST'],['Фото выполненных работ','WORK_REPORT']]
+  const canUpload=role==='TECHNICIAN'&&ticket.status==='IN_PROGRESS'  // upload разрешён технику в работе
+  return (
+    <div className="flex-1 overflow-y-auto px-4 py-4 bg-slate-50" style={{scrollbarWidth:'none'}}>
+      <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onPick}/>
+      <input ref={galleryRef} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" className="hidden" onChange={onPick}/>
+      {loading&&<div className="flex flex-col items-center gap-2 py-12"><span className="text-[28px] animate-pulse">⏳</span><p className="text-[13px] text-slate-500">Загрузка…</p></div>}
+      {error&&!loading&&<div className="flex flex-col items-center gap-3 py-10"><span className="text-[36px]">⚠️</span><p className="text-[13px] text-slate-600 text-center px-6">{error}</p><button onClick={load} className="text-[12px] font-bold text-white bg-blue-600 px-4 py-2 rounded-xl">Повторить</button></div>}
+      {!loading&&!error&&atts.length===0&&<div className="flex flex-col items-center gap-2 py-12"><span className="text-[32px]">🖼️</span><p className="text-[13px] text-slate-500">Фото пока нет</p></div>}
+      {!loading&&!error&&atts.length>0&&groups.map(([label,purpose])=>{
+        const list=atts.filter(a=>a.purpose===purpose)
+        if(list.length===0)return null
+        return <div key={purpose} className="mb-4">
+          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2.5">{label} ({list.length})</p>
+          <div className="grid grid-cols-2 gap-2">{list.map(a=><div key={a.id} onClick={()=>onOpenPhoto(api.attachmentSrc(a.url))} className="relative rounded-2xl overflow-hidden bg-slate-200 cursor-pointer active:scale-[0.97] shadow-sm" style={{height:120}}><img src={api.attachmentSrc(a.url)} alt={a.originalName} className="w-full h-full object-cover"/><div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent"/><p className="absolute bottom-2 left-2 text-[10px] text-white font-semibold truncate max-w-[90%]">{a.originalName}</p>{purpose==='WORK_REPORT'&&<span className="absolute top-2 right-2 text-[9px] font-bold bg-emerald-500 text-white px-1.5 py-0.5 rounded-full">Отчёт</span>}</div>)}</div>
+        </div>
+      })}
+      {canUpload&&<div className="grid grid-cols-2 gap-2 mt-1">
+        <button disabled={uploading} onClick={()=>cameraRef.current?.click()} className="flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-200 bg-white text-slate-400 disabled:opacity-50" style={{height:90}}><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg><span className="text-[10px] font-semibold">{uploading?'Загрузка…':'Сделать фото'}</span></button>
+        <button disabled={uploading} onClick={()=>galleryRef.current?.click()} className="flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-200 bg-white text-slate-400 disabled:opacity-50" style={{height:90}}><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg><span className="text-[10px] font-semibold">{uploading?'Загрузка…':'Из галереи'}</span></button>
+      </div>}
+    </div>
+  )
 }
 
 function ActionsTab({ticket,role,addToast,onViewPhotos}:{ticket:Ticket;role:UserRole;addToast:(t:string,tp?:ToastMsg['type'])=>void;onViewPhotos?:()=>void}) {
@@ -2473,6 +2574,17 @@ function ActionsTab({ticket,role,addToast,onViewPhotos}:{ticket:Ticket;role:User
   const [attachments,setAttachments]=useState<api.TicketAttachment[]>([])
   const [attBusy,setAttBusy]=useState(false)
   const fileInputRef=useRef<HTMLInputElement|null>(null)
+  // Назначение техника (admin, live)
+  const [assignOpen,setAssignOpen]=useState(false)
+  const [cands,setCands]=useState<api.AssignmentCandidate[]>([])
+  const [candLoading,setCandLoading]=useState(false)
+  const [candError,setCandError]=useState<string|null>(null)
+  const openAssign=useCallback(async()=>{
+    setAssignOpen(true);setCandLoading(true);setCandError(null);setCands([])
+    try{ const r=await api.getAssignmentCandidates(ticket.id); setCands([...(r.matched||[]),...(r.others||[])]) }
+    catch(e:any){ setCandError(e?.message||'Не удалось загрузить кандидатов') }
+    finally{ setCandLoading(false) }
+  },[ticket.id])
   const st:TicketStatus=demo?ticket.status:liveStatus
   // Приёмку (accept/reject) по бэку разрешают роли ADMIN/TERRITORIAL_MANAGER/NETWORK_DIRECTOR
   // клиентской компании (POST /tickets/:id/acceptance @Roles + «only client company» в сервисе).
@@ -2539,6 +2651,26 @@ function ActionsTab({ticket,role,addToast,onViewPhotos}:{ticket:Ticket;role:User
           </div>
         </div>
       )}
+      {assignOpen&&(
+        <div className="absolute inset-0 z-50 bg-black/50 flex items-end" onClick={()=>!busy&&setAssignOpen(false)}>
+          <div className="bg-white w-full rounded-t-3xl p-5 max-h-[80%] overflow-y-auto" style={{scrollbarWidth:'none'}} onClick={e=>e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3"><h3 className="text-[15px] font-bold">Назначить исполнителя</h3><button onClick={()=>setAssignOpen(false)} className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#64748B" strokeWidth="2.5" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div>
+            {candLoading&&<div className="flex flex-col items-center gap-2 py-8"><span className="text-[26px] animate-pulse">⏳</span><p className="text-[12px] text-slate-500">Загрузка кандидатов…</p></div>}
+            {candError&&!candLoading&&<div className="flex flex-col items-center gap-3 py-6"><span className="text-[32px]">⚠️</span><p className="text-[12px] text-slate-600 text-center">{candError}</p><button onClick={openAssign} className="text-[12px] font-bold text-white bg-blue-600 px-4 py-2 rounded-xl">Повторить</button></div>}
+            {!candLoading&&!candError&&cands.length===0&&<p className="text-[12px] text-slate-400 text-center py-8">Нет доступных техников</p>}
+            {!candLoading&&!candError&&cands.length>0&&<div className="flex flex-col gap-2">
+              {cands.map(c=>{const nm=c.email.split('@')[0];return (
+                <button key={c.id} disabled={busy==='assign'} onClick={()=>runLive('assign',()=>api.assignTicket(ticket.id,c.id),'Техник назначен').then(()=>setAssignOpen(false))} className="flex items-center gap-3 px-3 py-3 rounded-2xl border border-slate-200 bg-white text-left active:scale-[0.98] disabled:opacity-50">
+                  <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0"><span className="text-[11px] font-bold text-blue-700">{nm.slice(0,2).toUpperCase()}</span></div>
+                  <div className="flex-1 min-w-0"><p className="text-[12px] font-semibold text-slate-800 truncate">{nm}</p><p className="text-[10px] text-slate-400">назн. {c.assignedCount} · в раб. {c.inProgressCount} · нагрузка {c.activeLoad}</p></div>
+                  {c.matched&&<span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 flex-shrink-0">подходит</span>}
+                  {busy==='assign'&&<span className="text-[14px]">⏳</span>}
+                </button>
+              )})}
+            </div>}
+          </div>
+        </div>
+      )}
       <div className="bg-white border-b border-slate-100 px-4 py-2 flex-shrink-0 flex items-center gap-2">
         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Роль:</span>
         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${role==='TECHNICIAN'?'bg-blue-100 text-blue-700':role==='CLIENT'?'bg-emerald-100 text-emerald-700':'bg-violet-100 text-violet-700'}`}>{roleLabel}</span>
@@ -2575,8 +2707,8 @@ function ActionsTab({ticket,role,addToast,onViewPhotos}:{ticket:Ticket;role:User
         </>}
         {role==='TECHNICIAN'&&st==='AWAITING_ACCEPTANCE'&&<div className="bg-amber-50 rounded-2xl px-4 py-6 border border-amber-100 flex flex-col items-center gap-3 text-center"><span className="text-[48px]">⏳</span><p className="text-[15px] font-bold text-amber-800">Работа отправлена на приёмку</p><p className="text-[12px] text-amber-600 leading-relaxed">Ожидайте решения клиента.</p></div>}
         {role==='ADMIN'&&<>
-          {(ticket.status==='NEW'||ticket.status==='ASSIGNED')&&<><Btn id="self" label="Взять заявку себе" icon="🙋"/><Btn id="assign" label="Назначить исполнителя" icon="👷" secondary/></>}
-          {ticket.status==='ASSIGNED'&&<Btn id="reassign" label="Переназначить" icon="🔄" secondary/>}
+          {(ticket.status==='NEW'||ticket.status==='ASSIGNED')&&<><Btn id="self" label="Взять заявку себе" icon="🙋"/><Btn id="assign" label="Назначить исполнителя" icon="👷" secondary onAct={demo?undefined:openAssign}/></>}
+          {ticket.status==='ASSIGNED'&&<Btn id="reassign" label="Переназначить" icon="🔄" secondary onAct={demo?undefined:openAssign}/>}
           {/* Change priority */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
             <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wide mb-2.5">Изменить приоритет</p>
@@ -2591,7 +2723,7 @@ function ActionsTab({ticket,role,addToast,onViewPhotos}:{ticket:Ticket;role:User
             <input type="datetime-local" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-[13px] text-slate-800 outline-none focus:border-blue-400" defaultValue="2025-06-20T16:30"/>
             <button onClick={()=>addToast('Срок обновлён','success')} className="mt-2 w-full py-2.5 bg-blue-600 text-white rounded-xl text-[12px] font-bold">Обновить срок</button>
           </div>
-          {(ticket.status==='NEW'||ticket.status==='ASSIGNED')&&<div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden"><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 py-2.5 border-b border-slate-50">Доступные техники</p>{[['ДК','Дмитрий Ковалёв','Климат, Электрика',true],['МП','Михаил Петров','Сантехника, Холодильное',true],['АН','Алексей Никитин','Лифты, Вентиляция',false]].map(([abbr,name,spec,free],i,arr)=><div key={name} className={`flex items-center gap-3 px-4 py-3 ${i<arr.length-1?'border-b border-slate-50':''}`}><div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center"><span className="text-[11px] font-bold text-blue-700">{abbr}</span></div><div className="flex-1"><p className="text-[12px] font-semibold text-slate-800">{name}</p><p className="text-[10px] text-slate-400">{spec}</p></div><span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${free?'bg-emerald-100 text-emerald-700':'bg-slate-100 text-slate-400'}`}>{free?'Свободен':'Занят'}</span></div>)}</div>}
+          {demo&&(ticket.status==='NEW'||ticket.status==='ASSIGNED')&&<div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden"><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-4 py-2.5 border-b border-slate-50">Доступные техники</p>{[['ДК','Дмитрий Ковалёв','Климат, Электрика',true],['МП','Михаил Петров','Сантехника, Холодильное',true],['АН','Алексей Никитин','Лифты, Вентиляция',false]].map(([abbr,name,spec,free],i,arr)=><div key={name} className={`flex items-center gap-3 px-4 py-3 ${i<arr.length-1?'border-b border-slate-50':''}`}><div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center"><span className="text-[11px] font-bold text-blue-700">{abbr}</span></div><div className="flex-1"><p className="text-[12px] font-semibold text-slate-800">{name}</p><p className="text-[10px] text-slate-400">{spec}</p></div><span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${free?'bg-emerald-100 text-emerald-700':'bg-slate-100 text-slate-400'}`}>{free?'Свободен':'Занят'}</span></div>)}</div>}
         </>}
         {canAccept&&st==='AWAITING_ACCEPTANCE'&&<>
           <div className="bg-blue-50 rounded-2xl px-4 py-3 border border-blue-100 flex items-start gap-3"><span className="text-[16px]">🔔</span><p className="text-[12px] text-blue-700 font-medium">Исполнитель завершил работу. Проверьте результат и фото.</p></div>
@@ -2630,7 +2762,7 @@ function WorkspaceScreen({ticket,onBack,role,addToast}:{ticket:Ticket;onBack:()=
       </div>
       {tab==='chat'&&<ChatTab ticket={ticket}/>}
       {tab==='info'&&<InfoTab ticket={ticket}/>}
-      {tab==='photos'&&<PhotosTab onOpenPhoto={setLightbox}/>}
+      {tab==='photos'&&<PhotosTab ticket={ticket} role={role} onOpenPhoto={setLightbox} addToast={addToast}/>}
       {tab==='actions'&&<ActionsTab ticket={ticket} role={role} addToast={addToast} onViewPhotos={()=>setTab('photos')}/>}
     </div>
   )
@@ -2772,7 +2904,7 @@ export default function App() {
       const tab=current.navTab
       if(tab==='home') return <HomeScreen onOpenTicket={t=>push({kind:'workspace',ticket:t})} role={role} push={push} addToast={addToast}/>
       if(tab==='patrols') return demo?<PatrolsScreen addToast={addToast} push={push}/>:<LivePatrolsScreen addToast={addToast}/>
-      if(tab==='chats') return demo?<ChatsScreen onOpenTicket={t=>push({kind:'workspace',ticket:t})} role={role}/>:<LiveChatsScreen onOpenChat={t=>push({kind:'chat-detail',ticketId:t.id,ticketTitle:`#${t.ticketNumber} ${t.problemText||''}`.trim()})}/>
+      if(tab==='chats') return demo?<ChatsScreen onOpenTicket={t=>push({kind:'workspace',ticket:t})} role={role}/>:<LiveChatsScreen onOpenChat={async t=>{try{const d=await api.ticket(t.id);push({kind:'workspace',ticket:apiTicketToTicket(d)})}catch(e:any){addToast(e?.message||'Не удалось открыть заявку','error')}}}/>
       if(tab==='analytics') return demo?<AnalyticsScreen push={push}/>:<LiveAnalyticsScreen role={role}/>
     }
     return null
