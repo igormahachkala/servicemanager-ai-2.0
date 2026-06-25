@@ -12,7 +12,7 @@ export function SideNav() {
     { to: `${OPS}/workspaces`, page: 'workspaces' as const, icon: '◧', end: false },
     { to: `${OPS}/employees`, page: 'employees' as const, icon: '◎', end: false },
     { to: `${OPS}/tasks`, page: 'tasks' as const, icon: '▤', end: false },
-    { to: `${OPS}/discussions`, page: 'discussions' as const, icon: '💬', end: false },
+    { to: `${OPS}/chats`, page: 'chats' as const, icon: '💬', end: false },
     { to: `${OPS}/feed`, page: 'missionFeed' as const, icon: '≡', end: false },
     { to: `${OPS}/reports`, page: 'reports' as const, icon: '📋', end: false },
     { to: `${OPS}/audit`, page: 'audit' as const, icon: '🔍', end: false },

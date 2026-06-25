@@ -104,7 +104,7 @@ function CustomEmployeeDetailTable({ rows }: { rows: CustomEmployee[] }) {
                   {t.employees.openProfile}
                 </Link>
                 <Link
-                  to={`/ops/employees/${employee.id}/conversation`}
+                  to={`/ops/chats/${encodeURIComponent(`conv:${employee.id}`)}`}
                   className="mcBtn mcBtnSecondary mcBtnSmall"
                 >
                   {t.conversations.openConversation}
@@ -183,7 +183,7 @@ function AgentTable({
             <td>
               <div className="mcRowFlex">
                 <Link
-                  to={`/ops/employees/${a.id}/conversation`}
+                  to={`/ops/chats/${encodeURIComponent(`conv:${a.id}`)}`}
                   className="mcBtn mcBtnSecondary mcBtnSmall"
                 >
                   {t.conversations.openConversation}

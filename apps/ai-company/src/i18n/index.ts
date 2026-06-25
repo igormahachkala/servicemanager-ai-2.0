@@ -65,13 +65,16 @@ export function pageTitle(pathname: string, t: Messages): string {
   if (pathname === '/ops/organization') return t.pages.organization
   if (pathname === '/ops/employees') return t.pages.employees
   if (pathname === '/ops/employees/new') return t.employeeBuilder.title
-  if (pathname.includes('/conversation')) return t.conversations.title
+  if (pathname.includes('/conversation')) return t.chats.types.direct
   if (pathname.includes('/memory')) return t.memoryEngine.title
   if (pathname.startsWith('/ops/employees/')) return t.employeeProfile.title
   if (pathname === '/ops/tasks') return t.pages.tasks
-  if (pathname === '/ops/discussions') return t.pages.discussions
-  if (pathname === '/ops/discussions/new') return t.discussions.newDiscussion
-  if (pathname.startsWith('/ops/discussions/')) return t.pages.discussions
+  if (pathname === '/ops/chats') return t.pages.chats
+  if (pathname === '/ops/chats/new') return t.chats.newChat
+  if (pathname.startsWith('/ops/chats/')) return t.pages.chats
+  if (pathname === '/ops/discussions') return t.pages.chats
+  if (pathname === '/ops/discussions/new') return t.chats.newChat
+  if (pathname.startsWith('/ops/discussions/')) return t.pages.chats
   if (pathname === '/ops/workspaces') return t.pages.workspaces
   if (pathname === '/ops/workspaces/new') return t.workspaces.newWorkspace
   if (pathname.startsWith('/ops/workspaces/')) return t.pages.workspaces

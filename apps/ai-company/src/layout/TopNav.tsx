@@ -10,7 +10,7 @@ const NAV = [
   { to: '/ops/workspaces', key: 'workspaces' as const, end: false },
   { to: '/ops/employees', key: 'employees' as const, end: false },
   { to: '/ops/tasks', key: 'tasks' as const, end: false },
-  { to: '/ops/discussions', key: 'discussions' as const, end: false },
+  { to: '/ops/chats', key: 'chats' as const, end: false },
   { to: '/ops/feed', key: 'feed' as const, end: false },
   { to: '/ops/reports', key: 'reports' as const, end: false },
   { to: '/ops/audit', key: 'audit' as const, end: false },
