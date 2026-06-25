@@ -9,6 +9,7 @@ export function SideNav() {
   const nav = [
     { to: OPS, page: 'dashboard' as const, icon: '◫', end: true },
     { to: `${OPS}/organization`, page: 'organization' as const, icon: '⬡', end: false },
+    { to: `${OPS}/workspaces`, page: 'workspaces' as const, icon: '◧', end: false },
     { to: `${OPS}/employees`, page: 'employees' as const, icon: '◎', end: false },
     { to: `${OPS}/tasks`, page: 'tasks' as const, icon: '▤', end: false },
     { to: `${OPS}/discussions`, page: 'discussions' as const, icon: '💬', end: false },

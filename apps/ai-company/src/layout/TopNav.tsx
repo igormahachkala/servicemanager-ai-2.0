@@ -6,6 +6,7 @@ const NAV = [
   { to: '/', key: 'flow' as const, end: true },
   { to: '/ops', key: 'missionControl' as const, end: true },
   { to: '/ops/organization', key: 'organization' as const, end: false },
+  { to: '/ops/workspaces', key: 'workspaces' as const, end: false },
   { to: '/ops/employees', key: 'employees' as const, end: false },
   { to: '/ops/tasks', key: 'tasks' as const, end: false },
   { to: '/ops/discussions', key: 'discussions' as const, end: false },
