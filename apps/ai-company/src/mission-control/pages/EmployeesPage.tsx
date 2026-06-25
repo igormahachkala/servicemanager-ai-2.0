@@ -99,9 +99,17 @@ function CustomEmployeeDetailTable({ rows }: { rows: CustomEmployee[] }) {
               />
             </td>
             <td>
-              <Link to={`/ops/employees/${employee.id}`} className="mcBtn mcBtnSecondary mcBtnSmall">
-                {t.employees.openProfile}
-              </Link>
+              <div className="mcRowFlex">
+                <Link to={`/ops/employees/${employee.id}`} className="mcBtn mcBtnSecondary mcBtnSmall">
+                  {t.employees.openProfile}
+                </Link>
+                <Link
+                  to={`/ops/employees/${employee.id}/conversation`}
+                  className="mcBtn mcBtnSecondary mcBtnSmall"
+                >
+                  {t.conversations.openConversation}
+                </Link>
+              </div>
             </td>
           </tr>
         ))}
@@ -122,7 +130,7 @@ function AgentTable({
   onDuplicate?: (id: string) => void
 }) {
   const { t } = useI18n()
-  const showActions = Boolean(onDuplicate && customIds && customIds.size > 0)
+  const isCustom = (id: string) => Boolean(customIds?.has(id))
 
   return (
     <table className="mcTable">
@@ -135,7 +143,7 @@ function AgentTable({
           <th>{t.labels.status}</th>
           <th>{t.labels.currentTask}</th>
           {showLoad ? <th>{t.labels.load}</th> : <th>{t.labels.lastActivity}</th>}
-          {showActions ? <th>{t.employees.actions}</th> : null}
+          <th>{t.employees.actions}</th>
         </tr>
       </thead>
       <tbody>
@@ -172,31 +180,35 @@ function AgentTable({
                 </span>
               )}
             </td>
-            {showActions ? (
-              <td>
-                <div className="mcRowFlex">
-                  {customIds?.has(a.id) ? (
-                    <>
-                      <Link
-                        to={`/ops/employees/${a.id}`}
-                        className="mcBtn mcBtnSecondary mcBtnSmall"
-                      >
-                        {t.employees.openProfile}
-                      </Link>
+            <td>
+              <div className="mcRowFlex">
+                <Link
+                  to={`/ops/employees/${a.id}/conversation`}
+                  className="mcBtn mcBtnSecondary mcBtnSmall"
+                >
+                  {t.conversations.openConversation}
+                </Link>
+                {isCustom(a.id) ? (
+                  <>
+                    <Link
+                      to={`/ops/employees/${a.id}`}
+                      className="mcBtn mcBtnSecondary mcBtnSmall"
+                    >
+                      {t.employees.openProfile}
+                    </Link>
+                    {onDuplicate ? (
                       <button
                         type="button"
                         className="mcBtn mcBtnSecondary mcBtnSmall"
-                        onClick={() => onDuplicate?.(a.id)}
+                        onClick={() => onDuplicate(a.id)}
                       >
                         {t.employees.duplicate}
                       </button>
-                    </>
-                  ) : (
-                    <span className="mcMuted">{t.common.empty}</span>
-                  )}
-                </div>
-              </td>
-            ) : null}
+                    ) : null}
+                  </>
+                ) : null}
+              </div>
+            </td>
           </tr>
         ))}
       </tbody>

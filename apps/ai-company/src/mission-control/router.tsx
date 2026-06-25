@@ -11,6 +11,7 @@ import { AiToolsRegistryPage } from './pages/AiToolsRegistryPage'
 import { DiscussionListPage } from './pages/DiscussionListPage'
 import { NewDiscussionPage } from './pages/NewDiscussionPage'
 import { DiscussionPage } from './pages/DiscussionPage'
+import { ConversationPage } from './pages/ConversationPage'
 
 /** NOC panel routes under /ops — mock data only. */
 export function MissionControlRoutes() {
@@ -21,6 +22,7 @@ export function MissionControlRoutes() {
         <Route path="organization" element={<OrganizationPage />} />
         <Route path="employees" element={<EmployeesPage />} />
         <Route path="employees/new" element={<NewEmployeePage />} />
+        <Route path="employees/:id/conversation" element={<ConversationPage />} />
         <Route path="employees/:id" element={<EmployeeProfilePage />} />
         <Route path="tasks" element={<TasksPage />} />
         <Route path="feed" element={<MissionFeedPage />} />

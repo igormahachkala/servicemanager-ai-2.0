@@ -1359,3 +1359,280 @@
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
+
+/* Conversation Engine V1 */
+.mcConversationPage {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.mcConversationHeader {
+  padding-bottom: 4px;
+}
+
+.mcConversationHeaderTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.mcConversationHeaderMain {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.mcConversationTitle {
+  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.mcConversationSubtitle {
+  margin: 10px 0 0;
+  font-size: 13px;
+  color: var(--mc-muted);
+  line-height: 1.45;
+}
+
+.mcConversationHeaderMeta {
+  font-size: 12px;
+  color: var(--mc-muted);
+}
+
+.mcConversationBadge {
+  display: inline-flex;
+  padding: 2px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  color: #93c5fd;
+  background: rgba(59, 130, 246, 0.08);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.mcConversationLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 960px) {
+  .mcConversationLayout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mcConversationMain {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.mcConversationMessageList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--mc-border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  min-height: 240px;
+  max-height: 520px;
+  overflow-y: auto;
+}
+
+.mcConversationMessage {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--mc-border);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.mcConversationMessageOwner {
+  border-color: rgba(59, 130, 246, 0.35);
+  background: rgba(59, 130, 246, 0.06);
+}
+
+.mcConversationMessageEmployee {
+  border-color: rgba(168, 85, 247, 0.3);
+  background: rgba(168, 85, 247, 0.05);
+}
+
+.mcConversationMessageNote {
+  border-color: rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.06);
+}
+
+.mcConversationMessageSummary {
+  border-color: rgba(34, 197, 94, 0.3);
+  background: rgba(34, 197, 94, 0.05);
+}
+
+.mcConversationMessageSystem {
+  text-align: center;
+  border-style: dashed;
+  color: var(--mc-muted);
+  font-size: 12px;
+  background: transparent;
+}
+
+.mcConversationMessageHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.mcConversationMessageAuthor {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.mcConversationMessageTime {
+  font-size: 11px;
+  color: var(--mc-muted-2);
+  font-family: var(--mc-mono);
+}
+
+.mcConversationMessageStatus {
+  color: var(--mc-muted);
+}
+
+.mcConversationMessageBody {
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.mcConversationMessageMeta {
+  margin-right: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mc-muted);
+}
+
+.mcConversationComposer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--mc-border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.mcConversationComposerInput {
+  width: 100%;
+  resize: vertical;
+  min-height: 72px;
+}
+
+.mcConversationComposerActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mcConversationSidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mcConversationSidebarPlaceholder {
+  padding: 4px 0;
+}
+
+.mcConversationSidebarPlaceholderTitle {
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.mcConversationSidebarPlaceholderDesc {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--mc-muted);
+  line-height: 1.45;
+}
+
+.mcConversationFutureBadge {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--mc-border);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mc-muted);
+}
+
+.mcConversationProfileCard {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mcConversationProfileName {
+  font-weight: 650;
+  font-size: 14px;
+}
+
+.mcConversationEmpty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 48px 24px;
+  border: 1px dashed var(--mc-border);
+  border-radius: 8px;
+  text-align: center;
+}
+
+.mcConversationEmptyInline {
+  padding: 16px 8px 4px;
+  text-align: center;
+  border-top: 1px dashed var(--mc-border-subtle);
+}
+
+.mcConversationEmptyTitle {
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.mcConversationEmptyDesc {
+  margin: 0;
+  max-width: 420px;
+  font-size: 13px;
+  color: var(--mc-muted);
+  line-height: 1.5;
+}
+
+.mcConversationEmptyHint {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--mc-muted-2);
+  font-family: var(--mc-mono);
+}
+
+.mcProfileHeaderActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}

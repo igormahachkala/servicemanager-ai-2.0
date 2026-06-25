@@ -43,6 +43,14 @@ export function EmployeeHeader({ employee }: { employee: CustomEmployee }) {
               {new Date(employee.createdAt).toLocaleDateString()}
             </span>
           </div>
+          <div className="mcProfileHeaderActions">
+            <Link
+              to={`/ops/employees/${employee.id}/conversation`}
+              className="mcBtn mcBtnPrimary mcBtnSmall"
+            >
+              {t.conversations.openConversation}
+            </Link>
+          </div>
         </div>
       </div>
     </header>
