@@ -1,0 +1,226 @@
+/* UX Bible v1 — design tokens (AI Company Platform) */
+
+:root {
+  --ac-bg: #09090b;
+  --ac-bg-elevated: #0c0d10;
+  --ac-surface: #111113;
+  --ac-surface-2: #18181b;
+  --ac-surface-hover: #1f1f23;
+  --ac-border: #27272a;
+  --ac-border-subtle: #1f1f23;
+  --ac-text: #fafafa;
+  --ac-text-muted: #71717a;
+  --ac-text-subtle: #52525b;
+  --ac-accent: #6366f1;
+  --ac-accent-hover: #818cf8;
+  --ac-accent-dim: rgba(99, 102, 241, 0.12);
+  --ac-accent-border: rgba(99, 102, 241, 0.35);
+  --ac-green: #22c55e;
+  --ac-green-dim: rgba(34, 197, 94, 0.12);
+  --ac-amber: #f59e0b;
+  --ac-amber-dim: rgba(245, 158, 11, 0.12);
+  --ac-red: #ef4444;
+  --ac-red-dim: rgba(239, 68, 68, 0.12);
+  --ac-blue: #3b82f6;
+  --ac-blue-dim: rgba(59, 130, 246, 0.12);
+  --ac-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --ac-font: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+
+  --ac-space-1: 4px;
+  --ac-space-2: 8px;
+  --ac-space-3: 12px;
+  --ac-space-4: 16px;
+  --ac-space-5: 20px;
+  --ac-space-6: 24px;
+  --ac-space-8: 32px;
+
+  --ac-radius-sm: 6px;
+  --ac-radius-md: 8px;
+  --ac-radius-lg: 12px;
+
+  --ac-sidebar-w: 240px;
+  --ac-topbar-h: 52px;
+  --ac-statusbar-h: 28px;
+
+  --ac-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --ac-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.35);
+  --ac-shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.45);
+
+  --ac-transition: 0.12s ease;
+}
+
+.acBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ac-space-1);
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.acBadgeDefault {
+  background: var(--ac-surface-2);
+  color: var(--ac-text-muted);
+  border-color: var(--ac-border);
+}
+
+.acBadgeSuccess {
+  background: var(--ac-green-dim);
+  color: var(--ac-green);
+  border-color: rgba(34, 197, 94, 0.25);
+}
+
+.acBadgeWarning {
+  background: var(--ac-amber-dim);
+  color: var(--ac-amber);
+  border-color: rgba(245, 158, 11, 0.25);
+}
+
+.acBadgeDanger {
+  background: var(--ac-red-dim);
+  color: var(--ac-red);
+  border-color: rgba(239, 68, 68, 0.25);
+}
+
+.acBadgeInfo {
+  background: var(--ac-blue-dim);
+  color: var(--ac-blue);
+  border-color: rgba(59, 130, 246, 0.25);
+}
+
+.acBadgeAccent {
+  background: var(--ac-accent-dim);
+  color: var(--ac-accent-hover);
+  border-color: var(--ac-accent-border);
+}
+
+.acCard {
+  background: var(--ac-surface);
+  border: 1px solid var(--ac-border);
+  border-radius: var(--ac-radius-lg);
+  overflow: hidden;
+}
+
+.acCardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ac-space-3);
+  padding: var(--ac-space-3) var(--ac-space-4);
+  border-bottom: 1px solid var(--ac-border-subtle);
+}
+
+.acCardTitle {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.acCardBody {
+  padding: var(--ac-space-4);
+}
+
+.acCardFooter {
+  padding: var(--ac-space-3) var(--ac-space-4);
+  border-top: 1px solid var(--ac-border-subtle);
+}
+
+.acPageHeader {
+  margin-bottom: var(--ac-space-6);
+}
+
+.acPageTitle {
+  margin: 0 0 var(--ac-space-2);
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+
+.acPageDesc {
+  margin: 0;
+  font-size: 13px;
+  color: var(--ac-text-muted);
+  line-height: 1.5;
+  max-width: 640px;
+}
+
+.acTableWrap {
+  overflow-x: auto;
+}
+
+.acTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.acTable th {
+  text-align: left;
+  padding: var(--ac-space-2) var(--ac-space-3);
+  color: var(--ac-text-muted);
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-bottom: 1px solid var(--ac-border);
+}
+
+.acTable td {
+  padding: var(--ac-space-3);
+  border-bottom: 1px solid var(--ac-border-subtle);
+  vertical-align: middle;
+}
+
+.acTable tr:last-child td {
+  border-bottom: none;
+}
+
+.acTable tr:hover td {
+  background: var(--ac-surface-hover);
+}
+
+.acMuted {
+  color: var(--ac-text-muted);
+}
+
+.acMono {
+  font-family: var(--ac-mono);
+  font-size: 11px;
+}
+
+.acLink {
+  color: var(--ac-accent-hover);
+  text-decoration: none;
+}
+
+.acLink:hover {
+  text-decoration: underline;
+}
+
+.acDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.acDotGreen {
+  background: var(--ac-green);
+}
+
+.acDotAmber {
+  background: var(--ac-amber);
+}
+
+.acDotRed {
+  background: var(--ac-red);
+}
+
+.acDotGray {
+  background: var(--ac-text-subtle);
+}

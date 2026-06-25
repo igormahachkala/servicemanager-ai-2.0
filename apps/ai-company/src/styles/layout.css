@@ -1,0 +1,411 @@
+/* UX Bible v1 — Platform Shell layout */
+
+.acPlatform {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  background: var(--ac-bg);
+  color: var(--ac-text);
+  font-family: var(--ac-font);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.acPlatformMain {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.acPlatformContent {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--ac-space-6);
+}
+
+.acPlatformOverlay {
+  display: none;
+}
+
+.acTopBar {
+  height: var(--ac-topbar-h);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--ac-space-3);
+  padding: 0 var(--ac-space-4);
+  border-bottom: 1px solid var(--ac-border);
+  background: var(--ac-bg-elevated);
+}
+
+.acTopBarMenuBtn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--ac-border);
+  border-radius: var(--ac-radius-sm);
+  background: var(--ac-surface);
+  color: var(--ac-text);
+  cursor: pointer;
+}
+
+.acTopBarMenuBtn:hover {
+  background: var(--ac-surface-hover);
+}
+
+.acTopBarBrand {
+  display: flex;
+  align-items: center;
+  gap: var(--ac-space-2);
+  padding-right: var(--ac-space-3);
+  margin-right: var(--ac-space-2);
+  border-right: 1px solid var(--ac-border);
+  flex-shrink: 0;
+}
+
+.acTopBarBrandMark {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--ac-radius-sm);
+  background: linear-gradient(135deg, var(--ac-accent) 0%, #8b5cf6 100%);
+  box-shadow: 0 0 16px rgba(99, 102, 241, 0.25);
+}
+
+.acTopBarBrandTitle {
+  font-size: 13px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.acTopBarBrandSub {
+  font-size: 10px;
+  color: var(--ac-text-muted);
+}
+
+.acTopBarSpacer {
+  flex: 1;
+  min-width: 8px;
+}
+
+.acTopBarActions {
+  display: flex;
+  align-items: center;
+  gap: var(--ac-space-2);
+  flex-shrink: 0;
+}
+
+.acStatusBar {
+  height: var(--ac-statusbar-h);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ac-space-3);
+  padding: 0 var(--ac-space-4);
+  border-top: 1px solid var(--ac-border);
+  background: var(--ac-bg-elevated);
+  font-size: 11px;
+  color: var(--ac-text-muted);
+  font-family: var(--ac-mono);
+}
+
+.acStatusBarLeft,
+.acStatusBarRight {
+  display: flex;
+  align-items: center;
+  gap: var(--ac-space-3);
+}
+
+.acEnvPill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--ac-border);
+  background: var(--ac-surface);
+  font-size: 10px;
+  color: var(--ac-text-muted);
+  font-family: var(--ac-mono);
+}
+
+.acWorkspaceSwitcher {
+  position: relative;
+}
+
+.acWorkspaceSwitcherBtn {
+  display: flex;
+  align-items: center;
+  gap: var(--ac-space-2);
+  min-width: 160px;
+  max-width: 220px;
+  padding: 6px 10px;
+  border: 1px solid var(--ac-border);
+  border-radius: var(--ac-radius-sm);
+  background: var(--ac-surface);
+  color: var(--ac-text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.acWorkspaceSwitcherBtn:hover {
+  background: var(--ac-surface-hover);
+  border-color: var(--ac-accent-border);
+}
+
+.acWorkspaceSwitcherLabel {
+  font-size: 10px;
+  color: var(--ac-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.acWorkspaceSwitcherValue {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.acWorkspaceSwitcherChevron {
+  color: var(--ac-text-muted);
+  font-size: 10px;
+}
+
+.acWorkspaceSwitcherMenu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 50;
+  min-width: 260px;
+  max-height: 320px;
+  overflow: auto;
+  border: 1px solid var(--ac-border);
+  border-radius: var(--ac-radius-md);
+  background: var(--ac-surface);
+  box-shadow: var(--ac-shadow-lg);
+}
+
+.acWorkspaceSwitcherEmpty {
+  padding: var(--ac-space-4);
+  color: var(--ac-text-muted);
+  font-size: 12px;
+}
+
+.acWorkspaceSwitcherItem {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  color: var(--ac-text);
+  cursor: pointer;
+  text-align: left;
+}
+
+.acWorkspaceSwitcherItem:hover {
+  background: var(--ac-surface-hover);
+}
+
+.acWorkspaceSwitcherItemActive {
+  background: var(--ac-accent-dim);
+}
+
+.acWorkspaceSwitcherItemName {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.acWorkspaceSwitcherItemMeta {
+  font-size: 11px;
+}
+
+.acWorkspaceSwitcherFooter {
+  display: flex;
+  gap: var(--ac-space-3);
+  padding: var(--ac-space-3);
+  border-top: 1px solid var(--ac-border);
+}
+
+.acWorkspaceSwitcherLink {
+  font-size: 12px;
+  color: var(--ac-accent-hover);
+  text-decoration: none;
+}
+
+.acWorkspaceSwitcherLink:hover {
+  text-decoration: underline;
+}
+
+.acQuickActions {
+  display: flex;
+  align-items: center;
+  gap: var(--ac-space-1);
+}
+
+.acQuickActionBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--ac-border);
+  border-radius: var(--ac-radius-sm);
+  background: var(--ac-surface);
+  color: var(--ac-text);
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.acQuickActionBtn:hover {
+  background: var(--ac-surface-hover);
+  border-color: var(--ac-accent-border);
+}
+
+.acQuickActionBtnPrimary {
+  background: var(--ac-accent-dim);
+  border-color: var(--ac-accent-border);
+  color: var(--ac-accent-hover);
+}
+
+.acDashboardGrid {
+  display: grid;
+  gap: var(--ac-space-4);
+}
+
+.acDashboardGridMetrics {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.acDashboardGridMain {
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+}
+
+.acDashboardSpan4 {
+  grid-column: span 4;
+}
+
+.acDashboardSpan6 {
+  grid-column: span 6;
+}
+
+.acDashboardSpan8 {
+  grid-column: span 8;
+}
+
+.acDashboardSpan12 {
+  grid-column: span 12;
+}
+
+.acMetricTile {
+  padding: var(--ac-space-4);
+  background: var(--ac-surface);
+  border: 1px solid var(--ac-border);
+  border-radius: var(--ac-radius-lg);
+}
+
+.acMetricTileLabel {
+  font-size: 11px;
+  color: var(--ac-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: var(--ac-space-2);
+}
+
+.acMetricTileValue {
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.acMetricTileSub {
+  margin-top: var(--ac-space-1);
+  font-size: 11px;
+  color: var(--ac-text-muted);
+}
+
+.acListRow {
+  display: flex;
+  align-items: center;
+  gap: var(--ac-space-3);
+  padding: var(--ac-space-2) 0;
+  border-bottom: 1px solid var(--ac-border-subtle);
+}
+
+.acListRow:last-child {
+  border-bottom: none;
+}
+
+.acHealthRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ac-space-3);
+}
+
+.acHealthItem {
+  display: flex;
+  align-items: center;
+  gap: var(--ac-space-3);
+  padding: var(--ac-space-3) var(--ac-space-4);
+  background: var(--ac-surface);
+  border: 1px solid var(--ac-border);
+  border-radius: var(--ac-radius-md);
+  flex: 1;
+  min-width: 160px;
+}
+
+@media (max-width: 1200px) {
+  .acDashboardGridMetrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .acDashboardSpan4,
+  .acDashboardSpan6,
+  .acDashboardSpan8 {
+    grid-column: span 12;
+  }
+}
+
+@media (max-width: 900px) {
+  .acPlatformOverlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    background: rgba(0, 0, 0, 0.55);
+  }
+
+  .acTopBarMenuBtn {
+    display: inline-flex;
+  }
+
+  .acPlatformContent {
+    padding: var(--ac-space-4);
+  }
+
+  .acQuickActions {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .acDashboardGridMetrics {
+    grid-template-columns: 1fr;
+  }
+
+  .acTopBarBrandSub {
+    display: none;
+  }
+}
