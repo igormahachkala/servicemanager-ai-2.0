@@ -8,7 +8,6 @@ import { EmployeesPage } from './pages/EmployeesPage'
 import { NewEmployeePage } from './pages/NewEmployeePage'
 import { EmployeeProfilePage } from './pages/EmployeeProfilePage'
 import { TasksPage } from './pages/TasksPage'
-import { MissionFeedPage } from './pages/MissionFeedPage'
 import { ToolsCatalogPage } from './pages/ToolsCatalogPage'
 import { ToolDetailsPage } from './pages/ToolDetailsPage'
 import { WorkspacesPage } from './pages/WorkspacesPage'
@@ -20,6 +19,8 @@ import { ApprovalDetailsPage } from '../pages/ApprovalDetailsPage'
 import { ReportsPage } from '../pages/ReportsPage'
 import { ReportPage } from '../pages/ReportPage'
 import { AuditPage } from '../pages/AuditPage'
+import { CompanyTimelinePage } from '../pages/CompanyTimelinePage'
+import { ActivityPage } from '../pages/ActivityPage'
 import { ChatsPage } from '../pages/ChatsPage'
 import { ChatPage } from '../pages/ChatPage'
 import { NewChatPage } from '../pages/NewChatPage'
@@ -51,7 +52,9 @@ export function MissionControlRoutes() {
         <Route path="employees/:id/memory" element={<EmployeeMemoryPage />} />
         <Route path="employees/:id" element={<EmployeeProfilePage />} />
         <Route path="tasks" element={<TasksPage />} />
-        <Route path="feed" element={<MissionFeedPage />} />
+        <Route path="feed" element={<Navigate to="/ops/timeline" replace />} />
+        <Route path="timeline" element={<CompanyTimelinePage />} />
+        <Route path="activity" element={<ActivityPage />} />
         <Route path="approvals" element={<ApprovalsPage />} />
         <Route path="approvals/:id" element={<ApprovalDetailsPage />} />
         <Route path="reports" element={<ReportsPage />} />
