@@ -17,6 +17,9 @@ import { NewWorkspacePage } from './pages/NewWorkspacePage'
 import { WorkspacePage } from './pages/WorkspacePage'
 import { ConversationPage } from './pages/ConversationPage'
 import { EmployeeMemoryPage } from '../pages/EmployeeMemoryPage'
+import { ReportsPage } from '../pages/ReportsPage'
+import { ReportPage } from '../pages/ReportPage'
+import { AuditPage } from '../pages/AuditPage'
 
 /** NOC panel routes under /ops — mock data only. */
 export function MissionControlRoutes() {
@@ -40,6 +43,9 @@ export function MissionControlRoutes() {
         <Route path="workspaces/:id" element={<WorkspacePage />} />
         <Route path="tools" element={<ToolsCatalogPage />} />
         <Route path="tools/:id" element={<ToolDetailsPage />} />
+        <Route path="reports" element={<ReportsPage />} />
+        <Route path="reports/:id" element={<ReportPage />} />
+        <Route path="audit" element={<AuditPage />} />
         <Route path="*" element={<Navigate to="/ops" replace />} />
       </Route>
     </Routes>

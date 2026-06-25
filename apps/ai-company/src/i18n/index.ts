@@ -78,5 +78,8 @@ export function pageTitle(pathname: string, t: Messages): string {
   if (pathname === '/ops/feed') return t.pages.missionFeed
   if (pathname === '/ops/tools') return t.pages.toolsRegistry
   if (pathname.startsWith('/ops/tools/')) return t.toolRegistry.detailsTitle
+  if (pathname === '/ops/reports') return t.pages.reports
+  if (pathname.startsWith('/ops/reports/')) return t.pages.reports
+  if (pathname === '/ops/audit') return t.pages.audit
   return t.pages.missionControl
 }
