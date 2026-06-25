@@ -1,0 +1,5766 @@
+[
+  [
+    "common.empty",
+    "—"
+  ],
+  [
+    "common.all",
+    "All"
+  ],
+  [
+    "nav.flow",
+    "Flow"
+  ],
+  [
+    "nav.missionControl",
+    "Mission Control"
+  ],
+  [
+    "nav.organization",
+    "Organization"
+  ],
+  [
+    "nav.employees",
+    "Employees"
+  ],
+  [
+    "nav.workspaces",
+    "Workspaces"
+  ],
+  [
+    "nav.tasks",
+    "Tasks"
+  ],
+  [
+    "nav.feed",
+    "Feed"
+  ],
+  [
+    "nav.timeline",
+    "Timeline"
+  ],
+  [
+    "nav.activity",
+    "Activity"
+  ],
+  [
+    "nav.reports",
+    "Reports"
+  ],
+  [
+    "nav.runs",
+    "Runs"
+  ],
+  [
+    "nav.audit",
+    "Audit"
+  ],
+  [
+    "nav.runtime",
+    "Runtime"
+  ],
+  [
+    "nav.approvals",
+    "Approvals"
+  ],
+  [
+    "nav.knowledge",
+    "Knowledge"
+  ],
+  [
+    "nav.tools",
+    "Tools"
+  ],
+  [
+    "nav.discussions",
+    "Discussions"
+  ],
+  [
+    "nav.chats",
+    "Chats"
+  ],
+  [
+    "platformNav.home",
+    "Home"
+  ],
+  [
+    "platformNav.chats",
+    "Chats"
+  ],
+  [
+    "platformNav.employees",
+    "Employees"
+  ],
+  [
+    "platformNav.workspaces",
+    "Workspaces"
+  ],
+  [
+    "platformNav.knowledge",
+    "Knowledge"
+  ],
+  [
+    "platformNav.tasks",
+    "Tasks"
+  ],
+  [
+    "platformNav.tools",
+    "Tools"
+  ],
+  [
+    "platformNav.reports",
+    "Reports"
+  ],
+  [
+    "platformNav.timeline",
+    "Timeline"
+  ],
+  [
+    "platformNav.approvals",
+    "Approvals"
+  ],
+  [
+    "platformNav.settings",
+    "Settings"
+  ],
+  [
+    "labels.active",
+    "Active"
+  ],
+  [
+    "labels.planned",
+    "Planned"
+  ],
+  [
+    "labels.models",
+    "Models"
+  ],
+  [
+    "labels.codingAgents",
+    "Coding Agents"
+  ],
+  [
+    "labels.integrations",
+    "Integrations"
+  ],
+  [
+    "labels.currentTask",
+    "Current task"
+  ],
+  [
+    "labels.availableTools",
+    "Available tools"
+  ],
+  [
+    "labels.lastActivity",
+    "Last activity"
+  ],
+  [
+    "labels.status",
+    "Status"
+  ],
+  [
+    "labels.model",
+    "Model"
+  ],
+  [
+    "labels.role",
+    "Role"
+  ],
+  [
+    "labels.agent",
+    "Agent"
+  ],
+  [
+    "labels.load",
+    "Load"
+  ],
+  [
+    "labels.squad",
+    "Squad"
+  ],
+  [
+    "labels.id",
+    "ID"
+  ],
+  [
+    "labels.title",
+    "Title"
+  ],
+  [
+    "labels.assignee",
+    "Assignee"
+  ],
+  [
+    "labels.sla",
+    "SLA"
+  ],
+  [
+    "labels.priority",
+    "Priority"
+  ],
+  [
+    "labels.name",
+    "Name"
+  ],
+  [
+    "labels.version",
+    "Version"
+  ],
+  [
+    "labels.scope",
+    "Scope"
+  ],
+  [
+    "labels.lastCheck",
+    "Last check"
+  ],
+  [
+    "labels.usedBy",
+    "Used by"
+  ],
+  [
+    "labels.domain",
+    "Domain"
+  ],
+  [
+    "labels.leadAgent",
+    "Lead agent"
+  ],
+  [
+    "labels.headcount",
+    "Headcount"
+  ],
+  [
+    "labels.capacity",
+    "Capacity"
+  ],
+  [
+    "pages.flow",
+    "Flow Workspace"
+  ],
+  [
+    "pages.dashboard",
+    "Dashboard"
+  ],
+  [
+    "pages.missionControl",
+    "Mission Control"
+  ],
+  [
+    "pages.missionFeed",
+    "Mission Feed"
+  ],
+  [
+    "pages.companyTimeline",
+    "Company Timeline"
+  ],
+  [
+    "pages.activity",
+    "Activity"
+  ],
+  [
+    "pages.toolsRegistry",
+    "AI Tools Registry"
+  ],
+  [
+    "pages.employees",
+    "Employees"
+  ],
+  [
+    "pages.organization",
+    "Organization"
+  ],
+  [
+    "pages.tasks",
+    "Tasks"
+  ],
+  [
+    "pages.discussions",
+    "Discussions"
+  ],
+  [
+    "pages.chats",
+    "Chats"
+  ],
+  [
+    "pages.workspaces",
+    "Workspaces"
+  ],
+  [
+    "pages.reports",
+    "Reports"
+  ],
+  [
+    "pages.runs",
+    "Run History"
+  ],
+  [
+    "pages.knowledge",
+    "Knowledge"
+  ],
+  [
+    "pages.audit",
+    "Audit"
+  ],
+  [
+    "pages.runtimeSettings",
+    "Runtime Settings"
+  ],
+  [
+    "pages.approvals",
+    "Approvals"
+  ],
+  [
+    "agentStatus.online",
+    "online"
+  ],
+  [
+    "agentStatus.busy",
+    "busy"
+  ],
+  [
+    "agentStatus.idle",
+    "idle"
+  ],
+  [
+    "agentStatus.offline",
+    "offline"
+  ],
+  [
+    "taskStatus.backlog",
+    "backlog"
+  ],
+  [
+    "taskStatus.running",
+    "running"
+  ],
+  [
+    "taskStatus.blocked",
+    "blocked"
+  ],
+  [
+    "taskStatus.done",
+    "done"
+  ],
+  [
+    "feedSeverity.info",
+    "info"
+  ],
+  [
+    "feedSeverity.success",
+    "success"
+  ],
+  [
+    "feedSeverity.warn",
+    "warn"
+  ],
+  [
+    "feedSeverity.error",
+    "error"
+  ],
+  [
+    "toolStatus.healthy",
+    "healthy"
+  ],
+  [
+    "toolStatus.degraded",
+    "degraded"
+  ],
+  [
+    "toolStatus.offline",
+    "offline"
+  ],
+  [
+    "inspector.title",
+    "Employee Inspector"
+  ],
+  [
+    "inspector.collapse",
+    "Collapse inspector"
+  ],
+  [
+    "inspector.activityTimeline",
+    "Activity timeline"
+  ],
+  [
+    "inspector.lastRun",
+    "last run"
+  ],
+  [
+    "inspector.noEventsYet",
+    "no events yet"
+  ],
+  [
+    "inspector.ago",
+    "ago"
+  ],
+  [
+    "inspector.noRecentActivity",
+    "No recent activity"
+  ],
+  [
+    "employees.description",
+    "V1 agent roster — active agents run now; planned agents visible for org design."
+  ],
+  [
+    "employees.agents",
+    "agents"
+  ],
+  [
+    "employees.template",
+    "Template"
+  ],
+  [
+    "employees.createFromTemplate",
+    "Create from Template"
+  ],
+  [
+    "employees.duplicate",
+    "Duplicate"
+  ],
+  [
+    "employees.copyOf",
+    "Copy of"
+  ],
+  [
+    "employees.employeeTemplates",
+    "Employee templates"
+  ],
+  [
+    "employees.selectTemplate",
+    "Select template"
+  ],
+  [
+    "employees.actions",
+    "Actions"
+  ],
+  [
+    "employees.openProfile",
+    "Open Profile"
+  ],
+  [
+    "employees.templates.ai-cto",
+    "AI CTO"
+  ],
+  [
+    "employees.templates.ai-architect",
+    "AI Architect"
+  ],
+  [
+    "employees.templates.senior-developer",
+    "Senior Developer"
+  ],
+  [
+    "employees.templates.ai-qa",
+    "AI QA"
+  ],
+  [
+    "employees.templates.ai-devops",
+    "AI DevOps"
+  ],
+  [
+    "employees.templates.ai-business-analyst",
+    "AI Business Analyst"
+  ],
+  [
+    "employees.templates.ai-product-manager",
+    "AI Product Manager"
+  ],
+  [
+    "employees.templates.ai-assistant",
+    "AI Assistant"
+  ],
+  [
+    "employees.templates.ai-cfo",
+    "AI CFO"
+  ],
+  [
+    "employees.templates.ai-coo",
+    "AI COO"
+  ],
+  [
+    "organization.description",
+    "Departments, teams, reporting lines, and company hierarchy — separate from Workspace assignments."
+  ],
+  [
+    "organization.customEmployees",
+    "Custom Employees"
+  ],
+  [
+    "organization.squads",
+    "Squads"
+  ],
+  [
+    "organization.squadRoster",
+    "Squad roster snapshot"
+  ],
+  [
+    "organization.squadsUnit",
+    "squads"
+  ],
+  [
+    "organization.agentsUnit",
+    "agents"
+  ],
+  [
+    "organization.domains.Engineering",
+    "Engineering"
+  ],
+  [
+    "organization.domains.Leadership",
+    "Leadership"
+  ],
+  [
+    "organization.domains.Operations",
+    "Operations"
+  ],
+  [
+    "organizationEngine.description",
+    "Digital org structure — departments, teams, managers, and reporting lines. Organization defines company structure; Workspace assignments are separate."
+  ],
+  [
+    "organizationEngine.reportingTree",
+    "Organization tree"
+  ],
+  [
+    "organizationEngine.reportingTreeHint",
+    "Owner → CEO → executives → engineering → QA → operations"
+  ],
+  [
+    "organizationEngine.treeFootnote",
+    "Reporting lines stored locally under ai-company-organization. Owner id: {ownerId}."
+  ],
+  [
+    "organizationEngine.ownerHint",
+    "Human principal — not a digital employee"
+  ],
+  [
+    "organizationEngine.owner",
+    "Owner"
+  ],
+  [
+    "organizationEngine.departments",
+    "Departments"
+  ],
+  [
+    "organizationEngine.teams",
+    "Teams"
+  ],
+  [
+    "organizationEngine.department",
+    "Department"
+  ],
+  [
+    "organizationEngine.team",
+    "Team"
+  ],
+  [
+    "organizationEngine.departmentHead",
+    "Department head"
+  ],
+  [
+    "organizationEngine.teamLead",
+    "Team lead"
+  ],
+  [
+    "organizationEngine.teamsUnit",
+    "teams"
+  ],
+  [
+    "organizationEngine.membersUnit",
+    "members"
+  ],
+  [
+    "organizationEngine.departmentPage",
+    "Department"
+  ],
+  [
+    "organizationEngine.teamPage",
+    "Team"
+  ],
+  [
+    "organizationEngine.departmentOverview",
+    "Department overview"
+  ],
+  [
+    "organizationEngine.teamOverview",
+    "Team overview"
+  ],
+  [
+    "organizationEngine.teamsInDepartment",
+    "Teams in department"
+  ],
+  [
+    "organizationEngine.teamMembers",
+    "Team members"
+  ],
+  [
+    "organizationEngine.noMembers",
+    "No members assigned yet."
+  ],
+  [
+    "organizationEngine.departmentNotFound",
+    "Department not found"
+  ],
+  [
+    "organizationEngine.departmentNotFoundDesc",
+    "This department does not exist in local organization storage."
+  ],
+  [
+    "organizationEngine.teamNotFound",
+    "Team not found"
+  ],
+  [
+    "organizationEngine.teamNotFoundDesc",
+    "This team does not exist in local organization storage."
+  ],
+  [
+    "organizationEngine.backToOrganization",
+    "Back to Organization"
+  ],
+  [
+    "organizationEngine.orgPlacement",
+    "Organization placement"
+  ],
+  [
+    "organizationEngine.reportingLines",
+    "Reporting lines"
+  ],
+  [
+    "organizationEngine.manager",
+    "Manager"
+  ],
+  [
+    "organizationEngine.directReports",
+    "Direct reports"
+  ],
+  [
+    "organizationEngine.directReport",
+    "Direct report"
+  ],
+  [
+    "organizationEngine.unassigned",
+    "Unassigned"
+  ],
+  [
+    "organizationEngine.noManager",
+    "No manager — top of reporting chain or unlinked."
+  ],
+  [
+    "organizationEngine.noDirectReports",
+    "No direct reports."
+  ],
+  [
+    "organizationEngine.noOrgDataHint",
+    "This employee is not linked to departments, teams, or reporting lines yet."
+  ],
+  [
+    "organizationEngine.openOrganization",
+    "Open Organization"
+  ],
+  [
+    "organizationEngine.orgVsWorkspaceHint",
+    "Organization defines company structure. Workspace assignments link employees to projects — managed separately."
+  ],
+  [
+    "organizationEngine.futureBadge",
+    "Future"
+  ],
+  [
+    "organizationEngine.futureStructures",
+    "Future organization models"
+  ],
+  [
+    "organizationEngine.future.crossFunctional",
+    "Cross-functional teams"
+  ],
+  [
+    "organizationEngine.future.crossFunctionalDesc",
+    "Squads spanning multiple departments — e.g. launch task forces."
+  ],
+  [
+    "organizationEngine.future.matrix",
+    "Matrix organization"
+  ],
+  [
+    "organizationEngine.future.matrixDesc",
+    "Dual reporting — functional manager plus project lead."
+  ],
+  [
+    "organizationEngine.future.temporarySquads",
+    "Temporary squads"
+  ],
+  [
+    "organizationEngine.future.temporarySquadsDesc",
+    "Time-boxed teams for incidents, releases, or audits."
+  ],
+  [
+    "organizationEngine.future.workspaceOverlay",
+    "Workspace overlay"
+  ],
+  [
+    "organizationEngine.future.workspaceOverlayDesc",
+    "Visualize how Workspace assignments map onto the org chart."
+  ],
+  [
+    "organizationEngine.stats.departments",
+    "Departments"
+  ],
+  [
+    "organizationEngine.stats.teams",
+    "Teams"
+  ],
+  [
+    "organizationEngine.stats.headcount",
+    "Headcount"
+  ],
+  [
+    "organizationEngine.stats.activeEmployees",
+    "Active employees"
+  ],
+  [
+    "organizationEngine.stats.customEmployees",
+    "Custom employees"
+  ],
+  [
+    "organizationEngine.stats.plannedEmployees",
+    "Planned employees"
+  ],
+  [
+    "approvalEngine.pageDescription",
+    "Human-in-the-loop approval queue — Runtime must never execute critical actions directly. Every decision becomes an audit event."
+  ],
+  [
+    "approvalEngine.queueTitle",
+    "Approval queue"
+  ],
+  [
+    "approvalEngine.requestCount",
+    "requests"
+  ],
+  [
+    "approvalEngine.searchLabel",
+    "Search"
+  ],
+  [
+    "approvalEngine.searchPlaceholder",
+    "Title, employee, action type, status…"
+  ],
+  [
+    "approvalEngine.policiesTitle",
+    "Approval policies"
+  ],
+  [
+    "approvalEngine.futureIntegrationTitle",
+    "Future Runtime integrations"
+  ],
+  [
+    "approvalEngine.futureIntegrationHint",
+    "Runtime creates Approval Request → Owner reviews → decision emits Audit Event."
+  ],
+  [
+    "approvalEngine.futureBadge",
+    "Future"
+  ],
+  [
+    "approvalEngine.futureIntegrations.0",
+    "GitHub Push"
+  ],
+  [
+    "approvalEngine.futureIntegrations.1",
+    "Production Deploy"
+  ],
+  [
+    "approvalEngine.futureIntegrations.2",
+    "Database Migration"
+  ],
+  [
+    "approvalEngine.futureIntegrations.3",
+    "Filesystem Delete"
+  ],
+  [
+    "approvalEngine.futureIntegrations.4",
+    "Money Transfer"
+  ],
+  [
+    "approvalEngine.futureIntegrations.5",
+    "Permission Changes"
+  ],
+  [
+    "approvalEngine.futureIntegrations.6",
+    "Tool Connection"
+  ],
+  [
+    "approvalEngine.futureIntegrations.7",
+    "Workspace Assignment"
+  ],
+  [
+    "approvalEngine.principleNote",
+    "Human is Always in Control — critical digital employee actions pass through one unified approval API."
+  ],
+  [
+    "approvalEngine.runtimeNote",
+    "Runtime integration: invoke createApprovalRequest() instead of executing protected actions. Owner decision writes to audit trail."
+  ],
+  [
+    "approvalEngine.localOnly",
+    "Stored in localStorage under ai-company-approvals — no Runtime connected."
+  ],
+  [
+    "approvalEngine.openAudit",
+    "Open Audit"
+  ],
+  [
+    "approvalEngine.backToList",
+    "Back to Approvals"
+  ],
+  [
+    "approvalEngine.notFoundTitle",
+    "Approval not found"
+  ],
+  [
+    "approvalEngine.notFoundDescription",
+    "This approval request does not exist in local storage."
+  ],
+  [
+    "approvalEngine.detailsOverview",
+    "Request overview"
+  ],
+  [
+    "approvalEngine.ownerActionsTitle",
+    "Owner review"
+  ],
+  [
+    "approvalEngine.timelineTitle",
+    "Approval timeline"
+  ],
+  [
+    "approvalEngine.emptyTimelineTitle",
+    "No actions yet"
+  ],
+  [
+    "approvalEngine.emptyTimelineDescription",
+    "Approve, reject, delegate, or comment to build the timeline."
+  ],
+  [
+    "approvalEngine.emptyListTitle",
+    "No approval requests"
+  ],
+  [
+    "approvalEngine.emptyListDescription",
+    "When Runtime requests human approval, requests appear here for Owner review."
+  ],
+  [
+    "approvalEngine.owner",
+    "Owner"
+  ],
+  [
+    "approvalEngine.ownerReviewLead",
+    "Review this request — your decision is recorded in the audit trail."
+  ],
+  [
+    "approvalEngine.commentLabel",
+    "Comment"
+  ],
+  [
+    "approvalEngine.commentPlaceholder",
+    "Rationale, conditions, or questions for the employee…"
+  ],
+  [
+    "approvalEngine.delegateLabel",
+    "Delegate to"
+  ],
+  [
+    "approvalEngine.delegatePlaceholder",
+    "Employee id — future manager routing"
+  ],
+  [
+    "approvalEngine.delegatedTo",
+    "Delegated to"
+  ],
+  [
+    "approvalEngine.cancelRequest",
+    "Cancel request"
+  ],
+  [
+    "approvalEngine.closedMessage",
+    "This request is {status} — no further Owner actions."
+  ],
+  [
+    "approvalEngine.policyRule",
+    "Policy rule"
+  ],
+  [
+    "approvalEngine.createdAt",
+    "Created"
+  ],
+  [
+    "approvalEngine.updatedAt",
+    "Updated"
+  ],
+  [
+    "approvalEngine.filters.status",
+    "Status"
+  ],
+  [
+    "approvalEngine.filters.actionType",
+    "Action type"
+  ],
+  [
+    "approvalEngine.filters.priority",
+    "Priority"
+  ],
+  [
+    "approvalEngine.filters.workspace",
+    "Workspace"
+  ],
+  [
+    "approvalEngine.filters.noWorkspace",
+    "No workspace"
+  ],
+  [
+    "approvalEngine.stats.total",
+    "Total"
+  ],
+  [
+    "approvalEngine.stats.pending",
+    "Pending"
+  ],
+  [
+    "approvalEngine.stats.approved",
+    "Approved"
+  ],
+  [
+    "approvalEngine.stats.rejected",
+    "Rejected"
+  ],
+  [
+    "approvalEngine.stats.critical",
+    "Critical"
+  ],
+  [
+    "approvalEngine.stats.expired",
+    "Expired"
+  ],
+  [
+    "approvalEngine.statuses.pending",
+    "Pending"
+  ],
+  [
+    "approvalEngine.statuses.approved",
+    "Approved"
+  ],
+  [
+    "approvalEngine.statuses.rejected",
+    "Rejected"
+  ],
+  [
+    "approvalEngine.statuses.cancelled",
+    "Cancelled"
+  ],
+  [
+    "approvalEngine.statuses.expired",
+    "Expired"
+  ],
+  [
+    "approvalEngine.priorities.low",
+    "Low"
+  ],
+  [
+    "approvalEngine.priorities.medium",
+    "Medium"
+  ],
+  [
+    "approvalEngine.priorities.high",
+    "High"
+  ],
+  [
+    "approvalEngine.priorities.critical",
+    "Critical"
+  ],
+  [
+    "approvalEngine.actionTypes.github_push",
+    "GitHub Push"
+  ],
+  [
+    "approvalEngine.actionTypes.production_deploy",
+    "Production Deploy"
+  ],
+  [
+    "approvalEngine.actionTypes.database_migration",
+    "Database Migration"
+  ],
+  [
+    "approvalEngine.actionTypes.filesystem_delete",
+    "Filesystem Delete"
+  ],
+  [
+    "approvalEngine.actionTypes.money_transfer",
+    "Money Transfer"
+  ],
+  [
+    "approvalEngine.actionTypes.permission_change",
+    "Permission Change"
+  ],
+  [
+    "approvalEngine.actionTypes.tool_connection",
+    "Tool Connection"
+  ],
+  [
+    "approvalEngine.actionTypes.workspace_assignment",
+    "Workspace Assignment"
+  ],
+  [
+    "approvalEngine.actionTypes.generic",
+    "Generic Critical Action"
+  ],
+  [
+    "approvalEngine.actionKinds.approve",
+    "Approve"
+  ],
+  [
+    "approvalEngine.actionKinds.reject",
+    "Reject"
+  ],
+  [
+    "approvalEngine.actionKinds.delegate",
+    "Delegate"
+  ],
+  [
+    "approvalEngine.actionKinds.comment",
+    "Comment"
+  ],
+  [
+    "approvalEngine.rules.always_required",
+    "Always Required"
+  ],
+  [
+    "approvalEngine.rules.owner_only",
+    "Owner Only"
+  ],
+  [
+    "approvalEngine.rules.manager",
+    "Manager"
+  ],
+  [
+    "approvalEngine.rules.workspace_admin",
+    "Workspace Admin"
+  ],
+  [
+    "approvalEngine.rules.auto_approve",
+    "Auto Approve"
+  ],
+  [
+    "approvalEngine.rules.disabled",
+    "Disabled"
+  ],
+  [
+    "knowledgeEngine.pageDescription",
+    "Platform-owned knowledge — documents, ADRs, standards, and runbooks. Employees learn via Assignment; Runtime queries before tasks."
+  ],
+  [
+    "knowledgeEngine.catalogTitle",
+    "Knowledge catalog"
+  ],
+  [
+    "knowledgeEngine.collectionsTitle",
+    "Knowledge collections"
+  ],
+  [
+    "knowledgeEngine.collectionsDescription",
+    "Curated reading paths — assign collections to employees for structured learning."
+  ],
+  [
+    "knowledgeEngine.contentTitle",
+    "Content"
+  ],
+  [
+    "knowledgeEngine.sourcesTitle",
+    "Sources"
+  ],
+  [
+    "knowledgeEngine.featuredCollections",
+    "Featured collections"
+  ],
+  [
+    "knowledgeEngine.itemsUnit",
+    "items"
+  ],
+  [
+    "knowledgeEngine.platformWide",
+    "Platform-wide"
+  ],
+  [
+    "knowledgeEngine.searchLabel",
+    "Search"
+  ],
+  [
+    "knowledgeEngine.searchPlaceholder",
+    "Title, summary, tags, content…"
+  ],
+  [
+    "knowledgeEngine.openCatalog",
+    "Open catalog"
+  ],
+  [
+    "knowledgeEngine.openCollections",
+    "Collections"
+  ],
+  [
+    "knowledgeEngine.viewAllCollections",
+    "View all collections"
+  ],
+  [
+    "knowledgeEngine.backToList",
+    "Back to Knowledge"
+  ],
+  [
+    "knowledgeEngine.notFoundTitle",
+    "Knowledge item not found"
+  ],
+  [
+    "knowledgeEngine.notFoundDescription",
+    "This knowledge item does not exist in local storage."
+  ],
+  [
+    "knowledgeEngine.emptyListTitle",
+    "No knowledge items"
+  ],
+  [
+    "knowledgeEngine.emptyListDescription",
+    "Adjust filters or seed new platform knowledge."
+  ],
+  [
+    "knowledgeEngine.emptyCollections",
+    "No collections yet."
+  ],
+  [
+    "knowledgeEngine.emptyAssignments",
+    "No knowledge assignments for this employee."
+  ],
+  [
+    "knowledgeEngine.emptyWorkspace",
+    "No published knowledge scoped to this workspace yet."
+  ],
+  [
+    "knowledgeEngine.assignedKnowledgeTitle",
+    "Assigned Knowledge"
+  ],
+  [
+    "knowledgeEngine.assignedKnowledgeDescription",
+    "Learning assignments — single items or collections. Employee studies knowledge; Runtime only queries at task time."
+  ],
+  [
+    "knowledgeEngine.assignmentNote",
+    "Assign collections to onboard employees — separate from Employee Memory."
+  ],
+  [
+    "knowledgeEngine.workspaceTabDescription",
+    "Workspace-scoped and platform-wide published knowledge available to assigned employees."
+  ],
+  [
+    "knowledgeEngine.openItem",
+    "Open item"
+  ],
+  [
+    "knowledgeEngine.openCollection",
+    "Open collection"
+  ],
+  [
+    "knowledgeEngine.principleNote",
+    "Knowledge belongs to the platform and Workspace — never to the LLM provider or Employee model."
+  ],
+  [
+    "knowledgeEngine.runtimeNote",
+    "Runtime integration: call queryKnowledgeForRuntime() before task execution — do not store knowledge in model context permanently."
+  ],
+  [
+    "knowledgeEngine.localOnly",
+    "Stored in localStorage (ai-company-knowledge, ai-company-knowledge-collections) — no vector DB."
+  ],
+  [
+    "knowledgeEngine.futureBadge",
+    "Future"
+  ],
+  [
+    "knowledgeEngine.futureTitle",
+    "Future knowledge capabilities"
+  ],
+  [
+    "knowledgeEngine.filters.status",
+    "Status"
+  ],
+  [
+    "knowledgeEngine.filters.type",
+    "Type"
+  ],
+  [
+    "knowledgeEngine.filters.source",
+    "Source"
+  ],
+  [
+    "knowledgeEngine.filters.workspace",
+    "Workspace"
+  ],
+  [
+    "knowledgeEngine.filters.tag",
+    "Tag"
+  ],
+  [
+    "knowledgeEngine.stats.total",
+    "Total items"
+  ],
+  [
+    "knowledgeEngine.stats.published",
+    "Published"
+  ],
+  [
+    "knowledgeEngine.stats.collections",
+    "Collections"
+  ],
+  [
+    "knowledgeEngine.stats.assignments",
+    "Assignments"
+  ],
+  [
+    "knowledgeEngine.stats.platformWide",
+    "Platform-wide"
+  ],
+  [
+    "knowledgeEngine.stats.workspaceScoped",
+    "Workspace-scoped"
+  ],
+  [
+    "knowledgeEngine.statuses.draft",
+    "Draft"
+  ],
+  [
+    "knowledgeEngine.statuses.published",
+    "Published"
+  ],
+  [
+    "knowledgeEngine.statuses.archived",
+    "Archived"
+  ],
+  [
+    "knowledgeEngine.assignmentStatuses.assigned",
+    "Assigned"
+  ],
+  [
+    "knowledgeEngine.assignmentStatuses.in_progress",
+    "In progress"
+  ],
+  [
+    "knowledgeEngine.assignmentStatuses.completed",
+    "Completed"
+  ],
+  [
+    "knowledgeEngine.types.documentation",
+    "Documentation"
+  ],
+  [
+    "knowledgeEngine.types.adr",
+    "ADR"
+  ],
+  [
+    "knowledgeEngine.types.wiki",
+    "Wiki"
+  ],
+  [
+    "knowledgeEngine.types.standard",
+    "Standard"
+  ],
+  [
+    "knowledgeEngine.types.instruction",
+    "Instruction"
+  ],
+  [
+    "knowledgeEngine.types.architecture",
+    "Architecture"
+  ],
+  [
+    "knowledgeEngine.types.decision",
+    "Decision"
+  ],
+  [
+    "knowledgeEngine.types.best_practice",
+    "Best Practice"
+  ],
+  [
+    "knowledgeEngine.types.api",
+    "API"
+  ],
+  [
+    "knowledgeEngine.types.prompt_pack",
+    "Prompt Pack"
+  ],
+  [
+    "knowledgeEngine.types.runbook",
+    "Runbook"
+  ],
+  [
+    "knowledgeEngine.types.manual",
+    "Manual"
+  ],
+  [
+    "knowledgeEngine.sources.markdown",
+    "Markdown"
+  ],
+  [
+    "knowledgeEngine.sources.pdf",
+    "PDF"
+  ],
+  [
+    "knowledgeEngine.sources.url",
+    "URL"
+  ],
+  [
+    "knowledgeEngine.sources.local_file",
+    "Local File"
+  ],
+  [
+    "knowledgeEngine.sources.generated",
+    "Generated"
+  ],
+  [
+    "knowledgeEngine.sources.imported",
+    "Imported"
+  ],
+  [
+    "knowledgeEngine.future.semanticSearch",
+    "Semantic Search"
+  ],
+  [
+    "knowledgeEngine.future.semanticSearchDesc",
+    "Natural-language retrieval across knowledge items."
+  ],
+  [
+    "knowledgeEngine.future.vectorSearch",
+    "Vector Search"
+  ],
+  [
+    "knowledgeEngine.future.vectorSearchDesc",
+    "Similarity ranking for task-context injection."
+  ],
+  [
+    "knowledgeEngine.future.embeddings",
+    "Embeddings"
+  ],
+  [
+    "knowledgeEngine.future.embeddingsDesc",
+    "Chunk embeddings stored platform-side — not in LLM."
+  ],
+  [
+    "knowledgeEngine.future.knowledgeGraph",
+    "Knowledge Graph"
+  ],
+  [
+    "knowledgeEngine.future.knowledgeGraphDesc",
+    "Entity links between ADRs, standards, and architecture docs."
+  ],
+  [
+    "knowledgeEngine.future.aiSummaries",
+    "AI Summaries"
+  ],
+  [
+    "knowledgeEngine.future.aiSummariesDesc",
+    "Owner-approved executive summaries of long documents."
+  ],
+  [
+    "knowledgeEngine.future.recommendedReading",
+    "Recommended Reading"
+  ],
+  [
+    "knowledgeEngine.future.recommendedReadingDesc",
+    "Suggested items based on role, assignments, and task history."
+  ],
+  [
+    "dashboard.description",
+    "Operational overview — company health, active missions, alerts."
+  ],
+  [
+    "dashboard.activeAgents",
+    "Active agents"
+  ],
+  [
+    "dashboard.activeAgentsSub",
+    "of 7 registered"
+  ],
+  [
+    "dashboard.runningTasks",
+    "Running tasks"
+  ],
+  [
+    "dashboard.runningTasksSub",
+    "in flight now"
+  ],
+  [
+    "dashboard.queueDepth",
+    "Queue depth"
+  ],
+  [
+    "dashboard.queueDepthSub",
+    "backlog + blocked"
+  ],
+  [
+    "dashboard.toolsHealthy",
+    "Tools healthy"
+  ],
+  [
+    "dashboard.toolsHealthySub",
+    "registry probes ok"
+  ],
+  [
+    "dashboard.activeMissions",
+    "Active missions"
+  ],
+  [
+    "dashboard.alerts",
+    "Alerts"
+  ],
+  [
+    "dashboard.noActiveAlerts",
+    "No active alerts"
+  ],
+  [
+    "dashboard.slaBreach",
+    "breach"
+  ],
+  [
+    "executiveDashboard.title",
+    "Executive Dashboard"
+  ],
+  [
+    "executiveDashboard.description",
+    "Company overview — health, runtime, approvals, workspace, chats, and alerts."
+  ],
+  [
+    "executiveDashboard.companyHealth",
+    "Company Health"
+  ],
+  [
+    "executiveDashboard.employees",
+    "Employees"
+  ],
+  [
+    "executiveDashboard.employeesSub",
+    "registered digital employees"
+  ],
+  [
+    "executiveDashboard.currentRuntime",
+    "Current Runtime"
+  ],
+  [
+    "executiveDashboard.runtimeSub",
+    "{active} active profiles · {waiting} waiting approval"
+  ],
+  [
+    "executiveDashboard.approvals",
+    "Approvals"
+  ],
+  [
+    "executiveDashboard.approvalsSub",
+    "pending decisions"
+  ],
+  [
+    "executiveDashboard.reports",
+    "Reports"
+  ],
+  [
+    "executiveDashboard.reportsSub",
+    "generated artifacts"
+  ],
+  [
+    "executiveDashboard.timeline",
+    "Timeline"
+  ],
+  [
+    "executiveDashboard.workspaceOverview",
+    "Workspace Overview"
+  ],
+  [
+    "executiveDashboard.workspacesSub",
+    "workspaces in registry"
+  ],
+  [
+    "executiveDashboard.recentChats",
+    "Recent Chats"
+  ],
+  [
+    "executiveDashboard.criticalAlerts",
+    "Critical Alerts"
+  ],
+  [
+    "executiveDashboard.quickActions",
+    "Quick Actions"
+  ],
+  [
+    "executiveDashboard.viewAll",
+    "View all"
+  ],
+  [
+    "executiveDashboard.noData",
+    "No data yet"
+  ],
+  [
+    "executiveDashboard.eventFallback",
+    "Company event"
+  ],
+  [
+    "executiveDashboard.actionNewChat",
+    "New chat"
+  ],
+  [
+    "executiveDashboard.actionNewEmployee",
+    "New employee"
+  ],
+  [
+    "executiveDashboard.actionTasks",
+    "Tasks"
+  ],
+  [
+    "executiveDashboard.actionFlow",
+    "Flow workspace"
+  ],
+  [
+    "tasks.description",
+    "Company work queue — operational tasks with assignee, priority, and SLA."
+  ],
+  [
+    "tasks.queue",
+    "Task queue"
+  ],
+  [
+    "tasks.slaLeft",
+    "{minutes}m left"
+  ],
+  [
+    "tasks.slaBreach",
+    "breach"
+  ],
+  [
+    "feed.description",
+    "NOC event stream — agent actions, task transitions, tool health, system alerts."
+  ],
+  [
+    "feed.liveFeed",
+    "Live feed"
+  ],
+  [
+    "feed.events",
+    "events"
+  ],
+  [
+    "employeeBuilder.title",
+    "Create Employee"
+  ],
+  [
+    "employeeBuilder.description",
+    "Digital specialist constructor — model, skills, tools, permissions, restrictions, prompt, workflow, and memory."
+  ],
+  [
+    "employeeBuilder.createButton",
+    "Create Employee"
+  ],
+  [
+    "employeeBuilder.cancel",
+    "Cancel"
+  ],
+  [
+    "employeeBuilder.submit",
+    "Save Employee"
+  ],
+  [
+    "employeeBuilder.sections.identity",
+    "Identity"
+  ],
+  [
+    "employeeBuilder.sections.templates",
+    "Template"
+  ],
+  [
+    "employeeBuilder.sections.models",
+    "Models"
+  ],
+  [
+    "employeeBuilder.sections.skills",
+    "Skills"
+  ],
+  [
+    "employeeBuilder.sections.tools",
+    "Tools"
+  ],
+  [
+    "employeeBuilder.sections.permissions",
+    "Permissions"
+  ],
+  [
+    "employeeBuilder.sections.restrictions",
+    "Restrictions"
+  ],
+  [
+    "employeeBuilder.sections.systemPrompt",
+    "System Prompt"
+  ],
+  [
+    "employeeBuilder.sections.workflow",
+    "Workflow"
+  ],
+  [
+    "employeeBuilder.sections.memoryScope",
+    "Memory Scope"
+  ],
+  [
+    "employeeBuilder.sections.mission",
+    "Mission"
+  ],
+  [
+    "employeeBuilder.fields.name",
+    "Name"
+  ],
+  [
+    "employeeBuilder.fields.codename",
+    "Codename"
+  ],
+  [
+    "employeeBuilder.fields.role",
+    "Role"
+  ],
+  [
+    "employeeBuilder.fields.status",
+    "Status"
+  ],
+  [
+    "employeeBuilder.fields.primaryModel",
+    "Primary model"
+  ],
+  [
+    "employeeBuilder.fields.fallbackModels",
+    "Fallback models"
+  ],
+  [
+    "employeeBuilder.fields.description",
+    "Description / Mission"
+  ],
+  [
+    "employeeBuilder.fields.skills",
+    "Skills"
+  ],
+  [
+    "employeeBuilder.fields.systemPrompt",
+    "System prompt"
+  ],
+  [
+    "employeeBuilder.fields.workflow",
+    "Workflow"
+  ],
+  [
+    "employeeBuilder.fields.memoryScope",
+    "Memory scope"
+  ],
+  [
+    "employeeBuilder.placeholders.name",
+    "e.g. Research Analyst"
+  ],
+  [
+    "employeeBuilder.placeholders.codename",
+    "e.g. SCOUT"
+  ],
+  [
+    "employeeBuilder.placeholders.role",
+    "e.g. AI Research Lead"
+  ],
+  [
+    "employeeBuilder.placeholders.selectModel",
+    "Select primary model"
+  ],
+  [
+    "employeeBuilder.placeholders.description",
+    "Mission statement, scope, and operating constraints"
+  ],
+  [
+    "employeeBuilder.placeholders.systemPrompt",
+    "You are a digital specialist. Define tone, boundaries, and decision rules…"
+  ],
+  [
+    "employeeBuilder.placeholders.workflow",
+    "Step-by-step operating flow: intake → analysis → output → review"
+  ],
+  [
+    "employeeBuilder.hints.skills",
+    "Core competencies this agent can apply autonomously."
+  ],
+  [
+    "employeeBuilder.hints.restrictions",
+    "Hard guardrails — enforced regardless of permissions."
+  ],
+  [
+    "employeeBuilder.hints.memoryScope",
+    "Knowledge domains this agent may read from and write to."
+  ],
+  [
+    "employeeBuilder.status.active",
+    "Active"
+  ],
+  [
+    "employeeBuilder.status.planned",
+    "Planned"
+  ],
+  [
+    "employeeBuilder.status.disabled",
+    "Disabled"
+  ],
+  [
+    "employeeBuilder.permissions.read",
+    "Read"
+  ],
+  [
+    "employeeBuilder.permissions.write",
+    "Write"
+  ],
+  [
+    "employeeBuilder.permissions.enabled",
+    "Enabled"
+  ],
+  [
+    "employeeBuilder.permissions.readShort",
+    "R"
+  ],
+  [
+    "employeeBuilder.permissions.writeShort",
+    "W"
+  ],
+  [
+    "employeeBuilder.permissions.readWriteShort",
+    "R/W"
+  ],
+  [
+    "employeeBuilder.options.skills.Business Analysis",
+    "Business Analysis"
+  ],
+  [
+    "employeeBuilder.options.skills.Architecture",
+    "Architecture"
+  ],
+  [
+    "employeeBuilder.options.skills.Coding",
+    "Coding"
+  ],
+  [
+    "employeeBuilder.options.skills.Testing",
+    "Testing"
+  ],
+  [
+    "employeeBuilder.options.skills.Research",
+    "Research"
+  ],
+  [
+    "employeeBuilder.options.skills.Documentation",
+    "Documentation"
+  ],
+  [
+    "employeeBuilder.options.skills.Marketing",
+    "Marketing"
+  ],
+  [
+    "employeeBuilder.options.skills.Finance",
+    "Finance"
+  ],
+  [
+    "employeeBuilder.options.skills.DevOps",
+    "DevOps"
+  ],
+  [
+    "employeeBuilder.options.skills.Product Management",
+    "Product Management"
+  ],
+  [
+    "employeeBuilder.options.restrictions.No Production Deploy",
+    "No Production Deploy"
+  ],
+  [
+    "employeeBuilder.options.restrictions.No Backend Changes",
+    "No Backend Changes"
+  ],
+  [
+    "employeeBuilder.options.restrictions.No Database Write",
+    "No Database Write"
+  ],
+  [
+    "employeeBuilder.options.restrictions.No Git Push",
+    "No Git Push"
+  ],
+  [
+    "employeeBuilder.options.restrictions.No Delete Operations",
+    "No Delete Operations"
+  ],
+  [
+    "employeeBuilder.options.restrictions.Requires Approval",
+    "Requires Approval"
+  ],
+  [
+    "employeeBuilder.options.memoryScope.AI Company",
+    "AI Company"
+  ],
+  [
+    "employeeBuilder.options.memoryScope.ServiceManager.AI",
+    "ServiceManager.AI"
+  ],
+  [
+    "employeeBuilder.options.memoryScope.MAX Assistant",
+    "MAX Assistant"
+  ],
+  [
+    "employeeBuilder.options.memoryScope.Photo Inspection AI",
+    "Photo Inspection AI"
+  ],
+  [
+    "employeeBuilder.options.memoryScope.Finance",
+    "Finance"
+  ],
+  [
+    "employeeBuilder.options.memoryScope.Operations",
+    "Operations"
+  ],
+  [
+    "employeeBuilder.options.permissions.github",
+    "GitHub"
+  ],
+  [
+    "employeeBuilder.options.permissions.docker",
+    "Docker"
+  ],
+  [
+    "employeeBuilder.options.permissions.postgresql",
+    "PostgreSQL"
+  ],
+  [
+    "employeeBuilder.options.permissions.figma",
+    "Figma"
+  ],
+  [
+    "employeeBuilder.options.permissions.n8n",
+    "n8n"
+  ],
+  [
+    "employeeBuilder.options.permissions.filesystem",
+    "Filesystem"
+  ],
+  [
+    "employeeBuilder.options.permissions.servicemanagerApi",
+    "ServiceManager API"
+  ],
+  [
+    "employeeBuilder.options.permissions.productionDeploy",
+    "Production Deploy"
+  ],
+  [
+    "employeeBuilder.permissionsHint",
+    "Production Deploy, Database write, and GitHub write are off by default for safety."
+  ],
+  [
+    "employeeBuilder.errors.required",
+    "Name, codename, and role are required."
+  ],
+  [
+    "employeeBuilder.errors.primaryModel",
+    "Select a primary model."
+  ],
+  [
+    "tools.pageDescription",
+    "Models, coding agents, and integrations — V1 local inventory."
+  ],
+  [
+    "tools.modelsDescription",
+    "LLM runtimes available to agents"
+  ],
+  [
+    "tools.codingAgentsDescription",
+    "Autonomous coding and IDE agents"
+  ],
+  [
+    "tools.integrationsDescription",
+    "MCP and infrastructure connectors"
+  ],
+  [
+    "tools.items",
+    "items"
+  ],
+  [
+    "tools.registered",
+    "Registered"
+  ],
+  [
+    "tools.healthy",
+    "Healthy"
+  ],
+  [
+    "tools.categories",
+    "Categories"
+  ],
+  [
+    "tools.degraded",
+    "Degraded"
+  ],
+  [
+    "toolRegistry.pageDescription",
+    "Universal catalog of external capabilities — Employees access everything through Tool Registry, never directly."
+  ],
+  [
+    "toolRegistry.detailsTitle",
+    "Tool Details"
+  ],
+  [
+    "toolRegistry.architectureNote",
+    "V1 architecture only — no real connections. Employees invoke tools through Registry; MCP/GitHub/Docker adapters are future."
+  ],
+  [
+    "toolRegistry.employeeBoundaryNote",
+    "Employee never connects to MCP, GitHub, or Docker directly. Runtime resolves this tool via Tool Registry and enforces capabilities + policies."
+  ],
+  [
+    "toolRegistry.backToCatalog",
+    "Back to Tool Registry"
+  ],
+  [
+    "toolRegistry.openTool",
+    "View Tool"
+  ],
+  [
+    "toolRegistry.requiresApproval",
+    "Approval"
+  ],
+  [
+    "toolRegistry.capabilityCount",
+    "capabilities"
+  ],
+  [
+    "toolRegistry.toolsCount",
+    "tools"
+  ],
+  [
+    "toolRegistry.connectedCount",
+    "connected"
+  ],
+  [
+    "toolRegistry.notFoundTitle",
+    "Tool not found"
+  ],
+  [
+    "toolRegistry.notFoundDescription",
+    "This tool is not registered in the catalog."
+  ],
+  [
+    "toolRegistry.providersTitle",
+    "Providers"
+  ],
+  [
+    "toolRegistry.catalogTitle",
+    "Tool Catalog"
+  ],
+  [
+    "toolRegistry.stats.registered",
+    "Registered"
+  ],
+  [
+    "toolRegistry.stats.connected",
+    "Connected"
+  ],
+  [
+    "toolRegistry.stats.categories",
+    "Categories"
+  ],
+  [
+    "toolRegistry.stats.providers",
+    "Providers"
+  ],
+  [
+    "toolRegistry.filters.category",
+    "Category"
+  ],
+  [
+    "toolRegistry.filters.provider",
+    "Provider"
+  ],
+  [
+    "toolRegistry.filters.connection",
+    "Connection"
+  ],
+  [
+    "toolRegistry.details.identity",
+    "Tool Identity"
+  ],
+  [
+    "toolRegistry.details.architecture",
+    "Architecture"
+  ],
+  [
+    "toolRegistry.details.capabilities",
+    "Capabilities"
+  ],
+  [
+    "toolRegistry.details.accessPolicies",
+    "Access Policies"
+  ],
+  [
+    "toolRegistry.details.category",
+    "Category"
+  ],
+  [
+    "toolRegistry.details.provider",
+    "Provider"
+  ],
+  [
+    "toolRegistry.details.requiresApproval",
+    "Requires Approval"
+  ],
+  [
+    "toolRegistry.details.workspaceScope",
+    "Workspace Scope"
+  ],
+  [
+    "toolRegistry.details.audit",
+    "Audit Trail"
+  ],
+  [
+    "toolRegistry.matrix.yes",
+    "Yes"
+  ],
+  [
+    "toolRegistry.matrix.no",
+    "No"
+  ],
+  [
+    "toolRegistry.matrix.active",
+    "Active"
+  ],
+  [
+    "toolRegistry.matrix.inactive",
+    "—"
+  ],
+  [
+    "toolRegistry.categories.development",
+    "Development"
+  ],
+  [
+    "toolRegistry.categories.infrastructure",
+    "Infrastructure"
+  ],
+  [
+    "toolRegistry.categories.communication",
+    "Communication"
+  ],
+  [
+    "toolRegistry.categories.business",
+    "Business"
+  ],
+  [
+    "toolRegistry.categories.knowledge",
+    "Knowledge"
+  ],
+  [
+    "toolRegistry.categories.storage",
+    "Storage"
+  ],
+  [
+    "toolRegistry.categories.ai",
+    "AI"
+  ],
+  [
+    "toolRegistry.categories.automation",
+    "Automation"
+  ],
+  [
+    "toolRegistry.providers.mcp",
+    "MCP"
+  ],
+  [
+    "toolRegistry.providers.rest-api",
+    "REST API"
+  ],
+  [
+    "toolRegistry.providers.cli",
+    "CLI"
+  ],
+  [
+    "toolRegistry.providers.native",
+    "Native"
+  ],
+  [
+    "toolRegistry.providers.local",
+    "Local"
+  ],
+  [
+    "toolRegistry.providerDescriptions.mcp",
+    "Model Context Protocol servers — standardized tool transport for LLM agents."
+  ],
+  [
+    "toolRegistry.providerDescriptions.rest-api",
+    "HTTP REST integrations with OAuth or API keys."
+  ],
+  [
+    "toolRegistry.providerDescriptions.cli",
+    "Command-line binaries invoked in sandboxed subprocess."
+  ],
+  [
+    "toolRegistry.providerDescriptions.native",
+    "In-process platform adapters (browser, desktop)."
+  ],
+  [
+    "toolRegistry.providerDescriptions.local",
+    "Local filesystem and host resources without network."
+  ],
+  [
+    "toolRegistry.capabilities.read",
+    "Read"
+  ],
+  [
+    "toolRegistry.capabilities.write",
+    "Write"
+  ],
+  [
+    "toolRegistry.capabilities.execute",
+    "Execute"
+  ],
+  [
+    "toolRegistry.capabilities.search",
+    "Search"
+  ],
+  [
+    "toolRegistry.capabilities.create",
+    "Create"
+  ],
+  [
+    "toolRegistry.capabilities.delete",
+    "Delete"
+  ],
+  [
+    "toolRegistry.capabilities.deploy",
+    "Deploy"
+  ],
+  [
+    "toolRegistry.capabilities.review",
+    "Review"
+  ],
+  [
+    "toolRegistry.capabilities.analyze",
+    "Analyze"
+  ],
+  [
+    "toolRegistry.capabilities.generate",
+    "Generate"
+  ],
+  [
+    "toolRegistry.capabilities.notify",
+    "Notify"
+  ],
+  [
+    "toolRegistry.policies.always-allowed",
+    "Always Allowed"
+  ],
+  [
+    "toolRegistry.policies.require-approval",
+    "Require Approval"
+  ],
+  [
+    "toolRegistry.policies.workspace-only",
+    "Workspace Only"
+  ],
+  [
+    "toolRegistry.policies.owner-only",
+    "Owner Only"
+  ],
+  [
+    "toolRegistry.policies.disabled",
+    "Disabled"
+  ],
+  [
+    "toolRegistry.policyHints.always-allowed",
+    "Low-risk read operations without Owner gate."
+  ],
+  [
+    "toolRegistry.policyHints.require-approval",
+    "Owner must approve before invoke."
+  ],
+  [
+    "toolRegistry.policyHints.workspace-only",
+    "Allowed only within assigned Workspace context."
+  ],
+  [
+    "toolRegistry.policyHints.owner-only",
+    "Only human Owner may authorize invoke."
+  ],
+  [
+    "toolRegistry.policyHints.disabled",
+    "Tool blocked — no invoke permitted."
+  ],
+  [
+    "toolRegistry.connectionStatus.connected",
+    "Connected"
+  ],
+  [
+    "toolRegistry.connectionStatus.disconnected",
+    "Disconnected"
+  ],
+  [
+    "toolRegistry.connectionStatus.degraded",
+    "Degraded"
+  ],
+  [
+    "toolRegistry.connectionStatus.pending",
+    "Pending"
+  ],
+  [
+    "toolRegistry.descriptions.github",
+    "Source control, PRs, issues, and CI — via MCP adapter."
+  ],
+  [
+    "toolRegistry.descriptions.docker",
+    "Container build, run, and deploy — CLI adapter."
+  ],
+  [
+    "toolRegistry.descriptions.filesystem",
+    "Local file read/write within sandbox paths."
+  ],
+  [
+    "toolRegistry.descriptions.browser",
+    "Web automation and visual verification — native adapter."
+  ],
+  [
+    "toolRegistry.descriptions.postgresql",
+    "Relational database queries and migrations."
+  ],
+  [
+    "toolRegistry.descriptions.figma",
+    "Design context, components, and assets — MCP adapter."
+  ],
+  [
+    "toolRegistry.descriptions.telegram",
+    "Bot messaging and notifications — REST adapter."
+  ],
+  [
+    "toolRegistry.descriptions.slack",
+    "Team channels and alerts — REST adapter."
+  ],
+  [
+    "toolRegistry.descriptions.email",
+    "SMTP/IMAP messaging — REST adapter."
+  ],
+  [
+    "toolRegistry.descriptions.googleDrive",
+    "Cloud document storage — REST adapter."
+  ],
+  [
+    "toolRegistry.descriptions.calendar",
+    "Scheduling and event management — REST adapter."
+  ],
+  [
+    "toolRegistry.descriptions.n8n",
+    "Workflow automation and orchestration — REST adapter."
+  ],
+  [
+    "toolRegistry.descriptions.ollama",
+    "Local LLM inference — REST adapter."
+  ],
+  [
+    "toolRegistry.descriptions.openrouter",
+    "Multi-model cloud routing — REST adapter."
+  ],
+  [
+    "toolRegistry.descriptions.ssh",
+    "Remote shell access — CLI adapter (high risk)."
+  ],
+  [
+    "toolRegistry.descriptions.rest",
+    "Generic HTTP REST connector for custom endpoints."
+  ],
+  [
+    "status.online",
+    "Online"
+  ],
+  [
+    "status.working",
+    "Working"
+  ],
+  [
+    "status.building",
+    "Building"
+  ],
+  [
+    "status.reviewing",
+    "Reviewing"
+  ],
+  [
+    "status.idle",
+    "Idle"
+  ],
+  [
+    "flow.brand",
+    "IT Company"
+  ],
+  [
+    "flow.workflow",
+    "WORKFLOW"
+  ],
+  [
+    "flow.breadcrumb",
+    "org.workflow · main"
+  ],
+  [
+    "flow.subtitle",
+    "Engineering automation · v1.4"
+  ],
+  [
+    "flow.executionActive",
+    "Execution active"
+  ],
+  [
+    "flow.nodes",
+    "nodes"
+  ],
+  [
+    "flow.activeCount",
+    "active"
+  ],
+  [
+    "flow.toggleNodeRail",
+    "Toggle node rail"
+  ],
+  [
+    "flow.toggleInspector",
+    "Toggle inspector"
+  ],
+  [
+    "flow.history",
+    "History"
+  ],
+  [
+    "flow.executeWorkflow",
+    "Execute Workflow"
+  ],
+  [
+    "flow.executionLog",
+    "Execution Log"
+  ],
+  [
+    "flow.live",
+    "live"
+  ],
+  [
+    "flow.logSuccess",
+    "success"
+  ],
+  [
+    "flow.logRunning",
+    "running"
+  ],
+  [
+    "flow.logFailed",
+    "failed"
+  ],
+  [
+    "flow.addNode",
+    "Add node"
+  ],
+  [
+    "flow.logStatus.Success",
+    "Success"
+  ],
+  [
+    "flow.logStatus.Running",
+    "Running"
+  ],
+  [
+    "flow.logStatus.Failed",
+    "Failed"
+  ],
+  [
+    "shell.mockTelemetry",
+    "mock telemetry"
+  ],
+  [
+    "shell.platformShell",
+    "Platform Shell"
+  ],
+  [
+    "shell.platformReady",
+    "platform ready"
+  ],
+  [
+    "shell.breadcrumbs",
+    "Breadcrumbs"
+  ],
+  [
+    "shell.statusBar",
+    "Platform status"
+  ],
+  [
+    "shell.toggleNav",
+    "Toggle navigation"
+  ],
+  [
+    "language.toggle",
+    "Language"
+  ],
+  [
+    "aria.topNav",
+    "AI Company"
+  ],
+  [
+    "aria.missionControlNav",
+    "Mission Control"
+  ],
+  [
+    "aria.platformNav",
+    "Platform navigation"
+  ],
+  [
+    "brand.title",
+    "AI Company"
+  ],
+  [
+    "brand.subtitle",
+    "local V1"
+  ],
+  [
+    "brand.env",
+    "mock · localhost"
+  ],
+  [
+    "discussions.listDescription",
+    "Group conversations between Owner and digital employees — separate from Tasks."
+  ],
+  [
+    "discussions.newDescription",
+    "Start a multi-participant discussion with selected AI employees."
+  ],
+  [
+    "discussions.allDiscussions",
+    "All discussions"
+  ],
+  [
+    "discussions.discussionCount",
+    "discussions"
+  ],
+  [
+    "discussions.newDiscussion",
+    "New Discussion"
+  ],
+  [
+    "discussions.createDiscussion",
+    "Create Discussion"
+  ],
+  [
+    "discussions.openDiscussion",
+    "Open Discussion"
+  ],
+  [
+    "discussions.backToList",
+    "Back to Discussions"
+  ],
+  [
+    "discussions.participants",
+    "Participants"
+  ],
+  [
+    "discussions.participantsCount",
+    "participants"
+  ],
+  [
+    "discussions.messages",
+    "Messages"
+  ],
+  [
+    "discussions.updated",
+    "Updated"
+  ],
+  [
+    "discussions.ownerName",
+    "Owner"
+  ],
+  [
+    "discussions.localOnly",
+    "Stored locally — no runtime connected"
+  ],
+  [
+    "discussions.futureBadge",
+    "Future"
+  ],
+  [
+    "discussions.emptyListTitle",
+    "No discussions yet"
+  ],
+  [
+    "discussions.emptyListDescription",
+    "Create a group discussion with Atlas, MAX, QA, Architect, or any custom employee."
+  ],
+  [
+    "discussions.notFoundTitle",
+    "Discussion not found"
+  ],
+  [
+    "discussions.notFoundDescription",
+    "This discussion does not exist in local storage or was removed."
+  ],
+  [
+    "discussions.noMessagesTitle",
+    "No messages yet"
+  ],
+  [
+    "discussions.noMessagesDescription",
+    "Send the first message to start the conversation."
+  ],
+  [
+    "discussions.newFormTitle",
+    "Discussion setup"
+  ],
+  [
+    "discussions.titlePlaceholder",
+    "e.g. V1 rollout architecture review"
+  ],
+  [
+    "discussions.selectParticipants",
+    "Select participants"
+  ],
+  [
+    "discussions.selectParticipantsHint",
+    "Choose one or more digital employees. Owner is included automatically."
+  ],
+  [
+    "discussions.sourceBuiltin",
+    "Built-in"
+  ],
+  [
+    "discussions.sourceCustom",
+    "Custom"
+  ],
+  [
+    "discussions.composerPlaceholder",
+    "Write a message as Owner…"
+  ],
+  [
+    "discussions.composerHint",
+    "Employee replies are mock-only in V1."
+  ],
+  [
+    "discussions.sendMessage",
+    "Send"
+  ],
+  [
+    "discussions.systemStarted",
+    "Discussion started with {names}."
+  ],
+  [
+    "discussions.status.open",
+    "Open"
+  ],
+  [
+    "discussions.status.closed",
+    "Closed"
+  ],
+  [
+    "discussions.roles.owner",
+    "Owner"
+  ],
+  [
+    "discussions.roles.member",
+    "Member"
+  ],
+  [
+    "discussions.roles.observer",
+    "Observer"
+  ],
+  [
+    "discussions.messageTypes.system",
+    "System"
+  ],
+  [
+    "discussions.sidebar.participants",
+    "Participants"
+  ],
+  [
+    "discussions.sidebar.pinnedNotes",
+    "Pinned Notes"
+  ],
+  [
+    "discussions.sidebar.pinnedNotesDesc",
+    "Important notes pinned to this discussion."
+  ],
+  [
+    "discussions.sidebar.decision",
+    "Decision"
+  ],
+  [
+    "discussions.sidebar.decisionDesc",
+    "Recorded decisions and outcomes from this thread."
+  ],
+  [
+    "discussions.sidebar.relatedTasks",
+    "Related Tasks"
+  ],
+  [
+    "discussions.sidebar.relatedTasksDesc",
+    "Tasks linked to this discussion — discussions are not tasks."
+  ],
+  [
+    "discussions.sidebar.artifacts",
+    "Artifacts"
+  ],
+  [
+    "discussions.sidebar.artifactsDesc",
+    "Files, diagrams, and outputs produced in this thread."
+  ],
+  [
+    "discussions.errors.titleRequired",
+    "Discussion title is required."
+  ],
+  [
+    "discussions.errors.participantsRequired",
+    "Select at least one employee."
+  ],
+  [
+    "discussions.mockReplies.0",
+    "{name}: I agree with the direction and can support the next step."
+  ],
+  [
+    "discussions.mockReplies.1",
+    "{name}: From an architecture perspective, we should clarify scope and dependencies first."
+  ],
+  [
+    "discussions.mockReplies.2",
+    "{name}: I can review the implementation details once the decision is clearer."
+  ],
+  [
+    "discussions.mockReplies.3",
+    "{name}: QA will need explicit acceptance criteria before we proceed."
+  ],
+  [
+    "discussions.mockReplies.4",
+    "{name}: I suggest we capture assumptions and risks in this thread."
+  ],
+  [
+    "sideNav.title",
+    "Mission Control"
+  ],
+  [
+    "sideNav.subtitle",
+    "AI Company · NOC"
+  ],
+  [
+    "sideNav.flowWorkspace",
+    "Flow Workspace"
+  ],
+  [
+    "sideNav.env",
+    "local / mock"
+  ],
+  [
+    "conversations.title",
+    "Conversation"
+  ],
+  [
+    "conversations.subtitle",
+    "Personal dialogue with this digital employee — independent from Tasks and Runs."
+  ],
+  [
+    "conversations.personalDialog",
+    "Personal"
+  ],
+  [
+    "conversations.backToEmployees",
+    "Back to Employees"
+  ],
+  [
+    "conversations.openConversation",
+    "Conversation"
+  ],
+  [
+    "conversations.ownerName",
+    "Owner"
+  ],
+  [
+    "conversations.updated",
+    "Updated"
+  ],
+  [
+    "conversations.localOnly",
+    "Stored locally — no runtime connected"
+  ],
+  [
+    "conversations.futureBadge",
+    "Future"
+  ],
+  [
+    "conversations.sourceBuiltin",
+    "Built-in roster"
+  ],
+  [
+    "conversations.notFoundTitle",
+    "Employee not found"
+  ],
+  [
+    "conversations.notFoundDescription",
+    "This employee does not exist or was removed from the roster."
+  ],
+  [
+    "conversations.noMessagesTitle",
+    "Start the conversation"
+  ],
+  [
+    "conversations.noMessagesDescription",
+    "Send a message to begin your personal dialogue with this employee."
+  ],
+  [
+    "conversations.composerPlaceholder",
+    "Write a message as Owner…"
+  ],
+  [
+    "conversations.composerHint",
+    "Employee replies are mock-only in V1 — no runtime connected."
+  ],
+  [
+    "conversations.sendMessage",
+    "Send"
+  ],
+  [
+    "conversations.systemWelcome",
+    "Personal conversation with {name} started. This thread is persistent and separate from Tasks."
+  ],
+  [
+    "conversations.messageTypes.message",
+    "Message"
+  ],
+  [
+    "conversations.messageTypes.note",
+    "Note"
+  ],
+  [
+    "conversations.messageTypes.system",
+    "System"
+  ],
+  [
+    "conversations.messageTypes.summary",
+    "Summary"
+  ],
+  [
+    "conversations.messageStatus.sent",
+    "sent"
+  ],
+  [
+    "conversations.messageStatus.pending",
+    "pending"
+  ],
+  [
+    "conversations.messageStatus.failed",
+    "failed"
+  ],
+  [
+    "conversations.messageStatus.draft",
+    "draft"
+  ],
+  [
+    "conversations.sidebar.employeeProfile",
+    "Employee Profile"
+  ],
+  [
+    "conversations.sidebar.pinnedNotes",
+    "Pinned Notes"
+  ],
+  [
+    "conversations.sidebar.pinnedNotesDesc",
+    "Important notes pinned to this private thread."
+  ],
+  [
+    "conversations.sidebar.sharedDocuments",
+    "Shared Documents"
+  ],
+  [
+    "conversations.sidebar.sharedDocumentsDesc",
+    "Documents shared between Owner and this employee."
+  ],
+  [
+    "conversations.sidebar.recentTopics",
+    "Recent Topics"
+  ],
+  [
+    "conversations.sidebar.recentTopicsDesc",
+    "Topics recently discussed in this conversation."
+  ],
+  [
+    "conversations.sidebar.quickActions",
+    "Quick Actions"
+  ],
+  [
+    "conversations.sidebar.quickActionsDesc",
+    "Shortcuts to spawn tasks or capture decisions — future."
+  ],
+  [
+    "conversations.mockReplies.0",
+    "{name}: Thank you — I am here as your dedicated digital colleague."
+  ],
+  [
+    "conversations.mockReplies.1",
+    "{name}: I understand. Let me reflect on that from my role perspective."
+  ],
+  [
+    "conversations.mockReplies.2",
+    "{name}: That is a useful direction. I can help structure the next step when you are ready."
+  ],
+  [
+    "conversations.mockReplies.3",
+    "{name}: I will keep this context in our personal thread — separate from any Task queue."
+  ],
+  [
+    "conversations.mockReplies.4",
+    "{name}: Noted. Ask me anytime; this conversation persists across sessions."
+  ],
+  [
+    "chats.listDescription",
+    "Unified messenger for Owner and digital employees — direct, group, workspace, and system channels."
+  ],
+  [
+    "chats.newDescription",
+    "Start a direct chat, group chat, workspace channel, or open the system channel."
+  ],
+  [
+    "chats.newChat",
+    "New Chat"
+  ],
+  [
+    "chats.createChat",
+    "Create Chat"
+  ],
+  [
+    "chats.openSystemChannel",
+    "Open system channel"
+  ],
+  [
+    "chats.backToList",
+    "Back to Chats"
+  ],
+  [
+    "chats.ownerName",
+    "Owner"
+  ],
+  [
+    "chats.participants",
+    "participants"
+  ],
+  [
+    "chats.updated",
+    "Updated"
+  ],
+  [
+    "chats.localOnly",
+    "Stored locally — no runtime connected"
+  ],
+  [
+    "chats.futureBadge",
+    "Future"
+  ],
+  [
+    "chats.emptyListTitle",
+    "No chats yet"
+  ],
+  [
+    "chats.emptyListDescription",
+    "Create a chat to talk with Atlas, MAX, QA, Architect, or any custom employee."
+  ],
+  [
+    "chats.selectChatTitle",
+    "Select a chat"
+  ],
+  [
+    "chats.selectChatDescription",
+    "Pick a thread from the list or create a new chat."
+  ],
+  [
+    "chats.notFoundTitle",
+    "Chat not found"
+  ],
+  [
+    "chats.notFoundDescription",
+    "This chat does not exist in local storage or was removed."
+  ],
+  [
+    "chats.noMessagesTitle",
+    "No messages yet"
+  ],
+  [
+    "chats.noMessagesDescription",
+    "Send the first message to start this chat."
+  ],
+  [
+    "chats.newFormTitle",
+    "Chat setup"
+  ],
+  [
+    "chats.typeLabel",
+    "Chat type"
+  ],
+  [
+    "chats.titlePlaceholder",
+    "e.g. V1 rollout architecture review"
+  ],
+  [
+    "chats.selectEmployee",
+    "Employee"
+  ],
+  [
+    "chats.chooseEmployee",
+    "Select an employee…"
+  ],
+  [
+    "chats.selectParticipants",
+    "Select participants"
+  ],
+  [
+    "chats.selectParticipantsHint",
+    "Choose one or more digital employees. Owner is included automatically."
+  ],
+  [
+    "chats.selectWorkspace",
+    "Workspace"
+  ],
+  [
+    "chats.chooseWorkspace",
+    "Select a workspace…"
+  ],
+  [
+    "chats.workspaceLinked",
+    "Workspace"
+  ],
+  [
+    "chats.openWorkspace",
+    "Open workspace"
+  ],
+  [
+    "chats.addParticipant",
+    "Add participant"
+  ],
+  [
+    "chats.removeParticipant",
+    "Remove participant"
+  ],
+  [
+    "chats.systemChannelHint",
+    "Platform system channel is a read-only placeholder for announcements and runtime status."
+  ],
+  [
+    "chats.composerPlaceholder",
+    "Write a message as Owner…"
+  ],
+  [
+    "chats.composerHint",
+    "Employee replies are mock-only in V1 — no runtime connected."
+  ],
+  [
+    "chats.mentionHint",
+    "Mentions: @Atlas, @MAX — future."
+  ],
+  [
+    "chats.sendMessage",
+    "Send"
+  ],
+  [
+    "chats.systemWelcomeDirect",
+    "Direct chat with {name} started. This thread is persistent and separate from Tasks."
+  ],
+  [
+    "chats.systemStartedGroup",
+    "Group chat started with {names}."
+  ],
+  [
+    "chats.systemStartedWorkspace",
+    "Workspace chat linked to {name}."
+  ],
+  [
+    "chats.types.direct",
+    "Direct"
+  ],
+  [
+    "chats.types.group",
+    "Group"
+  ],
+  [
+    "chats.types.workspace",
+    "Workspace"
+  ],
+  [
+    "chats.types.system",
+    "System"
+  ],
+  [
+    "chats.status.active",
+    "Active"
+  ],
+  [
+    "chats.status.archived",
+    "Archived"
+  ],
+  [
+    "chats.status.closed",
+    "Closed"
+  ],
+  [
+    "chats.messageTypes.message",
+    "Message"
+  ],
+  [
+    "chats.messageTypes.note",
+    "Note"
+  ],
+  [
+    "chats.messageTypes.system",
+    "System"
+  ],
+  [
+    "chats.messageTypes.summary",
+    "Summary"
+  ],
+  [
+    "chats.messageTypes.decision",
+    "Decision"
+  ],
+  [
+    "chats.messageStatus.sent",
+    "sent"
+  ],
+  [
+    "chats.messageStatus.pending",
+    "pending"
+  ],
+  [
+    "chats.messageStatus.failed",
+    "failed"
+  ],
+  [
+    "chats.messageStatus.draft",
+    "draft"
+  ],
+  [
+    "chats.promote.createTask",
+    "Create Task"
+  ],
+  [
+    "chats.promote.createReport",
+    "Create Report"
+  ],
+  [
+    "chats.promote.createAdr",
+    "Create ADR"
+  ],
+  [
+    "chats.promote.createDocument",
+    "Create Document"
+  ],
+  [
+    "chats.sidebar.participants",
+    "Participants"
+  ],
+  [
+    "chats.sidebar.workspace",
+    "Workspace"
+  ],
+  [
+    "chats.sidebar.pinnedNotes",
+    "Pinned Notes"
+  ],
+  [
+    "chats.sidebar.pinnedNotesDesc",
+    "Important notes pinned to this chat."
+  ],
+  [
+    "chats.sidebar.artifacts",
+    "Artifacts"
+  ],
+  [
+    "chats.sidebar.artifactsDesc",
+    "Files, reports, and outputs produced in this chat."
+  ],
+  [
+    "chats.errors.titleRequired",
+    "Chat title is required."
+  ],
+  [
+    "chats.errors.employeeRequired",
+    "Select an employee."
+  ],
+  [
+    "chats.errors.participantsRequired",
+    "Select at least one employee."
+  ],
+  [
+    "chats.errors.workspaceRequired",
+    "Select a workspace."
+  ],
+  [
+    "chats.mockReplies.0",
+    "{name}: I agree with the direction and can support the next step."
+  ],
+  [
+    "chats.mockReplies.1",
+    "{name}: From an architecture perspective, we should clarify scope and dependencies first."
+  ],
+  [
+    "chats.mockReplies.2",
+    "{name}: I can review the implementation details once the decision is clearer."
+  ],
+  [
+    "chats.mockReplies.3",
+    "{name}: QA will need explicit acceptance criteria before we proceed."
+  ],
+  [
+    "chats.mockReplies.4",
+    "{name}: I suggest we capture assumptions and risks in this thread."
+  ],
+  [
+    "workspaces.listDescription",
+    "Project containers for knowledge, discussions, documents, and employee assignments."
+  ],
+  [
+    "workspaces.newDescription",
+    "Create a workspace — employees join via Assignment, not ownership."
+  ],
+  [
+    "workspaces.newWorkspace",
+    "New Workspace"
+  ],
+  [
+    "workspaces.createWorkspace",
+    "Create Workspace"
+  ],
+  [
+    "workspaces.openWorkspace",
+    "Open Workspace"
+  ],
+  [
+    "workspaces.backToList",
+    "Back to Workspaces"
+  ],
+  [
+    "workspaces.localOnly",
+    "Stored locally — no runtime connected"
+  ],
+  [
+    "workspaces.futureBadge",
+    "Future"
+  ],
+  [
+    "workspaces.noDescription",
+    "No description provided."
+  ],
+  [
+    "workspaces.assignmentCount",
+    "assignments"
+  ],
+  [
+    "workspaces.updated",
+    "Updated"
+  ],
+  [
+    "workspaces.created",
+    "Created"
+  ],
+  [
+    "workspaces.navLabel",
+    "Workspace sections"
+  ],
+  [
+    "workspaces.typeLabel",
+    "Type"
+  ],
+  [
+    "workspaces.owner",
+    "Owner"
+  ],
+  [
+    "workspaces.noOwner",
+    "No owner assigned"
+  ],
+  [
+    "workspaces.ownerPlaceholder",
+    "e.g. Igor — product lead"
+  ],
+  [
+    "workspaces.namePlaceholder",
+    "e.g. ServiceManager V1"
+  ],
+  [
+    "workspaces.descriptionPlaceholder",
+    "Purpose, scope, and context for this workspace…"
+  ],
+  [
+    "workspaces.selector.label",
+    "Workspace"
+  ],
+  [
+    "workspaces.selector.none",
+    "Select workspace…"
+  ],
+  [
+    "workspaces.selector.empty",
+    "No workspaces yet"
+  ],
+  [
+    "workspaces.selector.manage",
+    "All workspaces"
+  ],
+  [
+    "workspaces.type.general",
+    "General"
+  ],
+  [
+    "workspaces.type.product",
+    "Product"
+  ],
+  [
+    "workspaces.type.engineering",
+    "Engineering"
+  ],
+  [
+    "workspaces.type.operations",
+    "Operations"
+  ],
+  [
+    "workspaces.type.research",
+    "Research"
+  ],
+  [
+    "workspaces.emptyListTitle",
+    "No workspaces yet"
+  ],
+  [
+    "workspaces.emptyListDescription",
+    "Create a workspace to assign digital employees and organize project context."
+  ],
+  [
+    "workspaces.notFoundTitle",
+    "Workspace not found"
+  ],
+  [
+    "workspaces.notFoundDescription",
+    "This workspace does not exist in local storage or was removed."
+  ],
+  [
+    "workspaces.newFormTitle",
+    "Workspace setup"
+  ],
+  [
+    "workspaces.status.draft",
+    "Draft"
+  ],
+  [
+    "workspaces.status.active",
+    "Active"
+  ],
+  [
+    "workspaces.status.maintenance",
+    "Maintenance"
+  ],
+  [
+    "workspaces.status.archived",
+    "Archived"
+  ],
+  [
+    "workspaces.tabs.overview",
+    "Overview"
+  ],
+  [
+    "workspaces.tabs.employees",
+    "Employees"
+  ],
+  [
+    "workspaces.tabs.knowledge",
+    "Knowledge"
+  ],
+  [
+    "workspaces.tabs.documents",
+    "Documents"
+  ],
+  [
+    "workspaces.tabs.activity",
+    "Activity"
+  ],
+  [
+    "workspaces.tabs.tools",
+    "Tools"
+  ],
+  [
+    "workspaces.tabs.settings",
+    "Settings"
+  ],
+  [
+    "workspaces.overview.summary",
+    "Summary"
+  ],
+  [
+    "workspaces.overview.description",
+    "Description"
+  ],
+  [
+    "workspaces.overview.employees",
+    "Employees"
+  ],
+  [
+    "workspaces.overview.purpose",
+    "Purpose"
+  ],
+  [
+    "workspaces.overview.purposeText",
+    "Workspace is the operational container for projects. Employees do not belong to a workspace — they are linked through Assignment only."
+  ],
+  [
+    "workspaces.assignments.assignEmployee",
+    "Assign employee"
+  ],
+  [
+    "workspaces.assignments.selectEmployee",
+    "Employee"
+  ],
+  [
+    "workspaces.assignments.chooseEmployee",
+    "Select an employee…"
+  ],
+  [
+    "workspaces.assignments.roleLabel",
+    "Role in workspace"
+  ],
+  [
+    "workspaces.assignments.rolePlaceholder",
+    "e.g. Lead Developer"
+  ],
+  [
+    "workspaces.assignments.loadPercent",
+    "Load %"
+  ],
+  [
+    "workspaces.assignments.assignButton",
+    "Assign"
+  ],
+  [
+    "workspaces.assignments.currentAssignments",
+    "Current assignments"
+  ],
+  [
+    "workspaces.assignments.emptyTitle",
+    "No assignments yet"
+  ],
+  [
+    "workspaces.assignments.emptyDescription",
+    "Assign existing digital employees to this workspace."
+  ],
+  [
+    "workspaces.assignments.remove",
+    "Remove"
+  ],
+  [
+    "workspaces.assignments.workspaceColumn",
+    "Workspace"
+  ],
+  [
+    "workspaces.assignments.status.active",
+    "Active"
+  ],
+  [
+    "workspaces.assignments.status.paused",
+    "Paused"
+  ],
+  [
+    "workspaces.assignments.status.ended",
+    "Ended"
+  ],
+  [
+    "workspaces.assignments.errors.employeeRequired",
+    "Select an employee."
+  ],
+  [
+    "workspaces.assignments.errors.roleRequired",
+    "Role is required."
+  ],
+  [
+    "workspaces.knowledge.title",
+    "Knowledge base"
+  ],
+  [
+    "workspaces.knowledge.description",
+    "Documents, indices, and embeddings scoped to this workspace — future."
+  ],
+  [
+    "workspaces.documents.title",
+    "Documents"
+  ],
+  [
+    "workspaces.documents.description",
+    "Files and artifacts stored in this workspace — future."
+  ],
+  [
+    "workspaces.discussions.title",
+    "Workspace discussions"
+  ],
+  [
+    "workspaces.discussions.description",
+    "Discussions scoped to this workspace will appear here — V1 uses global discussions."
+  ],
+  [
+    "workspaces.discussions.openGlobal",
+    "Open Discussions"
+  ],
+  [
+    "workspaces.activity.title",
+    "Workspace activity"
+  ],
+  [
+    "workspaces.activity.description",
+    "Audit trail, events, and agent actions scoped to this workspace — future."
+  ],
+  [
+    "workspaces.tools.title",
+    "Workspace tools"
+  ],
+  [
+    "workspaces.tools.description",
+    "Tool bindings and integrations enabled for this workspace — future."
+  ],
+  [
+    "workspaces.tools.openCatalog",
+    "Open tool catalog"
+  ],
+  [
+    "workspaces.settings.title",
+    "Workspace settings"
+  ],
+  [
+    "workspaces.settings.save",
+    "Save changes"
+  ],
+  [
+    "workspaces.settings.saved",
+    "Settings saved locally."
+  ],
+  [
+    "workspaces.errors.nameRequired",
+    "Workspace name is required."
+  ],
+  [
+    "reports.pageDescription",
+    "Structured reports from digital employees — explainable, reviewable, and Owner-facing before Runtime."
+  ],
+  [
+    "reports.catalogTitle",
+    "Report Catalog"
+  ],
+  [
+    "reports.reportCount",
+    "reports"
+  ],
+  [
+    "reports.openReport",
+    "View Report"
+  ],
+  [
+    "reports.backToList",
+    "Back to Reports"
+  ],
+  [
+    "reports.localOnly",
+    "Stored in localStorage — mock/seed data in V1, no Runtime."
+  ],
+  [
+    "reports.reportsFirstNote",
+    "Reports-first: every future important employee action should be able to create a report."
+  ],
+  [
+    "reports.notFoundTitle",
+    "Report not found"
+  ],
+  [
+    "reports.notFoundDescription",
+    "This report is not in the catalog."
+  ],
+  [
+    "reports.noEmployee",
+    "Platform"
+  ],
+  [
+    "reports.noRisks",
+    "No risks identified."
+  ],
+  [
+    "reports.noRecommendations",
+    "No recommendations yet."
+  ],
+  [
+    "reports.emptyTitle",
+    "No matching reports"
+  ],
+  [
+    "reports.emptyDescription",
+    "Adjust filters or wait for employee-generated reports."
+  ],
+  [
+    "reports.searchPlaceholder",
+    "Search reports…"
+  ],
+  [
+    "reports.findingsCount",
+    "findings"
+  ],
+  [
+    "reports.risksCount",
+    "risks"
+  ],
+  [
+    "reports.created",
+    "Created"
+  ],
+  [
+    "reports.updated",
+    "Updated"
+  ],
+  [
+    "reports.stats.total",
+    "Total reports"
+  ],
+  [
+    "reports.stats.published",
+    "Published"
+  ],
+  [
+    "reports.stats.reviewed",
+    "Reviewed"
+  ],
+  [
+    "reports.stats.draft",
+    "Draft"
+  ],
+  [
+    "reports.filters.search",
+    "Search"
+  ],
+  [
+    "reports.filters.type",
+    "Type"
+  ],
+  [
+    "reports.filters.status",
+    "Status"
+  ],
+  [
+    "reports.types.architecture",
+    "Architecture"
+  ],
+  [
+    "reports.types.task",
+    "Task"
+  ],
+  [
+    "reports.types.qa",
+    "QA"
+  ],
+  [
+    "reports.types.devops",
+    "DevOps"
+  ],
+  [
+    "reports.types.marketing",
+    "Marketing"
+  ],
+  [
+    "reports.types.finance",
+    "Finance"
+  ],
+  [
+    "reports.types.operations",
+    "Operations"
+  ],
+  [
+    "reports.types.system",
+    "System"
+  ],
+  [
+    "reports.status.draft",
+    "Draft"
+  ],
+  [
+    "reports.status.published",
+    "Published"
+  ],
+  [
+    "reports.status.reviewed",
+    "Reviewed"
+  ],
+  [
+    "reports.status.archived",
+    "Archived"
+  ],
+  [
+    "reports.sections.summary",
+    "Summary"
+  ],
+  [
+    "reports.sections.findings",
+    "Findings"
+  ],
+  [
+    "reports.sections.risks",
+    "Risks"
+  ],
+  [
+    "reports.sections.recommendations",
+    "Recommendations"
+  ],
+  [
+    "reports.sections.evidence",
+    "Evidence"
+  ],
+  [
+    "reports.evidenceKinds.link",
+    "Link"
+  ],
+  [
+    "reports.evidenceKinds.artifact",
+    "Artifact"
+  ],
+  [
+    "reports.evidenceKinds.quote",
+    "Quote"
+  ],
+  [
+    "reports.evidenceKinds.metric",
+    "Metric"
+  ],
+  [
+    "audit.pageDescription",
+    "Immutable audit trail — every future tool call, permission change, and critical decision leaves a trace."
+  ],
+  [
+    "audit.timelineTitle",
+    "Audit Timeline"
+  ],
+  [
+    "audit.eventCount",
+    "events"
+  ],
+  [
+    "audit.localOnly",
+    "Stored in localStorage — seed events in V1, Runtime will append live."
+  ],
+  [
+    "audit.auditPrincipleNote",
+    "Audit principle: tool calls, runtime actions, permission changes, workspace assignments, and critical decisions must create audit events."
+  ],
+  [
+    "audit.emptyTitle",
+    "No matching events"
+  ],
+  [
+    "audit.emptyDescription",
+    "Adjust filters — future Runtime actions will append here automatically."
+  ],
+  [
+    "audit.searchLabel",
+    "Search"
+  ],
+  [
+    "audit.searchPlaceholder",
+    "Search actor, action, target…"
+  ],
+  [
+    "audit.stats.total",
+    "Total events"
+  ],
+  [
+    "audit.stats.owner",
+    "Owner"
+  ],
+  [
+    "audit.stats.employee",
+    "Employee"
+  ],
+  [
+    "audit.stats.system",
+    "System"
+  ],
+  [
+    "audit.filters.actor",
+    "Actor"
+  ],
+  [
+    "audit.filters.action",
+    "Action"
+  ],
+  [
+    "audit.filters.target",
+    "Target"
+  ],
+  [
+    "audit.actors.owner",
+    "Owner"
+  ],
+  [
+    "audit.actors.employee",
+    "Employee"
+  ],
+  [
+    "audit.actors.system",
+    "System"
+  ],
+  [
+    "audit.actions.create",
+    "Create"
+  ],
+  [
+    "audit.actions.update",
+    "Update"
+  ],
+  [
+    "audit.actions.delete",
+    "Delete"
+  ],
+  [
+    "audit.actions.invoke",
+    "Invoke"
+  ],
+  [
+    "audit.actions.assign",
+    "Assign"
+  ],
+  [
+    "audit.actions.unassign",
+    "Unassign"
+  ],
+  [
+    "audit.actions.approve",
+    "Approve"
+  ],
+  [
+    "audit.actions.reject",
+    "Reject"
+  ],
+  [
+    "audit.actions.review",
+    "Review"
+  ],
+  [
+    "audit.actions.publish",
+    "Publish"
+  ],
+  [
+    "audit.actions.login",
+    "Login"
+  ],
+  [
+    "audit.actions.configure",
+    "Configure"
+  ],
+  [
+    "audit.targetTypes.tool",
+    "Tool"
+  ],
+  [
+    "audit.targetTypes.employee",
+    "Employee"
+  ],
+  [
+    "audit.targetTypes.workspace",
+    "Workspace"
+  ],
+  [
+    "audit.targetTypes.task",
+    "Task"
+  ],
+  [
+    "audit.targetTypes.report",
+    "Report"
+  ],
+  [
+    "audit.targetTypes.permission",
+    "Permission"
+  ],
+  [
+    "audit.targetTypes.assignment",
+    "Assignment"
+  ],
+  [
+    "audit.targetTypes.discussion",
+    "Discussion"
+  ],
+  [
+    "audit.targetTypes.memory",
+    "Memory"
+  ],
+  [
+    "audit.targetTypes.approval",
+    "Approval"
+  ],
+  [
+    "audit.targetTypes.run",
+    "Run"
+  ],
+  [
+    "audit.targetTypes.system",
+    "System"
+  ],
+  [
+    "eventEngine.pageDescription",
+    "Internal event bus — every important platform action becomes an event for Runtime, Automation, Notifications, and Analytics."
+  ],
+  [
+    "eventEngine.activityDescription",
+    "Scoped activity feed — filter by employee or workspace via query params or filters."
+  ],
+  [
+    "eventEngine.timelineTitle",
+    "Company Timeline"
+  ],
+  [
+    "eventEngine.activityTitle",
+    "Activity Feed"
+  ],
+  [
+    "eventEngine.eventCount",
+    "events"
+  ],
+  [
+    "eventEngine.localOnly",
+    "Stored in localStorage (ai-company-events) — seed data in V1; modules emit via emitEvent()."
+  ],
+  [
+    "eventEngine.principleNote",
+    "Event principle: reports, audit, runtime, notifications, and analytics subscribe to events — no direct module coupling."
+  ],
+  [
+    "eventEngine.futureBadge",
+    "Future"
+  ],
+  [
+    "eventEngine.emptyTitle",
+    "No matching events"
+  ],
+  [
+    "eventEngine.emptyDescription",
+    "Adjust filters — future modules will emit events automatically."
+  ],
+  [
+    "eventEngine.searchLabel",
+    "Search"
+  ],
+  [
+    "eventEngine.searchPlaceholder",
+    "Search type, source, metadata…"
+  ],
+  [
+    "eventEngine.scopeLabel",
+    "Scope"
+  ],
+  [
+    "eventEngine.clearScope",
+    "Clear scope"
+  ],
+  [
+    "eventEngine.sourceLabel",
+    "Source"
+  ],
+  [
+    "eventEngine.employeeLabel",
+    "Employee"
+  ],
+  [
+    "eventEngine.workspaceLabel",
+    "Workspace"
+  ],
+  [
+    "eventEngine.reportLabel",
+    "Report"
+  ],
+  [
+    "eventEngine.scopes.company",
+    "Global company timeline"
+  ],
+  [
+    "eventEngine.scopes.employee",
+    "Employee · {name}"
+  ],
+  [
+    "eventEngine.scopes.workspace",
+    "Workspace · {name}"
+  ],
+  [
+    "eventEngine.stats.total",
+    "Total events"
+  ],
+  [
+    "eventEngine.stats.success",
+    "Success"
+  ],
+  [
+    "eventEngine.stats.warn",
+    "Warnings"
+  ],
+  [
+    "eventEngine.stats.withWorkspace",
+    "Workspace-linked"
+  ],
+  [
+    "eventEngine.filters.employee",
+    "Employee"
+  ],
+  [
+    "eventEngine.filters.workspace",
+    "Workspace"
+  ],
+  [
+    "eventEngine.filters.noWorkspace",
+    "No workspace"
+  ],
+  [
+    "eventEngine.filters.severity",
+    "Severity"
+  ],
+  [
+    "eventEngine.filters.type",
+    "Event type"
+  ],
+  [
+    "eventEngine.filters.dateFrom",
+    "From"
+  ],
+  [
+    "eventEngine.filters.dateTo",
+    "To"
+  ],
+  [
+    "eventEngine.types.employee.created",
+    "Employee Created"
+  ],
+  [
+    "eventEngine.types.employee.updated",
+    "Employee Updated"
+  ],
+  [
+    "eventEngine.types.workspace.created",
+    "Workspace Created"
+  ],
+  [
+    "eventEngine.types.workspace.assigned",
+    "Workspace Assigned"
+  ],
+  [
+    "eventEngine.types.conversation.started",
+    "Conversation Started"
+  ],
+  [
+    "eventEngine.types.chat.message",
+    "Chat Message"
+  ],
+  [
+    "eventEngine.types.memory.added",
+    "Memory Added"
+  ],
+  [
+    "eventEngine.types.knowledge.updated",
+    "Knowledge Updated"
+  ],
+  [
+    "eventEngine.types.report.created",
+    "Report Created"
+  ],
+  [
+    "eventEngine.types.approval.requested",
+    "Approval Requested"
+  ],
+  [
+    "eventEngine.types.approval.granted",
+    "Approval Granted"
+  ],
+  [
+    "eventEngine.types.approval.rejected",
+    "Approval Rejected"
+  ],
+  [
+    "eventEngine.types.tool.connected",
+    "Tool Connected"
+  ],
+  [
+    "eventEngine.types.task.created",
+    "Task Created"
+  ],
+  [
+    "eventEngine.types.task.completed",
+    "Task Completed"
+  ],
+  [
+    "eventEngine.types.runtime.started",
+    "Runtime Started"
+  ],
+  [
+    "eventEngine.types.run.completed",
+    "Run Completed"
+  ],
+  [
+    "runEngine.pageDescription",
+    "Reproducible execution log for every digital employee run — model-independent, fully explainable, ready for future Ollama Runtime."
+  ],
+  [
+    "runEngine.catalogTitle",
+    "Run History"
+  ],
+  [
+    "runEngine.runCount",
+    "runs"
+  ],
+  [
+    "runEngine.runDetailsTitle",
+    "Run Details"
+  ],
+  [
+    "runEngine.runDetailsDescription",
+    "Full pipeline trace — context, steps, metrics, artifacts, and warnings."
+  ],
+  [
+    "runEngine.detailsNavLabel",
+    "Run detail sections"
+  ],
+  [
+    "runEngine.backToList",
+    "Back to Run History"
+  ],
+  [
+    "runEngine.notFoundTitle",
+    "Run not found"
+  ],
+  [
+    "runEngine.notFoundDescription",
+    "This run is not in local storage."
+  ],
+  [
+    "runEngine.emptyListTitle",
+    "No matching runs"
+  ],
+  [
+    "runEngine.emptyListDescription",
+    "Adjust filters or start a Runtime orchestrator run."
+  ],
+  [
+    "runEngine.emptyArtifacts",
+    "No artifacts for this run."
+  ],
+  [
+    "runEngine.emptyWarnings",
+    "No warnings."
+  ],
+  [
+    "runEngine.emptyContext",
+    "No context layers recorded."
+  ],
+  [
+    "runEngine.emptyEmployeeRuns",
+    "No run history for this employee yet."
+  ],
+  [
+    "runEngine.employeeRunsTitle",
+    "Run History"
+  ],
+  [
+    "runEngine.employeeRunsDescription",
+    "Past executions for this employee — every Runtime run creates one history record."
+  ],
+  [
+    "runEngine.openAllRuns",
+    "All runs"
+  ],
+  [
+    "runEngine.openRun",
+    "Open run"
+  ],
+  [
+    "runEngine.openReport",
+    "Open report"
+  ],
+  [
+    "runEngine.openTimeline",
+    "Timeline"
+  ],
+  [
+    "runEngine.linkedRun",
+    "Linked run"
+  ],
+  [
+    "runEngine.runtimeRunId",
+    "Runtime run"
+  ],
+  [
+    "runEngine.platformWide",
+    "Platform-wide"
+  ],
+  [
+    "runEngine.placeholderBadge",
+    "Placeholder"
+  ],
+  [
+    "runEngine.startedAt",
+    "Started"
+  ],
+  [
+    "runEngine.finishedAt",
+    "Finished"
+  ],
+  [
+    "runEngine.contextLoaded",
+    "Loaded"
+  ],
+  [
+    "runEngine.contextNotLoaded",
+    "Not loaded"
+  ],
+  [
+    "runEngine.contextItems",
+    "items"
+  ],
+  [
+    "runEngine.searchLabel",
+    "Search"
+  ],
+  [
+    "runEngine.searchPlaceholder",
+    "Run id, employee, model, report…"
+  ],
+  [
+    "runEngine.principleNote",
+    "Run History belongs to the employee and platform — not to the LLM provider. Switching models does not erase execution logs."
+  ],
+  [
+    "runEngine.localOnly",
+    "Stored in localStorage (ai-company-run-history) — Runtime will append records when connected."
+  ],
+  [
+    "runEngine.filters.status",
+    "Status"
+  ],
+  [
+    "runEngine.filters.employee",
+    "Employee"
+  ],
+  [
+    "runEngine.filters.workspace",
+    "Workspace"
+  ],
+  [
+    "runEngine.stats.total",
+    "Total runs"
+  ],
+  [
+    "runEngine.stats.completed",
+    "Completed"
+  ],
+  [
+    "runEngine.stats.waitingApproval",
+    "Waiting approval"
+  ],
+  [
+    "runEngine.stats.failed",
+    "Failed"
+  ],
+  [
+    "runEngine.statuses.queued",
+    "Queued"
+  ],
+  [
+    "runEngine.statuses.running",
+    "Running"
+  ],
+  [
+    "runEngine.statuses.waiting_approval",
+    "Waiting approval"
+  ],
+  [
+    "runEngine.statuses.completed",
+    "Completed"
+  ],
+  [
+    "runEngine.statuses.failed",
+    "Failed"
+  ],
+  [
+    "runEngine.statuses.cancelled",
+    "Cancelled"
+  ],
+  [
+    "runEngine.stepStatuses.pending",
+    "Pending"
+  ],
+  [
+    "runEngine.stepStatuses.active",
+    "Active"
+  ],
+  [
+    "runEngine.stepStatuses.done",
+    "Done"
+  ],
+  [
+    "runEngine.stepStatuses.skipped",
+    "Skipped"
+  ],
+  [
+    "runEngine.stepStatuses.failed",
+    "Failed"
+  ],
+  [
+    "runEngine.steps.context_loaded",
+    "Context Loaded"
+  ],
+  [
+    "runEngine.steps.knowledge_loaded",
+    "Knowledge Loaded"
+  ],
+  [
+    "runEngine.steps.memory_loaded",
+    "Memory Loaded"
+  ],
+  [
+    "runEngine.steps.model_selected",
+    "Model Selected"
+  ],
+  [
+    "runEngine.steps.approval_requested",
+    "Approval Requested"
+  ],
+  [
+    "runEngine.steps.execution_started",
+    "Execution Started"
+  ],
+  [
+    "runEngine.steps.execution_finished",
+    "Execution Finished"
+  ],
+  [
+    "runEngine.steps.report_generated",
+    "Report Generated"
+  ],
+  [
+    "runEngine.steps.events_created",
+    "Events Created"
+  ],
+  [
+    "runEngine.metrics.duration",
+    "Duration"
+  ],
+  [
+    "runEngine.metrics.estimatedCost",
+    "Est. cost"
+  ],
+  [
+    "runEngine.metrics.estimatedTokens",
+    "Est. tokens"
+  ],
+  [
+    "runEngine.metrics.memoryRecords",
+    "Memory records"
+  ],
+  [
+    "runEngine.metrics.knowledgeRecords",
+    "Knowledge records"
+  ],
+  [
+    "runEngine.metrics.toolCalls",
+    "Tool calls"
+  ],
+  [
+    "runEngine.metrics.warnings",
+    "Warnings"
+  ],
+  [
+    "runEngine.artifactKinds.generated_report",
+    "Generated Report"
+  ],
+  [
+    "runEngine.artifactKinds.generated_summary",
+    "Generated Summary"
+  ],
+  [
+    "runEngine.artifactKinds.generated_adr",
+    "Generated ADR"
+  ],
+  [
+    "runEngine.artifactKinds.generated_task",
+    "Generated Task"
+  ],
+  [
+    "runEngine.artifactKinds.generated_document",
+    "Generated Document"
+  ],
+  [
+    "runEngine.timelineKinds.step",
+    "Step"
+  ],
+  [
+    "runEngine.timelineKinds.warning",
+    "Warning"
+  ],
+  [
+    "runEngine.timelineKinds.artifact",
+    "Artifact"
+  ],
+  [
+    "runEngine.timelineKinds.event",
+    "Event"
+  ],
+  [
+    "runEngine.warningSeverities.info",
+    "Info"
+  ],
+  [
+    "runEngine.warningSeverities.warn",
+    "Warning"
+  ],
+  [
+    "runEngine.warningSeverities.error",
+    "Error"
+  ],
+  [
+    "runEngine.sections.overview",
+    "Overview"
+  ],
+  [
+    "runEngine.sections.pipeline",
+    "Pipeline"
+  ],
+  [
+    "runEngine.sections.metrics",
+    "Metrics"
+  ],
+  [
+    "runEngine.sections.artifacts",
+    "Artifacts"
+  ],
+  [
+    "runEngine.sections.warnings",
+    "Warnings"
+  ],
+  [
+    "runEngine.sections.timeline",
+    "Timeline"
+  ],
+  [
+    "runEngine.sections.context",
+    "Context"
+  ],
+  [
+    "runtimeEngine.pageDescription",
+    "Model-independent Runtime Profiles — swappable LLM engines with routing, privacy, and cost policies."
+  ],
+  [
+    "runtimeEngine.employeePageTitle",
+    "{name} — Runtime Profile"
+  ],
+  [
+    "runtimeEngine.employeePageDescription",
+    "Runtime engine configuration for this employee — model selection is separate from identity, memory, and experience."
+  ],
+  [
+    "runtimeEngine.employeeRuntimePage",
+    "Employee Runtime"
+  ],
+  [
+    "runtimeEngine.employeeSectionTitle",
+    "Runtime Profile"
+  ],
+  [
+    "runtimeEngine.employeeSectionDescription",
+    "Primary model, fallbacks, routing rules, and policies — identity and memory stay on the Employee, not the model."
+  ],
+  [
+    "runtimeEngine.openRuntime",
+    "Runtime"
+  ],
+  [
+    "runtimeEngine.openFullRuntime",
+    "Open full runtime page"
+  ],
+  [
+    "runtimeEngine.models.mockLocal",
+    "Mock Local Model"
+  ],
+  [
+    "runtimeEngine.profileSummary",
+    "Runtime summary"
+  ],
+  [
+    "runtimeEngine.routerPreview",
+    "Model router preview"
+  ],
+  [
+    "runtimeEngine.routerSimulator",
+    "Model router simulator"
+  ],
+  [
+    "runtimeEngine.policiesTitle",
+    "Privacy & cost policies"
+  ],
+  [
+    "runtimeEngine.futureConnectorsTitle",
+    "Future connectors"
+  ],
+  [
+    "runtimeEngine.futureConnectorsDescription",
+    "Ollama, OpenRouter, and Runtime Orchestrator connectors are placeholders — no real inference in V1."
+  ],
+  [
+    "runtimeEngine.futureBadge",
+    "Future"
+  ],
+  [
+    "runtimeEngine.localOnly",
+    "Stored in localStorage (ai-company-runtime-profiles) — no Ollama or cloud calls in V1."
+  ],
+  [
+    "runtimeEngine.principleNote",
+    "Model independence: Employee identity, memory, experience, reputation, and competence never live in the LLM model."
+  ],
+  [
+    "runtimeEngine.modelIndependenceNote",
+    "Switching Atlas from Qwen to Claude/GPT/Ollama does not move or erase memory, experience, or identity."
+  ],
+  [
+    "runtimeEngine.notFoundTitle",
+    "Runtime profile not found"
+  ],
+  [
+    "runtimeEngine.notFoundDescription",
+    "Cannot load runtime profile — employee does not exist."
+  ],
+  [
+    "runtimeEngine.emptyProfiles",
+    "No runtime profiles yet — open an employee runtime page to create one."
+  ],
+  [
+    "runtimeEngine.profilesCatalog",
+    "Employee runtime profiles"
+  ],
+  [
+    "runtimeEngine.providersCatalog",
+    "Model providers"
+  ],
+  [
+    "runtimeEngine.primaryModel",
+    "Primary model"
+  ],
+  [
+    "runtimeEngine.fallbackModels",
+    "Fallback models"
+  ],
+  [
+    "runtimeEngine.fallbackChain",
+    "Fallback chain"
+  ],
+  [
+    "runtimeEngine.allowedProviders",
+    "Allowed providers"
+  ],
+  [
+    "runtimeEngine.routingRules",
+    "Routing rules"
+  ],
+  [
+    "runtimeEngine.runtimeStatus",
+    "Runtime status"
+  ],
+  [
+    "runtimeEngine.reasoningLevel",
+    "Reasoning level"
+  ],
+  [
+    "runtimeEngine.temperature",
+    "Temperature"
+  ],
+  [
+    "runtimeEngine.contextWindow",
+    "Context window"
+  ],
+  [
+    "runtimeEngine.maxTokens",
+    "Max tokens"
+  ],
+  [
+    "runtimeEngine.taskType",
+    "Task type"
+  ],
+  [
+    "runtimeEngine.routeName",
+    "Route"
+  ],
+  [
+    "runtimeEngine.preferredModel",
+    "Preferred model"
+  ],
+  [
+    "runtimeEngine.priority",
+    "Priority"
+  ],
+  [
+    "runtimeEngine.privacyPolicy",
+    "Privacy policy"
+  ],
+  [
+    "runtimeEngine.costPolicy",
+    "Cost policy"
+  ],
+  [
+    "runtimeEngine.connectionStatus",
+    "Connection"
+  ],
+  [
+    "runtimeEngine.privacyLevel",
+    "Privacy level"
+  ],
+  [
+    "runtimeEngine.modelsCount",
+    "Models"
+  ],
+  [
+    "runtimeEngine.requiresApiKey",
+    "API key required"
+  ],
+  [
+    "runtimeEngine.selectedModel",
+    "Selected model"
+  ],
+  [
+    "runtimeEngine.requiresApproval",
+    "Requires Owner approval before run"
+  ],
+  [
+    "runtimeEngine.hasSensitiveData",
+    "Sensitive data in context"
+  ],
+  [
+    "runtimeEngine.requiresExternalTools",
+    "Requires external tools"
+  ],
+  [
+    "runtimeEngine.noRoutesTitle",
+    "No routing rules"
+  ],
+  [
+    "runtimeEngine.noRoutesDescription",
+    "Default primary/fallback chain will be used for all task types."
+  ],
+  [
+    "runtimeEngine.noSelectionTitle",
+    "No model selected"
+  ],
+  [
+    "runtimeEngine.noSelectionDescription",
+    "Adjust profile policies or task context — router could not pick a model."
+  ],
+  [
+    "runtimeEngine.noFallbackChain",
+    "No fallback chain — fallback on failure is disabled or no alternates match policy."
+  ],
+  [
+    "runtimeEngine.stats.totalProfiles",
+    "Runtime profiles"
+  ],
+  [
+    "runtimeEngine.stats.activeProfiles",
+    "Active"
+  ],
+  [
+    "runtimeEngine.stats.providers",
+    "Providers"
+  ],
+  [
+    "runtimeEngine.stats.seedModels",
+    "Seed models"
+  ],
+  [
+    "runtimeEngine.status.active",
+    "Active"
+  ],
+  [
+    "runtimeEngine.status.paused",
+    "Paused"
+  ],
+  [
+    "runtimeEngine.status.draft",
+    "Draft"
+  ],
+  [
+    "runtimeEngine.reasoningLevels.minimal",
+    "Minimal"
+  ],
+  [
+    "runtimeEngine.reasoningLevels.standard",
+    "Standard"
+  ],
+  [
+    "runtimeEngine.reasoningLevels.deep",
+    "Deep"
+  ],
+  [
+    "runtimeEngine.providerTypes.local",
+    "Local"
+  ],
+  [
+    "runtimeEngine.providerTypes.cloud",
+    "Cloud"
+  ],
+  [
+    "runtimeEngine.providerTypes.hybrid",
+    "Hybrid"
+  ],
+  [
+    "runtimeEngine.connectionStatuses.connected",
+    "Connected"
+  ],
+  [
+    "runtimeEngine.connectionStatuses.disconnected",
+    "Disconnected"
+  ],
+  [
+    "runtimeEngine.connectionStatuses.degraded",
+    "Degraded"
+  ],
+  [
+    "runtimeEngine.connectionStatuses.mock",
+    "Mock (V1)"
+  ],
+  [
+    "runtimeEngine.privacyLevels.local-only",
+    "Local only"
+  ],
+  [
+    "runtimeEngine.privacyLevels.hybrid",
+    "Hybrid"
+  ],
+  [
+    "runtimeEngine.privacyLevels.cloud-ok",
+    "Cloud OK"
+  ],
+  [
+    "runtimeEngine.capabilities.streaming",
+    "Streaming"
+  ],
+  [
+    "runtimeEngine.capabilities.tools",
+    "Tools"
+  ],
+  [
+    "runtimeEngine.capabilities.vision",
+    "Vision"
+  ],
+  [
+    "runtimeEngine.capabilities.code",
+    "Code"
+  ],
+  [
+    "runtimeEngine.policy.localFirst",
+    "Local first"
+  ],
+  [
+    "runtimeEngine.policy.cloudAllowed",
+    "Cloud allowed"
+  ],
+  [
+    "runtimeEngine.policy.sensitiveDataAllowed",
+    "Sensitive data allowed"
+  ],
+  [
+    "runtimeEngine.policy.requireApprovalForCloud",
+    "Approval for cloud"
+  ],
+  [
+    "runtimeEngine.policy.maxCostPerRun",
+    "Max cost per run"
+  ],
+  [
+    "runtimeEngine.policy.maxTokensPerRun",
+    "Max tokens per run"
+  ],
+  [
+    "runtimeEngine.taskTypes.general",
+    "General"
+  ],
+  [
+    "runtimeEngine.taskTypes.planning",
+    "Planning"
+  ],
+  [
+    "runtimeEngine.taskTypes.coding",
+    "Coding"
+  ],
+  [
+    "runtimeEngine.taskTypes.review",
+    "Review"
+  ],
+  [
+    "runtimeEngine.taskTypes.analysis",
+    "Analysis"
+  ],
+  [
+    "runtimeEngine.taskTypes.conversation",
+    "Conversation"
+  ],
+  [
+    "runtimeEngine.taskTypes.embedding",
+    "Embedding"
+  ],
+  [
+    "runtimeEngine.taskTypes.vision",
+    "Vision"
+  ],
+  [
+    "runtimeOrchestrator.pageDescription",
+    "Single entry point for digital employee execution — coordinates domains, routes models, emits events. Mock-only in V1."
+  ],
+  [
+    "runtimeOrchestrator.runPageTitle",
+    "Runtime Run"
+  ],
+  [
+    "runtimeOrchestrator.notFoundTitle",
+    "Runtime run not found"
+  ],
+  [
+    "runtimeOrchestrator.notFoundDescription",
+    "This run is not in local storage."
+  ],
+  [
+    "runtimeOrchestrator.backToRuntime",
+    "Back to Runtime"
+  ],
+  [
+    "runtimeOrchestrator.runsCatalog",
+    "Recent runs"
+  ],
+  [
+    "runtimeOrchestrator.startRun",
+    "Start mock run"
+  ],
+  [
+    "runtimeOrchestrator.startRunFromTask",
+    "Run via Orchestrator"
+  ],
+  [
+    "runtimeOrchestrator.startRunFromChat",
+    "Run via Orchestrator"
+  ],
+  [
+    "runtimeOrchestrator.grantApprovalMock",
+    "Grant approval (mock)"
+  ],
+  [
+    "runtimeOrchestrator.waitingApprovalNote",
+    "Run paused at approval gate — mock Owner approval required before completion."
+  ],
+  [
+    "runtimeOrchestrator.principleNote",
+    "Orchestrator rule: Runtime never calls LLM directly — always through Model Router. Runtime reads context only; never mutates Employee or Memory."
+  ],
+  [
+    "runtimeOrchestrator.localOnly",
+    "Stored in localStorage (ai-company-runtime-runs) — mock pipeline, no Ollama or provider calls."
+  ],
+  [
+    "runtimeOrchestrator.state",
+    "State"
+  ],
+  [
+    "runtimeOrchestrator.employee",
+    "Employee"
+  ],
+  [
+    "runtimeOrchestrator.model",
+    "Model"
+  ],
+  [
+    "runtimeOrchestrator.provider",
+    "Provider"
+  ],
+  [
+    "runtimeOrchestrator.report",
+    "Report"
+  ],
+  [
+    "runtimeOrchestrator.startedAt",
+    "Started"
+  ],
+  [
+    "runtimeOrchestrator.finishedAt",
+    "Finished"
+  ],
+  [
+    "runtimeOrchestrator.runSummary",
+    "Run summary"
+  ],
+  [
+    "runtimeOrchestrator.resultTitle",
+    "Runtime result"
+  ],
+  [
+    "runtimeOrchestrator.pipelineTitle",
+    "Orchestrator pipeline"
+  ],
+  [
+    "runtimeOrchestrator.contextTitle",
+    "Runtime context"
+  ],
+  [
+    "runtimeOrchestrator.contextBuiltAt",
+    "Built at"
+  ],
+  [
+    "runtimeOrchestrator.contextSize",
+    "Context layers loaded"
+  ],
+  [
+    "runtimeOrchestrator.knowledgeUsed",
+    "Knowledge items"
+  ],
+  [
+    "runtimeOrchestrator.memoryUsed",
+    "Memory entries"
+  ],
+  [
+    "runtimeOrchestrator.estimatedTokens",
+    "Estimated tokens"
+  ],
+  [
+    "runtimeOrchestrator.estimatedCost",
+    "Estimated cost"
+  ],
+  [
+    "runtimeOrchestrator.noResultYet",
+    "No result yet — run may be waiting for approval or failed early."
+  ],
+  [
+    "runtimeOrchestrator.noArtifacts",
+    "No artifacts produced."
+  ],
+  [
+    "runtimeOrchestrator.noWarnings",
+    "No warnings."
+  ],
+  [
+    "runtimeOrchestrator.openReport",
+    "Open report"
+  ],
+  [
+    "runtimeOrchestrator.notLoaded",
+    "Not loaded"
+  ],
+  [
+    "runtimeOrchestrator.stats.totalRuns",
+    "Total runs"
+  ],
+  [
+    "runtimeOrchestrator.stats.completed",
+    "Completed"
+  ],
+  [
+    "runtimeOrchestrator.stats.waitingApproval",
+    "Waiting approval"
+  ],
+  [
+    "runtimeOrchestrator.stats.failed",
+    "Failed"
+  ],
+  [
+    "runtimeOrchestrator.states.queued",
+    "Queued"
+  ],
+  [
+    "runtimeOrchestrator.states.preparing_context",
+    "Preparing context"
+  ],
+  [
+    "runtimeOrchestrator.states.waiting_approval",
+    "Waiting approval"
+  ],
+  [
+    "runtimeOrchestrator.states.running",
+    "Running"
+  ],
+  [
+    "runtimeOrchestrator.states.completed",
+    "Completed"
+  ],
+  [
+    "runtimeOrchestrator.states.cancelled",
+    "Cancelled"
+  ],
+  [
+    "runtimeOrchestrator.states.failed",
+    "Failed"
+  ],
+  [
+    "runtimeOrchestrator.pipelineStatus.pending",
+    "Pending"
+  ],
+  [
+    "runtimeOrchestrator.pipelineStatus.active",
+    "Active"
+  ],
+  [
+    "runtimeOrchestrator.pipelineStatus.done",
+    "Done"
+  ],
+  [
+    "runtimeOrchestrator.pipelineStatus.skipped",
+    "Skipped"
+  ],
+  [
+    "runtimeOrchestrator.pipelineStatus.failed",
+    "Failed"
+  ],
+  [
+    "runtimeOrchestrator.pipelineSteps.receive_request",
+    "Receive request"
+  ],
+  [
+    "runtimeOrchestrator.pipelineSteps.load_employee",
+    "Load employee"
+  ],
+  [
+    "runtimeOrchestrator.pipelineSteps.load_workspace",
+    "Load workspace"
+  ],
+  [
+    "runtimeOrchestrator.pipelineSteps.load_memory",
+    "Load memory"
+  ],
+  [
+    "runtimeOrchestrator.pipelineSteps.load_knowledge",
+    "Load knowledge"
+  ],
+  [
+    "runtimeOrchestrator.pipelineSteps.load_competencies",
+    "Load competencies"
+  ],
+  [
+    "runtimeOrchestrator.pipelineSteps.load_runtime_profile",
+    "Load runtime profile"
+  ],
+  [
+    "runtimeOrchestrator.pipelineSteps.run_model_router",
+    "Run Model Router"
+  ],
+  [
+    "runtimeOrchestrator.pipelineSteps.approval_check",
+    "Approval check"
+  ],
+  [
+    "runtimeOrchestrator.pipelineSteps.create_run",
+    "Create run"
+  ],
+  [
+    "runtimeOrchestrator.pipelineSteps.emit_event",
+    "Emit event"
+  ],
+  [
+    "runtimeOrchestrator.pipelineSteps.create_report",
+    "Create report"
+  ],
+  [
+    "runtimeOrchestrator.pipelineSteps.complete",
+    "Complete"
+  ],
+  [
+    "runtimeOrchestrator.contextLayers.employee_profile",
+    "Employee profile"
+  ],
+  [
+    "runtimeOrchestrator.contextLayers.memory",
+    "Memory"
+  ],
+  [
+    "runtimeOrchestrator.contextLayers.knowledge",
+    "Knowledge"
+  ],
+  [
+    "runtimeOrchestrator.contextLayers.competencies",
+    "Competencies"
+  ],
+  [
+    "runtimeOrchestrator.contextLayers.workspace",
+    "Workspace"
+  ],
+  [
+    "runtimeOrchestrator.contextLayers.permissions",
+    "Permissions"
+  ],
+  [
+    "runtimeOrchestrator.contextLayers.tools",
+    "Tools"
+  ],
+  [
+    "runtimeOrchestrator.contextLayers.conversation",
+    "Conversation"
+  ],
+  [
+    "runtimeOrchestrator.contextLayers.current_task",
+    "Current task"
+  ],
+  [
+    "runtimeOrchestrator.contextLayers.runtime_profile",
+    "Runtime profile"
+  ],
+  [
+    "memoryEngine.title",
+    "Employee Memory"
+  ],
+  [
+    "memoryEngine.pageTitle",
+    "{name} — Memory"
+  ],
+  [
+    "memoryEngine.pageDescription",
+    "Persistent memory owned by the Employee — independent of Claude, Qwen, or any runtime model."
+  ],
+  [
+    "memoryEngine.backToProfile",
+    "Back to Profile"
+  ],
+  [
+    "memoryEngine.openMemory",
+    "Open Memory"
+  ],
+  [
+    "memoryEngine.viewTimeline",
+    "View full timeline"
+  ],
+  [
+    "memoryEngine.localOnly",
+    "Stored in localStorage — no vector DB or Runtime connected."
+  ],
+  [
+    "memoryEngine.futureBadge",
+    "Future"
+  ],
+  [
+    "memoryEngine.notFoundTitle",
+    "Employee not found"
+  ],
+  [
+    "memoryEngine.notFoundDescription",
+    "Cannot load memory — employee does not exist in roster."
+  ],
+  [
+    "memoryEngine.timelineTitle",
+    "Memory Timeline"
+  ],
+  [
+    "memoryEngine.searchLabel",
+    "Search"
+  ],
+  [
+    "memoryEngine.searchPlaceholder",
+    "Search title, summary, tags…"
+  ],
+  [
+    "memoryEngine.searchHint",
+    "V1: text match only — semantic search is future."
+  ],
+  [
+    "memoryEngine.emptyTitle",
+    "No matching memories"
+  ],
+  [
+    "memoryEngine.emptyDescription",
+    "Adjust filters or add a new memory entry."
+  ],
+  [
+    "memoryEngine.addTitle",
+    "Add Memory"
+  ],
+  [
+    "memoryEngine.addTitlePlaceholder",
+    "Memory title"
+  ],
+  [
+    "memoryEngine.addSummaryLabel",
+    "Summary"
+  ],
+  [
+    "memoryEngine.addSummaryPlaceholder",
+    "Short summary stored with the entry"
+  ],
+  [
+    "memoryEngine.addButton",
+    "Save Memory"
+  ],
+  [
+    "memoryEngine.summary.title",
+    "Memory Architecture"
+  ],
+  [
+    "memoryEngine.summary.lead",
+    "Memory belongs to Employee identity — never to the LLM model or provider."
+  ],
+  [
+    "memoryEngine.summary.modelIndependent",
+    "Switching primaryModel from Claude to Qwen does not move or erase this memory store."
+  ],
+  [
+    "memoryEngine.stats.total",
+    "Total entries"
+  ],
+  [
+    "memoryEngine.stats.recentWeek",
+    "Updated this week"
+  ],
+  [
+    "memoryEngine.stats.withWorkspace",
+    "Workspace-linked"
+  ],
+  [
+    "memoryEngine.stats.critical",
+    "Critical"
+  ],
+  [
+    "memoryEngine.filters.type",
+    "Type"
+  ],
+  [
+    "memoryEngine.filters.importance",
+    "Importance"
+  ],
+  [
+    "memoryEngine.filters.tag",
+    "Tag"
+  ],
+  [
+    "memoryEngine.types.conversation",
+    "Conversation"
+  ],
+  [
+    "memoryEngine.types.decision",
+    "Decision"
+  ],
+  [
+    "memoryEngine.types.knowledge",
+    "Knowledge"
+  ],
+  [
+    "memoryEngine.types.experience",
+    "Experience"
+  ],
+  [
+    "memoryEngine.types.report",
+    "Report"
+  ],
+  [
+    "memoryEngine.types.document",
+    "Document"
+  ],
+  [
+    "memoryEngine.types.relationship",
+    "Relationship"
+  ],
+  [
+    "memoryEngine.types.task",
+    "Task"
+  ],
+  [
+    "memoryEngine.types.workspace",
+    "Workspace"
+  ],
+  [
+    "memoryEngine.importance.low",
+    "Low"
+  ],
+  [
+    "memoryEngine.importance.normal",
+    "Normal"
+  ],
+  [
+    "memoryEngine.importance.high",
+    "High"
+  ],
+  [
+    "memoryEngine.importance.critical",
+    "Critical"
+  ],
+  [
+    "memoryEngine.retention.session",
+    "Session"
+  ],
+  [
+    "memoryEngine.retention.short",
+    "Short-term"
+  ],
+  [
+    "memoryEngine.retention.long",
+    "Long-term"
+  ],
+  [
+    "memoryEngine.retention.permanent",
+    "Permanent"
+  ],
+  [
+    "memoryEngine.sources.conversation",
+    "Conversation"
+  ],
+  [
+    "memoryEngine.sources.discussion",
+    "Discussion"
+  ],
+  [
+    "memoryEngine.sources.task",
+    "Task"
+  ],
+  [
+    "memoryEngine.sources.workspace",
+    "Workspace"
+  ],
+  [
+    "memoryEngine.sources.manual",
+    "Manual"
+  ],
+  [
+    "memoryEngine.sources.system",
+    "System"
+  ],
+  [
+    "memoryEngine.sources.document",
+    "Document"
+  ],
+  [
+    "memoryEngine.sources.run",
+    "Run"
+  ],
+  [
+    "memoryEngine.future.semanticSearch",
+    "Semantic Search"
+  ],
+  [
+    "memoryEngine.future.embeddings",
+    "Embeddings"
+  ],
+  [
+    "memoryEngine.future.vectorDb",
+    "Vector DB"
+  ],
+  [
+    "memoryEngine.future.summaries",
+    "Auto Summaries"
+  ],
+  [
+    "memoryEngine.future.llmContextBuilder",
+    "LLM Context Builder"
+  ],
+  [
+    "memoryEngine.futureDesc.semanticSearch",
+    "Natural-language retrieval across memory entries."
+  ],
+  [
+    "memoryEngine.futureDesc.embeddings",
+    "Vector embeddings per entry for similarity ranking."
+  ],
+  [
+    "memoryEngine.futureDesc.vectorDb",
+    "External vector store — memory stays Employee-scoped."
+  ],
+  [
+    "memoryEngine.futureDesc.summaries",
+    "Periodic condensation of timeline into executive summaries."
+  ],
+  [
+    "memoryEngine.futureDesc.llmContextBuilder",
+    "Runtime assembles model-agnostic context windows from this store."
+  ],
+  [
+    "competencyEngine.title",
+    "Competencies"
+  ],
+  [
+    "competencyEngine.pageTitle",
+    "{name} — Competencies"
+  ],
+  [
+    "competencyEngine.pageDescription",
+    "Career-long skills, experience, certifications, and reputation — owned by Employee, not stored in the employee model."
+  ],
+  [
+    "competencyEngine.backToProfile",
+    "Back to Profile"
+  ],
+  [
+    "competencyEngine.openCompetencies",
+    "Open Competencies"
+  ],
+  [
+    "competencyEngine.localOnly",
+    "Stored in localStorage — reputation is calculated locally, no Runtime connected."
+  ],
+  [
+    "competencyEngine.notFoundTitle",
+    "Employee not found"
+  ],
+  [
+    "competencyEngine.notFoundDescription",
+    "Cannot load competencies — employee does not exist in roster."
+  ],
+  [
+    "competencyEngine.overview.title",
+    "Competency Overview"
+  ],
+  [
+    "competencyEngine.overview.lead",
+    "Digital qualification evolves through experience, knowledge, training, and completed work — not through LLM context."
+  ],
+  [
+    "competencyEngine.overview.notInModel",
+    "Competencies are not fields on the Employee model. They live in the competency engine and accumulate over the employee career."
+  ],
+  [
+    "competencyEngine.sections.competencies",
+    "Competency Domains"
+  ],
+  [
+    "competencyEngine.sections.skills",
+    "Skills"
+  ],
+  [
+    "competencyEngine.sections.experience",
+    "Experience"
+  ],
+  [
+    "competencyEngine.sections.certificates",
+    "Certificates"
+  ],
+  [
+    "competencyEngine.sections.reputation",
+    "Reputation"
+  ],
+  [
+    "competencyEngine.sections.learning",
+    "Learning Path"
+  ],
+  [
+    "competencyEngine.stats.skills",
+    "Skills"
+  ],
+  [
+    "competencyEngine.stats.verified",
+    "verified"
+  ],
+  [
+    "competencyEngine.stats.certificates",
+    "Certificates"
+  ],
+  [
+    "competencyEngine.stats.experience",
+    "Experience events"
+  ],
+  [
+    "competencyEngine.stats.domains",
+    "Domains"
+  ],
+  [
+    "competencyEngine.stats.trustScore",
+    "Trust score"
+  ],
+  [
+    "competencyEngine.stats.averageCompetency",
+    "Avg competency"
+  ],
+  [
+    "competencyEngine.meta.workspacePrefix",
+    "WS"
+  ],
+  [
+    "competencyEngine.meta.taskPrefix",
+    "Task"
+  ],
+  [
+    "competencyEngine.meta.reportPrefix",
+    "Report"
+  ],
+  [
+    "competencyEngine.fields.skill",
+    "Skill"
+  ],
+  [
+    "competencyEngine.fields.category",
+    "Category"
+  ],
+  [
+    "competencyEngine.fields.level",
+    "Level"
+  ],
+  [
+    "competencyEngine.fields.verified",
+    "Verified"
+  ],
+  [
+    "competencyEngine.fields.issuer",
+    "Issuer"
+  ],
+  [
+    "competencyEngine.fields.completedAt",
+    "Completed"
+  ],
+  [
+    "competencyEngine.fields.impact",
+    "Impact"
+  ],
+  [
+    "competencyEngine.fields.type",
+    "Type"
+  ],
+  [
+    "competencyEngine.fields.description",
+    "Description"
+  ],
+  [
+    "competencyEngine.reputation.accuracy",
+    "Accuracy"
+  ],
+  [
+    "competencyEngine.reputation.successfulTasks",
+    "Successful tasks"
+  ],
+  [
+    "competencyEngine.reputation.reportsQuality",
+    "Reports quality"
+  ],
+  [
+    "competencyEngine.reputation.reviews",
+    "Reviews"
+  ],
+  [
+    "competencyEngine.reputation.trustScore",
+    "Trust score"
+  ],
+  [
+    "competencyEngine.reputation.productionApprovals",
+    "Production approvals"
+  ],
+  [
+    "competencyEngine.reputation.calculatedBySystem",
+    "Reputation is calculated by the system from experience — never stored inside the LLM."
+  ],
+  [
+    "competencyEngine.reputation.updated",
+    "Calculated"
+  ],
+  [
+    "competencyEngine.learning.completed",
+    "Completed skills"
+  ],
+  [
+    "competencyEngine.learning.planned",
+    "Planned skills"
+  ],
+  [
+    "competencyEngine.learning.recommended",
+    "Recommended skills"
+  ],
+  [
+    "competencyEngine.experienceTypes.task",
+    "Task"
+  ],
+  [
+    "competencyEngine.experienceTypes.report",
+    "Report"
+  ],
+  [
+    "competencyEngine.experienceTypes.workspace",
+    "Workspace"
+  ],
+  [
+    "competencyEngine.experienceTypes.training",
+    "Training"
+  ],
+  [
+    "competencyEngine.experienceTypes.review",
+    "Review"
+  ],
+  [
+    "competencyEngine.experienceTypes.certification",
+    "Certification"
+  ],
+  [
+    "competencyEngine.impact.low",
+    "Low"
+  ],
+  [
+    "competencyEngine.impact.medium",
+    "Medium"
+  ],
+  [
+    "competencyEngine.impact.high",
+    "High"
+  ],
+  [
+    "competencyEngine.certificationStatus.planned",
+    "Planned"
+  ],
+  [
+    "competencyEngine.certificationStatus.in_progress",
+    "In progress"
+  ],
+  [
+    "competencyEngine.certificationStatus.completed",
+    "Completed"
+  ],
+  [
+    "competencyEngine.certificationStatus.expired",
+    "Expired"
+  ],
+  [
+    "competencyEngine.empty.skills",
+    "No skills recorded yet."
+  ],
+  [
+    "competencyEngine.empty.experience",
+    "No experience events yet."
+  ],
+  [
+    "competencyEngine.empty.certificates",
+    "No certifications yet."
+  ],
+  [
+    "competencyEngine.empty.competencies",
+    "Competency domains will appear after skills and experience are recorded."
+  ],
+  [
+    "competencyEngine.empty.learningCompleted",
+    "None completed yet."
+  ],
+  [
+    "competencyEngine.empty.learningPlanned",
+    "None planned yet."
+  ],
+  [
+    "competencyEngine.empty.learningRecommended",
+    "No recommendations yet."
+  ],
+  [
+    "competencyEngine.addExperienceTitle",
+    "Record Experience"
+  ],
+  [
+    "competencyEngine.addExperiencePlaceholder",
+    "Describe what the employee did and the outcome…"
+  ],
+  [
+    "competencyEngine.addExperienceButton",
+    "Add experience event"
+  ],
+  [
+    "competencyEngine.future.runtimeMatching",
+    "Runtime will use trustScore and domain scores when selecting task assignees."
+  ],
+  [
+    "employeeProfile.title",
+    "Employee Profile"
+  ],
+  [
+    "employeeProfile.backToEmployees",
+    "Back to Employees"
+  ],
+  [
+    "employeeProfile.navLabel",
+    "Profile sections"
+  ],
+  [
+    "employeeProfile.created",
+    "Created"
+  ],
+  [
+    "employeeProfile.comingSoon",
+    "Coming soon — runtime not connected"
+  ],
+  [
+    "employeeProfile.futureBadge",
+    "Future"
+  ],
+  [
+    "employeeProfile.yes",
+    "Yes"
+  ],
+  [
+    "employeeProfile.no",
+    "No"
+  ],
+  [
+    "employeeProfile.notFoundTitle",
+    "Employee not found"
+  ],
+  [
+    "employeeProfile.notFoundDescription",
+    "This employee does not exist in local storage or was removed."
+  ],
+  [
+    "employeeProfile.noDescription",
+    "No mission description provided."
+  ],
+  [
+    "employeeProfile.noSystemPrompt",
+    "No system prompt configured."
+  ],
+  [
+    "employeeProfile.noWorkflow",
+    "No workflow defined."
+  ],
+  [
+    "employeeProfile.noRestrictions",
+    "No restrictions configured."
+  ],
+  [
+    "employeeProfile.noSkills",
+    "No skills assigned"
+  ],
+  [
+    "employeeProfile.noSkillsHint",
+    "Add skills when creating or editing this employee."
+  ],
+  [
+    "employeeProfile.noMemoryScope",
+    "No memory scope configured"
+  ],
+  [
+    "employeeProfile.noMemoryScopeHint",
+    "Memory domains will appear here once assigned."
+  ],
+  [
+    "employeeProfile.sections.overview",
+    "Overview"
+  ],
+  [
+    "employeeProfile.sections.skills",
+    "Skills"
+  ],
+  [
+    "employeeProfile.sections.permissions",
+    "Permissions"
+  ],
+  [
+    "employeeProfile.sections.memory",
+    "Memory"
+  ],
+  [
+    "employeeProfile.sections.knowledge",
+    "Knowledge"
+  ],
+  [
+    "employeeProfile.sections.relationships",
+    "Relationships"
+  ],
+  [
+    "employeeProfile.sections.assignments",
+    "Assignments"
+  ],
+  [
+    "employeeProfile.sections.activity",
+    "Activity"
+  ],
+  [
+    "employeeProfile.sections.runtime",
+    "Runtime"
+  ],
+  [
+    "employeeProfile.assignments.emptyTitle",
+    "No workspace assignments"
+  ],
+  [
+    "employeeProfile.assignments.emptyDescription",
+    "This employee is not assigned to any workspace yet. Assign from a Workspace page."
+  ],
+  [
+    "employeeProfile.future.conversation",
+    "Conversation"
+  ],
+  [
+    "employeeProfile.future.conversationDesc",
+    "Direct chat thread with this digital employee."
+  ],
+  [
+    "employeeProfile.future.discussion",
+    "Discussion"
+  ],
+  [
+    "employeeProfile.future.discussionDesc",
+    "Multi-party threads involving this employee."
+  ],
+  [
+    "employeeProfile.future.runHistory",
+    "Run History"
+  ],
+  [
+    "employeeProfile.future.runHistoryDesc",
+    "Past executions, outcomes, and runtime traces."
+  ],
+  [
+    "employeeProfile.future.workspaceAssignments",
+    "Workspace Assignments"
+  ],
+  [
+    "employeeProfile.future.workspaceAssignmentsDesc",
+    "Projects, squads, and workspaces linked to this employee."
+  ],
+  [
+    "employeeProfile.future.memoryTimeline",
+    "Memory Timeline"
+  ],
+  [
+    "employeeProfile.future.memoryTimelineDesc",
+    "Chronological memory reads, writes, and context updates."
+  ],
+  [
+    "employeeProfile.future.relationships",
+    "Relationships"
+  ],
+  [
+    "employeeProfile.future.relationshipsDesc",
+    "Peers, managers, collaborators, and reporting lines."
+  ],
+  [
+    "employeeProfile.future.activityFeed",
+    "Activity Feed"
+  ],
+  [
+    "employeeProfile.future.activityFeedDesc",
+    "Recent actions, task transitions, and operational events."
+  ],
+  [
+    "mock.lastActivity",
+    "Awaiting V1 activation"
+  ],
+  [
+    "mock.relativeTime.now",
+    "now"
+  ],
+  [
+    "mock.relativeTime.minutesAgo",
+    "{minutes}m ago"
+  ],
+  [
+    "mock.squads.orchestrator",
+    "Orchestrator"
+  ],
+  [
+    "mock.squads.memoryStore",
+    "Memory store"
+  ],
+  [
+    "mock.squads.toolGateway",
+    "Tool gateway"
+  ],
+  [
+    "mock.squads.coreEngineering",
+    "Core Engineering"
+  ],
+  [
+    "mock.squads.executive",
+    "Executive"
+  ],
+  [
+    "mock.squads.operations",
+    "Operations"
+  ]
+]

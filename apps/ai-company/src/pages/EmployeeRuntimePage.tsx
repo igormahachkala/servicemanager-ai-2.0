@@ -38,7 +38,7 @@ export function EmployeeRuntimePage() {
   )
   const builtinAgent = useMemo(() => agents.find((item) => item.id === id) ?? null, [id])
   const primaryModelLabel =
-    customEmployee?.primaryModel ?? builtinAgent?.model ?? 'Mock Local Model'
+    customEmployee?.primaryModel ?? builtinAgent?.model ?? t.runtimeEngine.models.mockLocal
 
   const profile = id ? getProfile(id, primaryModelLabel) : null
 

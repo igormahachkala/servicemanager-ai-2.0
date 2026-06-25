@@ -16,6 +16,7 @@ import {
 import { useCustomEmployees } from '../hooks/useCustomEmployees'
 import type { Agent } from '../data/types'
 import { useI18n } from '../../i18n'
+import { resolveMockActivityLabel } from '../../i18n/mockLabels'
 
 function statusDotKind(status: string, lifecycle: string): 'green' | 'amber' | 'red' | 'gray' {
   if (lifecycle === 'planned') return 'gray'
@@ -176,7 +177,7 @@ function AgentTable({
                 </div>
               ) : (
                 <span className="mcMuted" style={{ fontSize: 12 }}>
-                  {a.lastActivity}
+                  {resolveMockActivityLabel(t, a.lastActivity)}
                 </span>
               )}
             </td>

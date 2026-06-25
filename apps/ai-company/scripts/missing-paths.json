@@ -1,0 +1,590 @@
+[
+  [
+    "nav.runtime",
+    "Runtime"
+  ],
+  [
+    "labels.id",
+    "ID"
+  ],
+  [
+    "inspector.lastRun",
+    "last run"
+  ],
+  [
+    "inspector.noEventsYet",
+    "no events yet"
+  ],
+  [
+    "employees.description",
+    "V1 agent roster — active agents run now; planned agents visible for org design."
+  ],
+  [
+    "employees.agents",
+    "agents"
+  ],
+  [
+    "employees.template",
+    "Template"
+  ],
+  [
+    "organization.customEmployees",
+    "Custom Employees"
+  ],
+  [
+    "organization.squadRoster",
+    "Squad roster snapshot"
+  ],
+  [
+    "organization.agentsUnit",
+    "agents"
+  ],
+  [
+    "organizationEngine.reportingTreeHint",
+    "Owner → CEO → executives → engineering → QA → operations"
+  ],
+  [
+    "organizationEngine.departments",
+    "Departments"
+  ],
+  [
+    "organizationEngine.teams",
+    "Teams"
+  ],
+  [
+    "organizationEngine.teamLead",
+    "Team lead"
+  ],
+  [
+    "organizationEngine.teamsUnit",
+    "teams"
+  ],
+  [
+    "organizationEngine.membersUnit",
+    "members"
+  ],
+  [
+    "organizationEngine.reportingLines",
+    "Reporting lines"
+  ],
+  [
+    "organizationEngine.future.crossFunctionalDesc",
+    "Squads spanning multiple departments — e.g. launch task forces."
+  ],
+  [
+    "organizationEngine.future.matrix",
+    "Matrix organization"
+  ],
+  [
+    "organizationEngine.stats.departments",
+    "Departments"
+  ],
+  [
+    "organizationEngine.stats.teams",
+    "Teams"
+  ],
+  [
+    "organizationEngine.stats.customEmployees",
+    "Custom employees"
+  ],
+  [
+    "approvalEngine.requestCount",
+    "requests"
+  ],
+  [
+    "approvalEngine.futureIntegrationHint",
+    "Runtime creates Approval Request → Owner reviews → decision emits Audit Event."
+  ],
+  [
+    "approvalEngine.futureIntegrations.0",
+    "GitHub Push"
+  ],
+  [
+    "approvalEngine.runtimeNote",
+    "Runtime integration: invoke createApprovalRequest() instead of executing protected actions. Owner decision writes to audit trail."
+  ],
+  [
+    "approvalEngine.localOnly",
+    "Stored in localStorage under ai-company-approvals — no Runtime connected."
+  ],
+  [
+    "approvalEngine.ownerActionsTitle",
+    "Owner review"
+  ],
+  [
+    "approvalEngine.emptyListDescription",
+    "When Runtime requests human approval, requests appear here for Owner review."
+  ],
+  [
+    "approvalEngine.actionTypes.github_push",
+    "GitHub Push"
+  ],
+  [
+    "knowledgeEngine.platformWide",
+    "Platform-wide"
+  ],
+  [
+    "knowledgeEngine.assignedKnowledgeTitle",
+    "Assigned Knowledge"
+  ],
+  [
+    "knowledgeEngine.runtimeNote",
+    "Runtime integration: call queryKnowledgeForRuntime() before task execution — do not store knowledge in model context permanently."
+  ],
+  [
+    "knowledgeEngine.localOnly",
+    "Stored in localStorage (ai-company-knowledge, ai-company-knowledge-collections) — no vector DB."
+  ],
+  [
+    "knowledgeEngine.stats.platformWide",
+    "Platform-wide"
+  ],
+  [
+    "knowledgeEngine.stats.workspaceScoped",
+    "Workspace-scoped"
+  ],
+  [
+    "knowledgeEngine.types.runbook",
+    "Runbook"
+  ],
+  [
+    "knowledgeEngine.sources.markdown",
+    "Markdown"
+  ],
+  [
+    "knowledgeEngine.future.semanticSearchDesc",
+    "Natural-language retrieval across knowledge items."
+  ],
+  [
+    "knowledgeEngine.future.vectorSearchDesc",
+    "Similarity ranking for task-context injection."
+  ],
+  [
+    "knowledgeEngine.future.embeddingsDesc",
+    "Chunk embeddings stored platform-side — not in LLM."
+  ],
+  [
+    "knowledgeEngine.future.knowledgeGraphDesc",
+    "Entity links between ADRs, standards, and architecture docs."
+  ],
+  [
+    "knowledgeEngine.future.aiSummariesDesc",
+    "Owner-approved executive summaries of long documents."
+  ],
+  [
+    "knowledgeEngine.future.recommendedReadingDesc",
+    "Suggested items based on role, assignments, and task history."
+  ],
+  [
+    "dashboard.runningTasks",
+    "Running tasks"
+  ],
+  [
+    "dashboard.queueDepth",
+    "Queue depth"
+  ],
+  [
+    "dashboard.toolsHealthy",
+    "Tools healthy"
+  ],
+  [
+    "executiveDashboard.employeesSub",
+    "registered digital employees"
+  ],
+  [
+    "executiveDashboard.approvalsSub",
+    "pending decisions"
+  ],
+  [
+    "executiveDashboard.reportsSub",
+    "generated artifacts"
+  ],
+  [
+    "executiveDashboard.workspacesSub",
+    "workspaces in registry"
+  ],
+  [
+    "executiveDashboard.actionFlow",
+    "Flow workspace"
+  ],
+  [
+    "tasks.queue",
+    "Task queue"
+  ],
+  [
+    "employeeBuilder.sections.identity",
+    "Identity"
+  ],
+  [
+    "employeeBuilder.sections.templates",
+    "Template"
+  ],
+  [
+    "employeeBuilder.sections.restrictions",
+    "Restrictions"
+  ],
+  [
+    "employeeBuilder.sections.systemPrompt",
+    "System Prompt"
+  ],
+  [
+    "employeeBuilder.sections.workflow",
+    "Workflow"
+  ],
+  [
+    "employeeBuilder.sections.memoryScope",
+    "Memory Scope"
+  ],
+  [
+    "employeeBuilder.sections.mission",
+    "Mission"
+  ],
+  [
+    "employeeBuilder.fields.systemPrompt",
+    "System prompt"
+  ],
+  [
+    "employeeBuilder.fields.workflow",
+    "Workflow"
+  ],
+  [
+    "employeeBuilder.fields.memoryScope",
+    "Memory scope"
+  ],
+  [
+    "employeeBuilder.placeholders.systemPrompt",
+    "You are a digital specialist. Define tone, boundaries, and decision rules…"
+  ],
+  [
+    "employeeBuilder.placeholders.workflow",
+    "Step-by-step operating flow: intake → analysis → output → review"
+  ],
+  [
+    "employeeBuilder.options.restrictions.No Production Deploy",
+    "No Production Deploy"
+  ],
+  [
+    "employeeBuilder.options.restrictions.No Backend Changes",
+    "No Backend Changes"
+  ],
+  [
+    "employeeBuilder.options.restrictions.No Database Write",
+    "No Database Write"
+  ],
+  [
+    "employeeBuilder.options.restrictions.No Git Push",
+    "No Git Push"
+  ],
+  [
+    "employeeBuilder.options.restrictions.No Delete Operations",
+    "No Delete Operations"
+  ],
+  [
+    "toolRegistry.detailsTitle",
+    "Tool Details"
+  ],
+  [
+    "toolRegistry.architectureNote",
+    "V1 architecture only — no real connections. Employees invoke tools through Registry; MCP/GitHub/Docker adapters are future."
+  ],
+  [
+    "toolRegistry.catalogTitle",
+    "Tool Catalog"
+  ],
+  [
+    "toolRegistry.details.identity",
+    "Tool Identity"
+  ],
+  [
+    "toolRegistry.providerDescriptions.native",
+    "In-process platform adapters (browser, desktop)."
+  ],
+  [
+    "toolRegistry.policyHints.require-approval",
+    "Owner must approve before invoke."
+  ],
+  [
+    "toolRegistry.policyHints.disabled",
+    "Tool blocked — no invoke permitted."
+  ],
+  [
+    "toolRegistry.descriptions.email",
+    "SMTP/IMAP messaging — REST adapter."
+  ],
+  [
+    "toolRegistry.descriptions.googleDrive",
+    "Cloud document storage — REST adapter."
+  ],
+  [
+    "toolRegistry.descriptions.ollama",
+    "Local LLM inference — REST adapter."
+  ],
+  [
+    "toolRegistry.descriptions.openrouter",
+    "Multi-model cloud routing — REST adapter."
+  ],
+  [
+    "toolRegistry.descriptions.ssh",
+    "Remote shell access — CLI adapter (high risk)."
+  ],
+  [
+    "flow.breadcrumb",
+    "org.workflow · main"
+  ],
+  [
+    "flow.nodes",
+    "nodes"
+  ],
+  [
+    "flow.executeWorkflow",
+    "Execute Workflow"
+  ],
+  [
+    "shell.platformShell",
+    "Platform Shell"
+  ],
+  [
+    "brand.env",
+    "mock · localhost"
+  ],
+  [
+    "discussions.discussionCount",
+    "discussions"
+  ],
+  [
+    "discussions.participantsCount",
+    "participants"
+  ],
+  [
+    "discussions.localOnly",
+    "Stored locally — no runtime connected"
+  ],
+  [
+    "discussions.composerPlaceholder",
+    "Write a message as Owner…"
+  ],
+  [
+    "discussions.mockReplies.3",
+    "{name}: QA will need explicit acceptance criteria before we proceed."
+  ],
+  [
+    "sideNav.subtitle",
+    "AI Company · NOC"
+  ],
+  [
+    "conversations.localOnly",
+    "Stored locally — no runtime connected"
+  ],
+  [
+    "conversations.composerPlaceholder",
+    "Write a message as Owner…"
+  ],
+  [
+    "conversations.mockReplies.2",
+    "{name}: That is a useful direction. I can help structure the next step when you are ready."
+  ],
+  [
+    "conversations.mockReplies.4",
+    "{name}: Noted. Ask me anytime; this conversation persists across sessions."
+  ],
+  [
+    "chats.participants",
+    "participants"
+  ],
+  [
+    "chats.localOnly",
+    "Stored locally — no runtime connected"
+  ],
+  [
+    "chats.composerPlaceholder",
+    "Write a message as Owner…"
+  ],
+  [
+    "chats.systemStartedWorkspace",
+    "Workspace chat linked to {name}."
+  ],
+  [
+    "chats.mockReplies.3",
+    "{name}: QA will need explicit acceptance criteria before we proceed."
+  ],
+  [
+    "workspaces.localOnly",
+    "Stored locally — no runtime connected"
+  ],
+  [
+    "workspaces.assignmentCount",
+    "assignments"
+  ],
+  [
+    "workspaces.navLabel",
+    "Workspace sections"
+  ],
+  [
+    "workspaces.newFormTitle",
+    "Workspace setup"
+  ],
+  [
+    "workspaces.settings.title",
+    "Workspace settings"
+  ],
+  [
+    "workspaces.errors.nameRequired",
+    "Workspace name is required."
+  ],
+  [
+    "reports.localOnly",
+    "Stored in localStorage — mock/seed data in V1, no Runtime."
+  ],
+  [
+    "audit.localOnly",
+    "Stored in localStorage — seed events in V1, Runtime will append live."
+  ],
+  [
+    "eventEngine.localOnly",
+    "Stored in localStorage (ai-company-events) — seed data in V1; modules emit via emitEvent()."
+  ],
+  [
+    "eventEngine.scopes.employee",
+    "Employee · {name}"
+  ],
+  [
+    "eventEngine.scopes.workspace",
+    "Workspace · {name}"
+  ],
+  [
+    "eventEngine.stats.withWorkspace",
+    "Workspace-linked"
+  ],
+  [
+    "eventEngine.types.runtime.started",
+    "Runtime Started"
+  ],
+  [
+    "runEngine.runtimeRunId",
+    "Runtime run"
+  ],
+  [
+    "runEngine.platformWide",
+    "Platform-wide"
+  ],
+  [
+    "runEngine.localOnly",
+    "Stored in localStorage (ai-company-run-history) — Runtime will append records when connected."
+  ],
+  [
+    "runtimeEngine.employeePageTitle",
+    "{name} — Runtime Profile"
+  ],
+  [
+    "runtimeEngine.employeeRuntimePage",
+    "Employee Runtime"
+  ],
+  [
+    "runtimeEngine.employeeSectionTitle",
+    "Runtime Profile"
+  ],
+  [
+    "runtimeEngine.openRuntime",
+    "Runtime"
+  ],
+  [
+    "runtimeEngine.localOnly",
+    "Stored in localStorage (ai-company-runtime-profiles) — no Ollama or cloud calls in V1."
+  ],
+  [
+    "runtimeEngine.stats.totalProfiles",
+    "Runtime profiles"
+  ],
+  [
+    "runtimeEngine.connectionStatuses.mock",
+    "Mock (V1)"
+  ],
+  [
+    "runtimeOrchestrator.runPageTitle",
+    "Runtime Run"
+  ],
+  [
+    "runtimeOrchestrator.waitingApprovalNote",
+    "Run paused at approval gate — mock Owner approval required before completion."
+  ],
+  [
+    "runtimeOrchestrator.localOnly",
+    "Stored in localStorage (ai-company-runtime-runs) — mock pipeline, no Ollama or provider calls."
+  ],
+  [
+    "runtimeOrchestrator.contextTitle",
+    "Runtime context"
+  ],
+  [
+    "runtimeOrchestrator.pipelineSteps.run_model_router",
+    "Run Model Router"
+  ],
+  [
+    "runtimeOrchestrator.contextLayers.runtime_profile",
+    "Runtime profile"
+  ],
+  [
+    "memoryEngine.title",
+    "Employee Memory"
+  ],
+  [
+    "memoryEngine.pageTitle",
+    "{name} — Memory"
+  ],
+  [
+    "memoryEngine.openMemory",
+    "Open Memory"
+  ],
+  [
+    "memoryEngine.localOnly",
+    "Stored in localStorage — no vector DB or Runtime connected."
+  ],
+  [
+    "memoryEngine.searchHint",
+    "V1: text match only — semantic search is future."
+  ],
+  [
+    "memoryEngine.summary.title",
+    "Memory Architecture"
+  ],
+  [
+    "memoryEngine.summary.modelIndependent",
+    "Switching primaryModel from Claude to Qwen does not move or erase this memory store."
+  ],
+  [
+    "memoryEngine.stats.withWorkspace",
+    "Workspace-linked"
+  ],
+  [
+    "competencyEngine.pageTitle",
+    "{name} — Competencies"
+  ],
+  [
+    "competencyEngine.localOnly",
+    "Stored in localStorage — reputation is calculated locally, no Runtime connected."
+  ],
+  [
+    "competencyEngine.sections.reputation",
+    "Reputation"
+  ],
+  [
+    "competencyEngine.sections.learning",
+    "Learning Path"
+  ],
+  [
+    "competencyEngine.stats.trustScore",
+    "Trust score"
+  ],
+  [
+    "competencyEngine.meta.workspacePrefix",
+    "WS"
+  ],
+  [
+    "competencyEngine.reputation.trustScore",
+    "Trust score"
+  ],
+  [
+    "employeeProfile.sections.runtime",
+    "Runtime"
+  ]
+]

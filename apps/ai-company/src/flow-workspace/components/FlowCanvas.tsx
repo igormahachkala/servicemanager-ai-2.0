@@ -5,6 +5,7 @@ import { inPort, outPort, bezier, CANVAS_W, CANVAS_H } from '../lib/layout';
 import { FONT_MONO } from '../lib/tokens';
 import { ConnectorLayer, type Edge } from './ConnectorLayer';
 import { FlowNode } from './FlowNode';
+import { useI18n } from '../../i18n';
 
 interface Props {
   employees: Employee[];
@@ -21,6 +22,7 @@ interface BadgedEdge extends Edge {
 
 /** Center canvas: dotted background, connector SVG, edge badges, node cards. */
 export function FlowCanvas({ employees, connections, selectedId, onSelect }: Props) {
+  const { t } = useI18n();
   const byId = useMemo(
     () => Object.fromEntries(employees.map((e) => [e.id, e])) as Record<string, Employee>,
     [employees],
@@ -62,7 +64,7 @@ export function FlowCanvas({ employees, connections, selectedId, onSelect }: Pro
     >
       {/* breadcrumb */}
       <div style={{ position: 'absolute', top: 14, left: 18, zIndex: 5, display: 'flex', alignItems: 'center', gap: 8, fontSize: 10.5, color: '#6b7280', fontFamily: FONT_MONO, background: 'rgba(12,13,16,.7)', backdropFilter: 'blur(4px)', border: '1px solid rgba(255,255,255,.07)', borderRadius: 7, padding: '5px 10px' }}>
-        org.workflow · main
+        {t.flow.breadcrumb}
       </div>
 
       <div style={{ position: 'relative', width: CANVAS_W, height: CANVAS_H, margin: '8px auto 24px' }}>

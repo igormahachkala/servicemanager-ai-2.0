@@ -723,6 +723,7 @@ export const en = {
   flow: {
     brand: 'IT Company',
     workflow: 'WORKFLOW',
+    breadcrumb: 'org.workflow · main',
     subtitle: 'Engineering automation · v1.4',
     executionActive: 'Execution active',
     nodes: 'nodes',
@@ -1404,6 +1405,9 @@ export const en = {
       'Primary model, fallbacks, routing rules, and policies — identity and memory stay on the Employee, not the model.',
     openRuntime: 'Runtime',
     openFullRuntime: 'Open full runtime page',
+    models: {
+      mockLocal: 'Mock Local Model',
+    },
     profileSummary: 'Runtime summary',
     routerPreview: 'Model router preview',
     routerSimulator: 'Model router simulator',
@@ -1716,6 +1720,11 @@ export const en = {
       trustScore: 'Trust score',
       averageCompetency: 'Avg competency',
     },
+    meta: {
+      workspacePrefix: 'WS',
+      taskPrefix: 'Task',
+      reportPrefix: 'Report',
+    },
     fields: {
       skill: 'Skill',
       category: 'Category',
@@ -1826,6 +1835,21 @@ export const en = {
       relationshipsDesc: 'Peers, managers, collaborators, and reporting lines.',
       activityFeed: 'Activity Feed',
       activityFeedDesc: 'Recent actions, task transitions, and operational events.',
+    },
+  },
+  mock: {
+    lastActivity: 'Awaiting V1 activation',
+    relativeTime: {
+      now: 'now',
+      minutesAgo: '{minutes}m ago',
+    },
+    squads: {
+      orchestrator: 'Orchestrator',
+      memoryStore: 'Memory store',
+      toolGateway: 'Tool gateway',
+      coreEngineering: 'Core Engineering',
+      executive: 'Executive',
+      operations: 'Operations',
     },
   },
 }

@@ -24,9 +24,11 @@ export function ExperienceTimeline(props: { events: ExperienceEvent[] }) {
               <p className="mcCompetencyTimelineDesc">{event.description}</p>
               <div className="mcCompetencyTimelineMeta mcMono mcMuted">
                 {t.competencyEngine.fields.impact}: {t.competencyEngine.impact[event.impact]}
-                {event.workspaceId ? ` · WS ${event.workspaceId}` : ''}
-                {event.taskId ? ` · Task ${event.taskId}` : ''}
-                {event.reportId ? ` · Report ${event.reportId}` : ''}
+                {event.workspaceId
+                  ? ` · ${t.competencyEngine.meta.workspacePrefix} ${event.workspaceId}`
+                  : ''}
+                {event.taskId ? ` · ${t.competencyEngine.meta.taskPrefix} ${event.taskId}` : ''}
+                {event.reportId ? ` · ${t.competencyEngine.meta.reportPrefix} ${event.reportId}` : ''}
               </div>
             </article>
           ))}
