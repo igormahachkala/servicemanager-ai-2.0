@@ -1052,3 +1052,310 @@
   text-transform: uppercase;
   color: var(--mc-muted);
 }
+
+/* Discussion Engine V1 */
+.mcDiscussionPage {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.mcDiscussionHeader {
+  padding-bottom: 4px;
+}
+
+.mcDiscussionHeaderTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.mcDiscussionTitle {
+  margin: 0 0 6px;
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.mcDiscussionHeaderMeta {
+  font-size: 12px;
+}
+
+.mcDiscussionStatus {
+  display: inline-flex;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.mcDiscussionStatusOpen {
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  color: #22c55e;
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.mcDiscussionStatusClosed {
+  border: 1px solid var(--mc-border);
+  color: var(--mc-muted);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.mcDiscussionLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 960px) {
+  .mcDiscussionLayout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mcDiscussionMain {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.mcDiscussionMessageList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius);
+  background: rgba(255, 255, 255, 0.02);
+  min-height: 240px;
+  max-height: 520px;
+  overflow-y: auto;
+}
+
+.mcDiscussionMessage {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--mc-border);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.mcDiscussionMessageOwner {
+  border-color: rgba(59, 130, 246, 0.35);
+  background: rgba(59, 130, 246, 0.06);
+}
+
+.mcDiscussionMessageEmployee {
+  border-color: rgba(168, 85, 247, 0.3);
+  background: rgba(168, 85, 247, 0.05);
+}
+
+.mcDiscussionMessageSystem {
+  text-align: center;
+  border-style: dashed;
+  color: var(--mc-muted);
+  font-size: 12px;
+  background: transparent;
+}
+
+.mcDiscussionMessageHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.mcDiscussionMessageAuthor {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.mcDiscussionMessageTime {
+  font-size: 11px;
+  color: var(--mc-muted-2);
+  font-family: var(--mc-mono);
+}
+
+.mcDiscussionMessageBody {
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.mcDiscussionMessageMeta {
+  margin-right: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mc-muted);
+}
+
+.mcDiscussionComposer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.mcDiscussionComposerInput {
+  width: 100%;
+  resize: vertical;
+  min-height: 72px;
+}
+
+.mcDiscussionComposerActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mcDiscussionSidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mcDiscussionParticipants {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mcDiscussionParticipantRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--mc-border);
+}
+
+.mcDiscussionParticipantRow:last-child {
+  border-bottom: none;
+}
+
+.mcDiscussionParticipantName {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.mcDiscussionParticipantRole {
+  font-size: 11px;
+  color: var(--mc-muted);
+}
+
+.mcDiscussionSidebarPlaceholder {
+  padding: 4px 0;
+}
+
+.mcDiscussionSidebarPlaceholderTitle {
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.mcDiscussionSidebarPlaceholderDesc {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--mc-muted);
+  line-height: 1.45;
+}
+
+.mcDiscussionFutureBadge {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--mc-border);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mc-muted);
+}
+
+.mcDiscussionEmpty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 48px 24px;
+  border: 1px dashed var(--mc-border);
+  border-radius: var(--mc-radius);
+  text-align: center;
+}
+
+.mcDiscussionEmptyTitle {
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.mcDiscussionEmptyDesc {
+  margin: 0;
+  max-width: 420px;
+  font-size: 13px;
+  color: var(--mc-muted);
+  line-height: 1.5;
+}
+
+.mcDiscussionEmptyHint {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--mc-muted-2);
+  font-family: var(--mc-mono);
+}
+
+.mcDiscussionRosterGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.mcDiscussionRosterCard {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--mc-border);
+  border-radius: 8px;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.02);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.mcDiscussionRosterCard:has(input:checked) {
+  border-color: rgba(59, 130, 246, 0.5);
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.mcDiscussionRosterCard input {
+  margin-bottom: 4px;
+}
+
+.mcDiscussionRosterName {
+  font-weight: 650;
+  font-size: 14px;
+}
+
+.mcDiscussionRosterRole {
+  font-size: 12px;
+  color: var(--mc-muted);
+}
+
+.mcDiscussionRosterSource {
+  font-size: 10px;
+  color: var(--mc-muted-2);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}

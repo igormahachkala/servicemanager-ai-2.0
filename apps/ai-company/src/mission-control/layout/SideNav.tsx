@@ -11,6 +11,7 @@ export function SideNav() {
     { to: `${OPS}/organization`, page: 'organization' as const, icon: '⬡', end: false },
     { to: `${OPS}/employees`, page: 'employees' as const, icon: '◎', end: false },
     { to: `${OPS}/tasks`, page: 'tasks' as const, icon: '▤', end: false },
+    { to: `${OPS}/discussions`, page: 'discussions' as const, icon: '💬', end: false },
     { to: `${OPS}/feed`, page: 'missionFeed' as const, icon: '≡', end: false },
     { to: `${OPS}/tools`, page: 'toolsRegistry' as const, icon: '⚙', end: false },
   ] as const

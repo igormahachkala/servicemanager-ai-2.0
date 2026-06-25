@@ -8,6 +8,9 @@ import { EmployeeProfilePage } from './pages/EmployeeProfilePage'
 import { TasksPage } from './pages/TasksPage'
 import { MissionFeedPage } from './pages/MissionFeedPage'
 import { AiToolsRegistryPage } from './pages/AiToolsRegistryPage'
+import { DiscussionListPage } from './pages/DiscussionListPage'
+import { NewDiscussionPage } from './pages/NewDiscussionPage'
+import { DiscussionPage } from './pages/DiscussionPage'
 
 /** NOC panel routes under /ops — mock data only. */
 export function MissionControlRoutes() {
@@ -21,6 +24,9 @@ export function MissionControlRoutes() {
         <Route path="employees/:id" element={<EmployeeProfilePage />} />
         <Route path="tasks" element={<TasksPage />} />
         <Route path="feed" element={<MissionFeedPage />} />
+        <Route path="discussions" element={<DiscussionListPage />} />
+        <Route path="discussions/new" element={<NewDiscussionPage />} />
+        <Route path="discussions/:id" element={<DiscussionPage />} />
         <Route path="tools" element={<AiToolsRegistryPage />} />
         <Route path="*" element={<Navigate to="/ops" replace />} />
       </Route>

@@ -8,6 +8,7 @@ const NAV = [
   { to: '/ops/organization', key: 'organization' as const, end: false },
   { to: '/ops/employees', key: 'employees' as const, end: false },
   { to: '/ops/tasks', key: 'tasks' as const, end: false },
+  { to: '/ops/discussions', key: 'discussions' as const, end: false },
   { to: '/ops/feed', key: 'feed' as const, end: false },
   { to: '/ops/tools', key: 'tools' as const, end: false },
 ] as const
