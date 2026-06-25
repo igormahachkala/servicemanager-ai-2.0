@@ -1,4 +1,6 @@
+import { Link } from 'react-router-dom'
 import type { CompanyEvent } from '../../domain/events/eventStorage'
+import { getRunHistoryByRuntimeRunId } from '../../domain/run/runStorage'
 import { resolveEmployee } from '../../mission-control/data/conversation'
 import { getWorkspaceById } from '../../domain/workspaces/workspace'
 import { useI18n } from '../../i18n'
@@ -13,10 +15,19 @@ function formatEventTime(iso: string): string {
   })
 }
 
+function resolveRunLink(event: CompanyEvent): string | null {
+  if (event.sourceType !== 'run' && event.sourceType !== 'runtime') return null
+  const history = getRunHistoryByRuntimeRunId(event.sourceId)
+  if (history) return `/ops/runs/${history.id}`
+  if (event.sourceId.startsWith('run-hist-')) return `/ops/runs/${event.sourceId}`
+  return null
+}
+
 export function TimelineCard({ event }: { event: CompanyEvent }) {
   const { t } = useI18n()
   const employee = event.employeeId ? resolveEmployee(event.employeeId) : null
   const workspace = event.workspaceId ? getWorkspaceById(event.workspaceId) : null
+  const runLink = resolveRunLink(event)
   const message =
     typeof event.metadata.message === 'string'
       ? event.metadata.message
@@ -56,6 +67,11 @@ export function TimelineCard({ event }: { event: CompanyEvent }) {
             <span className="mcMono">
               {t.eventEngine.reportLabel}: {event.reportId}
             </span>
+          ) : null}
+          {runLink ? (
+            <Link to={runLink} className="mcBtn mcBtnSecondary mcBtnSmall">
+              {t.runEngine.openRun}
+            </Link>
           ) : null}
         </div>
         {Object.keys(event.metadata).length > 0 ? (

@@ -5224,3 +5224,404 @@
   color: var(--mc-muted);
   line-height: 1.5;
 }
+
+/* Run history engine */
+.mcRunStatsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.mcRunStatCard {
+  padding: 14px 16px;
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius);
+  background: var(--mc-surface);
+}
+
+.mcRunStatValue {
+  font-size: 22px;
+  font-weight: 700;
+  font-family: var(--mc-mono);
+}
+
+.mcRunStatLabel {
+  margin-top: 4px;
+  font-size: 11px;
+}
+
+.mcRunFilters {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.mcRunFilterField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mcRunCardGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 10px;
+}
+
+.mcRunCard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius);
+  background: var(--mc-surface);
+}
+
+.mcRunCardLink {
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.mcRunCardLink:hover {
+  border-color: rgba(59, 130, 246, 0.45);
+  background: rgba(59, 130, 246, 0.04);
+}
+
+.mcRunCardHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mcRunCardTitle {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+}
+
+.mcRunCardMeta,
+.mcRunCardStats,
+.mcRunCardFooter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.mcRunCardFooter {
+  justify-content: space-between;
+  margin-top: 4px;
+}
+
+.mcRunStatusBadge {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.mcRunStatusCompleted {
+  color: #22c55e;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  background: rgba(34, 197, 94, 0.08);
+}
+
+.mcRunStatusFailed {
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.08);
+}
+
+.mcRunStatusWaiting {
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.mcRunStatusRunning {
+  color: #60a5fa;
+  border: 1px solid rgba(96, 165, 250, 0.35);
+  background: rgba(96, 165, 250, 0.08);
+}
+
+.mcRunStatusCancelled {
+  color: var(--mc-muted);
+  border: 1px solid var(--mc-border);
+}
+
+.mcRunDetailHeader {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+  font-size: 12px;
+}
+
+.mcRunSteps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mcRunStep {
+  padding: 10px 12px;
+  border: 1px solid var(--mc-border);
+  border-radius: 8px;
+}
+
+.mcRunStepHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.mcRunStepOrder {
+  font-size: 11px;
+  color: var(--mc-muted);
+}
+
+.mcRunStepLabel {
+  flex: 1;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.mcRunStepStatus {
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.mcRunStepDetail {
+  margin-top: 6px;
+  font-size: 12px;
+}
+
+.mcRunStepDone { border-left: 3px solid #22c55e; }
+.mcRunStepActive { border-left: 3px solid #60a5fa; }
+.mcRunStepFailed { border-left: 3px solid #ef4444; }
+.mcRunStepSkipped { border-left: 3px solid var(--mc-border); opacity: 0.7; }
+.mcRunStepPending { border-left: 3px solid var(--mc-border); opacity: 0.85; }
+
+.mcRunMetricsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 10px;
+}
+
+.mcRunMetricCard {
+  padding: 12px;
+  border: 1px solid var(--mc-border);
+  border-radius: 8px;
+}
+
+.mcRunMetricLabel {
+  font-size: 11px;
+  color: var(--mc-muted);
+  margin-bottom: 4px;
+}
+
+.mcRunMetricValue {
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.mcRunArtifactGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.mcRunArtifactCard {
+  padding: 12px;
+  border: 1px dashed var(--mc-border);
+  border-radius: 8px;
+}
+
+.mcRunArtifactHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.mcRunArtifactKind {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--mc-muted);
+}
+
+.mcRunArtifactPlaceholder {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: #f59e0b;
+}
+
+.mcRunArtifactLabel {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.mcRunWarningList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mcRunWarningRow {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--mc-border);
+}
+
+.mcRunWarningError { border-color: rgba(239, 68, 68, 0.35); background: rgba(239, 68, 68, 0.06); }
+.mcRunWarningWarn { border-color: rgba(245, 158, 11, 0.35); background: rgba(245, 158, 11, 0.06); }
+.mcRunWarningInfo { border-color: rgba(96, 165, 250, 0.25); background: rgba(96, 165, 250, 0.04); }
+
+.mcRunWarningCode {
+  font-size: 11px;
+  margin-right: 8px;
+}
+
+.mcRunWarningSeverity {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--mc-muted);
+}
+
+.mcRunWarningMessage {
+  margin: 6px 0 0;
+  font-size: 13px;
+}
+
+.mcRunTimeline {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mcRunTimelineItem {
+  display: grid;
+  grid-template-columns: 12px 1fr;
+  gap: 12px;
+}
+
+.mcRunTimelineDot {
+  width: 10px;
+  height: 10px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background: #60a5fa;
+  border: 2px solid rgba(96, 165, 250, 0.35);
+}
+
+.mcRunTimelineDot[data-kind='warning'] { background: #f59e0b; border-color: rgba(245, 158, 11, 0.35); }
+.mcRunTimelineDot[data-kind='event'] { background: #22c55e; border-color: rgba(34, 197, 94, 0.35); }
+
+.mcRunTimelineHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mcRunTimelineKind {
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.mcRunTimelineTime {
+  font-size: 11px;
+}
+
+.mcRunTimelineLabel {
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+.mcRunTimelineDetail {
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.mcRunContextGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.mcRunContextCard {
+  padding: 12px;
+  border: 1px solid var(--mc-border);
+  border-radius: 8px;
+}
+
+.mcRunContextHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.mcRunContextLabel {
+  font-weight: 650;
+  font-size: 13px;
+}
+
+.mcRunContextLoadedYes { color: #22c55e; font-size: 11px; }
+.mcRunContextLoadedNo { color: var(--mc-muted); font-size: 11px; }
+
+.mcRunContextSummary {
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.mcRunContextCount {
+  margin-top: 6px;
+  font-size: 11px;
+}
+
+.mcRunEmpty,
+.mcRunEmptyInline {
+  padding: 24px;
+  text-align: center;
+}
+
+.mcRunEmpty {
+  border: 1px dashed var(--mc-border);
+  border-radius: var(--mc-radius);
+}
+
+.mcRunEmptyTitle {
+  font-size: 16px;
+  font-weight: 650;
+  margin-bottom: 8px;
+}
+
+.mcRunEmptyDesc {
+  margin: 0;
+  font-size: 13px;
+  color: var(--mc-muted);
+}
+
+.mcRunReportLinkRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}

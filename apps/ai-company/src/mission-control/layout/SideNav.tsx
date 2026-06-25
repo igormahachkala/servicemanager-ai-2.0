@@ -19,6 +19,7 @@ export function SideNav() {
     { to: `${OPS}/feed`, page: 'missionFeed' as const, icon: '≡', end: false },
     { to: `${OPS}/approvals`, page: 'approvals' as const, icon: '✓', end: false },
     { to: `${OPS}/reports`, page: 'reports' as const, icon: '📋', end: false },
+    { to: `${OPS}/runs`, page: 'runs' as const, icon: '▶', end: false },
     { to: `${OPS}/audit`, page: 'audit' as const, icon: '🔍', end: false },
     { to: `${OPS}/runtime`, page: 'runtimeSettings' as const, icon: '⎈', end: false },
     { to: `${OPS}/tools`, page: 'toolsRegistry' as const, icon: '⚙', end: false },

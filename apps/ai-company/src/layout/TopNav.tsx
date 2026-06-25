@@ -17,6 +17,7 @@ const NAV = [
   { to: '/ops/feed', key: 'feed' as const, end: false },
   { to: '/ops/approvals', key: 'approvals' as const, end: false },
   { to: '/ops/reports', key: 'reports' as const, end: false },
+  { to: '/ops/runs', key: 'runs' as const, end: false },
   { to: '/ops/runtime', key: 'runtime' as const, end: false },
   { to: '/ops/audit', key: 'audit' as const, end: false },
   { to: '/ops/tools', key: 'tools' as const, end: false },

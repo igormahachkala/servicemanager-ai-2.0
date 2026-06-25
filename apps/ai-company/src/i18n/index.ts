@@ -92,6 +92,8 @@ export function pageTitle(pathname: string, t: Messages): string {
   if (pathname.startsWith('/ops/tools/')) return t.toolRegistry.detailsTitle
   if (pathname === '/ops/reports') return t.pages.reports
   if (pathname.startsWith('/ops/reports/')) return t.pages.reports
+  if (pathname === '/ops/runs') return t.pages.runs
+  if (pathname.startsWith('/ops/runs/')) return t.pages.runs
   if (pathname === '/ops/audit') return t.pages.audit
   if (pathname === '/ops/runtime') return t.pages.runtimeSettings
   if (pathname.startsWith('/ops/runtime/runs/')) return t.runtimeOrchestrator.runPageTitle

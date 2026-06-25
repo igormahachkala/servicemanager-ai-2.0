@@ -91,7 +91,7 @@ export function EmployeeProfilePage() {
         {section === 'knowledge' ? <EmployeeAssignedKnowledge employeeId={employee.id} /> : null}
         {section === 'relationships' ? <EmployeeRelationships employeeId={employee.id} /> : null}
         {section === 'assignments' ? <EmployeeAssignments employeeId={employee.id} /> : null}
-        {section === 'activity' ? <EmployeeActivity /> : null}
+        {section === 'activity' ? <EmployeeActivity employeeId={employee.id} /> : null}
         {section === 'runtime' ? <EmployeeRuntime employee={employee} /> : null}
       </div>
     </div>

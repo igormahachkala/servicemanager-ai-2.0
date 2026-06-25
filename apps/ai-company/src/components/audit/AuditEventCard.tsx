@@ -1,9 +1,21 @@
+import { Link } from 'react-router-dom'
 import type { AuditEvent } from '../../domain/audit/auditEvent'
+import { getRunHistoryById, getRunHistoryByRuntimeRunId } from '../../domain/run/runStorage'
 import { resolveEmployee } from '../../mission-control/data/conversation'
 import { useI18n } from '../../i18n'
 
+function resolveRunLink(event: AuditEvent): string | null {
+  if (event.targetType !== 'run') return null
+  const byId = getRunHistoryById(event.targetId)
+  if (byId) return `/ops/runs/${byId.id}`
+  const byRuntime = getRunHistoryByRuntimeRunId(event.targetId)
+  if (byRuntime) return `/ops/runs/${byRuntime.id}`
+  return null
+}
+
 export function AuditEventCard({ event }: { event: AuditEvent }) {
   const { t } = useI18n()
+  const runLink = resolveRunLink(event)
 
   const actorLabel =
     event.actorType === 'owner'
@@ -27,6 +39,11 @@ export function AuditEventCard({ event }: { event: AuditEvent }) {
         <span className="mcAuditTarget mcMono">
           {t.audit.targetTypes[event.targetType]} · {event.targetId}
         </span>
+        {runLink ? (
+          <Link to={runLink} className="mcBtn mcBtnSecondary mcBtnSmall">
+            {t.runEngine.openRun}
+          </Link>
+        ) : null}
         {Object.keys(event.metadata).length > 0 ? (
           <pre className="mcAuditMetadata">{JSON.stringify(event.metadata, null, 2)}</pre>
         ) : null}

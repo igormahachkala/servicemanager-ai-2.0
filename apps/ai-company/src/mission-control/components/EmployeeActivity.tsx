@@ -1,18 +1,15 @@
 import { Panel } from './ui'
 import { ProfileEmptyBlock } from './ProfileEmptyBlock'
+import { EmployeeRunHistory } from '../../components/run/EmployeeRunHistory'
 import { useI18n } from '../../i18n'
 
-export function EmployeeActivity() {
+export function EmployeeActivity({ employeeId }: { employeeId?: string }) {
   const { t } = useI18n()
 
-  const blocks = [
+  const futureBlocks = [
     {
       title: t.employeeProfile.future.activityFeed,
       description: t.employeeProfile.future.activityFeedDesc,
-    },
-    {
-      title: t.employeeProfile.future.runHistory,
-      description: t.employeeProfile.future.runHistoryDesc,
     },
     {
       title: t.employeeProfile.future.conversation,
@@ -26,9 +23,11 @@ export function EmployeeActivity() {
 
   return (
     <div className="mcStack">
+      {employeeId ? <EmployeeRunHistory employeeId={employeeId} /> : null}
+
       <Panel title={t.employeeProfile.sections.activity}>
         <div className="mcProfilePanelBody mcProfileFutureGrid">
-          {blocks.map((block) => (
+          {futureBlocks.map((block) => (
             <ProfileEmptyBlock
               key={block.title}
               badge={t.employeeProfile.futureBadge}

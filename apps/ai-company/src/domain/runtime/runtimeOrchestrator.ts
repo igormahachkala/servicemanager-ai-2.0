@@ -25,6 +25,7 @@ import {
   type TaskType,
 } from './runtimeStorage'
 import type { RuntimePipelineStep, RuntimeRunState } from './runtimeState'
+import { mapRuntimeRunToRunHistory, recordRunHistory } from '../run/runStorage'
 
 const STORAGE_KEY = 'ai-company-runtime-runs'
 
@@ -240,6 +241,7 @@ export function getRuntimeRunById(id: string): RuntimeRun | null {
 
 function upsertRuntimeRun(run: RuntimeRun): RuntimeRun {
   saveRuntimeRuns([run, ...loadRuntimeRuns().filter((item) => item.id !== run.id)])
+  recordRunHistory(mapRuntimeRunToRunHistory(run))
   return run
 }
 
