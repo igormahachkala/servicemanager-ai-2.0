@@ -40,6 +40,8 @@ import { RunDetailsPage } from '../pages/RunDetailsPage'
 import { ChatsPage } from '../pages/ChatsPage'
 import { ChatPage } from '../pages/ChatPage'
 import { NewChatPage } from '../pages/NewChatPage'
+import { EmployeeCompetenciesPage } from '../pages/EmployeeCompetenciesPage'
+import { EmployeeLearningPage } from '../pages/EmployeeLearningPage'
 
 function LegacyConversationRedirect() {
   const { id } = useParams<{ id: string }>()
@@ -69,6 +71,8 @@ export function MissionControlRoutes() {
         <Route path="employees/new" element={<NewEmployeePage />} />
         <Route path="employees/:id/conversation" element={<LegacyConversationRedirect />} />
         <Route path="employees/:id/memory" element={<EmployeeMemoryPage />} />
+        <Route path="employees/:id/competencies" element={<EmployeeCompetenciesPage />} />
+        <Route path="employees/:id/learning" element={<EmployeeLearningPage />} />
         <Route path="employees/:id/runtime" element={<EmployeeRuntimePage />} />
         <Route path="employees/:id" element={<EmployeeProfilePage />} />
         <Route path="tasks" element={<TasksPage />} />

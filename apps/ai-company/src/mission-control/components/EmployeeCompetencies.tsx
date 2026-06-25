@@ -47,8 +47,14 @@ export function EmployeeCompetencies({ employee }: { employee: CustomEmployee })
 
       <div className="mcFormActions">
         <Link
-          to={`/ops/employees/${employee.id}/competencies`}
+          to={`/ops/employees/${employee.id}/learning`}
           className="mcBtn mcBtnPrimary mcBtnSmall"
+        >
+          {t.learningEngine.openLearning}
+        </Link>
+        <Link
+          to={`/ops/employees/${employee.id}/competencies`}
+          className="mcBtn mcBtnSecondary mcBtnSmall"
         >
           {t.competencyEngine.openCompetencies}
         </Link>

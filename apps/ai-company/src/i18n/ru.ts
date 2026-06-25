@@ -1798,6 +1798,70 @@ export const ru: Messages = {
       context: "Контекст"
     }
   },
+  executionEngine: {
+    pageDescription: "Очередь выполнения задач сотрудников — связывает delivery tasks, runtime runs и lifecycle statuses в одном orchestration layer.",
+    queueTitle: "Очередь выполнения",
+    executionCount: "выполнения",
+    runningNowTitle: "Сейчас выполняется",
+    runningNowEmpty: "Нет активных executions в этом scope.",
+    nextTasksTitle: "Следующие задачи",
+    nextTasksEmpty: "Очередь пуста — поставьте delivery task в очередь.",
+    inspectorTitle: "Execution Inspector",
+    inspectorEmptyTitle: "Выберите execution",
+    inspectorEmptyDescription: "Выберите карточку из очереди, чтобы inspect lifecycle, runtime link и actions.",
+    timelineTitle: "Lifecycle выполнения",
+    pendingStep: "Ожидание",
+    priority: "Приоритет",
+    queuePosition: "Позиция в очереди",
+    estimatedDuration: "Оценка длительности",
+    minutesShort: " мин",
+    taskId: "Task ID",
+    startedAt: "Начало",
+    finishedAt: "Окончание",
+    linkedRun: "Связанный запуск",
+    noRuntimeRun: "Runtime run не связан",
+    noProject: "Без проекта",
+    openPhotoLab: "AI Photo Lab",
+    principleNote: "Execution принадлежит очереди сотрудника — задачи становятся активным lifecycle, а не пассивными записями.",
+    localOnly: "Хранится в localStorage (ai-company-executions) — future API: enqueueTask, cancel, retry, complete.",
+    emptyQueueTitle: "Нет executions в этом scope",
+    emptyQueueDescription: "Смените scope или поставьте задачи из delivery board проекта.",
+    scope: {
+      label: "Scope очереди",
+      company: "Company queue",
+      employee: "Employee queue",
+      project: "Project queue",
+      workspace: "Workspace queue"
+    },
+    stats: {
+      currentQueue: "Текущая очередь",
+      nextTasks: "Следующие задачи",
+      runningNow: "Сейчас выполняется",
+      completedToday: "Завершено сегодня"
+    },
+    priorities: {
+      low: "Низкий",
+      medium: "Средний",
+      high: "Высокий",
+      critical: "Критический"
+    },
+    statuses: {
+      queued: "В очереди",
+      preparing: "Подготовка",
+      waiting_approval: "Ожидает согласования",
+      running: "Выполняется",
+      review: "Проверка",
+      completed: "Завершено",
+      failed: "Ошибка",
+      cancelled: "Отменено"
+    },
+    actions: {
+      enqueue: "Поставить в очередь",
+      cancel: "Отмена",
+      retry: "Повторить",
+      complete: "Завершить"
+    }
+  },
   runtimeEngine: {
     pageDescription: "Model-independent Runtime Profiles — сменяемые LLM engines с routing, privacy и cost policies.",
     employeePageTitle: "{name} — Runtime Profile",
@@ -2180,6 +2244,96 @@ export const ru: Messages = {
       runtimeMatching: "Runtime будет использовать trustScore и domain scores при выборе task assignees."
     }
   },
+  learningEngine: {
+    title: "Learning",
+    pageTitle: "{name} — Learning",
+    pageDescription: "Continuous competency growth — goals, sessions, recommendations, and skill progression over time.",
+    backToProfile: "Назад к профилю",
+    openLearning: "Open Learning",
+    openCompetencies: "Открыть Competencies",
+    teamLearning: "Team Learning",
+    localOnly: "Stored in localStorage — learning progress syncs with competency experience events.",
+    notFoundTitle: "Employee не найден",
+    notFoundDescription: "Cannot load learning profile — employee does not exist in roster.",
+    itemCount: "элементов",
+    dashboard: {
+      title: "{name} — Learning Dashboard",
+      lead: "Employees evolve through study, runtime work, and guided recommendations — not static skill lists.",
+      notInModel: "Learning state lives in the learning engine and feeds back into competencies and reputation."
+    },
+    preview: {
+      title: "Learning Preview",
+      lead: "Active goals and automatic suggestions for continuous improvement."
+    },
+    sections: {
+      recommendations: "Suggested Learning",
+      goals: "Learning Goals",
+      progress: "Skill Progress",
+      growthChart: "Skill Growth",
+      timeline: "Learning Timeline"
+    },
+    stats: {
+      experience: "Experience points",
+      activeGoals: "Active goals",
+      completedSessions: "Completed sessions",
+      averageProgress: "Avg skill progress",
+      suggestions: "Suggestions",
+      certificates: "Сертификаты",
+      totalSessions: "Total sessions",
+      skillsTracked: "Skills tracked"
+    },
+    fields: {
+      current: "Current",
+      target: "Цель",
+      due: "Due"
+    },
+    priority: {
+      low: "Низкий",
+      medium: "Средний",
+      high: "Высокий"
+    },
+    recommendationKinds: {
+      project: "Project",
+      knowledge: "База знаний",
+      report: "Отчёт",
+      runtime: "Runtime",
+      certification: "Сертификация",
+      study: "Study"
+    },
+    sessionTypes: {
+      study: "Study",
+      practice: "Practice",
+      review: "Проверка",
+      certification: "Сертификация",
+      runtime: "Runtime"
+    },
+    sessionStatus: {
+      planned: "Планируемые",
+      in_progress: "В процессе",
+      completed: "Завершено",
+      skipped: "Пропущено"
+    },
+    actions: {
+      open: "Открыть",
+      startLearning: "Start learning",
+      dismiss: "Dismiss",
+      startSession: "Start session",
+      completeSession: "Complete session",
+      viewReport: "View report",
+      refreshSuggestions: "Refresh suggestions"
+    },
+    meta: {
+      project: "Project"
+    },
+    empty: {
+      recommendations: "No learning suggestions — complete a session or refresh suggestions.",
+      goals: "No active learning goals.",
+      progress: "No progress data yet.",
+      skills: "No skill progress tracked yet.",
+      growthChart: "Skill growth history will appear after learning sessions.",
+      sessions: "No learning sessions recorded yet."
+    }
+  },
   employeeProfile: {
     title: "Профиль сотрудника",
     backToEmployees: "Назад к сотрудникам",
@@ -2209,7 +2363,8 @@ export const ru: Messages = {
       assignments: "Назначения",
       activity: "Активность",
       runtime: "Runtime",
-      presence: "Presence"
+      presence: "Presence",
+      learning: "Learning"
     },
     assignments: {
       emptyTitle: "Нет workspace assignments",

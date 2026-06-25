@@ -96,6 +96,9 @@ export function EmployeeRuntimePage() {
         <Link to={`/ops/employees/${id}`} className="mcBtn mcBtnSecondary">
           {t.employeeProfile.title}
         </Link>
+        <Link to={`/ops/employees/${id}/learning`} className="mcBtn mcBtnSecondary">
+          {t.learningEngine.openLearning}
+        </Link>
         <button type="button" className="mcBtn mcBtnPrimary" onClick={handleStartRun}>
           {t.runtimeOrchestrator.startRun}
         </button>

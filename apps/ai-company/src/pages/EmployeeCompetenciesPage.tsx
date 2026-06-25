@@ -69,6 +69,11 @@ export function EmployeeCompetenciesPage() {
           title={t.competencyEngine.pageTitle.replace('{name}', employee.codename)}
           description={t.competencyEngine.pageDescription}
         />
+        <div className="mcPageHeaderRow" style={{ marginTop: 8 }}>
+          <Link to={`/ops/employees/${employeeId}/learning`} className="mcBtn mcBtnSecondary mcBtnSmall">
+            {t.learningEngine.openLearning}
+          </Link>
+        </div>
       </div>
 
       <CompetencyOverview stats={stats} reputation={reputation} />

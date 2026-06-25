@@ -1,5 +1,6 @@
 import { emitEvent } from '../events/eventStorage'
 import { getEmployeeCompetencySnapshot } from '../competencies/competencyStorage'
+import { recordRuntimeLearning } from '../learning/learningStorage'
 import { getChatById } from '../chats/chatStorage'
 import { ensureSeedMemories, getMemoriesByEmployee } from '../memory/memory'
 import { queryKnowledgeForRuntime } from '../knowledge/knowledgeStorage'
@@ -664,6 +665,7 @@ export function orchestrateRuntimeRun(request: RuntimeRunRequest): RuntimeRun {
       metadata: { mock: true, status: 'completed' },
       severity: 'success',
     })
+    recordRuntimeLearning(request.employeeId, runId, report.id)
 
     pipeline = updatePipelineStep(pipeline, 'create_report', 'done', report.id)
     pipeline = updatePipelineStep(pipeline, 'complete', 'done', 'Mock execution complete')
@@ -758,6 +760,7 @@ export function completeRuntimeRunAfterApproval(runId: string): RuntimeRun | nul
     metadata: { mock: true, status: 'completed', afterApproval: true },
     severity: 'success',
   })
+  recordRuntimeLearning(existing.employeeId, existing.id, report.id)
 
   pipeline = updatePipelineStep(pipeline, 'create_report', 'done', report.id)
   pipeline = updatePipelineStep(pipeline, 'complete', 'done', 'Mock execution complete')

@@ -4478,6 +4478,284 @@
   font-family: var(--mc-mono);
 }
 
+.mcLearningPage {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.mcLearningLead {
+  margin: 0 0 12px;
+  font-size: 13px;
+  color: var(--mc-muted);
+  line-height: 1.5;
+}
+
+.mcLearningNote {
+  margin: 12px 0 0;
+  font-size: 11px;
+  color: var(--mc-muted-2);
+}
+
+.mcLearningOverviewGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.mcLearningMetric {
+  padding: 10px 12px;
+  border: 1px solid var(--mc-border);
+  border-radius: 8px;
+  background: var(--mc-surface-2);
+}
+
+.mcLearningMetricLabel {
+  font-size: 11px;
+  color: var(--mc-muted);
+  margin-bottom: 4px;
+}
+
+.mcLearningMetricValue {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.mcLearningEmpty {
+  padding: 16px;
+  text-align: center;
+  color: var(--mc-muted);
+  font-size: 13px;
+}
+
+.mcLearningRecList,
+.mcLearningGoalList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mcLearningRecCard,
+.mcLearningGoalCard {
+  padding: 12px;
+  border: 1px solid var(--mc-border);
+  border-radius: 8px;
+  background: var(--mc-surface-2);
+}
+
+.mcLearningRecHead,
+.mcLearningGoalHead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.mcLearningPriority {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.mcLearningPriorityhigh {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+.mcLearningPrioritymedium {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+}
+
+.mcLearningPrioritylow {
+  background: rgba(59, 130, 246, 0.15);
+  color: #3b82f6;
+}
+
+.mcLearningRecKind,
+.mcLearningRecSkill,
+.mcLearningGoalSkill {
+  font-size: 11px;
+  color: var(--mc-muted);
+}
+
+.mcLearningRecTitle,
+.mcLearningGoalSkill {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.mcLearningRecSummary,
+.mcLearningGoalMeta {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--mc-muted);
+  line-height: 1.45;
+}
+
+.mcLearningRecActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.mcLearningGoalBar {
+  position: relative;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--mc-border);
+  overflow: visible;
+  margin: 8px 0;
+}
+
+.mcLearningGoalFill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--mc-accent), #6366f1);
+}
+
+.mcLearningGoalTargetMark {
+  position: absolute;
+  top: -3px;
+  width: 2px;
+  height: 14px;
+  background: #22c55e;
+  transform: translateX(-1px);
+}
+
+.mcLearningGoalTarget {
+  margin-left: auto;
+  font-size: 12px;
+}
+
+.mcLearningProgressStats {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.mcLearningProgressStat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.mcLearningProgressLabel {
+  font-size: 11px;
+  color: var(--mc-muted);
+}
+
+.mcLearningProgressValue {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.mcLearningSkillList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mcLearningSkillRow {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 12px;
+  align-items: center;
+}
+
+.mcLearningSkillName {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.mcLearningChart {
+  display: grid;
+  grid-template-columns: 40px 1fr;
+  gap: 8px;
+  min-height: 160px;
+  margin: 12px 0;
+}
+
+.mcLearningChartAxisY {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--mc-muted);
+  font-family: var(--mc-mono);
+}
+
+.mcLearningChartPlot {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  border-left: 1px solid var(--mc-border);
+  border-bottom: 1px solid var(--mc-border);
+  padding: 0 4px 4px;
+  min-height: 140px;
+}
+
+.mcLearningChartBarWrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+  height: 100%;
+}
+
+.mcLearningChartBar {
+  width: 100%;
+  max-width: 28px;
+  border-radius: 4px 4px 0 0;
+  background: linear-gradient(180deg, var(--mc-accent), #6366f1);
+}
+
+.mcLearningChartLabel {
+  font-size: 9px;
+  color: var(--mc-muted);
+  margin-top: 4px;
+  font-family: var(--mc-mono);
+}
+
+.mcLearningChartLegend {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 11px;
+  color: var(--mc-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mcLearningChartSkill {
+  margin: 0 0 4px;
+  font-size: 12px;
+}
+
+.mcLearningInlineStats {
+  margin: 0 0 12px;
+  font-size: 12px;
+}
+
+@media (max-width: 720px) {
+  .mcLearningOverviewGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mcLearningSkillRow {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Approval engine */
 .mcApprovalStatsGrid {
   display: grid;

@@ -24,6 +24,9 @@ export function ReportsPage() {
         <Link to="/ops/notifications?type=report" className="mcBtn mcBtnSecondary">
           {t.notificationEngine.reportInbox}
         </Link>
+        <Link to="/ops/employees/ag-max/learning" className="mcBtn mcBtnSecondary">
+          {t.learningEngine.teamLearning}
+        </Link>
         <Link to="/ops/audit" className="mcBtn mcBtnSecondary">
           {t.pages.audit}
         </Link>

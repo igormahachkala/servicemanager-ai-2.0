@@ -13,6 +13,7 @@ import { EmployeeActivity } from '../components/EmployeeActivity'
 import { CurrentWorkPanel, WorkdayTimeline } from '../../components/presence'
 import { usePresence } from '../../hooks/usePresence'
 import { EmployeeRuntime } from '../../components/EmployeeRuntime'
+import { EmployeeLearningPreview } from '../../components/learning/EmployeeLearningPreview'
 import { useCustomEmployees } from '../hooks/useCustomEmployees'
 import { useI18n } from '../../i18n'
 
@@ -27,6 +28,7 @@ type ProfileSection =
   | 'activity'
   | 'runtime'
   | 'presence'
+  | 'learning'
 
 export function EmployeeProfilePage() {
   const { id } = useParams<{ id: string }>()
@@ -51,6 +53,7 @@ export function EmployeeProfilePage() {
     'activity',
     'runtime',
     'presence',
+    'learning',
   ]
 
   if (!employee) {
@@ -109,6 +112,7 @@ export function EmployeeProfilePage() {
             </Panel>
           </div>
         ) : null}
+        {section === 'learning' ? <EmployeeLearningPreview employee={employee} /> : null}
       </div>
     </div>
   )
