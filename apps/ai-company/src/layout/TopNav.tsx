@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom'
+import { WorkspaceSelector } from '../components/workspaces/WorkspaceSelector'
 import { useI18n } from '../i18n'
 import { LanguageToggle } from './LanguageToggle'
 
@@ -40,6 +41,7 @@ export function TopNav() {
         ))}
       </nav>
 
+      <WorkspaceSelector />
       <div className="acNavSpacer" />
       <LanguageToggle />
       <span className="acEnvPill">{t.brand.env}</span>

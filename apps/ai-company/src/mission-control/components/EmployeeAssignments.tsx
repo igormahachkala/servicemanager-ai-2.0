@@ -2,8 +2,8 @@ import { Link } from 'react-router-dom'
 import { Panel } from './ui'
 import { ProfileEmptyBlock } from './ProfileEmptyBlock'
 import { resolveRosterEntry } from '../data/discussion'
-import { getWorkspaceById } from '../data/workspace'
-import { useAssignments } from '../hooks/useAssignments'
+import { getWorkspaceById } from '../../domain/workspaces/workspace'
+import { useAssignments } from '../../hooks/useAssignments'
 import { useI18n } from '../../i18n'
 
 export function EmployeeAssignments(props: { employeeId: string }) {

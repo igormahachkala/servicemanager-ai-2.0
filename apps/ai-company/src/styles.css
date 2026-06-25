@@ -144,3 +144,116 @@ textarea {
   color: #fafafa;
   background: rgba(139, 124, 255, 0.18);
 }
+
+.acWorkspaceSelector {
+  position: relative;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+.acWorkspaceSelectorBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 220px;
+  padding: 4px 8px;
+  border: 1px solid #27272a;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  color: #fafafa;
+  cursor: pointer;
+}
+
+.acWorkspaceSelectorBtn:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.acWorkspaceSelectorLabel {
+  font-size: 10px;
+  color: #71717a;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.acWorkspaceSelectorValue {
+  font-size: 12px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 120px;
+}
+
+.acWorkspaceSelectorChevron {
+  font-size: 10px;
+  color: #71717a;
+}
+
+.acWorkspaceSelectorMenu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 50;
+  min-width: 240px;
+  max-height: 320px;
+  overflow: auto;
+  border: 1px solid #27272a;
+  border-radius: 10px;
+  background: #0c0d10;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
+}
+
+.acWorkspaceSelectorEmpty {
+  padding: 12px 14px;
+  font-size: 12px;
+  color: #71717a;
+}
+
+.acWorkspaceSelectorItem {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 10px 14px;
+  border: none;
+  border-bottom: 1px solid #1f2023;
+  background: transparent;
+  color: #fafafa;
+  text-align: left;
+  cursor: pointer;
+}
+
+.acWorkspaceSelectorItem:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.acWorkspaceSelectorItemActive {
+  background: rgba(139, 124, 255, 0.12);
+}
+
+.acWorkspaceSelectorItemName {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.acWorkspaceSelectorItemMeta {
+  font-size: 10px;
+}
+
+.acWorkspaceSelectorFooter {
+  display: flex;
+  gap: 12px;
+  padding: 10px 14px;
+  border-top: 1px solid #27272a;
+}
+
+.acWorkspaceSelectorLink {
+  font-size: 11px;
+  color: #a1a1aa;
+  text-decoration: none;
+}
+
+.acWorkspaceSelectorLink:hover {
+  color: #fafafa;
+}
