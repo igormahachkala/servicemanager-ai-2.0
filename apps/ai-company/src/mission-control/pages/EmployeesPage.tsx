@@ -61,6 +61,7 @@ function CustomEmployeeDetailTable({ rows }: { rows: CustomEmployee[] }) {
           <th>{t.employeeBuilder.sections.tools}</th>
           <th>{t.employeeBuilder.sections.permissions}</th>
           <th>{t.employeeBuilder.sections.restrictions}</th>
+          <th>{t.employees.actions}</th>
         </tr>
       </thead>
       <tbody>
@@ -96,6 +97,11 @@ function CustomEmployeeDetailTable({ rows }: { rows: CustomEmployee[] }) {
                 )}
                 emptyLabel={t.common.empty}
               />
+            </td>
+            <td>
+              <Link to={`/ops/employees/${employee.id}`} className="mcBtn mcBtnSecondary mcBtnSmall">
+                {t.employees.openProfile}
+              </Link>
             </td>
           </tr>
         ))}
@@ -168,17 +174,27 @@ function AgentTable({
             </td>
             {showActions ? (
               <td>
-                {customIds?.has(a.id) ? (
-                  <button
-                    type="button"
-                    className="mcBtn mcBtnSecondary mcBtnSmall"
-                    onClick={() => onDuplicate?.(a.id)}
-                  >
-                    {t.employees.duplicate}
-                  </button>
-                ) : (
-                  <span className="mcMuted">{t.common.empty}</span>
-                )}
+                <div className="mcRowFlex">
+                  {customIds?.has(a.id) ? (
+                    <>
+                      <Link
+                        to={`/ops/employees/${a.id}`}
+                        className="mcBtn mcBtnSecondary mcBtnSmall"
+                      >
+                        {t.employees.openProfile}
+                      </Link>
+                      <button
+                        type="button"
+                        className="mcBtn mcBtnSecondary mcBtnSmall"
+                        onClick={() => onDuplicate?.(a.id)}
+                      >
+                        {t.employees.duplicate}
+                      </button>
+                    </>
+                  ) : (
+                    <span className="mcMuted">{t.common.empty}</span>
+                  )}
+                </div>
               </td>
             ) : null}
           </tr>

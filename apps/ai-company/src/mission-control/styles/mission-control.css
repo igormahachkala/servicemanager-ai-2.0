@@ -775,3 +775,280 @@
   color: var(--mc-text);
   white-space: nowrap;
 }
+
+.mcProfilePage {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.mcProfileHeader {
+  background: var(--mc-surface);
+  border: 1px solid var(--mc-border);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.mcProfileHeaderTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.mcProfileBack {
+  color: var(--mc-muted);
+  text-decoration: none;
+  font-size: 13px;
+}
+
+.mcProfileBack:hover {
+  color: var(--mc-text);
+}
+
+.mcProfileHeaderMain {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.mcProfileAvatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(139, 92, 246, 0.2));
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mc-mono);
+  font-weight: 700;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.mcProfileHeaderBody {
+  flex: 1;
+  min-width: 0;
+}
+
+.mcProfileHeaderTitleRow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.mcProfileTitle {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+}
+
+.mcProfileCodename {
+  font-size: 12px;
+  color: var(--mc-muted);
+}
+
+.mcProfileStatusBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--mc-border);
+  background: var(--mc-surface-2);
+  font-size: 11px;
+}
+
+.mcProfileSubtitle {
+  margin-top: 4px;
+  color: var(--mc-muted);
+  font-size: 14px;
+}
+
+.mcProfileMetaRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.mcProfileNav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.mcProfileNavItem {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--mc-border);
+  background: transparent;
+  color: var(--mc-muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.mcProfileNavItem:hover {
+  color: var(--mc-text);
+  border-color: var(--mc-muted-2);
+}
+
+.mcProfileNavItemActive {
+  border-color: var(--mc-accent);
+  color: var(--mc-text);
+  background: var(--mc-accent-dim);
+}
+
+.mcProfileContent {
+  min-width: 0;
+}
+
+.mcProfilePanelBody {
+  padding: 16px;
+}
+
+.mcProfileGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 900px) {
+  .mcProfileGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mcProfileFieldGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+@media (max-width: 900px) {
+  .mcProfileFieldGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mcProfileFieldLabel {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--mc-muted);
+  margin-bottom: 6px;
+}
+
+.mcProfileFieldValue {
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.mcProfileCodeBlock {
+  margin: 0;
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--mc-border-subtle);
+  background: var(--mc-bg);
+  font-family: var(--mc-mono);
+  font-size: 12px;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.mcProfileSkillGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+@media (max-width: 900px) {
+  .mcProfileSkillGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.mcProfileSkillCard {
+  padding: 12px;
+  border: 1px solid var(--mc-border-subtle);
+  border-radius: 8px;
+  background: var(--mc-surface-2);
+}
+
+.mcProfileSkillName {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.mcProfilePermChip {
+  font-size: 12px;
+  color: var(--mc-muted);
+}
+
+.mcProfileFutureGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+@media (max-width: 900px) {
+  .mcProfileFutureGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.mcProfileEmpty {
+  padding: 24px;
+  border: 1px dashed var(--mc-border);
+  border-radius: 8px;
+  background: var(--mc-surface-2);
+  text-align: center;
+}
+
+.mcProfileEmptyInline {
+  padding: 16px;
+}
+
+.mcProfileEmptyPage {
+  max-width: 480px;
+}
+
+.mcProfileEmptyTitle {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.mcProfileEmptyDesc {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--mc-muted);
+  line-height: 1.5;
+}
+
+.mcProfileEmptyHint {
+  display: inline-block;
+  font-size: 11px;
+  color: var(--mc-muted-2);
+  font-family: var(--mc-mono);
+}
+
+.mcProfileFutureBadge {
+  display: inline-flex;
+  margin-bottom: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--mc-border);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--mc-muted);
+}

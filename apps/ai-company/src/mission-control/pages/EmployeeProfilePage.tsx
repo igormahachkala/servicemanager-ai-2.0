@@ -1,0 +1,91 @@
+import { useMemo, useState } from 'react'
+import { Link, useParams } from 'react-router-dom'
+import { PageHeader } from '../components/ui'
+import { EmployeeHeader } from '../components/EmployeeHeader'
+import { EmployeeOverview } from '../components/EmployeeOverview'
+import { EmployeeSkills } from '../components/EmployeeSkills'
+import { EmployeePermissions } from '../components/EmployeePermissions'
+import { EmployeeMemory } from '../components/EmployeeMemory'
+import { EmployeeRelationships } from '../components/EmployeeRelationships'
+import { EmployeeAssignments } from '../components/EmployeeAssignments'
+import { EmployeeActivity } from '../components/EmployeeActivity'
+import { useCustomEmployees } from '../hooks/useCustomEmployees'
+import { useI18n } from '../../i18n'
+
+type ProfileSection =
+  | 'overview'
+  | 'skills'
+  | 'permissions'
+  | 'memory'
+  | 'relationships'
+  | 'assignments'
+  | 'activity'
+
+export function EmployeeProfilePage() {
+  const { id } = useParams<{ id: string }>()
+  const { t } = useI18n()
+  const { employees } = useCustomEmployees()
+  const [section, setSection] = useState<ProfileSection>('overview')
+
+  const employee = useMemo(
+    () => employees.find((item) => item.id === id) ?? null,
+    [employees, id],
+  )
+
+  const sections: ProfileSection[] = [
+    'overview',
+    'skills',
+    'permissions',
+    'memory',
+    'relationships',
+    'assignments',
+    'activity',
+  ]
+
+  if (!employee) {
+    return (
+      <>
+        <PageHeader
+          title={t.employeeProfile.notFoundTitle}
+          description={t.employeeProfile.notFoundDescription}
+        />
+        <div className="mcProfileEmpty mcProfileEmptyPage">
+          <div className="mcProfileEmptyTitle">{t.employeeProfile.notFoundTitle}</div>
+          <p className="mcProfileEmptyDesc">{t.employeeProfile.notFoundDescription}</p>
+          <Link to="/ops/employees" className="mcBtn mcBtnPrimary">
+            {t.employeeProfile.backToEmployees}
+          </Link>
+        </div>
+      </>
+    )
+  }
+
+  return (
+    <div className="mcProfilePage">
+      <EmployeeHeader employee={employee} />
+
+      <nav className="mcProfileNav" aria-label={t.employeeProfile.navLabel}>
+        {sections.map((key) => (
+          <button
+            key={key}
+            type="button"
+            className={section === key ? 'mcProfileNavItem mcProfileNavItemActive' : 'mcProfileNavItem'}
+            onClick={() => setSection(key)}
+          >
+            {t.employeeProfile.sections[key]}
+          </button>
+        ))}
+      </nav>
+
+      <div className="mcProfileContent">
+        {section === 'overview' ? <EmployeeOverview employee={employee} /> : null}
+        {section === 'skills' ? <EmployeeSkills employee={employee} /> : null}
+        {section === 'permissions' ? <EmployeePermissions employee={employee} /> : null}
+        {section === 'memory' ? <EmployeeMemory employee={employee} /> : null}
+        {section === 'relationships' ? <EmployeeRelationships /> : null}
+        {section === 'assignments' ? <EmployeeAssignments /> : null}
+        {section === 'activity' ? <EmployeeActivity /> : null}
+      </div>
+    </div>
+  )
+}

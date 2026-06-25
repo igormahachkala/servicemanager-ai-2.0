@@ -246,6 +246,10 @@ export function summarizePermissions(
   return parts.length > 0 ? parts.join(', ') : labels.empty
 }
 
+export function getCustomEmployeeById(id: string): CustomEmployee | null {
+  return loadCustomEmployees().find((employee) => employee.id === id) ?? null
+}
+
 export function loadCustomEmployees(): CustomEmployee[] {
   if (typeof window === 'undefined') return []
   try {
