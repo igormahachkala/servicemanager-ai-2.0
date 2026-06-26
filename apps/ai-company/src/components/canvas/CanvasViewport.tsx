@@ -1,13 +1,17 @@
-import { useCallback, useRef } from 'react'
-import type { CanvasGraph, CanvasViewportState } from '../../domain/canvas'
+import { useCallback, useRef, useState } from 'react'
+import type { CanvasGraph, CanvasLiveEvent, CanvasViewportState } from '../../domain/canvas'
 import { CanvasNodeRenderer } from './CanvasNodeRenderer'
 import { ConnectionLayer } from './ConnectionLine'
+import { CanvasActivityTicker } from './CanvasActivityTicker'
 
 type Props = {
   graph: CanvasGraph
   viewport: CanvasViewportState
   selectedId: string | null
+  selectedConnectionId: string | null
+  liveEvents: CanvasLiveEvent[]
   onSelectNode: (nodeId: string | null) => void
+  onSelectConnection: (connectionId: string | null) => void
   onPanBy: (dx: number, dy: number) => void
   onZoomBy: (delta: number, anchorX?: number, anchorY?: number) => void
 }
@@ -16,21 +20,24 @@ export function CanvasViewport({
   graph,
   viewport,
   selectedId,
+  selectedConnectionId,
+  liveEvents,
   onSelectNode,
+  onSelectConnection,
   onPanBy,
   onZoomBy,
 }: Props) {
   const rootRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<{ x: number; y: number } | null>(null)
+  const [hoveredConnectionId, setHoveredConnectionId] = useState<string | null>(null)
 
-  const onPointerDown = useCallback(
-    (event: React.PointerEvent<HTMLDivElement>) => {
-      if (event.button !== 0) return
-      dragRef.current = { x: event.clientX, y: event.clientY }
-      event.currentTarget.setPointerCapture(event.pointerId)
-    },
-    [],
-  )
+  const onPointerDown = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return
+    const target = event.target as HTMLElement
+    if (target.closest('.acCanvasNode') || target.closest('.acCanvasConnection')) return
+    dragRef.current = { x: event.clientX, y: event.clientY }
+    event.currentTarget.setPointerCapture(event.pointerId)
+  }, [])
 
   const onPointerMove = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
@@ -45,7 +52,9 @@ export function CanvasViewport({
 
   const onPointerUp = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
     dragRef.current = null
-    event.currentTarget.releasePointerCapture(event.pointerId)
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
   }, [])
 
   const onWheel = useCallback(
@@ -69,15 +78,26 @@ export function CanvasViewport({
       onPointerUp={onPointerUp}
       onPointerLeave={onPointerUp}
       onWheel={onWheel}
-      onClick={() => onSelectNode(null)}
+      onClick={() => {
+        onSelectNode(null)
+        onSelectConnection(null)
+      }}
     >
+      <div className="acCanvasGrid" aria-hidden />
       <div
         className="acCanvasWorld"
         style={{
           transform: `translate(${viewport.panX}px, ${viewport.panY}px) scale(${viewport.zoom})`,
         }}
       >
-        <ConnectionLayer graph={graph} />
+        <ConnectionLayer
+          graph={graph}
+          selectedConnectionId={selectedConnectionId}
+          hoveredConnectionId={hoveredConnectionId}
+          selectedNodeId={selectedId}
+          onSelectConnection={onSelectConnection}
+          onHoverConnection={setHoveredConnectionId}
+        />
         <div className="acCanvasNodes">
           {graph.nodes.map((node) => (
             <CanvasNodeRenderer
@@ -89,6 +109,7 @@ export function CanvasViewport({
           ))}
         </div>
       </div>
+      <CanvasActivityTicker events={liveEvents} />
     </div>
   )
 }

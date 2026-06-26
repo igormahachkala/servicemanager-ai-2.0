@@ -3,15 +3,19 @@ import { useI18n } from '../../i18n'
 
 type Props = {
   status: CanvasLiveStatus
+  compact?: boolean
 }
 
-export function LiveIndicator({ status }: Props) {
+export function LiveIndicator({ status, compact = false }: Props) {
   const { t } = useI18n()
   const label = t.canvasEngine.liveStatuses[status]
 
   return (
-    <span className={`acCanvasLive acCanvasLive${capitalize(status)}`} aria-label={label}>
-      {label}
+    <span
+      className={`acCanvasLive acCanvasLive${capitalize(status)}${compact ? ' acCanvasLiveCompact' : ''}`}
+      aria-label={label}
+    >
+      {compact ? null : label}
     </span>
   )
 }

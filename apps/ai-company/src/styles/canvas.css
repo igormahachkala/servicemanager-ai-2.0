@@ -399,6 +399,548 @@
   }
 }
 
+.acCanvasPagePremium {
+  gap: 14px;
+}
+
+.acCanvasPageHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.acCanvasPageTitle {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.acCanvasPageDescription {
+  margin: 6px 0 0;
+  max-width: 720px;
+  color: rgba(148, 163, 184, 0.95);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.acCanvasProjectBadge,
+.acCanvasProjectBadgeLarge {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #c7d2fe;
+  background: rgba(99, 102, 241, 0.14);
+  border: 1px solid rgba(99, 102, 241, 0.28);
+}
+
+.acCanvasProjectBadgeLarge {
+  padding: 8px 14px;
+  font-size: 12px;
+}
+
+.acCanvasStage {
+  min-height: 680px;
+  background:
+    radial-gradient(900px 520px at 52% 24%, rgba(99, 102, 241, 0.12), transparent 62%),
+    radial-gradient(640px 360px at 18% 78%, rgba(56, 189, 248, 0.06), transparent 58%),
+    linear-gradient(180deg, #090a0f 0%, #0b0d13 48%, #0a0b10 100%);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.03),
+    0 24px 64px rgba(0, 0, 0, 0.35);
+}
+
+.acCanvasGrid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle at 1px 1px, rgba(255, 255, 255, 0.045) 1px, transparent 0),
+    linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  background-size: 22px 22px, 88px 88px, 88px 88px;
+  mask-image: radial-gradient(circle at center, black 35%, transparent 100%);
+}
+
+.acCanvasConnections {
+  pointer-events: none;
+}
+
+.acCanvasConnection {
+  pointer-events: visibleStroke;
+  cursor: pointer;
+}
+
+.acCanvasConnectionHit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 14;
+}
+
+.acCanvasConnectionGlow {
+  fill: none;
+  stroke-width: 5;
+  opacity: 0;
+  filter: blur(2px);
+  transition: opacity 0.18s ease;
+}
+
+.acCanvasConnectionPath {
+  fill: none;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  transition: stroke 0.18s ease, stroke-width 0.18s ease, filter 0.18s ease;
+}
+
+.acCanvasConnectionHighlighted .acCanvasConnectionGlow,
+.acCanvasConnectionSelected .acCanvasConnectionGlow {
+  opacity: 0.55;
+}
+
+.acCanvasConnectionSelected .acCanvasConnectionPath {
+  stroke-width: 2.4;
+  filter: drop-shadow(0 0 6px rgba(99, 102, 241, 0.45));
+}
+
+.acCanvasConnectionHighlighted .acCanvasConnectionPath {
+  stroke-width: 2.1;
+}
+
+.acCanvasConnectionAnimated .acCanvasConnectionPath {
+  stroke-dasharray: 7 10;
+  animation: acCanvasFlow 1.4s linear infinite;
+}
+
+.acCanvasConnectionRuntime .acCanvasConnectionPath,
+.acCanvasConnectionRuntime .acCanvasConnectionGlow {
+  stroke: rgba(129, 140, 248, 0.72);
+}
+
+.acCanvasConnectionExecution .acCanvasConnectionPath,
+.acCanvasConnectionExecution .acCanvasConnectionGlow {
+  stroke: rgba(56, 189, 248, 0.62);
+}
+
+.acCanvasConnectionApproval .acCanvasConnectionPath,
+.acCanvasConnectionApproval .acCanvasConnectionGlow {
+  stroke: rgba(251, 191, 36, 0.68);
+}
+
+.acCanvasConnectionChat .acCanvasConnectionPath,
+.acCanvasConnectionChat .acCanvasConnectionGlow {
+  stroke: rgba(167, 139, 250, 0.66);
+}
+
+.acCanvasConnectionAssignment .acCanvasConnectionPath,
+.acCanvasConnectionAssignment .acCanvasConnectionGlow {
+  stroke: rgba(148, 163, 184, 0.52);
+}
+
+.acCanvasConnectionReport .acCanvasConnectionPath,
+.acCanvasConnectionReport .acCanvasConnectionGlow {
+  stroke: rgba(251, 146, 60, 0.58);
+}
+
+.acCanvasConnectionKnowledge .acCanvasConnectionPath,
+.acCanvasConnectionKnowledge .acCanvasConnectionGlow {
+  stroke: rgba(34, 211, 238, 0.55);
+}
+
+.acCanvasConnectionTool .acCanvasConnectionPath,
+.acCanvasConnectionTool .acCanvasConnectionGlow {
+  stroke: rgba(148, 163, 184, 0.62);
+}
+
+.acCanvasConnectionLabelGroup {
+  pointer-events: none;
+}
+
+.acCanvasConnectionLabelBg {
+  fill: rgba(10, 12, 18, 0.92);
+  stroke: rgba(255, 255, 255, 0.08);
+}
+
+.acCanvasArrow path {
+  fill: currentColor;
+}
+
+.acCanvasArrowRuntime { color: #818cf8; }
+.acCanvasArrowExecution { color: #38bdf8; }
+.acCanvasArrowApproval { color: #fbbf24; }
+.acCanvasArrowChat { color: #a78bfa; }
+.acCanvasArrowAssignment { color: #94a3b8; }
+.acCanvasArrowReport { color: #fb923c; }
+.acCanvasArrowKnowledge { color: #22d3ee; }
+.acCanvasArrowTool { color: #cbd5e1; }
+
+.acCanvasNode {
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: transparent;
+  overflow: hidden;
+  box-shadow:
+    0 10px 30px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.acCanvasNode::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.02));
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+.acCanvasNodeGlow {
+  position: absolute;
+  inset: -20%;
+  background: radial-gradient(circle at 50% 0%, var(--acCanvasAccent, #818cf8), transparent 62%);
+  opacity: 0.16;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+.acCanvasNodeLive .acCanvasNodeGlow {
+  opacity: 0.34;
+  animation: acCanvasNodePulse 2.4s ease-in-out infinite;
+}
+
+.acCanvasNodeInner {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  height: 100%;
+  padding: 12px 12px 10px;
+  background: rgba(12, 14, 20, 0.88);
+  backdrop-filter: blur(10px);
+}
+
+.acCanvasNodeTop {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.acCanvasNodeIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  font-size: 14px;
+  color: var(--acCanvasAccent, #818cf8);
+  background: color-mix(in srgb, var(--acCanvasAccent, #818cf8) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--acCanvasAccent, #818cf8) 28%, transparent);
+  flex-shrink: 0;
+}
+
+.acCanvasNodeHeadText {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+}
+
+.acCanvasNodeOpen {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  color: rgba(226, 232, 240, 0.72);
+  background: rgba(255, 255, 255, 0.04);
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.acCanvasNodeOpen:hover {
+  color: #fff;
+  background: rgba(99, 102, 241, 0.18);
+}
+
+.acCanvasNodeMeta {
+  font-size: 10px;
+  color: rgba(148, 163, 184, 0.88);
+  letter-spacing: 0.03em;
+}
+
+.acCanvasNode:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--acCanvasAccent, #818cf8) 42%, rgba(255, 255, 255, 0.08));
+}
+
+.acCanvasNodeSelected {
+  border-color: color-mix(in srgb, var(--acCanvasAccent, #818cf8) 72%, white);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--acCanvasAccent, #818cf8) 35%, transparent),
+    0 16px 40px rgba(0, 0, 0, 0.34);
+}
+
+.acCanvasNodeSelected .acCanvasNodeGlow {
+  opacity: 0.42;
+}
+
+.acCanvasLiveCompact {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 0;
+}
+
+.acCanvasLiveCompact::before {
+  width: 100%;
+  height: 100%;
+}
+
+.acCanvasToolbarWrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.acCanvasToolbar {
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(12, 14, 20, 0.82);
+  backdrop-filter: blur(10px);
+}
+
+.acCanvasToolBtnActive,
+.acCanvasModeBtnActive {
+  box-shadow: inset 0 0 0 1px rgba(99, 102, 241, 0.25);
+}
+
+.acCanvasLayersPanel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  padding: 10px 12px;
+  border-radius: var(--ac-radius-lg, 12px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(10, 12, 18, 0.88);
+}
+
+.acCanvasLayerToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: rgba(226, 232, 240, 0.88);
+  cursor: pointer;
+}
+
+.acCanvasLayerToggle input {
+  accent-color: #818cf8;
+}
+
+.acCanvasSide {
+  min-height: 680px;
+}
+
+.acCanvasInspector {
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent 120px),
+    rgba(12, 14, 20, 0.92);
+  backdrop-filter: blur(12px);
+  overflow: auto;
+}
+
+.acCanvasInspectorStats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin: 12px 0 4px;
+}
+
+.acCanvasInspectorStat {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.acCanvasInspectorStat span {
+  display: block;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.acCanvasInspectorStat label {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  color: rgba(148, 163, 184, 0.92);
+}
+
+.acCanvasInspectorOverview {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.acCanvasInspectorEntityIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.acCanvasInspectorEntityIconLarge {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  font-size: 18px;
+}
+
+.acCanvasInspectorEntityList,
+.acCanvasInspectorEventList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.acCanvasInspectorEntityList li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 12px;
+}
+
+.acCanvasInspectorEventList li {
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.acCanvasInspectorStatusRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.acCanvasInspectorAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: #eef2ff;
+  background: rgba(99, 102, 241, 0.22);
+  border: 1px solid rgba(99, 102, 241, 0.28);
+}
+
+.acCanvasInspectorActionSecondary {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.08);
+  color: inherit;
+}
+
+.acCanvasTicker {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(8, 10, 14, 0.88);
+  backdrop-filter: blur(10px);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.acCanvasMiniMap {
+  z-index: 4;
+  bottom: 68px;
+}
+
+.acCanvasTickerLabel {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(148, 163, 184, 0.92);
+  white-space: nowrap;
+}
+
+.acCanvasTickerTrack {
+  display: flex;
+  gap: 8px;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.acCanvasTickerChip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  white-space: nowrap;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.acCanvasTickerChipActive {
+  color: #6ee7b7;
+  border-color: rgba(52, 211, 153, 0.24);
+  background: rgba(52, 211, 153, 0.08);
+}
+
+.acCanvasTickerChipWaiting {
+  color: #fcd34d;
+  border-color: rgba(251, 191, 36, 0.24);
+  background: rgba(251, 191, 36, 0.08);
+}
+
+.acCanvasTickerChipInfo {
+  color: #c7d2fe;
+  border-color: rgba(99, 102, 241, 0.22);
+  background: rgba(99, 102, 241, 0.08);
+}
+
+@keyframes acCanvasNodePulse {
+  0%,
+  100% {
+    opacity: 0.22;
+  }
+  50% {
+    opacity: 0.42;
+  }
+}
+
 @media (max-width: 1100px) {
   .acCanvasLayout {
     grid-template-columns: 1fr;

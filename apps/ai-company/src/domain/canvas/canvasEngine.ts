@@ -18,6 +18,7 @@ import {
   CANVAS_ZOOM_MIN,
   DEFAULT_CANVAS_VIEWPORT,
   computeCanvasBounds,
+  type BuildCanvasGraphInput,
   type CanvasConnection,
   type CanvasConnectionType,
   type CanvasGraph,
@@ -27,27 +28,38 @@ import {
   type CanvasNodeKind,
   type CanvasViewportState,
 } from './canvas'
+import { buildInitialLiveEvents, tickLiveEvents } from './canvasEngineInspector'
+import {
+  filterGraphForProject,
+  layoutProjectFocusGraph,
+  shouldFocusProject,
+} from './canvasEngineFocus'
 
 const VIEWPORT_KEY = 'ai-company-canvas-viewport'
 const LIVE_TICK_KEY = 'ai-company-canvas-live-tick'
 
 const NODE_SIZE: Record<CanvasNodeKind, { width: number; height: number }> = {
-  employee: { width: 128, height: 68 },
-  project: { width: 148, height: 58 },
-  workspace: { width: 132, height: 52 },
-  task: { width: 136, height: 50 },
-  runtime: { width: 112, height: 48 },
-  run: { width: 118, height: 46 },
-  report: { width: 118, height: 46 },
-  approval: { width: 124, height: 46 },
-  knowledge: { width: 112, height: 44 },
-  tool: { width: 104, height: 42 },
+  employee: { width: 176, height: 92 },
+  project: { width: 188, height: 88 },
+  workspace: { width: 168, height: 80 },
+  task: { width: 172, height: 84 },
+  runtime: { width: 156, height: 78 },
+  run: { width: 160, height: 76 },
+  report: { width: 160, height: 76 },
+  approval: { width: 168, height: 76 },
+  knowledge: { width: 152, height: 72 },
+  tool: { width: 148, height: 72 },
 }
 
 let livePulse = 0
 
 function nowIso(): string {
   return new Date().toISOString()
+}
+
+function resolveBuildInput(input: BuildCanvasGraphInput | CanvasMode = 'company'): BuildCanvasGraphInput {
+  if (typeof input === 'string') return { mode: input }
+  return input
 }
 
 function liveFromExecution(status: ExecutionStatus): CanvasLiveStatus | null {
@@ -74,6 +86,7 @@ function createNode(input: {
   entityId: string
   label: string
   subtitle?: string | null
+  meta?: string | null
   x: number
   y: number
   liveStatus?: CanvasLiveStatus | null
@@ -87,6 +100,7 @@ function createNode(input: {
     entityId: input.entityId,
     label: input.label,
     subtitle: input.subtitle ?? null,
+    meta: input.meta ?? null,
     x: input.x,
     y: input.y,
     width: size.width,
@@ -204,15 +218,18 @@ function filterGraph(graph: CanvasGraph, mode: CanvasMode): CanvasGraph {
   }
 }
 
-export function buildCanvasGraph(mode: CanvasMode = 'company'): CanvasGraph {
+export function buildCanvasGraph(input: BuildCanvasGraphInput | CanvasMode = 'company'): CanvasGraph {
+  const { mode = 'company', projectId = null } = resolveBuildInput(input)
   initializeCompanyEngine()
   ensureSeedKnowledge()
 
   const nodes: CanvasNode[] = []
   const connections: CanvasConnection[] = []
   const allModes: CanvasMode[] = ['company', 'project', 'runtime', 'knowledge', 'organization', 'live']
+  const focusProject = shouldFocusProject(projectId)
+  const activeProjectId = projectId ?? AI_PHOTO_LAB_PROJECT_ID
 
-  const project = getProjectById(AI_PHOTO_LAB_PROJECT_ID) ?? loadProjects()[0]
+  const project = getProjectById(activeProjectId) ?? getProjectById(AI_PHOTO_LAB_PROJECT_ID) ?? loadProjects()[0]
   const workspace = getWorkspaceById(AI_PHOTO_LAB_WORKSPACE_ID)
 
   if (project) {
@@ -223,6 +240,7 @@ export function buildCanvasGraph(mode: CanvasMode = 'company'): CanvasGraph {
         entityId: project.id,
         label: project.title,
         subtitle: project.status,
+        meta: focusProject ? 'Project focus' : 'Delivery hub',
         x: 0,
         y: 0,
         href: `/ops/projects/${encodeURIComponent(project.id)}`,
@@ -239,6 +257,7 @@ export function buildCanvasGraph(mode: CanvasMode = 'company'): CanvasGraph {
         entityId: workspace.id,
         label: workspace.name,
         subtitle: workspace.type,
+        meta: 'Workspace scope',
         x: 0,
         y: 0,
         href: `/ops/workspaces/${encodeURIComponent(workspace.id)}`,
@@ -254,6 +273,7 @@ export function buildCanvasGraph(mode: CanvasMode = 'company'): CanvasGraph {
       entityId: 'runtime-hub',
       label: 'Runtime',
       subtitle: 'orchestrator',
+      meta: 'Active pipeline',
       x: 0,
       y: 0,
       liveStatus: 'running',
@@ -264,8 +284,9 @@ export function buildCanvasGraph(mode: CanvasMode = 'company'): CanvasGraph {
 
   const employees = loadCustomEmployees()
   const presenceByEmployee = new Map(loadPresenceRecords().map((item) => [item.employeeId, item]))
+  const employeeLimit = focusProject ? 12 : 8
 
-  employees.slice(0, 8).forEach((employee) => {
+  employees.slice(0, employeeLimit).forEach((employee) => {
     const presence = presenceByEmployee.get(employee.id)
     const label = employee.codename ?? employee.name
     nodes.push(
@@ -275,6 +296,7 @@ export function buildCanvasGraph(mode: CanvasMode = 'company'): CanvasGraph {
         entityId: employee.id,
         label,
         subtitle: presence?.activity ?? employee.role,
+        meta: employee.primaryModel || employee.role,
         x: 0,
         y: 0,
         liveStatus: presence ? liveFromPresence(presence.status) : null,
@@ -302,6 +324,7 @@ export function buildCanvasGraph(mode: CanvasMode = 'company'): CanvasGraph {
         entityId: execution.taskId,
         label: taskTitle(execution.taskId),
         subtitle: execution.status,
+        meta: execution.employeeId.replace('ag-', '').toUpperCase(),
         x: 0,
         y: 0,
         liveStatus: liveFromExecution(execution.status),
@@ -315,7 +338,7 @@ export function buildCanvasGraph(mode: CanvasMode = 'company'): CanvasGraph {
       connect(connections, employeeNodeId, `canvas-task-${execution.id}`, 'assignment', null, true)
     }
     if (project) {
-      connect(connections, `canvas-project-${project.id}`, `canvas-task-${execution.id}`, 'execution')
+      connect(connections, `canvas-project-${project.id}`, `canvas-task-${execution.id}`, 'execution', null, true)
     }
 
     if (execution.runtimeRunId) {
@@ -326,6 +349,7 @@ export function buildCanvasGraph(mode: CanvasMode = 'company'): CanvasGraph {
           entityId: execution.runtimeRunId,
           label: execution.runtimeRunId.replace('run-apl-', ''),
           subtitle: execution.status,
+          meta: 'Runtime run',
           x: 0,
           y: 0,
           liveStatus: liveFromExecution(execution.status),
@@ -354,6 +378,7 @@ export function buildCanvasGraph(mode: CanvasMode = 'company'): CanvasGraph {
           entityId: approval.id,
           label: approval.title,
           subtitle: approval.priority,
+          meta: 'Owner decision',
           x: 0,
           y: 0,
           liveStatus: 'waiting',
@@ -373,6 +398,7 @@ export function buildCanvasGraph(mode: CanvasMode = 'company'): CanvasGraph {
           entityId: report.id,
           label: report.title,
           subtitle: report.status,
+          meta: report.type ?? 'artifact',
           x: 0,
           y: 0,
           liveStatus: report.status === 'draft' ? 'review' : 'completed',
@@ -392,6 +418,7 @@ export function buildCanvasGraph(mode: CanvasMode = 'company'): CanvasGraph {
           entityId: item.id,
           label: item.title,
           subtitle: item.type,
+          meta: item.status ?? 'indexed',
           x: 0,
           y: 0,
           href: `/ops/knowledge/${encodeURIComponent(item.id)}`,
@@ -411,30 +438,46 @@ export function buildCanvasGraph(mode: CanvasMode = 'company'): CanvasGraph {
           entityId: tool.id,
           label: tool.name,
           subtitle: tool.provider,
+          meta: 'Tool gateway',
           x: 0,
           y: 0,
           href: `/ops/tools/${encodeURIComponent(tool.id)}`,
           modes: ['company', 'runtime', 'live'],
         }),
       )
-      connect(connections, 'canvas-runtime-hub', `canvas-tool-${tool.id}`, 'tool')
+      connect(connections, 'canvas-runtime-hub', `canvas-tool-${tool.id}`, 'tool', null, true)
     })
 
   if (employees.length >= 2) {
     connect(connections, `canvas-employee-${employees[0].id}`, `canvas-employee-${employees[1].id}`, 'chat', null, true)
   }
 
-  layoutCompanyGraph(nodes)
+  if (focusProject && projectId) {
+    const focused = filterGraphForProject(nodes, connections, projectId)
+    nodes.length = 0
+    nodes.push(...focused.nodes)
+    connections.length = 0
+    connections.push(...focused.connections)
+    layoutProjectFocusGraph(nodes)
+  } else {
+    layoutCompanyGraph(nodes)
+  }
 
-  const graph: CanvasGraph = {
+  const baseGraph: CanvasGraph = {
     mode,
+    focusProjectId: projectId,
     nodes,
     connections,
     bounds: computeCanvasBounds(nodes),
+    liveEvents: [],
     updatedAt: nowIso(),
   }
 
-  return filterGraph(graph, mode)
+  const filtered = filterGraph(baseGraph, mode)
+  return {
+    ...filtered,
+    liveEvents: buildInitialLiveEvents(filtered),
+  }
 }
 
 export function tickCanvasLive(graph: CanvasGraph): CanvasGraph {
@@ -452,20 +495,28 @@ export function tickCanvasLive(graph: CanvasGraph): CanvasGraph {
     if (!node.liveStatus || node.liveStatus === 'completed') {
       return { ...node, pulse: livePulse }
     }
-    const flicker = livePulse % 7 === 0 ? statuses[livePulse % statuses.length] : node.liveStatus
+    const flicker = livePulse % 9 === 0 ? statuses[livePulse % statuses.length] : node.liveStatus
     return { ...node, pulse: livePulse, liveStatus: flicker }
   })
 
   const connections = graph.connections.map((item) => ({
     ...item,
     pulsePhase: livePulse,
-    animated: item.type === 'execution' || item.type === 'runtime' || item.type === 'chat' ? true : item.animated,
+    animated:
+      item.type === 'execution' ||
+      item.type === 'runtime' ||
+      item.type === 'chat' ||
+      item.type === 'approval' ||
+      item.type === 'assignment'
+        ? true
+        : item.animated,
   }))
 
   return {
     ...graph,
     nodes,
     connections,
+    liveEvents: tickLiveEvents(graph, livePulse),
     updatedAt: nowIso(),
   }
 }

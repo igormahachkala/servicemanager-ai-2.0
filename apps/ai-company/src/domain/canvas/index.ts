@@ -1,22 +1,31 @@
 export {
   CANVAS_CONNECTION_TYPES,
+  CANVAS_LAYERS,
   CANVAS_LIVE_STATUSES,
   CANVAS_MODES,
   CANVAS_NODE_KINDS,
   CANVAS_ZOOM_MAX,
   CANVAS_ZOOM_MIN,
+  DEFAULT_CANVAS_LAYERS,
   DEFAULT_CANVAS_VIEWPORT,
+  applyCanvasLayers,
   computeCanvasBounds,
   nodeCenter,
+  nodePort,
+  type BuildCanvasGraphInput,
   type CanvasBounds,
   type CanvasConnection,
   type CanvasConnectionType,
   type CanvasGraph,
   type CanvasInspectorModel,
+  type CanvasLayerId,
+  type CanvasLiveEvent,
   type CanvasLiveStatus,
   type CanvasMode,
   type CanvasNode,
+  type CanvasNodeDetails,
   type CanvasNodeKind,
+  type CanvasSummary,
   type CanvasViewportState,
 } from './canvas'
 export {
@@ -26,3 +35,4 @@ export {
   saveCanvasViewport,
   tickCanvasLive,
 } from './canvasEngine'
+export { getCanvasNodeDetails, getCanvasSummary } from './canvasEngineInspector'

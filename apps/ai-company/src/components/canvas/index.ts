@@ -1,4 +1,5 @@
 export { ApprovalNode } from './ApprovalNode'
+export { CanvasActivityTicker } from './CanvasActivityTicker'
 export { CanvasInspector } from './CanvasInspector'
 export { CanvasMiniMap } from './CanvasMiniMap'
 export { CanvasNodeRenderer } from './CanvasNodeRenderer'

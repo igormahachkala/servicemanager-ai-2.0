@@ -261,7 +261,10 @@ export function ExecutiveDashboard() {
               <Link to="/ops/tasks" className="acQuickActionBtn">
                 {t.executiveDashboard.actionTasks}
               </Link>
-              <Link to="/ops/canvas" className="acQuickActionBtn acQuickActionBtnPrimary">
+              <Link
+                to={`/ops/canvas?projectId=${encodeURIComponent('project-ai-photo-lab')}`}
+                className="acQuickActionBtn acQuickActionBtnPrimary"
+              >
                 {t.executiveDashboard.actionOpenCanvas}
               </Link>
               <Link to="/ops/runtime" className="acQuickActionBtn">
