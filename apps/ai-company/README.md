@@ -11,6 +11,9 @@ The **North Star** is the supreme source of truth for all product, architecture,
 | Document | Purpose |
 |----------|---------|
 | **[docs/north-star/north-star.md](./docs/north-star/north-star.md)** | **Platform constitution — read first** |
+| [docs/operating-rules/senior-product-engineering-rules.md](./docs/operating-rules/senior-product-engineering-rules.md) | **How agents must think — Senior SE + Product + Architect + UX** |
+| [docs/operating-rules/task-decision-filter.md](./docs/operating-rules/task-decision-filter.md) | Five filters — STOP if task matches none |
+| [docs/operating-rules/quality-gate.md](./docs/operating-rules/quality-gate.md) | Pre-commit product quality gate |
 | [docs/north-star/digital-dna.md](./docs/north-star/digital-dna.md) | Digital DNA — identity across model changes |
 | [docs/north-star/platform-vs-company.md](./docs/north-star/platform-vs-company.md) | Platform L1 vs Customer Company L2 |
 | [docs/north-star/employee-lifecycle.md](./docs/north-star/employee-lifecycle.md) | Template → hire → career → retirement |
@@ -18,7 +21,9 @@ The **North Star** is the supreme source of truth for all product, architecture,
 | [docs/north-star/living-company.md](./docs/north-star/living-company.md) | Living organization principle |
 | [docs/north-star/roadmap-2030.md](./docs/north-star/roadmap-2030.md) | Long-range platform phases |
 
-**Rule:** If implementation contradicts North Star — **change the implementation**. If a task conflicts with North Star — **stop and ask the Owner**.
+**Rule:** If implementation contradicts North Star — **change the implementation**. If a task conflicts with North Star or [operating rules](./docs/operating-rules/) — **stop and ask the Owner**.
+
+Every agent must pass the [task decision filter](./docs/operating-rules/task-decision-filter.md) before work and the [quality gate](./docs/operating-rules/quality-gate.md) before commit.
 
 ## AI Company Source of Truth
 
@@ -27,6 +32,7 @@ Before changing this project, read the mandatory agent entrypoint and vision doc
 | Document | Purpose |
 |----------|---------|
 | **[docs/AGENTS.md](./docs/AGENTS.md)** | **Required reading for all agents** — rules, scope, conflict policy |
+| [docs/operating-rules/](./docs/operating-rules/) | **Mandatory operating standard** — filters, quality gate, senior review |
 | [docs/vision/README.md](./docs/vision/README.md) | Vision index (subordinate to North Star) |
 | [docs/vision/ai-company-vision.md](./docs/vision/ai-company-vision.md) | Product vision |
 | [docs/vision/core-principles.md](./docs/vision/core-principles.md) | 17 core principles |
@@ -71,6 +77,7 @@ npm run preview
 | `/ops/employees/:id` | Employee profile |
 | `/ops/execution` | Execution queue |
 | `/ops/chats` | Unified chats |
+| `/ops/runtime/live` | Live Runtime Monitor |
 | `/ops/tasks` | Tasks |
 | `/ops/tools` | AI Tools Registry |
 
@@ -86,6 +93,7 @@ npm run preview
 apps/ai-company/
 ├── docs/
 │   ├── AGENTS.md              # Agent entrypoint (read first)
+│   ├── operating-rules/       # Mandatory senior product & engineering rules
 │   ├── north-star/            # Platform constitution
 │   ├── vision/                # Product vision & principles
 │   ├── architecture/          # ADRs

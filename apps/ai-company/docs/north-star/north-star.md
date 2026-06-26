@@ -43,6 +43,7 @@ Supporting law (must remain consistent with North Star):
 
 | Layer | Entry |
 |-------|-------|
+| **Operating rules** | [../operating-rules/senior-product-engineering-rules.md](../operating-rules/senior-product-engineering-rules.md), [task-decision-filter.md](../operating-rules/task-decision-filter.md), [quality-gate.md](../operating-rules/quality-gate.md) |
 | Vision detail | [../vision/README.md](../vision/README.md) |
 | Architecture | [../architecture/adr-001-ai-company-platform.md](../architecture/adr-001-ai-company-platform.md), [../architecture/adr-002-tool-registry.md](../architecture/adr-002-tool-registry.md) |
 | Domain | [../domain/domain-model.md](../domain/domain-model.md) |
@@ -129,10 +130,11 @@ Workflows, chats, and automations may exist **inside** the operating system — 
 For every task — human or agent:
 
 1. Read this document and linked constitution set.
-2. Compare the requested change against North Star.
-3. If aligned → proceed.
-4. If **conflict** → **STOP**. Do not continue implementation.
-5. Report conflict to **Owner** with: task summary, violated principle, compliant alternatives.
+2. Read [operating-rules/task-decision-filter.md](../operating-rules/task-decision-filter.md) — **STOP if no filter matches**.
+3. Compare the requested change against North Star and [operating-rules/](../operating-rules/).
+4. If aligned → proceed; apply [quality-gate.md](../operating-rules/quality-gate.md) before commit.
+5. If **conflict** → **STOP**. Do not continue implementation.
+6. Report conflict to **Owner** with: task summary, violated principle, filter result, compliant alternatives.
 
 No silent drift. No “temporary” violations.
 
@@ -158,3 +160,4 @@ And when every digital employee feels like a **colleague with history** — not 
 | Version | Date | Change |
 |---------|------|--------|
 | 1.0 | 2026-06-24 | North Star constitution established (AI-COMPANY-048) |
+| 1.1 | 2026-06-24 | Operating rules linked in conflict resolution (AI-COMPANY-058) |
