@@ -1,5 +1,5 @@
-import { ExecutiveDashboard } from '../../components/layout'
+import { ExecutiveCommandCenter } from '../../components/command-center'
 
 export function DashboardPage() {
-  return <ExecutiveDashboard />
+  return <ExecutiveCommandCenter />
 }

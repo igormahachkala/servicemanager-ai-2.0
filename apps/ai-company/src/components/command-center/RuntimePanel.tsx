@@ -1,0 +1,46 @@
+import { Link } from 'react-router-dom'
+import type { CommandCenterRuntimeSummary } from '../../domain/commandCenter'
+import { Badge, Card } from '../layout'
+import { formatFeedTime } from '../../mission-control/components/ui'
+import { useI18n } from '../../i18n'
+
+type Props = {
+  runtime: CommandCenterRuntimeSummary
+}
+
+export function RuntimePanel({ runtime }: Props) {
+  const { t } = useI18n()
+
+  return (
+    <Card
+      title={t.commandCenter.sections.runtime}
+      action={<Link to="/ops/runtime" className="acLink">{t.executiveDashboard.viewAll}</Link>}
+    >
+      <div className="mcCommandCenterInlineStats">
+        <div>
+          <span className="mcCommandCenterInlineStatValue">{runtime.total}</span>
+          <span className="mcCommandCenterInlineStatLabel">{t.commandCenter.runtimeTotal}</span>
+        </div>
+        <div>
+          <span className="mcCommandCenterInlineStatValue">{runtime.waitingApproval}</span>
+          <span className="mcCommandCenterInlineStatLabel">{t.commandCenter.runtimeWaiting}</span>
+        </div>
+      </div>
+      {runtime.recentRuns.length === 0 ? (
+        <div className="acMuted">{t.commandCenter.empty.runtime}</div>
+      ) : (
+        runtime.recentRuns.map((run) => (
+          <div key={run.id} className="acListRow">
+            <Link to={`/ops/runtime/runs/${encodeURIComponent(run.id)}`} className="acLink">
+              {run.taskId ?? run.runtimeProfileId}
+            </Link>
+            <Badge variant={run.status === 'failed' ? 'danger' : run.status === 'completed' ? 'success' : 'default'}>
+              {run.status}
+            </Badge>
+            <span className="acMono acMuted">{formatFeedTime(run.startedAt)}</span>
+          </div>
+        ))
+      )}
+    </Card>
+  )
+}

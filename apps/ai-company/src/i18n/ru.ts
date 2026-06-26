@@ -104,7 +104,8 @@ export const ru: Messages = {
     audit: "Аудит",
     runtimeSettings: "Настройки Runtime",
     approvals: "Согласования",
-    presence: "Присутствие"
+    presence: "Присутствие",
+    workday: "Рабочий день"
   },
   agentStatus: {
     online: "онлайн",
@@ -603,7 +604,96 @@ export const ru: Messages = {
     actionNewProject: "Новый проект",
     presenceOverview: "Присутствие команды",
     presenceSub: "{working} работают · {waiting} ждут",
-    actionOpenPresence: "Открыть presence"
+    actionOpenPresence: "Открыть presence",
+    workdayOverview: "Утренний рабочий день",
+    workdaySub: "{started} начали · {blocked} заблокированы · {finished} завершили",
+    actionOpenWorkday: "Открыть дашборд рабочего дня"
+  },
+  commandCenter: {
+    title: "Executive Command Center",
+    description: "Operational view — company health, workforce, sprint, decisions, risks, and live activity.",
+    healthScoreLabel: "company health index",
+    sprintTasks: "tasks done",
+    sprintPoints: "story points",
+    approvalsPending: "Ожидание",
+    approvalsApproved: "approved",
+    runtimeTotal: "запуски",
+    runtimeWaiting: "awaiting approval",
+    toolCompleted: "completed",
+    toolFailed: "Ошибка",
+    toolPending: "await approval",
+    canvasEmployees: "employees",
+    canvasTasks: "active tasks",
+    canvasApprovals: "approvals",
+    canvasRuns: "runtime runs",
+    controlRoomWorking: "in progress",
+    controlRoomBlocked: "заблокировано",
+    controlRoomApprovals: "decisions",
+    greeting: {
+      morning: "Good morning, Owner.",
+      afternoon: "Good afternoon, Owner.",
+      evening: "Good evening, Owner."
+    },
+    brief: {
+      summary: "Here is your company pulse for today — what is moving, what needs you, and where risk sits.",
+      workingHighlight: "{count} employees actively working right now",
+      approvalsHighlight: "{count} approvals waiting for your decision",
+      sprintHighlight: "Sprint health is {health}",
+      projectHighlight: "AI Photo Lab is at {progress}% toward MVP",
+      calmDay: "Operations are stable — no urgent blockers detected",
+      riskAlerts: "{count} critical alerts need attention",
+      riskWaiting: "{count} employees blocked on approval",
+      healthScore: "Health index",
+      unread: "{count} unread notifications",
+      allClear: "Inbox clear",
+      openTimeline: "Open live timeline"
+    },
+    sprintHealth: {
+      on_track: "on track",
+      at_risk: "at risk",
+      blocked: "заблокировано"
+    },
+    sections: {
+      companyHealth: "Состояние компании",
+      employeesWorking: "Employees Working",
+      todaysSprint: "Today's Sprint",
+      approvals: "Согласования",
+      criticalAlerts: "Критические алерты",
+      runtime: "Runtime",
+      toolUsage: "Tool Usage",
+      recentReports: "Recent Reports",
+      liveTimeline: "Live Timeline",
+      canvasPreview: "Canvas Preview",
+      controlRoomPreview: "Control Room Preview",
+      notifications: "Notifications",
+      quickLaunch: "Quick Launch",
+      charts: "Execution Charts"
+    },
+    charts: {
+      productivity: "Productivity",
+      capacity: "Ёмкость",
+      execution: "Execution",
+      approvals: "Согласования"
+    },
+    quickLaunch: {
+      atlas: "Atlas",
+      max: "MAX",
+      canvas: "Canvas",
+      sprint: "Sprint",
+      controlRoom: "Control Room",
+      handoffs: "Handoffs",
+      runtime: "Runtime"
+    },
+    empty: {
+      sprint: "No active sprint configured",
+      approvals: "No pending approvals",
+      runtime: "No runtime runs yet",
+      tools: "No tool executions yet",
+      reports: "No reports generated yet",
+      canvas: "Canvas graph unavailable",
+      canvasTasks: "No active canvas tasks",
+      controlRoom: "Control room snapshot unavailable"
+    }
   },
   tasks: {
     description: "Рабочая очередь компании — операционные задачи с исполнителем, приоритетом и SLA.",
@@ -1710,7 +1800,10 @@ export const ru: Messages = {
       "handoff.rejected": "Handoff Rejected",
       "sprint.planned": "Sprint Planned",
       "sprint.started": "Sprint Started",
-      "sprint.completed": "Sprint Completed"
+      "sprint.completed": "Sprint Completed",
+      "workday.started": "Рабочий день начат",
+      "workday.phase_changed": "Фаза рабочего дня изменена",
+      "workday.finished": "Рабочий день завершён"
     }
   },
   runEngine: {
@@ -2710,6 +2803,70 @@ export const ru: Messages = {
       burndown: "Burndown",
       review: "DoR / DoD / Review",
       links: "Quick Links"
+    }
+  },
+  workdayEngine: {
+    title: "Рабочий день цифрового сотрудника",
+    pageDescription: "Движок рабочего дня компании — старт в 08:00, agenda, уведомления, согласования, знания, задачи, отчёты, review и завершение дня.",
+    flowTitle: "Стандартный flow рабочего дня",
+    flowNote: "08:00 → Agenda → Уведомления → Согласования → Знания → Задачи → Отчёты → Review → Завершение дня",
+    localOnly: "Mock workday engine — только localStorage, синхронизация с Presence, Workspace и Timeline.",
+    states: {
+      starting: "Начало работы",
+      planning: "Планирование",
+      working: "Работает",
+      waiting: "Ожидание",
+      reviewing: "На проверке",
+      completed: "Завершено",
+      finished: "Окончание"
+    },
+    phases: {
+      day_start: "08:00",
+      agenda: "Agenda",
+      check_notifications: "Уведомления",
+      check_approvals: "Согласования",
+      read_knowledge: "База знаний",
+      execute_tasks: "Задачи",
+      create_reports: "Отчёты",
+      review: "Проверка",
+      finish_day: "Завершение дня"
+    },
+    dashboard: {
+      started: "Начали работу",
+      idle: "Простой",
+      blocked: "Заблокированы",
+      finished: "Завершили день",
+      notStarted: "Ещё не начали",
+      noStarted: "Никто активно не работает.",
+      noIdle: "Нет сотрудников в простое.",
+      noBlocked: "Нет заблокированных сотрудников.",
+      noFinished: "Никто ещё не завершил день.",
+      noNotStarted: "Все начали рабочий день."
+    },
+    summary: {
+      title: "Daily Summary",
+      scheduledStart: "Плановый старт",
+      started: "Начало",
+      idle: "Простой",
+      blocked: "Заблокированы",
+      finished: "Окончание",
+      notStarted: "Не начали",
+      avgPhase: "Средняя фаза",
+      reportsToday: "Отчётов сегодня",
+      tasksInProgress: "Задач в работе"
+    },
+    actions: {
+      startDay: "Начать день",
+      nextPhase: "Следующая фаза",
+      finishDay: "Завершить день",
+      openWorkspace: "Рабочее пространство",
+      sync: "Синхронизировать",
+      openWorkday: "Workday"
+    },
+    workspace: {
+      title: "Рабочий день сегодня",
+      noWorkday: "Рабочий день ещё не начат.",
+      openDashboard: "Дашборд рабочего дня компании"
     }
   },
   photoLabControlRoom: {
