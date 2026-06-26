@@ -95,6 +95,7 @@ export const ru: Messages = {
     chats: "Чаты",
     collaboration: "Collaboration",
     controlRoom: "AI Photo Lab Control Room",
+    sprint: "Sprint",
     workspaces: "Рабочие пространства",
     projects: "Проекты",
     reports: "Отчёты",
@@ -595,6 +596,7 @@ export const ru: Messages = {
     actionTasks: "Задачи",
     actionOpenCanvas: "Открыть canvas компании",
     actionOpenControlRoom: "AI Photo Lab Control Room",
+    actionOpenSprint: "Sprint 1 — Working MVP",
     actionFlow: "Flow workspace",
     projectsOverview: "Активные проекты",
     projectsSub: "delivery entities в реестре",
@@ -1705,7 +1707,10 @@ export const ru: Messages = {
       "handoff.sent": "Handoff Sent",
       "handoff.returned": "Handoff Returned",
       "handoff.accepted": "Handoff Accepted",
-      "handoff.rejected": "Handoff Rejected"
+      "handoff.rejected": "Handoff Rejected",
+      "sprint.planned": "Sprint Planned",
+      "sprint.started": "Sprint Started",
+      "sprint.completed": "Sprint Completed"
     }
   },
   runEngine: {
@@ -2642,6 +2647,71 @@ export const ru: Messages = {
       artifacts: "No linked artifacts yet."
     }
   },
+  sprintEngine: {
+    title: "Sprint Planning",
+    pageDescription: "Sprint 1 for AI Photo Lab — goal, capacity, commitment, backlog, and board ready for the digital team to start Monday.",
+    openSprint: "Open Sprint 1",
+    openControlRoom: "Control Room",
+    openProject: "Open Project",
+    openExecution: "Execution Queue",
+    openRuntime: "Runtime",
+    start: "Start",
+    end: "End",
+    workingDays: "working days",
+    commitment: "Commitment",
+    committed: "committed",
+    capacityTotal: "Ёмкость",
+    capacityRemaining: "Remaining capacity",
+    definitionOfReady: "Definition of Ready",
+    definitionOfDone: "Definition of Done",
+    reviewNotes: "Sprint notes",
+    plannedSprints: "planned",
+    tasks: "tasks",
+    remaining: "Remaining (burndown)",
+    ideal: "Ideal",
+    burndownNote: "Mock burndown — story points remaining vs ideal line for Sprint 1.",
+    dayProgress: "Day {elapsed} of {total} (starts Monday)",
+    localNote: "Planning only — no task execution. Sprint data in localStorage; tasks synced from delivery backlog.",
+    notFoundTitle: "Sprint not found",
+    notFoundDescription: "Activate AI Photo Lab and reload to seed Sprint 1.",
+    status: {
+      planned: "Планируемые",
+      active: "Активные",
+      review: "Проверка",
+      completed: "Завершено",
+      cancelled: "Отменено"
+    },
+    health: {
+      on_track: "On track",
+      at_risk: "At risk",
+      blocked: "Blocked"
+    },
+    columns: {
+      ready: "Ready",
+      in_sprint: "In Sprint",
+      review: "Проверка",
+      done: "Готово",
+      blocked: "Blocked"
+    },
+    metrics: {
+      completed: "Завершено",
+      remaining: "Remaining",
+      blocked: "Blocked",
+      progress: "Progress",
+      velocity: "Velocity (mock)",
+      health: "Sprint health"
+    },
+    sections: {
+      goal: "Sprint Goal",
+      progress: "Sprint Progress",
+      capacity: "Capacity & Commitment",
+      backlog: "Sprint Backlog",
+      board: "Sprint Board",
+      burndown: "Burndown",
+      review: "DoR / DoD / Review",
+      links: "Quick Links"
+    }
+  },
   photoLabControlRoom: {
     title: "AI Photo Lab Control Room",
     pageDescription: "Delivery control room — manage MVP readiness, digital team workload, Codex handoff, and Owner decisions from one screen.",
@@ -2735,6 +2805,71 @@ export const ru: Messages = {
       decisions: "No Owner decisions pending.",
       reports: "No draft reports yet.",
       risks: "No risks recorded."
+    }
+  },
+  employeeWorkspace: {
+    pageTitle: "{name} — Workspace",
+    pageDescription: "Personal desktop for a digital employee — current work, agenda, knowledge, handoffs, runtime, and activity in one place.",
+    openWorkspace: "Рабочее пространство",
+    openProfile: "Open profile",
+    openRuntime: "Open Runtime",
+    openExecution: "Execution queue",
+    openKnowledge: "Open knowledge",
+    openReports: "Open reports",
+    openChat: "Open chat",
+    openNotifications: "All notifications",
+    openApprovals: "All approvals",
+    overviewSummary: "This desktop aggregates tasks, runtime, handoffs, knowledge, reports, chats, and decisions scoped to this employee.",
+    noCurrentFocus: "No active focus",
+    noMessages: "Сообщений пока нет",
+    unreadCount: "{count} unread notifications",
+    notFoundTitle: "Employee workspace not found",
+    notFoundDescription: "This employee does not exist or cannot load a workspace snapshot.",
+    principleNote: "Workspace rule: one page for who I am, what I work on, what waits for my decision, and where to jump next — no Runtime execution from this view.",
+    localOnly: "Aggregated locally from tasks, executions, runtime runs, handoffs, knowledge, reports, chats, and events.",
+    sections: {
+      overview: "Who I am",
+      today: "Today",
+      currentTasks: "Current tasks",
+      currentRun: "Runtime",
+      knowledge: "Assigned knowledge",
+      reports: "Recent reports",
+      chats: "Recent chats",
+      notifications: "Notifications",
+      approvals: "Waiting for decision",
+      pendingHandoffs: "Pending handoffs",
+      activity: "My activity",
+      recentExecutions: "Recent executions",
+      recentRuns: "Недавние запуски"
+    },
+    fields: {
+      primaryModel: "Основная модель",
+      currentFocus: "Current focus",
+      openTasks: "Open tasks",
+      pendingDecisions: "Pending decisions",
+      workingOn: "Working on"
+    },
+    agenda: {
+      approval: "Согласование",
+      handoff: "Handoff"
+    },
+    actions: {
+      startWork: "Start Work",
+      openTask: "Open Task",
+      openRuntime: "Open Runtime",
+      openKnowledge: "Open Knowledge",
+      openChat: "Open Chat",
+      createReport: "Создать отчёт"
+    },
+    empty: {
+      today: "Nothing scheduled for today yet.",
+      tasks: "No open delivery tasks assigned.",
+      currentRun: "No active runtime run.",
+      knowledge: "No knowledge assignments yet.",
+      reports: "No reports created by this employee yet.",
+      chats: "No chats with this employee yet.",
+      notifications: "No notifications for this employee.",
+      approvals: "No pending approvals."
     }
   },
   employeeProfile: {

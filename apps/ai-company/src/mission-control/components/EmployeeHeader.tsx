@@ -59,8 +59,14 @@ export function EmployeeHeader({ employee }: { employee: CustomEmployee }) {
           </div>
           <div className="mcProfileHeaderActions">
             <Link
-              to={`/ops/chats/${encodeURIComponent(`conv:${employee.id}`)}`}
+              to={`/ops/employees/${employee.id}/workspace`}
               className="mcBtn mcBtnPrimary mcBtnSmall"
+            >
+              {t.employeeWorkspace.openWorkspace}
+            </Link>
+            <Link
+              to={`/ops/chats/${encodeURIComponent(`conv:${employee.id}`)}`}
+              className="mcBtn mcBtnSecondary mcBtnSmall"
             >
               {t.conversations.openConversation}
             </Link>

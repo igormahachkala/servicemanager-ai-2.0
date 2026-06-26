@@ -1,0 +1,209 @@
+.acEmployeeWorkspacePage {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.acWorkspaceQuickActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.acWorkspaceTop {
+  margin-bottom: 4px;
+}
+
+.acWorkspaceGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.acWorkspaceOverview {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.acWorkspaceIdentity {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 16px;
+  align-items: start;
+}
+
+.acWorkspaceAvatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  background: rgba(59, 130, 246, 0.15);
+  border: 1px solid rgba(59, 130, 246, 0.35);
+}
+
+.acWorkspaceName {
+  margin: 0 0 4px;
+  font-size: 22px;
+}
+
+.acWorkspaceMeta,
+.acWorkspaceBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.acWorkspaceBadges {
+  margin-top: 8px;
+}
+
+.acWorkspaceSummary {
+  margin: 0;
+  color: var(--mc-muted);
+}
+
+.acWorkspaceMetricGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.acWorkspaceMetric {
+  padding: 12px;
+  border: 1px solid var(--mc-border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.acWorkspaceMetricLabel {
+  display: block;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--mc-muted);
+  margin-bottom: 6px;
+}
+
+.acWorkspaceMetricValue {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.acWorkspaceAgendaList,
+.acWorkspaceTaskList,
+.acWorkspaceChatList,
+.acWorkspaceNotificationList,
+.acWorkspaceActivityList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.acWorkspaceAgendaItem,
+.acWorkspaceChatItem,
+.acWorkspaceNotificationItem,
+.acWorkspaceActivityItem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--mc-border);
+  border-radius: 10px;
+  text-decoration: none;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.acWorkspaceSubsection {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.acWorkspaceFocusCard {
+  padding: 14px;
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  border-radius: 12px;
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.acWorkspaceFocusLabel {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--mc-muted);
+}
+
+.acWorkspaceFocusTitle {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 6px 0;
+}
+
+.acWorkspaceFocusMeta {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.acWorkspaceTaskList li,
+.acWorkspaceActivityList li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--mc-border);
+}
+
+.acWorkspaceExecutionGrid,
+.acWorkspaceRunList,
+.acWorkspaceReportGrid,
+.acWorkspaceApprovalList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.acWorkspaceRunLink,
+.acWorkspaceReportLink,
+.acWorkspaceApprovalLink {
+  text-decoration: none;
+  color: inherit;
+}
+
+.acWorkspaceNotificationUnread .acWorkspaceNotificationItem {
+  border-color: rgba(59, 130, 246, 0.45);
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.acWorkspaceUnreadNote {
+  margin: 12px 0 0;
+}
+
+.acWorkspaceChatPreview {
+  font-size: 13px;
+}
+
+@media (max-width: 1100px) {
+  .acWorkspaceMetricGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  .acWorkspaceGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .acWorkspaceIdentity {
+    grid-template-columns: 1fr;
+  }
+}

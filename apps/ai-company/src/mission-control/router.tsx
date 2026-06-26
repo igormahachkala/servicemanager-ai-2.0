@@ -33,6 +33,7 @@ import { AuditPage } from '../pages/AuditPage'
 import { CompanyTimelinePage } from '../pages/CompanyTimelinePage'
 import { ActivityPage } from '../pages/ActivityPage'
 import { EmployeeRuntimePage } from '../pages/EmployeeRuntimePage'
+import { EmployeeWorkspacePage } from '../pages/EmployeeWorkspacePage'
 import { RuntimeRunPage } from '../pages/RuntimeRunPage'
 import { RuntimeSettingsPage } from '../pages/RuntimeSettingsPage'
 import { RunsPage } from '../pages/RunsPage'
@@ -49,6 +50,7 @@ import { CompanyCanvasPage } from '../pages/CompanyCanvasPage'
 import { ToolExecutionsPage } from '../pages/ToolExecutionsPage'
 import { HandoffsPage } from '../pages/HandoffsPage'
 import { HandoffDetailsPage } from '../pages/HandoffDetailsPage'
+import { SprintPage } from '../pages/SprintPage'
 
 function LegacyConversationRedirect() {
   const { id } = useParams<{ id: string }>()
@@ -81,6 +83,7 @@ export function MissionControlRoutes() {
         <Route path="employees/:id/memory" element={<EmployeeMemoryPage />} />
         <Route path="employees/:id/competencies" element={<EmployeeCompetenciesPage />} />
         <Route path="employees/:id/learning" element={<EmployeeLearningPage />} />
+        <Route path="employees/:id/workspace" element={<EmployeeWorkspacePage />} />
         <Route path="employees/:id/runtime" element={<EmployeeRuntimePage />} />
         <Route path="employees/:id" element={<EmployeeProfilePage />} />
         <Route path="tasks" element={<TasksPage />} />
@@ -123,6 +126,8 @@ export function MissionControlRoutes() {
         <Route path="tool-executions" element={<ToolExecutionsPage />} />
         <Route path="handoffs/:id" element={<HandoffDetailsPage />} />
         <Route path="handoffs" element={<HandoffsPage />} />
+        <Route path="sprint/:id" element={<SprintPage />} />
+        <Route path="sprint" element={<SprintPage />} />
         <Route path="*" element={<Navigate to="/ops" replace />} />
       </Route>
     </Routes>
