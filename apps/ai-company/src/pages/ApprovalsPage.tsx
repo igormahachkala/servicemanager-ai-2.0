@@ -24,6 +24,9 @@ export function ApprovalsPage() {
         <Link to="/ops/tool-executions" className="mcBtn mcBtnSecondary">
           {t.pages.toolExecutions}
         </Link>
+        <Link to="/ops/projects/project-ai-photo-lab/control-room" className="mcBtn mcBtnSecondary">
+          {t.pages.controlRoom}
+        </Link>
       </div>
 
       <ApprovalSummary stats={stats} />

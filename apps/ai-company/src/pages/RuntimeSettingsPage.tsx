@@ -38,6 +38,9 @@ export function RuntimeSettingsPage() {
           <Link to="/ops/notifications?type=runtime" className="mcBtn mcBtnSecondary">
             {t.notificationEngine.runtimeInbox}
           </Link>
+          <Link to="/ops/handoffs" className="mcBtn mcBtnSecondary">
+            {t.pages.handoffs}
+          </Link>
           <Link to="/ops/tool-executions" className="mcBtn mcBtnSecondary">
             {t.pages.toolExecutions}
           </Link>
@@ -46,6 +49,9 @@ export function RuntimeSettingsPage() {
           </Link>
           <Link to="/ops/collaboration" className="mcBtn mcBtnSecondary">
             {t.pages.collaboration}
+          </Link>
+          <Link to="/ops/projects/project-ai-photo-lab/control-room" className="mcBtn mcBtnSecondary">
+            {t.pages.controlRoom}
           </Link>
           <button type="button" className="mcBtn mcBtnPrimary" onClick={handleDemoRun}>
             {t.runtimeOrchestrator.startRun}

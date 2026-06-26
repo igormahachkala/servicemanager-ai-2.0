@@ -5,6 +5,7 @@ import type { Chat } from '../chats/chat'
 import { saveNativeChats, loadNativeChats } from '../chats/chatStorage'
 import { appendEvent, loadEvents } from '../events/eventStorage'
 import type { CompanyEvent } from '../events/event'
+import { ensurePhotoLabHandoffs } from '../handoff/handoffStorage'
 import { loadKnowledgeStore, saveKnowledgeStore } from '../knowledge/knowledgeStorage'
 import type { Knowledge } from '../knowledge/knowledge'
 import { DEFAULT_COMPANY_ID } from './project'
@@ -751,6 +752,7 @@ export function ensureAiPhotoLabActivation(): Project {
   seedPhotoLabChat(project.workspaceId, now)
   seedPhotoLabRuntimeRuns(project.workspaceId)
   seedPhotoLabReports(project.workspaceId, now)
+  ensurePhotoLabHandoffs()
 
   if (!isActivated()) {
     seedPhotoLabEvents(project.workspaceId, now)

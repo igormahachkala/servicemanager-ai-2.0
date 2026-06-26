@@ -43,9 +43,12 @@ import { NewChatPage } from '../pages/NewChatPage'
 import { EmployeeCompetenciesPage } from '../pages/EmployeeCompetenciesPage'
 import { EmployeeLearningPage } from '../pages/EmployeeLearningPage'
 import { CollaborationPage } from '../pages/CollaborationPage'
+import { AiPhotoLabControlRoomPage } from '../pages/AiPhotoLabControlRoomPage'
 import { ExecutionPage } from '../pages/ExecutionPage'
 import { CompanyCanvasPage } from '../pages/CompanyCanvasPage'
 import { ToolExecutionsPage } from '../pages/ToolExecutionsPage'
+import { HandoffsPage } from '../pages/HandoffsPage'
+import { HandoffDetailsPage } from '../pages/HandoffDetailsPage'
 
 function LegacyConversationRedirect() {
   const { id } = useParams<{ id: string }>()
@@ -106,6 +109,8 @@ export function MissionControlRoutes() {
         <Route path="presence" element={<PresencePage />} />
         <Route path="projects" element={<ProjectsPage />} />
         <Route path="projects/new" element={<NewProjectPage />} />
+        <Route path="projects/project-ai-photo-lab/control-room" element={<AiPhotoLabControlRoomPage />} />
+        <Route path="projects/:id/control-room" element={<AiPhotoLabControlRoomPage />} />
         <Route path="projects/:id" element={<ProjectPage />} />
         <Route path="workspaces" element={<WorkspacesPage />} />
         <Route path="workspaces/new" element={<NewWorkspacePage />} />
@@ -116,6 +121,8 @@ export function MissionControlRoutes() {
         <Route path="tools" element={<ToolsCatalogPage />} />
         <Route path="tools/:id" element={<ToolDetailsPage />} />
         <Route path="tool-executions" element={<ToolExecutionsPage />} />
+        <Route path="handoffs/:id" element={<HandoffDetailsPage />} />
+        <Route path="handoffs" element={<HandoffsPage />} />
         <Route path="*" element={<Navigate to="/ops" replace />} />
       </Route>
     </Routes>

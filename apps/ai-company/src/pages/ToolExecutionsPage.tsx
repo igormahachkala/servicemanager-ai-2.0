@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { PageHeader, Card } from '../components/layout'
 import {
   ToolApprovalPanel,
@@ -55,9 +56,14 @@ export function ToolExecutionsPage() {
         title={t.pages.toolExecutions}
         description="Single gateway for tool requests. Mock provider only, no real execution."
         actions={
-          <button className="mcBtn mcBtnPrimary" type="button" onClick={submitSample}>
-            Submit sample request
-          </button>
+          <>
+            <Link to="/ops/handoffs" className="mcBtn mcBtnSecondary">
+              {t.pages.handoffs}
+            </Link>
+            <button className="mcBtn mcBtnPrimary" type="button" onClick={submitSample}>
+              Submit sample request
+            </button>
+          </>
         }
       />
 

@@ -5248,6 +5248,352 @@
   }
 }
 
+.mcControlRoomPage {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.mcControlRoomHeaderActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mcControlRoomStats {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.mcControlRoomStat {
+  padding: 12px;
+  border: 1px solid var(--mc-border);
+  border-radius: 8px;
+  background: var(--mc-surface-2);
+  text-align: center;
+}
+
+.mcControlRoomStatValue {
+  display: block;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.mcControlRoomStatLabel {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--mc-muted);
+}
+
+.mcControlRoomGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(300px, 0.9fr);
+  gap: 16px;
+}
+
+.mcControlRoomMain,
+.mcControlRoomSide {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.mcControlRoomHealth .mcControlRoomGoal {
+  margin-bottom: 12px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.mcControlRoomMetrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.mcControlRoomMetric {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mcControlRoomMetricLabel {
+  font-size: 11px;
+  color: var(--mc-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.mcControlRoomMetricValue {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.mcControlRoomBadge {
+  display: inline-block;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(99, 102, 241, 0.12);
+  color: #6366f1;
+}
+
+.mcControlRoomHealthon_track {
+  background: rgba(34, 197, 94, 0.12);
+  color: #22c55e;
+}
+
+.mcControlRoomHealthat_risk {
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+}
+
+.mcControlRoomHealthcritical {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+}
+
+.mcControlRoomRisklow,
+.mcControlRoomRiskmedium {
+  background: rgba(59, 130, 246, 0.12);
+  color: #3b82f6;
+}
+
+.mcControlRoomRiskhigh {
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+}
+
+.mcControlRoomRiskcritical {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+}
+
+.mcControlRoomProgressBar {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--mc-border);
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.mcControlRoomProgressFill {
+  height: 100%;
+  background: linear-gradient(90deg, #6366f1, #22c55e);
+}
+
+.mcControlRoomProgressMeta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  margin-bottom: 12px;
+}
+
+.mcControlRoomMilestoneList,
+.mcControlRoomTeamList,
+.mcControlRoomWorkList,
+.mcControlRoomRuntimeList,
+.mcControlRoomCodexList,
+.mcControlRoomDecisionList,
+.mcControlRoomRiskList,
+.mcControlRoomReportList,
+.mcControlRoomDemoList,
+.mcControlRoomApprovalList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mcControlRoomMilestoneList li,
+.mcControlRoomTeamRow,
+.mcControlRoomWorkList li,
+.mcControlRoomRuntimeList li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+}
+
+.mcControlRoomSubhead {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--mc-muted);
+}
+
+.mcControlRoomWorkGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.mcControlRoomTaskTableWrap {
+  overflow-x: auto;
+}
+
+.mcControlRoomTaskTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.mcControlRoomTaskTable th,
+.mcControlRoomTaskTable td {
+  padding: 8px;
+  border-bottom: 1px solid var(--mc-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.mcControlRoomTeamName {
+  font-weight: 600;
+}
+
+.mcControlRoomTeamTask {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+.mcControlRoomPresence {
+  margin-left: auto;
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.mcControlRoomCodexCard,
+.mcControlRoomDecisionCard,
+.mcControlRoomRiskCard,
+.mcControlRoomReportCard {
+  padding: 10px;
+  border: 1px solid var(--mc-border);
+  border-radius: 8px;
+  background: var(--mc-surface-2);
+}
+
+.mcControlRoomCodexHead,
+.mcControlRoomDecisionHead,
+.mcControlRoomRiskHead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.mcControlRoomCodexTitle,
+.mcControlRoomDecisionTitle,
+.mcControlRoomReportTitle,
+.mcControlRoomRiskTitle,
+.mcControlRoomWorkTitle,
+.mcControlRoomRuntimeTitle {
+  font-weight: 600;
+}
+
+.mcControlRoomCodexRationale,
+.mcControlRoomMitigation {
+  margin: 8px 0 0;
+  font-size: 11px;
+  font-family: var(--mc-mono);
+  color: var(--mc-muted-2);
+}
+
+.mcControlRoomNote {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: var(--mc-muted);
+}
+
+.mcControlRoomDemoMeta {
+  margin-bottom: 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.mcControlRoomDemoItem {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 13px;
+}
+
+.mcControlRoomDemoCheck {
+  width: 18px;
+  text-align: center;
+  font-weight: 700;
+}
+
+.mcControlRoomDemodone .mcControlRoomDemoCheck {
+  color: #22c55e;
+}
+
+.mcControlRoomDemoblocked .mcControlRoomDemoCheck {
+  color: #ef4444;
+}
+
+.mcControlRoomLinks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mcControlRoomEmpty {
+  padding: 8px 0;
+  font-size: 12px;
+  color: var(--mc-muted);
+}
+
+.mcControlRoomLocalNote {
+  margin: 0;
+  font-size: 11px;
+  color: var(--mc-muted-2);
+  font-family: var(--mc-mono);
+}
+
+.mcControlRoomPrioritycritical {
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+}
+
+.mcControlRoomPriorityhigh {
+  background: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+}
+
+.acCanvasHeaderActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+@media (max-width: 960px) {
+  .mcControlRoomGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .mcControlRoomStats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mcControlRoomWorkGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Approval engine */
 .mcApprovalStatsGrid {
   display: grid;

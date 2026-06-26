@@ -267,6 +267,12 @@ export function ExecutiveDashboard() {
               >
                 {t.executiveDashboard.actionOpenCanvas}
               </Link>
+              <Link
+                to="/ops/projects/project-ai-photo-lab/control-room"
+                className="acQuickActionBtn acQuickActionBtnPrimary"
+              >
+                {t.executiveDashboard.actionOpenControlRoom}
+              </Link>
               <Link to="/ops/runtime" className="acQuickActionBtn">
                 {t.platformNav.settings}
               </Link>

@@ -29,6 +29,7 @@ export function SideNav() {
     { to: `${OPS}/runs`, page: 'runs' as const, icon: '▶', end: false },
     { to: `${OPS}/audit`, page: 'audit' as const, icon: '🔍', end: false },
     { to: `${OPS}/runtime`, page: 'runtimeSettings' as const, icon: '⎈', end: false },
+    { to: `${OPS}/handoffs`, page: 'handoffs' as const, icon: '📦', end: false },
     { to: `${OPS}/tool-executions`, page: 'toolExecutions' as const, icon: '⇢', end: false },
     { to: `${OPS}/tools`, page: 'toolsRegistry' as const, icon: '⚙', end: false },
   ] as const

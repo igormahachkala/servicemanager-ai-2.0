@@ -30,6 +30,12 @@ export function ReportsPage() {
         <Link to="/ops/collaboration" className="mcBtn mcBtnSecondary">
           {t.pages.collaboration}
         </Link>
+        <Link to="/ops/projects/project-ai-photo-lab/control-room" className="mcBtn mcBtnSecondary">
+          {t.pages.controlRoom}
+        </Link>
+        <Link to="/ops/handoffs" className="mcBtn mcBtnSecondary">
+          {t.pages.handoffs}
+        </Link>
         <Link to="/ops/audit" className="mcBtn mcBtnSecondary">
           {t.pages.audit}
         </Link>

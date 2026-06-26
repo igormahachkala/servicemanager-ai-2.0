@@ -48,10 +48,19 @@ export function ExecutionPage() {
           description={t.executionEngine.pageDescription}
         />
         <Link
+          to="/ops/projects/project-ai-photo-lab/control-room"
+          className="mcBtn mcBtnPrimary"
+        >
+          {t.photoLabControlRoom.openControlRoom}
+        </Link>
+        <Link
           to={`/ops/projects/${encodeURIComponent(AI_PHOTO_LAB_PROJECT_ID)}`}
           className="mcBtn mcBtnSecondary"
         >
           {t.executionEngine.openPhotoLab}
+        </Link>
+        <Link to="/ops/handoffs" className="mcBtn mcBtnSecondary">
+          {t.pages.handoffs}
         </Link>
       </div>
 

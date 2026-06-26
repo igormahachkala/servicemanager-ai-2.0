@@ -20,6 +20,11 @@ export const EVENT_TYPES = [
   'collaboration.message',
   'collaboration.consensus',
   'collaboration.completed',
+  'handoff.created',
+  'handoff.sent',
+  'handoff.returned',
+  'handoff.accepted',
+  'handoff.rejected',
 ] as const
 
 export type EventType = (typeof EVENT_TYPES)[number]

@@ -1,0 +1,233 @@
+.acHandoffLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.acHandoffFilters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.acHandoffList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.acHandoffCardLink,
+.acHandoffCardButton {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.acHandoffCard {
+  border: 1px solid var(--mc-border);
+  border-radius: 12px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.acHandoffCardSelected {
+  border-color: rgba(59, 130, 246, 0.55);
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.acHandoffCardCompact {
+  padding: 12px;
+}
+
+.acHandoffCardHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.acHandoffCardTitle {
+  margin: 0 0 4px;
+  font-size: 15px;
+}
+
+.acHandoffCardDescription {
+  margin: 0;
+  font-size: 13px;
+}
+
+.acHandoffCardMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+  align-items: center;
+}
+
+.acHandoffTargetBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  border: 1px solid var(--mc-border);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.acHandoffTargetBadgeCompact {
+  font-size: 10px;
+}
+
+.acHandoffTargetBadgeCodex,
+.acHandoffTargetBadgeClaudeCode,
+.acHandoffTargetBadgeCursor {
+  color: #93c5fd;
+  border-color: rgba(59, 130, 246, 0.35);
+}
+
+.acHandoffTargetBadgeQa,
+.acHandoffTargetBadgeDesigner {
+  color: #fde047;
+  border-color: rgba(234, 179, 8, 0.35);
+}
+
+.acHandoffTargetBadgeDevops,
+.acHandoffTargetBadgeHumanDeveloper {
+  color: #86efac;
+  border-color: rgba(34, 197, 94, 0.35);
+}
+
+.acHandoffStatus {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  border: 1px solid var(--mc-border);
+}
+
+.acHandoffStatusDraft { color: #cbd5e1; }
+.acHandoffStatusReady { color: #93c5fd; }
+.acHandoffStatusSent,
+.acHandoffStatusInProgress { color: #fde047; }
+.acHandoffStatusReturned { color: #fdba74; }
+.acHandoffStatusAccepted { color: #86efac; }
+.acHandoffStatusRejected,
+.acHandoffStatusCancelled { color: #fca5a5; }
+
+.acHandoffPreviewHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.acHandoffPreviewHead h3 {
+  margin: 0;
+}
+
+.acHandoffContextPanel,
+.acHandoffResultPanel,
+.acHandoffPackageView {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.acHandoffContextRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+
+.acHandoffContextSummary {
+  margin: 0;
+  font-size: 14px;
+}
+
+.acHandoffPathList ul,
+.acHandoffArtifactList ul,
+.acHandoffBlockers ul,
+.acHandoffPackageList {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.acHandoffChecklist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.acHandoffChecklistItem {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 13px;
+}
+
+.acHandoffChecklistItemDone {
+  color: #86efac;
+}
+
+.acHandoffChecklistMark {
+  width: 16px;
+  flex-shrink: 0;
+}
+
+.acHandoffPackageSection h4 {
+  margin: 0 0 6px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--mc-muted);
+}
+
+.acHandoffPackageSection p {
+  margin: 0;
+  font-size: 13px;
+}
+
+.acHandoffTemplateGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.acHandoffTemplateCard {
+  border: 1px solid var(--mc-border);
+  border-radius: 12px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.acHandoffTemplateCard h4 {
+  margin: 0 0 6px;
+}
+
+.acHandoffDetailMeta,
+.acHandoffActionRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+@media (max-width: 960px) {
+  .acHandoffLayout,
+  .acHandoffFilters {
+    grid-template-columns: 1fr;
+  }
+}

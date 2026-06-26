@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { PageHeader } from '../mission-control/components/ui'
+import { AI_PHOTO_LAB_PROJECT_ID } from '../domain/projects/aiPhotoLabIds'
 import {
   Milestones,
   ProjectActivity,
@@ -8,6 +9,7 @@ import {
   ProjectChats,
   ProjectEmptyState,
   ProjectHeader,
+  ProjectHandoffs,
   ProjectKnowledge,
   ProjectOverview,
   ProjectReports,
@@ -30,6 +32,7 @@ type ProjectSection =
   | 'roadmap'
   | 'timeline'
   | 'assignments'
+  | 'handoffs'
   | 'runtime'
   | 'reports'
   | 'activity'
@@ -57,6 +60,7 @@ export function ProjectPage() {
     'timeline',
     'assignments',
     'runtime',
+    'handoffs',
     'reports',
     'activity',
     'chats',
@@ -84,6 +88,14 @@ export function ProjectPage() {
     <div className="acProjectPage">
       <ProjectHeader project={project} />
       <div className="mcPageHeaderRow" style={{ marginBottom: 12 }}>
+        {project.id === AI_PHOTO_LAB_PROJECT_ID ? (
+          <Link
+            to={`/ops/projects/${encodeURIComponent(project.id)}/control-room`}
+            className="mcBtn mcBtnPrimary mcBtnSmall"
+          >
+            {t.photoLabControlRoom.openControlRoom}
+          </Link>
+        ) : null}
         <Link
           to={`/ops/collaboration?project=${encodeURIComponent(project.id)}`}
           className="mcBtn mcBtnSecondary mcBtnSmall"
@@ -117,6 +129,7 @@ export function ProjectPage() {
           <WorkspaceAssignments workspaceId={project.workspaceId} />
         ) : null}
         {section === 'runtime' ? <ProjectRuntime project={project} /> : null}
+        {section === 'handoffs' ? <ProjectHandoffs project={project} /> : null}
         {section === 'reports' ? <ProjectReports project={project} /> : null}
         {section === 'activity' ? <ProjectActivity project={project} /> : null}
         {section === 'chats' ? <ProjectChats project={project} /> : null}

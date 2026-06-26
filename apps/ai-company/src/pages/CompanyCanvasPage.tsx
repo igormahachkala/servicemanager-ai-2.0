@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   CanvasInspector,
   CanvasMiniMap,
@@ -66,7 +66,15 @@ export function CompanyCanvasPage() {
           </p>
         </div>
         {focusProject && project ? (
-          <span className="acCanvasProjectBadge acCanvasProjectBadgeLarge">{project.title}</span>
+          <div className="acCanvasHeaderActions">
+            <span className="acCanvasProjectBadge acCanvasProjectBadgeLarge">{project.title}</span>
+            <Link to="/ops/projects/project-ai-photo-lab/control-room" className="mcBtn mcBtnPrimary mcBtnSmall">
+              {t.photoLabControlRoom.openControlRoom}
+            </Link>
+            <Link to="/ops/handoffs" className="mcBtn mcBtnSecondary mcBtnSmall">
+              {t.pages.handoffs}
+            </Link>
+          </div>
         ) : null}
       </header>
 

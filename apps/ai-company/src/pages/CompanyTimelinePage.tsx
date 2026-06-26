@@ -6,7 +6,9 @@ import { Timeline } from '../components/events/Timeline'
 import { WorkdayTimeline } from '../components/presence'
 import { ToolExecutionLog } from '../components/toolExecution'
 import { getRecentCollaborationSessions } from '../domain/collaboration/collaborationStorage'
+import { listHandoffs } from '../domain/handoff'
 import { listToolExecutions } from '../domain/toolExecution'
+import { HandoffCard } from '../components/handoff'
 import { useEvents } from '../hooks/useEvents'
 import { usePresence } from '../hooks/usePresence'
 import { useI18n } from '../i18n'
@@ -18,6 +20,7 @@ export function CompanyTimelinePage() {
     scope: 'company',
   })
   const recentCollaborations = getRecentCollaborationSessions(3)
+  const recentHandoffs = listHandoffs().slice(0, 4)
 
   return (
     <>
@@ -31,6 +34,9 @@ export function CompanyTimelinePage() {
         </Link>
         <Link to="/ops/collaboration" className="mcBtn mcBtnSecondary">
           {t.pages.collaboration}
+        </Link>
+        <Link to="/ops/projects/project-ai-photo-lab/control-room" className="mcBtn mcBtnSecondary">
+          {t.pages.controlRoom}
         </Link>
       </div>
 
@@ -64,6 +70,19 @@ export function CompanyTimelinePage() {
             {t.pages.collaboration}
           </Link>
         </div>
+      </Panel>
+
+      <Panel title={t.pages.handoffs}>
+        <div className="acHandoffList mcProfilePanelBody">
+          {recentHandoffs.length === 0 ? (
+            <p className="mcMuted">{t.handoffEngine.empty}</p>
+          ) : (
+            recentHandoffs.map((handoff) => <HandoffCard key={handoff.id} handoff={handoff} compact />)
+          )}
+        </div>
+        <Link to="/ops/handoffs" className="acLink" style={{ marginTop: 12, display: 'inline-block' }}>
+          {t.pages.handoffs}
+        </Link>
       </Panel>
 
       <Panel title={t.pages.toolExecutions}>
