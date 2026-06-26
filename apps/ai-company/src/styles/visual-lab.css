@@ -1,0 +1,501 @@
+/* Visual Execution Lab — mock Cursor-style workspace */
+
+.vlPage {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: calc(100vh - 120px);
+}
+
+.vlWorkspace {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr) 360px;
+  gap: 12px;
+  min-height: 520px;
+}
+
+.vlCenterColumn {
+  display: grid;
+  grid-template-rows: minmax(280px, 1fr) 180px;
+  gap: 12px;
+  min-width: 0;
+}
+
+.vlSidebar,
+.vlEditorPanel,
+.vlTerminalPanel,
+.vlBrowserPanel,
+.vlTimelinePanel {
+  border: 1px solid var(--mc-border, var(--ac-border));
+  border-radius: var(--mc-radius, 10px);
+  background: var(--mc-surface, var(--ac-bg));
+  overflow: hidden;
+}
+
+.vlSidebar {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.vlSidebarSectionTitle {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--mc-muted, var(--ac-text-muted));
+  margin-bottom: 6px;
+}
+
+.vlSidebarPrimary {
+  font-weight: 700;
+  font-size: 14px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.vlSidebarMeta {
+  font-size: 12px;
+  color: var(--mc-muted, var(--ac-text-muted));
+  margin-top: 4px;
+}
+
+.vlSidebarRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  margin-top: 6px;
+}
+
+.vlIntegrationLinks {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.vlIntegrationLinks a {
+  color: var(--ac-blue, #3b82f6);
+  text-decoration: none;
+}
+
+.vlPanelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--mc-border, var(--ac-border));
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--mc-muted, var(--ac-text-muted));
+}
+
+.vlEditorPanel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.vlEditorTabs {
+  display: flex;
+  gap: 4px;
+  padding: 8px 8px 0;
+  border-bottom: 1px solid var(--mc-border, var(--ac-border));
+}
+
+.vlEditorTab {
+  border: none;
+  background: transparent;
+  padding: 6px 10px;
+  font-size: 12px;
+  border-radius: 6px 6px 0 0;
+  color: var(--mc-muted, var(--ac-text-muted));
+  cursor: default;
+}
+
+.vlEditorTabActive {
+  background: rgba(59, 130, 246, 0.12);
+  color: var(--ac-text, inherit);
+  font-weight: 600;
+}
+
+.vlFileChangePreview {
+  margin: 8px 12px 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(34, 197, 94, 0.08);
+  border: 1px solid rgba(34, 197, 94, 0.25);
+}
+
+.vlFileChangePath,
+.vlFileChangeSummary {
+  font-size: 11px;
+  margin-bottom: 4px;
+}
+
+.vlFileChangeDiff {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.vlDiffAdded {
+  color: #22c55e;
+}
+
+.vlEditorChangeBadge {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(34, 197, 94, 0.15);
+  color: #16a34a;
+}
+
+.vlEditorCode {
+  flex: 1;
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  font-size: 12px;
+  line-height: 1.5;
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+.vlTerminalPanel {
+  display: flex;
+  flex-direction: column;
+}
+
+.vlTerminalBody {
+  flex: 1;
+  padding: 10px 12px;
+  overflow: auto;
+  background: #111827;
+  color: #d1fae5;
+  font-family: var(--mc-mono, ui-monospace, monospace);
+  font-size: 12px;
+}
+
+.vlTerminalLine {
+  margin-bottom: 4px;
+}
+
+.vlTerminalEmpty {
+  color: #6b7280;
+}
+
+.vlBrowserPanel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.vlBrowserChrome {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--mc-border, var(--ac-border));
+  background: var(--mc-bg-subtle, var(--ac-bg-subtle));
+}
+
+.vlBrowserDots {
+  display: flex;
+  gap: 5px;
+}
+
+.vlBrowserDots span {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: #94a3b8;
+}
+
+.vlBrowserUrl {
+  flex: 1;
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vlBrowserViewport {
+  position: relative;
+  flex: 1;
+  padding: 16px;
+  background: linear-gradient(180deg, #f8fafc, #eef2ff);
+  min-height: 320px;
+}
+
+.vlBrowserPage {
+  position: relative;
+  max-width: 320px;
+  margin: 0 auto;
+  padding: 20px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+}
+
+.vlBrowserPageTitle {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.vlBrowserPageCopy {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0 0 16px;
+}
+
+.vlBrowserForm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.vlBrowserLabel {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.vlBrowserInput,
+.vlBrowserButton,
+.vlBrowserButtonPlaceholder {
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.vlBrowserInput {
+  padding: 8px 10px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+}
+
+.vlBrowserInputHighlight {
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.35);
+}
+
+.vlBrowserButton {
+  padding: 8px 12px;
+  border: none;
+  background: #2563eb;
+  color: #fff;
+  font-weight: 600;
+  width: fit-content;
+}
+
+.vlBrowserButtonHighlight {
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.35);
+}
+
+.vlBrowserButtonPlaceholder {
+  padding: 8px 12px;
+  border: 1px dashed #cbd5e1;
+  color: #94a3b8;
+  width: fit-content;
+}
+
+.vlBrowserHighlight {
+  position: absolute;
+  border: 2px solid #22c55e;
+  border-radius: 8px;
+  pointer-events: none;
+  box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.15);
+}
+
+.vlBrowserHighlightLabel {
+  position: absolute;
+  top: -18px;
+  left: 0;
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: #22c55e;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.vlBrowserCursor {
+  position: absolute;
+  width: 14px;
+  height: 18px;
+  background: #111827;
+  clip-path: polygon(0 0, 0 100%, 35% 70%, 55% 100%, 70% 92%, 50% 65%, 100% 45%);
+  transform: translate(-2px, -2px);
+  transition: top 0.35s ease, left 0.35s ease;
+  z-index: 5;
+}
+
+.vlBrowserClickRipple {
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  margin: -9px 0 0 -9px;
+  border-radius: 999px;
+  border: 2px solid #2563eb;
+  animation: vlClickRipple 0.8s ease-out forwards;
+  pointer-events: none;
+  z-index: 6;
+}
+
+@keyframes vlClickRipple {
+  from {
+    transform: scale(0.4);
+    opacity: 1;
+  }
+  to {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+.vlScreenshotStrip {
+  border-top: 1px solid var(--mc-border, var(--ac-border));
+  padding: 10px 12px;
+}
+
+.vlScreenshotStripTitle {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--mc-muted, var(--ac-text-muted));
+  margin-bottom: 8px;
+}
+
+.vlScreenshotList {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+}
+
+.vlScreenshotCard {
+  min-width: 96px;
+}
+
+.vlScreenshotThumb {
+  height: 54px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #dbeafe, #bfdbfe);
+  border: 1px solid #93c5fd;
+}
+
+.vlScreenshotLabel {
+  font-size: 10px;
+  margin-top: 4px;
+  color: var(--mc-muted, var(--ac-text-muted));
+}
+
+.vlTimelinePanel {
+  padding-bottom: 10px;
+}
+
+.vlTimelineHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--mc-border, var(--ac-border));
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.vlTimelineControls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.vlTimelineTrack {
+  display: flex;
+  gap: 8px;
+  padding: 12px;
+  overflow-x: auto;
+}
+
+.vlTimelineEvent {
+  min-width: 160px;
+  text-align: left;
+  border: 1px solid var(--mc-border, var(--ac-border));
+  border-radius: 10px;
+  padding: 10px;
+  background: var(--mc-bg-subtle, var(--ac-bg-subtle));
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  opacity: 0.55;
+}
+
+.vlTimelineEventActive {
+  opacity: 1;
+}
+
+.vlTimelineEventCurrent {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+}
+
+.vlTimelineEventTime {
+  font-size: 10px;
+  color: var(--mc-muted, var(--ac-text-muted));
+}
+
+.vlTimelineEventLabel {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.vlTimelineEventDetail {
+  font-size: 10px;
+  color: var(--mc-muted, var(--ac-text-muted));
+}
+
+.vlTimelineKindTest { border-left: 3px solid #8b5cf6; }
+.vlTimelineKindFile { border-left: 3px solid #22c55e; }
+.vlTimelineKindTerminal { border-left: 3px solid #64748b; }
+.vlTimelineKindCursor { border-left: 3px solid #f59e0b; }
+.vlTimelineKindClick { border-left: 3px solid #2563eb; }
+.vlTimelineKindHighlight { border-left: 3px solid #06b6d4; }
+.vlTimelineKindButton { border-left: 3px solid #ec4899; }
+.vlTimelineKindScreenshot { border-left: 3px solid #a855f7; }
+.vlTimelineKindBuild { border-left: 3px solid #16a34a; }
+
+.vlTimelineProgress {
+  height: 4px;
+  margin: 0 12px;
+  background: rgba(148, 163, 184, 0.25);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.vlTimelineProgressFill {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6, #22c55e);
+  transition: width 0.35s ease;
+}
+
+.vlMockNote {
+  font-size: 12px;
+  color: var(--mc-muted, var(--ac-text-muted));
+  margin: 0;
+}
+
+@media (max-width: 1200px) {
+  .vlWorkspace {
+    grid-template-columns: 1fr;
+  }
+
+  .vlCenterColumn {
+    grid-template-rows: 320px 160px;
+  }
+}

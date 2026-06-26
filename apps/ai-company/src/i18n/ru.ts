@@ -103,9 +103,11 @@ export const ru: Messages = {
     knowledge: "База знаний",
     audit: "Аудит",
     runtimeSettings: "Настройки Runtime",
+    runtimeLive: "Live Runtime Monitor",
     approvals: "Согласования",
     presence: "Присутствие",
-    workday: "Рабочий день"
+    workday: "Рабочий день",
+    visualLab: "Visual Execution Lab"
   },
   agentStatus: {
     online: "онлайн",
@@ -693,6 +695,62 @@ export const ru: Messages = {
       canvas: "Canvas graph unavailable",
       canvasTasks: "No active canvas tasks",
       controlRoom: "Control room snapshot unavailable"
+    }
+  },
+  visualLab: {
+    title: "Visual Execution Lab",
+    description: "Cursor-style visual workspace — mock editor, terminal, browser preview, clicks, and test timeline for digital employee execution.",
+    mockNote: "Visual/mock only — no real Playwright or browser automation yet.",
+    sidebar: {
+      employee: "Сотрудник",
+      task: "Задача",
+      execution: "Execution",
+      status: "Статус",
+      tests: "Test steps",
+      project: "Project",
+      integrations: "Интеграции"
+    },
+    integrations: {
+      execution: "Execution Queue",
+      runtime: "Runtime Run",
+      handoffs: "Handoff",
+      reports: "Отчёт",
+      canvas: "Company Canvas",
+      controlRoom: "Control Room"
+    },
+    editor: {
+      title: "Editor",
+      changed: "File changed"
+    },
+    terminal: {
+      title: "Terminal",
+      waiting: "Waiting for execution output…"
+    },
+    browser: {
+      title: "Browser Preview",
+      landingCopy: "Sign in to continue to AI Photo Lab inspection workspace.",
+      buttonPending: "Rendering Sign in button…",
+      screenshots: "Screenshots timeline"
+    },
+    timeline: {
+      title: "Action Timeline",
+      play: "Play",
+      pause: "Pause",
+      replay: "Replay",
+      restart: "Restart",
+      back: "Back",
+      forward: "Forward"
+    },
+    actions: {
+      test_started: "Test started",
+      file_changed: "File changed",
+      terminal_line: "Terminal",
+      cursor_move: "Cursor moved",
+      click: "Clicked login",
+      highlight: "Highlighted UI element",
+      button_added: "Button added",
+      screenshot: "Screenshot captured",
+      build_passed: "Build passed"
     }
   },
   tasks: {
@@ -2218,6 +2276,18 @@ export const ru: Messages = {
     realExecution: "Real execution",
     mockExecution: "Mock execution",
     mockExecutionNote: "Переключите active provider на Ollama для real HTTP execution.",
+    fastTestMode: "Fast test mode",
+    fastTestTag: "fast test",
+    fastTestModeNote: "Fast test mode ограничивает output tokens и обрезает длинные prompts для qwen2.5-coder:7b и deepseek-r1:8b.",
+    lightweightContext: "Lightweight context",
+    lightweightContextNote: "First real Ollama run использует только employee profile и runtime profile — memory и knowledge пропускаются.",
+    elapsedTime: "Elapsed",
+    timeoutLimit: "Timeout limit: {seconds}s",
+    cancelExecution: "Cancel execution",
+    errors: {
+      timeout: "Execution timed out",
+      cancelled: "Execution cancelled"
+    },
     logsTitle: "Runtime logs",
     logsEmpty: "Runtime logs пока пусты.",
     capabilities: {
@@ -2230,6 +2300,39 @@ export const ru: Messages = {
       mock: "Mock",
       unknown: "Unknown"
     }
+  },
+  runtimeLive: {
+    title: "Live Runtime Monitor",
+    description: "Watch digital employee execution in real time — pipeline, logs, provider health, result preview, and downstream integrations.",
+    launchTitle: "Launch execution",
+    executionStream: "Live execution stream",
+    executionStreamDescription: "Merged pipeline, provider logs, and timeline events for the active run.",
+    contextAndPreview: "Runtime context + result preview",
+    bottomPanel: "Logs / events / warnings",
+    selectedEmployee: "Selected employee",
+    currentStep: "Current step",
+    elapsed: "Elapsed",
+    timeout: "Timeout",
+    liveBadge: "LIVE",
+    streamEmpty: "Start a runtime run to populate the live stream.",
+    noRunSelected: "No runtime run selected — launch Atlas or MAX execution above.",
+    integrations: "Интеграции",
+    runHistory: "Run history",
+    reportLink: "Отчёт",
+    employeeWorkspace: "Employee workspace",
+    reportCreation: "Report creation",
+    reportPending: "Report will be created after successful execution.",
+    resultPreview: "Result preview",
+    resultPending: "Waiting for model response…",
+    recentRuns: "Недавние запуски",
+    principleNote: "Live monitor reads local runtime runs, provider logs, and company events — no external telemetry in V1.",
+    localOnly: "Polls localStorage every 500ms while a run is active.",
+    tabs: {
+      logs: "Logs",
+      events: "Events",
+      warnings: "Предупреждения"
+    },
+    eventsEmpty: "No timeline events for this run yet."
   },
   handoffEngine: {
     pageDescription: "Real work handoff protocol — digital employees prepare packages for Codex, Claude Code, Cursor, or humans. No external execution in V1.",
@@ -2336,7 +2439,7 @@ export const ru: Messages = {
     grantApprovalMock: "Предоставить согласование (mock)",
     waitingApprovalNote: "Run paused at approval gate — mock Owner approval required before completion.",
     principleNote: "Orchestrator rule: Runtime никогда не вызывает LLM напрямую — always through Model Router. Runtime reads context only; never mutates Employee or Memory.",
-    localOnly: "Stored in localStorage (ai-company-runtime-runs) — Ollama execution когда active provider = Ollama.",
+    localOnly: "Stored in localStorage (ai-company-runtime-runs) — mock pipeline, no Ollama or provider calls.",
     state: "Состояние",
     employee: "Сотрудник",
     model: "Модель",
@@ -2395,6 +2498,7 @@ export const ru: Messages = {
       load_runtime_profile: "Загрузить runtime profile",
       run_model_router: "Run Model Router",
       approval_check: "Проверка approval",
+      tool_gateway: "Шлюз инструментов",
       create_run: "Создать run",
       emit_event: "Отправить событие",
       create_report: "Создать report",

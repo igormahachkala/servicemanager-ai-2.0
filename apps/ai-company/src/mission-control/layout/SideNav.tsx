@@ -19,6 +19,7 @@ export function SideNav() {
     { to: `${OPS}/employees`, page: 'employees' as const, icon: '◎', end: false },
     { to: `${OPS}/tasks`, page: 'tasks' as const, icon: '▤', end: false },
     { to: `${OPS}/execution`, page: 'execution' as const, icon: '⚡', end: false },
+    { to: `${OPS}/visual-lab`, page: 'visualLab' as const, icon: '🖥', end: false },
     { to: `${OPS}/chats`, page: 'chats' as const, icon: '💬', end: false },
     { to: `${OPS}/sprint`, page: 'sprint' as const, icon: '🏃', end: false },
     { to: `${OPS}/collaboration`, page: 'collaboration' as const, icon: '🤝', end: false },

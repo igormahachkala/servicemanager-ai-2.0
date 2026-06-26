@@ -73,6 +73,7 @@ export function pageTitle(pathname: string, t: Messages): string {
   if (pathname.startsWith('/ops/employees/')) return t.employeeProfile.title
   if (pathname === '/ops/tasks') return t.pages.tasks
   if (pathname === '/ops/execution') return t.pages.execution
+  if (pathname === '/ops/visual-lab') return t.pages.visualLab
   if (pathname === '/ops/chats') return t.pages.chats
   if (pathname === '/ops/chats/new') return t.chats.newChat
   if (pathname.startsWith('/ops/chats/')) return t.pages.chats
@@ -102,6 +103,7 @@ export function pageTitle(pathname: string, t: Messages): string {
   if (pathname === '/ops/runs') return t.pages.runs
   if (pathname.startsWith('/ops/runs/')) return t.pages.runs
   if (pathname === '/ops/audit') return t.pages.audit
+  if (pathname === '/ops/runtime/live') return t.pages.runtimeLive
   if (pathname === '/ops/runtime') return t.pages.runtimeSettings
   if (pathname.startsWith('/ops/runtime/runs/')) return t.runtimeOrchestrator.runPageTitle
   if (pathname.startsWith('/ops/employees/') && pathname.endsWith('/runtime')) {
