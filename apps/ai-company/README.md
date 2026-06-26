@@ -25,6 +25,21 @@ The **North Star** is the supreme source of truth for all product, architecture,
 
 Every agent must pass the [task decision filter](./docs/operating-rules/task-decision-filter.md) before work and the [quality gate](./docs/operating-rules/quality-gate.md) before commit.
 
+## Engineering Governance
+
+Process for scaling AI Company across many contributors and digital employees.
+
+| Document | Purpose |
+|----------|---------|
+| [docs/process/feature-lifecycle.md](./docs/process/feature-lifecycle.md) | Idea → RFC → Architecture → Design → Implementation → QA → Product Review → Beta → Production |
+| [docs/reviews/architecture-review-process.md](./docs/reviews/architecture-review-process.md) | Mandatory AR after every 10 tasks, before Beta/Production, new Runtime Provider, new product |
+| [docs/reviews/platform-review-log.md](./docs/reviews/platform-review-log.md) | Journal of all reviews — findings, decisions, Go/No Go |
+| [docs/release/beta-readiness-checklist.md](./docs/release/beta-readiness-checklist.md) | Beta gate — Runtime, Canvas, Execution, Sprint, Projects, Notifications, Knowledge, Handoffs, Presence, Reports, QA, Performance, i18n, Documentation |
+| [docs/release/production-readiness.md](./docs/release/production-readiness.md) | Production gate — first customer |
+| [docs/architecture/technical-debt.md](./docs/architecture/technical-debt.md) | Unified TD / UX debt register |
+
+Architecture Review outcomes **must** be logged in [platform-review-log.md](./docs/reviews/platform-review-log.md).
+
 ## AI Company Source of Truth
 
 Before changing this project, read the mandatory agent entrypoint and vision docs:
@@ -33,6 +48,10 @@ Before changing this project, read the mandatory agent entrypoint and vision doc
 |----------|---------|
 | **[docs/AGENTS.md](./docs/AGENTS.md)** | **Required reading for all agents** — rules, scope, conflict policy |
 | [docs/operating-rules/](./docs/operating-rules/) | **Mandatory operating standard** — filters, quality gate, senior review |
+| [docs/process/feature-lifecycle.md](./docs/process/feature-lifecycle.md) | Feature lifecycle stages |
+| [docs/reviews/](./docs/reviews/) | Architecture review process + platform review log |
+| [docs/release/](./docs/release/) | Beta and production readiness checklists |
+| [docs/architecture/technical-debt.md](./docs/architecture/technical-debt.md) | Technical and UX debt register |
 | [docs/vision/README.md](./docs/vision/README.md) | Vision index (subordinate to North Star) |
 | [docs/vision/ai-company-vision.md](./docs/vision/ai-company-vision.md) | Product vision |
 | [docs/vision/core-principles.md](./docs/vision/core-principles.md) | 17 core principles |
@@ -94,9 +113,12 @@ apps/ai-company/
 ├── docs/
 │   ├── AGENTS.md              # Agent entrypoint (read first)
 │   ├── operating-rules/       # Mandatory senior product & engineering rules
+│   ├── reviews/               # Architecture review + platform review log
+│   ├── release/               # Beta & production readiness
+│   ├── process/               # Feature lifecycle
 │   ├── north-star/            # Platform constitution
 │   ├── vision/                # Product vision & principles
-│   ├── architecture/          # ADRs
+│   ├── architecture/          # ADRs + technical debt register
 │   └── domain/                # Entity specs
 └── src/
     ├── layout/                # App shell + top navigation

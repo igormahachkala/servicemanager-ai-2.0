@@ -24,16 +24,27 @@ Before writing or changing **anything**, you **must** read the constitution and 
 | **2** | **[operating-rules/task-decision-filter.md](./operating-rules/task-decision-filter.md)** | **Five filters — STOP if task matches none** |
 | **3** | **[operating-rules/quality-gate.md](./operating-rules/quality-gate.md)** | **Pre-commit product & engineering gate** |
 | **4** | **[AGENTS.md](./AGENTS.md)** | This file — scope, rules, escalation |
-| **5** | Relevant **ADR** | [adr-001](./architecture/adr-001-ai-company-platform.md), [adr-002](./architecture/adr-002-tool-registry.md), or task-specific |
-| **6** | Relevant **domain docs** | [domain-model.md](./domain/domain-model.md) + entity specs for code tasks |
-| **7** | [north-star/digital-dna.md](./north-star/digital-dna.md) | Digital DNA — identity persists across models |
-| **8** | [north-star/platform-vs-company.md](./north-star/platform-vs-company.md) | Platform L1 vs Customer L2 |
-| **9** | [north-star/living-company.md](./north-star/living-company.md) | Living company UX principle |
-| **10** | [vision/](./vision/) | Vision detail — see [vision/README.md](./vision/README.md) |
+| **5** | **[process/feature-lifecycle.md](./process/feature-lifecycle.md)** | Idea → Production stages |
+| **6** | **[reviews/architecture-review-process.md](./reviews/architecture-review-process.md)** | When and how to run Architecture Review |
+| **7** | **[architecture/technical-debt.md](./architecture/technical-debt.md)** | Debt register — update on AR |
+| **8** | Relevant **ADR** | [adr-001](./architecture/adr-001-ai-company-platform.md), [adr-002](./architecture/adr-002-tool-registry.md), or task-specific |
+| **9** | Relevant **domain docs** | [domain-model.md](./domain/domain-model.md) + entity specs for code tasks |
+| **10** | [north-star/digital-dna.md](./north-star/digital-dna.md) | Digital DNA — identity persists across models |
+| **11** | [north-star/platform-vs-company.md](./north-star/platform-vs-company.md) | Platform L1 vs Customer L2 |
+| **12** | [north-star/living-company.md](./north-star/living-company.md) | Living company UX principle |
+| **13** | [vision/](./vision/) | Vision detail — see [vision/README.md](./vision/README.md) |
+
+**Release gates (when applicable):**
+
+| Gate | Document |
+|------|----------|
+| Beta | [release/beta-readiness-checklist.md](./release/beta-readiness-checklist.md) |
+| Production | [release/production-readiness.md](./release/production-readiness.md) |
+| AR log | [reviews/platform-review-log.md](./reviews/platform-review-log.md) |
 
 **Minimum before any task:** items **0–4** + relevant ADR/domain for the task type.
 
-**Estimated read time (0–4):** 25–35 minutes. Do not skip the constitution or operating rules.
+**Before Beta / Production / new Runtime Provider:** items **5–7** + readiness checklist + log entry in platform-review-log.
 
 ---
 
@@ -78,6 +89,31 @@ Answer at least one **yes**:
 See [quality-gate.md](./operating-rules/quality-gate.md):
 
 - build passes · routes work · scope clean · EN+RU · clear errors · user flow tested
+
+---
+
+## Engineering governance (mandatory)
+
+Full pack: [reviews/](./reviews/) · [release/](./release/) · [process/](./process/) · [architecture/technical-debt.md](./architecture/technical-debt.md).
+
+| Document | When to use |
+|----------|-------------|
+| [feature-lifecycle.md](./process/feature-lifecycle.md) | Every feature: Idea → RFC → … → Production |
+| [architecture-review-process.md](./reviews/architecture-review-process.md) | After every 10 tasks; before Beta/Production; new Runtime Provider; new product |
+| [platform-review-log.md](./reviews/platform-review-log.md) | **Log every AR** — findings, decisions, Go/No Go |
+| [beta-readiness-checklist.md](./release/beta-readiness-checklist.md) | Before Beta declaration |
+| [production-readiness.md](./release/production-readiness.md) | Before first customer |
+| [technical-debt.md](./architecture/technical-debt.md) | Register and close TD-/UX- items |
+
+**Architecture Review triggers (minimum):**
+
+- every **10 completed tasks**
+- before **Beta**
+- before **Production**
+- before **new Runtime Provider**
+- before **new product / major initiative**
+
+No Go in review log → do not advance phase.
 
 ---
 
@@ -158,6 +194,9 @@ Controller/UI → hooks → data (localStorage) → domain types
 - [ ] Read North Star + operating rules 0–4 (or confirm docs-only task)
 - [ ] Task passed [task-decision-filter.md](./operating-rules/task-decision-filter.md)
 - [ ] [quality-gate.md](./operating-rules/quality-gate.md) checklist complete
+- [ ] Feature follows [feature-lifecycle.md](./process/feature-lifecycle.md) for its size
+- [ ] Debt items filed in [technical-debt.md](./architecture/technical-debt.md) if accepting shortcuts
+- [ ] AR logged in [platform-review-log.md](./reviews/platform-review-log.md) if trigger fired
 - [ ] No constitution violations
 - [ ] `cd apps/ai-company && npm run build` passes (for code changes)
 - [ ] i18n EN + RU for user-visible strings
@@ -179,6 +218,7 @@ Controller/UI → hooks → data (localStorage) → domain types
 | Styles | `src/styles/`, `src/mission-control/styles/` |
 | **Constitution** | `docs/north-star/` |
 | **Operating rules** | `docs/operating-rules/` |
+| **Engineering governance** | `docs/reviews/`, `docs/release/`, `docs/process/` |
 | Vision docs | `docs/vision/` |
 | Architecture | `docs/architecture/` |
 | Domain specs | `docs/domain/` |
@@ -210,12 +250,18 @@ Update North Star, operating rules, or vision/domain docs **in the same PR/commi
 - Change Platform L1 vs Customer L2 boundary
 - Add marketplace or template semantics
 - Change mandatory agent workflow or quality gates
+- Complete a milestone that requires Architecture Review
+- Accept or close technical / UX debt
+
+Log Architecture Review outcomes in [platform-review-log.md](./reviews/platform-review-log.md).
+
+Update [technical-debt.md](./architecture/technical-debt.md) when debt is created or closed.
 
 ADR required for architectural decisions that affect multiple entities.
 
 North Star changes require **explicit Owner approval** — not drive-by edits.
 
-Operating rules changes require Owner approval when they alter mandatory gates.
+Operating rules and governance gate changes require Owner approval when they alter mandatory process.
 
 ---
 
@@ -236,6 +282,9 @@ When stopping for clarification, include:
 - [README.md](../README.md) — quick start and constitution links
 - [north-star/north-star.md](./north-star/north-star.md) — start here always
 - [operating-rules/senior-product-engineering-rules.md](./operating-rules/senior-product-engineering-rules.md) — how to work
+- [process/feature-lifecycle.md](./process/feature-lifecycle.md) — feature stages
+- [reviews/architecture-review-process.md](./reviews/architecture-review-process.md) — AR process
+- [architecture/technical-debt.md](./architecture/technical-debt.md) — debt register
 
 ---
 
@@ -246,3 +295,4 @@ When stopping for clarification, include:
 | 1.0 | 2026-06-24 | Initial agent entrypoint |
 | 2.0 | 2026-06-24 | North Star constitution mandatory (AI-COMPANY-048) |
 | 3.0 | 2026-06-24 | Senior Product & Engineering Operating Rules (AI-COMPANY-058) |
+| 4.0 | 2026-06-24 | Engineering governance pack (AI-COMPANY-062) |
