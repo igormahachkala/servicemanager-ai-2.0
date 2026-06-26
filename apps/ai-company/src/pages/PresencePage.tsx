@@ -6,15 +6,18 @@ import {
   EmployeePresenceCard,
   WorkdayTimeline,
 } from '../components/presence'
+import { WorkdayDailySummaryPanel } from '../components/workday'
 import { useAssignments } from '../hooks/useAssignments'
 import { usePresence } from '../hooks/usePresence'
 import { useReports } from '../hooks/useReports'
+import { useWorkday } from '../hooks/useWorkday'
 import { useI18n } from '../i18n'
 import { isPresenceWorking } from '../domain/presence/presenceStats'
 
 export function PresencePage() {
   const { t } = useI18n()
   const { stats, nowWorking, waiting, todayEvents, records } = usePresence()
+  const { dashboard } = useWorkday()
   const { assignments } = useAssignments()
   const { reports } = useReports()
 
@@ -26,7 +29,22 @@ export function PresencePage() {
 
   return (
     <>
-      <PageHeader title={t.pages.presence} description={t.presence.pageDescription} />
+      <PageHeader
+        title={t.pages.presence}
+        description={t.presence.pageDescription}
+        actions={
+          <Link to="/ops/workday" className="mcBtn mcBtnSecondary">
+            {t.pages.workday}
+          </Link>
+        }
+      />
+
+      <Panel title={t.workdayEngine.summary.title}>
+        <WorkdayDailySummaryPanel
+          summary={dashboard.summary}
+          scheduledStartAt={dashboard.scheduledStartAt}
+        />
+      </Panel>
 
       <div className="acDashboardGrid acDashboardGridMetrics" style={{ marginBottom: 16 }}>
         <div className="acMetricTile">

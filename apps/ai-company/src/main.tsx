@@ -12,6 +12,7 @@ import './styles/canvas.css'
 import './styles/toolExecution.css'
 import './styles/handoff.css'
 import './styles/employeeWorkspace.css'
+import './styles/workday.css'
 import './styles/polish-v2.css'
 import './styles.css'
 

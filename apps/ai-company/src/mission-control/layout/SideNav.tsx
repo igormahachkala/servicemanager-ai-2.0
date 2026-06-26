@@ -12,6 +12,7 @@ export function SideNav() {
     { to: `${OPS}/companies`, page: 'companies' as const, icon: '🏢', end: false },
     { to: `${OPS}/organization`, page: 'organization' as const, icon: '⬡', end: false },
     { to: `${OPS}/presence`, page: 'presence' as const, icon: '◉', end: false },
+    { to: `${OPS}/workday`, page: 'workday' as const, icon: '🌅', end: false },
     { to: `${OPS}/projects`, page: 'projects' as const, icon: '◈', end: false },
     { to: `${OPS}/workspaces`, page: 'workspaces' as const, icon: '◧', end: false },
     { to: `${OPS}/knowledge`, page: 'knowledge' as const, icon: '📚', end: false },

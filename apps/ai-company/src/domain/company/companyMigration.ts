@@ -6,6 +6,7 @@ import { ensureSeedProjects } from '../projects/projectSeed'
 import { initializePresenceEngine } from '../presence/presenceEngine'
 import { initializeHandoffEngine } from '../handoff/handoffStorage'
 import { initializeSprintEngine } from '../sprint/sprintStorage'
+import { initializeWorkdayEngine } from '../workday/workdayEngine'
 import { initializeRuntimeProviders } from '../runtime/providers/runtimeAdapter'
 import { initializeToolExecutionEngine } from '../toolExecution/toolExecutionStorage'
 import { loadWorkspaces, saveWorkspaces } from '../workspaces/workspace'
@@ -26,6 +27,7 @@ export function migrateEntitiesToCompanies(): string {
   initializePresenceEngine()
   initializeHandoffEngine()
   initializeSprintEngine()
+  initializeWorkdayEngine()
   initializeRuntimeProviders()
   initializeToolExecutionEngine()
 

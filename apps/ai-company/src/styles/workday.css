@@ -1,0 +1,223 @@
+/* Digital Employee Workday Engine */
+
+.acWorkdayPage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ac-space-4);
+}
+
+.acWorkdayHeaderActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ac-space-2);
+  align-items: center;
+}
+
+.acWorkdaySummaryGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--ac-space-3);
+}
+
+.acWorkdaySummaryTile {
+  background: var(--ac-bg-subtle);
+  border-radius: var(--ac-radius-md);
+  padding: var(--ac-space-3);
+}
+
+.acWorkdaySummaryLabel {
+  font-size: 11px;
+  color: var(--ac-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.acWorkdaySummaryValue {
+  font-size: 24px;
+  font-weight: 700;
+  margin-top: 4px;
+}
+
+.acWorkdayPhaseTrack {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: var(--ac-space-2);
+  margin-top: var(--ac-space-2);
+}
+
+.acWorkdayPhaseStep {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+
+.acWorkdayPhaseDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--ac-surface-2);
+  border: 2px solid var(--ac-border);
+}
+
+.acWorkdayPhaseStepDone .acWorkdayPhaseDot {
+  background: var(--ac-green);
+  border-color: var(--ac-green);
+}
+
+.acWorkdayPhaseStepActive .acWorkdayPhaseDot {
+  background: var(--ac-blue);
+  border-color: var(--ac-blue);
+  box-shadow: 0 0 0 4px var(--ac-blue-dim);
+}
+
+.acWorkdayPhaseLabel {
+  font-size: 10px;
+  color: var(--ac-text-muted);
+  line-height: 1.2;
+}
+
+.acWorkdayPhaseStepActive .acWorkdayPhaseLabel {
+  color: var(--ac-text);
+  font-weight: 700;
+}
+
+.acWorkdayFlowNote {
+  margin-top: var(--ac-space-3);
+}
+
+.acWorkdayDashboardGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--ac-space-4);
+}
+
+.acWorkdayDashboardSpanFull {
+  grid-column: 1 / -1;
+}
+
+.acWorkdayCardGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--ac-space-3);
+}
+
+.acWorkdayEmployeeCard {
+  background: var(--ac-bg-subtle);
+  border-radius: var(--ac-radius-md);
+  padding: var(--ac-space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ac-space-3);
+}
+
+.acWorkdayEmployeeCardHead {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--ac-space-3);
+  align-items: flex-start;
+}
+
+.acWorkdayEmployeeName {
+  font-weight: 700;
+  color: var(--ac-text);
+  text-decoration: none;
+}
+
+.acWorkdayEmployeeMeta {
+  font-size: 11px;
+}
+
+.acWorkdayBlockedNote {
+  color: var(--ac-amber);
+  font-size: 12px;
+  margin: 0;
+}
+
+.acWorkdayAgendaPreview {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: var(--ac-text-subtle);
+}
+
+.acWorkdayAgendaDone {
+  text-decoration: line-through;
+  opacity: 0.65;
+}
+
+.acWorkdayCardActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ac-space-2);
+}
+
+.acWorkdayStateBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.acWorkdayStateBadgeCompact {
+  padding: 2px 8px;
+  font-size: 10px;
+}
+
+.acWorkdayStateStarting {
+  background: var(--ac-surface-2);
+  color: var(--ac-text-muted);
+}
+
+.acWorkdayStatePlanning {
+  background: rgba(59, 130, 246, 0.12);
+  color: #60a5fa;
+}
+
+.acWorkdayStateWorking {
+  background: var(--ac-blue-dim);
+  color: var(--ac-blue);
+}
+
+.acWorkdayStateWaiting {
+  background: var(--ac-amber-dim);
+  color: var(--ac-amber);
+}
+
+.acWorkdayStateReviewing {
+  background: rgba(168, 85, 247, 0.12);
+  color: #c084fc;
+}
+
+.acWorkdayStateCompleted {
+  background: var(--ac-green-dim);
+  color: var(--ac-green);
+}
+
+.acWorkdayStateFinished {
+  background: var(--ac-surface-2);
+  color: var(--ac-text-subtle);
+}
+
+.acWorkdayWorkspacePanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ac-space-3);
+}
+
+.acWorkdayWorkspaceActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ac-space-2);
+}
+
+@media (max-width: 960px) {
+  .acWorkdayDashboardGrid {
+    grid-template-columns: 1fr;
+  }
+}

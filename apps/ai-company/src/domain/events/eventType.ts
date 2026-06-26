@@ -28,6 +28,9 @@ export const EVENT_TYPES = [
   'sprint.planned',
   'sprint.started',
   'sprint.completed',
+  'workday.started',
+  'workday.phase_changed',
+  'workday.finished',
 ] as const
 
 export type EventType = (typeof EVENT_TYPES)[number]

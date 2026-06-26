@@ -12,8 +12,10 @@ import { useActiveWorkspace } from '../../hooks/useActiveWorkspace'
 import { useNotifications } from '../../hooks/useNotifications'
 import { useProjects } from '../../hooks/useProjects'
 import { usePresence } from '../../hooks/usePresence'
+import { useWorkday } from '../../hooks/useWorkday'
 import { useWorkspaces } from '../../hooks/useWorkspaces'
 import { EmployeePresenceCard } from '../presence'
+import { WorkdayEmployeeCard } from '../workday'
 import { useCustomEmployees } from '../../mission-control/hooks/useCustomEmployees'
 import { useI18n } from '../../i18n'
 
@@ -30,6 +32,7 @@ export function ExecutiveDashboard() {
   const { unread, unreadCount, markRead } = useNotifications()
   const { projects } = useProjects()
   const { stats: presenceStats, nowWorking, waiting } = usePresence()
+  const { dashboard: workdayDashboard, start, advance, finish } = useWorkday()
   const { activeWorkspace } = useActiveWorkspace()
 
   const alerts = recentAlerts()
@@ -97,6 +100,36 @@ export function ExecutiveDashboard() {
               ))}
               {nowWorking.length === 0 && waiting.length === 0 ? (
                 <div className="acMuted">{t.presence.dashboard.noWorking}</div>
+              ) : null}
+            </div>
+          </Card>
+        </div>
+
+        <div className="acDashboardSpan8">
+          <Card
+            title={t.executiveDashboard.workdayOverview}
+            action={<Link to="/ops/workday" className="acLink">{t.executiveDashboard.actionOpenWorkday}</Link>}
+          >
+            <div className="acMetricTileSub" style={{ marginBottom: 12 }}>
+              {t.executiveDashboard.workdaySub
+                .replace('{started}', String(workdayDashboard.summary.startedCount))
+                .replace('{blocked}', String(workdayDashboard.summary.blockedCount))
+                .replace('{finished}', String(workdayDashboard.summary.finishedCount))}
+            </div>
+            <div className="acWorkdayCardGrid">
+              {[...workdayDashboard.started, ...workdayDashboard.blocked]
+                .slice(0, 4)
+                .map((entry) => (
+                  <WorkdayEmployeeCard
+                    key={entry.workday.id}
+                    entry={entry}
+                    onStart={start}
+                    onAdvance={advance}
+                    onFinish={finish}
+                  />
+                ))}
+              {workdayDashboard.started.length === 0 && workdayDashboard.blocked.length === 0 ? (
+                <div className="acMuted">{t.workdayEngine.dashboard.noStarted}</div>
               ) : null}
             </div>
           </Card>

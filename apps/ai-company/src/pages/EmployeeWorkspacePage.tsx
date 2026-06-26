@@ -10,6 +10,7 @@ import {
   WorkspaceApprovals,
   WorkspaceNotifications,
   WorkspaceOverview,
+  WorkdayWorkspacePanel,
 } from '../components/workspace'
 import { useEmployeeWorkspace } from '../hooks/useEmployeeWorkspace'
 import { PageHeader } from '../mission-control/components/ui'
@@ -50,6 +51,9 @@ export function EmployeeWorkspacePage() {
         <Link to="/ops/timeline" className="mcBtn mcBtnSecondary">
           {t.pages.companyTimeline}
         </Link>
+        <Link to="/ops/workday" className="mcBtn mcBtnSecondary">
+          {t.pages.workday}
+        </Link>
       </div>
 
       <QuickActions snapshot={snapshot} />
@@ -59,6 +63,7 @@ export function EmployeeWorkspacePage() {
       </div>
 
       <div className="acWorkspaceGrid">
+        <WorkdayWorkspacePanel employeeId={id} />
         <TodayAgenda snapshot={snapshot} />
         <WorkspaceApprovals snapshot={snapshot} />
         <CurrentTasks snapshot={snapshot} />

@@ -51,6 +51,7 @@ import { ToolExecutionsPage } from '../pages/ToolExecutionsPage'
 import { HandoffsPage } from '../pages/HandoffsPage'
 import { HandoffDetailsPage } from '../pages/HandoffDetailsPage'
 import { SprintPage } from '../pages/SprintPage'
+import { WorkdayPage } from '../pages/WorkdayPage'
 
 function LegacyConversationRedirect() {
   const { id } = useParams<{ id: string }>()
@@ -110,6 +111,7 @@ export function MissionControlRoutes() {
         <Route path="discussions/new" element={<Navigate to="/ops/chats/new" replace />} />
         <Route path="discussions/:id" element={<LegacyDiscussionRedirect />} />
         <Route path="presence" element={<PresencePage />} />
+        <Route path="workday" element={<WorkdayPage />} />
         <Route path="projects" element={<ProjectsPage />} />
         <Route path="projects/new" element={<NewProjectPage />} />
         <Route path="projects/project-ai-photo-lab/control-room" element={<AiPhotoLabControlRoomPage />} />
