@@ -188,9 +188,81 @@ export class RuntimeExecutionMonitor {
     if (!this.startedAt) return 0
     return Date.now() - this.startedAt
   }
+
+  elapsed(): number {
+    if (!this.startedAt) return 0
+    return Date.now() - this.startedAt
+  }
+}
+
+export type RuntimeAbortReason = 'timeout' | 'cancelled'
+
+export type RuntimeExecutionFailureReason =
+  | RuntimeAbortReason
+  | 'http'
+  | 'network'
+  | 'ollama'
+  | 'unknown'
+
+export class RuntimeExecutionError extends Error {
+  readonly reason: RuntimeExecutionFailureReason
+  readonly elapsedMs: number
+
+  constructor(
+    message: string,
+    reason: RuntimeExecutionFailureReason,
+    elapsedMs: number,
+  ) {
+    super(message)
+    this.name = 'RuntimeExecutionError'
+    this.reason = reason
+    this.elapsedMs = elapsedMs
+  }
+}
+
+export function createRuntimeExecutionError(
+  error: unknown,
+  abortReason: RuntimeAbortReason | null,
+  elapsedMs: number,
+  timeoutMs: number,
+): RuntimeExecutionError {
+  if (abortReason === 'timeout') {
+    return new RuntimeExecutionError(
+      `Ollama execution timed out after ${Math.round(timeoutMs / 1000)}s (${formatElapsedMs(elapsedMs)} elapsed)`,
+      'timeout',
+      elapsedMs,
+    )
+  }
+  if (abortReason === 'cancelled') {
+    return new RuntimeExecutionError(
+      `Ollama execution cancelled by user (${formatElapsedMs(elapsedMs)} elapsed)`,
+      'cancelled',
+      elapsedMs,
+    )
+  }
+  if (error instanceof Error) {
+    if (/HTTP \d+/.test(error.message)) {
+      return new RuntimeExecutionError(error.message, 'http', elapsedMs)
+    }
+    if (error.name === 'TypeError' || /fetch|network|Failed to fetch/i.test(error.message)) {
+      return new RuntimeExecutionError(`Network error: ${error.message}`, 'network', elapsedMs)
+    }
+    return new RuntimeExecutionError(error.message, 'unknown', elapsedMs)
+  }
+  return new RuntimeExecutionError(String(error), 'unknown', elapsedMs)
+}
+
+export function formatElapsedMs(ms: number): string {
+  if (ms < 1000) return `${ms} ms`
+  const seconds = ms / 1000
+  if (seconds < 60) return `${seconds.toFixed(1)} s`
+  const minutes = Math.floor(seconds / 60)
+  const rem = Math.round(seconds % 60)
+  return `${minutes}m ${rem}s`
 }
 
 export function formatRuntimeError(error: unknown): string {
+  if (error instanceof RuntimeExecutionError) return error.message
   if (error instanceof Error) return error.message
   return String(error)
 }

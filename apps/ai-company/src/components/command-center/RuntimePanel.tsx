@@ -14,7 +14,12 @@ export function RuntimePanel({ runtime }: Props) {
   return (
     <Card
       title={t.commandCenter.sections.runtime}
-      action={<Link to="/ops/runtime" className="acLink">{t.executiveDashboard.viewAll}</Link>}
+      action={
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Link to="/ops/runtime/live" className="acLink">{t.pages.runtimeLive}</Link>
+          <Link to="/ops/runtime" className="acLink">{t.executiveDashboard.viewAll}</Link>
+        </div>
+      }
     >
       <div className="mcCommandCenterInlineStats">
         <div>

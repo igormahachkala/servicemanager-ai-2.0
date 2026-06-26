@@ -37,8 +37,25 @@ import {
   executeViaRuntimeAdapter,
   getActiveRuntimeProviderId,
 } from './providers/runtimeAdapter'
+import { OLLAMA_LIGHTWEIGHT_CONTEXT_LAYER_KEYS } from './providers/runtimeCapabilities'
+import {
+  appendRuntimeLog,
+  RuntimeExecutionError,
+} from './providers/runtimeHealth'
 
 const STORAGE_KEY = 'ai-company-runtime-runs'
+let activeRuntimeRunId: string | null = null
+
+export function getActiveRuntimeRunId(): string | null {
+  return activeRuntimeRunId
+}
+
+function isFirstRealOllamaRun(): boolean {
+  if (getActiveRuntimeProviderId() !== 'ollama') return false
+  return !loadRuntimeRuns().some(
+    (run) => run.status === 'completed' && Boolean(run.result?.responseText),
+  )
+}
 
 const PIPELINE_STEP_IDS = [
   'receive_request',
@@ -344,7 +361,7 @@ function resolveEmployeePermissionsSummary(employeeId: string): string {
   return enabled.length > 0 ? enabled.join(', ') : 'No integrations enabled'
 }
 
-function buildRuntimeContext(input: RuntimeRunRequest): RuntimeContext {
+function buildRuntimeContext(input: RuntimeRunRequest, lightweight = false): RuntimeContext {
   const employee = resolveEmployee(input.employeeId)
   const custom = resolveCustomEmployee(input.employeeId)
   const workspace = input.workspaceId ? getWorkspaceById(input.workspaceId) : null
@@ -359,6 +376,8 @@ function buildRuntimeContext(input: RuntimeRunRequest): RuntimeContext {
     custom?.primaryModel ?? resolveBuiltinModel(input.employeeId),
   )
 
+  const lightweightSkipSummary = 'Skipped (first real run — lightweight context)'
+
   const layers: RuntimeContextLayer[] = [
     {
       key: 'employee_profile',
@@ -368,51 +387,73 @@ function buildRuntimeContext(input: RuntimeRunRequest): RuntimeContext {
     },
     {
       key: 'memory',
-      loaded: memories.length > 0,
-      itemCount: memories.length,
-      summary: `${memories.length} memory entries (read-only)`,
+      loaded: !lightweight && memories.length > 0,
+      itemCount: lightweight ? 0 : memories.length,
+      summary: lightweight
+        ? lightweightSkipSummary
+        : `${memories.length} memory entries (read-only)`,
     },
     {
       key: 'knowledge',
-      loaded: knowledge.length > 0,
-      itemCount: knowledge.length,
-      summary: `${knowledge.length} published knowledge items`,
+      loaded: !lightweight && knowledge.length > 0,
+      itemCount: lightweight ? 0 : knowledge.length,
+      summary: lightweight
+        ? lightweightSkipSummary
+        : `${knowledge.length} published knowledge items`,
     },
     {
       key: 'competencies',
-      loaded: competencies.skills.length > 0,
-      itemCount: competencies.skills.length,
-      summary: `${competencies.skills.length} skills · trust ${competencies.reputation.trustScore}`,
+      loaded: !lightweight && competencies.skills.length > 0,
+      itemCount: lightweight ? 0 : competencies.skills.length,
+      summary: lightweight
+        ? lightweightSkipSummary
+        : `${competencies.skills.length} skills · trust ${competencies.reputation.trustScore}`,
     },
     {
       key: 'workspace',
-      loaded: workspace !== null,
-      itemCount: workspace ? 1 : 0,
-      summary: workspace ? workspace.name : 'No workspace scope',
+      loaded: !lightweight && workspace !== null,
+      itemCount: lightweight ? 0 : workspace ? 1 : 0,
+      summary: lightweight
+        ? lightweightSkipSummary
+        : workspace
+          ? workspace.name
+          : 'No workspace scope',
     },
     {
       key: 'permissions',
-      loaded: true,
-      itemCount: 1,
-      summary: resolveEmployeePermissionsSummary(input.employeeId),
+      loaded: !lightweight,
+      itemCount: lightweight ? 0 : 1,
+      summary: lightweight
+        ? lightweightSkipSummary
+        : resolveEmployeePermissionsSummary(input.employeeId),
     },
     {
       key: 'tools',
-      loaded: true,
-      itemCount: resolveEmployeeTools(input.employeeId).length,
-      summary: resolveEmployeeTools(input.employeeId).join(', ') || 'No tools',
+      loaded: !lightweight,
+      itemCount: lightweight ? 0 : resolveEmployeeTools(input.employeeId).length,
+      summary: lightweight
+        ? lightweightSkipSummary
+        : resolveEmployeeTools(input.employeeId).join(', ') || 'No tools',
     },
     {
       key: 'conversation',
-      loaded: chat !== null,
-      itemCount: chat?.messages.length ?? 0,
-      summary: chat ? `${chat.type} · ${chat.messages.length} messages` : 'No chat context',
+      loaded: !lightweight && chat !== null,
+      itemCount: lightweight ? 0 : chat?.messages.length ?? 0,
+      summary: lightweight
+        ? lightweightSkipSummary
+        : chat
+          ? `${chat.type} · ${chat.messages.length} messages`
+          : 'No chat context',
     },
     {
       key: 'current_task',
-      loaded: task !== null,
-      itemCount: task ? 1 : 0,
-      summary: task ? `${task.id} · ${task.title}` : 'No task linked',
+      loaded: !lightweight && task !== null,
+      itemCount: lightweight ? 0 : task ? 1 : 0,
+      summary: lightweight
+        ? lightweightSkipSummary
+        : task
+          ? `${task.id} · ${task.title}`
+          : 'No task linked',
     },
     {
       key: 'runtime_profile',
@@ -422,19 +463,34 @@ function buildRuntimeContext(input: RuntimeRunRequest): RuntimeContext {
     },
   ]
 
+  const orderedLayers = RUNTIME_CONTEXT_LAYER_ORDER.map(
+    (key) => layers.find((layer) => layer.key === key) ?? {
+      key,
+      loaded: false,
+      itemCount: 0,
+      summary: 'Not loaded',
+    },
+  )
+
+  if (lightweight) {
+    return {
+      employeeId: input.employeeId,
+      workspaceId: input.workspaceId ?? null,
+      taskId: input.taskId ?? null,
+      chatId: input.chatId ?? null,
+      layers: orderedLayers.filter((layer) =>
+        (OLLAMA_LIGHTWEIGHT_CONTEXT_LAYER_KEYS as readonly string[]).includes(layer.key),
+      ),
+      builtAt: new Date().toISOString(),
+    }
+  }
+
   return {
     employeeId: input.employeeId,
     workspaceId: input.workspaceId ?? null,
     taskId: input.taskId ?? null,
     chatId: input.chatId ?? null,
-    layers: RUNTIME_CONTEXT_LAYER_ORDER.map(
-      (key) => layers.find((layer) => layer.key === key) ?? {
-        key,
-        loaded: false,
-        itemCount: 0,
-        summary: 'Not loaded',
-      },
-    ),
+    layers: orderedLayers,
     builtAt: new Date().toISOString(),
   }
 }
@@ -442,6 +498,47 @@ function buildRuntimeContext(input: RuntimeRunRequest): RuntimeContext {
 function estimateTokens(context: RuntimeContext, profileMaxTokens: number): number {
   const layerTokens = context.layers.reduce((sum, layer) => sum + layer.itemCount * 120, 0)
   return Math.min(profileMaxTokens, Math.max(512, layerTokens))
+}
+
+function buildPartialFailureResult(
+  modelId: string,
+  providerId: string,
+  context: RuntimeContext,
+  knowledgeCount: number,
+  memoryCount: number,
+  estimatedTokens: number,
+  warnings: RuntimeWarning[],
+  error: unknown,
+): RuntimeResult {
+  const execError = error instanceof RuntimeExecutionError ? error : null
+  const message =
+    execError?.message ?? (error instanceof Error ? error.message : 'Runtime execution failed')
+  const warningCode =
+    execError?.reason === 'timeout'
+      ? 'EXECUTION_TIMEOUT'
+      : execError?.reason === 'cancelled'
+        ? 'EXECUTION_CANCELLED'
+        : 'EXECUTION_FAILED'
+
+  return {
+    selectedModel: modelId,
+    selectedProvider: providerId,
+    contextSize: context.layers.filter((layer) => layer.loaded).length,
+    knowledgeUsed: knowledgeCount,
+    memoryUsed: memoryCount,
+    estimatedCost: 0,
+    estimatedTokens,
+    executionDurationMs: execError?.elapsedMs,
+    warnings: [
+      ...warnings,
+      {
+        code: warningCode,
+        message,
+        severity: execError?.reason === 'cancelled' ? 'warn' : 'error',
+      },
+    ],
+    artifacts: [],
+  }
 }
 
 function buildExecutionPrompt(
@@ -593,7 +690,8 @@ export async function orchestrateRuntimeRun(request: RuntimeRunRequest): Promise
     profile.id,
   )
 
-  const context = buildRuntimeContext(request)
+  const lightweightContext = isFirstRealOllamaRun()
+  const context = buildRuntimeContext(request, lightweightContext)
   const estimatedTokens = estimateTokens(context, profile.maxTokens)
   const taskContext: TaskContext = {
     taskType: request.taskType ?? (request.taskId ? 'general' : 'conversation'),
@@ -721,10 +819,46 @@ export async function orchestrateRuntimeRun(request: RuntimeRunRequest): Promise
   let result: RuntimeResult | null = null
   let finishedAt: string | null = null
 
+  if (lightweightContext) {
+    appendRuntimeLog({
+      level: 'info',
+      message: 'First real Ollama run — lightweight context applied',
+      runId,
+      providerId: 'ollama',
+    })
+  }
+
+  const runningRun: RuntimeRun = {
+    id: runId,
+    employeeId: request.employeeId,
+    workspaceId: request.workspaceId ?? null,
+    runtimeProfileId: profile.id,
+    modelId: selection.selectedModelId,
+    providerId: selection.selectedProviderId,
+    taskId: request.taskId ?? null,
+    chatId: request.chatId ?? null,
+    reportId: null,
+    status: requiresApproval ? 'waiting_approval' : 'running',
+    startedAt,
+    finishedAt: null,
+    context,
+    pipeline,
+    result: null,
+  }
+  upsertRuntimeRun(runningRun)
+
   if (!requiresApproval) {
     status = 'running'
     const executionPrompt = buildExecutionPrompt(request, employee, context)
 
+    appendRuntimeLog({
+      level: 'info',
+      message: `Orchestrator executing via ${getActiveRuntimeProviderId()}`,
+      runId,
+      providerId: getActiveRuntimeProviderId(),
+    })
+
+    activeRuntimeRunId = runId
     try {
       const execution = await executeViaRuntimeAdapter({
         runId,
@@ -797,12 +931,23 @@ export async function orchestrateRuntimeRun(request: RuntimeRunRequest): Promise
       status = 'completed'
       finishedAt = new Date().toISOString()
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Runtime execution failed'
-      warnings.push({
-        code: 'EXECUTION_FAILED',
-        message,
-        severity: 'error',
-      })
+      const partialResult = buildPartialFailureResult(
+        selection.selectedModelId,
+        selection.selectedProviderId,
+        context,
+        knowledge.length,
+        memories.length,
+        estimatedTokens,
+        warnings,
+        error,
+      )
+      result = partialResult
+      const message =
+        error instanceof RuntimeExecutionError
+          ? error.message
+          : error instanceof Error
+            ? error.message
+            : 'Runtime execution failed'
       emitEvent({
         type: 'runtime.failed',
         sourceType: 'runtime',
@@ -813,12 +958,17 @@ export async function orchestrateRuntimeRun(request: RuntimeRunRequest): Promise
         metadata: {
           providerAdapter: getActiveRuntimeProviderId(),
           error: message,
+          elapsedMs: partialResult.executionDurationMs ?? null,
+          reason: error instanceof RuntimeExecutionError ? error.reason : 'unknown',
         },
-        severity: 'error',
+        severity: partialResult.warnings.some((item) => item.severity === 'error') ? 'error' : 'warn',
       })
+      pipeline = updatePipelineStep(pipeline, 'create_report', 'skipped', message)
       pipeline = updatePipelineStep(pipeline, 'complete', 'failed', message)
-      status = 'failed'
+      status = error instanceof RuntimeExecutionError && error.reason === 'cancelled' ? 'cancelled' : 'failed'
       finishedAt = new Date().toISOString()
+    } finally {
+      activeRuntimeRunId = null
     }
   } else {
     pipeline = updatePipelineStep(pipeline, 'create_report', 'skipped', 'Awaiting approval')
@@ -876,6 +1026,7 @@ export async function completeRuntimeRunAfterApproval(runId: string): Promise<Ru
     existing.context,
   )
 
+  activeRuntimeRunId = existing.id
   try {
     const execution = await executeViaRuntimeAdapter({
       runId: existing.id,
@@ -936,15 +1087,33 @@ export async function completeRuntimeRunAfterApproval(runId: string): Promise<Ru
 
     return upsertRuntimeRun(completed)
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Runtime execution failed'
+    const partialResult = buildPartialFailureResult(
+      existing.modelId,
+      existing.providerId,
+      existing.context,
+      knowledgeCount,
+      memoryCount,
+      4096,
+      existing.result?.warnings ?? [],
+      error,
+    )
+    const message =
+      error instanceof RuntimeExecutionError
+        ? error.message
+        : error instanceof Error
+          ? error.message
+          : 'Runtime execution failed'
+    pipeline = updatePipelineStep(pipeline, 'create_report', 'skipped', message)
     pipeline = updatePipelineStep(pipeline, 'complete', 'failed', message)
     return upsertRuntimeRun({
       ...existing,
-      status: 'failed',
+      status: error instanceof RuntimeExecutionError && error.reason === 'cancelled' ? 'cancelled' : 'failed',
       finishedAt: new Date().toISOString(),
       pipeline,
-      result: existing.result,
+      result: partialResult,
     })
+  } finally {
+    activeRuntimeRunId = null
   }
 }
 

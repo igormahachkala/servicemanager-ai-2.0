@@ -1,15 +1,21 @@
 import {
+  getOllamaGenerateOptions,
+  isOllamaFastTestModel,
+  OLLAMA_EXECUTION_TIMEOUT_MS,
   OLLAMA_PROVIDER_CAPABILITIES,
   resolveOllamaModelTag,
+  trimPromptForFastTest,
 } from './runtimeCapabilities'
 import {
   appendRuntimeLog,
+  createRuntimeExecutionError,
   estimateTokensFromText,
   fetchWithRetry,
   formatRuntimeError,
   loadOllamaSettings,
   RuntimeExecutionMonitor,
   saveRuntimeHealthSnapshot,
+  type RuntimeAbortReason,
   type RuntimeHealthSnapshot,
 } from './runtimeHealth'
 import type {
@@ -33,8 +39,13 @@ type OllamaGenerateResponse = {
   error?: string
 }
 
-const EXECUTION_TIMEOUT_MS = 120_000
-const activeRuns = new Map<string, AbortController>()
+type ActiveRun = {
+  controller: AbortController
+  abortReason: RuntimeAbortReason | null
+  monitor: RuntimeExecutionMonitor
+}
+
+const activeRuns = new Map<string, ActiveRun>()
 let initialized = false
 let lastHealth: ProviderHealthResult | null = null
 let lastExecutionDurationMs: number | null = null
@@ -73,6 +84,20 @@ async function fetchTags(baseUrl: string): Promise<string[]> {
 function persistHealth(snapshot: RuntimeHealthSnapshot, health: ProviderHealthResult): void {
   lastHealth = health
   saveRuntimeHealthSnapshot(snapshot)
+}
+
+function logExecutionFailure(
+  runId: string,
+  message: string,
+  elapsedMs: number,
+  level: 'error' | 'warn' = 'error',
+): void {
+  appendRuntimeLog({
+    level,
+    message: `Ollama execution stopped after ${elapsedMs}ms · ${message}`,
+    runId,
+    providerId: 'ollama',
+  })
 }
 
 export const ollamaRuntimeProvider: RuntimeProvider = {
@@ -162,17 +187,27 @@ export const ollamaRuntimeProvider: RuntimeProvider = {
     const monitor = new RuntimeExecutionMonitor()
     monitor.start()
     const controller = new AbortController()
-    activeRuns.set(request.runId, controller)
-    const timeout = window.setTimeout(() => controller.abort(), EXECUTION_TIMEOUT_MS)
+    const activeRun: ActiveRun = { controller, abortReason: null, monitor }
+    activeRuns.set(request.runId, activeRun)
+
+    const timeout = window.setTimeout(() => {
+      activeRun.abortReason = 'timeout'
+      controller.abort()
+    }, OLLAMA_EXECUTION_TIMEOUT_MS)
 
     const modelTag =
       request.ollamaModelTag ??
       resolveOllamaModelTag(request.modelId) ??
       settings().defaultModelTag
+    const fastTestMode = isOllamaFastTestModel(modelTag)
+    const prompt = trimPromptForFastTest(request.prompt, modelTag)
+    const generateOptions = getOllamaGenerateOptions(modelTag)
 
     appendRuntimeLog({
       level: 'info',
-      message: `Ollama execute started · ${modelTag}`,
+      message: fastTestMode
+        ? `Ollama fast test execute started · ${modelTag} · timeout ${OLLAMA_EXECUTION_TIMEOUT_MS / 1000}s`
+        : `Ollama execute started · ${modelTag} · timeout ${OLLAMA_EXECUTION_TIMEOUT_MS / 1000}s`,
       runId: request.runId,
       providerId: 'ollama',
     })
@@ -186,8 +221,9 @@ export const ollamaRuntimeProvider: RuntimeProvider = {
           signal: controller.signal,
           body: JSON.stringify({
             model: modelTag,
-            prompt: request.prompt,
+            prompt,
             stream: false,
+            options: generateOptions,
           }),
         },
         { retries: 1, retryDelayMs: 800 },
@@ -203,7 +239,7 @@ export const ollamaRuntimeProvider: RuntimeProvider = {
       }
 
       const responseText = payload.response?.trim() ?? ''
-      const promptTokens = payload.prompt_eval_count ?? estimateTokensFromText(request.prompt)
+      const promptTokens = payload.prompt_eval_count ?? estimateTokensFromText(prompt)
       const completionTokens = payload.eval_count ?? estimateTokensFromText(responseText)
       const executionDurationMs =
         payload.total_duration != null
@@ -215,7 +251,9 @@ export const ollamaRuntimeProvider: RuntimeProvider = {
 
       appendRuntimeLog({
         level: 'success',
-        message: `Ollama completed · ${completionTokens} completion tokens · ${executionDurationMs}ms`,
+        message: fastTestMode
+          ? `Ollama fast test completed · ${completionTokens} completion tokens · ${executionDurationMs}ms`
+          : `Ollama completed · ${completionTokens} completion tokens · ${executionDurationMs}ms`,
         runId: request.runId,
         providerId: 'ollama',
       })
@@ -248,14 +286,21 @@ export const ollamaRuntimeProvider: RuntimeProvider = {
         },
       }
     } catch (error) {
-      const message = formatRuntimeError(error)
-      appendRuntimeLog({
-        level: 'error',
-        message: `Ollama execution failed: ${message}`,
-        runId: request.runId,
-        providerId: 'ollama',
-      })
-      throw new Error(message)
+      const elapsedMs = monitor.elapsed()
+      const abortReason = activeRun.abortReason
+      const executionError = createRuntimeExecutionError(
+        error,
+        abortReason,
+        elapsedMs,
+        OLLAMA_EXECUTION_TIMEOUT_MS,
+      )
+      logExecutionFailure(
+        request.runId,
+        executionError.message,
+        elapsedMs,
+        abortReason === 'cancelled' ? 'warn' : 'error',
+      )
+      throw executionError
     } finally {
       window.clearTimeout(timeout)
       activeRuns.delete(request.runId)
@@ -263,13 +308,13 @@ export const ollamaRuntimeProvider: RuntimeProvider = {
   },
 
   cancel(runId: string) {
-    const controller = activeRuns.get(runId)
-    if (!controller) return false
-    controller.abort()
-    activeRuns.delete(runId)
+    const activeRun = activeRuns.get(runId)
+    if (!activeRun) return false
+    activeRun.abortReason = 'cancelled'
+    activeRun.controller.abort()
     appendRuntimeLog({
       level: 'warn',
-      message: `Ollama execution cancelled · ${runId}`,
+      message: `Ollama cancel requested · ${runId}`,
       runId,
       providerId: 'ollama',
     })
@@ -287,3 +332,5 @@ export const ollamaRuntimeProvider: RuntimeProvider = {
     }
   },
 }
+
+export { OLLAMA_EXECUTION_TIMEOUT_MS }
