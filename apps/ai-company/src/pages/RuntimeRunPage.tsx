@@ -6,6 +6,7 @@ import { RuntimeContextCard } from '../components/runtime/RuntimeContextCard'
 import { RuntimePipeline } from '../components/runtime/RuntimePipeline'
 import { RuntimeRunCard } from '../components/runtime/RuntimeRunCard'
 import { RuntimeStateBadge } from '../components/runtime/RuntimeStateBadge'
+import { RuntimeLogs } from '../components/runtime/RuntimeLogs'
 import { RuntimeWarnings } from '../components/runtime/RuntimeWarnings'
 import { useRuntime } from '../hooks/useRuntime'
 import { getModelById, getProviderById } from '../domain/runtime/runtimeStorage'
@@ -44,8 +45,9 @@ export function RuntimeRunPage() {
   }
 
   const handleApprove = () => {
-    const updated = approveRun(run.id)
-    if (updated) navigate(`/ops/runtime/runs/${updated.id}`)
+    void approveRun(run.id).then((updated) => {
+      if (updated) navigate(`/ops/runtime/runs/${updated.id}`)
+    })
   }
 
   return (
@@ -132,6 +134,30 @@ export function RuntimeRunPage() {
                   <span>{t.runtimeOrchestrator.estimatedCost}</span>
                   <span className="mcMono">${run.result.estimatedCost.toFixed(4)}</span>
                 </div>
+                {run.result.executionDurationMs != null ? (
+                  <div className="mcRuntimeProfileRow">
+                    <span>{t.runtimeOrchestrator.executionDurationMs}</span>
+                    <span className="mcMono">{run.result.executionDurationMs} ms</span>
+                  </div>
+                ) : null}
+                {run.result.promptTokens != null ? (
+                  <div className="mcRuntimeProfileRow">
+                    <span>{t.runtimeOrchestrator.promptTokens}</span>
+                    <span className="mcMono">{run.result.promptTokens}</span>
+                  </div>
+                ) : null}
+                {run.result.completionTokens != null ? (
+                  <div className="mcRuntimeProfileRow">
+                    <span>{t.runtimeOrchestrator.completionTokens}</span>
+                    <span className="mcMono">{run.result.completionTokens}</span>
+                  </div>
+                ) : null}
+                {run.result.responseText ? (
+                  <div className="mcRuntimeResponseBlock">
+                    <span className="mcFieldLabel">{t.runtimeOrchestrator.responseText}</span>
+                    <pre className="mcRuntimeResponseText">{run.result.responseText}</pre>
+                  </div>
+                ) : null}
                 <RuntimeWarnings warnings={run.result.warnings} />
                 <RuntimeArtifacts artifacts={run.result.artifacts} />
               </>
@@ -151,6 +177,12 @@ export function RuntimeRunPage() {
       <Panel title={t.runtimeOrchestrator.contextTitle}>
         <div className="mcProfilePanelBody">
           <RuntimeContextCard context={run.context} />
+        </div>
+      </Panel>
+
+      <Panel title={t.runtimeProviders.logsTitle}>
+        <div className="mcProfilePanelBody">
+          <RuntimeLogs runId={run.id} />
         </div>
       </Panel>
 

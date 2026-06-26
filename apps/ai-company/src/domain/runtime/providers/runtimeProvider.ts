@@ -30,6 +30,7 @@ export type ProviderHealthResult = {
   message: string
   checkedAt: string
   latencyMs?: number
+  loadedModels?: string[]
 }
 
 export type ProviderStatusSnapshot = {
@@ -37,6 +38,8 @@ export type ProviderStatusSnapshot = {
   initialized: boolean
   lastHealth: ProviderHealthResult | null
   activeExecutionCount: number
+  lastExecutionDurationMs?: number | null
+  lastEstimatedTokens?: number | null
 }
 
 export type RuntimeExecutionRequest = {
@@ -49,6 +52,8 @@ export type RuntimeExecutionRequest = {
   knowledgeUsed: number
   memoryUsed: number
   warnings: RuntimeWarning[]
+  prompt: string
+  ollamaModelTag?: string | null
 }
 
 export type RuntimeExecutionResult = {
@@ -63,6 +68,7 @@ export interface RuntimeProvider {
   capabilities: ProviderCapabilities
   initialize(): void | Promise<void>
   health(): ProviderHealthResult | Promise<ProviderHealthResult>
+  listModels?(): Promise<string[]> | string[]
   execute(request: RuntimeExecutionRequest): RuntimeExecutionResult | Promise<RuntimeExecutionResult>
   cancel(runId: string): boolean | Promise<boolean>
   status(): ProviderStatusSnapshot

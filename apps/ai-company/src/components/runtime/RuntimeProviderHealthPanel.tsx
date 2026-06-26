@@ -17,7 +17,7 @@ export function RuntimeProviderHealthPanel({ compact = false }: { compact?: bool
   } = useRuntimeProvider()
 
   useEffect(() => {
-    refreshAllHealth()
+    void refreshAllHealth()
   }, [refreshAllHealth])
 
   const healthStatus = activeHealth?.status ?? 'unknown'
@@ -31,7 +31,7 @@ export function RuntimeProviderHealthPanel({ compact = false }: { compact?: bool
             <p className="mcMuted mcRuntimeAdapterDescription">{t.runtimeProviders.healthPanelDescription}</p>
           ) : null}
         </div>
-        <button type="button" className="mcBtn mcBtnSecondary mcBtnSm" onClick={() => refreshAllHealth()}>
+        <button type="button" className="mcBtn mcBtnSecondary mcBtnSm" onClick={() => void refreshAllHealth()}>
           {t.runtimeProviders.refreshHealth}
         </button>
       </div>
@@ -90,7 +90,7 @@ export function RuntimeProviderHealthPanel({ compact = false }: { compact?: bool
                 key={provider.id}
                 type="button"
                 className={`mcRuntimeAdapterProviderBtn${selected ? ' mcRuntimeAdapterProviderBtnActive' : ''}`}
-                onClick={() => setActiveProvider(provider.id as RuntimeProviderId)}
+                onClick={() => void setActiveProvider(provider.id as RuntimeProviderId)}
               >
                 <span>{provider.name}</span>
                 <span className={`mcRuntimeAdapterStatus mcRuntimeAdapterStatus${capitalize(status)}`}>

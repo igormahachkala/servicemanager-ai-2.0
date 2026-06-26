@@ -19,6 +19,11 @@ export type RuntimeResult = {
   memoryUsed: number
   estimatedCost: number
   estimatedTokens: number
+  promptTokens?: number
+  completionTokens?: number
+  executionDurationMs?: number
+  responseText?: string
+  ollamaModelTag?: string
   warnings: RuntimeWarning[]
   artifacts: RuntimeArtifact[]
 }

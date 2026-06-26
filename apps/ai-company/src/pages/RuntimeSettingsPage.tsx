@@ -1,7 +1,9 @@
 import { Link, useNavigate } from 'react-router-dom'
 import { PageHeader, Panel } from '../mission-control/components/ui'
 import { ModelProviderCard } from '../components/runtime/ModelProviderCard'
-import { RuntimeProviderHealthPanel } from '../components/runtime/RuntimeProviderHealthPanel'
+import { RuntimeExecutionPanel } from '../components/runtime/RuntimeExecutionPanel'
+import { RuntimeHealth } from '../components/runtime/RuntimeHealth'
+import { RuntimeLogs } from '../components/runtime/RuntimeLogs'
 import { RuntimeProfileCard } from '../components/runtime/RuntimeProfileCard'
 import { RuntimeRunCard } from '../components/runtime/RuntimeRunCard'
 import { useRuntime } from '../hooks/useRuntime'
@@ -12,18 +14,8 @@ export function RuntimeSettingsPage() {
   const { t } = useI18n()
   const navigate = useNavigate()
   const { profiles, providers, stats } = useRuntimeProfiles()
-  const { runs, stats: runStats, startRun } = useRuntime()
-
-  const handleDemoRun = () => {
-    const profile = profiles[0]
-    if (!profile) return
-    const run = startRun({
-      employeeId: profile.employeeId,
-      workspaceId: null,
-      taskType: 'conversation',
-    })
-    navigate(`/ops/runtime/runs/${run.id}`)
-  }
+  const { runs, stats: runStats } = useRuntime()
+  const atlasProfile = profiles.find((item) => item.employeeId === 'ag-cto') ?? profiles[0]
 
   return (
     <>
@@ -53,9 +45,6 @@ export function RuntimeSettingsPage() {
           <Link to="/ops/projects/project-ai-photo-lab/control-room" className="mcBtn mcBtnSecondary">
             {t.pages.controlRoom}
           </Link>
-          <button type="button" className="mcBtn mcBtnPrimary" onClick={handleDemoRun}>
-            {t.runtimeOrchestrator.startRun}
-          </button>
         </div>
       </div>
 
@@ -77,6 +66,31 @@ export function RuntimeSettingsPage() {
           <div className="mcMetricValue">{providers.length}</div>
         </div>
       </div>
+
+      {atlasProfile ? (
+        <Panel title={t.runtimeProviders.executionTitle}>
+          <div className="mcProfilePanelBody">
+            <RuntimeExecutionPanel
+              employeeId={atlasProfile.employeeId}
+              employeeName="Atlas"
+              defaultModelId={atlasProfile.primaryModelId}
+              onRunStarted={(runId) => navigate(`/ops/runtime/runs/${runId}`)}
+            />
+          </div>
+        </Panel>
+      ) : null}
+
+      <Panel title={t.runtimeProviders.healthTitle}>
+        <div className="mcProfilePanelBody">
+          <RuntimeHealth />
+        </div>
+      </Panel>
+
+      <Panel title={t.runtimeProviders.logsTitle}>
+        <div className="mcProfilePanelBody">
+          <RuntimeLogs />
+        </div>
+      </Panel>
 
       <Panel
         title={t.runtimeOrchestrator.runsCatalog}
@@ -121,12 +135,6 @@ export function RuntimeSettingsPage() {
               ))}
             </div>
           )}
-        </div>
-      </Panel>
-
-      <Panel title={t.runtimeProviders.healthPanelTitle}>
-        <div className="mcProfilePanelBody">
-          <RuntimeProviderHealthPanel />
         </div>
       </Panel>
 

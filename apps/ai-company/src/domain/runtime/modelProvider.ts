@@ -36,8 +36,40 @@ export const SEED_PROVIDERS: ModelProvider[] = [
     id: 'provider-ollama',
     name: 'Ollama',
     type: 'local',
-    connectionStatus: 'mock',
+    connectionStatus: 'connected',
     models: [
+      {
+        id: 'model-qwen-36-27b',
+        name: 'Qwen 3.6 27B',
+        providerId: 'provider-ollama',
+        contextWindow: 32768,
+        maxOutputTokens: 8192,
+        costPer1kTokens: 0,
+      },
+      {
+        id: 'model-qwen-coder',
+        name: 'Qwen 2.5 Coder 7B',
+        providerId: 'provider-ollama',
+        contextWindow: 32768,
+        maxOutputTokens: 8192,
+        costPer1kTokens: 0,
+      },
+      {
+        id: 'model-qwen-vl',
+        name: 'Qwen 2.5 VL 7B',
+        providerId: 'provider-ollama',
+        contextWindow: 32768,
+        maxOutputTokens: 8192,
+        costPer1kTokens: 0,
+      },
+      {
+        id: 'model-deepseek-r1',
+        name: 'DeepSeek R1 8B',
+        providerId: 'provider-ollama',
+        contextWindow: 65536,
+        maxOutputTokens: 8192,
+        costPer1kTokens: 0,
+      },
       {
         id: 'model-qwen',
         name: 'Qwen',
@@ -197,12 +229,16 @@ export function getProviderForModel(modelId: string): ModelProvider | null {
 
 export function resolveModelIdFromLabel(label: string): string {
   const normalized = label.trim().toLowerCase()
-  if (normalized.includes('qwen')) return 'model-qwen'
-  if (normalized.includes('deepseek')) return 'model-deepseek'
+  if (normalized.includes('qwen 3.6') || normalized.includes('qwen3.6')) return 'model-qwen-36-27b'
+  if (normalized.includes('qwen coder') || normalized.includes('2.5-coder')) return 'model-qwen-coder'
+  if (normalized.includes('qwen vl') || normalized.includes('2.5vl')) return 'model-qwen-vl'
+  if (normalized.includes('deepseek r1') || normalized.includes('deepseek-r1')) return 'model-deepseek-r1'
+  if (normalized.includes('qwen')) return 'model-qwen-36-27b'
+  if (normalized.includes('deepseek')) return 'model-deepseek-r1'
   if (normalized.includes('llama')) return 'model-llama'
   if (normalized.includes('gpt')) return 'model-gpt'
   if (normalized.includes('claude')) return 'model-claude'
   if (normalized.includes('mimo')) return 'model-mimo'
   if (normalized.includes('mock')) return 'model-mock-local'
-  return 'model-mock-local'
+  return 'model-qwen-36-27b'
 }

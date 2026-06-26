@@ -65,6 +65,8 @@ export type RuntimeRunRequest = {
   taskType?: TaskType
   hasSensitiveData?: boolean
   requiresExternalTools?: boolean
+  prompt?: string
+  ollamaModelTag?: string | null
   forceApproval?: boolean
 }
 
@@ -140,6 +142,12 @@ function parseRuntimeResult(value: unknown): RuntimeResult | null {
     memoryUsed: typeof value.memoryUsed === 'number' ? value.memoryUsed : 0,
     estimatedCost: typeof value.estimatedCost === 'number' ? value.estimatedCost : 0,
     estimatedTokens: typeof value.estimatedTokens === 'number' ? value.estimatedTokens : 0,
+    promptTokens: typeof value.promptTokens === 'number' ? value.promptTokens : undefined,
+    completionTokens: typeof value.completionTokens === 'number' ? value.completionTokens : undefined,
+    executionDurationMs:
+      typeof value.executionDurationMs === 'number' ? value.executionDurationMs : undefined,
+    responseText: typeof value.responseText === 'string' ? value.responseText : undefined,
+    ollamaModelTag: typeof value.ollamaModelTag === 'string' ? value.ollamaModelTag : undefined,
     warnings: Array.isArray(value.warnings)
       ? value.warnings
           .map((item): RuntimeWarning | null => {
@@ -436,6 +444,28 @@ function estimateTokens(context: RuntimeContext, profileMaxTokens: number): numb
   return Math.min(profileMaxTokens, Math.max(512, layerTokens))
 }
 
+function buildExecutionPrompt(
+  request: RuntimeRunRequest,
+  employee: { codename: string; role: string },
+  context: RuntimeContext,
+): string {
+  if (request.prompt?.trim()) return request.prompt.trim()
+  const layers = context.layers
+    .filter((layer) => layer.loaded)
+    .map((layer) => `- ${layer.key}: ${layer.summary}`)
+    .join('\n')
+  return [
+    `You are ${employee.codename}, ${employee.role} in AI Company.`,
+    '',
+    'Assembled runtime context:',
+    layers || '- no additional context',
+    '',
+    request.taskId ? `Linked task: ${request.taskId}` : 'General runtime execution request.',
+    '',
+    'Respond clearly and concisely in plain language.',
+  ].join('\n')
+}
+
 function createRuntimeReport(
   run: RuntimeRun,
   result: RuntimeResult,
@@ -455,6 +485,9 @@ function createRuntimeReport(
       `Context assembled from ${result.contextSize} layers`,
       `${result.knowledgeUsed} knowledge items referenced`,
       `${result.memoryUsed} memory entries referenced`,
+      result.responseText
+        ? `Response preview: ${result.responseText.slice(0, 180)}${result.responseText.length > 180 ? '…' : ''}`
+        : 'No model response text captured',
     ],
     risks: result.warnings.filter((item) => item.severity === 'warn' || item.severity === 'error').map(
       (item) => item.message,
@@ -477,7 +510,7 @@ function createRuntimeReport(
 }
 
 /** Single entry point — all future model execution must go through this orchestrator. */
-export function orchestrateRuntimeRun(request: RuntimeRunRequest): RuntimeRun {
+export async function orchestrateRuntimeRun(request: RuntimeRunRequest): Promise<RuntimeRun> {
   const startedAt = new Date().toISOString()
   let pipeline = createInitialPipeline()
   const warnings: RuntimeWarning[] = []
@@ -690,73 +723,103 @@ export function orchestrateRuntimeRun(request: RuntimeRunRequest): RuntimeRun {
 
   if (!requiresApproval) {
     status = 'running'
-    const execution = executeViaRuntimeAdapter({
-      runId,
-      employeeId: request.employeeId,
-      modelId: selection.selectedModelId,
-      catalogProviderId: selection.selectedProviderId,
-      estimatedTokens,
-      contextSize: context.layers.filter((layer) => layer.loaded).length,
-      knowledgeUsed: knowledge.length,
-      memoryUsed: memories.length,
-      warnings,
-    })
-    result = execution.result
+    const executionPrompt = buildExecutionPrompt(request, employee, context)
 
-    const report = createRuntimeReport(
-      {
-        id: runId,
+    try {
+      const execution = await executeViaRuntimeAdapter({
+        runId,
+        employeeId: request.employeeId,
+        modelId: selection.selectedModelId,
+        catalogProviderId: selection.selectedProviderId,
+        estimatedTokens,
+        contextSize: context.layers.filter((layer) => layer.loaded).length,
+        knowledgeUsed: knowledge.length,
+        memoryUsed: memories.length,
+        warnings,
+        prompt: executionPrompt,
+        ollamaModelTag: request.ollamaModelTag ?? null,
+      })
+      result = execution.result
+
+      const report = createRuntimeReport(
+        {
+          id: runId,
+          employeeId: request.employeeId,
+          workspaceId: request.workspaceId ?? null,
+          runtimeProfileId: profile.id,
+          modelId: selection.selectedModelId,
+          providerId: selection.selectedProviderId,
+          taskId: request.taskId ?? null,
+          chatId: request.chatId ?? null,
+          reportId: null,
+          status: 'running',
+          startedAt,
+          finishedAt: null,
+          context,
+          pipeline,
+          result,
+        },
+        result,
+        employee.codename,
+      )
+      reportId = report.id
+      result.artifacts.push({
+        id: `artifact-report-${report.id}`,
+        kind: 'report',
+        label: report.title,
+        refId: report.id,
+      })
+
+      emitEvent({
+        type: 'run.completed',
+        sourceType: 'run',
+        sourceId: runId,
         employeeId: request.employeeId,
         workspaceId: request.workspaceId ?? null,
-        runtimeProfileId: profile.id,
-        modelId: selection.selectedModelId,
-        providerId: selection.selectedProviderId,
-        taskId: request.taskId ?? null,
-        chatId: request.chatId ?? null,
-        reportId: null,
-        status: 'running',
-        startedAt,
-        finishedAt: null,
-        context,
+        reportId: report.id,
+        metadata: {
+          mock: execution.mock,
+          providerAdapter: execution.providerId,
+          status: 'completed',
+          durationMs: result.executionDurationMs ?? null,
+        },
+        severity: 'success',
+      })
+      recordRuntimeLearning(request.employeeId, runId, report.id)
+
+      pipeline = updatePipelineStep(pipeline, 'create_report', 'done', report.id)
+      pipeline = updatePipelineStep(
         pipeline,
-        result,
-      },
-      result,
-      employee.codename,
-    )
-    reportId = report.id
-    result.artifacts.push({
-      id: `artifact-report-${report.id}`,
-      kind: 'report',
-      label: report.title,
-      refId: report.id,
-    })
-
-    emitEvent({
-      type: 'run.completed',
-      sourceType: 'run',
-      sourceId: runId,
-      employeeId: request.employeeId,
-      workspaceId: request.workspaceId ?? null,
-      reportId: report.id,
-      metadata: {
-        mock: execution.mock,
-        providerAdapter: execution.providerId,
-        status: 'completed',
-      },
-      severity: 'success',
-    })
-    recordRuntimeLearning(request.employeeId, runId, report.id)
-
-    pipeline = updatePipelineStep(pipeline, 'create_report', 'done', report.id)
-    pipeline = updatePipelineStep(
-      pipeline,
-      'complete',
-      'done',
-      execution.mock ? 'Mock execution complete' : `${execution.providerId} execution complete`,
-    )
-    status = 'completed'
-    finishedAt = new Date().toISOString()
+        'complete',
+        'done',
+        execution.mock ? 'Mock execution complete' : `${execution.providerId} execution complete`,
+      )
+      status = 'completed'
+      finishedAt = new Date().toISOString()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Runtime execution failed'
+      warnings.push({
+        code: 'EXECUTION_FAILED',
+        message,
+        severity: 'error',
+      })
+      emitEvent({
+        type: 'runtime.failed',
+        sourceType: 'runtime',
+        sourceId: runId,
+        employeeId: request.employeeId,
+        workspaceId: request.workspaceId ?? null,
+        reportId: null,
+        metadata: {
+          providerAdapter: getActiveRuntimeProviderId(),
+          error: message,
+        },
+        severity: 'error',
+      })
+      pipeline = updatePipelineStep(pipeline, 'complete', 'failed', message)
+      status = 'failed'
+      finishedAt = new Date().toISOString()
+    }
   } else {
     pipeline = updatePipelineStep(pipeline, 'create_report', 'skipped', 'Awaiting approval')
     pipeline = updatePipelineStep(pipeline, 'complete', 'skipped', 'Paused at approval gate')
@@ -783,8 +846,8 @@ export function orchestrateRuntimeRun(request: RuntimeRunRequest): RuntimeRun {
   return upsertRuntimeRun(run)
 }
 
-/** Resume a run that was waiting for approval — still mock-only, no LLM calls. */
-export function completeRuntimeRunAfterApproval(runId: string): RuntimeRun | null {
+/** Resume a run that was waiting for approval. */
+export async function completeRuntimeRunAfterApproval(runId: string): Promise<RuntimeRun | null> {
   const existing = getRuntimeRunById(runId)
   if (!existing || existing.status !== 'waiting_approval') return null
 
@@ -802,63 +865,87 @@ export function completeRuntimeRunAfterApproval(runId: string): RuntimeRun | nul
     existing.context.layers.find((layer: RuntimeContextLayer) => layer.key === 'memory')?.itemCount ??
     0
 
-  const execution = executeViaRuntimeAdapter({
-    runId: existing.id,
-    employeeId: existing.employeeId,
-    modelId: existing.modelId,
-    catalogProviderId: existing.providerId,
-    estimatedTokens: 4096,
-    contextSize: existing.context.layers.filter((layer: RuntimeContextLayer) => layer.loaded)
-      .length,
-    knowledgeUsed: knowledgeCount,
-    memoryUsed: memoryCount,
-    warnings: existing.result?.warnings ?? [],
-  })
-  const result: RuntimeResult = execution.result
-
-  const report = createRuntimeReport(existing, result, employee.codename)
-  result.artifacts.push({
-    id: `artifact-report-${report.id}`,
-    kind: 'report',
-    label: report.title,
-    refId: report.id,
-  })
-
-  emitEvent({
-    type: 'run.completed',
-    sourceType: 'run',
-    sourceId: existing.id,
-    employeeId: existing.employeeId,
-    workspaceId: existing.workspaceId,
-    reportId: report.id,
-    metadata: {
-      mock: execution.mock,
-      providerAdapter: execution.providerId,
-      status: 'completed',
-      afterApproval: true,
+  const executionPrompt = buildExecutionPrompt(
+    {
+      employeeId: existing.employeeId,
+      workspaceId: existing.workspaceId,
+      taskId: existing.taskId,
+      chatId: existing.chatId,
     },
-    severity: 'success',
-  })
-  recordRuntimeLearning(existing.employeeId, existing.id, report.id)
-
-  pipeline = updatePipelineStep(pipeline, 'create_report', 'done', report.id)
-  pipeline = updatePipelineStep(
-    pipeline,
-    'complete',
-    'done',
-    execution.mock ? 'Mock execution complete' : `${execution.providerId} execution complete`,
+    employee,
+    existing.context,
   )
 
-  const completed: RuntimeRun = {
-    ...existing,
-    status: 'completed',
-    reportId: report.id,
-    finishedAt: new Date().toISOString(),
-    pipeline,
-    result,
-  }
+  try {
+    const execution = await executeViaRuntimeAdapter({
+      runId: existing.id,
+      employeeId: existing.employeeId,
+      modelId: existing.modelId,
+      catalogProviderId: existing.providerId,
+      estimatedTokens: 4096,
+      contextSize: existing.context.layers.filter((layer: RuntimeContextLayer) => layer.loaded)
+        .length,
+      knowledgeUsed: knowledgeCount,
+      memoryUsed: memoryCount,
+      warnings: existing.result?.warnings ?? [],
+      prompt: executionPrompt,
+    })
+    const result: RuntimeResult = execution.result
 
-  return upsertRuntimeRun(completed)
+    const report = createRuntimeReport(existing, result, employee.codename)
+    result.artifacts.push({
+      id: `artifact-report-${report.id}`,
+      kind: 'report',
+      label: report.title,
+      refId: report.id,
+    })
+
+    emitEvent({
+      type: 'run.completed',
+      sourceType: 'run',
+      sourceId: existing.id,
+      employeeId: existing.employeeId,
+      workspaceId: existing.workspaceId,
+      reportId: report.id,
+      metadata: {
+        mock: execution.mock,
+        providerAdapter: execution.providerId,
+        status: 'completed',
+        afterApproval: true,
+      },
+      severity: 'success',
+    })
+    recordRuntimeLearning(existing.employeeId, existing.id, report.id)
+
+    pipeline = updatePipelineStep(pipeline, 'create_report', 'done', report.id)
+    pipeline = updatePipelineStep(
+      pipeline,
+      'complete',
+      'done',
+      execution.mock ? 'Mock execution complete' : `${execution.providerId} execution complete`,
+    )
+
+    const completed: RuntimeRun = {
+      ...existing,
+      status: 'completed',
+      reportId: report.id,
+      finishedAt: new Date().toISOString(),
+      pipeline,
+      result,
+    }
+
+    return upsertRuntimeRun(completed)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Runtime execution failed'
+    pipeline = updatePipelineStep(pipeline, 'complete', 'failed', message)
+    return upsertRuntimeRun({
+      ...existing,
+      status: 'failed',
+      finishedAt: new Date().toISOString(),
+      pipeline,
+      result: existing.result,
+    })
+  }
 }
 
 export type { RuntimeRun } from './runtimeRun'

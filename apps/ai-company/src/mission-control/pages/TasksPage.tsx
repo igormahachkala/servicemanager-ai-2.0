@@ -93,12 +93,11 @@ export function TasksPage() {
                       type="button"
                       className="mcBtn mcBtnSecondary mcBtnSmall"
                       onClick={() => {
-                        const run = startRun({
+                        void startRun({
                           employeeId,
                           taskId: task.id,
                           taskType: 'general',
-                        })
-                        navigate(`/ops/runtime/runs/${run.id}`)
+                        }).then((run) => navigate(`/ops/runtime/runs/${run.id}`))
                       }}
                     >
                       {t.runtimeOrchestrator.startRun}

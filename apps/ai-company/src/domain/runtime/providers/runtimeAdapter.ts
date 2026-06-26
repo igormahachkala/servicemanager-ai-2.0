@@ -10,9 +10,14 @@ import {
   getRuntimeProvider,
   listRuntimeProviders,
 } from './providerRegistry'
+import {
+  loadOllamaSettings,
+  saveOllamaSettings,
+  type OllamaSettings,
+} from './runtimeHealth'
 
 const ACTIVE_PROVIDER_KEY = 'ai-company-runtime-active-provider'
-const DEFAULT_PROVIDER_ID: RuntimeProviderId = 'mock'
+const DEFAULT_PROVIDER_ID: RuntimeProviderId = 'ollama'
 
 let engineInitialized = false
 
@@ -33,6 +38,9 @@ export function initializeRuntimeProviders(): void {
   for (const provider of listRuntimeProviders()) {
     provider.initialize()
   }
+  if (typeof localStorage !== 'undefined' && !localStorage.getItem(ACTIVE_PROVIDER_KEY)) {
+    writeActiveProviderId(DEFAULT_PROVIDER_ID)
+  }
   engineInitialized = true
 }
 
@@ -47,59 +55,63 @@ export function setActiveRuntimeProviderId(providerId: RuntimeProviderId): Runti
   return providerId
 }
 
-export function getRuntimeProviderStatus(
+export function getOllamaSettings(): OllamaSettings {
+  return loadOllamaSettings()
+}
+
+export function updateOllamaSettings(settings: OllamaSettings): OllamaSettings {
+  saveOllamaSettings(settings)
+  return loadOllamaSettings()
+}
+
+export async function getRuntimeProviderStatus(
   providerId: RuntimeProviderId = getActiveRuntimeProviderId(),
-): ProviderStatusSnapshot {
+): Promise<ProviderStatusSnapshot> {
   initializeRuntimeProviders()
   return getRuntimeProvider(providerId).status()
 }
 
-export function checkRuntimeProviderHealth(
+export async function checkRuntimeProviderHealth(
   providerId: RuntimeProviderId = getActiveRuntimeProviderId(),
-): ProviderHealthResult {
+): Promise<ProviderHealthResult> {
   initializeRuntimeProviders()
   const provider = getRuntimeProvider(providerId)
-  const health = provider.health()
-  if (health instanceof Promise) {
-    throw new Error('Async provider health is not supported in V1 adapter.')
-  }
-  return health
+  return Promise.resolve(provider.health())
 }
 
-export function checkAllRuntimeProviderHealth(): Record<RuntimeProviderId, ProviderHealthResult> {
+export async function checkAllRuntimeProviderHealth(): Promise<
+  Record<RuntimeProviderId, ProviderHealthResult>
+> {
   initializeRuntimeProviders()
   const results = {} as Record<RuntimeProviderId, ProviderHealthResult>
   for (const provider of listRuntimeProviders()) {
-    const health = provider.health()
-    if (health instanceof Promise) {
-      throw new Error('Async provider health is not supported in V1 adapter.')
-    }
-    results[provider.id] = health
+    results[provider.id] = await Promise.resolve(provider.health())
   }
   return results
 }
 
-export function executeViaRuntimeAdapter(
+export async function listRuntimeProviderModels(
+  providerId: RuntimeProviderId = getActiveRuntimeProviderId(),
+): Promise<string[]> {
+  initializeRuntimeProviders()
+  const provider = getRuntimeProvider(providerId)
+  if (!provider.listModels) return []
+  return Promise.resolve(provider.listModels())
+}
+
+export async function executeViaRuntimeAdapter(
   request: RuntimeExecutionRequest,
-): RuntimeExecutionResult {
+): Promise<RuntimeExecutionResult> {
   initializeRuntimeProviders()
   const providerId = getActiveRuntimeProviderId()
   const provider = getRuntimeProvider(providerId)
-  const execution = provider.execute(request)
-  if (execution instanceof Promise) {
-    throw new Error('Async provider execution is not supported in V1 adapter.')
-  }
-  return execution
+  return Promise.resolve(provider.execute(request))
 }
 
-export function cancelRuntimeExecution(runId: string): boolean {
+export async function cancelRuntimeExecution(runId: string): Promise<boolean> {
   initializeRuntimeProviders()
   const provider = getRuntimeProvider(getActiveRuntimeProviderId())
-  const cancelled = provider.cancel(runId)
-  if (cancelled instanceof Promise) {
-    throw new Error('Async provider cancel is not supported in V1 adapter.')
-  }
-  return cancelled
+  return Promise.resolve(provider.cancel(runId))
 }
 
 export {
@@ -118,3 +130,5 @@ export type {
   ProviderHealthStatus,
   ProviderStatusSnapshot,
 } from './runtimeProvider'
+
+export type { OllamaSettings } from './runtimeHealth'

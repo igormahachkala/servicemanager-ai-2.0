@@ -2,13 +2,13 @@ import { useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { PageHeader, Panel } from '../mission-control/components/ui'
 import { ModelRouteMatrix } from '../components/runtime/ModelRouteMatrix'
+import { RuntimeExecutionPanel } from '../components/runtime/RuntimeExecutionPanel'
 import { RuntimeFallbackList } from '../components/runtime/RuntimeFallbackList'
+import { RuntimeHealth } from '../components/runtime/RuntimeHealth'
+import { RuntimeLogs } from '../components/runtime/RuntimeLogs'
 import { RuntimePolicyPanel } from '../components/runtime/RuntimePolicyPanel'
-import { RuntimeProviderHealthPanel } from '../components/runtime/RuntimeProviderHealthPanel'
 import { RuntimeStatusBadge } from '../components/runtime/RuntimeStatusBadge'
 import { useModelRouter } from '../hooks/useModelRouter'
-import { useRuntime } from '../hooks/useRuntime'
-import { useRuntimeProfiles } from '../hooks/useRuntimeProfiles'
 import {
   getModelById,
   getProviderById,
@@ -20,6 +20,7 @@ import {
 import { resolveEmployee } from '../mission-control/data/conversation'
 import { loadCustomEmployees } from '../mission-control/data/customEmployees'
 import { agents } from '../mission-control/data/mock'
+import { useRuntimeProfiles } from '../hooks/useRuntimeProfiles'
 import { useI18n } from '../i18n'
 
 export function EmployeeRuntimePage() {
@@ -27,7 +28,6 @@ export function EmployeeRuntimePage() {
   const { t } = useI18n()
   const navigate = useNavigate()
   const { getProfile } = useRuntimeProfiles()
-  const { startRun } = useRuntime()
   const [taskType, setTaskType] = useState<TaskType>('conversation')
   const [hasSensitiveData, setHasSensitiveData] = useState(false)
   const [requiresExternalTools, setRequiresExternalTools] = useState(false)
@@ -56,19 +56,6 @@ export function EmployeeRuntimePage() {
   )
 
   const { selection } = useModelRouter(profile, taskContext)
-
-  const handleStartRun = () => {
-    if (!id || !profile) return
-    const run = startRun({
-      employeeId: id,
-      workspaceId: null,
-      taskType,
-      hasSensitiveData,
-      requiresExternalTools,
-      forceApproval: selection?.requiresApproval ?? false,
-    })
-    navigate(`/ops/runtime/runs/${run.id}`)
-  }
 
   if (!id || !employeeRef || !profile) {
     return (
@@ -100,10 +87,19 @@ export function EmployeeRuntimePage() {
         <Link to={`/ops/employees/${id}/learning`} className="mcBtn mcBtnSecondary">
           {t.learningEngine.openLearning}
         </Link>
-        <button type="button" className="mcBtn mcBtnPrimary" onClick={handleStartRun}>
-          {t.runtimeOrchestrator.startRun}
-        </button>
       </div>
+
+      <Panel title={t.runtimeProviders.executionTitle}>
+        <div className="mcProfilePanelBody">
+          <RuntimeExecutionPanel
+            employeeId={id}
+            employeeName={employeeRef.codename}
+            defaultModelId={profile.primaryModelId}
+            taskType={taskType}
+            onRunStarted={(runId) => navigate(`/ops/runtime/runs/${runId}`)}
+          />
+        </div>
+      </Panel>
 
       <div className="mcGrid4" style={{ marginBottom: 16 }}>
         <div className="mcMetric">
@@ -210,9 +206,15 @@ export function EmployeeRuntimePage() {
         </Panel>
       </div>
 
-      <Panel title={t.runtimeProviders.healthPanelTitle}>
+      <Panel title={t.runtimeProviders.healthTitle}>
         <div className="mcProfilePanelBody">
-          <RuntimeProviderHealthPanel compact />
+          <RuntimeHealth compact />
+        </div>
+      </Panel>
+
+      <Panel title={t.runtimeProviders.logsTitle}>
+        <div className="mcProfilePanelBody">
+          <RuntimeLogs />
         </div>
       </Panel>
 

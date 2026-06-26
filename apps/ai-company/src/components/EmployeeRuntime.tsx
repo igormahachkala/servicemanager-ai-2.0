@@ -30,13 +30,12 @@ export function EmployeeRuntime({ employee }: { employee: CustomEmployee }) {
   const { selection } = useModelRouter(profile, previewContext)
 
   const handleStartRun = () => {
-    const run = startRun({
+    void startRun({
       employeeId: employee.id,
       workspaceId: null,
       taskType: 'conversation',
       forceApproval: selection?.requiresApproval ?? false,
-    })
-    navigate(`/ops/runtime/runs/${run.id}`)
+    }).then((run) => navigate(`/ops/runtime/runs/${run.id}`))
   }
 
   const primaryModel = getModelById(profile.primaryModelId)

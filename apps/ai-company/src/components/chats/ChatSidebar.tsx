@@ -28,13 +28,12 @@ export function ChatSidebar({ chat }: { chat: Chat }) {
 
   const handleOrchestratorRun = () => {
     if (!employeeId) return
-    const run = startRun({
+    void startRun({
       employeeId,
       chatId: chat.id,
       workspaceId: chat.workspaceId,
       taskType: 'conversation',
-    })
-    navigate(`/ops/runtime/runs/${run.id}`)
+    }).then((run) => navigate(`/ops/runtime/runs/${run.id}`))
   }
 
   return (

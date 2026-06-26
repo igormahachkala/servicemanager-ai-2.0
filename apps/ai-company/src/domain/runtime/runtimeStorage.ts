@@ -419,12 +419,15 @@ export function ensureSeedRuntimeProfiles(): void {
   if (loadRuntimeProfiles().length > 0) return
 
   const seeds: RuntimeProfile[] = [
-    createSeedProfile('ag-cto', 'Claude', ['Qwen', 'GPT'], {
+    createSeedProfile('ag-cto', 'Qwen 3.6', ['Qwen Coder', 'DeepSeek R1'], {
+      primaryModelId: 'model-qwen-36-27b',
+      fallbackModelIds: ['model-qwen-coder', 'model-deepseek-r1'],
+      allowedProviderIds: ['provider-ollama', 'provider-local-mock', 'provider-openai', 'provider-anthropic'],
       privacyPolicy: {
-        localFirst: false,
+        localFirst: true,
         cloudAllowed: true,
         sensitiveDataAllowed: false,
-        requireApprovalForCloud: true,
+        requireApprovalForCloud: false,
       },
       reasoningLevel: 'deep',
       temperature: 0.3,
