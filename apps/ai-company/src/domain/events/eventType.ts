@@ -25,6 +25,9 @@ export const EVENT_TYPES = [
   'handoff.returned',
   'handoff.accepted',
   'handoff.rejected',
+  'sprint.planned',
+  'sprint.started',
+  'sprint.completed',
 ] as const
 
 export type EventType = (typeof EVENT_TYPES)[number]

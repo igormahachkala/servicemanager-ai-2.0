@@ -267,6 +267,9 @@ export function ExecutiveDashboard() {
               >
                 {t.executiveDashboard.actionOpenCanvas}
               </Link>
+              <Link to="/ops/sprint/sprint-apl-1" className="acQuickActionBtn acQuickActionBtnPrimary">
+                {t.sprintEngine.openSprint}
+              </Link>
               <Link
                 to="/ops/projects/project-ai-photo-lab/control-room"
                 className="acQuickActionBtn acQuickActionBtnPrimary"

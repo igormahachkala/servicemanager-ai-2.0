@@ -35,6 +35,9 @@ export function CompanyTimelinePage() {
         <Link to="/ops/collaboration" className="mcBtn mcBtnSecondary">
           {t.pages.collaboration}
         </Link>
+        <Link to="/ops/sprint/sprint-apl-1" className="mcBtn mcBtnSecondary">
+          {t.pages.sprint}
+        </Link>
         <Link to="/ops/projects/project-ai-photo-lab/control-room" className="mcBtn mcBtnSecondary">
           {t.pages.controlRoom}
         </Link>

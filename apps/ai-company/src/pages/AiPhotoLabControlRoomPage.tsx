@@ -54,6 +54,9 @@ export function AiPhotoLabControlRoomPage() {
           >
             {t.photoLabControlRoom.openCanvas}
           </Link>
+          <Link to="/ops/sprint/sprint-apl-1" className="mcBtn mcBtnSecondary">
+            {t.sprintEngine.openSprint}
+          </Link>
           <Link to="/ops/timeline" className="mcBtn mcBtnSecondary">
             {t.pages.companyTimeline}
           </Link>
@@ -99,6 +102,7 @@ export function AiPhotoLabControlRoomPage() {
           <ApprovalPanel snapshot={snapshot} />
           <Panel title={t.photoLabControlRoom.sections.quickLinks}>
             <div className="mcProfilePanelBody mcControlRoomLinks">
+              <Link to="/ops/sprint/sprint-apl-1">{t.sprintEngine.openSprint}</Link>
               <Link to={`/ops/collaboration?project=${encodeURIComponent(AI_PHOTO_LAB_PROJECT_ID)}`}>
                 {t.collaborationEngine.openProjectCollaborations}
               </Link>

@@ -5594,6 +5594,366 @@
   }
 }
 
+.mcSprintPage {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.mcSprintHeaderActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mcSprintTopStats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-size: 13px;
+  color: var(--mc-muted);
+}
+
+.mcSprintGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(300px, 0.85fr);
+  gap: 16px;
+}
+
+.mcSprintMain,
+.mcSprintSide {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.mcSprintGoalText {
+  font-size: 15px;
+  line-height: 1.5;
+  margin-bottom: 12px;
+}
+
+.mcSprintGoalMeta,
+.mcSprintDates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+}
+
+.mcSprintBadge {
+  display: inline-block;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(99, 102, 241, 0.12);
+  color: #6366f1;
+}
+
+.mcSprintStatusplanned {
+  background: rgba(59, 130, 246, 0.12);
+  color: #3b82f6;
+}
+
+.mcSprintStatusactive {
+  background: rgba(34, 197, 94, 0.12);
+  color: #22c55e;
+}
+
+.mcSprintHealthon_track {
+  color: #22c55e;
+}
+
+.mcSprintHealthat_risk {
+  color: #f59e0b;
+}
+
+.mcSprintHealthblocked {
+  color: #ef4444;
+}
+
+.mcSprintStatsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.mcSprintStat {
+  padding: 10px;
+  border: 1px solid var(--mc-border);
+  border-radius: 8px;
+  text-align: center;
+  background: var(--mc-surface-2);
+}
+
+.mcSprintStatValue {
+  display: block;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.mcSprintStatLabel {
+  display: block;
+  margin-top: 4px;
+  font-size: 10px;
+  color: var(--mc-muted);
+  text-transform: uppercase;
+}
+
+.mcSprintProgressBar {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--mc-border);
+  overflow: hidden;
+}
+
+.mcSprintProgressFill {
+  height: 100%;
+  background: linear-gradient(90deg, #6366f1, #22c55e);
+}
+
+.mcSprintProgressNote {
+  margin: 8px 0 0;
+  font-size: 12px;
+}
+
+.mcSprintCapacitySummary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.mcSprintCapacityLabel {
+  display: block;
+  font-size: 10px;
+  color: var(--mc-muted);
+  text-transform: uppercase;
+}
+
+.mcSprintCapacityValue {
+  display: block;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.mcSprintCapacityList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mcSprintCapacityRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+}
+
+.mcSprintCapacityName {
+  font-weight: 600;
+  min-width: 72px;
+}
+
+.mcSprintBoard {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(140px, 1fr));
+  gap: 10px;
+  overflow-x: auto;
+}
+
+.mcSprintColumn {
+  min-width: 140px;
+  border: 1px solid var(--mc-border);
+  border-radius: 8px;
+  background: var(--mc-surface-2);
+}
+
+.mcSprintColumnHead {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--mc-border);
+}
+
+.mcSprintColumnList {
+  margin: 0;
+  padding: 8px;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 80px;
+}
+
+.mcSprintCard {
+  padding: 8px;
+  border: 1px solid var(--mc-border);
+  border-radius: 6px;
+  background: var(--mc-surface);
+  font-size: 11px;
+}
+
+.mcSprintCardTitle {
+  font-weight: 600;
+  margin-bottom: 4px;
+  line-height: 1.35;
+}
+
+.mcSprintCardMeta {
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+  color: var(--mc-muted);
+}
+
+.mcSprintTaskTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.mcSprintTaskTable th,
+.mcSprintTaskTable td {
+  padding: 8px;
+  border-bottom: 1px solid var(--mc-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.mcSprintTaskTitle {
+  font-weight: 600;
+}
+
+.mcSprintBurndownChart {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  height: 160px;
+  margin-top: 12px;
+}
+
+.mcSprintBurndownDay {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.mcSprintBurndownBars {
+  position: relative;
+  width: 100%;
+  height: 120px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.mcSprintBurndownActual,
+.mcSprintBurndownIdeal {
+  position: absolute;
+  bottom: 0;
+  width: 40%;
+  border-radius: 4px 4px 0 0;
+  min-height: 4px;
+}
+
+.mcSprintBurndownActual {
+  left: 20%;
+  background: #6366f1;
+}
+
+.mcSprintBurndownIdeal {
+  right: 20%;
+  background: rgba(34, 197, 94, 0.45);
+}
+
+.mcSprintBurndownLabel {
+  font-size: 10px;
+  color: var(--mc-muted);
+}
+
+.mcSprintBurndownLegend {
+  display: flex;
+  gap: 16px;
+  margin-top: 10px;
+  font-size: 11px;
+}
+
+.mcSprintLegendActual::before,
+.mcSprintLegendIdeal::before {
+  content: '';
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  border-radius: 2px;
+  vertical-align: middle;
+}
+
+.mcSprintLegendActual::before {
+  background: #6366f1;
+}
+
+.mcSprintLegendIdeal::before {
+  background: rgba(34, 197, 94, 0.45);
+}
+
+.mcSprintSubhead {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--mc-muted);
+}
+
+.mcSprintDoList {
+  margin: 0 0 12px;
+  padding-left: 18px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.mcSprintLinks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mcSprintLocalNote {
+  margin: 0;
+  font-size: 11px;
+  color: var(--mc-muted-2);
+  font-family: var(--mc-mono);
+}
+
+@media (max-width: 960px) {
+  .mcSprintGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .mcSprintBoard {
+    grid-template-columns: 1fr;
+  }
+
+  .mcSprintStatsGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 /* Approval engine */
 .mcApprovalStatsGrid {
   display: grid;

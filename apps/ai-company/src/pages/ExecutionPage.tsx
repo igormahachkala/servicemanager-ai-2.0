@@ -47,6 +47,9 @@ export function ExecutionPage() {
           title={t.pages.execution}
           description={t.executionEngine.pageDescription}
         />
+        <Link to="/ops/sprint/sprint-apl-1" className="mcBtn mcBtnPrimary">
+          {t.sprintEngine.openSprint}
+        </Link>
         <Link
           to="/ops/projects/project-ai-photo-lab/control-room"
           className="mcBtn mcBtnPrimary"

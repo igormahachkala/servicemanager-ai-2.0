@@ -89,12 +89,17 @@ export function ProjectPage() {
       <ProjectHeader project={project} />
       <div className="mcPageHeaderRow" style={{ marginBottom: 12 }}>
         {project.id === AI_PHOTO_LAB_PROJECT_ID ? (
-          <Link
-            to={`/ops/projects/${encodeURIComponent(project.id)}/control-room`}
-            className="mcBtn mcBtnPrimary mcBtnSmall"
-          >
-            {t.photoLabControlRoom.openControlRoom}
-          </Link>
+          <>
+            <Link
+              to={`/ops/projects/${encodeURIComponent(project.id)}/control-room`}
+              className="mcBtn mcBtnPrimary mcBtnSmall"
+            >
+              {t.photoLabControlRoom.openControlRoom}
+            </Link>
+            <Link to="/ops/sprint/sprint-apl-1" className="mcBtn mcBtnPrimary mcBtnSmall">
+              {t.sprintEngine.openSprint}
+            </Link>
+          </>
         ) : null}
         <Link
           to={`/ops/collaboration?project=${encodeURIComponent(project.id)}`}
