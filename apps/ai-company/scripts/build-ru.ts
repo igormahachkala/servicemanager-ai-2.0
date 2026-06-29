@@ -9,8 +9,10 @@ import { ru as ruExisting } from '../src/i18n/ru.ts';
 import { PATH_RU, STRICT_KEEP, VALUE_RU } from './ruTranslations.ts';
 import { SUPPLEMENTAL_VALUE_RU } from './missingRuSupplement.ts';
 import { PATH_RU_SUPPLEMENT } from './pathRuSupplement.ts';
+import { FOCUS_LOCALIZATION_RU } from './focusLocalizationRu.ts';
 
 function translate(path: string, value: string, existing: string | undefined): string {
+  if (FOCUS_LOCALIZATION_RU[path]) return FOCUS_LOCALIZATION_RU[path];
   if (PATH_RU_SUPPLEMENT[path]) return PATH_RU_SUPPLEMENT[path];
   if (PATH_RU[path]) return PATH_RU[path];
   if (STRICT_KEEP.has(value)) return value;

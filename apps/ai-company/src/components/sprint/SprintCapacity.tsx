@@ -9,6 +9,7 @@ type Props = {
 export function SprintCapacity({ snapshot }: Props) {
   const { t } = useI18n()
   const { sprint, stats } = snapshot
+  const sp = t.sprintEngine.storyPointsShort
 
   return (
     <Panel title={t.sprintEngine.sections.capacity}>
@@ -16,15 +17,15 @@ export function SprintCapacity({ snapshot }: Props) {
         <div className="mcSprintCapacitySummary">
           <div>
             <span className="mcSprintCapacityLabel">{t.sprintEngine.capacityTotal}</span>
-            <span className="mcSprintCapacityValue">{stats.capacityTotal} SP</span>
+            <span className="mcSprintCapacityValue">{stats.capacityTotal}{sp}</span>
           </div>
           <div>
             <span className="mcSprintCapacityLabel">{t.sprintEngine.commitment}</span>
-            <span className="mcSprintCapacityValue">{stats.commitmentPoints} SP</span>
+            <span className="mcSprintCapacityValue">{stats.commitmentPoints}{sp}</span>
           </div>
           <div>
             <span className="mcSprintCapacityLabel">{t.sprintEngine.capacityRemaining}</span>
-            <span className="mcSprintCapacityValue">{stats.capacityRemaining} SP</span>
+            <span className="mcSprintCapacityValue">{stats.capacityRemaining}{sp}</span>
           </div>
         </div>
         <ul className="mcSprintCapacityList">
@@ -32,7 +33,7 @@ export function SprintCapacity({ snapshot }: Props) {
             <li key={member.employeeId} className="mcSprintCapacityRow">
               <span className="mcSprintCapacityName">{member.codename}</span>
               <span className="mcMuted">{member.role}</span>
-              <span className="mcMono">{member.storyPoints} SP</span>
+              <span className="mcMono">{member.storyPoints}{sp}</span>
               <span className="mcMuted">{member.hours}h</span>
             </li>
           ))}

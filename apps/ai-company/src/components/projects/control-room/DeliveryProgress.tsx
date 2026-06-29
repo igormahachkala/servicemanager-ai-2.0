@@ -1,6 +1,7 @@
 import type { AiPhotoLabControlRoomSnapshot } from '../../../domain/projects/aiPhotoLabControlRoom'
 import { Panel } from '../../../mission-control/components/ui'
 import { useI18n } from '../../../i18n'
+import { milestoneStatusLabel } from '../../../i18n/uiLabels'
 
 type Props = {
   snapshot: AiPhotoLabControlRoomSnapshot
@@ -32,7 +33,7 @@ export function DeliveryProgress({ snapshot }: Props) {
               <li key={milestone.id}>
                 <span className="mcControlRoomMilestoneTitle">{milestone.title}</span>
                 <span className={`mcControlRoomBadge mcControlRoomMilestone${milestone.status}`}>
-                  {milestone.status.replace('_', ' ')}
+                  {milestoneStatusLabel(t, milestone.status)}
                 </span>
                 <span className="mcMuted">{milestone.progress}%</span>
               </li>

@@ -4,6 +4,7 @@ import { Badge, Card } from '../layout'
 import { LivingPulseDot } from '../living'
 import { formatFeedTime } from '../../mission-control/components/ui'
 import { useI18n } from '../../i18n'
+import { eventTypeLabel } from '../../i18n/uiLabels'
 
 type Props = {
   events: CompanyEvent[]
@@ -43,7 +44,7 @@ export function LiveTimelinePanel({ events }: Props) {
                 {recent ? <LivingPulseDot phase="working" size="sm" /> : null}
                 <span className="acMono acMuted">{formatFeedTime(event.createdAt)}</span>
                 <span>{eventLabel(event.metadata)}</span>
-                <Badge variant={event.severity === 'error' ? 'danger' : 'default'}>{event.type}</Badge>
+                <Badge variant={event.severity === 'error' ? 'danger' : 'default'}>{eventTypeLabel(t, event.type)}</Badge>
               </div>
             )
           })}

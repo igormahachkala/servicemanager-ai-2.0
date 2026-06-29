@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import type { CanvasLiveStatus, CanvasNodeKind } from '../../domain/canvas'
+import { useI18n } from '../../i18n'
+import { canvasNodeKindLabel } from '../../i18n/uiLabels'
 import { canvasNodeAccent, canvasNodeIcon } from './canvasNodeIcons'
 import { LiveIndicator } from './LiveIndicator'
 
@@ -23,6 +25,7 @@ type CanvasNodeShellProps = {
 }
 
 export function CanvasNodeShell(props: CanvasNodeShellProps) {
+  const { t } = useI18n()
   const accent = canvasNodeAccent(props.kind)
   const isLive = props.liveStatus && props.liveStatus !== 'completed'
 
@@ -49,14 +52,14 @@ export function CanvasNodeShell(props: CanvasNodeShellProps) {
             {canvasNodeIcon(props.kind)}
           </span>
           <div className="acCanvasNodeHeadText">
-            <span className="acCanvasNodeKind">{props.kind}</span>
+            <span className="acCanvasNodeKind">{canvasNodeKindLabel(t, props.kind)}</span>
             {props.liveStatus ? <LiveIndicator status={props.liveStatus} compact /> : null}
           </div>
           {props.href ? (
             <Link
               to={props.href}
               className="acCanvasNodeOpen"
-              aria-label="Open"
+              aria-label={t.canvasEngine.openNode}
               onClick={(event) => event.stopPropagation()}
             >
               ↗
@@ -80,6 +83,7 @@ function shellProps(props: {
   node: import('../../domain/canvas').CanvasNode
   selected: boolean
   onSelect: () => void
+  children?: ReactNode
 }) {
   return {
     nodeId: props.node.id,
@@ -96,6 +100,7 @@ function shellProps(props: {
     width: props.node.width,
     height: props.node.height,
     onSelect: props.onSelect,
+    children: props.children,
   }
 }
 

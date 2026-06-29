@@ -3,13 +3,15 @@ import type { Messages } from './en'
 export const ru: Messages = {
   common: {
     empty: "—",
-    all: "Все"
+    all: "Все",
+    notAvailable: "н/д",
+    selected: "Выбрано"
   },
   nav: {
     flow: "Flow",
     missionControl: "Mission Control",
     organization: "Организация",
-    companies: "Companies",
+    companies: "Компании",
     employees: "Сотрудники",
     workspaces: "Рабочие пространства",
     projects: "Проекты",
@@ -17,7 +19,7 @@ export const ru: Messages = {
     feed: "Лента",
     timeline: "Хронология",
     activity: "Активность",
-    notifications: "Notifications",
+    notifications: "Уведомления",
     reports: "Отчёты",
     runs: "История запусков",
     audit: "Аудит",
@@ -85,17 +87,17 @@ export const ru: Messages = {
     notifications: "Уведомления",
     toolsRegistry: "Реестр AI-инструментов",
     employees: "Сотрудники",
-    companies: "Companies",
+    companies: "Компании",
     organization: "Организация",
     tasks: "Задачи",
     execution: "Очередь выполнения",
     toolExecutions: "Вызовы инструментов",
-    handoffs: "Work Handoffs",
+    handoffs: "Передачи работы",
     discussions: "Обсуждения",
     chats: "Чаты",
-    collaboration: "Collaboration",
-    controlRoom: "AI Photo Lab Control Room",
-    sprint: "Sprint",
+    collaboration: "Коллаборация",
+    controlRoom: "Control Room AI Photo Lab",
+    sprint: "Спринт",
     workspaces: "Рабочие пространства",
     projects: "Проекты",
     reports: "Отчёты",
@@ -103,7 +105,7 @@ export const ru: Messages = {
     knowledge: "База знаний",
     audit: "Аудит",
     runtimeSettings: "Настройки Runtime",
-    runtimeLive: "Live Runtime Monitor",
+    runtimeLive: "Live-монитор Runtime",
     approvals: "Согласования",
     presence: "Присутствие",
     workday: "Рабочий день",
@@ -600,8 +602,8 @@ export const ru: Messages = {
     actionNewEmployee: "Новый сотрудник",
     actionTasks: "Задачи",
     actionOpenCanvas: "Открыть canvas компании",
-    actionOpenControlRoom: "AI Photo Lab Control Room",
-    actionOpenSprint: "Sprint 1 — Working MVP",
+    actionOpenControlRoom: "Control Room AI Photo Lab",
+    actionOpenSprint: "Спринт 1 — рабочий MVP",
     actionFlow: "Flow workspace",
     projectsOverview: "Активные проекты",
     projectsSub: "delivery entities в реестре",
@@ -614,67 +616,67 @@ export const ru: Messages = {
     actionOpenWorkday: "Открыть дашборд рабочего дня"
   },
   commandCenter: {
-    title: "Executive Command Center",
-    description: "Operational view — company health, workforce, sprint, decisions, risks, and live activity.",
-    healthScoreLabel: "company health index",
-    sprintTasks: "tasks done",
+    title: "Командный центр",
+    description: "Операционный обзор — здоровье компании, команда, спринт, решения, риски и live-активность.",
+    healthScoreLabel: "индекс здоровья компании",
+    sprintTasks: "задач выполнено",
     sprintPoints: "story points",
     approvalsPending: "Ожидание",
-    approvalsApproved: "approved",
+    approvalsApproved: "одобрено",
     runtimeTotal: "запуски",
-    runtimeWaiting: "awaiting approval",
-    toolCompleted: "completed",
+    runtimeWaiting: "ожидает согласования",
+    toolCompleted: "завершено",
     toolFailed: "Ошибка",
-    toolPending: "await approval",
-    canvasEmployees: "employees",
-    canvasTasks: "active tasks",
-    canvasApprovals: "approvals",
-    canvasRuns: "runtime runs",
-    controlRoomWorking: "in progress",
+    toolPending: "ожидает согласования",
+    canvasEmployees: "сотрудников",
+    canvasTasks: "активных задач",
+    canvasApprovals: "согласований",
+    canvasRuns: "запусков runtime",
+    controlRoomWorking: "в работе",
     controlRoomBlocked: "заблокировано",
-    controlRoomApprovals: "decisions",
+    controlRoomApprovals: "решений",
     greeting: {
-      morning: "Good morning, Owner.",
-      afternoon: "Good afternoon, Owner.",
-      evening: "Good evening, Owner."
+      morning: "Доброе утро, Owner.",
+      afternoon: "Добрый день, Owner.",
+      evening: "Добрый вечер, Owner."
     },
     brief: {
-      summary: "Here is your company pulse for today — what is moving, what needs you, and where risk sits.",
-      workingHighlight: "{count} employees actively working right now",
-      approvalsHighlight: "{count} approvals waiting for your decision",
-      sprintHighlight: "Sprint health is {health}",
-      projectHighlight: "AI Photo Lab is at {progress}% toward MVP",
-      calmDay: "Operations are stable — no urgent blockers detected",
-      riskAlerts: "{count} critical alerts need attention",
-      riskWaiting: "{count} employees blocked on approval",
-      healthScore: "Health index",
-      unread: "{count} unread notifications",
-      allClear: "Inbox clear",
-      openTimeline: "Open live timeline"
+      summary: "Ваш company pulse на сегодня — что движется, что требует вас и где сосредоточен риск.",
+      workingHighlight: "{count} сотрудников активно работают прямо сейчас",
+      approvalsHighlight: "{count} согласований ждут вашего решения",
+      sprintHighlight: "Здоровье спринта: {health}",
+      projectHighlight: "AI Photo Lab на {progress}% к MVP",
+      calmDay: "Операции стабильны — срочных блокеров не обнаружено",
+      riskAlerts: "{count} критических алертов требуют внимания",
+      riskWaiting: "{count} сотрудников заблокированы на согласовании",
+      healthScore: "Индекс здоровья",
+      unread: "{count} непрочитанных уведомлений",
+      allClear: "Inbox пуст",
+      openTimeline: "Открыть live timeline"
     },
     sprintHealth: {
-      on_track: "on track",
-      at_risk: "at risk",
+      on_track: "по плану",
+      at_risk: "под риском",
       blocked: "заблокировано"
     },
     sections: {
       companyHealth: "Состояние компании",
-      employeesWorking: "Employees Working",
-      todaysSprint: "Today's Sprint",
+      employeesWorking: "Работающие сотрудники",
+      todaysSprint: "Спринт на сегодня",
       approvals: "Согласования",
       criticalAlerts: "Критические алерты",
       runtime: "Runtime",
-      toolUsage: "Tool Usage",
-      recentReports: "Recent Reports",
-      liveTimeline: "Live Timeline",
-      canvasPreview: "Canvas Preview",
-      controlRoomPreview: "Control Room Preview",
-      notifications: "Notifications",
-      quickLaunch: "Quick Launch",
-      charts: "Execution Charts"
+      toolUsage: "Использование инструментов",
+      recentReports: "Недавние отчёты",
+      liveTimeline: "Live-лента",
+      canvasPreview: "Превью Canvas",
+      controlRoomPreview: "Превью Control Room",
+      notifications: "Уведомления",
+      quickLaunch: "Быстрый запуск",
+      charts: "Графики execution"
     },
     charts: {
-      productivity: "Productivity",
+      productivity: "Продуктивность",
       capacity: "Ёмкость",
       execution: "Execution",
       approvals: "Согласования"
@@ -683,7 +685,7 @@ export const ru: Messages = {
       atlas: "Atlas",
       max: "MAX",
       canvas: "Canvas",
-      sprint: "Sprint",
+      sprint: "Спринт",
       controlRoom: "Control Room",
       kickoff: "Kickoff",
       handoffs: "Handoffs",
@@ -692,71 +694,75 @@ export const ru: Messages = {
       taskResults: "Результаты задач"
     },
     empty: {
-      sprint: "No active sprint configured",
-      approvals: "No pending approvals",
-      runtime: "No runtime runs yet",
-      tools: "No tool executions yet",
-      reports: "No reports generated yet",
-      canvas: "Canvas graph unavailable",
-      canvasTasks: "No active canvas tasks",
-      controlRoom: "Control room snapshot unavailable"
+      sprint: "Активный спринт не настроен",
+      approvals: "Нет ожидающих согласований",
+      runtime: "Запусков runtime пока нет",
+      tools: "Запусков инструментов пока нет",
+      reports: "Отчёты пока не созданы",
+      canvas: "Граф Canvas недоступен",
+      canvasTasks: "Нет активных задач на Canvas",
+      controlRoom: "Снимок Control Room недоступен"
+    },
+    providerHealth: {
+      up: "Исправно",
+      degraded: "Деградация"
     }
   },
   visualLab: {
     title: "Visual Execution Lab",
-    description: "Cursor-style visual workspace — mock editor, terminal, browser preview, clicks, and test timeline for digital employee execution.",
-    mockNote: "Visual/mock only — no real Playwright or browser automation yet.",
+    description: "Visual workspace в стиле Cursor — mock-редактор, терминал, превью браузера, клики и timeline тестов для execution цифрового сотрудника.",
+    mockNote: "Только visual/mock — без реального Playwright или browser automation.",
     sidebar: {
       employee: "Сотрудник",
       task: "Задача",
       execution: "Execution",
       status: "Статус",
-      tests: "Test steps",
-      project: "Project",
+      tests: "Шаги теста",
+      project: "Проект",
       integrations: "Интеграции",
       doingNow: "Сейчас делает"
     },
     integrations: {
-      execution: "Execution Queue",
-      runtime: "Runtime Run",
+      execution: "Очередь execution",
+      runtime: "Запуск Runtime",
       handoffs: "Handoff",
       reports: "Отчёт",
-      canvas: "Company Canvas",
+      canvas: "Canvas компании",
       controlRoom: "Control Room"
     },
     editor: {
-      title: "Editor",
-      changed: "File changed"
+      title: "Редактор",
+      changed: "Файл изменён"
     },
     terminal: {
-      title: "Terminal",
-      waiting: "Waiting for execution output…"
+      title: "Терминал",
+      waiting: "Ожидание вывода execution…"
     },
     browser: {
-      title: "Browser Preview",
-      landingCopy: "Sign in to continue to AI Photo Lab inspection workspace.",
-      buttonPending: "Rendering Sign in button…",
-      screenshots: "Screenshots timeline"
+      title: "Превью браузера",
+      landingCopy: "Войдите, чтобы продолжить в inspection workspace AI Photo Lab.",
+      buttonPending: "Отрисовка кнопки Sign in…",
+      screenshots: "Timeline скриншотов"
     },
     timeline: {
-      title: "Action Timeline",
-      play: "Play",
-      pause: "Pause",
-      replay: "Replay",
-      restart: "Restart",
-      back: "Back",
-      forward: "Forward"
+      title: "Timeline действий",
+      play: "Воспроизвести",
+      pause: "Пауза",
+      replay: "Повтор",
+      restart: "Перезапуск",
+      back: "Назад",
+      forward: "Вперёд"
     },
     actions: {
-      test_started: "Test started",
-      file_changed: "File changed",
-      terminal_line: "Terminal",
-      cursor_move: "Cursor moved",
-      click: "Clicked login",
-      highlight: "Highlighted UI element",
-      button_added: "Button added",
-      screenshot: "Screenshot captured",
-      build_passed: "Build passed"
+      test_started: "Тест запущен",
+      file_changed: "Файл изменён",
+      terminal_line: "Терминал",
+      cursor_move: "Курсор перемещён",
+      click: "Клик по login",
+      highlight: "Подсветка UI-элемента",
+      button_added: "Кнопка добавлена",
+      screenshot: "Скриншот сохранён",
+      build_passed: "Сборка успешна"
     }
   },
   tasks: {
@@ -1430,7 +1436,7 @@ export const ru: Messages = {
       team: "Команда",
       tasks: "Задачи",
       board: "Доска",
-      milestones: "Milestones",
+      milestones: "Вехи",
       roadmap: "Roadmap",
       timeline: "Хронология",
       assignments: "Назначения",
@@ -1442,113 +1448,113 @@ export const ru: Messages = {
       handoffs: "Handoffs"
     },
     dashboard: {
-      health: "Project Health",
+      health: "Здоровье проекта",
       healthSub: "общий прогресс",
-      sprintProgress: "Sprint Progress",
+      sprintProgress: "Прогресс спринта",
       milestonesDone: "milestones выполнено",
-      runtimeQueue: "Runtime Queue",
+      runtimeQueue: "Очередь Runtime",
       waitingApproval: "ожидают approval",
-      teamActivity: "Team Activity",
-      assignmentsSub: "active workspace assignments",
+      teamActivity: "Активность команды",
+      assignmentsSub: "активных назначений в workspace",
       approvals: "Согласования",
-      approvalsSub: "pending decisions",
-      recentDiscussions: "Recent Discussions",
-      risks: "Open Risks",
+      approvalsSub: "ожидающих решений",
+      recentDiscussions: "Недавние обсуждения",
+      risks: "Открытые риски",
       risksSub: "в project register"
     },
     team: {
-      title: "Project Team",
+      title: "Команда проекта",
       empty: "Члены команды не назначены.",
       viewProfile: "Профиль",
       roles: {
-        lead: "Lead",
-        developer: "Developer",
+        lead: "Лид",
+        developer: "Разработчик",
         qa: "QA",
-        architect: "Architect",
+        architect: "Архитектор",
         pm: "PM",
-        designer: "Designer",
+        designer: "Дизайнер",
         member: "Участник"
       }
     },
     board: {
-      title: "Project Board",
+      title: "Доска проекта",
       description: "Delivery task kanban — backlog, in progress, review, done.",
       empty: "Пусто",
       columns: {
         backlog: "Backlog",
-        in_progress: "In Progress",
-        review: "Blocked",
+        in_progress: "В работе",
+        review: "Заблокировано",
         done: "Готово"
       }
     },
     milestones: {
-      title: "Milestones",
-      short: "milestones",
+      title: "Вехи",
+      short: "вех",
       empty: "Milestones не определены.",
       status: {
         planned: "Планируемые",
         in_progress: "В процессе",
         done: "Готово",
-        blocked: "Blocked"
+        blocked: "Заблокировано"
       }
     },
     roadmap: {
       title: "Roadmap",
       empty: "Ничего не запланировано",
       horizons: {
-        now: "Now",
-        next: "Next",
-        later: "Later"
+        now: "Сейчас",
+        next: "Далее",
+        later: "Позже"
       }
     },
     timeline: {
-      title: "Project Timeline",
+      title: "Timeline проекта",
       description: "Даты milestones и recent company events для delivery.",
-      viewCompany: "Company timeline"
+      viewCompany: "Timeline компании"
     },
     reports: {
-      title: "Project Reports",
+      title: "Отчёты проекта",
       description: "Reports от digital employees — project scope в V2.",
       empty: "Reports пока нет.",
       viewAll: "Все reports"
     },
     runtime: {
-      title: "Runtime Queue",
+      title: "Очередь Runtime",
       description: "Runtime runs для workspace {workspace} — company-wide queue в V1.",
       empty: "Runtime runs пока нет.",
-      viewRuns: "Run history",
-      settings: "Runtime settings"
+      viewRuns: "История запусков",
+      settings: "Настройки Runtime"
     },
     activity: {
-      title: "Project Activity",
+      title: "Активность проекта",
       description: "Recent company events — project-scoped audit в V2.",
       empty: "Активности пока нет."
     },
     chats: {
-      title: "Project Chats",
+      title: "Чаты проекта",
       description: "Delivery discussions — включая #ai-photo-lab-delivery.",
       empty: "Project chats пока нет.",
       messages: "сообщений",
       open: "Открыть чаты"
     },
     knowledge: {
-      title: "Project Knowledge",
+      title: "База знаний проекта",
       description: "Knowledge entries для linked workspace.",
       empty: "Knowledge entries для workspace пока нет.",
       openWorkspace: "Открыть рабочее пространство"
     },
     tasks: {
-      title: "Delivery Tasks",
+      title: "Delivery-задачи",
       description: "Назначенные задачи с priority, status и expected output.",
       empty: "Delivery tasks пока нет.",
-      expectedOutput: "Expected output"
+      expectedOutput: "Ожидаемый результат"
     },
     taskStatus: {
       backlog: "Backlog",
       in_progress: "В процессе",
       review: "Проверка",
       done: "Готово",
-      blocked: "Blocked"
+      blocked: "Заблокировано"
     },
     taskPriority: {
       low: "Низкий",
@@ -1556,12 +1562,19 @@ export const ru: Messages = {
       high: "Высокий",
       critical: "Критический"
     },
+    milestoneStatus: {
+      pending: "Ожидает",
+      in_progress: "В работе",
+      done: "Готово",
+      blocked: "Заблокировано",
+      at_risk: "Под риском"
+    },
     future: {
       label: "Будущее",
-      budget: "Budget",
-      client: "Client",
-      invoices: "Invoices",
-      releases: "Releases"
+      budget: "Бюджет",
+      client: "Клиент",
+      invoices: "Счета",
+      releases: "Релизы"
     },
     errors: {
       titleRequired: "Название проекта обязательно.",
@@ -1574,25 +1587,25 @@ export const ru: Messages = {
     since: "С",
     expected: "ETA",
     status: {
-      offline: "Offline",
-      available: "Available",
-      busy: "Busy",
-      in_discussion: "In Discussion",
+      offline: "Не в сети",
+      available: "Доступен",
+      busy: "Занят",
+      in_discussion: "В обсуждении",
       working: "Работает",
-      waiting_approval: "Waiting Approval",
+      waiting_approval: "Ожидает согласования",
       reviewing: "На проверке",
-      learning: "Learning",
-      break: "Break"
+      learning: "Обучение",
+      break: "Перерыв"
     },
     dashboard: {
-      nowWorking: "Now Working",
-      waiting: "Waiting",
-      needsAttention: "Needs Attention",
-      available: "Available",
-      recentlyFinished: "Recently Finished",
-      todaysActivity: "Today's Activity",
-      currentAssignment: "Current Assignment",
-      recentReports: "Recent Reports",
+      nowWorking: "Сейчас работает",
+      waiting: "Ожидает",
+      needsAttention: "Требует внимания",
+      available: "Доступен",
+      recentlyFinished: "Недавно завершили",
+      todaysActivity: "Активность за сегодня",
+      currentAssignment: "Текущее назначение",
+      recentReports: "Недавние отчёты",
       noWorking: "Сейчас никто активно не работает.",
       noWaiting: "Никто не ждёт approval.",
       noFinished: "Завершённых work blocks сегодня нет.",
@@ -1600,14 +1613,14 @@ export const ru: Messages = {
       noReports: "Recent reports нет."
     },
     currentWork: {
-      title: "Current Work",
+      title: "Текущая работа",
       offline: "Employee offline или не активирован.",
-      project: "Project",
+      project: "Проект",
       workspace: "Рабочее пространство",
       task: "Задача",
-      run: "Runtime run",
+      run: "Запуск Runtime",
       started: "Начало",
-      expectedFinish: "Expected finish"
+      expectedFinish: "Ожидаемое завершение"
     },
     workday: {
       empty: "Workday events пока нет."
@@ -1618,11 +1631,11 @@ export const ru: Messages = {
       discussion: "Обсуждение",
       approval_wait: "Согласование",
       review: "Проверка",
-      learning: "Learning",
-      break: "Break"
+      learning: "Обучение",
+      break: "Перерыв"
     },
     timeline: {
-      title: "Workday Timeline",
+      title: "Timeline рабочего дня",
       description: "Сегодняшняя активность digital employees из presence transitions."
     }
   },
@@ -1745,30 +1758,30 @@ export const ru: Messages = {
     }
   },
   notificationEngine: {
-    pageDescription: "Unified operational inbox — every important platform event produces an owner-facing notification with severity, context, and deep links.",
+    pageDescription: "Единый операционный inbox — каждое важное событие платформы создаёт уведомление для Owner с severity, контекстом и deep links.",
     inboxTitle: "Notifications",
-    bellLabel: "Notifications",
+    bellLabel: "Уведомления",
     emptyInbox: "Notifications пока нет.",
-    markRead: "Mark read",
-    markAllRead: "Mark all read",
+    markRead: "Отметить прочитанным",
+    markAllRead: "Отметить все прочитанными",
     openAction: "Открыть",
-    viewInbox: "View inbox",
+    viewInbox: "Открыть inbox",
     itemCount: "элементов",
-    unreadCount: "{count} unread notifications",
+    unreadCount: "{count} непрочитанных уведомлений",
     searchLabel: "Поиск",
-    searchPlaceholder: "Title, summary, category, employee…",
-    principleNote: "Notification principle: emitEvent() and audit actions automatically enqueue inbox items — Owner reviews one surface instead of every module page.",
-    localOnly: "Stored in localStorage (ai-company-notifications) — synced from events and audit in V1.",
-    timelineHint: "Timeline events also appear in the Notification Center with actionable links.",
-    approvalInbox: "Approval notifications",
-    reportInbox: "Report notifications",
-    chatInbox: "Chat notifications",
-    runtimeInbox: "Runtime notifications",
+    searchPlaceholder: "Название, summary, category, сотрудник…",
+    principleNote: "Принцип уведомлений: emitEvent() и audit actions автоматически добавляют элементы в inbox — Owner проверяет одну поверхность вместо каждой страницы модуля.",
+    localOnly: "Хранится в localStorage (ai-company-notifications) — синхронизировано из events и audit в V1.",
+    timelineHint: "События Timeline также появляются в Notification Center с actionable links.",
+    approvalInbox: "Уведомления согласований",
+    reportInbox: "Уведомления отчётов",
+    chatInbox: "Уведомления чатов",
+    runtimeInbox: "Уведомления Runtime",
     filters: {
       category: "Категория",
       severity: "Критичность",
       read: "Чтение",
-      unread: "Unread"
+      unread: "Непрочитанные"
     },
     severity: {
       info: "Инфо",
@@ -1778,17 +1791,17 @@ export const ru: Messages = {
     },
     stats: {
       total: "Всего",
-      unread: "Unread",
-      approval: "Unread approvals",
-      runtime: "Unread runtime"
+      unread: "Непрочитанные",
+      approval: "Непрочитанные согласования",
+      runtime: "Непрочитанные Runtime"
     },
     categories: {
       approval: "Согласование",
       runtime: "Runtime",
-      project: "Project",
+      project: "Проект",
       employee: "Сотрудник",
       knowledge: "База знаний",
-      chat: "Chat",
+      chat: "Чат",
       discussion: "Обсуждение",
       task: "Задача",
       report: "Отчёт",
@@ -1802,7 +1815,7 @@ export const ru: Messages = {
     timelineTitle: "Хронология компании",
     activityTitle: "Лента активности",
     eventCount: "события",
-    localOnly: "Stored in localStorage (ai-company-events) — seed data in V1; modules emit via emitEvent().",
+    localOnly: "Хранится в localStorage (ai-company-events) — seed data в V1; модули emit через emitEvent().",
     principleNote: "Event principle: reports, audit, runtime, notifications и analytics подписываются на events — без direct coupling.",
     futureBadge: "Будущее",
     emptyTitle: "Нет подходящих events",
@@ -1817,14 +1830,14 @@ export const ru: Messages = {
     reportLabel: "Отчёт",
     scopes: {
       company: "Хронология компании",
-      employee: "Employee · {name}",
+      employee: "Сотрудник · {name}",
       workspace: "Workspace · {name}"
     },
     stats: {
       total: "Всего events",
       success: "Успех",
       warn: "Предупреждения",
-      withWorkspace: "Workspace-linked"
+      withWorkspace: "Связано с workspace"
     },
     filters: {
       employee: "Сотрудник",
@@ -1857,22 +1870,22 @@ export const ru: Messages = {
       "task_result.changes_requested": "Task Result — нужны правки",
       "task_result.rejected": "Task Result отклонён",
       "task_result.archived": "Task Result архивирован",
-      "runtime.started": "Runtime Started",
+      "runtime.started": "Runtime запущен",
       "runtime.completed": "Runtime Completed",
-      "runtime.failed": "Runtime Failed",
+      "runtime.failed": "Runtime завершился с ошибкой",
       "run.completed": "Запуск завершён",
-      "collaboration.started": "Collaboration Started",
-      "collaboration.message": "Collaboration Message",
-      "collaboration.consensus": "Collaboration Consensus",
-      "collaboration.completed": "Collaboration Completed",
-      "handoff.created": "Handoff Created",
-      "handoff.sent": "Handoff Sent",
-      "handoff.returned": "Handoff Returned",
-      "handoff.accepted": "Handoff Accepted",
-      "handoff.rejected": "Handoff Rejected",
-      "sprint.planned": "Sprint Planned",
-      "sprint.started": "Sprint Started",
-      "sprint.completed": "Sprint Completed",
+      "collaboration.started": "Коллаборация начата",
+      "collaboration.message": "Сообщение коллаборации",
+      "collaboration.consensus": "Консенсус коллаборации",
+      "collaboration.completed": "Коллаборация завершена",
+      "handoff.created": "Handoff создан",
+      "handoff.sent": "Handoff отправлен",
+      "handoff.returned": "Handoff возвращён",
+      "handoff.accepted": "Handoff принят",
+      "handoff.rejected": "Handoff отклонён",
+      "sprint.planned": "Спринт запланирован",
+      "sprint.started": "Спринт начат",
+      "sprint.completed": "Спринт завершён",
       "workday.started": "Рабочий день начат",
       "workday.phase_changed": "Фаза рабочего дня изменена",
       "workday.finished": "Рабочий день завершён"
@@ -1995,7 +2008,7 @@ export const ru: Messages = {
     runningNowEmpty: "Нет активных executions в этом scope.",
     nextTasksTitle: "Следующие задачи",
     nextTasksEmpty: "Очередь пуста — поставьте delivery task в очередь.",
-    inspectorTitle: "Execution Inspector",
+    inspectorTitle: "Инспектор execution",
     inspectorEmptyTitle: "Выберите execution",
     inspectorEmptyDescription: "Выберите карточку из очереди, чтобы inspect lifecycle, runtime link и actions.",
     timelineTitle: "Lifecycle выполнения",
@@ -2004,7 +2017,7 @@ export const ru: Messages = {
     queuePosition: "Позиция в очереди",
     estimatedDuration: "Оценка длительности",
     minutesShort: " мин",
-    taskId: "Task ID",
+    taskId: "ID задачи",
     startedAt: "Начало",
     finishedAt: "Окончание",
     linkedRun: "Связанный запуск",
@@ -2017,10 +2030,10 @@ export const ru: Messages = {
     emptyQueueDescription: "Смените scope или поставьте задачи из delivery board проекта.",
     scope: {
       label: "Scope очереди",
-      company: "Company queue",
-      employee: "Employee queue",
-      project: "Project queue",
-      workspace: "Workspace queue"
+      company: "Очередь компании",
+      employee: "Очередь сотрудника",
+      project: "Очередь проекта",
+      workspace: "Очередь workspace"
     },
     stats: {
       currentQueue: "Текущая очередь",
@@ -2049,6 +2062,66 @@ export const ru: Messages = {
       cancel: "Отмена",
       retry: "Повторить",
       complete: "Завершить"
+    }
+  },
+  toolExecutionEngine: {
+    pageDescription: "Единый шлюз для запросов инструментов. Только mock-провайдер, без реального выполнения.",
+    submitSample: "Отправить тестовый запрос",
+    localNote: "Только локальный mock-поток. Реальные вызовы провайдеров не выполняются.",
+    stats: {
+      total: "Всего",
+      waitingApproval: "Ожидает согласования",
+      completed: "Завершено",
+      failedCancelled: "Ошибка/отменено"
+    },
+    filters: {
+      title: "Фильтры",
+      employee: "Сотрудник",
+      provider: "Провайдер",
+      status: "Статус",
+      approval: "Согласование",
+      all: "все",
+      required: "обязательно",
+      notRequired: "не требуется"
+    },
+    log: {
+      title: "Журнал выполнения",
+      items: "{count} записей",
+      empty: "Запусков инструментов пока нет.",
+      selectHint: "Выберите выполнение из журнала."
+    },
+    details: {
+      title: "Детали выполнения"
+    },
+    approval: {
+      stateTitle: "Статус согласования",
+      noAction: "Для текущего статуса действие согласования недоступно.",
+      requiredTitle: "Требуется согласование",
+      waitingNote: "Запрос ожидает решения Owner: {toolId} · {action}",
+      approve: "Одобрить",
+      reject: "Отклонить",
+      cancel: "Отменить",
+      rejectReason: "Отклонено в панели согласования инструмента"
+    },
+    result: {
+      executionId: "ID выполнения:",
+      status: "Статус:",
+      elapsed: "время: {ms} мс · завершено: {at}",
+      noResponse: "Ответа пока нет. Ожидание результата выполнения."
+    },
+    card: {
+      mockTag: "mock",
+      selected: "Выбрано",
+      openDetails: "Открыть детали"
+    },
+    statuses: {
+      created: "Создано",
+      waiting_approval: "Ожидает согласования",
+      approved: "Одобрено",
+      running: "Выполняется",
+      completed: "Завершено",
+      failed: "Ошибка",
+      cancelled: "Отменено"
     }
   },
   taskRunner: {
@@ -2086,12 +2159,12 @@ export const ru: Messages = {
     modes: {
       planning: "Планирование",
       architecture: "Архитектура",
-      technical_audit: "Technical Audit",
-      qa_review: "QA Review",
-      devops_plan: "DevOps Plan",
-      handoff_preparation: "Handoff Preparation",
+      technical_audit: "Технический аудит",
+      qa_review: "QA review",
+      devops_plan: "План DevOps",
+      handoff_preparation: "Подготовка handoff",
       documentation: "Документация",
-      product_review: "Product Review"
+      product_review: "Product review"
     },
     preview: {
       title: "Название",
@@ -2103,13 +2176,13 @@ export const ru: Messages = {
       emptyTask: "Вставьте текст задачи для предпросмотра…"
     },
     actions: {
-      start: "Start",
+      start: "Запустить",
       starting: "Запуск…",
       openRunTask: "Запуск задачи"
     },
     result: {
       empty: "Запустите задачу, чтобы увидеть ответ сотрудника.",
-      openLive: "Live monitor",
+      openLive: "Live-монитор",
       openRun: "Детали run",
       openReport: "Отчёт",
       noResponse: "Run завершился без текста ответа."
@@ -2121,60 +2194,66 @@ export const ru: Messages = {
     }
   },
   photoLabKickoff: {
-    title: "AI Photo Lab Kickoff",
+    title: "Kickoff AI Photo Lab",
     description: "Owner kickoff hub — CTO plan, sprint, demo readiness, Codex handoff и быстрые запуски сотрудников.",
     actionsHint: "Запустите пресеты Atlas / MAX / QA или перейдите на связанные поверхности.",
     handoffChecklistDone: "пунктов чек-листа",
-    demoReadyLabel: "gates ready",
+    demoReadyLabel: "gates готовы",
     sections: {
-      ctoPlan: "CTO plan",
-      sprintGoal: "Sprint goal",
-      demoReadiness: "Demo readiness",
-      maxHandoff: "MAX → Codex handoff",
+      ctoPlan: "План CTO",
+      sprintGoal: "Цель спринта",
+      demoReadiness: "Готовность к demo",
+      maxHandoff: "Handoff MAX → Codex",
       qaChecklist: "QA checklist",
-      ownerApprovals: "Owner approvals",
-      actions: "Kickoff actions",
+      ownerApprovals: "Согласования Owner",
+      actions: "Действия kickoff",
       teamActivity: "Активность команды сейчас"
     },
     links: {
       controlRoom: "Control Room"
     },
     cto: {
-      weekGoal: "Week goal",
-      priorities: "Priorities",
-      codexScope: "Codex scope"
+      weekGoal: "Цель недели",
+      priorities: "Приоритеты",
+      codexScope: "Объём Codex"
     },
     sprint: {
-      name: "Sprint",
+      name: "Спринт",
       status: "Статус",
       tasks: "Задачи",
-      health: "Health"
+      health: "Здоровье"
     },
     owner: {
-      decisions: "Owner decisions",
-      approvals: "Pending approvals",
+      decisions: "Решения Owner",
+      approvals: "Ожидающие согласования",
       noDecisions: "Нет открытых owner decisions.",
       noApprovals: "Нет pending approvals."
     },
     demoOverall: {
-      ready: "Ready",
-      needs_fix: "Needs Fix",
-      blocked: "Blocked"
+      ready: "Готово",
+      needs_fix: "Нужна доработка",
+      blocked: "Заблокировано"
     },
     gateStatus: {
-      ready: "Ready",
-      needs_fix: "Needs Fix",
-      blocked: "Blocked",
+      ready: "Готово",
+      needs_fix: "Нужна доработка",
+      blocked: "Заблокировано",
       pending: "Ожидание"
     },
+    checklistStatus: {
+      pending: "Ожидает",
+      in_progress: "В работе",
+      done: "Готово",
+      blocked: "Заблокировано"
+    },
     actions: {
-      startAtlas: "Start Atlas (Planning)",
-      startMax: "Start MAX (Technical Audit)",
-      startQa: "Start QA (Demo Review)",
+      startAtlas: "Запустить Atlas (планирование)",
+      startMax: "Запустить MAX (технический аудит)",
+      startQa: "Запустить QA (demo review)",
       starting: "Запуск…",
       review: "Проверка",
-      openSprint: "Open Sprint",
-      openCodexHandoff: "Codex handoff",
+      openSprint: "Открыть спринт",
+      openCodexHandoff: "Handoff Codex",
       openDemoChecklist: "Demo checklist",
       openLiveRuntime: "Live Runtime",
       openVisualLab: "Visual Lab",
@@ -2186,9 +2265,9 @@ export const ru: Messages = {
     localNote: "Kickoff использует excerpts из docs и Control Room snapshot.",
     stats: {
       demoReady: "Demo gates",
-      decisions: "Decisions",
+      decisions: "Решения",
       approvals: "Согласования",
-      progress: "Progress"
+      progress: "Прогресс"
     }
   },
   taskResultEngine: {
@@ -2219,12 +2298,12 @@ export const ru: Messages = {
     localOnly: "localStorage (ai-company-task-results) — mock-only.",
     stats: {
       total: "Всего результатов",
-      readyForReview: "Ready for review",
+      readyForReview: "Готово к review",
       approved: "Одобрено",
-      changesRequested: "Changes requested"
+      changesRequested: "Запрошены изменения"
     },
     sections: {
-      review: "Owner review",
+      review: "Review Owner",
       output: "Output сотрудника",
       artifacts: "Артефакты и ссылки",
       timeline: "Timeline review"
@@ -2235,36 +2314,36 @@ export const ru: Messages = {
     },
     actions: {
       approve: "Одобрить",
-      requestChanges: "Request changes",
+      requestChanges: "Запросить изменения",
       reject: "Отклонить",
-      createFollowUp: "Create follow-up task",
-      sendToQa: "Send to QA",
-      sendToCodex: "Send to Codex handoff",
-      archive: "Archive"
+      createFollowUp: "Создать follow-up задачу",
+      sendToQa: "Отправить в QA",
+      sendToCodex: "Отправить в handoff Codex",
+      archive: "Архивировать"
     },
     statuses: {
       draft: "Черновик",
-      ready_for_review: "Ready for Review",
+      ready_for_review: "Готово к review",
       approved: "Одобрено",
-      changes_requested: "Changes Requested",
+      changes_requested: "Запрошены изменения",
       rejected: "Отклонено",
       archived: "В архиве"
     },
     reviewActions: {
-      submit_for_review: "Submitted for review",
+      submit_for_review: "Отправлено на review",
       approve: "Одобрено",
-      request_changes: "Changes requested",
+      request_changes: "Запрошены изменения",
       reject: "Отклонено",
-      create_follow_up: "Follow-up task created",
-      send_to_qa: "Sent to QA",
-      send_to_codex: "Sent to Codex",
+      create_follow_up: "Follow-up задача создана",
+      send_to_qa: "Отправлено в QA",
+      send_to_codex: "Отправлено в Codex",
       archive: "В архиве"
     }
   },
   canvasEngine: {
     pageDescription: "Premium operational graph — кто работает, как движутся задачи, где Runtime и где ждут approvals.",
     projectFocusDescription: "Project focus — {project}: squad, tasks, runtime runs, reports, approvals и tool gateway.",
-    nodes: "nodes",
+    nodes: "узлов",
     connections: "связей",
     liveOn: "Live вкл",
     liveOff: "Live выкл",
@@ -2283,8 +2362,8 @@ export const ru: Messages = {
     summaryApprovals: "Согласования",
     summaryRuns: "История запусков",
     activeEmployees: "Активные сотрудники",
-    runningTasks: "Running tasks",
-    waitingApprovals: "Waiting approvals",
+    runningTasks: "Задачи в работе",
+    waitingApprovals: "Ожидающие согласования",
     recentActivity: "Недавняя активность",
     noActiveEmployees: "Нет активных employees в этом view.",
     noRunningTasks: "Сейчас нет running tasks.",
@@ -2298,6 +2377,8 @@ export const ru: Messages = {
     recentEvents: "Недавние events",
     noRelatedEntities: "Нет напрямую связанных сущностей.",
     openEntity: "Открыть страницу",
+    openNode: "Открыть",
+    miniMapAria: "Мини-карта",
     openRuntime: "Открыть Runtime",
     openTool: "Открыть tool",
     openReport: "Открыть отчёт",
@@ -2309,7 +2390,7 @@ export const ru: Messages = {
     futureStreaming: "Будущее: runtime streaming overlays на execution и run edges.",
     layerLabels: {
       employees: "Сотрудники",
-      projects: "Projects",
+      projects: "Проекты",
       tasks: "Задачи",
       runtime: "Runtime",
       reports: "Отчёты",
@@ -2336,7 +2417,7 @@ export const ru: Messages = {
     },
     nodeKinds: {
       employee: "Сотрудник",
-      project: "Project",
+      project: "Проект",
       workspace: "Рабочее пространство",
       task: "Задача",
       runtime: "Runtime",
@@ -2354,15 +2435,15 @@ export const ru: Messages = {
       approval: "Согласование",
       knowledge: "База знаний",
       tool: "Инструмент",
-      chat: "Chat"
+      chat: "Чат"
     }
   },
   runtimeEngine: {
     pageDescription: "Model-independent Runtime Profiles — сменяемые LLM engines с routing, privacy и cost policies.",
-    employeePageTitle: "{name} — Runtime Profile",
+    employeePageTitle: "{name} — профиль Runtime",
     employeePageDescription: "Конфигурация Runtime engine для сотрудника — выбор модели отделён от identity, memory и experience.",
-    employeeRuntimePage: "Employee Runtime",
-    employeeSectionTitle: "Runtime Profile",
+    employeeRuntimePage: "Runtime сотрудника",
+    employeeSectionTitle: "Профиль Runtime",
     employeeSectionDescription: "Primary model, fallbacks, routing rules и policies — identity и memory остаются у Employee, не у модели.",
     openRuntime: "Runtime",
     openFullRuntime: "Открыть страницу Runtime",
@@ -2376,7 +2457,7 @@ export const ru: Messages = {
     futureConnectorsTitle: "Будущие коннекторы",
     futureConnectorsDescription: "Коннекторы Ollama, OpenRouter и Runtime Orchestrator — placeholder, без реального inference в V1.",
     futureBadge: "Будущее",
-    localOnly: "Stored in localStorage (ai-company-runtime-profiles) — no Ollama or cloud calls in V1.",
+    localOnly: "Хранится в localStorage (ai-company-runtime-profiles) — без вызовов Ollama или облака в V1.",
     principleNote: "Независимость модели: identity, memory, experience, reputation и competence сотрудника не хранятся в LLM.",
     modelIndependenceNote: "Смена модели у Atlas с Qwen на Claude/GPT/Ollama не переносит и не стирает memory, experience и identity.",
     notFoundTitle: "Runtime profile не найден",
@@ -2414,7 +2495,7 @@ export const ru: Messages = {
     noSelectionDescription: "Измените политики profile или контекст задачи — router не смог выбрать модель.",
     noFallbackChain: "Нет fallback chain — fallback при ошибке отключён или нет подходящих альтернатив.",
     stats: {
-      totalProfiles: "Runtime profiles",
+      totalProfiles: "Профили Runtime",
       activeProfiles: "Активные",
       providers: "Провайдеры",
       seedModels: "Начальные модели"
@@ -2525,109 +2606,124 @@ export const ru: Messages = {
     }
   },
   runtimeLive: {
-    title: "Live Runtime Monitor",
-    description: "Watch digital employee execution in real time — pipeline, logs, provider health, result preview, and downstream integrations.",
-    launchTitle: "Launch execution",
-    executionStream: "Live execution stream",
-    executionStreamDescription: "Merged pipeline, provider logs, and timeline events for the active run.",
-    contextAndPreview: "Runtime context + result preview",
-    bottomPanel: "Logs / events / warnings",
-    selectedEmployee: "Selected employee",
-    currentStep: "Current step",
-    elapsed: "Elapsed",
-    timeout: "Timeout",
+    title: "Live-монитор Runtime",
+    description: "Наблюдайте за execution цифрового сотрудника в реальном времени — pipeline, логи, здоровье провайдера, превью результата и downstream-интеграции.",
+    launchTitle: "Запустить execution",
+    executionStream: "Live-поток execution",
+    executionStreamDescription: "Объединённый pipeline, логи провайдера и события timeline для активного запуска.",
+    contextAndPreview: "Контекст Runtime + превью результата",
+    bottomPanel: "Логи / события / предупреждения",
+    selectedEmployee: "Выбранный сотрудник",
+    currentStep: "Текущий шаг",
+    elapsed: "Прошло",
+    timeout: "Таймаут",
     liveBadge: "LIVE",
-    streamEmpty: "Start a runtime run to populate the live stream.",
-    noRunSelected: "No runtime run selected — launch Atlas or MAX execution above.",
+    streamEmpty: "Запустите runtime run, чтобы заполнить live-поток.",
+    noRunSelected: "Runtime run не выбран — запустите execution Atlas или MAX выше.",
     integrations: "Интеграции",
-    runHistory: "Run history",
+    runHistory: "История запусков",
     reportLink: "Отчёт",
-    employeeWorkspace: "Employee workspace",
-    reportCreation: "Report creation",
-    reportPending: "Report will be created after successful execution.",
-    resultPreview: "Result preview",
-    resultPending: "Waiting for model response…",
+    employeeWorkspace: "Workspace сотрудника",
+    reportCreation: "Создание отчёта",
+    reportPending: "Отчёт будет создан после успешного execution.",
+    resultPreview: "Превью результата",
+    resultPending: "Ожидание ответа модели…",
     recentRuns: "Недавние запуски",
-    principleNote: "Live monitor reads local runtime runs, provider logs, and company events — no external telemetry in V1.",
-    localOnly: "Polls localStorage every 500ms while a run is active.",
+    principleNote: "Live-монитор читает локальные runtime runs, логи провайдера и события компании — без внешней телеметрии в V1.",
+    localOnly: "Опрашивает localStorage каждые 500 мс, пока run активен.",
     tabs: {
-      logs: "Logs",
-      events: "Events",
+      logs: "Логи",
+      events: "События",
       warnings: "Предупреждения"
     },
-    eventsEmpty: "No timeline events for this run yet."
+    eventsEmpty: "Событий timeline для этого run пока нет."
   },
   handoffEngine: {
-    pageDescription: "Real work handoff protocol — digital employees prepare packages for Codex, Claude Code, Cursor, or humans. No external execution in V1.",
+    pageDescription: "Протокол передачи реальной работы — цифровые сотрудники готовят пакеты для Codex, Claude Code, Cursor или людей. Без внешнего execution в V1.",
     openPhotoLab: "AI Photo Lab",
-    createSample: "Create sample handoff",
-    catalogTitle: "Handoff catalog",
-    previewTitle: "Package preview",
-    filtersTitle: "Filters",
-    templatesTitle: "Handoff templates",
-    projectPanelTitle: "External work handoffs",
-    projectPanelDescription: "Prepared packages for Codex, Cursor, QA, DevOps, and human executors. Owner approves before send; results return to AI Company.",
-    projectEmpty: "No handoffs for this project yet.",
-    openAll: "All handoffs",
-    openDetails: "Open details",
-    selectHandoff: "Select a handoff to preview the package.",
-    empty: "No handoffs yet — activate AI Photo Lab or create a sample handoff.",
-    notFoundTitle: "Handoff not found",
-    notFoundDescription: "This handoff is not in local storage.",
-    backToHandoffs: "Back to handoffs",
-    openProject: "Open project",
+    createSample: "Создать sample handoff",
+    catalogTitle: "Каталог handoff",
+    previewTitle: "Превью пакета",
+    filtersTitle: "Фильтры",
+    templatesTitle: "Шаблоны handoff",
+    projectPanelTitle: "Внешние handoff работы",
+    projectPanelDescription: "Подготовленные пакеты для Codex, Cursor, QA, DevOps и human executors. Owner одобряет перед отправкой; результаты возвращаются в AI Company.",
+    projectEmpty: "Handoff для этого проекта пока нет.",
+    openAll: "Все handoffs",
+    openDetails: "Открыть детали",
+    selectHandoff: "Выберите handoff для превью пакета.",
+    empty: "Handoff пока нет — активируйте AI Photo Lab или создайте sample handoff.",
+    notFoundTitle: "Handoff не найден",
+    notFoundDescription: "Этот handoff отсутствует в local storage.",
+    backToHandoffs: "Назад к handoffs",
+    openProject: "Открыть проект",
     openReport: "Открыть отчёт",
-    relatedHandoffs: "Related handoffs",
-    packageNotReady: "Package not built yet — prepare the handoff first.",
-    noChecklist: "No checklist items.",
-    principleNote: "Handoff rule: digital employees prepare work, Owner approves, external executor completes, result returns to AI Company with report and timeline updates.",
-    localOnly: "Stored in localStorage (ai-company-handoffs) — mock protocol only, no Codex/Cursor API.",
+    relatedHandoffs: "Связанные handoffs",
+    packageNotReady: "Пакет ещё не собран — сначала подготовьте handoff.",
+    noChecklist: "Нет пунктов checklist.",
+    principleNote: "Правило handoff: цифровые сотрудники готовят работу, Owner одобряет, внешний executor выполняет, результат возвращается в AI Company с отчётом и обновлениями timeline.",
+    localOnly: "Хранится в localStorage (ai-company-handoffs) — только mock-протокол, без Codex/Cursor API.",
     stats: {
-      total: "Total handoffs",
-      ready: "Ready",
-      inProgress: "Sent / in progress",
-      accepted: "Accepted"
+      total: "Всего handoffs",
+      ready: "Готово",
+      inProgress: "Отправлено / в работе",
+      accepted: "Принято"
     },
     sections: {
       context: "Контекст",
-      instructions: "Instructions",
+      instructions: "Инструкции",
       checklist: "Checklist",
-      package: "Handoff package",
-      result: "Returned result"
+      package: "Пакет handoff",
+      result: "Возвращённый результат"
     },
     package: {
-      projectContext: "Project context",
-      taskContext: "Task context",
-      currentState: "Current state",
-      files: "Files / paths",
-      constraints: "Constraints",
-      commands: "Commands",
-      acceptanceCriteria: "Acceptance criteria",
-      expectedResponseFormat: "Expected response format"
+      projectContext: "Контекст проекта",
+      taskContext: "Контекст задачи",
+      currentState: "Текущее состояние",
+      files: "Файлы / пути",
+      constraints: "Ограничения",
+      commands: "Команды",
+      acceptanceCriteria: "Критерии приёмки",
+      expectedResponseFormat: "Ожидаемый формат ответа"
     },
     fields: {
       target: "Цель",
       status: "Статус",
-      project: "Project",
+      project: "Проект",
       workspace: "Рабочее пространство",
       task: "Задача",
-      preparedBy: "Prepared by",
-      paths: "Related paths",
-      expectedResult: "Expected result",
-      deliveredAt: "Delivered at",
-      responseFormat: "Response format",
+      preparedBy: "Подготовил",
+      paths: "Связанные пути",
+      expectedResult: "Ожидаемый результат",
+      deliveredAt: "Доставлено",
+      responseFormat: "Формат ответа",
       artifacts: "Артефакты",
-      blockers: "Blockers"
+      blockers: "Блокеры"
     },
     actions: {
-      prepare: "Build package",
-      requestApproval: "Request Owner approval",
-      send: "Send handoff (mock)",
-      markInProgress: "Mark in progress",
-      mockReturn: "Mock external return",
-      accept: "Accept result",
-      reject: "Reject result",
-      cancel: "Cancel handoff"
+      prepare: "Собрать пакет",
+      requestApproval: "Запросить согласование Owner",
+      send: "Отправить handoff (mock)",
+      markInProgress: "Отметить в работе",
+      mockReturn: "Mock внешнего возврата",
+      accept: "Принять результат",
+      reject: "Отклонить результат",
+      cancel: "Отменить handoff"
+    },
+    priorities: {
+      low: "Низкий",
+      medium: "Средний",
+      high: "Высокий",
+      critical: "Критичный"
+    },
+    mockReturn: {
+      summary: "Mock внешний результат возвращён в AI Company.",
+      responseFormat: "Markdown summary",
+      changedFiles: "Изменённые файлы",
+      notes: "Только mock return — без Codex/Cursor API в V1."
+    },
+    rejectReasons: {
+      needsRevision: "Нужна доработка перед принятием."
     },
     targets: {
       codex: "Codex",
@@ -2635,23 +2731,23 @@ export const ru: Messages = {
       cursor: "Cursor",
       human_developer: "Human Developer",
       devops: "DevOps",
-      designer: "Designer",
+      designer: "Дизайнер",
       qa: "QA"
     },
     statuses: {
       draft: "Черновик",
-      ready: "Ready",
-      sent: "Sent",
-      in_progress: "In Progress",
-      returned: "Returned",
-      accepted: "Accepted",
+      ready: "Готово",
+      sent: "Отправлено",
+      in_progress: "В работе",
+      returned: "Возвращено",
+      accepted: "Принято",
       rejected: "Отклонено",
       cancelled: "Отменено"
     }
   },
   runtimeOrchestrator: {
     pageDescription: "Single entry point для execution digital employee — coordinates domains, routes models, emits events. Mock-only в V1.",
-    runPageTitle: "Runtime Run",
+    runPageTitle: "Запуск Runtime",
     notFoundTitle: "Runtime run не найден",
     notFoundDescription: "Этот run отсутствует в local storage.",
     backToRuntime: "Назад к Runtime",
@@ -2660,7 +2756,7 @@ export const ru: Messages = {
     startRunFromTask: "Запуск через Orchestrator",
     startRunFromChat: "Запуск через Orchestrator",
     grantApprovalMock: "Предоставить согласование (mock)",
-    waitingApprovalNote: "Run paused at approval gate — mock Owner approval required before completion.",
+    waitingApprovalNote: "Run приостановлен на approval gate — для завершения нужно mock-согласование Owner.",
     principleNote: "Orchestrator rule: Runtime никогда не вызывает LLM напрямую — always through Model Router. Runtime reads context only; never mutates Employee or Memory.",
     localOnly: "Stored in localStorage (ai-company-runtime-runs) — mock pipeline, no Ollama or provider calls.",
     state: "Состояние",
@@ -2673,7 +2769,7 @@ export const ru: Messages = {
     runSummary: "Сводка запуска",
     resultTitle: "Результат Runtime",
     pipelineTitle: "Pipeline Orchestrator",
-    contextTitle: "Runtime context",
+    contextTitle: "Контекст Runtime",
     contextBuiltAt: "Собрано в",
     contextSize: "Слои контекста загружены",
     knowledgeUsed: "Элементы knowledge",
@@ -2711,6 +2807,13 @@ export const ru: Messages = {
       skipped: "Пропущено",
       failed: "Ошибка"
     },
+    pipelineStepStatuses: {
+      pending: "Ожидает",
+      active: "Активно",
+      done: "Готово",
+      skipped: "Пропущено",
+      failed: "Ошибка"
+    },
     pipelineSteps: {
       receive_request: "Получить запрос",
       load_employee: "Загрузить employee",
@@ -2719,7 +2822,7 @@ export const ru: Messages = {
       load_knowledge: "Загрузить knowledge",
       load_competencies: "Загрузить competencies",
       load_runtime_profile: "Загрузить runtime profile",
-      run_model_router: "Run Model Router",
+      run_model_router: "Запуск Model Router",
       approval_check: "Проверка approval",
       tool_gateway: "Шлюз инструментов",
       create_run: "Создать run",
@@ -2737,7 +2840,7 @@ export const ru: Messages = {
       tools: "Инструменты",
       conversation: "Беседа",
       current_task: "Текущая задача",
-      runtime_profile: "Runtime profile"
+      runtime_profile: "Профиль Runtime"
     }
   },
   memoryEngine: {
@@ -3096,32 +3199,33 @@ export const ru: Messages = {
     }
   },
   sprintEngine: {
-    title: "Sprint Planning",
-    pageDescription: "Sprint 1 for AI Photo Lab — goal, capacity, commitment, backlog, and board ready for the digital team to start Monday.",
-    openSprint: "Open Sprint 1",
+    title: "Планирование спринта",
+    pageDescription: "Спринт 1 для AI Photo Lab — цель, ёмкость, commitment, backlog и board готовы для старта цифровой команды в понедельник.",
+    openSprint: "Открыть Спринт 1",
     openControlRoom: "Control Room",
-    openProject: "Open Project",
-    openExecution: "Execution Queue",
+    openProject: "Открыть проект",
+    openExecution: "Очередь execution",
     openRuntime: "Runtime",
-    start: "Start",
-    end: "End",
-    workingDays: "working days",
+    start: "Запустить",
+    end: "Завершить",
+    workingDays: "рабочих дней",
     commitment: "Commitment",
-    committed: "committed",
+    committed: "взято в работу",
     capacityTotal: "Ёмкость",
-    capacityRemaining: "Remaining capacity",
+    capacityRemaining: "Оставшаяся ёмкость",
     definitionOfReady: "Definition of Ready",
     definitionOfDone: "Definition of Done",
-    reviewNotes: "Sprint notes",
-    plannedSprints: "planned",
-    tasks: "tasks",
-    remaining: "Remaining (burndown)",
-    ideal: "Ideal",
-    burndownNote: "Mock burndown — story points remaining vs ideal line for Sprint 1.",
-    dayProgress: "Day {elapsed} of {total} (starts Monday)",
-    localNote: "Planning only — no task execution. Sprint data in localStorage; tasks synced from delivery backlog.",
-    notFoundTitle: "Sprint not found",
-    notFoundDescription: "Activate AI Photo Lab and reload to seed Sprint 1.",
+    reviewNotes: "Заметки спринта",
+    plannedSprints: "запланировано",
+    tasks: "задач",
+    storyPointsShort: " СП",
+    remaining: "Осталось (burndown)",
+    ideal: "Идеально",
+    burndownNote: "Mock burndown — оставшиеся story points vs идеальная линия для Спринта 1.",
+    dayProgress: "День {elapsed} из {total} (старт в понедельник)",
+    localNote: "Только планирование — без execution задач. Данные спринта в localStorage; задачи синхронизированы из delivery backlog.",
+    notFoundTitle: "Спринт не найден",
+    notFoundDescription: "Активируйте AI Photo Lab и перезагрузите страницу для seed Спринта 1.",
     status: {
       planned: "Планируемые",
       active: "Активные",
@@ -3130,34 +3234,34 @@ export const ru: Messages = {
       cancelled: "Отменено"
     },
     health: {
-      on_track: "On track",
-      at_risk: "At risk",
-      blocked: "Blocked"
+      on_track: "По плану",
+      at_risk: "Под риском",
+      blocked: "Заблокировано"
     },
     columns: {
-      ready: "Ready",
-      in_sprint: "In Sprint",
+      ready: "Готово",
+      in_sprint: "В спринте",
       review: "Проверка",
       done: "Готово",
-      blocked: "Blocked"
+      blocked: "Заблокировано"
     },
     metrics: {
       completed: "Завершено",
-      remaining: "Remaining",
-      blocked: "Blocked",
-      progress: "Progress",
+      remaining: "Осталось",
+      blocked: "Заблокировано",
+      progress: "Прогресс",
       velocity: "Velocity (mock)",
-      health: "Sprint health"
+      health: "Здоровье спринта"
     },
     sections: {
-      goal: "Sprint Goal",
-      progress: "Sprint Progress",
-      capacity: "Capacity & Commitment",
-      backlog: "Sprint Backlog",
-      board: "Sprint Board",
+      goal: "Цель спринта",
+      progress: "Прогресс спринта",
+      capacity: "Ёмкость и commitment",
+      backlog: "Backlog спринта",
+      board: "Доска спринта",
       burndown: "Burndown",
       review: "DoR / DoD / Review",
-      links: "Quick Links"
+      links: "Быстрые ссылки"
     }
   },
   workdayEngine: {
@@ -3177,7 +3281,7 @@ export const ru: Messages = {
     },
     phases: {
       day_start: "08:00",
-      agenda: "Agenda",
+      agenda: "Повестка",
       check_notifications: "Уведомления",
       check_approvals: "Согласования",
       read_knowledge: "База знаний",
@@ -3199,7 +3303,7 @@ export const ru: Messages = {
       noNotStarted: "Все начали рабочий день."
     },
     summary: {
-      title: "Daily Summary",
+      title: "Сводка дня",
       scheduledStart: "Плановый старт",
       started: "Начало",
       idle: "Простой",
@@ -3216,7 +3320,7 @@ export const ru: Messages = {
       finishDay: "Завершить день",
       openWorkspace: "Рабочее пространство",
       sync: "Синхронизировать",
-      openWorkday: "Workday"
+      openWorkday: "Рабочий день"
     },
     workspace: {
       title: "Рабочий день сегодня",
@@ -3225,35 +3329,35 @@ export const ru: Messages = {
     }
   },
   photoLabControlRoom: {
-    title: "AI Photo Lab Control Room",
-    pageDescription: "Delivery control room — manage MVP readiness, digital team workload, Codex handoff, and Owner decisions from one screen.",
-    openControlRoom: "Open Control Room",
-    openKickoff: "Monday Kickoff",
-    openProject: "Open Project",
-    openCanvas: "Open Canvas",
-    openExecution: "Execution Queue",
+    title: "Control Room AI Photo Lab",
+    pageDescription: "Control Room delivery — MVP readiness, нагрузка команды, handoff Codex и решения Owner с одного экрана.",
+    openControlRoom: "Открыть Control Room",
+    openKickoff: "Kickoff понедельника",
+    openProject: "Открыть проект",
+    openCanvas: "Открыть Canvas",
+    openExecution: "Очередь execution",
     openRuntime: "Runtime",
     openReports: "Отчёты",
     openApprovals: "Согласования",
-    deadline: "Deadline",
-    progress: "Progress",
-    health: "Health",
-    riskLevel: "Risk level",
-    mvpReady: "MVP readiness",
+    deadline: "Дедлайн",
+    progress: "Прогресс",
+    health: "Здоровье",
+    riskLevel: "Уровень риска",
+    mvpReady: "Готовность MVP",
     tasksDone: "готово",
     tasksActive: "активен",
-    demoReady: "demo checks ready",
-    noCurrentTask: "No active task",
-    ownerDecisions: "Required Owner decisions",
-    pendingApprovals: "Pending approvals",
+    demoReady: "demo checks готовы",
+    noCurrentTask: "Нет активной задачи",
+    ownerDecisions: "Требуются решения Owner",
+    pendingApprovals: "Ожидающие согласования",
     reviewDecision: "Проверка",
-    codexNote: "Tasks routed to Codex per Owner directive — digital employees audit and plan; Codex implements in ~/projects/ai-photo-lab.",
-    localNote: "Mock delivery data — localStorage only, no production or Ollama calls.",
-    notFoundTitle: "Control room unavailable",
-    notFoundDescription: "Activate AI Photo Lab in projects to seed delivery data.",
+    codexNote: "Задачи направляются в Codex по директиве Owner — цифровые сотрудники аудируют и планируют; Codex реализует в ~/projects/ai-photo-lab.",
+    localNote: "Mock delivery data — только localStorage, без production или вызовов Ollama.",
+    notFoundTitle: "Control Room недоступен",
+    notFoundDescription: "Активируйте AI Photo Lab в projects для seed delivery data.",
     healthLevels: {
-      on_track: "On track",
-      at_risk: "At risk",
+      on_track: "По плану",
+      at_risk: "Под риском",
       critical: "Критический"
     },
     riskLevels: {
@@ -3262,127 +3366,138 @@ export const ru: Messages = {
       high: "Высокий",
       critical: "Критический"
     },
+    decisionKinds: {
+      approval: "Согласование",
+      review: "Review",
+      decision: "Решение"
+    },
+    riskStatuses: {
+      open: "Открыт",
+      mitigated: "Смягчён",
+      accepted: "Принят",
+      closed: "Закрыт"
+    },
     stats: {
-      tasks: "Delivery tasks",
+      tasks: "Delivery-задачи",
       inProgress: "В процессе",
       demoReady: "Demo checks",
-      decisions: "Owner decisions",
-      codex: "Codex handoffs"
+      decisions: "Решения Owner",
+      codex: "Handoffs Codex"
     },
     sections: {
-      mvpStatus: "MVP Status",
-      deliveryProgress: "Delivery Progress",
-      digitalTeam: "Digital Team",
-      workNow: "Work Now",
-      deliveryTasks: "Delivery Tasks (13)",
-      runtimeActivity: "Runtime Activity",
+      mvpStatus: "Статус MVP",
+      deliveryProgress: "Прогресс delivery",
+      digitalTeam: "Цифровая команда",
+      workNow: "Работа сейчас",
+      deliveryTasks: "Delivery-задачи (13)",
+      runtimeActivity: "Активность Runtime",
       codexHandoff: "Codex Handoff",
-      demoReadiness: "Demo Readiness",
+      demoReadiness: "Готовность к demo",
       reports: "Отчёты",
-      risks: "Risks & Blockers",
-      decisions: "Decisions",
-      quickLinks: "Quick Links"
+      risks: "Риски и блокеры",
+      decisions: "Решения",
+      quickLinks: "Быстрые ссылки"
     },
     workNow: {
-      currentlyWorking: "Currently working",
+      currentlyWorking: "Сейчас работают",
       waitingApproval: "Ожидание согласования",
-      blocked: "Blocked",
-      doneToday: "Done today"
+      blocked: "Заблокировано",
+      doneToday: "Завершено сегодня"
     },
     codexCategories: {
-      complex_code: "Complex code changes",
-      bug_fix: "Bug fixes",
+      complex_code: "Сложные изменения кода",
+      bug_fix: "Исправления багов",
       production_deploy: "Production deployment",
       pdf_report: "PDF / report engine",
-      ollama_integration: "Ollama integration",
-      ui_implementation: "UI implementation"
+      ollama_integration: "Интеграция Ollama",
+      ui_implementation: "Реализация UI"
     },
     demoItems: {
-      local_run: "Local run",
-      production_health: "Production health",
-      photo_upload: "Photo upload",
-      ai_analysis: "AI analysis",
+      local_run: "Локальный запуск",
+      production_health: "Здоровье production",
+      photo_upload: "Загрузка фото",
+      ai_analysis: "AI-анализ",
       visual_zones: "Visual zones",
-      manual_zone_edit: "Manual zone edit",
+      manual_zone_edit: "Ручное редактирование зон",
       inspection_chat: "Inspection chat",
-      report_history: "Report / history",
-      mobile_view: "Mobile view",
+      report_history: "Отчёт / история",
+      mobile_view: "Мобильный вид",
       deployment_checklist: "Deployment checklist"
     },
     empty: {
-      working: "No tasks in active execution.",
-      waiting: "Nothing waiting for approval.",
-      blocked: "No blockers.",
-      doneToday: "No completions today yet.",
-      runtime: "No runtime runs for this project.",
-      decisions: "No Owner decisions pending.",
-      reports: "No draft reports yet.",
-      risks: "No risks recorded."
+      working: "Нет задач в активном execution.",
+      waiting: "Ничего не ожидает согласования.",
+      blocked: "Блокеров нет.",
+      doneToday: "Завершений сегодня пока нет.",
+      runtime: "Runtime runs для этого проекта нет.",
+      decisions: "Решений Owner не ожидается.",
+      reports: "Черновиков отчётов пока нет.",
+      risks: "Риски не зафиксированы."
     }
   },
   employeeWorkspace: {
-    pageTitle: "{name} — Workspace",
-    pageDescription: "Personal desktop for a digital employee — current work, agenda, knowledge, handoffs, runtime, and activity in one place.",
+    pageTitle: "{name} — рабочее место",
+    pageDescription: "Личный desktop цифрового сотрудника — текущая работа, повестка, knowledge, handoffs, runtime и активность в одном месте.",
     openWorkspace: "Рабочее пространство",
-    openProfile: "Open profile",
-    openRuntime: "Open Runtime",
-    openExecution: "Execution queue",
-    openKnowledge: "Open knowledge",
-    openReports: "Open reports",
-    openChat: "Open chat",
-    openNotifications: "All notifications",
-    openApprovals: "All approvals",
-    overviewSummary: "This desktop aggregates tasks, runtime, handoffs, knowledge, reports, chats, and decisions scoped to this employee.",
-    noCurrentFocus: "No active focus",
+    openProfile: "Открыть профиль",
+    openRuntime: "Открыть Runtime",
+    openExecution: "Очередь execution",
+    openKnowledge: "Открыть knowledge",
+    openReports: "Открыть отчёты",
+    openChat: "Открыть чат",
+    openNotifications: "Все уведомления",
+    openApprovals: "Все согласования",
+    overviewSummary: "Этот desktop агрегирует задачи, runtime, handoffs, knowledge, отчёты, чаты и решения в scope этого сотрудника.",
+    noCurrentFocus: "Нет активного фокуса",
     noMessages: "Сообщений пока нет",
-    unreadCount: "{count} unread notifications",
-    notFoundTitle: "Employee workspace not found",
-    notFoundDescription: "This employee does not exist or cannot load a workspace snapshot.",
-    principleNote: "Workspace rule: one page for who I am, what I work on, what waits for my decision, and where to jump next — no Runtime execution from this view.",
-    localOnly: "Aggregated locally from tasks, executions, runtime runs, handoffs, knowledge, reports, chats, and events.",
+    unreadCount: "{count} непрочитанных уведомлений",
+    notFoundTitle: "Workspace сотрудника не найден",
+    notFoundDescription: "Сотрудник не существует или не удалось загрузить snapshot workspace.",
+    principleNote: "Правило workspace: одна страница — кто я, над чем работаю, что ждёт моего решения и куда перейти дальше — без execution Runtime из этого view.",
+    localOnly: "Агрегировано локально из tasks, executions, runtime runs, handoffs, knowledge, отчётов, чатов и events.",
     sections: {
-      overview: "Who I am",
-      today: "Today",
-      currentTasks: "Current tasks",
+      overview: "Кто я",
+      today: "Сегодня",
+      currentTasks: "Текущие задачи",
       currentRun: "Runtime",
-      knowledge: "Assigned knowledge",
-      reports: "Recent reports",
-      chats: "Recent chats",
-      notifications: "Notifications",
-      approvals: "Waiting for decision",
-      pendingHandoffs: "Pending handoffs",
-      activity: "My activity",
-      recentExecutions: "Recent executions",
+      knowledge: "Назначенная knowledge",
+      reports: "Недавние отчёты",
+      chats: "Недавние чаты",
+      notifications: "Уведомления",
+      approvals: "Ожидает решения",
+      pendingHandoffs: "Ожидающие handoffs",
+      activity: "Моя активность",
+      recentExecutions: "Недавние executions",
       recentRuns: "Недавние запуски"
     },
     fields: {
       primaryModel: "Основная модель",
-      currentFocus: "Current focus",
-      openTasks: "Open tasks",
-      pendingDecisions: "Pending decisions",
-      workingOn: "Working on"
+      currentFocus: "Текущий фокус",
+      openTasks: "Открытые задачи",
+      pendingDecisions: "Ожидающие решения",
+      workingOn: "Работает над"
     },
     agenda: {
       approval: "Согласование",
       handoff: "Handoff"
     },
     actions: {
-      startWork: "Start Work",
-      openTask: "Open Task",
-      openRuntime: "Open Runtime",
-      openKnowledge: "Open Knowledge",
-      openChat: "Open Chat",
+      startWork: "Начать работу",
+      openTask: "Открыть задачу",
+      openRuntime: "Открыть Runtime",
+      openKnowledge: "Открыть Knowledge",
+      openChat: "Открыть чат",
       createReport: "Создать отчёт"
     },
     empty: {
-      today: "Nothing scheduled for today yet.",
-      tasks: "No open delivery tasks assigned.",
-      currentRun: "No active runtime run.",
-      knowledge: "No knowledge assignments yet.",
-      reports: "No reports created by this employee yet.",
-      chats: "No chats with this employee yet.",
-      notifications: "No notifications for this employee.",
-      approvals: "No pending approvals."
+      today: "На сегодня пока ничего не запланировано.",
+      tasks: "Нет назначенных открытых delivery-задач.",
+      currentRun: "Нет активного runtime run.",
+      knowledge: "Назначений knowledge пока нет.",
+      reports: "Этот сотрудник пока не создал отчётов.",
+      chats: "Чатов с этим сотрудником пока нет.",
+      notifications: "Уведомлений для этого сотрудника нет.",
+      approvals: "Нет ожидающих согласований."
     }
   },
   employeeProfile: {
@@ -3415,7 +3530,7 @@ export const ru: Messages = {
       activity: "Активность",
       runtime: "Runtime",
       presence: "Presence",
-      learning: "Learning"
+      learning: "Обучение"
     },
     assignments: {
       emptyTitle: "Нет workspace assignments",
@@ -3439,65 +3554,65 @@ export const ru: Messages = {
     }
   },
   livingCompany: {
-    now: 'сейчас',
-    since: '{time} назад',
-    doingNow: 'Сейчас делает',
-    fallback: 'Работает над {context}',
+    now: "сейчас",
+    since: "{time} назад",
+    doingNow: "Сейчас делает",
+    fallback: "Работает над {context}",
     phases: {
-      working: 'В работе',
-      thinking: 'Думает',
-      waiting: 'Ожидает',
-      reviewing: 'На ревью',
-      completed: 'Завершено',
-      idle: 'Свободен',
+      working: "Работает",
+      thinking: "Думает",
+      waiting: "Ожидает",
+      reviewing: "На проверке",
+      completed: "Завершено",
+      idle: "Простой"
     },
     verbs: {
       atlas: {
-        architecture: 'Анализирует архитектуру…',
-        task: 'Анализирует {task}…',
+        architecture: "Анализирует архитектуру…",
+        task: "Анализирует {task}…"
       },
       max: {
-        upload: 'Проверяет upload flow…',
-        task: 'Аудит {task}…',
+        upload: "Проверяет upload flow…",
+        task: "Аудит {task}…"
       },
       qa: {
-        regression: 'Выполняет регрессионное тестирование…',
-        task: 'Тестирует {task}…',
+        regression: "Выполняет регрессионное тестирование…",
+        task: "Тестирует {task}…"
       },
       devops: {
-        environment: 'Проверяет окружение…',
-        task: 'Проверяет {task}…',
+        environment: "Проверяет окружение…",
+        task: "Проверяет {task}…"
       },
       default: {
-        task: 'Работает над {task}…',
-      },
+        task: "Работает над {task}…"
+      }
     },
     pipeline: {
-      receive_request: 'Принимает запрос…',
-      load_employee: 'Загружает профиль сотрудника…',
-      load_workspace: 'Загружает workspace…',
-      load_memory: 'Читает память…',
-      load_knowledge: 'Загружает knowledge…',
-      load_competencies: 'Загружает компетенции…',
-      load_runtime_profile: 'Загружает runtime profile…',
-      run_model_router: 'Маршрутизирует вызов модели…',
-      approval_check: 'Ожидает одобрение Owner…',
-      tool_gateway: 'Выполняет tools…',
-      create_run: 'Создаёт запись run…',
-      emit_event: 'Отправляет event…',
-      create_report: 'Готовит отчёт…',
-      complete: 'Завершает…',
+      receive_request: "Принимает запрос…",
+      load_employee: "Загружает профиль сотрудника…",
+      load_workspace: "Загружает workspace…",
+      load_memory: "Читает память…",
+      load_knowledge: "Загружает knowledge…",
+      load_competencies: "Загружает компетенции…",
+      load_runtime_profile: "Загружает runtime profile…",
+      run_model_router: "Маршрутизирует вызов модели…",
+      approval_check: "Ожидает одобрение Owner…",
+      tool_gateway: "Выполняет tools…",
+      create_run: "Создаёт запись run…",
+      emit_event: "Отправляет event…",
+      create_report: "Готовит отчёт…",
+      complete: "Завершает…"
     },
     taskResult: {
-      working: 'Готовит результат',
-      ready_for_review: 'Готов к вашему ревью',
-      reviewing: 'Запрошены правки — доработка',
-      completed: 'Одобрено и завершено',
-      waiting: 'Ожидает ревью Owner',
-      idle: 'В архиве',
+      working: "Готовит результат",
+      ready_for_review: "Готов к вашему ревью",
+      reviewing: "Запрошены правки — доработка",
+      completed: "Одобрено и завершено",
+      waiting: "Ожидает ревью Owner",
+      idle: "В архиве"
     },
-    recentActivity: 'Недавняя активность',
-    noRecentActivity: 'Нет недавней активности',
+    recentActivity: "Недавняя активность",
+    noRecentActivity: "Нет недавней активности"
   },
   mock: {
     lastActivity: "Ожидание активации V1",

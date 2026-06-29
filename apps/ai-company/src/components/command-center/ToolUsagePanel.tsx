@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import type { CommandCenterToolUsageSummary } from '../../domain/commandCenter'
 import { Badge, Card } from '../layout'
 import { useI18n } from '../../i18n'
+import { toolExecutionStatusLabel } from '../../i18n/uiLabels'
 
 type Props = {
   toolUsage: CommandCenterToolUsageSummary
@@ -36,7 +37,7 @@ export function ToolUsagePanel({ toolUsage }: Props) {
           <div key={item.id} className="acListRow">
             <span>{item.request.toolId}</span>
             <Badge variant={item.status === 'failed' ? 'danger' : item.status === 'completed' ? 'success' : 'default'}>
-              {item.status}
+              {toolExecutionStatusLabel(t, item.status)}
             </Badge>
             <span className="acMono acMuted">{item.request.provider}</span>
           </div>

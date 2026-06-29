@@ -1,22 +1,25 @@
 import type { ToolExecution } from '../../domain/toolExecution'
+import { useI18n } from '../../i18n'
+import { toolExecutionStatusLabel } from '../../i18n/uiLabels'
 
 export function ToolResultViewer(props: { execution: ToolExecution }) {
+  const { t } = useI18n()
   const { execution } = props
   const response = execution.response
 
   return (
     <div className="acToolResultViewer">
       <div className="acToolResultSummary">
-        <strong>Execution ID:</strong>
+        <strong>{t.toolExecutionEngine.result.executionId}</strong>
         <span className="mcMono">{execution.id}</span>
         <span>
-          Status:{' '}
+          {t.toolExecutionEngine.result.status}{' '}
           {execution.status === 'completed' ? (
-            <span className="acToolResultOk">completed</span>
+            <span className="acToolResultOk">{toolExecutionStatusLabel(t, execution.status)}</span>
           ) : execution.status === 'failed' ? (
-            <span className="acToolResultError">failed</span>
+            <span className="acToolResultError">{toolExecutionStatusLabel(t, execution.status)}</span>
           ) : (
-            <span className="mcMuted">{execution.status}</span>
+            <span className="mcMuted">{toolExecutionStatusLabel(t, execution.status)}</span>
           )}
         </span>
       </div>
@@ -26,12 +29,14 @@ export function ToolResultViewer(props: { execution: ToolExecution }) {
       {response ? (
         <>
           <div className="mcMuted">
-            elapsed: {response.elapsedMs} ms · completed: {new Date(response.completedAt).toLocaleString()}
+            {t.toolExecutionEngine.result.elapsed
+              .replace('{ms}', String(response.elapsedMs))
+              .replace('{at}', new Date(response.completedAt).toLocaleString())}
           </div>
           <pre className="acToolResultOutput">{JSON.stringify(response.output, null, 2)}</pre>
         </>
       ) : (
-        <div className="mcMuted">No response yet. Awaiting execution result.</div>
+        <div className="mcMuted">{t.toolExecutionEngine.result.noResponse}</div>
       )}
     </div>
   )

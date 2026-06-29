@@ -5,6 +5,7 @@ import { AI_PHOTO_LAB_PROJECT_ID } from '../../../domain/projects/aiPhotoLabIds'
 import type { AiPhotoLabControlRoomSnapshot } from '../../../domain/projects/aiPhotoLabControlRoom'
 import { Panel } from '../../../mission-control/components/ui'
 import { useI18n } from '../../../i18n'
+import { handoffPriorityLabel } from '../../../i18n/uiLabels'
 
 type Props = {
   snapshot: AiPhotoLabControlRoomSnapshot
@@ -40,7 +41,7 @@ export function CodexHandoffPanel({ snapshot }: Props) {
                   {t.photoLabControlRoom.codexCategories[item.category]}
                 </span>
                 <span className={`mcControlRoomBadge mcControlRoomPriority${item.priority}`}>
-                  {item.priority}
+                  {handoffPriorityLabel(t, item.priority)}
                 </span>
               </div>
               <div className="mcControlRoomCodexTitle">{item.title}</div>

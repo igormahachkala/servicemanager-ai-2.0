@@ -20,6 +20,7 @@ export function SprintBoard({ snapshot }: Props) {
             column={column}
             title={t.sprintEngine.columns[column]}
             items={snapshot.byColumn[column]}
+            storyPointsSuffix={t.sprintEngine.storyPointsShort}
           />
         ))}
       </div>
@@ -31,10 +32,12 @@ function SprintColumn({
   column,
   title,
   items,
+  storyPointsSuffix,
 }: {
   column: SprintBoardColumn
   title: string
   items: SprintSnapshot['tasks']
+  storyPointsSuffix: string
 }) {
   return (
     <div className={`mcSprintColumn mcSprintColumn${column}`}>
@@ -51,7 +54,7 @@ function SprintColumn({
               <div className="mcSprintCardTitle">{task.title}</div>
               <div className="mcSprintCardMeta">
                 <span>{assigneeCodename}</span>
-                <span className="mcMono">{entry.storyPoints} SP</span>
+                <span className="mcMono">{entry.storyPoints}{storyPointsSuffix}</span>
               </div>
             </li>
           ))

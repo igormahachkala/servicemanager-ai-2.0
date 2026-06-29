@@ -4,6 +4,7 @@ import type { ApprovalStats } from '../../domain/approval/approvalStorage'
 import { Badge, Card } from '../layout'
 import { formatFeedTime } from '../../mission-control/components/ui'
 import { useI18n } from '../../i18n'
+import { approvalPriorityLabel } from '../../i18n/uiLabels'
 
 type Props = {
   pending: Approval[]
@@ -37,7 +38,7 @@ export function CommandApprovalsPanel({ pending, stats }: Props) {
               {item.title}
             </Link>
             <Badge variant={item.priority === 'critical' ? 'danger' : item.priority === 'high' ? 'warning' : 'default'}>
-              {item.priority}
+              {approvalPriorityLabel(t, item.priority)}
             </Badge>
             <span className="acMono acMuted">{formatFeedTime(item.createdAt)}</span>
           </div>

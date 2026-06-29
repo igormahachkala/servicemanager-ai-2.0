@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import type { AiPhotoLabControlRoomSnapshot } from '../../../domain/projects/aiPhotoLabControlRoom'
 import { Panel } from '../../../mission-control/components/ui'
 import { useI18n } from '../../../i18n'
+import { reportTypeLabel } from '../../../i18n/uiLabels'
 
 type Props = {
   snapshot: AiPhotoLabControlRoomSnapshot
@@ -29,7 +30,7 @@ export function ReportPanel({ snapshot }: Props) {
                 <Link to={`/ops/reports/${encodeURIComponent(report.id)}`} className="mcControlRoomReportTitle">
                   {report.title}
                 </Link>
-                <span className="mcControlRoomBadge">{report.type}</span>
+                <span className="mcControlRoomBadge">{reportTypeLabel(t, report.type)}</span>
                 <p className="mcMuted">{report.summary}</p>
               </li>
             ))}

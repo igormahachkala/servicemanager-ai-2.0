@@ -52,7 +52,7 @@ export function CanvasPreviewPanel({ canvas }: Props) {
             {node.liveStatus ? (
               <LiveIndicator status={node.liveStatus} compact />
             ) : (
-              <span className="acMono acMuted">active</span>
+              <span className="acMono acMuted">{t.canvasEngine.liveStatuses.running}</span>
             )}
           </div>
         ))}

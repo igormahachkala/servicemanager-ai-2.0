@@ -1,4 +1,5 @@
 import type { CanvasGraph, CanvasViewportState } from '../../domain/canvas'
+import { useI18n } from '../../i18n'
 
 type Props = {
   graph: CanvasGraph
@@ -11,6 +12,7 @@ const MINI_WIDTH = 168
 const MINI_HEIGHT = 112
 
 export function CanvasMiniMap({ graph, viewport, selectedId, onJumpTo }: Props) {
+  const { t } = useI18n()
   const { bounds } = graph
   const scale = Math.min(MINI_WIDTH / bounds.width, MINI_HEIGHT / bounds.height)
   const offsetX = (MINI_WIDTH - bounds.width * scale) / 2
@@ -54,7 +56,7 @@ export function CanvasMiniMap({ graph, viewport, selectedId, onJumpTo }: Props) 
       <button
         type="button"
         className="acCanvasMiniMapHit"
-        aria-label="Mini map"
+        aria-label={t.canvasEngine.miniMapAria}
         onClick={(event) => {
           const rect = event.currentTarget.getBoundingClientRect()
           const x = event.clientX - rect.left

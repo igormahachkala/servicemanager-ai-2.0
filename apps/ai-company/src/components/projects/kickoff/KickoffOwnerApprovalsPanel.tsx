@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import type { AiPhotoLabKickoffSnapshot } from '../../../domain/projects/aiPhotoLabKickoff'
 import { Panel } from '../../../mission-control/components/ui'
 import { useI18n } from '../../../i18n'
+import { approvalPriorityLabel } from '../../../i18n/uiLabels'
 
 type Props = {
   snapshot: AiPhotoLabKickoffSnapshot
@@ -24,7 +25,7 @@ export function KickoffOwnerApprovalsPanel({ snapshot }: Props) {
                   <strong>{item.title}</strong>
                   <p className="acMuted">{item.description}</p>
                 </div>
-                <span className="acKickoffBadge">{item.priority}</span>
+                <span className="acKickoffBadge">{approvalPriorityLabel(t, item.priority)}</span>
                 {item.href ? (
                   <Link to={item.href} className="mcLink">
                     {t.photoLabKickoff.actions.review}

@@ -3,6 +3,7 @@ import type { Report } from '../../domain/reports/report'
 import { Card, DataTable } from '../layout'
 import { formatFeedTime } from '../../mission-control/components/ui'
 import { useI18n } from '../../i18n'
+import { reportTypeLabel } from '../../i18n/uiLabels'
 
 type Props = {
   reports: Report[]
@@ -28,7 +29,7 @@ export function RecentReportsPanel({ reports }: Props) {
                     {report.title}
                   </Link>
                 </td>
-                <td className="acMono acMuted">{report.type}</td>
+                <td className="acMono acMuted">{reportTypeLabel(t, report.type)}</td>
                 <td className="acMono acMuted">{formatFeedTime(report.createdAt)}</td>
               </tr>
             ))}

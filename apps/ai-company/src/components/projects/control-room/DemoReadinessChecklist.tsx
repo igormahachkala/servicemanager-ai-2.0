@@ -1,6 +1,7 @@
 import type { AiPhotoLabControlRoomSnapshot } from '../../../domain/projects/aiPhotoLabControlRoom'
 import { Panel } from '../../../mission-control/components/ui'
 import { useI18n } from '../../../i18n'
+import { demoChecklistStatusLabel } from '../../../i18n/uiLabels'
 
 type Props = {
   snapshot: AiPhotoLabControlRoomSnapshot
@@ -23,7 +24,7 @@ export function DemoReadinessChecklist({ snapshot }: Props) {
                 {item.status === 'done' ? '✓' : item.status === 'blocked' ? '!' : '○'}
               </span>
               <span>{t.photoLabControlRoom.demoItems[item.key]}</span>
-              <span className="mcControlRoomBadge">{item.status}</span>
+              <span className="mcControlRoomBadge">{demoChecklistStatusLabel(t, item.status)}</span>
             </li>
           ))}
         </ul>

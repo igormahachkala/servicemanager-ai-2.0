@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import type { AiPhotoLabKickoffSnapshot } from '../../../domain/projects/aiPhotoLabKickoff'
 import { Panel } from '../../../mission-control/components/ui'
 import { useI18n } from '../../../i18n'
+import { demoChecklistStatusLabel } from '../../../i18n/uiLabels'
 
 type Props = {
   snapshot: AiPhotoLabKickoffSnapshot
@@ -18,7 +19,7 @@ export function KickoffQaChecklistPanel({ snapshot }: Props) {
           {snapshot.controlRoom.demoChecklist.map((item) => (
             <li key={item.key} className={`acKickoffCheckItem acKickoffCheck${item.status}`}>
               <span>{t.photoLabControlRoom.demoItems[item.key]}</span>
-              <span className="acKickoffBadge">{item.status}</span>
+              <span className="acKickoffBadge">{demoChecklistStatusLabel(t, item.status)}</span>
             </li>
           ))}
         </ul>

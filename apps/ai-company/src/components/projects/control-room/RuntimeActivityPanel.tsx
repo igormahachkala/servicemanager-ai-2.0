@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import type { AiPhotoLabControlRoomSnapshot } from '../../../domain/projects/aiPhotoLabControlRoom'
 import { Panel } from '../../../mission-control/components/ui'
 import { useI18n } from '../../../i18n'
+import { runtimeStateLabel } from '../../../i18n/uiLabels'
 
 type Props = {
   snapshot: AiPhotoLabControlRoomSnapshot
@@ -29,7 +30,7 @@ export function RuntimeActivityPanel({ snapshot }: Props) {
                 <Link to={`/ops/runtime/runs/${encodeURIComponent(run.id)}`} className="mcControlRoomRuntimeTitle">
                   {run.taskId ?? run.id}
                 </Link>
-                <span className="mcControlRoomBadge">{run.status}</span>
+                <span className="mcControlRoomBadge">{runtimeStateLabel(t, run.status)}</span>
                 <span className="mcMono mcMuted">{run.employeeId}</span>
               </li>
             ))}

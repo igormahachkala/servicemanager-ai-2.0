@@ -3,6 +3,7 @@ import type { Notification } from '../../domain/notifications/notification'
 import { Badge, Card } from '../layout'
 import { formatFeedTime } from '../../mission-control/components/ui'
 import { useI18n } from '../../i18n'
+import { notificationCategoryLabel } from '../../i18n/uiLabels'
 
 type Props = {
   notifications: Notification[]
@@ -31,7 +32,7 @@ export function NotificationsPanel({ notifications, unreadCount, onMarkRead }: P
             <span className="acMono acMuted">{formatFeedTime(item.createdAt)}</span>
             <span>{item.title}</span>
             <Badge variant={item.severity === 'error' ? 'danger' : item.severity === 'warn' ? 'warning' : 'default'}>
-              {item.type}
+              {notificationCategoryLabel(t, item.type)}
             </Badge>
             {item.action ? (
               <Link to={item.action.href} className="acLink" onClick={() => onMarkRead(item.id)}>

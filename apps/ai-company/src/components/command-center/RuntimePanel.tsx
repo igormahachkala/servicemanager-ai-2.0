@@ -5,6 +5,7 @@ import { Badge, Card } from '../layout'
 import { LivingActivityLine } from '../living'
 import { formatFeedTime } from '../../mission-control/components/ui'
 import { useI18n } from '../../i18n'
+import { runtimeStateLabel } from '../../i18n/uiLabels'
 
 type Props = {
   runtime: CommandCenterRuntimeSummary
@@ -52,7 +53,7 @@ export function RuntimePanel({ runtime }: Props) {
                 />
               </div>
               <Badge variant={run.status === 'failed' ? 'danger' : run.status === 'completed' ? 'success' : 'default'}>
-                {run.status}
+                {runtimeStateLabel(t, run.status)}
               </Badge>
               <span className="acMono acMuted">{formatFeedTime(run.startedAt)}</span>
             </div>

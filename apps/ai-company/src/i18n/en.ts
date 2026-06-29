@@ -2,6 +2,8 @@ export const en = {
   common: {
     empty: '—',
     all: 'All',
+    notAvailable: 'n/a',
+    selected: 'Selected',
   },
   nav: {
     flow: 'Flow',
@@ -710,6 +712,10 @@ export const en = {
       canvas: 'Canvas graph unavailable',
       canvasTasks: 'No active canvas tasks',
       controlRoom: 'Control room snapshot unavailable',
+    },
+    providerHealth: {
+      up: 'Up',
+      degraded: 'Degraded',
     },
   },
   visualLab: {
@@ -1578,6 +1584,13 @@ export const en = {
       high: 'High',
       critical: 'Critical',
     },
+    milestoneStatus: {
+      pending: 'Pending',
+      in_progress: 'In progress',
+      done: 'Done',
+      blocked: 'Blocked',
+      at_risk: 'At risk',
+    },
     future: {
       label: 'Future',
       budget: 'Budget',
@@ -2090,6 +2103,67 @@ export const en = {
       complete: 'Complete',
     },
   },
+  toolExecutionEngine: {
+    pageDescription:
+      'Single gateway for tool requests. Mock provider only, no real execution.',
+    submitSample: 'Submit sample request',
+    localNote: 'Local mock flow only. No real provider calls are executed.',
+    stats: {
+      total: 'Total',
+      waitingApproval: 'Waiting approval',
+      completed: 'Completed',
+      failedCancelled: 'Failed/Cancelled',
+    },
+    filters: {
+      title: 'Filters',
+      employee: 'Employee',
+      provider: 'Provider',
+      status: 'Status',
+      approval: 'Approval',
+      all: 'all',
+      required: 'required',
+      notRequired: 'not_required',
+    },
+    log: {
+      title: 'Execution log',
+      items: '{count} items',
+      empty: 'No tool executions yet.',
+      selectHint: 'Select execution from log.',
+    },
+    details: {
+      title: 'Execution details',
+    },
+    approval: {
+      stateTitle: 'Approval state',
+      noAction: 'No approval action available for current status.',
+      requiredTitle: 'Approval required',
+      waitingNote: 'This request is waiting owner decision: {toolId} · {action}',
+      approve: 'Approve',
+      reject: 'Reject',
+      cancel: 'Cancel',
+      rejectReason: 'Rejected in Tool Approval panel',
+    },
+    result: {
+      executionId: 'Execution ID:',
+      status: 'Status:',
+      elapsed: 'elapsed: {ms} ms · completed: {at}',
+      noResponse: 'No response yet. Awaiting execution result.',
+    },
+    card: {
+      mockTag: 'mock',
+      selected: 'Selected',
+      openDetails: 'Open details',
+    },
+    statuses: {
+      created: 'Created',
+      waiting_approval: 'Waiting approval',
+      approved: 'Approved',
+      running: 'Running',
+      completed: 'Completed',
+      failed: 'Failed',
+      cancelled: 'Cancelled',
+    },
+  },
   taskRunner: {
     title: 'Run Employee Task',
     description:
@@ -2208,6 +2282,12 @@ export const en = {
       needs_fix: 'Needs Fix',
       blocked: 'Blocked',
       pending: 'Pending',
+    },
+    checklistStatus: {
+      pending: 'Pending',
+      in_progress: 'In progress',
+      done: 'Done',
+      blocked: 'Blocked',
     },
     actions: {
       startAtlas: 'Start Atlas (Planning)',
@@ -2347,6 +2427,8 @@ export const en = {
     recentEvents: 'Recent events',
     noRelatedEntities: 'No directly connected entities.',
     openEntity: 'Open detail page',
+    openNode: 'Open',
+    miniMapAria: 'Mini map',
     openRuntime: 'Open Runtime',
     openTool: 'Open tool',
     openReport: 'Open report',
@@ -2692,6 +2774,21 @@ export const en = {
       reject: 'Reject result',
       cancel: 'Cancel handoff',
     },
+    priorities: {
+      low: 'Low',
+      medium: 'Medium',
+      high: 'High',
+      critical: 'Critical',
+    },
+    mockReturn: {
+      summary: 'Mock external result returned to AI Company.',
+      responseFormat: 'Markdown summary',
+      changedFiles: 'Changed files',
+      notes: 'Mock return only — no Codex/Cursor API in V1.',
+    },
+    rejectReasons: {
+      needsRevision: 'Needs revision before acceptance.',
+    },
     targets: {
       codex: 'Codex',
       claude_code: 'Claude Code',
@@ -2770,6 +2867,13 @@ export const en = {
       failed: 'Failed',
     },
     pipelineStatus: {
+      pending: 'Pending',
+      active: 'Active',
+      done: 'Done',
+      skipped: 'Skipped',
+      failed: 'Failed',
+    },
+    pipelineStepStatuses: {
       pending: 'Pending',
       active: 'Active',
       done: 'Done',
@@ -3186,6 +3290,7 @@ export const en = {
     reviewNotes: 'Sprint notes',
     plannedSprints: 'planned',
     tasks: 'tasks',
+    storyPointsShort: ' SP',
     remaining: 'Remaining (burndown)',
     ideal: 'Ideal',
     burndownNote: 'Mock burndown — story points remaining vs ideal line for Sprint 1.',
@@ -3335,6 +3440,17 @@ export const en = {
       medium: 'Medium',
       high: 'High',
       critical: 'Critical',
+    },
+    decisionKinds: {
+      approval: 'Approval',
+      review: 'Review',
+      decision: 'Decision',
+    },
+    riskStatuses: {
+      open: 'Open',
+      mitigated: 'Mitigated',
+      accepted: 'Accepted',
+      closed: 'Closed',
     },
     stats: {
       tasks: 'Delivery tasks',

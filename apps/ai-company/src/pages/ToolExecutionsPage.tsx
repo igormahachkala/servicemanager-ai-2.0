@@ -10,6 +10,7 @@ import {
 import { createToolRequestApproval } from '../domain/toolExecution'
 import { useToolExecution } from '../hooks/useToolExecution'
 import { useI18n } from '../i18n'
+import { toolExecutionStatusLabel } from '../i18n/uiLabels'
 
 export function ToolExecutionsPage() {
   const { t } = useI18n()
@@ -54,14 +55,14 @@ export function ToolExecutionsPage() {
     <>
       <PageHeader
         title={t.pages.toolExecutions}
-        description="Single gateway for tool requests. Mock provider only, no real execution."
+        description={t.toolExecutionEngine.pageDescription}
         actions={
           <>
             <Link to="/ops/handoffs" className="mcBtn mcBtnSecondary">
               {t.pages.handoffs}
             </Link>
             <button className="mcBtn mcBtnPrimary" type="button" onClick={submitSample}>
-              Submit sample request
+              {t.toolExecutionEngine.submitSample}
             </button>
           </>
         }
@@ -69,27 +70,27 @@ export function ToolExecutionsPage() {
 
       <div className="mcGrid4" style={{ marginBottom: 16 }}>
         <div className="mcMetric">
-          <div className="mcMetricLabel">Total</div>
+          <div className="mcMetricLabel">{t.toolExecutionEngine.stats.total}</div>
           <div className="mcMetricValue">{stats.total}</div>
         </div>
         <div className="mcMetric">
-          <div className="mcMetricLabel">Waiting approval</div>
+          <div className="mcMetricLabel">{t.toolExecutionEngine.stats.waitingApproval}</div>
           <div className="mcMetricValue">{stats.waitingApproval}</div>
         </div>
         <div className="mcMetric">
-          <div className="mcMetricLabel">Completed</div>
+          <div className="mcMetricLabel">{t.toolExecutionEngine.stats.completed}</div>
           <div className="mcMetricValue">{stats.completed}</div>
         </div>
         <div className="mcMetric">
-          <div className="mcMetricLabel">Failed/Cancelled</div>
+          <div className="mcMetricLabel">{t.toolExecutionEngine.stats.failedCancelled}</div>
           <div className="mcMetricValue">{stats.failed + stats.cancelled}</div>
         </div>
       </div>
 
-      <Card title="Filters">
+      <Card title={t.toolExecutionEngine.filters.title}>
         <div className="acToolExecutionFilters">
           <label className="mcField">
-            <span className="mcFieldLabel">Employee</span>
+            <span className="mcFieldLabel">{t.toolExecutionEngine.filters.employee}</span>
             <select
               className="mcSelect"
               value={filter.employeeId}
@@ -104,7 +105,7 @@ export function ToolExecutionsPage() {
           </label>
 
           <label className="mcField">
-            <span className="mcFieldLabel">Provider</span>
+            <span className="mcFieldLabel">{t.toolExecutionEngine.filters.provider}</span>
             <select
               className="mcSelect"
               value={filter.provider}
@@ -119,7 +120,7 @@ export function ToolExecutionsPage() {
           </label>
 
           <label className="mcField">
-            <span className="mcFieldLabel">Status</span>
+            <span className="mcFieldLabel">{t.toolExecutionEngine.filters.status}</span>
             <select
               className="mcSelect"
               value={filter.status}
@@ -127,33 +128,40 @@ export function ToolExecutionsPage() {
             >
               {statuses.map((status) => (
                 <option key={status} value={status}>
-                  {status}
+                  {toolExecutionStatusLabel(t, status)}
                 </option>
               ))}
             </select>
           </label>
 
           <label className="mcField">
-            <span className="mcFieldLabel">Approval</span>
+            <span className="mcFieldLabel">{t.toolExecutionEngine.filters.approval}</span>
             <select
               className="mcSelect"
               value={filter.approval}
               onChange={(event) => setFilter((prev) => ({ ...prev, approval: event.target.value as typeof prev.approval }))}
             >
-              <option value="all">all</option>
-              <option value="required">required</option>
-              <option value="not_required">not_required</option>
+              <option value="all">{t.toolExecutionEngine.filters.all}</option>
+              <option value="required">{t.toolExecutionEngine.filters.required}</option>
+              <option value="not_required">{t.toolExecutionEngine.filters.notRequired}</option>
             </select>
           </label>
         </div>
       </Card>
 
       <div className="mcGrid2" style={{ marginTop: 16 }}>
-        <Card title="Execution log" action={<span className="mcMono mcMuted">{filtered.length} items</span>}>
+        <Card
+          title={t.toolExecutionEngine.log.title}
+          action={
+            <span className="mcMono mcMuted">
+              {t.toolExecutionEngine.log.items.replace('{count}', String(filtered.length))}
+            </span>
+          }
+        >
           <ToolExecutionLog executions={filtered} selectedId={selectedExecution?.id ?? null} onSelect={setSelectedId} />
         </Card>
 
-        <Card title="Execution details">
+        <Card title={t.toolExecutionEngine.details.title}>
           {selectedExecution ? (
             <>
               <ToolRequestCard execution={selectedExecution} />
@@ -161,12 +169,12 @@ export function ToolExecutionsPage() {
               <ToolResultViewer execution={selectedExecution} />
             </>
           ) : (
-            <div className="mcMuted">Select execution from log.</div>
+            <div className="mcMuted">{t.toolExecutionEngine.log.selectHint}</div>
           )}
         </Card>
       </div>
 
-      <p className="mcMemoryLocalNote">Local mock flow only. No real provider calls are executed.</p>
+      <p className="mcMemoryLocalNote">{t.toolExecutionEngine.localNote}</p>
     </>
   )
 }

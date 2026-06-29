@@ -1,6 +1,7 @@
 import type { AiPhotoLabControlRoomSnapshot } from '../../../domain/projects/aiPhotoLabControlRoom'
 import { Panel } from '../../../mission-control/components/ui'
 import { useI18n } from '../../../i18n'
+import { controlRoomRiskLevelLabel, controlRoomRiskStatusLabel } from '../../../i18n/uiLabels'
 
 type Props = {
   snapshot: AiPhotoLabControlRoomSnapshot
@@ -21,9 +22,9 @@ export function RiskPanel({ snapshot }: Props) {
                 <div className="mcControlRoomRiskHead">
                   <span className="mcControlRoomRiskTitle">{risk.title}</span>
                   <span className={`mcControlRoomBadge mcControlRoomRisk${risk.severity}`}>
-                    {risk.severity}
+                    {controlRoomRiskLevelLabel(t, risk.severity)}
                   </span>
-                  <span className="mcControlRoomBadge">{risk.status}</span>
+                  <span className="mcControlRoomBadge">{controlRoomRiskStatusLabel(t, risk.status)}</span>
                 </div>
                 <p className="mcMuted">{risk.description}</p>
                 {risk.mitigation ? (

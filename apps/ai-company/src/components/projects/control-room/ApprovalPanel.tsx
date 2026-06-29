@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import type { AiPhotoLabControlRoomSnapshot } from '../../../domain/projects/aiPhotoLabControlRoom'
 import { Panel } from '../../../mission-control/components/ui'
 import { useI18n } from '../../../i18n'
+import { approvalPriorityLabel, ownerDecisionKindLabel } from '../../../i18n/uiLabels'
 
 type Props = {
   snapshot: AiPhotoLabControlRoomSnapshot
@@ -28,9 +29,9 @@ export function ApprovalPanel({ snapshot }: Props) {
             {snapshot.ownerDecisions.map((decision) => (
               <li key={decision.id} className="mcControlRoomDecisionCard">
                 <div className="mcControlRoomDecisionHead">
-                  <span className="mcControlRoomDecisionKind">{decision.kind}</span>
+                  <span className="mcControlRoomDecisionKind">{ownerDecisionKindLabel(t, decision.kind)}</span>
                   <span className={`mcControlRoomBadge mcControlRoomPriority${decision.priority}`}>
-                    {decision.priority}
+                    {approvalPriorityLabel(t, decision.priority)}
                   </span>
                 </div>
                 <div className="mcControlRoomDecisionTitle">{decision.title}</div>

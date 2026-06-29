@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import type { AiPhotoLabKickoffSnapshot } from '../../../domain/projects/aiPhotoLabKickoff'
 import { Panel } from '../../../mission-control/components/ui'
 import { useI18n } from '../../../i18n'
+import { handoffStatusLabel } from '../../../i18n/uiLabels'
 
 type Props = {
   snapshot: AiPhotoLabKickoffSnapshot
@@ -16,7 +17,7 @@ export function KickoffMaxHandoffPanel({ snapshot }: Props) {
       <div className="acKickoffPanelBody">
         <div className="acKickoffHandoffHead">
           <strong>{handoff.title}</strong>
-          <span className="acKickoffBadge">{handoff.status}</span>
+          <span className="acKickoffBadge">{handoffStatusLabel(t, handoff.status)}</span>
         </div>
         <p className="acMuted">
           {handoff.from} → {handoff.to} · {handoff.linkedTaskId}

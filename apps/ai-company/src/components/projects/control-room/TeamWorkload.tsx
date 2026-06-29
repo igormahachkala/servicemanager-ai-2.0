@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import type { AiPhotoLabControlRoomSnapshot } from '../../../domain/projects/aiPhotoLabControlRoom'
 import { Panel } from '../../../mission-control/components/ui'
 import { useI18n } from '../../../i18n'
+import { executionStatusLabel, presenceStatusLabel } from '../../../i18n/uiLabels'
 
 type Props = {
   snapshot: AiPhotoLabControlRoomSnapshot
@@ -24,10 +25,12 @@ export function TeamWorkload({ snapshot }: Props) {
                 ) : (
                   <span className="mcControlRoomTeamName">{member.codename}</span>
                 )}
-                <span className="mcMuted">{member.role}</span>
+                <span className="mcMuted">
+                  {t.projects.team.roles[member.role as keyof typeof t.projects.team.roles] ?? member.role}
+                </span>
                 {member.presence ? (
                   <span className={`mcControlRoomPresence mcControlRoomPresence${member.presence.status}`}>
-                    {member.presence.status}
+                    {presenceStatusLabel(t, member.presence.status)}
                   </span>
                 ) : null}
               </div>
@@ -35,7 +38,7 @@ export function TeamWorkload({ snapshot }: Props) {
                 <div className="mcControlRoomTeamTask">
                   <span className="mcMono">{member.currentTask.title}</span>
                   {member.executionStatus ? (
-                    <span className="mcControlRoomBadge">{member.executionStatus}</span>
+                    <span className="mcControlRoomBadge">{executionStatusLabel(t, member.executionStatus)}</span>
                   ) : null}
                 </div>
               ) : (

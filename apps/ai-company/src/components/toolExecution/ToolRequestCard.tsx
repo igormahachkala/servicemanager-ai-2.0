@@ -1,26 +1,7 @@
 import { Badge, type BadgeVariant } from '../layout'
 import type { ToolExecution } from '../../domain/toolExecution'
-
-function statusLabel(status: ToolExecution['status']): string {
-  switch (status) {
-    case 'created':
-      return 'Created'
-    case 'waiting_approval':
-      return 'Waiting approval'
-    case 'approved':
-      return 'Approved'
-    case 'running':
-      return 'Running'
-    case 'completed':
-      return 'Completed'
-    case 'failed':
-      return 'Failed'
-    case 'cancelled':
-      return 'Cancelled'
-    default:
-      return status
-  }
-}
+import { useI18n } from '../../i18n'
+import { toolExecutionStatusLabel } from '../../i18n/uiLabels'
 
 function statusVariant(status: ToolExecution['status']): BadgeVariant {
   switch (status) {
@@ -66,6 +47,7 @@ export function ToolRequestCard(props: {
   selected?: boolean
   onSelect?: (executionId: string) => void
 }) {
+  const { t } = useI18n()
   const { execution } = props
 
   return (
@@ -88,9 +70,15 @@ export function ToolRequestCard(props: {
           </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {execution.request.provider === 'mock' ? <span className="acToolMockTag">mock</span> : null}
-          <Badge variant={statusVariant(execution.status)}>{statusLabel(execution.status)}</Badge>
-          <span className={`acToolStatusBadge ${statusClass(execution.status)}`}>{execution.status}</span>
+          {execution.request.provider === 'mock' ? (
+            <span className="acToolMockTag">{t.toolExecutionEngine.card.mockTag}</span>
+          ) : null}
+          <Badge variant={statusVariant(execution.status)}>
+            {toolExecutionStatusLabel(t, execution.status)}
+          </Badge>
+          <span className={`acToolStatusBadge ${statusClass(execution.status)}`}>
+            {toolExecutionStatusLabel(t, execution.status)}
+          </span>
         </div>
       </div>
 
@@ -98,7 +86,7 @@ export function ToolRequestCard(props: {
 
       {props.onSelect ? (
         <button className="mcBtn mcBtnSecondary" type="button" onClick={() => props.onSelect?.(execution.id)}>
-          {props.selected ? 'Selected' : 'Open details'}
+          {props.selected ? t.toolExecutionEngine.card.selected : t.toolExecutionEngine.card.openDetails}
         </button>
       ) : null}
     </article>

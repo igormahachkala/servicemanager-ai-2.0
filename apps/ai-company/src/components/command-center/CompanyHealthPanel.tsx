@@ -3,6 +3,7 @@ import type { CommandCenterSnapshot } from '../../domain/commandCenter'
 import { Badge, Card } from '../layout'
 import { StatusDot, healthDot } from '../../mission-control/components/ui'
 import { useI18n } from '../../i18n'
+import { providerHealthLabel } from '../../i18n/uiLabels'
 
 type Props = {
   healthScore: number
@@ -29,7 +30,7 @@ export function CompanyHealthPanel({ healthScore, systemHealth }: Props) {
               <div style={{ fontWeight: 600 }}>{item.label}</div>
               <div className="acMono acMuted">{item.detail}</div>
             </div>
-            <Badge variant={item.status === 'up' ? 'success' : 'warning'}>{item.status}</Badge>
+            <Badge variant={item.status === 'up' ? 'success' : 'warning'}>{providerHealthLabel(t, item.status)}</Badge>
           </div>
         ))}
       </div>

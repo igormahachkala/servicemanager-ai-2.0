@@ -1,4 +1,5 @@
 import type { ToolExecution } from '../../domain/toolExecution'
+import { useI18n } from '../../i18n'
 import { ToolRequestCard } from './ToolRequestCard'
 
 export function ToolExecutionLog(props: {
@@ -6,8 +7,10 @@ export function ToolExecutionLog(props: {
   selectedId: string | null
   onSelect: (executionId: string) => void
 }) {
+  const { t } = useI18n()
+
   if (props.executions.length === 0) {
-    return <div className="mcMuted">No tool executions yet.</div>
+    return <div className="mcMuted">{t.toolExecutionEngine.log.empty}</div>
   }
 
   return (
