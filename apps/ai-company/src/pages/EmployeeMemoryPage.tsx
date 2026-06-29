@@ -2,6 +2,7 @@ import { useMemo, useState, type FormEvent } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { PageHeader, Panel } from '../mission-control/components/ui'
 import { MemoryTimeline } from '../components/memory/MemoryTimeline'
+import { MemoryEvolutionPanel } from '../components/memory-evolution'
 import { MemoryStats } from '../components/memory/MemoryStats'
 import { MemorySearch } from '../components/memory/MemorySearch'
 import { MemoryFilters } from '../components/memory/MemoryFilters'
@@ -77,6 +78,12 @@ export function EmployeeMemoryPage() {
       <Panel title={t.memoryEngine.summary.title}>
         <div className="mcProfilePanelBody">
           <MemorySummary />
+        </div>
+      </Panel>
+
+      <Panel title={t.memoryEvolution.todayTitle}>
+        <div className="mcProfilePanelBody">
+          <MemoryEvolutionPanel employeeId={employeeId} compact />
         </div>
       </Panel>
 

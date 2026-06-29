@@ -1923,7 +1923,6 @@ export const en = {
       'workday.started': 'Workday Started',
       'workday.phase_changed': 'Workday Phase Changed',
       'workday.finished': 'Workday Finished',
-      'memory.evolved': 'Memory Evolved',
     },
   },
   runEngine: {
@@ -3047,34 +3046,6 @@ export const en = {
     flowNote:
       'Runtime → Report → Lessons Learned → Employee Memory → Project Knowledge → Experience',
   },
-  workScheduler: {
-    title: 'Work Scheduler',
-    empty: 'No pending work suggestions.',
-    ownerApprovalNote: 'Owner approval required before suggested actions execute.',
-    stats: {
-      pending: '{count} pending',
-    },
-    actions: {
-      approve: 'Approve',
-      dismiss: 'Dismiss',
-      openRunTask: 'Run task',
-      openResult: 'Open result',
-      openQueue: 'Open task results',
-    },
-    kinds: {
-      next_task: 'Next task',
-      send_qa: 'Send to QA',
-      send_max: 'Send to MAX',
-      send_codex: 'Send to Codex',
-      create_follow_up: 'Follow-up task',
-      complete_sprint_item: 'Complete sprint item',
-    },
-    priorities: {
-      low: 'Low',
-      medium: 'Medium',
-      high: 'High',
-    },
-  },
   competencyEngine: {
     title: 'Competencies',
     pageTitle: '{name} — Competencies',
@@ -3540,34 +3511,6 @@ export const en = {
       runtimeCompleted: 'Runtime completed',
       avgPhase: 'Avg workday phase',
       note: 'End-of-day snapshot — sync workday phases or finish day from employee workspaces.',
-    },
-  },
-  workScheduler: {
-    title: 'Suggested Next Actions',
-    empty: 'No pending work suggestions.',
-    ownerApprovalNote: 'Owner approval required before execution.',
-    stats: {
-      pending: '{count} pending',
-    },
-    kinds: {
-      next_task: 'Next task',
-      send_qa: 'Send to QA',
-      send_max: 'Send to MAX',
-      send_codex: 'Send to Codex',
-      create_follow_up: 'Create follow-up',
-      complete_sprint_item: 'Complete sprint item',
-    },
-    priorities: {
-      low: 'Low',
-      medium: 'Medium',
-      high: 'High',
-    },
-    actions: {
-      approve: 'Approve',
-      dismiss: 'Dismiss',
-      openRunTask: 'Run task',
-      openResult: 'Open result',
-      openQueue: 'Open task results',
     },
   },
   photoLabControlRoom: {

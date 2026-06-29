@@ -491,6 +491,40 @@ export function getAllTags(items: Knowledge[]): string[] {
   return [...tags].sort()
 }
 
+export type CreateKnowledgeInput = {
+  id?: string
+  title: string
+  summary: string
+  content: string
+  type: KnowledgeType
+  source: KnowledgeSource
+  tags?: string[]
+  workspaceId?: string | null
+  ownerEmployeeId?: string | null
+  status?: Knowledge['status']
+}
+
+export function createKnowledgeItem(input: CreateKnowledgeInput): Knowledge {
+  const store = loadKnowledgeStore()
+  const now = new Date().toISOString()
+  const item: Knowledge = {
+    id: input.id ?? `kn-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+    title: input.title.trim(),
+    summary: input.summary.trim(),
+    content: input.content.trim(),
+    type: input.type,
+    source: input.source,
+    tags: input.tags ?? [],
+    workspaceId: input.workspaceId ?? null,
+    ownerEmployeeId: input.ownerEmployeeId ?? null,
+    status: input.status ?? 'draft',
+    createdAt: now,
+    updatedAt: now,
+  }
+  saveKnowledgeStore({ ...store, items: [item, ...store.items] })
+  return item
+}
+
 /** Runtime integration — fetch published knowledge relevant to a workspace/task scope. */
 export function queryKnowledgeForRuntime(input: {
   workspaceId?: string | null

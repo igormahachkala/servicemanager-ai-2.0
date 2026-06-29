@@ -4,9 +4,10 @@ import { recordRuntimeLearning } from '../learning/learningStorage'
 import { getChatById } from '../chats/chatStorage'
 import { ensureSeedMemories, getMemoriesByEmployee } from '../memory/memory'
 import { queryKnowledgeForRuntime } from '../knowledge/knowledgeStorage'
-import { loadReports, saveReports } from '../reports/reportStorage'
+import { loadReports, saveReports, getReportById } from '../reports/reportStorage'
 import type { Report } from '../reports/report'
 import { createTaskResultFromRuntimeRun } from '../taskResults/taskResultStorage'
+import { onRuntimeCompletion } from '../memoryEvolution'
 import { DEFAULT_COMPANY_ID } from '../projects/project'
 import { getWorkspaceById } from '../workspaces/workspace'
 import { resolveEmployee } from '../../mission-control/data/conversation'
@@ -1029,7 +1030,12 @@ export async function orchestrateRuntimeRun(request: RuntimeRunRequest): Promise
     result,
   }
 
-  return upsertRuntimeRun(run)
+  const saved = upsertRuntimeRun(run)
+  if (saved.status === 'completed' && saved.reportId) {
+    const report = getReportById(saved.reportId)
+    if (report) onRuntimeCompletion(saved, report)
+  }
+  return saved
 }
 
 /** Resume a run that was waiting for approval. */
@@ -1140,7 +1146,9 @@ export async function completeRuntimeRunAfterApproval(runId: string): Promise<Ru
       result,
     }
 
-    return upsertRuntimeRun(completed)
+    const saved = upsertRuntimeRun(completed)
+    onRuntimeCompletion(saved, report)
+    return saved
   } catch (error) {
     const partialResult = buildPartialFailureResult(
       existing.modelId,

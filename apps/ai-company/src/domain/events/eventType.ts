@@ -39,6 +39,7 @@ export const EVENT_TYPES = [
   'task_result.changes_requested',
   'task_result.rejected',
   'task_result.archived',
+  'memory.evolved',
 ] as const
 
 export type EventType = (typeof EVENT_TYPES)[number]

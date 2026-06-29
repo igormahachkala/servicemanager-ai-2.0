@@ -2195,6 +2195,35 @@ export const ru: Messages = {
       report: "Отчёт"
     }
   },
+  workScheduler: {
+    title: "Next Suggested Actions",
+    empty: "Нет предложений — завершите runtime run, чтобы сотрудник предложил следующие шаги.",
+    ownerApprovalNote:
+      "Сотрудник проанализировал последний run и предложил шаги. Owner должен approve — автоматического выполнения нет.",
+    stats: {
+      pending: "{count} ожидают approval"
+    },
+    kinds: {
+      next_task: "Следующая задача",
+      send_qa: "Отправить в QA",
+      send_max: "Отправить MAX",
+      send_codex: "Отправить в Codex",
+      create_follow_up: "Follow-up задача",
+      complete_sprint_item: "Закрыть sprint item"
+    },
+    priorities: {
+      low: "Low",
+      medium: "Medium",
+      high: "High"
+    },
+    actions: {
+      approve: "Approve",
+      dismiss: "Dismiss",
+      openRunTask: "Run Task",
+      openResult: "Открыть result",
+      openQueue: "Очередь Task Results"
+    }
+  },
   photoLabKickoff: {
     title: "Kickoff AI Photo Lab",
     description: "Owner kickoff hub — CTO plan, sprint, demo readiness, Codex handoff и быстрые запуски сотрудников.",
@@ -3406,34 +3435,6 @@ export const ru: Messages = {
       runtimeCompleted: "Runtime завершено",
       avgPhase: "Средняя фаза workday",
       note: "Снимок конца дня — синхронизируйте фазы workday или завершите день из workspace сотрудников."
-    }
-  },
-  workScheduler: {
-    title: "Suggested Next Actions",
-    empty: "No pending work suggestions.",
-    ownerApprovalNote: "Owner approval required before execution.",
-    stats: {
-      pending: "{count} pending"
-    },
-    kinds: {
-      next_task: "Next task",
-      send_qa: "Send to QA",
-      send_max: "Send to MAX",
-      send_codex: "Send to Codex",
-      create_follow_up: "Create follow-up",
-      complete_sprint_item: "Complete sprint item"
-    },
-    priorities: {
-      low: "Низкий",
-      medium: "Средний",
-      high: "Высокий"
-    },
-    actions: {
-      approve: "Одобрить",
-      dismiss: "Dismiss",
-      openRunTask: "Run task",
-      openResult: "Open result",
-      openQueue: "Open task results"
     }
   },
   photoLabControlRoom: {

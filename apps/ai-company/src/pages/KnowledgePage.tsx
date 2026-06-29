@@ -29,6 +29,7 @@ export function KnowledgePage() {
     acc[item.source] = (acc[item.source] ?? 0) + 1
     return acc
   }, {})
+  const evolutionItems = items.filter((item) => item.tags.includes('memory-evolution'))
 
   return (
     <>
@@ -46,6 +47,18 @@ export function KnowledgePage() {
       </div>
 
       <KnowledgeSummary stats={stats} />
+
+      {evolutionItems.length > 0 ? (
+        <div style={{ marginTop: 16 }}>
+          <Panel title={t.memoryEvolution.knowledgeAdded}>
+            <div className="mcProfilePanelBody mcKnowledgeEvolutionList">
+              {evolutionItems.slice(0, 5).map((item) => (
+                <KnowledgeCard key={item.id} item={item} />
+              ))}
+            </div>
+          </Panel>
+        </div>
+      ) : null}
 
       <div style={{ marginTop: 16 }}>
         <Panel

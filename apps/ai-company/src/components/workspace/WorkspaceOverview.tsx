@@ -5,6 +5,7 @@ import { resolveLivingActivityForEmployee, resolveLivingActivityFromRun } from '
 import { getModelById } from '../../domain/runtime/runtimeStorage'
 import type { EmployeeWorkspaceSnapshot } from '../../hooks/useEmployeeWorkspace'
 import { LivingActivityLine, RecentActivityStrip } from '../living'
+import { MemoryEvolutionSummary } from '../memory-evolution'
 import { Panel } from '../../mission-control/components/ui'
 import { useI18n } from '../../i18n'
 
@@ -76,6 +77,8 @@ export function WorkspaceOverview({ snapshot }: { snapshot: EmployeeWorkspaceSna
           <span className="mcFieldLabel">{t.livingCompany.recentActivity}</span>
           <RecentActivityStrip events={snapshot.activityEvents} limit={4} compact />
         </div>
+
+        <MemoryEvolutionSummary employeeId={employee.id} />
       </div>
     </Panel>
   )

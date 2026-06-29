@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import type { TaskRunnerStartResult } from '../../domain/taskRunner'
 import { getRuntimeRunById } from '../../domain/runtime/runtimeOrchestrator'
 import { TASK_RUNNER_EMPLOYEES } from '../../domain/taskRunner'
+import { MemoryEvolutionPanel } from '../memory-evolution'
 import { useI18n } from '../../i18n'
 
 type Props = {
@@ -54,6 +55,10 @@ export function TaskRunnerResult({ result }: Props) {
           {run.result?.warnings?.[0]?.message ?? t.taskRunner.result.noResponse}
         </div>
       )}
+
+      {run.status === 'completed' ? (
+        <MemoryEvolutionPanel runId={run.id} employeeId={run.employeeId} compact />
+      ) : null}
     </div>
   )
 }

@@ -20,6 +20,7 @@ function resolveCategory(event: CompanyEvent): NotificationCategory {
   if (type.startsWith('task_result.')) return 'task'
   if (type.startsWith('conversation.')) return 'discussion'
   if (type.startsWith('knowledge.')) return 'knowledge'
+  if (type.startsWith('memory.')) return 'employee'
   if (type.startsWith('task.')) return 'task'
   if (type.startsWith('employee.')) return 'employee'
   if (type.startsWith('workspace.')) return 'project'
@@ -118,6 +119,9 @@ function resolveAction(event: CompanyEvent, category: NotificationCategory): Not
       }
       return { href: `/ops/chats/${encodeURIComponent(sourceId)}` }
     case 'employee':
+      if (event.type === 'memory.evolved' && event.employeeId) {
+        return { href: `/ops/employees/${encodeURIComponent(event.employeeId)}/memory` }
+      }
       return event.employeeId
         ? { href: `/ops/employees/${encodeURIComponent(event.employeeId)}` }
         : null

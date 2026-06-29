@@ -8,6 +8,7 @@ import { RuntimeRunCard } from '../components/runtime/RuntimeRunCard'
 import { RuntimeStateBadge } from '../components/runtime/RuntimeStateBadge'
 import { RuntimeLogs } from '../components/runtime/RuntimeLogs'
 import { RuntimeWarnings } from '../components/runtime/RuntimeWarnings'
+import { MemoryEvolutionPanel } from '../components/memory-evolution'
 import { useRuntime } from '../hooks/useRuntime'
 import { getModelById, getProviderById } from '../domain/runtime/runtimeStorage'
 import { ToolExecutionLog } from '../components/toolExecution'
@@ -101,6 +102,17 @@ export function RuntimeRunPage() {
             {t.runtimeOrchestrator.grantApprovalMock}
           </button>
         </div>
+      ) : null}
+
+      {run.status === 'completed' ? (
+        <Panel title={t.memoryEvolution.runEvolutionTitle}>
+          <div className="mcProfilePanelBody">
+            <MemoryEvolutionPanel runId={run.id} employeeId={run.employeeId} />
+            <p className="mcMuted" style={{ marginTop: 8, fontSize: 12 }}>
+              {t.memoryEvolution.flowNote}
+            </p>
+          </div>
+        </Panel>
       ) : null}
 
       <div className="mcGrid2">

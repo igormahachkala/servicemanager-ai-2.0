@@ -3,6 +3,7 @@ import { Panel } from './ui'
 import { ProfileEmptyBlock } from './ProfileEmptyBlock'
 import { optionLabel } from '../data/customEmployees'
 import type { CustomEmployee } from '../data/customEmployees'
+import { MemoryEvolutionSummary } from '../../components/memory-evolution'
 import { useMemory } from '../../hooks/useMemory'
 import { useI18n } from '../../i18n'
 
@@ -15,6 +16,8 @@ export function EmployeeMemory({ employee }: { employee: CustomEmployee }) {
       <Panel title={t.employeeProfile.sections.memory}>
         <div className="mcProfilePanelBody">
           <p className="mcMemoryInlineNote">{t.memoryEngine.summary.modelIndependent}</p>
+
+          <MemoryEvolutionSummary employeeId={employee.id} />
 
           {employee.memoryScope.length === 0 ? (
             <div className="mcProfileEmpty mcProfileEmptyInline" style={{ marginTop: 12 }}>
