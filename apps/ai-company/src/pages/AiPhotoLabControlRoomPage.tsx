@@ -17,6 +17,7 @@ import { NextSuggestedActionsPanel } from '../components/work-scheduler'
 import { useAiPhotoLabControlRoom } from '../hooks/useAiPhotoLabControlRoom'
 import { useWorkScheduler } from '../hooks/useWorkScheduler'
 import { PageHeader, Panel } from '../mission-control/components/ui'
+import { PageGuideCard } from '../components/guided'
 import { useI18n } from '../i18n'
 
 export function AiPhotoLabControlRoomPage() {
@@ -74,6 +75,8 @@ export function AiPhotoLabControlRoomPage() {
           </Link>
         </div>
       </div>
+
+      <PageGuideCard pageId="controlRoom" />
 
       <div className="mcControlRoomStats">
         <div className="mcControlRoomStat">

@@ -16,6 +16,7 @@ import { NextSuggestedActionsPanel } from '../components/work-scheduler'
 import { useEmployeeWorkspace } from '../hooks/useEmployeeWorkspace'
 import { useWorkScheduler } from '../hooks/useWorkScheduler'
 import { PageHeader, Panel } from '../mission-control/components/ui'
+import { PageGuideCard } from '../components/guided'
 import { useI18n } from '../i18n'
 
 export function EmployeeWorkspacePage() {
@@ -64,6 +65,8 @@ export function EmployeeWorkspacePage() {
           {t.pages.workday}
         </Link>
       </div>
+
+      <PageGuideCard pageId="workspace" />
 
       <QuickActions snapshot={snapshot} />
 

@@ -20,6 +20,7 @@ import './styles/task-results.css'
 import './styles/living-company.css'
 import './styles/memory-evolution.css'
 import './styles/runtime-monitor.css'
+import './styles/guided-experience.css'
 import './styles/polish-v2.css'
 import './styles.css'
 

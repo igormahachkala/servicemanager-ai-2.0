@@ -12,6 +12,7 @@ import {
 } from '../components/projects/kickoff'
 import { useAiPhotoLabKickoff } from '../hooks/useAiPhotoLabKickoff'
 import { PageHeader } from '../mission-control/components/ui'
+import { PageGuideCard } from '../components/guided'
 import { useI18n } from '../i18n'
 
 export function AiPhotoLabKickoffPage() {
@@ -38,6 +39,8 @@ export function AiPhotoLabKickoffPage() {
         <PageHeader title={t.photoLabKickoff.title} description={t.photoLabKickoff.pageDescription} />
         <KickoffHeaderLinks links={snapshot.links} />
       </div>
+
+      <PageGuideCard pageId="kickoff" />
 
       <div className="acKickoffStats">
         <div className="acKickoffStat">

@@ -3128,6 +3128,106 @@ export const en = {
       topModels: 'No model usage yet.',
     },
   },
+  guidedExperience: {
+    nextStepLabel: 'Next step',
+    learnMore: 'Learn more',
+    termsLabel: 'Key terms',
+    pages: {
+      commandCenter: {
+        title: 'Your company at a glance',
+        description:
+          'Command Center is the Owner cockpit — health, who is working, pending approvals, runtime activity, and today’s priorities in one place.',
+        nextStep: 'Scan critical alerts and pending approvals, then open Operating Day for the full daily flow.',
+        learnMorePath: '/ops/day',
+      },
+      runTask: {
+        title: 'Assign work to a digital employee',
+        description:
+          'Describe the task, pick an employee and mode, then launch a Runtime run. Results flow into reports, task results, and employee memory.',
+        nextStep: 'Write a clear task, choose Atlas or MAX, and start the run — then follow progress in Live Runtime.',
+        learnMorePath: '/ops/runtime/live',
+      },
+      runtimeLive: {
+        title: 'Watch execution in real time',
+        description:
+          'Live Runtime shows the active pipeline, provider logs, elapsed time, and result preview while a digital employee works.',
+        nextStep: 'Launch or select a run, watch the pipeline steps, then review the report when execution completes.',
+        learnMorePath: '/ops/runtime',
+      },
+      taskResults: {
+        title: 'Outcomes from completed work',
+        description:
+          'Task Results collect deliverables after Runtime runs — status, review notes, and links back to reports and follow-up actions.',
+        nextStep: 'Filter by status, open a result to review output, and approve or plan the next suggested action.',
+        learnMorePath: '/ops/reports',
+      },
+      workspace: {
+        title: 'One employee’s working desk',
+        description:
+          'Workspace is the daily surface for a single digital employee — current tasks, runs, chats, reports, and notifications scoped to them.',
+        nextStep: 'Check what they are doing now, then jump to Runtime or Task Results for deeper detail.',
+        learnMorePath: '/ops/presence',
+      },
+      operatingDay: {
+        title: 'How the company moves through the day',
+        description:
+          'Operating Day walks the Owner through morning brief, employees, sprint progress, approvals, runtime, and end-of-day wrap-up.',
+        nextStep: 'Follow the phases top to bottom — resolve blockers in Approvals and Runtime before end-of-day.',
+        learnMorePath: '/ops',
+      },
+      kickoff: {
+        title: 'Start the AI Photo Lab project',
+        description:
+          'Kickoff bootstraps demo-ready work — sprint goal, team presets, QA checklist, and one-click tasks for Atlas and MAX.',
+        nextStep: 'Run a preset task or open Control Room to track delivery, risks, and external handoffs.',
+        learnMorePath: '/ops/projects/project-ai-photo-lab/control-room',
+      },
+      controlRoom: {
+        title: 'Project delivery command post',
+        description:
+          'Control Room tracks AI Photo Lab progress — task queue, runtime activity, risks, demo readiness, approvals, and Codex handoffs.',
+        nextStep: 'Review the task queue and risks, then approve handoffs or launch the next runtime task.',
+        learnMorePath: '/ops/projects/project-ai-photo-lab/kickoff',
+      },
+    },
+    terms: {
+      runtime: {
+        label: 'Runtime',
+        tooltip:
+          'Local execution engine for digital employees — assembles context, calls the model, produces reports and artifacts.',
+      },
+      workspace: {
+        label: 'Workspace',
+        tooltip:
+          'Scoped environment where an employee’s tasks, knowledge, and runs live — separate from the global company view.',
+      },
+      handoff: {
+        label: 'Handoff',
+        tooltip:
+          'Prepared package of context and instructions for an external executor (Codex, Cursor, human) after Owner approval.',
+      },
+      approval: {
+        label: 'Approval',
+        tooltip:
+          'Owner gate before sensitive actions — cloud runtime, tool use, production changes, or sending a handoff.',
+      },
+      memoryEvolution: {
+        label: 'Memory Evolution',
+        tooltip:
+          'After a completed run, lessons are extracted into employee memory, project knowledge, and experience records.',
+      },
+      prompt: {
+        label: 'Prompt',
+        tooltip:
+          'Structured instructions sent to the model — system role, task text, assembled context, and output expectations.',
+      },
+      modelRouter: {
+        label: 'Model Router',
+        tooltip:
+          'Chooses catalog model and provider from employee profile, task type, cost limits, and fast/deep/coding/qa mode.',
+      },
+    },
+  },
   competencyEngine: {
     title: 'Competencies',
     pageTitle: '{name} — Competencies',

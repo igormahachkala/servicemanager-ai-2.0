@@ -16,6 +16,7 @@ import { buildRuntimePromptPreviewFromRun } from '../domain/runtime/runtimePromp
 import { previewRuntimePromptForRequest } from '../domain/runtime/runtimeOrchestrator'
 import { agents } from '../mission-control/data/mock'
 import { PageHeader, Panel } from '../mission-control/components/ui'
+import { PageGuideCard } from '../components/guided'
 import { useI18n } from '../i18n'
 
 const LIVE_EMPLOYEE_IDS = ['ag-cto', 'ag-max'] as const
@@ -94,6 +95,8 @@ export function RuntimeLivePage() {
           </Link>
         </div>
       </div>
+
+      <PageGuideCard pageId="runtimeLive" />
 
       <div className="mcLiveRuntimeStats">
         <div className="mcLiveRuntimeStat">

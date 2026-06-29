@@ -18,6 +18,7 @@ import { getOrCreateRuntimeProfile } from '../domain/runtime/runtimeStorage'
 import { suggestModeForEmployee, TASK_RUNNER_EMPLOYEES } from '../domain/taskRunner'
 import { useTaskRunner } from '../hooks/useTaskRunner'
 import { PageHeader, Panel } from '../mission-control/components/ui'
+import { PageGuideCard } from '../components/guided'
 import { useI18n } from '../i18n'
 import { useMemo } from 'react'
 
@@ -85,6 +86,8 @@ export function RunTaskPage() {
           {t.pages.controlRoom}
         </Link>
       </div>
+
+      <PageGuideCard pageId="runTask" />
 
       <p className="mcTaskRunnerIntro">{t.taskRunner.intro}</p>
 

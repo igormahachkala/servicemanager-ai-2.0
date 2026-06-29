@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { OperatingDayBoard, OperatingDayLinksBar } from '../components/operating-day'
 import { useOperatingDay } from '../hooks/useOperatingDay'
 import { PageHeader } from '../components/layout'
+import { PageGuideCard } from '../components/guided'
 import { useI18n } from '../i18n'
 
 export function CompanyOperatingDayPage() {
@@ -22,6 +23,8 @@ export function CompanyOperatingDayPage() {
           </Link>
         </div>
       </div>
+
+      <PageGuideCard pageId="operatingDay" />
 
       <OperatingDayLinksBar />
 

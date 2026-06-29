@@ -8,6 +8,7 @@ import {
   TaskResultTimeline,
 } from '../components/task-results'
 import { PageHeader, Panel } from '../mission-control/components/ui'
+import { PageGuideCard } from '../components/guided'
 import { NextSuggestedActionsPanel } from '../components/work-scheduler'
 import { useTaskResults } from '../hooks/useTaskResults'
 import { useWorkScheduler } from '../hooks/useWorkScheduler'
@@ -44,6 +45,8 @@ export function TaskResultsPage() {
           {t.pages.runs}
         </Link>
       </div>
+
+      <PageGuideCard pageId="taskResults" />
 
       <TaskResultSummary stats={stats} />
 

@@ -3056,6 +3056,106 @@ export const ru: Messages = {
       topModels: "Использования моделей пока нет."
     }
   },
+  guidedExperience: {
+    nextStepLabel: "Следующий шаг",
+    learnMore: "Подробнее",
+    termsLabel: "Ключевые термины",
+    pages: {
+      commandCenter: {
+        title: "Компания одним взглядом",
+        description:
+          "Command Center — кокpit Owner: health, кто работает, approvals, runtime и приоритеты дня на одном экране.",
+        nextStep: "Проверьте critical alerts и pending approvals, затем откройте Operating Day для полного дневного flow.",
+        learnMorePath: "/ops/day"
+      },
+      runTask: {
+        title: "Назначить задачу цифровому сотруднику",
+        description:
+          "Опишите задачу, выберите сотрудника и mode, запустите Runtime run. Результаты попадут в reports, task results и memory.",
+        nextStep: "Сформулируйте задачу, выберите Atlas или MAX и запустите run — прогресс смотрите в Live Runtime.",
+        learnMorePath: "/ops/runtime/live"
+      },
+      runtimeLive: {
+        title: "Наблюдайте execution в реальном времени",
+        description:
+          "Live Runtime показывает pipeline, логи provider, elapsed time и preview результата, пока сотрудник работает.",
+        nextStep: "Запустите или выберите run, следите за шагами pipeline, затем откройте report после completion.",
+        learnMorePath: "/ops/runtime"
+      },
+      taskResults: {
+        title: "Итоги выполненной работы",
+        description:
+          "Task Results собирают deliverables после Runtime runs — статус, review notes и ссылки на reports и follow-up.",
+        nextStep: "Отфильтруйте по статусу, откройте result для review и согласуйте next suggested action.",
+        learnMorePath: "/ops/reports"
+      },
+      workspace: {
+        title: "Рабочий стол одного сотрудника",
+        description:
+          "Workspace — daily surface для одного digital employee: задачи, runs, chats, reports и notifications в его scope.",
+        nextStep: "Посмотрите текущую активность, затем перейдите в Runtime или Task Results за деталями.",
+        learnMorePath: "/ops/presence"
+      },
+      operatingDay: {
+        title: "Как компания проходит день",
+        description:
+          "Operating Day ведёт Owner через morning brief, сотрудников, sprint, approvals, runtime и end-of-day wrap-up.",
+        nextStep: "Идите по фазам сверху вниз — закройте blockers в Approvals и Runtime до конца дня.",
+        learnMorePath: "/ops"
+      },
+      kickoff: {
+        title: "Старт проекта AI Photo Lab",
+        description:
+          "Kickoff готовит demo-ready работу — sprint goal, team presets, QA checklist и one-click tasks для Atlas и MAX.",
+        nextStep: "Запустите preset task или откройте Control Room для delivery, risks и external handoffs.",
+        learnMorePath: "/ops/projects/project-ai-photo-lab/control-room"
+      },
+      controlRoom: {
+        title: "Command post delivery проекта",
+        description:
+          "Control Room отслеживает AI Photo Lab — task queue, runtime, risks, demo readiness, approvals и Codex handoffs.",
+        nextStep: "Проверьте queue и risks, затем одобрите handoffs или запустите следующий runtime task.",
+        learnMorePath: "/ops/projects/project-ai-photo-lab/kickoff"
+      }
+    },
+    terms: {
+      runtime: {
+        label: "Runtime",
+        tooltip:
+          "Локальный execution engine для digital employees — context, вызов модели, reports и artifacts."
+      },
+      workspace: {
+        label: "Workspace",
+        tooltip:
+          "Scope, где живут задачи, knowledge и runs сотрудника — отдельно от глобального company view."
+      },
+      handoff: {
+        label: "Handoff",
+        tooltip:
+          "Подготовленный пакет context и instructions для external executor (Codex, Cursor, human) после approval Owner."
+      },
+      approval: {
+        label: "Approval",
+        tooltip:
+          "Gate Owner перед sensitive actions — cloud runtime, tools, production changes или отправка handoff."
+      },
+      memoryEvolution: {
+        label: "Memory Evolution",
+        tooltip:
+          "После completed run уроки извлекаются в employee memory, project knowledge и experience records."
+      },
+      prompt: {
+        label: "Prompt",
+        tooltip:
+          "Structured instructions для модели — system role, task text, assembled context и output expectations."
+      },
+      modelRouter: {
+        label: "Model Router",
+        tooltip:
+          "Выбирает catalog model и provider из profile, task type, cost limits и mode fast/deep/coding/qa."
+      }
+    }
+  },
   competencyEngine: {
     title: "Компетенции",
     pageTitle: "{name} — Competencies",
