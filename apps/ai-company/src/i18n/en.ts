@@ -725,6 +725,7 @@ export const en = {
       tests: 'Test steps',
       project: 'Project',
       integrations: 'Integrations',
+      doingNow: 'Doing now',
     },
     integrations: {
       execution: 'Execution Queue',
@@ -2174,6 +2175,7 @@ export const en = {
       qaChecklist: 'QA checklist',
       ownerApprovals: 'Owner approvals',
       actions: 'Kickoff actions',
+      teamActivity: 'Team activity now',
     },
     links: {
       controlRoom: 'Control Room',
@@ -3511,6 +3513,67 @@ export const en = {
       activityFeed: 'Activity Feed',
       activityFeedDesc: 'Recent actions, task transitions, and operational events.',
     },
+  },
+  livingCompany: {
+    now: 'just now',
+    since: '{time} ago',
+    doingNow: 'Doing now',
+    fallback: 'Working on {context}',
+    phases: {
+      working: 'Working',
+      thinking: 'Thinking',
+      waiting: 'Waiting',
+      reviewing: 'Reviewing',
+      completed: 'Completed',
+      idle: 'Idle',
+    },
+    verbs: {
+      atlas: {
+        architecture: 'Analyzing architecture…',
+        task: 'Analyzing {task}…',
+      },
+      max: {
+        upload: 'Checking upload flow…',
+        task: 'Auditing {task}…',
+      },
+      qa: {
+        regression: 'Running regression tests…',
+        task: 'Testing {task}…',
+      },
+      devops: {
+        environment: 'Checking environment…',
+        task: 'Verifying {task}…',
+      },
+      default: {
+        task: 'Working on {task}…',
+      },
+    },
+    pipeline: {
+      receive_request: 'Receiving request…',
+      load_employee: 'Loading employee context…',
+      load_workspace: 'Loading workspace…',
+      load_memory: 'Reading memory…',
+      load_knowledge: 'Loading knowledge…',
+      load_competencies: 'Loading competencies…',
+      load_runtime_profile: 'Loading runtime profile…',
+      run_model_router: 'Routing model call…',
+      approval_check: 'Waiting for Owner approval…',
+      tool_gateway: 'Executing tools…',
+      create_run: 'Creating run record…',
+      emit_event: 'Emitting event…',
+      create_report: 'Drafting report…',
+      complete: 'Finishing up…',
+    },
+    taskResult: {
+      working: 'Preparing deliverable',
+      ready_for_review: 'Ready for your review',
+      reviewing: 'Changes requested — revising',
+      completed: 'Approved and complete',
+      waiting: 'Awaiting Owner review',
+      idle: 'Archived',
+    },
+    recentActivity: 'Recent activity',
+    noRecentActivity: 'No recent activity',
   },
   mock: {
     lastActivity: 'Awaiting V1 activation',

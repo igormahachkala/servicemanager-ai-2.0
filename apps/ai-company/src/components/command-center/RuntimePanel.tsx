@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom'
 import type { CommandCenterRuntimeSummary } from '../../domain/commandCenter'
+import { resolveLivingActivityFromRun } from '../../domain/living'
 import { Badge, Card } from '../layout'
+import { LivingActivityLine } from '../living'
 import { formatFeedTime } from '../../mission-control/components/ui'
 import { useI18n } from '../../i18n'
 
@@ -34,17 +36,28 @@ export function RuntimePanel({ runtime }: Props) {
       {runtime.recentRuns.length === 0 ? (
         <div className="acMuted">{t.commandCenter.empty.runtime}</div>
       ) : (
-        runtime.recentRuns.map((run) => (
-          <div key={run.id} className="acListRow">
-            <Link to={`/ops/runtime/runs/${encodeURIComponent(run.id)}`} className="acLink">
-              {run.taskId ?? run.runtimeProfileId}
-            </Link>
-            <Badge variant={run.status === 'failed' ? 'danger' : run.status === 'completed' ? 'success' : 'default'}>
-              {run.status}
-            </Badge>
-            <span className="acMono acMuted">{formatFeedTime(run.startedAt)}</span>
-          </div>
-        ))
+        runtime.recentRuns.map((run) => {
+          const living = resolveLivingActivityFromRun(run)
+          return (
+            <div key={run.id} className="acListRow acListRowLiving">
+              <div className="acListRowLivingMain">
+                <Link to={`/ops/runtime/runs/${encodeURIComponent(run.id)}`} className="acLink">
+                  {run.taskId ?? run.runtimeProfileId}
+                </Link>
+                <LivingActivityLine
+                  snapshot={living}
+                  compact
+                  showProgress={living.progress !== null && run.status !== 'completed'}
+                  showSince={false}
+                />
+              </div>
+              <Badge variant={run.status === 'failed' ? 'danger' : run.status === 'completed' ? 'success' : 'default'}>
+                {run.status}
+              </Badge>
+              <span className="acMono acMuted">{formatFeedTime(run.startedAt)}</span>
+            </div>
+          )
+        })
       )}
     </Card>
   )

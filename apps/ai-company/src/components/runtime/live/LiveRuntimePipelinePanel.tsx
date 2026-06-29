@@ -1,18 +1,27 @@
 import type { RuntimePipelineStep } from '../../../domain/runtime/runtimeOrchestrator'
+import type { LivingActivitySnapshot } from '../../../domain/living'
 import { resolveCurrentPipelineStep } from '../../../hooks/useLiveRuntimeMonitor'
+import { LivingActivityLine } from '../../living'
 import { useI18n } from '../../../i18n'
 
 type Props = {
   steps: RuntimePipelineStep[]
   currentStep: RuntimePipelineStep | null
+  living?: LivingActivitySnapshot | null
 }
 
-export function LiveRuntimePipelinePanel({ steps, currentStep }: Props) {
+export function LiveRuntimePipelinePanel({ steps, currentStep, living }: Props) {
   const { t } = useI18n()
   const activeStep = currentStep ?? resolveCurrentPipelineStep(steps)
 
   return (
     <div className="mcLiveRuntimePipeline">
+      {living ? (
+        <div className="acLivingBanner">
+          <span className="acLivingBannerLabel">{t.livingCompany.doingNow}</span>
+          <LivingActivityLine snapshot={living} showProgress={living.progress !== null} showSince />
+        </div>
+      ) : null}
       {activeStep ? (
         <div className="mcLiveRuntimeCurrentStep">
           <span className="mcFieldLabel">{t.runtimeLive.currentStep}</span>

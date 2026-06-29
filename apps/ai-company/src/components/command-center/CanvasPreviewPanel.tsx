@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import type { CanvasSummary } from '../../domain/canvas/canvas'
 import { AI_PHOTO_LAB_PROJECT_ID } from '../../domain/projects/aiPhotoLabIds'
+import { LiveIndicator } from '../canvas/LiveIndicator'
 import { Card } from '../layout'
 import { useI18n } from '../../i18n'
 
@@ -48,7 +49,11 @@ export function CanvasPreviewPanel({ canvas }: Props) {
         {canvas.runningTasks.slice(0, 3).map((node) => (
           <div key={node.id} className="mcCommandCenterPreviewRow">
             <span>{node.label}</span>
-            <span className="acMono acMuted">{node.liveStatus ?? 'active'}</span>
+            {node.liveStatus ? (
+              <LiveIndicator status={node.liveStatus} compact />
+            ) : (
+              <span className="acMono acMuted">active</span>
+            )}
           </div>
         ))}
         {canvas.runningTasks.length === 0 ? (

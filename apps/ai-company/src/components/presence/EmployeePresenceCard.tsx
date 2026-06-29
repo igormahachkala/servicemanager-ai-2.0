@@ -1,6 +1,11 @@
 import { Link } from 'react-router-dom'
 import type { EmployeePresence } from '../../domain/presence'
 import { resolveEmployeeLabel } from '../../domain/presence/employeeLabel'
+import {
+  resolveLivingActivityForEmployee,
+  resolveLivingActivityFromPresence,
+} from '../../domain/living'
+import { LivingActivityLine } from '../living'
 import { EmployeeStatusBadge } from './EmployeeStatusBadge'
 import { useI18n } from '../../i18n'
 
@@ -8,6 +13,9 @@ export function EmployeePresenceCard(props: { presence: EmployeePresence }) {
   const { t } = useI18n()
   const { presence } = props
   const label = resolveEmployeeLabel(presence.employeeId)
+  const living =
+    resolveLivingActivityFromPresence(presence) ??
+    resolveLivingActivityForEmployee(presence.employeeId)
 
   return (
     <article className="acPresenceCard">
@@ -22,7 +30,16 @@ export function EmployeePresenceCard(props: { presence: EmployeePresence }) {
         </div>
         <EmployeeStatusBadge status={presence.status} compact />
       </div>
-      <div className="acPresenceCardActivity">{presence.activity}</div>
+      {living ? (
+        <LivingActivityLine
+          snapshot={living}
+          compact
+          showProgress={living.progress !== null}
+          showSince={Boolean(living.since)}
+        />
+      ) : (
+        <div className="acPresenceCardActivity">{presence.activity}</div>
+      )}
       <div className="acPresenceCardMeta mcMono acMuted">
         {t.presence.since} {new Date(presence.startedAt).toLocaleTimeString()}
         {presence.expectedFinish ? (

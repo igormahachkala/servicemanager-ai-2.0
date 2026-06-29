@@ -6,6 +6,8 @@ import { LiveRuntimePipelinePanel } from '../components/runtime/live/LiveRuntime
 import { LiveRuntimeSidePanel } from '../components/runtime/live/LiveRuntimeSidePanel'
 import { RuntimeExecutionPanel } from '../components/runtime/RuntimeExecutionPanel'
 import { RuntimeStateBadge } from '../components/runtime/RuntimeStateBadge'
+import { LivingActivityLine } from '../components/living'
+import { resolveLivingActivityFromRun } from '../domain/living'
 import { useLiveRuntimeMonitor } from '../hooks/useLiveRuntimeMonitor'
 import { useRuntimeProfiles } from '../hooks/useRuntimeProfiles'
 import { agents } from '../mission-control/data/mock'
@@ -45,6 +47,7 @@ export function RuntimeLivePage() {
   const reportDetail = monitor.reportStep
     ? `${monitor.reportStep.status}${monitor.reportStep.detail ? ` · ${monitor.reportStep.detail}` : ''}`
     : null
+  const livingRun = monitor.monitoredRun ? resolveLivingActivityFromRun(monitor.monitoredRun) : null
 
   return (
     <div className="mcLiveRuntimePage">
@@ -116,6 +119,13 @@ export function RuntimeLivePage() {
         </div>
       </div>
 
+      {livingRun ? (
+        <div className="acLivingBanner">
+          <span className="acLivingBannerLabel">{t.livingCompany.doingNow}</span>
+          <LivingActivityLine snapshot={livingRun} showProgress={livingRun.progress !== null} />
+        </div>
+      ) : null}
+
       <Panel title={t.runtimeLive.launchTitle}>
         <div className="mcProfilePanelBody">
           <RuntimeExecutionPanel
@@ -135,6 +145,7 @@ export function RuntimeLivePage() {
                 <LiveRuntimePipelinePanel
                   steps={monitor.monitoredRun.pipeline}
                   currentStep={monitor.currentStep}
+                  living={livingRun}
                 />
               ) : (
                 <p className="mcMuted">{t.runtimeLive.noRunSelected}</p>

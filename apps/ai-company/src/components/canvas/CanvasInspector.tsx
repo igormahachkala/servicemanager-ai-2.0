@@ -73,6 +73,7 @@ export function CanvasInspector({ details, summary, selectedConnectionLabel }: P
                 <li key={node.id}>
                   <span className="acCanvasInspectorEntityIcon">{canvasNodeIcon(node.kind)}</span>
                   <span>{node.label}</span>
+                  {node.liveStatus ? <LiveIndicator status={node.liveStatus} compact /> : null}
                 </li>
               ))}
             </ul>

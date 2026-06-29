@@ -1,8 +1,10 @@
 import { Link } from 'react-router-dom'
 import { EmployeeStatusBadge } from '../presence'
 import { RuntimeStatusBadge } from '../runtime/RuntimeStatusBadge'
+import { resolveLivingActivityForEmployee, resolveLivingActivityFromRun } from '../../domain/living'
 import { getModelById } from '../../domain/runtime/runtimeStorage'
 import type { EmployeeWorkspaceSnapshot } from '../../hooks/useEmployeeWorkspace'
+import { LivingActivityLine, RecentActivityStrip } from '../living'
 import { Panel } from '../../mission-control/components/ui'
 import { useI18n } from '../../i18n'
 
@@ -10,6 +12,9 @@ export function WorkspaceOverview({ snapshot }: { snapshot: EmployeeWorkspaceSna
   const { t } = useI18n()
   const model = getModelById(snapshot.profile.primaryModelId)
   const { employee, presence, profile } = snapshot
+  const living = snapshot.currentRun
+    ? resolveLivingActivityFromRun(snapshot.currentRun)
+    : resolveLivingActivityForEmployee(employee.id)
 
   return (
     <Panel title={t.employeeWorkspace.sections.overview}>
@@ -35,7 +40,14 @@ export function WorkspaceOverview({ snapshot }: { snapshot: EmployeeWorkspaceSna
           </Link>
         </div>
 
-        <p className="acWorkspaceSummary">{t.employeeWorkspace.overviewSummary}</p>
+        {living ? (
+          <div className="acWorkspaceLiving">
+            <span className="mcFieldLabel">{t.livingCompany.doingNow}</span>
+            <LivingActivityLine snapshot={living} showProgress={living.progress !== null} />
+          </div>
+        ) : (
+          <p className="acWorkspaceSummary">{t.employeeWorkspace.overviewSummary}</p>
+        )}
 
         <div className="acWorkspaceMetricGrid">
           <div className="acWorkspaceMetric">
@@ -58,6 +70,11 @@ export function WorkspaceOverview({ snapshot }: { snapshot: EmployeeWorkspaceSna
               {snapshot.approvals.length + snapshot.pendingHandoffs.length}
             </span>
           </div>
+        </div>
+
+        <div className="acWorkspaceSubsection">
+          <span className="mcFieldLabel">{t.livingCompany.recentActivity}</span>
+          <RecentActivityStrip events={snapshot.activityEvents} limit={4} compact />
         </div>
       </div>
     </Panel>

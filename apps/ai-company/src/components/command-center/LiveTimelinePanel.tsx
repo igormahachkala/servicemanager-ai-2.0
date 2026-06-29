@@ -1,11 +1,16 @@
 import { Link } from 'react-router-dom'
 import type { CompanyEvent } from '../../domain/events/event'
 import { Badge, Card } from '../layout'
+import { LivingPulseDot } from '../living'
 import { formatFeedTime } from '../../mission-control/components/ui'
 import { useI18n } from '../../i18n'
 
 type Props = {
   events: CompanyEvent[]
+}
+
+function isRecent(iso: string): boolean {
+  return Date.now() - new Date(iso).getTime() < 5 * 60 * 1000
 }
 
 export function LiveTimelinePanel({ events }: Props) {
@@ -28,13 +33,20 @@ export function LiveTimelinePanel({ events }: Props) {
         <div className="acMuted">{t.executiveDashboard.noData}</div>
       ) : (
         <div className="mcCommandCenterTimeline">
-          {events.map((event) => (
-            <div key={event.id} className="mcCommandCenterTimelineRow">
-              <span className="acMono acMuted">{formatFeedTime(event.createdAt)}</span>
-              <span>{eventLabel(event.metadata)}</span>
-              <Badge variant={event.severity === 'error' ? 'danger' : 'default'}>{event.type}</Badge>
-            </div>
-          ))}
+          {events.map((event) => {
+            const recent = isRecent(event.createdAt)
+            return (
+              <div
+                key={event.id}
+                className={`mcCommandCenterTimelineRow${recent ? ' acCommandCenterTimelineRowLive' : ''}`}
+              >
+                {recent ? <LivingPulseDot phase="working" size="sm" /> : null}
+                <span className="acMono acMuted">{formatFeedTime(event.createdAt)}</span>
+                <span>{eventLabel(event.metadata)}</span>
+                <Badge variant={event.severity === 'error' ? 'danger' : 'default'}>{event.type}</Badge>
+              </div>
+            )
+          })}
         </div>
       )}
     </Card>

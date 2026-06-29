@@ -16,6 +16,7 @@ import './styles/workday.css'
 import './styles/kickoff.css'
 import './styles/visual-lab.css'
 import './styles/task-results.css'
+import './styles/living-company.css'
 import './styles/polish-v2.css'
 import './styles.css'
 

@@ -1,0 +1,272 @@
+.acLivingPulse {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--ac-muted, #94a3b8);
+}
+
+.acLivingPulseSm {
+  width: 6px;
+  height: 6px;
+}
+
+.acLivingPulseWorking,
+.acLivingPulseReviewing {
+  background: var(--ac-accent, #3b82f6);
+  box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.45);
+  animation: acLivingPulseAnim 1.8s ease-in-out infinite;
+}
+
+.acLivingPulseThinking {
+  background: #a855f7;
+  animation: acLivingPulseAnim 2.4s ease-in-out infinite;
+}
+
+.acLivingPulseWaiting {
+  background: #f59e0b;
+  animation: acLivingPulseAnim 2s ease-in-out infinite;
+}
+
+.acLivingPulseCompleted {
+  background: #22c55e;
+  animation: acLivingCompleteFlash 0.8s ease-out 1;
+}
+
+.acLivingPulseIdle {
+  background: var(--ac-muted, #94a3b8);
+  opacity: 0.55;
+}
+
+@keyframes acLivingPulseAnim {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.35);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(59, 130, 246, 0);
+    transform: scale(1.08);
+  }
+}
+
+@keyframes acLivingCompleteFlash {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.6;
+  }
+  40% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.acLivingActivity {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.acLivingActivityCompact {
+  gap: 4px;
+}
+
+.acLivingActivityHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.acLivingActivityText {
+  font-size: 13px;
+  line-height: 1.35;
+  flex: 1;
+  min-width: 0;
+}
+
+.acLivingActivityPhase,
+.acLivingActivitySince {
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.acLivingActivityCompleted .acLivingActivityText {
+  color: var(--ac-success, #16a34a);
+}
+
+.acLivingProgress {
+  position: relative;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.25);
+  overflow: hidden;
+}
+
+.acLivingProgressCompact {
+  height: 4px;
+}
+
+.acLivingProgressFill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #3b82f6, #6366f1);
+  transition: width 0.45s ease;
+}
+
+.acLivingProgressThinking .acLivingProgressFill {
+  background: linear-gradient(90deg, #a855f7, #6366f1);
+}
+
+.acLivingProgressWaiting .acLivingProgressFill {
+  background: linear-gradient(90deg, #f59e0b, #f97316);
+}
+
+.acLivingProgressCompleted .acLivingProgressFill {
+  background: linear-gradient(90deg, #22c55e, #16a34a);
+}
+
+.acLivingProgressLabel {
+  position: absolute;
+  right: 0;
+  top: -16px;
+  font-size: 10px;
+  color: var(--ac-muted, #94a3b8);
+}
+
+.acLivingRecentList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.acLivingRecentListCompact {
+  gap: 6px;
+}
+
+.acLivingRecentItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.acLivingRecentDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-top: 5px;
+  background: var(--ac-muted, #94a3b8);
+  opacity: 0.45;
+  flex-shrink: 0;
+}
+
+.acLivingRecentText {
+  flex: 1;
+  min-width: 0;
+}
+
+.acLivingRecentTime {
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.acLivingRecentEmpty {
+  font-size: 12px;
+  margin: 0;
+}
+
+.acLivingBanner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  background: rgba(59, 130, 246, 0.06);
+}
+
+.acLivingBannerLabel {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ac-muted, #64748b);
+  white-space: nowrap;
+}
+
+.acKickoffTeamActivity {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.acKickoffTeamRow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.acKickoffTeamRow:last-child {
+  border-bottom: none;
+}
+
+.acKickoffTeamMeta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.vlSidebarDoingNow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.acListRowLiving {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+
+.acListRowLivingMain {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.acWorkspaceLiving {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.acCommandCenterTimelineRowLive {
+  align-items: center;
+}
+
+.acCommandCenterTimelineRowLive .acLivingRecentDot {
+  background: #3b82f6;
+  opacity: 1;
+  animation: acLivingPulseAnim 1.8s ease-in-out infinite;
+}
+
+.acCanvasLive {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}

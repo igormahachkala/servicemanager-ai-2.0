@@ -1,3 +1,4 @@
+export { KickoffTeamActivityPanel } from './KickoffTeamActivityPanel'
 export { KickoffActionBar } from './KickoffActionBar'
 export { KickoffCtoPlanPanel } from './KickoffCtoPlanPanel'
 export { KickoffDemoReadinessPanel } from './KickoffDemoReadinessPanel'

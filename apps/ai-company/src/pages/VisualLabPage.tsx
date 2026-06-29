@@ -29,7 +29,11 @@ export function VisualLabPage() {
       <PageHeader title={t.visualLab.title} description={t.visualLab.description} />
 
       <div className="vlWorkspace">
-        <VisualLabSidebar context={session.context} testSteps={derived.testSteps} />
+        <VisualLabSidebar
+          context={session.context}
+          testSteps={derived.testSteps}
+          currentTimelineEntry={session.timeline[playback.activeIndex] ?? null}
+        />
 
         <div className="vlCenterColumn">
           <VisualLabEditorPanel

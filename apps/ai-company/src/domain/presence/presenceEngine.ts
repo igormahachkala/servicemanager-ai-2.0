@@ -2,6 +2,10 @@ import { loadApprovalStore } from '../approval/approvalStorage'
 import { getChatById, loadAllChats } from '../chats/chatStorage'
 import { loadProjects } from '../projects/project'
 import { loadRuntimeRuns } from '../runtime/runtimeOrchestrator'
+import {
+  presenceActivityFromLiving,
+  resolveLivingActivityFromRun,
+} from '../living/livingActivity'
 import { loadReports } from '../reports/reportStorage'
 import { agents, tasks } from '../../mission-control/data/mock'
 import { loadCustomEmployees } from '../../mission-control/data/customEmployees'
@@ -266,26 +270,28 @@ export function syncPresenceFromPlatform(): EmployeePresence[] {
 
   loadRuntimeRuns().forEach((run) => {
     if (run.status === 'waiting_approval') {
+      const living = resolveLivingActivityFromRun(run)
       addDraft(drafts, {
         employeeId: run.employeeId,
         status: 'waiting_approval',
         currentRunId: run.id,
         currentWorkspaceId: run.workspaceId,
         currentTaskId: run.taskId,
-        activity: 'Waiting for Owner approval',
+        activity: presenceActivityFromLiving(living),
         priority: STATUS_PRIORITY.waiting_approval,
       })
       return
     }
 
     if (run.status === 'running' || run.status === 'preparing_context' || run.status === 'queued') {
+      const living = resolveLivingActivityFromRun(run)
       addDraft(drafts, {
         employeeId: run.employeeId,
         status: 'working',
         currentRunId: run.id,
         currentWorkspaceId: run.workspaceId,
         currentTaskId: run.taskId,
-        activity: 'Runtime pipeline in progress',
+        activity: presenceActivityFromLiving(living),
         expectedFinish: expectedFinishFromMinutes(30),
         priority: STATUS_PRIORITY.working,
       })

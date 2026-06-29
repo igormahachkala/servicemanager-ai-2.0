@@ -713,7 +713,8 @@ export const ru: Messages = {
       status: "Статус",
       tests: "Test steps",
       project: "Project",
-      integrations: "Интеграции"
+      integrations: "Интеграции",
+      doingNow: "Сейчас делает"
     },
     integrations: {
       execution: "Execution Queue",
@@ -2051,12 +2052,9 @@ export const ru: Messages = {
   },
   taskRunner: {
     title: "Запуск задачи сотрудника",
-    description:
-      "Вставьте задачу из чата, назначьте цифрового сотрудника и запустите реальный Runtime через Ollama.",
-    intro:
-      "Owner flow: вставить задачу → выбрать сотрудника и режим → Start → мониторинг в Live Runtime Monitor.",
-    localNote:
-      "Хранится в localStorage (ai-company-task-runner-history, ai-company-delivery-tasks, ai-company-executions, ai-company-runtime-runs).",
+    description: "Вставьте задачу из чата, назначьте цифрового сотрудника и запустите реальный Runtime через Ollama.",
+    intro: "Owner flow: вставить задачу → выбрать сотрудника и режим → Start → мониторинг в Live Runtime Monitor.",
+    localNote: "Хранится в localStorage (ai-company-task-runner-history, ai-company-delivery-tasks, ai-company-executions, ai-company-runtime-runs).",
     employeeHint: "Доступные сотрудники: {names}",
     suggested: "Рекомендуется",
     defaultForEmployee: "По умолчанию",
@@ -2078,28 +2076,28 @@ export const ru: Messages = {
       constraints: "Ограничения",
       priority: "Приоритет",
       project: "Проект",
-      workspace: "Workspace"
+      workspace: "Рабочее пространство"
     },
     placeholders: {
       taskText: "Вставьте задачу из чата, briefing или чек-листа…",
       title: "Оставьте пустым — возьмём первую строку"
     },
     modes: {
-      planning: "Planning",
-      architecture: "Architecture",
+      planning: "Планирование",
+      architecture: "Архитектура",
       technical_audit: "Technical Audit",
       qa_review: "QA Review",
       devops_plan: "DevOps Plan",
       handoff_preparation: "Handoff Preparation",
-      documentation: "Documentation",
+      documentation: "Документация",
       product_review: "Product Review"
     },
     preview: {
-      title: "Заголовок",
+      title: "Название",
       employee: "Сотрудник",
       mode: "Режим",
       project: "Проект",
-      workspace: "Workspace",
+      workspace: "Рабочее пространство",
       taskExcerpt: "Фрагмент задачи",
       emptyTask: "Вставьте текст задачи для предпросмотра…"
     },
@@ -2134,7 +2132,8 @@ export const ru: Messages = {
       maxHandoff: "MAX → Codex handoff",
       qaChecklist: "QA checklist",
       ownerApprovals: "Owner approvals",
-      actions: "Kickoff actions"
+      actions: "Kickoff actions",
+      teamActivity: "Активность команды сейчас"
     },
     links: {
       controlRoom: "Control Room"
@@ -2146,8 +2145,8 @@ export const ru: Messages = {
     },
     sprint: {
       name: "Sprint",
-      status: "Status",
-      tasks: "Tasks",
+      status: "Статус",
+      tasks: "Задачи",
       health: "Health"
     },
     owner: {
@@ -2165,14 +2164,14 @@ export const ru: Messages = {
       ready: "Ready",
       needs_fix: "Needs Fix",
       blocked: "Blocked",
-      pending: "Pending"
+      pending: "Ожидание"
     },
     actions: {
       startAtlas: "Start Atlas (Planning)",
       startMax: "Start MAX (Technical Audit)",
       startQa: "Start QA (Demo Review)",
       starting: "Запуск…",
-      review: "Review",
+      review: "Проверка",
       openSprint: "Open Sprint",
       openCodexHandoff: "Codex handoff",
       openDemoChecklist: "Demo checklist",
@@ -2182,14 +2181,83 @@ export const ru: Messages = {
     },
     notFoundTitle: "Kickoff недоступен",
     notFoundDescription: "Не удалось загрузить kickoff snapshot AI Photo Lab.",
-    pageDescription:
-      "Owner kickoff hub — CTO plan, sprint, demo readiness, Codex handoff и быстрые запуски сотрудников.",
+    pageDescription: "Owner kickoff hub — CTO plan, sprint, demo readiness, Codex handoff и быстрые запуски сотрудников.",
     localNote: "Kickoff использует excerpts из docs и Control Room snapshot.",
     stats: {
       demoReady: "Demo gates",
       decisions: "Decisions",
-      approvals: "Approvals",
+      approvals: "Согласования",
       progress: "Progress"
+    }
+  },
+  taskResultEngine: {
+    pageDescription: "Очередь Owner review для результатов runtime — принять, отклонить или отправить на доработку после Run Task.",
+    openNotifications: "Уведомления по задачам",
+    filtersTitle: "Фильтры",
+    catalogTitle: "Очередь результатов",
+    previewTitle: "Предпросмотр review",
+    searchLabel: "Поиск",
+    searchPlaceholder: "Название, сотрудник, task id…",
+    openDetails: "Открыть детали",
+    selectResult: "Выберите результат для review.",
+    empty: "Нет результатов — запустите задачу из Employee Runtime.",
+    notFoundTitle: "Результат не найден",
+    notFoundDescription: "Этот результат отсутствует в local storage.",
+    backToList: "Назад к результатам",
+    openRun: "Открыть runtime run",
+    openReport: "Открыть отчёт",
+    openHandoff: "Открыть handoff",
+    openFollowUp: "Открыть follow-up задачу",
+    openProject: "Открыть проект",
+    noTimeline: "История review пуста.",
+    noFindings: "Findings не записаны.",
+    noArtifacts: "Артефакты не привязаны.",
+    commentPlaceholder: "Комментарий Owner для сотрудника…",
+    principleNote: "Flow: Run Task → Runtime Result → Draft Report → Owner Review → Approve / Changes / Reject → Timeline + Notification + Task status.",
+    flowNote: "Approve публикует отчёт и закрывает delivery task. Request changes возвращает задачу в in_progress.",
+    localOnly: "localStorage (ai-company-task-results) — mock-only.",
+    stats: {
+      total: "Всего результатов",
+      readyForReview: "Ready for review",
+      approved: "Одобрено",
+      changesRequested: "Changes requested"
+    },
+    sections: {
+      review: "Owner review",
+      output: "Output сотрудника",
+      artifacts: "Артефакты и ссылки",
+      timeline: "Timeline review"
+    },
+    fields: {
+      status: "Статус",
+      ownerComment: "Комментарий Owner"
+    },
+    actions: {
+      approve: "Одобрить",
+      requestChanges: "Request changes",
+      reject: "Отклонить",
+      createFollowUp: "Create follow-up task",
+      sendToQa: "Send to QA",
+      sendToCodex: "Send to Codex handoff",
+      archive: "Archive"
+    },
+    statuses: {
+      draft: "Черновик",
+      ready_for_review: "Ready for Review",
+      approved: "Одобрено",
+      changes_requested: "Changes Requested",
+      rejected: "Отклонено",
+      archived: "В архиве"
+    },
+    reviewActions: {
+      submit_for_review: "Submitted for review",
+      approve: "Одобрено",
+      request_changes: "Changes requested",
+      reject: "Отклонено",
+      create_follow_up: "Follow-up task created",
+      send_to_qa: "Sent to QA",
+      send_to_codex: "Sent to Codex",
+      archive: "В архиве"
     }
   },
   canvasEngine: {
@@ -2578,79 +2646,6 @@ export const ru: Messages = {
       accepted: "Accepted",
       rejected: "Отклонено",
       cancelled: "Отменено"
-    }
-  },
-  taskResultEngine: {
-    pageDescription:
-      "Очередь Owner review для результатов runtime — принять, отклонить или отправить на доработку после Run Task.",
-    openNotifications: "Уведомления по задачам",
-    filtersTitle: "Фильтры",
-    catalogTitle: "Очередь результатов",
-    previewTitle: "Предпросмотр review",
-    searchLabel: "Поиск",
-    searchPlaceholder: "Название, сотрудник, task id…",
-    openDetails: "Открыть детали",
-    selectResult: "Выберите результат для review.",
-    empty: "Нет результатов — запустите задачу из Employee Runtime.",
-    notFoundTitle: "Результат не найден",
-    notFoundDescription: "Этот результат отсутствует в local storage.",
-    backToList: "Назад к результатам",
-    openRun: "Открыть runtime run",
-    openReport: "Открыть отчёт",
-    openHandoff: "Открыть handoff",
-    openFollowUp: "Открыть follow-up задачу",
-    openProject: "Открыть проект",
-    noTimeline: "История review пуста.",
-    noFindings: "Findings не записаны.",
-    noArtifacts: "Артефакты не привязаны.",
-    commentPlaceholder: "Комментарий Owner для сотрудника…",
-    principleNote:
-      "Flow: Run Task → Runtime Result → Draft Report → Owner Review → Approve / Changes / Reject → Timeline + Notification + Task status.",
-    flowNote:
-      "Approve публикует отчёт и закрывает delivery task. Request changes возвращает задачу в in_progress.",
-    localOnly: "localStorage (ai-company-task-results) — mock-only.",
-    stats: {
-      total: "Всего результатов",
-      readyForReview: "Ready for review",
-      approved: "Approved",
-      changesRequested: "Changes requested"
-    },
-    sections: {
-      review: "Owner review",
-      output: "Output сотрудника",
-      artifacts: "Артефакты и ссылки",
-      timeline: "Timeline review"
-    },
-    fields: {
-      status: "Статус",
-      ownerComment: "Комментарий Owner"
-    },
-    actions: {
-      approve: "Approve",
-      requestChanges: "Request changes",
-      reject: "Reject",
-      createFollowUp: "Create follow-up task",
-      sendToQa: "Send to QA",
-      sendToCodex: "Send to Codex handoff",
-      archive: "Archive"
-    },
-    statuses: {
-      draft: "Draft",
-      ready_for_review: "Ready for Review",
-      approved: "Approved",
-      changes_requested: "Changes Requested",
-      rejected: "Rejected",
-      archived: "Archived"
-    },
-    reviewActions: {
-      submit_for_review: "Submitted for review",
-      approve: "Approved",
-      request_changes: "Changes requested",
-      reject: "Rejected",
-      create_follow_up: "Follow-up task created",
-      send_to_qa: "Sent to QA",
-      send_to_codex: "Sent to Codex",
-      archive: "Archived"
     }
   },
   runtimeOrchestrator: {
@@ -3441,6 +3436,67 @@ export const ru: Messages = {
       activityFeed: "Лента активности",
       activityFeedDesc: "Недавние действия, task transitions и operational events."
     }
+  },
+  livingCompany: {
+    now: 'сейчас',
+    since: '{time} назад',
+    doingNow: 'Сейчас делает',
+    fallback: 'Работает над {context}',
+    phases: {
+      working: 'В работе',
+      thinking: 'Думает',
+      waiting: 'Ожидает',
+      reviewing: 'На ревью',
+      completed: 'Завершено',
+      idle: 'Свободен',
+    },
+    verbs: {
+      atlas: {
+        architecture: 'Анализирует архитектуру…',
+        task: 'Анализирует {task}…',
+      },
+      max: {
+        upload: 'Проверяет upload flow…',
+        task: 'Аудит {task}…',
+      },
+      qa: {
+        regression: 'Выполняет регрессионное тестирование…',
+        task: 'Тестирует {task}…',
+      },
+      devops: {
+        environment: 'Проверяет окружение…',
+        task: 'Проверяет {task}…',
+      },
+      default: {
+        task: 'Работает над {task}…',
+      },
+    },
+    pipeline: {
+      receive_request: 'Принимает запрос…',
+      load_employee: 'Загружает профиль сотрудника…',
+      load_workspace: 'Загружает workspace…',
+      load_memory: 'Читает память…',
+      load_knowledge: 'Загружает knowledge…',
+      load_competencies: 'Загружает компетенции…',
+      load_runtime_profile: 'Загружает runtime profile…',
+      run_model_router: 'Маршрутизирует вызов модели…',
+      approval_check: 'Ожидает одобрение Owner…',
+      tool_gateway: 'Выполняет tools…',
+      create_run: 'Создаёт запись run…',
+      emit_event: 'Отправляет event…',
+      create_report: 'Готовит отчёт…',
+      complete: 'Завершает…',
+    },
+    taskResult: {
+      working: 'Готовит результат',
+      ready_for_review: 'Готов к вашему ревью',
+      reviewing: 'Запрошены правки — доработка',
+      completed: 'Одобрено и завершено',
+      waiting: 'Ожидает ревью Owner',
+      idle: 'В архиве',
+    },
+    recentActivity: 'Недавняя активность',
+    noRecentActivity: 'Нет недавней активности',
   },
   mock: {
     lastActivity: "Ожидание активации V1",

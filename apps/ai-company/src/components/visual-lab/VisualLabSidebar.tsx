@@ -1,18 +1,21 @@
-import { Link } from 'react-router-dom'
-import { VISUAL_LAB_INTEGRATIONS, type VisualLabSessionContext } from '../../domain/visualLab'
+import { VISUAL_LAB_INTEGRATIONS, type VisualLabSessionContext, type VisualLabTimelineEntry } from '../../domain/visualLab'
 import { Badge } from '../layout'
+import { LivingPulseDot } from '../living'
+import { Link } from 'react-router-dom'
 import { useI18n } from '../../i18n'
 
 type Props = {
   context: VisualLabSessionContext
   testSteps: Array<{ id: string; label: string; status: string }>
+  currentTimelineEntry?: VisualLabTimelineEntry | null
 }
 
-export function VisualLabSidebar({ context, testSteps }: Props) {
+export function VisualLabSidebar({ context, testSteps, currentTimelineEntry }: Props) {
   const { t } = useI18n()
   const vl = t.visualLab
 
   const passedCount = testSteps.filter((item) => item.status === 'passed').length
+  const runningStep = testSteps.find((item) => item.status === 'running')
 
   return (
     <aside className="vlSidebar">
@@ -24,6 +27,19 @@ export function VisualLabSidebar({ context, testSteps }: Props) {
         <div className="vlSidebarMeta">{context.employeeRole}</div>
         <div className="vlSidebarMeta acMono">{context.employeeId}</div>
       </section>
+
+      {currentTimelineEntry || runningStep ? (
+        <section className="vlSidebarSection">
+          <div className="vlSidebarSectionTitle">{vl.sidebar.doingNow}</div>
+          <div className="vlSidebarDoingNow">
+            <LivingPulseDot phase="working" size="sm" />
+            <span>{currentTimelineEntry?.label ?? runningStep?.label}</span>
+          </div>
+          {currentTimelineEntry?.detail ? (
+            <div className="vlSidebarMeta">{currentTimelineEntry.detail}</div>
+          ) : null}
+        </section>
+      ) : null}
 
       <section className="vlSidebarSection">
         <div className="vlSidebarSectionTitle">{vl.sidebar.task}</div>

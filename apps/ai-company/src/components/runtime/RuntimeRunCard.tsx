@@ -1,6 +1,8 @@
 import type { RuntimeRun } from '../../domain/runtime/runtimeOrchestrator'
+import { resolveLivingActivityFromRun } from '../../domain/living'
 import { getModelById, getProviderById } from '../../domain/runtime/runtimeStorage'
 import { resolveEmployee } from '../../mission-control/data/conversation'
+import { LivingActivityLine } from '../living'
 import { useI18n } from '../../i18n'
 import { RuntimeStateBadge } from './RuntimeStateBadge'
 
@@ -19,6 +21,7 @@ export function RuntimeRunCard({ run }: { run: RuntimeRun }) {
   const employee = resolveEmployee(run.employeeId)
   const model = getModelById(run.modelId)
   const provider = getProviderById(run.providerId)
+  const living = resolveLivingActivityFromRun(run)
 
   return (
     <article className="mcRuntimeRunCard">
@@ -31,6 +34,11 @@ export function RuntimeRunCard({ run }: { run: RuntimeRun }) {
         </div>
         <RuntimeStateBadge state={run.status} />
       </div>
+      <LivingActivityLine
+        snapshot={living}
+        compact
+        showProgress={living.progress !== null && run.status !== 'completed'}
+      />
       <div className="mcRuntimeRunCardBody">
         <div className="mcRuntimeProfileRow">
           <span>{t.runtimeOrchestrator.model}</span>

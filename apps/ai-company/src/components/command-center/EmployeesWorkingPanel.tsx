@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import type { CommandCenterEmployeeRow } from '../../domain/commandCenter'
 import { Card } from '../layout'
 import { EmployeePresenceCard } from '../presence'
+import { usePresence } from '../../hooks/usePresence'
 import { useI18n } from '../../i18n'
 
 type Props = {
@@ -9,8 +10,24 @@ type Props = {
   waiting: CommandCenterEmployeeRow[]
 }
 
+function fallbackPresence(row: CommandCenterEmployeeRow) {
+  return {
+    employeeId: row.employeeId,
+    status: row.status,
+    currentProjectId: null,
+    currentWorkspaceId: null,
+    currentTaskId: null,
+    currentRunId: null,
+    activity: row.activity,
+    startedAt: new Date().toISOString(),
+    expectedFinish: null,
+    updatedAt: new Date().toISOString(),
+  }
+}
+
 export function EmployeesWorkingPanel({ working, waiting }: Props) {
   const { t } = useI18n()
+  const { getByEmployeeId } = usePresence()
 
   return (
     <Card
@@ -26,35 +43,13 @@ export function EmployeesWorkingPanel({ working, waiting }: Props) {
         {working.slice(0, 4).map((row) => (
           <EmployeePresenceCard
             key={row.employeeId}
-            presence={{
-              employeeId: row.employeeId,
-              status: row.status,
-              currentProjectId: null,
-              currentWorkspaceId: null,
-              currentTaskId: null,
-              currentRunId: null,
-              activity: row.activity,
-              startedAt: new Date().toISOString(),
-              expectedFinish: null,
-              updatedAt: new Date().toISOString(),
-            }}
+            presence={getByEmployeeId(row.employeeId) ?? fallbackPresence(row)}
           />
         ))}
         {waiting.slice(0, 2).map((row) => (
           <EmployeePresenceCard
             key={row.employeeId}
-            presence={{
-              employeeId: row.employeeId,
-              status: row.status,
-              currentProjectId: null,
-              currentWorkspaceId: null,
-              currentTaskId: null,
-              currentRunId: null,
-              activity: row.activity,
-              startedAt: new Date().toISOString(),
-              expectedFinish: null,
-              updatedAt: new Date().toISOString(),
-            }}
+            presence={getByEmployeeId(row.employeeId) ?? fallbackPresence(row)}
           />
         ))}
         {working.length === 0 && waiting.length === 0 ? (

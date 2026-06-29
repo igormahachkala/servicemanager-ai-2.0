@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom'
-import { resolveEmployee } from '../../mission-control/data/conversation'
 import type { TaskResult } from '../../domain/taskResults'
+import { resolveLivingActivityFromTaskResult } from '../../domain/living'
+import { resolveEmployee } from '../../mission-control/data/conversation'
+import { LivingActivityLine } from '../living'
 import { useI18n } from '../../i18n'
 import { TaskResultStatusBadge } from './TaskResultStatusBadge'
 
@@ -13,6 +15,7 @@ type Props = {
 
 export function TaskResultCard({ result, selected, onSelect, compact }: Props) {
   const employee = resolveEmployee(result.employeeId)
+  const living = resolveLivingActivityFromTaskResult(result)
   const className = selected ? 'acTaskResultCard acTaskResultCardSelected' : 'acTaskResultCard'
 
   const body = (
@@ -21,6 +24,7 @@ export function TaskResultCard({ result, selected, onSelect, compact }: Props) {
         <span className="acTaskResultCardTitle">{result.title}</span>
         <TaskResultStatusBadge status={result.status} />
       </div>
+      <LivingActivityLine snapshot={living} compact showProgress={false} showSince={false} />
       {!compact ? <p className="acTaskResultCardSummary">{result.summary}</p> : null}
       <div className="acTaskResultCardMeta mcMuted">
         <span>{employee?.codename ?? result.employeeId}</span>

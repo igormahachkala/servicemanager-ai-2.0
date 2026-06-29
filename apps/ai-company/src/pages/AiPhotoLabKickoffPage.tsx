@@ -8,6 +8,7 @@ import {
   KickoffOwnerApprovalsPanel,
   KickoffQaChecklistPanel,
   KickoffSprintPanel,
+  KickoffTeamActivityPanel,
 } from '../components/projects/kickoff'
 import { useAiPhotoLabKickoff } from '../hooks/useAiPhotoLabKickoff'
 import { PageHeader } from '../mission-control/components/ui'
@@ -74,6 +75,7 @@ export function AiPhotoLabKickoffPage() {
           <KickoffMaxHandoffPanel snapshot={snapshot} />
         </div>
         <div className="acKickoffSide">
+          <KickoffTeamActivityPanel snapshot={snapshot} />
           <KickoffOwnerApprovalsPanel snapshot={snapshot} />
           <KickoffQaChecklistPanel snapshot={snapshot} />
         </div>
