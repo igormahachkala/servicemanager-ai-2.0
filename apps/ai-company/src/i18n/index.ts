@@ -95,6 +95,8 @@ export function pageTitle(pathname: string, t: Messages): string {
   if (pathname === '/ops/activity') return t.pages.activity
   if (pathname === '/ops/approvals') return t.pages.approvals
   if (pathname.startsWith('/ops/approvals/')) return t.pages.approvals
+  if (pathname === '/ops/task-results') return t.pages.taskResults
+  if (pathname.startsWith('/ops/task-results/')) return t.pages.taskResults
   if (pathname === '/ops/tools') return t.pages.toolsRegistry
   if (pathname.startsWith('/ops/tools/')) return t.toolRegistry.detailsTitle
   if (pathname === '/ops/tool-executions') return t.pages.toolExecutions

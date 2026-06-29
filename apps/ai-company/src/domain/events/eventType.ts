@@ -32,6 +32,12 @@ export const EVENT_TYPES = [
   'workday.started',
   'workday.phase_changed',
   'workday.finished',
+  'task_result.created',
+  'task_result.ready',
+  'task_result.approved',
+  'task_result.changes_requested',
+  'task_result.rejected',
+  'task_result.archived',
 ] as const
 
 export type EventType = (typeof EVENT_TYPES)[number]

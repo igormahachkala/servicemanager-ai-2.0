@@ -13,6 +13,7 @@ export const EVENT_SOURCE_TYPES = [
   'run',
   'collaboration',
   'handoff',
+  'task_result',
   'system',
   'owner',
 ] as const

@@ -27,6 +27,7 @@ export function SideNav() {
     { to: `${OPS}/activity`, page: 'activity' as const, icon: '◉', end: false },
     { to: `${OPS}/feed`, page: 'missionFeed' as const, icon: '≡', end: false },
     { to: `${OPS}/notifications`, page: 'notifications' as const, icon: '🔔', end: false },
+    { to: `${OPS}/task-results`, page: 'taskResults' as const, icon: '✎', end: false },
     { to: `${OPS}/approvals`, page: 'approvals' as const, icon: '✓', end: false },
     { to: `${OPS}/reports`, page: 'reports' as const, icon: '📋', end: false },
     { to: `${OPS}/runs`, page: 'runs' as const, icon: '▶', end: false },

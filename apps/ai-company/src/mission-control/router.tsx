@@ -46,6 +46,7 @@ import { EmployeeCompetenciesPage } from '../pages/EmployeeCompetenciesPage'
 import { EmployeeLearningPage } from '../pages/EmployeeLearningPage'
 import { CollaborationPage } from '../pages/CollaborationPage'
 import { AiPhotoLabControlRoomPage } from '../pages/AiPhotoLabControlRoomPage'
+import { AiPhotoLabKickoffPage } from '../pages/AiPhotoLabKickoffPage'
 import { ExecutionPage } from '../pages/ExecutionPage'
 import { CompanyCanvasPage } from '../pages/CompanyCanvasPage'
 import { ToolExecutionsPage } from '../pages/ToolExecutionsPage'
@@ -53,7 +54,10 @@ import { HandoffsPage } from '../pages/HandoffsPage'
 import { HandoffDetailsPage } from '../pages/HandoffDetailsPage'
 import { SprintPage } from '../pages/SprintPage'
 import { WorkdayPage } from '../pages/WorkdayPage'
+import { TaskResultsPage } from '../pages/TaskResultsPage'
+import { TaskResultDetailsPage } from '../pages/TaskResultDetailsPage'
 import { VisualLabPage } from '../pages/VisualLabPage'
+import { RunTaskPage } from '../pages/RunTaskPage'
 
 function LegacyConversationRedirect() {
   const { id } = useParams<{ id: string }>()
@@ -91,6 +95,7 @@ export function MissionControlRoutes() {
         <Route path="employees/:id" element={<EmployeeProfilePage />} />
         <Route path="tasks" element={<TasksPage />} />
         <Route path="execution" element={<ExecutionPage />} />
+        <Route path="run-task" element={<RunTaskPage />} />
         <Route path="visual-lab" element={<VisualLabPage />} />
         <Route path="feed" element={<Navigate to="/ops/timeline" replace />} />
         <Route path="timeline" element={<CompanyTimelinePage />} />
@@ -118,6 +123,7 @@ export function MissionControlRoutes() {
         <Route path="workday" element={<WorkdayPage />} />
         <Route path="projects" element={<ProjectsPage />} />
         <Route path="projects/new" element={<NewProjectPage />} />
+        <Route path="projects/project-ai-photo-lab/kickoff" element={<AiPhotoLabKickoffPage />} />
         <Route path="projects/project-ai-photo-lab/control-room" element={<AiPhotoLabControlRoomPage />} />
         <Route path="projects/:id/control-room" element={<AiPhotoLabControlRoomPage />} />
         <Route path="projects/:id" element={<ProjectPage />} />
@@ -130,6 +136,8 @@ export function MissionControlRoutes() {
         <Route path="tools" element={<ToolsCatalogPage />} />
         <Route path="tools/:id" element={<ToolDetailsPage />} />
         <Route path="tool-executions" element={<ToolExecutionsPage />} />
+        <Route path="task-results/:id" element={<TaskResultDetailsPage />} />
+        <Route path="task-results" element={<TaskResultsPage />} />
         <Route path="handoffs/:id" element={<HandoffDetailsPage />} />
         <Route path="handoffs" element={<HandoffsPage />} />
         <Route path="sprint/:id" element={<SprintPage />} />

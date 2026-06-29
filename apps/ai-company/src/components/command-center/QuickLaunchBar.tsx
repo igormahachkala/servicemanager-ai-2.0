@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import type { CommandCenterChartPoint } from '../../domain/commandCenter'
 import { AI_PHOTO_LAB_PROJECT_ID } from '../../domain/projects/aiPhotoLabIds'
+import { AI_PHOTO_LAB_KICKOFF_PATH } from '../../domain/projects/aiPhotoLabKickoff'
 import { AI_PHOTO_LAB_CONTROL_ROOM_PATH } from '../../domain/projects/aiPhotoLabControlRoom'
 import { AI_PHOTO_LAB_SPRINT_PATH } from '../../domain/sprint/sprintStorage'
 import { Card } from '../layout'
@@ -16,7 +17,10 @@ const QUICK_LAUNCH = [
     primary: true,
   },
   { id: 'sprint', to: AI_PHOTO_LAB_SPRINT_PATH, labelKey: 'sprint' as const, primary: true },
+  { id: 'kickoff', to: AI_PHOTO_LAB_KICKOFF_PATH, labelKey: 'kickoff' as const, primary: true },
   { id: 'controlRoom', to: AI_PHOTO_LAB_CONTROL_ROOM_PATH, labelKey: 'controlRoom' as const, primary: true },
+  { id: 'runTask', to: '/ops/run-task', labelKey: 'runTask' as const, primary: true },
+  { id: 'taskResults', to: '/ops/task-results', labelKey: 'taskResults' as const, primary: true },
   { id: 'handoffs', to: '/ops/handoffs', labelKey: 'handoffs' as const, primary: false },
   { id: 'runtime', to: '/ops/runtime', labelKey: 'runtime' as const, primary: false },
 ] as const

@@ -6,6 +6,7 @@ import { ensureSeedMemories, getMemoriesByEmployee } from '../memory/memory'
 import { queryKnowledgeForRuntime } from '../knowledge/knowledgeStorage'
 import { loadReports, saveReports } from '../reports/reportStorage'
 import type { Report } from '../reports/report'
+import { createTaskResultFromRuntimeRun } from '../taskResults/taskResultStorage'
 import { DEFAULT_COMPANY_ID } from '../projects/project'
 import { getWorkspaceById } from '../workspaces/workspace'
 import { resolveEmployee } from '../../mission-control/data/conversation'
@@ -903,6 +904,26 @@ export async function orchestrateRuntimeRun(request: RuntimeRunRequest): Promise
         label: report.title,
         refId: report.id,
       })
+      createTaskResultFromRuntimeRun(
+        {
+          id: runId,
+          employeeId: request.employeeId,
+          workspaceId: request.workspaceId ?? null,
+          runtimeProfileId: profile.id,
+          modelId: selection.selectedModelId,
+          providerId: selection.selectedProviderId,
+          taskId: request.taskId ?? null,
+          chatId: request.chatId ?? null,
+          reportId: report.id,
+          status: 'running',
+          startedAt,
+          finishedAt: null,
+          context,
+          pipeline,
+          result,
+        },
+        report,
+      )
 
       emitEvent({
         type: 'run.completed',
@@ -1050,6 +1071,10 @@ export async function completeRuntimeRunAfterApproval(runId: string): Promise<Ru
       label: report.title,
       refId: report.id,
     })
+    createTaskResultFromRuntimeRun(
+      { ...existing, reportId: report.id, result, status: 'running' },
+      report,
+    )
 
     emitEvent({
       type: 'run.completed',

@@ -1,0 +1,167 @@
+.acTaskResultLayout {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) 1fr;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.acTaskResultFilters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+}
+
+.acTaskResultList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.acTaskResultCard {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--mc-border, rgba(255, 255, 255, 0.08));
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: var(--mc-surface-2, rgba(255, 255, 255, 0.02));
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.acTaskResultCard:hover,
+.acTaskResultCardSelected {
+  border-color: var(--mc-accent, #6ea8fe);
+  background: rgba(110, 168, 254, 0.06);
+}
+
+.acTaskResultCardHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.acTaskResultCardTitle {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.acTaskResultCardSummary {
+  font-size: 0.85rem;
+  color: var(--mc-muted, rgba(255, 255, 255, 0.65));
+  margin: 0 0 8px;
+}
+
+.acTaskResultCardMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 0.75rem;
+}
+
+.acTaskResultStatusBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.acTaskResultStatusDraft {
+  background: rgba(148, 163, 184, 0.15);
+  color: #cbd5e1;
+}
+
+.acTaskResultStatusReady_for_review {
+  background: rgba(59, 130, 246, 0.18);
+  color: #93c5fd;
+}
+
+.acTaskResultStatusApproved {
+  background: rgba(34, 197, 94, 0.18);
+  color: #86efac;
+}
+
+.acTaskResultStatusChanges_requested {
+  background: rgba(245, 158, 11, 0.18);
+  color: #fcd34d;
+}
+
+.acTaskResultStatusRejected {
+  background: rgba(239, 68, 68, 0.18);
+  color: #fca5a5;
+}
+
+.acTaskResultStatusArchived {
+  background: rgba(100, 116, 139, 0.18);
+  color: #94a3b8;
+}
+
+.acTaskResultActionRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 16px 0;
+}
+
+.acTaskResultDetailMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.acTaskResultReviewForm {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.acTaskResultTimeline {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.acTaskResultTimelineItem {
+  border-left: 2px solid var(--mc-border, rgba(255, 255, 255, 0.12));
+  padding-left: 12px;
+}
+
+.acTaskResultTimelineHead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.acTaskResultFindingsList {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.acTaskResultArtifactGrid {
+  display: grid;
+  gap: 8px;
+}
+
+.acTaskResultArtifactRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.88rem;
+}
+
+@media (max-width: 900px) {
+  .acTaskResultLayout {
+    grid-template-columns: 1fr;
+  }
+}

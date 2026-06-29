@@ -107,7 +107,9 @@ export const ru: Messages = {
     approvals: "Согласования",
     presence: "Присутствие",
     workday: "Рабочий день",
-    visualLab: "Visual Execution Lab"
+    visualLab: "Visual Execution Lab",
+    runTask: "Запуск задачи",
+    taskResults: "Результаты задач"
   },
   agentStatus: {
     online: "онлайн",
@@ -683,8 +685,11 @@ export const ru: Messages = {
       canvas: "Canvas",
       sprint: "Sprint",
       controlRoom: "Control Room",
+      kickoff: "Kickoff",
       handoffs: "Handoffs",
-      runtime: "Runtime"
+      runtime: "Runtime",
+      runTask: "Запуск задачи",
+      taskResults: "Результаты задач"
     },
     empty: {
       sprint: "No active sprint configured",
@@ -1845,6 +1850,12 @@ export const ru: Messages = {
       "tool.connected": "Инструмент подключён",
       "task.created": "Задача создана",
       "task.completed": "Задача завершена",
+      "task_result.created": "Task Result создан",
+      "task_result.ready": "Task Result готов",
+      "task_result.approved": "Task Result одобрен",
+      "task_result.changes_requested": "Task Result — нужны правки",
+      "task_result.rejected": "Task Result отклонён",
+      "task_result.archived": "Task Result архивирован",
       "runtime.started": "Runtime Started",
       "runtime.failed": "Runtime Failed",
       "run.completed": "Запуск завершён",
@@ -2036,6 +2047,149 @@ export const ru: Messages = {
       cancel: "Отмена",
       retry: "Повторить",
       complete: "Завершить"
+    }
+  },
+  taskRunner: {
+    title: "Запуск задачи сотрудника",
+    description:
+      "Вставьте задачу из чата, назначьте цифрового сотрудника и запустите реальный Runtime через Ollama.",
+    intro:
+      "Owner flow: вставить задачу → выбрать сотрудника и режим → Start → мониторинг в Live Runtime Monitor.",
+    localNote:
+      "Хранится в localStorage (ai-company-task-runner-history, ai-company-delivery-tasks, ai-company-executions, ai-company-runtime-runs).",
+    employeeHint: "Доступные сотрудники: {names}",
+    suggested: "Рекомендуется",
+    defaultForEmployee: "По умолчанию",
+    extractedTitle: "Авто-заголовок: {title}",
+    startNote: "Создаёт delivery task, execution, runtime run, draft report, timeline и notification.",
+    sections: {
+      input: "Текст задачи",
+      employee: "Сотрудник",
+      mode: "Режим",
+      project: "Проект и workspace",
+      preview: "Предпросмотр",
+      result: "Последний результат",
+      history: "История запусков"
+    },
+    fields: {
+      taskText: "Текст задачи",
+      title: "Заголовок (опционально)",
+      expectedOutput: "Ожидаемый результат",
+      constraints: "Ограничения",
+      priority: "Приоритет",
+      project: "Проект",
+      workspace: "Workspace"
+    },
+    placeholders: {
+      taskText: "Вставьте задачу из чата, briefing или чек-листа…",
+      title: "Оставьте пустым — возьмём первую строку"
+    },
+    modes: {
+      planning: "Planning",
+      architecture: "Architecture",
+      technical_audit: "Technical Audit",
+      qa_review: "QA Review",
+      devops_plan: "DevOps Plan",
+      handoff_preparation: "Handoff Preparation",
+      documentation: "Documentation",
+      product_review: "Product Review"
+    },
+    preview: {
+      title: "Заголовок",
+      employee: "Сотрудник",
+      mode: "Режим",
+      project: "Проект",
+      workspace: "Workspace",
+      taskExcerpt: "Фрагмент задачи",
+      emptyTask: "Вставьте текст задачи для предпросмотра…"
+    },
+    actions: {
+      start: "Start",
+      starting: "Запуск…",
+      openRunTask: "Запуск задачи"
+    },
+    result: {
+      empty: "Запустите задачу, чтобы увидеть ответ сотрудника.",
+      openLive: "Live monitor",
+      openRun: "Детали run",
+      openReport: "Отчёт",
+      noResponse: "Run завершился без текста ответа."
+    },
+    history: {
+      empty: "Пока не было запусков через Run Task.",
+      live: "Live",
+      report: "Отчёт"
+    }
+  },
+  photoLabKickoff: {
+    title: "AI Photo Lab Kickoff",
+    description: "Owner kickoff hub — CTO plan, sprint, demo readiness, Codex handoff и быстрые запуски сотрудников.",
+    actionsHint: "Запустите пресеты Atlas / MAX / QA или перейдите на связанные поверхности.",
+    handoffChecklistDone: "пунктов чек-листа",
+    demoReadyLabel: "gates ready",
+    sections: {
+      ctoPlan: "CTO plan",
+      sprintGoal: "Sprint goal",
+      demoReadiness: "Demo readiness",
+      maxHandoff: "MAX → Codex handoff",
+      qaChecklist: "QA checklist",
+      ownerApprovals: "Owner approvals",
+      actions: "Kickoff actions"
+    },
+    links: {
+      controlRoom: "Control Room"
+    },
+    cto: {
+      weekGoal: "Week goal",
+      priorities: "Priorities",
+      codexScope: "Codex scope"
+    },
+    sprint: {
+      name: "Sprint",
+      status: "Status",
+      tasks: "Tasks",
+      health: "Health"
+    },
+    owner: {
+      decisions: "Owner decisions",
+      approvals: "Pending approvals",
+      noDecisions: "Нет открытых owner decisions.",
+      noApprovals: "Нет pending approvals."
+    },
+    demoOverall: {
+      ready: "Ready",
+      needs_fix: "Needs Fix",
+      blocked: "Blocked"
+    },
+    gateStatus: {
+      ready: "Ready",
+      needs_fix: "Needs Fix",
+      blocked: "Blocked",
+      pending: "Pending"
+    },
+    actions: {
+      startAtlas: "Start Atlas (Planning)",
+      startMax: "Start MAX (Technical Audit)",
+      startQa: "Start QA (Demo Review)",
+      starting: "Запуск…",
+      review: "Review",
+      openSprint: "Open Sprint",
+      openCodexHandoff: "Codex handoff",
+      openDemoChecklist: "Demo checklist",
+      openLiveRuntime: "Live Runtime",
+      openVisualLab: "Visual Lab",
+      openRunTask: "Run Task"
+    },
+    notFoundTitle: "Kickoff недоступен",
+    notFoundDescription: "Не удалось загрузить kickoff snapshot AI Photo Lab.",
+    pageDescription:
+      "Owner kickoff hub — CTO plan, sprint, demo readiness, Codex handoff и быстрые запуски сотрудников.",
+    localNote: "Kickoff использует excerpts из docs и Control Room snapshot.",
+    stats: {
+      demoReady: "Demo gates",
+      decisions: "Decisions",
+      approvals: "Approvals",
+      progress: "Progress"
     }
   },
   canvasEngine: {
@@ -2424,6 +2578,79 @@ export const ru: Messages = {
       accepted: "Accepted",
       rejected: "Отклонено",
       cancelled: "Отменено"
+    }
+  },
+  taskResultEngine: {
+    pageDescription:
+      "Очередь Owner review для результатов runtime — принять, отклонить или отправить на доработку после Run Task.",
+    openNotifications: "Уведомления по задачам",
+    filtersTitle: "Фильтры",
+    catalogTitle: "Очередь результатов",
+    previewTitle: "Предпросмотр review",
+    searchLabel: "Поиск",
+    searchPlaceholder: "Название, сотрудник, task id…",
+    openDetails: "Открыть детали",
+    selectResult: "Выберите результат для review.",
+    empty: "Нет результатов — запустите задачу из Employee Runtime.",
+    notFoundTitle: "Результат не найден",
+    notFoundDescription: "Этот результат отсутствует в local storage.",
+    backToList: "Назад к результатам",
+    openRun: "Открыть runtime run",
+    openReport: "Открыть отчёт",
+    openHandoff: "Открыть handoff",
+    openFollowUp: "Открыть follow-up задачу",
+    openProject: "Открыть проект",
+    noTimeline: "История review пуста.",
+    noFindings: "Findings не записаны.",
+    noArtifacts: "Артефакты не привязаны.",
+    commentPlaceholder: "Комментарий Owner для сотрудника…",
+    principleNote:
+      "Flow: Run Task → Runtime Result → Draft Report → Owner Review → Approve / Changes / Reject → Timeline + Notification + Task status.",
+    flowNote:
+      "Approve публикует отчёт и закрывает delivery task. Request changes возвращает задачу в in_progress.",
+    localOnly: "localStorage (ai-company-task-results) — mock-only.",
+    stats: {
+      total: "Всего результатов",
+      readyForReview: "Ready for review",
+      approved: "Approved",
+      changesRequested: "Changes requested"
+    },
+    sections: {
+      review: "Owner review",
+      output: "Output сотрудника",
+      artifacts: "Артефакты и ссылки",
+      timeline: "Timeline review"
+    },
+    fields: {
+      status: "Статус",
+      ownerComment: "Комментарий Owner"
+    },
+    actions: {
+      approve: "Approve",
+      requestChanges: "Request changes",
+      reject: "Reject",
+      createFollowUp: "Create follow-up task",
+      sendToQa: "Send to QA",
+      sendToCodex: "Send to Codex handoff",
+      archive: "Archive"
+    },
+    statuses: {
+      draft: "Draft",
+      ready_for_review: "Ready for Review",
+      approved: "Approved",
+      changes_requested: "Changes Requested",
+      rejected: "Rejected",
+      archived: "Archived"
+    },
+    reviewActions: {
+      submit_for_review: "Submitted for review",
+      approve: "Approved",
+      request_changes: "Changes requested",
+      reject: "Rejected",
+      create_follow_up: "Follow-up task created",
+      send_to_qa: "Sent to QA",
+      send_to_codex: "Sent to Codex",
+      archive: "Archived"
     }
   },
   runtimeOrchestrator: {
@@ -3005,6 +3232,7 @@ export const ru: Messages = {
     title: "AI Photo Lab Control Room",
     pageDescription: "Delivery control room — manage MVP readiness, digital team workload, Codex handoff, and Owner decisions from one screen.",
     openControlRoom: "Open Control Room",
+    openKickoff: "Monday Kickoff",
     openProject: "Open Project",
     openCanvas: "Open Canvas",
     openExecution: "Execution Queue",

@@ -17,6 +17,7 @@ function resolveCategory(event: CompanyEvent): NotificationCategory {
   if (type.startsWith('chat.')) return 'chat'
   if (type.startsWith('collaboration.')) return 'discussion'
   if (type.startsWith('handoff.')) return 'task'
+  if (type.startsWith('task_result.')) return 'task'
   if (type.startsWith('conversation.')) return 'discussion'
   if (type.startsWith('knowledge.')) return 'knowledge'
   if (type.startsWith('task.')) return 'task'
@@ -41,6 +42,7 @@ function mapSourceToCategory(sourceType: EventSourceType): NotificationCategory 
     case 'collaboration':
       return 'discussion'
     case 'handoff':
+    case 'task_result':
       return 'task'
     case 'knowledge':
     case 'memory':
@@ -122,6 +124,9 @@ function resolveAction(event: CompanyEvent, category: NotificationCategory): Not
     case 'task':
       if (event.type.startsWith('handoff.')) {
         return { href: `/ops/handoffs/${encodeURIComponent(sourceId)}` }
+      }
+      if (event.type.startsWith('task_result.')) {
+        return { href: `/ops/task-results/${encodeURIComponent(sourceId)}` }
       }
       return { href: '/ops/tasks' }
     case 'knowledge':
