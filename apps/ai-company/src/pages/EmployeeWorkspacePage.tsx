@@ -48,6 +48,12 @@ export function EmployeeWorkspacePage() {
         <Link to={`/ops/employees/${id}/runtime`} className="mcBtn mcBtnSecondary">
           {t.employeeWorkspace.openRuntime}
         </Link>
+        <Link
+          to={`/ops/run-task?employee=${encodeURIComponent(id)}&project=${encodeURIComponent('project-ai-photo-lab')}&workspace=${encodeURIComponent('workspace-ai-photo-lab')}`}
+          className="mcBtn mcBtnPrimary"
+        >
+          {t.taskRunner.actions.openRunTask}
+        </Link>
         <Link to="/ops/timeline" className="mcBtn mcBtnSecondary">
           {t.pages.companyTimeline}
         </Link>

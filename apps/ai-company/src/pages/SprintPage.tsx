@@ -50,6 +50,9 @@ export function SprintPage() {
           <Link to="/ops/runtime" className="mcBtn mcBtnSecondary">
             {t.sprintEngine.openRuntime}
           </Link>
+          <Link to="/ops/run-task" className="mcBtn mcBtnPrimary">
+            {t.taskRunner.actions.openRunTask}
+          </Link>
         </div>
       </div>
 

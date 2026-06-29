@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { LiveExecutionStream } from '../components/runtime/live/LiveExecutionStream'
 import { LiveRuntimeBottomPanel } from '../components/runtime/live/LiveRuntimeBottomPanel'
 import { LiveRuntimePipelinePanel } from '../components/runtime/live/LiveRuntimePipelinePanel'
@@ -16,9 +16,15 @@ const LIVE_EMPLOYEE_IDS = ['ag-cto', 'ag-max'] as const
 
 export function RuntimeLivePage() {
   const { t } = useI18n()
+  const [searchParams] = useSearchParams()
   const { getProfile } = useRuntimeProfiles()
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
   const [employeeId, setEmployeeId] = useState<string>('ag-cto')
+
+  useEffect(() => {
+    const runId = searchParams.get('runId')
+    if (runId) setSelectedRunId(runId)
+  }, [searchParams])
 
   const monitor = useLiveRuntimeMonitor(selectedRunId)
   const profile = getProfile(employeeId)

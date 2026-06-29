@@ -9,8 +9,14 @@ export function QuickActions({ snapshot }: { snapshot: EmployeeWorkspaceSnapshot
   return (
     <div className="acWorkspaceQuickActions">
       <Link
-        to={`/ops/execution?employee=${encodeURIComponent(snapshot.employee.id)}`}
+        to={`/ops/run-task?employee=${encodeURIComponent(snapshot.employee.id)}&project=${encodeURIComponent('project-ai-photo-lab')}&workspace=${encodeURIComponent('workspace-ai-photo-lab')}`}
         className="mcBtn mcBtnPrimary"
+      >
+        {t.taskRunner.actions.openRunTask}
+      </Link>
+      <Link
+        to={`/ops/execution?employee=${encodeURIComponent(snapshot.employee.id)}`}
+        className="mcBtn mcBtnSecondary"
       >
         {t.employeeWorkspace.actions.startWork}
       </Link>

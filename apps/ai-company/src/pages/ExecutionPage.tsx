@@ -50,6 +50,9 @@ export function ExecutionPage() {
         <Link to="/ops/sprint/sprint-apl-1" className="mcBtn mcBtnPrimary">
           {t.sprintEngine.openSprint}
         </Link>
+        <Link to="/ops/run-task" className="mcBtn mcBtnPrimary">
+          {t.taskRunner.actions.openRunTask}
+        </Link>
         <Link
           to="/ops/projects/project-ai-photo-lab/control-room"
           className="mcBtn mcBtnPrimary"

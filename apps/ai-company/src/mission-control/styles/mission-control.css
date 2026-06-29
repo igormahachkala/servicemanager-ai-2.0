@@ -7702,3 +7702,215 @@
     grid-template-columns: 1fr;
   }
 }
+
+.mcTaskRunnerPage {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.mcTaskRunnerIntro {
+  margin: 0;
+  color: var(--mc-muted, #8b949e);
+  max-width: 920px;
+}
+
+.mcTaskRunnerLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.mcTaskRunnerMain,
+.mcTaskRunnerAside {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.mcTaskRunnerInputStack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.mcTaskRunnerTextarea {
+  min-height: 220px;
+  font-family: inherit;
+}
+
+.mcTaskRunnerSelectorGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.mcTaskRunnerSelectorCard {
+  border: 1px solid var(--mc-border, rgba(255, 255, 255, 0.08));
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 12px;
+  padding: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mcTaskRunnerSelectorCard.active {
+  border-color: rgba(88, 166, 255, 0.65);
+  background: rgba(88, 166, 255, 0.08);
+}
+
+.mcTaskRunnerSelectorTitle {
+  font-weight: 600;
+}
+
+.mcTaskRunnerSuggested {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 11px;
+  color: #58a6ff;
+}
+
+.mcTaskRunnerModeGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mcTaskRunnerModeChip {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  border: 1px solid var(--mc-border, rgba(255, 255, 255, 0.08));
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.mcTaskRunnerModeChip.active {
+  border-color: rgba(88, 166, 255, 0.65);
+  background: rgba(88, 166, 255, 0.08);
+}
+
+.mcTaskRunnerModeHint {
+  font-size: 10px;
+  color: #8b949e;
+}
+
+.mcTaskRunnerProjectRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.mcTaskRunnerPreview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mcTaskRunnerPreviewRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mcTaskRunnerPreviewBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mcTaskRunnerPreviewText {
+  margin: 0;
+  padding: 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 220px;
+  overflow: auto;
+  font-size: 12px;
+}
+
+.mcTaskRunnerStartRow {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mcTaskRunnerStartBtn {
+  align-self: flex-start;
+}
+
+.mcTaskRunnerResult {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mcTaskRunnerResultHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.mcTaskRunnerResultTitle {
+  font-weight: 600;
+}
+
+.mcTaskRunnerResultLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mcTaskRunnerResultBody {
+  margin: 0;
+  padding: 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 320px;
+  overflow: auto;
+  font-size: 12px;
+}
+
+.mcTaskRunnerHistoryList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mcTaskRunnerHistoryItem {
+  border: 1px solid var(--mc-border, rgba(255, 255, 255, 0.08));
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.mcTaskRunnerHistoryTop {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.mcTaskRunnerHistoryActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 960px) {
+  .mcTaskRunnerLayout,
+  .mcTaskRunnerProjectRow {
+    grid-template-columns: 1fr;
+  }
+}

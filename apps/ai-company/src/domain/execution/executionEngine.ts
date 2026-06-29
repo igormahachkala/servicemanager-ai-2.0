@@ -222,6 +222,22 @@ export function linkRuntimeRun(executionId: string, runtimeRunId: string): Execu
   return patchExecution(executionId, { runtimeRunId })
 }
 
+export function markExecutionRunning(executionId: string, runtimeRunId: string): Execution | null {
+  return patchExecution(executionId, {
+    status: 'running',
+    runtimeRunId: runtimeRunId || undefined,
+    startedAt: nowIso(),
+  })
+}
+
+export function markExecutionFailed(executionId: string): Execution | null {
+  return patchExecution(executionId, {
+    status: 'failed',
+    finishedAt: nowIso(),
+    queuePosition: 0,
+  })
+}
+
 export function upsertExecutions(items: Execution[]): void {
   const current = loadExecutions()
   const next = [...current]
