@@ -12,14 +12,17 @@ import {
   WorkspaceOverview,
   WorkdayWorkspacePanel,
 } from '../components/workspace'
+import { NextSuggestedActionsPanel } from '../components/work-scheduler'
 import { useEmployeeWorkspace } from '../hooks/useEmployeeWorkspace'
-import { PageHeader } from '../mission-control/components/ui'
+import { useWorkScheduler } from '../hooks/useWorkScheduler'
+import { PageHeader, Panel } from '../mission-control/components/ui'
 import { useI18n } from '../i18n'
 
 export function EmployeeWorkspacePage() {
   const { id } = useParams<{ id: string }>()
   const { t } = useI18n()
   const { snapshot } = useEmployeeWorkspace(id)
+  const { pending, approve, dismiss } = useWorkScheduler({ employeeId: id ?? null })
 
   if (!id || !snapshot) {
     return (
@@ -69,6 +72,17 @@ export function EmployeeWorkspacePage() {
       </div>
 
       <div className="acWorkspaceGrid">
+        <Panel title={t.workScheduler.title}>
+          <div className="mcProfilePanelBody">
+            <NextSuggestedActionsPanel
+              plan={null}
+              pending={pending}
+              compact
+              onApprove={approve}
+              onDismiss={dismiss}
+            />
+          </div>
+        </Panel>
         <WorkdayWorkspacePanel employeeId={id} />
         <TodayAgenda snapshot={snapshot} />
         <WorkspaceApprovals snapshot={snapshot} />

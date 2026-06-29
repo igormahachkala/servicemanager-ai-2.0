@@ -11,6 +11,7 @@ import { loadReports, saveReports } from '../reports/reportStorage'
 import type { Report } from '../reports/report'
 import type { RuntimeRun } from '../runtime/runtimeRun'
 import { resolveEmployee } from '../../mission-control/data/conversation'
+import { generateWorkSchedulerPlan } from '../workScheduler/workSchedulerEngine'
 import { addDeliveryTask, getDeliveryTaskById, loadDeliveryTasks, saveDeliveryTasks } from '../tasks/taskStorage'
 import type { DeliveryTaskStatus } from '../tasks/task'
 import {
@@ -348,6 +349,8 @@ export function createTaskResultFromRuntimeRun(run: RuntimeRun, report: Report):
     workspaceId: run.workspaceId,
     metadata: { title: result.title, reportId: report.id, runId: run.id },
   })
+
+  generateWorkSchedulerPlan(result.id)
 
   return result
 }

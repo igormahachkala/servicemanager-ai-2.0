@@ -8,7 +8,9 @@ import {
   TaskResultTimeline,
 } from '../components/task-results'
 import { PageHeader, Panel } from '../mission-control/components/ui'
+import { NextSuggestedActionsPanel } from '../components/work-scheduler'
 import { useTaskResults } from '../hooks/useTaskResults'
+import { useWorkScheduler } from '../hooks/useWorkScheduler'
 import { useI18n } from '../i18n'
 
 export function TaskResultsPage() {
@@ -21,6 +23,9 @@ export function TaskResultsPage() {
     () => filtered.find((item) => item.id === selectedId) ?? filtered[0] ?? null,
     [filtered, selectedId],
   )
+  const { plan, approve, dismiss } = useWorkScheduler({
+    taskResultId: selected?.id ?? null,
+  })
 
   return (
     <>
@@ -103,6 +108,15 @@ export function TaskResultsPage() {
                   onArchive={(comment) => actions.archive(selected.id, comment)}
                 />
                 <TaskResultTimeline result={selected} />
+                <div style={{ marginTop: 16 }}>
+                  <h4>{t.workScheduler.title}</h4>
+                  <NextSuggestedActionsPanel
+                    plan={plan}
+                    compact
+                    onApprove={approve}
+                    onDismiss={dismiss}
+                  />
+                </div>
               </>
             ) : (
               <p className="mcMuted">{t.taskResultEngine.selectResult}</p>

@@ -13,13 +13,18 @@ import {
   TaskQueuePanel,
   TeamWorkload,
 } from '../components/projects/control-room'
+import { NextSuggestedActionsPanel } from '../components/work-scheduler'
 import { useAiPhotoLabControlRoom } from '../hooks/useAiPhotoLabControlRoom'
+import { useWorkScheduler } from '../hooks/useWorkScheduler'
 import { PageHeader, Panel } from '../mission-control/components/ui'
 import { useI18n } from '../i18n'
 
 export function AiPhotoLabControlRoomPage() {
   const { t } = useI18n()
   const { snapshot, stats } = useAiPhotoLabControlRoom()
+  const { pending, approve, dismiss } = useWorkScheduler({
+    projectId: AI_PHOTO_LAB_PROJECT_ID,
+  })
 
   if (!snapshot) {
     return (
@@ -107,6 +112,17 @@ export function AiPhotoLabControlRoomPage() {
           <ReportPanel snapshot={snapshot} />
           <RiskPanel snapshot={snapshot} />
           <ApprovalPanel snapshot={snapshot} />
+          <Panel title={t.workScheduler.title}>
+            <div className="mcProfilePanelBody">
+              <NextSuggestedActionsPanel
+                plan={null}
+                pending={pending}
+                compact
+                onApprove={approve}
+                onDismiss={dismiss}
+              />
+            </div>
+          </Panel>
           <Panel title={t.photoLabControlRoom.sections.quickLinks}>
             <div className="mcProfilePanelBody mcControlRoomLinks">
               <Link to="/ops/sprint/sprint-apl-1">{t.sprintEngine.openSprint}</Link>

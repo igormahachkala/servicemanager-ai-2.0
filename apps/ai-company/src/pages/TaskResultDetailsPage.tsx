@@ -4,9 +4,11 @@ import {
   TaskResultStatusBadge,
   TaskResultTimeline,
 } from '../components/task-results'
+import { NextSuggestedActionsPanel } from '../components/work-scheduler'
 import { PageHeader, Panel } from '../mission-control/components/ui'
 import { resolveEmployee } from '../mission-control/data/conversation'
 import { useTaskResults } from '../hooks/useTaskResults'
+import { useWorkScheduler } from '../hooks/useWorkScheduler'
 import { useI18n } from '../i18n'
 
 export function TaskResultDetailsPage() {
@@ -14,6 +16,7 @@ export function TaskResultDetailsPage() {
   const { t } = useI18n()
   const taskResultActions = useTaskResults()
   const result = id ? taskResultActions.getById(id) : null
+  const { plan, approve, dismiss } = useWorkScheduler({ taskResultId: id ?? null })
 
   if (!id || !result) {
     return (
@@ -83,6 +86,18 @@ export function TaskResultDetailsPage() {
           />
         </div>
       </Panel>
+
+      <div style={{ marginTop: 16 }}>
+        <Panel title={t.workScheduler.title}>
+          <div className="mcProfilePanelBody">
+            <NextSuggestedActionsPanel
+              plan={plan}
+              onApprove={approve}
+              onDismiss={dismiss}
+            />
+          </div>
+        </Panel>
+      </div>
 
       <div className="mcGrid2" style={{ marginTop: 16 }}>
         <Panel title={t.taskResultEngine.sections.output}>

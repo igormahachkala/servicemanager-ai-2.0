@@ -15,6 +15,7 @@ import { CanvasPreviewPanel } from './CanvasPreviewPanel'
 import { ControlRoomPreviewPanel } from './ControlRoomPreviewPanel'
 import { NotificationsPanel } from './NotificationsPanel'
 import { QuickLaunchBar, CommandChartsPanel } from './QuickLaunchBar'
+import { WorkSchedulerCommandPanel } from './WorkSchedulerCommandPanel'
 
 export function ExecutiveCommandCenter() {
   const { t } = useI18n()
@@ -52,6 +53,9 @@ export function ExecutiveCommandCenter() {
             pending={snapshot.pendingApprovals}
             stats={snapshot.approvalStats}
           />
+        </div>
+        <div className="mcCommandCenterSpan6">
+          <WorkSchedulerCommandPanel />
         </div>
         <div className="mcCommandCenterSpan6">
           <CriticalAlertsPanel alerts={snapshot.criticalAlerts} />
