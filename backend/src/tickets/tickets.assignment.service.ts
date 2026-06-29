@@ -490,6 +490,7 @@ export class TicketsAssignmentService {
       address: dto.address?.trim() || null,
       pointName: dto.pointName?.trim() || null,
       urgency: dto.urgency,
+      urgencyReason: dto.urgencyReason?.trim() || null,
       slaMinutes: dto.slaMinutes ?? null,
       priority: dto.priority === TicketPriority.URGENT ? TicketPriority.URGENT : TicketPriority.NORMAL,
     };
@@ -584,6 +585,7 @@ export class TicketsAssignmentService {
 
           urgency: input.urgency ?? TicketUrgency.NOT_URGENT,
           priority: input.priority,
+          urgencyReason: input.urgencyReason ?? null,
           slaMinutes,
           slaDueAt,
 
@@ -1529,6 +1531,12 @@ export class TicketsAssignmentService {
         if (value === null) return null;
         return value.trim() || null;
       };
+
+      const urgencyReason = normalizeNullable(dto.urgencyReason);
+      if (urgencyReason !== undefined) {
+        data.urgencyReason = urgencyReason;
+        changedFields.push('urgencyReason');
+      }
 
       const requesterName = normalizeNullable(dto.requesterName);
       if (requesterName !== undefined && requesterName !== ticket.requesterName) {

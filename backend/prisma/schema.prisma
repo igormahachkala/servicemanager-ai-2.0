@@ -431,6 +431,7 @@ model Ticket {
 
   urgency         TicketUrgency         @default(NOT_URGENT)
   priority        TicketPriority        @default(NORMAL)
+  urgencyReason   String?
   status          TicketStatus          @default(NEW)
   statusUpdatedAt DateTime              @default(now())
   statusHistory   TicketStatusHistory[]
