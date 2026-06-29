@@ -7,6 +7,15 @@ import {
   AI_PHOTO_LAB_PROJECT_ID,
   AI_PHOTO_LAB_WORKSPACE_ID,
 } from '../projects/aiPhotoLabIds'
+import {
+  AI_PHOTO_LAB_HANDOFF_002_ID,
+  AI_PHOTO_LAB_HANDOFF_002_TASK_ID,
+  AI_PHOTO_LAB_HANDOFF_002_TEMPLATE_ID,
+  AI_PHOTO_LAB_HANDOFF_002_TITLE,
+  AI_PHOTO_LAB_TARGET_FILES,
+  buildAiPhotoLabHandoff002Checklist,
+  buildAiPhotoLabHandoff002Package,
+} from '../projects/aiPhotoLabCodexHandoff002'
 import { loadDeliveryTasks } from '../tasks/taskStorage'
 import { getWorkspaceById } from '../workspaces/workspace'
 import { ensureSeedReports, loadReports, saveReports } from '../reports/reportStorage'
@@ -32,6 +41,7 @@ import { isHandoffTarget, type HandoffTarget } from './handoffTarget'
 
 const STORAGE_KEY = 'ai-company-handoffs'
 const SEED_KEY = 'ai-company-handoffs-seeded'
+const PHOTO_LAB_HANDOFF_002_KEY = 'ai-company-handoff-apl-002-seeded'
 
 function nowIso(): string {
   return new Date().toISOString()
@@ -593,10 +603,11 @@ function seedPhotoLabHandoffs(): void {
 
   const seeds: Array<{ templateId: string; title: string; employeeId: string; taskId?: string; relatedPaths?: string[]; afterCreate?: (id: string) => void }> = [
     {
-      templateId: 'tpl-codex-code-task',
-      title: 'Codex — stabilize MVP flow',
+      templateId: 'tpl-codex-apl-stabilize-mvp',
+      title: AI_PHOTO_LAB_HANDOFF_002_TITLE,
       employeeId: 'ag-max',
-      relatedPaths: ['apps/ai-company/src/pages/', 'apps/ai-company/src/domain/projects/aiPhotoLabActivation.ts'],
+      taskId: AI_PHOTO_LAB_HANDOFF_002_TASK_ID,
+      relatedPaths: AI_PHOTO_LAB_TARGET_FILES,
       afterCreate: (id) => {
         prepareHandoff(id)
       },
@@ -644,8 +655,65 @@ function seedPhotoLabHandoffs(): void {
   localStorage.setItem(SEED_KEY, '1')
 }
 
+/** Idempotent upsert of AI-PHOTO-LAB-002 handoff with full MAX audit package. */
+export function ensurePhotoLabHandoff002(): Handoff | null {
+  if (typeof window === 'undefined') return null
+
+  const existing = getHandoffById(AI_PHOTO_LAB_HANDOFF_002_ID)
+  if (existing?.package && existing.title === AI_PHOTO_LAB_HANDOFF_002_TITLE) {
+    return existing
+  }
+
+  const template = getHandoffTemplateById(AI_PHOTO_LAB_HANDOFF_002_TEMPLATE_ID)
+  if (!template) return null
+
+  const employee = resolveEmployee('ag-max')
+  const projectCtx = resolveProjectContext(AI_PHOTO_LAB_PROJECT_ID, AI_PHOTO_LAB_WORKSPACE_ID)
+  const taskCtx = resolveTaskContext(AI_PHOTO_LAB_HANDOFF_002_TASK_ID)
+  const now = nowIso()
+  const handoffPackage = buildAiPhotoLabHandoff002Package()
+
+  const handoff: Handoff = {
+    id: AI_PHOTO_LAB_HANDOFF_002_ID,
+    title: AI_PHOTO_LAB_HANDOFF_002_TITLE,
+    description: template.descriptionTemplate,
+    projectId: AI_PHOTO_LAB_PROJECT_ID,
+    workspaceId: AI_PHOTO_LAB_WORKSPACE_ID,
+    taskId: AI_PHOTO_LAB_HANDOFF_002_TASK_ID,
+    employeeId: 'ag-max',
+    target: 'codex',
+    status: 'ready',
+    priority: 'critical',
+    context: {
+      summary: template.descriptionTemplate,
+      projectName: projectCtx.projectTitle,
+      workspaceName: projectCtx.workspaceName,
+      taskTitle: taskCtx.taskTitle,
+      employeeCodename: employee?.codename ?? 'MAX',
+      relatedPaths: AI_PHOTO_LAB_TARGET_FILES,
+      notes: 'AI-PHOTO-LAB-002 — MAX technical audit & Codex handoff. Copy from apps/ai-company/docs/handoffs/AI-PHOTO-LAB-002-stabilize-mvp-codex-handoff.md',
+    },
+    instructions: template.instructions,
+    expectedResult: template.expectedResult,
+    constraints: handoffPackage.constraints,
+    checklist: buildAiPhotoLabHandoff002Checklist(),
+    package: handoffPackage,
+    result: null,
+    approvalId: null,
+    reportId: null,
+    templateId: AI_PHOTO_LAB_HANDOFF_002_TEMPLATE_ID,
+    createdAt: existing?.createdAt ?? now,
+    updatedAt: now,
+  }
+
+  upsertHandoff(handoff)
+  localStorage.setItem(PHOTO_LAB_HANDOFF_002_KEY, '1')
+  return handoff
+}
+
 export function initializeHandoffEngine(): void {
   seedPhotoLabHandoffs()
+  ensurePhotoLabHandoff002()
 }
 
 export function ensurePhotoLabHandoffs(): void {

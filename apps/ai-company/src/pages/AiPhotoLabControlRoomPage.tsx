@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { AI_PHOTO_LAB_KICKOFF_PATH } from '../domain/projects/aiPhotoLabKickoff'
 import { AI_PHOTO_LAB_PROJECT_ID } from '../domain/projects/aiPhotoLabIds'
 import {
   ApprovalPanel,
@@ -42,6 +43,9 @@ export function AiPhotoLabControlRoomPage() {
           description={t.photoLabControlRoom.pageDescription}
         />
         <div className="mcControlRoomHeaderActions">
+          <Link to={AI_PHOTO_LAB_KICKOFF_PATH} className="mcBtn mcBtnPrimary">
+            {t.photoLabControlRoom.openKickoff}
+          </Link>
           <Link
             to={`/ops/projects/${encodeURIComponent(AI_PHOTO_LAB_PROJECT_ID)}`}
             className="mcBtn mcBtnSecondary"
@@ -56,6 +60,9 @@ export function AiPhotoLabControlRoomPage() {
           </Link>
           <Link to="/ops/sprint/sprint-apl-1" className="mcBtn mcBtnSecondary">
             {t.sprintEngine.openSprint}
+          </Link>
+          <Link to="/ops/run-task" className="mcBtn mcBtnPrimary">
+            {t.taskRunner.actions.openRunTask}
           </Link>
           <Link to="/ops/timeline" className="mcBtn mcBtnSecondary">
             {t.pages.companyTimeline}

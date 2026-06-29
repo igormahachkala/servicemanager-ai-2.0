@@ -1,0 +1,249 @@
+/* AI Photo Lab Kickoff Workspace */
+
+.acKickoffPage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ac-space-4);
+}
+
+.acKickoffHeaderLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ac-space-2);
+  align-items: center;
+}
+
+.acKickoffStats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--ac-space-3);
+}
+
+.acKickoffStat {
+  background: var(--ac-bg-subtle);
+  border-radius: var(--ac-radius-md);
+  padding: var(--ac-space-3);
+}
+
+.acKickoffStatValue {
+  display: block;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.acKickoffStatLabel {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--ac-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.acKickoffGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+  gap: var(--ac-space-4);
+  align-items: start;
+}
+
+.acKickoffMain,
+.acKickoffSide {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ac-space-4);
+}
+
+.acKickoffPanelBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ac-space-3);
+}
+
+.acKickoffLead {
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.acKickoffSubhead {
+  margin: 0;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ac-text-muted);
+}
+
+.acKickoffMetaGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: var(--ac-space-3);
+}
+
+.acKickoffMetaLabel {
+  display: block;
+  font-size: 11px;
+  color: var(--ac-text-muted);
+}
+
+.acKickoffBulletList,
+.acKickoffGateList,
+.acKickoffChecklist,
+.acKickoffDecisionList {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ac-space-2);
+}
+
+.acKickoffDocRef {
+  font-size: 11px;
+}
+
+.acKickoffDemoHead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ac-space-2);
+  align-items: center;
+}
+
+.acKickoffOverall {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.acKickoffOverallReady {
+  background: var(--ac-green-dim);
+  color: var(--ac-green);
+}
+
+.acKickoffOverallNeedsFix {
+  background: var(--ac-amber-dim, rgba(245, 158, 11, 0.15));
+  color: var(--ac-amber, #d97706);
+}
+
+.acKickoffOverallBlocked {
+  background: var(--ac-red-dim);
+  color: var(--ac-red);
+}
+
+.acKickoffDemoScore {
+  font-size: 13px;
+  color: var(--ac-text-muted);
+}
+
+.acKickoffGate {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  padding: var(--ac-space-2);
+  border-radius: var(--ac-radius-sm);
+  background: var(--ac-bg-subtle);
+}
+
+.acKickoffGateStatus {
+  grid-row: span 2;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.acKickoffGateLabel {
+  font-weight: 600;
+}
+
+.acKickoffGateNote {
+  grid-column: 2;
+  font-size: 12px;
+  color: var(--ac-text-muted);
+}
+
+.acKickoffGateReady .acKickoffGateStatus {
+  color: var(--ac-green);
+}
+
+.acKickoffGateNeedsFix .acKickoffGateStatus {
+  color: var(--ac-amber, #d97706);
+}
+
+.acKickoffGateBlocked .acKickoffGateStatus {
+  color: var(--ac-red);
+}
+
+.acKickoffGatePending .acKickoffGateStatus {
+  color: var(--ac-text-muted);
+}
+
+.acKickoffHandoffHead {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ac-space-2);
+  align-items: center;
+}
+
+.acKickoffBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  background: var(--ac-surface-2);
+  color: var(--ac-text-muted);
+}
+
+.acKickoffDecisionRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: var(--ac-space-2);
+  align-items: start;
+  padding: var(--ac-space-2);
+  border-radius: var(--ac-radius-sm);
+  background: var(--ac-bg-subtle);
+}
+
+.acKickoffCheckItem {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--ac-space-2);
+  align-items: center;
+}
+
+.acKickoffCheckdone .acKickoffBadge {
+  color: var(--ac-green);
+}
+
+.acKickoffCheckblocked .acKickoffBadge {
+  color: var(--ac-red);
+}
+
+.acKickoffCheckpending .acKickoffBadge,
+.acKickoffCheckneeds_fix .acKickoffBadge {
+  color: var(--ac-amber, #d97706);
+}
+
+.acKickoffInlineActions,
+.acKickoffActionGrid,
+.acKickoffSecondaryActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ac-space-2);
+}
+
+.acKickoffActionGrid {
+  margin-top: var(--ac-space-1);
+}
+
+@media (max-width: 960px) {
+  .acKickoffGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .acKickoffDecisionRow {
+    grid-template-columns: 1fr;
+  }
+}
