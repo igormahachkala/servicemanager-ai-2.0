@@ -15,6 +15,7 @@ export const EVENT_TYPES = [
   'task.created',
   'task.completed',
   'runtime.started',
+  'runtime.completed',
   'runtime.failed',
   'run.completed',
   'collaboration.started',

@@ -1858,6 +1858,7 @@ export const ru: Messages = {
       "task_result.rejected": "Task Result отклонён",
       "task_result.archived": "Task Result архивирован",
       "runtime.started": "Runtime Started",
+      "runtime.completed": "Runtime Completed",
       "runtime.failed": "Runtime Failed",
       "run.completed": "Запуск завершён",
       "collaboration.started": "Collaboration Started",

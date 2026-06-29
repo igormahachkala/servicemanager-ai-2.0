@@ -940,6 +940,21 @@ export async function orchestrateRuntimeRun(request: RuntimeRunRequest): Promise
         },
         severity: 'success',
       })
+      emitEvent({
+        type: 'runtime.completed',
+        sourceType: 'runtime',
+        sourceId: runId,
+        employeeId: request.employeeId,
+        workspaceId: request.workspaceId ?? null,
+        reportId: report.id,
+        metadata: {
+          mock: execution.mock,
+          providerAdapter: execution.providerId,
+          status: 'completed',
+          durationMs: result.executionDurationMs ?? null,
+        },
+        severity: 'success',
+      })
       recordRuntimeLearning(request.employeeId, runId, report.id)
 
       pipeline = updatePipelineStep(pipeline, 'create_report', 'done', report.id)
@@ -1079,6 +1094,21 @@ export async function completeRuntimeRunAfterApproval(runId: string): Promise<Ru
     emitEvent({
       type: 'run.completed',
       sourceType: 'run',
+      sourceId: existing.id,
+      employeeId: existing.employeeId,
+      workspaceId: existing.workspaceId,
+      reportId: report.id,
+      metadata: {
+        mock: execution.mock,
+        providerAdapter: execution.providerId,
+        status: 'completed',
+        afterApproval: true,
+      },
+      severity: 'success',
+    })
+    emitEvent({
+      type: 'runtime.completed',
+      sourceType: 'runtime',
       sourceId: existing.id,
       employeeId: existing.employeeId,
       workspaceId: existing.workspaceId,

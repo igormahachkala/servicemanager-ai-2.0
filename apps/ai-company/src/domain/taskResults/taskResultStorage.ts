@@ -333,7 +333,7 @@ export function createTaskResultFromRuntimeRun(run: RuntimeRun, report: Report):
   upsertTaskResult(result)
   updateLinkedTaskStatus(run.taskId, 'review')
   emitTaskResultEvent(
-    'task_result.ready',
+    'task_result.created',
     result,
     `${employee?.codename ?? 'Employee'} submitted a task result for Owner review.`,
     'info',

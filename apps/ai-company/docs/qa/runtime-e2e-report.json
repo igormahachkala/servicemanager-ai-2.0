@@ -1,0 +1,132 @@
+{
+  "scenario": "Owner → /ops/run-task → Atlas → Runtime → Task Result → Review",
+  "baseUrl": "http://localhost:5174",
+  "at": "2026-06-29T06:59:59.293Z",
+  "steps": [
+    {
+      "step": "1. /ops/run-task → delivery task",
+      "status": "PASS",
+      "evidence": {
+        "taskId": "task-runner-1782716400777",
+        "assigneeId": "ag-cto",
+        "status": "review"
+      },
+      "problem": null,
+      "fix": null,
+      "result": null
+    },
+    {
+      "step": "2. Execution Queue",
+      "status": "PASS",
+      "evidence": {
+        "executionId": "exec-task-runner-1782716400777",
+        "status": "completed",
+        "runtimeRunId": "run-1782716400779-kzc1"
+      },
+      "problem": null,
+      "fix": null,
+      "result": null
+    },
+    {
+      "step": "3. Runtime Live",
+      "status": "PASS",
+      "evidence": {
+        "runId": "run-1782716400779-kzc1",
+        "status": "completed",
+        "pipelineComplete": "done",
+        "elapsedMs": 1
+      },
+      "problem": null,
+      "fix": null,
+      "result": null
+    },
+    {
+      "step": "4. Run History",
+      "status": "PASS",
+      "evidence": {
+        "historyId": "rh-run-1782716400779-kzc1",
+        "status": "completed"
+      },
+      "problem": null,
+      "fix": null,
+      "result": null
+    },
+    {
+      "step": "5. Task Results",
+      "status": "PASS",
+      "evidence": {
+        "taskResultId": "task-result-1782716400783-9hxj",
+        "status": "ready_for_review",
+        "reportId": "report-run-run-1782716400779-kzc1"
+      },
+      "problem": null,
+      "fix": null,
+      "result": null
+    },
+    {
+      "step": "6. Timeline events",
+      "status": "PASS",
+      "evidence": {
+        "eventTypes": [
+          "runtime.completed",
+          "run.completed",
+          "task_result.created",
+          "runtime.started"
+        ],
+        "hasStarted": true,
+        "hasCompleted": true,
+        "hasTaskResult": true
+      },
+      "problem": null,
+      "fix": null,
+      "result": null
+    },
+    {
+      "step": "7. Notifications",
+      "status": "PASS",
+      "evidence": {
+        "linkedNotifications": 4
+      },
+      "problem": null,
+      "fix": null,
+      "result": null
+    },
+    {
+      "step": "8. Owner Review UI",
+      "status": "PASS",
+      "evidence": {
+        "taskResultId": "task-result-1782716400783-9hxj",
+        "reviewVisible": 1
+      },
+      "problem": null,
+      "fix": null,
+      "result": null
+    },
+    {
+      "step": "9. Command Center widgets",
+      "status": "PARTIAL",
+      "evidence": {
+        "runtimeWidgetMatches": 0,
+        "runIdInStorage": "run-1782716400779-kzc1"
+      },
+      "problem": null,
+      "fix": null,
+      "result": null
+    },
+    {
+      "step": "10. Kickoff state",
+      "status": "PASS",
+      "evidence": {
+        "kickoffHasRun": true,
+        "runId": "run-1782716400779-kzc1"
+      },
+      "problem": null,
+      "fix": null,
+      "result": null
+    }
+  ],
+  "runId": "run-1782716400779-kzc1",
+  "taskId": "task-runner-1782716400777",
+  "taskResultId": "task-result-1782716400783-9hxj",
+  "overall": "PARTIAL"
+}

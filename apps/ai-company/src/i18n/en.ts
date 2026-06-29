@@ -1890,6 +1890,7 @@ export const en = {
       'task_result.rejected': 'Task Result Rejected',
       'task_result.archived': 'Task Result Archived',
       'runtime.started': 'Runtime Started',
+      'runtime.completed': 'Runtime Completed',
       'runtime.failed': 'Runtime Failed',
       'run.completed': 'Run Completed',
       'collaboration.started': 'Collaboration Started',

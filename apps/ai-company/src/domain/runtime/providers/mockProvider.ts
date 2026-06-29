@@ -61,6 +61,7 @@ export const mockRuntimeProvider: RuntimeProvider = {
       })
     }
 
+    const started = Date.now()
     const result: RuntimeExecutionResult = {
       providerId: 'mock',
       mock: true,
@@ -72,6 +73,7 @@ export const mockRuntimeProvider: RuntimeProvider = {
         memoryUsed: request.memoryUsed,
         estimatedCost: estimateCost(request.modelId, request.estimatedTokens),
         estimatedTokens: request.estimatedTokens,
+        executionDurationMs: Math.max(1, Date.now() - started),
         warnings,
         artifacts: [
           {
