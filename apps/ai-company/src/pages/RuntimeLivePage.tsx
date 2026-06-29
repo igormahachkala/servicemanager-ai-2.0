@@ -12,6 +12,8 @@ import { useLiveRuntimeMonitor } from '../hooks/useLiveRuntimeMonitor'
 import { useRuntimeMonitor } from '../hooks/useRuntimeMonitor'
 import { useRuntimeProfiles } from '../hooks/useRuntimeProfiles'
 import { formatCost, formatDurationMs, getRuntimeRunMetrics } from '../domain/runtimeMonitor'
+import { buildRuntimePromptPreviewFromRun } from '../domain/runtime/runtimePromptBuilder'
+import { previewRuntimePromptForRequest } from '../domain/runtime/runtimeOrchestrator'
 import { agents } from '../mission-control/data/mock'
 import { PageHeader, Panel } from '../mission-control/components/ui'
 import { useI18n } from '../i18n'
@@ -24,6 +26,7 @@ export function RuntimeLivePage() {
   const { getProfile } = useRuntimeProfiles()
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
   const [employeeId, setEmployeeId] = useState<string>('ag-cto')
+  const [draftPrompt, setDraftPrompt] = useState('')
 
   useEffect(() => {
     const runId = searchParams.get('runId')
@@ -52,6 +55,19 @@ export function RuntimeLivePage() {
     ? `${monitor.reportStep.status}${monitor.reportStep.detail ? ` · ${monitor.reportStep.detail}` : ''}`
     : null
   const livingRun = monitor.monitoredRun ? resolveLivingActivityFromRun(monitor.monitoredRun) : null
+
+  const promptPreview = useMemo(() => {
+    if (monitor.monitoredRun) {
+      return buildRuntimePromptPreviewFromRun(monitor.monitoredRun)
+    }
+    if (!draftPrompt.trim()) return null
+    return previewRuntimePromptForRequest({
+      employeeId,
+      workspaceId: null,
+      taskType: 'conversation',
+      prompt: draftPrompt,
+    })
+  }, [monitor.monitoredRun, employeeId, draftPrompt])
 
   return (
     <div className="mcLiveRuntimePage">
@@ -191,6 +207,7 @@ export function RuntimeLivePage() {
             employeeName={employeeName}
             defaultModelId={profile.primaryModelId}
             onRunStarted={(runId: string) => setSelectedRunId(runId)}
+            onPromptChange={setDraftPrompt}
           />
         </div>
       </Panel>
@@ -249,6 +266,7 @@ export function RuntimeLivePage() {
             logs={monitor.logs}
             events={monitor.events}
             warnings={monitor.warnings}
+            promptPreview={promptPreview}
           />
         </div>
       </Panel>

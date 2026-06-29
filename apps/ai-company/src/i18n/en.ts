@@ -2695,6 +2695,25 @@ export const en = {
       unknown: 'Unknown',
     },
   },
+  runtimePromptBuilder: {
+    empty: 'Unable to build prompt preview — select an employee and enter a prompt.',
+    explicitOverrideNote:
+      'Explicit prompt mode: the final prompt is sent as-is without implicit assembly.',
+    project: 'Project',
+    workspace: 'Workspace',
+    copyPrompt: 'Copy Prompt',
+    exportPrompt: 'Export Prompt',
+    copied: 'Copied to clipboard',
+    copyFailed: 'Could not copy to clipboard',
+    sections: {
+      systemPrompt: 'System Prompt',
+      employeeIdentity: 'Employee Identity',
+      task: 'Task',
+      context: 'Context',
+      instructions: 'Instructions',
+      finalPrompt: 'Final Prompt',
+    },
+  },
   runtimeLive: {
     title: 'Live Runtime Monitor',
     description:
@@ -2703,7 +2722,7 @@ export const en = {
     executionStream: 'Live execution stream',
     executionStreamDescription: 'Merged pipeline, provider logs, and timeline events for the active run.',
     contextAndPreview: 'Runtime context + result preview',
-    bottomPanel: 'Logs / events / warnings',
+    bottomPanel: 'Logs / events / warnings / prompt preview',
     selectedEmployee: 'Selected employee',
     currentStep: 'Current step',
     elapsed: 'Elapsed',
@@ -2727,6 +2746,7 @@ export const en = {
       logs: 'Logs',
       events: 'Events',
       warnings: 'Warnings',
+      promptPreview: 'Prompt Preview',
     },
     eventsEmpty: 'No timeline events for this run yet.',
   },

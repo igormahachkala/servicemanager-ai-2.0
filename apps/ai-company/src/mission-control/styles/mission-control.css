@@ -7655,6 +7655,76 @@
   background: rgba(59, 130, 246, 0.1);
 }
 
+.mcRuntimePromptPreview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mcRuntimePromptPreviewNote {
+  margin: 0;
+  font-size: 12px;
+  color: var(--mc-muted);
+}
+
+.mcRuntimePromptPreviewMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mcRuntimePromptPreviewActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.mcRuntimePromptPreviewCopyStatus {
+  font-size: 12px;
+}
+
+.mcRuntimePromptPreviewSections {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mcRuntimePromptPreviewSection {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mcRuntimePromptPreviewSectionTitle {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--mc-muted);
+}
+
+.mcRuntimePromptPreviewText {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius);
+  background: rgba(0, 0, 0, 0.12);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 220px;
+  overflow: auto;
+}
+
+.mcRuntimePromptPreviewTextFinal {
+  border-color: rgba(59, 130, 246, 0.45);
+  background: rgba(59, 130, 246, 0.08);
+  max-height: 320px;
+}
+
 .mcLiveRuntimeEventsList {
   margin: 0;
   padding: 0;

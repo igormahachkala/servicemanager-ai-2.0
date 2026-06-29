@@ -1857,6 +1857,7 @@ export const ru: Messages = {
       "conversation.started": "Беседа начата",
       "chat.message": "Сообщение чата",
       "memory.added": "Память добавлена",
+      "memory.evolved": "Memory Evolved",
       "knowledge.updated": "Знания обновлены",
       "report.created": "Отчёт создан",
       "approval.requested": "Запрошено согласование",
@@ -1889,8 +1890,7 @@ export const ru: Messages = {
       "sprint.completed": "Спринт завершён",
       "workday.started": "Рабочий день начат",
       "workday.phase_changed": "Фаза рабочего дня изменена",
-      "workday.finished": "Рабочий день завершён",
-      "memory.evolved": "Memory Evolved"
+      "workday.finished": "Рабочий день завершён"
     }
   },
   runEngine: {
@@ -2198,8 +2198,7 @@ export const ru: Messages = {
   workScheduler: {
     title: "Next Suggested Actions",
     empty: "Нет предложений — завершите runtime run, чтобы сотрудник предложил следующие шаги.",
-    ownerApprovalNote:
-      "Сотрудник проанализировал последний run и предложил шаги. Owner должен approve — автоматического выполнения нет.",
+    ownerApprovalNote: "Сотрудник проанализировал последний run и предложил шаги. Owner должен approve — автоматического выполнения нет.",
     stats: {
       pending: "{count} ожидают approval"
     },
@@ -2212,12 +2211,12 @@ export const ru: Messages = {
       complete_sprint_item: "Закрыть sprint item"
     },
     priorities: {
-      low: "Low",
-      medium: "Medium",
-      high: "High"
+      low: "Низкий",
+      medium: "Средний",
+      high: "Высокий"
     },
     actions: {
-      approve: "Approve",
+      approve: "Одобрить",
       dismiss: "Dismiss",
       openRunTask: "Run Task",
       openResult: "Открыть result",
@@ -2636,6 +2635,24 @@ export const ru: Messages = {
       unknown: "Unknown"
     }
   },
+  runtimePromptBuilder: {
+    empty: "Не удалось собрать превью prompt — выберите сотрудника и введите prompt.",
+    explicitOverrideNote: "Режим явного prompt: финальный prompt отправляется как есть, без неявной сборки.",
+    project: "Проект",
+    workspace: "Workspace",
+    copyPrompt: "Копировать Prompt",
+    exportPrompt: "Экспорт Prompt",
+    copied: "Скопировано в буфер обмена",
+    copyFailed: "Не удалось скопировать в буфер обмена",
+    sections: {
+      systemPrompt: "System Prompt",
+      employeeIdentity: "Идентичность сотрудника",
+      task: "Задача",
+      context: "Контекст",
+      instructions: "Инструкции",
+      finalPrompt: "Финальный Prompt"
+    }
+  },
   runtimeLive: {
     title: "Live-монитор Runtime",
     description: "Наблюдайте за execution цифрового сотрудника в реальном времени — pipeline, логи, здоровье провайдера, превью результата и downstream-интеграции.",
@@ -2643,7 +2660,7 @@ export const ru: Messages = {
     executionStream: "Live-поток execution",
     executionStreamDescription: "Объединённый pipeline, логи провайдера и события timeline для активного запуска.",
     contextAndPreview: "Контекст Runtime + превью результата",
-    bottomPanel: "Логи / события / предупреждения",
+    bottomPanel: "Логи / события / предупреждения / превью prompt",
     selectedEmployee: "Выбранный сотрудник",
     currentStep: "Текущий шаг",
     elapsed: "Прошло",
@@ -2665,37 +2682,10 @@ export const ru: Messages = {
     tabs: {
       logs: "Логи",
       events: "События",
-      warnings: "Предупреждения"
+      warnings: "Предупреждения",
+      promptPreview: "Превью Prompt"
     },
     eventsEmpty: "Событий timeline для этого run пока нет."
-  },
-  runtimeModelRouting: {
-    title: "Model routing",
-    empty: "Выберите сотрудника, чтобы увидеть resolved Ollama routing.",
-    runTaskModeTitle: "Runtime model mode",
-    provider: "Catalog provider",
-    executionProvider: "Execution provider",
-    runtimeProfile: "Runtime profile",
-    modelMode: "Model mode",
-    catalogModel: "Selected catalog model",
-    resolvedOllamaModel: "Resolved Ollama model",
-    estimatedSpeed: "Estimated speed",
-    estimatedContext: "Estimated context",
-    expectedTimeout: "Expected timeout",
-    contextTokens: "{count} tokens",
-    timeoutSeconds: "{seconds}s",
-    modes: {
-      fast: "Fast",
-      deep: "Deep",
-      coding: "Coding",
-      qa: "QA"
-    },
-    modeHints: {
-      fast: "deepseek-r1:8b · Atlas quick analysis",
-      deep: "qwen3.6:27b · Atlas deep reasoning",
-      coding: "qwen2.5-coder:7b · MAX implementation",
-      qa: "deepseek-r1:8b · QA review"
-    }
   },
   handoffEngine: {
     pageDescription: "Протокол передачи реальной работы — цифровые сотрудники готовят пакеты для Codex, Claude Code, Cursor или людей. Без внешнего execution в V1.",
@@ -3005,11 +2995,38 @@ export const ru: Messages = {
     },
     flowNote: "Runtime → Report → Lessons Learned → Employee Memory → Project Knowledge → Experience"
   },
+  runtimeModelRouting: {
+    title: "Model routing",
+    runTaskModeTitle: "Runtime model mode",
+    empty: "Выберите сотрудника, чтобы увидеть resolved Ollama routing.",
+    provider: "Провайдер",
+    executionProvider: "Execution provider",
+    runtimeProfile: "Runtime profile",
+    modelMode: "Model mode",
+    catalogModel: "Selected catalog model",
+    resolvedOllamaModel: "Resolved Ollama model",
+    estimatedSpeed: "Estimated speed",
+    estimatedContext: "Estimated context",
+    expectedTimeout: "Expected timeout",
+    contextTokens: "{count} tokens",
+    timeoutSeconds: "{seconds}s",
+    modes: {
+      fast: "Fast",
+      deep: "Глубокий",
+      coding: "Разработка",
+      qa: "QA"
+    },
+    modeHints: {
+      fast: "deepseek-r1:8b · Atlas quick analysis",
+      deep: "qwen3.6:27b · Atlas deep reasoning",
+      coding: "qwen2.5-coder:7b · MAX implementation",
+      qa: "deepseek-r1:8b · QA review"
+    }
+  },
   runtimeMonitor: {
     title: "Runtime: стоимость и производительность",
-    pageDescription:
-      "Локальные оценки стоимости моделей, длительности и throughput — без внешних billing API.",
-    runs: "runs",
+    pageDescription: "Локальные оценки стоимости моделей, длительности и throughput — без внешних billing API.",
+    runs: "запуски",
     fields: {
       model: "Модель",
       provider: "Провайдер",

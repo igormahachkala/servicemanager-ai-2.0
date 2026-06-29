@@ -1,21 +1,24 @@
 import { useState } from 'react'
 import type { CompanyEvent } from '../../../domain/events/event'
 import type { RuntimeLogEntry } from '../../../domain/runtime/providers/runtimeHealth'
+import type { RuntimePromptPreview } from '../../../domain/runtime/runtimePromptBuilder'
 import type { RuntimeWarning } from '../../../domain/runtime/runtimeResult'
 import { RuntimeLogs } from '../RuntimeLogs'
 import { RuntimeWarnings } from '../RuntimeWarnings'
+import { PromptPreviewPanel } from './PromptPreviewPanel'
 import { useI18n } from '../../../i18n'
 
-type Tab = 'logs' | 'events' | 'warnings'
+type Tab = 'logs' | 'events' | 'warnings' | 'prompt'
 
 type Props = {
   runId: string | null
   logs: RuntimeLogEntry[]
   events: CompanyEvent[]
   warnings: RuntimeWarning[]
+  promptPreview: RuntimePromptPreview | null
 }
 
-export function LiveRuntimeBottomPanel({ runId, logs, events, warnings }: Props) {
+export function LiveRuntimeBottomPanel({ runId, logs, events, warnings, promptPreview }: Props) {
   const { t } = useI18n()
   const [tab, setTab] = useState<Tab>('logs')
 
@@ -42,6 +45,13 @@ export function LiveRuntimeBottomPanel({ runId, logs, events, warnings }: Props)
           onClick={() => setTab('warnings')}
         >
           {t.runtimeLive.tabs.warnings}
+        </button>
+        <button
+          type="button"
+          className={`mcLiveRuntimeBottomTab${tab === 'prompt' ? ' mcLiveRuntimeBottomTabActive' : ''}`}
+          onClick={() => setTab('prompt')}
+        >
+          {t.runtimeLive.tabs.promptPreview}
         </button>
       </div>
 
@@ -71,6 +81,7 @@ export function LiveRuntimeBottomPanel({ runId, logs, events, warnings }: Props)
             <RuntimeWarnings warnings={warnings} />
           )
         ) : null}
+        {tab === 'prompt' ? <PromptPreviewPanel preview={promptPreview} /> : null}
         {tab === 'logs' && logs.length > 0 ? (
           <p className="mcMono mcMuted mcLiveRuntimeBottomCount">{logs.length}</p>
         ) : null}

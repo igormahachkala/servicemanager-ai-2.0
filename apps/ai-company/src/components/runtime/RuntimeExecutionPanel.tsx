@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   OLLAMA_EXECUTION_TIMEOUT_MS,
 } from '../../domain/runtime/providers/runtimeCapabilities'
@@ -23,6 +23,7 @@ type Props = {
   defaultModelId?: string
   taskType?: RuntimeRunRequest['taskType']
   onRunStarted?: (runId: string) => void
+  onPromptChange?: (prompt: string) => void
 }
 
 function isFirstRealOllamaRun(): boolean {
@@ -37,6 +38,7 @@ export function RuntimeExecutionPanel({
   employeeName,
   taskType = 'conversation',
   onRunStarted,
+  onPromptChange,
 }: Props) {
   const { t } = useI18n()
   const { startRun, cancelRun, executing, executionError, executionElapsedMs } = useRuntime()
@@ -48,6 +50,10 @@ export function RuntimeExecutionPanel({
   const [prompt, setPrompt] = useState(
     `Atlas, summarize the current AI Company runtime state and propose the next operational step.`,
   )
+
+  useEffect(() => {
+    onPromptChange?.(prompt)
+  }, [prompt, onPromptChange])
   const [modelMode, setModelMode] = useState<RuntimeModelMode>(() =>
     suggestRuntimeModelMode(employeeId),
   )
