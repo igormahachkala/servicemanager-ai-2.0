@@ -49,7 +49,7 @@ import {
   appendRuntimeLog,
   RuntimeExecutionError,
 } from './providers/runtimeHealth'
-import { buildExecutionPrompt, buildRuntimePromptPreview } from './runtimePromptBuilder'
+import { buildRuntimePromptPreview } from './runtimePromptBuilder'
 import type { RuntimePromptPreview } from './runtimePromptTypes'
 
 const STORAGE_KEY = 'ai-company-runtime-runs'
