@@ -13,6 +13,7 @@ import { ticketsForMobileMyPage } from './mobileHomeBoardFilters'
 import { appendBoardNavigationContextToPath, readBoardNavigationContextFromSearch } from '../lib/boardNavigationContext'
 import { ticketMatchesMobileHomeSearch } from './mobileHomeListUtils'
 import { mobilePath } from './mobileRoute'
+import { MobileInspectionList } from './MobileInspectionList'
 
 type FilterKey = 'active' | 'done' | 'archive'
 
@@ -28,7 +29,7 @@ function ticketLinkState(ticketCompanyId?: string | null) {
 }
 
 const filterStatuses: Partial<Record<FilterKey, api.TicketStatus[]>> = {
-  active: ['NEW', 'ASSIGNED', 'IN_PROGRESS'],
+  active: ['NEW', 'ASSIGNED', 'IN_PROGRESS', 'AWAITING_ACCEPTANCE'],
   done: ['DONE'],
   archive: ['CANCELED'],
 }
@@ -69,10 +70,16 @@ function isTicketInPeriod(t: api.TicketCard, period: string): boolean {
 const PERIOD_LABELS: Record<string, string> = { today: 'Сегодня', '7d': '7 дней', '30d': '30 дней' }
 const PRIORITY_LABELS: Record<string, string> = { NORMAL: 'Обычный', URGENT: 'Срочный' }
 
+const PAGE_SIZE = 50
+const MAX_TAKE = 500
+
+type ScreenMode = 'tickets' | 'patrols'
+
 export function MobileMyTickets() {
   const location = useLocation()
   const navigate = useNavigate()
   const search = new URLSearchParams(location.search)
+  const [screenMode, setScreenMode] = useState<ScreenMode>('tickets')
   const initialBoardContext = useMemo(() => readBoardNavigationContextFromSearch(search), [location.search])
   const initialFilter = useMemo<FilterKey>(() => {
     const tab = (initialBoardContext?.tab || '').trim()
@@ -82,6 +89,7 @@ export function MobileMyTickets() {
   const [textSearch, setTextSearch] = useState(() => (initialBoardContext?.search || '').trim().slice(0, 240))
   const [advFilters, setAdvFilters] = useState<AdvancedFilters>(DEFAULT_ADV_FILTERS)
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const [take, setTake] = useState(PAGE_SIZE)
 
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
 
@@ -125,17 +133,24 @@ export function MobileMyTickets() {
     location.search,
   ])
 
+  useEffect(() => {
+    setTake(PAGE_SIZE)
+  }, [linkedClientCompanyId, companyId])
+
   const boardQ = useQuery({
-    queryKey: ['mobile-my-board', linkedClientCompanyId, companyId, filter],
+    queryKey: ['mobile-my-board', linkedClientCompanyId, companyId, take],
     queryFn: () =>
       api.board({
         linkedClientCompanyId: linkedClientCompanyId || undefined,
         companyId: companyId || undefined,
-        take: filter === 'active' ? 100 : 200,
+        take,
       }),
     enabled:
       !!meQ.data && (meQ.data.role !== 'TECHNICIAN' || !!linkedClientCompanyId),
   })
+
+  const isTruncated = (boardQ.data?.meta.totalTickets ?? 0) >= (boardQ.data?.meta.limitedToLast ?? 1)
+  const canLoadMore = isTruncated && take < MAX_TAKE
 
   const allTickets = boardQ.data?.columns.flatMap((col) => col.cards || []) || []
   const pageScopedTickets = useMemo(
@@ -251,6 +266,29 @@ export function MobileMyTickets() {
         <h1 className="mobileTitle">Заявки</h1>
         <MobileRoleContextStrip role={meQ.data.role} />
       </div>
+
+      {/* Top-level mode switcher */}
+      <div className="mobileScreenTabs">
+        <button
+          type="button"
+          className={`mobileScreenTab${screenMode === 'tickets' ? ' mobileScreenTab--active' : ''}`}
+          onClick={() => setScreenMode('tickets')}
+        >
+          Заявки
+        </button>
+        <button
+          type="button"
+          className={`mobileScreenTab${screenMode === 'patrols' ? ' mobileScreenTab--active' : ''}`}
+          onClick={() => setScreenMode('patrols')}
+        >
+          Обходы
+        </button>
+      </div>
+
+      {screenMode === 'patrols' ? (
+        <MobileInspectionList />
+      ) : (
+      <>
 
       {meQ.data.role === 'TECHNICIAN' && !linkedClientCompanyId ? (
         <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
@@ -453,38 +491,59 @@ export function MobileMyTickets() {
 
       {boardQ.isError ? <div className="mobileNotice mobileNoticeError">{String((boardQ.error as any)?.message || boardQ.error)}</div> : null}
 
-      {!showMyTicketsList ? null : filteredTickets.length === 0 ? (
-        <div className="mobileCard mobileEmptyState" role="status">
-          <div className="mobileEmptyStateTitle">
-            {hasAdvancedFilters
-              ? 'Ничего не найдено'
-              : filter === 'done'
-              ? 'Завершённых заявок нет'
-              : filter === 'archive'
-              ? 'В архиве пока нет заявок'
-              : 'Нет активных заявок'}
-          </div>
-          <p className="mobileEmptyStateHint">
-            {hasAdvancedFilters
-              ? 'По выбранным фильтрам заявок не найдено. Попробуйте изменить или сбросить фильтры.'
-              : filter === 'done'
-              ? 'Здесь появятся завершённые заявки.'
-              : filter === 'archive'
-              ? 'Здесь отменённые заявки.'
-              : meQ.data.role === 'TECHNICIAN'
-                ? 'Нет активных заявок в этом контуре. Проверьте главную страницу.'
-                : 'Активных заявок пока нет.'}
-          </p>
-        </div>
-      ) : (
-        filteredTickets.map((ticket) => (
-          <TicketCard
-            key={ticket.id}
-            ticket={ticket}
-            ticketHref={ticketHref(ticket)}
-            linkState={ticketLinkState(ticket.companyId)}
-          />
-        ))
+      {!showMyTicketsList ? null : (
+        <>
+          {filteredTickets.length === 0 ? (
+            <div className="mobileCard mobileEmptyState" role="status">
+              <div className="mobileEmptyStateTitle">
+                {hasAdvancedFilters
+                  ? 'Ничего не найдено'
+                  : filter === 'done'
+                  ? 'Завершённых заявок нет'
+                  : filter === 'archive'
+                  ? 'В архиве пока нет заявок'
+                  : 'Нет активных заявок'}
+              </div>
+              <p className="mobileEmptyStateHint">
+                {hasAdvancedFilters
+                  ? 'По выбранным фильтрам заявок не найдено. Попробуйте изменить или сбросить фильтры.'
+                  : filter === 'done'
+                  ? 'Здесь появятся завершённые заявки.'
+                  : filter === 'archive'
+                  ? 'Здесь отменённые заявки.'
+                  : meQ.data.role === 'TECHNICIAN'
+                    ? 'Нет активных заявок в этом контуре. Проверьте главную страницу.'
+                    : 'Активных заявок пока нет.'}
+              </p>
+            </div>
+          ) : (
+            filteredTickets.map((ticket) => (
+              <TicketCard
+                key={ticket.id}
+                ticket={ticket}
+                ticketHref={ticketHref(ticket)}
+                linkState={ticketLinkState(ticket.companyId)}
+              />
+            ))
+          )}
+          {canLoadMore ? (
+            <button
+              type="button"
+              className="mobileBtn mobileBtnSecondary"
+              style={{ width: '100%', marginTop: 8 }}
+              onClick={() => setTake((t) => Math.min(t + PAGE_SIZE, MAX_TAKE))}
+              disabled={boardQ.isFetching}
+            >
+              {boardQ.isFetching ? 'Загрузка…' : 'Загрузить ещё'}
+            </button>
+          ) : isTruncated ? (
+            <div className="mobileNotice" style={{ textAlign: 'center', fontSize: '0.82rem', marginTop: 4 }}>
+              Показано максимум 500 заявок. Используйте фильтры для поиска.
+            </div>
+          ) : null}
+        </>
+      )}
+      </>
       )}
     </div>
   )

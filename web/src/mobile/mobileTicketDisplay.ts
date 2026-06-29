@@ -2,7 +2,7 @@ import type { Me, Role, TicketCard, TicketGetOne, TicketPriority, TicketScopePar
 import type { MobileHomeBoardChipId, MobileHomeBoardFilterTab } from './mobileHomeBoardFilters'
 
 /** Состояние для Link: откуда открыли карточку (кнопка «Назад» на деталях). */
-export type MobileTicketListOrigin = 'home' | 'my'
+export type MobileTicketListOrigin = 'home' | 'my' | 'chat' | 'notifications'
 
 /** Данные навигации с списка → детали (scope + «Назад»). */
 export type MobileTicketNavState = {
@@ -282,6 +282,7 @@ export function mobileTicketStatusLabelRu(status: TicketStatus): string {
   if (status === 'NEW') return 'Новая'
   if (status === 'ASSIGNED') return 'Назначена'
   if (status === 'IN_PROGRESS') return 'В работе'
+  if (status === 'AWAITING_ACCEPTANCE') return 'Ожидает приёмки'
   if (status === 'DONE') return 'Завершена'
   if (status === 'CANCELED') return 'Отменена'
   return status

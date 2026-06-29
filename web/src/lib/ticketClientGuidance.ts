@@ -6,7 +6,7 @@ export function shouldShowClientTicketLifecycleHint(
   ticket: TicketGetOne | null | undefined,
 ): boolean {
   if (!me || !ticket) return false
-  if (!['NEW', 'ASSIGNED', 'IN_PROGRESS', 'DONE'].includes(ticket.status)) return false
+  if (!['NEW', 'ASSIGNED', 'IN_PROGRESS', 'AWAITING_ACCEPTANCE', 'DONE'].includes(ticket.status)) return false
   if (me.role === 'TECHNICIAN') return false
   const vm = ticket.meta?.visibilityMode
   if (vm && vm !== 'tenant') return false
@@ -25,8 +25,11 @@ export function clientTicketLifecycleHintText(status: TicketStatus): string {
   if (status === 'IN_PROGRESS') {
     return 'Техник уже выполняет работы.'
   }
+  if (status === 'AWAITING_ACCEPTANCE') {
+    return 'Работы завершены и ожидают вашей приёмки. Вы можете принять работу или вернуть её в работу с комментарием.'
+  }
   if (status === 'DONE') {
-    return 'Работы завершены. Проверьте результат и фото отчёта.'
+    return 'Работа принята клиентом и завершена.'
   }
   return ''
 }

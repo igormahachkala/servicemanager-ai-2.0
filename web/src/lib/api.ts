@@ -16,7 +16,7 @@ export function isFullAdminDesktopNavRole(role?: Role | null): boolean {
   return role === 'PLATFORM_ADMIN' || role === 'ADMIN' || role === 'ADMIN_PROVIDER'
 }
 
-export type TicketStatus = 'NEW' | 'ASSIGNED' | 'IN_PROGRESS' | 'DONE' | 'CANCELED'
+export type TicketStatus = 'NEW' | 'ASSIGNED' | 'IN_PROGRESS' | 'AWAITING_ACCEPTANCE' | 'DONE' | 'CANCELED'
 export type TicketUrgency = 'URGENT' | 'NOT_URGENT'
 
 /** SLA-приоритет окна ответа (срок от создания: NORMAL 24ч, URGENT 2ч на бэкенде). */
@@ -33,6 +33,8 @@ export type Me = {
   companyId: string
   companyName?: string | null
   isActive?: boolean
+  /** Серверный флаг доступа к скрытому модулю Engineering Agent (owner-only). */
+  canAccessEngineeringAgent?: boolean
   /** Если бэкенд добавит подсказку контура для техника — используем при мобильном входе без getLinkedClients */
   linkedClientCompanyId?: string | null
   linkedClientCompanyIds?: string[] | null
@@ -628,6 +630,7 @@ export type TicketGetOne = {
   status: TicketStatus
   urgency: TicketUrgency
   priority: TicketPriority
+  urgencyReason?: string | null
   createdAt: string
   updatedAt: string
   requesterName: string | null
@@ -750,6 +753,7 @@ export type CreateTicketInput = {
   categoryId: string
   urgency?: TicketUrgency
   priority?: TicketPriority
+  urgencyReason?: string | null
   clientCompanyId?: string | null
   title?: string | null
   description?: string | null
@@ -910,6 +914,39 @@ export type AnalyticsOverviewResponse = {
   meta?: {
     scopeCompanyId?: string
     visibilityMode?: 'tenant' | 'provider_primary' | 'platform_observer'
+  }
+}
+
+export type LocationAnalyticsItem = {
+  locationId: string
+  locationName: string
+  city: string | null
+  address: string | null
+  totalTickets: number
+  newTickets: number
+  inProgressTickets: number
+  doneTickets: number
+  overdueTickets: number
+  categories: Array<{
+    categoryId: string
+    categoryName: string
+    ticketsCount: number
+    overdueCount: number
+  }>
+}
+
+export type LocationAnalyticsResponse = {
+  items: LocationAnalyticsItem[]
+  summary: {
+    totalLocations: number
+    totalTickets: number
+    totalOverdue: number
+    inProgressTotal: number
+    doneTotal: number
+  }
+  meta?: {
+    scopeCompanyId?: string
+    visibilityMode?: string
   }
 }
 
@@ -2031,8 +2068,14 @@ export async function locations(companyId?: string, opts?: { includeDeleted?: bo
   ])
 }
 
-export async function createLocation(input: CreateLocationInput): Promise<LocationListItem> {
-  return request<LocationListItem>('/locations', {
+/**
+ * `companyId` — query для POST /locations: контур клиента, которому принадлежит точка.
+ * У провайдера в linked-scope это id выбранного клиента; для клиента — не передаётся (свой tenant).
+ * Бэкенд резолвит владельца как CLIENT (см. SMA-P0-CREATE-TICKET-DATA-CONSISTENCY-001).
+ */
+export async function createLocation(input: CreateLocationInput, companyId?: string): Promise<LocationListItem> {
+  const suffix = companyId ? '?companyId=' + encodeURIComponent(companyId) : ''
+  return request<LocationListItem>('/locations' + suffix, {
     method: 'POST',
     body: input,
   })
@@ -2308,6 +2351,20 @@ export async function updateTicketStatus(id: string, input: UpdateTicketStatusIn
   })
 }
 
+/** SMA-ACCEPTANCE-005: клиентское решение по приёмке работ (контракт backend: POST /tickets/:id/acceptance). */
+export type TicketAcceptanceDecision = 'ACCEPT' | 'REJECT'
+export type TicketAcceptanceInput = {
+  decision: TicketAcceptanceDecision
+  comment?: string
+  attachmentIds?: string[]
+}
+export async function decideTicketAcceptance(id: string, input: TicketAcceptanceInput, scope?: string | TicketScopeParams): Promise<any> {
+  return request<any>(`/tickets/${id}/acceptance${buildTicketScopeSuffix(scope)}`, {
+    method: 'POST',
+    body: input,
+  })
+}
+
 export async function addTicketComment(id: string, comment: string, scope?: string | TicketScopeParams): Promise<{ ok: boolean }> {
   return request<{ ok: boolean }>(`/tickets/${id}/comments${buildTicketScopeSuffix(scope)}`, {
     method: 'POST',
@@ -2378,6 +2435,27 @@ export async function analyticsOverview(params?: { linkedClientCompanyId?: strin
   }
   const suffix = search.toString() ? '?' + search.toString() : ''
   return request<AnalyticsOverviewResponse>('/analytics/overview' + suffix)
+}
+
+export async function analyticsLocations(params?: {
+  linkedClientCompanyId?: string
+  companyId?: string
+  locationId?: string
+  categoryId?: string
+  from?: string
+  to?: string
+  minTickets?: number
+}): Promise<LocationAnalyticsResponse> {
+  const search = new URLSearchParams()
+  if (params?.linkedClientCompanyId) search.set('linkedClientCompanyId', params.linkedClientCompanyId)
+  if (params?.companyId) search.set('companyId', params.companyId)
+  if (params?.locationId) search.set('locationId', params.locationId)
+  if (params?.categoryId) search.set('categoryId', params.categoryId)
+  if (params?.from) search.set('from', params.from)
+  if (params?.to) search.set('to', params.to)
+  if (params?.minTickets != null) search.set('minTickets', String(params.minTickets))
+  const suffix = search.toString() ? '?' + search.toString() : ''
+  return request<LocationAnalyticsResponse>('/analytics/locations' + suffix)
 }
 
 export async function ticketContextAnalytics(params?: {
@@ -3043,4 +3121,40 @@ export async function downloadInspectionRunReportExport(
     blob,
     fileName: match?.[1] || 'work-act.' + format,
   }
+}
+
+// --- Engineering Agent (owner-only) ---------------------------------------
+
+export type AgentTaskStatus = 'NEW' | 'IN_PROGRESS' | 'DONE' | 'FAILED'
+
+export type AgentTask = {
+  id: string
+  companyId: string
+  title: string
+  prompt: string
+  status: AgentTaskStatus
+  result?: string | null
+  createdAt: string
+  updatedAt: string
+  createdBy?: { id: string; email: string; firstName?: string | null; lastName?: string | null } | null
+}
+
+export async function listAgentTasks(): Promise<AgentTask[]> {
+  return request<AgentTask[]>('/agent-tasks')
+}
+
+export async function getAgentTask(id: string): Promise<AgentTask> {
+  return request<AgentTask>('/agent-tasks/' + id)
+}
+
+export async function createAgentTask(input: { title: string; prompt: string }): Promise<AgentTask> {
+  return request<AgentTask>('/agent-tasks', { method: 'POST', body: input })
+}
+
+export async function updateAgentTaskStatus(id: string, status: AgentTaskStatus): Promise<AgentTask> {
+  return request<AgentTask>('/agent-tasks/' + id + '/status', { method: 'PATCH', body: { status } })
+}
+
+export async function updateAgentTaskResult(id: string, result: string): Promise<AgentTask> {
+  return request<AgentTask>('/agent-tasks/' + id + '/result', { method: 'PATCH', body: { result } })
 }

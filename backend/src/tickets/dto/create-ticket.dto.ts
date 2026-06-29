@@ -78,6 +78,10 @@ export class CreateTicketDto {
   priority?: TicketPriority
 
   @IsOptional()
+  @IsString()
+  urgencyReason?: string
+
+  @IsOptional()
   @IsInt()
   @Min(1)
   @Max(60 * 24 * 30)

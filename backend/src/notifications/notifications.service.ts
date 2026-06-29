@@ -53,6 +53,13 @@ const ASSIGNMENT_REQUEST_RECIPIENT_ROLES: UserRole[] = [
   UserRole.STAFF,
 ];
 
+const ACCEPTANCE_NOTIFY_ROLES: UserRole[] = [
+  UserRole.CLIENT,
+  UserRole.ADMIN,
+  UserRole.NETWORK_DIRECTOR,
+  UserRole.TERRITORIAL_MANAGER,
+];
+
 const STATUS_RU: Record<TicketStatus, string> = {
   NEW: 'Новая',
   ASSIGNED: 'Назначена',
@@ -673,6 +680,45 @@ export class NotificationsService {
       ...params,
       toStatus: TicketStatus.DONE,
     });
+  }
+
+  onTicketAwaitingAcceptance(params: {
+    ticketCompanyId: string;
+    actorUserId: string | null;
+    ticketId: string;
+    ticketNumber: number;
+    sourceEventId?: string | null;
+  }) {
+    void this.safeNotify('ticket.awaiting_acceptance', () => this.emitTicketAwaitingAcceptanceInternal(params));
+  }
+
+  onTicketAccepted(params: {
+    ticketCompanyId: string;
+    assignedTechnicianId: string | null;
+    actorUserId: string | null;
+    ticketId: string;
+    ticketNumber: number;
+    sourceEventId?: string | null;
+  }) {
+    if (!params.assignedTechnicianId) return;
+    void this.safeNotify('ticket.accepted', () =>
+      this.emitTicketAcceptedInternal({ ...params, assignedTechnicianId: params.assignedTechnicianId! }),
+    );
+  }
+
+  onTicketRejected(params: {
+    ticketCompanyId: string;
+    assignedTechnicianId: string | null;
+    actorUserId: string | null;
+    ticketId: string;
+    ticketNumber: number;
+    comment: string | null;
+    sourceEventId?: string | null;
+  }) {
+    if (!params.assignedTechnicianId) return;
+    void this.safeNotify('ticket.rejected', () =>
+      this.emitTicketRejectedInternal({ ...params, assignedTechnicianId: params.assignedTechnicianId! }),
+    );
   }
 
   scheduleTicketCommentAdded(params: {
@@ -1451,6 +1497,124 @@ export class NotificationsService {
         assignee.id,
         params.fromStatus,
         params.toStatus,
+      ),
+    });
+  }
+
+  private async emitTicketAwaitingAcceptanceInternal(params: {
+    ticketCompanyId: string;
+    actorUserId: string | null;
+    ticketId: string;
+    ticketNumber: number;
+    sourceEventId?: string | null;
+  }) {
+    const excludeIds = params.actorUserId ? [params.actorUserId] : [];
+    const users = await this.prisma.user.findMany({
+      where: {
+        companyId: params.ticketCompanyId,
+        isActive: true,
+        role: { in: ACCEPTANCE_NOTIFY_ROLES },
+        ...(excludeIds.length ? { id: { notIn: excludeIds } } : {}),
+      },
+      select: { id: true, companyId: true },
+    });
+    if (!users.length) return;
+
+    const title = 'Работа выполнена, ожидает приёмки';
+    const message = clipMessage(`${ticketLabel(params.ticketNumber)} — проверьте и подтвердите выполненную работу.`);
+
+    await this.createNotifications(
+      users.map((u) => ({
+        companyId: u.companyId,
+        userId: u.id,
+        type: 'ticket.awaiting_acceptance',
+        title,
+        message,
+        entityType: 'Ticket',
+        entityId: params.ticketId,
+        linkedClientCompanyId: null,
+        dedupeKey: this.notificationDedupeKey(
+          'ticket.awaiting_acceptance',
+          params.sourceEventId || params.ticketId,
+          u.companyId,
+          u.id,
+        ),
+      })),
+    );
+  }
+
+  private async emitTicketAcceptedInternal(params: {
+    ticketCompanyId: string;
+    assignedTechnicianId: string;
+    actorUserId: string | null;
+    ticketId: string;
+    ticketNumber: number;
+    sourceEventId?: string | null;
+  }) {
+    if (params.actorUserId === params.assignedTechnicianId) return;
+
+    const assignee = await this.prisma.user.findFirst({
+      where: { id: params.assignedTechnicianId, isActive: true },
+      select: { id: true, companyId: true },
+    });
+    if (!assignee) return;
+
+    const linked = assignee.companyId !== params.ticketCompanyId ? params.ticketCompanyId : null;
+
+    await this.createNotification({
+      companyId: assignee.companyId,
+      userId: assignee.id,
+      type: 'ticket.accepted',
+      title: 'Работа принята',
+      message: clipMessage(`${ticketLabel(params.ticketNumber)} — клиент подтвердил выполнение.`),
+      entityType: 'Ticket',
+      entityId: params.ticketId,
+      linkedClientCompanyId: linked,
+      dedupeKey: this.notificationDedupeKey(
+        'ticket.accepted',
+        params.sourceEventId || params.ticketId,
+        assignee.companyId,
+        assignee.id,
+      ),
+    });
+  }
+
+  private async emitTicketRejectedInternal(params: {
+    ticketCompanyId: string;
+    assignedTechnicianId: string;
+    actorUserId: string | null;
+    ticketId: string;
+    ticketNumber: number;
+    comment: string | null;
+    sourceEventId?: string | null;
+  }) {
+    if (params.actorUserId === params.assignedTechnicianId) return;
+
+    const assignee = await this.prisma.user.findFirst({
+      where: { id: params.assignedTechnicianId, isActive: true },
+      select: { id: true, companyId: true },
+    });
+    if (!assignee) return;
+
+    const linked = assignee.companyId !== params.ticketCompanyId ? params.ticketCompanyId : null;
+    const body = params.comment
+      ? `${ticketLabel(params.ticketNumber)} — ${params.comment}`
+      : `${ticketLabel(params.ticketNumber)} — работа не принята, проверьте комментарий.`;
+
+    await this.createNotification({
+      companyId: assignee.companyId,
+      userId: assignee.id,
+      type: 'ticket.rejected',
+      title: 'Работа не принята',
+      message: clipMessage(body),
+      entityType: 'Ticket',
+      entityId: params.ticketId,
+      linkedClientCompanyId: linked,
+      dedupeKey: this.notificationDedupeKey(
+        'ticket.rejected',
+        params.sourceEventId || params.ticketId,
+        assignee.companyId,
+        assignee.id,
       ),
     });
   }

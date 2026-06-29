@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
@@ -64,7 +64,39 @@ export function LocationsPage() {
   const [editValue, setEditValue] = useState<LocationFormValue>(emptyForm)
   const [showDeleted, setShowDeleted] = useState(false)
 
-  const locationsQ = useQuery({ queryKey: ['locations', showDeleted], queryFn: () => api.locations(undefined, { includeDeleted: showDeleted }) })
+  // SMA-P0-FE-CREATE-LOCATION-LINKED-SCOPE-001: провайдер создаёт/смотрит точки в контуре выбранного
+  // клиента. linked-clients непуст → это провайдерский контур; у клиента эндпоинт возвращает [] (свой tenant).
+  const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
+  const linkedClientsQ = useQuery({
+    queryKey: ['locations-linked-clients'],
+    queryFn: () => api.getLinkedClients().catch(() => []),
+  })
+  const linkedClients = linkedClientsQ.data || []
+  const isProviderScope = linkedClients.length > 0
+  const [selectedClientId, setSelectedClientId] = useState('')
+
+  useEffect(() => {
+    if (!isProviderScope) {
+      if (selectedClientId) setSelectedClientId('')
+      return
+    }
+    if (selectedClientId && linkedClients.some((c) => c.clientCompany.id === selectedClientId)) return
+    const hint = api.getLinkedClientCompanyIdFromMe(meQ.data)
+    const fromHint = hint && linkedClients.some((c) => c.clientCompany.id === hint) ? hint : ''
+    const onlyOne = linkedClients.length === 1 ? linkedClients[0].clientCompany.id : ''
+    const next = fromHint || onlyOne || ''
+    if (next !== selectedClientId) setSelectedClientId(next)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isProviderScope, linkedClientsQ.dataUpdatedAt, meQ.dataUpdatedAt])
+
+  const scopeCompanyId = isProviderScope ? selectedClientId : ''
+  const canCreate = !isProviderScope || !!scopeCompanyId
+
+  const locationsQ = useQuery({
+    queryKey: ['locations', showDeleted, scopeCompanyId],
+    queryFn: () => api.locations(scopeCompanyId || undefined, { includeDeleted: showDeleted }),
+    enabled: !isProviderScope || !!scopeCompanyId,
+  })
 
   const sortedLocations = useMemo(() => {
     const rows = [...(locationsQ.data || [])]
@@ -80,7 +112,7 @@ export function LocationsPage() {
   }
 
   const createM = useMutation({
-    mutationFn: (value: LocationFormValue) => api.createLocation(toCreateInput(value)),
+    mutationFn: (value: LocationFormValue) => api.createLocation(toCreateInput(value), scopeCompanyId || undefined),
     onSuccess: async (created) => {
       setErr(null)
       setSuccess(`Локация «${created.name}» создана`)
@@ -141,6 +173,10 @@ export function LocationsPage() {
     event.preventDefault()
     setErr(null)
     setSuccess(null)
+    if (isProviderScope && !scopeCompanyId) {
+      setErr('Выберите клиента, для которого создаётся локация.')
+      return
+    }
     const validationError = validate(createValue)
     if (validationError) {
       setErr(validationError)
@@ -228,16 +264,41 @@ export function LocationsPage() {
       {success ? <div className="panel" style={{ marginBottom: 12 }}>{success}</div> : null}
       {locationsQ.isError ? <div className="alert">{(locationsQ.error as any)?.message || String(locationsQ.error)}</div> : null}
 
+      {isProviderScope ? (
+        <div className="panel" style={{ marginBottom: 12 }}>
+          <label style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ fontWeight: 600 }}>Клиент (контур):</span>
+            <select value={selectedClientId} onChange={(e) => setSelectedClientId(e.target.value)}>
+              <option value="">— выберите клиента —</option>
+              {linkedClients.map((c) => (
+                <option key={c.clientCompany.id} value={c.clientCompany.id}>
+                  {c.clientCompany.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="muted small" style={{ marginTop: 6 }}>
+            Точки создаются и отображаются в контуре выбранного клиента.
+          </div>
+        </div>
+      ) : null}
+
       <div className="grid2" style={{ gridTemplateColumns: '1fr 1.4fr' }}>
         <div className="panel">
-          <LocationForm
-            title="Создать локацию"
-            submitLabel="Создать локацию"
-            value={createValue}
-            submitting={createM.isPending}
-            onChange={patchCreate}
-            onSubmit={submitCreate}
-          />
+          {canCreate ? (
+            <LocationForm
+              title="Создать локацию"
+              submitLabel="Создать локацию"
+              value={createValue}
+              submitting={createM.isPending}
+              onChange={patchCreate}
+              onSubmit={submitCreate}
+            />
+          ) : (
+            <div className="alert">
+              Выберите клиента выше — создание точек доступно только в контуре клиента.
+            </div>
+          )}
         </div>
 
         <div className="panel">
@@ -248,7 +309,9 @@ export function LocationsPage() {
               Показать удалённые
             </label>
           </div>
-          {locationsQ.isLoading ? (
+          {isProviderScope && !scopeCompanyId ? (
+            <div className="muted">Выберите клиента, чтобы увидеть его локации.</div>
+          ) : locationsQ.isLoading ? (
             <div className="muted">Загружаем локации…</div>
           ) : (
             <LocationList

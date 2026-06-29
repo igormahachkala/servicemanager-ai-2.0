@@ -84,12 +84,73 @@ export class TicketsAssignmentService {
       where: { id: companyId },
       select: {
         id: true,
+        type: true,
         autoAssignEnabled: true,
         allowTechnicianClaim: true,
       },
     });
     if (!company) throw new NotFoundException('Company not found');
     return company;
+  }
+
+  private async resolveTicketOwnerCompanyId(params: {
+    actorCompanyId: string;
+    locationId: string;
+    requestedClientCompanyId?: string | null;
+  }) {
+    const actorCompany = await this.prisma.company.findUnique({
+      where: { id: params.actorCompanyId },
+      select: {
+        id: true,
+        type: true,
+      },
+    });
+    if (!actorCompany) {
+      throw new NotFoundException('Company not found');
+    }
+
+    const location = await this.prisma.location.findFirst({
+      where: {
+        id: params.locationId,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        clientCompanyId: true,
+      },
+    });
+    if (!location) {
+      throw new NotFoundException('Location not found');
+    }
+
+    if (actorCompany.type === CompanyType.CLIENT) {
+      if (params.requestedClientCompanyId && params.requestedClientCompanyId !== params.actorCompanyId) {
+        throw new ForbiddenException('Client companies can create tickets only for their own company');
+      }
+      if (location.clientCompanyId !== params.actorCompanyId) {
+        throw new NotFoundException('Location not found');
+      }
+      return params.actorCompanyId;
+    }
+
+    const resolvedClientCompanyId = params.requestedClientCompanyId?.trim() || location.clientCompanyId;
+    if (!resolvedClientCompanyId) {
+      throw new NotFoundException('Client company not found');
+    }
+
+    const access = await this.serviceContractsService.getLinkedClientAccess(
+      params.actorCompanyId,
+      resolvedClientCompanyId,
+    );
+    if (!access) {
+      throw new NotFoundException('Linked client not found');
+    }
+
+    if (location.clientCompanyId !== resolvedClientCompanyId) {
+      throw new NotFoundException('Location not found');
+    }
+
+    return resolvedClientCompanyId;
   }
 
   private async assertExecutorOperationsAllowed(actorCompanyId: string) {
@@ -429,34 +490,28 @@ export class TicketsAssignmentService {
       address: dto.address?.trim() || null,
       pointName: dto.pointName?.trim() || null,
       urgency: dto.urgency,
+      urgencyReason: dto.urgencyReason?.trim() || null,
       slaMinutes: dto.slaMinutes ?? null,
       priority: dto.priority === TicketPriority.URGENT ? TicketPriority.URGENT : TicketPriority.NORMAL,
     };
   }
   async create(actorCompanyId: string, creatorUserId: string, creatorRole: UserRole, dto: CreateTicketDto) {
     const input = this.normalizeCreateInput(dto);
-    let targetCompanyId = actorCompanyId;
-    if (input.clientCompanyId && input.clientCompanyId !== actorCompanyId) {
-      if (creatorRole === UserRole.TECHNICIAN) {
-        targetCompanyId = (
-          await this.techniciansService.resolveBoundCreateScope(
-            actorCompanyId,
-            creatorUserId,
-            input.clientCompanyId,
-            input.locationId,
-          )
-        ).companyId;
-      } else if (
-        creatorRole === UserRole.ADMIN ||
-        creatorRole === UserRole.MASTER ||
-        creatorRole === UserRole.DISPATCHER ||
-        creatorRole === UserRole.NETWORK_DIRECTOR
-      ) {
-        await this.serviceContractsService.assertPrimaryLinkedClientAccess(actorCompanyId, input.clientCompanyId);
-        targetCompanyId = input.clientCompanyId;
-      } else {
-        throw new ForbiddenException('Role cannot create ticket in linked-client scope');
-      }
+    let targetCompanyId = await this.resolveTicketOwnerCompanyId({
+      actorCompanyId,
+      locationId: input.locationId,
+      requestedClientCompanyId: input.clientCompanyId,
+    });
+
+    if (creatorRole === UserRole.TECHNICIAN && targetCompanyId !== actorCompanyId) {
+      targetCompanyId = (
+        await this.techniciansService.resolveBoundCreateScope(
+          actorCompanyId,
+          creatorUserId,
+          targetCompanyId,
+          input.locationId,
+        )
+      ).companyId;
     }
     const assignmentCompanyId =
       creatorRole === UserRole.TECHNICIAN && targetCompanyId !== actorCompanyId ? actorCompanyId : targetCompanyId;
@@ -470,6 +525,9 @@ export class TicketsAssignmentService {
       locationId: input.locationId,
     });
     const company = await this.getCompany(targetCompanyId);
+    if (company.type !== CompanyType.CLIENT) {
+      throw new BadRequestException('Ticket owner company must be a CLIENT company');
+    }
     const category = await this.getCategory(targetCompanyId, input.categoryId);
     const location = await this.getLocation(targetCompanyId, input.locationId);
     const equipment = input.equipmentId
@@ -527,6 +585,7 @@ export class TicketsAssignmentService {
 
           urgency: input.urgency ?? TicketUrgency.NOT_URGENT,
           priority: input.priority,
+          urgencyReason: input.urgencyReason ?? null,
           slaMinutes,
           slaDueAt,
 
@@ -719,6 +778,9 @@ export class TicketsAssignmentService {
     if (!parent) throw new NotFoundException('Parent ticket not found');
 
     const company = await this.getCompany(companyId);
+    if (company.type !== CompanyType.CLIENT) {
+      throw new BadRequestException('Ticket owner company must be a CLIENT company');
+    }
     const category = await this.getCategory(companyId, dto.problemCategoryId);
 
     const specializationIds = category.specializationLinks.map((x) => x.specializationId);
@@ -1002,10 +1064,17 @@ export class TicketsAssignmentService {
         throw new BadRequestException(`Ticket cannot be assigned in status ${ticket.status}`);
       }
 
+      // ADMIN/MASTER/DISPATCHER self-assigning don't need the isExecutor flag —
+      // canAssign policy already gates who can call this path.
+      const MANAGEMENT_SELF_ASSIGN_ROLES: UserRole[] = [UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER];
+      const skipExecutorFlag =
+        technicianId === accessActor.id &&
+        MANAGEMENT_SELF_ASSIGN_ROLES.includes(accessActor.role as UserRole);
+
       const tech = await tx.user.findFirst({
         where: {
           id: technicianId,
-          isExecutor: true,
+          ...(skipExecutorFlag ? {} : { isExecutor: true }),
           role: { in: Array.from(EXECUTOR_CAPABLE_ROLES) },
         },
         include: {
@@ -1462,6 +1531,12 @@ export class TicketsAssignmentService {
         if (value === null) return null;
         return value.trim() || null;
       };
+
+      const urgencyReason = normalizeNullable(dto.urgencyReason);
+      if (urgencyReason !== undefined) {
+        data.urgencyReason = urgencyReason;
+        changedFields.push('urgencyReason');
+      }
 
       const requesterName = normalizeNullable(dto.requesterName);
       if (requesterName !== undefined && requesterName !== ticket.requesterName) {
@@ -2017,6 +2092,9 @@ export class TicketsAssignmentService {
     },
   ) {
     const company = await this.getCompany(companyId);
+    if (company.type !== CompanyType.CLIENT) {
+      throw new BadRequestException('Ticket owner company must be a CLIENT company');
+    }
     const category = await this.getCategory(companyId, input.categoryId);
     const location = await this.getLocation(companyId, input.locationId);
     const equipment = input.equipmentId

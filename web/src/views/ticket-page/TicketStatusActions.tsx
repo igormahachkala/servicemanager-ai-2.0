@@ -21,8 +21,8 @@ export function TicketStatusActions(props: TicketStatusActionsProps) {
         <button className="ghost" disabled={statusPending || !canTransitionTo('IN_PROGRESS')} onClick={() => onChangeStatus('IN_PROGRESS')}>
           {statusPending ? 'Сохраняем…' : 'Начать работу'}
         </button>
-        <button className="ghost" disabled={statusPending || !canTransitionTo('DONE')} onClick={() => onChangeStatus('DONE')}>
-          {statusPending ? 'Сохраняем…' : 'Завершить'}
+        <button className="ghost" disabled={statusPending || !canTransitionTo('AWAITING_ACCEPTANCE')} onClick={() => onChangeStatus('AWAITING_ACCEPTANCE')}>
+          {statusPending ? 'Сохраняем…' : 'Отправить на приёмку'}
         </button>
         <button className="ghost" disabled={statusPending || !canTransitionTo('CANCELED')} onClick={() => onChangeStatus('CANCELED')}>
           {statusPending ? 'Сохраняем…' : 'Отменить'}

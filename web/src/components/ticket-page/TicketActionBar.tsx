@@ -5,13 +5,11 @@ import { TicketActionButton } from './TicketActionButton'
 import { TicketActionErrors } from './TicketActionErrors'
 
 export type TicketActionBarProps = {
-  ticketStatus: TicketStatus
   backToBoardHref: string
   primaryAction: PrimaryTicketAction | null
   canClaim: boolean
   canChangeStatus: boolean
   canTransitionTo: (s: TicketStatus) => boolean
-  canCompleteByEvidence: boolean
   showCancel: boolean
   closeHint?: string | null
   claimPending: boolean
@@ -28,17 +26,16 @@ export type TicketActionBarProps = {
   hasOperationalPhotoSelected: boolean
   claimError?: string | null
   statusError?: string | null
+  onOpenSubmitForm?: () => void
 }
 
 export function TicketActionBar(props: TicketActionBarProps) {
   const {
-    ticketStatus,
     backToBoardHref,
     primaryAction,
     canClaim,
     canChangeStatus,
     canTransitionTo,
-    canCompleteByEvidence,
     showCancel,
     closeHint,
     claimPending,
@@ -54,6 +51,7 @@ export function TicketActionBar(props: TicketActionBarProps) {
     hasOperationalPhotoSelected,
     claimError,
     statusError,
+    onOpenSubmitForm,
   } = props
 
   const busy = claimPending || statusPending || addCommentPending || operationalPhotoPending
@@ -85,13 +83,8 @@ export function TicketActionBar(props: TicketActionBarProps) {
             ) : null}
             {primaryAction.kind === 'done' ? (
               <TicketActionButton
-                onClick={() =>
-                  onSetStatus({
-                    status: 'DONE',
-                    comment: newComment.trim() || undefined,
-                  })
-                }
-                disabled={statusPending || busy || !canTransitionTo('DONE') || !canCompleteByEvidence}
+                onClick={() => onOpenSubmitForm ? onOpenSubmitForm() : onSetStatus({ status: 'AWAITING_ACCEPTANCE', comment: newComment.trim() || undefined })}
+                disabled={statusPending || busy || !canTransitionTo('AWAITING_ACCEPTANCE')}
                 style={{ width: '100%' }}
               >
                 {statusPending ? 'Сохраняем…' : primaryAction.label}
@@ -123,18 +116,13 @@ export function TicketActionBar(props: TicketActionBarProps) {
             </TicketActionButton>
           ) : null}
 
-          {canChangeStatus && primaryAction?.kind !== 'done' ? (
+          {canChangeStatus && primaryAction?.kind !== 'done' && canTransitionTo('AWAITING_ACCEPTANCE') ? (
             <TicketActionButton
               variant="ghost"
-              disabled={statusPending || busy || !canTransitionTo('DONE') || !canCompleteByEvidence}
-              onClick={() =>
-                onSetStatus({
-                  status: 'DONE',
-                  comment: newComment.trim() || undefined,
-                })
-              }
+              disabled={statusPending || busy}
+              onClick={() => onOpenSubmitForm ? onOpenSubmitForm() : onSetStatus({ status: 'AWAITING_ACCEPTANCE', comment: newComment.trim() || undefined })}
             >
-              Завершить
+              Отправить на приёмку
             </TicketActionButton>
           ) : null}
 
@@ -174,11 +162,6 @@ export function TicketActionBar(props: TicketActionBarProps) {
           </div>
         ) : null}
 
-        {!canCompleteByEvidence && ticketStatus === 'IN_PROGRESS' ? (
-          <div className="muted small" style={{ marginTop: 8 }}>
-            Для завершения нужны комментарий в истории и фото в заявке.
-          </div>
-        ) : null}
 
         <TicketActionErrors claimError={claimError} statusError={statusError} />
       </div>

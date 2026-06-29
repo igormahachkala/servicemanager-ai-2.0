@@ -23,6 +23,7 @@ import { EquipmentModule } from './equipment/equipment.module';
 import { PublicRequestModule } from './public-request/public-request.module';
 import { ServiceContractsModule } from './service-contracts/service-contracts.module';
 import { InspectionModule } from './inspection/inspection.module';
+import { AgentTasksModule } from './agent-tasks/agent-tasks.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { UploadsModule } from './uploads/uploads.module';
 import { MaxBotModule } from './max-bot/max-bot.module';
@@ -48,6 +49,7 @@ import { PermissionsModule } from './permissions/permissions.module';
     PublicRequestModule,
     ServiceContractsModule,
     InspectionModule,
+    AgentTasksModule,
     RealtimeModule,
     UploadsModule,
     MaxBotModule,

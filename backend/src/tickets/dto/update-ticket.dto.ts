@@ -26,6 +26,10 @@ export class UpdateTicketDto {
 
   @IsOptional()
   @IsString()
+  urgencyReason?: string
+
+  @IsOptional()
+  @IsString()
   requesterName?: string
 
   @IsOptional()

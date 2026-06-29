@@ -98,7 +98,8 @@ export class LocationsService {
   }
 
   async create(
-    companyId: string,
+    actorCompanyId: string,
+    actorRole: UserRole,
     dto: {
       name: string
       platformCode: string
@@ -110,7 +111,23 @@ export class LocationsService {
       longitude?: number
       isActive?: boolean
     },
+    requestedCompanyId?: string,
   ) {
+    // SMA-P0-CREATE-TICKET-DATA-CONSISTENCY-001: resolve the CLIENT owner the same way reads do, so a
+    // provider acting in a linked-client scope creates a CLIENT-owned location (not provider-owned).
+    // Reusing resolveReadableCompanyId asserts the provider↔client ServiceContract; the explicit
+    // CLIENT guard below also rejects a provider creating without a client scope (early-return path).
+    const companyId = await this.resolveReadableCompanyId(actorCompanyId, actorRole, requestedCompanyId)
+    const owner = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { type: true },
+    })
+    if (!owner || owner.type !== CompanyType.CLIENT) {
+      throw new BadRequestException(
+        'Location owner must be a CLIENT company. Provide a linked client company via companyId.',
+      )
+    }
+
     const name = dto.name.trim()
     const platformCode = dto.platformCode.trim().toUpperCase()
     const externalCode = dto.externalCode?.trim() || null
@@ -294,14 +311,24 @@ export class LocationsService {
     if (observerCompanyId !== actorCompanyId) {
       const company = await this.prisma.company.findUnique({
         where: { id: observerCompanyId },
-        select: { id: true },
+        select: { id: true, type: true },
       })
       if (!company) {
         throw new NotFoundException('Company not found')
       }
+      if (company.type !== CompanyType.CLIENT) {
+        throw new BadRequestException('Observer scope must be a CLIENT company')
+      }
       return observerCompanyId
     }
     await this.serviceContractsService.assertPrimaryLinkedClientAccess(actorCompanyId, requested)
+    const linkedCompany = await this.prisma.company.findUnique({
+      where: { id: requested },
+      select: { type: true },
+    })
+    if (!linkedCompany || linkedCompany.type !== CompanyType.CLIENT) {
+      throw new BadRequestException('Linked client scope must be a CLIENT company')
+    }
     return requested
   }
 

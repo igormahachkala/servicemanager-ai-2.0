@@ -528,6 +528,174 @@ export class AnalyticsService {
     return { scopeCompanyId: linkedClientCompanyId, visibilityMode: 'provider_primary' as const }
   }
 
+  async getLocationsAnalytics(
+    actorCompanyId: string,
+    actorUserId: string,
+    actorRole: UserRole,
+    params: {
+      companyId?: string
+      linkedClientCompanyId?: string
+      locationId?: string
+      categoryId?: string
+      from?: string
+      to?: string
+      minTickets?: number
+    },
+  ) {
+    const scope = await this.resolveScope(actorCompanyId, actorRole, params.companyId, params.linkedClientCompanyId)
+    const scopeCompanyId = scope.scopeCompanyId
+    const baseWhere = await this.resolveScopedTicketWhere(actorCompanyId, actorUserId, actorRole, scopeCompanyId)
+
+    const dateFilter: { gte?: Date; lte?: Date } = {}
+    if (params.from) {
+      const d = new Date(params.from)
+      if (!isNaN(d.getTime())) dateFilter.gte = d
+    }
+    if (params.to) {
+      const d = new Date(params.to)
+      if (!isNaN(d.getTime())) { d.setHours(23, 59, 59, 999); dateFilter.lte = d }
+    }
+
+    const ticketWhere: Record<string, any> = {
+      ...baseWhere,
+      ...(Object.keys(dateFilter).length ? { createdAt: dateFilter } : {}),
+      ...(params.locationId ? { locationId: params.locationId } : {}),
+      ...(params.categoryId ? { problemCategoryId: params.categoryId } : {}),
+    }
+    const overdueWhere = { ...ticketWhere, slaBreachedAt: { not: null } }
+
+    const [
+      locations,
+      categories,
+      byLocationStatus,
+      byLocationCategory,
+      overdueByLocation,
+      overdueByLocationCategory,
+      summaryTotal,
+      summaryOverdue,
+    ] = await Promise.all([
+      this.prisma.location.findMany({
+        where: {
+          clientCompanyId: scopeCompanyId,
+          ...(params.locationId ? { id: params.locationId } : {}),
+          isActive: true,
+        },
+        select: { id: true, name: true, city: true, address: true },
+        orderBy: { name: 'asc' },
+      }),
+      this.prisma.problemCategory.findMany({
+        where: { companyId: scopeCompanyId, isActive: true },
+        select: { id: true, name: true },
+      }),
+      this.prisma.ticket.groupBy({
+        by: ['locationId', 'status'],
+        where: ticketWhere,
+        _count: { _all: true },
+      }),
+      this.prisma.ticket.groupBy({
+        by: ['locationId', 'problemCategoryId'],
+        where: ticketWhere,
+        _count: { _all: true },
+      }),
+      this.prisma.ticket.groupBy({
+        by: ['locationId'],
+        where: overdueWhere,
+        _count: { _all: true },
+      }),
+      this.prisma.ticket.groupBy({
+        by: ['locationId', 'problemCategoryId'],
+        where: overdueWhere,
+        _count: { _all: true },
+      }),
+      this.prisma.ticket.count({ where: ticketWhere }),
+      this.prisma.ticket.count({ where: overdueWhere }),
+    ])
+
+    const categoryNameById = new Map<string, string>(categories.map((c) => [c.id, c.name]))
+
+    // location → status → count
+    const statusByLoc = new Map<string, Map<string, number>>()
+    for (const row of byLocationStatus) {
+      const m = statusByLoc.get(row.locationId) ?? new Map<string, number>()
+      m.set(row.status, row._count._all)
+      statusByLoc.set(row.locationId, m)
+    }
+
+    // location → categoryId → count
+    const catByLoc = new Map<string, Map<string, number>>()
+    for (const row of byLocationCategory) {
+      if (!row.problemCategoryId) continue
+      const m = catByLoc.get(row.locationId) ?? new Map<string, number>()
+      m.set(row.problemCategoryId, (m.get(row.problemCategoryId) ?? 0) + row._count._all)
+      catByLoc.set(row.locationId, m)
+    }
+
+    // location → overdue count
+    const overdueByLoc = new Map<string, number>(overdueByLocation.map((r) => [r.locationId, r._count._all]))
+
+    // location → categoryId → overdue count
+    const catOverdueByLoc = new Map<string, Map<string, number>>()
+    for (const row of overdueByLocationCategory) {
+      if (!row.problemCategoryId) continue
+      const m = catOverdueByLoc.get(row.locationId) ?? new Map<string, number>()
+      m.set(row.problemCategoryId, (m.get(row.problemCategoryId) ?? 0) + row._count._all)
+      catOverdueByLoc.set(row.locationId, m)
+    }
+
+    const minTickets = params.minTickets ?? 1
+
+    const items = locations
+      .map((loc) => {
+        const byStatus = statusByLoc.get(loc.id) ?? new Map<string, number>()
+        const totalTickets = Array.from(byStatus.values()).reduce((s, v) => s + v, 0)
+        const newTickets = byStatus.get(TicketStatus.NEW) ?? 0
+        const inProgressTickets = (byStatus.get(TicketStatus.ASSIGNED) ?? 0) + (byStatus.get(TicketStatus.IN_PROGRESS) ?? 0)
+        const doneTickets = byStatus.get(TicketStatus.DONE) ?? 0
+        const overdueTickets = overdueByLoc.get(loc.id) ?? 0
+
+        const catCounts = catByLoc.get(loc.id) ?? new Map<string, number>()
+        const catOverdueCounts = catOverdueByLoc.get(loc.id) ?? new Map<string, number>()
+        const categoryBreakdown = Array.from(catCounts.entries())
+          .map(([categoryId, ticketsCount]) => ({
+            categoryId,
+            categoryName: categoryNameById.get(categoryId) ?? categoryId,
+            ticketsCount,
+            overdueCount: catOverdueCounts.get(categoryId) ?? 0,
+          }))
+          .sort((a, b) => b.ticketsCount - a.ticketsCount)
+
+        return {
+          locationId: loc.id,
+          locationName: loc.name,
+          city: loc.city ?? null,
+          address: loc.address ?? null,
+          totalTickets,
+          newTickets,
+          inProgressTickets,
+          doneTickets,
+          overdueTickets,
+          categories: categoryBreakdown,
+        }
+      })
+      .filter((item) => item.totalTickets >= minTickets)
+      .sort((a, b) => b.totalTickets - a.totalTickets)
+
+    const inProgressTotal = items.reduce((s, i) => s + i.inProgressTickets, 0)
+    const doneTotal = items.reduce((s, i) => s + i.doneTickets, 0)
+
+    return {
+      items,
+      summary: {
+        totalLocations: items.length,
+        totalTickets: summaryTotal,
+        totalOverdue: summaryOverdue,
+        inProgressTotal,
+        doneTotal,
+      },
+      meta: { scopeCompanyId, visibilityMode: scope.visibilityMode },
+    }
+  }
+
   private hasStatus(status: string) {
     return (Object.values(TicketStatus) as string[]).includes(status)
   }

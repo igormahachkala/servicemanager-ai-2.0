@@ -4,6 +4,7 @@ import { CompanyType, Prisma, ServiceContractRole, TicketAttachmentPurpose, Tick
 import { PrismaService } from '../prisma/prisma.service'
 import { TimelineService } from '../timeline/timeline.service'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
+import { NotificationsService } from '../notifications/notifications.service'
 import { resolveReadableTicketAccess } from './ticket-access.utils'
 
 import { AcceptanceDecision, TicketAcceptanceDto } from './dto/ticket-acceptance.dto'
@@ -30,6 +31,7 @@ export class TicketsAcceptanceService {
     private readonly prisma: PrismaService,
     private readonly timelineService: TimelineService,
     private readonly serviceContractsService: ServiceContractsService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   // SMA-ACCEPTANCE-ROLE-GAP-001: gate accept/reject to client-company management roles.
@@ -139,11 +141,11 @@ export class TicketsAcceptanceService {
         payload: { fromStatus: ticket.status, toStatus, comment: comment || null },
       })
 
-      const acceptanceEvent =
+      const acceptanceEventName =
         dto.decision === AcceptanceDecision.ACCEPT ? 'TICKET_ACCEPTED' : 'TICKET_REJECTED'
 
-      await this.timelineService.recordTx(tx, {
-        event: acceptanceEvent,
+      const acceptanceEventRecord = await this.timelineService.recordTx(tx, {
+        event: acceptanceEventName,
         companyId: ticket.companyId,
         ticketId,
         actorUserId: actor.id,
@@ -160,10 +162,31 @@ export class TicketsAcceptanceService {
         })
       }
 
-      return updated
+      return { updated, acceptanceEventId: acceptanceEventRecord.id }
     })
 
-    return result
+    if (dto.decision === AcceptanceDecision.ACCEPT) {
+      this.notifications.onTicketAccepted({
+        ticketCompanyId: result.updated.companyId,
+        assignedTechnicianId: result.updated.assignedTechnicianId,
+        actorUserId: actor.id,
+        ticketId,
+        ticketNumber: result.updated.ticketNumber,
+        sourceEventId: result.acceptanceEventId,
+      })
+    } else {
+      this.notifications.onTicketRejected({
+        ticketCompanyId: result.updated.companyId,
+        assignedTechnicianId: result.updated.assignedTechnicianId,
+        actorUserId: actor.id,
+        ticketId,
+        ticketNumber: result.updated.ticketNumber,
+        comment: comment || null,
+        sourceEventId: result.acceptanceEventId,
+      })
+    }
+
+    return result.updated
   }
 
   private async writeStatusHistoryTx(

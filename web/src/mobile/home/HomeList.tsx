@@ -1,4 +1,4 @@
-import { type MutableRefObject } from 'react'
+import { type MutableRefObject, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { type UseMutationResult, type UseQueryResult } from '@tanstack/react-query'
 import * as api from '../../lib/api'
 import { mobileTicketCategoryLocationFromCard, mobileTicketNumberTitle } from '../mobileTicketDisplay'
@@ -6,6 +6,7 @@ import { mobileHomeTabEmptyCopy, type MobileHomeBoardFilterTab } from '../mobile
 import { TicketCard } from './TicketCard'
 import { getPrimaryActionLabel, homeTicketActionProgressLabel } from './utils'
 import { formatMobileMutationError } from '../mobileActionErrors'
+import { defaultExpandedLocationIds, groupTicketsByLocation, type MobileHomeLocationGroup } from '../mobileHomeListUtils'
 
 export type TicketCloseModalState = {
   ticketId: string
@@ -91,6 +92,62 @@ export function HomeList(props: Props) {
     mobileActionToast,
   } = props
 
+  const groups = useMemo(() => groupTicketsByLocation(visibleTickets), [visibleTickets])
+
+  const [expandedLocations, setExpandedLocations] = useState<Set<string>>(() => defaultExpandedLocationIds(groups))
+
+  const prevGroupKeyRef = useRef('')
+  useEffect(() => {
+    const key = groups.map((g) => g.locationId).join('\x00')
+    if (key === prevGroupKeyRef.current) return
+    prevGroupKeyRef.current = key
+    setExpandedLocations(defaultExpandedLocationIds(groups))
+  }, [groups])
+
+  function toggleLocation(locationId: string) {
+    setExpandedLocations((prev) => {
+      const next = new Set(prev)
+      if (next.has(locationId)) next.delete(locationId)
+      else next.add(locationId)
+      return next
+    })
+  }
+
+  function renderTicket(ticket: api.TicketCard) {
+    const showAssignFooter = canAssignProvider && ticket.status === 'NEW' && !ticket.assignedTechnician
+    const actionProgressLabel = homeTicketActionProgressLabel(
+      ticket,
+      actionM,
+      closeBusy,
+      closeModal?.ticketId,
+      assignBusy,
+      assignTicket?.id,
+    )
+    const cardBusy = !!actionProgressLabel || (assignBusy && assignTicket?.id === ticket.id && showAssignFooter)
+    return (
+      <TicketCard
+        key={ticket.id}
+        ticket={ticket}
+        ticketHref={ticketHref(ticket)}
+        linkState={ticketLinkState(ticket)}
+        actionLabel={getPrimaryActionLabel(ticket, meId, role)}
+        actionProgressLabel={actionProgressLabel}
+        onAction={onAction}
+        assignFooter={
+          showAssignFooter
+            ? {
+                onOpen: () => {
+                  setAssignErr('')
+                  setAssignTicket(ticket)
+                },
+                disabled: cardBusy,
+              }
+            : null
+        }
+      />
+    )
+  }
+
   return (
     <>
       <section className="mobileSection">
@@ -102,40 +159,15 @@ export function HomeList(props: Props) {
         ) : visibleTickets.length === 0 ? (
           <FilteredEmpty filterSummary={filterSummary} onReset={resetHomeListFilters} />
         ) : (
-          visibleTickets.map((ticket) => {
-            const showAssignFooter = canAssignProvider && ticket.status === 'NEW' && !ticket.assignedTechnician
-            const actionProgressLabel = homeTicketActionProgressLabel(
-              ticket,
-              actionM,
-              closeBusy,
-              closeModal?.ticketId,
-              assignBusy,
-              assignTicket?.id,
-            )
-            const cardBusy = !!actionProgressLabel || (assignBusy && assignTicket?.id === ticket.id && showAssignFooter)
-            return (
-              <TicketCard
-                key={ticket.id}
-                ticket={ticket}
-                ticketHref={ticketHref(ticket)}
-                linkState={ticketLinkState(ticket)}
-                actionLabel={getPrimaryActionLabel(ticket, meId, role)}
-                actionProgressLabel={actionProgressLabel}
-                onAction={onAction}
-                assignFooter={
-                  showAssignFooter
-                    ? {
-                        onOpen: () => {
-                          setAssignErr('')
-                          setAssignTicket(ticket)
-                        },
-                        disabled: cardBusy,
-                      }
-                    : null
-                }
-              />
-            )
-          })
+          groups.map((group) => (
+            <LocationGroupCard
+              key={group.locationId}
+              group={group}
+              expanded={expandedLocations.has(group.locationId)}
+              onToggle={() => toggleLocation(group.locationId)}
+              renderTicket={renderTicket}
+            />
+          ))
         )}
       </section>
 
@@ -167,6 +199,71 @@ export function HomeList(props: Props) {
         </div>
       ) : null}
     </>
+  )
+}
+
+function LocationGroupCard({
+  group,
+  expanded,
+  onToggle,
+  renderTicket,
+}: {
+  group: MobileHomeLocationGroup
+  expanded: boolean
+  onToggle: () => void
+  renderTicket: (ticket: api.TicketCard) => ReactNode
+}) {
+  return (
+    <div className="mobileLocationGroup">
+      <div
+        className="mobileLocationGroupHeader"
+        role="button"
+        tabIndex={0}
+        onClick={onToggle}
+        onKeyDown={(e) => e.key === 'Enter' && onToggle()}
+        aria-expanded={expanded}
+      >
+        <div className="mobileLocationGroupInfo">
+          <div className="mobileLocationGroupName">{group.locationName}</div>
+          {(group.city || group.address) ? (
+            <div className="mobileLocationGroupMeta">
+              {[group.city, group.address].filter(Boolean).join(', ')}
+            </div>
+          ) : null}
+          <div className="mobileLocationGroupStats">
+            <span className="mobileLocationGroupStat mobileLocationGroupStat--total">
+              Всего: {group.totalTickets}
+            </span>
+            <span className="mobileLocationGroupStat mobileLocationGroupStat--active">
+              Активных: {group.activeTickets}
+            </span>
+            <span className="mobileLocationGroupStat mobileLocationGroupStat--done">
+              Завершено: {group.doneTickets}
+            </span>
+            {group.canceledTickets > 0 ? (
+              <span className="mobileLocationGroupStat mobileLocationGroupStat--canceled">
+                Отменено: {group.canceledTickets}
+              </span>
+            ) : null}
+            {group.overdueTickets > 0 ? (
+              <span className="mobileLocationGroupStat mobileLocationGroupStat--overdue">
+                Просрочено: {group.overdueTickets}
+              </span>
+            ) : null}
+          </div>
+        </div>
+        <span className="mobileLocationGroupChevron" aria-hidden>{expanded ? '▲' : '▼'}</span>
+      </div>
+      {expanded ? (
+        <div className="mobileLocationGroupTickets">
+          {group.tickets.length > 0 ? (
+            group.tickets.map((t) => renderTicket(t))
+          ) : (
+            <div className="mobileLocationGroupEmptyActive mobileMeta">Нет активных заявок</div>
+          )}
+        </div>
+      ) : null}
+    </div>
   )
 }
 
@@ -269,15 +366,22 @@ export function TicketCloseModal(props: {
   setCloseModal: (next: TicketCloseModalState | ((prev: TicketCloseModalState) => TicketCloseModalState)) => void
   closeCanSubmit: boolean
   closeM: UseMutationResult<void, unknown, void, unknown>
+  /** SMA-ACCEPTANCE-005: переопределение текстов для сценария «Отправить на приёмку». */
+  heading?: string
+  submitLabel?: string
+  submitBusyLabel?: string
 }) {
   const { closeModal, closeBusy, closeCameraInputRef, closeGalleryInputRef, setCloseModal, closeCanSubmit, closeM } = props
+  const heading = props.heading ?? 'Закрыть заявку'
+  const submitLabel = props.submitLabel ?? 'Завершить'
+  const submitBusyLabel = props.submitBusyLabel ?? 'Завершаем…'
   if (!closeModal) return null
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(17, 24, 39, 0.55)', zIndex: 60, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: 12 }}>
       <div className="mobileCard" style={{ width: '100%', maxWidth: 720, marginBottom: 12 }}>
         <div className="mobileRow" style={{ alignItems: 'flex-start' }}>
           <div>
-            <div style={{ fontWeight: 900 }}>Закрыть заявку</div>
+            <div style={{ fontWeight: 900 }}>{heading}</div>
             <div className="mobileMeta" style={{ marginTop: 4 }}>{closeModal.title}</div>
           </div>
           <button
@@ -359,7 +463,7 @@ export function TicketCloseModal(props: {
           </label>
           <div className="mobileFormSubmitStack">
             <button type="button" className="mobileBtn mobileBtn--done" disabled={!closeCanSubmit} onClick={() => closeM.mutate()}>
-              {closeBusy ? 'Завершаем…' : 'Завершить'}
+              {closeBusy ? submitBusyLabel : submitLabel}
             </button>
             <p className="mobileHint" style={{ marginBottom: 0 }}>
               Комментарий не короче трёх символов. Сначала сохранится фото отчёта на заявку, затем она закроется.

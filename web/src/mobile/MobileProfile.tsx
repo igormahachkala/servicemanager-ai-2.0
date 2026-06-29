@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { BrowserNotificationsCard } from '../components/BrowserNotificationsCard'
 import { SupportContactBlock } from '../components/SupportContactBlock'
@@ -22,8 +22,19 @@ function roleLabel(role?: string) {
   return role
 }
 
+function isProviderLinkedClientRole(role?: api.Role | null) {
+  return (
+    role === 'ADMIN' ||
+    role === 'ADMIN_PROVIDER' ||
+    role === 'MASTER' ||
+    role === 'DISPATCHER' ||
+    role === 'NETWORK_DIRECTOR'
+  )
+}
+
 export function MobileProfile() {
   const location = useLocation()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
 
@@ -33,10 +44,17 @@ export function MobileProfile() {
     refresh()
     return subscribeOfflineQueue(refresh)
   }, [])
+
   const linkedClientsQ = useQuery({
     queryKey: ['linked-clients'],
     queryFn: () => api.getLinkedClients(),
     enabled: !!meQ.data && meQ.data.role !== 'TECHNICIAN',
+  })
+
+  const companyQ = useQuery({
+    queryKey: ['mobile-shell-company'],
+    queryFn: () => api.company(),
+    enabled: !!meQ.data && meQ.data.role !== 'CLIENT' && meQ.data.role !== 'TECHNICIAN',
   })
 
   const linkedClientCompanyId = useMemo(() => {
@@ -48,6 +66,29 @@ export function MobileProfile() {
     const params = new URLSearchParams(location.search)
     return (params.get('companyId') || api.getObserverCompanyId(meQ.data)).trim()
   }, [location.search, meQ.data])
+
+  const isProviderCompany = companyQ.data?.type === 'PROVIDER'
+  const canShowLinkedClients = !!meQ.data && isProviderCompany && isProviderLinkedClientRole(meQ.data.role)
+  const linkedClientsLoaded = !canShowLinkedClients || linkedClientsQ.isSuccess || linkedClientsQ.isError
+  const selectedLinkedClient = useMemo(
+    () => linkedClientsQ.data?.find((row) => row.clientCompany.id === linkedClientCompanyId) || null,
+    [linkedClientsQ.data, linkedClientCompanyId],
+  )
+
+  function updateProviderScope(nextLinkedClientCompanyId: string) {
+    const params = new URLSearchParams(location.search)
+    params.delete('companyId')
+    if (nextLinkedClientCompanyId.trim()) {
+      params.set('linkedClientCompanyId', nextLinkedClientCompanyId.trim())
+    } else {
+      params.delete('linkedClientCompanyId')
+    }
+    api.persistScopeFromSearchParams(params, meQ.data)
+    const next = `${location.pathname}${params.toString() ? `?${params.toString()}` : ''}`
+    if (next !== `${location.pathname}${location.search}`) {
+      navigate(next, { replace: true })
+    }
+  }
 
   const managementHref = useMemo(() => {
     if (!meQ.data) return '/board'
@@ -85,7 +126,7 @@ export function MobileProfile() {
       api.board({
         linkedClientCompanyId: linkedClientCompanyId || undefined,
         companyId: observerCompanyId || undefined,
-        take: 200,
+        take: 500,
       }),
     enabled: !!meQ.data,
   })
@@ -136,111 +177,161 @@ export function MobileProfile() {
     ? fullName.split(/\s+/).map((n) => n[0]).join('').toUpperCase().slice(0, 2)
     : (meQ.data?.email || '?')[0].toUpperCase()
   const notificationsPath = mobilePath(location.pathname, '/notifications')
+  const backHref = api.appendScopeToPath(
+    mobilePath(location.pathname, ''),
+    { linkedClientCompanyId: linkedClientCompanyId || undefined, companyId: observerCompanyId || undefined },
+    meQ.data,
+  )
 
   return (
-    <div className="mobileSection">
-      {meQ.isError ? <div className="mobileNotice mobileNoticeError">{String((meQ.error as any)?.message || meQ.error)}</div> : null}
+    <>
+      <div className="mobileTicketDetailsToolbar">
+        <Link to={backHref} className="mobileDetailsBackLink">Назад</Link>
+      </div>
+      <div className="mobileSection">
+        {meQ.isError ? <div className="mobileNotice mobileNoticeError">{String((meQ.error as any)?.message || meQ.error)}</div> : null}
 
-      {/* Hero card */}
-      <div className="mobileProfileHero">
-        <div className="mobileProfileAvatar">{initials}</div>
-        <div className="mobileProfileName">{fullName || meQ.data?.email || '—'}</div>
-        <span className="mobileProfileRoleBadge">{roleLabel(meQ.data?.role)}</span>
-        {meQ.data?.companyName ? <div className="mobileProfileCompany">{meQ.data.companyName}</div> : null}
-        {linkedClientCompanyId ? (
-          <div className="mobileProfileLinkedClient">
-            {(meQ.data?.role === 'TECHNICIAN' ? techBoundLabelQ.isLoading : linkedClientsQ.isLoading)
-              ? 'Загрузка клиента…'
-              : linkedClientName || linkedClientCompanyId}
+        {/* Hero card */}
+        <div className="mobileProfileHero">
+          <div className="mobileProfileAvatar">{initials}</div>
+          <div className="mobileProfileName">{fullName || meQ.data?.email || '—'}</div>
+          <span className="mobileProfileRoleBadge">{roleLabel(meQ.data?.role)}</span>
+          {meQ.data?.companyName ? <div className="mobileProfileCompany">{meQ.data.companyName}</div> : null}
+          {linkedClientCompanyId ? (
+            <div className="mobileProfileLinkedClient">
+              {(meQ.data?.role === 'TECHNICIAN' ? techBoundLabelQ.isLoading : linkedClientsQ.isLoading)
+                ? 'Загрузка клиента…'
+                : linkedClientName || linkedClientCompanyId}
+            </div>
+          ) : null}
+          {meQ.data?.phone ? (
+            <div className="mobileProfileCompany" style={{ marginTop: 4 }}>{meQ.data.phone}</div>
+          ) : null}
+        </div>
+
+        {/* Stats */}
+        <div className="mobileCard mobileProfileStats" aria-label="Статистика заявок">
+          <div className="mobileProfileStat">
+            <div className="mobileProfileStatValue">{fmtStat(stats.assigned)}</div>
+            <div className="mobileProfileStatLabel">Назначено</div>
+          </div>
+          <div className="mobileProfileStat">
+            <div className="mobileProfileStatValue">{fmtStat(stats.inProgress)}</div>
+            <div className="mobileProfileStatLabel">В работе</div>
+          </div>
+          <div className="mobileProfileStat">
+            <div className="mobileProfileStatValue">{fmtStat(stats.done)}</div>
+            <div className="mobileProfileStatLabel">Завершено</div>
+          </div>
+        </div>
+
+        {/* Client context */}
+        {canShowLinkedClients ? (
+          <div className="mobileCard" style={{ marginTop: 8 }}>
+            <div className="mobileSectionTitle" style={{ marginBottom: 8 }}>Клиентский контур</div>
+            {linkedClientsLoaded ? (
+              linkedClientsQ.data && linkedClientsQ.data.length > 0 ? (
+                <>
+                  <select
+                    className="mobileProviderContextSelect"
+                    value={linkedClientCompanyId}
+                    onChange={(e) => updateProviderScope(e.target.value)}
+                  >
+                    <option value="">Выберите клиента</option>
+                    {linkedClientsQ.data.map((item) => (
+                      <option key={item.clientCompany.id} value={item.clientCompany.id}>
+                        {item.clientCompany.name} · {item.role}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="mobileProviderContextHint" style={{ marginTop: 6 }}>
+                    Контекст применяется к доске, созданию заявки и карточкам заявок.
+                  </div>
+                  {selectedLinkedClient ? (
+                    <div className="mobileProviderContextHint">Роль: {selectedLinkedClient.role}</div>
+                  ) : null}
+                </>
+              ) : (
+                <div className="mobileProviderContextHint">У этой компании пока нет связанных клиентов.</div>
+              )
+            ) : (
+              <div className="mobileProviderContextHint">Загружаем список клиентов…</div>
+            )}
+            {linkedClientsQ.isError ? (
+              <div className="mobileNotice mobileNoticeError" style={{ marginTop: 8 }}>
+                {(linkedClientsQ.error as any)?.message || String(linkedClientsQ.error)}
+              </div>
+            ) : null}
           </div>
         ) : null}
-        {meQ.data?.phone ? (
-          <div className="mobileProfileCompany" style={{ marginTop: 4 }}>{meQ.data.phone}</div>
-        ) : null}
-      </div>
 
-      {/* Stats */}
-      <div className="mobileCard mobileProfileStats" aria-label="Статистика заявок">
-        <div className="mobileProfileStat">
-          <div className="mobileProfileStatValue">{fmtStat(stats.assigned)}</div>
-          <div className="mobileProfileStatLabel">Назначено</div>
-        </div>
-        <div className="mobileProfileStat">
-          <div className="mobileProfileStatValue">{fmtStat(stats.inProgress)}</div>
-          <div className="mobileProfileStatLabel">В работе</div>
-        </div>
-        <div className="mobileProfileStat">
-          <div className="mobileProfileStatValue">{fmtStat(stats.done)}</div>
-          <div className="mobileProfileStatLabel">Завершено</div>
-        </div>
-      </div>
-
-      {/* Menu */}
-      <div className="mobileCard mobileProfileMenu">
-        <Link to={notificationsPath} className="mobileProfileMenuItem">
-          <span>Уведомления</span>
-          <span className="mobileProfileMenuChevron">›</span>
-        </Link>
-        <Link to={mobilePath(location.pathname, '/offline-queue')} className="mobileProfileMenuItem">
-          <span>
-            Очередь отправки
-            {queueCounts.pending + queueCounts.failed > 0 ? (
-              <span className="mobileProfileMenuBadge mobileProfileMenuBadge--queue">
-                {queueCounts.pending + queueCounts.failed}
-              </span>
-            ) : null}
-          </span>
-          <span className="mobileProfileMenuChevron">›</span>
-        </Link>
-        <div className="mobileProfileMenuItem mobileProfileMenuItem--static" aria-disabled="true">
-          <span>Режим работы</span>
-          <span className="mobileProfileMenuSoon">Скоро</span>
-        </div>
-        {canAccessManagementDesktop(meQ.data?.role) ? (
-          <Link to={managementHref} className="mobileProfileMenuItem">
-            <span>Управленческая часть</span>
+        {/* Menu */}
+        <div className="mobileCard mobileProfileMenu">
+          <Link to={notificationsPath} className="mobileProfileMenuItem">
+            <span>Уведомления</span>
             <span className="mobileProfileMenuChevron">›</span>
           </Link>
-        ) : null}
-        <button type="button" className="mobileProfileMenuItem mobileProfileMenuItem--danger" onClick={logout}>
-          <span>Выйти</span>
-        </button>
-      </div>
-
-      {/* Support + notifications */}
-      <div className="mobileCard" style={{ marginTop: 8 }}>
-        <div className="mobileSectionTitle" style={{ marginBottom: 8 }}>Поддержка</div>
-        <div className="mobileFieldHint" style={{ marginBottom: 8 }}>
-          Telegram и MAX — внешние чаты поддержки (откроются в браузере или приложении).
+          <Link to={mobilePath(location.pathname, '/offline-queue')} className="mobileProfileMenuItem">
+            <span>
+              Очередь отправки
+              {queueCounts.pending + queueCounts.failed > 0 ? (
+                <span className="mobileProfileMenuBadge mobileProfileMenuBadge--queue">
+                  {queueCounts.pending + queueCounts.failed}
+                </span>
+              ) : null}
+            </span>
+            <span className="mobileProfileMenuChevron">›</span>
+          </Link>
+          <div className="mobileProfileMenuItem mobileProfileMenuItem--static" aria-disabled="true">
+            <span>Режим работы</span>
+            <span className="mobileProfileMenuSoon">Скоро</span>
+          </div>
+          {canAccessManagementDesktop(meQ.data?.role) ? (
+            <Link to={managementHref} className="mobileProfileMenuItem">
+              <span>Управленческая часть</span>
+              <span className="mobileProfileMenuChevron">›</span>
+            </Link>
+          ) : null}
+          <button type="button" className="mobileProfileMenuItem mobileProfileMenuItem--danger" onClick={logout}>
+            <span>Выйти</span>
+          </button>
         </div>
-        <SupportContactBlock titleTag="div" />
-      </div>
 
-      <div className="mobileCard" style={{ marginTop: 8 }}>
-        <BrowserNotificationsCard
-          title="Push-уведомления браузера"
-          description="Системные уведомления для realtime-событий, пока приложение открыто."
-        />
-      </div>
-
-      {/* Specializations */}
-      <div className="mobileCard" style={{ marginTop: 8 }}>
-        <div className="mobileSectionTitle" style={{ marginBottom: 8 }}>Мои специализации</div>
-        <div className="mobileFieldHint">Специализации будут доступны позже.</div>
-      </div>
-
-      {/* App info */}
-      <div className="mobileCard" style={{ marginTop: 8 }}>
-        <div className="mobileSectionTitle" style={{ marginBottom: 8 }}>О приложении</div>
-        <div className="mobileProfileInfoRow">
-          <span className="mobileMeta">Контур</span>
-          <span>{appContour}</span>
+        {/* Support + notifications */}
+        <div className="mobileCard" style={{ marginTop: 8 }}>
+          <div className="mobileSectionTitle" style={{ marginBottom: 8 }}>Поддержка</div>
+          <div className="mobileFieldHint" style={{ marginBottom: 8 }}>
+            Telegram и MAX — внешние чаты поддержки (откроются в браузере или приложении).
+          </div>
+          <SupportContactBlock titleTag="div" />
         </div>
-        <div className="mobileProfileInfoRow">
-          <span className="mobileMeta">Версия</span>
-          <span>Mobile Workspace V1</span>
+
+        <div className="mobileCard" style={{ marginTop: 8 }}>
+          <BrowserNotificationsCard
+            title="Push-уведомления браузера"
+            description="Системные уведомления для realtime-событий, пока приложение открыто."
+          />
+        </div>
+
+        {/* Specializations */}
+        <div className="mobileCard" style={{ marginTop: 8 }}>
+          <div className="mobileSectionTitle" style={{ marginBottom: 8 }}>Мои специализации</div>
+          <div className="mobileFieldHint">Специализации будут доступны позже.</div>
+        </div>
+
+        {/* App info */}
+        <div className="mobileCard" style={{ marginTop: 8 }}>
+          <div className="mobileSectionTitle" style={{ marginBottom: 8 }}>О приложении</div>
+          <div className="mobileProfileInfoRow">
+            <span className="mobileMeta">Контур</span>
+            <span>{appContour}</span>
+          </div>
+          <div className="mobileProfileInfoRow">
+            <span className="mobileMeta">Версия</span>
+            <span>Mobile Workspace V1</span>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   )
 }

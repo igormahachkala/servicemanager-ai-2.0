@@ -183,6 +183,86 @@ export function buildMobileHomeVisibleTickets(params: {
   return sortTicketsForMobileHome(searched, nowMs, params.atRiskThresholdMinutes)
 }
 
+export type MobileHomeLocationGroup = {
+  locationId: string
+  locationName: string
+  city: string | null
+  address: string | null
+  /** SMA-112: только активные заявки (NEW/ASSIGNED/IN_PROGRESS) — для раскрытого списка. */
+  tickets: TicketCard[]
+  /** Полный счётчик: все статусы (включая DONE/CANCELED). */
+  totalTickets: number
+  newTickets: number
+  inProgressTickets: number
+  /** Активные = NEW + ASSIGNED + IN_PROGRESS. */
+  activeTickets: number
+  doneTickets: number
+  canceledTickets: number
+  /** Просроченные только среди активных заявок. */
+  overdueTickets: number
+}
+
+/** SMA-112: активная заявка для главной (диспетчерский экран). */
+function isActiveHomeTicketStatus(status: TicketCard['status']): boolean {
+  // SMA-ACCEPTANCE-005: заявка на приёмке у клиента ещё активна и остаётся на главной доске.
+  return (
+    status === 'NEW' ||
+    status === 'ASSIGNED' ||
+    status === 'IN_PROGRESS' ||
+    status === 'AWAITING_ACCEPTANCE'
+  )
+}
+
+/**
+ * Group an already-sorted ticket list by location, preserving ticket sort order within
+ * each group. Group order = insertion order (first group contains the globally most-critical ticket).
+ *
+ * SMA-112: счётчики точки считаются по ВСЕМ статусам (total/active/done/canceled/overdue),
+ * но в `tickets` (для раскрытого списка) попадают ТОЛЬКО активные заявки.
+ * Группа создаётся даже если у точки нет активных заявок (карточка остаётся видимой).
+ */
+export function groupTicketsByLocation(tickets: TicketCard[]): MobileHomeLocationGroup[] {
+  const map = new Map<string, MobileHomeLocationGroup>()
+  for (const t of tickets) {
+    const locId = t.location?.id ?? '__none__'
+    if (!map.has(locId)) {
+      map.set(locId, {
+        locationId: locId,
+        locationName: t.location?.name ?? (t.pointName || null) ?? 'Без точки',
+        city: t.location?.city ?? null,
+        address: t.location?.address ?? null,
+        tickets: [],
+        totalTickets: 0,
+        newTickets: 0,
+        inProgressTickets: 0,
+        activeTickets: 0,
+        doneTickets: 0,
+        canceledTickets: 0,
+        overdueTickets: 0,
+      })
+    }
+    const g = map.get(locId)!
+    g.totalTickets++
+    if (t.status === 'NEW') g.newTickets++
+    if (t.status === 'IN_PROGRESS' || t.status === 'ASSIGNED' || t.status === 'AWAITING_ACCEPTANCE') g.inProgressTickets++
+    if (t.status === 'DONE') g.doneTickets++
+    if (t.status === 'CANCELED') g.canceledTickets++
+    if (isActiveHomeTicketStatus(t.status)) {
+      g.activeTickets++
+      g.tickets.push(t) // раскрытый список — только активные
+      if (t.slaBreached) g.overdueTickets++
+    }
+  }
+  return [...map.values()]
+}
+
+/** Default expanded set: first group when ≤3 groups, else all collapsed. */
+export function defaultExpandedLocationIds(groups: MobileHomeLocationGroup[]): Set<string> {
+  if (groups.length === 0) return new Set()
+  if (groups.length <= 3) return new Set([groups[0].locationId])
+  return new Set()
+}
+
 export function formatActiveMobileHomeFiltersSummary(params: {
   searchQuery: string
   chips: ReadonlySet<MobileHomeBoardChipId>

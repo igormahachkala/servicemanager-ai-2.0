@@ -87,7 +87,7 @@ export function MobileHome() {
         if (cached?.data) return cached.data
         throw new Error('Нет сохранённых заявок. Откройте главную при подключении к сети хотя бы раз.')
       }
-      const data = await api.board({ linkedClientCompanyId: pageScope.linkedClientCompanyId, companyId: pageScope.companyId, take: 100 })
+      const data = await api.board({ linkedClientCompanyId: pageScope.linkedClientCompanyId, companyId: pageScope.companyId, take: 500 })
       saveBoardCache(pageScope, data)
       return data
     },
@@ -463,6 +463,11 @@ export function MobileHome() {
             closeM={closeM}
             mobileActionToast={mobileActionToast}
           />
+          {boardQ.data && boardQ.data.meta.totalTickets >= boardQ.data.meta.limitedToLast && boardQ.data.meta.limitedToLast >= 500 ? (
+            <div className="mobileNotice" style={{ textAlign: 'center', fontSize: '0.82rem', marginTop: 4 }}>
+              Показано 500 заявок. Используйте фильтры для поиска нужной.
+            </div>
+          ) : null}
         </>
       ) : null}
       <HomeFAB me={meQ.data} pageScope={pageScope} />

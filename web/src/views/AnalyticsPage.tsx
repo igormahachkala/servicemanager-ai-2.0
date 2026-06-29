@@ -39,6 +39,14 @@ function buildAnalyticsLink(linkedClientCompanyId?: string | null) {
   return `/analytics?linkedClientCompanyId=${linkedClientCompanyId}`
 }
 
+function buildLocationsAnalyticsLink(params: { observerCompanyId?: string; linkedClientCompanyId?: string }) {
+  const sp = new URLSearchParams()
+  if (params.observerCompanyId) sp.set('companyId', params.observerCompanyId)
+  if (params.linkedClientCompanyId) sp.set('linkedClientCompanyId', params.linkedClientCompanyId)
+  const qs = sp.toString()
+  return `/analytics/locations${qs ? `?${qs}` : ''}`
+}
+
 function buildCompanyLink(params: { observerCompanyId?: string | null; linkedClientCompanyId?: string | null }) {
   if (params.observerCompanyId) return `/company?companyId=${params.observerCompanyId}`
   if (params.linkedClientCompanyId) return `/company?linkedClientCompanyId=${params.linkedClientCompanyId}`
@@ -166,6 +174,7 @@ export function AnalyticsPage() {
   const observerLabel = observerCompanyQ.data?.name || observerCompanyId
   const boardLink = buildBoardLink({ observerCompanyId, linkedClientCompanyId: activeLinkedClientCompanyId })
   const companyLink = buildCompanyLink({ observerCompanyId, linkedClientCompanyId: activeLinkedClientCompanyId })
+  const locationsAnalyticsLink = buildLocationsAnalyticsLink({ observerCompanyId, linkedClientCompanyId: activeLinkedClientCompanyId || undefined })
 
   function onSelectLinkedClient(nextLinkedClientCompanyId: string) {
     navigate(buildAnalyticsLink(nextLinkedClientCompanyId), { replace: false })
@@ -196,6 +205,7 @@ export function AnalyticsPage() {
 
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', minWidth: 0 }}>
           <button className="ghost" onClick={() => analyticsEnabled && q.refetch()} disabled={!analyticsEnabled || q.isFetching}>Обновить</button>
+          <Link to={locationsAnalyticsLink}><button className="ghost">По точкам</button></Link>
           <Link to={boardLink}><button className="ghost">К доске</button></Link>
           <Link to={companyLink}><button className="ghost">К компании</button></Link>
         </div>

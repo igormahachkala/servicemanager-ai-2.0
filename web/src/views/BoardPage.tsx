@@ -428,7 +428,7 @@ export function BoardPage() {
         return
       }
       if (action === 'done') {
-        await api.updateTicketStatus(ticket.id, { status: 'DONE' }, ticketScope)
+        await api.updateTicketStatus(ticket.id, { status: 'AWAITING_ACCEPTANCE' }, ticketScope)
         return
       }
       if (action === 'assign') {
@@ -444,8 +444,8 @@ export function BoardPage() {
         setQuickActionSuccess('✔ Работы начаты')
         pushToast('Работы начаты', 'success')
       } else if (payload.action === 'done') {
-        setQuickActionSuccess('✔ Заявка завершена')
-        pushToast('Заявка завершена', 'success')
+        setQuickActionSuccess('✔ Отправлено на приёмку')
+        pushToast('Заявка отправлена на приёмку', 'success')
       }
       if (payload.action === 'assign' && result && typeof result === 'object') {
         const assignRes = result as api.SmartAssignResult
@@ -494,7 +494,7 @@ export function BoardPage() {
     setSelectedTicketIds((prev) => prev.filter((id) => allVisibleTicketIds.includes(id)))
   }, [allVisibleTicketIds])
 
-  async function runBulkAction(action: 'claim' | 'IN_PROGRESS' | 'DONE') {
+  async function runBulkAction(action: 'claim' | 'IN_PROGRESS' | 'AWAITING_ACCEPTANCE') {
     if (!selectedTicketIds.length || bulkBusy) return
     setBulkBusy(true)
     setBulkError('')
@@ -970,9 +970,9 @@ export function BoardPage() {
               className="ghost"
               type="button"
               disabled={!selectedTicketIds.length || bulkBusy}
-              onClick={() => runBulkAction('DONE')}
+              onClick={() => runBulkAction('AWAITING_ACCEPTANCE')}
             >
-              Завершить
+              Отправить на приёмку
             </button>
             <button
               className="ghost"
@@ -1136,7 +1136,7 @@ export function BoardPage() {
                                 disabled={quickActionM.isPending}
                                 onClick={() => quickActionM.mutate({ ticket, action: 'done' })}
                               >
-                                Завершить
+                                Отправить на приёмку
                               </button>
                             ) : null}
                           </>
@@ -1200,5 +1200,3 @@ export function BoardPage() {
     </div>
   )
 }
-
-

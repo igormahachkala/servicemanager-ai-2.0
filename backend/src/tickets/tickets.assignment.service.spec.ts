@@ -24,6 +24,12 @@ describe('TicketsAssignmentService location scope override', () => {
     }
   }
 
+  function makeServiceContractsMock() {
+    return {
+      getLinkedClientAccess: jest.fn(),
+    }
+  }
+
   function makeService(prisma: any) {
     return new TicketsAssignmentService(
       prisma,
@@ -31,7 +37,7 @@ describe('TicketsAssignmentService location scope override', () => {
       {} as any,
       {} as any,
       {} as any,
-      {} as any,
+      makeServiceContractsMock() as any,
       {} as any,
       {} as any,
     )
@@ -110,5 +116,23 @@ describe('TicketsAssignmentService location scope override', () => {
       }),
     )
     expect(prisma.location.findFirst).not.toHaveBeenCalled()
+  })
+
+  it('resolves provider ticket ownership from the linked client location', async () => {
+    const prisma = makePrismaMock()
+    prisma.company.findUnique.mockResolvedValue({ id: 'provider-company', type: CompanyType.PROVIDER })
+    prisma.location.findFirst.mockResolvedValue({ id: 'loc-4', clientCompanyId: 'client-company' })
+    const svc = makeService(prisma)
+    const contracts = (svc as any).serviceContractsService
+    contracts.getLinkedClientAccess.mockResolvedValue({ role: 'SECONDARY' })
+
+    const companyId = await (svc as any).resolveTicketOwnerCompanyId({
+      actorCompanyId: 'provider-company',
+      locationId: 'loc-4',
+      requestedClientCompanyId: null,
+    })
+
+    expect(companyId).toBe('client-company')
+    expect(contracts.getLinkedClientAccess).toHaveBeenCalledWith('provider-company', 'client-company')
   })
 })

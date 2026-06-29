@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import * as api from '../../lib/api'
 import { MobileRoleContextStrip } from '../MobileUxHints'
 import { formatMobileMutationError } from '../mobileActionErrors'
@@ -40,6 +41,9 @@ export function HomeHeader(props: Props) {
     activeBoardTab,
   } = props
 
+  // SMA-MOBILE-133: сводка по заявкам свёрнута по умолчанию (мобайл), состояние локальное.
+  const [summaryOpen, setSummaryOpen] = useState(false)
+
   return (
     <>
       <div style={{ marginBottom: 4 }}>
@@ -49,24 +53,40 @@ export function HomeHeader(props: Props) {
       </div>
 
       {tabCounts ? (
-        <div className="mobileStatsGrid">
-          {(
-            [
-              { tab: 'new' as MobileHomeBoardFilterTab, count: tabCounts.new, label: 'Новые', cls: 'mobileStatBlock--new' },
-              { tab: 'in_work' as MobileHomeBoardFilterTab, count: tabCounts.in_work, label: 'В работе', cls: 'mobileStatBlock--inwork' },
-              { tab: 'overdue' as MobileHomeBoardFilterTab, count: tabCounts.overdue, label: 'Просроченные', cls: 'mobileStatBlock--overdue' },
-              { tab: 'done' as MobileHomeBoardFilterTab, count: tabCounts.done, label: 'Завершённые', cls: 'mobileStatBlock--done' },
-            ] as const
-          ).map(({ tab, count, label, cls }) => (
-            <div
-              key={tab}
-              className={`mobileStatBlock ${cls}${onStatClick ? ' mobileStatBlock--tap' : ''}${activeBoardTab === tab ? ' mobileStatBlock--active' : ''}`}
-              onClick={onStatClick ? () => onStatClick(tab) : undefined}
-            >
-              <div className="mobileStatValue">{count}</div>
-              <div className="mobileStatLabel">{label}</div>
+        <div className="mobileSummaryBlock">
+          <button
+            type="button"
+            className="mobileSummaryToggle"
+            aria-expanded={summaryOpen}
+            onClick={() => setSummaryOpen((v) => !v)}
+          >
+            <span className="mobileSummaryToggleLabel">Сводка по заявкам</span>
+            <span className="mobileSummaryToggleHint">
+              {summaryOpen ? 'Скрыть' : `${tabCounts.new}/${tabCounts.in_work}/${tabCounts.overdue}/${tabCounts.done}`}
+            </span>
+            <span className="mobileSummaryChevron" aria-hidden>{summaryOpen ? '▲' : '▼'}</span>
+          </button>
+          {summaryOpen ? (
+            <div className="mobileStatsGrid">
+              {(
+                [
+                  { tab: 'new' as MobileHomeBoardFilterTab, count: tabCounts.new, label: 'Новые', cls: 'mobileStatBlock--new' },
+                  { tab: 'in_work' as MobileHomeBoardFilterTab, count: tabCounts.in_work, label: 'В работе', cls: 'mobileStatBlock--inwork' },
+                  { tab: 'overdue' as MobileHomeBoardFilterTab, count: tabCounts.overdue, label: 'Просроченные', cls: 'mobileStatBlock--overdue' },
+                  { tab: 'done' as MobileHomeBoardFilterTab, count: tabCounts.done, label: 'Завершённые', cls: 'mobileStatBlock--done' },
+                ] as const
+              ).map(({ tab, count, label, cls }) => (
+                <div
+                  key={tab}
+                  className={`mobileStatBlock ${cls}${onStatClick ? ' mobileStatBlock--tap' : ''}${activeBoardTab === tab ? ' mobileStatBlock--active' : ''}`}
+                  onClick={onStatClick ? () => onStatClick(tab) : undefined}
+                >
+                  <div className="mobileStatValue">{count}</div>
+                  <div className="mobileStatLabel">{label}</div>
+                </div>
+              ))}
             </div>
-          ))}
+          ) : null}
         </div>
       ) : null}
 

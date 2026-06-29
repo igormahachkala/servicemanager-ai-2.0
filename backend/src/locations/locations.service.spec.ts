@@ -85,7 +85,10 @@ describe('LocationsService location scope', () => {
 
   it('preserves provider linked-client binding scope', async () => {
     const prisma = makePrismaMock()
-    prisma.company.findUnique.mockResolvedValue({ type: CompanyType.PROVIDER })
+    // actor (provider-company) resolves as PROVIDER; requested linked scope (client-company) must be CLIENT
+    prisma.company.findUnique.mockImplementation(({ where }: any) =>
+      Promise.resolve({ type: where.id === 'client-company' ? CompanyType.CLIENT : CompanyType.PROVIDER }),
+    )
     prisma.userLocationBinding.findMany.mockResolvedValue([{ locationId: 'linked-loc' }])
     prisma.location.findMany.mockResolvedValue([
       { id: 'linked-loc', clientCompanyId: 'client-company', name: 'Linked', isActive: true },
@@ -111,5 +114,46 @@ describe('LocationsService location scope', () => {
     expect(result).toEqual([
       { id: 'linked-loc', clientCompanyId: 'client-company', name: 'Linked', isActive: true },
     ])
+  })
+
+  it('create: provider in a linked-client scope creates a CLIENT-owned location', async () => {
+    const prisma = makePrismaMock()
+    prisma.company.findUnique.mockResolvedValue({ type: CompanyType.CLIENT })
+    prisma.location.findFirst.mockResolvedValue(null)
+    prisma.location.create.mockResolvedValue({ id: 'new-loc' })
+    const contracts = makeServiceContractsMock()
+
+    const svc = new LocationsService(prisma as any, contracts as any)
+    await svc.create('provider-company', UserRole.ADMIN, { name: 'Кафе', platformCode: 'CAFE1' }, 'client-company')
+
+    expect(contracts.assertPrimaryLinkedClientAccess).toHaveBeenCalledWith('provider-company', 'client-company')
+    expect(prisma.location.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ clientCompanyId: 'client-company' }) }),
+    )
+  })
+
+  it('create: provider without a linked-client scope is rejected', async () => {
+    const prisma = makePrismaMock()
+    prisma.company.findUnique.mockResolvedValue({ type: CompanyType.PROVIDER })
+    const svc = new LocationsService(prisma as any, makeServiceContractsMock() as any)
+
+    await expect(
+      svc.create('provider-company', UserRole.ADMIN, { name: 'Кафе', platformCode: 'CAFE1' }),
+    ).rejects.toThrow(/CLIENT company/)
+    expect(prisma.location.create).not.toHaveBeenCalled()
+  })
+
+  it('create: client leader creates a location owned by their own client company', async () => {
+    const prisma = makePrismaMock()
+    prisma.company.findUnique.mockResolvedValue({ type: CompanyType.CLIENT })
+    prisma.location.findFirst.mockResolvedValue(null)
+    prisma.location.create.mockResolvedValue({ id: 'new-loc' })
+    const svc = new LocationsService(prisma as any, makeServiceContractsMock() as any)
+
+    await svc.create('client-company', UserRole.ADMIN, { name: 'Точка', platformCode: 'P1' })
+
+    expect(prisma.location.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ clientCompanyId: 'client-company' }) }),
+    )
   })
 })

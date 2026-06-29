@@ -50,6 +50,7 @@ function statusLabel(status: api.TicketStatus) {
   if (status === 'NEW') return 'Новая'
   if (status === 'ASSIGNED') return 'Назначена'
   if (status === 'IN_PROGRESS') return 'В работе'
+  if (status === 'AWAITING_ACCEPTANCE') return 'Ожидает приёмки'
   if (status === 'DONE') return 'Завершена'
   if (status === 'CANCELED') return 'Отменена'
   return status
@@ -110,6 +111,7 @@ function StatusPill({ status }: { status: api.TicketStatus }) {
   if (status === 'NEW') Object.assign(style, { background: '#eef2ff', borderColor: '#c7d2fe', color: '#3730a3' })
   if (status === 'ASSIGNED') Object.assign(style, { background: '#ecfeff', borderColor: '#a5f3fc', color: '#155e75' })
   if (status === 'IN_PROGRESS') Object.assign(style, { background: '#fffbeb', borderColor: '#fde68a', color: '#92400e' })
+  if (status === 'AWAITING_ACCEPTANCE') Object.assign(style, { background: '#fff7ed', borderColor: '#fdba74', color: '#9a3412' })
   if (status === 'DONE') Object.assign(style, { background: '#ecfdf5', borderColor: '#a7f3d0', color: '#065f46' })
   if (status === 'CANCELED') Object.assign(style, { background: '#f3f4f6', borderColor: '#e5e7eb', color: '#6b7280' })
 
@@ -194,6 +196,7 @@ export function TicketPage() {
   const qc = useQueryClient()
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const operationalFileInputRef = useRef<HTMLInputElement | null>(null)
+  const acceptanceFileInputRef = useRef<HTMLInputElement | null>(null)
 
   const observerCompanyId = (searchParams.get('companyId') || api.getObserverCompanyId()).trim()
   const linkedClientCompanyId = (searchParams.get('linkedClientCompanyId') || api.getLinkedClientCompanyId()).trim()
@@ -213,7 +216,9 @@ export function TicketPage() {
   const [editOpen, setEditOpen] = useState(false)
   const [selectedTechnicianId, setSelectedTechnicianId] = useState('')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [acceptanceFile, setAcceptanceFile] = useState<File | null>(null)
   const [fileError, setFileError] = useState<string | null>(null)
+  const [acceptanceFileError, setAcceptanceFileError] = useState<string | null>(null)
   const [claimError, setClaimError] = useState<string | null>(null)
   const [assignError, setAssignError] = useState<string | null>(null)
   const [statusError, setStatusError] = useState<string | null>(null)
@@ -223,6 +228,7 @@ export function TicketPage() {
   const [showFullTimeline, setShowFullTimeline] = useState(false)
   const [showAssignmentEditor, setShowAssignmentEditor] = useState(false)
   const [showChildCreateForm, setShowChildCreateForm] = useState(false)
+  const [showSubmitToAcceptanceForm, setShowSubmitToAcceptanceForm] = useState(false)
 
   const [editProblemCategoryId, setEditProblemCategoryId] = useState('')
   const [editLocationId, setEditLocationId] = useState('')
@@ -235,6 +241,7 @@ export function TicketPage() {
   const [editPointName, setEditPointName] = useState('')
   const [editComment, setEditComment] = useState('')
   const [newComment, setNewComment] = useState('')
+  const [acceptanceComment, setAcceptanceComment] = useState('')
   const [closeReportComment, setCloseReportComment] = useState('')
   const [childCategoryId, setChildCategoryId] = useState('')
   const [childProblemText, setChildProblemText] = useState('')
@@ -369,7 +376,6 @@ export function TicketPage() {
   const canDeletePhoto = canMutateTicket && roleCanUploadPhoto(role)
   const canCreateChildTicket = canMutateTicket && roleCanCreateChildTicket(role)
   const isTechnicianRole = role === 'TECHNICIAN'
-  const isAssignedTechnician = !!ticketQ.data?.assignedTechnician?.id && ticketQ.data.assignedTechnician.id === meQ.data?.id
 
   const assignmentCandidatesQ = useQuery({
     enabled: !!ticketId && canAssign,
@@ -486,6 +492,24 @@ export function TicketPage() {
     },
   })
 
+  const selfAssignM = useMutation({
+    mutationFn: () => {
+      if (!canMutateTicket) throw new Error('Изменение заявки запрещено в текущем режиме видимости')
+      if (!meQ.data?.id) throw new Error('Не удалось определить пользователя')
+      return api.assignTicket(ticketId, meQ.data.id, effectiveTicketScope)
+    },
+    onSuccess: async () => {
+      clearActionErrors()
+      pushToast('Заявка взята на себя', 'success')
+      await refreshAll()
+    },
+    onError: (e: any) => {
+      const raw = e?.message || String(e)
+      logTicketActionError('self_assign', raw)
+      setAssignError(mapTicketActionError(raw))
+    },
+  })
+
   const statusM = useMutation({
     mutationFn: (input: api.UpdateTicketStatusInput) => {
       if (!canMutateTicket) throw new Error('Изменение заявки запрещено в текущем режиме видимости')
@@ -494,7 +518,8 @@ export function TicketPage() {
     onSuccess: async (_data, vars) => {
       setStatusError(null)
       clearActionErrors()
-      if (vars.status === 'DONE') pushToast('Заявка завершена', 'success')
+      if (vars.status === 'AWAITING_ACCEPTANCE') pushToast('Заявка отправлена на приёмку', 'success')
+      else if (vars.status === 'DONE') pushToast('Заявка завершена', 'success')
       else if (vars.status === 'IN_PROGRESS') pushToast('Работы начаты', 'success')
       else if (vars.status === 'CANCELED') pushToast('Заявка отменена', 'info')
       setNewComment('')
@@ -503,6 +528,48 @@ export function TicketPage() {
     onError: (e: any) => {
       const raw = e?.message || String(e)
       logTicketActionError('status', raw)
+      setStatusError(mapTicketActionError(raw))
+    },
+  })
+
+  const acceptanceM = useMutation({
+    mutationFn: async (decision: api.TicketAcceptanceDecision) => {
+      if (!ticket) throw new Error('Заявка не загружена')
+      if (!canMutateTicket) throw new Error('Изменение заявки запрещено в текущем режиме видимости')
+
+      const normalizedComment = acceptanceComment.trim()
+      if (decision === 'REJECT' && !normalizedComment) {
+        throw new Error('Добавьте комментарий при отказе')
+      }
+
+      const attachmentIds: string[] = []
+      if (acceptanceFile) {
+        const uploaded = await api.uploadTicketAttachment(ticketId, acceptanceFile, effectiveTicketScope)
+        if (uploaded?.id) attachmentIds.push(uploaded.id)
+      }
+
+      return api.decideTicketAcceptance(
+        ticketId,
+        {
+          decision,
+          comment: normalizedComment || undefined,
+          attachmentIds: attachmentIds.length ? attachmentIds : undefined,
+        },
+        effectiveTicketScope,
+      )
+    },
+    onSuccess: async (_data, decision) => {
+      setAcceptanceComment('')
+      setAcceptanceFile(null)
+      setAcceptanceFileError(null)
+      if (acceptanceFileInputRef.current) acceptanceFileInputRef.current.value = ''
+      clearActionErrors()
+      pushToast(decision === 'ACCEPT' ? 'Работа принята' : 'Заявка возвращена в работу', 'success')
+      await refreshAll()
+    },
+    onError: (e: any) => {
+      const raw = e?.message || String(e)
+      logTicketActionError('acceptance', raw)
       setStatusError(mapTicketActionError(raw))
     },
   })
@@ -611,20 +678,25 @@ export function TicketPage() {
       const normalizedComment = closeReportComment.trim()
       if (!normalizedComment) throw new Error('Добавьте комментарий к закрытию')
       const hasPhotoAlready = hasWorkReportPhotoEvidence
-      if (!hasPhotoAlready && !selectedFile) throw new Error('Добавьте фото для закрытия')
+      if (!hasPhotoAlready && !selectedFile) throw new Error('Добавьте фото для отправки на приёмку')
       if (selectedFile) {
         await api.uploadTicketAttachment(ticketId, selectedFile, effectiveTicketScope)
       }
       await api.addTicketComment(ticketId, normalizedComment, effectiveTicketScope)
-      await api.updateTicketStatus(ticketId, { status: 'DONE', comment: normalizedComment }, effectiveTicketScope)
+      await api.updateTicketStatus(
+        ticketId,
+        { status: 'AWAITING_ACCEPTANCE', comment: normalizedComment },
+        effectiveTicketScope,
+      )
     },
     onSuccess: async () => {
       setCloseReportComment('')
       setNewComment('')
       setSelectedFile(null)
+      setShowSubmitToAcceptanceForm(false)
       if (fileInputRef.current) fileInputRef.current.value = ''
       clearActionErrors()
-      pushToast('Заявка завершена', 'success')
+      pushToast('Заявка отправлена на приёмку', 'success')
       await refreshAll()
     },
     onError: (e: any) => {
@@ -668,6 +740,12 @@ export function TicketPage() {
     if (aa) return aa.canClaim
     return ticket.meta?.canClaimByCurrentUser === true
   }, [role, ticket, executorActionsAllowed])
+
+  const showSelfAssign =
+    canAssign &&
+    !!ticket &&
+    ticket.status === 'NEW' &&
+    !hasAssignedTechnician
 
   const assignmentData = assignmentCandidatesQ.data
   const availableStatusTransitions = ticket?.meta?.availableStatusTransitions || []
@@ -723,19 +801,6 @@ export function TicketPage() {
   }, [contextMode])
   const timelineItems = timelineQ.data?.timeline || timelineQ.data?.items || []
   const childTickets = ticket?.children || []
-  const hasAnyCommentEvidence = useMemo(
-    () =>
-      timelineItems.some((item) => {
-        const payloadComment = typeof item.payload?.comment === 'string' ? item.payload.comment.trim() : ''
-        return payloadComment.length > 0
-      }),
-    [timelineItems],
-  )
-  const hasCommentForDone = hasAnyCommentEvidence || newComment.trim().length > 0
-  const hasAnyPhotoEvidence = useMemo(
-    () => (attachmentsQ.data || []).some((item) => (item.mimeType || '').startsWith('image/')),
-    [attachmentsQ.data],
-  )
   // SMA-ACCEPTANCE-ROLE-GAP-001: accept/reject only for client-company ADMIN / TERRITORIAL_MANAGER / NETWORK_DIRECTOR.
   const isAwaitingAcceptanceClient =
     !!ticket &&
@@ -755,14 +820,27 @@ export function TicketPage() {
     () => workReportAttachments.some((item) => (item.mimeType || '').startsWith('image/')),
     [workReportAttachments],
   )
-  const canCompleteByEvidence = hasCommentForDone && hasAnyPhotoEvidence
   const timelinePreviewItems = useMemo(
     () => (showFullTimeline ? timelineItems : timelineItems.slice(0, 5)),
     [showFullTimeline, timelineItems],
   )
   const chatMessages = useMemo(
-    () => toChatMessages(timelineItems, meQ.data?.id ?? ''),
-    [timelineItems, meQ.data?.id],
+    () =>
+      toChatMessages(timelineItems, meQ.data?.id ?? '', {
+        categoryName: ticket?.problemCategory?.name ?? null,
+        locationName: ticket?.location?.name || ticket?.pointName || null,
+        description: ticket?.problemText || ticket?.description || ticket?.title || null,
+      }),
+    [
+      timelineItems,
+      meQ.data?.id,
+      ticket?.description,
+      ticket?.location?.name,
+      ticket?.pointName,
+      ticket?.problemCategory?.name,
+      ticket?.problemText,
+      ticket?.title,
+    ],
   )
   const shortProblemText = useMemo(() => {
     const text = ticket?.problemText || ''
@@ -827,6 +905,47 @@ export function TicketPage() {
     uploadM.mutate(file)
   }
 
+  function handleAcceptanceFileChange(e: ChangeEvent<HTMLInputElement>) {
+    setAcceptanceFileError(null)
+    const file = e.target.files?.[0] || null
+    if (!file) {
+      setAcceptanceFile(null)
+      return
+    }
+
+    if (!file.type.startsWith('image/')) {
+      setAcceptanceFile(null)
+      e.target.value = ''
+      setAcceptanceFileError('Можно загружать только изображения')
+      return
+    }
+
+    if (file.size <= 0) {
+      setAcceptanceFile(null)
+      e.target.value = ''
+      setAcceptanceFileError('Файл пустой')
+      return
+    }
+
+    if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
+      setAcceptanceFile(null)
+      e.target.value = ''
+      setAcceptanceFileError('Изображение слишком большое. Максимум 10 МБ.')
+      return
+    }
+
+    setAcceptanceFile(file)
+  }
+
+  useEffect(() => {
+    setAcceptanceComment('')
+    setAcceptanceFile(null)
+    setAcceptanceFileError(null)
+    if (acceptanceFileInputRef.current) {
+      acceptanceFileInputRef.current.value = ''
+    }
+  }, [ticketId])
+
   function handleUploadClick() {
     if (uploadM.isPending) return
     if (!selectedFile) {
@@ -849,6 +968,7 @@ export function TicketPage() {
   }
 
   const showTechnicianActionBar = !!(ticket && isTechnicianRole && executorActionsAllowed)
+  const canSubmitToAcceptance = !!(ticket && executorActionsAllowed && canChangeStatus && canTransitionTo('AWAITING_ACCEPTANCE'))
 
   return (
     <div>
@@ -999,6 +1119,57 @@ export function TicketPage() {
         </div>
       ) : null}
 
+      {isAwaitingAcceptanceClient && ticket ? (
+        <div className="panel uiCard" style={{ marginBottom: 12, borderColor: '#fdba74', background: '#fff7ed' }}>
+          <h3 style={{ marginBottom: 8 }}>Приёмка работы</h3>
+          <div className="muted small" style={{ marginBottom: 10, lineHeight: 1.5 }}>
+            Техник отметил работу как завершённую. Проверьте результат и примите заявку либо верните её в работу с комментарием.
+          </div>
+          <div className="form">
+            <label>
+              Комментарий при отказе
+              <textarea
+                value={acceptanceComment}
+                onChange={(e) => setAcceptanceComment(e.target.value)}
+                rows={3}
+                placeholder="Объясните, что нужно исправить. Обязательно при отказе."
+                disabled={acceptanceM.isPending}
+              />
+            </label>
+            <label>
+              Фото при отказе / приёмке (необязательно)
+              <input
+                ref={acceptanceFileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleAcceptanceFileChange}
+                disabled={acceptanceM.isPending}
+              />
+              <div className="muted small" style={{ marginTop: 6 }}>
+                Можно приложить фото результата. При приёмке фото не обязательно.
+              </div>
+            </label>
+            <div className="uiActions">
+              <button
+                onClick={() => acceptanceM.mutate('ACCEPT')}
+                disabled={acceptanceM.isPending}
+              >
+                {acceptanceM.isPending ? 'Сохраняем…' : 'Принять работу'}
+              </button>
+              <button
+                className="ghost"
+                onClick={() => acceptanceM.mutate('REJECT')}
+                disabled={acceptanceM.isPending || !acceptanceComment.trim()}
+                title={!acceptanceComment.trim() ? 'Комментарий обязателен при отказе' : undefined}
+              >
+                {acceptanceM.isPending ? 'Сохраняем…' : 'Не принять работу'}
+              </button>
+            </div>
+          </div>
+          <InlineError message={acceptanceFileError || statusError} />
+        </div>
+      ) : null}
+
       {showTechnicianActionBar && ticket ? (
         <>
           <input
@@ -1009,13 +1180,11 @@ export function TicketPage() {
             onChange={handleOperationalPhotoPick}
           />
           <TicketActionBar
-            ticketStatus={ticket.status}
             backToBoardHref={backToBoardHref}
             primaryAction={primaryAction}
             canClaim={canClaim}
-            canChangeStatus={canChangeStatus}
+            canChangeStatus={canChangeStatus && ticket.status !== 'AWAITING_ACCEPTANCE'}
             canTransitionTo={canTransitionTo}
-            canCompleteByEvidence={canCompleteByEvidence}
             showCancel={showCancelInTechnicianBar}
             closeHint={technicianBarCloseHint}
             claimPending={claimM.isPending}
@@ -1031,11 +1200,23 @@ export function TicketPage() {
             hasOperationalPhotoSelected={false}
             claimError={claimError}
             statusError={statusError}
+            onOpenSubmitForm={canSubmitToAcceptance ? () => setShowSubmitToAcceptanceForm(true) : undefined}
           />
         </>
       ) : ticket ? (
         <div className="panel" style={{ marginBottom: 12 }}>
           <h3 style={{ marginBottom: 10 }}>Действия</h3>
+          {showSelfAssign ? (
+            <div style={{ marginBottom: 8 }}>
+              <button
+                onClick={() => selfAssignM.mutate()}
+                disabled={selfAssignM.isPending}
+                style={{ width: '100%' }}
+              >
+                {selfAssignM.isPending ? 'Берём заявку…' : 'Взять заявку себе'}
+              </button>
+            </div>
+          ) : null}
           {primaryAction ? (
             <div style={{ marginBottom: 8 }}>
               {primaryAction.kind === 'claim' ? (
@@ -1058,16 +1239,11 @@ export function TicketPage() {
               ) : null}
               {primaryAction.kind === 'done' ? (
                 <button
-                  onClick={() =>
-                    statusM.mutate({
-                      status: 'DONE',
-                      comment: newComment.trim() || undefined,
-                    })
-                  }
-                  disabled={statusM.isPending || !canTransitionTo('DONE') || !canCompleteByEvidence}
+                  onClick={() => setShowSubmitToAcceptanceForm(true)}
+                  disabled={!canTransitionTo('AWAITING_ACCEPTANCE')}
                   style={{ width: '100%' }}
                 >
-                  {statusM.isPending ? 'Сохраняем…' : primaryAction.label}
+                  {primaryAction.label}
                 </button>
               ) : null}
             </div>
@@ -1089,23 +1265,17 @@ export function TicketPage() {
             ) : null}
             {canChangeStatus ? (
               <>
-                {primaryAction?.kind !== 'in_progress' ? (
+                {primaryAction?.kind !== 'in_progress' && ticket.status !== 'AWAITING_ACCEPTANCE' ? (
                   <button className="ghost" disabled={statusM.isPending || !canTransitionTo('IN_PROGRESS')} onClick={() => statusM.mutate({ status: 'IN_PROGRESS' })}>
                     {statusM.isPending ? 'Сохраняем…' : 'В работу'}
                   </button>
                 ) : null}
-                {primaryAction?.kind !== 'done' ? (
+                {primaryAction?.kind !== 'done' && canTransitionTo('AWAITING_ACCEPTANCE') ? (
                   <button
                     className="ghost"
-                    disabled={statusM.isPending || !canTransitionTo('DONE') || !canCompleteByEvidence}
-                    onClick={() =>
-                      statusM.mutate({
-                        status: 'DONE',
-                        comment: newComment.trim() || undefined,
-                      })
-                    }
+                    onClick={() => setShowSubmitToAcceptanceForm(true)}
                   >
-                    {statusM.isPending ? 'Сохраняем…' : 'Завершить'}
+                    Отправить на приёмку
                   </button>
                 ) : null}
                 {!isTechnicianRole ? (
@@ -1128,31 +1298,29 @@ export function TicketPage() {
               </button>
             ) : null}
           </div>
-          {!canCompleteByEvidence ? (
-            <div className="muted small" style={{ marginTop: 8 }}>
-              Для завершения нужны: минимум 1 комментарий и 1 фото.
-            </div>
-          ) : null}
           <InlineError message={statusError} />
         </div>
       ) : null}
 
-      {ticket && isTechnicianRole && isAssignedTechnician && canChangeStatus && canTransitionTo('DONE') ? (
-        <div className="panel uiCard" style={{ marginBottom: 12 }}>
-          <h3 style={{ marginBottom: 10 }}>Закрыть с отчётом</h3>
+      {canSubmitToAcceptance && showSubmitToAcceptanceForm ? (
+        <div className="panel uiCard" style={{ marginBottom: 12, borderColor: '#c7d2fe', background: '#f8fafc' }}>
+          <h3 style={{ marginBottom: 8 }}>Отправить на приёмку</h3>
+          <div className="muted small" style={{ marginBottom: 12, lineHeight: 1.5 }}>
+            Заполните комментарий и прикрепите фото выполненной работы. После отправки заявка перейдёт в статус «Ожидает приёмки».
+          </div>
           <div className="form">
             <label>
-              Комментарий по выполнению *
+              Комментарий *
               <textarea
                 value={closeReportComment}
                 onChange={(e) => setCloseReportComment(e.target.value)}
                 rows={3}
-                placeholder="Что сделано и результат"
+                placeholder="Что сделано, результат работ"
                 disabled={closeReportM.isPending}
               />
             </label>
             <label>
-              Фото отчёта *
+              Фото отчёта {hasWorkReportPhotoEvidence ? `(уже загружено: ${workReportAttachments.filter((a) => (a.mimeType || '').startsWith('image/')).length} шт.)` : '*'}
               <input
                 ref={fileInputRef}
                 type="file"
@@ -1160,10 +1328,17 @@ export function TicketPage() {
                 onChange={handleFileChange}
                 disabled={closeReportM.isPending}
               />
-              <div className="muted small" style={{ marginTop: 6 }}>
-                Можно выбрать новое фото или использовать уже загруженное в заявку.
-              </div>
+              {hasWorkReportPhotoEvidence ? (
+                <div className="muted small" style={{ marginTop: 6 }}>
+                  Уже есть фото отчёта. Можно добавить ещё или оставить как есть.
+                </div>
+              ) : (
+                <div className="muted small" style={{ marginTop: 6 }}>
+                  Обязательно прикрепите фото результата работ.
+                </div>
+              )}
             </label>
+            <InlineError message={fileError || statusError} />
             <div className="uiActions">
               <button
                 onClick={() => closeReportM.mutate()}
@@ -1173,7 +1348,19 @@ export function TicketPage() {
                   (!hasWorkReportPhotoEvidence && !selectedFile)
                 }
               >
-                {closeReportM.isPending ? 'Закрываем…' : 'Завершить'}
+                {closeReportM.isPending ? 'Отправляем…' : 'Отправить на приёмку'}
+              </button>
+              <button
+                className="ghost"
+                onClick={() => {
+                  setShowSubmitToAcceptanceForm(false)
+                  setCloseReportComment('')
+                  setSelectedFile(null)
+                  if (fileInputRef.current) fileInputRef.current.value = ''
+                }}
+                disabled={closeReportM.isPending}
+              >
+                Отмена
               </button>
             </div>
           </div>

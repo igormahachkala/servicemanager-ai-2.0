@@ -44,11 +44,102 @@ import { mobileAttachmentLabel } from './MobileAttachmentThumb'
 import { toChatMessages } from '../lib/ticketChat'
 import { FullscreenPhotoViewer, type PhotoViewerItem } from '../components/FullscreenPhotoViewer'
 import { MobileTicketPhotoGallery } from './MobileTicketPhotoGallery'
+import { MobileTicketActionsSheet, type TicketSheetAction } from './MobileTicketActionsSheet'
 import { MobileModalBackdrop } from './MobileModalBackdrop'
+
+// SMA-ACCEPTANCE-005: модалка клиентского отказа в приёмке (комментарий обязателен, фото — желательно).
+type ClientRejectModalState =
+  | { ticketId: string; title: string; file: File | null; previewUrl: string; comment: string; err: string }
+  | null
+
+function ClientAcceptanceRejectModal(props: {
+  state: ClientRejectModalState
+  busy: boolean
+  cameraInputRef: { current: HTMLInputElement | null }
+  galleryInputRef: { current: HTMLInputElement | null }
+  setState: (next: ClientRejectModalState | ((prev: ClientRejectModalState) => ClientRejectModalState)) => void
+  canSubmit: boolean
+  onSubmit: () => void
+}) {
+  const { state, busy, cameraInputRef, galleryInputRef, setState, canSubmit, onSubmit } = props
+  if (!state) return null
+  const pickFile = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] || null
+    setState((prev) => {
+      if (!prev) return prev
+      if (prev.previewUrl) URL.revokeObjectURL(prev.previewUrl)
+      const previewUrl = file ? URL.createObjectURL(file) : ''
+      return { ...prev, file, previewUrl, err: '' }
+    })
+  }
+  const cancel = () => {
+    if (state.previewUrl) URL.revokeObjectURL(state.previewUrl)
+    setState(null)
+    if (cameraInputRef.current) cameraInputRef.current.value = ''
+    if (galleryInputRef.current) galleryInputRef.current.value = ''
+  }
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(17, 24, 39, 0.55)', zIndex: 60, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: 12 }}>
+      <div className="mobileCard" style={{ width: '100%', maxWidth: 720, marginBottom: 12 }}>
+        <div className="mobileRow" style={{ alignItems: 'flex-start' }}>
+          <div>
+            <div style={{ fontWeight: 900 }}>Не принять работу</div>
+            <div className="mobileMeta" style={{ marginTop: 4 }}>{state.title}</div>
+          </div>
+          <button type="button" className="mobileBtn mobileBtnSecondary" disabled={busy} onClick={cancel}>
+            Отмена
+          </button>
+        </div>
+        {state.err ? <div className="mobileNotice mobileNoticeError" style={{ marginTop: 10 }}>{state.err}</div> : null}
+        <div className="mobileForm" style={{ marginTop: 12 }}>
+          <label className="mobileFormField">
+            Причина отказа *
+            <textarea
+              rows={3}
+              value={state.comment}
+              disabled={busy}
+              placeholder="Что не так с работой / что нужно доделать"
+              onChange={(e) => setState((prev) => (prev ? { ...prev, comment: e.target.value, err: '' } : prev))}
+            />
+          </label>
+          <div className="mobilePhotoCardBlock" style={{ marginTop: 12 }}>
+            <div style={{ fontWeight: 800, marginBottom: 8 }}>Фото (необязательно)</div>
+            <input ref={cameraInputRef} className="mobileHiddenFileInput" type="file" accept="image/*" capture="environment" disabled={busy} onChange={pickFile} />
+            <input ref={galleryInputRef} className="mobileHiddenFileInput" type="file" accept="image/*" disabled={busy} onChange={pickFile} />
+            <div className="mobilePhotoSourceRow">
+              <button type="button" className="mobileBtn mobileBtnSecondary mobilePhotoSourceBtn" disabled={busy} onClick={() => cameraInputRef.current?.click()}>
+                Сделать фото
+              </button>
+              <button type="button" className="mobileBtn mobileBtnSecondary mobilePhotoSourceBtn" disabled={busy} onClick={() => galleryInputRef.current?.click()}>
+                Выбрать из телефона
+              </button>
+            </div>
+            {state.previewUrl ? (
+              <div className="mobilePhotoPreview">
+                <img src={state.previewUrl} alt={state.file?.name || 'preview'} style={{ width: '100%', maxHeight: 240, objectFit: 'cover', borderRadius: 12, border: '1px solid #e5e7eb' }} />
+              </div>
+            ) : null}
+            {state.file ? <div className="mobileMeta" style={{ marginTop: 10 }}>Файл: {state.file.name}</div> : null}
+          </div>
+          <div className="mobileFormSubmitStack">
+            <button type="button" className="mobileBtn mobileBtnSecondary" disabled={!canSubmit} onClick={onSubmit}>
+              {busy ? 'Отправляем…' : 'Отправить на доработку'}
+            </button>
+            <p className="mobileHint" style={{ marginBottom: 0 }}>
+              Комментарий обязателен (не короче трёх символов). Заявка вернётся в статус «В работе».
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function readListOrigin(location: ReturnType<typeof useLocation>): MobileTicketListOrigin {
   const raw = (location.state as MobileTicketNavState | null)?.mobileListOrigin
   if (raw === 'my') return 'my'
+  if (raw === 'chat') return 'chat'
+  if (raw === 'notifications') return 'notifications'
   return 'home'
 }
 
@@ -81,37 +172,6 @@ function roleCanUploadTicketPhoto(role?: api.Role | null) {
   return !!role && PHOTO_ROLES.includes(role)
 }
 
-function timelineEventColor(item: api.TimelineItem): string {
-  const ev = ((item.timelineEvent || item.type || item.domainType) ?? '').toUpperCase()
-  const src = item.source ?? ''
-  if (ev.includes('CREATED') || ev.includes('CREATE')) return '#2563eb'
-  if (ev.includes('CLAIMED') || ev.includes('CLAIM')) return '#0e7490'
-  if (ev.includes('ASSIGNED') || ev.includes('ASSIGN')) return '#0e7490'
-  if (ev.includes('COMMENT') || ev.includes('CHAT')) return '#7c3aed'
-  if (ev.includes('ATTACHMENT') || ev.includes('PHOTO') || ev.includes('FILE')) return '#9333ea'
-  if (ev.includes('DONE') || ev.includes('COMPLETED')) return '#16a34a'
-  if (ev.includes('CANCELED') || ev.includes('CANCEL')) return '#6b7280'
-  if (ev.includes('STATUS') || ev.includes('TRANSITION') || src === 'status_history') return '#d97706'
-  if (ev.includes('RATING') || ev.includes('REVIEW')) return '#f59e0b'
-  return '#9ca3af'
-}
-
-function timelineEventLabel(item: api.TimelineItem): string {
-  const ev = ((item.timelineEvent || item.type || item.domainType) ?? '').toUpperCase()
-  if (ev.includes('CREATED') || ev.includes('CREATE')) return 'Заявка создана'
-  if (ev.includes('CLAIMED') || ev.includes('CLAIM')) return 'Взята в работу'
-  if (ev.includes('ASSIGNED') || ev.includes('ASSIGN')) return 'Назначен исполнитель'
-  if (ev.includes('STARTED') || ev.includes('IN_PROGRESS')) return 'Начата работа'
-  if (ev.includes('COMMENT') || ev.includes('CHAT')) return 'Комментарий'
-  if (ev.includes('ATTACHMENT') || ev.includes('PHOTO')) return 'Фото добавлено'
-  if (ev.includes('FILE')) return 'Файл добавлен'
-  if (ev.includes('DONE') || ev.includes('COMPLETED')) return 'Заявка завершена'
-  if (ev.includes('CANCELED') || ev.includes('CANCEL')) return 'Заявка отменена'
-  if (ev.includes('RATING') || ev.includes('REVIEW')) return 'Оценка выставлена'
-  if (ev.includes('STATUS') || ev.includes('TRANSITION')) return 'Изменён статус'
-  return item.title || 'Событие'
-}
-
 function dedupeTimeline(items: api.TimelineItem[]): api.TimelineItem[] {
   const seen = new Set<string>()
   return items.filter((item) => {
@@ -121,62 +181,6 @@ function dedupeTimeline(items: api.TimelineItem[]): api.TimelineItem[] {
     seen.add(key)
     return true
   })
-}
-
-function TimelineIcon({ item }: { item: api.TimelineItem }) {
-  const ev = ((item.timelineEvent || item.type || item.domainType) ?? '').toUpperCase()
-  const color = timelineEventColor(item)
-  const base = { fill: 'none' as const, stroke: color, strokeWidth: 2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
-  if (ev.includes('CREATED') || ev.includes('CREATE')) return (
-    <svg width={18} height={18} viewBox="0 0 24 24" {...base} aria-hidden>
-      <circle cx="12" cy="12" r="10"/>
-      <line x1="12" y1="8" x2="12" y2="16"/>
-      <line x1="8" y1="12" x2="16" y2="12"/>
-    </svg>
-  )
-  if (ev.includes('CLAIMED') || ev.includes('CLAIM') || ev.includes('ASSIGNED') || ev.includes('ASSIGN')) return (
-    <svg width={18} height={18} viewBox="0 0 24 24" {...base} aria-hidden>
-      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
-      <circle cx="12" cy="7" r="4"/>
-    </svg>
-  )
-  if (ev.includes('COMMENT') || ev.includes('CHAT')) return (
-    <svg width={18} height={18} viewBox="0 0 24 24" {...base} aria-hidden>
-      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-    </svg>
-  )
-  if (ev.includes('ATTACHMENT') || ev.includes('PHOTO') || ev.includes('FILE')) return (
-    <svg width={18} height={18} viewBox="0 0 24 24" {...base} aria-hidden>
-      <rect x="3" y="3" width="18" height="18" rx="2"/>
-      <circle cx="8.5" cy="8.5" r="1.5" fill={color} stroke="none"/>
-      <polyline points="21 15 16 10 5 21"/>
-    </svg>
-  )
-  if (ev.includes('DONE') || ev.includes('COMPLETED')) return (
-    <svg width={18} height={18} viewBox="0 0 24 24" {...base} aria-hidden>
-      <polyline points="20 6 9 17 4 12"/>
-    </svg>
-  )
-  if (ev.includes('CANCELED') || ev.includes('CANCEL')) return (
-    <svg width={18} height={18} viewBox="0 0 24 24" {...base} aria-hidden>
-      <circle cx="12" cy="12" r="10"/>
-      <line x1="15" y1="9" x2="9" y2="15"/>
-      <line x1="9" y1="9" x2="15" y2="15"/>
-    </svg>
-  )
-  if (ev.includes('STATUS') || ev.includes('TRANSITION')) return (
-    <svg width={18} height={18} viewBox="0 0 24 24" {...base} aria-hidden>
-      <polyline points="17 1 21 5 17 9"/>
-      <path d="M3 11V9a4 4 0 0 1 4-4h14"/>
-      <polyline points="7 23 3 19 7 15"/>
-      <path d="M21 13v2a4 4 0 0 1-4 4H3"/>
-    </svg>
-  )
-  return (
-    <svg width={18} height={18} viewBox="0 0 24 24" aria-hidden>
-      <circle cx="12" cy="12" r="5" fill={color} stroke="none"/>
-    </svg>
-  )
 }
 
 function formatAddressBlock(ticket: api.TicketGetOne): string {
@@ -204,6 +208,10 @@ export function MobileTicketPage() {
   const [closeModal, setCloseModal] = useState<TicketCloseModalState>(null)
   const closeModalCameraRef = useRef<HTMLInputElement | null>(null)
   const closeModalGalleryRef = useRef<HTMLInputElement | null>(null)
+  // SMA-ACCEPTANCE-005: клиентский отказ в приёмке (комментарий обязателен, фото — желательно).
+  const [rejectModal, setRejectModal] = useState<ClientRejectModalState>(null)
+  const rejectCameraRef = useRef<HTMLInputElement | null>(null)
+  const rejectGalleryRef = useRef<HTMLInputElement | null>(null)
 
   const navState = location.state as MobileTicketNavState | null | undefined
 
@@ -232,6 +240,12 @@ export function MobileTicketPage() {
       if (closeModal?.previewUrl) URL.revokeObjectURL(closeModal.previewUrl)
     }
   }, [closeModal?.previewUrl])
+
+  useEffect(() => {
+    return () => {
+      if (rejectModal?.previewUrl) URL.revokeObjectURL(rejectModal.previewUrl)
+    }
+  }, [rejectModal?.previewUrl])
 
   const observerCompanyId = useMemo(
     () => (searchParams.get('companyId') || api.getObserverCompanyId(meQ.data)).trim(),
@@ -489,16 +503,24 @@ export function MobileTicketPage() {
     !assigneePresent &&
     (aa ? !aa.canClaim : techPrimary === 'claim') &&
     ticket.meta?.assignmentRequestedByCurrentUser === true
-  const canShowTechStart =
-    meQ.data?.role === 'TECHNICIAN' && !!ticket && (aa ? aa.canStart : techPrimary === 'start')
   const assigneeIdForMe =
     ticket && meQ.data?.id ? (ticket.assignedTechnicianId || ticket.assignedTechnician?.id || '').trim() : ''
+  const isSelfAssigned = !!meQ.data?.id && assigneeIdForMe === meQ.data.id
+  const canShowTechStart =
+    !!ticket &&
+    ticket.status !== 'AWAITING_ACCEPTANCE' &&
+    (
+      (meQ.data?.role === 'TECHNICIAN' && (aa ? aa.canStart : techPrimary === 'start')) ||
+      (canAssignProvider && isSelfAssigned &&
+        (ticket.status === 'ASSIGNED' || ticket.status === 'NEW') &&
+        (aa ? aa.canStart : false))
+    )
   const canShowComplete =
-    meQ.data?.role === 'TECHNICIAN' &&
     !!ticket &&
     ticket.status === 'IN_PROGRESS' &&
-    assigneeIdForMe === meQ.data.id &&
-    (aa ? aa.canComplete : transitions.includes('DONE'))
+    isSelfAssigned &&
+    (aa ? aa.canComplete : transitions.includes('DONE')) &&
+    (meQ.data?.role === 'TECHNICIAN' || canAssignProvider)
 
   // SMA-ACCEPTANCE-ROLE-GAP-001: «Принять/Не принять» — только клиентские управленческие роли
   // (ADMIN / TERRITORIAL_MANAGER / NETWORK_DIRECTOR) в client-компании; CLIENT-заявитель исключён.
@@ -508,7 +530,7 @@ export function MobileTicketPage() {
     !!ticket &&
     ticket.status === 'AWAITING_ACCEPTANCE'
 
-  const [detailTab, setDetailTab] = useState<'info' | 'chat' | 'photos' | 'history'>('info')
+  const [detailTab, setDetailTab] = useState<'chat' | 'info' | 'photos' | 'actions'>('chat')
 
   type OfflinePendingComment = { queueId: string; text: string; at: string }
   const [offlinePendingComments, setOfflinePendingComments] = useState<OfflinePendingComment[]>([])
@@ -516,9 +538,11 @@ export function MobileTicketPage() {
   const timelineFirstMountRef = useRef(true)
 
   const [assignTicketOpen, setAssignTicketOpen] = useState(false)
+  const [actionsSheetOpen, setActionsSheetOpen] = useState(false)
   const [assignTechId, setAssignTechId] = useState('')
   const [assignErr, setAssignErr] = useState('')
   const [techActionErr, setTechActionErr] = useState('')
+  const [acceptanceErr, setAcceptanceErr] = useState('')
   const [assignmentRequestErr, setAssignmentRequestErr] = useState('')
   const [assignmentRequestToast, setAssignmentRequestToast] = useState('')
   const [requestPhotoIndex, setRequestPhotoIndex] = useState<number | null>(null)
@@ -724,7 +748,8 @@ export function MobileTicketPage() {
       if (comment.length < 3) throw new Error('Нужен комментарий не короче 3 символов')
       await api.uploadTicketAttachment(closeModal.ticketId, closeModal.file, ticketResourceScope)
       await api.addTicketComment(closeModal.ticketId, comment, ticketResourceScope)
-      await api.updateTicketStatus(closeModal.ticketId, { status: 'DONE' }, ticketResourceScope)
+      // SMA-ACCEPTANCE-005: техник отправляет работу на клиентскую приёмку, а не закрывает напрямую.
+      await api.updateTicketStatus(closeModal.ticketId, { status: 'AWAITING_ACCEPTANCE' }, ticketResourceScope)
     },
     onSuccess: async () => {
       if (closeModal?.previewUrl) URL.revokeObjectURL(closeModal.previewUrl)
@@ -735,15 +760,65 @@ export function MobileTicketPage() {
       await queryClient.invalidateQueries({ queryKey: ['mobile-home-available'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-notifications'] })
       await queryClient.refetchQueries({ queryKey: ['mobile-ticket-detail', ticketId] })
-      setOperationalToast('Заявка завершена.')
+      setOperationalToast('Работа отправлена на приёмку клиенту.')
     },
     onError: (e: unknown) => {
       setCloseModal((prev) => (prev ? { ...prev, err: formatMobileMutationError(e, { operation: 'close' }) } : prev))
     },
   })
 
+  // SMA-ACCEPTANCE-005: клиент принимает работу (контракт POST /tickets/:id/acceptance, decision=ACCEPT → DONE).
+  const acceptM = useMutation({
+    mutationFn: async () => {
+      if (!ticket) throw new Error('Нет заявки')
+      await api.decideTicketAcceptance(ticket.id, { decision: 'ACCEPT' }, ticketResourceScope)
+    },
+    onSuccess: async () => {
+      await invalidateTicketQueries()
+      await queryClient.invalidateQueries({ queryKey: ['mobile-home-available'] })
+      await queryClient.invalidateQueries({ queryKey: ['mobile-notifications'] })
+      await queryClient.refetchQueries({ queryKey: ['mobile-ticket-detail', ticketId] })
+      setOperationalToast('Работа принята. Заявка завершена.')
+    },
+    onError: (e: unknown) => setAcceptanceErr(formatMobileMutationError(e, { operation: 'other' })),
+  })
+
+  // SMA-ACCEPTANCE-005: клиент не принимает работу (decision=REJECT → IN_PROGRESS). Комментарий обязателен, фото желательно.
+  const rejectM = useMutation({
+    mutationFn: async () => {
+      if (!rejectModal) throw new Error('Нет данных для отказа')
+      const comment = rejectModal.comment.trim()
+      if (comment.length < 3) throw new Error('Нужен комментарий не короче 3 символов')
+      // Фото (по желанию) прикрепляем к заявке до решения, чтобы оно осталось в истории.
+      if (rejectModal.file) await api.uploadTicketAttachment(rejectModal.ticketId, rejectModal.file, ticketResourceScope)
+      await api.decideTicketAcceptance(rejectModal.ticketId, { decision: 'REJECT', comment }, ticketResourceScope)
+    },
+    onSuccess: async () => {
+      if (rejectModal?.previewUrl) URL.revokeObjectURL(rejectModal.previewUrl)
+      setRejectModal(null)
+      if (rejectCameraRef.current) rejectCameraRef.current.value = ''
+      if (rejectGalleryRef.current) rejectGalleryRef.current.value = ''
+      await invalidateTicketQueries()
+      await queryClient.invalidateQueries({ queryKey: ['mobile-home-available'] })
+      await queryClient.invalidateQueries({ queryKey: ['mobile-notifications'] })
+      await queryClient.refetchQueries({ queryKey: ['mobile-ticket-detail', ticketId] })
+      setOperationalToast('Работа отправлена на доработку.')
+    },
+    onError: (e: unknown) => {
+      setRejectModal((prev) => (prev ? { ...prev, err: formatMobileMutationError(e, { operation: 'other' }) } : prev))
+    },
+  })
+
   const listOrigin = readListOrigin(location)
-  const backPath = listOrigin === 'my' ? mobilePath(location.pathname, '/my') : mobilePath(location.pathname, '')
+  // SMA-CHAT-UX-004: если пришли из чата — «Назад» возвращает в чат заявки, а не на главную.
+  const backPath =
+    listOrigin === 'chat'
+      ? mobilePath(location.pathname, '/chats')
+      : listOrigin === 'my'
+        ? mobilePath(location.pathname, '/my')
+        : listOrigin === 'notifications'
+          ? mobilePath(location.pathname, '/notifications')
+          : mobilePath(location.pathname, '')
   const backHref = api.appendScopeToPath(backPath, scopeNorm, meQ.data)
   const boardTabLabel = navState?.homeBoardTab ? MOBILE_HOME_TAB_LABELS[navState.homeBoardTab] : ''
   const boardChipLabels = useMemo(() => {
@@ -777,7 +852,24 @@ export function MobileTicketPage() {
     () => dedupeTimeline(timelineQ.data?.timeline || timelineQ.data?.items || []),
     [timelineQ.data],
   )
-  const chatMessages = useMemo(() => toChatMessages(timelineItems, meQ.data?.id ?? ''), [timelineItems, meQ.data?.id])
+  const chatMessages = useMemo(
+    () =>
+      toChatMessages(timelineItems, meQ.data?.id ?? '', {
+        categoryName: ticket?.problemCategory?.name ?? null,
+        locationName: ticket?.location?.name || ticket?.pointName || null,
+        description: ticket?.problemText || ticket?.description || ticket?.title || null,
+      }),
+    [
+      timelineItems,
+      meQ.data?.id,
+      ticket?.description,
+      ticket?.location?.name,
+      ticket?.pointName,
+      ticket?.problemCategory?.name,
+      ticket?.problemText,
+      ticket?.title,
+    ],
+  )
 
   const requestImages = useMemo(() => {
     const imgs = (attachmentsQ.data || []).filter(isImageAttachment)
@@ -829,24 +921,33 @@ export function MobileTicketPage() {
       })()
     : '—'
 
+  // Назначение/переназначение: провайдер-роль может назначать на NEW и ПЕРЕназначать на ASSIGNED.
+  // (раньше требовало status==='NEW' && !assigned → переназначить уже назначенную заявку было нельзя.)
   const showAssignButton =
     !!ticket &&
     canAssignProvider &&
+    (ticket.status === 'NEW' || ticket.status === 'ASSIGNED')
+  const assignBtnLabel = assigneePresent ? 'Переназначить' : 'Назначить исполнителя'
+
+  const showSelfAssignButton =
+    !!ticket &&
+    canAssignProvider &&
     ticket.status === 'NEW' &&
-    !ticket.assignedTechnicianId &&
-    !ticket.assignedTechnician
+    !assigneePresent
 
   const claimBtnPending = techActionM.isPending && techActionM.variables === 'claim'
   const startBtnPending = techActionM.isPending && techActionM.variables === 'start'
   const assignBusy = assignM.isPending
   const closeBusy = closeM.isPending
   const closeCanSubmit = !!closeModal?.file && closeModal.comment.trim().length >= 3 && !closeBusy
+  // SMA-ACCEPTANCE-005: для отказа достаточно комментария (фото — по желанию).
+  const rejectCanSubmit = !!rejectModal && rejectModal.comment.trim().length >= 3 && !rejectM.isPending
 
   const showCompleteBlockedHint =
-    meQ.data?.role === 'TECHNICIAN' &&
+    (meQ.data?.role === 'TECHNICIAN' || canAssignProvider) &&
     !!ticket &&
     ticket.status === 'IN_PROGRESS' &&
-    assigneeIdForMe === meQ.data.id &&
+    isSelfAssigned &&
     !canShowComplete
 
   const hasTechnicianActionsBlock =
@@ -855,6 +956,7 @@ export function MobileTicketPage() {
     showAssignmentRequestAck ||
     canShowTechStart ||
     showAssignButton ||
+    showSelfAssignButton ||
     canShowComplete ||
     showCompleteBlockedHint
   const showTechnicianNoActionsHint =
@@ -864,7 +966,7 @@ export function MobileTicketPage() {
     ticket.status !== 'CANCELED' &&
     !hasTechnicianActionsBlock
 
-  const padBottomForOpsDock = hasTechnicianActionsBlock && detailTab === 'info'
+  const padBottomForOpsDock = (hasTechnicianActionsBlock || canShowClientAcceptance) && detailTab !== 'actions'
 
   useEffect(() => {
     const el = chatInputRef.current
@@ -911,8 +1013,74 @@ export function MobileTicketPage() {
     techActionM.mutate(mode)
   }
 
+  function openChatComposer() {
+    setDetailTab('chat')
+    window.setTimeout(() => chatInputRef.current?.focus(), 60)
+  }
+
+  const ticketSheetActions: TicketSheetAction[] = ticket
+    ? ([
+        meQ.data?.role === 'TECHNICIAN' && ticket.status === 'NEW' && !assigneePresent
+          ? { id: 'take', label: 'Взять в работу', icon: '🙋', onClick: () => handleTechActionWithOfflineSupport('claim') }
+          : null,
+        showSelfAssignButton
+          ? { id: 'self-assign', label: 'Взять заявку себе', icon: '🙋', onClick: () => { if (meQ.data?.id) assignM.mutate({ technicianId: meQ.data.id }) } }
+          : null,
+        showAssignButton
+          ? { id: 'assign', label: assignBtnLabel, icon: '👷', onClick: () => { setAssignErr(''); setAssignTicketOpen(true) } }
+          : null,
+        { id: 'comment', label: 'Написать в чат', icon: '💬', onClick: openChatComposer },
+        { id: 'photo', label: 'Добавить фото', icon: '📷', onClick: () => setDetailTab('photos') },
+        { id: 'chat', label: 'Чат', icon: '🗨️', onClick: () => setDetailTab('chat') },
+        { id: 'actions', label: 'Действия', icon: '⚡', onClick: () => setDetailTab('actions') },
+        { id: 'object', label: 'Инфо о заявке', icon: '📍', onClick: () => setDetailTab('info') },
+        canShowComplete
+          ? {
+              id: 'close',
+              label: 'Отправить на приёмку',
+              icon: '✅',
+              onClick: () =>
+                setCloseModal({
+                  ticketId: ticket.id,
+                  title: `${mobileTicketNumberTitle(ticket.ticketNumber)} — ${mobileTicketCategoryLocationFromDetail(ticket)}`,
+                  file: null,
+                  previewUrl: '',
+                  comment: '',
+                  err: '',
+                }),
+            }
+          : null,
+        canShowClientAcceptance
+          ? { id: 'accept', label: 'Принять работу', icon: '✅', onClick: () => { setAcceptanceErr(''); acceptM.mutate() } }
+          : null,
+        canShowClientAcceptance
+          ? {
+              id: 'reject',
+              label: 'Не принять работу',
+              icon: '↩️',
+              onClick: () => {
+                setAcceptanceErr('')
+                setRejectModal({
+                  ticketId: ticket.id,
+                  title: `${mobileTicketNumberTitle(ticket.ticketNumber)} — ${mobileTicketCategoryLocationFromDetail(ticket)}`,
+                  file: null,
+                  previewUrl: '',
+                  comment: '',
+                  err: '',
+                })
+              },
+            }
+          : null,
+      ].filter(Boolean) as TicketSheetAction[])
+    : []
+
   return (
     <div className={`mobileSection mobileTicketDetailsRoot${padBottomForOpsDock ? ' mobileTicketDetailsRoot--opsDock' : ''}`}>
+      <MobileTicketActionsSheet
+        open={actionsSheetOpen}
+        onClose={() => setActionsSheetOpen(false)}
+        actions={ticketSheetActions}
+      />
       <div className="mobileTicketDetailsToolbar">
         <Link
           to={backHref}
@@ -921,6 +1089,16 @@ export function MobileTicketPage() {
         >
           Назад
         </Link>
+        {ticket ? (
+          <button
+            type="button"
+            className="mobileTicketActionsTrigger"
+            aria-label="Быстрые действия"
+            onClick={() => setActionsSheetOpen(true)}
+          >
+            •••
+          </button>
+        ) : null}
       </div>
 
       {hasBoardContext ? (
@@ -961,13 +1139,6 @@ export function MobileTicketPage() {
           <div className="mobileDetailTabs">
             <button
               type="button"
-              className={`mobileDetailTab${detailTab === 'info' ? ' mobileDetailTab--active' : ''}`}
-              onClick={() => setDetailTab('info')}
-            >
-              Инфо
-            </button>
-            <button
-              type="button"
               className={`mobileDetailTab${detailTab === 'chat' ? ' mobileDetailTab--active' : ''}`}
               onClick={() => setDetailTab('chat')}
             >
@@ -975,6 +1146,13 @@ export function MobileTicketPage() {
               {chatMessages.length > 0 ? (
                 <span className="mobileDetailTabBadge">{chatMessages.length}</span>
               ) : null}
+            </button>
+            <button
+              type="button"
+              className={`mobileDetailTab${detailTab === 'info' ? ' mobileDetailTab--active' : ''}`}
+              onClick={() => setDetailTab('info')}
+            >
+              Инфо
             </button>
             <button
               type="button"
@@ -988,12 +1166,12 @@ export function MobileTicketPage() {
             </button>
             <button
               type="button"
-              className={`mobileDetailTab${detailTab === 'history' ? ' mobileDetailTab--active' : ''}`}
-              onClick={() => setDetailTab('history')}
+              className={`mobileDetailTab${detailTab === 'actions' ? ' mobileDetailTab--active' : ''}`}
+              onClick={() => setDetailTab('actions')}
             >
-              История
-              {timelineItems.length > 0 ? (
-                <span className="mobileDetailTabBadge">{timelineItems.length}</span>
+              Действия
+              {(hasTechnicianActionsBlock || canShowClientAcceptance) ? (
+                <span className="mobileDetailTabBadge mobileDetailTabBadge--action">!</span>
               ) : null}
             </button>
           </div>
@@ -1066,6 +1244,12 @@ export function MobileTicketPage() {
                   })()}
                 </span>
               </div>
+              {ticket.urgencyReason ? (
+                <div className="mobileDetailRow">
+                  <span className="mobileDetailRowLabel">Причина срочности</span>
+                  <span className="mobileDetailRowValue" style={{ whiteSpace: 'pre-line' }}>{ticket.urgencyReason}</span>
+                </div>
+              ) : null}
               <div className="mobileDetailRow">
                 <span className="mobileDetailRowLabel">Исполнитель</span>
                 <span className="mobileDetailRowValue" style={{ whiteSpace: 'pre-line' }}>{executorLine}</span>
@@ -1094,126 +1278,6 @@ export function MobileTicketPage() {
               <CategoryGuidancePanel categoryName={ticket.problemCategory.name} variant="mobile" />
             ) : null}
           </div>
-
-          {hasTechnicianActionsBlock ? (
-            <div className="mobileCard mobileTicketOpsDock mobileTicketOpsDock--fixed">
-              <div className="mobileSectionTitle" style={{ marginBottom: 8 }}>
-                Действия
-              </div>
-              {showAssignmentRequestAck ? (
-                <div className="mobileUxHintReason mobileUxHintReason--compact" role="status" style={{ marginBottom: 10 }}>
-                  <div className="mobileUxHintReasonTitle">Запрос отправлен</div>
-                  <div className="mobileUxHintReasonDetail">Диспетчер получил запрос на назначение. Повторно отправлять не нужно.</div>
-                </div>
-              ) : null}
-              {canShowAssignmentRequest ? (
-                (ticket.meta?.claimAvailabilityReason || '').trim() ? (
-                  <MobileClaimReasonHintBox reason={ticket.meta?.claimAvailabilityReason} />
-                ) : (
-                  <MobileBoardClaimFallbackHint />
-                )
-              ) : canShowTechClaimButton ? (
-                <div className="mobileFieldHint" style={{ marginBottom: 10 }}>
-                  «Взять заявку» — если самовзятие разрешено политикой компании и вашим профилем.
-                </div>
-              ) : null}
-              {canShowTechClaimButton ? (
-                <button
-                  type="button"
-                  className="mobileBtn mobileBtn--claim"
-                  style={{ width: '100%' }}
-                  disabled={claimBtnPending || assignmentRequestM.isPending}
-                  onClick={() => handleTechActionWithOfflineSupport('claim')}
-                >
-                  {claimBtnPending ? 'Берём заявку…' : 'Взять заявку'}
-                </button>
-              ) : null}
-              {canShowAssignmentRequest || showAssignmentRequestAck ? (
-                <button
-                  type="button"
-                  className="mobileBtn mobileBtnSecondary"
-                  style={{ width: '100%', marginTop: canShowTechClaimButton ? 8 : 0 }}
-                  disabled={
-                    showAssignmentRequestAck || assignmentRequestM.isPending || techActionM.isPending
-                  }
-                  onClick={() => {
-                    if (showAssignmentRequestAck) return
-                    assignmentRequestM.mutate()
-                  }}
-                >
-                  {showAssignmentRequestAck
-                    ? 'Запрос отправлен'
-                    : assignmentRequestM.isPending
-                      ? 'Отправляем запрос…'
-                      : 'Запросить назначение'}
-                </button>
-              ) : null}
-              {canShowTechStart ? (
-                <button
-                  type="button"
-                  className="mobileBtn mobileBtn--start"
-                  style={{ width: '100%' }}
-                  disabled={startBtnPending || assignmentRequestM.isPending}
-                  onClick={() => handleTechActionWithOfflineSupport('start')}
-                >
-                  {startBtnPending ? 'Начинаем…' : 'Начать работу'}
-                </button>
-              ) : null}
-              {assignmentRequestErr ? (
-                <div className="mobileNotice mobileNoticeError" style={{ marginTop: 10 }}>
-                  {assignmentRequestErr}
-                </div>
-              ) : null}
-              {techActionErr ? (
-                <div className="mobileNotice mobileNoticeError" style={{ marginTop: 10 }}>
-                  {techActionErr}
-                </div>
-              ) : null}
-              {canShowComplete ? (
-                <button
-                  type="button"
-                  className="mobileBtn mobileBtn--done"
-                  style={{ width: '100%', marginTop: 8, minHeight: 48 }}
-                  disabled={closeBusy || techActionM.isPending || assignmentRequestM.isPending || !isOnline}
-                  onClick={() => {
-                    if (!ticket) return
-                    setCloseModal({
-                      ticketId: ticket.id,
-                      title: `${mobileTicketNumberTitle(ticket.ticketNumber)} — ${mobileTicketCategoryLocationFromDetail(ticket)}`,
-                      file: null,
-                      previewUrl: '',
-                      comment: '',
-                      err: '',
-                    })
-                  }}
-                >
-                  Завершить работу (фото отчёта)
-                </button>
-              ) : null}
-              {showCompleteBlockedHint ? (
-                <div className="mobileUxHintReason mobileUxHintReason--compact" role="status" style={{ marginTop: 10 }}>
-                  <div className="mobileUxHintReasonTitle">Завершение недоступно</div>
-                  <div className="mobileUxHintReasonDetail">
-                    {(ticket.meta?.availableActionHints?.canComplete || '').trim() ||
-                      'Политика или отсутствие данных (комментарий, фото) не позволяют закрыть заявку из приложения.'}
-                  </div>
-                </div>
-              ) : null}
-              {showAssignButton ? (
-                <button
-                  type="button"
-                  className="mobileBtn mobileBtnSecondary"
-                  style={{ width: '100%', marginTop: techPrimary ? 8 : 0 }}
-                  onClick={() => {
-                    setAssignErr('')
-                    setAssignTicketOpen(true)
-                  }}
-                >
-                  Назначить исполнителя
-                </button>
-              ) : null}
-            </div>
-          ) : null}
 
           {showTechnicianNoActionsHint ? (
             <div className="mobileCard mobileEmptyState" style={{ marginTop: 8 }} role="status">
@@ -1273,6 +1337,153 @@ export function MobileTicketPage() {
             </div>
           ) : null}
           </>
+          ) : null}
+
+          {/* ── Persistent action dock (Чат / Инфо / Фото tabs) ─ */}
+          {canShowClientAcceptance && detailTab !== 'actions' ? (
+            <div className="mobileCard mobileTicketOpsDock mobileTicketOpsDock--fixed">
+              <div className="mobileSectionTitle" style={{ marginBottom: 8 }}>
+                Приёмка работ
+              </div>
+              <p className="mobileFieldHint" style={{ marginBottom: 10 }}>
+                Исполнитель отправил работу на приёмку. Примите её или отправьте на доработку с комментарием.
+              </p>
+              {acceptanceErr ? (
+                <div className="mobileNotice mobileNoticeError" style={{ marginBottom: 10 }}>{acceptanceErr}</div>
+              ) : null}
+              <button
+                type="button"
+                className="mobileBtn mobileBtn--done"
+                style={{ width: '100%', minHeight: 48 }}
+                disabled={acceptM.isPending || rejectM.isPending || !isOnline}
+                onClick={() => { setAcceptanceErr(''); acceptM.mutate() }}
+              >
+                {acceptM.isPending ? 'Принимаем…' : 'Принять работу'}
+              </button>
+              <button
+                type="button"
+                className="mobileBtn mobileBtnSecondary"
+                style={{ width: '100%', marginTop: 8, minHeight: 48 }}
+                disabled={acceptM.isPending || rejectM.isPending || !isOnline}
+                onClick={() => {
+                  if (!ticket) return
+                  setAcceptanceErr('')
+                  setRejectModal({
+                    ticketId: ticket.id,
+                    title: `${mobileTicketNumberTitle(ticket.ticketNumber)} — ${mobileTicketCategoryLocationFromDetail(ticket)}`,
+                    file: null,
+                    previewUrl: '',
+                    comment: '',
+                    err: '',
+                  })
+                }}
+              >
+                Не принять работу
+              </button>
+            </div>
+          ) : null}
+
+          {hasTechnicianActionsBlock && detailTab !== 'actions' ? (
+            <div className="mobileCard mobileTicketOpsDock mobileTicketOpsDock--fixed">
+              <div className="mobileSectionTitle" style={{ marginBottom: 8 }}>
+                Действия
+              </div>
+              {showAssignmentRequestAck ? (
+                <div className="mobileUxHintReason mobileUxHintReason--compact" role="status" style={{ marginBottom: 10 }}>
+                  <div className="mobileUxHintReasonTitle">Запрос отправлен</div>
+                  <div className="mobileUxHintReasonDetail">Диспетчер получил запрос на назначение. Повторно отправлять не нужно.</div>
+                </div>
+              ) : null}
+              {canShowAssignmentRequest ? (
+                (ticket.meta?.claimAvailabilityReason || '').trim() ? (
+                  <MobileClaimReasonHintBox reason={ticket.meta?.claimAvailabilityReason} />
+                ) : (
+                  <MobileBoardClaimFallbackHint />
+                )
+              ) : canShowTechClaimButton ? (
+                <div className="mobileFieldHint" style={{ marginBottom: 10 }}>
+                  «Взять заявку» — если самовзятие разрешено политикой компании и вашим профилем.
+                </div>
+              ) : null}
+              {canShowTechClaimButton ? (
+                <button
+                  type="button"
+                  className="mobileBtn mobileBtn--claim"
+                  style={{ width: '100%' }}
+                  disabled={claimBtnPending || assignmentRequestM.isPending}
+                  onClick={() => handleTechActionWithOfflineSupport('claim')}
+                >
+                  {claimBtnPending ? 'Берём заявку…' : 'Взять заявку'}
+                </button>
+              ) : null}
+              {canShowAssignmentRequest || showAssignmentRequestAck ? (
+                <button
+                  type="button"
+                  className="mobileBtn mobileBtnSecondary"
+                  style={{ width: '100%', marginTop: canShowTechClaimButton ? 8 : 0 }}
+                  disabled={showAssignmentRequestAck || assignmentRequestM.isPending || techActionM.isPending}
+                  onClick={() => { if (showAssignmentRequestAck) return; assignmentRequestM.mutate() }}
+                >
+                  {showAssignmentRequestAck ? 'Запрос отправлен' : assignmentRequestM.isPending ? 'Отправляем запрос…' : 'Запросить назначение'}
+                </button>
+              ) : null}
+              {canShowTechStart ? (
+                <button
+                  type="button"
+                  className="mobileBtn mobileBtn--start"
+                  style={{ width: '100%' }}
+                  disabled={startBtnPending || assignmentRequestM.isPending}
+                  onClick={() => handleTechActionWithOfflineSupport('start')}
+                >
+                  {startBtnPending ? 'Начинаем…' : 'Начать работу'}
+                </button>
+              ) : null}
+              {assignmentRequestErr ? <div className="mobileNotice mobileNoticeError" style={{ marginTop: 10 }}>{assignmentRequestErr}</div> : null}
+              {techActionErr ? <div className="mobileNotice mobileNoticeError" style={{ marginTop: 10 }}>{techActionErr}</div> : null}
+              {canShowComplete ? (
+                <button
+                  type="button"
+                  className="mobileBtn mobileBtn--done"
+                  style={{ width: '100%', marginTop: 8, minHeight: 48 }}
+                  disabled={closeBusy || techActionM.isPending || assignmentRequestM.isPending || !isOnline}
+                  onClick={() => {
+                    if (!ticket) return
+                    setCloseModal({ ticketId: ticket.id, title: `${mobileTicketNumberTitle(ticket.ticketNumber)} — ${mobileTicketCategoryLocationFromDetail(ticket)}`, file: null, previewUrl: '', comment: '', err: '' })
+                  }}
+                >
+                  Отправить на приёмку (фото отчёта)
+                </button>
+              ) : null}
+              {showCompleteBlockedHint ? (
+                <div className="mobileUxHintReason mobileUxHintReason--compact" role="status" style={{ marginTop: 10 }}>
+                  <div className="mobileUxHintReasonTitle">Завершение недоступно</div>
+                  <div className="mobileUxHintReasonDetail">
+                    {(ticket.meta?.availableActionHints?.canComplete || '').trim() || 'Политика или отсутствие данных (комментарий, фото) не позволяют закрыть заявку из приложения.'}
+                  </div>
+                </div>
+              ) : null}
+              {showSelfAssignButton ? (
+                <button
+                  type="button"
+                  className="mobileBtn mobileBtn--claim"
+                  style={{ width: '100%', marginTop: 8 }}
+                  disabled={assignBusy}
+                  onClick={() => { if (!meQ.data?.id) return; assignM.mutate({ technicianId: meQ.data.id }) }}
+                >
+                  {assignBusy ? 'Берём заявку…' : 'Взять заявку себе'}
+                </button>
+              ) : null}
+              {showAssignButton ? (
+                <button
+                  type="button"
+                  className="mobileBtn mobileBtnSecondary"
+                  style={{ width: '100%', marginTop: 8 }}
+                  onClick={() => { setAssignErr(''); setAssignTicketOpen(true) }}
+                >
+                  {assignBtnLabel}
+                </button>
+              ) : null}
+            </div>
           ) : null}
 
           {/* ── Photos tab ───────────────────────────────────── */}
@@ -1390,6 +1601,20 @@ export function MobileTicketPage() {
           {/* ── Chat tab ─────────────────────────────────────── */}
           {detailTab === 'chat' ? (
             <div className="mobileCard mobileTicketChatCard">
+              {/* Ticket info summary — first pinned message */}
+              <div className="mobileChatsSystemRow" style={{ marginBottom: 8 }}>
+                <div className="mobileChatsSystemPill" style={{ textAlign: 'left', maxWidth: '100%', padding: '10px 14px' }}>
+                  <div style={{ fontWeight: 700, marginBottom: 4, color: '#374151' }}>
+                    {mobileTicketNumberTitle(ticket.ticketNumber)} · {mobileTicketStatusLabelRu(ticket.status)}
+                  </div>
+                  <div style={{ fontSize: '0.85rem', color: '#6b7280', marginBottom: 2 }}>{desc}</div>
+                  {ticket.problemCategory?.name ? <div style={{ fontSize: '0.8rem', color: '#9ca3af' }}>Категория: {ticket.problemCategory.name}</div> : null}
+                  <div style={{ fontSize: '0.8rem', color: '#9ca3af' }}>Объект: {ticket.location?.name || ticket.pointName || '—'}</div>
+                  <div style={{ fontSize: '0.8rem', color: '#9ca3af' }}>
+                    Создана: {new Date(ticket.createdAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                </div>
+              </div>
               {timelineQ.isLoading ? <div className="mobileMeta">Загрузка…</div> : null}
               {!timelineQ.isLoading && chatMessages.length === 0 ? (
                 <div className="mobileMeta" style={{ marginBottom: canSendComment ? 10 : 0 }}>Комментариев пока нет</div>
@@ -1397,6 +1622,16 @@ export function MobileTicketPage() {
               {chatMessages.length > 0 ? (
                 <div className="mobileTicketChatMessages">
                   {chatMessages.map((msg) => {
+                    if (msg.kind === 'system') {
+                      return (
+                        <div className="mobileChatsSystemRow" key={msg.id}>
+                          <div className="mobileChatsSystemPill">
+                            <div className="mobileChatsSystemText">{msg.text}</div>
+                            <div className="mobileChatsSystemTime">{new Date(msg.at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>
+                          </div>
+                        </div>
+                      )
+                    }
                     const authorDisplay = msg.authorEmail ? msg.authorEmail.split('@')[0] : 'система'
                     const timeStr = new Date(msg.at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
                     return (
@@ -1480,44 +1715,144 @@ export function MobileTicketPage() {
             </div>
           ) : null}
 
-          {/* ── History tab ──────────────────────────────────── */}
-          {detailTab === 'history' ? (
-            <div className="mobileCard">
-              {timelineQ.isLoading ? <div className="mobileMeta">Загрузка истории…</div> : null}
-              {timelineQ.isError ? (
-                <div className="mobileNotice mobileNoticeError">
-                  {formatMobileMutationError(timelineQ.error, { operation: 'other' })}
+          {/* ── Actions tab ──────────────────────────────────── */}
+          {detailTab === 'actions' ? (
+            <div>
+              {canShowClientAcceptance ? (
+                <div className="mobileCard mobileTicketOpsDock" style={{ marginBottom: 8 }}>
+                  <div className="mobileSectionTitle" style={{ marginBottom: 8 }}>Приёмка работ</div>
+                  <p className="mobileFieldHint" style={{ marginBottom: 10 }}>
+                    Исполнитель отправил работу на приёмку. Примите её или отправьте на доработку с комментарием.
+                  </p>
+                  {acceptanceErr ? <div className="mobileNotice mobileNoticeError" style={{ marginBottom: 10 }}>{acceptanceErr}</div> : null}
+                  <button
+                    type="button"
+                    className="mobileBtn mobileBtn--done"
+                    style={{ width: '100%', minHeight: 48 }}
+                    disabled={acceptM.isPending || rejectM.isPending || !isOnline}
+                    onClick={() => { setAcceptanceErr(''); acceptM.mutate() }}
+                  >
+                    {acceptM.isPending ? 'Принимаем…' : 'Принять работу'}
+                  </button>
+                  <button
+                    type="button"
+                    className="mobileBtn mobileBtnSecondary"
+                    style={{ width: '100%', marginTop: 8, minHeight: 48 }}
+                    disabled={acceptM.isPending || rejectM.isPending || !isOnline}
+                    onClick={() => {
+                      if (!ticket) return
+                      setAcceptanceErr('')
+                      setRejectModal({ ticketId: ticket.id, title: `${mobileTicketNumberTitle(ticket.ticketNumber)} — ${mobileTicketCategoryLocationFromDetail(ticket)}`, file: null, previewUrl: '', comment: '', err: '' })
+                    }}
+                  >
+                    Не принять работу
+                  </button>
                 </div>
               ) : null}
-              {!timelineQ.isLoading && !timelineQ.isError && timelineItems.length === 0 ? (
-                <div className="mobileMeta">История пуста</div>
-              ) : null}
-              {timelineItems.length > 0 ? (
-                <div className="mobileTimeline">
-                  {timelineItems.map((item, idx) => {
-                    const isLast = idx === timelineItems.length - 1
-                    const comment = (item.payload?.comment || item.payload?.text || '').trim()
-                    const authorName = item.actor?.email ? item.actor.email.split('@')[0] : null
-                    const timeStr = new Date(item.at).toLocaleString('ru-RU', {
-                      day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
-                    })
-                    return (
-                      <div key={`${item.at}-${idx}`} className={`mobileTimelineItem${isLast ? ' mobileTimelineItem--last' : ''}`}>
-                        <div className="mobileTimelineLeft">
-                          <div className="mobileTimelineIcon"><TimelineIcon item={item} /></div>
-                          {!isLast ? <div className="mobileTimelineLine" /> : null}
-                        </div>
-                        <div className="mobileTimelineContent">
-                          <div className="mobileTimelineTitle">{timelineEventLabel(item)}</div>
-                          {comment ? <div className="mobileTimelineComment">{comment}</div> : null}
-                          <div className="mobileTimelineMeta">
-                            {authorName ? <span>{authorName}</span> : null}
-                            <span className="mobileTimelineTime">{timeStr}</span>
-                          </div>
-                        </div>
-                      </div>
+              {hasTechnicianActionsBlock ? (
+                <div className="mobileCard mobileTicketOpsDock" style={{ marginBottom: 8 }}>
+                  <div className="mobileSectionTitle" style={{ marginBottom: 8 }}>Действия по заявке</div>
+                  {showAssignmentRequestAck ? (
+                    <div className="mobileUxHintReason mobileUxHintReason--compact" role="status" style={{ marginBottom: 10 }}>
+                      <div className="mobileUxHintReasonTitle">Запрос отправлен</div>
+                      <div className="mobileUxHintReasonDetail">Диспетчер получил запрос на назначение. Повторно отправлять не нужно.</div>
+                    </div>
+                  ) : null}
+                  {canShowAssignmentRequest ? (
+                    (ticket.meta?.claimAvailabilityReason || '').trim() ? (
+                      <MobileClaimReasonHintBox reason={ticket.meta?.claimAvailabilityReason} />
+                    ) : (
+                      <MobileBoardClaimFallbackHint />
                     )
-                  })}
+                  ) : canShowTechClaimButton ? (
+                    <div className="mobileFieldHint" style={{ marginBottom: 10 }}>
+                      «Взять заявку» — если самовзятие разрешено политикой компании и вашим профилем.
+                    </div>
+                  ) : null}
+                  {canShowTechClaimButton ? (
+                    <button
+                      type="button"
+                      className="mobileBtn mobileBtn--claim"
+                      style={{ width: '100%' }}
+                      disabled={claimBtnPending || assignmentRequestM.isPending}
+                      onClick={() => handleTechActionWithOfflineSupport('claim')}
+                    >
+                      {claimBtnPending ? 'Берём заявку…' : 'Взять заявку'}
+                    </button>
+                  ) : null}
+                  {canShowAssignmentRequest || showAssignmentRequestAck ? (
+                    <button
+                      type="button"
+                      className="mobileBtn mobileBtnSecondary"
+                      style={{ width: '100%', marginTop: canShowTechClaimButton ? 8 : 0 }}
+                      disabled={showAssignmentRequestAck || assignmentRequestM.isPending || techActionM.isPending}
+                      onClick={() => { if (showAssignmentRequestAck) return; assignmentRequestM.mutate() }}
+                    >
+                      {showAssignmentRequestAck ? 'Запрос отправлен' : assignmentRequestM.isPending ? 'Отправляем запрос…' : 'Запросить назначение'}
+                    </button>
+                  ) : null}
+                  {canShowTechStart ? (
+                    <button
+                      type="button"
+                      className="mobileBtn mobileBtn--start"
+                      style={{ width: '100%' }}
+                      disabled={startBtnPending || assignmentRequestM.isPending}
+                      onClick={() => handleTechActionWithOfflineSupport('start')}
+                    >
+                      {startBtnPending ? 'Начинаем…' : 'Начать работу'}
+                    </button>
+                  ) : null}
+                  {assignmentRequestErr ? <div className="mobileNotice mobileNoticeError" style={{ marginTop: 10 }}>{assignmentRequestErr}</div> : null}
+                  {techActionErr ? <div className="mobileNotice mobileNoticeError" style={{ marginTop: 10 }}>{techActionErr}</div> : null}
+                  {canShowComplete ? (
+                    <button
+                      type="button"
+                      className="mobileBtn mobileBtn--done"
+                      style={{ width: '100%', marginTop: 8, minHeight: 48 }}
+                      disabled={closeBusy || techActionM.isPending || assignmentRequestM.isPending || !isOnline}
+                      onClick={() => {
+                        if (!ticket) return
+                        setCloseModal({ ticketId: ticket.id, title: `${mobileTicketNumberTitle(ticket.ticketNumber)} — ${mobileTicketCategoryLocationFromDetail(ticket)}`, file: null, previewUrl: '', comment: '', err: '' })
+                      }}
+                    >
+                      Отправить на приёмку (фото отчёта)
+                    </button>
+                  ) : null}
+                  {showCompleteBlockedHint ? (
+                    <div className="mobileUxHintReason mobileUxHintReason--compact" role="status" style={{ marginTop: 10 }}>
+                      <div className="mobileUxHintReasonTitle">Завершение недоступно</div>
+                      <div className="mobileUxHintReasonDetail">
+                        {(ticket.meta?.availableActionHints?.canComplete || '').trim() || 'Политика или отсутствие данных (комментарий, фото) не позволяют закрыть заявку из приложения.'}
+                      </div>
+                    </div>
+                  ) : null}
+                  {showSelfAssignButton ? (
+                    <button
+                      type="button"
+                      className="mobileBtn mobileBtn--claim"
+                      style={{ width: '100%', marginTop: 8 }}
+                      disabled={assignBusy}
+                      onClick={() => { if (!meQ.data?.id) return; assignM.mutate({ technicianId: meQ.data.id }) }}
+                    >
+                      {assignBusy ? 'Берём заявку…' : 'Взять заявку себе'}
+                    </button>
+                  ) : null}
+                  {showAssignButton ? (
+                    <button
+                      type="button"
+                      className="mobileBtn mobileBtnSecondary"
+                      style={{ width: '100%', marginTop: 8 }}
+                      onClick={() => { setAssignErr(''); setAssignTicketOpen(true) }}
+                    >
+                      {assignBtnLabel}
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+              {!canShowClientAcceptance && !hasTechnicianActionsBlock ? (
+                <div className="mobileCard mobileEmptyState" role="status">
+                  <div className="mobileEmptyStateTitle">Нет доступных действий</div>
+                  <p className="mobileEmptyStateHint">В текущем статусе заявки нет действий для вашей роли.</p>
                 </div>
               ) : null}
             </div>
@@ -1632,6 +1967,18 @@ export function MobileTicketPage() {
         setCloseModal={setCloseModal}
         closeCanSubmit={closeCanSubmit}
         closeM={closeM}
+        heading="Отправить на приёмку"
+        submitLabel="Отправить на приёмку"
+        submitBusyLabel="Отправляем…"
+      />
+      <ClientAcceptanceRejectModal
+        state={rejectModal}
+        busy={rejectM.isPending}
+        cameraInputRef={rejectCameraRef}
+        galleryInputRef={rejectGalleryRef}
+        setState={setRejectModal}
+        canSubmit={rejectCanSubmit}
+        onSubmit={() => rejectM.mutate()}
       />
     </div>
   )

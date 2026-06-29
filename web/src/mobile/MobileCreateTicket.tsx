@@ -164,6 +164,7 @@ export function MobileCreateTicket() {
   const [locationId, setLocationId] = useState('')
   const [categoryId, setCategoryId] = useState('')
   const [description, setDescription] = useState('')
+  const [urgencyReason, setUrgencyReason] = useState('')
   const [slaPriority, setSlaPriority] = useState<api.TicketPriority>('NORMAL')
   const [draftAttachments, setDraftAttachments] = useState<api.DraftTicketAttachment[]>([])
   const [uploadError, setUploadError] = useState<string | null>(null)
@@ -244,6 +245,7 @@ export function MobileCreateTicket() {
         locationId,
         categoryId,
         description: description.trim() || undefined,
+        urgencyReason: urgencyReason.trim() || undefined,
         attachmentIds: draftAttachments.map((d) => d.id),
         priority: slaPriority,
       }
@@ -492,6 +494,11 @@ export function MobileCreateTicket() {
           <label className="mobileFormFieldBeforePhoto">
             Описание (опционально)
             <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Коротко опишите проблему" rows={3} />
+          </label>
+
+          <label className="mobileFormFieldBeforePhoto">
+            Причина срочности (опционально)
+            <textarea value={urgencyReason} onChange={(e) => setUrgencyReason(e.target.value)} placeholder="Почему срочно? Какой конкретно риск?" rows={2} />
           </label>
 
           <div className="mobileCard mobilePhotoCard" style={{ padding: 12, position: 'relative' }}>
