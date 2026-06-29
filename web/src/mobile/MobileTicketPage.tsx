@@ -921,12 +921,13 @@ export function MobileTicketPage() {
       })()
     : '—'
 
+  // Назначение/переназначение: провайдер-роль может назначать на NEW и ПЕРЕназначать на ASSIGNED.
+  // (раньше требовало status==='NEW' && !assigned → переназначить уже назначенную заявку было нельзя.)
   const showAssignButton =
     !!ticket &&
     canAssignProvider &&
-    ticket.status === 'NEW' &&
-    !ticket.assignedTechnicianId &&
-    !ticket.assignedTechnician
+    (ticket.status === 'NEW' || ticket.status === 'ASSIGNED')
+  const assignBtnLabel = assigneePresent ? 'Переназначить' : 'Назначить исполнителя'
 
   const showSelfAssignButton =
     !!ticket &&
@@ -1026,7 +1027,7 @@ export function MobileTicketPage() {
           ? { id: 'self-assign', label: 'Взять заявку себе', icon: '🙋', onClick: () => { if (meQ.data?.id) assignM.mutate({ technicianId: meQ.data.id }) } }
           : null,
         showAssignButton
-          ? { id: 'assign', label: 'Назначить исполнителя', icon: '👷', onClick: () => { setAssignErr(''); setAssignTicketOpen(true) } }
+          ? { id: 'assign', label: assignBtnLabel, icon: '👷', onClick: () => { setAssignErr(''); setAssignTicketOpen(true) } }
           : null,
         { id: 'comment', label: 'Написать в чат', icon: '💬', onClick: openChatComposer },
         { id: 'photo', label: 'Добавить фото', icon: '📷', onClick: () => setDetailTab('photos') },
@@ -1243,6 +1244,12 @@ export function MobileTicketPage() {
                   })()}
                 </span>
               </div>
+              {ticket.urgencyReason ? (
+                <div className="mobileDetailRow">
+                  <span className="mobileDetailRowLabel">Причина срочности</span>
+                  <span className="mobileDetailRowValue" style={{ whiteSpace: 'pre-line' }}>{ticket.urgencyReason}</span>
+                </div>
+              ) : null}
               <div className="mobileDetailRow">
                 <span className="mobileDetailRowLabel">Исполнитель</span>
                 <span className="mobileDetailRowValue" style={{ whiteSpace: 'pre-line' }}>{executorLine}</span>
@@ -1473,7 +1480,7 @@ export function MobileTicketPage() {
                   style={{ width: '100%', marginTop: 8 }}
                   onClick={() => { setAssignErr(''); setAssignTicketOpen(true) }}
                 >
-                  Назначить исполнителя
+                  {assignBtnLabel}
                 </button>
               ) : null}
             </div>
@@ -1837,7 +1844,7 @@ export function MobileTicketPage() {
                       style={{ width: '100%', marginTop: 8 }}
                       onClick={() => { setAssignErr(''); setAssignTicketOpen(true) }}
                     >
-                      Назначить исполнителя
+                      {assignBtnLabel}
                     </button>
                   ) : null}
                 </div>

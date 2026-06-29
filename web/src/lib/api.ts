@@ -630,6 +630,7 @@ export type TicketGetOne = {
   status: TicketStatus
   urgency: TicketUrgency
   priority: TicketPriority
+  urgencyReason?: string | null
   createdAt: string
   updatedAt: string
   requesterName: string | null
@@ -752,6 +753,7 @@ export type CreateTicketInput = {
   categoryId: string
   urgency?: TicketUrgency
   priority?: TicketPriority
+  urgencyReason?: string | null
   clientCompanyId?: string | null
   title?: string | null
   description?: string | null
