@@ -57,6 +57,7 @@ import { WorkdayPage } from '../pages/WorkdayPage'
 import { TaskResultsPage } from '../pages/TaskResultsPage'
 import { TaskResultDetailsPage } from '../pages/TaskResultDetailsPage'
 import { VisualLabPage } from '../pages/VisualLabPage'
+import { CompanyOperatingDayPage } from '../pages/CompanyOperatingDayPage'
 import { RunTaskPage } from '../pages/RunTaskPage'
 
 function LegacyConversationRedirect() {
@@ -120,6 +121,7 @@ export function MissionControlRoutes() {
         <Route path="discussions/new" element={<Navigate to="/ops/chats/new" replace />} />
         <Route path="discussions/:id" element={<LegacyDiscussionRedirect />} />
         <Route path="presence" element={<PresencePage />} />
+        <Route path="day" element={<CompanyOperatingDayPage />} />
         <Route path="workday" element={<WorkdayPage />} />
         <Route path="projects" element={<ProjectsPage />} />
         <Route path="projects/new" element={<NewProjectPage />} />

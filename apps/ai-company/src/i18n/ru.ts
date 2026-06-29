@@ -109,6 +109,7 @@ export const ru: Messages = {
     approvals: "Согласования",
     presence: "Присутствие",
     workday: "Рабочий день",
+    operatingDay: "Рабочий день",
     visualLab: "Visual Execution Lab",
     runTask: "Запуск задачи",
     taskResults: "Результаты задач"
@@ -1888,7 +1889,8 @@ export const ru: Messages = {
       "sprint.completed": "Спринт завершён",
       "workday.started": "Рабочий день начат",
       "workday.phase_changed": "Фаза рабочего дня изменена",
-      "workday.finished": "Рабочий день завершён"
+      "workday.finished": "Рабочий день завершён",
+      "memory.evolved": "Memory Evolved"
     }
   },
   runEngine: {
@@ -2929,6 +2931,23 @@ export const ru: Messages = {
       llmContextBuilder: "Runtime assembles model-agnostic context windows из этого store."
     }
   },
+  memoryEvolution: {
+    todayTitle: "Сегодня усвоено",
+    runEvolutionTitle: "Эволюция памяти после этого run",
+    todayLearned: "Уроков сегодня",
+    experienceGained: "Опыт получен",
+    knowledgeAdded: "Knowledge добавлено",
+    memoryAdded: "Записи memory",
+    empty: "Завершите runtime-задачу, чтобы развить memory и knowledge сотрудника.",
+    noLessons: "Из этого completion уроки не извлечены.",
+    categories: {
+      finding: "Находка",
+      mistake: "Ошибка",
+      improvement: "Улучшение",
+      knowledge: "База знаний"
+    },
+    flowNote: "Runtime → Report → Lessons Learned → Employee Memory → Project Knowledge → Experience"
+  },
   competencyEngine: {
     title: "Компетенции",
     pageTitle: "{name} — Competencies",
@@ -3326,6 +3345,95 @@ export const ru: Messages = {
       title: "Рабочий день сегодня",
       noWorkday: "Рабочий день ещё не начат.",
       openDashboard: "Дашборд рабочего дня компании"
+    }
+  },
+  operatingDayEngine: {
+    title: "Рабочий день компании",
+    pageDescription: "Полный рабочий день цифровой компании — утренний brief, команда, deliveries, встречи, согласования, runtime, отчёты и вечерняя сводка.",
+    localNote: "Агрегировано из локальных mock-данных — без scheduler и backend.",
+    linksAria: "Быстрые ссылки рабочего дня",
+    flowAria: "Поток рабочего дня",
+    timeOfDay: {
+      morning: "Утро",
+      afternoon: "День",
+      evening: "Вечер"
+    },
+    phases: {
+      morning: "Утренний brief",
+      employees: "Сотрудники",
+      currentWork: "Текущая работа",
+      meetings: "Встречи",
+      approvals: "Согласования",
+      runtime: "Runtime",
+      reports: "Отчёты",
+      endOfDay: "Конец дня"
+    },
+    sections: {
+      morningBrief: "Утренний brief",
+      priorities: "Приоритеты на сегодня",
+      employeesStarted: "Сотрудники начали день",
+      sprintProgress: "Прогресс спринта",
+      risks: "Риски на сегодня",
+      approvals: "Ожидающие согласования",
+      meetings: "Встречи",
+      deliveries: "Deliveries",
+      runtime: "Runtime",
+      reports: "Отчёты",
+      companyHealth: "Здоровье компании",
+      eveningSummary: "Вечерняя сводка"
+    },
+    links: {
+      commandCenter: "Command Center",
+      runtime: "Runtime",
+      kickoff: "Kickoff",
+      controlRoom: "Control Room",
+      taskResults: "Task Results",
+      timeline: "Timeline",
+      workspace: "Workspace"
+    },
+    empty: {
+      priorities: "Приоритеты на сегодня не выделены.",
+      employeesStarted: "Сотрудники ещё не начали рабочий день.",
+      risks: "На delivery board нет активных рисков.",
+      deliveries: "Нет активных deliveries в работе.",
+      meetings: "На сегодня нет collaboration-сессий."
+    },
+    evening: {
+      finished: "Завершили день",
+      reportsToday: "Отчётов сегодня",
+      tasksActive: "Задач в работе",
+      approvalsPending: "Ожидают согласования",
+      runtimeCompleted: "Runtime завершено",
+      avgPhase: "Средняя фаза workday",
+      note: "Снимок конца дня — синхронизируйте фазы workday или завершите день из workspace сотрудников."
+    }
+  },
+  workScheduler: {
+    title: "Suggested Next Actions",
+    empty: "No pending work suggestions.",
+    ownerApprovalNote: "Owner approval required before execution.",
+    stats: {
+      pending: "{count} pending"
+    },
+    kinds: {
+      next_task: "Next task",
+      send_qa: "Send to QA",
+      send_max: "Send to MAX",
+      send_codex: "Send to Codex",
+      create_follow_up: "Create follow-up",
+      complete_sprint_item: "Complete sprint item"
+    },
+    priorities: {
+      low: "Низкий",
+      medium: "Средний",
+      high: "Высокий"
+    },
+    actions: {
+      approve: "Одобрить",
+      dismiss: "Dismiss",
+      openRunTask: "Run task",
+      openResult: "Open result",
+      openQueue: "Open task results"
     }
   },
   photoLabControlRoom: {

@@ -1,0 +1,290 @@
+/* Company Operating Day — /ops/day */
+
+.acOperatingDayPage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ac-space-4);
+}
+
+.acOperatingDayHeaderActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ac-space-2);
+}
+
+.acOperatingDayLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ac-space-2);
+  padding: var(--ac-space-3);
+  background: var(--ac-surface-1);
+  border: 1px solid var(--ac-border);
+  border-radius: var(--ac-radius-lg);
+}
+
+.acOperatingDayLink {
+  padding: 6px 12px;
+  border-radius: var(--ac-radius-md);
+  background: var(--ac-bg-subtle);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  color: var(--ac-text);
+  border: 1px solid var(--ac-border);
+}
+
+.acOperatingDayLink:hover {
+  border-color: var(--ac-accent);
+  color: var(--ac-accent);
+}
+
+.acOperatingDayMeta {
+  font-size: 13px;
+  color: var(--ac-text-muted);
+}
+
+.acOperatingDayMetaSep {
+  margin: 0 8px;
+}
+
+.acOperatingDayBoard {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  gap: var(--ac-space-4);
+  align-items: start;
+}
+
+@media (max-width: 960px) {
+  .acOperatingDayBoard {
+    grid-template-columns: 1fr;
+  }
+
+  .acOperatingDayRail {
+    display: none;
+  }
+}
+
+.acOperatingDayRail {
+  position: sticky;
+  top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: var(--ac-space-3);
+  background: var(--ac-surface-1);
+  border: 1px solid var(--ac-border);
+  border-radius: var(--ac-radius-lg);
+}
+
+.acOperatingDayRailStep {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  padding-bottom: var(--ac-space-3);
+}
+
+.acOperatingDayRailDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--ac-blue);
+  border: 2px solid var(--ac-blue-dim);
+  box-shadow: 0 0 0 3px var(--ac-blue-dim);
+}
+
+.acOperatingDayRailLabel {
+  margin-top: 6px;
+  font-size: 10px;
+  text-align: center;
+  color: var(--ac-text-muted);
+  line-height: 1.2;
+}
+
+.acOperatingDayRailLine {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  width: 2px;
+  height: calc(100% - 4px);
+  background: var(--ac-border);
+  transform: translateX(-50%);
+  z-index: -1;
+}
+
+.acOperatingDaySections {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ac-space-4);
+}
+
+.acOperatingDaySection {
+  background: var(--ac-surface-1);
+  border: 1px solid var(--ac-border);
+  border-radius: var(--ac-radius-lg);
+  overflow: hidden;
+}
+
+.acOperatingDaySectionTitle {
+  margin: 0;
+  padding: var(--ac-space-3) var(--ac-space-4);
+  font-size: 14px;
+  font-weight: 700;
+  border-bottom: 1px solid var(--ac-border);
+  background: var(--ac-bg-subtle);
+}
+
+.acOperatingDaySectionBody {
+  padding: var(--ac-space-4);
+}
+
+.acOperatingDayList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ac-space-3);
+}
+
+.acOperatingDayListRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ac-space-3);
+}
+
+.acOperatingDayListTitle {
+  font-weight: 600;
+}
+
+.acOperatingDayChipList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ac-space-2);
+}
+
+.acOperatingDayChip {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  border-radius: var(--ac-radius-md);
+  background: var(--ac-bg-subtle);
+  border: 1px solid var(--ac-border);
+  min-width: 120px;
+}
+
+.acOperatingDayBadge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--ac-bg-subtle);
+  border: 1px solid var(--ac-border);
+  white-space: nowrap;
+}
+
+.acOperatingDaySprintGoal {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.acOperatingDayProgressMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.acOperatingDayProgressBar {
+  height: 8px;
+  background: var(--ac-bg-subtle);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.acOperatingDayProgressFill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--ac-blue), var(--ac-green));
+  border-radius: 999px;
+}
+
+.acOperatingDayStats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--ac-space-3);
+  margin-bottom: var(--ac-space-3);
+}
+
+.acOperatingDayStat {
+  text-align: center;
+  padding: var(--ac-space-3);
+  background: var(--ac-bg-subtle);
+  border-radius: var(--ac-radius-md);
+}
+
+.acOperatingDayStatValue {
+  display: block;
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.acOperatingDayStatLabel {
+  font-size: 11px;
+  color: var(--ac-text-muted);
+}
+
+.acOperatingDayHealthScore {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: var(--ac-space-3);
+}
+
+.acOperatingDayHealthValue {
+  font-size: 36px;
+  font-weight: 800;
+  color: var(--ac-green);
+}
+
+.acOperatingDaySummaryGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--ac-space-3);
+}
+
+.acOperatingDaySummaryTile {
+  padding: var(--ac-space-3);
+  background: var(--ac-bg-subtle);
+  border-radius: var(--ac-radius-md);
+}
+
+.acOperatingDaySummaryLabel {
+  font-size: 11px;
+  color: var(--ac-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.acOperatingDaySummaryValue {
+  font-size: 24px;
+  font-weight: 700;
+  margin-top: 4px;
+}
+
+.acOperatingDayEveningNote {
+  margin-top: var(--ac-space-3);
+}
+
+.acOperatingDaySectionEndOfDay {
+  border-color: var(--ac-accent);
+}
+
+.acOperatingDaySectionEndOfDay .acOperatingDaySectionTitle {
+  background: var(--ac-accent-dim, var(--ac-bg-subtle));
+}
