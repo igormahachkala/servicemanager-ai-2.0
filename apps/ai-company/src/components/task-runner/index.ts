@@ -1,5 +1,6 @@
 export { EmployeeSelector } from './EmployeeSelector'
 export { ProjectSelector } from './ProjectSelector'
+export { RuntimeModelModeSelector } from './RuntimeModelModeSelector'
 export { StartRunButton } from './StartRunButton'
 export { TaskInputPanel } from './TaskInputPanel'
 export { TaskModeSelector } from './TaskModeSelector'

@@ -9,7 +9,9 @@ import { RuntimeStateBadge } from '../components/runtime/RuntimeStateBadge'
 import { LivingActivityLine } from '../components/living'
 import { resolveLivingActivityFromRun } from '../domain/living'
 import { useLiveRuntimeMonitor } from '../hooks/useLiveRuntimeMonitor'
+import { useRuntimeMonitor } from '../hooks/useRuntimeMonitor'
 import { useRuntimeProfiles } from '../hooks/useRuntimeProfiles'
+import { formatCost, formatDurationMs, getRuntimeRunMetrics } from '../domain/runtimeMonitor'
 import { agents } from '../mission-control/data/mock'
 import { PageHeader, Panel } from '../mission-control/components/ui'
 import { useI18n } from '../i18n'
@@ -29,6 +31,8 @@ export function RuntimeLivePage() {
   }, [searchParams])
 
   const monitor = useLiveRuntimeMonitor(selectedRunId)
+  const { summary } = useRuntimeMonitor()
+  const runMetrics = monitor.monitoredRun ? getRuntimeRunMetrics(monitor.monitoredRun.id) : null
   const profile = getProfile(employeeId)
   const employeeOptions = useMemo(
     () =>
@@ -91,8 +95,34 @@ export function RuntimeLivePage() {
           </select>
         </div>
         <div className="mcLiveRuntimeStat">
+          <span className="mcLiveRuntimeStatLabel">{t.runtimeModelRouting.resolvedOllamaModel}</span>
+          <span className="mcMono">
+            {monitor.monitoredRun?.result?.resolvedOllamaTag ??
+              monitor.monitoredRun?.result?.ollamaModelTag ??
+              '—'}
+          </span>
+        </div>
+        <div className="mcLiveRuntimeStat">
+          <span className="mcLiveRuntimeStatLabel">{t.runtimeModelRouting.estimatedSpeed}</span>
+          <span className="mcMono">
+            {monitor.monitoredRun?.result?.estimatedSpeed
+              ? `~${monitor.monitoredRun.result.estimatedSpeed}`
+              : '—'}
+          </span>
+        </div>
+        <div className="mcLiveRuntimeStat">
+          <span className="mcLiveRuntimeStatLabel">{t.runtimeModelRouting.estimatedContext}</span>
+          <span className="mcMono">
+            {monitor.monitoredRun?.result?.estimatedContext ?? '—'}
+          </span>
+        </div>
+        <div className="mcLiveRuntimeStat">
           <span className="mcLiveRuntimeStatLabel">{t.runtimeOrchestrator.model}</span>
-          <span className="mcMono">{monitor.model?.name ?? profile.primaryModelId}</span>
+          <span className="mcMono">
+            {monitor.monitoredRun?.result?.catalogModelLabel ??
+              monitor.model?.name ??
+              profile.primaryModelId}
+          </span>
         </div>
         <div className="mcLiveRuntimeStat">
           <span className="mcLiveRuntimeStatLabel">{t.runtimeProviders.providerStatus}</span>
@@ -117,6 +147,34 @@ export function RuntimeLivePage() {
             <span className="mcMuted">{t.common.empty}</span>
           )}
         </div>
+        <div className="mcLiveRuntimeStat">
+          <span className="mcLiveRuntimeStatLabel">{t.runtimeMonitor.dashboard.completedToday}</span>
+          <span className="mcMono">{summary.completedToday}</span>
+        </div>
+        <div className="mcLiveRuntimeStat">
+          <span className="mcLiveRuntimeStatLabel">{t.runtimeMonitor.dashboard.costToday}</span>
+          <span className="mcMono">{formatCost(summary.totalCostToday)}</span>
+        </div>
+        <div className="mcLiveRuntimeStat">
+          <span className="mcLiveRuntimeStatLabel">{t.runtimeMonitor.dashboard.timeoutRate}</span>
+          <span className="mcMono">{summary.timeoutRate}%</span>
+        </div>
+        {runMetrics ? (
+          <>
+            <div className="mcLiveRuntimeStat">
+              <span className="mcLiveRuntimeStatLabel">{t.runtimeMonitor.fields.tokens}</span>
+              <span className="mcMono">{runMetrics.estimatedTokens.toLocaleString()}</span>
+            </div>
+            <div className="mcLiveRuntimeStat">
+              <span className="mcLiveRuntimeStatLabel">{t.runtimeMonitor.fields.cost}</span>
+              <span className="mcMono">{formatCost(runMetrics.estimatedCost)}</span>
+            </div>
+            <div className="mcLiveRuntimeStat">
+              <span className="mcLiveRuntimeStatLabel">{t.runtimeMonitor.fields.cpuTime}</span>
+              <span className="mcMono">{formatDurationMs(runMetrics.cpuTimeMs)}</span>
+            </div>
+          </>
+        ) : null}
       </div>
 
       {livingRun ? (

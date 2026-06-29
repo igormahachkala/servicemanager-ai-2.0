@@ -416,7 +416,10 @@ function createSeedProfile(
 }
 
 export function ensureSeedRuntimeProfiles(): void {
-  if (loadRuntimeProfiles().length > 0) return
+  if (loadRuntimeProfiles().length > 0) {
+    migrateRuntimeProfileRouting()
+    return
+  }
 
   const seeds: RuntimeProfile[] = [
     createSeedProfile('ag-cto', 'Qwen 3.6', ['Qwen Coder', 'DeepSeek R1'], {
@@ -432,14 +435,19 @@ export function ensureSeedRuntimeProfiles(): void {
       reasoningLevel: 'deep',
       temperature: 0.3,
     }),
-    createSeedProfile('ag-max', 'Claude Code', ['DeepSeek', 'GPT'], {
-      routingRules: defaultRoutes('model-claude', ['model-deepseek', 'model-gpt']),
+    createSeedProfile('ag-max', 'Qwen Coder', ['DeepSeek R1', 'Qwen 3.6'], {
+      primaryModelId: 'model-qwen-coder',
+      fallbackModelIds: ['model-deepseek-r1', 'model-qwen-36-27b'],
+      allowedProviderIds: ['provider-ollama', 'provider-local-mock'],
+      routingRules: defaultRoutes('model-qwen-coder', ['model-deepseek-r1']),
       reasoningLevel: 'standard',
       temperature: 0.2,
     }),
-    createSeedProfile('ag-qa', 'GPT', ['Llama', 'Mock Local Model'], {
-      primaryModelId: 'model-gpt',
-      fallbackModelIds: ['model-llama', 'model-mock-local'],
+    createSeedProfile('ag-qa', 'DeepSeek R1', ['Qwen Coder', 'Mock Local Model'], {
+      primaryModelId: 'model-deepseek-r1',
+      fallbackModelIds: ['model-qwen-coder', 'model-mock-local'],
+      allowedProviderIds: ['provider-ollama', 'provider-local-mock'],
+      routingRules: defaultRoutes('model-deepseek-r1', ['model-qwen-coder']),
       privacyPolicy: {
         localFirst: true,
         cloudAllowed: true,
@@ -453,6 +461,47 @@ export function ensureSeedRuntimeProfiles(): void {
   ]
 
   saveRuntimeProfiles(seeds)
+  migrateRuntimeProfileRouting()
+}
+
+const RUNTIME_PROFILE_ROUTING_MIGRATION_KEY = 'ai-company-runtime-profile-routing-v2'
+
+function migrateRuntimeProfileRouting(): void {
+  if (typeof window === 'undefined') return
+  if (localStorage.getItem(RUNTIME_PROFILE_ROUTING_MIGRATION_KEY)) return
+
+  const patches: Record<string, Partial<RuntimeProfile>> = {
+    'ag-cto': {
+      primaryModelId: 'model-deepseek-r1',
+      fallbackModelIds: ['model-qwen-36-27b', 'model-qwen-coder'],
+      routingRules: defaultRoutes('model-deepseek-r1', ['model-qwen-36-27b', 'model-qwen-coder']),
+    },
+    'ag-max': {
+      primaryModelId: 'model-qwen-coder',
+      fallbackModelIds: ['model-deepseek-r1', 'model-qwen-36-27b'],
+      allowedProviderIds: ['provider-ollama', 'provider-local-mock'],
+      routingRules: defaultRoutes('model-qwen-coder', ['model-deepseek-r1']),
+    },
+    'ag-qa': {
+      primaryModelId: 'model-deepseek-r1',
+      fallbackModelIds: ['model-qwen-coder', 'model-mock-local'],
+      allowedProviderIds: ['provider-ollama', 'provider-local-mock'],
+      routingRules: defaultRoutes('model-deepseek-r1', ['model-qwen-coder']),
+    },
+  }
+
+  const profiles = loadRuntimeProfiles()
+  const next = profiles.map((profile) => {
+    const patch = patches[profile.employeeId]
+    if (!patch) return profile
+    return {
+      ...profile,
+      ...patch,
+      updatedAt: new Date().toISOString(),
+    }
+  })
+  saveRuntimeProfiles(next)
+  localStorage.setItem(RUNTIME_PROFILE_ROUTING_MIGRATION_KEY, '1')
 }
 
 export function getOrCreateRuntimeProfile(

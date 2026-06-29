@@ -6,7 +6,9 @@ import { RuntimeHealth } from '../components/runtime/RuntimeHealth'
 import { RuntimeLogs } from '../components/runtime/RuntimeLogs'
 import { RuntimeProfileCard } from '../components/runtime/RuntimeProfileCard'
 import { RuntimeRunCard } from '../components/runtime/RuntimeRunCard'
+import { RuntimeCostDashboard } from '../components/runtime-monitor'
 import { useRuntime } from '../hooks/useRuntime'
+import { useRuntimeMonitor } from '../hooks/useRuntimeMonitor'
 import { useRuntimeProfiles } from '../hooks/useRuntimeProfiles'
 import { useI18n } from '../i18n'
 
@@ -15,6 +17,7 @@ export function RuntimeSettingsPage() {
   const navigate = useNavigate()
   const { profiles, providers, stats } = useRuntimeProfiles()
   const { runs, stats: runStats } = useRuntime()
+  const { dashboard } = useRuntimeMonitor()
   const atlasProfile = profiles.find((item) => item.employeeId === 'ag-cto') ?? profiles[0]
 
   return (
@@ -69,6 +72,12 @@ export function RuntimeSettingsPage() {
           <div className="mcMetricValue">{providers.length}</div>
         </div>
       </div>
+
+      <Panel title={t.runtimeMonitor.title}>
+        <div className="mcProfilePanelBody">
+          <RuntimeCostDashboard dashboard={dashboard} recentLimit={6} />
+        </div>
+      </Panel>
 
       {atlasProfile ? (
         <Panel title={t.runtimeProviders.executionTitle}>

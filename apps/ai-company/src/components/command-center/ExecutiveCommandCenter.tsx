@@ -16,6 +16,7 @@ import { ControlRoomPreviewPanel } from './ControlRoomPreviewPanel'
 import { NotificationsPanel } from './NotificationsPanel'
 import { QuickLaunchBar, CommandChartsPanel } from './QuickLaunchBar'
 import { WorkSchedulerCommandPanel } from './WorkSchedulerCommandPanel'
+import { RuntimeCostMonitorPanel } from '../runtime-monitor'
 
 export function ExecutiveCommandCenter() {
   const { t } = useI18n()
@@ -63,6 +64,9 @@ export function ExecutiveCommandCenter() {
 
         <div className="mcCommandCenterSpan4">
           <RuntimePanel runtime={snapshot.runtime} />
+        </div>
+        <div className="mcCommandCenterSpan8">
+          <RuntimeCostMonitorPanel />
         </div>
         <div className="mcCommandCenterSpan4">
           <ToolUsagePanel toolUsage={snapshot.toolUsage} />

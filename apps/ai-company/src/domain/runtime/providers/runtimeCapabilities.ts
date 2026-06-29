@@ -59,7 +59,12 @@ const CATALOG_BY_TAG = Object.fromEntries(
 ) as Record<string, string>
 
 export function resolveOllamaModelTag(catalogModelId: string): string {
-  return TAG_BY_CATALOG_ID[catalogModelId] ?? OLLAMA_DEFAULT_MODEL_TAG
+  const aliasMap: Record<string, string> = {
+    'model-qwen': 'model-qwen-36-27b',
+    'model-deepseek': 'model-deepseek-r1',
+  }
+  const resolvedId = aliasMap[catalogModelId] ?? catalogModelId
+  return TAG_BY_CATALOG_ID[resolvedId] ?? OLLAMA_DEFAULT_MODEL_TAG
 }
 
 export function resolveCatalogModelIdFromOllamaTag(tag: string): string {

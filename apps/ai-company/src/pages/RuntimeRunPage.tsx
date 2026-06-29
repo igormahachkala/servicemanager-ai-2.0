@@ -9,8 +9,11 @@ import { RuntimeStateBadge } from '../components/runtime/RuntimeStateBadge'
 import { RuntimeLogs } from '../components/runtime/RuntimeLogs'
 import { RuntimeWarnings } from '../components/runtime/RuntimeWarnings'
 import { MemoryEvolutionPanel } from '../components/memory-evolution'
+import { RuntimeModelRoutingPanel } from '../components/runtime/RuntimeModelRoutingPanel'
+import { RuntimeRunMetricsRow } from '../components/runtime-monitor'
 import { useRuntime } from '../hooks/useRuntime'
-import { getModelById, getProviderById } from '../domain/runtime/runtimeStorage'
+import { getRuntimeRunMetrics } from '../domain/runtimeMonitor'
+import { getModelById, getOrCreateRuntimeProfile, getProviderById } from '../domain/runtime/runtimeStorage'
 import { ToolExecutionLog } from '../components/toolExecution'
 import { listToolExecutionsForRun } from '../domain/toolExecution'
 import { resolveEmployee } from '../mission-control/data/conversation'
@@ -30,6 +33,8 @@ export function RuntimeRunPage() {
   const employee = run ? resolveEmployee(run.employeeId) : null
   const model = run ? getModelById(run.modelId) : null
   const provider = run ? getProviderById(run.providerId) : null
+  const profile = run ? getOrCreateRuntimeProfile(run.employeeId) : null
+  const runMetrics = run ? getRuntimeRunMetrics(run.id) : null
 
   if (!id || !run) {
     return (
@@ -84,7 +89,13 @@ export function RuntimeRunPage() {
         <div className="mcMetric">
           <div className="mcMetricLabel">{t.runtimeOrchestrator.model}</div>
           <div className="mcMetricValue" style={{ fontSize: 16 }}>
-            {model?.name ?? run.modelId}
+            {run.result?.catalogModelLabel ?? model?.name ?? run.modelId}
+          </div>
+        </div>
+        <div className="mcMetric">
+          <div className="mcMetricLabel">{t.runtimeModelRouting.resolvedOllamaModel}</div>
+          <div className="mcMetricValue" style={{ fontSize: 16 }}>
+            {run.result?.resolvedOllamaTag ?? run.result?.ollamaModelTag ?? '—'}
           </div>
         </div>
         <div className="mcMetric">
@@ -94,6 +105,14 @@ export function RuntimeRunPage() {
           </div>
         </div>
       </div>
+
+      {runMetrics ? (
+        <Panel title={t.runtimeMonitor.title}>
+          <div className="mcProfilePanelBody">
+            <RuntimeRunMetricsRow metrics={runMetrics} />
+          </div>
+        </Panel>
+      ) : null}
 
       {run.status === 'waiting_approval' ? (
         <div className="mcRuntimeApprovalBanner">
@@ -119,6 +138,19 @@ export function RuntimeRunPage() {
         <Panel title={t.runtimeOrchestrator.runSummary}>
           <div className="mcProfilePanelBody">
             <RuntimeRunCard run={run} />
+          </div>
+        </Panel>
+
+        <Panel title={t.runtimeModelRouting.title}>
+          <div className="mcProfilePanelBody">
+            {profile ? (
+              <RuntimeModelRoutingPanel
+                employeeId={run.employeeId}
+                profile={profile}
+                modelMode={run.result?.modelMode}
+                result={run.result}
+              />
+            ) : null}
           </div>
         </Panel>
 

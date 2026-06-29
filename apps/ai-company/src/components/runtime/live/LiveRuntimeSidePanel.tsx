@@ -1,7 +1,9 @@
 import { Link } from 'react-router-dom'
 import { RuntimeContextCard } from '../RuntimeContextCard'
+import { RuntimeModelRoutingPanel } from '../RuntimeModelRoutingPanel'
 import { RuntimeStateBadge } from '../RuntimeStateBadge'
 import type { RuntimeRun } from '../../../domain/runtime/runtimeOrchestrator'
+import { getOrCreateRuntimeProfile } from '../../../domain/runtime/runtimeStorage'
 import type { RunHistory } from '../../../domain/run/runStorage'
 import { useI18n } from '../../../i18n'
 
@@ -30,6 +32,8 @@ export function LiveRuntimeSidePanel({
     return <p className="mcMuted">{t.runtimeLive.noRunSelected}</p>
   }
 
+  const profile = getOrCreateRuntimeProfile(run.employeeId)
+
   return (
     <div className="mcLiveRuntimeSide">
       <div className="mcLiveRuntimeSideMeta">
@@ -43,12 +47,29 @@ export function LiveRuntimeSidePanel({
         </div>
         <div className="mcRuntimeProfileRow">
           <span>{t.runtimeOrchestrator.model}</span>
-          <span className="mcMono">{modelName ?? run.modelId}</span>
+          <span className="mcMono">{run.result?.catalogModelLabel ?? modelName ?? run.modelId}</span>
+        </div>
+        <div className="mcRuntimeProfileRow">
+          <span>{t.runtimeModelRouting.resolvedOllamaModel}</span>
+          <span className="mcMono">
+            {run.result?.resolvedOllamaTag ?? run.result?.ollamaModelTag ?? '—'}
+          </span>
         </div>
         <div className="mcRuntimeProfileRow">
           <span>{t.runtimeOrchestrator.provider}</span>
           <span className="mcMono">{providerName ?? run.providerId}</span>
         </div>
+      </div>
+
+      <div className="mcLiveRuntimeRoutingBlock">
+        <span className="mcFieldLabel">{t.runtimeModelRouting.title}</span>
+        <RuntimeModelRoutingPanel
+          employeeId={run.employeeId}
+          profile={profile}
+          modelMode={run.result?.modelMode}
+          result={run.result}
+          compact
+        />
       </div>
 
       <div className="mcLiveRuntimeIntegrations">

@@ -23,11 +23,13 @@ import {
   mapModeToRuntimeTaskType,
   type TaskRunnerMode,
 } from './taskRunnerTemplates'
+import type { RuntimeModelMode } from '../runtime/runtimeModelRouting'
 
 export type TaskRunnerInput = {
   taskText: string
   title?: string
   mode: TaskRunnerMode
+  modelMode: RuntimeModelMode
   employeeId: string
   projectId: string
   workspaceId: string
@@ -128,6 +130,7 @@ export async function startTaskRunner(input: TaskRunnerInput): Promise<TaskRunne
     workspaceId: input.workspaceId,
     taskId: task.id,
     taskType: mapModeToRuntimeTaskType(input.mode) as TaskType,
+    modelMode: input.modelMode,
     prompt,
   })
 

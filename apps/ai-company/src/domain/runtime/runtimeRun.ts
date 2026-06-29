@@ -1,6 +1,7 @@
 import type { RuntimeRunState, RuntimePipelineStep } from './runtimeState'
 import type { RuntimeContext } from './runtimeContext'
 import type { RuntimeResult } from './runtimeResult'
+import type { RuntimePromptPreview } from './runtimePromptTypes'
 
 export type RuntimeRun = {
   id: string
@@ -18,4 +19,5 @@ export type RuntimeRun = {
   context: RuntimeContext
   pipeline: RuntimePipelineStep[]
   result: RuntimeResult | null
+  promptPreview?: RuntimePromptPreview | null
 }

@@ -1,15 +1,19 @@
 import { useMemo, useState } from 'react'
 import {
-  isOllamaFastTestModel,
   OLLAMA_EXECUTION_TIMEOUT_MS,
-  OLLAMA_MODEL_CATALOG,
-  resolveCatalogModelIdFromOllamaTag,
-  resolveOllamaModelTag,
 } from '../../domain/runtime/providers/runtimeCapabilities'
-import { formatElapsedMs } from '../../domain/runtime/providers/runtimeHealth'
 import { getActiveRuntimeProviderId } from '../../domain/runtime/providers/runtimeAdapter'
+import { formatElapsedMs } from '../../domain/runtime/providers/runtimeHealth'
 import { loadRuntimeRuns } from '../../domain/runtime/runtimeOrchestrator'
 import type { RuntimeRunRequest } from '../../domain/runtime/runtimeOrchestrator'
+import {
+  resolveRuntimeModelRoute,
+  suggestRuntimeModelMode,
+  type RuntimeModelMode,
+} from '../../domain/runtime/runtimeModelRouting'
+import { getOrCreateRuntimeProfile } from '../../domain/runtime/runtimeStorage'
+import { RuntimeModelModeSelector } from '../task-runner/RuntimeModelModeSelector'
+import { RuntimeModelRoutingPanel } from './RuntimeModelRoutingPanel'
 import { useRuntime } from '../../hooks/useRuntime'
 import { useI18n } from '../../i18n'
 
@@ -31,7 +35,6 @@ function isFirstRealOllamaRun(): boolean {
 export function RuntimeExecutionPanel({
   employeeId,
   employeeName,
-  defaultModelId = 'model-qwen-36-27b',
   taskType = 'conversation',
   onRunStarted,
 }: Props) {
@@ -40,17 +43,24 @@ export function RuntimeExecutionPanel({
   const activeProviderId = getActiveRuntimeProviderId()
   const isOllama = activeProviderId === 'ollama'
   const lightweightContext = isOllama && isFirstRealOllamaRun()
+  const profile = useMemo(() => getOrCreateRuntimeProfile(employeeId), [employeeId])
 
   const [prompt, setPrompt] = useState(
     `Atlas, summarize the current AI Company runtime state and propose the next operational step.`,
   )
-  const [modelTag, setModelTag] = useState(resolveOllamaModelTag(defaultModelId))
-
-  const catalogModelId = useMemo(
-    () => resolveCatalogModelIdFromOllamaTag(modelTag),
-    [modelTag],
+  const [modelMode, setModelMode] = useState<RuntimeModelMode>(() =>
+    suggestRuntimeModelMode(employeeId),
   )
-  const fastTestMode = isOllama && isOllamaFastTestModel(modelTag)
+
+  const route = useMemo(
+    () =>
+      resolveRuntimeModelRoute({
+        employeeId,
+        profile,
+        modelMode,
+      }),
+    [employeeId, profile, modelMode],
+  )
 
   const handleExecute = async () => {
     const run = await startRun({
@@ -58,7 +68,8 @@ export function RuntimeExecutionPanel({
       workspaceId: null,
       taskType,
       prompt,
-      ollamaModelTag: isOllama ? modelTag : null,
+      modelMode,
+      ollamaModelTag: isOllama ? route.resolvedOllamaTag : null,
     })
     onRunStarted?.(run.id)
   }
@@ -74,7 +85,7 @@ export function RuntimeExecutionPanel({
           <span className={`mcRuntimeAdapterStatus mcRuntimeAdapterStatus${isOllama ? 'Healthy' : 'Mock'}`}>
             {isOllama ? t.runtimeProviders.realExecution : t.runtimeProviders.mockExecution}
           </span>
-          {fastTestMode ? (
+          {route.fastTestMode ? (
             <span className="mcRuntimeAdapterStatus mcRuntimeAdapterStatusMock">
               {t.runtimeProviders.fastTestMode}
             </span>
@@ -88,20 +99,24 @@ export function RuntimeExecutionPanel({
       </div>
 
       {isOllama ? (
-        <label className="mcField">
-          <span className="mcFieldLabel">{t.runtimeProviders.modelSelector}</span>
-          <select className="mcSelect" value={modelTag} onChange={(event) => setModelTag(event.target.value)}>
-            {OLLAMA_MODEL_CATALOG.map((item) => (
-              <option key={item.tag} value={item.tag}>
-                {item.label} · {item.tag}
-                {isOllamaFastTestModel(item.tag) ? ` · ${t.runtimeProviders.fastTestTag}` : ''}
-              </option>
-            ))}
-          </select>
-          <span className="mcMono mcMuted">{catalogModelId}</span>
-          {fastTestMode ? <p className="mcMuted">{t.runtimeProviders.fastTestModeNote}</p> : null}
+        <>
+          <label className="mcField">
+            <span className="mcFieldLabel">{t.runtimeModelRouting.runTaskModeTitle}</span>
+            <RuntimeModelModeSelector
+              employeeId={employeeId}
+              modelMode={modelMode}
+              onChange={setModelMode}
+            />
+          </label>
+          <RuntimeModelRoutingPanel
+            employeeId={employeeId}
+            profile={profile}
+            modelMode={modelMode}
+            compact
+          />
+          {route.fastTestMode ? <p className="mcMuted">{t.runtimeProviders.fastTestModeNote}</p> : null}
           {lightweightContext ? <p className="mcMuted">{t.runtimeProviders.lightweightContextNote}</p> : null}
-        </label>
+        </>
       ) : null}
 
       <label className="mcField">

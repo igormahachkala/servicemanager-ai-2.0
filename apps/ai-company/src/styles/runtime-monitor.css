@@ -1,0 +1,140 @@
+.acRuntimeCostDashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.acRuntimeCostDashboardCompact {
+  gap: 12px;
+}
+
+.acRuntimeCostStats {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.acRuntimeCostDashboardCompact .acRuntimeCostStats {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.acRuntimeCostStat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(59, 130, 246, 0.06);
+  border: 1px solid rgba(59, 130, 246, 0.15);
+}
+
+.acRuntimeCostStatValue {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.1;
+}
+
+.acRuntimeCostStatLabel {
+  font-size: 11px;
+  color: var(--ac-muted, #64748b);
+}
+
+.acRuntimeCostColumns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.acRuntimeCostDashboardCompact .acRuntimeCostColumns {
+  grid-template-columns: 1fr;
+}
+
+.acRuntimeCostSectionTitle {
+  margin: 0 0 8px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ac-muted, #64748b);
+}
+
+.acRuntimeCostList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.acRuntimeCostList li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+
+.acRuntimeCostRecentList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.acRuntimeCostRecentItem {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.acRuntimeMetricsRow {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.acRuntimeMetricsRowCompact {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.acRuntimeMetricsCell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.acRuntimeMetricsCellWide {
+  grid-column: 1 / -1;
+}
+
+.acRuntimeMetricsLabel {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ac-muted, #64748b);
+}
+
+.acRuntimeMetricsValue {
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.acRuntimeRunCardMetrics {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+@media (max-width: 900px) {
+  .acRuntimeCostStats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .acRuntimeMetricsRow,
+  .acRuntimeMetricsRowCompact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

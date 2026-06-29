@@ -2,6 +2,8 @@ import { Link } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import type { OperatingDayPhaseId, OperatingDaySnapshot } from '../../domain/operatingDay'
 import { MorningBrief } from '../command-center/MorningBrief'
+import { useRuntimeMonitor } from '../../hooks/useRuntimeMonitor'
+import { formatCost } from '../../domain/runtimeMonitor'
 import { useI18n } from '../../i18n'
 import {
   approvalPriorityLabel,
@@ -30,6 +32,7 @@ const PHASES: OperatingDayPhaseId[] = [
 export function OperatingDayBoard({ snapshot }: Props) {
   const { t } = useI18n()
   const od = t.operatingDayEngine
+  const { summary } = useRuntimeMonitor()
 
   return (
     <div className="acOperatingDayBoard">
@@ -204,6 +207,18 @@ export function OperatingDayBoard({ snapshot }: Props) {
             <div className="acOperatingDayStat">
               <span className="acOperatingDayStatValue">{snapshot.runtime.completed}</span>
               <span className="acOperatingDayStatLabel">{t.commandCenter.toolCompleted}</span>
+            </div>
+            <div className="acOperatingDayStat">
+              <span className="acOperatingDayStatValue">{summary.completedToday}</span>
+              <span className="acOperatingDayStatLabel">{t.runtimeMonitor.dashboard.completedToday}</span>
+            </div>
+            <div className="acOperatingDayStat">
+              <span className="acOperatingDayStatValue">{formatCost(summary.totalCostToday)}</span>
+              <span className="acOperatingDayStatLabel">{t.runtimeMonitor.dashboard.costToday}</span>
+            </div>
+            <div className="acOperatingDayStat">
+              <span className="acOperatingDayStatValue">{summary.timeoutRate}%</span>
+              <span className="acOperatingDayStatLabel">{t.runtimeMonitor.dashboard.timeoutRate}</span>
             </div>
           </div>
           {snapshot.runtime.recentRuns.length === 0 ? (

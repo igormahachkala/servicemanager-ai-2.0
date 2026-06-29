@@ -8018,3 +8018,28 @@
   margin-top: 12px;
   display: inline-flex;
 }
+
+.mcRuntimeRoutingPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mcRuntimeRoutingPanelCompact {
+  gap: 8px;
+}
+
+.mcRuntimeRoutingReason {
+  margin: 0;
+  font-size: 12px;
+}
+
+.mcRuntimeRoutingGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mcLiveRuntimeRoutingBlock {
+  margin-top: 12px;
+}

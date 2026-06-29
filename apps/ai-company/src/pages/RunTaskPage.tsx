@@ -1,8 +1,8 @@
-import { useMemo } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   EmployeeSelector,
   ProjectSelector,
+  RuntimeModelModeSelector,
   StartRunButton,
   TaskInputPanel,
   TaskModeSelector,
@@ -10,13 +10,16 @@ import {
   TaskRunnerHistory,
   TaskRunnerResult,
 } from '../components/task-runner'
+import { RuntimeModelRoutingPanel } from '../components/runtime/RuntimeModelRoutingPanel'
 import {
   AI_PHOTO_LAB_PROJECT_ID,
 } from '../domain/projects/aiPhotoLabIds'
+import { getOrCreateRuntimeProfile } from '../domain/runtime/runtimeStorage'
 import { suggestModeForEmployee, TASK_RUNNER_EMPLOYEES } from '../domain/taskRunner'
 import { useTaskRunner } from '../hooks/useTaskRunner'
 import { PageHeader, Panel } from '../mission-control/components/ui'
 import { useI18n } from '../i18n'
+import { useMemo } from 'react'
 
 export function RunTaskPage() {
   const { t } = useI18n()
@@ -43,6 +46,7 @@ export function RunTaskPage() {
     form,
     patchForm,
     setMode,
+    setModelMode,
     setEmployeeId,
     derivedTitle,
     history,
@@ -51,6 +55,11 @@ export function RunTaskPage() {
     lastResult,
     start,
   } = useTaskRunner(initial)
+
+  const profile = useMemo(
+    () => getOrCreateRuntimeProfile(form.employeeId),
+    [form.employeeId],
+  )
 
   const canStart = form.taskText.trim().length > 0 && !running
 
@@ -99,6 +108,16 @@ export function RunTaskPage() {
             </div>
           </Panel>
 
+          <Panel title={t.runtimeModelRouting.runTaskModeTitle}>
+            <div className="mcProfilePanelBody">
+              <RuntimeModelModeSelector
+                employeeId={form.employeeId}
+                modelMode={form.modelMode}
+                onChange={setModelMode}
+              />
+            </div>
+          </Panel>
+
           <Panel title={t.taskRunner.sections.project}>
             <div className="mcProfilePanelBody">
               <ProjectSelector
@@ -120,7 +139,18 @@ export function RunTaskPage() {
         <aside className="mcTaskRunnerAside">
           <Panel title={t.taskRunner.sections.preview}>
             <div className="mcProfilePanelBody">
-              <TaskRunPreview form={form} derivedTitle={derivedTitle} />
+              <TaskRunPreview form={form} derivedTitle={derivedTitle} profile={profile} />
+            </div>
+          </Panel>
+
+          <Panel title={t.runtimeModelRouting.title}>
+            <div className="mcProfilePanelBody">
+              <RuntimeModelRoutingPanel
+                employeeId={form.employeeId}
+                profile={profile}
+                modelMode={form.modelMode}
+                compact
+              />
             </div>
           </Panel>
 

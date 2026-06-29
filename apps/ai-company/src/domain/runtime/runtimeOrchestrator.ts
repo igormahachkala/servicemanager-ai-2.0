@@ -41,9 +41,16 @@ import {
 } from './providers/runtimeAdapter'
 import { OLLAMA_LIGHTWEIGHT_CONTEXT_LAYER_KEYS } from './providers/runtimeCapabilities'
 import {
+  resolveRuntimeModelRoute,
+  type RuntimeModelMode,
+  type RuntimeModelRoute,
+} from './runtimeModelRouting'
+import {
   appendRuntimeLog,
   RuntimeExecutionError,
 } from './providers/runtimeHealth'
+import { buildExecutionPrompt, buildRuntimePromptPreview } from './runtimePromptBuilder'
+import type { RuntimePromptPreview } from './runtimePromptTypes'
 
 const STORAGE_KEY = 'ai-company-runtime-runs'
 let activeRuntimeRunId: string | null = null
@@ -86,6 +93,7 @@ export type RuntimeRunRequest = {
   requiresExternalTools?: boolean
   prompt?: string
   ollamaModelTag?: string | null
+  modelMode?: RuntimeModelMode
   forceApproval?: boolean
 }
 
@@ -167,6 +175,33 @@ function parseRuntimeResult(value: unknown): RuntimeResult | null {
       typeof value.executionDurationMs === 'number' ? value.executionDurationMs : undefined,
     responseText: typeof value.responseText === 'string' ? value.responseText : undefined,
     ollamaModelTag: typeof value.ollamaModelTag === 'string' ? value.ollamaModelTag : undefined,
+    resolvedOllamaTag:
+      typeof value.resolvedOllamaTag === 'string' ? value.resolvedOllamaTag : undefined,
+    catalogModelLabel:
+      typeof value.catalogModelLabel === 'string' ? value.catalogModelLabel : undefined,
+    runtimeProfileId:
+      typeof value.runtimeProfileId === 'string' ? value.runtimeProfileId : undefined,
+    modelMode:
+      value.modelMode === 'fast' ||
+      value.modelMode === 'deep' ||
+      value.modelMode === 'coding' ||
+      value.modelMode === 'qa'
+        ? value.modelMode
+        : undefined,
+    estimatedSpeed:
+      value.estimatedSpeed === 'fast' ||
+      value.estimatedSpeed === 'medium' ||
+      value.estimatedSpeed === 'slow'
+        ? value.estimatedSpeed
+        : undefined,
+    estimatedContext:
+      typeof value.estimatedContext === 'number' ? value.estimatedContext : undefined,
+    expectedTimeoutMs:
+      typeof value.expectedTimeoutMs === 'number' ? value.expectedTimeoutMs : undefined,
+    executionProviderId:
+      typeof value.executionProviderId === 'string' ? value.executionProviderId : undefined,
+    fastTestMode: value.fastTestMode === true ? true : undefined,
+    routingReason: typeof value.routingReason === 'string' ? value.routingReason : undefined,
     warnings: Array.isArray(value.warnings)
       ? value.warnings
           .map((item): RuntimeWarning | null => {
@@ -204,6 +239,30 @@ function parseRuntimeResult(value: unknown): RuntimeResult | null {
           })
           .filter((item): item is RuntimeArtifact => item !== null)
       : [],
+  }
+}
+
+function parsePromptPreview(value: unknown): RuntimePromptPreview | null {
+  if (!isRecord(value)) return null
+  const required = [
+    'systemPrompt',
+    'employeeIdentity',
+    'task',
+    'context',
+    'instructions',
+    'finalPrompt',
+  ] as const
+  if (!required.every((key) => typeof value[key] === 'string')) return null
+  return {
+    systemPrompt: value.systemPrompt as string,
+    employeeIdentity: value.employeeIdentity as string,
+    task: value.task as string,
+    context: value.context as string,
+    instructions: value.instructions as string,
+    finalPrompt: value.finalPrompt as string,
+    explicitOverride: value.explicitOverride === true,
+    projectLabel: typeof value.projectLabel === 'string' ? value.projectLabel : null,
+    workspaceLabel: typeof value.workspaceLabel === 'string' ? value.workspaceLabel : null,
   }
 }
 
@@ -246,6 +305,7 @@ function parseRuntimeRun(value: unknown): RuntimeRun | null {
     context,
     pipeline,
     result: value.result ? parseRuntimeResult(value.result) : null,
+    promptPreview: value.promptPreview ? parsePromptPreview(value.promptPreview) : null,
   }
 }
 
@@ -511,6 +571,7 @@ function buildPartialFailureResult(
   estimatedTokens: number,
   warnings: RuntimeWarning[],
   error: unknown,
+  route?: RuntimeModelRoute,
 ): RuntimeResult {
   const execError = error instanceof RuntimeExecutionError ? error : null
   const message =
@@ -522,47 +583,51 @@ function buildPartialFailureResult(
         ? 'EXECUTION_CANCELLED'
         : 'EXECUTION_FAILED'
 
-  return {
-    selectedModel: modelId,
-    selectedProvider: providerId,
-    contextSize: context.layers.filter((layer) => layer.loaded).length,
-    knowledgeUsed: knowledgeCount,
-    memoryUsed: memoryCount,
-    estimatedCost: 0,
-    estimatedTokens,
-    executionDurationMs: execError?.elapsedMs,
-    warnings: [
-      ...warnings,
-      {
-        code: warningCode,
-        message,
-        severity: execError?.reason === 'cancelled' ? 'warn' : 'error',
-      },
-    ],
-    artifacts: [],
-  }
+  return enrichResultWithRouting(
+    {
+      selectedModel: modelId,
+      selectedProvider: providerId,
+      contextSize: context.layers.filter((layer) => layer.loaded).length,
+      knowledgeUsed: knowledgeCount,
+      memoryUsed: memoryCount,
+      estimatedCost: 0,
+      estimatedTokens,
+      executionDurationMs: execError?.elapsedMs,
+      warnings: [
+        ...warnings,
+        {
+          code: warningCode,
+          message,
+          severity: execError?.reason === 'cancelled' ? 'warn' : 'error',
+        },
+      ],
+      artifacts: [],
+    },
+    route,
+  )
 }
 
-function buildExecutionPrompt(
-  request: RuntimeRunRequest,
-  employee: { codename: string; role: string },
-  context: RuntimeContext,
-): string {
-  if (request.prompt?.trim()) return request.prompt.trim()
-  const layers = context.layers
-    .filter((layer) => layer.loaded)
-    .map((layer) => `- ${layer.key}: ${layer.summary}`)
-    .join('\n')
-  return [
-    `You are ${employee.codename}, ${employee.role} in AI Company.`,
-    '',
-    'Assembled runtime context:',
-    layers || '- no additional context',
-    '',
-    request.taskId ? `Linked task: ${request.taskId}` : 'General runtime execution request.',
-    '',
-    'Respond clearly and concisely in plain language.',
-  ].join('\n')
+function enrichResultWithRouting(
+  result: RuntimeResult,
+  route?: RuntimeModelRoute,
+): RuntimeResult {
+  if (!route) return result
+  return {
+    ...result,
+    selectedModel: route.catalogModelId,
+    selectedProvider: route.providerId,
+    ollamaModelTag: route.resolvedOllamaTag,
+    resolvedOllamaTag: route.resolvedOllamaTag,
+    catalogModelLabel: route.catalogModelLabel,
+    runtimeProfileId: route.runtimeProfileId,
+    modelMode: route.modelMode,
+    estimatedSpeed: route.estimatedSpeed,
+    estimatedContext: route.estimatedContext,
+    expectedTimeoutMs: route.expectedTimeoutMs,
+    executionProviderId: route.executionProviderId,
+    fastTestMode: route.fastTestMode,
+    routingReason: route.routingReason,
+  }
 }
 
 function createRuntimeReport(
@@ -730,14 +795,28 @@ export async function orchestrateRuntimeRun(request: RuntimeRunRequest): Promise
     return upsertRuntimeRun(failedRun)
   }
 
+  const modelRoute = resolveRuntimeModelRoute({
+    employeeId: request.employeeId,
+    profile,
+    modelMode: request.modelMode,
+    ollamaModelTagOverride: request.ollamaModelTag,
+  })
+
+  const routedSelection = {
+    ...selection,
+    selectedModelId: modelRoute.catalogModelId,
+    selectedProviderId: modelRoute.providerId,
+    reason: modelRoute.routingReason,
+  }
+
   pipeline = updatePipelineStep(
     pipeline,
     'run_model_router',
     'done',
-    `${selection.selectedModelId} · ${selection.reason}`,
+    `${modelRoute.catalogModelLabel} → ${modelRoute.resolvedOllamaTag} · ${modelRoute.modelMode}`,
   )
 
-  const requiresApproval = request.forceApproval === true || selection.requiresApproval
+  const requiresApproval = request.forceApproval === true || routedSelection.requiresApproval
   pipeline = updatePipelineStep(
     pipeline,
     'approval_check',
@@ -808,8 +887,8 @@ export async function orchestrateRuntimeRun(request: RuntimeRunRequest): Promise
     workspaceId: request.workspaceId ?? null,
     reportId: null,
     metadata: {
-      modelId: selection.selectedModelId,
-      providerId: selection.selectedProviderId,
+      modelId: routedSelection.selectedModelId,
+      providerId: routedSelection.selectedProviderId,
       providerAdapter: getActiveRuntimeProviderId(),
       mock: getActiveRuntimeProviderId() === 'mock',
     },
@@ -830,13 +909,19 @@ export async function orchestrateRuntimeRun(request: RuntimeRunRequest): Promise
     })
   }
 
+  const promptPreview = buildRuntimePromptPreview({
+    request,
+    employee: { codename: employee.codename, role: employee.role, employeeId: request.employeeId },
+    context,
+  })
+
   const runningRun: RuntimeRun = {
     id: runId,
     employeeId: request.employeeId,
     workspaceId: request.workspaceId ?? null,
     runtimeProfileId: profile.id,
-    modelId: selection.selectedModelId,
-    providerId: selection.selectedProviderId,
+    modelId: routedSelection.selectedModelId,
+    providerId: routedSelection.selectedProviderId,
     taskId: request.taskId ?? null,
     chatId: request.chatId ?? null,
     reportId: null,
@@ -846,12 +931,13 @@ export async function orchestrateRuntimeRun(request: RuntimeRunRequest): Promise
     context,
     pipeline,
     result: null,
+    promptPreview,
   }
   upsertRuntimeRun(runningRun)
 
   if (!requiresApproval) {
     status = 'running'
-    const executionPrompt = buildExecutionPrompt(request, employee, context)
+    const executionPrompt = promptPreview.finalPrompt
 
     appendRuntimeLog({
       level: 'info',
@@ -865,17 +951,17 @@ export async function orchestrateRuntimeRun(request: RuntimeRunRequest): Promise
       const execution = await executeViaRuntimeAdapter({
         runId,
         employeeId: request.employeeId,
-        modelId: selection.selectedModelId,
-        catalogProviderId: selection.selectedProviderId,
+        modelId: routedSelection.selectedModelId,
+        catalogProviderId: routedSelection.selectedProviderId,
         estimatedTokens,
         contextSize: context.layers.filter((layer) => layer.loaded).length,
         knowledgeUsed: knowledge.length,
         memoryUsed: memories.length,
         warnings,
         prompt: executionPrompt,
-        ollamaModelTag: request.ollamaModelTag ?? null,
+        ollamaModelTag: modelRoute.resolvedOllamaTag,
       })
-      result = execution.result
+      result = enrichResultWithRouting(execution.result, modelRoute)
 
       const report = createRuntimeReport(
         {
@@ -883,8 +969,8 @@ export async function orchestrateRuntimeRun(request: RuntimeRunRequest): Promise
           employeeId: request.employeeId,
           workspaceId: request.workspaceId ?? null,
           runtimeProfileId: profile.id,
-          modelId: selection.selectedModelId,
-          providerId: selection.selectedProviderId,
+          modelId: routedSelection.selectedModelId,
+          providerId: routedSelection.selectedProviderId,
           taskId: request.taskId ?? null,
           chatId: request.chatId ?? null,
           reportId: null,
@@ -911,8 +997,8 @@ export async function orchestrateRuntimeRun(request: RuntimeRunRequest): Promise
           employeeId: request.employeeId,
           workspaceId: request.workspaceId ?? null,
           runtimeProfileId: profile.id,
-          modelId: selection.selectedModelId,
-          providerId: selection.selectedProviderId,
+          modelId: routedSelection.selectedModelId,
+          providerId: routedSelection.selectedProviderId,
           taskId: request.taskId ?? null,
           chatId: request.chatId ?? null,
           reportId: report.id,
@@ -969,14 +1055,15 @@ export async function orchestrateRuntimeRun(request: RuntimeRunRequest): Promise
       finishedAt = new Date().toISOString()
     } catch (error) {
       const partialResult = buildPartialFailureResult(
-        selection.selectedModelId,
-        selection.selectedProviderId,
+        routedSelection.selectedModelId,
+        routedSelection.selectedProviderId,
         context,
         knowledge.length,
         memories.length,
         estimatedTokens,
         warnings,
         error,
+        modelRoute,
       )
       result = partialResult
       const message =
@@ -1017,8 +1104,8 @@ export async function orchestrateRuntimeRun(request: RuntimeRunRequest): Promise
     employeeId: request.employeeId,
     workspaceId: request.workspaceId ?? null,
     runtimeProfileId: profile.id,
-    modelId: selection.selectedModelId,
-    providerId: selection.selectedProviderId,
+    modelId: routedSelection.selectedModelId,
+    providerId: routedSelection.selectedProviderId,
     taskId: request.taskId ?? null,
     chatId: request.chatId ?? null,
     reportId,
@@ -1028,6 +1115,7 @@ export async function orchestrateRuntimeRun(request: RuntimeRunRequest): Promise
     context,
     pipeline,
     result,
+    promptPreview,
   }
 
   const saved = upsertRuntimeRun(run)
@@ -1057,24 +1145,37 @@ export async function completeRuntimeRunAfterApproval(runId: string): Promise<Ru
     existing.context.layers.find((layer: RuntimeContextLayer) => layer.key === 'memory')?.itemCount ??
     0
 
-  const executionPrompt = buildExecutionPrompt(
-    {
+  const promptPreview = buildRuntimePromptPreview({
+    request: {
       employeeId: existing.employeeId,
       workspaceId: existing.workspaceId,
       taskId: existing.taskId,
       chatId: existing.chatId,
     },
-    employee,
-    existing.context,
-  )
+    employee: {
+      codename: employee.codename,
+      role: employee.role,
+      employeeId: existing.employeeId,
+    },
+    context: existing.context,
+  })
+  const executionPrompt = promptPreview.finalPrompt
+
+  const profile = getOrCreateRuntimeProfile(existing.employeeId)
+  const modelRoute = resolveRuntimeModelRoute({
+    employeeId: existing.employeeId,
+    profile,
+    modelMode: existing.result?.modelMode,
+    ollamaModelTagOverride: existing.result?.resolvedOllamaTag ?? existing.result?.ollamaModelTag,
+  })
 
   activeRuntimeRunId = existing.id
   try {
     const execution = await executeViaRuntimeAdapter({
       runId: existing.id,
       employeeId: existing.employeeId,
-      modelId: existing.modelId,
-      catalogProviderId: existing.providerId,
+      modelId: modelRoute.catalogModelId,
+      catalogProviderId: modelRoute.providerId,
       estimatedTokens: 4096,
       contextSize: existing.context.layers.filter((layer: RuntimeContextLayer) => layer.loaded)
         .length,
@@ -1082,8 +1183,9 @@ export async function completeRuntimeRunAfterApproval(runId: string): Promise<Ru
       memoryUsed: memoryCount,
       warnings: existing.result?.warnings ?? [],
       prompt: executionPrompt,
+      ollamaModelTag: modelRoute.resolvedOllamaTag,
     })
-    const result: RuntimeResult = execution.result
+    const result: RuntimeResult = enrichResultWithRouting(execution.result, modelRoute)
 
     const report = createRuntimeReport(existing, result, employee.codename)
     result.artifacts.push({
@@ -1178,6 +1280,18 @@ export async function completeRuntimeRunAfterApproval(runId: string): Promise<Ru
   } finally {
     activeRuntimeRunId = null
   }
+}
+
+/** Builds a prompt preview for UI before or without persisting a run. */
+export function previewRuntimePromptForRequest(request: RuntimeRunRequest): RuntimePromptPreview | null {
+  const employee = resolveEmployee(request.employeeId)
+  if (!employee) return null
+  const context = buildRuntimeContext(request, isFirstRealOllamaRun())
+  return buildRuntimePromptPreview({
+    request,
+    employee: { codename: employee.codename, role: employee.role, employeeId: request.employeeId },
+    context,
+  })
 }
 
 export type { RuntimeRun } from './runtimeRun'

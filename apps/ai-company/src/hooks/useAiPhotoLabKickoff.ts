@@ -8,6 +8,7 @@ import {
   type KickoffTaskPreset,
 } from '../domain/projects/aiPhotoLabKickoff'
 import { startTaskRunner } from '../domain/taskRunner'
+import { suggestRuntimeModelMode } from '../domain/runtime/runtimeModelRouting'
 
 const REFRESH_KEYS = [
   'ai-company-projects',
@@ -80,6 +81,7 @@ export function useAiPhotoLabKickoff() {
           taskText: preset.taskText,
           title: preset.title,
           mode: preset.mode,
+          modelMode: suggestRuntimeModelMode(preset.employeeId),
           employeeId: preset.employeeId,
           projectId: snapshot.projectId,
           workspaceId: snapshot.workspaceId,

@@ -24,6 +24,16 @@ export type RuntimeResult = {
   executionDurationMs?: number
   responseText?: string
   ollamaModelTag?: string
+  runtimeProfileId?: string
+  catalogModelLabel?: string
+  resolvedOllamaTag?: string
+  modelMode?: 'fast' | 'deep' | 'coding' | 'qa'
+  estimatedSpeed?: 'fast' | 'medium' | 'slow'
+  estimatedContext?: number
+  expectedTimeoutMs?: number
+  executionProviderId?: string
+  fastTestMode?: boolean
+  routingReason?: string
   warnings: RuntimeWarning[]
   artifacts: RuntimeArtifact[]
 }

@@ -21,6 +21,8 @@ import { resolveEmployee } from '../mission-control/data/conversation'
 import { loadCustomEmployees } from '../mission-control/data/customEmployees'
 import { agents } from '../mission-control/data/mock'
 import { useRuntimeProfiles } from '../hooks/useRuntimeProfiles'
+import { useRuntimeMonitor } from '../hooks/useRuntimeMonitor'
+import { RuntimeCostDashboard } from '../components/runtime-monitor'
 import { useI18n } from '../i18n'
 
 export function EmployeeRuntimePage() {
@@ -28,6 +30,7 @@ export function EmployeeRuntimePage() {
   const { t } = useI18n()
   const navigate = useNavigate()
   const { getProfile } = useRuntimeProfiles()
+  const { dashboard } = useRuntimeMonitor({ employeeId: id })
   const [taskType, setTaskType] = useState<TaskType>('conversation')
   const [hasSensitiveData, setHasSensitiveData] = useState(false)
   const [requiresExternalTools, setRequiresExternalTools] = useState(false)
@@ -123,6 +126,12 @@ export function EmployeeRuntimePage() {
           <div className="mcMetricValue">{profile.allowedProviderIds.length}</div>
         </div>
       </div>
+
+      <Panel title={t.runtimeMonitor.title}>
+        <div className="mcProfilePanelBody">
+          <RuntimeCostDashboard dashboard={dashboard} compact showRecentRuns recentLimit={4} />
+        </div>
+      </Panel>
 
       <div className="mcGrid2">
         <Panel title={t.runtimeEngine.profileSummary}>

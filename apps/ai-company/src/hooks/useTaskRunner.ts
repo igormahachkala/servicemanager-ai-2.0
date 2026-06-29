@@ -11,6 +11,11 @@ import {
   type TaskRunnerRecord,
   type TaskRunnerStartResult,
 } from '../domain/taskRunner'
+import {
+  resolveRuntimeModelMode,
+  suggestRuntimeModelMode,
+  type RuntimeModelMode,
+} from '../domain/runtime/runtimeModelRouting'
 import type { DeliveryTaskPriority } from '../domain/tasks/task'
 import {
   AI_PHOTO_LAB_PROJECT_ID,
@@ -21,6 +26,7 @@ export type TaskRunnerFormState = {
   taskText: string
   title: string
   mode: TaskRunnerMode
+  modelMode: RuntimeModelMode
   employeeId: string
   projectId: string
   workspaceId: string
@@ -33,6 +39,7 @@ const DEFAULT_FORM: TaskRunnerFormState = {
   taskText: '',
   title: '',
   mode: 'planning',
+  modelMode: 'fast',
   employeeId: 'ag-cto',
   projectId: AI_PHOTO_LAB_PROJECT_ID,
   workspaceId: AI_PHOTO_LAB_WORKSPACE_ID,
@@ -75,13 +82,22 @@ export function useTaskRunner(initial?: Partial<TaskRunnerFormState>) {
   }, [])
 
   const setMode = useCallback((mode: TaskRunnerMode) => {
+    const employeeId = suggestEmployeeForMode(mode)
     setForm((current) => ({
       ...current,
       mode,
-      employeeId: suggestEmployeeForMode(mode),
+      employeeId,
+      modelMode: suggestRuntimeModelMode(employeeId),
       expectedOutput: current.expectedOutput.trim()
         ? current.expectedOutput
         : defaultExpectedOutput(mode),
+    }))
+  }, [])
+
+  const setModelMode = useCallback((modelMode: RuntimeModelMode) => {
+    setForm((current) => ({
+      ...current,
+      modelMode: resolveRuntimeModelMode(current.employeeId, modelMode),
     }))
   }, [])
 
@@ -90,6 +106,7 @@ export function useTaskRunner(initial?: Partial<TaskRunnerFormState>) {
       ...current,
       employeeId,
       mode: current.mode === DEFAULT_FORM.mode ? suggestModeForEmployee(employeeId) : current.mode,
+      modelMode: suggestRuntimeModelMode(employeeId),
     }))
   }, [])
 
@@ -101,6 +118,7 @@ export function useTaskRunner(initial?: Partial<TaskRunnerFormState>) {
         taskText: form.taskText,
         title: form.title.trim() || undefined,
         mode: form.mode,
+        modelMode: form.modelMode,
         employeeId: form.employeeId,
         projectId: form.projectId,
         workspaceId: form.workspaceId,
@@ -125,6 +143,7 @@ export function useTaskRunner(initial?: Partial<TaskRunnerFormState>) {
     form,
     patchForm,
     setMode,
+    setModelMode,
     setEmployeeId,
     derivedTitle,
     history,

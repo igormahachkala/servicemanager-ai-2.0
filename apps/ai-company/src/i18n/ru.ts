@@ -2669,6 +2669,34 @@ export const ru: Messages = {
     },
     eventsEmpty: "Событий timeline для этого run пока нет."
   },
+  runtimeModelRouting: {
+    title: "Model routing",
+    empty: "Выберите сотрудника, чтобы увидеть resolved Ollama routing.",
+    runTaskModeTitle: "Runtime model mode",
+    provider: "Catalog provider",
+    executionProvider: "Execution provider",
+    runtimeProfile: "Runtime profile",
+    modelMode: "Model mode",
+    catalogModel: "Selected catalog model",
+    resolvedOllamaModel: "Resolved Ollama model",
+    estimatedSpeed: "Estimated speed",
+    estimatedContext: "Estimated context",
+    expectedTimeout: "Expected timeout",
+    contextTokens: "{count} tokens",
+    timeoutSeconds: "{seconds}s",
+    modes: {
+      fast: "Fast",
+      deep: "Deep",
+      coding: "Coding",
+      qa: "QA"
+    },
+    modeHints: {
+      fast: "deepseek-r1:8b · Atlas quick analysis",
+      deep: "qwen3.6:27b · Atlas deep reasoning",
+      coding: "qwen2.5-coder:7b · MAX implementation",
+      qa: "deepseek-r1:8b · QA review"
+    }
+  },
   handoffEngine: {
     pageDescription: "Протокол передачи реальной работы — цифровые сотрудники готовят пакеты для Codex, Claude Code, Cursor или людей. Без внешнего execution в V1.",
     openPhotoLab: "AI Photo Lab",
@@ -2976,6 +3004,40 @@ export const ru: Messages = {
       knowledge: "База знаний"
     },
     flowNote: "Runtime → Report → Lessons Learned → Employee Memory → Project Knowledge → Experience"
+  },
+  runtimeMonitor: {
+    title: "Runtime: стоимость и производительность",
+    pageDescription:
+      "Локальные оценки стоимости моделей, длительности и throughput — без внешних billing API.",
+    runs: "runs",
+    fields: {
+      model: "Модель",
+      provider: "Провайдер",
+      duration: "Длительность",
+      cpuTime: "CPU Time",
+      tokens: "Est. Tokens",
+      cost: "Est. Cost",
+      status: "Статус",
+      employee: "Сотрудник"
+    },
+    dashboard: {
+      averageRuntime: "Средний runtime",
+      longestRun: "Самый долгий run",
+      timeoutRate: "Timeout Rate",
+      completedToday: "Завершено сегодня",
+      costToday: "Стоимость сегодня",
+      fastModels: "Быстрые модели",
+      heavyModels: "Тяжёлые модели",
+      topEmployees: "Топ сотрудников",
+      topModels: "Топ моделей",
+      recentRuns: "Недавние runs"
+    },
+    empty: {
+      fastModels: "Быстрых моделей пока нет — нужны runs со средним временем до 15с.",
+      heavyModels: "Тяжёлых моделей пока нет — стоимость ниже порога.",
+      topEmployees: "Активности сотрудников по runtime пока нет.",
+      topModels: "Использования моделей пока нет."
+    }
   },
   competencyEngine: {
     title: "Компетенции",

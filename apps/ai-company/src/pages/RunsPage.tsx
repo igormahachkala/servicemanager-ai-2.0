@@ -1,13 +1,16 @@
 import { Link } from 'react-router-dom'
 import { PageHeader, Panel } from '../mission-control/components/ui'
 import { RunCard } from '../components/run/RunCard'
+import { RuntimeCostDashboard } from '../components/runtime-monitor'
 import { useRunHistory } from '../hooks/useRunHistory'
+import { useRuntimeMonitor } from '../hooks/useRuntimeMonitor'
 import { useCustomEmployees } from '../mission-control/hooks/useCustomEmployees'
 import { useI18n } from '../i18n'
 
 export function RunsPage() {
   const { t } = useI18n()
   const { filtered, stats, query, setQuery, filter, setFilter } = useRunHistory()
+  const { dashboard } = useRuntimeMonitor()
   const { employees } = useCustomEmployees()
 
   return (
@@ -37,6 +40,12 @@ export function RunsPage() {
           <div className="mcRunStatLabel mcMuted">{t.runEngine.stats.failed}</div>
         </div>
       </div>
+
+      <Panel title={t.runtimeMonitor.title}>
+        <div className="mcProfilePanelBody">
+          <RuntimeCostDashboard dashboard={dashboard} showRecentRuns={false} />
+        </div>
+      </Panel>
 
       <div style={{ marginTop: 16 }}>
         <Panel

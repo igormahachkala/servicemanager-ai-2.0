@@ -1,5 +1,6 @@
 import type { RuntimeRun } from '../../domain/runtime/runtimeOrchestrator'
 import { resolveLivingActivityFromRun } from '../../domain/living'
+import { buildRuntimeRunMetrics, formatCost, formatDurationMs, formatTokens } from '../../domain/runtimeMonitor'
 import { getModelById, getProviderById } from '../../domain/runtime/runtimeStorage'
 import { resolveEmployee } from '../../mission-control/data/conversation'
 import { LivingActivityLine } from '../living'
@@ -22,6 +23,8 @@ export function RuntimeRunCard({ run }: { run: RuntimeRun }) {
   const model = getModelById(run.modelId)
   const provider = getProviderById(run.providerId)
   const living = resolveLivingActivityFromRun(run)
+  const resolvedTag = run.result?.resolvedOllamaTag ?? run.result?.ollamaModelTag
+  const metrics = buildRuntimeRunMetrics(run)
 
   return (
     <article className="mcRuntimeRunCard">
@@ -43,9 +46,15 @@ export function RuntimeRunCard({ run }: { run: RuntimeRun }) {
         <div className="mcRuntimeProfileRow">
           <span>{t.runtimeOrchestrator.model}</span>
           <span className="mcMono">
-            {model?.name ?? run.modelId} · {provider?.name ?? run.providerId}
+            {run.result?.catalogModelLabel ?? model?.name ?? run.modelId} · {provider?.name ?? run.providerId}
           </span>
         </div>
+        {resolvedTag ? (
+          <div className="mcRuntimeProfileRow">
+            <span>{t.runtimeModelRouting.resolvedOllamaModel}</span>
+            <span className="mcMono">{resolvedTag}</span>
+          </div>
+        ) : null}
         <div className="mcRuntimeProfileRow">
           <span>{t.runtimeOrchestrator.startedAt}</span>
           <span className="mcMono">{formatTime(run.startedAt)}</span>
@@ -60,6 +69,24 @@ export function RuntimeRunCard({ run }: { run: RuntimeRun }) {
             <span className="mcMono">{run.reportId}</span>
           </div>
         ) : null}
+        <div className="acRuntimeMetricsRowCompact acRuntimeRunCardMetrics">
+          <div className="acRuntimeMetricsCell">
+            <span className="acRuntimeMetricsLabel">{t.runtimeMonitor.fields.duration}</span>
+            <span className="acRuntimeMetricsValue mcMono">{formatDurationMs(metrics.durationMs)}</span>
+          </div>
+          <div className="acRuntimeMetricsCell">
+            <span className="acRuntimeMetricsLabel">{t.runtimeMonitor.fields.tokens}</span>
+            <span className="acRuntimeMetricsValue mcMono">{formatTokens(metrics.estimatedTokens)}</span>
+          </div>
+          <div className="acRuntimeMetricsCell">
+            <span className="acRuntimeMetricsLabel">{t.runtimeMonitor.fields.cost}</span>
+            <span className="acRuntimeMetricsValue mcMono">{formatCost(metrics.estimatedCost)}</span>
+          </div>
+          <div className="acRuntimeMetricsCell">
+            <span className="acRuntimeMetricsLabel">{t.runtimeMonitor.fields.cpuTime}</span>
+            <span className="acRuntimeMetricsValue mcMono">{formatDurationMs(metrics.cpuTimeMs)}</span>
+          </div>
+        </div>
       </div>
     </article>
   )
