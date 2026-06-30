@@ -1474,6 +1474,20 @@ function readScopeOwnerContext(): ScopeOwner {
   }
 }
 
+/**
+ * Приводит owner к ScopeOwner с userId. Колл-сайты передают объект Me (поле `id`, не `userId`),
+ * поэтому маппим `id → userId` в одной точке — иначе persist-гард `!resolvedOwner.userId` молча
+ * глотает запись в sm_last_scope (контур/галочка «не сохраняются»). Делается тут, чтобы не править 9 колл-сайтов.
+ */
+function coerceScopeOwner(owner?: ScopeOwner): ScopeOwner | undefined {
+  if (!owner) return undefined
+  return {
+    userId: owner.userId || (owner as { id?: string }).id || undefined,
+    companyId: owner.companyId,
+    role: owner.role,
+  }
+}
+
 function ownerMatches(owner?: ScopeOwner, persisted?: PersistedScope | null): boolean {
   if (!owner?.companyId || !persisted?.ownerCompanyId) return false
   if (owner.companyId !== persisted.ownerCompanyId) return false
@@ -1489,7 +1503,7 @@ function normalizeScopeForOwner(scope: TicketScopeParams, owner?: ScopeOwner): T
 }
 
 function getStoredScopeForOwner(owner?: ScopeOwner): TicketScopeParams {
-  const resolvedOwner = owner || readScopeOwnerContext()
+  const resolvedOwner = coerceScopeOwner(owner) || readScopeOwnerContext()
   const persisted = readPersistedScope()
   if (!ownerMatches(resolvedOwner, persisted)) return {}
   return normalizeScopeForOwner(
@@ -1569,7 +1583,7 @@ export function getObserverCompanyId(owner?: ScopeOwner): string {
 
 export function persistScopeFromSearchParams(search: URLSearchParams, owner?: ScopeOwner) {
   if (typeof window === 'undefined') return
-  const resolvedOwner = owner || readScopeOwnerContext()
+  const resolvedOwner = coerceScopeOwner(owner) || readScopeOwnerContext()
   if (!resolvedOwner.userId || !resolvedOwner.companyId) return
   const normalized = normalizeScopeForOwner(
     {
