@@ -10,6 +10,7 @@ import {
   type NavItem,
   type NavSection,
 } from '../lib/navigation'
+import { getRoleDisplayLabel } from '../lib/resolveAdminProfile'
 import { SmaBrandLogo } from '../components/SmaBrandLogo'
 import { canViewITCompany } from '../it-company'
 import { useWsInvalidation } from './useWsInvalidation'
@@ -43,26 +44,23 @@ function NavSectionBlock(props: { title: string; children: React.ReactNode }) {
   )
 }
 
-function roleLabel(role?: string) {
-  if (!role) return '—'
-  if (role === 'PLATFORM_ADMIN') return 'Администратор платформы'
-  if (role === 'ADMIN') return 'Администратор'
-  if (role === 'DISPATCHER') return 'Диспетчер'
-  if (role === 'MASTER') return 'Мастер'
-  if (role === 'TECHNICIAN') return 'Техник'
-  if (role === 'CLIENT') return 'Клиент'
-  if (role === 'TERRITORIAL_MANAGER') return 'Территориальный менеджер'
-  if (role === 'NETWORK_DIRECTOR') return 'Сетевой директор'
-  if (role === 'STAFF') return 'Сотрудник'
-  if (role === 'ADMIN_PROVIDER') return 'Администратор (провайдер)'
-  return role
-}
-
 function isActivePath(currentPath: string, targetPath: string) {
+  if (targetPath === '/dashboard') return currentPath.startsWith('/dashboard')
   if (targetPath === '/board') return currentPath.startsWith('/board')
   if (targetPath === '/archive') return currentPath.startsWith('/archive')
-  if (targetPath === '/tickets') return currentPath === '/tickets'
+  if (targetPath === '/tickets') return currentPath === '/tickets' || currentPath.startsWith('/tickets/')
   if (targetPath === '/tickets/new') return currentPath.startsWith('/tickets/new')
+  if (targetPath === '/objects') return currentPath.startsWith('/objects') || currentPath.startsWith('/locations')
+  if (targetPath === '/equipment') return currentPath.startsWith('/equipment')
+  if (targetPath === '/users') return currentPath.startsWith('/users') || currentPath.startsWith('/employees')
+  if (targetPath === '/contractors') {
+    return currentPath.startsWith('/contractors') || currentPath.startsWith('/service-contracts')
+  }
+  if (targetPath === '/acts') return currentPath.startsWith('/acts')
+  if (targetPath === '/permissions') {
+    return currentPath.startsWith('/permissions') || currentPath.startsWith('/platform/permissions')
+  }
+  if (targetPath === '/assistant') return currentPath.startsWith('/assistant')
   if (targetPath === '/companies') return currentPath.startsWith('/companies')
   if (targetPath === '/service-contracts') return currentPath.startsWith('/service-contracts')
   if (targetPath === '/locations') return currentPath.startsWith('/locations')
@@ -141,6 +139,12 @@ export function Shell() {
     queryFn: api.me,
   })
 
+  const tenantCompanyQ = useQuery({
+    queryKey: ['company-own-context'],
+    queryFn: () => api.company(),
+    enabled: !!meQ.data && meQ.data.role !== 'PLATFORM_ADMIN',
+  })
+
   const currentScope = useMemo(() => {
     const params = new URLSearchParams(loc.search)
     const linked = (params.get('linkedClientCompanyId') || api.getLinkedClientCompanyId(meQ.data)).trim()
@@ -202,6 +206,10 @@ export function Shell() {
   }
 
   const role = meQ.data?.role
+  const tenantCompanyType = tenantCompanyQ.data?.type
+  const roleDisplayLabel = meQ.data
+    ? getRoleDisplayLabel({ role: meQ.data.role, companyType: tenantCompanyType })
+    : '—'
   const canAccessEngineeringAgent = !!meQ.data?.canAccessEngineeringAgent
   const isPlatformAdmin = role === 'PLATFORM_ADMIN'
   const navigation = isPlatformAdmin ? platformNavigation : tenantNavigation
@@ -270,7 +278,7 @@ export function Shell() {
 
         <div className="sidebarFooter">
           <div className="small" style={{ opacity: 0.75 }}>
-            {meQ.data ? `${meQ.data.email} (${roleLabel(meQ.data.role)})` : '—'}
+            {meQ.data ? `${meQ.data.email} (${roleDisplayLabel})` : '—'}
           </div>
           <button className="navBtn" onClick={logout} style={{ marginTop: 10 }}>
             Выйти
@@ -320,7 +328,9 @@ export function Shell() {
             <div className="row" style={{ alignItems: 'center' }}>
               <div>
                 <div style={{ fontWeight: 700 }}>Режим impersonation</div>
-                <div className="small">Вы вошли как ADMIN компании {impersonationMeta.companyName}</div>
+                <div className="small">
+                  Вы вошли как {roleDisplayLabel} компании {impersonationMeta.companyName}
+                </div>
               </div>
               <button type="button" className="ghost" onClick={exitImpersonation}>
                 Вернуться в PLATFORM_ADMIN

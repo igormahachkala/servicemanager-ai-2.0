@@ -1,4 +1,5 @@
 ﻿import * as api from '../../lib/api'
+import { getRoleDisplayLabel } from '../../lib/resolveAdminProfile'
 import { EmployeeSpecializationsField } from './EmployeeSpecializationsField'
 
 export type EmployeeFormValue = {
@@ -18,6 +19,7 @@ type Props = {
   submitLabel: string
   value: EmployeeFormValue
   activeSpecializations: api.SpecializationListItem[]
+  companyType?: api.CompanyType | null
   submitting?: boolean
   passwordRequired?: boolean
   onChange: (patch: Partial<EmployeeFormValue>) => void
@@ -39,23 +41,12 @@ function roleOptions(): api.Role[] {
   ]
 }
 
-function roleLabel(role: api.Role) {
-  if (role === 'ADMIN') return 'Администратор'
-  if (role === 'DISPATCHER') return 'Диспетчер'
-  if (role === 'MASTER') return 'Мастер'
-  if (role === 'TECHNICIAN') return 'Техник'
-  if (role === 'CLIENT') return 'Клиент'
-  if (role === 'TERRITORIAL_MANAGER') return 'Территориальный менеджер'
-  if (role === 'NETWORK_DIRECTOR') return 'Сетевой директор'
-  if (role === 'STAFF') return 'Сотрудник'
-  return role
-}
-
 export function EmployeeForm({
   title,
   submitLabel,
   value,
   activeSpecializations,
+  companyType,
   submitting,
   passwordRequired,
   onChange,
@@ -138,7 +129,9 @@ export function EmployeeForm({
           disabled={submitting}
         >
           {roleOptions().map((role) => (
-            <option key={role} value={role}>{roleLabel(role)}</option>
+            <option key={role} value={role}>
+              {getRoleDisplayLabel({ role, companyType })}
+            </option>
           ))}
         </select>
         <div className="fieldHint">

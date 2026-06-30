@@ -8,6 +8,7 @@ type Props = {
   currentUserId: string | null
   activeAdminCount: number
   activeSpecializations: api.SpecializationListItem[]
+  companyType?: api.CompanyType | null
   editingUserId: string | null
   editingValue: EmployeeFormValue
   busy?: boolean
@@ -64,6 +65,7 @@ export function EmployeeList({
   currentUserId,
   activeAdminCount,
   activeSpecializations,
+  companyType,
   editingUserId,
   editingValue,
   busy,
@@ -100,6 +102,7 @@ export function EmployeeList({
           <EmployeeCard
             key={user.id}
             user={user}
+            companyType={companyType}
             actions={(
               <>
                 {!isDeleted ? (
@@ -142,6 +145,7 @@ export function EmployeeList({
                   submitLabel="Сохранить"
                   value={editingValue}
                   activeSpecializations={activeSpecializations}
+                  companyType={companyType}
                   submitting={busy}
                   passwordRequired={false}
                   onChange={onEditChange}

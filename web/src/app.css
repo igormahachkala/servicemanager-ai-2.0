@@ -1212,3 +1212,113 @@ button.toastItem:active {
     min-width: 0;
   }
 }
+
+/* ── Management Console V2 placeholders (SMA-MGMT-T02) ─────────────── */
+.v2Placeholder {
+  display: grid;
+  gap: 16px;
+  max-width: 880px;
+}
+
+.v2PlaceholderHero {
+  padding: 28px 32px;
+  border: 1px solid #e2e8f0;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+}
+
+.v2PlaceholderEyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #64748b;
+  margin-bottom: 8px;
+}
+
+.v2PlaceholderTitle {
+  margin: 0 0 12px;
+  font-size: 28px;
+  line-height: 1.2;
+  color: #0f172a;
+}
+
+.v2PlaceholderDescription {
+  margin: 0 0 20px;
+  font-size: 15px;
+  line-height: 1.55;
+  color: #475569;
+  max-width: 62ch;
+}
+
+.v2PlaceholderMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.v2PlaceholderStatus {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.v2PlaceholderTask {
+  font-size: 13px;
+  color: #64748b;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.v2PlaceholderActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.v2PlaceholderLink {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: #2563eb;
+  color: #fff;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.v2PlaceholderLink:hover {
+  background: #1d4ed8;
+}
+
+.v2PlaceholderLinkSecondary {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 16px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #334155;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.v2PlaceholderLinkSecondary:hover {
+  background: #f8fafc;
+}
+
+.v2PlaceholderNote {
+  padding: 16px 20px;
+}
+
+.v2PlaceholderNoteTitle {
+  font-weight: 700;
+  margin-bottom: 6px;
+  color: #0f172a;
+}

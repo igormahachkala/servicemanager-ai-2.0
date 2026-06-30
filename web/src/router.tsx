@@ -31,6 +31,8 @@ import { InspectionRunReportPage } from './views/InspectionRunReportPage'
 import { InspectionQuickPage } from './views/InspectionQuickPage'
 import { MapPage } from './pages/MapPage'
 import { PermissionsPage } from './pages/platform/PermissionsPage'
+import { ManagementV2StubPage } from './views/v2/ManagementV2StubPage'
+import { ContractorsRoutePage } from './views/v2/ContractorsRoutePage'
 import { MobileShell } from './mobile/MobileShell'
 import { MobileHome } from './mobile/MobileHome'
 import { MobileCreateTicket } from './mobile/MobileCreateTicket'
@@ -147,9 +149,17 @@ export function AppRoutes() {
           </RequireAuth>
         }
       >
+        <Route path="dashboard" element={<ManagementV2StubPage />} />
         <Route path="board" element={<BoardPage />} />
         <Route path="archive" element={<ArchivePage />} />
         <Route path="tickets" element={<BoardPage />} />
+        <Route path="objects" element={<LocationsPage />} />
+        <Route path="equipment" element={<ManagementV2StubPage />} />
+        <Route path="users" element={<EmployeesPage />} />
+        <Route path="contractors" element={<ContractorsRoutePage />} />
+        <Route path="acts" element={<ManagementV2StubPage />} />
+        <Route path="permissions" element={<PermissionsPage />} />
+        <Route path="assistant" element={<ManagementV2StubPage />} />
         <Route path="companies" element={<CompaniesPage />} />
         <Route path="service-contracts" element={<ServiceContractsPage />} />
         <Route path="tickets/new" element={<CreateTicketPage />} />

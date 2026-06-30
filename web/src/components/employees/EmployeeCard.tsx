@@ -1,21 +1,11 @@
 ﻿import * as api from '../../lib/api'
+import { getRoleDisplayLabel } from '../../lib/resolveAdminProfile'
 
 type Props = {
   user: api.UserListItem
+  companyType?: api.CompanyType | null
   actions?: React.ReactNode
   children?: React.ReactNode
-}
-
-function roleLabel(role: api.Role) {
-  if (role === 'ADMIN') return 'Администратор'
-  if (role === 'DISPATCHER') return 'Диспетчер'
-  if (role === 'MASTER') return 'Мастер'
-  if (role === 'TECHNICIAN') return 'Техник'
-  if (role === 'CLIENT') return 'Клиент'
-  if (role === 'TERRITORIAL_MANAGER') return 'Территориальный менеджер'
-  if (role === 'NETWORK_DIRECTOR') return 'Сетевой директор'
-  if (role === 'STAFF') return 'Сотрудник'
-  return role
 }
 
 function displayName(user: api.UserListItem) {
@@ -31,7 +21,7 @@ function initials(user: api.UserListItem) {
   return user.email.slice(0, 2).toUpperCase()
 }
 
-export function EmployeeCard({ user, actions, children }: Props) {
+export function EmployeeCard({ user, companyType, actions, children }: Props) {
   const photoUrl = user.avatarUrl ? api.resolveFileUrl(user.avatarUrl) : ''
   const specs = (user.technicianSpecializations || []).map((item) => item.specialization.name)
 
@@ -66,7 +56,9 @@ export function EmployeeCard({ user, actions, children }: Props) {
             <div style={{ fontWeight: 700, fontSize: 16 }}>{displayName(user)}</div>
             <div className="muted small" style={{ marginTop: 4 }}>{user.email}</div>
             {(user as any).phone ? <div className="muted small">{(user as any).phone}</div> : null}
-            <div className="muted small" style={{ marginTop: 6 }}>Роль: {roleLabel(user.role)}</div>
+            <div className="muted small" style={{ marginTop: 6 }}>
+              Роль: {getRoleDisplayLabel({ role: user.role, companyType })}
+            </div>
             <div className="muted small">Статус: {user.isActive === false ? 'Неактивен' : 'Активен'}{(user as any).deletedAt ? ' · Удалён' : ''}</div>
             {user.role === 'TECHNICIAN' ? (
               <div className="muted small" style={{ marginTop: 6 }}>
