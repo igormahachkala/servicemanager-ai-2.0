@@ -108,6 +108,16 @@ export function MobileProfile() {
     enabled: !!meQ.data && meQ.data.role === 'TECHNICIAN' && !!linkedClientCompanyId,
   })
 
+  // Полный список клиентских компаний техника (без scope-фильтра) — для переключателя контура.
+  // bound-contexts сортируются по имени (name asc) на бэке; [0] — лишь дефолт, выбор персистится.
+  const techBoundContextsAllQ = useQuery({
+    queryKey: ['mobile-profile-technician-bound-all', meQ.data?.id],
+    queryFn: () => api.getTechnicianBoundContexts(),
+    enabled: !!meQ.data && meQ.data.role === 'TECHNICIAN',
+  })
+  const techBoundContexts = techBoundContextsAllQ.data || []
+  const techCanSwitchCompany = meQ.data?.role === 'TECHNICIAN' && techBoundContexts.length >= 2
+
   const linkedClientName = useMemo(() => {
     if (!linkedClientCompanyId) return ''
     if (meQ.data?.role === 'TECHNICIAN') {
@@ -262,6 +272,27 @@ export function MobileProfile() {
                 {(linkedClientsQ.error as any)?.message || String(linkedClientsQ.error)}
               </div>
             ) : null}
+          </div>
+        ) : null}
+
+        {/* Client context switcher for TECHNICIAN — источник: bound-contexts (полный список) */}
+        {techCanSwitchCompany ? (
+          <div className="mobileCard" style={{ marginTop: 8 }}>
+            <div className="mobileSectionTitle" style={{ marginBottom: 8 }}>Клиентская компания</div>
+            <select
+              className="mobileProviderContextSelect"
+              value={linkedClientCompanyId}
+              onChange={(e) => updateProviderScope(e.target.value)}
+            >
+              {techBoundContexts.map((ctx) => (
+                <option key={ctx.clientCompany.id} value={ctx.clientCompany.id}>
+                  {ctx.clientCompany.name}
+                </option>
+              ))}
+            </select>
+            <div className="mobileProviderContextHint" style={{ marginTop: 6 }}>
+              Контекст применяется к главной, моим заявкам и созданию заявки.
+            </div>
           </div>
         ) : null}
 
