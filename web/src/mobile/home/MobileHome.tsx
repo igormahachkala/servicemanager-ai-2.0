@@ -91,9 +91,16 @@ export function MobileHome() {
       saveBoardCache(pageScope, data)
       return data
     },
+    // Техник без контура (субподрядчик SECONDARY: bound-contexts=[], [0] нет) тоже грузит board —
+    // бэкенд скоупит по assignedTechnicianId + PRIMARY∪SECONDARY. Empty-scope разрешаем только когда
+    // bound-contexts отстрелялся пустым, чтобы у PRIMARY-техника не было лишнего фетча до выбора [0].
     enabled:
       providerContextKnown &&
-      ((!isOnline || !!meQ.data) && (!meQ.data || meQ.data.role !== 'TECHNICIAN' || !!linkedClientCompanyId)) &&
+      ((!isOnline || !!meQ.data) &&
+        (!meQ.data ||
+          meQ.data.role !== 'TECHNICIAN' ||
+          !!linkedClientCompanyId ||
+          (techBoundDefaultsQ.isSuccess && (techBoundDefaultsQ.data || []).length === 0))) &&
       !providerNeedsLinkedClient,
   })
 

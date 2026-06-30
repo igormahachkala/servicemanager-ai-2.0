@@ -145,8 +145,14 @@ export function MobileMyTickets() {
         companyId: companyId || undefined,
         take,
       }),
+    // Техник без контура (напр. субподрядчик SECONDARY: bound-contexts=[], [0] нет) тоже грузит board:
+    // бэкенд сам скоупит по assignedTechnicianId + PRIMARY∪SECONDARY. Ждём, пока bound-contexts
+    // отстреляется и окажется пустым, чтобы у PRIMARY-техника не было лишнего empty-scope фетча до [0].
     enabled:
-      !!meQ.data && (meQ.data.role !== 'TECHNICIAN' || !!linkedClientCompanyId),
+      !!meQ.data &&
+      (meQ.data.role !== 'TECHNICIAN' ||
+        !!linkedClientCompanyId ||
+        (techBoundDefaultsQ.isSuccess && (techBoundDefaultsQ.data || []).length === 0)),
   })
 
   const isTruncated = (boardQ.data?.meta.totalTickets ?? 0) >= (boardQ.data?.meta.limitedToLast ?? 1)
