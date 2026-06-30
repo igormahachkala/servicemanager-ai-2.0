@@ -3665,6 +3665,34 @@ a.mobileBtn.mobileCreateTicketLink {
   font-weight: 600;
   flex-shrink: 0;
   padding-top: 1px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Inline Tabler-icon glyph before each Info-row label */
+.mobileDetailRowIcon {
+  flex-shrink: 0;
+  color: #94a3b8;
+}
+
+/* Ticket card: round 40×40 back button (Figma Make WorkspaceScreen onBack) */
+.mobileTicketBackBtn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #f1f5f9;
+  color: #374151;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobileTicketBackBtn:active {
+  background: #e2e8f0;
 }
 
 .mobileDetailRowValue {
