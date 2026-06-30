@@ -1,5 +1,13 @@
-import { Body, Controller, Get, Patch, Req, UseGuards } from '@nestjs/common';
-import { ApiForbiddenResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Body, Controller, Get, Param, Patch, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiForbiddenResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiQuery,
+  ApiTags,
+} from '@nestjs/swagger';
 import { UserRole } from '@prisma/client';
 
 import { JwtAuthGuard } from '../auth/jwt.guard';
@@ -12,17 +20,22 @@ import { RoleMatrixResponseDto } from './dto/role-matrix.dto';
 import { UpdateMatrixDto } from './dto/update-matrix.dto';
 
 /**
- * Платформа → Роли и права. Доступ только PLATFORM_ADMIN.
- * GET — чтение (catalog + DB-backed matrix). PATCH — сохранение дельт (транзакция + аудит).
+ * Платформа → Роли и права.
+ * - catalog/matrix (GET) + matrix save (PATCH): только PLATFORM_ADMIN (integration).
+ * - users/* (read-only эффективные права): ADMIN + PLATFORM_ADMIN (readonly perm API).
+ * @Roles перенесён на уровень методов — у двух групп роутов разный набор ролей.
  */
 @ApiTags('permissions')
+@ApiBearerAuth()
 @UseGuards(JwtAuthGuard, RolesGuard)
-@Roles(UserRole.PLATFORM_ADMIN)
 @Controller('permissions')
 export class PermissionsController {
-  constructor(private readonly svc: PermissionsService) {}
+  constructor(private readonly permissionsService: PermissionsService) {}
+
+  // ── Каталог + матрица ролей (integration) — только PLATFORM_ADMIN ──
 
   @Get('catalog')
+  @Roles(UserRole.PLATFORM_ADMIN)
   @ApiOperation({
     summary: 'Справочник всех permission-блоков',
     description:
@@ -31,10 +44,11 @@ export class PermissionsController {
   @ApiOkResponse({ type: PermissionCatalogResponseDto })
   @ApiForbiddenResponse({ description: 'Доступно только PLATFORM_ADMIN' })
   getCatalog(): PermissionCatalogResponseDto {
-    return { blocks: this.svc.getCatalog() };
+    return { blocks: this.permissionsService.getCatalog() };
   }
 
   @Get('matrix')
+  @Roles(UserRole.PLATFORM_ADMIN)
   @ApiOperation({
     summary: 'Матрица ролей (role + companyType → permissions)',
     description:
@@ -43,10 +57,11 @@ export class PermissionsController {
   @ApiOkResponse({ type: RoleMatrixResponseDto })
   @ApiForbiddenResponse({ description: 'Доступно только PLATFORM_ADMIN' })
   async getMatrix(): Promise<RoleMatrixResponseDto> {
-    return { roles: await this.svc.getMatrix() };
+    return { roles: await this.permissionsService.getMatrix() };
   }
 
   @Patch('matrix')
+  @Roles(UserRole.PLATFORM_ADMIN)
   @ApiOperation({
     summary: 'Сохранить изменения матрицы (add/remove дельты)',
     description:
@@ -56,7 +71,75 @@ export class PermissionsController {
   @ApiForbiddenResponse({ description: 'Доступно только PLATFORM_ADMIN' })
   async updateMatrix(@Req() req: any, @Body() dto: UpdateMatrixDto): Promise<RoleMatrixResponseDto> {
     const actor = { id: req.user.id, companyId: req.user.companyId };
-    const roles = await this.svc.applyChanges(dto.changes, actor);
+    const roles = await this.permissionsService.applyChanges(dto.changes, actor);
     return { roles };
+  }
+
+  // ── Read-only эффективные права по пользователю (readonly) — ADMIN + PLATFORM_ADMIN ──
+
+  @Get('users')
+  @Roles(UserRole.ADMIN, UserRole.PLATFORM_ADMIN)
+  @ApiOperation({ summary: 'List users with effective permissions for a company scope' })
+  @ApiQuery({ name: 'companyId', required: false, description: 'Observer company scope for PLATFORM_ADMIN' })
+  @ApiOkResponse({ description: 'Company users and their permission summary' })
+  @ApiForbiddenResponse({ description: 'Only ADMIN and PLATFORM_ADMIN can read permissions' })
+  async listUsers(@Req() req: any, @Query('companyId') companyId?: string) {
+    return this.permissionsService.listUsers({
+      actorId: req.user.id,
+      actorCompanyId: req.user.companyId,
+      actorRole: req.user.role as UserRole,
+      requestedCompanyId: companyId,
+    });
+  }
+
+  @Get('users/:userId/effective')
+  @Roles(UserRole.ADMIN, UserRole.PLATFORM_ADMIN)
+  @ApiOperation({ summary: 'Read effective permissions for a user' })
+  @ApiQuery({ name: 'companyId', required: false, description: 'Observer company scope for PLATFORM_ADMIN' })
+  @ApiOkResponse({ description: 'User effective permissions' })
+  @ApiForbiddenResponse({ description: 'Only ADMIN and PLATFORM_ADMIN can read permissions' })
+  @ApiNotFoundResponse({ description: 'User not found in the readable scope' })
+  async getEffective(@Req() req: any, @Param('userId') userId: string, @Query('companyId') companyId?: string) {
+    return this.permissionsService.getEffectivePermissions({
+      actorId: req.user.id,
+      actorCompanyId: req.user.companyId,
+      actorRole: req.user.role as UserRole,
+      requestedCompanyId: companyId,
+      userId,
+    });
+  }
+
+  @Get('users/:userId/overrides')
+  @Roles(UserRole.ADMIN, UserRole.PLATFORM_ADMIN)
+  @ApiOperation({ summary: 'Read direct per-user permission overrides' })
+  @ApiQuery({ name: 'companyId', required: false, description: 'Observer company scope for PLATFORM_ADMIN' })
+  @ApiOkResponse({ description: 'User overrides' })
+  @ApiForbiddenResponse({ description: 'Only ADMIN and PLATFORM_ADMIN can read permissions' })
+  @ApiNotFoundResponse({ description: 'User not found in the readable scope' })
+  async getOverrides(@Req() req: any, @Param('userId') userId: string, @Query('companyId') companyId?: string) {
+    return this.permissionsService.getOverrides({
+      actorId: req.user.id,
+      actorCompanyId: req.user.companyId,
+      actorRole: req.user.role as UserRole,
+      requestedCompanyId: companyId,
+      userId,
+    });
+  }
+
+  @Get('users/:userId/scopes')
+  @Roles(UserRole.ADMIN, UserRole.PLATFORM_ADMIN)
+  @ApiOperation({ summary: 'Read scoped permission flags for a user' })
+  @ApiQuery({ name: 'companyId', required: false, description: 'Observer company scope for PLATFORM_ADMIN' })
+  @ApiOkResponse({ description: 'User scope summary' })
+  @ApiForbiddenResponse({ description: 'Only ADMIN and PLATFORM_ADMIN can read permissions' })
+  @ApiNotFoundResponse({ description: 'User not found in the readable scope' })
+  async getScopes(@Req() req: any, @Param('userId') userId: string, @Query('companyId') companyId?: string) {
+    return this.permissionsService.getScopes({
+      actorId: req.user.id,
+      actorCompanyId: req.user.companyId,
+      actorRole: req.user.role as UserRole,
+      requestedCompanyId: companyId,
+      userId,
+    });
   }
 }
