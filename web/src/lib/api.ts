@@ -1314,7 +1314,11 @@ export function clearToken() {
   localStorage.removeItem(TOKEN_KEY)
   localStorage.removeItem(USER_ROLE_KEY)
   localStorage.removeItem(COMPANY_LABEL_KEY)
-  clearPersistedScope()
+  // НЕ чистим persisted scope (sm_last_scope) при logout/истечении токена — дефолтный контур
+  // должен переживать перезаход (вариант «дефолт на устройстве»). Безопасно: ключ owner-keyed
+  // (ownerUserId/ownerCompanyId) → у другого пользователя ownerMatches не сойдётся → его дефолт [0].
+  // Явная очистка дефолта осталась: снятие галочки «по умолчанию» (clearPersistedScope),
+  // hard-reset /logout (LogoutAndRedirect) и QA `?clear=1` — там localStorage.clear() намеренный.
   clearImpersonationState()
 }
 
