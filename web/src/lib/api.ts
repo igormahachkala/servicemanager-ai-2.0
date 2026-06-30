@@ -1551,6 +1551,15 @@ export function getLinkedClientCompanyId(owner?: ScopeOwner): string {
   return (getStoredScopeForOwner(owner).linkedClientCompanyId || '').trim()
 }
 
+/**
+ * Сохранён ли контур «по умолчанию» в localStorage (без учёта URL-параметра) для владельца.
+ * Используется галочкой «контур по умолчанию» — переиспользует тот же персист (LAST_SCOPE_KEY).
+ */
+export function getPersistedLinkedClientCompanyId(owner?: ScopeOwner): string {
+  if (typeof window === 'undefined') return ''
+  return (getStoredScopeForOwner(owner).linkedClientCompanyId || '').trim()
+}
+
 export function getObserverCompanyId(owner?: ScopeOwner): string {
   if (typeof window === 'undefined') return ''
   const fromUrl = new URLSearchParams(window.location.search).get('companyId') || ''

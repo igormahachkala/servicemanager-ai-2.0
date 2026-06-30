@@ -118,6 +118,24 @@ export function MobileProfile() {
   const techBoundContexts = techBoundContextsAllQ.data || []
   const techCanSwitchCompany = meQ.data?.role === 'TECHNICIAN' && techBoundContexts.length >= 2
 
+  // Галочка «контур по умолчанию» — переиспользует тот же персист (LAST_SCOPE_KEY).
+  // Отмечена → выбранная компания запоминается дефолтом (persisted > [0]); снята → clear → авто-[0].
+  const [techRememberDefault, setTechRememberDefault] = useState(false)
+  useEffect(() => {
+    if (meQ.data?.role !== 'TECHNICIAN') return
+    setTechRememberDefault(!!api.getPersistedLinkedClientCompanyId(meQ.data))
+  }, [meQ.data, linkedClientCompanyId])
+  function toggleTechDefaultContour(checked: boolean) {
+    setTechRememberDefault(checked)
+    if (checked) {
+      if (linkedClientCompanyId) {
+        api.persistScopeFromSearchParams(new URLSearchParams({ linkedClientCompanyId }), meQ.data)
+      }
+    } else {
+      api.clearPersistedScope()
+    }
+  }
+
   const linkedClientName = useMemo(() => {
     if (!linkedClientCompanyId) return ''
     if (meQ.data?.role === 'TECHNICIAN') {
@@ -293,6 +311,14 @@ export function MobileProfile() {
             <div className="mobileProviderContextHint" style={{ marginTop: 6 }}>
               Контекст применяется к главной, моим заявкам и созданию заявки.
             </div>
+            <label className="mobileProviderContextDefault" style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+              <input
+                type="checkbox"
+                checked={techRememberDefault}
+                onChange={(e) => toggleTechDefaultContour(e.target.checked)}
+              />
+              <span>Запомнить как контур по умолчанию</span>
+            </label>
           </div>
         ) : null}
 

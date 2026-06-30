@@ -1,5 +1,5 @@
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import * as api from '../lib/api'
 
@@ -176,8 +176,28 @@ export function AnalyticsPage() {
   const companyLink = buildCompanyLink({ observerCompanyId, linkedClientCompanyId: activeLinkedClientCompanyId })
   const locationsAnalyticsLink = buildLocationsAnalyticsLink({ observerCompanyId, linkedClientCompanyId: activeLinkedClientCompanyId || undefined })
 
+  // Галочка «контур по умолчанию» — тот же персист (LAST_SCOPE_KEY), что и в мобильной части.
+  const [rememberDefaultContour, setRememberDefaultContour] = useState(false)
+  useEffect(() => {
+    setRememberDefaultContour(!!api.getPersistedLinkedClientCompanyId(meQ.data))
+  }, [meQ.data, requestedLinkedClientCompanyId])
+
   function onSelectLinkedClient(nextLinkedClientCompanyId: string) {
     navigate(buildAnalyticsLink(nextLinkedClientCompanyId), { replace: false })
+    if (rememberDefaultContour && nextLinkedClientCompanyId) {
+      api.persistScopeFromSearchParams(new URLSearchParams({ linkedClientCompanyId: nextLinkedClientCompanyId }), meQ.data)
+    }
+  }
+
+  function toggleDefaultContour(checked: boolean) {
+    setRememberDefaultContour(checked)
+    if (checked) {
+      if (requestedLinkedClientCompanyId) {
+        api.persistScopeFromSearchParams(new URLSearchParams({ linkedClientCompanyId: requestedLinkedClientCompanyId }), meQ.data)
+      }
+    } else {
+      api.clearPersistedScope()
+    }
   }
 
   return (
@@ -247,6 +267,12 @@ export function AnalyticsPage() {
           <div id="analytics-linked-client-hint" className="fieldHint">
             Тот же клиент, что на доске: метрики считаются в контуре выбранной связанной компании.
           </div>
+          {requestedLinkedClientCompanyId ? (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+              <input type="checkbox" checked={rememberDefaultContour} onChange={(e) => toggleDefaultContour(e.target.checked)} />
+              <span className="small">Запомнить как контур по умолчанию</span>
+            </label>
+          ) : null}
 
           {linkedClientsQ.isLoading ? <div className="muted small">Загружаем связанных клиентов…</div> : null}
           {providerHasNoLinkedClients ? <div className="muted small">У вашей provider company пока нет активных связанных клиентов.</div> : null}
