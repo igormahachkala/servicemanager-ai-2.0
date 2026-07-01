@@ -9,6 +9,7 @@ import {
 } from '../components/handoff'
 import { PageHeader, Panel } from '../mission-control/components/ui'
 import { useHandoffs } from '../hooks/useHandoffs'
+import { getHandoffTemplateById } from '../domain/handoff'
 import { useI18n } from '../i18n'
 
 export function HandoffDetailsPage() {
@@ -38,6 +39,9 @@ export function HandoffDetailsPage() {
     })
   }
 
+  const missingTemplate =
+    handoff.templateId !== null && getHandoffTemplateById(handoff.templateId) === null
+
   return (
     <>
       <div className="mcPageHeaderRow">
@@ -57,6 +61,10 @@ export function HandoffDetailsPage() {
         </span>
         <span className="mcMono mcMuted">{handoff.priority}</span>
       </div>
+
+      {missingTemplate ? (
+        <p className="acHandoffMissingTemplateNote">{t.handoffEngine.missingTemplateNote.replace('{id}', handoff.templateId ?? '')}</p>
+      ) : null}
 
       <div className="acHandoffActionRow">
         {handoff.status === 'draft' ? (

@@ -1,6 +1,7 @@
 import type { HandoffChecklistItem } from '../handoff/handoff'
 import type { HandoffPackage } from '../handoff/handoffPackage'
 import { buildHandoffPackage } from '../handoff/handoffPackage'
+import type { HandoffTemplate } from '../handoff/handoffTemplates'
 
 /** Stable id for AI-PHOTO-LAB-002 Codex handoff (upsert-safe). */
 export const AI_PHOTO_LAB_HANDOFF_002_ID = 'handoff-apl-002-stabilize-mvp'
@@ -146,4 +147,32 @@ export function buildAiPhotoLabHandoff002Package(): HandoffPackage {
 
 export function buildAiPhotoLabHandoff002Checklist(): HandoffChecklistItem[] {
   return AI_PHOTO_LAB_MVP_CHECKLIST.map((item) => ({ ...item, done: true }))
+}
+
+/** Registry entry for AI-PHOTO-LAB-002 Codex handoff template. */
+export function buildAiPhotoLabHandoff002Template(): HandoffTemplate {
+  return {
+    id: AI_PHOTO_LAB_HANDOFF_002_TEMPLATE_ID,
+    name: 'AI Photo Lab MVP stabilization',
+    description:
+      'Codex handoff for AI-PHOTO-LAB-002 — stabilize vitrina MVP flows in ~/projects/ai-photo-lab.',
+    target: 'codex',
+    priority: 'critical',
+    title: AI_PHOTO_LAB_HANDOFF_002_TITLE,
+    descriptionTemplate:
+      'MAX completed technical audit — Codex executes stabilization of upload/analysis/zones/chat/history/mobile/deploy flows.',
+    instructions:
+      'Review the handoff package, work only in ~/projects/ai-photo-lab, run the checklist flows, and return structured results.',
+    expectedResult:
+      'All MVP checklist flows pass locally; build succeeds; handoff response includes changed files, commands, and go/no-go for production.',
+    constraints: AI_PHOTO_LAB_HANDOFF_CONSTRAINTS,
+    checklist: AI_PHOTO_LAB_MVP_CHECKLIST,
+    packageDefaults: {
+      currentState: CURRENT_STATE,
+      files: AI_PHOTO_LAB_TARGET_FILES,
+      commands: AI_PHOTO_LAB_HANDOFF_COMMANDS,
+      acceptanceCriteria: AI_PHOTO_LAB_ACCEPTANCE_CRITERIA,
+      expectedResponseFormat: AI_PHOTO_LAB_EXPECTED_RESPONSE_FORMAT,
+    },
+  }
 }

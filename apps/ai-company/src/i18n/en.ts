@@ -2698,7 +2698,12 @@ export const en = {
   runtimePromptBuilder: {
     empty: 'Unable to build prompt preview — select an employee and enter a prompt.',
     explicitOverrideNote:
-      'Explicit prompt mode: the final prompt is sent as-is without implicit assembly.',
+      'Explicit prompt mode: Owner task is wrapped with language policy and employee identity before execution.',
+    outputLanguage: 'Output language',
+    outputLanguages: {
+      ru: 'Russian (default)',
+      en: 'English (task requires)',
+    },
     project: 'Project',
     workspace: 'Workspace',
     copyPrompt: 'Copy Prompt',
@@ -2708,6 +2713,7 @@ export const en = {
     sections: {
       systemPrompt: 'System Prompt',
       employeeIdentity: 'Employee Identity',
+      languagePolicy: 'Language Policy',
       task: 'Task',
       context: 'Context',
       instructions: 'Instructions',
@@ -2774,6 +2780,8 @@ export const en = {
     openReport: 'Open report',
     relatedHandoffs: 'Related handoffs',
     packageNotReady: 'Package not built yet — prepare the handoff first.',
+    missingTemplateNote:
+      'Handoff template "{id}" is not registered — showing stored package and metadata in degraded mode.',
     noChecklist: 'No checklist items.',
     principleNote:
       'Handoff rule: digital employees prepare work, Owner approves, external executor completes, result returns to AI Company with report and timeline updates.',

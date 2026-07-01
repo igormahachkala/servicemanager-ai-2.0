@@ -527,6 +527,7 @@ export function sendTaskResultToQa(id: string, comment?: string): TaskResult | n
     titleOverride: `QA review · ${existing.title}`,
     relatedPaths: existing.artifacts.map((item) => item.value),
   })
+  if (!handoff) return null
   prepareHandoff(handoff.id)
 
   const review = createReviewEntry({
@@ -556,6 +557,7 @@ export function sendTaskResultToCodex(id: string, comment?: string): TaskResult 
     titleOverride: `Codex handoff · ${existing.title}`,
     relatedPaths: existing.artifacts.map((item) => item.value),
   })
+  if (!handoff) return null
   prepareHandoff(handoff.id)
 
   const review = createReviewEntry({

@@ -225,6 +225,16 @@
   margin-bottom: 16px;
 }
 
+.acHandoffMissingTemplateNote {
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  border-radius: var(--mc-radius);
+  background: rgba(245, 158, 11, 0.1);
+  color: var(--mc-text);
+  font-size: 13px;
+}
+
 @media (max-width: 960px) {
   .acHandoffLayout,
   .acHandoffFilters {

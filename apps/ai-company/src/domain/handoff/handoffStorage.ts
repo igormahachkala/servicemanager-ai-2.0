@@ -36,7 +36,12 @@ import {
 } from './handoff'
 import { buildHandoffPackage } from './handoffPackage'
 import type { HandoffPackage } from './handoffPackage'
-import { getHandoffTemplateById, type HandoffTemplate } from './handoffTemplates'
+import {
+  FALLBACK_HANDOFF_TEMPLATE_ID,
+  getHandoffTemplateById,
+  resolveHandoffTemplate,
+  type HandoffTemplate,
+} from './handoffTemplates'
 import { isHandoffTarget, type HandoffTarget } from './handoffTarget'
 
 const STORAGE_KEY = 'ai-company-handoffs'
@@ -376,9 +381,19 @@ export function createHandoffFromTemplate(input: {
   taskId?: string | null
   titleOverride?: string
   relatedPaths?: string[]
-}): Handoff {
-  const template = getHandoffTemplateById(input.templateId)
-  if (!template) throw new Error(`Unknown handoff template: ${input.templateId}`)
+}): Handoff | null {
+  const resolved = resolveHandoffTemplate(input.templateId)
+  const template = resolved.template
+  if (!template) {
+    console.warn(`[handoff] Unknown handoff template: ${input.templateId}`)
+    return null
+  }
+
+  if (resolved.usedFallback) {
+    console.warn(
+      `[handoff] Missing template ${input.templateId} — using fallback ${FALLBACK_HANDOFF_TEMPLATE_ID}`,
+    )
+  }
 
   return createHandoff({
     title: input.titleOverride ?? template.title,
@@ -393,7 +408,7 @@ export function createHandoffFromTemplate(input: {
     expectedResult: template.expectedResult,
     constraints: template.constraints,
     checklist: template.checklist.map((item) => ({ ...item, done: false })),
-    templateId: template.id,
+    templateId: resolved.missingTemplateId ?? input.templateId,
     relatedPaths: input.relatedPaths ?? template.packageDefaults.files,
   })
 }
@@ -649,6 +664,7 @@ function seedPhotoLabHandoffs(): void {
       titleOverride: seed.title,
       relatedPaths: seed.relatedPaths,
     })
+    if (!created) continue
     seed.afterCreate?.(created.id)
   }
 
@@ -712,8 +728,12 @@ export function ensurePhotoLabHandoff002(): Handoff | null {
 }
 
 export function initializeHandoffEngine(): void {
-  seedPhotoLabHandoffs()
-  ensurePhotoLabHandoff002()
+  try {
+    seedPhotoLabHandoffs()
+    ensurePhotoLabHandoff002()
+  } catch (error) {
+    console.warn('[handoff] initializeHandoffEngine failed', error)
+  }
 }
 
 export function ensurePhotoLabHandoffs(): void {

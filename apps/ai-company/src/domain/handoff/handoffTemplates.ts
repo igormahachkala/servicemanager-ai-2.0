@@ -1,3 +1,4 @@
+import { buildAiPhotoLabHandoff002Template } from '../projects/aiPhotoLabCodexHandoff002'
 import type { HandoffPriority, HandoffChecklistItem } from './handoff'
 import type { HandoffTarget } from './handoffTarget'
 
@@ -22,7 +23,10 @@ export type HandoffTemplate = {
   }
 }
 
+export const FALLBACK_HANDOFF_TEMPLATE_ID = 'tpl-codex-code-task'
+
 export const HANDOFF_TEMPLATES: HandoffTemplate[] = [
+  buildAiPhotoLabHandoff002Template(),
   {
     id: 'tpl-codex-code-task',
     name: 'Codex code task',
@@ -158,6 +162,48 @@ export const HANDOFF_TEMPLATES: HandoffTemplate[] = [
 
 export function getHandoffTemplateById(id: string): HandoffTemplate | null {
   return HANDOFF_TEMPLATES.find((item) => item.id === id) ?? null
+}
+
+export type ResolvedHandoffTemplate = {
+  template: HandoffTemplate | null
+  requestedTemplateId: string
+  missingTemplateId: string | null
+  usedFallback: boolean
+}
+
+/** Resolves a template id with optional fallback — never throws. */
+export function resolveHandoffTemplate(templateId: string): ResolvedHandoffTemplate {
+  const template = getHandoffTemplateById(templateId)
+  if (template) {
+    return {
+      template,
+      requestedTemplateId: templateId,
+      missingTemplateId: null,
+      usedFallback: false,
+    }
+  }
+
+  const fallback = getHandoffTemplateById(FALLBACK_HANDOFF_TEMPLATE_ID)
+  if (fallback) {
+    return {
+      template: fallback,
+      requestedTemplateId: templateId,
+      missingTemplateId: templateId,
+      usedFallback: true,
+    }
+  }
+
+  return {
+    template: null,
+    requestedTemplateId: templateId,
+    missingTemplateId: templateId,
+    usedFallback: false,
+  }
+}
+
+export function getHandoffTemplateLabel(templateId: string | null | undefined): string | null {
+  if (!templateId) return null
+  return getHandoffTemplateById(templateId)?.name ?? templateId
 }
 
 export function listHandoffTemplates(): HandoffTemplate[] {

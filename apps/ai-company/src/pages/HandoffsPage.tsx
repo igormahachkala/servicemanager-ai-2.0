@@ -42,6 +42,7 @@ export function HandoffsPage() {
       titleOverride: 'Sample Codex handoff',
       relatedPaths: ['apps/ai-company/src/domain/handoff/'],
     })
+    if (!created) return
     prepare(created.id)
     setSelectedId(created.id)
     refresh()

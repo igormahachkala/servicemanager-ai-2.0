@@ -24,10 +24,14 @@ export {
 export { buildHandoffPackage, type HandoffPackage, type BuildHandoffPackageInput } from './handoffPackage'
 
 export {
+  FALLBACK_HANDOFF_TEMPLATE_ID,
   HANDOFF_TEMPLATES,
   getHandoffTemplateById,
+  getHandoffTemplateLabel,
   listHandoffTemplates,
+  resolveHandoffTemplate,
   type HandoffTemplate,
+  type ResolvedHandoffTemplate,
 } from './handoffTemplates'
 
 export {
