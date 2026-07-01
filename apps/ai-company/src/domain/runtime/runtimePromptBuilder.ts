@@ -10,6 +10,7 @@ import {
   resolveOutputLanguage,
 } from './runtimeOutputPolicy'
 import { buildEmployeePersonaSection } from './runtimeEmployeePersona'
+import { buildRuntimeReportOutputInstructions } from '../runtimeReport'
 import { resolveEmployee } from '../../mission-control/data/conversation'
 import { loadCustomEmployees } from '../../mission-control/data/customEmployees'
 import { getProjectById } from '../projects/project'
@@ -157,7 +158,11 @@ export function buildRuntimePromptPreview(input: RuntimePromptBuildInput): Runti
     languagePolicy: buildLanguagePolicy(outputLanguage, employee.codename),
     task,
     context: buildContextSection(context, outputLanguage),
-    instructions: defaultInstructions(outputLanguage, explicitOverride),
+    instructions: [
+      defaultInstructions(outputLanguage, explicitOverride),
+      '',
+      buildRuntimeReportOutputInstructions(outputLanguage),
+    ].join('\n'),
   }
 
   const finalPrompt = explicitOverride

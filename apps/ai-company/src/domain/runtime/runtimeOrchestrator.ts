@@ -4,11 +4,11 @@ import { recordRuntimeLearning } from '../learning/learningStorage'
 import { getChatById } from '../chats/chatStorage'
 import { ensureSeedMemories, getMemoriesByEmployee } from '../memory/memory'
 import { queryKnowledgeForRuntime } from '../knowledge/knowledgeStorage'
-import { loadReports, saveReports, getReportById } from '../reports/reportStorage'
+import { getReportById } from '../reports/reportStorage'
 import type { Report } from '../reports/report'
+import { buildRuntimeReportFromRun } from '../runtimeReport'
 import { createTaskResultFromRuntimeRun } from '../taskResults/taskResultStorage'
 import { onRuntimeCompletion } from '../memoryEvolution'
-import { DEFAULT_COMPANY_ID } from '../projects/project'
 import { getWorkspaceById } from '../workspaces/workspace'
 import { resolveEmployee } from '../../mission-control/data/conversation'
 import {
@@ -659,42 +659,7 @@ function createRuntimeReport(
   result: RuntimeResult,
   employeeName: string,
 ): Report {
-  const now = new Date().toISOString()
-  const report: Report = {
-    id: `report-run-${run.id}`,
-    companyId: DEFAULT_COMPANY_ID,
-    title: `Runtime run · ${employeeName}`,
-    type: 'system',
-    employeeId: run.employeeId,
-    workspaceId: run.workspaceId,
-    summary: `Runtime run completed via provider adapter (${getActiveRuntimeProviderId()}) and Model Router (${result.selectedModel}).`,
-    findings: [
-      `Model ${result.selectedModel} selected through Model Router`,
-      `Context assembled from ${result.contextSize} layers`,
-      `${result.knowledgeUsed} knowledge items referenced`,
-      `${result.memoryUsed} memory entries referenced`,
-      result.responseText
-        ? `Response preview: ${result.responseText.slice(0, 180)}${result.responseText.length > 180 ? '…' : ''}`
-        : 'No model response text captured',
-    ],
-    risks: result.warnings.filter((item) => item.severity === 'warn' || item.severity === 'error').map(
-      (item) => item.message,
-    ),
-    recommendations: ['Review generated report before promoting to published status.'],
-    evidence: [
-      {
-        id: `ev-run-${run.id}`,
-        label: 'Runtime run',
-        kind: 'artifact',
-        value: run.id,
-      },
-    ],
-    status: 'draft',
-    createdAt: now,
-    updatedAt: now,
-  }
-  saveReports([report, ...loadReports()])
-  return report
+  return buildRuntimeReportFromRun({ run, result, employeeCodename: employeeName })
 }
 
 /** Single entry point — all future model execution must go through this orchestrator. */

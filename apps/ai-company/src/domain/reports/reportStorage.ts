@@ -1,4 +1,5 @@
 import { DEFAULT_COMPANY_ID } from '../company/company'
+import type { RuntimeReportBody, RuntimeReportRisk, ReportSeverity } from '../runtimeReport/runtimeReportQuality'
 import { REPORT_STATUSES, REPORT_TYPES } from './reportTypes'
 import type { ReportStatus, ReportType } from './reportTypes'
 import type { Report, ReportEvidence, ReportFilter } from './report'
@@ -24,6 +25,44 @@ function parseReportStatus(value: unknown): ReportStatus {
 function parseStringArray(value: unknown): string[] {
   if (!Array.isArray(value)) return []
   return value.filter((item): item is string => typeof item === 'string')
+}
+
+function parseSeverity(value: unknown): ReportSeverity {
+  if (value === 'critical' || value === 'high' || value === 'medium' || value === 'low') {
+    return value
+  }
+  return 'medium'
+}
+
+function parseRuntimeReportRisk(value: unknown): RuntimeReportRisk | null {
+  if (!isRecord(value) || typeof value.message !== 'string') return null
+  return {
+    severity: parseSeverity(value.severity),
+    message: value.message,
+  }
+}
+
+function parseRuntimeReportBody(value: unknown): RuntimeReportBody | null {
+  if (!isRecord(value)) return null
+  if (typeof value.briefSummary !== 'string' || typeof value.formattedMarkdown !== 'string') {
+    return null
+  }
+
+  const risks = Array.isArray(value.risks)
+    ? value.risks.map(parseRuntimeReportRisk).filter((item): item is RuntimeReportRisk => item !== null)
+    : []
+
+  return {
+    briefSummary: value.briefSummary,
+    checked: parseStringArray(value.checked),
+    found: parseStringArray(value.found),
+    risks,
+    recommendations: parseStringArray(value.recommendations),
+    nextStep: typeof value.nextStep === 'string' ? value.nextStep : '',
+    ownerDecisionRequired:
+      typeof value.ownerDecisionRequired === 'string' ? value.ownerDecisionRequired : null,
+    formattedMarkdown: value.formattedMarkdown,
+  }
 }
 
 function parseEvidence(value: unknown): ReportEvidence[] {
@@ -75,6 +114,7 @@ function parseReport(value: unknown): Report | null {
     status: parseReportStatus(value.status),
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
+    runtimeBody: parseRuntimeReportBody(value.runtimeBody),
   }
 }
 
@@ -122,6 +162,18 @@ export function searchReports(reports: Report[], query: string): Report[] {
   const normalized = query.trim().toLowerCase()
   if (!normalized) return reports
   return reports.filter((report) => {
+    const runtimeHaystack = report.runtimeBody
+      ? [
+          report.runtimeBody.briefSummary,
+          report.runtimeBody.nextStep,
+          report.runtimeBody.ownerDecisionRequired ?? '',
+          ...report.runtimeBody.checked,
+          ...report.runtimeBody.found,
+          ...report.runtimeBody.recommendations,
+          ...report.runtimeBody.risks.map((item) => item.message),
+        ]
+      : []
+
     const haystack = [
       report.title,
       report.summary,
@@ -130,6 +182,7 @@ export function searchReports(reports: Report[], query: string): Report[] {
       ...report.findings,
       ...report.risks,
       ...report.recommendations,
+      ...runtimeHaystack,
     ]
       .join(' ')
       .toLowerCase()

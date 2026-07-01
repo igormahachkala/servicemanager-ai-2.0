@@ -1,3 +1,4 @@
+import type { RuntimeReportBody } from '../runtimeReport/runtimeReportQuality'
 import type { ReportStatus, ReportType } from './reportTypes'
 
 export type ReportEvidence = {
@@ -22,6 +23,8 @@ export type Report = {
   status: ReportStatus
   createdAt: string
   updatedAt: string
+  /** Structured Senior Engineer report body from runtime runs. */
+  runtimeBody?: RuntimeReportBody | null
 }
 
 export type ReportFilter = {

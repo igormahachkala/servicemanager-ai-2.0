@@ -2530,6 +2530,68 @@
   color: #f59e0b;
 }
 
+.mcReportRuntimeStack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.mcReportRuntimeRiskList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mcReportRuntimeRiskItem {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: baseline;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--mc-muted);
+}
+
+.mcReportSeverity {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.mcReportSeverityCritical {
+  background: rgba(239, 68, 68, 0.18);
+  color: #fca5a5;
+}
+
+.mcReportSeverityHigh {
+  background: rgba(245, 158, 11, 0.18);
+  color: #fcd34d;
+}
+
+.mcReportSeverityMedium {
+  background: rgba(96, 165, 250, 0.16);
+  color: #93c5fd;
+}
+
+.mcReportSeverityLow {
+  background: rgba(34, 197, 94, 0.16);
+  color: #86efac;
+}
+
+.mcReportRuntimeNoCritical {
+  margin: 0;
+  font-size: 13px;
+  color: #86efac;
+}
+
 .mcReportActionList li {
   color: #60a5fa;
 }
