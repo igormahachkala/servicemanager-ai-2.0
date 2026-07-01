@@ -7,6 +7,7 @@ import {
 } from '../../domain/living'
 import { LivingActivityLine } from '../living'
 import { EmployeeStatusBadge } from './EmployeeStatusBadge'
+import { resolveCanonicalEmployeeId } from '../../mission-control/data/employeeIdResolver'
 import { useI18n } from '../../i18n'
 
 export function EmployeePresenceCard(props: { presence: EmployeePresence }) {
@@ -21,7 +22,10 @@ export function EmployeePresenceCard(props: { presence: EmployeePresence }) {
     <article className="acPresenceCard">
       <div className="acPresenceCardHead">
         <div>
-          <Link to={`/ops/employees/${presence.employeeId}`} className="acPresenceCardName acLink">
+          <Link
+            to={`/ops/employees/${resolveCanonicalEmployeeId(presence.employeeId)}`}
+            className="acPresenceCardName acLink"
+          >
             {label.codename}
           </Link>
           <div className="acMuted" style={{ fontSize: 12 }}>

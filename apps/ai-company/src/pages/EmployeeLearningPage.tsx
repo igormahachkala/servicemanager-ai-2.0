@@ -11,10 +11,12 @@ import { useCompetencies } from '../hooks/useCompetencies'
 import { useLearning } from '../hooks/useLearning'
 import { PageHeader } from '../mission-control/components/ui'
 import { resolveEmployee } from '../mission-control/data/conversation'
+import { resolveCanonicalEmployeeId } from '../mission-control/data/employeeIdResolver'
 import { useI18n } from '../i18n'
 
 export function EmployeeLearningPage() {
-  const { id: employeeId } = useParams<{ id: string }>()
+  const { id: routeId } = useParams<{ id: string }>()
+  const employeeId = routeId ? resolveCanonicalEmployeeId(routeId) : undefined
   const { t } = useI18n()
   const employee = useMemo(
     () => (employeeId ? resolveEmployee(employeeId) : null),

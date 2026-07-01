@@ -10,6 +10,7 @@ import {
   type Conversation,
   type EmployeeRef,
 } from '../data/conversation'
+import { resolveCanonicalEmployeeId } from '../data/employeeIdResolver'
 
 type ConversationLabels = {
   systemWelcome: (name: string) => string
@@ -28,16 +29,17 @@ export function useConversation(employeeId: string | undefined, labels: Conversa
       return
     }
 
-    const resolved = resolveEmployee(employeeId)
+    const canonicalId = resolveCanonicalEmployeeId(employeeId)
+    const resolved = resolveEmployee(canonicalId)
     setEmployee(resolved)
     if (!resolved) {
       setConversation(null)
       return
     }
 
-    let current = getConversationByEmployeeId(employeeId)
+    let current = getConversationByEmployeeId(canonicalId)
     if (!current) {
-      current = getOrCreateConversation(employeeId, {
+      current = getOrCreateConversation(canonicalId, {
         systemWelcome: labels.systemWelcome,
       })
     }
@@ -60,13 +62,14 @@ export function useConversation(employeeId: string | undefined, labels: Conversa
     (content: string) => {
       if (!employeeId || !employee) return null
 
-      const updated = appendOwnerMessage(employeeId, content, labels.ownerName)
+      const canonicalId = resolveCanonicalEmployeeId(employeeId)
+      const updated = appendOwnerMessage(canonicalId, content, labels.ownerName)
       if (!updated) return null
 
       const reply = buildMockReply(employee.codename, labels.mockReplies)
-      const withReply = appendEmployeeMessage(employeeId, employee, reply)
+      const withReply = appendEmployeeMessage(canonicalId, employee, reply)
       const result = withReply ?? updated
-      setConversation(loadConversations().find((item) => item.employeeId === employeeId) ?? result)
+      setConversation(loadConversations().find((item) => item.employeeId === canonicalId) ?? result)
       return result
     },
     [employee, employeeId, labels.mockReplies, labels.ownerName],

@@ -18,6 +18,7 @@ import {
   type TaskType,
 } from '../domain/runtime/runtimeStorage'
 import { resolveEmployee } from '../mission-control/data/conversation'
+import { resolveCanonicalEmployeeId } from '../mission-control/data/employeeIdResolver'
 import { loadCustomEmployees } from '../mission-control/data/customEmployees'
 import { agents } from '../mission-control/data/mock'
 import { useRuntimeProfiles } from '../hooks/useRuntimeProfiles'
@@ -27,24 +28,28 @@ import { useI18n } from '../i18n'
 
 export function EmployeeRuntimePage() {
   const { id } = useParams<{ id: string }>()
+  const canonicalId = id ? resolveCanonicalEmployeeId(id) : null
   const { t } = useI18n()
   const navigate = useNavigate()
   const { getProfile } = useRuntimeProfiles()
-  const { dashboard } = useRuntimeMonitor({ employeeId: id })
+  const { dashboard } = useRuntimeMonitor({ employeeId: canonicalId ?? undefined })
   const [taskType, setTaskType] = useState<TaskType>('conversation')
   const [hasSensitiveData, setHasSensitiveData] = useState(false)
   const [requiresExternalTools, setRequiresExternalTools] = useState(false)
 
-  const employeeRef = id ? resolveEmployee(id) : null
+  const employeeRef = canonicalId ? resolveEmployee(canonicalId) : null
   const customEmployee = useMemo(
-    () => (id ? loadCustomEmployees().find((item) => item.id === id) ?? null : null),
-    [id],
+    () => (canonicalId ? loadCustomEmployees().find((item) => item.id === canonicalId) ?? null : null),
+    [canonicalId],
   )
-  const builtinAgent = useMemo(() => agents.find((item) => item.id === id) ?? null, [id])
+  const builtinAgent = useMemo(
+    () => (canonicalId ? agents.find((item) => item.id === canonicalId) ?? null : null),
+    [canonicalId],
+  )
   const primaryModelLabel =
     customEmployee?.primaryModel ?? builtinAgent?.model ?? t.runtimeEngine.models.mockLocal
 
-  const profile = id ? getProfile(id, primaryModelLabel) : null
+  const profile = canonicalId ? getProfile(canonicalId, primaryModelLabel) : null
 
   const taskContext: TaskContext = useMemo(
     () => ({
@@ -60,7 +65,7 @@ export function EmployeeRuntimePage() {
 
   const { selection } = useModelRouter(profile, taskContext)
 
-  if (!id || !employeeRef || !profile) {
+  if (!canonicalId || !employeeRef || !profile) {
     return (
       <>
         <PageHeader
@@ -84,10 +89,10 @@ export function EmployeeRuntimePage() {
           title={t.runtimeEngine.employeePageTitle.replace('{name}', employeeRef.codename)}
           description={t.runtimeEngine.employeePageDescription}
         />
-        <Link to={`/ops/employees/${id}`} className="mcBtn mcBtnSecondary">
+        <Link to={`/ops/employees/${canonicalId}`} className="mcBtn mcBtnSecondary">
           {t.employeeProfile.title}
         </Link>
-        <Link to={`/ops/employees/${id}/learning`} className="mcBtn mcBtnSecondary">
+        <Link to={`/ops/employees/${canonicalId}/learning`} className="mcBtn mcBtnSecondary">
           {t.learningEngine.openLearning}
         </Link>
       </div>
@@ -95,7 +100,7 @@ export function EmployeeRuntimePage() {
       <Panel title={t.runtimeProviders.executionTitle}>
         <div className="mcProfilePanelBody">
           <RuntimeExecutionPanel
-            employeeId={id}
+            employeeId={canonicalId}
             employeeName={employeeRef.codename}
             defaultModelId={profile.primaryModelId}
             taskType={taskType}

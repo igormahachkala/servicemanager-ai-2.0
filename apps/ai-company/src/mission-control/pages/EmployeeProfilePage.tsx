@@ -14,7 +14,8 @@ import { CurrentWorkPanel, WorkdayTimeline } from '../../components/presence'
 import { usePresence } from '../../hooks/usePresence'
 import { EmployeeRuntime } from '../../components/EmployeeRuntime'
 import { EmployeeLearningPreview } from '../../components/learning/EmployeeLearningPreview'
-import { useCustomEmployees } from '../hooks/useCustomEmployees'
+import { resolveProfileEmployee } from '../data/employeeProfileResolver'
+import { resolveCanonicalEmployeeId } from '../data/employeeIdResolver'
 import { useI18n } from '../../i18n'
 
 type ProfileSection =
@@ -33,14 +34,15 @@ type ProfileSection =
 export function EmployeeProfilePage() {
   const { id } = useParams<{ id: string }>()
   const { t } = useI18n()
-  const { employees } = useCustomEmployees()
   const { getByEmployeeId, getWorkdayEventsForEmployee } = usePresence()
   const [section, setSection] = useState<ProfileSection>('overview')
 
-  const employee = useMemo(
-    () => employees.find((item) => item.id === id) ?? null,
-    [employees, id],
-  )
+  const employee = useMemo(() => {
+    if (!id) return null
+    return resolveProfileEmployee(id)
+  }, [id])
+
+  const canonicalId = id ? resolveCanonicalEmployeeId(id) : null
 
   const sections: ProfileSection[] = [
     'overview',
@@ -103,7 +105,10 @@ export function EmployeeProfilePage() {
         {section === 'runtime' ? <EmployeeRuntime employee={employee} /> : null}
         {section === 'presence' ? (
           <div className="mcProfileGrid">
-            <CurrentWorkPanel presence={getByEmployeeId(employee.id)} employeeId={employee.id} />
+            <CurrentWorkPanel
+              presence={getByEmployeeId(canonicalId ?? employee.id)}
+              employeeId={canonicalId ?? employee.id}
+            />
             <Panel title={t.presence.timeline.title}>
               <p className="acMuted" style={{ marginBottom: 12 }}>
                 {t.presence.timeline.description}

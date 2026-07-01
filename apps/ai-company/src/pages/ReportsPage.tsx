@@ -5,6 +5,7 @@ import { REPORT_TYPES, REPORT_STATUSES } from '../domain/reports/reportTypes'
 import type { ReportFilter } from '../domain/reports/report'
 import { useReports } from '../hooks/useReports'
 import { useI18n } from '../i18n'
+import { EMPLOYEE_ROUTE_IDS } from '../mission-control/data/employeeIdResolver'
 
 export function ReportsPage() {
   const { t } = useI18n()
@@ -24,7 +25,7 @@ export function ReportsPage() {
         <Link to="/ops/notifications?type=report" className="mcBtn mcBtnSecondary">
           {t.notificationEngine.reportInbox}
         </Link>
-        <Link to="/ops/employees/ag-max/learning" className="mcBtn mcBtnSecondary">
+        <Link to={`/ops/employees/${EMPLOYEE_ROUTE_IDS.max}/learning`} className="mcBtn mcBtnSecondary">
           {t.learningEngine.teamLearning}
         </Link>
         <Link to="/ops/collaboration" className="mcBtn mcBtnSecondary">

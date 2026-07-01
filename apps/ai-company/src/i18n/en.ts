@@ -3890,7 +3890,7 @@ export const en = {
     yes: 'Yes',
     no: 'No',
     notFoundTitle: 'Employee not found',
-    notFoundDescription: 'This employee does not exist in local storage or was removed.',
+    notFoundDescription: 'No employee matches this ID. Open the employee list or choose another colleague.',
     noDescription: 'No mission description provided.',
     noSystemPrompt: 'No system prompt configured.',
     noWorkflow: 'No workflow defined.',

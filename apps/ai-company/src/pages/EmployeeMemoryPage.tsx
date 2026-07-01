@@ -8,6 +8,7 @@ import { MemorySearch } from '../components/memory/MemorySearch'
 import { MemoryFilters } from '../components/memory/MemoryFilters'
 import { MemorySummary } from '../components/memory/MemorySummary'
 import { resolveEmployee } from '../mission-control/data/conversation'
+import { resolveCanonicalEmployeeId } from '../mission-control/data/employeeIdResolver'
 import { MEMORY_TYPES } from '../domain/memory/memoryTypes'
 import { MEMORY_IMPORTANCE_LEVELS } from '../domain/memory/memoryImportance'
 import type { MemoryType } from '../domain/memory/memoryTypes'
@@ -16,7 +17,8 @@ import { useMemory } from '../hooks/useMemory'
 import { useI18n } from '../i18n'
 
 export function EmployeeMemoryPage() {
-  const { id: employeeId } = useParams<{ id: string }>()
+  const { id: routeId } = useParams<{ id: string }>()
+  const employeeId = routeId ? resolveCanonicalEmployeeId(routeId) : undefined
   const { t } = useI18n()
   const employee = useMemo(
     () => (employeeId ? resolveEmployee(employeeId) : null),

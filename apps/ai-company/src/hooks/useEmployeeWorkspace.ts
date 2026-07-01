@@ -30,6 +30,7 @@ import type { RuntimeProfile } from '../domain/runtime/runtimeStorage'
 import { loadDeliveryTasks } from '../domain/tasks/taskStorage'
 import type { DeliveryTask } from '../domain/tasks/task'
 import { resolveEmployee } from '../mission-control/data/conversation'
+import { resolveCanonicalEmployeeId } from '../mission-control/data/employeeIdResolver'
 import { agents } from '../mission-control/data/mock'
 import { loadCustomEmployees } from '../mission-control/data/customEmployees'
 
@@ -81,7 +82,8 @@ function chatIncludesEmployee(chat: Chat, employeeId: string): boolean {
   )
 }
 
-function resolveWorkspaceEmployee(employeeId: string): WorkspaceEmployee | null {
+function resolveWorkspaceEmployee(rawEmployeeId: string): WorkspaceEmployee | null {
+  const employeeId = resolveCanonicalEmployeeId(rawEmployeeId)
   const custom = loadCustomEmployees().find((item) => item.id === employeeId)
   if (custom) {
     return {
@@ -108,11 +110,12 @@ function resolveWorkspaceEmployee(employeeId: string): WorkspaceEmployee | null 
   }
 }
 
-function buildSnapshot(employeeId: string): EmployeeWorkspaceSnapshot | null {
+function buildSnapshot(rawEmployeeId: string): EmployeeWorkspaceSnapshot | null {
   initializeCompanyEngine()
   initializePresenceEngine()
 
-  const employee = resolveWorkspaceEmployee(employeeId)
+  const employeeId = resolveCanonicalEmployeeId(rawEmployeeId)
+  const employee = resolveWorkspaceEmployee(rawEmployeeId)
   if (!employee) return null
 
   const profile = getOrCreateRuntimeProfile(employee.id, employee.primaryModel)

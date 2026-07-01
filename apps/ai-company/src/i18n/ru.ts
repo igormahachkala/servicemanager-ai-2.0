@@ -3792,7 +3792,7 @@ export const ru: Messages = {
     yes: "Да",
     no: "Нет",
     notFoundTitle: "Employee не найден",
-    notFoundDescription: "Этот сотрудник отсутствует в local storage или был удалён.",
+    notFoundDescription: "Сотрудник с таким ID не найден. Откройте список сотрудников или выберите другого коллегу.",
     noDescription: "Mission description не указано.",
     noSystemPrompt: "System prompt не настроен.",
     noWorkflow: "Workflow не определён.",

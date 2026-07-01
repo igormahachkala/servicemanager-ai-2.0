@@ -184,29 +184,25 @@ function AgentTable({
             <td>
               <div className="mcRowFlex">
                 <Link
+                  to={`/ops/employees/${a.id}`}
+                  className="mcBtn mcBtnSecondary mcBtnSmall"
+                >
+                  {t.employees.openProfile}
+                </Link>
+                <Link
                   to={`/ops/chats/${encodeURIComponent(`conv:${a.id}`)}`}
                   className="mcBtn mcBtnSecondary mcBtnSmall"
                 >
                   {t.conversations.openConversation}
                 </Link>
-                {isCustom(a.id) ? (
-                  <>
-                    <Link
-                      to={`/ops/employees/${a.id}`}
-                      className="mcBtn mcBtnSecondary mcBtnSmall"
-                    >
-                      {t.employees.openProfile}
-                    </Link>
-                    {onDuplicate ? (
-                      <button
-                        type="button"
-                        className="mcBtn mcBtnSecondary mcBtnSmall"
-                        onClick={() => onDuplicate(a.id)}
-                      >
-                        {t.employees.duplicate}
-                      </button>
-                    ) : null}
-                  </>
+                {isCustom(a.id) && onDuplicate ? (
+                  <button
+                    type="button"
+                    className="mcBtn mcBtnSecondary mcBtnSmall"
+                    onClick={() => onDuplicate(a.id)}
+                  >
+                    {t.employees.duplicate}
+                  </button>
                 ) : null}
               </div>
             </td>

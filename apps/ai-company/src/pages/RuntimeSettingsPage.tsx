@@ -11,6 +11,7 @@ import { useRuntime } from '../hooks/useRuntime'
 import { useRuntimeMonitor } from '../hooks/useRuntimeMonitor'
 import { useRuntimeProfiles } from '../hooks/useRuntimeProfiles'
 import { useI18n } from '../i18n'
+import { EMPLOYEE_ROUTE_IDS } from '../mission-control/data/employeeIdResolver'
 
 export function RuntimeSettingsPage() {
   const { t } = useI18n()
@@ -42,7 +43,7 @@ export function RuntimeSettingsPage() {
           <Link to="/ops/tool-executions" className="mcBtn mcBtnSecondary">
             {t.pages.toolExecutions}
           </Link>
-          <Link to="/ops/employees/ag-max/learning" className="mcBtn mcBtnSecondary">
+          <Link to={`/ops/employees/${EMPLOYEE_ROUTE_IDS.max}/learning`} className="mcBtn mcBtnSecondary">
             {t.learningEngine.teamLearning}
           </Link>
           <Link to="/ops/collaboration" className="mcBtn mcBtnSecondary">

@@ -4,12 +4,13 @@ import { AI_PHOTO_LAB_PROJECT_ID } from '../../domain/projects/aiPhotoLabIds'
 import { AI_PHOTO_LAB_KICKOFF_PATH } from '../../domain/projects/aiPhotoLabKickoff'
 import { AI_PHOTO_LAB_CONTROL_ROOM_PATH } from '../../domain/projects/aiPhotoLabControlRoom'
 import { AI_PHOTO_LAB_SPRINT_PATH } from '../../domain/sprint/sprintStorage'
+import { EMPLOYEE_ROUTE_IDS } from '../../mission-control/data/employeeIdResolver'
 import { Card } from '../layout'
 import { useI18n } from '../../i18n'
 
 const QUICK_LAUNCH = [
-  { id: 'atlas', to: '/ops/employees/ag-cto', labelKey: 'atlas' as const, primary: true },
-  { id: 'max', to: '/ops/employees/ag-max', labelKey: 'max' as const, primary: true },
+  { id: 'atlas', to: `/ops/employees/${EMPLOYEE_ROUTE_IDS.atlas}`, labelKey: 'atlas' as const, primary: true },
+  { id: 'max', to: `/ops/employees/${EMPLOYEE_ROUTE_IDS.max}`, labelKey: 'max' as const, primary: true },
   {
     id: 'canvas',
     to: `/ops/canvas?projectId=${encodeURIComponent(AI_PHOTO_LAB_PROJECT_ID)}`,

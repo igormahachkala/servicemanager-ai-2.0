@@ -1,5 +1,6 @@
 import { agents } from './mock'
 import { loadCustomEmployees } from './customEmployees'
+import { resolveCanonicalEmployeeId } from './employeeIdResolver'
 
 export const OWNER_ID = 'owner'
 
@@ -120,7 +121,9 @@ function parseConversation(value: unknown): Conversation | null {
 }
 
 export function resolveEmployee(employeeId: string): EmployeeRef | null {
-  const agent = agents.find((item) => item.id === employeeId)
+  const canonicalId = resolveCanonicalEmployeeId(employeeId)
+
+  const agent = agents.find((item) => item.id === canonicalId)
   if (agent) {
     return {
       id: agent.id,
@@ -131,7 +134,9 @@ export function resolveEmployee(employeeId: string): EmployeeRef | null {
     }
   }
 
-  const custom = loadCustomEmployees().find((item) => item.id === employeeId)
+  const custom =
+    loadCustomEmployees().find((item) => item.id === canonicalId) ??
+    loadCustomEmployees().find((item) => item.id === employeeId.trim())
   if (custom) {
     return {
       id: custom.id,

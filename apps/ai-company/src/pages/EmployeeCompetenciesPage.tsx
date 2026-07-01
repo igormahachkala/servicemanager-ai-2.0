@@ -9,6 +9,7 @@ import { LearningPathCard } from '../components/competencies/LearningPathCard'
 import { ReputationCard } from '../components/competencies/ReputationCard'
 import { SkillMatrix } from '../components/competencies/SkillMatrix'
 import { resolveEmployee } from '../mission-control/data/conversation'
+import { resolveCanonicalEmployeeId } from '../mission-control/data/employeeIdResolver'
 import type { ExperienceEventType, ExperienceImpact } from '../domain/competencies/experienceEvent'
 import { useCompetencies } from '../hooks/useCompetencies'
 import { useExperience } from '../hooks/useExperience'
@@ -19,7 +20,8 @@ const EVENT_TYPES: ExperienceEventType[] = ['task', 'report', 'workspace', 'trai
 const IMPACTS: ExperienceImpact[] = ['low', 'medium', 'high']
 
 export function EmployeeCompetenciesPage() {
-  const { id: employeeId } = useParams<{ id: string }>()
+  const { id: routeId } = useParams<{ id: string }>()
+  const employeeId = routeId ? resolveCanonicalEmployeeId(routeId) : undefined
   const { t } = useI18n()
   const employee = useMemo(
     () => (employeeId ? resolveEmployee(employeeId) : null),
