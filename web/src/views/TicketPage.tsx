@@ -7,7 +7,6 @@ import {
   clientTicketLifecycleHintText,
   shouldShowClientTicketLifecycleHint,
 } from '../lib/ticketClientGuidance'
-import { CategoryGuidancePanel } from '../components/CategoryGuidancePanel'
 import { TicketAttachments } from './ticket-page/TicketAttachments'
 import { TicketHeader } from './ticket-page/TicketHeader'
 import {
@@ -17,10 +16,15 @@ import {
 import { pushToast } from '../lib/appToast'
 import { logTicketActionError, mapTicketActionError } from '../lib/ticketOperationalErrors'
 import { computePrimaryTicketAction } from '../lib/ticketOperationalModel'
-import { TicketActionBar } from '../components/ticket-page/TicketActionBar'
 import { TicketChatPanel } from '../components/ticket-page/TicketChatPanel'
 import { toChatMessages } from '../lib/ticketChat'
 import { resolveAdminProfile } from '../lib/resolveAdminProfile'
+import {
+  TicketActionsPanel,
+  TicketContextPanel,
+  TicketSlaPanel,
+  TicketSummaryPanel,
+} from '../components/ticket-card-v2'
 
 const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024
 
@@ -55,12 +59,6 @@ function statusLabel(status: api.TicketStatus) {
   if (status === 'DONE') return 'Завершена'
   if (status === 'CANCELED') return 'Отменена'
   return status
-}
-
-function urgencyLabel(urgency: api.TicketUrgency) {
-  if (urgency === 'URGENT') return 'Срочно'
-  if (urgency === 'NOT_URGENT') return 'Не срочно'
-  return urgency
 }
 
 function sourceLabel(source: api.TimelineItem['source']) {
@@ -123,30 +121,6 @@ function StatusPill({ status }: { status: api.TicketStatus }) {
   if (status === 'CANCELED') Object.assign(style, { background: '#f3f4f6', borderColor: '#e5e7eb', color: '#6b7280' })
 
   return <span className="uiStatusBadge" style={style}>{statusLabel(status)}</span>
-}
-
-function SlaSignal({ hasSla, isBreached, isAtRisk }: { hasSla: boolean; isBreached: boolean; isAtRisk: boolean }) {
-  const baseStyle: Record<string, string | number> = {
-    borderRadius: 999,
-    padding: '6px 10px',
-    fontSize: 12,
-    fontWeight: 700,
-    border: '1px solid #d1d5db',
-    background: '#f3f4f6',
-    color: '#374151',
-    display: 'inline-flex',
-    alignItems: 'center',
-  }
-  if (!hasSla) {
-    return <span style={baseStyle}>SLA не задан</span>
-  }
-  if (isBreached) {
-    return <span style={{ ...baseStyle, borderColor: '#fecdd3', background: '#fff1f2', color: '#9f1239' }}>SLA просрочен</span>
-  }
-  if (isAtRisk) {
-    return <span style={{ ...baseStyle, borderColor: '#fde68a', background: '#fffbeb', color: '#92400e' }}>SLA близко</span>
-  }
-  return <span style={{ ...baseStyle, background: '#f9fafb' }}>SLA в норме</span>
 }
 
 function Skeleton({ w, h }: { w: number | string; h: number }) {
@@ -1098,46 +1072,14 @@ export function TicketPage() {
         </div>
       ) : null}
 
-      {ticket ? (
-        <div className="panel" style={{ marginBottom: 12 }}>
-          <h3 style={{ marginBottom: 10 }}>Кратко по заявке</h3>
-          <div className="fieldHint" style={{ marginBottom: 8 }}>
-            Срочность влияет на SLA-ожидания ответа (сроки на карточке и уведомления). Приоритет обычно задаётся при создании заявки.
-          </div>
-          <div style={{ display: 'grid', gap: 8 }}>
-            <div><b>Категория:</b> {ticket.problemCategory?.name || '—'}</div>
-            {shouldShowClientTicketLifecycleHint(meQ.data, ticket) && ticket.problemCategory?.name ? (
-              <CategoryGuidancePanel categoryName={ticket.problemCategory.name} variant="desktop" />
-            ) : null}
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <b>Статус:</b> <StatusPill status={ticket.status} />
-            </div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <b>Приоритет:</b>
-              <span
-                className="tag"
-                style={
-                  ticket.urgency === 'URGENT'
-                    ? { background: '#fff1f2', borderColor: '#fecdd3', color: '#9f1239', fontWeight: 700 }
-                    : { background: '#f3f4f6', borderColor: '#e5e7eb', color: '#374151', fontWeight: 700 }
-                }
-              >
-                {urgencyLabel(ticket.urgency)}
-              </span>
-              <SlaSignal hasSla={slaState.hasSla} isBreached={slaState.isBreached} isAtRisk={slaState.isAtRisk} />
-              {ticket.slaDueAt ? <span className="muted small">срок {fmt(ticket.slaDueAt)}</span> : null}
-            </div>
-            <div>
-              <b>Локация:</b>{' '}
-              {ticket.location
-                ? [ticket.location.name, ticket.location.city, ticket.location.address].filter(Boolean).join(' · ')
-                : '—'}
-            </div>
-            <div><b>Описание:</b> {shortProblemText || '—'}</div>
-            <div className="muted small"><b>Создана:</b> {fmt(ticket.createdAt)}</div>
-          </div>
-        </div>
-      ) : null}
+      <TicketSummaryPanel
+        ticket={ticket ?? null}
+        shortProblemText={shortProblemText}
+        showLifecycleHint={shouldShowClientTicketLifecycleHint(meQ.data, ticket)}
+        statusNode={<StatusPill status={ticket?.status || 'NEW'} />}
+      />
+
+      <TicketSlaPanel ticket={ticket ?? null} slaState={slaState} />
 
       {isAwaitingAcceptanceClient && ticket ? (
         <div className="panel uiCard" style={{ marginBottom: 12, borderColor: '#fdba74', background: '#fff7ed' }}>
@@ -1190,7 +1132,7 @@ export function TicketPage() {
         </div>
       ) : null}
 
-      {showTechnicianActionBar && ticket ? (
+      {ticket ? (
         <>
           <input
             ref={operationalFileInputRef}
@@ -1199,14 +1141,16 @@ export function TicketPage() {
             style={{ display: 'none' }}
             onChange={handleOperationalPhotoPick}
           />
-          <TicketActionBar
+          <TicketActionsPanel
+            showTechnicianActionBar={showTechnicianActionBar}
+            ticket={ticket}
             backToBoardHref={backToBoardHref}
             primaryAction={primaryAction}
             canClaim={canClaim}
             canChangeStatus={canChangeStatus && ticket.status !== 'AWAITING_ACCEPTANCE'}
             canTransitionTo={canTransitionTo}
-            showCancel={showCancelInTechnicianBar}
-            closeHint={technicianBarCloseHint}
+            showCancelInTechnicianBar={showCancelInTechnicianBar}
+            technicianBarCloseHint={technicianBarCloseHint}
             claimPending={claimM.isPending}
             statusPending={statusM.isPending}
             newComment={newComment}
@@ -1221,105 +1165,22 @@ export function TicketPage() {
             claimError={claimError}
             statusError={statusError}
             onOpenSubmitForm={canSubmitToAcceptance ? () => setShowSubmitToAcceptanceForm(true) : undefined}
+            showSelfAssign={showSelfAssign}
+            selfAssignPending={selfAssignM.isPending}
+            onSelfAssign={() => selfAssignM.mutate()}
+            canEditTicket={canEditTicket}
+            editOpen={editOpen}
+            onToggleEdit={() => setEditOpen((value) => !value)}
+            canCreateChildTicket={canCreateChildTicket}
+            showChildCreateForm={showChildCreateForm}
+            onToggleChildCreateForm={() => {
+              setShowChildCreateForm((value) => !value)
+              setChildCreateError(null)
+            }}
+            isTechnicianRole={isTechnicianRole}
+            onShowSubmitForm={() => setShowSubmitToAcceptanceForm(true)}
           />
         </>
-      ) : ticket ? (
-        <div className="panel" style={{ marginBottom: 12 }}>
-          <h3 style={{ marginBottom: 10 }}>Действия</h3>
-          {showSelfAssign ? (
-            <div style={{ marginBottom: 8 }}>
-              <button
-                onClick={() => selfAssignM.mutate()}
-                disabled={selfAssignM.isPending}
-                style={{ width: '100%' }}
-              >
-                {selfAssignM.isPending ? 'Берём заявку…' : 'Взять заявку себе'}
-              </button>
-            </div>
-          ) : null}
-          {primaryAction ? (
-            <div style={{ marginBottom: 8 }}>
-              {primaryAction.kind === 'claim' ? (
-                <button
-                  onClick={() => claimM.mutate()}
-                  disabled={claimM.isPending}
-                  style={{ width: '100%' }}
-                >
-                  {claimM.isPending ? 'Сохраняем…' : primaryAction.label}
-                </button>
-              ) : null}
-              {primaryAction.kind === 'in_progress' ? (
-                <button
-                  onClick={() => statusM.mutate({ status: 'IN_PROGRESS' })}
-                  disabled={statusM.isPending || !canTransitionTo('IN_PROGRESS')}
-                  style={{ width: '100%' }}
-                >
-                  {statusM.isPending ? 'Сохраняем…' : primaryAction.label}
-                </button>
-              ) : null}
-              {primaryAction.kind === 'done' ? (
-                <button
-                  onClick={() => setShowSubmitToAcceptanceForm(true)}
-                  disabled={!canTransitionTo('AWAITING_ACCEPTANCE')}
-                  style={{ width: '100%' }}
-                >
-                  {primaryAction.label}
-                </button>
-              ) : null}
-            </div>
-          ) : null}
-
-          <div className="uiActions">
-            <a href={backToBoardHref} style={{ textDecoration: 'none' }}>
-              <button className="ghost">← Назад к доске</button>
-            </a>
-            {canEditTicket && !isTechnicianRole ? (
-              <button className="ghost" onClick={() => setEditOpen((value) => !value)}>
-                {editOpen ? 'Скрыть редактирование' : 'Редактировать заявку'}
-              </button>
-            ) : null}
-            {canClaim && primaryAction?.kind !== 'claim' ? (
-              <button className="ghost" onClick={() => claimM.mutate()} disabled={claimM.isPending}>
-                {claimM.isPending ? 'Забираем…' : 'Взять заявку'}
-              </button>
-            ) : null}
-            {canChangeStatus ? (
-              <>
-                {primaryAction?.kind !== 'in_progress' && ticket.status !== 'AWAITING_ACCEPTANCE' ? (
-                  <button className="ghost" disabled={statusM.isPending || !canTransitionTo('IN_PROGRESS')} onClick={() => statusM.mutate({ status: 'IN_PROGRESS' })}>
-                    {statusM.isPending ? 'Сохраняем…' : 'В работу'}
-                  </button>
-                ) : null}
-                {primaryAction?.kind !== 'done' && canTransitionTo('AWAITING_ACCEPTANCE') ? (
-                  <button
-                    className="ghost"
-                    onClick={() => setShowSubmitToAcceptanceForm(true)}
-                  >
-                    Отправить на приёмку
-                  </button>
-                ) : null}
-                {!isTechnicianRole ? (
-                  <button className="ghost" disabled={statusM.isPending || !canTransitionTo('CANCELED')} onClick={() => statusM.mutate({ status: 'CANCELED' })}>
-                    {statusM.isPending ? 'Сохраняем…' : 'Отменить'}
-                  </button>
-                ) : null}
-              </>
-            ) : null}
-            {canCreateChildTicket && !isTechnicianRole ? (
-              <button
-                className="ghost"
-                onClick={() => {
-                  setShowChildCreateForm((value) => !value)
-                  setChildCreateError(null)
-                }}
-                disabled={createChildM.isPending}
-              >
-                {showChildCreateForm ? 'Скрыть доп. работу' : '+ Ещё работа по этой точке'}
-              </button>
-            ) : null}
-          </div>
-          <InlineError message={statusError} />
-        </div>
       ) : null}
 
       {canSubmitToAcceptance && showSubmitToAcceptanceForm ? (
@@ -1701,73 +1562,7 @@ export function TicketPage() {
 
       {ticket ? (
         <>
-          <div className="panel uiCard" style={{ marginBottom: 12 }}>
-            <h3 style={{ marginBottom: 10 }}>Дополнительно</h3>
-            <div style={{ display: 'grid', gap: 8 }}>
-              <details open>
-                <summary style={{ cursor: 'pointer', fontWeight: 700 }}>Детали</summary>
-                <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
-                  <div><b>Категория:</b> {ticket.problemCategory?.name || '—'}</div>
-                  <div><b>Срочность:</b> {urgencyLabel(ticket.urgency)}</div>
-                  <div><b>SLA статус:</b> {slaState.isBreached ? 'Нарушен' : slaState.isAtRisk ? 'В риске' : ticket.slaDueAt ? 'В норме' : 'Не задан'}</div>
-                  <div>
-                    <b>Описание проблемы:</b>
-                    <div style={{ marginTop: 6, whiteSpace: 'pre-wrap' }}>{ticket.problemText || '—'}</div>
-                  </div>
-                </div>
-              </details>
-
-              <details>
-                <summary style={{ cursor: 'pointer', fontWeight: 700 }}>Заявитель / контакт</summary>
-                <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
-                  <div><b>Заявитель:</b> {ticket.requesterName || '—'}</div>
-                  <div><b>Телефон:</b> {ticket.requesterPhone || '—'}</div>
-                  <div><b>Точка:</b> {ticket.pointName || '—'}</div>
-                  <div><b>Адрес:</b> {ticket.address || '—'}</div>
-                </div>
-              </details>
-
-              <details>
-                <summary style={{ cursor: 'pointer', fontWeight: 700 }}>Оборудование / локация</summary>
-                <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
-                  <div>
-                    <b>Локация:</b>{' '}
-                    {ticket.location
-                      ? [ticket.location.name, ticket.location.city, ticket.location.address].filter(Boolean).join(' · ')
-                      : '—'}
-                  </div>
-                  <div>
-                    <b>Оборудование / Asset:</b>{' '}
-                    {ticket.equipment
-                      ? [ticket.equipment.name, ticket.equipment.type, ticket.equipment.status].filter(Boolean).join(' · ')
-                      : '—'}
-                  </div>
-                </div>
-              </details>
-
-              <details>
-                <summary style={{ cursor: 'pointer', fontWeight: 700 }}>Extra info</summary>
-                <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
-                  {ticket.location?.platformCode || ticket.location?.externalCode ? (
-                    <div className="muted small">
-                      {ticket.location?.platformCode ? `platformCode: ${ticket.location.platformCode}` : ''}
-                      {ticket.location?.platformCode && ticket.location?.externalCode ? ' · ' : ''}
-                      {ticket.location?.externalCode ? `externalCode: ${ticket.location.externalCode}` : ''}
-                    </div>
-                  ) : (
-                    <div className="muted small">Коды локации не заданы</div>
-                  )}
-                  <div><b>Назначен:</b> {ticket.assignedTechnician?.email || '—'}</div>
-                  {ticket.problemCategory?.instructions ? (
-                    <div>
-                      <b>Инструкции категории:</b>
-                      <div style={{ marginTop: 6, whiteSpace: 'pre-wrap' }}>{ticket.problemCategory.instructions}</div>
-                    </div>
-                  ) : null}
-                </div>
-              </details>
-            </div>
-          </div>
+          <TicketContextPanel ticket={ticket} />
 
           <TicketAttachments
             title="Фото заявки"
