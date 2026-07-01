@@ -20,13 +20,14 @@ import { computePrimaryTicketAction } from '../lib/ticketOperationalModel'
 import { TicketActionBar } from '../components/ticket-page/TicketActionBar'
 import { TicketChatPanel } from '../components/ticket-page/TicketChatPanel'
 import { toChatMessages } from '../lib/ticketChat'
+import { resolveAdminProfile } from '../lib/resolveAdminProfile'
 
 const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024
 
-const MANAGEMENT_ROLES: api.Role[] = ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR']
+const MANAGEMENT_ROLES: api.Role[] = ['ADMIN', 'ADMIN_PROVIDER', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR']
 // SMA-ACCEPTANCE-ROLE-GAP-001: CLIENT requester can create/comment/photo but cannot edit.
 const EDIT_ROLES: api.Role[] = ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR', 'TERRITORIAL_MANAGER']
-const STATUS_CHANGE_ROLES: api.Role[] = ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR', 'TECHNICIAN']
+const STATUS_CHANGE_ROLES: api.Role[] = ['ADMIN', 'ADMIN_PROVIDER', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR', 'TECHNICIAN']
 const PHOTO_ROLES: api.Role[] = ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR', 'TECHNICIAN', 'CLIENT', 'TERRITORIAL_MANAGER']
 const CHILD_CREATE_ROLES: api.Role[] = ['ADMIN', 'MASTER', 'DISPATCHER']
 
@@ -92,6 +93,12 @@ function roleCanUploadPhoto(role?: api.Role | null) {
 
 function roleCanCreateChildTicket(role?: api.Role | null) {
   return !!role && CHILD_CREATE_ROLES.includes(role)
+}
+
+function canUseAdminManagementActions(profile?: ReturnType<typeof resolveAdminProfile> | null) {
+  if (!profile) return false
+  if (profile.backendRole !== 'ADMIN') return false
+  return profile.profile !== 'CLIENT_ADMIN'
 }
 
 function StatusPill({ status }: { status: api.TicketStatus }) {
@@ -348,6 +355,14 @@ export function TicketPage() {
   })
 
   const role = meQ.data?.role
+  const adminProfile = useMemo(
+    () =>
+      resolveAdminProfile({
+        role,
+        companyType: ownCompanyQ.data?.type ?? null,
+      }),
+    [role, ownCompanyQ.data?.type],
+  )
   const isClientRole = role === 'CLIENT'
   const readOnlyByVisibilityMode = contextMode === 'observer'
   const canMutateTicket = !readOnlyByVisibilityMode && !(isClientRole && contextMode !== 'tenant')
@@ -370,8 +385,13 @@ export function TicketPage() {
     enabled: !!(editLocationId || ticketQ.data?.location?.id) && roleCanEdit(meQ.data?.role) && editOpen,
   })
 
-  const canAssign = executorActionsAllowed && !isClientRole && roleCanAssign(role)
-  const canChangeStatus = executorActionsAllowed && roleCanChangeStatus(role)
+  const canAssign =
+    executorActionsAllowed &&
+    !isClientRole &&
+    (role === 'ADMIN' ? canUseAdminManagementActions(adminProfile) : roleCanAssign(role))
+  const canChangeStatus =
+    executorActionsAllowed &&
+    (role === 'ADMIN' ? canUseAdminManagementActions(adminProfile) : roleCanChangeStatus(role))
   const canUploadPhoto = canMutateTicket && roleCanUploadPhoto(role)
   const canDeletePhoto = canMutateTicket && roleCanUploadPhoto(role)
   const canCreateChildTicket = canMutateTicket && roleCanCreateChildTicket(role)
