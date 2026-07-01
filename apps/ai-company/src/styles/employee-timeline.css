@@ -1,0 +1,228 @@
+/* Employee Living Timeline — profile page */
+
+.acEmployeeTimeline {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.acEmployeeTimelineHead {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.acEmployeeTimelineTitle {
+  margin: 0 0 4px;
+  font-size: 16px;
+}
+
+.acEmployeeTimelineDescription {
+  margin: 0;
+  color: var(--mc-muted);
+  font-size: 13px;
+  max-width: 640px;
+}
+
+.acEmployeeTimelineFilters {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.acEmployeeTimelineFilter {
+  border: 1px solid var(--mc-border);
+  background: transparent;
+  color: inherit;
+  border-radius: var(--mc-radius);
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.acEmployeeTimelineFilterActive {
+  border-color: rgba(59, 130, 246, 0.55);
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.acEmployeeTimelineSummary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.acEmployeeTimelineSummaryItem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius);
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.acEmployeeTimelineSummaryValue {
+  font-size: 20px;
+  font-weight: 700;
+  font-family: var(--mc-mono, ui-monospace, monospace);
+}
+
+.acEmployeeTimelineSummaryLabel {
+  font-size: 12px;
+  color: var(--mc-muted);
+}
+
+.acEmployeeTimelineTable {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.acEmployeeTimelineHeader {
+  display: grid;
+  grid-template-columns: 120px 180px 160px 1fr;
+  gap: 12px;
+  padding: 0 10px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--mc-muted);
+}
+
+.acEmployeeTimelineList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.acEmployeeTimelineItem {
+  display: grid;
+  grid-template-columns: 120px 180px 160px 1fr;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius);
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.acEmployeeTimelineCell {
+  min-width: 0;
+}
+
+.acEmployeeTimelineCellEvent {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.acEmployeeTimelineKind {
+  display: inline-flex;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid var(--mc-border);
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.acEmployeeTimelineKindRuntimeCompleted,
+.acEmployeeTimelineKindTaskApproved {
+  border-color: rgba(34, 197, 94, 0.45);
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.acEmployeeTimelineKindMemoryEvolved,
+.acEmployeeTimelineKindKnowledgeLearned {
+  border-color: rgba(168, 85, 247, 0.45);
+  background: rgba(168, 85, 247, 0.1);
+}
+
+.acEmployeeTimelineKindHandoffCreated,
+.acEmployeeTimelineKindQaPassed,
+.acEmployeeTimelineKindOwnerApproval,
+.acEmployeeTimelineKindProductionApproved {
+  border-color: rgba(245, 158, 11, 0.45);
+  background: rgba(245, 158, 11, 0.1);
+}
+
+.acEmployeeTimelineSeverityBadge {
+  display: inline-flex;
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.acEmployeeTimelineSeverityInfo {
+  background: rgba(59, 130, 246, 0.12);
+  color: #93c5fd;
+}
+
+.acEmployeeTimelineSeveritySuccess {
+  background: rgba(34, 197, 94, 0.12);
+  color: #86efac;
+}
+
+.acEmployeeTimelineSeverityWarn {
+  background: rgba(245, 158, 11, 0.12);
+  color: #fcd34d;
+}
+
+.acEmployeeTimelineSeverityError {
+  background: rgba(239, 68, 68, 0.12);
+  color: #fca5a5;
+}
+
+.acEmployeeTimelineDescription {
+  margin: 0 0 6px;
+  font-size: 13px;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.acEmployeeTimelineOpenLink {
+  font-size: 12px;
+}
+
+.acEmployeeTimelineEmpty {
+  margin: 0;
+  padding: 12px;
+}
+
+.acEmployeeTimelineCompact .acEmployeeTimelineTitle {
+  font-size: 14px;
+}
+
+.acEmployeeTimelineCompact .acEmployeeTimelineHeader,
+.acEmployeeTimelineCompact .acEmployeeTimelineItem {
+  grid-template-columns: 96px 1fr 120px;
+}
+
+.acEmployeeTimelineCompact .acEmployeeTimelineHeader span:last-child,
+.acEmployeeTimelineCompact .acEmployeeTimelineCellDescription {
+  display: none;
+}
+
+@media (max-width: 960px) {
+  .acEmployeeTimelineSummary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .acEmployeeTimelineHeader {
+    display: none;
+  }
+
+  .acEmployeeTimelineItem {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .acEmployeeTimelineCompact .acEmployeeTimelineCellDescription {
+    display: block;
+  }
+}

@@ -1694,6 +1694,24 @@ export const ru: Messages = {
       recommendations: "Рекомендации",
       evidence: "Подтверждение"
     },
+    runtimeReport: {
+      ownerDecisionNo: "Нет",
+      sections: {
+        briefSummary: "Краткий итог",
+        checked: "Что проверено",
+        found: "Что найдено",
+        risks: "Риски",
+        recommendations: "Рекомендации",
+        nextStep: "Следующий шаг",
+        ownerDecisionRequired: "Требуется решение Owner"
+      },
+      severity: {
+        critical: "Критический",
+        high: "Высокий",
+        medium: "Средний",
+        low: "Низкий"
+      }
+    },
     evidenceKinds: {
       link: "Ссылка",
       artifact: "Артефакт",
@@ -2637,8 +2655,7 @@ export const ru: Messages = {
   },
   runtimePromptBuilder: {
     empty: "Не удалось собрать превью prompt — выберите сотрудника и введите prompt.",
-    explicitOverrideNote:
-      "Режим явного prompt: задача Owner оборачивается политикой языка и идентичностью сотрудника перед execution.",
+    explicitOverrideNote: "Режим явного prompt: финальный prompt отправляется как есть, без неявной сборки.",
     outputLanguage: "Язык ответа",
     outputLanguages: {
       ru: "Русский (по умолчанию)",
@@ -3801,8 +3818,47 @@ export const ru: Messages = {
     noSkillsHint: "Добавляйте навыки при создании или редактировании сотрудника.",
     noMemoryScope: "Memory scope не настроен",
     noMemoryScopeHint: "Memory domains появятся здесь после назначения.",
+    passport: {
+      whoTitle: "Кто это",
+      name: "Имя",
+      role: "Роль",
+      workTitle: "Чем занимается",
+      responsibilities: "Основные обязанности",
+      capabilities: "Возможности",
+      boundaries: "Что НЕ делает",
+      aiStackTitle: "AI Stack",
+      primaryModel: "Основная модель",
+      runtimeProvider: "Runtime provider",
+      active: "активен",
+      backupModels: "Backup models",
+      toolAccess: "Tool access",
+      decisionTitle: "Decision Authority",
+      autonomous: "Может сам",
+      ownerRequired: "Требует Owner",
+      showPrompt: "Показать",
+      hidePrompt: "Скрыть",
+      copyPrompt: "Скопировать",
+      copied: "Скопировано",
+      copyFailed: "Не удалось скопировать",
+      experienceTitle: "Опыт",
+      xp: "XP",
+      lessonsLearned: "Lessons learned",
+      knowledge: "База знаний",
+      memory: "Память",
+      authorityItems: {
+        write_code: "писать код",
+        run_runtime: "запускать runtime",
+        create_handoff: "создавать handoff",
+        production: "Production",
+        git_push: "Git push",
+        merge: "Merge",
+        deployment: "Deployment",
+        cloud_execution: "Cloud execution"
+      }
+    },
     sections: {
       overview: "Обзор",
+      timeline: "Timeline",
       skills: "Навыки",
       permissions: "Разрешения",
       memory: "Память",
@@ -3833,6 +3889,40 @@ export const ru: Messages = {
       relationshipsDesc: "Peers, managers, collaborators и reporting lines.",
       activityFeed: "Лента активности",
       activityFeedDesc: "Недавние действия, task transitions и operational events."
+    }
+  },
+  employeeTimelineEngine: {
+    title: "Living Timeline",
+    description: "История жизни digital employee — выполненная работа, полученные знания, approvals и handoffs в одном потоке.",
+    filtersLabel: "Период timeline",
+    filters: {
+      today: "Сегодня",
+      week: "Неделя",
+      all: "Все"
+    },
+    columns: {
+      time: "Время",
+      event: "Событие",
+      project: "Проект",
+      description: "Описание"
+    },
+    summary: {
+      runtimeCompleted: "Runs завершено",
+      tasksApproved: "Tasks approved",
+      knowledgeLearned: "Knowledge изучено",
+      memoryEvolved: "Memory evolved"
+    },
+    openSource: "Открыть источник",
+    empty: "Нет активности за этот период — завершите runtime run или одобрите task result, чтобы заполнить историю.",
+    kinds: {
+      runtime_completed: "Runtime completed",
+      task_approved: "Task approved",
+      knowledge_learned: "Knowledge изучен",
+      memory_evolved: "Memory evolved",
+      handoff_created: "Handoff создан",
+      qa_passed: "QA passed",
+      owner_approval: "Approval Owner",
+      production_approved: "Production approved"
     }
   },
   livingCompany: {

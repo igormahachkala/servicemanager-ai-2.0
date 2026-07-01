@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { PageHeader, Panel } from '../components/ui'
 import { EmployeeHeader } from '../components/EmployeeHeader'
-import { EmployeeOverview } from '../components/EmployeeOverview'
+import { EmployeeIdentityPassport } from '../components/EmployeeIdentityPassport'
 import { EmployeeSkills } from '../components/EmployeeSkills'
 import { EmployeePermissions } from '../components/EmployeePermissions'
 import { EmployeeMemory } from '../components/EmployeeMemory'
@@ -14,12 +14,14 @@ import { CurrentWorkPanel, WorkdayTimeline } from '../../components/presence'
 import { usePresence } from '../../hooks/usePresence'
 import { EmployeeRuntime } from '../../components/EmployeeRuntime'
 import { EmployeeLearningPreview } from '../../components/learning/EmployeeLearningPreview'
+import { EmployeeLivingTimeline } from '../../components/employee-timeline'
 import { resolveProfileEmployee } from '../data/employeeProfileResolver'
 import { resolveCanonicalEmployeeId } from '../data/employeeIdResolver'
 import { useI18n } from '../../i18n'
 
 type ProfileSection =
   | 'overview'
+  | 'timeline'
   | 'skills'
   | 'permissions'
   | 'memory'
@@ -46,6 +48,7 @@ export function EmployeeProfilePage() {
 
   const sections: ProfileSection[] = [
     'overview',
+    'timeline',
     'skills',
     'permissions',
     'memory',
@@ -80,6 +83,12 @@ export function EmployeeProfilePage() {
     <div className="mcProfilePage">
       <EmployeeHeader employee={employee} />
 
+      <Panel title={t.employeeTimelineEngine.title}>
+        <div className="mcProfilePanelBody">
+          <EmployeeLivingTimeline employeeId={employee.id} compact />
+        </div>
+      </Panel>
+
       <nav className="mcProfileNav" aria-label={t.employeeProfile.navLabel}>
         {sections.map((key) => (
           <button
@@ -94,7 +103,9 @@ export function EmployeeProfilePage() {
       </nav>
 
       <div className="mcProfileContent">
-        {section === 'overview' ? <EmployeeOverview employee={employee} /> : null}
+        {section === 'overview' ? <EmployeeIdentityPassport employee={employee} /> : null}
+        {section === 'timeline' ? <EmployeeLivingTimeline employeeId={employee.id} /> : null}
+        {section === 'timeline' ? <EmployeeLivingTimeline employeeId={employee.id} /> : null}
         {section === 'skills' ? <EmployeeSkills employee={employee} /> : null}
         {section === 'permissions' ? <EmployeePermissions employee={employee} /> : null}
         {section === 'memory' ? <EmployeeMemory employee={employee} /> : null}
