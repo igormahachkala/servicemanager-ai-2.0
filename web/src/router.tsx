@@ -25,6 +25,7 @@ import { ServiceContractsPage } from './views/ServiceContractsPage'
 import { InspectionTemplatesPage } from './views/InspectionTemplatesPage'
 import { EngineeringAgentPage } from './views/EngineeringAgentPage'
 import { IT_COMPANY_ROUTES } from './it-company'
+import { DashboardPage } from './views/DashboardPage'
 import { InspectionRunsPage } from './views/InspectionRunsPage'
 import { InspectionRunPage } from './views/InspectionRunPage'
 import { InspectionRunReportPage } from './views/InspectionRunReportPage'
@@ -149,7 +150,7 @@ export function AppRoutes() {
           </RequireAuth>
         }
       >
-        <Route path="dashboard" element={<ManagementV2StubPage />} />
+        <Route path="dashboard" element={<DashboardPage />} />
         <Route path="board" element={<BoardPage />} />
         <Route path="archive" element={<ArchivePage />} />
         <Route path="tickets" element={<BoardPage />} />
