@@ -7,7 +7,6 @@ import {
   clientTicketLifecycleHintText,
   shouldShowClientTicketLifecycleHint,
 } from '../lib/ticketClientGuidance'
-import { TicketAttachments } from './ticket-page/TicketAttachments'
 import { TicketHeader } from './ticket-page/TicketHeader'
 import {
   sanitizeBoardNavigationContext,
@@ -16,14 +15,16 @@ import {
 import { pushToast } from '../lib/appToast'
 import { logTicketActionError, mapTicketActionError } from '../lib/ticketOperationalErrors'
 import { computePrimaryTicketAction } from '../lib/ticketOperationalModel'
-import { TicketChatPanel } from '../components/ticket-page/TicketChatPanel'
 import { toChatMessages } from '../lib/ticketChat'
 import { resolveAdminProfile } from '../lib/resolveAdminProfile'
 import {
   TicketActionsPanel,
+  TicketChatPanel,
   TicketContextPanel,
+  TicketPhotosPanel,
   TicketSlaPanel,
   TicketSummaryPanel,
+  TicketTimelinePanel,
 } from '../components/ticket-card-v2'
 
 const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024
@@ -1564,28 +1565,12 @@ export function TicketPage() {
         <>
           <TicketContextPanel ticket={ticket} />
 
-          <TicketAttachments
-            title="Фото заявки"
-            emptyText="Нет фото заявки"
+          <TicketPhotosPanel
             loading={attachmentsQ.isLoading}
             isError={attachmentsQ.isError}
             error={attachmentsQ.error}
-            data={requestAttachments}
-            canDeletePhoto={canDeletePhoto}
-            deletePending={deleteAttachmentM.isPending}
-            onDelete={(attachmentId) => deleteAttachmentM.mutate(attachmentId)}
-            deleteAttachmentError={deleteAttachmentError}
-            fmt={fmt}
-            fmtBytes={fmtBytes}
-          />
-
-          <TicketAttachments
-            title="Отчёт техника"
-            emptyText="Нет фото отчёта"
-            loading={attachmentsQ.isLoading}
-            isError={attachmentsQ.isError}
-            error={attachmentsQ.error}
-            data={workReportAttachments}
+            requestAttachments={requestAttachments}
+            workReportAttachments={workReportAttachments}
             canDeletePhoto={canDeletePhoto}
             deletePending={deleteAttachmentM.isPending}
             onDelete={(attachmentId) => deleteAttachmentM.mutate(attachmentId)}
@@ -1633,52 +1618,18 @@ export function TicketPage() {
             }}
           />
 
-          <div className="panel uiCard" style={{ marginBottom: 12 }}>
-            <h3 style={{ marginBottom: 10 }}>История</h3>
-            {timelineQ.isLoading ? (
-              <div style={{ display: 'grid', gap: 8 }}>
-                <Skeleton w={320} h={16} />
-                <Skeleton w={360} h={16} />
-                <Skeleton w={300} h={16} />
-              </div>
-            ) : timelineQ.isError ? (
-              <div className="alert">{(timelineQ.error as any)?.message || String(timelineQ.error)}</div>
-            ) : timelineItems.length ? (
-              <div style={{ display: 'grid', gap: 10 }}>
-                {timelinePreviewItems.map((item, idx) => (
-                  <div key={`${item.at}-${item.type}-${idx}`} style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 12, display: 'grid', gap: 6 }}>
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                      <b>{item.title}</b>
-                      <Tag>{sourceLabel(item.source)}</Tag>
-                      <Tag>{timelineTypeLabel(item.type || item.domainType || item.timelineEvent || 'event')}</Tag>
-                    </div>
-                    <div className="muted small">{fmt(item.at)} · {item.actor?.email || 'система'}</div>
-                    {String(item.type || item.timelineEvent || '').toLowerCase().includes('assign') ? (
-                      <div className="muted small">
-                        Система назначила исполнителя. Причина: {mapReason(String(item.payload?.reason || 'решение системы'))}
-                      </div>
-                    ) : null}
-                    {item.payload ? (
-                      <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 10, padding: 10, fontSize: 12 }}>
-                        {JSON.stringify(item.payload, null, 2)}
-                      </pre>
-                    ) : null}
-                  </div>
-                ))}
-                {timelineItems.length > 5 ? (
-                  <button
-                    className="ghost"
-                    type="button"
-                    onClick={() => setShowFullTimeline((value) => !value)}
-                  >
-                    {showFullTimeline ? 'Скрыть полный таймлайн' : `Показать полный таймлайн (${timelineItems.length})`}
-                  </button>
-                ) : null}
-              </div>
-            ) : (
-              <div className="muted small">Событий пока нет</div>
-            )}
-          </div>
+          <TicketTimelinePanel
+            loading={timelineQ.isLoading}
+            isError={timelineQ.isError}
+            error={timelineQ.error}
+            items={timelineItems}
+            previewItems={timelinePreviewItems}
+            showFullTimeline={showFullTimeline}
+            onToggleShowFull={() => setShowFullTimeline((value) => !value)}
+            fmt={fmt}
+            sourceLabel={sourceLabel}
+            timelineTypeLabel={timelineTypeLabel}
+          />
         </>
       ) : null}
     </div>
