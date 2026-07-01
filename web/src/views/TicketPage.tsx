@@ -1148,7 +1148,7 @@ export function TicketPage() {
             backToBoardHref={backToBoardHref}
             primaryAction={primaryAction}
             canClaim={canClaim}
-            canChangeStatus={canChangeStatus && ticket.status !== 'AWAITING_ACCEPTANCE'}
+            canChangeStatus={canChangeStatus}
             canTransitionTo={canTransitionTo}
             showCancelInTechnicianBar={showCancelInTechnicianBar}
             technicianBarCloseHint={technicianBarCloseHint}
@@ -1174,6 +1174,7 @@ export function TicketPage() {
             onToggleEdit={() => setEditOpen((value) => !value)}
             canCreateChildTicket={canCreateChildTicket}
             showChildCreateForm={showChildCreateForm}
+            childCreatePending={createChildM.isPending}
             onToggleChildCreateForm={() => {
               setShowChildCreateForm((value) => !value)
               setChildCreateError(null)

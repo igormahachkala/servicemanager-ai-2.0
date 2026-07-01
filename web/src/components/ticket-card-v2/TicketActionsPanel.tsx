@@ -34,6 +34,7 @@ export type TicketActionsPanelProps = {
   onToggleEdit: () => void
   canCreateChildTicket: boolean
   showChildCreateForm: boolean
+  childCreatePending: boolean
   onToggleChildCreateForm: () => void
   isTechnicianRole: boolean
   onShowSubmitForm: () => void
@@ -72,6 +73,7 @@ export function TicketActionsPanel(props: TicketActionsPanelProps) {
     onToggleEdit,
     canCreateChildTicket,
     showChildCreateForm,
+    childCreatePending,
     onToggleChildCreateForm,
     isTechnicianRole,
     onShowSubmitForm,
@@ -173,7 +175,7 @@ export function TicketActionsPanel(props: TicketActionsPanelProps) {
           </>
         ) : null}
         {canCreateChildTicket && !isTechnicianRole ? (
-          <button className="ghost" onClick={onToggleChildCreateForm} disabled={false}>
+          <button className="ghost" onClick={onToggleChildCreateForm} disabled={childCreatePending}>
             {showChildCreateForm ? 'Скрыть доп. работу' : '+ Ещё работа по этой точке'}
           </button>
         ) : null}
