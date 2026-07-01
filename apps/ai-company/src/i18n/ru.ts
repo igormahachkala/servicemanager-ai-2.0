@@ -2637,11 +2637,12 @@ export const ru: Messages = {
   },
   runtimePromptBuilder: {
     empty: "Не удалось собрать превью prompt — выберите сотрудника и введите prompt.",
-    explicitOverrideNote: "Режим явного prompt: задача Owner передана как есть; persona и структура ответа добавляются автоматически.",
-    outputLanguage: "Output language",
+    explicitOverrideNote:
+      "Режим явного prompt: задача Owner оборачивается политикой языка и идентичностью сотрудника перед execution.",
+    outputLanguage: "Язык ответа",
     outputLanguages: {
-      ru: "Russian (default)",
-      en: "English (task requires)"
+      ru: "Русский (по умолчанию)",
+      en: "Английский (если задача требует)"
     },
     project: "Проект",
     workspace: "Workspace",
@@ -2653,7 +2654,7 @@ export const ru: Messages = {
       systemPrompt: "System Prompt",
       employeeIdentity: "Идентичность сотрудника",
       employeePersona: "Persona сотрудника",
-      languagePolicy: "Language Policy",
+      languagePolicy: "Политика языка",
       task: "Задача",
       context: "Контекст",
       instructions: "Инструкции",

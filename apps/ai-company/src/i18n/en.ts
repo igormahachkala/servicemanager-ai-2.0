@@ -2698,7 +2698,7 @@ export const en = {
   runtimePromptBuilder: {
     empty: 'Unable to build prompt preview — select an employee and enter a prompt.',
     explicitOverrideNote:
-      'Explicit prompt mode: Owner task is passed as-is; persona and answer structure are still applied.',
+      'Explicit prompt mode: Owner task is wrapped with language policy and employee identity before execution.',
     outputLanguage: 'Output language',
     outputLanguages: {
       ru: 'Russian (default)',
