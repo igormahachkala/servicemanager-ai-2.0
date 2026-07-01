@@ -3,6 +3,7 @@ import {
   getCustomEmployeeById,
   type CustomEmployee,
 } from './customEmployees'
+import { resolveEmployeeIdentity } from './employeeIdentity'
 import { resolveCanonicalEmployeeId } from './employeeIdResolver'
 import { agents } from './mock'
 import type { Agent } from './types'
@@ -15,7 +16,7 @@ export function agentToProfileEmployee(agent: Agent): CustomEmployee {
         ? 'disabled'
         : 'active'
 
-  return {
+  const base: CustomEmployee = {
     id: agent.id,
     name: agent.codename,
     codename: agent.codename,
@@ -25,13 +26,24 @@ export function agentToProfileEmployee(agent: Agent): CustomEmployee {
     fallbackModels: [],
     tools: [...agent.tools],
     permissions: defaultPermissions(),
-    description: `${agent.squad} · built-in digital employee`,
+    description: '',
     skills: [],
     restrictions: [],
     systemPrompt: '',
     workflow: '',
     memoryScope: ['AI Company'],
     createdAt: '2026-01-01T00:00:00.000Z',
+  }
+
+  const identity = resolveEmployeeIdentity(base)
+
+  return {
+    ...base,
+    description: identity.mission,
+    skills: identity.capabilities,
+    restrictions: identity.restrictions,
+    systemPrompt: identity.systemPrompt,
+    workflow: identity.responsibilities.join('\n'),
   }
 }
 

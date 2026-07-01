@@ -8175,3 +8175,126 @@
 .mcLiveRuntimeRoutingBlock {
   margin-top: 12px;
 }
+
+.mcPassport {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.mcPassportWho {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mcPassportWhoRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.mcPassportMission {
+  margin-top: 4px;
+  font-size: 15px;
+  line-height: 1.55;
+  color: var(--mc-text);
+}
+
+.mcPassportSubsection {
+  margin-top: 14px;
+}
+
+.mcPassportSubsection:first-child {
+  margin-top: 0;
+}
+
+.mcPassportList {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  color: var(--mc-text);
+  line-height: 1.5;
+}
+
+.mcPassportRestrictions {
+  margin: 0;
+}
+
+.mcPassportDecisionGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.mcPassportAuthorityList {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mcPassportAuthorityMark {
+  display: inline-block;
+  width: 1.2em;
+  color: var(--mc-success, #16a34a);
+  font-weight: 700;
+}
+
+.mcPassportPromptActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.mcPassportCopyStatus {
+  font-size: 12px;
+}
+
+.mcPassportCopyError {
+  color: var(--mc-danger, #dc2626);
+}
+
+.mcPassportExperienceGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.mcPassportExperienceTile {
+  padding: 12px;
+  border: 1px solid var(--mc-border);
+  border-radius: var(--mc-radius, 8px);
+  background: var(--mc-surface-2, rgba(255, 255, 255, 0.02));
+}
+
+.mcPassportExperienceLabel {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--mc-muted);
+  margin-bottom: 6px;
+}
+
+.mcPassportExperienceValue {
+  font-size: 22px;
+  font-weight: 700;
+}
+
+.mcPassportExperienceLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+@media (max-width: 900px) {
+  .mcPassportDecisionGrid,
+  .mcPassportExperienceGrid {
+    grid-template-columns: 1fr;
+  }
+}
