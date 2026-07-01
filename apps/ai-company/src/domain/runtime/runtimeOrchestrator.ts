@@ -51,6 +51,7 @@ import {
 } from './providers/runtimeHealth'
 import { buildRuntimePromptPreview } from './runtimePromptBuilder'
 import type { RuntimePromptPreview } from './runtimePromptTypes'
+import type { OutputLanguage } from './runtimeOutputPolicy'
 
 const STORAGE_KEY = 'ai-company-runtime-runs'
 let activeRuntimeRunId: string | null = null
@@ -95,6 +96,8 @@ export type RuntimeRunRequest = {
   ollamaModelTag?: string | null
   modelMode?: RuntimeModelMode
   forceApproval?: boolean
+  /** Default: ru — all employee outputs are Russian unless explicitly overridden. */
+  outputLanguage?: OutputLanguage
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -247,20 +250,41 @@ function parsePromptPreview(value: unknown): RuntimePromptPreview | null {
   const required = [
     'systemPrompt',
     'employeeIdentity',
+    'employeePersona',
+    'languagePolicy',
     'task',
     'context',
     'instructions',
     'finalPrompt',
   ] as const
-  if (!required.every((key) => typeof value[key] === 'string')) return null
+  if (!required.every((key) => typeof value[key] === 'string')) {
+    const legacyRequired = [
+      'systemPrompt',
+      'employeeIdentity',
+      'task',
+      'context',
+      'instructions',
+      'finalPrompt',
+    ] as const
+    if (!legacyRequired.every((key) => typeof value[key] === 'string')) return null
+  }
   return {
     systemPrompt: value.systemPrompt as string,
     employeeIdentity: value.employeeIdentity as string,
+    employeePersona:
+      typeof value.employeePersona === 'string'
+        ? value.employeePersona
+        : '',
+    languagePolicy:
+      typeof value.languagePolicy === 'string'
+        ? value.languagePolicy
+        : 'Отвечай только на русском языке. Ты отвечаешь как цифровой сотрудник AI Company, а не как универсальная языковая модель.',
     task: value.task as string,
     context: value.context as string,
     instructions: value.instructions as string,
     finalPrompt: value.finalPrompt as string,
     explicitOverride: value.explicitOverride === true,
+    outputLanguage: value.outputLanguage === 'en' ? 'en' : 'ru',
     projectLabel: typeof value.projectLabel === 'string' ? value.projectLabel : null,
     workspaceLabel: typeof value.workspaceLabel === 'string' ? value.workspaceLabel : null,
   }

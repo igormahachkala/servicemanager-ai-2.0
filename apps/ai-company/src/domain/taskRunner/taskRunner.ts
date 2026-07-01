@@ -132,6 +132,7 @@ export async function startTaskRunner(input: TaskRunnerInput): Promise<TaskRunne
     taskType: mapModeToRuntimeTaskType(input.mode) as TaskType,
     modelMode: input.modelMode,
     prompt,
+    outputLanguage: 'ru',
   })
 
   if (execution) {

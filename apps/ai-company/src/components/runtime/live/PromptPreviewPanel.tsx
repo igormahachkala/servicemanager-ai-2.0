@@ -11,12 +11,21 @@ type Props = {
 
 type SectionKey = keyof Pick<
   RuntimePromptPreview,
-  'systemPrompt' | 'employeeIdentity' | 'task' | 'context' | 'instructions' | 'finalPrompt'
+  | 'systemPrompt'
+  | 'employeeIdentity'
+  | 'employeePersona'
+  | 'languagePolicy'
+  | 'task'
+  | 'context'
+  | 'instructions'
+  | 'finalPrompt'
 >
 
 const SECTION_KEYS: SectionKey[] = [
+  'languagePolicy',
   'systemPrompt',
   'employeeIdentity',
+  'employeePersona',
   'task',
   'context',
   'instructions',
@@ -54,8 +63,20 @@ export function PromptPreviewPanel({ preview }: Props) {
     URL.revokeObjectURL(url)
   }
 
+  const outputLanguageLabel =
+    preview.outputLanguage === 'en'
+      ? t.runtimePromptBuilder.outputLanguages.en
+      : t.runtimePromptBuilder.outputLanguages.ru
+
   return (
     <div className="mcRuntimePromptPreview">
+      <div className="mcRuntimePromptPreviewMeta">
+        <div className="mcRuntimeProfileRow">
+          <span>{t.runtimePromptBuilder.outputLanguage}</span>
+          <span className="mcMono">{outputLanguageLabel}</span>
+        </div>
+      </div>
+
       {preview.explicitOverride ? (
         <p className="mcRuntimePromptPreviewNote">{t.runtimePromptBuilder.explicitOverrideNote}</p>
       ) : null}

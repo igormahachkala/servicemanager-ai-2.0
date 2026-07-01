@@ -100,50 +100,63 @@ export function isModeSuggestedForEmployee(employeeId: string, mode: TaskRunnerM
   return employee?.defaultModes.includes(mode) ?? false
 }
 
+const MODE_LABELS_RU: Record<TaskRunnerMode, string> = {
+  planning: 'планирование',
+  architecture: 'архитектура',
+  technical_audit: 'технический аудит',
+  qa_review: 'QA review',
+  devops_plan: 'DevOps plan',
+  handoff_preparation: 'подготовка handoff',
+  documentation: 'документация',
+  product_review: 'product review',
+}
+
 export function buildTaskRunnerPrompt(input: TaskRunnerInput): string {
   const title = (input.title?.trim() || extractTitleFromTaskText(input.taskText)).slice(0, 160)
   const constraints = input.constraints.trim()
   const expectedOutput = input.expectedOutput.trim()
+  const modeLabel = MODE_LABELS_RU[input.mode] ?? input.mode.replace(/_/g, ' ')
 
   return [
-    `You are executing an Owner-assigned task in AI Company.`,
+    `Задача Owner (режим: ${modeLabel})`,
     '',
-    `Mode: ${input.mode.replace(/_/g, ' ')}`,
-    `Project: ${input.projectId}`,
+    `Проект: ${input.projectId}`,
     `Workspace: ${input.workspaceId}`,
     '',
-    `Task title: ${title}`,
+    `Название: ${title}`,
     '',
-    'Owner task (paste from chat or briefing):',
+    'Текст задачи:',
     input.taskText.trim(),
     '',
-    expectedOutput ? `Expected output:\n${expectedOutput}` : 'Expected output: concise actionable deliverable.',
+    expectedOutput ? `Ожидаемый результат:\n${expectedOutput}` : null,
     '',
-    constraints ? `Constraints:\n${constraints}` : 'Constraints: stay within project scope; no external tool execution.',
-    '',
-    'Respond with a structured deliverable: summary, findings, recommended next steps, and risks if any.',
-  ].join('\n')
+    constraints
+      ? `Ограничения:\n${constraints}`
+      : 'Ограничения: оставаться в scope проекта; без внешних tool execution.',
+  ]
+    .filter(Boolean)
+    .join('\n')
 }
 
 export function defaultExpectedOutput(mode: TaskRunnerMode): string {
   switch (mode) {
     case 'planning':
-      return 'Stabilization plan with owners, milestones, and dependencies.'
+      return 'План стабилизации с owners, milestones и зависимостями — на русском языке.'
     case 'architecture':
-      return 'Architecture notes with risks, invariants, and recommended changes.'
+      return 'Архитектурные заметки с рисками, инвариантами и рекомендуемыми изменениями — на русском языке.'
     case 'technical_audit':
-      return 'Audit findings list with severity and fix recommendations.'
+      return 'Список findings аудита с severity и рекомендациями по исправлению — на русском языке.'
     case 'qa_review':
-      return 'QA checklist results with pass/fail gates and blockers.'
+      return 'Результаты QA checklist с pass/fail gates и blockers — на русском языке.'
     case 'devops_plan':
-      return 'Deployment/readiness plan with rollback and verification steps.'
+      return 'План deployment/readiness с rollback и verification steps — на русском языке.'
     case 'handoff_preparation':
-      return 'Codex-ready handoff package with scope, files, and acceptance criteria.'
+      return 'Handoff-пакет для Codex со scope, files и acceptance criteria — на русском языке.'
     case 'documentation':
-      return 'Draft report or documentation section ready for Owner review.'
+      return 'Черновик report или documentation section для review Owner — на русском языке.'
     case 'product_review':
-      return 'Product review with demo readiness and owner decisions.'
+      return 'Product review с demo readiness и решениями Owner — на русском языке.'
     default:
-      return 'Actionable deliverable for Owner review.'
+      return 'Прикладной deliverable для review Owner — на русском языке.'
   }
 }
