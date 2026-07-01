@@ -1,10 +1,10 @@
-export { DashboardAcceptanceQueue } from './DashboardAcceptanceQueue'
-export { DashboardActionCenter } from './DashboardActionCenter'
-export { DashboardKpiStrip } from './DashboardKpiStrip'
-export { DashboardRecentEvents } from './DashboardRecentEvents'
+export { AcceptanceQueueCard } from './AcceptanceQueueCard'
+export { ActionCenter } from './ActionCenter'
+export { DashboardGrid } from './DashboardGrid'
 export { DashboardSection } from './DashboardSection'
-export { DashboardTeamLoad } from './DashboardTeamLoad'
-export { DashboardMetricCard } from './DashboardMetricCard'
+export { KpiCard } from './KpiCard'
+export { RecentEvents } from './RecentEvents'
+export { TeamLoadCard } from './TeamLoadCard'
 export type {
   DashboardActionItem,
   DashboardAcceptanceQueueItem,

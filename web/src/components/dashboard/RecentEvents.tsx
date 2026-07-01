@@ -1,14 +1,14 @@
 import { DashboardSection } from './DashboardSection'
 import { DASHBOARD_EVENTS } from './mockData'
 
-const TONE_COLOR: Record<'blue' | 'green' | 'amber' | 'red', string> = {
+const TONE_COLOR = {
   blue: '#2563eb',
   green: '#16a34a',
   amber: '#d97706',
   red: '#dc2626',
-}
+} as const
 
-export function DashboardRecentEvents() {
+export function RecentEvents() {
   return (
     <DashboardSection title="Recent Events" eyebrow="Timeline">
       <div style={{ display: 'grid', gap: 12 }}>
@@ -22,7 +22,7 @@ export function DashboardRecentEvents() {
                 borderRadius: 999,
                 marginTop: 6,
                 flex: '0 0 auto',
-                background: TONE_COLOR[event.tone as keyof typeof TONE_COLOR],
+                background: TONE_COLOR[event.tone],
               }}
             />
             <div style={{ minWidth: 0 }}>

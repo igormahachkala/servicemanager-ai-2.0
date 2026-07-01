@@ -1,10 +1,12 @@
 import {
-  DashboardAcceptanceQueue,
-  DashboardActionCenter,
-  DashboardKpiStrip,
-  DashboardRecentEvents,
-  DashboardTeamLoad,
+  AcceptanceQueueCard,
+  ActionCenter,
+  DashboardGrid,
+  KpiCard,
+  RecentEvents,
+  TeamLoadCard,
 } from '../components/dashboard'
+import { DASHBOARD_KPIS } from '../components/dashboard/mockData'
 
 export function DashboardPage() {
   return (
@@ -29,7 +31,11 @@ export function DashboardPage() {
         </div>
       </header>
 
-      <DashboardKpiStrip />
+      <DashboardGrid>
+        {DASHBOARD_KPIS.map((item) => (
+          <KpiCard key={item.id} label={item.label} value={item.value} hint={item.hint} tone={item.tone} />
+        ))}
+      </DashboardGrid>
 
       <div
         style={{
@@ -40,13 +46,13 @@ export function DashboardPage() {
         }}
       >
         <div style={{ display: 'grid', gap: 16, minWidth: 0 }}>
-          <DashboardActionCenter />
-          <DashboardRecentEvents />
+          <ActionCenter />
+          <RecentEvents />
         </div>
 
         <div style={{ display: 'grid', gap: 16, minWidth: 0 }}>
-          <DashboardTeamLoad />
-          <DashboardAcceptanceQueue />
+          <TeamLoadCard />
+          <AcceptanceQueueCard />
         </div>
       </div>
     </div>

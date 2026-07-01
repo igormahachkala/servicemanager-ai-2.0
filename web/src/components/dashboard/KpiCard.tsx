@@ -1,19 +1,22 @@
-export type DashboardTone = 'blue' | 'green' | 'amber' | 'red'
+import type { ReactNode } from 'react'
 
-const TONE: Record<DashboardTone, { color: string; bg: string; border: string }> = {
+export type KpiTone = 'blue' | 'green' | 'amber' | 'red'
+
+const KPI_TONES: Record<KpiTone, { color: string; bg: string; border: string }> = {
   blue: { color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe' },
   green: { color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0' },
   amber: { color: '#b45309', bg: '#fffbeb', border: '#fde68a' },
   red: { color: '#dc2626', bg: '#fef2f2', border: '#fecaca' },
 }
 
-export function DashboardMetricCard(props: {
+export function KpiCard(props: {
   label: string
-  value: string
+  value: ReactNode
   hint: string
-  tone: DashboardTone
+  tone: KpiTone
 }) {
-  const tone = TONE[props.tone]
+  const tone = KPI_TONES[props.tone]
+
   return (
     <div
       className="panel"
@@ -21,6 +24,7 @@ export function DashboardMetricCard(props: {
         minWidth: 0,
         borderColor: tone.border,
         background: tone.bg,
+        boxShadow: '0 1px 0 rgba(15, 23, 42, 0.02)',
       }}
     >
       <div style={{ fontSize: '2rem', lineHeight: 1, fontWeight: 800, color: tone.color }}>{props.value}</div>

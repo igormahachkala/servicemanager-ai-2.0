@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { DashboardSection } from './DashboardSection'
 import { DASHBOARD_ACTIONS } from './mockData'
 
-export function DashboardActionCenter() {
+export function ActionCenter() {
   return (
     <DashboardSection title="Action Center" eyebrow="Dashboard V2">
       <div

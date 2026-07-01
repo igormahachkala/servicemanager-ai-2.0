@@ -1,7 +1,7 @@
 import { DashboardSection } from './DashboardSection'
 import { DASHBOARD_TEAM_LOAD } from './mockData'
 
-export function DashboardTeamLoad() {
+export function TeamLoadCard() {
   return (
     <DashboardSection title="Team Load" eyebrow="Placeholder">
       <div style={{ display: 'grid', gap: 10 }}>
