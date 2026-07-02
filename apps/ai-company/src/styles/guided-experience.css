@@ -1,3 +1,4 @@
+.acUxGuidance,
 .acPageGuide {
   display: flex;
   flex-wrap: wrap;
@@ -11,11 +12,17 @@
   background: linear-gradient(135deg, rgba(59, 130, 246, 0.07), rgba(148, 163, 184, 0.06));
 }
 
+.acUxGuidanceMain,
 .acPageGuideMain {
-  flex: 1 1 280px;
+  flex: 1 1 320px;
   min-width: 0;
 }
 
+.acUxGuidanceIntro {
+  margin-bottom: 10px;
+}
+
+.acUxGuidanceTitle,
 .acPageGuideTitle {
   margin: 0 0 6px;
   font-size: 15px;
@@ -23,22 +30,48 @@
   line-height: 1.3;
 }
 
-.acPageGuideDescription {
-  margin: 0 0 8px;
+.acUxGuidanceHint {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
   font-size: 13px;
   line-height: 1.45;
   color: var(--ac-text, #1e293b);
 }
 
-.acPageGuideNext {
-  margin: 0 0 10px;
-  font-size: 13px;
-  line-height: 1.4;
+.acUxGuidanceHintIcon {
+  flex: 0 0 auto;
+  color: var(--ac-accent, #2563eb);
+  font-weight: 700;
 }
 
-.acPageGuideNextLabel {
-  display: inline-block;
-  margin-right: 6px;
+.acUxGuidanceActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.acUxGuidanceLearnMore {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.acUxGuidanceDetails {
+  margin: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.acUxGuidanceDetailRow {
+  display: grid;
+  gap: 4px;
+}
+
+.acUxGuidanceDetailRow dt {
+  margin: 0;
   font-size: 11px;
   font-weight: 600;
   text-transform: uppercase;
@@ -46,17 +79,19 @@
   color: var(--ac-muted, #64748b);
 }
 
-.acPageGuideLearnMore {
-  display: inline-block;
+.acUxGuidanceDetailRow dd {
+  margin: 0;
   font-size: 13px;
-  font-weight: 500;
+  line-height: 1.45;
 }
 
+.acUxGuidanceTerms,
 .acPageGuideTerms {
   flex: 0 1 240px;
   min-width: 180px;
 }
 
+.acUxGuidanceTermsLabel,
 .acPageGuideTermsLabel {
   display: block;
   margin-bottom: 8px;
@@ -67,6 +102,7 @@
   color: var(--ac-muted, #64748b);
 }
 
+.acUxGuidanceTermsList,
 .acPageGuideTermsList {
   display: flex;
   flex-wrap: wrap;
@@ -102,7 +138,7 @@
   color: var(--ac-accent, #2563eb);
   font-size: 10px;
   line-height: 1;
-  cursor: help;
+  cursor: pointer;
 }
 
 .acTermTooltipTrigger:hover,
@@ -146,12 +182,225 @@
   opacity: 1;
 }
 
+.acTermTooltipSummary {
+  display: block;
+}
+
+.acTermTooltipMore {
+  display: block;
+  margin-top: 6px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #93c5fd;
+}
+
+.acHelpCenterBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--ac-accent, #2563eb);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.acHelpCenterBtn:hover,
+.acHelpCenterBtn:focus-visible {
+  background: rgba(59, 130, 246, 0.12);
+  outline: none;
+}
+
+.acHelpCenterRoot {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.acHelpCenterBackdrop {
+  position: absolute;
+  inset: 0;
+  border: none;
+  background: rgba(15, 23, 42, 0.35);
+  cursor: pointer;
+}
+
+.acHelpCenterPanel {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  width: min(920px, 100vw);
+  max-height: 100vh;
+  background: #fff;
+  border-left: 1px solid rgba(148, 163, 184, 0.35);
+  box-shadow: -12px 0 40px rgba(15, 23, 42, 0.18);
+}
+
+.acHelpCenterHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 20px 12px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.acHelpCenterTitle {
+  margin: 0 0 4px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.acHelpCenterSubtitle {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ac-muted, #64748b);
+}
+
+.acHelpCenterSearchRow {
+  padding: 12px 20px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.acHelpCenterSearch {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.acHelpCenterBody {
+  display: grid;
+  grid-template-columns: minmax(220px, 34%) 1fr;
+  min-height: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.acHelpCenterNav {
+  overflow: auto;
+  border-right: 1px solid rgba(148, 163, 184, 0.2);
+  padding: 10px;
+}
+
+.acHelpCenterNavList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.acHelpCenterNavItem {
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.acHelpCenterNavItem:hover,
+.acHelpCenterNavItem:focus-visible {
+  background: rgba(59, 130, 246, 0.08);
+  outline: none;
+}
+
+.acHelpCenterNavItemActive {
+  border-color: rgba(59, 130, 246, 0.35);
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.acHelpCenterNavLabel {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.acHelpCenterNavSummary {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--ac-muted, #64748b);
+}
+
+.acHelpCenterDetail {
+  overflow: auto;
+  padding: 18px 20px 24px;
+}
+
+.acHelpCenterDetailTitle {
+  margin: 0 0 14px;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.acHelpCenterDetailList {
+  margin: 0;
+  display: grid;
+  gap: 14px;
+}
+
+.acHelpCenterDetailRow dt {
+  margin: 0 0 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ac-muted, #64748b);
+}
+
+.acHelpCenterDetailRow dd {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.acHelpCenterRelatedList {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+}
+
+.acHelpCenterEmpty {
+  margin: 12px;
+  font-size: 13px;
+  color: var(--ac-muted, #64748b);
+}
+
 @media (max-width: 720px) {
+  .acUxGuidance,
   .acPageGuide {
     flex-direction: column;
   }
 
+  .acUxGuidanceTerms,
   .acPageGuideTerms {
     width: 100%;
+  }
+
+  .acHelpCenterBody {
+    grid-template-columns: 1fr;
+  }
+
+  .acHelpCenterNav {
+    max-height: 220px;
+    border-right: none;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.2);
   }
 }

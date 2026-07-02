@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { Outlet } from 'react-router-dom'
+import { HelpCenterPanel } from '../components/guided/HelpCenterPanel'
 import { PresenceRouteBridge } from '../components/presence'
+import { HelpCenterProvider } from '../hooks/useHelpCenter'
 import { Sidebar } from './Sidebar'
 import { StatusBar } from './StatusBar'
 import { TopBar } from './TopBar'
@@ -14,26 +16,30 @@ export function PlatformShell() {
   const closeSidebar = () => setSidebarOpen(false)
 
   return (
-    <div className="acPlatform">
-      {sidebarOpen ? (
-        <button
-          type="button"
-          className="acPlatformOverlay"
-          aria-label="Close navigation"
-          onClick={closeSidebar}
-        />
-      ) : null}
+    <HelpCenterProvider>
+      <div className="acPlatform">
+        {sidebarOpen ? (
+          <button
+            type="button"
+            className="acPlatformOverlay"
+            aria-label="Close navigation"
+            onClick={closeSidebar}
+          />
+        ) : null}
 
-      <Sidebar open={sidebarOpen} onNavigate={closeSidebar} />
+        <Sidebar open={sidebarOpen} onNavigate={closeSidebar} />
 
-      <div className="acPlatformMain">
-        <TopBar onMenuToggle={() => setSidebarOpen((value) => !value)} />
-        <PresenceRouteBridge />
-        <main className="acPlatformContent">
-          <Outlet />
-        </main>
-        <StatusBar />
+        <div className="acPlatformMain">
+          <TopBar onMenuToggle={() => setSidebarOpen((value) => !value)} />
+          <PresenceRouteBridge />
+          <main className="acPlatformContent">
+            <Outlet />
+          </main>
+          <StatusBar />
+        </div>
+
+        <HelpCenterPanel />
       </div>
-    </div>
+    </HelpCenterProvider>
   )
 }
