@@ -15,6 +15,7 @@ import { usePresence } from '../../hooks/usePresence'
 import { EmployeeRuntime } from '../../components/EmployeeRuntime'
 import { EmployeeLearningPreview } from '../../components/learning/EmployeeLearningPreview'
 import { EmployeeLivingTimeline } from '../../components/employee-timeline'
+import { PageGuideCard } from '../../components/guided'
 import { resolveProfileEmployee } from '../data/employeeProfileResolver'
 import { resolveCanonicalEmployeeId } from '../data/employeeIdResolver'
 import { useI18n } from '../../i18n'
@@ -82,6 +83,8 @@ export function EmployeeProfilePage() {
   return (
     <div className="mcProfilePage">
       <EmployeeHeader employee={employee} />
+
+      <PageGuideCard pageId="employeeProfile" />
 
       <Panel title={t.employeeTimelineEngine.title}>
         <div className="mcProfilePanelBody">

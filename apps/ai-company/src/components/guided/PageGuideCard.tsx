@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { UxGuidancePageId } from '../../domain/guided'
 import { PAGE_GUIDE_TERMS } from '../../domain/guided'
@@ -10,6 +11,7 @@ type Props = {
 
 export function UxGuidancePanel({ pageId }: Props) {
   const { t } = useI18n()
+  const [showDetails, setShowDetails] = useState(false)
   const guide = t.guidedExperience.pages[pageId]
   const sections = t.guidedExperience.sections
   const terms = PAGE_GUIDE_TERMS[pageId]
@@ -28,6 +30,14 @@ export function UxGuidancePanel({ pageId }: Props) {
         </div>
 
         <div className="acUxGuidanceActions">
+          <button
+            type="button"
+            className="mcBtn mcBtnSecondary mcBtnSm"
+            aria-expanded={showDetails}
+            onClick={() => setShowDetails((open) => !open)}
+          >
+            {showDetails ? t.guidedExperience.hideDetails : t.guidedExperience.moreDetails}
+          </button>
           <Link to={guide.learnMorePath} className="acLink acUxGuidanceLearnMore">
             {t.guidedExperience.learnMore} →
           </Link>
@@ -36,28 +46,30 @@ export function UxGuidancePanel({ pageId }: Props) {
           </Link>
         </div>
 
-        <dl className="acUxGuidanceDetails">
-          <div className="acUxGuidanceDetailRow">
-            <dt>{sections.whatItIs}</dt>
-            <dd>{guide.whatItIs}</dd>
-          </div>
-          <div className="acUxGuidanceDetailRow">
-            <dt>{sections.purpose}</dt>
-            <dd>{guide.purpose}</dd>
-          </div>
-          <div className="acUxGuidanceDetailRow">
-            <dt>{sections.onScreen}</dt>
-            <dd>{guide.onScreen}</dd>
-          </div>
-          <div className="acUxGuidanceDetailRow">
-            <dt>{sections.nextStep}</dt>
-            <dd>{guide.nextStep}</dd>
-          </div>
-          <div className="acUxGuidanceDetailRow">
-            <dt>{sections.downstream}</dt>
-            <dd>{guide.downstream}</dd>
-          </div>
-        </dl>
+        {showDetails ? (
+          <dl className="acUxGuidanceDetails">
+            <div className="acUxGuidanceDetailRow">
+              <dt>{sections.whatItIs}</dt>
+              <dd>{guide.whatItIs}</dd>
+            </div>
+            <div className="acUxGuidanceDetailRow">
+              <dt>{sections.purpose}</dt>
+              <dd>{guide.purpose}</dd>
+            </div>
+            <div className="acUxGuidanceDetailRow">
+              <dt>{sections.onScreen}</dt>
+              <dd>{guide.onScreen}</dd>
+            </div>
+            <div className="acUxGuidanceDetailRow">
+              <dt>{sections.nextStep}</dt>
+              <dd>{guide.nextStep}</dd>
+            </div>
+            <div className="acUxGuidanceDetailRow">
+              <dt>{sections.downstream}</dt>
+              <dd>{guide.downstream}</dd>
+            </div>
+          </dl>
+        ) : null}
       </div>
 
       {terms.length > 0 ? (
@@ -74,4 +86,5 @@ export function UxGuidancePanel({ pageId }: Props) {
   )
 }
 
+/** Backward-compatible alias. */
 export const PageGuideCard = UxGuidancePanel

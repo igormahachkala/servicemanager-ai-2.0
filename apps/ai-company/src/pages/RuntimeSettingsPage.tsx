@@ -1,4 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom'
+import { PageGuideCard } from '../components/guided'
 import { PageHeader, Panel } from '../mission-control/components/ui'
 import { ModelProviderCard } from '../components/runtime/ModelProviderCard'
 import { RuntimeExecutionPanel } from '../components/runtime/RuntimeExecutionPanel'
@@ -27,6 +28,8 @@ export function RuntimeSettingsPage() {
         title={t.pages.runtimeSettings}
         description={t.runtimeOrchestrator.pageDescription}
       />
+
+      <PageGuideCard pageId="runtime" />
 
       <div className="mcPageHeaderRow" style={{ marginBottom: 16 }}>
         <p className="mcMuted">{t.runtimeEngine.pageDescription}</p>

@@ -1,3 +1,4 @@
+import { PageGuideCard } from '../components/guided'
 import {
   VisualLabActionTimeline,
   VisualLabBrowserPreview,
@@ -27,6 +28,8 @@ export function VisualLabPage() {
   return (
     <div className="vlPage">
       <PageHeader title={t.visualLab.title} description={t.visualLab.description} />
+
+      <PageGuideCard pageId="visualLab" />
 
       <div className="vlWorkspace">
         <VisualLabSidebar
