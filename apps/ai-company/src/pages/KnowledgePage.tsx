@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { PageHeader, Panel } from '../mission-control/components/ui'
+import { ContextEmptyState } from '../components/empty-states'
 import { KnowledgeCard } from '../components/knowledge/KnowledgeCard'
 import { KnowledgeFilters } from '../components/knowledge/KnowledgeFilters'
 import { KnowledgeSearch } from '../components/knowledge/KnowledgeSearch'
@@ -73,10 +74,12 @@ export function KnowledgePage() {
             <KnowledgeSearch query={query} onChange={setQuery} />
             <KnowledgeFilters filter={filter} tags={tags} onChange={setFilter} />
             {filtered.length === 0 ? (
-              <div className="mcKnowledgeEmpty">
-                <div className="mcKnowledgeEmptyTitle">{t.knowledgeEngine.emptyListTitle}</div>
-                <p className="mcKnowledgeEmptyDesc">{t.knowledgeEngine.emptyListDescription}</p>
-              </div>
+              <ContextEmptyState
+                area="knowledge"
+                variant={items.length === 0 ? 'initial' : 'filtered'}
+                actionHref={items.length === 0 ? undefined : '/ops/knowledge/collections'}
+                compact
+              />
             ) : (
               <div className="mcKnowledgeCardGrid">
                 {filtered.map((item) => (

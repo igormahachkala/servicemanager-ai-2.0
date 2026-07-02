@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import type { CanvasNodeDetails, CanvasSummary } from '../../domain/canvas'
 import { canvasNodeIcon } from './canvasNodeIcons'
+import { ContextEmptyState } from '../empty-states'
 import { LiveIndicator } from './LiveIndicator'
 import { useI18n } from '../../i18n'
 
@@ -26,8 +27,7 @@ export function CanvasInspector({ details, summary, selectedConnectionLabel }: P
   if (!details) {
     return (
       <div className="acCanvasInspector acCanvasInspectorEmpty">
-        <div className="acCanvasInspectorTitle">{t.canvasEngine.canvasSummary}</div>
-        <p className="acMuted">{t.canvasEngine.inspectorEmptyDescription}</p>
+        <ContextEmptyState area="canvas" variant="initial" compact className="acCanvasInspectorEmptyState" />
 
         <div className="acCanvasInspectorStats">
           <div className="acCanvasInspectorStat">

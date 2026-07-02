@@ -1,4 +1,5 @@
 import type { Messages } from './en'
+import { platformGlossaryTermsRu } from './platformGlossaryTerms.ru'
 
 export const ru: Messages = {
   common: {
@@ -6,6 +7,157 @@ export const ru: Messages = {
     all: "Все",
     notAvailable: "н/д",
     selected: "Выбрано"
+  },
+  contextEmpty: {
+    sections: {
+      whyEmpty: "Почему пусто",
+      whatToDo: "Что сделать",
+      example: "Пример результата"
+    },
+    taskResults: {
+      initial: {
+        title: "Нет результатов",
+        reason: "Вы ещё не запускали сотрудников через Run Task.",
+        actionHint: "Откройте Run Task, выберите сотрудника (например MAX) и поручите первую задачу.",
+        actionLabel: "Запустить задачу",
+        example: "MAX аудирует AI Photo Lab MVP → черновик отчёта здесь → вы одобряете или просите правки."
+      },
+      filtered: {
+        title: "Нет результатов по фильтрам",
+        reason: "Поиск или фильтр статуса скрывают все результаты в очереди.",
+        actionHint: "Сбросьте фильтры или расширьте статус, чтобы увидеть полную очередь.",
+        actionLabel: "Запустить задачу",
+        example: "После сброса фильтров видны draft и ready-for-review из недавних runs."
+      }
+    },
+    memory: {
+      initial: {
+        title: "Память пуста",
+        reason: "У сотрудника нет сохранённых записей — ни из runs, ни вручную.",
+        actionHint: "Запустите задачу с этим сотрудником или добавьте запись памяти ниже.",
+        actionLabel: "Запустить задачу",
+        example: "После runtime run Memory Evolution добавит урок: «upload flow нужен retry»."
+      },
+      filtered: {
+        title: "Нет записей по фильтрам",
+        reason: "Фильтры типа, важности или тега исключают все записи памяти.",
+        actionHint: "Сбросьте фильтры или добавьте новую запись для этого сотрудника.",
+        actionLabel: "Запустить задачу",
+        example: "Пример: Decision — «Owner одобрил MVP scope без mobile chat»."
+      }
+    },
+    knowledge: {
+      initial: {
+        title: "Каталог знаний пуст",
+        reason: "В текущем scope нет knowledge items — база не заполнена.",
+        actionHint: "Запустите задачу с документами или откройте Collections для curated paths.",
+        actionLabel: "Запустить задачу",
+        example: "Atlas читает ADR-001 → item в каталоге → Runtime подтягивает его в следующем run."
+      },
+      filtered: {
+        title: "Нет items по фильтрам",
+        reason: "Поиск, тип или тег скрывают все knowledge items.",
+        actionHint: "Сбросьте фильтры или откройте Collections.",
+        actionLabel: "Collections",
+        example: "Коллекция Platform Architecture — ADR и стандарты для сотрудников."
+      }
+    },
+    timeline: {
+      initial: {
+        title: "Timeline пуст",
+        reason: "События компании ещё не записаны — runs, approvals и handoffs пишут events сюда.",
+        actionHint: "Запустите Runtime run или одобрите task result, чтобы наполнить timeline.",
+        actionLabel: "Запустить задачу",
+        example: "runtime.completed → task_result.approved → handoff.created с датами."
+      },
+      filtered: {
+        title: "Нет events по фильтрам",
+        reason: "Фильтры employee, workspace или типа исключают все события.",
+        actionHint: "Сбросьте scope, чтобы увидеть глобальный company timeline.",
+        actionLabel: "Запустить задачу",
+        example: "Фильтр по MAX — только runs и approvals этого сотрудника."
+      }
+    },
+    reports: {
+      initial: {
+        title: "Отчётов пока нет",
+        reason: "Каждый завершённый Runtime run создаёт draft report — их ещё нет.",
+        actionHint: "Run Task с любым сотрудником — orchestrator создаст отчёт Senior Engineer.",
+        actionLabel: "Запустить задачу",
+        example: "Аудит MAX → Report с Risks (Critical/High) и секцией «Требуется решение Owner»."
+      },
+      filtered: {
+        title: "Нет reports по фильтрам",
+        reason: "Фильтры типа или статуса скрывают все отчёты в каталоге.",
+        actionHint: "Поставьте All или запустите новую задачу для свежего draft.",
+        actionLabel: "Запустить задачу",
+        example: "Draft system reports появляются после первого успешного runtime run."
+      }
+    },
+    runtime: {
+      initial: {
+        title: "Run History пуст",
+        reason: "Ни один сотрудник ещё не выполнялся через orchestrator.",
+        actionHint: "Run Task → выберите сотрудника и модель → первый execution.",
+        actionLabel: "Запустить задачу",
+        example: "Run завершён → запись в History → linked report и task result для Owner."
+      },
+      filtered: {
+        title: "Нет runs по фильтрам",
+        reason: "Статус, employee или workspace скрывают все записи.",
+        actionHint: "Сбросьте фильтры или запустите новый run из Run Task.",
+        actionLabel: "Запустить задачу",
+        example: "Фильтр completed — успешные runs с model и context metadata."
+      }
+    },
+    workspace: {
+      initial: {
+        title: "Рабочих пространств пока нет",
+        reason: "Workspace группирует проекты, assignments и контекст — вы ещё не создали ни одного.",
+        actionHint: "Создайте workspace, затем назначьте сотрудников через Assignment (не ownership).",
+        actionLabel: "Новое рабочее пространство",
+        example: "Engineering workspace → MAX + Atlas → Run Task в scope workspace."
+      },
+      filtered: {
+        title: "Нет подходящих workspace",
+        reason: "В этом представлении нечего показать.",
+        actionHint: "Создайте workspace для delivery-контекста команды.",
+        actionLabel: "Новое рабочее пространство",
+        example: "Product workspace для AI Photo Lab с project и assignments."
+      }
+    },
+    canvas: {
+      initial: {
+        title: "Выберите узел на графе",
+        reason: "Canvas показывает employees, tasks, runs и approvals — ничего не выбрано.",
+        actionHint: "Кликните узел на canvas или запустите задачу для live-активности.",
+        actionLabel: "Запустить задачу",
+        example: "Клик MAX → inbound tasks, recent runs, переход в Runtime profile."
+      },
+      filtered: {
+        title: "Выберите узел на графе",
+        reason: "Canvas показывает employees, tasks, runs и approvals — ничего не выбрано.",
+        actionHint: "Кликните узел или запустите задачу для наполнения графа.",
+        actionLabel: "Запустить задачу",
+        example: "Project focus — squad AI Photo Lab, tasks и waiting approvals."
+      }
+    },
+    approvals: {
+      initial: {
+        title: "Очередь approvals пуста",
+        reason: "Запросов human-in-the-loop пока нет — Runtime создаёт их для protected actions.",
+        actionHint: "Run с tool execution или production deploy сгенерирует request.",
+        actionLabel: "Запустить задачу",
+        example: "Tool gateway request → pending → Owner approve → audit event."
+      },
+      filtered: {
+        title: "Нет approvals по фильтрам",
+        reason: "Статус или поиск скрывают все запросы.",
+        actionHint: "Сбросьте фильтры или дождитесь нового protected action от Runtime.",
+        actionLabel: "Запустить задачу",
+        example: "Pending production deploy — policy badge и Owner review actions."
+      }
+    }
   },
   nav: {
     flow: "Flow",
@@ -3084,88 +3236,159 @@ export const ru: Messages = {
   },
   guidedExperience: {
     nextStepLabel: "Следующий шаг",
-    learnMore: "Подробнее",
+    learnMore: "Подробнее о flow",
+    moreDetails: "Подробнее",
+    hideDetails: "Скрыть",
+    openDocs: "Открыть документацию",
     termsLabel: "Ключевые термины",
+    openTermInHelp: "Открыть в Help Center",
+    helpCenter: {
+      title: "Help Center",
+      subtitle: "Platform glossary — любой термин за один клик.",
+      searchPlaceholder: "Поиск терминов…",
+      close: "Закрыть",
+      openAria: "Открыть Help Center",
+      allTerms: "Все термины",
+      noResults: "Нет терминов по запросу.",
+      selectTerm: "Выберите термин для подробностей."
+    },
+    termSections: {
+      summary: "Кратко",
+      description: "Подробно",
+      whereUsed: "Где используется",
+      related: "Связанные страницы"
+    },
+    sections: {
+      whatItIs: "Что это",
+      purpose: "Для чего используется",
+      onScreen: "Что происходит на экране",
+      nextStep: "Следующий шаг",
+      downstream: "Используется дальше"
+    },
     pages: {
       commandCenter: {
         title: "Компания одним взглядом",
-        description: "Command Center — кокpit Owner: health, кто работает, approvals, runtime и приоритеты дня на одном экране.",
+        hint: "Ежедневный cockpit Owner — health, люди, approvals и runtime в одном view.",
+        whatItIs: "The executive dashboard of AI Company.",
+        purpose: "Give the Owner situational awareness before assigning work or approving actions.",
+        onScreen: "Morning brief, employee activity, sprint progress, pending approvals, runtime cost, timeline events, and quick launch actions.",
         nextStep: "Проверьте critical alerts и pending approvals, затем откройте Operating Day для полного дневного flow.",
-        learnMorePath: "/ops/day"
+        downstream: "Feeds Operating Day priorities, notifications, and suggested next actions across Run Task and Control Room.",
+        learnMorePath: "/ops/day",
+        docsPath: "/ops/timeline"
       },
       runTask: {
         title: "Назначить задачу цифровому сотруднику",
-        description: "Опишите задачу, выберите сотрудника и mode, запустите Runtime run. Результаты попадут в reports, task results и memory.",
+        hint: "Назначьте задачу digital employee и запустите реальный Runtime execution.",
+        whatItIs: "The primary Owner entry point for structured employee work.",
+        purpose: "Turn intent into a delivery task, runtime run, report, and reviewable result.",
+        onScreen: "Task text, employee and mode selection, project/workspace context, model routing preview, and run history.",
         nextStep: "Сформулируйте задачу, выберите Atlas или MAX и запустите run — прогресс смотрите в Live Runtime.",
-        learnMorePath: "/ops/runtime/live"
+        downstream: "Creates delivery tasks, runtime runs, reports, task results, timeline events, and memory evolution.",
+        learnMorePath: "/ops/runtime/live",
+        docsPath: "/ops/task-results"
+      },
+      runtime: {
+        title: "Настройки Runtime",
+        hint: "Настройте providers, profiles, health и просмотрите прошлые runs.",
+        whatItIs: "The control plane for model execution in AI Company.",
+        purpose: "Manage how digital employees connect to Ollama or mock providers and review execution history.",
+        onScreen: "Provider health, employee runtime profiles, model routing, cost dashboard, recent runs, logs, and quick execution panel.",
+        nextStep: "Confirm provider health, review cost today, then open Live Runtime or Run Task for the next execution.",
+        downstream: "Runtime runs produce reports, task results, employee memory, and timeline entries consumed by Task Results and Employee Profile.",
+        learnMorePath: "/ops/runtime/live",
+        docsPath: "/ops/runs"
       },
       runtimeLive: {
         title: "Наблюдайте execution в реальном времени",
-        description: "Live Runtime показывает pipeline, логи provider, elapsed time и preview результата, пока сотрудник работает.",
+        hint: "Смотрите pipeline, logs, prompt preview и result во время execution.",
+        whatItIs: "Real-time observability for an active or recent runtime run.",
+        purpose: "Let the Owner see exactly what the model receives and how execution progresses.",
+        onScreen: "Pipeline steps, live stream, provider status, elapsed time, context layers, prompt preview, and result preview.",
         nextStep: "Запустите или выберите run, следите за шагами pipeline, затем откройте report после completion.",
-        learnMorePath: "/ops/runtime"
-      },
-      taskResults: {
-        title: "Итоги выполненной работы",
-        description: "Task Results собирают deliverables после Runtime runs — статус, review notes и ссылки на reports и follow-up.",
-        nextStep: "Отфильтруйте по статусу, откройте result для review и согласуйте next suggested action.",
-        learnMorePath: "/ops/reports"
-      },
-      workspace: {
-        title: "Рабочий стол одного сотрудника",
-        description: "Workspace — daily surface для одного digital employee: задачи, runs, chats, reports и notifications в его scope.",
-        nextStep: "Посмотрите текущую активность, затем перейдите в Runtime или Task Results за деталями.",
-        learnMorePath: "/ops/presence"
+        downstream: "Completed runs update reports, task results, memory evolution, and employee timeline.",
+        learnMorePath: "/ops/runtime",
+        docsPath: "/ops/runs"
       },
       operatingDay: {
         title: "Как компания проходит день",
-        description: "Operating Day ведёт Owner через morning brief, сотрудников, sprint, approvals, runtime и end-of-day wrap-up.",
+        hint: "Пройдите рабочий день компании от morning brief до end-of-day summary.",
+        whatItIs: "A narrative map of how the digital company spends a working day.",
+        purpose: "Help the Owner resolve blockers in order — people, work, approvals, runtime, reports.",
+        onScreen: "Phases for morning, employees, current work, meetings, approvals, runtime metrics, reports, and evening wrap-up.",
         nextStep: "Идите по фазам сверху вниз — закройте blockers в Approvals и Runtime до конца дня.",
-        learnMorePath: "/ops"
+        downstream: "Links back to Command Center, Control Room, Task Results, and Runtime for follow-up actions.",
+        learnMorePath: "/ops",
+        docsPath: "/ops/approvals"
       },
-      kickoff: {
-        title: "Старт проекта AI Photo Lab",
-        description: "Kickoff готовит demo-ready работу — sprint goal, team presets, QA checklist и one-click tasks для Atlas и MAX.",
-        nextStep: "Запустите preset task или откройте Control Room для delivery, risks и external handoffs.",
-        learnMorePath: "/ops/projects/project-ai-photo-lab/control-room"
+      employeeProfile: {
+        title: "Профиль сотрудника",
+        hint: "Identity, skills, memory, runtime history и living timeline одного digital employee.",
+        whatItIs: "The long-lived record of a digital employee in your company.",
+        purpose: "Understand who this employee is, what they learned, and what they delivered over time.",
+        onScreen: "Identity passport, living timeline, skills, permissions, memory, knowledge, assignments, runtime, and presence.",
+        nextStep: "Read the living timeline, then open Workspace or Run Task to assign the next piece of work.",
+        downstream: "Profile data informs Run Task routing, memory evolution, task results, and Control Room staffing views.",
+        learnMorePath: "/ops/employees/ag-cto/workspace",
+        docsPath: "/ops/employees"
+      },
+      taskResults: {
+        title: "Итоги выполненной работы",
+        hint: "Review deliverables после runtime runs — approve или request changes.",
+        whatItIs: "The Owner review queue for completed employee work.",
+        purpose: "Gate quality before memory evolution, suggested actions, and downstream handoffs.",
+        onScreen: "Result list, status filters, review panel, memory evolution summary, and suggested next actions.",
+        nextStep: "Отфильтруйте по статусу, откройте result для review и согласуйте next suggested action.",
+        downstream: "Approved results update reports, employee memory, work scheduler suggestions, and Control Room delivery status.",
+        learnMorePath: "/ops/reports",
+        docsPath: "/ops/approvals"
       },
       controlRoom: {
         title: "Command post delivery проекта",
-        description: "Control Room отслеживает AI Photo Lab — task queue, runtime, risks, demo readiness, approvals и Codex handoffs.",
+        hint: "Project delivery command post for AI Photo Lab — queue, risks, handoffs, demo readiness.",
+        whatItIs: "The project-level operations center for active delivery.",
+        purpose: "Track sprint progress, runtime activity, risks, and external handoffs in one place.",
+        onScreen: "Task queue, team snapshot, runtime stats, risks, demo checklist, approvals, Codex handoffs, and suggested actions.",
         nextStep: "Проверьте queue и risks, затем одобрите handoffs или запустите следующий runtime task.",
-        learnMorePath: "/ops/projects/project-ai-photo-lab/kickoff"
-      }
-    },
-    terms: {
-      runtime: {
-        label: "Runtime",
-        tooltip: "Локальный execution engine для digital employees — context, вызов модели, reports и artifacts."
+        downstream: "Control Room status rolls up to Command Center, Operating Day, and Kickoff presets.",
+        learnMorePath: "/ops/projects/project-ai-photo-lab/kickoff",
+        docsPath: "/ops/handoffs"
+      },
+      kickoff: {
+        title: "Старт проекта AI Photo Lab",
+        hint: "Bootstrap demo-ready sprint work with presets for Atlas and MAX.",
+        whatItIs: "The project start screen for AI Photo Lab delivery.",
+        purpose: "Align sprint goal, team presets, QA checklist, and first tasks before Control Room tracking.",
+        onScreen: "Sprint goal, stats, preset tasks, QA checklist, documentation links, and one-click run actions.",
+        nextStep: "Запустите preset task или откройте Control Room для delivery, risks и external handoffs.",
+        downstream: "Kickoff tasks flow into Runtime, Task Results, handoffs, and Control Room progress.",
+        learnMorePath: "/ops/projects/project-ai-photo-lab/control-room",
+        docsPath: "/ops/sprint/sprint-apl-1"
+      },
+      visualLab: {
+        title: "Visual Execution Lab",
+        hint: "Replay работы digital employee — editor, browser, terminal и action timeline.",
+        whatItIs: "A visual sandbox for understanding employee execution flow.",
+        purpose: "Explain runtime behavior to stakeholders without running a live model call.",
+        onScreen: "Session sidebar, code editor, browser preview, terminal output, and step-through action timeline.",
+        nextStep: "Press play on the timeline, step through actions, then compare with a real Live Runtime run.",
+        downstream: "Concepts map to Run Task, Live Runtime prompt preview, and employee workspace activity.",
+        learnMorePath: "/ops/run-task",
+        docsPath: "/ops/runtime/live"
       },
       workspace: {
-        label: "Рабочее пространство",
-        tooltip: "Scope, где живут задачи, knowledge и runs сотрудника — отдельно от глобального company view."
-      },
-      handoff: {
-        label: "Handoff",
-        tooltip: "Подготовленный пакет context и instructions для external executor (Codex, Cursor, human) после approval Owner."
-      },
-      approval: {
-        label: "Согласование",
-        tooltip: "Gate Owner перед sensitive actions — cloud runtime, tools, production changes или отправка handoff."
-      },
-      memoryEvolution: {
-        label: "Memory Evolution",
-        tooltip: "После completed run уроки извлекаются в employee memory, project knowledge и experience records."
-      },
-      prompt: {
-        label: "Prompt",
-        tooltip: "Structured instructions для модели — system role, task text, assembled context и output expectations."
-      },
-      modelRouter: {
-        label: "Model Router",
-        tooltip: "Выбирает catalog model и provider из profile, task type, cost limits и mode fast/deep/coding/qa."
+        title: "Рабочий стол одного сотрудника",
+        hint: "Daily desk for one employee — tasks, runs, chats, and notifications in their scope.",
+        whatItIs: "The scoped working surface for a single digital employee.",
+        purpose: "See what this employee is doing now without the noise of the whole company.",
+        onScreen: "Quick actions, current work, recent runs, chats, reports, notifications, and suggested actions.",
+        nextStep: "Посмотрите текущую активность, затем перейдите в Runtime или Task Results за деталями.",
+        downstream: "Workspace activity appears on Employee Profile timeline and Control Room team snapshots.",
+        learnMorePath: "/ops/presence",
+        docsPath: "/ops/employees"
       }
-    }
+    },
+    terms: platformGlossaryTermsRu,
   },
   competencyEngine: {
     title: "Компетенции",

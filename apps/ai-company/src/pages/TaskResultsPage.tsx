@@ -9,6 +9,7 @@ import {
 } from '../components/task-results'
 import { PageHeader, Panel } from '../mission-control/components/ui'
 import { PageGuideCard } from '../components/guided'
+import { ContextEmptyState } from '../components/empty-states'
 import { NextSuggestedActionsPanel } from '../components/work-scheduler'
 import { useTaskResults } from '../hooks/useTaskResults'
 import { useWorkScheduler } from '../hooks/useWorkScheduler'
@@ -72,7 +73,11 @@ export function TaskResultsPage() {
         <Panel title={t.taskResultEngine.catalogTitle} right={<span className="mcMono mcMuted">{filtered.length}</span>}>
           <div className="acTaskResultList mcProfilePanelBody">
             {filtered.length === 0 ? (
-              <p className="mcMuted">{t.taskResultEngine.empty}</p>
+              <ContextEmptyState
+                area="taskResults"
+                variant={stats.total === 0 ? 'initial' : 'filtered'}
+                compact
+              />
             ) : (
               filtered.map((result) => (
                 <TaskResultCard

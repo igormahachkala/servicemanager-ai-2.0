@@ -24,15 +24,16 @@ export function WorkspacesPage() {
       </div>
 
       {workspaces.length === 0 ? (
-        <WorkspaceEmptyState
-          title={t.workspaces.emptyListTitle}
-          description={t.workspaces.emptyListDescription}
-          action={
-            <Link to="/ops/workspaces/new" className="mcBtn mcBtnPrimary">
-              {t.workspaces.newWorkspace}
-            </Link>
-          }
-        />
+        <>
+          <WorkspaceEmptyState
+            action={
+              <Link to="/ops/workspaces/new" className="mcBtn mcBtnPrimary">
+                {t.workspaces.newWorkspace}
+              </Link>
+            }
+          />
+          <p className="mcMemoryLocalNote">{t.workspaces.localOnly}</p>
+        </>
       ) : (
         <div className="mcWorkspaceGrid">
           {workspaces.map((workspace) => (

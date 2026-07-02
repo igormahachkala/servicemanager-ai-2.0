@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { PageHeader, Panel } from '../mission-control/components/ui'
 import { RunCard } from '../components/run/RunCard'
+import { ContextEmptyState } from '../components/empty-states'
 import { RuntimeCostDashboard } from '../components/runtime-monitor'
 import { useRunHistory } from '../hooks/useRunHistory'
 import { useRuntimeMonitor } from '../hooks/useRuntimeMonitor'
@@ -125,10 +126,11 @@ export function RunsPage() {
             </div>
 
             {filtered.length === 0 ? (
-              <div className="mcRunEmpty">
-                <div className="mcRunEmptyTitle">{t.runEngine.emptyListTitle}</div>
-                <p className="mcRunEmptyDesc">{t.runEngine.emptyListDescription}</p>
-              </div>
+              <ContextEmptyState
+                area="runtime"
+                variant={stats.total === 0 ? 'initial' : 'filtered'}
+                compact
+              />
             ) : (
               <div className="mcRunCardGrid">
                 {filtered.map((run) => (

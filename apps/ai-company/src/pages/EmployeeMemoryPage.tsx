@@ -24,7 +24,7 @@ export function EmployeeMemoryPage() {
     () => (employeeId ? resolveEmployee(employeeId) : null),
     [employeeId],
   )
-  const { filtered, stats, tags, query, setQuery, filter, setFilter, add } = useMemory(employeeId)
+  const { filtered, stats, tags, query, setQuery, filter, setFilter, add, entries } = useMemory(employeeId)
 
   const [title, setTitle] = useState('')
   const [summary, setSummary] = useState('')
@@ -95,7 +95,10 @@ export function EmployeeMemoryPage() {
         <div className="mcProfilePanelBody mcStack">
           <MemorySearch value={query} onChange={setQuery} />
           <MemoryFilters filter={filter} tags={tags} onChange={setFilter} />
-          <MemoryTimeline entries={filtered} />
+          <MemoryTimeline
+            entries={filtered}
+            variant={entries.length === 0 ? 'initial' : 'filtered'}
+          />
         </div>
       </Panel>
 

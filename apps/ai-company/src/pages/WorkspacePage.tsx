@@ -9,7 +9,6 @@ import { WorkspaceDocuments } from '../components/workspaces/WorkspaceDocuments'
 import { WorkspaceActivity } from '../components/workspaces/WorkspaceActivity'
 import { WorkspaceTools } from '../components/workspaces/WorkspaceTools'
 import { WorkspaceSettings } from '../components/workspaces/WorkspaceSettings'
-import { WorkspaceEmptyState } from '../components/workspaces/WorkspaceEmptyState'
 import { useWorkspaces } from '../hooks/useWorkspaces'
 import { useAssignments } from '../hooks/useAssignments'
 import { setActiveWorkspaceId } from '../hooks/useActiveWorkspace'
@@ -59,15 +58,13 @@ export function WorkspacePage() {
           title={t.workspaces.notFoundTitle}
           description={t.workspaces.notFoundDescription}
         />
-        <WorkspaceEmptyState
-          title={t.workspaces.notFoundTitle}
-          description={t.workspaces.notFoundDescription}
-          action={
-            <Link to="/ops/workspaces" className="mcBtn mcBtnPrimary">
-              {t.workspaces.backToList}
-            </Link>
-          }
-        />
+        <div className="mcWorkspaceEmpty">
+          <div className="mcWorkspaceEmptyTitle">{t.workspaces.notFoundTitle}</div>
+          <p className="mcWorkspaceEmptyDesc">{t.workspaces.notFoundDescription}</p>
+          <Link to="/ops/workspaces" className="mcBtn mcBtnPrimary">
+            {t.workspaces.backToList}
+          </Link>
+        </div>
       </>
     )
   }

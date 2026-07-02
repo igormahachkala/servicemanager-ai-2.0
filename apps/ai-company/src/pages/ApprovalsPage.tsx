@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { PageHeader, Panel } from '../mission-control/components/ui'
 import { ApprovalCard } from '../components/approval/ApprovalCard'
+import { ContextEmptyState } from '../components/empty-states'
 import { ApprovalFilters } from '../components/approval/ApprovalFilters'
 import { ApprovalPolicyBadge } from '../components/approval/ApprovalPolicyBadge'
 import { ApprovalSummary } from '../components/approval/ApprovalSummary'
@@ -53,10 +54,11 @@ export function ApprovalsPage() {
             </label>
             <ApprovalFilters filter={filter} onChange={setFilter} />
             {filtered.length === 0 ? (
-              <div className="mcApprovalEmpty">
-                <div className="mcApprovalEmptyTitle">{t.approvalEngine.emptyListTitle}</div>
-                <p className="mcApprovalEmptyDesc">{t.approvalEngine.emptyListDescription}</p>
-              </div>
+              <ContextEmptyState
+                area="approvals"
+                variant={stats.total === 0 ? 'initial' : 'filtered'}
+                compact
+              />
             ) : (
               <div className="mcApprovalCardGrid">
                 {filtered.map((approval) => (

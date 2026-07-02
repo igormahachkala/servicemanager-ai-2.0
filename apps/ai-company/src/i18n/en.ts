@@ -1,9 +1,162 @@
+import { platformGlossaryTermsEn } from './platformGlossaryTerms.en'
+
 export const en = {
   common: {
     empty: '—',
     all: 'All',
     notAvailable: 'n/a',
     selected: 'Selected',
+  },
+  contextEmpty: {
+    sections: {
+      whyEmpty: 'Why it\'s empty',
+      whatToDo: 'What to do',
+      example: 'Example result',
+    },
+    taskResults: {
+      initial: {
+        title: 'No task results yet',
+        reason: 'You have not run any employees through Run Task yet.',
+        actionHint: 'Open Run Task, pick an employee (e.g. MAX), and submit a delivery job.',
+        actionLabel: 'Run Task',
+        example: 'MAX audits AI Photo Lab MVP → draft report appears here → you approve or request changes.',
+      },
+      filtered: {
+        title: 'No results match your filters',
+        reason: 'Search or status filters hide every task result in the queue.',
+        actionHint: 'Clear filters or broaden the status filter to see the full queue again.',
+        actionLabel: 'Run Task',
+        example: 'After clearing filters you will see draft and ready-for-review results from recent runs.',
+      },
+    },
+    memory: {
+      initial: {
+        title: 'No memory entries yet',
+        reason: 'This employee has no stored memories — nothing was saved from runs or manual notes.',
+        actionHint: 'Run a task with this employee or add a memory entry below.',
+        actionLabel: 'Run Task',
+        example: 'After a runtime run, Memory Evolution can add lessons like “upload flow needs retry logic”.',
+      },
+      filtered: {
+        title: 'No memories match your filters',
+        reason: 'Type, importance, or tag filters exclude every memory entry.',
+        actionHint: 'Reset filters or add a new memory entry for this employee.',
+        actionLabel: 'Run Task',
+        example: 'Example entry: Decision — “Owner approved MVP scope without mobile chat”.',
+      },
+    },
+    knowledge: {
+      initial: {
+        title: 'No knowledge items in catalog',
+        reason: 'The platform knowledge catalog is empty for the current scope.',
+        actionHint: 'Run an employee task that references docs, or check Collections for curated paths.',
+        actionLabel: 'Run Task',
+        example: 'Atlas reads ADR-001 → knowledge item appears → Runtime queries it on the next run.',
+      },
+      filtered: {
+        title: 'No knowledge matches your filters',
+        reason: 'Search, type, or tag filters hide every knowledge item.',
+        actionHint: 'Clear filters or open Collections to browse curated reading paths.',
+        actionLabel: 'Open Collections',
+        example: 'Platform Architecture collection lists ADRs and standards assigned to employees.',
+      },
+    },
+    timeline: {
+      initial: {
+        title: 'Timeline is quiet',
+        reason: 'No company events were recorded yet — runs, approvals, and handoffs emit events here.',
+        actionHint: 'Start a Runtime run or approve a task result to populate the timeline.',
+        actionLabel: 'Run Task',
+        example: 'runtime.completed → task_result.approved → handoff.created appear as dated events.',
+      },
+      filtered: {
+        title: 'No events match your filters',
+        reason: 'Employee, workspace, or type filters exclude every event.',
+        actionHint: 'Clear scope filters to see the global company timeline.',
+        actionLabel: 'Run Task',
+        example: 'Filter by MAX to see only runs and approvals tied to that employee.',
+      },
+    },
+    reports: {
+      initial: {
+        title: 'No reports generated yet',
+        reason: 'Every completed Runtime run should produce a draft report — none exist yet.',
+        actionHint: 'Run Task with any employee; the orchestrator creates a Senior Engineer report automatically.',
+        actionLabel: 'Run Task',
+        example: 'MAX coding audit → Report with Risks (Critical/High) and Owner decision section.',
+      },
+      filtered: {
+        title: 'No reports match your filters',
+        reason: 'Type or status filters hide every report in the catalog.',
+        actionHint: 'Set filters to All or run a new task to generate a fresh draft report.',
+        actionLabel: 'Run Task',
+        example: 'Draft system reports from runtime runs appear after the first successful execution.',
+      },
+    },
+    runtime: {
+      initial: {
+        title: 'No runtime runs yet',
+        reason: 'Run History is empty — no employee has executed through the orchestrator.',
+        actionHint: 'Open Run Task, choose employee + model, and start the first execution.',
+        actionLabel: 'Run Task',
+        example: 'Run completes → entry in Run History → linked report and task result for Owner review.',
+      },
+      filtered: {
+        title: 'No runs match your filters',
+        reason: 'Status, employee, or workspace filters exclude every run record.',
+        actionHint: 'Reset filters or launch a new run from Run Task.',
+        actionLabel: 'Run Task',
+        example: 'Filter by completed to see successful runs with model and context metadata.',
+      },
+    },
+    workspace: {
+      initial: {
+        title: 'No workspaces yet',
+        reason: 'Workspaces group projects, assignments, and context — you have not created one.',
+        actionHint: 'Create a workspace, then assign digital employees via Assignment (not ownership).',
+        actionLabel: 'New Workspace',
+        example: 'Engineering workspace → assign MAX + Atlas → Run Task scoped to that workspace.',
+      },
+      filtered: {
+        title: 'No workspaces match',
+        reason: 'This view has no workspaces to show.',
+        actionHint: 'Create a workspace to organize delivery context for your team.',
+        actionLabel: 'New Workspace',
+        example: 'Product workspace for AI Photo Lab with linked project and employee assignments.',
+      },
+    },
+    canvas: {
+      initial: {
+        title: 'Select a node to inspect',
+        reason: 'The graph shows employees, tasks, runs, and approvals — nothing is selected yet.',
+        actionHint: 'Click a node on the canvas or run a task to add live activity to the graph.',
+        actionLabel: 'Run Task',
+        example: 'Click MAX node → see inbound tasks, recent runs, and jump to Runtime profile.',
+      },
+      filtered: {
+        title: 'Select a node to inspect',
+        reason: 'The graph shows employees, tasks, runs, and approvals — nothing is selected yet.',
+        actionHint: 'Click a node on the canvas or run a task to add live activity to the graph.',
+        actionLabel: 'Run Task',
+        example: 'Project focus mode highlights AI Photo Lab squad, tasks, and waiting approvals.',
+      },
+    },
+    approvals: {
+      initial: {
+        title: 'Approval queue is clear',
+        reason: 'No human-in-the-loop requests yet — Runtime creates them for protected actions.',
+        actionHint: 'Run a task that triggers tool execution or production deploy to generate a request.',
+        actionLabel: 'Run Task',
+        example: 'Tool gateway request → pending approval → Owner approves → audit event recorded.',
+      },
+      filtered: {
+        title: 'No approvals match your filters',
+        reason: 'Status or search filters hide every approval request.',
+        actionHint: 'Clear filters or wait for Runtime to submit a new protected action.',
+        actionLabel: 'Run Task',
+        example: 'Pending production deploy requests appear with policy badge and Owner review actions.',
+      },
+    },
   },
   nav: {
     flow: 'Flow',
@@ -3158,102 +3311,169 @@ export const en = {
   guidedExperience: {
     nextStepLabel: 'Next step',
     learnMore: 'Learn more',
+    moreDetails: 'More details',
+    hideDetails: 'Hide details',
+    openDocs: 'Open documentation',
     termsLabel: 'Key terms',
+    openTermInHelp: 'Open in Help Center',
+    helpCenter: {
+      title: 'Help Center',
+      subtitle: 'Platform glossary — one click to understand any term.',
+      searchPlaceholder: 'Search terms…',
+      close: 'Close',
+      openAria: 'Open Help Center',
+      allTerms: 'All terms',
+      noResults: 'No terms match your search.',
+      selectTerm: 'Select a term to see details.',
+    },
+    termSections: {
+      summary: 'Summary',
+      description: 'Details',
+      whereUsed: 'Where it appears',
+      related: 'Related pages',
+    },
+    sections: {
+      whatItIs: 'What this is',
+      purpose: 'What it is for',
+      onScreen: 'What happens here',
+      nextStep: 'Next step',
+      downstream: 'Used downstream',
+    },
     pages: {
       commandCenter: {
-        title: 'Your company at a glance',
-        description:
-          'Command Center is the Owner cockpit — health, who is working, pending approvals, runtime activity, and today’s priorities in one place.',
-        nextStep: 'Scan critical alerts and pending approvals, then open Operating Day for the full daily flow.',
+        title: 'Command Center',
+        hint: 'Your daily Owner cockpit — health, people, approvals, and runtime in one view.',
+        whatItIs: 'The executive dashboard of AI Company.',
+        purpose: 'Give the Owner situational awareness before assigning work or approving actions.',
+        onScreen:
+          'Morning brief, employee activity, sprint progress, pending approvals, runtime cost, timeline events, and quick launch actions.',
+        nextStep: 'Scan alerts and approvals, then open Operating Day for the full daily walkthrough.',
+        downstream: 'Feeds Operating Day priorities, notifications, and suggested next actions across Run Task and Control Room.',
         learnMorePath: '/ops/day',
+        docsPath: '/ops/timeline',
       },
       runTask: {
-        title: 'Assign work to a digital employee',
-        description:
-          'Describe the task, pick an employee and mode, then launch a Runtime run. Results flow into reports, task results, and employee memory.',
-        nextStep: 'Write a clear task, choose Atlas or MAX, and start the run — then follow progress in Live Runtime.',
+        title: 'Run Task',
+        hint: 'Assign a task to a digital employee and launch a real Runtime execution.',
+        whatItIs: 'The primary Owner entry point for structured employee work.',
+        purpose: 'Turn intent into a delivery task, runtime run, report, and reviewable result.',
+        onScreen:
+          'Task text, employee and mode selection, project/workspace context, model routing preview, and run history.',
+        nextStep: 'Write a clear task, pick Atlas or MAX, press Start, then follow the run in Live Runtime.',
+        downstream: 'Creates delivery tasks, runtime runs, reports, task results, timeline events, and memory evolution.',
         learnMorePath: '/ops/runtime/live',
+        docsPath: '/ops/task-results',
+      },
+      runtime: {
+        title: 'Runtime Settings',
+        hint: 'Configure providers, profiles, health, and inspect past runs.',
+        whatItIs: 'The control plane for model execution in AI Company.',
+        purpose: 'Manage how digital employees connect to Ollama or mock providers and review execution history.',
+        onScreen:
+          'Provider health, employee runtime profiles, model routing, cost dashboard, recent runs, logs, and quick execution panel.',
+        nextStep: 'Confirm provider health, review cost today, then open Live Runtime or Run Task for the next execution.',
+        downstream: 'Runtime runs produce reports, task results, employee memory, and timeline entries consumed by Task Results and Employee Profile.',
+        learnMorePath: '/ops/runtime/live',
+        docsPath: '/ops/runs',
       },
       runtimeLive: {
-        title: 'Watch execution in real time',
-        description:
-          'Live Runtime shows the active pipeline, provider logs, elapsed time, and result preview while a digital employee works.',
-        nextStep: 'Launch or select a run, watch the pipeline steps, then review the report when execution completes.',
+        title: 'Live Runtime',
+        hint: 'Watch pipeline, logs, prompt preview, and result as execution happens.',
+        whatItIs: 'Real-time observability for an active or recent runtime run.',
+        purpose: 'Let the Owner see exactly what the model receives and how execution progresses.',
+        onScreen:
+          'Pipeline steps, live stream, provider status, elapsed time, context layers, prompt preview, and result preview.',
+        nextStep: 'Select or launch a run, open Prompt Preview, wait for completion, then review the linked report.',
+        downstream: 'Completed runs update reports, task results, memory evolution, and employee timeline.',
         learnMorePath: '/ops/runtime',
-      },
-      taskResults: {
-        title: 'Outcomes from completed work',
-        description:
-          'Task Results collect deliverables after Runtime runs — status, review notes, and links back to reports and follow-up actions.',
-        nextStep: 'Filter by status, open a result to review output, and approve or plan the next suggested action.',
-        learnMorePath: '/ops/reports',
-      },
-      workspace: {
-        title: 'One employee’s working desk',
-        description:
-          'Workspace is the daily surface for a single digital employee — current tasks, runs, chats, reports, and notifications scoped to them.',
-        nextStep: 'Check what they are doing now, then jump to Runtime or Task Results for deeper detail.',
-        learnMorePath: '/ops/presence',
+        docsPath: '/ops/runs',
       },
       operatingDay: {
-        title: 'How the company moves through the day',
-        description:
-          'Operating Day walks the Owner through morning brief, employees, sprint progress, approvals, runtime, and end-of-day wrap-up.',
-        nextStep: 'Follow the phases top to bottom — resolve blockers in Approvals and Runtime before end-of-day.',
+        title: 'Operating Day',
+        hint: 'Walk through the company day from morning brief to end-of-day summary.',
+        whatItIs: 'A narrative map of how the digital company spends a working day.',
+        purpose: 'Help the Owner resolve blockers in order — people, work, approvals, runtime, reports.',
+        onScreen:
+          'Phases for morning, employees, current work, meetings, approvals, runtime metrics, reports, and evening wrap-up.',
+        nextStep: 'Move top to bottom through phases and clear pending approvals before end-of-day.',
+        downstream: 'Links back to Command Center, Control Room, Task Results, and Runtime for follow-up actions.',
         learnMorePath: '/ops',
+        docsPath: '/ops/approvals',
       },
-      kickoff: {
-        title: 'Start the AI Photo Lab project',
-        description:
-          'Kickoff bootstraps demo-ready work — sprint goal, team presets, QA checklist, and one-click tasks for Atlas and MAX.',
-        nextStep: 'Run a preset task or open Control Room to track delivery, risks, and external handoffs.',
-        learnMorePath: '/ops/projects/project-ai-photo-lab/control-room',
+      employeeProfile: {
+        title: 'Employee Profile',
+        hint: 'Identity, skills, memory, runtime history, and living timeline for one digital employee.',
+        whatItIs: 'The long-lived record of a digital employee in your company.',
+        purpose: 'Understand who this employee is, what they learned, and what they delivered over time.',
+        onScreen:
+          'Identity passport, living timeline, skills, permissions, memory, knowledge, assignments, runtime, and presence.',
+        nextStep: 'Read the living timeline, then open Workspace or Run Task to assign the next piece of work.',
+        downstream: 'Profile data informs Run Task routing, memory evolution, task results, and Control Room staffing views.',
+        learnMorePath: '/ops/employees/ag-cto/workspace',
+        docsPath: '/ops/employees',
+      },
+      taskResults: {
+        title: 'Task Results',
+        hint: 'Review deliverables after runtime runs and approve or request changes.',
+        whatItIs: 'The Owner review queue for completed employee work.',
+        purpose: 'Gate quality before memory evolution, suggested actions, and downstream handoffs.',
+        onScreen:
+          'Result list, status filters, review panel, memory evolution summary, and suggested next actions.',
+        nextStep: 'Open the latest result, review output, approve or request changes, then check suggested actions.',
+        downstream: 'Approved results update reports, employee memory, work scheduler suggestions, and Control Room delivery status.',
+        learnMorePath: '/ops/reports',
+        docsPath: '/ops/approvals',
       },
       controlRoom: {
-        title: 'Project delivery command post',
-        description:
-          'Control Room tracks AI Photo Lab progress — task queue, runtime activity, risks, demo readiness, approvals, and Codex handoffs.',
-        nextStep: 'Review the task queue and risks, then approve handoffs or launch the next runtime task.',
+        title: 'Control Room',
+        hint: 'Project delivery command post for AI Photo Lab — queue, risks, handoffs, demo readiness.',
+        whatItIs: 'The project-level operations center for active delivery.',
+        purpose: 'Track sprint progress, runtime activity, risks, and external handoffs in one place.',
+        onScreen:
+          'Task queue, team snapshot, runtime stats, risks, demo checklist, approvals, Codex handoffs, and suggested actions.',
+        nextStep: 'Review risks and task queue, approve pending handoffs, then launch the next Run Task.',
+        downstream: 'Control Room status rolls up to Command Center, Operating Day, and Kickoff presets.',
         learnMorePath: '/ops/projects/project-ai-photo-lab/kickoff',
+        docsPath: '/ops/handoffs',
       },
-    },
-    terms: {
-      runtime: {
-        label: 'Runtime',
-        tooltip:
-          'Local execution engine for digital employees — assembles context, calls the model, produces reports and artifacts.',
+      kickoff: {
+        title: 'AI Photo Lab Kickoff',
+        hint: 'Bootstrap demo-ready sprint work with presets for Atlas and MAX.',
+        whatItIs: 'The project start screen for AI Photo Lab delivery.',
+        purpose: 'Align sprint goal, team presets, QA checklist, and first tasks before Control Room tracking.',
+        onScreen:
+          'Sprint goal, stats, preset tasks, QA checklist, documentation links, and one-click run actions.',
+        nextStep: 'Run a preset task for Atlas or MAX, then switch to Control Room to monitor delivery.',
+        downstream: 'Kickoff tasks flow into Runtime, Task Results, handoffs, and Control Room progress.',
+        learnMorePath: '/ops/projects/project-ai-photo-lab/control-room',
+        docsPath: '/ops/sprint/sprint-apl-1',
+      },
+      visualLab: {
+        title: 'Visual Execution Lab',
+        hint: 'Replay how a digital employee works — editor, browser, terminal, and action timeline.',
+        whatItIs: 'A visual sandbox for understanding employee execution flow.',
+        purpose: 'Explain runtime behavior to stakeholders without running a live model call.',
+        onScreen:
+          'Session sidebar, code editor, browser preview, terminal output, and step-through action timeline.',
+        nextStep: 'Press play on the timeline, step through actions, then compare with a real Live Runtime run.',
+        downstream: 'Concepts map to Run Task, Live Runtime prompt preview, and employee workspace activity.',
+        learnMorePath: '/ops/run-task',
+        docsPath: '/ops/runtime/live',
       },
       workspace: {
-        label: 'Workspace',
-        tooltip:
-          'Scoped environment where an employee’s tasks, knowledge, and runs live — separate from the global company view.',
-      },
-      handoff: {
-        label: 'Handoff',
-        tooltip:
-          'Prepared package of context and instructions for an external executor (Codex, Cursor, human) after Owner approval.',
-      },
-      approval: {
-        label: 'Approval',
-        tooltip:
-          'Owner gate before sensitive actions — cloud runtime, tool use, production changes, or sending a handoff.',
-      },
-      memoryEvolution: {
-        label: 'Memory Evolution',
-        tooltip:
-          'After a completed run, lessons are extracted into employee memory, project knowledge, and experience records.',
-      },
-      prompt: {
-        label: 'Prompt',
-        tooltip:
-          'Structured instructions sent to the model — system role, task text, assembled context, and output expectations.',
-      },
-      modelRouter: {
-        label: 'Model Router',
-        tooltip:
-          'Chooses catalog model and provider from employee profile, task type, cost limits, and fast/deep/coding/qa mode.',
+        title: 'Employee Workspace',
+        hint: 'Daily desk for one employee — tasks, runs, chats, and notifications in their scope.',
+        whatItIs: 'The scoped working surface for a single digital employee.',
+        purpose: 'See what this employee is doing now without the noise of the whole company.',
+        onScreen:
+          'Quick actions, current work, recent runs, chats, reports, notifications, and suggested actions.',
+        nextStep: 'Check current activity, then jump to Run Task or Task Results for deeper review.',
+        downstream: 'Workspace activity appears on Employee Profile timeline and Control Room team snapshots.',
+        learnMorePath: '/ops/presence',
+        docsPath: '/ops/employees',
       },
     },
+    terms: platformGlossaryTermsEn,
   },
   competencyEngine: {
     title: 'Competencies',

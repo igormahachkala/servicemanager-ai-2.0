@@ -119,7 +119,7 @@ export function CompanyTimelinePage() {
             />
           </label>
           <EventFilters filter={filter} onChange={setFilter} />
-          <Timeline groups={grouped} />
+          <Timeline groups={grouped} variant={stats.total === 0 ? 'initial' : 'filtered'} />
         </div>
       </Panel>
 

@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { PageHeader, Panel } from '../mission-control/components/ui'
 import { ReportCard } from '../components/reports/ReportCard'
+import { ContextEmptyState } from '../components/empty-states'
 import { REPORT_TYPES, REPORT_STATUSES } from '../domain/reports/reportTypes'
 import type { ReportFilter } from '../domain/reports/report'
 import { useReports } from '../hooks/useReports'
@@ -113,10 +114,10 @@ export function ReportsPage() {
         </div>
 
         {filtered.length === 0 ? (
-          <div className="mcReportEmpty">
-            <div className="mcReportEmptyTitle">{t.reports.emptyTitle}</div>
-            <p className="mcReportEmptyDesc">{t.reports.emptyDescription}</p>
-          </div>
+          <ContextEmptyState
+            area="reports"
+            variant={stats.total === 0 ? 'initial' : 'filtered'}
+          />
         ) : (
           <div className="mcReportGrid">
             {filtered.map((report) => (

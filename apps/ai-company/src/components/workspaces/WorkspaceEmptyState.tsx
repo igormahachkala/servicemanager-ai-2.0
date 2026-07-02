@@ -1,19 +1,16 @@
 import type { ReactNode } from 'react'
-import { useI18n } from '../../i18n'
+import { ContextEmptyState } from '../empty-states'
 
 export function WorkspaceEmptyState(props: {
-  title: string
-  description: string
+  variant?: 'initial' | 'filtered'
   action?: ReactNode
 }) {
-  const { t } = useI18n()
-
   return (
-    <div className="mcWorkspaceEmpty">
-      <div className="mcWorkspaceEmptyTitle">{props.title}</div>
-      <p className="mcWorkspaceEmptyDesc">{props.description}</p>
-      {props.action}
-      <span className="mcWorkspaceEmptyHint">{t.workspaces.localOnly}</span>
-    </div>
+    <ContextEmptyState
+      area="workspace"
+      variant={props.variant ?? 'initial'}
+      action={props.action}
+      className="mcWorkspaceEmptyWrap"
+    />
   )
 }

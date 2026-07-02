@@ -1,4 +1,5 @@
 import type { EmployeeTimelinePeriod } from '../../domain/employeeTimeline'
+import { ContextEmptyState } from '../empty-states'
 import { useEmployeeTimeline } from '../../hooks/useEmployeeTimeline'
 import { useI18n } from '../../i18n'
 import { EmployeeTimelineItem } from './EmployeeTimelineItem'
@@ -12,7 +13,7 @@ const PERIODS: EmployeeTimelinePeriod[] = ['today', 'week', 'all']
 
 export function EmployeeLivingTimeline({ employeeId, compact = false }: Props) {
   const { t } = useI18n()
-  const { entries, summary, period, setPeriod } = useEmployeeTimeline(employeeId)
+  const { entries, allEntries, summary, period, setPeriod } = useEmployeeTimeline(employeeId)
   const et = t.employeeTimelineEngine
 
   return (
@@ -68,7 +69,12 @@ export function EmployeeLivingTimeline({ employeeId, compact = false }: Props) {
         </div>
 
         {entries.length === 0 ? (
-          <p className="mcMuted acEmployeeTimelineEmpty">{et.empty}</p>
+          <ContextEmptyState
+            area="timeline"
+            variant={allEntries.length === 0 ? 'initial' : 'filtered'}
+            compact
+            className="acEmployeeTimelineEmpty"
+          />
         ) : (
           <div className="acEmployeeTimelineList">
             {entries.slice(0, compact ? 6 : undefined).map((entry) => (
