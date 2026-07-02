@@ -3242,6 +3242,7 @@ export const ru: Messages = {
     openDocs: "Открыть документацию",
     termsLabel: "Ключевые термины",
     openTermInHelp: "Открыть в Help Center",
+    tooltipHelpCta: "Нажмите, чтобы открыть Help Center",
     helpCenter: {
       title: "Help Center",
       subtitle: "Platform glossary — любой термин за один клик.",

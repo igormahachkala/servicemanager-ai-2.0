@@ -3316,6 +3316,7 @@ export const en = {
     openDocs: 'Open documentation',
     termsLabel: 'Key terms',
     openTermInHelp: 'Open in Help Center',
+    tooltipHelpCta: 'Click to open Help Center',
     helpCenter: {
       title: 'Help Center',
       subtitle: 'Platform glossary — one click to understand any term.',

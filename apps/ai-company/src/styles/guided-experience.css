@@ -125,6 +125,12 @@
   border: 1px solid rgba(148, 163, 184, 0.35);
 }
 
+.acTermTooltipControl {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
 .acTermTooltipTrigger {
   display: inline-flex;
   align-items: center;
@@ -154,7 +160,7 @@
   left: 50%;
   transform: translateX(-50%);
   width: max-content;
-  max-width: 240px;
+  max-width: 260px;
   padding: 8px 10px;
   border-radius: 8px;
   background: #0f172a;
@@ -163,8 +169,24 @@
   line-height: 1.4;
   box-shadow: 0 8px 24px rgba(15, 23, 42, 0.25);
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
-  transition: opacity 0.15s ease;
+  transition: opacity 0.15s ease, visibility 0.15s ease;
+}
+
+.acTermTooltipBubbleOpen {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
+.acTermTooltipBubble::before {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: -12px;
+  right: -12px;
+  height: 14px;
 }
 
 .acTermTooltipBubble::after {
@@ -177,21 +199,30 @@
   border-top-color: #0f172a;
 }
 
-.acTermTooltip:hover .acTermTooltipBubble,
-.acTermTooltip:focus-within .acTermTooltipBubble {
-  opacity: 1;
-}
-
 .acTermTooltipSummary {
   display: block;
 }
 
-.acTermTooltipMore {
+.acTermTooltipCta {
   display: block;
-  margin-top: 6px;
+  width: 100%;
+  margin-top: 8px;
+  padding: 5px 8px;
+  border: 1px solid rgba(147, 197, 253, 0.45);
+  border-radius: 6px;
+  background: rgba(59, 130, 246, 0.22);
+  color: #dbeafe;
   font-size: 10px;
   font-weight: 600;
-  color: #93c5fd;
+  line-height: 1.35;
+  text-align: left;
+  cursor: pointer;
+}
+
+.acTermTooltipCta:hover,
+.acTermTooltipCta:focus-visible {
+  background: rgba(59, 130, 246, 0.34);
+  outline: none;
 }
 
 .acHelpCenterBtn {
