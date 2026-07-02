@@ -1,3 +1,11 @@
+/* Figma Make design system fonts: Inter (UI) + JetBrains Mono (ticket numbers / IDs / timestamps) */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+:root {
+  --font-ui: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
 html,
 body,
 #root {
@@ -13,7 +21,7 @@ body,
 
 body {
   margin: 0;
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  font-family: var(--font-ui);
   background: #f6f7fb;
   color: #111827;
   text-rendering: optimizeLegibility;

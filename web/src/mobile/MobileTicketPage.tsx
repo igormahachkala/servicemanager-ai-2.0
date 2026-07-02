@@ -1248,7 +1248,7 @@ export function MobileTicketPage() {
               <span className={`mobileTicketStatusLarge mobileTicketStatusLarge--${ticket.status}`}>
                 {mobileTicketStatusLabelRu(ticket.status)}
               </span>
-              <span style={{ fontSize: '0.78rem', color: '#9ca3af' }}>
+              <span style={{ fontSize: '0.78rem', color: '#9ca3af', fontFamily: 'var(--font-mono)' }}>
                 {mobileTicketNumberTitle(ticket.ticketNumber)}
               </span>
             </div>
@@ -1298,7 +1298,7 @@ export function MobileTicketPage() {
               {ticket.slaDueAt ? (
                 <div className="mobileDetailRow">
                   <span className="mobileDetailRowLabel"><RowIcon name="clock" />SLA</span>
-                  <span className="mobileDetailRowValue">
+                  <span className="mobileDetailRowValue" style={{ fontFamily: 'var(--font-mono)' }}>
                     {new Date(ticket.slaDueAt).toLocaleString('ru-RU', {
                       day: '2-digit',
                       month: '2-digit',
@@ -1311,7 +1311,7 @@ export function MobileTicketPage() {
               ) : null}
               <div className="mobileDetailRow" style={{ borderBottom: 'none' }}>
                 <span className="mobileDetailRowLabel"><RowIcon name="hash" />ID</span>
-                <span className="mobileDetailRowValue" style={{ fontSize: '0.72rem', color: '#9ca3af', wordBreak: 'break-all' }}>{ticket.id}</span>
+                <span className="mobileDetailRowValue" style={{ fontSize: '0.72rem', color: '#9ca3af', wordBreak: 'break-all', fontFamily: 'var(--font-mono)' }}>{ticket.id}</span>
               </div>
             </div>
 
