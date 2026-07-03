@@ -67,8 +67,13 @@ export type InAppNotificationType =
   | 'ticket.done'
   | 'ticket.claimed'
   | 'ticket.status_changed'
+  | 'ticket.status_client'
   | 'ticket.assignment_requested'
   | 'ticket.assigned_external'
+  | 'ticket.assigned_client'
+  | 'ticket.awaiting_acceptance'
+  | 'ticket.accepted'
+  | 'ticket.rejected'
   | 'sla.warning'
   | 'sla.overdue'
   | 'urgent.created'
@@ -81,8 +86,13 @@ const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
   'ticket.done': 'Работы завершены',
   'ticket.claimed': 'Взята в работу',
   'ticket.status_changed': 'Статус изменён',
+  'ticket.status_client': 'Статус изменён',
   'ticket.assignment_requested': 'Запрос назначения',
   'ticket.assigned_external': 'Назначен исполнитель',
+  'ticket.assigned_client': 'Исполнитель назначен',
+  'ticket.awaiting_acceptance': 'Отправлена на приёмку',
+  'ticket.accepted': 'Работа принята',
+  'ticket.rejected': 'Работа не принята',
   'ticket.comment_added': 'Новый комментарий',
   'ticket.attachment_uploaded': 'Новое фото',
   'sla.warning': 'Скоро дедлайн',
@@ -108,8 +118,13 @@ export function getNotificationTypeTone(type: string): string {
     'ticket.done': 'statusChanged',
     'ticket.claimed': 'ticketClaimed',
     'ticket.status_changed': 'statusChanged',
+    'ticket.status_client': 'statusChanged',
     'ticket.assignment_requested': 'assignmentRequested',
     'ticket.assigned_external': 'ticketAssignedExternal',
+    'ticket.assigned_client': 'ticketAssigned',
+    'ticket.awaiting_acceptance': 'statusChanged',
+    'ticket.accepted': 'ticketClaimed',
+    'ticket.rejected': 'slaOverdue',
     'sla.warning': 'slaWarning',
     'sla.overdue': 'slaOverdue',
     'urgent.created': 'urgentCreated',
