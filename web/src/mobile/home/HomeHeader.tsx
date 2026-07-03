@@ -1,5 +1,4 @@
 import * as api from '../../lib/api'
-import { MobileRoleContextStrip } from '../MobileUxHints'
 import { formatMobileMutationError } from '../mobileActionErrors'
 import type { MobileHomeBoardFilterTab } from '../mobileHomeBoardFilters'
 
@@ -94,10 +93,11 @@ export function HomeHeader(props: Props) {
           ) : null}
         </label>
       </div>
-      <div style={{ marginBottom: 4 }}>
-        {me ? <MobileRoleContextStrip role={me.role} /> : null}
-        {!isOnline && boardHasData ? <div className="mobileStaleDataBanner" role="status">Показаны сохранённые данные</div> : null}
-      </div>
+      {!isOnline && boardHasData ? (
+        <div style={{ marginBottom: 4 }}>
+          <div className="mobileStaleDataBanner" role="status">Показаны сохранённые данные</div>
+        </div>
+      ) : null}
 
       {tabCounts ? (
         <div className="mobileStatsGrid">

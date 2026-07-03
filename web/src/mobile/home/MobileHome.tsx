@@ -31,7 +31,6 @@ import {
 } from '../mobileHomeListUtils'
 import { formatMobileMutationError } from '../mobileActionErrors'
 import { getOnlineStatus, loadBoardCache, saveBoardCache, useOnlineStatus } from '../offlineQueue'
-import { readMobileHomeIntroDismissed } from '../MobileUxHints'
 import { mobilePath } from '../mobileRoute'
 import { HomeHeader } from './HomeHeader'
 import { HomeTabs } from './HomeTabs'
@@ -121,7 +120,6 @@ export function MobileHome() {
   const [boardTab, setBoardTab] = useState<MobileHomeBoardFilterTab>(persistedBoardUi.tab)
   const [activeChips, setActiveChips] = useState<Set<MobileHomeBoardChipId>>(() => new Set(persistedBoardUi.chips))
   const [searchQuery, setSearchQuery] = useState('')
-  const [homeIntroDismissed, setHomeIntroDismissed] = useState(() => readMobileHomeIntroDismissed())
   const [filtersExpanded, setFiltersExpanded] = useState(false)
   const [quickFilter, setQuickFilter] = useState<MobileHomeQuickFilter>(null)
 
@@ -455,12 +453,9 @@ export function MobileHome() {
           />
           <div className="mobileHomeBoardSticky">
             <HomeTabs
-              role={meQ.data?.role}
               boardTab={boardTab}
               setBoardTab={selectBoardTab}
               tabCounts={tabCounts}
-              homeIntroDismissed={homeIntroDismissed}
-              setHomeIntroDismissed={setHomeIntroDismissed}
               collapsed={!filtersExpanded}
               activeSuppressed={!!quickFilter}
             />
