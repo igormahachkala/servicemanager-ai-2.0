@@ -108,9 +108,23 @@ function ClientAcceptanceRejectModal(props: {
             <input ref={galleryInputRef} className="mobileHiddenFileInput" type="file" accept="image/*" disabled={busy} onChange={pickFile} />
             <div className="mobilePhotoSourceRow">
               <button type="button" className="mobileBtn mobileBtnSecondary mobilePhotoSourceBtn" disabled={busy} onClick={() => cameraInputRef.current?.click()}>
+                <span className="mobilePhotoSourceBtnIcon" aria-hidden>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M5 7h2l2 -2h6l2 2h2a2 2 0 0 1 2 2v9a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-9a2 2 0 0 1 2 -2" />
+                    <circle cx="12" cy="13" r="3" />
+                  </svg>
+                </span>
                 Сделать фото
               </button>
               <button type="button" className="mobileBtn mobileBtnSecondary mobilePhotoSourceBtn" disabled={busy} onClick={() => galleryInputRef.current?.click()}>
+                <span className="mobilePhotoSourceBtnIcon" aria-hidden>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="15" y1="8" x2="15.01" y2="8" />
+                    <rect x="4" y="4" width="16" height="16" rx="3" />
+                    <path d="M4 15l4 -4a3 5 0 0 1 3 0l5 5" />
+                    <path d="M14 14l1 -1a3 5 0 0 1 3 0l2 2" />
+                  </svg>
+                </span>
                 Выбрать из телефона
               </button>
             </div>
@@ -1570,6 +1584,12 @@ export function MobileTicketPage() {
                       disabled={isTicketAddPhotoUploading}
                       onClick={() => addTicketCameraRef.current?.click()}
                     >
+                      <span className="mobilePhotoSourceBtnIcon" aria-hidden>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M5 7h2l2 -2h6l2 2h2a2 2 0 0 1 2 2v9a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-9a2 2 0 0 1 2 -2" />
+                          <circle cx="12" cy="13" r="3" />
+                        </svg>
+                      </span>
                       Сделать фото
                     </button>
                     <button
@@ -1578,6 +1598,14 @@ export function MobileTicketPage() {
                       disabled={isTicketAddPhotoUploading}
                       onClick={() => addTicketGalleryRef.current?.click()}
                     >
+                      <span className="mobilePhotoSourceBtnIcon" aria-hidden>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="15" y1="8" x2="15.01" y2="8" />
+                          <rect x="4" y="4" width="16" height="16" rx="3" />
+                          <path d="M4 15l4 -4a3 5 0 0 1 3 0l5 5" />
+                          <path d="M14 14l1 -1a3 5 0 0 1 3 0l2 2" />
+                        </svg>
+                      </span>
                       Из галереи
                     </button>
                   </div>
