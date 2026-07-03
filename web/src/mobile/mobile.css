@@ -3472,40 +3472,111 @@ a.mobileBtn.mobileCreateTicketLink {
 }
 
 /* ── Stats grid on home screen ──────────────────────────── */
+/* Home header — Figma Make HomeScreen: kicker + name + avatar-initials + online·role */
+.mobileHomeHeaderCard {
+  margin-bottom: 12px;
+}
+.mobileHomeHeaderTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.mobileHomeHeaderTitleWrap {
+  min-width: 0;
+}
+.mobileHomeHeaderKicker {
+  margin: 0;
+  font-size: 0.69rem;
+  color: #94a3b8;
+  font-weight: 500;
+}
+.mobileHomeHeaderName {
+  margin: 1px 0 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mobileHomeHeaderAvatar {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #2563eb;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.mobileHomeHeaderOnline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 0.69rem;
+  font-weight: 600;
+  color: #059669;
+}
+.mobileHomeHeaderOnlineDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+}
+
+/* Home stat grid — Figma Make HomeScreen: 4 equal colored cards, always visible */
 .mobileStatsGrid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-bottom: 16px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
 }
 
 .mobileStatBlock {
-  background: #fff;
+  background: #f8fafc;
   border-radius: 16px;
-  padding: 14px 14px 12px;
-  border: 1px solid #e5e7eb;
-  box-shadow: 0 2px 8px rgba(17, 24, 39, 0.04);
+  padding: 10px 8px;
+  border: 1px solid #eef2f7;
+  box-shadow: none;
+  text-align: center;
 }
 
 .mobileStatValue {
-  font-size: 2rem;
-  font-weight: 800;
+  font-size: 1.15rem;
+  font-weight: 700;
   line-height: 1;
-  margin-bottom: 4px;
+  margin-bottom: 3px;
+  color: #334155;
 }
 
 .mobileStatLabel {
-  font-size: 0.72rem;
-  font-weight: 600;
-  color: #9ca3af;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  font-size: 0.62rem;
+  font-weight: 500;
+  color: #94a3b8;
+  text-transform: none;
+  letter-spacing: 0;
 }
 
-.mobileStatBlock--new .mobileStatValue  { color: #2563eb; }
-.mobileStatBlock--inwork .mobileStatValue { color: #d97706; }
+/* per-stat colored card (bg + border + value) — Figma palette */
+.mobileStatBlock--new       { background: #fff7ed; border-color: #fed7aa; }
+.mobileStatBlock--new .mobileStatValue     { color: #ea580c; }
+.mobileStatBlock--inwork    { background: #f5f3ff; border-color: #ddd6fe; }
+.mobileStatBlock--inwork .mobileStatValue  { color: #7c3aed; }
+.mobileStatBlock--overdue   { background: #fef2f2; border-color: #fecaca; }
 .mobileStatBlock--overdue .mobileStatValue { color: #dc2626; }
-.mobileStatBlock--done .mobileStatValue  { color: #059669; }
+.mobileStatBlock--done      { background: #ecfdf5; border-color: #a7f3d0; }
+.mobileStatBlock--done .mobileStatValue    { color: #059669; }
+
+.mobileStatBlock--active {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+}
 
 /* ── V2 ticket list card (no thumbnail, clean text) ─────── */
 
