@@ -8,7 +8,6 @@ import {
   mobileTicketNavState,
   scopeForMobileTicketLink,
 } from './mobileTicketDisplay'
-import { MobileRoleContextStrip } from './MobileUxHints'
 import { ticketsForMobileMyPage } from './mobileHomeBoardFilters'
 import { appendBoardNavigationContextToPath, readBoardNavigationContextFromSearch } from '../lib/boardNavigationContext'
 import { ticketMatchesMobileHomeSearch } from './mobileHomeListUtils'
@@ -270,7 +269,6 @@ export function MobileMyTickets() {
     <div className="mobileSection">
       <div style={{ marginBottom: 4 }}>
         <h1 className="mobileTitle">Заявки</h1>
-        <MobileRoleContextStrip role={meQ.data.role} />
       </div>
 
       {/* Top-level mode switcher */}

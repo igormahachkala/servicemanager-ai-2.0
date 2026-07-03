@@ -1078,35 +1078,6 @@ button.mobilePhotoThumbLink.mobilePhotoThumbOpen:focus-visible {
   margin-top: 4px;
 }
 
-.mobileUxRoleStrip {
-  margin: 6px 0 4px;
-  padding: 7px 10px;
-  border-radius: 12px;
-  font-size: 0.74rem;
-  line-height: 1.35;
-  color: #4b5563;
-  border: 1px solid #e5e7eb;
-  background: #f9fafb;
-}
-
-.mobileUxRoleStrip--tech {
-  border-color: #fde68a;
-  background: #fffbeb;
-  color: #78350f;
-}
-
-.mobileUxRoleStrip--admin {
-  border-color: #c7d2fe;
-  background: #eef2ff;
-  color: #3730a3;
-}
-
-.mobileUxRoleStrip--platform {
-  border-color: #d8b4fe;
-  background: #faf5ff;
-  color: #5b21b6;
-}
-
 .mobilePageHint {
   margin: 8px 0 10px;
   padding: 8px 10px;
