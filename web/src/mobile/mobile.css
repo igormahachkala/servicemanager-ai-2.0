@@ -5325,9 +5325,17 @@ a.mobileBtn.mobileCreateTicketLink {
 .mobileSheetAction:disabled { opacity: 0.45; cursor: not-allowed; }
 .mobileSheetAction + .mobileSheetAction { border-top: 1px solid #f3f4f6; }
 .mobileSheetAction--danger { color: #b91c1c; }
-.mobileSheetActionIcon { font-size: 1.2rem; width: 26px; text-align: center; flex-shrink: 0; }
+.mobileSheetActionIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  flex-shrink: 0;
+  color: #475569;
+}
+.mobileSheetAction--danger .mobileSheetActionIcon { color: inherit; }
 .mobileSheetActionLabel { flex: 1; min-width: 0; }
-.mobileSheetActionChevron { color: #d1d5db; flex-shrink: 0; }
+.mobileSheetActionChevron { display: inline-flex; align-items: center; color: #d1d5db; flex-shrink: 0; }
 .mobileSheetCancel { width: 100%; margin-top: 10px; }
 
 /* ── Patrol / Inspection ─────────────────────────────────── */

@@ -1059,24 +1059,24 @@ export function MobileTicketPage() {
   const ticketSheetActions: TicketSheetAction[] = ticket
     ? ([
         meQ.data?.role === 'TECHNICIAN' && ticket.status === 'NEW' && !assigneePresent
-          ? { id: 'take', label: 'Взять в работу', icon: '🙋', onClick: () => handleTechActionWithOfflineSupport('claim') }
+          ? { id: 'take', label: 'Взять в работу', icon: 'user-check', onClick: () => handleTechActionWithOfflineSupport('claim') }
           : null,
         showSelfAssignButton
-          ? { id: 'self-assign', label: 'Взять заявку себе', icon: '🙋', onClick: () => { if (meQ.data?.id) assignM.mutate({ technicianId: meQ.data.id }) } }
+          ? { id: 'self-assign', label: 'Взять заявку себе', icon: 'user-check', onClick: () => { if (meQ.data?.id) assignM.mutate({ technicianId: meQ.data.id }) } }
           : null,
         showAssignButton
-          ? { id: 'assign', label: assignBtnLabel, icon: '👷', onClick: () => { setAssignErr(''); setAssignTicketOpen(true) } }
+          ? { id: 'assign', label: assignBtnLabel, icon: 'user-plus', onClick: () => { setAssignErr(''); setAssignTicketOpen(true) } }
           : null,
-        { id: 'comment', label: 'Написать в чат', icon: '💬', onClick: openChatComposer },
-        { id: 'photo', label: 'Добавить фото', icon: '📷', onClick: () => setDetailTab('photos') },
-        { id: 'chat', label: 'Чат', icon: '🗨️', onClick: () => setDetailTab('chat') },
-        { id: 'actions', label: 'Действия', icon: '⚡', onClick: () => setDetailTab('actions') },
-        { id: 'object', label: 'Инфо о заявке', icon: '📍', onClick: () => setDetailTab('info') },
+        { id: 'comment', label: 'Написать в чат', icon: 'message', onClick: openChatComposer },
+        { id: 'photo', label: 'Добавить фото', icon: 'camera', onClick: () => setDetailTab('photos') },
+        { id: 'chat', label: 'Чат', icon: 'messages', onClick: () => setDetailTab('chat') },
+        { id: 'actions', label: 'Действия', icon: 'bolt', onClick: () => setDetailTab('actions') },
+        { id: 'object', label: 'Инфо о заявке', icon: 'map-pin', onClick: () => setDetailTab('info') },
         canShowComplete
           ? {
               id: 'close',
               label: 'Отправить на приёмку',
-              icon: '✅',
+              icon: 'clipboard-check',
               onClick: () =>
                 setCloseModal({
                   ticketId: ticket.id,
@@ -1089,13 +1089,13 @@ export function MobileTicketPage() {
             }
           : null,
         canShowClientAcceptance
-          ? { id: 'accept', label: 'Принять работу', icon: '✅', onClick: () => { setAcceptanceErr(''); acceptM.mutate() } }
+          ? { id: 'accept', label: 'Принять работу', icon: 'check', onClick: () => { setAcceptanceErr(''); acceptM.mutate() } }
           : null,
         canShowClientAcceptance
           ? {
               id: 'reject',
               label: 'Не принять работу',
-              icon: '↩️',
+              icon: 'arrow-back-up',
               onClick: () => {
                 setAcceptanceErr('')
                 setRejectModal({
@@ -1745,7 +1745,14 @@ export function MobileTicketPage() {
                     disabled={chatSending || !chatText.trim()}
                     onClick={() => void handleChatSend()}
                   >
-                    {chatSending ? '…' : '→'}
+                    {chatSending ? (
+                      '…'
+                    ) : (
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                        <path d="M10 14l11 -11" />
+                        <path d="M21 3l-6.5 18a.55 .55 0 0 1 -1 0l-3.5 -7l-7 -3.5a.55 .55 0 0 1 0 -1l18 -6.5" />
+                      </svg>
+                    )}
                   </button>
                 </div>
               ) : null}
