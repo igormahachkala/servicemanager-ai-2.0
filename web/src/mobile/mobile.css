@@ -2347,7 +2347,9 @@ a.mobileBtn.mobileCreateTicketLink {
 }
 
 .mobileChatsSectionHeaderChevron {
-  font-size: 0.72rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   color: #94a3b8;
   transition: transform 180ms ease, color 180ms ease;
 }
@@ -2644,9 +2646,8 @@ a.mobileBtn.mobileCreateTicketLink {
 .mobileChatsRoomIcon--violet { background: linear-gradient(145deg, #7c3aed, #8b5cf6); }
 .mobileChatsRoomIcon--green { background: linear-gradient(145deg, #10b981, #34d399); }
 
-.mobileChatsRoomIconEmoji {
-  font-size: 1.1rem;
-  line-height: 1;
+.mobileChatsRoomGlyph {
+  color: #fff;
 }
 
 .mobileChatsItemCount {

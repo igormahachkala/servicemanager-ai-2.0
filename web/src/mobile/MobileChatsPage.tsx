@@ -174,6 +174,56 @@ function chatListIconClass(status: api.TicketStatus) {
   return `mobileChatsRoomIcon mobileChatsRoomIcon--${ticketStatusTone(status)}`
 }
 
+/** Tabler chevron-down — inline SVG вместо глифа ▼ (крутится через --open). */
+function ChatChevron() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="6 9 12 15 18 9" />
+    </svg>
+  )
+}
+
+/** Аватар-глифы чат-списка (белый Tabler SVG на цветной плитке) — вместо эмодзи. */
+function ChatRoomGlyphMessage() {
+  return (
+    <svg className="mobileChatsRoomGlyph" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M8 9h8" />
+      <path d="M8 13h6" />
+      <path d="M18 4a3 3 0 0 1 3 3v8a3 3 0 0 1 -3 3h-5l-5 3v-3h-2a3 3 0 0 1 -3 -3v-8a3 3 0 0 1 3 -3z" />
+    </svg>
+  )
+}
+function ChatRoomGlyphBuilding() {
+  return (
+    <svg className="mobileChatsRoomGlyph" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M3 21h18" />
+      <path d="M5 21V7l8 -4v18" />
+      <path d="M19 21V11l-6 -4" />
+      <line x1="9" y1="9" x2="9" y2="9.01" />
+      <line x1="9" y1="13" x2="9" y2="13.01" />
+    </svg>
+  )
+}
+function ChatRoomGlyphUsers() {
+  return (
+    <svg className="mobileChatsRoomGlyph" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <circle cx="9" cy="7" r="3" />
+      <path d="M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+      <path d="M21 21v-2a4 4 0 0 0 -3 -3.85" />
+    </svg>
+  )
+}
+function ChatRoomGlyphProvider() {
+  return (
+    <svg className="mobileChatsRoomGlyph" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect x="3" y="7" width="18" height="13" rx="2" />
+      <path d="M8 7V5a2 2 0 0 1 2 -2h4a2 2 0 0 1 2 2v2" />
+      <line x1="3" y1="13" x2="21" y2="13" />
+    </svg>
+  )
+}
+
 export function MobileChatsPage() {
   const location = useLocation()
   const { ticketId = '' } = useParams()
@@ -821,7 +871,7 @@ export function MobileChatsPage() {
             <span className="mobileChatsSectionHeaderLabel">Заявки</span>
             <span className="mobileChatsSectionHeaderMeta">
               <span className="mobileChatsSectionHeaderCount">{sectionCounts.tickets}</span>
-              <span className={`mobileChatsSectionHeaderChevron${sectionIsExpanded('tickets') ? ' mobileChatsSectionHeaderChevron--open' : ''}`}>▼</span>
+              <span className={`mobileChatsSectionHeaderChevron${sectionIsExpanded('tickets') ? ' mobileChatsSectionHeaderChevron--open' : ''}`}><ChatChevron /></span>
             </span>
           </button>
 
@@ -840,7 +890,7 @@ export function MobileChatsPage() {
               {ticketRows.map(({ ticket, href, preview }) => (
                 <Link key={ticket.id} className="mobileChatsItem" to={href} state={mobileTicketNavState('chat', ticket.companyId)}>
                   <div className={chatListIconClass(ticket.status)} aria-hidden="true">
-                    <span className="mobileChatsRoomIconEmoji">💬</span>
+                    <ChatRoomGlyphMessage />
                   </div>
                   <div className="mobileChatsItemBody">
                     <div className="mobileChatsItemTop">
@@ -893,7 +943,7 @@ export function MobileChatsPage() {
             <span className="mobileChatsSectionHeaderLabel">Объекты</span>
             <span className="mobileChatsSectionHeaderMeta">
               <span className="mobileChatsSectionHeaderCount">{sectionCounts.objects}</span>
-              <span className={`mobileChatsSectionHeaderChevron${sectionIsExpanded('objects') ? ' mobileChatsSectionHeaderChevron--open' : ''}`}>▼</span>
+              <span className={`mobileChatsSectionHeaderChevron${sectionIsExpanded('objects') ? ' mobileChatsSectionHeaderChevron--open' : ''}`}><ChatChevron /></span>
             </span>
           </button>
 
@@ -914,7 +964,7 @@ export function MobileChatsPage() {
                       onClick={() => toggleObjectExpanded(item.id)}
                     >
                       <div className={`mobileChatsRoomIcon mobileChatsRoomIcon--${item.iconTone}`} aria-hidden="true">
-                        <span className="mobileChatsRoomIconEmoji">🏢</span>
+                        <ChatRoomGlyphBuilding />
                       </div>
                       <div className="mobileChatsItemBody">
                         <div className="mobileChatsItemTop">
@@ -928,7 +978,7 @@ export function MobileChatsPage() {
                           {chatView === 'active' ? `${item.activeCount} активных заявок` : `${item.activeCount} в архиве`}
                         </div>
                       </div>
-                      <span className={`mobileChatsSectionHeaderChevron mobileChatsObjectChevron${isExpanded ? ' mobileChatsSectionHeaderChevron--open' : ''}`}>▼</span>
+                      <span className={`mobileChatsSectionHeaderChevron mobileChatsObjectChevron${isExpanded ? ' mobileChatsSectionHeaderChevron--open' : ''}`}><ChatChevron /></span>
                     </button>
                     {isExpanded ? (
                       <div className="mobileChatsObjectTickets">
@@ -963,7 +1013,7 @@ export function MobileChatsPage() {
               <span className="mobileChatsSectionHeaderLabel">Внутренние</span>
               <span className="mobileChatsSectionHeaderMeta">
                 <span className="mobileChatsSectionHeaderCount">{sectionCounts.internal}</span>
-                <span className={`mobileChatsSectionHeaderChevron${sectionIsExpanded('internal') ? ' mobileChatsSectionHeaderChevron--open' : ''}`}>▼</span>
+                <span className={`mobileChatsSectionHeaderChevron${sectionIsExpanded('internal') ? ' mobileChatsSectionHeaderChevron--open' : ''}`}><ChatChevron /></span>
               </span>
             </button>
 
@@ -977,7 +1027,7 @@ export function MobileChatsPage() {
                 {internalRows.map((item) => (
                   <div key={item.id} className="mobileChatsItem mobileChatsItem--static" aria-disabled="true">
                     <div className={`mobileChatsRoomIcon mobileChatsRoomIcon--${item.iconTone}`} aria-hidden="true">
-                      <span className="mobileChatsRoomIconEmoji">{item.id === 'dispatch' ? '👥' : '🤝'}</span>
+                      {item.id === 'dispatch' ? <ChatRoomGlyphUsers /> : <ChatRoomGlyphProvider />}
                     </div>
                     <div className="mobileChatsItemBody">
                       <div className="mobileChatsItemTop">
