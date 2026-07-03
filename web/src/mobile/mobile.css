@@ -3768,6 +3768,7 @@ a.mobileBtn.mobileCreateTicketLink {
 }
 
 .mobileTicketCardV2Number {
+  font-family: var(--font-mono);
   font-size: 0.88rem;
   font-weight: 700;
   color: #111827;
@@ -3778,11 +3779,13 @@ a.mobileBtn.mobileCreateTicketLink {
 }
 
 .mobileTicketCardV2Cat {
+  font-family: var(--font-ui);
   font-weight: 400;
   color: #6b7280;
 }
 
 .mobileTicketCardV2Time {
+  font-family: var(--font-mono);
   font-size: 0.75rem;
   color: #9ca3af;
   flex-shrink: 0;
@@ -4756,18 +4759,22 @@ a.mobileBtn.mobileCreateTicketLink {
 
 /* ── Location group cards (SMA-MOBILE-111) ─────────────────────────── */
 .mobileLocationGroup {
-  border-radius: 14px;
+  border-radius: 16px;
   overflow: hidden;
   background: #fff;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+  border: 1px solid #eef2f7;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
   margin-bottom: 10px;
+}
+
+.mobileLocationGroup--overdue {
+  border-color: #fecaca;
 }
 
 .mobileLocationGroupHeader {
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
+  gap: 12px;
   padding: 14px 16px 12px;
   cursor: pointer;
   user-select: none;
@@ -4783,22 +4790,41 @@ a.mobileBtn.mobileCreateTicketLink {
   outline-offset: -2px;
 }
 
+.mobileLocationGroupIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #f1f5f9;
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.mobileLocationGroupIcon--overdue {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
 .mobileLocationGroupInfo {
   flex: 1;
   min-width: 0;
 }
 
-.mobileLocationGroupName {
-  font-size: 1rem;
-  font-weight: 800;
-  color: #111827;
-  line-height: 1.25;
+.mobileLocationGroupTitleRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
 }
 
-.mobileLocationGroupMeta {
-  font-size: 0.78rem;
-  color: #6b7280;
-  margin-top: 2px;
+.mobileLocationGroupName {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.3;
+  min-width: 0;
   overflow: hidden;
   overflow-wrap: anywhere;
   word-break: break-word;
@@ -4807,54 +4833,88 @@ a.mobileBtn.mobileCreateTicketLink {
   -webkit-box-orient: vertical;
 }
 
-.mobileLocationGroupStats {
+.mobileLocationGroupHeaderRight {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
-.mobileLocationGroupStat {
-  font-size: 0.72rem;
+.mobileLocationGroupBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #2563eb;
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
   font-weight: 700;
-  border-radius: 20px;
-  padding: 2px 9px;
-  white-space: nowrap;
 }
 
-.mobileLocationGroupStat--total {
-  background: #f3f4f6;
-  color: #374151;
+.mobileLocationGroupMeta {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  margin-top: 2px;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
 }
 
-.mobileLocationGroupStat--new {
-  background: #dbeafe;
-  color: #1d4ed8;
+/* Figma HomeScreen ObjectCard: 5-колоночная мини-сетка активных счётчиков */
+.mobileLocationGroupStatGrid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+  margin-top: 10px;
 }
 
-.mobileLocationGroupStat--inprogress {
-  background: #fef9c3;
-  color: #854d0e;
+.mobileLocationGroupStatCell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 6px 2px;
+  border-radius: 10px;
 }
 
-.mobileLocationGroupStat--overdue {
-  background: #ffe4e6;
-  color: #9f1239;
+.mobileLocationGroupStatCellValue {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1;
 }
 
-.mobileLocationGroupStat--active {
-  background: #dbeafe;
-  color: #1d4ed8;
+.mobileLocationGroupStatCellLabel {
+  font-size: 0.56rem;
+  color: #94a3b8;
+  line-height: 1.1;
+  text-align: center;
 }
 
-.mobileLocationGroupStat--done {
-  background: #dcfce7;
-  color: #166534;
-}
+.mobileLocationGroupStatCell--new     { background: #fff7ed; }
+.mobileLocationGroupStatCell--new     .mobileLocationGroupStatCellValue { color: #ea580c; }
+.mobileLocationGroupStatCell--assigned{ background: #eff6ff; }
+.mobileLocationGroupStatCell--assigned .mobileLocationGroupStatCellValue { color: #2563eb; }
+.mobileLocationGroupStatCell--inwork  { background: #f5f3ff; }
+.mobileLocationGroupStatCell--inwork  .mobileLocationGroupStatCellValue { color: #7c3aed; }
+.mobileLocationGroupStatCell--awaiting{ background: #fffbeb; }
+.mobileLocationGroupStatCell--awaiting .mobileLocationGroupStatCellValue { color: #d97706; }
+.mobileLocationGroupStatCell--overdue { background: #fef2f2; }
+.mobileLocationGroupStatCell--overdue .mobileLocationGroupStatCellValue { color: #dc2626; }
 
-.mobileLocationGroupStat--canceled {
-  background: #f3f4f6;
-  color: #6b7280;
+/* нулевой счётчик — приглушён */
+.mobileLocationGroupStatCell--off {
+  background: #f8fafc;
+}
+.mobileLocationGroupStatCell--off .mobileLocationGroupStatCellValue {
+  color: #cbd5e1;
 }
 
 .mobileLocationGroupEmptyActive {
@@ -4866,7 +4926,6 @@ a.mobileBtn.mobileCreateTicketLink {
   display: inline-flex;
   align-items: center;
   color: #9ca3af;
-  margin-top: 3px;
   flex-shrink: 0;
   transition: transform 0.18s ease;
 }

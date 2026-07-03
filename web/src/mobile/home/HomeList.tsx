@@ -213,8 +213,22 @@ function LocationGroupCard({
   onToggle: () => void
   renderTicket: (ticket: api.TicketCard) => ReactNode
 }) {
+  // Разбивка активных заявок точки по статусам — чистая производная от group.tickets
+  // (там только активные), без изменения логики группировки/фильтрации/пагинации.
+  const assignedCount = group.tickets.filter((t) => t.status === 'ASSIGNED').length
+  const inWorkCount = group.tickets.filter((t) => t.status === 'IN_PROGRESS').length
+  const awaitingCount = group.tickets.filter((t) => t.status === 'AWAITING_ACCEPTANCE').length
+  const hasOverdue = group.overdueTickets > 0
+  const statCells: { label: string; value: number; tone: string }[] = [
+    { label: 'Новые', value: group.newTickets, tone: 'new' },
+    { label: 'Назначены', value: assignedCount, tone: 'assigned' },
+    { label: 'В работе', value: inWorkCount, tone: 'inwork' },
+    { label: 'Приёмка', value: awaitingCount, tone: 'awaiting' },
+    { label: 'Просроч.', value: group.overdueTickets, tone: 'overdue' },
+  ]
+
   return (
-    <div className="mobileLocationGroup">
+    <div className={`mobileLocationGroup${hasOverdue ? ' mobileLocationGroup--overdue' : ''}`}>
       <div
         className="mobileLocationGroupHeader"
         role="button"
@@ -223,40 +237,48 @@ function LocationGroupCard({
         onKeyDown={(e) => e.key === 'Enter' && onToggle()}
         aria-expanded={expanded}
       >
+        <span className={`mobileLocationGroupIcon${hasOverdue ? ' mobileLocationGroupIcon--overdue' : ''}`} aria-hidden>
+          {/* Tabler building */}
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 21h18" />
+            <path d="M5 21V7l8-4v18" />
+            <path d="M19 21V11l-6-4" />
+            <line x1="9" y1="9" x2="9" y2="9.01" />
+            <line x1="9" y1="12" x2="9" y2="12.01" />
+            <line x1="9" y1="15" x2="9" y2="15.01" />
+          </svg>
+        </span>
         <div className="mobileLocationGroupInfo">
-          <div className="mobileLocationGroupName">{group.locationName}</div>
+          <div className="mobileLocationGroupTitleRow">
+            <div className="mobileLocationGroupName">{group.locationName}</div>
+            <div className="mobileLocationGroupHeaderRight">
+              {group.activeTickets > 0 ? (
+                <span className="mobileLocationGroupBadge">{group.activeTickets}</span>
+              ) : null}
+              <span className={`mobileLocationGroupChevron${expanded ? ' mobileLocationGroupChevron--open' : ''}`} aria-hidden>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </span>
+            </div>
+          </div>
           {(group.city || group.address) ? (
             <div className="mobileLocationGroupMeta">
               {[group.city, group.address].filter(Boolean).join(', ')}
             </div>
           ) : null}
-          <div className="mobileLocationGroupStats">
-            <span className="mobileLocationGroupStat mobileLocationGroupStat--total">
-              Всего: {group.totalTickets}
-            </span>
-            <span className="mobileLocationGroupStat mobileLocationGroupStat--active">
-              Активных: {group.activeTickets}
-            </span>
-            <span className="mobileLocationGroupStat mobileLocationGroupStat--done">
-              Завершено: {group.doneTickets}
-            </span>
-            {group.canceledTickets > 0 ? (
-              <span className="mobileLocationGroupStat mobileLocationGroupStat--canceled">
-                Отменено: {group.canceledTickets}
-              </span>
-            ) : null}
-            {group.overdueTickets > 0 ? (
-              <span className="mobileLocationGroupStat mobileLocationGroupStat--overdue">
-                Просрочено: {group.overdueTickets}
-              </span>
-            ) : null}
+          <div className="mobileLocationGroupStatGrid">
+            {statCells.map((cell) => (
+              <div
+                key={cell.label}
+                className={`mobileLocationGroupStatCell mobileLocationGroupStatCell--${cell.tone}${cell.value === 0 ? ' mobileLocationGroupStatCell--off' : ''}`}
+              >
+                <span className="mobileLocationGroupStatCellValue">{cell.value}</span>
+                <span className="mobileLocationGroupStatCellLabel">{cell.label}</span>
+              </div>
+            ))}
           </div>
         </div>
-        <span className={`mobileLocationGroupChevron${expanded ? ' mobileLocationGroupChevron--open' : ''}`} aria-hidden>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="6 9 12 15 18 9" />
-          </svg>
-        </span>
       </div>
       {expanded ? (
         <div className="mobileLocationGroupTickets">
