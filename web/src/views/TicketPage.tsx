@@ -21,6 +21,7 @@ import {
   TicketActionsPanel,
   TicketChatPanel,
   TicketChildTicketsPanel,
+  TicketCommentPanel,
   TicketContextPanel,
   TicketPhotosPanel,
   TicketSlaPanel,
@@ -1544,23 +1545,13 @@ export function TicketPage() {
       ) : null}
 
       {ticket && canChangeStatus && !isTechnicianRole ? (
-        <div className="panel" style={{ marginBottom: 12 }}>
-          <h3 style={{ marginBottom: 10 }}>Комментарий</h3>
-          <div className="form">
-            <textarea
-              value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
-              rows={3}
-              placeholder="Добавьте комментарий по выполненным действиям"
-              disabled={addCommentM.isPending}
-            />
-            <div className="uiActions">
-              <button onClick={() => addCommentM.mutate()} disabled={addCommentM.isPending || !newComment.trim()}>
-                {addCommentM.isPending ? 'Сохраняем…' : 'Добавить комментарий'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <TicketCommentPanel
+          value={newComment}
+          onChange={setNewComment}
+          onSubmit={() => addCommentM.mutate()}
+          pending={addCommentM.isPending}
+          canSubmit={!addCommentM.isPending && !!newComment.trim()}
+        />
       ) : null}
 
       {ticket ? (
