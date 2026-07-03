@@ -27,6 +27,7 @@ import {
   TicketSlaPanel,
   TicketSummaryPanel,
   TicketTimelinePanel,
+  TicketUploadPanel,
 } from '../components/ticket-card-v2'
 
 const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024
@@ -1531,17 +1532,15 @@ export function TicketPage() {
       ) : null}
 
       {ticket && canUploadPhoto && !isTechnicianRole ? (
-        <div className="panel" style={{ marginBottom: 12 }}>
-          <h3 style={{ marginBottom: 10 }}>Фото</h3>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} disabled={uploadM.isPending} />
-            <button onClick={handleUploadClick} disabled={uploadM.isPending}>
-              {uploadM.isPending ? 'Загружаем…' : selectedFile ? 'Загрузить фото' : 'Выбрать фото'}
-            </button>
-            <div className="muted small">{selectedFile ? `${selectedFile.name} · ${fmtBytes(selectedFile.size)}` : 'Выберите изображение до 10 МБ'}</div>
-          </div>
-          <InlineError message={fileError || uploadError} />
-        </div>
+        <TicketUploadPanel
+          inputRef={fileInputRef}
+          selectedFile={selectedFile}
+          onFileChange={handleFileChange}
+          onUploadClick={handleUploadClick}
+          pending={uploadM.isPending}
+          helperText={selectedFile ? `${selectedFile.name} · ${fmtBytes(selectedFile.size)}` : 'Выберите изображение до 10 МБ'}
+          errorMessage={fileError || uploadError}
+        />
       ) : null}
 
       {ticket && canChangeStatus && !isTechnicianRole ? (
