@@ -208,6 +208,7 @@ function daysAgo(days: number): string {
   return date.toISOString()
 }
 
+/** Platform onboarding corpus — не runtime output. См. TODO в runtimeDataSources.ts */
 export function ensureSeedKnowledge(): KnowledgeStore {
   const existing = loadKnowledgeStore()
   if (existing.items.length > 0) return existing

@@ -10,6 +10,7 @@ import { EVENT_SEVERITIES } from './event'
 import { emitNotificationFromEvent } from '../notifications/notificationStorage'
 import { EVENT_SOURCE_TYPES, type EventSourceType } from './eventSource'
 import { EVENT_TYPES, type EventType } from './eventType'
+import { shouldSeedTimelineEvents } from '../runtime/runtimeDataSources'
 
 const STORAGE_KEY = 'ai-company-events'
 
@@ -225,7 +226,7 @@ function hoursAgo(hours: number): string {
 }
 
 export function ensureSeedEvents(): void {
-  if (loadEvents().length > 0) return
+  if (!shouldSeedTimelineEvents()) return
 
   const seeds: CompanyEvent[] = [
     {

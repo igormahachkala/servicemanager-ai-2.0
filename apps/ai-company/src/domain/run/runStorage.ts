@@ -1,4 +1,8 @@
 import { loadRuntimeRuns } from '../runtime/runtimeOrchestrator'
+import {
+  shouldSeedRunHistory,
+  syncRuntimeDerivedStores,
+} from '../runtime/runtimeDataSources'
 import type { RuntimeRun } from '../runtime/runtimeRun'
 import type { RunArtifact } from './runArtifact'
 import { RUN_ARTIFACT_KINDS } from './runArtifact'
@@ -578,8 +582,8 @@ function buildSeedArtifacts(reportId: string | null, placeholderOnly = false): R
 }
 
 export function ensureSeedRunHistory(): RunHistory[] {
-  syncRunHistoryFromRuntime()
-  if (loadRunHistory().length > 0) return loadRunHistory()
+  syncRuntimeDerivedStores()
+  if (!shouldSeedRunHistory()) return loadRunHistory()
 
   const started1 = hoursAgo(48)
   const finished1 = minutesAfter(started1, 4)

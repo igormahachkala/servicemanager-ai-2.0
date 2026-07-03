@@ -1,4 +1,8 @@
 import { DEFAULT_COMPANY_ID } from '../company/company'
+import {
+  shouldSeedReports,
+  syncRuntimeDerivedStores,
+} from '../runtime/runtimeDataSources'
 import type { RuntimeReportBody, RuntimeReportRisk, ReportSeverity } from '../runtimeReport/runtimeReportQuality'
 import { REPORT_STATUSES, REPORT_TYPES } from './reportTypes'
 import type { ReportStatus, ReportType } from './reportTypes'
@@ -196,30 +200,31 @@ function daysAgo(days: number): string {
 }
 
 export function ensureSeedReports(): void {
-  if (loadReports().length > 0) return
+  syncRuntimeDerivedStores()
+  if (!shouldSeedReports()) return
 
   const seeds: Report[] = [
     {
       id: 'report-arch-v1',
       companyId: DEFAULT_COMPANY_ID,
-      title: 'Platform Core Architecture Review',
+      title: 'Обзор архитектуры платформы',
       type: 'architecture',
       employeeId: 'ag-cto',
       workspaceId: null,
       summary:
-        'Atlas reviewed ADR-001 platform boundaries: Employee-centric model, Assignment-based workspace access, Tool Registry mediation.',
+        'Atlas проверил границы ADR-001: модель Employee-centric, доступ к workspace через Assignment, медиация через Tool Registry.',
       findings: [
-        'Employee never owns Workspace — Assignment is the only linkage.',
-        'Tool Registry is mandatory gateway for all external capabilities.',
-        'Memory belongs to Employee identity, not LLM provider.',
+        'Employee не владеет Workspace — связь только через Assignment.',
+        'Tool Registry обязателен для всех внешних capabilities.',
+        'Память принадлежит идентичности Employee, а не LLM-провайдеру.',
       ],
       risks: [
-        'Runtime integration may bypass audit if not wired through Registry.',
-        'Cross-workspace memory leakage if Workspace scope not enforced.',
+        '[High] Интеграция Runtime может обойти audit без Registry.',
+        '[Medium] Утечка памяти между workspace при слабом scope.',
       ],
       recommendations: [
-        'Wire all future tool invokes to audit event emission.',
-        'Keep Reports append-only until Owner review workflow exists.',
+        'Подключить все tool invoke к emission audit events.',
+        'Держать отчёты append-only до полного Owner review workflow.',
       ],
       evidence: [
         {
@@ -242,24 +247,24 @@ export function ensureSeedReports(): void {
     {
       id: 'report-qa-build',
       companyId: DEFAULT_COMPANY_ID,
-      title: 'V1 Build Verification — ai-company',
+      title: 'Проверка сборки V1 — ai-company',
       type: 'qa',
       employeeId: 'ag-qa',
       workspaceId: null,
-      summary: 'Sentinel verified local build pipeline: tsc + vite build green across mission-control modules.',
+      summary: 'Sentinel проверил локальный pipeline: tsc + vite build проходят по модулям mission-control.',
       findings: [
-        'All V1 pages compile without backend dependency.',
-        'i18n EN/RU parity enforced via Messages type.',
+        'Все страницы V1 компилируются без backend.',
+        'Паритет i18n EN/RU обеспечен типом Messages.',
       ],
-      risks: ['No E2E tests yet — manual QA only in V1.'],
+      risks: ['[Medium] E2E-тестов пока нет — только ручной QA в V1.'],
       recommendations: [
-        'Add Playwright smoke tests before Runtime phase.',
-        'Generate QA report automatically after each employee Run.',
+        'Добавить Playwright smoke до фазы Runtime.',
+        'Генерировать QA-отчёт автоматически после каждого Run сотрудника.',
       ],
       evidence: [
         {
           id: 'ev-build',
-          label: 'Build command',
+          label: 'Команда сборки',
           kind: 'metric',
           value: 'npm run build — exit 0',
         },
@@ -271,26 +276,26 @@ export function ensureSeedReports(): void {
     {
       id: 'report-devops-local',
       companyId: DEFAULT_COMPANY_ID,
-      title: 'Local Dev Environment Health',
+      title: 'Состояние локального dev-окружения',
       type: 'devops',
       employeeId: 'ag-devops',
       workspaceId: null,
-      summary: 'DevOps agent assessed local mock environment — no production deploy paths in V1 scope.',
+      summary: 'DevOps-агент оценил локальное mock-окружение — production deploy в scope V1 отсутствует.',
       findings: [
-        'localStorage persistence works for workspaces, memory, discussions.',
-        'No real Docker/Ollama connections — architecture only.',
+        'localStorage корректно хранит workspaces, memory, discussions.',
+        'Реальных Docker/Ollama подключений нет — только архитектура.',
       ],
-      risks: ['Owner may confuse mock connectionStatus with real probes.'],
+      risks: ['[Low] Owner может принять mock connectionStatus за реальные probes.'],
       recommendations: [
-        'Label all V1 UI with local-only badges.',
-        'Future: health probes write devops reports automatically.',
+        'Пометить весь UI V1 бейджами «только локально».',
+        'Далее: health probes автоматически пишут devops-отчёты.',
       ],
       evidence: [
         {
           id: 'ev-env',
-          label: 'Environment',
+          label: 'Окружение',
           kind: 'quote',
-          value: 'mock · localhost — no runtime connected',
+          value: 'mock · localhost — runtime не подключён',
         },
       ],
       status: 'published',
@@ -300,20 +305,20 @@ export function ensureSeedReports(): void {
     {
       id: 'report-ops-workspace',
       companyId: DEFAULT_COMPANY_ID,
-      title: 'Workspace Assignment Audit Summary',
+      title: 'Аудит назначений workspace',
       type: 'operations',
       employeeId: null,
       workspaceId: null,
       summary:
-        'Operations review of Assignment model — employees linked to workspaces without ownership transfer.',
+        'Операционный review модели Assignment — сотрудники связаны с workspace без передачи ownership.',
       findings: [
-        'Multiple assignments per employee supported.',
-        'Load percent tracked per assignment for capacity planning.',
+        'Поддерживается несколько assignments на одного сотрудника.',
+        'Load percent отслеживается для планирования capacity.',
       ],
-      risks: ['Total load > 100% across workspaces not yet flagged.'],
+      risks: ['[Medium] Суммарная нагрузка >100% между workspace пока не подсвечивается.'],
       recommendations: [
-        'Add capacity conflict warnings in Assignment UI.',
-        'Emit audit event on every assignment create/update/remove.',
+        'Добавить предупреждения о конфликте capacity в UI Assignment.',
+        'Писать audit event при каждом create/update/remove assignment.',
       ],
       evidence: [],
       status: 'draft',
@@ -323,27 +328,27 @@ export function ensureSeedReports(): void {
     {
       id: 'report-system-foundation',
       companyId: DEFAULT_COMPANY_ID,
-      title: 'Reports & Audit Foundation V1',
+      title: 'Основа отчётов и аудита V1',
       type: 'system',
       employeeId: null,
       workspaceId: null,
       summary:
-        'System report documenting the Reports-first and Audit-everything principles before Runtime.',
+        'Системный отчёт о принципах «сначала отчёт» и «всё в audit» до подключения Runtime.',
       findings: [
-        'Reports explain what happened and why.',
-        'Audit events provide immutable action trail.',
+        'Отчёты объясняют, что произошло и почему.',
+        'Audit events дают неизменяемый след действий.',
       ],
-      risks: ['Without Runtime, events are seed/mock only in V1.'],
+      risks: ['[Low] Без Runtime события в V1 только seed/mock.'],
       recommendations: [
-        'Every future Run must produce a report.',
-        'Every tool call must append an audit event.',
+        'Каждый будущий Run должен создавать отчёт.',
+        'Каждый tool call должен дописывать audit event.',
       ],
       evidence: [
         {
           id: 'ev-principle',
-          label: 'Reports-first principle',
+          label: 'Принцип «сначала отчёт»',
           kind: 'quote',
-          value: 'Every important employee action should be able to create a report.',
+          value: 'Каждое важное действие сотрудника должно уметь создать отчёт.',
         },
       ],
       status: 'published',

@@ -4,15 +4,18 @@ import {
   type RuntimeMonitorDashboard,
   type RuntimeMonitorFilter,
 } from '../domain/runtimeMonitor'
+import { syncRuntimeDerivedStores } from '../domain/runtime/runtimeDataSources'
 
 export function useRuntimeMonitor(filter: RuntimeMonitorFilter = {}) {
   const employeeId = filter.employeeId
 
-  const [dashboard, setDashboard] = useState<RuntimeMonitorDashboard>(() =>
-    loadRuntimeMonitorDashboard(filter),
-  )
+  const [dashboard, setDashboard] = useState<RuntimeMonitorDashboard>(() => {
+    syncRuntimeDerivedStores()
+    return loadRuntimeMonitorDashboard(filter)
+  })
 
   const refresh = useCallback(() => {
+    syncRuntimeDerivedStores()
     setDashboard(loadRuntimeMonitorDashboard(filter))
   }, [employeeId])
 

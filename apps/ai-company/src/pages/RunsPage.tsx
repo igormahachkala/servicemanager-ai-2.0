@@ -5,6 +5,7 @@ import { ContextEmptyState } from '../components/empty-states'
 import { RuntimeCostDashboard } from '../components/runtime-monitor'
 import { useRunHistory } from '../hooks/useRunHistory'
 import { useRuntimeMonitor } from '../hooks/useRuntimeMonitor'
+import { useWorkspaces } from '../hooks/useWorkspaces'
 import { useCustomEmployees } from '../mission-control/hooks/useCustomEmployees'
 import { useI18n } from '../i18n'
 
@@ -13,6 +14,7 @@ export function RunsPage() {
   const { filtered, stats, query, setQuery, filter, setFilter } = useRunHistory()
   const { dashboard } = useRuntimeMonitor()
   const { employees } = useCustomEmployees()
+  const { workspaces } = useWorkspaces()
 
   return (
     <>
@@ -120,7 +122,11 @@ export function RunsPage() {
                 >
                   <option value="all">{t.common.all}</option>
                   <option value="none">{t.runEngine.platformWide}</option>
-                  <option value="ws-sma">ws-sma</option>
+                  {workspaces.map((workspace) => (
+                    <option key={workspace.id} value={workspace.id}>
+                      {workspace.name}
+                    </option>
+                  ))}
                 </select>
               </label>
             </div>

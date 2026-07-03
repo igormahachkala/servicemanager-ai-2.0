@@ -15,11 +15,33 @@ import { formatCost, formatDurationMs, getRuntimeRunMetrics } from '../domain/ru
 import { buildRuntimePromptPreviewFromRun } from '../domain/runtime/runtimePromptBuilder'
 import { previewRuntimePromptForRequest } from '../domain/runtime/runtimeOrchestrator'
 import { agents } from '../mission-control/data/mock'
+import { loadCustomEmployees } from '../mission-control/data/customEmployees'
+import { loadRuntimeRuns } from '../domain/runtime/runtimeOrchestrator'
 import { PageHeader, Panel } from '../mission-control/components/ui'
 import { PageGuideCard } from '../components/guided'
 import { useI18n } from '../i18n'
 
-const LIVE_EMPLOYEE_IDS = ['ag-cto', 'ag-max'] as const
+const FALLBACK_LIVE_EMPLOYEE_IDS = ['ag-cto', 'ag-max'] as const
+
+function resolveLiveEmployeeOptions(): Array<{ id: string; name: string }> {
+  const activeEmployees = loadCustomEmployees().filter((item) => item.status === 'active')
+  if (activeEmployees.length > 0) {
+    return activeEmployees.map((item) => ({ id: item.id, name: item.codename }))
+  }
+
+  const runEmployeeIds = [...new Set(loadRuntimeRuns().map((run) => run.employeeId))]
+  if (runEmployeeIds.length > 0) {
+    return runEmployeeIds.map((id) => {
+      const agent = agents.find((item) => item.id === id)
+      return { id, name: agent?.codename ?? id }
+    })
+  }
+
+  return FALLBACK_LIVE_EMPLOYEE_IDS.map((id) => {
+    const agent = agents.find((item) => item.id === id)
+    return { id, name: agent?.codename ?? id }
+  })
+}
 
 export function RuntimeLivePage() {
   const { t } = useI18n()
@@ -38,14 +60,7 @@ export function RuntimeLivePage() {
   const { summary } = useRuntimeMonitor()
   const runMetrics = monitor.monitoredRun ? getRuntimeRunMetrics(monitor.monitoredRun.id) : null
   const profile = getProfile(employeeId)
-  const employeeOptions = useMemo(
-    () =>
-      LIVE_EMPLOYEE_IDS.map((id) => {
-        const agent = agents.find((item) => item.id === id)
-        return { id, name: agent?.codename ?? id }
-      }),
-    [],
-  )
+  const employeeOptions = useMemo(() => resolveLiveEmployeeOptions(), [])
   const employeeName =
     monitor.employee?.codename ??
     employeeOptions.find((item) => item.id === employeeId)?.name ??
