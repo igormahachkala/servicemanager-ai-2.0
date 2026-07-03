@@ -10,6 +10,11 @@ export type TicketUploadPanelProps = {
   errorMessage?: string | null
 }
 
+function InlineError({ message }: { message?: string | null }) {
+  if (!message) return null
+  return <div className="alert" style={{ marginTop: 10 }}>{message}</div>
+}
+
 export function TicketUploadPanel({
   inputRef,
   selectedFile,
@@ -29,7 +34,7 @@ export function TicketUploadPanel({
         </button>
         <div className="muted small">{helperText}</div>
       </div>
-      {errorMessage ? <div className="alert" style={{ marginTop: 10 }}>{errorMessage}</div> : null}
+      <InlineError message={errorMessage} />
     </div>
   )
 }
