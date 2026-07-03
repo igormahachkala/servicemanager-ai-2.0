@@ -397,6 +397,70 @@ a.mobileBtn {
   margin-top: 18px;
 }
 
+/* ── Figma CreateTicketScreen: форма создания заявки ─────── */
+.mobileCreateForm label {
+  gap: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.mobileCreateForm input,
+.mobileCreateForm select,
+.mobileCreateForm textarea {
+  border: 1px solid transparent;
+  border-radius: 14px;
+  background-color: #f1f5f9;
+  color: #0f172a;
+  font-size: 0.9rem;
+  padding: 12px 14px;
+  transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
+}
+
+.mobileCreateForm input:focus,
+.mobileCreateForm select:focus,
+.mobileCreateForm textarea:focus {
+  outline: none;
+  border-color: #93c5fd;
+  background-color: #fff;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18);
+}
+
+.mobileCreateForm select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 40px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 16px;
+}
+
+.mobileCreateForm select:disabled {
+  opacity: 0.6;
+}
+
+/* иконка в кнопках выбора фото */
+.mobilePhotoSourceBtnIcon {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 7px;
+}
+
+/* Figma primary CTA — синяя кнопка «Создать заявку» */
+.mobileCreateForm .mobileFormSubmitStack .mobileBtn:not(.mobileBtnGhost):not(.mobileBtnSecondary) {
+  background: #2563eb;
+  border-radius: 14px;
+  min-height: 52px;
+  font-size: 1rem;
+  font-weight: 700;
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.22);
+}
+
+.mobileCreateForm .mobileFormSubmitStack .mobileBtn:disabled {
+  box-shadow: none;
+}
+
 .mobileHint {
   margin: 0 0 12px;
   color: #6b7280;
