@@ -396,6 +396,8 @@ export function MobileHome() {
         tabCounts={tabCounts}
         onStatClick={(tab) => setBoardTab(tab)}
         activeBoardTab={boardTab}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
       />
       {showMobileHomeTicketBoard ? (
         <>
@@ -423,8 +425,6 @@ export function MobileHome() {
             </div>
             {filtersExpanded ? (
               <HomeChips
-                searchQuery={searchQuery}
-                setSearchQuery={setSearchQuery}
                 activeChips={activeChips}
                 toggleChip={toggleChip}
                 visibleCount={visibleTickets.length}

@@ -3529,6 +3529,50 @@ a.mobileBtn.mobileCreateTicketLink {
   border-radius: 50%;
   background: #10b981;
 }
+.mobileHomeSearchBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  background: #f1f5f9;
+  border-radius: 16px;
+  padding: 9px 12px;
+}
+.mobileHomeSearchBar:focus-within {
+  box-shadow: 0 0 0 2px #bfdbfe;
+}
+.mobileHomeSearchBarIcon {
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+.mobileHomeSearchBarInput {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 0.82rem;
+  color: #1e293b;
+}
+.mobileHomeSearchBarInput::placeholder {
+  color: #94a3b8;
+}
+.mobileHomeSearchBarInput::-webkit-search-cancel-button {
+  display: none;
+}
+.mobileHomeSearchBarClear {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: none;
+  background: #cbd5e1;
+  color: #475569;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
 
 /* Home stat grid — Figma Make HomeScreen: 4 equal colored cards, always visible */
 .mobileStatsGrid {

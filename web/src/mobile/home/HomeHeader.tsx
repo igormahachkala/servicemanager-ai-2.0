@@ -19,6 +19,8 @@ type Props = {
   tabCounts?: Record<MobileHomeBoardFilterTab, number>
   onStatClick?: (tab: MobileHomeBoardFilterTab) => void
   activeBoardTab?: MobileHomeBoardFilterTab
+  searchQuery: string
+  setSearchQuery: (value: string) => void
 }
 
 export function HomeHeader(props: Props) {
@@ -38,6 +40,8 @@ export function HomeHeader(props: Props) {
     tabCounts,
     onStatClick,
     activeBoardTab,
+    searchQuery,
+    setSearchQuery,
   } = props
 
   const displayName = [me?.firstName, me?.lastName].filter(Boolean).join(' ').trim() || me?.email || 'Пользователь'
@@ -62,6 +66,33 @@ export function HomeHeader(props: Props) {
           <span className="mobileHomeHeaderOnlineDot" aria-hidden />
           {isOnline ? 'Онлайн' : 'Оффлайн'} · {roleLabel}
         </div>
+        {/* Figma HomeScreen search bar (prominent, moved up from the filters panel) */}
+        <label className="mobileHomeSearchBar">
+          <svg className="mobileHomeSearchBarIcon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <span className="mobileVisuallyHidden">Поиск заявок по загруженному списку</span>
+          <input
+            className="mobileHomeSearchBarInput"
+            type="search"
+            enterKeyHint="search"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            placeholder="Объект, адрес, заявка, категория, №..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          {searchQuery ? (
+            <button type="button" className="mobileHomeSearchBarClear" aria-label="Очистить поиск" onClick={() => setSearchQuery('')}>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" aria-hidden>
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          ) : null}
+        </label>
       </div>
       <div style={{ marginBottom: 4 }}>
         {me ? <MobileRoleContextStrip role={me.role} /> : null}
