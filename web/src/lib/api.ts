@@ -59,45 +59,40 @@ export type NotificationsListResponse = {
   unreadCount: number
 }
 
-/** Типы in-app уведомлений (расширяем по мере появления на бэкенде). */
+/**
+ * Типы in-app уведомлений. Список выровнен под реальные `type:` события бэкенда
+ * (notifications.service.ts + sla.worker.service.ts) — 13 типов. Расширять при добавлении на бэке.
+ */
 export type InAppNotificationType =
   | 'ticket.created'
+  | 'ticket.updated'
   | 'ticket.assigned'
-  | 'ticket.in_progress'
-  | 'ticket.done'
   | 'ticket.claimed'
   | 'ticket.status_changed'
-  | 'ticket.status_client'
+  | 'ticket.category_changed'
   | 'ticket.assignment_requested'
-  | 'ticket.assigned_external'
-  | 'ticket.assigned_client'
   | 'ticket.awaiting_acceptance'
   | 'ticket.accepted'
   | 'ticket.rejected'
-  | 'sla.warning'
-  | 'sla.overdue'
-  | 'urgent.created'
+  | 'ticket.comment_added'
+  | 'ticket.attachment_uploaded'
+  | 'ticket.sla_warning'
   | (string & {})
 
 const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
   'ticket.created': 'Заявка создана',
+  'ticket.updated': 'Заявка обновлена',
   'ticket.assigned': 'Техник назначен',
-  'ticket.in_progress': 'Работы начаты',
-  'ticket.done': 'Работы завершены',
   'ticket.claimed': 'Взята в работу',
   'ticket.status_changed': 'Статус изменён',
-  'ticket.status_client': 'Статус изменён',
+  'ticket.category_changed': 'Категория изменена',
   'ticket.assignment_requested': 'Запрос назначения',
-  'ticket.assigned_external': 'Назначен исполнитель',
-  'ticket.assigned_client': 'Исполнитель назначен',
   'ticket.awaiting_acceptance': 'Отправлена на приёмку',
   'ticket.accepted': 'Работа принята',
   'ticket.rejected': 'Работа не принята',
   'ticket.comment_added': 'Новый комментарий',
   'ticket.attachment_uploaded': 'Новое фото',
-  'sla.warning': 'Скоро дедлайн',
-  'sla.overdue': 'Просрочка SLA',
-  'urgent.created': 'Срочная заявка',
+  'ticket.sla_warning': 'Скоро дедлайн',
 }
 
 /** Короткая метка типа для чипа в UI (fallback — сам type). */
@@ -113,21 +108,18 @@ export function getNotificationTypeLabel(type: string): string {
 export function getNotificationTypeTone(type: string): string {
   const map: Record<string, string> = {
     'ticket.created': 'ticketCreated',
+    'ticket.updated': 'statusChanged',
     'ticket.assigned': 'ticketAssigned',
-    'ticket.in_progress': 'statusChanged',
-    'ticket.done': 'statusChanged',
     'ticket.claimed': 'ticketClaimed',
     'ticket.status_changed': 'statusChanged',
-    'ticket.status_client': 'statusChanged',
+    'ticket.category_changed': 'statusChanged',
     'ticket.assignment_requested': 'assignmentRequested',
-    'ticket.assigned_external': 'ticketAssignedExternal',
-    'ticket.assigned_client': 'ticketAssigned',
     'ticket.awaiting_acceptance': 'statusChanged',
     'ticket.accepted': 'ticketClaimed',
     'ticket.rejected': 'slaOverdue',
-    'sla.warning': 'slaWarning',
-    'sla.overdue': 'slaOverdue',
-    'urgent.created': 'urgentCreated',
+    'ticket.comment_added': 'ticketCreated',
+    'ticket.attachment_uploaded': 'ticketCreated',
+    'ticket.sla_warning': 'slaWarning',
   }
   return map[(type || '').trim()] || 'other'
 }

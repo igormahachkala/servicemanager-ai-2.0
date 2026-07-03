@@ -3254,12 +3254,6 @@ a.mobileBtn.mobileCreateTicketLink {
   border-color: #fecaca;
 }
 
-.mobileNotifType--urgentCreated {
-  background: #fce7f3;
-  color: #9d174d;
-  border-color: #fbcfe8;
-}
-
 .mobileNotifType--other {
   background: #f3f4f6;
   color: #374151;
