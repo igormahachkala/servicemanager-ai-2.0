@@ -12,9 +12,8 @@ function breadcrumbSegments(pathname: string, t: ReturnType<typeof useI18n>['t']
   let path = '/ops'
   for (let i = 0; i < parts.length; i += 1) {
     path += `/${parts[i]}`
-    const isLast = i === parts.length - 1
     crumbs.push({
-      label: isLast ? pageTitle(pathname, t) : parts[i],
+      label: pageTitle(path, t),
       to: path,
     })
   }

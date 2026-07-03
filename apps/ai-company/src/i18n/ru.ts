@@ -229,7 +229,7 @@ export const ru: Messages = {
     capacity: "Ёмкость"
   },
   pages: {
-    flow: "Flow Workspace",
+    flow: "Flow-пространство",
     dashboard: "Дашборд",
     canvas: "Canvas компании",
     missionControl: "Mission Control",
@@ -794,7 +794,7 @@ export const ru: Messages = {
       evening: "Добрый вечер, Owner."
     },
     brief: {
-      summary: "Ваш company pulse на сегодня — что движется, что требует вас и где сосредоточен риск.",
+      summary: "Ваш операционный пульс на сегодня — что движется, что требует вас и где сосредоточен риск.",
       workingHighlight: "{count} сотрудников активно работают прямо сейчас",
       approvalsHighlight: "{count} согласований ждут вашего решения",
       sprintHighlight: "Здоровье спринта: {health}",
@@ -804,8 +804,8 @@ export const ru: Messages = {
       riskWaiting: "{count} сотрудников заблокированы на согласовании",
       healthScore: "Индекс здоровья",
       unread: "{count} непрочитанных уведомлений",
-      allClear: "Inbox пуст",
-      openTimeline: "Открыть live timeline"
+      allClear: "Входящих нет",
+      openTimeline: "Открыть хронологию"
     },
     sprintHealth: {
       on_track: "по плану",
@@ -1286,7 +1286,7 @@ export const ru: Messages = {
   sideNav: {
     title: "Mission Control",
     subtitle: "AI Company · NOC",
-    flowWorkspace: "Flow Workspace",
+    flowWorkspace: "Flow-пространство",
     env: "локально / mock"
   },
   conversations: {
@@ -1805,7 +1805,7 @@ export const ru: Messages = {
     noEmployee: "Платформа",
     noRisks: "Риски не выявлены.",
     noRecommendations: "Рекомендаций пока нет.",
-    emptyTitle: "Нет подходящих reports",
+    emptyTitle: "Нет подходящих отчётов",
     emptyDescription: "Измените фильтры или дождитесь отчётов от сотрудников.",
     searchPlaceholder: "Поиск отчётов…",
     findingsCount: "выводы",
@@ -1813,7 +1813,7 @@ export const ru: Messages = {
     created: "Создано",
     updated: "Обновлено",
     stats: {
-      total: "Всего reports",
+      total: "Всего отчётов",
       published: "Опубликовано",
       reviewed: "Проверено",
       draft: "Черновик"
@@ -2332,11 +2332,11 @@ export const ru: Messages = {
       planning: "Планирование",
       architecture: "Архитектура",
       technical_audit: "Технический аудит",
-      qa_review: "QA review",
+      qa_review: "QA-проверка",
       devops_plan: "План DevOps",
       handoff_preparation: "Подготовка handoff",
       documentation: "Документация",
-      product_review: "Product review"
+      product_review: "Продуктовое ревью"
     },
     preview: {
       title: "Название",
@@ -2771,38 +2771,38 @@ export const ru: Messages = {
     saveSettings: "Сохранить настройки",
     loadedModels: "Загруженные модели на сервере",
     noLoadedModels: "Loaded models не сообщены — выполните health check или pull модели на сервере.",
-    executionTitle: "Runtime execution",
-    executionDescription: "Реальный prompt для {name} через active runtime provider.",
-    modelSelector: "Ollama model",
+    executionTitle: "Выполнение Runtime",
+    executionDescription: "Реальный prompt для {name} через активный runtime provider.",
+    modelSelector: "Модель Ollama",
     promptLabel: "Prompt",
-    executePrompt: "Execute prompt",
-    executing: "Executing…",
-    realExecution: "Real execution",
-    mockExecution: "Mock execution",
+    executePrompt: "Выполнить prompt",
+    executing: "Выполнение…",
+    realExecution: "Реальное выполнение",
+    mockExecution: "Mock-выполнение",
     mockExecutionNote: "Переключите active provider на Ollama для real HTTP execution.",
-    fastTestMode: "Fast test mode",
-    fastTestTag: "fast test",
-    fastTestModeNote: "Fast test mode ограничивает output tokens и обрезает длинные prompts для qwen2.5-coder:7b и deepseek-r1:8b.",
-    lightweightContext: "Lightweight context",
-    lightweightContextNote: "First real Ollama run использует только employee profile и runtime profile — memory и knowledge пропускаются.",
-    elapsedTime: "Elapsed",
-    timeoutLimit: "Timeout limit: {seconds}s",
-    cancelExecution: "Cancel execution",
+    fastTestMode: "Быстрый тестовый режим",
+    fastTestTag: "быстрый тест",
+    fastTestModeNote: "Быстрый тестовый режим ограничивает output tokens и обрезает длинные prompts для qwen2.5-coder:7b и deepseek-r1:8b.",
+    lightweightContext: "Облегчённый context",
+    lightweightContextNote: "Первый real Ollama run использует только employee profile и runtime profile — memory и knowledge пропускаются.",
+    elapsedTime: "Прошло",
+    timeoutLimit: "Лимит таймаута: {seconds} с",
+    cancelExecution: "Отменить выполнение",
     errors: {
-      timeout: "Execution timed out",
-      cancelled: "Execution cancelled"
+      timeout: "Превышено время выполнения",
+      cancelled: "Выполнение отменено"
     },
-    logsTitle: "Runtime logs",
-    logsEmpty: "Runtime logs пока пусты.",
+    logsTitle: "Логи Runtime",
+    logsEmpty: "Логи Runtime пока пусты.",
     capabilities: {
       embeddings: "Эмбеддинги"
     },
     healthStatuses: {
       healthy: "Исправен",
       degraded: "Деградация",
-      unavailable: "Unavailable",
+      unavailable: "Недоступен",
       mock: "Mock",
-      unknown: "Unknown"
+      unknown: "Неизвестно"
     }
   },
   runtimePromptBuilder: {
@@ -2849,7 +2849,7 @@ export const ru: Messages = {
     integrations: "Интеграции",
     runHistory: "История запусков",
     reportLink: "Отчёт",
-    employeeWorkspace: "Workspace сотрудника",
+    employeeWorkspace: "Рабочее пространство сотрудника",
     reportCreation: "Создание отчёта",
     reportPending: "Отчёт будет создан после успешного execution.",
     resultPreview: "Превью результата",
@@ -3072,11 +3072,11 @@ export const ru: Messages = {
     }
   },
   memoryEngine: {
-    title: "Employee Memory",
-    pageTitle: "{name} — Memory",
-    pageDescription: "Persistent memory, принадлежащая Employee — independent of Claude, Qwen или any runtime model.",
+    title: "Память сотрудника",
+    pageTitle: "{name} — Память",
+    pageDescription: "Долговременная память, принадлежащая сотруднику — независимо от модели Claude, Qwen или runtime provider.",
     backToProfile: "Назад к профилю",
-    openMemory: "Open Memory",
+    openMemory: "Открыть память",
     viewTimeline: "Открыть полную хронологию",
     localOnly: "Хранится в localStorage — без vector DB и подключённого Runtime.",
     futureBadge: "Будущее",
@@ -3243,7 +3243,7 @@ export const ru: Messages = {
     openDocs: "Открыть документацию",
     termsLabel: "Ключевые термины",
     openTermInHelp: "Открыть в справочном центре",
-    tooltipHelpCta: "Нажмите, чтобы открыть Help Center",
+    tooltipHelpCta: "Нажмите, чтобы открыть справочный центр",
     helpCenter: {
       title: "Справочный центр",
       subtitle: "Глоссарий платформы — любой термин понятен за один клик.",
@@ -3490,11 +3490,11 @@ export const ru: Messages = {
     }
   },
   learningEngine: {
-    title: "Learning",
-    pageTitle: "{name} — Learning",
-    pageDescription: "Continuous competency growth — goals, sessions, recommendations, and skill progression over time.",
+    title: "Обучение",
+    pageTitle: "{name} — Обучение",
+    pageDescription: "Непрерывный рост компетенций — цели, сессии, рекомендации и прогресс навыков со временем.",
     backToProfile: "Назад к профилю",
-    openLearning: "Open Learning",
+    openLearning: "Открыть обучение",
     openCompetencies: "Открыть Competencies",
     teamLearning: "Team Learning",
     localOnly: "Stored in localStorage — learning progress syncs with competency experience events.",
@@ -4083,7 +4083,7 @@ export const ru: Messages = {
     },
     sections: {
       overview: "Обзор",
-      timeline: "Timeline",
+      timeline: "Хронология",
       skills: "Навыки",
       permissions: "Разрешения",
       memory: "Память",
@@ -4092,7 +4092,7 @@ export const ru: Messages = {
       assignments: "Назначения",
       activity: "Активность",
       runtime: "Runtime",
-      presence: "Presence",
+      presence: "Присутствие",
       learning: "Обучение"
     },
     assignments: {

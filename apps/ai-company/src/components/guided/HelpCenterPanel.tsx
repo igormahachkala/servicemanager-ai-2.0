@@ -66,10 +66,9 @@ export function HelpCenterPanel() {
 
   return (
     <div className="acHelpCenterRoot" role="presentation">
-      <button
-        type="button"
+      <div
         className="acHelpCenterBackdrop"
-        aria-label={copy.close}
+        aria-hidden="true"
         onClick={closeHelpCenter}
       />
       <section

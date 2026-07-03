@@ -13,8 +13,8 @@ export const platformGlossaryTermsRu: Record<string, GlossaryTermMessages> = {
       'Run Task, Live Runtime, настройки Runtime, runtime-страницы сотрудников, Control Room и фазы runtime в операционном дне.',
     related: [
       { label: 'Настройки Runtime', path: '/ops/runtime' },
-      { label: 'Live Runtime', path: '/ops/runtime/live' },
-      { label: 'Run Task', path: '/ops/run-task' },
+      { label: 'Live-монитор Runtime', path: '/ops/runtime/live' },
+      { label: 'Запуск задачи', path: '/ops/run-task' },
     ],
   },
   workspace: {
@@ -43,33 +43,33 @@ export const platformGlossaryTermsRu: Record<string, GlossaryTermMessages> = {
     related: [
       { label: 'Спринт', path: '/ops/sprint' },
       { label: 'Операционный день', path: '/ops/day' },
-      { label: 'Control Room', path: '/ops/projects/project-ai-photo-lab/control-room' },
+      { label: 'Control Room AI Photo Lab', path: '/ops/projects/project-ai-photo-lab/control-room' },
     ],
   },
   controlRoom: {
-    label: 'Control Room',
+    label: 'Control Room AI Photo Lab',
     summary: 'Командный пункт проекта — очередь, риски, runtime, согласования и handoffs на одном экране.',
     tooltip: 'Командный пункт проекта — очередь, риски, runtime, согласования и handoffs на одном экране.',
     description:
       'Control Room — delivery cockpit проекта (например AI Photo Lab): очередь задач, активные запуски, реестр рисков, готовность к демо, ожидающие согласования и внешние handoffs без переключения экранов.',
     whereUsed: 'Control Room AI Photo Lab, ссылки из Kickoff и project-секции операционного дня.',
     related: [
-      { label: 'Control Room', path: '/ops/projects/project-ai-photo-lab/control-room' },
-      { label: 'Kickoff', path: '/ops/projects/project-ai-photo-lab/kickoff' },
-      { label: 'Handoffs', path: '/ops/handoffs' },
+      { label: 'Control Room AI Photo Lab', path: '/ops/projects/project-ai-photo-lab/control-room' },
+      { label: 'Kickoff AI Photo Lab', path: '/ops/projects/project-ai-photo-lab/kickoff' },
+      { label: 'Передачи работы', path: '/ops/handoffs' },
     ],
   },
   kickoff: {
-    label: 'Kickoff',
+    label: 'Kickoff AI Photo Lab',
     summary: 'Структурированный старт проекта — цель спринта, пресеты команды, QA-чеклист и задачи в один клик.',
     tooltip: 'Структурированный старт проекта — цель спринта, пресеты команды, QA-чеклист и задачи в один клик.',
     description:
       'Kickoff переводит проект в исполнимое состояние: цель спринта, preset-задачи для цифровых сотрудников, QA gates и переход в Control Room для ongoing delivery.',
     whereUsed: 'Kickoff AI Photo Lab и onboarding flows из Projects.',
     related: [
-      { label: 'Kickoff', path: '/ops/projects/project-ai-photo-lab/kickoff' },
-      { label: 'Control Room', path: '/ops/projects/project-ai-photo-lab/control-room' },
-      { label: 'Run Task', path: '/ops/run-task' },
+      { label: 'Kickoff AI Photo Lab', path: '/ops/projects/project-ai-photo-lab/kickoff' },
+      { label: 'Control Room AI Photo Lab', path: '/ops/projects/project-ai-photo-lab/control-room' },
+      { label: 'Запуск задачи', path: '/ops/run-task' },
     ],
   },
   approval: {
@@ -82,7 +82,7 @@ export const platformGlossaryTermsRu: Record<string, GlossaryTermMessages> = {
       'Inbox согласований, алерты Command Center, проверка Task Results, gates Control Room и рекомендации Work Scheduler.',
     related: [
       { label: 'Согласования', path: '/ops/approvals' },
-      { label: 'Command Center', path: '/ops' },
+      { label: 'Командный центр', path: '/ops' },
       { label: 'Итоги задач', path: '/ops/task-results' },
     ],
   },
@@ -96,7 +96,7 @@ export const platformGlossaryTermsRu: Record<string, GlossaryTermMessages> = {
     related: [
       { label: 'Итоги задач', path: '/ops/task-results' },
       { label: 'Отчёты', path: '/ops/reports' },
-      { label: 'Run Task', path: '/ops/run-task' },
+      { label: 'Запуск задачи', path: '/ops/run-task' },
     ],
   },
   memory: {
@@ -134,7 +134,7 @@ export const platformGlossaryTermsRu: Record<string, GlossaryTermMessages> = {
     whereUsed: 'Страница Company Canvas и preview widgets Command Center.',
     related: [
       { label: 'Canvas компании', path: '/ops/canvas' },
-      { label: 'Command Center', path: '/ops' },
+      { label: 'Командный центр', path: '/ops' },
       { label: 'Хронология', path: '/ops/timeline' },
     ],
   },
@@ -147,7 +147,7 @@ export const platformGlossaryTermsRu: Record<string, GlossaryTermMessages> = {
     whereUsed: 'Roster сотрудников, профили, workspaces, picker Run Task и staffing операционного дня.',
     related: [
       { label: 'Сотрудники', path: '/ops/employees' },
-      { label: 'Run Task', path: '/ops/run-task' },
+      { label: 'Запуск задачи', path: '/ops/run-task' },
       { label: 'Профиль сотрудника', path: '/ops/employees/ag-max' },
     ],
   },
@@ -160,7 +160,7 @@ export const platformGlossaryTermsRu: Record<string, GlossaryTermMessages> = {
     whereUsed: 'Настройки Runtime, логи Live Runtime, панели провайдеров и Cost Monitor.',
     related: [
       { label: 'Настройки Runtime', path: '/ops/runtime' },
-      { label: 'Live Runtime', path: '/ops/runtime/live' },
+      { label: 'Live-монитор Runtime', path: '/ops/runtime/live' },
       { label: 'История запусков', path: '/ops/runs' },
     ],
   },
@@ -173,8 +173,8 @@ export const platformGlossaryTermsRu: Record<string, GlossaryTermMessages> = {
     whereUsed: 'Превью маршрутизации Run Task, настройки Runtime, боковая панель Live Runtime и runtime сотрудника.',
     related: [
       { label: 'Настройки Runtime', path: '/ops/runtime' },
-      { label: 'Run Task', path: '/ops/run-task' },
-      { label: 'Live Runtime', path: '/ops/runtime/live' },
+      { label: 'Запуск задачи', path: '/ops/run-task' },
+      { label: 'Live-монитор Runtime', path: '/ops/runtime/live' },
     ],
   },
   promptBuilder: {
@@ -185,9 +185,9 @@ export const platformGlossaryTermsRu: Record<string, GlossaryTermMessages> = {
       'Prompt Builder формирует финальный prompt: persona, фрагменты памяти, ссылки на knowledge, определения инструментов и ограничения вывода. Run Task и Live Runtime показывают preview перед execution.',
     whereUsed: 'Run Task, превью prompt в Live Runtime, панели execution Runtime и Visual Lab.',
     related: [
-      { label: 'Run Task', path: '/ops/run-task' },
-      { label: 'Live Runtime', path: '/ops/runtime/live' },
-      { label: 'Visual Lab', path: '/ops/visual-lab' },
+      { label: 'Запуск задачи', path: '/ops/run-task' },
+      { label: 'Live-монитор Runtime', path: '/ops/runtime/live' },
+      { label: 'Visual Execution Lab', path: '/ops/visual-lab' },
     ],
   },
   operatingDay: {
@@ -199,7 +199,7 @@ export const platformGlossaryTermsRu: Record<string, GlossaryTermMessages> = {
     whereUsed: 'Страница операционного дня, next steps Command Center и быстрая навигация.',
     related: [
       { label: 'Операционный день', path: '/ops/day' },
-      { label: 'Command Center', path: '/ops' },
+      { label: 'Командный центр', path: '/ops' },
       { label: 'Согласования', path: '/ops/approvals' },
     ],
   },
@@ -211,8 +211,8 @@ export const platformGlossaryTermsRu: Record<string, GlossaryTermMessages> = {
       'Handoffs связывают AI Company с Codex, Cursor или людьми. Runtime готовит контекст и артефакты; Owner одобряет; пакет экспортируется для execution вне local Runtime loop.',
     whereUsed: 'Inbox handoffs, external work Control Room, follow-up Kickoff и approval workflows.',
     related: [
-      { label: 'Handoffs', path: '/ops/handoffs' },
-      { label: 'Control Room', path: '/ops/projects/project-ai-photo-lab/control-room' },
+      { label: 'Передачи работы', path: '/ops/handoffs' },
+      { label: 'Control Room AI Photo Lab', path: '/ops/projects/project-ai-photo-lab/control-room' },
       { label: 'Согласования', path: '/ops/approvals' },
     ],
   },
@@ -224,8 +224,8 @@ export const platformGlossaryTermsRu: Record<string, GlossaryTermMessages> = {
       'Execution — in-flight runtime-запуски, вызовы инструментов и orchestrated steps. Execution Queue и Live Runtime показывают что running, blocked on approval или finished recently.',
     whereUsed: 'Execution Queue, Live Runtime, история запусков и runtime widgets Command Center.',
     related: [
-      { label: 'Execution Queue', path: '/ops/execution' },
-      { label: 'Live Runtime', path: '/ops/runtime/live' },
+      { label: 'Очередь выполнения', path: '/ops/execution' },
+      { label: 'Live-монитор Runtime', path: '/ops/runtime/live' },
       { label: 'История запусков', path: '/ops/runs' },
     ],
   },
@@ -239,7 +239,7 @@ export const platformGlossaryTermsRu: Record<string, GlossaryTermMessages> = {
     related: [
       { label: 'Отчёты', path: '/ops/reports' },
       { label: 'Итоги задач', path: '/ops/task-results' },
-      { label: 'Command Center', path: '/ops' },
+      { label: 'Командный центр', path: '/ops' },
     ],
   },
   timeline: {
@@ -252,11 +252,11 @@ export const platformGlossaryTermsRu: Record<string, GlossaryTermMessages> = {
     related: [
       { label: 'Хронология компании', path: '/ops/timeline' },
       { label: 'Активность', path: '/ops/activity' },
-      { label: 'Command Center', path: '/ops' },
+      { label: 'Командный центр', path: '/ops' },
     ],
   },
   workScheduler: {
-    label: 'Work Scheduler',
+    label: 'Планировщик работ',
     summary: 'Рекомендуемые следующие действия после Task Result — одобрить, перезапустить, hand off или dismiss.',
     tooltip: 'Рекомендуемые следующие действия после Task Result — одобрить, перезапустить, hand off или dismiss.',
     description:
@@ -264,7 +264,7 @@ export const platformGlossaryTermsRu: Record<string, GlossaryTermMessages> = {
     whereUsed: 'Детали Task Result, workspace сотрудника, панели Control Room и post-run review.',
     related: [
       { label: 'Итоги задач', path: '/ops/task-results' },
-      { label: 'Run Task', path: '/ops/run-task' },
+      { label: 'Запуск задачи', path: '/ops/run-task' },
       { label: 'Согласования', path: '/ops/approvals' },
     ],
   },
@@ -276,7 +276,7 @@ export const platformGlossaryTermsRu: Record<string, GlossaryTermMessages> = {
       'Cost Monitor показывает Runtime spend против limits: tokens, estimated cost и provider breakdown. Помогает Owner решать cloud runs и switch modes до превышения budget.',
     whereUsed: 'Панели мониторинга Live Runtime, настройки Runtime и runtime dashboards сотрудников.',
     related: [
-      { label: 'Live Runtime', path: '/ops/runtime/live' },
+      { label: 'Live-монитор Runtime', path: '/ops/runtime/live' },
       { label: 'Настройки Runtime', path: '/ops/runtime' },
       { label: 'История запусков', path: '/ops/runs' },
     ],
