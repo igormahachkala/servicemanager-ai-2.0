@@ -564,14 +564,18 @@ export function MobileChatsPage() {
       return (
         <div className="mobileSection mobileChatsDialog">
           <div className="mobileChatsDialogHeader">
-            <Link className="mobileChatsDialogBack" to={`${mobilePath(location.pathname, '/chats')}${location.search}`}>←</Link>
+            <Link className="mobileChatsDialogBack" to={`${mobilePath(location.pathname, '/chats')}${location.search}`} aria-label="Назад">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><line x1="19" y1="12" x2="5" y2="12" /><polyline points="12 19 5 12 12 5" /></svg>
+            </Link>
             <div className="mobileChatsDialogHeaderMain">
               <div className="mobileChatsDialogTitleRow">
                 <h1 className="mobileChatsDialogTitle">Чат не найден</h1>
               </div>
               <div className="mobileChatsDialogSubtitle">Заявка недоступна в текущем контуре</div>
             </div>
-            <span className="mobileChatsDialogMenu" aria-hidden="true">⋯</span>
+            <span className="mobileChatsDialogMenu" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="5" cy="12" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /></svg>
+            </span>
           </div>
           <div className="mobileEmptyState mobileCard">
             <p className="mobileEmptyStateTitle">Не удалось открыть чат</p>
@@ -610,7 +614,9 @@ export function MobileChatsPage() {
         ) : null}
 
         <div className="mobileChatsDialogHeader">
-          <Link className="mobileChatsDialogBack" to={`${mobilePath(location.pathname, '/chats')}${location.search}`}>←</Link>
+          <Link className="mobileChatsDialogBack" to={`${mobilePath(location.pathname, '/chats')}${location.search}`} aria-label="Назад">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><line x1="19" y1="12" x2="5" y2="12" /><polyline points="12 19 5 12 12 5" /></svg>
+          </Link>
           <div className="mobileChatsDialogHeaderMain">
             <div className="mobileChatsDialogTitleRow">
               <h1 className="mobileChatsDialogTitle">{mobileTicketNumberTitle(currentTicket.ticketNumber)}</h1>
@@ -629,7 +635,7 @@ export function MobileChatsPage() {
             state={currentTicketNavState}
             aria-label="Открыть заявку"
           >
-            →
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><line x1="5" y1="12" x2="19" y2="12" /><polyline points="12 5 19 12 12 19" /></svg>
           </Link>
         </div>
 
@@ -679,7 +685,11 @@ export function MobileChatsPage() {
                   const own = !!entry.isOwn
                   return (
                     <div className={`mobileChatsBubbleRow${own ? ' mobileChatsBubbleRow--own' : ''}`} key={entry.id}>
-                      {!own ? <div className="mobileChatsAvatar" aria-hidden="true">💬</div> : null}
+                      {!own ? (
+                        <div className="mobileChatsAvatar" aria-hidden="true">
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 9h8" /><path d="M8 13h6" /><path d="M18 4a3 3 0 0 1 3 3v8a3 3 0 0 1 -3 3h-5l-5 3v-3h-2a3 3 0 0 1 -3 -3v-8a3 3 0 0 1 3 -3z" /></svg>
+                        </div>
+                      ) : null}
                       <div className={`mobileChatsBubble${own ? ' mobileChatsBubble--own' : ''}`}>
                         <div className="mobileChatsBubbleAuthor">
                           {own ? 'Вы' : currentTicket.requesterName || 'Клиент'}
@@ -688,7 +698,11 @@ export function MobileChatsPage() {
                         <div className="mobileChatsBubbleText">{entry.text}</div>
                         <div className="mobileChatsBubbleFooter">
                           <span>{formatLastActivity(entry.at)}</span>
-                          {own ? <span className="mobileChatsBubbleRead">✓✓</span> : null}
+                          {own ? (
+                            <span className="mobileChatsBubbleRead" aria-label="Прочитано">
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M7 12l5 5l10 -10" /><path d="M2 12l5 5m5 -5l5 -5" /></svg>
+                            </span>
+                          ) : null}
                         </div>
                       </div>
                     </div>
@@ -717,8 +731,12 @@ export function MobileChatsPage() {
             ) : null}
 
             <div className="mobileChatsComposer">
-              <button className="mobileChatsComposerButton" type="button" aria-label="Вложение">+</button>
-              <button className="mobileChatsComposerButton" type="button" aria-label="Фото">📷</button>
+              <button className="mobileChatsComposerButton" type="button" aria-label="Вложение">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M15 7l-6.5 6.5a1.5 1.5 0 0 0 3 3l6.5 -6.5a3 3 0 0 0 -6 -6l-6.5 6.5a4.5 4.5 0 0 0 9 9l6.5 -6.5" /></svg>
+              </button>
+              <button className="mobileChatsComposerButton" type="button" aria-label="Фото">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M5 7h2l2 -2h6l2 2h2a2 2 0 0 1 2 2v9a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-9a2 2 0 0 1 2 -2" /><circle cx="12" cy="13" r="3" /></svg>
+              </button>
               <textarea
                 className="mobileChatsComposerInput"
                 placeholder="Сообщение..."
@@ -740,7 +758,11 @@ export function MobileChatsPage() {
                 onClick={() => sendCommentM.mutate(composerText.trim())}
                 disabled={composerDisabled}
               >
-                {sendCommentM.isPending ? '…' : '➤'}
+                {sendCommentM.isPending ? (
+                  '…'
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M10 14l11 -11" /><path d="M21 3l-6.5 18a.55 .55 0 0 1 -1 0l-3.5 -7l-7 -3.5a.55 .55 0 0 1 0 -1l18 -6.5" /></svg>
+                )}
               </button>
             </div>
             {composerError ? <div className="mobileNotice mobileNoticeError">{composerError}</div> : null}
