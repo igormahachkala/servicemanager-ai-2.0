@@ -465,31 +465,31 @@ export function MobileMyTickets() {
           {textSearch.trim() ? (
             <span className="mobileActiveFilterChip">
               {textSearch.length > 20 ? `${textSearch.slice(0, 20)}…` : textSearch}
-              <button type="button" className="mobileActiveFilterChipX" onClick={() => setTextSearch('')} aria-label="Убрать поиск">×</button>
+              <button type="button" className="mobileActiveFilterChipX" onClick={() => setTextSearch('')} aria-label="Убрать поиск"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>
             </span>
           ) : null}
           {advFilters.location ? (
             <span className="mobileActiveFilterChip">
               {locationOptions.find((o) => o.id === advFilters.location)?.label || advFilters.location}
-              <button type="button" className="mobileActiveFilterChipX" onClick={() => setAdvFilters((p) => ({ ...p, location: '' }))} aria-label="Убрать объект">×</button>
+              <button type="button" className="mobileActiveFilterChipX" onClick={() => setAdvFilters((p) => ({ ...p, location: '' }))} aria-label="Убрать объект"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>
             </span>
           ) : null}
           {advFilters.categoryId ? (
             <span className="mobileActiveFilterChip">
               {categoryOptions.find((o) => o.id === advFilters.categoryId)?.label || advFilters.categoryId}
-              <button type="button" className="mobileActiveFilterChipX" onClick={() => setAdvFilters((p) => ({ ...p, categoryId: '' }))} aria-label="Убрать категорию">×</button>
+              <button type="button" className="mobileActiveFilterChipX" onClick={() => setAdvFilters((p) => ({ ...p, categoryId: '' }))} aria-label="Убрать категорию"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>
             </span>
           ) : null}
           {advFilters.priority ? (
             <span className="mobileActiveFilterChip">
               {PRIORITY_LABELS[advFilters.priority] || advFilters.priority}
-              <button type="button" className="mobileActiveFilterChipX" onClick={() => setAdvFilters((p) => ({ ...p, priority: '' }))} aria-label="Убрать приоритет">×</button>
+              <button type="button" className="mobileActiveFilterChipX" onClick={() => setAdvFilters((p) => ({ ...p, priority: '' }))} aria-label="Убрать приоритет"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>
             </span>
           ) : null}
           {advFilters.period ? (
             <span className="mobileActiveFilterChip">
               {PERIOD_LABELS[advFilters.period] || advFilters.period}
-              <button type="button" className="mobileActiveFilterChipX" onClick={() => setAdvFilters((p) => ({ ...p, period: '' }))} aria-label="Убрать период">×</button>
+              <button type="button" className="mobileActiveFilterChipX" onClick={() => setAdvFilters((p) => ({ ...p, period: '' }))} aria-label="Убрать период"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>
             </span>
           ) : null}
         </div>

@@ -1649,9 +1649,12 @@ a.mobileBtn.mobileCreateTicketLink {
 }
 
 .mobileTicketCardPhotoIcon {
-  font-size: 1.35rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   line-height: 1;
-  opacity: 0.72;
+  color: #94a3b8;
+  opacity: 0.85;
 }
 
 .mobileTicketCardPhotoBadge {
@@ -4755,11 +4758,13 @@ a.mobileBtn.mobileCreateTicketLink {
 
 .mobileActiveFilterChipX {
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: none;
   border: none;
   padding: 0;
   cursor: pointer;
-  font-size: 1rem;
   line-height: 1;
   color: #60a5fa;
   -webkit-tap-highlight-color: transparent;
@@ -5293,11 +5298,13 @@ a.mobileBtn.mobileCreateTicketLink {
 .mobileSheetClose {
   border: none;
   background: transparent;
-  font-size: 1rem;
   color: #6b7280;
   width: 32px;
   height: 32px;
   cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .mobileSheetActions { display: grid; gap: 2px; }
 .mobileSheetAction {
