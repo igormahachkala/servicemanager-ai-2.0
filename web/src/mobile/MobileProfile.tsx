@@ -32,6 +32,15 @@ function isProviderLinkedClientRole(role?: api.Role | null) {
   )
 }
 
+/** Tabler chevron-right — inline SVG вместо глифа ›. */
+function ChevronRight() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="9 18 15 12 9 6" />
+    </svg>
+  )
+}
+
 export function MobileProfile() {
   const location = useLocation()
   const navigate = useNavigate()
@@ -204,6 +213,7 @@ export function MobileProfile() {
   const initials = fullName
     ? fullName.split(/\s+/).map((n) => n[0]).join('').toUpperCase().slice(0, 2)
     : (meQ.data?.email || '?')[0].toUpperCase()
+  const roleBadgeTone = meQ.data?.role === 'TECHNICIAN' ? 'tech' : meQ.data?.role === 'CLIENT' ? 'client' : 'admin'
   const notificationsPath = mobilePath(location.pathname, '/notifications')
   const backHref = api.appendScopeToPath(
     mobilePath(location.pathname, ''),
@@ -219,22 +229,26 @@ export function MobileProfile() {
       <div className="mobileSection">
         {meQ.isError ? <div className="mobileNotice mobileNoticeError">{String((meQ.error as any)?.message || meQ.error)}</div> : null}
 
-        {/* Hero card */}
+        {/* Hero card — Figma ProfileScreen: аватар-плитка слева + имя/email/бейджи */}
         <div className="mobileProfileHero">
           <div className="mobileProfileAvatar">{initials}</div>
-          <div className="mobileProfileName">{fullName || meQ.data?.email || '—'}</div>
-          <span className="mobileProfileRoleBadge">{roleLabel(meQ.data?.role)}</span>
-          {meQ.data?.companyName ? <div className="mobileProfileCompany">{meQ.data.companyName}</div> : null}
-          {linkedClientCompanyId ? (
-            <div className="mobileProfileLinkedClient">
-              {(meQ.data?.role === 'TECHNICIAN' ? techBoundLabelQ.isLoading : linkedClientsQ.isLoading)
-                ? 'Загрузка клиента…'
-                : linkedClientName || linkedClientCompanyId}
+          <div className="mobileProfileHeroInfo">
+            <div className="mobileProfileName">{fullName || meQ.data?.email || '—'}</div>
+            {meQ.data?.email && fullName ? <div className="mobileProfileEmail">{meQ.data.email}</div> : null}
+            <div className="mobileProfileBadgeRow">
+              <span className={`mobileProfileRoleBadge mobileProfileRoleBadge--${roleBadgeTone}`}>{roleLabel(meQ.data?.role)}</span>
+              <span className="mobileProfileContourBadge">{appContour}</span>
             </div>
-          ) : null}
-          {meQ.data?.phone ? (
-            <div className="mobileProfileCompany" style={{ marginTop: 4 }}>{meQ.data.phone}</div>
-          ) : null}
+            {meQ.data?.companyName ? <div className="mobileProfileCompany">{meQ.data.companyName}</div> : null}
+            {linkedClientCompanyId ? (
+              <div className="mobileProfileLinkedClient">
+                {(meQ.data?.role === 'TECHNICIAN' ? techBoundLabelQ.isLoading : linkedClientsQ.isLoading)
+                  ? 'Загрузка клиента…'
+                  : linkedClientName || linkedClientCompanyId}
+              </div>
+            ) : null}
+            {meQ.data?.phone ? <div className="mobileProfileCompany">{meQ.data.phone}</div> : null}
+          </div>
         </div>
 
         {/* Stats */}
@@ -256,7 +270,7 @@ export function MobileProfile() {
         {/* Client context */}
         {canShowLinkedClients ? (
           <div className="mobileCard" style={{ marginTop: 8 }}>
-            <div className="mobileSectionTitle" style={{ marginBottom: 8 }}>Клиентский контур</div>
+            <div className="mobileProfileSectionLabel">Клиентский контур</div>
             {linkedClientsLoaded ? (
               linkedClientsQ.data && linkedClientsQ.data.length > 0 ? (
                 <>
@@ -296,7 +310,7 @@ export function MobileProfile() {
         {/* Client context switcher for TECHNICIAN — источник: bound-contexts (полный список) */}
         {techCanSwitchCompany ? (
           <div className="mobileCard" style={{ marginTop: 8 }}>
-            <div className="mobileSectionTitle" style={{ marginBottom: 8 }}>Клиентская компания</div>
+            <div className="mobileProfileSectionLabel">Клиентская компания</div>
             <select
               className="mobileProviderContextSelect"
               value={linkedClientCompanyId}
@@ -325,11 +339,25 @@ export function MobileProfile() {
         {/* Menu */}
         <div className="mobileCard mobileProfileMenu">
           <Link to={notificationsPath} className="mobileProfileMenuItem">
-            <span>Уведомления</span>
-            <span className="mobileProfileMenuChevron">›</span>
+            <span className="mobileProfileMenuIcon" aria-hidden>
+              {/* Tabler bell */}
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10 5a2 2 0 0 1 4 0a7 7 0 0 1 4 6v3a4 4 0 0 0 2 3H4a4 4 0 0 0 2 -3v-3a7 7 0 0 1 4 -6" />
+                <path d="M9 17v1a3 3 0 0 0 6 0v-1" />
+              </svg>
+            </span>
+            <span className="mobileProfileMenuLabel">Уведомления</span>
+            <span className="mobileProfileMenuChevron" aria-hidden><ChevronRight /></span>
           </Link>
           <Link to={mobilePath(location.pathname, '/offline-queue')} className="mobileProfileMenuItem">
-            <span>
+            <span className="mobileProfileMenuIcon" aria-hidden>
+              {/* Tabler send */}
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10 14l11 -11" />
+                <path d="M21 3l-6.5 18a.55 .55 0 0 1 -1 0l-3.5 -7l-7 -3.5a.55 .55 0 0 1 0 -1l18 -6.5" />
+              </svg>
+            </span>
+            <span className="mobileProfileMenuLabel">
               Очередь отправки
               {queueCounts.pending + queueCounts.failed > 0 ? (
                 <span className="mobileProfileMenuBadge mobileProfileMenuBadge--queue">
@@ -337,30 +365,53 @@ export function MobileProfile() {
                 </span>
               ) : null}
             </span>
-            <span className="mobileProfileMenuChevron">›</span>
+            <span className="mobileProfileMenuChevron" aria-hidden><ChevronRight /></span>
           </Link>
           <div className="mobileProfileMenuItem mobileProfileMenuItem--static" aria-disabled="true">
-            <span>Режим работы</span>
+            <span className="mobileProfileMenuIcon" aria-hidden>
+              {/* Tabler clock */}
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="9" />
+                <polyline points="12 7 12 12 15 15" />
+              </svg>
+            </span>
+            <span className="mobileProfileMenuLabel">Режим работы</span>
             <span className="mobileProfileMenuSoon">Скоро</span>
           </div>
           {canAccessManagementDesktop(meQ.data?.role) ? (
             <Link to={managementHref} className="mobileProfileMenuItem">
-              <span>Управленческая часть</span>
-              <span className="mobileProfileMenuChevron">›</span>
+              <span className="mobileProfileMenuIcon" aria-hidden>
+                {/* Tabler layout-dashboard */}
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="4" y="4" width="6" height="8" rx="1" />
+                  <rect x="4" y="16" width="6" height="4" rx="1" />
+                  <rect x="14" y="4" width="6" height="4" rx="1" />
+                  <rect x="14" y="12" width="6" height="8" rx="1" />
+                </svg>
+              </span>
+              <span className="mobileProfileMenuLabel">Управленческая часть</span>
+              <span className="mobileProfileMenuChevron" aria-hidden><ChevronRight /></span>
             </Link>
           ) : null}
           <button type="button" className="mobileProfileMenuItem mobileProfileMenuItem--danger" onClick={logout}>
-            <span>Выйти</span>
+            <span className="mobileProfileMenuIcon" aria-hidden>
+              {/* Tabler logout */}
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 8v-2a2 2 0 0 0 -2 -2h-7a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h7a2 2 0 0 0 2 -2v-2" />
+                <path d="M9 12h12l-3 -3" />
+                <path d="M18 15l3 -3" />
+              </svg>
+            </span>
+            <span className="mobileProfileMenuLabel">Выйти</span>
           </button>
         </div>
 
-        {/* Support + notifications */}
+        {/* Support — SupportContactBlock self-titles «Поддержка» */}
         <div className="mobileCard" style={{ marginTop: 8 }}>
-          <div className="mobileSectionTitle" style={{ marginBottom: 8 }}>Поддержка</div>
-          <div className="mobileFieldHint" style={{ marginBottom: 8 }}>
+          <SupportContactBlock titleTag="div" />
+          <div className="mobileFieldHint" style={{ marginTop: 8 }}>
             Telegram и MAX — внешние чаты поддержки (откроются в браузере или приложении).
           </div>
-          <SupportContactBlock titleTag="div" />
         </div>
 
         <div className="mobileCard" style={{ marginTop: 8 }}>
@@ -372,13 +423,13 @@ export function MobileProfile() {
 
         {/* Specializations */}
         <div className="mobileCard" style={{ marginTop: 8 }}>
-          <div className="mobileSectionTitle" style={{ marginBottom: 8 }}>Мои специализации</div>
+          <div className="mobileProfileSectionLabel">Мои специализации</div>
           <div className="mobileFieldHint">Специализации будут доступны позже.</div>
         </div>
 
         {/* App info */}
         <div className="mobileCard" style={{ marginTop: 8 }}>
-          <div className="mobileSectionTitle" style={{ marginBottom: 8 }}>О приложении</div>
+          <div className="mobileProfileSectionLabel">О приложении</div>
           <div className="mobileProfileInfoRow">
             <span className="mobileMeta">Контур</span>
             <span>{appContour}</span>

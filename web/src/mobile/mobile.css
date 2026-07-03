@@ -4377,61 +4377,98 @@ a.mobileBtn.mobileCreateTicketLink {
 /* ── Profile redesign ────────────────────────────────────── */
 .mobileProfileHero {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  padding: 28px 16px 20px;
+  gap: 16px;
+  padding: 20px 16px;
   background: #fff;
   border-radius: 20px;
-  border: 1px solid #e5e7eb;
-  box-shadow: 0 6px 20px rgba(17,24,39,0.06);
+  border: 1px solid #eef2f7;
+  box-shadow: 0 6px 20px rgba(17,24,39,0.05);
   margin-bottom: 12px;
-  text-align: center;
+  text-align: left;
 }
 
 .mobileProfileAvatar {
-  width: 72px;
-  height: 72px;
-  border-radius: 50%;
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
   background: linear-gradient(145deg, #3b82f6, #1d4ed8);
   color: #fff;
-  font-size: 1.6rem;
+  font-size: 1.45rem;
   font-weight: 800;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 12px;
+  flex-shrink: 0;
   box-shadow: 0 4px 14px rgba(37,99,235,0.3);
   letter-spacing: -0.02em;
 }
 
+.mobileProfileHeroInfo {
+  flex: 1;
+  min-width: 0;
+}
+
 .mobileProfileName {
-  font-size: 1.15rem;
+  font-size: 1.1rem;
   font-weight: 800;
-  color: #111827;
-  margin-bottom: 6px;
+  color: #0f172a;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.mobileProfileEmail {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+}
+
+.mobileProfileBadgeRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
 }
 
 .mobileProfileRoleBadge {
   display: inline-block;
-  padding: 3px 12px;
-  border-radius: 12px;
+  padding: 3px 10px;
+  border-radius: 999px;
   background: #eff6ff;
   color: #1d4ed8;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 700;
-  margin-bottom: 6px;
+}
+
+.mobileProfileRoleBadge--tech   { background: #dbeafe; color: #1d4ed8; }
+.mobileProfileRoleBadge--client { background: #d1fae5; color: #047857; }
+.mobileProfileRoleBadge--admin  { background: #ede9fe; color: #6d28d9; }
+
+.mobileProfileContourBadge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 0.72rem;
+  font-weight: 700;
 }
 
 .mobileProfileCompany {
-  font-size: 0.82rem;
-  color: #9ca3af;
-  margin-top: 2px;
+  font-size: 0.78rem;
+  color: #94a3b8;
+  margin-top: 4px;
+  overflow-wrap: anywhere;
 }
 
 .mobileProfileLinkedClient {
-  font-size: 0.78rem;
-  color: #6b7280;
-  margin-top: 4px;
+  font-size: 0.76rem;
+  color: #64748b;
+  margin-top: 3px;
+  overflow-wrap: anywhere;
 }
 
 .mobileProfileMenu {
@@ -4442,7 +4479,7 @@ a.mobileBtn.mobileCreateTicketLink {
 .mobileProfileMenuItem {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 12px;
   padding: 14px 16px;
   font-size: 0.92rem;
   font-weight: 500;
@@ -4460,6 +4497,14 @@ a.mobileBtn.mobileCreateTicketLink {
   transition: background 0.1s;
 }
 
+.mobileProfileMenuLabel {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .mobileProfileMenuItem:last-child {
   border-bottom: none;
 }
@@ -4473,9 +4518,19 @@ a.mobileBtn.mobileCreateTicketLink {
 }
 
 .mobileProfileMenuChevron {
-  color: #d1d5db;
-  font-size: 0.8rem;
+  display: inline-flex;
+  align-items: center;
+  color: #cbd5e1;
   flex-shrink: 0;
+}
+
+.mobileProfileSectionLabel {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 8px;
 }
 
 /* SMA-MOBILE-103: profile stats, static menu row, app info */
@@ -4525,10 +4580,20 @@ a.mobileBtn.mobileCreateTicketLink {
 }
 
 .mobileProfileMenuIcon {
-  font-size: 1.1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
   flex-shrink: 0;
-  width: 28px;
-  text-align: center;
+  color: #64748b;
+}
+
+/* иконка наследует цвет строки (например, красный «Выйти») */
+.mobileProfileMenuItem--danger .mobileProfileMenuIcon {
+  color: inherit;
+}
+.mobileProfileMenuItem--static .mobileProfileMenuIcon {
+  color: #94a3b8;
 }
 
 /* ── SMA-MOBILE-102: Advanced filters & active states ─────── */
