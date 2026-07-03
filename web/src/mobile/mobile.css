@@ -5090,26 +5090,49 @@ a.mobileBtn.mobileCreateTicketLink {
 }
 .mobileAnalyticsCard {
   display: grid;
-  gap: 2px;
+  gap: 3px;
   padding: 14px;
+  border-radius: 16px;
   min-width: 0;
+  position: relative;
+  overflow: hidden;
+}
+/* Figma AnalyticsScreen: тонкий цветной акцент сверху вместо левой границы */
+.mobileAnalyticsCard::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: #cbd5e1;
 }
 .mobileAnalyticsValue {
-  font-size: 1.6rem;
-  font-weight: 800;
+  font-family: var(--font-mono);
+  font-size: 1.5rem;
+  font-weight: 700;
   line-height: 1.1;
-  color: #111827;
+  color: #0f172a;
 }
 .mobileAnalyticsLabel {
-  font-size: 0.78rem;
-  color: #6b7280;
+  font-size: 0.74rem;
+  color: #94a3b8;
 }
-.mobileAnalyticsCard--active { border-left: 4px solid #2563eb; }
-.mobileAnalyticsCard--overdue { border-left: 4px solid #dc2626; }
-.mobileAnalyticsCard--done { border-left: 4px solid #16a34a; }
-.mobileAnalyticsCard--sla { border-left: 4px solid #ea580c; }
-.mobileAnalyticsCard--overdue .mobileAnalyticsValue { color: #b91c1c; }
-.mobileAnalyticsCard--sla .mobileAnalyticsValue { color: #9a3412; }
+.mobileAnalyticsCard--active::before  { background: #2563eb; }
+.mobileAnalyticsCard--overdue::before { background: #dc2626; }
+.mobileAnalyticsCard--done::before    { background: #16a34a; }
+.mobileAnalyticsCard--sla::before     { background: #ea580c; }
+.mobileAnalyticsCard--active .mobileAnalyticsValue  { color: #2563eb; }
+.mobileAnalyticsCard--overdue .mobileAnalyticsValue { color: #dc2626; }
+.mobileAnalyticsCard--done .mobileAnalyticsValue    { color: #16a34a; }
+.mobileAnalyticsCard--sla .mobileAnalyticsValue     { color: #ea580c; }
+
+.mobileAnalyticsHomeLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  text-decoration: none;
+}
 
 .mobileAnalyticsRows { display: grid; gap: 0; }
 .mobileAnalyticsRow {
@@ -5153,21 +5176,24 @@ a.mobileBtn.mobileCreateTicketLink {
   white-space: nowrap;
 }
 .mobileAnalyticsBarCount {
-  font-size: 0.88rem;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
   font-weight: 700;
-  color: #111827;
+  color: #0f172a;
 }
 .mobileAnalyticsBarTrack {
   grid-column: 1 / -1;
-  height: 5px;
-  background: #e5e7eb;
-  border-radius: 3px;
+  height: 6px;
+  background: #f1f5f9;
+  border-radius: 999px;
   overflow: hidden;
+  margin-top: 2px;
 }
 .mobileAnalyticsBarFill {
   height: 100%;
-  border-radius: 3px;
+  border-radius: 999px;
   background: #2563eb;
+  transition: width 0.3s ease;
 }
 .mobileAnalyticsBarFill--location  { background: #0891b2; }
 .mobileAnalyticsBarFill--new       { background: #2563eb; }
@@ -5192,12 +5218,13 @@ a.mobileBtn.mobileCreateTicketLink {
 .mobileAnalyticsQuickLink + .mobileAnalyticsQuickLink { border-top: 1px solid #f1f5f9; }
 
 .mobileAnalyticsQuickBadge {
+  font-family: var(--font-mono);
   font-size: 0.78rem;
   font-weight: 700;
   background: #f1f5f9;
   color: #374151;
-  border-radius: 10px;
-  padding: 2px 8px;
+  border-radius: 999px;
+  padding: 2px 9px;
   white-space: nowrap;
   flex-shrink: 0;
 }
