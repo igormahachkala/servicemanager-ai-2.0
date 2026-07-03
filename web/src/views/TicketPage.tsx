@@ -21,6 +21,7 @@ import {
   TicketActionsPanel,
   TicketAssignmentPanel,
   TicketChatPanel,
+  TicketChildCreateForm,
   TicketChildTicketsPanel,
   TicketCommentPanel,
   TicketContextPanel,
@@ -1362,65 +1363,23 @@ export function TicketPage() {
       ) : null}
 
       {ticket && canCreateChildTicket && showChildCreateForm ? (
-        <div className="panel uiCard" style={{ marginBottom: 12 }}>
-          <h3 style={{ marginBottom: 10 }}>Новая дополнительная работа</h3>
-          <div className="muted small" style={{ marginBottom: 10 }}>
-            Локация и контакт наследуются от текущей заявки. Для MVP фото в child-ticket не прикрепляется на этапе создания.
-          </div>
-          <div className="form">
-            <label>
-              Категория *
-              <select
-                value={childCategoryId}
-                onChange={(e) => setChildCategoryId(e.target.value)}
-                disabled={createChildM.isPending}
-              >
-                <option value="">Выберите категорию</option>
-                {(categoriesQ.data || []).filter((row) => row.isActive !== false).map((row) => (
-                  <option key={row.id} value={row.id}>{row.name}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Описание проблемы *
-              <textarea
-                value={childProblemText}
-                onChange={(e) => setChildProblemText(e.target.value)}
-                rows={4}
-                disabled={createChildM.isPending}
-                placeholder="Кратко опишите дополнительную работу"
-              />
-            </label>
-            <label>
-              Срочность
-              <select
-                value={childUrgency}
-                onChange={(e) => setChildUrgency(e.target.value as api.TicketUrgency)}
-                disabled={createChildM.isPending}
-              >
-                <option value="NOT_URGENT">Не срочно</option>
-                <option value="URGENT">Срочно</option>
-              </select>
-              <div className="fieldHint">Для доп. работы выберите срочность отдельно от родительской заявки.</div>
-            </label>
-            <div className="uiActions">
-              <button onClick={() => createChildM.mutate()} disabled={createChildM.isPending || !childCategoryId || !childProblemText.trim()}>
-                {createChildM.isPending ? 'Создаём…' : 'Создать доп. работу'}
-              </button>
-              <button
-                className="ghost"
-                onClick={() => {
-                  setShowChildCreateForm(false)
-                  setChildCreateError(null)
-                }}
-                disabled={createChildM.isPending}
-              >
-                Отмена
-              </button>
-            </div>
-          </div>
-          <InlineError message={(categoriesQ.error as any)?.message || childCreateError} />
-        </div>
+        <TicketChildCreateForm
+          categoryId={childCategoryId}
+          onCategoryChange={setChildCategoryId}
+          problemText={childProblemText}
+          onProblemTextChange={setChildProblemText}
+          urgency={childUrgency}
+          onUrgencyChange={setChildUrgency}
+          categories={(categoriesQ.data || []).filter((row) => row.isActive !== false)}
+          pending={createChildM.isPending}
+          canSubmit={!createChildM.isPending && !!childCategoryId && !!childProblemText.trim()}
+          onSubmit={() => createChildM.mutate()}
+          onCancel={() => {
+            setShowChildCreateForm(false)
+            setChildCreateError(null)
+          }}
+          errorMessage={(categoriesQ.error as any)?.message || childCreateError}
+        />
       ) : null}
 
       {ticket && canAssign && !isClientRole ? (
