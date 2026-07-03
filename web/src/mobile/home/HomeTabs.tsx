@@ -12,27 +12,32 @@ type Props = {
   homeIntroDismissed: boolean
   setHomeIntroDismissed: (value: boolean) => void
   collapsed?: boolean
+  /** Активна быстрая карта → она единственный доминант, вкладки в нейтральном состоянии. */
+  activeSuppressed?: boolean
 }
 
 export function HomeTabs(props: Props) {
-  const { role, boardTab, setBoardTab, tabCounts, homeIntroDismissed, setHomeIntroDismissed, collapsed } = props
+  const { role, boardTab, setBoardTab, tabCounts, homeIntroDismissed, setHomeIntroDismissed, collapsed, activeSuppressed } = props
   const visibleTabs = collapsed ? COLLAPSED_TABS : MOBILE_HOME_TABS
   return (
     <>
       <div className="mobileFilterTabs mobileHomeStatusTabs" role="tablist" aria-label="Статус заявок">
-        {visibleTabs.map((tab) => (
+        {visibleTabs.map((tab) => {
+          const isActive = !activeSuppressed && boardTab === tab
+          return (
           <button
             key={tab}
             type="button"
             role="tab"
-            aria-selected={boardTab === tab}
-            className={`mobileFilterTab${boardTab === tab ? ' mobileFilterTabActive' : ''}`}
+            aria-selected={isActive}
+            className={`mobileFilterTab${isActive ? ' mobileFilterTabActive' : ''}`}
             onClick={() => setBoardTab(tab)}
           >
             {MOBILE_HOME_TAB_LABELS[tab]}
             <span className="mobileFilterTabCount">{tabCounts[tab]}</span>
           </button>
-        ))}
+          )
+        })}
       </div>
       {role === 'TECHNICIAN' && !homeIntroDismissed ? (
         <MobileHomeTabsIntroBanner

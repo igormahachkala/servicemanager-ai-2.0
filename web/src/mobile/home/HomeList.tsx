@@ -252,7 +252,11 @@ function LocationGroupCard({
             ) : null}
           </div>
         </div>
-        <span className="mobileLocationGroupChevron" aria-hidden>{expanded ? '▲' : '▼'}</span>
+        <span className={`mobileLocationGroupChevron${expanded ? ' mobileLocationGroupChevron--open' : ''}`} aria-hidden>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </span>
       </div>
       {expanded ? (
         <div className="mobileLocationGroupTickets">
@@ -282,6 +286,14 @@ function TabEmpty({
   })
   return (
     <div className="mobileCard mobileEmptyState" role="status">
+      <span className="mobileEmptyStateIcon" aria-hidden>
+        {/* Tabler inbox */}
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M4 13h3l3 3h4l3-3h3" />
+          <path d="M4 13v-4l2 -5h12l2 5v4" />
+          <path d="M4 13v5a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2v-5" />
+        </svg>
+      </span>
       <div className="mobileEmptyStateTitle">{empty.title}</div>
       <p className="mobileEmptyStateHint">{empty.hint}</p>
     </div>
@@ -291,6 +303,13 @@ function TabEmpty({
 function FilteredEmpty({ filterSummary, onReset }: { filterSummary: string; onReset: () => void }) {
   return (
     <div className="mobileCard mobileEmptyState" role="status">
+      <span className="mobileEmptyStateIcon" aria-hidden>
+        {/* Tabler search */}
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="10" cy="10" r="7" />
+          <line x1="21" y1="21" x2="15" y2="15" />
+        </svg>
+      </span>
       <div className="mobileEmptyStateTitle">Ничего не найдено</div>
       <p className="mobileEmptyStateHint">Активные условия: {filterSummary || '—'}</p>
       <button type="button" className="mobileBtn mobileBtnSecondary" onClick={onReset}>Сбросить фильтры</button>

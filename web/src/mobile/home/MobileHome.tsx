@@ -12,9 +12,12 @@ import {
   scopeForMobileTicketLink,
 } from '../mobileTicketDisplay'
 import {
+  dedupeBoardCards,
   filterTicketsForMobileHomeTab,
+  isAwaitingAcceptanceTicket,
   isMobileHomeBoardFilterTab,
   mobileHomeBoardTabCounts,
+  ticketRequiresMyAction,
   MOBILE_HOME_BOARD_CHIP_IDS,
   MOBILE_HOME_BOARD_CHIP_LABELS,
   type MobileHomeBoardChipId,
@@ -34,6 +37,7 @@ import { HomeHeader } from './HomeHeader'
 import { HomeTabs } from './HomeTabs'
 import { HomeChips } from './HomeChips'
 import { HomeList, type TicketCloseModalState } from './HomeList'
+import { HomeQuickCards, type MobileHomeQuickFilter } from './HomeQuickCards'
 import { HomeFAB } from './HomeFAB'
 
 export function MobileHome() {
@@ -119,6 +123,7 @@ export function MobileHome() {
   const [searchQuery, setSearchQuery] = useState('')
   const [homeIntroDismissed, setHomeIntroDismissed] = useState(() => readMobileHomeIntroDismissed())
   const [filtersExpanded, setFiltersExpanded] = useState(false)
+  const [quickFilter, setQuickFilter] = useState<MobileHomeQuickFilter>(null)
 
   useLayoutEffect(() => {
     const s = location.state as MobileTicketNavState | null | undefined
@@ -154,9 +159,46 @@ export function MobileHome() {
     [searchQuery, activeChips],
   )
 
+  // Быстрые карты Figma HomeScreen: счётчики + эксклюзивный фильтр списка.
+  const awaitingCount = useMemo(() => dedupeBoardCards(cards).filter(isAwaitingAcceptanceTicket).length, [cards])
+  const myActionCount = useMemo(
+    () => dedupeBoardCards(cards).filter((t) => ticketRequiresMyAction(t, meQ.data?.id, meQ.data?.role, canAssignProvider)).length,
+    [cards, meQ.data?.id, meQ.data?.role, canAssignProvider],
+  )
+  const quickTickets = useMemo(() => {
+    if (!quickFilter) return null
+    const list = dedupeBoardCards(cards)
+    if (quickFilter === 'awaiting') return list.filter(isAwaitingAcceptanceTicket)
+    return list.filter((t) => ticketRequiresMyAction(t, meQ.data?.id, meQ.data?.role, canAssignProvider))
+  }, [quickFilter, cards, meQ.data?.id, meQ.data?.role, canAssignProvider])
+  const quickFilterLabel = quickFilter === 'awaiting' ? 'На приёмке' : quickFilter === 'myaction' ? 'Требует моего действия' : ''
+
+  // При активной быстрой карте список показывает её выборку и обычные фильтры/вкладки очищаются.
+  function activateQuickFilter(next: Exclude<MobileHomeQuickFilter, null>) {
+    setQuickFilter((prev) => {
+      const value = prev === next ? null : next
+      if (value) {
+        setBoardTab('all')
+        setActiveChips(new Set())
+        setSearchQuery('')
+        setFiltersExpanded(false)
+      }
+      return value
+    })
+  }
+  const selectBoardTab = (tab: MobileHomeBoardFilterTab) => {
+    setQuickFilter(null)
+    setBoardTab(tab)
+  }
+  const changeSearchQuery = (value: string) => {
+    if (value) setQuickFilter(null)
+    setSearchQuery(value)
+  }
+
   const EXTRA_TABS: MobileHomeBoardFilterTab[] = ['in_work', 'overdue', 'done']
 
   function toggleFiltersExpanded() {
+    setQuickFilter(null)
     setFiltersExpanded((prev) => {
       if (prev) {
         // collapse: reset extra tabs to 'all'
@@ -169,6 +211,7 @@ export function MobileHome() {
   }
 
   function toggleChip(id: MobileHomeBoardChipId) {
+    setQuickFilter(null)
     setActiveChips((prev) => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
@@ -177,6 +220,7 @@ export function MobileHome() {
     })
   }
   function resetHomeListFilters() {
+    setQuickFilter(null)
     setBoardTab('all')
     setSearchQuery('')
     setActiveChips(new Set())
@@ -394,22 +438,31 @@ export function MobileHome() {
         techBoundError={techBoundDefaultsQ.isError ? techBoundDefaultsQ.error : null}
         techBoundEmpty={!techBoundDefaultsQ.isPending && !techBoundDefaultsQ.isError && techBoundDefaultsQ.isSuccess && (techBoundDefaultsQ.data?.length ?? 0) === 0}
         tabCounts={tabCounts}
-        onStatClick={(tab) => setBoardTab(tab)}
-        activeBoardTab={boardTab}
+        onStatClick={selectBoardTab}
+        activeBoardTab={quickFilter ? undefined : boardTab}
         searchQuery={searchQuery}
-        setSearchQuery={setSearchQuery}
+        setSearchQuery={changeSearchQuery}
       />
       {showMobileHomeTicketBoard ? (
         <>
+          <HomeQuickCards
+            awaitingCount={awaitingCount}
+            myActionCount={myActionCount}
+            activeQuickFilter={quickFilter}
+            onToggleAwaiting={() => activateQuickFilter('awaiting')}
+            onToggleMyAction={() => activateQuickFilter('myaction')}
+            onPlanning={() => setMobileActionToast('Планирование — раздел в разработке')}
+          />
           <div className="mobileHomeBoardSticky">
             <HomeTabs
               role={meQ.data?.role}
               boardTab={boardTab}
-              setBoardTab={setBoardTab}
+              setBoardTab={selectBoardTab}
               tabCounts={tabCounts}
               homeIntroDismissed={homeIntroDismissed}
               setHomeIntroDismissed={setHomeIntroDismissed}
               collapsed={!filtersExpanded}
+              activeSuppressed={!!quickFilter}
             />
             <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '4px 0' }}>
               <button
@@ -436,14 +489,14 @@ export function MobileHome() {
           </div>
           <HomeList
             boardIsLoading={boardQ.isLoading}
-            visibleTickets={visibleTickets}
+            visibleTickets={quickFilter ? quickTickets ?? [] : visibleTickets}
             tabOnlyTickets={tabOnlyTickets}
             boardTab={boardTab}
             role={meQ.data?.role}
             meId={meQ.data?.id}
             boardTotal={tabCounts.all}
-            hasHomeListFilters={hasHomeListFilters}
-            filterSummary={filterSummary}
+            hasHomeListFilters={quickFilter ? true : hasHomeListFilters}
+            filterSummary={quickFilter ? quickFilterLabel : filterSummary}
             homeActionErr={homeActionErr}
             resetHomeListFilters={resetHomeListFilters}
             canAssignProvider={canAssignProvider}

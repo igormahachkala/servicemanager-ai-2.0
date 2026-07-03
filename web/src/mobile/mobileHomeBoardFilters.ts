@@ -88,6 +88,36 @@ export function isOverdueTicket(ticket: TicketCard): boolean {
   return ticket.slaBreached === true
 }
 
+/** SMA-ACCEPTANCE-005: заявка на приёмке — ждёт решения клиента (принять/вернуть). */
+export function isAwaitingAcceptanceTicket(ticket: TicketCard): boolean {
+  return ticket.status === 'AWAITING_ACCEPTANCE'
+}
+
+/**
+ * «Требует моего действия» — быстрая карта Figma HomeScreen. Ролевая семантика:
+ * - TECHNICIAN: можно взять/запросить (NEW без назначения), начать (ASSIGNED на меня) или закрыть (IN_PROGRESS на меня).
+ * - CLIENT: заявка на приёмке (нужно принять/вернуть).
+ * - provider ADMIN/DISPATCHER (canAssignProvider): новая без исполнителя (нужно назначить).
+ */
+export function ticketRequiresMyAction(
+  ticket: TicketCard,
+  meId: string | undefined,
+  role: Role | undefined | null,
+  canAssignProvider: boolean,
+): boolean {
+  if (!role) return false
+  if (role === 'TECHNICIAN') {
+    if (!meId) return false
+    if (ticket.status === 'NEW' && !ticket.assignedTechnician) return ticket.assignmentRequestedByCurrentUser !== true
+    if (ticket.status === 'ASSIGNED') return isTicketAssignedToMe(ticket, meId)
+    if (ticket.status === 'IN_PROGRESS') return isTicketAssignedToMe(ticket, meId)
+    return false
+  }
+  if (role === 'CLIENT') return isAwaitingAcceptanceTicket(ticket)
+  if (canAssignProvider) return ticket.status === 'NEW' && !ticket.assignedTechnician
+  return false
+}
+
 function matchesMobileHomeTab(
   ticket: TicketCard,
   tab: MobileHomeBoardFilterTab,
