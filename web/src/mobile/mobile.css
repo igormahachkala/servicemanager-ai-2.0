@@ -5355,13 +5355,38 @@ a.mobileBtn.mobileCreateTicketLink {
 }
 
 /* Patrol run list card */
-.mobilePatrolCard { display: grid; gap: 6px; }
+.mobilePatrolCard { display: grid; gap: 6px; border-radius: 16px; }
 
 .mobilePatrolCardTop {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Figma PatrolsScreen: иконка-плитка обхода (тон по статусу) */
+.mobilePatrolIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.mobilePatrolIcon--inprogress { background: #dbeafe; color: #2563eb; }
+.mobilePatrolIcon--completed  { background: #dcfce7; color: #16a34a; }
+
+.mobilePatrolBackLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.mobilePatrolBtnIcon {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: -2px;
+  margin-right: 5px;
 }
 .mobilePatrolCardTitle {
   font-size: 0.94rem;

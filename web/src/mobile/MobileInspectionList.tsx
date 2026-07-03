@@ -4,6 +4,28 @@ import { useQueries, useQuery } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { mobilePath } from './mobileRoute'
 
+/** Иконка-плитка обхода (Tabler clipboard-check, тон по статусу) — Figma PatrolsScreen. */
+function PatrolClipboardIcon({ tone }: { tone: string }) {
+  return (
+    <span className={`mobilePatrolIcon mobilePatrolIcon--${tone}`} aria-hidden>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M9 11l3 3l8 -8" />
+        <path d="M20 12v6a2 2 0 0 1 -2 2H6a2 2 0 0 1 -2 -2V6a2 2 0 0 1 2 -2h9" />
+      </svg>
+    </span>
+  )
+}
+
+/** Tabler arrow-left — inline SVG вместо глифа ←. */
+function BackArrow() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <line x1="19" y1="12" x2="5" y2="12" />
+      <polyline points="12 19 5 12 12 5" />
+    </svg>
+  )
+}
+
 function fmtDate(value?: string | null): string {
   if (!value) return '—'
   try {
@@ -69,7 +91,7 @@ export function MobileInspectionList({ standalone = false }: { standalone?: bool
     return (
       <div className="mobileSection">
         <div className="mobileTicketDetailsToolbar">
-          <Link to={mobilePath(location.pathname, '/inspection')} className="mobileDetailsBackLink">← Обходы</Link>
+          <Link to={mobilePath(location.pathname, '/inspection')} className="mobileDetailsBackLink mobilePatrolBackLink"><BackArrow />Обходы</Link>
         </div>
         <div>
           <h1 className="mobileTitle">История обходов</h1>
@@ -99,6 +121,7 @@ export function MobileInspectionList({ standalone = false }: { standalone?: bool
             return (
               <div key={run.id} className="mobileCard mobilePatrolCard">
                 <div className="mobilePatrolCardTop">
+                  <PatrolClipboardIcon tone={run.status === 'IN_PROGRESS' ? 'inprogress' : 'completed'} />
                   <div className="mobilePatrolCardTitle">{run.title}</div>
                   <span className={`mobilePatrolRunStatus mobilePatrolRunStatus--${run.status === 'IN_PROGRESS' ? 'inprogress' : 'completed'}`}>
                     {runStatusLabel(run.status)}
@@ -157,6 +180,7 @@ export function MobileInspectionList({ standalone = false }: { standalone?: bool
           return (
             <div key={run.id} className="mobileCard mobilePatrolCard">
               <div className="mobilePatrolCardTop">
+                <PatrolClipboardIcon tone={run.status === 'IN_PROGRESS' ? 'inprogress' : 'completed'} />
                 <div className="mobilePatrolCardTitle">{run.title}</div>
                 <span className={`mobilePatrolRunStatus mobilePatrolRunStatus--${run.status === 'IN_PROGRESS' ? 'inprogress' : 'completed'}`}>
                   {runStatusLabel(run.status)}

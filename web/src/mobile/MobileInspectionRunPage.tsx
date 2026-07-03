@@ -213,7 +213,13 @@ export function MobileInspectionRunPage() {
   return (
     <>
       <div className="mobileTicketDetailsToolbar">
-        <Link to={backHref} className="mobileDetailsBackLink">← Назад</Link>
+        <Link to={backHref} className="mobileDetailsBackLink mobilePatrolBackLink">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+            <line x1="19" y1="12" x2="5" y2="12" />
+            <polyline points="12 19 5 12 12 5" />
+          </svg>
+          Назад
+        </Link>
       </div>
 
       <div className="mobileSection">
@@ -360,7 +366,12 @@ export function MobileInspectionRunPage() {
                             disabled={busy}
                             onClick={() => markOk(item.id)}
                           >
-                            ✓ OK
+                            <span className="mobilePatrolBtnIcon" aria-hidden>
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="20 6 9 17 4 12" />
+                              </svg>
+                            </span>
+                            OK
                           </button>
                         ) : null}
                         {item.status !== 'ISSUE' && item.status !== 'CRITICAL' ? (
@@ -387,7 +398,19 @@ export function MobileInspectionRunPage() {
                             fileInputRef.current?.click()
                           }}
                         >
-                          {uploadBusy ? 'Загружаем…' : '📷 Фото'}
+                          {uploadBusy ? (
+                            'Загружаем…'
+                          ) : (
+                            <>
+                              <span className="mobilePatrolBtnIcon" aria-hidden>
+                                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M5 7h2l2 -2h6l2 2h2a2 2 0 0 1 2 2v9a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-9a2 2 0 0 1 2 -2" />
+                                  <circle cx="12" cy="13" r="3" />
+                                </svg>
+                              </span>
+                              Фото
+                            </>
+                          )}
                         </button>
                       </div>
                     ) : busy ? (
