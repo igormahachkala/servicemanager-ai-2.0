@@ -70,6 +70,7 @@ export function PromptPreviewPanel({ preview }: Props) {
 
   return (
     <div className="mcRuntimePromptPreview">
+      <p className="mcMuted mcRuntimePromptPreviewLead">{t.runtimePromptBuilder.leadHint}</p>
       <div className="mcRuntimePromptPreviewMeta">
         <div className="mcRuntimeProfileRow">
           <span>{t.runtimePromptBuilder.outputLanguage}</span>

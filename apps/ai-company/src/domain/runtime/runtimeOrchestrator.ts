@@ -462,7 +462,7 @@ function buildRuntimeContext(input: RuntimeRunRequest, lightweight = false): Run
     custom?.primaryModel ?? resolveBuiltinModel(input.employeeId),
   )
 
-  const lightweightSkipSummary = 'Skipped (first real run — lightweight context)'
+  const lightweightSkipSummary = 'Пропущено (первый реальный запуск — облегчённый контекст)'
 
   const layers: RuntimeContextLayer[] = [
     {

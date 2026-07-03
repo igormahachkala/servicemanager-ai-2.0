@@ -17,8 +17,10 @@ const STORAGE_KEY = 'ai-company-language'
 const catalogs: Record<Language, Messages> = { en, ru }
 
 function readStoredLanguage(): Language {
-  if (typeof window === 'undefined') return 'en'
-  return localStorage.getItem(STORAGE_KEY) === 'ru' ? 'ru' : 'en'
+  if (typeof window === 'undefined') return 'ru'
+  const stored = localStorage.getItem(STORAGE_KEY)
+  if (stored === 'en') return 'en'
+  return 'ru'
 }
 
 type LanguageContextValue = {

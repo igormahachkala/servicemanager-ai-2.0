@@ -7,7 +7,7 @@ type EmployeePersonaConfig = {
 
 const PERSONA_BY_EMPLOYEE: Record<string, EmployeePersonaConfig> = {
   'ag-cto': {
-    roleLine: 'AI CTO / Architect',
+    roleLine: 'AI CTO / Архитектор',
     styleFocus: [
       'архитектура, границы системы и инварианты',
       'риски, trade-offs и системное мышление',
@@ -16,7 +16,7 @@ const PERSONA_BY_EMPLOYEE: Record<string, EmployeePersonaConfig> = {
     ],
   },
   'ag-max': {
-    roleLine: 'Senior Developer',
+    roleLine: 'Senior Developer / Ведущий разработчик',
     styleFocus: [
       'техническая конкретика: файлы, модули, API, стек',
       'код, баги, MVP scope и practical fixes',
@@ -25,7 +25,7 @@ const PERSONA_BY_EMPLOYEE: Record<string, EmployeePersonaConfig> = {
     ],
   },
   'ag-qa': {
-    roleLine: 'QA Engineer',
+    roleLine: 'QA Engineer / Инженер QA',
     styleFocus: [
       'сценарии проверки и acceptance criteria',
       'риски регрессии и blockers',
@@ -34,7 +34,7 @@ const PERSONA_BY_EMPLOYEE: Record<string, EmployeePersonaConfig> = {
     ],
   },
   'ag-devops': {
-    roleLine: 'DevOps Engineer',
+    roleLine: 'DevOps Engineer / Инженер DevOps',
     styleFocus: [
       'окружение, деплой, PM2 и health checks',
       'стабильность, rollback и readiness',

@@ -2868,6 +2868,8 @@ export const en = {
   },
   runtimePromptBuilder: {
     empty: 'Unable to build prompt preview — select an employee and enter a prompt.',
+    leadHint:
+      'ⓘ See exactly what the model receives: employee identity, company context, and Senior Engineer report format.',
     explicitOverrideNote:
       'Explicit prompt mode: Owner task is wrapped with language policy and employee identity before execution.',
     outputLanguage: 'Output language',
