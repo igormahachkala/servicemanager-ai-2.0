@@ -5,8 +5,9 @@ export function DashboardGrid(props: { children: ReactNode }) {
     <div
       style={{
         display: 'grid',
-        gap: 16,
-        gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+        gap: 18,
+        gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+        alignItems: 'stretch',
       }}
     >
       {props.children}
