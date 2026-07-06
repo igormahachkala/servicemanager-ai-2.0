@@ -63,6 +63,9 @@ export function MorningBrief({ brief, healthScore }: Props) {
             ? cc.brief.unread.replace('{count}', String(brief.unreadNotifications))
             : cc.brief.allClear}
         </span>
+        <Link to="/ops/morning-report" className="mcLink mcCommandCenterBriefLink">
+          {t.morningReport.pageTitle}
+        </Link>
         <Link to="/ops/day" className="mcLink mcCommandCenterBriefLink">
           {t.operatingDayEngine.title}
         </Link>

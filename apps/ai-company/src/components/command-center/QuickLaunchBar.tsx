@@ -20,6 +20,7 @@ const QUICK_LAUNCH = [
   { id: 'sprint', to: AI_PHOTO_LAB_SPRINT_PATH, labelKey: 'sprint' as const, primary: true },
   { id: 'kickoff', to: AI_PHOTO_LAB_KICKOFF_PATH, labelKey: 'kickoff' as const, primary: true },
   { id: 'controlRoom', to: AI_PHOTO_LAB_CONTROL_ROOM_PATH, labelKey: 'controlRoom' as const, primary: true },
+  { id: 'morningReport', to: '/ops/morning-report', labelKey: 'morningReport' as const, primary: true },
   { id: 'runTask', to: '/ops/run-task', labelKey: 'runTask' as const, primary: true },
   { id: 'taskResults', to: '/ops/task-results', labelKey: 'taskResults' as const, primary: true },
   { id: 'handoffs', to: '/ops/handoffs', labelKey: 'handoffs' as const, primary: false },

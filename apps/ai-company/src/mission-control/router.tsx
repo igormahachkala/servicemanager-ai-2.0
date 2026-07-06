@@ -59,6 +59,7 @@ import { TaskResultDetailsPage } from '../pages/TaskResultDetailsPage'
 import { VisualLabPage } from '../pages/VisualLabPage'
 import { CompanyOperatingDayPage } from '../pages/CompanyOperatingDayPage'
 import { RunTaskPage } from '../pages/RunTaskPage'
+import { OwnerMorningReportPage } from '../pages/OwnerMorningReportPage'
 
 function LegacyConversationRedirect() {
   const { id } = useParams<{ id: string }>()
@@ -78,6 +79,7 @@ export function MissionControlRoutes() {
     <Routes>
       <Route element={<MissionControlShell />}>
         <Route index element={<DashboardPage />} />
+        <Route path="morning-report" element={<OwnerMorningReportPage />} />
         <Route path="canvas" element={<CompanyCanvasPage />} />
         <Route path="companies" element={<CompaniesPage />} />
         <Route path="companies/new" element={<NewCompanyPage />} />
