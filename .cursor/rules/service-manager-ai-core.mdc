@@ -1,0 +1,44 @@
+---
+description: ServiceManager.AI SaaS FSM — tenant isolation, PBAC, tickets
+globs: backend/**,web/**
+alwaysApply: false
+---
+
+# ServiceManager.AI Core
+
+ServiceManager.AI — **SaaS FSM** (field service management), multi-tenant.
+
+## Tenant и тикеты
+
+- Строгая **tenant isolation** через `companyId`.
+- **Ticket owner = CLIENT** (provider не становится owner).
+- Provider access — только через **ServiceContract** и relationship.
+- Technician — через **TechnicianClientBinding**.
+
+## PBAC и слои
+
+```
+Controller → Guard → Policy → Service → DB
+```
+
+- Не обходить Policy / permissions.
+- Не делать cross-tenant доступ напрямую.
+- Access = Capability + Scope + Relationship.
+
+## Проверять при изменениях
+
+- technician flow
+- linked-client flow
+- impersonation
+- inspection flow
+
+## Процесс
+
+- Build/test перед commit: backend → frontend.
+- **Mobile/desktop scope** — менять осторожно, не ломать shared contracts.
+- **Production** — только с Owner approval; локальная зелёная сборка обязательна.
+- Один тикет = одна зона = один commit.
+
+## Запрещено
+
+Секреты и credentials в коде, правилах и коммитах.

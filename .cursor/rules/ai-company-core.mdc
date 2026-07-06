@@ -1,0 +1,36 @@
+---
+description: AI Company — цифровая компания, Runtime, локальные модели
+globs: apps/ai-company/**
+alwaysApply: false
+---
+
+# AI Company Core
+
+AI Company — **цифровая компания с Runtime**, не чат-обёртка.
+
+## Модели и инструменты
+
+- **Ollama (localhost)** — основа reasoning; prod: `127.0.0.1:11434` на сервере, порт не открывать наружу.
+- **Cursor Automation** — внешний инструмент исполнения; следует `.cursor/rules/*.mdc`.
+- **Claude Code CLI / Codex CLI** — инструменты Tool Registry, **не** цифровые сотрудники.
+- **Запрещено:** API Claude/OpenAI как runtime provider; публичный Ollama `:11434`.
+
+## Memory vs Knowledge vs Rules
+
+| Слой | Назначение |
+|------|------------|
+| Memory Evolution | опыт сотрудника после Run |
+| Knowledge | подтверждённое правило компании |
+| `.cursor/rules/*.mdc` | исполняемый слой для Cursor (не замена Memory) |
+
+## Процесс
+
+- Пользовательские тексты UI и ответов — **на русском**.
+- Один тикет = одна зона = **один commit**.
+- Перед commit: `npm --prefix apps/ai-company run build` (обязательно).
+- Не ломать Runtime: orchestrator, Task Runner, multi-tenant assumptions, Worker Loop safe mode.
+- Работа только с локальным кодом; без ручных правок на сервере.
+
+## Запрещено в правилах и Knowledge
+
+Секреты, IP, пароли, токены, `.env` — никогда в `.mdc` и docs.
