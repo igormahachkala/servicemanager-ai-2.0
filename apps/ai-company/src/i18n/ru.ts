@@ -1146,6 +1146,8 @@ export const ru: Messages = {
       pending: "Ожидание"
     },
     descriptions: {
+      cursorAutomation:
+        "Cursor Automations — внешний исполнитель кода и PR; не сотрудник, только Tool Registry.",
       github: "Source control, PRs, issues и CI — via MCP adapter.",
       docker: "Container build, run и deploy — CLI adapter.",
       filesystem: "Local file read/write в sandbox paths.",
@@ -2387,6 +2389,14 @@ export const ru: Messages = {
       actionHint: "Выберите MAX в Run Task, вставьте задачу Owner и нажмите «Запустить».",
       actionLabel: "Запустить задачу для MAX",
       example: "Пример: MAX проводит технический аудит AI Photo Lab MVP → фазы цикла → Runtime Report."
+    },
+    cursorAutomation: {
+      title: "Cursor Automation (V1 mock)",
+      toolId: "Инструмент",
+      invokePhase: "Фаза invoke",
+      ownerApproval: "Одобрение Owner",
+      mockPr: "Mock PR",
+      handoffPrompt: "Handoff prompt для Cursor Automation"
     }
   },
   workScheduler: {

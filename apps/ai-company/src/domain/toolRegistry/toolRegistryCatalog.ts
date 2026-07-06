@@ -13,7 +13,7 @@ const DEFAULT_LOGGING = {
   approvalEvents: true,
 }
 
-/** V1 catalog — nine tools. Execution adapters not connected. */
+/** V1 catalog — ten tools. Execution adapters not connected. */
 export const TOOL_REGISTRY_V1_CATALOG: ToolRegistryEntryV1[] = [
   {
     id: 'filesystem',
@@ -129,6 +129,40 @@ export const TOOL_REGISTRY_V1_CATALOG: ToolRegistryEntryV1[] = [
     errorHandling: 'Navigation timeout → failed. Assertion mismatch → failed with artifact links.',
     logging: DEFAULT_LOGGING,
     employeeNeedHint: 'Task requires verifying UI behavior in a real browser.',
+  },
+  {
+    id: 'cursor-automation',
+    name: 'Cursor Automation',
+    description:
+      'Cursor Automations as the primary external coding executor — scheduled or handoff-triggered agent workflows.',
+    purpose:
+      'Delegate bounded implementation subtasks after local Ollama reasoning; produces PRs for MAX review.',
+    riskLevel: 'high',
+    requiresOwnerApproval: true,
+    transport: 'cursor-automation',
+    registryToolId: 'tool-cursor-automation',
+    input: {
+      description: 'Automation plan from digital employee handoff.',
+      schemaHint:
+        '{ title: string, instructions: string, repository: { owner, repo, branch }, trigger: manual|runtime-handoff|git|schedule, enabledTools?: string[] }',
+      example: {
+        title: 'AI-COMPANY-097A scaffold',
+        instructions: 'Add types and docs only — no shell, no deploy.',
+        repository: { owner: 'igor', repo: 'servicemanager-ai-2.0', branch: 'ai-company-flow' },
+        trigger: { kind: 'runtime-handoff', runtimeRunId: 'run-123', employeeId: 'ag-max' },
+      },
+    },
+    output: {
+      description: 'PR summary, transcript ref, rule candidates, Runtime Report patch.',
+      schemaHint:
+        '{ ok: boolean, prSummary?: { url, number, changedFiles, checksStatus }, transcriptRef?: string, ruleCandidates?: object[] }',
+    },
+    history: { ...DEFAULT_HISTORY, storageSurface: 'toolRegistryInvoke' },
+    errorHandling:
+      'API unavailable → failed. Missing Owner approval → approval_pending. Scope outside repo → denied.',
+    logging: DEFAULT_LOGGING,
+    employeeNeedHint:
+      'Implementation subtask after local reasoning — prefer Cursor Automation over Claude/Codex CLI at current stage.',
   },
   {
     id: 'claude-code-cli',

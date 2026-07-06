@@ -1163,6 +1163,8 @@ export const en = {
       pending: 'Pending',
     },
     descriptions: {
+      cursorAutomation:
+        'Cursor Automations — external code/PR executor; not an employee, Tool Registry only.',
       github: 'Source control, PRs, issues, and CI — via MCP adapter.',
       docker: 'Container build, run, and deploy — CLI adapter.',
       filesystem: 'Local file read/write within sandbox paths.',
@@ -2431,6 +2433,14 @@ export const en = {
       actionHint: 'Select MAX in Run Task, paste an Owner task, and press Start.',
       actionLabel: 'Start a task for MAX',
       example: 'Example: MAX audits AI Photo Lab MVP → cycle phases → Runtime Report.',
+    },
+    cursorAutomation: {
+      title: 'Cursor Automation (V1 mock)',
+      toolId: 'Tool',
+      invokePhase: 'Invoke phase',
+      ownerApproval: 'Owner approval',
+      mockPr: 'Mock PR',
+      handoffPrompt: 'Handoff prompt for Cursor Automation',
     },
   },
   workScheduler: {

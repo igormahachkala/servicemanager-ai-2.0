@@ -5,13 +5,14 @@
 
 export const TOOL_REGISTRY_V1_VERSION = 'v1' as const
 
-/** Canonical V1 tool ids — Claude/Codex are tools, not employees. */
+/** Canonical V1 tool ids — external executors (Cursor/Claude/Codex) are tools, not employees. */
 export const TOOL_REGISTRY_V1_TOOL_IDS = [
   'filesystem',
   'terminal',
   'git',
   'docker',
   'playwright',
+  'cursor-automation',
   'claude-code-cli',
   'codex-cli',
   'browser',
@@ -31,6 +32,7 @@ export type ToolRegistryTransport =
   | 'rest-api'
   | 'native'
   | 'browser-automation'
+  | 'cursor-automation'
 
 export type ToolRegistryIoContract = {
   description: string

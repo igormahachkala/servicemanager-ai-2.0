@@ -199,3 +199,73 @@
   font-size: 0.82rem;
   font-style: italic;
 }
+
+.acMaxLoopToolBranch {
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  border: 1px dashed var(--mc-border, #d1d5db);
+  border-radius: 8px;
+  background: var(--mc-surface-2, rgba(0, 0, 0, 0.02));
+}
+
+.acMaxLoopToolBranchTitle {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+}
+
+.acMaxLoopToolBranchStatus {
+  margin: 0 0 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+}
+
+.acMaxLoopToolBranchReason {
+  color: var(--mc-muted, #6b7280);
+}
+
+.acMaxLoopToolBranchMeta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.5rem 1rem;
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+}
+
+.acMaxLoopToolBranchMeta dt {
+  color: var(--mc-muted, #6b7280);
+  font-weight: 500;
+}
+
+.acMaxLoopToolBranchMeta dd {
+  margin: 0.15rem 0 0;
+}
+
+.acMaxLoopToolBranchMock {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+}
+
+.acMaxLoopHandoffDetails {
+  margin-top: 0.5rem;
+}
+
+.acMaxLoopHandoffDetails summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--mc-link, #2563eb);
+}
+
+.acMaxLoopHandoffPre {
+  margin: 0.5rem 0 0;
+  padding: 0.75rem;
+  max-height: 240px;
+  overflow: auto;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  background: var(--mc-surface, #fff);
+  border: 1px solid var(--mc-border, #e5e7eb);
+  border-radius: 6px;
+}

@@ -89,6 +89,8 @@ function mapProviderForDraft(entry: ToolRegistryEntryV1): ToolRequest['provider'
       return 'docker'
     case 'browser':
       return 'browser'
+    case 'cursor-automation':
+      return 'rest'
     case 'github':
       return 'github'
     default:

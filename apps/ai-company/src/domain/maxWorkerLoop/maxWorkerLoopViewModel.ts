@@ -68,10 +68,15 @@ function buildInsight(
       return snapshot.reasoning.plan.length > 0
         ? snapshot.reasoning.plan.slice(0, 3).join(' · ')
         : null
-    case 'tool_check':
+    case 'tool_check': {
+      const cursor = snapshot.cursorAutomation
+      if (cursor?.externalExecutorRequired) {
+        return `Cursor Automation · ${cursor.status} · ${cursor.suggestedToolId ?? '—'}`
+      }
       return snapshot.ownerApproval.required
         ? 'Требуется одобрение Owner (V2)'
         : 'Инструмент не требуется — V1 safe mode'
+    }
     case 'memory_draft':
       return `${snapshot.memoryEvolutionDraft.lessons.length} уроков · +${snapshot.memoryEvolutionDraft.estimatedExperiencePoints} XP (черновик)`
     case 'knowledge_draft':

@@ -4,7 +4,8 @@ import { getRuntimeRunById } from '../runtime/runtimeOrchestrator'
 import type { RuntimeRun } from '../runtime/runtimeRun'
 import { startTaskRunner } from '../taskRunner/taskRunner'
 import { defaultExpectedOutput } from '../taskRunner/taskRunnerTemplates'
-import { resolveOwnerApprovalGate } from './maxWorkerLoopApproval'
+import { buildCursorAutomationWorkflowSnapshot } from '../cursorAutomation/cursorAutomationWorkflow'
+import type { CursorAutomationWorkflowSnapshot } from '../cursorAutomation/cursorAutomationTypes'
 import {
   buildKnowledgeCandidateDrafts,
   buildMaxWorkerLoopNextActions,
@@ -23,6 +24,7 @@ import {
   upsertMaxWorkerLoopRecord,
 } from './maxWorkerLoopStorage'
 import type { OwnerApprovalGate } from './maxWorkerLoopApproval'
+import { resolveOwnerApprovalGate } from './maxWorkerLoopApproval'
 
 export type MaxWorkerLoopSnapshot = {
   loop: MaxWorkerLoopRecord
@@ -32,6 +34,7 @@ export type MaxWorkerLoopSnapshot = {
   knowledgeCandidates: KnowledgeCandidateDraft[]
   nextActions: MaxWorkerLoopNextAction[]
   ownerApproval: OwnerApprovalGate
+  cursorAutomation: CursorAutomationWorkflowSnapshot
 }
 
 function markRunningPhases(record: MaxWorkerLoopRecord): MaxWorkerLoopRecord {
@@ -98,6 +101,7 @@ export function assembleMaxWorkerLoopSnapshot(
   const knowledgeCandidates = buildKnowledgeCandidateDrafts(run, memoryEvolutionDraft.lessons)
   const nextActions = buildMaxWorkerLoopNextActions(report)
   const ownerApproval = resolveOwnerApprovalGate(reasoning, loop.safeMode)
+  const cursorAutomation = buildCursorAutomationWorkflowSnapshot({ loop, run, report })
 
   return {
     loop,
@@ -107,6 +111,7 @@ export function assembleMaxWorkerLoopSnapshot(
     knowledgeCandidates,
     nextActions,
     ownerApproval,
+    cursorAutomation,
   }
 }
 

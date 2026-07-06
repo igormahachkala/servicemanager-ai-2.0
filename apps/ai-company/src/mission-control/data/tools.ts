@@ -21,6 +21,19 @@ export type RegistryTool = {
 
 export const registryTools: RegistryTool[] = [
   {
+    id: 'tool-cursor-automation',
+    name: 'Cursor Automation',
+    category: 'automation',
+    provider: 'rest-api',
+    capabilities: ['read', 'write', 'execute', 'review', 'create', 'deploy'],
+    permissions: ['require-approval', 'workspace-only', 'owner-only'],
+    connectionStatus: 'pending',
+    requiresApproval: true,
+    supportsWorkspaceScope: true,
+    supportsAudit: true,
+    descriptionKey: 'cursorAutomation',
+  },
+  {
     id: 'tool-github',
     name: 'GitHub',
     category: 'development',
