@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
@@ -38,6 +38,7 @@ type ChatsObjectTicket = {
   status: api.TicketStatus
   lastActivityAt: string
   href: string
+  companyId?: string
   categoryTitle: string
   preview: string
 }
@@ -290,13 +291,24 @@ export function MobileChatsPage() {
     })
   }, [allTickets, chatView, filter, me?.id, me?.role, search])
 
+  // B1: заявочные строки ведут на карточку заявки (WorkspaceScreen), НЕ на тред /chats/:id.
+  const ticketCardHref = useCallback(
+    (ticket: api.TicketCard) =>
+      api.appendScopeToPath(
+        mobilePath(location.pathname, `/tickets/${ticket.id}`),
+        compactTicketScope(scopeForMobileTicketLink(me, boardParams, { companyId: (ticket.companyId || '').trim() })),
+        me,
+      ),
+    [location.pathname, me, boardParams],
+  )
+
   const ticketRows = useMemo(() => {
     return filteredTickets.map((ticket) => ({
       ticket,
-      href: `${mobilePath(location.pathname, `/chats/${ticket.id}`)}${location.search}`,
+      href: ticketCardHref(ticket),
       preview: ticketChatPreview(ticket),
     }))
-  }, [filteredTickets, location.pathname, location.search])
+  }, [filteredTickets, ticketCardHref])
 
   const objectRows = useMemo<ChatsObjectItem[]>(() => {
     const q = normalizeSearchText(search)
@@ -309,7 +321,7 @@ export function MobileChatsPage() {
       const key = ticket.location?.id || ticket.location?.name || ticket.pointName || `ticket:${ticket.id}`
       const title = ticket.location?.name || ticket.pointName || ticket.location?.address || 'Без объекта'
       const lastActivityAt = ticket.lastActivityAt
-      const ticketHref = `${mobilePath(location.pathname, `/chats/${ticket.id}`)}${location.search}`
+      const ticketHref = ticketCardHref(ticket)
       const ticketCategoryTitle = (ticket.category?.name || 'Без категории').trim()
       const ticketPreview = ticketObjectPreview(ticket)
       const current = map.get(key)
@@ -325,6 +337,7 @@ export function MobileChatsPage() {
             status: ticket.status,
             lastActivityAt,
             href: ticketHref,
+            companyId: (ticket.companyId || '').trim() || undefined,
             categoryTitle: ticketCategoryTitle,
             preview: ticketPreview,
           },
@@ -360,7 +373,7 @@ export function MobileChatsPage() {
         const bt = new Date(b.lastActivityAt).getTime()
         return (Number.isFinite(bt) ? bt : 0) - (Number.isFinite(at) ? at : 0)
       })
-  }, [filteredTickets, location.pathname, location.search, search])
+  }, [filteredTickets, ticketCardHref, search])
 
   function toggleObjectExpanded(id: string) {
     setExpandedObjects((prev) => {
@@ -1005,7 +1018,7 @@ export function MobileChatsPage() {
                     {isExpanded ? (
                       <div className="mobileChatsObjectTickets">
                         {item.tickets.map((t) => (
-                          <Link key={t.id} className="mobileChatsObjectTicketRow" to={t.href}>
+                          <Link key={t.id} className="mobileChatsObjectTicketRow" to={t.href} state={mobileTicketNavState('chat', t.companyId)}>
                             <span className={`mobileChatsIndicator mobileChatsIndicator--${t.status}`} />
                             <div className="mobileChatsObjectTicketBody">
                               <span className="mobileChatsObjectTicketTitle">{mobileTicketNumberTitle(t.ticketNumber)}</span>
