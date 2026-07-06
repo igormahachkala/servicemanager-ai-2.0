@@ -1,11 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import {
-  inferDeployEnvironmentFromHost,
-  OLLAMA_LOCALHOST_ENDPOINT,
-  resolveOllamaBaseUrl,
-  type OllamaEndpointMode,
-} from '../../domain/runtime/providers/ollamaSourceMode'
-import { OLLAMA_MODEL_CATALOG } from '../../domain/runtime/providers/runtimeCapabilities'
+import { useState } from 'react'
+import { OLLAMA_DEFAULT_BASE_URL, OLLAMA_MODEL_CATALOG } from '../../domain/runtime/providers/runtimeCapabilities'
 import { useRuntimeProvider } from '../../hooks/useRuntimeProvider'
 import { useI18n } from '../../i18n'
 
@@ -26,40 +20,10 @@ export function RuntimeHealth({ compact = false }: { compact?: boolean }) {
     healthByProvider,
   } = useRuntimeProvider()
 
-  const detectedDeploy = inferDeployEnvironmentFromHost()
-
-  const [endpointMode, setEndpointMode] = useState<OllamaEndpointMode>(ollamaSettings.endpointMode)
-  const [customBaseUrl, setCustomBaseUrl] = useState(
-    ollamaSettings.endpointMode === 'custom' ? ollamaSettings.baseUrl : '',
-  )
+  const [baseUrl, setBaseUrl] = useState(ollamaSettings.baseUrl)
   const [defaultModelTag, setDefaultModelTag] = useState(ollamaSettings.defaultModelTag)
 
-  useEffect(() => {
-    setEndpointMode(ollamaSettings.endpointMode)
-    setCustomBaseUrl(ollamaSettings.endpointMode === 'custom' ? ollamaSettings.baseUrl : '')
-    setDefaultModelTag(ollamaSettings.defaultModelTag)
-  }, [ollamaSettings])
-
-  const resolvedBaseUrl = useMemo(
-    () =>
-      resolveOllamaBaseUrl({
-        endpointMode,
-        baseUrl: customBaseUrl || ollamaSettings.baseUrl,
-      }),
-    [endpointMode, customBaseUrl, ollamaSettings.baseUrl],
-  )
-
   const healthStatus = activeHealth?.status ?? 'unknown'
-  const sourceGuide = t.runtimeProviders.ollamaSourceGuide
-
-  const handleSaveSettings = () => {
-    void saveOllamaSettings({
-      deployEnvironment: detectedDeploy,
-      endpointMode,
-      baseUrl: endpointMode === 'custom' ? customBaseUrl : resolvedBaseUrl,
-      defaultModelTag,
-    })
-  }
 
   return (
     <div className={compact ? 'mcRuntimeAdapterPanel mcRuntimeAdapterPanelCompact' : 'mcRuntimeAdapterPanel'}>
@@ -140,70 +104,15 @@ export function RuntimeHealth({ compact = false }: { compact?: boolean }) {
 
       <div className="mcRuntimeOllamaSettings">
         <span className="mcFieldLabel">{t.runtimeProviders.ollamaSettings}</span>
-
-        <div className="mcRuntimeOllamaSourceGuide">
-          <h4 className="mcRuntimeOllamaSourceGuideTitle">{sourceGuide.title}</h4>
-          <p className="mcMuted">{sourceGuide.what}</p>
-          <p className="mcMuted">{sourceGuide.whyLocalhostInProd}</p>
-          <ul className="mcRuntimeOllamaSourceGuideList">
-            <li>{sourceGuide.devMacRole}</li>
-            <li>{sourceGuide.prodServerRole}</li>
-            <li>{sourceGuide.whenCustom}</li>
-            <li>{sourceGuide.securityNote}</li>
-          </ul>
-        </div>
-
-        <p className="mcMuted">
-          {t.runtimeProviders.ollamaDeployDetected.replace(
-            '{env}',
-            t.runtimeProviders.ollamaDeployEnvironments[detectedDeploy].label,
-          )}
-        </p>
-
-        <fieldset className="mcRuntimeOllamaSourceModes">
-          <legend className="mcFieldLabel">{t.runtimeProviders.ollamaEndpointMode}</legend>
-          {(['localhost', 'custom'] as const).map((mode) => (
-            <label key={mode} className="mcRuntimeOllamaSourceModeOption">
-              <input
-                type="radio"
-                name="ollama-endpoint-mode"
-                value={mode}
-                checked={endpointMode === mode}
-                onChange={() => setEndpointMode(mode)}
-              />
-              <span>
-                <strong>{t.runtimeProviders.ollamaEndpointModes[mode].label}</strong>
-                <span className="mcMuted mcRuntimeOllamaSourceModeHint">
-                  {t.runtimeProviders.ollamaEndpointModes[mode].hint}
-                </span>
-              </span>
-            </label>
-          ))}
-        </fieldset>
-
-        {endpointMode === 'localhost' ? (
-          <label className="mcField">
-            <span className="mcFieldLabel">{t.runtimeProviders.ollamaUrl}</span>
-            <input className="mcInput mcMono" value={OLLAMA_LOCALHOST_ENDPOINT} readOnly />
-            <span className="mcMuted">{t.runtimeProviders.ollamaLocalhostNote}</span>
-          </label>
-        ) : null}
-
-        {endpointMode === 'custom' ? (
-          <>
-            <label className="mcField">
-              <span className="mcFieldLabel">{t.runtimeProviders.ollamaCustomUrl}</span>
-              <input
-                className="mcInput mcMono"
-                value={customBaseUrl}
-                placeholder={t.runtimeProviders.ollamaCustomUrlPlaceholder}
-                onChange={(event) => setCustomBaseUrl(event.target.value)}
-              />
-            </label>
-            <p className="mcRuntimeOllamaVpsWarning mcMuted">{t.runtimeProviders.ollamaCustomWarning}</p>
-          </>
-        ) : null}
-
+        <label className="mcField">
+          <span className="mcFieldLabel">{t.runtimeProviders.ollamaUrl}</span>
+          <input
+            className="mcInput"
+            value={baseUrl}
+            placeholder={OLLAMA_DEFAULT_BASE_URL}
+            onChange={(event) => setBaseUrl(event.target.value)}
+          />
+        </label>
         <label className="mcField">
           <span className="mcFieldLabel">{t.runtimeProviders.defaultModel}</span>
           <select
@@ -218,13 +127,17 @@ export function RuntimeHealth({ compact = false }: { compact?: boolean }) {
             ))}
           </select>
         </label>
-
-        <div className="mcRuntimeOllamaResolvedUrl">
-          <span className="mcFieldLabel">{t.runtimeProviders.ollamaResolvedUrl}</span>
-          <span className="mcMono">{resolvedBaseUrl}</span>
-        </div>
-
-        <button type="button" className="mcBtn mcBtnSecondary mcBtnSm" onClick={handleSaveSettings}>
+        <button
+          type="button"
+          className="mcBtn mcBtnSecondary mcBtnSm"
+          onClick={() =>
+            void saveOllamaSettings({
+              ...ollamaSettings,
+              baseUrl: baseUrl.trim() || ollamaSettings.baseUrl,
+              defaultModelTag,
+            })
+          }
+        >
           {t.runtimeProviders.saveSettings}
         </button>
       </div>
