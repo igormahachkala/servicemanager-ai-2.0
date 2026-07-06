@@ -426,28 +426,46 @@ export function buildCursorResultIntegrationIfReady(input: {
   run: RuntimeRun | null
   report: Report | null
   submitRun: CursorAutomationSubmitRun | null
+  expectedResult: CursorAutomationExpectedResult | null
   memoryEvolutionDraft: MemoryEvolutionDraft
   baseKnowledgeCandidates: KnowledgeCandidateDraft[]
+  externalExecutorRequired?: boolean
 }): CursorResultIntegrationBundle | null {
-  if (!input.run || !input.report || !input.submitRun) return null
-  if (
-    input.submitRun.status !== 'submitted_mock' &&
-    input.submitRun.status !== 'submitted_pending_real_adapter' &&
-    input.submitRun.status !== 'waiting_for_result' &&
-    input.submitRun.status !== 'completed'
-  ) {
+  if (!input.run || !input.report) return null
+  if (input.loop.status !== 'completed') return null
+
+  let expectedResult = input.expectedResult
+  let submitRun = input.submitRun
+  let source: CursorResultIntegrationSource = 'mock_v1'
+  let ingestedAt = new Date().toISOString()
+
+  if (submitRun) {
+    const submitOk =
+      submitRun.status === 'submitted_mock' ||
+      submitRun.status === 'submitted_pending_real_adapter' ||
+      submitRun.status === 'waiting_for_result' ||
+      submitRun.status === 'completed'
+
+    if (!submitOk) return null
+
+    expectedResult = submitRun.handoffPayload.expectedResult
+    ingestedAt = submitRun.submittedAt
+    source = submitRun.deliveryMode === 'mock_v1_stub' ? 'mock_v1' : 'adapter_v1'
+  } else if (!expectedResult || !input.externalExecutorRequired) {
     return null
   }
+
+  if (!expectedResult) return null
 
   return buildCursorResultIntegrationBundle({
     loop: input.loop,
     run: input.run,
     report: input.report,
-    expectedResult: input.submitRun.handoffPayload.expectedResult,
+    expectedResult,
     memoryEvolutionDraft: input.memoryEvolutionDraft,
     baseKnowledgeCandidates: input.baseKnowledgeCandidates,
-    submitRun: input.submitRun,
-    ingestedAt: input.submitRun.submittedAt,
-    source: input.submitRun.deliveryMode === 'mock_v1_stub' ? 'mock_v1' : 'adapter_v1',
+    submitRun,
+    ingestedAt,
+    source,
   })
 }

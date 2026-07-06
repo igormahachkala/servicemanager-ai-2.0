@@ -73,8 +73,14 @@ function enrichCursorAutomationSnapshot(input: {
     run: input.run,
     report: input.report,
     submitRun,
+    expectedResult:
+      submitRun?.handoffPayload.expectedResult ??
+      input.base.expectedResult ??
+      input.base.mockIngestion?.result ??
+      null,
     memoryEvolutionDraft: input.memoryEvolutionDraft,
     baseKnowledgeCandidates: input.knowledgeCandidates,
+    externalExecutorRequired: input.base.externalExecutorRequired,
   })
 
   if (!resultIntegration) {
