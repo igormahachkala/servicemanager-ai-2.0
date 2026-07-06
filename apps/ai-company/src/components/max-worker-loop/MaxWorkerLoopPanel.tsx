@@ -5,6 +5,7 @@ import { buildMaxWorkerLoopPanelView } from '../../domain/maxWorkerLoop/maxWorke
 import type { MaxWorkerLoopSnapshot } from '../../domain/maxWorkerLoop'
 import type { MaxWorkerLoopRecord } from '../../domain/maxWorkerLoop'
 import { MaxWorkerLoopToolBranchPanel } from './MaxWorkerLoopToolBranchPanel'
+import { MaxWorkerLoopCursorResultPanel } from './MaxWorkerLoopCursorResultPanel'
 import { useI18n } from '../../i18n'
 
 type Props = {
@@ -142,6 +143,10 @@ export function MaxWorkerLoopPanel({
           compact={compact}
           onDecision={onApprovalDecision}
         />
+      ) : null}
+
+      {snapshot?.cursorAutomation?.resultIntegration && snapshot ? (
+        <MaxWorkerLoopCursorResultPanel snapshot={snapshot} compact={compact} />
       ) : null}
 
       {resolvedDemoSnapshot && !compact ? (

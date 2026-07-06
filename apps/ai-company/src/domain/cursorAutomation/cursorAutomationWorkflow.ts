@@ -1,5 +1,5 @@
 /**
- * Cursor Automation Workflow V1 — snapshot builder (AI-COMPANY-097C + 098A Owner Gate).
+ * Cursor Automation Workflow V1 — snapshot builder (097C + 098A + 099A Submit).
  */
 
 import type { Report } from '../reports/report'
@@ -16,9 +16,13 @@ import {
   buildCursorAutomationPlan,
   detectExternalExecutorNeed,
 } from './cursorAutomationPlan'
+import { buildCursorAutomationExpectedResult } from './cursorAutomationMockIngestion'
+import { getCursorAutomationSubmitRunByLoopId } from './cursorAutomationSubmitStorage'
+import { mapSubmitRunToWorkflowStatus } from './cursorAutomationSubmit'
 import {
   CURSOR_AUTOMATION_TOOL_REGISTRY_ID,
   CURSOR_AUTOMATION_WORKFLOW_VERSION,
+  type CursorAutomationExpectedResult,
   type CursorAutomationWorkflowLogEntry,
   type CursorAutomationWorkflowSnapshot,
   type CursorAutomationWorkflowStatus,
@@ -45,7 +49,9 @@ function resolveWorkflowStatus(input: {
   ownerApproval: CursorAutomationOwnerApprovalRecord | null
   hasPlan: boolean
   hasHandoff: boolean
+  submitStatus: CursorAutomationWorkflowStatus | null
 }): CursorAutomationWorkflowStatus {
+  if (input.submitStatus) return input.submitStatus
   if (!input.externalRequired) return 'not_applicable'
   if (input.loopStatus === 'running' || input.loopStatus === 'queued') return 'analyzing'
   if (!input.hasPlan) return 'external_executor_required'
@@ -62,6 +68,7 @@ function buildDisplayToolBranch(input: {
   externalRequired: boolean
   needReason: string | null
   ownerApproval: CursorAutomationOwnerApprovalRecord | null
+  submitStatus: CursorAutomationWorkflowStatus | null
 }): WorkerLoopToolBranchSnapshot | null {
   if (!input.externalRequired) return null
 
@@ -81,6 +88,7 @@ function buildDisplayToolBranch(input: {
   })
 
   const approvalStatus = input.ownerApproval?.status ?? 'pending'
+  const submitted = Boolean(input.submitStatus)
 
   return {
     ...branch,
@@ -97,16 +105,18 @@ function buildDisplayToolBranch(input: {
     invokeResult: branch.invokeResult
       ? {
           ...branch.invokeResult,
-          phase:
-            approvalStatus === 'approved'
+          phase: submitted
+            ? 'submitted'
+            : approvalStatus === 'approved'
               ? 'approval_pending'
               : approvalStatus === 'rejected'
                 ? 'cancelled'
                 : 'blocked_v1',
-          ok: false,
-          error:
-            approvalStatus === 'approved'
-              ? 'Owner одобрил — готово к Cursor Automation (V2 adapter). API не вызывается.'
+          ok: submitted,
+          error: submitted
+            ? 'Handoff в submit pipeline (V1 stub — Cursor API не вызывается).'
+            : approvalStatus === 'approved'
+              ? 'Owner одобрил — нажмите «Отправить в Cursor Automation».'
               : approvalStatus === 'rejected'
                 ? input.ownerApproval?.rejectionReason ?? 'Owner отклонил handoff.'
                 : 'Ожидается решение Owner — Cursor API не вызывается.',
@@ -147,6 +157,8 @@ export function buildCursorAutomationWorkflowSnapshot(input: {
       mockIngestion: null,
       ownerApprovalRequired: false,
       ownerApprovalStatus: 'none',
+      submitRun: null,
+      resultIntegration: null,
       toolBranch: null,
       workflowLog,
     }
@@ -194,17 +206,32 @@ export function buildCursorAutomationWorkflowSnapshot(input: {
       ),
     )
   } else if (ownerApproval?.status === 'approved') {
-    workflowLog.push(
-      logEntry(
-        'owner_approval',
-        'Owner одобрил — Ready for Cursor Automation (без вызова API в V1).',
-      ),
-    )
+    workflowLog.push(logEntry('owner_approval', 'Owner одобрил — Ready for Cursor Automation.'))
   } else if (ownerApproval?.status === 'rejected') {
     workflowLog.push(
       logEntry('owner_approval', ownerApproval.rejectionReason ?? 'Owner отклонил handoff.', 'warn'),
     )
   }
+
+  const submitRun =
+    input.loop.status === 'completed' ? getCursorAutomationSubmitRunByLoopId(input.loop.id) : null
+
+  const submitWorkflowStatus = mapSubmitRunToWorkflowStatus(submitRun)
+
+  if (submitRun) {
+    workflowLog.push(
+      logEntry(
+        'cursor_automation_mock',
+        submitRun.adapterConnected
+          ? `Submit ${submitRun.runId} — payload сохранён, ожидается adapter.`
+          : `Submit ${submitRun.runId} — mock stub, payload готов к adapter.`,
+      ),
+    )
+  }
+
+  const expectedResult: CursorAutomationExpectedResult | null = handoff
+    ? buildCursorAutomationExpectedResult(handoff.plan)
+    : null
 
   const toolBranch = buildDisplayToolBranch({
     loop: input.loop,
@@ -212,6 +239,7 @@ export function buildCursorAutomationWorkflowSnapshot(input: {
     externalRequired,
     needReason,
     ownerApproval,
+    submitStatus: submitWorkflowStatus,
   })
 
   const status = resolveWorkflowStatus({
@@ -220,6 +248,7 @@ export function buildCursorAutomationWorkflowSnapshot(input: {
     ownerApproval,
     hasPlan: Boolean(plan),
     hasHandoff: Boolean(handoff),
+    submitStatus: submitWorkflowStatus,
   })
 
   if (input.report && ownerApproval?.status === 'approved') {
@@ -236,10 +265,12 @@ export function buildCursorAutomationWorkflowSnapshot(input: {
     suggestedToolId: CURSOR_AUTOMATION_TOOL_REGISTRY_ID,
     plan,
     handoff,
-    expectedResult: null,
+    expectedResult,
     mockIngestion: null,
     ownerApprovalRequired: true,
     ownerApprovalStatus: mapOwnerApprovalStatus(ownerApproval),
+    submitRun,
+    resultIntegration: null,
     toolBranch,
     workflowLog,
   }

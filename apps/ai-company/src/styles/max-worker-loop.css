@@ -429,3 +429,105 @@
   font-size: 0.82rem;
   color: var(--mc-muted, #6b7280);
 }
+
+.acMaxLoopToolBranchSubmit {
+  margin-top: 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  border-radius: 8px;
+  background: rgba(34, 197, 94, 0.05);
+}
+
+.acMaxLoopToolBranchSubmitTitle {
+  margin: 0 0 0.5rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.acMaxLoopToolBranchSubmitSuccess {
+  margin: 0 0 0.75rem;
+  font-size: 0.85rem;
+  color: #166534;
+}
+
+.acMaxLoopToolBranchSubmitNext {
+  margin: 0.75rem 0 0;
+  font-size: 0.82rem;
+  color: var(--mc-muted, #6b7280);
+}
+
+.acMaxLoopToolBranchSubmitError {
+  margin: 0.5rem 0 0;
+  padding: 0.5rem 0.65rem;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  background: rgba(239, 68, 68, 0.08);
+  color: #991b1b;
+}
+
+.acMaxLoopToolBranchSubmitBlocked {
+  margin: 0.35rem 0 0;
+  font-size: 0.8rem;
+}
+
+.acMaxLoopCursorResult {
+  margin-top: 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--ac-border, rgba(148, 163, 184, 0.35));
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.02);
+}
+
+.acMaxLoopCursorResultTitle {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+}
+
+.acMaxLoopCursorResultMeta {
+  margin: 0 0 0.75rem;
+  font-size: 0.8rem;
+}
+
+.acMaxLoopCursorResultGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.65rem;
+}
+
+.acMaxLoopCursorResultCard {
+  padding: 0.65rem 0.75rem;
+  border-radius: 6px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  background: var(--ac-surface, #fff);
+  font-size: 0.85rem;
+}
+
+.acMaxLoopCursorResultCard h5 {
+  margin: 0 0 0.4rem;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.75;
+}
+
+.acMaxLoopCursorResultCardWide {
+  grid-column: 1 / -1;
+}
+
+.acMaxLoopReviewBadge {
+  display: inline-block;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.acMaxLoopReviewBadgeAccepted {
+  background: rgba(34, 197, 94, 0.15);
+  color: #15803d;
+}
+
+.acMaxLoopReviewBadgePending {
+  background: rgba(234, 179, 8, 0.15);
+  color: #a16207;
+}

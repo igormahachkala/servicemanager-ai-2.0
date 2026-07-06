@@ -2420,7 +2420,7 @@ export const ru: Messages = {
       expectedOutcome: "Предполагаемый результат",
       buildChecklist: "Build / checklist",
       expectedPr: "Ожидаемый PR",
-      readyNote: "Owner одобрил — Ready for Cursor Automation. Реальный вызов Cursor API будет в V2.",
+      readyNote: "Owner одобрил — Ready for Cursor Automation. Нажмите «Отправить в Cursor Automation».",
       rejectedNote: "Owner отклонил отправку во внешний инструмент. Cursor Automation не будет вызван.",
       statusLabels: {
         not_applicable: "Не требуется",
@@ -2432,6 +2432,10 @@ export const ru: Messages = {
         ready_for_cursor_automation: "Ready for Cursor Automation",
         rejected: "Отклонено Owner",
         handoff_ready: "Handoff готов",
+        submitted_mock: "Отправлено (mock stub)",
+        submitted_pending_real_adapter: "Отправлено — ожидает adapter",
+        waiting_for_result: "Ожидание результата",
+        submit_failed: "Ошибка отправки",
         mock_submitted: "Mock отправлен",
         mock_result_ready: "Mock результат",
         accepted: "Принято MAX",
@@ -2448,6 +2452,49 @@ export const ru: Messages = {
         reject: "Reject",
         editPlan: "Edit Plan",
         editPlanHint: "Редактирование плана — в V2 (placeholder)."
+      },
+      submit: {
+        sectionTitle: "Submit to Cursor Automation",
+        submitButton: "Отправить в Cursor Automation",
+        statusLabel: "Статус отправки",
+        runIdLabel: "Run ID",
+        submittedAtLabel: "Submitted at",
+        deliveryModeLabel: "Delivery mode",
+        expectedPrLabel: "Ожидаемый PR",
+        expectedChecksLabel: "Expected checks",
+        handoffPayloadLabel: "Handoff payload (saved)",
+        successMock:
+          "Отправка подготовлена (mock stub). Payload сохранён локально — внешние сервисы не вызывались.",
+        successPendingAdapter:
+          "Отправка подготовлена — ожидается реальный Cursor adapter. Payload сохранён для будущей доставки.",
+        whatNext:
+          "Дальше: real Cursor adapter заберёт payload → выполнит automation → вернёт PR/checks → MAX Review → Runtime Report.",
+        retryButton: "Retry submit",
+        retryHint: "Retry submit — V2 (placeholder).",
+        errorGeneric: "Submit не выполнен — проверьте Owner Approval и handoff.",
+        deliveryMode: {
+          mock_v1_stub: "Mock V1 stub",
+          pending_real_adapter: "Pending real adapter"
+        }
+      }
+    },
+    cursorResult: {
+      title: "Cursor Result → MAX Integration",
+      source: "Источник",
+      cursorReturned: "Что вернул Cursor",
+      maxAccepted: "Что принял MAX",
+      reportPatch: "Patch для Runtime Report",
+      memoryDraft: "Memory Evolution (draft)",
+      knowledgeCandidates: "Knowledge Candidate (draft)",
+      cursorRules: "Правила для .cursor/rules",
+      historyEvents: "Runtime History events",
+      buildStatus: "Build",
+      draftOnlyNote: "Только draft — автоматическая публикация отключена.",
+      rulesNote: "Кандидаты правил — Owner review перед записью в .cursor/rules.",
+      reviewStatus: {
+        pending: "Ожидает review",
+        accepted: "Принято",
+        rejected: "Отклонено"
       }
     }
   },

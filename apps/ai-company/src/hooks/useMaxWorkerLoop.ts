@@ -7,7 +7,10 @@ import {
   type MaxWorkerLoopRecord,
   type MaxWorkerLoopSnapshot,
 } from '../domain/maxWorkerLoop'
-import { CURSOR_AUTOMATION_OWNER_APPROVAL_SYNC_EVENT } from '../domain/cursorAutomation'
+import {
+  CURSOR_AUTOMATION_OWNER_APPROVAL_SYNC_EVENT,
+  CURSOR_AUTOMATION_SUBMIT_SYNC_EVENT,
+} from '../domain/cursorAutomation'
 
 export const MAX_WORKER_LOOP_SYNC_EVENT = 'ai-company-max-worker-loop-sync'
 
@@ -27,10 +30,12 @@ export function useMaxWorkerLoop(options: Options = {}) {
     const onSync = () => refresh()
     window.addEventListener(MAX_WORKER_LOOP_SYNC_EVENT, onSync)
     window.addEventListener(CURSOR_AUTOMATION_OWNER_APPROVAL_SYNC_EVENT, onSync)
+    window.addEventListener(CURSOR_AUTOMATION_SUBMIT_SYNC_EVENT, onSync)
     const onStorage = (event: StorageEvent) => {
       if (
         event.key === 'ai-company-max-worker-loops' ||
-        event.key === 'ai-company-cursor-automation-owner-approvals'
+        event.key === 'ai-company-cursor-automation-owner-approvals' ||
+        event.key === 'ai-company-cursor-automation-submit-runs'
       ) {
         refresh()
       }
@@ -39,6 +44,7 @@ export function useMaxWorkerLoop(options: Options = {}) {
     return () => {
       window.removeEventListener(MAX_WORKER_LOOP_SYNC_EVENT, onSync)
       window.removeEventListener(CURSOR_AUTOMATION_OWNER_APPROVAL_SYNC_EVENT, onSync)
+      window.removeEventListener(CURSOR_AUTOMATION_SUBMIT_SYNC_EVENT, onSync)
       window.removeEventListener('storage', onStorage)
     }
   }, [refresh])

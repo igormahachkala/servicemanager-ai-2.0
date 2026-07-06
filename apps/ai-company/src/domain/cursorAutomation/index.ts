@@ -1,4 +1,4 @@
-/** Cursor Automation domain — 097A run storage + 097C MAX handoff workflow (mock V1). */
+/** Cursor Automation domain — 097A + 097C workflow + 099A submit + 099B adapter. */
 
 export {
   CURSOR_AUTOMATION_RUN_STATUSES,
@@ -62,6 +62,23 @@ export {
 } from './cursorAutomationMockIngestion'
 export { buildCursorAutomationWorkflowSnapshot } from './cursorAutomationWorkflow'
 export {
+  buildCursorResultHistoryEvents,
+  buildCursorResultIntegrationBundle,
+  buildCursorResultIntegrationIfReady,
+  buildCursorResultKnowledgeCandidates,
+  buildCursorResultMaxReview,
+  buildCursorResultMemoryHints,
+  buildCursorResultRuntimeReportPatch,
+  type CursorResultHistoryEventDraft,
+  type CursorResultIntegrationBundle,
+  type CursorResultIntegrationInput,
+  type CursorResultIntegrationSource,
+  type CursorResultKnowledgeCandidate,
+  type CursorResultMaxReview,
+  type CursorResultMemoryHint,
+  type CursorResultRuntimeReportPatch,
+} from './cursorAutomationResultIntegration'
+export {
   approveCursorAutomationOwnerGate,
   CURSOR_AUTOMATION_OWNER_APPROVAL_SYNC_EVENT,
   CURSOR_AUTOMATION_OWNER_APPROVAL_STATUSES,
@@ -72,7 +89,31 @@ export {
   type CursorAutomationOwnerApprovalRecord,
   type CursorAutomationOwnerApprovalStatus,
 } from './cursorAutomationOwnerApproval'
-
+export {
+  evaluateCursorAutomationSubmitEligibility,
+  isCursorAutomationApiAdapterAvailable,
+  mapSubmitRunToWorkflowStatus,
+  submitToCursorAutomation,
+  type CursorAutomationSubmitEligibility,
+  type CursorAutomationSubmitResult,
+} from './cursorAutomationSubmit'
+export type {
+  CursorAutomationHandoffPayload,
+  CursorAutomationSubmitDeliveryMode,
+  CursorAutomationSubmitRun,
+  CursorAutomationSubmitRunStatus,
+} from './cursorAutomationSubmitRun'
+export {
+  CURSOR_AUTOMATION_SUBMIT_DELIVERY_MODES,
+  CURSOR_AUTOMATION_SUBMIT_RUN_STATUSES,
+} from './cursorAutomationSubmitRun'
+export {
+  CURSOR_AUTOMATION_SUBMIT_SYNC_EVENT,
+  getCursorAutomationSubmitRunById,
+  getCursorAutomationSubmitRunByLoopId,
+  loadCursorAutomationSubmitRuns,
+  upsertCursorAutomationSubmitRun,
+} from './cursorAutomationSubmitStorage'
 export type {
   CursorAutomationAdapterRunRecord,
   CursorAutomationAdapterRunStatus,

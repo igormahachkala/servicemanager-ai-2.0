@@ -1,9 +1,11 @@
 /**
- * Cursor Automation Workflow V1 — типы (AI-COMPANY-097C).
+ * Cursor Automation Workflow V1 — типы (097C + 099A submit + 099C result integration).
  * Без реального Cursor API. MAX (Ollama) → plan → Owner Approval → mock handoff/PR.
  */
 
 import type { WorkerLoopToolBranchSnapshot } from '../toolRegistry/toolRegistryWorkerLoopBridge'
+import type { CursorResultIntegrationBundle } from './cursorAutomationResultIntegration'
+import type { CursorAutomationSubmitRun } from './cursorAutomationSubmitRun'
 
 export const CURSOR_AUTOMATION_TOOL_REGISTRY_ID = 'cursor-automation' as const
 
@@ -36,6 +38,10 @@ export type CursorAutomationWorkflowStatus =
   | 'ready_for_cursor_automation'
   | 'rejected'
   | 'handoff_ready'
+  | 'submitted_mock'
+  | 'submitted_pending_real_adapter'
+  | 'waiting_for_result'
+  | 'submit_failed'
   | 'mock_submitted'
   | 'mock_result_ready'
   | 'accepted'
@@ -120,6 +126,10 @@ export type CursorAutomationWorkflowSnapshot = {
   mockIngestion: CursorAutomationMockIngestion | null
   ownerApprovalRequired: boolean
   ownerApprovalStatus: 'none' | 'pending' | 'approved' | 'rejected'
+  /** Submit run после Owner Approval (099A). */
+  submitRun: CursorAutomationSubmitRun | null
+  /** Cursor result → Report / Memory / Knowledge / History (099C). */
+  resultIntegration: CursorResultIntegrationBundle | null
   /** Tool Branch Snapshot для UI — display-only в V1 safe mode. */
   toolBranch: WorkerLoopToolBranchSnapshot | null
   workflowLog: CursorAutomationWorkflowLogEntry[]

@@ -31,6 +31,12 @@ import {
 import type { OwnerApprovalGate } from './maxWorkerLoopApproval'
 import { resolveOwnerApprovalGate } from './maxWorkerLoopApproval'
 import { buildCursorAutomationWorkflowSnapshot } from '../cursorAutomation/cursorAutomationWorkflow'
+import { getCursorAutomationSubmitRunByLoopId } from '../cursorAutomation/cursorAutomationSubmitStorage'
+import { mapSubmitRunToWorkflowStatus } from '../cursorAutomation/cursorAutomationSubmit'
+import {
+  buildCursorResultIntegrationIfReady,
+  type CursorResultHistoryEventDraft,
+} from '../cursorAutomation/cursorAutomationResultIntegration'
 
 export type MaxWorkerLoopSnapshot = {
   loop: MaxWorkerLoopRecord
@@ -41,6 +47,71 @@ export type MaxWorkerLoopSnapshot = {
   nextActions: MaxWorkerLoopNextAction[]
   ownerApproval: OwnerApprovalGate
   cursorAutomation: CursorAutomationWorkflowSnapshot
+}
+
+function enrichCursorAutomationSnapshot(input: {
+  loop: MaxWorkerLoopRecord
+  run: RuntimeRun
+  report: Report
+  memoryEvolutionDraft: MemoryEvolutionDraft
+  knowledgeCandidates: KnowledgeCandidateDraft[]
+  base: CursorAutomationWorkflowSnapshot
+}): CursorAutomationWorkflowSnapshot {
+  const submitRun = getCursorAutomationSubmitRunByLoopId(input.loop.id)
+  const submitStatus = mapSubmitRunToWorkflowStatus(submitRun)
+
+  let cursorAutomation: CursorAutomationWorkflowSnapshot = {
+    ...input.base,
+    submitRun,
+    resultIntegration: null,
+    expectedResult: submitRun?.handoffPayload.expectedResult ?? input.base.expectedResult,
+    status: submitStatus ?? input.base.status,
+  }
+
+  const resultIntegration = buildCursorResultIntegrationIfReady({
+    loop: input.loop,
+    run: input.run,
+    report: input.report,
+    submitRun,
+    memoryEvolutionDraft: input.memoryEvolutionDraft,
+    baseKnowledgeCandidates: input.knowledgeCandidates,
+  })
+
+  if (!resultIntegration) {
+    return cursorAutomation
+  }
+
+  const expectedResult =
+    submitRun?.handoffPayload.expectedResult ?? cursorAutomation.expectedResult
+
+  return {
+    ...cursorAutomation,
+    resultIntegration,
+    mockIngestion: expectedResult
+      ? {
+          ingestedAt: resultIntegration.ingestedAt,
+          source: 'mock_v1',
+          ok: resultIntegration.maxReview.status === 'accepted',
+          result: expectedResult,
+          notes: [
+            'Mock ingestion V1 via Cursor result integration (099C).',
+            ...resultIntegration.historyEvents
+              .slice(0, 3)
+              .map((event: CursorResultHistoryEventDraft) => event.label),
+          ],
+        }
+      : cursorAutomation.mockIngestion,
+    workflowLog: [
+      ...cursorAutomation.workflowLog,
+      {
+        at: resultIntegration.ingestedAt,
+        phase: 'mock_pr_ingested',
+        level: 'info',
+        message:
+          'Cursor result ingested — Runtime Report patch, Memory hints, Knowledge drafts (draft only).',
+      },
+    ],
+  }
 }
 
 export type MaxWorkerLoopRunResult = {
@@ -185,7 +256,14 @@ export function assembleMaxWorkerLoopSnapshot(
   const knowledgeCandidates = buildKnowledgeCandidateDrafts(run, memoryEvolutionDraft.lessons)
   const nextActions = buildMaxWorkerLoopNextActions(report)
   const ownerApproval = resolveOwnerApprovalGate(reasoning, loop.safeMode)
-  const cursorAutomation = buildCursorAutomationWorkflowSnapshot({ loop, run, report })
+  const cursorAutomation = enrichCursorAutomationSnapshot({
+    loop,
+    run,
+    report,
+    memoryEvolutionDraft,
+    knowledgeCandidates,
+    base: buildCursorAutomationWorkflowSnapshot({ loop, run, report }),
+  })
 
   return {
     loop,
