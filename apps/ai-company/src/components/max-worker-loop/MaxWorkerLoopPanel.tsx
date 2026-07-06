@@ -2,12 +2,14 @@ import { Link } from 'react-router-dom'
 import { buildMaxWorkerLoopPanelView } from '../../domain/maxWorkerLoop/maxWorkerLoopViewModel'
 import type { MaxWorkerLoopSnapshot } from '../../domain/maxWorkerLoop'
 import type { MaxWorkerLoopRecord } from '../../domain/maxWorkerLoop'
+import { MaxWorkerLoopToolBranchPanel } from './MaxWorkerLoopToolBranchPanel'
 import { useI18n } from '../../i18n'
 
 type Props = {
   loop: MaxWorkerLoopRecord | null
   snapshot?: MaxWorkerLoopSnapshot | null
   compact?: boolean
+  onApprovalDecision?: () => void
 }
 
 function formatTime(iso: string | null): string {
@@ -32,7 +34,7 @@ function statusClass(status: string): string {
     .join('')
 }
 
-export function MaxWorkerLoopPanel({ loop, snapshot = null, compact = false }: Props) {
+export function MaxWorkerLoopPanel({ loop, snapshot = null, compact = false, onApprovalDecision }: Props) {
   const { t } = useI18n()
 
   if (!loop) {
@@ -113,51 +115,13 @@ export function MaxWorkerLoopPanel({ loop, snapshot = null, compact = false }: P
         })}
       </ol>
 
-      {snapshot?.cursorAutomation?.externalExecutorRequired ? (
-        <section className="acMaxLoopToolBranch" aria-label={t.maxWorkerLoop.cursorAutomation.title}>
-          <h4 className="acMaxLoopToolBranchTitle">{t.maxWorkerLoop.cursorAutomation.title}</h4>
-          <p className="acMaxLoopToolBranchStatus">
-            <span className="mcMono">{snapshot.cursorAutomation.status}</span>
-            {snapshot.cursorAutomation.needReason ? (
-              <span className="acMaxLoopToolBranchReason">{snapshot.cursorAutomation.needReason}</span>
-            ) : null}
-          </p>
-
-          {snapshot.cursorAutomation.toolBranch ? (
-            <dl className="acMaxLoopToolBranchMeta">
-              <div>
-                <dt>{t.maxWorkerLoop.cursorAutomation.toolId}</dt>
-                <dd className="mcMono">{snapshot.cursorAutomation.toolBranch.suggestedToolId ?? '—'}</dd>
-              </div>
-              <div>
-                <dt>{t.maxWorkerLoop.cursorAutomation.invokePhase}</dt>
-                <dd className="mcMono">
-                  {snapshot.cursorAutomation.toolBranch.invokeResult?.phase ??
-                    snapshot.cursorAutomation.toolBranch.invokePlan?.phase ??
-                    '—'}
-                </dd>
-              </div>
-              <div>
-                <dt>{t.maxWorkerLoop.cursorAutomation.ownerApproval}</dt>
-                <dd>{snapshot.cursorAutomation.toolBranch.ownerApproval.status}</dd>
-              </div>
-            </dl>
-          ) : null}
-
-          {snapshot.cursorAutomation.mockIngestion?.result.pullRequest.url ? (
-            <p className="acMaxLoopToolBranchMock">
-              {t.maxWorkerLoop.cursorAutomation.mockPr}:{' '}
-              <span className="mcMono">{snapshot.cursorAutomation.mockIngestion.result.pullRequest.url}</span>
-            </p>
-          ) : null}
-
-          {!compact && snapshot.cursorAutomation.handoff ? (
-            <details className="acMaxLoopHandoffDetails">
-              <summary>{t.maxWorkerLoop.cursorAutomation.handoffPrompt}</summary>
-              <pre className="acMaxLoopHandoffPre">{snapshot.cursorAutomation.handoff.promptMarkdown}</pre>
-            </details>
-          ) : null}
-        </section>
+      {snapshot?.cursorAutomation?.externalExecutorRequired && snapshot ? (
+        <MaxWorkerLoopToolBranchPanel
+          loopId={loop.id}
+          snapshot={snapshot}
+          compact={compact}
+          onDecision={onApprovalDecision}
+        />
       ) : null}
 
       {loop.runtimeRunId ? (

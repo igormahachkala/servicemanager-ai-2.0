@@ -39,7 +39,7 @@ export function RuntimeRunPage() {
   const profile = run ? getOrCreateRuntimeProfile(run.employeeId) : null
   const runMetrics = run ? getRuntimeRunMetrics(run.id) : null
   const isMaxRun = run?.employeeId === MAX_WORKER_EMPLOYEE_ID
-  const { loop: maxLoop, snapshot: maxSnapshot } = useMaxWorkerLoop({
+  const { loop: maxLoop, snapshot: maxSnapshot, refresh: refreshMaxLoop } = useMaxWorkerLoop({
     runtimeRunId: isMaxRun ? run?.id ?? null : null,
   })
 
@@ -133,7 +133,11 @@ export function RuntimeRunPage() {
       {isMaxRun ? (
         <Panel title={t.maxWorkerLoop.sectionTitle}>
           <div className="mcProfilePanelBody">
-            <MaxWorkerLoopPanel loop={maxLoop} snapshot={maxSnapshot} />
+            <MaxWorkerLoopPanel
+              loop={maxLoop}
+              snapshot={maxSnapshot}
+              onApprovalDecision={refreshMaxLoop}
+            />
           </div>
         </Panel>
       ) : null}

@@ -82,7 +82,7 @@ export function RunTaskPage() {
   const isMaxEmployee = form.employeeId === MAX_WORKER_EMPLOYEE_ID
   const maxLoopRunId =
     maxLastRunId ?? (isMaxEmployee && lastResult?.run?.id ? lastResult.run.id : null)
-  const { loop: maxLoop, snapshot: maxSnapshot, latestForMax } = useMaxWorkerLoop({
+  const { loop: maxLoop, snapshot: maxSnapshot, latestForMax, refresh: refreshMaxLoop } = useMaxWorkerLoop({
     runtimeRunId: maxLoopRunId,
   })
   const displayMaxLoop = maxLoop ?? (isMaxEmployee ? latestForMax : null)
@@ -209,7 +209,12 @@ export function RunTaskPage() {
           {isMaxEmployee ? (
             <Panel title={t.maxWorkerLoop.sectionTitle}>
               <div className="mcProfilePanelBody">
-                <MaxWorkerLoopPanel loop={displayMaxLoop} snapshot={maxSnapshot} compact />
+                <MaxWorkerLoopPanel
+                  loop={displayMaxLoop}
+                  snapshot={maxSnapshot}
+                  compact
+                  onApprovalDecision={refreshMaxLoop}
+                />
               </div>
             </Panel>
           ) : null}

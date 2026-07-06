@@ -63,7 +63,7 @@ export function RuntimeLivePage() {
   const isMaxContext =
     monitor.monitoredRun?.employeeId === MAX_WORKER_EMPLOYEE_ID ||
     employeeId === MAX_WORKER_EMPLOYEE_ID
-  const { loop: maxLoop, snapshot: maxSnapshot } = useMaxWorkerLoop({
+  const { loop: maxLoop, snapshot: maxSnapshot, refresh: refreshMaxLoop } = useMaxWorkerLoop({
     runtimeRunId:
       monitor.monitoredRun?.employeeId === MAX_WORKER_EMPLOYEE_ID ? selectedRunId : null,
   })
@@ -243,7 +243,11 @@ export function RuntimeLivePage() {
       {isMaxContext ? (
         <Panel title={t.maxWorkerLoop.sectionTitle}>
           <div className="mcProfilePanelBody">
-            <MaxWorkerLoopPanel loop={maxLoop} snapshot={maxSnapshot} />
+            <MaxWorkerLoopPanel
+              loop={maxLoop}
+              snapshot={maxSnapshot}
+              onApprovalDecision={refreshMaxLoop}
+            />
           </div>
         </Panel>
       ) : null}

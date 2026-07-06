@@ -61,3 +61,14 @@ export {
   ingestCursorAutomationMockResult,
 } from './cursorAutomationMockIngestion'
 export { buildCursorAutomationWorkflowSnapshot } from './cursorAutomationWorkflow'
+export {
+  approveCursorAutomationOwnerGate,
+  CURSOR_AUTOMATION_OWNER_APPROVAL_SYNC_EVENT,
+  CURSOR_AUTOMATION_OWNER_APPROVAL_STATUSES,
+  getCursorAutomationOwnerApprovalByLoopId,
+  getOrCreateCursorAutomationOwnerApproval,
+  loadCursorAutomationOwnerApprovals,
+  rejectCursorAutomationOwnerGate,
+  type CursorAutomationOwnerApprovalRecord,
+  type CursorAutomationOwnerApprovalStatus,
+} from './cursorAutomationOwnerApproval'

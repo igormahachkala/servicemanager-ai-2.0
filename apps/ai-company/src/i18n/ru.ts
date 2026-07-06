@@ -2397,6 +2397,48 @@ export const ru: Messages = {
       ownerApproval: "Одобрение Owner",
       mockPr: "Mock PR",
       handoffPrompt: "Handoff prompt для Cursor Automation"
+    },
+    toolBranch: {
+      title: "Tool Branch — Cursor Automation",
+      whyCursor: "Почему MAX выбрал Cursor",
+      defaultReason: "MAX определил необходимость внешнего исполнителя для реализации.",
+      localModels: "Локальные модели (Ollama)",
+      selectedTool: "Выбранный инструмент",
+      riskLevel: "Уровень риска",
+      ownerApprovalStatus: "Статус Owner Approval",
+      plannedFiles: "Планируемые файлы",
+      expectedOutcome: "Предполагаемый результат",
+      buildChecklist: "Build / checklist",
+      expectedPr: "Ожидаемый PR",
+      readyNote: "Owner одобрил — Ready for Cursor Automation. Реальный вызов Cursor API будет в V2.",
+      rejectedNote: "Owner отклонил отправку во внешний инструмент. Cursor Automation не будет вызван.",
+      statusLabels: {
+        not_applicable: "Не требуется",
+        analyzing: "Анализ",
+        external_executor_required: "Нужен внешний исполнитель",
+        plan_ready: "План готов",
+        awaiting_owner_approval: "Ожидание Owner",
+        waiting_for_owner_approval: "Waiting for Owner Approval",
+        ready_for_cursor_automation: "Ready for Cursor Automation",
+        rejected: "Отклонено Owner",
+        handoff_ready: "Handoff готов",
+        mock_submitted: "Mock отправлен",
+        mock_result_ready: "Mock результат",
+        accepted: "Принято MAX",
+        completed: "Завершено"
+      },
+      approvalStatus: {
+        none: "Не требуется",
+        pending: "Ожидает решения",
+        approved: "Одобрено",
+        rejected: "Отклонено"
+      },
+      actions: {
+        approve: "Approve",
+        reject: "Reject",
+        editPlan: "Edit Plan",
+        editPlanHint: "Редактирование плана — в V2 (placeholder)."
+      }
     }
   },
   workScheduler: {
