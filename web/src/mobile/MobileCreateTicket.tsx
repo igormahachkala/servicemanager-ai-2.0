@@ -646,7 +646,7 @@ export function MobileCreateTicket() {
               <button
                 type="button"
                 onClick={() => {
-                  const path = api.appendScopeToPath(`/m/tickets/${encodeURIComponent(createdTicket.ticketId)}`, scope, meQ.data)
+                  const path = api.appendScopeToPath(mobilePath(location.pathname, `/tickets/${encodeURIComponent(createdTicket.ticketId)}`), scope, meQ.data)
                   navigate(path, {
                     state: mobileTicketNavState(
                       createdTicket.claimed ? 'my' : 'home',

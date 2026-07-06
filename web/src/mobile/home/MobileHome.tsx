@@ -395,7 +395,7 @@ export function MobileHome() {
   const closeBusy = closeM.isPending
   const assignBusy = assignM.isPending
   const ticketHref = (ticket: api.TicketCard) => {
-    if (!meQ.data) return `/m/tickets/${ticket.id}`
+    if (!meQ.data) return mobilePath(location.pathname, `/tickets/${ticket.id}`)
     const linkScope = scopeForMobileTicketLink(meQ.data, pageScope, ticket)
     return api.appendScopeToPath(mobilePath(location.pathname, `/tickets/${ticket.id}`), compactTicketScope(linkScope), meQ.data)
   }
