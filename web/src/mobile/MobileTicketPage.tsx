@@ -923,6 +923,13 @@ export function MobileTicketPage() {
     ],
   )
 
+  // Автоскролл ленты чата к последнему сообщению (при новых сообщениях / открытии вкладки).
+  const chatMessagesEndRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    if (detailTab !== 'chat') return
+    chatMessagesEndRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [detailTab, chatMessages.length, offlinePendingComments.length])
+
   const requestImages = useMemo(() => {
     const imgs = (attachmentsQ.data || []).filter(isImageAttachment)
     return imgs.filter((a) => !isReportTicketImage(a))
@@ -1688,70 +1695,65 @@ export function MobileTicketPage() {
               {!timelineQ.isLoading && chatMessages.length === 0 ? (
                 <div className="mobileMeta" style={{ marginBottom: canSendComment ? 10 : 0 }}>Комментариев пока нет</div>
               ) : null}
-              {chatMessages.length > 0 ? (
+              {chatMessages.length > 0 || offlinePendingComments.length > 0 ? (
                 <div className="mobileTicketChatMessages">
                   {chatMessages.map((msg) => {
+                    const timeStr = new Date(msg.at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
                     if (msg.kind === 'system') {
                       return (
-                        <div className="mobileChatsSystemRow" key={msg.id}>
-                          <div className="mobileChatsSystemPill">
-                            <div className="mobileChatsSystemText">{msg.text}</div>
-                            <div className="mobileChatsSystemTime">{new Date(msg.at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</div>
+                        <div className="mobileChatSysRow" key={msg.id}>
+                          <span className="mobileChatSysPill">{msg.text} · {timeStr}</span>
+                        </div>
+                      )
+                    }
+                    if (msg.isOwn) {
+                      return (
+                        <div className="mobileChatMsgRow mobileChatMsgRow--out" key={msg.id}>
+                          <div className="mobileChatBubbleWrap">
+                            <div className="mobileChatBubble mobileChatBubble--out">
+                              {msg.text}
+                              <span className="mobileChatMeta mobileChatMeta--out">
+                                {timeStr}
+                                <span className="mobileChatChecks" aria-hidden>
+                                  <svg width="14" height="9" viewBox="0 0 18 11" fill="currentColor"><path d="M1 5l4 4L14 1m2 0l-7 8-2-2" /></svg>
+                                </span>
+                              </span>
+                            </div>
                           </div>
                         </div>
                       )
                     }
                     const authorDisplay = msg.authorEmail ? msg.authorEmail.split('@')[0] : 'система'
-                    const timeStr = new Date(msg.at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
                     return (
-                      <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.isOwn ? 'flex-end' : 'flex-start' }}>
-                        <div className="mobileTicketChatAuthor" style={{ textAlign: msg.isOwn ? 'right' : 'left' }}>
-                          {authorDisplay} · {timeStr}
-                        </div>
-                        <div style={{
-                          maxWidth: '82%',
-                          background: msg.isOwn ? '#4f46e5' : '#f3f4f6',
-                          color: msg.isOwn ? '#fff' : '#111827',
-                          borderRadius: msg.isOwn ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
-                          padding: '9px 13px',
-                          wordBreak: 'break-word',
-                          whiteSpace: 'pre-wrap',
-                          fontSize: '0.9rem',
-                          lineHeight: 1.5,
-                        }}>
-                          {msg.text}
+                      <div className="mobileChatMsgRow mobileChatMsgRow--in" key={msg.id}>
+                        <span className="mobileChatAvatar" aria-hidden>{(authorDisplay[0] || '?').toUpperCase()}</span>
+                        <div className="mobileChatBubbleWrap">
+                          <div className="mobileChatAuthorName">{authorDisplay}</div>
+                          <div className="mobileChatBubble mobileChatBubble--in">
+                            {msg.text}
+                            <span className="mobileChatMeta mobileChatMeta--in">{timeStr}</span>
+                          </div>
                         </div>
                       </div>
                     )
                   })}
-                </div>
-              ) : null}
-              {offlinePendingComments.length > 0 ? (
-                <div className="mobileTicketChatMessages" style={{ marginTop: chatMessages.length > 0 ? 0 : undefined }}>
                   {offlinePendingComments.map((pending) => {
                     const timeStr = new Date(pending.at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
                     return (
-                      <div key={pending.queueId} style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', opacity: 0.65 }}>
-                        <div className="mobileTicketChatAuthor" style={{ textAlign: 'right' }}>
-                          я · {timeStr}
-                        </div>
-                        <div style={{
-                          maxWidth: '82%',
-                          background: '#4f46e5',
-                          color: '#fff',
-                          borderRadius: '14px 14px 4px 14px',
-                          padding: '9px 13px',
-                          wordBreak: 'break-word',
-                          whiteSpace: 'pre-wrap',
-                          fontSize: '0.9rem',
-                          lineHeight: 1.5,
-                        }}>
-                          {pending.text}
-                          <span className="mobileOfflinePendingBadge">Ожидает отправки</span>
+                      <div className="mobileChatMsgRow mobileChatMsgRow--out" key={pending.queueId} style={{ opacity: 0.65 }}>
+                        <div className="mobileChatBubbleWrap">
+                          <div className="mobileChatBubble mobileChatBubble--out">
+                            {pending.text}
+                            <span className="mobileChatMeta mobileChatMeta--out">
+                              {timeStr}
+                              <span className="mobileOfflinePendingBadge">Ожидает отправки</span>
+                            </span>
+                          </div>
                         </div>
                       </div>
                     )
                   })}
+                  <div ref={chatMessagesEndRef} />
                 </div>
               ) : null}
               {canSendComment ? (
