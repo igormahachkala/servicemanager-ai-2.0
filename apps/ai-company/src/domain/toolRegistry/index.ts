@@ -37,3 +37,5 @@ export {
   buildWorkerLoopToolBranchSnapshot,
   type WorkerLoopToolBranchSnapshot,
 } from './toolRegistryWorkerLoopBridge'
+
+export { planCursorAutomationHandoff } from './toolRegistryCursorAutomationBridge'
