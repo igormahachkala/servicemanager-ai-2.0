@@ -1,0 +1,201 @@
+.acMaxLoopPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: 1px solid rgba(59, 130, 246, 0.28);
+  background: rgba(59, 130, 246, 0.04);
+}
+
+.acMaxLoopPanelCompact {
+  gap: 10px;
+  padding: 12px;
+}
+
+.acMaxLoopPanelEmpty {
+  border-color: rgba(148, 163, 184, 0.3);
+  background: rgba(148, 163, 184, 0.04);
+}
+
+.acMaxLoopHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.acMaxLoopTitle {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.acMaxLoopSubtitle {
+  margin: 4px 0 0;
+  font-size: 0.85rem;
+  color: var(--mc-muted, #94a3b8);
+}
+
+.acMaxLoopStatus {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 4px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.acMaxLoopStatusRunning,
+.acMaxLoopStatusQueued {
+  background: rgba(59, 130, 246, 0.15);
+  color: rgb(147, 197, 253);
+}
+
+.acMaxLoopStatusCompleted {
+  background: rgba(34, 197, 94, 0.12);
+  color: rgb(134, 239, 172);
+}
+
+.acMaxLoopStatusFailed {
+  background: rgba(239, 68, 68, 0.12);
+  color: rgb(252, 165, 165);
+}
+
+.acMaxLoopStatusDraft,
+.acMaxLoopStatusCancelled,
+.acMaxLoopStatusWaiting_approval {
+  background: rgba(148, 163, 184, 0.15);
+  color: rgb(203, 213, 225);
+}
+
+.acMaxLoopError {
+  margin: 0;
+  padding: 8px 10px;
+  border-left: 3px solid rgba(239, 68, 68, 0.7);
+  background: rgba(239, 68, 68, 0.06);
+  font-size: 0.9rem;
+}
+
+.acMaxLoopSteps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.acMaxLoopStep {
+  padding: 10px 12px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.2);
+}
+
+.acMaxLoopStepCurrent {
+  border-color: rgba(59, 130, 246, 0.45);
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.12);
+}
+
+.acMaxLoopStepDone {
+  opacity: 0.92;
+}
+
+.acMaxLoopStepPending {
+  opacity: 0.72;
+}
+
+.acMaxLoopStepFailed {
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+.acMaxLoopStepHead {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  align-items: start;
+}
+
+.acMaxLoopStepOrder {
+  font-size: 0.8rem;
+  opacity: 0.7;
+}
+
+.acMaxLoopStepTitleBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.acMaxLoopStepStatus {
+  font-size: 0.75rem;
+  color: var(--mc-muted, #94a3b8);
+}
+
+.acMaxLoopStepTime {
+  font-size: 0.75rem;
+}
+
+.acMaxLoopStepDescription,
+.acMaxLoopStepInsight {
+  margin: 8px 0 0;
+  font-size: 0.88rem;
+}
+
+.acMaxLoopStepInsight {
+  color: rgb(147, 197, 253);
+}
+
+.acMaxLoopStepGuides {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+@media (max-width: 720px) {
+  .acMaxLoopStepGuides {
+    grid-template-columns: 1fr;
+  }
+}
+
+.acMaxLoopGuideBlock {
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 0.85rem;
+}
+
+.acMaxLoopGuideLabel {
+  display: block;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--mc-muted, #94a3b8);
+  margin-bottom: 4px;
+}
+
+.acMaxLoopGuideBlock p {
+  margin: 0;
+}
+
+.acMaxLoopLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 0.88rem;
+}
+
+.acMaxLoopEmptyReason,
+.acMaxLoopEmptyHint,
+.acMaxLoopEmptyExample {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--mc-muted, #94a3b8);
+}
+
+.acMaxLoopEmptyExample {
+  font-size: 0.82rem;
+  font-style: italic;
+}

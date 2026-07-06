@@ -2365,6 +2365,30 @@ export const ru: Messages = {
       report: "Отчёт"
     }
   },
+  maxWorkerLoop: {
+    title: "MAX Worker Loop",
+    subtitle: "Процесс работы цифрового сотрудника MAX — без fake progress, только реальные фазы.",
+    whatHappens: "Что происходит?",
+    whatNext: "Что будет дальше?",
+    openLive: "Live Runtime",
+    openReport: "Runtime Report",
+    openRun: "Детали run",
+    sectionTitle: "Цикл работы MAX",
+    startNote: "Запуск через MAX Worker Loop V1 — reasoning, отчёт и черновики Memory/Knowledge.",
+    phaseStatus: {
+      pending: "Ожидает",
+      active: "Выполняется",
+      done: "Готово",
+      skipped: "Пропущено",
+      failed: "Ошибка"
+    },
+    empty: {
+      reason: "MAX ещё не выполнял Worker Loop — нет записи цикла в журнале.",
+      actionHint: "Выберите MAX в Run Task, вставьте задачу Owner и нажмите «Запустить».",
+      actionLabel: "Запустить задачу для MAX",
+      example: "Пример: MAX проводит технический аудит AI Photo Lab MVP → фазы цикла → Runtime Report."
+    }
+  },
   workScheduler: {
     title: "Next Suggested Actions",
     empty: "Нет предложений — завершите runtime run, чтобы сотрудник предложил следующие шаги.",

@@ -9,11 +9,14 @@ import { RuntimeStateBadge } from '../components/runtime/RuntimeStateBadge'
 import { RuntimeLogs } from '../components/runtime/RuntimeLogs'
 import { RuntimeWarnings } from '../components/runtime/RuntimeWarnings'
 import { MemoryEvolutionPanel } from '../components/memory-evolution'
+import { MaxWorkerLoopPanel } from '../components/max-worker-loop'
 import { RuntimeModelRoutingPanel } from '../components/runtime/RuntimeModelRoutingPanel'
 import { RuntimeRunMetricsRow } from '../components/runtime-monitor'
 import { useRuntime } from '../hooks/useRuntime'
+import { useMaxWorkerLoop } from '../hooks/useMaxWorkerLoop'
 import { getRuntimeRunMetrics } from '../domain/runtimeMonitor'
 import { getModelById, getOrCreateRuntimeProfile, getProviderById } from '../domain/runtime/runtimeStorage'
+import { MAX_WORKER_EMPLOYEE_ID } from '../domain/maxWorkerLoop'
 import { ToolExecutionLog } from '../components/toolExecution'
 import { listToolExecutionsForRun } from '../domain/toolExecution'
 import { resolveEmployee } from '../mission-control/data/conversation'
@@ -35,6 +38,10 @@ export function RuntimeRunPage() {
   const provider = run ? getProviderById(run.providerId) : null
   const profile = run ? getOrCreateRuntimeProfile(run.employeeId) : null
   const runMetrics = run ? getRuntimeRunMetrics(run.id) : null
+  const isMaxRun = run?.employeeId === MAX_WORKER_EMPLOYEE_ID
+  const { loop: maxLoop, snapshot: maxSnapshot } = useMaxWorkerLoop({
+    runtimeRunId: isMaxRun ? run?.id ?? null : null,
+  })
 
   if (!id || !run) {
     return (
@@ -121,6 +128,14 @@ export function RuntimeRunPage() {
             {t.runtimeOrchestrator.grantApprovalMock}
           </button>
         </div>
+      ) : null}
+
+      {isMaxRun ? (
+        <Panel title={t.maxWorkerLoop.sectionTitle}>
+          <div className="mcProfilePanelBody">
+            <MaxWorkerLoopPanel loop={maxLoop} snapshot={maxSnapshot} />
+          </div>
+        </Panel>
       ) : null}
 
       {run.status === 'completed' ? (

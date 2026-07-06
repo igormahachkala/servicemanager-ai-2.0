@@ -90,6 +90,9 @@ export function upsertMaxWorkerLoopRecord(record: MaxWorkerLoopRecord): MaxWorke
     records.unshift(record)
   }
   saveMaxWorkerLoopRecords(records)
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('ai-company-max-worker-loop-sync'))
+  }
   return record
 }
 

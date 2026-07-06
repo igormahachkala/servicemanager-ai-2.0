@@ -4,16 +4,19 @@ import { LiveExecutionStream } from '../components/runtime/live/LiveExecutionStr
 import { LiveRuntimeBottomPanel } from '../components/runtime/live/LiveRuntimeBottomPanel'
 import { LiveRuntimePipelinePanel } from '../components/runtime/live/LiveRuntimePipelinePanel'
 import { LiveRuntimeSidePanel } from '../components/runtime/live/LiveRuntimeSidePanel'
+import { MaxWorkerLoopPanel } from '../components/max-worker-loop'
 import { RuntimeExecutionPanel } from '../components/runtime/RuntimeExecutionPanel'
 import { RuntimeStateBadge } from '../components/runtime/RuntimeStateBadge'
 import { LivingActivityLine } from '../components/living'
 import { resolveLivingActivityFromRun } from '../domain/living'
 import { useLiveRuntimeMonitor } from '../hooks/useLiveRuntimeMonitor'
+import { useMaxWorkerLoop } from '../hooks/useMaxWorkerLoop'
 import { useRuntimeMonitor } from '../hooks/useRuntimeMonitor'
 import { useRuntimeProfiles } from '../hooks/useRuntimeProfiles'
 import { formatCost, formatDurationMs, getRuntimeRunMetrics } from '../domain/runtimeMonitor'
 import { buildRuntimePromptPreviewFromRun } from '../domain/runtime/runtimePromptBuilder'
 import { previewRuntimePromptForRequest } from '../domain/runtime/runtimeOrchestrator'
+import { MAX_WORKER_EMPLOYEE_ID } from '../domain/maxWorkerLoop'
 import { agents } from '../mission-control/data/mock'
 import { loadCustomEmployees } from '../mission-control/data/customEmployees'
 import { loadRuntimeRuns } from '../domain/runtime/runtimeOrchestrator'
@@ -57,6 +60,13 @@ export function RuntimeLivePage() {
   }, [searchParams])
 
   const monitor = useLiveRuntimeMonitor(selectedRunId)
+  const isMaxContext =
+    monitor.monitoredRun?.employeeId === MAX_WORKER_EMPLOYEE_ID ||
+    employeeId === MAX_WORKER_EMPLOYEE_ID
+  const { loop: maxLoop, snapshot: maxSnapshot } = useMaxWorkerLoop({
+    runtimeRunId:
+      monitor.monitoredRun?.employeeId === MAX_WORKER_EMPLOYEE_ID ? selectedRunId : null,
+  })
   const { summary } = useRuntimeMonitor()
   const runMetrics = monitor.monitoredRun ? getRuntimeRunMetrics(monitor.monitoredRun.id) : null
   const profile = getProfile(employeeId)
@@ -229,6 +239,14 @@ export function RuntimeLivePage() {
           />
         </div>
       </Panel>
+
+      {isMaxContext ? (
+        <Panel title={t.maxWorkerLoop.sectionTitle}>
+          <div className="mcProfilePanelBody">
+            <MaxWorkerLoopPanel loop={maxLoop} snapshot={maxSnapshot} />
+          </div>
+        </Panel>
+      ) : null}
 
       <div className="mcLiveRuntimeGrid">
         <div className="mcLiveRuntimePanelLeft">

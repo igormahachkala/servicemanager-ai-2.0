@@ -11,21 +11,43 @@ import {
   TaskRunnerResult,
 } from '../components/task-runner'
 import { RuntimeModelRoutingPanel } from '../components/runtime/RuntimeModelRoutingPanel'
+import { MaxWorkerLoopPanel } from '../components/max-worker-loop'
 import {
   AI_PHOTO_LAB_PROJECT_ID,
 } from '../domain/projects/aiPhotoLabIds'
 import { getOrCreateRuntimeProfile } from '../domain/runtime/runtimeStorage'
+import { MAX_WORKER_EMPLOYEE_ID, runMaxWorkerLoopV1, type MaxWorkerLoopInput } from '../domain/maxWorkerLoop'
 import { suggestModeForEmployee, TASK_RUNNER_EMPLOYEES } from '../domain/taskRunner'
-import { useTaskRunner } from '../hooks/useTaskRunner'
+import { useMaxWorkerLoop } from '../hooks/useMaxWorkerLoop'
+import { useTaskRunner, type TaskRunnerFormState } from '../hooks/useTaskRunner'
 import { PageHeader, Panel } from '../mission-control/components/ui'
 import { PageGuideCard } from '../components/guided'
 import { useI18n } from '../i18n'
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
+
+function toMaxLoopMode(mode: TaskRunnerFormState['mode']): NonNullable<MaxWorkerLoopInput['mode']> {
+  if (mode === 'technical_audit' || mode === 'handoff_preparation' || mode === 'documentation') {
+    return mode
+  }
+  return 'technical_audit'
+}
+
+function toMaxLoopModelMode(
+  modelMode: TaskRunnerFormState['modelMode'],
+): NonNullable<MaxWorkerLoopInput['modelMode']> {
+  if (modelMode === 'coding' || modelMode === 'deep' || modelMode === 'fast') {
+    return modelMode
+  }
+  return 'coding'
+}
 
 export function RunTaskPage() {
   const { t } = useI18n()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
+  const [maxRunning, setMaxRunning] = useState(false)
+  const [maxError, setMaxError] = useState<string | null>(null)
+  const [maxLastRunId, setMaxLastRunId] = useState<string | null>(null)
 
   const initial = useMemo(() => {
     const employeeId = searchParams.get('employee')
@@ -57,14 +79,52 @@ export function RunTaskPage() {
     start,
   } = useTaskRunner(initial)
 
+  const isMaxEmployee = form.employeeId === MAX_WORKER_EMPLOYEE_ID
+  const maxLoopRunId =
+    maxLastRunId ?? (isMaxEmployee && lastResult?.run?.id ? lastResult.run.id : null)
+  const { loop: maxLoop, snapshot: maxSnapshot, latestForMax } = useMaxWorkerLoop({
+    runtimeRunId: maxLoopRunId,
+  })
+  const displayMaxLoop = maxLoop ?? (isMaxEmployee ? latestForMax : null)
+
   const profile = useMemo(
     () => getOrCreateRuntimeProfile(form.employeeId),
     [form.employeeId],
   )
 
-  const canStart = form.taskText.trim().length > 0 && !running
+  const runningEffective = running || maxRunning
+  const canStart = form.taskText.trim().length > 0 && !runningEffective
+  const displayError = isMaxEmployee ? maxError ?? error : error
 
   const handleStart = async () => {
+    if (isMaxEmployee) {
+      setMaxRunning(true)
+      setMaxError(null)
+      try {
+        const { loop } = await runMaxWorkerLoopV1({
+          taskText: form.taskText,
+          title: form.title.trim() || derivedTitle || undefined,
+          mode: toMaxLoopMode(form.mode),
+          modelMode: toMaxLoopModelMode(form.modelMode),
+          projectId: form.projectId,
+          workspaceId: form.workspaceId,
+          priority: form.priority,
+          expectedOutput: form.expectedOutput,
+          constraints: form.constraints,
+        })
+        if (loop.runtimeRunId) {
+          setMaxLastRunId(loop.runtimeRunId)
+          navigate(`/ops/runtime/live?runId=${encodeURIComponent(loop.runtimeRunId)}`)
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'MAX Worker Loop failed'
+        setMaxError(message)
+      } finally {
+        setMaxRunning(false)
+      }
+      return
+    }
+
     const result = await start()
     navigate(`/ops/runtime/live?runId=${encodeURIComponent(result.run.id)}`)
   }
@@ -131,15 +191,29 @@ export function RunTaskPage() {
             </div>
           </Panel>
 
+          {isMaxEmployee ? (
+            <p className="mcMuted" style={{ marginBottom: 12 }}>
+              {t.maxWorkerLoop.startNote}
+            </p>
+          ) : null}
+
           <StartRunButton
             disabled={!canStart}
-            running={running}
+            running={runningEffective}
             onStart={() => void handleStart().catch(() => undefined)}
           />
-          {error ? <p className="mcRuntimeExecutionError">{error}</p> : null}
+          {displayError ? <p className="mcRuntimeExecutionError">{displayError}</p> : null}
         </div>
 
         <aside className="mcTaskRunnerAside">
+          {isMaxEmployee ? (
+            <Panel title={t.maxWorkerLoop.sectionTitle}>
+              <div className="mcProfilePanelBody">
+                <MaxWorkerLoopPanel loop={displayMaxLoop} snapshot={maxSnapshot} compact />
+              </div>
+            </Panel>
+          ) : null}
+
           <Panel title={t.taskRunner.sections.preview}>
             <div className="mcProfilePanelBody">
               <TaskRunPreview form={form} derivedTitle={derivedTitle} profile={profile} />

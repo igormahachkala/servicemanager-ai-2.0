@@ -51,6 +51,21 @@ export {
   resolveMaxWorkerRuntimeEnvironment,
 } from './maxWorkerLoopEnvironment'
 
+export {
+  buildMaxWorkerLoopPanelView,
+  type MaxWorkerLoopPanelView,
+  type MaxWorkerLoopUiStepStatus,
+  type MaxWorkerLoopUiStepView,
+} from './maxWorkerLoopViewModel'
+export {
+  MAX_WORKER_LOOP_UI_STEP_IDS,
+  MAX_WORKER_LOOP_PHASE_GUIDE_RU,
+  domainPhasesForUiStep,
+  uiStepIdForDomainPhase,
+  type MaxWorkerLoopPhaseGuide,
+  type MaxWorkerLoopUiStepId,
+} from './maxWorkerLoopPhaseGuide'
+
 export type { MaxWorkerLoopSnapshot } from './maxWorkerLoopEngine'
 export {
   assembleMaxWorkerLoopSnapshot,
