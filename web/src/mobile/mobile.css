@@ -3371,6 +3371,30 @@ a.mobileBtn.mobileCreateTicketLink {
   width: 100%;
 }
 
+/* 2b: кнопки камеры/скрепки в композере чата (Figma ChatTab) */
+.mobileChatComposerBtn {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: none;
+  background: #f1f5f9;
+  color: #64748b;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.12s;
+}
+.mobileChatComposerBtn:active:not(:disabled) {
+  background: #e2e8f0;
+}
+.mobileChatComposerBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .mobileTicketChatInput {
   flex: 1;
   min-width: 0;

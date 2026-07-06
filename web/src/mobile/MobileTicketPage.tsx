@@ -604,6 +604,9 @@ export function MobileTicketPage() {
   const [chatSendError, setChatSendError] = useState<string | null>(null)
   const addTicketCameraRef = useRef<HTMLInputElement | null>(null)
   const addTicketGalleryRef = useRef<HTMLInputElement | null>(null)
+  // 2b: отдельные file-input'ы в композере чата (photo-tab'овские размонтированы на вкладке Чат).
+  const chatCameraRef = useRef<HTMLInputElement | null>(null)
+  const chatGalleryRef = useRef<HTMLInputElement | null>(null)
   const chatInputRef = useRef<HTMLTextAreaElement | null>(null)
   const [ticketAddPhotoError, setTicketAddPhotoError] = useState<string | null>(null)
   const [ticketAddPhotoProgress, setTicketAddPhotoProgress] = useState<{ current: number; total: number } | null>(null)
@@ -1815,6 +1818,53 @@ export function MobileTicketPage() {
               ) : null}
               {canSendComment ? (
                 <div className="mobileTicketChatComposer">
+                  {canUploadTicketPhotos && isOnline ? (
+                    <>
+                      <input
+                        ref={chatCameraRef}
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        className="mobilePhotoInputHidden"
+                        aria-label="Сделать фото в чат"
+                        onChange={handleTicketAddPhotos}
+                        disabled={isTicketAddPhotoUploading}
+                      />
+                      <input
+                        ref={chatGalleryRef}
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="mobilePhotoInputHidden"
+                        aria-label="Прикрепить фото в чат"
+                        onChange={handleTicketAddPhotos}
+                        disabled={isTicketAddPhotoUploading}
+                      />
+                      <button
+                        type="button"
+                        className="mobileChatComposerBtn"
+                        aria-label="Прикрепить фото"
+                        disabled={isTicketAddPhotoUploading}
+                        onClick={() => chatGalleryRef.current?.click()}
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                          <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1 -8.49 -8.49l9.19 -9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1 -2.83 -2.83l8.49 -8.48" />
+                        </svg>
+                      </button>
+                      <button
+                        type="button"
+                        className="mobileChatComposerBtn"
+                        aria-label="Сделать фото"
+                        disabled={isTicketAddPhotoUploading}
+                        onClick={() => chatCameraRef.current?.click()}
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                          <path d="M5 7h2l2 -2h6l2 2h2a2 2 0 0 1 2 2v9a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2v-9a2 2 0 0 1 2 -2" />
+                          <circle cx="12" cy="13" r="3" />
+                        </svg>
+                      </button>
+                    </>
+                  ) : null}
                   <textarea
                     ref={chatInputRef}
                     className="mobileTicketChatInput"
@@ -1843,6 +1893,10 @@ export function MobileTicketPage() {
                   </button>
                 </div>
               ) : null}
+              {isTicketAddPhotoUploading && ticketAddPhotoProgress ? (
+                <div className="mobileMeta" style={{ marginTop: 6 }}>Загружаем фото… {ticketAddPhotoProgress.current} из {ticketAddPhotoProgress.total}</div>
+              ) : null}
+              {ticketAddPhotoError ? <div className="mobileNotice mobileNoticeError" style={{ marginTop: 8 }}>{ticketAddPhotoError}</div> : null}
               {!isOnline && canSendComment ? (
                 <div className="mobileMeta" style={{ marginTop: 6 }}>Офлайн: комментарий будет отправлен после восстановления сети.</div>
               ) : null}
