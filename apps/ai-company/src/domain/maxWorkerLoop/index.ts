@@ -66,9 +66,31 @@ export {
   type MaxWorkerLoopUiStepId,
 } from './maxWorkerLoopPhaseGuide'
 
-export type { MaxWorkerLoopSnapshot } from './maxWorkerLoopEngine'
+export type { MaxWorkerLoopRunResult, MaxWorkerLoopSnapshot } from './maxWorkerLoopEngine'
 export {
   assembleMaxWorkerLoopSnapshot,
   rebuildMaxWorkerLoopSnapshotFromRun,
+  runAutonomousDemoScenario,
   runMaxWorkerLoopV1,
 } from './maxWorkerLoopEngine'
+
+export type { AutonomousDemoScenario, AutonomousDemoScenarioId } from './autonomousDemoScenario'
+export {
+  AUTONOMOUS_DEMO_SCENARIO_IDS,
+  AUTONOMOUS_DEMO_SCENARIOS,
+  DEFAULT_AUTONOMOUS_DEMO_SCENARIO_ID,
+  getAutonomousDemoScenario,
+  isAutonomousDemoScenarioId,
+  listAutonomousDemoScenarios,
+} from './autonomousDemoScenario'
+
+export type { AutonomousDemoSnapshot } from './autonomousDemoSnapshot'
+export { buildAutonomousDemoSnapshot } from './autonomousDemoSnapshot'
+
+export {
+  AUTONOMOUS_DEMO_STEP_GUIDE_RU,
+  AUTONOMOUS_DEMO_UI_STEP_IDS,
+  buildAutonomousDemoPanelSteps,
+  pickAutonomousDemoCurrentStep,
+  type AutonomousDemoUiStepId,
+} from './autonomousDemoPhaseGuide'

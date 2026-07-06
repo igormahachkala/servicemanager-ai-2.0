@@ -2398,6 +2398,16 @@ export const ru: Messages = {
       mockPr: "Mock PR",
       handoffPrompt: "Handoff prompt для Cursor Automation"
     },
+    autonomousDemo: {
+      badge: "Autonomous Demo 098C",
+      snapshotTitle: "Demo Snapshot",
+      runButton: "Запустить первый автономный цикл (demo)",
+      runHint:
+        "Real Ollama + Runtime Report; mock Owner Approval, Cursor submit и PR — без shell, git и Cursor API.",
+      prefillTitle: "Русификация Runtime — autonomous demo",
+      prefillTask:
+        "Исправить русификацию Runtime Live, Run Task и MAX Worker Loop: проверить i18n ключи, добавить недостающие подписи Help Center для фаз цикла. Подготовить PR через Cursor Automation (mock V1)."
+    },
     toolBranch: {
       title: "Tool Branch — Cursor Automation",
       whyCursor: "Почему MAX выбрал Cursor",

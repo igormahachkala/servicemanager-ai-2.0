@@ -87,6 +87,8 @@ export type MaxWorkerLoopInput = {
   /** Default: technical_audit for MAX coding audits. */
   mode?: 'technical_audit' | 'handoff_preparation' | 'documentation'
   modelMode?: 'coding' | 'deep' | 'fast'
+  /** AI-COMPANY-098C — first autonomous demo scenario id. */
+  autonomousDemoScenarioId?: string | null
 }
 
 export type MaxWorkerLoopPhaseProgress = {
@@ -109,6 +111,7 @@ export type MaxWorkerLoopRecord = {
   reportId: string | null
   taskRunnerRecordId: string | null
   safeMode: true
+  autonomousDemoScenarioId: string | null
   createdAt: string
   updatedAt: string
   finishedAt: string | null

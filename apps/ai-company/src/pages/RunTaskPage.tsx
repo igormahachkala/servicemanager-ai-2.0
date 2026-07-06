@@ -16,7 +16,8 @@ import {
   AI_PHOTO_LAB_PROJECT_ID,
 } from '../domain/projects/aiPhotoLabIds'
 import { getOrCreateRuntimeProfile } from '../domain/runtime/runtimeStorage'
-import { MAX_WORKER_EMPLOYEE_ID, runMaxWorkerLoopV1, type MaxWorkerLoopInput } from '../domain/maxWorkerLoop'
+import { MAX_WORKER_EMPLOYEE_ID, runAutonomousDemoScenario, runMaxWorkerLoopV1, type MaxWorkerLoopInput } from '../domain/maxWorkerLoop'
+import { DEFAULT_AUTONOMOUS_DEMO_SCENARIO_ID } from '../domain/maxWorkerLoop/autonomousDemoScenario'
 import { suggestModeForEmployee, TASK_RUNNER_EMPLOYEES } from '../domain/taskRunner'
 import { useMaxWorkerLoop } from '../hooks/useMaxWorkerLoop'
 import { useTaskRunner, type TaskRunnerFormState } from '../hooks/useTaskRunner'
@@ -95,6 +96,30 @@ export function RunTaskPage() {
   const runningEffective = running || maxRunning
   const canStart = form.taskText.trim().length > 0 && !runningEffective
   const displayError = isMaxEmployee ? maxError ?? error : error
+
+  const handleAutonomousDemo = async () => {
+    setMaxRunning(true)
+    setMaxError(null)
+    patchForm({
+      employeeId: MAX_WORKER_EMPLOYEE_ID,
+      taskText: t.maxWorkerLoop.autonomousDemo.prefillTask,
+      title: t.maxWorkerLoop.autonomousDemo.prefillTitle,
+      mode: 'documentation',
+      modelMode: 'coding',
+    })
+    try {
+      const { loop } = await runAutonomousDemoScenario(DEFAULT_AUTONOMOUS_DEMO_SCENARIO_ID)
+      if (loop.runtimeRunId) {
+        setMaxLastRunId(loop.runtimeRunId)
+        navigate(`/ops/runtime/live?runId=${encodeURIComponent(loop.runtimeRunId)}`)
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Autonomous demo failed'
+      setMaxError(message)
+    } finally {
+      setMaxRunning(false)
+    }
+  }
 
   const handleStart = async () => {
     if (isMaxEmployee) {
@@ -192,9 +217,23 @@ export function RunTaskPage() {
           </Panel>
 
           {isMaxEmployee ? (
-            <p className="mcMuted" style={{ marginBottom: 12 }}>
-              {t.maxWorkerLoop.startNote}
-            </p>
+            <>
+              <p className="mcMuted" style={{ marginBottom: 12 }}>
+                {t.maxWorkerLoop.startNote}
+              </p>
+              <button
+                type="button"
+                className="mcBtn mcBtnSecondary"
+                disabled={runningEffective}
+                style={{ marginBottom: 12 }}
+                onClick={() => void handleAutonomousDemo().catch(() => undefined)}
+              >
+                {t.maxWorkerLoop.autonomousDemo.runButton}
+              </button>
+              <p className="mcMuted" style={{ marginBottom: 12, fontSize: '0.85rem' }}>
+                {t.maxWorkerLoop.autonomousDemo.runHint}
+              </p>
+            </>
           ) : null}
 
           <StartRunButton

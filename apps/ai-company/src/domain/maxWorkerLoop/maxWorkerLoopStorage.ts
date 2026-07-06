@@ -1,5 +1,6 @@
 import type { MaxWorkerLoopInput, MaxWorkerLoopPhaseProgress, MaxWorkerLoopRecord } from './maxWorkerLoop'
 import {
+  MAX_WORKER_LOOP_PHASES,
   MAX_WORKER_LOOP_SAFE_PHASES,
   MAX_WORKER_LOOP_VERSION,
   MAX_WORKER_EMPLOYEE_ID,
@@ -50,12 +51,16 @@ function parseRecord(value: unknown): MaxWorkerLoopRecord | null {
       constraints: typeof input.constraints === 'string' ? input.constraints : undefined,
       mode: input.mode as MaxWorkerLoopInput['mode'],
       modelMode: input.modelMode as MaxWorkerLoopInput['modelMode'],
+      autonomousDemoScenarioId:
+        typeof input.autonomousDemoScenarioId === 'string' ? input.autonomousDemoScenarioId : null,
     },
     deliveryTaskId: typeof value.deliveryTaskId === 'string' ? value.deliveryTaskId : null,
     runtimeRunId: typeof value.runtimeRunId === 'string' ? value.runtimeRunId : null,
     reportId: typeof value.reportId === 'string' ? value.reportId : null,
     taskRunnerRecordId: typeof value.taskRunnerRecordId === 'string' ? value.taskRunnerRecordId : null,
     safeMode: true,
+    autonomousDemoScenarioId:
+      typeof value.autonomousDemoScenarioId === 'string' ? value.autonomousDemoScenarioId : null,
     createdAt: typeof value.createdAt === 'string' ? value.createdAt : new Date().toISOString(),
     updatedAt: typeof value.updatedAt === 'string' ? value.updatedAt : new Date().toISOString(),
     finishedAt: typeof value.finishedAt === 'string' ? value.finishedAt : null,
@@ -104,8 +109,9 @@ export function getMaxWorkerLoopByRunId(runtimeRunId: string): MaxWorkerLoopReco
   return loadMaxWorkerLoopRecords().find((item) => item.runtimeRunId === runtimeRunId) ?? null
 }
 
-function buildInitialPhases(): MaxWorkerLoopPhaseProgress[] {
-  return MAX_WORKER_LOOP_SAFE_PHASES.map((phase) => ({
+function buildInitialPhases(input: MaxWorkerLoopInput): MaxWorkerLoopPhaseProgress[] {
+  const phases = input.autonomousDemoScenarioId ? MAX_WORKER_LOOP_PHASES : MAX_WORKER_LOOP_SAFE_PHASES
+  return phases.map((phase) => ({
     phase,
     status: 'pending' as const,
   }))
@@ -121,13 +127,14 @@ export function createMaxWorkerLoopRecord(input: MaxWorkerLoopInput): MaxWorkerL
     employeeId: MAX_WORKER_EMPLOYEE_ID,
     status: 'draft',
     currentPhase: 'owner_task',
-    phases: buildInitialPhases(),
+    phases: buildInitialPhases(input),
     input,
     deliveryTaskId: null,
     runtimeRunId: null,
     reportId: null,
     taskRunnerRecordId: null,
     safeMode: true,
+    autonomousDemoScenarioId: input.autonomousDemoScenarioId ?? null,
     createdAt: now,
     updatedAt: now,
     finishedAt: null,

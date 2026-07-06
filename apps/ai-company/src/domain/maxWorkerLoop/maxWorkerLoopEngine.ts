@@ -4,8 +4,13 @@ import { getRuntimeRunById } from '../runtime/runtimeOrchestrator'
 import type { RuntimeRun } from '../runtime/runtimeRun'
 import { startTaskRunner } from '../taskRunner/taskRunner'
 import { defaultExpectedOutput } from '../taskRunner/taskRunnerTemplates'
-import { buildCursorAutomationWorkflowSnapshot } from '../cursorAutomation/cursorAutomationWorkflow'
 import type { CursorAutomationWorkflowSnapshot } from '../cursorAutomation/cursorAutomationTypes'
+import { buildAutonomousDemoSnapshot, type AutonomousDemoSnapshot } from './autonomousDemoSnapshot'
+import {
+  DEFAULT_AUTONOMOUS_DEMO_SCENARIO_ID,
+  getAutonomousDemoScenario,
+  type AutonomousDemoScenarioId,
+} from './autonomousDemoScenario'
 import {
   buildKnowledgeCandidateDrafts,
   buildMaxWorkerLoopNextActions,
@@ -25,6 +30,7 @@ import {
 } from './maxWorkerLoopStorage'
 import type { OwnerApprovalGate } from './maxWorkerLoopApproval'
 import { resolveOwnerApprovalGate } from './maxWorkerLoopApproval'
+import { buildCursorAutomationWorkflowSnapshot } from '../cursorAutomation/cursorAutomationWorkflow'
 
 export type MaxWorkerLoopSnapshot = {
   loop: MaxWorkerLoopRecord
@@ -37,6 +43,12 @@ export type MaxWorkerLoopSnapshot = {
   cursorAutomation: CursorAutomationWorkflowSnapshot
 }
 
+export type MaxWorkerLoopRunResult = {
+  snapshot: MaxWorkerLoopSnapshot | null
+  loop: MaxWorkerLoopRecord
+  demoSnapshot: AutonomousDemoSnapshot | null
+}
+
 function markRunningPhases(record: MaxWorkerLoopRecord): MaxWorkerLoopRecord {
   let next = updateMaxWorkerLoopPhase(record, 'owner_task', 'done', 'Задача Owner принята')
   next = updateMaxWorkerLoopPhase(next, 'max_intake', 'active', 'Запуск через Task Runner')
@@ -44,7 +56,79 @@ function markRunningPhases(record: MaxWorkerLoopRecord): MaxWorkerLoopRecord {
   return upsertMaxWorkerLoopRecord(next)
 }
 
-function markCompletedPhases(record: MaxWorkerLoopRecord): MaxWorkerLoopRecord {
+function markAutonomousDemoCompletedPhases(
+  record: MaxWorkerLoopRecord,
+  cursor: CursorAutomationWorkflowSnapshot,
+): MaxWorkerLoopRecord {
+  const baseSteps: Array<[MaxWorkerLoopRecord['currentPhase'], string]> = [
+    ['max_intake', 'MAX принял demo-задачу Owner'],
+    ['ollama_reasoning', 'Local Ollama reasoning завершён (real)'],
+    ['analysis', 'Анализ извлечён из Runtime Report'],
+    ['plan', 'План сформирован из рекомендаций'],
+    ['runtime_report', 'Runtime Report создан (real)'],
+    ['memory_evolution_draft', 'Черновик Memory Evolution'],
+    ['knowledge_candidate_draft', 'Черновики Knowledge Candidate'],
+    ['next_actions', 'Next Actions сформированы'],
+  ]
+
+  let next = record
+  for (const [phase, detail] of baseSteps) {
+    next = updateMaxWorkerLoopPhase(next, phase, 'done', detail)
+  }
+
+  if (cursor.externalExecutorRequired) {
+    next = updateMaxWorkerLoopPhase(
+      next,
+      'tool_need_check',
+      'done',
+      cursor.needReason ?? 'Требуется Cursor Automation',
+    )
+    next = updateMaxWorkerLoopPhase(
+      next,
+      'owner_approval',
+      'done',
+      'Demo: Owner Approval зафиксирован (mock gate, без /ops/approvals UI)',
+    )
+    next = updateMaxWorkerLoopPhase(
+      next,
+      'tool_registry',
+      'done',
+      `Tool Registry · ${cursor.suggestedToolId ?? 'cursor-automation'}`,
+    )
+    next = updateMaxWorkerLoopPhase(
+      next,
+      'verification',
+      'done',
+      cursor.mockIngestion
+        ? `MAX Review · mock PR ${cursor.mockIngestion.result.pullRequest.url}`
+        : 'MAX Review mock результата',
+    )
+  } else {
+    next = updateMaxWorkerLoopPhase(next, 'tool_need_check', 'done', 'Внешний исполнитель не требуется')
+    for (const phase of ['owner_approval', 'tool_registry', 'verification'] as const) {
+      next = updateMaxWorkerLoopPhase(next, phase, 'skipped', 'Autonomous demo — tool branch не нужен')
+    }
+  }
+
+  const finishedAt = new Date().toISOString()
+  next = {
+    ...next,
+    status: 'completed',
+    currentPhase: 'next_actions',
+    finishedAt,
+    updatedAt: finishedAt,
+  }
+  return upsertMaxWorkerLoopRecord(next)
+}
+
+function markCompletedPhases(
+  record: MaxWorkerLoopRecord,
+  cursor?: CursorAutomationWorkflowSnapshot,
+): MaxWorkerLoopRecord {
+  if (record.autonomousDemoScenarioId && cursor) {
+    return markAutonomousDemoCompletedPhases(record, cursor)
+  }
+
   const steps: Array<[MaxWorkerLoopRecord['currentPhase'], string]> = [
     ['max_intake', 'MAX принял задачу'],
     ['ollama_reasoning', 'Local Ollama reasoning завершён'],
@@ -119,9 +203,7 @@ export function assembleMaxWorkerLoopSnapshot(
  * V1 safe execution: delegates to existing Task Runner + Runtime.
  * No external tools, no shell/git/docker. Builds draft snapshot on success.
  */
-export async function runMaxWorkerLoopV1(
-  input: MaxWorkerLoopInput,
-): Promise<{ snapshot: MaxWorkerLoopSnapshot | null; loop: MaxWorkerLoopRecord }> {
+export async function runMaxWorkerLoopV1(input: MaxWorkerLoopInput): Promise<MaxWorkerLoopRunResult> {
   const mode = input.mode ?? 'technical_audit'
   const modelMode = input.modelMode ?? 'coding'
 
@@ -163,23 +245,38 @@ export async function runMaxWorkerLoopV1(
           ? 'Runtime ожидает одобрения — V1 safe mode не использует approval gate.'
           : `Runtime завершился со статусом: ${run.status}`
       loop = markFailed(loop, message)
-      return { snapshot: null, loop }
+      return { snapshot: null, loop, demoSnapshot: null }
     }
 
     const report = getReportById(run.reportId)
     if (!report) {
       loop = markFailed(loop, 'Runtime Report не найден после завершения.')
-      return { snapshot: null, loop }
+      return { snapshot: null, loop, demoSnapshot: null }
     }
 
-    loop = markCompletedPhases(loop)
+    const previewSnapshot = assembleMaxWorkerLoopSnapshot(loop, run, report)
+    loop = markCompletedPhases(loop, previewSnapshot.cursorAutomation)
     const snapshot = assembleMaxWorkerLoopSnapshot(loop, run, report)
-    return { snapshot, loop }
+    const demoSnapshot = loop.autonomousDemoScenarioId
+      ? buildAutonomousDemoSnapshot(loop.autonomousDemoScenarioId, snapshot)
+      : null
+    return { snapshot, loop, demoSnapshot }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Неизвестная ошибка MAX Worker Loop'
     loop = markFailed(loop, message)
-    return { snapshot: null, loop }
+    return { snapshot: null, loop, demoSnapshot: null }
   }
+}
+
+/** AI-COMPANY-098C — first autonomous demo with full stage visibility. */
+export async function runAutonomousDemoScenario(
+  scenarioId: AutonomousDemoScenarioId = DEFAULT_AUTONOMOUS_DEMO_SCENARIO_ID,
+): Promise<MaxWorkerLoopRunResult> {
+  const scenario = getAutonomousDemoScenario(scenarioId)
+  return runMaxWorkerLoopV1({
+    ...scenario.input,
+    autonomousDemoScenarioId: scenarioId,
+  })
 }
 
 /** Rebuild snapshot for an existing completed run (e.g. Runtime History). */

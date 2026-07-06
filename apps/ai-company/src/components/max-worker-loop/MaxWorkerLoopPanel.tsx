@@ -1,4 +1,6 @@
 import { Link } from 'react-router-dom'
+import type { AutonomousDemoSnapshot } from '../../domain/maxWorkerLoop/autonomousDemoSnapshot'
+import { buildAutonomousDemoSnapshot } from '../../domain/maxWorkerLoop/autonomousDemoSnapshot'
 import { buildMaxWorkerLoopPanelView } from '../../domain/maxWorkerLoop/maxWorkerLoopViewModel'
 import type { MaxWorkerLoopSnapshot } from '../../domain/maxWorkerLoop'
 import type { MaxWorkerLoopRecord } from '../../domain/maxWorkerLoop'
@@ -8,6 +10,7 @@ import { useI18n } from '../../i18n'
 type Props = {
   loop: MaxWorkerLoopRecord | null
   snapshot?: MaxWorkerLoopSnapshot | null
+  demoSnapshot?: AutonomousDemoSnapshot | null
   compact?: boolean
   onApprovalDecision?: () => void
 }
@@ -34,7 +37,13 @@ function statusClass(status: string): string {
     .join('')
 }
 
-export function MaxWorkerLoopPanel({ loop, snapshot = null, compact = false, onApprovalDecision }: Props) {
+export function MaxWorkerLoopPanel({
+  loop,
+  snapshot = null,
+  demoSnapshot = null,
+  compact = false,
+  onApprovalDecision,
+}: Props) {
   const { t } = useI18n()
 
   if (!loop) {
@@ -52,9 +61,20 @@ export function MaxWorkerLoopPanel({ loop, snapshot = null, compact = false, onA
   }
 
   const view = buildMaxWorkerLoopPanelView(loop, snapshot)
+  const resolvedDemoSnapshot =
+    demoSnapshot ??
+    (loop.autonomousDemoScenarioId && snapshot
+      ? buildAutonomousDemoSnapshot(loop.autonomousDemoScenarioId, snapshot)
+      : null)
 
   return (
     <div className={`acMaxLoopPanel${compact ? ' acMaxLoopPanelCompact' : ''}`}>
+      {view.isAutonomousDemo && resolvedDemoSnapshot ? (
+        <div className="acMaxLoopDemoBadge">
+          <strong>{t.maxWorkerLoop.autonomousDemo.badge}</strong>
+          <span>{resolvedDemoSnapshot.scenarioTitle}</span>
+        </div>
+      ) : null}
       <div className="acMaxLoopHead">
         <div>
           <h3 className="acMaxLoopTitle">{t.maxWorkerLoop.title}</h3>
@@ -122,6 +142,28 @@ export function MaxWorkerLoopPanel({ loop, snapshot = null, compact = false, onA
           compact={compact}
           onDecision={onApprovalDecision}
         />
+      ) : null}
+
+      {resolvedDemoSnapshot && !compact ? (
+        <section className="acMaxLoopDemoSnapshot" aria-label={t.maxWorkerLoop.autonomousDemo.snapshotTitle}>
+          <h4 className="acMaxLoopDemoSnapshotTitle">{t.maxWorkerLoop.autonomousDemo.snapshotTitle}</h4>
+          <p className="mcMuted">{resolvedDemoSnapshot.scenarioSummary}</p>
+          <ul className="acMaxLoopDemoSnapshotNotes">
+            {resolvedDemoSnapshot.notes.map((note) => (
+              <li key={note}>{note}</li>
+            ))}
+          </ul>
+          {resolvedDemoSnapshot.cursorAutomation.workflowLog.length > 0 ? (
+            <ol className="acMaxLoopDemoWorkflowLog">
+              {resolvedDemoSnapshot.cursorAutomation.workflowLog.map((entry) => (
+                <li key={`${entry.at}-${entry.phase}`}>
+                  <span className="mcMono acMaxLoopDemoWorkflowPhase">{entry.phase}</span>
+                  <span>{entry.message}</span>
+                </li>
+              ))}
+            </ol>
+          ) : null}
+        </section>
       ) : null}
 
       {loop.runtimeRunId ? (

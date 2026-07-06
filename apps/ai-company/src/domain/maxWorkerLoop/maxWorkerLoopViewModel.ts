@@ -1,3 +1,8 @@
+import {
+  buildAutonomousDemoPanelSteps,
+  pickAutonomousDemoCurrentStep,
+  type AutonomousDemoUiStepId,
+} from './autonomousDemoPhaseGuide'
 import type { MaxWorkerLoopPhaseProgress, MaxWorkerLoopRecord } from './maxWorkerLoop'
 import { MAX_WORKER_LOOP_STATUS_LABELS_RU } from './maxWorkerLoop'
 import {
@@ -11,7 +16,7 @@ import type { MaxWorkerLoopSnapshot } from './maxWorkerLoopEngine'
 export type MaxWorkerLoopUiStepStatus = 'pending' | 'active' | 'done' | 'skipped' | 'failed'
 
 export type MaxWorkerLoopUiStepView = {
-  id: MaxWorkerLoopUiStepId
+  id: MaxWorkerLoopUiStepId | AutonomousDemoUiStepId
   label: string
   status: MaxWorkerLoopUiStepStatus
   completedAt: string | null
@@ -24,9 +29,10 @@ export type MaxWorkerLoopUiStepView = {
 export type MaxWorkerLoopPanelView = {
   loop: MaxWorkerLoopRecord
   statusLabel: string
-  currentStepId: MaxWorkerLoopUiStepId | null
+  currentStepId: MaxWorkerLoopUiStepId | AutonomousDemoUiStepId | null
   steps: MaxWorkerLoopUiStepView[]
   errorMessage: string | null
+  isAutonomousDemo?: boolean
 }
 
 function aggregatePhaseStatus(
@@ -92,6 +98,18 @@ export function buildMaxWorkerLoopPanelView(
   loop: MaxWorkerLoopRecord,
   snapshot: MaxWorkerLoopSnapshot | null = null,
 ): MaxWorkerLoopPanelView {
+  if (loop.autonomousDemoScenarioId) {
+    const steps = buildAutonomousDemoPanelSteps(loop, snapshot)
+    return {
+      loop,
+      statusLabel: MAX_WORKER_LOOP_STATUS_LABELS_RU[loop.status],
+      currentStepId: pickAutonomousDemoCurrentStep(steps, loop),
+      steps,
+      errorMessage: loop.errorMessage,
+      isAutonomousDemo: true,
+    }
+  }
+
   const steps: MaxWorkerLoopUiStepView[] = MAX_WORKER_LOOP_UI_STEP_IDS.map((stepId) => {
     const domainPhases = domainPhasesForUiStep(stepId)
     const progresses = loop.phases.filter((item) => domainPhases.includes(item.phase))
@@ -120,5 +138,6 @@ export function buildMaxWorkerLoopPanelView(
     currentStepId,
     steps,
     errorMessage: loop.errorMessage,
+    isAutonomousDemo: false,
   }
 }

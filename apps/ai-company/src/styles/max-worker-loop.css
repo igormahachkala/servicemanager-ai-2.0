@@ -359,3 +359,73 @@
   background: rgba(239, 68, 68, 0.08);
   color: #991b1b;
 }
+
+.acMaxLoopDemoBadge {
+  display: inline-block;
+  margin-bottom: 0.5rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  background: rgba(99, 102, 241, 0.12);
+  color: #4338ca;
+}
+
+.acMaxLoopDemoSnapshot {
+  margin-top: 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px dashed rgba(99, 102, 241, 0.35);
+  border-radius: 8px;
+  background: rgba(99, 102, 241, 0.04);
+}
+
+.acMaxLoopDemoSnapshotTitle {
+  margin: 0 0 0.65rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.acMaxLoopDemoSnapshotGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  gap: 0.5rem 1rem;
+  margin: 0;
+}
+
+.acMaxLoopDemoSnapshotGrid dt {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--mc-muted, #6b7280);
+}
+
+.acMaxLoopDemoSnapshotGrid dd {
+  margin: 0.15rem 0 0;
+  font-size: 0.85rem;
+}
+
+.acMaxLoopDemoWorkflowLog {
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.82rem;
+}
+
+.acMaxLoopDemoWorkflowLog li {
+  padding: 0.25rem 0;
+  border-bottom: 1px solid var(--mc-border, #e5e7eb);
+}
+
+.acMaxLoopDemoWorkflowLog li:last-child {
+  border-bottom: none;
+}
+
+.acMaxLoopDemoRunHint {
+  margin: 0.35rem 0 0.65rem;
+  font-size: 0.82rem;
+  color: var(--mc-muted, #6b7280);
+}
