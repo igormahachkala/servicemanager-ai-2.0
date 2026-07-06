@@ -40,7 +40,7 @@ function isAcceptanceComment(item: TimelineItem): boolean {
   return (item.payload?.source || '').toString().toLowerCase() === 'acceptance'
 }
 
-function getSystemText(item: TimelineItem, context?: TicketChatContext): string | null {
+function getSystemText(item: TimelineItem, _context?: TicketChatContext): string | null {
   const ev = getTimelineEvent(item)
 
   // Acceptance lifecycle — override backend titles with unified Russian labels
@@ -51,19 +51,8 @@ function getSystemText(item: TimelineItem, context?: TicketChatContext): string 
     return comment ? `Работа не принята: ${comment}` : 'Работа не принята'
   }
 
-  // Ticket created
-  if (ev === 'TICKET_CREATED') {
-    const createdDescription = String(
-      context?.description ?? item.payload?.description ?? item.payload?.problemText ?? '',
-    ).trim()
-    const category = String(context?.categoryName ?? item.payload?.categoryName ?? '').trim()
-    const location = String(context?.locationName ?? item.payload?.locationName ?? '').trim()
-    const lines = ['Создана заявка']
-    if (category) lines.push(`Категория: ${category}`)
-    if (location) lines.push(`Объект: ${location}`)
-    if (createdDescription) lines.push(`Описание: ${createdDescription}`)
-    return lines.join('\n')
-  }
+  // FIX-2: краткий лейбл события (детали — в закреплённой ticket-card + вкладке Инфо, не в пилюле).
+  if (ev === 'TICKET_CREATED') return 'Создана заявка'
 
   // Status changes — skip transitions covered by acceptance events
   if (ev === 'STATUS_CHANGED') {
