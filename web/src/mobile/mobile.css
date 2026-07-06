@@ -4445,6 +4445,61 @@ a.mobileBtn.mobileCreateTicketLink {
   align-items: center;
 }
 
+/* фото-сообщение (attachment_uploaded) — inline-превью в ленте */
+.mobileChatPhotoWrap {
+  max-width: 200px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.mobileChatPhotoFrame {
+  padding: 4px;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+}
+.mobileChatPhotoFrame--out {
+  background: #2563eb;
+  border-bottom-right-radius: 4px;
+}
+.mobileChatPhotoFrame--in {
+  background: #fff;
+  border: 1px solid #eef2f7;
+  border-bottom-left-radius: 4px;
+}
+.mobileChatPhotoFrame .mobilePhotoThumbLink,
+.mobileChatPhotoFrame .mobilePhotoThumbOpen {
+  display: block;
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+.mobileChatPhotoImg {
+  display: block;
+  width: 100%;
+  height: 120px;
+  object-fit: cover;
+  border-radius: 12px;
+}
+.mobileChatPhotoCap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.6rem;
+  padding: 4px 4px 1px;
+}
+.mobileChatPhotoFrame--out .mobileChatPhotoCap {
+  justify-content: flex-end;
+  color: #bfdbfe;
+}
+.mobileChatPhotoFrame--in .mobileChatPhotoCap {
+  justify-content: flex-start;
+  color: #94a3b8;
+}
+
 /* ── Filter panel redesign ───────────────────────────────── */
 .mobileFiltersPanel {
   background: #fff;

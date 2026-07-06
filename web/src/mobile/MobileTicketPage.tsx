@@ -40,7 +40,7 @@ import {
 import { CategoryGuidancePanel } from '../components/CategoryGuidancePanel'
 import { MobileBoardClaimFallbackHint, MobileClaimReasonHintBox } from './MobileUxHints'
 import { TicketCloseModal, type TicketCloseModalState } from './home/HomeList'
-import { mobileAttachmentLabel } from './MobileAttachmentThumb'
+import { MobileAttachmentThumb, mobileAttachmentLabel } from './MobileAttachmentThumb'
 import { toChatMessages } from '../lib/ticketChat'
 import { FullscreenPhotoViewer, type PhotoViewerItem } from '../components/FullscreenPhotoViewer'
 import { MobileTicketPhotoGallery } from './MobileTicketPhotoGallery'
@@ -971,6 +971,22 @@ export function MobileTicketPage() {
     setReportPhotoIndex(idx)
   }
 
+  // Часть 2a: матч фото-события ленты к загруженному вложению по attachmentId.
+  const attachmentsById = useMemo(() => {
+    const map = new Map<string, api.TicketAttachmentItem>()
+    for (const a of attachmentsQ.data || []) map.set(a.id, a)
+    return map
+  }, [attachmentsQ.data])
+
+  // Тап по фото в ленте открывает тот же FullscreenPhotoViewer, что и вкладка Фото.
+  function openChatPhoto(att: api.TicketAttachmentItem) {
+    const src = api.resolveTicketAttachmentUrl(att)
+    const ri = reportImages.findIndex((a) => a.id === att.id)
+    if (ri >= 0) return openReportPhoto(ri, src)
+    const qi = requestImages.findIndex((a) => a.id === att.id)
+    if (qi >= 0) return openRequestPhoto(qi, src)
+  }
+
   const executorLine = ticket
     ? (() => {
         if (!ticket.assignedTechnician) return 'Не назначен'
@@ -1700,6 +1716,47 @@ export function MobileTicketPage() {
                   {chatMessages.map((msg) => {
                     const timeStr = new Date(msg.at).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
                     if (msg.kind === 'system') {
+                      return (
+                        <div className="mobileChatSysRow" key={msg.id}>
+                          <span className="mobileChatSysPill">{msg.text} · {timeStr}</span>
+                        </div>
+                      )
+                    }
+                    if (msg.kind === 'photo') {
+                      const att = msg.attachmentId ? attachmentsById.get(msg.attachmentId) : undefined
+                      if (att && isImageAttachment(att)) {
+                        if (msg.isOwn) {
+                          return (
+                            <div className="mobileChatMsgRow mobileChatMsgRow--out" key={msg.id}>
+                              <div className="mobileChatPhotoWrap">
+                                <div className="mobileChatPhotoFrame mobileChatPhotoFrame--out">
+                                  <MobileAttachmentThumb attachment={att} className="mobileChatPhotoImg" onOpenPreview={() => openChatPhoto(att)} />
+                                  <div className="mobileChatPhotoCap">
+                                    {timeStr}
+                                    <span className="mobileChatChecks" aria-hidden>
+                                      <svg width="14" height="9" viewBox="0 0 18 11" fill="currentColor"><path d="M1 5l4 4L14 1m2 0l-7 8-2-2" /></svg>
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        }
+                        const photoAuthor = msg.authorEmail ? msg.authorEmail.split('@')[0] : 'система'
+                        return (
+                          <div className="mobileChatMsgRow mobileChatMsgRow--in" key={msg.id}>
+                            <span className="mobileChatAvatar" aria-hidden>{(photoAuthor[0] || '?').toUpperCase()}</span>
+                            <div className="mobileChatPhotoWrap">
+                              <div className="mobileChatAuthorName">{photoAuthor}</div>
+                              <div className="mobileChatPhotoFrame mobileChatPhotoFrame--in">
+                                <MobileAttachmentThumb attachment={att} className="mobileChatPhotoImg" onOpenPreview={() => openChatPhoto(att)} />
+                                <div className="mobileChatPhotoCap">{timeStr}</div>
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      }
+                      // fallback: превью не найдено / не изображение → текстовая system-пилюля
                       return (
                         <div className="mobileChatSysRow" key={msg.id}>
                           <span className="mobileChatSysPill">{msg.text} · {timeStr}</span>

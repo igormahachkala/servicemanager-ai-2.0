@@ -7,7 +7,9 @@ export type ChatMessage = {
   authorId: string | null
   authorEmail: string | null
   isOwn: boolean
-  kind: 'comment' | 'system'
+  kind: 'comment' | 'system' | 'photo'
+  /** Для kind==='photo' — id вложения (TicketAttachment) для inline-превью в ленте. */
+  attachmentId?: string | null
 }
 
 export type TicketChatContext = {
@@ -83,15 +85,34 @@ function getSystemText(item: TimelineItem, context?: TicketChatContext): string 
 
 export function toChatMessages(items: TimelineItem[], meUserId: string, context?: TicketChatContext): ChatMessage[] {
   const seenStatusKeys = new Set<string>()
+  const seenAttachmentIds = new Set<string>()
 
   return items.reduce<ChatMessage[]>((acc, item, idx) => {
     // Rejection comment is shown inline in the TICKET_REJECTED system event — skip separate message
     if (isAcceptanceComment(item)) return acc
 
+    const ev = getTimelineEvent(item)
     const systemText = getSystemText(item, context)
     if (systemText !== null) {
+      // Photo upload → фото-сообщение с inline-превью (матч по attachmentId; текст — fallback, если превью не найдётся)
+      if (ev === 'TICKET_ATTACHMENT_UPLOADED' && item.payload?.attachmentId) {
+        const attachmentId = String(item.payload.attachmentId)
+        if (seenAttachmentIds.has(attachmentId)) return acc
+        seenAttachmentIds.add(attachmentId)
+        acc.push({
+          id: `${item.at}-${idx}-photo`,
+          at: item.at,
+          text: systemText,
+          authorId: item.actor?.id ?? null,
+          authorEmail: item.actor?.email ?? null,
+          isOwn: !!meUserId && item.actor?.id === meUserId,
+          kind: 'photo',
+          attachmentId,
+        })
+        return acc
+      }
       // Deduplicate STATUS_CHANGED pairs (history row + domain event share the same transition)
-      if (getTimelineEvent(item) === 'STATUS_CHANGED') {
+      if (ev === 'STATUS_CHANGED') {
         const from = (item.payload?.fromStatus as string | undefined | null) ?? ''
         const to = (item.payload?.toStatus as string | undefined | null) ?? ''
         const key = `${item.at.slice(0, 19)}|${from}|${to}`
