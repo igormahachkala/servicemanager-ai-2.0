@@ -33,6 +33,8 @@ web/.vite/
 coverage/
 .tmp/
 .cache/
+.qa-tmp/
+graphify-out/
 
 # local docker temp
 .docker-tmp/
