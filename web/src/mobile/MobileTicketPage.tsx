@@ -1708,18 +1708,28 @@ export function MobileTicketPage() {
           {/* ── Chat tab ─────────────────────────────────────── */}
           {detailTab === 'chat' ? (
             <div className="mobileCard mobileTicketChatCard">
-              {/* Ticket info summary — first pinned message */}
-              <div className="mobileChatsSystemRow" style={{ marginBottom: 8 }}>
-                <div className="mobileChatsSystemPill" style={{ textAlign: 'left', maxWidth: '100%', padding: '10px 14px' }}>
-                  <div style={{ fontWeight: 700, marginBottom: 4, color: '#374151' }}>
-                    {mobileTicketNumberTitle(ticket.ticketNumber)} · {mobileTicketStatusLabelRu(ticket.status)}
+              {/* FIX-4: закреплённая white ticket-card (Figma ChatTab kind==='ticket-card') */}
+              <div className="mobileTicketChatPinnedCard">
+                <div className="mobileTicketChatPinnedIcon" aria-hidden>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 5H7a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2V7a2 2 0 0 0 -2 -2h-2" />
+                    <path d="M9 3m0 2a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v0a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2z" />
+                  </svg>
+                </div>
+                <div className="mobileTicketChatPinnedBody">
+                  <div className="mobileTicketChatPinnedTitleRow">
+                    <span className="mobileTicketChatPinnedTitle">
+                      {mobileTicketNumberTitle(ticket.ticketNumber)}{ticket.problemCategory?.name ? ` · ${ticket.problemCategory.name}` : ''}
+                    </span>
+                    {mobileTicketPriorityIsUrgent(ticket.priority ?? 'NORMAL') ? (
+                      <span className="mobileTicketChatPinnedUrgent">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden><path d="M13 3l0 7l6 0l-8 11l0 -7l-6 0z" /></svg>
+                        Срочная
+                      </span>
+                    ) : null}
                   </div>
-                  <div style={{ fontSize: '0.85rem', color: '#6b7280', marginBottom: 2 }}>{desc}</div>
-                  {ticket.problemCategory?.name ? <div style={{ fontSize: '0.8rem', color: '#9ca3af' }}>Категория: {ticket.problemCategory.name}</div> : null}
-                  <div style={{ fontSize: '0.8rem', color: '#9ca3af' }}>Объект: {ticket.location?.name || ticket.pointName || '—'}</div>
-                  <div style={{ fontSize: '0.8rem', color: '#9ca3af' }}>
-                    Создана: {new Date(ticket.createdAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                  </div>
+                  <div className="mobileTicketChatPinnedLine"><span className="mobileTicketChatPinnedLabel">Проблема:</span> {desc}</div>
+                  <div className="mobileTicketChatPinnedLine"><span className="mobileTicketChatPinnedLabel">Объект:</span> {ticket.location?.name || ticket.pointName || '—'}</div>
                 </div>
               </div>
               {timelineQ.isLoading ? <div className="mobileMeta">Загрузка…</div> : null}

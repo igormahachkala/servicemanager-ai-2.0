@@ -4355,6 +4355,65 @@ a.mobileBtn.mobileCreateTicketLink {
   min-height: 280px;
 }
 
+/* FIX-4: закреплённая white ticket-card в начале ленты Чата (Figma ChatTab kind==='ticket-card') */
+.mobileTicketChatPinnedCard {
+  display: flex;
+  gap: 12px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.06);
+  padding: 12px;
+  margin-bottom: 8px;
+}
+.mobileTicketChatPinnedIcon {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: #ede9fe;
+  color: #7c3aed;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.mobileTicketChatPinnedBody {
+  flex: 1;
+  min-width: 0;
+}
+.mobileTicketChatPinnedTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.mobileTicketChatPinnedTitle {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #1e293b;
+}
+.mobileTicketChatPinnedUrgent {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #b45309;
+  background: #fef3c7;
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+.mobileTicketChatPinnedLine {
+  font-size: 0.78rem;
+  color: #475569;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.mobileTicketChatPinnedLabel {
+  color: #94a3b8;
+}
+
 /* Figma ChatTab (Telegram-style лента) */
 .mobileTicketChatMessages {
   flex: 1;
