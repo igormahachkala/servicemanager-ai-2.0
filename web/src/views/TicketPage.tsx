@@ -19,6 +19,7 @@ import { toChatMessages } from '../lib/ticketChat'
 import { resolveAdminProfile } from '../lib/resolveAdminProfile'
 import {
   TicketActionsPanel,
+  TicketAcceptancePanel,
   TicketAssignmentPanel,
   TicketChatPanel,
   TicketChildCreateForm,
@@ -1088,54 +1089,17 @@ export function TicketPage() {
       <TicketSlaPanel ticket={ticket ?? null} slaState={slaState} />
 
       {isAwaitingAcceptanceClient && ticket ? (
-        <div className="panel uiCard" style={{ marginBottom: 12, borderColor: '#fdba74', background: '#fff7ed' }}>
-          <h3 style={{ marginBottom: 8 }}>Приёмка работы</h3>
-          <div className="muted small" style={{ marginBottom: 10, lineHeight: 1.5 }}>
-            Техник отметил работу как завершённую. Проверьте результат и примите заявку либо верните её в работу с комментарием.
-          </div>
-          <div className="form">
-            <label>
-              Комментарий при отказе
-              <textarea
-                value={acceptanceComment}
-                onChange={(e) => setAcceptanceComment(e.target.value)}
-                rows={3}
-                placeholder="Объясните, что нужно исправить. Обязательно при отказе."
-                disabled={acceptanceM.isPending}
-              />
-            </label>
-            <label>
-              Фото при отказе / приёмке (необязательно)
-              <input
-                ref={acceptanceFileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleAcceptanceFileChange}
-                disabled={acceptanceM.isPending}
-              />
-              <div className="muted small" style={{ marginTop: 6 }}>
-                Можно приложить фото результата. При приёмке фото не обязательно.
-              </div>
-            </label>
-            <div className="uiActions">
-              <button
-                onClick={() => acceptanceM.mutate('ACCEPT')}
-                disabled={acceptanceM.isPending}
-              >
-                {acceptanceM.isPending ? 'Сохраняем…' : 'Принять работу'}
-              </button>
-              <button
-                className="ghost"
-                onClick={() => acceptanceM.mutate('REJECT')}
-                disabled={acceptanceM.isPending || !acceptanceComment.trim()}
-                title={!acceptanceComment.trim() ? 'Комментарий обязателен при отказе' : undefined}
-              >
-                {acceptanceM.isPending ? 'Сохраняем…' : 'Не принять работу'}
-              </button>
-            </div>
-          </div>
-          <InlineError message={acceptanceFileError || statusError} />
-        </div>
+        <TicketAcceptancePanel
+          comment={acceptanceComment}
+          onCommentChange={setAcceptanceComment}
+          inputRef={acceptanceFileInputRef}
+          onFileChange={handleAcceptanceFileChange}
+          pending={acceptanceM.isPending}
+          canReject={!acceptanceM.isPending && !!acceptanceComment.trim()}
+          onAccept={() => acceptanceM.mutate('ACCEPT')}
+          onReject={() => acceptanceM.mutate('REJECT')}
+          errorMessage={acceptanceFileError || statusError}
+        />
       ) : null}
 
       {ticket ? (
