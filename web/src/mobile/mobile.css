@@ -5386,7 +5386,8 @@ a.mobileBtn.mobileCreateTicketLink {
   gap: 8px;
 }
 .mobileTicketActionsTrigger {
-  margin-left: auto;
+  flex: 0 0 auto;
+  width: 40px;
   border: 1px solid #e5e7eb;
   background: #fff;
   border-radius: 10px;
@@ -5399,6 +5400,42 @@ a.mobileBtn.mobileCreateTicketLink {
   -webkit-tap-highlight-color: transparent;
 }
 .mobileTicketActionsTrigger:active { background: #f3f4f6; }
+
+/* FIX-3: идентити заявки в шапке (номер + статус + категория·объект) — Figma WorkspaceScreen */
+.mobileTicketHeaderInfo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.mobileTicketHeaderTop {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.mobileTicketHeaderNumber {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #0f172a;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.mobileTicketHeaderTop .mobileTicketStatus {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mobileTicketHeaderSub {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .mobileSheetBackdrop {
   position: fixed;

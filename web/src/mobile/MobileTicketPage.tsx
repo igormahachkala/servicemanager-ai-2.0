@@ -1171,6 +1171,18 @@ export function MobileTicketPage() {
           </svg>
         </Link>
         {ticket ? (
+          <div className="mobileTicketHeaderInfo">
+            <div className="mobileTicketHeaderTop">
+              <span className="mobileTicketHeaderNumber">{mobileTicketNumberTitle(ticket.ticketNumber)}</span>
+              <span className={`mobileTicketStatus mobileTicketStatus--${ticket.status}`}>{mobileTicketStatusLabelRu(ticket.status)}</span>
+            </div>
+            {(() => {
+              const sub = [ticket.problemCategory?.name, ticket.location?.name || ticket.pointName].map((s) => (s || '').trim()).filter(Boolean).join(' · ')
+              return sub ? <div className="mobileTicketHeaderSub">{sub}</div> : null
+            })()}
+          </div>
+        ) : null}
+        {ticket ? (
           <button
             type="button"
             className="mobileTicketActionsTrigger"
