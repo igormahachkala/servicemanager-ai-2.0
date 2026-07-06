@@ -72,3 +72,45 @@ export {
   type CursorAutomationOwnerApprovalRecord,
   type CursorAutomationOwnerApprovalStatus,
 } from './cursorAutomationOwnerApproval'
+
+export type {
+  CursorAutomationAdapterRunRecord,
+  CursorAutomationAdapterRunStatus,
+  CursorAutomationAdapterSubmitResult,
+  CursorAutomationCancelResult,
+  CursorAutomationIngestAdapterInput,
+  CursorAutomationIngestAdapterResult,
+  CursorAutomationRawPrPayload,
+  CursorAutomationRawResultPayload,
+  CursorAutomationRuntimeReportPatch,
+  CursorAutomationServiceAdapter,
+  CursorAutomationServiceAdapterKind,
+  CursorAutomationStatusResult,
+  CursorAutomationSubmitInput,
+} from './cursorAutomationServiceAdapterTypes'
+export {
+  canCancelAdapterRun,
+  canSubmitAdapterRun,
+  CURSOR_AUTOMATION_ADAPTER_CONTRACT_VERSION,
+  CURSOR_AUTOMATION_ADAPTER_KINDS,
+  CURSOR_AUTOMATION_ADAPTER_RUN_STATUSES,
+  isTerminalAdapterRunStatus,
+  mapAdapterStatusToPersistenceHint,
+} from './cursorAutomationServiceAdapterTypes'
+export {
+  buildNormalizedAutomationResult,
+  extractPrFromRawPayload,
+  mapPrToRuntimeReportPatch,
+  mapResultToCursorRulesCandidates,
+  mapResultToMemoryEvolutionHints,
+  normalizeRawPrPayload,
+} from './cursorAutomationServiceAdapterMappers'
+export {
+  createCursorAutomationServiceAdapterMock,
+  CURSOR_AUTOMATION_ADAPTER_MOCK_SYNC_EVENT,
+  getCursorAutomationAdapterRunById,
+  getCursorAutomationServiceAdapterMock,
+  listCursorAutomationAdapterRuns,
+  markCursorAutomationAdapterRunReady,
+  resetCursorAutomationServiceAdapterMockForTests,
+} from './cursorAutomationServiceAdapterMock'
