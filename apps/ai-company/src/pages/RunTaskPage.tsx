@@ -1,6 +1,7 @@
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   EmployeeSelector,
+  MaxOwnerCommandPanel,
   ProjectSelector,
   RuntimeModelModeSelector,
   StartRunButton,
@@ -16,7 +17,17 @@ import {
   AI_PHOTO_LAB_PROJECT_ID,
 } from '../domain/projects/aiPhotoLabIds'
 import { getOrCreateRuntimeProfile } from '../domain/runtime/runtimeStorage'
-import { MAX_WORKER_EMPLOYEE_ID, runAutonomousDemoScenario, runMaxWorkerLoopV1, type MaxWorkerLoopInput } from '../domain/maxWorkerLoop'
+import {
+  MAX_WORKER_EMPLOYEE_ID,
+  runAutonomousDemoScenario,
+  runMaxWorkerLoopV1,
+  type MaxWorkerLoopInput,
+} from '../domain/maxWorkerLoop'
+import {
+  getMaxOwnerCommandTemplate,
+  isMaxOwnerCommandTemplateId,
+  type MaxOwnerCommandTemplateId,
+} from '../domain/maxWorkerLoop/maxOwnerCommandTemplates'
 import { DEFAULT_AUTONOMOUS_DEMO_SCENARIO_ID } from '../domain/maxWorkerLoop/autonomousDemoScenario'
 import { suggestModeForEmployee, TASK_RUNNER_EMPLOYEES } from '../domain/taskRunner'
 import { useMaxWorkerLoop } from '../hooks/useMaxWorkerLoop'
@@ -24,7 +35,7 @@ import { useTaskRunner, type TaskRunnerFormState } from '../hooks/useTaskRunner'
 import { PageHeader, Panel } from '../mission-control/components/ui'
 import { PageGuideCard } from '../components/guided'
 import { useI18n } from '../i18n'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 function toMaxLoopMode(mode: TaskRunnerFormState['mode']): NonNullable<MaxWorkerLoopInput['mode']> {
   if (mode === 'technical_audit' || mode === 'handoff_preparation' || mode === 'documentation') {
@@ -42,6 +53,10 @@ function toMaxLoopModelMode(
   return 'coding'
 }
 
+function buildMaxLiveUrl(runId: string): string {
+  return `/ops/runtime/live?runId=${encodeURIComponent(runId)}&focus=maxLoop`
+}
+
 export function RunTaskPage() {
   const { t } = useI18n()
   const navigate = useNavigate()
@@ -49,6 +64,7 @@ export function RunTaskPage() {
   const [maxRunning, setMaxRunning] = useState(false)
   const [maxError, setMaxError] = useState<string | null>(null)
   const [maxLastRunId, setMaxLastRunId] = useState<string | null>(null)
+  const [activeTemplateId, setActiveTemplateId] = useState<MaxOwnerCommandTemplateId | null>(null)
 
   const initial = useMemo(() => {
     const employeeId = searchParams.get('employee')
@@ -97,6 +113,47 @@ export function RunTaskPage() {
   const canStart = form.taskText.trim().length > 0 && !runningEffective
   const displayError = isMaxEmployee ? maxError ?? error : error
 
+  const applyOwnerTemplate = (templateId: MaxOwnerCommandTemplateId) => {
+    const template = getMaxOwnerCommandTemplate(templateId)
+    setActiveTemplateId(templateId)
+    patchForm({
+      employeeId: MAX_WORKER_EMPLOYEE_ID,
+      taskText: template.input.taskText,
+      title: template.input.title ?? '',
+      mode: template.input.mode ?? 'technical_audit',
+      modelMode: template.input.modelMode ?? 'coding',
+      projectId: template.input.projectId ?? form.projectId,
+      workspaceId: template.input.workspaceId ?? form.workspaceId,
+      priority: template.input.priority ?? form.priority,
+      expectedOutput: template.input.expectedOutput ?? '',
+      constraints: template.input.constraints ?? '',
+    })
+  }
+
+  useEffect(() => {
+    const templateParam = searchParams.get('template')
+    if (!templateParam || !isMaxOwnerCommandTemplateId(templateParam)) return
+    const template = getMaxOwnerCommandTemplate(templateParam)
+    setActiveTemplateId(templateParam)
+    patchForm({
+      employeeId: MAX_WORKER_EMPLOYEE_ID,
+      taskText: template.input.taskText,
+      title: template.input.title ?? '',
+      mode: template.input.mode ?? 'technical_audit',
+      modelMode: template.input.modelMode ?? 'coding',
+      projectId: template.input.projectId ?? form.projectId,
+      workspaceId: template.input.workspaceId ?? form.workspaceId,
+      priority: template.input.priority ?? form.priority,
+      expectedOutput: template.input.expectedOutput ?? '',
+      constraints: template.input.constraints ?? '',
+    })
+  }, [searchParams])
+
+  const handleEnterMaxMode = () => {
+    setEmployeeId(MAX_WORKER_EMPLOYEE_ID)
+    setModelMode('coding')
+  }
+
   const handleAutonomousDemo = async () => {
     setMaxRunning(true)
     setMaxError(null)
@@ -111,7 +168,7 @@ export function RunTaskPage() {
       const { loop } = await runAutonomousDemoScenario(DEFAULT_AUTONOMOUS_DEMO_SCENARIO_ID)
       if (loop.runtimeRunId) {
         setMaxLastRunId(loop.runtimeRunId)
-        navigate(`/ops/runtime/live?runId=${encodeURIComponent(loop.runtimeRunId)}`)
+        navigate(buildMaxLiveUrl(loop.runtimeRunId))
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Autonomous demo failed'
@@ -139,7 +196,7 @@ export function RunTaskPage() {
         })
         if (loop.runtimeRunId) {
           setMaxLastRunId(loop.runtimeRunId)
-          navigate(`/ops/runtime/live?runId=${encodeURIComponent(loop.runtimeRunId)}`)
+          navigate(buildMaxLiveUrl(loop.runtimeRunId))
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'MAX Worker Loop failed'
@@ -175,6 +232,19 @@ export function RunTaskPage() {
       <PageGuideCard pageId="runTask" />
 
       <p className="mcTaskRunnerIntro">{t.taskRunner.intro}</p>
+
+      <Panel title={t.maxOwnerCommand.panelTitle}>
+        <div className="mcProfilePanelBody">
+          <MaxOwnerCommandPanel
+            profile={profile}
+            modelMode={form.modelMode}
+            activeTemplateId={activeTemplateId}
+            isMaxMode={isMaxEmployee}
+            onEnterMaxMode={handleEnterMaxMode}
+            onApplyTemplate={applyOwnerTemplate}
+          />
+        </div>
+      </Panel>
 
       <div className="mcTaskRunnerLayout">
         <div className="mcTaskRunnerMain">
@@ -239,6 +309,8 @@ export function RunTaskPage() {
           <StartRunButton
             disabled={!canStart}
             running={runningEffective}
+            startLabel={isMaxEmployee ? t.maxOwnerCommand.startMax : undefined}
+            startNote={isMaxEmployee ? t.maxOwnerCommand.startMaxNote : undefined}
             onStart={() => void handleStart().catch(() => undefined)}
           />
           {displayError ? <p className="mcRuntimeExecutionError">{displayError}</p> : null}

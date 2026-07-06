@@ -59,6 +59,17 @@ export function RuntimeLivePage() {
     if (runId) setSelectedRunId(runId)
   }, [searchParams])
 
+  useEffect(() => {
+    if (searchParams.get('focus') !== 'maxLoop') return
+    const timer = window.setTimeout(() => {
+      document.getElementById('max-worker-loop-panel')?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'start',
+      })
+    }, 120)
+    return () => window.clearTimeout(timer)
+  }, [searchParams, selectedRunId])
+
   const monitor = useLiveRuntimeMonitor(selectedRunId)
   const isMaxContext =
     monitor.monitoredRun?.employeeId === MAX_WORKER_EMPLOYEE_ID ||
@@ -241,7 +252,7 @@ export function RuntimeLivePage() {
       </Panel>
 
       {isMaxContext ? (
-        <Panel title={t.maxWorkerLoop.sectionTitle}>
+        <Panel title={t.maxWorkerLoop.sectionTitle} id="max-worker-loop-panel">
           <div className="mcProfilePanelBody">
             <MaxWorkerLoopPanel
               loop={maxLoop}

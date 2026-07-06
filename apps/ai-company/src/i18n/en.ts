@@ -2411,6 +2411,83 @@ export const en = {
       report: 'Report',
     },
   },
+  maxOwnerCommand: {
+    panelTitle: 'Owner Command — MAX',
+    modeBadge: 'MAX mode',
+    modeTitle: 'Run MAX employee',
+    modeDescription:
+      'Owner assigns a task to MAX and sees what happens before Start: Ollama model, Cursor, Owner Approval, Memory and Knowledge.',
+    enterMaxMode: 'Select MAX',
+    enterMaxModeHint: 'Click Select MAX to open templates and Worker Loop explanation.',
+    explainTitle: 'What happens next',
+    templatesTitle: 'Quick task templates',
+    templatesHint: 'A template fills the form — edit the text before launch if needed.',
+    afterLaunch:
+      'After launch you land on Runtime Live focused on MAX Worker Loop: cycle phases, Tool Branch and Owner Approval.',
+    startMax: 'Start MAX',
+    startMaxNote:
+      'Creates MAX Worker Loop V1, runtime run, Runtime Report and Memory/Knowledge drafts; navigates to Live.',
+    explain: {
+      whatMaxDoes: {
+        title: 'What MAX will do',
+        body:
+          'MAX runs Worker Loop: Ollama task analysis → reasoning → Runtime Report → Memory/Knowledge drafts. When needed — Tool Branch with Cursor Automation (mock V1).',
+      },
+      model: {
+        title: 'Which model',
+        body:
+          'Ollama · mode {mode} · {catalog} → tag {model}. MAX is locked to the coding route (qwen2.5-coder:7b).',
+      },
+      cursor: {
+        title: 'When Cursor is needed',
+        body:
+          'If the task needs code changes, a PR or an external executor — MAX opens Tool Branch and prepares handoff for Cursor Automation. No submit until Owner Approval.',
+      },
+      ownerApproval: {
+        title: 'Owner Approval',
+        body:
+          'Required for Cursor Automation and other external tools: Approve/Reject in MAX Worker Loop or Approvals page. Without approval — reasoning and report only.',
+      },
+      memory: {
+        title: 'Memory',
+        body:
+          'After the cycle MAX saves draft Memory Evolution: lessons, findings and mistakes from Runtime Report — employee-scoped store (localStorage).',
+      },
+      knowledge: {
+        title: 'Knowledge',
+        body:
+          'Knowledge Base candidates: structured findings, glossary and runbook fragments from the report. Owner decides what to promote to project knowledge.',
+      },
+    },
+    templates: {
+      runtimeRuI18n: {
+        title: 'Check Runtime Russian i18n',
+        summary: 'i18n audit for Run Task, Live, Worker Loop and Help Center.',
+      },
+      screenQa: {
+        title: 'QA the screen',
+        summary: 'UX/copy checklist for Owner Command and Live navigation.',
+      },
+      findMocks: {
+        title: 'Find mock data',
+        summary: 'Real vs mock map: demo, Cursor stub, adapters.',
+      },
+      cursorHandoff: {
+        title: 'Prepare task for Cursor',
+        summary: 'Handoff prompt, file scope and expected PR for Tool Branch.',
+      },
+      reportNextStep: {
+        title: 'Review report and suggest next step',
+        summary: 'Review latest Runtime Report and 1–3 next actions.',
+      },
+    },
+    hints: {
+      cursor: 'Cursor',
+      ownerApproval: 'Owner Approval',
+      memory: 'Memory',
+      knowledge: 'Knowledge',
+    },
+  },
   maxWorkerLoop: {
     title: 'MAX Worker Loop',
     subtitle: 'MAX digital employee work process — real phases only, no fake progress.',

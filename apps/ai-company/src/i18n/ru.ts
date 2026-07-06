@@ -2367,6 +2367,83 @@ export const ru: Messages = {
       report: "Отчёт"
     }
   },
+  maxOwnerCommand: {
+    panelTitle: "Owner Command — MAX",
+    modeBadge: "Режим MAX",
+    modeTitle: "Запустить сотрудника MAX",
+    modeDescription:
+      "Owner быстро ставит задачу MAX и видит, что произойдёт до нажатия «Запустить MAX»: модель Ollama, Cursor, Owner Approval, Memory и Knowledge.",
+    enterMaxMode: "Выбрать MAX",
+    enterMaxModeHint: "Нажмите «Выбрать MAX», чтобы открыть шаблоны и объяснение цикла Worker Loop.",
+    explainTitle: "Что будет дальше",
+    templatesTitle: "Быстрые шаблоны задач",
+    templatesHint: "Шаблон заполнит форму — при необходимости отредактируйте текст перед запуском.",
+    afterLaunch:
+      "После запуска откроется Runtime Live с фокусом на MAX Worker Loop: фазы цикла, Tool Branch и Owner Approval.",
+    startMax: "Запустить MAX",
+    startMaxNote:
+      "Создаёт MAX Worker Loop V1, runtime run, Runtime Report и черновики Memory/Knowledge; переход в Live.",
+    explain: {
+      whatMaxDoes: {
+        title: "Что сделает MAX",
+        body:
+          "MAX пройдёт Worker Loop: анализ задачи через Ollama → reasoning → Runtime Report → черновики Memory/Knowledge. При необходимости — Tool Branch с Cursor Automation (mock V1).",
+      },
+      model: {
+        title: "Какая модель",
+        body:
+          "Ollama · режим {mode} · {catalog} → тег {model}. MAX закреплён за coding-маршрутом (qwen2.5-coder:7b).",
+      },
+      cursor: {
+        title: "Когда понадобится Cursor",
+        body:
+          "Если задача требует правок в коде, PR или внешнего исполнителя — MAX откроет Tool Branch и подготовит handoff для Cursor Automation. До Owner Approval submit не выполняется.",
+      },
+      ownerApproval: {
+        title: "Owner Approval",
+        body:
+          "Требуется при вызове Cursor Automation и других внешних инструментов: Approve/Reject в MAX Worker Loop или на странице Approvals. Без approve — только reasoning и отчёт.",
+      },
+      memory: {
+        title: "Memory",
+        body:
+          "После цикла MAX сохранит draft Memory Evolution: уроки, findings и mistakes из Runtime Report — в employee-scoped store (localStorage).",
+      },
+      knowledge: {
+        title: "Knowledge",
+        body:
+          "Кандидаты в Knowledge Base: structured findings, glossary и runbook-фрагменты из отчёта. Owner решает, что промote в project knowledge.",
+      },
+    },
+    templates: {
+      runtimeRuI18n: {
+        title: "Проверить русификацию Runtime",
+        summary: "i18n audit Run Task, Live, Worker Loop и Help Center.",
+      },
+      screenQa: {
+        title: "Провести QA экрана",
+        summary: "UX/copy чек-лист Owner Command и перехода в Live.",
+      },
+      findMocks: {
+        title: "Найти mock-данные",
+        summary: "Карта real vs mock: demo, Cursor stub, adapters.",
+      },
+      cursorHandoff: {
+        title: "Подготовить задачу для Cursor",
+        summary: "Handoff prompt, scope файлов и expected PR для Tool Branch.",
+      },
+      reportNextStep: {
+        title: "Проверить отчёт и предложить следующий шаг",
+        summary: "Review последнего Runtime Report и 1–3 next actions.",
+      },
+    },
+    hints: {
+      cursor: "Cursor",
+      ownerApproval: "Owner Approval",
+      memory: "Memory",
+      knowledge: "Knowledge",
+    },
+  },
   maxWorkerLoop: {
     title: "MAX Worker Loop",
     subtitle: "Процесс работы цифрового сотрудника MAX — без fake progress, только реальные фазы.",

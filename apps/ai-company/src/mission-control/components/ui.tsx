@@ -55,9 +55,14 @@ export function capFillClass(pct: number): string {
   return 'mcCapFill'
 }
 
-export function Panel(props: { title: string; right?: React.ReactNode; children: React.ReactNode }) {
+export function Panel(props: {
+  title: string
+  right?: React.ReactNode
+  children: React.ReactNode
+  id?: string
+}) {
   return (
-    <div className="mcPanel">
+    <div className="mcPanel" id={props.id}>
       <div className="mcPanelHeader">
         <span className="mcPanelTitle">{props.title}</span>
         {props.right}

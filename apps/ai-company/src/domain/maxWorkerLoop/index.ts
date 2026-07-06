@@ -94,3 +94,16 @@ export {
   pickAutonomousDemoCurrentStep,
   type AutonomousDemoUiStepId,
 } from './autonomousDemoPhaseGuide'
+
+export type {
+  MaxOwnerCommandTemplate,
+  MaxOwnerCommandTemplateHints,
+  MaxOwnerCommandTemplateId,
+} from './maxOwnerCommandTemplates'
+export {
+  MAX_OWNER_COMMAND_TEMPLATE_IDS,
+  MAX_OWNER_COMMAND_TEMPLATES,
+  getMaxOwnerCommandTemplate,
+  isMaxOwnerCommandTemplateId,
+  listMaxOwnerCommandTemplates,
+} from './maxOwnerCommandTemplates'
