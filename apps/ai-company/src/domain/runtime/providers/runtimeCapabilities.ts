@@ -1,4 +1,6 @@
-export const OLLAMA_DEFAULT_BASE_URL = 'http://194.67.92.12:11434'
+import { OLLAMA_LOCALHOST_ENDPOINT } from './ollamaSourceMode'
+
+export const OLLAMA_DEFAULT_BASE_URL = OLLAMA_LOCALHOST_ENDPOINT
 
 export const OLLAMA_DEFAULT_MODEL_TAG = 'qwen3.6:27b'
 

@@ -1,16 +1,52 @@
+import { getDefaultOllamaSettingsFromEnv } from '../../../config/environment'
+import { OLLAMA_DEFAULT_MODEL_TAG } from './runtimeCapabilities'
 import {
-  OLLAMA_DEFAULT_BASE_URL,
-  OLLAMA_DEFAULT_MODEL_TAG,
-} from './runtimeCapabilities'
+  buildDefaultOllamaSettings,
+  normalizeOllamaSettings,
+  type OllamaSettings,
+} from './ollamaSourceMode'
 
 export const OLLAMA_SETTINGS_KEY = 'ai-company-ollama-settings'
 export const RUNTIME_LOGS_KEY = 'ai-company-runtime-logs'
 export const RUNTIME_HEALTH_KEY = 'ai-company-runtime-health-snapshot'
 
-export type OllamaSettings = {
-  baseUrl: string
-  defaultModelTag: string
+export type { OllamaSettings } from './ollamaSourceMode'
+
+const SSR_DEFAULT_SETTINGS: OllamaSettings = buildDefaultOllamaSettings(OLLAMA_DEFAULT_MODEL_TAG)
+
+function resolveDefaultSettings(): OllamaSettings {
+  if (typeof window === 'undefined') return SSR_DEFAULT_SETTINGS
+  try {
+    return getDefaultOllamaSettingsFromEnv()
+  } catch {
+    return buildDefaultOllamaSettings(OLLAMA_DEFAULT_MODEL_TAG)
+  }
 }
+
+export function loadOllamaSettings(): OllamaSettings {
+  if (typeof window === 'undefined') return SSR_DEFAULT_SETTINGS
+  try {
+    const raw = localStorage.getItem(OLLAMA_SETTINGS_KEY)
+    if (!raw) return resolveDefaultSettings()
+    const parsed: unknown = JSON.parse(raw)
+    if (typeof parsed !== 'object' || parsed === null) return resolveDefaultSettings()
+    return normalizeOllamaSettings(parsed as Record<string, unknown>, OLLAMA_DEFAULT_MODEL_TAG)
+  } catch {
+    return resolveDefaultSettings()
+  }
+}
+
+export function saveOllamaSettings(settings: OllamaSettings): void {
+  if (typeof window === 'undefined') return
+  try {
+    const normalized = normalizeOllamaSettings(settings, OLLAMA_DEFAULT_MODEL_TAG)
+    localStorage.setItem(OLLAMA_SETTINGS_KEY, JSON.stringify(normalized))
+  } catch {
+    /* noop */
+  }
+}
+
+export { normalizeOllamaBaseUrl } from './ollamaSourceMode'
 
 export type RuntimeLogLevel = 'info' | 'warn' | 'error' | 'success'
 
@@ -31,53 +67,6 @@ export type RuntimeHealthSnapshot = {
   lastError: string | null
   lastExecutionDurationMs: number | null
   lastEstimatedTokens: number | null
-}
-
-const DEFAULT_SETTINGS: OllamaSettings = {
-  baseUrl: OLLAMA_DEFAULT_BASE_URL,
-  defaultModelTag: OLLAMA_DEFAULT_MODEL_TAG,
-}
-
-export function loadOllamaSettings(): OllamaSettings {
-  if (typeof window === 'undefined') return DEFAULT_SETTINGS
-  try {
-    const raw = localStorage.getItem(OLLAMA_SETTINGS_KEY)
-    if (!raw) return DEFAULT_SETTINGS
-    const parsed: unknown = JSON.parse(raw)
-    if (typeof parsed !== 'object' || parsed === null) return DEFAULT_SETTINGS
-    const value = parsed as Record<string, unknown>
-    return {
-      baseUrl:
-        typeof value.baseUrl === 'string' && value.baseUrl.trim()
-          ? value.baseUrl.trim().replace(/\/$/, '')
-          : DEFAULT_SETTINGS.baseUrl,
-      defaultModelTag:
-        typeof value.defaultModelTag === 'string' && value.defaultModelTag.trim()
-          ? value.defaultModelTag.trim()
-          : DEFAULT_SETTINGS.defaultModelTag,
-    }
-  } catch {
-    return DEFAULT_SETTINGS
-  }
-}
-
-export function saveOllamaSettings(settings: OllamaSettings): void {
-  if (typeof window === 'undefined') return
-  try {
-    localStorage.setItem(
-      OLLAMA_SETTINGS_KEY,
-      JSON.stringify({
-        baseUrl: settings.baseUrl.replace(/\/$/, ''),
-        defaultModelTag: settings.defaultModelTag,
-      }),
-    )
-  } catch {
-    /* noop */
-  }
-}
-
-export function normalizeOllamaBaseUrl(baseUrl: string): string {
-  return baseUrl.trim().replace(/\/$/, '')
 }
 
 export function estimateTokensFromText(text: string): number {

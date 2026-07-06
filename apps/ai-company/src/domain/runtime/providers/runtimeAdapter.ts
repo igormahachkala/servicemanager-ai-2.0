@@ -15,9 +15,10 @@ import {
   saveOllamaSettings,
   type OllamaSettings,
 } from './runtimeHealth'
+import { getDefaultRuntimeProviderFromEnv } from '../../../config/environment'
 
 const ACTIVE_PROVIDER_KEY = 'ai-company-runtime-active-provider'
-const DEFAULT_PROVIDER_ID: RuntimeProviderId = 'ollama'
+const DEFAULT_PROVIDER_ID: RuntimeProviderId = getDefaultRuntimeProviderFromEnv()
 
 let engineInitialized = false
 
