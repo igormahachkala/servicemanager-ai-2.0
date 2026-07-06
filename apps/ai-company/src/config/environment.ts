@@ -1,16 +1,18 @@
 /**
  * AI Company environment config — build-time defaults via Vite VITE_* vars.
  *
- * Priority at runtime:
- *   1. Owner UI settings in localStorage (ai-company-ollama-settings)
+ * Priority at runtime (first Ollama load, before Owner UI override):
+ *   1. localStorage ai-company-ollama-settings (Owner UI)
  *   2. VITE_* env baked into bundle at build
- *   3. Hardcoded localhost + 127.0.0.1:11434
+ *   3. window.location.hostname → prod_server on 83.166.245.27
+ *   4. localhost http://127.0.0.1:11434
  *
  * Mac = development. 83.166.245.27 = target production runtime.
  * See docs/ai-company/AI-COMPANY-094A-environment-strategy.md
  */
 
 import {
+  inferDeployEnvironmentFromHost,
   normalizeOllamaSettings,
   type OllamaDeployEnvironment,
   type OllamaEndpointMode,
@@ -32,7 +34,11 @@ function readEnv(key: string): string | undefined {
 /** development on Mac; production on 83.166.245.27 after DNS cutover. */
 export function getAiCompanyEnvironment(): AiCompanyEnvironment {
   const raw = readEnv('VITE_AI_COMPANY_ENV')
-  return raw === 'production' ? 'production' : 'development'
+  if (raw === 'production') return 'production'
+  if (typeof window !== 'undefined' && inferDeployEnvironmentFromHost() === 'prod_server') {
+    return 'production'
+  }
+  return 'development'
 }
 
 export function isProductionEnvironment(): boolean {
@@ -44,16 +50,20 @@ export function isDevelopmentEnvironment(): boolean {
 }
 
 function readDeployEnvironment(): OllamaDeployEnvironment | undefined {
-  const raw = readEnv('VITE_AI_COMPANY_DEPLOY_ENV')
+  const raw =
+    readEnv('VITE_AI_COMPANY_DEPLOY_ENV') ?? readEnv('VITE_AI_COMPANY_DEPLOY_ENVIRONMENT')
   if (raw === 'dev_mac' || raw === 'prod_server') return raw
   if (getAiCompanyEnvironment() === 'production') return 'prod_server'
+  if (typeof window !== 'undefined') {
+    return inferDeployEnvironmentFromHost()
+  }
   return undefined
 }
 
 function readEndpointMode(): OllamaEndpointMode | undefined {
   const raw = readEnv('VITE_AI_COMPANY_OLLAMA_ENDPOINT_MODE')
   if (raw === 'localhost' || raw === 'custom') return raw
-  return 'localhost'
+  return undefined
 }
 
 /** Default Ollama settings when localStorage has no saved Owner preferences. */
