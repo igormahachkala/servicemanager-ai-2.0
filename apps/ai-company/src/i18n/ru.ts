@@ -264,7 +264,8 @@ export const ru: Messages = {
     operatingDay: "Рабочий день",
     visualLab: "Visual Execution Lab",
     runTask: "Запуск задачи",
-    taskResults: "Результаты задач"
+    taskResults: "Результаты задач",
+    morningReport: "Утренний отчёт"
   },
   agentStatus: {
     online: "онлайн",
@@ -844,7 +845,8 @@ export const ru: Messages = {
       handoffs: "Handoffs",
       runtime: "Runtime",
       runTask: "Запуск задачи",
-      taskResults: "Результаты задач"
+      taskResults: "Результаты задач",
+      morningReport: "Утренний отчёт"
     },
     empty: {
       sprint: "Активный спринт не настроен",
@@ -859,6 +861,49 @@ export const ru: Messages = {
     providerHealth: {
       up: "Исправно",
       degraded: "Деградация"
+    }
+  },
+  morningReport: {
+    pageTitle: "Утренний отчёт Owner",
+    title: "Утренний отчёт",
+    pageDescription: "Результат ночной работы MAX — что сделано, что обнаружено, что требует вашего решения и что делать дальше.",
+    greeting: "Доброе утро, Owner",
+    generatedAt: "Сформирован",
+    statsAria: "Сводка за ночную смену",
+    openNextStep: "Перейти к действию",
+    localNote: "Данные из localStorage — Worker Loop, Runtime, Cursor Automation, Memory и Knowledge drafts.",
+    stats: {
+      loopsCompleted: "Циклов MAX",
+      reportsCreated: "Отчётов",
+      pendingApprovals: "Ждут Owner",
+      cursorTasks: "Cursor tasks",
+      memoryDrafts: "Memory drafts",
+      knowledgeCandidates: "Knowledge"
+    },
+    sections: {
+      whatDone: "Что сделано",
+      whatDoneHint: "Выполненные циклы MAX, анализ Ollama и завершённые задачи за отчётный период.",
+      reportsCreated: "Созданные отчёты",
+      whatDiscovered: "Что проверил и обнаружил",
+      whatDiscoveredHint: "Tool checks, MAX Review, findings и риски из Worker Loop.",
+      memoryDrafts: "Memory Drafts",
+      knowledgeCandidates: "Knowledge Candidates",
+      needsOwner: "Что требует решения Owner",
+      needsOwnerHint: "Согласования, Cursor Automation gates и предложения Work Scheduler.",
+      cursorTasks: "Cursor tasks",
+      cursorTasksHint: "Handoff готов к submit, отправленные задачи и ожидание результата.",
+      nextStep: "Что предлагаю дальше",
+      nextStepHint: "Рекомендуемый следующий шаг на основе текущего состояния MAX."
+    },
+    empty: {
+      whatDone: "За отчётный период MAX не завершил новых циклов — можно запустить задачу.",
+      reports: "Новых отчётов MAX за период нет.",
+      whatDiscovered: "Findings и проверки не зафиксированы — запустите Worker Loop или demo cycle.",
+      memoryDrafts: "Memory drafts не появились.",
+      knowledgeCandidates: "Knowledge candidates не появились.",
+      needsOwner: "Решений Owner не требуется — операции стабильны.",
+      cursorTasks: "Cursor tasks в очереди нет.",
+      nextStep: "Следующий шаг не определён."
     }
   },
   visualLab: {
@@ -2573,6 +2618,67 @@ export const ru: Messages = {
         accepted: "Принято",
         rejected: "Отклонено"
       }
+    }
+  },
+  maxWorkspace: {
+    pageTitle: "MAX — рабочее место",
+    pageDescription:
+      "Рабочий стол цифрового сотрудника MAX: текущая задача, Worker Loop, Cursor Automation, черновики Memory/Knowledge и следующие шаги — только реальные данные.",
+    principleNote:
+      "Без fake progress: статусы и фазы отражают фактический MAX Worker Loop и Runtime. Пустые секции — данных ещё нет.",
+    runningNote: "Цикл выполняется — фазы обновляются по мере реального progress Task Runner / Ollama.",
+    sections: {
+      workStatus: "Статус работы",
+      thinkingModel: "Модель reasoning",
+      workerLoopPhase: "Фаза Worker Loop",
+      externalExecutor: "Внешний исполнитель",
+      ownerApproval: "Owner Approval",
+      cursorAutomation: "Cursor Automation",
+      lastReport: "Последний отчёт",
+      memoryDrafts: "Memory Drafts",
+      knowledgeCandidates: "Knowledge Candidates",
+      nextActions: "Next Actions",
+      workerLoopDetail: "Детали MAX Worker Loop",
+      required: "Требуется",
+      tool: "Инструмент",
+      reason: "Причина",
+      status: "Статус",
+      submitRun: "Submit run",
+      result: "Результат"
+    },
+    values: {
+      yes: "Да",
+      no: "Нет",
+      resultReady: "Result integration готов (draft)"
+    },
+    empty: {
+      noLoopHint: "MAX ещё не запускал Worker Loop. Запустите задачу через Run Task — здесь появится реальный статус работы.",
+      noTask: "Задача не назначена",
+      noModel: "Модель будет известна после запуска reasoning",
+      externalExecutor: "Внешний исполнитель не требуется или цикл ещё не завершил анализ.",
+      ownerApproval: "Gate Owner Approval появится после handoff Cursor Automation.",
+      cursorAutomation: "Cursor Automation не активен для текущего цикла.",
+      lastReport: "Отчётов по текущему циклу пока нет.",
+      memoryDrafts: "Черновики Memory Evolution появятся после завершённого Worker Loop.",
+      knowledgeCandidates: "Knowledge Candidates появятся после завершённого Worker Loop.",
+      nextActions: "Next Actions появятся после Runtime Report."
+    },
+    actions: {
+      runTask: "Запустить задачу для MAX",
+      openProfile: "Профиль MAX",
+      openReport: "Открыть отчёт",
+      openRun: "Детали run",
+      openLive: "Live Runtime"
+    },
+    summary: {
+      title: "Рабочее место MAX",
+      task: "Текущая задача",
+      status: "Статус",
+      phase: "Фаза",
+      cursor: "Cursor Automation",
+      cursorIdle: "Не активен",
+      empty: "Worker Loop ещё не запускался — откройте рабочее место или Run Task.",
+      openWorkspace: "Открыть рабочее место MAX"
     }
   },
   workScheduler: {

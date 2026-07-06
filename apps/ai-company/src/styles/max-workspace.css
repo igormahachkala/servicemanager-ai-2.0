@@ -1,0 +1,187 @@
+.acMaxWorkspacePage {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.acMaxWorkspaceEmpty {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 8px 0 4px;
+}
+
+.acMaxWorkspaceEmptyHint {
+  margin: 0;
+  color: var(--mc-muted);
+  max-width: 52rem;
+}
+
+.acMaxWorkspaceEmptyActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.acMaxWorkspaceHero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(240px, 0.9fr);
+  gap: 16px;
+  padding: 16px 18px;
+  border: 1px solid var(--mc-border);
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.08), rgba(15, 23, 42, 0.02));
+}
+
+.acMaxWorkspaceHeroMain {
+  min-width: 0;
+}
+
+.acMaxWorkspaceCodename {
+  display: inline-block;
+  margin-bottom: 6px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #2563eb;
+}
+
+.acMaxWorkspaceTaskTitle {
+  margin: 0 0 8px;
+  font-size: 1.35rem;
+}
+
+.acMaxWorkspaceTaskText {
+  margin: 0;
+  color: var(--mc-muted);
+  white-space: pre-wrap;
+}
+
+.acMaxWorkspaceHeroMeta,
+.acMaxWorkspaceMiniMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+}
+
+.acMaxWorkspaceField dt {
+  margin: 0 0 2px;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--mc-muted);
+}
+
+.acMaxWorkspaceField dd {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+.acMaxWorkspaceStatusGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.acMaxWorkspaceDraftGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.acMaxWorkspaceSectionEmpty {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.acMaxWorkspaceReportTitle {
+  margin: 0 0 6px;
+  font-size: 1rem;
+}
+
+.acMaxWorkspaceReportActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.acMaxWorkspaceList {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.acMaxWorkspaceList li {
+  font-size: 0.9rem;
+}
+
+.acMaxWorkspaceTag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0.1rem 0.35rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  background: rgba(148, 163, 184, 0.15);
+}
+
+.acMaxWorkspaceNextActions li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.acMaxWorkspaceBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.12rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  background: rgba(148, 163, 184, 0.18);
+  flex-shrink: 0;
+}
+
+.acMaxWorkspaceRunningNote {
+  margin: 12px 0 0;
+  font-size: 0.85rem;
+}
+
+.acMaxWorkspaceSummary {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.acMaxWorkspaceSummaryMeta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 16px;
+  margin: 0;
+}
+
+.acMaxWorkspaceSummaryMeta dt {
+  margin: 0 0 2px;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--mc-muted);
+}
+
+.acMaxWorkspaceSummaryMeta dd {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 960px) {
+  .acMaxWorkspaceHero,
+  .acMaxWorkspaceStatusGrid,
+  .acMaxWorkspaceDraftGrid {
+    grid-template-columns: 1fr;
+  }
+}

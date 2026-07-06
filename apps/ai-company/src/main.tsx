@@ -21,10 +21,12 @@ import './styles/living-company.css'
 import './styles/memory-evolution.css'
 import './styles/runtime-monitor.css'
 import './styles/max-worker-loop.css'
+import './styles/max-workspace.css'
 import './styles/guided-experience.css'
 import './styles/context-empty-state.css'
 import './styles/employee-timeline.css'
 import './styles/polish-v2.css'
+import './styles/morning-report.css'
 import './styles.css'
 
 createRoot(document.getElementById('root')!).render(

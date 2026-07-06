@@ -17,8 +17,9 @@ import { EmployeeLearningPreview } from '../../components/learning/EmployeeLearn
 import { EmployeeLivingTimeline } from '../../components/employee-timeline'
 import { PageGuideCard } from '../../components/guided'
 import { resolveProfileEmployee } from '../data/employeeProfileResolver'
-import { resolveCanonicalEmployeeId } from '../data/employeeIdResolver'
+import { EMPLOYEE_ROUTE_IDS, resolveCanonicalEmployeeId } from '../data/employeeIdResolver'
 import { useI18n } from '../../i18n'
+import { MaxEmployeeWorkspaceSummary } from '../../pages/MaxEmployeeWorkspaceSummary'
 
 type ProfileSection =
   | 'overview'
@@ -106,7 +107,12 @@ export function EmployeeProfilePage() {
       </nav>
 
       <div className="mcProfileContent">
-        {section === 'overview' ? <EmployeeIdentityPassport employee={employee} /> : null}
+        {section === 'overview' ? (
+          <>
+            {employee.id === EMPLOYEE_ROUTE_IDS.max ? <MaxEmployeeWorkspaceSummary /> : null}
+            <EmployeeIdentityPassport employee={employee} />
+          </>
+        ) : null}
         {section === 'timeline' ? <EmployeeLivingTimeline employeeId={employee.id} /> : null}
         {section === 'timeline' ? <EmployeeLivingTimeline employeeId={employee.id} /> : null}
         {section === 'skills' ? <EmployeeSkills employee={employee} /> : null}

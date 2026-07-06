@@ -13,8 +13,10 @@ import {
   WorkdayWorkspacePanel,
 } from '../components/workspace'
 import { NextSuggestedActionsPanel } from '../components/work-scheduler'
+import { MAX_WORKER_EMPLOYEE_ID } from '../domain/maxWorkerLoop'
 import { useEmployeeWorkspace } from '../hooks/useEmployeeWorkspace'
 import { useWorkScheduler } from '../hooks/useWorkScheduler'
+import { MaxEmployeeWorkspacePage } from './MaxEmployeeWorkspacePage'
 import { resolveCanonicalEmployeeId } from '../mission-control/data/employeeIdResolver'
 import { PageHeader, Panel } from '../mission-control/components/ui'
 import { PageGuideCard } from '../components/guided'
@@ -23,6 +25,11 @@ import { useI18n } from '../i18n'
 export function EmployeeWorkspacePage() {
   const { id: routeId } = useParams<{ id: string }>()
   const employeeId = routeId ? resolveCanonicalEmployeeId(routeId) : undefined
+
+  if (employeeId === MAX_WORKER_EMPLOYEE_ID) {
+    return <MaxEmployeeWorkspacePage />
+  }
+
   const { t } = useI18n()
   const { snapshot } = useEmployeeWorkspace(employeeId)
   const { pending, approve, dismiss } = useWorkScheduler({ employeeId: employeeId ?? null })
