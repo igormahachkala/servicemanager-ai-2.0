@@ -115,6 +115,9 @@ export function MobileHome() {
 
   const cards = boardQ.data?.columns.flatMap((col) => col.cards || []) || []
   const canAssignProvider = api.isProviderTicketAssignRole(meQ.data?.role)
+  // E4: быстрая приёмка на карте — тот же гейт, что «Принять» в карточке (MobileTicketPage canShowClientAcceptance):
+  // своя client-компания (не наблюдатель) + клиент-управленческая роль (ADMIN/TM/ND, не CLIENT-заявитель).
+  const canAcceptOnCard = !companyId && companyQ.data?.type === 'CLIENT' && api.isClientAcceptanceRole(meQ.data?.role)
 
   // E2: «Требуют доработки» — заявки, возвращённые на доработку. Детект дёшев (E2.1): 1 запрос нотификаций
   // ∩ board-заявки IN_PROGRESS. Только для того, кому вернули работу (TECHNICIAN/MASTER). Промежуточно до
@@ -417,6 +420,22 @@ export function MobileHome() {
     onError: (e: unknown) => setAssignErr(formatMobileMutationError(e, { operation: 'assign' })),
   })
 
+  // E4: быстрая приёмка на карте (accept одним тапом, POST /tickets/:id/acceptance decision=ACCEPT → DONE).
+  // reject НЕ здесь — требует комментарий, ведёт в карточку (как раньше). После accept список инвалидируется.
+  const acceptM = useMutation({
+    mutationFn: async (ticket: api.TicketCard) => {
+      await api.decideTicketAcceptance(ticket.id, { decision: 'ACCEPT' }, pageScope)
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['mobile-home-board'] })
+      await queryClient.invalidateQueries({ queryKey: ['mobile-home-available'] })
+      await queryClient.invalidateQueries({ queryKey: ['mobile-my-board'] })
+      await queryClient.invalidateQueries({ queryKey: ['board'] })
+      await queryClient.invalidateQueries({ queryKey: ['mobile-ticket-detail'] })
+    },
+    onError: (e: unknown) => setHomeActionErr(formatMobileMutationError(e, { operation: 'other' })),
+  })
+
   const closeBusy = closeM.isPending
   const assignBusy = assignM.isPending
   const ticketHref = (ticket: api.TicketCard) => {
@@ -538,6 +557,9 @@ export function MobileHome() {
             setAssignTechId={setAssignTechId}
             assignErr={assignErr}
             assignM={assignM}
+            canAcceptOnCard={canAcceptOnCard}
+            acceptM={acceptM}
+            onAccept={(ticket) => { setHomeActionErr(''); acceptM.mutate(ticket) }}
             closeCameraInputRef={closeCameraInputRef}
             closeGalleryInputRef={closeGalleryInputRef}
             setCloseModal={setCloseModal}

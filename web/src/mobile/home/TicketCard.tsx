@@ -20,6 +20,8 @@ type Props = {
   onAction?: (ticket: api.TicketCard) => void
   actionProgressLabel?: string | null
   assignFooter?: { onOpen: () => void; disabled: boolean } | null
+  /** E4: быстрая приёмка на карте (accept одним тапом) — только клиент-приёмщик для AWAITING_ACCEPTANCE. */
+  acceptFooter?: { onAccept: () => void; busy: boolean } | null
 }
 
 function fmtCardTime(dt: string): string {
@@ -56,6 +58,7 @@ export function TicketCard({
   onAction,
   actionProgressLabel = null,
   assignFooter = null,
+  acceptFooter = null,
 }: Props) {
   const claimReason = (ticket.claimAvailabilityReason || '').trim()
   const actionBusy = !!actionProgressLabel
@@ -138,6 +141,24 @@ export function TicketCard({
             }}
           >
             Назначить
+          </button>
+        </div>
+      ) : null}
+
+      {acceptFooter ? (
+        <div style={{ padding: '0 14px 12px' }}>
+          <button
+            type="button"
+            className="mobileBtn mobileBtn--done"
+            style={{ width: '100%' }}
+            disabled={acceptFooter.busy}
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              acceptFooter.onAccept()
+            }}
+          >
+            {acceptFooter.busy ? 'Принимаем…' : 'Принять работу'}
           </button>
         </div>
       ) : null}

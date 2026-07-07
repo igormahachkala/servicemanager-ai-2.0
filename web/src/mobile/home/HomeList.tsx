@@ -46,6 +46,9 @@ type Props = {
   setAssignTechId: (id: string) => void
   assignErr: string
   assignM: UseMutationResult<void, unknown, { ticketId: string; technicianId: string }, unknown>
+  canAcceptOnCard: boolean
+  acceptM: UseMutationResult<void, unknown, api.TicketCard, unknown>
+  onAccept: (ticket: api.TicketCard) => void
   closeCameraInputRef: MutableRefObject<HTMLInputElement | null>
   closeGalleryInputRef: MutableRefObject<HTMLInputElement | null>
   setCloseModal: (next: TicketCloseModalState | ((prev: TicketCloseModalState) => TicketCloseModalState)) => void
@@ -84,6 +87,9 @@ export function HomeList(props: Props) {
     setAssignTechId,
     assignErr,
     assignM,
+    canAcceptOnCard,
+    acceptM,
+    onAccept,
     closeCameraInputRef,
     closeGalleryInputRef,
     setCloseModal,
@@ -124,6 +130,7 @@ export function HomeList(props: Props) {
       assignTicket?.id,
     )
     const cardBusy = !!actionProgressLabel || (assignBusy && assignTicket?.id === ticket.id && showAssignFooter)
+    const showAcceptFooter = canAcceptOnCard && ticket.status === 'AWAITING_ACCEPTANCE'
     return (
       <TicketCard
         key={ticket.id}
@@ -142,6 +149,11 @@ export function HomeList(props: Props) {
                 },
                 disabled: cardBusy,
               }
+            : null
+        }
+        acceptFooter={
+          showAcceptFooter
+            ? { onAccept: () => onAccept(ticket), busy: acceptM.isPending && acceptM.variables?.id === ticket.id }
             : null
         }
       />
