@@ -38,7 +38,7 @@ export function ActionCenter() {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'minmax(0, 1.25fr) minmax(280px, 0.9fr)',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
             gap: 14,
             alignItems: 'stretch',
           }}
@@ -124,7 +124,7 @@ export function ActionCenter() {
           >
             <div style={{ display: 'grid', gap: 4 }}>
               <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#64748b' }}>
-                Operational summary
+                Ops summary
               </div>
               <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a' }}>
                 Основные решения на текущий цикл

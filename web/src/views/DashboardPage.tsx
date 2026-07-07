@@ -28,7 +28,7 @@ export function DashboardPage() {
         <div
           style={{
             display: 'grid',
-            gridTemplateColumns: 'minmax(0, 1.5fr) minmax(260px, 0.9fr)',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
             gap: 18,
             alignItems: 'start',
             minWidth: 0,
@@ -112,7 +112,7 @@ export function DashboardPage() {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'minmax(0, 1.4fr) minmax(320px, 1fr)',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
           gap: 20,
           alignItems: 'start',
         }}

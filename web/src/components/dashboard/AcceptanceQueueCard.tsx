@@ -52,7 +52,7 @@ export function AcceptanceQueueCard() {
             minWidth: 0,
             display: 'grid',
             gap: 12,
-            padding: 16,
+            padding: 14,
             borderColor: '#dbe4f0',
             background: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)',
           }}
@@ -97,7 +97,7 @@ export function AcceptanceQueueCard() {
 
         <div style={{ display: 'grid', gap: 10 }}>
           <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#64748b' }}>
-            Queue items
+            Active items
           </div>
         {DASHBOARD_ACCEPTANCE_QUEUE.map((item) => {
           const status = item.status as AcceptanceStatus

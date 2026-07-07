@@ -69,7 +69,7 @@ export function RecentEvents() {
                           color: TONE_COLOR[event.tone],
                         }}
                       >
-                        {event.tone}
+                        {event.tone} signal
                       </span>
                     </div>
                     <div style={{ fontWeight: 800, color: '#0f172a', lineHeight: 1.35 }}>{event.title}</div>

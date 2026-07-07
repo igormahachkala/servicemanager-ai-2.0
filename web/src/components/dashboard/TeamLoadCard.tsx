@@ -23,14 +23,11 @@ export function TeamLoadCard() {
     >
       <div style={{ display: 'grid', gap: 12 }}>
         <div
-          className="panel"
           style={{
             minWidth: 0,
             display: 'grid',
-            gap: 12,
-            padding: 16,
-            borderColor: '#dbe4f0',
-            background: 'linear-gradient(180deg, #ffffff 0%, #f8fafc 100%)',
+            gap: 10,
+            padding: '0 2px',
           }}
         >
           <div style={{ display: 'grid', gap: 4 }}>
@@ -54,10 +51,10 @@ export function TeamLoadCard() {
                 key={item.label}
                 style={{
                   minWidth: 0,
-                  padding: 12,
+                  padding: 10,
                   borderRadius: 14,
-                  border: `1px solid ${item.tone}30`,
-                  background: '#fff',
+                  border: `1px solid ${item.tone}24`,
+                  background: 'rgba(255,255,255,0.84)',
                 }}
               >
                 <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#64748b' }}>
@@ -79,14 +76,14 @@ export function TeamLoadCard() {
             className="panel"
             style={{
               minWidth: 0,
-              padding: 16,
-              borderColor: item.load >= 75 ? '#fdba74' : item.load >= 55 ? '#bfdbfe' : '#bbf7d0',
+              padding: 14,
+              borderColor: item.load >= 75 ? '#fed7aa' : item.load >= 55 ? '#bfdbfe' : '#bbf7d0',
               background:
                 item.load >= 75
-                  ? 'linear-gradient(180deg, #fff7ed 0%, #ffffff 100%)'
+                  ? 'linear-gradient(180deg, #fffaf5 0%, #ffffff 100%)'
                   : item.load >= 55
-                    ? 'linear-gradient(180deg, #eff6ff 0%, #ffffff 100%)'
-                    : 'linear-gradient(180deg, #f0fdf4 0%, #ffffff 100%)',
+                    ? 'linear-gradient(180deg, #f8fbff 0%, #ffffff 100%)'
+                    : 'linear-gradient(180deg, #f7fef9 0%, #ffffff 100%)',
             }}
           >
             <div style={{ display: 'grid', gap: 10 }}>
@@ -101,7 +98,7 @@ export function TeamLoadCard() {
               <div
                 aria-hidden
                 style={{
-                  height: 10,
+                  height: 8,
                   borderRadius: 999,
                   background: '#e2e8f0',
                   overflow: 'hidden',
