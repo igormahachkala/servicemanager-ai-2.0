@@ -401,10 +401,11 @@ export function MobileChatsPage() {
     [internalRows.length, objectRows.length, ticketRows.length],
   )
 
-  // SMA-CHAT-UX-004: объекты раскрыты по умолчанию (сразу видны); заявки внутри объектов остаются
-  // свёрнутыми по умолчанию (expandedObjects стартует пустым) — лента не растягивается.
+  // По умолчанию раскрыта ТОЛЬКО секция «Объекты»; «Заявки» и «Внутренние» свёрнуты при входе
+  // (sectionDefaults[section] === true → секция свёрнута по умолчанию). Заявки внутри объектов
+  // тоже свёрнуты (expandedObjects стартует пустым) — лента не растягивается.
   const sectionDefaults = useMemo(
-    () => ({ tickets: false, objects: false, internal: true }),
+    () => ({ tickets: true, objects: false, internal: true }),
     [],
   )
 
