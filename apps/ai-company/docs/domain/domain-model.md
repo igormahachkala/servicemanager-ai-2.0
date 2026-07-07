@@ -28,6 +28,7 @@
 | Entity | One-line definition |
 |--------|----------------------|
 | [Employee](./employee.md) | Persistent digital specialist identity |
+| [Employee Brain](./employee-brain.md) | Decision policy layer — not LLM, Memory, or Knowledge |
 | [Workspace](./workspace.md) | Project / company context container |
 | [Assignment](./assignment.md) | Employee participation in a Workspace |
 | [Conversation](./conversation.md) | Standalone multi-turn dialogue channel |
@@ -39,6 +40,8 @@
 | [Tool](./tool.md) | Registered capability (MCP, agent, model) |
 | [Permission](./permission.md) | Least-privilege grant on Tool/resource |
 | [Event](./event.md) | Immutable platform occurrence record |
+| [Employee Brain](./employee-brain.md) | Employee decision policy layer (not LLM) |
+| [Decision Plan](./decision-plan.md) | Pre-run plan: models, tools, approval, outcome |
 
 **External actors (not platform entities):** Owner (human), Observer (read-only user).
 

@@ -18,6 +18,7 @@
 | Identity | `name`, `codename`, `role` — stable human-facing identifiers |
 | Capability profile | `skills`, `restrictions`, `description`, `workflow` |
 | Cognition config | `systemPrompt`, default reasoning style |
+| Decision policy | [Employee Brain](./employee-brain.md) — specialization, autonomy, model/tool strategy (V1 scaffold) |
 | Runtime preference | `primaryModel`, `fallbackModels` — **preference**, not hard binding |
 | Tool access | Permission profile → Tool grants |
 | Memory policy | `memoryScope` — **allowed** Knowledge domains (not storage itself) |
