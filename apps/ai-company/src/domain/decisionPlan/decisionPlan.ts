@@ -25,6 +25,15 @@ export type DecisionPlanExpectedResult = {
   acceptanceCriteria: string[]
 }
 
+/** Peer consult hint from Decision Strategy — bridge to Employee Conversation (102C). */
+export type DecisionPlanPeerConsultation = {
+  required: boolean
+  peerEmployeeId: string | null
+  peerDisplayName: string | null
+  reason: string | null
+  skipReason: string | null
+}
+
 export type DecisionPlan = {
   id: string
   version: typeof DECISION_PLAN_VERSION
@@ -50,6 +59,7 @@ export type DecisionPlan = {
   rationale: string[]
   matchedTaskSignals: string[]
   classifiedIntent: string
+  peerConsultation: DecisionPlanPeerConsultation
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -80,6 +90,25 @@ function parseModelChoice(value: unknown): DecisionPlanModelChoice | null {
     modelMode: value.modelMode as RuntimeModelMode,
     role,
     reason: value.reason,
+  }
+}
+
+function parsePeerConsultation(value: unknown): DecisionPlanPeerConsultation {
+  if (!isRecord(value)) {
+    return {
+      required: false,
+      peerEmployeeId: null,
+      peerDisplayName: null,
+      reason: null,
+      skipReason: 'Peer consultation not persisted on legacy Decision Plan.',
+    }
+  }
+  return {
+    required: value.required === true,
+    peerEmployeeId: typeof value.peerEmployeeId === 'string' ? value.peerEmployeeId : null,
+    peerDisplayName: typeof value.peerDisplayName === 'string' ? value.peerDisplayName : null,
+    reason: typeof value.reason === 'string' ? value.reason : null,
+    skipReason: typeof value.skipReason === 'string' ? value.skipReason : null,
   }
 }
 
@@ -157,6 +186,7 @@ export function parseDecisionPlan(value: unknown): DecisionPlan | null {
     rationale,
     matchedTaskSignals,
     classifiedIntent: value.classifiedIntent,
+    peerConsultation: parsePeerConsultation(value.peerConsultation),
   }
 }
 

@@ -36,6 +36,147 @@
   color: var(--mc-muted, #94a3b8);
 }
 
+.acMaxLoopDecisionPlan {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(59, 130, 246, 0.22);
+  background: rgba(15, 23, 42, 0.35);
+}
+
+.acMaxLoopDecisionPlanTitle {
+  margin: 0 0 8px;
+  font-size: 0.9rem;
+}
+
+.acMaxLoopDecisionPlanGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px 12px;
+  margin: 0;
+}
+
+.acMaxLoopDecisionPlanGrid dt {
+  margin: 0;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--mc-muted, #94a3b8);
+}
+
+.acMaxLoopDecisionPlanGrid dd {
+  margin: 2px 0 0;
+  font-size: 0.82rem;
+}
+
+.acMaxLoopDecisionPlanSummary {
+  margin: 10px 0 0;
+  font-size: 0.82rem;
+  color: var(--mc-muted, #94a3b8);
+  line-height: 1.45;
+}
+
+.acMaxLoopDecisionPlanRationale {
+  margin: 6px 0 0;
+  padding-left: 1.1rem;
+}
+
+.acMaxLoopDecisionPlanBool {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.acMaxLoopDecisionPlanBool--yes {
+  color: #34d399;
+}
+
+.acMaxLoopDecisionPlanBool--no {
+  color: var(--mc-muted, #94a3b8);
+}
+
+.acMaxLoopDecisionPlanSection {
+  margin-bottom: 12px;
+}
+
+.acMaxLoopConsultPeer {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(168, 85, 247, 0.28);
+  background: rgba(168, 85, 247, 0.06);
+  margin-bottom: 12px;
+}
+
+.acMaxLoopConsultPeerCompact {
+  padding: 8px 10px;
+}
+
+.acMaxLoopConsultPeerSkipped {
+  border-color: rgba(148, 163, 184, 0.28);
+  background: rgba(148, 163, 184, 0.05);
+}
+
+.acMaxLoopConsultPeerFailed {
+  border-color: rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.06);
+}
+
+.acMaxLoopConsultPeerTitle {
+  margin: 0 0 8px;
+  font-size: 0.9rem;
+}
+
+.acMaxLoopConsultPeerSkipReason {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--mc-muted, #94a3b8);
+  line-height: 1.45;
+}
+
+.acMaxLoopConsultPeerGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px 12px;
+  margin: 0 0 10px;
+}
+
+.acMaxLoopConsultPeerGrid dt {
+  margin: 0;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--mc-muted, #94a3b8);
+}
+
+.acMaxLoopConsultPeerGrid dd {
+  margin: 2px 0 0;
+  font-size: 0.82rem;
+}
+
+.acMaxLoopConsultPeerBlock {
+  margin-top: 8px;
+}
+
+.acMaxLoopConsultPeerLabel {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--mc-muted, #94a3b8);
+}
+
+.acMaxLoopConsultPeerBlock p {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.acMaxLoopConsultPeerEnrichment {
+  white-space: pre-wrap;
+  font-size: 0.78rem;
+}
+
 .acMaxLoopStatus {
   font-size: 0.75rem;
   font-weight: 600;

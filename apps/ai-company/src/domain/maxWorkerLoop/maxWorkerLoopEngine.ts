@@ -24,6 +24,12 @@ import { MAX_WORKER_EMPLOYEE_ID } from './maxWorkerLoop'
 import { buildMaxWorkerLoopReasoningResult, type MaxWorkerLoopReasoningResult } from './maxWorkerLoopReasoning'
 import { buildMaxWorkerLoopReport, type MaxWorkerLoopReport } from './maxWorkerLoopReport'
 import {
+  buildMaxWorkerLoopDecisionPlan,
+  resolveModelModeFromDecisionPlan,
+  summarizeDecisionPlanPhase,
+  summarizeModelSelectionPhase,
+} from './maxWorkerLoopDecisionPlan'
+import {
   createMaxWorkerLoopRecord,
   updateMaxWorkerLoopPhase,
   upsertMaxWorkerLoopRecord,
@@ -31,15 +37,21 @@ import {
 import type { OwnerApprovalGate } from './maxWorkerLoopApproval'
 import { resolveOwnerApprovalGate } from './maxWorkerLoopApproval'
 import { buildCursorAutomationWorkflowSnapshot } from '../cursorAutomation/cursorAutomationWorkflow'
+import {
+  linkDecisionPlanRuntimeRun,
+  saveDecisionPlanRecord,
+} from '../decisionPlan/decisionPlanStorage'
 import { getCursorAutomationSubmitRunByLoopId } from '../cursorAutomation/cursorAutomationSubmitStorage'
 import { mapSubmitRunToWorkflowStatus } from '../cursorAutomation/cursorAutomationSubmit'
 import {
   buildCursorResultIntegrationIfReady,
   type CursorResultHistoryEventDraft,
 } from '../cursorAutomation/cursorAutomationResultIntegration'
+import type { DecisionPlan } from '../decisionPlan'
 
 export type MaxWorkerLoopSnapshot = {
   loop: MaxWorkerLoopRecord
+  decisionPlan: DecisionPlan | null
   reasoning: MaxWorkerLoopReasoningResult
   report: MaxWorkerLoopReport
   memoryEvolutionDraft: MemoryEvolutionDraft
@@ -120,6 +132,22 @@ function enrichCursorAutomationSnapshot(input: {
   }
 }
 
+function enrichReasoningFromDecisionPlan(
+  reasoning: MaxWorkerLoopReasoningResult,
+  decisionPlan: DecisionPlan | null,
+): MaxWorkerLoopReasoningResult {
+  if (!decisionPlan) return reasoning
+  return {
+    ...reasoning,
+    toolNeeded: decisionPlan.cursorAutomationRequired || decisionPlan.toolRegistryRequired,
+    toolNeededReason:
+      decisionPlan.cursorAutomationReason ??
+      decisionPlan.toolRegistryReason ??
+      reasoning.toolNeededReason,
+    ollamaModelTag: reasoning.ollamaModelTag ?? decisionPlan.primaryModel.ollamaTag,
+  }
+}
+
 export type MaxWorkerLoopRunResult = {
   snapshot: MaxWorkerLoopSnapshot | null
   loop: MaxWorkerLoopRecord
@@ -128,9 +156,57 @@ export type MaxWorkerLoopRunResult = {
 
 function markRunningPhases(record: MaxWorkerLoopRecord): MaxWorkerLoopRecord {
   let next = updateMaxWorkerLoopPhase(record, 'owner_task', 'done', 'Задача Owner принята')
-  next = updateMaxWorkerLoopPhase(next, 'max_intake', 'active', 'Запуск через Task Runner')
+  next = updateMaxWorkerLoopPhase(next, 'decision_plan', 'active', 'Employee Brain строит Decision Plan')
   next = { ...next, status: 'running' }
   return upsertMaxWorkerLoopRecord(next)
+}
+
+function applyToolBranchCompletedPhases(
+  record: MaxWorkerLoopRecord,
+  cursor: CursorAutomationWorkflowSnapshot,
+  options: { demoApprovalDone: boolean },
+): MaxWorkerLoopRecord {
+  let next = updateMaxWorkerLoopPhase(
+    record,
+    'tool_need_check',
+    'done',
+    cursor.needReason ?? 'Decision Plan: требуется внешний исполнитель',
+  )
+
+  if (options.demoApprovalDone) {
+    next = updateMaxWorkerLoopPhase(
+      next,
+      'owner_approval',
+      'done',
+      'Demo: Owner Approval зафиксирован (mock gate, без /ops/approvals UI)',
+    )
+  } else {
+    next = updateMaxWorkerLoopPhase(
+      next,
+      'owner_approval',
+      'done',
+      record.decisionPlan?.ownerApprovalReasons.join(' · ') ??
+        'Decision Plan: требуется Owner Approval перед Cursor Automation',
+    )
+  }
+
+  next = updateMaxWorkerLoopPhase(
+    next,
+    'tool_registry',
+    'done',
+    `Tool Registry · ${cursor.suggestedToolId ?? 'cursor-automation'}`,
+  )
+
+  next = updateMaxWorkerLoopPhase(
+    next,
+    'verification',
+    'done',
+    cursor.mockIngestion
+      ? `MAX Review · mock PR ${cursor.mockIngestion.result.pullRequest.url}`
+      : 'V1 safe — invoke не выполняется; Tool Branch отражает Decision Plan',
+  )
+
+  return next
 }
 
 function markAutonomousDemoCompletedPhases(
@@ -138,6 +214,14 @@ function markAutonomousDemoCompletedPhases(
   cursor: CursorAutomationWorkflowSnapshot,
 ): MaxWorkerLoopRecord {
   const baseSteps: Array<[MaxWorkerLoopRecord['currentPhase'], string]> = [
+    [
+      'decision_plan',
+      record.decisionPlan ? summarizeDecisionPlanPhase(record.decisionPlan) : 'Decision Plan (Brain)',
+    ],
+    [
+      'model_selection',
+      record.decisionPlan ? summarizeModelSelectionPhase(record.decisionPlan) : 'Model selection',
+    ],
     ['max_intake', 'MAX принял demo-задачу Owner'],
     ['ollama_reasoning', 'Local Ollama reasoning завершён (real)'],
     ['analysis', 'Анализ извлечён из Runtime Report'],
@@ -154,32 +238,7 @@ function markAutonomousDemoCompletedPhases(
   }
 
   if (cursor.externalExecutorRequired) {
-    next = updateMaxWorkerLoopPhase(
-      next,
-      'tool_need_check',
-      'done',
-      cursor.needReason ?? 'Требуется Cursor Automation',
-    )
-    next = updateMaxWorkerLoopPhase(
-      next,
-      'owner_approval',
-      'done',
-      'Demo: Owner Approval зафиксирован (mock gate, без /ops/approvals UI)',
-    )
-    next = updateMaxWorkerLoopPhase(
-      next,
-      'tool_registry',
-      'done',
-      `Tool Registry · ${cursor.suggestedToolId ?? 'cursor-automation'}`,
-    )
-    next = updateMaxWorkerLoopPhase(
-      next,
-      'verification',
-      'done',
-      cursor.mockIngestion
-        ? `MAX Review · mock PR ${cursor.mockIngestion.result.pullRequest.url}`
-        : 'MAX Review mock результата',
-    )
+    next = applyToolBranchCompletedPhases(next, cursor, { demoApprovalDone: true })
   } else {
     next = updateMaxWorkerLoopPhase(next, 'tool_need_check', 'done', 'Внешний исполнитель не требуется')
     for (const phase of ['owner_approval', 'tool_registry', 'verification'] as const) {
@@ -207,11 +266,15 @@ function markCompletedPhases(
   }
 
   const steps: Array<[MaxWorkerLoopRecord['currentPhase'], string]> = [
+    ['decision_plan', record.decisionPlan ? summarizeDecisionPlanPhase(record.decisionPlan) : 'Decision Plan'],
+    [
+      'model_selection',
+      record.decisionPlan ? summarizeModelSelectionPhase(record.decisionPlan) : 'Model selection',
+    ],
     ['max_intake', 'MAX принял задачу'],
     ['ollama_reasoning', 'Local Ollama reasoning завершён'],
     ['analysis', 'Анализ извлечён из отчёта'],
     ['plan', 'План сформирован из рекомендаций'],
-    ['tool_need_check', 'Инструмент не требуется (V1 safe)'],
     ['runtime_report', 'Runtime Report создан'],
     ['memory_evolution_draft', 'Черновик Memory Evolution'],
     ['knowledge_candidate_draft', 'Черновики Knowledge Candidate'],
@@ -223,9 +286,20 @@ function markCompletedPhases(
     next = updateMaxWorkerLoopPhase(next, phase, 'done', detail)
   }
 
-  const skippedPhases = ['owner_approval', 'tool_registry', 'verification'] as const
-  for (const phase of skippedPhases) {
-    next = updateMaxWorkerLoopPhase(next, phase, 'skipped', 'V1 safe — ветка инструментов отключена')
+  if (cursor?.externalExecutorRequired) {
+    next = applyToolBranchCompletedPhases(next, cursor, { demoApprovalDone: false })
+  } else {
+    next = updateMaxWorkerLoopPhase(
+      next,
+      'tool_need_check',
+      'done',
+      record.decisionPlan?.cursorAutomationRequired
+        ? 'Decision Plan: Cursor не активирован (V1 safe)'
+        : 'Инструмент не требуется (V1 safe)',
+    )
+    for (const phase of ['owner_approval', 'tool_registry', 'verification'] as const) {
+      next = updateMaxWorkerLoopPhase(next, phase, 'skipped', 'V1 safe — ветка инструментов не вызывается')
+    }
   }
 
   const finishedAt = new Date().toISOString()
@@ -256,12 +330,16 @@ export function assembleMaxWorkerLoopSnapshot(
   run: RuntimeRun,
   report: Report,
 ): MaxWorkerLoopSnapshot {
-  const reasoning = buildMaxWorkerLoopReasoningResult(run, report)
+  const decisionPlan = loop.decisionPlan
+  const reasoning = enrichReasoningFromDecisionPlan(
+    buildMaxWorkerLoopReasoningResult(run, report),
+    decisionPlan,
+  )
   const maxReport = buildMaxWorkerLoopReport(loop, run, report)
   const memoryEvolutionDraft = buildMemoryEvolutionDraft(run, report)
   const knowledgeCandidates = buildKnowledgeCandidateDrafts(run, memoryEvolutionDraft.lessons)
   const nextActions = buildMaxWorkerLoopNextActions(report)
-  const ownerApproval = resolveOwnerApprovalGate(reasoning, loop.safeMode)
+  const ownerApproval = resolveOwnerApprovalGate(reasoning, loop.safeMode, decisionPlan)
   const cursorAutomation = enrichCursorAutomationSnapshot({
     loop,
     run,
@@ -273,6 +351,7 @@ export function assembleMaxWorkerLoopSnapshot(
 
   return {
     loop,
+    decisionPlan,
     reasoning,
     report: maxReport,
     memoryEvolutionDraft,
@@ -289,7 +368,7 @@ export function assembleMaxWorkerLoopSnapshot(
  */
 export async function runMaxWorkerLoopV1(input: MaxWorkerLoopInput): Promise<MaxWorkerLoopRunResult> {
   const mode = input.mode ?? 'technical_audit'
-  const modelMode = input.modelMode ?? 'coding'
+  const requestedModelMode = input.modelMode ?? 'coding'
 
   let loop = createMaxWorkerLoopRecord({
     ...input,
@@ -298,9 +377,38 @@ export async function runMaxWorkerLoopV1(input: MaxWorkerLoopInput): Promise<Max
       'V1 MAX Worker Loop: только reasoning через Local Ollama; без shell, git, docker и внешних API.',
     expectedOutput: input.expectedOutput?.trim() || defaultExpectedOutput(mode),
   })
+
   loop = markRunningPhases(loop)
 
   try {
+    const decisionPlan = buildMaxWorkerLoopDecisionPlan({
+      loop,
+      requestedModelMode,
+    })
+    saveDecisionPlanRecord({
+      plan: decisionPlan,
+      employeeId: MAX_WORKER_EMPLOYEE_ID,
+      maxWorkerLoopId: loop.id,
+      runtimeRunId: null,
+      savedAt: new Date().toISOString(),
+    })
+    const modelMode = resolveModelModeFromDecisionPlan(decisionPlan)
+
+    loop = upsertMaxWorkerLoopRecord({
+      ...loop,
+      decisionPlan,
+      updatedAt: new Date().toISOString(),
+    })
+    loop = updateMaxWorkerLoopPhase(loop, 'decision_plan', 'done', summarizeDecisionPlanPhase(decisionPlan))
+    loop = updateMaxWorkerLoopPhase(
+      loop,
+      'model_selection',
+      'done',
+      summarizeModelSelectionPhase(decisionPlan),
+    )
+    loop = updateMaxWorkerLoopPhase(loop, 'max_intake', 'active', 'Запуск через Task Runner')
+    loop = upsertMaxWorkerLoopRecord(loop)
+
     const { record, run } = await startTaskRunner({
       taskText: input.taskText,
       title: input.title,
@@ -311,7 +419,9 @@ export async function runMaxWorkerLoopV1(input: MaxWorkerLoopInput): Promise<Max
       workspaceId: input.workspaceId,
       priority: input.priority ?? 'medium',
       expectedOutput: loop.input.expectedOutput ?? defaultExpectedOutput(mode),
-      constraints: loop.input.constraints ?? '',
+      constraints:
+        loop.input.constraints ??
+        'V1 MAX Worker Loop: только reasoning через Local Ollama; без shell, git, docker и внешних API.',
     })
 
     loop = upsertMaxWorkerLoopRecord({
@@ -320,8 +430,13 @@ export async function runMaxWorkerLoopV1(input: MaxWorkerLoopInput): Promise<Max
       runtimeRunId: run.id,
       reportId: run.reportId,
       taskRunnerRecordId: record.id,
+      decisionPlan: {
+        ...decisionPlan,
+        taskId: record.deliveryTaskId,
+      },
       updatedAt: new Date().toISOString(),
     })
+    linkDecisionPlanRuntimeRun(decisionPlan.id, run.id)
 
     if (run.status !== 'completed' || !run.reportId) {
       const message =

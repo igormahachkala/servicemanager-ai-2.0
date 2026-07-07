@@ -2,6 +2,7 @@ import type { MaxWorkerLoopPhase } from './maxWorkerLoop'
 
 /** Owner-visible steps — subset of domain phases, no fake progress. */
 export const MAX_WORKER_LOOP_UI_STEP_IDS = [
+  'decision_plan',
   'task_intake',
   'analysis',
   'reasoning',
@@ -20,6 +21,7 @@ export type MaxWorkerLoopPhaseGuide = {
 }
 
 const DOMAIN_PHASES_BY_UI_STEP: Record<MaxWorkerLoopUiStepId, MaxWorkerLoopPhase[]> = {
+  decision_plan: ['decision_plan', 'model_selection'],
   task_intake: ['owner_task', 'max_intake'],
   analysis: ['analysis'],
   reasoning: ['ollama_reasoning'],
@@ -46,6 +48,11 @@ export const MAX_WORKER_LOOP_PHASE_GUIDE_RU: Record<
   MaxWorkerLoopUiStepId,
   MaxWorkerLoopPhaseGuide & { label: string }
 > = {
+  decision_plan: {
+    label: 'Decision Plan (Brain)',
+    whatHappens: 'MAX Brain анализирует задачу Owner и строит Decision Plan: intent, модель, инструменты, Owner Approval.',
+    whatNext: 'Model selection → Task Runner → Local Ollama reasoning.',
+  },
   task_intake: {
     label: 'Получение задачи',
     whatHappens: 'MAX принимает формулировку Owner, фиксирует контекст проекта и workspace.',

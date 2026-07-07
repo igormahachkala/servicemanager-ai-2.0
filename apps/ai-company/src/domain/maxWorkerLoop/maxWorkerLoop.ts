@@ -1,3 +1,5 @@
+import type { DecisionPlan } from '../decisionPlan'
+
 /** MAX Worker Loop — core types and phase model (V1 safe scaffold). */
 
 export const MAX_WORKER_EMPLOYEE_ID = 'ag-max' as const
@@ -7,6 +9,8 @@ export const MAX_WORKER_LOOP_VERSION = 'v1-safe' as const
 /** Phases mirror the target Owner → MAX → Report cycle. Tool branch is V2. */
 export const MAX_WORKER_LOOP_PHASES = [
   'owner_task',
+  'decision_plan',
+  'model_selection',
   'max_intake',
   'ollama_reasoning',
   'analysis',
@@ -38,6 +42,8 @@ export type MaxWorkerLoopStatus = (typeof MAX_WORKER_LOOP_STATUSES)[number]
 /** Russian labels for UI / logs — V1 domain copy, not i18n layer yet. */
 export const MAX_WORKER_LOOP_PHASE_LABELS_RU: Record<MaxWorkerLoopPhase, string> = {
   owner_task: 'Задача Owner',
+  decision_plan: 'Decision Plan (Brain)',
+  model_selection: 'Выбор модели',
   max_intake: 'Приём MAX',
   ollama_reasoning: 'Reasoning (Local Ollama)',
   analysis: 'Анализ',
@@ -65,6 +71,8 @@ export const MAX_WORKER_LOOP_STATUS_LABELS_RU: Record<MaxWorkerLoopStatus, strin
 /** V1 phases that run in the safe path (no tools). */
 export const MAX_WORKER_LOOP_SAFE_PHASES: MaxWorkerLoopPhase[] = [
   'owner_task',
+  'decision_plan',
+  'model_selection',
   'max_intake',
   'ollama_reasoning',
   'analysis',
@@ -110,6 +118,8 @@ export type MaxWorkerLoopRecord = {
   runtimeRunId: string | null
   reportId: string | null
   taskRunnerRecordId: string | null
+  /** Employee Brain Decision Plan — persisted on loop record (102B). */
+  decisionPlan: DecisionPlan | null
   safeMode: true
   autonomousDemoScenarioId: string | null
   createdAt: string

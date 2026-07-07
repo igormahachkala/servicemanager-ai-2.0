@@ -64,6 +64,12 @@ function buildInsight(
 ): string | null {
   if (!snapshot) return null
   switch (stepId) {
+    case 'decision_plan': {
+      const plan = snapshot?.decisionPlan ?? snapshot?.loop.decisionPlan
+      if (!plan) return null
+      const tools = plan.cursorAutomationRequired ? 'Cursor' : 'local only'
+      return `${plan.classifiedIntent} · ${plan.primaryModel.label} · ${tools}`
+    }
     case 'analysis':
       return snapshot.reasoning.analysis.slice(0, 240) || null
     case 'reasoning':
@@ -76,8 +82,10 @@ function buildInsight(
         : null
     case 'tool_check': {
       const cursor = snapshot.cursorAutomation
+      const plan = snapshot.decisionPlan ?? snapshot.loop.decisionPlan
       if (cursor?.externalExecutorRequired) {
-        return `Cursor Automation · ${cursor.status} · ${cursor.suggestedToolId ?? '—'}`
+        const approval = plan?.ownerApprovalRequired ? ' · Owner Approval' : ''
+        return `Cursor Automation · ${cursor.status}${approval}`
       }
       return snapshot.ownerApproval.required
         ? 'Требуется одобрение Owner (V2)'
@@ -130,7 +138,9 @@ export function buildMaxWorkerLoopPanelView(
   const activeStep = steps.find((item) => item.status === 'active' || item.status === 'failed') ?? null
   const currentStepId =
     activeStep?.id ??
-    (loop.status === 'completed' ? 'next_actions' : steps.find((item) => item.status === 'pending')?.id ?? null)
+    (loop.status === 'completed'
+      ? 'next_actions'
+      : steps.find((item) => item.status === 'pending')?.id ?? 'decision_plan')
 
   return {
     loop,

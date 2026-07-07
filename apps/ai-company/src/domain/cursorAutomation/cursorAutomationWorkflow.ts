@@ -125,18 +125,60 @@ function buildDisplayToolBranch(input: {
   }
 }
 
+function resolveExternalExecutorFromLoop(loop: MaxWorkerLoopRecord): {
+  required: boolean
+  reason: string | null
+} {
+  const plan = loop.decisionPlan
+  if (plan) {
+    if (plan.cursorAutomationRequired) {
+      return {
+        required: true,
+        reason:
+          plan.cursorAutomationReason ??
+          plan.toolRegistryReason ??
+          'Decision Plan: требуется Cursor Automation.',
+      }
+    }
+    if (plan.toolRegistryRequired && plan.suggestedToolIds.includes('cursor-automation')) {
+      return {
+        required: true,
+        reason: plan.toolRegistryReason ?? 'Decision Plan: Tool Registry → cursor-automation.',
+      }
+    }
+    return { required: false, reason: null }
+  }
+  return detectExternalExecutorNeed(loop.input.taskText ?? '')
+}
+
 export function buildCursorAutomationWorkflowSnapshot(input: {
   loop: MaxWorkerLoopRecord
   run: RuntimeRun | null
   report: Report | null
 }): CursorAutomationWorkflowSnapshot {
-  const taskText = input.loop.input.taskText ?? ''
-  const { required: externalRequired, reason: needReason } = detectExternalExecutorNeed(taskText)
+  const { required: externalRequired, reason: needReason } = resolveExternalExecutorFromLoop(input.loop)
+  const ownerApprovalFromPlan = input.loop.decisionPlan?.ownerApprovalRequired ?? false
 
   const workflowLog: CursorAutomationWorkflowLogEntry[] = [
     logEntry('owner_task', 'Задача Owner принята в MAX Worker Loop.'),
-    logEntry('max_ollama_analysis', 'MAX анализирует задачу через Local Ollama (Task Runner).'),
   ]
+
+  if (input.loop.decisionPlan) {
+    workflowLog.push(
+      logEntry(
+        'decision_plan',
+        `Decision Plan · intent ${input.loop.decisionPlan.classifiedIntent} · ${input.loop.decisionPlan.primaryModel.label}`,
+      ),
+    )
+    workflowLog.push(
+      logEntry(
+        'model_selection',
+        `Model · ${input.loop.decisionPlan.primaryModel.ollamaTag}`,
+      ),
+    )
+  }
+
+  workflowLog.push(logEntry('max_ollama_analysis', 'MAX анализирует задачу через Local Ollama (Task Runner).'))
 
   if (!externalRequired) {
     workflowLog.push(
@@ -267,7 +309,7 @@ export function buildCursorAutomationWorkflowSnapshot(input: {
     handoff,
     expectedResult,
     mockIngestion: null,
-    ownerApprovalRequired: true,
+    ownerApprovalRequired: ownerApprovalFromPlan || externalRequired,
     ownerApprovalStatus: mapOwnerApprovalStatus(ownerApproval),
     submitRun,
     resultIntegration: null,

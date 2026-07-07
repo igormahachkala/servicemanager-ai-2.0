@@ -3,7 +3,11 @@
  * Catalog-driven; does not invoke Runtime execution.
  */
 
-import type { DecisionPlan, DecisionPlanModelChoice } from '../decisionPlan'
+import type {
+  DecisionPlan,
+  DecisionPlanModelChoice,
+  DecisionPlanPeerConsultation,
+} from '../decisionPlan'
 import { createDecisionPlanId, digestTaskText } from '../decisionPlan'
 import type { EmployeeBrainProfile, EmployeeBrainTaskInput } from '../employeeBrain/employeeBrainProfile'
 import {
@@ -22,6 +26,7 @@ import {
   DECISION_EXPECTED_RESULT_TEMPLATES,
   DECISION_GENERAL_INTENT,
   DECISION_MULTI_MODEL_TRIGGERS,
+  DECISION_PEER_CONSULTATION_RULES,
   DECISION_TASK_INTENT_RULES,
   DECISION_TOOL_NEED_RULES,
   TOOL_RISK_RANK,
@@ -275,6 +280,41 @@ function resolveOwnerApproval(input: {
   return { required: reasons.length > 0, reasons: [...new Set(reasons)] }
 }
 
+function resolvePeerConsultation(
+  classified: ClassifiedTask,
+  taskText: string,
+  taskTitle: string | null,
+): DecisionPlanPeerConsultation {
+  const corpus = [taskText, taskTitle ?? ''].join('\n')
+  let best: { rule: (typeof DECISION_PEER_CONSULTATION_RULES)[number]; score: number } | null = null
+
+  for (const rule of DECISION_PEER_CONSULTATION_RULES) {
+    if (!rule.whenIntents.includes(classified.intent)) continue
+    const { score } = scoreDecisionSignals(corpus, rule.signalRules)
+    if (score >= rule.minScore && (!best || score > best.score)) {
+      best = { rule, score }
+    }
+  }
+
+  if (!best) {
+    return {
+      required: false,
+      peerEmployeeId: null,
+      peerDisplayName: null,
+      reason: null,
+      skipReason: 'Decision Plan: консультация с коллегой не требуется для этой задачи.',
+    }
+  }
+
+  return {
+    required: true,
+    peerEmployeeId: best.rule.peerEmployeeId,
+    peerDisplayName: best.rule.peerDisplayName,
+    reason: best.rule.reasonTemplate,
+    skipReason: null,
+  }
+}
+
 function resolveExpectedResult(intent: DecisionTaskIntent, taskTitle: string | null): DecisionPlan['expectedResult'] {
   const template =
     DECISION_EXPECTED_RESULT_TEMPLATES.find((item) => item.intent === intent) ??
@@ -315,6 +355,7 @@ export function buildDecisionPlan(input: BuildDecisionPlanInput): DecisionPlan {
     toolIds: tools.toolIds,
     cursorRequired: cursor.required,
   })
+  const peerConsultation = resolvePeerConsultation(classified, taskText, taskTitle)
 
   const rationale = [
     `Classified intent: ${classified.intent} (score ${classified.score}).`,
@@ -324,6 +365,12 @@ export function buildDecisionPlan(input: BuildDecisionPlanInput): DecisionPlan {
 
   if (tools.required) rationale.push(tools.reason ?? 'Tool Registry required.')
   if (cursor.required) rationale.push(cursor.reason ?? 'Cursor Automation required.')
+  if (peerConsultation.required) {
+    rationale.push(
+      peerConsultation.reason ??
+        `Peer consult: ${peerConsultation.peerDisplayName ?? peerConsultation.peerEmployeeId}`,
+    )
+  }
 
   const matchedTaskSignals = [
     ...classified.matchedSignals,
@@ -354,5 +401,6 @@ export function buildDecisionPlan(input: BuildDecisionPlanInput): DecisionPlan {
     rationale,
     matchedTaskSignals,
     classifiedIntent: classified.intent,
+    peerConsultation,
   }
 }

@@ -3,6 +3,8 @@ import type { MaxWorkerLoopRecord } from './maxWorkerLoop'
 import type { MaxWorkerLoopUiStepStatus, MaxWorkerLoopUiStepView } from './maxWorkerLoopViewModel'
 
 export const AUTONOMOUS_DEMO_UI_STEP_IDS = [
+  'decision_plan',
+  'model_selection',
   'task_intake',
   'analysis',
   'reasoning',
@@ -29,6 +31,18 @@ type StepDef = {
 }
 
 export const AUTONOMOUS_DEMO_STEP_GUIDE_RU: Record<AutonomousDemoUiStepId, StepDef> = {
+  decision_plan: {
+    id: 'decision_plan',
+    label: 'Decision Plan (Brain)',
+    whatHappens: 'Employee Brain строит Decision Plan до Ollama: intent, Cursor, Owner Approval.',
+    whatNext: 'Model selection → Task Runner.',
+  },
+  model_selection: {
+    id: 'model_selection',
+    label: 'Model Selection',
+    whatHappens: 'Primary model и pipeline из Decision Plan.',
+    whatNext: 'Real Ollama inference через Task Runner.',
+  },
   task_intake: {
     id: 'task_intake',
     label: 'Owner → MAX',
@@ -147,6 +161,23 @@ export function buildAutonomousDemoPanelSteps(
     let insight: string | null = null
 
     switch (stepId) {
+      case 'decision_plan':
+        status = stepStatus(
+          loop,
+          loop.phases.some((p) => p.phase === 'decision_plan' && p.status === 'done'),
+        )
+        insight = snapshot?.decisionPlan?.classifiedIntent ?? loop.decisionPlan?.classifiedIntent ?? null
+        break
+      case 'model_selection':
+        status = stepStatus(
+          loop,
+          loop.phases.some((p) => p.phase === 'model_selection' && p.status === 'done'),
+        )
+        insight =
+          snapshot?.decisionPlan?.primaryModel.ollamaTag ??
+          loop.decisionPlan?.primaryModel.ollamaTag ??
+          null
+        break
       case 'task_intake':
         status = stepStatus(loop, loop.phases.some((p) => p.phase === 'max_intake' && p.status === 'done'))
         break
@@ -209,6 +240,10 @@ export function buildAutonomousDemoPanelSteps(
         break
     }
 
+    if (loop.status === 'running' && status === 'pending' && stepId === 'decision_plan') {
+      status = 'active'
+    }
+
     if (loop.status === 'running' && status === 'pending' && stepId === 'reasoning') {
       status = 'active'
     }
@@ -231,7 +266,10 @@ export function pickAutonomousDemoCurrentStep(
   loop: MaxWorkerLoopRecord,
 ): AutonomousDemoUiStepId | null {
   if (loop.status === 'running' || loop.status === 'queued') {
-    return steps.find((s) => s.status === 'active' || s.status === 'pending')?.id as AutonomousDemoUiStepId ?? 'reasoning'
+    return (
+      (steps.find((s) => s.status === 'active' || s.status === 'pending')?.id as AutonomousDemoUiStepId) ??
+      'decision_plan'
+    )
   }
   if (loop.status === 'completed') return 'next_actions'
   return steps.find((s) => s.status === 'failed')?.id as AutonomousDemoUiStepId ?? null

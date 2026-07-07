@@ -5,6 +5,7 @@ import {
   MAX_WORKER_LOOP_VERSION,
   MAX_WORKER_EMPLOYEE_ID,
 } from './maxWorkerLoop'
+import { parseDecisionPlan } from '../decisionPlan'
 
 const STORAGE_KEY = 'ai-company-max-worker-loops'
 
@@ -25,12 +26,24 @@ function parsePhaseProgress(value: unknown): MaxWorkerLoopPhaseProgress | null {
   }
 }
 
+function mergePhases(
+  parsed: MaxWorkerLoopPhaseProgress[],
+  autonomousDemoScenarioId: string | null,
+): MaxWorkerLoopPhaseProgress[] {
+  const template = autonomousDemoScenarioId ? MAX_WORKER_LOOP_PHASES : MAX_WORKER_LOOP_SAFE_PHASES
+  const byPhase = new Map(parsed.map((item) => [item.phase, item]))
+  return template.map((phase) => byPhase.get(phase) ?? { phase, status: 'pending' as const })
+}
+
 function parseRecord(value: unknown): MaxWorkerLoopRecord | null {
   if (!isRecord(value)) return null
   if (typeof value.id !== 'string' || value.employeeId !== MAX_WORKER_EMPLOYEE_ID) return null
-  const phases = Array.isArray(value.phases)
+  const autonomousDemoScenarioId =
+    typeof value.autonomousDemoScenarioId === 'string' ? value.autonomousDemoScenarioId : null
+  const rawPhases = Array.isArray(value.phases)
     ? value.phases.map(parsePhaseProgress).filter((item): item is MaxWorkerLoopPhaseProgress => item !== null)
     : []
+  const phases = mergePhases(rawPhases, autonomousDemoScenarioId)
   const input = value.input
   if (!isRecord(input) || typeof input.taskText !== 'string') return null
 
@@ -58,9 +71,9 @@ function parseRecord(value: unknown): MaxWorkerLoopRecord | null {
     runtimeRunId: typeof value.runtimeRunId === 'string' ? value.runtimeRunId : null,
     reportId: typeof value.reportId === 'string' ? value.reportId : null,
     taskRunnerRecordId: typeof value.taskRunnerRecordId === 'string' ? value.taskRunnerRecordId : null,
+    decisionPlan: parseDecisionPlan(value.decisionPlan),
     safeMode: true,
-    autonomousDemoScenarioId:
-      typeof value.autonomousDemoScenarioId === 'string' ? value.autonomousDemoScenarioId : null,
+    autonomousDemoScenarioId,
     createdAt: typeof value.createdAt === 'string' ? value.createdAt : new Date().toISOString(),
     updatedAt: typeof value.updatedAt === 'string' ? value.updatedAt : new Date().toISOString(),
     finishedAt: typeof value.finishedAt === 'string' ? value.finishedAt : null,
@@ -133,6 +146,7 @@ export function createMaxWorkerLoopRecord(input: MaxWorkerLoopInput): MaxWorkerL
     runtimeRunId: null,
     reportId: null,
     taskRunnerRecordId: null,
+    decisionPlan: null,
     safeMode: true,
     autonomousDemoScenarioId: input.autonomousDemoScenarioId ?? null,
     createdAt: now,

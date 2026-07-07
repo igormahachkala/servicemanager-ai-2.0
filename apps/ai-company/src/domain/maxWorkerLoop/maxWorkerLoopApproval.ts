@@ -1,4 +1,5 @@
 import type { MaxWorkerLoopReasoningResult } from './maxWorkerLoopReasoning'
+import type { DecisionPlan } from '../decisionPlan'
 
 export const OWNER_APPROVAL_GATE_STATUSES = [
   'none',
@@ -27,14 +28,46 @@ export type OwnerApprovalGate = {
 export function resolveOwnerApprovalGate(
   reasoning: Pick<MaxWorkerLoopReasoningResult, 'toolNeeded' | 'toolNeededReason'>,
   safeMode: true,
+  decisionPlan?: DecisionPlan | null,
 ): OwnerApprovalGate {
-  if (safeMode || !reasoning.toolNeeded) {
+  const planReason =
+    decisionPlan?.ownerApprovalRequired && decisionPlan.ownerApprovalReasons.length > 0
+      ? decisionPlan.ownerApprovalReasons.join(' · ')
+      : null
+
+  if (safeMode) {
+    if (decisionPlan?.ownerApprovalRequired || decisionPlan?.cursorAutomationRequired) {
+      return {
+        required: true,
+        status: 'pending',
+        reason:
+          planReason ??
+          decisionPlan?.cursorAutomationReason ??
+          'Decision Plan: требуется Owner Approval — V1 safe mode не вызывает инструменты.',
+        toolId: decisionPlan?.cursorAutomationRequired ? 'cursor-automation' : null,
+        toolRequestId: null,
+        approvalPagePath: '/ops/approvals',
+        decidedAt: null,
+        decidedBy: null,
+      }
+    }
     return {
       required: false,
       status: 'none',
-      reason: safeMode
-        ? 'V1 safe mode — инструменты не вызываются, только reasoning и отчёт.'
-        : null,
+      reason: 'V1 safe mode — инструменты не вызываются, только reasoning и отчёт.',
+      toolId: null,
+      toolRequestId: null,
+      approvalPagePath: '/ops/approvals',
+      decidedAt: null,
+      decidedBy: null,
+    }
+  }
+
+  if (!reasoning.toolNeeded && !decisionPlan?.ownerApprovalRequired) {
+    return {
+      required: false,
+      status: 'none',
+      reason: null,
       toolId: null,
       toolRequestId: null,
       approvalPagePath: '/ops/approvals',
@@ -46,8 +79,11 @@ export function resolveOwnerApprovalGate(
   return {
     required: true,
     status: 'pending',
-    reason: reasoning.toolNeededReason ?? 'MAX запросил инструмент — требуется одобрение Owner.',
-    toolId: null,
+    reason:
+      planReason ??
+      reasoning.toolNeededReason ??
+      'MAX запросил инструмент — требуется одобрение Owner.',
+    toolId: decisionPlan?.cursorAutomationRequired ? 'cursor-automation' : null,
     toolRequestId: null,
     approvalPagePath: '/ops/approvals',
     decidedAt: null,

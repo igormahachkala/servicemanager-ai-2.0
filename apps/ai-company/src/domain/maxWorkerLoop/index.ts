@@ -74,6 +74,13 @@ export {
   runMaxWorkerLoopV1,
 } from './maxWorkerLoopEngine'
 
+export {
+  buildMaxWorkerLoopDecisionPlan,
+  resolveModelModeFromDecisionPlan,
+  summarizeDecisionPlanPhase,
+  summarizeModelSelectionPhase,
+} from './maxWorkerLoopDecisionPlan'
+
 export type { AutonomousDemoScenario, AutonomousDemoScenarioId } from './autonomousDemoScenario'
 export {
   AUTONOMOUS_DEMO_SCENARIO_IDS,

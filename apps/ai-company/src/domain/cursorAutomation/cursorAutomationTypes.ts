@@ -13,6 +13,8 @@ export const CURSOR_AUTOMATION_WORKFLOW_VERSION = 'v1-mock' as const
 
 export const CURSOR_AUTOMATION_WORKFLOW_PHASES = [
   'owner_task',
+  'decision_plan',
+  'model_selection',
   'max_ollama_analysis',
   'external_executor_decision',
   'automation_plan',

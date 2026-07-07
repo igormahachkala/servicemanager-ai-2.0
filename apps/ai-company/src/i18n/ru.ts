@@ -2498,7 +2498,31 @@ export const ru: Messages = {
     openReport: "Runtime Report",
     openRun: "Детали run",
     sectionTitle: "Цикл работы MAX",
-    startNote: "Запуск через MAX Worker Loop V1 — reasoning, отчёт и черновики Memory/Knowledge.",
+    startNote: "Запуск через MAX Worker Loop V1 — Decision Plan (Brain), reasoning, отчёт и черновики Memory/Knowledge.",
+    decisionPlan: {
+      title: "Decision Plan",
+      intent: "Intent",
+      model: "Модель",
+      tools: "Инструменты",
+      ownerApproval: "Owner Approval",
+      expectedResult: "Ожидаемый результат",
+      rationale: "Rationale (Brain)",
+      required: "Требуется",
+      notRequired: "Не требуется",
+      cursorRequired: "Cursor Automation",
+      localOnly: "Только local Ollama"
+    },
+    consultPeer: {
+      title: "Consult Peer",
+      askedWho: "Кого спросил",
+      whyAsked: "Почему",
+      question: "Вопрос",
+      answer: "Ответ",
+      decision: "Решение MAX",
+      usedInTask: "Как использовано в задаче",
+      skippedDefault: "Консультация не требуется — Decision Plan не нашёл peer consult signals.",
+      failedDefault: "Peer consult завершился с ошибкой."
+    },
     phaseStatus: {
       pending: "Ожидает",
       active: "Выполняется",
@@ -2618,6 +2642,37 @@ export const ru: Messages = {
         accepted: "Принято",
         rejected: "Отклонено"
       }
+    }
+  },
+  decisionPlan: {
+    title: "План решения MAX",
+    subtitle: "Как MAX понял задачу и что выбрал Brain + Decision Strategy перед выполнением.",
+    sectionTitle: "Decision Plan",
+    previewBadge: "Предпросмотр",
+    empty: {
+      message: "MAX ещё не построил план решения. Он появится после запуска задачи.",
+      hint: "Введите задачу Owner и выберите MAX — предпросмотр появится до запуска, сохранённый план — после старта Worker Loop."
+    },
+    fields: {
+      taskUnderstood: "Понятая задача",
+      brainProfile: "Brain профиль",
+      decisionStyle: "Стиль решений",
+      primaryModel: "Выбранная модель",
+      multiModel: "Multi-model режим",
+      tools: "Инструменты (Tool Registry)",
+      cursorAutomation: "Cursor Automation",
+      ownerApproval: "Owner Approval",
+      expectedResult: "Ожидаемый результат",
+      deliverables: "Deliverables",
+      acceptanceCriteria: "Критерии приёмки",
+      matchedSignals: "Matched signals",
+      rationale: "Причины / rationale"
+    },
+    values: {
+      yes: "Да",
+      no: "Нет",
+      required: "Требуется",
+      notRequired: "Не требуется"
     }
   },
   maxWorkspace: {

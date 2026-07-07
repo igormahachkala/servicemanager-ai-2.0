@@ -273,6 +273,15 @@ export const DECISION_APPROVAL_TRIGGERS: DecisionApprovalTrigger[] = [
   },
 ]
 
+export const DECISION_PEER_CONSULTATION_RULES: Array<{
+  whenIntents: DecisionTaskIntent[]
+  signalRules: DecisionSignalRule[]
+  minScore: number
+  peerEmployeeId: string
+  peerDisplayName: string
+  reasonTemplate: string
+}> = []
+
 export const BRAIN_RISK_RANK: Record<EmployeeBrainRiskLevel, number> = {
   low: 1,
   medium: 2,
