@@ -5,11 +5,25 @@ import { useQuery } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { mobilePath } from './mobileRoute'
 
-const ACTIVE_STATUSES = new Set(['NEW', 'ASSIGNED', 'IN_PROGRESS'])
+/**
+ * Роли с доступом к /analytics/overview и /analytics/locations (backend RolesGuard).
+ * Прочие роли (TECHNICIAN, CLIENT, ADMIN_PROVIDER, …) получают 403 → для них только
+ * контекст по локациям (/tickets/analytics/context, доступен всем ролям).
+ */
+const ANALYTICS_ADMIN_ROLES = new Set<string>([
+  'ADMIN',
+  'MASTER',
+  'DISPATCHER',
+  'NETWORK_DIRECTOR',
+  'PLATFORM_ADMIN',
+])
 
 export function MobileAnalytics() {
   const location = useLocation()
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
+
+  const role = meQ.data?.role
+  const isAnalyticsAdmin = !!role && ANALYTICS_ADMIN_ROLES.has(role)
 
   const linkedClientCompanyId = useMemo(() => {
     const sp = new URLSearchParams(location.search)
@@ -20,75 +34,131 @@ export function MobileAnalytics() {
     return (sp.get('companyId') || api.getObserverCompanyId(meQ.data)).trim()
   }, [location.search, meQ.data])
 
-  const boardQ = useQuery({
-    queryKey: ['mobile-analytics-board', linkedClientCompanyId, companyId],
-    queryFn: () =>
-      api.board({
-        linkedClientCompanyId: linkedClientCompanyId || undefined,
-        companyId: companyId || undefined,
-        take: 500,
-      }),
+  const scopeParams = {
+    linkedClientCompanyId: linkedClientCompanyId || undefined,
+    companyId: companyId || undefined,
+  }
+
+  // ── Overview (ADMIN-only) — SLA %, счётчики open-by-status, backlog ──
+  const overviewQ = useQuery({
+    queryKey: ['mobile-analytics-overview', linkedClientCompanyId, companyId],
+    queryFn: () => api.analyticsOverview(scopeParams),
+    enabled: !!meQ.data && isAnalyticsAdmin,
+  })
+
+  // ── Locations (ADMIN-only) — per-location + разбивка по категориям + done/overdue ──
+  const locationsQ = useQuery({
+    queryKey: ['mobile-analytics-locations', linkedClientCompanyId, companyId],
+    queryFn: () => api.analyticsLocations(scopeParams),
+    enabled: !!meQ.data && isAnalyticsAdmin,
+  })
+
+  // ── Context (все роли) — счётчики заявок по локациям и оборудованию ──
+  const contextQ = useQuery({
+    queryKey: ['mobile-analytics-context', linkedClientCompanyId, companyId],
+    queryFn: () => api.ticketContextAnalytics(scopeParams),
     enabled: !!meQ.data,
   })
 
-  const stats = useMemo(() => {
-    const cols = boardQ.data?.columns || []
-    const totalFor = (status: string) => cols.find((c) => c.status === status)?.total ?? 0
-    const activeCols = cols.filter((c) => ACTIVE_STATUSES.has(c.status))
-    const active = activeCols.reduce((sum, c) => sum + (c.total || 0), 0)
-    const overdue = activeCols.reduce((sum, c) => sum + (c.sla?.breached || 0), 0)
-    const atRisk = activeCols.reduce((sum, c) => sum + (c.sla?.atRisk || 0), 0)
-
-    const categoryMap = new Map<string, number>()
-    for (const col of cols) {
-      for (const card of col.cards) {
-        const cat = card.category?.name || 'Прочее'
-        categoryMap.set(cat, (categoryMap.get(cat) || 0) + 1)
+  // KPI: для админа из overview+locations, для остальных из context.
+  const kpi = useMemo(() => {
+    if (isAnalyticsAdmin) {
+      const ov = overviewQ.data
+      const open = ov?.openByStatus
+      const active = open ? open.NEW + open.ASSIGNED + open.IN_PROGRESS : null
+      return {
+        active,
+        overdue: ov?.sla?.breachedCount ?? null,
+        done: locationsQ.data?.summary?.doneTotal ?? null,
+        slaPercent: ov?.sla?.okPercent ?? null,
       }
     }
+    const ctx = contextQ.data
+    if (!ctx) return { active: null, done: null, total: null }
+    let active = 0
+    let done = 0
+    for (const l of ctx.byLocation) {
+      active += l.NEW + l.IN_PROGRESS
+      done += l.DONE
+    }
+    return { active, done, total: ctx.meta.totalTickets }
+  }, [isAnalyticsAdmin, overviewQ.data, locationsQ.data, contextQ.data])
 
-    const locationMap = new Map<string, number>()
-    for (const col of activeCols) {
-      for (const card of col.cards) {
-        const loc = card.location?.name || card.pointName || 'Без точки'
-        locationMap.set(loc, (locationMap.get(loc) || 0) + 1)
+  // Топ категорий (ADMIN) — агрегат по всем локациям.
+  const topCategories = useMemo<Array<[string, number]>>(() => {
+    const items = locationsQ.data?.items
+    if (!items) return []
+    const map = new Map<string, number>()
+    for (const loc of items) {
+      for (const c of loc.categories) {
+        map.set(c.categoryName, (map.get(c.categoryName) || 0) + c.ticketsCount)
       }
     }
+    return [...map.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5)
+  }, [locationsQ.data])
 
-    const urgentFromCards = cols.reduce(
-      (sum, c) =>
-        sum + c.cards.filter((t) => (t.priority ?? 'NORMAL') === 'URGENT' || t.urgency === 'URGENT').length,
-      0,
-    )
-
-    return {
-      active,
-      overdue,
-      done: totalFor('DONE'),
-      atRisk,
-      newCount: totalFor('NEW'),
-      assigned: totalFor('ASSIGNED'),
-      inProgress: totalFor('IN_PROGRESS'),
-      canceled: totalFor('CANCELED'),
-      total: boardQ.data?.meta?.totalTickets ?? 0,
-      topCategories: [...categoryMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5),
-      topLocations: [...locationMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5),
-      urgentFromCards,
+  // Точки с наибольшим числом активных заявок (ADMIN → locations, прочие → context).
+  const topLocations = useMemo<Array<[string, number]>>(() => {
+    if (isAnalyticsAdmin) {
+      const items = locationsQ.data?.items
+      if (!items) return []
+      return items
+        .map((l) => [l.locationName, l.newTickets + l.inProgressTickets] as [string, number])
+        .filter(([, n]) => n > 0)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
     }
-  }, [boardQ.data])
+    const byLoc = contextQ.data?.byLocation
+    if (!byLoc) return []
+    return byLoc
+      .map((l) => [l.locationName, l.NEW + l.IN_PROGRESS] as [string, number])
+      .filter(([, n]) => n > 0)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5)
+  }, [isAnalyticsAdmin, locationsQ.data, contextQ.data])
 
-  const scope = { linkedClientCompanyId: linkedClientCompanyId || undefined, companyId: companyId || undefined }
+  // Распределение по статусам (ADMIN — 4 строки incl. Назначенные; прочие — 3 из context).
+  const statusRows = useMemo(() => {
+    if (isAnalyticsAdmin) {
+      const open = overviewQ.data?.openByStatus
+      const done = locationsQ.data?.summary?.doneTotal
+      return [
+        { label: 'Новые', value: open?.NEW ?? null, mod: 'new' },
+        { label: 'Назначенные', value: open?.ASSIGNED ?? null, mod: 'assigned' },
+        { label: 'В работе', value: open?.IN_PROGRESS ?? null, mod: 'inprogress' },
+        { label: 'Выполненные', value: done ?? null, mod: 'done' },
+      ] as const
+    }
+    const ctx = contextQ.data
+    let n = 0
+    let ip = 0
+    let d = 0
+    if (ctx) {
+      for (const l of ctx.byLocation) {
+        n += l.NEW
+        ip += l.IN_PROGRESS
+        d += l.DONE
+      }
+    }
+    return [
+      { label: 'Новые', value: ctx ? n : null, mod: 'new' },
+      { label: 'В работе', value: ctx ? ip : null, mod: 'inprogress' },
+      { label: 'Выполненные', value: ctx ? d : null, mod: 'done' },
+    ] as const
+  }, [isAnalyticsAdmin, overviewQ.data, locationsQ.data, contextQ.data])
+
+  const scope = scopeParams
   const homeHref = api.appendScopeToPath(mobilePath(location.pathname, ''), scope, meQ.data)
 
-  const isLoading = boardQ.isLoading || boardQ.isFetching
-  const isError = boardQ.isError
-  const ready = boardQ.isSuccess && !!boardQ.data
-  const val = (n: number) => (ready ? String(n) : '—')
+  const fmt = (n: number | null | undefined) => (n == null ? '—' : String(n))
+  const maxCat = topCategories[0]?.[1] || 1
+  const maxLoc = topLocations[0]?.[1] || 1
+  const statusMax = Math.max(1, ...statusRows.map((r) => r.value ?? 0))
+  const pct = (n: number, max: number) => Math.round((n / max) * 100)
 
-  const maxCat = stats.topCategories[0]?.[1] || 1
-  const maxLoc = stats.topLocations[0]?.[1] || 1
-  const statusMax = Math.max(stats.newCount, stats.assigned, stats.inProgress, stats.done, 1)
-  const pct = (n: number, max: number) => (ready ? Math.round((n / max) * 100) : 0)
+  // Загрузка/ошибка релевантных для роли запросов.
+  const primaryQ = isAnalyticsAdmin ? overviewQ : contextQ
+  const kpiLoading = primaryQ.isLoading
 
   return (
     <div className="mobileSection">
@@ -97,58 +167,95 @@ export function MobileAnalytics() {
         <div className="mobileSubtitle">Сводка по текущему контуру заявок</div>
       </div>
 
-      {isError ? (
-        <div className="mobileNotice mobileNoticeError">
-          Не удалось загрузить аналитику. {String((boardQ.error as any)?.message || '')}
-        </div>
-      ) : null}
-
       {/* KPI */}
       <div className="mobileAnalyticsGrid">
         <div className="mobileCard mobileAnalyticsCard mobileAnalyticsCard--active">
-          <div className="mobileAnalyticsValue">{isLoading && !ready ? '…' : val(stats.active)}</div>
+          <div className="mobileAnalyticsValue">{kpiLoading ? '…' : fmt(kpi.active)}</div>
           <div className="mobileAnalyticsLabel">Активные заявки</div>
         </div>
-        <div className="mobileCard mobileAnalyticsCard mobileAnalyticsCard--overdue">
-          <div className="mobileAnalyticsValue">{isLoading && !ready ? '…' : val(stats.overdue)}</div>
-          <div className="mobileAnalyticsLabel">Просроченные</div>
-        </div>
-        <div className="mobileCard mobileAnalyticsCard mobileAnalyticsCard--done">
-          <div className="mobileAnalyticsValue">{isLoading && !ready ? '…' : val(stats.done)}</div>
-          <div className="mobileAnalyticsLabel">Выполненные</div>
-        </div>
-        <div className="mobileCard mobileAnalyticsCard mobileAnalyticsCard--sla">
-          <div className="mobileAnalyticsValue">{isLoading && !ready ? '…' : val(stats.atRisk)}</div>
-          <div className="mobileAnalyticsLabel">SLA под риском</div>
-        </div>
-      </div>
-
-      {/* Section 1: Top problem categories */}
-      <div className="mobileCard">
-        <div className="mobileSectionTitle" style={{ marginBottom: 10 }}>Топ категорий проблем</div>
-        {ready && stats.topCategories.length > 0 ? (
-          <div className="mobileAnalyticsBarRows">
-            {stats.topCategories.map(([name, count]) => (
-              <div key={name} className="mobileAnalyticsBarRow">
-                <span className="mobileAnalyticsBarName">{name}</span>
-                <span className="mobileAnalyticsBarCount">{count}</span>
-                <div className="mobileAnalyticsBarTrack">
-                  <div className="mobileAnalyticsBarFill" style={{ width: `${pct(count, maxCat)}%` }} />
-                </div>
+        {isAnalyticsAdmin ? (
+          <>
+            <div className="mobileCard mobileAnalyticsCard mobileAnalyticsCard--overdue">
+              <div className="mobileAnalyticsValue">{kpiLoading ? '…' : fmt(kpi.overdue)}</div>
+              <div className="mobileAnalyticsLabel">Просрочено</div>
+            </div>
+            <div className="mobileCard mobileAnalyticsCard mobileAnalyticsCard--done">
+              <div className="mobileAnalyticsValue">{fmt(kpi.done)}</div>
+              <div className="mobileAnalyticsLabel">Выполнено</div>
+            </div>
+            <div className="mobileCard mobileAnalyticsCard mobileAnalyticsCard--sla">
+              <div className="mobileAnalyticsValue">
+                {kpiLoading ? '…' : kpi.slaPercent == null ? '—' : `${kpi.slaPercent}%`}
               </div>
-            ))}
-          </div>
+              <div className="mobileAnalyticsLabel">SLA соблюдён</div>
+            </div>
+          </>
         ) : (
-          <div className="mobileMeta">{isLoading && !ready ? 'Загрузка…' : 'Нет данных'}</div>
+          <>
+            <div className="mobileCard mobileAnalyticsCard mobileAnalyticsCard--done">
+              <div className="mobileAnalyticsValue">{kpiLoading ? '…' : fmt(kpi.done)}</div>
+              <div className="mobileAnalyticsLabel">Выполнено</div>
+            </div>
+            <div className="mobileCard mobileAnalyticsCard mobileAnalyticsCard--active">
+              <div className="mobileAnalyticsValue">{kpiLoading ? '…' : fmt(kpi.total)}</div>
+              <div className="mobileAnalyticsLabel">Всего заявок</div>
+            </div>
+          </>
         )}
       </div>
 
-      {/* Section 2: Top locations */}
+      {/* Ошибки запросов — не ломают экран, показываем баннером */}
+      {isAnalyticsAdmin && overviewQ.isError ? (
+        <div className="mobileNotice mobileNoticeError">
+          Не удалось загрузить обзор. {String((overviewQ.error as any)?.message || '')}
+        </div>
+      ) : null}
+      {isAnalyticsAdmin && locationsQ.isError ? (
+        <div className="mobileNotice mobileNoticeError">
+          Не удалось загрузить данные по точкам. {String((locationsQ.error as any)?.message || '')}
+        </div>
+      ) : null}
+      {!isAnalyticsAdmin && contextQ.isError ? (
+        <div className="mobileNotice mobileNoticeError">
+          Не удалось загрузить аналитику. {String((contextQ.error as any)?.message || '')}
+        </div>
+      ) : null}
+
+      {/* Для не-админа: обзор (SLA, сроки, нагрузка) недоступен */}
+      {!isAnalyticsAdmin && meQ.data ? (
+        <div className="mobileCard">
+          <div className="mobileMeta">Обзор (SLA, сроки, нагрузка) доступен администратору.</div>
+        </div>
+      ) : null}
+
+      {/* Топ категорий (только ADMIN — разбивка есть в /analytics/locations) */}
+      {isAnalyticsAdmin ? (
+        <div className="mobileCard">
+          <div className="mobileSectionTitle" style={{ marginBottom: 10 }}>Топ категорий проблем</div>
+          {locationsQ.isSuccess && topCategories.length > 0 ? (
+            <div className="mobileAnalyticsBarRows">
+              {topCategories.map(([name, count]) => (
+                <div key={name} className="mobileAnalyticsBarRow">
+                  <span className="mobileAnalyticsBarName">{name}</span>
+                  <span className="mobileAnalyticsBarCount">{count}</span>
+                  <div className="mobileAnalyticsBarTrack">
+                    <div className="mobileAnalyticsBarFill" style={{ width: `${pct(count, maxCat)}%` }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="mobileMeta">{locationsQ.isLoading ? 'Загрузка…' : 'Нет данных'}</div>
+          )}
+        </div>
+      ) : null}
+
+      {/* Точки с наибольшим числом активных заявок */}
       <div className="mobileCard">
         <div className="mobileSectionTitle" style={{ marginBottom: 10 }}>Точки с наибольшим числом активных заявок</div>
-        {ready && stats.topLocations.length > 0 ? (
+        {(isAnalyticsAdmin ? locationsQ.isSuccess : contextQ.isSuccess) && topLocations.length > 0 ? (
           <div className="mobileAnalyticsBarRows">
-            {stats.topLocations.map(([name, count]) => (
+            {topLocations.map(([name, count]) => (
               <div key={name} className="mobileAnalyticsBarRow">
                 <span className="mobileAnalyticsBarName">{name}</span>
                 <span className="mobileAnalyticsBarCount">{count}</span>
@@ -162,66 +269,30 @@ export function MobileAnalytics() {
             ))}
           </div>
         ) : (
-          <div className="mobileMeta">{isLoading && !ready ? 'Загрузка…' : 'Нет данных'}</div>
+          <div className="mobileMeta">
+            {(isAnalyticsAdmin ? locationsQ.isLoading : contextQ.isLoading) ? 'Загрузка…' : 'Нет данных'}
+          </div>
         )}
       </div>
 
-      {/* Section 3: Status distribution */}
+      {/* Распределение по статусам */}
       <div className="mobileCard">
         <div className="mobileSectionTitle" style={{ marginBottom: 10 }}>Распределение по статусам</div>
         <div className="mobileAnalyticsBarRows">
-          {([
-            { label: 'Новые', value: stats.newCount, mod: 'new' },
-            { label: 'Назначенные', value: stats.assigned, mod: 'assigned' },
-            { label: 'В работе', value: stats.inProgress, mod: 'inprogress' },
-            { label: 'Выполненные', value: stats.done, mod: 'done' },
-          ] as const).map(({ label, value, mod }) => (
+          {statusRows.map(({ label, value, mod }) => (
             <div key={mod} className="mobileAnalyticsBarRow">
               <span className="mobileAnalyticsBarName">{label}</span>
-              <span className="mobileAnalyticsBarCount">{val(value)}</span>
+              <span className="mobileAnalyticsBarCount">{fmt(value)}</span>
               <div className="mobileAnalyticsBarTrack">
                 <div
                   className={`mobileAnalyticsBarFill mobileAnalyticsBarFill--${mod}`}
-                  style={{ width: `${pct(value, statusMax)}%` }}
+                  style={{ width: `${value == null ? 0 : pct(value, statusMax)}%` }}
                 />
               </div>
             </div>
           ))}
         </div>
       </div>
-
-      {/* Section 4: Quick links */}
-      <div className="mobileCard">
-        <div className="mobileSectionTitle" style={{ marginBottom: 10 }}>Быстрые переходы</div>
-        <div className="mobileAnalyticsQuickLinks">
-          <Link to={homeHref} className="mobileAnalyticsQuickLink">
-            <span>Все заявки</span>
-            <span className="mobileAnalyticsQuickBadge">{val(stats.total)}</span>
-          </Link>
-          <Link to={homeHref} className="mobileAnalyticsQuickLink">
-            <span>Просроченные</span>
-            <span className={`mobileAnalyticsQuickBadge${stats.overdue > 0 && ready ? ' mobileAnalyticsQuickBadge--danger' : ''}`}>
-              {val(stats.overdue)}
-            </span>
-          </Link>
-          <Link to={homeHref} className="mobileAnalyticsQuickLink">
-            <span>Высокий приоритет</span>
-            <span className={`mobileAnalyticsQuickBadge${stats.urgentFromCards > 0 && ready ? ' mobileAnalyticsQuickBadge--warning' : ''}`}>
-              {ready ? String(stats.urgentFromCards) : '—'}
-            </span>
-          </Link>
-        </div>
-      </div>
-
-      <Link
-        to={api.appendScopeToPath('/analytics', scope, meQ.data)}
-        className="mobileCard mobileAnalyticsMoreLink"
-      >
-        <span>Подробная аналитика</span>
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-          <polyline points="9 18 15 12 9 6" />
-        </svg>
-      </Link>
 
       <div className="mobileMeta" style={{ textAlign: 'center', opacity: 0.7 }}>
         <Link to={homeHref} className="mobileAnalyticsHomeLink" style={{ color: 'inherit' }}>
