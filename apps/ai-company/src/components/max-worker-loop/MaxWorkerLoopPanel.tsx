@@ -6,6 +6,7 @@ import type { MaxWorkerLoopSnapshot } from '../../domain/maxWorkerLoop'
 import type { MaxWorkerLoopRecord } from '../../domain/maxWorkerLoop'
 import { MaxWorkerLoopToolBranchPanel } from './MaxWorkerLoopToolBranchPanel'
 import { MaxWorkerLoopCursorResultPanel } from './MaxWorkerLoopCursorResultPanel'
+import { MaxWorkerLoopConsultPeerPanel } from './MaxWorkerLoopConsultPeerPanel'
 import { MaxDecisionPlanPanel } from '../decision-plan'
 import { useMaxDecisionPlan } from '../../hooks/useMaxDecisionPlan'
 import { useI18n } from '../../i18n'
@@ -99,6 +100,12 @@ export function MaxWorkerLoopPanel({
       <section className="acMaxLoopDecisionPlanSection" aria-label={t.decisionPlan.title}>
         <MaxDecisionPlanPanel view={decisionPlanView} compact={compact} />
       </section>
+
+      {loop.peerConsultation ? (
+        <MaxWorkerLoopConsultPeerPanel snapshot={loop.peerConsultation} compact={compact} />
+      ) : snapshot?.peerConsultation ? (
+        <MaxWorkerLoopConsultPeerPanel snapshot={snapshot.peerConsultation} compact={compact} />
+      ) : null}
 
       <ol className="acMaxLoopSteps">
         {view.steps.map((step, index) => {

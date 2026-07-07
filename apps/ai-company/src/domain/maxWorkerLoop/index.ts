@@ -81,6 +81,15 @@ export {
   summarizeModelSelectionPhase,
 } from './maxWorkerLoopDecisionPlan'
 
+export type { MaxWorkerLoopPeerConsultationSnapshot } from './maxWorkerLoopPeerConsultation'
+export {
+  buildTaskConstraintsWithPeerConsultation,
+  buildTaskTextWithPeerConsultation,
+  parseMaxWorkerLoopPeerConsultationSnapshot,
+  runMaxWorkerLoopPeerConsultation,
+  summarizeConsultPeerPhase,
+} from './maxWorkerLoopPeerConsultation'
+
 export type { AutonomousDemoScenario, AutonomousDemoScenarioId } from './autonomousDemoScenario'
 export {
   AUTONOMOUS_DEMO_SCENARIO_IDS,

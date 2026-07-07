@@ -30,6 +30,13 @@ import {
   summarizeModelSelectionPhase,
 } from './maxWorkerLoopDecisionPlan'
 import {
+  buildTaskConstraintsWithPeerConsultation,
+  buildTaskTextWithPeerConsultation,
+  runMaxWorkerLoopPeerConsultation,
+  summarizeConsultPeerPhase,
+  type MaxWorkerLoopPeerConsultationSnapshot,
+} from './maxWorkerLoopPeerConsultation'
+import {
   createMaxWorkerLoopRecord,
   updateMaxWorkerLoopPhase,
   upsertMaxWorkerLoopRecord,
@@ -52,6 +59,7 @@ import type { DecisionPlan } from '../decisionPlan'
 export type MaxWorkerLoopSnapshot = {
   loop: MaxWorkerLoopRecord
   decisionPlan: DecisionPlan | null
+  peerConsultation: MaxWorkerLoopPeerConsultationSnapshot | null
   reasoning: MaxWorkerLoopReasoningResult
   report: MaxWorkerLoopReport
   memoryEvolutionDraft: MemoryEvolutionDraft
@@ -217,12 +225,16 @@ function markAutonomousDemoCompletedPhases(
     [
       'decision_plan',
       record.decisionPlan ? summarizeDecisionPlanPhase(record.decisionPlan) : 'Decision Plan (Brain)',
+    ],    [
+      'consult_peer',
+      record.peerConsultation
+        ? summarizeConsultPeerPhase(record.peerConsultation)
+        : 'Peer consult — не выполнялся',
     ],
     [
       'model_selection',
       record.decisionPlan ? summarizeModelSelectionPhase(record.decisionPlan) : 'Model selection',
     ],
-    ['max_intake', 'MAX принял demo-задачу Owner'],
     ['ollama_reasoning', 'Local Ollama reasoning завершён (real)'],
     ['analysis', 'Анализ извлечён из Runtime Report'],
     ['plan', 'План сформирован из рекомендаций'],
@@ -266,7 +278,12 @@ function markCompletedPhases(
   }
 
   const steps: Array<[MaxWorkerLoopRecord['currentPhase'], string]> = [
-    ['decision_plan', record.decisionPlan ? summarizeDecisionPlanPhase(record.decisionPlan) : 'Decision Plan'],
+    ['decision_plan', record.decisionPlan ? summarizeDecisionPlanPhase(record.decisionPlan) : 'Decision Plan'],    [
+      'consult_peer',
+      record.peerConsultation
+        ? summarizeConsultPeerPhase(record.peerConsultation)
+        : 'Peer consult — не выполнялся',
+    ],
     [
       'model_selection',
       record.decisionPlan ? summarizeModelSelectionPhase(record.decisionPlan) : 'Model selection',
@@ -352,6 +369,7 @@ export function assembleMaxWorkerLoopSnapshot(
   return {
     loop,
     decisionPlan,
+    peerConsultation: loop.peerConsultation,
     reasoning,
     report: maxReport,
     memoryEvolutionDraft,
@@ -401,6 +419,51 @@ export async function runMaxWorkerLoopV1(input: MaxWorkerLoopInput): Promise<Max
     })
     loop = updateMaxWorkerLoopPhase(loop, 'decision_plan', 'done', summarizeDecisionPlanPhase(decisionPlan))
 
+    loop = updateMaxWorkerLoopPhase(loop, 'consult_peer', 'active', 'Decision Plan → peer consult')
+    loop = upsertMaxWorkerLoopRecord(loop)
+
+    let peerConsultation: MaxWorkerLoopPeerConsultationSnapshot
+    try {
+      peerConsultation = runMaxWorkerLoopPeerConsultation({ loop, decisionPlan })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Peer consult failed'
+      peerConsultation = {
+        status: 'failed',
+        required: decisionPlan.peerConsultation.required,
+        skipReason: message,
+        peerEmployeeId: decisionPlan.peerConsultation.peerEmployeeId,
+        peerDisplayName: decisionPlan.peerConsultation.peerDisplayName,
+        consultReason: decisionPlan.peerConsultation.reason,
+        conversationId: null,
+        questionMessageId: null,
+        answerMessageId: null,
+        decisionId: null,
+        questionBody: null,
+        answerBody: null,
+        decisionSummary: null,
+        consumedSummary: null,
+        taskEnrichment: null,
+        completedAt: new Date().toISOString(),
+      }
+    }
+
+    loop = upsertMaxWorkerLoopRecord({
+      ...loop,
+      peerConsultation,
+      updatedAt: new Date().toISOString(),
+    })
+    loop = updateMaxWorkerLoopPhase(
+      loop,
+      'consult_peer',
+      peerConsultation.status === 'failed' ? 'failed' : peerConsultation.status === 'skipped' ? 'skipped' : 'done',
+      summarizeConsultPeerPhase(peerConsultation),
+    )
+
+    if (peerConsultation.status === 'failed') {
+      loop = markFailed(loop, peerConsultation.skipReason ?? 'Peer consult failed')
+      return { snapshot: null, loop, demoSnapshot: null }
+    }
+
     loop = updateMaxWorkerLoopPhase(
       loop,
       'model_selection',
@@ -410,8 +473,15 @@ export async function runMaxWorkerLoopV1(input: MaxWorkerLoopInput): Promise<Max
     loop = updateMaxWorkerLoopPhase(loop, 'max_intake', 'active', 'Запуск через Task Runner')
     loop = upsertMaxWorkerLoopRecord(loop)
 
+    const enrichedTaskText = buildTaskTextWithPeerConsultation(input.taskText, peerConsultation)
+    const enrichedConstraints = buildTaskConstraintsWithPeerConsultation(
+      loop.input.constraints ??
+        'V1 MAX Worker Loop: только reasoning через Local Ollama; без shell, git, docker и внешних API.',
+      peerConsultation,
+    )
+
     const { record, run } = await startTaskRunner({
-      taskText: input.taskText,
+      taskText: enrichedTaskText,
       title: input.title,
       mode,
       modelMode,
@@ -420,9 +490,7 @@ export async function runMaxWorkerLoopV1(input: MaxWorkerLoopInput): Promise<Max
       workspaceId: input.workspaceId,
       priority: input.priority ?? 'medium',
       expectedOutput: loop.input.expectedOutput ?? defaultExpectedOutput(mode),
-      constraints:
-        loop.input.constraints ??
-        'V1 MAX Worker Loop: только reasoning через Local Ollama; без shell, git, docker и внешних API.',
+      constraints: enrichedConstraints,
     })
 
     loop = upsertMaxWorkerLoopRecord({

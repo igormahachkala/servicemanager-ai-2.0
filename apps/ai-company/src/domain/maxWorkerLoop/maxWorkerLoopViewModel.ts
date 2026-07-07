@@ -70,6 +70,15 @@ function buildInsight(
       const tools = plan.cursorAutomationRequired ? 'Cursor' : 'local only'
       return `${plan.classifiedIntent} · ${plan.primaryModel.label} · ${tools}`
     }
+    case 'peer_consult': {
+      const consult = snapshot?.peerConsultation ?? snapshot?.loop.peerConsultation
+      if (!consult) return null
+      if (consult.status === 'skipped') return consult.skipReason
+      if (consult.status === 'completed') {
+        return `${consult.peerDisplayName ?? consult.peerEmployeeId}: ${consult.decisionSummary ?? 'accepted'}`
+      }
+      return consult.skipReason
+    }
     case 'analysis':
       return snapshot.reasoning.analysis.slice(0, 240) || null
     case 'reasoning':

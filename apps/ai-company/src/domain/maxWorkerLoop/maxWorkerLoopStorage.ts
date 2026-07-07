@@ -6,6 +6,7 @@ import {
   MAX_WORKER_EMPLOYEE_ID,
 } from './maxWorkerLoop'
 import { parseDecisionPlan } from '../decisionPlan'
+import { parseMaxWorkerLoopPeerConsultationSnapshot } from './maxWorkerLoopPeerConsultation'
 
 const STORAGE_KEY = 'ai-company-max-worker-loops'
 
@@ -72,6 +73,7 @@ function parseRecord(value: unknown): MaxWorkerLoopRecord | null {
     reportId: typeof value.reportId === 'string' ? value.reportId : null,
     taskRunnerRecordId: typeof value.taskRunnerRecordId === 'string' ? value.taskRunnerRecordId : null,
     decisionPlan: parseDecisionPlan(value.decisionPlan),
+    peerConsultation: parseMaxWorkerLoopPeerConsultationSnapshot(value.peerConsultation),
     safeMode: true,
     autonomousDemoScenarioId,
     createdAt: typeof value.createdAt === 'string' ? value.createdAt : new Date().toISOString(),
@@ -147,6 +149,7 @@ export function createMaxWorkerLoopRecord(input: MaxWorkerLoopInput): MaxWorkerL
     reportId: null,
     taskRunnerRecordId: null,
     decisionPlan: null,
+    peerConsultation: null,
     safeMode: true,
     autonomousDemoScenarioId: input.autonomousDemoScenarioId ?? null,
     createdAt: now,

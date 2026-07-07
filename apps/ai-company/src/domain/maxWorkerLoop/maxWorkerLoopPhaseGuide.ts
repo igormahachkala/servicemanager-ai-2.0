@@ -3,6 +3,7 @@ import type { MaxWorkerLoopPhase } from './maxWorkerLoop'
 /** Owner-visible steps — subset of domain phases, no fake progress. */
 export const MAX_WORKER_LOOP_UI_STEP_IDS = [
   'decision_plan',
+  'peer_consult',
   'task_intake',
   'analysis',
   'reasoning',
@@ -22,6 +23,7 @@ export type MaxWorkerLoopPhaseGuide = {
 
 const DOMAIN_PHASES_BY_UI_STEP: Record<MaxWorkerLoopUiStepId, MaxWorkerLoopPhase[]> = {
   decision_plan: ['decision_plan', 'model_selection'],
+  peer_consult: ['consult_peer'],
   task_intake: ['owner_task', 'max_intake'],
   analysis: ['analysis'],
   reasoning: ['ollama_reasoning'],
@@ -51,7 +53,13 @@ export const MAX_WORKER_LOOP_PHASE_GUIDE_RU: Record<
   decision_plan: {
     label: 'Decision Plan (Brain)',
     whatHappens: 'MAX Brain анализирует задачу Owner и строит Decision Plan: intent, модель, инструменты, Owner Approval.',
-    whatNext: 'Task Runner → Local Ollama с выбранной моделью и constraints из Decision Plan.',
+    whatNext: 'При необходимости — consult_peer с Atlas или Sentinel; затем Task Runner → Local Ollama.',
+  },
+  peer_consult: {
+    label: 'Consult Peer',
+    whatHappens:
+      'Decision Plan определяет, нужна ли консультация с коллегой. MAX задаёт вопрос через Employee Conversation — без UI чата и сети.',
+    whatNext: 'Ответ фиксируется как decision и enrich-ит задачу MAX перед reasoning.',
   },
   task_intake: {
     label: 'Получение задачи',
