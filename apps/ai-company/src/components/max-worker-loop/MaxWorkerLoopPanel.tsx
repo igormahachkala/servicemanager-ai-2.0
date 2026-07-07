@@ -4,9 +4,10 @@ import { buildAutonomousDemoSnapshot } from '../../domain/maxWorkerLoop/autonomo
 import { buildMaxWorkerLoopPanelView } from '../../domain/maxWorkerLoop/maxWorkerLoopViewModel'
 import type { MaxWorkerLoopSnapshot } from '../../domain/maxWorkerLoop'
 import type { MaxWorkerLoopRecord } from '../../domain/maxWorkerLoop'
-import type { DecisionPlan } from '../../domain/decisionPlan'
 import { MaxWorkerLoopToolBranchPanel } from './MaxWorkerLoopToolBranchPanel'
 import { MaxWorkerLoopCursorResultPanel } from './MaxWorkerLoopCursorResultPanel'
+import { MaxDecisionPlanPanel } from '../decision-plan'
+import { useMaxDecisionPlan } from '../../hooks/useMaxDecisionPlan'
 import { useI18n } from '../../i18n'
 
 type Props = {
@@ -39,104 +40,6 @@ function statusClass(status: string): string {
     .join('')
 }
 
-function BoolBadge({
-  value,
-  yes,
-  no,
-}: {
-  value: boolean
-  yes: string
-  no: string
-}) {
-  return (
-    <span className={`acMaxLoopDecisionPlanBool acMaxLoopDecisionPlanBool--${value ? 'yes' : 'no'}`}>
-      {value ? yes : no}
-    </span>
-  )
-}
-
-function MaxWorkerLoopDecisionPlanCard({
-  plan,
-  compact,
-}: {
-  plan: DecisionPlan | null
-  compact: boolean
-}) {
-  const { t } = useI18n()
-  const dp = t.maxWorkerLoop.decisionPlan
-
-  if (!plan) {
-    return (
-      <div className="acMaxLoopDecisionPlan acMaxLoopDecisionPlanEmpty">
-        <h4 className="acMaxLoopDecisionPlanTitle">{dp.title}</h4>
-        <p className="mcMuted">{t.maxWorkerLoop.startNote}</p>
-      </div>
-    )
-  }
-
-  const toolsLabel = plan.cursorAutomationRequired
-    ? dp.cursorRequired
-    : plan.toolRegistryRequired
-      ? plan.suggestedToolIds.join(', ')
-      : dp.localOnly
-
-  return (
-    <div className={`acMaxLoopDecisionPlan${compact ? ' acMaxLoopDecisionPlanCompact' : ''}`}>
-      <h4 className="acMaxLoopDecisionPlanTitle">{dp.title}</h4>
-      <dl className="acMaxLoopDecisionPlanGrid">
-        <div>
-          <dt>{dp.intent}</dt>
-          <dd>{plan.classifiedIntent}</dd>
-        </div>
-        <div>
-          <dt>{dp.model}</dt>
-          <dd>
-            {plan.primaryModel.label}
-            <span className="mcMuted"> ({plan.primaryModel.ollamaTag})</span>
-          </dd>
-        </div>
-        <div>
-          <dt>{dp.tools}</dt>
-          <dd>{toolsLabel}</dd>
-        </div>
-        <div>
-          <dt>{dp.ownerApproval}</dt>
-          <dd>
-            <BoolBadge
-              value={plan.ownerApprovalRequired}
-              yes={dp.required}
-              no={dp.notRequired}
-            />
-          </dd>
-        </div>
-        {plan.cursorAutomationRequired ? (
-          <div>
-            <dt>{dp.cursorRequired}</dt>
-            <dd>
-              <BoolBadge value yes={dp.required} no={dp.notRequired} />
-            </dd>
-          </div>
-        ) : null}
-      </dl>
-      {!compact && plan.expectedResult.summary ? (
-        <p className="acMaxLoopDecisionPlanSummary">
-          <strong>{dp.expectedResult}:</strong> {plan.expectedResult.summary}
-        </p>
-      ) : null}
-      {!compact && plan.rationale.length > 0 ? (
-        <div className="acMaxLoopDecisionPlanSummary">
-          <strong>{dp.rationale}</strong>
-          <ul className="acMaxLoopDecisionPlanRationale">
-            {plan.rationale.map((line) => (
-              <li key={line}>{line}</li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-    </div>
-  )
-}
-
 export function MaxWorkerLoopPanel({
   loop,
   snapshot = null,
@@ -145,6 +48,10 @@ export function MaxWorkerLoopPanel({
   onApprovalDecision,
 }: Props) {
   const { t } = useI18n()
+  const { view: decisionPlanView } = useMaxDecisionPlan({
+    loop,
+    runtimeRunId: loop?.runtimeRunId ?? null,
+  })
 
   if (!loop) {
     return (
@@ -161,7 +68,6 @@ export function MaxWorkerLoopPanel({
   }
 
   const view = buildMaxWorkerLoopPanelView(loop, snapshot)
-  const decisionPlan = snapshot?.decisionPlan ?? loop.decisionPlan ?? null
   const resolvedDemoSnapshot =
     demoSnapshot ??
     (loop.autonomousDemoScenarioId && snapshot
@@ -190,8 +96,8 @@ export function MaxWorkerLoopPanel({
         <p className="acMaxLoopError">{view.errorMessage}</p>
       ) : null}
 
-      <section className="acMaxLoopDecisionPlanSection" aria-label={t.maxWorkerLoop.decisionPlan.title}>
-        <MaxWorkerLoopDecisionPlanCard plan={decisionPlan} compact={compact} />
+      <section className="acMaxLoopDecisionPlanSection" aria-label={t.decisionPlan.title}>
+        <MaxDecisionPlanPanel view={decisionPlanView} compact={compact} />
       </section>
 
       <ol className="acMaxLoopSteps">

@@ -1,8 +1,10 @@
 import { Link } from 'react-router-dom'
 import { ContextEmptyState } from '../components/empty-states'
 import { MaxWorkerLoopPanel } from '../components/max-worker-loop'
+import { MaxDecisionPlanPanel } from '../components/decision-plan'
 import { PageGuideCard } from '../components/guided'
 import { useMaxEmployeeWorkspace } from '../hooks/useMaxEmployeeWorkspace'
+import { useMaxDecisionPlan } from '../hooks/useMaxDecisionPlan'
 import { MAX_WORKER_EMPLOYEE_ID } from '../domain/maxWorkerLoop'
 import type { MaxWorkspaceView } from '../domain/maxWorkspace'
 import { PageHeader, Panel } from '../mission-control/components/ui'
@@ -220,6 +222,18 @@ export function MaxEmployeeWorkspacePage() {
   const { t } = useI18n()
   const { loop, snapshot, view, isRunning } = useMaxEmployeeWorkspace()
 
+  const { view: decisionPlanView } = useMaxDecisionPlan({
+    loop,
+    runtimeRunId: view.runtimeRunId,
+    task: view.task
+      ? {
+          taskText: view.task.taskText,
+          title: view.task.title,
+          taskId: view.task.loopId,
+        }
+      : null,
+  })
+
   return (
     <div className="acMaxWorkspacePage">
       <div className="mcPageHeaderRow">
@@ -246,6 +260,10 @@ export function MaxEmployeeWorkspacePage() {
       <PageGuideCard pageId="workspace" />
 
       {!view.hasWork ? <WorkspaceEmptyHero /> : <MaxWorkspaceSections view={view} />}
+
+      <Panel title={t.decisionPlan.sectionTitle}>
+        <MaxDecisionPlanPanel view={decisionPlanView} />
+      </Panel>
 
       {loop ? (
         <Panel title={t.maxWorkspace.sections.workerLoopDetail}>

@@ -1,0 +1,164 @@
+.acDecisionPlan {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.acDecisionPlanCompact {
+  gap: 12px;
+}
+
+.acDecisionPlanEmpty {
+  padding: 4px 0;
+}
+
+.acDecisionPlanTitle {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 650;
+}
+
+.acDecisionPlanSubtitle {
+  margin: 4px 0 0;
+  color: var(--mc-text-muted, #8b949e);
+  font-size: 0.88rem;
+}
+
+.acDecisionPlanEmptyText {
+  margin: 12px 0 6px;
+  font-size: 0.95rem;
+}
+
+.acDecisionPlanEmptyHint {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.acDecisionPlanHead {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.acDecisionPlanHeadMeta {
+  flex-shrink: 0;
+}
+
+.acDecisionPlanBadge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.acDecisionPlanBadgePreview {
+  background: rgba(88, 166, 255, 0.15);
+  color: #58a6ff;
+}
+
+.acDecisionPlanBadgeStored {
+  background: rgba(63, 185, 80, 0.15);
+  color: #3fb950;
+}
+
+.acDecisionPlanGrid {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+}
+
+.acDecisionPlanCompact .acDecisionPlanGrid {
+  gap: 10px;
+}
+
+.acDecisionPlanField {
+  display: grid;
+  gap: 4px;
+}
+
+.acDecisionPlanFieldLabel {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--mc-text-muted, #8b949e);
+}
+
+.acDecisionPlanFieldValue {
+  margin: 0;
+  font-size: 0.92rem;
+}
+
+.acDecisionPlanIntent {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(210, 153, 34, 0.12);
+  color: #d29922;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.acDecisionPlanMeta {
+  margin-top: 4px;
+  font-size: 0.75rem;
+}
+
+.acDecisionPlanBool {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.acDecisionPlanBool--yes {
+  background: rgba(63, 185, 80, 0.12);
+  color: #3fb950;
+}
+
+.acDecisionPlanBool--no {
+  background: rgba(139, 148, 158, 0.12);
+  color: #8b949e;
+}
+
+.acDecisionPlanTags,
+.acDecisionPlanReasons,
+.acDecisionPlanPipeline {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+.acDecisionPlanTag {
+  display: inline-block;
+  margin: 0 6px 6px 0;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: rgba(139, 148, 158, 0.12);
+  font-size: 0.78rem;
+  list-style: none;
+}
+
+.acDecisionPlanTags {
+  list-style: none;
+  padding-left: 0;
+}
+
+.acDecisionPlanSubhead {
+  margin: 8px 0 4px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--mc-text-muted, #8b949e);
+}
+
+.acDecisionPlanReasons li {
+  margin-bottom: 4px;
+}
+
+.acDecisionPlanPipeline li {
+  margin-bottom: 8px;
+}

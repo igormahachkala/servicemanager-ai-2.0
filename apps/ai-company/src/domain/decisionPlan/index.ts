@@ -25,3 +25,5 @@ export {
   saveDecisionPlanRecord,
   type DecisionPlanRecord,
 } from './decisionPlanStorage'
+
+export { buildMaxDecisionPlanView, type MaxDecisionPlanView } from './decisionPlanViewModel'

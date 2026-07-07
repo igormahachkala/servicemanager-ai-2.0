@@ -27,6 +27,7 @@ import './styles/context-empty-state.css'
 import './styles/employee-timeline.css'
 import './styles/polish-v2.css'
 import './styles/morning-report.css'
+import './styles/decision-plan.css'
 import './styles.css'
 
 createRoot(document.getElementById('root')!).render(

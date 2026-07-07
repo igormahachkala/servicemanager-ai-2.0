@@ -51,7 +51,7 @@ export const MAX_WORKER_LOOP_PHASE_GUIDE_RU: Record<
   decision_plan: {
     label: 'Decision Plan (Brain)',
     whatHappens: 'MAX Brain анализирует задачу Owner и строит Decision Plan: intent, модель, инструменты, Owner Approval.',
-    whatNext: 'Model selection → Task Runner → Local Ollama reasoning.',
+    whatNext: 'Task Runner → Local Ollama с выбранной моделью и constraints из Decision Plan.',
   },
   task_intake: {
     label: 'Получение задачи',

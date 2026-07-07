@@ -400,6 +400,7 @@ export async function runMaxWorkerLoopV1(input: MaxWorkerLoopInput): Promise<Max
       updatedAt: new Date().toISOString(),
     })
     loop = updateMaxWorkerLoopPhase(loop, 'decision_plan', 'done', summarizeDecisionPlanPhase(decisionPlan))
+
     loop = updateMaxWorkerLoopPhase(
       loop,
       'model_selection',

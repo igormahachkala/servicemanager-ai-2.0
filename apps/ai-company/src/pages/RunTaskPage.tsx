@@ -13,6 +13,7 @@ import {
 } from '../components/task-runner'
 import { RuntimeModelRoutingPanel } from '../components/runtime/RuntimeModelRoutingPanel'
 import { MaxWorkerLoopPanel } from '../components/max-worker-loop'
+import { MaxDecisionPlanPanel } from '../components/decision-plan'
 import {
   AI_PHOTO_LAB_PROJECT_ID,
 } from '../domain/projects/aiPhotoLabIds'
@@ -31,6 +32,7 @@ import {
 import { DEFAULT_AUTONOMOUS_DEMO_SCENARIO_ID } from '../domain/maxWorkerLoop/autonomousDemoScenario'
 import { suggestModeForEmployee, TASK_RUNNER_EMPLOYEES } from '../domain/taskRunner'
 import { useMaxWorkerLoop } from '../hooks/useMaxWorkerLoop'
+import { useMaxDecisionPlan } from '../hooks/useMaxDecisionPlan'
 import { useTaskRunner, type TaskRunnerFormState } from '../hooks/useTaskRunner'
 import { PageHeader, Panel } from '../mission-control/components/ui'
 import { PageGuideCard } from '../components/guided'
@@ -103,6 +105,21 @@ export function RunTaskPage() {
     runtimeRunId: maxLoopRunId,
   })
   const displayMaxLoop = maxLoop ?? (isMaxEmployee ? latestForMax : null)
+
+  const { view: maxDecisionPlanView } = useMaxDecisionPlan({
+    employeeId: form.employeeId,
+    task: isMaxEmployee
+      ? {
+          taskText: form.taskText,
+          title: form.title.trim() || derivedTitle || null,
+          projectId: form.projectId,
+          workspaceId: form.workspaceId,
+          modelMode: form.modelMode,
+        }
+      : null,
+    loop: displayMaxLoop,
+    runtimeRunId: maxLoopRunId,
+  })
 
   const profile = useMemo(
     () => getOrCreateRuntimeProfile(form.employeeId),
@@ -317,6 +334,14 @@ export function RunTaskPage() {
         </div>
 
         <aside className="mcTaskRunnerAside">
+          {isMaxEmployee ? (
+            <Panel title={t.decisionPlan.sectionTitle}>
+              <div className="mcProfilePanelBody">
+                <MaxDecisionPlanPanel view={maxDecisionPlanView} compact />
+              </div>
+            </Panel>
+          ) : null}
+
           {isMaxEmployee ? (
             <Panel title={t.maxWorkerLoop.sectionTitle}>
               <div className="mcProfilePanelBody">
