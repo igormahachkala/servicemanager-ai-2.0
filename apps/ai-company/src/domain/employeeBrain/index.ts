@@ -84,3 +84,8 @@ export {
   listEmployeeBrainPresetEmployeeIds,
   resolveEmployeeBrainPreset,
 } from './employeeBrainCatalog'
+
+export {
+  buildEmployeeBrainDecisionPlan,
+  type BuildEmployeeBrainDecisionPlanInput,
+} from './employeeBrainDecision'
