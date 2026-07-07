@@ -116,6 +116,24 @@ export function MobileHome() {
   const cards = boardQ.data?.columns.flatMap((col) => col.cards || []) || []
   const canAssignProvider = api.isProviderTicketAssignRole(meQ.data?.role)
 
+  // E2: «Требуют доработки» — заявки, возвращённые на доработку. Детект дёшев (E2.1): 1 запрос нотификаций
+  // ∩ board-заявки IN_PROGRESS. Только для того, кому вернули работу (TECHNICIAN/MASTER). Промежуточно до
+  // backend-поля lastRejectedAt (см. память E2-backend). Провал/пустой запрос → count 0 → карта скрыта.
+  const isReworkRole = meQ.data?.role === 'TECHNICIAN' || meQ.data?.role === 'MASTER'
+  const reworkNotificationsQ = useQuery({
+    queryKey: ['mobile-notifications'],
+    queryFn: api.fetchNotifications,
+    enabled: !!meQ.data && isReworkRole && isOnline,
+    staleTime: 30_000,
+  })
+  const reworkTicketIds = useMemo(() => {
+    const ids = new Set<string>()
+    for (const n of reworkNotificationsQ.data?.items || []) {
+      if (n.type === 'ticket.rejected' && n.entityId) ids.add(n.entityId)
+    }
+    return ids
+  }, [reworkNotificationsQ.data])
+
   const persistedBoardUi = useMemo(() => readPersistedMobileHomeBoardUi(), [])
   const [boardTab, setBoardTab] = useState<MobileHomeBoardFilterTab>(persistedBoardUi.tab)
   const [activeChips, setActiveChips] = useState<Set<MobileHomeBoardChipId>>(() => new Set(persistedBoardUi.chips))
@@ -163,13 +181,19 @@ export function MobileHome() {
     () => dedupeBoardCards(cards).filter((t) => ticketRequiresMyAction(t, meQ.data?.id, meQ.data?.role, canAssignProvider)).length,
     [cards, meQ.data?.id, meQ.data?.role, canAssignProvider],
   )
+  const reworkCount = useMemo(
+    () => (isReworkRole ? dedupeBoardCards(cards).filter((t) => t.status === 'IN_PROGRESS' && reworkTicketIds.has(t.id)).length : 0),
+    [isReworkRole, cards, reworkTicketIds],
+  )
   const quickTickets = useMemo(() => {
     if (!quickFilter) return null
     const list = dedupeBoardCards(cards)
     if (quickFilter === 'awaiting') return list.filter(isAwaitingAcceptanceTicket)
+    if (quickFilter === 'rework') return list.filter((t) => t.status === 'IN_PROGRESS' && reworkTicketIds.has(t.id))
     return list.filter((t) => ticketRequiresMyAction(t, meQ.data?.id, meQ.data?.role, canAssignProvider))
-  }, [quickFilter, cards, meQ.data?.id, meQ.data?.role, canAssignProvider])
-  const quickFilterLabel = quickFilter === 'awaiting' ? 'На приёмке' : quickFilter === 'myaction' ? 'Требует моего действия' : ''
+  }, [quickFilter, cards, meQ.data?.id, meQ.data?.role, canAssignProvider, reworkTicketIds])
+  const quickFilterLabel =
+    quickFilter === 'awaiting' ? 'На приёмке' : quickFilter === 'myaction' ? 'Требует моего действия' : quickFilter === 'rework' ? 'Требуют доработки' : ''
 
   // При активной быстрой карте список показывает её выборку и обычные фильтры/вкладки очищаются.
   function activateQuickFilter(next: Exclude<MobileHomeQuickFilter, null>) {
@@ -446,9 +470,11 @@ export function MobileHome() {
           <HomeQuickCards
             awaitingCount={awaitingCount}
             myActionCount={myActionCount}
+            reworkCount={reworkCount}
             activeQuickFilter={quickFilter}
             onToggleAwaiting={() => activateQuickFilter('awaiting')}
             onToggleMyAction={() => activateQuickFilter('myaction')}
+            onToggleRework={() => activateQuickFilter('rework')}
             onPlanning={() => setMobileActionToast('Планирование — раздел в разработке')}
           />
           <div className="mobileHomeBoardSticky">

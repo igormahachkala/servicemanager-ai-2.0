@@ -1,26 +1,53 @@
-export type MobileHomeQuickFilter = 'awaiting' | 'myaction' | null
+export type MobileHomeQuickFilter = 'awaiting' | 'myaction' | 'rework' | null
 
 type Props = {
   awaitingCount: number
   myActionCount: number
+  reworkCount: number
   activeQuickFilter: MobileHomeQuickFilter
   onToggleAwaiting: () => void
   onToggleMyAction: () => void
+  onToggleRework: () => void
   onPlanning: () => void
 }
 
-/** Быстрые карты главной (Figma HomeScreen): На приёмке / Требует действия / Планирование. Иконки — Tabler SVG, без эмодзи. */
+/** Быстрые карты главной (Figma HomeScreen): Требуют доработки / На приёмке / Требует действия / Планирование. Иконки — Tabler SVG, без эмодзи. */
 export function HomeQuickCards({
   awaitingCount,
   myActionCount,
+  reworkCount,
   activeQuickFilter,
   onToggleAwaiting,
   onToggleMyAction,
+  onToggleRework,
   onPlanning,
 }: Props) {
   const myActionActive = activeQuickFilter === 'myaction'
+  const reworkActive = activeQuickFilter === 'rework'
   return (
     <div className="mobileHomeQuickCards">
+      {/* E2: «Требуют доработки» — заявки, возвращённые на доработку (только для техника/мастера; count=0 → скрыта) */}
+      {reworkCount > 0 ? (
+        <button
+          type="button"
+          className={`mobileHomeQuickCard mobileHomeQuickCard--rose${reworkActive ? ' mobileHomeQuickCard--roseActive' : ''}`}
+          onClick={onToggleRework}
+        >
+          <span className="mobileHomeQuickCardIcon" aria-hidden>
+            {/* Tabler arrow-back-up */}
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 14l-4 -4l4 -4" />
+              <path d="M5 10h11a4 4 0 1 1 0 8h-1" />
+            </svg>
+          </span>
+          <span className="mobileHomeQuickCardBody">
+            <span className="mobileHomeQuickCardTitle">Требуют доработки</span>
+            <span className="mobileHomeQuickCardSub">{reworkCount} возвращено на доработку</span>
+          </span>
+          <span className="mobileHomeQuickCardBadge">{reworkCount}</span>
+        </button>
+      ) : null}
+
       {awaitingCount > 0 ? (
         <button
           type="button"

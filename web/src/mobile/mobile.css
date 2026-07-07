@@ -3788,6 +3788,37 @@ a.mobileBtn.mobileCreateTicketLink {
   color: #6d28d9;
 }
 
+/* rose/coral — «Требуют доработки» (E2) */
+.mobileHomeQuickCard--rose {
+  background: #fff1f2;
+  border-color: #fecdd3;
+  color: #9f1239;
+}
+.mobileHomeQuickCard--rose .mobileHomeQuickCardIcon {
+  background: #ffe4e6;
+  color: #e11d48;
+}
+.mobileHomeQuickCard--rose .mobileHomeQuickCardSub { color: #be123c; }
+.mobileHomeQuickCard--rose .mobileHomeQuickCardChevron { color: #e11d48; }
+.mobileHomeQuickCard--rose .mobileHomeQuickCardBadge {
+  background: #ffe4e6;
+  color: #be123c;
+}
+.mobileHomeQuickCard--roseActive {
+  background: #e11d48;
+  border-color: #e11d48;
+  color: #fff;
+}
+.mobileHomeQuickCard--roseActive .mobileHomeQuickCardIcon {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+.mobileHomeQuickCard--roseActive .mobileHomeQuickCardSub { color: #fecdd3; }
+.mobileHomeQuickCard--roseActive .mobileHomeQuickCardBadge {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
 /* активная быстрая карта */
 .mobileHomeQuickCard--active {
   outline: 2px solid #d97706;
