@@ -139,7 +139,8 @@ export function MobileHome() {
   const [activeChips, setActiveChips] = useState<Set<MobileHomeBoardChipId>>(() => new Set(persistedBoardUi.chips))
   const [searchQuery, setSearchQuery] = useState('')
   const [filtersExpanded, setFiltersExpanded] = useState(false)
-  const [quickFilter, setQuickFilter] = useState<MobileHomeQuickFilter>(null)
+  // E3: быстрая карта персистится (как tab+chips) — вернулся из заявки → карта осталась активной; сброс её гасит.
+  const [quickFilter, setQuickFilter] = useState<MobileHomeQuickFilter>(persistedBoardUi.quickFilter)
 
   useLayoutEffect(() => {
     const s = location.state as MobileTicketNavState | null | undefined
@@ -157,8 +158,8 @@ export function MobileHome() {
   }, [location.key, location.pathname, location.search, navigate])
 
   useEffect(() => {
-    writePersistedMobileHomeBoardUi(boardTab, activeChips)
-  }, [boardTab, activeChips])
+    writePersistedMobileHomeBoardUi(boardTab, activeChips, quickFilter)
+  }, [boardTab, activeChips, quickFilter])
 
   const tabCounts = useMemo(() => mobileHomeBoardTabCounts(cards, meQ.data?.id, meQ.data?.role), [cards, meQ.data?.id, meQ.data?.role])
   const atRiskThresholdMinutes = boardQ.data?.meta.atRiskThresholdMinutes ?? 60

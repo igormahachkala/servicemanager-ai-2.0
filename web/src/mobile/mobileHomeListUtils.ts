@@ -7,28 +7,44 @@ import {
   type MobileHomeBoardFilterTab,
   MOBILE_HOME_BOARD_CHIP_IDS,
 } from './mobileHomeBoardFilters'
+import type { MobileHomeQuickFilter } from './home/HomeQuickCards'
 
 const LS_KEY = 'sma.mobileHome.boardUi.v1'
 
-export function readPersistedMobileHomeBoardUi(): { tab: MobileHomeBoardFilterTab; chips: MobileHomeBoardChipId[] } {
+const QUICK_FILTER_VALUES = ['awaiting', 'myaction', 'rework'] as const
+function readQuickFilter(v: unknown): MobileHomeQuickFilter {
+  return typeof v === 'string' && (QUICK_FILTER_VALUES as readonly string[]).includes(v)
+    ? (v as MobileHomeQuickFilter)
+    : null
+}
+
+export function readPersistedMobileHomeBoardUi(): {
+  tab: MobileHomeBoardFilterTab
+  chips: MobileHomeBoardChipId[]
+  quickFilter: MobileHomeQuickFilter
+} {
   try {
     const raw = localStorage.getItem(LS_KEY)
-    if (!raw) return { tab: 'all', chips: [] }
-    const o = JSON.parse(raw) as { tab?: string; chips?: unknown }
+    if (!raw) return { tab: 'all', chips: [], quickFilter: null }
+    const o = JSON.parse(raw) as { tab?: string; chips?: unknown; quickFilter?: unknown }
     const tab = isMobileHomeBoardFilterTab(o.tab) ? o.tab : 'all'
     const chipsRaw = Array.isArray(o.chips) ? o.chips : []
     const chips = chipsRaw.filter((c): c is MobileHomeBoardChipId =>
       MOBILE_HOME_BOARD_CHIP_IDS.includes(c as MobileHomeBoardChipId),
     )
-    return { tab, chips }
+    return { tab, chips, quickFilter: readQuickFilter(o.quickFilter) }
   } catch {
-    return { tab: 'all', chips: [] }
+    return { tab: 'all', chips: [], quickFilter: null }
   }
 }
 
-export function writePersistedMobileHomeBoardUi(tab: MobileHomeBoardFilterTab, chips: Iterable<MobileHomeBoardChipId>) {
+export function writePersistedMobileHomeBoardUi(
+  tab: MobileHomeBoardFilterTab,
+  chips: Iterable<MobileHomeBoardChipId>,
+  quickFilter: MobileHomeQuickFilter,
+) {
   try {
-    localStorage.setItem(LS_KEY, JSON.stringify({ tab, chips: [...new Set(chips)] }))
+    localStorage.setItem(LS_KEY, JSON.stringify({ tab, chips: [...new Set(chips)], quickFilter }))
   } catch {
     /* ignore quota / private mode */
   }
