@@ -1,5 +1,5 @@
-import { ExecutiveCommandCenter } from '../../components/command-center'
+import { OwnerHomeView } from '../../components/owner-home'
 
 export function DashboardPage() {
-  return <ExecutiveCommandCenter />
+  return <OwnerHomeView />
 }

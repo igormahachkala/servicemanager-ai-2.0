@@ -1,0 +1,244 @@
+/* Owner Home — /ops landing (AI-COMPANY-105A) */
+
+.acOwnerHomePage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ac-space-4);
+}
+
+.acOwnerHomeHero {
+  padding: var(--ac-space-4);
+  background: var(--ac-surface-1);
+  border: 1px solid var(--ac-border);
+  border-radius: var(--ac-radius-lg);
+}
+
+.acOwnerHomeHeroQuestion {
+  margin: 0 0 var(--ac-space-2);
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.acOwnerHomeLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
+  gap: var(--ac-space-4);
+  align-items: start;
+}
+
+@media (max-width: 960px) {
+  .acOwnerHomeLayout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.acOwnerHomeMain,
+.acOwnerHomeAside {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ac-space-4);
+}
+
+.acOwnerHomePanel {
+  padding: var(--ac-space-4);
+  background: var(--ac-surface-1);
+  border: 1px solid var(--ac-border);
+  border-radius: var(--ac-radius-lg);
+}
+
+.acOwnerHomePanelHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ac-space-2);
+  margin-bottom: var(--ac-space-3);
+}
+
+.acOwnerHomePanelTitle {
+  margin: 0 0 var(--ac-space-3);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.acOwnerHomePanelHead .acOwnerHomePanelTitle {
+  margin-bottom: 0;
+}
+
+.acOwnerHomePanelHint {
+  margin: var(--ac-space-3) 0 0;
+  font-size: 13px;
+}
+
+.acOwnerHomeStatus {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.acOwnerHomeStatus--operating {
+  background: color-mix(in srgb, var(--ac-success) 18%, transparent);
+  color: var(--ac-success);
+}
+
+.acOwnerHomeStatus--idle {
+  background: var(--ac-bg-subtle);
+  color: var(--ac-text-muted);
+}
+
+.acOwnerHomeStatus--attention {
+  background: color-mix(in srgb, var(--ac-warning) 18%, transparent);
+  color: var(--ac-warning);
+}
+
+.acOwnerHomeMetrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--ac-space-3);
+}
+
+.acOwnerHomeMetric {
+  padding: var(--ac-space-3);
+  background: var(--ac-bg-subtle);
+  border: 1px solid var(--ac-border);
+  border-radius: var(--ac-radius-md);
+}
+
+.acOwnerHomeMetricValue {
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.acOwnerHomeMetricLabel {
+  margin-top: var(--ac-space-1);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ac-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.acOwnerHomeList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ac-space-3);
+}
+
+.acOwnerHomeListItem {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ac-space-3);
+  padding-bottom: var(--ac-space-3);
+  border-bottom: 1px solid var(--ac-border);
+}
+
+.acOwnerHomeListItem:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.acOwnerHomeListMain {
+  flex: 1;
+  min-width: 0;
+}
+
+.acOwnerHomeListTitle {
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.acOwnerHomeListMeta {
+  margin-top: var(--ac-space-1);
+  font-size: 13px;
+  color: var(--ac-text-muted);
+}
+
+.acOwnerHomeMetaSep {
+  margin: 0 var(--ac-space-1);
+}
+
+.acOwnerHomeListBadges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ac-space-2);
+  margin-bottom: var(--ac-space-1);
+}
+
+.acOwnerHomeBadge {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  background: var(--ac-bg-subtle);
+  color: var(--ac-text-muted);
+}
+
+.acOwnerHomeListTime {
+  font-size: 12px;
+}
+
+.acOwnerHomeListDetail {
+  margin: var(--ac-space-1) 0 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.acOwnerHomeNextGrid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ac-space-2);
+}
+
+.acOwnerHomeNextCard {
+  display: block;
+  padding: var(--ac-space-3);
+  border: 1px solid var(--ac-border);
+  border-radius: var(--ac-radius-md);
+  background: var(--ac-bg-subtle);
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.acOwnerHomeNextCard:hover {
+  border-color: var(--ac-accent);
+  background: color-mix(in srgb, var(--ac-accent) 8%, var(--ac-bg-subtle));
+}
+
+.acOwnerHomeNextCardPrimary {
+  border-color: color-mix(in srgb, var(--ac-accent) 35%, var(--ac-border));
+  background: color-mix(in srgb, var(--ac-accent) 10%, var(--ac-surface-1));
+}
+
+.acOwnerHomeNextLabel {
+  font-weight: 700;
+}
+
+.acOwnerHomeNextDesc {
+  margin: var(--ac-space-1) 0 0;
+  font-size: 13px;
+  color: var(--ac-text-muted);
+  line-height: 1.45;
+}
+
+.acOwnerHomeLocalNote {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.45;
+}
