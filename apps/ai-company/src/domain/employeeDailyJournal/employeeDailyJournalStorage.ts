@@ -63,6 +63,12 @@ export function getEmployeeDailyJournalEntryByRuntimeRunId(
   return loadEmployeeDailyJournalEntries().find((item) => item.runtimeRunId === runtimeRunId) ?? null
 }
 
+export function getEmployeeDailyJournalEntryByMaxWorkerLoopId(
+  maxWorkerLoopId: string,
+): EmployeeDailyJournalEntry | null {
+  return loadEmployeeDailyJournalEntries().find((item) => item.maxWorkerLoopId === maxWorkerLoopId) ?? null
+}
+
 export function listEmployeeDailyJournalEntries(
   filter: EmployeeDailyJournalFilter = {},
 ): EmployeeDailyJournalEntry[] {
@@ -94,6 +100,12 @@ export function appendEmployeeDailyJournalEntry(
   if (entry.runtimeRunId) {
     const duplicate = existing.find(
       (item) => item.runtimeRunId === entry.runtimeRunId && item.employeeId === entry.employeeId,
+    )
+    if (duplicate) return duplicate
+  }
+  if (entry.maxWorkerLoopId) {
+    const duplicate = existing.find(
+      (item) => item.maxWorkerLoopId === entry.maxWorkerLoopId && item.employeeId === entry.employeeId,
     )
     if (duplicate) return duplicate
   }

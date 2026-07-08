@@ -55,6 +55,7 @@ import {
   type CursorResultHistoryEventDraft,
 } from '../cursorAutomation/cursorAutomationResultIntegration'
 import type { DecisionPlan } from '../decisionPlan'
+import { recordMaxWorkerLoopDailyJournalOnCompletion } from '../employeeDailyJournal'
 
 export type MaxWorkerLoopSnapshot = {
   loop: MaxWorkerLoopRecord
@@ -525,6 +526,7 @@ export async function runMaxWorkerLoopV1(input: MaxWorkerLoopInput): Promise<Max
     const previewSnapshot = assembleMaxWorkerLoopSnapshot(loop, run, report)
     loop = markCompletedPhases(loop, previewSnapshot.cursorAutomation)
     const snapshot = assembleMaxWorkerLoopSnapshot(loop, run, report)
+    recordMaxWorkerLoopDailyJournalOnCompletion({ snapshot, run, report })
     const demoSnapshot = loop.autonomousDemoScenarioId
       ? buildAutonomousDemoSnapshot(loop.autonomousDemoScenarioId, snapshot)
       : null

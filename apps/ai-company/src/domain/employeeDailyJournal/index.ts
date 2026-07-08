@@ -27,9 +27,15 @@ export {
   appendEmployeeDailyJournalEntry,
   buildEmployeeDailyJournalDaySummary,
   getEmployeeDailyJournalEntryById,
+  getEmployeeDailyJournalEntryByMaxWorkerLoopId,
   getEmployeeDailyJournalEntryByRuntimeRunId,
   listEmployeeDailyJournalEntries,
   loadEmployeeDailyJournalEntries,
   recordEmployeeDailyJournalFromMaxWorkerLoopSnapshot,
   recordEmployeeDailyJournalFromRuntimeCompletion,
 } from './employeeDailyJournalStorage'
+
+export {
+  recordMaxWorkerLoopDailyJournalOnCompletion,
+  type RecordMaxWorkerLoopDailyJournalInput,
+} from './maxWorkerLoopDailyJournalIntegration'
