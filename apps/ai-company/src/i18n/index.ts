@@ -110,6 +110,9 @@ export function pageTitle(pathname: string, t: Messages): string {
   if (pathname === '/ops/runtime/live') return t.pages.runtimeLive
   if (pathname === '/ops/runtime') return t.pages.runtimeSettings
   if (pathname.startsWith('/ops/runtime/runs/')) return t.runtimeOrchestrator.runPageTitle
+  if (pathname.startsWith('/ops/employees/') && pathname.endsWith('/today')) {
+    return t.pages.employeeToday
+  }
   if (pathname.startsWith('/ops/employees/') && pathname.endsWith('/runtime')) {
     return t.runtimeEngine.employeeRuntimePage
   }

@@ -60,6 +60,7 @@ import { VisualLabPage } from '../pages/VisualLabPage'
 import { CompanyOperatingDayPage } from '../pages/CompanyOperatingDayPage'
 import { RunTaskPage } from '../pages/RunTaskPage'
 import { OwnerMorningReportPage } from '../pages/OwnerMorningReportPage'
+import { EmployeeOperatingDayPage } from '../pages/EmployeeOperatingDayPage'
 
 function LegacyConversationRedirect() {
   const { id } = useParams<{ id: string }>()
@@ -93,6 +94,7 @@ export function MissionControlRoutes() {
         <Route path="employees/:id/memory" element={<EmployeeMemoryPage />} />
         <Route path="employees/:id/competencies" element={<EmployeeCompetenciesPage />} />
         <Route path="employees/:id/learning" element={<EmployeeLearningPage />} />
+        <Route path="employees/:id/today" element={<EmployeeOperatingDayPage />} />
         <Route path="employees/:id/workspace" element={<EmployeeWorkspacePage />} />
         <Route path="employees/:id/runtime" element={<EmployeeRuntimePage />} />
         <Route path="employees/:id" element={<EmployeeProfilePage />} />

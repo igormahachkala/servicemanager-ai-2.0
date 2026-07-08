@@ -265,7 +265,8 @@ export const ru: Messages = {
     visualLab: "Visual Execution Lab",
     runTask: "Запуск задачи",
     taskResults: "Результаты задач",
-    morningReport: "Утренний отчёт"
+    morningReport: "Утренний отчёт",
+    employeeToday: "Сегодня"
   },
   agentStatus: {
     online: "онлайн",
@@ -4291,6 +4292,49 @@ export const ru: Messages = {
       runtimeCompleted: "Runtime завершено",
       avgPhase: "Средняя фаза workday",
       note: "Снимок конца дня — синхронизируйте фазы workday или завершите день из workspace сотрудников."
+    }
+  },
+  employeeOperatingDay: {
+    title: "Сегодня",
+    pageTitle: "{name} — Сегодня",
+    pageDescription:
+      "Рабочий день сотрудника — статус workday, прогресс задач, часы, консультации, решения, отчёты и итог дня.",
+    heroDescription: "Operating Day Workspace для {name}. Это не MAX Workspace.",
+    notFoundDescription: "Сотрудник не найден или рабочий день недоступен.",
+    openProfile: "Профиль сотрудника",
+    openCurrentTask: "Открыть задачу",
+    currentTaskTitle: "Текущая задача",
+    daySummaryTitle: "Итог дня",
+    noCurrentTask: "В очереди нет активной задачи.",
+    noDaySummary: "Итог появится после задач или при завершении рабочего дня.",
+    startedAt: "Начало",
+    finishedAt: "Завершение",
+    yes: "Да",
+    no: "Нет",
+    hoursShort: "ч",
+    minutesShort: "мин",
+    localNote: "Агрегация из Workday, Daily Journal и Work Queue — только localStorage.",
+    status: {
+      not_started: "Не начат",
+      active: "Активен",
+      paused: "На паузе",
+      finished: "Завершён"
+    },
+    actions: {
+      start: "Начать рабочий день",
+      continue: "Продолжить",
+      finish: "Завершить",
+      pause: "Приостановить",
+      resume: "Возобновить"
+    },
+    metrics: {
+      workdayStarted: "Рабочий день начался",
+      tasksCompleted: "Задач выполнено",
+      tasksRemaining: "Осталось задач",
+      workHours: "Часов работы",
+      consultations: "Консультаций",
+      decisions: "Решений",
+      reports: "Отчётов"
     }
   },
   photoLabControlRoom: {

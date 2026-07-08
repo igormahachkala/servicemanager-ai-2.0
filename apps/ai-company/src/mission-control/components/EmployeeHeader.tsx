@@ -59,6 +59,12 @@ export function EmployeeHeader({ employee }: { employee: CustomEmployee }) {
           </div>
           <div className="mcProfileHeaderActions">
             <Link
+              to={`/ops/employees/${employee.id}/today`}
+              className="mcBtn mcBtnSecondary mcBtnSmall"
+            >
+              {t.pages.employeeToday}
+            </Link>
+            <Link
               to={`/ops/employees/${employee.id}/workspace`}
               className="mcBtn mcBtnPrimary mcBtnSmall"
             >

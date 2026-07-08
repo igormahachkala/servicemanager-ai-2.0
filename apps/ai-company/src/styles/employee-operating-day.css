@@ -1,0 +1,154 @@
+/* Employee Operating Day — /ops/employees/:id/today */
+
+.acEmployeeOperatingDayPage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ac-space-4);
+}
+
+.acEmployeeOperatingDayHeaderActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ac-space-2);
+}
+
+.acEmployeeOperatingDay {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ac-space-4);
+}
+
+.acEmployeeOperatingDayHero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ac-space-4);
+  padding: var(--ac-space-4);
+  background: var(--ac-surface-1);
+  border: 1px solid var(--ac-border);
+  border-radius: var(--ac-radius-lg);
+}
+
+.acEmployeeOperatingDayHeroTitleRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ac-space-2);
+}
+
+.acEmployeeOperatingDayHeroTitle {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.acEmployeeOperatingDayStatus {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.acEmployeeOperatingDayStatus--not_started {
+  background: var(--ac-bg-subtle);
+  color: var(--ac-text-muted);
+}
+
+.acEmployeeOperatingDayStatus--active {
+  background: color-mix(in srgb, var(--ac-success) 18%, transparent);
+  color: var(--ac-success);
+}
+
+.acEmployeeOperatingDayStatus--paused {
+  background: color-mix(in srgb, var(--ac-warning) 18%, transparent);
+  color: var(--ac-warning);
+}
+
+.acEmployeeOperatingDayStatus--finished {
+  background: color-mix(in srgb, var(--ac-accent) 18%, transparent);
+  color: var(--ac-accent);
+}
+
+.acEmployeeOperatingDayMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ac-space-2);
+  margin-top: var(--ac-space-2);
+  font-size: 13px;
+}
+
+.acEmployeeOperatingDayMetaSep {
+  color: var(--ac-text-muted);
+}
+
+.acEmployeeOperatingDayActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ac-space-2);
+}
+
+.acEmployeeOperatingDayGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--ac-space-3);
+}
+
+.acEmployeeOperatingDayMetric {
+  padding: var(--ac-space-3);
+  background: var(--ac-surface-1);
+  border: 1px solid var(--ac-border);
+  border-radius: var(--ac-radius-md);
+}
+
+.acEmployeeOperatingDayMetricLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ac-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.acEmployeeOperatingDayMetricValue {
+  margin-top: var(--ac-space-1);
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.acEmployeeOperatingDayPanel {
+  padding: var(--ac-space-4);
+  background: var(--ac-surface-1);
+  border: 1px solid var(--ac-border);
+  border-radius: var(--ac-radius-lg);
+}
+
+.acEmployeeOperatingDayPanelTitle {
+  margin: 0 0 var(--ac-space-3);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.acEmployeeOperatingDayCurrentTask {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ac-space-3);
+}
+
+.acEmployeeOperatingDayCurrentTaskTitle {
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.acEmployeeOperatingDaySummary {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
