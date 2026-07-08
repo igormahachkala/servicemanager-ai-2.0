@@ -33,14 +33,28 @@
   3. **NEW/неназначенные** заявки — **ТОЛЬКО на локациях в рамках SECONDARY-сервис-контракта**;
   4. **НЕТ** заявок на объектах клиента вне SECONDARY-скоупа;
   5. **НЕТ** полного клиентского board.
-- **Предлагаемый фикс (контракт, код НЕ писать — согласовать с management). Ключевое: фикс НЕ сводится к строке 258 — нужны ДВЕ части:**
-  - **(A) Применить SECONDARY narrowing к технику** — убрать обход на `tickets.query.service.ts:~258` (`if (params.technicianScope) return null`): при SECONDARY-контракте технику применяется тот же операционный where, что и остальным ролям SECONDARY-компании (по назначению исполнителям SECONDARY + по локациям контракта). ADMIN и TECHNICIAN субподрядчика используют **ОДИН И ТОТ ЖЕ SECONDARY narrowing по локациям**.
-  - **(B) Ограничить локация-скоуп техника локациями SECONDARY-контракта** — сейчас захардкожен пустой/`tenant_wide` (`tickets.query.service.ts:~356-363`, `buildTechnicianLocationRestrictionWhere:141-142`). Пока он пустой, **NEW-заявки всё равно текут по всем объектам клиента**, даже если (A) применён. Нужно: локация-скоуп техника при SECONDARY = множество локаций, входящих в SECONDARY-сервис-контракт (не tenant-wide).
-  - **Итоговая видимость техника** = SECONDARY narrowing по локациям (общий с ADMIN) **∩** (назначенное ему ∪ доступные NEW в рамках этих локаций). Т.е. техник дополнительно сужён назначениями + доступными NEW, но всё это — уже внутри локаций SECONDARY-контракта.
-  - Клиентская компания не должна попадать в `companyIds` техника «целиком» при SECONDARY-контракте — доступ к клиентским заявкам только через операционный where + локация-скоуп. Различать PRIMARY (широкий, как сейчас) vs SECONDARY (узкий, операционный) и для роли TECHNICIAN.
-  - **Регресс-тесты:** (1) SECONDARY-техник НЕ видит заявки на объектах клиента вне SECONDARY-контракта; (2) НЕ видит NEW-заявки на не-SECONDARY локациях; (3) видит назначенное ему + назначенное его компании + NEW только на SECONDARY-локациях; (4) ADMIN и TECHNICIAN одной SECONDARY-компании ограничены одним локация-скоупом; (5) PRIMARY-техник (не регресснуть) — прежний широкий доступ.
-- **Приоритет / зона:** **P0 (security, выше P0.1)** · `M` · `mgmt` (backend scope-логика; НЕ mobile-поток в одиночку).
-- **Зависимости:** нет. Две связанные точки: `tickets.query.service.ts:258` (narrowing) + `tickets.query.service.ts:356-363` / `ticket-access.utils.ts:141-142` (локация-скоуп техника) + узел `companyIds`.
+- **СТАТУС (2026-07-08):** APPROVED **только на документацию/финализацию диагноза и плана**. Backend **НЕ кодить**; изменение `tickets.query.service.ts` / `ticket-access.utils.ts` требует **явного отдельного одобрения management ПОСЛЕ этого документа** (подтверждено ChatGPT-потоком).
+
+- **Схема (проверено): миграция НЕ требуется для фикса.**
+  - `ServiceContract` — **без** связи с локациями (нет `locations`/`locationIds`); моделей `ContractLocation`/`ServiceContractLocation`/`ProviderLocation` **нет**. `Location` → только `clientCompanyId`. `Ticket` → нет `assignedCompanyId` (провайдер выводится через компанию `assignedTechnicianId`).
+  - Привязка провайдер↔локации существует в данных без новой модели: (1) `UserLocationBinding` (per-user, `companyId`=провайдер, `location.clientCompanyId`=клиент) — уже используется в `buildSecondaryOperationalScopeWhere`; (2) неявно через `Ticket.locationId` назначенных заявок.
+  - ⚠️ Оговорка данных: на стейдже `UserLocationBinding` фактически пуст (1 всего, 0 у SECONDARY) → «обслуживаемые локации» через привязки на практике не заполнены (см. OPEN QUESTION).
+
+- **Предлагаемый фикс (контракт, код НЕ писать — pending approval). Две части:**
+  - **(A) Убрать техник-обход** в `resolveSecondaryOperationalWhere` (`tickets.query.service.ts:258`, `if (params.technicianScope) return null`) → применять SECONDARY-сужение и к роли TECHNICIAN. Корректный операционный where **уже существует** — `buildSecondaryOperationalScopeWhere` (`ticket-access.utils.ts:466-498`): `{assignedTechnicianId ∈ SECONDARY-исполнители} OR {locationId ∈ SECONDARY-локации(из UserLocationBinding)}`, и он **уже location-aware**. Для PRIMARY-контракта `buildSecondaryOperationalTicketWhere` возвращает `null` → PRIMARY-техник **не регрессирует**.
+  - **(B) Клампинг локаций техника.** Итоговый board техника = `SECONDARY-локации ∩ (assignedTechnicianId=me ∪ NEW-в-этих-локациях)`. Т.к. `buildSecondaryOperationalScopeWhere` уже содержит `{locationId ∈ boundLocations}`, применение (A) само по себе клампит NEW к SECONDARY-локациям — **отдельная правка `tenant_wide` (`:356-363`) вероятно избыточна**; подтвердить тестом. Клиентская компания не должна давать технику полный board — доступ только через операционный where.
+  - **Регресс-тесты:** (1) SECONDARY-техник НЕ видит заявки вне SECONDARY-скоупа; (2) NEW — только на SECONDARY-локациях; (3) видит назначенное себе + NEW в этих локациях; (4) ADMIN и TECHNICIAN одной SECONDARY-компании — один локация-скоуп; (5) PRIMARY-техник — прежний широкий доступ (не регресс).
+
+- **🟡 OPEN PRODUCT QUESTIONS (решить до кода):**
+  1. **Источник «обслуживаемых объектов» / NEW-прокси:** строгий прокси (NEW видны только там, где у субподрядчика уже есть назначенные заявки / `UserLocationBinding`) — тогда фикс на существующих данных, но пустые привязки ⇒ субподрядчик не видит новой claimable-работы; ИЛИ нужен **отдельный источник обслуживаемых объектов** (заполнение `UserLocationBinding` процессом, либо новая модель контракт↔локация = отдельная миграция/фаза).
+  2. **Мульти-контракт (несколько клиентов):** сужать по **активному контуру** (текущий `linkedClientCompanyId`) или объединять все SECONDARY-контуры?
+
+- **OWNERSHIP:** файлы `tickets.query.service.ts`, `ticket-access.utils.ts` — **зона backend/management**. Изменение кода — только после **явного одобрения management**. Кто реализует (mobile-поток по делегированию или management) — решается на согласовании ПОСЛЕ этого документа.
+
+- **Сверка ссылок (важно перед кодом):** символы, названные в approval ChatGPT-потоком (`resolveTechnicianAssignedLocationIds()`, `resolveViewerBoard`, строки `:186-190`), в текущем checkout `feature/management-console-v2-clean` **не найдены** (греп по backend+frontend — ноль; `:186-190` = конец `buildTechnicianBoardQuery`). Проверенные по факту чтения точки: **`tickets.query.service.ts:258`** (`resolveSecondaryOperationalWhere` обход), **`ticket-access.utils.ts:466-498`** (`buildSecondaryOperationalScopeWhere`, готовый location-aware where), `:356-363` (`tenant_wide`), `ticket-access.utils.ts:276/288` (`companyIds` включает клиента). Перед кодом — **свериться с management на одной версии символов/строк** (возможно ChatGPT смотрел иную ветку/состояние).
+
+- **Приоритет / зона:** **P0 (security, выше P0.1)** · `M` · `mgmt` · **код pending management approval**.
+- **Зависимости:** нет (изолированная scope-логика). Точки: `tickets.query.service.ts:258` + `ticket-access.utils.ts:466-498` (+ возможно `:356-363`).
 
 ## P0.1 — CHAT-purpose для вложений чата
 
