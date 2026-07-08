@@ -562,8 +562,12 @@
   margin: 0 0 20px;
   padding: 16px 18px;
   border-radius: 12px;
-  border: 1px solid rgba(59, 130, 246, 0.28);
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.08), rgba(99, 102, 241, 0.05));
+  border: 1px solid color-mix(in srgb, var(--theme-info) 28%, var(--theme-border));
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--theme-info) 8%, transparent),
+    color-mix(in srgb, var(--theme-accent) 5%, transparent)
+  );
 }
 
 .acFirstEmployeeGuideHeader {
@@ -581,11 +585,11 @@
   margin: 0;
   font-size: 13px;
   line-height: 1.45;
-  color: var(--ac-muted, #64748b);
+  color: var(--theme-text-secondary);
 }
 
 .acFirstEmployeeGuideStatusActive {
-  color: var(--ac-accent, #2563eb);
+  color: var(--theme-accent);
   font-weight: 600;
 }
 
@@ -622,18 +626,18 @@
   border-radius: 999px;
   font-size: 11px;
   font-weight: 700;
-  color: #fff;
-  background: var(--ac-accent, #2563eb);
+  color: var(--theme-text-on-accent, #fff);
+  background: var(--theme-accent);
 }
 
 .acFirstEmployeeGuideStepLink {
-  color: var(--ac-text, #1e293b);
+  color: var(--theme-text);
   font-weight: 600;
   text-decoration: none;
 }
 
 .acFirstEmployeeGuideStepLink:hover {
-  color: var(--ac-accent, #2563eb);
+  color: var(--theme-accent);
   text-decoration: underline;
 }
 

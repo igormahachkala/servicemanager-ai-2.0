@@ -37,19 +37,19 @@ export const ownerNavRu = {
   },
   items: {
     commandCenter: {
-      label: 'Overview / Command Center',
+      label: 'Обзор компании',
       what: 'Dashboard компании',
       why: 'Здоровье, команда, sprint и риски в одном месте',
       action: 'Прочитать brief и выбрать следующее действие',
     },
     morningReport: {
-      label: 'Morning Report',
+      label: 'Утренний отчёт',
       what: 'Утренний отчёт MAX для Owner',
       why: 'Понять, что произошло за ночь',
       action: 'Просмотреть итоги и recommended next step',
     },
     operatingDay: {
-      label: 'Operating Day',
+      label: 'Операционный день',
       what: 'Board рабочего дня компании',
       why: 'Кто начал, deliveries, встречи и вечерняя сводка',
       action: 'Просмотреть приоритеты и открыть блокеры',
@@ -85,7 +85,7 @@ export const ownerNavRu = {
       action: 'Начать, продолжить, пауза или завершить день',
     },
     maxWorkspace: {
-      label: 'MAX Workspace',
+      label: 'Рабочее место MAX',
       what: 'Рабочее место MAX',
       why: 'Задачи, очередь и Worker Loop',
       action: 'Продолжить работу или Run Task',
@@ -103,7 +103,7 @@ export const ownerNavRu = {
       action: 'Открыть chat или новый thread',
     },
     runTask: {
-      label: 'Run Task',
+      label: 'Поставить задачу',
       what: 'Поставить задачу сотруднику',
       why: 'Основной способ запустить delivery',
       action: 'Выбрать сотрудника, описать задачу, submit',
@@ -127,7 +127,7 @@ export const ownerNavRu = {
       action: 'Открыть result; Work Scheduler plans здесь',
     },
     approvals: {
-      label: 'Approvals',
+      label: 'Согласования',
       what: 'Ожидающие согласования Owner',
       why: 'Блокируют progress сотрудников',
       action: 'Approve или reject каждый request',

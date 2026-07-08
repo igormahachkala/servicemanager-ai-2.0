@@ -943,8 +943,8 @@ export const ru: Messages = {
     title: "Обзор компании",
     description: "Главный экран Owner — что происходит в цифровой компании прямо сейчас.",
     heroQuestion: "Что сейчас происходит в компании?",
-    heroHint: "Состояние команды, последние результаты, решения Owner и следующие шаги — только реальные данные из localStorage.",
-    localNote: "Presence, Work Queue, Daily Journal, Approvals, Cursor Automation, Runtime — без fake progress.",
+    heroHint: "Состояние команды, последние результаты, решения Owner и следующие шаги — только реальные данные платформы.",
+    localNote: "Presence, Work Queue, Daily Journal, Approvals, Cursor Automation, Runtime — без имитации прогресса.",
     sections: {
       companyStatus: "Состояние компании",
       completedTasks: "Что сделали сотрудники",
