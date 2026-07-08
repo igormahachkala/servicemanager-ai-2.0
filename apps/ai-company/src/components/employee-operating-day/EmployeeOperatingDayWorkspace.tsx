@@ -1,6 +1,8 @@
 import { Link } from 'react-router-dom'
 import type { EmployeeOperatingDaySnapshot } from '../../domain/employeeOperatingDay'
+import { useEmployeeOperatingDaySummary } from '../../hooks/useEmployeeOperatingDaySummary'
 import { useI18n } from '../../i18n'
+import { EmployeeOperatingDaySummaryPanel } from './EmployeeOperatingDaySummaryPanel'
 
 type Props = {
   snapshot: EmployeeOperatingDaySnapshot
@@ -35,6 +37,7 @@ export function EmployeeOperatingDayWorkspace(props: Props) {
   const eod = t.employeeOperatingDay
   const { snapshot, onStart, onContinue, onFinish, onPause, onResume } = props
   const { actions } = snapshot
+  const { summary } = useEmployeeOperatingDaySummary(snapshot.employeeId, snapshot.dateKey)
 
   return (
     <div className="acEmployeeOperatingDay">
@@ -135,14 +138,7 @@ export function EmployeeOperatingDayWorkspace(props: Props) {
         )}
       </section>
 
-      <section className="acEmployeeOperatingDayPanel">
-        <h3 className="acEmployeeOperatingDayPanelTitle">{eod.daySummaryTitle}</h3>
-        {snapshot.daySummary ? (
-          <p className="acEmployeeOperatingDaySummary">{snapshot.daySummary}</p>
-        ) : (
-          <p className="acMuted">{eod.noDaySummary}</p>
-        )}
-      </section>
+      <EmployeeOperatingDaySummaryPanel snapshot={snapshot} summary={summary} />
     </div>
   )
 }

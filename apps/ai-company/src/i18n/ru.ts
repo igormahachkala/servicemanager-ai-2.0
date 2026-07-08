@@ -4340,7 +4340,7 @@ export const ru: Messages = {
     actions: {
       start: "Начать рабочий день",
       continue: "Продолжить",
-      finish: "Завершить",
+      finish: "Завершить день",
       pause: "Приостановить",
       resume: "Возобновить"
     },
@@ -4352,6 +4352,23 @@ export const ru: Messages = {
       consultations: "Консультаций",
       decisions: "Решений",
       reports: "Отчётов"
+    },
+    operatingDaySummary: {
+      title: "Итог рабочего дня",
+      empty: "Итог рабочего дня появится после завершения дня.",
+      dayStatus: "Статус дня",
+      tasksCompleted: "Выполнено задач",
+      tasksRemaining: "Осталось задач",
+      tasksBlocked: "Заблокировано",
+      workDuration: "Время работы",
+      decisions: "Решения",
+      models: "Модели",
+      tools: "Инструменты",
+      consultations: "Консультации",
+      reportsCreated: "Созданные отчёты",
+      nextDayRecommendations: "Рекомендации на следующий день",
+      noItems: "—",
+      usageCount: "{count}×"
     }
   },
   photoLabControlRoom: {

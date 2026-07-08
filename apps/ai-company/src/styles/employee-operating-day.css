@@ -152,3 +152,94 @@
   white-space: pre-wrap;
   line-height: 1.5;
 }
+
+.acEmployeeOperatingDaySummaryPanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ac-space-3);
+}
+
+.acEmployeeOperatingDaySummaryEmpty {
+  margin: 0;
+}
+
+.acEmployeeOperatingDaySummaryBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ac-space-4);
+}
+
+.acEmployeeOperatingDaySummaryStatusRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ac-space-2);
+}
+
+.acEmployeeOperatingDaySummaryStatusLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ac-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.acEmployeeOperatingDaySummaryMetrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--ac-space-3);
+}
+
+.acEmployeeOperatingDaySummaryMetric {
+  padding: var(--ac-space-3);
+  background: var(--ac-bg-subtle);
+  border: 1px solid var(--ac-border);
+  border-radius: var(--ac-radius-md);
+}
+
+.acEmployeeOperatingDaySummaryMetricLabel {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ac-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.acEmployeeOperatingDaySummaryMetricValue {
+  margin-top: var(--ac-space-1);
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.acEmployeeOperatingDaySummarySection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ac-space-2);
+}
+
+.acEmployeeOperatingDaySummarySectionTitle {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.acEmployeeOperatingDaySummaryList {
+  margin: 0;
+  padding-left: 1.25rem;
+  line-height: 1.5;
+}
+
+.acEmployeeOperatingDaySummaryList--recommendations {
+  list-style: disc;
+}
+
+.acEmployeeOperatingDaySummaryLink {
+  color: var(--ac-accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.acEmployeeOperatingDaySummaryLink:hover {
+  text-decoration: underline;
+}
