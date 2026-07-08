@@ -49,6 +49,11 @@ import {
   appendRuntimeLog,
   RuntimeExecutionError,
 } from './providers/runtimeHealth'
+import {
+  buildRuntimeFailureDiagnostics,
+  parseRuntimeFailureDiagnostics,
+  publishRuntimeFailureDebug,
+} from './runtimeFailureDiagnostics'
 import { buildRuntimePromptPreview } from './runtimePromptBuilder'
 import type { RuntimePromptPreview } from './runtimePromptTypes'
 import type { OutputLanguage } from './runtimeOutputPolicy'
@@ -330,6 +335,7 @@ function parseRuntimeRun(value: unknown): RuntimeRun | null {
     pipeline,
     result: value.result ? parseRuntimeResult(value.result) : null,
     promptPreview: value.promptPreview ? parsePromptPreview(value.promptPreview) : null,
+    failureDiagnostics: parseRuntimeFailureDiagnostics(value.failureDiagnostics),
   }
 }
 
@@ -887,6 +893,7 @@ export async function orchestrateRuntimeRun(request: RuntimeRunRequest): Promise
 
   let reportId: string | null = null
   let result: RuntimeResult | null = null
+  let lastExecutionError: unknown = null
   let finishedAt: string | null = null
 
   if (lightweightContext) {
@@ -1043,6 +1050,7 @@ export async function orchestrateRuntimeRun(request: RuntimeRunRequest): Promise
       status = 'completed'
       finishedAt = new Date().toISOString()
     } catch (error) {
+      lastExecutionError = error
       const partialResult = buildPartialFailureResult(
         routedSelection.selectedModelId,
         routedSelection.selectedProviderId,
@@ -1105,6 +1113,18 @@ export async function orchestrateRuntimeRun(request: RuntimeRunRequest): Promise
     pipeline,
     result,
     promptPreview,
+    failureDiagnostics: null,
+  }
+
+  if (status === 'failed' || status === 'cancelled') {
+    const diagnostics = buildRuntimeFailureDiagnostics({
+      run,
+      error: lastExecutionError,
+      runtimeRunId: runId,
+      provider: run.providerId,
+    })
+    publishRuntimeFailureDebug(diagnostics)
+    run.failureDiagnostics = diagnostics
   }
 
   const saved = upsertRuntimeRun(run)

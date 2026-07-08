@@ -4,6 +4,7 @@ import { MAX_WORKER_LOOP_SYNC_EVENT } from '../../hooks/useMaxWorkerLoop'
 import { useI18n } from '../../i18n'
 import { MobileEmptyState } from '../components/MobileEmptyState'
 import { MobileGoldenPathCompleteSheet } from '../components/MobileGoldenPathCompleteSheet'
+import { MobileRuntimeFailureDiagnostics } from '../components/MobileRuntimeFailureDiagnostics'
 import { MobileRuntimePhaseCard } from '../components/MobileRuntimePhaseCard'
 import { isMobileGoldenPathActive } from '../goldenPath/mobileGoldenPathStorage'
 import { useMobileBottomSheet } from '../hooks/useMobileBottomSheet'
@@ -130,6 +131,13 @@ export function MobileRuntimeLivePage() {
         <p className="acMobileRuntimeLiveError" role="alert">
           {view.loopError}
         </p>
+      ) : null}
+
+      {view.failureDiagnostics ? (
+        <MobileRuntimeFailureDiagnostics
+          diagnostics={view.failureDiagnostics}
+          hint={view.failureHint}
+        />
       ) : null}
 
       <ol className="acMobileRuntimePhaseList">

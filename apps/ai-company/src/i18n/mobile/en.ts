@@ -492,6 +492,29 @@ export const mobileEn = {
       openReport: 'Open report',
       backToMax: 'Back to MAX',
     },
+    failureDiagnostics: {
+      title: 'Technical error details',
+      copy: 'Copy error',
+      copied: 'Copied',
+      fields: {
+        runtimeRunId: 'runtimeRunId',
+        workerLoopId: 'workerLoopId',
+        phase: 'Phase',
+        model: 'Model',
+        endpoint: 'Endpoint (stored)',
+        effectiveEndpoint: 'Effective endpoint',
+        provider: 'Provider',
+        httpStatus: 'HTTP status',
+        errorName: 'error.name',
+        errorMessage: 'error.message',
+        rawError: 'rawError preview',
+      },
+      hints: {
+        network:
+          'Looks like Ollama or network. Check /runtime/ollama/api/tags from the phone on the same Wi‑Fi.',
+        modelMissing: 'Model is not installed in Ollama. Run ollama pull on the Mac.',
+      },
+    },
     empty: {
       action: 'Open MAX',
       description: 'No active Worker Loop. Run a task from the MAX queue.',

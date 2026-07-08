@@ -2925,6 +2925,104 @@ html.acMobileSheetOpen body {
   font-size: 0.8125rem;
 }
 
+.acMobileRuntimeFailureDiagnostics {
+  margin-bottom: var(--mobile-spacing-md);
+}
+
+.acMobileRuntimeFailureDetails {
+  border: 1px solid var(--theme-border);
+  border-radius: var(--mobile-radius-lg);
+  background: var(--theme-surface);
+  overflow: hidden;
+}
+
+.acMobileRuntimeFailureSummary {
+  padding: var(--mobile-spacing-md) var(--mobile-spacing-lg);
+  font-size: 0.875rem;
+  font-weight: 650;
+  cursor: pointer;
+  list-style: none;
+}
+
+.acMobileRuntimeFailureSummary::-webkit-details-marker {
+  display: none;
+}
+
+.acMobileRuntimeFailureBody {
+  padding: 0 var(--mobile-spacing-lg) var(--mobile-spacing-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--mobile-spacing-md);
+}
+
+.acMobileRuntimeFailureHint {
+  margin: 0;
+  padding: var(--mobile-spacing-sm) var(--mobile-spacing-md);
+  border-radius: var(--mobile-radius-md);
+  background: var(--theme-warning-dim, color-mix(in srgb, var(--theme-warning) 12%, transparent));
+  color: var(--theme-text-secondary);
+  font-size: 0.8125rem;
+  line-height: 1.45;
+}
+
+.acMobileRuntimeFailureMeta {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--mobile-spacing-sm);
+}
+
+.acMobileRuntimeDiagRow {
+  display: grid;
+  grid-template-columns: minmax(7rem, 38%) 1fr;
+  gap: var(--mobile-spacing-sm);
+  align-items: start;
+}
+
+.acMobileRuntimeDiagRow dt {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--theme-text-tertiary);
+}
+
+.acMobileRuntimeDiagValue {
+  margin: 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.75rem;
+  line-height: 1.4;
+  word-break: break-word;
+  color: var(--theme-text-secondary);
+}
+
+.acMobileRuntimeFailureRaw {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mobile-spacing-xs);
+}
+
+.acMobileRuntimeFailureRawLabel {
+  font-size: 0.75rem;
+  color: var(--theme-text-tertiary);
+}
+
+.acMobileRuntimeFailureRawPre {
+  margin: 0;
+  max-height: 12rem;
+  overflow: auto;
+  padding: var(--mobile-spacing-sm);
+  border-radius: var(--mobile-radius-md);
+  background: var(--theme-bg-elevated);
+  border: 1px solid var(--theme-border);
+  font-size: 0.6875rem;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.acMobileRuntimeFailureCopy {
+  width: 100%;
+}
+
 .acMobileRuntimePhaseList {
   margin: 0;
   padding: 0;

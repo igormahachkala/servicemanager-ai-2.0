@@ -7,6 +7,7 @@ import {
 } from './maxWorkerLoop'
 import { parseDecisionPlan } from '../decisionPlan'
 import { parseMaxWorkerLoopPeerConsultationSnapshot } from './maxWorkerLoopPeerConsultation'
+import { parseRuntimeFailureDiagnostics } from '../runtime/runtimeFailureDiagnostics'
 
 const STORAGE_KEY = 'ai-company-max-worker-loops'
 
@@ -80,6 +81,7 @@ function parseRecord(value: unknown): MaxWorkerLoopRecord | null {
     updatedAt: typeof value.updatedAt === 'string' ? value.updatedAt : new Date().toISOString(),
     finishedAt: typeof value.finishedAt === 'string' ? value.finishedAt : null,
     errorMessage: typeof value.errorMessage === 'string' ? value.errorMessage : null,
+    failureDiagnostics: parseRuntimeFailureDiagnostics(value.failureDiagnostics),
   }
 }
 
@@ -156,6 +158,7 @@ export function createMaxWorkerLoopRecord(input: MaxWorkerLoopInput): MaxWorkerL
     updatedAt: now,
     finishedAt: null,
     errorMessage: null,
+    failureDiagnostics: null,
   }
 }
 

@@ -2,6 +2,7 @@ import type { RuntimeRunState, RuntimePipelineStep } from './runtimeState'
 import type { RuntimeContext } from './runtimeContext'
 import type { RuntimeResult } from './runtimeResult'
 import type { RuntimePromptPreview } from './runtimePromptTypes'
+import type { RuntimeFailureDiagnostics } from './runtimeFailureDiagnostics'
 
 export type RuntimeRun = {
   id: string
@@ -20,4 +21,5 @@ export type RuntimeRun = {
   pipeline: RuntimePipelineStep[]
   result: RuntimeResult | null
   promptPreview?: RuntimePromptPreview | null
+  failureDiagnostics?: RuntimeFailureDiagnostics | null
 }

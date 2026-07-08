@@ -6,6 +6,11 @@ import { getRuntimeRunById } from '../../domain/runtime/runtimeOrchestrator'
 import type { MaxWorkerLoopPhase, MaxWorkerLoopPhaseProgress, MaxWorkerLoopRecord } from '../../domain/maxWorkerLoop'
 import { MAX_WORKER_LOOP_STATUS_LABELS_RU } from '../../domain/maxWorkerLoop'
 import { loadMaxWorkerLoopRecords } from '../../domain/maxWorkerLoop/maxWorkerLoopStorage'
+import {
+  inferRuntimeFailureHint,
+  type RuntimeFailureDiagnostics,
+  type RuntimeFailureHint,
+} from '../../domain/runtime/runtimeFailureDiagnostics'
 import { mobileReportHref } from '../navigation/mobileHrefResolver'
 
 export const MOBILE_RUNTIME_LIVE_STEP_IDS = [
@@ -45,6 +50,8 @@ export type MobileRuntimeLiveView = {
   modelLabel: string | null
   loopError: string | null
   reportHref: string | null
+  failureDiagnostics: RuntimeFailureDiagnostics | null
+  failureHint: RuntimeFailureHint
 }
 
 const DOMAIN_PHASES_BY_STEP: Record<MobileRuntimeLiveStepId, MaxWorkerLoopPhase[]> = {
@@ -164,6 +171,12 @@ export function buildMobileRuntimeLiveView(loop: MaxWorkerLoopRecord): MobileRun
 
   const reportHref = loop.reportId ? mobileReportHref(`runtime:${loop.reportId}`) : null
 
+  const failureDiagnostics =
+    loop.failureDiagnostics ??
+    (loop.runtimeRunId ? getRuntimeRunById(loop.runtimeRunId)?.failureDiagnostics ?? null : null)
+
+  const loopError = failureDiagnostics?.errorMessage ?? loop.errorMessage
+
   return {
     loop,
     taskTitle: loop.input.title?.trim() || loop.input.taskText.slice(0, 120),
@@ -178,7 +191,9 @@ export function buildMobileRuntimeLiveView(loop: MaxWorkerLoopRecord): MobileRun
     progressPercent,
     elapsedMs,
     modelLabel: resolveModelLabel(loop),
-    loopError: loop.errorMessage,
+    loopError,
     reportHref,
+    failureDiagnostics,
+    failureHint: inferRuntimeFailureHint(failureDiagnostics),
   }
 }

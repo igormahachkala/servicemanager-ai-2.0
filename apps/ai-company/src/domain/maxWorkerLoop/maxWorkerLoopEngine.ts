@@ -1,5 +1,11 @@
 import { getReportById } from '../reports/reportStorage'
 import type { Report } from '../reports/report'
+import {
+  buildRuntimeFailureDiagnostics,
+  buildRuntimeFailureDiagnosticsFromRun,
+  publishRuntimeFailureDebug,
+  type RuntimeFailureDiagnostics,
+} from '../runtime/runtimeFailureDiagnostics'
 import { getRuntimeRunById } from '../runtime/runtimeOrchestrator'
 import type { RuntimeRun } from '../runtime/runtimeRun'
 import { startTaskRunner } from '../taskRunner/taskRunner'
@@ -331,15 +337,31 @@ function markCompletedPhases(
   return upsertMaxWorkerLoopRecord(next)
 }
 
-function markFailed(record: MaxWorkerLoopRecord, message: string): MaxWorkerLoopRecord {
+function markFailed(
+  record: MaxWorkerLoopRecord,
+  message: string,
+  diagnostics?: RuntimeFailureDiagnostics | null,
+): MaxWorkerLoopRecord {
+  const failureDiagnostics =
+    diagnostics ??
+    buildRuntimeFailureDiagnostics({
+      loop: record,
+      workerLoopId: record.id,
+      runtimeRunId: record.runtimeRunId,
+      phase: record.currentPhase,
+      errorMessage: message,
+    })
+  publishRuntimeFailureDebug(failureDiagnostics)
+
   const failed = upsertMaxWorkerLoopRecord({
     ...record,
     status: 'failed',
-    errorMessage: message,
+    errorMessage: failureDiagnostics.errorMessage ?? message,
+    failureDiagnostics,
     finishedAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   })
-  return updateMaxWorkerLoopPhase(failed, record.currentPhase, 'failed', message)
+  return updateMaxWorkerLoopPhase(failed, record.currentPhase, 'failed', failureDiagnostics.errorMessage ?? message)
 }
 
 /** Assemble full V1 snapshot from completed run — pure read path, drafts only. */
@@ -513,7 +535,8 @@ export async function runMaxWorkerLoopV1(input: MaxWorkerLoopInput): Promise<Max
         run.status === 'waiting_approval'
           ? 'Runtime ожидает одобрения — V1 safe mode не использует approval gate.'
           : `Runtime завершился со статусом: ${run.status}`
-      loop = markFailed(loop, message)
+      const diagnostics = buildRuntimeFailureDiagnosticsFromRun(run, loop, message)
+      loop = markFailed(loop, diagnostics.errorMessage ?? message, diagnostics)
       return { snapshot: null, loop, demoSnapshot: null }
     }
 
@@ -533,7 +556,15 @@ export async function runMaxWorkerLoopV1(input: MaxWorkerLoopInput): Promise<Max
     return { snapshot, loop, demoSnapshot }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Неизвестная ошибка MAX Worker Loop'
-    loop = markFailed(loop, message)
+    const diagnostics = buildRuntimeFailureDiagnostics({
+      loop,
+      workerLoopId: loop.id,
+      runtimeRunId: loop.runtimeRunId,
+      phase: loop.currentPhase,
+      error,
+      errorMessage: message,
+    })
+    loop = markFailed(loop, message, diagnostics)
     return { snapshot: null, loop, demoSnapshot: null }
   }
 }

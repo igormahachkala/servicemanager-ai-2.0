@@ -1,4 +1,5 @@
 import type { DecisionPlan } from '../decisionPlan'
+import type { RuntimeFailureDiagnostics } from '../runtime/runtimeFailureDiagnostics'
 import type { MaxWorkerLoopPeerConsultationSnapshot } from './maxWorkerLoopPeerConsultation'
 
 /** MAX Worker Loop — core types and phase model (V1 safe scaffold). */
@@ -132,4 +133,5 @@ export type MaxWorkerLoopRecord = {
   updatedAt: string
   finishedAt: string | null
   errorMessage: string | null
+  failureDiagnostics: RuntimeFailureDiagnostics | null
 }

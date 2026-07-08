@@ -492,6 +492,29 @@ export const mobileRu = {
       openReport: 'Открыть отчёт',
       backToMax: 'Вернуться к MAX',
     },
+    failureDiagnostics: {
+      title: 'Технические детали ошибки',
+      copy: 'Скопировать ошибку',
+      copied: 'Скопировано',
+      fields: {
+        runtimeRunId: 'runtimeRunId',
+        workerLoopId: 'workerLoopId',
+        phase: 'Фаза',
+        model: 'Модель',
+        endpoint: 'Endpoint (stored)',
+        effectiveEndpoint: 'Effective endpoint',
+        provider: 'Provider',
+        httpStatus: 'HTTP status',
+        errorName: 'error.name',
+        errorMessage: 'error.message',
+        rawError: 'rawError preview',
+      },
+      hints: {
+        network:
+          'Похоже на сеть или Ollama. Проверьте /runtime/ollama/api/tags с телефона в той же Wi‑Fi сети.',
+        modelMissing: 'Модель не установлена в Ollama. Выполните ollama pull на Mac.',
+      },
+    },
     empty: {
       action: 'Открыть MAX',
       description: 'Нет активного Worker Loop. Запустите задачу из очереди MAX.',
