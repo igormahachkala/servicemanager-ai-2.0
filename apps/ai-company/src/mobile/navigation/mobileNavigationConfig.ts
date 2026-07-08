@@ -23,7 +23,8 @@ export function resolveMobileNavId(pathname: string): MobileNavId {
   if (pathname.startsWith(`${MOBILE_NAV_BASE}/decisions`)) return 'decisions'
   if (
     pathname.startsWith(`${MOBILE_NAV_BASE}/more`) ||
-    pathname.startsWith(`${MOBILE_NAV_BASE}/reports`)
+    pathname.startsWith(`${MOBILE_NAV_BASE}/reports`) ||
+    pathname.startsWith(`${MOBILE_NAV_BASE}/runtime`)
   ) {
     return 'more'
   }
@@ -32,7 +33,12 @@ export function resolveMobileNavId(pathname: string): MobileNavId {
 
 export function mobilePageTitle(
   pathname: string,
-  labels: Record<MobileNavId, string> & { runTaskNew?: string; reports?: string; reportDetail?: string },
+  labels: Record<MobileNavId, string> & {
+    runTaskNew?: string
+    reports?: string
+    reportDetail?: string
+    runtimeLive?: string
+  },
   maxTitle = 'MAX',
 ): string {
   if (pathname.startsWith(`${MOBILE_NAV_BASE}/tasks/new`)) {
@@ -40,6 +46,9 @@ export function mobilePageTitle(
   }
   if (pathname === `${MOBILE_NAV_BASE}/tasks` || pathname.startsWith(`${MOBILE_NAV_BASE}/tasks?`)) {
     return labels.tasks
+  }
+  if (pathname.startsWith(`${MOBILE_NAV_BASE}/runtime`)) {
+    return labels.runtimeLive ?? 'Runtime'
   }
   if (pathname.startsWith(`${MOBILE_NAV_BASE}/reports/`) && pathname !== `${MOBILE_NAV_BASE}/reports`) {
     return labels.reportDetail ?? labels.reports ?? 'Отчёт'

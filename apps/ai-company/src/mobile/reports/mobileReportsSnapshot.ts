@@ -12,6 +12,11 @@ import { getReportById, loadReports } from '../../domain/reports/reportStorage'
 import type { Report } from '../../domain/reports/report'
 import { loadMaxWorkerLoopRecords } from '../../domain/maxWorkerLoop'
 import { resolveEmployee } from '../../mission-control/data/conversation'
+import {
+  mobileMaxHref,
+  mobileRuntimeLoopHref,
+  mobileRuntimeRunHref,
+} from '../navigation/mobileHrefResolver'
 
 export type MobileReportKind =
   | 'morning_report'
@@ -221,13 +226,13 @@ function buildRuntimeDetail(report: Report): MobileReportDetail {
   if (loops[0]?.id) {
     links.push({
       label: 'MAX Worker Loop',
-      href: `/ops/employees/${encodeURIComponent(report.employeeId ?? 'ag-max')}/workspace`,
+      href: mobileMaxHref(report.employeeId ?? 'ag-max'),
     })
   }
   if (loops[0]?.runtimeRunId) {
     links.push({
       label: 'Runtime Run',
-      href: `/ops/runtime/runs/${encodeURIComponent(loops[0].runtimeRunId)}`,
+      href: mobileRuntimeRunHref(loops[0].runtimeRunId),
     })
   }
 
@@ -262,7 +267,7 @@ function buildOperatingDayDetail(summary: EmployeeOperatingDaySummary): MobileRe
   for (const loopId of summary.workerLoopIds) {
     links.push({
       label: `Worker Loop ${loopId.slice(0, 8)}…`,
-      href: `/ops/employees/${encodeURIComponent(summary.employeeId)}/workspace`,
+      href: mobileRuntimeLoopHref(loopId),
     })
   }
 
@@ -298,13 +303,13 @@ function buildJournalDetail(entry: EmployeeDailyJournalEntry): MobileReportDetai
   if (entry.maxWorkerLoopId) {
     links.push({
       label: 'MAX Worker Loop',
-      href: `/ops/employees/${encodeURIComponent(entry.employeeId)}/workspace`,
+      href: mobileRuntimeLoopHref(entry.maxWorkerLoopId),
     })
   }
   if (entry.runtimeRunId) {
     links.push({
       label: 'Runtime Run',
-      href: `/ops/runtime/runs/${encodeURIComponent(entry.runtimeRunId)}`,
+      href: mobileRuntimeRunHref(entry.runtimeRunId),
     })
   }
 

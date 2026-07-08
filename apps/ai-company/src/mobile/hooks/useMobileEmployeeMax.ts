@@ -41,6 +41,8 @@ import { EMPLOYEE_OPERATING_DAY_SYNC_EVENT } from '../../domain/employeeOperatin
 import { EMPLOYEE_OPERATING_DAY_SUMMARY_SYNC_EVENT } from '../../domain/operatingDaySummary/operatingDaySummaryStorage'
 import { CHANGE_EVENT } from '../../domain/workday/workdayStorage'
 import { MAX_WORKER_LOOP_SYNC_EVENT } from '../../hooks/useMaxWorkerLoop'
+import { findActiveMaxWorkerLoop } from '../runtime/mobileRuntimeLiveViewModel'
+import type { MaxWorkerLoopRecord } from '../../domain/maxWorkerLoop'
 
 export type MobileRunNextPreview = {
   workItemId: string
@@ -160,6 +162,11 @@ export function useMobileEmployeeMax() {
     return buildSnapshot()
   }, [tick])
 
+  const activeWorkerLoop = useMemo((): MaxWorkerLoopRecord | null => {
+    void tick
+    return findActiveMaxWorkerLoop()
+  }, [tick])
+
   const getRunNextPreview = useCallback((): MobileRunNextPreview | null => {
     return buildRunNextPreview(snapshot)
   }, [snapshot])
@@ -202,6 +209,7 @@ export function useMobileEmployeeMax() {
 
   return {
     snapshot,
+    activeWorkerLoop,
     isRunning,
     getRunNextPreview,
     startWorkday,

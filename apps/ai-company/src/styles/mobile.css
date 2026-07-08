@@ -2798,6 +2798,274 @@ html.acMobileSheetOpen body {
   color: var(--theme-text);
 }
 
+/* Mobile Runtime Live (107L) */
+.acMobileRuntimeLivePage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mobile-spacing-lg);
+  padding-bottom: var(--mobile-spacing-xl);
+}
+
+.acMobileRuntimeLiveIntro,
+.acMobileRuntimeLiveEmptyHint {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--theme-text-secondary);
+}
+
+.acMobileRuntimeLiveBanner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mobile-spacing-md);
+  padding: var(--mobile-spacing-lg);
+  border-radius: var(--mobile-radius-lg);
+  border: 1px solid color-mix(in srgb, var(--theme-accent) 28%, var(--theme-border));
+  background: color-mix(in srgb, var(--theme-accent) 8%, var(--theme-surface));
+}
+
+.acMobileRuntimeLiveBannerEyebrow {
+  margin: 0;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--theme-accent);
+}
+
+.acMobileRuntimeLiveBannerTitle {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.acMobileRuntimeLiveBannerHint {
+  margin: var(--mobile-spacing-xs) 0 0;
+  font-size: 0.8125rem;
+  color: var(--theme-text-secondary);
+}
+
+.acMobileRuntimeLiveBannerBtn {
+  width: 100%;
+  text-decoration: none;
+  text-align: center;
+}
+
+.acMobileRuntimeLiveHero {
+  padding: var(--mobile-spacing-lg);
+  border-radius: var(--mobile-radius-lg);
+  background: var(--theme-surface);
+  border: 1px solid var(--theme-border);
+}
+
+.acMobileRuntimeLiveHeroHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mobile-spacing-sm);
+  margin-bottom: var(--mobile-spacing-sm);
+}
+
+.acMobileRuntimeLiveBadge {
+  padding: 2px 8px;
+  border-radius: var(--mobile-radius-pill);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  background: var(--theme-bg-subtle);
+  color: var(--theme-text-muted);
+}
+
+.acMobileRuntimeLiveBadgeLive {
+  background: var(--theme-info-dim);
+  color: var(--theme-info);
+}
+
+.acMobileRuntimeLiveModel {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--theme-text-secondary);
+}
+
+.acMobileRuntimeLiveTaskTitle {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.acMobileRuntimeLiveTaskText {
+  margin: var(--mobile-spacing-sm) 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--theme-text-secondary);
+}
+
+.acMobileRuntimeLiveProgressHead {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--theme-text-secondary);
+  margin-bottom: var(--mobile-spacing-xs);
+}
+
+.acMobileRuntimeLiveProgressTrack {
+  height: 8px;
+  border-radius: var(--mobile-radius-pill);
+  background: var(--theme-bg-subtle);
+  overflow: hidden;
+}
+
+.acMobileRuntimeLiveProgressFill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--theme-accent);
+  transition: width 0.35s ease;
+}
+
+.acMobileRuntimeLiveElapsed {
+  margin: var(--mobile-spacing-sm) 0 0;
+  font-size: 0.75rem;
+  color: var(--theme-text-muted);
+}
+
+.acMobileRuntimeLiveError {
+  margin: 0;
+  padding: var(--mobile-spacing-md);
+  border-radius: var(--mobile-radius-md);
+  background: var(--theme-error-dim);
+  color: var(--theme-error);
+  font-size: 0.8125rem;
+}
+
+.acMobileRuntimePhaseList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--mobile-spacing-md);
+}
+
+.acMobileRuntimePhaseCard {
+  padding: var(--mobile-spacing-lg);
+  border-radius: var(--mobile-radius-lg);
+  background: var(--theme-surface);
+  border: 1px solid var(--theme-border);
+}
+
+.acMobileRuntimePhaseCardCurrent {
+  border-color: var(--theme-accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--theme-accent) 20%, transparent);
+}
+
+.acMobileRuntimePhaseHead {
+  display: flex;
+  gap: var(--mobile-spacing-md);
+  align-items: flex-start;
+}
+
+.acMobileRuntimePhaseIndex {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--mobile-radius-pill);
+  background: var(--theme-bg-subtle);
+  font-size: 0.75rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.acMobileRuntimePhaseTitles {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.acMobileRuntimePhaseTitle {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 650;
+}
+
+.acMobileRuntimePhaseStatus {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.acMobileRuntimePhaseStatus--pending {
+  color: var(--theme-text-muted);
+}
+
+.acMobileRuntimePhaseStatus--running {
+  color: var(--theme-info);
+}
+
+.acMobileRuntimePhaseStatus--completed {
+  color: var(--theme-success);
+}
+
+.acMobileRuntimePhaseStatus--failed {
+  color: var(--theme-error);
+}
+
+.acMobileRuntimePhaseDetail {
+  margin: var(--mobile-spacing-sm) 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--theme-text-secondary);
+}
+
+.acMobileRuntimePhaseMeta {
+  margin: var(--mobile-spacing-md) 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--mobile-spacing-xs);
+}
+
+.acMobileRuntimePhaseRow {
+  display: grid;
+  grid-template-columns: 88px 1fr;
+  gap: var(--mobile-spacing-sm);
+  font-size: 0.8125rem;
+}
+
+.acMobileRuntimePhaseRow dt {
+  margin: 0;
+  color: var(--theme-text-muted);
+  font-weight: 600;
+}
+
+.acMobileRuntimePhaseRow dd {
+  margin: 0;
+  color: var(--theme-text-secondary);
+}
+
+.acMobileRuntimePhaseError {
+  margin: var(--mobile-spacing-sm) 0 0;
+  font-size: 0.8125rem;
+  color: var(--theme-error);
+}
+
+.acMobileRuntimeLiveActions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mobile-spacing-sm);
+}
+
+.acMobileRuntimeLiveBack {
+  text-decoration: none;
+  text-align: center;
+}
+
 /* Mobile Tasks Center (107K) */
 .acMobileTasksCenterPage {
   display: flex;
@@ -3067,6 +3335,118 @@ html.acMobileSheetOpen body {
 @media (max-width: 380px) {
   .acMobileTaskCenterStats {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Mobile UX Polish V1 (107M) */
+.acMobilePage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mobile-spacing-lg);
+  width: 100%;
+  min-width: 0;
+}
+
+.acMobileOwnerHome,
+.acMobileEmployeesPage,
+.acMobileTasksCenterPage,
+.acMobileRunTask,
+.acMobileDecisionsPage,
+.acMobileReportsPage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mobile-spacing-lg);
+  width: 100%;
+  min-width: 0;
+}
+
+.acMobileMaxHeroName,
+.acMobileRosterCardName,
+.acMobileRuntimeLiveTaskTitle,
+.acMobileRuntimeLiveBannerTitle,
+.acMobileRuntimePhaseTitle,
+.acMobileTaskCenterTitle,
+.acMobileMaxResultTask,
+.acMobileMaxQueueTitle,
+.acMobileMaxQueueItemTitle,
+.acMobileMoreLinkTitle,
+.acMobileMoreLinkDescription,
+.acMobileRosterResultTitle {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.acMobileRuntimeLiveTaskTitle,
+.acMobileRuntimeLiveBannerTitle {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.acMobileRosterCard {
+  display: flex;
+  flex-direction: column;
+}
+
+.acMobileRosterActions {
+  margin-top: auto;
+  padding-top: var(--mobile-spacing-sm);
+}
+
+.acMobileRosterBadge {
+  flex-shrink: 0;
+  max-width: 46%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.acMobileMaxHeroTop {
+  min-width: 0;
+}
+
+.acMobileMaxHeroBody {
+  min-width: 0;
+  flex: 1;
+}
+
+.acMobileLinkBtn,
+.acMobileSecondaryBtn,
+.acMobilePrimaryBtn {
+  justify-content: center;
+  text-align: center;
+}
+
+.acMobileSectionDescription,
+.acMobileCardDescription,
+.acMobileMoreLinkDescription {
+  color: var(--theme-text-secondary);
+}
+
+@media (max-width: 380px) {
+  .acMobileBottomNavLabel {
+    font-size: 0.5625rem;
+    letter-spacing: -0.01em;
+  }
+
+  .acMobileNavIconSvg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .acMobileBottomNavLink {
+    padding-inline: 2px;
+  }
+}
+
+@media (max-width: 430px) {
+  .acMobileTaskCenterActions {
+    flex-direction: column;
+  }
+
+  .acMobileTaskCenterActions .acMobileSecondaryBtn,
+  .acMobileTaskCenterActions .acMobileLinkBtn {
+    width: 100%;
   }
 }
 

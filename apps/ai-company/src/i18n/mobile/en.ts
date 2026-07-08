@@ -87,8 +87,8 @@ export const mobileEn = {
       runtimeHint: 'Worker Loop execution progress in real time.',
       max: 'MAX',
       maxHint: 'First employee control and work queue.',
-      desktop: 'Desktop version',
-      desktopHint: 'Command Center and full ops UI.',
+      desktop: 'Desktop overview',
+      desktopHint: 'Full Command Center at /ops.',
     },
   },
   loading: {
@@ -435,6 +435,47 @@ export const mobileEn = {
       openMax: 'Open MAX',
       startWorkday: 'Start workday',
       runNext: 'Run next task',
+    },
+  },
+  runtimeLive: {
+    pageTitle: 'Runtime Live',
+    intro: 'MAX execution in real time — Worker Loop phases, no separate Runtime UI.',
+    currentTask: 'Current task',
+    progress: 'Progress',
+    banner: {
+      title: 'MAX is executing a task',
+      eyebrow: 'Worker Loop active',
+      hint: 'Phases refresh automatically from localStorage.',
+      action: 'Watch execution',
+    },
+    steps: {
+      owner_task: 'Owner Task',
+      decision_plan: 'Decision Plan',
+      consult_peer: 'Consult Peer',
+      reasoning: 'Reasoning',
+      runtime: 'Runtime',
+      journal: 'Journal',
+      report: 'Report',
+    },
+    phaseStatus: {
+      pending: 'Pending',
+      running: 'Running',
+      completed: 'Completed',
+      failed: 'Failed',
+    },
+    fields: {
+      model: 'Model',
+      time: 'Time',
+      duration: 'Duration',
+      elapsed: 'Elapsed',
+    },
+    actions: {
+      openReport: 'Open report',
+      backToMax: 'Back to MAX',
+    },
+    empty: {
+      action: 'Open MAX',
+      description: 'No active Worker Loop. Run a task from the MAX queue.',
     },
   },
   reports: {

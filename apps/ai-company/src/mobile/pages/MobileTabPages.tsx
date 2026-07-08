@@ -2,8 +2,22 @@ import { Link } from 'react-router-dom'
 import { ThemeSwitch } from '../../components/theme/ThemeSwitch'
 import { useI18n } from '../../i18n'
 import { MobileCard } from '../components/MobileCard'
+import { MobileEmptyState } from '../components/MobileEmptyState'
 import { MobileSection } from '../components/MobileSection'
 import { MOBILE_PATHS } from '../navigation/mobileHrefResolver'
+
+export function MobileTasksPage() {
+  const { t } = useI18n()
+
+  return (
+    <MobileSection title={t.mobile.pages.tasks} description={t.ownerNav.groups.tasks.hint}>
+      <Link to={MOBILE_PATHS.tasksNew} className="acMobilePrimaryBtn acMobileTasksNewBtn">
+        {t.mobile.fab.assignTask}
+      </Link>
+      <MobileEmptyState variant="noTasks" actionHref={MOBILE_PATHS.tasksNew} />
+    </MobileSection>
+  )
+}
 
 export function MobileMorePage() {
   const { t } = useI18n()
@@ -23,12 +37,6 @@ export function MobileMorePage() {
       to: MOBILE_PATHS.morningReport,
     },
     {
-      id: 'runtime',
-      title: copy.links.runtime,
-      description: copy.links.runtimeHint,
-      to: MOBILE_PATHS.runtime,
-    },
-    {
       id: 'max',
       title: copy.links.max,
       description: copy.links.maxHint,
@@ -43,7 +51,7 @@ export function MobileMorePage() {
   ]
 
   return (
-    <div className="acMobilePage">
+    <>
       <MobileSection title={t.mobile.pages.more} description={copy.sectionHint}>
         <nav className="acMobileMoreLinks" aria-label={copy.navAria}>
           {links.map((item) => (
@@ -67,6 +75,6 @@ export function MobileMorePage() {
           actions={<ThemeSwitch />}
         />
       </MobileSection>
-    </div>
+    </>
   )
 }

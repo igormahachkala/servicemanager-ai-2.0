@@ -437,6 +437,47 @@ export const mobileRu = {
       runNext: 'Запустить следующую задачу',
     },
   },
+  runtimeLive: {
+    pageTitle: 'Runtime Live',
+    intro: 'Ход выполнения MAX в реальном времени — фазы Worker Loop без отдельного Runtime UI.',
+    currentTask: 'Текущая задача',
+    progress: 'Прогресс',
+    banner: {
+      title: 'MAX выполняет задачу',
+      eyebrow: 'Worker Loop активен',
+      hint: 'Фазы обновляются автоматически из localStorage.',
+      action: 'Смотреть выполнение',
+    },
+    steps: {
+      owner_task: 'Задача Owner',
+      decision_plan: 'Decision Plan',
+      consult_peer: 'Consult Peer',
+      reasoning: 'Reasoning',
+      runtime: 'Runtime',
+      journal: 'Journal',
+      report: 'Report',
+    },
+    phaseStatus: {
+      pending: 'Ожидает',
+      running: 'Выполняется',
+      completed: 'Завершено',
+      failed: 'Ошибка',
+    },
+    fields: {
+      model: 'Модель',
+      time: 'Время',
+      duration: 'Длительность',
+      elapsed: 'Прошло',
+    },
+    actions: {
+      openReport: 'Открыть отчёт',
+      backToMax: 'Вернуться к MAX',
+    },
+    empty: {
+      action: 'Открыть MAX',
+      description: 'Нет активного Worker Loop. Запустите задачу из очереди MAX.',
+    },
+  },
   reports: {
     pageTitle: 'Отчёты',
     intro:

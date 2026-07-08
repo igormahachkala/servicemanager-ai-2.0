@@ -9,6 +9,7 @@ import { MobileEmployeeWorkdayCard } from '../components/MobileEmployeeWorkdayCa
 import { MobileWorkQueueCard } from '../components/MobileWorkQueueCard'
 import { MobileLastResultCard } from '../components/MobileLastResultCard'
 import { MobileSection } from '../components/MobileSection'
+import { MobileRuntimeLiveBanner } from '../components/MobileRuntimeLiveBanner'
 import { MobileStandardTaskQuickStart } from '../components/MobileStandardTaskQuickStart'
 
 export function MobileEmployeePage() {
@@ -43,6 +44,16 @@ export function MobileEmployeePage() {
           <p>{copy.activeBanner}</p>
         </div>
       )}
+
+      {max.activeWorkerLoop ? (
+        <MobileRuntimeLiveBanner
+          loopId={max.activeWorkerLoop.id}
+          taskTitle={
+            max.activeWorkerLoop.input.title?.trim() ||
+            max.activeWorkerLoop.input.taskText.slice(0, 120)
+          }
+        />
+      ) : null}
 
       <MobileEmployeeHeroCard snapshot={max.snapshot} />
 
