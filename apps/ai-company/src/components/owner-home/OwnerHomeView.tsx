@@ -8,7 +8,7 @@ import type {
 import { MAX_WORKER_EMPLOYEE_ID } from '../../domain/maxWorkerLoop'
 import { useOwnerHome } from '../../hooks/useOwnerHome'
 import { useI18n } from '../../i18n'
-import { FirstEmployeeNavigationGuide } from '../guided'
+import { FirstFiveMinutesGuide } from '../guided'
 import { PageHeader } from '../layout'
 
 function formatTime(iso: string | null): string | null {
@@ -29,6 +29,18 @@ function StatusBadge(props: { status: OwnerHomeOperatingStatus }) {
   )
 }
 
+function companyStatusHint(status: OwnerHomeCompanyStatus, t: ReturnType<typeof useI18n>['t']): string {
+  if (status.operatingStatus === 'ready') {
+    return t.ownerHome.companyStatus.readyHint
+  }
+  if (status.operatingStatus === 'attention') {
+    return t.ownerHome.companyStatus.attentionHint
+  }
+  return status.isOperating
+    ? t.ownerHome.companyStatus.operatingHint
+    : t.ownerHome.companyStatus.idleHint
+}
+
 function CompanyStatusPanel(props: { status: OwnerHomeCompanyStatus }) {
   const { t } = useI18n()
   const m = t.ownerHome.metrics
@@ -46,9 +58,7 @@ function CompanyStatusPanel(props: { status: OwnerHomeCompanyStatus }) {
         <MetricCard label={m.tasksCompletedToday} value={String(status.tasksCompletedToday)} />
         <MetricCard label={m.pendingDecisions} value={String(status.pendingOwnerDecisions)} />
       </div>
-      <p className="acMuted acOwnerHomePanelHint">
-        {status.isOperating ? t.ownerHome.companyStatus.operatingHint : t.ownerHome.companyStatus.idleHint}
-      </p>
+      <p className="acMuted acOwnerHomePanelHint">{companyStatusHint(status, t)}</p>
     </section>
   )
 }
@@ -136,55 +146,74 @@ function DecisionsPanel(props: { items: OwnerHomeDecisionItem[] }) {
   )
 }
 
-function NextActionsPanel() {
+function NextActionsPanel(props: { status: OwnerHomeCompanyStatus }) {
   const { t } = useI18n()
   const maxId = encodeURIComponent(MAX_WORKER_EMPLOYEE_ID)
-  const actions = [
-    {
-      id: 'run-task',
-      ...t.ownerHome.nextActions.runTask,
-      href: `/ops/run-task?employee=${maxId}`,
-      primary: true,
-    },
-    {
-      id: 'morning-report',
-      ...t.ownerHome.nextActions.morningReport,
-      href: '/ops/morning-report',
-      primary: true,
-    },
-    {
-      id: 'max-today',
-      ...t.ownerHome.nextActions.maxToday,
-      href: `/ops/employees/${maxId}/today`,
-      primary: false,
-    },
-    {
-      id: 'max-queue',
-      ...t.ownerHome.nextActions.maxQueue,
-      href: `/ops/employees/${maxId}/workspace`,
-      primary: false,
-    },
-  ]
+  const isFirstRun = props.status.operatingStatus === 'ready'
+
+  const primary = isFirstRun
+    ? {
+        label: t.ownerHome.nextActions.runTask.label,
+        description: t.ownerHome.nextActions.runTask.description,
+        href: `/ops/run-task?employee=${maxId}`,
+      }
+    : props.status.pendingOwnerDecisions > 0
+      ? {
+          label: t.ownerHome.nextActions.approvals.label,
+          description: t.ownerHome.nextActions.approvals.description,
+          href: '/ops/approvals',
+        }
+      : {
+          label: t.ownerHome.nextActions.morningReport.label,
+          description: t.ownerHome.nextActions.morningReport.description,
+          href: '/ops/morning-report',
+        }
+
+  const secondary = isFirstRun
+    ? [
+        {
+          id: 'open-max',
+          label: t.ownerHome.secondaryLinks.openMax,
+          href: `/ops/employees/${maxId}/workspace`,
+        },
+        {
+          id: 'start-workday',
+          label: t.ownerHome.secondaryLinks.startWorkday,
+          href: `/ops/employees/${maxId}/today`,
+        },
+      ]
+    : [
+        {
+          id: 'run-task',
+          label: t.ownerHome.secondaryLinks.assignTask,
+          href: `/ops/run-task?employee=${maxId}`,
+        },
+        {
+          id: 'max-today',
+          label: t.ownerHome.secondaryLinks.maxToday,
+          href: `/ops/employees/${maxId}/today`,
+        },
+        {
+          id: 'approvals',
+          label: t.ownerHome.secondaryLinks.approvals,
+          href: '/ops/approvals',
+        },
+      ]
 
   return (
     <section className="acOwnerHomePanel acOwnerHomePanelNext">
       <h2 className="acOwnerHomePanelTitle">{t.ownerHome.sections.nextActions}</h2>
-      <div className="acOwnerHomeNextGrid">
-        {actions.map((action) => (
-          <Link
-            key={action.id}
-            to={action.href}
-            className={
-              action.primary
-                ? 'acOwnerHomeNextCard acOwnerHomeNextCardPrimary'
-                : 'acOwnerHomeNextCard'
-            }
-          >
-            <div className="acOwnerHomeNextLabel">{action.label}</div>
-            <p className="acOwnerHomeNextDesc">{action.description}</p>
+      <Link to={primary.href} className="acOwnerHomeNextCard acOwnerHomeNextCardPrimary">
+        <div className="acOwnerHomeNextLabel">{primary.label}</div>
+        <p className="acOwnerHomeNextDesc">{primary.description}</p>
+      </Link>
+      <nav className="acOwnerHomeSecondaryLinks" aria-label={t.ownerHome.secondaryLinks.aria}>
+        {secondary.map((link) => (
+          <Link key={link.id} to={link.href} className="acOwnerHomeSecondaryLink">
+            {link.label}
           </Link>
         ))}
-      </div>
+      </nav>
     </section>
   )
 }
@@ -201,7 +230,7 @@ export function OwnerHomeView() {
         <p className="acMuted">{t.ownerHome.heroHint}</p>
       </section>
 
-      <FirstEmployeeNavigationGuide />
+      <FirstFiveMinutesGuide />
 
       <div className="acOwnerHomeLayout">
         <div className="acOwnerHomeMain">
@@ -210,7 +239,7 @@ export function OwnerHomeView() {
           <DecisionsPanel items={snapshot.decisionItems} />
         </div>
         <aside className="acOwnerHomeAside">
-          <NextActionsPanel />
+          <NextActionsPanel status={snapshot.companyStatus} />
           <p className="mcMuted acOwnerHomeLocalNote">{t.ownerHome.localNote}</p>
         </aside>
       </div>

@@ -13,10 +13,11 @@ import { buildJournalMemoryAndKnowledge } from '../morningReport/ownerMorningRep
 import { loadPresenceRecords } from '../presence/presence'
 import { isPresenceWorking } from '../presence/presenceStats'
 import { loadRuntimeRuns } from '../runtime/runtimeOrchestrator'
+import { getOperatingDayForEmployeeDate } from '../operatingDay/operatingDayStorage'
 import { getTodayDateKey } from '../workday/workdayStorage'
 import { resolveEmployee } from '../../mission-control/data/conversation'
 
-export type OwnerHomeOperatingStatus = 'operating' | 'idle' | 'attention'
+export type OwnerHomeOperatingStatus = 'ready' | 'operating' | 'idle' | 'attention'
 
 export type OwnerHomeCompanyStatus = {
   operatingStatus: OwnerHomeOperatingStatus
@@ -213,9 +214,23 @@ export function buildOwnerHomeSnapshot(now: Date = new Date()): OwnerHomeSnapsho
   const decisionItems = buildDecisionItems(dateKey)
   const pendingOwnerDecisions = decisionItems.length
 
-  const isOperating = activeEmployeesCount > 0 || tasksInProgress > 0
+  const journalToday = listEmployeeDailyJournalEntries({ dateKey, limit: 1 })
+  const maxOperatingDay = getOperatingDayForEmployeeDate(MAX_WORKER_EMPLOYEE_ID, dateKey)
+  const operatingDayNotStarted = !maxOperatingDay || maxOperatingDay.state === 'not_started'
+  const isFirstRunReady =
+    activeEmployeesCount === 0 &&
+    tasksInProgress === 0 &&
+    tasksCompletedToday === 0 &&
+    journalToday.length === 0 &&
+    workItems.length === 0 &&
+    operatingDayNotStarted &&
+    pendingOwnerDecisions === 0
+
+  const isOperating = !isFirstRunReady && (activeEmployeesCount > 0 || tasksInProgress > 0)
   let operatingStatus: OwnerHomeOperatingStatus = 'idle'
-  if (decisionItems.some((item) => item.kind === 'blocked_task' || item.kind === 'approval')) {
+  if (isFirstRunReady) {
+    operatingStatus = 'ready'
+  } else if (decisionItems.some((item) => item.kind === 'blocked_task' || item.kind === 'approval')) {
     operatingStatus = 'attention'
   } else if (isOperating) {
     operatingStatus = 'operating'

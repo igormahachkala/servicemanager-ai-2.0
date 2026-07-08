@@ -87,6 +87,11 @@
   color: var(--ac-success);
 }
 
+.acOwnerHomeStatus--ready {
+  background: color-mix(in srgb, var(--ac-accent) 14%, transparent);
+  color: var(--ac-accent);
+}
+
 .acOwnerHomeStatus--idle {
   background: var(--ac-bg-subtle);
   color: var(--ac-text-muted);
@@ -235,6 +240,24 @@
   font-size: 13px;
   color: var(--ac-text-muted);
   line-height: 1.45;
+}
+
+.acOwnerHomeSecondaryLinks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ac-space-2) var(--ac-space-3);
+  margin-top: var(--ac-space-3);
+}
+
+.acOwnerHomeSecondaryLink {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ac-text-secondary);
+  text-decoration: none;
+}
+
+.acOwnerHomeSecondaryLink:hover {
+  color: var(--ac-accent);
 }
 
 .acOwnerHomeLocalNote {

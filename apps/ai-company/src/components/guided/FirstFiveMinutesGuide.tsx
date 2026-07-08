@@ -1,13 +1,16 @@
 import { useCallback, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { MAX_WORKER_EMPLOYEE_ID } from '../../domain/maxWorkerLoop'
 import { useI18n } from '../../i18n'
 
 const COLLAPSED_STORAGE_KEY = 'ai-company-first-five-minutes-collapsed'
+const MAX = MAX_WORKER_EMPLOYEE_ID
 
 const STEP_IDS = [
   'companyState',
+  'openMax',
   'assignTask',
-  'maxDay',
+  'startWorkday',
   'morningReport',
   'ownerDecisions',
 ] as const
@@ -16,8 +19,9 @@ type StepId = (typeof STEP_IDS)[number]
 
 const STEP_HREFS: Record<StepId, string> = {
   companyState: '/ops',
-  assignTask: '/ops/run-task?employee=ag-max',
-  maxDay: '/ops/employees/ag-max/today',
+  openMax: `/ops/employees/${MAX}/workspace`,
+  assignTask: `/ops/run-task?employee=${MAX}`,
+  startWorkday: `/ops/employees/${MAX}/today`,
   morningReport: '/ops/morning-report',
   ownerDecisions: '/ops/approvals',
 }
