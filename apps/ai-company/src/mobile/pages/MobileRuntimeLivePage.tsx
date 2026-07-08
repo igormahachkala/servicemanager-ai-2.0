@@ -85,7 +85,7 @@ export function MobileRuntimeLivePage() {
 
   return (
     <div className="acMobilePage acMobileRuntimeLivePage" data-mobile-guide="runtime-overview">
-      <p className="acMobileRuntimeLiveIntro">{copy.intro}</p>
+      <p className="acMobilePageIntro acMobileRuntimeLiveIntro">{copy.intro}</p>
 
       <section className="acMobileRuntimeLiveHero" aria-label={copy.currentTask}>
         <div className="acMobileRuntimeLiveHeroHead">

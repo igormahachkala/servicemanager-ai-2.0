@@ -22,7 +22,7 @@ export const mobileRu = {
   },
   assignTaskSheet: {
     title: 'Поставить задачу',
-    description: 'Выберите способ поручения работы сотруднику.',
+    description: 'Выберите способ поручить задачу.',
     runTask: 'Run Task',
     quickAssign: 'Быстрое поручение',
     morningReport: 'Утренний отчёт',
@@ -31,8 +31,7 @@ export const mobileRu = {
   standardTask: {
     eyebrow: 'Стандартная задача MAX',
     title: 'Проверить состояние AI Company',
-    description:
-      'MAX проверит рабочий день, очередь, отчёты и решения Owner — сформирует краткий статус и следующий шаг.',
+    description: 'MAX проверит статус компании и предложит следующий шаг.',
     action: 'Стандартная задача',
   },
   sheet: {
@@ -76,21 +75,21 @@ export const mobileRu = {
     theme: 'Тема',
     desktop: 'Desktop версия',
     settings: 'Настройки',
-    sectionHint: 'Дополнительные разделы и переход в desktop.',
+    sectionHint: 'Отчёты, MAX, Runtime и desktop.',
     navAria: 'Дополнительные ссылки',
     links: {
       reports: 'Отчёты',
-      reportsHint: 'Runtime reports, итоги дня и journal.',
+      reportsHint: 'Утро, runtime, итоги дня.',
       morningReport: 'Утренний отчёт',
-      morningReportHint: 'Owner Morning Report на сегодня.',
+      morningReportHint: 'Morning Report на сегодня.',
       runtime: 'Runtime Live',
-      runtimeHint: 'Ход выполнения Worker Loop в реальном времени.',
+      runtimeHint: 'Ход Worker Loop в реальном времени.',
       demo: 'Demo сценарий',
-      demoHint: '5-минутная демонстрация AI Company — checklist и reset.',
+      demoHint: '5-минутная демонстрация AI Company.',
       max: 'MAX',
-      maxHint: 'Управление первым сотрудником и очередь задач.',
+      maxHint: 'Очередь и управление MAX.',
       desktop: 'Desktop overview',
-      desktopHint: 'Полная версия Command Center на /ops.',
+      desktopHint: 'Полная версия /ops.',
     },
   },
   loading: {
@@ -99,7 +98,7 @@ export const mobileRu = {
   ownerHome: {
     heroQuestion: 'Что сейчас происходит в компании?',
     refresh: 'Обновить',
-    localNote: 'Данные: Presence, Work Queue, Daily Journal, Approvals, Cursor Automation, Runtime — без имитации прогресса.',
+    localNote: '',
     metrics: {
       activeEmployees: 'Активных',
       tasksInProgress: 'В работе',
@@ -108,8 +107,8 @@ export const mobileRu = {
     },
     companyStatus: {
       title: 'Состояние компании',
-      operatingHint: 'Компания работает — есть активные сотрудники или задачи.',
-      idleHint: 'Сейчас нет активных задач. Запустите MAX или откройте утренний отчёт.',
+      operatingHint: 'Есть активные задачи или сотрудники.',
+      idleHint: 'Задач нет — поставьте задачу MAX.',
     },
     sections: {
       employeeResults: 'Что сделали сотрудники',
@@ -155,10 +154,9 @@ export const mobileRu = {
   },
   maxControl: {
     pageTitle: 'MAX',
-    readyBanner: 'MAX готов к первому запуску — начните с рабочего дня или первой задачи в очереди.',
-    activeBanner: 'MAX уже работал — продолжайте очередь или проверьте последний результат.',
-    runtimeGuideHint:
-      'Когда MAX выполняет задачу, здесь появится баннер Runtime Live — можно открыть ход выполнения.',
+    readyBanner: 'MAX готов — поставьте задачу или запустите очередь.',
+    activeBanner: 'MAX работал — продолжите очередь или проверьте результат.',
+    runtimeGuideHint: 'Здесь появится Runtime Live, когда MAX выполняет задачу.',
     sections: {
       workday: 'Рабочий день',
       workQueue: 'Очередь задач',
@@ -258,8 +256,7 @@ export const mobileRu = {
   },
   employeesRoster: {
     pageDescription: 'Штат цифровой компании — должности, рабочие дни, очереди и результаты.',
-    companyFraming:
-      'Это штат компании: сотрудники с должностями, рабочими днями, очередями задач и результатами — не список агентов.',
+    companyFraming: 'Штат компании: роли, очереди и результаты.',
     activeBadge: 'В штате',
     placeholderBadge: 'Скоро',
     hireSectionTitle: 'Нанять сотрудника',
@@ -313,8 +310,7 @@ export const mobileRu = {
     emptyResult: 'Пока нет результатов',
   },
   decisions: {
-    intro:
-      'Все решения Owner в одном месте: согласования, Cursor handoff, knowledge candidates, блокировки и failed Worker Loop.',
+    intro: 'Согласования, handoff и блокировки.',
     filtersAria: 'Фильтр решений',
     filters: {
       all: 'Все',
@@ -350,7 +346,7 @@ export const mobileRu = {
     },
   },
   tasksCenter: {
-    description: 'Центр задач Owner — Employee Work Queue всех сотрудников. Без fake data.',
+    description: 'Очередь задач всех сотрудников.',
     refresh: 'Обновить',
     statsAria: 'Сводка по статусам задач',
     stats: {
@@ -396,7 +392,7 @@ export const mobileRu = {
   },
   runTask: {
     pageTitle: 'Поставить задачу',
-    intro: 'Поручите работу цифровому сотруднику. Задача попадёт в очередь — Runtime не запускается автоматически.',
+    intro: 'Задача попадёт в очередь MAX. Запуск — отдельный шаг.',
     employeePickerLabel: 'Выбор сотрудника',
     employeeComingSoon: 'Сотрудник будет доступен позже',
     templatesHint: 'Шаблон заполнит форму — можно отредактировать перед отправкой.',
@@ -431,7 +427,7 @@ export const mobileRu = {
     },
     success: {
       title: 'Задача добавлена в очередь сотрудника',
-      description: 'Задача сохранена локально. Runtime и Worker Loop не запускались автоматически.',
+      description: 'Задача в очереди. Запустите её на странице MAX.',
       openEmployee: 'Открыть сотрудника',
       openQueue: 'Открыть очередь',
       addAnother: 'Добавить ещё',
@@ -462,7 +458,7 @@ export const mobileRu = {
   },
   runtimeLive: {
     pageTitle: 'Runtime Live',
-    intro: 'Ход выполнения MAX в реальном времени — фазы Worker Loop без отдельного Runtime UI.',
+    intro: 'Ход выполнения Worker Loop.',
     currentTask: 'Текущая задача',
     progress: 'Прогресс',
     banner: {
@@ -503,14 +499,11 @@ export const mobileRu = {
   },
   reports: {
     pageTitle: 'Отчёты',
-    intro:
-      'Результаты работы сотрудников: утренний отчёт, runtime reports, итоги дня и journal — только реальные локальные данные.',
+    intro: 'Отчёты MAX: утро, runtime, итоги дня.',
     moreDescription: 'Утренний отчёт, runtime reports, итоги дня и journal.',
     listSection: 'Все отчёты',
-    guideMorningPlaceholder:
-      'Morning Report появится после первого утреннего цикла MAX или открытия desktop morning report.',
-    guideListPlaceholder:
-      'Runtime Report, Operating Day Summary и Journal появятся после выполнения задач MAX.',
+    guideMorningPlaceholder: 'Morning Report появится после первого цикла MAX.',
+    guideListPlaceholder: 'Отчёты появятся после выполнения задач MAX.',
     kinds: {
       morning_report: 'Утренний отчёт',
       runtime_report: 'Runtime Report',

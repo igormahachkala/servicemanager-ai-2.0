@@ -36,7 +36,7 @@ export function MobileRunTaskPage() {
     }
 
     return (
-      <div className="acMobileRunTaskSuccess">
+      <div className="acMobilePage acMobileRunTaskSuccess">
         <div className="acMobileRunTaskSuccessIcon" aria-hidden>
           <svg viewBox="0 0 48 48" className="acMobileEmptyStateSvg">
             <circle cx="24" cy="24" r="18" fill="none" stroke="currentColor" strokeWidth="2" />
@@ -75,8 +75,8 @@ export function MobileRunTaskPage() {
   const standardTemplateSelected = form.templateId === MOBILE_STANDARD_TASK_TEMPLATE_ID
 
   return (
-    <div className="acMobileRunTask">
-      <p className="acMobileRunTaskIntro">{copy.intro}</p>
+    <div className="acMobilePage acMobileRunTask">
+      <p className="acMobilePageIntro acMobileRunTaskIntro">{copy.intro}</p>
 
       {!standardTemplateSelected ? (
         <MobileStandardTaskQuickStart className="acMobileRunTaskStandardBanner" />

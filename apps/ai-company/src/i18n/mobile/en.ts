@@ -22,7 +22,7 @@ export const mobileEn = {
   },
   assignTaskSheet: {
     title: 'Assign task',
-    description: 'Choose how to delegate work to an employee.',
+    description: 'Choose how to assign a task.',
     runTask: 'Run Task',
     quickAssign: 'Quick assign',
     morningReport: 'Morning report',
@@ -31,8 +31,7 @@ export const mobileEn = {
   standardTask: {
     eyebrow: 'MAX standard task',
     title: 'Check AI Company status',
-    description:
-      'MAX will review workday, queue, reports, and Owner decisions — then summarize status and next step.',
+    description: 'MAX reviews company status and suggests the next step.',
     action: 'Standard task',
   },
   sheet: {
@@ -76,21 +75,21 @@ export const mobileEn = {
     theme: 'Theme',
     desktop: 'Desktop version',
     settings: 'Settings',
-    sectionHint: 'Reports, MAX, and desktop — without leaving the mobile shell.',
+    sectionHint: 'Reports, MAX, Runtime, and desktop.',
     navAria: 'Additional sections',
     links: {
       reports: 'Reports',
-      reportsHint: 'Morning report, runtime reports, day summaries.',
+      reportsHint: 'Morning, runtime, day summaries.',
       morningReport: 'Morning report',
-      morningReportHint: 'Owner morning report on mobile.',
+      morningReportHint: 'Today\'s morning report.',
       runtime: 'Runtime Live',
-      runtimeHint: 'Worker Loop execution progress in real time.',
+      runtimeHint: 'Worker Loop progress.',
       demo: 'Demo scenario',
-      demoHint: '5-minute AI Company demo — checklist and reset.',
+      demoHint: '5-minute AI Company demo.',
       max: 'MAX',
-      maxHint: 'First employee control and work queue.',
+      maxHint: 'MAX queue and control.',
       desktop: 'Desktop overview',
-      desktopHint: 'Full Command Center at /ops.',
+      desktopHint: 'Full /ops UI.',
     },
   },
   loading: {
@@ -99,7 +98,7 @@ export const mobileEn = {
   ownerHome: {
     heroQuestion: 'What is happening in the company right now?',
     refresh: 'Refresh',
-    localNote: 'Data: Presence, Work Queue, Daily Journal, Approvals, Cursor Automation, Runtime — no fake progress.',
+    localNote: '',
     metrics: {
       activeEmployees: 'Active',
       tasksInProgress: 'In progress',
@@ -108,8 +107,8 @@ export const mobileEn = {
     },
     companyStatus: {
       title: 'Company status',
-      operatingHint: 'Company is operating — active employees or tasks in runtime.',
-      idleHint: 'No active tasks. Assign MAX or open the morning report.',
+      operatingHint: 'Active tasks or employees.',
+      idleHint: 'No tasks — assign MAX.',
     },
     sections: {
       employeeResults: 'What employees completed',
@@ -155,10 +154,9 @@ export const mobileEn = {
   },
   maxControl: {
     pageTitle: 'MAX',
-    readyBanner: 'MAX is ready for first launch — start the workday or the first queue task.',
-    activeBanner: 'MAX has prior activity — continue the queue or review the latest result.',
-    runtimeGuideHint:
-      'When MAX runs a task, a Runtime Live banner appears here — open it to watch progress.',
+    readyBanner: 'MAX is ready — assign a task or run the queue.',
+    activeBanner: 'MAX has activity — continue the queue or check the result.',
+    runtimeGuideHint: 'Runtime Live appears here when MAX runs a task.',
     sections: {
       workday: 'Workday',
       workQueue: 'Work queue',
@@ -258,8 +256,7 @@ export const mobileEn = {
   },
   employeesRoster: {
     pageDescription: 'Digital company roster — roles, workdays, queues, and results.',
-    companyFraming:
-      'This is your company staff: employees with roles, workdays, task queues, and outcomes — not a list of agents.',
+    companyFraming: 'Company roster: roles, queues, and results.',
     activeBadge: 'On staff',
     placeholderBadge: 'Coming soon',
     hireSectionTitle: 'Hire employee',
@@ -313,8 +310,7 @@ export const mobileEn = {
     emptyResult: 'No results yet',
   },
   decisions: {
-    intro:
-      'All Owner decisions in one place: approvals, Cursor handoff, knowledge candidates, blocks, and failed Worker Loops.',
+    intro: 'Approvals, handoffs, and blocked tasks.',
     filtersAria: 'Decision filter',
     filters: {
       all: 'All',
@@ -350,7 +346,7 @@ export const mobileEn = {
     },
   },
   tasksCenter: {
-    description: 'Owner task center — Employee Work Queue for all staff. No fake data.',
+    description: 'Employee Work Queue for all staff.',
     refresh: 'Refresh',
     statsAria: 'Task status summary',
     stats: {
@@ -396,7 +392,7 @@ export const mobileEn = {
   },
   runTask: {
     pageTitle: 'Assign task',
-    intro: 'Delegate work to a digital employee. The task joins the queue — Runtime does not start automatically.',
+    intro: 'Task goes to MAX queue. Run is a separate step.',
     employeePickerLabel: 'Select employee',
     employeeComingSoon: 'Employee will be available later',
     templatesHint: 'A template fills the form — edit before submitting.',
@@ -431,7 +427,7 @@ export const mobileEn = {
     },
     success: {
       title: 'Task added to employee queue',
-      description: 'Task saved locally. Runtime and Worker Loop were not started automatically.',
+      description: 'Task is in the queue. Run it from MAX.',
       openEmployee: 'Open employee',
       openQueue: 'Open queue',
       addAnother: 'Add another',
@@ -462,7 +458,7 @@ export const mobileEn = {
   },
   runtimeLive: {
     pageTitle: 'Runtime Live',
-    intro: 'MAX execution in real time — Worker Loop phases, no separate Runtime UI.',
+    intro: 'Worker Loop execution progress.',
     currentTask: 'Current task',
     progress: 'Progress',
     banner: {
@@ -503,14 +499,11 @@ export const mobileEn = {
   },
   reports: {
     pageTitle: 'Reports',
-    intro:
-      'Employee results: morning report, runtime reports, operating day summaries, and journal — real local data only.',
+    intro: 'MAX reports: morning, runtime, and day summaries.',
     moreDescription: 'Morning report, runtime reports, day summaries, and journal.',
     listSection: 'All reports',
-    guideMorningPlaceholder:
-      'Morning Report appears after MAX morning cycle or opening the desktop morning report.',
-    guideListPlaceholder:
-      'Runtime Report, Operating Day Summary, and Journal appear after MAX completes tasks.',
+    guideMorningPlaceholder: 'Morning Report appears after the first MAX cycle.',
+    guideListPlaceholder: 'Reports appear after MAX completes tasks.',
     kinds: {
       morning_report: 'Morning Report',
       runtime_report: 'Runtime Report',
