@@ -8,8 +8,8 @@ export function MobileDecisionsPage() {
   const { filter, setFilter, items, counts, approve, reject } = useMobileOwnerDecisions()
 
   return (
-    <div className="acMobileDecisionsPage" data-mobile-guide="decisions-overview">
-      <p className="acMobileDecisionsIntro">{t.mobile.decisions.intro}</p>
+    <div className="acMobilePage acMobileDecisionsPage" data-mobile-guide="decisions-overview">
+      <p className="acMobilePageIntro acMobileDecisionsIntro">{t.mobile.decisions.intro}</p>
 
       <MobileDecisionFilters filter={filter} counts={counts} onChange={setFilter} />
 

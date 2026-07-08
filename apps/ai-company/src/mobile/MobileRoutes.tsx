@@ -7,6 +7,7 @@ import { MobileReportDetailPage } from './pages/MobileReportDetailPage'
 import { MobileReportsPage } from './pages/MobileReportsPage'
 import { MobileRuntimeLivePage } from './pages/MobileRuntimeLivePage'
 import { MobileRunTaskPage } from './pages/MobileRunTaskPage'
+import { MobileDemoPage } from './pages/MobileDemoPage'
 import { MobileMorePage } from './pages/MobileTabPages'
 import { MobileTasksCenterPage } from './pages/MobileTasksCenterPage'
 import { MobileTodayPage } from './pages/MobileTodayPage'
@@ -29,6 +30,7 @@ export function MobileRoutes() {
         <Route path="runtime" element={<MobileRuntimeLivePage />} />
         <Route path="reports/:id" element={<MobileReportDetailPage />} />
         <Route path="reports" element={<MobileReportsPage />} />
+        <Route path="demo" element={<MobileDemoPage />} />
         <Route path="more" element={<MobileMorePage />} />
         <Route path="*" element={<Navigate to="today" replace />} />
       </Routes>

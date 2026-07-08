@@ -24,7 +24,8 @@ export function resolveMobileNavId(pathname: string): MobileNavId {
   if (
     pathname.startsWith(`${MOBILE_NAV_BASE}/more`) ||
     pathname.startsWith(`${MOBILE_NAV_BASE}/reports`) ||
-    pathname.startsWith(`${MOBILE_NAV_BASE}/runtime`)
+    pathname.startsWith(`${MOBILE_NAV_BASE}/runtime`) ||
+    pathname.startsWith(`${MOBILE_NAV_BASE}/demo`)
   ) {
     return 'more'
   }
@@ -38,6 +39,7 @@ export function mobilePageTitle(
     reports?: string
     reportDetail?: string
     runtimeLive?: string
+    demo?: string
   },
   maxTitle = 'MAX',
 ): string {
@@ -49,6 +51,9 @@ export function mobilePageTitle(
   }
   if (pathname.startsWith(`${MOBILE_NAV_BASE}/runtime`)) {
     return labels.runtimeLive ?? 'Runtime'
+  }
+  if (pathname.startsWith(`${MOBILE_NAV_BASE}/demo`)) {
+    return labels.demo ?? 'Demo'
   }
   if (pathname.startsWith(`${MOBILE_NAV_BASE}/reports/`) && pathname !== `${MOBILE_NAV_BASE}/reports`) {
     return labels.reportDetail ?? labels.reports ?? 'Отчёт'

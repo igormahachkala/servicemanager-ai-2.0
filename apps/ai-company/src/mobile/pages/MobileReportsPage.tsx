@@ -15,8 +15,8 @@ export function MobileReportsPage() {
 
   if (isEmpty) {
     return (
-      <div className="acMobileReportsPage">
-        <p className="acMobileReportsIntro">{copy.intro}</p>
+      <div className="acMobilePage acMobileReportsPage">
+        <p className="acMobilePageIntro acMobileReportsIntro">{copy.intro}</p>
         <div data-mobile-guide="reports-morning" className="acMobileGuideReportsPlaceholder">
           <p className="acMobileOwnerHomeMuted">{copy.guideMorningPlaceholder}</p>
         </div>
@@ -35,8 +35,8 @@ export function MobileReportsPage() {
   }
 
   return (
-    <div className="acMobileReportsPage">
-      <p className="acMobileReportsIntro">{copy.intro}</p>
+    <div className="acMobilePage acMobileReportsPage">
+      <p className="acMobilePageIntro acMobileReportsIntro">{copy.intro}</p>
 
       {snapshot.morningReport ? (
         <div data-mobile-guide="reports-morning">

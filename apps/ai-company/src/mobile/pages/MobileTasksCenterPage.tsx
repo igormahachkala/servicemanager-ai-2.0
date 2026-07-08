@@ -23,9 +23,9 @@ export function MobileTasksCenterPage() {
     !snapshot.activeTask && snapshot.items.length === 0 && snapshot.maxQueueItems.length === 0
 
   return (
-    <div className="acMobileTasksCenterPage">
+    <div className="acMobilePage acMobileTasksCenterPage">
       <div className="acMobileTasksCenterIntro">
-        <p className="acMobileTasksCenterDescription">{copy.description}</p>
+        <p className="acMobilePageIntro acMobileTasksCenterDescription">{copy.description}</p>
         <div className="acMobileTasksCenterIntroActions">
           <Link to={MOBILE_PATHS.tasksNewMax} className="acMobilePrimaryBtn acMobileTasksCenterAssignBtn">
             {copy.actions.assignTask}

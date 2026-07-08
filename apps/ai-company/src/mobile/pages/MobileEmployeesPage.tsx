@@ -10,9 +10,9 @@ export function MobileEmployeesPage() {
   const { roster } = useMobileEmployeesRoster()
 
   return (
-    <div className="acMobileEmployeesPage">
+    <div className="acMobilePage acMobileEmployeesPage">
       <MobileSection title={t.mobile.pages.employees} description={copy.pageDescription}>
-        <p className="acMobileEmployeesFraming">{copy.companyFraming}</p>
+        <p className="acMobilePageIntro acMobileEmployeesFraming">{copy.companyFraming}</p>
       </MobileSection>
 
       <div className="acMobileRosterList">

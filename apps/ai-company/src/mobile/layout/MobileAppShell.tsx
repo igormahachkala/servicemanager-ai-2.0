@@ -8,6 +8,7 @@ import { mobilePageTitle } from '../navigation/mobileNavigationConfig'
 import { MobileFab } from '../components/MobileFab'
 import { MobileActionSheet } from '../patterns/MobileActionSheet'
 import { MobileFirstLaunchGuideHost } from '../components/MobileFirstLaunchGuideHost'
+import { MobileDemoHelperHost } from '../components/MobileDemoHelperHost'
 import { MobileBottomSheetHost } from '../patterns/MobileBottomSheetHost'
 import {
   MobileFirstLaunchGuideProvider,
@@ -53,12 +54,15 @@ function MobileAppShellInner({
         reports: t.mobile.reports.pageTitle,
         reportDetail: t.mobile.reports.detail.pageTitle,
         runtimeLive: t.mobile.runtimeLive.pageTitle,
+        demo: t.mobile.demo.pageTitle,
       },
       t.mobile.maxControl.pageTitle ?? 'MAX',
     )
 
   const hideFab =
-    pathname.startsWith('/mobile/tasks/new') || pathname.startsWith('/mobile/runtime')
+    pathname.startsWith('/mobile/tasks/new') ||
+    pathname.startsWith('/mobile/runtime') ||
+    pathname.startsWith('/mobile/demo')
 
   const openAssignTaskSheet = useCallback(() => {
     openSheet(
@@ -100,6 +104,7 @@ function MobileAppShellInner({
         </div>
       ) : null}
       {showBottomNav ? <MobileBottomNavigation /> : null}
+      <MobileDemoHelperHost />
       <div className="acMobileSafeAreaBottom" aria-hidden />
     </div>
   )

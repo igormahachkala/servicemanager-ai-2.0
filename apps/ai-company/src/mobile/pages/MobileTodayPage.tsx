@@ -24,7 +24,7 @@ export function MobileTodayPage() {
   const maxLaunchHref = MOBILE_PATHS.tasksNewMax
 
   return (
-    <div className="acMobileOwnerHome">
+    <div className="acMobilePage acMobileOwnerHome">
       <div className="acMobileOwnerHomeIntro">
         <p className="acMobileOwnerHomeQuestion">{t.mobile.ownerHome.heroQuestion}</p>
         <button type="button" className="acMobileRefreshBtn" onClick={refresh}>
@@ -64,10 +64,7 @@ export function MobileTodayPage() {
         </section>
       ) : null}
 
-      <MobileSection
-        title={t.mobile.ownerHome.sections.employeeResults}
-        description={t.mobile.ownerHome.sections.employeeResultsHint}
-      >
+      <MobileSection title={t.mobile.ownerHome.sections.employeeResults}>
         <div id="employee-results" className="acMobileOwnerHomeStack" data-mobile-guide="employee-results">
           {employeeResults.length === 0 ? (
             <p className="acMobileOwnerHomeMuted">{t.ownerHome.empty.completedTasks}</p>
@@ -81,7 +78,6 @@ export function MobileTodayPage() {
 
       <MobileSection
         title={t.mobile.ownerHome.sections.decisions}
-        description={t.mobile.ownerHome.sections.decisionsHint}
         action={
           decisionItems.length > 0 ? (
             <Link to="/mobile/decisions" className="acMobileSectionLink">

@@ -3553,6 +3553,230 @@ html.acMobileGuideActive .acMobileContent {
   }
 }
 
+/* Mobile Daily Usage Polish (108A) — scan in 3 seconds */
+.acMobilePageIntro,
+.acMobileDecisionsIntro,
+.acMobileReportsIntro,
+.acMobileRunTaskIntro,
+.acMobileTasksCenterDescription,
+.acMobileRuntimeLiveIntro,
+.acMobileRuntimeLiveEmptyHint,
+.acMobileEmployeesFraming {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--theme-text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.acMobileSectionDescription,
+.acMobileStandardTaskDescription,
+.acMobileCardDescription {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.acMobileMoreLinkDescription {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.acMobileOwnerHome {
+  gap: var(--mobile-spacing-lg);
+}
+
+.acMobileOwnerHomeNote {
+  display: none;
+}
+
+.acMobileMaxReadyBanner,
+.acMobileMaxActiveBanner {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.acMobileMaxReadyBanner p,
+.acMobileMaxActiveBanner p {
+  margin: 0;
+}
+
+.acMobileGuideRuntimePlaceholder,
+.acMobileGuideReportsPlaceholder {
+  padding: var(--mobile-spacing-md) var(--mobile-spacing-lg);
+  border-radius: var(--mobile-radius-md);
+  background: var(--theme-bg-subtle);
+  border: 1px dashed var(--theme-border);
+}
+
+.acMobileGuideRuntimePlaceholder .acMobileOwnerHomeMuted,
+.acMobileGuideReportsPlaceholder .acMobileOwnerHomeMuted {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.acMobileDecisionsList,
+.acMobileReportsList,
+.acMobileTaskCenterList,
+.acMobileRosterList,
+.acMobileOwnerHomeStack,
+.acMobileRuntimePhaseList,
+.acMobileMoreLinks {
+  gap: var(--mobile-spacing-md);
+}
+
+.acMobileEmptyState,
+.acMobileOwnerHomeEmpty,
+.acMobileTasksCenterEmpty,
+.acMobileReportsEmpty,
+.acMobileDecisionsEmpty {
+  border-radius: var(--mobile-radius-lg);
+  border: 1px dashed var(--theme-border);
+  background: var(--theme-bg-subtle);
+}
+
+.acMobileOwnerHomeEmptyTitle,
+.acMobileTasksCenterEmptyTitle,
+.acMobileReportsEmptyTitle,
+.acMobileDecisionsEmptyTitle,
+.acMobileEmptyStateTitle {
+  font-size: 1rem;
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.acMobileOwnerHomeEmptyDescription,
+.acMobileTasksCenterEmptyDescription,
+.acMobileReportsEmptyDescription,
+.acMobileDecisionsEmptyDescription,
+.acMobileEmptyStateDescription {
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--theme-text-secondary);
+}
+
+.acMobilePage .acMobilePrimaryBtn,
+.acMobilePage .acMobileSecondaryBtn,
+.acMobilePage .acMobileLinkBtn,
+.acMobilePage .acMobileTertiaryLinkBtn,
+.acMobileRuntimeLiveActions .acMobilePrimaryBtn,
+.acMobileRuntimeLiveActions .acMobileSecondaryBtn,
+.acMobileRunTaskSuccessActions .acMobileRunTaskSuccessBtn,
+.acMobileTasksCenterEmptyCta,
+.acMobileReportsEmptyCta,
+.acMobileOwnerHomeEmptyCta,
+.acMobileRuntimeLiveBannerBtn {
+  width: 100%;
+  max-width: none;
+}
+
+.acMobileTasksCenterIntroActions .acMobilePrimaryBtn {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.acMobileQuickActions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--mobile-spacing-sm);
+}
+
+.acMobileQuickActionBtn {
+  min-height: var(--mobile-touch-target);
+  padding: var(--mobile-spacing-sm) var(--mobile-spacing-md);
+  font-size: 0.8125rem;
+  line-height: 1.25;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.acMobileDecisionCard,
+.acMobileTaskCenterCard,
+.acMobileRosterCard,
+.acMobileEmployeeResultCard,
+.acMobileOwnerDecisionCard,
+.acMobileReportCard,
+.acMobileCompanyStatusCard {
+  padding: var(--mobile-spacing-lg);
+  border-radius: var(--mobile-radius-lg);
+  border: 1px solid var(--theme-border);
+  background: var(--theme-surface);
+}
+
+.acMobileReportsListHeading,
+.acMobileReportDetailSectionTitle {
+  margin: 0 0 var(--mobile-spacing-sm);
+  font-size: 0.9375rem;
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.acMobileReportDetailTitle {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.acMobileRunTaskSuccessTask {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.acMobileSheetTitle {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.acMobileActionSheetLabel {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.acMobileActionSheetDescription {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.acMobileReportDetailPage,
+.acMobileMaxPage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mobile-spacing-lg);
+  width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 380px) {
+  .acMobileQuickActions {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Golden Path */
 .acMobileGoldenPathComplete {
   display: flex;
@@ -3621,5 +3845,255 @@ html.acMobileGuideActive .acMobileContent {
   width: 100%;
   text-align: center;
   text-decoration: none;
+}
+
+/* Mobile Demo Scenario (108B) */
+.acMobileDemoPage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mobile-spacing-lg);
+  padding-bottom: var(--mobile-spacing-xl);
+}
+
+.acMobileDemoIntro,
+.acMobileDemoHint,
+.acMobileDemoLocalNote,
+.acMobileDemoEmptyChecklist,
+.acMobileDemoCompleteNote {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--theme-text-secondary);
+}
+
+.acMobileDemoModeRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mobile-spacing-md);
+}
+
+.acMobileDemoModeBadge {
+  padding: 4px 10px;
+  border-radius: var(--mobile-radius-pill);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  background: var(--theme-bg-subtle);
+  color: var(--theme-text-muted);
+}
+
+.acMobileDemoModeBadgeOn {
+  background: var(--theme-success-dim);
+  color: var(--theme-success);
+}
+
+.acMobileDemoTaskPreview {
+  margin: 0 0 var(--mobile-spacing-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--mobile-spacing-sm);
+}
+
+.acMobileDemoTaskRow {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: var(--mobile-spacing-sm);
+  font-size: 0.8125rem;
+}
+
+.acMobileDemoTaskRow dt {
+  margin: 0;
+  color: var(--theme-text-muted);
+  font-weight: 600;
+}
+
+.acMobileDemoTaskRow dd {
+  margin: 0;
+  color: var(--theme-text-secondary);
+}
+
+.acMobileDemoActions,
+.acMobileDemoFooterLinks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mobile-spacing-sm);
+}
+
+.acMobileDemoResetBtn {
+  width: 100%;
+}
+
+.acMobileDemoChecklist {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mobile-spacing-md);
+}
+
+.acMobileDemoProgressHead {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--theme-text-secondary);
+}
+
+.acMobileDemoProgressTrack {
+  height: 8px;
+  border-radius: var(--mobile-radius-pill);
+  background: var(--theme-bg-subtle);
+  overflow: hidden;
+}
+
+.acMobileDemoProgressFill {
+  height: 100%;
+  background: var(--theme-accent);
+  border-radius: inherit;
+  transition: width 0.35s ease;
+}
+
+.acMobileDemoStepList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--mobile-spacing-md);
+}
+
+.acMobileDemoStep {
+  padding: var(--mobile-spacing-lg);
+  border-radius: var(--mobile-radius-lg);
+  border: 1px solid var(--theme-border);
+  background: var(--theme-surface);
+}
+
+.acMobileDemoStep--current {
+  border-color: var(--theme-accent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--theme-accent) 18%, transparent);
+}
+
+.acMobileDemoStepHead {
+  display: flex;
+  gap: var(--mobile-spacing-md);
+  align-items: flex-start;
+}
+
+.acMobileDemoStepIndex {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--mobile-radius-pill);
+  background: var(--theme-bg-subtle);
+  font-size: 0.75rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.acMobileDemoStepText {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.acMobileDemoStepTitle {
+  font-size: 0.9375rem;
+  font-weight: 650;
+}
+
+.acMobileDemoStepStatus {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.acMobileDemoStepStatus--pending {
+  color: var(--theme-text-muted);
+}
+
+.acMobileDemoStepStatus--current {
+  color: var(--theme-info);
+}
+
+.acMobileDemoStepStatus--completed {
+  color: var(--theme-success);
+}
+
+.acMobileDemoStepHint,
+.acMobileDemoStepDetail {
+  margin: var(--mobile-spacing-sm) 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--theme-text-secondary);
+}
+
+.acMobileDemoStepAction {
+  margin-top: var(--mobile-spacing-md);
+  width: 100%;
+  text-decoration: none;
+  text-align: center;
+}
+
+.acMobileDemoHelper {
+  position: fixed;
+  left: var(--mobile-spacing-md);
+  right: var(--mobile-spacing-md);
+  bottom: calc(var(--mobile-bottom-nav-height, 64px) + var(--mobile-spacing-md) + env(safe-area-inset-bottom, 0px));
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: var(--mobile-spacing-sm);
+  padding: var(--mobile-spacing-md);
+  border-radius: var(--mobile-radius-lg);
+  border: 1px solid color-mix(in srgb, var(--theme-accent) 28%, var(--theme-border));
+  background: color-mix(in srgb, var(--theme-surface) 92%, transparent);
+  backdrop-filter: blur(8px);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--theme-shadow) 16%, transparent);
+}
+
+.acMobileDemoHelperEyebrow {
+  margin: 0;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--theme-accent);
+}
+
+.acMobileDemoHelperTitle {
+  margin: 2px 0 0;
+  font-size: 0.875rem;
+  font-weight: 650;
+}
+
+.acMobileDemoHelperProgress {
+  margin: 4px 0 0;
+  font-size: 0.75rem;
+  color: var(--theme-text-muted);
+}
+
+.acMobileDemoHelperActions {
+  display: flex;
+  gap: var(--mobile-spacing-sm);
+  align-items: center;
+}
+
+.acMobileDemoHelperGo {
+  flex: 1;
+  text-decoration: none;
+  text-align: center;
+}
+
+.acMobileDemoHelperOpen {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--theme-accent);
+  text-decoration: none;
+  white-space: nowrap;
 }
 

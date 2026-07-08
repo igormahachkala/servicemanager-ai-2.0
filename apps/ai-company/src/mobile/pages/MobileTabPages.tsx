@@ -11,12 +11,14 @@ export function MobileTasksPage() {
   const { t } = useI18n()
 
   return (
-    <MobileSection title={t.mobile.pages.tasks} description={t.ownerNav.groups.tasks.hint}>
-      <Link to={MOBILE_PATHS.tasksNew} className="acMobilePrimaryBtn acMobileTasksNewBtn">
-        {t.mobile.fab.assignTask}
-      </Link>
-      <MobileEmptyState variant="noTasks" actionHref={MOBILE_PATHS.tasksNew} />
-    </MobileSection>
+    <div className="acMobilePage">
+      <MobileSection title={t.mobile.pages.tasks} description={t.ownerNav.groups.tasks.hint}>
+        <Link to={MOBILE_PATHS.tasksNew} className="acMobilePrimaryBtn acMobileTasksNewBtn">
+          {t.mobile.fab.assignTask}
+        </Link>
+        <MobileEmptyState variant="noTasks" actionHref={MOBILE_PATHS.tasksNew} />
+      </MobileSection>
+    </div>
   )
 }
 
@@ -40,6 +42,18 @@ export function MobileMorePage() {
       to: MOBILE_PATHS.morningReport,
     },
     {
+      id: 'runtime',
+      title: copy.links.runtime,
+      description: copy.links.runtimeHint,
+      to: MOBILE_PATHS.runtime,
+    },
+    {
+      id: 'demo',
+      title: copy.links.demo,
+      description: copy.links.demoHint,
+      to: MOBILE_PATHS.demo,
+    },
+    {
       id: 'max',
       title: copy.links.max,
       description: copy.links.maxHint,
@@ -54,7 +68,7 @@ export function MobileMorePage() {
   ]
 
   return (
-    <>
+    <div className="acMobilePage">
       <MobileSection title={t.mobile.pages.more} description={copy.sectionHint}>
         <nav className="acMobileMoreLinks" aria-label={copy.navAria}>
           {links.map((item) => (
@@ -71,7 +85,7 @@ export function MobileMorePage() {
         </nav>
       </MobileSection>
 
-      <MobileSection title={guideCopy.section} description={guideCopy.description}>
+      <MobileSection title={guideCopy.section}>
         <MobileCard
           title={guideCopy.title}
           description={guideCopy.description}
@@ -90,6 +104,6 @@ export function MobileMorePage() {
           actions={<ThemeSwitch />}
         />
       </MobileSection>
-    </>
+    </div>
   )
 }
