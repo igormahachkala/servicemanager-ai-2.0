@@ -249,6 +249,43 @@ export const mobileRu = {
     },
     emptyResult: 'Пока нет результатов',
   },
+  decisions: {
+    intro:
+      'Все решения Owner в одном месте: согласования, Cursor handoff, knowledge candidates, блокировки и failed Worker Loop.',
+    filtersAria: 'Фильтр решений',
+    filters: {
+      all: 'Все',
+      approval: 'Согласования',
+      cursor: 'Cursor',
+      knowledge: 'Knowledge',
+      blocked: 'Blocked',
+    },
+    kinds: {
+      approval: 'Согласование',
+      cursor_handoff: 'Cursor handoff',
+      cursor_owner_gate: 'Cursor Owner Gate',
+      knowledge_candidate: 'Knowledge candidate',
+      blocked_task: 'Blocked task',
+      worker_loop_failed: 'Failed Worker Loop',
+    },
+    fields: {
+      employee: 'Сотрудник',
+      reason: 'Причина',
+      risk: 'Риск',
+    },
+    actions: {
+      approve: 'Согласовать',
+      reject: 'Отклонить',
+      openDetails: 'Открыть детали',
+      openMaxMobile: 'Открыть MAX',
+    },
+    empty: {
+      title: 'Сейчас нет решений для Owner.',
+      description: 'Согласования, handoff и блокировки отсутствуют — можно вернуться на «Сегодня».',
+      filteredDescription: 'В этой категории решений нет — попробуйте другой фильтр или вернитесь на «Сегодня».',
+      backToToday: 'Вернуться сегодня',
+    },
+  },
   runTask: {
     pageTitle: 'Поставить задачу',
     intro: 'Поручите работу цифровому сотруднику. Задача попадёт в очередь — Runtime не запускается автоматически.',

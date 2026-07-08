@@ -1,9 +1,6 @@
 export { MobileEmployeePage } from './MobileEmployeePage'
 export { MobileEmployeesPage } from './MobileEmployeesPage'
+export { MobileDecisionsPage } from './MobileDecisionsPage'
 export { MobileRunTaskPage } from './MobileRunTaskPage'
 export { MobileTodayPage } from './MobileTodayPage'
-export {
-  MobileDecisionsPage,
-  MobileMorePage,
-  MobileTasksPage,
-} from './MobileTabPages'
+export { MobileMorePage, MobileTasksPage } from './MobileTabPages'

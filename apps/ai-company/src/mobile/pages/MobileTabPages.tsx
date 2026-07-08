@@ -18,25 +18,6 @@ export function MobileTasksPage() {
   )
 }
 
-export function MobileDecisionsPage() {
-  const { t } = useI18n()
-
-  return (
-    <MobileSection title={t.mobile.pages.decisions} description={t.ownerNav.groups.decisions.hint}>
-      <MobileCard
-        title={t.pages.approvals}
-        description={t.contextEmpty.approvals.initial.reason}
-        status={{ label: t.labels.active, tone: 'success' }}
-        actions={
-          <Link to="/ops/approvals" className="acMobileLinkBtn">
-            {t.pages.approvals}
-          </Link>
-        }
-      />
-    </MobileSection>
-  )
-}
-
 export function MobileMorePage() {
   const { t } = useI18n()
 

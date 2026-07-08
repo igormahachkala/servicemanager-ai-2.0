@@ -249,6 +249,43 @@ export const mobileEn = {
     },
     emptyResult: 'No results yet',
   },
+  decisions: {
+    intro:
+      'All Owner decisions in one place: approvals, Cursor handoff, knowledge candidates, blocks, and failed Worker Loops.',
+    filtersAria: 'Decision filter',
+    filters: {
+      all: 'All',
+      approval: 'Approvals',
+      cursor: 'Cursor',
+      knowledge: 'Knowledge',
+      blocked: 'Blocked',
+    },
+    kinds: {
+      approval: 'Approval',
+      cursor_handoff: 'Cursor handoff',
+      cursor_owner_gate: 'Cursor Owner Gate',
+      knowledge_candidate: 'Knowledge candidate',
+      blocked_task: 'Blocked task',
+      worker_loop_failed: 'Failed Worker Loop',
+    },
+    fields: {
+      employee: 'Employee',
+      reason: 'Reason',
+      risk: 'Risk',
+    },
+    actions: {
+      approve: 'Approve',
+      reject: 'Reject',
+      openDetails: 'Open details',
+      openMaxMobile: 'Open MAX',
+    },
+    empty: {
+      title: 'No Owner decisions right now.',
+      description: 'No approvals, handoffs, or blocks — you can return to Today.',
+      filteredDescription: 'Nothing in this category — try another filter or return to Today.',
+      backToToday: 'Back to Today',
+    },
+  },
   runTask: {
     pageTitle: 'Assign task',
     intro: 'Delegate work to a digital employee. The task joins the queue — Runtime does not start automatically.',

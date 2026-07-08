@@ -2,12 +2,9 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import { MobileAppShell } from './layout/MobileAppShell'
 import { MobileEmployeePage } from './pages/MobileEmployeePage'
 import { MobileEmployeesPage } from './pages/MobileEmployeesPage'
+import { MobileDecisionsPage } from './pages/MobileDecisionsPage'
 import { MobileRunTaskPage } from './pages/MobileRunTaskPage'
-import {
-  MobileDecisionsPage,
-  MobileMorePage,
-  MobileTasksPage,
-} from './pages/MobileTabPages'
+import { MobileMorePage, MobileTasksPage } from './pages/MobileTabPages'
 import { MobileTodayPage } from './pages/MobileTodayPage'
 
 export function MobileRoutes() {
