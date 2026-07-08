@@ -1,6 +1,7 @@
 import type { Messages } from './en'
 import { platformGlossaryTermsRu } from './platformGlossaryTerms.ru'
 import { ownerNavRu } from './ownerNav/ru'
+import { mobileRu } from './mobile/ru'
 
 export const ru: Messages = {
   common: {
@@ -200,6 +201,7 @@ export const ru: Messages = {
     canvas: "Canvas компании"
   },
   ownerNav: ownerNavRu,
+  mobile: mobileRu,
   labels: {
     active: "Активные",
     planned: "Планируемые",
@@ -867,8 +869,8 @@ export const ru: Messages = {
     }
   },
   firstFiveMinutesGuide: {
-    title: "Что сделать первым?",
-    subtitle: "Пять шагов за 5 минут — быстрый старт для Owner без onboarding-wizard.",
+    title: "Начните здесь",
+    subtitle: "Шесть шагов за 5 минут — один понятный маршрут для Owner без дублирующих кнопок.",
     cta: "Начать с MAX",
     ctaHref: "/ops/run-task?employee=ag-max",
     collapse: "Свернуть",
@@ -883,38 +885,45 @@ export const ru: Messages = {
     steps: {
       companyState: {
         title: "Посмотреть состояние компании",
-        whatItIs: "Командный центр — главный экран /ops с здоровьем компании, командой, runtime и алертами.",
-        why: "Owner за минуту видит, что происходит с цифровой компанией, прежде чем ставить задачи.",
-        afterClick: "Откроется Command Center с утренним брифом, активными сотрудниками, согласованиями и live-событиями.",
-        expectedResult: "Понятная картина дня: кто работает, что ждёт решения, есть ли риски."
+        whatItIs: "Обзор компании на /ops — метрики и блоки Owner Home.",
+        why: "Понять, готова ли компания к запуску или уже работает.",
+        afterClick: "Остаётесь на /ops — видны статус, результаты и решения.",
+        expectedResult: "Честная картина перед постановкой задачи MAX."
+      },
+      openMax: {
+        title: "Открыть MAX",
+        whatItIs: "Рабочее место MAX — очередь и выполнение задач.",
+        why: "Познакомиться с первым цифровым сотрудником.",
+        afterClick: "Откроется /ops/employees/ag-max/workspace.",
+        expectedResult: "Видно, где работает MAX и что в очереди."
       },
       assignTask: {
-        title: "Поставить задачу MAX",
-        whatItIs: "Run Task — форма постановки задачи цифровому сотруднику MAX.",
-        why: "MAX выполняет технический аудит, reasoning и Worker Loop по вашей формулировке.",
-        afterClick: "Откроется /ops/run-task с выбранным MAX — опишите задачу и запустите цикл.",
-        expectedResult: "MAX принимает задачу, строит Decision Plan и запускает Worker Loop; результат появится в Runtime и отчётах."
+        title: "Поставить задачу",
+        whatItIs: "Форма постановки задачи для MAX.",
+        why: "Основной способ запустить работу.",
+        afterClick: "Откроется /ops/run-task с выбранным MAX.",
+        expectedResult: "MAX принимает задачу и начинает выполнение."
       },
-      maxDay: {
-        title: "Открыть рабочий день MAX",
-        whatItIs: "Employee Operating Day — экран «сегодня» для MAX: очередь, смена, итог дня.",
-        why: "Видно, что MAX делает прямо сейчас и как идёт его рабочая смена.",
-        afterClick: "Откроется /ops/employees/ag-max/today с Operating Day, Work Queue и summary.",
-        expectedResult: "Понимание текущей работы MAX: активные задачи, очередь, статус смены."
+      startWorkday: {
+        title: "Начать рабочий день",
+        whatItIs: "Экран «сегодня» MAX — смена, очередь, итог дня.",
+        why: "Запустить или продолжить рабочий день MAX.",
+        afterClick: "Откроется /ops/employees/ag-max/today.",
+        expectedResult: "Видны статус смены и очередь задач."
       },
       morningReport: {
-        title: "Посмотреть утренний отчёт",
-        whatItIs: "Owner Morning Report — сводка ночной/утренней работы MAX для Owner.",
-        why: "Не нужно собирать статус вручную — отчёт агрегирует Journal, решения и next steps.",
-        afterClick: "Откроется /ops/morning-report с разделами «что сделано», «что требует решения».",
-        expectedResult: "Готовый brief: выполненные задачи, риски, Owner decisions и рекомендуемый следующий шаг."
+        title: "Посмотреть отчёт",
+        whatItIs: "Утренний отчёт для Owner.",
+        why: "Увидеть, что сделано и что требует решения.",
+        afterClick: "Откроется /ops/morning-report.",
+        expectedResult: "Brief с итогами, рисками и следующим шагом."
       },
       ownerDecisions: {
         title: "Проверить решения Owner",
-        whatItIs: "Approvals — очередь согласований и Owner decisions (Cursor Automation, handoff, gates).",
-        why: "Цифровые сотрудники не действуют без Owner там, где требуется approval.",
-        afterClick: "Откроется /ops/approvals со списком pending и историей решений.",
-        expectedResult: "Видны все пункты, ожидающие вашего approve/reject, и можно принять решение."
+        whatItIs: "Ожидающие согласования и Owner gates.",
+        why: "Часть действий ждёт вашего решения.",
+        afterClick: "Откроется /ops/approvals.",
+        expectedResult: "Видны все пункты на approve/reject."
       }
     }
   },
@@ -944,7 +953,7 @@ export const ru: Messages = {
     description: "Главный экран Owner — что происходит в цифровой компании прямо сейчас.",
     heroQuestion: "Что сейчас происходит в компании?",
     heroHint: "Состояние команды, последние результаты, решения Owner и следующие шаги — только реальные данные платформы.",
-    localNote: "Presence, Work Queue, Daily Journal, Approvals, Cursor Automation, Runtime — без имитации прогресса.",
+    localNote: "Presence, очередь задач, журнал, решения Owner и Runtime — только реальные данные платформы.",
     sections: {
       companyStatus: "Состояние компании",
       completedTasks: "Что сделали сотрудники",
@@ -958,9 +967,12 @@ export const ru: Messages = {
       pendingDecisions: "Ждёт решения Owner"
     },
     companyStatus: {
-      operatingHint: "Компания работает — есть активные сотрудники или задачи в runtime.",
+      operatingHint: "Компания работает — есть активные сотрудники или задачи в выполнении.",
       idleHint: "Сейчас нет активных задач. Поставьте задачу MAX или откройте утренний отчёт.",
+      readyHint: "Компания ещё не запускалась. Следуйте блоку «Начните здесь» ниже.",
+      attentionHint: "Есть решения Owner или заблокированные задачи — нужно ваше внимание.",
       operatingStatus: {
+        ready: "Готов к первому запуску",
         operating: "Работает",
         idle: "Простой",
         attention: "Нужно внимание"
@@ -968,8 +980,8 @@ export const ru: Messages = {
     },
     decisionKinds: {
       approval: "Согласование",
-      cursor_handoff: "Cursor handoff",
-      knowledge_candidate: "Knowledge candidate",
+      cursor_handoff: "Передача в Cursor",
+      knowledge_candidate: "Кандидат в базу знаний",
       blocked_task: "Заблокировано"
     },
     actions: {
@@ -979,7 +991,7 @@ export const ru: Messages = {
     nextActions: {
       runTask: {
         label: "Поставить задачу MAX",
-        description: "Run Task — новая задача для MAX."
+        description: "Опишите первую задачу и отправьте её MAX."
       },
       morningReport: {
         label: "Открыть утренний отчёт",
@@ -987,16 +999,28 @@ export const ru: Messages = {
       },
       maxToday: {
         label: "Рабочий день MAX",
-        description: "Operating Day — статус, прогресс, итог дня."
+        description: "Статус, прогресс и итог дня."
       },
       maxQueue: {
         label: "Очередь задач MAX",
-        description: "Work Queue на рабочем месте MAX."
+        description: "Очередь на рабочем месте MAX."
+      },
+      approvals: {
+        label: "Проверить решения Owner",
+        description: "Ожидающие согласования и gates."
       }
     },
+    secondaryLinks: {
+      aria: "Дополнительные действия Owner",
+      openMax: "Открыть MAX",
+      startWorkday: "Начать рабочий день",
+      assignTask: "Поставить задачу",
+      maxToday: "Рабочий день MAX",
+      approvals: "Решения Owner"
+    },
     empty: {
-      completedTasks: "Сегодня завершённых задач пока нет. Запустите Run Task или очередь MAX.",
-      decisions: "Нет срочных решений — approvals, handoff и блокировки отсутствуют."
+      completedTasks: "Сегодня завершённых задач пока нет. Поставьте задачу MAX или откройте очередь.",
+      decisions: "Нет срочных решений — согласования, handoff и блокировки отсутствуют."
     }
   },
   morningReport: {

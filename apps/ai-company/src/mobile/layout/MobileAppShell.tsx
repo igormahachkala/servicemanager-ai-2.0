@@ -1,0 +1,109 @@
+import { useCallback, type ReactNode } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { useI18n } from '../../i18n'
+import { useMobileBottomSheet } from '../hooks/useMobileBottomSheet'
+import { MobileBottomNavigation } from '../navigation/MobileBottomNavigation'
+import { mobilePageTitle } from '../navigation/mobileNavigationConfig'
+import { MobileFab } from '../components/MobileFab'
+import { MobileActionSheet } from '../patterns/MobileActionSheet'
+import { MobileBottomSheetHost } from '../patterns/MobileBottomSheetHost'
+import { MobileContent } from './MobileContent'
+import { MobileHeader } from './MobileHeader'
+
+type MobileAppShellProps = {
+  children: ReactNode
+  title?: string
+  searchSlot?: ReactNode
+  showSearch?: boolean
+  showFab?: boolean
+  showBottomNav?: boolean
+  contentPadded?: boolean
+}
+
+function MobileAppShellInner({
+  children,
+  title,
+  searchSlot,
+  showSearch = false,
+  showFab = true,
+  showBottomNav = true,
+  contentPadded = true,
+}: MobileAppShellProps) {
+  const { t } = useI18n()
+  const { pathname } = useLocation()
+  const navigate = useNavigate()
+  const { openSheet, closeSheet } = useMobileBottomSheet()
+
+  const resolvedTitle =
+    title ??
+    mobilePageTitle(
+      pathname,
+      {
+        today: t.mobile.pages.today,
+        employees: t.mobile.pages.employees,
+        tasks: t.mobile.pages.tasks,
+        decisions: t.mobile.pages.decisions,
+        more: t.mobile.pages.more,
+      },
+      t.mobile.maxControl.pageTitle ?? 'MAX',
+    )
+
+  const runTaskHref = pathname.includes('/employees/ag-max')
+    ? '/ops/run-task?employee=ag-max'
+    : '/ops/run-task'
+
+  const openAssignTaskSheet = useCallback(() => {
+    openSheet(
+      <MobileActionSheet
+        items={[
+          {
+            id: 'run-task',
+            label: t.mobile.assignTaskSheet.runTask,
+            description: t.mobile.assignTaskSheet.description,
+            onSelect: () => {
+              closeSheet()
+              navigate(runTaskHref)
+            },
+          },
+          {
+            id: 'quick-assign',
+            label: t.mobile.assignTaskSheet.quickAssign,
+            onSelect: closeSheet,
+          },
+          {
+            id: 'morning-report',
+            label: t.mobile.assignTaskSheet.morningReport,
+            onSelect: () => {
+              closeSheet()
+              navigate('/ops/morning-report')
+            },
+          },
+        ]}
+      />,
+      { title: t.mobile.assignTaskSheet.title, ariaLabel: t.mobile.fab.ariaLabel },
+    )
+  }, [closeSheet, navigate, openSheet, runTaskHref, t])
+
+  return (
+    <div className="acMobileShell" aria-label={t.mobile.shell.ariaLabel}>
+      <div className="acMobileSafeAreaTop" aria-hidden />
+      <MobileHeader title={resolvedTitle} searchSlot={searchSlot} showSearch={showSearch} />
+      <MobileContent padded={contentPadded}>{children}</MobileContent>
+      {showFab ? (
+        <div className="acMobileFabHost">
+          <MobileFab label={t.mobile.fab.assignTask} onClick={openAssignTaskSheet} />
+        </div>
+      ) : null}
+      {showBottomNav ? <MobileBottomNavigation /> : null}
+      <div className="acMobileSafeAreaBottom" aria-hidden />
+    </div>
+  )
+}
+
+export function MobileAppShell(props: MobileAppShellProps) {
+  return (
+    <MobileBottomSheetHost>
+      <MobileAppShellInner {...props} />
+    </MobileBottomSheetHost>
+  )
+}

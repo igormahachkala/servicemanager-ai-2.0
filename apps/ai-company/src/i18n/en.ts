@@ -1,5 +1,6 @@
 import { platformGlossaryTermsEn } from './platformGlossaryTerms.en'
 import { ownerNavEn } from './ownerNav/en'
+import { mobileEn } from './mobile/en'
 
 export const en = {
   common: {
@@ -199,6 +200,7 @@ export const en = {
     canvas: 'Company Canvas',
   },
   ownerNav: ownerNavEn,
+  mobile: mobileEn,
   labels: {
     active: 'Active',
     planned: 'Planned',
@@ -878,8 +880,8 @@ export const en = {
     },
   },
   firstFiveMinutesGuide: {
-    title: 'What to do first?',
-    subtitle: 'Five steps in 5 minutes — a quick Owner start without an onboarding wizard.',
+    title: 'Start here',
+    subtitle: 'Six steps in 5 minutes — one clear first-run path for Owner.',
     cta: 'Start with MAX',
     ctaHref: '/ops/run-task?employee=ag-max',
     collapse: 'Collapse',
@@ -894,38 +896,45 @@ export const en = {
     steps: {
       companyState: {
         title: 'Review company state',
-        whatItIs: 'Command Center — main /ops screen with company health, team, runtime and alerts.',
-        why: 'Owner sees the digital company status in one minute before assigning work.',
-        afterClick: 'Opens Command Center with morning brief, active employees, approvals and live events.',
-        expectedResult: 'Clear picture of the day: who is working, what awaits decisions, any risks.',
+        whatItIs: 'Owner home — /ops overview with live company metrics.',
+        why: 'See whether the company is ready, idle, or needs attention.',
+        afterClick: 'Stays on /ops with status, completed work, and decisions.',
+        expectedResult: 'Honest picture before you assign work to MAX.',
+      },
+      openMax: {
+        title: 'Open MAX',
+        whatItIs: 'MAX workspace — queue, loop, and daily work surface.',
+        why: 'Meet your first digital employee before assigning a task.',
+        afterClick: 'Opens /ops/employees/ag-max/workspace.',
+        expectedResult: 'You see where MAX works and what is in the queue.',
       },
       assignTask: {
-        title: 'Assign a task to MAX',
-        whatItIs: 'Run Task — form to assign work to digital employee MAX.',
-        why: 'MAX runs technical audit, reasoning and Worker Loop from your brief.',
-        afterClick: 'Opens /ops/run-task with MAX selected — describe the task and start the loop.',
-        expectedResult: 'MAX accepts the task, builds Decision Plan and runs Worker Loop; results appear in Runtime and reports.',
+        title: 'Assign a task',
+        whatItIs: 'Task form for MAX.',
+        why: 'The main way to start delivery work.',
+        afterClick: 'Opens /ops/run-task with MAX selected.',
+        expectedResult: 'MAX accepts the task and starts the worker loop.',
       },
-      maxDay: {
-        title: 'Open MAX operating day',
-        whatItIs: 'Employee Operating Day — MAX “today” screen: queue, shift, day summary.',
-        why: 'See what MAX is doing now and how the work shift progresses.',
-        afterClick: 'Opens /ops/employees/ag-max/today with Operating Day, Work Queue and summary.',
-        expectedResult: 'Understanding of MAX current work: active tasks, queue, shift status.',
+      startWorkday: {
+        title: 'Start the workday',
+        whatItIs: 'MAX today screen — shift, queue, day summary.',
+        why: 'Start or continue MAX operating day.',
+        afterClick: 'Opens /ops/employees/ag-max/today.',
+        expectedResult: 'Workday status and queue are visible.',
       },
       morningReport: {
         title: 'Read the morning report',
-        whatItIs: 'Owner Morning Report — overnight/morning MAX summary for Owner.',
-        why: 'No manual status gathering — report aggregates Journal, decisions and next steps.',
-        afterClick: 'Opens /ops/morning-report with “what was done” and “what needs decision” sections.',
-        expectedResult: 'Ready brief: completed tasks, risks, Owner decisions and recommended next step.',
+        whatItIs: 'Morning summary for Owner.',
+        why: 'See what was done and what needs a decision.',
+        afterClick: 'Opens /ops/morning-report.',
+        expectedResult: 'Brief with outcomes, risks, and next step.',
       },
       ownerDecisions: {
         title: 'Check Owner decisions',
-        whatItIs: 'Approvals — queue of approvals and Owner decisions (Cursor Automation, handoff, gates).',
-        why: 'Digital employees do not act without Owner where approval is required.',
-        afterClick: 'Opens /ops/approvals with pending list and decision history.',
-        expectedResult: 'All items awaiting approve/reject are visible; you can decide.',
+        whatItIs: 'Pending approvals and Owner gates.',
+        why: 'Some actions wait for your decision.',
+        afterClick: 'Opens /ops/approvals.',
+        expectedResult: 'All pending approve/reject items are visible.',
       },
     },
   },
@@ -971,7 +980,10 @@ export const en = {
     companyStatus: {
       operatingHint: 'Company is operating — active employees or runtime tasks.',
       idleHint: 'No active tasks. Assign work to MAX or open the morning report.',
+      readyHint: 'Ready for first launch — follow “Start here” below.',
+      attentionHint: 'Needs your decision or unblocks a blocked task.',
       operatingStatus: {
+        ready: 'Ready for first launch',
         operating: 'Operating',
         idle: 'Idle',
         attention: 'Needs attention',
@@ -990,23 +1002,35 @@ export const en = {
     nextActions: {
       runTask: {
         label: 'Assign task to MAX',
-        description: 'Run Task — new Owner task for MAX.',
+        description: 'Describe the first task and send it to MAX.',
       },
       morningReport: {
         label: 'Open morning report',
         description: 'Employee results and Owner decisions.',
       },
       maxToday: {
-        label: 'MAX operating day',
-        description: 'Today — status, progress, day summary.',
+        label: 'MAX workday',
+        description: 'Status, progress, and day summary.',
       },
       maxQueue: {
-        label: 'MAX work queue',
-        description: 'Work Queue on MAX workspace.',
+        label: 'MAX task queue',
+        description: 'Queue on MAX workspace.',
+      },
+      approvals: {
+        label: 'Review Owner decisions',
+        description: 'Pending approvals and gates.',
       },
     },
+    secondaryLinks: {
+      aria: 'Secondary Owner actions',
+      openMax: 'Open MAX',
+      startWorkday: 'Start workday',
+      assignTask: 'Assign task',
+      maxToday: 'MAX workday',
+      approvals: 'Owner decisions',
+    },
     empty: {
-      completedTasks: 'No completed tasks today yet. Run Task or MAX queue.',
+      completedTasks: 'No completed tasks today yet. Assign a task to MAX or open the queue.',
       decisions: 'No urgent decisions — no approvals, handoffs, or blocks.',
     },
   },

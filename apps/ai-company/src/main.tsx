@@ -31,6 +31,7 @@ import './styles/polish-v2.css'
 import './styles/morning-report.css'
 import './styles/employee-operating-day.css'
 import './styles/owner-home.css'
+import './styles/mobile.css'
 import './styles/decision-plan.css'
 import './styles.css'
 
