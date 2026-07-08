@@ -871,37 +871,54 @@ export const ru: Messages = {
     generatedAt: "Сформирован",
     statsAria: "Сводка за ночную смену",
     openNextStep: "Перейти к действию",
-    localNote: "Данные из localStorage — Worker Loop, Runtime, Cursor Automation, Memory и Knowledge drafts.",
+    sourceJournal: "Источник: Employee Daily Journal",
+    sourceRuntimeFallback: "Источник: Runtime fallback",
+    localNote: "Primary: Employee Daily Journal. Fallback: Worker Loop / Runtime / Cursor Automation / Work Queue.",
     stats: {
+      journalEntries: "Записей Journal",
+      workDurationMinutes: "Минут работы",
       loopsCompleted: "Циклов MAX",
       reportsCreated: "Отчётов",
       pendingApprovals: "Ждут Owner",
       cursorTasks: "Cursor tasks",
       memoryDrafts: "Memory drafts",
-      knowledgeCandidates: "Knowledge"
+      knowledgeCandidates: "Knowledge",
+      remainingQueue: "В очереди"
     },
     sections: {
       whatDone: "Что сделано",
-      whatDoneHint: "Выполненные циклы MAX, анализ Ollama и завершённые задачи за отчётный период.",
+      whatDoneHint: "Завершённые задачи MAX из Daily Journal — work summary и результаты.",
       reportsCreated: "Созданные отчёты",
-      whatDiscovered: "Что проверил и обнаружил",
-      whatDiscoveredHint: "Tool checks, MAX Review, findings и риски из Worker Loop.",
+      modelsUsed: "Модели",
+      modelsUsedHint: "Local Ollama и pipeline из Decision Plan / Runtime.",
+      toolsUsed: "Инструменты",
+      toolsUsedHint: "Tool Registry и Cursor Automation из Journal.",
+      consultations: "Консультации",
+      consultationsHint: "Peer consult из Worker Loop / Decision Plan.",
+      whatDiscovered: "Решения и выводы",
+      whatDiscoveredHint: "Decisions из Journal и findings из Worker Loop (fallback).",
       memoryDrafts: "Memory Drafts",
       knowledgeCandidates: "Knowledge Candidates",
       needsOwner: "Что требует решения Owner",
-      needsOwnerHint: "Согласования, Cursor Automation gates и предложения Work Scheduler.",
+      needsOwnerHint: "Owner Approval из Journal + Cursor gates и Work Scheduler.",
+      remainingQueue: "Осталось в очереди",
+      remainingQueueHint: "Employee Work Queue — pending / scheduled / blocked.",
       cursorTasks: "Cursor tasks",
       cursorTasksHint: "Handoff готов к submit, отправленные задачи и ожидание результата.",
       nextStep: "Что предлагаю дальше",
-      nextStepHint: "Рекомендуемый следующий шаг на основе текущего состояния MAX."
+      nextStepHint: "Следующая задача из очереди, approval или продолжение после Journal."
     },
     empty: {
-      whatDone: "За отчётный период MAX не завершил новых циклов — можно запустить задачу.",
+      whatDone: "За отчётный период MAX не завершил новых задач — можно запустить Worker Loop.",
       reports: "Новых отчётов MAX за период нет.",
-      whatDiscovered: "Findings и проверки не зафиксированы — запустите Worker Loop или demo cycle.",
+      modelsUsed: "Модели не зафиксированы в Journal.",
+      toolsUsed: "Инструменты не использовались.",
+      consultations: "Консультаций с коллегами не было.",
+      whatDiscovered: "Decisions и findings не зафиксированы — запустите Worker Loop.",
       memoryDrafts: "Memory drafts не появились.",
       knowledgeCandidates: "Knowledge candidates не появились.",
       needsOwner: "Решений Owner не требуется — операции стабильны.",
+      remainingQueue: "Work Queue пуст — новых задач в очереди нет.",
       cursorTasks: "Cursor tasks в очереди нет.",
       nextStep: "Следующий шаг не определён."
     }
@@ -2734,6 +2751,59 @@ export const ru: Messages = {
       cursorIdle: "Не активен",
       empty: "Worker Loop ещё не запускался — откройте рабочее место или Run Task.",
       openWorkspace: "Открыть рабочее место MAX"
+    },
+    workQueue: {
+      title: "Очередь работы MAX",
+      empty: "У MAX пока нет задач в очереди.",
+      suggestedAction: "Следующее действие",
+      activeLabel: "Активная задача",
+      pendingLabel: "Ожидающие задачи",
+      running: "Выполняется задача из очереди — Worker Loop активен…",
+      footnote: "Очередь хранится локально (Employee Work Queue V1). Для разовых задач используйте",
+      stats: {
+        pending: "В очереди: {count}",
+        blocked: "Заблокировано: {count}"
+      },
+      fields: {
+        priority: "Приоритет",
+        status: "Статус",
+        scheduledAt: "Запланировано",
+        startedAt: "Начато",
+        completedAt: "Завершено",
+        blockedReason: "Причина блокировки",
+        workerLoopId: "Worker Loop",
+        queuePosition: "Позиция"
+      },
+      statuses: {
+        pending: "Ожидает",
+        scheduled: "Запланирована",
+        in_progress: "В работе",
+        blocked: "Заблокирована",
+        completed: "Завершена",
+        skipped: "Пропущена",
+        cancelled: "Отменена"
+      },
+      priorities: {
+        low: "Низкий",
+        medium: "Средний",
+        high: "Высокий",
+        critical: "Критический"
+      },
+      actions: {
+        addTest: "Добавить тестовую задачу",
+        startNext: "Запустить следующую задачу",
+        runAll: "Запустить всю очередь"
+      },
+      feedback: {
+        testAdded: "Тестовая задача добавлена в очередь MAX.",
+        started: "Запущена задача: «{title}».",
+        runAllDone: "Обработано задач: {count}.",
+        runAllPartial: "Обработано до ошибки: {count}."
+      },
+      errors: {
+        generic: "Не удалось выполнить задачу из очереди.",
+        emptyQueue: "Очередь пуста — добавьте задачу."
+      }
     }
   },
   workScheduler: {

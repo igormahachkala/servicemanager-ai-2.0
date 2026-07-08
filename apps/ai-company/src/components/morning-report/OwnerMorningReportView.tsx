@@ -74,7 +74,10 @@ export function OwnerMorningReportView({ snapshot }: Props) {
   const mr = t.morningReport
 
   const doneItems = [...snapshot.whatMaxDid, ...snapshot.completedTasks]
-  const discoveredItems = [...snapshot.whatMaxChecked, ...snapshot.whatDiscovered]
+  const discoveredItems =
+    snapshot.dataSource === 'journal'
+      ? [...snapshot.decisions]
+      : [...snapshot.whatMaxChecked, ...snapshot.whatDiscovered]
 
   return (
     <div className="acMorningReport">
@@ -85,6 +88,9 @@ export function OwnerMorningReportView({ snapshot }: Props) {
           <p className="acMorningReportEmployee">{snapshot.employeeLabel}</p>
           <p className="acMorningReportPeriod">{snapshot.periodLabel}</p>
           <p className="acMorningReportSummary">{snapshot.summary}</p>
+          <p className="acMorningReportSourceBadge">
+            {snapshot.dataSource === 'journal' ? mr.sourceJournal : mr.sourceRuntimeFallback}
+          </p>
         </div>
         <div className="acMorningReportHeroMeta">
           <span className="acMorningReportMetaLabel">{mr.generatedAt}</span>
@@ -92,7 +98,21 @@ export function OwnerMorningReportView({ snapshot }: Props) {
         </div>
       </header>
 
+      {snapshot.journalFallbackNote ? (
+        <p className="acMorningReportFallbackNote" role="status">
+          {snapshot.journalFallbackNote}
+        </p>
+      ) : null}
+
       <div className="acMorningReportStats" aria-label={mr.statsAria}>
+        <div className="acMorningReportStat">
+          <span className="acMorningReportStatValue">{snapshot.stats.journalEntries}</span>
+          <span className="acMorningReportStatLabel">{mr.stats.journalEntries}</span>
+        </div>
+        <div className="acMorningReportStat">
+          <span className="acMorningReportStatValue">{snapshot.stats.workDurationMinutes}</span>
+          <span className="acMorningReportStatLabel">{mr.stats.workDurationMinutes}</span>
+        </div>
         <div className="acMorningReportStat">
           <span className="acMorningReportStatValue">{snapshot.stats.loopsCompleted}</span>
           <span className="acMorningReportStatLabel">{mr.stats.loopsCompleted}</span>
@@ -106,16 +126,8 @@ export function OwnerMorningReportView({ snapshot }: Props) {
           <span className="acMorningReportStatLabel">{mr.stats.pendingApprovals}</span>
         </div>
         <div className="acMorningReportStat">
-          <span className="acMorningReportStatValue">{snapshot.stats.cursorTasksPending}</span>
-          <span className="acMorningReportStatLabel">{mr.stats.cursorTasks}</span>
-        </div>
-        <div className="acMorningReportStat">
-          <span className="acMorningReportStatValue">{snapshot.stats.memoryDrafts}</span>
-          <span className="acMorningReportStatLabel">{mr.stats.memoryDrafts}</span>
-        </div>
-        <div className="acMorningReportStat">
-          <span className="acMorningReportStatValue">{snapshot.stats.knowledgeCandidates}</span>
-          <span className="acMorningReportStatLabel">{mr.stats.knowledgeCandidates}</span>
+          <span className="acMorningReportStatValue">{snapshot.stats.remainingQueueCount}</span>
+          <span className="acMorningReportStatLabel">{mr.stats.remainingQueue}</span>
         </div>
       </div>
 
@@ -132,6 +144,33 @@ export function OwnerMorningReportView({ snapshot }: Props) {
             title={mr.sections.reportsCreated}
             items={snapshot.reportsCreated}
             emptyText={mr.empty.reports}
+          />
+        ) : null}
+
+        {snapshot.modelsUsed.length > 0 ? (
+          <ReportSection
+            title={mr.sections.modelsUsed}
+            subtitle={mr.sections.modelsUsedHint}
+            items={snapshot.modelsUsed}
+            emptyText={mr.empty.modelsUsed}
+          />
+        ) : null}
+
+        {snapshot.toolsUsed.length > 0 ? (
+          <ReportSection
+            title={mr.sections.toolsUsed}
+            subtitle={mr.sections.toolsUsedHint}
+            items={snapshot.toolsUsed}
+            emptyText={mr.empty.toolsUsed}
+          />
+        ) : null}
+
+        {snapshot.consultations.length > 0 ? (
+          <ReportSection
+            title={mr.sections.consultations}
+            subtitle={mr.sections.consultationsHint}
+            items={snapshot.consultations}
+            emptyText={mr.empty.consultations}
           />
         ) : null}
 
@@ -164,6 +203,13 @@ export function OwnerMorningReportView({ snapshot }: Props) {
           items={snapshot.needsOwnerApproval}
           emptyText={mr.empty.needsOwner}
           variant="attention"
+        />
+
+        <ReportSection
+          title={mr.sections.remainingQueue}
+          subtitle={mr.sections.remainingQueueHint}
+          items={snapshot.remainingQueue}
+          emptyText={mr.empty.remainingQueue}
         />
 
         <ReportSection

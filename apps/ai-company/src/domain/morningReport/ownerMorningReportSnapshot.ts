@@ -3,6 +3,24 @@
  * Aggregates overnight MAX Worker Loop, Runtime, Cursor Automation, Memory/Knowledge drafts.
  */
 
+import { listEmployeeDailyJournalEntries } from '../employeeDailyJournal'
+import {
+  buildJournalCompletedTaskLines,
+  buildJournalConsultationLines,
+  buildJournalDecisionLines,
+  buildJournalMemoryAndKnowledge,
+  buildJournalModelLines,
+  buildJournalOwnerApprovalLines,
+  buildJournalReportLines,
+  buildJournalSummary,
+  buildJournalToolLines,
+  buildJournalWhatMaxDidLines,
+  buildRemainingQueueLines,
+  computeJournalWorkDurationMs,
+  filterJournalEntriesForReportWindow,
+  OWNER_MORNING_REPORT_JOURNAL_FALLBACK_NOTE_RU,
+  pickJournalNextStep,
+} from './ownerMorningReportJournalSections'
 import { loadApprovalStore } from '../approval/approvalStorage'
 import type { Approval } from '../approval/approval'
 import {
@@ -23,6 +41,8 @@ import type { Report } from '../reports/report'
 import { loadRuntimeRuns } from '../runtime/runtimeOrchestrator'
 import { listPendingWorkSuggestions } from '../workScheduler/workSchedulerStorage'
 import type { WorkSuggestion } from '../workScheduler/workSchedulerTypes'
+
+export type OwnerMorningReportDataSource = 'journal' | 'runtime_fallback'
 
 export type OwnerMorningReportLine = {
   id: string
@@ -45,24 +65,34 @@ export type OwnerMorningReportSnapshot = {
   dateKey: string
   periodLabel: string
   employeeLabel: string
+  dataSource: OwnerMorningReportDataSource
+  journalFallbackNote: string | null
   summary: string
   stats: {
+    journalEntries: number
+    workDurationMinutes: number
     loopsCompleted: number
     reportsCreated: number
     pendingApprovals: number
     cursorTasksPending: number
     memoryDrafts: number
     knowledgeCandidates: number
+    remainingQueueCount: number
   }
   whatMaxDid: OwnerMorningReportLine[]
   whatMaxChecked: OwnerMorningReportLine[]
   whatDiscovered: OwnerMorningReportLine[]
   completedTasks: OwnerMorningReportLine[]
+  modelsUsed: OwnerMorningReportLine[]
+  toolsUsed: OwnerMorningReportLine[]
+  consultations: OwnerMorningReportLine[]
+  decisions: OwnerMorningReportLine[]
   needsOwnerApproval: OwnerMorningReportLine[]
   reportsCreated: OwnerMorningReportLine[]
   memoryDrafts: OwnerMorningReportLine[]
   knowledgeCandidates: OwnerMorningReportLine[]
   cursorTasks: OwnerMorningReportLine[]
+  remainingQueue: OwnerMorningReportLine[]
   nextStep: OwnerMorningReportNextStep | null
 }
 
@@ -448,7 +478,7 @@ function pickNextStep(input: {
   }
 }
 
-export function buildOwnerMorningReportSnapshot(now: Date = new Date()): OwnerMorningReportSnapshot {
+function buildRuntimeFallbackSnapshot(now: Date): OwnerMorningReportSnapshot {
   const loops = loadMaxWorkerLoopRecords()
   const reports = loadReports()
   const runtimeRuns = loadRuntimeRuns()
@@ -457,7 +487,7 @@ export function buildOwnerMorningReportSnapshot(now: Date = new Date()): OwnerMo
   const workSuggestions = listPendingWorkSuggestions({ employeeId: MAX_WORKER_EMPLOYEE_ID, limit: 12 })
 
   const maxSections = buildMaxSections(loops, now)
-  const needsOwnerApproval = buildApprovalLines(generalApprovals, cursorApprovals, workSuggestions)
+  const runtimeApprovals = buildApprovalLines(generalApprovals, cursorApprovals, workSuggestions)
   const cursorTasks = buildCursorTaskLines(
     loadCursorAutomationSubmitRuns().filter(
       (item) =>
@@ -468,6 +498,7 @@ export function buildOwnerMorningReportSnapshot(now: Date = new Date()): OwnerMo
     loops,
   )
   const reportsCreated = buildReportLines(reports, now)
+  const remainingQueue = buildRemainingQueueLines()
 
   const loopsCompleted = loops.filter(
     (item) => item.status === 'completed' && inReportWindow(item.finishedAt ?? item.updatedAt, now),
@@ -487,15 +518,15 @@ export function buildOwnerMorningReportSnapshot(now: Date = new Date()): OwnerMo
   if (runtimeCompletedTonight > 0) {
     summaryParts.push(`${runtimeCompletedTonight} runtime run(s) за ночь.`)
   }
-  if (needsOwnerApproval.length > 0) {
-    summaryParts.push(`${needsOwnerApproval.length} пункт(ов) ждут Owner.`)
+  if (runtimeApprovals.length > 0) {
+    summaryParts.push(`${runtimeApprovals.length} пункт(ов) ждут Owner.`)
   }
   if (summaryParts.length === 0) {
     summaryParts.push('За отчётный период активность MAX минимальна — можно запустить новую задачу.')
   }
 
   const nextStep = pickNextStep({
-    needsApproval: needsOwnerApproval,
+    needsApproval: runtimeApprovals,
     cursorTasks,
     workSuggestions,
     loops,
@@ -506,24 +537,125 @@ export function buildOwnerMorningReportSnapshot(now: Date = new Date()): OwnerMo
     dateKey: dateKeyFrom(now),
     periodLabel: `Ночная смена · ${dateKeyFrom(now)}`,
     employeeLabel: 'MAX · Digital Employee',
+    dataSource: 'runtime_fallback',
+    journalFallbackNote: OWNER_MORNING_REPORT_JOURNAL_FALLBACK_NOTE_RU,
     summary: summaryParts.join(' '),
     stats: {
+      journalEntries: 0,
+      workDurationMinutes: 0,
       loopsCompleted,
       reportsCreated: reportsCreated.length,
-      pendingApprovals: needsOwnerApproval.length,
+      pendingApprovals: runtimeApprovals.length,
       cursorTasksPending: cursorTasks.length,
       memoryDrafts: maxSections.memory.length,
       knowledgeCandidates: maxSections.knowledge.length,
+      remainingQueueCount: remainingQueue.length,
     },
     whatMaxDid: maxSections.did,
     whatMaxChecked: maxSections.checked,
     whatDiscovered: maxSections.discovered,
     completedTasks: maxSections.completed,
-    needsOwnerApproval,
+    modelsUsed: [],
+    toolsUsed: maxSections.checked,
+    consultations: [],
+    decisions: maxSections.discovered,
+    needsOwnerApproval: runtimeApprovals,
     reportsCreated,
     memoryDrafts: maxSections.memory,
     knowledgeCandidates: maxSections.knowledge,
     cursorTasks,
+    remainingQueue,
     nextStep,
   }
+}
+
+function buildJournalPrimarySnapshot(now: Date, journalEntries: ReturnType<typeof filterJournalEntriesForReportWindow>): OwnerMorningReportSnapshot {
+  const cursorApprovals = loadCursorAutomationOwnerApprovals()
+  const generalApprovals = loadApprovalStore().approvals
+  const workSuggestions = listPendingWorkSuggestions({ employeeId: MAX_WORKER_EMPLOYEE_ID, limit: 12 })
+  const loops = loadMaxWorkerLoopRecords()
+
+  const runtimeApprovals = buildApprovalLines(generalApprovals, cursorApprovals, workSuggestions)
+  const journalApprovals = buildJournalOwnerApprovalLines(journalEntries)
+  const needsOwnerApproval = [...journalApprovals, ...runtimeApprovals]
+
+  const cursorTasks = buildCursorTaskLines(
+    loadCursorAutomationSubmitRuns().filter(
+      (item) =>
+        item.status === 'submitted_mock' ||
+        item.status === 'submitted_pending_real_adapter' ||
+        item.status === 'waiting_for_result',
+    ),
+    loops,
+  )
+
+  const remainingQueue = buildRemainingQueueLines()
+  const workDurationMs = computeJournalWorkDurationMs(journalEntries)
+  const workDurationMinutes = Math.round(workDurationMs / 60000)
+  const { memory, knowledge } = buildJournalMemoryAndKnowledge(journalEntries)
+
+  const modelsUsed = buildJournalModelLines(journalEntries)
+  const toolsUsed = buildJournalToolLines(journalEntries)
+  const consultations = buildJournalConsultationLines(journalEntries)
+  const decisions = buildJournalDecisionLines(journalEntries)
+  const reportsCreated = buildJournalReportLines(journalEntries)
+
+  const nextStep = pickJournalNextStep({
+    remainingQueue,
+    needsOwnerApproval,
+    cursorTasks,
+    entries: journalEntries,
+  })
+
+  return {
+    generatedAt: now.toISOString(),
+    dateKey: dateKeyFrom(now),
+    periodLabel: `Ночная смена · ${dateKeyFrom(now)}`,
+    employeeLabel: 'MAX · Digital Employee',
+    dataSource: 'journal',
+    journalFallbackNote: null,
+    summary: buildJournalSummary(
+      journalEntries,
+      workDurationMinutes,
+      needsOwnerApproval.length,
+      remainingQueue.length,
+    ),
+    stats: {
+      journalEntries: journalEntries.length,
+      workDurationMinutes,
+      loopsCompleted: journalEntries.filter((item) => item.maxWorkerLoopId).length,
+      reportsCreated: reportsCreated.length,
+      pendingApprovals: needsOwnerApproval.length,
+      cursorTasksPending: cursorTasks.length,
+      memoryDrafts: memory.length,
+      knowledgeCandidates: knowledge.length,
+      remainingQueueCount: remainingQueue.length,
+    },
+    whatMaxDid: buildJournalWhatMaxDidLines(journalEntries),
+    whatMaxChecked: toolsUsed,
+    whatDiscovered: decisions,
+    completedTasks: buildJournalCompletedTaskLines(journalEntries),
+    modelsUsed,
+    toolsUsed,
+    consultations,
+    decisions,
+    needsOwnerApproval,
+    reportsCreated,
+    memoryDrafts: memory,
+    knowledgeCandidates: knowledge,
+    cursorTasks,
+    remainingQueue,
+    nextStep,
+  }
+}
+
+export function buildOwnerMorningReportSnapshot(now: Date = new Date()): OwnerMorningReportSnapshot {
+  const allJournalEntries = listEmployeeDailyJournalEntries({ employeeId: MAX_WORKER_EMPLOYEE_ID })
+  const journalEntries = filterJournalEntriesForReportWindow(allJournalEntries, now, inReportWindow)
+
+  if (journalEntries.length > 0) {
+    return buildJournalPrimarySnapshot(now, journalEntries)
+  }
+
+  return buildRuntimeFallbackSnapshot(now)
 }
