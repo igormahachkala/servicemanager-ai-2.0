@@ -60,8 +60,8 @@ export function MobileEmployeeHeroCard({ snapshot }: Props) {
         <Link to={MOBILE_PATHS.tasksNewMax} className="acMobilePrimaryBtn">
           {copy.assignTask}
         </Link>
-        <Link to={MOBILE_PATHS.ops} className="acMobileLinkBtn">
-          {copy.openDesktopWorkspace}
+        <Link to={MOBILE_PATHS.reports} className="acMobileLinkBtn">
+          {copy.openReports}
         </Link>
       </div>
     </article>

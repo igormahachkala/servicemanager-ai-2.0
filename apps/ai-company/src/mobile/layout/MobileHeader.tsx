@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react'
-import { Link } from 'react-router-dom'
 import { ThemeSwitch } from '../../components/theme/ThemeSwitch'
 import { NotificationBadge } from '../../components/notifications/NotificationBadge'
 import { useNotifications } from '../../hooks/useNotifications'
@@ -102,9 +101,6 @@ export function MobileHeader({ title, searchSlot, showSearch = false }: MobileHe
         </div>
       </div>
       {searchSlot ? <div className="acMobileHeaderSearch">{searchSlot}</div> : null}
-      <Link to="/ops/notifications" className="acMobileHeaderVisuallyHidden">
-        {t.notificationEngine.viewInbox}
-      </Link>
     </header>
   )
 }

@@ -158,13 +158,13 @@ export const mobileEn = {
       presenceUnknown: 'Status unknown',
       currentTask: 'Current task',
       assignTask: 'Assign task',
-      openDesktopWorkspace: 'Desktop overview',
+      openReports: 'Open reports',
     },
     workday: {
       title: 'MAX workday',
       description: 'Operating Day — status, progress, and phase controls.',
       advancePhase: 'Next phase',
-      openDesktopToday: 'Open Today (desktop)',
+      openMax: 'Open MAX',
     },
     workQueue: {
       title: 'MAX queue',

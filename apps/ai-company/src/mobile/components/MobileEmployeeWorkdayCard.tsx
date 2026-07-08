@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import type { EmployeeOperatingDaySnapshot } from '../../domain/employeeOperatingDay'
 import { useI18n } from '../../i18n'
-import { resolveMobileHref } from '../navigation/mobileHrefResolver'
+import { MOBILE_PATHS, resolveMobileHref } from '../navigation/mobileHrefResolver'
 import { MobileCard } from './MobileCard'
 
 type Props = {
@@ -93,11 +93,8 @@ export function MobileEmployeeWorkdayCard({
         {!operatingDay.actions.canStart &&
         !operatingDay.actions.canContinue &&
         !operatingDay.actions.canFinish ? (
-          <Link
-            to={resolveMobileHref(`/ops/employees/${operatingDay.employeeId}/today`)}
-            className="acMobileLinkBtn"
-          >
-            {copy.openDesktopToday}
+          <Link to={MOBILE_PATHS.max} className="acMobileLinkBtn">
+            {copy.openMax}
           </Link>
         ) : null}
       </div>
