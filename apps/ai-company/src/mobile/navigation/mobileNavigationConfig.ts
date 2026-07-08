@@ -12,7 +12,7 @@ export const MOBILE_NAV_BASE = '/mobile'
 export const MOBILE_NAV_ITEMS: MobileNavItem[] = [
   { id: 'today', labelKey: 'today', to: `${MOBILE_NAV_BASE}/today` },
   { id: 'employees', labelKey: 'employees', to: `${MOBILE_NAV_BASE}/employees` },
-  { id: 'tasks', labelKey: 'tasks', to: `${MOBILE_NAV_BASE}/tasks/new` },
+  { id: 'tasks', labelKey: 'tasks', to: `${MOBILE_NAV_BASE}/tasks` },
   { id: 'decisions', labelKey: 'decisions', to: `${MOBILE_NAV_BASE}/decisions` },
   { id: 'more', labelKey: 'more', to: `${MOBILE_NAV_BASE}/more` },
 ]
@@ -37,6 +37,9 @@ export function mobilePageTitle(
 ): string {
   if (pathname.startsWith(`${MOBILE_NAV_BASE}/tasks/new`)) {
     return labels.runTaskNew ?? labels.tasks
+  }
+  if (pathname === `${MOBILE_NAV_BASE}/tasks` || pathname.startsWith(`${MOBILE_NAV_BASE}/tasks?`)) {
+    return labels.tasks
   }
   if (pathname.startsWith(`${MOBILE_NAV_BASE}/reports/`) && pathname !== `${MOBILE_NAV_BASE}/reports`) {
     return labels.reportDetail ?? labels.reports ?? 'Отчёт'

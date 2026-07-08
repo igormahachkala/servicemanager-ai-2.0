@@ -5,8 +5,10 @@ import { MobileEmployeesPage } from './pages/MobileEmployeesPage'
 import { MobileDecisionsPage } from './pages/MobileDecisionsPage'
 import { MobileReportDetailPage } from './pages/MobileReportDetailPage'
 import { MobileReportsPage } from './pages/MobileReportsPage'
+import { MobileRuntimeLivePage } from './pages/MobileRuntimeLivePage'
 import { MobileRunTaskPage } from './pages/MobileRunTaskPage'
-import { MobileMorePage, MobileTasksPage } from './pages/MobileTabPages'
+import { MobileMorePage } from './pages/MobileTabPages'
+import { MobileTasksCenterPage } from './pages/MobileTasksCenterPage'
 import { MobileTodayPage } from './pages/MobileTodayPage'
 
 /**
@@ -21,8 +23,10 @@ export function MobileRoutes() {
         <Route path="employees/:id" element={<MobileEmployeePage />} />
         <Route path="employees" element={<MobileEmployeesPage />} />
         <Route path="tasks/new" element={<MobileRunTaskPage />} />
-        <Route path="tasks" element={<MobileTasksPage />} />
+        <Route path="tasks" element={<MobileTasksCenterPage />} />
         <Route path="decisions" element={<MobileDecisionsPage />} />
+        <Route path="runtime/:runId" element={<MobileRuntimeLivePage />} />
+        <Route path="runtime" element={<MobileRuntimeLivePage />} />
         <Route path="reports/:id" element={<MobileReportDetailPage />} />
         <Route path="reports" element={<MobileReportsPage />} />
         <Route path="more" element={<MobileMorePage />} />

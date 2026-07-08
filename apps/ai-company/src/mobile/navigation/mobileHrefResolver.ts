@@ -14,12 +14,29 @@ export const MOBILE_PATHS = {
   decisions: '/mobile/decisions',
   reports: '/mobile/reports',
   morningReport: `/mobile/reports/${MOBILE_MORNING_REPORT_ID}`,
+  runtime: '/mobile/runtime',
   more: '/mobile/more',
   ops: '/ops',
 } as const
 
 function isMaxEmployeeId(raw: string): boolean {
   return resolveCanonicalEmployeeId(raw) === MAX_WORKER_EMPLOYEE_ID
+}
+
+export function mobileMaxHref(employeeId: string = MAX_WORKER_EMPLOYEE_ID): string {
+  return isMaxEmployeeId(employeeId) ? MOBILE_PATHS.max : MOBILE_PATHS.employees
+}
+
+export function mobileRuntimeRunHref(runId: string): string {
+  return `${MOBILE_PATHS.runtime}/${encodeURIComponent(runId)}`
+}
+
+export function mobileRuntimeLoopHref(loopId: string): string {
+  return `${MOBILE_PATHS.runtime}?loop=${encodeURIComponent(loopId)}`
+}
+
+export function mobileReportHref(reportId: string): string {
+  return `/mobile/reports/${encodeURIComponent(reportId)}`
 }
 
 export function resolveMobileHref(href: string): string {
@@ -29,9 +46,17 @@ export function resolveMobileHref(href: string): string {
     return MOBILE_PATHS.morningReport
   }
 
+  const runtimeRunMatch = href.match(/^\/ops\/runtime\/runs\/([^/?#]+)/)
+  if (runtimeRunMatch) {
+    return mobileRuntimeRunHref(decodeURIComponent(runtimeRunMatch[1]))
+  }
+  if (href === '/ops/runtime' || href.startsWith('/ops/runtime?') || href.startsWith('/ops/runtime/live')) {
+    return MOBILE_PATHS.runtime
+  }
+
   const reportMatch = href.match(/^\/ops\/reports\/([^/?#]+)/)
   if (reportMatch) {
-    return `/mobile/reports/${encodeURIComponent(reportMatch[1])}`
+    return mobileReportHref(reportMatch[1])
   }
   if (href === '/ops/reports' || href.startsWith('/ops/reports?')) {
     return MOBILE_PATHS.reports
