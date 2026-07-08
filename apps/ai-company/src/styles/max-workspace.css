@@ -185,3 +185,153 @@
     grid-template-columns: 1fr;
   }
 }
+
+.acMaxWorkQueuePanel {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.acMaxWorkQueueToolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.acMaxWorkQueueStats {
+  font-size: 0.85rem;
+}
+
+.acMaxWorkQueueActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.acMaxWorkQueueRunning,
+.acMaxWorkQueueFeedback,
+.acMaxWorkQueueError {
+  margin: 0;
+  font-size: 0.88rem;
+}
+
+.acMaxWorkQueueError {
+  color: #dc2626;
+}
+
+.acMaxWorkQueueSuggested {
+  padding: 12px 14px;
+  border: 1px solid var(--mc-border);
+  border-radius: 12px;
+  background: rgba(59, 130, 246, 0.06);
+}
+
+.acMaxWorkQueueSuggestedTitle {
+  margin: 0 0 6px;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--mc-muted);
+}
+
+.acMaxWorkQueueSuggestedMain {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.acMaxWorkQueueSuggestedDetail {
+  margin: 6px 0 0;
+  font-size: 0.88rem;
+}
+
+.acMaxWorkQueueBody {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.acMaxWorkQueueSectionTitle {
+  margin: 0 0 10px;
+  font-size: 0.92rem;
+}
+
+.acMaxWorkQueueList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.acMaxWorkQueueItem {
+  padding: 12px 14px;
+  border: 1px solid var(--mc-border);
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.02);
+}
+
+.acMaxWorkQueueItemActive {
+  border-color: rgba(37, 99, 235, 0.35);
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.acMaxWorkQueueItemHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.acMaxWorkQueueItemTitle {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.acMaxWorkQueueItemBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.acMaxWorkQueueItemSummary {
+  margin: 8px 0 0;
+  font-size: 0.88rem;
+}
+
+.acMaxWorkQueueItemMeta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 14px;
+  margin: 10px 0 0;
+}
+
+.acMaxWorkQueueField dt {
+  margin: 0 0 2px;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--mc-muted);
+}
+
+.acMaxWorkQueueField dd {
+  margin: 0;
+  font-size: 0.88rem;
+}
+
+.acMaxWorkQueueMono {
+  font-size: 0.82rem;
+  word-break: break-all;
+}
+
+.acMaxWorkQueueFootnote {
+  margin: 0;
+  font-size: 0.82rem;
+}
+
+@media (max-width: 720px) {
+  .acMaxWorkQueueItemMeta {
+    grid-template-columns: 1fr;
+  }
+}

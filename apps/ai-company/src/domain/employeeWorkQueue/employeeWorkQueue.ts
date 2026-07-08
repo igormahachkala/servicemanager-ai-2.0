@@ -95,6 +95,8 @@ export type AssignEmployeeWorkItemInput = {
   scheduledAt?: string | null
   blockedReason?: string | null
   status?: Extract<WorkStatus, 'pending' | 'scheduled' | 'blocked'>
+  workerLoopId?: string | null
+  decisionPlanId?: string | null
 }
 
 export type CompleteEmployeeWorkItemInput = {

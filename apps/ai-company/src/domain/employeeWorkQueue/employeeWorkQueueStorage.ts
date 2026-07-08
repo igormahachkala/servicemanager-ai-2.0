@@ -192,6 +192,8 @@ export function assignEmployeeWorkItem(input: AssignEmployeeWorkItemInput): Work
       status: input.blockedReason ? 'blocked' : next.status === 'blocked' ? 'pending' : next.status,
     }
   }
+  if (input.workerLoopId !== undefined) next = { ...next, workerLoopId: input.workerLoopId }
+  if (input.decisionPlanId !== undefined) next = { ...next, decisionPlanId: input.decisionPlanId }
   if (input.currentOwner !== undefined && input.currentOwner) {
     next = { ...next, currentOwner: input.currentOwner }
   } else if (nextEmployeeId !== previousEmployeeId) {

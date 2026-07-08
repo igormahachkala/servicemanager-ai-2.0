@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { ContextEmptyState } from '../components/empty-states'
 import { MaxWorkerLoopPanel } from '../components/max-worker-loop'
+import { MaxEmployeeWorkQueuePanel } from '../components/max-workspace'
 import { MaxDecisionPlanPanel } from '../components/decision-plan'
 import { PageGuideCard } from '../components/guided'
 import { useMaxEmployeeWorkspace } from '../hooks/useMaxEmployeeWorkspace'
@@ -258,6 +259,10 @@ export function MaxEmployeeWorkspacePage() {
       </div>
 
       <PageGuideCard pageId="workspace" />
+
+      <Panel title={t.maxWorkspace.workQueue.title}>
+        <MaxEmployeeWorkQueuePanel />
+      </Panel>
 
       {!view.hasWork ? <WorkspaceEmptyHero /> : <MaxWorkspaceSections view={view} />}
 
