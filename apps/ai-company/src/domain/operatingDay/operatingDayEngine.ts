@@ -23,7 +23,6 @@ import {
 } from '../projects/aiPhotoLabIds'
 import { MAX_WORKER_EMPLOYEE_ID, runMaxWorkerLoopV1 } from '../maxWorkerLoop'
 import {
-  buildOperatingDaySummary,
   createOperatingDayId,
   createOperatingDaySessionId,
   dateKeyFromDate,
@@ -39,6 +38,7 @@ import {
   type ResumeOperatingDayInput,
   type StartOperatingDayInput,
 } from './operatingDay'
+import { recordOperatingDaySummaryOnEngineFinish } from '../operatingDaySummary/operatingDaySummaryBridge'
 import {
   getActiveOperatingDaySession,
   getOperatingDayForEmployeeDate,
@@ -332,6 +332,7 @@ export function startOperatingDay(input: StartOperatingDayInput): OperatingDayAc
     processedWorkItemIds: [],
     skippedWorkItemIds: [],
     lastErrorMessage: null,
+    employeeOperatingDaySummaryId: null,
     updatedAt: now,
   }
 
@@ -514,13 +515,18 @@ export function finishOperatingDay(input: FinishOperatingDayInput): OperatingDay
   }
 
   const finishedAt = nowIso()
-  const summary = buildOperatingDaySummary(day, session, finishedAt)
+  const { employeeSummary, operatingDaySummary: summary } = recordOperatingDaySummaryOnEngineFinish({
+    day,
+    session,
+    finishedAt,
+  })
 
   const finishedSession: OperatingDaySession = {
     ...session,
     state: 'finished',
     finishedAt,
     currentTaskCycle: null,
+    employeeOperatingDaySummaryId: employeeSummary.id,
     updatedAt: finishedAt,
   }
 

@@ -75,6 +75,8 @@ export type OperatingDaySession = {
   processedWorkItemIds: string[]
   skippedWorkItemIds: string[]
   lastErrorMessage: string | null
+  /** Link to rich EmployeeOperatingDaySummary record (104C). */
+  employeeOperatingDaySummaryId: string | null
   updatedAt: string
 }
 
@@ -87,9 +89,16 @@ export type OperatingDaySummary = {
   tasksCompleted: number
   tasksFailed: number
   tasksSkipped: number
+  tasksRemaining: number
+  tasksBlocked: number
+  workDurationMs: number
+  employeeOperatingDaySummaryId: string | null
   journalEntryIds: string[]
   workerLoopIds: string[]
   workItemIds: string[]
+  /** Future Morning Report source marker — internal employee recap, not Owner report. */
+  morningReportSource: 'employee_operating_day_summary_v1' | null
+  morningReportEligible: boolean
   /** Human-readable end-of-day note (RU domain copy). */
   narrative: string
 }
@@ -230,9 +239,22 @@ export function parseOperatingDaySummary(value: unknown): OperatingDaySummary | 
     tasksCompleted: typeof value.tasksCompleted === 'number' ? value.tasksCompleted : 0,
     tasksFailed: typeof value.tasksFailed === 'number' ? value.tasksFailed : 0,
     tasksSkipped: typeof value.tasksSkipped === 'number' ? value.tasksSkipped : 0,
+    tasksRemaining: typeof value.tasksRemaining === 'number' ? value.tasksRemaining : 0,
+    tasksBlocked: typeof value.tasksBlocked === 'number' ? value.tasksBlocked : 0,
+    workDurationMs: typeof value.workDurationMs === 'number' ? value.workDurationMs : 0,
+    employeeOperatingDaySummaryId:
+      typeof value.employeeOperatingDaySummaryId === 'string'
+        ? value.employeeOperatingDaySummaryId
+        : null,
     journalEntryIds,
     workerLoopIds,
     workItemIds,
+    morningReportSource:
+      value.morningReportSource === 'employee_operating_day_summary_v1'
+        ? 'employee_operating_day_summary_v1'
+        : null,
+    morningReportEligible:
+      typeof value.morningReportEligible === 'boolean' ? value.morningReportEligible : false,
     narrative: typeof value.narrative === 'string' ? value.narrative : '',
   }
 }
@@ -280,6 +302,10 @@ export function parseOperatingDaySession(value: unknown): OperatingDaySession | 
     processedWorkItemIds,
     skippedWorkItemIds,
     lastErrorMessage: typeof value.lastErrorMessage === 'string' ? value.lastErrorMessage : null,
+    employeeOperatingDaySummaryId:
+      typeof value.employeeOperatingDaySummaryId === 'string'
+        ? value.employeeOperatingDaySummaryId
+        : null,
     updatedAt: typeof value.updatedAt === 'string' ? value.updatedAt : new Date().toISOString(),
   }
 }
@@ -311,6 +337,10 @@ export function buildOperatingDaySummary(
 ): OperatingDaySummary {
   const completed = session.completedTaskCycles.filter((cycle) => cycle.ok === true)
   const failed = session.completedTaskCycles.filter((cycle) => cycle.ok === false)
+  const start = Date.parse(session.startedAt)
+  const end = Date.parse(finishedAt)
+  const workDurationMs =
+    !Number.isNaN(start) && !Number.isNaN(end) && end > start ? end - start : 0
 
   return {
     employeeId: day.employeeId,
@@ -321,6 +351,10 @@ export function buildOperatingDaySummary(
     tasksCompleted: completed.length,
     tasksFailed: failed.length,
     tasksSkipped: session.skippedWorkItemIds.length,
+    tasksRemaining: session.pendingWorkItemIds.length,
+    tasksBlocked: 0,
+    workDurationMs,
+    employeeOperatingDaySummaryId: session.employeeOperatingDaySummaryId,
     journalEntryIds: completed
       .map((cycle) => cycle.journalEntryId)
       .filter((id): id is string => Boolean(id)),
@@ -328,6 +362,8 @@ export function buildOperatingDaySummary(
       .map((cycle) => cycle.workerLoopId)
       .filter((id): id is string => Boolean(id)),
     workItemIds: [...session.processedWorkItemIds],
+    morningReportSource: null,
+    morningReportEligible: completed.length > 0,
     narrative: `Рабочий день ${day.dateKey}: выполнено ${completed.length}, ошибок ${failed.length}, пропущено ${session.skippedWorkItemIds.length}.`,
   }
 }

@@ -1,21 +1,30 @@
 /**
  * Employee Operating Day Summary — builder (AI-COMPANY-104C).
- * Aggregates Daily Journal, Work Queue, Worker Loop, Decision Plan, Consult Peer.
+ * Aggregates Daily Journal, Work Queue, Worker Loop, Decision Plan, Consult Peer, Runtime Reports.
  */
 
 import { listEmployeeDailyJournalEntries } from '../employeeDailyJournal'
 import { listEmployeeWorkQueue } from '../employeeWorkQueue'
 import { loadMaxWorkerLoopRecords, rebuildMaxWorkerLoopSnapshotFromRun } from '../maxWorkerLoop'
+import {
+  buildJournalMemoryAndKnowledge,
+  computeJournalWorkDurationMs,
+} from '../morningReport/ownerMorningReportJournalSections'
 import type { EmployeeWorkday } from '../workday/workday'
 import { getTodayWorkdayForEmployee } from '../workday/workdayStorage'
 import {
   createEmployeeOperatingDaySummaryId,
+  OPERATING_DAY_SUMMARY_MORNING_REPORT_SOURCE,
   type BuildEmployeeOperatingDaySummaryInput,
   type EmployeeOperatingDaySummary,
+  type OperatingDaySummaryConsultation,
   type OperatingDaySummaryDecision,
   type OperatingDaySummaryDifficulty,
+  type OperatingDaySummaryKnowledgeCandidate,
+  type OperatingDaySummaryMemoryDraft,
   type OperatingDaySummaryModelUsage,
   type OperatingDaySummaryRemainingItem,
+  type OperatingDaySummaryReport,
   type OperatingDaySummaryTaskCompleted,
   type OperatingDaySummaryToolUsage,
 } from './operatingDaySummary'
@@ -81,6 +90,66 @@ function aggregateModels(
     }
   }
   return [...map.values()].sort((a, b) => b.usageCount - a.usageCount)
+}
+
+function buildConsultations(
+  entries: ReturnType<typeof listEmployeeDailyJournalEntries>,
+): OperatingDaySummaryConsultation[] {
+  const map = new Map<string, OperatingDaySummaryConsultation>()
+  for (const entry of entries) {
+    for (const consult of entry.consultations) {
+      if (!map.has(consult.peerEmployeeId)) {
+        map.set(consult.peerEmployeeId, {
+          peerEmployeeId: consult.peerEmployeeId,
+          peerDisplayName: consult.peerDisplayName,
+          reason: consult.reason,
+          outcome: consult.outcome,
+        })
+      }
+    }
+  }
+  return [...map.values()]
+}
+
+function buildReportsCreated(
+  entries: ReturnType<typeof listEmployeeDailyJournalEntries>,
+): OperatingDaySummaryReport[] {
+  const map = new Map<string, OperatingDaySummaryReport>()
+  for (const entry of entries) {
+    for (const link of entry.reportLinks) {
+      if (map.has(link.reportId)) continue
+      map.set(link.reportId, {
+        reportId: link.reportId,
+        title: link.title,
+        href: link.href,
+        summary: link.summary,
+      })
+    }
+  }
+  return [...map.values()]
+}
+
+function buildMemoryAndKnowledgeDrafts(
+  entries: ReturnType<typeof listEmployeeDailyJournalEntries>,
+): {
+  memoryDrafts: OperatingDaySummaryMemoryDraft[]
+  knowledgeCandidates: OperatingDaySummaryKnowledgeCandidate[]
+} {
+  const { memory, knowledge } = buildJournalMemoryAndKnowledge(entries)
+  return {
+    memoryDrafts: memory.map((item) => ({
+      id: item.id,
+      title: item.headline,
+      preview: item.detail ?? '',
+      category: item.badge,
+    })),
+    knowledgeCandidates: knowledge.map((item) => ({
+      id: item.id,
+      title: item.headline,
+      summary: item.detail ?? '',
+      type: item.badge,
+    })),
+  }
 }
 
 function buildTasksCompleted(
@@ -255,6 +324,33 @@ function buildRemainingWork(
   return items.slice(0, 20)
 }
 
+function countRemainingQueueItems(queue: ReturnType<typeof listEmployeeWorkQueue>): number {
+  return queue.items.filter(
+    (item) =>
+      item.status !== 'completed' &&
+      item.status !== 'cancelled' &&
+      item.status !== 'skipped',
+  ).length
+}
+
+function countBlockedQueueItems(queue: ReturnType<typeof listEmployeeWorkQueue>): number {
+  return queue.items.filter((item) => item.status === 'blocked').length
+}
+
+function resolveWorkDurationMs(
+  journalEntries: ReturnType<typeof listEmployeeDailyJournalEntries>,
+  startedAt: string | null,
+  finishedAt: string,
+): number {
+  const journalMs = computeJournalWorkDurationMs(journalEntries)
+  if (journalMs > 0) return journalMs
+  if (!startedAt) return 0
+  const start = Date.parse(startedAt)
+  const end = Date.parse(finishedAt)
+  if (Number.isNaN(start) || Number.isNaN(end) || end <= start) return 0
+  return end - start
+}
+
 function buildRecommendations(
   journalEntries: ReturnType<typeof listEmployeeDailyJournalEntries>,
   remaining: OperatingDaySummaryRemainingItem[],
@@ -269,7 +365,9 @@ function buildRecommendations(
 
   const pending = remaining.filter((item) => item.kind === 'work_queue' && item.status === 'pending')
   if (pending.length > 0) {
-    recommendations.push(`Начать следующий рабочий день с ${pending.length} pending item(s) — приоритет: «${pending[0]!.title}».`)
+    recommendations.push(
+      `Начать следующий рабочий день с ${pending.length} pending item(s) — приоритет: «${pending[0]!.title}».`,
+    )
   }
 
   for (const entry of journalEntries.slice(0, 3)) {
@@ -300,11 +398,34 @@ function buildRecommendations(
   }
 
   const seen = new Set<string>()
-  return recommendations.filter((line) => {
-    if (seen.has(line)) return false
-    seen.add(line)
-    return true
-  }).slice(0, 8)
+  return recommendations
+    .filter((line) => {
+      if (seen.has(line)) return false
+      seen.add(line)
+      return true
+    })
+    .slice(0, 8)
+}
+
+function buildNarrative(summary: {
+  dateKey: string
+  tasksCompletedCount: number
+  tasksFailed: number
+  tasksRemainingCount: number
+  tasksBlockedCount: number
+  workDurationMs: number
+}): string {
+  const minutes = Math.max(1, Math.round(summary.workDurationMs / 60_000))
+  return [
+    `Рабочий день ${summary.dateKey}.`,
+    `Выполнено: ${summary.tasksCompletedCount}.`,
+    summary.tasksFailed > 0 ? `Ошибок: ${summary.tasksFailed}.` : null,
+    summary.tasksRemainingCount > 0 ? `Осталось: ${summary.tasksRemainingCount}.` : null,
+    summary.tasksBlockedCount > 0 ? `Заблокировано: ${summary.tasksBlockedCount}.` : null,
+    `Время работы: ~${minutes} мин.`,
+  ]
+    .filter(Boolean)
+    .join(' ')
 }
 
 export function buildEmployeeOperatingDaySummary(
@@ -314,6 +435,7 @@ export function buildEmployeeOperatingDaySummary(
   const { employeeId, dateKey } = input
 
   const workday = input.workday ?? getTodayWorkdayForEmployee(employeeId)
+  const startedAt = input.sessionStartedAt ?? workday?.startedAt ?? null
 
   const journalEntries = listEmployeeDailyJournalEntries({ employeeId, dateKey })
   const queue = listEmployeeWorkQueue(employeeId, { includeTerminal: true })
@@ -333,12 +455,18 @@ export function buildEmployeeOperatingDaySummary(
   const decisionsMade = buildDecisions(journalEntries, loops)
   const toolsUsed = aggregateTools(journalEntries)
   const modelsUsed = aggregateModels(journalEntries)
+  const consultations = buildConsultations(journalEntries)
+  const reportsCreated = buildReportsCreated(journalEntries)
+  const { memoryDrafts, knowledgeCandidates } = buildMemoryAndKnowledgeDrafts(journalEntries)
   const difficulties = buildDifficulties(loops, queue, workday?.date === dateKey ? workday : null)
   const remainingWork = buildRemainingWork(queue, workday?.date === dateKey ? workday : null)
   const nextDayRecommendations = buildRecommendations(journalEntries, remainingWork, difficulties)
 
+  const tasksRemainingCount = countRemainingQueueItems(queue)
+  const tasksBlockedCount = countBlockedQueueItems(queue)
+
   const consultationCount =
-    journalEntries.reduce((sum, entry) => sum + entry.consultations.length, 0) +
+    consultations.length +
     loops.filter((loop) => loop.peerConsultation?.status === 'completed').length
 
   const decisionPlanIds = [
@@ -348,20 +476,30 @@ export function buildEmployeeOperatingDaySummary(
   ]
 
   const finishedAt = input.finishedAt ?? workday?.finishedAt ?? now.toISOString()
+  const workDurationMs = resolveWorkDurationMs(journalEntries, startedAt, finishedAt)
 
   return {
     id: createEmployeeOperatingDaySummaryId(now),
     version: 'v1',
     employeeId,
     dateKey,
+    operatingDayId: input.operatingDayId ?? null,
+    operatingDaySessionId: input.operatingDaySessionId ?? null,
     workdayId: workday?.id ?? null,
-    startedAt: workday?.startedAt ?? null,
+    startedAt,
     finishedAt,
+    workDurationMs,
     tasksCompletedCount: tasksCompleted.length,
+    tasksRemainingCount,
+    tasksBlockedCount,
     tasksCompleted,
     decisionsMade,
     toolsUsed,
     modelsUsed,
+    consultations,
+    reportsCreated,
+    memoryDrafts,
+    knowledgeCandidates,
     difficulties,
     remainingWork,
     nextDayRecommendations,
@@ -369,6 +507,21 @@ export function buildEmployeeOperatingDaySummary(
     workerLoopIds: loops.map((loop) => loop.id),
     decisionPlanIds,
     consultationCount,
+    morningReportSource: OPERATING_DAY_SUMMARY_MORNING_REPORT_SOURCE,
+    morningReportEligible: journalEntries.length > 0 || tasksCompleted.length > 0,
     generatedAt: now.toISOString(),
   }
+}
+
+export function buildEmployeeOperatingDaySummaryNarrative(
+  summary: EmployeeOperatingDaySummary,
+): string {
+  return buildNarrative({
+    dateKey: summary.dateKey,
+    tasksCompletedCount: summary.tasksCompletedCount,
+    tasksRemainingCount: summary.tasksRemainingCount,
+    tasksBlockedCount: summary.tasksBlockedCount,
+    tasksFailed: summary.difficulties.filter((item) => item.kind === 'worker_loop_failed').length,
+    workDurationMs: summary.workDurationMs,
+  })
 }
