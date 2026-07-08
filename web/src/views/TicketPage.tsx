@@ -7,8 +7,6 @@ import {
   clientTicketLifecycleHintText,
   shouldShowClientTicketLifecycleHint,
 } from '../lib/ticketClientGuidance'
-import { CategoryGuidancePanel } from '../components/CategoryGuidancePanel'
-import { TicketAttachments } from './ticket-page/TicketAttachments'
 import { TicketHeader } from './ticket-page/TicketHeader'
 import {
   sanitizeBoardNavigationContext,
@@ -17,16 +15,30 @@ import {
 import { pushToast } from '../lib/appToast'
 import { logTicketActionError, mapTicketActionError } from '../lib/ticketOperationalErrors'
 import { computePrimaryTicketAction } from '../lib/ticketOperationalModel'
-import { TicketActionBar } from '../components/ticket-page/TicketActionBar'
-import { TicketChatPanel } from '../components/ticket-page/TicketChatPanel'
 import { toChatMessages } from '../lib/ticketChat'
+import { resolveAdminProfile } from '../lib/resolveAdminProfile'
+import {
+  TicketActionsPanel,
+  TicketAcceptancePanel,
+  TicketAssignmentPanel,
+  TicketChatPanel,
+  TicketChildCreateForm,
+  TicketChildTicketsPanel,
+  TicketCommentPanel,
+  TicketContextPanel,
+  TicketPhotosPanel,
+  TicketSlaPanel,
+  TicketSummaryPanel,
+  TicketTimelinePanel,
+  TicketUploadPanel,
+} from '../components/ticket-card-v2'
 
 const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024
 
-const MANAGEMENT_ROLES: api.Role[] = ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR']
+const MANAGEMENT_ROLES: api.Role[] = ['ADMIN', 'ADMIN_PROVIDER', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR']
 // SMA-ACCEPTANCE-ROLE-GAP-001: CLIENT requester can create/comment/photo but cannot edit.
 const EDIT_ROLES: api.Role[] = ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR', 'TERRITORIAL_MANAGER']
-const STATUS_CHANGE_ROLES: api.Role[] = ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR', 'TECHNICIAN']
+const STATUS_CHANGE_ROLES: api.Role[] = ['ADMIN', 'ADMIN_PROVIDER', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR', 'TECHNICIAN']
 const PHOTO_ROLES: api.Role[] = ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR', 'TECHNICIAN', 'CLIENT', 'TERRITORIAL_MANAGER']
 const CHILD_CREATE_ROLES: api.Role[] = ['ADMIN', 'MASTER', 'DISPATCHER']
 
@@ -54,12 +66,6 @@ function statusLabel(status: api.TicketStatus) {
   if (status === 'DONE') return 'Завершена'
   if (status === 'CANCELED') return 'Отменена'
   return status
-}
-
-function urgencyLabel(urgency: api.TicketUrgency) {
-  if (urgency === 'URGENT') return 'Срочно'
-  if (urgency === 'NOT_URGENT') return 'Не срочно'
-  return urgency
 }
 
 function sourceLabel(source: api.TimelineItem['source']) {
@@ -94,6 +100,12 @@ function roleCanCreateChildTicket(role?: api.Role | null) {
   return !!role && CHILD_CREATE_ROLES.includes(role)
 }
 
+function canUseAdminManagementActions(profile?: ReturnType<typeof resolveAdminProfile> | null) {
+  if (!profile) return false
+  if (profile.backendRole !== 'ADMIN') return false
+  return profile.profile !== 'CLIENT_ADMIN'
+}
+
 function StatusPill({ status }: { status: api.TicketStatus }) {
   const style: Record<string, string | number> = {
     borderRadius: 999,
@@ -116,30 +128,6 @@ function StatusPill({ status }: { status: api.TicketStatus }) {
   if (status === 'CANCELED') Object.assign(style, { background: '#f3f4f6', borderColor: '#e5e7eb', color: '#6b7280' })
 
   return <span className="uiStatusBadge" style={style}>{statusLabel(status)}</span>
-}
-
-function SlaSignal({ hasSla, isBreached, isAtRisk }: { hasSla: boolean; isBreached: boolean; isAtRisk: boolean }) {
-  const baseStyle: Record<string, string | number> = {
-    borderRadius: 999,
-    padding: '6px 10px',
-    fontSize: 12,
-    fontWeight: 700,
-    border: '1px solid #d1d5db',
-    background: '#f3f4f6',
-    color: '#374151',
-    display: 'inline-flex',
-    alignItems: 'center',
-  }
-  if (!hasSla) {
-    return <span style={baseStyle}>SLA не задан</span>
-  }
-  if (isBreached) {
-    return <span style={{ ...baseStyle, borderColor: '#fecdd3', background: '#fff1f2', color: '#9f1239' }}>SLA просрочен</span>
-  }
-  if (isAtRisk) {
-    return <span style={{ ...baseStyle, borderColor: '#fde68a', background: '#fffbeb', color: '#92400e' }}>SLA близко</span>
-  }
-  return <span style={{ ...baseStyle, background: '#f9fafb' }}>SLA в норме</span>
 }
 
 function Skeleton({ w, h }: { w: number | string; h: number }) {
@@ -348,6 +336,14 @@ export function TicketPage() {
   })
 
   const role = meQ.data?.role
+  const adminProfile = useMemo(
+    () =>
+      resolveAdminProfile({
+        role,
+        companyType: ownCompanyQ.data?.type ?? null,
+      }),
+    [role, ownCompanyQ.data?.type],
+  )
   const isClientRole = role === 'CLIENT'
   const readOnlyByVisibilityMode = contextMode === 'observer'
   const canMutateTicket = !readOnlyByVisibilityMode && !(isClientRole && contextMode !== 'tenant')
@@ -370,8 +366,13 @@ export function TicketPage() {
     enabled: !!(editLocationId || ticketQ.data?.location?.id) && roleCanEdit(meQ.data?.role) && editOpen,
   })
 
-  const canAssign = executorActionsAllowed && !isClientRole && roleCanAssign(role)
-  const canChangeStatus = executorActionsAllowed && roleCanChangeStatus(role)
+  const canAssign =
+    executorActionsAllowed &&
+    !isClientRole &&
+    (role === 'ADMIN' ? canUseAdminManagementActions(adminProfile) : roleCanAssign(role))
+  const canChangeStatus =
+    executorActionsAllowed &&
+    (role === 'ADMIN' ? canUseAdminManagementActions(adminProfile) : roleCanChangeStatus(role))
   const canUploadPhoto = canMutateTicket && roleCanUploadPhoto(role)
   const canDeletePhoto = canMutateTicket && roleCanUploadPhoto(role)
   const canCreateChildTicket = canMutateTicket && roleCanCreateChildTicket(role)
@@ -1078,99 +1079,30 @@ export function TicketPage() {
         </div>
       ) : null}
 
-      {ticket ? (
-        <div className="panel" style={{ marginBottom: 12 }}>
-          <h3 style={{ marginBottom: 10 }}>Кратко по заявке</h3>
-          <div className="fieldHint" style={{ marginBottom: 8 }}>
-            Срочность влияет на SLA-ожидания ответа (сроки на карточке и уведомления). Приоритет обычно задаётся при создании заявки.
-          </div>
-          <div style={{ display: 'grid', gap: 8 }}>
-            <div><b>Категория:</b> {ticket.problemCategory?.name || '—'}</div>
-            {shouldShowClientTicketLifecycleHint(meQ.data, ticket) && ticket.problemCategory?.name ? (
-              <CategoryGuidancePanel categoryName={ticket.problemCategory.name} variant="desktop" />
-            ) : null}
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <b>Статус:</b> <StatusPill status={ticket.status} />
-            </div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <b>Приоритет:</b>
-              <span
-                className="tag"
-                style={
-                  ticket.urgency === 'URGENT'
-                    ? { background: '#fff1f2', borderColor: '#fecdd3', color: '#9f1239', fontWeight: 700 }
-                    : { background: '#f3f4f6', borderColor: '#e5e7eb', color: '#374151', fontWeight: 700 }
-                }
-              >
-                {urgencyLabel(ticket.urgency)}
-              </span>
-              <SlaSignal hasSla={slaState.hasSla} isBreached={slaState.isBreached} isAtRisk={slaState.isAtRisk} />
-              {ticket.slaDueAt ? <span className="muted small">срок {fmt(ticket.slaDueAt)}</span> : null}
-            </div>
-            <div>
-              <b>Локация:</b>{' '}
-              {ticket.location
-                ? [ticket.location.name, ticket.location.city, ticket.location.address].filter(Boolean).join(' · ')
-                : '—'}
-            </div>
-            <div><b>Описание:</b> {shortProblemText || '—'}</div>
-            <div className="muted small"><b>Создана:</b> {fmt(ticket.createdAt)}</div>
-          </div>
-        </div>
-      ) : null}
+      <TicketSummaryPanel
+        ticket={ticket ?? null}
+        shortProblemText={shortProblemText}
+        showLifecycleHint={shouldShowClientTicketLifecycleHint(meQ.data, ticket)}
+        statusNode={<StatusPill status={ticket?.status || 'NEW'} />}
+      />
+
+      <TicketSlaPanel ticket={ticket ?? null} slaState={slaState} />
 
       {isAwaitingAcceptanceClient && ticket ? (
-        <div className="panel uiCard" style={{ marginBottom: 12, borderColor: '#fdba74', background: '#fff7ed' }}>
-          <h3 style={{ marginBottom: 8 }}>Приёмка работы</h3>
-          <div className="muted small" style={{ marginBottom: 10, lineHeight: 1.5 }}>
-            Техник отметил работу как завершённую. Проверьте результат и примите заявку либо верните её в работу с комментарием.
-          </div>
-          <div className="form">
-            <label>
-              Комментарий при отказе
-              <textarea
-                value={acceptanceComment}
-                onChange={(e) => setAcceptanceComment(e.target.value)}
-                rows={3}
-                placeholder="Объясните, что нужно исправить. Обязательно при отказе."
-                disabled={acceptanceM.isPending}
-              />
-            </label>
-            <label>
-              Фото при отказе / приёмке (необязательно)
-              <input
-                ref={acceptanceFileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleAcceptanceFileChange}
-                disabled={acceptanceM.isPending}
-              />
-              <div className="muted small" style={{ marginTop: 6 }}>
-                Можно приложить фото результата. При приёмке фото не обязательно.
-              </div>
-            </label>
-            <div className="uiActions">
-              <button
-                onClick={() => acceptanceM.mutate('ACCEPT')}
-                disabled={acceptanceM.isPending}
-              >
-                {acceptanceM.isPending ? 'Сохраняем…' : 'Принять работу'}
-              </button>
-              <button
-                className="ghost"
-                onClick={() => acceptanceM.mutate('REJECT')}
-                disabled={acceptanceM.isPending || !acceptanceComment.trim()}
-                title={!acceptanceComment.trim() ? 'Комментарий обязателен при отказе' : undefined}
-              >
-                {acceptanceM.isPending ? 'Сохраняем…' : 'Не принять работу'}
-              </button>
-            </div>
-          </div>
-          <InlineError message={acceptanceFileError || statusError} />
-        </div>
+        <TicketAcceptancePanel
+          comment={acceptanceComment}
+          onCommentChange={setAcceptanceComment}
+          inputRef={acceptanceFileInputRef}
+          onFileChange={handleAcceptanceFileChange}
+          pending={acceptanceM.isPending}
+          canReject={!acceptanceM.isPending && !!acceptanceComment.trim()}
+          onAccept={() => acceptanceM.mutate('ACCEPT')}
+          onReject={() => acceptanceM.mutate('REJECT')}
+          errorMessage={acceptanceFileError || statusError}
+        />
       ) : null}
 
-      {showTechnicianActionBar && ticket ? (
+      {ticket ? (
         <>
           <input
             ref={operationalFileInputRef}
@@ -1179,14 +1111,16 @@ export function TicketPage() {
             style={{ display: 'none' }}
             onChange={handleOperationalPhotoPick}
           />
-          <TicketActionBar
+          <TicketActionsPanel
+            showTechnicianActionBar={showTechnicianActionBar}
+            ticket={ticket}
             backToBoardHref={backToBoardHref}
             primaryAction={primaryAction}
             canClaim={canClaim}
-            canChangeStatus={canChangeStatus && ticket.status !== 'AWAITING_ACCEPTANCE'}
+            canChangeStatus={canChangeStatus}
             canTransitionTo={canTransitionTo}
-            showCancel={showCancelInTechnicianBar}
-            closeHint={technicianBarCloseHint}
+            showCancelInTechnicianBar={showCancelInTechnicianBar}
+            technicianBarCloseHint={technicianBarCloseHint}
             claimPending={claimM.isPending}
             statusPending={statusM.isPending}
             newComment={newComment}
@@ -1201,105 +1135,23 @@ export function TicketPage() {
             claimError={claimError}
             statusError={statusError}
             onOpenSubmitForm={canSubmitToAcceptance ? () => setShowSubmitToAcceptanceForm(true) : undefined}
+            showSelfAssign={showSelfAssign}
+            selfAssignPending={selfAssignM.isPending}
+            onSelfAssign={() => selfAssignM.mutate()}
+            canEditTicket={canEditTicket}
+            editOpen={editOpen}
+            onToggleEdit={() => setEditOpen((value) => !value)}
+            canCreateChildTicket={canCreateChildTicket}
+            showChildCreateForm={showChildCreateForm}
+            childCreatePending={createChildM.isPending}
+            onToggleChildCreateForm={() => {
+              setShowChildCreateForm((value) => !value)
+              setChildCreateError(null)
+            }}
+            isTechnicianRole={isTechnicianRole}
+            onShowSubmitForm={() => setShowSubmitToAcceptanceForm(true)}
           />
         </>
-      ) : ticket ? (
-        <div className="panel" style={{ marginBottom: 12 }}>
-          <h3 style={{ marginBottom: 10 }}>Действия</h3>
-          {showSelfAssign ? (
-            <div style={{ marginBottom: 8 }}>
-              <button
-                onClick={() => selfAssignM.mutate()}
-                disabled={selfAssignM.isPending}
-                style={{ width: '100%' }}
-              >
-                {selfAssignM.isPending ? 'Берём заявку…' : 'Взять заявку себе'}
-              </button>
-            </div>
-          ) : null}
-          {primaryAction ? (
-            <div style={{ marginBottom: 8 }}>
-              {primaryAction.kind === 'claim' ? (
-                <button
-                  onClick={() => claimM.mutate()}
-                  disabled={claimM.isPending}
-                  style={{ width: '100%' }}
-                >
-                  {claimM.isPending ? 'Сохраняем…' : primaryAction.label}
-                </button>
-              ) : null}
-              {primaryAction.kind === 'in_progress' ? (
-                <button
-                  onClick={() => statusM.mutate({ status: 'IN_PROGRESS' })}
-                  disabled={statusM.isPending || !canTransitionTo('IN_PROGRESS')}
-                  style={{ width: '100%' }}
-                >
-                  {statusM.isPending ? 'Сохраняем…' : primaryAction.label}
-                </button>
-              ) : null}
-              {primaryAction.kind === 'done' ? (
-                <button
-                  onClick={() => setShowSubmitToAcceptanceForm(true)}
-                  disabled={!canTransitionTo('AWAITING_ACCEPTANCE')}
-                  style={{ width: '100%' }}
-                >
-                  {primaryAction.label}
-                </button>
-              ) : null}
-            </div>
-          ) : null}
-
-          <div className="uiActions">
-            <a href={backToBoardHref} style={{ textDecoration: 'none' }}>
-              <button className="ghost">← Назад к доске</button>
-            </a>
-            {canEditTicket && !isTechnicianRole ? (
-              <button className="ghost" onClick={() => setEditOpen((value) => !value)}>
-                {editOpen ? 'Скрыть редактирование' : 'Редактировать заявку'}
-              </button>
-            ) : null}
-            {canClaim && primaryAction?.kind !== 'claim' ? (
-              <button className="ghost" onClick={() => claimM.mutate()} disabled={claimM.isPending}>
-                {claimM.isPending ? 'Забираем…' : 'Взять заявку'}
-              </button>
-            ) : null}
-            {canChangeStatus ? (
-              <>
-                {primaryAction?.kind !== 'in_progress' && ticket.status !== 'AWAITING_ACCEPTANCE' ? (
-                  <button className="ghost" disabled={statusM.isPending || !canTransitionTo('IN_PROGRESS')} onClick={() => statusM.mutate({ status: 'IN_PROGRESS' })}>
-                    {statusM.isPending ? 'Сохраняем…' : 'В работу'}
-                  </button>
-                ) : null}
-                {primaryAction?.kind !== 'done' && canTransitionTo('AWAITING_ACCEPTANCE') ? (
-                  <button
-                    className="ghost"
-                    onClick={() => setShowSubmitToAcceptanceForm(true)}
-                  >
-                    Отправить на приёмку
-                  </button>
-                ) : null}
-                {!isTechnicianRole ? (
-                  <button className="ghost" disabled={statusM.isPending || !canTransitionTo('CANCELED')} onClick={() => statusM.mutate({ status: 'CANCELED' })}>
-                    {statusM.isPending ? 'Сохраняем…' : 'Отменить'}
-                  </button>
-                ) : null}
-              </>
-            ) : null}
-            {canCreateChildTicket && !isTechnicianRole ? (
-              <button
-                className="ghost"
-                onClick={() => {
-                  setShowChildCreateForm((value) => !value)
-                  setChildCreateError(null)
-                }}
-                disabled={createChildM.isPending}
-              >
-                {showChildCreateForm ? 'Скрыть доп. работу' : '+ Ещё работа по этой точке'}
-              </button>
-            ) : null}
-          </div>
-          <InlineError message={statusError} />
-        </div>
       ) : null}
 
       {canSubmitToAcceptance && showSubmitToAcceptanceForm ? (
@@ -1475,287 +1327,88 @@ export function TicketPage() {
       ) : null}
 
       {ticket && canCreateChildTicket && showChildCreateForm ? (
-        <div className="panel uiCard" style={{ marginBottom: 12 }}>
-          <h3 style={{ marginBottom: 10 }}>Новая дополнительная работа</h3>
-          <div className="muted small" style={{ marginBottom: 10 }}>
-            Локация и контакт наследуются от текущей заявки. Для MVP фото в child-ticket не прикрепляется на этапе создания.
-          </div>
-          <div className="form">
-            <label>
-              Категория *
-              <select
-                value={childCategoryId}
-                onChange={(e) => setChildCategoryId(e.target.value)}
-                disabled={createChildM.isPending}
-              >
-                <option value="">Выберите категорию</option>
-                {(categoriesQ.data || []).filter((row) => row.isActive !== false).map((row) => (
-                  <option key={row.id} value={row.id}>{row.name}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              Описание проблемы *
-              <textarea
-                value={childProblemText}
-                onChange={(e) => setChildProblemText(e.target.value)}
-                rows={4}
-                disabled={createChildM.isPending}
-                placeholder="Кратко опишите дополнительную работу"
-              />
-            </label>
-            <label>
-              Срочность
-              <select
-                value={childUrgency}
-                onChange={(e) => setChildUrgency(e.target.value as api.TicketUrgency)}
-                disabled={createChildM.isPending}
-              >
-                <option value="NOT_URGENT">Не срочно</option>
-                <option value="URGENT">Срочно</option>
-              </select>
-              <div className="fieldHint">Для доп. работы выберите срочность отдельно от родительской заявки.</div>
-            </label>
-            <div className="uiActions">
-              <button onClick={() => createChildM.mutate()} disabled={createChildM.isPending || !childCategoryId || !childProblemText.trim()}>
-                {createChildM.isPending ? 'Создаём…' : 'Создать доп. работу'}
-              </button>
-              <button
-                className="ghost"
-                onClick={() => {
-                  setShowChildCreateForm(false)
-                  setChildCreateError(null)
-                }}
-                disabled={createChildM.isPending}
-              >
-                Отмена
-              </button>
-            </div>
-          </div>
-          <InlineError message={(categoriesQ.error as any)?.message || childCreateError} />
-        </div>
+        <TicketChildCreateForm
+          categoryId={childCategoryId}
+          onCategoryChange={setChildCategoryId}
+          problemText={childProblemText}
+          onProblemTextChange={setChildProblemText}
+          urgency={childUrgency}
+          onUrgencyChange={setChildUrgency}
+          categories={(categoriesQ.data || []).filter((row) => row.isActive !== false)}
+          pending={createChildM.isPending}
+          canSubmit={!createChildM.isPending && !!childCategoryId && !!childProblemText.trim()}
+          onSubmit={() => createChildM.mutate()}
+          onCancel={() => {
+            setShowChildCreateForm(false)
+            setChildCreateError(null)
+          }}
+          errorMessage={(categoriesQ.error as any)?.message || childCreateError}
+        />
       ) : null}
 
       {ticket && canAssign && !isClientRole ? (
-        <div className="panel uiCard" style={{ marginBottom: 12 }}>
-          <h3 style={{ marginBottom: 10 }}>Исполнитель</h3>
-          <div className="uiCard" style={{ marginBottom: 10, padding: 10 }}>
-            {hasAssignedTechnician ? (
-              <div style={{ display: 'grid', gap: 6 }}>
-                <div>
-                  <b>Ответственный:</b>{' '}
-                  {[ticket.assignedTechnician?.firstName, ticket.assignedTechnician?.lastName].filter(Boolean).join(' ') || ticket.assignedTechnician?.email}
-                </div>
-                {ticket.assignedTechnician?.phone ? <div className="muted small">{ticket.assignedTechnician.phone}</div> : null}
-                <div className="muted small">Заявка закреплена за техником.</div>
-                {assignmentDecisionQ.data ? (
-                  <div className="uiCard" style={{ padding: 10, marginTop: 6 }}>
-                    <div style={{ fontWeight: 700, marginBottom: 4 }}>Назначение</div>
-                    <div className="muted small">
-                      Исполнитель: {ticket.assignedTechnician?.email || '—'}
-                    </div>
-                    <div className="muted small">
-                      Причина: {mapReason(assignmentDecisionQ.data.reason)}
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            ) : (
-              <div style={{ display: 'grid', gap: 6 }}>
-                <div><b>Ответственный:</b> не назначен</div>
-                <div className="muted small">Назначьте техника, чтобы зафиксировать ответственность по заявке.</div>
-              </div>
-            )}
-            <div className="uiActions" style={{ marginTop: 8 }}>
-              <button className="ghost" type="button" onClick={() => setShowAssignmentEditor((value) => !value)}>
-                {showAssignmentEditor ? 'Скрыть назначение' : hasAssignedTechnician ? 'Переназначить' : 'Назначить техника'}
-              </button>
-            </div>
-          </div>
-          {assignmentCandidatesQ.isLoading ? (
+        <TicketAssignmentPanel
+          ticket={ticket}
+          hasAssignedTechnician={hasAssignedTechnician}
+          assignmentDecisionReason={assignmentDecisionQ.data ? mapReason(assignmentDecisionQ.data.reason) : null}
+          showAssignmentEditor={showAssignmentEditor}
+          onToggleEditor={() => setShowAssignmentEditor((value) => !value)}
+          loading={assignmentCandidatesQ.isLoading}
+          isError={assignmentCandidatesQ.isError}
+          errorMessage={(assignmentCandidatesQ.error as any)?.message || (assignmentCandidatesQ.error ? String(assignmentCandidatesQ.error) : null)}
+          assignmentData={assignmentData}
+          selectedTechnicianId={selectedTechnicianId}
+          onSelectedTechnicianChange={setSelectedTechnicianId}
+          assignPending={assignM.isPending}
+          onAssign={() => assignM.mutate()}
+          assignError={assignError}
+          selectedCandidate={selectedCandidate}
+          selectedIsMatched={selectedIsMatched}
+          selectedIsCurrent={selectedIsCurrent}
+          renderRecommendationBadge={(matched, matchedBy) => <RecommendationBadge matched={matched} matchedBy={matchedBy} />}
+          renderTag={(content) => <Tag>{content}</Tag>}
+          renderLoading={() => (
             <div style={{ display: 'grid', gap: 8 }}>
               <Skeleton w={240} h={16} />
               <Skeleton w={320} h={36} />
             </div>
-          ) : assignmentCandidatesQ.isError ? (
-            <div className="alert">{(assignmentCandidatesQ.error as any)?.message || String(assignmentCandidatesQ.error)}</div>
-          ) : assignmentData && showAssignmentEditor ? (
-            <>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-                <Tag>Текущий: {ticket.assignedTechnician?.email || 'не назначен'}</Tag>
-                <Tag>Подходящих: {assignmentData.matched.length}</Tag>
-              </div>
-              <div className="uiActions" style={{ marginTop: 10 }}>
-                <select
-                  value={selectedTechnicianId}
-                  onChange={(e) => setSelectedTechnicianId(e.target.value)}
-                  style={{ width: '100%', maxWidth: 420, minWidth: 0 }}
-                >
-                  <option value="">Выберите техника</option>
-                  {assignmentData.matched.length > 0 ? (
-                    <optgroup label="Подходящие техники">
-                      {assignmentData.matched.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.email}{item.id === assignmentData.currentAssigneeId ? ' · текущий' : ''}{item.matchedBy.length ? ` · подходит: ${item.matchedBy.join(', ')}` : ''}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ) : null}
-                  {assignmentData.others.length > 0 ? (
-                    <optgroup label="Остальные техники">
-                      {assignmentData.others.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.email}{item.id === assignmentData.currentAssigneeId ? ' · текущий' : ''}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ) : null}
-                </select>
-                <button onClick={() => assignM.mutate()} disabled={assignM.isPending || !selectedTechnicianId}>
-                  {assignM.isPending ? 'Назначаем…' : 'Назначить'}
-                </button>
-              </div>
-              <details style={{ marginTop: 10 }}>
-                <summary className="muted small" style={{ cursor: 'pointer' }}>Показать рекомендации по специализациям</summary>
-                <div className="assignmentHintBox" style={{ marginTop: 8 }}>
-                  <div className="assignmentHintTitle">Рекомендация</div>
-                  <div className="muted small">Сначала показаны техники, которые подходят по специализациям категории. Ниже — остальные техники компании.</div>
-                  <div className="muted small" style={{ marginTop: 6 }}>
-                    Категория: {assignmentData.category.name} · Требуемые: {assignmentData.requiredSpecializations.length ? assignmentData.requiredSpecializations.map((item) => item.name).join(', ') : 'не заданы'}
-                  </div>
-                </div>
-              </details>
-              {selectedCandidate ? (
-                <div className="assignmentSelectedBox">
-                  <div style={{ fontWeight: 700, marginBottom: 6 }}>Выбранный техник</div>
-                  <div style={{ marginBottom: 6 }}>{selectedCandidate.email}</div>
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
-                    <RecommendationBadge matched={selectedCandidate.matched} matchedBy={selectedCandidate.matchedBy} />
-                    {selectedIsCurrent ? <span className="uxBadge uxBadgeNeutral">Текущий исполнитель</span> : null}
-                  </div>
-                  {!selectedIsMatched ? <div className="assignmentWarning">Внимание: выбран техник, который не входит в рекомендованный список по специализациям категории.</div> : null}
-                </div>
-              ) : null}
-              <InlineError message={assignError} />
-            </>
-          ) : null}
-          {!showAssignmentEditor && !assignmentCandidatesQ.isLoading && !assignmentCandidatesQ.isError ? (
-            <div className="muted small">Блок назначения свернут для компактного просмотра.</div>
-          ) : null}
-        </div>
+          )}
+          renderAssignError={(message) => <InlineError message={message} />}
+        />
       ) : null}
 
       {ticket && canUploadPhoto && !isTechnicianRole ? (
-        <div className="panel" style={{ marginBottom: 12 }}>
-          <h3 style={{ marginBottom: 10 }}>Фото</h3>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} disabled={uploadM.isPending} />
-            <button onClick={handleUploadClick} disabled={uploadM.isPending}>
-              {uploadM.isPending ? 'Загружаем…' : selectedFile ? 'Загрузить фото' : 'Выбрать фото'}
-            </button>
-            <div className="muted small">{selectedFile ? `${selectedFile.name} · ${fmtBytes(selectedFile.size)}` : 'Выберите изображение до 10 МБ'}</div>
-          </div>
-          <InlineError message={fileError || uploadError} />
-        </div>
+        <TicketUploadPanel
+          inputRef={fileInputRef}
+          selectedFile={selectedFile}
+          onFileChange={handleFileChange}
+          onUploadClick={handleUploadClick}
+          pending={uploadM.isPending}
+          helperText={selectedFile ? `${selectedFile.name} · ${fmtBytes(selectedFile.size)}` : 'Выберите изображение до 10 МБ'}
+          errorMessage={fileError || uploadError}
+        />
       ) : null}
 
       {ticket && canChangeStatus && !isTechnicianRole ? (
-        <div className="panel" style={{ marginBottom: 12 }}>
-          <h3 style={{ marginBottom: 10 }}>Комментарий</h3>
-          <div className="form">
-            <textarea
-              value={newComment}
-              onChange={(e) => setNewComment(e.target.value)}
-              rows={3}
-              placeholder="Добавьте комментарий по выполненным действиям"
-              disabled={addCommentM.isPending}
-            />
-            <div className="uiActions">
-              <button onClick={() => addCommentM.mutate()} disabled={addCommentM.isPending || !newComment.trim()}>
-                {addCommentM.isPending ? 'Сохраняем…' : 'Добавить комментарий'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <TicketCommentPanel
+          value={newComment}
+          onChange={setNewComment}
+          onSubmit={() => addCommentM.mutate()}
+          pending={addCommentM.isPending}
+          canSubmit={!addCommentM.isPending && !!newComment.trim()}
+        />
       ) : null}
 
       {ticket ? (
         <>
-          <div className="panel uiCard" style={{ marginBottom: 12 }}>
-            <h3 style={{ marginBottom: 10 }}>Дополнительно</h3>
-            <div style={{ display: 'grid', gap: 8 }}>
-              <details open>
-                <summary style={{ cursor: 'pointer', fontWeight: 700 }}>Детали</summary>
-                <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
-                  <div><b>Категория:</b> {ticket.problemCategory?.name || '—'}</div>
-                  <div><b>Срочность:</b> {urgencyLabel(ticket.urgency)}</div>
-                  <div><b>SLA статус:</b> {slaState.isBreached ? 'Нарушен' : slaState.isAtRisk ? 'В риске' : ticket.slaDueAt ? 'В норме' : 'Не задан'}</div>
-                  <div>
-                    <b>Описание проблемы:</b>
-                    <div style={{ marginTop: 6, whiteSpace: 'pre-wrap' }}>{ticket.problemText || '—'}</div>
-                  </div>
-                </div>
-              </details>
+          <TicketContextPanel ticket={ticket} />
 
-              <details>
-                <summary style={{ cursor: 'pointer', fontWeight: 700 }}>Заявитель / контакт</summary>
-                <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
-                  <div><b>Заявитель:</b> {ticket.requesterName || '—'}</div>
-                  <div><b>Телефон:</b> {ticket.requesterPhone || '—'}</div>
-                  <div><b>Точка:</b> {ticket.pointName || '—'}</div>
-                  <div><b>Адрес:</b> {ticket.address || '—'}</div>
-                </div>
-              </details>
-
-              <details>
-                <summary style={{ cursor: 'pointer', fontWeight: 700 }}>Оборудование / локация</summary>
-                <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
-                  <div>
-                    <b>Локация:</b>{' '}
-                    {ticket.location
-                      ? [ticket.location.name, ticket.location.city, ticket.location.address].filter(Boolean).join(' · ')
-                      : '—'}
-                  </div>
-                  <div>
-                    <b>Оборудование / Asset:</b>{' '}
-                    {ticket.equipment
-                      ? [ticket.equipment.name, ticket.equipment.type, ticket.equipment.status].filter(Boolean).join(' · ')
-                      : '—'}
-                  </div>
-                </div>
-              </details>
-
-              <details>
-                <summary style={{ cursor: 'pointer', fontWeight: 700 }}>Extra info</summary>
-                <div style={{ display: 'grid', gap: 8, marginTop: 8 }}>
-                  {ticket.location?.platformCode || ticket.location?.externalCode ? (
-                    <div className="muted small">
-                      {ticket.location?.platformCode ? `platformCode: ${ticket.location.platformCode}` : ''}
-                      {ticket.location?.platformCode && ticket.location?.externalCode ? ' · ' : ''}
-                      {ticket.location?.externalCode ? `externalCode: ${ticket.location.externalCode}` : ''}
-                    </div>
-                  ) : (
-                    <div className="muted small">Коды локации не заданы</div>
-                  )}
-                  <div><b>Назначен:</b> {ticket.assignedTechnician?.email || '—'}</div>
-                  {ticket.problemCategory?.instructions ? (
-                    <div>
-                      <b>Инструкции категории:</b>
-                      <div style={{ marginTop: 6, whiteSpace: 'pre-wrap' }}>{ticket.problemCategory.instructions}</div>
-                    </div>
-                  ) : null}
-                </div>
-              </details>
-            </div>
-          </div>
-
-          <TicketAttachments
-            title="Фото заявки"
-            emptyText="Нет фото заявки"
+          <TicketPhotosPanel
             loading={attachmentsQ.isLoading}
             isError={attachmentsQ.isError}
             error={attachmentsQ.error}
-            data={requestAttachments}
+            requestAttachments={requestAttachments}
+            workReportAttachments={workReportAttachments}
             canDeletePhoto={canDeletePhoto}
             deletePending={deleteAttachmentM.isPending}
             onDelete={(attachmentId) => deleteAttachmentM.mutate(attachmentId)}
@@ -1764,49 +1417,12 @@ export function TicketPage() {
             fmtBytes={fmtBytes}
           />
 
-          <TicketAttachments
-            title="Отчёт техника"
-            emptyText="Нет фото отчёта"
-            loading={attachmentsQ.isLoading}
-            isError={attachmentsQ.isError}
-            error={attachmentsQ.error}
-            data={workReportAttachments}
-            canDeletePhoto={canDeletePhoto}
-            deletePending={deleteAttachmentM.isPending}
-            onDelete={(attachmentId) => deleteAttachmentM.mutate(attachmentId)}
-            deleteAttachmentError={deleteAttachmentError}
+          <TicketChildTicketsPanel
+            childTickets={childTickets}
             fmt={fmt}
-            fmtBytes={fmtBytes}
+            getChildHref={buildTicketHref}
+            renderStatusPill={(status) => <StatusPill status={status} />}
           />
-
-          <div className="panel uiCard" style={{ marginBottom: 12 }}>
-            <h3 style={{ marginBottom: 10 }}>Дополнительные работы</h3>
-            {childTickets.length === 0 ? (
-              <div className="muted small">Дополнительных работ пока нет.</div>
-            ) : (
-              <div style={{ display: 'grid', gap: 10 }}>
-                {childTickets.map((child) => (
-                  <div key={child.id} style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 12 }}>
-                    <div className="row" style={{ marginBottom: 6, alignItems: 'center' }}>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis' }}>{child.problemText || 'Доп. работа'}</div>
-                        <div className="muted small" style={{ marginTop: 4 }}>
-                          {child.problemCategory?.name || 'Без категории'} · {fmt(child.createdAt)}
-                        </div>
-                      </div>
-                      <StatusPill status={child.status} />
-                    </div>
-                    <div className="muted small" style={{ marginBottom: 8 }}>
-                      {[child.location?.name, child.location?.city, child.location?.address].filter(Boolean).join(' · ') || 'Локация не указана'}
-                    </div>
-                    <a href={buildTicketHref(child.id)} style={{ textDecoration: 'none' }}>
-                      <button className="ghost">Открыть заявку</button>
-                    </a>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
 
           <TicketChatPanel
             messages={chatMessages}
@@ -1818,52 +1434,18 @@ export function TicketPage() {
             }}
           />
 
-          <div className="panel uiCard" style={{ marginBottom: 12 }}>
-            <h3 style={{ marginBottom: 10 }}>История</h3>
-            {timelineQ.isLoading ? (
-              <div style={{ display: 'grid', gap: 8 }}>
-                <Skeleton w={320} h={16} />
-                <Skeleton w={360} h={16} />
-                <Skeleton w={300} h={16} />
-              </div>
-            ) : timelineQ.isError ? (
-              <div className="alert">{(timelineQ.error as any)?.message || String(timelineQ.error)}</div>
-            ) : timelineItems.length ? (
-              <div style={{ display: 'grid', gap: 10 }}>
-                {timelinePreviewItems.map((item, idx) => (
-                  <div key={`${item.at}-${item.type}-${idx}`} style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 12, display: 'grid', gap: 6 }}>
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-                      <b>{item.title}</b>
-                      <Tag>{sourceLabel(item.source)}</Tag>
-                      <Tag>{timelineTypeLabel(item.type || item.domainType || item.timelineEvent || 'event')}</Tag>
-                    </div>
-                    <div className="muted small">{fmt(item.at)} · {item.actor?.email || 'система'}</div>
-                    {String(item.type || item.timelineEvent || '').toLowerCase().includes('assign') ? (
-                      <div className="muted small">
-                        Система назначила исполнителя. Причина: {mapReason(String(item.payload?.reason || 'решение системы'))}
-                      </div>
-                    ) : null}
-                    {item.payload ? (
-                      <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: 10, padding: 10, fontSize: 12 }}>
-                        {JSON.stringify(item.payload, null, 2)}
-                      </pre>
-                    ) : null}
-                  </div>
-                ))}
-                {timelineItems.length > 5 ? (
-                  <button
-                    className="ghost"
-                    type="button"
-                    onClick={() => setShowFullTimeline((value) => !value)}
-                  >
-                    {showFullTimeline ? 'Скрыть полный таймлайн' : `Показать полный таймлайн (${timelineItems.length})`}
-                  </button>
-                ) : null}
-              </div>
-            ) : (
-              <div className="muted small">Событий пока нет</div>
-            )}
-          </div>
+          <TicketTimelinePanel
+            loading={timelineQ.isLoading}
+            isError={timelineQ.isError}
+            error={timelineQ.error}
+            items={timelineItems}
+            previewItems={timelinePreviewItems}
+            showFullTimeline={showFullTimeline}
+            onToggleShowFull={() => setShowFullTimeline((value) => !value)}
+            fmt={fmt}
+            sourceLabel={sourceLabel}
+            timelineTypeLabel={timelineTypeLabel}
+          />
         </>
       ) : null}
     </div>

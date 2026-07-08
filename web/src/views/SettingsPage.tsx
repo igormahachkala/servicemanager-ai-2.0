@@ -3,24 +3,18 @@ import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { BrowserNotificationsCard } from '../components/BrowserNotificationsCard'
 import * as api from '../lib/api'
-
-function roleLabel(role?: string) {
-  if (!role) return '—'
-  if (role === 'ADMIN') return 'Администратор'
-  if (role === 'DISPATCHER') return 'Диспетчер'
-  if (role === 'MASTER') return 'Мастер'
-  if (role === 'TECHNICIAN') return 'Техник'
-  if (role === 'CLIENT') return 'Клиент'
-  if (role === 'TERRITORIAL_MANAGER') return 'Территориальный менеджер'
-  if (role === 'NETWORK_DIRECTOR') return 'Сетевой директор'
-  if (role === 'STAFF') return 'Сотрудник'
-  return role
-}
+import { getRoleDisplayLabel } from '../lib/resolveAdminProfile'
 
 export function SettingsPage() {
   const meQ = useQuery({
     queryKey: ['me'],
     queryFn: api.me,
+  })
+
+  const tenantCompanyQ = useQuery({
+    queryKey: ['company-own-context'],
+    queryFn: () => api.company(),
+    enabled: !!meQ.data && meQ.data.role !== 'PLATFORM_ADMIN',
   })
 
   const [baseUrl, setBaseUrlState] = useState(api.getBaseUrl())
@@ -99,7 +93,9 @@ export function SettingsPage() {
               <div className="v">{meQ.data.email}</div>
 
               <div className="k">Роль</div>
-              <div className="v">{roleLabel(meQ.data.role)}</div>
+              <div className="v">
+                {getRoleDisplayLabel({ role: meQ.data.role, companyType: tenantCompanyQ.data?.type })}
+              </div>
 
               <div className="k">Company ID</div>
               <div className="v">{meQ.data.companyId}</div>

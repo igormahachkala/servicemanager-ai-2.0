@@ -138,6 +138,8 @@ export function EmployeesPage() {
     [specsQ.data],
   )
 
+  const tenantCompanyType = observerCompanyQ.data?.type ?? ownCompanyQ.data?.type
+
   const sortedUsers = useMemo(() => {
     const q = searchQ.trim().toLowerCase()
     let rows = [...(usersQ.data || [])]
@@ -656,6 +658,7 @@ export function EmployeesPage() {
               submitLabel="Создать сотрудника"
               value={createValue}
               activeSpecializations={activeSpecializations}
+              companyType={tenantCompanyType}
               submitting={createM.isPending}
               passwordRequired
               onChange={patchCreate}
@@ -690,6 +693,7 @@ export function EmployeesPage() {
               currentUserId={meQ.data?.id || null}
               activeAdminCount={activeAdminCount}
               activeSpecializations={activeSpecializations}
+              companyType={tenantCompanyType}
               editingUserId={editingUserId}
               editingValue={editValue}
               busy={busy || isObserverMode}
