@@ -49,7 +49,9 @@
   --theme-nav-item-text-subtle: #71717a;
   --theme-nav-group-title: #d4d4d8;
   --theme-nav-hover-bg: rgba(255, 255, 255, 0.05);
+  --theme-nav-hover-border: transparent;
   --theme-nav-active-bg: rgba(99, 102, 241, 0.16);
+  --theme-nav-active-border: transparent;
   --theme-nav-icon-opacity: 0.72;
   --theme-nav-icon-opacity-active: 1;
 }
@@ -97,14 +99,16 @@
   --theme-focus-ring: 0 0 0 2px rgba(99, 102, 241, 0.28);
 
   --theme-nav-bg: #ffffff;
-  --theme-nav-border: rgba(9, 9, 11, 0.12);
-  --theme-nav-item-text: #52525b;
+  --theme-nav-border: #e4e4e7;
+  --theme-nav-item-text: #27272a;
   --theme-nav-item-text-hover: #09090b;
-  --theme-nav-item-text-subtle: #71717a;
-  --theme-nav-group-title: #3f3f46;
-  --theme-nav-hover-bg: #f4f4f5;
-  --theme-nav-active-bg: #eef2ff;
-  --theme-nav-icon-opacity: 0.88;
+  --theme-nav-item-text-subtle: #52525b;
+  --theme-nav-group-title: #18181b;
+  --theme-nav-hover-bg: #ececee;
+  --theme-nav-hover-border: #d4d4d8;
+  --theme-nav-active-bg: #e0e7ff;
+  --theme-nav-active-border: rgba(79, 70, 229, 0.32);
+  --theme-nav-icon-opacity: 1;
   --theme-nav-icon-opacity-active: 1;
 }
 
@@ -151,7 +155,9 @@
     --theme-nav-item-text-subtle: #71717a;
     --theme-nav-group-title: #d4d4d8;
     --theme-nav-hover-bg: rgba(255, 255, 255, 0.05);
+    --theme-nav-hover-border: transparent;
     --theme-nav-active-bg: rgba(99, 102, 241, 0.16);
+    --theme-nav-active-border: transparent;
     --theme-nav-icon-opacity: 0.72;
     --theme-nav-icon-opacity-active: 1;
   }
@@ -194,14 +200,16 @@
     --theme-row-hover: rgba(9, 9, 11, 0.03);
     --theme-focus-ring: 0 0 0 2px rgba(99, 102, 241, 0.28);
     --theme-nav-bg: #ffffff;
-    --theme-nav-border: rgba(9, 9, 11, 0.12);
-    --theme-nav-item-text: #52525b;
+    --theme-nav-border: #e4e4e7;
+    --theme-nav-item-text: #27272a;
     --theme-nav-item-text-hover: #09090b;
-    --theme-nav-item-text-subtle: #71717a;
-    --theme-nav-group-title: #3f3f46;
-    --theme-nav-hover-bg: #f4f4f5;
-    --theme-nav-active-bg: #eef2ff;
-    --theme-nav-icon-opacity: 0.88;
+    --theme-nav-item-text-subtle: #52525b;
+    --theme-nav-group-title: #18181b;
+    --theme-nav-hover-bg: #ececee;
+    --theme-nav-hover-border: #d4d4d8;
+    --theme-nav-active-bg: #e0e7ff;
+    --theme-nav-active-border: rgba(79, 70, 229, 0.32);
+    --theme-nav-icon-opacity: 1;
     --theme-nav-icon-opacity-active: 1;
   }
 }

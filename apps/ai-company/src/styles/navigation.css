@@ -81,7 +81,7 @@
 .acOwnerNavGroupHint {
   margin-top: 2px;
   font-size: 11px;
-  line-height: 1.35;
+  line-height: 1.4;
   color: var(--theme-nav-item-text-subtle);
 }
 
@@ -157,9 +157,13 @@
 .acSidebar .mcNavLink:hover {
   background: var(--theme-nav-hover-bg);
   color: var(--theme-nav-item-text-hover);
+  box-shadow: inset 0 0 0 1px var(--theme-nav-hover-border);
 }
 
-.acSidebar .acNavLink:hover .acOwnerNavItemWhy,
+.acSidebar .acNavLink:hover .acOwnerNavItemWhy {
+  color: var(--theme-nav-item-text-subtle);
+}
+
 .acSidebar .acNavLinkActive .acOwnerNavItemWhy {
   color: var(--theme-nav-item-text-subtle);
 }
@@ -168,7 +172,9 @@
 .acSidebar .mcNavLinkActive {
   background: var(--theme-nav-active-bg);
   color: var(--theme-nav-item-text-hover);
-  box-shadow: inset 3px 0 0 var(--theme-accent);
+  box-shadow:
+    inset 3px 0 0 var(--theme-accent),
+    inset 0 0 0 1px var(--theme-nav-active-border);
 }
 
 .acSidebar .acNavLinkActive .acOwnerNavItemLabel,
@@ -227,8 +233,20 @@
 }
 
 .acBreadcrumbSep {
-  color: var(--theme-text-subtle);
+  color: var(--theme-text-muted);
   user-select: none;
+}
+
+:root[data-theme='light'] .acBreadcrumbItem {
+  color: var(--theme-text-secondary);
+}
+
+:root[data-theme='light'] .acBreadcrumbItem:hover {
+  color: var(--theme-text);
+}
+
+:root[data-theme='light'] .acBreadcrumbSep {
+  color: var(--theme-text-muted);
 }
 
 @media (max-width: 900px) {
