@@ -11,6 +11,7 @@ export type MobileRunTaskEmployeeOption = {
 }
 
 export type MobileTaskTemplateId =
+  | 'standard_health_check'
   | 'review_ui'
   | 'review_architecture'
   | 'find_bugs'
@@ -19,11 +20,16 @@ export type MobileTaskTemplateId =
 
 export type MobileTaskTemplate = {
   id: MobileTaskTemplateId
+  /** Card label in template picker; falls back to title. */
+  label?: string
   title: string
   taskText: string
   expectedOutput: string
   priority: WorkPriority
 }
+
+/** Default Owner quick-start template — first in mobile Run Task list. */
+export const MOBILE_STANDARD_TASK_TEMPLATE_ID: MobileTaskTemplateId = 'standard_health_check'
 
 /** V1 roster — extensible; not MAX-only. */
 export const MOBILE_RUN_TASK_EMPLOYEES: MobileRunTaskEmployeeOption[] = [
@@ -48,6 +54,16 @@ export const MOBILE_RUN_TASK_EMPLOYEES: MobileRunTaskEmployeeOption[] = [
 ]
 
 export const MOBILE_TASK_TEMPLATES: MobileTaskTemplate[] = [
+  {
+    id: 'standard_health_check',
+    label: 'Стандартная проверка AI Company',
+    title: 'Проверить состояние AI Company',
+    taskText:
+      'Проверь текущее состояние AI Company: рабочий день MAX, очередь задач, последние отчёты, решения Owner и возможные проблемы. Сформируй краткий отчёт, что работает, что требует внимания и какой следующий шаг.',
+    expectedOutput:
+      'Краткий отчёт о состоянии AI Company и список следующих действий.',
+    priority: 'medium',
+  },
   {
     id: 'review_ui',
     title: 'Проверить интерфейс',

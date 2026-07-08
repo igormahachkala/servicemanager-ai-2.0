@@ -8,7 +8,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/mobile/*" element={<MobileRoutes />} />
+        <Route path="/mobile/*" element={<div className="acMobileRoot"><MobileRoutes /></div>} />
         <Route
           path="/*"
           element={

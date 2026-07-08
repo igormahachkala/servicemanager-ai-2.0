@@ -1,6 +1,7 @@
 import { MAX_WORKER_EMPLOYEE_ID } from '../../domain/maxWorkerLoop'
 import { resolveCanonicalEmployeeId } from '../../mission-control/data/employeeIdResolver'
 import { MOBILE_MORNING_REPORT_ID } from '../reports/mobileReportsSnapshot'
+import { MOBILE_STANDARD_TASK_TEMPLATE_ID } from '../runTask/mobileRunTaskConfig'
 
 export const MOBILE_PATHS = {
   today: '/mobile/today',
@@ -8,6 +9,7 @@ export const MOBILE_PATHS = {
   max: `/mobile/employees/${MAX_WORKER_EMPLOYEE_ID}`,
   tasksNew: '/mobile/tasks/new',
   tasksNewMax: `/mobile/tasks/new?employee=${encodeURIComponent(MAX_WORKER_EMPLOYEE_ID)}`,
+  standardTaskNewMax: `/mobile/tasks/new?employee=${encodeURIComponent(MAX_WORKER_EMPLOYEE_ID)}&template=${MOBILE_STANDARD_TASK_TEMPLATE_ID}`,
   tasks: '/mobile/tasks',
   decisions: '/mobile/decisions',
   reports: '/mobile/reports',

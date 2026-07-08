@@ -7,6 +7,8 @@ type MobileTaskTemplateCardProps = {
 }
 
 export function MobileTaskTemplateCard({ template, selected, onSelect }: MobileTaskTemplateCardProps) {
+  const displayTitle = template.label ?? template.title
+
   return (
     <button
       type="button"
@@ -18,7 +20,7 @@ export function MobileTaskTemplateCard({ template, selected, onSelect }: MobileT
       aria-pressed={selected}
       onClick={() => onSelect(template.id)}
     >
-      <span className="acMobileTaskTemplateTitle">{template.title}</span>
+      <span className="acMobileTaskTemplateTitle">{displayTitle}</span>
       <span className="acMobileTaskTemplatePreview">{template.taskText.slice(0, 72)}…</span>
     </button>
   )

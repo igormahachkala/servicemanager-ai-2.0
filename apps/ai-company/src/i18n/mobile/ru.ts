@@ -28,6 +28,13 @@ export const mobileRu = {
     morningReport: 'Утренний отчёт',
     cancel: 'Закрыть',
   },
+  standardTask: {
+    eyebrow: 'Стандартная задача MAX',
+    title: 'Проверить состояние AI Company',
+    description:
+      'MAX проверит рабочий день, очередь, отчёты и решения Owner — сформирует краткий статус и следующий шаг.',
+    action: 'Стандартная задача',
+  },
   sheet: {
     close: 'Закрыть',
     dismiss: 'Скрыть',

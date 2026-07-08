@@ -9,6 +9,7 @@ import { MobileEmployeeWorkdayCard } from '../components/MobileEmployeeWorkdayCa
 import { MobileWorkQueueCard } from '../components/MobileWorkQueueCard'
 import { MobileLastResultCard } from '../components/MobileLastResultCard'
 import { MobileSection } from '../components/MobileSection'
+import { MobileStandardTaskQuickStart } from '../components/MobileStandardTaskQuickStart'
 
 export function MobileEmployeePage() {
   const { id: rawId } = useParams<{ id: string }>()
@@ -44,6 +45,8 @@ export function MobileEmployeePage() {
       )}
 
       <MobileEmployeeHeroCard snapshot={max.snapshot} />
+
+      <MobileStandardTaskQuickStart />
 
       <MobileSection title={copy.sections.workQueue}>
         <MobileWorkQueueCard

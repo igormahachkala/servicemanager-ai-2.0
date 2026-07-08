@@ -28,6 +28,13 @@ export const mobileEn = {
     morningReport: 'Morning report',
     cancel: 'Close',
   },
+  standardTask: {
+    eyebrow: 'MAX standard task',
+    title: 'Check AI Company status',
+    description:
+      'MAX will review workday, queue, reports, and Owner decisions — then summarize status and next step.',
+    action: 'Standard task',
+  },
   sheet: {
     close: 'Close',
     dismiss: 'Dismiss',

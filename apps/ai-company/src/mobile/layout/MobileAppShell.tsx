@@ -85,7 +85,9 @@ function MobileAppShellInner({
     <div className="acMobileShell" aria-label={t.mobile.shell.ariaLabel}>
       <div className="acMobileSafeAreaTop" aria-hidden />
       <MobileHeader title={resolvedTitle} searchSlot={searchSlot} showSearch={showSearch} />
-      <MobileContent padded={contentPadded}>{children}</MobileContent>
+      <MobileContent padded={contentPadded} fabVisible={showFab && !hideFab}>
+        {children}
+      </MobileContent>
       {showFab && !hideFab ? (
         <div className="acMobileFabHost">
           <MobileFab label={t.mobile.fab.assignTask} onClick={openAssignTaskSheet} />

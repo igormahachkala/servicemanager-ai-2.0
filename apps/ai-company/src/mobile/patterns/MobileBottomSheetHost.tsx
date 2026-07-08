@@ -3,18 +3,18 @@ import { createPortal } from 'react-dom'
 import { useI18n } from '../../i18n'
 import { MobileBottomSheetProvider, useMobileBottomSheet } from '../hooks/useMobileBottomSheet'
 
+const SHEET_OPEN_CLASS = 'acMobileSheetOpen'
+
 function MobileBottomSheetPanel() {
   const { t } = useI18n()
   const { isOpen, title, ariaLabel, content, closeSheet } = useMobileBottomSheet()
-  const panelRef = useRef<HTMLDivElement>(null)
   const bodyRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!isOpen) return
-    const previousOverflow = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
+    document.documentElement.classList.add(SHEET_OPEN_CLASS)
     return () => {
-      document.body.style.overflow = previousOverflow
+      document.documentElement.classList.remove(SHEET_OPEN_CLASS)
     }
   }, [isOpen])
 
@@ -43,7 +43,6 @@ function MobileBottomSheetPanel() {
         onClick={closeSheet}
       />
       <div
-        ref={panelRef}
         className="acMobileSheetPanel"
         role="dialog"
         aria-modal="true"

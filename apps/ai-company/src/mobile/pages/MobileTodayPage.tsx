@@ -5,6 +5,7 @@ import { MobileEmployeeResultCard } from '../components/MobileEmployeeResultCard
 import { MobileNextActionCard } from '../components/MobileNextActionCard'
 import { MobileOwnerDecisionCard } from '../components/MobileOwnerDecisionCard'
 import { MobileSection } from '../components/MobileSection'
+import { MobileStandardTaskQuickStart } from '../components/MobileStandardTaskQuickStart'
 import { useMobileOwnerHome } from '../hooks/useMobileOwnerHome'
 import { MOBILE_PATHS } from '../navigation/mobileHrefResolver'
 
@@ -30,6 +31,8 @@ export function MobileTodayPage() {
           {t.mobile.ownerHome.refresh}
         </button>
       </div>
+
+      <MobileStandardTaskQuickStart />
 
       <MobileCompanyStatusCard status={snapshot.companyStatus} />
 

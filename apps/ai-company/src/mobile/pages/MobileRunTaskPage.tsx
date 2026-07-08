@@ -3,10 +3,11 @@ import { MAX_WORKER_EMPLOYEE_ID } from '../../domain/maxWorkerLoop'
 import { useI18n } from '../../i18n'
 import { MobileEmployeePicker } from '../components/MobileEmployeePicker'
 import { MobileSection } from '../components/MobileSection'
+import { MobileStandardTaskQuickStart } from '../components/MobileStandardTaskQuickStart'
 import { MobileTaskComposer } from '../components/MobileTaskComposer'
 import { MobileTaskTemplateCard } from '../components/MobileTaskTemplateCard'
 import { useMobileRunTask } from '../hooks/useMobileRunTask'
-import { MOBILE_TASK_TEMPLATES } from '../runTask/mobileRunTaskConfig'
+import { MOBILE_STANDARD_TASK_TEMPLATE_ID, MOBILE_TASK_TEMPLATES } from '../runTask/mobileRunTaskConfig'
 
 export function MobileRunTaskPage() {
   const { t } = useI18n()
@@ -59,9 +60,15 @@ export function MobileRunTaskPage() {
     )
   }
 
+  const standardTemplateSelected = form.templateId === MOBILE_STANDARD_TASK_TEMPLATE_ID
+
   return (
     <div className="acMobileRunTask">
       <p className="acMobileRunTaskIntro">{copy.intro}</p>
+
+      {!standardTemplateSelected ? (
+        <MobileStandardTaskQuickStart className="acMobileRunTaskStandardBanner" />
+      ) : null}
 
       <MobileSection title={copy.sections.employee}>
         <MobileEmployeePicker
