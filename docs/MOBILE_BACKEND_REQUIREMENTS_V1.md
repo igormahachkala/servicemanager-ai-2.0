@@ -53,8 +53,15 @@
 
 - **Сверка ссылок (важно перед кодом):** символы, названные в approval ChatGPT-потоком (`resolveTechnicianAssignedLocationIds()`, `resolveViewerBoard`, строки `:186-190`), в текущем checkout `feature/management-console-v2-clean` **не найдены** (греп по backend+frontend — ноль; `:186-190` = конец `buildTechnicianBoardQuery`). Проверенные по факту чтения точки: **`tickets.query.service.ts:258`** (`resolveSecondaryOperationalWhere` обход), **`ticket-access.utils.ts:466-498`** (`buildSecondaryOperationalScopeWhere`, готовый location-aware where), `:356-363` (`tenant_wide`), `ticket-access.utils.ts:276/288` (`companyIds` включает клиента). Перед кодом — **свериться с management на одной версии символов/строк** (возможно ChatGPT смотрел иную ветку/состояние).
 
-- **Приоритет / зона:** **P0 (security, выше P0.1)** · `M` · `mgmt` · **код pending management approval**.
-- **Зависимости:** нет (изолированная scope-логика). Точки: `tickets.query.service.ts:258` + `ticket-access.utils.ts:466-498` (+ возможно `:356-363`).
+- **✅ ФИНАЛЬНОЕ ОДОБРЕННОЕ РЕШЕНИЕ (2026-07-08, management APPROVED на реализацию):**
+  - **Строгий прокси (fail-closed):** источник `allowedLocationIds` = локации по assignment/bound (существующая логика: `UserLocationBinding` техника/провайдера + assigned-заявки), **НЕ** «все локации SECONDARY-контракта». Техник видит NEW только там, где уже работает/привязан. Расширение до всех объектов контракта — отдельная будущая задача (не про безопасность).
+  - **Видимость SECONDARY-техника** = `assigned to me` **OR** `assigned within same SECONDARY provider (executors)` **OR** `(NEW/unassigned AND locationId ∈ allowedLocationIds)`. **personally-assigned видно ВСЕГДА** (не гейтится локациями).
+  - **Fail-closed:** пустой/`null` список локаций ⇒ «ничего постороннего», НЕ «всё». Убрать fail-open (`return null` → tenant-wide) для SECONDARY.
+  - **Не сломать:** (а) **PRIMARY-техник** — narrowing только для SECONDARY (различаем по `getLinkedClientAccess(...).role`); (б) **Zosimov `6628074`** — субподрядчик с пустым bound-contexts видит свои assigned через backend (не пустой экран): personally-assigned остаётся видимым.
+  - **7 регресс-тестов (backend):** (1) SECONDARY-техник НЕ видит посторонние локации; (2) видит своё assigned; (3) видит NEW в allowed SECONDARY-локации; (4) НЕ видит NEW вне allowed; (5) SECONDARY-**admin** не изменился; (6) **PRIMARY** не изменился; (7) **CLIENT owner** не изменился.
+- **Сверка символов (итог ШАГ 0):** `resolveTechnicianAssignedLocationIds()` / `resolveViewerBoard` / `:186-190` — **в коде отсутствуют**. Реальный маппинг: точка обхода = `tickets.query.service.ts:258` (`resolveSecondaryOperationalWhere` → `if (technicianScope) return null`); готовый «строгий прокси» where = `ticket-access.utils.ts:466-498` `buildSecondaryOperationalScopeWhere` = `{assignedTechnicianId ∈ SECONDARY-execs} OR {locationId ∈ UserLocationBinding-локации}` (gate на SECONDARY в `buildSecondaryOperationalTicketWhere:505`, для PRIMARY → null). `getBoundContexts` (technicians.service.ts:127) — **PRIMARY-only** (даёт `[]` для SECONDARY = причина Zosimov-кейса).
+- **Приоритет / зона:** **P0 (security, выше P0.1)** · `M` · `mgmt` · **APPROVED к реализации (mobile-поток по делегированию); commit/push — после ревью diff Игорем**.
+- **Зависимости:** нет (изолированная scope-логика). Точки: `tickets.query.service.ts:258` + `ticket-access.utils.ts:466-498`.
 
 ## P0.1 — CHAT-purpose для вложений чата
 
