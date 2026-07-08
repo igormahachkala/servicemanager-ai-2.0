@@ -191,7 +191,9 @@ import {
 npm --prefix apps/ai-company run build
 ```
 
-Открыть: `http://localhost:5177/mobile/today`
+Открыть: `http://localhost:5174/mobile/today` (Vite dev port — см. `vite.config.ts`).
+
+**Launch & QA:** [AI-COMPANY-107J — Mobile MVP Launch Notes](./AI-COMPANY-107J-mobile-mvp-launch-notes.md)
 
 ## Следующий шаг
 

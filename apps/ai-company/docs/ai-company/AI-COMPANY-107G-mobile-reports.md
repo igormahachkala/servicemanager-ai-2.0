@@ -85,18 +85,11 @@ src/styles/mobile.css
 4. Toggle light/dark theme
 5. More → Open reports
 
-## Mobile Owner Console MVP status
+**Mobile Owner Console MVP status**
 
-After 107G the mobile MVP includes:
+After 107G the mobile MVP includes Today, Employees, MAX, Run Task, Decisions, Reports.
 
-- Today ✓
-- Employees ✓
-- MAX Control ✓
-- Run Task ✓
-- Decisions ✓
-- **Reports ✓**
-
-**Mobile Owner Console MVP can be considered ready** for V1 demo loop.
+**Launch verdict, QA checklist, demo flow:** [AI-COMPANY-107J — Mobile MVP Launch Notes](./AI-COMPANY-107J-mobile-mvp-launch-notes.md)
 
 ## Remaining (post-V1)
 
