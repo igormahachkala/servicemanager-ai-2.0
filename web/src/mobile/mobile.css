@@ -5596,6 +5596,50 @@ a.mobileBtn.mobileCreateTicketLink {
   color: #dc2626;
   font-weight: 600;
 }
+.mobileAnalyticsEquipName {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* C2.5: график динамики (публичные заявки по дням) */
+.mobileAnalyticsChart {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 72px;
+}
+.mobileAnalyticsChartBar {
+  flex: 1;
+  min-width: 2px;
+  background: #bfdbfe;
+  border-radius: 3px 3px 0 0;
+}
+.mobileAnalyticsChartBar--last {
+  background: #2563eb;
+}
+
+/* C2.5: центрированная заглушка представления */
+.mobileAnalyticsStubCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 20px 12px;
+}
+.mobileAnalyticsStubIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #f1f5f9;
+  color: #94a3b8;
+}
 
 .mobileAnalyticsHomeLink {
   display: inline-flex;

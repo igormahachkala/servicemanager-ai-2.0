@@ -156,6 +156,14 @@ const IconClose = (
     <path d="M6 6l12 12" />
   </TablerIcon>
 )
+const IconUsers = (
+  <TablerIcon>
+    <path d="M9 7m-4 0a4 4 0 1 0 8 0a4 4 0 1 0 -8 0" />
+    <path d="M3 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" />
+    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    <path d="M21 21v-2a4 4 0 0 0 -3 -3.85" />
+  </TablerIcon>
+)
 
 export function MobileAnalytics() {
   const location = useLocation()
@@ -350,6 +358,16 @@ export function MobileAnalytics() {
     }
     return out
   }, [boardQ.data, selObjects, selCats, selStatuses])
+
+  // График динамики: ТОЛЬКО публичные заявки (overview.publicIntake.byDay), последние 14 дней.
+  const dynamicsByDay = useMemo(() => (overviewQ.data?.publicIntake?.byDay ?? []).slice(-14), [overviewQ.data])
+  const dynamicsMax = Math.max(1, ...dynamicsByDay.map((d) => d.total))
+
+  // Оборудование (представление): счётчики заявок из context.byEquipment (реальные).
+  const equipmentRows = useMemo(() => {
+    const eq = contextQ.data?.byEquipment ?? []
+    return [...eq].sort((a, b) => b.total - a.total)
+  }, [contextQ.data])
 
   // Распределение по статусам (ADMIN — 4 строки incl. Назначенные; прочие — 3 из context).
   const statusRows = useMemo(() => {
@@ -560,9 +578,35 @@ export function MobileAnalytics() {
             </select>
           </div>
 
-          {/* Обзор — сроки + распределение по статусам */}
+          {/* Обзор — динамика + сроки + распределение по статусам */}
           {analyticsView === 'overview' ? (
             <>
+              <div className="mobileCard">
+                <div className="mobileSectionTitle" style={{ marginBottom: 10 }}>Динамика</div>
+                {overviewQ.isLoading ? (
+                  <div className="mobileMeta">Загрузка…</div>
+                ) : dynamicsByDay.length > 0 ? (
+                  <>
+                    <div className="mobileMeta" style={{ marginBottom: 8 }}>Публичные заявки по дням</div>
+                    <div className="mobileAnalyticsChart">
+                      {dynamicsByDay.map((d, i) => (
+                        <div
+                          key={d.day}
+                          className={`mobileAnalyticsChartBar${i === dynamicsByDay.length - 1 ? ' mobileAnalyticsChartBar--last' : ''}`}
+                          style={{ height: `${Math.max(6, Math.round((d.total / dynamicsMax) * 100))}%` }}
+                          title={`${d.day}: ${d.total}`}
+                        />
+                      ))}
+                    </div>
+                  </>
+                ) : (
+                  <div className="mobileMeta">Нет публичных заявок за период.</div>
+                )}
+                <div className="mobileAnalyticsFilterStub" style={{ marginTop: 10 }}>
+                  Полный тренд по всем источникам — в разработке.
+                </div>
+              </div>
+
               <div className="mobileCard">
                 <div className="mobileSectionTitle" style={{ marginBottom: 10 }}>Сроки</div>
                 <div className="mobileAnalyticsTiming">
@@ -676,19 +720,48 @@ export function MobileAnalytics() {
             </div>
           ) : null}
 
-          {/* Подрядчики — заглушка (нет данных в API; детально C2.5) */}
+          {/* Подрядчики — заглушка (нет данных в API) */}
           {analyticsView === 'contractors' ? (
             <div className="mobileCard">
               <div className="mobileSectionTitle" style={{ marginBottom: 10 }}>Подрядчики</div>
-              <div className="mobileAnalyticsFilterStub">Аналитика по подрядчикам — после доработки API.</div>
+              <div className="mobileAnalyticsStubCard">
+                <span className="mobileAnalyticsStubIcon">{IconUsers}</span>
+                <div className="mobileMeta" style={{ textAlign: 'center' }}>
+                  Аналитика по подрядчикам появится после доработки API.
+                </div>
+              </div>
             </div>
           ) : null}
 
-          {/* Оборудование — заглушка (счётчики/health детально C2.5) */}
+          {/* Оборудование — реальные счётчики заявок (context.byEquipment) + health TODO */}
           {analyticsView === 'equipment' ? (
             <div className="mobileCard">
               <div className="mobileSectionTitle" style={{ marginBottom: 10 }}>Оборудование</div>
-              <div className="mobileAnalyticsFilterStub">Счётчики заявок по оборудованию и статус ТО — в следующем шаге.</div>
+              {contextQ.isLoading ? (
+                <div className="mobileMeta">Загрузка…</div>
+              ) : contextQ.isError ? (
+                <div className="mobileMeta">Не удалось загрузить данные по оборудованию.</div>
+              ) : equipmentRows.length > 0 ? (
+                <div className="mobileAnalyticsOverdueList">
+                  {equipmentRows.map((eq) => (
+                    <div key={eq.equipmentId} className="mobileAnalyticsOverdueRow">
+                      <div className="mobileAnalyticsOverdueTop">
+                        <span className="mobileAnalyticsEquipName">{eq.equipmentName}</span>
+                        <span className="mobileAnalyticsBarCount">{eq.total} заявок</span>
+                      </div>
+                      <div className="mobileAnalyticsOverdueSub">
+                        {eq.locationName || 'Без точки'} · В работе {eq.NEW + eq.IN_PROGRESS} · Выполнено {eq.DONE}
+                      </div>
+                      <div className="mobileAnalyticsOverdueSub">Статус ТО: — (нет данных)</div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="mobileMeta">Нет данных по оборудованию.</div>
+              )}
+              <div className="mobileAnalyticsFilterStub" style={{ marginTop: 10 }}>
+                Статус ТО (Исправно / ТО / Неисправно) — после Equipment-модуля.
+              </div>
             </div>
           ) : null}
         </>
