@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
 import { mobilePath } from './mobileRoute'
+import { mobileTicketNumberTitle, mobileTicketStatusLabelRu } from './mobileTicketDisplay'
 
 /**
  * Роли с доступом к /analytics/overview и /analytics/locations (backend RolesGuard).
@@ -50,6 +51,24 @@ function toggleInSet<T>(prev: Set<T>, value: T): Set<T> {
   if (next.has(value)) next.delete(value)
   else next.add(value)
   return next
+}
+
+type AnalyticsView = 'overview' | 'top-objects' | 'top-cats' | 'overdue' | 'contractors' | 'equipment'
+
+const ANALYTICS_VIEWS: Array<[AnalyticsView, string]> = [
+  ['overview', 'Обзор'],
+  ['top-objects', 'ТОП объектов'],
+  ['top-cats', 'ТОП категорий'],
+  ['overdue', 'Просрочки'],
+  ['contractors', 'Подрядчики'],
+  ['equipment', 'Оборудование'],
+]
+
+/** Минуты → человекочитаемое «Ч ч» / «М мин». */
+function fmtMinutes(min?: number | null): string {
+  if (min == null || !Number.isFinite(min)) return '—'
+  if (min < 60) return `${Math.round(min)} мин`
+  return `${(min / 60).toFixed(1)} ч`
 }
 
 /** Диапазон дат для /analytics/locations (from/to = YYYY-MM-DD). Overview периода не поддерживает. */
@@ -203,6 +222,14 @@ export function MobileAnalytics() {
     enabled: !!meQ.data,
   })
 
+  // Готовые представления (селектор). Board тянем лениво — только для «Просрочки».
+  const [analyticsView, setAnalyticsView] = useState<AnalyticsView>('overview')
+  const boardQ = useQuery({
+    queryKey: ['mobile-analytics-overdue-board', linkedClientCompanyId, companyId],
+    queryFn: () => api.board({ ...scopeParams, take: 500 }),
+    enabled: !!meQ.data && isAnalyticsAdmin && analyticsView === 'overdue',
+  })
+
   // Опции фильтров — из полного набора locations (не фильтрованного).
   const objectOptions = useMemo<Array<[string, string]>>(() => {
     const items = locationsQ.data?.items
@@ -298,6 +325,31 @@ export function MobileAnalytics() {
       .slice(0, 5)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAnalyticsAdmin, locationsQ.data, contextQ.data, filteredItems, selCats])
+
+  // ТОП объектов (представление): все отфильтрованные локации, сортировка по числу заявок.
+  const topObjects = useMemo(() => {
+    return [...filteredItems]
+      .map((l) => ({ id: l.locationId, name: l.locationName, total: catScopedCount(l), overdue: catScopedOverdue(l) }))
+      .filter((o) => o.total > 0)
+      .sort((a, b) => b.total - a.total)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredItems, selCats])
+
+  // Просрочки (представление): board-карточки со slaBreached, ПОЛНОСТЬЮ фильтр-aware.
+  const overdueTickets = useMemo(() => {
+    const cols = boardQ.data?.columns ?? []
+    const out: api.TicketCard[] = []
+    for (const col of cols) {
+      for (const c of col.cards) {
+        if (!c.slaBreached) continue
+        if (selObjects.size && !(c.location?.id && selObjects.has(c.location.id))) continue
+        if (selCats.size && !(c.category?.name && selCats.has(c.category.name))) continue
+        if (selStatuses.size && !selStatuses.has(c.status)) continue
+        out.push(c)
+      }
+    }
+    return out
+  }, [boardQ.data, selObjects, selCats, selStatuses])
 
   // Распределение по статусам (ADMIN — 4 строки incl. Назначенные; прочие — 3 из context).
   const statusRows = useMemo(() => {
@@ -490,75 +542,194 @@ export function MobileAnalytics() {
         </div>
       ) : null}
 
-      {/* Топ категорий (только ADMIN — разбивка есть в /analytics/locations) */}
+      {/* ADMIN: селектор готовых представлений + переключаемое тело */}
       {isAnalyticsAdmin ? (
-        <div className="mobileCard">
-          <div className="mobileSectionTitle" style={{ marginBottom: 10 }}>Топ категорий проблем</div>
-          {locationsQ.isSuccess && topCategories.length > 0 ? (
+        <>
+          <div className="mobileAnalyticsViewSelectWrap">
+            <select
+              className="mobileAnalyticsViewSelect"
+              value={analyticsView}
+              onChange={(e) => setAnalyticsView(e.target.value as AnalyticsView)}
+              aria-label="Готовое представление"
+            >
+              {ANALYTICS_VIEWS.map(([key, label]) => (
+                <option key={key} value={key}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Обзор — сроки + распределение по статусам */}
+          {analyticsView === 'overview' ? (
+            <>
+              <div className="mobileCard">
+                <div className="mobileSectionTitle" style={{ marginBottom: 10 }}>Сроки</div>
+                <div className="mobileAnalyticsTiming">
+                  <div>
+                    <div className="mobileAnalyticsTimingVal">{fmtMinutes(overviewQ.data?.timing?.meanTimeToAssignMinutes)}</div>
+                    <div className="mobileAnalyticsTimingLabel">Ср. время назначения</div>
+                  </div>
+                  <div>
+                    <div className="mobileAnalyticsTimingVal">{fmtMinutes(overviewQ.data?.timing?.meanTimeToResolveMinutes)}</div>
+                    <div className="mobileAnalyticsTimingLabel">Ср. время решения</div>
+                  </div>
+                </div>
+                <div className="mobileMeta" style={{ marginTop: 8 }}>Сроки — за всё окно (период/фильтры не применяются).</div>
+              </div>
+
+              <div className="mobileCard">
+                <div className="mobileSectionTitle" style={{ marginBottom: 10 }}>Распределение по статусам</div>
+                {visibleStatusRows.length > 0 ? (
+                  <div className="mobileAnalyticsBarRows">
+                    {visibleStatusRows.map(({ label, value, mod }) => (
+                      <div key={mod} className="mobileAnalyticsBarRow">
+                        <span className="mobileAnalyticsBarName">{label}</span>
+                        <span className="mobileAnalyticsBarCount">{fmt(value)}</span>
+                        <div className="mobileAnalyticsBarTrack">
+                          <div className={`mobileAnalyticsBarFill mobileAnalyticsBarFill--${mod}`} style={{ width: `${value == null ? 0 : pct(value, statusMax)}%` }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mobileMeta">Нет строк для выбранных статусов.</div>
+                )}
+              </div>
+            </>
+          ) : null}
+
+          {/* ТОП объектов */}
+          {analyticsView === 'top-objects' ? (
+            <div className="mobileCard">
+              <div className="mobileSectionTitle" style={{ marginBottom: 10 }}>ТОП объектов</div>
+              {locationsQ.isSuccess && topObjects.length > 0 ? (
+                <div className="mobileAnalyticsBarRows">
+                  {topObjects.map((o) => (
+                    <div key={o.id} className="mobileAnalyticsBarRow">
+                      <span className="mobileAnalyticsBarName">{o.name}</span>
+                      <span className="mobileAnalyticsBarCount">
+                        {o.total}
+                        {o.overdue > 0 ? <span className="mobileAnalyticsBarSub"> · {o.overdue} просроч.</span> : null}
+                      </span>
+                      <div className="mobileAnalyticsBarTrack">
+                        <div className="mobileAnalyticsBarFill mobileAnalyticsBarFill--location" style={{ width: `${pct(o.total, topObjects[0].total || 1)}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="mobileMeta">{locationsQ.isLoading ? 'Загрузка…' : 'Нет данных'}</div>
+              )}
+            </div>
+          ) : null}
+
+          {/* ТОП категорий */}
+          {analyticsView === 'top-cats' ? (
+            <div className="mobileCard">
+              <div className="mobileSectionTitle" style={{ marginBottom: 10 }}>ТОП категорий</div>
+              {locationsQ.isSuccess && topCategories.length > 0 ? (
+                <div className="mobileAnalyticsBarRows">
+                  {topCategories.map(([name, count]) => (
+                    <div key={name} className="mobileAnalyticsBarRow">
+                      <span className="mobileAnalyticsBarName">{name}</span>
+                      <span className="mobileAnalyticsBarCount">{count}</span>
+                      <div className="mobileAnalyticsBarTrack">
+                        <div className="mobileAnalyticsBarFill" style={{ width: `${pct(count, maxCat)}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="mobileMeta">{locationsQ.isLoading ? 'Загрузка…' : 'Нет данных'}</div>
+              )}
+            </div>
+          ) : null}
+
+          {/* Просрочки — board-карточки slaBreached, фильтр-aware */}
+          {analyticsView === 'overdue' ? (
+            <div className="mobileCard">
+              <div className="mobileSectionTitle" style={{ marginBottom: 10 }}>Просрочки</div>
+              {boardQ.isLoading ? (
+                <div className="mobileMeta">Загрузка…</div>
+              ) : boardQ.isError ? (
+                <div className="mobileMeta">Не удалось загрузить список просрочек.</div>
+              ) : overdueTickets.length > 0 ? (
+                <div className="mobileAnalyticsOverdueList">
+                  {overdueTickets.map((t) => (
+                    <div key={t.id} className="mobileAnalyticsOverdueRow">
+                      <div className="mobileAnalyticsOverdueTop">
+                        <span className="mobileAnalyticsOverdueNum">{mobileTicketNumberTitle(t.ticketNumber)}</span>
+                        <span className={`mobileTicketStatus mobileTicketStatus--${t.status}`}>{mobileTicketStatusLabelRu(t.status)}</span>
+                      </div>
+                      <div className="mobileAnalyticsOverdueTitle">{t.title || t.category?.name || 'Без описания'}</div>
+                      <div className="mobileAnalyticsOverdueSub">
+                        {(t.location?.name || t.pointName || 'Без точки')}
+                        <span className="mobileAnalyticsOverdueSla"> · SLA просрочен</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="mobileMeta">Просроченных заявок нет.</div>
+              )}
+            </div>
+          ) : null}
+
+          {/* Подрядчики — заглушка (нет данных в API; детально C2.5) */}
+          {analyticsView === 'contractors' ? (
+            <div className="mobileCard">
+              <div className="mobileSectionTitle" style={{ marginBottom: 10 }}>Подрядчики</div>
+              <div className="mobileAnalyticsFilterStub">Аналитика по подрядчикам — после доработки API.</div>
+            </div>
+          ) : null}
+
+          {/* Оборудование — заглушка (счётчики/health детально C2.5) */}
+          {analyticsView === 'equipment' ? (
+            <div className="mobileCard">
+              <div className="mobileSectionTitle" style={{ marginBottom: 10 }}>Оборудование</div>
+              <div className="mobileAnalyticsFilterStub">Счётчики заявок по оборудованию и статус ТО — в следующем шаге.</div>
+            </div>
+          ) : null}
+        </>
+      ) : (
+        <>
+          {/* Техник: контекст по точкам + распределение (context) */}
+          <div className="mobileCard">
+            <div className="mobileSectionTitle" style={{ marginBottom: 10 }}>Точки с наибольшим числом активных заявок</div>
+            {contextQ.isSuccess && topLocations.length > 0 ? (
+              <div className="mobileAnalyticsBarRows">
+                {topLocations.map(([name, count]) => (
+                  <div key={name} className="mobileAnalyticsBarRow">
+                    <span className="mobileAnalyticsBarName">{name}</span>
+                    <span className="mobileAnalyticsBarCount">{count}</span>
+                    <div className="mobileAnalyticsBarTrack">
+                      <div className="mobileAnalyticsBarFill mobileAnalyticsBarFill--location" style={{ width: `${pct(count, maxLoc)}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="mobileMeta">{contextQ.isLoading ? 'Загрузка…' : 'Нет данных'}</div>
+            )}
+          </div>
+
+          <div className="mobileCard">
+            <div className="mobileSectionTitle" style={{ marginBottom: 10 }}>Распределение по статусам</div>
             <div className="mobileAnalyticsBarRows">
-              {topCategories.map(([name, count]) => (
-                <div key={name} className="mobileAnalyticsBarRow">
-                  <span className="mobileAnalyticsBarName">{name}</span>
-                  <span className="mobileAnalyticsBarCount">{count}</span>
+              {statusRows.map(({ label, value, mod }) => (
+                <div key={mod} className="mobileAnalyticsBarRow">
+                  <span className="mobileAnalyticsBarName">{label}</span>
+                  <span className="mobileAnalyticsBarCount">{fmt(value)}</span>
                   <div className="mobileAnalyticsBarTrack">
-                    <div className="mobileAnalyticsBarFill" style={{ width: `${pct(count, maxCat)}%` }} />
+                    <div className={`mobileAnalyticsBarFill mobileAnalyticsBarFill--${mod}`} style={{ width: `${value == null ? 0 : pct(value, statusMax)}%` }} />
                   </div>
                 </div>
               ))}
             </div>
-          ) : (
-            <div className="mobileMeta">{locationsQ.isLoading ? 'Загрузка…' : 'Нет данных'}</div>
-          )}
-        </div>
-      ) : null}
-
-      {/* Точки с наибольшим числом активных заявок */}
-      <div className="mobileCard">
-        <div className="mobileSectionTitle" style={{ marginBottom: 10 }}>Точки с наибольшим числом активных заявок</div>
-        {(isAnalyticsAdmin ? locationsQ.isSuccess : contextQ.isSuccess) && topLocations.length > 0 ? (
-          <div className="mobileAnalyticsBarRows">
-            {topLocations.map(([name, count]) => (
-              <div key={name} className="mobileAnalyticsBarRow">
-                <span className="mobileAnalyticsBarName">{name}</span>
-                <span className="mobileAnalyticsBarCount">{count}</span>
-                <div className="mobileAnalyticsBarTrack">
-                  <div
-                    className="mobileAnalyticsBarFill mobileAnalyticsBarFill--location"
-                    style={{ width: `${pct(count, maxLoc)}%` }}
-                  />
-                </div>
-              </div>
-            ))}
           </div>
-        ) : (
-          <div className="mobileMeta">
-            {(isAnalyticsAdmin ? locationsQ.isLoading : contextQ.isLoading) ? 'Загрузка…' : 'Нет данных'}
-          </div>
-        )}
-      </div>
-
-      {/* Распределение по статусам */}
-      <div className="mobileCard">
-        <div className="mobileSectionTitle" style={{ marginBottom: 10 }}>Распределение по статусам</div>
-        {visibleStatusRows.length > 0 ? (
-          <div className="mobileAnalyticsBarRows">
-            {visibleStatusRows.map(({ label, value, mod }) => (
-              <div key={mod} className="mobileAnalyticsBarRow">
-                <span className="mobileAnalyticsBarName">{label}</span>
-                <span className="mobileAnalyticsBarCount">{fmt(value)}</span>
-                <div className="mobileAnalyticsBarTrack">
-                  <div
-                    className={`mobileAnalyticsBarFill mobileAnalyticsBarFill--${mod}`}
-                    style={{ width: `${value == null ? 0 : pct(value, statusMax)}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="mobileMeta">Нет строк для выбранных статусов.</div>
-        )}
-      </div>
+        </>
+      )}
 
       <div className="mobileMeta" style={{ textAlign: 'center', opacity: 0.7 }}>
         <Link to={homeHref} className="mobileAnalyticsHomeLink" style={{ color: 'inherit' }}>

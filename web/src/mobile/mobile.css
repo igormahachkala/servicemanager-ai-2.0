@@ -5507,6 +5507,96 @@ a.mobileBtn.mobileCreateTicketLink {
   margin-top: 2px;
 }
 
+/* C2.4: селектор готовых представлений */
+.mobileAnalyticsViewSelectWrap {
+  margin: 2px 0;
+}
+.mobileAnalyticsViewSelect {
+  width: 100%;
+  appearance: none;
+  -webkit-appearance: none;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background-color: #fff;
+  color: #0f172a;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 12px 40px 12px 14px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 16px;
+  cursor: pointer;
+}
+.mobileAnalyticsViewSelect:focus {
+  outline: none;
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18);
+}
+
+/* C2.4: обзор — сроки */
+.mobileAnalyticsTiming {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.mobileAnalyticsTimingVal {
+  font-family: var(--font-mono);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+.mobileAnalyticsTimingLabel {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+.mobileAnalyticsBarSub {
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+/* C2.4: список просрочек */
+.mobileAnalyticsOverdueList {
+  display: flex;
+  flex-direction: column;
+}
+.mobileAnalyticsOverdueRow {
+  padding: 10px 0;
+}
+.mobileAnalyticsOverdueRow + .mobileAnalyticsOverdueRow {
+  border-top: 1px solid #f1f5f9;
+}
+.mobileAnalyticsOverdueTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.mobileAnalyticsOverdueNum {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: #0f172a;
+}
+.mobileAnalyticsOverdueTitle {
+  font-size: 0.85rem;
+  color: #334155;
+  margin-top: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mobileAnalyticsOverdueSub {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+.mobileAnalyticsOverdueSla {
+  color: #dc2626;
+  font-weight: 600;
+}
+
 .mobileAnalyticsHomeLink {
   display: inline-flex;
   align-items: center;
