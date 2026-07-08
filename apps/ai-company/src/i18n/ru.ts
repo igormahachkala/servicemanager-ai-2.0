@@ -873,8 +873,14 @@ export const ru: Messages = {
     statsAria: "Сводка за ночную смену",
     openNextStep: "Перейти к действию",
     sourceJournal: "Источник: Employee Daily Journal",
+    sourceOperatingDay: "Источник: Daily Journal + Operating Day Summary",
     sourceRuntimeFallback: "Источник: Runtime fallback",
-    localNote: "Primary: Employee Daily Journal. Fallback: Worker Loop / Runtime / Cursor Automation / Work Queue.",
+    localNote: "Primary: Employee Daily Journal + Operating Day Summary (при завершении workday). Fallback: Worker Loop / Runtime / Cursor Automation / Work Queue.",
+    operatingDayState: {
+      finished: "Рабочий день завершён",
+      in_progress: "Рабочий день идёт",
+      not_started: "Рабочий день не начат"
+    },
     stats: {
       journalEntries: "Записей Journal",
       workDurationMinutes: "Минут работы",
@@ -907,7 +913,15 @@ export const ru: Messages = {
       cursorTasks: "Cursor tasks",
       cursorTasksHint: "Handoff готов к submit, отправленные задачи и ожидание результата.",
       nextStep: "Что предлагаю дальше",
-      nextStepHint: "Следующая задача из очереди, approval или продолжение после Journal."
+      nextStepHint: "Следующая задача из очереди, approval, рекомендация Operating Day или продолжение после Journal.",
+      operatingDaySummary: "Итог рабочего дня",
+      operatingDaySummaryHint: "End-of-day recap из Operating Day Summary после завершения workday.",
+      employeeRecommendations: "Рекомендации сотрудника",
+      employeeRecommendationsHint: "Рекомендации на следующий день из Operating Day Summary.",
+      unfinishedTasks: "Незавершённые задачи",
+      unfinishedTasksHint: "Pending / scheduled из Work Queue или Operating Day Summary.",
+      blockedTasks: "Заблокированные задачи",
+      blockedTasksHint: "Blocked items и difficulties из Operating Day Summary."
     },
     empty: {
       whatDone: "За отчётный период MAX не завершил новых задач — можно запустить Worker Loop.",
@@ -921,7 +935,10 @@ export const ru: Messages = {
       needsOwner: "Решений Owner не требуется — операции стабильны.",
       remainingQueue: "Work Queue пуст — новых задач в очереди нет.",
       cursorTasks: "Cursor tasks в очереди нет.",
-      nextStep: "Следующий шаг не определён."
+      nextStep: "Следующий шаг не определён.",
+      employeeRecommendations: "Рекомендаций сотрудника пока нет — завершите рабочий день для Operating Day Summary.",
+      unfinishedTasks: "Незавершённых задач в Work Queue нет.",
+      blockedTasks: "Заблокированных задач нет."
     }
   },
   visualLab: {

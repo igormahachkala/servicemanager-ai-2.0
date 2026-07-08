@@ -12,7 +12,6 @@ import {
   buildJournalModelLines,
   buildJournalOwnerApprovalLines,
   buildJournalReportLines,
-  buildJournalSummary,
   buildJournalToolLines,
   buildJournalWhatMaxDidLines,
   buildRemainingQueueLines,
@@ -21,6 +20,19 @@ import {
   OWNER_MORNING_REPORT_JOURNAL_FALLBACK_NOTE_RU,
   pickJournalNextStep,
 } from './ownerMorningReportJournalSections'
+import {
+  buildBlockedTaskLines,
+  buildEmployeeRecommendationLines,
+  buildOperatingDayAwareJournalSummary,
+  buildUnfinishedTaskLines,
+  buildWorkQueueRemainingLines,
+  buildOperatingDaySummaryText,
+  OWNER_MORNING_REPORT_OPERATING_DAY_IN_PROGRESS_NOTE_RU,
+  pickOperatingDayNextStep,
+  resolveOperatingDayState,
+  resolveOperatingDaySummaryForMorningReport,
+} from './ownerMorningReportOperatingDaySections'
+import { getTodayWorkdayForEmployee } from '../workday'
 import { loadApprovalStore } from '../approval/approvalStorage'
 import type { Approval } from '../approval/approval'
 import {
@@ -42,7 +54,9 @@ import { loadRuntimeRuns } from '../runtime/runtimeOrchestrator'
 import { listPendingWorkSuggestions } from '../workScheduler/workSchedulerStorage'
 import type { WorkSuggestion } from '../workScheduler/workSchedulerTypes'
 
-export type OwnerMorningReportDataSource = 'journal' | 'runtime_fallback'
+export type OwnerMorningReportDataSource = 'journal' | 'journal_operating_day' | 'runtime_fallback'
+
+export type OwnerMorningReportOperatingDayState = 'finished' | 'in_progress' | 'not_started'
 
 export type OwnerMorningReportLine = {
   id: string
@@ -67,6 +81,10 @@ export type OwnerMorningReportSnapshot = {
   employeeLabel: string
   dataSource: OwnerMorningReportDataSource
   journalFallbackNote: string | null
+  operatingDayState: OwnerMorningReportOperatingDayState
+  operatingDaySummaryUsed: boolean
+  operatingDaySummary: string | null
+  operatingDayStatusNote: string | null
   summary: string
   stats: {
     journalEntries: number
@@ -93,6 +111,9 @@ export type OwnerMorningReportSnapshot = {
   knowledgeCandidates: OwnerMorningReportLine[]
   cursorTasks: OwnerMorningReportLine[]
   remainingQueue: OwnerMorningReportLine[]
+  employeeRecommendations: OwnerMorningReportLine[]
+  unfinishedTasks: OwnerMorningReportLine[]
+  blockedTasks: OwnerMorningReportLine[]
   nextStep: OwnerMorningReportNextStep | null
 }
 
@@ -539,6 +560,13 @@ function buildRuntimeFallbackSnapshot(now: Date): OwnerMorningReportSnapshot {
     employeeLabel: 'MAX · Digital Employee',
     dataSource: 'runtime_fallback',
     journalFallbackNote: OWNER_MORNING_REPORT_JOURNAL_FALLBACK_NOTE_RU,
+    operatingDayState: resolveOperatingDayState(
+      resolveOperatingDaySummaryForMorningReport(MAX_WORKER_EMPLOYEE_ID, dateKeyFrom(now)),
+      getTodayWorkdayForEmployee(MAX_WORKER_EMPLOYEE_ID),
+    ),
+    operatingDaySummaryUsed: false,
+    operatingDaySummary: null,
+    operatingDayStatusNote: null,
     summary: summaryParts.join(' '),
     stats: {
       journalEntries: 0,
@@ -565,11 +593,24 @@ function buildRuntimeFallbackSnapshot(now: Date): OwnerMorningReportSnapshot {
     knowledgeCandidates: maxSections.knowledge,
     cursorTasks,
     remainingQueue,
+    employeeRecommendations: [],
+    unfinishedTasks: remainingQueue.filter((item) => item.badge !== 'blocked'),
+    blockedTasks: remainingQueue.filter((item) => item.badge === 'blocked'),
     nextStep,
   }
 }
 
 function buildJournalPrimarySnapshot(now: Date, journalEntries: ReturnType<typeof filterJournalEntriesForReportWindow>): OwnerMorningReportSnapshot {
+  const dateKey = dateKeyFrom(now)
+  const operatingDaySummary = resolveOperatingDaySummaryForMorningReport(MAX_WORKER_EMPLOYEE_ID, dateKey)
+  const workday = getTodayWorkdayForEmployee(MAX_WORKER_EMPLOYEE_ID)
+  const operatingDayState = resolveOperatingDayState(operatingDaySummary, workday)
+  const operatingDaySummaryUsed = operatingDaySummary !== null
+  const operatingDayStatusNote =
+    !operatingDaySummaryUsed && operatingDayState !== 'finished'
+      ? OWNER_MORNING_REPORT_OPERATING_DAY_IN_PROGRESS_NOTE_RU
+      : null
+
   const cursorApprovals = loadCursorAutomationOwnerApprovals()
   const generalApprovals = loadApprovalStore().approvals
   const workSuggestions = listPendingWorkSuggestions({ employeeId: MAX_WORKER_EMPLOYEE_ID, limit: 12 })
@@ -589,7 +630,13 @@ function buildJournalPrimarySnapshot(now: Date, journalEntries: ReturnType<typeo
     loops,
   )
 
-  const remainingQueue = buildRemainingQueueLines()
+  const remainingQueue = buildWorkQueueRemainingLines()
+  const unfinishedTasks = buildUnfinishedTaskLines(operatingDaySummary, remainingQueue)
+  const blockedTasks = buildBlockedTaskLines(operatingDaySummary, remainingQueue)
+  const employeeRecommendations = operatingDaySummary
+    ? buildEmployeeRecommendationLines(operatingDaySummary)
+    : []
+
   const workDurationMs = computeJournalWorkDurationMs(journalEntries)
   const workDurationMinutes = Math.round(workDurationMs / 60000)
   const { memory, knowledge } = buildJournalMemoryAndKnowledge(journalEntries)
@@ -600,25 +647,37 @@ function buildJournalPrimarySnapshot(now: Date, journalEntries: ReturnType<typeo
   const decisions = buildJournalDecisionLines(journalEntries)
   const reportsCreated = buildJournalReportLines(journalEntries)
 
-  const nextStep = pickJournalNextStep({
-    remainingQueue,
+  const journalNextStep = pickJournalNextStep({
+    remainingQueue: unfinishedTasks.length > 0 ? unfinishedTasks : remainingQueue,
     needsOwnerApproval,
     cursorTasks,
     entries: journalEntries,
   })
 
+  const nextStep = operatingDaySummary
+    ? pickOperatingDayNextStep(operatingDaySummary, unfinishedTasks, journalNextStep)
+    : journalNextStep
+
   return {
     generatedAt: now.toISOString(),
-    dateKey: dateKeyFrom(now),
-    periodLabel: `Ночная смена · ${dateKeyFrom(now)}`,
+    dateKey,
+    periodLabel: `Ночная смена · ${dateKey}`,
     employeeLabel: 'MAX · Digital Employee',
-    dataSource: 'journal',
+    dataSource: operatingDaySummaryUsed ? 'journal_operating_day' : 'journal',
     journalFallbackNote: null,
-    summary: buildJournalSummary(
-      journalEntries,
+    operatingDayState,
+    operatingDaySummaryUsed,
+    operatingDaySummary: operatingDaySummaryUsed && operatingDaySummary
+      ? buildOperatingDaySummaryText(operatingDaySummary)
+      : null,
+    operatingDayStatusNote,
+    summary: buildOperatingDayAwareJournalSummary(
+      journalEntries.length,
       workDurationMinutes,
       needsOwnerApproval.length,
-      remainingQueue.length,
+      operatingDaySummary,
+      unfinishedTasks.length,
+      blockedTasks.length,
     ),
     stats: {
       journalEntries: journalEntries.length,
@@ -629,7 +688,7 @@ function buildJournalPrimarySnapshot(now: Date, journalEntries: ReturnType<typeo
       cursorTasksPending: cursorTasks.length,
       memoryDrafts: memory.length,
       knowledgeCandidates: knowledge.length,
-      remainingQueueCount: remainingQueue.length,
+      remainingQueueCount: unfinishedTasks.length + blockedTasks.length,
     },
     whatMaxDid: buildJournalWhatMaxDidLines(journalEntries),
     whatMaxChecked: toolsUsed,
@@ -645,6 +704,9 @@ function buildJournalPrimarySnapshot(now: Date, journalEntries: ReturnType<typeo
     knowledgeCandidates: knowledge,
     cursorTasks,
     remainingQueue,
+    employeeRecommendations,
+    unfinishedTasks,
+    blockedTasks,
     nextStep,
   }
 }

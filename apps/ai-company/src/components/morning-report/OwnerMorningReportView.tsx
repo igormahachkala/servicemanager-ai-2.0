@@ -75,9 +75,16 @@ export function OwnerMorningReportView({ snapshot }: Props) {
 
   const doneItems = [...snapshot.whatMaxDid, ...snapshot.completedTasks]
   const discoveredItems =
-    snapshot.dataSource === 'journal'
+    snapshot.dataSource === 'journal' || snapshot.dataSource === 'journal_operating_day'
       ? [...snapshot.decisions]
       : [...snapshot.whatMaxChecked, ...snapshot.whatDiscovered]
+
+  const sourceLabel =
+    snapshot.dataSource === 'journal_operating_day'
+      ? mr.sourceOperatingDay
+      : snapshot.dataSource === 'journal'
+        ? mr.sourceJournal
+        : mr.sourceRuntimeFallback
 
   return (
     <div className="acMorningReport">
@@ -88,9 +95,12 @@ export function OwnerMorningReportView({ snapshot }: Props) {
           <p className="acMorningReportEmployee">{snapshot.employeeLabel}</p>
           <p className="acMorningReportPeriod">{snapshot.periodLabel}</p>
           <p className="acMorningReportSummary">{snapshot.summary}</p>
-          <p className="acMorningReportSourceBadge">
-            {snapshot.dataSource === 'journal' ? mr.sourceJournal : mr.sourceRuntimeFallback}
-          </p>
+          <div className="acMorningReportHeroBadges">
+            <span className={`acMorningReportOperatingDayBadge acMorningReportOperatingDayBadge--${snapshot.operatingDayState}`}>
+              {mr.operatingDayState[snapshot.operatingDayState]}
+            </span>
+            <p className="acMorningReportSourceBadge">{sourceLabel}</p>
+          </div>
         </div>
         <div className="acMorningReportHeroMeta">
           <span className="acMorningReportMetaLabel">{mr.generatedAt}</span>
@@ -102,6 +112,22 @@ export function OwnerMorningReportView({ snapshot }: Props) {
         <p className="acMorningReportFallbackNote" role="status">
           {snapshot.journalFallbackNote}
         </p>
+      ) : null}
+
+      {snapshot.operatingDayStatusNote ? (
+        <p className="acMorningReportFallbackNote acMorningReportOperatingDayNote" role="status">
+          {snapshot.operatingDayStatusNote}
+        </p>
+      ) : null}
+
+      {snapshot.operatingDaySummary ? (
+        <section className="acMorningReportSection acMorningReportSection--highlight">
+          <header className="acMorningReportSectionHeader">
+            <h2 className="acMorningReportSectionTitle">{mr.sections.operatingDaySummary}</h2>
+            <p className="acMorningReportSectionSubtitle">{mr.sections.operatingDaySummaryHint}</p>
+          </header>
+          <p className="acMorningReportOperatingDaySummaryText">{snapshot.operatingDaySummary}</p>
+        </section>
       ) : null}
 
       <div className="acMorningReportStats" aria-label={mr.statsAria}>
@@ -202,6 +228,30 @@ export function OwnerMorningReportView({ snapshot }: Props) {
           subtitle={mr.sections.needsOwnerHint}
           items={snapshot.needsOwnerApproval}
           emptyText={mr.empty.needsOwner}
+          variant="attention"
+        />
+
+        {snapshot.employeeRecommendations.length > 0 ? (
+          <ReportSection
+            title={mr.sections.employeeRecommendations}
+            subtitle={mr.sections.employeeRecommendationsHint}
+            items={snapshot.employeeRecommendations}
+            emptyText={mr.empty.employeeRecommendations}
+          />
+        ) : null}
+
+        <ReportSection
+          title={mr.sections.unfinishedTasks}
+          subtitle={mr.sections.unfinishedTasksHint}
+          items={snapshot.unfinishedTasks}
+          emptyText={mr.empty.unfinishedTasks}
+        />
+
+        <ReportSection
+          title={mr.sections.blockedTasks}
+          subtitle={mr.sections.blockedTasksHint}
+          items={snapshot.blockedTasks}
+          emptyText={mr.empty.blockedTasks}
           variant="attention"
         />
 

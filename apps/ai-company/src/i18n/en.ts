@@ -885,9 +885,15 @@ export const en = {
     statsAria: 'Overnight shift summary',
     openNextStep: 'Take action',
     sourceJournal: 'Source: Employee Daily Journal',
+    sourceOperatingDay: 'Source: Daily Journal + Operating Day Summary',
     sourceRuntimeFallback: 'Source: Runtime fallback',
     localNote:
-      'Primary: Employee Daily Journal. Fallback: Worker Loop / Runtime / Cursor Automation / Work Queue.',
+      'Primary: Employee Daily Journal + Operating Day Summary (on workday finish). Fallback: Worker Loop / Runtime / Cursor Automation / Work Queue.',
+    operatingDayState: {
+      finished: 'Workday finished',
+      in_progress: 'Workday in progress',
+      not_started: 'Workday not started',
+    },
     stats: {
       journalEntries: 'Journal entries',
       workDurationMinutes: 'Work minutes',
@@ -920,7 +926,15 @@ export const en = {
       cursorTasks: 'Cursor tasks',
       cursorTasksHint: 'Handoffs ready to submit, submitted tasks, and pending results.',
       nextStep: 'Recommended next step',
-      nextStepHint: 'Next queue item, approval, or follow-up after Journal.',
+      nextStepHint: 'Next queue item, approval, Operating Day recommendation, or follow-up after Journal.',
+      operatingDaySummary: 'Operating day summary',
+      operatingDaySummaryHint: 'End-of-day recap from Operating Day Summary after workday finish.',
+      employeeRecommendations: 'Employee recommendations',
+      employeeRecommendationsHint: 'Next-day recommendations from Operating Day Summary.',
+      unfinishedTasks: 'Unfinished tasks',
+      unfinishedTasksHint: 'Pending / scheduled items from Work Queue or Operating Day Summary.',
+      blockedTasks: 'Blocked tasks',
+      blockedTasksHint: 'Blocked queue items and difficulties from Operating Day Summary.',
     },
     empty: {
       whatDone: 'No completed MAX tasks in this window — run Worker Loop.',
@@ -935,6 +949,9 @@ export const en = {
       remainingQueue: 'Work Queue is empty.',
       cursorTasks: 'No Cursor tasks in queue.',
       nextStep: 'Next step not determined.',
+      employeeRecommendations: 'No employee recommendations yet — finish the workday to generate Operating Day Summary.',
+      unfinishedTasks: 'No unfinished tasks in Work Queue.',
+      blockedTasks: 'No blocked tasks.',
     },
   },
   visualLab: {

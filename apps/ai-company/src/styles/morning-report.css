@@ -291,3 +291,51 @@
 .acMorningReportNextAction {
   display: inline-flex;
 }
+
+.acMorningReportHeroBadges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--ac-space-2);
+  margin-top: var(--ac-space-2);
+}
+
+.acMorningReportOperatingDayBadge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.acMorningReportOperatingDayBadge--finished {
+  background: color-mix(in srgb, var(--ac-success) 18%, transparent);
+  color: var(--ac-success);
+}
+
+.acMorningReportOperatingDayBadge--in_progress {
+  background: color-mix(in srgb, var(--ac-warning) 18%, transparent);
+  color: var(--ac-warning);
+}
+
+.acMorningReportOperatingDayBadge--not_started {
+  background: var(--ac-bg-subtle);
+  color: var(--ac-text-muted);
+}
+
+.acMorningReportOperatingDayNote {
+  border-left: 3px solid var(--ac-warning);
+}
+
+.acMorningReportSection--highlight {
+  border-color: color-mix(in srgb, var(--ac-accent) 35%, var(--ac-border));
+}
+
+.acMorningReportOperatingDaySummaryText {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.55;
+}
