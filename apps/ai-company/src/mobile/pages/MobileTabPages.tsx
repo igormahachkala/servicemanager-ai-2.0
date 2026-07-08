@@ -1,15 +1,10 @@
 import { Link } from 'react-router-dom'
 import { ThemeSwitch } from '../../components/theme/ThemeSwitch'
+import { MAX_WORKER_EMPLOYEE_ID } from '../../domain/maxWorkerLoop'
 import { useI18n } from '../../i18n'
 import { MobileCard } from '../components/MobileCard'
 import { MobileEmptyState } from '../components/MobileEmptyState'
 import { MobileLoadingSkeleton } from '../components/MobileLoadingSkeleton'
-import { MobileSection } from '../components/MobileSection'
-
-import { Link } from 'react-router-dom'
-import { MAX_WORKER_EMPLOYEE_ID } from '../../domain/maxWorkerLoop'
-import { useI18n } from '../../i18n'
-import { MobileCard } from '../components/MobileCard'
 import { MobileSection } from '../components/MobileSection'
 
 export function MobileEmployeesPage() {

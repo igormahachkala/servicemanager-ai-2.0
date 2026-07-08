@@ -131,6 +131,7 @@ export const mobileEn = {
     },
   },
   maxControl: {
+    pageTitle: 'MAX',
     readyBanner: 'MAX is ready for first launch — start the workday or assign the first task.',
     activeBanner: 'MAX has prior activity — continue the queue or review the latest result.',
     sections: {
@@ -185,6 +186,11 @@ export const mobileEn = {
       templateHint: 'Add a task to MAX queue to verify the flow.',
       mobileFormPlaceholder: 'Mobile assign (soon)',
       mobileFormHint: 'Dedicated mobile form coming in a future release.',
+    },
+    employeesList: {
+      maxTitle: 'MAX',
+      maxDescription: 'First digital employee — mobile control.',
+      openMax: 'Open MAX',
     },
   },
 }

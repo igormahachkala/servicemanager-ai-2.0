@@ -131,6 +131,7 @@ export const mobileRu = {
     },
   },
   maxControl: {
+    pageTitle: 'MAX',
     readyBanner: 'MAX готов к первому запуску — начните с рабочего дня или первой задачи.',
     activeBanner: 'MAX уже работал — продолжайте очередь или проверьте последний результат.',
     sections: {
@@ -185,6 +186,11 @@ export const mobileRu = {
       templateHint: 'Добавить задачу в очередь MAX для проверки flow.',
       mobileFormPlaceholder: 'Mobile assign (скоро)',
       mobileFormHint: 'Отдельная mobile-форма появится в следующем релизе.',
+    },
+    employeesList: {
+      maxTitle: 'MAX',
+      maxDescription: 'Первый цифровой сотрудник — управление с телефона.',
+      openMax: 'Открыть MAX',
     },
   },
 }
