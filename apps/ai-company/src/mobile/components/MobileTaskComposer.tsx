@@ -7,6 +7,8 @@ const PRIORITIES: WorkPriority[] = ['low', 'medium', 'high', 'critical']
 type MobileTaskComposerProps = {
   form: MobileRunTaskFormState
   validationError: string | null
+  submitError: string | null
+  isValid: boolean
   onChange: (patch: Partial<MobileRunTaskFormState>) => void
   onSubmit: () => void
 }
@@ -14,12 +16,19 @@ type MobileTaskComposerProps = {
 export function MobileTaskComposer({
   form,
   validationError,
+  submitError,
+  isValid,
   onChange,
   onSubmit,
 }: MobileTaskComposerProps) {
   const { t } = useI18n()
   const copy = t.mobile.runTask.form
+  const validation = t.mobile.runTask.validation
   const priorityLabels = t.mobile.runTask.priorities
+
+  const inlineValidation =
+    validationError ??
+    (!isValid && !form.taskText.trim() ? validation.emptyTaskText : null)
 
   return (
     <form
@@ -28,6 +37,7 @@ export function MobileTaskComposer({
         event.preventDefault()
         onSubmit()
       }}
+      noValidate
     >
       <label className="acMobileField">
         <span className="acMobileFieldLabel">{copy.title}</span>
@@ -36,6 +46,7 @@ export function MobileTaskComposer({
           className="acMobileFieldInput"
           value={form.title}
           placeholder={copy.titlePlaceholder}
+          aria-invalid={Boolean(validationError)}
           onChange={(event) => onChange({ title: event.target.value })}
         />
       </label>
@@ -47,16 +58,23 @@ export function MobileTaskComposer({
           value={form.taskText}
           placeholder={copy.taskTextPlaceholder}
           rows={6}
-          required
-          aria-invalid={Boolean(validationError)}
-          aria-describedby={validationError ? 'mobile-run-task-error' : undefined}
+          aria-invalid={Boolean(inlineValidation)}
+          aria-describedby={
+            inlineValidation || submitError ? 'mobile-run-task-error' : undefined
+          }
           onChange={(event) => onChange({ taskText: event.target.value })}
         />
       </label>
 
-      {validationError ? (
+      {inlineValidation ? (
         <p id="mobile-run-task-error" className="acMobileFieldError" role="alert">
-          {validationError}
+          {inlineValidation}
+        </p>
+      ) : null}
+
+      {submitError ? (
+        <p className="acMobileFieldError" role="alert">
+          {submitError}
         </p>
       ) : null}
 
@@ -86,7 +104,11 @@ export function MobileTaskComposer({
         />
       </label>
 
-      <button type="submit" className="acMobilePrimaryBtn acMobileTaskComposerSubmit">
+      <button
+        type="submit"
+        className="acMobilePrimaryBtn acMobileTaskComposerSubmit"
+        disabled={!isValid}
+      >
         {copy.submit}
       </button>
 

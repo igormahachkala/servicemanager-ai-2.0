@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import type { EmployeeDailyJournalEntry } from '../../domain/employeeDailyJournal'
 import type { EmployeeOperatingDaySummary } from '../../domain/operatingDaySummary'
 import { useI18n } from '../../i18n'
+import { MOBILE_PATHS, resolveMobileHref } from '../navigation/mobileHrefResolver'
 import { MobileCard } from './MobileCard'
 import { MobileEmptyState } from './MobileEmptyState'
 
@@ -117,11 +118,11 @@ export function MobileLastResultCard({
 
       <div className="acMobileCardActions">
         {reportHref ? (
-          <Link to={reportHref} className="acMobileLinkBtn">
+          <Link to={resolveMobileHref(reportHref)} className="acMobileLinkBtn">
             {copy.openReport}
           </Link>
         ) : null}
-        <Link to="/ops/morning-report" className="acMobileLinkBtn">
+        <Link to={MOBILE_PATHS.morningReport} className="acMobileLinkBtn">
           {copy.openMorningReport}
         </Link>
       </div>

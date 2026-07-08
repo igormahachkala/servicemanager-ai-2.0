@@ -216,6 +216,8 @@
 .acMobileBottomNavLinkActive {
   color: var(--theme-accent);
   background: var(--theme-accent-dim);
+  font-weight: 650;
+  box-shadow: inset 0 -2px 0 var(--theme-accent);
 }
 
 .acMobileBottomNavIcon {
@@ -263,7 +265,7 @@
   border: none;
   border-radius: var(--mobile-radius-pill);
   background: var(--theme-accent);
-  color: var(--theme-bg-elevated);
+  color: var(--theme-accent-contrast, #fff);
   box-shadow: var(--theme-shadow-md);
   cursor: pointer;
   font-size: 0.875rem;
@@ -474,15 +476,19 @@
 }
 
 .acMobileEmptyStateAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   margin-top: var(--mobile-spacing-lg);
   min-height: var(--mobile-touch-target);
   padding: 0 var(--mobile-spacing-xl);
   border: none;
   border-radius: var(--mobile-radius-md);
   background: var(--theme-accent);
-  color: var(--theme-bg-elevated);
+  color: var(--theme-accent-contrast, #fff);
   font-size: 0.875rem;
   font-weight: 600;
+  text-decoration: none;
   cursor: pointer;
 }
 
@@ -1530,6 +1536,16 @@
   width: 100%;
 }
 
+.acMobileTaskComposerSubmit:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.acMobileMaxQueueAssignLink {
+  text-decoration: none;
+  text-align: center;
+}
+
 .acMobileTaskComposerNote {
   margin: 0;
   font-size: 0.75rem;
@@ -2343,5 +2359,112 @@
   display: flex;
   flex-direction: column;
   gap: var(--mobile-spacing-sm);
+}
+
+/* Mobile shell navigation (107H-3) */
+.acMobileMoreLinks {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mobile-spacing-sm);
+}
+
+.acMobileMoreLink {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mobile-spacing-md);
+  min-height: var(--mobile-touch-target);
+  padding: var(--mobile-spacing-md) var(--mobile-spacing-lg);
+  border: 1px solid var(--theme-border);
+  border-radius: var(--mobile-radius-md);
+  background: var(--theme-surface);
+  color: var(--theme-text);
+  text-decoration: none;
+}
+
+.acMobileMoreLink:hover {
+  background: var(--theme-surface-hover);
+  border-color: var(--theme-border-strong);
+}
+
+.acMobileMoreLink:focus-visible {
+  outline: none;
+  box-shadow: var(--theme-focus-ring);
+}
+
+.acMobileMoreLinkText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.acMobileMoreLinkTitle {
+  font-size: 0.9375rem;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.acMobileMoreLinkDescription {
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--theme-text-muted);
+}
+
+.acMobileMoreLinkChevron {
+  flex-shrink: 0;
+  font-size: 1.25rem;
+  line-height: 1;
+  color: var(--theme-text-muted);
+}
+
+.acMobileSheetClose {
+  min-height: var(--mobile-touch-target);
+  padding: 0 var(--mobile-spacing-md);
+  border: 1px solid var(--theme-border);
+  border-radius: var(--mobile-radius-md);
+  background: var(--theme-surface);
+  color: var(--theme-text);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.acMobileSheetClose:hover {
+  background: var(--theme-surface-hover);
+}
+
+.acMobileActionSheetItem:focus-visible {
+  outline: none;
+  box-shadow: var(--theme-focus-ring);
+}
+
+.acMobileActionSheetItem:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.acMobileMaxHeroActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mobile-spacing-sm);
+  margin-top: var(--mobile-spacing-md);
+}
+
+.acMobileMaxHeroActions .acMobilePrimaryBtn,
+.acMobileMaxHeroActions .acMobileLinkBtn {
+  flex: 1 1 auto;
+}
+
+.acMobileTasksNewBtn {
+  margin-bottom: var(--mobile-spacing-lg);
+}
+
+.acMobilePrimaryBtn {
+  color: var(--theme-accent-contrast, #fff);
+}
+
+.acMobilePrimaryBtn:hover:not(:disabled) {
+  color: var(--theme-accent-contrast, #fff);
 }
 

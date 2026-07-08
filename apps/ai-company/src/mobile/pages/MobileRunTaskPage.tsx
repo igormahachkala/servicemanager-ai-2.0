@@ -19,13 +19,13 @@ export function MobileRunTaskPage() {
     applyTemplate,
     submit,
     resetForm,
-    startWorkday,
     validationError,
+    submitError,
     createdItem,
     isMaxEmployee,
+    isFormValid,
+    maxEmployeeHref,
   } = useMobileRunTask()
-
-  const employeeHref = `/mobile/employees/${encodeURIComponent(form.employeeId)}`
 
   if (createdItem) {
     return (
@@ -48,33 +48,13 @@ export function MobileRunTaskPage() {
         <p className="acMobileRunTaskSuccessTask">{createdItem.title}</p>
 
         <div className="acMobileRunTaskSuccessActions">
-          <Link to={employeeHref} className="acMobilePrimaryBtn acMobileRunTaskSuccessBtn">
-            {copy.success.openEmployee}
-          </Link>
-          <Link to={employeeHref} className="acMobileSecondaryBtn acMobileRunTaskSuccessBtn">
-            {copy.success.openQueue}
+          <Link to={maxEmployeeHref} className="acMobilePrimaryBtn acMobileRunTaskSuccessBtn">
+            {isMaxEmployee ? copy.success.openMax : copy.success.openEmployee}
           </Link>
           <button type="button" className="acMobileSecondaryBtn acMobileRunTaskSuccessBtn" onClick={resetForm}>
             {copy.success.addAnother}
           </button>
         </div>
-
-        {isMaxEmployee ? (
-          <div className="acMobileRunTaskMaxActions">
-            <p className="acMobileRunTaskMaxActionsLabel">{copy.success.maxHint}</p>
-            <div className="acMobileRunTaskMaxActionsGrid">
-              <Link to={employeeHref} className="acMobileLinkBtn">
-                {copy.success.openMax}
-              </Link>
-              <button type="button" className="acMobileLinkBtn" onClick={startWorkday}>
-                {copy.success.startWorkday}
-              </button>
-              <Link to={employeeHref} className="acMobileLinkBtn">
-                {copy.success.runNext}
-              </Link>
-            </div>
-          </div>
-        ) : null}
       </div>
     )
   }
@@ -108,8 +88,16 @@ export function MobileRunTaskPage() {
         <MobileTaskComposer
           form={form}
           validationError={validationError}
+          submitError={submitError}
+          isValid={isFormValid}
           onChange={patchForm}
-          onSubmit={() => submit(copy.validation.emptyTaskText)}
+          onSubmit={() =>
+            submit({
+              emptyTaskText: copy.validation.emptyTaskText,
+              emptyTitle: copy.validation.emptyTitle,
+              persistFailed: copy.validation.persistFailed,
+            })
+          }
         />
       </MobileSection>
 

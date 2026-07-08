@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { useI18n } from '../../i18n'
 
 export type MobileEmptyStateVariant =
@@ -9,12 +10,19 @@ export type MobileEmptyStateVariant =
 type MobileEmptyStateProps = {
   variant: MobileEmptyStateVariant
   actionLabel?: string
+  actionHref?: string
   onAction?: () => void
 }
 
-export function MobileEmptyState({ variant, actionLabel, onAction }: MobileEmptyStateProps) {
+export function MobileEmptyState({
+  variant,
+  actionLabel,
+  actionHref,
+  onAction,
+}: MobileEmptyStateProps) {
   const { t } = useI18n()
   const copy = t.mobile.empty[variant]
+  const label = actionLabel ?? copy.action
 
   return (
     <div className="acMobileEmptyState">
@@ -23,9 +31,13 @@ export function MobileEmptyState({ variant, actionLabel, onAction }: MobileEmpty
       </div>
       <h3 className="acMobileEmptyStateTitle">{copy.title}</h3>
       <p className="acMobileEmptyStateDescription">{copy.description}</p>
-      {onAction ? (
+      {actionHref ? (
+        <Link to={actionHref} className="acMobileEmptyStateAction">
+          {label}
+        </Link>
+      ) : onAction ? (
         <button type="button" className="acMobileEmptyStateAction" onClick={onAction}>
-          {actionLabel ?? copy.action}
+          {label}
         </button>
       ) : null}
     </div>

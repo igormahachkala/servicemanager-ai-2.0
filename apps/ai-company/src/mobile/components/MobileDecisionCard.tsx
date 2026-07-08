@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { MAX_WORKER_EMPLOYEE_ID } from '../../domain/maxWorkerLoop'
 import type { MobileOwnerDecisionItem } from '../../domain/mobileOwnerDecisions'
 import { useI18n } from '../../i18n'
+import { MOBILE_PATHS, resolveMobileHref } from '../navigation/mobileHrefResolver'
 
 type Props = {
   item: MobileOwnerDecisionItem
@@ -80,7 +81,7 @@ export function MobileDecisionCard({ item, onApprove, onReject }: Props) {
             {copy.actions.approve}
           </button>
         ) : (
-          <Link to={item.href} className="acMobileLinkBtn">
+          <Link to={resolveMobileHref(item.href)} className="acMobileLinkBtn">
             {copy.actions.openDetails}
           </Link>
         )}
@@ -90,7 +91,7 @@ export function MobileDecisionCard({ item, onApprove, onReject }: Props) {
           </button>
         ) : item.employeeId === MAX_WORKER_EMPLOYEE_ID ? (
           <Link
-            to={`/mobile/employees/${MAX_WORKER_EMPLOYEE_ID}`}
+            to={MOBILE_PATHS.max}
             className="acMobileSecondaryLinkBtn"
           >
             {copy.actions.openMaxMobile}

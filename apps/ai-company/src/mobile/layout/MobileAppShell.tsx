@@ -72,7 +72,7 @@ function MobileAppShellInner({
             label: t.mobile.assignTaskSheet.morningReport,
             onSelect: () => {
               closeSheet()
-              navigate('/mobile/reports')
+              navigate('/mobile/reports/morning-report')
             },
           },
         ]}

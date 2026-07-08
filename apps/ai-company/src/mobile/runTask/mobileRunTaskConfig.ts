@@ -95,6 +95,10 @@ export const MOBILE_TASK_TEMPLATES: MobileTaskTemplate[] = [
   },
 ]
 
+export function isMobileTaskTemplateId(value: string): value is MobileTaskTemplateId {
+  return MOBILE_TASK_TEMPLATES.some((item) => item.id === value)
+}
+
 export function findMobileRunTaskEmployee(id: string): MobileRunTaskEmployeeOption | undefined {
   return MOBILE_RUN_TASK_EMPLOYEES.find((item) => item.id === id)
 }
@@ -113,4 +117,8 @@ export function deriveTaskTitle(taskText: string, explicitTitle?: string): strin
 
 export function isEnabledMobileRunTaskEmployee(id: string): boolean {
   return findMobileRunTaskEmployee(id)?.enabled === true
+}
+
+export function isMobileRunTaskFormValid(title: string, taskText: string): boolean {
+  return taskText.trim().length > 0 && deriveTaskTitle(taskText, title).trim().length > 0
 }

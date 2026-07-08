@@ -69,6 +69,18 @@ export const mobileEn = {
     theme: 'Theme',
     desktop: 'Desktop version',
     settings: 'Settings',
+    sectionHint: 'Reports, MAX, and desktop — without leaving the mobile shell.',
+    navAria: 'Additional sections',
+    links: {
+      reports: 'Reports',
+      reportsHint: 'Morning report, runtime reports, day summaries.',
+      morningReport: 'Morning report',
+      morningReportHint: 'Owner morning report on mobile.',
+      max: 'MAX',
+      maxHint: 'First employee control and work queue.',
+      desktop: 'Desktop version',
+      desktopHint: 'Command Center and full ops UI.',
+    },
   },
   loading: {
     ariaLabel: 'Loading',
@@ -110,7 +122,7 @@ export const mobileEn = {
       continue_max: {
         title: 'Continue MAX work',
         description: 'MAX queue has tasks — continue execution.',
-        cta: 'Open MAX workspace',
+        cta: 'Open MAX',
       },
       launch_first: {
         title: 'Launch first employee',
@@ -145,7 +157,8 @@ export const mobileEn = {
       roleFallback: 'Senior Engineer',
       presenceUnknown: 'Status unknown',
       currentTask: 'Current task',
-      openDesktopWorkspace: 'Desktop workspace',
+      assignTask: 'Assign task',
+      openDesktopWorkspace: 'Desktop overview',
     },
     workday: {
       title: 'MAX workday',
@@ -155,10 +168,9 @@ export const mobileEn = {
     },
     workQueue: {
       title: 'MAX queue',
-      addTestTask: 'Add test task',
+      assignTask: 'Assign task',
       runNext: 'Run next',
       running: 'Running…',
-      openFullQueue: 'Full queue',
     },
     lastResult: {
       title: 'Last result',
@@ -177,15 +189,13 @@ export const mobileEn = {
     },
     quickTask: {
       title: 'Assign task',
-      description: 'Delegate new work to MAX via Run Task or template.',
+      description: 'Delegate new work to MAX via mobile Run Task.',
       button: 'Assign task to MAX',
-      morningReport: 'Morning report',
+      morningReport: 'Reports',
       runTask: 'Run Task',
-      runTaskHint: 'Full Run Task form on desktop.',
-      useTemplate: 'Test task',
-      templateHint: 'Add a task to MAX queue to verify the flow.',
-      mobileFormPlaceholder: 'Mobile assign (soon)',
-      mobileFormHint: 'Dedicated mobile form coming in a future release.',
+      runTaskHint: 'Open the mobile task assignment form.',
+      useTemplate: 'Review UI template',
+      templateHint: 'Prefills Run Task — edit before submitting.',
     },
     employeesList: {
       maxTitle: 'MAX',
@@ -317,13 +327,16 @@ export const mobileEn = {
     },
     validation: {
       emptyTaskText: 'Describe the task — the task field cannot be empty.',
+      emptyTitle: 'Enter a title or describe the task.',
+      employeeDisabled: 'This employee is not available for task assignment yet.',
+      persistFailed: 'Could not save the task to the queue. Check localStorage and try again.',
     },
     success: {
       title: 'Task added to employee queue',
       description: 'Task saved locally. Runtime and Worker Loop were not started automatically.',
       openEmployee: 'Open employee',
       openQueue: 'Open queue',
-      addAnother: 'Add another task',
+      addAnother: 'Add another',
       maxHint: 'Next steps for MAX:',
       openMax: 'Open MAX',
       startWorkday: 'Start workday',

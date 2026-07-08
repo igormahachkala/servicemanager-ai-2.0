@@ -1,3 +1,7 @@
+export {
+  MOBILE_PATHS,
+  resolveMobileHref,
+} from './mobileHrefResolver'
 export { MobileBottomNavigation } from './MobileBottomNavigation'
 export {
   MOBILE_NAV_BASE,

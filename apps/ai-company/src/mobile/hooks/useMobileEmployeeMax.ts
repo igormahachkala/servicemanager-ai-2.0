@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { listEmployeeDailyJournalEntries, type EmployeeDailyJournalEntry } from '../../domain/employeeDailyJournal'
 import { getEmployeeBrainByEmployeeId } from '../../domain/employeeBrain/employeeBrainStorage'
 import {
@@ -13,10 +14,7 @@ import {
   buildMaxWorkspaceWorkQueueView,
   type MaxWorkspaceWorkQueueView,
 } from '../../domain/maxWorkspace/maxWorkspaceWorkQueueViewModel'
-import {
-  runMaxEmployeeWorkQueueNextItem,
-  seedMaxEmployeeTestWorkItem,
-} from '../../domain/maxWorkspace/maxWorkspaceWorkQueueRunner'
+import { runMaxEmployeeWorkQueueNextItem } from '../../domain/maxWorkspace/maxWorkspaceWorkQueueRunner'
 import { MAX_WORKER_EMPLOYEE_ID } from '../../domain/maxWorkerLoop'
 import {
   loadEmployeeOperatingDaySummaries,
@@ -27,8 +25,11 @@ import { getModelById, getRuntimeProfileByEmployeeId } from '../../domain/runtim
 import { getTodayDateKey } from '../../domain/workday'
 import { resolveEmployee, type EmployeeRef } from '../../mission-control/data/conversation'
 import { EMPLOYEE_DAILY_JOURNAL_SYNC_EVENT } from '../../domain/employeeDailyJournal/employeeDailyJournalStorage'
+import {
+  EMPLOYEE_WORK_QUEUE_STORAGE_KEY,
+  EMPLOYEE_WORK_QUEUE_SYNC_EVENT,
+} from '../../domain/employeeWorkQueue'
 import { EMPLOYEE_OPERATING_DAY_SYNC_EVENT } from '../../domain/employeeOperatingDay/employeeOperatingDayEngine'
-import { EMPLOYEE_WORK_QUEUE_SYNC_EVENT } from '../../domain/employeeWorkQueue'
 import { EMPLOYEE_OPERATING_DAY_SUMMARY_SYNC_EVENT } from '../../domain/operatingDaySummary/operatingDaySummaryStorage'
 import { CHANGE_EVENT } from '../../domain/workday/workdayStorage'
 import { MAX_WORKER_LOOP_SYNC_EVENT } from '../../hooks/useMaxWorkerLoop'
@@ -74,12 +75,17 @@ function buildSnapshot(): MobileEmployeeMaxSnapshot {
 }
 
 export function useMobileEmployeeMax() {
+  const { pathname } = useLocation()
   const [tick, setTick] = useState(0)
   const [isRunning, setIsRunning] = useState(false)
 
   const refresh = useCallback(() => {
     setTick((value) => value + 1)
   }, [])
+
+  useEffect(() => {
+    refresh()
+  }, [pathname, refresh])
 
   useEffect(() => {
     const onChange = () => refresh()
@@ -90,6 +96,8 @@ export function useMobileEmployeeMax() {
     window.addEventListener(MAX_WORKER_LOOP_SYNC_EVENT, onChange)
     window.addEventListener(CHANGE_EVENT, onChange)
     window.addEventListener('ai-company-presence-sync', onChange)
+    window.addEventListener('focus', onChange)
+    window.addEventListener('visibilitychange', onChange)
     return () => {
       window.removeEventListener(EMPLOYEE_WORK_QUEUE_SYNC_EVENT, onChange)
       window.removeEventListener(EMPLOYEE_DAILY_JOURNAL_SYNC_EVENT, onChange)
@@ -98,7 +106,19 @@ export function useMobileEmployeeMax() {
       window.removeEventListener(MAX_WORKER_LOOP_SYNC_EVENT, onChange)
       window.removeEventListener(CHANGE_EVENT, onChange)
       window.removeEventListener('ai-company-presence-sync', onChange)
+      window.removeEventListener('focus', onChange)
+      window.removeEventListener('visibilitychange', onChange)
     }
+  }, [refresh])
+
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === EMPLOYEE_WORK_QUEUE_STORAGE_KEY || event.key === null) {
+        refresh()
+      }
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
   }, [refresh])
 
   const snapshot = useMemo(() => {
@@ -121,11 +141,6 @@ export function useMobileEmployeeMax() {
     refresh()
   }, [refresh])
 
-  const addTestTask = useCallback(() => {
-    seedMaxEmployeeTestWorkItem()
-    refresh()
-  }, [refresh])
-
   const runNext = useCallback(async () => {
     setIsRunning(true)
     try {
@@ -142,7 +157,6 @@ export function useMobileEmployeeMax() {
     startWorkday,
     continueWorkday,
     finishWorkday,
-    addTestTask,
     runNext,
     refresh,
   }

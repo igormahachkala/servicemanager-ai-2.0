@@ -3,6 +3,7 @@ import { EMPLOYEE_DAILY_JOURNAL_SYNC_EVENT } from '../../domain/employeeDailyJou
 import { EMPLOYEE_WORK_QUEUE_SYNC_EVENT, loadEmployeeWorkItems } from '../../domain/employeeWorkQueue'
 import { buildFirstEmployeeFlowStatus } from '../../domain/firstEmployeeFlow'
 import { MAX_WORKER_EMPLOYEE_ID } from '../../domain/maxWorkerLoop'
+import { MOBILE_PATHS, resolveMobileHref } from '../navigation/mobileHrefResolver'
 import {
   buildOwnerHomeSnapshot,
   type OwnerHomeCompletedTask,
@@ -16,7 +17,6 @@ import { MAX_WORKER_LOOP_SYNC_EVENT } from '../../hooks/useMaxWorkerLoop'
 import { useI18n } from '../../i18n'
 
 const APPROVAL_SYNC_EVENT = 'ai-company-approval-sync'
-const MAX_ID = encodeURIComponent(MAX_WORKER_EMPLOYEE_ID)
 
 export type MobileNextActionKind =
   | 'decision_required'
@@ -79,7 +79,7 @@ function resolveNextAction(
     )
     return {
       kind: 'decision_required',
-      href: first?.href ?? '/mobile/decisions',
+      href: resolveMobileHref(first?.href ?? MOBILE_PATHS.decisions),
     }
   }
 
@@ -90,27 +90,29 @@ function resolveNextAction(
     const withReport = snapshot.completedTasks.find((item) => item.reportHref)
     return {
       kind: 'view_results',
-      href: withReport?.reportHref ?? '#employee-results',
+      href: withReport?.reportHref
+        ? resolveMobileHref(withReport.reportHref)
+        : '#employee-results',
     }
   }
 
   if (hasMaxQueueWork()) {
     return {
       kind: 'continue_max',
-      href: `/ops/employees/${MAX_ID}/workspace`,
+      href: MOBILE_PATHS.max,
     }
   }
 
   if (!hasPriorActivity) {
     return {
       kind: 'launch_first',
-      href: `/mobile/tasks/new?employee=${MAX_ID}`,
+      href: MOBILE_PATHS.tasksNewMax,
     }
   }
 
   return {
     kind: 'launch_first',
-    href: `/mobile/tasks/new?employee=${MAX_ID}`,
+    href: MOBILE_PATHS.tasksNewMax,
   }
 }
 
@@ -124,22 +126,22 @@ function buildQuickActions(labels: {
     {
       id: 'assign-max',
       label: labels.assignMax,
-      href: `/mobile/tasks/new?employee=${MAX_ID}`,
+      href: MOBILE_PATHS.tasksNewMax,
     },
     {
       id: 'max-today',
       label: labels.maxToday,
-      href: `/ops/employees/${MAX_ID}/today`,
+      href: MOBILE_PATHS.max,
     },
     {
       id: 'morning-report',
       label: labels.morningReport,
-      href: '/mobile/reports',
+      href: MOBILE_PATHS.morningReport,
     },
     {
       id: 'decisions',
       label: labels.decisions,
-      href: '/mobile/decisions',
+      href: MOBILE_PATHS.decisions,
     },
   ]
 }

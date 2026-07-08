@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import type { MobileEmployeeRosterEntry } from '../hooks/useMobileEmployeesRoster'
 import { useI18n } from '../../i18n'
+import { MOBILE_PATHS } from '../navigation/mobileHrefResolver'
 
 type Props = {
   entry: MobileEmployeeRosterEntry
@@ -125,7 +126,7 @@ export function MobileEmployeeRosterCard({ entry }: Props) {
               {copy.actions.assignTask}
             </Link>
             <Link
-              to={`/ops/employees/${entry.employeeId}/today`}
+              to={MOBILE_PATHS.max}
               className="acMobileSecondaryBtn"
             >
               {copy.actions.today}

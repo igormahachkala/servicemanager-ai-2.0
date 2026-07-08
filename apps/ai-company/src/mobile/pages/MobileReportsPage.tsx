@@ -1,10 +1,10 @@
 import { Link } from 'react-router-dom'
-import { MAX_WORKER_EMPLOYEE_ID } from '../../domain/maxWorkerLoop'
 import { useI18n } from '../../i18n'
 import { MobileReportCard } from '../components/MobileReportCard'
 import { MobileReportSummaryCard } from '../components/MobileReportSummaryCard'
 import { useMobileReports } from '../hooks/useMobileReports'
 import { MOBILE_MORNING_REPORT_ID } from '../reports/mobileReportsSnapshot'
+import { MOBILE_PATHS } from '../navigation/mobileHrefResolver'
 
 export function MobileReportsPage() {
   const { t } = useI18n()
@@ -21,7 +21,7 @@ export function MobileReportsPage() {
           <h2 className="acMobileReportsEmptyTitle">{copy.empty.title}</h2>
           <p className="acMobileReportsEmptyDescription">{copy.empty.description}</p>
           <Link
-            to={`/mobile/tasks/new?employee=${MAX_WORKER_EMPLOYEE_ID}`}
+            to={MOBILE_PATHS.tasksNewMax}
             className="acMobilePrimaryBtn acMobileReportsEmptyCta"
           >
             {copy.empty.action}

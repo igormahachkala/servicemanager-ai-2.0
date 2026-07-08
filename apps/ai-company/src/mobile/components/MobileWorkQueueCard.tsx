@@ -1,27 +1,28 @@
 import { Link } from 'react-router-dom'
 import type { MaxWorkspaceWorkQueueView } from '../../domain/maxWorkspace/maxWorkspaceWorkQueueViewModel'
 import { useI18n } from '../../i18n'
+import { MOBILE_PATHS } from '../navigation/mobileHrefResolver'
 import { MobileCard } from './MobileCard'
 import { MobileEmptyState } from './MobileEmptyState'
 
 type Props = {
   workQueue: MaxWorkspaceWorkQueueView
   isRunning: boolean
-  onAddTestTask: () => void
   onRunNext: () => void
 }
 
-export function MobileWorkQueueCard({ workQueue, isRunning, onAddTestTask, onRunNext }: Props) {
+export function MobileWorkQueueCard({ workQueue, isRunning, onRunNext }: Props) {
   const { t } = useI18n()
   const wq = t.maxWorkspace.workQueue
   const copy = t.mobile.maxControl.workQueue
+  const runTaskHref = MOBILE_PATHS.tasksNewMax
 
   if (workQueue.isEmpty) {
     return (
       <MobileEmptyState
         variant="noTasks"
-        actionLabel={copy.addTestTask}
-        onAction={onAddTestTask}
+        actionLabel={copy.assignTask}
+        actionHref={runTaskHref}
       />
     )
   }
@@ -69,9 +70,9 @@ export function MobileWorkQueueCard({ workQueue, isRunning, onAddTestTask, onRun
       ) : null}
 
       <div className="acMobileCardActions">
-        <button type="button" className="acMobileSecondaryBtn" onClick={onAddTestTask}>
-          {copy.addTestTask}
-        </button>
+        <Link to={runTaskHref} className="acMobileSecondaryBtn">
+          {copy.assignTask}
+        </Link>
         <button
           type="button"
           className="acMobilePrimaryBtn"
@@ -80,12 +81,6 @@ export function MobileWorkQueueCard({ workQueue, isRunning, onAddTestTask, onRun
         >
           {isRunning ? copy.running : copy.runNext}
         </button>
-        <Link
-          to={`/ops/employees/${workQueue.employeeId}/workspace`}
-          className="acMobileLinkBtn"
-        >
-          {copy.openFullQueue}
-        </Link>
       </div>
     </MobileCard>
   )

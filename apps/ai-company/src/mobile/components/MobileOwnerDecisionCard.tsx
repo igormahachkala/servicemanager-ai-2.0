@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import type { OwnerHomeDecisionItem } from '../../domain/ownerHome'
 import { useI18n } from '../../i18n'
+import { resolveMobileHref } from '../navigation/mobileHrefResolver'
 
 type MobileOwnerDecisionCardProps = {
   item: OwnerHomeDecisionItem
@@ -39,7 +40,7 @@ export function MobileOwnerDecisionCard({ item }: MobileOwnerDecisionCardProps) 
       </div>
       <h3 className="acMobileOwnerDecisionTitle">{item.title}</h3>
       {item.detail ? <p className="acMobileOwnerDecisionDetail">{item.detail}</p> : null}
-      <Link to={item.href} className="acMobileLinkBtn">
+      <Link to={resolveMobileHref(item.href)} className="acMobileLinkBtn">
         {t.ownerHome.actions.review}
       </Link>
     </article>

@@ -12,7 +12,7 @@ export const MOBILE_NAV_BASE = '/mobile'
 export const MOBILE_NAV_ITEMS: MobileNavItem[] = [
   { id: 'today', labelKey: 'today', to: `${MOBILE_NAV_BASE}/today` },
   { id: 'employees', labelKey: 'employees', to: `${MOBILE_NAV_BASE}/employees` },
-  { id: 'tasks', labelKey: 'tasks', to: `${MOBILE_NAV_BASE}/tasks` },
+  { id: 'tasks', labelKey: 'tasks', to: `${MOBILE_NAV_BASE}/tasks/new` },
   { id: 'decisions', labelKey: 'decisions', to: `${MOBILE_NAV_BASE}/decisions` },
   { id: 'more', labelKey: 'more', to: `${MOBILE_NAV_BASE}/more` },
 ]
@@ -21,7 +21,12 @@ export function resolveMobileNavId(pathname: string): MobileNavId {
   if (pathname.startsWith(`${MOBILE_NAV_BASE}/employees`)) return 'employees'
   if (pathname.startsWith(`${MOBILE_NAV_BASE}/tasks`)) return 'tasks'
   if (pathname.startsWith(`${MOBILE_NAV_BASE}/decisions`)) return 'decisions'
-  if (pathname.startsWith(`${MOBILE_NAV_BASE}/more`)) return 'more'
+  if (
+    pathname.startsWith(`${MOBILE_NAV_BASE}/more`) ||
+    pathname.startsWith(`${MOBILE_NAV_BASE}/reports`)
+  ) {
+    return 'more'
+  }
   return 'today'
 }
 

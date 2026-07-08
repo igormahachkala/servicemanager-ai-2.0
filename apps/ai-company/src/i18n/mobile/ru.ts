@@ -69,6 +69,18 @@ export const mobileRu = {
     theme: 'Тема',
     desktop: 'Desktop версия',
     settings: 'Настройки',
+    sectionHint: 'Дополнительные разделы и переход в desktop.',
+    navAria: 'Дополнительные ссылки',
+    links: {
+      reports: 'Отчёты',
+      reportsHint: 'Runtime reports, итоги дня и journal.',
+      morningReport: 'Утренний отчёт',
+      morningReportHint: 'Owner Morning Report на сегодня.',
+      desktop: 'Desktop overview',
+      desktopHint: 'Полная версия Command Center на /ops.',
+      max: 'MAX',
+      maxHint: 'Mobile control первого сотрудника.',
+    },
   },
   loading: {
     ariaLabel: 'Загрузка',
@@ -110,7 +122,7 @@ export const mobileRu = {
       continue_max: {
         title: 'Продолжить работу MAX',
         description: 'В очереди MAX есть задачи — продолжите выполнение.',
-        cta: 'Открыть workspace MAX',
+        cta: 'Открыть MAX',
       },
       launch_first: {
         title: 'Запустить первого сотрудника',
@@ -145,7 +157,8 @@ export const mobileRu = {
       roleFallback: 'Senior Engineer',
       presenceUnknown: 'Статус неизвестен',
       currentTask: 'Текущая задача',
-      openDesktopWorkspace: 'Desktop workspace',
+      assignTask: 'Поставить задачу',
+      openDesktopWorkspace: 'Desktop overview',
     },
     workday: {
       title: 'Рабочий день MAX',
@@ -155,10 +168,9 @@ export const mobileRu = {
     },
     workQueue: {
       title: 'Очередь MAX',
-      addTestTask: 'Добавить тестовую задачу',
+      assignTask: 'Поставить задачу',
       runNext: 'Выполнить следующую',
       running: 'Выполняется…',
-      openFullQueue: 'Полная очередь',
     },
     lastResult: {
       title: 'Последний результат',
@@ -177,15 +189,13 @@ export const mobileRu = {
     },
     quickTask: {
       title: 'Поставить задачу',
-      description: 'Поручите MAX новую работу через Run Task или шаблон.',
+      description: 'Поручите MAX новую работу через mobile Run Task.',
       button: 'Поставить задачу MAX',
-      morningReport: 'Утренний отчёт',
+      morningReport: 'Отчёты',
       runTask: 'Run Task',
-      runTaskHint: 'Полная форма Run Task на desktop.',
-      useTemplate: 'Тестовая задача',
-      templateHint: 'Добавить задачу в очередь MAX для проверки flow.',
-      mobileFormPlaceholder: 'Mobile assign (скоро)',
-      mobileFormHint: 'Отдельная mobile-форма появится в следующем релизе.',
+      runTaskHint: 'Открыть mobile-форму постановки задачи.',
+      useTemplate: 'Шаблон «Проверить интерфейс»',
+      templateHint: 'Заполнит форму Run Task — можно отредактировать перед отправкой.',
     },
     employeesList: {
       maxTitle: 'MAX',
@@ -317,13 +327,16 @@ export const mobileRu = {
     },
     validation: {
       emptyTaskText: 'Опишите задачу — поле «Задача» не может быть пустым.',
+      emptyTitle: 'Укажите название или опишите задачу.',
+      employeeDisabled: 'Этот сотрудник пока недоступен для постановки задач.',
+      persistFailed: 'Не удалось сохранить задачу в очередь. Проверьте localStorage и попробуйте снова.',
     },
     success: {
       title: 'Задача добавлена в очередь сотрудника',
       description: 'Задача сохранена локально. Runtime и Worker Loop не запускались автоматически.',
       openEmployee: 'Открыть сотрудника',
       openQueue: 'Открыть очередь',
-      addAnother: 'Добавить ещё задачу',
+      addAnother: 'Добавить ещё',
       maxHint: 'Следующие шаги для MAX:',
       openMax: 'Открыть MAX',
       startWorkday: 'Начать рабочий день',

@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import type { MobileEmployeeMaxSnapshot } from '../hooks/useMobileEmployeeMax'
 import { useI18n } from '../../i18n'
+import { MOBILE_PATHS } from '../navigation/mobileHrefResolver'
 
 type Props = {
   snapshot: MobileEmployeeMaxSnapshot
@@ -56,7 +57,10 @@ export function MobileEmployeeHeroCard({ snapshot }: Props) {
         ) : null}
       </div>
       <div className="acMobileMaxHeroActions">
-        <Link to={`/ops/employees/${snapshot.employeeId}/workspace`} className="acMobileLinkBtn">
+        <Link to={MOBILE_PATHS.tasksNewMax} className="acMobilePrimaryBtn">
+          {copy.assignTask}
+        </Link>
+        <Link to={MOBILE_PATHS.ops} className="acMobileLinkBtn">
           {copy.openDesktopWorkspace}
         </Link>
       </div>

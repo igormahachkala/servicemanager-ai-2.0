@@ -6,6 +6,7 @@ import { MobileNextActionCard } from '../components/MobileNextActionCard'
 import { MobileOwnerDecisionCard } from '../components/MobileOwnerDecisionCard'
 import { MobileSection } from '../components/MobileSection'
 import { useMobileOwnerHome } from '../hooks/useMobileOwnerHome'
+import { MOBILE_PATHS } from '../navigation/mobileHrefResolver'
 
 export function MobileTodayPage() {
   const { t } = useI18n()
@@ -19,7 +20,7 @@ export function MobileTodayPage() {
     refresh,
   } = useMobileOwnerHome()
 
-  const maxLaunchHref = '/mobile/tasks/new?employee=ag-max'
+  const maxLaunchHref = MOBILE_PATHS.tasksNewMax
 
   return (
     <div className="acMobileOwnerHome">

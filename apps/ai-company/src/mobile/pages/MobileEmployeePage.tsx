@@ -1,5 +1,5 @@
-import { useCallback } from 'react'
-import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
+import { useCallback, useEffect } from 'react'
+import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { MAX_WORKER_EMPLOYEE_ID } from '../../domain/maxWorkerLoop'
 import { resolveCanonicalEmployeeId } from '../../mission-control/data/employeeIdResolver'
 import { useI18n } from '../../i18n'
@@ -11,16 +11,23 @@ import { MobileEmployeeWorkdayCard } from '../components/MobileEmployeeWorkdayCa
 import { MobileWorkQueueCard } from '../components/MobileWorkQueueCard'
 import { MobileLastResultCard } from '../components/MobileLastResultCard'
 import { MobileSection } from '../components/MobileSection'
+import { MOBILE_PATHS } from '../navigation/mobileHrefResolver'
 
 export function MobileEmployeePage() {
   const { id: rawId } = useParams<{ id: string }>()
+  const location = useLocation()
   const { t } = useI18n()
   const { openSheet, closeSheet } = useMobileBottomSheet()
   const navigate = useNavigate()
   const max = useMobileEmployeeMax()
   const copy = t.mobile.maxControl
+  const runTaskHref = MOBILE_PATHS.tasksNewMax
 
   const resolvedId = rawId ? resolveCanonicalEmployeeId(rawId) : MAX_WORKER_EMPLOYEE_ID
+
+  useEffect(() => {
+    max.refresh()
+  }, [location.key, max.refresh])
 
   const openQuickTaskSheet = useCallback(() => {
     openSheet(
@@ -32,32 +39,23 @@ export function MobileEmployeePage() {
             description: copy.quickTask.runTaskHint,
             onSelect: () => {
               closeSheet()
-              navigate(`/mobile/tasks/new?employee=${MAX_WORKER_EMPLOYEE_ID}`)
+              navigate(runTaskHref)
             },
           },
           {
-            id: 'template',
+            id: 'template-review',
             label: copy.quickTask.useTemplate,
             description: copy.quickTask.templateHint,
             onSelect: () => {
               closeSheet()
-              max.addTestTask()
-            },
-          },
-          {
-            id: 'placeholder',
-            label: copy.quickTask.mobileFormPlaceholder,
-            description: copy.quickTask.mobileFormHint,
-            onSelect: () => {
-              closeSheet()
-              navigate(`/mobile/tasks/new?employee=${MAX_WORKER_EMPLOYEE_ID}`)
+              navigate(`${runTaskHref}&template=review_ui`)
             },
           },
         ]}
       />,
       { title: copy.quickTask.title, ariaLabel: copy.quickTask.title },
     )
-  }, [closeSheet, copy.quickTask, max, navigate, openSheet])
+  }, [closeSheet, copy.quickTask, navigate, openSheet, runTaskHref])
 
   if (!rawId) {
     return <Navigate to={`/mobile/employees/${MAX_WORKER_EMPLOYEE_ID}`} replace />
@@ -94,7 +92,6 @@ export function MobileEmployeePage() {
         <MobileWorkQueueCard
           workQueue={max.snapshot.workQueue}
           isRunning={max.isRunning}
-          onAddTestTask={max.addTestTask}
           onRunNext={max.runNext}
         />
       </MobileSection>
@@ -112,10 +109,10 @@ export function MobileEmployeePage() {
       <MobileSection title={copy.sections.quickTask}>
         <div className="acMobileMaxQuickTask">
           <p className="acMobileMaxQuickTaskHint">{copy.quickTask.description}</p>
-          <button type="button" className="acMobilePrimaryBtn acMobileMaxQuickTaskBtn" onClick={openQuickTaskSheet}>
+          <Link to={runTaskHref} className="acMobilePrimaryBtn acMobileMaxQuickTaskBtn">
             {copy.quickTask.button}
-          </button>
-          <Link to="/ops/morning-report" className="acMobileLinkBtn">
+          </Link>
+          <Link to={MOBILE_PATHS.morningReport} className="acMobileLinkBtn">
             {copy.quickTask.morningReport}
           </Link>
         </div>
