@@ -5,26 +5,30 @@ import { AI_PHOTO_LAB_KICKOFF_PATH } from '../../domain/projects/aiPhotoLabKicko
 import { AI_PHOTO_LAB_CONTROL_ROOM_PATH } from '../../domain/projects/aiPhotoLabControlRoom'
 import { AI_PHOTO_LAB_SPRINT_PATH } from '../../domain/sprint/sprintStorage'
 import { EMPLOYEE_ROUTE_IDS } from '../../mission-control/data/employeeIdResolver'
+import { ownerNavItemHint } from '../../navigation/ownerNavPath'
 import { Card } from '../layout'
 import { useI18n } from '../../i18n'
 
-const QUICK_LAUNCH = [
-  { id: 'atlas', to: `/ops/employees/${EMPLOYEE_ROUTE_IDS.atlas}`, labelKey: 'atlas' as const, primary: true },
-  { id: 'max', to: `/ops/employees/${EMPLOYEE_ROUTE_IDS.max}`, labelKey: 'max' as const, primary: true },
-  {
-    id: 'canvas',
-    to: `/ops/canvas?projectId=${encodeURIComponent(AI_PHOTO_LAB_PROJECT_ID)}`,
-    labelKey: 'canvas' as const,
-    primary: true,
-  },
-  { id: 'sprint', to: AI_PHOTO_LAB_SPRINT_PATH, labelKey: 'sprint' as const, primary: true },
-  { id: 'kickoff', to: AI_PHOTO_LAB_KICKOFF_PATH, labelKey: 'kickoff' as const, primary: true },
-  { id: 'controlRoom', to: AI_PHOTO_LAB_CONTROL_ROOM_PATH, labelKey: 'controlRoom' as const, primary: true },
-  { id: 'morningReport', to: '/ops/morning-report', labelKey: 'morningReport' as const, primary: true },
-  { id: 'runTask', to: '/ops/run-task', labelKey: 'runTask' as const, primary: true },
-  { id: 'taskResults', to: '/ops/task-results', labelKey: 'taskResults' as const, primary: true },
-  { id: 'handoffs', to: '/ops/handoffs', labelKey: 'handoffs' as const, primary: false },
-  { id: 'runtime', to: '/ops/runtime', labelKey: 'runtime' as const, primary: false },
+const MAX = EMPLOYEE_ROUTE_IDS.max
+
+const OWNER_QUICK_LAUNCH = [
+  { id: 'morningReport' as const, to: '/ops/morning-report', primary: true },
+  { id: 'runTask' as const, to: '/ops/run-task', primary: true },
+  { id: 'maxToday' as const, to: `/ops/employees/${MAX}/today`, primary: true },
+  { id: 'maxWorkspace' as const, to: `/ops/employees/${MAX}/workspace`, primary: true },
+  { id: 'approvals' as const, to: '/ops/approvals', primary: true },
+  { id: 'taskResults' as const, to: '/ops/task-results', primary: false },
+  { id: 'operatingDay' as const, to: '/ops/day', primary: false },
+  { id: 'handoffs' as const, to: '/ops/handoffs', primary: false },
+] as const
+
+const PROJECT_QUICK_LAUNCH = [
+  { id: 'canvas' as const, to: `/ops/canvas?projectId=${encodeURIComponent(AI_PHOTO_LAB_PROJECT_ID)}` },
+  { id: 'sprint' as const, to: AI_PHOTO_LAB_SPRINT_PATH },
+  { id: 'kickoff' as const, to: AI_PHOTO_LAB_KICKOFF_PATH },
+  { id: 'controlRoom' as const, to: AI_PHOTO_LAB_CONTROL_ROOM_PATH },
+  { id: 'atlas' as const, to: `/ops/employees/${EMPLOYEE_ROUTE_IDS.atlas}` },
+  { id: 'runtime' as const, to: '/ops/runtime' },
 ] as const
 
 export function QuickLaunchBar() {
@@ -33,14 +37,41 @@ export function QuickLaunchBar() {
   return (
     <section className="mcCommandCenterQuickLaunch">
       <div className="mcCommandCenterQuickLaunchLabel">{t.commandCenter.sections.quickLaunch}</div>
+      <p className="acOwnerQuickLaunchHint">{t.ownerNav.quickLaunchHint}</p>
       <div className="mcCommandCenterQuickLaunchGrid">
-        {QUICK_LAUNCH.map((item) => (
+        {OWNER_QUICK_LAUNCH.map((item) => (
           <Link
             key={item.id}
             to={item.to}
             className={`acQuickActionBtn ${item.primary ? 'acQuickActionBtnPrimary' : ''}`}
+            title={ownerNavItemHint(item.id, t)}
           >
-            {t.commandCenter.quickLaunch[item.labelKey]}
+            {t.ownerNav.items[item.id].label}
+          </Link>
+        ))}
+      </div>
+      <div className="acOwnerQuickLaunchSubLabel">{t.ownerNav.quickLaunchProjectLabel}</div>
+      <div className="mcCommandCenterQuickLaunchGrid">
+        {PROJECT_QUICK_LAUNCH.map((item) => (
+          <Link
+            key={item.id}
+            to={item.to}
+            className="acQuickActionBtn"
+            title={
+              item.id === 'atlas'
+                ? t.commandCenter.quickLaunch.atlas
+                : item.id === 'canvas'
+                  ? ownerNavItemHint('companyCanvas', t)
+                  : item.id === 'runtime'
+                    ? ownerNavItemHint('runtimeSettings', t)
+                    : t.commandCenter.quickLaunch[item.id]
+            }
+          >
+            {item.id === 'atlas' || item.id === 'kickoff' || item.id === 'controlRoom' || item.id === 'sprint'
+              ? t.commandCenter.quickLaunch[item.id]
+              : item.id === 'canvas'
+                ? t.ownerNav.items.companyCanvas.label
+                : t.ownerNav.items.runtimeSettings.label}
           </Link>
         ))}
       </div>

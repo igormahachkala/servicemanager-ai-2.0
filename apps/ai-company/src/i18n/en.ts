@@ -1,4 +1,5 @@
 import { platformGlossaryTermsEn } from './platformGlossaryTerms.en'
+import { ownerNavEn } from './ownerNav/en'
 
 export const en = {
   common: {
@@ -197,6 +198,7 @@ export const en = {
     presence: 'Presence',
     canvas: 'Company Canvas',
   },
+  ownerNav: ownerNavEn,
   labels: {
     active: 'Active',
     planned: 'Planned',

@@ -63,7 +63,15 @@ export function useI18n(): LanguageContextValue {
 
 export function pageTitle(pathname: string, t: Messages): string {
   if (pathname === '/') return t.pages.flow
-  if (pathname === '/ops') return t.pages.dashboard
+  if (pathname === '/ops') return t.ownerNav.items.commandCenter.label
+  if (pathname === '/ops/morning-report') return t.ownerNav.items.morningReport.label
+  if (pathname === '/ops/run-task') return t.ownerNav.items.runTask.label
+  if (pathname === '/ops/day') return t.ownerNav.items.operatingDay.label
+  if (pathname === '/ops/workday') return t.ownerNav.items.workday.label
+  if (pathname === '/ops/handoffs') return t.ownerNav.items.handoffs.label
+  if (pathname.startsWith('/ops/employees/') && pathname.endsWith('/workspace')) {
+    return t.ownerNav.items.maxWorkspace.label
+  }
   if (pathname === '/ops/canvas') return t.pages.canvas
   if (pathname === '/ops/organization') return t.pages.organization
   if (pathname.startsWith('/ops/organization/departments/')) return t.organizationEngine.departmentPage

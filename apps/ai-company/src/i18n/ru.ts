@@ -1,5 +1,6 @@
 import type { Messages } from './en'
 import { platformGlossaryTermsRu } from './platformGlossaryTerms.ru'
+import { ownerNavRu } from './ownerNav/ru'
 
 export const ru: Messages = {
   common: {
@@ -198,6 +199,7 @@ export const ru: Messages = {
     presence: "Присутствие",
     canvas: "Canvas компании"
   },
+  ownerNav: ownerNavRu,
   labels: {
     active: "Активные",
     planned: "Планируемые",

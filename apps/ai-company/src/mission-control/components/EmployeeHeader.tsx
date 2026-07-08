@@ -1,10 +1,12 @@
 import { Link } from 'react-router-dom'
 import { StatusDot } from './ui'
 import type { CustomEmployee } from '../data/customEmployees'
+import { EMPLOYEE_ROUTE_IDS } from '../data/employeeIdResolver'
 import { getModelById } from '../../domain/runtime/runtimeStorage'
 import { useRuntimeProfiles } from '../../hooks/useRuntimeProfiles'
 import { RuntimeStatusBadge } from '../../components/runtime/RuntimeStatusBadge'
 import { EmployeeStatusBadge } from '../../components/presence'
+import { ownerNavItemHint } from '../../navigation/ownerNavPath'
 import { usePresence } from '../../hooks/usePresence'
 import { useI18n } from '../../i18n'
 
@@ -61,30 +63,44 @@ export function EmployeeHeader({ employee }: { employee: CustomEmployee }) {
             <Link
               to={`/ops/employees/${employee.id}/today`}
               className="mcBtn mcBtnSecondary mcBtnSmall"
+              title={ownerNavItemHint('maxToday', t)}
             >
               {t.pages.employeeToday}
             </Link>
             <Link
               to={`/ops/employees/${employee.id}/workspace`}
               className="mcBtn mcBtnPrimary mcBtnSmall"
+              title={ownerNavItemHint('maxWorkspace', t)}
             >
               {t.employeeWorkspace.openWorkspace}
             </Link>
+            {employee.id === EMPLOYEE_ROUTE_IDS.max ? (
+              <Link
+                to="/ops/run-task?employee=ag-max"
+                className="mcBtn mcBtnSecondary mcBtnSmall"
+                title={ownerNavItemHint('runTask', t)}
+              >
+                {t.ownerNav.items.runTask.label}
+              </Link>
+            ) : null}
             <Link
               to={`/ops/chats/${encodeURIComponent(`conv:${employee.id}`)}`}
               className="mcBtn mcBtnSecondary mcBtnSmall"
+              title={ownerNavItemHint('chats', t)}
             >
               {t.conversations.openConversation}
             </Link>
             <Link
               to={`/ops/employees/${employee.id}/memory`}
               className="mcBtn mcBtnSecondary mcBtnSmall"
+              title={ownerNavItemHint('maxMemory', t)}
             >
               {t.memoryEngine.openMemory}
             </Link>
             <Link
               to={`/ops/employees/${employee.id}/runtime`}
               className="mcBtn mcBtnSecondary mcBtnSmall"
+              title={ownerNavItemHint('runtimeSettings', t)}
             >
               {t.runtimeEngine.openRuntime}
             </Link>

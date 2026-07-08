@@ -16,7 +16,7 @@ export function Sidebar({ open, onNavigate }: SidebarProps) {
         <div className="acSidebarBrandMark" aria-hidden />
         <div>
           <div className="acSidebarBrandTitle">{t.brand.title}</div>
-          <div className="acSidebarBrandSub">{t.shell.platformShell}</div>
+          <div className="acSidebarBrandSub">{t.ownerNav.brandSub}</div>
         </div>
       </div>
 

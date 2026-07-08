@@ -1,13 +1,21 @@
 import { Link, useLocation } from 'react-router-dom'
+import { ownerNavGroupLabel, resolveOwnerNavGroupForPath } from '../navigation/ownerNavPath'
 import { pageTitle, useI18n } from '../i18n'
 
 function breadcrumbSegments(pathname: string, t: ReturnType<typeof useI18n>['t']) {
   if (pathname === '/ops') {
-    return [{ label: t.platformNav.home, to: '/ops' }]
+    return [{ label: t.ownerNav.items.commandCenter.label, to: '/ops' }]
   }
 
   const parts = pathname.replace(/^\/ops\/?/, '').split('/').filter(Boolean)
-  const crumbs: { label: string; to: string }[] = [{ label: t.platformNav.home, to: '/ops' }]
+  const crumbs: { label: string; to: string | null }[] = [
+    { label: t.ownerNav.items.commandCenter.label, to: '/ops' },
+  ]
+
+  const groupId = resolveOwnerNavGroupForPath(pathname)
+  if (groupId) {
+    crumbs.push({ label: ownerNavGroupLabel(groupId, t), to: null })
+  }
 
   let path = '/ops'
   for (let i = 0; i < parts.length; i += 1) {
@@ -31,9 +39,9 @@ export function Breadcrumbs() {
       {crumbs.map((crumb, index) => {
         const isLast = index === crumbs.length - 1
         return (
-          <span key={crumb.to} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          <span key={`${crumb.label}-${index}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
             {index > 0 ? <span className="acBreadcrumbSep">/</span> : null}
-            {isLast ? (
+            {isLast || !crumb.to ? (
               <span className="acBreadcrumbItem acBreadcrumbItemActive">{crumb.label}</span>
             ) : (
               <Link to={crumb.to} className="acBreadcrumbItem">
