@@ -1,4 +1,3 @@
-import { Link } from 'react-router-dom'
 import type { MaxWorkspaceWorkQueueView } from '../../domain/maxWorkspace/maxWorkspaceWorkQueueViewModel'
 import { useI18n } from '../../i18n'
 import { MOBILE_PATHS } from '../navigation/mobileHrefResolver'
@@ -31,6 +30,8 @@ export function MobileWorkQueueCard({ workQueue, isRunning, onRunNext }: Props) 
     wq.priorities[priority as keyof typeof wq.priorities] ?? priority
   const statusLabel = (status: string) =>
     wq.statuses[status as keyof typeof wq.statuses] ?? status
+
+  const canRunNext = !isRunning && workQueue.nextSuggestedAction.kind !== 'wait_active'
 
   return (
     <MobileCard
@@ -69,19 +70,17 @@ export function MobileWorkQueueCard({ workQueue, isRunning, onRunNext }: Props) 
         <p className="acMobileMaxQueueHint">{workQueue.nextSuggestedAction.title}</p>
       ) : null}
 
-      <div className="acMobileCardActions">
-        <Link to={runTaskHref} className="acMobileSecondaryBtn">
-          {copy.assignTask}
-        </Link>
+      <div className="acMobileCardActions acMobileCardActionsPrimaryOnly">
         <button
           type="button"
-          className="acMobilePrimaryBtn"
-          disabled={isRunning || workQueue.nextSuggestedAction.kind === 'wait_active'}
+          className="acMobilePrimaryBtn acMobileCardPrimaryWide"
+          disabled={!canRunNext}
           onClick={() => void onRunNext()}
         >
           {isRunning ? copy.running : copy.runNext}
         </button>
       </div>
+      <p className="acMobileMaxQueueFabHint">{copy.fabHint}</p>
     </MobileCard>
   )
 }

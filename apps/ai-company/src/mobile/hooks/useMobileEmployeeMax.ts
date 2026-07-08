@@ -9,12 +9,20 @@ import {
   startEmployeeOperatingDay,
   type EmployeeOperatingDaySnapshot,
 } from '../../domain/employeeOperatingDay'
+import {
+  listEmployeeWorkQueue,
+  pickNextWorkItem,
+  type WorkPriority,
+} from '../../domain/employeeWorkQueue'
 import { buildFirstEmployeeFlowStatus } from '../../domain/firstEmployeeFlow'
 import {
   buildMaxWorkspaceWorkQueueView,
   type MaxWorkspaceWorkQueueView,
 } from '../../domain/maxWorkspace/maxWorkspaceWorkQueueViewModel'
-import { runMaxEmployeeWorkQueueNextItem } from '../../domain/maxWorkspace/maxWorkspaceWorkQueueRunner'
+import {
+  runMaxEmployeeWorkQueueNextItem,
+  type MaxWorkQueueRunResult,
+} from '../../domain/maxWorkspace/maxWorkspaceWorkQueueRunner'
 import { MAX_WORKER_EMPLOYEE_ID } from '../../domain/maxWorkerLoop'
 import {
   loadEmployeeOperatingDaySummaries,
@@ -33,6 +41,15 @@ import { EMPLOYEE_OPERATING_DAY_SYNC_EVENT } from '../../domain/employeeOperatin
 import { EMPLOYEE_OPERATING_DAY_SUMMARY_SYNC_EVENT } from '../../domain/operatingDaySummary/operatingDaySummaryStorage'
 import { CHANGE_EVENT } from '../../domain/workday/workdayStorage'
 import { MAX_WORKER_LOOP_SYNC_EVENT } from '../../hooks/useMaxWorkerLoop'
+
+export type MobileRunNextPreview = {
+  workItemId: string
+  title: string
+  taskText: string
+  priority: WorkPriority
+  employeeName: string
+  modelLabel: string | null
+}
 
 export type MobileEmployeeMaxSnapshot = {
   employeeId: typeof MAX_WORKER_EMPLOYEE_ID
@@ -71,6 +88,23 @@ function buildSnapshot(): MobileEmployeeMaxSnapshot {
     modelLabel: model?.name ?? profile?.primaryModelId ?? null,
     brainSummary: brain?.specialization.summary ?? null,
     dateKey: getTodayDateKey(),
+  }
+}
+
+function buildRunNextPreview(snapshot: MobileEmployeeMaxSnapshot): MobileRunNextPreview | null {
+  const queue = listEmployeeWorkQueue(MAX_WORKER_EMPLOYEE_ID)
+  if (queue.activeItem) return null
+
+  const next = pickNextWorkItem(queue.items)
+  if (!next) return null
+
+  return {
+    workItemId: next.id,
+    title: next.title,
+    taskText: next.taskText?.trim() || next.summary?.trim() || next.title,
+    priority: next.priority,
+    employeeName: snapshot.employee?.codename ?? 'MAX',
+    modelLabel: snapshot.modelLabel,
   }
 }
 
@@ -126,6 +160,10 @@ export function useMobileEmployeeMax() {
     return buildSnapshot()
   }, [tick])
 
+  const getRunNextPreview = useCallback((): MobileRunNextPreview | null => {
+    return buildRunNextPreview(snapshot)
+  }, [snapshot])
+
   const startWorkday = useCallback(() => {
     startEmployeeOperatingDay(MAX_WORKER_EMPLOYEE_ID)
     refresh()
@@ -141,11 +179,22 @@ export function useMobileEmployeeMax() {
     refresh()
   }, [refresh])
 
-  const runNext = useCallback(async () => {
+  const runNext = useCallback(async (): Promise<MaxWorkQueueRunResult> => {
     setIsRunning(true)
     try {
-      await runMaxEmployeeWorkQueueNextItem()
+      const result = await runMaxEmployeeWorkQueueNextItem()
       refresh()
+      return result
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Не удалось запустить Worker Loop'
+      return {
+        ok: false,
+        workItem: null,
+        loopId: null,
+        runtimeRunId: null,
+        errorMessage: message,
+      }
     } finally {
       setIsRunning(false)
     }
@@ -154,6 +203,7 @@ export function useMobileEmployeeMax() {
   return {
     snapshot,
     isRunning,
+    getRunNextPreview,
     startWorkday,
     continueWorkday,
     finishWorkday,

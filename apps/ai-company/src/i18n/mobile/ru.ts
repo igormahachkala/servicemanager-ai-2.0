@@ -169,8 +169,44 @@ export const mobileRu = {
     workQueue: {
       title: 'Очередь MAX',
       assignTask: 'Поставить задачу',
-      runNext: 'Выполнить следующую',
-      running: 'Выполняется…',
+      runNext: 'Запустить следующую',
+      running: 'Запуск…',
+      runningStatus: 'MAX выполняет задачу…',
+    },
+    runNextConfirm: {
+      sheetTitle: 'Запуск задачи MAX',
+      eyebrow: 'Следующая задача в очереди',
+      confirm: 'Запустить',
+      cancel: 'Отмена',
+      close: 'Закрыть',
+      fields: {
+        employee: 'Сотрудник',
+        priority: 'Приоритет',
+        model: 'Локальная модель',
+      },
+      whatWillHappenTitle: 'Что произойдёт',
+      whatWillHappen: [
+        'Brain MAX построит Decision Plan для задачи.',
+        'MAX может проконсультироваться с Atlas.',
+        'Запустится локальная модель сотрудника.',
+        'Результат попадёт в Daily Journal и Отчёты.',
+      ],
+      warningTitle: 'Важно',
+      warningItems: [
+        'Выполнение может занять несколько минут.',
+        'Не закрывайте приложение, если ждёте live-результат.',
+      ],
+      runningTitle: 'MAX выполняет задачу…',
+      runningDescription:
+        'Worker Loop запущен. Дождитесь завершения — статус обновится автоматически.',
+      successTitle: 'Задача выполнена',
+      successDescription: 'Результат сохранён в Journal. Отчёт появится в mobile Reports.',
+      openReports: 'Открыть отчёты',
+      stayOnMax: 'Остаться на MAX',
+      errorTitle: 'Worker Loop не завершился',
+      errorFallback: 'Запуск прерван или завершился с ошибкой.',
+      modelHint:
+        'Похоже, проблема с локальной моделью. Проверьте, что Ollama запущена и нужная модель загружена.',
     },
     lastResult: {
       title: 'Последний результат',

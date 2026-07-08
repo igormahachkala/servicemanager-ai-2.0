@@ -1,61 +1,27 @@
-import { useCallback, useEffect } from 'react'
-import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { useEffect } from 'react'
+import { Link, Navigate, useLocation, useParams } from 'react-router-dom'
 import { MAX_WORKER_EMPLOYEE_ID } from '../../domain/maxWorkerLoop'
 import { resolveCanonicalEmployeeId } from '../../mission-control/data/employeeIdResolver'
 import { useI18n } from '../../i18n'
-import { MobileActionSheet } from '../patterns/MobileActionSheet'
-import { useMobileBottomSheet } from '../hooks/useMobileBottomSheet'
 import { useMobileEmployeeMax } from '../hooks/useMobileEmployeeMax'
 import { MobileEmployeeHeroCard } from '../components/MobileEmployeeHeroCard'
 import { MobileEmployeeWorkdayCard } from '../components/MobileEmployeeWorkdayCard'
 import { MobileWorkQueueCard } from '../components/MobileWorkQueueCard'
 import { MobileLastResultCard } from '../components/MobileLastResultCard'
 import { MobileSection } from '../components/MobileSection'
-import { MOBILE_PATHS } from '../navigation/mobileHrefResolver'
 
 export function MobileEmployeePage() {
   const { id: rawId } = useParams<{ id: string }>()
   const location = useLocation()
   const { t } = useI18n()
-  const { openSheet, closeSheet } = useMobileBottomSheet()
-  const navigate = useNavigate()
   const max = useMobileEmployeeMax()
   const copy = t.mobile.maxControl
-  const runTaskHref = MOBILE_PATHS.tasksNewMax
 
   const resolvedId = rawId ? resolveCanonicalEmployeeId(rawId) : MAX_WORKER_EMPLOYEE_ID
 
   useEffect(() => {
     max.refresh()
   }, [location.key, max.refresh])
-
-  const openQuickTaskSheet = useCallback(() => {
-    openSheet(
-      <MobileActionSheet
-        items={[
-          {
-            id: 'run-task',
-            label: copy.quickTask.runTask,
-            description: copy.quickTask.runTaskHint,
-            onSelect: () => {
-              closeSheet()
-              navigate(runTaskHref)
-            },
-          },
-          {
-            id: 'template-review',
-            label: copy.quickTask.useTemplate,
-            description: copy.quickTask.templateHint,
-            onSelect: () => {
-              closeSheet()
-              navigate(`${runTaskHref}&template=review_ui`)
-            },
-          },
-        ]}
-      />,
-      { title: copy.quickTask.title, ariaLabel: copy.quickTask.title },
-    )
-  }, [closeSheet, copy.quickTask, navigate, openSheet, runTaskHref])
 
   if (!rawId) {
     return <Navigate to={`/mobile/employees/${MAX_WORKER_EMPLOYEE_ID}`} replace />
@@ -79,6 +45,14 @@ export function MobileEmployeePage() {
 
       <MobileEmployeeHeroCard snapshot={max.snapshot} />
 
+      <MobileSection title={copy.sections.workQueue}>
+        <MobileWorkQueueCard
+          workQueue={max.snapshot.workQueue}
+          isRunning={max.isRunning}
+          onRunNext={max.runNext}
+        />
+      </MobileSection>
+
       <MobileSection title={copy.sections.workday}>
         <MobileEmployeeWorkdayCard
           operatingDay={max.snapshot.operatingDay}
@@ -88,34 +62,13 @@ export function MobileEmployeePage() {
         />
       </MobileSection>
 
-      <MobileSection title={copy.sections.workQueue}>
-        <MobileWorkQueueCard
-          workQueue={max.snapshot.workQueue}
-          isRunning={max.isRunning}
-          onRunNext={max.runNext}
-        />
-      </MobileSection>
-
       <MobileSection title={copy.sections.lastResult}>
         <MobileLastResultCard
           lastJournalEntry={max.snapshot.lastJournalEntry}
           lastOperatingDaySummary={max.snapshot.lastOperatingDaySummary}
           hasPriorActivity={max.snapshot.hasPriorActivity}
-          onAssignTask={openQuickTaskSheet}
           onStartWorkday={max.startWorkday}
         />
-      </MobileSection>
-
-      <MobileSection title={copy.sections.quickTask}>
-        <div className="acMobileMaxQuickTask">
-          <p className="acMobileMaxQuickTaskHint">{copy.quickTask.description}</p>
-          <Link to={runTaskHref} className="acMobilePrimaryBtn acMobileMaxQuickTaskBtn">
-            {copy.quickTask.button}
-          </Link>
-          <Link to={MOBILE_PATHS.morningReport} className="acMobileLinkBtn">
-            {copy.quickTask.morningReport}
-          </Link>
-        </div>
       </MobileSection>
     </>
   )
