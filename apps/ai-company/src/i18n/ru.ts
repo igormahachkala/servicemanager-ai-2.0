@@ -230,7 +230,7 @@ export const ru: Messages = {
   },
   pages: {
     flow: "Flow-пространство",
-    dashboard: "Дашборд",
+    dashboard: "Обзор компании",
     canvas: "Canvas компании",
     missionControl: "Mission Control",
     missionFeed: "Лента событий",
@@ -862,6 +862,118 @@ export const ru: Messages = {
     providerHealth: {
       up: "Исправно",
       degraded: "Деградация"
+    }
+  },
+  firstFiveMinutesGuide: {
+    title: "Что сделать первым?",
+    subtitle: "Пять шагов за 5 минут — быстрый старт для Owner без onboarding-wizard.",
+    cta: "Начать с MAX",
+    ctaHref: "/ops/run-task?employee=ag-max",
+    collapse: "Свернуть",
+    expand: "Показать гид",
+    compactNavAria: "Краткий список первых шагов",
+    stepMeta: {
+      whatItIs: "Что это",
+      why: "Зачем",
+      afterClick: "После клика",
+      expectedResult: "Ожидаемый результат"
+    },
+    steps: {
+      companyState: {
+        title: "Посмотреть состояние компании",
+        whatItIs: "Командный центр — главный экран /ops с здоровьем компании, командой, runtime и алертами.",
+        why: "Owner за минуту видит, что происходит с цифровой компанией, прежде чем ставить задачи.",
+        afterClick: "Откроется Command Center с утренним брифом, активными сотрудниками, согласованиями и live-событиями.",
+        expectedResult: "Понятная картина дня: кто работает, что ждёт решения, есть ли риски."
+      },
+      assignTask: {
+        title: "Поставить задачу MAX",
+        whatItIs: "Run Task — форма постановки задачи цифровому сотруднику MAX.",
+        why: "MAX выполняет технический аудит, reasoning и Worker Loop по вашей формулировке.",
+        afterClick: "Откроется /ops/run-task с выбранным MAX — опишите задачу и запустите цикл.",
+        expectedResult: "MAX принимает задачу, строит Decision Plan и запускает Worker Loop; результат появится в Runtime и отчётах."
+      },
+      maxDay: {
+        title: "Открыть рабочий день MAX",
+        whatItIs: "Employee Operating Day — экран «сегодня» для MAX: очередь, смена, итог дня.",
+        why: "Видно, что MAX делает прямо сейчас и как идёт его рабочая смена.",
+        afterClick: "Откроется /ops/employees/ag-max/today с Operating Day, Work Queue и summary.",
+        expectedResult: "Понимание текущей работы MAX: активные задачи, очередь, статус смены."
+      },
+      morningReport: {
+        title: "Посмотреть утренний отчёт",
+        whatItIs: "Owner Morning Report — сводка ночной/утренней работы MAX для Owner.",
+        why: "Не нужно собирать статус вручную — отчёт агрегирует Journal, решения и next steps.",
+        afterClick: "Откроется /ops/morning-report с разделами «что сделано», «что требует решения».",
+        expectedResult: "Готовый brief: выполненные задачи, риски, Owner decisions и рекомендуемый следующий шаг."
+      },
+      ownerDecisions: {
+        title: "Проверить решения Owner",
+        whatItIs: "Approvals — очередь согласований и Owner decisions (Cursor Automation, handoff, gates).",
+        why: "Цифровые сотрудники не действуют без Owner там, где требуется approval.",
+        afterClick: "Откроется /ops/approvals со списком pending и историей решений.",
+        expectedResult: "Видны все пункты, ожидающие вашего approve/reject, и можно принять решение."
+      }
+    }
+  },
+  ownerHome: {
+    title: "Обзор компании",
+    description: "Главный экран Owner — что происходит в цифровой компании прямо сейчас.",
+    heroQuestion: "Что сейчас происходит в компании?",
+    heroHint: "Состояние команды, последние результаты, решения Owner и следующие шаги — только реальные данные из localStorage.",
+    localNote: "Presence, Work Queue, Daily Journal, Approvals, Cursor Automation, Runtime — без fake progress.",
+    sections: {
+      companyStatus: "Состояние компании",
+      completedTasks: "Что сделали сотрудники",
+      decisions: "Что требует решения Owner",
+      nextActions: "Что делать дальше"
+    },
+    metrics: {
+      activeEmployees: "Активных сотрудников",
+      tasksInProgress: "Задач в работе",
+      tasksCompletedToday: "Завершено сегодня",
+      pendingDecisions: "Ждёт решения Owner"
+    },
+    companyStatus: {
+      operatingHint: "Компания работает — есть активные сотрудники или задачи в runtime.",
+      idleHint: "Сейчас нет активных задач. Поставьте задачу MAX или откройте утренний отчёт.",
+      operatingStatus: {
+        operating: "Работает",
+        idle: "Простой",
+        attention: "Нужно внимание"
+      }
+    },
+    decisionKinds: {
+      approval: "Согласование",
+      cursor_handoff: "Cursor handoff",
+      knowledge_candidate: "Knowledge candidate",
+      blocked_task: "Заблокировано"
+    },
+    actions: {
+      openReport: "Открыть отчёт",
+      review: "Проверить"
+    },
+    nextActions: {
+      runTask: {
+        label: "Поставить задачу MAX",
+        description: "Run Task — новая задача для MAX."
+      },
+      morningReport: {
+        label: "Открыть утренний отчёт",
+        description: "Итог работы сотрудников и решения Owner."
+      },
+      maxToday: {
+        label: "Рабочий день MAX",
+        description: "Operating Day — статус, прогресс, итог дня."
+      },
+      maxQueue: {
+        label: "Очередь задач MAX",
+        description: "Work Queue на рабочем месте MAX."
+      }
+    },
+    empty: {
+      completedTasks: "Сегодня завершённых задач пока нет. Запустите Run Task или очередь MAX.",
+      decisions: "Нет срочных решений — approvals, handoff и блокировки отсутствуют."
     }
   },
   morningReport: {

@@ -17,7 +17,7 @@ import { NotificationsPanel } from './NotificationsPanel'
 import { QuickLaunchBar, CommandChartsPanel } from './QuickLaunchBar'
 import { WorkSchedulerCommandPanel } from './WorkSchedulerCommandPanel'
 import { RuntimeCostMonitorPanel } from '../runtime-monitor'
-import { PageGuideCard } from '../guided'
+import { PageGuideCard, FirstFiveMinutesGuide } from '../guided'
 
 export function ExecutiveCommandCenter() {
   const { t } = useI18n()
@@ -26,6 +26,7 @@ export function ExecutiveCommandCenter() {
   return (
     <>
       <PageHeader title={t.commandCenter.title} description={t.commandCenter.description} />
+      <FirstFiveMinutesGuide />
       <PageGuideCard pageId="commandCenter" />
       <QuickLaunchBar />
       <MorningBrief brief={snapshot.brief} healthScore={snapshot.healthScore} />
