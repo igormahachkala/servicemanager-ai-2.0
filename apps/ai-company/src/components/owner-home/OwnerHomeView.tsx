@@ -8,6 +8,7 @@ import type {
 import { MAX_WORKER_EMPLOYEE_ID } from '../../domain/maxWorkerLoop'
 import { useOwnerHome } from '../../hooks/useOwnerHome'
 import { useI18n } from '../../i18n'
+import { FirstEmployeeNavigationGuide } from '../guided'
 import { PageHeader } from '../layout'
 
 function formatTime(iso: string | null): string | null {
@@ -199,6 +200,8 @@ export function OwnerHomeView() {
         <h2 className="acOwnerHomeHeroQuestion">{t.ownerHome.heroQuestion}</h2>
         <p className="acMuted">{t.ownerHome.heroHint}</p>
       </section>
+
+      <FirstEmployeeNavigationGuide />
 
       <div className="acOwnerHomeLayout">
         <div className="acOwnerHomeMain">

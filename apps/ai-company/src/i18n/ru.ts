@@ -918,6 +918,27 @@ export const ru: Messages = {
       }
     }
   },
+  firstEmployeeNavigation: {
+    title: "Запустить первого сотрудника",
+    statusReady: "MAX готов к первому запуску.",
+    statusHasActivity: "MAX уже выполнял задачи. Можно открыть отчёт.",
+    stepsAria: "Путь первого сотрудника",
+    ctasAria: "Действия для первого сотрудника",
+    steps: {
+      hired: "MAX уже нанят как первый цифровой сотрудник.",
+      openWorkspace: "Откройте рабочее место MAX.",
+      addTask: "Добавьте задачу в очередь.",
+      startWorkday: "Начните рабочий день.",
+      runTask: "Запустите задачу.",
+      viewReport: "Посмотрите отчёт."
+    },
+    ctas: {
+      openMax: "Открыть MAX",
+      assignTask: "Поставить задачу MAX",
+      startWorkday: "Начать рабочий день",
+      morningReport: "Посмотреть утренний отчёт"
+    }
+  },
   ownerHome: {
     title: "Обзор компании",
     description: "Главный экран Owner — что происходит в цифровой компании прямо сейчас.",

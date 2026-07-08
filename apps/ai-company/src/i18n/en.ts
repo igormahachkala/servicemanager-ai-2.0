@@ -929,6 +929,27 @@ export const en = {
       },
     },
   },
+  firstEmployeeNavigation: {
+    title: 'Launch your first employee',
+    statusReady: 'MAX is ready for the first launch.',
+    statusHasActivity: 'MAX has already completed tasks. You can open the report.',
+    stepsAria: 'First employee path',
+    ctasAria: 'First employee actions',
+    steps: {
+      hired: 'MAX is already hired as your first digital employee.',
+      openWorkspace: 'Open MAX workspace.',
+      addTask: 'Add a task to the queue.',
+      startWorkday: 'Start the workday.',
+      runTask: 'Run the task.',
+      viewReport: 'Review the report.',
+    },
+    ctas: {
+      openMax: 'Open MAX',
+      assignTask: 'Assign task to MAX',
+      startWorkday: 'Start workday',
+      morningReport: 'Morning report',
+    },
+  },
   ownerHome: {
     title: 'Company overview',
     description: 'Owner home — what is happening in the digital company right now.',

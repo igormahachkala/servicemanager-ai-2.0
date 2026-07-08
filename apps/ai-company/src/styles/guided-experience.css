@@ -558,6 +558,99 @@
   color: var(--ac-accent, #2563eb);
 }
 
+.acFirstEmployeeGuide {
+  margin: 0 0 20px;
+  padding: 16px 18px;
+  border-radius: 12px;
+  border: 1px solid rgba(59, 130, 246, 0.28);
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.08), rgba(99, 102, 241, 0.05));
+}
+
+.acFirstEmployeeGuideHeader {
+  margin-bottom: 12px;
+}
+
+.acFirstEmployeeGuideTitle {
+  margin: 0 0 6px;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.acFirstEmployeeGuideStatus {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--ac-muted, #64748b);
+}
+
+.acFirstEmployeeGuideStatusActive {
+  color: var(--ac-accent, #2563eb);
+  font-weight: 600;
+}
+
+.acFirstEmployeeGuideSteps {
+  margin: 0 0 14px;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+@media (min-width: 900px) {
+  .acFirstEmployeeGuideSteps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 16px;
+  }
+}
+
+.acFirstEmployeeGuideStep {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.acFirstEmployeeGuideStepNum {
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--ac-accent, #2563eb);
+}
+
+.acFirstEmployeeGuideStepLink {
+  color: var(--ac-text, #1e293b);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.acFirstEmployeeGuideStepLink:hover {
+  color: var(--ac-accent, #2563eb);
+  text-decoration: underline;
+}
+
+.acFirstEmployeeGuideStepText {
+  color: var(--ac-text, #1e293b);
+}
+
+.acFirstEmployeeGuideCtas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.acFirstEmployeeGuideCta {
+  text-decoration: none;
+}
+
 @media (max-width: 720px) {
   .acUxGuidance,
   .acPageGuide {

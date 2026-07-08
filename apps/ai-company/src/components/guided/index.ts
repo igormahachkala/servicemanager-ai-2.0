@@ -1,3 +1,4 @@
+export { FirstEmployeeNavigationGuide } from './FirstEmployeeNavigationGuide'
 export { FirstFiveMinutesGuide } from './FirstFiveMinutesGuide'
 export { HelpCenterButton } from './HelpCenterButton'
 export { HelpCenterPanel } from './HelpCenterPanel'
