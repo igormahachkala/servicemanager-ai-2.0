@@ -38,7 +38,7 @@
   gap: var(--ac-space-3);
   padding: 0 var(--ac-space-5);
   border-bottom: 1px solid var(--ac-divider);
-  background: rgba(12, 13, 16, 0.92);
+  background: var(--theme-topbar-bg);
   backdrop-filter: blur(10px);
 }
 

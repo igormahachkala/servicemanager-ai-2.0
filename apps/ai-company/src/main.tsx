@@ -1,7 +1,9 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { LanguageProvider } from './i18n'
+import { ThemeProvider, bootstrapTheme } from './theme'
 import App from './App'
+import './styles/theme-tokens.css'
 import './styles/design-system.css'
 import './styles/layout.css'
 import './styles/navigation.css'
@@ -32,10 +34,14 @@ import './styles/owner-home.css'
 import './styles/decision-plan.css'
 import './styles.css'
 
+bootstrapTheme()
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <LanguageProvider>
-      <App />
-    </LanguageProvider>
+    <ThemeProvider>
+      <LanguageProvider>
+        <App />
+      </LanguageProvider>
+    </ThemeProvider>
   </StrictMode>,
 )

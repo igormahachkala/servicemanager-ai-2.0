@@ -163,8 +163,8 @@
 }
 
 .acMorningReportSection--attention {
-  border-color: color-mix(in srgb, var(--ac-warning, #d97706) 45%, var(--ac-border));
-  background: color-mix(in srgb, var(--ac-warning, #d97706) 6%, var(--ac-surface-1));
+  border-color: color-mix(in srgb, var(--ac-warning) 45%, var(--ac-border));
+  background: color-mix(in srgb, var(--ac-warning) 6%, var(--ac-surface-1));
 }
 
 .acMorningReportSection--next {
@@ -268,11 +268,11 @@
 }
 
 .acMorningReportNext--high {
-  border-color: color-mix(in srgb, var(--ac-danger, #dc2626) 40%, var(--ac-border));
+  border-color: color-mix(in srgb, var(--ac-danger) 40%, var(--ac-border));
 }
 
 .acMorningReportNext--medium {
-  border-color: color-mix(in srgb, var(--ac-warning, #d97706) 40%, var(--ac-border));
+  border-color: color-mix(in srgb, var(--ac-warning) 40%, var(--ac-border));
 }
 
 .acMorningReportNextHeadline {

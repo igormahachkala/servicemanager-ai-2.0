@@ -20,7 +20,7 @@
 
 .acDecisionPlanSubtitle {
   margin: 4px 0 0;
-  color: var(--mc-text-muted, #8b949e);
+  color: var(--theme-text-secondary);
   font-size: 0.88rem;
 }
 
@@ -54,13 +54,13 @@
 }
 
 .acDecisionPlanBadgePreview {
-  background: rgba(88, 166, 255, 0.15);
-  color: #58a6ff;
+  background: var(--theme-info-dim);
+  color: var(--theme-info);
 }
 
 .acDecisionPlanBadgeStored {
-  background: rgba(63, 185, 80, 0.15);
-  color: #3fb950;
+  background: var(--theme-success-dim);
+  color: var(--theme-success);
 }
 
 .acDecisionPlanGrid {
@@ -84,7 +84,7 @@
   font-weight: 650;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--mc-text-muted, #8b949e);
+  color: var(--theme-text-secondary);
 }
 
 .acDecisionPlanFieldValue {
@@ -97,8 +97,8 @@
   margin-top: 6px;
   padding: 2px 8px;
   border-radius: 6px;
-  background: rgba(210, 153, 34, 0.12);
-  color: #d29922;
+  background: var(--theme-warning-dim);
+  color: var(--theme-warning);
   font-size: 0.78rem;
   font-weight: 600;
 }
@@ -117,13 +117,13 @@
 }
 
 .acDecisionPlanBool--yes {
-  background: rgba(63, 185, 80, 0.12);
-  color: #3fb950;
+  background: var(--theme-success-dim);
+  color: var(--theme-success);
 }
 
 .acDecisionPlanBool--no {
-  background: rgba(139, 148, 158, 0.12);
-  color: #8b949e;
+  background: color-mix(in srgb, var(--theme-text-muted) 12%, transparent);
+  color: var(--theme-text-muted);
 }
 
 .acDecisionPlanTags,
@@ -138,7 +138,7 @@
   margin: 0 6px 6px 0;
   padding: 2px 8px;
   border-radius: 6px;
-  background: rgba(139, 148, 158, 0.12);
+  background: color-mix(in srgb, var(--theme-text-muted) 12%, transparent);
   font-size: 0.78rem;
   list-style: none;
 }
@@ -152,7 +152,7 @@
   margin: 8px 0 4px;
   font-size: 0.78rem;
   font-weight: 600;
-  color: var(--mc-text-muted, #8b949e);
+  color: var(--theme-text-secondary);
 }
 
 .acDecisionPlanReasons li {

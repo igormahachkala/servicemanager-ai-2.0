@@ -30,7 +30,11 @@
   padding: 16px 18px;
   border: 1px solid var(--mc-border);
   border-radius: 14px;
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.08), rgba(15, 23, 42, 0.02));
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--theme-info) 8%, transparent),
+    color-mix(in srgb, var(--theme-bg-subtle) 96%, transparent)
+  );
 }
 
 .acMaxWorkspaceHeroMain {
@@ -44,7 +48,7 @@
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #2563eb;
+  color: var(--theme-info);
 }
 
 .acMaxWorkspaceTaskTitle {
@@ -218,7 +222,7 @@
 }
 
 .acMaxWorkQueueError {
-  color: #dc2626;
+  color: var(--theme-error);
 }
 
 .acMaxWorkQueueSuggested {

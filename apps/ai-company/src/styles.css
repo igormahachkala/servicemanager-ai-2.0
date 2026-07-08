@@ -117,9 +117,9 @@ textarea {
   align-items: center;
   gap: 2px;
   padding: 2px;
-  border: 1px solid #27272a;
+  border: 1px solid var(--theme-border-strong);
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.02);
+  background: var(--theme-bg-subtle);
 }
 
 .acLangBtn {
@@ -128,7 +128,7 @@ textarea {
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: #71717a;
+  color: var(--theme-text-muted);
   font-size: 11px;
   font-weight: 600;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -136,13 +136,13 @@ textarea {
 }
 
 .acLangBtn:hover {
-  color: #fafafa;
-  background: rgba(255, 255, 255, 0.05);
+  color: var(--theme-text);
+  background: var(--theme-row-hover);
 }
 
 .acLangBtnActive {
-  color: #fafafa;
-  background: rgba(139, 124, 255, 0.18);
+  color: var(--theme-text);
+  background: var(--theme-accent-dim);
 }
 
 .acWorkspaceSelector {

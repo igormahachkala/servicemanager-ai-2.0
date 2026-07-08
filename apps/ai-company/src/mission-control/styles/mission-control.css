@@ -1,19 +1,21 @@
 /* Mission Control — AI Company (Linear + Vercel + Cursor) */
 
 .mcRoot {
-  --mc-bg: #09090b;
-  --mc-surface: #111113;
-  --mc-surface-2: #18181b;
-  --mc-border: rgba(255, 255, 255, 0.08);
-  --mc-border-subtle: rgba(255, 255, 255, 0.04);
-  --mc-text: #fafafa;
-  --mc-muted: #71717a;
-  --mc-muted-2: #52525b;
-  --mc-accent: #6366f1;
-  --mc-accent-dim: rgba(99, 102, 241, 0.1);
-  --mc-green: #22c55e;
-  --mc-amber: #f59e0b;
-  --mc-red: #ef4444;
+  --mc-bg: var(--theme-bg);
+  --mc-surface: var(--theme-surface);
+  --mc-surface-2: var(--theme-card);
+  --mc-border: var(--theme-border);
+  --mc-border-subtle: var(--theme-border-subtle);
+  --mc-text: var(--theme-text);
+  --mc-muted: var(--theme-text-muted);
+  --mc-muted-2: var(--theme-text-subtle);
+  --mc-text-muted: var(--theme-text-muted);
+  --mc-accent: var(--theme-accent);
+  --mc-accent-dim: var(--theme-accent-dim);
+  --mc-green: var(--theme-success);
+  --mc-amber: var(--theme-warning);
+  --mc-red: var(--theme-error);
+  --mc-link: var(--theme-info);
   --mc-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   --mc-sidebar-w: 248px;
   min-height: 100vh;

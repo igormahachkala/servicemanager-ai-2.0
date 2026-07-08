@@ -1421,6 +1421,17 @@ export const en = {
   language: {
     toggle: 'Language',
   },
+  theme: {
+    toggle: 'Theme',
+    light: 'Light theme',
+    dark: 'Dark theme',
+    system: 'System theme',
+    short: {
+      light: 'Light',
+      dark: 'Dark',
+      system: 'Auto',
+    },
+  },
   aria: {
     topNav: 'AI Company',
     missionControlNav: 'Mission Control',

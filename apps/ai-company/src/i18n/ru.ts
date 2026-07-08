@@ -1402,6 +1402,17 @@ export const ru: Messages = {
   language: {
     toggle: "Язык"
   },
+  theme: {
+    toggle: "Тема",
+    light: "Светлая тема",
+    dark: "Тёмная тема",
+    system: "Системная тема",
+    short: {
+      light: "Свет",
+      dark: "Тём",
+      system: "Авто"
+    }
+  },
   aria: {
     topNav: "AI Company",
     missionControlNav: "Mission Control",

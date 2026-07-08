@@ -1,5 +1,6 @@
 import { Breadcrumbs } from './Breadcrumbs'
 import { HelpCenterButton } from '../components/guided/HelpCenterButton'
+import { ThemeSwitch } from '../components/theme'
 import { LanguageToggle } from './LanguageToggle'
 import { NotificationCenter } from '../components/notifications/NotificationCenter'
 import { QuickActions } from './QuickActions'
@@ -40,6 +41,7 @@ export function TopBar({ onMenuToggle }: TopBarProps) {
       <QuickActions />
 
       <div className="acTopBarActions">
+        <ThemeSwitch />
         <HelpCenterButton />
         <NotificationCenter />
         <LanguageToggle />
