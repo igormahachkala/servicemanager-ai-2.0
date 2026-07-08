@@ -22,7 +22,8 @@
 
 .mcSidebar,
 .acSidebar {
-  border-right-color: var(--mc-border-subtle);
+  border-right-color: var(--theme-nav-border);
+  background: var(--theme-nav-bg);
 }
 
 .mcBrandMark,
@@ -33,7 +34,7 @@
 
 .mcTopbar {
   border-bottom-color: var(--mc-divider);
-  background: rgba(9, 9, 11, 0.92);
+  background: var(--theme-topbar-bg);
   backdrop-filter: blur(10px);
 }
 
@@ -60,30 +61,31 @@
 }
 
 .mcNavLink {
-  color: var(--mc-muted);
+  color: var(--theme-nav-item-text);
 }
 
 .mcNavLink:hover {
-  background: rgba(255, 255, 255, 0.03);
-  color: var(--mc-text);
+  background: var(--theme-nav-hover-bg);
+  color: var(--theme-nav-item-text-hover);
 }
 
 .mcNavLinkActive {
-  background: var(--mc-accent-dim);
-  box-shadow: none;
-  color: var(--mc-text);
+  background: var(--theme-nav-active-bg);
+  box-shadow: inset 3px 0 0 var(--theme-accent);
+  color: var(--theme-nav-item-text-hover);
+  font-weight: 600;
 }
 
 .mcNavIcon {
-  opacity: 0.72;
+  opacity: var(--theme-nav-icon-opacity);
 }
 
 .mcNavLinkActive .mcNavIcon {
-  opacity: 1;
+  opacity: var(--theme-nav-icon-opacity-active);
 }
 
 .mcSidebarFooter {
-  border-top-color: var(--mc-divider);
+  border-top-color: var(--theme-nav-border);
 }
 
 .mcPanel {

@@ -78,25 +78,25 @@ textarea {
   color: #71717a;
 }
 
-.acNavLink {
+.acTopNav .acNavLink {
   padding: 6px 10px;
   border-radius: 6px;
   font-size: 12px;
   font-weight: 500;
-  color: #71717a;
+  color: var(--theme-nav-item-text);
   text-decoration: none;
   white-space: nowrap;
   transition: background 0.12s, color 0.12s;
 }
 
-.acNavLink:hover {
-  color: #fafafa;
-  background: rgba(255, 255, 255, 0.04);
+.acTopNav .acNavLink:hover {
+  color: var(--theme-nav-item-text-hover);
+  background: var(--theme-nav-hover-bg);
 }
 
-.acNavLinkActive {
-  color: #fafafa;
-  background: rgba(139, 124, 255, 0.14);
+.acTopNav .acNavLinkActive {
+  color: var(--theme-nav-item-text-hover);
+  background: var(--theme-nav-active-bg);
 }
 
 .acNavSpacer {
