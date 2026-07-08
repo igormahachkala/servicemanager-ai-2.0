@@ -1,5 +1,6 @@
 import { Link, useParams } from 'react-router-dom'
 import { useI18n } from '../../i18n'
+import { setMobileGoldenPathActive } from '../goldenPath/mobileGoldenPathStorage'
 import { useMobileReportDetail } from '../hooks/useMobileReportDetail'
 import { MOBILE_PATHS, resolveMobileHref } from '../navigation/mobileHrefResolver'
 
@@ -20,12 +21,17 @@ function DetailSection({ title, items }: { title: string; items: string[] }) {
 export function MobileReportDetailPage() {
   const { t } = useI18n()
   const copy = t.mobile.reports
+  const goldenCopy = t.mobile.goldenPath
   const { id } = useParams<{ id: string }>()
   const detail = useMobileReportDetail(id)
 
+  const finishGoldenPath = () => {
+    setMobileGoldenPathActive(false)
+  }
+
   if (!detail) {
     return (
-      <div className="acMobileReportDetailPage">
+      <div className="acMobilePage acMobileReportDetailPage">
         <div className="acMobileReportsEmpty">
           <h2 className="acMobileReportsEmptyTitle">{copy.detail.notFound}</h2>
           <Link to={MOBILE_PATHS.reports} className="acMobileLinkBtn acMobileReportsEmptyCta">
@@ -37,7 +43,7 @@ export function MobileReportDetailPage() {
   }
 
   return (
-    <div className="acMobileReportDetailPage">
+    <div className="acMobilePage acMobileReportDetailPage">
       <Link to={MOBILE_PATHS.reports} className="acMobileReportDetailBack">
         {copy.detail.backToList}
       </Link>
@@ -102,6 +108,23 @@ export function MobileReportDetailPage() {
           </ul>
         </section>
       ) : null}
+
+      <div className="acMobileReportDetailFooter">
+        <Link
+          to={MOBILE_PATHS.today}
+          className="acMobilePrimaryBtn acMobileReportDetailFooterPrimary"
+          onClick={finishGoldenPath}
+        >
+          {goldenCopy.reportDetail.backToToday}
+        </Link>
+        <Link
+          to={MOBILE_PATHS.reports}
+          className="acMobileSecondaryBtn acMobileReportDetailFooterSecondary"
+          onClick={finishGoldenPath}
+        >
+          {goldenCopy.reportDetail.allReports}
+        </Link>
+      </div>
     </div>
   )
 }

@@ -4,6 +4,7 @@ import { MAX_WORKER_EMPLOYEE_ID } from '../../domain/maxWorkerLoop'
 import { resolveCanonicalEmployeeId } from '../../mission-control/data/employeeIdResolver'
 import { useI18n } from '../../i18n'
 import { useMobileEmployeeMax } from '../hooks/useMobileEmployeeMax'
+import { useMobileRunNextSheet } from '../hooks/useMobileRunNextSheet'
 import { MobileEmployeeHeroCard } from '../components/MobileEmployeeHeroCard'
 import { MobileEmployeeWorkdayCard } from '../components/MobileEmployeeWorkdayCard'
 import { MobileWorkQueueCard } from '../components/MobileWorkQueueCard'
@@ -17,6 +18,7 @@ export function MobileEmployeePage() {
   const location = useLocation()
   const { t } = useI18n()
   const max = useMobileEmployeeMax()
+  const { openRunNextFlow } = useMobileRunNextSheet()
   const copy = t.mobile.maxControl
 
   const resolvedId = rawId ? resolveCanonicalEmployeeId(rawId) : MAX_WORKER_EMPLOYEE_ID
@@ -34,7 +36,7 @@ export function MobileEmployeePage() {
   }
 
   return (
-    <>
+    <div className="acMobilePage acMobileMaxPage">
       {!max.snapshot.hasPriorActivity ? (
         <div className="acMobileMaxReadyBanner" role="status">
           <p>{copy.readyBanner}</p>
@@ -70,7 +72,7 @@ export function MobileEmployeePage() {
           <MobileWorkQueueCard
             workQueue={max.snapshot.workQueue}
             isRunning={max.isRunning}
-            onRunNext={max.runNext}
+            onRunNext={() => openRunNextFlow({ goldenPath: true })}
           />
         </MobileSection>
       </div>
@@ -96,6 +98,6 @@ export function MobileEmployeePage() {
           />
         </MobileSection>
       </div>
-    </>
+    </div>
   )
 }

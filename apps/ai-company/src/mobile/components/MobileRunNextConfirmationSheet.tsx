@@ -148,13 +148,26 @@ type FlowProps = {
   preview: MobileRunNextPreview
   runNext: () => Promise<MaxWorkQueueRunResult>
   onClose: () => void
+  goldenPath?: boolean
+  onGoldenPathStart?: () => void
 }
 
-export function MobileRunNextSheetFlow({ preview, runNext, onClose }: FlowProps) {
+export function MobileRunNextSheetFlow({
+  preview,
+  runNext,
+  onClose,
+  goldenPath = false,
+  onGoldenPathStart,
+}: FlowProps) {
   const [phase, setPhase] = useState<MobileRunNextSheetPhase>('confirm')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const handleConfirm = async () => {
+    if (goldenPath && onGoldenPathStart) {
+      onGoldenPathStart()
+      return
+    }
+
     setPhase('running')
     setErrorMessage(null)
     const result = await runNext()

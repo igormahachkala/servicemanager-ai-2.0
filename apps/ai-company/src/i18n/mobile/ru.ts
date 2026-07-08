@@ -437,6 +437,25 @@ export const mobileRu = {
       openMax: 'Открыть MAX',
       startWorkday: 'Начать рабочий день',
       runNext: 'Запустить следующую задачу',
+      runNow: 'Запустить сейчас',
+    },
+  },
+  goldenPath: {
+    backToToday: 'Вернуться на «Сегодня»',
+    runtimeWaiting: {
+      title: 'MAX запускает задачу…',
+      description: 'Worker Loop стартует — фазы появятся здесь автоматически.',
+    },
+    complete: {
+      sheetTitle: 'Задача выполнена',
+      title: 'MAX завершил задачу',
+      description: 'Runtime Report готов — откройте результат или вернитесь на «Сегодня».',
+      openReport: 'Открыть отчёт',
+      backToToday: 'Вернуться на «Сегодня»',
+    },
+    reportDetail: {
+      backToToday: 'Вернуться на «Сегодня»',
+      allReports: 'Все отчёты',
     },
   },
   runtimeLive: {

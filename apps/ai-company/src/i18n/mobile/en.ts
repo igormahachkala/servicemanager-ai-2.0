@@ -437,6 +437,25 @@ export const mobileEn = {
       openMax: 'Open MAX',
       startWorkday: 'Start workday',
       runNext: 'Run next task',
+      runNow: 'Run now',
+    },
+  },
+  goldenPath: {
+    backToToday: 'Back to Today',
+    runtimeWaiting: {
+      title: 'MAX is starting the task…',
+      description: 'Worker Loop is launching — phases will appear here automatically.',
+    },
+    complete: {
+      sheetTitle: 'Task completed',
+      title: 'MAX finished the task',
+      description: 'Runtime Report is ready — open the result or return to Today.',
+      openReport: 'Open report',
+      backToToday: 'Back to Today',
+    },
+    reportDetail: {
+      backToToday: 'Back to Today',
+      allReports: 'All reports',
     },
   },
   runtimeLive: {

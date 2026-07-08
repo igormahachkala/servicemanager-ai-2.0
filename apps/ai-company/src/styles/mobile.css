@@ -2587,22 +2587,6 @@ html.acMobileSheetOpen body {
   color: var(--theme-text-muted);
 }
 
-.acMobileSheetClose {
-  min-height: var(--mobile-touch-target);
-  padding: 0 var(--mobile-spacing-md);
-  border: 1px solid var(--theme-border);
-  border-radius: var(--mobile-radius-md);
-  background: var(--theme-surface);
-  color: var(--theme-text);
-  font-size: 0.8125rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.acMobileSheetClose:hover {
-  background: var(--theme-surface-hover);
-}
-
 .acMobileActionSheetItem:focus-visible {
   outline: none;
   box-shadow: var(--theme-focus-ring);
@@ -3567,5 +3551,75 @@ html.acMobileGuideActive .acMobileContent {
   .acMobileGuideBullets {
     font-size: 0.875rem;
   }
+}
+
+/* Golden Path */
+.acMobileGoldenPathComplete {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mobile-spacing-md);
+}
+
+.acMobileGoldenPathCompleteTitle {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 650;
+}
+
+.acMobileGoldenPathCompleteDescription {
+  margin: 0;
+  color: var(--theme-text-secondary);
+  font-size: 0.9375rem;
+  line-height: 1.45;
+}
+
+.acMobileGoldenPathCompleteActions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mobile-spacing-sm);
+}
+
+.acMobileGoldenPathCompleteActions .acMobilePrimaryBtn,
+.acMobileGoldenPathCompleteActions .acMobileSecondaryBtn {
+  width: 100%;
+  text-align: center;
+  text-decoration: none;
+}
+
+.acMobileRuntimeLiveWaiting {
+  margin-top: var(--mobile-spacing-lg);
+  padding: var(--mobile-spacing-lg);
+  border-radius: var(--mobile-radius-lg);
+  border: 1px solid var(--theme-border);
+  background: var(--theme-surface);
+}
+
+.acMobileRuntimeLiveWaitingTitle {
+  margin: 0 0 var(--mobile-spacing-sm);
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+.acMobileRuntimeLiveWaitingDescription {
+  margin: 0;
+  color: var(--theme-text-secondary);
+  font-size: 0.9375rem;
+  line-height: 1.45;
+}
+
+.acMobileReportDetailFooter {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mobile-spacing-sm);
+  margin-top: var(--mobile-spacing-xl);
+  padding-top: var(--mobile-spacing-lg);
+  border-top: 1px solid var(--theme-divider);
+}
+
+.acMobileReportDetailFooterPrimary,
+.acMobileReportDetailFooterSecondary {
+  width: 100%;
+  text-align: center;
+  text-decoration: none;
 }
 

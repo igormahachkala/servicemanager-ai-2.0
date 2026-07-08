@@ -1,17 +1,19 @@
-import { Link } from 'react-router-dom'
 import { MAX_WORKER_EMPLOYEE_ID } from '../../domain/maxWorkerLoop'
+import { Link } from 'react-router-dom'
 import { useI18n } from '../../i18n'
+import { useMobileRunNextSheet } from '../hooks/useMobileRunNextSheet'
+import { useMobileRunTask } from '../hooks/useMobileRunTask'
 import { MobileEmployeePicker } from '../components/MobileEmployeePicker'
 import { MobileSection } from '../components/MobileSection'
 import { MobileStandardTaskQuickStart } from '../components/MobileStandardTaskQuickStart'
 import { MobileTaskComposer } from '../components/MobileTaskComposer'
 import { MobileTaskTemplateCard } from '../components/MobileTaskTemplateCard'
-import { useMobileRunTask } from '../hooks/useMobileRunTask'
 import { MOBILE_STANDARD_TASK_TEMPLATE_ID, MOBILE_TASK_TEMPLATES } from '../runTask/mobileRunTaskConfig'
 
 export function MobileRunTaskPage() {
   const { t } = useI18n()
   const copy = t.mobile.runTask
+  const { openRunNextFlow } = useMobileRunNextSheet()
   const {
     form,
     employees,
@@ -29,6 +31,10 @@ export function MobileRunTaskPage() {
   } = useMobileRunTask()
 
   if (createdItem) {
+    const handleRunNow = () => {
+      openRunNextFlow({ workItem: createdItem, goldenPath: true })
+    }
+
     return (
       <div className="acMobileRunTaskSuccess">
         <div className="acMobileRunTaskSuccessIcon" aria-hidden>
@@ -49,9 +55,15 @@ export function MobileRunTaskPage() {
         <p className="acMobileRunTaskSuccessTask">{createdItem.title}</p>
 
         <div className="acMobileRunTaskSuccessActions">
-          <Link to={maxEmployeeHref} className="acMobilePrimaryBtn acMobileRunTaskSuccessBtn">
-            {isMaxEmployee ? copy.success.openMax : copy.success.openEmployee}
-          </Link>
+          {isMaxEmployee ? (
+            <button type="button" className="acMobilePrimaryBtn acMobileRunTaskSuccessBtn" onClick={handleRunNow}>
+              {copy.success.runNow}
+            </button>
+          ) : (
+            <Link to={maxEmployeeHref} className="acMobilePrimaryBtn acMobileRunTaskSuccessBtn">
+              {copy.success.openEmployee}
+            </Link>
+          )}
           <button type="button" className="acMobileSecondaryBtn acMobileRunTaskSuccessBtn" onClick={resetForm}>
             {copy.success.addAnother}
           </button>
