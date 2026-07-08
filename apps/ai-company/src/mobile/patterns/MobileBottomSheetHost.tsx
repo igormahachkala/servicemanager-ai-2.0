@@ -7,7 +7,8 @@ const SHEET_OPEN_CLASS = 'acMobileSheetOpen'
 
 function MobileBottomSheetPanel() {
   const { t } = useI18n()
-  const { isOpen, title, ariaLabel, content, closeSheet } = useMobileBottomSheet()
+  const { isOpen, title, ariaLabel, content, dismissible, variant, closeSheet } =
+    useMobileBottomSheet()
   const bodyRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -21,11 +22,11 @@ function MobileBottomSheetPanel() {
   useEffect(() => {
     if (!isOpen) return
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') closeSheet()
+      if (event.key === 'Escape' && dismissible) closeSheet()
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [isOpen, closeSheet])
+  }, [isOpen, dismissible, closeSheet])
 
   useEffect(() => {
     if (!isOpen) return
@@ -35,15 +36,27 @@ function MobileBottomSheetPanel() {
   if (!isOpen || !content) return null
 
   return createPortal(
-    <div className="acMobileSheetRoot" role="presentation">
+    <div
+      className={
+        variant === 'guide'
+          ? 'acMobileSheetRoot acMobileSheetRootGuide'
+          : 'acMobileSheetRoot'
+      }
+      role="presentation"
+    >
       <button
         type="button"
         className="acMobileSheetBackdrop"
         aria-label={t.mobile.sheet.dismiss}
-        onClick={closeSheet}
+        onClick={dismissible ? closeSheet : undefined}
+        tabIndex={dismissible ? 0 : -1}
       />
       <div
-        className="acMobileSheetPanel"
+        className={
+          variant === 'guide'
+            ? 'acMobileSheetPanel acMobileSheetPanelGuide'
+            : 'acMobileSheetPanel'
+        }
         role="dialog"
         aria-modal="true"
         aria-label={ariaLabel ?? title ?? t.mobile.sheet.close}
@@ -52,9 +65,11 @@ function MobileBottomSheetPanel() {
         {title ? (
           <header className="acMobileSheetHeader">
             <h2 className="acMobileSheetTitle">{title}</h2>
-            <button type="button" className="acMobileSheetClose" onClick={closeSheet}>
-              {t.mobile.sheet.close}
-            </button>
+            {dismissible ? (
+              <button type="button" className="acMobileSheetClose" onClick={closeSheet}>
+                {t.mobile.sheet.close}
+              </button>
+            ) : null}
           </header>
         ) : null}
         <div ref={bodyRef} className="acMobileSheetBody">

@@ -12,6 +12,8 @@ export type MobileBottomSheetOptions = {
   title?: string
   ariaLabel?: string
   onClose?: () => void
+  dismissible?: boolean
+  variant?: 'default' | 'guide'
 }
 
 type MobileBottomSheetContextValue = {
@@ -19,6 +21,8 @@ type MobileBottomSheetContextValue = {
   title?: string
   ariaLabel?: string
   content: ReactNode | null
+  dismissible: boolean
+  variant: 'default' | 'guide'
   openSheet: (content: ReactNode, options?: MobileBottomSheetOptions) => void
   closeSheet: () => void
 }
@@ -38,6 +42,8 @@ export function MobileBottomSheetProvider({ children }: { children: ReactNode })
   const [title, setTitle] = useState<string | undefined>()
   const [ariaLabel, setAriaLabel] = useState<string | undefined>()
   const [content, setContent] = useState<ReactNode | null>(null)
+  const [dismissible, setDismissible] = useState(true)
+  const [variant, setVariant] = useState<'default' | 'guide'>('default')
   const onCloseRef = useRef<(() => void) | undefined>(undefined)
 
   const closeSheet = useCallback(() => {
@@ -47,6 +53,8 @@ export function MobileBottomSheetProvider({ children }: { children: ReactNode })
     setTitle(undefined)
     setAriaLabel(undefined)
     setContent(null)
+    setDismissible(true)
+    setVariant('default')
   }, [])
 
   const openSheet = useCallback((nextContent: ReactNode, options?: MobileBottomSheetOptions) => {
@@ -54,6 +62,8 @@ export function MobileBottomSheetProvider({ children }: { children: ReactNode })
     setTitle(options?.title)
     setAriaLabel(options?.ariaLabel ?? options?.title)
     onCloseRef.current = options?.onClose
+    setDismissible(options?.dismissible ?? true)
+    setVariant(options?.variant ?? 'default')
     setIsOpen(true)
   }, [])
 
@@ -63,10 +73,12 @@ export function MobileBottomSheetProvider({ children }: { children: ReactNode })
       title,
       ariaLabel,
       content,
+      dismissible,
+      variant,
       openSheet,
       closeSheet,
     }),
-    [isOpen, title, ariaLabel, content, openSheet, closeSheet],
+    [isOpen, title, ariaLabel, content, dismissible, variant, openSheet, closeSheet],
   )
 
   return (

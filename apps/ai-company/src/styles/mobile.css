@@ -3450,3 +3450,122 @@ html.acMobileSheetOpen body {
   }
 }
 
+/* First Launch Guide */
+.acMobileGuideOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  pointer-events: none;
+}
+
+.acMobileGuideDim {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--theme-bg) 45%, transparent);
+}
+
+.acMobileGuideSpotlight {
+  position: fixed;
+  border-radius: var(--mobile-radius-lg);
+  box-shadow:
+    0 0 0 9999px color-mix(in srgb, var(--theme-bg) 52%, transparent),
+    0 0 0 2px color-mix(in srgb, var(--theme-accent) 75%, transparent);
+  pointer-events: none;
+  transition:
+    top 180ms ease,
+    left 180ms ease,
+    width 180ms ease,
+    height 180ms ease;
+}
+
+.acMobileSheetRootGuide .acMobileSheetBackdrop {
+  background: transparent;
+  backdrop-filter: none;
+  pointer-events: none;
+}
+
+.acMobileSheetPanelGuide {
+  z-index: 1;
+}
+
+.acMobileGuidePanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mobile-spacing-md);
+}
+
+.acMobileGuideStepCounter {
+  margin: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--theme-text-tertiary);
+}
+
+.acMobileGuideTitle {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.acMobileGuideBullets {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--mobile-spacing-sm);
+  color: var(--theme-text-secondary);
+  font-size: 0.9375rem;
+  line-height: 1.45;
+}
+
+.acMobileGuideActions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mobile-spacing-sm);
+  margin-top: var(--mobile-spacing-xs);
+}
+
+.acMobileGuideActionsRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mobile-spacing-sm);
+}
+
+.acMobileGuideBtnSpacer {
+  flex: 1;
+}
+
+.acMobileGuideSkipBtn {
+  margin-left: auto;
+}
+
+.acMobileGuidePrimaryBtn,
+.acMobileGuideSecondaryBtn {
+  width: 100%;
+}
+
+.acMobileGuideRuntimePlaceholder,
+.acMobileGuideReportsPlaceholder {
+  margin-bottom: var(--mobile-spacing-md);
+}
+
+html.acMobileGuideActive .acMobileFabHost,
+html.acMobileGuideActive .acMobileBottomNav {
+  pointer-events: none;
+  opacity: 0.55;
+}
+
+html.acMobileGuideActive .acMobileContent {
+  pointer-events: none;
+}
+
+@media (max-width: 430px) {
+  .acMobileGuideBullets {
+    font-size: 0.875rem;
+  }
+}
+

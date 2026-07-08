@@ -57,6 +57,7 @@ export function MobileEmployeeRosterCard({ entry }: Props) {
           ? 'acMobileRosterCard acMobileRosterCardActive'
           : 'acMobileRosterCard acMobileRosterCardPlaceholder'
       }
+      {...(entry.slotId === 'max' ? { 'data-mobile-guide': 'max-roster' } : {})}
     >
       <header className="acMobileRosterCardHead">
         <div className="acMobileRosterCardAvatar" aria-hidden>

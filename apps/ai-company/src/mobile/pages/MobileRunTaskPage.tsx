@@ -79,7 +79,7 @@ export function MobileRunTaskPage() {
       </MobileSection>
 
       <MobileSection title={copy.sections.templates} description={copy.templatesHint}>
-        <div className="acMobileTaskTemplateGrid">
+        <div className="acMobileTaskTemplateGrid" data-mobile-guide="task-templates">
           {MOBILE_TASK_TEMPLATES.map((template) => (
             <MobileTaskTemplateCard
               key={template.id}
@@ -91,22 +91,24 @@ export function MobileRunTaskPage() {
         </div>
       </MobileSection>
 
-      <MobileSection title={copy.sections.task}>
-        <MobileTaskComposer
-          form={form}
-          validationError={validationError}
-          submitError={submitError}
-          isValid={isFormValid}
-          onChange={patchForm}
-          onSubmit={() =>
-            submit({
-              emptyTaskText: copy.validation.emptyTaskText,
-              emptyTitle: copy.validation.emptyTitle,
-              persistFailed: copy.validation.persistFailed,
-            })
-          }
-        />
-      </MobileSection>
+      <div data-mobile-guide="task-composer">
+        <MobileSection title={copy.sections.task}>
+          <MobileTaskComposer
+            form={form}
+            validationError={validationError}
+            submitError={submitError}
+            isValid={isFormValid}
+            onChange={patchForm}
+            onSubmit={() =>
+              submit({
+                emptyTaskText: copy.validation.emptyTaskText,
+                emptyTitle: copy.validation.emptyTitle,
+                persistFailed: copy.validation.persistFailed,
+              })
+            }
+          />
+        </MobileSection>
+      </div>
 
       {form.employeeId !== MAX_WORKER_EMPLOYEE_ID ? null : (
         <p className="acMobileRunTaskNote">{copy.maxNote}</p>

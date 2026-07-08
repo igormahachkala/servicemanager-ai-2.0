@@ -34,9 +34,13 @@ export function MobileTodayPage() {
 
       <MobileStandardTaskQuickStart />
 
-      <MobileCompanyStatusCard status={snapshot.companyStatus} />
+      <div data-mobile-guide="company-status">
+        <MobileCompanyStatusCard status={snapshot.companyStatus} />
+      </div>
 
-      <MobileNextActionCard action={nextAction} />
+      <div data-mobile-guide="next-action">
+        <MobileNextActionCard action={nextAction} />
+      </div>
 
       {isEmpty ? (
         <section className="acMobileOwnerHomeEmpty" aria-label={t.mobile.ownerHome.empty.title}>
@@ -64,7 +68,7 @@ export function MobileTodayPage() {
         title={t.mobile.ownerHome.sections.employeeResults}
         description={t.mobile.ownerHome.sections.employeeResultsHint}
       >
-        <div id="employee-results" className="acMobileOwnerHomeStack">
+        <div id="employee-results" className="acMobileOwnerHomeStack" data-mobile-guide="employee-results">
           {employeeResults.length === 0 ? (
             <p className="acMobileOwnerHomeMuted">{t.ownerHome.empty.completedTasks}</p>
           ) : (

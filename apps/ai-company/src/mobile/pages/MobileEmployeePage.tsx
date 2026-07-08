@@ -46,44 +46,56 @@ export function MobileEmployeePage() {
       )}
 
       {max.activeWorkerLoop ? (
-        <MobileRuntimeLiveBanner
-          loopId={max.activeWorkerLoop.id}
-          taskTitle={
-            max.activeWorkerLoop.input.title?.trim() ||
-            max.activeWorkerLoop.input.taskText.slice(0, 120)
-          }
-        />
-      ) : null}
+        <div data-mobile-guide="max-runtime">
+          <MobileRuntimeLiveBanner
+            loopId={max.activeWorkerLoop.id}
+            taskTitle={
+              max.activeWorkerLoop.input.title?.trim() ||
+              max.activeWorkerLoop.input.taskText.slice(0, 120)
+            }
+          />
+        </div>
+      ) : (
+        <div data-mobile-guide="max-runtime" className="acMobileGuideRuntimePlaceholder">
+          <p className="acMobileOwnerHomeMuted">{copy.runtimeGuideHint}</p>
+        </div>
+      )}
 
       <MobileEmployeeHeroCard snapshot={max.snapshot} />
 
       <MobileStandardTaskQuickStart />
 
-      <MobileSection title={copy.sections.workQueue}>
-        <MobileWorkQueueCard
-          workQueue={max.snapshot.workQueue}
-          isRunning={max.isRunning}
-          onRunNext={max.runNext}
-        />
-      </MobileSection>
+      <div data-mobile-guide="max-queue">
+        <MobileSection title={copy.sections.workQueue}>
+          <MobileWorkQueueCard
+            workQueue={max.snapshot.workQueue}
+            isRunning={max.isRunning}
+            onRunNext={max.runNext}
+          />
+        </MobileSection>
+      </div>
 
-      <MobileSection title={copy.sections.workday}>
-        <MobileEmployeeWorkdayCard
-          operatingDay={max.snapshot.operatingDay}
-          onStart={max.startWorkday}
-          onContinue={max.continueWorkday}
-          onFinish={max.finishWorkday}
-        />
-      </MobileSection>
+      <div data-mobile-guide="max-workday">
+        <MobileSection title={copy.sections.workday}>
+          <MobileEmployeeWorkdayCard
+            operatingDay={max.snapshot.operatingDay}
+            onStart={max.startWorkday}
+            onContinue={max.continueWorkday}
+            onFinish={max.finishWorkday}
+          />
+        </MobileSection>
+      </div>
 
-      <MobileSection title={copy.sections.lastResult}>
-        <MobileLastResultCard
-          lastJournalEntry={max.snapshot.lastJournalEntry}
-          lastOperatingDaySummary={max.snapshot.lastOperatingDaySummary}
-          hasPriorActivity={max.snapshot.hasPriorActivity}
-          onStartWorkday={max.startWorkday}
-        />
-      </MobileSection>
+      <div data-mobile-guide="max-result">
+        <MobileSection title={copy.sections.lastResult}>
+          <MobileLastResultCard
+            lastJournalEntry={max.snapshot.lastJournalEntry}
+            lastOperatingDaySummary={max.snapshot.lastOperatingDaySummary}
+            hasPriorActivity={max.snapshot.hasPriorActivity}
+            onStartWorkday={max.startWorkday}
+          />
+        </MobileSection>
+      </div>
     </>
   )
 }

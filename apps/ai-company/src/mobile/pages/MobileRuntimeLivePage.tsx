@@ -21,7 +21,7 @@ export function MobileRuntimeLivePage() {
 
   if (!view) {
     return (
-      <div className="acMobilePage acMobileRuntimeLivePage">
+      <div className="acMobilePage acMobileRuntimeLivePage" data-mobile-guide="runtime-overview">
         <MobileEmptyState
           variant="noTasks"
           actionLabel={copy.empty.action}
@@ -35,7 +35,7 @@ export function MobileRuntimeLivePage() {
   const elapsed = formatElapsed(view.elapsedMs)
 
   return (
-    <div className="acMobilePage acMobileRuntimeLivePage">
+    <div className="acMobilePage acMobileRuntimeLivePage" data-mobile-guide="runtime-overview">
       <p className="acMobileRuntimeLiveIntro">{copy.intro}</p>
 
       <section className="acMobileRuntimeLiveHero" aria-label={copy.currentTask}>

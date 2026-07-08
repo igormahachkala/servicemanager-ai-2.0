@@ -4,6 +4,7 @@ import { useI18n } from '../../i18n'
 import { MobileCard } from '../components/MobileCard'
 import { MobileEmptyState } from '../components/MobileEmptyState'
 import { MobileSection } from '../components/MobileSection'
+import { useMobileFirstLaunchGuide } from '../hooks/useMobileFirstLaunchGuide'
 import { MOBILE_PATHS } from '../navigation/mobileHrefResolver'
 
 export function MobileTasksPage() {
@@ -22,6 +23,8 @@ export function MobileTasksPage() {
 export function MobileMorePage() {
   const { t } = useI18n()
   const copy = t.mobile.more
+  const guideCopy = t.mobile.firstLaunchGuide.more
+  const { startGuide } = useMobileFirstLaunchGuide()
 
   const links = [
     {
@@ -66,6 +69,18 @@ export function MobileMorePage() {
             </Link>
           ))}
         </nav>
+      </MobileSection>
+
+      <MobileSection title={guideCopy.section} description={guideCopy.description}>
+        <MobileCard
+          title={guideCopy.title}
+          description={guideCopy.description}
+          actions={
+            <button type="button" className="acMobilePrimaryBtn" onClick={startGuide}>
+              {guideCopy.start}
+            </button>
+          }
+        />
       </MobileSection>
 
       <MobileSection title={copy.theme}>

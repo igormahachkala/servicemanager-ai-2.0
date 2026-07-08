@@ -155,6 +155,8 @@ export const mobileEn = {
     pageTitle: 'MAX',
     readyBanner: 'MAX is ready for first launch — start the workday or the first queue task.',
     activeBanner: 'MAX has prior activity — continue the queue or review the latest result.',
+    runtimeGuideHint:
+      'When MAX runs a task, a Runtime Live banner appears here — open it to watch progress.',
     sections: {
       workday: 'Workday',
       workQueue: 'Work queue',
@@ -484,6 +486,10 @@ export const mobileEn = {
       'Employee results: morning report, runtime reports, operating day summaries, and journal — real local data only.',
     moreDescription: 'Morning report, runtime reports, day summaries, and journal.',
     listSection: 'All reports',
+    guideMorningPlaceholder:
+      'Morning Report appears after MAX morning cycle or opening the desktop morning report.',
+    guideListPlaceholder:
+      'Runtime Report, Operating Day Summary, and Journal appear after MAX completes tasks.',
     kinds: {
       morning_report: 'Morning Report',
       runtime_report: 'Runtime Report',
@@ -538,6 +544,98 @@ export const mobileEn = {
       toolsUsed: 'Tools used',
       consultations: 'Consultations',
       links: 'Related links',
+    },
+  },
+  firstLaunchGuide: {
+    stepCounter: '{current} of {total}',
+    spotlightAria: 'AI Company interactive guide',
+    actions: {
+      next: 'Next',
+      back: 'Back',
+      skip: 'Skip',
+      finish: 'Finish',
+      openMax: 'Open MAX',
+      assignFirstTask: 'Assign first task to MAX',
+      closeGuide: 'Close guide',
+    },
+    more: {
+      section: 'Training',
+      title: 'Interactive guide',
+      description: 'A short tour of the Mobile Owner Console — the full AI Company cycle in 3–5 minutes.',
+      start: 'Start guide',
+    },
+    steps: {
+      welcome: {
+        title: 'Welcome to AI Company',
+        body: [
+          'AI Company is the mobile Owner Console for managing digital employees.',
+          'MAX is your first employee: accepts tasks, runs the workday, executes Worker Loops, and produces reports.',
+          'In a few minutes you will walk through the full cycle from Today to Owner decisions.',
+        ],
+      },
+      today: {
+        title: 'Today screen',
+        body: [
+          'Company status — whether employees are active and tasks are in progress.',
+          'Next action — what the Owner should do right now.',
+          'Employee results — latest completed tasks and outcomes.',
+        ],
+      },
+      employees: {
+        title: 'Employees screen',
+        body: [
+          'MAX is the first active employee in the company.',
+          'The card shows workday, task queue, and last result.',
+          'Open MAX to manage his work cycle.',
+        ],
+      },
+      max: {
+        title: 'MAX screen',
+        body: [
+          'Workday — start, continue, and finish the operating day.',
+          'Task queue — what MAX runs next; use Run next.',
+          'Runtime Live — Worker Loop progress while a task is running.',
+        ],
+      },
+      'assign-task': {
+        title: 'Assign a task',
+        body: [
+          'Templates — ready scenarios including the standard company health check.',
+          'Priority — affects order in the MAX queue.',
+          'Expected outcome — what the Owner wants as the deliverable.',
+        ],
+      },
+      runtime: {
+        title: 'Runtime Live',
+        body: [
+          'See what happens while MAX executes a task.',
+          'Worker Loop phases: Decision Plan, Reasoning, Runtime, Journal, Report.',
+          'If nothing is active — run a task from the MAX queue.',
+        ],
+      },
+      reports: {
+        title: 'Reports',
+        body: [
+          'Morning Report — morning overview for the Owner.',
+          'Runtime Report — outcome of a specific Worker Loop.',
+          'Operating Day Summary and Journal — day wrap-up and action timeline.',
+        ],
+      },
+      decisions: {
+        title: 'Owner decisions',
+        body: [
+          'Approve actions that need your attention.',
+          'Filters help find pending, approved, and rejected items.',
+          'Approve / Reject — final Owner decision on each item.',
+        ],
+      },
+      complete: {
+        title: 'Done!',
+        body: [
+          'Congratulations — you now know the full AI Company cycle.',
+          'Start by assigning MAX his first task or return to Today.',
+        ],
+      },
     },
   },
 }

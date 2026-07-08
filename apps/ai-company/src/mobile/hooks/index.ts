@@ -1,5 +1,10 @@
 export { useMobileEmployeesRoster, type MobileEmployeeRosterEntry, type MobileRosterSlotId } from './useMobileEmployeesRoster'
 export { useMobileBottomSheet, MobileBottomSheetProvider, type MobileBottomSheetOptions } from './useMobileBottomSheet'
+export {
+  useMobileFirstLaunchGuide,
+  MobileFirstLaunchGuideProvider,
+  isMobileFirstLaunchGuideCompleted,
+} from './useMobileFirstLaunchGuide'
 export { useMobileEmployeeMax, type MobileEmployeeMaxSnapshot, type MobileRunNextPreview } from './useMobileEmployeeMax'
 export { useMobileOwnerDecisions } from './useMobileOwnerDecisions'
 export { useMobileOwnerHome, type MobileNextAction, type MobileNextActionKind, type MobileOwnerHomeViewModel, type MobileQuickAction } from './useMobileOwnerHome'

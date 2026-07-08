@@ -17,7 +17,10 @@ export function MobileReportsPage() {
     return (
       <div className="acMobileReportsPage">
         <p className="acMobileReportsIntro">{copy.intro}</p>
-        <div className="acMobileReportsEmpty">
+        <div data-mobile-guide="reports-morning" className="acMobileGuideReportsPlaceholder">
+          <p className="acMobileOwnerHomeMuted">{copy.guideMorningPlaceholder}</p>
+        </div>
+        <div data-mobile-guide="reports-list" className="acMobileReportsEmpty">
           <h2 className="acMobileReportsEmptyTitle">{copy.empty.title}</h2>
           <p className="acMobileReportsEmptyDescription">{copy.empty.description}</p>
           <Link
@@ -36,11 +39,21 @@ export function MobileReportsPage() {
       <p className="acMobileReportsIntro">{copy.intro}</p>
 
       {snapshot.morningReport ? (
-        <MobileReportSummaryCard snapshot={snapshot.morningReport} />
-      ) : null}
+        <div data-mobile-guide="reports-morning">
+          <MobileReportSummaryCard snapshot={snapshot.morningReport} />
+        </div>
+      ) : (
+        <div data-mobile-guide="reports-morning" className="acMobileGuideReportsPlaceholder">
+          <p className="acMobileOwnerHomeMuted">{copy.guideMorningPlaceholder}</p>
+        </div>
+      )}
 
       {listItems.length > 0 ? (
-        <section className="acMobileReportsListSection" aria-label={copy.listSection}>
+        <section
+          className="acMobileReportsListSection"
+          aria-label={copy.listSection}
+          data-mobile-guide="reports-list"
+        >
           <h2 className="acMobileReportsListHeading">{copy.listSection}</h2>
           <div className="acMobileReportsList">
             {listItems.map((item) => (
@@ -48,7 +61,11 @@ export function MobileReportsPage() {
             ))}
           </div>
         </section>
-      ) : null}
+      ) : (
+        <div data-mobile-guide="reports-list" className="acMobileGuideReportsPlaceholder">
+          <p className="acMobileOwnerHomeMuted">{copy.guideListPlaceholder}</p>
+        </div>
+      )}
     </div>
   )
 }

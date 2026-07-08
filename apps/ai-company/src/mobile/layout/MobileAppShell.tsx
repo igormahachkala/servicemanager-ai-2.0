@@ -7,7 +7,11 @@ import { MobileBottomNavigation } from '../navigation/MobileBottomNavigation'
 import { mobilePageTitle } from '../navigation/mobileNavigationConfig'
 import { MobileFab } from '../components/MobileFab'
 import { MobileActionSheet } from '../patterns/MobileActionSheet'
+import { MobileFirstLaunchGuideHost } from '../components/MobileFirstLaunchGuideHost'
 import { MobileBottomSheetHost } from '../patterns/MobileBottomSheetHost'
+import {
+  MobileFirstLaunchGuideProvider,
+} from '../hooks/useMobileFirstLaunchGuide'
 import { MobileContent } from './MobileContent'
 import { MobileHeader } from './MobileHeader'
 
@@ -104,7 +108,10 @@ function MobileAppShellInner({
 export function MobileAppShell(props: MobileAppShellProps) {
   return (
     <MobileBottomSheetHost>
-      <MobileAppShellInner {...props} />
+      <MobileFirstLaunchGuideProvider>
+        <MobileFirstLaunchGuideHost />
+        <MobileAppShellInner {...props} />
+      </MobileFirstLaunchGuideProvider>
     </MobileBottomSheetHost>
   )
 }
