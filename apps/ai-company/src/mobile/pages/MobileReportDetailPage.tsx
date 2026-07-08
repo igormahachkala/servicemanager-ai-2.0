@@ -1,6 +1,7 @@
 import { Link, useParams } from 'react-router-dom'
 import { useI18n } from '../../i18n'
 import { useMobileReportDetail } from '../hooks/useMobileReportDetail'
+import { MOBILE_PATHS, resolveMobileHref } from '../navigation/mobileHrefResolver'
 
 function DetailSection({ title, items }: { title: string; items: string[] }) {
   if (items.length === 0) return null
@@ -27,7 +28,7 @@ export function MobileReportDetailPage() {
       <div className="acMobileReportDetailPage">
         <div className="acMobileReportsEmpty">
           <h2 className="acMobileReportsEmptyTitle">{copy.detail.notFound}</h2>
-          <Link to="/mobile/reports" className="acMobileLinkBtn acMobileReportsEmptyCta">
+          <Link to={MOBILE_PATHS.reports} className="acMobileLinkBtn acMobileReportsEmptyCta">
             {copy.detail.backToList}
           </Link>
         </div>
@@ -37,7 +38,7 @@ export function MobileReportDetailPage() {
 
   return (
     <div className="acMobileReportDetailPage">
-      <Link to="/mobile/reports" className="acMobileReportDetailBack">
+      <Link to={MOBILE_PATHS.reports} className="acMobileReportDetailBack">
         {copy.detail.backToList}
       </Link>
 
@@ -93,7 +94,7 @@ export function MobileReportDetailPage() {
           <ul className="acMobileReportDetailLinks">
             {detail.links.map((link) => (
               <li key={`${link.href}-${link.label}`}>
-                <Link to={link.href} className="acMobileLinkBtn">
+                <Link to={resolveMobileHref(link.href)} className="acMobileLinkBtn">
                   {link.label}
                 </Link>
               </li>
