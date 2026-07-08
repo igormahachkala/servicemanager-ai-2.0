@@ -5365,6 +5365,96 @@ a.mobileBtn.mobileCreateTicketLink {
 .mobileAnalyticsCard--done .mobileAnalyticsValue    { color: #16a34a; }
 .mobileAnalyticsCard--sla .mobileAnalyticsValue     { color: #ea580c; }
 
+/* C2.2: KPI icon-tile + вариант --total (indigo) */
+.mobileAnalyticsCardIcon {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #eef2ff;
+  color: #6366f1;
+}
+.mobileAnalyticsCard--active .mobileAnalyticsCardIcon  { background: #eff6ff; color: #2563eb; }
+.mobileAnalyticsCard--overdue .mobileAnalyticsCardIcon { background: #fef2f2; color: #dc2626; }
+.mobileAnalyticsCard--done .mobileAnalyticsCardIcon    { background: #f0fdf4; color: #16a34a; }
+.mobileAnalyticsCard--sla .mobileAnalyticsCardIcon     { background: #fff7ed; color: #ea580c; }
+.mobileAnalyticsCard--total::before                    { background: #6366f1; }
+.mobileAnalyticsCard--total .mobileAnalyticsValue      { color: #4f46e5; }
+.mobileAnalyticsCard--total .mobileAnalyticsCardIcon   { background: #eef2ff; color: #6366f1; }
+
+/* C2.2: шапка-flex с кнопкой параметров */
+.mobileAnalyticsHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.mobileAnalyticsFilterBtn {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #475569;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.mobileAnalyticsFilterBtn--active {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #2563eb;
+}
+
+/* C2.2: чипы периода + произвольный диапазон дат */
+.mobileAnalyticsPeriodRow {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.mobileAnalyticsPeriodChip {
+  flex: 0 0 auto;
+  width: auto;
+  height: auto;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 7px 16px;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #475569;
+  cursor: pointer;
+}
+.mobileAnalyticsPeriodChip--active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+.mobileAnalyticsCustomRow {
+  display: flex;
+  gap: 8px;
+}
+.mobileAnalyticsDateInput {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.8rem;
+  padding: 7px 10px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #0f172a;
+  font-family: var(--font-mono);
+}
+.mobileAnalyticsSlaNote {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  margin-top: -2px;
+}
+
 .mobileAnalyticsHomeLink {
   display: inline-flex;
   align-items: center;

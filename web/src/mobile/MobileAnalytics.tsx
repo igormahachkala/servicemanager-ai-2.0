@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 
@@ -18,12 +18,119 @@ const ANALYTICS_ADMIN_ROLES = new Set<string>([
   'PLATFORM_ADMIN',
 ])
 
+type AnalyticsPeriod = '7d' | '30d' | '90d' | '365d' | 'custom'
+
+const PERIOD_CHIPS: Array<[AnalyticsPeriod, string]> = [
+  ['7d', '7д'],
+  ['30d', '30д'],
+  ['90d', '90д'],
+  ['365d', '365д'],
+  ['custom', '…'],
+]
+
+/** Диапазон дат для /analytics/locations (from/to = YYYY-MM-DD). Overview периода не поддерживает. */
+function periodRange(period: AnalyticsPeriod, from: string, to: string): { from?: string; to?: string } {
+  if (period === 'custom') return { from: from || undefined, to: to || undefined }
+  const days = period === '7d' ? 7 : period === '30d' ? 30 : period === '90d' ? 90 : 365
+  const now = new Date()
+  const start = new Date(now)
+  start.setDate(start.getDate() - days)
+  const iso = (d: Date) => d.toISOString().slice(0, 10)
+  return { from: iso(start), to: iso(now) }
+}
+
+function periodLabelOf(period: AnalyticsPeriod, from: string, to: string): string {
+  switch (period) {
+    case '7d':
+      return 'За 7 дней'
+    case '30d':
+      return 'За 30 дней'
+    case '90d':
+      return 'За 90 дней'
+    case '365d':
+      return 'За 365 дней'
+    default:
+      return from && to ? `${from} — ${to}` : 'Произвольный период'
+  }
+}
+
+function TablerIcon({ children }: { children: ReactNode }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      {children}
+    </svg>
+  )
+}
+
+const KpiIconTickets = (
+  <TablerIcon>
+    <path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2" />
+    <path d="M9 3m0 2a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2v0a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2z" />
+    <path d="M9 12h6" />
+    <path d="M9 16h6" />
+  </TablerIcon>
+)
+const KpiIconOverdue = (
+  <TablerIcon>
+    <path d="M12 9v4" />
+    <path d="M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.87l-8.106 -13.536a1.914 1.914 0 0 0 -3.274 0z" />
+    <path d="M12 16h.01" />
+  </TablerIcon>
+)
+const KpiIconDone = (
+  <TablerIcon>
+    <path d="M12 12m-9 0a9 9 0 1 0 18 0a9 9 0 1 0 -18 0" />
+    <path d="M9 12l2 2l4 -4" />
+  </TablerIcon>
+)
+const KpiIconSla = (
+  <TablerIcon>
+    <path d="M12 3a12 12 0 0 0 8.5 3a12 12 0 0 1 -8.5 15a12 12 0 0 1 -8.5 -15a12 12 0 0 0 8.5 -3" />
+    <path d="M9 12l2 2l4 -4" />
+  </TablerIcon>
+)
+const KpiIconActive = (
+  <TablerIcon>
+    <path d="M3 12h4l3 8l4 -16l3 8h4" />
+  </TablerIcon>
+)
+const IconAdjustments = (
+  <TablerIcon>
+    <path d="M14 6m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" />
+    <path d="M4 6l8 0" />
+    <path d="M16 6l4 0" />
+    <path d="M8 12m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" />
+    <path d="M4 12l2 0" />
+    <path d="M10 12l10 0" />
+    <path d="M17 18m-2 0a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" />
+    <path d="M4 18l11 0" />
+    <path d="M19 18l1 0" />
+  </TablerIcon>
+)
+const IconClose = (
+  <TablerIcon>
+    <path d="M18 6l-12 12" />
+    <path d="M6 6l12 12" />
+  </TablerIcon>
+)
+
 export function MobileAnalytics() {
   const location = useLocation()
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
 
   const role = meQ.data?.role
   const isAnalyticsAdmin = !!role && ANALYTICS_ADMIN_ROLES.has(role)
+
+  // Период применяется к /analytics/locations (ADMIN). Overview/context дат не поддерживают.
+  const [period, setPeriod] = useState<AnalyticsPeriod>('30d')
+  const [customFrom, setCustomFrom] = useState('')
+  const [customTo, setCustomTo] = useState('')
+  const range = useMemo(() => periodRange(period, customFrom, customTo), [period, customFrom, customTo])
+  const periodLabel = periodLabelOf(period, customFrom, customTo)
+
+  // Bottom-sheet «Параметры» (наполнение — C2.3). Пока — скелет-заглушка.
+  const [filterOpen, setFilterOpen] = useState(false)
+  const activeFilterCount: number = 0 // C2.3: объекты/категории/статусы
 
   const linkedClientCompanyId = useMemo(() => {
     const sp = new URLSearchParams(location.search)
@@ -46,10 +153,10 @@ export function MobileAnalytics() {
     enabled: !!meQ.data && isAnalyticsAdmin,
   })
 
-  // ── Locations (ADMIN-only) — per-location + разбивка по категориям + done/overdue ──
+  // ── Locations (ADMIN-only) — per-location + разбивка по категориям + done/overdue, за период ──
   const locationsQ = useQuery({
-    queryKey: ['mobile-analytics-locations', linkedClientCompanyId, companyId],
-    queryFn: () => api.analyticsLocations(scopeParams),
+    queryKey: ['mobile-analytics-locations', linkedClientCompanyId, companyId, range.from, range.to],
+    queryFn: () => api.analyticsLocations({ ...scopeParams, from: range.from, to: range.to }),
     enabled: !!meQ.data && isAnalyticsAdmin,
   })
 
@@ -60,17 +167,16 @@ export function MobileAnalytics() {
     enabled: !!meQ.data,
   })
 
-  // KPI: для админа из overview+locations, для остальных из context.
+  // KPI: админ — счётчики за период из locations.summary + SLA% из overview (без периода);
+  // прочие — из context (периода нет).
   const kpi = useMemo(() => {
     if (isAnalyticsAdmin) {
-      const ov = overviewQ.data
-      const open = ov?.openByStatus
-      const active = open ? open.NEW + open.ASSIGNED + open.IN_PROGRESS : null
+      const sum = locationsQ.data?.summary
       return {
-        active,
-        overdue: ov?.sla?.breachedCount ?? null,
-        done: locationsQ.data?.summary?.doneTotal ?? null,
-        slaPercent: ov?.sla?.okPercent ?? null,
+        total: sum?.totalTickets ?? null,
+        overdue: sum?.totalOverdue ?? null,
+        done: sum?.doneTotal ?? null,
+        slaPercent: overviewQ.data?.sla?.okPercent ?? null,
       }
     }
     const ctx = contextQ.data
@@ -156,53 +262,124 @@ export function MobileAnalytics() {
   const statusMax = Math.max(1, ...statusRows.map((r) => r.value ?? 0))
   const pct = (n: number, max: number) => Math.round((n / max) * 100)
 
-  // Загрузка/ошибка релевантных для роли запросов.
-  const primaryQ = isAnalyticsAdmin ? overviewQ : contextQ
-  const kpiLoading = primaryQ.isLoading
+  // Загрузка KPI: у админа счётчики из locations, SLA — из overview.
+  const kpiLoading = isAnalyticsAdmin ? locationsQ.isLoading : contextQ.isLoading
+
+  const subtitle = isAnalyticsAdmin
+    ? activeFilterCount > 0
+      ? `${periodLabel} · ${activeFilterCount} фильтр${activeFilterCount === 1 ? '' : activeFilterCount < 5 ? 'а' : 'ов'}`
+      : periodLabel
+    : 'Сводка по текущему контуру заявок'
 
   return (
     <div className="mobileSection">
-      <div>
-        <h1 className="mobileTitle">Аналитика</h1>
-        <div className="mobileSubtitle">Сводка по текущему контуру заявок</div>
+      <div className="mobileAnalyticsHead">
+        <div>
+          <h1 className="mobileTitle">Аналитика</h1>
+          <div className="mobileSubtitle">{subtitle}</div>
+        </div>
+        {isAnalyticsAdmin ? (
+          <button
+            type="button"
+            className={`mobileAnalyticsFilterBtn${activeFilterCount > 0 ? ' mobileAnalyticsFilterBtn--active' : ''}`}
+            onClick={() => setFilterOpen(true)}
+            aria-label="Параметры аналитики"
+          >
+            {IconAdjustments}
+          </button>
+        ) : null}
       </div>
+
+      {/* Период (только ADMIN — /analytics/locations поддерживает from/to) */}
+      {isAnalyticsAdmin ? (
+        <>
+          <div className="mobileAnalyticsPeriodRow">
+            {PERIOD_CHIPS.map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                className={`mobileAnalyticsPeriodChip${period === key ? ' mobileAnalyticsPeriodChip--active' : ''}`}
+                onClick={() => setPeriod(key)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {period === 'custom' ? (
+            <div className="mobileAnalyticsCustomRow">
+              <input
+                type="date"
+                className="mobileAnalyticsDateInput"
+                value={customFrom}
+                max={customTo || undefined}
+                onChange={(e) => setCustomFrom(e.target.value)}
+                aria-label="Дата с"
+              />
+              <input
+                type="date"
+                className="mobileAnalyticsDateInput"
+                value={customTo}
+                min={customFrom || undefined}
+                onChange={(e) => setCustomTo(e.target.value)}
+                aria-label="Дата по"
+              />
+            </div>
+          ) : null}
+        </>
+      ) : null}
 
       {/* KPI */}
       <div className="mobileAnalyticsGrid">
-        <div className="mobileCard mobileAnalyticsCard mobileAnalyticsCard--active">
-          <div className="mobileAnalyticsValue">{kpiLoading ? '…' : fmt(kpi.active)}</div>
-          <div className="mobileAnalyticsLabel">Активные заявки</div>
-        </div>
         {isAnalyticsAdmin ? (
           <>
+            <div className="mobileCard mobileAnalyticsCard mobileAnalyticsCard--active">
+              <div className="mobileAnalyticsCardIcon">{KpiIconTickets}</div>
+              <div className="mobileAnalyticsValue">{kpiLoading ? '…' : fmt(kpi.total)}</div>
+              <div className="mobileAnalyticsLabel">Заявок за период</div>
+            </div>
             <div className="mobileCard mobileAnalyticsCard mobileAnalyticsCard--overdue">
+              <div className="mobileAnalyticsCardIcon">{KpiIconOverdue}</div>
               <div className="mobileAnalyticsValue">{kpiLoading ? '…' : fmt(kpi.overdue)}</div>
               <div className="mobileAnalyticsLabel">Просрочено</div>
             </div>
             <div className="mobileCard mobileAnalyticsCard mobileAnalyticsCard--done">
-              <div className="mobileAnalyticsValue">{fmt(kpi.done)}</div>
+              <div className="mobileAnalyticsCardIcon">{KpiIconDone}</div>
+              <div className="mobileAnalyticsValue">{kpiLoading ? '…' : fmt(kpi.done)}</div>
               <div className="mobileAnalyticsLabel">Выполнено</div>
             </div>
             <div className="mobileCard mobileAnalyticsCard mobileAnalyticsCard--sla">
+              <div className="mobileAnalyticsCardIcon">{KpiIconSla}</div>
               <div className="mobileAnalyticsValue">
-                {kpiLoading ? '…' : kpi.slaPercent == null ? '—' : `${kpi.slaPercent}%`}
+                {overviewQ.isLoading ? '…' : kpi.slaPercent == null ? '—' : `${kpi.slaPercent}%`}
               </div>
               <div className="mobileAnalyticsLabel">SLA соблюдён</div>
             </div>
           </>
         ) : (
           <>
+            <div className="mobileCard mobileAnalyticsCard mobileAnalyticsCard--active">
+              <div className="mobileAnalyticsCardIcon">{KpiIconActive}</div>
+              <div className="mobileAnalyticsValue">{kpiLoading ? '…' : fmt(kpi.active)}</div>
+              <div className="mobileAnalyticsLabel">Активные заявки</div>
+            </div>
             <div className="mobileCard mobileAnalyticsCard mobileAnalyticsCard--done">
+              <div className="mobileAnalyticsCardIcon">{KpiIconDone}</div>
               <div className="mobileAnalyticsValue">{kpiLoading ? '…' : fmt(kpi.done)}</div>
               <div className="mobileAnalyticsLabel">Выполнено</div>
             </div>
-            <div className="mobileCard mobileAnalyticsCard mobileAnalyticsCard--active">
+            <div className="mobileCard mobileAnalyticsCard mobileAnalyticsCard--total">
+              <div className="mobileAnalyticsCardIcon">{KpiIconTickets}</div>
               <div className="mobileAnalyticsValue">{kpiLoading ? '…' : fmt(kpi.total)}</div>
               <div className="mobileAnalyticsLabel">Всего заявок</div>
             </div>
           </>
         )}
       </div>
+
+      {/* SLA/сроки период не учитывают — честная пометка */}
+      {isAnalyticsAdmin ? (
+        <div className="mobileAnalyticsSlaNote">SLA соблюдён — за всё окно, период не применяется.</div>
+      ) : null}
 
       {/* Ошибки запросов — не ломают экран, показываем баннером */}
       {isAnalyticsAdmin && overviewQ.isError ? (
@@ -303,6 +480,24 @@ export function MobileAnalytics() {
           На главную
         </Link>
       </div>
+
+      {/* Bottom-sheet «Параметры» — скелет (наполнение фильтрами: C2.3) */}
+      {filterOpen ? (
+        <div className="mobileSheetBackdrop" onClick={() => setFilterOpen(false)}>
+          <div className="mobileSheet" onClick={(e) => e.stopPropagation()}>
+            <div className="mobileSheetGrip" />
+            <div className="mobileSheetHeader">
+              <div className="mobileSheetTitle">Параметры</div>
+              <button type="button" className="mobileSheetClose" onClick={() => setFilterOpen(false)} aria-label="Закрыть">
+                {IconClose}
+              </button>
+            </div>
+            <div className="mobileMeta" style={{ padding: '10px 2px 6px' }}>
+              Фильтры по объектам, категориям и статусам появятся здесь.
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
