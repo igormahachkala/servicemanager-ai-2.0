@@ -134,7 +134,7 @@ function buildQuickActions(labels: {
     {
       id: 'morning-report',
       label: labels.morningReport,
-      href: '/ops/morning-report',
+      href: '/mobile/reports',
     },
     {
       id: 'decisions',

@@ -45,6 +45,8 @@ function MobileAppShellInner({
         decisions: t.mobile.pages.decisions,
         more: t.mobile.pages.more,
         runTaskNew: t.mobile.runTask.pageTitle,
+        reports: t.mobile.reports.pageTitle,
+        reportDetail: t.mobile.reports.detail.pageTitle,
       },
       t.mobile.maxControl.pageTitle ?? 'MAX',
     )
@@ -70,7 +72,7 @@ function MobileAppShellInner({
             label: t.mobile.assignTaskSheet.morningReport,
             onSelect: () => {
               closeSheet()
-              navigate('/ops/morning-report')
+              navigate('/mobile/reports')
             },
           },
         ]}

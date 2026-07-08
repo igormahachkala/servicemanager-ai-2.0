@@ -40,7 +40,15 @@ export function MobileMorePage() {
         />
       </MobileSection>
       <MobileSection title={t.pages.reports}>
-        <MobileEmptyState variant="noReports" />
+        <MobileCard
+          title={t.mobile.reports.pageTitle}
+          description={t.mobile.reports.moreDescription}
+          actions={
+            <Link to="/mobile/reports" className="acMobilePrimaryBtn">
+              {t.mobile.reports.actions.openList}
+            </Link>
+          }
+        />
       </MobileSection>
     </>
   )

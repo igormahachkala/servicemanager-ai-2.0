@@ -1,6 +1,8 @@
 export { MobileEmployeePage } from './MobileEmployeePage'
 export { MobileEmployeesPage } from './MobileEmployeesPage'
 export { MobileDecisionsPage } from './MobileDecisionsPage'
+export { MobileReportDetailPage } from './MobileReportDetailPage'
+export { MobileReportsPage } from './MobileReportsPage'
 export { MobileRunTaskPage } from './MobileRunTaskPage'
 export { MobileTodayPage } from './MobileTodayPage'
 export { MobileMorePage, MobileTasksPage } from './MobileTabPages'

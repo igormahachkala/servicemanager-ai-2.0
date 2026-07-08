@@ -27,11 +27,17 @@ export function resolveMobileNavId(pathname: string): MobileNavId {
 
 export function mobilePageTitle(
   pathname: string,
-  labels: Record<MobileNavId, string> & { runTaskNew?: string },
+  labels: Record<MobileNavId, string> & { runTaskNew?: string; reports?: string; reportDetail?: string },
   maxTitle = 'MAX',
 ): string {
   if (pathname.startsWith(`${MOBILE_NAV_BASE}/tasks/new`)) {
     return labels.runTaskNew ?? labels.tasks
+  }
+  if (pathname.startsWith(`${MOBILE_NAV_BASE}/reports/`) && pathname !== `${MOBILE_NAV_BASE}/reports`) {
+    return labels.reportDetail ?? labels.reports ?? 'Отчёт'
+  }
+  if (pathname.startsWith(`${MOBILE_NAV_BASE}/reports`)) {
+    return labels.reports ?? 'Отчёты'
   }
   if (pathname.includes('/employees/ag-max') || pathname.endsWith('/employees/max')) {
     return maxTitle
