@@ -12,6 +12,7 @@ import {
   estimateTokensFromText,
   fetchWithRetry,
   formatRuntimeError,
+  getEffectiveOllamaBaseUrl,
   loadOllamaSettings,
   RuntimeExecutionMonitor,
   saveRuntimeHealthSnapshot,
@@ -53,6 +54,10 @@ let lastEstimatedTokens: number | null = null
 
 function settings() {
   return loadOllamaSettings()
+}
+
+function effectiveBaseUrl() {
+  return getEffectiveOllamaBaseUrl(settings())
 }
 
 function tagsUrl(baseUrl: string): string {
@@ -109,7 +114,7 @@ export const ollamaRuntimeProvider: RuntimeProvider = {
     initialized = true
     appendRuntimeLog({
       level: 'info',
-      message: `Ollama provider initialized · ${settings().baseUrl}`,
+      message: `Ollama provider initialized · ${effectiveBaseUrl()}`,
       runId: null,
       providerId: 'ollama',
     })
@@ -117,7 +122,7 @@ export const ollamaRuntimeProvider: RuntimeProvider = {
 
   async health() {
     const started = Date.now()
-    const baseUrl = settings().baseUrl
+    const baseUrl = effectiveBaseUrl()
     try {
       const models = await fetchTags(baseUrl)
       const latencyMs = Date.now() - started
@@ -177,7 +182,7 @@ export const ollamaRuntimeProvider: RuntimeProvider = {
 
   async listModels() {
     try {
-      return await fetchTags(settings().baseUrl)
+      return await fetchTags(effectiveBaseUrl())
     } catch {
       return []
     }
@@ -214,7 +219,7 @@ export const ollamaRuntimeProvider: RuntimeProvider = {
 
     try {
       const response = await fetchWithRetry(
-        generateUrl(settings().baseUrl),
+        generateUrl(effectiveBaseUrl()),
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', Accept: 'application/json' },

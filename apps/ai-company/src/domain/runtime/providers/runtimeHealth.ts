@@ -3,6 +3,7 @@ import { OLLAMA_DEFAULT_MODEL_TAG } from './runtimeCapabilities'
 import {
   buildDefaultOllamaSettings,
   normalizeOllamaSettings,
+  resolveEffectiveOllamaBaseUrl,
   type OllamaSettings,
 } from './ollamaSourceMode'
 
@@ -46,7 +47,11 @@ export function saveOllamaSettings(settings: OllamaSettings): void {
   }
 }
 
-export { normalizeOllamaBaseUrl } from './ollamaSourceMode'
+export { normalizeOllamaBaseUrl, resolveEffectiveOllamaBaseUrl } from './ollamaSourceMode'
+
+export function getEffectiveOllamaBaseUrl(settings: OllamaSettings = loadOllamaSettings()): string {
+  return resolveEffectiveOllamaBaseUrl(settings)
+}
 
 export type RuntimeLogLevel = 'info' | 'warn' | 'error' | 'success'
 

@@ -3395,7 +3395,19 @@ export const ru: Messages = {
     executionDuration: "Длительность последнего execution",
     tokenEstimate: "Оценка токенов",
     ollamaSettings: "Настройки Ollama provider",
-    ollamaUrl: "Ollama base URL",
+    ollamaUrl: "Ollama base URL (stored)",
+    ollamaEffectiveEndpoint: "Effective endpoint",
+    ollamaRelayMode: "Режим доступа",
+    ollamaLanRelayActive: "LAN relay · {path}",
+    ollamaDirectLocalhost: "Direct localhost — браузер на той же машине, что и Ollama",
+    ollamaEndpointHint: {
+      localhost:
+        "Localhost (127.0.0.1:11434) работает только когда браузер открыт на той же машине, где запущен ollama serve.",
+      lanRelay:
+        "Телефон по LAN: браузер не может достучаться до 127.0.0.1 Mac — запросы идут через same-origin relay /runtime/ollama (Vite dev proxy на Mac). Порт 11434 наружу не открывается.",
+      production:
+        "Production server: Ollama слушает localhost на сервере; UI с того же хоста использует direct localhost.",
+    },
     defaultModel: "Default model tag",
     saveSettings: "Сохранить настройки",
     loadedModels: "Загруженные модели на сервере",

@@ -5,7 +5,7 @@
  *   1. localStorage ai-company-ollama-settings (Owner UI)
  *   2. VITE_* env baked into bundle at build
  *   3. window.location.hostname → prod_server on 83.166.245.27
- *   4. localhost http://127.0.0.1:11434
+ *   4. localhost http://127.0.0.1:11434 (or /runtime/ollama relay when browser is LAN/remote)
  *
  * Mac = development. 83.166.245.27 = target production runtime.
  * See docs/ai-company/AI-COMPANY-094A-environment-strategy.md

@@ -2,6 +2,7 @@ import {
   AI_COMPANY_PRODUCTION_HOST,
   inferDeployEnvironmentFromHost,
   OLLAMA_LOCALHOST_ENDPOINT,
+  resolveEffectiveOllamaBaseUrl,
   type OllamaDeployEnvironment,
 } from '../runtime/providers/ollamaSourceMode'
 import { loadOllamaSettings } from '../runtime/providers/runtimeHealth'
@@ -34,11 +35,11 @@ export function resolveMaxWorkerRuntimeEnvironment(
 
   const assumptionNote = isProductionServer
     ? 'Production: MAX и Ollama на одном хосте (83.166.245.27); Ollama только localhost:11434.'
-    : 'Development: MAX на Mac; Ollama — localhost или custom endpoint (Settings).'
+    : 'Development: MAX на Mac; Ollama — localhost, LAN relay (/runtime/ollama) или custom endpoint.'
 
   return {
     deployEnvironment,
-    ollamaBaseUrl: settings.baseUrl || OLLAMA_LOCALHOST_ENDPOINT,
+    ollamaBaseUrl: resolveEffectiveOllamaBaseUrl(settings) || OLLAMA_LOCALHOST_ENDPOINT,
     uiHost: hostname || 'unknown',
     isProductionServer,
     assumptionNote,

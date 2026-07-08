@@ -3456,7 +3456,19 @@ export const en = {
     executionDuration: 'Last execution duration',
     tokenEstimate: 'Last token estimate',
     ollamaSettings: 'Ollama provider settings',
-    ollamaUrl: 'Ollama base URL',
+    ollamaUrl: 'Ollama base URL (stored)',
+    ollamaEffectiveEndpoint: 'Effective endpoint',
+    ollamaRelayMode: 'Access mode',
+    ollamaLanRelayActive: 'LAN relay · {path}',
+    ollamaDirectLocalhost: 'Direct localhost — browser on the same machine as Ollama',
+    ollamaEndpointHint: {
+      localhost:
+        'Localhost (127.0.0.1:11434) works only when the browser runs on the same machine as ollama serve.',
+      lanRelay:
+        'Phone over LAN: the browser cannot reach the Mac’s 127.0.0.1 — requests go through same-origin relay /runtime/ollama (Vite dev proxy on the Mac). Port 11434 is not exposed on the LAN.',
+      production:
+        'Production server: Ollama listens on localhost on the server; UI on that host uses direct localhost.',
+    },
     defaultModel: 'Default model tag',
     saveSettings: 'Save settings',
     loadedModels: 'Loaded models on server',

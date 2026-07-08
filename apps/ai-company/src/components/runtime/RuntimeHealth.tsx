@@ -1,5 +1,10 @@
 import { useState } from 'react'
 import { OLLAMA_DEFAULT_BASE_URL, OLLAMA_MODEL_CATALOG } from '../../domain/runtime/providers/runtimeCapabilities'
+import {
+  OLLAMA_SAME_ORIGIN_RELAY_PATH,
+  resolveEffectiveOllamaBaseUrl,
+  shouldUseOllamaSameOriginRelay,
+} from '../../domain/runtime/providers/ollamaSourceMode'
 import { useRuntimeProvider } from '../../hooks/useRuntimeProvider'
 import { useI18n } from '../../i18n'
 
@@ -22,6 +27,9 @@ export function RuntimeHealth({ compact = false }: { compact?: boolean }) {
 
   const [baseUrl, setBaseUrl] = useState(ollamaSettings.baseUrl)
   const [defaultModelTag, setDefaultModelTag] = useState(ollamaSettings.defaultModelTag)
+
+  const relayActive = shouldUseOllamaSameOriginRelay(ollamaSettings)
+  const effectiveBaseUrl = resolveEffectiveOllamaBaseUrl(ollamaSettings)
 
   const healthStatus = activeHealth?.status ?? 'unknown'
 
@@ -104,6 +112,38 @@ export function RuntimeHealth({ compact = false }: { compact?: boolean }) {
 
       <div className="mcRuntimeOllamaSettings">
         <span className="mcFieldLabel">{t.runtimeProviders.ollamaSettings}</span>
+
+        <div className="mcRuntimeOllamaEndpointHint" role="note">
+          <p className="mcMuted">{t.runtimeProviders.ollamaEndpointHint.localhost}</p>
+          <p className="mcMuted">{t.runtimeProviders.ollamaEndpointHint.lanRelay}</p>
+          <p className="mcMuted">{t.runtimeProviders.ollamaEndpointHint.production}</p>
+        </div>
+
+        <div className="mcRuntimeAdapterMetrics mcRuntimeOllamaEffectiveEndpoint">
+          <div className="mcRuntimeAdapterMetric">
+            <span className="mcRuntimeAdapterMetricLabel">
+              {t.runtimeProviders.ollamaEffectiveEndpoint}
+            </span>
+            <span className="mcMono mcRuntimeAdapterMetricValue">{effectiveBaseUrl}</span>
+          </div>
+          {relayActive ? (
+            <div className="mcRuntimeAdapterMetric">
+              <span className="mcRuntimeAdapterMetricLabel">{t.runtimeProviders.ollamaRelayMode}</span>
+              <span className="mcRuntimeAdapterStatus mcRuntimeAdapterStatusHealthy">
+                {t.runtimeProviders.ollamaLanRelayActive.replace(
+                  '{path}',
+                  OLLAMA_SAME_ORIGIN_RELAY_PATH,
+                )}
+              </span>
+            </div>
+          ) : (
+            <div className="mcRuntimeAdapterMetric">
+              <span className="mcRuntimeAdapterMetricLabel">{t.runtimeProviders.ollamaRelayMode}</span>
+              <span className="mcMuted">{t.runtimeProviders.ollamaDirectLocalhost}</span>
+            </div>
+          )}
+        </div>
+
         <label className="mcField">
           <span className="mcFieldLabel">{t.runtimeProviders.ollamaUrl}</span>
           <input
