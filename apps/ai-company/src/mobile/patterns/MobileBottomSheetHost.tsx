@@ -7,6 +7,7 @@ function MobileBottomSheetPanel() {
   const { t } = useI18n()
   const { isOpen, title, ariaLabel, content, closeSheet } = useMobileBottomSheet()
   const panelRef = useRef<HTMLDivElement>(null)
+  const bodyRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!isOpen) return
@@ -25,6 +26,11 @@ function MobileBottomSheetPanel() {
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [isOpen, closeSheet])
+
+  useEffect(() => {
+    if (!isOpen) return
+    bodyRef.current?.scrollTo({ top: 0 })
+  }, [isOpen, content])
 
   if (!isOpen || !content) return null
 
@@ -52,7 +58,9 @@ function MobileBottomSheetPanel() {
             </button>
           </header>
         ) : null}
-        <div className="acMobileSheetBody">{content}</div>
+        <div ref={bodyRef} className="acMobileSheetBody">
+          {content}
+        </div>
       </div>
     </div>,
     document.body,

@@ -144,7 +144,7 @@ export const mobileRu = {
   },
   maxControl: {
     pageTitle: 'MAX',
-    readyBanner: 'MAX готов к первому запуску — начните с рабочего дня или первой задачи.',
+    readyBanner: 'MAX готов к первому запуску — начните с рабочего дня или первой задачи в очереди.',
     activeBanner: 'MAX уже работал — продолжайте очередь или проверьте последний результат.',
     sections: {
       workday: 'Рабочий день',
@@ -159,6 +159,7 @@ export const mobileRu = {
       currentTask: 'Текущая задача',
       assignTask: 'Поставить задачу',
       openReports: 'Открыть отчёты',
+      openToday: 'Сегодня',
     },
     workday: {
       title: 'Рабочий день MAX',
@@ -172,6 +173,7 @@ export const mobileRu = {
       runNext: 'Запустить следующую',
       running: 'Запуск…',
       runningStatus: 'MAX выполняет задачу…',
+      fabHint: 'Новую задачу можно поставить через кнопку «+» внизу экрана.',
     },
     runNextConfirm: {
       sheetTitle: 'Запуск задачи MAX',
@@ -211,7 +213,8 @@ export const mobileRu = {
     lastResult: {
       title: 'Последний результат',
       description: 'Daily Journal или Operating Day Summary.',
-      readyHint: 'Запустите рабочий день или поставьте первую задачу MAX.',
+      readyHint:
+        'Запустите рабочий день MAX. Новую задачу можно добавить через кнопку «+» внизу экрана.',
       startWorkday: 'Начать рабочий день',
       assignTask: 'Поставить задачу',
       fallbackTitle: 'Завершённая задача',
@@ -221,6 +224,7 @@ export const mobileRu = {
       consultations: 'Консультации',
       recommendation: 'Рекомендация',
       openReport: 'Открыть отчёт',
+      openReports: 'Все отчёты',
       openMorningReport: 'Утренний отчёт',
     },
     quickTask: {

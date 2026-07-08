@@ -10,7 +10,6 @@ type Props = {
   lastJournalEntry: EmployeeDailyJournalEntry | null
   lastOperatingDaySummary: EmployeeOperatingDaySummary | null
   hasPriorActivity: boolean
-  onAssignTask: () => void
   onStartWorkday: () => void
 }
 
@@ -29,7 +28,6 @@ export function MobileLastResultCard({
   lastJournalEntry,
   lastOperatingDaySummary,
   hasPriorActivity,
-  onAssignTask,
   onStartWorkday,
 }: Props) {
   const { t } = useI18n()
@@ -40,12 +38,9 @@ export function MobileLastResultCard({
       <div className="acMobileMaxEmptyResult">
         <MobileEmptyState variant="workdayNotStarted" />
         <p className="acMobileMaxEmptyResultHint">{copy.readyHint}</p>
-        <div className="acMobileCardActions acMobileMaxEmptyResultActions">
-          <button type="button" className="acMobilePrimaryBtn" onClick={onStartWorkday}>
+        <div className="acMobileCardActions acMobileMaxEmptyResultActions acMobileCardActionsPrimaryOnly">
+          <button type="button" className="acMobilePrimaryBtn acMobileCardPrimaryWide" onClick={onStartWorkday}>
             {copy.startWorkday}
-          </button>
-          <button type="button" className="acMobileSecondaryBtn" onClick={onAssignTask}>
-            {copy.assignTask}
           </button>
         </div>
       </div>
@@ -116,14 +111,14 @@ export function MobileLastResultCard({
         ) : null}
       </dl>
 
-      <div className="acMobileCardActions">
+      <div className="acMobileCardActions acMobileCardActionsSecondaryRow">
         {reportHref ? (
-          <Link to={resolveMobileHref(reportHref)} className="acMobileLinkBtn">
+          <Link to={resolveMobileHref(reportHref)} className="acMobileSecondaryBtn">
             {copy.openReport}
           </Link>
         ) : null}
-        <Link to={MOBILE_PATHS.morningReport} className="acMobileLinkBtn">
-          {copy.openMorningReport}
+        <Link to={MOBILE_PATHS.reports} className="acMobileTertiaryLinkBtn">
+          {copy.openReports}
         </Link>
       </div>
     </MobileCard>

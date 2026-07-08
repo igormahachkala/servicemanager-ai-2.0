@@ -2,6 +2,7 @@ import { useCallback, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useI18n } from '../../i18n'
 import { useMobileBottomSheet } from '../hooks/useMobileBottomSheet'
+import { MOBILE_PATHS } from '../navigation/mobileHrefResolver'
 import { MobileBottomNavigation } from '../navigation/MobileBottomNavigation'
 import { mobilePageTitle } from '../navigation/mobileNavigationConfig'
 import { MobileFab } from '../components/MobileFab'
@@ -52,7 +53,6 @@ function MobileAppShellInner({
     )
 
   const hideFab = pathname.startsWith('/mobile/tasks/new')
-  const runTaskHref = '/mobile/tasks/new'
 
   const openAssignTaskSheet = useCallback(() => {
     openSheet(
@@ -64,7 +64,7 @@ function MobileAppShellInner({
             description: t.mobile.assignTaskSheet.description,
             onSelect: () => {
               closeSheet()
-              navigate(runTaskHref)
+              navigate(MOBILE_PATHS.tasksNewMax)
             },
           },
           {
@@ -72,14 +72,14 @@ function MobileAppShellInner({
             label: t.mobile.assignTaskSheet.morningReport,
             onSelect: () => {
               closeSheet()
-              navigate('/mobile/reports/morning-report')
+              navigate(MOBILE_PATHS.morningReport)
             },
           },
         ]}
       />,
       { title: t.mobile.assignTaskSheet.title, ariaLabel: t.mobile.fab.ariaLabel },
     )
-  }, [closeSheet, navigate, openSheet, runTaskHref, t])
+  }, [closeSheet, navigate, openSheet, t])
 
   return (
     <div className="acMobileShell" aria-label={t.mobile.shell.ariaLabel}>

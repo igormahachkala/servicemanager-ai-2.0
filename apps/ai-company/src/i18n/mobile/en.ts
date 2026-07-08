@@ -144,7 +144,7 @@ export const mobileEn = {
   },
   maxControl: {
     pageTitle: 'MAX',
-    readyBanner: 'MAX is ready for first launch — start the workday or assign the first task.',
+    readyBanner: 'MAX is ready for first launch — start the workday or the first queue task.',
     activeBanner: 'MAX has prior activity — continue the queue or review the latest result.',
     sections: {
       workday: 'Workday',
@@ -159,6 +159,7 @@ export const mobileEn = {
       currentTask: 'Current task',
       assignTask: 'Assign task',
       openReports: 'Open reports',
+      openToday: 'Today',
     },
     workday: {
       title: 'MAX workday',
@@ -172,6 +173,7 @@ export const mobileEn = {
       runNext: 'Run next',
       running: 'Starting…',
       runningStatus: 'MAX is running the task…',
+      fabHint: 'Use the + button at the bottom of the screen to assign a new task.',
     },
     runNextConfirm: {
       sheetTitle: 'Launch MAX task',
@@ -211,7 +213,8 @@ export const mobileEn = {
     lastResult: {
       title: 'Last result',
       description: 'Daily Journal or Operating Day Summary.',
-      readyHint: 'Start the workday or assign MAX the first task.',
+      readyHint:
+        'Start MAX workday. Use the + button at the bottom of the screen to assign a new task.',
       startWorkday: 'Start workday',
       assignTask: 'Assign task',
       fallbackTitle: 'Completed task',
@@ -221,6 +224,7 @@ export const mobileEn = {
       consultations: 'Consultations',
       recommendation: 'Recommendation',
       openReport: 'Open report',
+      openReports: 'All reports',
       openMorningReport: 'Morning report',
     },
     quickTask: {
