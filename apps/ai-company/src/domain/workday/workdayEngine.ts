@@ -1,3 +1,4 @@
+import { recordOperatingDaySummaryOnWorkdayFinish } from '../operatingDaySummary'
 import { loadApprovalStore } from '../approval/approvalStorage'
 import { DEFAULT_COMPANY_ID } from '../company/company'
 import { emitEvent } from '../events/eventStorage'
@@ -395,6 +396,7 @@ export function finishWorkday(employeeId: string, draft?: EmployeeWorkday): Empl
   )
 
   next = upsertWorkday(next)
+  recordOperatingDaySummaryOnWorkdayFinish(next)
 
   upsertPresence({
     employeeId,
