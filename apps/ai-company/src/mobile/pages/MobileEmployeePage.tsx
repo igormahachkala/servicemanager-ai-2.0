@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { Link, Navigate, useParams } from 'react-router-dom'
+import { Link, Navigate, useNavigate, useParams } from 'react-router-dom'
 import { MAX_WORKER_EMPLOYEE_ID } from '../../domain/maxWorkerLoop'
 import { resolveCanonicalEmployeeId } from '../../mission-control/data/employeeIdResolver'
 import { useI18n } from '../../i18n'
@@ -16,6 +16,7 @@ export function MobileEmployeePage() {
   const { id: rawId } = useParams<{ id: string }>()
   const { t } = useI18n()
   const { openSheet, closeSheet } = useMobileBottomSheet()
+  const navigate = useNavigate()
   const max = useMobileEmployeeMax()
   const copy = t.mobile.maxControl
 
@@ -31,7 +32,7 @@ export function MobileEmployeePage() {
             description: copy.quickTask.runTaskHint,
             onSelect: () => {
               closeSheet()
-              window.location.assign(`/ops/run-task?employee=${MAX_WORKER_EMPLOYEE_ID}`)
+              navigate(`/mobile/tasks/new?employee=${MAX_WORKER_EMPLOYEE_ID}`)
             },
           },
           {
@@ -49,14 +50,14 @@ export function MobileEmployeePage() {
             description: copy.quickTask.mobileFormHint,
             onSelect: () => {
               closeSheet()
-              window.location.assign('/mobile/tasks')
+              navigate(`/mobile/tasks/new?employee=${MAX_WORKER_EMPLOYEE_ID}`)
             },
           },
         ]}
       />,
       { title: copy.quickTask.title, ariaLabel: copy.quickTask.title },
     )
-  }, [closeSheet, copy.quickTask, max, openSheet])
+  }, [closeSheet, copy.quickTask, max, navigate, openSheet])
 
   if (!rawId) {
     return <Navigate to={`/mobile/employees/${MAX_WORKER_EMPLOYEE_ID}`} replace />

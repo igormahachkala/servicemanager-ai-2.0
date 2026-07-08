@@ -44,31 +44,26 @@ function MobileAppShellInner({
         tasks: t.mobile.pages.tasks,
         decisions: t.mobile.pages.decisions,
         more: t.mobile.pages.more,
+        runTaskNew: t.mobile.runTask.pageTitle,
       },
       t.mobile.maxControl.pageTitle ?? 'MAX',
     )
 
-  const runTaskHref = pathname.includes('/employees/ag-max')
-    ? '/ops/run-task?employee=ag-max'
-    : '/ops/run-task'
+  const hideFab = pathname.startsWith('/mobile/tasks/new')
+  const runTaskHref = '/mobile/tasks/new'
 
   const openAssignTaskSheet = useCallback(() => {
     openSheet(
       <MobileActionSheet
         items={[
           {
-            id: 'run-task',
-            label: t.mobile.assignTaskSheet.runTask,
+            id: 'mobile-run-task',
+            label: t.mobile.fab.assignTask,
             description: t.mobile.assignTaskSheet.description,
             onSelect: () => {
               closeSheet()
               navigate(runTaskHref)
             },
-          },
-          {
-            id: 'quick-assign',
-            label: t.mobile.assignTaskSheet.quickAssign,
-            onSelect: closeSheet,
           },
           {
             id: 'morning-report',
@@ -89,7 +84,7 @@ function MobileAppShellInner({
       <div className="acMobileSafeAreaTop" aria-hidden />
       <MobileHeader title={resolvedTitle} searchSlot={searchSlot} showSearch={showSearch} />
       <MobileContent padded={contentPadded}>{children}</MobileContent>
-      {showFab ? (
+      {showFab && !hideFab ? (
         <div className="acMobileFabHost">
           <MobileFab label={t.mobile.fab.assignTask} onClick={openAssignTaskSheet} />
         </div>

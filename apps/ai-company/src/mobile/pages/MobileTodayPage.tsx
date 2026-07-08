@@ -19,7 +19,7 @@ export function MobileTodayPage() {
     refresh,
   } = useMobileOwnerHome()
 
-  const maxLaunchHref = `/ops/run-task?employee=${encodeURIComponent('ag-max')}`
+  const maxLaunchHref = '/mobile/tasks/new?employee=ag-max'
 
   return (
     <div className="acMobileOwnerHome">

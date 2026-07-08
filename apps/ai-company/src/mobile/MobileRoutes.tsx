@@ -1,9 +1,10 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { MobileAppShell } from './layout/MobileAppShell'
 import { MobileEmployeePage } from './pages/MobileEmployeePage'
+import { MobileEmployeesPage } from './pages/MobileEmployeesPage'
+import { MobileRunTaskPage } from './pages/MobileRunTaskPage'
 import {
   MobileDecisionsPage,
-  MobileEmployeesPage,
   MobileMorePage,
   MobileTasksPage,
 } from './pages/MobileTabPages'
@@ -17,6 +18,7 @@ export function MobileRoutes() {
         <Route path="/mobile/today" element={<MobileTodayPage />} />
         <Route path="/mobile/employees/:id" element={<MobileEmployeePage />} />
         <Route path="/mobile/employees" element={<MobileEmployeesPage />} />
+        <Route path="/mobile/tasks/new" element={<MobileRunTaskPage />} />
         <Route path="/mobile/tasks" element={<MobileTasksPage />} />
         <Route path="/mobile/decisions" element={<MobileDecisionsPage />} />
         <Route path="/mobile/more" element={<MobileMorePage />} />

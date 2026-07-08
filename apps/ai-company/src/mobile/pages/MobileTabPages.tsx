@@ -1,39 +1,19 @@
 import { Link } from 'react-router-dom'
 import { ThemeSwitch } from '../../components/theme/ThemeSwitch'
-import { MAX_WORKER_EMPLOYEE_ID } from '../../domain/maxWorkerLoop'
 import { useI18n } from '../../i18n'
 import { MobileCard } from '../components/MobileCard'
 import { MobileEmptyState } from '../components/MobileEmptyState'
-import { MobileLoadingSkeleton } from '../components/MobileLoadingSkeleton'
 import { MobileSection } from '../components/MobileSection'
-
-export function MobileEmployeesPage() {
-  const { t } = useI18n()
-  const list = t.mobile.maxControl.employeesList
-
-  return (
-    <MobileSection title={t.mobile.pages.employees} description={t.ownerNav.groups.employees.hint}>
-      <MobileCard
-        title={list?.maxTitle ?? 'MAX'}
-        description={list?.maxDescription ?? t.ownerNav.items.maxWorkspace.why}
-        status={{ label: t.mobile.maxControl.hero.firstEmployeeBadge, tone: 'info' }}
-        actions={
-          <Link to={`/mobile/employees/${MAX_WORKER_EMPLOYEE_ID}`} className="acMobileLinkBtn">
-            {list?.openMax ?? t.ownerNav.items.maxWorkspace.label}
-          </Link>
-        }
-      />
-    </MobileSection>
-  )
-}
 
 export function MobileTasksPage() {
   const { t } = useI18n()
 
   return (
     <MobileSection title={t.mobile.pages.tasks} description={t.ownerNav.groups.tasks.hint}>
+      <Link to="/mobile/tasks/new" className="acMobilePrimaryBtn acMobileTasksNewBtn">
+        {t.mobile.fab.assignTask}
+      </Link>
       <MobileEmptyState variant="noTasks" />
-      <MobileLoadingSkeleton variant="card" rows={2} />
     </MobileSection>
   )
 }

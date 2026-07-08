@@ -1372,6 +1372,443 @@
   width: 100%;
 }
 
+/* Mobile Run Task (107D) */
+.acMobileRunTaskIntro,
+.acMobileRunTaskNote {
+  margin: 0 0 var(--mobile-spacing-md);
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--theme-text-muted);
+}
+
+.acMobileEmployeePicker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mobile-spacing-sm);
+}
+
+.acMobileEmployeePickerItem {
+  display: flex;
+  align-items: center;
+  gap: var(--mobile-spacing-md);
+  width: 100%;
+  min-height: var(--mobile-touch-target);
+  padding: var(--mobile-spacing-md);
+  border: 1px solid var(--theme-border);
+  border-radius: var(--mobile-radius-lg);
+  background: var(--theme-surface);
+  color: var(--theme-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.acMobileEmployeePickerItemSelected {
+  border-color: var(--theme-accent);
+  background: var(--theme-accent-dim);
+}
+
+.acMobileEmployeePickerItemDisabled {
+  opacity: 0.72;
+  cursor: not-allowed;
+}
+
+.acMobileEmployeePickerAvatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--mobile-radius-pill);
+  background: var(--theme-bg-subtle);
+  font-size: 0.75rem;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.acMobileEmployeePickerText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.acMobileEmployeePickerName {
+  font-size: 0.9375rem;
+  font-weight: 650;
+}
+
+.acMobileEmployeePickerRole,
+.acMobileEmployeePickerHint {
+  font-size: 0.75rem;
+  color: var(--theme-text-muted);
+}
+
+.acMobileEmployeePickerCheck {
+  color: var(--theme-accent);
+  font-weight: 700;
+}
+
+.acMobileTaskTemplateGrid {
+  display: grid;
+  gap: var(--mobile-spacing-sm);
+}
+
+.acMobileTaskTemplateCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mobile-spacing-xs);
+  width: 100%;
+  padding: var(--mobile-spacing-md);
+  border: 1px solid var(--theme-border);
+  border-radius: var(--mobile-radius-md);
+  background: var(--theme-surface);
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+}
+
+.acMobileTaskTemplateCardSelected {
+  border-color: var(--theme-accent);
+  background: var(--theme-accent-dim);
+}
+
+.acMobileTaskTemplateTitle {
+  font-size: 0.875rem;
+  font-weight: 650;
+}
+
+.acMobileTaskTemplatePreview {
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--theme-text-muted);
+}
+
+.acMobileTaskComposer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mobile-spacing-md);
+}
+
+.acMobileField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mobile-spacing-xs);
+}
+
+.acMobileFieldLabel {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--theme-text-secondary);
+}
+
+.acMobileFieldInput,
+.acMobileFieldSelect,
+.acMobileFieldTextarea {
+  width: 100%;
+  min-height: var(--mobile-touch-target);
+  padding: var(--mobile-spacing-md);
+  border: 1px solid var(--theme-border);
+  border-radius: var(--mobile-radius-md);
+  background: var(--theme-bg-elevated);
+  color: var(--theme-text);
+  font: inherit;
+}
+
+.acMobileFieldTextarea {
+  min-height: 120px;
+  resize: vertical;
+}
+
+.acMobileFieldError {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--theme-error);
+}
+
+.acMobileTaskComposerSubmit {
+  width: 100%;
+}
+
+.acMobileTaskComposerNote {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--theme-text-subtle);
+  line-height: 1.45;
+}
+
+.acMobileRunTaskSuccess {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: var(--mobile-spacing-xxl) var(--mobile-spacing-lg);
+}
+
+.acMobileRunTaskSuccessIcon {
+  color: var(--theme-success);
+  margin-bottom: var(--mobile-spacing-lg);
+}
+
+.acMobileRunTaskSuccessTitle {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+
+.acMobileRunTaskSuccessDescription,
+.acMobileRunTaskSuccessTask {
+  margin: var(--mobile-spacing-sm) 0 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--theme-text-muted);
+}
+
+.acMobileRunTaskSuccessTask {
+  color: var(--theme-text);
+  font-weight: 600;
+}
+
+.acMobileRunTaskSuccessActions,
+.acMobileRunTaskMaxActionsGrid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mobile-spacing-sm);
+  width: 100%;
+  margin-top: var(--mobile-spacing-lg);
+}
+
+.acMobileRunTaskSuccessBtn {
+  width: 100%;
+  text-decoration: none;
+}
+
+.acMobileRunTaskMaxActions {
+  width: 100%;
+  margin-top: var(--mobile-spacing-xl);
+  padding-top: var(--mobile-spacing-lg);
+  border-top: 1px solid var(--theme-divider);
+}
+
+.acMobileRunTaskMaxActionsLabel {
+  margin: 0 0 var(--mobile-spacing-md);
+  font-size: 0.8125rem;
+  color: var(--theme-text-muted);
+}
+
+.acMobileTasksNewBtn {
+  width: 100%;
+  margin-bottom: var(--mobile-spacing-md);
+  text-decoration: none;
+}
+
+/* Employees roster — AI-COMPANY-107E */
+.acMobileEmployeesPage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mobile-spacing-section);
+}
+
+.acMobileEmployeesFraming {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--theme-text-secondary);
+}
+
+.acMobileRosterList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mobile-spacing-lg);
+}
+
+.acMobileRosterCard {
+  padding: var(--mobile-spacing-lg);
+  border: 1px solid var(--theme-border);
+  border-radius: var(--mobile-radius-lg);
+  background: var(--theme-surface);
+}
+
+.acMobileRosterCardActive {
+  border-color: color-mix(in srgb, var(--theme-accent) 28%, var(--theme-border));
+}
+
+.acMobileRosterCardPlaceholder {
+  opacity: 0.92;
+}
+
+.acMobileRosterCardHead {
+  display: flex;
+  gap: var(--mobile-spacing-md);
+  margin-bottom: var(--mobile-spacing-md);
+}
+
+.acMobileRosterCardAvatar {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--mobile-radius-md);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.875rem;
+  font-weight: 700;
+  background: color-mix(in srgb, var(--theme-accent) 16%, var(--theme-bg-subtle));
+  color: var(--theme-accent);
+  flex-shrink: 0;
+}
+
+.acMobileRosterCardIntro {
+  min-width: 0;
+  flex: 1;
+}
+
+.acMobileRosterCardTitleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--mobile-spacing-sm);
+}
+
+.acMobileRosterCardName {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.acMobileRosterCardRole {
+  margin: 2px 0 0;
+  font-size: 0.8125rem;
+  color: var(--theme-text-secondary);
+}
+
+.acMobileRosterBadge {
+  display: inline-flex;
+  padding: 2px 8px;
+  border-radius: var(--mobile-radius-pill);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: var(--theme-bg-subtle);
+  color: var(--theme-text-muted);
+  white-space: nowrap;
+}
+
+.acMobileRosterBadgeActive {
+  background: color-mix(in srgb, var(--theme-accent) 14%, transparent);
+  color: var(--theme-accent);
+}
+
+.acMobileRosterMetrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--mobile-spacing-sm);
+  margin: 0 0 var(--mobile-spacing-md);
+}
+
+.acMobileRosterMetric {
+  padding: var(--mobile-spacing-sm) var(--mobile-spacing-md);
+  border-radius: var(--mobile-radius-sm);
+  background: var(--theme-bg-subtle);
+}
+
+.acMobileRosterMetric dt {
+  margin: 0 0 2px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--theme-text-muted);
+}
+
+.acMobileRosterMetric dd {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--theme-text);
+}
+
+.acMobileRosterResult {
+  margin-bottom: var(--mobile-spacing-md);
+  padding-top: var(--mobile-spacing-sm);
+  border-top: 1px solid var(--theme-border-subtle);
+}
+
+.acMobileRosterResultLabel {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--theme-text-muted);
+}
+
+.acMobileRosterResultTitle {
+  margin-top: 4px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.acMobileRosterResultTime {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.75rem;
+  color: var(--theme-text-muted);
+}
+
+.acMobileRosterResultEmpty {
+  margin: 4px 0 0;
+  font-size: 0.8125rem;
+  color: var(--theme-text-muted);
+}
+
+.acMobileRosterActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mobile-spacing-sm);
+}
+
+.acMobileRosterPrimaryAction {
+  flex: 1 1 100%;
+}
+
+.acMobileHireCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mobile-spacing-md);
+  padding: var(--mobile-spacing-lg);
+  border: 1px dashed var(--theme-border-strong);
+  border-radius: var(--mobile-radius-lg);
+  background: var(--theme-bg-subtle);
+}
+
+.acMobileHireCardIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--mobile-radius-md);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--theme-text-muted);
+  background: var(--theme-surface);
+  border: 1px solid var(--theme-border);
+}
+
+.acMobileHireCardTitle {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.acMobileHireCardDescription {
+  margin: 4px 0 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--theme-text-secondary);
+}
+
 @media (min-width: 481px) {
   .acMobileShell {
     border-left: 1px solid var(--theme-border);

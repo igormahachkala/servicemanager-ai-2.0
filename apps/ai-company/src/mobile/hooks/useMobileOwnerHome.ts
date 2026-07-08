@@ -104,13 +104,13 @@ function resolveNextAction(
   if (!hasPriorActivity) {
     return {
       kind: 'launch_first',
-      href: `/ops/run-task?employee=${MAX_ID}`,
+      href: `/mobile/tasks/new?employee=${MAX_ID}`,
     }
   }
 
   return {
     kind: 'launch_first',
-    href: `/ops/run-task?employee=${MAX_ID}`,
+    href: `/mobile/tasks/new?employee=${MAX_ID}`,
   }
 }
 
@@ -124,7 +124,7 @@ function buildQuickActions(labels: {
     {
       id: 'assign-max',
       label: labels.assignMax,
-      href: `/ops/run-task?employee=${MAX_ID}`,
+      href: `/mobile/tasks/new?employee=${MAX_ID}`,
     },
     {
       id: 'max-today',
