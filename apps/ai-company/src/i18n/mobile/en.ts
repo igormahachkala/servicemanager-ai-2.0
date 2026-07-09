@@ -90,6 +90,8 @@ export const mobileEn = {
       demoHint: '5-minute AI Company demo.',
       max: 'MAX',
       maxHint: 'MAX queue and control.',
+      chat: 'Chat with MAX',
+      chatHint: 'Talk to MAX — questions and task proposals.',
       desktop: 'Desktop overview',
       desktopHint: 'Full /ops UI.',
     },
@@ -143,6 +145,7 @@ export const mobileEn = {
       },
     },
     quickActions: {
+      writeMax: 'Message MAX',
       assignMax: 'Assign task to MAX',
       maxToday: 'MAX today',
       morningReport: 'Morning report',

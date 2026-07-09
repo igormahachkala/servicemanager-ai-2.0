@@ -60,6 +60,12 @@ export function MobileMorePage() {
       to: MOBILE_PATHS.demo,
     },
     {
+      id: 'chat',
+      title: copy.links.chat,
+      description: copy.links.chatHint,
+      to: MOBILE_PATHS.chat,
+    },
+    {
       id: 'max',
       title: copy.links.max,
       description: copy.links.maxHint,

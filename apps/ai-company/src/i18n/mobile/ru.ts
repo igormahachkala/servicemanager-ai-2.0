@@ -90,6 +90,8 @@ export const mobileRu = {
       demoHint: '5-минутная демонстрация AI Company.',
       max: 'MAX',
       maxHint: 'Очередь и управление MAX.',
+      chat: 'Чат с MAX',
+      chatHint: 'Диалог с MAX — вопросы и постановка задач.',
       desktop: 'Desktop overview',
       desktopHint: 'Полная версия /ops.',
     },
@@ -143,6 +145,7 @@ export const mobileRu = {
       },
     },
     quickActions: {
+      writeMax: 'Написать MAX',
       assignMax: 'Поставить задачу MAX',
       maxToday: 'MAX сегодня',
       morningReport: 'Утренний отчёт',

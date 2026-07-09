@@ -1,5 +1,7 @@
-import { useI18n } from '../../i18n'
+import { Navigate, useParams } from 'react-router-dom'
 import { MAX_WORKER_EMPLOYEE_ID } from '../../domain/maxWorkerLoop'
+import { resolveCanonicalEmployeeId } from '../../mission-control/data/employeeIdResolver'
+import { useI18n } from '../../i18n'
 import { MobileChatComposer } from '../components/MobileChatComposer'
 import { MobileChatMessageList } from '../components/MobileChatMessageList'
 import { MobileChatQuickHints } from '../components/MobileChatQuickHints'
@@ -7,9 +9,16 @@ import { MobileChatStatusBar } from '../components/MobileChatStatusBar'
 import { useMobileMaxChat } from '../hooks/useMobileMaxChat'
 
 export function MobileMaxChatPage() {
+  const { employeeId: rawId } = useParams<{ employeeId: string }>()
   const { t } = useI18n()
   const copy = t.mobile.maxChat
-  const chat = useMobileMaxChat(MAX_WORKER_EMPLOYEE_ID)
+
+  const resolvedId = rawId ? resolveCanonicalEmployeeId(rawId) : MAX_WORKER_EMPLOYEE_ID
+  if (resolvedId !== MAX_WORKER_EMPLOYEE_ID) {
+    return <Navigate to={`/mobile/chat/${MAX_WORKER_EMPLOYEE_ID}`} replace />
+  }
+
+  const chat = useMobileMaxChat(resolvedId)
 
   return (
     <div className="acMobilePage acMobileChatPage">

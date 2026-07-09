@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { useEffect } from 'react'
 import { Navigate, useLocation, useParams } from 'react-router-dom'
 import { MAX_WORKER_EMPLOYEE_ID } from '../../domain/maxWorkerLoop'
@@ -12,6 +13,7 @@ import { MobileLastResultCard } from '../components/MobileLastResultCard'
 import { MobileSection } from '../components/MobileSection'
 import { MobileRuntimeLiveBanner } from '../components/MobileRuntimeLiveBanner'
 import { MobileStandardTaskQuickStart } from '../components/MobileStandardTaskQuickStart'
+import { MOBILE_PATHS } from '../navigation/mobileHrefResolver'
 
 export function MobileEmployeePage() {
   const { id: rawId } = useParams<{ id: string }>()
@@ -64,6 +66,12 @@ export function MobileEmployeePage() {
       )}
 
       <MobileEmployeeHeroCard snapshot={max.snapshot} />
+
+      <MobileSection title={copy.hero.openChat}>
+        <Link to={MOBILE_PATHS.chat} className="acMobilePrimaryBtn">
+          {copy.hero.openChat}
+        </Link>
+      </MobileSection>
 
       <MobileStandardTaskQuickStart />
 

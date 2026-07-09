@@ -119,10 +119,16 @@ function resolveNextAction(
 function buildQuickActions(labels: {
   assignMax: string
   maxToday: string
+  writeMax: string
   morningReport: string
   decisions: string
 }): MobileQuickAction[] {
   return [
+    {
+      id: 'write-max',
+      label: labels.writeMax,
+      href: MOBILE_PATHS.chat,
+    },
     {
       id: 'assign-max',
       label: labels.assignMax,
