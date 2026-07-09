@@ -17,6 +17,11 @@ export function MobileReportsPage() {
     return (
       <div className="acMobilePage acMobileReportsPage">
         <p className="acMobilePageIntro acMobileReportsIntro">{copy.intro}</p>
+        <div className="acMobileReportsHistoryEntry">
+          <Link to={MOBILE_PATHS.tasksHistory} className="acMobileSecondaryBtn">
+            {copy.actions.openHistoryByType}
+          </Link>
+        </div>
         <div data-mobile-guide="reports-morning" className="acMobileGuideReportsPlaceholder">
           <p className="acMobileOwnerHomeMuted">{copy.guideMorningPlaceholder}</p>
         </div>
@@ -37,6 +42,12 @@ export function MobileReportsPage() {
   return (
     <div className="acMobilePage acMobileReportsPage">
       <p className="acMobilePageIntro acMobileReportsIntro">{copy.intro}</p>
+
+      <div className="acMobileReportsHistoryEntry">
+        <Link to={MOBILE_PATHS.tasksHistory} className="acMobileSecondaryBtn">
+          {copy.actions.openHistoryByType}
+        </Link>
+      </div>
 
       {snapshot.morningReport ? (
         <div data-mobile-guide="reports-morning">

@@ -55,6 +55,7 @@ function MobileAppShellInner({
         reportDetail: t.mobile.reports.detail.pageTitle,
         runtimeLive: t.mobile.runtimeLive.pageTitle,
         demo: t.mobile.demo.pageTitle,
+        taskHistory: t.mobile.taskHistory.pageTitle,
       },
       t.mobile.maxControl.pageTitle ?? 'MAX',
     )

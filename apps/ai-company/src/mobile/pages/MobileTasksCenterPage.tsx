@@ -30,6 +30,9 @@ export function MobileTasksCenterPage() {
           <Link to={MOBILE_PATHS.tasksNewMax} className="acMobilePrimaryBtn acMobileTasksCenterAssignBtn">
             {copy.actions.assignTask}
           </Link>
+          <Link to={MOBILE_PATHS.tasksHistory} className="acMobileSecondaryBtn">
+            {copy.actions.openHistory}
+          </Link>
           <button type="button" className="acMobileRefreshBtn" onClick={refresh}>
             {copy.refresh}
           </button>

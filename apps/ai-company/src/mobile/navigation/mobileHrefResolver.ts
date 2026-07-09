@@ -16,6 +16,8 @@ export const MOBILE_PATHS = {
   morningReport: `/mobile/reports/${MOBILE_MORNING_REPORT_ID}`,
   runtime: '/mobile/runtime',
   demo: '/mobile/demo',
+  tasksHistory: '/mobile/tasks/history',
+  history: '/mobile/history',
   more: '/mobile/more',
   ops: '/ops',
 } as const
@@ -38,6 +40,10 @@ export function mobileRuntimeLoopHref(loopId: string): string {
 
 export function mobileReportHref(reportId: string): string {
   return `/mobile/reports/${encodeURIComponent(reportId)}`
+}
+
+export function mobileTaskHistoryGroupHref(groupId: string): string {
+  return `${MOBILE_PATHS.tasksHistory}?group=${encodeURIComponent(groupId)}`
 }
 
 export function resolveMobileHref(href: string): string {

@@ -19,13 +19,21 @@ export const MOBILE_NAV_ITEMS: MobileNavItem[] = [
 
 export function resolveMobileNavId(pathname: string): MobileNavId {
   if (pathname.startsWith(`${MOBILE_NAV_BASE}/employees`)) return 'employees'
+  if (
+    pathname.startsWith(`${MOBILE_NAV_BASE}/tasks/history`) ||
+    pathname.startsWith(`${MOBILE_NAV_BASE}/history`)
+  ) {
+    return 'more'
+  }
   if (pathname.startsWith(`${MOBILE_NAV_BASE}/tasks`)) return 'tasks'
   if (pathname.startsWith(`${MOBILE_NAV_BASE}/decisions`)) return 'decisions'
   if (
     pathname.startsWith(`${MOBILE_NAV_BASE}/more`) ||
     pathname.startsWith(`${MOBILE_NAV_BASE}/reports`) ||
     pathname.startsWith(`${MOBILE_NAV_BASE}/runtime`) ||
-    pathname.startsWith(`${MOBILE_NAV_BASE}/demo`)
+    pathname.startsWith(`${MOBILE_NAV_BASE}/demo`) ||
+    pathname.startsWith(`${MOBILE_NAV_BASE}/tasks/history`) ||
+    pathname.startsWith(`${MOBILE_NAV_BASE}/history`)
   ) {
     return 'more'
   }
@@ -40,6 +48,7 @@ export function mobilePageTitle(
     reportDetail?: string
     runtimeLive?: string
     demo?: string
+    taskHistory?: string
   },
   maxTitle = 'MAX',
 ): string {
@@ -51,6 +60,9 @@ export function mobilePageTitle(
   }
   if (pathname.startsWith(`${MOBILE_NAV_BASE}/runtime`)) {
     return labels.runtimeLive ?? 'Runtime'
+  }
+  if (pathname.startsWith(`${MOBILE_NAV_BASE}/tasks/history`) || pathname.startsWith(`${MOBILE_NAV_BASE}/history`)) {
+    return labels.taskHistory ?? 'История'
   }
   if (pathname.startsWith(`${MOBILE_NAV_BASE}/demo`)) {
     return labels.demo ?? 'Demo'

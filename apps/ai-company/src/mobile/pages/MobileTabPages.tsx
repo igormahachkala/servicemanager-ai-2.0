@@ -48,6 +48,12 @@ export function MobileMorePage() {
       to: MOBILE_PATHS.runtime,
     },
     {
+      id: 'history',
+      title: copy.links.history,
+      description: copy.links.historyHint,
+      to: MOBILE_PATHS.tasksHistory,
+    },
+    {
       id: 'demo',
       title: copy.links.demo,
       description: copy.links.demoHint,

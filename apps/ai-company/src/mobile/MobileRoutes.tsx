@@ -9,6 +9,7 @@ import { MobileRuntimeLivePage } from './pages/MobileRuntimeLivePage'
 import { MobileRunTaskPage } from './pages/MobileRunTaskPage'
 import { MobileDemoPage } from './pages/MobileDemoPage'
 import { MobileMorePage } from './pages/MobileTabPages'
+import { MobileTaskHistoryPage } from './pages/MobileTaskHistoryPage'
 import { MobileTasksCenterPage } from './pages/MobileTasksCenterPage'
 import { MobileTodayPage } from './pages/MobileTodayPage'
 
@@ -24,7 +25,9 @@ export function MobileRoutes() {
         <Route path="employees/:id" element={<MobileEmployeePage />} />
         <Route path="employees" element={<MobileEmployeesPage />} />
         <Route path="tasks/new" element={<MobileRunTaskPage />} />
+        <Route path="tasks/history" element={<MobileTaskHistoryPage />} />
         <Route path="tasks" element={<MobileTasksCenterPage />} />
+        <Route path="history" element={<Navigate to="tasks/history" replace />} />
         <Route path="decisions" element={<MobileDecisionsPage />} />
         <Route path="runtime/:runId" element={<MobileRuntimeLivePage />} />
         <Route path="runtime" element={<MobileRuntimeLivePage />} />
