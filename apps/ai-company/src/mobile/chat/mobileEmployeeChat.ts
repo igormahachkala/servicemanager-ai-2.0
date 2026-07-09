@@ -1,0 +1,178 @@
+/**
+ * Mobile employee chat V1 — types (AI-COMPANY-110A).
+ */
+
+import type { WorkPriority } from '../../domain/employeeWorkQueue'
+import {
+  type WorkItemStructuredPayload,
+} from '../../domain/employeeWorkQueue/workItemStructuredPayload'
+import { MAX_WORKER_EMPLOYEE_ID } from '../../domain/maxWorkerLoop'
+
+export const MOBILE_EMPLOYEE_CHAT_VERSION = 'v1' as const
+export const MOBILE_EMPLOYEE_CHAT_STORAGE_KEY = 'ai-company-mobile-employee-chat'
+export const MOBILE_EMPLOYEE_CHAT_SYNC_EVENT = 'ai-company-mobile-employee-chat-sync'
+
+export const MOBILE_EMPLOYEE_CHAT_MESSAGE_KINDS = [
+  'question',
+  'task_request',
+  'clarification',
+  'task_proposal',
+  'cursor_handoff',
+  'report_link',
+  'system_status',
+] as const
+
+export type MobileEmployeeChatMessageKind = (typeof MOBILE_EMPLOYEE_CHAT_MESSAGE_KINDS)[number]
+
+export const MOBILE_EMPLOYEE_CHAT_ROLES = ['owner', 'max', 'system'] as const
+
+export type MobileEmployeeChatRole = (typeof MOBILE_EMPLOYEE_CHAT_ROLES)[number]
+
+export type MobileEmployeeChatTaskProposal = {
+  title: string
+  taskText: string
+  priority?: WorkPriority
+  expectedResult?: string | null
+  structuredPayload?: WorkItemStructuredPayload | null
+  sourceMessageId: string | null
+}
+
+export type MobileEmployeeChatMessage = {
+  id: string
+  role: MobileEmployeeChatRole
+  kind: MobileEmployeeChatMessageKind
+  content: string
+  createdAt: string
+  taskProposal?: MobileEmployeeChatTaskProposal | null
+  reportId?: string | null
+  runtimeRunId?: string | null
+  workerLoopId?: string | null
+  workItemId?: string | null
+  cursorHandoffId?: string | null
+  pending?: boolean
+  error?: boolean
+}
+
+export type MobileEmployeeChatSession = {
+  version: typeof MOBILE_EMPLOYEE_CHAT_VERSION
+  employeeId: string
+  messages: MobileEmployeeChatMessage[]
+  updatedAt: string
+}
+
+export type MobileEmployeeChatStore = {
+  version: typeof MOBILE_EMPLOYEE_CHAT_VERSION
+  sessions: Record<string, MobileEmployeeChatSession>
+}
+
+export const MOBILE_MAX_CHAT_EMPLOYEE_ID = MAX_WORKER_EMPLOYEE_ID
+
+export function createMobileEmployeeChatMessageId(): string {
+  return `mec-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function parseEnum<T extends string>(value: unknown, allowed: readonly T[]): T | null {
+  return typeof value === 'string' && (allowed as readonly string[]).includes(value)
+    ? (value as T)
+    : null
+}
+
+function parseTaskProposal(value: unknown): MobileEmployeeChatTaskProposal | null {
+  if (!isRecord(value)) return null
+  if (typeof value.title !== 'string' || typeof value.taskText !== 'string') return null
+  const priority =
+    value.priority === 'low' ||
+    value.priority === 'medium' ||
+    value.priority === 'high' ||
+    value.priority === 'critical'
+      ? value.priority
+      : 'medium'
+  return {
+    title: value.title,
+    taskText: value.taskText,
+    priority,
+    expectedResult: typeof value.expectedResult === 'string' ? value.expectedResult : '',
+    structuredPayload:
+      value.structuredPayload && typeof value.structuredPayload === 'object'
+        ? (value.structuredPayload as WorkItemStructuredPayload)
+        : null,
+    sourceMessageId: typeof value.sourceMessageId === 'string' ? value.sourceMessageId : null,
+  }
+}
+
+export function parseMobileEmployeeChatMessage(value: unknown): MobileEmployeeChatMessage | null {
+  if (!isRecord(value)) return null
+  const role = parseEnum(value.role, MOBILE_EMPLOYEE_CHAT_ROLES)
+  const kind = parseEnum(value.kind, MOBILE_EMPLOYEE_CHAT_MESSAGE_KINDS)
+  if (!role || !kind || typeof value.id !== 'string' || typeof value.content !== 'string') {
+    return null
+  }
+  if (typeof value.createdAt !== 'string') return null
+
+  return {
+    id: value.id,
+    role,
+    kind,
+    content: value.content,
+    createdAt: value.createdAt,
+    taskProposal: value.taskProposal ? parseTaskProposal(value.taskProposal) : null,
+    reportId: typeof value.reportId === 'string' ? value.reportId : null,
+    runtimeRunId: typeof value.runtimeRunId === 'string' ? value.runtimeRunId : null,
+    workerLoopId: typeof value.workerLoopId === 'string' ? value.workerLoopId : null,
+    workItemId: typeof value.workItemId === 'string' ? value.workItemId : null,
+    cursorHandoffId: typeof value.cursorHandoffId === 'string' ? value.cursorHandoffId : null,
+    pending: value.pending === true,
+    error: value.error === true,
+  }
+}
+
+export function parseMobileEmployeeChatSession(value: unknown): MobileEmployeeChatSession | null {
+  if (!isRecord(value)) return null
+  if (value.version !== MOBILE_EMPLOYEE_CHAT_VERSION || typeof value.employeeId !== 'string') {
+    return null
+  }
+  if (!Array.isArray(value.messages) || typeof value.updatedAt !== 'string') return null
+
+  const messages = value.messages
+    .map(parseMobileEmployeeChatMessage)
+    .filter((item): item is MobileEmployeeChatMessage => item !== null)
+
+  return {
+    version: MOBILE_EMPLOYEE_CHAT_VERSION,
+    employeeId: value.employeeId,
+    messages,
+    updatedAt: value.updatedAt,
+  }
+}
+
+export function parseMobileEmployeeChatStore(value: unknown): MobileEmployeeChatStore | null {
+  if (!isRecord(value)) return null
+  if (value.version !== MOBILE_EMPLOYEE_CHAT_VERSION || !isRecord(value.sessions)) return null
+
+  const sessions: Record<string, MobileEmployeeChatSession> = {}
+  for (const [key, sessionValue] of Object.entries(value.sessions)) {
+    const session = parseMobileEmployeeChatSession(sessionValue)
+    if (session) sessions[key] = session
+  }
+
+  return {
+    version: MOBILE_EMPLOYEE_CHAT_VERSION,
+    sessions,
+  }
+}
+
+export function buildWelcomeChatMessage(copy: {
+  welcome: string
+}): MobileEmployeeChatMessage {
+  return {
+    id: createMobileEmployeeChatMessageId(),
+    role: 'system',
+    kind: 'system_status',
+    content: copy.welcome,
+    createdAt: new Date().toISOString(),
+  }
+}

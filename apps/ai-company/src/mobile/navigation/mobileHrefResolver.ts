@@ -16,6 +16,7 @@ export const MOBILE_PATHS = {
   morningReport: `/mobile/reports/${MOBILE_MORNING_REPORT_ID}`,
   runtime: '/mobile/runtime',
   demo: '/mobile/demo',
+  chat: `/mobile/chat/${MAX_WORKER_EMPLOYEE_ID}`,
   tasksHistory: '/mobile/tasks/history',
   history: '/mobile/history',
   more: '/mobile/more',

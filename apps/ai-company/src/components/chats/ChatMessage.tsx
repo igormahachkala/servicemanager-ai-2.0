@@ -1,20 +1,44 @@
 import type { ChatMessage as ChatMessageType } from '../../domain/chats/chatMessage'
+import { ChatCursorHandoffCard } from './ChatCursorHandoffCard'
 import { useI18n } from '../../i18n'
 
-export function ChatMessage(props: { message: ChatMessageType; authorName: string }) {
+type Props = {
+  message: ChatMessageType
+  authorName: string
+  onHandoffUpdated?: () => void
+}
+
+export function ChatMessage({ message, authorName, onHandoffUpdated }: Props) {
   const { t } = useI18n()
-  const { message, authorName } = props
   const isOwner = message.authorType === 'owner'
   const isSystem = message.authorType === 'system'
   const isNote = message.type === 'note'
   const isSummary = message.type === 'summary'
   const isDecision = message.type === 'decision'
+  const isCursorHandoff = message.type === 'cursor_handoff'
 
   if (isSystem) {
     return (
       <div className="mcChatMessage mcChatMessageSystem">
         <span className="mcChatMessageMeta">{t.chats.messageTypes.system}</span>
         <span>{message.content}</span>
+      </div>
+    )
+  }
+
+  if (isCursorHandoff && message.cursorHandoffId) {
+    return (
+      <div className="mcChatMessage mcChatMessageEmployee mcChatMessageCursorHandoff">
+        <div className="mcChatMessageHead">
+          <span className="mcChatMessageAuthor">{authorName}</span>
+          <span className="mcChatMessageTime">
+            {new Date(message.createdAt).toLocaleString()}
+          </span>
+        </div>
+        <ChatCursorHandoffCard
+          handoffId={message.cursorHandoffId}
+          onUpdated={onHandoffUpdated}
+        />
       </div>
     )
   }

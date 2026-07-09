@@ -1648,7 +1648,8 @@ export const ru: Messages = {
       note: "Заметка",
       system: "Система",
       summary: "Сводка",
-      decision: "Решение"
+      decision: "Решение",
+      cursor_handoff: "Cursor handoff"
     },
     messageStatus: {
       sent: "отправлено",
@@ -1661,6 +1662,40 @@ export const ru: Messages = {
       createReport: "Создать отчёт",
       createAdr: "Создать ADR",
       createDocument: "Создать документ"
+    },
+    cursorHandoffFromChat: {
+      badge: "External tool",
+      cardTitle: "MAX подготовил задачу для Cursor",
+      missing: "Handoff не найден в local storage.",
+      manualHint: "V1: без Cursor API. Скопируйте markdown и вставьте в Cursor / Cursor Automation вручную.",
+      fields: {
+        branch: "Branch",
+        scope: "Scope"
+      },
+      statuses: {
+        proposal: "Proposal",
+        copied: "Скопировано",
+        sent: "Отправлено",
+        result_pending: "Ожидаем результат",
+        rejected: "Отклонено",
+        max_task_created: "Задача MAX создана"
+      },
+      actions: {
+        copy: "Скопировать handoff",
+        copied: "Скопировано",
+        createMaxTask: "Создать задачу MAX",
+        markSent: "Отметить как отправлено в Cursor",
+        reject: "Отклонить",
+        openMaxTask: "Открыть MAX → Work Queue"
+      },
+      history: {
+        created: "Handoff создан",
+        copied: "Handoff скопирован",
+        marked_sent: "Отмечено: отправлено в Cursor",
+        rejected: "Handoff отклонён",
+        result_pending: "Result pending",
+        max_task_created: "Создана задача MAX"
+      }
     },
     sidebar: {
       participants: "Участники",

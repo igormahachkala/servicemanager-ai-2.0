@@ -12,7 +12,12 @@ export type ConversationMessageAuthor = {
   displayName: string
 }
 
-export type ConversationMessageType = 'message' | 'note' | 'system' | 'summary'
+export type ConversationMessageType =
+  | 'message'
+  | 'note'
+  | 'system'
+  | 'summary'
+  | 'cursor_handoff'
 
 export type ConversationMessageStatus = 'sent' | 'pending' | 'failed' | 'draft'
 
@@ -23,6 +28,8 @@ export type ConversationMessage = {
   createdAt: string
   type: ConversationMessageType
   status: ConversationMessageStatus
+  /** Cursor Handoff from Chat proposal id (110C). */
+  cursorHandoffId?: string
 }
 
 export type Conversation = {
@@ -66,7 +73,8 @@ function parseMessage(value: unknown): ConversationMessage | null {
     value.type === 'message' ||
     value.type === 'note' ||
     value.type === 'system' ||
-    value.type === 'summary'
+    value.type === 'summary' ||
+    value.type === 'cursor_handoff'
       ? value.type
       : 'message'
   const status =
@@ -93,6 +101,7 @@ function parseMessage(value: unknown): ConversationMessage | null {
     createdAt: value.createdAt,
     type,
     status,
+    cursorHandoffId: typeof value.cursorHandoffId === 'string' ? value.cursorHandoffId : undefined,
   }
 }
 
@@ -177,6 +186,7 @@ function createMessage(
   content: string,
   type: ConversationMessageType = 'message',
   status: ConversationMessageStatus = 'sent',
+  cursorHandoffId?: string,
 ): ConversationMessage {
   return {
     id: `cmsg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -185,6 +195,7 @@ function createMessage(
     createdAt: new Date().toISOString(),
     type,
     status,
+    cursorHandoffId,
   }
 }
 
@@ -266,6 +277,53 @@ export function appendEmployeeMessage(
     { type: 'employee', id: employee.id, displayName: employee.codename },
     content,
     'message',
+  )
+
+  return updateConversationAt(index, {
+    ...conversation,
+    messages: [...conversation.messages, message],
+    updatedAt: message.createdAt,
+  })
+}
+
+export function appendEmployeeCursorHandoffProposal(
+  employeeId: string,
+  employee: EmployeeRef,
+  input: { handoffId: string; handoffSummary: string },
+): Conversation | null {
+  const conversations = loadConversations()
+  const index = conversations.findIndex((item) => item.employeeId === employeeId)
+  if (index === -1) return null
+
+  const conversation = conversations[index]
+  const message = createMessage(
+    { type: 'employee', id: employee.id, displayName: employee.codename },
+    input.handoffSummary,
+    'cursor_handoff',
+    'sent',
+    input.handoffId,
+  )
+
+  return updateConversationAt(index, {
+    ...conversation,
+    messages: [...conversation.messages, message],
+    updatedAt: message.createdAt,
+  })
+}
+
+export function appendConversationSystemMessage(
+  employeeId: string,
+  content: string,
+): Conversation | null {
+  const conversations = loadConversations()
+  const index = conversations.findIndex((item) => item.employeeId === employeeId)
+  if (index === -1) return null
+
+  const conversation = conversations[index]
+  const message = createMessage(
+    { type: 'system', id: 'system', displayName: 'System' },
+    content,
+    'system',
   )
 
   return updateConversationAt(index, {

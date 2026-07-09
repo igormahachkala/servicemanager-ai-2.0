@@ -1671,6 +1671,7 @@ export const en = {
       system: 'System',
       summary: 'Summary',
       decision: 'Decision',
+      cursor_handoff: 'Cursor handoff',
     },
     messageStatus: {
       sent: 'sent',
@@ -1683,6 +1684,40 @@ export const en = {
       createReport: 'Create Report',
       createAdr: 'Create ADR',
       createDocument: 'Create Document',
+    },
+    cursorHandoffFromChat: {
+      badge: 'External tool',
+      cardTitle: 'MAX prepared a task for Cursor',
+      missing: 'Handoff not found in local storage.',
+      manualHint: 'V1: no Cursor API. Copy markdown and paste into Cursor / Cursor Automation manually.',
+      fields: {
+        branch: 'Branch',
+        scope: 'Scope',
+      },
+      statuses: {
+        proposal: 'Proposal',
+        copied: 'Copied',
+        sent: 'Sent',
+        result_pending: 'Result pending',
+        rejected: 'Rejected',
+        max_task_created: 'MAX task created',
+      },
+      actions: {
+        copy: 'Copy handoff',
+        copied: 'Copied',
+        createMaxTask: 'Create MAX task',
+        markSent: 'Mark as sent to Cursor',
+        reject: 'Reject',
+        openMaxTask: 'Open MAX → Work Queue',
+      },
+      history: {
+        created: 'Handoff created',
+        copied: 'Handoff copied',
+        marked_sent: 'Marked sent to Cursor',
+        rejected: 'Handoff rejected',
+        result_pending: 'Result pending',
+        max_task_created: 'MAX task created',
+      },
     },
     sidebar: {
       participants: 'Participants',

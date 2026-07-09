@@ -68,6 +68,7 @@ function adaptConversationMessage(message: ConversationMessage, chatId: string) 
     type: message.type,
     status: message.status,
     createdAt: message.createdAt,
+    cursorHandoffId: message.cursorHandoffId,
   }
 }
 

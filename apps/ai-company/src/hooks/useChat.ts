@@ -9,6 +9,7 @@ import {
   pickChatMockResponders,
   readStorageKeys,
 } from '../domain/chats/chatStorage'
+import { tryProcessCursorHandoffFromOwnerMessage } from '../domain/cursorHandoffFromChat'
 
 type ChatLabels = {
   ownerName: string
@@ -43,6 +44,18 @@ export function useChat(chatId: string | undefined) {
   const sendOwnerMessage = useCallback(
     (content: string, labels: ChatLabels): Chat | null => {
       if (!chatId || !chat || !isChatWritable(chat)) return null
+
+      const handoff = tryProcessCursorHandoffFromOwnerMessage({
+        chatId,
+        chat,
+        ownerContent: content,
+        ownerName: labels.ownerName,
+      })
+      if (handoff.handled) {
+        const result = getChatById(chatId)
+        if (result) setChat(result)
+        return result
+      }
 
       const updated = appendOwnerMessageToChat(chatId, content, labels.ownerName)
       if (!updated) return null

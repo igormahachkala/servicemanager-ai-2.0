@@ -6,6 +6,7 @@ import { useI18n } from '../../i18n'
 export function ChatMessageList(props: {
   messages: ChatMessageType[]
   participants: ChatParticipant[]
+  onHandoffUpdated?: () => void
 }) {
   const { t } = useI18n()
   const names = new Map(props.participants.map((item) => [item.id, item.displayName]))
@@ -28,6 +29,7 @@ export function ChatMessageList(props: {
           key={message.id}
           message={message}
           authorName={names.get(message.authorId) ?? message.authorId}
+          onHandoffUpdated={props.onHandoffUpdated}
         />
       ))}
     </div>

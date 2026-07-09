@@ -1,6 +1,12 @@
 import type { ParticipantType } from './chatParticipant'
 
-export type ChatMessageType = 'message' | 'note' | 'system' | 'summary' | 'decision'
+export type ChatMessageType =
+  | 'message'
+  | 'note'
+  | 'system'
+  | 'summary'
+  | 'decision'
+  | 'cursor_handoff'
 
 export type ChatMessageStatus = 'sent' | 'pending' | 'failed' | 'draft'
 
@@ -13,6 +19,7 @@ export type ChatMessage = {
   type: ChatMessageType
   status: ChatMessageStatus
   createdAt: string
+  cursorHandoffId?: string
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -32,7 +39,8 @@ export function parseChatMessage(value: unknown, chatId?: string): ChatMessage |
     value.type === 'note' ||
     value.type === 'system' ||
     value.type === 'summary' ||
-    value.type === 'decision'
+    value.type === 'decision' ||
+    value.type === 'cursor_handoff'
       ? value.type
       : 'message'
 
@@ -67,6 +75,7 @@ export function parseChatMessage(value: unknown, chatId?: string): ChatMessage |
     type,
     status,
     createdAt: value.createdAt,
+    cursorHandoffId: typeof value.cursorHandoffId === 'string' ? value.cursorHandoffId : undefined,
   }
 }
 
@@ -77,6 +86,7 @@ export function createChatMessage(input: {
   content: string
   type?: ChatMessageType
   status?: ChatMessageStatus
+  cursorHandoffId?: string
 }): ChatMessage {
   return {
     id: `chatmsg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -87,5 +97,6 @@ export function createChatMessage(input: {
     type: input.type ?? 'message',
     status: input.status ?? 'sent',
     createdAt: new Date().toISOString(),
+    cursorHandoffId: input.cursorHandoffId,
   }
 }

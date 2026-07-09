@@ -19,6 +19,7 @@ export const MOBILE_NAV_ITEMS: MobileNavItem[] = [
 
 export function resolveMobileNavId(pathname: string): MobileNavId {
   if (pathname.startsWith(`${MOBILE_NAV_BASE}/employees`)) return 'employees'
+  if (pathname.startsWith(`${MOBILE_NAV_BASE}/chat`)) return 'employees'
   if (
     pathname.startsWith(`${MOBILE_NAV_BASE}/tasks/history`) ||
     pathname.startsWith(`${MOBILE_NAV_BASE}/history`)
@@ -32,6 +33,7 @@ export function resolveMobileNavId(pathname: string): MobileNavId {
     pathname.startsWith(`${MOBILE_NAV_BASE}/reports`) ||
     pathname.startsWith(`${MOBILE_NAV_BASE}/runtime`) ||
     pathname.startsWith(`${MOBILE_NAV_BASE}/demo`) ||
+    pathname.startsWith(`${MOBILE_NAV_BASE}/chat`) ||
     pathname.startsWith(`${MOBILE_NAV_BASE}/tasks/history`) ||
     pathname.startsWith(`${MOBILE_NAV_BASE}/history`)
   ) {
@@ -49,6 +51,7 @@ export function mobilePageTitle(
     runtimeLive?: string
     demo?: string
     taskHistory?: string
+    chat?: string
   },
   maxTitle = 'MAX',
 ): string {
@@ -57,6 +60,9 @@ export function mobilePageTitle(
   }
   if (pathname === `${MOBILE_NAV_BASE}/tasks` || pathname.startsWith(`${MOBILE_NAV_BASE}/tasks?`)) {
     return labels.tasks
+  }
+  if (pathname.startsWith(`${MOBILE_NAV_BASE}/chat`)) {
+    return labels.chat ?? 'Chat'
   }
   if (pathname.startsWith(`${MOBILE_NAV_BASE}/runtime`)) {
     return labels.runtimeLive ?? 'Runtime'

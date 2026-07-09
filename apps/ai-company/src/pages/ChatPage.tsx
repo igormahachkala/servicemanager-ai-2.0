@@ -27,7 +27,7 @@ export function ChatPage() {
     [t],
   )
 
-  const { chat, sendOwnerMessage } = useChat(chatId)
+  const { chat, sendOwnerMessage, refresh } = useChat(chatId)
 
   if (!chatId || !chat) {
     return (
@@ -66,7 +66,11 @@ export function ChatPage() {
           <ChatHeader chat={chat} />
           <div className="mcChatLayout">
             <div className="mcChatMain">
-              <ChatMessageList messages={chat.messages} participants={chat.participants} />
+              <ChatMessageList
+                messages={chat.messages}
+                participants={chat.participants}
+                onHandoffUpdated={refresh}
+              />
               <ChatComposer disabled={!writable || sending} onSend={handleSend} />
             </div>
             <ChatSidebar chat={chat} />

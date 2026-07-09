@@ -9,6 +9,7 @@ import {
 import { startEmployeeOperatingDay } from '../../domain/employeeOperatingDay'
 import { MAX_WORKER_EMPLOYEE_ID } from '../../domain/maxWorkerLoop'
 import { resolveCanonicalEmployeeId } from '../../mission-control/data/employeeIdResolver'
+import { consumeMobileChatTaskPrefill } from '../chat/mobileChatTaskPrefill'
 import {
   DEFAULT_COMPLEX_TASK_FORM,
   MOBILE_COMPLEX_TASK_TEMPLATES,
@@ -158,6 +159,41 @@ export function useMobileRunTask() {
       applyTemplate(templateParam)
     }
   }, [applyComplexTemplate, applyTemplate, taskMode, templateParam])
+
+  useEffect(() => {
+    const prefill = consumeMobileChatTaskPrefill()
+    if (!prefill) return
+
+    if (prefill.structuredPayload?.mode === 'complex') {
+      setTaskMode('complex')
+      setComplexForm((current) => ({
+        ...current,
+        title: prefill.title,
+        objective: prefill.structuredPayload?.objective ?? prefill.taskText,
+        context: prefill.structuredPayload?.context ?? '',
+        expectedResult: prefill.expectedResult,
+        constraints: prefill.structuredPayload?.constraints ?? '',
+        forbidden: prefill.structuredPayload?.forbidden ?? '',
+        deadline: prefill.structuredPayload?.deadline ?? '',
+        priority: prefill.priority,
+        needsReport: prefill.structuredPayload?.needsReport ?? true,
+        needsNextSteps: prefill.structuredPayload?.needsNextSteps ?? true,
+        templateId: null,
+      }))
+      return
+    }
+
+    setTaskMode('quick')
+    setForm((current) => ({
+      ...current,
+      employeeId: MAX_WORKER_EMPLOYEE_ID,
+      title: prefill.title,
+      taskText: prefill.taskText,
+      priority: prefill.priority,
+      expectedOutput: prefill.expectedResult,
+      templateId: null,
+    }))
+  }, [])
 
   const resetForm = useCallback(() => {
     setForm({

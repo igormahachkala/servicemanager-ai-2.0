@@ -57,6 +57,9 @@ export function MobileEmployeeHeroCard({ snapshot }: Props) {
         ) : null}
       </div>
       <div className="acMobileMaxHeroActions acMobileMaxHeroActionsSecondary">
+        <Link to={MOBILE_PATHS.chat} className="acMobilePrimaryBtn acMobileMaxHeroSecondaryBtn">
+          {copy.openChat}
+        </Link>
         <Link to={MOBILE_PATHS.reports} className="acMobileSecondaryBtn acMobileMaxHeroSecondaryBtn">
           {copy.openReports}
         </Link>

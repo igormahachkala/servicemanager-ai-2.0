@@ -56,6 +56,7 @@ function MobileAppShellInner({
         runtimeLive: t.mobile.runtimeLive.pageTitle,
         demo: t.mobile.demo.pageTitle,
         taskHistory: t.mobile.taskHistory.pageTitle,
+        chat: t.mobile.maxChat.pageTitle,
       },
       t.mobile.maxControl.pageTitle ?? 'MAX',
     )
@@ -63,7 +64,8 @@ function MobileAppShellInner({
   const hideFab =
     pathname.startsWith('/mobile/tasks/new') ||
     pathname.startsWith('/mobile/runtime') ||
-    pathname.startsWith('/mobile/demo')
+    pathname.startsWith('/mobile/demo') ||
+    pathname.startsWith('/mobile/chat')
 
   const openAssignTaskSheet = useCallback(() => {
     openSheet(
