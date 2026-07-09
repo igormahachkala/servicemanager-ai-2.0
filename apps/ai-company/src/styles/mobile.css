@@ -1659,6 +1659,62 @@ html.acMobileSheetOpen body {
   color: var(--theme-text-muted);
 }
 
+.acMobileTaskModePicker {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--mobile-spacing-xs);
+  padding: 4px;
+  border-radius: var(--mobile-radius-md);
+  background: var(--theme-surface-muted);
+}
+
+.acMobileTaskModePickerBtn {
+  min-height: var(--mobile-touch-target);
+  border: none;
+  border-radius: calc(var(--mobile-radius-md) - 2px);
+  background: transparent;
+  color: var(--theme-text-secondary);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.acMobileTaskModePickerBtnActive {
+  background: var(--theme-surface);
+  color: var(--theme-text-primary);
+  box-shadow: var(--mobile-shadow-sm);
+}
+
+.acMobileTaskModeHint {
+  margin: var(--mobile-spacing-sm) 0 0;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--theme-text-muted);
+}
+
+.acMobileComplexTaskFlags {
+  display: flex;
+  flex-direction: column;
+  gap: var(--mobile-spacing-sm);
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.acMobileCheckboxField {
+  display: flex;
+  align-items: center;
+  gap: var(--mobile-spacing-sm);
+  min-height: var(--mobile-touch-target);
+  font-size: 0.875rem;
+  color: var(--theme-text-primary);
+}
+
+.acMobileCheckboxField input[type='checkbox'] {
+  width: 1.125rem;
+  height: 1.125rem;
+  accent-color: var(--theme-accent);
+}
+
 .acMobileTaskComposer {
   display: flex;
   flex-direction: column;

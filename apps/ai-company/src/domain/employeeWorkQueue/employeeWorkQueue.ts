@@ -6,6 +6,12 @@
  */
 
 import { DEFAULT_COMPANY_ID } from '../company/company'
+import {
+  parseWorkItemStructuredPayload,
+  type WorkItemStructuredPayload,
+} from './workItemStructuredPayload'
+
+export type { WorkItemStructuredPayload, WorkItemTaskMode } from './workItemStructuredPayload'
 
 export const EMPLOYEE_WORK_QUEUE_VERSION = 'v1' as const
 
@@ -57,6 +63,8 @@ export type WorkItem = {
   queuePosition: number
   createdAt: string
   updatedAt: string
+  /** Mobile complex task payload (109A) — optional, backward-compatible. */
+  structuredPayload: WorkItemStructuredPayload | null
 }
 
 /** Aggregate view of one employee queue — built by listEmployeeWorkQueue(). */
@@ -84,6 +92,7 @@ export type CreateEmployeeWorkItemInput = {
   scheduledAt?: string | null
   currentOwner?: WorkItemCurrentOwner | null
   companyId?: string | null
+  structuredPayload?: WorkItemStructuredPayload | null
 }
 
 export type AssignEmployeeWorkItemInput = {
@@ -265,5 +274,6 @@ export function parseWorkItem(value: unknown): WorkItem | null {
     queuePosition: typeof value.queuePosition === 'number' ? value.queuePosition : 0,
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
+    structuredPayload: parseWorkItemStructuredPayload(value.structuredPayload),
   }
 }

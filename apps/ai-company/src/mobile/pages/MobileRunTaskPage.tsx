@@ -3,10 +3,13 @@ import { Link } from 'react-router-dom'
 import { useI18n } from '../../i18n'
 import { useMobileRunNextSheet } from '../hooks/useMobileRunNextSheet'
 import { useMobileRunTask } from '../hooks/useMobileRunTask'
+import { MobileComplexTaskComposer } from '../components/MobileComplexTaskComposer'
+import { MobileComplexTaskTemplateCard } from '../components/MobileComplexTaskTemplateCard'
 import { MobileEmployeePicker } from '../components/MobileEmployeePicker'
 import { MobileSection } from '../components/MobileSection'
 import { MobileStandardTaskQuickStart } from '../components/MobileStandardTaskQuickStart'
 import { MobileTaskComposer } from '../components/MobileTaskComposer'
+import { MobileTaskModePicker } from '../components/MobileTaskModePicker'
 import { MobileTaskTemplateCard } from '../components/MobileTaskTemplateCard'
 import { MOBILE_STANDARD_TASK_TEMPLATE_ID, MOBILE_TASK_TEMPLATES } from '../runTask/mobileRunTaskConfig'
 
@@ -15,11 +18,16 @@ export function MobileRunTaskPage() {
   const copy = t.mobile.runTask
   const { openRunNextFlow } = useMobileRunNextSheet()
   const {
+    taskMode,
+    changeTaskMode,
     form,
+    complexForm,
     employees,
     patchForm,
+    patchComplexForm,
     selectEmployee,
     applyTemplate,
+    applyComplexTemplate,
     submit,
     resetForm,
     validationError,
@@ -28,6 +36,7 @@ export function MobileRunTaskPage() {
     isMaxEmployee,
     isFormValid,
     maxEmployeeHref,
+    complexTemplates,
   } = useMobileRunTask()
 
   if (createdItem) {
@@ -56,9 +65,14 @@ export function MobileRunTaskPage() {
 
         <div className="acMobileRunTaskSuccessActions">
           {isMaxEmployee ? (
-            <button type="button" className="acMobilePrimaryBtn acMobileRunTaskSuccessBtn" onClick={handleRunNow}>
-              {copy.success.runNow}
-            </button>
+            <>
+              <button type="button" className="acMobilePrimaryBtn acMobileRunTaskSuccessBtn" onClick={handleRunNow}>
+                {copy.success.runNow}
+              </button>
+              <Link to={maxEmployeeHref} className="acMobileSecondaryBtn acMobileRunTaskSuccessBtn">
+                {copy.success.openMax}
+              </Link>
+            </>
           ) : (
             <Link to={maxEmployeeHref} className="acMobilePrimaryBtn acMobileRunTaskSuccessBtn">
               {copy.success.openEmployee}
@@ -72,13 +86,29 @@ export function MobileRunTaskPage() {
     )
   }
 
-  const standardTemplateSelected = form.templateId === MOBILE_STANDARD_TASK_TEMPLATE_ID
+  const standardTemplateSelected = taskMode === 'quick' && form.templateId === MOBILE_STANDARD_TASK_TEMPLATE_ID
+  const isComplexMode = taskMode === 'complex'
+
+  const validationMessages = {
+    emptyTaskText: copy.validation.emptyTaskText,
+    emptyTitle: copy.validation.emptyTitle,
+    emptyObjective: copy.validation.emptyObjective,
+    emptyComplexTitle: copy.validation.emptyComplexTitle,
+    persistFailed: copy.validation.persistFailed,
+  }
 
   return (
     <div className="acMobilePage acMobileRunTask">
       <p className="acMobilePageIntro acMobileRunTaskIntro">{copy.intro}</p>
 
-      {!standardTemplateSelected ? (
+      <MobileSection title={copy.sections.mode}>
+        <MobileTaskModePicker mode={taskMode} onChange={changeTaskMode} />
+        <p className="acMobileTaskModeHint">
+          {isComplexMode ? copy.modes.complexHint : copy.modes.quickHint}
+        </p>
+      </MobileSection>
+
+      {!standardTemplateSelected && !isComplexMode ? (
         <MobileStandardTaskQuickStart className="acMobileRunTaskStandardBanner" />
       ) : null}
 
@@ -90,35 +120,52 @@ export function MobileRunTaskPage() {
         />
       </MobileSection>
 
-      <MobileSection title={copy.sections.templates} description={copy.templatesHint}>
+      <MobileSection
+        title={isComplexMode ? copy.sections.complexTemplates : copy.sections.templates}
+        description={copy.templatesHint}
+      >
         <div className="acMobileTaskTemplateGrid" data-mobile-guide="task-templates">
-          {MOBILE_TASK_TEMPLATES.map((template) => (
-            <MobileTaskTemplateCard
-              key={template.id}
-              template={template}
-              selected={form.templateId === template.id}
-              onSelect={applyTemplate}
-            />
-          ))}
+          {isComplexMode
+            ? complexTemplates.map((template) => (
+                <MobileComplexTaskTemplateCard
+                  key={template.id}
+                  template={template}
+                  selected={complexForm.templateId === template.id}
+                  onSelect={applyComplexTemplate}
+                />
+              ))
+            : MOBILE_TASK_TEMPLATES.map((template) => (
+                <MobileTaskTemplateCard
+                  key={template.id}
+                  template={template}
+                  selected={form.templateId === template.id}
+                  onSelect={applyTemplate}
+                />
+              ))}
         </div>
       </MobileSection>
 
       <div data-mobile-guide="task-composer">
-        <MobileSection title={copy.sections.task}>
-          <MobileTaskComposer
-            form={form}
-            validationError={validationError}
-            submitError={submitError}
-            isValid={isFormValid}
-            onChange={patchForm}
-            onSubmit={() =>
-              submit({
-                emptyTaskText: copy.validation.emptyTaskText,
-                emptyTitle: copy.validation.emptyTitle,
-                persistFailed: copy.validation.persistFailed,
-              })
-            }
-          />
+        <MobileSection title={isComplexMode ? copy.sections.complexTask : copy.sections.task}>
+          {isComplexMode ? (
+            <MobileComplexTaskComposer
+              form={complexForm}
+              validationError={validationError}
+              submitError={submitError}
+              isValid={isFormValid}
+              onChange={patchComplexForm}
+              onSubmit={() => submit(validationMessages)}
+            />
+          ) : (
+            <MobileTaskComposer
+              form={form}
+              validationError={validationError}
+              submitError={submitError}
+              isValid={isFormValid}
+              onChange={patchForm}
+              onSubmit={() => submit(validationMessages)}
+            />
+          )}
         </MobileSection>
       </div>
 

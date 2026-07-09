@@ -153,6 +153,7 @@ export function createEmployeeWorkItem(input: CreateEmployeeWorkItemInput): Work
     queuePosition: nextQueuePosition(employeeId),
     createdAt: now,
     updatedAt: now,
+    structuredPayload: input.structuredPayload ?? null,
   }
 
   upsertWorkItem(item)

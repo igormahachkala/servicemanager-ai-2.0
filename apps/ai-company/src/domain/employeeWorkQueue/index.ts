@@ -8,6 +8,8 @@ export type {
   SkipEmployeeWorkItemInput,
   WorkItem,
   WorkItemCurrentOwner,
+  WorkItemStructuredPayload,
+  WorkItemTaskMode,
   WorkPriority,
   WorkStatus,
 } from './employeeWorkQueue'
