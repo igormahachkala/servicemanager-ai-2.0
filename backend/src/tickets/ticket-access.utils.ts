@@ -522,6 +522,54 @@ export async function buildSecondaryOperationalTicketWhere(params: {
   })
 }
 
+export async function buildSecondaryOperationalRestrictionWhere(params: {
+  prisma: PrismaService
+  serviceContractsService: ServiceContractsService
+  providerCompanyId: string
+  linkedClientCompanyId?: string
+  scopeCompanyIds?: string[]
+}): Promise<Prisma.TicketWhereInput | null> {
+  if (params.linkedClientCompanyId && params.linkedClientCompanyId !== params.providerCompanyId) {
+    return buildSecondaryOperationalTicketWhere({
+      prisma: params.prisma,
+      serviceContractsService: params.serviceContractsService,
+      providerCompanyId: params.providerCompanyId,
+      linkedClientCompanyId: params.linkedClientCompanyId,
+    })
+  }
+
+  const scopeCompanyIds = params.scopeCompanyIds ?? []
+  if (scopeCompanyIds.length === 0) return null
+
+  const secondaryClientIds = await params.serviceContractsService.listSecondaryLinkedClientIds(params.providerCompanyId)
+  const scopedSecondaryClientIds = secondaryClientIds.filter((id) => scopeCompanyIds.includes(id))
+  if (scopedSecondaryClientIds.length === 0) return null
+
+  const secondaryClauses: Prisma.TicketWhereInput[] = []
+  for (const clientId of scopedSecondaryClientIds) {
+    const secondaryWhere = await buildSecondaryOperationalTicketWhere({
+      prisma: params.prisma,
+      serviceContractsService: params.serviceContractsService,
+      providerCompanyId: params.providerCompanyId,
+      linkedClientCompanyId: clientId,
+    })
+    if (secondaryWhere) {
+      secondaryClauses.push({
+        AND: [{ companyId: clientId }, secondaryWhere],
+      })
+    }
+  }
+
+  if (secondaryClauses.length === 0) return null
+
+  return {
+    OR: [
+      { companyId: { notIn: scopedSecondaryClientIds } },
+      ...secondaryClauses,
+    ],
+  }
+}
+
 export async function resolveReadableTicketAccess(params: {
   prisma: PrismaService
   serviceContractsService: ServiceContractsService
@@ -575,22 +623,34 @@ export async function resolveReadableTicketAccess(params: {
       linkedClientCompanyId: params.linkedClientCompanyId,
     })
 
+    const executorBaseWhere: Prisma.TicketWhereInput = {
+      AND: [
+        {
+          id: params.ticketId,
+          OR: [
+            { assignedTechnicianId: params.actor.id },
+            { status: 'NEW', assignedTechnicianId: null },
+          ],
+        },
+        buildTechnicianLocationRestrictionWhere({
+          companyIds: technicianScope.companyIds,
+          locationScopeByCompany: technicianScope.locationScopeByCompany,
+        }),
+      ],
+    }
+    const secondaryOperationalWhere = await buildSecondaryOperationalRestrictionWhere({
+      prisma: params.prisma,
+      serviceContractsService: params.serviceContractsService,
+      providerCompanyId: params.actor.companyId,
+      linkedClientCompanyId: params.linkedClientCompanyId,
+      scopeCompanyIds: technicianScope.companyIds,
+    })
+    const executorWhere = secondaryOperationalWhere
+      ? { AND: [executorBaseWhere, secondaryOperationalWhere] }
+      : executorBaseWhere
+
     const executorTicket = await params.prisma.ticket.findFirst({
-      where: {
-        AND: [
-          {
-            id: params.ticketId,
-            OR: [
-              { assignedTechnicianId: params.actor.id },
-              { status: 'NEW', assignedTechnicianId: null },
-            ],
-          },
-          buildTechnicianLocationRestrictionWhere({
-            companyIds: technicianScope.companyIds,
-            locationScopeByCompany: technicianScope.locationScopeByCompany,
-          }),
-        ],
-      },
+      where: executorWhere,
       select: {
         id: true,
         companyId: true,
@@ -798,10 +858,24 @@ export async function resolveReadableTicketAccess(params: {
           locationId: directTicket.locationId,
           locationScopeByCompany: executorScope.locationScopeByCompany,
         })
+        const canReadAssigned = directTicket.assignedTechnicianId === params.actor.id
+        const secondaryScopeWhere = await buildSecondaryOperationalTicketWhere({
+          prisma: params.prisma,
+          serviceContractsService: params.serviceContractsService,
+          providerCompanyId: params.actor.companyId,
+          linkedClientCompanyId: directTicket.companyId,
+        })
+        const secondaryScopedTicket =
+          secondaryScopeWhere && directTicket.status === 'NEW' && !directTicket.assignedTechnicianId
+            ? await params.prisma.ticket.findFirst({
+                where: { AND: [{ id: params.ticketId, companyId: directTicket.companyId }, secondaryScopeWhere] },
+                select: { id: true },
+              })
+            : null
         const canReadNew =
-          directTicket.status === 'NEW' && !directTicket.assignedTechnicianId && locationAllowed
-        const canReadAssigned =
-          directTicket.assignedTechnicianId === params.actor.id && locationAllowed
+          directTicket.status === 'NEW' &&
+          !directTicket.assignedTechnicianId &&
+          (secondaryScopeWhere ? !!secondaryScopedTicket : locationAllowed)
 
         if (canReadAssigned || canReadNew) {
           return {

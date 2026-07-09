@@ -9,7 +9,7 @@ import { TicketsPolicy, type BoardQueryInput } from '../policy/tickets.policy'
 import { assertAllowed } from '../policy/policy.utils'
 import {
   applyLocationScopeToTicketWhere,
-  buildSecondaryOperationalTicketWhere,
+  buildSecondaryOperationalRestrictionWhere,
   buildSpecializationLinksSomeWhereInput,
   buildTechnicianLocationRestrictionWhere,
   PROVIDER_LINKED_OVERVIEW_ROLES,
@@ -242,9 +242,9 @@ export class TicketsQueryService {
   }
   /**
    * Returns an additional WHERE clause that restricts the board to the
-   * operational scope of a SECONDARY provider.  Returns null when the
-   * context is PRIMARY (no restriction needed) or when no linked client
-   * is in play.
+   * operational scope of a SECONDARY provider. Explicit linked-client scopes
+   * are checked directly; aggregate technician scopes only narrow SECONDARY
+   * client companies and leave own/PRIMARY companies unchanged.
    *
    * SECONDARY operational scope:
    *  – tickets assigned to an executor from the SECONDARY provider company
@@ -253,16 +253,14 @@ export class TicketsQueryService {
   private async resolveSecondaryOperationalWhere(params: {
     providerCompanyId: string
     linkedClientCompanyId?: string
-    technicianScope: { scopeCompanyId: string } | null
+    technicianScope: { companyIds: string[] } | null
   }): Promise<Prisma.TicketWhereInput | null> {
-    if (params.technicianScope) return null
-    if (!params.linkedClientCompanyId || params.linkedClientCompanyId === params.providerCompanyId) return null
-
-    return buildSecondaryOperationalTicketWhere({
+    return buildSecondaryOperationalRestrictionWhere({
       prisma: this.prisma,
       serviceContractsService: this.serviceContractsService,
       providerCompanyId: params.providerCompanyId,
       linkedClientCompanyId: params.linkedClientCompanyId,
+      scopeCompanyIds: params.technicianScope?.companyIds,
     })
   }
 
@@ -632,7 +630,16 @@ export class TicketsQueryService {
           scopeCompanyId: scope.scopeCompanyId,
         })
     const scopedWhere = applyLocationScopeToTicketWhere(baseWhere, locationScope)
-    const where = this.applyContextFilters(scopedWhere, { locationId, equipmentId })
+    const secondaryOperationalWhere = await this.resolveSecondaryOperationalWhere({
+      providerCompanyId: companyId,
+      linkedClientCompanyId,
+      technicianScope,
+    })
+    const whereAfterSecondary =
+      secondaryOperationalWhere !== null
+        ? { AND: [scopedWhere, secondaryOperationalWhere] }
+        : scopedWhere
+    const where = this.applyContextFilters(whereAfterSecondary, { locationId, equipmentId })
 
     const safeAnalyticsWhere = this.safeTicketWhereOrNull(where)
     const rows = safeAnalyticsWhere

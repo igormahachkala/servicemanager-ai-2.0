@@ -1,5 +1,5 @@
 import { NotFoundException } from '@nestjs/common'
-import { TicketStatus, UserRole } from '@prisma/client'
+import { ServiceContractRole, TicketStatus, UserRole } from '@prisma/client'
 
 import { TicketsQueryService } from './tickets.query.service'
 import * as ticketAccessUtils from './ticket-access.utils'
@@ -29,25 +29,46 @@ function makeManagementScope(scopeCompanyId = PROVIDER_ID) {
   return { scopeCompanyId, visibilityMode: 'tenant' as const }
 }
 
-function makePrisma() {
+function makePrisma(opts: { executorIds?: string[]; boundLocationIds?: string[] } = {}) {
   return {
     ticket: {
       findMany: jest.fn().mockResolvedValue([]),
       findFirst: jest.fn().mockResolvedValue(null),
     },
     domainEvent: { findMany: jest.fn().mockResolvedValue([]) },
-    user: { findFirst: jest.fn().mockResolvedValue({ isExecutor: false }) },
-    userLocationBinding: { findMany: jest.fn().mockResolvedValue([]) },
+    user: {
+      findFirst: jest.fn().mockResolvedValue({ isExecutor: false }),
+      findMany: jest.fn().mockResolvedValue((opts.executorIds ?? []).map((id) => ({ id }))),
+    },
+    userLocationBinding: {
+      findMany: jest.fn().mockResolvedValue((opts.boundLocationIds ?? []).map((locationId) => ({ locationId }))),
+    },
   } as any
 }
 
-function makeService(prisma: any) {
+function makeService(prisma: any, serviceContractsOverride: Record<string, any> = {}) {
   // TimelineService is only used by TicketMetaBuilder (getOne path).
   // ServiceContractsService.getLinkedClientAccess is consulted by the SECONDARY
   // operational-scope check; default to null (no SECONDARY restriction) so these
   // tests exercise the management/technician scoping they target.
-  const serviceContracts = { getLinkedClientAccess: jest.fn().mockResolvedValue(null) }
+  const serviceContracts = {
+    getLinkedClientAccess: jest.fn().mockResolvedValue(null),
+    listSecondaryLinkedClientIds: jest.fn().mockResolvedValue([]),
+    ...serviceContractsOverride,
+  }
   return new TicketsQueryService(prisma, {} as any, serviceContracts as any)
+}
+
+function makeSecondaryContracts() {
+  return {
+    getLinkedClientAccess: jest.fn().mockResolvedValue({
+      role: ServiceContractRole.SECONDARY,
+      status: 'ACTIVE',
+      providerCompanyId: PROVIDER_ID,
+      clientCompanyId: CLIENT_ID,
+    }),
+    listSecondaryLinkedClientIds: jest.fn().mockResolvedValue([CLIENT_ID]),
+  }
 }
 
 const wideLocationScope = { mode: 'tenant_wide' as const, locationIds: [] as string[] }
@@ -134,6 +155,19 @@ describe('TicketsQueryService.list', () => {
 
     const whereStr = JSON.stringify(prisma.ticket.findMany.mock.calls[0][0].where)
     expect(whereStr).toContain('ASSIGNED')
+  })
+
+  it('TECHNICIAN with explicit SECONDARY linked client applies operational scope fail-closed', async () => {
+    spyTechScope.mockResolvedValue(makeTechScope([PROVIDER_ID, CLIENT_ID]))
+    const prisma = makePrisma()
+    const contracts = makeSecondaryContracts()
+    const svc = makeService(prisma, contracts)
+
+    await svc.list(PROVIDER_ID, USER_ID, UserRole.TECHNICIAN, undefined, undefined, CLIENT_ID)
+
+    expect(contracts.getLinkedClientAccess).toHaveBeenCalledWith(PROVIDER_ID, CLIENT_ID)
+    const whereStr = JSON.stringify(prisma.ticket.findMany.mock.calls[0][0].where)
+    expect(whereStr).toContain('__no_access__')
   })
 })
 
@@ -238,6 +272,65 @@ describe('TicketsQueryService.board', () => {
     const result = await svc.board(PROVIDER_ID, USER_ID, UserRole.TECHNICIAN, {})
 
     expect(result.meta.limitedToLast).toBe(500)
+  })
+
+  it('TECHNICIAN with explicit SECONDARY linked client limits board to executor or bound locations', async () => {
+    spyTechScope.mockResolvedValue(makeTechScope([PROVIDER_ID, CLIENT_ID]))
+    const prisma = makePrisma({ executorIds: [USER_ID], boundLocationIds: ['loc-allowed'] })
+    const contracts = makeSecondaryContracts()
+    const svc = makeService(prisma, contracts)
+
+    await svc.board(PROVIDER_ID, USER_ID, UserRole.TECHNICIAN, {}, undefined, CLIENT_ID)
+
+    expect(contracts.getLinkedClientAccess).toHaveBeenCalledWith(PROVIDER_ID, CLIENT_ID)
+    const whereStr = JSON.stringify(prisma.ticket.findMany.mock.calls[0][0].where)
+    expect(whereStr).toContain(USER_ID)
+    expect(whereStr).toContain('loc-allowed')
+  })
+
+  it('TECHNICIAN aggregate board constrains SECONDARY companies without constraining own or PRIMARY companies', async () => {
+    spyTechScope.mockResolvedValue(makeTechScope([PROVIDER_ID, 'primary-client', CLIENT_ID]))
+    const prisma = makePrisma()
+    const contracts = makeSecondaryContracts()
+    const svc = makeService(prisma, contracts)
+
+    await svc.board(PROVIDER_ID, USER_ID, UserRole.TECHNICIAN, {})
+
+    expect(contracts.listSecondaryLinkedClientIds).toHaveBeenCalledWith(PROVIDER_ID)
+    const whereStr = JSON.stringify(prisma.ticket.findMany.mock.calls[0][0].where)
+    expect(whereStr).toContain('notIn')
+    expect(whereStr).toContain(CLIENT_ID)
+    expect(whereStr).toContain('__no_access__')
+  })
+})
+
+// ── context analytics ─────────────────────────────────────────────────────────
+
+describe('TicketsQueryService.contextAnalytics', () => {
+  let spyTechScope: jest.SpyInstance
+  let spyReadScope: jest.SpyInstance
+  let spyLocationScope: jest.SpyInstance
+
+  beforeEach(() => {
+    spyTechScope = jest.spyOn(ticketAccessUtils, 'resolveTechnicianOperationalScope')
+    spyReadScope = jest.spyOn(ticketAccessUtils, 'resolveTicketReadScope').mockResolvedValue(makeManagementScope())
+    spyLocationScope = jest.spyOn(ticketAccessUtils, 'resolveActorLocationScope').mockResolvedValue(wideLocationScope)
+  })
+
+  afterEach(() => jest.restoreAllMocks())
+
+  it('TECHNICIAN with explicit SECONDARY linked client applies the same fail-closed scope as board/list', async () => {
+    spyTechScope.mockResolvedValue(makeTechScope([PROVIDER_ID, CLIENT_ID]))
+    const prisma = makePrisma()
+    const contracts = makeSecondaryContracts()
+    const svc = makeService(prisma, contracts)
+
+    await svc.contextAnalytics(PROVIDER_ID, USER_ID, UserRole.TECHNICIAN, undefined, CLIENT_ID)
+
+    expect(spyReadScope).not.toHaveBeenCalled()
+    expect(contracts.getLinkedClientAccess).toHaveBeenCalledWith(PROVIDER_ID, CLIENT_ID)
+    const whereStr = JSON.stringify(prisma.ticket.findMany.mock.calls[0][0].where)
+    expect(whereStr).toContain('__no_access__')
   })
 })
 

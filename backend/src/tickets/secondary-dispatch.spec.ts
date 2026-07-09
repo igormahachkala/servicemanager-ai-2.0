@@ -245,8 +245,9 @@ describe('resolveReadableTicketAccess — SECONDARY executor sees scoped tickets
       },
       user: {
         findFirst: jest.fn().mockResolvedValue({ id: TECH_ID, technicianSpecializations: [] }),
+        findMany: jest.fn().mockResolvedValue([{ id: TECH_ID }]),
       },
-      userLocationBinding: { findMany: jest.fn().mockResolvedValue([]) },
+      userLocationBinding: { findMany: jest.fn().mockResolvedValue([{ companyId: SECONDARY_PROVIDER_ID, locationId: LOCATION_ID }]) },
       ticket: {
         findFirst: jest.fn().mockImplementation(async ({ where }: any) => {
           callCount++;
@@ -254,17 +255,13 @@ describe('resolveReadableTicketAccess — SECONDARY executor sees scoped tickets
           if (callCount === 1) return null;
           // 2nd call: executor operational scope (AND array, companyIds includes CLIENT_ID)
           if (callCount === 2) {
-            const andArr = where?.AND;
-            if (!Array.isArray(andArr)) return null;
-            const orClause = andArr[0]?.OR;
-            if (!Array.isArray(orClause)) return null;
-            // Check if any OR condition matches
-            const assignedMatch = orClause.some(
-              (c: any) => 'assignedTechnicianId' in c && c.assignedTechnicianId === assignedTechnicianId,
-            );
-            const newMatch = orClause.some(
-              (c: any) => c.status === 'NEW' && 'assignedTechnicianId' in c && c.assignedTechnicianId === null,
-            );
+            const whereStr = JSON.stringify(where);
+            const assignedMatch = assignedTechnicianId === TECH_ID && whereStr.includes(TECH_ID);
+            const newMatch =
+              status === TicketStatus.NEW &&
+              assignedTechnicianId === null &&
+              whereStr.includes(TicketStatus.NEW) &&
+              whereStr.includes(LOCATION_ID);
             const matches = assignedTechnicianId === TECH_ID ? assignedMatch : newMatch;
             return matches ? operationalTicket : null;
           }
