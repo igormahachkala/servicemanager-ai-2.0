@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import {
+  CONVERSATION_MEMORY_SYNC_EVENT,
+  buildEmployeeConversationContext,
+  getConversationMemoryStats,
+  recordConversationExchange,
+} from '../../domain/conversationMemory'
 import { tryProcessMobileCursorHandoffFromOwnerMessage } from '../../domain/cursorHandoffFromChat'
 import { loadMaxWorkerLoopRecords } from '../../domain/maxWorkerLoop/maxWorkerLoopStorage'
 import { MAX_WORKER_EMPLOYEE_ID } from '../../domain/maxWorkerLoop'
@@ -37,6 +43,11 @@ function formatTimestamp(iso: string): string {
   })
 }
 
+function syncConversationMemory(employeeId: string): void {
+  const session = getMobileEmployeeChatSession(employeeId)
+  recordConversationExchange({ employeeId, messages: session.messages })
+}
+
 export function useMobileMaxChat(employeeId: string = MAX_WORKER_EMPLOYEE_ID) {
   const { t } = useI18n()
   const copy = t.mobile.maxChat
@@ -54,15 +65,18 @@ export function useMobileMaxChat(employeeId: string = MAX_WORKER_EMPLOYEE_ID) {
 
   useEffect(() => {
     getMobileEmployeeChatSession(employeeId, { welcome: copy.welcome })
+    syncConversationMemory(employeeId)
   }, [copy.welcome, employeeId])
 
   useEffect(() => {
     const onSync = () => refresh()
     window.addEventListener(MOBILE_EMPLOYEE_CHAT_SYNC_EVENT, onSync)
+    window.addEventListener(CONVERSATION_MEMORY_SYNC_EVENT, onSync)
     window.addEventListener('ai-company-cursor-handoff-from-chat-sync', onSync)
     window.addEventListener('ai-company-employee-work-queue-sync', onSync)
     return () => {
       window.removeEventListener(MOBILE_EMPLOYEE_CHAT_SYNC_EVENT, onSync)
+      window.removeEventListener(CONVERSATION_MEMORY_SYNC_EVENT, onSync)
       window.removeEventListener('ai-company-cursor-handoff-from-chat-sync', onSync)
       window.removeEventListener('ai-company-employee-work-queue-sync', onSync)
     }
@@ -72,12 +86,18 @@ export function useMobileMaxChat(employeeId: string = MAX_WORKER_EMPLOYEE_ID) {
   const session = getMobileEmployeeChatSession(employeeId, { welcome: copy.welcome })
   const messages = session.messages
 
+  const memoryStats = useMemo(
+    () => getConversationMemoryStats(buildEmployeeConversationContext(employeeId)),
+    [employeeId, sessionTick, messages.length],
+  )
+
   const status: MobileMaxChatStatus = useMemo(() => {
     const activeLoop = loadMaxWorkerLoopRecords().find(
       (loop) =>
-        loop.status === 'running' ||
-        loop.status === 'queued' ||
-        loop.status === 'waiting_approval',
+        loop.employeeId === employeeId &&
+        (loop.status === 'running' ||
+          loop.status === 'queued' ||
+          loop.status === 'waiting_approval'),
     )
     if (activeLoop) {
       return {
@@ -89,8 +109,14 @@ export function useMobileMaxChat(employeeId: string = MAX_WORKER_EMPLOYEE_ID) {
     if (isResponding) {
       return { label: copy.status.thinking, detail: null, tone: 'waiting' }
     }
-    return { label: copy.status.ready, detail: copy.status.readyHint, tone: 'default' }
-  }, [copy.status, isResponding])
+    const memoryDetail =
+      memoryStats.messageCount > 1
+        ? copy.status.memoryHint
+            .replace('{count}', String(memoryStats.messageCount))
+            .replace('{window}', String(memoryStats.windowSize))
+        : copy.status.readyHint
+    return { label: copy.status.ready, detail: memoryDetail, tone: 'default' }
+  }, [copy.status, employeeId, isResponding, memoryStats])
 
   const sendMessage = useCallback(
     async (rawContent: string) => {
@@ -128,6 +154,7 @@ export function useMobileMaxChat(employeeId: string = MAX_WORKER_EMPLOYEE_ID) {
           content: copy.cursorHandoff.cardTitle,
           cursorHandoffId: handoff.handoffId,
         })
+        syncConversationMemory(employeeId)
         refresh()
         setIsResponding(false)
         return
@@ -142,6 +169,7 @@ export function useMobileMaxChat(employeeId: string = MAX_WORKER_EMPLOYEE_ID) {
 
       try {
         const response = await respondToOwnerChatMessage({
+          employeeId,
           text: content,
           sourceMessageId: ownerMessage.id,
           taskProposalIntro: copy.taskProposalIntro,
@@ -161,12 +189,14 @@ export function useMobileMaxChat(employeeId: string = MAX_WORKER_EMPLOYEE_ID) {
           runtimeRunId: response.runtimeRunId,
           workerLoopId: response.workerLoopId,
         })
+        syncConversationMemory(employeeId)
       } catch (error) {
         updateMobileEmployeeChatMessage(employeeId, pendingId, {
           content: copy.errors.generic,
           pending: false,
           error: true,
         })
+        syncConversationMemory(employeeId)
         setActionError(error instanceof Error ? error.message : copy.errors.generic)
       } finally {
         setIsResponding(false)
@@ -193,6 +223,8 @@ export function useMobileMaxChat(employeeId: string = MAX_WORKER_EMPLOYEE_ID) {
           kind: 'system_status',
           content: copy.taskQueued.replace('{id}', workItem.id),
         })
+
+        syncConversationMemory(employeeId)
 
         if (runNow) {
           openRunNextFlow({ workItem, goldenPath: true })
@@ -229,6 +261,7 @@ export function useMobileMaxChat(employeeId: string = MAX_WORKER_EMPLOYEE_ID) {
         kind: 'clarification',
         content: copy.proposalCancelled,
       })
+      syncConversationMemory(employeeId)
       refresh()
     },
     [copy.proposalCancelled, employeeId, refresh],

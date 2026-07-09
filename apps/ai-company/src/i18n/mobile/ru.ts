@@ -755,6 +755,7 @@ export const mobileRu = {
     status: {
       ready: 'MAX на связи',
       readyHint: 'Ollama через same-origin /runtime/ollama',
+      memoryHint: 'Помнит {count} сообщений · контекст {window}',
       thinking: 'MAX думает…',
       live: 'MAX выполняет задачу',
       running: 'MAX выполняет задачу',

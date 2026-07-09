@@ -693,6 +693,7 @@ export const mobileEn = {
     status: {
       ready: 'MAX is online',
       readyHint: 'Ollama via same-origin /runtime/ollama',
+      memoryHint: 'Remembers {count} messages · context {window}',
       thinking: 'MAX is thinking…',
       live: 'MAX is running a task',
       running: 'MAX is running a task',

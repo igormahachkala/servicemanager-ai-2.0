@@ -1,8 +1,12 @@
 /**
- * MAX mobile chat responder — intent detection + optional Ollama Q&A (110B).
+ * MAX mobile chat responder — intent detection + Ollama Q&A with conversation memory (111A).
  * Does not invoke Runtime orchestrator or Worker Loop.
  */
 
+import {
+  buildEmployeeConversationContext,
+  formatEmployeeConversationContextForPrompt,
+} from '../../domain/conversationMemory'
 import { loadEmployeeDailyJournalEntries } from '../../domain/employeeDailyJournal/employeeDailyJournalStorage'
 import {
   buildMobileChatTaskProposal,
@@ -33,6 +37,7 @@ const MAX_CHAT_SYSTEM_PROMPT = [
   'You are MAX, senior engineer at AI Company.',
   'Reply concisely in the same language as the user (Russian or English).',
   'Help the Owner with product, architecture, mobile UX, and MAX work queue.',
+  'Use the conversation history and working memory below — refer to prior topics when relevant.',
   'Do not claim you already executed tasks or changed code.',
   'For actionable work, say the Owner can confirm a task proposal in chat.',
 ].join(' ')
@@ -54,9 +59,9 @@ export type MobileMaxChatResponderResult = {
   errorMessage?: string | null
 }
 
-function findLatestMaxReportId(): string | null {
+function findLatestMaxReportId(employeeId: string): string | null {
   const journal = loadEmployeeDailyJournalEntries()
-    .filter((entry) => entry.employeeId === MAX_WORKER_EMPLOYEE_ID)
+    .filter((entry) => entry.employeeId === employeeId)
     .sort((a, b) => Date.parse(b.finishedAt) - Date.parse(a.finishedAt))[0]
 
   const reportRef = journal?.reportLinks?.[0]
@@ -64,12 +69,16 @@ function findLatestMaxReportId(): string | null {
   return null
 }
 
-function findActiveMaxRuntimeRefs(): { runtimeRunId: string | null; workerLoopId: string | null } {
+function findActiveMaxRuntimeRefs(employeeId: string): {
+  runtimeRunId: string | null
+  workerLoopId: string | null
+} {
   const active = loadMaxWorkerLoopRecords().find(
     (loop) =>
-      loop.status === 'running' ||
-      loop.status === 'queued' ||
-      loop.status === 'waiting_approval',
+      loop.employeeId === employeeId &&
+      (loop.status === 'running' ||
+        loop.status === 'queued' ||
+        loop.status === 'waiting_approval'),
   )
   return {
     runtimeRunId: active?.runtimeRunId ?? null,
@@ -77,12 +86,17 @@ function findActiveMaxRuntimeRefs(): { runtimeRunId: string | null; workerLoopId
   }
 }
 
-async function generateOllamaChatReply(userMessage: string): Promise<string> {
+async function generateOllamaChatReply(
+  employeeId: string,
+  userMessage: string,
+): Promise<string> {
   const settings = loadOllamaSettings()
   const baseUrl = getEffectiveOllamaBaseUrl(settings)
   const modelTag = settings.defaultModelTag?.trim() || resolveOllamaModelTag('model-qwen-coder')
+  const context = buildEmployeeConversationContext(employeeId)
+  const contextBlock = formatEmployeeConversationContextForPrompt(context, userMessage)
   const prompt = trimPromptForFastTest(
-    `${MAX_CHAT_SYSTEM_PROMPT}\n\nOwner: ${userMessage.trim()}\n\nMAX:`,
+    `${MAX_CHAT_SYSTEM_PROMPT}\n\n${contextBlock}`,
     modelTag,
   )
 
@@ -138,14 +152,16 @@ export function classifyOwnerChatMessage(text: string): 'question' | 'task_reque
 }
 
 export async function respondToOwnerChatMessage(input: {
+  employeeId?: string
   text: string
   sourceMessageId: string | null
   taskProposalIntro: string
   reportLinkIntro: (title: string) => string
   questionFallback: string
 }): Promise<MobileMaxChatResponderResult> {
+  const employeeId = input.employeeId ?? MAX_WORKER_EMPLOYEE_ID
   const trimmed = input.text.trim()
-  const runtimeRefs = findActiveMaxRuntimeRefs()
+  const runtimeRefs = findActiveMaxRuntimeRefs(employeeId)
   const intent = await detectMobileChatIntent(trimmed)
   const ownerKind: 'question' | 'task_request' = shouldProposeTaskFromIntent(intent.kind)
     ? 'task_request'
@@ -166,9 +182,12 @@ export async function respondToOwnerChatMessage(input: {
     }
   }
 
-  if (intent.kind === 'report_request' || intent.kind === 'simple_question' && /report|отчёт|отчет/i.test(trimmed)) {
+  if (
+    intent.kind === 'report_request' ||
+    (intent.kind === 'simple_question' && /report|отчёт|отчет/i.test(trimmed))
+  ) {
     const morningReportId = MOBILE_MORNING_REPORT_ID
-    const latestReportId = findLatestMaxReportId()
+    const latestReportId = findLatestMaxReportId(employeeId)
     const reportId = latestReportId ?? morningReportId
     return {
       ownerKind,
@@ -196,7 +215,7 @@ export async function respondToOwnerChatMessage(input: {
   }
 
   try {
-    const answer = await generateOllamaChatReply(trimmed)
+    const answer = await generateOllamaChatReply(employeeId, trimmed)
     return {
       ownerKind,
       maxKind: 'clarification',
