@@ -6,6 +6,7 @@ import { MobileChatComposer } from '../components/MobileChatComposer'
 import { MobileChatMessageList } from '../components/MobileChatMessageList'
 import { MobileChatQuickHints } from '../components/MobileChatQuickHints'
 import { MobileChatStatusBar } from '../components/MobileChatStatusBar'
+import { MobileChatTimelineFilter } from '../components/MobileChatTimelineFilter'
 import { useMobileMaxChat } from '../hooks/useMobileMaxChat'
 
 export function MobileMaxChatPage() {
@@ -26,8 +27,15 @@ export function MobileMaxChatPage() {
 
       <MobileChatStatusBar status={chat.status} />
 
+      <MobileChatTimelineFilter
+        value={chat.timelineFilter}
+        options={chat.timelineFilterOptions}
+        ariaLabel={copy.timeline.filterAria}
+        onChange={chat.setTimelineFilter}
+      />
+
       <MobileChatMessageList
-        messages={chat.messages}
+        entries={chat.timelineEntries}
         formatTimestamp={chat.formatTimestamp}
         onCreateTask={(message) => chat.createTaskFromProposal(message, false)}
         onRunNow={(message) => chat.createTaskFromProposal(message, true)}

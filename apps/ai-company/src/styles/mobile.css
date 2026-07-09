@@ -5062,3 +5062,210 @@ html.acMobileGuideActive .acMobileContent {
   font-size: 0.8125rem;
   color: var(--theme-text-muted);
 }
+
+/* Mobile MAX Chat Timeline V2 (111C) */
+.acMobileChatMessageList {
+  flex: 1 1 auto;
+  min-height: 200px;
+  max-height: 52vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--mobile-spacing-sm);
+  padding: var(--mobile-spacing-sm) 0;
+}
+
+.acMobileChatBubbleOwner {
+  align-self: flex-end;
+  background: color-mix(in srgb, var(--theme-accent) 12%, var(--theme-surface));
+  border-color: color-mix(in srgb, var(--theme-accent) 24%, var(--theme-border));
+}
+
+.acMobileChatBubbleMax {
+  align-self: flex-start;
+  background: var(--theme-surface);
+}
+
+.acMobileChatBubbleSystem,
+.acMobileChatBubbleEvent {
+  align-self: center;
+  max-width: 94%;
+  background: var(--theme-bg-subtle);
+  border-style: dashed;
+}
+
+.acMobileChatBubbleHeader {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--mobile-spacing-sm);
+  margin-bottom: var(--mobile-spacing-xs);
+}
+
+.acMobileChatBubbleRole {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--theme-text-muted);
+}
+
+.acMobileChatBubbleContent {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.acMobileChatBubbleContentPending {
+  opacity: 0.72;
+  font-style: italic;
+}
+
+.acMobileChatBubbleActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mobile-spacing-sm);
+  margin-top: var(--mobile-spacing-sm);
+}
+
+.acMobileChatActionBtn {
+  text-decoration: none;
+  font-size: 0.8125rem;
+}
+
+.acMobileChatBubbleMeta {
+  margin: var(--mobile-spacing-xs) 0 0;
+  font-size: 0.75rem;
+  color: var(--theme-text-muted);
+}
+
+.acMobileChatEventTitle {
+  margin: 0 0 var(--mobile-spacing-xs);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--theme-accent);
+}
+
+.acMobileChatBubbleToneSuccess {
+  border-color: color-mix(in srgb, var(--theme-success) 35%, var(--theme-border));
+}
+
+.acMobileChatBubbleToneError {
+  border-color: color-mix(in srgb, var(--theme-danger, #ef4444) 35%, var(--theme-border));
+}
+
+.acMobileChatBubbleToneWarning {
+  border-color: color-mix(in srgb, var(--theme-info) 35%, var(--theme-border));
+}
+
+.acMobileChatBubbleToneInfo {
+  border-color: color-mix(in srgb, var(--theme-accent) 35%, var(--theme-border));
+}
+
+.acMobileChatTimelineFilter {
+  display: flex;
+  gap: var(--mobile-spacing-xs);
+  overflow-x: auto;
+  padding-bottom: var(--mobile-spacing-xs);
+  -webkit-overflow-scrolling: touch;
+}
+
+.acMobileChatTimelineFilterBtn {
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  border-radius: var(--mobile-radius-pill);
+  border: 1px solid var(--theme-border);
+  background: var(--theme-surface);
+  color: var(--theme-text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.acMobileChatTimelineFilterBtnActive {
+  border-color: color-mix(in srgb, var(--theme-accent) 40%, var(--theme-border));
+  background: color-mix(in srgb, var(--theme-accent) 12%, var(--theme-surface));
+  color: var(--theme-accent);
+}
+
+.acMobileChatStatus {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--mobile-spacing-sm);
+  padding: var(--mobile-spacing-sm) var(--mobile-spacing-md);
+  border-radius: var(--mobile-radius-md);
+  background: var(--theme-bg-subtle);
+  border: 1px solid var(--theme-border);
+}
+
+.acMobileChatStatusDot {
+  width: 8px;
+  height: 8px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--theme-text-muted);
+}
+
+.acMobileChatStatusLive .acMobileChatStatusDot {
+  background: var(--theme-success);
+}
+
+.acMobileChatStatusWaiting .acMobileChatStatusDot {
+  background: var(--theme-info);
+}
+
+.acMobileChatStatusBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.acMobileChatStatusLabel {
+  font-size: 0.8125rem;
+  font-weight: 650;
+}
+
+.acMobileChatStatusDetail {
+  font-size: 0.75rem;
+  color: var(--theme-text-muted);
+}
+
+.acMobileChatComposer {
+  display: flex;
+  gap: var(--mobile-spacing-sm);
+  align-items: flex-end;
+}
+
+.acMobileChatComposerInput {
+  flex: 1;
+  min-height: 44px;
+  padding: var(--mobile-spacing-sm) var(--mobile-spacing-md);
+  border-radius: var(--mobile-radius-md);
+  border: 1px solid var(--theme-border);
+  background: var(--theme-surface);
+  font-size: 0.875rem;
+}
+
+.acMobileChatComposerSend {
+  flex-shrink: 0;
+}
+
+.acMobileChatQuickHints {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mobile-spacing-xs);
+}
+
+.acMobileChatQuickHint {
+  padding: 4px 10px;
+  border-radius: var(--mobile-radius-pill);
+  border: 1px solid var(--theme-border);
+  background: var(--theme-surface);
+  font-size: 0.75rem;
+  color: var(--theme-text-secondary);
+}
+
+.acMobileChatActionError {
+  margin: 0;
+}

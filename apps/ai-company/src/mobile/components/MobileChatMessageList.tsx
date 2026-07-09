@@ -1,11 +1,12 @@
 import { Link } from 'react-router-dom'
 import type { MobileEmployeeChatMessage } from '../chat/mobileEmployeeChat'
+import type { MobileChatTimelineEntry } from '../chat/mobileChatTimelineTypes'
 import { mobileReportHref, mobileRuntimeLoopHref, mobileRuntimeRunHref } from '../navigation/mobileHrefResolver'
 import { MobileChatCursorHandoffCard } from './MobileChatCursorHandoffCard'
 import { useI18n } from '../../i18n'
 
-type Props = {
-  message: MobileEmployeeChatMessage
+type BubbleProps = {
+  entry: MobileChatTimelineEntry
   timestamp: string
   onCreateTask?: () => void
   onRunNow?: () => void
@@ -14,53 +15,76 @@ type Props = {
   onHandoffUpdated?: () => void
 }
 
-export function MobileChatMessageBubble({
-  message,
+export function MobileChatTimelineBubble({
+  entry,
   timestamp,
   onCreateTask,
   onRunNow,
   onEdit,
   onCancel,
   onHandoffUpdated,
-}: Props) {
+}: BubbleProps) {
   const { t } = useI18n()
   const copy = t.mobile.maxChat
+  const message = entry.message
 
   const roleLabel =
-    message.role === 'owner'
+    entry.role === 'owner'
       ? copy.roles.owner
-      : message.role === 'max'
+      : entry.role === 'max'
         ? copy.roles.max
         : copy.roles.system
 
-  const bubbleClass =
-    message.role === 'owner'
-      ? 'acMobileChatBubble acMobileChatBubbleOwner'
-      : message.role === 'max'
-        ? 'acMobileChatBubble acMobileChatBubbleMax'
-        : 'acMobileChatBubble acMobileChatBubbleSystem'
+  const bubbleClass = [
+    'acMobileChatBubble',
+    entry.role === 'owner'
+      ? 'acMobileChatBubbleOwner'
+      : entry.role === 'max'
+        ? 'acMobileChatBubbleMax'
+        : 'acMobileChatBubbleSystem',
+    entry.source === 'event' ? 'acMobileChatBubbleEvent' : '',
+    entry.tone !== 'default' ? `acMobileChatBubbleTone${capitalize(entry.tone)}` : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
 
   return (
-    <article className={bubbleClass} data-kind={message.kind} aria-label={roleLabel}>
+    <article
+      className={bubbleClass}
+      data-kind={message?.kind ?? entry.eventKind ?? 'event'}
+      data-source={entry.source}
+      aria-label={roleLabel}
+    >
       <header className="acMobileChatBubbleHeader">
         <span className="acMobileChatBubbleRole">{roleLabel}</span>
-        <time className="acMobileChatBubbleTime" dateTime={message.createdAt}>
+        <time className="acMobileChatBubbleTime" dateTime={entry.createdAt}>
           {timestamp}
         </time>
       </header>
 
-      <p className={`acMobileChatBubbleContent${message.pending ? ' acMobileChatBubbleContentPending' : ''}`}>
-        {message.content}
+      {entry.eventTitle ? (
+        <p className="acMobileChatEventTitle">{entry.eventTitle}</p>
+      ) : null}
+
+      <p
+        className={`acMobileChatBubbleContent${
+          message?.pending ? ' acMobileChatBubbleContentPending' : ''
+        }`}
+      >
+        {entry.content}
       </p>
 
-      {message.kind === 'cursor_handoff' && message.cursorHandoffId ? (
+      {message?.kind === 'cursor_handoff' && message.cursorHandoffId ? (
         <MobileChatCursorHandoffCard
           handoffId={message.cursorHandoffId}
           onUpdated={onHandoffUpdated}
         />
       ) : null}
 
-      {message.kind === 'task_proposal' && message.taskProposal && !message.pending && !message.workItemId ? (
+      {message?.kind === 'task_proposal' &&
+      message.taskProposal &&
+      !message.pending &&
+      !message.workItemId ? (
         <div className="acMobileChatProposalCard acMobileChatProposalCardInline">
           <dl className="acMobileChatProposalMeta">
             <div className="acMobileChatProposalRow">
@@ -93,7 +117,7 @@ export function MobileChatMessageBubble({
         </div>
       ) : null}
 
-      {message.kind === 'report_link' && message.reportId ? (
+      {message?.kind === 'report_link' && message.reportId ? (
         <div className="acMobileChatBubbleActions">
           <Link to={mobileReportHref(message.reportId)} className="acMobilePrimaryBtn acMobileChatActionBtn">
             {copy.actions.openReport}
@@ -101,36 +125,57 @@ export function MobileChatMessageBubble({
         </div>
       ) : null}
 
-      {(message.runtimeRunId || message.workerLoopId) && message.role === 'max' ? (
-        <div className="acMobileChatBubbleActions">
-          {message.workerLoopId ? (
-            <Link
-              to={mobileRuntimeLoopHref(message.workerLoopId)}
-              className="acMobileSecondaryBtn acMobileChatActionBtn"
-            >
-              {copy.actions.openRuntime}
-            </Link>
-          ) : null}
-          {message.runtimeRunId ? (
-            <Link
-              to={mobileRuntimeRunHref(message.runtimeRunId)}
-              className="acMobileSecondaryBtn acMobileChatActionBtn"
-            >
-              {copy.actions.openRuntime}
-            </Link>
-          ) : null}
-        </div>
-      ) : null}
+      {renderTimelineLinks(entry, copy.actions.openReport, copy.actions.openRuntime)}
 
-      {message.workItemId ? (
+      {message?.workItemId ? (
         <p className="acMobileChatBubbleMeta">{copy.taskQueued.replace('{id}', message.workItemId)}</p>
       ) : null}
     </article>
   )
 }
 
+function renderTimelineLinks(
+  entry: MobileChatTimelineEntry,
+  openReportLabel: string,
+  openRuntimeLabel: string,
+) {
+  const hasReport = Boolean(entry.reportId)
+  const hasRuntime = Boolean(entry.runtimeRunId || entry.workerLoopId)
+  if (!hasReport && !hasRuntime) return null
+
+  return (
+    <div className="acMobileChatBubbleActions">
+      {entry.reportId ? (
+        <Link to={mobileReportHref(entry.reportId)} className="acMobilePrimaryBtn acMobileChatActionBtn">
+          {openReportLabel}
+        </Link>
+      ) : null}
+      {entry.workerLoopId ? (
+        <Link
+          to={mobileRuntimeLoopHref(entry.workerLoopId)}
+          className="acMobileSecondaryBtn acMobileChatActionBtn"
+        >
+          {openRuntimeLabel}
+        </Link>
+      ) : null}
+      {entry.runtimeRunId ? (
+        <Link
+          to={mobileRuntimeRunHref(entry.runtimeRunId)}
+          className="acMobileSecondaryBtn acMobileChatActionBtn"
+        >
+          {openRuntimeLabel}
+        </Link>
+      ) : null}
+    </div>
+  )
+}
+
+function capitalize(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1)
+}
+
 type ListProps = {
-  messages: MobileEmployeeChatMessage[]
+  entries: MobileChatTimelineEntry[]
   formatTimestamp: (iso: string) => string
   onCreateTask: (message: MobileEmployeeChatMessage) => void
   onRunNow: (message: MobileEmployeeChatMessage) => void
@@ -140,7 +185,7 @@ type ListProps = {
 }
 
 export function MobileChatMessageList({
-  messages,
+  entries,
   formatTimestamp,
   onCreateTask,
   onRunNow,
@@ -150,15 +195,19 @@ export function MobileChatMessageList({
 }: ListProps) {
   return (
     <div className="acMobileChatMessageList" role="log" aria-live="polite">
-      {messages.map((message) => (
-        <MobileChatMessageBubble
-          key={message.id}
-          message={message}
-          timestamp={formatTimestamp(message.createdAt)}
-          onCreateTask={() => onCreateTask(message)}
-          onRunNow={() => onRunNow(message)}
-          onEdit={() => onEditTask(message)}
-          onCancel={() => onCancelProposal(message)}
+      {entries.map((entry) => (
+        <MobileChatTimelineBubble
+          key={entry.id}
+          entry={entry}
+          timestamp={formatTimestamp(entry.createdAt)}
+          onCreateTask={
+            entry.message ? () => onCreateTask(entry.message as MobileEmployeeChatMessage) : undefined
+          }
+          onRunNow={entry.message ? () => onRunNow(entry.message as MobileEmployeeChatMessage) : undefined}
+          onEdit={entry.message ? () => onEditTask(entry.message as MobileEmployeeChatMessage) : undefined}
+          onCancel={
+            entry.message ? () => onCancelProposal(entry.message as MobileEmployeeChatMessage) : undefined
+          }
           onHandoffUpdated={onHandoffUpdated}
         />
       ))}
