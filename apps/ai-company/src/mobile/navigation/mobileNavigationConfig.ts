@@ -1,4 +1,5 @@
 import { resolveMobileEmployeeFromRoute } from '../../domain/mobileEmployee'
+import { getEmployee } from '../../domain/employeeRegistry'
 import { resolveEmployee } from '../../mission-control/data/conversation'
 
 export type MobileNavId = 'today' | 'employees' | 'tasks' | 'decisions' | 'more'
@@ -68,7 +69,10 @@ export function mobilePageTitle(
     const routeId = pathname.slice(`${MOBILE_NAV_BASE}/chat/`.length).split(/[/?#]/)[0]
     const entry = resolveMobileEmployeeFromRoute(routeId)
     if (entry) {
-      const name = resolveEmployee(entry.employeeId)?.codename ?? entry.routeAlias
+      const name =
+        getEmployee(entry.employeeId)?.displayName ??
+        resolveEmployee(entry.employeeId)?.codename ??
+        entry.routeAlias
       return labels.chat?.includes('MAX') ? labels.chat.replace('MAX', name) : `${name} chat`
     }
   }
@@ -94,7 +98,11 @@ export function mobilePageTitle(
     const routeId = pathname.slice(`${MOBILE_NAV_BASE}/employees/`.length).split(/[/?#]/)[0]
     const entry = resolveMobileEmployeeFromRoute(routeId)
     if (entry) {
-      return resolveEmployee(entry.employeeId)?.codename ?? entry.routeAlias
+      return (
+        getEmployee(entry.employeeId)?.displayName ??
+        resolveEmployee(entry.employeeId)?.codename ??
+        entry.routeAlias
+      )
     }
   }
   if (pathname.includes('/employees/ag-max') || pathname.endsWith('/employees/max')) {

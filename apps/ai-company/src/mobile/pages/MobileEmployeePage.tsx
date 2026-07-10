@@ -12,6 +12,7 @@ import {
 import { useI18n } from '../../i18n'
 import { resolveMobileEmployeeProfileCopy } from '../mobileEmployeeCopy'
 import { useMobileEmployeeProfile } from '../hooks/useMobileEmployeeProfile'
+import { useMobileEmployeeConversationMemory } from '../hooks/useMobileEmployeeConversationMemory'
 import { useMobileRunNextSheet } from '../hooks/useMobileRunNextSheet'
 import { MobileEmployeeHeroCard } from '../components/MobileEmployeeHeroCard'
 import { MobileEmployeeWorkdayCard } from '../components/MobileEmployeeWorkdayCard'
@@ -20,6 +21,10 @@ import { MobileLastResultCard } from '../components/MobileLastResultCard'
 import { MobileSection } from '../components/MobileSection'
 import { MobileRuntimeLiveBanner } from '../components/MobileRuntimeLiveBanner'
 import { MobileStandardTaskQuickStart } from '../components/MobileStandardTaskQuickStart'
+import { MobileEmployeeRegistryProfileCard } from '../components/MobileEmployeeRegistryProfileCard'
+import { MobileEmployeeExecutionNotice } from '../components/MobileEmployeeExecutionNotice'
+import { MobileEmployeeScopedReportsCard } from '../components/MobileEmployeeScopedReportsCard'
+import { MobileEmployeeConversationMemoryCard } from '../components/MobileEmployeeConversationMemoryCard'
 
 export function MobileEmployeePage() {
   const { id: rawId } = useParams<{ id: string }>()
@@ -28,12 +33,14 @@ export function MobileEmployeePage() {
   const registryEntry = rawId ? resolveMobileEmployeeFromRoute(rawId) : null
   const employeeId = registryEntry?.employeeId ?? getDefaultMobileEmployeeId()
   const profile = useMobileEmployeeProfile(employeeId)
+  const memory = useMobileEmployeeConversationMemory(employeeId)
   const { openRunNextFlow } = useMobileRunNextSheet()
   const copy = resolveMobileEmployeeProfileCopy(employeeId, t.mobile)
 
   useEffect(() => {
     profile.refresh()
-  }, [location.key, profile.refresh])
+    memory.refresh()
+  }, [location.key, memory.refresh, profile.refresh])
 
   if (!rawId) {
     return <Navigate to={`/mobile/employees/${getDefaultMobileEmployeeId()}`} replace />
@@ -46,6 +53,11 @@ export function MobileEmployeePage() {
   const showRuntime = hasMobileEmployeeCapability(employeeId, 'runtime_live')
   const showWorkerLoop = hasMobileEmployeeCapability(employeeId, 'worker_loop')
   const showStandardTask = hasMobileEmployeeCapability(employeeId, 'standard_task_quick_start')
+  const showConversationMemory = hasMobileEmployeeCapability(employeeId, 'conversation_memory')
+  const executionNotice =
+    'executionNotice' in copy && typeof copy.executionNotice === 'string' && !showWorkerLoop
+      ? copy.executionNotice
+      : null
 
   return (
     <div className="acMobilePage acMobileMaxPage">
@@ -58,6 +70,8 @@ export function MobileEmployeePage() {
           <p>{copy.activeBanner}</p>
         </div>
       )}
+
+      {executionNotice ? <MobileEmployeeExecutionNotice message={executionNotice} /> : null}
 
       {showRuntime && profile.activeWorkerLoop ? (
         <div data-mobile-guide="max-runtime">
@@ -80,6 +94,15 @@ export function MobileEmployeePage() {
         heroCopy={copy.hero}
         chatHref={mobileEmployeeChatPath(employeeId)}
       />
+
+      {profile.snapshot.registryProfile ? (
+        <MobileSection title={copy.sections.registryProfile}>
+          <MobileEmployeeRegistryProfileCard
+            profile={profile.snapshot.registryProfile}
+            copy={copy.registryProfile}
+          />
+        </MobileSection>
+      ) : null}
 
       <MobileSection title={copy.hero.openChat}>
         <Link to={mobileEmployeeChatPath(employeeId)} className="acMobilePrimaryBtn">
@@ -114,6 +137,21 @@ export function MobileEmployeePage() {
           />
         </MobileSection>
       </div>
+
+      {showConversationMemory ? (
+        <MobileSection title={copy.sections.conversationMemory}>
+          <MobileEmployeeConversationMemoryCard
+            employeeId={employeeId}
+            context={memory.snapshot.context}
+            messageCount={memory.snapshot.messageCount}
+            copy={copy.conversationMemory}
+          />
+        </MobileSection>
+      ) : null}
+
+      <MobileSection title={copy.sections.reports}>
+        <MobileEmployeeScopedReportsCard employeeId={employeeId} copy={copy.scopedReports} />
+      </MobileSection>
 
       <div data-mobile-guide="max-result">
         <MobileSection title={copy.sections.lastResult}>

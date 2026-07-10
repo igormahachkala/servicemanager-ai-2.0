@@ -2,7 +2,7 @@
 
 ## Goal
 
-Builder (`ag-builder`) becomes a full mobile digital employee reusing MAX architecture via generic abstractions — no code duplication.
+Builder (`ag-builder`) is a full mobile digital employee on the generic employee layer — no MAX page copy.
 
 ## Routes
 
@@ -13,45 +13,44 @@ Builder (`ag-builder`) becomes a full mobile digital employee reusing MAX archit
 | `/mobile/employees/builder` | Profile alias |
 | `/mobile/chat/builder` | Chat alias |
 
-Aliases: `builder` → `ag-builder` via `employeeIdResolver` + `mobileEmployeeRegistry`.
-
 ## Generic layer
 
 | Module | Role |
 |--------|------|
-| `domain/mobileEmployee/mobileEmployeeRegistry.ts` | Capabilities per employee, route aliases, path helpers |
-| `domain/employeeWorkQueue/employeeWorkQueueViewModel.ts` | Generic queue view by `employeeId` |
-| `mobile/hooks/useMobileEmployeeProfile.ts` | Profile snapshot (registry, queue, journal, operating day) |
-| `mobile/hooks/useMobileMaxChat.ts` → `useMobileEmployeeChat` | Chat + conversation memory by `employeeId` |
-| `mobile/mobileEmployeeCopy.ts` | i18n copy resolver by `employeeId` |
-| `mobile/runTask/mobileRunTaskConfig.ts` | Run Task roster from mobile registry |
-| `mobile/pages/MobileEmployeePage.tsx` | Generic profile shell |
-| `mobile/pages/MobileMaxChatPage.tsx` | Generic chat shell |
+| `domain/mobileEmployee/mobileEmployeeRegistry.ts` | Capabilities, route aliases, path helpers |
+| `domain/employeeWorkQueue/employeeWorkQueueViewModel.ts` | Queue view by `employeeId` |
+| `mobile/hooks/useMobileEmployeeProfile.ts` | Profile + Registry V2 + queue/journal/operating day |
+| `mobile/hooks/useMobileEmployeeConversationMemory.ts` | Working memory + summary snapshot |
+| `mobile/hooks/useMobileMaxChat.ts` → `useMobileEmployeeChat` | Chat, memory sync, task proposals |
+| `mobile/components/MobileEmployeeRegistryProfileCard.tsx` | Registry V2 profile block |
+| `mobile/components/MobileEmployeeExecutionNotice.tsx` | No Worker Loop notice |
+| `mobile/components/MobileEmployeeScopedReportsCard.tsx` | Employee-scoped reports empty/list |
+| `mobile/components/MobileEmployeeConversationMemoryCard.tsx` | Memory UI on profile |
+| `mobile/mobileEmployeeCopy.ts` | i18n by `employeeId` |
+| `mobile/runTask/mobileRunTaskConfig.ts` | Run Task roster from registry |
 
 ## Builder capabilities (V1)
 
 | Capability | Enabled |
 |------------|---------|
-| profile, chat, work_queue | ✅ |
-| operating_day, daily_journal, reports | ✅ |
-| conversation_memory | ✅ |
+| profile (Registry V2) | ✅ |
+| chat + conversation memory | ✅ |
+| work_queue | ✅ |
+| operating_day (start/continue/finish) | ✅ |
+| daily_journal + scoped reports | ✅ |
 | runtime_live, worker_loop | ❌ |
 | cursor_handoff, standard_task_quick_start | ❌ |
 
-## Storage (unchanged keys, per employee)
+## Storage isolation
 
-- Chat: `ai-company-mobile-employee-chat` → `sessions[ag-builder]`
-- Memory: `ai-company-employee-conversation-memory` → `employees[ag-builder]`
-- Work Queue / Journal / Operating Day: keyed by `employeeId`
+- Chat: `sessions[ag-builder]` ≠ `sessions[ag-max]`
+- Memory: `employees[ag-builder]`
+- Queue / Journal / Operating Day: keyed by `employeeId`
 
-## Remaining MAX-specific (intentional V1)
+## Operating Day (Builder)
 
-- Worker Loop runner (`runMaxEmployeeWorkQueueNextItem`, `useMobileRunNextSheet`)
-- Cursor handoff from chat
-- Runtime Live banner / loop status
-- `MobileRunNextConfirmationSheet` copy from `maxControl`
-- CSS class names `acMobileMax*`, `data-mobile-guide="max-*"`
-- Demo seed / golden path defaults to MAX
+Start/pause/resume/finish work via generic Operating Day engine.  
+Banner: **«Выполнение задач Builder будет подключено следующим этапом»** — no fake Worker Loop execution.
 
 ## Checks
 
@@ -61,10 +60,8 @@ npm --prefix apps/ai-company run build
 
 ## Manual QA
 
-1. `/mobile/employees` — Builder in roster
-2. `/mobile/employees/ag-builder` — profile opens
-3. `/mobile/chat/ag-builder` — chat opens
-4. Chat message stored under `ag-builder` session (not MAX)
-5. Task from chat / Run Task lands in Builder queue
-6. MAX queue and Builder queue isolated
-7. Reload preserves chat, queue, journal
+1. `/mobile/employees` — Builder active
+2. `/mobile/employees/ag-builder` — Registry profile + queue + memory + reports sections
+3. `/mobile/chat/ag-builder` — chat opens, memory hint in status bar
+4. Message → reload → persists under Builder session only
+5. Create task → Builder queue only; MAX queue unchanged

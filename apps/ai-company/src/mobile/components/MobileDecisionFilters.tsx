@@ -5,6 +5,7 @@ import { useI18n } from '../../i18n'
 const FILTER_IDS: MobileOwnerDecisionFilter[] = [
   'all',
   'approval',
+  'delegation',
   'cursor',
   'knowledge',
   'blocked',

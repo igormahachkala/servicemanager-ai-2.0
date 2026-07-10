@@ -2,6 +2,7 @@ export type {
   MobileOwnerDecisionFilter,
   MobileOwnerDecisionItem,
   MobileOwnerDecisionKind,
+  MobileOwnerDecisionDelegationMeta,
 } from './mobileOwnerDecisionsSnapshot'
 export {
   approveMobileOwnerDecision,

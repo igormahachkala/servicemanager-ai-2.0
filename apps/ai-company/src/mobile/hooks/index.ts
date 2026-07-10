@@ -25,3 +25,7 @@ export { useMobileDemo } from './useMobileDemo'
 export { useMobileRunTask, type MobileRunTaskFormState } from './useMobileRunTask'
 export { useMobileTasksCenter } from './useMobileTasksCenter'
 export { useMobileTaskHistory } from './useMobileTaskHistory'
+export {
+  useMobileEmployeeConversationMemory,
+  type MobileEmployeeConversationMemorySnapshot,
+} from './useMobileEmployeeConversationMemory'

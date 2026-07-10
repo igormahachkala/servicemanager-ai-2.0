@@ -12,6 +12,7 @@ import {
   type MobileOwnerDecisionFilter,
   type MobileOwnerDecisionItem,
 } from '../../domain/mobileOwnerDecisions'
+import { DELEGATION_PLAN_SYNC_EVENT } from '../../domain/delegationPlan'
 import { MAX_WORKER_LOOP_SYNC_EVENT } from '../../hooks/useMaxWorkerLoop'
 
 const APPROVAL_SYNC_EVENT = 'ai-company-approval-sync'
@@ -32,6 +33,7 @@ export function useMobileOwnerDecisions() {
     window.addEventListener(EMPLOYEE_WORK_QUEUE_SYNC_EVENT, onChange)
     window.addEventListener(EMPLOYEE_DAILY_JOURNAL_SYNC_EVENT, onChange)
     window.addEventListener(MAX_WORKER_LOOP_SYNC_EVENT, onChange)
+    window.addEventListener(DELEGATION_PLAN_SYNC_EVENT, onChange)
     return () => {
       window.removeEventListener(APPROVAL_SYNC_EVENT, onChange)
       window.removeEventListener(CURSOR_AUTOMATION_SYNC_EVENT, onChange)
@@ -39,6 +41,7 @@ export function useMobileOwnerDecisions() {
       window.removeEventListener(EMPLOYEE_WORK_QUEUE_SYNC_EVENT, onChange)
       window.removeEventListener(EMPLOYEE_DAILY_JOURNAL_SYNC_EVENT, onChange)
       window.removeEventListener(MAX_WORKER_LOOP_SYNC_EVENT, onChange)
+      window.removeEventListener(DELEGATION_PLAN_SYNC_EVENT, onChange)
     }
   }, [refresh])
 
@@ -50,7 +53,8 @@ export function useMobileOwnerDecisions() {
         event.key.includes('cursor-automation') ||
         event.key.includes('work-queue') ||
         event.key.includes('journal') ||
-        event.key.includes('max-worker-loop')
+        event.key.includes('max-worker-loop') ||
+        event.key.includes('delegation-plans')
       ) {
         refresh()
       }

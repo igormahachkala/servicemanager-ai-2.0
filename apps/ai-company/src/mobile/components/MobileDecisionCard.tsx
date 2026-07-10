@@ -20,6 +20,7 @@ const KIND_TONE: Record<
   knowledge_candidate: 'info',
   blocked_task: 'error',
   worker_loop_failed: 'error',
+  delegation_plan: 'warning',
 }
 
 function formatCreatedAt(iso: string | null): string | null {
@@ -40,6 +41,7 @@ export function MobileDecisionCard({ item, onApprove, onReject }: Props) {
   const kindLabel = copy.kinds[item.kind]
   const tone = KIND_TONE[item.kind]
   const createdLabel = formatCreatedAt(item.createdAt)
+  const delegation = item.delegation
 
   return (
     <article className="acMobileDecisionCard">
@@ -56,24 +58,70 @@ export function MobileDecisionCard({ item, onApprove, onReject }: Props) {
 
       <h3 className="acMobileDecisionCardTitle">{item.title}</h3>
 
-      <dl className="acMobileDecisionCardMeta">
-        <div className="acMobileDecisionCardRow">
-          <dt>{copy.fields.employee}</dt>
-          <dd>{item.employeeLabel}</dd>
-        </div>
-        {item.reason ? (
+      {delegation ? (
+        <dl className="acMobileDecisionCardMeta acMobileDecisionDelegationMeta">
           <div className="acMobileDecisionCardRow">
-            <dt>{copy.fields.reason}</dt>
-            <dd>{item.reason}</dd>
+            <dt>{copy.delegation.decidedBy}</dt>
+            <dd>{delegation.decidedByLabel}</dd>
           </div>
-        ) : null}
-        {item.risk ? (
           <div className="acMobileDecisionCardRow">
-            <dt>{copy.fields.risk}</dt>
-            <dd>{item.risk}</dd>
+            <dt>{copy.delegation.recommendedTo}</dt>
+            <dd>{delegation.recommendedLabel}</dd>
           </div>
-        ) : null}
-      </dl>
+          <div className="acMobileDecisionCardRow">
+            <dt>{copy.delegation.taskTitle}</dt>
+            <dd>{delegation.taskTitle}</dd>
+          </div>
+          <div className="acMobileDecisionCardRow acMobileDecisionDelegationExplanation">
+            <dt>{copy.delegation.explanation}</dt>
+            <dd>{delegation.ownerExplanation}</dd>
+          </div>
+          <div className="acMobileDecisionCardRow">
+            <dt>{copy.delegation.confidence}</dt>
+            <dd>{delegation.confidenceLabel}</dd>
+          </div>
+          {delegation.alternatives.length > 0 ? (
+            <div className="acMobileDecisionCardRow">
+              <dt>{copy.delegation.alternatives}</dt>
+              <dd>
+                <ul className="acMobileDecisionAlternatives">
+                  {delegation.alternatives.map((alt) => (
+                    <li key={alt.codename}>
+                      {alt.codename}
+                      {alt.note ? ` — ${alt.note}` : ''}
+                    </li>
+                  ))}
+                </ul>
+              </dd>
+            </div>
+          ) : null}
+          {delegation.risk ? (
+            <div className="acMobileDecisionCardRow">
+              <dt>{copy.fields.risk}</dt>
+              <dd>{delegation.risk}</dd>
+            </div>
+          ) : null}
+        </dl>
+      ) : (
+        <dl className="acMobileDecisionCardMeta">
+          <div className="acMobileDecisionCardRow">
+            <dt>{copy.fields.employee}</dt>
+            <dd>{item.employeeLabel}</dd>
+          </div>
+          {item.reason ? (
+            <div className="acMobileDecisionCardRow">
+              <dt>{copy.fields.reason}</dt>
+              <dd>{item.reason}</dd>
+            </div>
+          ) : null}
+          {item.risk ? (
+            <div className="acMobileDecisionCardRow">
+              <dt>{copy.fields.risk}</dt>
+              <dd>{item.risk}</dd>
+            </div>
+          ) : null}
+        </dl>
+      )}
 
       <div className="acMobileDecisionCardActions">
         {item.canApprove ? (
@@ -90,12 +138,24 @@ export function MobileDecisionCard({ item, onApprove, onReject }: Props) {
             {copy.actions.reject}
           </button>
         ) : item.employeeId === MAX_WORKER_EMPLOYEE_ID ? (
-          <Link
-            to={MOBILE_PATHS.max}
-            className="acMobileSecondaryLinkBtn"
-          >
+          <Link to={MOBILE_PATHS.max} className="acMobileSecondaryLinkBtn">
             {copy.actions.openMaxMobile}
           </Link>
+        ) : null}
+        {delegation ? (
+          <>
+            <Link
+              to={resolveMobileHref(delegation.recommendedEmployeeHref)}
+              className="acMobileSecondaryLinkBtn"
+            >
+              {copy.delegation.openEmployee}
+            </Link>
+            {delegation.sourceTaskHref ? (
+              <Link to={resolveMobileHref(delegation.sourceTaskHref)} className="acMobileSecondaryLinkBtn">
+                {copy.delegation.openSourceTask}
+              </Link>
+            ) : null}
+          </>
         ) : null}
       </div>
     </article>
