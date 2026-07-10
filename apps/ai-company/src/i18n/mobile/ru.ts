@@ -274,24 +274,25 @@ export const mobileRu = {
     slots: {
       max: {
         codename: 'MAX',
-        role: 'Senior Engineer',
+        role: 'AI Development Manager',
       },
       atlas: {
         codename: 'Atlas',
-        role: 'AI CTO / Архитектор',
+        role: 'Solution Architect',
       },
       sentinel: {
         codename: 'Sentinel',
-        role: 'QA Engineer',
+        role: 'QA & Reliability Engineer',
       },
       builder: {
         codename: 'Builder',
-        role: 'Product Engineer',
+        role: 'Software Engineer',
       },
     },
     metrics: {
       status: 'Статус',
       workday: 'Рабочий день',
+      workload: 'Нагрузка',
       queue: 'В очереди',
       decisions: 'Ждёт решений',
       lastResult: 'Последний результат',

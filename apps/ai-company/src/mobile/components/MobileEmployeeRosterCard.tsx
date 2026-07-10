@@ -34,11 +34,10 @@ function formatWhen(iso: string | null): string | null {
 export function MobileEmployeeRosterCard({ entry }: Props) {
   const { t } = useI18n()
   const copy = t.mobile.employeesRoster
-  const slotCopy = copy.slots[entry.slotId]
   const isActive = entry.availability === 'active'
 
-  const codename = slotCopy?.codename ?? entry.codename
-  const role = slotCopy?.role ?? entry.role
+  const codename = entry.codename
+  const role = entry.title || entry.role
   const statusLabel = isActive
     ? entry.presenceStatus
       ? (PRESENCE_LABELS[entry.presenceStatus] ?? entry.presenceStatus)
@@ -61,7 +60,7 @@ export function MobileEmployeeRosterCard({ entry }: Props) {
     >
       <header className="acMobileRosterCardHead">
         <div className="acMobileRosterCardAvatar" aria-hidden>
-          {codename.slice(0, 2).toUpperCase()}
+          {entry.avatar ?? codename.slice(0, 2).toUpperCase()}
         </div>
         <div className="acMobileRosterCardIntro">
           <div className="acMobileRosterCardTitleRow">
@@ -75,6 +74,7 @@ export function MobileEmployeeRosterCard({ entry }: Props) {
             </span>
           </div>
           <p className="acMobileRosterCardRole">{role}</p>
+          <p className="acMobileRosterCardDepartment">{entry.department}</p>
         </div>
       </header>
 
@@ -86,6 +86,10 @@ export function MobileEmployeeRosterCard({ entry }: Props) {
         <div className="acMobileRosterMetric">
           <dt>{copy.metrics.workday}</dt>
           <dd>{workdayLabel}</dd>
+        </div>
+        <div className="acMobileRosterMetric">
+          <dt>{copy.metrics.workload}</dt>
+          <dd>{isActive ? `${entry.currentWorkload}%` : copy.metrics.unavailableValue}</dd>
         </div>
         <div className="acMobileRosterMetric">
           <dt>{copy.metrics.queue}</dt>
@@ -126,10 +130,7 @@ export function MobileEmployeeRosterCard({ entry }: Props) {
             >
               {copy.actions.assignTask}
             </Link>
-            <Link
-              to={MOBILE_PATHS.max}
-              className="acMobileSecondaryBtn"
-            >
+            <Link to={MOBILE_PATHS.max} className="acMobileSecondaryBtn">
               {copy.actions.today}
             </Link>
           </>

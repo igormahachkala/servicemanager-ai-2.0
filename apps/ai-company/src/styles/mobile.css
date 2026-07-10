@@ -1922,6 +1922,12 @@ html.acMobileSheetOpen body {
   color: var(--theme-text-secondary);
 }
 
+.acMobileRosterCardDepartment {
+  margin: 2px 0 0;
+  font-size: 0.75rem;
+  color: var(--theme-text-muted);
+}
+
 .acMobileRosterBadge {
   display: inline-flex;
   padding: 2px 8px;
