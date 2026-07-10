@@ -22,6 +22,7 @@ export type ToolStatus = (typeof TOOL_STATUSES)[number]
 
 export const TOOL_DISPATCHER_RESULT_STATUSES = [
   'accepted',
+  'planned',
   'mock_completed',
   'rejected',
   'failed',
@@ -93,7 +94,7 @@ export type ToolResult = {
   toolId: ToolDispatcherToolId
   status: ToolDispatcherResultStatus
   ok: boolean
-  deliveryMode: 'mock_v1'
+  deliveryMode: 'mock_v1' | 'planned_v1'
   output: Record<string, unknown> | null
   error: string | null
   cursorAutomationTaskId: string | null

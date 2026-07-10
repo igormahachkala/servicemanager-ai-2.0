@@ -39,3 +39,43 @@ export {
   listToolExecutions,
   listToolExecutionsForRun,
 } from './toolGateway'
+
+export {
+  TOOL_EXECUTION_RUN_STORAGE_KEY,
+  TOOL_EXECUTION_RUN_SYNC_EVENT,
+  TOOL_EXECUTION_RUN_STATUSES,
+  TOOL_EXECUTION_RUN_VERSION,
+  type CreateToolExecutionRunInput,
+  type ListToolExecutionRunsFilter,
+  type RecordToolExecutionResultInput,
+  type ToolExecutionRun,
+  type ToolExecutionRunHistoryEntry,
+  type ToolExecutionRunResult,
+  type ToolExecutionRunStatus,
+} from './toolExecutionRunTypes'
+
+export {
+  acceptToolExecutionResult,
+  approveToolExecutionRun,
+  cancelToolExecutionRun,
+  clearToolExecutionRuns,
+  createToolExecutionRun,
+  failToolExecutionRun,
+  getToolExecutionRun,
+  listToolExecutionRuns,
+  loadToolExecutionRuns,
+  markToolExecutionQueued,
+  markToolExecutionRunning,
+  recordToolExecutionResult,
+  rejectToolExecutionRun,
+  requestToolExecutionRework,
+} from './toolExecutionRunStorage'
+
+export {
+  createToolExecutionFromDispatcherRequest,
+  dispatchToolRequestLegacyMock,
+  requestBuilderCursorToolExecution,
+  type BuilderCursorToolExecutionInput,
+  type BuilderCursorToolExecutionOutcome,
+  type CreateToolExecutionFromDispatcherRequestInput,
+} from './toolExecutionRunBridge'

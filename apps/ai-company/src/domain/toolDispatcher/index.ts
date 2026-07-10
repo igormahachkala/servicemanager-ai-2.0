@@ -45,4 +45,4 @@ export {
   upsertToolDispatcherResult,
 } from './toolDispatcherStorage'
 
-export { dispatchToolRequest } from './toolDispatcherDispatch'
+export { dispatchToolRequest, dispatchToolRequestPlannedOnly } from './toolDispatcherDispatch'
