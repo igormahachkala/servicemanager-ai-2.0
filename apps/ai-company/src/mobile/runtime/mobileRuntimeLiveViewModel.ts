@@ -4,8 +4,9 @@
 
 import { getRuntimeRunById } from '../../domain/runtime/runtimeOrchestrator'
 import type { MaxWorkerLoopPhase, MaxWorkerLoopPhaseProgress, MaxWorkerLoopRecord } from '../../domain/maxWorkerLoop'
-import { MAX_WORKER_LOOP_STATUS_LABELS_RU } from '../../domain/maxWorkerLoop'
+import { MAX_WORKER_EMPLOYEE_ID, MAX_WORKER_LOOP_STATUS_LABELS_RU } from '../../domain/maxWorkerLoop'
 import { loadMaxWorkerLoopRecords } from '../../domain/maxWorkerLoop/maxWorkerLoopStorage'
+import { resolveCanonicalEmployeeId } from '../../mission-control/data/employeeIdResolver'
 import {
   inferRuntimeFailureHint,
   type RuntimeFailureDiagnostics,
@@ -125,9 +126,23 @@ export function findActiveMaxWorkerLoop(): MaxWorkerLoopRecord | null {
   return (
     loadMaxWorkerLoopRecords().find(
       (record) =>
-        record.status === 'running' ||
-        record.status === 'queued' ||
-        record.status === 'waiting_approval',
+        record.employeeId === MAX_WORKER_EMPLOYEE_ID &&
+        (record.status === 'running' ||
+          record.status === 'queued' ||
+          record.status === 'waiting_approval'),
+    ) ?? null
+  )
+}
+
+export function findActiveEmployeeWorkerLoop(employeeId: string): MaxWorkerLoopRecord | null {
+  const canonical = resolveCanonicalEmployeeId(employeeId)
+  return (
+    loadMaxWorkerLoopRecords().find(
+      (record) =>
+        record.employeeId === canonical &&
+        (record.status === 'running' ||
+          record.status === 'queued' ||
+          record.status === 'waiting_approval'),
     ) ?? null
   )
 }

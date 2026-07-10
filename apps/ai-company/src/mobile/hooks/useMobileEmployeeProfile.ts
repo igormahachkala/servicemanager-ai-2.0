@@ -22,9 +22,9 @@ import { getEmployee, type EmployeeProfile } from '../../domain/employeeRegistry
 import { buildFirstEmployeeFlowStatus } from '../../domain/firstEmployeeFlow'
 import { hasMobileEmployeeCapability } from '../../domain/mobileEmployee'
 import {
-  runMaxEmployeeWorkQueueNextItem,
-  type MaxWorkQueueRunResult,
-} from '../../domain/maxWorkspace/maxWorkspaceWorkQueueRunner'
+  runEmployeeWorkQueueNextItem,
+  type EmployeeWorkQueueRunResult,
+} from '../../domain/employeeWorkerLoop'
 import { MAX_WORKER_EMPLOYEE_ID, type MaxWorkerLoopRecord } from '../../domain/maxWorkerLoop'
 import {
   loadEmployeeOperatingDaySummaries,
@@ -44,7 +44,7 @@ import { EMPLOYEE_OPERATING_DAY_SYNC_EVENT } from '../../domain/employeeOperatin
 import { EMPLOYEE_OPERATING_DAY_SUMMARY_SYNC_EVENT } from '../../domain/operatingDaySummary/operatingDaySummaryStorage'
 import { CHANGE_EVENT } from '../../domain/workday/workdayStorage'
 import { MAX_WORKER_LOOP_SYNC_EVENT } from '../../hooks/useMaxWorkerLoop'
-import { findActiveMaxWorkerLoop } from '../runtime/mobileRuntimeLiveViewModel'
+import { findActiveEmployeeWorkerLoop } from '../runtime/mobileRuntimeLiveViewModel'
 
 export type MobileRunNextPreview = {
   workItemId: string
@@ -183,7 +183,7 @@ export function useMobileEmployeeProfile(employeeId: string) {
   const activeWorkerLoop = useMemo((): MaxWorkerLoopRecord | null => {
     void tick
     if (!snapshot.canShowRuntimeLive) return null
-    const active = findActiveMaxWorkerLoop()
+    const active = findActiveEmployeeWorkerLoop(canonical)
     if (!active || active.employeeId !== canonical) return null
     return active
   }, [canonical, snapshot.canShowRuntimeLive, tick])
@@ -207,8 +207,8 @@ export function useMobileEmployeeProfile(employeeId: string) {
     refresh()
   }, [canonical, refresh])
 
-  const runNext = useCallback(async (): Promise<MaxWorkQueueRunResult> => {
-    if (!snapshot.canRunWorkerLoop || canonical !== MAX_WORKER_EMPLOYEE_ID) {
+  const runNext = useCallback(async (): Promise<EmployeeWorkQueueRunResult> => {
+    if (!snapshot.canRunWorkerLoop) {
       return {
         ok: false,
         workItem: null,
@@ -220,7 +220,7 @@ export function useMobileEmployeeProfile(employeeId: string) {
 
     setIsRunning(true)
     try {
-      const result = await runMaxEmployeeWorkQueueNextItem()
+      const result = await runEmployeeWorkQueueNextItem(canonical)
       refresh()
       return result
     } catch (error) {

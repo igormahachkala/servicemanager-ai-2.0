@@ -40,6 +40,7 @@ export {
   getMaxWorkerLoopById,
   getMaxWorkerLoopByRunId,
   loadMaxWorkerLoopRecords,
+  loadMaxWorkerLoopRecordsForEmployee,
   saveMaxWorkerLoopRecords,
   updateMaxWorkerLoopPhase,
   upsertMaxWorkerLoopRecord,
@@ -66,11 +67,13 @@ export {
   type MaxWorkerLoopUiStepId,
 } from './maxWorkerLoopPhaseGuide'
 
-export type { MaxWorkerLoopRunResult, MaxWorkerLoopSnapshot } from './maxWorkerLoopEngine'
+export type { MaxWorkerLoopRunResult, MaxWorkerLoopSnapshot, RunEmployeeWorkerLoopParams } from './maxWorkerLoopEngine'
 export {
   assembleMaxWorkerLoopSnapshot,
   rebuildMaxWorkerLoopSnapshotFromRun,
   runAutonomousDemoScenario,
+  runEmployeeWorkerLoop,
+  runMaxWorkerLoop,
   runMaxWorkerLoopV1,
 } from './maxWorkerLoopEngine'
 

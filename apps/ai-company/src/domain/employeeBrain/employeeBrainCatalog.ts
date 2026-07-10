@@ -48,7 +48,7 @@ const BRAIN_PRESET_CATALOG: Record<string, BrainPreset> = {
     reasoningLevel: 'standard',
     preferVerification: true,
     constraints: [
-      'Локальная работа V1 — без Worker Loop и Tool Dispatcher',
+      'Локальная работа V1 через Employee Worker Loop и Runtime',
       'Задачи в Work Queue; Owner подтверждает proposal в чате',
       'Без Cursor handoff и production deploy',
     ],

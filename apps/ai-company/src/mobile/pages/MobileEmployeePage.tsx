@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { useEffect } from 'react'
 import { Navigate, useLocation, useParams } from 'react-router-dom'
 import {
+  BUILDER_EMPLOYEE_ID,
   getDefaultMobileEmployeeId,
   hasMobileEmployeeCapability,
   mobileEmployeeChatPath,
@@ -25,6 +26,7 @@ import { MobileEmployeeRegistryProfileCard } from '../components/MobileEmployeeR
 import { MobileEmployeeExecutionNotice } from '../components/MobileEmployeeExecutionNotice'
 import { MobileEmployeeScopedReportsCard } from '../components/MobileEmployeeScopedReportsCard'
 import { MobileEmployeeConversationMemoryCard } from '../components/MobileEmployeeConversationMemoryCard'
+import { MobileBuilderWorkQueueActions } from '../components/MobileBuilderWorkQueueActions'
 
 export function MobileEmployeePage() {
   const { id: rawId } = useParams<{ id: string }>()
@@ -34,7 +36,7 @@ export function MobileEmployeePage() {
   const employeeId = registryEntry?.employeeId ?? getDefaultMobileEmployeeId()
   const profile = useMobileEmployeeProfile(employeeId)
   const memory = useMobileEmployeeConversationMemory(employeeId)
-  const { openRunNextFlow } = useMobileRunNextSheet()
+  const { openRunNextFlow } = useMobileRunNextSheet(employeeId)
   const copy = resolveMobileEmployeeProfileCopy(employeeId, t.mobile)
 
   useEffect(() => {
@@ -54,6 +56,7 @@ export function MobileEmployeePage() {
   const showWorkerLoop = hasMobileEmployeeCapability(employeeId, 'worker_loop')
   const showStandardTask = hasMobileEmployeeCapability(employeeId, 'standard_task_quick_start')
   const showConversationMemory = hasMobileEmployeeCapability(employeeId, 'conversation_memory')
+  const isBuilder = employeeId === BUILDER_EMPLOYEE_ID
   const executionNotice =
     'executionNotice' in copy && typeof copy.executionNotice === 'string' && !showWorkerLoop
       ? copy.executionNotice
@@ -122,6 +125,7 @@ export function MobileEmployeePage() {
             workQueueCopy={copy.workQueue}
             onRunNext={() => openRunNextFlow({ goldenPath: true })}
           />
+          {isBuilder ? <MobileBuilderWorkQueueActions onUpdated={profile.refresh} /> : null}
         </MobileSection>
       </div>
 

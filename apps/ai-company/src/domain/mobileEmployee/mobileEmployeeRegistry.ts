@@ -60,6 +60,8 @@ const MOBILE_EMPLOYEE_REGISTRY: MobileEmployeeRegistryEntry[] = [
       'daily_journal',
       'reports',
       'conversation_memory',
+      'runtime_live',
+      'worker_loop',
     ],
   },
 ]

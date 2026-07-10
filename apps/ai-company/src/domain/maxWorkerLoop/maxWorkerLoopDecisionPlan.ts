@@ -6,12 +6,15 @@
 import type { DecisionPlan } from '../decisionPlan'
 import { buildEmployeeBrainDecisionPlan } from '../employeeBrain/employeeBrainDecision'
 import type { RuntimeModelMode } from '../runtime/runtimeModelRouting'
+import type { EmployeeBrainProfile } from '../employeeBrain/employeeBrainProfile'
 import type { MaxWorkerLoopInput, MaxWorkerLoopRecord } from './maxWorkerLoop'
 import { MAX_WORKER_EMPLOYEE_ID } from './maxWorkerLoop'
 
 export function buildMaxWorkerLoopDecisionPlan(input: {
   loop: Pick<MaxWorkerLoopRecord, 'input' | 'deliveryTaskId'>
   requestedModelMode?: MaxWorkerLoopInput['modelMode'] | null
+  employeeId?: string
+  brainProfile?: EmployeeBrainProfile
 }): DecisionPlan {
   return buildEmployeeBrainDecisionPlan({
     task: {
@@ -22,6 +25,7 @@ export function buildMaxWorkerLoopDecisionPlan(input: {
       workspaceId: input.loop.input.workspaceId,
       requestedModelMode: input.requestedModelMode ?? input.loop.input.modelMode ?? 'coding',
     },
+    profile: input.brainProfile,
   })
 }
 

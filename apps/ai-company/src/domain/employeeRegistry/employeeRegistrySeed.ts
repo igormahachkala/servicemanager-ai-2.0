@@ -87,6 +87,8 @@ export const EMPLOYEE_REGISTRY_SEED: EmployeeProfile[] = [
     ],
     capabilities: [
       capability('work_queue', 'Work Queue tasks', true),
+      capability('worker_loop', 'Worker Loop execution', true),
+      capability('runtime_live', 'Runtime Live', true),
       capability('mobile_chat', 'Owner chat', true),
       capability('operating_day', 'Operating Day', true),
       capability('daily_journal', 'Daily Journal', true),

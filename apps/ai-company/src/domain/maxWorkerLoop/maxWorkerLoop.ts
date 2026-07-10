@@ -114,7 +114,7 @@ export type MaxWorkerLoopPhaseProgress = {
 export type MaxWorkerLoopRecord = {
   id: string
   version: typeof MAX_WORKER_LOOP_VERSION
-  employeeId: typeof MAX_WORKER_EMPLOYEE_ID
+  employeeId: string
   status: MaxWorkerLoopStatus
   currentPhase: MaxWorkerLoopPhase
   phases: MaxWorkerLoopPhaseProgress[]

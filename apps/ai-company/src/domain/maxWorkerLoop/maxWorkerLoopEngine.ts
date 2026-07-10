@@ -61,6 +61,12 @@ import {
   type CursorResultHistoryEventDraft,
 } from '../cursorAutomation/cursorAutomationResultIntegration'
 import type { DecisionPlan } from '../decisionPlan'
+import {
+  buildEmployeeWorkerLoopContext,
+  defaultEmployeeWorkerLoopConstraints,
+  resolveEmployeeWorkerLoopFeatures,
+} from '../employeeWorkerLoop/employeeWorkerLoopContext'
+import { resolveCanonicalEmployeeId } from '../../mission-control/data/employeeIdResolver'
 import { recordMaxWorkerLoopDailyJournalOnCompletion } from '../employeeDailyJournal'
 
 export type MaxWorkerLoopSnapshot = {
@@ -295,7 +301,7 @@ function markCompletedPhases(
       'model_selection',
       record.decisionPlan ? summarizeModelSelectionPhase(record.decisionPlan) : 'Model selection',
     ],
-    ['max_intake', 'MAX принял задачу'],
+    ['max_intake', record.phases.find((item) => item.phase === 'max_intake')?.detail?.trim() ?? 'Задача принята'],
     ['ollama_reasoning', 'Local Ollama reasoning завершён'],
     ['analysis', 'Анализ извлечён из отчёта'],
     ['plan', 'План сформирован из рекомендаций'],
@@ -369,7 +375,11 @@ export function assembleMaxWorkerLoopSnapshot(
   loop: MaxWorkerLoopRecord,
   run: RuntimeRun,
   report: Report,
+  options?: { enableCursorAutomation?: boolean },
 ): MaxWorkerLoopSnapshot {
+  const enableCursorAutomation =
+    options?.enableCursorAutomation ??
+    resolveEmployeeWorkerLoopFeatures(loop.employeeId).cursorAutomation
   const decisionPlan = loop.decisionPlan
   const reasoning = enrichReasoningFromDecisionPlan(
     buildMaxWorkerLoopReasoningResult(run, report),
@@ -380,14 +390,17 @@ export function assembleMaxWorkerLoopSnapshot(
   const knowledgeCandidates = buildKnowledgeCandidateDrafts(run, memoryEvolutionDraft.lessons)
   const nextActions = buildMaxWorkerLoopNextActions(report)
   const ownerApproval = resolveOwnerApprovalGate(reasoning, loop.safeMode, decisionPlan)
-  const cursorAutomation = enrichCursorAutomationSnapshot({
-    loop,
-    run,
-    report,
-    memoryEvolutionDraft,
-    knowledgeCandidates,
-    base: buildCursorAutomationWorkflowSnapshot({ loop, run, report }),
-  })
+  const baseCursor = buildCursorAutomationWorkflowSnapshot({ loop, run, report })
+  const cursorAutomation = enableCursorAutomation
+    ? enrichCursorAutomationSnapshot({
+        loop,
+        run,
+        report,
+        memoryEvolutionDraft,
+        knowledgeCandidates,
+        base: baseCursor,
+      })
+    : baseCursor
 
   return {
     loop,
@@ -403,21 +416,38 @@ export function assembleMaxWorkerLoopSnapshot(
   }
 }
 
+export type RunEmployeeWorkerLoopParams = {
+  employeeId: string
+  input: MaxWorkerLoopInput
+}
+
 /**
- * V1 safe execution: delegates to existing Task Runner + Runtime.
- * No external tools, no shell/git/docker. Builds draft snapshot on success.
+ * Generic Employee Worker Loop — any digital employee (AI-COMPANY-112G).
+ * Delegates to existing Task Runner + Runtime. MAX is a special case via wrapper.
  */
-export async function runMaxWorkerLoopV1(input: MaxWorkerLoopInput): Promise<MaxWorkerLoopRunResult> {
+export async function runEmployeeWorkerLoop(
+  params: RunEmployeeWorkerLoopParams,
+): Promise<MaxWorkerLoopRunResult> {
+  const employeeId = resolveCanonicalEmployeeId(params.employeeId)
+  const input = params.input
+  const context = buildEmployeeWorkerLoopContext(employeeId)
+  const features = context.features
   const mode = input.mode ?? 'technical_audit'
   const requestedModelMode = input.modelMode ?? 'coding'
 
-  let loop = createMaxWorkerLoopRecord({
-    ...input,
-    constraints:
-      input.constraints?.trim() ||
-      'V1 MAX Worker Loop: только reasoning через Local Ollama; без shell, git, docker и внешних API.',
-    expectedOutput: input.expectedOutput?.trim() || defaultExpectedOutput(mode),
-  })
+  let loop = createMaxWorkerLoopRecord(
+    {
+      ...input,
+      constraints:
+        input.constraints?.trim() ||
+        defaultEmployeeWorkerLoopConstraints(employeeId, context),
+      expectedOutput: input.expectedOutput?.trim() || defaultExpectedOutput(mode),
+      autonomousDemoScenarioId: features.autonomousDemo
+        ? input.autonomousDemoScenarioId ?? null
+        : null,
+    },
+    employeeId,
+  )
 
   loop = markRunningPhases(loop)
 
@@ -425,10 +455,12 @@ export async function runMaxWorkerLoopV1(input: MaxWorkerLoopInput): Promise<Max
     const decisionPlan = buildMaxWorkerLoopDecisionPlan({
       loop,
       requestedModelMode,
+      employeeId,
+      brainProfile: context.brainProfile,
     })
     saveDecisionPlanRecord({
       plan: decisionPlan,
-      employeeId: MAX_WORKER_EMPLOYEE_ID,
+      employeeId,
       maxWorkerLoopId: loop.id,
       runtimeRunId: null,
       savedAt: new Date().toISOString(),
@@ -442,21 +474,41 @@ export async function runMaxWorkerLoopV1(input: MaxWorkerLoopInput): Promise<Max
     })
     loop = updateMaxWorkerLoopPhase(loop, 'decision_plan', 'done', summarizeDecisionPlanPhase(decisionPlan))
 
-    loop = updateMaxWorkerLoopPhase(loop, 'consult_peer', 'active', 'Decision Plan → peer consult')
-    loop = upsertMaxWorkerLoopRecord(loop)
-
     let peerConsultation: MaxWorkerLoopPeerConsultationSnapshot
-    try {
-      peerConsultation = runMaxWorkerLoopPeerConsultation({ loop, decisionPlan })
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Peer consult failed'
+    if (features.peerConsultation) {
+      loop = updateMaxWorkerLoopPhase(loop, 'consult_peer', 'active', 'Decision Plan → peer consult')
+      loop = upsertMaxWorkerLoopRecord(loop)
+      try {
+        peerConsultation = runMaxWorkerLoopPeerConsultation({ loop, decisionPlan })
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Peer consult failed'
+        peerConsultation = {
+          status: 'failed',
+          required: decisionPlan.peerConsultation.required,
+          skipReason: message,
+          peerEmployeeId: decisionPlan.peerConsultation.peerEmployeeId,
+          peerDisplayName: decisionPlan.peerConsultation.peerDisplayName,
+          consultReason: decisionPlan.peerConsultation.reason,
+          conversationId: null,
+          questionMessageId: null,
+          answerMessageId: null,
+          decisionId: null,
+          questionBody: null,
+          answerBody: null,
+          decisionSummary: null,
+          consumedSummary: null,
+          taskEnrichment: null,
+          completedAt: new Date().toISOString(),
+        }
+      }
+    } else {
       peerConsultation = {
-        status: 'failed',
-        required: decisionPlan.peerConsultation.required,
-        skipReason: message,
-        peerEmployeeId: decisionPlan.peerConsultation.peerEmployeeId,
-        peerDisplayName: decisionPlan.peerConsultation.peerDisplayName,
-        consultReason: decisionPlan.peerConsultation.reason,
+        status: 'skipped',
+        required: false,
+        skipReason: `${context.employeeCodename}: peer consult не используется в V1 generic loop`,
+        peerEmployeeId: null,
+        peerDisplayName: null,
+        consultReason: null,
         conversationId: null,
         questionMessageId: null,
         answerMessageId: null,
@@ -468,6 +520,7 @@ export async function runMaxWorkerLoopV1(input: MaxWorkerLoopInput): Promise<Max
         taskEnrichment: null,
         completedAt: new Date().toISOString(),
       }
+      loop = updateMaxWorkerLoopPhase(loop, 'consult_peer', 'skipped', peerConsultation.skipReason ?? undefined)
     }
 
     loop = upsertMaxWorkerLoopRecord({
@@ -475,12 +528,19 @@ export async function runMaxWorkerLoopV1(input: MaxWorkerLoopInput): Promise<Max
       peerConsultation,
       updatedAt: new Date().toISOString(),
     })
-    loop = updateMaxWorkerLoopPhase(
-      loop,
-      'consult_peer',
-      peerConsultation.status === 'failed' ? 'failed' : peerConsultation.status === 'skipped' ? 'skipped' : 'done',
-      summarizeConsultPeerPhase(peerConsultation),
-    )
+
+    if (features.peerConsultation) {
+      loop = updateMaxWorkerLoopPhase(
+        loop,
+        'consult_peer',
+        peerConsultation.status === 'failed'
+          ? 'failed'
+          : peerConsultation.status === 'skipped'
+            ? 'skipped'
+            : 'done',
+        summarizeConsultPeerPhase(peerConsultation),
+      )
+    }
 
     if (peerConsultation.status === 'failed') {
       loop = markFailed(loop, peerConsultation.skipReason ?? 'Peer consult failed')
@@ -493,22 +553,28 @@ export async function runMaxWorkerLoopV1(input: MaxWorkerLoopInput): Promise<Max
       'done',
       summarizeModelSelectionPhase(decisionPlan),
     )
-    loop = updateMaxWorkerLoopPhase(loop, 'max_intake', 'active', 'Запуск через Task Runner')
+    loop = updateMaxWorkerLoopPhase(
+      loop,
+      'max_intake',
+      'active',
+      `${context.employeeCodename} принял задачу`,
+    )
     loop = upsertMaxWorkerLoopRecord(loop)
 
-    const enrichedTaskText = buildTaskTextWithPeerConsultation(input.taskText, peerConsultation)
-    const enrichedConstraints = buildTaskConstraintsWithPeerConsultation(
-      loop.input.constraints ??
-        'V1 MAX Worker Loop: только reasoning через Local Ollama; без shell, git, docker и внешних API.',
-      peerConsultation,
-    )
+    const defaultConstraints = defaultEmployeeWorkerLoopConstraints(employeeId, context)
+    const enrichedTaskText = features.peerConsultation
+      ? buildTaskTextWithPeerConsultation(input.taskText, peerConsultation)
+      : input.taskText
+    const enrichedConstraints = features.peerConsultation
+      ? buildTaskConstraintsWithPeerConsultation(loop.input.constraints ?? defaultConstraints, peerConsultation)
+      : loop.input.constraints ?? defaultConstraints
 
     const { record, run } = await startTaskRunner({
       taskText: enrichedTaskText,
       title: input.title,
       mode,
       modelMode,
-      employeeId: MAX_WORKER_EMPLOYEE_ID,
+      employeeId,
       projectId: input.projectId,
       workspaceId: input.workspaceId,
       priority: input.priority ?? 'medium',
@@ -546,16 +612,18 @@ export async function runMaxWorkerLoopV1(input: MaxWorkerLoopInput): Promise<Max
       return { snapshot: null, loop, demoSnapshot: null }
     }
 
-    const previewSnapshot = assembleMaxWorkerLoopSnapshot(loop, run, report)
+    const snapshotOptions = { enableCursorAutomation: features.cursorAutomation }
+    const previewSnapshot = assembleMaxWorkerLoopSnapshot(loop, run, report, snapshotOptions)
     loop = markCompletedPhases(loop, previewSnapshot.cursorAutomation)
-    const snapshot = assembleMaxWorkerLoopSnapshot(loop, run, report)
+    const snapshot = assembleMaxWorkerLoopSnapshot(loop, run, report, snapshotOptions)
     recordMaxWorkerLoopDailyJournalOnCompletion({ snapshot, run, report })
-    const demoSnapshot = loop.autonomousDemoScenarioId
-      ? buildAutonomousDemoSnapshot(loop.autonomousDemoScenarioId, snapshot)
-      : null
+    const demoSnapshot =
+      features.autonomousDemo && loop.autonomousDemoScenarioId
+        ? buildAutonomousDemoSnapshot(loop.autonomousDemoScenarioId, snapshot)
+        : null
     return { snapshot, loop, demoSnapshot }
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Неизвестная ошибка MAX Worker Loop'
+    const message = error instanceof Error ? error.message : 'Неизвестная ошибка Worker Loop'
     const diagnostics = buildRuntimeFailureDiagnostics({
       loop,
       workerLoopId: loop.id,
@@ -567,6 +635,19 @@ export async function runMaxWorkerLoopV1(input: MaxWorkerLoopInput): Promise<Max
     loop = markFailed(loop, message, diagnostics)
     return { snapshot: null, loop, demoSnapshot: null }
   }
+}
+
+/** Legacy MAX wrapper — delegates to generic employee loop. */
+export async function runMaxWorkerLoop(input: MaxWorkerLoopInput): Promise<MaxWorkerLoopRunResult> {
+  return runEmployeeWorkerLoop({ employeeId: MAX_WORKER_EMPLOYEE_ID, input })
+}
+
+/**
+ * V1 safe execution: delegates to existing Task Runner + Runtime.
+ * @deprecated Prefer runEmployeeWorkerLoop / runMaxWorkerLoop.
+ */
+export async function runMaxWorkerLoopV1(input: MaxWorkerLoopInput): Promise<MaxWorkerLoopRunResult> {
+  return runMaxWorkerLoop(input)
 }
 
 /** AI-COMPANY-098C — first autonomous demo with full stage visibility. */

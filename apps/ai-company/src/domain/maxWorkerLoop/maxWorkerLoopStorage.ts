@@ -8,6 +8,7 @@ import {
 import { parseDecisionPlan } from '../decisionPlan'
 import { parseMaxWorkerLoopPeerConsultationSnapshot } from './maxWorkerLoopPeerConsultation'
 import { parseRuntimeFailureDiagnostics } from '../runtime/runtimeFailureDiagnostics'
+import { resolveCanonicalEmployeeId } from '../../mission-control/data/employeeIdResolver'
 
 const STORAGE_KEY = 'ai-company-max-worker-loops'
 
@@ -39,7 +40,9 @@ function mergePhases(
 
 function parseRecord(value: unknown): MaxWorkerLoopRecord | null {
   if (!isRecord(value)) return null
-  if (typeof value.id !== 'string' || value.employeeId !== MAX_WORKER_EMPLOYEE_ID) return null
+  if (typeof value.id !== 'string' || typeof value.employeeId !== 'string') return null
+  const employeeId = resolveCanonicalEmployeeId(value.employeeId)
+  if (!employeeId.trim()) return null
   const autonomousDemoScenarioId =
     typeof value.autonomousDemoScenarioId === 'string' ? value.autonomousDemoScenarioId : null
   const rawPhases = Array.isArray(value.phases)
@@ -52,7 +55,7 @@ function parseRecord(value: unknown): MaxWorkerLoopRecord | null {
   return {
     id: value.id,
     version: MAX_WORKER_LOOP_VERSION,
-    employeeId: MAX_WORKER_EMPLOYEE_ID,
+    employeeId,
     status: (value.status as MaxWorkerLoopRecord['status']) ?? 'draft',
     currentPhase: (value.currentPhase as MaxWorkerLoopRecord['currentPhase']) ?? 'owner_task',
     phases,
@@ -134,14 +137,31 @@ function buildInitialPhases(input: MaxWorkerLoopInput): MaxWorkerLoopPhaseProgre
   }))
 }
 
-export function createMaxWorkerLoopRecord(input: MaxWorkerLoopInput): MaxWorkerLoopRecord {
+export function loadMaxWorkerLoopRecordsForEmployee(employeeId: string): MaxWorkerLoopRecord[] {
+  const canonical = resolveCanonicalEmployeeId(employeeId)
+  return loadMaxWorkerLoopRecords().filter((record) => record.employeeId === canonical)
+}
+
+function workerLoopRecordId(employeeId: string): string {
+  if (employeeId === MAX_WORKER_EMPLOYEE_ID) {
+    return `max-loop-${Date.now()}`
+  }
+  const slug = employeeId.replace(/^ag-/, '').replace(/[^a-z0-9-]+/gi, '-')
+  return `emp-loop-${slug}-${Date.now()}`
+}
+
+export function createMaxWorkerLoopRecord(
+  input: MaxWorkerLoopInput,
+  employeeId: string = MAX_WORKER_EMPLOYEE_ID,
+): MaxWorkerLoopRecord {
   const now = new Date().toISOString()
-  const id = `max-loop-${Date.now()}`
+  const canonical = resolveCanonicalEmployeeId(employeeId)
+  const id = workerLoopRecordId(canonical)
 
   return {
     id,
     version: MAX_WORKER_LOOP_VERSION,
-    employeeId: MAX_WORKER_EMPLOYEE_ID,
+    employeeId: canonical,
     status: 'draft',
     currentPhase: 'owner_task',
     phases: buildInitialPhases(input),

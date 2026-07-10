@@ -7,7 +7,9 @@ import { mobileRunNextPreviewFromWorkItem } from '../goldenPath/mobileRunNextPre
 import { setMobileGoldenPathActive } from '../goldenPath/mobileGoldenPathStorage'
 import { MOBILE_PATHS, mobileRuntimeLoopHref } from '../navigation/mobileHrefResolver'
 import { useMobileBottomSheet } from './useMobileBottomSheet'
-import { useMobileEmployeeMax, type MobileRunNextPreview } from './useMobileEmployeeMax'
+import { useMobileEmployeeProfile, type MobileRunNextPreview } from './useMobileEmployeeProfile'
+import { MAX_WORKER_EMPLOYEE_ID } from '../../domain/maxWorkerLoop'
+import { resolveCanonicalEmployeeId } from '../../mission-control/data/employeeIdResolver'
 
 type OpenRunNextOptions = {
   preview?: MobileRunNextPreview
@@ -15,11 +17,12 @@ type OpenRunNextOptions = {
   goldenPath?: boolean
 }
 
-export function useMobileRunNextSheet() {
+export function useMobileRunNextSheet(employeeId: string = MAX_WORKER_EMPLOYEE_ID) {
   const { t } = useI18n()
   const navigate = useNavigate()
   const { openSheet, closeSheet } = useMobileBottomSheet()
-  const max = useMobileEmployeeMax()
+  const canonical = resolveCanonicalEmployeeId(employeeId)
+  const employee = useMobileEmployeeProfile(canonical)
 
   const openRunNextFlow = useCallback(
     (options: OpenRunNextOptions = {}) => {
@@ -29,10 +32,10 @@ export function useMobileRunNextSheet() {
         (options.workItem
           ? mobileRunNextPreviewFromWorkItem(
               options.workItem,
-              max.snapshot.employee?.codename ?? 'MAX',
-              max.snapshot.modelLabel,
+              employee.snapshot.employee?.codename ?? canonical,
+              employee.snapshot.modelLabel,
             )
-          : max.getRunNextPreview())
+          : employee.getRunNextPreview())
 
       if (!preview) return false
 
@@ -40,7 +43,7 @@ export function useMobileRunNextSheet() {
         setMobileGoldenPathActive(true)
         closeSheet()
         navigate(MOBILE_PATHS.runtime, { state: { goldenPath: true } })
-        void max.runNext().then((result) => {
+        void employee.runNext().then((result) => {
           if (result.loopId) {
             navigate(mobileRuntimeLoopHref(result.loopId), {
               state: { goldenPath: true },
@@ -53,7 +56,7 @@ export function useMobileRunNextSheet() {
       openSheet(
         <MobileRunNextSheetFlow
           preview={preview}
-          runNext={max.runNext}
+          runNext={employee.runNext}
           goldenPath={goldenPath}
           onGoldenPathStart={goldenPath ? handleGoldenPathStart : undefined}
           onClose={closeSheet}
@@ -65,11 +68,11 @@ export function useMobileRunNextSheet() {
       )
       return true
     },
-    [closeSheet, max, navigate, openSheet, t.mobile.maxControl.runNextConfirm.sheetTitle],
+    [canonical, closeSheet, employee, navigate, openSheet, t.mobile.maxControl.runNextConfirm.sheetTitle],
   )
 
   return {
     openRunNextFlow,
-    canRunNext: useCallback(() => max.getRunNextPreview() != null, [max]),
+    canRunNext: useCallback(() => employee.getRunNextPreview() != null, [employee]),
   }
 }
