@@ -6,6 +6,7 @@ export const CANONICAL_BUILTIN_EMPLOYEE_IDS = [
   'ag-cto',
   'ag-arch',
   'ag-max',
+  'ag-builder',
   'ag-qa',
   'ag-devops',
   'ag-coo',
@@ -18,6 +19,7 @@ export type CanonicalBuiltinEmployeeId = (typeof CANONICAL_BUILTIN_EMPLOYEE_IDS)
 export const EMPLOYEE_ROUTE_IDS = {
   atlas: 'ag-cto',
   max: 'ag-max',
+  builder: 'ag-builder',
   sentinel: 'ag-qa',
   helm: 'ag-devops',
   ops: 'ag-coo',
@@ -28,6 +30,7 @@ export const EMPLOYEE_ROUTE_IDS = {
 
 const STATIC_ALIASES: Record<string, string> = {
   max: EMPLOYEE_ROUTE_IDS.max,
+  builder: EMPLOYEE_ROUTE_IDS.builder,
   atlas: EMPLOYEE_ROUTE_IDS.atlas,
   sentinel: EMPLOYEE_ROUTE_IDS.sentinel,
   helm: EMPLOYEE_ROUTE_IDS.helm,
