@@ -41,6 +41,7 @@ import { MobileMyTickets } from './mobile/MobileMyTickets'
 import { MobileProfile } from './mobile/MobileProfile'
 import { MobileTicketPage } from './mobile/MobileTicketPage'
 import { MobileNotificationsPage } from './mobile/MobileNotificationsPage'
+import { MobilePushSettingsPage } from './mobile/MobilePushSettingsPage'
 import { MobileAnalytics } from './mobile/MobileAnalytics'
 import { MobileChatsPage } from './mobile/MobileChatsPage'
 import { MobileOfflineQueue } from './mobile/MobileOfflineQueue'
@@ -132,6 +133,7 @@ export function AppRoutes() {
         <Route path="my" element={<MobileMyTickets />} />
         <Route path="profile" element={<MobileProfile />} />
         <Route path="notifications" element={<MobileNotificationsPage />} />
+        <Route path="push-settings" element={<MobilePushSettingsPage />} />
         <Route path="analytics" element={<MobileAnalytics />} />
         <Route path="chats" element={<MobileChatsPage />} />
         <Route path="chats/:ticketId" element={<MobileChatsPage />} />
@@ -194,6 +196,7 @@ export function AppRoutes() {
           <Route path="my" element={<MobileMyTickets />} />
           <Route path="profile" element={<MobileProfile />} />
           <Route path="notifications" element={<MobileNotificationsPage />} />
+          <Route path="push-settings" element={<MobilePushSettingsPage />} />
           <Route path="analytics" element={<MobileAnalytics />} />
           <Route path="chats" element={<MobileChatsPage />} />
           <Route path="chats/:ticketId" element={<MobileChatsPage />} />
