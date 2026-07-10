@@ -1,5 +1,5 @@
 /**
- * Builder Worker Loop — tool decision branch after Decision Plan (AI-COMPANY-113B).
+ * Builder Worker Loop — tool decision branch after Decision Plan (AI-COMPANY-113B / 113D).
  */
 
 import type { DecisionPlan } from '../decisionPlan'
@@ -7,20 +7,21 @@ import type { WorkItem } from '../employeeWorkQueue'
 import type { MaxWorkerLoopRecord } from '../maxWorkerLoop'
 import { updateMaxWorkerLoopPhase, upsertMaxWorkerLoopRecord } from '../maxWorkerLoop/maxWorkerLoopStorage'
 import { BUILDER_EMPLOYEE_ID } from '../mobileEmployee/mobileEmployeeRegistry'
+import type { ToolExecutionRun } from '../toolExecution/toolExecutionRunTypes'
 import { evaluateBuilderToolDecision, isBuilderToolDecisionEmployee } from './builderToolDecisionEngine'
 import { submitBuilderCursorToolRequest } from './builderToolRequestBridge'
-import type { BuilderToolExecutionRun } from './builderToolDecisionTypes'
 
 export type BuilderToolDecisionWorkerLoopOutcome = {
   handled: boolean
   loop: MaxWorkerLoopRecord
-  executionRun: BuilderToolExecutionRun | null
+  executionRun: ToolExecutionRun | null
   message: string | null
 }
 
 function markBuilderAwaitingOwnerToolApproval(
   record: MaxWorkerLoopRecord,
   message: string,
+  toolExecutionRunId: string,
 ): MaxWorkerLoopRecord {
   let next = updateMaxWorkerLoopPhase(
     record,
@@ -43,6 +44,7 @@ function markBuilderAwaitingOwnerToolApproval(
     ...next,
     status: 'waiting_approval',
     currentPhase: 'owner_approval',
+    toolExecutionRunId,
     errorMessage: null,
     finishedAt,
     updatedAt: finishedAt,
@@ -94,7 +96,7 @@ export function handleBuilderToolDecisionAfterPlan(input: {
 
   const message =
     'Builder подготовил запрос на использование Cursor и ждёт решения Owner.'
-  const loop = markBuilderAwaitingOwnerToolApproval(input.loop, message)
+  const loop = markBuilderAwaitingOwnerToolApproval(input.loop, message, executionRun.id)
 
   return { handled: true, loop, executionRun, message }
 }

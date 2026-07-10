@@ -25,6 +25,8 @@ export type CreateToolExecutionFromDispatcherRequestInput = {
   workItemId: string
   companyId?: string
   delegationPlanId?: string | null
+  workerLoopId?: string | null
+  builderToolDecisionId?: string | null
   expectedResult?: string | null
   fileScope?: string[]
   checks?: string[]
@@ -35,6 +37,8 @@ export type BuilderCursorToolExecutionInput = {
   title: string
   instructions: string
   delegationPlanId?: string | null
+  workerLoopId?: string | null
+  builderToolDecisionId?: string | null
   expectedResult?: string | null
   fileScope?: string[]
   checks?: string[]
@@ -90,6 +94,8 @@ export function createToolExecutionFromDispatcherRequest(
     toolRequestId: input.request.requestId,
     workItemId: input.workItemId,
     delegationPlanId: input.delegationPlanId ?? null,
+    workerLoopId: input.workerLoopId ?? null,
+    builderToolDecisionId: input.builderToolDecisionId ?? null,
     title: input.request.title,
     instructions: input.request.instructions,
     expectedResult: input.expectedResult,
@@ -125,6 +131,8 @@ export function requestBuilderCursorToolExecution(
     payload: {
       workItemId: input.workItemId,
       delegationPlanId: input.delegationPlanId ?? null,
+      workerLoopId: input.workerLoopId ?? null,
+      builderToolDecisionId: input.builderToolDecisionId ?? null,
       fileScope: input.fileScope ?? [],
       checks: input.checks ?? [],
       ...(input.payload ?? {}),
@@ -142,6 +150,8 @@ export function requestBuilderCursorToolExecution(
     workItemId: input.workItemId,
     companyId,
     delegationPlanId: input.delegationPlanId ?? null,
+    workerLoopId: input.workerLoopId ?? null,
+    builderToolDecisionId: input.builderToolDecisionId ?? null,
     expectedResult: input.expectedResult,
     fileScope: input.fileScope,
     checks: input.checks,
@@ -150,7 +160,10 @@ export function requestBuilderCursorToolExecution(
   return { run, dispatch }
 }
 
-/** @deprecated Use dispatchToolRequestPlannedOnly for lifecycle V1. Mock dispatch preserved for legacy callers. */
+/**
+ * @deprecated AI-COMPANY-113D — legacy mock_completed dispatch. Demo paths only.
+ * Prefer dispatchToolRequestPlannedOnly + ToolExecutionRun for lifecycle V1.
+ */
 export function dispatchToolRequestLegacyMock(
   input: DispatchToolRequestInput,
 ): DispatchToolRequestOutcome {

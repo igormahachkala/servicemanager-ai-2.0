@@ -10,7 +10,8 @@ import { loadEmployeeWorkItems } from '../../domain/employeeWorkQueue/employeeWo
 import { listDelegationPlans } from '../../domain/delegationPlan'
 import { getEmployeeWorkItemById } from '../../domain/employeeWorkQueue/employeeWorkQueueStorage'
 import { BUILDER_EMPLOYEE_ID } from '../../domain/mobileEmployee'
-import { listBuilderToolExecutionRunsForEmployee } from '../../domain/builderToolDecision'
+import { listToolExecutionRuns } from '../../domain/toolExecution/toolExecutionRunStorage'
+import type { ToolExecutionRunStatus } from '../../domain/toolExecution/toolExecutionRunTypes'
 import { MAX_WORKER_EMPLOYEE_ID } from '../../domain/maxWorkerLoop'
 import { loadMaxWorkerLoopRecords } from '../../domain/maxWorkerLoop/maxWorkerLoopStorage'
 import { loadRuntimeRuns } from '../../domain/runtime/runtimeOrchestrator'
@@ -627,62 +628,67 @@ function collectApprovalEvents(
   }
 }
 
-function collectBuilderToolEvents(
+function collectToolExecutionEvents(
   employeeId: string,
   labels: MobileChatTimelineLabels,
   bucket: MobileChatTimelineEntry[],
   seen: Set<string>,
 ): void {
-  for (const run of listBuilderToolExecutionRunsForEmployee(employeeId)) {
+  const STATUS_EVENT_MAP: Partial<
+    Record<ToolExecutionRunStatus, { kind: MobileChatTimelineEventKind; bodyKey: keyof Pick<
+      MobileChatTimelineLabels,
+      | 'toolRequestedBody'
+      | 'toolApprovedBody'
+      | 'toolRejectedBody'
+      | 'toolQueuedBody'
+      | 'toolStartedBody'
+      | 'toolResultReceivedBody'
+      | 'toolAcceptedBody'
+      | 'toolReworkRequestedBody'
+    >; tone: MobileChatTimelineTone }>
+  > = {
+    awaiting_owner: { kind: 'tool_requested', bodyKey: 'toolRequestedBody', tone: 'warning' },
+    approved: { kind: 'tool_approved', bodyKey: 'toolApprovedBody', tone: 'success' },
+    rejected: { kind: 'tool_rejected', bodyKey: 'toolRejectedBody', tone: 'error' },
+    queued: { kind: 'tool_queued', bodyKey: 'toolQueuedBody', tone: 'info' },
+    running: { kind: 'tool_started', bodyKey: 'toolStartedBody', tone: 'info' },
+    result_received: {
+      kind: 'tool_result_received',
+      bodyKey: 'toolResultReceivedBody',
+      tone: 'info',
+    },
+    accepted: { kind: 'tool_accepted', bodyKey: 'toolAcceptedBody', tone: 'success' },
+    rework_requested: {
+      kind: 'tool_rework_requested',
+      bodyKey: 'toolReworkRequestedBody',
+      tone: 'warning',
+    },
+  }
+
+  for (const run of listToolExecutionRuns({ employeeId }).filter(
+    (item) => item.builderToolDecisionId !== null,
+  )) {
+    const emitted = new Set<ToolExecutionRunStatus>()
     for (const entry of run.history) {
-      if (entry.kind === 'tool_requested') {
-        pushEntry(
-          bucket,
-          seen,
-          derivedEvent({
-            id: `evt:tool_requested:${run.id}:${entry.id}`,
-            kind: 'tool_requested',
-            createdAt: entry.at,
-            content: labels.toolRequestedBody.replace('{title}', run.taskTitle),
-            labels,
-            workerLoopId: run.workerLoopId,
-            workItemId: run.workItemId,
-            tone: 'warning',
-          }),
-        )
-      }
-      if (entry.kind === 'tool_approved') {
-        pushEntry(
-          bucket,
-          seen,
-          derivedEvent({
-            id: `evt:tool_approved:${run.id}:${entry.id}`,
-            kind: 'tool_approved',
-            createdAt: entry.at,
-            content: labels.toolApprovedBody.replace('{title}', run.taskTitle),
-            labels,
-            workerLoopId: run.workerLoopId,
-            workItemId: run.workItemId,
-            tone: 'success',
-          }),
-        )
-      }
-      if (entry.kind === 'tool_rejected') {
-        pushEntry(
-          bucket,
-          seen,
-          derivedEvent({
-            id: `evt:tool_rejected:${run.id}:${entry.id}`,
-            kind: 'tool_rejected',
-            createdAt: entry.at,
-            content: labels.toolRejectedBody.replace('{title}', run.taskTitle),
-            labels,
-            workerLoopId: run.workerLoopId,
-            workItemId: run.workItemId,
-            tone: 'error',
-          }),
-        )
-      }
+      if (entry.status === 'draft') continue
+      if (emitted.has(entry.status)) continue
+      const mapping = STATUS_EVENT_MAP[entry.status]
+      if (!mapping) continue
+      emitted.add(entry.status)
+      pushEntry(
+        bucket,
+        seen,
+        derivedEvent({
+          id: `evt:${mapping.kind}:${run.id}:${entry.id}`,
+          kind: mapping.kind,
+          createdAt: entry.at,
+          content: labels[mapping.bodyKey].replace('{title}', run.title),
+          labels,
+          workerLoopId: run.workerLoopId,
+          workItemId: run.workItemId,
+          tone: mapping.tone,
+        }),
+      )
     }
   }
 }
@@ -762,7 +768,7 @@ export function buildMobileChatTimeline(input: {
   } else if (input.employeeId === BUILDER_EMPLOYEE_ID) {
     collectWorkEvents(input.employeeId, input.labels, skipTaskCreatedIds, bucket, seen)
     collectEmployeeWorkerLoopEvents(input.employeeId, input.labels, bucket, seen)
-    collectBuilderToolEvents(input.employeeId, input.labels, bucket, seen)
+    collectToolExecutionEvents(input.employeeId, input.labels, bucket, seen)
   }
 
   return bucket.sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt))

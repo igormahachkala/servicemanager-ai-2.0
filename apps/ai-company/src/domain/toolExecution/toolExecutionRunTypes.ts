@@ -51,6 +51,12 @@ export type ToolExecutionRun = {
   toolRequestId: string
   workItemId: string
   delegationPlanId: string | null
+  /** Builder Worker Loop link (113D). */
+  workerLoopId: string | null
+  /** Builder Tool Decision link — decision only, not a parallel run (113D). */
+  builderToolDecisionId: string | null
+  /** Preserved bter-* id after migration from BuilderToolExecutionRun (113D). */
+  legacyBuilderRunId: string | null
   title: string
   instructions: string
   expectedResult: string
@@ -75,12 +81,21 @@ export type CreateToolExecutionRunInput = {
   toolRequestId: string
   workItemId: string
   delegationPlanId?: string | null
+  workerLoopId?: string | null
+  builderToolDecisionId?: string | null
+  legacyBuilderRunId?: string | null
   title: string
   instructions: string
   expectedResult?: string | null
   fileScope?: string[]
   checks?: string[]
   initialStatus?: Extract<ToolExecutionRunStatus, 'draft' | 'awaiting_owner'>
+  /** Migration-only — preserve timestamps and history. */
+  id?: string
+  createdAt?: string
+  updatedAt?: string
+  approvedAt?: string | null
+  history?: ToolExecutionRunHistoryEntry[]
 }
 
 export type ListToolExecutionRunsFilter = {
@@ -90,6 +105,9 @@ export type ListToolExecutionRunsFilter = {
   workItemId?: string
   toolRequestId?: string
   delegationPlanId?: string
+  workerLoopId?: string
+  builderToolDecisionId?: string
+  legacyBuilderRunId?: string
   status?: ToolExecutionRunStatus | ToolExecutionRunStatus[]
 }
 

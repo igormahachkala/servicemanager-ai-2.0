@@ -3,6 +3,7 @@
  */
 
 import { resolveCanonicalEmployeeId } from '../../mission-control/data/employeeIdResolver'
+import { migrateBuilderToolExecutionRunsToToolExecutionRuns } from './toolExecutionRunMigration'
 import {
   TOOL_EXECUTION_RUN_STORAGE_KEY,
   TOOL_EXECUTION_RUN_SYNC_EVENT,
@@ -46,20 +47,41 @@ type StoreSnapshot = {
   updatedAt: string
 }
 
+function normalizeRun(run: ToolExecutionRun): ToolExecutionRun {
+  return {
+    ...run,
+    workerLoopId: run.workerLoopId ?? null,
+    builderToolDecisionId: run.builderToolDecisionId ?? null,
+    legacyBuilderRunId: run.legacyBuilderRunId ?? null,
+  }
+}
+
 function emptySnapshot(): StoreSnapshot {
   return { version: TOOL_EXECUTION_RUN_VERSION, runs: [], updatedAt: nowIso() }
 }
 
+let storageInitialized = false
+
+function ensureStorageInitialized(): void {
+  if (storageInitialized || typeof window === 'undefined') return
+  migrateBuilderToolExecutionRunsToToolExecutionRuns()
+  storageInitialized = true
+}
+
 function readSnapshot(): StoreSnapshot {
+  ensureStorageInitialized()
   if (typeof window === 'undefined') return emptySnapshot()
   try {
     const raw = window.localStorage.getItem(TOOL_EXECUTION_RUN_STORAGE_KEY)
     if (!raw) return emptySnapshot()
     const parsed: unknown = JSON.parse(raw)
     if (!isRecord(parsed) || parsed.version !== TOOL_EXECUTION_RUN_VERSION) return emptySnapshot()
+    const runs = Array.isArray(parsed.runs)
+      ? (parsed.runs as ToolExecutionRun[]).map(normalizeRun)
+      : []
     return {
       version: TOOL_EXECUTION_RUN_VERSION,
-      runs: Array.isArray(parsed.runs) ? (parsed.runs as ToolExecutionRun[]) : [],
+      runs,
       updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : nowIso(),
     }
   } catch {
@@ -125,7 +147,17 @@ export function loadToolExecutionRuns(): ToolExecutionRun[] {
 }
 
 export function getToolExecutionRun(id: string): ToolExecutionRun | null {
-  return loadToolExecutionRuns().find((run) => run.id === id) ?? null
+  return (
+    loadToolExecutionRuns().find((run) => run.id === id || run.legacyBuilderRunId === id) ?? null
+  )
+}
+
+export function getToolExecutionRunByWorkerLoopId(workerLoopId: string): ToolExecutionRun | null {
+  return (
+    listToolExecutionRuns({ workerLoopId }).sort((a, b) =>
+      b.updatedAt.localeCompare(a.updatedAt),
+    )[0] ?? null
+  )
 }
 
 export function listToolExecutionRuns(filter: ListToolExecutionRunsFilter = {}): ToolExecutionRun[] {
@@ -150,6 +182,15 @@ export function listToolExecutionRuns(filter: ListToolExecutionRunsFilter = {}):
   if (filter.delegationPlanId) {
     runs = runs.filter((run) => run.delegationPlanId === filter.delegationPlanId)
   }
+  if (filter.workerLoopId) {
+    runs = runs.filter((run) => run.workerLoopId === filter.workerLoopId)
+  }
+  if (filter.builderToolDecisionId) {
+    runs = runs.filter((run) => run.builderToolDecisionId === filter.builderToolDecisionId)
+  }
+  if (filter.legacyBuilderRunId) {
+    runs = runs.filter((run) => run.legacyBuilderRunId === filter.legacyBuilderRunId)
+  }
   if (filter.status) {
     const statuses = Array.isArray(filter.status) ? filter.status : [filter.status]
     runs = runs.filter((run) => statuses.includes(run.status))
@@ -158,13 +199,30 @@ export function listToolExecutionRuns(filter: ListToolExecutionRunsFilter = {}):
   return runs.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
 }
 
+export function upsertToolExecutionRun(run: ToolExecutionRun): ToolExecutionRun {
+  const snapshot = readSnapshot()
+  const normalized = normalizeRun(run)
+  const index = snapshot.runs.findIndex((item) => item.id === normalized.id)
+  const runs = [...snapshot.runs]
+  if (index >= 0) {
+    runs[index] = normalized
+  } else {
+    runs.unshift(normalized)
+  }
+  writeSnapshot({ ...snapshot, runs })
+  return normalized
+}
+
 export function createToolExecutionRun(input: CreateToolExecutionRunInput): ToolExecutionRun {
-  const now = nowIso()
+  const now = input.createdAt ?? nowIso()
   const initialStatus = input.initialStatus ?? 'draft'
   const employeeId = resolveCanonicalEmployeeId(input.employeeId)
+  const history =
+    input.history ??
+    appendHistory([], initialStatus, 'Tool execution run created')
 
   const run: ToolExecutionRun = {
-    id: createId('terun'),
+    id: input.id ?? createId('terun'),
     version: TOOL_EXECUTION_RUN_VERSION,
     companyId: input.companyId,
     employeeId,
@@ -172,6 +230,9 @@ export function createToolExecutionRun(input: CreateToolExecutionRunInput): Tool
     toolRequestId: input.toolRequestId,
     workItemId: input.workItemId,
     delegationPlanId: input.delegationPlanId ?? null,
+    workerLoopId: input.workerLoopId ?? null,
+    builderToolDecisionId: input.builderToolDecisionId ?? null,
+    legacyBuilderRunId: input.legacyBuilderRunId ?? null,
     title: input.title.trim(),
     instructions: input.instructions.trim(),
     expectedResult: input.expectedResult?.trim() ?? '',
@@ -179,19 +240,17 @@ export function createToolExecutionRun(input: CreateToolExecutionRunInput): Tool
     checks: input.checks ?? [],
     status: initialStatus,
     createdAt: now,
-    updatedAt: now,
-    approvedAt: null,
+    updatedAt: input.updatedAt ?? now,
+    approvedAt: input.approvedAt ?? null,
     startedAt: null,
     completedAt: null,
     failedAt: null,
     result: null,
     error: null,
-    history: appendHistory([], initialStatus, 'Tool execution run created'),
+    history,
   }
 
-  const snapshot = readSnapshot()
-  writeSnapshot({ ...snapshot, runs: [run, ...snapshot.runs] })
-  return getToolExecutionRun(run.id) ?? run
+  return upsertToolExecutionRun(run)
 }
 
 export function approveToolExecutionRun(id: string, message?: string | null): ToolExecutionRun | null {
@@ -199,7 +258,7 @@ export function approveToolExecutionRun(id: string, message?: string | null): To
   if (!existing || existing.status !== 'awaiting_owner') return null
 
   const now = nowIso()
-  return patchRun(id, {
+  return patchRun(existing.id, {
     status: 'approved',
     approvedAt: now,
     error: null,
@@ -211,7 +270,7 @@ export function rejectToolExecutionRun(id: string, reason?: string | null): Tool
   const existing = getToolExecutionRun(id)
   if (!existing || existing.status !== 'awaiting_owner') return null
 
-  return patchRun(id, {
+  return patchRun(existing.id, {
     status: 'rejected',
     error: reason?.trim() ?? 'Rejected by Owner.',
     historyMessage: reason?.trim() ?? 'Owner rejected tool execution.',
@@ -222,7 +281,7 @@ export function markToolExecutionQueued(id: string, message?: string | null): To
   const existing = getToolExecutionRun(id)
   if (!existing || existing.status !== 'approved') return null
 
-  return patchRun(id, {
+  return patchRun(existing.id, {
     status: 'queued',
     historyMessage: message?.trim() ?? 'Queued for external tool execution.',
   })
@@ -233,7 +292,7 @@ export function markToolExecutionRunning(id: string, message?: string | null): T
   if (!existing || existing.status !== 'queued') return null
 
   const now = nowIso()
-  return patchRun(id, {
+  return patchRun(existing.id, {
     status: 'running',
     startedAt: now,
     error: null,
@@ -255,7 +314,7 @@ export function recordToolExecutionResult(input: RecordToolExecutionResultInput)
     receivedAt: now,
   }
 
-  const received = patchRun(input.runId, {
+  const received = patchRun(existing.id, {
     status: 'result_received',
     result,
     error: null,
@@ -263,17 +322,42 @@ export function recordToolExecutionResult(input: RecordToolExecutionResultInput)
   })
   if (!received) return null
 
-  return patchRun(input.runId, {
+  return patchRun(existing.id, {
     status: 'awaiting_employee_review',
     historyMessage: 'Awaiting employee review of tool result.',
   })
+}
+
+/** Bridge path: queued or running → result_received (AI-COMPANY-113E). */
+export function recordToolExecutionResultFromBridge(
+  input: RecordToolExecutionResultInput,
+): ToolExecutionRun | null {
+  const existing = getToolExecutionRun(input.runId)
+  if (!existing) return null
+
+  if (existing.status === 'queued') {
+    markToolExecutionRunning(input.runId, 'Cursor outbox result received.')
+  }
+
+  const afterRunning = getToolExecutionRun(input.runId)
+  if (!afterRunning || afterRunning.status !== 'running') {
+    if (
+      afterRunning?.status === 'result_received' ||
+      afterRunning?.status === 'awaiting_employee_review'
+    ) {
+      return afterRunning
+    }
+    return null
+  }
+
+  return recordToolExecutionResult(input)
 }
 
 export function requestToolExecutionRework(id: string, notes?: string | null): ToolExecutionRun | null {
   const existing = getToolExecutionRun(id)
   if (!existing || existing.status !== 'awaiting_employee_review') return null
 
-  return patchRun(id, {
+  return patchRun(existing.id, {
     status: 'rework_requested',
     error: notes?.trim() ?? null,
     historyMessage: notes?.trim() ?? 'Employee requested tool execution rework.',
@@ -285,7 +369,7 @@ export function acceptToolExecutionResult(id: string, message?: string | null): 
   if (!existing || existing.status !== 'awaiting_employee_review') return null
 
   const now = nowIso()
-  return patchRun(id, {
+  return patchRun(existing.id, {
     status: 'accepted',
     completedAt: now,
     error: null,
@@ -298,7 +382,7 @@ export function failToolExecutionRun(id: string, error?: string | null): ToolExe
   if (!existing || TERMINAL_STATUSES.has(existing.status)) return null
 
   const now = nowIso()
-  return patchRun(id, {
+  return patchRun(existing.id, {
     status: 'failed',
     failedAt: now,
     error: error?.trim() ?? 'Tool execution failed.',
@@ -310,7 +394,7 @@ export function cancelToolExecutionRun(id: string, reason?: string | null): Tool
   const existing = getToolExecutionRun(id)
   if (!existing || TERMINAL_STATUSES.has(existing.status)) return null
 
-  return patchRun(id, {
+  return patchRun(existing.id, {
     status: 'cancelled',
     error: reason?.trim() ?? 'Cancelled.',
     historyMessage: reason?.trim() ?? 'Tool execution cancelled.',
@@ -319,4 +403,38 @@ export function cancelToolExecutionRun(id: string, reason?: string | null): Tool
 
 export function clearToolExecutionRuns(): void {
   writeSnapshot(emptySnapshot())
+}
+
+export function formatToolExecutionStatusLabel(status: ToolExecutionRunStatus): string {
+  switch (status) {
+    case 'draft':
+      return 'Черновик'
+    case 'awaiting_owner':
+      return 'Ждёт решения Owner'
+    case 'approved':
+      return 'Cursor разрешён'
+    case 'queued':
+      return 'В очереди на Cursor'
+    case 'running':
+      return 'Cursor выполняется'
+    case 'result_received':
+    case 'awaiting_employee_review':
+      return 'Результат получен'
+    case 'accepted':
+      return 'Результат принят'
+    case 'rework_requested':
+      return 'Запрошена доработка'
+    case 'rejected':
+      return 'Cursor отклонён'
+    case 'failed':
+      return 'Ошибка выполнения'
+    case 'cancelled':
+      return 'Отменено'
+    default:
+      return status
+  }
+}
+
+export function initializeToolExecutionRunStorage(): void {
+  ensureStorageInitialized()
 }

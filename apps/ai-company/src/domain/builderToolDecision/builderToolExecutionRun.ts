@@ -1,155 +1,134 @@
 /**
- * Builder Tool Execution Run — Owner-gated lifecycle (AI-COMPANY-113B).
+ * Builder Tool Execution Run — deprecated facade (AI-COMPANY-113D).
+ * Canonical lifecycle: domain/toolExecution/ToolExecutionRun.
  */
 
+import { BUILDER_EMPLOYEE_ID } from '../mobileEmployee/mobileEmployeeRegistry'
+import {
+  approveToolExecutionRun,
+  formatToolExecutionStatusLabel,
+  getToolExecutionRun,
+  getToolExecutionRunByWorkerLoopId,
+  listToolExecutionRuns,
+  rejectToolExecutionRun,
+} from '../toolExecution/toolExecutionRunStorage'
+import type { ToolExecutionRun, ToolExecutionRunStatus } from '../toolExecution/toolExecutionRunTypes'
 import type {
   BuilderToolDecision,
   BuilderToolExecutionHistoryEntry,
   BuilderToolExecutionRun,
   BuilderToolExecutionRunStatus,
 } from './builderToolDecisionTypes'
-import { getBuilderToolDecisionById } from './builderToolDecisionStorage'
 
 export const BUILDER_TOOL_EXECUTION_STORAGE_KEY = 'ai-company-builder-tool-execution-runs'
 
+/** @deprecated Use TOOL_EXECUTION_RUN_SYNC_EVENT */
 export const BUILDER_TOOL_EXECUTION_SYNC_EVENT = 'ai-company-builder-tool-execution-sync'
 
-function nowIso(): string {
-  return new Date().toISOString()
-}
-
-function emitSync(): void {
-  if (typeof window === 'undefined') return
-  window.dispatchEvent(new Event(BUILDER_TOOL_EXECUTION_SYNC_EVENT))
-}
-
-function createRunId(): string {
-  return `bter-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
-}
-
-function createHistoryId(): string {
-  return `bteh-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
-}
-
-function parseHistoryEntry(value: unknown): BuilderToolExecutionHistoryEntry | null {
-  if (!isRecord(value)) return null
-  if (typeof value.id !== 'string' || typeof value.at !== 'string') return null
-  if (
-    value.kind !== 'tool_requested' &&
-    value.kind !== 'tool_approved' &&
-    value.kind !== 'tool_rejected'
-  ) {
-    return null
+function mapStatusToLegacy(status: ToolExecutionRunStatus): BuilderToolExecutionRunStatus {
+  if (status === 'queued') return 'queued'
+  if (status === 'result_received' || status === 'awaiting_employee_review') {
+    return 'result_received'
   }
-  return {
-    id: value.id,
-    kind: value.kind,
-    at: value.at,
-    note: typeof value.note === 'string' ? value.note : null,
+  if (status === 'approved' || status === 'running') {
+    return 'ready_for_adapter'
   }
+  if (status === 'awaiting_owner') return 'awaiting_owner'
+  if (status === 'rejected') return 'rejected'
+  return 'ready_for_adapter'
 }
 
-function parseRun(value: unknown): BuilderToolExecutionRun | null {
-  if (!isRecord(value)) return null
-  if (typeof value.id !== 'string' || typeof value.employeeId !== 'string') return null
-  if (typeof value.workItemId !== 'string' || typeof value.workerLoopId !== 'string') return null
-  if (typeof value.builderToolDecisionId !== 'string') return null
-  if (typeof value.toolDispatcherRequestId !== 'string') return null
-  if (value.recommendedToolId !== 'cursor') return null
-  if (typeof value.taskTitle !== 'string') return null
+function mapHistoryToLegacy(run: ToolExecutionRun): BuilderToolExecutionHistoryEntry[] {
+  const entries: BuilderToolExecutionHistoryEntry[] = []
+  for (const item of run.history) {
+    if (item.status === 'awaiting_owner') {
+      entries.push({
+        id: item.id,
+        kind: 'tool_requested',
+        at: item.at,
+        note: item.message,
+      })
+    }
+    if (item.status === 'approved') {
+      entries.push({
+        id: item.id,
+        kind: 'tool_approved',
+        at: item.at,
+        note: item.message,
+      })
+    }
+    if (item.status === 'rejected') {
+      entries.push({
+        id: item.id,
+        kind: 'tool_rejected',
+        at: item.at,
+        note: item.message,
+      })
+    }
+  }
+  return entries
+}
 
-  const status =
-    value.status === 'awaiting_owner' ||
-    value.status === 'approved' ||
-    value.status === 'rejected' ||
-    value.status === 'ready_for_adapter'
-      ? value.status
-      : null
-  if (!status) return null
-
-  const history = Array.isArray(value.history)
-    ? value.history.map(parseHistoryEntry).filter((item): item is BuilderToolExecutionHistoryEntry => item !== null)
-    : []
-
+function mapToolExecutionRunToLegacy(run: ToolExecutionRun): BuilderToolExecutionRun {
   return {
-    id: value.id,
-    employeeId: value.employeeId,
-    workItemId: value.workItemId,
-    workerLoopId: value.workerLoopId,
-    builderToolDecisionId: value.builderToolDecisionId,
-    toolDispatcherRequestId: value.toolDispatcherRequestId,
+    id: run.legacyBuilderRunId ?? run.id,
+    employeeId: run.employeeId,
+    workItemId: run.workItemId,
+    workerLoopId: run.workerLoopId ?? '',
+    builderToolDecisionId: run.builderToolDecisionId ?? '',
+    toolDispatcherRequestId: run.toolRequestId,
     recommendedToolId: 'cursor',
-    taskTitle: value.taskTitle,
-    status,
-    history,
-    createdAt: typeof value.createdAt === 'string' ? value.createdAt : nowIso(),
-    updatedAt: typeof value.updatedAt === 'string' ? value.updatedAt : nowIso(),
-    ownerDecisionAt: typeof value.ownerDecisionAt === 'string' ? value.ownerDecisionAt : null,
+    taskTitle: run.title,
+    status: mapStatusToLegacy(run.status),
+    history: mapHistoryToLegacy(run),
+    createdAt: run.createdAt,
+    updatedAt: run.updatedAt,
+    ownerDecisionAt: run.approvedAt,
   }
 }
 
+function listBuilderRunsFromCanonical(): ToolExecutionRun[] {
+  return listToolExecutionRuns({ employeeId: BUILDER_EMPLOYEE_ID }).filter(
+    (run) => run.builderToolDecisionId !== null,
+  )
+}
+
+/** @deprecated Use loadToolExecutionRuns */
 export function loadBuilderToolExecutionRuns(): BuilderToolExecutionRun[] {
-  if (typeof window === 'undefined') return []
-  try {
-    const raw = window.localStorage.getItem(BUILDER_TOOL_EXECUTION_STORAGE_KEY)
-    if (!raw) return []
-    const parsed: unknown = JSON.parse(raw)
-    if (!Array.isArray(parsed)) return []
-    return parsed
-      .map(parseRun)
-      .filter((item): item is BuilderToolExecutionRun => item !== null)
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-  } catch {
-    return []
-  }
+  return listBuilderRunsFromCanonical().map(mapToolExecutionRunToLegacy)
 }
 
-function saveRuns(runs: BuilderToolExecutionRun[]): void {
-  if (typeof window === 'undefined') return
-  window.localStorage.setItem(BUILDER_TOOL_EXECUTION_STORAGE_KEY, JSON.stringify(runs))
-  emitSync()
-}
-
+/** @deprecated Use upsertToolExecutionRun */
 export function upsertBuilderToolExecutionRun(run: BuilderToolExecutionRun): BuilderToolExecutionRun {
-  const list = loadBuilderToolExecutionRuns()
-  const next = [run, ...list.filter((item) => item.id !== run.id)]
-  saveRuns(next)
   return run
 }
 
+/** @deprecated Use getToolExecutionRun */
 export function getBuilderToolExecutionRunById(id: string): BuilderToolExecutionRun | null {
-  return loadBuilderToolExecutionRuns().find((item) => item.id === id) ?? null
+  const run = getToolExecutionRun(id)
+  return run ? mapToolExecutionRunToLegacy(run) : null
 }
 
+/** @deprecated Use getToolExecutionRunByWorkerLoopId */
 export function getBuilderToolExecutionRunByWorkerLoopId(
   workerLoopId: string,
 ): BuilderToolExecutionRun | null {
-  return loadBuilderToolExecutionRuns().find((item) => item.workerLoopId === workerLoopId) ?? null
+  const run = getToolExecutionRunByWorkerLoopId(workerLoopId)
+  return run ? mapToolExecutionRunToLegacy(run) : null
 }
 
+/** @deprecated Use listToolExecutionRuns */
 export function listBuilderToolExecutionRunsForEmployee(employeeId: string): BuilderToolExecutionRun[] {
-  return loadBuilderToolExecutionRuns().filter((item) => item.employeeId === employeeId)
+  return listToolExecutionRuns({ employeeId })
+    .filter((run) => run.builderToolDecisionId !== null)
+    .map(mapToolExecutionRunToLegacy)
 }
 
+/** @deprecated Use listToolExecutionRuns({ status: 'awaiting_owner' }) */
 export function listBuilderToolExecutionRunsAwaitingOwner(): BuilderToolExecutionRun[] {
-  return loadBuilderToolExecutionRuns().filter((item) => item.status === 'awaiting_owner')
-}
-
-function appendHistory(
-  run: BuilderToolExecutionRun,
-  kind: BuilderToolExecutionHistoryEntry['kind'],
-  note: string | null,
-): BuilderToolExecutionRun {
-  const at = nowIso()
-  return {
-    ...run,
-    history: [{ id: createHistoryId(), kind, at, note }, ...run.history],
-    updatedAt: at,
-  }
+  return listToolExecutionRuns({ status: 'awaiting_owner', employeeId: BUILDER_EMPLOYEE_ID })
+    .filter((run) => run.builderToolDecisionId !== null)
+    .map(mapToolExecutionRunToLegacy)
 }
 
 export type CreateBuilderToolExecutionRunInput = {
@@ -158,81 +137,45 @@ export type CreateBuilderToolExecutionRunInput = {
   taskTitle: string
 }
 
+/** @deprecated Use submitBuilderCursorToolRequest → ToolExecutionRun */
 export function createBuilderToolExecutionRun(
-  input: CreateBuilderToolExecutionRunInput,
+  _input: CreateBuilderToolExecutionRunInput,
 ): BuilderToolExecutionRun {
-  const now = nowIso()
-  const run: BuilderToolExecutionRun = {
-    id: createRunId(),
-    employeeId: input.decision.employeeId,
-    workItemId: input.decision.workItemId,
-    workerLoopId: input.decision.workerLoopId,
-    builderToolDecisionId: input.decision.id,
-    toolDispatcherRequestId: input.toolDispatcherRequestId,
-    recommendedToolId: 'cursor',
-    taskTitle: input.taskTitle.trim() || 'Builder task',
-    status: 'awaiting_owner',
-    history: [
-      {
-        id: createHistoryId(),
-        kind: 'tool_requested',
-        at: now,
-        note: input.decision.reason,
-      },
-    ],
-    createdAt: now,
-    updatedAt: now,
-    ownerDecisionAt: null,
-  }
-  return upsertBuilderToolExecutionRun(run)
+  throw new Error(
+    'createBuilderToolExecutionRun is deprecated (113D). Use submitBuilderCursorToolRequest.',
+  )
 }
 
+/** @deprecated Use approveToolExecutionRun */
 export function approveBuilderToolExecutionRun(runId: string): BuilderToolExecutionRun | null {
-  const current = getBuilderToolExecutionRunById(runId)
-  if (!current || current.status !== 'awaiting_owner') return null
-
-  const decision = getBuilderToolDecisionById(current.builderToolDecisionId)
-  const note = decision
-    ? `Cursor разрешён Owner — ready for local adapter (${decision.fileScope.join(', ') || 'scope TBD'})`
-    : 'Cursor разрешён Owner — ready for local adapter'
-
-  let next = appendHistory(current, 'tool_approved', note)
-  next = {
-    ...next,
-    status: 'ready_for_adapter',
-    ownerDecisionAt: nowIso(),
-  }
-  return upsertBuilderToolExecutionRun(next)
+  const approved = approveToolExecutionRun(
+    runId,
+    'Cursor разрешён Owner — ready for local adapter',
+  )
+  return approved ? mapToolExecutionRunToLegacy(approved) : null
 }
 
+/** @deprecated Use rejectToolExecutionRun */
 export function rejectBuilderToolExecutionRun(
   runId: string,
   reason = 'Owner отклонил запрос Cursor',
 ): BuilderToolExecutionRun | null {
-  const current = getBuilderToolExecutionRunById(runId)
-  if (!current || current.status !== 'awaiting_owner') return null
-
-  let next = appendHistory(current, 'tool_rejected', reason)
-  next = {
-    ...next,
-    status: 'rejected',
-    ownerDecisionAt: nowIso(),
-  }
-  return upsertBuilderToolExecutionRun(next)
+  const rejected = rejectToolExecutionRun(runId, reason)
+  return rejected ? mapToolExecutionRunToLegacy(rejected) : null
 }
 
+/** @deprecated Use formatToolExecutionStatusLabel */
 export function formatBuilderToolExecutionStatusLabel(
   status: BuilderToolExecutionRunStatus,
 ): string {
-  switch (status) {
-    case 'awaiting_owner':
-      return 'Ждёт решения Owner'
-    case 'approved':
-    case 'ready_for_adapter':
-      return 'Cursor разрешён'
-    case 'rejected':
-      return 'Cursor отклонён'
-    default:
-      return status
+  if (status === 'ready_for_adapter' || status === 'approved') {
+    return formatToolExecutionStatusLabel('approved')
   }
+  if (status === 'awaiting_owner') {
+    return formatToolExecutionStatusLabel('awaiting_owner')
+  }
+  if (status === 'rejected') {
+    return formatToolExecutionStatusLabel('rejected')
+  }
+  return status
 }

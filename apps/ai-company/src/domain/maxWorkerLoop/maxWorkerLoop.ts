@@ -123,6 +123,8 @@ export type MaxWorkerLoopRecord = {
   runtimeRunId: string | null
   reportId: string | null
   taskRunnerRecordId: string | null
+  /** Canonical ToolExecutionRun id when Builder awaits Owner for Cursor (113D). */
+  toolExecutionRunId: string | null
   /** Employee Brain Decision Plan — persisted on loop record (102B). */
   decisionPlan: DecisionPlan | null
   /** Peer consult snapshot — Decision Plan → Employee Conversation bridge (102C). */

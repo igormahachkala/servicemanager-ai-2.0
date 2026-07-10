@@ -61,7 +61,10 @@ export {
   clearToolExecutionRuns,
   createToolExecutionRun,
   failToolExecutionRun,
+  formatToolExecutionStatusLabel,
   getToolExecutionRun,
+  getToolExecutionRunByWorkerLoopId,
+  initializeToolExecutionRunStorage,
   listToolExecutionRuns,
   loadToolExecutionRuns,
   markToolExecutionQueued,
@@ -69,7 +72,13 @@ export {
   recordToolExecutionResult,
   rejectToolExecutionRun,
   requestToolExecutionRework,
+  upsertToolExecutionRun,
 } from './toolExecutionRunStorage'
+
+export {
+  migrateBuilderToolExecutionRunsToToolExecutionRuns,
+  resolveToolExecutionRunIdFromLegacyBuilderId,
+} from './toolExecutionRunMigration'
 
 export {
   createToolExecutionFromDispatcherRequest,

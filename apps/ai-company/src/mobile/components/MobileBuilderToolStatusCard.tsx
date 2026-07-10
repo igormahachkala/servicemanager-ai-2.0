@@ -1,11 +1,11 @@
 import { Link } from 'react-router-dom'
-import {
-  formatBuilderToolExecutionStatusLabel,
-  getBuilderToolDecisionById,
-  listBuilderToolExecutionRunsForEmployee,
-  type BuilderToolExecutionRun,
-} from '../../domain/builderToolDecision'
+import { getBuilderToolDecisionById } from '../../domain/builderToolDecision'
 import { BUILDER_EMPLOYEE_ID } from '../../domain/mobileEmployee'
+import {
+  formatToolExecutionStatusLabel,
+  listToolExecutionRuns,
+} from '../../domain/toolExecution/toolExecutionRunStorage'
+import type { ToolExecutionRun } from '../../domain/toolExecution/toolExecutionRunTypes'
 import { useI18n } from '../../i18n'
 import { MOBILE_PATHS } from '../navigation/mobileHrefResolver'
 import { MobileCard } from './MobileCard'
@@ -14,7 +14,7 @@ type Props = {
   employeeId: string
 }
 
-function pickLatestRun(runs: BuilderToolExecutionRun[]): BuilderToolExecutionRun | null {
+function pickLatestRun(runs: ToolExecutionRun[]): ToolExecutionRun | null {
   return runs[0] ?? null
 }
 
@@ -23,15 +23,19 @@ export function MobileBuilderToolStatusCard({ employeeId }: Props) {
   if (employeeId !== BUILDER_EMPLOYEE_ID) return null
 
   const copy = t.mobile.employeeProfiles.builder.toolStatus
-  const run = pickLatestRun(listBuilderToolExecutionRunsForEmployee(BUILDER_EMPLOYEE_ID))
+  const run = pickLatestRun(
+    listToolExecutionRuns({ employeeId: BUILDER_EMPLOYEE_ID }).filter(
+      (item) => item.builderToolDecisionId !== null,
+    ),
+  )
   if (!run) return null
 
-  const decision = getBuilderToolDecisionById(run.builderToolDecisionId)
-  const statusLabel = formatBuilderToolExecutionStatusLabel(run.status)
+  const decision = getBuilderToolDecisionById(run.builderToolDecisionId ?? '')
+  const statusLabel = formatToolExecutionStatusLabel(run.status)
   const tone =
     run.status === 'awaiting_owner'
       ? 'warning'
-      : run.status === 'rejected'
+      : run.status === 'rejected' || run.status === 'failed'
         ? 'error'
         : 'success'
 
@@ -39,7 +43,7 @@ export function MobileBuilderToolStatusCard({ employeeId }: Props) {
     <MobileCard title={copy.title} description={copy.description}>
       <div className={`acMobileBuilderToolStatus acMobileBuilderToolStatus--${tone}`}>
         <p className="acMobileBuilderToolStatusEyebrow">{copy.toolLabel}</p>
-        <p className="acMobileBuilderToolStatusTitle">{run.taskTitle}</p>
+        <p className="acMobileBuilderToolStatusTitle">{run.title}</p>
         <p className="acMobileBuilderToolStatusState">{statusLabel}</p>
         {decision?.reason ? (
           <p className="acMobileBuilderToolStatusReason">{decision.reason}</p>

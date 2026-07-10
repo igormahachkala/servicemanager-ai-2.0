@@ -1182,6 +1182,11 @@ export const mobileEn = {
         tool_requested: 'Tool Requested',
         tool_approved: 'Tool Approved',
         tool_rejected: 'Tool Rejected',
+        tool_queued: 'Tool Queued',
+        tool_started: 'Tool Started',
+        tool_result_received: 'Tool Result Received',
+        tool_accepted: 'Tool Accepted',
+        tool_rework_requested: 'Tool Rework Requested',
         task_assigned: 'Task Assigned',
       },
       bodies: {
@@ -1205,6 +1210,11 @@ export const mobileEn = {
         toolRequested: 'Builder requested Cursor for «{title}»',
         toolApproved: 'Owner approved Cursor for «{title}»',
         toolRejected: 'Owner rejected Cursor for «{title}»',
+        toolQueued: 'Cursor queued for «{title}»',
+        toolStarted: 'Cursor started for «{title}»',
+        toolResultReceived: 'Cursor result received for «{title}»',
+        toolAccepted: 'Builder accepted Cursor result for «{title}»',
+        toolReworkRequested: 'Builder requested rework for «{title}»',
       },
     },
     cursorHandoff: {

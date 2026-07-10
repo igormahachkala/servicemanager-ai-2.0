@@ -33,6 +33,11 @@ export const MOBILE_CHAT_TIMELINE_EVENT_KINDS = [
   'tool_requested',
   'tool_approved',
   'tool_rejected',
+  'tool_queued',
+  'tool_started',
+  'tool_result_received',
+  'tool_accepted',
+  'tool_rework_requested',
   'task_assigned',
 ] as const
 
@@ -83,6 +88,11 @@ export type MobileChatTimelineLabels = {
   toolRequestedBody: string
   toolApprovedBody: string
   toolRejectedBody: string
+  toolQueuedBody: string
+  toolStartedBody: string
+  toolResultReceivedBody: string
+  toolAcceptedBody: string
+  toolReworkRequestedBody: string
   taskAssignedBody: string
 }
 

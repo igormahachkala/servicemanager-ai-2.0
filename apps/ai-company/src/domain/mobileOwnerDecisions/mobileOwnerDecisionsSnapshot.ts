@@ -5,13 +5,15 @@
 
 import { applyApprovalAction, loadApprovalStore, type ApprovalPriority } from '../approval/approvalStorage'
 import {
-  approveBuilderToolExecutionRun,
   formatBuilderToolDecisionConfidenceLabel,
   getBuilderToolDecisionById,
-  getBuilderToolExecutionRunByWorkerLoopId,
-  listBuilderToolExecutionRunsAwaitingOwner,
-  rejectBuilderToolExecutionRun,
 } from '../builderToolDecision'
+import {
+  approveToolExecutionRun,
+  getToolExecutionRunByWorkerLoopId,
+  listToolExecutionRuns,
+  rejectToolExecutionRun,
+} from '../toolExecution/toolExecutionRunStorage'
 import {
   formatDelegationPlanConfidenceLabel,
   listDelegationPlans,
@@ -29,7 +31,7 @@ import { loadEmployeeWorkItems } from '../employeeWorkQueue'
 import { loadMaxWorkerLoopRecords, MAX_WORKER_EMPLOYEE_ID } from '../maxWorkerLoop'
 import { buildJournalMemoryAndKnowledge } from '../morningReport/ownerMorningReportJournalSections'
 import { getTodayDateKey } from '../workday/workdayStorage'
-import { mobileEmployeeProfilePath } from '../mobileEmployee'
+import { mobileEmployeeProfilePath, BUILDER_EMPLOYEE_ID } from '../mobileEmployee'
 import { resolveEmployee } from '../../mission-control/data/conversation'
 
 export type MobileOwnerDecisionKind =
@@ -194,14 +196,17 @@ export function buildMobileOwnerDecisionsSnapshot(
     })
   }
 
-  for (const run of listBuilderToolExecutionRunsAwaitingOwner()) {
-    const decision = getBuilderToolDecisionById(run.builderToolDecisionId)
+  for (const run of listToolExecutionRuns({
+    status: 'awaiting_owner',
+    employeeId: BUILDER_EMPLOYEE_ID,
+  }).filter((item) => item.builderToolDecisionId)) {
+    const decision = getBuilderToolDecisionById(run.builderToolDecisionId ?? '')
     if (!decision) continue
     items.push({
       id: `builder-tool-${run.id}`,
       kind: 'builder_tool_request',
       filterKind: 'cursor',
-      title: run.taskTitle,
+      title: run.title,
       reason: decision.reason,
       risk: decision.risk === 'high' ? 'Высокий риск' : decision.risk === 'medium' ? 'Средний риск' : 'Низкий риск',
       employeeId: run.employeeId,
@@ -217,7 +222,7 @@ export function buildMobileOwnerDecisionsSnapshot(
       toolExecutionRunId: run.id,
       builderTool: {
         toolLabel: 'Cursor',
-        taskTitle: run.taskTitle,
+        taskTitle: run.title,
         reason: decision.reason,
         fileScope: decision.fileScope,
         checks: decision.checks,
@@ -225,7 +230,7 @@ export function buildMobileOwnerDecisionsSnapshot(
         risk: decision.risk,
         confidenceLabel: formatBuilderToolDecisionConfidenceLabel(decision.confidence),
         workItemId: run.workItemId,
-        workerLoopId: run.workerLoopId,
+        workerLoopId: run.workerLoopId ?? '',
         builderProfileHref: mobileEmployeeProfilePath(run.employeeId),
         workItemHref: `/mobile/tasks?highlight=${encodeURIComponent(run.workItemId)}`,
       },
@@ -361,7 +366,7 @@ export function buildMobileOwnerDecisionsSnapshot(
   }
 
   for (const loop of loadMaxWorkerLoopRecords().filter((record) => record.status === 'waiting_approval')) {
-    if (getBuilderToolExecutionRunByWorkerLoopId(loop.id)) continue
+    if (getToolExecutionRunByWorkerLoopId(loop.id)) continue
     const planReason = loop.decisionPlan?.ownerApprovalReasons.join(' · ')
     const gate = getCursorAutomationOwnerApprovalByLoopId(loop.id)
     const pendingGate = gate?.status === 'pending'
@@ -413,7 +418,10 @@ export function countMobileOwnerDecisionsByFilter(
 
 export function approveMobileOwnerDecision(item: MobileOwnerDecisionItem): boolean {
   if (item.kind === 'builder_tool_request' && item.toolExecutionRunId && item.canApprove) {
-    return approveBuilderToolExecutionRun(item.toolExecutionRunId) !== null
+    return approveToolExecutionRun(
+      item.toolExecutionRunId,
+      'Cursor разрешён Owner — ready for local adapter',
+    ) !== null
   }
   if (item.kind === 'delegation_plan' && item.delegationPlanId && item.canApprove) {
     return approveDelegationPlan(item.delegationPlanId) !== null
@@ -429,7 +437,7 @@ export function approveMobileOwnerDecision(item: MobileOwnerDecisionItem): boole
 
 export function rejectMobileOwnerDecision(item: MobileOwnerDecisionItem): boolean {
   if (item.kind === 'builder_tool_request' && item.toolExecutionRunId && item.canReject) {
-    return rejectBuilderToolExecutionRun(item.toolExecutionRunId) !== null
+    return rejectToolExecutionRun(item.toolExecutionRunId, 'Owner отклонил запрос Cursor') !== null
   }
   if (item.kind === 'delegation_plan' && item.delegationPlanId && item.canReject) {
     return rejectDelegationPlan(item.delegationPlanId) !== null

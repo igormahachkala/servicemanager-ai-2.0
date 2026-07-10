@@ -43,18 +43,25 @@ export const BUILDER_TOOL_EXECUTION_RUN_STATUSES = [
   'approved',
   'rejected',
   'ready_for_adapter',
+  'queued',
+  'result_received',
 ] as const
 
 export type BuilderToolExecutionRunStatus = (typeof BUILDER_TOOL_EXECUTION_RUN_STATUSES)[number]
 
 export type BuilderToolExecutionHistoryEntry = {
   id: string
-  kind: 'tool_requested' | 'tool_approved' | 'tool_rejected'
+  kind:
+    | 'tool_requested'
+    | 'tool_approved'
+    | 'tool_rejected'
+    | 'tool_bridge_queued'
+    | 'tool_bridge_result'
   at: string
   note: string | null
 }
 
-/** Owner-gated tool run — no Cursor launch until future adapter (113A). */
+/** @deprecated AI-COMPANY-113D — use ToolExecutionRun from domain/toolExecution */
 export type BuilderToolExecutionRun = {
   id: string
   employeeId: string

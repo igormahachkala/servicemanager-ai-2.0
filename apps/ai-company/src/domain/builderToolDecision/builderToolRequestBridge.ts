@@ -1,26 +1,16 @@
 /**
- * Builder → Tool Dispatcher bridge (AI-COMPANY-113B).
- * Registers request only — no Cursor API, no mock completion, no shell.
+ * Builder → Tool Dispatcher bridge (AI-COMPANY-113B / 113D).
+ * Registers request only — creates canonical ToolExecutionRun, no Cursor launch.
  */
 
+import { DEFAULT_COMPANY_ID } from '../company/company'
 import { BUILDER_EMPLOYEE_ID } from '../mobileEmployee/mobileEmployeeRegistry'
-import {
-  createToolDispatcherRequestId,
-  upsertToolDispatcherRequest,
-  upsertToolDispatcherResult,
-} from '../toolDispatcher/toolDispatcherStorage'
-import { getToolCapability, getToolStatus } from '../toolDispatcher/toolDispatcherRegistry'
-import type { ToolRequest, ToolResult } from '../toolDispatcher/toolDispatcherTypes'
+import { dispatchToolRequestPlannedOnly } from '../toolDispatcher/toolDispatcherDispatch'
+import type { ToolRequest } from '../toolDispatcher/toolDispatcherTypes'
+import { createToolExecutionFromDispatcherRequest } from '../toolExecution/toolExecutionRunBridge'
+import type { ToolExecutionRun } from '../toolExecution/toolExecutionRunTypes'
 import type { BuilderToolDecision } from './builderToolDecisionTypes'
 import { upsertBuilderToolDecision } from './builderToolDecisionStorage'
-import {
-  createBuilderToolExecutionRun,
-  type CreateBuilderToolExecutionRunInput,
-} from './builderToolExecutionRun'
-
-function nowIso(): string {
-  return new Date().toISOString()
-}
 
 export type SubmitBuilderCursorToolRequestInput = {
   decision: BuilderToolDecision
@@ -33,39 +23,12 @@ export type SubmitBuilderCursorToolRequestInput = {
 export type SubmitBuilderCursorToolRequestOutcome = {
   decision: BuilderToolDecision
   toolRequest: ToolRequest
-  executionRun: ReturnType<typeof createBuilderToolExecutionRun>
-}
-
-function buildAwaitingOwnerResult(request: ToolRequest): ToolResult {
-  return {
-    requestId: request.requestId,
-    toolId: request.toolId,
-    status: 'accepted',
-    ok: true,
-    deliveryMode: 'mock_v1',
-    output: {
-      plannedOnly: true,
-      awaitingOwner: true,
-      builderToolDecisionId: request.payload.builderToolDecisionId ?? null,
-      note: 'Builder Tool Request V1 — awaiting Owner approval before adapter launch.',
-    },
-    error: null,
-    cursorAutomationTaskId: null,
-    registryInvokePlanId: null,
-    finishedAt: nowIso(),
-    logs: [
-      {
-        at: nowIso(),
-        level: 'info',
-        message: 'Tool Dispatcher registered Builder Cursor request — no execution (113B).',
-      },
-    ],
-  }
+  executionRun: ToolExecutionRun
 }
 
 /**
  * Builder requests Cursor via Tool Dispatcher.
- * Creates ToolExecutionRun (awaiting_owner) — Cursor is NOT launched.
+ * Creates canonical ToolExecutionRun (awaiting_owner) — Cursor is NOT launched.
  */
 export function submitBuilderCursorToolRequest(
   input: SubmitBuilderCursorToolRequestInput,
@@ -77,28 +40,18 @@ export function submitBuilderCursorToolRequest(
     throw new Error('Builder tool decision does not require Cursor.')
   }
 
-  const capability = getToolCapability('cursor')
-  if (!capability) {
-    throw new Error('Cursor tool is not registered in Tool Dispatcher.')
-  }
-  if (getToolStatus('cursor') === 'offline') {
-    throw new Error('Cursor tool is offline in Tool Dispatcher registry.')
-  }
-
   const savedDecision = upsertBuilderToolDecision(input.decision)
-  const requestId = createToolDispatcherRequestId()
   const instructions = [
-    input.decision.reason,
+    savedDecision.reason,
     '',
-    `Expected result: ${input.decision.expectedResult}`,
-    input.decision.fileScope.length > 0
-      ? `File scope: ${input.decision.fileScope.join(', ')}`
+    `Expected result: ${savedDecision.expectedResult}`,
+    savedDecision.fileScope.length > 0
+      ? `File scope: ${savedDecision.fileScope.join(', ')}`
       : 'File scope: to be confirmed with Owner',
-    `Checks: ${input.decision.checks.join(' · ')}`,
+    `Checks: ${savedDecision.checks.join(' · ')}`,
   ].join('\n')
 
-  const toolRequest: ToolRequest = {
-    requestId,
+  const dispatch = dispatchToolRequestPlannedOnly({
     toolId: 'cursor',
     action: 'code_change',
     title: input.taskTitle.trim() || 'Builder — Cursor code change',
@@ -117,7 +70,7 @@ export function submitBuilderCursorToolRequest(
       awaitingOwner: true,
     },
     context: {
-      companyId: null,
+      companyId: DEFAULT_COMPANY_ID,
       workspaceId: input.workspaceId,
       projectId: input.projectId,
       runtimeRunId: null,
@@ -125,17 +78,20 @@ export function submitBuilderCursorToolRequest(
       chatId: null,
       source: 'runtime',
     },
-    createdAt: nowIso(),
-  }
+  })
 
-  upsertToolDispatcherRequest(toolRequest)
-  upsertToolDispatcherResult(buildAwaitingOwnerResult(toolRequest))
+  const executionRun = createToolExecutionFromDispatcherRequest({
+    request: dispatch.request,
+    employeeId: BUILDER_EMPLOYEE_ID,
+    workItemId: savedDecision.workItemId,
+    companyId: DEFAULT_COMPANY_ID,
+    delegationPlanId: savedDecision.decisionPlanId,
+    workerLoopId: input.workerLoopId,
+    builderToolDecisionId: savedDecision.id,
+    expectedResult: savedDecision.expectedResult,
+    fileScope: savedDecision.fileScope,
+    checks: savedDecision.checks,
+  })
 
-  const executionRun = createBuilderToolExecutionRun({
-    decision: savedDecision,
-    toolDispatcherRequestId: requestId,
-    taskTitle: input.taskTitle,
-  } satisfies CreateBuilderToolExecutionRunInput)
-
-  return { decision: savedDecision, toolRequest, executionRun }
+  return { decision: savedDecision, toolRequest: dispatch.request, executionRun }
 }

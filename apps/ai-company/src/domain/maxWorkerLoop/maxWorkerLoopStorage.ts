@@ -76,6 +76,8 @@ function parseRecord(value: unknown): MaxWorkerLoopRecord | null {
     runtimeRunId: typeof value.runtimeRunId === 'string' ? value.runtimeRunId : null,
     reportId: typeof value.reportId === 'string' ? value.reportId : null,
     taskRunnerRecordId: typeof value.taskRunnerRecordId === 'string' ? value.taskRunnerRecordId : null,
+    toolExecutionRunId:
+      typeof value.toolExecutionRunId === 'string' ? value.toolExecutionRunId : null,
     decisionPlan: parseDecisionPlan(value.decisionPlan),
     peerConsultation: parseMaxWorkerLoopPeerConsultationSnapshot(value.peerConsultation),
     safeMode: true,
@@ -170,6 +172,7 @@ export function createMaxWorkerLoopRecord(
     runtimeRunId: null,
     reportId: null,
     taskRunnerRecordId: null,
+    toolExecutionRunId: null,
     decisionPlan: null,
     peerConsultation: null,
     safeMode: true,

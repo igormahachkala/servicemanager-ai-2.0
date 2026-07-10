@@ -1245,6 +1245,11 @@ export const mobileRu = {
         tool_requested: 'Tool Requested',
         tool_approved: 'Tool Approved',
         tool_rejected: 'Tool Rejected',
+        tool_queued: 'Tool Queued',
+        tool_started: 'Tool Started',
+        tool_result_received: 'Tool Result Received',
+        tool_accepted: 'Tool Accepted',
+        tool_rework_requested: 'Tool Rework Requested',
         task_assigned: 'Task Assigned',
       },
       bodies: {
@@ -1268,6 +1273,11 @@ export const mobileRu = {
         toolRequested: 'Builder запросил Cursor для «{title}»',
         toolApproved: 'Owner разрешил Cursor для «{title}»',
         toolRejected: 'Owner отклонил Cursor для «{title}»',
+        toolQueued: 'Cursor поставлен в очередь для «{title}»',
+        toolStarted: 'Cursor запущен для «{title}»',
+        toolResultReceived: 'Получен результат Cursor для «{title}»',
+        toolAccepted: 'Builder принял результат Cursor для «{title}»',
+        toolReworkRequested: 'Builder запросил доработку для «{title}»',
       },
     },
     cursorHandoff: {

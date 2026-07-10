@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { BUILDER_EMPLOYEE_ID } from '../../domain/mobileEmployee'
+import { TOOL_EXECUTION_RUN_SYNC_EVENT } from '../../domain/toolExecution/toolExecutionRunTypes'
 import { EMPLOYEE_DAILY_JOURNAL_SYNC_EVENT } from '../../domain/employeeDailyJournal/employeeDailyJournalStorage'
 import { EMPLOYEE_WORK_QUEUE_SYNC_EVENT } from '../../domain/employeeWorkQueue/employeeWorkQueueStorage'
 import { CURSOR_HANDOFF_FROM_CHAT_SYNC_EVENT } from '../../domain/cursorHandoffFromChat/cursorHandoffFromChatStorage'
@@ -115,6 +117,11 @@ function buildTimelineLabels(copy: typeof import('../../i18n/mobile/ru').mobileR
     toolRequestedBody: copy.bodies.toolRequested,
     toolApprovedBody: copy.bodies.toolApproved,
     toolRejectedBody: copy.bodies.toolRejected,
+    toolQueuedBody: copy.bodies.toolQueued,
+    toolStartedBody: copy.bodies.toolStarted,
+    toolResultReceivedBody: copy.bodies.toolResultReceived,
+    toolAcceptedBody: copy.bodies.toolAccepted,
+    toolReworkRequestedBody: copy.bodies.toolReworkRequested,
     taskAssignedBody: copy.bodies.taskAssigned,
   }
 }
@@ -184,6 +191,8 @@ export function useMobileEmployeeChat(employeeId: string) {
       DELEGATION_REVIEW_SYNC_EVENT,
       'ai-company-builder-tool-decision-sync',
       'ai-company-builder-tool-execution-sync',
+      TOOL_EXECUTION_RUN_SYNC_EVENT,
+      'ai-company-cursor-bridge-sync',
       'ai-company-runtime-sync',
     ]
     for (const eventName of events) {
@@ -195,6 +204,27 @@ export function useMobileEmployeeChat(employeeId: string) {
       }
     }
   }, [refresh])
+
+  useEffect(() => {
+    if (canonical !== BUILDER_EMPLOYEE_ID) return
+
+    let active = true
+    const syncBridge = async (): Promise<void> => {
+      const { syncCursorLocalBridgeToDomain } = await import('../../domain/cursorLocalBridge')
+      if (!active) return
+      await syncCursorLocalBridgeToDomain()
+    }
+
+    void syncBridge()
+    const timer = window.setInterval(() => {
+      void syncBridge()
+    }, 5000)
+
+    return () => {
+      active = false
+      window.clearInterval(timer)
+    }
+  }, [canonical])
 
   void sessionTick
   const session = getMobileEmployeeChatSession(canonical, { welcome: copy.welcome })

@@ -9,6 +9,7 @@ import { initializeSprintEngine } from '../sprint/sprintStorage'
 import { initializeWorkdayEngine } from '../workday/workdayEngine'
 import { initializeRuntimeProviders } from '../runtime/providers/runtimeAdapter'
 import { initializeToolExecutionEngine } from '../toolExecution/toolExecutionStorage'
+import { initializeToolExecutionRunStorage } from '../toolExecution/toolExecutionRunStorage'
 import { loadWorkspaces, saveWorkspaces } from '../workspaces/workspace'
 import { DEFAULT_COMPANY_ID } from './company'
 import { ensureSeedCompanies } from './companyStorage'
@@ -30,6 +31,7 @@ export function migrateEntitiesToCompanies(): string {
   initializeWorkdayEngine()
   initializeRuntimeProviders()
   initializeToolExecutionEngine()
+  initializeToolExecutionRunStorage()
 
   if (!migrated) {
     const workspaces = loadWorkspaces()
