@@ -10,6 +10,8 @@ import { MobileChatMessageList } from '../components/MobileChatMessageList'
 import { MobileChatQuickHints } from '../components/MobileChatQuickHints'
 import { MobileChatStatusBar } from '../components/MobileChatStatusBar'
 import { MobileChatTimelineFilter } from '../components/MobileChatTimelineFilter'
+import { MobileBuilderToolStatusCard } from '../components/MobileBuilderToolStatusCard'
+import { BUILDER_EMPLOYEE_ID } from '../../domain/mobileEmployee'
 import { useMobileEmployeeChat } from '../hooks/useMobileMaxChat'
 
 export function MobileMaxChatPage() {
@@ -28,6 +30,10 @@ export function MobileMaxChatPage() {
   return (
     <div className="acMobilePage acMobileChatPage">
       <p className="acMobilePageIntro">{copy.intro}</p>
+
+      {employeeId === BUILDER_EMPLOYEE_ID ? (
+        <MobileBuilderToolStatusCard employeeId={employeeId} />
+      ) : null}
 
       <MobileChatStatusBar status={chat.status} />
 

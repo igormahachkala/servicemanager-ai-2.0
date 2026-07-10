@@ -121,6 +121,13 @@ export function isBuilderToolDecisionEmployee(employeeId: string): boolean {
   return employeeId === BUILDER_EMPLOYEE_ID
 }
 
+export function formatBuilderToolDecisionConfidenceLabel(confidence: number): string {
+  const pct = Math.round(confidence * 100)
+  if (pct >= 80) return `Высокая (${pct}%)`
+  if (pct >= 60) return `Средняя (${pct}%)`
+  return `Умеренная (${pct}%)`
+}
+
 export function evaluateBuilderToolDecision(input: EvaluateBuilderToolDecisionInput): BuilderToolDecision {
   const text = normalizeText([
     input.title,

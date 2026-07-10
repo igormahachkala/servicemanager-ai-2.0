@@ -9,6 +9,8 @@ import { loadEmployeeDailyJournalEntries } from '../../domain/employeeDailyJourn
 import { loadEmployeeWorkItems } from '../../domain/employeeWorkQueue/employeeWorkQueueStorage'
 import { listDelegationPlans } from '../../domain/delegationPlan'
 import { getEmployeeWorkItemById } from '../../domain/employeeWorkQueue/employeeWorkQueueStorage'
+import { BUILDER_EMPLOYEE_ID } from '../../domain/mobileEmployee'
+import { listBuilderToolExecutionRunsForEmployee } from '../../domain/builderToolDecision'
 import { MAX_WORKER_EMPLOYEE_ID } from '../../domain/maxWorkerLoop'
 import { loadMaxWorkerLoopRecords } from '../../domain/maxWorkerLoop/maxWorkerLoopStorage'
 import { loadRuntimeRuns } from '../../domain/runtime/runtimeOrchestrator'
@@ -106,7 +108,10 @@ function eventFilters(kind: MobileChatTimelineEventKind): MobileChatTimelineFilt
   if (
     kind === 'cursor_handoff_created' ||
     kind === 'cursor_handoff_sent' ||
-    kind === 'cursor_result_received'
+    kind === 'cursor_result_received' ||
+    kind === 'tool_requested' ||
+    kind === 'tool_approved' ||
+    kind === 'tool_rejected'
   ) {
     filters.push('cursor')
   }
@@ -130,7 +135,12 @@ function eventTone(kind: MobileChatTimelineEventKind): MobileChatTimelineTone {
     case 'task_assigned':
       return 'success'
     case 'delegation_rejected':
+    case 'tool_rejected':
       return 'error'
+    case 'tool_requested':
+      return 'warning'
+    case 'tool_approved':
+      return 'success'
     case 'runtime_started':
     case 'task_started':
       return 'info'
@@ -617,6 +627,109 @@ function collectApprovalEvents(
   }
 }
 
+function collectBuilderToolEvents(
+  employeeId: string,
+  labels: MobileChatTimelineLabels,
+  bucket: MobileChatTimelineEntry[],
+  seen: Set<string>,
+): void {
+  for (const run of listBuilderToolExecutionRunsForEmployee(employeeId)) {
+    for (const entry of run.history) {
+      if (entry.kind === 'tool_requested') {
+        pushEntry(
+          bucket,
+          seen,
+          derivedEvent({
+            id: `evt:tool_requested:${run.id}:${entry.id}`,
+            kind: 'tool_requested',
+            createdAt: entry.at,
+            content: labels.toolRequestedBody.replace('{title}', run.taskTitle),
+            labels,
+            workerLoopId: run.workerLoopId,
+            workItemId: run.workItemId,
+            tone: 'warning',
+          }),
+        )
+      }
+      if (entry.kind === 'tool_approved') {
+        pushEntry(
+          bucket,
+          seen,
+          derivedEvent({
+            id: `evt:tool_approved:${run.id}:${entry.id}`,
+            kind: 'tool_approved',
+            createdAt: entry.at,
+            content: labels.toolApprovedBody.replace('{title}', run.taskTitle),
+            labels,
+            workerLoopId: run.workerLoopId,
+            workItemId: run.workItemId,
+            tone: 'success',
+          }),
+        )
+      }
+      if (entry.kind === 'tool_rejected') {
+        pushEntry(
+          bucket,
+          seen,
+          derivedEvent({
+            id: `evt:tool_rejected:${run.id}:${entry.id}`,
+            kind: 'tool_rejected',
+            createdAt: entry.at,
+            content: labels.toolRejectedBody.replace('{title}', run.taskTitle),
+            labels,
+            workerLoopId: run.workerLoopId,
+            workItemId: run.workItemId,
+            tone: 'error',
+          }),
+        )
+      }
+    }
+  }
+}
+
+function collectEmployeeWorkerLoopEvents(
+  employeeId: string,
+  labels: MobileChatTimelineLabels,
+  bucket: MobileChatTimelineEntry[],
+  seen: Set<string>,
+): void {
+  for (const loop of loadMaxWorkerLoopRecords().filter((record) => record.employeeId === employeeId)) {
+    const title = loop.input.title ?? loop.input.taskText.slice(0, 80)
+
+    if (loop.status !== 'draft' && loop.status !== 'cancelled') {
+      pushEntry(
+        bucket,
+        seen,
+        derivedEvent({
+          id: `evt:runtime_started:loop:${loop.id}`,
+          kind: 'runtime_started',
+          createdAt: loop.createdAt,
+          content: labels.runtimeStartedBody.replace('{title}', title).replace('{id}', loop.id),
+          labels,
+          workerLoopId: loop.id,
+          runtimeRunId: loop.runtimeRunId,
+        }),
+      )
+    }
+
+    if (loop.status === 'waiting_approval') {
+      pushEntry(
+        bucket,
+        seen,
+        derivedEvent({
+          id: `evt:owner_approval:loop:${loop.id}`,
+          kind: 'owner_approval',
+          createdAt: loop.updatedAt,
+          content: labels.ownerApprovalPendingBody.replace('{title}', title),
+          labels,
+          workerLoopId: loop.id,
+          tone: 'warning',
+        }),
+      )
+    }
+  }
+}
+
 export function buildMobileChatTimeline(input: {
   employeeId: string
   messages: MobileEmployeeChatMessage[]
@@ -646,6 +759,10 @@ export function buildMobileChatTimeline(input: {
     collectCursorHandoffEvents(input.employeeId, input.labels, skipHandoffIds, bucket, seen)
     collectApprovalEvents(input.employeeId, input.labels, bucket, seen)
     collectDelegationPlanEvents(input.employeeId, input.labels, bucket, seen)
+  } else if (input.employeeId === BUILDER_EMPLOYEE_ID) {
+    collectWorkEvents(input.employeeId, input.labels, skipTaskCreatedIds, bucket, seen)
+    collectEmployeeWorkerLoopEvents(input.employeeId, input.labels, bucket, seen)
+    collectBuilderToolEvents(input.employeeId, input.labels, bucket, seen)
   }
 
   return bucket.sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt))

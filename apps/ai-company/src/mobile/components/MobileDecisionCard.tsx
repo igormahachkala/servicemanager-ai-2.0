@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { BUILDER_EMPLOYEE_ID } from '../../domain/mobileEmployee'
 import { MAX_WORKER_EMPLOYEE_ID } from '../../domain/maxWorkerLoop'
 import type { MobileOwnerDecisionItem } from '../../domain/mobileOwnerDecisions'
 import { useI18n } from '../../i18n'
@@ -21,6 +22,7 @@ const KIND_TONE: Record<
   blocked_task: 'error',
   worker_loop_failed: 'error',
   delegation_plan: 'warning',
+  builder_tool_request: 'warning',
 }
 
 function formatCreatedAt(iso: string | null): string | null {
@@ -42,6 +44,7 @@ export function MobileDecisionCard({ item, onApprove, onReject }: Props) {
   const tone = KIND_TONE[item.kind]
   const createdLabel = formatCreatedAt(item.createdAt)
   const delegation = item.delegation
+  const builderTool = item.builderTool
 
   return (
     <article className="acMobileDecisionCard">
@@ -58,7 +61,56 @@ export function MobileDecisionCard({ item, onApprove, onReject }: Props) {
 
       <h3 className="acMobileDecisionCardTitle">{item.title}</h3>
 
-      {delegation ? (
+      {builderTool ? (
+        <dl className="acMobileDecisionCardMeta acMobileDecisionBuilderToolMeta">
+          <div className="acMobileDecisionCardRow">
+            <dt>{copy.fields.employee}</dt>
+            <dd>{item.employeeLabel}</dd>
+          </div>
+          <div className="acMobileDecisionCardRow">
+            <dt>{copy.builderTool.tool}</dt>
+            <dd>{builderTool.toolLabel}</dd>
+          </div>
+          <div className="acMobileDecisionCardRow">
+            <dt>{copy.builderTool.task}</dt>
+            <dd>{builderTool.taskTitle}</dd>
+          </div>
+          <div className="acMobileDecisionCardRow">
+            <dt>{copy.fields.reason}</dt>
+            <dd>{builderTool.reason}</dd>
+          </div>
+          {builderTool.fileScope.length > 0 ? (
+            <div className="acMobileDecisionCardRow">
+              <dt>{copy.builderTool.fileScope}</dt>
+              <dd>{builderTool.fileScope.join(', ')}</dd>
+            </div>
+          ) : null}
+          {builderTool.checks.length > 0 ? (
+            <div className="acMobileDecisionCardRow">
+              <dt>{copy.builderTool.checks}</dt>
+              <dd>
+                <ul className="acMobileDecisionAlternatives">
+                  {builderTool.checks.map((check) => (
+                    <li key={check}>{check}</li>
+                  ))}
+                </ul>
+              </dd>
+            </div>
+          ) : null}
+          <div className="acMobileDecisionCardRow">
+            <dt>{copy.fields.risk}</dt>
+            <dd>{builderTool.risk}</dd>
+          </div>
+          <div className="acMobileDecisionCardRow">
+            <dt>{copy.builderTool.expectedResult}</dt>
+            <dd>{builderTool.expectedResult}</dd>
+          </div>
+          <div className="acMobileDecisionCardRow">
+            <dt>{copy.builderTool.confidence}</dt>
+            <dd>{builderTool.confidenceLabel}</dd>
+          </div>
+        </dl>
+      ) : delegation ? (
         <dl className="acMobileDecisionCardMeta acMobileDecisionDelegationMeta">
           <div className="acMobileDecisionCardRow">
             <dt>{copy.delegation.decidedBy}</dt>
@@ -141,6 +193,20 @@ export function MobileDecisionCard({ item, onApprove, onReject }: Props) {
           <Link to={MOBILE_PATHS.max} className="acMobileSecondaryLinkBtn">
             {copy.actions.openMaxMobile}
           </Link>
+        ) : item.employeeId === BUILDER_EMPLOYEE_ID ? (
+          <Link to={resolveMobileHref(builderTool?.builderProfileHref ?? item.href)} className="acMobileSecondaryLinkBtn">
+            {copy.builderTool.openBuilder}
+          </Link>
+        ) : null}
+        {builderTool ? (
+          <>
+            <Link to={resolveMobileHref(builderTool.builderProfileHref)} className="acMobileSecondaryLinkBtn">
+              {copy.builderTool.openBuilder}
+            </Link>
+            <Link to={resolveMobileHref(builderTool.workItemHref)} className="acMobileSecondaryLinkBtn">
+              {copy.builderTool.openTask}
+            </Link>
+          </>
         ) : null}
         {delegation ? (
           <>

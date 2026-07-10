@@ -46,6 +46,7 @@ async function runWorkerLoopForWorkItem(
       workspaceId: item.workspaceId ?? AI_PHOTO_LAB_WORKSPACE_ID,
       priority: item.priority,
     },
+    workItem: item,
   })
 
   assignEmployeeWorkItem({
@@ -53,6 +54,16 @@ async function runWorkerLoopForWorkItem(
     workerLoopId: result.loop.id,
     decisionPlanId: result.loop.decisionPlan?.id ?? null,
   })
+
+  if (result.loop.status === 'waiting_approval') {
+    return {
+      ok: true,
+      workItem: getUpdatedItem(employeeId, item.id),
+      loopId: result.loop.id,
+      runtimeRunId: result.loop.runtimeRunId,
+      errorMessage: null,
+    }
+  }
 
   if (result.loop.status === 'completed') {
     const completed = completeEmployeeWorkItem({

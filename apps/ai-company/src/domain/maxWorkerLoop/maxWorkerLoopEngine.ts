@@ -66,6 +66,8 @@ import {
   defaultEmployeeWorkerLoopConstraints,
   resolveEmployeeWorkerLoopFeatures,
 } from '../employeeWorkerLoop/employeeWorkerLoopContext'
+import { handleBuilderToolDecisionAfterPlan } from '../builderToolDecision/builderToolDecisionWorkerLoopBridge'
+import type { WorkItem } from '../employeeWorkQueue'
 import { resolveCanonicalEmployeeId } from '../../mission-control/data/employeeIdResolver'
 import { recordMaxWorkerLoopDailyJournalOnCompletion } from '../employeeDailyJournal'
 
@@ -419,6 +421,8 @@ export function assembleMaxWorkerLoopSnapshot(
 export type RunEmployeeWorkerLoopParams = {
   employeeId: string
   input: MaxWorkerLoopInput
+  /** Source Work Queue item — required for Builder tool decision (113B). */
+  workItem?: WorkItem | null
 }
 
 /**
@@ -473,6 +477,20 @@ export async function runEmployeeWorkerLoop(
       updatedAt: new Date().toISOString(),
     })
     loop = updateMaxWorkerLoopPhase(loop, 'decision_plan', 'done', summarizeDecisionPlanPhase(decisionPlan))
+
+    const builderToolBranch = handleBuilderToolDecisionAfterPlan({
+      employeeId,
+      loop,
+      decisionPlan,
+      workItem: params.workItem ?? null,
+    })
+    if (builderToolBranch.handled) {
+      return {
+        snapshot: null,
+        loop: builderToolBranch.loop,
+        demoSnapshot: null,
+      }
+    }
 
     let peerConsultation: MaxWorkerLoopPeerConsultationSnapshot
     if (features.peerConsultation) {

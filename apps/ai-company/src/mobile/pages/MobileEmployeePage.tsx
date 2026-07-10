@@ -26,6 +26,7 @@ import { MobileEmployeeRegistryProfileCard } from '../components/MobileEmployeeR
 import { MobileEmployeeExecutionNotice } from '../components/MobileEmployeeExecutionNotice'
 import { MobileEmployeeScopedReportsCard } from '../components/MobileEmployeeScopedReportsCard'
 import { MobileEmployeeConversationMemoryCard } from '../components/MobileEmployeeConversationMemoryCard'
+import { MobileBuilderToolStatusCard } from '../components/MobileBuilderToolStatusCard'
 import { MobileBuilderWorkQueueActions } from '../components/MobileBuilderWorkQueueActions'
 
 export function MobileEmployeePage() {
@@ -75,6 +76,12 @@ export function MobileEmployeePage() {
       )}
 
       {executionNotice ? <MobileEmployeeExecutionNotice message={executionNotice} /> : null}
+
+      {isBuilder ? (
+        <MobileSection title={t.mobile.employeeProfiles.builder.toolStatus.title}>
+          <MobileBuilderToolStatusCard employeeId={employeeId} />
+        </MobileSection>
+      ) : null}
 
       {showRuntime && profile.activeWorkerLoop ? (
         <div data-mobile-guide="max-runtime">

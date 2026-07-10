@@ -112,6 +112,9 @@ function buildTimelineLabels(copy: typeof import('../../i18n/mobile/ru').mobileR
     delegationApprovedBody: copy.bodies.delegationApproved,
     delegationRejectedBody: copy.bodies.delegationRejected,
     delegationExecutedBody: copy.bodies.delegationExecuted,
+    toolRequestedBody: copy.bodies.toolRequested,
+    toolApprovedBody: copy.bodies.toolApproved,
+    toolRejectedBody: copy.bodies.toolRejected,
     taskAssignedBody: copy.bodies.taskAssigned,
   }
 }
@@ -179,6 +182,8 @@ export function useMobileEmployeeChat(employeeId: string) {
       APPROVAL_SYNC_EVENT,
       DELEGATION_PLAN_SYNC_EVENT,
       DELEGATION_REVIEW_SYNC_EVENT,
+      'ai-company-builder-tool-decision-sync',
+      'ai-company-builder-tool-execution-sync',
       'ai-company-runtime-sync',
     ]
     for (const eventName of events) {

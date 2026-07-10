@@ -30,6 +30,9 @@ export const MOBILE_CHAT_TIMELINE_EVENT_KINDS = [
   'delegation_approved',
   'delegation_rejected',
   'delegation_executed',
+  'tool_requested',
+  'tool_approved',
+  'tool_rejected',
   'task_assigned',
 ] as const
 
@@ -77,6 +80,9 @@ export type MobileChatTimelineLabels = {
   delegationApprovedBody: string
   delegationRejectedBody: string
   delegationExecutedBody: string
+  toolRequestedBody: string
+  toolApprovedBody: string
+  toolRejectedBody: string
   taskAssignedBody: string
 }
 
