@@ -70,6 +70,7 @@ export {
   markToolExecutionQueued,
   markToolExecutionRunning,
   recordToolExecutionResult,
+  recordToolExecutionResultFromBridge,
   rejectToolExecutionRun,
   requestToolExecutionRework,
   upsertToolExecutionRun,

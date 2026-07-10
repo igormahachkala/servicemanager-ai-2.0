@@ -258,12 +258,30 @@ export function approveToolExecutionRun(id: string, message?: string | null): To
   if (!existing || existing.status !== 'awaiting_owner') return null
 
   const now = nowIso()
-  return patchRun(existing.id, {
+  const approved = patchRun(existing.id, {
     status: 'approved',
     approvedAt: now,
     error: null,
     historyMessage: message?.trim() ?? 'Owner approved tool execution.',
   })
+
+  if (approved && typeof window !== 'undefined' && approved.toolId === 'cursor') {
+    void import('../cursorLocalBridge/cursorLocalBridgeSync').then(({ queueToolExecutionRunForCursorBridge }) =>
+      queueToolExecutionRunForCursorBridge({
+        runId: approved.id,
+        title: approved.title,
+        instructions: approved.instructions,
+        expectedResult: approved.expectedResult,
+        fileScope: approved.fileScope,
+        checks: approved.checks,
+        employeeId: approved.employeeId,
+        workItemId: approved.workItemId,
+        companyId: approved.companyId,
+      }),
+    )
+  }
+
+  return approved
 }
 
 export function rejectToolExecutionRun(id: string, reason?: string | null): ToolExecutionRun | null {
