@@ -114,3 +114,35 @@ export function serializeSubscription(sub: PushSubscription): { endpoint: string
     keys: { p256dh: json.keys?.p256dh || '', auth: json.keys?.auth || '' },
   }
 }
+
+/**
+ * Badging API — счётчик на иконке PWA. count>0 → setAppBadge, иначе clearAppBadge.
+ * Feature-detect ('setAppBadge' in navigator); без поддержки — тихий no-op, не падаем.
+ */
+export function applyAppBadge(count: number): void {
+  if (typeof navigator === 'undefined') return
+  try {
+    const nav = navigator as Navigator & {
+      setAppBadge?: (n?: number) => Promise<void>
+      clearAppBadge?: () => Promise<void>
+    }
+    if (count > 0) {
+      if ('setAppBadge' in navigator) void nav.setAppBadge?.(count)
+    } else {
+      if ('clearAppBadge' in navigator) void nav.clearAppBadge?.()
+    }
+  } catch {
+    /* Badging не поддерживается на этой платформе — не критично */
+  }
+}
+
+/**
+ * Подписка на сообщения Service Worker (см. web/public/sw.js: 'push-navigate' / 'push-badge-update').
+ * Возвращает cleanup для снятия слушателя. Без serviceWorker — no-op.
+ */
+export function subscribeToServiceWorkerMessages(handler: (data: unknown) => void): () => void {
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return () => {}
+  const listener = (event: MessageEvent) => handler(event.data)
+  navigator.serviceWorker.addEventListener('message', listener)
+  return () => navigator.serviceWorker.removeEventListener('message', listener)
+}
