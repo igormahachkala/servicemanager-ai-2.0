@@ -63,6 +63,24 @@ function syncPromisedToDo(messages: MobileEmployeeChatMessage[]): string[] {
     if (message.kind === 'task_proposal' && message.taskProposal && !message.workItemId) {
       items.push(`Task proposal: ${message.taskProposal.title}`)
     }
+    if (
+      message.kind === 'delegation_proposal' &&
+      message.delegationProposal &&
+      message.delegationProposal.status === 'pending'
+    ) {
+      items.push(
+        `Delegation proposal: ${message.delegationProposal.recommendedDisplayName} — ${message.delegationProposal.taskProposal.title}`,
+      )
+    }
+    if (
+      message.kind === 'delegation_event' &&
+      message.delegationProposal &&
+      message.delegationProposal.status === 'awaiting_execution'
+    ) {
+      items.push(
+        `Awaiting delegation: ${message.delegationProposal.recommendedDisplayName} — ${message.delegationProposal.taskProposal.title}`,
+      )
+    }
     if (message.kind === 'clarification' && /могу|could|готов|готова|предлож/i.test(message.content)) {
       items.push(message.content.slice(0, 100))
     }
@@ -77,6 +95,15 @@ function syncAwaitingConfirmation(employeeId: string, messages: MobileEmployeeCh
   for (const message of messages) {
     if (message.kind === 'task_proposal' && message.taskProposal && !message.workItemId) {
       items.push(`Confirm task: ${message.taskProposal.title}`)
+    }
+    if (
+      message.kind === 'delegation_proposal' &&
+      message.delegationProposal &&
+      message.delegationProposal.status === 'pending'
+    ) {
+      items.push(
+        `Owner должен подтвердить передачу задачи ${message.delegationProposal.recommendedDisplayName}.`,
+      )
     }
   }
 

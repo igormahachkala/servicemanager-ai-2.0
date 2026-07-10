@@ -7,6 +7,7 @@ import { loadCursorHandoffFromChatProposals } from '../../domain/cursorHandoffFr
 import { mobileMaxChatId } from '../../domain/cursorHandoffFromChat/cursorHandoffFromChatFlow'
 import { loadEmployeeDailyJournalEntries } from '../../domain/employeeDailyJournal/employeeDailyJournalStorage'
 import { loadEmployeeWorkItems } from '../../domain/employeeWorkQueue/employeeWorkQueueStorage'
+import { listDelegationPlans } from '../../domain/delegationPlan'
 import { MAX_WORKER_EMPLOYEE_ID } from '../../domain/maxWorkerLoop'
 import { loadMaxWorkerLoopRecords } from '../../domain/maxWorkerLoop/maxWorkerLoopStorage'
 import { loadRuntimeRuns } from '../../domain/runtime/runtimeOrchestrator'
@@ -53,6 +54,10 @@ function messageFilters(message: MobileEmployeeChatMessage): MobileChatTimelineF
     case 'system_status':
       filters.push('system')
       break
+    case 'delegation_proposal':
+    case 'delegation_event':
+      filters.push('messages', 'work')
+      break
     default:
       filters.push('messages')
       break
@@ -79,6 +84,7 @@ function chatEntry(message: MobileEmployeeChatMessage): MobileChatTimelineEntry 
     workerLoopId: message.workerLoopId ?? null,
     cursorHandoffId: message.cursorHandoffId ?? null,
     approvalId: null,
+    delegationPlanId: null,
   }
 }
 
@@ -113,6 +119,12 @@ function eventTone(kind: MobileChatTimelineEventKind): MobileChatTimelineTone {
       return 'error'
     case 'owner_approval':
       return 'warning'
+    case 'delegation_proposed':
+      return 'info'
+    case 'delegation_approved':
+      return 'success'
+    case 'delegation_rejected':
+      return 'error'
     case 'runtime_started':
     case 'task_started':
       return 'info'
@@ -133,6 +145,7 @@ function derivedEvent(input: {
   workerLoopId?: string | null
   cursorHandoffId?: string | null
   approvalId?: string | null
+  delegationPlanId?: string | null
   tone?: MobileChatTimelineTone
 }): MobileChatTimelineEntry {
   return {
@@ -152,6 +165,7 @@ function derivedEvent(input: {
     workerLoopId: input.workerLoopId ?? null,
     cursorHandoffId: input.cursorHandoffId ?? null,
     approvalId: input.approvalId ?? null,
+    delegationPlanId: input.delegationPlanId ?? null,
   }
 }
 
@@ -433,6 +447,72 @@ function collectCursorHandoffEvents(
   }
 }
 
+function collectDelegationPlanEvents(
+  labels: MobileChatTimelineLabels,
+  bucket: MobileChatTimelineEntry[],
+  seen: Set<string>,
+): void {
+  for (const plan of listDelegationPlans()) {
+    for (const entry of plan.history) {
+      if (entry.kind === 'proposed' || entry.kind === 'awaiting_owner') {
+        pushEntry(
+          bucket,
+          seen,
+          derivedEvent({
+            id: `evt:delegation_proposed:${plan.id}:${entry.id}`,
+            kind: 'delegation_proposed',
+            createdAt: entry.at,
+            content: labels.delegationProposedBody
+              .replace('{title}', plan.taskTitle)
+              .replace('{employee}', plan.recommendedEmployeeCodename),
+            labels,
+            delegationPlanId: plan.id,
+          }),
+        )
+        break
+      }
+    }
+
+    for (const entry of plan.history) {
+      if (entry.kind === 'approved') {
+        pushEntry(
+          bucket,
+          seen,
+          derivedEvent({
+            id: `evt:delegation_approved:${plan.id}:${entry.id}`,
+            kind: 'delegation_approved',
+            createdAt: entry.at,
+            content: labels.delegationApprovedBody
+              .replace('{title}', plan.taskTitle)
+              .replace('{employee}', plan.recommendedEmployeeCodename),
+            labels,
+            delegationPlanId: plan.id,
+            tone: 'success',
+          }),
+        )
+      }
+
+      if (entry.kind === 'rejected') {
+        pushEntry(
+          bucket,
+          seen,
+          derivedEvent({
+            id: `evt:delegation_rejected:${plan.id}:${entry.id}`,
+            kind: 'delegation_rejected',
+            createdAt: entry.at,
+            content: labels.delegationRejectedBody
+              .replace('{title}', plan.taskTitle)
+              .replace('{employee}', plan.recommendedEmployeeCodename),
+            labels,
+            delegationPlanId: plan.id,
+            tone: 'error',
+          }),
+        )
+      }
+    }
+  }
+}
+
 function collectApprovalEvents(
   employeeId: string,
   labels: MobileChatTimelineLabels,
@@ -497,6 +577,7 @@ export function buildMobileChatTimeline(input: {
     collectReportEvents(input.employeeId, input.labels, bucket, seen)
     collectCursorHandoffEvents(input.employeeId, input.labels, skipHandoffIds, bucket, seen)
     collectApprovalEvents(input.employeeId, input.labels, bucket, seen)
+    collectDelegationPlanEvents(input.labels, bucket, seen)
   }
 
   return bucket.sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt))

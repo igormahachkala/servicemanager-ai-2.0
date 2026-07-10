@@ -3,7 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import { EMPLOYEE_DAILY_JOURNAL_SYNC_EVENT } from '../../domain/employeeDailyJournal/employeeDailyJournalStorage'
 import { EMPLOYEE_WORK_QUEUE_SYNC_EVENT } from '../../domain/employeeWorkQueue/employeeWorkQueueStorage'
 import { CURSOR_HANDOFF_FROM_CHAT_SYNC_EVENT } from '../../domain/cursorHandoffFromChat/cursorHandoffFromChatStorage'
-import { recordConversationExchange } from '../../domain/conversationMemory'
+import {
+  buildEmployeeConversationContext,
+  getConversationMemoryStats,
+  recordConversationExchange,
+} from '../../domain/conversationMemory'
 import { tryProcessMobileCursorHandoffFromOwnerMessage } from '../../domain/cursorHandoffFromChat'
 import {
   hasMobileEmployeeCapability,
@@ -16,6 +20,11 @@ import { useI18n } from '../../i18n'
 import { resolveMobileEmployeeChatCopy } from '../mobileEmployeeCopy'
 import type { MobileEmployeeChatMessage } from '../chat/mobileEmployeeChat'
 import { MOBILE_EMPLOYEE_CHAT_SYNC_EVENT } from '../chat/mobileEmployeeChat'
+import { DELEGATION_PLAN_SYNC_EVENT } from '../../domain/delegationPlan'
+import {
+  approveDelegationPlan,
+  cancelDelegationPlan,
+} from '../../domain/delegationPlan/delegationPlanStorage'
 import { createWorkItemFromChatProposal } from '../chat/mobileChatTaskBridge'
 import { stashMobileChatTaskPrefill } from '../chat/mobileChatTaskPrefill'
 import {
@@ -25,6 +34,7 @@ import {
   type MobileChatTimelineFilterId,
   type MobileChatTimelineLabels,
 } from '../chat/mobileChatTimeline'
+import type { MobileChatDelegationCopy } from '../chat/mobileChatDelegation'
 import {
   appendMobileEmployeeChatMessage,
   getMobileEmployeeChatSession,
@@ -34,7 +44,13 @@ import {
   classifyOwnerChatMessage,
   respondToOwnerChatMessage,
 } from '../chat/mobileMaxChatResponder'
+import {
+  applyAssigneeToDelegationProposal,
+  persistChatDelegationPlan,
+  updateDelegationPlanAssignee,
+} from '../chat/mobileChatDelegation'
 import { useMobileRunNextSheet } from './useMobileRunNextSheet'
+import { useMobileChatDelegationEmployeeSheet } from './useMobileChatDelegationEmployeeSheet'
 
 export type MobileEmployeeChatStatus = {
   label: string
@@ -58,6 +74,19 @@ function formatTimestamp(iso: string): string {
 
 const APPROVAL_SYNC_EVENT = 'ai-company-approval-sync'
 
+function recordChatMemory(employeeId: string): void {
+  if (!hasMobileEmployeeCapability(employeeId, 'conversation_memory')) return
+  const session = getMobileEmployeeChatSession(employeeId)
+  recordConversationExchange({ employeeId, messages: session.messages })
+}
+
+function resolveMaxDelegationCopy(
+  copy: ReturnType<typeof resolveMobileEmployeeChatCopy>,
+): typeof import('../../i18n/mobile/ru').mobileRu.maxChat.delegation | null {
+  if (!('delegation' in copy) || typeof copy.delegation !== 'object') return null
+  return copy.delegation as typeof import('../../i18n/mobile/ru').mobileRu.maxChat.delegation
+}
+
 function buildTimelineLabels(copy: typeof import('../../i18n/mobile/ru').mobileRu.maxChat.timeline): MobileChatTimelineLabels {
   return {
     events: copy.events,
@@ -73,7 +102,35 @@ function buildTimelineLabels(copy: typeof import('../../i18n/mobile/ru').mobileR
     ownerApprovalApprovedBody: copy.bodies.ownerApprovalApproved,
     ownerApprovalRejectedBody: copy.bodies.ownerApprovalRejected,
     ownerApprovalPendingBody: copy.bodies.ownerApprovalPending,
+    delegationProposedBody: copy.bodies.delegationProposed,
+    delegationApprovedBody: copy.bodies.delegationApproved,
+    delegationRejectedBody: copy.bodies.delegationRejected,
   }
+}
+
+function resolveChatDelegationCopy(
+  copy: ReturnType<typeof resolveMobileEmployeeChatCopy>,
+): MobileChatDelegationCopy {
+  if ('delegation' in copy && copy.delegation && typeof copy.delegation === 'object') {
+    const delegation = copy.delegation as MobileChatDelegationCopy
+    return {
+      intro: delegation.intro ?? copy.taskProposalIntro,
+      afterConfirm: delegation.afterConfirm ?? copy.taskCreated.replace('{title}', ''),
+    }
+  }
+  return {
+    intro: copy.taskProposalIntro,
+    afterConfirm: copy.taskCreated.replace('{title}', ''),
+  }
+}
+
+function resolveDelegationProposalIntro(
+  copy: ReturnType<typeof resolveMobileEmployeeChatCopy>,
+): string {
+  if ('delegationProposalIntro' in copy && typeof copy.delegationProposalIntro === 'string') {
+    return copy.delegationProposalIntro
+  }
+  return copy.taskProposalIntro
 }
 
 export function useMobileEmployeeChat(employeeId: string) {
@@ -82,9 +139,12 @@ export function useMobileEmployeeChat(employeeId: string) {
   const copy = resolveMobileEmployeeChatCopy(canonical, t.mobile)
   const navigate = useNavigate()
   const { openRunNextFlow } = useMobileRunNextSheet()
+  const { openAssigneePicker } = useMobileChatDelegationEmployeeSheet()
+  const maxDelegationCopy = resolveMaxDelegationCopy(copy)
   const canUseCursorHandoff = hasMobileEmployeeCapability(canonical, 'cursor_handoff')
   const canShowRuntimeLive = hasMobileEmployeeCapability(canonical, 'runtime_live')
   const canRunWorkerLoop = hasMobileEmployeeCapability(canonical, 'worker_loop')
+  const canUseConversationMemory = hasMobileEmployeeCapability(canonical, 'conversation_memory')
 
   const [sessionTick, setSessionTick] = useState(0)
   const [draft, setDraft] = useState('')
@@ -109,6 +169,7 @@ export function useMobileEmployeeChat(employeeId: string) {
       MAX_WORKER_LOOP_SYNC_EVENT,
       EMPLOYEE_DAILY_JOURNAL_SYNC_EVENT,
       APPROVAL_SYNC_EVENT,
+      DELEGATION_PLAN_SYNC_EVENT,
       'ai-company-runtime-sync',
     ]
     for (const eventName of events) {
@@ -125,7 +186,15 @@ export function useMobileEmployeeChat(employeeId: string) {
   const session = getMobileEmployeeChatSession(canonical, { welcome: copy.welcome })
   const messages = session.messages
 
-  const timelineLabels = useMemo(() => buildTimelineLabels(copy.timeline), [copy.timeline])
+  const timelineLabels = useMemo(() => {
+    const base = t.mobile.maxChat.timeline
+    const local = copy.timeline
+    return buildTimelineLabels({
+      ...base,
+      events: { ...base.events, ...local.events },
+      bodies: { ...base.bodies, ...local.bodies },
+    })
+  }, [copy.timeline, t.mobile.maxChat.timeline])
 
   const timelineEntries = useMemo(
     () =>
@@ -169,8 +238,18 @@ export function useMobileEmployeeChat(employeeId: string) {
     if (isResponding) {
       return { label: copy.status.thinking, detail: null, tone: 'waiting' }
     }
+    if (canUseConversationMemory && 'memoryHint' in copy.status) {
+      const stats = getConversationMemoryStats(buildEmployeeConversationContext(canonical))
+      return {
+        label: copy.status.ready,
+        detail: copy.status.memoryHint
+          .replace('{count}', String(stats.messageCount))
+          .replace('{window}', String(stats.windowSize)),
+        tone: 'default',
+      }
+    }
     return { label: copy.status.ready, detail: copy.status.readyHint, tone: 'default' }
-  }, [canShowRuntimeLive, canonical, copy.status, isResponding])
+  }, [canShowRuntimeLive, canUseConversationMemory, canonical, copy.status, isResponding])
 
   const sendMessage = useCallback(
     async (rawContent: string) => {
@@ -228,9 +307,29 @@ export function useMobileEmployeeChat(employeeId: string) {
           text: content,
           sourceMessageId: ownerMessage.id,
           taskProposalIntro: copy.taskProposalIntro,
+          delegationProposalIntro: resolveDelegationProposalIntro(copy),
+          delegationCopy: resolveChatDelegationCopy(copy),
           reportLinkIntro: (title) => copy.reportLinkIntro.replace('{title}', title),
           questionFallback: copy.questionFallback,
         })
+
+        let delegationProposal = response.delegationProposal ?? null
+        if (delegationProposal && !response.errorMessage) {
+          delegationProposal = persistChatDelegationPlan({
+            employeeId: canonical,
+            delegationProposal,
+          })
+          if (maxDelegationCopy) {
+            appendMobileEmployeeChatMessage(canonical, {
+              role: 'system',
+              kind: 'delegation_event',
+              content: maxDelegationCopy.events.proposed.replace(
+                '{employee}',
+                delegationProposal.recommendedDisplayName,
+              ),
+            })
+          }
+        }
 
         updateMobileEmployeeChatMessage(canonical, pendingId, {
           kind: response.maxKind,
@@ -240,20 +339,14 @@ export function useMobileEmployeeChat(employeeId: string) {
           pending: false,
           error: Boolean(response.errorMessage),
           taskProposal: response.taskProposal ?? null,
+          delegationProposal,
           reportId: response.reportId,
           runtimeRunId: response.runtimeRunId,
           workerLoopId: response.workerLoopId,
         })
 
-        if (
-          !response.errorMessage &&
-          hasMobileEmployeeCapability(canonical, 'conversation_memory')
-        ) {
-          const updatedSession = getMobileEmployeeChatSession(canonical)
-          recordConversationExchange({
-            employeeId: canonical,
-            messages: updatedSession.messages,
-          })
+        if (!response.errorMessage) {
+          recordChatMemory(canonical)
         }
       } catch (error) {
         updateMobileEmployeeChatMessage(canonical, pendingId, {
@@ -267,7 +360,7 @@ export function useMobileEmployeeChat(employeeId: string) {
         refresh()
       }
     },
-    [canUseCursorHandoff, canonical, copy, isResponding, messages, refresh],
+    [canUseCursorHandoff, canonical, copy, isResponding, maxDelegationCopy, messages, refresh],
   )
 
   const createTaskFromProposal = useCallback(
@@ -328,6 +421,146 @@ export function useMobileEmployeeChat(employeeId: string) {
     [canonical, copy.proposalCancelled, refresh],
   )
 
+  const approveDelegationProposal = useCallback(
+    (message: MobileEmployeeChatMessage) => {
+      const proposal = message.delegationProposal
+      if (!proposal || proposal.status !== 'pending' || !maxDelegationCopy) return
+      setActionError(null)
+
+      try {
+        updateDelegationPlanAssignee(proposal.delegationPlanId, proposal.selectedEmployeeId)
+        const approved = approveDelegationPlan(proposal.delegationPlanId)
+        if (!approved) {
+          throw new Error(copy.actionFailed)
+        }
+
+        const nextProposal = { ...proposal, status: 'awaiting_execution' as const }
+        updateMobileEmployeeChatMessage(canonical, message.id, {
+          kind: 'delegation_event',
+          delegationProposal: nextProposal,
+        })
+
+        appendMobileEmployeeChatMessage(canonical, {
+          role: 'system',
+          kind: 'delegation_event',
+          content: maxDelegationCopy.events.approved.replace(
+            '{employee}',
+            proposal.recommendedDisplayName,
+          ),
+        })
+        appendMobileEmployeeChatMessage(canonical, {
+          role: 'system',
+          kind: 'delegation_event',
+          content: maxDelegationCopy.events.awaitingExecution.replace(
+            '{employee}',
+            proposal.recommendedDisplayName,
+          ),
+        })
+
+        recordChatMemory(canonical)
+        refresh()
+      } catch (error) {
+        setActionError(error instanceof Error ? error.message : copy.errors.generic)
+      }
+    },
+    [canonical, copy.actionFailed, copy.errors.generic, maxDelegationCopy, refresh],
+  )
+
+  const keepDelegationWithMax = useCallback(
+    (message: MobileEmployeeChatMessage) => {
+      const proposal = message.delegationProposal
+      if (!proposal || proposal.status !== 'pending' || !maxDelegationCopy) return
+      setActionError(null)
+
+      try {
+        cancelDelegationPlan(proposal.delegationPlanId, maxDelegationCopy.events.keepMax)
+        updateMobileEmployeeChatMessage(canonical, message.id, {
+          kind: 'task_proposal',
+          taskProposal: proposal.taskProposal,
+          delegationProposal: null,
+          content: `${copy.taskProposalIntro}\n\n«${proposal.taskProposal.title}»`,
+        })
+        appendMobileEmployeeChatMessage(canonical, {
+          role: 'system',
+          kind: 'delegation_event',
+          content: maxDelegationCopy.events.keepMax,
+        })
+        recordChatMemory(canonical)
+        refresh()
+      } catch (error) {
+        setActionError(error instanceof Error ? error.message : copy.errors.generic)
+      }
+    },
+    [
+      canonical,
+      copy.errors.generic,
+      copy.taskProposalIntro,
+      maxDelegationCopy,
+      refresh,
+    ],
+  )
+
+  const cancelDelegationProposal = useCallback(
+    (message: MobileEmployeeChatMessage) => {
+      const proposal = message.delegationProposal
+      if (!proposal || proposal.status !== 'pending' || !maxDelegationCopy) return
+      setActionError(null)
+
+      try {
+        cancelDelegationPlan(proposal.delegationPlanId, maxDelegationCopy.events.cancelled)
+        updateMobileEmployeeChatMessage(canonical, message.id, {
+          kind: 'delegation_event',
+          delegationProposal: { ...proposal, status: 'cancelled' },
+          content: `${message.content}\n\n${maxDelegationCopy.events.cancelled}`,
+        })
+        appendMobileEmployeeChatMessage(canonical, {
+          role: 'system',
+          kind: 'delegation_event',
+          content: maxDelegationCopy.events.cancelled,
+        })
+        recordChatMemory(canonical)
+        refresh()
+      } catch (error) {
+        setActionError(error instanceof Error ? error.message : copy.errors.generic)
+      }
+    },
+    [canonical, copy.errors.generic, maxDelegationCopy, refresh],
+  )
+
+  const changeDelegationAssignee = useCallback(
+    (message: MobileEmployeeChatMessage) => {
+      const proposal = message.delegationProposal
+      if (!proposal || proposal.status !== 'pending' || !maxDelegationCopy) return
+
+      openAssigneePicker({
+        selectedEmployeeId: proposal.selectedEmployeeId,
+        onSelect: (employeeId) => {
+          const nextProposal = applyAssigneeToDelegationProposal(
+            proposal,
+            employeeId,
+            resolveChatDelegationCopy(copy),
+          )
+          updateDelegationPlanAssignee(proposal.delegationPlanId, employeeId)
+          updateMobileEmployeeChatMessage(canonical, message.id, {
+            delegationProposal: nextProposal,
+            content: `${resolveDelegationProposalIntro(copy)}\n\n«${nextProposal.taskProposal.title}» → ${nextProposal.recommendedDisplayName}`,
+          })
+          appendMobileEmployeeChatMessage(canonical, {
+            role: 'system',
+            kind: 'delegation_event',
+            content: maxDelegationCopy.events.overridden.replace(
+              '{employee}',
+              nextProposal.recommendedDisplayName,
+            ),
+          })
+          recordChatMemory(canonical)
+          refresh()
+        },
+      })
+    },
+    [canonical, copy, maxDelegationCopy, openAssigneePicker, refresh],
+  )
+
   return {
     status,
     timelineEntries,
@@ -344,6 +577,10 @@ export function useMobileEmployeeChat(employeeId: string) {
     createTaskFromProposal,
     editTaskProposal,
     cancelTaskProposal,
+    approveDelegationProposal,
+    changeDelegationAssignee,
+    keepDelegationWithMax,
+    cancelDelegationProposal,
     refresh,
   }
 }

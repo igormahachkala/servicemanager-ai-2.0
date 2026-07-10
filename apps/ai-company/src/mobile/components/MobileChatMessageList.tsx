@@ -3,6 +3,7 @@ import type { MobileEmployeeChatMessage } from '../chat/mobileEmployeeChat'
 import type { MobileChatTimelineEntry } from '../chat/mobileChatTimelineTypes'
 import { mobileReportHref, mobileRuntimeLoopHref, mobileRuntimeRunHref } from '../navigation/mobileHrefResolver'
 import { MobileChatCursorHandoffCard } from './MobileChatCursorHandoffCard'
+import { MobileChatDelegationProposalCard } from './MobileChatDelegationProposalCard'
 import { useI18n } from '../../i18n'
 
 type BubbleProps = {
@@ -12,6 +13,10 @@ type BubbleProps = {
   onRunNow?: () => void
   onEdit?: () => void
   onCancel?: () => void
+  onApproveDelegation?: () => void
+  onChangeDelegationAssignee?: () => void
+  onKeepDelegationWithMax?: () => void
+  onCancelDelegation?: () => void
   onHandoffUpdated?: () => void
 }
 
@@ -22,6 +27,10 @@ export function MobileChatTimelineBubble({
   onRunNow,
   onEdit,
   onCancel,
+  onApproveDelegation,
+  onChangeDelegationAssignee,
+  onKeepDelegationWithMax,
+  onCancelDelegation,
   onHandoffUpdated,
 }: BubbleProps) {
   const { t } = useI18n()
@@ -78,6 +87,18 @@ export function MobileChatTimelineBubble({
         <MobileChatCursorHandoffCard
           handoffId={message.cursorHandoffId}
           onUpdated={onHandoffUpdated}
+        />
+      ) : null}
+
+      {message?.kind === 'delegation_proposal' &&
+      message.delegationProposal &&
+      !message.pending ? (
+        <MobileChatDelegationProposalCard
+          proposal={message.delegationProposal}
+          onApprove={() => onApproveDelegation?.()}
+          onChangeAssignee={() => onChangeDelegationAssignee?.()}
+          onKeepMax={() => onKeepDelegationWithMax?.()}
+          onCancel={() => onCancelDelegation?.()}
         />
       ) : null}
 
@@ -181,6 +202,10 @@ type ListProps = {
   onRunNow: (message: MobileEmployeeChatMessage) => void
   onEditTask: (message: MobileEmployeeChatMessage) => void
   onCancelProposal: (message: MobileEmployeeChatMessage) => void
+  onApproveDelegation: (message: MobileEmployeeChatMessage) => void
+  onChangeDelegationAssignee: (message: MobileEmployeeChatMessage) => void
+  onKeepDelegationWithMax: (message: MobileEmployeeChatMessage) => void
+  onCancelDelegation: (message: MobileEmployeeChatMessage) => void
   onHandoffUpdated?: () => void
 }
 
@@ -191,6 +216,10 @@ export function MobileChatMessageList({
   onRunNow,
   onEditTask,
   onCancelProposal,
+  onApproveDelegation,
+  onChangeDelegationAssignee,
+  onKeepDelegationWithMax,
+  onCancelDelegation,
   onHandoffUpdated,
 }: ListProps) {
   return (
@@ -207,6 +236,26 @@ export function MobileChatMessageList({
           onEdit={entry.message ? () => onEditTask(entry.message as MobileEmployeeChatMessage) : undefined}
           onCancel={
             entry.message ? () => onCancelProposal(entry.message as MobileEmployeeChatMessage) : undefined
+          }
+          onApproveDelegation={
+            entry.message
+              ? () => onApproveDelegation(entry.message as MobileEmployeeChatMessage)
+              : undefined
+          }
+          onChangeDelegationAssignee={
+            entry.message
+              ? () => onChangeDelegationAssignee(entry.message as MobileEmployeeChatMessage)
+              : undefined
+          }
+          onKeepDelegationWithMax={
+            entry.message
+              ? () => onKeepDelegationWithMax(entry.message as MobileEmployeeChatMessage)
+              : undefined
+          }
+          onCancelDelegation={
+            entry.message
+              ? () => onCancelDelegation(entry.message as MobileEmployeeChatMessage)
+              : undefined
           }
           onHandoffUpdated={onHandoffUpdated}
         />

@@ -26,6 +26,9 @@ export const MOBILE_CHAT_TIMELINE_EVENT_KINDS = [
   'cursor_handoff_sent',
   'cursor_result_received',
   'owner_approval',
+  'delegation_proposed',
+  'delegation_approved',
+  'delegation_rejected',
 ] as const
 
 export type MobileChatTimelineEventKind = (typeof MOBILE_CHAT_TIMELINE_EVENT_KINDS)[number]
@@ -49,6 +52,7 @@ export type MobileChatTimelineEntry = {
   workerLoopId: string | null
   cursorHandoffId: string | null
   approvalId: string | null
+  delegationPlanId: string | null
 }
 
 export type MobileChatTimelineEventCopy = Record<MobileChatTimelineEventKind, string>
@@ -67,6 +71,9 @@ export type MobileChatTimelineLabels = {
   ownerApprovalApprovedBody: string
   ownerApprovalRejectedBody: string
   ownerApprovalPendingBody: string
+  delegationProposedBody: string
+  delegationApprovedBody: string
+  delegationRejectedBody: string
 }
 
 export function matchesMobileChatTimelineFilter(

@@ -1,11 +1,9 @@
 /**
- * Mobile employee chat V1 — types (AI-COMPANY-110A).
+ * Mobile employee chat — types (110A + 112E delegation).
  */
 
 import type { WorkPriority } from '../../domain/employeeWorkQueue'
-import {
-  type WorkItemStructuredPayload,
-} from '../../domain/employeeWorkQueue/workItemStructuredPayload'
+import { type WorkItemStructuredPayload } from '../../domain/employeeWorkQueue/workItemStructuredPayload'
 import { MAX_WORKER_EMPLOYEE_ID } from '../../domain/maxWorkerLoop'
 
 export const MOBILE_EMPLOYEE_CHAT_VERSION = 'v1' as const
@@ -17,6 +15,8 @@ export const MOBILE_EMPLOYEE_CHAT_MESSAGE_KINDS = [
   'task_request',
   'clarification',
   'task_proposal',
+  'delegation_proposal',
+  'delegation_event',
   'cursor_handoff',
   'report_link',
   'system_status',
@@ -28,12 +28,45 @@ export const MOBILE_EMPLOYEE_CHAT_ROLES = ['owner', 'max', 'system'] as const
 
 export type MobileEmployeeChatRole = (typeof MOBILE_EMPLOYEE_CHAT_ROLES)[number]
 
+export const MOBILE_EMPLOYEE_CHAT_DELEGATION_STATUSES = [
+  'pending',
+  'awaiting_execution',
+  'cancelled',
+  'keep_max',
+] as const
+
+export type MobileEmployeeChatDelegationStatus =
+  (typeof MOBILE_EMPLOYEE_CHAT_DELEGATION_STATUSES)[number]
+
+export type MobileEmployeeChatDelegationAlternative = {
+  employeeId: string
+  displayName: string
+  title: string
+  whyNotChosen: string | null
+}
+
 export type MobileEmployeeChatTaskProposal = {
   title: string
   taskText: string
   priority?: WorkPriority
   expectedResult?: string | null
   structuredPayload?: WorkItemStructuredPayload | null
+  sourceMessageId: string | null
+}
+
+export type MobileEmployeeChatDelegationProposal = {
+  delegationPlanId: string
+  recommendedEmployeeId: string
+  selectedEmployeeId: string
+  recommendedDisplayName: string
+  recommendedTitle: string
+  reason: string
+  confidence: number
+  expectedResult: string
+  afterConfirmSummary: string
+  alternatives: MobileEmployeeChatDelegationAlternative[]
+  taskProposal: MobileEmployeeChatTaskProposal
+  status: MobileEmployeeChatDelegationStatus
   sourceMessageId: string | null
 }
 
@@ -44,6 +77,7 @@ export type MobileEmployeeChatMessage = {
   content: string
   createdAt: string
   taskProposal?: MobileEmployeeChatTaskProposal | null
+  delegationProposal?: MobileEmployeeChatDelegationProposal | null
   reportId?: string | null
   runtimeRunId?: string | null
   workerLoopId?: string | null
@@ -104,6 +138,61 @@ function parseTaskProposal(value: unknown): MobileEmployeeChatTaskProposal | nul
   }
 }
 
+function parseDelegationAlternative(value: unknown): MobileEmployeeChatDelegationAlternative | null {
+  if (!isRecord(value)) return null
+  if (typeof value.employeeId !== 'string' || typeof value.displayName !== 'string') return null
+  if (typeof value.title !== 'string') return null
+  return {
+    employeeId: value.employeeId,
+    displayName: value.displayName,
+    title: value.title,
+    whyNotChosen: typeof value.whyNotChosen === 'string' ? value.whyNotChosen : null,
+  }
+}
+
+function parseDelegationProposal(value: unknown): MobileEmployeeChatDelegationProposal | null {
+  if (!isRecord(value)) return null
+  const taskProposal = parseTaskProposal(value.taskProposal)
+  const status = parseEnum(value.status, MOBILE_EMPLOYEE_CHAT_DELEGATION_STATUSES)
+  if (
+    !taskProposal ||
+    !status ||
+    typeof value.delegationPlanId !== 'string' ||
+    typeof value.recommendedEmployeeId !== 'string' ||
+    typeof value.selectedEmployeeId !== 'string' ||
+    typeof value.recommendedDisplayName !== 'string' ||
+    typeof value.recommendedTitle !== 'string' ||
+    typeof value.reason !== 'string' ||
+    typeof value.expectedResult !== 'string' ||
+    typeof value.afterConfirmSummary !== 'string' ||
+    typeof value.confidence !== 'number'
+  ) {
+    return null
+  }
+
+  const alternatives = Array.isArray(value.alternatives)
+    ? value.alternatives
+        .map(parseDelegationAlternative)
+        .filter((item): item is MobileEmployeeChatDelegationAlternative => item !== null)
+    : []
+
+  return {
+    delegationPlanId: value.delegationPlanId,
+    recommendedEmployeeId: value.recommendedEmployeeId,
+    selectedEmployeeId: value.selectedEmployeeId,
+    recommendedDisplayName: value.recommendedDisplayName,
+    recommendedTitle: value.recommendedTitle,
+    reason: value.reason,
+    confidence: value.confidence,
+    expectedResult: value.expectedResult,
+    afterConfirmSummary: value.afterConfirmSummary,
+    alternatives,
+    taskProposal,
+    status,
+    sourceMessageId: typeof value.sourceMessageId === 'string' ? value.sourceMessageId : null,
+  }
+}
+
 export function parseMobileEmployeeChatMessage(value: unknown): MobileEmployeeChatMessage | null {
   if (!isRecord(value)) return null
   const role = parseEnum(value.role, MOBILE_EMPLOYEE_CHAT_ROLES)
@@ -120,6 +209,9 @@ export function parseMobileEmployeeChatMessage(value: unknown): MobileEmployeeCh
     content: value.content,
     createdAt: value.createdAt,
     taskProposal: value.taskProposal ? parseTaskProposal(value.taskProposal) : null,
+    delegationProposal: value.delegationProposal
+      ? parseDelegationProposal(value.delegationProposal)
+      : null,
     reportId: typeof value.reportId === 'string' ? value.reportId : null,
     runtimeRunId: typeof value.runtimeRunId === 'string' ? value.runtimeRunId : null,
     workerLoopId: typeof value.workerLoopId === 'string' ? value.workerLoopId : null,

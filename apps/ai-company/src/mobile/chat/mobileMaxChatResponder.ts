@@ -7,6 +7,7 @@ import {
   buildEmployeeConversationContext,
   formatEmployeeConversationContextForPrompt,
 } from '../../domain/conversationMemory'
+import { getEmployee } from '../../domain/employeeRegistry'
 import { loadEmployeeDailyJournalEntries } from '../../domain/employeeDailyJournal/employeeDailyJournalStorage'
 import {
   buildMobileChatTaskProposal,
@@ -29,15 +30,24 @@ import {
 } from '../../domain/runtime/providers/runtimeCapabilities'
 import { MOBILE_MORNING_REPORT_ID } from '../reports/mobileReportsSnapshot'
 import { resolveEmployee } from '../../mission-control/data/conversation'
+import {
+  buildMobileChatDelegationProposal,
+  evaluateChatDelegationPlan,
+  shouldEvaluateChatDelegation,
+  shouldShowDelegationProposal,
+  type MobileChatDelegationCopy,
+} from './mobileChatDelegation'
 import type {
   MobileEmployeeChatMessageKind,
   MobileEmployeeChatTaskProposal,
+  MobileEmployeeChatDelegationProposal,
 } from './mobileEmployeeChat'
 
 function buildChatSystemPrompt(employeeId: string): string {
+  const registry = getEmployee(employeeId)
   const employee = resolveEmployee(employeeId)
-  const codename = employee?.codename ?? employeeId
-  const role = employee?.role ?? 'digital employee at AI Company'
+  const codename = registry?.displayName ?? employee?.codename ?? employeeId
+  const role = registry?.role.title ?? employee?.role ?? 'digital employee at AI Company'
 
   return [
     `You are ${codename}, ${role}.`,
@@ -56,9 +66,13 @@ type OllamaGenerateResponse = {
 
 export type MobileMaxChatResponderResult = {
   ownerKind: Extract<MobileEmployeeChatMessageKind, 'question' | 'task_request'>
-  maxKind: Extract<MobileEmployeeChatMessageKind, 'clarification' | 'task_proposal' | 'report_link'>
+  maxKind: Extract<
+    MobileEmployeeChatMessageKind,
+    'clarification' | 'task_proposal' | 'delegation_proposal' | 'report_link'
+  >
   content: string
   taskProposal?: MobileEmployeeChatTaskProposal | null
+  delegationProposal?: MobileEmployeeChatDelegationProposal | null
   reportId?: string | null
   runtimeRunId?: string | null
   workerLoopId?: string | null
@@ -163,6 +177,8 @@ export async function respondToOwnerChatMessage(input: {
   text: string
   sourceMessageId: string | null
   taskProposalIntro: string
+  delegationProposalIntro: string
+  delegationCopy: MobileChatDelegationCopy
   reportLinkIntro: (title: string) => string
   questionFallback: string
 }): Promise<MobileMaxChatResponderResult> {
@@ -177,11 +193,35 @@ export async function respondToOwnerChatMessage(input: {
   if (shouldProposeTaskFromIntent(intent.kind)) {
     const built = buildMobileChatTaskProposal(trimmed, intent)
     const proposal = toChatTaskProposal(built, input.sourceMessageId)
+
+    if (shouldEvaluateChatDelegation(employeeId, intent)) {
+      const plan = evaluateChatDelegationPlan({ employeeId, taskProposal: proposal })
+      if (shouldShowDelegationProposal(plan)) {
+        const delegationProposal = buildMobileChatDelegationProposal({
+          plan,
+          taskProposal: proposal,
+          copy: input.delegationCopy,
+        })
+        return {
+          ownerKind,
+          maxKind: 'delegation_proposal',
+          content: `${input.delegationProposalIntro}\n\n«${delegationProposal.taskProposal.title}» → ${delegationProposal.recommendedDisplayName}`,
+          taskProposal: null,
+          delegationProposal,
+          reportId: null,
+          runtimeRunId: runtimeRefs.runtimeRunId,
+          workerLoopId: runtimeRefs.workerLoopId,
+          usedOllama: intent.source === 'ollama',
+        }
+      }
+    }
+
     return {
       ownerKind,
       maxKind: 'task_proposal',
       content: `${input.taskProposalIntro}\n\n«${proposal.title}»`,
       taskProposal: proposal,
+      delegationProposal: null,
       reportId: null,
       runtimeRunId: runtimeRefs.runtimeRunId,
       workerLoopId: runtimeRefs.workerLoopId,
@@ -196,11 +236,15 @@ export async function respondToOwnerChatMessage(input: {
     const morningReportId = MOBILE_MORNING_REPORT_ID
     const latestReportId = findLatestMaxReportId(employeeId)
     const reportId = latestReportId ?? morningReportId
+    const employeeLabel = getEmployee(employeeId)?.displayName ?? employeeId
+    const reportTitle =
+      reportId === morningReportId ? 'Утренний отчёт' : `Последний отчёт ${employeeLabel}`
     return {
       ownerKind,
       maxKind: 'report_link',
-      content: input.reportLinkIntro(reportId === morningReportId ? 'Утренний отчёт' : 'Последний отчёт MAX'),
+      content: input.reportLinkIntro(reportTitle),
       taskProposal: null,
+      delegationProposal: null,
       reportId,
       runtimeRunId: runtimeRefs.runtimeRunId,
       workerLoopId: runtimeRefs.workerLoopId,
@@ -214,6 +258,7 @@ export async function respondToOwnerChatMessage(input: {
       maxKind: 'clarification',
       content: input.questionFallback,
       taskProposal: null,
+      delegationProposal: null,
       reportId: null,
       runtimeRunId: runtimeRefs.runtimeRunId,
       workerLoopId: runtimeRefs.workerLoopId,
@@ -228,6 +273,7 @@ export async function respondToOwnerChatMessage(input: {
       maxKind: 'clarification',
       content: answer,
       taskProposal: null,
+      delegationProposal: null,
       reportId: null,
       runtimeRunId: runtimeRefs.runtimeRunId,
       workerLoopId: runtimeRefs.workerLoopId,
@@ -239,6 +285,7 @@ export async function respondToOwnerChatMessage(input: {
       maxKind: 'clarification',
       content: input.questionFallback,
       taskProposal: null,
+      delegationProposal: null,
       reportId: null,
       runtimeRunId: runtimeRefs.runtimeRunId,
       workerLoopId: runtimeRefs.workerLoopId,

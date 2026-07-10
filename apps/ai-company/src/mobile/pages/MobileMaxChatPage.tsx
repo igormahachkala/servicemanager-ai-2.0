@@ -45,6 +45,10 @@ export function MobileMaxChatPage() {
         onRunNow={(message) => chat.createTaskFromProposal(message, true)}
         onEditTask={(message) => chat.editTaskProposal(message)}
         onCancelProposal={(message) => chat.cancelTaskProposal(message)}
+        onApproveDelegation={(message) => chat.approveDelegationProposal(message)}
+        onChangeDelegationAssignee={(message) => chat.changeDelegationAssignee(message)}
+        onKeepDelegationWithMax={(message) => chat.keepDelegationWithMax(message)}
+        onCancelDelegation={(message) => chat.cancelDelegationProposal(message)}
         onHandoffUpdated={chat.refresh}
       />
 
