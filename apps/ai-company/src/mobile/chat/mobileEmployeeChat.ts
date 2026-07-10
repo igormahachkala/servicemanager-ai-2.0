@@ -18,6 +18,7 @@ export const MOBILE_EMPLOYEE_CHAT_MESSAGE_KINDS = [
   'delegation_proposal',
   'delegation_event',
   'delegation_review',
+  'cursor_tool_review',
   'cursor_handoff',
   'report_link',
   'system_status',
@@ -90,6 +91,47 @@ export type MobileEmployeeChatDelegationReviewSnapshot = {
   reworkNotes?: string | null
 }
 
+export const MOBILE_EMPLOYEE_CHAT_CURSOR_TOOL_REVIEW_STATUSES = [
+  'awaiting_employee_review',
+  'accepted',
+  'rework_requested',
+  'rejected',
+  'sent_to_max',
+] as const
+
+export type MobileEmployeeChatCursorToolReviewStatus =
+  (typeof MOBILE_EMPLOYEE_CHAT_CURSOR_TOOL_REVIEW_STATUSES)[number]
+
+export type MobileEmployeeChatCursorToolReviewCheck = {
+  name: string
+  status: string
+  outputSummary: string
+  passed: boolean
+}
+
+export type MobileEmployeeChatCursorToolReviewSnapshot = {
+  reviewId: string
+  status: MobileEmployeeChatCursorToolReviewStatus
+  toolExecutionRunId: string
+  workItemId: string
+  taskTitle: string
+  summary: string
+  changedFiles: string[]
+  checks: MobileEmployeeChatCursorToolReviewCheck[]
+  commitSha: string | null
+  commitMessage: string | null
+  commitBranch: string | null
+  pullRequestUrl: string | null
+  warnings: string[]
+  errors: string[]
+  unfinishedItems: string[]
+  assumptions: string[]
+  evaluationNotes: string[]
+  reworkReason?: string | null
+  delegationReviewId?: string | null
+  reportId?: string | null
+}
+
 export type MobileEmployeeChatMessage = {
   id: string
   role: MobileEmployeeChatRole
@@ -99,10 +141,12 @@ export type MobileEmployeeChatMessage = {
   taskProposal?: MobileEmployeeChatTaskProposal | null
   delegationProposal?: MobileEmployeeChatDelegationProposal | null
   delegationReview?: MobileEmployeeChatDelegationReviewSnapshot | null
+  cursorToolReview?: MobileEmployeeChatCursorToolReviewSnapshot | null
   reportId?: string | null
   runtimeRunId?: string | null
   workerLoopId?: string | null
   workItemId?: string | null
+  toolExecutionRunId?: string | null
   cursorHandoffId?: string | null
   pending?: boolean
   error?: boolean
@@ -248,6 +292,70 @@ function parseDelegationReview(value: unknown): MobileEmployeeChatDelegationRevi
   }
 }
 
+function parseCursorToolReview(value: unknown): MobileEmployeeChatCursorToolReviewSnapshot | null {
+  if (!isRecord(value)) return null
+  const status =
+    value.status === 'awaiting_employee_review' ||
+    value.status === 'accepted' ||
+    value.status === 'rework_requested' ||
+    value.status === 'rejected' ||
+    value.status === 'sent_to_max'
+      ? value.status
+      : null
+  if (
+    !status ||
+    typeof value.reviewId !== 'string' ||
+    typeof value.toolExecutionRunId !== 'string' ||
+    typeof value.workItemId !== 'string' ||
+    typeof value.taskTitle !== 'string' ||
+    typeof value.summary !== 'string'
+  ) {
+    return null
+  }
+
+  const checks = Array.isArray(value.checks)
+    ? value.checks
+        .map((item) => {
+          if (!isRecord(item)) return null
+          if (typeof item.name !== 'string' || typeof item.outputSummary !== 'string') return null
+          return {
+            name: item.name,
+            status: typeof item.status === 'string' ? item.status : 'unknown',
+            outputSummary: item.outputSummary,
+            passed: item.passed === true,
+          }
+        })
+        .filter((item): item is MobileEmployeeChatCursorToolReviewCheck => item !== null)
+    : []
+
+  const stringArray = (field: unknown): string[] =>
+    Array.isArray(field) ? field.filter((item): item is string => typeof item === 'string') : []
+
+  return {
+    reviewId: value.reviewId,
+    status,
+    toolExecutionRunId: value.toolExecutionRunId,
+    workItemId: value.workItemId,
+    taskTitle: value.taskTitle,
+    summary: value.summary,
+    changedFiles: stringArray(value.changedFiles),
+    checks,
+    commitSha: typeof value.commitSha === 'string' ? value.commitSha : null,
+    commitMessage: typeof value.commitMessage === 'string' ? value.commitMessage : null,
+    commitBranch: typeof value.commitBranch === 'string' ? value.commitBranch : null,
+    pullRequestUrl: typeof value.pullRequestUrl === 'string' ? value.pullRequestUrl : null,
+    warnings: stringArray(value.warnings),
+    errors: stringArray(value.errors),
+    unfinishedItems: stringArray(value.unfinishedItems),
+    assumptions: stringArray(value.assumptions),
+    evaluationNotes: stringArray(value.evaluationNotes),
+    reworkReason: typeof value.reworkReason === 'string' ? value.reworkReason : null,
+    delegationReviewId:
+      typeof value.delegationReviewId === 'string' ? value.delegationReviewId : null,
+    reportId: typeof value.reportId === 'string' ? value.reportId : null,
+  }
+}
+
 export function parseMobileEmployeeChatMessage(value: unknown): MobileEmployeeChatMessage | null {
   if (!isRecord(value)) return null
   const role = parseEnum(value.role, MOBILE_EMPLOYEE_CHAT_ROLES)
@@ -268,10 +376,13 @@ export function parseMobileEmployeeChatMessage(value: unknown): MobileEmployeeCh
       ? parseDelegationProposal(value.delegationProposal)
       : null,
     delegationReview: value.delegationReview ? parseDelegationReview(value.delegationReview) : null,
+    cursorToolReview: value.cursorToolReview ? parseCursorToolReview(value.cursorToolReview) : null,
     reportId: typeof value.reportId === 'string' ? value.reportId : null,
     runtimeRunId: typeof value.runtimeRunId === 'string' ? value.runtimeRunId : null,
     workerLoopId: typeof value.workerLoopId === 'string' ? value.workerLoopId : null,
     workItemId: typeof value.workItemId === 'string' ? value.workItemId : null,
+    toolExecutionRunId:
+      typeof value.toolExecutionRunId === 'string' ? value.toolExecutionRunId : null,
     cursorHandoffId: typeof value.cursorHandoffId === 'string' ? value.cursorHandoffId : null,
     pending: value.pending === true,
     error: value.error === true,

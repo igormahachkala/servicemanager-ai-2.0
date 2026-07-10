@@ -30,6 +30,7 @@ export {
   acceptDelegationReview,
   completeBuilderDelegatedWorkItem,
   listPendingMaxDelegationReviews,
+  postMaxReviewCardFromToolReview,
   requestDelegationReviewRework,
   type DelegationReviewFailure,
   type DelegationReviewResult,

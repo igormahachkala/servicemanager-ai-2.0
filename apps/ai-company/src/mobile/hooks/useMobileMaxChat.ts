@@ -29,6 +29,12 @@ import {
   requestDelegationReviewRework,
 } from '../../domain/delegationReview'
 import {
+  acceptBuilderCursorToolReview,
+  rejectBuilderCursorToolReview,
+  requestBuilderCursorToolReviewRework,
+} from '../../domain/employeeToolReview'
+import { EMPLOYEE_TOOL_REVIEW_SYNC_EVENT } from '../../domain/employeeToolReview/employeeToolReviewTypes'
+import {
   approveDelegationPlan,
   cancelDelegationPlan,
 } from '../../domain/delegationPlan/delegationPlanStorage'
@@ -122,6 +128,10 @@ function buildTimelineLabels(copy: typeof import('../../i18n/mobile/ru').mobileR
     toolResultReceivedBody: copy.bodies.toolResultReceived,
     toolAcceptedBody: copy.bodies.toolAccepted,
     toolReworkRequestedBody: copy.bodies.toolReworkRequested,
+    builderReviewStartedBody: copy.bodies.builderReviewStarted,
+    builderAcceptedToolResultBody: copy.bodies.builderAcceptedToolResult,
+    builderRequestedToolReworkBody: copy.bodies.builderRequestedToolRework,
+    resultSentToMaxBody: copy.bodies.resultSentToMax,
     taskAssignedBody: copy.bodies.taskAssigned,
   }
 }
@@ -189,6 +199,7 @@ export function useMobileEmployeeChat(employeeId: string) {
       APPROVAL_SYNC_EVENT,
       DELEGATION_PLAN_SYNC_EVENT,
       DELEGATION_REVIEW_SYNC_EVENT,
+      EMPLOYEE_TOOL_REVIEW_SYNC_EVENT,
       'ai-company-builder-tool-decision-sync',
       'ai-company-builder-tool-execution-sync',
       TOOL_EXECUTION_RUN_SYNC_EVENT,
@@ -213,6 +224,7 @@ export function useMobileEmployeeChat(employeeId: string) {
       const { syncCursorLocalBridgeToDomain } = await import('../../domain/cursorLocalBridge')
       if (!active) return
       await syncCursorLocalBridgeToDomain()
+      refresh()
     }
 
     void syncBridge()
@@ -687,6 +699,64 @@ export function useMobileEmployeeChat(employeeId: string) {
     [refresh],
   )
 
+  const acceptCursorToolReviewProposal = useCallback(
+    (message: MobileEmployeeChatMessage) => {
+      const review = message.cursorToolReview
+      if (!review || review.status !== 'awaiting_employee_review') return
+      setActionError(null)
+
+      const result = acceptBuilderCursorToolReview(review.reviewId)
+      if (!result.ok) {
+        setActionError(result.message)
+        return
+      }
+      refresh()
+    },
+    [refresh],
+  )
+
+  const reworkCursorToolReviewProposal = useCallback(
+    (message: MobileEmployeeChatMessage) => {
+      const review = message.cursorToolReview
+      if (!review || review.status !== 'awaiting_employee_review') return
+      setActionError(null)
+
+      const reason =
+        typeof window !== 'undefined'
+          ? window.prompt('Замечания для Cursor (обязательно):') ?? ''
+          : ''
+
+      const result = requestBuilderCursorToolReviewRework(review.reviewId, reason)
+      if (!result.ok) {
+        setActionError(result.message)
+        return
+      }
+      refresh()
+    },
+    [refresh],
+  )
+
+  const rejectCursorToolReviewProposal = useCallback(
+    (message: MobileEmployeeChatMessage) => {
+      const review = message.cursorToolReview
+      if (!review || review.status !== 'awaiting_employee_review') return
+      setActionError(null)
+
+      const reason =
+        typeof window !== 'undefined'
+          ? window.prompt('Причина отклонения (необязательно):') ?? undefined
+          : undefined
+
+      const result = rejectBuilderCursorToolReview(review.reviewId, reason)
+      if (!result.ok) {
+        setActionError(result.message)
+        return
+      }
+      refresh()
+    },
+    [refresh],
+  )
+
   return {
     status,
     timelineEntries,
@@ -710,6 +780,9 @@ export function useMobileEmployeeChat(employeeId: string) {
     executeDelegationProposal,
     acceptDelegationReviewProposal,
     reworkDelegationReviewProposal,
+    acceptCursorToolReviewProposal,
+    reworkCursorToolReviewProposal,
+    rejectCursorToolReviewProposal,
     refresh,
   }
 }

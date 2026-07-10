@@ -14,6 +14,7 @@ import {
   CURSOR_LOCAL_OUTBOX_RELATIVE,
 } from './cursorLocalAdapterDetect'
 import { assertCursorLocalPayloadSafe, sanitizeCursorLocalText } from './cursorLocalAdapterSecurity'
+import { buildCursorResultOutboxInstructionsBlock } from '../cursorResult/cursorResultEnvelopeTypes'
 import { saveCursorLocalTaskEnvelope } from './cursorLocalAdapterStorage'
 
 function createEnvelopeId(): string {
@@ -29,10 +30,11 @@ function buildChecksMarkdown(checks: string[]): string {
 
 function buildTaskMarkdown(input: PrepareCursorLocalTaskInput, envelopeId: string): string {
   const scope = input.fileScope ?? []
+  const runId = input.toolExecutionRunId?.trim()
   const lines = [
     `# ${sanitizeCursorLocalText(input.title.trim())}`,
     '',
-    `Envelope: \`${envelopeId}\``,
+    runId ? `Run: \`${runId}\`` : `Envelope: \`${envelopeId}\``,
     '',
     '## Instructions',
     sanitizeCursorLocalText(input.instructions.trim()),
@@ -43,8 +45,14 @@ function buildTaskMarkdown(input: PrepareCursorLocalTaskInput, envelopeId: strin
     '## Policy',
     '- Cursor is an external tool, not a digital employee.',
     '- No secrets, tokens, `.env`, private keys, or hardcoded IP in this package.',
-    '- Return summary via outbox result.md or Owner ingest in AI Company.',
   ]
+
+  if (runId) {
+    lines.push('', buildCursorResultOutboxInstructionsBlock(runId))
+  } else {
+    lines.push('- Return summary via outbox result.json or Owner ingest in AI Company.')
+  }
+
   return lines.join('\n')
 }
 

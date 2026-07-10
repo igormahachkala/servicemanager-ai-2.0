@@ -12,6 +12,34 @@ import {
 import { assertPayloadSafe, sanitizeText } from './security.ts'
 import type { CursorBridgeEnqueueRequest } from './types.ts'
 
+function buildResultInstructionsBlock(runId: string): string {
+  return [
+    '## Cursor result (required)',
+    '',
+    'After completing the work and running checks, create:',
+    '',
+    '```',
+    `.ai-company/cursor-outbox/${runId}/result.json`,
+    '```',
+    '',
+    'Use the **CursorResultEnvelope v1** schema:',
+    '',
+    '- `version`: `"v1"`',
+    '- `toolExecutionRunId`: this run id',
+    '- `workItemId`, `employeeId`: from task metadata',
+    '- `status`: `completed` | `failed` | `partial`',
+    '- `summary`: short outcome for Builder review',
+    '- `changedFiles[]`: relative paths only',
+    '- `checks[]`: `{ name, status, outputSummary }` per check',
+    '- `commit`: `{ sha, message, branch }` or null',
+    '- `pullRequest`: `{ url, title, number }` or null',
+    '- `warnings[]`, `errors[]`, `assumptions[]`, `unfinishedItems[]`',
+    '- `completedAt`: ISO timestamp',
+    '',
+    'Do **not** include secrets, tokens, `.env` contents, private keys, or hardcoded IP addresses.',
+  ].join('\n')
+}
+
 export type InboxMetadata = {
   version: 'v1'
   runId: string
@@ -59,7 +87,8 @@ function buildTaskMarkdown(request: CursorBridgeEnqueueRequest, runId: string): 
     '## Policy',
     '- Cursor is an external tool — work happens in an active Cursor session.',
     '- No secrets, tokens, environment variable files, private keys, or hardcoded IP in this package.',
-    '- Place result in `.ai-company/cursor-outbox/<runId>/result.json` when done.',
+    '',
+    buildResultInstructionsBlock(runId),
   ].join('\n')
 }
 

@@ -6,6 +6,7 @@ import { MobileChatCursorHandoffCard } from './MobileChatCursorHandoffCard'
 import { MobileChatDelegationProposalCard } from './MobileChatDelegationProposalCard'
 import { MobileChatDelegationExecutionCard } from './MobileChatDelegationExecutionCard'
 import { MobileChatDelegationReviewCard } from './MobileChatDelegationReviewCard'
+import { MobileBuilderCursorToolReviewCard } from './MobileBuilderCursorToolReviewCard'
 import { useI18n } from '../../i18n'
 
 type BubbleProps = {
@@ -22,6 +23,9 @@ type BubbleProps = {
   onExecuteDelegation?: () => void
   onAcceptDelegationReview?: () => void
   onReworkDelegationReview?: () => void
+  onAcceptCursorToolReview?: () => void
+  onReworkCursorToolReview?: () => void
+  onRejectCursorToolReview?: () => void
   onHandoffUpdated?: () => void
 }
 
@@ -39,10 +43,14 @@ export function MobileChatTimelineBubble({
   onExecuteDelegation,
   onAcceptDelegationReview,
   onReworkDelegationReview,
+  onAcceptCursorToolReview,
+  onReworkCursorToolReview,
+  onRejectCursorToolReview,
   onHandoffUpdated,
 }: BubbleProps) {
   const { t } = useI18n()
   const copy = t.mobile.maxChat
+  const builderCopy = t.mobile.employeeChat.builder
   const message = entry.message
 
   const ownerNotice =
@@ -50,9 +58,15 @@ export function MobileChatTimelineBubble({
       ? copy.review.events.acceptedOwner
       : message?.kind === 'system_status' && message.content === 'MAX_REVIEW_REWORK_REQUESTED'
         ? copy.review.events.reworkRequested
-        : message?.kind === 'delegation_review' && message.content === 'DELEGATION_REVIEW_CARD'
-          ? copy.review.cardTitle
-          : null
+        : message?.kind === 'system_status' && message.content === 'BUILDER_CURSOR_ACCEPTED_SENT_TO_MAX'
+          ? builderCopy.cursorReview.events.sentToMax
+          : message?.kind === 'system_status' && message.content === 'BUILDER_CURSOR_REWORK_REQUESTED'
+            ? builderCopy.cursorReview.events.reworkRequested
+            : message?.kind === 'delegation_review' && message.content === 'DELEGATION_REVIEW_CARD'
+              ? copy.review.cardTitle
+              : message?.kind === 'cursor_tool_review' && message.content === 'CURSOR_TOOL_REVIEW_CARD'
+                ? builderCopy.cursorReview.cardTitle
+                : null
 
   const roleLabel =
     entry.role === 'owner'
@@ -105,6 +119,15 @@ export function MobileChatTimelineBubble({
           review={message.delegationReview}
           onAccept={() => onAcceptDelegationReview?.()}
           onRework={() => onReworkDelegationReview?.()}
+        />
+      ) : null}
+
+      {message?.kind === 'cursor_tool_review' && message.cursorToolReview ? (
+        <MobileBuilderCursorToolReviewCard
+          review={message.cursorToolReview}
+          onAccept={() => onAcceptCursorToolReview?.()}
+          onRework={() => onReworkCursorToolReview?.()}
+          onReject={() => onRejectCursorToolReview?.()}
         />
       ) : null}
 
@@ -244,6 +267,9 @@ type ListProps = {
   onExecuteDelegation: (message: MobileEmployeeChatMessage) => void
   onAcceptDelegationReview: (message: MobileEmployeeChatMessage) => void
   onReworkDelegationReview: (message: MobileEmployeeChatMessage) => void
+  onAcceptCursorToolReview: (message: MobileEmployeeChatMessage) => void
+  onReworkCursorToolReview: (message: MobileEmployeeChatMessage) => void
+  onRejectCursorToolReview: (message: MobileEmployeeChatMessage) => void
   onHandoffUpdated?: () => void
 }
 
@@ -261,6 +287,9 @@ export function MobileChatMessageList({
   onExecuteDelegation,
   onAcceptDelegationReview,
   onReworkDelegationReview,
+  onAcceptCursorToolReview,
+  onReworkCursorToolReview,
+  onRejectCursorToolReview,
   onHandoffUpdated,
 }: ListProps) {
   return (
@@ -311,6 +340,21 @@ export function MobileChatMessageList({
           onReworkDelegationReview={
             entry.message
               ? () => onReworkDelegationReview(entry.message as MobileEmployeeChatMessage)
+              : undefined
+          }
+          onAcceptCursorToolReview={
+            entry.message
+              ? () => onAcceptCursorToolReview(entry.message as MobileEmployeeChatMessage)
+              : undefined
+          }
+          onReworkCursorToolReview={
+            entry.message
+              ? () => onReworkCursorToolReview(entry.message as MobileEmployeeChatMessage)
+              : undefined
+          }
+          onRejectCursorToolReview={
+            entry.message
+              ? () => onRejectCursorToolReview(entry.message as MobileEmployeeChatMessage)
               : undefined
           }
           onHandoffUpdated={onHandoffUpdated}

@@ -6,9 +6,9 @@ import {
   getToolExecutionRun,
   markToolExecutionQueued,
   markToolExecutionRunning,
-  recordToolExecutionResultFromBridge,
 } from '../toolExecution/toolExecutionRunStorage'
 import { TOOL_EXECUTION_RUN_SYNC_EVENT } from '../toolExecution/toolExecutionRunTypes'
+import { ingestCursorResultEnvelope } from '../cursorResult/cursorResultIngest'
 import {
   enqueueCursorLocalBridgeRun,
   fetchCursorLocalBridgeRuns,
@@ -99,12 +99,10 @@ export async function syncCursorLocalBridgeToDomain(): Promise<number> {
         toolRun.status === 'awaiting_employee_review' ||
         toolRun.status === 'accepted'
       if (!terminal) {
-        const recorded = recordToolExecutionResultFromBridge({
-          runId: toolRun.id,
-          output: bridgeRun.result as unknown as Record<string, unknown>,
-          deliveryMode: 'cursor_v1',
+        const ingested = ingestCursorResultEnvelope(bridgeRun.result as unknown as Record<string, unknown>, {
+          expectedRunId: toolRun.id,
         })
-        if (recorded) updated += 1
+        if (ingested.ok) updated += 1
       }
     }
   }

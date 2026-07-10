@@ -151,6 +151,10 @@ function syncReviewChatMemory(employeeId: string): void {
   recordConversationExchange({ employeeId, messages: session.messages })
 }
 
+export function postMaxReviewCardFromToolReview(review: DelegationReviewRecord): void {
+  postMaxReviewCard(review)
+}
+
 function postMaxReviewCard(review: DelegationReviewRecord): void {
   const maxId = resolveCanonicalEmployeeId(DELEGATION_DECIDER_EMPLOYEE_ID)
   appendMobileEmployeeChatMessage(maxId, {

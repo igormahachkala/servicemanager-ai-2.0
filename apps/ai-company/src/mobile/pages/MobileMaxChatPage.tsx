@@ -1,4 +1,4 @@
-import { Navigate, useParams } from 'react-router-dom'
+import { Navigate, useNavigate, useParams } from 'react-router-dom'
 import {
   getDefaultMobileEmployeeId,
   resolveMobileEmployeeFromRoute,
@@ -11,11 +11,20 @@ import { MobileChatQuickHints } from '../components/MobileChatQuickHints'
 import { MobileChatStatusBar } from '../components/MobileChatStatusBar'
 import { MobileChatTimelineFilter } from '../components/MobileChatTimelineFilter'
 import { MobileBuilderToolStatusCard } from '../components/MobileBuilderToolStatusCard'
-import { BUILDER_EMPLOYEE_ID } from '../../domain/mobileEmployee'
+import {
+  MobileBuilderCursorToolReviewProfileCard,
+} from '../components/MobileBuilderCursorToolReviewCard'
+import { BUILDER_EMPLOYEE_ID, mobileEmployeeChatPath } from '../../domain/mobileEmployee'
+import {
+  buildCursorToolReviewSnapshot,
+  listPendingBuilderCursorToolReviews,
+} from '../../domain/employeeToolReview'
+import { getToolExecutionRun } from '../../domain/toolExecution/toolExecutionRunStorage'
 import { useMobileEmployeeChat } from '../hooks/useMobileMaxChat'
 
 export function MobileMaxChatPage() {
   const { employeeId: rawId } = useParams<{ employeeId: string }>()
+  const navigate = useNavigate()
   const { t } = useI18n()
   const registryEntry = rawId ? resolveMobileEmployeeFromRoute(rawId) : null
   const employeeId = registryEntry?.employeeId ?? getDefaultMobileEmployeeId()
@@ -26,6 +35,15 @@ export function MobileMaxChatPage() {
   }
 
   const chat = useMobileEmployeeChat(employeeId)
+  const pendingCursorReview =
+    employeeId === BUILDER_EMPLOYEE_ID ? listPendingBuilderCursorToolReviews()[0] ?? null : null
+  const pendingCursorReviewSnapshot =
+    pendingCursorReview && getToolExecutionRun(pendingCursorReview.toolExecutionRunId)
+      ? buildCursorToolReviewSnapshot(
+          pendingCursorReview,
+          getToolExecutionRun(pendingCursorReview.toolExecutionRunId)!.title,
+        )
+      : null
 
   return (
     <div className="acMobilePage acMobileChatPage">
@@ -33,6 +51,13 @@ export function MobileMaxChatPage() {
 
       {employeeId === BUILDER_EMPLOYEE_ID ? (
         <MobileBuilderToolStatusCard employeeId={employeeId} />
+      ) : null}
+
+      {pendingCursorReviewSnapshot ? (
+        <MobileBuilderCursorToolReviewProfileCard
+          review={pendingCursorReviewSnapshot}
+          onOpenChat={() => navigate(mobileEmployeeChatPath(BUILDER_EMPLOYEE_ID))}
+        />
       ) : null}
 
       <MobileChatStatusBar status={chat.status} />
@@ -58,6 +83,9 @@ export function MobileMaxChatPage() {
         onExecuteDelegation={(message) => chat.executeDelegationProposal(message)}
         onAcceptDelegationReview={(message) => chat.acceptDelegationReviewProposal(message)}
         onReworkDelegationReview={(message) => chat.reworkDelegationReviewProposal(message)}
+        onAcceptCursorToolReview={(message) => chat.acceptCursorToolReviewProposal(message)}
+        onReworkCursorToolReview={(message) => chat.reworkCursorToolReviewProposal(message)}
+        onRejectCursorToolReview={(message) => chat.rejectCursorToolReviewProposal(message)}
         onHandoffUpdated={chat.refresh}
       />
 

@@ -12,6 +12,8 @@ import { getEmployeeWorkItemById } from '../../domain/employeeWorkQueue/employee
 import { BUILDER_EMPLOYEE_ID } from '../../domain/mobileEmployee'
 import { listToolExecutionRuns } from '../../domain/toolExecution/toolExecutionRunStorage'
 import type { ToolExecutionRunStatus } from '../../domain/toolExecution/toolExecutionRunTypes'
+import { listEmployeeToolReviews } from '../../domain/employeeToolReview/employeeToolReviewStorage'
+import type { EmployeeToolReviewHistoryKind } from '../../domain/employeeToolReview/employeeToolReviewTypes'
 import { MAX_WORKER_EMPLOYEE_ID } from '../../domain/maxWorkerLoop'
 import { loadMaxWorkerLoopRecords } from '../../domain/maxWorkerLoop/maxWorkerLoopStorage'
 import { loadRuntimeRuns } from '../../domain/runtime/runtimeOrchestrator'
@@ -60,6 +62,7 @@ function messageFilters(message: MobileEmployeeChatMessage): MobileChatTimelineF
       break
     case 'delegation_proposal':
     case 'delegation_event':
+    case 'cursor_tool_review':
       filters.push('messages', 'work')
       break
     default:
@@ -112,7 +115,16 @@ function eventFilters(kind: MobileChatTimelineEventKind): MobileChatTimelineFilt
     kind === 'cursor_result_received' ||
     kind === 'tool_requested' ||
     kind === 'tool_approved' ||
-    kind === 'tool_rejected'
+    kind === 'tool_rejected' ||
+    kind === 'tool_queued' ||
+    kind === 'tool_started' ||
+    kind === 'tool_result_received' ||
+    kind === 'tool_accepted' ||
+    kind === 'tool_rework_requested' ||
+    kind === 'builder_review_started' ||
+    kind === 'builder_accepted_tool_result' ||
+    kind === 'builder_requested_tool_rework' ||
+    kind === 'result_sent_to_max'
   ) {
     filters.push('cursor')
   }
@@ -693,6 +705,81 @@ function collectToolExecutionEvents(
   }
 }
 
+const EMPLOYEE_TOOL_REVIEW_EVENT_MAP: Partial<
+  Record<
+    EmployeeToolReviewHistoryKind,
+    {
+      kind: MobileChatTimelineEventKind
+      bodyKey: keyof Pick<
+        MobileChatTimelineLabels,
+        | 'builderReviewStartedBody'
+        | 'builderAcceptedToolResultBody'
+        | 'builderRequestedToolReworkBody'
+        | 'resultSentToMaxBody'
+      >
+      tone: MobileChatTimelineTone
+    }
+  >
+> = {
+  review_started: {
+    kind: 'builder_review_started',
+    bodyKey: 'builderReviewStartedBody',
+    tone: 'info',
+  },
+  accepted: {
+    kind: 'builder_accepted_tool_result',
+    bodyKey: 'builderAcceptedToolResultBody',
+    tone: 'success',
+  },
+  rework_requested: {
+    kind: 'builder_requested_tool_rework',
+    bodyKey: 'builderRequestedToolReworkBody',
+    tone: 'warning',
+  },
+  sent_to_max: {
+    kind: 'result_sent_to_max',
+    bodyKey: 'resultSentToMaxBody',
+    tone: 'success',
+  },
+}
+
+function collectEmployeeToolReviewEvents(
+  employeeId: string,
+  labels: MobileChatTimelineLabels,
+  bucket: MobileChatTimelineEntry[],
+  seen: Set<string>,
+): void {
+  for (const review of listEmployeeToolReviews({ reviewerEmployeeId: employeeId })) {
+    const run = listToolExecutionRuns({ employeeId }).find(
+      (item) => item.id === review.toolExecutionRunId,
+    )
+    const title = run?.title ?? review.envelope.summary.slice(0, 80)
+
+    const emitted = new Set<EmployeeToolReviewHistoryKind>()
+    for (const entry of review.history) {
+      if (entry.kind === 'created') continue
+      if (emitted.has(entry.kind)) continue
+      const mapping = EMPLOYEE_TOOL_REVIEW_EVENT_MAP[entry.kind]
+      if (!mapping) continue
+      emitted.add(entry.kind)
+      pushEntry(
+        bucket,
+        seen,
+        derivedEvent({
+          id: `evt:${mapping.kind}:${review.id}:${entry.id}`,
+          kind: mapping.kind,
+          createdAt: entry.at,
+          content: labels[mapping.bodyKey].replace('{title}', title),
+          labels,
+          workItemId: review.workItemId,
+          workerLoopId: run?.workerLoopId ?? null,
+          tone: mapping.tone,
+        }),
+      )
+    }
+  }
+}
+
 function collectEmployeeWorkerLoopEvents(
   employeeId: string,
   labels: MobileChatTimelineLabels,
@@ -769,6 +856,7 @@ export function buildMobileChatTimeline(input: {
     collectWorkEvents(input.employeeId, input.labels, skipTaskCreatedIds, bucket, seen)
     collectEmployeeWorkerLoopEvents(input.employeeId, input.labels, bucket, seen)
     collectToolExecutionEvents(input.employeeId, input.labels, bucket, seen)
+    collectEmployeeToolReviewEvents(input.employeeId, input.labels, bucket, seen)
   }
 
   return bucket.sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt))
