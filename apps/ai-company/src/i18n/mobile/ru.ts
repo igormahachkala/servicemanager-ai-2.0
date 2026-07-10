@@ -281,7 +281,7 @@ export const mobileRu = {
       readyBanner: 'Builder готов — поставьте задачу или начните рабочий день.',
       activeBanner: 'Builder уже работал — проверьте очередь и последний результат.',
       runtimeGuideHint: 'Builder работает локально — без Runtime Live и Worker Loop.',
-      executionNotice: 'Выполнение задач Builder будет подключено следующим этапом.',
+      executionNotice: 'Delegated-задачи можно взять в работу и отправить результат на проверку MAX.',
       sections: {
         workday: 'Рабочий день',
         workQueue: 'Очередь задач',
@@ -328,6 +328,15 @@ export const mobileRu = {
         recommendation: 'Рекомендация',
         openReport: 'Открыть отчёт',
         openReports: 'Все отчёты',
+      },
+      queueActions: {
+        title: 'Исполнение Builder',
+        description: 'Delegated-задачи — взять в работу и отправить результат MAX.',
+        start: 'Взять в работу',
+        complete: 'Отправить результат',
+        startFailed: 'Не удалось начать задачу.',
+        statusLabel: 'Статус',
+        hint: 'После отправки MAX получит карточку проверки.',
       },
       runNextConfirm: {
         sheetTitle: 'Запуск недоступен',
@@ -1128,6 +1137,25 @@ export const mobileRu = {
         intro: 'Owner подтвердил — MAX может передать задачу {employee}.',
         execute: 'Передать',
         hint: 'Задача появится в очереди выбранного сотрудника без автозапуска.',
+      },
+    },
+    review: {
+      cardTitle: 'Builder завершил работу',
+      intro: '{employee} отправил результат — MAX проверяет.',
+      hint: 'Owner увидит итог после решения MAX.',
+      fields: {
+        task: 'Задача',
+        builder: 'Builder',
+      },
+      actions: {
+        accept: 'Принять',
+        rework: 'Вернуть на доработку',
+        openReport: 'Открыть отчёт',
+        openBuilder: 'Открыть Builder',
+      },
+      events: {
+        acceptedOwner: 'MAX проверил результат.',
+        reworkRequested: 'MAX вернул задачу Builder на доработку.',
       },
     },
     proposalHint: 'Задача не создаётся, пока вы не нажмёте кнопку.',

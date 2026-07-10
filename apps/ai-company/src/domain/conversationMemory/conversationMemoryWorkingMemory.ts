@@ -3,6 +3,8 @@
  */
 
 import { buildMobileOwnerDecisionsSnapshot } from '../mobileOwnerDecisions/mobileOwnerDecisionsSnapshot'
+import { listDelegationReviews } from '../delegationReview'
+import { DELEGATION_DECIDER_EMPLOYEE_ID } from '../delegationEngine'
 import { loadEmployeeWorkItems } from '../employeeWorkQueue'
 import { loadCursorHandoffFromChatProposals } from '../cursorHandoffFromChat'
 import { loadMaxWorkerLoopRecords } from '../maxWorkerLoop/maxWorkerLoopStorage'
@@ -126,6 +128,29 @@ function syncAwaitingConfirmation(employeeId: string, messages: MobileEmployeeCh
     if (decision.employeeId && decision.employeeId !== employeeId) continue
     if (decision.canApprove || decision.canReject) {
       items.push(`Decision: ${decision.title}`)
+    }
+  }
+
+  const canonical = resolveCanonicalEmployeeId(employeeId)
+  for (const review of listDelegationReviews()) {
+    if (review.status === 'awaiting_review' && review.reviewerEmployeeId === canonical) {
+      items.push(`Review pending: ${review.taskTitle}`)
+    }
+    if (
+      review.status === 'rework_requested' &&
+      review.builderEmployeeId === canonical &&
+      review.reworkWorkItemId
+    ) {
+      items.push(`Rework requested: ${review.taskTitle}`)
+    }
+    if (review.status === 'awaiting_review' && review.builderEmployeeId === canonical) {
+      items.push(`Awaiting MAX review: ${review.taskTitle}`)
+    }
+  }
+
+  if (canonical === resolveCanonicalEmployeeId(DELEGATION_DECIDER_EMPLOYEE_ID)) {
+    for (const review of listDelegationReviews({ status: 'awaiting_review' })) {
+      items.push(`Owner awaits MAX review: ${review.taskTitle}`)
     }
   }
 

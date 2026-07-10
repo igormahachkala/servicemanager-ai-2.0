@@ -281,7 +281,7 @@ export const mobileEn = {
       readyBanner: 'Builder is ready — assign a task or start the workday.',
       activeBanner: 'Builder has activity — check the queue and last result.',
       runtimeGuideHint: 'Builder runs locally — no Runtime Live or Worker Loop.',
-      executionNotice: 'Builder task execution will be enabled in the next phase.',
+      executionNotice: 'Delegated tasks can be started and submitted for MAX review.',
       sections: {
         workday: 'Workday',
         workQueue: 'Work queue',
@@ -328,6 +328,15 @@ export const mobileEn = {
         recommendation: 'Recommendation',
         openReport: 'Open report',
         openReports: 'All reports',
+      },
+      queueActions: {
+        title: 'Builder execution',
+        description: 'Delegated tasks — start work and submit result to MAX.',
+        start: 'Start work',
+        complete: 'Submit result',
+        startFailed: 'Could not start the task.',
+        statusLabel: 'Status',
+        hint: 'After submit MAX receives a review card.',
       },
       runNextConfirm: {
         sheetTitle: 'Запуск недоступен',
@@ -1065,6 +1074,25 @@ export const mobileEn = {
         intro: 'Owner approved — MAX can transfer the task to {employee}.',
         execute: 'Transfer',
         hint: 'The task will appear in the assignee queue without auto-run.',
+      },
+    },
+    review: {
+      cardTitle: 'Builder completed the work',
+      intro: '{employee} submitted a result — MAX review required.',
+      hint: 'Owner will see the outcome after MAX decides.',
+      fields: {
+        task: 'Task',
+        builder: 'Builder',
+      },
+      actions: {
+        accept: 'Accept',
+        rework: 'Return for rework',
+        openReport: 'Open report',
+        openBuilder: 'Open Builder',
+      },
+      events: {
+        acceptedOwner: 'MAX reviewed the result.',
+        reworkRequested: 'MAX returned the task to Builder for rework.',
       },
     },
     proposalHint: 'Nothing is created until you tap a button.',

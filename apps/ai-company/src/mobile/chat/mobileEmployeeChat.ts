@@ -17,6 +17,7 @@ export const MOBILE_EMPLOYEE_CHAT_MESSAGE_KINDS = [
   'task_proposal',
   'delegation_proposal',
   'delegation_event',
+  'delegation_review',
   'cursor_handoff',
   'report_link',
   'system_status',
@@ -71,6 +72,24 @@ export type MobileEmployeeChatDelegationProposal = {
   sourceMessageId: string | null
 }
 
+export type MobileEmployeeChatDelegationReviewStatus =
+  | 'awaiting_review'
+  | 'accepted'
+  | 'rework_requested'
+  | 'failed'
+
+export type MobileEmployeeChatDelegationReviewSnapshot = {
+  reviewId: string
+  status: MobileEmployeeChatDelegationReviewStatus
+  builderEmployeeId: string
+  builderDisplayName: string
+  taskTitle: string
+  reportId: string
+  workItemId: string
+  delegationPlanId: string
+  reworkNotes?: string | null
+}
+
 export type MobileEmployeeChatMessage = {
   id: string
   role: MobileEmployeeChatRole
@@ -79,6 +98,7 @@ export type MobileEmployeeChatMessage = {
   createdAt: string
   taskProposal?: MobileEmployeeChatTaskProposal | null
   delegationProposal?: MobileEmployeeChatDelegationProposal | null
+  delegationReview?: MobileEmployeeChatDelegationReviewSnapshot | null
   reportId?: string | null
   runtimeRunId?: string | null
   workerLoopId?: string | null
@@ -194,6 +214,40 @@ function parseDelegationProposal(value: unknown): MobileEmployeeChatDelegationPr
   }
 }
 
+function parseDelegationReview(value: unknown): MobileEmployeeChatDelegationReviewSnapshot | null {
+  if (!isRecord(value)) return null
+  const status =
+    value.status === 'awaiting_review' ||
+    value.status === 'accepted' ||
+    value.status === 'rework_requested' ||
+    value.status === 'failed'
+      ? value.status
+      : null
+  if (
+    !status ||
+    typeof value.reviewId !== 'string' ||
+    typeof value.builderEmployeeId !== 'string' ||
+    typeof value.builderDisplayName !== 'string' ||
+    typeof value.taskTitle !== 'string' ||
+    typeof value.reportId !== 'string' ||
+    typeof value.workItemId !== 'string' ||
+    typeof value.delegationPlanId !== 'string'
+  ) {
+    return null
+  }
+  return {
+    reviewId: value.reviewId,
+    status,
+    builderEmployeeId: value.builderEmployeeId,
+    builderDisplayName: value.builderDisplayName,
+    taskTitle: value.taskTitle,
+    reportId: value.reportId,
+    workItemId: value.workItemId,
+    delegationPlanId: value.delegationPlanId,
+    reworkNotes: typeof value.reworkNotes === 'string' ? value.reworkNotes : null,
+  }
+}
+
 export function parseMobileEmployeeChatMessage(value: unknown): MobileEmployeeChatMessage | null {
   if (!isRecord(value)) return null
   const role = parseEnum(value.role, MOBILE_EMPLOYEE_CHAT_ROLES)
@@ -213,6 +267,7 @@ export function parseMobileEmployeeChatMessage(value: unknown): MobileEmployeeCh
     delegationProposal: value.delegationProposal
       ? parseDelegationProposal(value.delegationProposal)
       : null,
+    delegationReview: value.delegationReview ? parseDelegationReview(value.delegationReview) : null,
     reportId: typeof value.reportId === 'string' ? value.reportId : null,
     runtimeRunId: typeof value.runtimeRunId === 'string' ? value.runtimeRunId : null,
     workerLoopId: typeof value.workerLoopId === 'string' ? value.workerLoopId : null,

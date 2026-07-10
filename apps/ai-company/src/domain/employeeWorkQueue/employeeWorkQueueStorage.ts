@@ -224,6 +224,34 @@ export function assignEmployeeWorkItem(input: AssignEmployeeWorkItemInput): Work
   return getEmployeeWorkItemById(next.id)
 }
 
+export function startEmployeeWorkItem(workItemId: string): WorkItem | null {
+  const existing = getEmployeeWorkItemById(workItemId)
+  if (!existing || isTerminalWorkStatus(existing.status)) return null
+  if (existing.status === 'in_progress') return existing
+
+  const inProgress = findInProgressItem(existing.employeeId)
+  if (inProgress && inProgress.id !== existing.id) return null
+
+  if (existing.status !== 'pending' && existing.status !== 'scheduled') return null
+
+  const now = nowIso()
+  const started: WorkItem = {
+    ...existing,
+    status: 'in_progress',
+    startedAt: now,
+    blockedReason: null,
+    currentOwner: buildDefaultCurrentOwner(
+      existing.employeeId,
+      resolveOwnerDisplayName(existing.employeeId),
+    ),
+    updatedAt: now,
+  }
+
+  upsertWorkItem(started)
+  reindexEmployeeQueue(existing.employeeId)
+  return getEmployeeWorkItemById(started.id)
+}
+
 export function startNextEmployeeWorkItem(employeeId: string): WorkItem | null {
   const canonicalId = normalizeEmployeeId(employeeId)
   const inProgress = findInProgressItem(canonicalId)

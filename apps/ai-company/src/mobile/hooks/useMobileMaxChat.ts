@@ -22,6 +22,11 @@ import type { MobileEmployeeChatMessage } from '../chat/mobileEmployeeChat'
 import { MOBILE_EMPLOYEE_CHAT_SYNC_EVENT } from '../chat/mobileEmployeeChat'
 import { DELEGATION_PLAN_SYNC_EVENT } from '../../domain/delegationPlan'
 import {
+  acceptDelegationReview,
+  DELEGATION_REVIEW_SYNC_EVENT,
+  requestDelegationReviewRework,
+} from '../../domain/delegationReview'
+import {
   approveDelegationPlan,
   cancelDelegationPlan,
 } from '../../domain/delegationPlan/delegationPlanStorage'
@@ -173,6 +178,7 @@ export function useMobileEmployeeChat(employeeId: string) {
       EMPLOYEE_DAILY_JOURNAL_SYNC_EVENT,
       APPROVAL_SYNC_EVENT,
       DELEGATION_PLAN_SYNC_EVENT,
+      DELEGATION_REVIEW_SYNC_EVENT,
       'ai-company-runtime-sync',
     ]
     for (const eventName of events) {
@@ -609,6 +615,43 @@ export function useMobileEmployeeChat(employeeId: string) {
     [canonical, copy.errors.generic, maxDelegationCopy, refresh],
   )
 
+  const acceptDelegationReviewProposal = useCallback(
+    (message: MobileEmployeeChatMessage) => {
+      const review = message.delegationReview
+      if (!review || review.status !== 'awaiting_review') return
+      setActionError(null)
+
+      const result = acceptDelegationReview(review.reviewId)
+      if (!result.ok) {
+        setActionError(result.message)
+        return
+      }
+      refresh()
+    },
+    [refresh],
+  )
+
+  const reworkDelegationReviewProposal = useCallback(
+    (message: MobileEmployeeChatMessage) => {
+      const review = message.delegationReview
+      if (!review || review.status !== 'awaiting_review') return
+      setActionError(null)
+
+      const notes =
+        typeof window !== 'undefined'
+          ? window.prompt('Комментарий для Builder (необязательно):') ?? undefined
+          : undefined
+
+      const result = requestDelegationReviewRework(review.reviewId, notes)
+      if (!result.ok) {
+        setActionError(result.message)
+        return
+      }
+      refresh()
+    },
+    [refresh],
+  )
+
   return {
     status,
     timelineEntries,
@@ -630,6 +673,8 @@ export function useMobileEmployeeChat(employeeId: string) {
     keepDelegationWithMax,
     cancelDelegationProposal,
     executeDelegationProposal,
+    acceptDelegationReviewProposal,
+    reworkDelegationReviewProposal,
     refresh,
   }
 }

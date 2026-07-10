@@ -45,5 +45,6 @@ export {
   loadEmployeeWorkItems,
   saveEmployeeWorkItems,
   skipEmployeeWorkItem,
+  startEmployeeWorkItem,
   startNextEmployeeWorkItem,
 } from './employeeWorkQueueStorage'

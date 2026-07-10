@@ -5,6 +5,7 @@ import { mobileReportHref, mobileRuntimeLoopHref, mobileRuntimeRunHref } from '.
 import { MobileChatCursorHandoffCard } from './MobileChatCursorHandoffCard'
 import { MobileChatDelegationProposalCard } from './MobileChatDelegationProposalCard'
 import { MobileChatDelegationExecutionCard } from './MobileChatDelegationExecutionCard'
+import { MobileChatDelegationReviewCard } from './MobileChatDelegationReviewCard'
 import { useI18n } from '../../i18n'
 
 type BubbleProps = {
@@ -19,6 +20,8 @@ type BubbleProps = {
   onKeepDelegationWithMax?: () => void
   onCancelDelegation?: () => void
   onExecuteDelegation?: () => void
+  onAcceptDelegationReview?: () => void
+  onReworkDelegationReview?: () => void
   onHandoffUpdated?: () => void
 }
 
@@ -34,11 +37,22 @@ export function MobileChatTimelineBubble({
   onKeepDelegationWithMax,
   onCancelDelegation,
   onExecuteDelegation,
+  onAcceptDelegationReview,
+  onReworkDelegationReview,
   onHandoffUpdated,
 }: BubbleProps) {
   const { t } = useI18n()
   const copy = t.mobile.maxChat
   const message = entry.message
+
+  const ownerNotice =
+    message?.kind === 'system_status' && message.content === 'MAX_REVIEW_ACCEPTED_OWNER_NOTICE'
+      ? copy.review.events.acceptedOwner
+      : message?.kind === 'system_status' && message.content === 'MAX_REVIEW_REWORK_REQUESTED'
+        ? copy.review.events.reworkRequested
+        : message?.kind === 'delegation_review' && message.content === 'DELEGATION_REVIEW_CARD'
+          ? copy.review.cardTitle
+          : null
 
   const roleLabel =
     entry.role === 'owner'
@@ -83,8 +97,16 @@ export function MobileChatTimelineBubble({
           message?.pending ? ' acMobileChatBubbleContentPending' : ''
         }`}
       >
-        {entry.content}
+        {ownerNotice ?? entry.content}
       </p>
+
+      {message?.kind === 'delegation_review' && message.delegationReview ? (
+        <MobileChatDelegationReviewCard
+          review={message.delegationReview}
+          onAccept={() => onAcceptDelegationReview?.()}
+          onRework={() => onReworkDelegationReview?.()}
+        />
+      ) : null}
 
       {message?.kind === 'cursor_handoff' && message.cursorHandoffId ? (
         <MobileChatCursorHandoffCard
@@ -220,6 +242,8 @@ type ListProps = {
   onKeepDelegationWithMax: (message: MobileEmployeeChatMessage) => void
   onCancelDelegation: (message: MobileEmployeeChatMessage) => void
   onExecuteDelegation: (message: MobileEmployeeChatMessage) => void
+  onAcceptDelegationReview: (message: MobileEmployeeChatMessage) => void
+  onReworkDelegationReview: (message: MobileEmployeeChatMessage) => void
   onHandoffUpdated?: () => void
 }
 
@@ -235,6 +259,8 @@ export function MobileChatMessageList({
   onKeepDelegationWithMax,
   onCancelDelegation,
   onExecuteDelegation,
+  onAcceptDelegationReview,
+  onReworkDelegationReview,
   onHandoffUpdated,
 }: ListProps) {
   return (
@@ -275,6 +301,16 @@ export function MobileChatMessageList({
           onExecuteDelegation={
             entry.message
               ? () => onExecuteDelegation(entry.message as MobileEmployeeChatMessage)
+              : undefined
+          }
+          onAcceptDelegationReview={
+            entry.message
+              ? () => onAcceptDelegationReview(entry.message as MobileEmployeeChatMessage)
+              : undefined
+          }
+          onReworkDelegationReview={
+            entry.message
+              ? () => onReworkDelegationReview(entry.message as MobileEmployeeChatMessage)
               : undefined
           }
           onHandoffUpdated={onHandoffUpdated}
