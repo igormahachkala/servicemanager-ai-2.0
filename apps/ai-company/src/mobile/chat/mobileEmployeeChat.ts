@@ -31,6 +31,7 @@ export type MobileEmployeeChatRole = (typeof MOBILE_EMPLOYEE_CHAT_ROLES)[number]
 export const MOBILE_EMPLOYEE_CHAT_DELEGATION_STATUSES = [
   'pending',
   'awaiting_execution',
+  'delegated',
   'cancelled',
   'keep_max',
 ] as const

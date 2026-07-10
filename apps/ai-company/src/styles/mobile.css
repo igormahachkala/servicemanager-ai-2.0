@@ -4811,11 +4811,16 @@ html.acMobileGuideActive .acMobileContent {
   color: var(--theme-text-muted);
 }
 
-.acMobileChatDelegationSheetClose {
-  width: 100%;
+.acMobileChatDelegationExecutionIntro {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.45;
 }
 
-/* ── Mobile Task History V1 (109B) ── */
+.acMobileChatDelegationExecutionCard .acMobileChatDelegationEyebrow {
+  color: var(--theme-success, #2d8a4e);
+}
+
 
 .acMobileReportsHistoryEntry {
   display: flex;

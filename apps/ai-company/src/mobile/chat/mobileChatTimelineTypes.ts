@@ -29,6 +29,8 @@ export const MOBILE_CHAT_TIMELINE_EVENT_KINDS = [
   'delegation_proposed',
   'delegation_approved',
   'delegation_rejected',
+  'delegation_executed',
+  'task_assigned',
 ] as const
 
 export type MobileChatTimelineEventKind = (typeof MOBILE_CHAT_TIMELINE_EVENT_KINDS)[number]
@@ -74,6 +76,8 @@ export type MobileChatTimelineLabels = {
   delegationProposedBody: string
   delegationApprovedBody: string
   delegationRejectedBody: string
+  delegationExecutedBody: string
+  taskAssignedBody: string
 }
 
 export function matchesMobileChatTimelineFilter(

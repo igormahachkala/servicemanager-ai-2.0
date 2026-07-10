@@ -8,6 +8,7 @@ import { mobileMaxChatId } from '../../domain/cursorHandoffFromChat/cursorHandof
 import { loadEmployeeDailyJournalEntries } from '../../domain/employeeDailyJournal/employeeDailyJournalStorage'
 import { loadEmployeeWorkItems } from '../../domain/employeeWorkQueue/employeeWorkQueueStorage'
 import { listDelegationPlans } from '../../domain/delegationPlan'
+import { getEmployeeWorkItemById } from '../../domain/employeeWorkQueue/employeeWorkQueueStorage'
 import { MAX_WORKER_EMPLOYEE_ID } from '../../domain/maxWorkerLoop'
 import { loadMaxWorkerLoopRecords } from '../../domain/maxWorkerLoop/maxWorkerLoopStorage'
 import { loadRuntimeRuns } from '../../domain/runtime/runtimeOrchestrator'
@@ -95,7 +96,9 @@ function eventFilters(kind: MobileChatTimelineEventKind): MobileChatTimelineFilt
     kind === 'task_started' ||
     kind === 'runtime_started' ||
     kind === 'runtime_completed' ||
-    kind === 'runtime_failed'
+    kind === 'runtime_failed' ||
+    kind === 'delegation_executed' ||
+    kind === 'task_assigned'
   ) {
     filters.push('work')
   }
@@ -122,6 +125,9 @@ function eventTone(kind: MobileChatTimelineEventKind): MobileChatTimelineTone {
     case 'delegation_proposed':
       return 'info'
     case 'delegation_approved':
+      return 'success'
+    case 'delegation_executed':
+    case 'task_assigned':
       return 'success'
     case 'delegation_rejected':
       return 'error'
@@ -177,7 +183,25 @@ function collectWorkEvents(
   seen: Set<string>,
 ): void {
   for (const item of loadEmployeeWorkItems().filter((row) => row.employeeId === employeeId)) {
-    if (!skipTaskCreatedIds.has(item.id)) {
+    if (item.source === 'delegation' && item.delegationPlanId) {
+      pushEntry(
+        bucket,
+        seen,
+        derivedEvent({
+          id: `evt:task_assigned:${item.id}`,
+          kind: 'task_assigned',
+          createdAt: item.createdAt,
+          content: labels.taskAssignedBody
+            .replace('{title}', item.title)
+            .replace('{id}', item.id)
+            .replace('{employee}', employeeId),
+          labels,
+          workItemId: item.id,
+          delegationPlanId: item.delegationPlanId,
+          tone: 'success',
+        }),
+      )
+    } else if (!skipTaskCreatedIds.has(item.id)) {
       pushEntry(
         bucket,
         seen,
@@ -448,11 +472,13 @@ function collectCursorHandoffEvents(
 }
 
 function collectDelegationPlanEvents(
+  employeeId: string,
   labels: MobileChatTimelineLabels,
   bucket: MobileChatTimelineEntry[],
   seen: Set<string>,
 ): void {
   for (const plan of listDelegationPlans()) {
+    if (plan.originEmployeeId !== employeeId) continue
     for (const entry of plan.history) {
       if (entry.kind === 'proposed' || entry.kind === 'awaiting_owner') {
         pushEntry(
@@ -506,6 +532,48 @@ function collectDelegationPlanEvents(
             labels,
             delegationPlanId: plan.id,
             tone: 'error',
+          }),
+        )
+      }
+
+      if (entry.kind === 'delegated') {
+        pushEntry(
+          bucket,
+          seen,
+          derivedEvent({
+            id: `evt:delegation_executed:${plan.id}:${entry.id}`,
+            kind: 'delegation_executed',
+            createdAt: entry.at,
+            content: labels.delegationExecutedBody
+              .replace('{title}', plan.taskTitle)
+              .replace('{employee}', plan.recommendedEmployeeCodename),
+            labels,
+            delegationPlanId: plan.id,
+            workItemId: plan.targetWorkItemId,
+            tone: 'success',
+          }),
+        )
+      }
+    }
+
+    if (plan.targetWorkItemId) {
+      const workItem = getEmployeeWorkItemById(plan.targetWorkItemId)
+      if (workItem) {
+        pushEntry(
+          bucket,
+          seen,
+          derivedEvent({
+            id: `evt:task_assigned:${plan.id}:${workItem.id}`,
+            kind: 'task_assigned',
+            createdAt: workItem.createdAt,
+            content: labels.taskAssignedBody
+              .replace('{title}', workItem.title)
+              .replace('{id}', workItem.id)
+              .replace('{employee}', plan.recommendedEmployeeCodename),
+            labels,
+            workItemId: workItem.id,
+            delegationPlanId: plan.id,
+            tone: 'success',
           }),
         )
       }
@@ -577,7 +645,7 @@ export function buildMobileChatTimeline(input: {
     collectReportEvents(input.employeeId, input.labels, bucket, seen)
     collectCursorHandoffEvents(input.employeeId, input.labels, skipHandoffIds, bucket, seen)
     collectApprovalEvents(input.employeeId, input.labels, bucket, seen)
-    collectDelegationPlanEvents(input.labels, bucket, seen)
+    collectDelegationPlanEvents(input.employeeId, input.labels, bucket, seen)
   }
 
   return bucket.sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt))

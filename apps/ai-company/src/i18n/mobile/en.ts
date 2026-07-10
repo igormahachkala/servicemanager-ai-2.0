@@ -1057,8 +1057,14 @@ export const mobileEn = {
         overridden: 'Owner changed assignee → {employee}',
         keepMax: 'Owner kept the task with MAX',
         cancelled: 'Delegation cancelled',
-        awaitingExecution:
-          'Handoff to {employee} is awaiting execution — no auto-run in this release.',
+        awaitingExecution: 'Handoff to {employee} is awaiting execution — tap Transfer.',
+        transferred: 'MAX transferred the task to {employee}.',
+      },
+      execution: {
+        cardTitle: 'Ready to transfer',
+        intro: 'Owner approved — MAX can transfer the task to {employee}.',
+        execute: 'Transfer',
+        hint: 'The task will appear in the assignee queue without auto-run.',
       },
     },
     proposalHint: 'Nothing is created until you tap a button.',
@@ -1127,6 +1133,8 @@ export const mobileEn = {
         delegation_proposed: 'Delegation Proposed',
         delegation_approved: 'Delegation Approved',
         delegation_rejected: 'Delegation Rejected',
+        delegation_executed: 'Delegation Executed',
+        task_assigned: 'Task Assigned',
       },
       bodies: {
         taskCreated: 'Task «{title}» created · {id}',
@@ -1144,6 +1152,8 @@ export const mobileEn = {
         delegationProposed: 'MAX proposed delegating «{title}» → {employee}',
         delegationApproved: 'Owner approved delegation «{title}» → {employee}',
         delegationRejected: 'Owner rejected delegation «{title}» → {employee}',
+        delegationExecuted: 'MAX transferred «{title}» → {employee}',
+        taskAssigned: 'Task «{title}» assigned to {employee} · {id}',
       },
     },
     cursorHandoff: {

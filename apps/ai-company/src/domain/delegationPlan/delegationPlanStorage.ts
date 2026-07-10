@@ -228,6 +228,21 @@ export function markDelegationPlanDelegated(
   targetWorkItemId: string | null = null,
 ): DelegationPlanRecord | null {
   return updatePlan(id, (plan) => {
+    if (plan.status === 'delegated') {
+      if (!targetWorkItemId || plan.targetWorkItemId === targetWorkItemId) {
+        return plan
+      }
+      return {
+        ...plan,
+        targetWorkItemId,
+        history: appendHistory(
+          plan.history,
+          'delegated',
+          `Work item reference updated (${targetWorkItemId})`,
+        ),
+      }
+    }
+
     if (plan.status !== 'approved') return null
 
     return {

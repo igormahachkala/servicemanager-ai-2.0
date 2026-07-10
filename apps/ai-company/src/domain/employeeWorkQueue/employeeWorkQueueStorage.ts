@@ -73,6 +73,12 @@ export function getEmployeeWorkItemById(workItemId: string): WorkItem | null {
   return loadEmployeeWorkItems().find((item) => item.id === workItemId) ?? null
 }
 
+export function findEmployeeWorkItemByDelegationPlanId(delegationPlanId: string): WorkItem | null {
+  return (
+    loadEmployeeWorkItems().find((item) => item.delegationPlanId === delegationPlanId) ?? null
+  )
+}
+
 function upsertWorkItem(item: WorkItem): WorkItem {
   const items = loadEmployeeWorkItems()
   const index = items.findIndex((entry) => entry.id === item.id)
@@ -143,6 +149,8 @@ export function createEmployeeWorkItem(input: CreateEmployeeWorkItemInput): Work
     deliveryTaskId: input.deliveryTaskId ?? null,
     workerLoopId: input.workerLoopId ?? null,
     decisionPlanId: input.decisionPlanId ?? null,
+    source: input.source ?? null,
+    delegationPlanId: input.delegationPlanId ?? null,
     priority: input.priority ?? 'medium',
     status,
     scheduledAt,

@@ -21,6 +21,10 @@ export const WORK_PRIORITIES = ['low', 'medium', 'high', 'critical'] as const
 
 export type WorkPriority = (typeof WORK_PRIORITIES)[number]
 
+export const WORK_ITEM_SOURCES = ['manual', 'chat', 'delegation'] as const
+
+export type WorkItemSource = (typeof WORK_ITEM_SOURCES)[number]
+
 export const WORK_STATUSES = [
   'pending',
   'scheduled',
@@ -53,6 +57,9 @@ export type WorkItem = {
   deliveryTaskId: string | null
   workerLoopId: string | null
   decisionPlanId: string | null
+  /** Origin of the queue item — delegation bridge sets `delegation`. */
+  source: WorkItemSource | null
+  delegationPlanId: string | null
   priority: WorkPriority
   status: WorkStatus
   scheduledAt: string | null
@@ -88,6 +95,8 @@ export type CreateEmployeeWorkItemInput = {
   deliveryTaskId?: string | null
   workerLoopId?: string | null
   decisionPlanId?: string | null
+  source?: WorkItemSource | null
+  delegationPlanId?: string | null
   priority?: WorkPriority
   scheduledAt?: string | null
   currentOwner?: WorkItemCurrentOwner | null
@@ -264,6 +273,8 @@ export function parseWorkItem(value: unknown): WorkItem | null {
     deliveryTaskId: typeof value.deliveryTaskId === 'string' ? value.deliveryTaskId : null,
     workerLoopId: typeof value.workerLoopId === 'string' ? value.workerLoopId : null,
     decisionPlanId: typeof value.decisionPlanId === 'string' ? value.decisionPlanId : null,
+    source: parseEnum(value.source, WORK_ITEM_SOURCES),
+    delegationPlanId: typeof value.delegationPlanId === 'string' ? value.delegationPlanId : null,
     priority,
     status,
     scheduledAt: typeof value.scheduledAt === 'string' ? value.scheduledAt : null,

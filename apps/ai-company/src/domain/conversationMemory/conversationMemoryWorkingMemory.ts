@@ -78,7 +78,16 @@ function syncPromisedToDo(messages: MobileEmployeeChatMessage[]): string[] {
       message.delegationProposal.status === 'awaiting_execution'
     ) {
       items.push(
-        `Awaiting delegation: ${message.delegationProposal.recommendedDisplayName} — ${message.delegationProposal.taskProposal.title}`,
+        `Awaiting delegation transfer: ${message.delegationProposal.recommendedDisplayName} — ${message.delegationProposal.taskProposal.title}`,
+      )
+    }
+    if (
+      message.kind === 'delegation_event' &&
+      message.delegationProposal &&
+      message.delegationProposal.status === 'delegated'
+    ) {
+      items.push(
+        `Delegated to ${message.delegationProposal.recommendedDisplayName}: ${message.delegationProposal.taskProposal.title}`,
       )
     }
     if (message.kind === 'clarification' && /могу|could|готов|готова|предлож/i.test(message.content)) {

@@ -10,12 +10,14 @@ export type {
   WorkItemCurrentOwner,
   WorkItemStructuredPayload,
   WorkItemTaskMode,
+  WorkItemSource,
   WorkPriority,
   WorkStatus,
 } from './employeeWorkQueue'
 
 export {
   EMPLOYEE_WORK_QUEUE_VERSION,
+  WORK_ITEM_SOURCES,
   WORK_PRIORITIES,
   WORK_STATUSES,
   buildDefaultCurrentOwner,
@@ -37,6 +39,7 @@ export {
   clearEmployeeWorkQueue,
   completeEmployeeWorkItem,
   createEmployeeWorkItem,
+  findEmployeeWorkItemByDelegationPlanId,
   getEmployeeWorkItemById,
   listEmployeeWorkQueue,
   loadEmployeeWorkItems,

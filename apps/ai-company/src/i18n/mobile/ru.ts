@@ -1120,7 +1120,14 @@ export const mobileRu = {
         keepMax: 'Owner оставил задачу у MAX',
         cancelled: 'Делегирование отменено',
         awaitingExecution:
-          'Поручение {employee} ожидает исполнения — без автозапуска в этом релизе.',
+          'Поручение {employee} ожидает исполнения — нажмите «Передать».',
+        transferred: 'MAX передал задачу {employee}.',
+      },
+      execution: {
+        cardTitle: 'Готово к передаче',
+        intro: 'Owner подтвердил — MAX может передать задачу {employee}.',
+        execute: 'Передать',
+        hint: 'Задача появится в очереди выбранного сотрудника без автозапуска.',
       },
     },
     proposalHint: 'Задача не создаётся, пока вы не нажмёте кнопку.',
@@ -1189,6 +1196,8 @@ export const mobileRu = {
         delegation_proposed: 'Delegation Proposed',
         delegation_approved: 'Delegation Approved',
         delegation_rejected: 'Delegation Rejected',
+        delegation_executed: 'Delegation Executed',
+        task_assigned: 'Task Assigned',
       },
       bodies: {
         taskCreated: 'Задача «{title}» создана · {id}',
@@ -1206,6 +1215,8 @@ export const mobileRu = {
         delegationProposed: 'MAX предложил делегировать «{title}» → {employee}',
         delegationApproved: 'Owner одобрил делегирование «{title}» → {employee}',
         delegationRejected: 'Owner отклонил делегирование «{title}» → {employee}',
+        delegationExecuted: 'MAX передал «{title}» → {employee}',
+        taskAssigned: 'Задача «{title}» назначена {employee} · {id}',
       },
     },
     cursorHandoff: {

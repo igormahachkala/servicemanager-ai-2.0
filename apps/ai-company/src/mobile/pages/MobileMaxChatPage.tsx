@@ -49,6 +49,7 @@ export function MobileMaxChatPage() {
         onChangeDelegationAssignee={(message) => chat.changeDelegationAssignee(message)}
         onKeepDelegationWithMax={(message) => chat.keepDelegationWithMax(message)}
         onCancelDelegation={(message) => chat.cancelDelegationProposal(message)}
+        onExecuteDelegation={(message) => chat.executeDelegationProposal(message)}
         onHandoffUpdated={chat.refresh}
       />
 

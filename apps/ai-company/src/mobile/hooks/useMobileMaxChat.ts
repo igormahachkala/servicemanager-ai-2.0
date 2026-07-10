@@ -25,6 +25,7 @@ import {
   approveDelegationPlan,
   cancelDelegationPlan,
 } from '../../domain/delegationPlan/delegationPlanStorage'
+import { executeApprovedDelegationPlan } from '../../domain/delegationExecution'
 import { createWorkItemFromChatProposal } from '../chat/mobileChatTaskBridge'
 import { stashMobileChatTaskPrefill } from '../chat/mobileChatTaskPrefill'
 import {
@@ -105,6 +106,8 @@ function buildTimelineLabels(copy: typeof import('../../i18n/mobile/ru').mobileR
     delegationProposedBody: copy.bodies.delegationProposed,
     delegationApprovedBody: copy.bodies.delegationApproved,
     delegationRejectedBody: copy.bodies.delegationRejected,
+    delegationExecutedBody: copy.bodies.delegationExecuted,
+    taskAssignedBody: copy.bodies.taskAssigned,
   }
 }
 
@@ -561,6 +564,51 @@ export function useMobileEmployeeChat(employeeId: string) {
     [canonical, copy, maxDelegationCopy, openAssigneePicker, refresh],
   )
 
+  const executeDelegationProposal = useCallback(
+    (message: MobileEmployeeChatMessage) => {
+      const proposal = message.delegationProposal
+      if (
+        !proposal ||
+        (proposal.status !== 'awaiting_execution' && proposal.status !== 'delegated') ||
+        !maxDelegationCopy
+      ) {
+        return
+      }
+      setActionError(null)
+
+      try {
+        const result = executeApprovedDelegationPlan(proposal.delegationPlanId)
+        if (!result.ok) {
+          throw new Error(result.message)
+        }
+
+        const nextProposal = { ...proposal, status: 'delegated' as const }
+        updateMobileEmployeeChatMessage(canonical, message.id, {
+          kind: 'delegation_event',
+          delegationProposal: nextProposal,
+          workItemId: result.workItem.id,
+        })
+
+        if (!result.idempotent) {
+          appendMobileEmployeeChatMessage(canonical, {
+            role: 'system',
+            kind: 'delegation_event',
+            content: maxDelegationCopy.events.transferred.replace(
+              '{employee}',
+              proposal.recommendedDisplayName,
+            ),
+          })
+        }
+
+        recordChatMemory(canonical)
+        refresh()
+      } catch (error) {
+        setActionError(error instanceof Error ? error.message : copy.errors.generic)
+      }
+    },
+    [canonical, copy.errors.generic, maxDelegationCopy, refresh],
+  )
+
   return {
     status,
     timelineEntries,
@@ -581,6 +629,7 @@ export function useMobileEmployeeChat(employeeId: string) {
     changeDelegationAssignee,
     keepDelegationWithMax,
     cancelDelegationProposal,
+    executeDelegationProposal,
     refresh,
   }
 }
