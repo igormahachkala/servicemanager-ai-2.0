@@ -1,4 +1,9 @@
 import { MAX_WORKER_EMPLOYEE_ID } from '../../domain/maxWorkerLoop'
+import {
+  BUILDER_EMPLOYEE_ID,
+  mobileEmployeeChatPath,
+  mobileEmployeeProfilePath,
+} from '../../domain/mobileEmployee'
 import { resolveCanonicalEmployeeId } from '../../mission-control/data/employeeIdResolver'
 import { MOBILE_MORNING_REPORT_ID } from '../reports/mobileReportsSnapshot'
 import { MOBILE_STANDARD_TASK_TEMPLATE_ID } from '../runTask/mobileRunTaskConfig'
@@ -6,9 +11,11 @@ import { MOBILE_STANDARD_TASK_TEMPLATE_ID } from '../runTask/mobileRunTaskConfig
 export const MOBILE_PATHS = {
   today: '/mobile/today',
   employees: '/mobile/employees',
-  max: `/mobile/employees/${MAX_WORKER_EMPLOYEE_ID}`,
+  max: mobileEmployeeProfilePath(MAX_WORKER_EMPLOYEE_ID),
+  builder: mobileEmployeeProfilePath(BUILDER_EMPLOYEE_ID),
   tasksNew: '/mobile/tasks/new',
   tasksNewMax: `/mobile/tasks/new?employee=${encodeURIComponent(MAX_WORKER_EMPLOYEE_ID)}`,
+  tasksNewBuilder: `/mobile/tasks/new?employee=${encodeURIComponent(BUILDER_EMPLOYEE_ID)}`,
   standardTaskNewMax: `/mobile/tasks/new?employee=${encodeURIComponent(MAX_WORKER_EMPLOYEE_ID)}&template=${MOBILE_STANDARD_TASK_TEMPLATE_ID}`,
   tasks: '/mobile/tasks',
   decisions: '/mobile/decisions',
@@ -16,7 +23,8 @@ export const MOBILE_PATHS = {
   morningReport: `/mobile/reports/${MOBILE_MORNING_REPORT_ID}`,
   runtime: '/mobile/runtime',
   demo: '/mobile/demo',
-  chat: `/mobile/chat/${MAX_WORKER_EMPLOYEE_ID}`,
+  chat: mobileEmployeeChatPath(MAX_WORKER_EMPLOYEE_ID),
+  builderChat: mobileEmployeeChatPath(BUILDER_EMPLOYEE_ID),
   tasksHistory: '/mobile/tasks/history',
   history: '/mobile/history',
   more: '/mobile/more',

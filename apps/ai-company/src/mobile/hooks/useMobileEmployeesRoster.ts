@@ -13,6 +13,7 @@ import { getEmployeeOperatingDaySnapshot } from '../../domain/employeeOperatingD
 import { EMPLOYEE_OPERATING_DAY_SYNC_EVENT } from '../../domain/employeeOperatingDay/employeeOperatingDayEngine'
 import { loadEmployeeWorkItems, EMPLOYEE_WORK_QUEUE_SYNC_EVENT } from '../../domain/employeeWorkQueue'
 import { MAX_WORKER_EMPLOYEE_ID } from '../../domain/maxWorkerLoop'
+import { mobileEmployeeRouteAlias } from '../../domain/mobileEmployee'
 import { getPresenceByEmployeeId, type PresenceStatus } from '../../domain/presence'
 import type { EmployeeOperatingDayStatus } from '../../domain/employeeOperatingDay'
 
@@ -73,7 +74,7 @@ function buildActiveEntry(profile: EmployeeProfile): MobileEmployeeRosterEntry {
   return {
     slotId,
     employeeId: profile.employeeId,
-    mobileRouteId: profile.employeeId,
+    mobileRouteId: mobileEmployeeRouteAlias(profile.employeeId),
     codename: profile.displayName,
     role: profile.role.title,
     title: profile.title,
@@ -97,7 +98,7 @@ function buildPlaceholderEntry(profile: EmployeeProfile): MobileEmployeeRosterEn
   return {
     slotId,
     employeeId: profile.employeeId,
-    mobileRouteId: profile.employeeId,
+    mobileRouteId: mobileEmployeeRouteAlias(profile.employeeId),
     codename: profile.displayName,
     role: profile.role.title,
     title: profile.title,

@@ -3,11 +3,17 @@ import { useNavigate } from 'react-router-dom'
 import { EMPLOYEE_DAILY_JOURNAL_SYNC_EVENT } from '../../domain/employeeDailyJournal/employeeDailyJournalStorage'
 import { EMPLOYEE_WORK_QUEUE_SYNC_EVENT } from '../../domain/employeeWorkQueue/employeeWorkQueueStorage'
 import { CURSOR_HANDOFF_FROM_CHAT_SYNC_EVENT } from '../../domain/cursorHandoffFromChat/cursorHandoffFromChatStorage'
+import { recordConversationExchange } from '../../domain/conversationMemory'
 import { tryProcessMobileCursorHandoffFromOwnerMessage } from '../../domain/cursorHandoffFromChat'
+import {
+  hasMobileEmployeeCapability,
+  mobileEmployeeTasksNewPath,
+} from '../../domain/mobileEmployee'
 import { loadMaxWorkerLoopRecords } from '../../domain/maxWorkerLoop/maxWorkerLoopStorage'
 import { MAX_WORKER_EMPLOYEE_ID } from '../../domain/maxWorkerLoop'
 import { MAX_WORKER_LOOP_SYNC_EVENT } from '../../hooks/useMaxWorkerLoop'
 import { useI18n } from '../../i18n'
+import { resolveMobileEmployeeChatCopy } from '../mobileEmployeeCopy'
 import type { MobileEmployeeChatMessage } from '../chat/mobileEmployeeChat'
 import { MOBILE_EMPLOYEE_CHAT_SYNC_EVENT } from '../chat/mobileEmployeeChat'
 import { createWorkItemFromChatProposal } from '../chat/mobileChatTaskBridge'
@@ -28,16 +34,16 @@ import {
   classifyOwnerChatMessage,
   respondToOwnerChatMessage,
 } from '../chat/mobileMaxChatResponder'
-import { MOBILE_PATHS } from '../navigation/mobileHrefResolver'
 import { useMobileRunNextSheet } from './useMobileRunNextSheet'
 
-const APPROVAL_SYNC_EVENT = 'ai-company-approval-sync'
-
-export type MobileMaxChatStatus = {
+export type MobileEmployeeChatStatus = {
   label: string
   detail: string | null
   tone: 'default' | 'live' | 'waiting' | 'offline'
 }
+
+/** @deprecated use MobileEmployeeChatStatus */
+export type MobileMaxChatStatus = MobileEmployeeChatStatus
 
 function formatTimestamp(iso: string): string {
   const parsed = Date.parse(iso)
@@ -49,6 +55,8 @@ function formatTimestamp(iso: string): string {
     minute: '2-digit',
   })
 }
+
+const APPROVAL_SYNC_EVENT = 'ai-company-approval-sync'
 
 function buildTimelineLabels(copy: typeof import('../../i18n/mobile/ru').mobileRu.maxChat.timeline): MobileChatTimelineLabels {
   return {
@@ -68,11 +76,15 @@ function buildTimelineLabels(copy: typeof import('../../i18n/mobile/ru').mobileR
   }
 }
 
-export function useMobileMaxChat(employeeId: string = MAX_WORKER_EMPLOYEE_ID) {
+export function useMobileEmployeeChat(employeeId: string) {
+  const canonical = employeeId
   const { t } = useI18n()
-  const copy = t.mobile.maxChat
+  const copy = resolveMobileEmployeeChatCopy(canonical, t.mobile)
   const navigate = useNavigate()
   const { openRunNextFlow } = useMobileRunNextSheet()
+  const canUseCursorHandoff = hasMobileEmployeeCapability(canonical, 'cursor_handoff')
+  const canShowRuntimeLive = hasMobileEmployeeCapability(canonical, 'runtime_live')
+  const canRunWorkerLoop = hasMobileEmployeeCapability(canonical, 'worker_loop')
 
   const [sessionTick, setSessionTick] = useState(0)
   const [draft, setDraft] = useState('')
@@ -85,8 +97,8 @@ export function useMobileMaxChat(employeeId: string = MAX_WORKER_EMPLOYEE_ID) {
   }, [])
 
   useEffect(() => {
-    getMobileEmployeeChatSession(employeeId, { welcome: copy.welcome })
-  }, [copy.welcome, employeeId])
+    getMobileEmployeeChatSession(canonical, { welcome: copy.welcome })
+  }, [canonical, copy.welcome])
 
   useEffect(() => {
     const onSync = () => refresh()
@@ -110,7 +122,7 @@ export function useMobileMaxChat(employeeId: string = MAX_WORKER_EMPLOYEE_ID) {
   }, [refresh])
 
   void sessionTick
-  const session = getMobileEmployeeChatSession(employeeId, { welcome: copy.welcome })
+  const session = getMobileEmployeeChatSession(canonical, { welcome: copy.welcome })
   const messages = session.messages
 
   const timelineLabels = useMemo(() => buildTimelineLabels(copy.timeline), [copy.timeline])
@@ -119,13 +131,13 @@ export function useMobileMaxChat(employeeId: string = MAX_WORKER_EMPLOYEE_ID) {
     () =>
       filterMobileChatTimelineEntries(
         buildMobileChatTimeline({
-          employeeId,
+          employeeId: canonical,
           messages,
           labels: timelineLabels,
         }),
         timelineFilter,
       ),
-    [employeeId, messages, timelineFilter, timelineLabels],
+    [canonical, messages, timelineFilter, timelineLabels],
   )
 
   const timelineFilterOptions = useMemo(
@@ -137,25 +149,28 @@ export function useMobileMaxChat(employeeId: string = MAX_WORKER_EMPLOYEE_ID) {
     [copy.timeline.filters],
   )
 
-  const status: MobileMaxChatStatus = useMemo(() => {
-    const activeLoop = loadMaxWorkerLoopRecords().find(
-      (loop) =>
-        loop.status === 'running' ||
-        loop.status === 'queued' ||
-        loop.status === 'waiting_approval',
-    )
-    if (activeLoop) {
-      return {
-        label: copy.status.live,
-        detail: activeLoop.input.title?.slice(0, 80) ?? null,
-        tone: 'live',
+  const status: MobileEmployeeChatStatus = useMemo(() => {
+    if (canShowRuntimeLive) {
+      const activeLoop = loadMaxWorkerLoopRecords().find(
+        (loop) =>
+          loop.employeeId === canonical &&
+          (loop.status === 'running' ||
+            loop.status === 'queued' ||
+            loop.status === 'waiting_approval'),
+      )
+      if (activeLoop) {
+        return {
+          label: copy.status.live,
+          detail: activeLoop.input.title?.slice(0, 80) ?? null,
+          tone: 'live',
+        }
       }
     }
     if (isResponding) {
       return { label: copy.status.thinking, detail: null, tone: 'waiting' }
     }
     return { label: copy.status.ready, detail: copy.status.readyHint, tone: 'default' }
-  }, [copy.status, isResponding])
+  }, [canShowRuntimeLive, canonical, copy.status, isResponding])
 
   const sendMessage = useCallback(
     async (rawContent: string) => {
@@ -167,7 +182,7 @@ export function useMobileMaxChat(employeeId: string = MAX_WORKER_EMPLOYEE_ID) {
       setIsResponding(true)
 
       const ownerKind = classifyOwnerChatMessage(content)
-      const ownerMessage = appendMobileEmployeeChatMessage(employeeId, {
+      const ownerMessage = appendMobileEmployeeChatMessage(canonical, {
         role: 'owner',
         kind: ownerKind,
         content,
@@ -179,15 +194,17 @@ export function useMobileMaxChat(employeeId: string = MAX_WORKER_EMPLOYEE_ID) {
         .map((item) => item.content)
       recentOwner.push(content)
 
-      const handoff = tryProcessMobileCursorHandoffFromOwnerMessage({
-        employeeId,
-        ownerMessageId: ownerMessage.id,
-        ownerContent: content,
-        recentOwnerMessages: recentOwner,
-      })
+      const handoff = canUseCursorHandoff
+        ? tryProcessMobileCursorHandoffFromOwnerMessage({
+            employeeId: canonical,
+            ownerMessageId: ownerMessage.id,
+            ownerContent: content,
+            recentOwnerMessages: recentOwner,
+          })
+        : null
 
       if (handoff) {
-        appendMobileEmployeeChatMessage(employeeId, {
+        appendMobileEmployeeChatMessage(canonical, {
           role: 'max',
           kind: 'cursor_handoff',
           content: copy.cursorHandoff.cardTitle,
@@ -198,7 +215,7 @@ export function useMobileMaxChat(employeeId: string = MAX_WORKER_EMPLOYEE_ID) {
         return
       }
 
-      const pendingId = appendMobileEmployeeChatMessage(employeeId, {
+      const pendingId = appendMobileEmployeeChatMessage(canonical, {
         role: 'max',
         kind: 'clarification',
         content: copy.status.thinking,
@@ -207,6 +224,7 @@ export function useMobileMaxChat(employeeId: string = MAX_WORKER_EMPLOYEE_ID) {
 
       try {
         const response = await respondToOwnerChatMessage({
+          employeeId: canonical,
           text: content,
           sourceMessageId: ownerMessage.id,
           taskProposalIntro: copy.taskProposalIntro,
@@ -214,7 +232,7 @@ export function useMobileMaxChat(employeeId: string = MAX_WORKER_EMPLOYEE_ID) {
           questionFallback: copy.questionFallback,
         })
 
-        updateMobileEmployeeChatMessage(employeeId, pendingId, {
+        updateMobileEmployeeChatMessage(canonical, pendingId, {
           kind: response.maxKind,
           content: response.errorMessage
             ? `${copy.errors.ollama}\n${response.errorMessage}`
@@ -226,8 +244,19 @@ export function useMobileMaxChat(employeeId: string = MAX_WORKER_EMPLOYEE_ID) {
           runtimeRunId: response.runtimeRunId,
           workerLoopId: response.workerLoopId,
         })
+
+        if (
+          !response.errorMessage &&
+          hasMobileEmployeeCapability(canonical, 'conversation_memory')
+        ) {
+          const updatedSession = getMobileEmployeeChatSession(canonical)
+          recordConversationExchange({
+            employeeId: canonical,
+            messages: updatedSession.messages,
+          })
+        }
       } catch (error) {
-        updateMobileEmployeeChatMessage(employeeId, pendingId, {
+        updateMobileEmployeeChatMessage(canonical, pendingId, {
           content: copy.errors.generic,
           pending: false,
           error: true,
@@ -238,7 +267,7 @@ export function useMobileMaxChat(employeeId: string = MAX_WORKER_EMPLOYEE_ID) {
         refresh()
       }
     },
-    [copy, employeeId, isResponding, messages, refresh],
+    [canUseCursorHandoff, canonical, copy, isResponding, messages, refresh],
   )
 
   const createTaskFromProposal = useCallback(
@@ -247,19 +276,19 @@ export function useMobileMaxChat(employeeId: string = MAX_WORKER_EMPLOYEE_ID) {
       setActionError(null)
 
       try {
-        const workItem = createWorkItemFromChatProposal(message.taskProposal)
-        updateMobileEmployeeChatMessage(employeeId, message.id, {
+        const workItem = createWorkItemFromChatProposal(message.taskProposal, canonical)
+        updateMobileEmployeeChatMessage(canonical, message.id, {
           workItemId: workItem.id,
           content: `${message.content}\n\n${copy.taskCreated.replace('{title}', workItem.title)}`,
         })
 
-        appendMobileEmployeeChatMessage(employeeId, {
+        appendMobileEmployeeChatMessage(canonical, {
           role: 'system',
           kind: 'system_status',
           content: copy.taskQueued.replace('{id}', workItem.id),
         })
 
-        if (runNow) {
+        if (runNow && canRunWorkerLoop) {
           openRunNextFlow({ workItem, goldenPath: true })
         }
         refresh()
@@ -267,7 +296,7 @@ export function useMobileMaxChat(employeeId: string = MAX_WORKER_EMPLOYEE_ID) {
         setActionError(error instanceof Error ? error.message : copy.errors.generic)
       }
     },
-    [copy, employeeId, openRunNextFlow, refresh],
+    [canRunWorkerLoop, canonical, copy, openRunNextFlow, refresh],
   )
 
   const editTaskProposal = useCallback(
@@ -282,21 +311,21 @@ export function useMobileMaxChat(employeeId: string = MAX_WORKER_EMPLOYEE_ID) {
         sourceMessage: message.taskProposal.taskText,
         intent: 'task_request',
       })
-      navigate(MOBILE_PATHS.tasksNewMax)
+      navigate(mobileEmployeeTasksNewPath(canonical))
     },
-    [navigate],
+    [canonical, navigate],
   )
 
   const cancelTaskProposal = useCallback(
     (message: MobileEmployeeChatMessage) => {
-      updateMobileEmployeeChatMessage(employeeId, message.id, {
+      updateMobileEmployeeChatMessage(canonical, message.id, {
         taskProposal: null,
         kind: 'clarification',
         content: copy.proposalCancelled,
       })
       refresh()
     },
-    [copy.proposalCancelled, employeeId, refresh],
+    [canonical, copy.proposalCancelled, refresh],
   )
 
   return {
@@ -317,4 +346,8 @@ export function useMobileMaxChat(employeeId: string = MAX_WORKER_EMPLOYEE_ID) {
     cancelTaskProposal,
     refresh,
   }
+}
+
+export function useMobileMaxChat(employeeId: string = MAX_WORKER_EMPLOYEE_ID) {
+  return useMobileEmployeeChat(employeeId)
 }

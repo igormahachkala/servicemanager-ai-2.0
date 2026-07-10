@@ -1,10 +1,17 @@
 import { Link } from 'react-router-dom'
 import { useEffect } from 'react'
 import { Navigate, useLocation, useParams } from 'react-router-dom'
-import { MAX_WORKER_EMPLOYEE_ID } from '../../domain/maxWorkerLoop'
-import { resolveCanonicalEmployeeId } from '../../mission-control/data/employeeIdResolver'
+import {
+  getDefaultMobileEmployeeId,
+  hasMobileEmployeeCapability,
+  mobileEmployeeChatPath,
+  mobileEmployeeProfilePath,
+  mobileEmployeeTasksNewPath,
+  resolveMobileEmployeeFromRoute,
+} from '../../domain/mobileEmployee'
 import { useI18n } from '../../i18n'
-import { useMobileEmployeeMax } from '../hooks/useMobileEmployeeMax'
+import { resolveMobileEmployeeProfileCopy } from '../mobileEmployeeCopy'
+import { useMobileEmployeeProfile } from '../hooks/useMobileEmployeeProfile'
 import { useMobileRunNextSheet } from '../hooks/useMobileRunNextSheet'
 import { MobileEmployeeHeroCard } from '../components/MobileEmployeeHeroCard'
 import { MobileEmployeeWorkdayCard } from '../components/MobileEmployeeWorkdayCard'
@@ -13,33 +20,36 @@ import { MobileLastResultCard } from '../components/MobileLastResultCard'
 import { MobileSection } from '../components/MobileSection'
 import { MobileRuntimeLiveBanner } from '../components/MobileRuntimeLiveBanner'
 import { MobileStandardTaskQuickStart } from '../components/MobileStandardTaskQuickStart'
-import { MOBILE_PATHS } from '../navigation/mobileHrefResolver'
 
 export function MobileEmployeePage() {
   const { id: rawId } = useParams<{ id: string }>()
   const location = useLocation()
   const { t } = useI18n()
-  const max = useMobileEmployeeMax()
+  const registryEntry = rawId ? resolveMobileEmployeeFromRoute(rawId) : null
+  const employeeId = registryEntry?.employeeId ?? getDefaultMobileEmployeeId()
+  const profile = useMobileEmployeeProfile(employeeId)
   const { openRunNextFlow } = useMobileRunNextSheet()
-  const copy = t.mobile.maxControl
-
-  const resolvedId = rawId ? resolveCanonicalEmployeeId(rawId) : MAX_WORKER_EMPLOYEE_ID
+  const copy = resolveMobileEmployeeProfileCopy(employeeId, t.mobile)
 
   useEffect(() => {
-    max.refresh()
-  }, [location.key, max.refresh])
+    profile.refresh()
+  }, [location.key, profile.refresh])
 
   if (!rawId) {
-    return <Navigate to={`/mobile/employees/${MAX_WORKER_EMPLOYEE_ID}`} replace />
+    return <Navigate to={`/mobile/employees/${getDefaultMobileEmployeeId()}`} replace />
   }
 
-  if (resolvedId !== MAX_WORKER_EMPLOYEE_ID) {
-    return <Navigate to={`/mobile/employees/${MAX_WORKER_EMPLOYEE_ID}`} replace />
+  if (!registryEntry) {
+    return <Navigate to={`/mobile/employees/${getDefaultMobileEmployeeId()}`} replace />
   }
+
+  const showRuntime = hasMobileEmployeeCapability(employeeId, 'runtime_live')
+  const showWorkerLoop = hasMobileEmployeeCapability(employeeId, 'worker_loop')
+  const showStandardTask = hasMobileEmployeeCapability(employeeId, 'standard_task_quick_start')
 
   return (
     <div className="acMobilePage acMobileMaxPage">
-      {!max.snapshot.hasPriorActivity ? (
+      {!profile.snapshot.hasPriorActivity ? (
         <div className="acMobileMaxReadyBanner" role="status">
           <p>{copy.readyBanner}</p>
         </div>
@@ -49,37 +59,44 @@ export function MobileEmployeePage() {
         </div>
       )}
 
-      {max.activeWorkerLoop ? (
+      {showRuntime && profile.activeWorkerLoop ? (
         <div data-mobile-guide="max-runtime">
           <MobileRuntimeLiveBanner
-            loopId={max.activeWorkerLoop.id}
+            loopId={profile.activeWorkerLoop.id}
             taskTitle={
-              max.activeWorkerLoop.input.title?.trim() ||
-              max.activeWorkerLoop.input.taskText.slice(0, 120)
+              profile.activeWorkerLoop.input.title?.trim() ||
+              profile.activeWorkerLoop.input.taskText.slice(0, 120)
             }
           />
         </div>
-      ) : (
+      ) : showRuntime ? (
         <div data-mobile-guide="max-runtime" className="acMobileGuideRuntimePlaceholder">
           <p className="acMobileOwnerHomeMuted">{copy.runtimeGuideHint}</p>
         </div>
-      )}
+      ) : null}
 
-      <MobileEmployeeHeroCard snapshot={max.snapshot} />
+      <MobileEmployeeHeroCard
+        snapshot={profile.snapshot}
+        heroCopy={copy.hero}
+        chatHref={mobileEmployeeChatPath(employeeId)}
+      />
 
       <MobileSection title={copy.hero.openChat}>
-        <Link to={MOBILE_PATHS.chat} className="acMobilePrimaryBtn">
+        <Link to={mobileEmployeeChatPath(employeeId)} className="acMobilePrimaryBtn">
           {copy.hero.openChat}
         </Link>
       </MobileSection>
 
-      <MobileStandardTaskQuickStart />
+      {showStandardTask ? <MobileStandardTaskQuickStart /> : null}
 
       <div data-mobile-guide="max-queue">
         <MobileSection title={copy.sections.workQueue}>
           <MobileWorkQueueCard
-            workQueue={max.snapshot.workQueue}
-            isRunning={max.isRunning}
+            workQueue={profile.snapshot.workQueue}
+            isRunning={profile.isRunning}
+            showRunNext={showWorkerLoop}
+            assignTaskHref={mobileEmployeeTasksNewPath(employeeId)}
+            workQueueCopy={copy.workQueue}
             onRunNext={() => openRunNextFlow({ goldenPath: true })}
           />
         </MobileSection>
@@ -88,10 +105,12 @@ export function MobileEmployeePage() {
       <div data-mobile-guide="max-workday">
         <MobileSection title={copy.sections.workday}>
           <MobileEmployeeWorkdayCard
-            operatingDay={max.snapshot.operatingDay}
-            onStart={max.startWorkday}
-            onContinue={max.continueWorkday}
-            onFinish={max.finishWorkday}
+            operatingDay={profile.snapshot.operatingDay}
+            workdayCopy={copy.workday}
+            profilePath={mobileEmployeeProfilePath(employeeId)}
+            onStart={profile.startWorkday}
+            onContinue={profile.continueWorkday}
+            onFinish={profile.finishWorkday}
           />
         </MobileSection>
       </div>
@@ -99,10 +118,11 @@ export function MobileEmployeePage() {
       <div data-mobile-guide="max-result">
         <MobileSection title={copy.sections.lastResult}>
           <MobileLastResultCard
-            lastJournalEntry={max.snapshot.lastJournalEntry}
-            lastOperatingDaySummary={max.snapshot.lastOperatingDaySummary}
-            hasPriorActivity={max.snapshot.hasPriorActivity}
-            onStartWorkday={max.startWorkday}
+            lastJournalEntry={profile.snapshot.lastJournalEntry}
+            lastOperatingDaySummary={profile.snapshot.lastOperatingDaySummary}
+            hasPriorActivity={profile.snapshot.hasPriorActivity}
+            lastResultCopy={copy.lastResult}
+            onStartWorkday={profile.startWorkday}
           />
         </MobileSection>
       </div>

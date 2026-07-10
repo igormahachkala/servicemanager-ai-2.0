@@ -35,7 +35,7 @@ export type MaxWorkspaceWorkQueueSuggestedAction = {
 }
 
 export type MaxWorkspaceWorkQueueView = {
-  employeeId: typeof MAX_WORKER_EMPLOYEE_ID
+  employeeId: string
   isEmpty: boolean
   pendingCount: number
   blockedCount: number
@@ -133,7 +133,7 @@ export function buildMaxWorkspaceWorkQueueView(
     .map((item) => mapWorkItem(item, activeId))
 
   return {
-    employeeId: MAX_WORKER_EMPLOYEE_ID,
+    employeeId,
     isEmpty: queue.items.length === 0,
     pendingCount: queue.pendingCount,
     blockedCount: queue.blockedCount,

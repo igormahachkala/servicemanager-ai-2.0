@@ -24,12 +24,12 @@ import {
   type MobileTaskMode,
 } from '../tasks/mobileComplexTaskPayload'
 import {
+  buildMobileRunTaskEmployees,
   deriveTaskTitle,
   findMobileTaskTemplate,
   isEnabledMobileRunTaskEmployee,
   isMobileRunTaskFormValid,
   isMobileTaskTemplateId,
-  MOBILE_RUN_TASK_EMPLOYEES,
   type MobileTaskTemplateId,
 } from '../runTask/mobileRunTaskConfig'
 
@@ -186,14 +186,14 @@ export function useMobileRunTask() {
     setTaskMode('quick')
     setForm((current) => ({
       ...current,
-      employeeId: MAX_WORKER_EMPLOYEE_ID,
+      employeeId: resolveInitialEmployee(searchParams.get('employee')),
       title: prefill.title,
       taskText: prefill.taskText,
       priority: prefill.priority,
       expectedOutput: prefill.expectedResult,
       templateId: null,
     }))
-  }, [])
+  }, [searchParams])
 
   const resetForm = useCallback(() => {
     setForm({
@@ -306,7 +306,7 @@ export function useMobileRunTask() {
     startEmployeeOperatingDay(resolveCanonicalEmployeeId(form.employeeId))
   }, [form.employeeId])
 
-  const employees = useMemo(() => MOBILE_RUN_TASK_EMPLOYEES, [])
+  const employees = useMemo(() => buildMobileRunTaskEmployees(), [])
 
   const isMaxEmployee = resolveCanonicalEmployeeId(form.employeeId) === MAX_WORKER_EMPLOYEE_ID
 

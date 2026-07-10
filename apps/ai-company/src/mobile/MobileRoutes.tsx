@@ -1,5 +1,5 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
-import { MAX_WORKER_EMPLOYEE_ID } from '../domain/maxWorkerLoop'
+import { getDefaultMobileEmployeeId } from '../domain/mobileEmployee'
 import { MobileAppShell } from './layout/MobileAppShell'
 import { MobileEmployeePage } from './pages/MobileEmployeePage'
 import { MobileEmployeesPage } from './pages/MobileEmployeesPage'
@@ -37,7 +37,7 @@ export function MobileRoutes() {
         <Route path="reports" element={<MobileReportsPage />} />
         <Route path="demo" element={<MobileDemoPage />} />
         <Route path="chat/:employeeId" element={<MobileMaxChatPage />} />
-        <Route path="chat" element={<Navigate to={`chat/${MAX_WORKER_EMPLOYEE_ID}`} replace />} />
+        <Route path="chat" element={<Navigate to={`chat/${getDefaultMobileEmployeeId()}`} replace />} />
         <Route path="more" element={<MobileMorePage />} />
         <Route path="*" element={<Navigate to="today" replace />} />
       </Routes>

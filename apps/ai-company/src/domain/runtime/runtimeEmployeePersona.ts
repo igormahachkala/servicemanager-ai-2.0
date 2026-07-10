@@ -24,6 +24,15 @@ const PERSONA_BY_EMPLOYEE: Record<string, EmployeePersonaConfig> = {
       'что оставить в AI Company vs что передать Codex',
     ],
   },
+  'ag-builder': {
+    roleLine: 'Product Engineer / Инженер продукта',
+    styleFocus: [
+      'реализация UI и product flows',
+      'компоненты, экраны, mobile UX',
+      'локальная работа без Runtime — задачи в очередь',
+      'чёткие шаги и acceptance criteria',
+    ],
+  },
   'ag-qa': {
     roleLine: 'QA Engineer / Инженер QA',
     styleFocus: [

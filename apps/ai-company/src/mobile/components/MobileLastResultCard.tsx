@@ -11,6 +11,22 @@ type Props = {
   lastOperatingDaySummary: EmployeeOperatingDaySummary | null
   hasPriorActivity: boolean
   onStartWorkday: () => void
+  lastResultCopy?: {
+    title: string
+    description: string
+    readyHint: string
+    startWorkday: string
+    assignTask?: string
+    fallbackTitle: string
+    noSummary: string
+    hasData: string
+    model: string
+    consultations: string
+    recommendation: string
+    openReport: string
+    openReports: string
+    openMorningReport?: string
+  }
 }
 
 function formatWhen(iso: string): string {
@@ -29,9 +45,10 @@ export function MobileLastResultCard({
   lastOperatingDaySummary,
   hasPriorActivity,
   onStartWorkday,
+  lastResultCopy,
 }: Props) {
   const { t } = useI18n()
-  const copy = t.mobile.maxControl.lastResult
+  const copy = lastResultCopy ?? t.mobile.maxControl.lastResult
 
   if (!hasPriorActivity || (!lastJournalEntry && !lastOperatingDaySummary)) {
     return (

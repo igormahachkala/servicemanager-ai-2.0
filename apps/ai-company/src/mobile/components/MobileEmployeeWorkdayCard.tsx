@@ -9,6 +9,14 @@ type Props = {
   onStart: () => void
   onContinue: () => void
   onFinish: () => void
+  workdayCopy?: {
+    title: string
+    description: string
+    advancePhase: string
+    openMax?: string
+    openProfile?: string
+  }
+  profilePath?: string
 }
 
 function formatWorkHours(minutes: number, hoursShort: string, minutesShort: string): string {
@@ -24,10 +32,12 @@ export function MobileEmployeeWorkdayCard({
   onStart,
   onContinue,
   onFinish,
+  workdayCopy,
+  profilePath = MOBILE_PATHS.max,
 }: Props) {
   const { t } = useI18n()
   const od = t.employeeOperatingDay
-  const copy = t.mobile.maxControl.workday
+  const copy = workdayCopy ?? t.mobile.maxControl.workday
   const statusLabel = od.status[operatingDay.status]
   const statusTone =
     operatingDay.status === 'active'
@@ -93,8 +103,8 @@ export function MobileEmployeeWorkdayCard({
         {!operatingDay.actions.canStart &&
         !operatingDay.actions.canContinue &&
         !operatingDay.actions.canFinish ? (
-          <Link to={MOBILE_PATHS.max} className="acMobileLinkBtn">
-            {copy.openMax}
+          <Link to={profilePath} className="acMobileLinkBtn">
+            {'openProfile' in copy ? copy.openProfile : copy.openMax}
           </Link>
         ) : null}
       </div>

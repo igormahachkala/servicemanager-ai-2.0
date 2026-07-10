@@ -1,5 +1,12 @@
 import type { WorkPriority } from '../../domain/employeeWorkQueue'
+import { getEmployee } from '../../domain/employeeRegistry'
+import {
+  hasMobileEmployeeCapability,
+  listMobileEmployeeRegistry,
+} from '../../domain/mobileEmployee'
 import { MAX_WORKER_EMPLOYEE_ID } from '../../domain/maxWorkerLoop'
+import { resolveEmployee } from '../../mission-control/data/conversation'
+import { resolveCanonicalEmployeeId } from '../../mission-control/data/employeeIdResolver'
 
 export type MobileRunTaskEmployeeId = string
 
@@ -31,14 +38,7 @@ export type MobileTaskTemplate = {
 /** Default Owner quick-start template — first in mobile Run Task list. */
 export const MOBILE_STANDARD_TASK_TEMPLATE_ID: MobileTaskTemplateId = 'standard_health_check'
 
-/** V1 roster — extensible; not MAX-only. */
-export const MOBILE_RUN_TASK_EMPLOYEES: MobileRunTaskEmployeeOption[] = [
-  {
-    id: MAX_WORKER_EMPLOYEE_ID,
-    codename: 'MAX',
-    role: 'Senior Engineer',
-    enabled: true,
-  },
+const MOBILE_RUN_TASK_PLACEHOLDER_EMPLOYEES: MobileRunTaskEmployeeOption[] = [
   {
     id: 'ag-cto',
     codename: 'Atlas',
@@ -52,6 +52,33 @@ export const MOBILE_RUN_TASK_EMPLOYEES: MobileRunTaskEmployeeOption[] = [
     enabled: false,
   },
 ]
+
+/** V1 roster — enabled employees from mobile registry + disabled placeholders. */
+export function buildMobileRunTaskEmployees(): MobileRunTaskEmployeeOption[] {
+  const active = listMobileEmployeeRegistry()
+    .filter((entry) => hasMobileEmployeeCapability(entry.employeeId, 'work_queue'))
+    .map((entry) => {
+      const registry = getEmployee(entry.employeeId)
+      const conversation = resolveEmployee(entry.employeeId)
+      return {
+        id: entry.employeeId,
+        codename: registry?.displayName ?? conversation?.codename ?? entry.employeeId,
+        role: registry?.role.title ?? conversation?.role ?? '',
+        enabled: true,
+      }
+    })
+
+  const activeIds = new Set(active.map((item) => item.id))
+  const placeholders = MOBILE_RUN_TASK_PLACEHOLDER_EMPLOYEES.filter(
+    (item) => !activeIds.has(item.id),
+  )
+
+  return [...active, ...placeholders]
+}
+
+/** @deprecated prefer buildMobileRunTaskEmployees() for fresh roster */
+export const MOBILE_RUN_TASK_EMPLOYEES: MobileRunTaskEmployeeOption[] =
+  buildMobileRunTaskEmployees()
 
 export const MOBILE_TASK_TEMPLATES: MobileTaskTemplate[] = [
   {
@@ -116,7 +143,9 @@ export function isMobileTaskTemplateId(value: string): value is MobileTaskTempla
 }
 
 export function findMobileRunTaskEmployee(id: string): MobileRunTaskEmployeeOption | undefined {
-  return MOBILE_RUN_TASK_EMPLOYEES.find((item) => item.id === id)
+  return buildMobileRunTaskEmployees().find(
+    (item) => item.id === resolveCanonicalEmployeeId(id),
+  )
 }
 
 export function findMobileTaskTemplate(id: MobileTaskTemplateId): MobileTaskTemplate | undefined {
@@ -138,3 +167,5 @@ export function isEnabledMobileRunTaskEmployee(id: string): boolean {
 export function isMobileRunTaskFormValid(title: string, taskText: string): boolean {
   return taskText.trim().length > 0 && deriveTaskTitle(taskText, title).trim().length > 0
 }
+
+export { MAX_WORKER_EMPLOYEE_ID }

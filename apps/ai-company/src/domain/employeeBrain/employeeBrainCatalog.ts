@@ -38,6 +38,22 @@ const BRAIN_PRESET_CATALOG: Record<string, BrainPreset> = {
     ],
     ownerApprovalTriggers: ['git_push', 'cursor_automation', 'terminal', 'docker', 'production'],
   },
+  'ag-builder': {
+    specialization: 'Product implementation, UI flows, local feature delivery',
+    decisionStyle: 'pragmatic',
+    modelSelectionStrategy: 'single_best',
+    toolSelectionStrategy: 'minimal',
+    autonomyLevel: 'guided',
+    acceptableRisk: 'low',
+    reasoningLevel: 'standard',
+    preferVerification: true,
+    constraints: [
+      'Локальная работа V1 — без Worker Loop и Tool Dispatcher',
+      'Задачи в Work Queue; Owner подтверждает proposal в чате',
+      'Без Cursor handoff и production deploy',
+    ],
+    ownerApprovalTriggers: ['production', 'git_push'],
+  },
   'ag-cto': {
     specialization: 'Architecture, planning, risk assessment, Owner decisions',
     decisionStyle: 'conservative',

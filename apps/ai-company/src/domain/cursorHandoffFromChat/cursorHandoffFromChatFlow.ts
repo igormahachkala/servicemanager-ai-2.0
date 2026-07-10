@@ -190,6 +190,7 @@ export function tryProcessMobileCursorHandoffFromOwnerMessage(input: {
   ownerContent: string
   recentOwnerMessages: string[]
 }): { handoffId: string; proposalMessageId: string } | null {
+  if (input.employeeId !== MAX_WORKER_EMPLOYEE_ID) return null
   if (!detectCursorHandoffIntent(input.ownerContent)) return null
 
   const handoffId = createHandoffId()

@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import type { MaxWorkspaceWorkQueueView } from '../../domain/maxWorkspace/maxWorkspaceWorkQueueViewModel'
 import { useI18n } from '../../i18n'
 import { MOBILE_PATHS } from '../navigation/mobileHrefResolver'
@@ -8,13 +9,30 @@ type Props = {
   workQueue: MaxWorkspaceWorkQueueView
   isRunning: boolean
   onRunNext: () => void
+  showRunNext?: boolean
+  assignTaskHref?: string
+  workQueueCopy?: {
+    title: string
+    assignTask: string
+    runNext: string
+    running: string
+    runningStatus: string
+    fabHint: string
+  }
 }
 
-export function MobileWorkQueueCard({ workQueue, isRunning, onRunNext }: Props) {
+export function MobileWorkQueueCard({
+  workQueue,
+  isRunning,
+  onRunNext,
+  showRunNext = true,
+  assignTaskHref = MOBILE_PATHS.tasksNewMax,
+  workQueueCopy,
+}: Props) {
   const { t } = useI18n()
   const wq = t.maxWorkspace.workQueue
-  const copy = t.mobile.maxControl.workQueue
-  const runTaskHref = MOBILE_PATHS.tasksNewMax
+  const copy = workQueueCopy ?? t.mobile.maxControl.workQueue
+  const runTaskHref = assignTaskHref
 
   if (workQueue.isEmpty) {
     return (
@@ -71,14 +89,20 @@ export function MobileWorkQueueCard({ workQueue, isRunning, onRunNext }: Props) 
       ) : null}
 
       <div className="acMobileCardActions acMobileCardActionsPrimaryOnly">
-        <button
-          type="button"
-          className="acMobilePrimaryBtn acMobileCardPrimaryWide"
-          disabled={!canRunNext}
-          onClick={() => void onRunNext()}
-        >
-          {isRunning ? copy.running : copy.runNext}
-        </button>
+        {showRunNext ? (
+          <button
+            type="button"
+            className="acMobilePrimaryBtn acMobileCardPrimaryWide"
+            disabled={!canRunNext}
+            onClick={() => void onRunNext()}
+          >
+            {isRunning ? copy.running : copy.runNext}
+          </button>
+        ) : (
+          <Link to={runTaskHref} className="acMobilePrimaryBtn acMobileCardPrimaryWide">
+            {copy.assignTask}
+          </Link>
+        )}
       </div>
       <p className="acMobileMaxQueueFabHint">{copy.fabHint}</p>
     </MobileCard>

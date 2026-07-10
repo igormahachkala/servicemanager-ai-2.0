@@ -1,25 +1,29 @@
 import { Navigate, useParams } from 'react-router-dom'
-import { MAX_WORKER_EMPLOYEE_ID } from '../../domain/maxWorkerLoop'
-import { resolveCanonicalEmployeeId } from '../../mission-control/data/employeeIdResolver'
+import {
+  getDefaultMobileEmployeeId,
+  resolveMobileEmployeeFromRoute,
+} from '../../domain/mobileEmployee'
 import { useI18n } from '../../i18n'
+import { resolveMobileEmployeeChatCopy } from '../mobileEmployeeCopy'
 import { MobileChatComposer } from '../components/MobileChatComposer'
 import { MobileChatMessageList } from '../components/MobileChatMessageList'
 import { MobileChatQuickHints } from '../components/MobileChatQuickHints'
 import { MobileChatStatusBar } from '../components/MobileChatStatusBar'
 import { MobileChatTimelineFilter } from '../components/MobileChatTimelineFilter'
-import { useMobileMaxChat } from '../hooks/useMobileMaxChat'
+import { useMobileEmployeeChat } from '../hooks/useMobileMaxChat'
 
 export function MobileMaxChatPage() {
   const { employeeId: rawId } = useParams<{ employeeId: string }>()
   const { t } = useI18n()
-  const copy = t.mobile.maxChat
+  const registryEntry = rawId ? resolveMobileEmployeeFromRoute(rawId) : null
+  const employeeId = registryEntry?.employeeId ?? getDefaultMobileEmployeeId()
+  const copy = resolveMobileEmployeeChatCopy(employeeId, t.mobile)
 
-  const resolvedId = rawId ? resolveCanonicalEmployeeId(rawId) : MAX_WORKER_EMPLOYEE_ID
-  if (resolvedId !== MAX_WORKER_EMPLOYEE_ID) {
-    return <Navigate to={`/mobile/chat/${MAX_WORKER_EMPLOYEE_ID}`} replace />
+  if (!rawId || !registryEntry) {
+    return <Navigate to={`/mobile/chat/${getDefaultMobileEmployeeId()}`} replace />
   }
 
-  const chat = useMobileMaxChat(resolvedId)
+  const chat = useMobileEmployeeChat(employeeId)
 
   return (
     <div className="acMobilePage acMobileChatPage">

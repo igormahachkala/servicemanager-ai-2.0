@@ -9,7 +9,7 @@ import { MAX_WORKER_EMPLOYEE_ID } from '../maxWorkerLoop'
 import { loadEmployeeOperatingDaySummaries } from '../operatingDaySummary'
 
 export type FirstEmployeeFlowStatus = {
-  employeeId: typeof MAX_WORKER_EMPLOYEE_ID
+  employeeId: string
   hasPriorActivity: boolean
   journalEntryCount: number
   completedTaskCount: number
@@ -17,7 +17,7 @@ export type FirstEmployeeFlowStatus = {
 }
 
 export function buildFirstEmployeeFlowStatus(
-  employeeId: typeof MAX_WORKER_EMPLOYEE_ID = MAX_WORKER_EMPLOYEE_ID,
+  employeeId: string = MAX_WORKER_EMPLOYEE_ID,
 ): FirstEmployeeFlowStatus {
   const journalEntryCount = listEmployeeDailyJournalEntries({ employeeId }).length
   const completedTaskCount = loadEmployeeWorkItems().filter(

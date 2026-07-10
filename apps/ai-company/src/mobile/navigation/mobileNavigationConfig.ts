@@ -1,3 +1,6 @@
+import { resolveMobileEmployeeFromRoute } from '../../domain/mobileEmployee'
+import { resolveEmployee } from '../../mission-control/data/conversation'
+
 export type MobileNavId = 'today' | 'employees' | 'tasks' | 'decisions' | 'more'
 
 export type MobileNavItem = {
@@ -61,6 +64,14 @@ export function mobilePageTitle(
   if (pathname === `${MOBILE_NAV_BASE}/tasks` || pathname.startsWith(`${MOBILE_NAV_BASE}/tasks?`)) {
     return labels.tasks
   }
+  if (pathname.startsWith(`${MOBILE_NAV_BASE}/chat/`)) {
+    const routeId = pathname.slice(`${MOBILE_NAV_BASE}/chat/`.length).split(/[/?#]/)[0]
+    const entry = resolveMobileEmployeeFromRoute(routeId)
+    if (entry) {
+      const name = resolveEmployee(entry.employeeId)?.codename ?? entry.routeAlias
+      return labels.chat?.includes('MAX') ? labels.chat.replace('MAX', name) : `${name} chat`
+    }
+  }
   if (pathname.startsWith(`${MOBILE_NAV_BASE}/chat`)) {
     return labels.chat ?? 'Chat'
   }
@@ -78,6 +89,13 @@ export function mobilePageTitle(
   }
   if (pathname.startsWith(`${MOBILE_NAV_BASE}/reports`)) {
     return labels.reports ?? 'Отчёты'
+  }
+  if (pathname.startsWith(`${MOBILE_NAV_BASE}/employees/`)) {
+    const routeId = pathname.slice(`${MOBILE_NAV_BASE}/employees/`.length).split(/[/?#]/)[0]
+    const entry = resolveMobileEmployeeFromRoute(routeId)
+    if (entry) {
+      return resolveEmployee(entry.employeeId)?.codename ?? entry.routeAlias
+    }
   }
   if (pathname.includes('/employees/ag-max') || pathname.endsWith('/employees/max')) {
     return maxTitle

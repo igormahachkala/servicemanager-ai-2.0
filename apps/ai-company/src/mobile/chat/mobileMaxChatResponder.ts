@@ -28,19 +28,26 @@ import {
   trimPromptForFastTest,
 } from '../../domain/runtime/providers/runtimeCapabilities'
 import { MOBILE_MORNING_REPORT_ID } from '../reports/mobileReportsSnapshot'
+import { resolveEmployee } from '../../mission-control/data/conversation'
 import type {
   MobileEmployeeChatMessageKind,
   MobileEmployeeChatTaskProposal,
 } from './mobileEmployeeChat'
 
-const MAX_CHAT_SYSTEM_PROMPT = [
-  'You are MAX, senior engineer at AI Company.',
-  'Reply concisely in the same language as the user (Russian or English).',
-  'Help the Owner with product, architecture, mobile UX, and MAX work queue.',
-  'Use the conversation history and working memory below — refer to prior topics when relevant.',
-  'Do not claim you already executed tasks or changed code.',
-  'For actionable work, say the Owner can confirm a task proposal in chat.',
-].join(' ')
+function buildChatSystemPrompt(employeeId: string): string {
+  const employee = resolveEmployee(employeeId)
+  const codename = employee?.codename ?? employeeId
+  const role = employee?.role ?? 'digital employee at AI Company'
+
+  return [
+    `You are ${codename}, ${role}.`,
+    'Reply concisely in the same language as the user (Russian or English).',
+    'Help the Owner with product work, implementation planning, and their work queue.',
+    'Use the conversation history and working memory below — refer to prior topics when relevant.',
+    'Do not claim you already executed tasks or changed code.',
+    'For actionable work, say the Owner can confirm a task proposal in chat.',
+  ].join(' ')
+}
 
 type OllamaGenerateResponse = {
   response?: string
@@ -96,7 +103,7 @@ async function generateOllamaChatReply(
   const context = buildEmployeeConversationContext(employeeId)
   const contextBlock = formatEmployeeConversationContextForPrompt(context, userMessage)
   const prompt = trimPromptForFastTest(
-    `${MAX_CHAT_SYSTEM_PROMPT}\n\n${contextBlock}`,
+    `${buildChatSystemPrompt(employeeId)}\n\n${contextBlock}`,
     modelTag,
   )
 
