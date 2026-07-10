@@ -1,0 +1,13 @@
+# tc-06b-response (sanitized)
+
+HTTP/2 400 
+date: Fri, 10 Jul 2026 14:35:27 GMT
+content-type: application/json; charset=utf-8
+content-length: 88
+vary: Origin
+access-control-allow-credentials: true
+access-control-expose-headers: Grpc-Status, Grpc-Message, Grpc-Status-Details-Bin, Content-Encoding, Connect-Content-Encoding, traceparent, backend-traceparent, x-amzn-trace-id, x-request-id
+
+{"success":false,"error":"Failed to start background composer: [unauthenticated] Error"}
+
+CURL_TIME_TOTAL:1.303709

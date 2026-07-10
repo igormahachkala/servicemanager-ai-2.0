@@ -1,0 +1,2 @@
+# TC-08a No auth, empty JSON
+curl -i -X POST "https://api2.cursor.sh/automations/webhook/***REDACTED***" -H "Content-Type: application/json" -d '{}'

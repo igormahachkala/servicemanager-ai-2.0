@@ -1,0 +1,2 @@
+# TC-08b Wrong Bearer token
+curl -i -X POST "https://api2.cursor.sh/automations/webhook/***REDACTED***" -H "Authorization: Bearer ***REDACTED_WRONG***" -H "Content-Type: application/json" -d '{}'

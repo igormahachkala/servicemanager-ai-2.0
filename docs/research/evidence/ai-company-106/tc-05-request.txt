@@ -1,0 +1,2 @@
+# TC-05 text/plain
+curl -i -X POST ... -H "Authorization: Bearer ***REDACTED***" -H "Content-Type: text/plain" -d 'plain body'

@@ -1,0 +1,3 @@
+# TC-01 Empty POST, no auth
+timestamp_utc: 2026-07-10T14:35:16Z
+curl -i -X POST "https://api2.cursor.sh/automations/webhook/***REDACTED***"

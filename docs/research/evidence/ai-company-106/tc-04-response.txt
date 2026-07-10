@@ -1,0 +1,13 @@
+# tc-04-response (sanitized)
+
+HTTP/2 500 
+date: Fri, 10 Jul 2026 14:35:21 GMT
+content-type: application/json; charset=utf-8
+content-length: 37
+vary: Origin
+access-control-allow-credentials: true
+access-control-expose-headers: Grpc-Status, Grpc-Message, Grpc-Status-Details-Bin, Content-Encoding, Connect-Content-Encoding, traceparent, backend-traceparent, x-amzn-trace-id, x-request-id
+
+{"code":"internal","message":"Error"}
+
+CURL_TIME_TOTAL:0.517829

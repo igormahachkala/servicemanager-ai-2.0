@@ -1,0 +1,2 @@
+# TC-02 Empty JSON with auth
+curl -i -X POST "https://api2.cursor.sh/automations/webhook/***REDACTED***" -H "Authorization: Bearer ***REDACTED***" -H "Content-Type: application/json" -d '{}'
