@@ -1,0 +1,6 @@
+# Green run request (sanitized)
+timestamp_utc: 2026-07-13T11:26:37Z
+curl -i -X POST "https://api2.cursor.sh/automations/webhook/***REDACTED***" \
+  -H "Authorization: Bearer ***REDACTED***" \
+  -H "Content-Type: application/json" \
+  -d '{"testId":"ai-company-106a-green-run","source":"ai-company","purpose":"cursor-automation-webhook-contract-verification"}'

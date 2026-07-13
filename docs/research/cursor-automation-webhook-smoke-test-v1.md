@@ -355,6 +355,51 @@ Before re-running smoke test:
 
 ---
 
+## Green Run Verification (AI-COMPANY-106A)
+
+> **Date (UTC):** 2026-07-13  
+> **Evidence:** [evidence/ai-company-106a/](./evidence/ai-company-106a/)  
+> **Status:** **NOT GREEN** — composer start still blocked; no run, no commit
+
+### Root cause status
+
+| Blocker | 106 (2026-07-10) | 106A (2026-07-13) |
+|---------|------------------|-------------------|
+| Automation disabled | Observed → resolved | Not observed |
+| Webhook auth | Confirmed Bearer | **Still confirmed** with rotated key |
+| Test branch on remote | Missing | **Fixed** — branch pushed |
+| Composer start | `[unauthenticated] Error` | **Still present** |
+| Successful run | No | **No** |
+| `success: true` HTTP | No | **No** |
+| Run ID in response | No | **No** |
+| Payload visibility | No | **No** (no run) |
+| Repository artifact | No | **No** — 36×10s poll empty |
+
+### Remediation applied in 106A
+
+1. Webhook API key **rotated** (local gitignored env only).
+2. `test/cursor-automation-webhook-contract` **pushed to origin**.
+3. 106A automation instruction draft opened in Glass Automations.
+4. Green POST executed — evidence in `106a/green-run-request.txt`, `green-run-response.txt`.
+
+### Green run HTTP result
+
+```
+HTTP/2 400
+{"success":false,"error":"Failed to start background composer: [unauthenticated] Error"}
+CURL_TIME_TOTAL: ~1.08 s
+```
+
+### Follow-up TCs (03, 06, 07, 09, 10)
+
+**Skipped** — green run not achieved.
+
+### 106A recommendation
+
+**Path B — Cloud Agents API v1** (unchanged). Dashboard checklist: [prerequisites-checklist.md](./evidence/ai-company-106a/prerequisites-checklist.md).
+
+---
+
 ## Evidence index
 
 | File | Content |
@@ -364,6 +409,8 @@ Before re-running smoke test:
 | `tc-08a/b/c-*` | Auth matrix |
 | `tc-06a/b-*` | Duplicate attempts |
 | `test-matrix.md` | Summary table |
+| `106a/green-run-*` | 106A green attempt + poll log |
+| `106a/prerequisites-checklist.md` | Repo/workspace prerequisites |
 
 ---
 

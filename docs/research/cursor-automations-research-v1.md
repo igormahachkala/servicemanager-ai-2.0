@@ -796,36 +796,46 @@ MCP sensitive fields (`env`, `headers`, `CLIENT_SECRET`) redacted after save —
 - API key issued after save in dashboard.
 - Cloud Agents API v1 run lifecycle, SSE, cancel — documented separately from Automations webhook.
 
-### confirmed by live smoke test
+### confirmed before agent start (106 + 106A)
 
 | Topic | Live fact |
 |-------|-----------|
 | Webhook URL host/path | `https://api2.cursor.sh/automations/webhook/{uuid}` |
 | Auth header | `Authorization: Bearer crsr_...` |
-| Missing/invalid auth | HTTP **401** — `Invalid API key or missing required scope` |
-| Disabled automation | HTTP **400** — `Automation {uuid} is disabled` |
-| JSON / empty / text/plain at HTTP layer | Accepted (not 415); business errors as 400 |
-| Invalid JSON body | HTTP **500** — `{"code":"internal","message":"Error"}` |
-| Composer start failure (this workspace) | HTTP **400** — `Failed to start background composer: [unauthenticated] Error` |
-| Response latency | ~0.5–1.5 s; **does not wait** for agent completion |
-| Execution ID in HTTP response | **Absent** (all observed responses) |
+| Missing/invalid auth | HTTP **401** |
+| Disabled automation | HTTP **400** — `Automation … is disabled` (106 only) |
+| JSON at HTTP layer | Accepted; errors as 400/500 |
+| Composer start failure | HTTP **400** — `Failed to start background composer: [unauthenticated] Error` (106 + **106A after key rotation + branch push**) |
+| Response latency | ~0.5–1.5 s; non-blocking |
+| Execution ID in HTTP response | **Absent** |
+| Test branch on GitHub remote | **Yes** (106A) |
+| Webhook key rotation | **Done** locally (106A); not in git |
 
-### still undocumented or unconfirmed
+### confirmed after successful agent start
 
-| Topic | Status after live test |
-|-------|------------------------|
-| Success response schema (`success: true`) | **Not observed** — no successful run |
-| Execution / run ID in webhook response | **Not observed** |
-| Payload → agent prompt mapping | **Not observed** (no run output) |
-| Query string / custom headers in agent context | **Not observed** |
-| Idempotency / duplicate protection | **Not confirmed** |
-| Outbound completion callback (Automations) | Still **not observed** |
-| Webhook rate limits / max payload | Still **not tested to limit** |
-| Official docs for exact URL/auth header | Still **partial** — live test fills gap for URL/Bearer only |
+**None.** No successful Cloud Agent run observed through Automations webhook as of 106A.
 
-### Impact on AI-COMPANY-105 recommendations
+### still undocumented
 
-Первоначальная рекомендация «smoke test на реальном аккаунте перед Adapter» **выполнена**. Результат smoke test **усиливает** склонность к **Path B (Cloud Agents API v1)** до повторного green-run Automations webhook. Первоначальные выводы §«Неподтверждённое» **не отменены** — часть пунктов (URL, Bearer) **снята** live test; пункты про run ID и result contract **остаются**.
+(Unchanged from 106 — official docs do not specify webhook success body, payload mapping, idempotency.)
+
+### still unverified (blocked on green run)
+
+| Topic | Status |
+|-------|--------|
+| `success: true` response | Not observed |
+| Run / execution ID (HTTP or UI) | Not observed |
+| Payload → agent prompt | Not observed |
+| Query / custom headers in agent | Not observed |
+| Duplicate / idempotency | Not tested (106A skipped) |
+| Commit / PR result discovery | Not observed |
+| Async long-run behavior (TC-07) | Not tested (106A skipped) |
+
+### Impact on recommendations (106A)
+
+**Path B (Cloud Agents API v1)** — unchanged. **Path A** remains blocked. **Path C** deferred until green Automations webhook run succeeds.
+
+> **106A addendum:** [Green Run Verification](./cursor-automation-webhook-smoke-test-v1.md#green-run-verification-ai-company-106a) · evidence [ai-company-106a/](./evidence/ai-company-106a/)
 
 ---
 

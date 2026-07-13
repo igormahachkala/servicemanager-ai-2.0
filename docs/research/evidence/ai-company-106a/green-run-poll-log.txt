@@ -1,0 +1,9 @@
+# Green run poll log (sanitized)
+# 2026-07-13 UTC — 36 attempts × 10s (~6 min)
+# Result: tmp/cursor-automation-smoke-result.json NOT found on origin/test/cursor-automation-webhook-contract
+
+poll 1 - no artifact yet
+poll 2 - no artifact yet
+...
+poll 36 - no artifact yet
+POLL_END: no commit observed

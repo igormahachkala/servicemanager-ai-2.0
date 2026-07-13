@@ -1,0 +1,13 @@
+# Green run response (sanitized)
+
+HTTP/2 400 
+date: Mon, 13 Jul 2026 11:26:38 GMT
+content-type: application/json; charset=utf-8
+content-length: 88
+vary: Origin
+access-control-allow-credentials: true
+access-control-expose-headers: Grpc-Status, Grpc-Message, Grpc-Status-Details-Bin, Content-Encoding, Connect-Content-Encoding, traceparent, backend-traceparent, x-amzn-trace-id, x-request-id
+
+{"success":false,"error":"Failed to start background composer: [unauthenticated] Error"}
+
+CURL_TIME_TOTAL:1.078752
