@@ -196,9 +196,62 @@ model User {
   technicianClientBindings   TechnicianClientBinding[] @relation("TechnicianClientBindings")
   locationBindings           UserLocationBinding[]
   notifications              Notification[]
+  pushSubscriptions          PushSubscription[]
+  pushPreference             PushPreference?
 
   @@index([companyId, role])
   @@index([companyId, isActive])
+}
+
+// Web Push (mobile-поток). См. docs/PUSH_NOTIFICATIONS_ARCHITECTURE_V1.md §4.
+// Одна запись = одна подписка браузера/устройства (endpoint уникален глобально).
+model PushSubscription {
+  id         String    @id @default(uuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyId  String
+  endpoint   String    @unique
+  p256dh     String
+  auth       String
+  platform   String?
+  userAgent  String?
+  declarative Boolean  @default(false)
+  createdAt  DateTime  @default(now())
+  lastSeenAt DateTime  @default(now())
+  failCount  Int       @default(0)
+  disabledAt DateTime?
+
+  @@index([userId])
+  @@index([companyId])
+}
+
+// Пер-пользовательские тумблеры категорий push (+ тихие часы). Одна строка на пользователя.
+model PushPreference {
+  id               String  @id @default(uuid())
+  userId           String  @unique
+  user             User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chat             Boolean @default(true)
+  ticketNew        Boolean @default(true)
+  assignment       Boolean @default(true)
+  statusChange     Boolean @default(true)
+  acceptance       Boolean @default(true)
+  acceptanceReject Boolean @default(true)
+  sla              Boolean @default(true)
+  news             Boolean @default(false)
+  quietHoursFrom   Int?
+  quietHoursTo     Int?
+}
+
+// Журнал доставки — диагностика отправок (успех / 410 gone / ошибка).
+model PushDeliveryLog {
+  id             String   @id @default(uuid())
+  subscriptionId String
+  eventType      String
+  entityId       String?
+  status         String
+  createdAt      DateTime @default(now())
+
+  @@index([subscriptionId, createdAt])
 }
 
 model Notification {
