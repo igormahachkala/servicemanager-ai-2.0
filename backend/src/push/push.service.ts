@@ -21,6 +21,32 @@ export type PushPayload = {
 };
 
 /**
+ * Типы событий = булевы поля PushPreference (тумблеры на /push-settings).
+ * sendToUser с одним из этих типов уважает соответствующий тумблер получателя.
+ * 'test' и прочие строки трактуются как «без гейта» (шлём всегда).
+ */
+export type PushEventType =
+  | 'chat'
+  | 'ticketNew'
+  | 'assignment'
+  | 'statusChange'
+  | 'acceptance'
+  | 'acceptanceReject'
+  | 'sla'
+  | 'news';
+
+const PUSH_PREF_KEYS: readonly string[] = [
+  'chat',
+  'ticketNew',
+  'assignment',
+  'statusChange',
+  'acceptance',
+  'acceptanceReject',
+  'sla',
+  'news',
+];
+
+/**
  * Web Push (mobile-поток). См. docs/PUSH_NOTIFICATIONS_ARCHITECTURE_V1.md §4.
  * Синхронная отправка (без очереди) — этого достаточно для /push/test и доменных триггеров;
  * очередь/ретраи можно добавить позже, не меняя контракт эндпоинтов.
@@ -154,6 +180,16 @@ export class PushService {
         `sendToUser(${eventType}) skipped — VAPID not configured.`,
       );
       return 0;
+    }
+    // Уважать пользовательские тумблеры: если тип события совпадает с полем
+    // PushPreference и оно выключено — не слать. Нет строки настроек = дефолты (слать).
+    if (PUSH_PREF_KEYS.includes(eventType)) {
+      const pref = await this.prisma.pushPreference.findUnique({
+        where: { userId },
+      });
+      if (pref && (pref as Record<string, unknown>)[eventType] === false) {
+        return 0;
+      }
     }
     const subs = await this.prisma.pushSubscription.findMany({
       where: { userId, disabledAt: null },

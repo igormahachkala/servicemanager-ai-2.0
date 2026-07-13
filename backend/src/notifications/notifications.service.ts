@@ -10,6 +10,7 @@ import {
 
 import { PrismaService } from '../prisma/prisma.service';
 import { MaxBotService } from '../max-bot/max-bot.service';
+import { PushService, type PushEventType } from '../push/push.service';
 
 const WATCHER_ROLES: UserRole[] = [
   UserRole.ADMIN,
@@ -86,7 +87,62 @@ export class NotificationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly maxBot: MaxBotService,
+    private readonly push: PushService,
   ) {}
+
+  /**
+   * Web Push получателю доменного события. Вызывается рядом с созданием in-app
+   * Notification — переиспользует уже вычисленных получателей (инициатор в них уже
+   * исключён). PushService сам уважает тумблер PushPreference[type]. Ошибка push
+   * не должна ронять доменную операцию — только лог.
+   * navigate: чат-события ведут в тред (?tab=chat), остальные — в карточку заявки.
+   */
+  private async pushTicketEvent(params: {
+    userId: string;
+    type: PushEventType;
+    ticketId: string;
+    title: string;
+    body: string;
+    chat?: boolean;
+  }) {
+    try {
+      const navigate = params.chat
+        ? `/m/tickets/${params.ticketId}?tab=chat`
+        : `/m/tickets/${params.ticketId}`;
+      const tag = `${params.ticketId}:${params.chat ? 'chat' : params.type}`;
+      await this.push.sendToUser(
+        params.userId,
+        { title: params.title, body: clipMessage(params.body, 300), tag, navigate },
+        params.type,
+        params.ticketId,
+      );
+    } catch (err) {
+      this.logger.warn({ err, type: params.type }, 'push_emit_failed');
+    }
+  }
+
+  private async pushTicketEventToMany(params: {
+    userIds: string[];
+    type: PushEventType;
+    ticketId: string;
+    title: string;
+    body: string;
+    chat?: boolean;
+  }) {
+    const unique = Array.from(new Set(params.userIds.filter(Boolean)));
+    await Promise.all(
+      unique.map((userId) =>
+        this.pushTicketEvent({
+          userId,
+          type: params.type,
+          ticketId: params.ticketId,
+          title: params.title,
+          body: params.body,
+          chat: params.chat,
+        }),
+      ),
+    );
+  }
 
   /**
    * Список уведомлений только для пары (JWT companyId, JWT userId) — без кросс-тенанта и чужих userId.
@@ -597,6 +653,15 @@ export class NotificationsService {
         ),
       })),
     );
+
+    // Запрос назначения от техника → диспетчерам (техник не входит в роли-получатели).
+    await this.pushTicketEventToMany({
+      userIds: users.map((u) => u.id),
+      type: 'assignment',
+      ticketId: params.ticketId,
+      title,
+      body: message,
+    });
     return { ok: true as const, notified: created.count };
   }
 
@@ -793,6 +858,16 @@ export class NotificationsService {
       })),
     );
 
+    // Push: комментарий = чат-событие (тред заявки). Получатели уже без инициатора.
+    await this.pushTicketEventToMany({
+      userIds: users.map((u) => u.id),
+      type: 'chat',
+      ticketId: params.ticketId,
+      title,
+      body: message,
+      chat: true,
+    });
+
     if (!params.assigneeUserId || !params.assigneeCompanyId) return;
 
     const linked =
@@ -814,6 +889,18 @@ export class NotificationsService {
         params.assigneeUserId,
       ),
     });
+
+    // Исполнителю — только если он не автор комментария (не пушим инициатору его действия).
+    if (params.assigneeUserId !== params.actorUserId) {
+      await this.pushTicketEvent({
+        userId: params.assigneeUserId,
+        type: 'chat',
+        ticketId: params.ticketId,
+        title,
+        body: message,
+        chat: true,
+      });
+    }
   }
 
   private async emitTicketAttachmentUploadedInternal(params: {
@@ -862,6 +949,16 @@ export class NotificationsService {
       })),
     );
 
+    // Push: добавленное фото = чат-событие (вкладка Чат/Фото). Инициатор уже исключён.
+    await this.pushTicketEventToMany({
+      userIds: users.map((u) => u.id),
+      type: 'chat',
+      ticketId: params.ticketId,
+      title,
+      body: message,
+      chat: true,
+    });
+
     if (!params.assigneeUserId || !params.assigneeCompanyId) return;
 
     const linked =
@@ -883,6 +980,17 @@ export class NotificationsService {
         params.assigneeUserId,
       ),
     });
+
+    if (params.assigneeUserId !== params.actorUserId) {
+      await this.pushTicketEvent({
+        userId: params.assigneeUserId,
+        type: 'chat',
+        ticketId: params.ticketId,
+        title,
+        body: message,
+        chat: true,
+      });
+    }
   }
 
   private async emitTicketCreatedPublicInternal(params: {
@@ -1027,6 +1135,15 @@ export class NotificationsService {
         ),
       })),
     );
+
+    // Push «новая заявка» наблюдателям (создатель уже исключён из recipients).
+    await this.pushTicketEventToMany({
+      userIds: recipients.map((recipient) => recipient.userId),
+      type: 'ticketNew',
+      ticketId: params.ticketId,
+      title,
+      body: message,
+    });
   }
 
   private async resolveTicketCreatedNotificationScopes(params: {
@@ -1235,6 +1352,14 @@ export class NotificationsService {
         ),
       })),
     );
+
+    await this.pushTicketEventToMany({
+      userIds: users.map((u) => u.id),
+      type: 'ticketNew',
+      ticketId: params.ticketId,
+      title,
+      body: message,
+    });
   }
 
   private async emitTicketAssignedClientCompanyInternal(params: {
@@ -1281,6 +1406,14 @@ export class NotificationsService {
         ),
       })),
     )
+
+    await this.pushTicketEventToMany({
+      userIds: users.map((u) => u.id),
+      type: 'assignment',
+      ticketId: params.ticketId,
+      title,
+      body: message,
+    })
   }
 
   private async emitTicketAssignedToAssignee(params: {
@@ -1329,6 +1462,17 @@ export class NotificationsService {
         params.mode,
       ),
     });
+
+    // Push исполнителю — но не когда он сам себя назначил/забрал (claim/self-assign).
+    if (params.actorUserId !== assignee.id) {
+      await this.pushTicketEvent({
+        userId: assignee.id,
+        type: 'assignment',
+        ticketId: params.ticketId,
+        title,
+        body: message,
+      });
+    }
   }
 
   private async emitTicketClaimedDispatchersInternal(params: {
@@ -1376,6 +1520,15 @@ export class NotificationsService {
         ),
       })),
     );
+
+    // Взятие заявки исполнителем = событие назначения для диспетчеров (забравший исключён).
+    await this.pushTicketEventToMany({
+      userIds: users.map((u) => u.id),
+      type: 'assignment',
+      ticketId: params.ticketId,
+      title,
+      body: message,
+    });
   }
 
   private async emitTicketStatusForClientCompanyInternal(params: {
@@ -1449,6 +1602,14 @@ export class NotificationsService {
         ),
       })),
     );
+
+    await this.pushTicketEventToMany({
+      userIds: users.map((u) => u.id),
+      type: 'statusChange',
+      ticketId: params.ticketId,
+      title,
+      body: message,
+    });
   }
 
   private async emitTicketStatusChangedForAssignee(params: {
@@ -1499,6 +1660,15 @@ export class NotificationsService {
         params.toStatus,
       ),
     });
+
+    // actor===assignee уже отсечён early-return выше.
+    await this.pushTicketEvent({
+      userId: assignee.id,
+      type: 'statusChange',
+      ticketId: params.ticketId,
+      title,
+      body: message,
+    });
   }
 
   private async emitTicketAwaitingAcceptanceInternal(params: {
@@ -1541,6 +1711,14 @@ export class NotificationsService {
         ),
       })),
     );
+
+    await this.pushTicketEventToMany({
+      userIds: users.map((u) => u.id),
+      type: 'acceptance',
+      ticketId: params.ticketId,
+      title,
+      body: message,
+    });
   }
 
   private async emitTicketAcceptedInternal(params: {
@@ -1576,6 +1754,15 @@ export class NotificationsService {
         assignee.companyId,
         assignee.id,
       ),
+    });
+
+    // actor===assignee уже отсечён early-return выше.
+    await this.pushTicketEvent({
+      userId: assignee.id,
+      type: 'acceptance',
+      ticketId: params.ticketId,
+      title: 'Работа принята',
+      body: `${ticketLabel(params.ticketNumber)} — клиент подтвердил выполнение.`,
     });
   }
 
@@ -1616,6 +1803,15 @@ export class NotificationsService {
         assignee.companyId,
         assignee.id,
       ),
+    });
+
+    // Отклонение приёмки → доработка. actor===assignee уже отсечён early-return выше.
+    await this.pushTicketEvent({
+      userId: assignee.id,
+      type: 'acceptanceReject',
+      ticketId: params.ticketId,
+      title: 'Работа не принята',
+      body,
     });
   }
 }
