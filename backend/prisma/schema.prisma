@@ -198,6 +198,8 @@ model User {
   notifications              Notification[]
   pushSubscriptions          PushSubscription[]
   pushPreference             PushPreference?
+  authoredNews               News[] @relation("NewsAuthor")
+  newsReads                  NewsRead[]
 
   @@index([companyId, role])
   @@index([companyId, isActive])
@@ -237,9 +239,46 @@ model PushPreference {
   acceptance       Boolean @default(true)
   acceptanceReject Boolean @default(true)
   sla              Boolean @default(true)
-  news             Boolean @default(false)
+  news             Boolean @default(true)
   quietHoursFrom   Int?
   quietHoursTo     Int?
+}
+
+// Новости платформы (ServiceManager.AI) → всем пользователям. Глобальные (без tenant).
+// Лента в мобильном + push при публикации. Авторинг — только PLATFORM_ADMIN.
+// См. план News-модуля (Фаза A).
+enum NewsStatus {
+  DRAFT
+  PUBLISHED
+}
+
+model News {
+  id            String     @id @default(uuid())
+  title         String
+  body          String     @db.Text
+  coverImageUrl String?
+  status        NewsStatus @default(DRAFT)
+  authorId      String
+  author        User       @relation("NewsAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  publishedAt   DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  reads         NewsRead[]
+
+  @@index([status, publishedAt])
+}
+
+// Состояние «прочитано» на пользователя. Непрочитано = PUBLISHED News без строки NewsRead.
+model NewsRead {
+  id     String   @id @default(uuid())
+  newsId String
+  news   News     @relation(fields: [newsId], references: [id], onDelete: Cascade)
+  userId String
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  readAt DateTime @default(now())
+
+  @@unique([newsId, userId])
+  @@index([userId])
 }
 
 // Журнал доставки — диагностика отправок (успех / 410 gone / ошибка).
