@@ -16,7 +16,8 @@
 | Route Policy | `cursorExecutionRoutePolicy.ts` | Deterministic route selection |
 | Cost Guard | `cursorCostGuard.ts` | Cost + production policy gate |
 | Preflight | `cursorExecutionRoutePreflight.ts` | Policy + guard merge |
-| Dispatch mapper | `routePolicyFromDispatchInput.ts` | `DispatchToolRequestInput` → policy input |
+| Dispatch mapper | `routePolicyFromDispatchInput.ts` | `DispatchToolRequestInput` + config → policy input |
+| App config | `cursorExecutionRouteAppConfig.ts` | Vite env → `CursorRoutePolicyDispatchConfig` |
 | Observability | `cursorExecutionRouteObservability.ts` | Structured route events |
 | Dispatcher integration | `toolDispatcherDispatch.ts` | Preflight before cursor dispatch |
 
@@ -39,14 +40,26 @@
 | `localBridgeAvailable` | Local Bridge eligibility |
 | `manualOperatorAvailable` | Manual Cloud Agent eligibility |
 | `automationWebhookAvailable` | Webhook eligibility (default false) |
-| `ownerApprovalGranted` | Owner approval state |
+| `ownerApprovalGranted` | Owner approval state — **opt-in only** (`true` iff explicitly set) |
 | `expectedCostClassificationByRoute` | Per-route cost map |
 | `environment` | `dev` \| `stage` \| `production` |
 
-Dispatch payload may override any field. Env fallbacks:
+Dispatch payload may override policy fields. **Approval default is `false`** — absence of `ownerApprovalGranted` never grants approval. `awaitingOwner` in payload does not imply approval.
 
-- `VITE_AI_COMPANY_ENVIRONMENT` → environment (default `dev`)
-- `VITE_CURSOR_AUTOMATION_WEBHOOK_AVAILABLE` → webhook availability (default false)
+### Config injection boundary (109F)
+
+Domain mapper signature:
+
+```typescript
+buildCursorRoutePolicyInputFromDispatch(dispatchInput, config)
+```
+
+`config` (`CursorRoutePolicyDispatchConfig`) is injected by caller. Vite env reads live only in `cursorExecutionRouteAppConfig.ts`:
+
+- `VITE_AI_COMPANY_ENVIRONMENT` → `environment` (default `dev`)
+- `VITE_CURSOR_AUTOMATION_WEBHOOK_AVAILABLE` → webhook availability (default `false`)
+
+Node tests pass explicit config — no `import.meta.env` in mapper.
 
 ---
 
@@ -58,7 +71,7 @@ Dispatch payload may override any field. Env fallbacks:
 3. CURSOR_AUTOMATION_WEBHOOK — event-driven, non-critical, webhook available, cost-safe
 ```
 
-If no route eligible → `ROUTE_UNAVAILABLE` or `NO_COST_SAFE_ROUTE`.
+If no route eligible → `ROUTE_UNAVAILABLE`, `NO_COST_SAFE_ROUTE`, or `RELIABLE_COMPLETION_REQUIRED` (when webhook is blocked only by reliable-completion requirement).
 
 ---
 
@@ -97,14 +110,23 @@ No billing API, no credit purchase, no Max Mode toggles.
 ```text
 dispatchToolRequest / dispatchToolRequestPlannedOnly
   → validateDispatchInput
+  → resolveCursorRoutePolicyDispatchConfig()  (browser only)
   → (cursor only) evaluateCursorRoutePreflight
-      → blocked + approval → planned / awaiting_owner
-      → blocked + cost/policy → failed
+      → blocked + approval → planned / awaiting_owner (routeDecision in output)
+      → blocked + cost/policy → failed (output === null)
       → allowed → continue existing flow (no Cursor launch)
-  → attach routeDecision to ToolResult.output
+  → attach routeDecision to allowed/planned ToolResult.output
 ```
 
 `ToolExecutionRun` status transitions unchanged. Local Bridge approve→queue path in `toolExecutionRunStorage.ts` untouched.
+
+### Blocked dispatch output invariant (109F)
+
+When `ToolResult.status === 'failed'` due to route/cost block:
+
+- `output` **must be** `null`
+- Structured `routeDecision` is encoded in `error` string (`reasonCode: explanation`)
+- No fake success payload for blocked dispatch
 
 ---
 
@@ -149,9 +171,10 @@ dispatchToolRequest / dispatchToolRequestPlannedOnly
 
 | Gap | Notes |
 |-----|-------|
-| Route decision persistence | Stored in `ToolResult.output.routeDecision` only — no DB migration |
+| Route decision persistence | Allowed/planned: `ToolResult.output.routeDecision`. Blocked: `output === null`, reason in `error` |
+| Structured blocked metadata | No separate `errorDetails` field on `ToolResult` — reason in error string only |
 | `ToolExecutionRun.executionRoute` field | Future phase — not in v1 |
-| Live bridge probe | `localBridgeAvailable` from payload/env default, not runtime health check |
+| Live bridge probe | `localBridgeAvailable` from injected config/payload, not runtime health check |
 | Webhook adapter | Policy ready; transport not wired |
 | Canonical lifecycle states | v1 statuses (`awaiting_owner`, `approved`, …) unchanged |
 
@@ -173,4 +196,4 @@ dispatchToolRequest / dispatchToolRequestPlannedOnly
 npm --prefix apps/ai-company run test:domain
 ```
 
-13 scenarios: policy (1–12) + dispatcher integration (13).
+13 scenarios (109) + 109F review fixes + envelope tests (110).

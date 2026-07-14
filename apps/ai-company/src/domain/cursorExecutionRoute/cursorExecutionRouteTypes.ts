@@ -58,6 +58,15 @@ export type CursorRoutePolicyInput = {
   environment: CursorExecutionEnvironment
 }
 
+/** Injected dispatch config — no Vite/env reads in domain mapper (AI-COMPANY-109F). */
+export type CursorRoutePolicyDispatchConfig = {
+  environment: CursorExecutionEnvironment
+  automationWebhookAvailable: boolean
+  localBridgeAvailable: boolean
+  manualOperatorAvailable: boolean
+  expectedCostClassificationByRoute: ExpectedCostByRoute
+}
+
 export type RouteAlternative = {
   route: ExecutionRoute
   reasonCode: CursorExecutionReasonCode

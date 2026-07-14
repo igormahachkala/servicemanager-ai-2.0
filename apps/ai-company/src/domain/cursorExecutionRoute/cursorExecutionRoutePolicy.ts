@@ -1,6 +1,6 @@
 /**
  * Cursor Execution Route Policy — Path C route selection (AI-COMPANY-109).
- * Pure, testable — no UI, no Cursor launch, no webhook calls.
+ * AI-COMPANY-109F: semantic blocked reasons, no dead branches.
  */
 
 import { isAutomaticDispatchBlockedByCost } from './cursorCostGuard'
@@ -122,6 +122,13 @@ function eligibilityForRoute(
   }
 }
 
+function webhookBlockedOnlyByReliableCompletion(input: CursorRoutePolicyInput): boolean {
+  if (!input.eventDriven || !input.automationWebhookAvailable || !input.requiresReliableCompletion) {
+    return false
+  }
+  return automationWebhookEligible({ ...input, requiresReliableCompletion: false }).ok
+}
+
 function reasonCodeForRoute(route: ExecutionRoute): CursorExecutionReasonCode {
   switch (route) {
     case 'LOCAL_CURSOR_BRIDGE':
@@ -135,6 +142,30 @@ function reasonCodeForRoute(route: ExecutionRoute): CursorExecutionReasonCode {
   }
 }
 
+function ineligibleReasonCode(
+  route: ExecutionRoute,
+  input: CursorRoutePolicyInput,
+): CursorExecutionReasonCode {
+  const cost = input.expectedCostClassificationByRoute[route]
+  if (cost === 'UNKNOWN_COST') return 'COST_UNKNOWN'
+  if (cost === 'ADDITIONAL_COST_REQUIRED') return 'ADDITIONAL_COST_REQUIRED'
+  if (cost === 'BLOCKED_BY_COST_POLICY') return 'BLOCKED_BY_COST_POLICY'
+
+  if (route === 'CURSOR_AUTOMATION_WEBHOOK' && input.requiresReliableCompletion) {
+    return 'RELIABLE_COMPLETION_REQUIRED'
+  }
+
+  if (route === 'CURSOR_AUTOMATION_WEBHOOK' && input.environment === 'production') {
+    return 'AUTOMATION_NOT_SUITABLE'
+  }
+
+  if (route === 'MANUAL_CLOUD_AGENT' && manualCloudAgentEligible(input).ok && !input.ownerApprovalGranted) {
+    return 'OWNER_APPROVAL_REQUIRED'
+  }
+
+  return 'ROUTE_UNAVAILABLE'
+}
+
 function buildAlternatives(
   input: CursorRoutePolicyInput,
   selected: ExecutionRoute | null,
@@ -143,7 +174,7 @@ function buildAlternatives(
     const check = eligibilityForRoute(route, input)
     return {
       route,
-      reasonCode: check.ok ? reasonCodeForRoute(route) : 'ROUTE_UNAVAILABLE',
+      reasonCode: check.ok ? reasonCodeForRoute(route) : ineligibleReasonCode(route, input),
       explanation: check.reason,
     }
   })
@@ -168,6 +199,36 @@ function blockedDecision(
   }
 }
 
+function resolveNoEligibleRouteDecision(input: CursorRoutePolicyInput): ExecutionRouteDecision {
+  const allCostsBlocked = ROUTE_PRIORITY.every((route) =>
+    isAutomaticDispatchBlockedByCost(input.expectedCostClassificationByRoute[route]),
+  )
+  if (allCostsBlocked) {
+    return blockedDecision(
+      input,
+      'NO_COST_SAFE_ROUTE',
+      'No route has a cost-safe classification for automatic dispatch.',
+      'UNKNOWN_COST',
+    )
+  }
+
+  if (webhookBlockedOnlyByReliableCompletion(input)) {
+    return blockedDecision(
+      input,
+      'RELIABLE_COMPLETION_REQUIRED',
+      'Reliable completion is required — Automation Webhook cannot be selected.',
+      input.expectedCostClassificationByRoute.CURSOR_AUTOMATION_WEBHOOK,
+    )
+  }
+
+  return blockedDecision(
+    input,
+    'ROUTE_UNAVAILABLE',
+    'No execution route is available for the given task constraints.',
+    'INCLUDED_IN_SUBSCRIPTION',
+  )
+}
+
 export function decideCursorExecutionRoute(input: CursorRoutePolicyInput): ExecutionRouteDecision {
   if (isProductionRepositoryWriteBlocked(input)) {
     return blockedDecision(
@@ -185,38 +246,12 @@ export function decideCursorExecutionRoute(input: CursorRoutePolicyInput): Execu
   )
 
   if (eligibleRoutes.length === 0) {
-    const allCostsBlocked = ROUTE_PRIORITY.every((route) =>
-      isAutomaticDispatchBlockedByCost(input.expectedCostClassificationByRoute[route]),
-    )
-    if (allCostsBlocked) {
-      return blockedDecision(
-        input,
-        'NO_COST_SAFE_ROUTE',
-        'No route has a cost-safe classification for automatic dispatch.',
-        'UNKNOWN_COST',
-      )
-    }
-    return blockedDecision(
-      input,
-      'ROUTE_UNAVAILABLE',
-      'No execution route is available for the given task constraints.',
-      'INCLUDED_IN_SUBSCRIPTION',
-    )
+    return resolveNoEligibleRouteDecision(input)
   }
 
   const selectedRoute = eligibleRoutes[0]
   const costClassification = input.expectedCostClassificationByRoute[selectedRoute]
   const eligibility = eligibilityForRoute(selectedRoute, input)
-
-  if (selectedRoute === 'CURSOR_AUTOMATION_WEBHOOK' && input.requiresReliableCompletion) {
-    return blockedDecision(
-      input,
-      'AUTOMATION_NOT_SUITABLE',
-      'Automation webhook cannot be selected when reliable completion is required.',
-      costClassification,
-      null,
-    )
-  }
 
   const requiresOwnerApproval =
     (selectedRoute === 'MANUAL_CLOUD_AGENT' && !input.ownerApprovalGranted) ||

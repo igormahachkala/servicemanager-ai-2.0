@@ -1,5 +1,5 @@
 /**
- * Tool Dispatcher route preflight integration — unit tests (AI-COMPANY-109).
+ * Tool Dispatcher route preflight integration — unit tests (AI-COMPANY-109 / 109F).
  */
 
 import assert from 'node:assert/strict'
@@ -48,7 +48,7 @@ describe('toolDispatcher route integration', () => {
     assert.equal(output.lifecycleStatus, 'awaiting_owner')
   })
 
-  it('blocks cursor dispatch when no safe route exists', () => {
+  it('109F-10. blocked ToolResult.output is null', () => {
     const { result } = dispatchToolRequestPlannedOnly(
       baseDispatchInput({
         payload: {
@@ -63,6 +63,28 @@ describe('toolDispatcher route integration', () => {
 
     assert.equal(result.ok, false)
     assert.equal(result.status, 'failed')
+    assert.equal(result.output, null)
     assert.match(result.error ?? '', /NO_COST_SAFE_ROUTE/)
+  })
+
+  it('109F-2 integration. MANUAL path without approval returns planned awaiting_owner', () => {
+    const { result } = dispatchToolRequestPlannedOnly(
+      baseDispatchInput({
+        payload: {
+          localBridgeAvailable: false,
+          requiresCommitOrPullRequest: true,
+          ownerApprovalGranted: false,
+          manualOperatorAvailable: true,
+        },
+      }),
+    )
+
+    assert.equal(result.ok, true)
+    assert.equal(result.status, 'planned')
+    const output = result.output as Record<string, unknown>
+    assert.equal(output.lifecycleStatus, 'awaiting_owner')
+    const routeDecision = output.routeDecision as Record<string, unknown>
+    assert.equal(routeDecision.selectedRoute, 'MANUAL_CLOUD_AGENT')
+    assert.equal(routeDecision.reasonCode, 'OWNER_APPROVAL_REQUIRED')
   })
 })

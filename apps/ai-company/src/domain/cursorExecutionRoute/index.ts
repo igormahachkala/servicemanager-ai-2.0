@@ -17,6 +17,7 @@ export {
   type CursorExecutionDispatchDecision,
   type CursorExecutionRouteEventType,
   type CursorExecutionRouteEvent,
+  type CursorRoutePolicyDispatchConfig,
 } from './cursorExecutionRouteTypes'
 
 export { evaluateCursorCostGuard, isAutomaticDispatchBlockedByCost } from './cursorCostGuard'
@@ -34,3 +35,5 @@ export {
 export { evaluateCursorExecutionDispatch } from './cursorExecutionRoutePreflight'
 
 export { buildCursorRoutePolicyInputFromDispatch } from './routePolicyFromDispatchInput'
+
+export { resolveCursorRoutePolicyDispatchConfig } from './cursorExecutionRouteAppConfig'

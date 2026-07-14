@@ -1,12 +1,14 @@
 /**
  * Map Tool Dispatcher request → Cursor route policy input (AI-COMPANY-109).
+ * AI-COMPANY-109F: config injected via argument — no import.meta.env in mapper.
  */
 
 import type { DispatchToolRequestInput } from '../toolDispatcher/toolDispatcherTypes'
 import { defaultExpectedCostByRoute } from './cursorExecutionRoutePolicy'
 import type {
-  CursorExecutionEnvironment,
   CostClassification,
+  CursorExecutionEnvironment,
+  CursorRoutePolicyDispatchConfig,
   CursorRoutePolicyInput,
   ExpectedCostByRoute,
   ExecutionRoute,
@@ -21,19 +23,14 @@ function readBoolean(payload: Record<string, unknown>, key: string): boolean | u
   return typeof value === 'boolean' ? value : undefined
 }
 
-function readEnvironment(payload: Record<string, unknown>): CursorExecutionEnvironment {
+function readEnvironmentFromPayload(
+  payload: Record<string, unknown>,
+): CursorExecutionEnvironment | undefined {
   const fromPayload = payload.environment
   if (fromPayload === 'dev' || fromPayload === 'stage' || fromPayload === 'production') {
     return fromPayload
   }
-
-  const fromEnv =
-    typeof import.meta !== 'undefined' && import.meta.env?.VITE_AI_COMPANY_ENVIRONMENT
-      ? String(import.meta.env.VITE_AI_COMPANY_ENVIRONMENT).toLowerCase()
-      : undefined
-
-  if (fromEnv === 'stage' || fromEnv === 'production') return fromEnv
-  return 'dev'
+  return undefined
 }
 
 function readCostClassification(value: unknown): CostClassification | undefined {
@@ -48,8 +45,11 @@ function readCostClassification(value: unknown): CostClassification | undefined 
   return undefined
 }
 
-function readExpectedCostByRoute(payload: Record<string, unknown>): ExpectedCostByRoute {
-  const defaults = defaultExpectedCostByRoute()
+function mergeExpectedCostByRoute(
+  payload: Record<string, unknown>,
+  configCosts: ExpectedCostByRoute,
+): ExpectedCostByRoute {
+  const defaults = { ...configCosts }
   const raw = payload.expectedCostClassificationByRoute
   if (!isRecord(raw)) return defaults
 
@@ -98,33 +98,13 @@ function inferRequiresAutomaticExecution(payload: Record<string, unknown>): bool
   return true
 }
 
-function inferAutomationWebhookAvailable(payload: Record<string, unknown>): boolean {
-  const fromPayload = readBoolean(payload, 'automationWebhookAvailable')
-  if (fromPayload !== undefined) return fromPayload
-
-  const fromEnv =
-    typeof import.meta !== 'undefined' && import.meta.env?.VITE_CURSOR_AUTOMATION_WEBHOOK_AVAILABLE
-      ? String(import.meta.env.VITE_CURSOR_AUTOMATION_WEBHOOK_AVAILABLE).toLowerCase()
-      : undefined
-
-  return fromEnv === 'true' || fromEnv === '1'
-}
-
-function inferLocalBridgeAvailable(
-  payload: Record<string, unknown>,
-  environment: CursorExecutionEnvironment,
-): boolean {
-  const fromPayload = readBoolean(payload, 'localBridgeAvailable')
-  if (fromPayload !== undefined) return fromPayload
-  return environment === 'dev' || environment === 'stage'
-}
-
 export function buildCursorRoutePolicyInputFromDispatch(
   input: DispatchToolRequestInput,
+  config: CursorRoutePolicyDispatchConfig,
 ): CursorRoutePolicyInput {
   const payload = input.payload ?? {}
-  const environment = readEnvironment(payload)
   const eventDriven = inferEventDriven(input, payload)
+  const environment = readEnvironmentFromPayload(payload) ?? config.environment
 
   return {
     taskType: typeof payload.taskType === 'string' ? payload.taskType : input.action,
@@ -133,13 +113,16 @@ export function buildCursorRoutePolicyInputFromDispatch(
     requiresCommitOrPullRequest: inferRequiresCommitOrPullRequest(payload),
     requiresReliableCompletion: inferRequiresReliableCompletion(payload, eventDriven),
     eventDriven,
-    localBridgeAvailable: inferLocalBridgeAvailable(payload, environment),
-    manualOperatorAvailable: readBoolean(payload, 'manualOperatorAvailable') ?? true,
-    automationWebhookAvailable: inferAutomationWebhookAvailable(payload),
-    ownerApprovalGranted:
-      readBoolean(payload, 'ownerApprovalGranted') === true ||
-      readBoolean(payload, 'awaitingOwner') !== true,
-    expectedCostClassificationByRoute: readExpectedCostByRoute(payload),
+    localBridgeAvailable: readBoolean(payload, 'localBridgeAvailable') ?? config.localBridgeAvailable,
+    manualOperatorAvailable:
+      readBoolean(payload, 'manualOperatorAvailable') ?? config.manualOperatorAvailable,
+    automationWebhookAvailable:
+      readBoolean(payload, 'automationWebhookAvailable') ?? config.automationWebhookAvailable,
+    ownerApprovalGranted: readBoolean(payload, 'ownerApprovalGranted') === true,
+    expectedCostClassificationByRoute: mergeExpectedCostByRoute(
+      payload,
+      config.expectedCostClassificationByRoute ?? defaultExpectedCostByRoute(),
+    ),
     environment,
   }
 }

@@ -8,6 +8,7 @@ import {
   buildCursorRoutePolicyInputFromDispatch,
   evaluateCursorExecutionDispatch,
   formatCursorExecutionRouteEvent,
+  resolveCursorRoutePolicyDispatchConfig,
   type ExecutionRouteDecision,
 } from '../cursorExecutionRoute'
 import { planCursorAutomationHandoff } from '../toolRegistry/toolRegistryCursorAutomationBridge'
@@ -82,7 +83,8 @@ function evaluateCursorRoutePreflight(
 ):
   | { ok: true; routeDecision: ExecutionRouteDecision }
   | { ok: false; request: ToolRequest; result: ToolResult } {
-  const policyInput = buildCursorRoutePolicyInputFromDispatch(input)
+  const config = resolveCursorRoutePolicyDispatchConfig()
+  const policyInput = buildCursorRoutePolicyInputFromDispatch(input, config)
   const preflight = evaluateCursorExecutionDispatch(policyInput)
 
   for (const event of preflight.events) {
