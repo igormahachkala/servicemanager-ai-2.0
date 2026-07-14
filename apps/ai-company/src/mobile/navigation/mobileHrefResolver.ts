@@ -14,6 +14,7 @@ export const MOBILE_PATHS = {
   max: mobileEmployeeProfilePath(MAX_WORKER_EMPLOYEE_ID),
   builder: mobileEmployeeProfilePath(BUILDER_EMPLOYEE_ID),
   tasksNew: '/mobile/tasks/new',
+  cursorTask: '/mobile/cursor-task',
   tasksNewMax: `/mobile/tasks/new?employee=${encodeURIComponent(MAX_WORKER_EMPLOYEE_ID)}`,
   tasksNewBuilder: `/mobile/tasks/new?employee=${encodeURIComponent(BUILDER_EMPLOYEE_ID)}`,
   standardTaskNewMax: `/mobile/tasks/new?employee=${encodeURIComponent(MAX_WORKER_EMPLOYEE_ID)}&template=${MOBILE_STANDARD_TASK_TEMPLATE_ID}`,

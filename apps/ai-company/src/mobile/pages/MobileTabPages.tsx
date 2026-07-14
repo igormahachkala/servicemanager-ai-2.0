@@ -16,6 +16,9 @@ export function MobileTasksPage() {
         <Link to={MOBILE_PATHS.tasksNew} className="acMobilePrimaryBtn acMobileTasksNewBtn">
           {t.mobile.fab.assignTask}
         </Link>
+        <Link to={MOBILE_PATHS.cursorTask} className="acMobileSecondaryBtn acMobileTasksNewBtn">
+          {t.mobile.cursorTask.title}
+        </Link>
         <MobileEmptyState variant="noTasks" actionHref={MOBILE_PATHS.tasksNew} />
       </MobileSection>
     </div>

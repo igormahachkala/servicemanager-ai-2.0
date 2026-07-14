@@ -7,7 +7,7 @@
 import { DEFAULT_COMPANY_ID } from '../company/company'
 import { DELEGATION_DECIDER_EMPLOYEE_ID } from '../delegationEngine'
 import { getEmployeeWorkItemById } from '../employeeWorkQueue'
-import { BUILDER_EMPLOYEE_ID } from '../mobileEmployee'
+import { EMPLOYEE_ROUTE_IDS, resolveCanonicalEmployeeId } from '../../mission-control/data/employeeIdResolver'
 import {
   dispatchToolRequest,
   dispatchToolRequestPlannedOnly,
@@ -15,7 +15,6 @@ import {
   type DispatchToolRequestOutcome,
   type ToolRequest as ToolDispatcherRequest,
 } from '../toolDispatcher'
-import { resolveCanonicalEmployeeId } from '../../mission-control/data/employeeIdResolver'
 import { createToolExecutionRun } from './toolExecutionRunStorage'
 import type { ToolExecutionRun } from './toolExecutionRunTypes'
 
@@ -109,7 +108,7 @@ export function requestBuilderCursorToolExecution(
   input: BuilderCursorToolExecutionInput,
 ): BuilderCursorToolExecutionOutcome {
   const companyId = input.companyId ?? DEFAULT_COMPANY_ID
-  const employeeId = resolveCanonicalEmployeeId(BUILDER_EMPLOYEE_ID)
+  const employeeId = resolveCanonicalEmployeeId(EMPLOYEE_ROUTE_IDS.builder)
   const decidedBy = resolveCanonicalEmployeeId(
     input.decidedByEmployeeId ?? DELEGATION_DECIDER_EMPLOYEE_ID,
   )

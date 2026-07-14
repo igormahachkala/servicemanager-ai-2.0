@@ -3,7 +3,7 @@
  * Reuse MAX architecture without duplicating mobile flows per employee.
  */
 
-import { MAX_WORKER_EMPLOYEE_ID } from '../maxWorkerLoop'
+import { MAX_WORKER_EMPLOYEE_ID } from '../maxWorkerLoop/maxWorkerLoop'
 import {
   EMPLOYEE_ROUTE_IDS,
   resolveCanonicalEmployeeId,
