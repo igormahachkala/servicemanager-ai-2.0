@@ -2049,6 +2049,49 @@ export async function createCompany(input: CreateCompanyInput): Promise<Platform
   })
 }
 
+// ---- Новости (платформа, PLATFORM_ADMIN). Контракт — backend/src/news (Фаза A). ----
+
+export type NewsStatus = 'DRAFT' | 'PUBLISHED'
+
+export type NewsAdminItem = {
+  id: string
+  title: string
+  body: string
+  coverImageUrl: string | null
+  status: NewsStatus
+  authorId: string
+  publishedAt: string | null
+  createdAt: string
+  updatedAt: string
+  author?: { id: string; firstName: string | null; lastName: string | null; email: string } | null
+}
+
+export type CreateNewsInput = {
+  title: string
+  body: string
+  coverImageUrl?: string
+}
+
+export async function newsAdminList(): Promise<NewsAdminItem[]> {
+  return request<NewsAdminItem[]>('/news/admin')
+}
+
+export async function createNews(input: CreateNewsInput): Promise<NewsAdminItem> {
+  return request<NewsAdminItem>('/news', { method: 'POST', body: input })
+}
+
+export async function updateNews(id: string, input: Partial<CreateNewsInput>): Promise<NewsAdminItem> {
+  return request<NewsAdminItem>(`/news/${id}`, { method: 'PATCH', body: input })
+}
+
+export async function publishNews(id: string): Promise<NewsAdminItem> {
+  return request<NewsAdminItem>(`/news/${id}/publish`, { method: 'POST' })
+}
+
+export async function deleteNews(id: string): Promise<{ ok: boolean; id: string }> {
+  return request<{ ok: boolean; id: string }>(`/news/${id}`, { method: 'DELETE' })
+}
+
 export async function createCompanyAdmin(companyId: string, input: CreateCompanyAdminInput): Promise<UserListItem> {
   return request<UserListItem>(
     "/companies/" + companyId + "/admins",

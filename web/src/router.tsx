@@ -21,6 +21,7 @@ import { SpecializationsPage } from './views/SpecializationsPage'
 import { CompanyPage } from './views/CompanyPage'
 import { TechnicianPage } from './views/TechnicianPage'
 import { CompaniesPage } from './views/CompaniesPage'
+import { NewsAdminPage } from './views/NewsAdminPage'
 import { ServiceContractsPage } from './views/ServiceContractsPage'
 import { InspectionTemplatesPage } from './views/InspectionTemplatesPage'
 import { EngineeringAgentPage } from './views/EngineeringAgentPage'
@@ -164,6 +165,7 @@ export function AppRoutes() {
         <Route path="permissions" element={<PermissionsPage />} />
         <Route path="assistant" element={<ManagementV2StubPage />} />
         <Route path="companies" element={<CompaniesPage />} />
+        <Route path="news" element={<NewsAdminPage />} />
         <Route path="service-contracts" element={<ServiceContractsPage />} />
         <Route path="tickets/new" element={<CreateTicketPage />} />
         <Route path="tickets/:id" element={<TicketPage />} />
