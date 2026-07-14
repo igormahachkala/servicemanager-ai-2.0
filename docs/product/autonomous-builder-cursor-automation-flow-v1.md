@@ -117,12 +117,12 @@ Fields are sent as automation instruction; Cursor field visibility is not assume
 
 ## 8. Reconciliation V1
 
-**Module:** `cursorAutomationReconciliation.ts`
+**Module:** `cursorAutomationReconciliation.ts` + `githubEvidenceReader/`
 
 No Cursor API. Allowed signals:
 
-- result marker file `tmp/ai-company-results/{toolExecutionRunId}.json`
-- injectable repository evidence checks (branch / commit / PR)
+- **GitHub Evidence Reader** — marker discovery + branch/commit/PR verification via trusted local bridge
+- result marker file `tmp/ai-company-results/{toolExecutionRunId}.json` (verified against GitHub, not trusted alone)
 - timeout (default 30 min)
 - limited polling (60s min interval in domain; 15s UI tick)
 
@@ -131,7 +131,7 @@ Marker validation requires:
 - matching `toolExecutionRunId`
 - valid `finishedAt`
 - branch + commit evidence for `SUCCEEDED`
-- status aligned with evidence
+- status aligned with GitHub-verified evidence
 
 ---
 
@@ -182,13 +182,14 @@ No credits purchase, no Max Mode toggle, no paid APIs.
 
 Local scenario:
 
-1. `npm --prefix apps/ai-company run dev`
-2. Set webhook env vars in `.env.local` (not committed).
-3. Open `/mobile/builder-automation`, create autonomous task.
-4. Approve and launch.
-5. Cursor Automation creates branch / commit / draft PR / marker.
-6. AI Company discovers result, runs Builder → MAX review.
-7. Owner reads final report — without opening Cursor.
+1. `npm --prefix apps/ai-company run github:evidence` (trusted GitHub bridge)
+2. `npm --prefix apps/ai-company run dev`
+3. Set webhook + GitHub evidence env vars in `.env.local` (see `.env.github-evidence.example`).
+4. Open `/mobile/builder-automation`, create autonomous task.
+5. Approve and launch.
+6. Cursor Automation creates branch / commit / draft PR / marker.
+7. AI Company discovers result via GitHub Evidence Reader, runs Builder → MAX review.
+8. Owner reads final report — without opening Cursor.
 
 ---
 
@@ -196,7 +197,6 @@ Local scenario:
 
 | Gap | Notes |
 |-----|-------|
-| GitHub evidence resolver | Default reconcile deps return `false` — inject real GitHub reader in ops integration |
 | Live webhook success | Smoke test never observed `success: true`; runner implements documented contract |
 | Production / Stage | Explicitly blocked |
 | Automatic merge / deploy | Out of scope |
@@ -208,4 +208,5 @@ Local scenario:
 - [cursor-automation-webhook-smoke-test-v1.md](../research/cursor-automation-webhook-smoke-test-v1.md)
 - [cursor-execution-path-c-v1.md](../architecture/cursor-execution-path-c-v1.md)
 - [cursor-result-envelope-v1.md](../architecture/cursor-result-envelope-v1.md)
+- [github-evidence-reader-v1.md](../architecture/github-evidence-reader-v1.md)
 - [first-real-cursor-task-flow-v1.md](./first-real-cursor-task-flow-v1.md) (manual path AI-COMPANY-112)

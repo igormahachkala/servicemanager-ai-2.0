@@ -1,8 +1,9 @@
 /**
- * Cursor Automation Runner — default storage deps (AI-COMPANY-113).
+ * Cursor Automation Runner — default storage deps (AI-COMPANY-113 + 114).
  */
 
 import { createEmployeeToolReview, getEmployeeToolReviewByRunId } from '../employeeToolReview/employeeToolReviewStorage'
+import { resolveGitHubExecutionEvidenceViaBridge } from '../githubEvidenceReader/githubEvidenceReaderClient'
 import {
   failToolExecutionRun,
   getToolExecutionRun,
@@ -14,7 +15,6 @@ import {
 import { reconcileCursorAutomationResult, type ReconcileCursorAutomationDeps } from './cursorAutomationReconciliation'
 import type { ReconcileCursorAutomationInput, RunCursorAutomationInput } from './cursorAutomationRunnerTypes'
 import { formatCursorAutomationRunnerEvent } from './cursorAutomationRunnerObservability'
-import type { ResultMarkerEvidence } from './cursorAutomationResultMarker'
 import { resolveCursorAutomationWebhookConfig } from './cursorAutomationWebhookConfig'
 import { runCursorAutomation, type RunCursorAutomationDeps } from './runCursorAutomation'
 
@@ -51,12 +51,7 @@ export function createDefaultReconcileDeps(
     getReviewByRunId: getEmployeeToolReviewByRunId,
     createReview: createEmployeeToolReview,
     postReviewCard: noopPostReviewCard,
-    readResultMarker: async () => null,
-    resolveEvidence: async (): Promise<ResultMarkerEvidence> => ({
-      branchExists: false,
-      commitExists: false,
-      pullRequestValid: false,
-    }),
+    resolveGitHubEvidence: resolveGitHubExecutionEvidenceViaBridge,
     logEvent: (event) => {
       if (typeof console !== 'undefined') {
         console.info(formatCursorAutomationRunnerEvent(event))

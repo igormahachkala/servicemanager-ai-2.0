@@ -67,6 +67,8 @@ export type CursorAutomationRunnerMetadata = {
   attempts: CursorAutomationExecutionAttempt[]
   timeoutAt: string | null
   timeoutReason: string | null
+  githubEvidenceReasonCode?: string | null
+  evidenceValidationErrors?: Array<{ code: string; message: string }>
 }
 
 export type BuilderAutomationPayload = {

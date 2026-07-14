@@ -1,8 +1,9 @@
 /**
- * Cursor Automation — result reconciliation V1 (AI-COMPANY-113).
+ * Cursor Automation — result reconciliation V1 (AI-COMPANY-113 + 114).
  */
 
 import { EMPLOYEE_ROUTE_IDS } from '../../mission-control/data/employeeIdResolver'
+import { readBuilderAutomationTaskFlowMetadata } from '../builderAutomationTaskFlow/builderAutomationTaskFlowMetadata'
 import { mapEnvelopeToToolResultOutput } from '../cursorResultEnvelope/cursorResultEnvelopeAdapters'
 import { validateCursorResultEnvelope } from '../cursorResultEnvelope/cursorResultEnvelopeValidation'
 import type { CursorResultEnvelope } from '../cursorResultEnvelope/cursorResultEnvelopeTypes'
@@ -11,6 +12,7 @@ import type {
   CreateEmployeeToolReviewInput,
   EmployeeToolReview,
 } from '../employeeToolReview/employeeToolReviewTypes'
+import type { GitHubExecutionEvidenceResult } from '../githubEvidenceReader/githubEvidenceReaderTypes'
 import { unifiedEnvelopeToLegacyReviewEnvelope } from '../manualCloudAgentImport/unifiedToLegacyReviewEnvelope'
 import type {
   RecordToolExecutionResultInput,
@@ -30,14 +32,22 @@ import type {
   ReconcileCursorAutomationInput,
   ReconcileCursorAutomationOutcome,
 } from './cursorAutomationRunnerTypes'
-import {
-  parseResultMarker,
-  type ResultMarkerEvidence,
-  validateResultMarker,
-} from './cursorAutomationResultMarker'
+import { validateResultMarker, type ResultMarkerEvidence } from './cursorAutomationResultMarker'
 
 const DEFAULT_TIMEOUT_MS = 30 * 60 * 1000
 const DEFAULT_POLL_INTERVAL_MS = 60 * 1000
+
+export type ResolveGitHubEvidenceInput = {
+  toolExecutionRunId: string
+  repository: string
+  baseBranch: string
+  branchPrefix: string
+  resultMarkerPath: string
+  externalCorrelationId: string | null
+  dispatchedAt: string
+  requiresPullRequest?: boolean
+  expectedBranch?: string | null
+}
 
 export type ReconcileCursorAutomationDeps = {
   getRun: (id: string) => ToolExecutionRun | null
@@ -47,13 +57,7 @@ export type ReconcileCursorAutomationDeps = {
   getReviewByRunId: (runId: string) => EmployeeToolReview | null
   createReview: (input: CreateEmployeeToolReviewInput) => EmployeeToolReview
   postReviewCard: (review: EmployeeToolReview) => void
-  readResultMarker: (path: string) => Promise<unknown | null>
-  resolveEvidence: (input: {
-    repository: string
-    branch: string
-    commitSha: string
-    pullRequestUrl: string | null
-  }) => Promise<ResultMarkerEvidence>
+  resolveGitHubEvidence: (input: ResolveGitHubEvidenceInput) => Promise<GitHubExecutionEvidenceResult>
   logEvent: (event: CursorAutomationRunnerEvent) => void
   now?: () => number
 }
@@ -64,6 +68,20 @@ function readPendingEnvelope(run: ToolExecutionRun): CursorResultEnvelope | null
   const raw = (output as Record<string, unknown>).cursorResultEnvelopeV110
   if (!raw || typeof raw !== 'object') return null
   return raw as CursorResultEnvelope
+}
+
+function evidenceFromGitHubResult(result: GitHubExecutionEvidenceResult): ResultMarkerEvidence {
+  const branchVerified = result.evidence.some((item) => item.type === 'BRANCH' && item.verified)
+  const commitVerified = result.evidence.some((item) => item.type === 'COMMIT' && item.verified)
+  const prVerified =
+    !result.marker?.pullRequestUrl ||
+    result.evidence.some((item) => item.type === 'PULL_REQUEST' && item.verified)
+
+  return {
+    branchExists: branchVerified,
+    commitExists: commitVerified,
+    pullRequestValid: prVerified,
+  }
 }
 
 function bootstrapBuilderReview(
@@ -150,14 +168,10 @@ async function applyDiscoveredMarker(
   run: ToolExecutionRun,
   marker: CursorAutomationResultMarker,
   metadata: NonNullable<ReturnType<typeof readCursorAutomationRunnerMetadata>>,
+  evidenceResult: GitHubExecutionEvidenceResult,
   deps: ReconcileCursorAutomationDeps,
 ): Promise<ReconcileCursorAutomationOutcome> {
-  const evidence = await deps.resolveEvidence({
-    repository: metadata.repository,
-    branch: marker.branch,
-    commitSha: marker.commitSha,
-    pullRequestUrl: marker.pullRequestUrl,
-  })
+  const evidence = evidenceFromGitHubResult(evidenceResult)
 
   const validation = validateResultMarker({
     marker,
@@ -181,7 +195,10 @@ async function applyDiscoveredMarker(
   const envelope = buildDiscoveredAutomationEnvelope({
     marker,
     externalCorrelationId: correlation,
-    metadata: { reconciliation: 'result_marker_v1' },
+    metadata: {
+      reconciliation: 'github_evidence_v1',
+      githubEvidenceReasonCode: evidenceResult.reasonCode,
+    },
   })
 
   const envelopeValidation = validateCursorResultEnvelope(envelope)
@@ -221,7 +238,7 @@ async function applyDiscoveredMarker(
       executionRoute: 'CURSOR_AUTOMATION_WEBHOOK',
       automationReconciliation: {
         discoveredAt: new Date(deps.now?.() ?? Date.now()).toISOString(),
-        source: 'result_marker_v1',
+        source: 'github_evidence_v1',
       },
     }),
     deliveryMode: 'cursor_v1',
@@ -256,6 +273,40 @@ async function applyDiscoveredMarker(
   deps.logEvent(event)
 
   return { ok: true, status: 'DISCOVERED', run: persisted, envelope }
+}
+
+function applyInvalidEvidence(
+  run: ToolExecutionRun,
+  metadata: NonNullable<ReturnType<typeof readCursorAutomationRunnerMetadata>>,
+  evidenceResult: GitHubExecutionEvidenceResult,
+  deps: ReconcileCursorAutomationDeps,
+  nowMs: number,
+): ReconcileCursorAutomationOutcome {
+  const nowIso = new Date(nowMs).toISOString()
+  const pendingRun = patchRunnerMetadata(run, {
+    dispatchPhase: 'RESULT_PENDING',
+    reconciliationLastCheckedAt: nowIso,
+    reconciliationPollCount: metadata.reconciliationPollCount + 1,
+    evidenceValidationErrors: evidenceResult.errors.map((error) => ({
+      code: error.code,
+      message: error.message,
+    })),
+    githubEvidenceReasonCode: evidenceResult.reasonCode,
+  })
+  deps.upsertRun(pendingRun)
+
+  const event = createCursorAutomationRunnerEvent(
+    'cursor_automation_dispatch_failed',
+    run.id,
+    'INVALID_RESULT_MARKER',
+    {
+      reasonCode: evidenceResult.reasonCode,
+      errors: evidenceResult.errors,
+    },
+  )
+  deps.logEvent(event)
+
+  return { ok: true, status: 'RESULT_PENDING', run: pendingRun }
 }
 
 export async function reconcileCursorAutomationResult(
@@ -316,36 +367,62 @@ export async function reconcileCursorAutomationResult(
     )
   }
 
-  const markerPath = metadata.resultMarkerPath
-  const rawMarker = await deps.readResultMarker(markerPath)
-  if (!rawMarker) {
+  const flowMetadata = readBuilderAutomationTaskFlowMetadata(run)
+  const correlation = findSuccessfulDispatchAttempt(metadata)?.backgroundComposerId ?? null
+
+  const evidenceResult = await deps.resolveGitHubEvidence({
+    toolExecutionRunId: run.id,
+    repository: metadata.repository,
+    baseBranch: metadata.baseBranch,
+    branchPrefix: metadata.branchPrefix,
+    resultMarkerPath: metadata.resultMarkerPath,
+    externalCorrelationId: correlation,
+    dispatchedAt: metadata.dispatchedAt ?? new Date(nowMs).toISOString(),
+    requiresPullRequest: flowMetadata?.requiresCommitOrPullRequest === true,
+  })
+
+  if (evidenceResult.status === 'NOT_FOUND' || evidenceResult.status === 'PENDING') {
     const pendingRun = patchRunnerMetadata(run, {
       dispatchPhase: 'RESULT_PENDING',
       reconciliationLastCheckedAt: new Date(nowMs).toISOString(),
       reconciliationPollCount: metadata.reconciliationPollCount + 1,
+      githubEvidenceReasonCode: evidenceResult.reasonCode,
     })
     deps.upsertRun(pendingRun)
     return { ok: true, status: 'RESULT_PENDING', run: pendingRun }
   }
 
-  const marker = parseResultMarker(rawMarker)
-  if (!marker) {
+  if (evidenceResult.status === 'INVALID') {
+    return applyInvalidEvidence(run, metadata, evidenceResult, deps, nowMs)
+  }
+
+  if (!evidenceResult.marker) {
     return {
       ok: false,
       code: 'INVALID_RESULT_MARKER',
-      message: 'Result marker file is not parseable.',
+      message: 'GitHub evidence returned without marker.',
       run,
     }
   }
 
-  if (marker.toolExecutionRunId !== run.id) {
+  if (evidenceResult.marker.toolExecutionRunId !== run.id) {
     return {
       ok: false,
       code: 'RUN_ID_MISMATCH',
-      message: `Marker references ${marker.toolExecutionRunId}, expected ${run.id}.`,
+      message: `Marker references ${evidenceResult.marker.toolExecutionRunId}, expected ${run.id}.`,
       run,
     }
   }
 
-  return applyDiscoveredMarker(run, marker, metadata, deps)
+  if (evidenceResult.status === 'FAILED' || evidenceResult.status === 'FOUND') {
+    return applyDiscoveredMarker(run, evidenceResult.marker, metadata, evidenceResult, deps)
+  }
+
+  const pendingRun = patchRunnerMetadata(run, {
+    dispatchPhase: 'RESULT_PENDING',
+    reconciliationLastCheckedAt: new Date(nowMs).toISOString(),
+    reconciliationPollCount: metadata.reconciliationPollCount + 1,
+  })
+  deps.upsertRun(pendingRun)
+  return { ok: true, status: 'RESULT_PENDING', run: pendingRun }
 }

@@ -30,16 +30,34 @@ function createOllamaDevRelay(): Record<string, ProxyOptions> {
   }
 }
 
+/** Trusted local GitHub Evidence Bridge — secrets stay server-side (AI-COMPANY-114). */
+function createGitHubEvidenceDevRelay(): Record<string, ProxyOptions> {
+  return {
+    '/runtime/github-evidence': {
+      target: 'http://127.0.0.1:17320',
+      changeOrigin: true,
+      rewrite: (path: string) => path.replace(/^\/runtime\/github-evidence/, ''),
+    },
+  }
+}
+
+function createDevProxy(): Record<string, ProxyOptions> {
+  return {
+    ...createOllamaDevRelay(),
+    ...createGitHubEvidenceDevRelay(),
+  }
+}
+
 export default defineConfig({
   plugins: [react()],
   server: {
     port: 5174,
     host: true,
-    proxy: createOllamaDevRelay(),
+    proxy: createDevProxy(),
   },
   preview: {
     port: 4174,
     host: true,
-    proxy: createOllamaDevRelay(),
+    proxy: createDevProxy(),
   },
 })

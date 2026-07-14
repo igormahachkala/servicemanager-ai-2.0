@@ -25,6 +25,8 @@ import { createDefaultRunCursorAutomationDeps } from './cursorAutomationRunnerDe
 import { reconcileCursorAutomationResult } from './cursorAutomationReconciliation.ts'
 import { createDefaultReconcileDeps } from './cursorAutomationRunnerDefaultDeps.ts'
 import { readCursorAutomationRunnerMetadata } from './cursorAutomationRunnerMetadata.ts'
+import type { CursorAutomationResultMarker } from './cursorAutomationRunnerTypes.ts'
+import type { GitHubExecutionEvidenceResult } from '../githubEvidenceReader/githubEvidenceReaderTypes.ts'
 
 const WEBHOOK_URL = 'https://api2.cursor.sh/automations/webhook/test-uuid'
 const WEBHOOK_KEY = 'crsr_test_secret_key_12345'
@@ -89,6 +91,51 @@ function mockFetch(status: number, body: Record<string, unknown>): typeof fetch 
       status,
       text: async () => JSON.stringify(body),
     }) as Response
+}
+
+function mockGitHubEvidence(
+  marker: CursorAutomationResultMarker | null,
+  status: GitHubExecutionEvidenceResult['status'] = marker?.status === 'FAILED' ? 'FAILED' : 'FOUND',
+  reasonCode: GitHubExecutionEvidenceResult['reasonCode'] = status === 'NOT_FOUND'
+    ? 'MARKER_NOT_FOUND'
+    : status === 'INVALID'
+      ? 'MARKER_INVALID'
+      : 'EVIDENCE_VERIFIED',
+): GitHubExecutionEvidenceResult {
+  const evidence =
+    marker && (status === 'FOUND' || status === 'FAILED')
+      ? [
+          { type: 'MARKER' as const, reference: 'tmp/ai-company-results/marker.json', verified: true, details: {} },
+          { type: 'BRANCH' as const, reference: marker.branch, verified: true, details: {} },
+          { type: 'COMMIT' as const, reference: marker.commitSha, verified: true, details: {} },
+          ...(marker.pullRequestUrl
+            ? [
+                {
+                  type: 'PULL_REQUEST' as const,
+                  reference: marker.pullRequestUrl,
+                  verified: true,
+                  details: {},
+                },
+              ]
+            : []),
+        ]
+      : []
+
+  return {
+    status,
+    marker,
+    branch: marker?.branch ?? null,
+    commitSha: marker?.commitSha ?? null,
+    pullRequestUrl: marker?.pullRequestUrl ?? null,
+    changedFiles: marker?.changedFiles ?? [],
+    checks: [],
+    reportedChecks: marker ? marker.checks.map((check) => ({ name: check.name, status: 'passed' as const, outputSummary: null })) : [],
+    verifiedChecks: [],
+    errors: [],
+    evidence,
+    reasonCode,
+    checkedAt: '2026-07-14T10:00:00.000Z',
+  }
 }
 
 function installStorageMock(): void {
@@ -666,12 +713,7 @@ describe('cursorAutomationRunner', () => {
         result: { ...run.result!, output: input.output },
       }),
       failRun: () => run,
-      readResultMarker: async () => marker,
-      resolveEvidence: async () => ({
-        branchExists: true,
-        commitExists: true,
-        pullRequestValid: true,
-      }),
+      resolveGitHubEvidence: async () => mockGitHubEvidence(marker),
       createReview: (input) => {
         reviewCreated = true
         return {
@@ -747,12 +789,7 @@ describe('cursorAutomationRunner', () => {
       upsertRun: (r) => r,
       recordResult: () => run,
       failRun: () => ({ ...run, status: 'failed' }),
-      readResultMarker: async () => marker,
-      resolveEvidence: async () => ({
-        branchExists: true,
-        commitExists: true,
-        pullRequestValid: false,
-      }),
+      resolveGitHubEvidence: async () => mockGitHubEvidence(marker, 'FAILED'),
       logEvent: () => {},
       now: () => Date.parse('2026-07-14T10:05:00.000Z'),
     })
@@ -818,23 +855,19 @@ describe('cursorAutomationRunner', () => {
       upsertRun: (r) => r,
       recordResult: () => run,
       failRun: () => run,
-      readResultMarker: async () => ({
-        toolExecutionRunId: 'other-run',
-        status: 'SUCCEEDED',
-        summary: 'ok',
-        branch: 'cursor/x',
-        commitSha: 'abc1234567890',
-        pullRequestUrl: null,
-        changedFiles: [],
-        checks: [],
-        errors: [],
-        finishedAt: '2026-07-14T10:00:00.000Z',
-      }),
-      resolveEvidence: async () => ({
-        branchExists: true,
-        commitExists: true,
-        pullRequestValid: false,
-      }),
+      resolveGitHubEvidence: async () =>
+        mockGitHubEvidence({
+          toolExecutionRunId: 'other-run',
+          status: 'SUCCEEDED',
+          summary: 'ok',
+          branch: 'cursor/x',
+          commitSha: 'abc1234567890',
+          pullRequestUrl: null,
+          changedFiles: [],
+          checks: [],
+          errors: [],
+          finishedAt: '2026-07-14T10:00:00.000Z',
+        }),
       logEvent: () => {},
       now: () => Date.now(),
     })
@@ -904,12 +937,7 @@ describe('cursorAutomationRunner', () => {
       upsertRun: (r) => r,
       recordResult: () => run,
       failRun: () => ({ ...run, status: 'failed' }),
-      readResultMarker: async () => null,
-      resolveEvidence: async () => ({
-        branchExists: false,
-        commitExists: false,
-        pullRequestValid: false,
-      }),
+      resolveGitHubEvidence: async () => mockGitHubEvidence(null, 'NOT_FOUND'),
       logEvent: () => {},
       now: () => Date.parse('2026-07-14T10:00:00.000Z'),
     })
