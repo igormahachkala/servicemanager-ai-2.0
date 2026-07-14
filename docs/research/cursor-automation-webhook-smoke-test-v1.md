@@ -400,6 +400,56 @@ CURL_TIME_TOTAL: ~1.08 s
 
 ---
 
+## Final Green Run Attempt (AI-COMPANY-107)
+
+> **Date (UTC):** 2026-07-14  
+> **Evidence:** [evidence/ai-company-107/](./evidence/ai-company-107/)  
+> **Status:** **GREEN ENQUEUE** — HTTP 200 + `backgroundComposerId`; repo artifact **not observed**
+
+### Pre-flight state
+
+See [preflight.md](./evidence/ai-company-107/preflight.md). Key change vs 106A: Cloud Environment `servicemanager-ai-2.0` up to date; manual Cloud Agent run succeeded; GitHub write confirmed.
+
+### Request / response
+
+| Item | Value |
+|------|-------|
+| POST body `testId` | `ai-company-107-final-green-run` |
+| HTTP status | **200** |
+| Body | `{"success":true,"backgroundComposerId":"bc-***REDACTED***"}` |
+| Latency | ~1.98 s |
+| Prior `unauthenticated` error | **Absent** |
+
+Evidence: `request.txt`, `response.txt`.
+
+### Runtime result
+
+- **Background Composer enqueued** — field `backgroundComposerId` returned (first live confirmation).
+- **12 min poll** — `tmp/cursor-automation-smoke-result.json` **not** on `test/cursor-automation-webhook-contract`.
+- **Payload visibility** — not confirmed (no artifact).
+- **Duplicate POST** (same `testId`) — second **200** + new composer id; **no deduplication** at HTTP layer (`duplicate-response.txt`).
+
+Details: [runtime-result.md](./evidence/ai-company-107/runtime-result.md).
+
+### Billing observation
+
+No extra credits / upgrade prompt. [billing-observation.md](./evidence/ai-company-107/billing-observation.md).
+
+### Final blocker or success
+
+| Layer | Verdict |
+|-------|---------|
+| Webhook transport + auth | **Success** |
+| Composer enqueue | **Success** (was blocked in 106/106A) |
+| Repo artifact on configured branch | **Not verified** |
+| Platform blocker | **Cleared** for enqueue; **not** a platform auth failure anymore |
+
+### Final recommendation
+
+**Path C** — see [final-decision.md](./evidence/ai-company-107/final-decision.md). Research on Automations webhook **closed**.
+
+---
+
 ## Evidence index
 
 | File | Content |
@@ -411,6 +461,7 @@ CURL_TIME_TOTAL: ~1.08 s
 | `test-matrix.md` | Summary table |
 | `106a/green-run-*` | 106A green attempt + poll log |
 | `106a/prerequisites-checklist.md` | Repo/workspace prerequisites |
+| `107/*` | Final green run (107) |
 
 ---
 
@@ -418,7 +469,8 @@ CURL_TIME_TOTAL: ~1.08 s
 
 | Field | Value |
 |-------|-------|
-| Task | AI-COMPANY-106 |
+| Task | AI-COMPANY-106 (+ 106A, **107 final**) |
 | Production code | None |
 | Commit scope | docs/research only |
 | Live token handling | gitignored local env only |
+| Research status | **Closed** — see § Final Green Run Attempt |

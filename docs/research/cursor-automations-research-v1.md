@@ -807,7 +807,7 @@ MCP sensitive fields (`env`, `headers`, `CLIENT_SECRET`) redacted after save —
 | JSON at HTTP layer | Accepted; errors as 400/500 |
 | Composer start failure | HTTP **400** — `Failed to start background composer: [unauthenticated] Error` (106 + **106A after key rotation + branch push**) |
 | Response latency | ~0.5–1.5 s; non-blocking |
-| Execution ID in HTTP response | **Absent** |
+| Execution ID in HTTP response | **Absent** (106); **`backgroundComposerId` present** (107) |
 | Test branch on GitHub remote | **Yes** (106A) |
 | Webhook key rotation | **Done** locally (106A); not in git |
 
@@ -823,8 +823,8 @@ MCP sensitive fields (`env`, `headers`, `CLIENT_SECRET`) redacted after save —
 
 | Topic | Status |
 |-------|--------|
-| `success: true` response | Not observed |
-| Run / execution ID (HTTP or UI) | Not observed |
+| `success: true` response | **Confirmed** (107) — with `backgroundComposerId` |
+| Run / execution ID (HTTP) | **Confirmed** — `backgroundComposerId` (107) |
 | Payload → agent prompt | Not observed |
 | Query / custom headers in agent | Not observed |
 | Duplicate / idempotency | Not tested (106A skipped) |
@@ -833,9 +833,30 @@ MCP sensitive fields (`env`, `headers`, `CLIENT_SECRET`) redacted after save —
 
 ### Impact on recommendations (106A)
 
-**Path B (Cloud Agents API v1)** — unchanged. **Path A** remains blocked. **Path C** deferred until green Automations webhook run succeeds.
+**Path B (Cloud Agents API v1)** — superseded by 107 partial green enqueue.
 
-> **106A addendum:** [Green Run Verification](./cursor-automation-webhook-smoke-test-v1.md#green-run-verification-ai-company-106a) · evidence [ai-company-106a/](./evidence/ai-company-106a/)
+### Final status (AI-COMPANY-107)
+
+| Capability | Status |
+|------------|--------|
+| Automation webhook transport (URL, Bearer, 401/200) | **Confirmed** |
+| Automation runtime enqueue (`success:true`, `backgroundComposerId`) | **Confirmed** (2026-07-14) |
+| Prior `unauthenticated` composer error | **Resolved** after Cloud Environment |
+| Cloud Agent manual execution (branch/commit/PR) | **Confirmed** (user live test) |
+| Payload → repo artifact on configured branch | **Unverified** in 107 |
+| HTTP run correlation id | **Confirmed** — `backgroundComposerId` |
+| Duplicate / idempotency | **No dedup** (two 200 responses) |
+| Extra-cost requirement for webhook POST | **Not observed** |
+
+### Final architectural recommendation
+
+**Path C — Local Bridge primary; manual Cloud Agent + webhook trigger secondary.**
+
+Rationale: enqueue contract sufficient for correlation id; machine-readable Builder flow stays on Local Bridge (113E/F); full Path A blocked by missing repo artifact / payload proof; Path B not default due to cost constraint on API-first design.
+
+**Automations research closed** — no further smoke iterations unless Automation binding or instructions change.
+
+> Evidence: [ai-company-107/final-decision.md](./evidence/ai-company-107/final-decision.md)
 
 ---
 
