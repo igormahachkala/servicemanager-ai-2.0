@@ -5,7 +5,7 @@
 
 import type { ToolDispatcherEndpointRef, ToolDispatcherToolId } from './toolDispatcherTypes'
 
-const ENV = import.meta.env
+const ENV = import.meta.env ?? ({} as ImportMetaEnv)
 
 function readEnv(key: string): string | undefined {
   const value = ENV[key]

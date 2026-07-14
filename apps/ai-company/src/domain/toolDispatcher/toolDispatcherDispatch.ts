@@ -1,8 +1,15 @@
 /**
  * Tool Dispatcher — dispatch API (AI-COMPANY-111B).
  * V1: mock ToolResult via Cursor Automation domain — no real Cursor launch.
+ * AI-COMPANY-109: Cursor route policy + cost guard preflight before dispatch.
  */
 
+import {
+  buildCursorRoutePolicyInputFromDispatch,
+  evaluateCursorExecutionDispatch,
+  formatCursorExecutionRouteEvent,
+  type ExecutionRouteDecision,
+} from '../cursorExecutionRoute'
 import { planCursorAutomationHandoff } from '../toolRegistry/toolRegistryCursorAutomationBridge'
 import { buildToolDispatcherEndpointUrl } from './toolDispatcherConfig'
 import { getToolCapability, getToolDispatcherEntry, getToolStatus } from './toolDispatcherRegistry'
@@ -52,6 +59,95 @@ function buildToolRequest(input: DispatchToolRequestInput): ToolRequest {
     payload: input.payload ?? {},
     context: defaultContext(input.context),
     createdAt: nowIso(),
+  }
+}
+
+function routeDecisionToOutput(
+  decision: ExecutionRouteDecision,
+): Record<string, unknown> {
+  return {
+    selectedRoute: decision.selectedRoute,
+    allowed: decision.allowed,
+    requiresOwnerApproval: decision.requiresOwnerApproval,
+    costClassification: decision.costClassification,
+    reasonCode: decision.reasonCode,
+    explanation: decision.explanation,
+    alternatives: decision.alternatives,
+  }
+}
+
+function evaluateCursorRoutePreflight(
+  input: DispatchToolRequestInput,
+  logs: ToolDispatcherLogEntry[],
+):
+  | { ok: true; routeDecision: ExecutionRouteDecision }
+  | { ok: false; request: ToolRequest; result: ToolResult } {
+  const policyInput = buildCursorRoutePolicyInputFromDispatch(input)
+  const preflight = evaluateCursorExecutionDispatch(policyInput)
+
+  for (const event of preflight.events) {
+    logs.push(log('info', formatCursorExecutionRouteEvent(event)))
+  }
+
+  const routeDecision = preflight.routeDecision
+
+  if (!routeDecision.allowed && routeDecision.requiresOwnerApproval) {
+    const request = buildToolRequest(input)
+    logs.push(log('info', `Route ${routeDecision.selectedRoute ?? 'none'} requires Owner approval`))
+    return {
+      ok: false,
+      request,
+      result: {
+        requestId: request.requestId,
+        toolId: request.toolId,
+        status: 'planned',
+        ok: true,
+        deliveryMode: 'planned_v1',
+        output: {
+          plannedOnly: true,
+          lifecycleStatus: 'awaiting_owner',
+          routeDecision: routeDecisionToOutput(routeDecision),
+          requiresOwnerApproval: true,
+        },
+        error: null,
+        cursorAutomationTaskId: null,
+        registryInvokePlanId: null,
+        finishedAt: nowIso(),
+        logs,
+      },
+    }
+  }
+
+  if (!routeDecision.allowed) {
+    const request = buildToolRequest(input)
+    logs.push(
+      log(
+        'error',
+        `Cursor route blocked: ${routeDecision.reasonCode} — ${routeDecision.explanation}`,
+      ),
+    )
+    return {
+      ok: false,
+      request,
+      result: buildFailedResult(
+        request,
+        `${routeDecision.reasonCode}: ${routeDecision.explanation}`,
+        logs,
+      ),
+    }
+  }
+
+  return { ok: true, routeDecision }
+}
+
+function attachRouteDecision(
+  output: Record<string, unknown>,
+  routeDecision: ExecutionRouteDecision,
+): Record<string, unknown> {
+  return {
+    ...output,
+    routeDecision: routeDecisionToOutput(routeDecision),
+    selectedExecutionRoute: routeDecision.selectedRoute,
   }
 }
 
@@ -147,7 +243,11 @@ function validateDispatchInput(
   return { ok: true, entry }
 }
 
-function buildPlannedResult(request: ToolRequest, logs: ToolDispatcherLogEntry[]): ToolResult {
+function buildPlannedResult(
+  request: ToolRequest,
+  logs: ToolDispatcherLogEntry[],
+  routeDecision?: ExecutionRouteDecision,
+): ToolResult {
   const capability = getToolCapability(request.toolId)
   const submitUrl = capability
     ? buildToolDispatcherEndpointUrl(capability.endpoint, 'submit')
@@ -169,16 +269,27 @@ function buildPlannedResult(request: ToolRequest, logs: ToolDispatcherLogEntry[]
     status: 'planned',
     ok: true,
     deliveryMode: 'planned_v1',
-    output: {
-      plannedOnly: true,
-      lifecycleStatus: 'awaiting_owner',
-      registryToolId: capability?.registryToolId ?? null,
-      endpointConfigKey: capability?.endpoint.configKey ?? null,
-      submitUrl,
-      statusUrl,
-      workItemId:
-        typeof request.payload.workItemId === 'string' ? request.payload.workItemId : null,
-    },
+    output: attachRouteDecision(
+      {
+        plannedOnly: true,
+        lifecycleStatus: 'awaiting_owner',
+        registryToolId: capability?.registryToolId ?? null,
+        endpointConfigKey: capability?.endpoint.configKey ?? null,
+        submitUrl,
+        statusUrl,
+        workItemId:
+          typeof request.payload.workItemId === 'string' ? request.payload.workItemId : null,
+      },
+      routeDecision ?? {
+        selectedRoute: 'LOCAL_CURSOR_BRIDGE',
+        allowed: true,
+        requiresOwnerApproval: false,
+        costClassification: 'INCLUDED_IN_SUBSCRIPTION',
+        reasonCode: 'LOCAL_AUTOMATION_PREFERRED',
+        explanation: 'Default planned dispatch.',
+        alternatives: [],
+      },
+    ),
     error: null,
     cursorAutomationTaskId: null,
     registryInvokePlanId: null,
@@ -187,7 +298,10 @@ function buildPlannedResult(request: ToolRequest, logs: ToolDispatcherLogEntry[]
   }
 }
 
-function dispatchCursorMock(request: ToolRequest): ToolResult {
+function dispatchCursorMock(
+  request: ToolRequest,
+  routeDecision: ExecutionRouteDecision,
+): ToolResult {
   const logs: ToolDispatcherLogEntry[] = [
     log('info', 'Tool Dispatcher V1 — mock dispatch for Cursor (no API launch)'),
   ]
@@ -223,18 +337,21 @@ function dispatchCursorMock(request: ToolRequest): ToolResult {
     status: 'mock_completed',
     ok: true,
     deliveryMode: 'mock_v1',
-    output: {
-      plannedOnly: true,
-      cursorAutomationTaskId: task.id,
-      registryInvokePlanId: invokePlan.planId,
-      registryInvokePhase: invokePlan.phase,
-      registryToolId: capability.registryToolId,
-      endpointConfigKey: capability.endpoint.configKey,
-      submitUrl,
-      statusUrl,
-      taskStatus: task.status,
-      requiresOwnerApproval: task.requiresOwnerApproval,
-    },
+    output: attachRouteDecision(
+      {
+        plannedOnly: true,
+        cursorAutomationTaskId: task.id,
+        registryInvokePlanId: invokePlan.planId,
+        registryInvokePhase: invokePlan.phase,
+        registryToolId: capability.registryToolId,
+        endpointConfigKey: capability.endpoint.configKey,
+        submitUrl,
+        statusUrl,
+        taskStatus: task.status,
+        requiresOwnerApproval: task.requiresOwnerApproval,
+      },
+      routeDecision,
+    ),
     error: null,
     cursorAutomationTaskId: task.id,
     registryInvokePlanId: invokePlan.planId,
@@ -259,6 +376,21 @@ export function dispatchToolRequestPlannedOnly(
     upsertToolDispatcherRequest(validated.request)
     upsertToolDispatcherResult(validated.result)
     return { request: validated.request, result: validated.result }
+  }
+
+  if (input.toolId === 'cursor') {
+    const preflight = evaluateCursorRoutePreflight(input, logs)
+    if (!preflight.ok) {
+      upsertToolDispatcherRequest(preflight.request)
+      upsertToolDispatcherResult(preflight.result)
+      return { request: preflight.request, result: preflight.result }
+    }
+
+    const request = buildToolRequest(input)
+    upsertToolDispatcherRequest(request)
+    const result = buildPlannedResult(request, logs, preflight.routeDecision)
+    upsertToolDispatcherResult(result)
+    return { request, result }
   }
 
   const request = buildToolRequest(input)
@@ -286,13 +418,24 @@ export function dispatchToolRequest(
     return { request: validated.request, result: validated.result }
   }
 
+  let routeDecision: ExecutionRouteDecision | undefined
+  if (input.toolId === 'cursor') {
+    const preflight = evaluateCursorRoutePreflight(input, logs)
+    if (!preflight.ok) {
+      upsertToolDispatcherRequest(preflight.request)
+      upsertToolDispatcherResult(preflight.result)
+      return { request: preflight.request, result: preflight.result }
+    }
+    routeDecision = preflight.routeDecision
+  }
+
   const request = buildToolRequest(input)
   upsertToolDispatcherRequest(request)
 
   let result: ToolResult
   switch (input.toolId) {
     case 'cursor':
-      result = dispatchCursorMock(request)
+      result = dispatchCursorMock(request, routeDecision!)
       break
     default:
       result = buildFailedResult(request, `No dispatcher handler for ${input.toolId}`, logs)
