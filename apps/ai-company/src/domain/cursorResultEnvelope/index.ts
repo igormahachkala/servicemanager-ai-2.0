@@ -36,6 +36,7 @@ export {
   normalizeLegacyOutboxEnvelope,
   normalizeLocalBridgeResult,
   normalizeManualCloudAgentResult,
+  type ManualCloudAgentFinalStatus,
   type ManualCloudAgentResultInput,
 } from './cursorResultEnvelopeFactories'
 

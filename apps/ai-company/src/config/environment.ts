@@ -24,7 +24,7 @@ import { isRuntimeProviderId } from '../domain/runtime/providers/providerRegistr
 
 export type AiCompanyEnvironment = 'development' | 'production'
 
-const ENV = import.meta.env
+const ENV = import.meta.env ?? ({} as ImportMetaEnv)
 
 function readEnv(key: string): string | undefined {
   const value = ENV[key]

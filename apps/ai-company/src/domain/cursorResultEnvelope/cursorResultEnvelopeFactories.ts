@@ -7,6 +7,7 @@ import type { CursorResultEnvelope as LegacyCursorResultEnvelope } from '../curs
 import {
   type CursorCheckResult,
   type CursorExecutionError,
+  type CursorExecutionStatus,
   type CursorRepositoryArtifact,
   type CursorResultEnvelope,
   type CursorReviewStatus,
@@ -195,53 +196,84 @@ export function normalizeLocalBridgeResult(input: {
   return envelope
 }
 
+export type ManualCloudAgentFinalStatus = 'SUCCEEDED' | 'FAILED' | 'CANCELLED' | 'TIMED_OUT'
+
 export type ManualCloudAgentResultInput = {
   toolExecutionRunId: string
   summary: string
-  branch: string
-  commitSha: string
+  branch?: string | null
+  commitSha?: string | null
   pullRequestUrl?: string | null
   changedFiles: string[]
   checks?: Array<{ name: string; status: string; outputSummary?: string | null }>
+  /** Legacy status — used when finalStatus is omitted. */
   status?: 'completed' | 'failed' | 'partial'
+  finalStatus?: ManualCloudAgentFinalStatus
   startedAt?: string | null
   finishedAt?: string | null
   externalCorrelationId?: string | null
+  errors?: CursorExecutionError[]
+  artifacts?: CursorRepositoryArtifact[]
   metadata?: Record<string, unknown>
+}
+
+function resolveManualExecutionStatus(input: ManualCloudAgentResultInput): CursorExecutionStatus {
+  if (input.finalStatus === 'SUCCEEDED') return 'SUCCEEDED'
+  if (input.finalStatus === 'FAILED') return 'FAILED'
+  if (input.finalStatus === 'CANCELLED') return 'CANCELLED'
+  if (input.finalStatus === 'TIMED_OUT') return 'TIMED_OUT'
+  if (input.status === 'failed') return 'FAILED'
+  if (input.status === 'completed' || input.status === undefined) return 'SUCCEEDED'
+  return 'RESULT_PENDING'
+}
+
+function resolveManualReviewStatus(
+  executionStatus: CursorExecutionStatus,
+): CursorReviewStatus {
+  return executionStatus === 'SUCCEEDED' ? 'PENDING' : 'NOT_REQUIRED'
 }
 
 export function normalizeManualCloudAgentResult(
   input: ManualCloudAgentResultInput,
 ): CursorResultEnvelope {
-  const failed = input.status === 'failed'
-  const succeeded = input.status === 'completed' || input.status === undefined
-  const executionStatus = failed ? 'FAILED' : succeeded ? 'SUCCEEDED' : 'RESULT_PENDING'
-  const finishedAt = input.finishedAt ?? (succeeded || failed ? new Date().toISOString() : null)
+  const executionStatus = resolveManualExecutionStatus(input)
+  const succeeded = executionStatus === 'SUCCEEDED'
+  const failed =
+    executionStatus === 'FAILED' ||
+    executionStatus === 'CANCELLED' ||
+    executionStatus === 'TIMED_OUT'
+  const finishedAt =
+    input.finishedAt ?? (succeeded || failed ? new Date().toISOString() : null)
+  const branch = input.branch?.trim() || null
+  const commitSha = input.commitSha?.trim() || null
 
   const envelope = baseEnvelope({
     toolExecutionRunId: input.toolExecutionRunId,
     route: 'MANUAL_CLOUD_AGENT',
     transportStatus: 'DISPATCHED',
     executionStatus,
-    reviewStatus: succeeded ? 'PENDING' : 'NOT_REQUIRED',
+    reviewStatus: resolveManualReviewStatus(executionStatus),
     summary: input.summary,
-    branch: input.branch,
-    commitSha: input.commitSha,
+    branch,
+    commitSha,
     pullRequestUrl: input.pullRequestUrl ?? null,
     changedFiles: input.changedFiles,
     checks: normalizeChecksFromStructured(input.checks ?? []),
-    artifacts: buildRepositoryArtifacts({
-      branch: input.branch,
-      commitSha: input.commitSha,
-      pullRequestUrl: input.pullRequestUrl,
-      changedFiles: input.changedFiles,
-    }),
+    artifacts:
+      input.artifacts ??
+      buildRepositoryArtifacts({
+        branch,
+        commitSha,
+        pullRequestUrl: input.pullRequestUrl,
+        changedFiles: input.changedFiles,
+      }),
+    errors: input.errors ?? [],
     externalCorrelationId: input.externalCorrelationId ?? null,
     startedAt: input.startedAt ?? finishedAt,
     finishedAt,
     metadata: {
       transport: 'manual_cloud_agent',
-      importStatus: input.status ?? 'completed',
+      importStatus: input.status ?? input.finalStatus ?? 'completed',
       ...input.metadata,
     },
   })

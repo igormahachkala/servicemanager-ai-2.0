@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "test:domain": "node --import tsx --test src/domain/cursorExecutionRoute/cursorExecutionRoute.test.ts src/domain/toolDispatcher/toolDispatcherRouteIntegration.test.ts src/domain/cursorResultEnvelope/cursorResultEnvelope.test.ts",
+    "test:domain": "node --import tsx --test src/domain/cursorExecutionRoute/cursorExecutionRoute.test.ts src/domain/toolDispatcher/toolDispatcherRouteIntegration.test.ts src/domain/cursorResultEnvelope/cursorResultEnvelope.test.ts src/domain/manualCloudAgentImport/manualCloudAgentImport.test.ts",
     "cursor:bridge": "tsx tools/cursor-local-bridge/src/index.ts run",
     "cursor:bridge:status": "tsx tools/cursor-local-bridge/src/index.ts status"
   },
