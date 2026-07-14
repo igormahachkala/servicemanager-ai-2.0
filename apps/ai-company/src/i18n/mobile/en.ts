@@ -986,6 +986,58 @@ export const mobileEn = {
       builderChat: 'Open Builder chat for detailed review',
     },
   },
+  builderAutomation: {
+    title: 'Autonomous Builder — Cursor Automations',
+    description:
+      'DEV-only: Owner approval → Builder dispatches webhook → reconciliation → Builder/MAX review → report.',
+    devOnlyHint: 'DEV only. Webhook secrets live in runtime env — never in UI or git.',
+    fields: {
+      title: 'Title',
+      instruction: 'Instruction',
+      expectedResult: 'Expected result',
+      repository: 'Repository',
+      baseBranch: 'Base branch',
+    },
+    status: {
+      title: 'Autonomous flow status',
+      description: 'Dispatching → Dispatched → Waiting → Result discovered → Reviews → Completed.',
+    },
+    correlation: {
+      title: 'backgroundComposerId',
+      description: 'External correlation id — does not mean execution succeeded.',
+    },
+    route: {
+      title: 'Route decision',
+      selectedRoute: 'Selected route',
+      cost: 'Cost classification',
+      reason: 'Reason code',
+    },
+    builderReview: {
+      title: 'Builder Review',
+      description: 'Available only after result evidence is discovered.',
+    },
+    maxReview: {
+      title: 'MAX Review',
+      description: 'Final Owner report after Builder handoff.',
+    },
+    finalReport: {
+      title: 'Final report',
+      route: 'Execution route',
+      branch: 'Branch',
+      commit: 'Commit',
+      next: 'Next action',
+    },
+    actions: {
+      createTask: 'Create autonomous Builder task',
+      approveAndDispatch: 'Allow and launch via Cursor Automations',
+      acceptBuilder: 'Accept Builder review',
+      rejectBuilder: 'Reject Builder review',
+      acceptMax: 'Accept MAX review',
+    },
+    links: {
+      backToToday: 'Back to Today',
+    },
+  },
   runtimeLive: {
     pageTitle: 'Runtime Live',
     intro: 'Worker Loop execution progress.',

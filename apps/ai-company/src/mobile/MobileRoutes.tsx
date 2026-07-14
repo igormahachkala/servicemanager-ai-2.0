@@ -8,6 +8,7 @@ import { MobileReportDetailPage } from './pages/MobileReportDetailPage'
 import { MobileReportsPage } from './pages/MobileReportsPage'
 import { MobileRuntimeLivePage } from './pages/MobileRuntimeLivePage'
 import { MobileManualCursorTaskFlowPage } from './pages/MobileManualCursorTaskFlowPage'
+import { MobileBuilderAutomationTaskFlowPage } from './pages/MobileBuilderAutomationTaskFlowPage'
 import { MobileRunTaskPage } from './pages/MobileRunTaskPage'
 import { MobileDemoPage } from './pages/MobileDemoPage'
 import { MobileMaxChatPage } from './pages/MobileMaxChatPage'
@@ -30,6 +31,8 @@ export function MobileRoutes() {
         <Route path="tasks/new" element={<MobileRunTaskPage />} />
         <Route path="cursor-task/:runId" element={<MobileManualCursorTaskFlowPage />} />
         <Route path="cursor-task" element={<MobileManualCursorTaskFlowPage />} />
+        <Route path="builder-automation/:runId" element={<MobileBuilderAutomationTaskFlowPage />} />
+        <Route path="builder-automation" element={<MobileBuilderAutomationTaskFlowPage />} />
         <Route path="tasks/history" element={<MobileTaskHistoryPage />} />
         <Route path="tasks" element={<MobileTasksCenterPage />} />
         <Route path="history" element={<Navigate to="tasks/history" replace />} />

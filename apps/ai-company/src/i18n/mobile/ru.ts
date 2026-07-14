@@ -986,6 +986,58 @@ export const mobileRu = {
       builderChat: 'Открыть чат Builder для детального review',
     },
   },
+  builderAutomation: {
+    title: 'Autonomous Builder — Cursor Automations',
+    description:
+      'DEV-only: Owner approval → Builder сам вызывает webhook → reconciliation → Builder/MAX review → отчёт.',
+    devOnlyHint: 'Среда: только DEV. Webhook secrets только в runtime env — не в UI и не в git.',
+    fields: {
+      title: 'Название',
+      instruction: 'Инструкция',
+      expectedResult: 'Ожидаемый результат',
+      repository: 'Репозиторий',
+      baseBranch: 'Базовая ветка',
+    },
+    status: {
+      title: 'Статус autonomous flow',
+      description: 'Dispatching → Dispatched → Waiting → Result discovered → Reviews → Completed.',
+    },
+    correlation: {
+      title: 'backgroundComposerId',
+      description: 'External correlation id — не означает успешное выполнение.',
+    },
+    route: {
+      title: 'Route decision',
+      selectedRoute: 'Выбранный route',
+      cost: 'Cost classification',
+      reason: 'Reason code',
+    },
+    builderReview: {
+      title: 'Builder Review',
+      description: 'Доступно только после обнаружения result evidence.',
+    },
+    maxReview: {
+      title: 'MAX Review',
+      description: 'Финальный Owner report после Builder handoff.',
+    },
+    finalReport: {
+      title: 'Финальный отчёт',
+      route: 'Execution route',
+      branch: 'Branch',
+      commit: 'Commit',
+      next: 'Следующий шаг',
+    },
+    actions: {
+      createTask: 'Создать autonomous Builder задачу',
+      approveAndDispatch: 'Разрешить и запустить через Cursor Automations',
+      acceptBuilder: 'Принять Builder review',
+      rejectBuilder: 'Отклонить Builder review',
+      acceptMax: 'Принять MAX review',
+    },
+    links: {
+      backToToday: 'Вернуться на «Сегодня»',
+    },
+  },
   runtimeLive: {
     pageTitle: 'Runtime Live',
     intro: 'Ход выполнения Worker Loop.',
