@@ -1416,6 +1416,111 @@ export class NotificationsService {
     })
   }
 
+  /**
+   * Провайдер-сайд АДМИНЫ заявки для этапов assigned/awaiting_acceptance/accepted:
+   *  - админы ГЕНПОДРЯДЧИКА = ACTIVE PRIMARY-провайдер компании-заявки (клиента);
+   *  - админы компании НАЗНАЧЕНЦА, если она ≠ компании-заявки (СУБПОДРЯДЧИК).
+   * Компания-заявка (клиент) сюда НЕ входит — её получатели считаются отдельными
+   * ветками (не дублируем). Дедуп по userId, исключение actor/переданных id.
+   */
+  private async resolveProviderSideAdmins(params: {
+    ticketId: string;
+    ticketCompanyId: string;
+    excludeUserIds: string[];
+  }): Promise<Array<{ id: string; companyId: string }>> {
+    const companyIds = new Set<string>();
+
+    const primaries = await this.prisma.serviceContract.findMany({
+      where: {
+        clientCompanyId: params.ticketCompanyId,
+        status: ServiceContractStatus.ACTIVE,
+        role: ServiceContractRole.PRIMARY,
+      },
+      select: { providerCompanyId: true },
+    });
+    for (const c of primaries) companyIds.add(c.providerCompanyId);
+
+    const ticket = await this.prisma.ticket.findUnique({
+      where: { id: params.ticketId },
+      select: { assignedTechnicianId: true },
+    });
+    if (ticket?.assignedTechnicianId) {
+      const assignee = await this.prisma.user.findFirst({
+        where: { id: ticket.assignedTechnicianId, isActive: true },
+        select: { companyId: true },
+      });
+      if (assignee && assignee.companyId !== params.ticketCompanyId) {
+        companyIds.add(assignee.companyId);
+      }
+    }
+
+    // компанию-заявку (клиента) исключаем — её получателей считают другие ветки
+    companyIds.delete(params.ticketCompanyId);
+    if (!companyIds.size) return [];
+
+    const exclude = params.excludeUserIds.filter(Boolean);
+    return this.prisma.user.findMany({
+      where: {
+        companyId: { in: Array.from(companyIds) },
+        isActive: true,
+        role: UserRole.ADMIN,
+        ...(exclude.length ? { id: { notIn: exclude } } : {}),
+      },
+      select: { id: true, companyId: true },
+    });
+  }
+
+  /** In-app + push провайдер-сайд админам (генподрядчик + субподрядчик). Не дублирует клиента/назначенца. */
+  private async notifyProviderSideAdmins(params: {
+    ticketId: string;
+    ticketCompanyId: string;
+    actorUserId: string | null;
+    assigneeUserId?: string | null;
+    type: PushEventType;
+    notificationType: string;
+    title: string;
+    message: string;
+    dedupeKind: string;
+    sourceEventId?: string | null;
+  }) {
+    const recipients = await this.resolveProviderSideAdmins({
+      ticketId: params.ticketId,
+      ticketCompanyId: params.ticketCompanyId,
+      excludeUserIds: [params.actorUserId, params.assigneeUserId].filter(
+        (x): x is string => !!x && x.length > 0,
+      ),
+    });
+    if (!recipients.length) return;
+
+    await this.createNotifications(
+      recipients.map((r) => ({
+        companyId: r.companyId,
+        userId: r.id,
+        type: params.notificationType,
+        title: params.title,
+        message: params.message,
+        entityType: 'Ticket',
+        entityId: params.ticketId,
+        linkedClientCompanyId:
+          r.companyId !== params.ticketCompanyId ? params.ticketCompanyId : null,
+        dedupeKey: this.notificationDedupeKey(
+          params.dedupeKind,
+          params.sourceEventId || params.ticketId,
+          r.companyId,
+          r.id,
+        ),
+      })),
+    );
+
+    await this.pushTicketEventToMany({
+      userIds: recipients.map((r) => r.id),
+      type: params.type,
+      ticketId: params.ticketId,
+      title: params.title,
+      body: params.message,
+    });
+  }
+
   private async emitTicketAssignedToAssignee(params: {
     assigneeUserId: string;
     ticketId: string;
@@ -1473,6 +1578,21 @@ export class NotificationsService {
         body: message,
       });
     }
+
+    // Провайдер-сайд админы: генподрядчик (PRIMARY) + субподрядчик (компания назначенца,
+    // если ≠ компании-заявки). Исключаем инициатора и самого назначенца.
+    await this.notifyProviderSideAdmins({
+      ticketId: params.ticketId,
+      ticketCompanyId: params.ticketCompanyId,
+      actorUserId: params.actorUserId,
+      assigneeUserId: assignee.id,
+      type: 'assignment',
+      notificationType: 'ticket.assigned',
+      title: 'Назначен исполнитель',
+      message,
+      dedupeKind: 'ticket.assigned.provider_admin',
+      sourceEventId: params.sourceEventId,
+    });
   }
 
   private async emitTicketClaimedDispatchersInternal(params: {
@@ -1719,6 +1839,19 @@ export class NotificationsService {
       title,
       body: message,
     });
+
+    // Провайдер-сайд админы (генподрядчик + субподрядчик) — «на приёмке» (дыра a/b).
+    await this.notifyProviderSideAdmins({
+      ticketId: params.ticketId,
+      ticketCompanyId: params.ticketCompanyId,
+      actorUserId: params.actorUserId,
+      type: 'acceptance',
+      notificationType: 'ticket.awaiting_acceptance',
+      title,
+      message,
+      dedupeKind: 'ticket.awaiting_acceptance.provider_admin',
+      sourceEventId: params.sourceEventId,
+    });
   }
 
   private async emitTicketAcceptedInternal(params: {
@@ -1763,6 +1896,20 @@ export class NotificationsService {
       ticketId: params.ticketId,
       title: 'Работа принята',
       body: `${ticketLabel(params.ticketNumber)} — клиент подтвердил выполнение.`,
+    });
+
+    // Провайдер-сайд админы (генподрядчик + субподрядчик) — «принято». Исключаем инициатора и техника.
+    await this.notifyProviderSideAdmins({
+      ticketId: params.ticketId,
+      ticketCompanyId: params.ticketCompanyId,
+      actorUserId: params.actorUserId,
+      assigneeUserId: assignee.id,
+      type: 'acceptance',
+      notificationType: 'ticket.accepted',
+      title: 'Работа принята',
+      message: clipMessage(`${ticketLabel(params.ticketNumber)} — клиент подтвердил выполнение.`),
+      dedupeKind: 'ticket.accepted.provider_admin',
+      sourceEventId: params.sourceEventId,
     });
   }
 
