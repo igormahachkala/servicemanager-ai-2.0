@@ -1,3 +1,5 @@
+version: "3.9"
+
 services:
   postgres:
     image: postgres:16
@@ -18,12 +20,25 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
-    environment:
-      DATABASE_URL: postgresql://sma_user:sma_password@postgres:5432/sma_db
-      JWT_SECRET: supersecret_change_me
+    env_file:
+      - ./backend/.env.docker
     depends_on:
       - postgres
-    command: npm run start
+    volumes:
+      - ./uploads:/app/uploads
+    command: sh -lc "npx prisma migrate deploy && npm run start:prod"
+
+  web:
+    build:
+      context: ./web
+      args:
+        VITE_API_BASE_URL: https://api.servicemanagerai.ru
+    container_name: sma_web
+    restart: unless-stopped
+    ports:
+      - "4173:4173"
+    depends_on:
+      - backend
 
 volumes:
   postgres_data:

@@ -18,7 +18,7 @@
 
 ### E2E tests (самые важные)
 Через HTTP:
-- register/login/me
+- login/me
 - create specialization/problem-category
 - map category → specializations
 - create technician + set specializations
@@ -31,7 +31,7 @@
 ---
 
 ## 2) Минимальный набор e2e для MVP (must have)
-1) Auth: register/login/me
+1) Auth: login/me
 2) Admin creates: specialization, problem category
 3) Links: problem category → specialization
 4) Technician created + specialization assigned

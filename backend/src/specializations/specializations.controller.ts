@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
 import { SpecializationsService } from './specializations.service';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { Roles } from '../common/roles.decorator';
@@ -31,5 +31,10 @@ export class SpecializationsController {
   @Patch(':id/status')
   setStatus(@Req() req: any, @Param('id') id: string, @Body() body: { isActive: boolean }) {
     return this.svc.setStatus(req.user.companyId, id, !!body.isActive);
+  }
+
+  @Delete(':id')
+  remove(@Req() req: any, @Param('id') id: string) {
+    return this.svc.remove(req.user.companyId, id);
   }
 }

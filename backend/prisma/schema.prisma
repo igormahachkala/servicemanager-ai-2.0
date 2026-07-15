@@ -8,17 +8,34 @@ datasource db {
 }
 
 enum UserRole {
+  PLATFORM_ADMIN
   ADMIN
   DISPATCHER
+  MASTER
   TECHNICIAN
   CLIENT
+  TERRITORIAL_MANAGER
   NETWORK_DIRECTOR
+  STAFF
+}
+
+enum CompanyType {
+  CLIENT
+  PROVIDER
+}
+
+enum AgentTaskStatus {
+  NEW
+  IN_PROGRESS
+  DONE
+  FAILED
 }
 
 enum TicketStatus {
   NEW
   ASSIGNED
   IN_PROGRESS
+  AWAITING_ACCEPTANCE
   DONE
   CANCELED
 }
@@ -28,17 +45,121 @@ enum TicketUrgency {
   NOT_URGENT
 }
 
-model Company {
-  id        String   @id @default(uuid())
-  name      String
-  createdAt DateTime @default(now())
+// SLA-окно ответа: срок считается от момента создания (см. tickets.assignment.service)
+enum TicketPriority {
+  NORMAL
+  URGENT
+}
 
-  autoAssignEnabled Boolean @default(true)
+enum TicketSource {
+  INTERNAL
+  PUBLIC_QUICK_REQUEST
+}
+
+enum TicketAttachmentPurpose {
+  REQUEST
+  WORK_REPORT
+  DECLINE_REPORT
+}
+
+enum PublicRequestType {
+  REPAIR
+  NOTE
+}
+
+enum ServiceContractStatus {
+  DRAFT
+  ACTIVE
+  INACTIVE
+  ENDED
+}
+
+enum ServiceContractRole {
+  PRIMARY
+  SECONDARY
+}
+
+enum InspectionRunStatus {
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum InspectionRunItemStatus {
+  PENDING
+  OK
+  ISSUE
+  CRITICAL
+  SKIPPED
+}
+
+enum InspectionReportStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+enum InspectionFrequency {
+  DAILY
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+  QUARTERLY
+  SEMIANNUAL
+  ANNUAL
+  CUSTOM
+}
+
+model Company {
+  id                   String      @id @default(uuid())
+  name                 String
+  brandName            String?
+  legalName            String?
+  address              String?
+  phone                String?
+  email                String?
+  taxId                String?
+  registrationNumber   String?
+  logoUrl              String?
+  signatureLineName    String?
+  signatureLineTitle   String?
+  type                 CompanyType @default(CLIENT)
+  autoAssignEnabled    Boolean     @default(false)
+  allowTechnicianClaim Boolean     @default(true)
+  slaStrictMode        Boolean     @default(false)
+  timezone             String?     @default("UTC")
+  publicRequestEnabled Boolean     @default(false)
+  publicRequestToken   String?     @unique
+  publicRequestIntro   String?
+  publicRequestAllowPhotos Boolean @default(true)
+  publicRequestMaxPhotos Int @default(3)
+  publicRequestRequirePhone Boolean @default(true)
+  publicRequestDefaultType PublicRequestType?
+  publicRequestRateLimitEnabled Boolean @default(true)
+  publicRequestLocationPresetMode String? @default("HIDE_WHEN_VALID")
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
 
   users             User[]
+  locations         Location[]
+  maxLocationThreads MaxLocationThread[]
   specializations   Specialization[]
   problemCategories ProblemCategory[]
   tickets           Ticket[]
+  ticketAttachments TicketAttachment[]
+  equipment         Equipment[]
+  publicRequestLogs PublicRequestLog[]
+  inspectionTemplates InspectionTemplate[]
+  inspectionRuns      InspectionRun[]
+  inspectionSchedules InspectionSchedule[]
+  inspectionRunItemAttachments InspectionRunItemAttachment[]
+  clientContracts    ServiceContract[] @relation("ClientCompanyContracts")
+  providerContracts  ServiceContract[] @relation("ProviderCompanyContracts")
+  providedTechnicianBindings TechnicianClientBinding[] @relation("TechnicianBindingProviderCompany")
+  clientTechnicianBindings   TechnicianClientBinding[] @relation("TechnicianBindingClientCompany")
+  userLocationBindings UserLocationBinding[]
+  notifications      Notification[]
+  agentTasks         AgentTask[]
 }
 
 model User {
@@ -46,15 +167,158 @@ model User {
   companyId String
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
-  email    String   @unique
-  password String
-  role     UserRole
+  email     String   @unique
+  password  String
+  firstName String?
+  lastName  String?
+  avatarUrl String? @map("profilePhotoUrl")
+  role       UserRole
+  isActive   Boolean  @default(true)
+  isExecutor Boolean  @default(false)
+  phone      String?
+  deletedAt  DateTime?
 
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  ticketStatusChanges       TicketStatusHistory[]      @relation("TicketStatusChangedBy")
-  technicianSpecializations TechnicianSpecialization[]
-  assignedTickets           Ticket[]                   @relation("AssignedTechnician")
+  ticketStatusChanges        TicketStatusHistory[] @relation("TicketStatusChangedBy")
+  technicianSpecializations  TechnicianSpecialization[]
+  assignedTickets            Ticket[] @relation("AssignedTechnician")
+  createdTickets             Ticket[] @relation("TicketCreatedBy")
+  ticketAttachmentsUploaded  TicketAttachment[] @relation("TicketAttachmentUploadedBy")
+  inspectionRunsPerformed    InspectionRun[] @relation("InspectionRunPerformedBy")
+  inspectionReportsSubmitted InspectionRun[] @relation("InspectionRunReportSubmittedBy")
+  inspectionReportsReviewed  InspectionRun[] @relation("InspectionRunReportReviewedBy")
+  inspectionSchedulesAssigned InspectionSchedule[] @relation("InspectionScheduleAssignee")
+  inspectionSchedulesCreated  InspectionSchedule[] @relation("InspectionScheduleCreatedBy")
+  agentTasksCreated           AgentTask[] @relation("AgentTaskCreatedBy")
+  userPermissions            UserPermission[]
+  technicianClientBindings   TechnicianClientBinding[] @relation("TechnicianClientBindings")
+  locationBindings           UserLocationBinding[]
+  notifications              Notification[]
+  pushSubscriptions          PushSubscription[]
+  pushPreference             PushPreference?
+
+  @@index([companyId, role])
+  @@index([companyId, isActive])
+}
+
+// Web Push (mobile-поток). См. docs/PUSH_NOTIFICATIONS_ARCHITECTURE_V1.md §4.
+// Одна запись = одна подписка браузера/устройства (endpoint уникален глобально).
+model PushSubscription {
+  id         String    @id @default(uuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyId  String
+  endpoint   String    @unique
+  p256dh     String
+  auth       String
+  platform   String?
+  userAgent  String?
+  declarative Boolean  @default(false)
+  createdAt  DateTime  @default(now())
+  lastSeenAt DateTime  @default(now())
+  failCount  Int       @default(0)
+  disabledAt DateTime?
+
+  @@index([userId])
+  @@index([companyId])
+}
+
+// Пер-пользовательские тумблеры категорий push (+ тихие часы). Одна строка на пользователя.
+model PushPreference {
+  id               String  @id @default(uuid())
+  userId           String  @unique
+  user             User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  chat             Boolean @default(true)
+  ticketNew        Boolean @default(true)
+  assignment       Boolean @default(true)
+  statusChange     Boolean @default(true)
+  acceptance       Boolean @default(true)
+  acceptanceReject Boolean @default(true)
+  sla              Boolean @default(true)
+  news             Boolean @default(false)
+  quietHoursFrom   Int?
+  quietHoursTo     Int?
+}
+
+// Журнал доставки — диагностика отправок (успех / 410 gone / ошибка).
+model PushDeliveryLog {
+  id             String   @id @default(uuid())
+  subscriptionId String
+  eventType      String
+  entityId       String?
+  status         String
+  createdAt      DateTime @default(now())
+
+  @@index([subscriptionId, createdAt])
+}
+
+model Notification {
+  id                    String    @id @default(uuid())
+  dedupeKey             String    @unique
+  companyId             String
+  company               Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type                  String
+  title                 String
+  message               String
+  entityType            String
+  entityId              String
+  linkedClientCompanyId String?
+  readAt                DateTime?
+  createdAt             DateTime  @default(now())
+
+  @@index([userId, companyId, readAt])
+  @@index([userId, companyId, createdAt])
+}
+
+model Location {
+  id              String  @id @default(uuid())
+  clientCompanyId String
+  clientCompany   Company @relation(fields: [clientCompanyId], references: [id], onDelete: Cascade)
+
+  name         String
+  platformCode String
+  externalCode String?
+  city         String?
+  region       String?
+  address      String?
+  latitude     Float?
+  longitude    Float?
+  isActive     Boolean  @default(true)
+  deletedAt    DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  tickets   Ticket[]
+  equipment Equipment[]
+  inspectionRuns InspectionRun[]
+  inspectionSchedules InspectionSchedule[]
+  technicianBindings TechnicianClientBinding[] @relation("TechnicianBindingLocation")
+  userBindings UserLocationBinding[]
+  maxLocationThreads MaxLocationThread[]
+
+  @@unique([clientCompanyId, platformCode])
+  @@index([clientCompanyId, isActive])
+  @@index([clientCompanyId, city])
+}
+
+model MaxLocationThread {
+  id                  String   @id @default(uuid())
+  companyId           String
+  company             Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  locationId          String
+  location            Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  chatId              BigInt
+  anchorMessageId     String
+  anchorMessageCreatedAt DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([locationId, chatId])
+  @@index([companyId, chatId])
 }
 
 model Specialization {
@@ -65,9 +329,12 @@ model Specialization {
   name      String
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   problemCategoryLinks ProblemCategorySpecialization[]
   technicianLinks      TechnicianSpecialization[]
+
+  @@index([companyId, isActive])
 }
 
 model ProblemCategory {
@@ -79,11 +346,13 @@ model ProblemCategory {
   instructions String?
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   specializationLinks ProblemCategorySpecialization[]
   tickets             Ticket[]
 
   @@unique([companyId, name])
+  @@index([companyId, isActive])
 }
 
 model ProblemCategorySpecialization {
@@ -106,17 +375,103 @@ model TechnicianSpecialization {
   @@id([userId, specializationId])
 }
 
-model Ticket {
-  id        String  @id @default(uuid())
-  companyId String
-  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+model TechnicianClientBinding {
+  id                String   @id @default(uuid())
+  providerCompanyId String
+  technicianUserId  String
+  clientCompanyId   String
+  locationId        String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
-  // “дочерняя заявка”
+  providerCompany Company  @relation("TechnicianBindingProviderCompany", fields: [providerCompanyId], references: [id], onDelete: Cascade)
+  technician      User     @relation("TechnicianClientBindings", fields: [technicianUserId], references: [id], onDelete: Cascade)
+  clientCompany   Company  @relation("TechnicianBindingClientCompany", fields: [clientCompanyId], references: [id], onDelete: Cascade)
+  location        Location? @relation("TechnicianBindingLocation", fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@unique([technicianUserId, clientCompanyId, locationId])
+  @@index([providerCompanyId, technicianUserId])
+  @@index([clientCompanyId])
+  @@index([locationId])
+}
+
+model UserLocationBinding {
+  id         String   @id @default(uuid())
+  userId     String
+  locationId String
+  companyId  String
+  createdAt  DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, locationId])
+  @@index([companyId, userId])
+  @@index([companyId, locationId])
+}
+model Equipment {
+  id         String   @id @default(uuid())
+  companyId  String
+  locationId String
+
+  name   String
+  type   String
+  status String   @default("ACTIVE")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  tickets  Ticket[]
+  inspectionRuns InspectionRun[]
+  inspectionSchedules InspectionSchedule[]
+
+  @@index([companyId, locationId])
+  @@index([companyId, status])
+  @@index([locationId, status])
+}
+
+model ServiceContract {
+  id                String                @id @default(uuid())
+  clientCompanyId   String
+  providerCompanyId String
+  status            ServiceContractStatus @default(DRAFT)
+  role              ServiceContractRole   @default(PRIMARY)
+  startsAt          DateTime?
+  endsAt            DateTime?
+  notes             String?
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+
+  clientCompany   Company @relation("ClientCompanyContracts", fields: [clientCompanyId], references: [id], onDelete: Cascade)
+  providerCompany Company @relation("ProviderCompanyContracts", fields: [providerCompanyId], references: [id], onDelete: Cascade)
+
+  @@unique([clientCompanyId, providerCompanyId])
+  @@index([clientCompanyId, status])
+  @@index([providerCompanyId, status])
+}
+
+model Ticket {
+  id           String  @id @default(uuid())
+  ticketNumber Int     @unique @default(autoincrement())
+  companyId    String
+  company      Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
   parentId String?
   parent   Ticket?  @relation("TicketParent", fields: [parentId], references: [id], onDelete: SetNull)
   children Ticket[] @relation("TicketParent")
 
-  // заявитель / точка (MVP — текст)
+  locationId String
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Restrict)
+
+  equipmentId String?
+  equipment   Equipment? @relation(fields: [equipmentId], references: [id], onDelete: SetNull)
+
+  source            TicketSource       @default(INTERNAL)
+  publicRequestType PublicRequestType?
+
   requesterName  String?
   requesterPhone String?
   address        String?
@@ -128,29 +483,62 @@ model Ticket {
   problemText String
 
   urgency         TicketUrgency         @default(NOT_URGENT)
+  priority        TicketPriority        @default(NORMAL)
+  urgencyReason   String?
   status          TicketStatus          @default(NEW)
   statusUpdatedAt DateTime              @default(now())
   statusHistory   TicketStatusHistory[]
+  attachments     TicketAttachment[]
+  inspectionRunItem InspectionRunItem?
 
-  // SLA (в минутах), потом расширим
   slaMinutes    Int?
-  // SLA tracking v1
   slaDueAt      DateTime?
   slaBreachedAt DateTime?
   closedAt      DateTime?
 
   assignedTechnicianId String?
   assignedTechnician   User?   @relation("AssignedTechnician", fields: [assignedTechnicianId], references: [id], onDelete: SetNull)
+  createdByUserId      String?
+  createdByUser        User?   @relation("TicketCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([companyId, status])
   @@index([companyId, createdAt])
+  @@index([companyId, createdByUserId])
   @@index([status, createdAt])
   @@index([statusUpdatedAt])
+  @@index([slaDueAt])
+  @@index([slaBreachedAt])
+  @@index([companyId, slaDueAt])
+  @@index([locationId])
+  @@index([equipmentId])
+  @@index([companyId, source])
 }
 
+model TicketAttachment {
+  id               String   @id @default(uuid())
+  companyId        String
+  ticketId         String?
+  uploadedByUserId String?
+  originalName     String
+  storageKey       String
+  mimeType         String
+  sizeBytes        Int
+  url              String
+  purpose          TicketAttachmentPurpose @default(REQUEST)
+  createdAt        DateTime @default(now())
+
+  company    Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  ticket     Ticket? @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  uploadedBy User?   @relation("TicketAttachmentUploadedBy", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, createdAt])
+  @@index([ticketId, createdAt])
+  @@index([ticketId, purpose, createdAt])
+  @@index([companyId, ticketId])
+}
 model TicketStatusHistory {
   id              String        @id @default(uuid())
   ticketId        String
@@ -166,4 +554,286 @@ model TicketStatusHistory {
   @@index([ticketId, createdAt])
   @@index([toStatus, createdAt])
   @@index([changedByUserId, createdAt])
+}
+
+model PermissionBlock {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+
+  rolePermissions RolePermission[]
+  userPermissions UserPermission[]
+}
+
+model RolePermission {
+  id                String       @id @default(uuid())
+  role              UserRole
+  // Phase 1.5: ADMIN is shared between CLIENT and PROVIDER companies, so grants
+  // are keyed by (role, companyType). NULL = wildcard (applies to any company type),
+  // used for cross-type roles like PLATFORM_ADMIN / STAFF.
+  companyType       CompanyType?
+  permissionBlockId String
+  permissionBlock   PermissionBlock @relation(fields: [permissionBlockId], references: [id], onDelete: Cascade)
+  createdAt         DateTime     @default(now())
+
+  // Non-null rows are deduped by this composite. NULL (wildcard) rows are deduped
+  // by a partial unique index added in the migration (Postgres treats NULLs as
+  // distinct, so the composite alone would not prevent wildcard duplicates).
+  @@unique([role, companyType, permissionBlockId])
+  @@index([role, companyType])
+  @@index([permissionBlockId])
+}
+
+model UserPermission {
+  id                String   @id @default(uuid())
+  userId            String
+  permissionBlockId String
+  user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permissionBlock   PermissionBlock @relation(fields: [permissionBlockId], references: [id], onDelete: Cascade)
+  createdAt         DateTime @default(now())
+
+  @@unique([userId, permissionBlockId])
+  @@index([userId])
+  @@index([permissionBlockId])
+}
+
+model DomainEvent {
+  id          String   @id @default(uuid())
+  companyId   String
+  entityType  String
+  entityId    String
+  type        String
+  actorUserId String?
+  payload     Json?
+  createdAt   DateTime @default(now())
+
+  @@index([companyId, createdAt])
+  @@index([companyId, type, createdAt])
+  @@index([entityType, entityId])
+}
+
+model AssignmentCursor {
+  id        String   @id @default(uuid())
+  companyId String
+  strategy  String
+  cursor    Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, strategy])
+  @@index([companyId])
+  @@index([companyId, strategy])
+}
+
+model AssignmentDecision {
+  id              String   @id @default(uuid())
+  ticketId        String
+  technicianId    String?
+  candidatesCount Int
+  reason          String
+  createdAt       DateTime @default(now())
+
+  @@index([ticketId, createdAt])
+  @@index([technicianId, createdAt])
+  @@index([createdAt])
+}
+
+
+
+model PublicRequestLog {
+  id         String   @id @default(uuid())
+  companyId  String
+  tokenHash  String
+  ipHash     String?
+  phoneHash  String?
+  locationId String?
+  channel    String?
+  action     String
+  createdAt  DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, createdAt])
+  @@index([companyId, tokenHash, ipHash, createdAt])
+  @@index([companyId, phoneHash, locationId, createdAt])
+}
+
+model InspectionTemplate {
+  id          String   @id @default(uuid())
+  companyId   String
+  name        String
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  items     InspectionTemplateItem[]
+  runs      InspectionRun[]
+  schedules InspectionSchedule[]
+
+  @@unique([companyId, name])
+  @@index([companyId, isActive])
+}
+
+model InspectionTemplateItem {
+  id          String   @id @default(uuid())
+  templateId  String
+  title       String
+  description String?
+  sortOrder   Int      @default(0)
+  isRequired  Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  template InspectionTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  runItems InspectionRunItem[]
+
+  @@index([templateId, sortOrder])
+}
+
+model InspectionRun {
+  id                      String                 @id @default(uuid())
+  companyId               String
+  templateId              String
+  locationId              String
+  equipmentId             String?
+  performedByUserId       String?
+  reportNumber            String?
+  reportDate              DateTime?
+  documentTitle           String?                @default("Work Act")
+  reportStatus            InspectionReportStatus @default(DRAFT)
+  reportSubmittedAt       DateTime?
+  reportSubmittedByUserId String?
+  reportReviewedAt        DateTime?
+  reportReviewedByUserId  String?
+  reportReviewComment     String?
+  title                   String
+  status                  InspectionRunStatus    @default(IN_PROGRESS)
+  scheduleId              String?
+  dueAt                   DateTime?
+  overdueAt               DateTime?
+  completedAt             DateTime?
+  createdAt               DateTime               @default(now())
+  updatedAt               DateTime               @updatedAt
+
+  company           Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  template          InspectionTemplate  @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  location          Location            @relation(fields: [locationId], references: [id], onDelete: Restrict)
+  equipment         Equipment?          @relation(fields: [equipmentId], references: [id], onDelete: SetNull)
+  schedule          InspectionSchedule? @relation(fields: [scheduleId], references: [id], onDelete: SetNull)
+  performedBy       User?               @relation("InspectionRunPerformedBy", fields: [performedByUserId], references: [id], onDelete: SetNull)
+  reportSubmittedBy User?               @relation("InspectionRunReportSubmittedBy", fields: [reportSubmittedByUserId], references: [id], onDelete: SetNull)
+  reportReviewedBy  User?               @relation("InspectionRunReportReviewedBy", fields: [reportReviewedByUserId], references: [id], onDelete: SetNull)
+  items             InspectionRunItem[]
+
+  @@index([companyId, status])
+  @@index([locationId, createdAt])
+  @@index([templateId, createdAt])
+  @@index([equipmentId, createdAt])
+  @@index([performedByUserId, createdAt])
+  @@index([reportStatus, createdAt])
+  @@index([reportSubmittedByUserId, createdAt])
+  @@index([reportReviewedByUserId, createdAt])
+  @@index([scheduleId, createdAt])
+  @@index([companyId, dueAt])
+}
+
+model InspectionSchedule {
+  id               String              @id @default(uuid())
+  companyId        String
+  templateId       String
+  locationId       String
+  equipmentId      String?
+  assignedToUserId String?
+  createdByUserId  String?
+  name             String
+  frequency        InspectionFrequency @default(MONTHLY)
+  intervalDays     Int?
+  startDate        DateTime
+  nextDueAt        DateTime
+  leadTimeDays     Int                 @default(0)
+  graceDays        Int                 @default(0)
+  isActive         Boolean             @default(true)
+  lastGeneratedAt  DateTime?
+  lastRunId        String?
+  createdAt        DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  company    Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  template   InspectionTemplate @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  location   Location           @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  equipment  Equipment?         @relation(fields: [equipmentId], references: [id], onDelete: SetNull)
+  assignedTo User?              @relation("InspectionScheduleAssignee", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  createdBy  User?              @relation("InspectionScheduleCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  runs       InspectionRun[]
+
+  @@index([companyId, isActive])
+  @@index([isActive, nextDueAt])
+  @@index([locationId, isActive])
+  @@index([assignedToUserId, isActive])
+  @@index([templateId])
+}
+
+model InspectionRunItem {
+  id             String                  @id @default(uuid())
+  runId          String
+  templateItemId String?
+  title          String
+  description    String?
+  sortOrder      Int                     @default(0)
+  isRequired     Boolean                 @default(true)
+  status         InspectionRunItemStatus @default(PENDING)
+  requiresRepair Boolean                 @default(false)
+  comment        String?
+  ticketId       String?                 @unique
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+
+  run          InspectionRun            @relation(fields: [runId], references: [id], onDelete: Cascade)
+  templateItem InspectionTemplateItem?  @relation(fields: [templateItemId], references: [id], onDelete: SetNull)
+  ticket       Ticket?                  @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  attachments  InspectionRunItemAttachment[]
+
+  @@index([runId, sortOrder])
+  @@index([runId, status])
+  @@index([ticketId])
+}
+
+model InspectionRunItemAttachment {
+  id           String   @id @default(uuid())
+  companyId    String
+  runItemId    String
+  originalName String
+  storageKey   String
+  mimeType     String
+  sizeBytes    Int
+  url          String
+  createdAt    DateTime @default(now())
+
+  company Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  runItem  InspectionRunItem @relation(fields: [runItemId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, runItemId])
+  @@index([runItemId, createdAt])
+}
+
+model AgentTask {
+  id              String          @id @default(uuid())
+  companyId       String
+  createdByUserId String?
+  title           String
+  prompt          String
+  status          AgentTaskStatus @default(NEW)
+  result          String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy User?   @relation("AgentTaskCreatedBy", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([companyId, status])
+  @@index([companyId, createdAt])
 }

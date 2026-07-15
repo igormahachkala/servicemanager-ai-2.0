@@ -1,0 +1,6265 @@
+html,
+body,
+#root {
+  height: 100%;
+  min-height: 100dvh;
+}
+
+.mobileShell {
+  min-height: 100dvh;
+  min-height: 100%;
+  min-height: 100svh;
+  background: #f3f5f8;
+  color: #111827;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
+  min-width: 0;
+}
+
+.mobilePage {
+  width: 100%;
+  max-width: min(720px, 100%);
+  margin: 0 auto;
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 100dvh;
+  padding: 10px;
+  padding-top: calc(8px + env(safe-area-inset-top, 0px));
+  padding-left: max(10px, env(safe-area-inset-left, 0px));
+  padding-right: max(10px, env(safe-area-inset-right, 0px));
+  /* Extra space under content: bottom nav + Safari home indicator + breathing room */
+  padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px) + 10px);
+}
+
+.mobileTitle {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 800;
+}
+
+.mobileSubtitle {
+  margin-top: 6px;
+  color: #6b7280;
+  font-size: 0.92rem;
+}
+
+.mobileCard {
+  background: #ffffff;
+  border-radius: 16px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 6px 20px rgba(17, 24, 39, 0.06);
+  padding: 12px;
+  max-width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+/* Вкладки статусов на главной /m: четыре колонки без горизонтального скролла. */
+.mobileFilterTabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 6px;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow: visible;
+  padding: 8px 0 12px;
+  margin-top: 6px;
+  margin-bottom: 2px;
+}
+
+.mobileFilterTab {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-height: 44px;
+  min-width: 0;
+  padding: 6px 2px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  font-size: clamp(0.62rem, 2.9vw, 0.76rem);
+  font-weight: 700;
+  line-height: 1.15;
+  color: #374151;
+  cursor: pointer;
+  text-align: center;
+  word-break: keep-all;
+  hyphens: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobileFilterTab:hover {
+  border-color: #cbd5e1;
+}
+
+.mobileFilterTabActive {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.mobileFilterTabCount {
+  font-size: clamp(0.58rem, 2.5vw, 0.68rem);
+  font-weight: 800;
+  color: #6b7280;
+}
+
+.mobileFilterTabActive .mobileFilterTabCount {
+  color: #1e40af;
+}
+
+/* Липкая панель: вкладки + поиск + чипы + счётчик на /m */
+.mobileHomeBoardSticky {
+  position: sticky;
+  top: 0;
+  z-index: 8;
+  margin-top: 4px;
+  padding-top: 4px;
+  padding-bottom: 10px;
+  background: linear-gradient(180deg, #f3f5f8 0%, #f3f5f8 70%, rgba(243, 245, 248, 0.92) 100%);
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.mobileHomeBoardSticky .mobileFilterTabs {
+  margin-top: 0;
+  padding-top: 0;
+}
+
+.mobileHomeSearchWrap {
+  display: block;
+  margin: 0 0 8px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.mobileHomeSearchInput {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  font-size: 0.95rem;
+  color: #111827;
+}
+
+.mobileHomeSearchInput::placeholder {
+  color: #9ca3af;
+  font-size: 0.85rem;
+}
+
+.mobileChipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 4px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.mobileFilterChip {
+  flex: 0 1 auto;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  font-size: clamp(0.65rem, 2.8vw, 0.72rem);
+  font-weight: 700;
+  color: #374151;
+  cursor: pointer;
+  max-width: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobileFilterChipActive {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.mobileHomeResultRow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 4px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.mobileHomeResultFilters {
+  font-size: 0.72rem;
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.mobileVisuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.mobileTicketProblemPreview {
+  margin-top: 6px;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  color: #374151;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+.mobileTicketCardPriorityRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.mobileAssignmentPill {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 0.62rem;
+  font-weight: 800;
+  vertical-align: middle;
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fcd34d;
+  line-height: 1.2;
+}
+
+.mobileSection {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.mobileSectionTitle {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.mobileRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.mobileMeta {
+  color: #6b7280;
+  font-size: 0.84rem;
+}
+
+.mobileActionRow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.mobilePhotoSourceRow {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  align-items: stretch;
+}
+
+.mobilePhotoSourceBtn {
+  min-height: 52px;
+  height: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  line-height: 1.25;
+  padding: 12px 8px;
+  font-size: 0.86rem;
+  font-weight: 600;
+  hyphens: auto;
+  overflow-wrap: anywhere;
+}
+
+.mobileHiddenFileInput {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.mobileBtn {
+  border: none;
+  border-radius: 12px;
+  background: #111827;
+  color: #fff;
+  min-height: 46px;
+  padding: 10px 14px;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+a.mobileBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  box-sizing: border-box;
+}
+
+.mobileBtnSecondary {
+  background: #e5e7eb;
+  color: #111827;
+}
+
+.mobileBtnGhost {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.mobileBtn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.mobileForm {
+  display: grid;
+  gap: 12px;
+}
+
+.mobileForm label {
+  display: grid;
+  gap: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.mobileForm input,
+.mobileForm select,
+.mobileForm textarea {
+  width: 100%;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  min-height: 44px;
+  padding: 10px 12px;
+  font-size: 0.95rem;
+  background: #fff;
+}
+
+.mobileForm textarea {
+  min-height: 92px;
+  resize: vertical;
+}
+
+.mobileForm .mobileFormFieldBeforePhoto {
+  margin-bottom: 18px;
+}
+
+.mobileForm .mobilePhotoCard {
+  margin-top: 0;
+}
+
+.mobilePhotoCardBlock {
+  position: relative;
+}
+
+.mobileFormSubmitStack {
+  display: grid;
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.mobileForm .mobileFormFieldAfterPhoto {
+  margin-top: 18px;
+}
+
+/* ── Figma CreateTicketScreen: форма создания заявки ─────── */
+.mobileCreateForm label {
+  gap: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.mobileCreateForm input,
+.mobileCreateForm select,
+.mobileCreateForm textarea {
+  border: 1px solid transparent;
+  border-radius: 14px;
+  background-color: #f1f5f9;
+  color: #0f172a;
+  font-size: 0.9rem;
+  padding: 12px 14px;
+  transition: border-color 0.15s, box-shadow 0.15s, background-color 0.15s;
+}
+
+.mobileCreateForm input:focus,
+.mobileCreateForm select:focus,
+.mobileCreateForm textarea:focus {
+  outline: none;
+  border-color: #93c5fd;
+  background-color: #fff;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18);
+}
+
+.mobileCreateForm select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 40px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 16px;
+}
+
+.mobileCreateForm select:disabled {
+  opacity: 0.6;
+}
+
+/* иконка в кнопках выбора фото */
+.mobilePhotoSourceBtnIcon {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 7px;
+}
+
+/* Figma primary CTA — синяя кнопка «Создать заявку» */
+.mobileCreateForm .mobileFormSubmitStack .mobileBtn:not(.mobileBtnGhost):not(.mobileBtnSecondary) {
+  background: #2563eb;
+  border-radius: 14px;
+  min-height: 52px;
+  font-size: 1rem;
+  font-weight: 700;
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.22);
+}
+
+.mobileCreateForm .mobileFormSubmitStack .mobileBtn:disabled {
+  box-shadow: none;
+}
+
+.mobileHint {
+  margin: 0 0 12px;
+  color: #6b7280;
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.mobilePhotoPreview {
+  margin-top: 12px;
+}
+
+.mobilePhotoPreviewButton {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.mobilePhotoPreviewImg {
+  display: block;
+  width: 100%;
+  max-height: 240px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+}
+
+.mobilePhotoGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.mobilePhotoGridLarge {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.mobilePhotoThumbLarge {
+  width: 100%;
+  height: 160px;
+  object-fit: cover;
+  display: block;
+}
+
+.mobileDraftThumbCell {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+}
+
+.mobileDraftThumbRemove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0;
+  border-radius: 10px;
+  border: 1px solid rgba(17, 24, 39, 0.15);
+  background: rgba(255, 255, 255, 0.95);
+  color: #111827;
+  font-size: 1.25rem;
+  font-weight: 800;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+
+.mobileDraftThumbRemove:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.mobileTicketAddPhotos {
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.mobilePhotoThumbLink {
+  display: block;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+}
+
+button.mobilePhotoThumbLink.mobilePhotoThumbOpen {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  box-sizing: border-box;
+}
+
+button.mobilePhotoThumbLink.mobilePhotoThumbOpen:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+/* ── Ticket Photo Gallery (hero square + dots) ─────────── */
+.mobileTicketPhotoGallery {
+  margin-bottom: 4px;
+}
+
+.mobileTicketPhotoHero {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #f3f4f6;
+  position: relative;
+}
+
+.mobileTicketPhotoHeroBtn {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  line-height: 0;
+}
+
+.mobileTicketPhotoHeroImg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: opacity 0.2s;
+}
+
+.mobileTicketPhotoHeroImgPending {
+  opacity: 0;
+}
+
+.mobileTicketPhotoHeroPlaceholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 0.85rem;
+  color: #6b7280;
+  text-decoration: none;
+}
+
+.mobileTicketPhotoHeroPlaceholder--link {
+  text-decoration: underline;
+  color: #2563eb;
+}
+
+.mobileTicketPhotoDots {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  min-height: 12px;
+}
+
+.mobileTicketPhotoDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  background: #d1d5db;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  transition: background 0.15s, transform 0.15s;
+  flex-shrink: 0;
+}
+
+.mobileTicketPhotoDot:active {
+  transform: scale(0.85);
+}
+
+.mobileTicketPhotoDotActive {
+  background: #4f46e5;
+  transform: scale(1.25);
+}
+
+.mobileTicketPhotoCounter {
+  text-align: center;
+  font-size: 0.78rem;
+  color: #6b7280;
+  margin-top: 6px;
+  margin-bottom: 2px;
+}
+
+/* SMA-MOBILE-P0-GALLERY-001: стрелки + свайп + лента миниатюр для больших галерей */
+.mobileTicketPhotoArrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(17, 24, 39, 0.55);
+  color: #fff;
+  font-size: 1.4rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 2;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.mobileTicketPhotoArrow--prev { left: 8px; }
+.mobileTicketPhotoArrow--next { right: 8px; }
+.mobileTicketPhotoArrow:active { background: rgba(17, 24, 39, 0.78); }
+
+.mobileTicketPhotoRail {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px;
+}
+.mobileTicketPhotoRailItem {
+  flex: 0 0 auto;
+  width: 56px;
+  height: 56px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 2px solid transparent;
+  background: #f3f4f6;
+}
+.mobileTicketPhotoRailItem--active { border-color: #4f46e5; }
+.mobileTicketPhotoRailItem .mobilePhotoThumbLink {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.mobileTicketPhotoRailImg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* ── Create-ticket large draft photo preview ───────────── */
+.mobileCreateDraftList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.mobileCreateDraftItem {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid #e5e7eb;
+  background: #f8f9fb;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+}
+
+.mobileCreateDraftImgBtn {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+  line-height: 0;
+}
+
+.mobileCreateDraftImg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.mobileCreateDraftEmpty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 0.85rem;
+  color: #9ca3af;
+}
+
+.mobileCreateDraftRemove {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.92);
+  color: #374151;
+  font-size: 1.4rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.14);
+}
+
+.mobileCreateDraftRemove:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ── My-tickets card with camera placeholder ────────────── */
+.mobileMyTicketCard {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px !important;
+}
+
+.mobileMyTicketThumb {
+  flex-shrink: 0;
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  background: #f3f4f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #9ca3af;
+}
+
+.mobileMyTicketInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.mobileImageLightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 85;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: calc(10px + env(safe-area-inset-top, 0px)) 12px calc(12px + env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
+  background: rgba(15, 23, 42, 0.9);
+  overscroll-behavior: contain;
+}
+
+.mobileImageLightboxPanel {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  min-height: 0;
+}
+
+.mobileImageLightboxToolbar {
+  display: flex;
+  justify-content: flex-end;
+  flex-shrink: 0;
+  margin-bottom: 8px;
+}
+
+.mobileImageLightboxClose {
+  min-height: 44px;
+  padding: 8px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.12);
+  color: #f9fafb;
+  font-size: 0.95rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.mobileImageLightboxClose:active {
+  opacity: 0.9;
+}
+
+.mobileImageLightboxFrame {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-height: none;
+}
+
+.mobileImageLightboxImg {
+  max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 86px);
+  max-height: calc(100dvh - 86px);
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 10px;
+}
+
+.mobilePhotoThumb {
+  width: 100%;
+  height: 92px;
+  object-fit: cover;
+  display: block;
+}
+
+.mobilePhotoThumbPending {
+  opacity: 0;
+}
+
+.mobilePhotoFallbackLink {
+  min-height: 92px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid #c7d2fe;
+  background: #eef2ff;
+  color: #1e3a8a;
+  text-decoration: none;
+  line-height: 1.25;
+}
+
+.mobilePhotoFallbackLinkStatic {
+  border-color: #e5e7eb;
+  background: #f9fafb;
+  color: #374151;
+}
+
+.mobilePhotoFallbackTitle {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.mobilePhotoFallbackAction {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.successDialogBackdropMobile {
+  align-items: flex-end;
+}
+
+.successDialogPanelMobile {
+  width: 100%;
+  max-height: min(80vh, 620px);
+  border-radius: 18px 18px 0 0;
+  padding: 20px 16px calc(18px + env(safe-area-inset-bottom, 0px));
+}
+
+.successDialogActionsMobile {
+  display: grid;
+}
+
+.successDialogActionsMobile a,
+.successDialogActionsMobile button {
+  width: 100%;
+}
+
+
+.mobileNotice {
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 0.9rem;
+}
+
+.mobileNoticeSuccess {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+
+.mobileNoticeError {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.mobileEmptyState {
+  text-align: center;
+  padding: 22px 14px 20px;
+  color: #4b5563;
+}
+
+.mobileEmptyStateIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #cbd5e1;
+  margin-bottom: 10px;
+}
+
+.mobileEmptyStateTitle {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #111827;
+  margin: 0 0 8px;
+  line-height: 1.25;
+}
+
+.mobileEmptyStateHint {
+  font-size: 0.88rem;
+  color: #6b7280;
+  margin: 0;
+  line-height: 1.45;
+  max-width: 28rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Пояснения «почему нельзя взять» + onboarding без модалок */
+.mobileUxHintReason {
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  border: 1px solid #fcd34d;
+  background: linear-gradient(180deg, #fffbeb 0%, #fef3c7 100%);
+  color: #78350f;
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+
+.mobileUxHintReason--compact {
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  font-size: 0.8rem;
+}
+
+.mobileUxHintReasonTitle {
+  font-weight: 800;
+  margin-bottom: 4px;
+  color: #92400e;
+}
+
+.mobileUxHintReasonDetail {
+  font-size: 0.82rem;
+  color: #92400e;
+  opacity: 0.95;
+  white-space: pre-wrap;
+}
+
+.mobileUxHintIntro {
+  margin: 10px 0 12px;
+  padding: 12px 12px 10px;
+  border-radius: 12px;
+  border: 1px solid #fde68a;
+  background: #fffbeb;
+  color: #78350f;
+  font-size: 0.84rem;
+  line-height: 1.45;
+}
+
+.mobileUxHintIntro--steps {
+  border-color: #bfdbfe;
+  background: linear-gradient(180deg, #eff6ff 0%, #f8fafc 100%);
+  color: #1e3a8a;
+}
+
+.mobileUxHintIntroTitle {
+  font-weight: 800;
+  margin-bottom: 8px;
+  font-size: 0.9rem;
+}
+
+.mobileUxHintIntroList {
+  margin: 0 0 10px 1rem;
+  padding: 0;
+}
+
+.mobileUxHintIntroOrdered {
+  margin: 0 0 0 1.1rem;
+  padding: 0;
+}
+
+.mobileUxHintIntroDismiss {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.mobilePageHint {
+  margin: 8px 0 10px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  color: #4b5563;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.mobileFieldHint {
+  font-size: 0.78rem;
+  color: #6b7280;
+  line-height: 1.35;
+  margin-top: 4px;
+  margin-bottom: 6px;
+}
+
+.mobileCategoryGuidance {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  background: #fafafa;
+  font-size: 0.84rem;
+  line-height: 1.4;
+  color: #374151;
+}
+
+.mobileCategoryGuidance--caution {
+  border-color: #fcd34d;
+  background: #fffbeb;
+  color: #78350f;
+}
+
+.mobileCategoryGuidance--urgent {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.mobileCategoryGuidanceTitle {
+  font-weight: 800;
+  margin-bottom: 8px;
+  font-size: 0.86rem;
+}
+
+.mobileCategoryGuidanceList {
+  margin: 0;
+  padding-left: 1.15rem;
+  display: grid;
+  gap: 4px;
+}
+
+.mobileAssignmentRequestedRow {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mobileAssignmentRequestedBadge {
+  display: inline-block;
+  align-self: flex-start;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #dbeafe;
+  color: #1e40af;
+  border: 1px solid #93c5fd;
+}
+
+.mobileAssignmentRequestedRowHint {
+  display: block;
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
+.mobileToastHost {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  z-index: 80;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+/* Один host на экран: несколько тостов — колонка без наложения z-index */
+.mobileToastHost--stack {
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.mobileToast {
+  pointer-events: none;
+  max-width: 420px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: #111827;
+  color: #f9fafb;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: center;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+}
+
+.mobileStaleDataBanner {
+  margin-top: 10px;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  border: 1px solid #93c5fd;
+  background: #eff6ff;
+  color: #1e3a8a;
+}
+
+.mobileOfflineBanner {
+  position: sticky;
+  top: 0;
+  z-index: 45;
+  margin: -12px -12px 12px;
+  margin-top: calc(-12px - env(safe-area-inset-top, 0px));
+  padding: 12px 12px;
+  padding-top: calc(12px + env(safe-area-inset-top, 0px));
+  padding-left: max(12px, env(safe-area-inset-left, 0px));
+  padding-right: max(12px, env(safe-area-inset-right, 0px));
+  box-sizing: border-box;
+  width: calc(100% + 24px);
+  max-width: none;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.35;
+  box-shadow: 0 4px 14px rgba(17, 24, 39, 0.12);
+}
+
+.mobileOfflineBannerWarning {
+  background: #fef3c7;
+  color: #78350f;
+  border-bottom: 2px solid #f59e0b;
+}
+
+.mobileOfflineBannerPending {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: #fff7ed;
+  color: #9a3412;
+  border-bottom: 2px solid #fb923c;
+}
+
+.mobileOfflineBannerBtn {
+  flex: 0 0 auto;
+  min-height: 40px;
+  padding: 8px 12px;
+  font-size: 0.85rem;
+}
+
+.mobileDevConnectivityDebug {
+  margin: 0 0 10px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  background: #1f2937;
+  color: #f9fafb;
+  word-break: break-word;
+}
+
+.mobileBottomNav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  background: rgba(255, 255, 255, 0.98);
+  backdrop-filter: blur(6px);
+  border-top: 1px solid #e5e7eb;
+  z-index: 40;
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.mobileBottomNavInner {
+  width: 100%;
+  max-width: min(720px, 100%);
+  margin: 0 auto;
+  box-sizing: border-box;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+  padding: 10px 10px 12px;
+}
+
+.mobileNavItem {
+  text-decoration: none;
+  min-width: 0;
+}
+
+.mobileNavButton {
+  width: 100%;
+  min-height: 52px;
+  border-radius: 12px;
+  border: 2px solid transparent;
+  background: #f3f4f6;
+  color: #374151;
+  font-size: 0.82rem;
+  font-weight: 700;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.mobileNavButtonActive {
+  background: #eff6ff;
+  color: #1e40af;
+  border-color: #3b82f6;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.2);
+}
+
+.mobileCardClickable {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+.mobileCardClickable:active {
+  transform: scale(0.99);
+}
+
+.mobileCardClickable:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
+.mobileLogoutBelowCard {
+  width: 100%;
+  margin-top: 12px;
+  box-sizing: border-box;
+}
+
+a.mobileBtn.mobileCreateTicketLink {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 8px;
+  text-align: center;
+  text-decoration: none;
+  line-height: 1.25;
+}
+
+.mobileTicketDetailsRoot {
+  width: 100%;
+  min-width: 0;
+}
+
+/** Нижняя панель действий на карточке заявки — не перекрывать контент скролла. */
+.mobileTicketDetailsRoot--opsDock {
+  padding-bottom: calc(132px + env(safe-area-inset-bottom, 0px));
+}
+
+.mobileTicketOpsDock.mobileTicketOpsDock--fixed {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 45;
+  margin: 0 auto;
+  margin-top: 0 !important;
+  width: 100%;
+  max-width: 720px;
+  border-radius: 16px 16px 0 0;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -8px 24px rgba(17, 24, 39, 0.12);
+  border: 1px solid #e5e7eb;
+  border-bottom: none;
+  background: #ffffff;
+}
+
+.mobileTicketDetailsToolbar {
+  margin-bottom: 2px;
+}
+
+.mobileDetailsBackLink {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: #e5e7eb;
+  color: #111827;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: none;
+  border: 1px solid #d1d5db;
+}
+
+.mobileDetailsBackLink:active {
+  opacity: 0.92;
+}
+
+.mobileTicketDetailsHeadline {
+  font-size: 1.12rem;
+  font-weight: 800;
+  color: #111827;
+  line-height: 1.25;
+}
+
+.mobilePhotoInputHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  border: 0;
+  white-space: nowrap;
+}
+
+/* Login: карточка и шапка (layout .page.loginPageRoot — в app.css) */
+.loginPageCard {
+  width: min(520px, 100%);
+  max-width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+.loginPageHeader {
+  padding: 0 0 12px;
+  margin: 0 0 8px;
+  text-align: center;
+}
+
+@media (min-width: 900px) {
+  .page.loginPageRoot {
+    padding-top: 32px;
+  }
+}
+
+.mobileContextLabel {
+  font-weight: 600;
+  color: #6b7280;
+}
+
+/* Поддержка: Telegram + MAX (один стиль, крупные кнопки) */
+.supportContactBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.supportContactTitle {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #111827;
+  letter-spacing: 0.01em;
+}
+
+.loginPageRoot .supportContactTitle {
+  color: #f9fafb;
+}
+
+.supportContactStack {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+}
+
+.supportContactBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 52px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid transparent;
+  font-family: inherit;
+  line-height: 1.2;
+  text-align: center;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.supportContactBtn:active {
+  opacity: 0.94;
+  transform: scale(0.99);
+}
+
+.supportContactBtn--telegram {
+  background: #229ed9;
+  border-color: #1b8ec4;
+  color: #fff;
+}
+
+.supportContactBtn--max {
+  background: #059669;
+  border-color: #047857;
+  color: #fff;
+}
+
+/* Бейдж статуса заявки (мобильный UI) */
+.mobileTicketStatus {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.mobileTicketStatus--NEW {
+  background: #dbeafe;
+  color: #1e3a8a;
+  border-color: #3b82f6;
+}
+
+.mobileTicketStatus--ASSIGNED {
+  background: #ede9fe;
+  color: #4c1d95;
+  border-color: #8b5cf6;
+}
+
+.mobileTicketStatus--IN_PROGRESS {
+  background: #ffedd5;
+  color: #9a3412;
+  border-color: #f97316;
+}
+
+.mobileTicketStatus--AWAITING_ACCEPTANCE {
+  background: #ccfbf1;
+  color: #115e59;
+  border-color: #14b8a6;
+}
+
+.mobileTicketStatus--DONE {
+  background: #dcfce7;
+  color: #14532d;
+  border-color: #22c55e;
+}
+
+.mobileTicketStatus--CANCELED {
+  background: #fef2f2;
+  color: #991b1b;
+  border-color: #f87171;
+}
+
+/* Карточка заявки: цветная левая граница по статусу */
+.mobileCard.mobileTicketCard {
+  border-left-width: 4px;
+  border-left-style: solid;
+}
+
+.mobileTicketCard--NEW {
+  border-left-color: #2563eb;
+}
+
+.mobileTicketCard--ASSIGNED {
+  border-left-color: #7c3aed;
+}
+
+.mobileTicketCard--IN_PROGRESS {
+  border-left-color: #ea580c;
+}
+
+.mobileTicketCard--AWAITING_ACCEPTANCE {
+  border-left-color: #14b8a6;
+}
+
+.mobileTicketCard--DONE {
+  border-left-color: #16a34a;
+}
+
+.mobileTicketCard--CANCELED {
+  border-left-color: #dc2626;
+}
+
+.mobileTicketCardLayout {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  padding: 10px 12px;
+}
+
+.mobileTicketCardPhoto {
+  position: relative;
+  width: 72px;
+  min-width: 72px;
+  height: 72px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  flex-shrink: 0;
+}
+
+.mobileTicketCardPhotoImg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mobileTicketCardPhotoPlaceholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #9ca3af;
+  background: linear-gradient(180deg, #f9fafb 0%, #f3f4f6 100%);
+}
+
+.mobileTicketCardPhotoIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  color: #94a3b8;
+  opacity: 0.85;
+}
+
+.mobileTicketCardPhotoBadge {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(17, 24, 39, 0.78);
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 18px;
+  text-align: center;
+}
+
+.mobileModalBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 12px;
+  background: rgba(17, 24, 39, 0.55);
+}
+
+.mobileModalBackdropCenter {
+  align-items: center;
+}
+
+.mobileModalPanel {
+  width: 100%;
+  max-width: 720px;
+  margin-bottom: 12px;
+  pointer-events: auto;
+}
+
+.mobileAssignModal {
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
+  padding: 14px;
+}
+
+.mobileAssignModalConfirm {
+  width: 100%;
+}
+
+/* SMA-022.1 — компактная карточка: номер · объект · статус · исполнитель · SLA/срочность */
+.mobileTicketCardBody {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  flex: 1;
+  padding: 0;
+}
+
+.mobileTicketCardObject {
+  font-weight: 600;
+  color: #374151;
+  font-size: 0.82rem;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+}
+
+.mobileTicketCardMetaRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mobileTicketCardAssignee {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobileTicketCardCompact .mobileSlaUrgentPill {
+  font-size: 0.64rem;
+  padding: 2px 8px;
+}
+
+.mobileSlaUrgentPill {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #b91c1c;
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+  border-radius: 999px;
+  padding: 3px 10px;
+  vertical-align: middle;
+}
+
+.mobileTicketSlaRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.mobileTicketSlaCountdown {
+  font-size: 0.78rem;
+  color: #475569;
+}
+
+.mobileTicketCardSlaOverdue {
+  box-shadow: 0 0 0 2px #fecaca, 0 6px 20px rgba(17, 24, 39, 0.08);
+  border-color: #fca5a5;
+}
+
+.mobileTicketCardSlaWarning {
+  box-shadow: 0 0 0 2px #fed7aa, 0 6px 20px rgba(17, 24, 39, 0.08);
+  border-color: #fdba74;
+}
+
+.mobileTicketCardSlaOk {
+  border-color: #86efac;
+}
+
+.mobileSlaBadgeRow {
+  margin-top: 6px;
+}
+
+.mobileSlaStateBadge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.1;
+  border: 1px solid transparent;
+}
+
+.mobileSlaStateBadge--breached {
+  color: #991b1b;
+  background: #fee2e2;
+  border-color: #fecaca;
+}
+
+.mobileSlaStateBadge--warning {
+  color: #9a3412;
+  background: #ffedd5;
+  border-color: #fed7aa;
+}
+
+/* Полевые действия: claim / start / завершение (DONE) */
+.mobileBtn.mobileBtn--claim {
+  background: #2563eb;
+  color: #fff;
+}
+
+.mobileBtn.mobileBtn--claim:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.mobileBtn.mobileBtn--start {
+  background: #ea580c;
+  color: #fff;
+}
+
+.mobileBtn.mobileBtn--start:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.mobileBtn.mobileBtn--done {
+  background: #16a34a;
+  color: #fff;
+}
+
+.mobileBtn.mobileBtn--done:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.mobileBtnBusy {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mobileBtnSpinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  border-top-color: #fff;
+  animation: mobileSpin 0.8s linear infinite;
+}
+
+.mobileCardBusyOverlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.46);
+  backdrop-filter: blur(0.6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+}
+
+.mobileCardBusyOverlaySpinner {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 2px solid rgba(37, 99, 235, 0.3);
+  border-top-color: #2563eb;
+  animation: mobileSpin 0.8s linear infinite;
+}
+
+.mobileCardInlineError {
+  margin: 0 12px 12px;
+  padding: 8px 10px;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
+  background: #fff1f2;
+  color: #9f1239;
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.mobileCardInlineSuccess {
+  margin: 0 12px 8px;
+  padding: 8px 10px;
+  border: 1px solid #a7f3d0;
+  border-radius: 10px;
+  background: #ecfdf5;
+  color: #065f46;
+  font-size: 0.8rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+@keyframes mobileSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.mobileTopBar {
+  width: 100%;
+  max-width: min(720px, 100%);
+  margin: 0 auto;
+  box-sizing: border-box;
+  position: sticky;
+  top: 0;
+  z-index: 18;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 10px 8px;
+  padding-top: calc(6px + env(safe-area-inset-top, 0px));
+  min-height: 52px;
+  background: linear-gradient(180deg, rgba(243, 245, 248, 0.98) 0%, rgba(243, 245, 248, 0.94) 100%);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgba(229, 231, 235, 0.85);
+}
+
+.mobileTopBarMain {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.mobileTopBarBrandRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+
+.mobileTopBarBrand {
+  font-size: 0.98rem;
+  font-weight: 900;
+  color: #111827;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  min-width: 0;
+}
+
+.mobileTopBarStatusChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+}
+
+.mobileTopBarStatusChip--online {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
+.mobileTopBarStatusChip--offline {
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.mobileTopBarSubline {
+  margin-top: 3px;
+  min-width: 0;
+  font-size: 0.77rem;
+  line-height: 1.25;
+  color: #6b7280;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.mobileTopBarActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.mobileTopBarAction {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 4px 14px rgba(17, 24, 39, 0.06);
+  color: inherit;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
+}
+
+.mobileTopBarAction:active {
+  transform: translateY(1px);
+}
+
+.mobileTopBarActionIcon {
+  display: block;
+}
+
+/* SMA-MOBILE-103: online/offline connection indicator in the top bar */
+.mobileConnStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+.mobileConnDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+  background: #9ca3af;
+}
+.mobileConnStatus--online .mobileConnDot {
+  background: #16a34a;
+}
+.mobileConnStatus--offline .mobileConnDot {
+  background: #dc2626;
+}
+.mobileConnStatus--online .mobileConnText {
+  color: #15803d;
+}
+.mobileConnStatus--offline .mobileConnText {
+  color: #b91c1c;
+}
+
+.mobileProviderContextCard {
+  width: min(720px, calc(100% - 24px));
+  margin: 6px auto 0;
+  padding: 8px 10px;
+  box-sizing: border-box;
+  border: 1px solid #dbeafe;
+  border-radius: 16px;
+  background: #eff6ff;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.08);
+}
+
+.mobileProviderContextToggle {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobileProviderContextToggleText {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.mobileProviderContextLabel {
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #1d4ed8;
+}
+
+.mobileProviderContextValue {
+  margin-top: 4px;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: #111827;
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.mobileProviderContextChevron {
+  flex: 0 0 auto;
+  margin-top: 4px;
+  color: #2563eb;
+  transition: transform 180ms ease;
+}
+
+.mobileProviderContextChevron--open {
+  transform: rotate(180deg);
+}
+
+.mobileProviderContextBody {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 180ms ease, opacity 180ms ease, margin-top 180ms ease;
+  opacity: 0;
+  margin-top: 0;
+  overflow: hidden;
+}
+
+.mobileProviderContextBody--open {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  margin-top: 8px;
+}
+
+.mobileProviderContextBodyInner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.mobileProviderContextSelect {
+  width: 100%;
+  margin-top: 0;
+  min-height: 44px;
+  border-radius: 12px;
+  border: 1px solid #bfdbfe;
+  background: #ffffff;
+  color: #111827;
+  padding: 10px 12px;
+  box-sizing: border-box;
+}
+
+.mobileProviderContextHint {
+  margin-top: 6px;
+  font-size: 0.76rem;
+  line-height: 1.35;
+  color: #475569;
+}
+
+.mobileBellIcon {
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.mobileBellBadge {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.mobileNotificationsHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.mobileNotificationsMarkAll {
+  flex-shrink: 0;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 4px 8px;
+  min-height: auto;
+  line-height: 1.2;
+}
+
+.mobileNotificationsPageHint {
+  margin-top: 2px;
+  margin-bottom: 6px;
+  font-size: 0.8rem;
+  line-height: 1.3;
+}
+
+.mobileNotificationsList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mobileChatsScreen {
+  gap: 12px;
+}
+
+.mobileChatsTop {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.mobileChatsAppTitle {
+  font-size: 1.45rem;
+}
+
+.mobileChatsSearchRow {
+  min-width: 0;
+}
+
+.mobileChatsSearchInput {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 46px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  font-size: 0.94rem;
+  color: #111827;
+  outline: none;
+}
+
+.mobileChatsSearchInput::placeholder {
+  color: #9ca3af;
+}
+
+.mobileChatsSearchInput:focus {
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+.mobileChatsFilters {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 0 2px;
+  scrollbar-width: none;
+}
+
+.mobileChatsFilters::-webkit-scrollbar {
+  display: none;
+}
+
+.mobileChatsFilterChip {
+  flex: 0 0 auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #374151;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 8px 12px;
+  line-height: 1;
+  white-space: nowrap;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.mobileChatsFilterChip--active {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+}
+
+.mobileChatsHintCard {
+  padding: 10px 12px;
+  border-color: #dbeafe;
+  background: #eff6ff;
+  color: #1e3a8a;
+  box-shadow: none;
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.mobileChatsSections {
+  display: grid;
+  gap: 14px;
+}
+
+.mobileChatsSection {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.mobileChatsSectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  min-height: 34px;
+  padding: 2px 4px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+
+.mobileChatsSectionHeaderLabel {
+  min-width: 0;
+  font-size: 0.8rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6b7280;
+}
+
+.mobileChatsSectionHeaderMeta {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mobileChatsSectionHeaderCount {
+  min-width: 24px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #1d4ed8;
+  font-size: 0.75rem;
+  font-weight: 900;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mobileChatsSectionHeaderChevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+  transition: transform 180ms ease, color 180ms ease;
+}
+
+.mobileChatsSectionHeaderChevron--open {
+  transform: rotate(180deg);
+  color: #1d4ed8;
+}
+
+.mobileChatsSectionTitle {
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #6b7280;
+  padding: 0 4px;
+}
+
+.mobileChatsList {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.mobileChatsObjectGroup {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+
+.mobileChatsNestedList {
+  display: grid;
+  gap: 6px;
+  padding-left: 10px;
+  border-left: 1px solid #e5e7eb;
+  margin-left: 12px;
+  min-width: 0;
+}
+
+.mobileChatsObjectRow {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 12px;
+  box-shadow: 0 4px 14px rgba(17, 24, 39, 0.04);
+}
+
+.mobileChatsCompanyRow {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 12px;
+}
+
+.mobileChatsItem--compact {
+  padding: 10px 2px 10px 4px;
+}
+
+.mobileChatsItem--compact .mobileChatsRoomIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+}
+
+.mobileChatsItem--compact .mobileChatsItemTitle {
+  font-size: 0.88rem;
+}
+
+.mobileChatsItem--compact .mobileChatsItemTitleSecondary,
+.mobileChatsItem--compact .mobileChatsItemPreview {
+  font-size: 0.82rem;
+}
+
+.mobileChatsPromoCard {
+  display: grid;
+  gap: 12px;
+  padding: 14px !important;
+  border-radius: 18px;
+  border: 1px solid #dbeafe;
+  background: linear-gradient(180deg, #f8fbff 0%, #eef6ff 100%);
+}
+
+.mobileChatsPromoTop {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.mobileChatsPromoBody {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.mobileChatsPromoTitle {
+  font-size: 0.98rem;
+  font-weight: 900;
+  color: #111827;
+}
+
+.mobileChatsPromoText {
+  font-size: 0.84rem;
+  line-height: 1.35;
+  color: #475569;
+  overflow-wrap: anywhere;
+}
+
+.mobileChatsPromoActions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mobileChatsPromoAction {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 40px;
+  border-radius: 12px;
+  border: 1px solid #2563eb;
+  background: #2563eb;
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 12px;
+  text-decoration: none;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.mobileChatsPromoAction--secondary {
+  background: #ffffff;
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+}
+
+.mobileChatsRow {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  width: 100%;
+  padding: 12px 4px;
+  border-bottom: 1px solid #e5e7eb;
+  text-align: left;
+  overflow: hidden;
+  min-width: 0;
+  color: inherit;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+
+.mobileChatsItem {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  width: 100%;
+  padding: 12px 4px;
+  border-bottom: 1px solid #e5e7eb;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  text-align: left;
+  overflow: hidden;
+  min-width: 0;
+  color: inherit;
+  text-decoration: none;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+
+.mobileChatsItem--static {
+  opacity: 0.96;
+}
+
+.mobileChatsItem--object {
+  align-items: center;
+}
+
+.mobileChatsItemBody {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: grid;
+  gap: 4px;
+}
+
+.mobileChatsItemTop {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+  min-width: 0;
+}
+
+.mobileChatsItemTopLeft {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 auto;
+}
+
+.mobileChatsItemTitle {
+  min-width: 0;
+  font-size: 0.92rem;
+  font-weight: 800;
+  color: #111827;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobileChatsItemTitleSecondary {
+  min-width: 0;
+  font-size: 0.88rem;
+  line-height: 1.28;
+  color: #111827;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobileChatsItemMetaLeft {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobileChatsItemMetaRight {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mobileChatsItemMeta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  align-items: center;
+  font-size: 0.74rem;
+  line-height: 1.25;
+  color: #6b7280;
+  overflow-wrap: anywhere;
+}
+
+.mobileChatsItemPreview--strong {
+  color: #111827;
+  font-weight: 700;
+}
+
+.mobileChatsItemPreview--muted {
+  color: #6b7280;
+}
+
+.mobileChatsPhotoChip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.mobileChatsRoomIcon {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.mobileChatsRoomIcon--orange { background: linear-gradient(145deg, #f59e0b, #fb923c); }
+.mobileChatsRoomIcon--blue { background: linear-gradient(145deg, #3b82f6, #60a5fa); }
+.mobileChatsRoomIcon--teal { background: linear-gradient(145deg, #14b8a6, #2dd4bf); }
+.mobileChatsRoomIcon--violet { background: linear-gradient(145deg, #7c3aed, #8b5cf6); }
+.mobileChatsRoomIcon--green { background: linear-gradient(145deg, #10b981, #34d399); }
+
+.mobileChatsRoomGlyph {
+  color: #fff;
+}
+
+.mobileChatsItemCount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.mobileChatsIndicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+  background: #cbd5e1;
+}
+
+.mobileChatsIndicator--NEW {
+  background: #f59e0b;
+}
+
+.mobileChatsIndicator--ASSIGNED {
+  background: #3b82f6;
+}
+
+.mobileChatsIndicator--IN_PROGRESS {
+  background: #7c3aed;
+}
+
+.mobileChatsIndicator--DONE {
+  background: #10b981;
+}
+
+.mobileChatsIndicator--CANCELED {
+  background: #94a3b8;
+}
+
+.mobileChatsRowBody {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: grid;
+  gap: 3px;
+}
+
+.mobileChatsRowTop,
+.mobileChatsRowBottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.mobileChatsRowBottom {
+  align-items: center;
+}
+
+.mobileChatsRowTitle {
+  min-width: 0;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #111827;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobileChatsRowMiddle {
+  font-size: 0.88rem;
+  line-height: 1.25;
+  color: #0f172a;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobileChatsRowPreview {
+  min-width: 0;
+  font-size: 0.84rem;
+  line-height: 1.3;
+  color: #4b5563;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobileChatsRowSpeaker {
+  color: #1d4ed8;
+  font-weight: 700;
+}
+
+.mobileChatsRowMeta {
+  font-size: 0.74rem;
+  line-height: 1.25;
+  color: #6b7280;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobileChatsRowTime {
+  flex: 0 0 auto;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+.mobileChatsItemTime {
+  flex: 0 0 auto;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+.mobileChatsUnread {
+  flex: 0 0 auto;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #2563eb;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mobileChatsDialog {
+  gap: 10px;
+  padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+}
+
+.mobileChatsDialogHeader {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+  min-width: 0;
+}
+
+.mobileChatsDialogBack,
+.mobileChatsDialogMenu {
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #111827;
+  text-decoration: none;
+  font-size: 1.05rem;
+  box-shadow: 0 4px 14px rgba(17, 24, 39, 0.05);
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.mobileChatsDialogHeaderMain {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.mobileChatsDialogTitleRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.mobileChatsDialogTitle {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 900;
+  color: #111827;
+  line-height: 1.2;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobileChatsStatusDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #f59e0b;
+  flex: 0 0 auto;
+}
+
+.mobileChatsDialogSubtitle {
+  font-size: 0.84rem;
+  line-height: 1.3;
+  color: #475569;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobileChatsDialogTabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 6px;
+}
+
+.mobileChatsDialogTab {
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: #6b7280;
+  min-height: 42px;
+  font-size: 0.76rem;
+  font-weight: 800;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.mobileChatsDialogTab--active {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.mobileChatsRelationCard {
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid #dbeafe;
+  background: linear-gradient(180deg, #eff6ff 0%, #f8fbff 100%);
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.08);
+}
+
+.mobileChatsRelationTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.mobileChatsRelationLabel {
+  min-width: 0;
+  font-size: 0.88rem;
+  font-weight: 800;
+  color: #111827;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobileChatsRelationLink {
+  flex: 0 0 auto;
+  font-size: 0.76rem;
+  font-weight: 800;
+  color: #1d4ed8;
+  text-decoration: none;
+}
+
+.mobileChatsRelationHint {
+  margin-top: 4px;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  color: #475569;
+}
+
+.mobileChatsDatePill {
+  align-self: center;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #475569;
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.mobileChatsMessages {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.mobileChatsBubbleRow {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.mobileChatsBubbleRow--own {
+  justify-content: flex-end;
+}
+
+.mobileChatsAvatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  color: #374151;
+  font-size: 0.75rem;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.mobileChatsBubble {
+  max-width: min(82%, 100%);
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 16px 16px 16px 6px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 4px 14px rgba(17, 24, 39, 0.04);
+}
+
+.mobileChatsBubble--own {
+  background: #e8f5d9;
+  border-color: #cde5b3;
+  border-radius: 16px 16px 6px 16px;
+}
+
+.mobileChatsBubbleAuthor {
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #2563eb;
+  margin-bottom: 4px;
+}
+
+.mobileChatsBubbleAuthor span {
+  color: #6b7280;
+  font-weight: 700;
+}
+
+.mobileChatsBubbleText {
+  font-size: 0.92rem;
+  line-height: 1.42;
+  color: #111827;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.mobileChatsBubbleFooter {
+  margin-top: 6px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  align-items: center;
+  color: #6b7280;
+  font-size: 0.7rem;
+}
+
+.mobileChatsBubbleRead {
+  display: inline-flex;
+  align-items: center;
+  color: #2563eb;
+}
+
+.mobileChatsSystemRow {
+  display: flex;
+  justify-content: center;
+}
+
+.mobileChatsSystemPill {
+  max-width: min(88%, 100%);
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: #f3f4f6;
+  color: #475569;
+  font-size: 0.72rem;
+  line-height: 1.25;
+  text-align: center;
+  box-sizing: border-box;
+}
+
+.mobileChatsSystemText {
+  font-weight: 700;
+}
+
+.mobileChatsSystemTime {
+  margin-top: 2px;
+  font-size: 0.68rem;
+  color: #94a3b8;
+}
+
+.mobileChatsPhotoBlock {
+  margin-top: 8px;
+  display: grid;
+  gap: 6px;
+}
+
+.mobileChatsPhotoPreview {
+  width: 100%;
+  min-height: 180px;
+  border-radius: 16px;
+  background-color: #e5e7eb;
+  background-size: cover;
+  background-position: center;
+  border: 1px solid #d1d5db;
+}
+
+.mobileChatsPhotoCaption {
+  font-size: 0.72rem;
+  color: #64748b;
+}
+
+.mobileChatsComposer {
+  position: sticky;
+  bottom: 0;
+  z-index: 6;
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+  padding: 10px 0 calc(4px + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(180deg, rgba(243,245,248,0.05), rgba(243,245,248,0.96) 18%, rgba(243,245,248,0.98));
+}
+
+.mobileChatsComposerButton {
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  color: #475569;
+  font-size: 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.mobileChatsComposerInput {
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  max-height: 128px;
+  resize: none;
+  border-radius: 18px;
+  border: 1px solid #dbeafe;
+  background: #ffffff;
+  padding: 10px 14px;
+  box-sizing: border-box;
+  font-size: 0.92rem;
+  line-height: 1.35;
+  color: #111827;
+}
+
+.mobileChatsComposerInput:focus {
+  outline: none;
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 3px rgba(59,130,246,0.12);
+}
+
+.mobileChatsComposerSend {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  border: none;
+  background: linear-gradient(145deg, #3b82f6, #2563eb);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.28);
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.mobileChatsComposerSend:disabled {
+  opacity: 0.45;
+  box-shadow: none;
+}
+
+.mobileChatsDialogTicketStatus {
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+.mobileChatsPlaceholder {
+  margin: 8px 0 12px;
+  padding: 10px 12px;
+  background: #eff6ff;
+  border-color: #dbeafe;
+  box-shadow: none;
+  color: #1e3a8a;
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.mobileChatsList {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.mobileChatsItemPreview {
+  margin-top: 4px;
+  font-size: 0.88rem;
+  line-height: 1.35;
+  color: #374151;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.mobileNotificationRow {
+  position: relative;
+  border-radius: 14px;
+  border: 1px solid #e5e7eb;
+  background: #ffffff;
+  overflow: hidden;
+  box-shadow: 0 4px 14px rgba(17, 24, 39, 0.05);
+}
+
+.mobileNotificationRowUnread {
+  border-color: #3b82f6;
+  box-shadow:
+    inset 4px 0 0 #2563eb,
+    0 4px 16px rgba(37, 99, 235, 0.12);
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+}
+
+.mobileNotificationRowRead {
+  border-color: #e5e7eb;
+  background: #fafafa;
+  opacity: 0.96;
+}
+
+.mobileNotificationRowRead .mobileNotificationTitle {
+  color: #4b5563;
+}
+
+.mobileNotificationRowRead .mobileNotificationMessage {
+  color: #6b7280;
+}
+
+.mobileNotificationsEmpty {
+  padding-bottom: 24px;
+}
+
+.mobileNotificationTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+  min-width: 0;
+}
+
+.mobileNotificationTime {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #64748b;
+  text-align: right;
+  line-height: 1.3;
+  max-width: 52%;
+}
+
+.mobileNotifType {
+  display: inline-flex;
+  align-items: center;
+  max-width: 70%;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+  border: 1px solid transparent;
+}
+
+.mobileNotifType--ticketCreated {
+  background: #dbeafe;
+  color: #1e40af;
+  border-color: #bfdbfe;
+}
+
+.mobileNotifType--ticketAssigned {
+  background: #fef3c7;
+  color: #92400e;
+  border-color: #fde68a;
+}
+
+.mobileNotifType--ticketClaimed {
+  background: #d1fae5;
+  color: #065f46;
+  border-color: #a7f3d0;
+}
+
+.mobileNotifType--statusChanged {
+  background: #e0e7ff;
+  color: #3730a3;
+  border-color: #c7d2fe;
+}
+
+.mobileNotifType--assignmentRequested {
+  background: #ede9fe;
+  color: #5b21b6;
+  border-color: #ddd6fe;
+}
+
+.mobileNotifType--slaWarning {
+  background: #ffedd5;
+  color: #9a3412;
+  border-color: #fed7aa;
+}
+
+.mobileNotifType--slaOverdue {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #fecaca;
+}
+
+.mobileNotifType--other {
+  background: #f3f4f6;
+  color: #374151;
+  border-color: #e5e7eb;
+}
+
+.mobileNotificationBtn {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  box-sizing: border-box;
+  min-width: 0;
+}
+
+.mobileNotificationBtn:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.mobileNotificationTitle {
+  font-weight: 800;
+  font-size: 0.9rem;
+  margin-bottom: 4px;
+  min-width: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.mobileNotificationMessage {
+  font-size: 0.84rem;
+  color: #374151;
+  white-space: pre-wrap;
+  word-break: break-word;
+  min-width: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+/* После создания заявки (клиент) */
+.mobilePostCreateSuccess {
+  border: 1px solid #a7f3d0;
+  background: linear-gradient(180deg, #ecfdf5 0%, #ffffff 40%);
+  margin-bottom: 12px;
+}
+
+.mobilePostCreateSuccessTitle {
+  font-size: 1.15rem;
+  font-weight: 900;
+  margin: 0 0 6px;
+  color: #065f46;
+}
+
+.mobilePostCreateSuccessSub {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: #374151;
+}
+
+.mobilePostCreateSectionLabel {
+  margin-top: 12px;
+  font-weight: 800;
+  color: #111827;
+}
+
+.mobilePostCreateNotifyHint {
+  margin-top: 12px;
+  line-height: 1.4;
+}
+
+.mobilePostCreateActions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.mobilePostCreateActions .mobileBtn {
+  text-align: center;
+  text-decoration: none;
+  display: block;
+}
+
+/* Подсказка по статусу для заказчика на деталях */
+.mobileClientLifecycleHint {
+  border: 1px solid #c7d2fe;
+  background: #f8fafc;
+  margin-bottom: 12px;
+}
+
+.mobileClientLifecycleHintText {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  color: #334155;
+}
+
+.mobileTicketChatComposer {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  width: 100%;
+}
+
+/* 2b: кнопки камеры/скрепки в композере чата (Figma ChatTab) */
+.mobileChatComposerBtn {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: none;
+  background: #f1f5f9;
+  color: #64748b;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.12s;
+}
+.mobileChatComposerBtn:active:not(:disabled) {
+  background: #e2e8f0;
+}
+.mobileChatComposerBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.mobileTicketChatInput {
+  flex: 1;
+  min-width: 0;
+  min-height: 48px;
+  max-height: 140px;
+  resize: none;
+  overflow-y: auto;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  padding: 10px 12px;
+  font-size: 0.92rem;
+  font-family: inherit;
+  line-height: 1.4;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.mobileTicketChatInput:focus {
+  outline: 2px solid #86efac;
+  outline-offset: 0;
+  border-color: #22c55e;
+}
+
+.mobileTicketChatInput:disabled {
+  background: #f9fafb;
+  color: #9ca3af;
+}
+
+.mobileTicketChatSendButton {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  min-height: 48px;
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-radius: 12px;
+  background: #16a34a;
+  color: #fff;
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.mobileTicketChatSendButton:active:not(:disabled) {
+  background: #15803d;
+}
+
+.mobileTicketChatSendButton:disabled {
+  background: #d1d5db;
+  color: #9ca3af;
+  cursor: not-allowed;
+}
+
+.mobileTicketChatHost .panel.uiCard {
+  margin: 0;
+  padding: 0;
+  border: none;
+  box-shadow: none;
+  background: transparent;
+}
+
+.mobileTicketChatHost h3 {
+  font-size: 1rem;
+  font-weight: 800;
+  margin: 0 0 10px;
+}
+
+.mobileTicketChatHost textarea {
+  min-height: 72px;
+  font-size: 1rem;
+}
+
+.mobileTicketChatHost button[type='button'] {
+  min-height: 44px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: none;
+  background: #4f46e5;
+  color: #fff;
+  font-weight: 700;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SMA REDESIGN V1 — Mobile Workspace Design System
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── 5-item bottom nav with raised center Create button ──── */
+.mobileBottomNavInner {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 2px;
+  padding: 6px 4px 10px;
+}
+
+.mobileNavItemCreate {
+  text-decoration: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.mobileNavCreateButton {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #3b82f6, #2563eb);
+  color: #fff;
+  font-size: 1.75rem;
+  font-weight: 300;
+  line-height: 1;
+  border: none;
+  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translateY(-10px);
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+  flex-shrink: 0;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.mobileNavCreateButton:active {
+  transform: translateY(-7px);
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.35);
+}
+
+.mobileNavButton {
+  min-height: 44px;
+  font-size: 0.72rem;
+}
+
+/* ── Stats grid on home screen ──────────────────────────── */
+/* Home header — Figma Make HomeScreen: kicker + name + avatar-initials + online·role */
+.mobileHomeHeaderCard {
+  margin-bottom: 12px;
+}
+.mobileHomeHeaderTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.mobileHomeHeaderTitleWrap {
+  min-width: 0;
+}
+.mobileHomeHeaderKicker {
+  margin: 0;
+  font-size: 0.69rem;
+  color: #94a3b8;
+  font-weight: 500;
+}
+.mobileHomeHeaderName {
+  margin: 1px 0 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mobileHomeHeaderAvatar {
+  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #2563eb;
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.mobileHomeHeaderOnline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 0.69rem;
+  font-weight: 600;
+  color: #059669;
+}
+.mobileHomeHeaderOnlineDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+}
+.mobileHomeSearchBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  background: #f1f5f9;
+  border-radius: 16px;
+  padding: 9px 12px;
+}
+.mobileHomeSearchBar:focus-within {
+  box-shadow: 0 0 0 2px #bfdbfe;
+}
+.mobileHomeSearchBarIcon {
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+.mobileHomeSearchBarInput {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 0.82rem;
+  color: #1e293b;
+}
+.mobileHomeSearchBarInput::placeholder {
+  color: #94a3b8;
+}
+.mobileHomeSearchBarInput::-webkit-search-cancel-button {
+  display: none;
+}
+.mobileHomeSearchBarClear {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: none;
+  background: #cbd5e1;
+  color: #475569;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+/* Home stat grid — Figma Make HomeScreen: 4 equal colored cards, always visible */
+.mobileStatsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.mobileStatBlock {
+  background: #f8fafc;
+  border-radius: 16px;
+  padding: 10px 8px;
+  border: 1px solid #eef2f7;
+  box-shadow: none;
+  text-align: center;
+}
+
+.mobileStatValue {
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1;
+  margin-bottom: 3px;
+  color: #334155;
+}
+
+.mobileStatLabel {
+  font-size: 0.62rem;
+  font-weight: 500;
+  color: #94a3b8;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* per-stat colored card (bg + border + value) — Figma palette */
+.mobileStatBlock--new       { background: #fff7ed; border-color: #fed7aa; }
+.mobileStatBlock--new .mobileStatValue     { color: #ea580c; }
+.mobileStatBlock--inwork    { background: #f5f3ff; border-color: #ddd6fe; }
+.mobileStatBlock--inwork .mobileStatValue  { color: #7c3aed; }
+.mobileStatBlock--overdue   { background: #fef2f2; border-color: #fecaca; }
+.mobileStatBlock--overdue .mobileStatValue { color: #dc2626; }
+.mobileStatBlock--done      { background: #ecfdf5; border-color: #a7f3d0; }
+.mobileStatBlock--done .mobileStatValue    { color: #059669; }
+
+.mobileStatBlock--active {
+  outline: 2px solid #2563eb;
+  outline-offset: 1px;
+}
+
+/* ── Быстрые карты главной (Figma HomeScreen) ───────────── */
+.mobileHomeQuickCards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.mobileHomeQuickCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid transparent;
+  background: #f8fafc;
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobileHomeQuickCard:active {
+  transform: scale(0.985);
+}
+
+.mobileHomeQuickCardIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+
+.mobileHomeQuickCardBody {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.mobileHomeQuickCardTitle {
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.mobileHomeQuickCardSub {
+  font-size: 0.69rem;
+  line-height: 1.2;
+}
+
+.mobileHomeQuickCardChevron {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.mobileHomeQuickCardBadge {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+/* amber — «На приёмке» */
+.mobileHomeQuickCard--amber {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #92400e;
+}
+.mobileHomeQuickCard--amber .mobileHomeQuickCardIcon {
+  background: #fef3c7;
+  color: #d97706;
+}
+.mobileHomeQuickCard--amber .mobileHomeQuickCardSub { color: #b45309; }
+.mobileHomeQuickCard--amber .mobileHomeQuickCardChevron { color: #d97706; }
+
+/* violet — «Требует действия» / «Планирование» */
+.mobileHomeQuickCard--violet {
+  background: #f5f3ff;
+  border-color: #ddd6fe;
+  color: #5b21b6;
+}
+.mobileHomeQuickCard--violet .mobileHomeQuickCardIcon {
+  background: #ede9fe;
+  color: #7c3aed;
+}
+.mobileHomeQuickCard--violet .mobileHomeQuickCardSub { color: #6d28d9; }
+.mobileHomeQuickCard--violet .mobileHomeQuickCardChevron { color: #7c3aed; }
+.mobileHomeQuickCard--violet .mobileHomeQuickCardBadge {
+  background: #ede9fe;
+  color: #6d28d9;
+}
+
+/* rose/coral — «Требуют доработки» (E2) */
+.mobileHomeQuickCard--rose {
+  background: #fff1f2;
+  border-color: #fecdd3;
+  color: #9f1239;
+}
+.mobileHomeQuickCard--rose .mobileHomeQuickCardIcon {
+  background: #ffe4e6;
+  color: #e11d48;
+}
+.mobileHomeQuickCard--rose .mobileHomeQuickCardSub { color: #be123c; }
+.mobileHomeQuickCard--rose .mobileHomeQuickCardChevron { color: #e11d48; }
+.mobileHomeQuickCard--rose .mobileHomeQuickCardBadge {
+  background: #ffe4e6;
+  color: #be123c;
+}
+.mobileHomeQuickCard--roseActive {
+  background: #e11d48;
+  border-color: #e11d48;
+  color: #fff;
+}
+.mobileHomeQuickCard--roseActive .mobileHomeQuickCardIcon {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+.mobileHomeQuickCard--roseActive .mobileHomeQuickCardSub { color: #fecdd3; }
+.mobileHomeQuickCard--roseActive .mobileHomeQuickCardBadge {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+/* активная быстрая карта */
+.mobileHomeQuickCard--active {
+  outline: 2px solid #d97706;
+  outline-offset: 1px;
+}
+
+/* «Требует действия» активна — заливка как в Figma */
+.mobileHomeQuickCard--violetActive {
+  background: #7c3aed;
+  border-color: #7c3aed;
+  color: #fff;
+}
+.mobileHomeQuickCard--violetActive .mobileHomeQuickCardIcon {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+.mobileHomeQuickCard--violetActive .mobileHomeQuickCardSub { color: #ddd6fe; }
+.mobileHomeQuickCard--violetActive .mobileHomeQuickCardBadge {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+/* заглушка «Планирование» — приглушена */
+.mobileHomeQuickCard--stub {
+  opacity: 0.82;
+}
+
+/* ── V2 ticket list card (no thumbnail, clean text) ─────── */
+
+.mobileTicketCardV2Top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  min-width: 0;
+}
+
+.mobileTicketCardV2Number {
+  font-family: var(--font-mono);
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #111827;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobileTicketCardV2Cat {
+  font-family: var(--font-ui);
+  font-weight: 400;
+  color: #6b7280;
+}
+
+.mobileTicketCardV2Time {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: #9ca3af;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.mobileTicketCardV2Location {
+  font-size: 0.8rem;
+  color: #6b7280;
+  line-height: 1.35;
+  min-width: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+}
+
+.mobileTicketCardV2Desc {
+  font-size: 0.85rem;
+  color: #374151;
+  line-height: 1.4;
+  min-width: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.mobileTicketCardV2Bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* ── Horizontal scrollable segment filter (MobileMyTickets) */
+.mobileSegments {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 4px 0 8px;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.mobileSegments::-webkit-scrollbar { display: none; }
+
+.mobileSegmentBtn {
+  flex-shrink: 0;
+  padding: 7px 16px;
+  border-radius: 20px;
+  font-size: 0.84rem;
+  font-weight: 600;
+  border: 2px solid #e5e7eb;
+  background: #fff;
+  color: #374151;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+  -webkit-appearance: none;
+  appearance: none;
+  line-height: 1.4;
+}
+
+.mobileSegmentBtn--active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+}
+
+/* ── Ticket detail: large status pill at top ─────────────── */
+.mobileTicketStatusLarge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  padding: 6px 14px 6px 10px;
+  border-radius: 20px;
+  letter-spacing: 0.01em;
+}
+
+.mobileTicketStatusLarge::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.mobileTicketStatusLarge--NEW        { background: #eff6ff; color: #1d4ed8; }
+.mobileTicketStatusLarge--NEW::before { background: #2563eb; }
+.mobileTicketStatusLarge--ASSIGNED        { background: #ecfeff; color: #0e7490; }
+.mobileTicketStatusLarge--ASSIGNED::before { background: #06b6d4; }
+.mobileTicketStatusLarge--IN_PROGRESS        { background: #fffbeb; color: #92400e; }
+.mobileTicketStatusLarge--IN_PROGRESS::before { background: #f59e0b; }
+.mobileTicketStatusLarge--DONE        { background: #f0fdf4; color: #166534; }
+.mobileTicketStatusLarge--DONE::before { background: #22c55e; }
+.mobileTicketStatusLarge--CANCELED        { background: #f3f4f6; color: #6b7280; }
+.mobileTicketStatusLarge--CANCELED::before { background: #9ca3af; }
+
+/* ── Ticket detail: field rows ───────────────────────────── */
+.mobileDetailSection {
+  display: grid;
+  gap: 0;
+  margin-top: 12px;
+}
+
+.mobileDetailRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid #f3f4f6;
+  min-width: 0;
+}
+
+.mobileDetailRow:last-child { border-bottom: none; }
+
+.mobileDetailRowLabel {
+  font-size: 0.78rem;
+  color: #9ca3af;
+  font-weight: 600;
+  flex-shrink: 0;
+  padding-top: 1px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Inline Tabler-icon glyph before each Info-row label */
+.mobileDetailRowIcon {
+  flex-shrink: 0;
+  color: #94a3b8;
+}
+
+/* Ticket card: round 40×40 back button (Figma Make WorkspaceScreen onBack) */
+.mobileTicketBackBtn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #f1f5f9;
+  color: #374151;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobileTicketBackBtn:active {
+  background: #e2e8f0;
+}
+
+.mobileDetailRowValue {
+  font-size: 0.9rem;
+  color: #111827;
+  line-height: 1.45;
+  text-align: right;
+  word-break: break-word;
+}
+
+.mobileTicketDescBlock {
+  margin-top: 12px;
+  padding: 12px;
+  background: #f8f9fb;
+  border-radius: 12px;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: #1f2937;
+  white-space: pre-wrap;
+}
+
+.mobileDetailTitle {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #111827;
+  line-height: 1.35;
+  margin-top: 10px;
+  margin-bottom: 4px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SMA REDESIGN V1 — Phase 2
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Nav: icon + label layout (overrides Phase 1 text-only) */
+.mobileNavButton {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  padding: 4px 2px 2px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 48px;
+  width: 100%;
+  font-size: 0.72rem;
+}
+
+.mobileNavButtonActive {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.mobileNavIconWrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+}
+
+.mobileNavBadgeDot {
+  position: absolute;
+  top: 0;
+  right: -1px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ef4444;
+  border: 1.5px solid #fff;
+}
+
+.mobileNavLabel {
+  font-size: 0.62rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: #9ca3af;
+  letter-spacing: 0.01em;
+}
+
+.mobileNavButtonActive .mobileNavLabel {
+  color: #2563eb;
+}
+
+/* ── Ticket detail: underline tab bar (Figma Make WorkspaceScreen) ── */
+.mobileDetailTabs {
+  display: flex;
+  gap: 0;
+  border-radius: 0;
+  background: #fff;
+  padding: 0;
+  margin-bottom: 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.mobileDetailTab {
+  flex: 1;
+  padding: 10px 4px;
+  border-radius: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobileDetailTab--active {
+  background: transparent;
+  color: #2563eb;
+  border-bottom-color: #2563eb;
+  box-shadow: none;
+}
+
+.mobileDetailTabBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  background: #e5e7eb;
+  color: #6b7280;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.mobileDetailTab--active .mobileDetailTabBadge {
+  background: #eff6ff;
+  color: #2563eb;
+}
+
+/* ── Ticket detail: secondary action = white + border (Figma WorkspaceScreen).
+   Scoped to the ticket card only — .mobileBtnSecondary is shared across 10 mobile
+   screens, so the white+border variant must NOT leak app-wide (white-on-white loses
+   contrast elsewhere). ── */
+.mobileTicketDetailsRoot .mobileBtn.mobileBtnSecondary {
+  background: #fff;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+}
+
+/* ── Stats grid: tappable modifier ──────────────────────── */
+.mobileStatBlock--tap {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.12s;
+}
+
+.mobileStatBlock--tap:active {
+  transform: scale(0.96);
+}
+
+/* ── Ticket card V2: flex layout for thumbnail column ───── */
+.mobileTicketCardV2 {
+  padding: 14px 14px 12px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.mobileTicketCardV2Body {
+  /* SMA-114: flex-basis:0% prevents Safari from using intrinsic content width */
+  flex: 1 1 0%;
+  min-width: 0;
+  overflow: hidden;
+  display: grid;
+  gap: 5px;
+}
+
+.mobileTicketCardV2 > .mobileTicketCardPhoto {
+  width: 64px;
+  min-width: 64px;
+  height: 64px;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+/* SMA-113: contain inner rows so long text/photo never push the card past the viewport */
+.mobileTicketCardV2Bottom {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.mobileTicketCardV2Bottom > .mobileMeta {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobileTicketCardV2Bottom > .mobileTicketStatus {
+  flex-shrink: 0;
+}
+
+/* ── Gallery: 4:3 hero + header row ─────────────────────── */
+.mobileTicketPhotoHero {
+  aspect-ratio: 4 / 3;
+  border-radius: 14px;
+}
+
+.mobileTicketPhotoGalleryHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.mobileTicketPhotoGalleryCount {
+  font-size: 0.78rem;
+  color: #9ca3af;
+  font-weight: 600;
+}
+
+.mobileTicketPhotoDot {
+  width: 7px;
+  height: 7px;
+}
+
+.mobileTicketPhotoDotActive {
+  background: #2563eb;
+  transform: scale(1.25);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SMA REDESIGN V1 — Phase 3
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Timeline (История) ─────────────────────────────────── */
+.mobileTimeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.mobileTimelineItem {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.mobileTimelineLeft {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  width: 28px;
+}
+
+.mobileTimelineDot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.08);
+  z-index: 1;
+}
+
+.mobileTimelineIcon {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: #fff;
+  border-radius: 50%;
+  border: 1.5px solid #e5e7eb;
+  z-index: 1;
+}
+
+.mobileTimelineLine {
+  width: 2px;
+  flex: 1;
+  min-height: 16px;
+  background: #e5e7eb;
+  margin: 2px 0;
+}
+
+.mobileTimelineContent {
+  flex: 1;
+  min-width: 0;
+  padding-bottom: 16px;
+}
+
+.mobileTimelineItem--last .mobileTimelineContent {
+  padding-bottom: 4px;
+}
+
+.mobileTimelineTitle {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #111827;
+  line-height: 1.4;
+  padding-top: 4px;
+}
+
+.mobileTimelineComment {
+  margin-top: 4px;
+  font-size: 0.82rem;
+  color: #374151;
+  background: #f8f9fb;
+  border-radius: 8px;
+  padding: 6px 10px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.mobileTimelineMeta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 0.72rem;
+  color: #9ca3af;
+  flex-wrap: wrap;
+}
+
+.mobileTimelineTime {
+  font-size: 0.72rem;
+  color: #9ca3af;
+}
+
+/* ── Chat tab card: flex so composer sticks to bottom ────── */
+.mobileTicketChatCard {
+  display: flex;
+  flex-direction: column;
+  min-height: 280px;
+}
+
+/* FIX-4: закреплённая white ticket-card в начале ленты Чата (Figma ChatTab kind==='ticket-card') */
+.mobileTicketChatPinnedCard {
+  display: flex;
+  gap: 12px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(16, 24, 40, 0.06);
+  padding: 12px;
+  margin-bottom: 8px;
+}
+.mobileTicketChatPinnedIcon {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: #ede9fe;
+  color: #7c3aed;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.mobileTicketChatPinnedBody {
+  flex: 1;
+  min-width: 0;
+}
+.mobileTicketChatPinnedTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.mobileTicketChatPinnedTitle {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #1e293b;
+}
+.mobileTicketChatPinnedUrgent {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #b45309;
+  background: #fef3c7;
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+.mobileTicketChatPinnedLine {
+  font-size: 0.78rem;
+  color: #475569;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.mobileTicketChatPinnedLabel {
+  color: #94a3b8;
+}
+
+/* Figma ChatTab (Telegram-style лента) */
+.mobileTicketChatMessages {
+  flex: 1;
+  overflow-y: auto;
+  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: #f7f9fc;
+  border-radius: 14px;
+  padding: 12px 10px;
+}
+
+/* system lifecycle → компактная центрированная пилюля */
+.mobileChatSysRow {
+  display: flex;
+  justify-content: center;
+  margin: 2px 0;
+}
+.mobileChatSysPill {
+  font-size: 0.6rem;
+  line-height: 1.35;
+  color: #64748b;
+  background: rgba(203, 213, 225, 0.5);
+  padding: 4px 11px;
+  border-radius: 999px;
+  text-align: center;
+  white-space: pre-line;
+  max-width: 90%;
+}
+
+/* message row */
+.mobileChatMsgRow {
+  display: flex;
+}
+.mobileChatMsgRow--out {
+  justify-content: flex-end;
+}
+.mobileChatMsgRow--in {
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.mobileChatAvatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  color: #475569;
+  font-size: 0.62rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-bottom: 2px;
+}
+
+.mobileChatBubbleWrap {
+  max-width: 78%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.mobileChatAuthorName {
+  font-size: 0.62rem;
+  color: #94a3b8;
+  margin: 0 0 3px 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobileChatBubble {
+  border-radius: 16px;
+  padding: 9px 13px;
+  font-size: 0.86rem;
+  line-height: 1.4;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+}
+.mobileChatBubble--in {
+  background: #fff;
+  color: #1e293b;
+  border: 1px solid #eef2f7;
+  border-bottom-left-radius: 4px;
+}
+.mobileChatBubble--out {
+  background: #2563eb;
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+
+.mobileChatMeta {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 3px;
+  font-size: 0.6rem;
+}
+.mobileChatMeta--in {
+  color: #94a3b8;
+}
+.mobileChatMeta--out {
+  justify-content: flex-end;
+  color: #bfdbfe;
+}
+.mobileChatChecks {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* фото-сообщение (attachment_uploaded) — inline-превью в ленте */
+.mobileChatPhotoWrap {
+  max-width: 200px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.mobileChatPhotoFrame {
+  padding: 4px;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+}
+.mobileChatPhotoFrame--out {
+  background: #2563eb;
+  border-bottom-right-radius: 4px;
+}
+.mobileChatPhotoFrame--in {
+  background: #fff;
+  border: 1px solid #eef2f7;
+  border-bottom-left-radius: 4px;
+}
+.mobileChatPhotoFrame .mobilePhotoThumbLink,
+.mobileChatPhotoFrame .mobilePhotoThumbOpen {
+  display: block;
+  width: 100%;
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+.mobileChatPhotoImg {
+  display: block;
+  width: 100%;
+  height: 120px;
+  object-fit: cover;
+  border-radius: 12px;
+}
+.mobileChatPhotoCap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.6rem;
+  padding: 4px 4px 1px;
+}
+.mobileChatPhotoFrame--out .mobileChatPhotoCap {
+  justify-content: flex-end;
+  color: #bfdbfe;
+}
+.mobileChatPhotoFrame--in .mobileChatPhotoCap {
+  justify-content: flex-start;
+  color: #94a3b8;
+}
+
+/* ── Filter panel redesign ───────────────────────────────── */
+.mobileFiltersPanel {
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+.mobileFiltersPanelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px 8px;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.mobileFiltersPanelTitle {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.mobileFiltersPanelBody {
+  padding: 10px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* filter toggle button improved */
+.mobileFiltersToggleBtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 20px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border: 2px solid #e5e7eb;
+  background: #fff;
+  color: #374151;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobileFiltersToggleBtn--active {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.mobileFiltersToggleDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #2563eb;
+  flex-shrink: 0;
+}
+
+/* ── Profile redesign ────────────────────────────────────── */
+.mobileProfileHero {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 16px;
+  background: #fff;
+  border-radius: 20px;
+  border: 1px solid #eef2f7;
+  box-shadow: 0 6px 20px rgba(17,24,39,0.05);
+  margin-bottom: 12px;
+  text-align: left;
+}
+
+.mobileProfileAvatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 18px;
+  background: linear-gradient(145deg, #3b82f6, #1d4ed8);
+  color: #fff;
+  font-size: 1.45rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 4px 14px rgba(37,99,235,0.3);
+  letter-spacing: -0.02em;
+}
+
+.mobileProfileHeroInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.mobileProfileName {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #0f172a;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.mobileProfileEmail {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+}
+
+.mobileProfileBadgeRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.mobileProfileRoleBadge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.mobileProfileRoleBadge--tech   { background: #dbeafe; color: #1d4ed8; }
+.mobileProfileRoleBadge--client { background: #d1fae5; color: #047857; }
+.mobileProfileRoleBadge--admin  { background: #ede9fe; color: #6d28d9; }
+
+.mobileProfileContourBadge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.mobileProfileCompany {
+  font-size: 0.78rem;
+  color: #94a3b8;
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+
+.mobileProfileLinkedClient {
+  font-size: 0.76rem;
+  color: #64748b;
+  margin-top: 3px;
+  overflow-wrap: anywhere;
+}
+
+.mobileProfileMenu {
+  padding: 0;
+  overflow: hidden;
+}
+
+.mobileProfileMenuItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  font-size: 0.92rem;
+  font-weight: 500;
+  color: #111827;
+  border-bottom: 1px solid #f3f4f6;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  text-decoration: none;
+  background: transparent;
+  border-left: none;
+  border-right: none;
+  border-top: none;
+  width: 100%;
+  text-align: left;
+  transition: background 0.1s;
+}
+
+.mobileProfileMenuLabel {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mobileProfileMenuItem:last-child {
+  border-bottom: none;
+}
+
+.mobileProfileMenuItem:active {
+  background: #f9fafb;
+}
+
+.mobileProfileMenuItem--danger {
+  color: #dc2626;
+}
+
+.mobileProfileMenuChevron {
+  display: inline-flex;
+  align-items: center;
+  color: #cbd5e1;
+  flex-shrink: 0;
+}
+
+.mobileProfileSectionLabel {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 8px;
+}
+
+/* SMA-MOBILE-103: profile stats, static menu row, app info */
+.mobileProfileStats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  text-align: center;
+}
+.mobileProfileStat {
+  min-width: 0;
+}
+.mobileProfileStatValue {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #111827;
+}
+.mobileProfileStatLabel {
+  margin-top: 2px;
+  font-size: 0.72rem;
+  color: #6b7280;
+}
+.mobileProfileMenuItem--static {
+  cursor: default;
+  color: #6b7280;
+}
+.mobileProfileMenuSoon {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #92400e;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  border-radius: 999px;
+  padding: 2px 8px;
+  flex-shrink: 0;
+}
+.mobileProfileInfoRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 0;
+  font-size: 0.9rem;
+}
+.mobileProfileInfoRow + .mobileProfileInfoRow {
+  border-top: 1px solid #f1f5f9;
+}
+
+.mobileProfileMenuIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  flex-shrink: 0;
+  color: #64748b;
+}
+
+/* иконка наследует цвет строки (например, красный «Выйти») */
+.mobileProfileMenuItem--danger .mobileProfileMenuIcon {
+  color: inherit;
+}
+.mobileProfileMenuItem--static .mobileProfileMenuIcon {
+  color: #94a3b8;
+}
+
+/* ── SMA-MOBILE-102: Advanced filters & active states ─────── */
+
+.mobileStatBlock--active {
+  outline: 2.5px solid #2563eb;
+  background: #eff6ff;
+}
+
+.mobileMyTicketsControls {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+
+.mobileMyTicketsControls .mobileSegments {
+  flex: 1;
+  min-width: 0;
+  padding-bottom: 4px;
+}
+
+.mobileSegmentBtnBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  background: rgba(0, 0, 0, 0.08);
+  color: inherit;
+  padding: 0 4px;
+  margin-left: 5px;
+  vertical-align: middle;
+  line-height: 1;
+}
+
+.mobileSegmentBtn--active .mobileSegmentBtnBadge {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.mobileAdvFilterLabel {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 6px;
+}
+
+.mobileFilterSelect {
+  width: 100%;
+  padding: 9px 36px 9px 12px;
+  border-radius: 10px;
+  border: 1.5px solid #e5e7eb;
+  background: #f9fafb url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%239ca3af' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat right 10px center;
+  -webkit-appearance: none;
+  appearance: none;
+  font-size: 0.88rem;
+  color: #111827;
+  cursor: pointer;
+}
+
+.mobileFilterSelect:focus {
+  outline: none;
+  border-color: #2563eb;
+}
+
+.mobileActiveFilterChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 0 6px;
+}
+
+.mobileActiveFilterChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px 4px 10px;
+  border-radius: 999px;
+  background: #eff6ff;
+  border: 1.5px solid #bfdbfe;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #1d4ed8;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobileActiveFilterChipX {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  line-height: 1;
+  color: #60a5fa;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ── SMA-MOBILE-104: Offline pending badge ─────────────── */
+.mobileOfflinePendingBadge {
+  display: block;
+  margin-top: 5px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.75);
+  letter-spacing: 0.02em;
+}
+
+/* ── SMA-MOBILE-105: Offline queue review screen ───────── */
+.mobileOfflineBannerFailed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: #fff1f2;
+  color: #9f1239;
+  border-bottom: 2px solid #f43f5e;
+}
+
+.mobileOfflineBannerLink {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.mobileOfflineBannerLinkHint {
+  font-size: 0.85rem;
+  font-weight: 700;
+  flex: 0 0 auto;
+}
+
+.mobileProfileMenuBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0 5px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+.mobileProfileMenuBadge--queue {
+  background: #f43f5e;
+  color: #fff;
+}
+
+.mobileOfflineQueueCountBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  border-radius: 11px;
+  background: #f43f5e;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0 6px;
+  margin-left: 8px;
+}
+
+.mobileOfflineQueueItem {
+}
+
+.mobileOfflineQueueStatusBadge {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0 8px;
+  letter-spacing: 0.01em;
+}
+
+.mobileOfflineQueueStatusBadge--pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.mobileOfflineQueueStatusBadge--syncing {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.mobileOfflineQueueStatusBadge--failed {
+  background: #ffe4e6;
+  color: #9f1239;
+}
+
+.mobileOfflineQueueStatusBadge--synced {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.mobileOfflineQueueAction {
+  flex: 1;
+  font-size: 0.82rem !important;
+  min-height: 36px !important;
+  padding: 6px 10px !important;
+}
+
+.mobileOfflineQueueAction--danger {
+  background: #f43f5e;
+  color: #fff;
+  border: 1.5px solid #f43f5e;
+  border-radius: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* ── Location group cards (SMA-MOBILE-111) ─────────────────────────── */
+.mobileLocationGroup {
+  border-radius: 16px;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid #eef2f7;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  margin-bottom: 10px;
+}
+
+.mobileLocationGroup--overdue {
+  border-color: #fecaca;
+}
+
+.mobileLocationGroupHeader {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px 12px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobileLocationGroupHeader:active {
+  background: #f9fafb;
+}
+
+.mobileLocationGroupHeader:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: -2px;
+}
+
+.mobileLocationGroupIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #f1f5f9;
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.mobileLocationGroupIcon--overdue {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+.mobileLocationGroupInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.mobileLocationGroupTitleRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.mobileLocationGroupName {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.3;
+  min-width: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.mobileLocationGroupHeaderRight {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.mobileLocationGroupBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: #2563eb;
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  font-weight: 700;
+}
+
+.mobileLocationGroupMeta {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  margin-top: 2px;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+}
+
+/* Figma HomeScreen ObjectCard: 5-колоночная мини-сетка активных счётчиков */
+.mobileLocationGroupStatGrid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+  margin-top: 10px;
+}
+
+.mobileLocationGroupStatCell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 6px 2px;
+  border-radius: 10px;
+}
+
+.mobileLocationGroupStatCellValue {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.mobileLocationGroupStatCellLabel {
+  font-size: 0.56rem;
+  color: #94a3b8;
+  line-height: 1.1;
+  text-align: center;
+}
+
+.mobileLocationGroupStatCell--new     { background: #fff7ed; }
+.mobileLocationGroupStatCell--new     .mobileLocationGroupStatCellValue { color: #ea580c; }
+.mobileLocationGroupStatCell--assigned{ background: #eff6ff; }
+.mobileLocationGroupStatCell--assigned .mobileLocationGroupStatCellValue { color: #2563eb; }
+.mobileLocationGroupStatCell--inwork  { background: #f5f3ff; }
+.mobileLocationGroupStatCell--inwork  .mobileLocationGroupStatCellValue { color: #7c3aed; }
+.mobileLocationGroupStatCell--awaiting{ background: #fffbeb; }
+.mobileLocationGroupStatCell--awaiting .mobileLocationGroupStatCellValue { color: #d97706; }
+.mobileLocationGroupStatCell--overdue { background: #fef2f2; }
+.mobileLocationGroupStatCell--overdue .mobileLocationGroupStatCellValue { color: #dc2626; }
+
+/* нулевой счётчик — приглушён */
+.mobileLocationGroupStatCell--off {
+  background: #f8fafc;
+}
+.mobileLocationGroupStatCell--off .mobileLocationGroupStatCellValue {
+  color: #cbd5e1;
+}
+
+.mobileLocationGroupEmptyActive {
+  padding: 12px;
+  text-align: center;
+}
+
+.mobileLocationGroupChevron {
+  display: inline-flex;
+  align-items: center;
+  color: #9ca3af;
+  flex-shrink: 0;
+  transition: transform 0.18s ease;
+}
+
+.mobileLocationGroupChevron--open {
+  transform: rotate(180deg);
+}
+
+.mobileLocationGroupTickets {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border-top: 1px solid #f3f4f6;
+}
+
+.mobileLocationGroupTickets > * {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  border-bottom: 1px solid #f3f4f6;
+  margin-bottom: 0 !important;
+}
+
+.mobileLocationGroupTickets > *:last-child {
+  border-bottom: none;
+}
+
+/* SMA-MOBILE-122: mobile analytics screen */
+.mobileAnalyticsGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.mobileAnalyticsCard {
+  display: grid;
+  gap: 3px;
+  padding: 14px;
+  border-radius: 16px;
+  min-width: 0;
+  position: relative;
+  overflow: hidden;
+}
+/* Figma AnalyticsScreen: тонкий цветной акцент сверху вместо левой границы */
+.mobileAnalyticsCard::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: #cbd5e1;
+}
+.mobileAnalyticsValue {
+  font-family: var(--font-mono);
+  font-size: 1.5rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: #0f172a;
+}
+.mobileAnalyticsLabel {
+  font-size: 0.74rem;
+  color: #94a3b8;
+}
+.mobileAnalyticsCard--active::before  { background: #2563eb; }
+.mobileAnalyticsCard--overdue::before { background: #dc2626; }
+.mobileAnalyticsCard--done::before    { background: #16a34a; }
+.mobileAnalyticsCard--sla::before     { background: #ea580c; }
+.mobileAnalyticsCard--active .mobileAnalyticsValue  { color: #2563eb; }
+.mobileAnalyticsCard--overdue .mobileAnalyticsValue { color: #dc2626; }
+.mobileAnalyticsCard--done .mobileAnalyticsValue    { color: #16a34a; }
+.mobileAnalyticsCard--sla .mobileAnalyticsValue     { color: #ea580c; }
+
+/* C2.2: KPI icon-tile + вариант --total (indigo) */
+.mobileAnalyticsCardIcon {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #eef2ff;
+  color: #6366f1;
+}
+.mobileAnalyticsCard--active .mobileAnalyticsCardIcon  { background: #eff6ff; color: #2563eb; }
+.mobileAnalyticsCard--overdue .mobileAnalyticsCardIcon { background: #fef2f2; color: #dc2626; }
+.mobileAnalyticsCard--done .mobileAnalyticsCardIcon    { background: #f0fdf4; color: #16a34a; }
+.mobileAnalyticsCard--sla .mobileAnalyticsCardIcon     { background: #fff7ed; color: #ea580c; }
+.mobileAnalyticsCard--total::before                    { background: #6366f1; }
+.mobileAnalyticsCard--total .mobileAnalyticsValue      { color: #4f46e5; }
+.mobileAnalyticsCard--total .mobileAnalyticsCardIcon   { background: #eef2ff; color: #6366f1; }
+
+/* C2.2: шапка-flex с кнопкой параметров */
+.mobileAnalyticsHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.mobileAnalyticsFilterBtn {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #475569;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.mobileAnalyticsFilterBtn--active {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #2563eb;
+}
+
+/* C2.2: чипы периода + произвольный диапазон дат */
+.mobileAnalyticsPeriodRow {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.mobileAnalyticsPeriodChip {
+  flex: 0 0 auto;
+  width: auto;
+  height: auto;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 7px 16px;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #475569;
+  cursor: pointer;
+}
+.mobileAnalyticsPeriodChip--active {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+.mobileAnalyticsCustomRow {
+  display: flex;
+  gap: 8px;
+}
+.mobileAnalyticsDateInput {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.8rem;
+  padding: 7px 10px;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #0f172a;
+  font-family: var(--font-mono);
+}
+.mobileAnalyticsSlaNote {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  margin-top: -2px;
+}
+
+/* C2.3: тело bottom-sheet «Параметры» */
+.mobileAnalyticsFilterBody {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 8px 2px 4px;
+}
+.mobileAnalyticsFilterLabel {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+  margin-bottom: 8px;
+}
+.mobileAnalyticsFilterChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.mobileAnalyticsFilterChip {
+  flex: 0 0 auto;
+  width: auto;
+  height: auto;
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 7px 13px;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #475569;
+  cursor: pointer;
+}
+.mobileAnalyticsFilterChip--active {
+  background: #eff6ff;
+  border-color: #93c5fd;
+  color: #1d4ed8;
+}
+.mobileAnalyticsFilterStub {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  background: #f8fafc;
+  border: 1px dashed #e2e8f0;
+  border-radius: 12px;
+  padding: 12px;
+}
+.mobileAnalyticsFilterActions {
+  display: flex;
+  gap: 10px;
+  margin-top: 2px;
+}
+
+/* C2.4: селектор готовых представлений */
+.mobileAnalyticsViewSelectWrap {
+  margin: 2px 0;
+}
+.mobileAnalyticsViewSelect {
+  width: 100%;
+  appearance: none;
+  -webkit-appearance: none;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  background-color: #fff;
+  color: #0f172a;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 12px 40px 12px 14px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 16px;
+  cursor: pointer;
+}
+.mobileAnalyticsViewSelect:focus {
+  outline: none;
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18);
+}
+
+/* C2.4: обзор — сроки */
+.mobileAnalyticsTiming {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.mobileAnalyticsTimingVal {
+  font-family: var(--font-mono);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+.mobileAnalyticsTimingLabel {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+.mobileAnalyticsBarSub {
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+/* C2.4: список просрочек */
+.mobileAnalyticsOverdueList {
+  display: flex;
+  flex-direction: column;
+}
+.mobileAnalyticsOverdueRow {
+  padding: 10px 0;
+}
+.mobileAnalyticsOverdueRow + .mobileAnalyticsOverdueRow {
+  border-top: 1px solid #f1f5f9;
+}
+.mobileAnalyticsOverdueTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.mobileAnalyticsOverdueNum {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: #0f172a;
+}
+.mobileAnalyticsOverdueTitle {
+  font-size: 0.85rem;
+  color: #334155;
+  margin-top: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mobileAnalyticsOverdueSub {
+  font-size: 0.75rem;
+  color: #94a3b8;
+  margin-top: 2px;
+}
+.mobileAnalyticsOverdueSla {
+  color: #dc2626;
+  font-weight: 600;
+}
+.mobileAnalyticsEquipName {
+  font-weight: 600;
+  font-size: 0.85rem;
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* C2.5: график динамики (публичные заявки по дням) */
+.mobileAnalyticsChart {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 72px;
+}
+.mobileAnalyticsChartBar {
+  flex: 1;
+  min-width: 2px;
+  background: #bfdbfe;
+  border-radius: 3px 3px 0 0;
+}
+.mobileAnalyticsChartBar--last {
+  background: #2563eb;
+}
+
+/* C2.5: центрированная заглушка представления */
+.mobileAnalyticsStubCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 20px 12px;
+}
+.mobileAnalyticsStubIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #f1f5f9;
+  color: #94a3b8;
+}
+
+.mobileAnalyticsHomeLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  text-decoration: none;
+}
+
+/* Bar chart rows */
+.mobileAnalyticsBarRows { display: grid; gap: 0; }
+
+.mobileAnalyticsBarRow {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 2px 8px;
+  padding: 8px 0;
+}
+.mobileAnalyticsBarRow + .mobileAnalyticsBarRow { border-top: 1px solid #f1f5f9; }
+
+.mobileAnalyticsBarName {
+  font-size: 0.88rem;
+  font-weight: 500;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mobileAnalyticsBarCount {
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+.mobileAnalyticsBarTrack {
+  grid-column: 1 / -1;
+  height: 6px;
+  background: #f1f5f9;
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 2px;
+}
+.mobileAnalyticsBarFill {
+  height: 100%;
+  border-radius: 999px;
+  background: #2563eb;
+  transition: width 0.3s ease;
+}
+.mobileAnalyticsBarFill--location  { background: #0891b2; }
+.mobileAnalyticsBarFill--new       { background: #2563eb; }
+.mobileAnalyticsBarFill--assigned  { background: #d97706; }
+.mobileAnalyticsBarFill--inprogress { background: #7c3aed; }
+.mobileAnalyticsBarFill--done      { background: #16a34a; }
+
+/* Mobile ticket actions: ⋯ trigger + bottom sheet */
+.mobileTicketDetailsToolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.mobileTicketActionsTrigger {
+  flex: 0 0 auto;
+  width: 40px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  border-radius: 10px;
+  min-width: 40px;
+  height: 36px;
+  font-size: 1.3rem;
+  line-height: 1;
+  color: #374151;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.mobileTicketActionsTrigger:active { background: #f3f4f6; }
+
+/* FIX-3: идентити заявки в шапке (номер + статус + категория·объект) — Figma WorkspaceScreen */
+.mobileTicketHeaderInfo {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.mobileTicketHeaderTop {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.mobileTicketHeaderNumber {
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #0f172a;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.mobileTicketHeaderTop .mobileTicketStatus {
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mobileTicketHeaderSub {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobileSheetBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: rgba(17, 24, 39, 0.45);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.mobileSheet {
+  width: 100%;
+  max-width: 560px;
+  background: #fff;
+  border-radius: 18px 18px 0 0;
+  box-sizing: border-box;
+  padding: 8px 14px calc(16px + env(safe-area-inset-bottom, 0px));
+  max-height: 85vh;
+  overflow-y: auto;
+  animation: mobileSheetUp 180ms ease-out;
+}
+@keyframes mobileSheetUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+.mobileSheetGrip {
+  width: 40px;
+  height: 4px;
+  border-radius: 999px;
+  background: #e5e7eb;
+  margin: 4px auto 8px;
+}
+.mobileSheetHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.mobileSheetTitle { font-weight: 800; font-size: 1rem; }
+.mobileSheetClose {
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.mobileSheetActions { display: grid; gap: 2px; }
+.mobileSheetAction {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  padding: 13px 6px;
+  font-size: 0.98rem;
+  color: #111827;
+  cursor: pointer;
+  border-radius: 10px;
+}
+.mobileSheetAction:active { background: #f3f4f6; }
+.mobileSheetAction:disabled { opacity: 0.45; cursor: not-allowed; }
+.mobileSheetAction + .mobileSheetAction { border-top: 1px solid #f3f4f6; }
+.mobileSheetAction--danger { color: #b91c1c; }
+.mobileSheetActionIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  flex-shrink: 0;
+  color: #475569;
+}
+.mobileSheetAction--danger .mobileSheetActionIcon { color: inherit; }
+.mobileSheetActionLabel { flex: 1; min-width: 0; }
+.mobileSheetActionChevron { display: inline-flex; align-items: center; color: #d1d5db; flex-shrink: 0; }
+.mobileSheetCancel { width: 100%; margin-top: 10px; }
+
+/* ── Patrol / Inspection ─────────────────────────────────── */
+
+/* Top-level Заявки / Обходы switcher */
+.mobileScreenTabs {
+  display: flex;
+  gap: 2px;
+  background: #f1f5f9;
+  border-radius: 12px;
+  padding: 3px;
+  margin-bottom: 4px;
+}
+.mobileScreenTab {
+  flex: 1;
+  padding: 8px 0;
+  border-radius: 9px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.mobileScreenTab--active {
+  background: #fff;
+  color: #1d4ed8;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Patrol run list card */
+.mobilePatrolCard { display: grid; gap: 6px; border-radius: 16px; }
+
+.mobilePatrolCardTop {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Figma PatrolsScreen: иконка-плитка обхода (тон по статусу) */
+.mobilePatrolIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.mobilePatrolIcon--inprogress { background: #dbeafe; color: #2563eb; }
+.mobilePatrolIcon--completed  { background: #dcfce7; color: #16a34a; }
+
+.mobilePatrolBackLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.mobilePatrolBtnIcon {
+  display: inline-flex;
+  align-items: center;
+  vertical-align: -2px;
+  margin-right: 5px;
+}
+.mobilePatrolCardTitle {
+  font-size: 0.94rem;
+  font-weight: 600;
+  color: #111827;
+  min-width: 0;
+  flex: 1;
+}
+.mobilePatrolCardMeta {
+  font-size: 0.82rem;
+  color: #6b7280;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* Run status badge */
+.mobilePatrolRunStatus {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.mobilePatrolRunStatus--inprogress { background: #dbeafe; color: #1e40af; }
+.mobilePatrolRunStatus--completed  { background: #dcfce7; color: #15803d; }
+
+/* Report status badge */
+.mobilePatrolReportBadge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 8px;
+  background: #f3f4f6;
+  color: #374151;
+}
+.mobilePatrolReportBadge--submitted { background: #e0e7ff; color: #4338ca; }
+.mobilePatrolReportBadge--approved  { background: #dcfce7; color: #15803d; }
+.mobilePatrolReportBadge--rejected  { background: #fee2e2; color: #b91c1c; }
+
+/* Run detail page: meta rows */
+.mobilePatrolMeta { display: grid; gap: 4px; }
+.mobilePatrolMetaRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.mobilePatrolMetaLabel { font-size: 0.8rem; color: #6b7280; flex-shrink: 0; }
+
+/* Progress summary 4-cell grid */
+.mobilePatrolSummary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+}
+.mobilePatrolSummaryCell {
+  text-align: center;
+  padding: 8px 4px;
+  border-radius: 8px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+}
+.mobilePatrolSummaryValue {
+  font-size: 1.25rem;
+  font-weight: 800;
+  line-height: 1;
+}
+.mobilePatrolSummaryLabel {
+  font-size: 0.65rem;
+  color: #6b7280;
+  margin-top: 3px;
+}
+.mobilePatrolSummaryCell--ok .mobilePatrolSummaryValue       { color: #16a34a; }
+.mobilePatrolSummaryCell--issue .mobilePatrolSummaryValue    { color: #d97706; }
+.mobilePatrolSummaryCell--critical .mobilePatrolSummaryValue { color: #dc2626; }
+.mobilePatrolSummaryCell--pending .mobilePatrolSummaryValue  { color: #6b7280; }
+
+/* Checklist items */
+.mobilePatrolItems { display: grid; gap: 8px; }
+
+.mobilePatrolItem {
+  border-radius: 10px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+.mobilePatrolItem--ok       { border-color: #86efac; background: #f0fdf4; }
+.mobilePatrolItem--issue    { border-color: #fdba74; background: #fff7ed; }
+.mobilePatrolItem--critical { border-color: #fca5a5; background: #fef2f2; }
+.mobilePatrolItem--skipped  { opacity: 0.55; }
+
+.mobilePatrolItemTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.mobilePatrolItemTitle {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #111827;
+  flex: 1;
+  min-width: 0;
+}
+.mobilePatrolItemBadge {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 8px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.mobilePatrolItemBadge--pending  { background: #f3f4f6; color: #6b7280; }
+.mobilePatrolItemBadge--ok       { background: #dcfce7; color: #15803d; }
+.mobilePatrolItemBadge--issue    { background: #fef3c7; color: #92400e; }
+.mobilePatrolItemBadge--critical { background: #fee2e2; color: #b91c1c; }
+.mobilePatrolItemBadge--skipped  { background: #f3f4f6; color: #9ca3af; }
+
+.mobilePatrolItemComment { font-size: 0.82rem; color: #4b5563; font-style: italic; }
+.mobilePatrolItemPhotos  { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.mobilePatrolItemPhoto   { width: 72px; height: 72px; object-fit: cover; border-radius: 8px; border: 1px solid #e5e7eb; background: #f3f4f6; flex-shrink: 0; }
+
+.mobilePatrolItemActions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.mobilePatrolItemIssueForm {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  background: #fff7ed;
+  border-radius: 8px;
+  border: 1px solid #fed7aa;
+}
+.mobilePatrolItemIssueFormTextarea {
+  width: 100%;
+  min-height: 60px;
+  padding: 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 0.88rem;
+  resize: vertical;
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+/* SMA-MOBILE-133: collapsible home summary */
+.mobileSummaryBlock { margin-bottom: 6px; }
+.mobileSummaryToggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #374151;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.mobileSummaryToggleLabel { flex: 1; min-width: 0; text-align: left; }
+.mobileSummaryToggleHint {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #6b7280;
+  white-space: nowrap;
+}
+.mobileSummaryChevron { font-size: 0.7rem; color: #9ca3af; flex-shrink: 0; }
+.mobileSummaryBlock .mobileStatsGrid { margin-top: 6px; }
+
+/* SMA-CHAT-136: compact Telegram-style chat rows (denser, more per screen) */
+.mobileChatsItem {
+  padding: 9px 4px;
+  gap: 10px;
+  align-items: center;
+}
+.mobileChatsItemBody {
+  gap: 1px;
+}
+.mobileChatsItemTop {
+  align-items: center;
+}
+.mobileChatsItemTitle {
+  font-size: 0.9rem;
+}
+/* Last-message line: single row with ellipsis, like a messenger */
+.mobileChatsItemPreview {
+  margin-top: 0;
+  font-size: 0.82rem;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.mobileChatsItemTitleSecondary {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #4b5563;
+}
+.mobileChatsItemMeta {
+  font-size: 0.72rem;
+}
+.mobileChatsItemTime {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  color: #9ca3af;
+}
+
+/* Object accordion (SMA-CHAT-132) */
+.mobileChatsObjectGroup { display: flex; flex-direction: column; }
+.mobileChatsItem--accordion { width: 100%; text-align: left; cursor: pointer; background: none; border: none; padding: 0; font-family: inherit; font-size: inherit; color: inherit; }
+.mobileChatsObjectChevron { font-size: 0.65rem; color: #9ca3af; flex-shrink: 0; margin-left: 8px; }
+.mobileChatsObjectTickets { padding-left: 48px; border-bottom: 1px solid #f0f0f0; }
+.mobileChatsObjectTicketRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 9px 0;
+  border-bottom: 1px solid #f5f5f5;
+  text-decoration: none;
+  color: inherit;
+}
+.mobileChatsObjectTicketRow:last-child { border-bottom: none; }
+.mobileChatsObjectTicketBody { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.mobileChatsObjectTicketTitle { font-size: 0.8rem; font-weight: 700; color: #2563eb; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mobileChatsObjectTicketCategory { font-size: 0.84rem; font-weight: 600; color: #111827; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.mobileChatsObjectTicketPreview { font-size: 0.8rem; color: #6b7280; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.mobileChatsObjectTicketTime { font-size: 0.75rem; color: #9ca3af; white-space: nowrap; flex-shrink: 0; padding-top: 2px; }
+
+/* ==========================================================================
+   Push-уведомления — экран настроек (src/mobile/MobilePushSettingsPage.tsx)
+   ========================================================================== */
+
+.mobilePushInstallGuideTitle {
+  font-size: 0.98rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.mobilePushStatusHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.mobilePushStatusIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #eff6ff;
+  color: #2563eb;
+  flex-shrink: 0;
+}
+
+.mobilePushStatusTitle {
+  font-size: 0.98rem;
+  font-weight: 700;
+}
+
+.mobilePushStatusRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #f3f4f6;
+}
+
+.mobilePushBadge {
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+}
+
+.mobilePushBadge--ok {
+  background: #ecfdf5;
+  color: #065f46;
+}
+
+.mobilePushBadge--error {
+  background: #fef2f2;
+  color: #991b1b;
+}
+
+.mobilePushBadge--default {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.mobilePushTypesList {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+}
+
+.mobilePushTypeRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.mobilePushTypeRow:last-child {
+  border-bottom: none;
+}
+
+.mobilePushTypeLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #111827;
+  min-width: 0;
+}
+
+/* Тумблер-переключатель — переиспользуемый паттерн, первое появление в проекте */
+.mobilePushSwitch {
+  position: relative;
+  width: 44px;
+  height: 26px;
+  border-radius: 999px;
+  border: none;
+  background: #e5e7eb;
+  flex-shrink: 0;
+  padding: 0;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.mobilePushSwitch:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.mobilePushSwitch--on {
+  background: #2563eb;
+}
+
+.mobilePushSwitchThumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(17, 24, 39, 0.25);
+  transition: transform 0.15s ease;
+}
+
+.mobilePushSwitch--on .mobilePushSwitchThumb {
+  transform: translateX(18px);
+}

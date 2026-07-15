@@ -1,0 +1,302 @@
+import { randomUUID } from 'node:crypto';
+import { CompanyType, PrismaClient, ServiceContractRole, ServiceContractStatus, TicketStatus, TicketUrgency, UserRole } from '@prisma/client';
+import * as bcrypt from 'bcrypt';
+
+import type { PermissionCode } from '../src/common/permissions.constants';
+
+export const prisma = new PrismaClient();
+
+export async function resetDb() {
+  // порядок важен из-за FK
+  await prisma.ticketStatusHistory.deleteMany();
+  await prisma.ticket.deleteMany();
+
+  await prisma.technicianSpecialization.deleteMany();
+  await prisma.problemCategorySpecialization.deleteMany();
+  await prisma.problemCategory.deleteMany();
+  await prisma.specialization.deleteMany();
+
+  await prisma.userPermission.deleteMany();
+  await prisma.rolePermission.deleteMany();
+  await prisma.permissionBlock.deleteMany();
+
+  // Event store (не FK, но чистим для детерминизма)
+  await prisma.domainEvent.deleteMany();
+
+  await prisma.user.deleteMany();
+  await prisma.company.deleteMany();
+}
+
+export async function ensurePermissionBlocks(codes: PermissionCode[]) {
+  for (const code of codes) {
+    await prisma.permissionBlock.upsert({
+      where: { code },
+      update: {},
+      create: {
+        code,
+        name: code,
+        description: `e2e seed: ${code}`,
+      },
+    });
+  }
+}
+
+export async function grantRolePermissions(role: UserRole, codes: PermissionCode[]) {
+  const blocks = await prisma.permissionBlock.findMany({
+    where: { code: { in: codes } },
+    select: { id: true, code: true },
+  });
+
+  if (blocks.length !== codes.length) {
+    const found = new Set(blocks.map((b) => b.code));
+    const missing = codes.filter((c) => !found.has(c));
+    throw new Error(`Missing PermissionBlocks: ${missing.join(', ')}`);
+  }
+
+  await prisma.rolePermission.createMany({
+    data: blocks.map((b) => ({ role, permissionBlockId: b.id })),
+    skipDuplicates: true,
+  });
+}
+
+export async function grantUserPermissions(userId: string, codes: PermissionCode[]) {
+  const blocks = await prisma.permissionBlock.findMany({
+    where: { code: { in: codes } },
+    select: { id: true, code: true },
+  });
+
+  if (blocks.length !== codes.length) {
+    const found = new Set(blocks.map((b) => b.code));
+    const missing = codes.filter((c) => !found.has(c));
+    throw new Error(`Missing PermissionBlocks: ${missing.join(', ')}`);
+  }
+
+  await prisma.userPermission.createMany({
+    data: blocks.map((b) => ({ userId, permissionBlockId: b.id })),
+    skipDuplicates: true,
+  });
+}
+
+export async function createCompanyWithUsers(params?: {
+  companyName?: string;
+  adminEmail?: string;
+  adminPassword?: string;
+  techEmail?: string;
+  techPassword?: string;
+  otherTechEmail?: string;
+  otherTechPassword?: string;
+}) {
+  const companyName = params?.companyName ?? 'E2E Company';
+  const adminEmail = (params?.adminEmail ?? 'admin@example.com').toLowerCase();
+  const adminPassword = params?.adminPassword ?? 'Passw0rd!';
+  const techEmail = (params?.techEmail ?? 'tech@example.com').toLowerCase();
+  const techPassword = params?.techPassword ?? 'Passw0rd!';
+  const otherTechEmail = (params?.otherTechEmail ?? 'tech2@example.com').toLowerCase();
+  const otherTechPassword = params?.otherTechPassword ?? 'Passw0rd!';
+
+  const adminHash = await bcrypt.hash(adminPassword, 10);
+  const techHash = await bcrypt.hash(techPassword, 10);
+  const otherTechHash = await bcrypt.hash(otherTechPassword, 10);
+
+  const company = await prisma.company.create({
+    data: {
+      name: companyName,
+      type: CompanyType.PROVIDER, // executor operations (claim, status_change) require PROVIDER
+      autoAssignEnabled: false, // в e2e выключаем автоназначение, чтобы тесты были детерминированные
+      users: {
+        create: [
+          { email: adminEmail, password: adminHash, role: UserRole.ADMIN },
+          { email: techEmail, password: techHash, role: UserRole.TECHNICIAN, isExecutor: true },
+          { email: otherTechEmail, password: otherTechHash, role: UserRole.TECHNICIAN, isExecutor: true },
+        ],
+      },
+    },
+    include: { users: true },
+  });
+
+  const admin = company.users.find((u) => u.email === adminEmail)!;
+  const tech = company.users.find((u) => u.email === techEmail)!;
+  const otherTech = company.users.find((u) => u.email === otherTechEmail)!;
+
+  return {
+    company,
+    admin: { ...admin, passwordPlain: adminPassword },
+    tech: { ...tech, passwordPlain: techPassword },
+    otherTech: { ...otherTech, passwordPlain: otherTechPassword },
+  };
+}
+
+export async function createSpecAndCategory(companyId: string) {
+  const spec = await prisma.specialization.create({
+    data: {
+      name: 'E2E Spec',
+      isActive: true,
+      company: { connect: { id: companyId } },
+    },
+  });
+
+  const categoryOk = await prisma.problemCategory.create({
+    data: {
+      name: 'E2E Category OK',
+      isActive: true,
+      instructions: 'ok',
+      company: { connect: { id: companyId } },
+    },
+  });
+
+  await prisma.problemCategorySpecialization.create({
+    data: { problemCategoryId: categoryOk.id, specializationId: spec.id },
+  });
+
+  // A second spec NOT assigned to any technician — linking categoryNoMatch to it
+  // ensures a tech with only the first spec cannot claim tickets in this category.
+  const specNoMatch = await prisma.specialization.create({
+    data: {
+      name: 'E2E Spec NO_MATCH',
+      isActive: true,
+      company: { connect: { id: companyId } },
+    },
+  });
+
+  const categoryNoMatch = await prisma.problemCategory.create({
+    data: {
+      name: 'E2E Category NO_MATCH',
+      isActive: true,
+      company: { connect: { id: companyId } },
+    },
+  });
+
+  await prisma.problemCategorySpecialization.create({
+    data: { problemCategoryId: categoryNoMatch.id, specializationId: specNoMatch.id },
+  });
+
+  return { spec, categoryOk, categoryNoMatch };
+}
+
+export async function linkTechToSpec(techUserId: string, specId: string) {
+  await prisma.technicianSpecialization.create({
+    data: { userId: techUserId, specializationId: specId },
+  });
+}
+
+export async function createTicket(params: {
+  companyId: string;
+  problemCategoryId: string;
+  locationId?: string;
+  problemText?: string;
+  status?: TicketStatus;
+  assignedTechnicianId?: string | null;
+}) {
+  let locationId = params.locationId;
+  if (!locationId) {
+    const loc = await prisma.location.create({
+      data: {
+        clientCompanyId: params.companyId,
+        name: 'E2E Location',
+        platformCode: `e2e-${randomUUID()}`,
+        isActive: true,
+      },
+    });
+    locationId = loc.id;
+  }
+
+  const t = await prisma.ticket.create({
+    data: {
+      companyId: params.companyId,
+      locationId,
+      problemCategoryId: params.problemCategoryId,
+      problemText: params.problemText ?? 'E2E problem',
+      urgency: TicketUrgency.NOT_URGENT,
+      status: params.status ?? TicketStatus.NEW,
+      assignedTechnicianId: params.assignedTechnicianId ?? null,
+    },
+  });
+
+  return t;
+}
+
+/**
+ * Creates a CLIENT company and a PROVIDER company connected by a service contract.
+ * The provider admin is set up with ADMIN role. Tech is executor-capable.
+ */
+export async function createProviderClientSetup(params: {
+  contractRole: ServiceContractRole;
+  providerSuffix?: string;
+  clientSuffix?: string;
+}) {
+  const suffix = params.providerSuffix ?? randomUUID().slice(0, 8);
+  const clientSuffix = params.clientSuffix ?? randomUUID().slice(0, 8);
+  const adminPassword = 'Passw0rd!';
+  const techPassword = 'Passw0rd!';
+
+  const adminHash = await bcrypt.hash(adminPassword, 10);
+  const techHash = await bcrypt.hash(techPassword, 10);
+
+  const client = await prisma.company.create({
+    data: {
+      name: `Client-${clientSuffix}`,
+      type: CompanyType.CLIENT,
+      autoAssignEnabled: false,
+    },
+  });
+
+  const provider = await prisma.company.create({
+    data: {
+      name: `Provider-${suffix}`,
+      type: CompanyType.PROVIDER,
+      autoAssignEnabled: false,
+      users: {
+        create: [
+          { email: `admin-${suffix}@example.com`, password: adminHash, role: UserRole.ADMIN },
+          { email: `tech-${suffix}@example.com`, password: techHash, role: UserRole.TECHNICIAN, isExecutor: true },
+        ],
+      },
+    },
+    include: { users: true },
+  });
+
+  await prisma.serviceContract.create({
+    data: {
+      clientCompanyId: client.id,
+      providerCompanyId: provider.id,
+      role: params.contractRole,
+      status: ServiceContractStatus.ACTIVE,
+    },
+  });
+
+  const admin = provider.users.find((u) => u.role === UserRole.ADMIN)!;
+  const tech = provider.users.find((u) => u.role === UserRole.TECHNICIAN)!;
+
+  return {
+    client,
+    provider,
+    admin: { ...admin, passwordPlain: adminPassword },
+    tech: { ...tech, passwordPlain: techPassword },
+  };
+}
+
+/**
+ * Reset includes service contracts (needed for multi-tenant tests).
+ */
+export async function resetDbFull() {
+  await prisma.ticketStatusHistory.deleteMany();
+  await prisma.assignmentDecision.deleteMany();
+  await prisma.ticket.deleteMany();
+
+  await prisma.technicianSpecialization.deleteMany();
+  await prisma.problemCategorySpecialization.deleteMany();
+  await prisma.problemCategory.deleteMany();
+  await prisma.specialization.deleteMany();
+
+  await prisma.userPermission.deleteMany();
+  await prisma.rolePermission.deleteMany();
+  await prisma.permissionBlock.deleteMany();
+
+  await prisma.domainEvent.deleteMany();
+
+  await prisma.userLocationBinding.deleteMany();
+  await prisma.serviceContract.deleteMany();
+  await prisma.user.deleteMany();
+  await prisma.location.deleteMany();
+  await prisma.company.deleteMany();
+}

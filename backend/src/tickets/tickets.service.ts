@@ -1,338 +1,318 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../prisma/prisma.service';
-import { CreateTicketDto } from './dto/create-ticket.dto';
-import { CreateChildTicketDto } from './dto/create-child-ticket.dto';
-import { TicketStatus, TicketUrgency, UserRole } from '@prisma/client';
+import { Injectable } from '@nestjs/common'
+import { PublicRequestType, TicketStatus, TicketUrgency, UserRole } from '@prisma/client'
+
+import { CreateTicketDto } from './dto/create-ticket.dto'
+import { CreateChildTicketDto } from './dto/create-child-ticket.dto'
+import { UpdateTicketDto } from './dto/update-ticket.dto'
+
+import { TicketsAssignmentService } from './tickets.assignment.service'
+import { TicketsQueryService } from './tickets.query.service'
+import { TicketsStatusService } from './tickets.status.service'
+import { TicketAttachmentsService } from './ticket-attachments.service'
+import { TicketsAcceptanceService } from './tickets.acceptance.service'
+import { TicketAcceptanceDto } from './dto/ticket-acceptance.dto'
+
+import { type BoardQueryInput } from '../policy/tickets.policy'
+
+type AccessFlags = {
+  canTechnicianViewAllCompanyTickets?: boolean
+}
+
+function normalizeScopeId(value?: string): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const normalized = value.trim()
+  if (!normalized || normalized === 'undefined' || normalized === 'null') return undefined
+  return normalized
+}
+
+function scopeForClient(
+  role: UserRole,
+  linkedClientCompanyId?: string,
+  observerCompanyId?: string,
+) {
+  const normalizedLinkedClientCompanyId = normalizeScopeId(linkedClientCompanyId)
+  const normalizedObserverCompanyId = normalizeScopeId(observerCompanyId)
+
+  if (role !== UserRole.CLIENT) {
+    return {
+      linkedClientCompanyId: normalizedLinkedClientCompanyId,
+      observerCompanyId: normalizedObserverCompanyId,
+    }
+  }
+
+  return {
+    linkedClientCompanyId: undefined,
+    observerCompanyId: undefined,
+  }
+}
 
 @Injectable()
 export class TicketsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private readonly query: TicketsQueryService,
+    private readonly assignment: TicketsAssignmentService,
+    private readonly status: TicketsStatusService,
+    private readonly attachments: TicketAttachmentsService,
+    private readonly acceptance: TicketsAcceptanceService,
+  ) {}
 
-  private async getCompany(companyId: string) {
-    const company = await this.prisma.company.findUnique({
-      where: { id: companyId },
-      select: { id: true, autoAssignEnabled: true },
-    });
-    if (!company) throw new NotFoundException('Company not found');
-    return company;
+  create(companyId: string, actor: { id: string; role: UserRole }, dto: CreateTicketDto) {
+    return this.assignment.create(companyId, actor.id, actor.role, dto)
   }
 
-  private async getCategory(companyId: string, problemCategoryId: string) {
-    const category = await this.prisma.problemCategory.findFirst({
-      where: { id: problemCategoryId, companyId, isActive: true },
-      include: {
-        specializationLinks: { select: { specializationId: true } },
-      },
-    });
-    if (!category) throw new NotFoundException('Problem category not found');
-    return category;
+  createPublic(
+    companyId: string,
+    input: {
+      locationId: string
+      equipmentId?: string | null
+      categoryId: string
+      requestType: 'repair' | 'note'
+      description: string
+      requesterName?: string | null
+      requesterPhone?: string | null
+      attachmentIds?: string[]
+      urgency?: TicketUrgency
+      channel?: string | null
+      presetLocationId?: string | null
+      publicLinkVersion?: string | null
+      ipHash?: string | null
+      phoneNormalized?: string | null
+    },
+  ) {
+    return this.assignment.createPublic(companyId, {
+      ...input,
+      publicRequestType:
+        input.requestType === 'note' ? PublicRequestType.NOTE : PublicRequestType.REPAIR,
+    })
   }
 
-  private async findCandidateTechnicians(companyId: string, specializationIds: string[]) {
-    if (specializationIds.length === 0) return [];
-
-    const techs = await this.prisma.user.findMany({
-      where: {
-        companyId,
-        role: UserRole.TECHNICIAN,
-        technicianSpecializations: {
-          some: { specializationId: { in: specializationIds } },
-        },
-      },
-      select: {
-        id: true,
-        email: true,
-        technicianSpecializations: {
-          where: { specializationId: { in: specializationIds } },
-          include: { specialization: true },
-        },
-      },
-      orderBy: { createdAt: 'asc' },
-    });
-
-    return techs.map((t) => ({
-      id: t.id,
-      email: t.email,
-      matchedBy: t.technicianSpecializations.map((x) => x.specialization.name),
-    }));
+  createChild(companyId: string, creatorUserId: string, creatorRole: UserRole, parentId: string, dto: CreateChildTicketDto) {
+    return this.assignment.createChild(companyId, creatorUserId, creatorRole, parentId, dto)
   }
 
-  /**
-   * Набор допустимых переходов статусов.
-   * Под твой enum: NEW / ASSIGNED / IN_PROGRESS / DONE / CANCELED (часто так).
-   */
-  private canTransition(from: TicketStatus, to: TicketStatus): boolean {
-    if (from === to) return false;
-
-    const allowed: Partial<Record<TicketStatus, TicketStatus[]>> = {
-      NEW: ['ASSIGNED', 'IN_PROGRESS', 'CANCELED'] as TicketStatus[],
-      ASSIGNED: ['IN_PROGRESS', 'DONE', 'CANCELED'] as TicketStatus[],
-      IN_PROGRESS: ['DONE', 'CANCELED'] as TicketStatus[],
-      DONE: [] as TicketStatus[],
-      CANCELED: [] as TicketStatus[],
-    };
-
-    const next = allowed[from] ?? [];
-    return next.includes(to);
+  board(
+    companyId: string,
+    userId: string,
+    role: UserRole,
+    input: BoardQueryInput,
+    accessFlags?: AccessFlags,
+    linkedClientCompanyId?: string,
+    observerCompanyId?: string,
+  ) {
+    const scope = scopeForClient(role, linkedClientCompanyId, observerCompanyId)
+    return this.query.board(
+      companyId,
+      userId,
+      role,
+      input,
+      accessFlags,
+      scope.linkedClientCompanyId,
+      scope.observerCompanyId,
+    )
   }
 
-  private async writeStatusHistory(params: {
-    ticketId: string;
-    fromStatus: TicketStatus | null;
-    toStatus: TicketStatus;
-    changedByUserId: string | null;
-    comment?: string | null;
-  }) {
-    const { ticketId, fromStatus, toStatus, changedByUserId, comment } = params;
-
-    await this.prisma.ticketStatusHistory.create({
-      data: {
-        ticketId,
-        fromStatus,
-        toStatus,
-        comment: comment ?? null,
-        changedByUserId: changedByUserId ?? null,
-      },
-    });
+  contextAnalytics(
+    companyId: string,
+    userId: string,
+    role: UserRole,
+    accessFlags?: AccessFlags,
+    linkedClientCompanyId?: string,
+    observerCompanyId?: string,
+    locationId?: string,
+    equipmentId?: string,
+  ) {
+    const scope = scopeForClient(role, linkedClientCompanyId, observerCompanyId)
+    return this.query.contextAnalytics(
+      companyId,
+      userId,
+      role,
+      accessFlags,
+      scope.linkedClientCompanyId,
+      scope.observerCompanyId,
+      locationId,
+      equipmentId,
+    )
   }
 
-  async create(companyId: string, creatorRole: UserRole, dto: CreateTicketDto) {
-    if (creatorRole !== UserRole.ADMIN && creatorRole !== UserRole.DISPATCHER) {
-      throw new BadRequestException('Only ADMIN or DISPATCHER can create tickets');
-    }
-
-    const company = await this.getCompany(companyId);
-    const category = await this.getCategory(companyId, dto.problemCategoryId);
-
-    const specializationIds = category.specializationLinks.map((x) => x.specializationId);
-    const candidates = await this.findCandidateTechnicians(companyId, specializationIds);
-
-    const shouldAutoAssign = company.autoAssignEnabled && candidates.length > 0;
-    const assignedTechnicianId = shouldAutoAssign ? candidates[0].id : null;
-
-    const status = assignedTechnicianId ? TicketStatus.ASSIGNED : TicketStatus.NEW;
-
-    const slaMinutes = dto.slaMinutes ?? null;
-    const slaDueAt = slaMinutes ? new Date(Date.now() + slaMinutes * 60_000) : null;
-
-    const ticket = await this.prisma.ticket.create({
-      data: {
-        companyId,
-        parentId: dto.parentId ?? null,
-
-        requesterName: dto.requesterName?.trim() || null,
-        requesterPhone: dto.requesterPhone?.trim() || null,
-        address: dto.address?.trim() || null,
-        pointName: dto.pointName?.trim() || null,
-
-        problemCategoryId: dto.problemCategoryId,
-        problemText: dto.problemText?.trim(),
-
-        urgency: dto.urgency ?? TicketUrgency.NOT_URGENT,
-        slaMinutes,
-        slaDueAt,
-
-        status,
-        assignedTechnicianId,
-      },
-    });
-
-    await this.writeStatusHistory({
-      ticketId: ticket.id,
-      fromStatus: null,
-      toStatus: ticket.status,
-      changedByUserId: null,
-      comment: 'Ticket created',
-    });
-
-    return {
-      ticket,
-      instructions: category.instructions || null,
-      candidates,
-      autoAssigned: !!assignedTechnicianId,
-    };
+  list(
+    companyId: string,
+    userId: string,
+    role: UserRole,
+    status?: TicketStatus,
+    accessFlags?: AccessFlags,
+    linkedClientCompanyId?: string,
+    observerCompanyId?: string,
+  ) {
+    const scope = scopeForClient(role, linkedClientCompanyId, observerCompanyId)
+    return this.query.list(
+      companyId,
+      userId,
+      role,
+      status,
+      accessFlags,
+      scope.linkedClientCompanyId,
+      scope.observerCompanyId,
+    )
   }
 
-  async createChild(companyId: string, creatorRole: UserRole, parentId: string, dto: CreateChildTicketDto) {
-    if (creatorRole !== UserRole.ADMIN && creatorRole !== UserRole.DISPATCHER) {
-      throw new BadRequestException('Only ADMIN or DISPATCHER can create tickets');
-    }
-
-    const parent = await this.prisma.ticket.findFirst({
-      where: { id: parentId, companyId },
-    });
-    if (!parent) throw new NotFoundException('Parent ticket not found');
-
-    const company = await this.getCompany(companyId);
-    const category = await this.getCategory(companyId, dto.problemCategoryId);
-
-    const specializationIds = category.specializationLinks.map((x) => x.specializationId);
-    const candidates = await this.findCandidateTechnicians(companyId, specializationIds);
-
-    const shouldAutoAssign = company.autoAssignEnabled && candidates.length > 0;
-    const assignedTechnicianId = shouldAutoAssign ? candidates[0].id : null;
-
-    const status = assignedTechnicianId ? TicketStatus.ASSIGNED : TicketStatus.NEW;
-
-    const slaMinutes = dto.slaMinutes ?? null;
-    const slaDueAt = slaMinutes ? new Date(Date.now() + slaMinutes * 60_000) : null;
-
-    const ticket = await this.prisma.ticket.create({
-      data: {
-        companyId,
-        parentId: parent.id,
-
-        requesterName: parent.requesterName,
-        requesterPhone: parent.requesterPhone,
-        address: parent.address,
-        pointName: parent.pointName,
-
-        problemCategoryId: dto.problemCategoryId,
-        problemText: dto.problemText?.trim(),
-
-        urgency: dto.urgency ?? TicketUrgency.NOT_URGENT,
-        slaMinutes,
-        slaDueAt,
-
-        status,
-        assignedTechnicianId,
-      },
-    });
-
-    await this.writeStatusHistory({
-      ticketId: ticket.id,
-      fromStatus: null,
-      toStatus: ticket.status,
-      changedByUserId: null,
-      comment: 'Child ticket created',
-    });
-
-    return {
-      ticket,
-      instructions: category.instructions || null,
-      candidates,
-      autoAssigned: !!assignedTechnicianId,
-      parentId: parent.id,
-    };
-  }
-
-  async list(companyId: string, status?: TicketStatus) {
-    return this.prisma.ticket.findMany({
-      where: { companyId, status: status ?? undefined },
-      orderBy: { createdAt: 'desc' },
-      include: {
-        problemCategory: { select: { id: true, name: true } },
-        assignedTechnician: { select: { id: true, email: true } },
-      },
-    });
-  }
-
-  async getOne(companyId: string, ticketId: string) {
-    const ticket = await this.prisma.ticket.findFirst({
-      where: { id: ticketId, companyId },
-      include: {
-        problemCategory: { select: { id: true, name: true, instructions: true } },
-        assignedTechnician: { select: { id: true, email: true } },
-        statusHistory: {
-          orderBy: { createdAt: 'asc' },
-        },
-        parent: {
-          select: {
-            id: true,
-            problemText: true,
-            status: true,
-            createdAt: true,
-          },
-        },
-        children: {
-          orderBy: { createdAt: 'asc' },
-          include: {
-            problemCategory: { select: { id: true, name: true } },
-            assignedTechnician: { select: { id: true, email: true } },
-          },
-        },
-      },
-    });
-
-    if (!ticket) throw new NotFoundException('Ticket not found');
-    return ticket;
-  }
-
-  async assign(companyId: string, ticketId: string, technicianId: string) {
-    const ticket = await this.prisma.ticket.findFirst({ where: { id: ticketId, companyId } });
-    if (!ticket) throw new NotFoundException('Ticket not found');
-
-    const tech = await this.prisma.user.findFirst({
-      where: { id: technicianId, companyId, role: UserRole.TECHNICIAN },
-      select: { id: true },
-    });
-    if (!tech) throw new NotFoundException('Technician not found');
-
-    const updated = await this.prisma.ticket.update({
-      where: { id: ticketId },
-      data: { assignedTechnicianId: technicianId, status: TicketStatus.ASSIGNED },
-    });
-
-    await this.writeStatusHistory({
+  getOne(
+    companyId: string,
+    userId: string,
+    role: UserRole,
+    ticketId: string,
+    accessFlags?: AccessFlags,
+    observerCompanyId?: string,
+    linkedClientCompanyId?: string,
+  ) {
+    const scope = scopeForClient(role, linkedClientCompanyId, observerCompanyId)
+    return this.query.getOne(
+      companyId,
+      userId,
+      role,
       ticketId,
-      fromStatus: ticket.status,
-      toStatus: TicketStatus.ASSIGNED,
-      changedByUserId: null,
-      comment: `Assigned to technician ${technicianId}`,
-    });
-
-    return updated;
+      accessFlags,
+      scope.observerCompanyId,
+      scope.linkedClientCompanyId,
+    )
   }
 
-  async updateStatus(
+  listAttachments(
+    companyId: string,
+    userId: string,
+    role: UserRole,
+    ticketId: string,
+    accessFlags?: AccessFlags,
+    linkedClientCompanyId?: string,
+    observerCompanyId?: string,
+  ) {
+    const scope = scopeForClient(role, linkedClientCompanyId, observerCompanyId)
+    return this.attachments.listForTicket(
+      { id: userId, role, companyId, accessFlags },
+      ticketId,
+      scope.linkedClientCompanyId,
+      scope.observerCompanyId,
+    )
+  }
+
+  uploadDraftAttachment(companyId: string, userId: string, file: any) {
+    return this.attachments.uploadDraftAttachment(companyId, userId, file)
+  }
+
+  uploadTicketAttachment(
+    companyId: string,
+    userId: string,
+    role: UserRole,
+    ticketId: string,
+    file: any,
+    accessFlags?: AccessFlags,
+    linkedClientCompanyId?: string,
+  ) {
+    return this.attachments.uploadToTicket(
+      { id: userId, role, companyId, accessFlags },
+      ticketId,
+      file,
+      linkedClientCompanyId,
+    )
+  }
+
+  deleteDraftAttachment(companyId: string, attachmentId: string) {
+    return this.attachments.deleteDraftAttachment(companyId, attachmentId)
+  }
+
+  deleteTicketAttachment(
+    companyId: string,
+    userId: string,
+    role: UserRole,
+    ticketId: string,
+    attachmentId: string,
+    accessFlags?: AccessFlags,
+    linkedClientCompanyId?: string,
+  ) {
+    return this.attachments.deleteFromTicket(
+      { id: userId, role, companyId, accessFlags },
+      ticketId,
+      attachmentId,
+      linkedClientCompanyId,
+    )
+  }
+
+  update(
+    companyId: string,
+    actor: any,
+    ticketId: string,
+    dto: UpdateTicketDto,
+    linkedClientCompanyId?: string,
+  ) {
+    return this.assignment.update(companyId, actor, ticketId, dto, linkedClientCompanyId)
+  }
+
+  assign(companyId: string, actor: any, ticketId: string, technicianId: string, linkedClientCompanyId?: string) {
+    return this.assignment.assign(companyId, actor, ticketId, technicianId, linkedClientCompanyId)
+  }
+
+  assignSmart(companyId: string, actor: any, ticketId: string, linkedClientCompanyId?: string) {
+    return this.assignment.assignSmart(companyId, actor, ticketId, linkedClientCompanyId)
+  }
+
+  claim(companyId: string, technicianUserId: string, ticketId: string, linkedClientCompanyId?: string) {
+    return this.assignment.claim(companyId, technicianUserId, ticketId, linkedClientCompanyId)
+  }
+
+  listAssignmentCandidates(companyId: string, actor: any, ticketId: string, linkedClientCompanyId?: string) {
+    return this.assignment.listAssignmentCandidates(companyId, actor, ticketId, linkedClientCompanyId)
+  }
+
+  latestAssignmentDecision(companyId: string, actor: any, ticketId: string, linkedClientCompanyId?: string) {
+    return this.assignment.getLatestAssignmentDecision(
+      companyId,
+      { id: actor?.id, role: actor?.role as UserRole, accessFlags: actor?.accessFlags },
+      ticketId,
+      linkedClientCompanyId,
+    )
+  }
+
+  updateStatus(
     companyId: string,
     user: { id?: string } | any,
     role: UserRole,
     ticketId: string,
     dto: { status: TicketStatus; comment?: string },
+    linkedClientCompanyId?: string,
   ) {
-    if (
-      role !== UserRole.ADMIN &&
-      role !== UserRole.DISPATCHER &&
-      role !== UserRole.TECHNICIAN &&
-      role !== UserRole.NETWORK_DIRECTOR
-    ) {
-      throw new BadRequestException('Role cannot change ticket status');
-    }
+    return this.status.updateStatus(companyId, user, role, ticketId, dto, linkedClientCompanyId)
+  }
 
-    const ticket = await this.prisma.ticket.findFirst({
-      where: { id: ticketId, companyId },
-    });
-    if (!ticket) throw new NotFoundException('Ticket not found');
+  addComment(
+    companyId: string,
+    user: { id?: string } | any,
+    role: UserRole,
+    ticketId: string,
+    dto: { comment: string },
+    linkedClientCompanyId?: string,
+  ) {
+    return this.status.addComment(companyId, user, role, ticketId, dto, linkedClientCompanyId)
+  }
 
-    const toStatus = dto.status;
-    const fromStatus = ticket.status;
+  availableForTechnician(companyId: string, technicianUserId: string, linkedClientCompanyId?: string) {
+    return this.assignment.availableForTechnician(companyId, technicianUserId, linkedClientCompanyId)
+  }
 
-    if (!this.canTransition(fromStatus, toStatus)) {
-      throw new BadRequestException(`Invalid status transition: ${fromStatus} -> ${toStatus}`);
-    }
+  requestAssignment(
+    companyId: string,
+    userId: string,
+    role: UserRole,
+    ticketId: string,
+    linkedClientCompanyId?: string,
+  ) {
+    return this.assignment.requestAssignment(companyId, userId, role, ticketId, linkedClientCompanyId)
+  }
 
-    const now = new Date();
-    const shouldMarkBreached =
-      ticket.slaDueAt && !ticket.slaBreachedAt && now > ticket.slaDueAt;
-
-    const updated = await this.prisma.ticket.update({
-      where: { id: ticketId },
-      data: {
-        status: toStatus,
-        slaBreachedAt: shouldMarkBreached ? now : ticket.slaBreachedAt,
-        closedAt: toStatus === TicketStatus.DONE ? now : ticket.closedAt,
-      },
-    });
-
-    await this.writeStatusHistory({
-      ticketId,
-      fromStatus,
-      toStatus,
-      changedByUserId: user?.id ?? null,
-      comment: dto.comment ?? null,
-    });
-
-    return updated;
+  decide(
+    actor: { id: string; role: UserRole; companyId: string; accessFlags?: Record<string, any> },
+    ticketId: string,
+    dto: TicketAcceptanceDto,
+    linkedClientCompanyId?: string,
+  ) {
+    return this.acceptance.decide(actor, ticketId, dto, linkedClientCompanyId)
   }
 }
