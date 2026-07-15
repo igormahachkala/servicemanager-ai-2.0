@@ -1,3 +1,5 @@
+import { createHash } from 'crypto';
+
 import { Injectable, Logger } from '@nestjs/common';
 import type { PushPreference, PushSubscription } from '@prisma/client';
 import * as webpush from 'web-push';
@@ -220,7 +222,9 @@ export class PushService {
           keys: { p256dh: sub.p256dh, auth: sub.auth },
         },
         JSON.stringify(payload),
-        payload.tag ? { headers: { Topic: payload.tag } } : undefined,
+        payload.tag
+          ? { headers: { Topic: this.safeTopic(payload.tag) } }
+          : undefined,
       );
       await this.prisma.pushSubscription.update({
         where: { id: sub.id },
@@ -269,5 +273,16 @@ export class PushService {
     } catch {
       // журнал доставки не критичен — не роняем отправку из-за него
     }
+  }
+
+  /**
+   * Apple-safe значение заголовка `Topic` (collapse-key). Apple (web.push.apple.com)
+   * строже RFC 8030 и отвергает наши теги (`push-test`, `ticketId:type`, `news:id`)
+   * с `BadWebPushTopic` (спецсимволы `:`, дефис, длина >32). Хэшируем тег в 32
+   * hex-символа [0-9a-f] — Apple принимает, а группировка сохраняется (одинаковый
+   * tag → одинаковый Topic). Клиентская группировка идёт отдельно через payload.tag в sw.js.
+   */
+  private safeTopic(tag: string): string {
+    return createHash('sha256').update(tag).digest('hex').slice(0, 32);
   }
 }
