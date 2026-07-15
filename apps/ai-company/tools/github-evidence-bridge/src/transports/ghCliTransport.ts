@@ -4,15 +4,15 @@
 
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
-import type { GitHubEvidenceBridgeConfig } from './config.ts'
-import { buildTransportSnapshot } from './snapshotBuilder.ts'
+import type { GitHubEvidenceBridgeConfig } from '../config.ts'
+import { buildTransportSnapshot } from '../snapshotBuilder.ts'
 import type {
   GitHubEvidenceTransport,
   GitHubEvidenceTransportBranch,
   GitHubEvidenceTransportCheckRun,
   GitHubEvidenceTransportPullRequest,
   GitHubEvidenceTransportRequest,
-} from '../../../src/domain/githubEvidenceReader/githubEvidenceReaderTypes.ts'
+} from '../../../../src/domain/githubEvidenceReader/githubEvidenceReaderTypes.ts'
 
 const execFileAsync = promisify(execFile)
 

@@ -3,9 +3,9 @@
  */
 
 import http from 'node:http'
-import { resolveGitHubExecutionEvidence } from '../../src/domain/githubEvidenceReader/resolveGitHubExecutionEvidence.ts'
-import type { ResolveGitHubExecutionEvidenceInput } from '../../src/domain/githubEvidenceReader/githubEvidenceReaderTypes.ts'
-import { formatGitHubEvidenceReaderEvent } from '../../src/domain/githubEvidenceReader/githubEvidenceReaderObservability.ts'
+import { resolveGitHubExecutionEvidence } from '../../../src/domain/githubEvidenceReader/resolveGitHubExecutionEvidence.ts'
+import type { ResolveGitHubExecutionEvidenceInput } from '../../../src/domain/githubEvidenceReader/githubEvidenceReaderTypes.ts'
+import { formatGitHubEvidenceReaderEvent } from '../../../src/domain/githubEvidenceReader/githubEvidenceReaderObservability.ts'
 import { getGitHubEvidenceBridgeConfig, type GitHubEvidenceBridgeConfig } from './config.ts'
 import { createGitHubEvidenceTransport } from './transports/createTransport.ts'
 

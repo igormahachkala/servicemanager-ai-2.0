@@ -3,7 +3,7 @@
  */
 
 import type { GitHubEvidenceBridgeConfig } from '../config.ts'
-import type { GitHubEvidenceTransport } from '../../../src/domain/githubEvidenceReader/githubEvidenceReaderTypes.ts'
+import type { GitHubEvidenceTransport } from '../../../../src/domain/githubEvidenceReader/githubEvidenceReaderTypes.ts'
 import { createGhCliTransport } from './ghCliTransport.ts'
 import { createGitTransport } from './gitTransport.ts'
 import { createGithubApiTransport } from './githubApiTransport.ts'
