@@ -10,6 +10,7 @@ export default defineConfig({
       'api.servicemanagerai.ru',
       'app.servicemanagerai.ru',
       'max.servicemanagerai.ru',
+      'stage.sma-assistants.ru',
     ],
   },
   preview: {
@@ -18,6 +19,7 @@ export default defineConfig({
       'api.servicemanagerai.ru',
       'app.servicemanagerai.ru',
       'max.servicemanagerai.ru',
+      'stage.sma-assistants.ru',
     ],
   },
 })
