@@ -254,6 +254,7 @@ export class TicketsQueryService {
     providerCompanyId: string
     linkedClientCompanyId?: string
     technicianScope: { companyIds: string[] } | null
+    actor: { id: string; role: UserRole; companyId: string; accessFlags?: AccessFlags }
   }): Promise<Prisma.TicketWhereInput | null> {
     return buildSecondaryOperationalRestrictionWhere({
       prisma: this.prisma,
@@ -261,6 +262,7 @@ export class TicketsQueryService {
       providerCompanyId: params.providerCompanyId,
       linkedClientCompanyId: params.linkedClientCompanyId,
       scopeCompanyIds: params.technicianScope?.companyIds,
+      actor: params.actor,
     })
   }
 
@@ -367,6 +369,7 @@ export class TicketsQueryService {
       providerCompanyId: companyId,
       linkedClientCompanyId,
       technicianScope,
+      actor: { id: userId, role, companyId, accessFlags },
     })
     const whereAfterSecondary =
       secondaryOperationalWhere !== null
@@ -634,6 +637,7 @@ export class TicketsQueryService {
       providerCompanyId: companyId,
       linkedClientCompanyId,
       technicianScope,
+      actor: { id: userId, role, companyId, accessFlags },
     })
     const whereAfterSecondary =
       secondaryOperationalWhere !== null
@@ -767,6 +771,7 @@ export class TicketsQueryService {
       providerCompanyId: companyId,
       linkedClientCompanyId,
       technicianScope,
+      actor: { id: userId, role, companyId, accessFlags },
     })
     const whereAfterSecondary =
       secondaryOperationalWhere !== null

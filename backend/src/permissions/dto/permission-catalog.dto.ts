@@ -16,6 +16,18 @@ export class PermissionCatalogItemDto {
 
   @ApiProperty({ required: false, nullable: true, example: 'Просмотр доски/списка/карточки', description: 'Описание' })
   description?: string | null;
+
+  @ApiProperty({ required: false, example: 'Просмотр заявок', description: 'Product-facing label for business UI' })
+  businessLabel?: string;
+
+  @ApiProperty({ required: false, example: 'Заявки', description: 'Product domain for business grouping' })
+  productDomain?: string;
+
+  @ApiProperty({ required: false, example: 'low', description: 'Risk level for product UI' })
+  riskLevel?: 'low' | 'medium' | 'high';
+
+  @ApiProperty({ required: false, type: [String], example: ['DISPATCHER', 'ADMIN'] })
+  recommendedRoles?: string[];
 }
 
 export class PermissionCatalogResponseDto {

@@ -7,6 +7,11 @@ import { PrismaService } from '../prisma/prisma.service'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
 import { isExecutorCapableRole, isExecutorEligible } from '../common/executor.utils'
 import {
+  interpretUserAccessLocationScope,
+  RESTRICTED_EMPTY_LOCATION_SENTINEL,
+  uniqueLocationIds,
+} from '../common/user-access-scope-mode.utils'
+import {
   buildSpecializationLinksSomeWhereInput,
   normalizeSpecializationLabel,
   specializationNameMatchVariants,
@@ -39,6 +44,7 @@ export const LOCATION_SCOPED_ROLES: UserRole[] = [
 export type LocationScope =
   | { mode: 'tenant_wide'; locationIds: string[] }
   | { mode: 'bound_locations'; locationIds: string[] }
+  | { mode: 'restricted_empty'; locationIds: string[] }
 
 export const PROVIDER_LINKED_OVERVIEW_ROLES: UserRole[] = [
   UserRole.ADMIN,
@@ -65,15 +71,39 @@ function normalizeAnd(
   return { ...where, AND: [...baseArr, ...extra] }
 }
 
+function noAccessWhere(): Prisma.TicketWhereInput {
+  return { id: { equals: '__no_access__' } }
+}
+
 export function applyLocationScopeToTicketWhere(
   where: Prisma.TicketWhereInput,
   locationScope: LocationScope,
 ): Prisma.TicketWhereInput {
-  if (locationScope.mode !== 'bound_locations') return where
-  if (locationScope.locationIds.length === 0) {
-    return normalizeAnd(where, [{ id: { equals: '__no_access__' } }])
+  if (locationScope.mode === 'tenant_wide') return where
+  if (locationScope.mode === 'restricted_empty' || locationScope.locationIds.length === 0) {
+    return normalizeAnd(where, [noAccessWhere()])
   }
   return normalizeAnd(where, [{ locationId: { in: locationScope.locationIds } }])
+}
+
+function applyLocationScopeToLinkedClientWhere(
+  where: Prisma.TicketWhereInput,
+  locationScope: LocationScope,
+): Prisma.TicketWhereInput {
+  if (locationScope.mode === 'tenant_wide') return where
+  if (locationScope.mode === 'restricted_empty' || locationScope.locationIds.length === 0) {
+    return normalizeAnd(where, [noAccessWhere()])
+  }
+  return normalizeAnd(where, [{ locationId: { in: locationScope.locationIds } }])
+}
+
+function isTicketAllowedByLocationScope(
+  ticket: { locationId: string | null },
+  locationScope: LocationScope,
+) {
+  if (locationScope.mode === 'tenant_wide') return true
+  if (locationScope.mode === 'restricted_empty' || locationScope.locationIds.length === 0) return false
+  return !!ticket.locationId && locationScope.locationIds.includes(ticket.locationId)
 }
 
 export async function resolveActorLocationScope(params: {
@@ -88,47 +118,54 @@ export async function resolveActorLocationScope(params: {
       : null
 
   if (!scopeCompanyId) {
-    return { mode: 'tenant_wide', locationIds: [] }
+    return { mode: 'restricted_empty', locationIds: [] }
   }
 
-  if (!LOCATION_SCOPED_ROLES.includes(params.actor.role)) {
-    return { mode: 'tenant_wide', locationIds: [] }
-  }
-
-  if (
+  const linkedClientScope =
     scopeCompanyId !== params.actor.companyId &&
-    !PROVIDER_LINKED_OPERATION_ROLES.includes(params.actor.role)
-  ) {
-    return { mode: 'tenant_wide', locationIds: [] }
-  }
+    PROVIDER_LINKED_OPERATION_ROLES.includes(params.actor.role)
 
   /**
    * UserLocationBinding.companyId — компания сотрудника (провайдер).
    * У точки clientCompanyId = клиентский tenant.
    * Для контура linked client ищем привязки по employer companyId + локации клиента.
    */
-  const linkedClientScope =
-    scopeCompanyId !== params.actor.companyId &&
-    PROVIDER_LINKED_OPERATION_ROLES.includes(params.actor.role)
   const bindingEmployerCompanyId = linkedClientScope ? params.actor.companyId : scopeCompanyId
 
-  const bindings = await params.prisma.userLocationBinding.findMany({
-    where: {
-      userId: params.actor.id,
-      companyId: bindingEmployerCompanyId,
-      location: { clientCompanyId: scopeCompanyId },
-    },
-    select: { locationId: true },
+  const [accessScope, bindings] = await Promise.all([
+    params.prisma.userAccessScope?.findUnique
+      ? params.prisma.userAccessScope.findUnique({
+          where: {
+            userId_companyId: {
+              userId: params.actor.id,
+              companyId: bindingEmployerCompanyId,
+            },
+          },
+          select: { locationMode: true },
+        })
+      : Promise.resolve(null),
+    params.prisma.userLocationBinding.findMany({
+      where: {
+        userId: params.actor.id,
+        companyId: bindingEmployerCompanyId,
+        location: { clientCompanyId: scopeCompanyId },
+      },
+      select: { locationId: true },
+    }),
+  ])
+
+  const interpreted = interpretUserAccessLocationScope({
+    explicitLocationMode: accessScope?.locationMode,
+    locationIds: bindings.map((item) => item.locationId),
   })
 
-  const locationIds = Array.from(new Set(bindings.map((item) => item.locationId)))
-  if (locationIds.length === 0) {
-    return { mode: 'tenant_wide', locationIds: [] }
+  if (scopeCompanyId !== params.actor.companyId && !linkedClientScope) {
+    return { mode: 'restricted_empty', locationIds: [] }
   }
 
   return {
-    mode: 'bound_locations',
-    locationIds,
+    mode: interpreted.runtimeMode,
+    locationIds: interpreted.locationIds,
   }
 }
 
@@ -176,7 +213,10 @@ export async function assertActorCanUseLocation(params: {
     scopeCompanyId: params.scopeCompanyId,
   })
 
-  if (locationScope.mode === 'bound_locations' && !locationScope.locationIds.includes(params.locationId)) {
+  if (
+    locationScope.mode === 'restricted_empty' ||
+    (locationScope.mode === 'bound_locations' && !locationScope.locationIds.includes(params.locationId))
+  ) {
     throw new ForbiddenException('Location is not available in current user scope')
   }
 
@@ -310,20 +350,43 @@ export async function resolveTechnicianOperationalScope(params: {
     select: {
       companyId: true,
       locationId: true,
+      location: { select: { clientCompanyId: true } },
     },
   })
+  const accessScope = params.prisma.userAccessScope?.findUnique
+    ? await params.prisma.userAccessScope.findUnique({
+        where: {
+          userId_companyId: {
+            userId: params.actor.id,
+            companyId: params.actor.companyId,
+          },
+        },
+        select: { locationMode: true },
+      })
+    : null
   const locationScopeByCompany: Record<string, string[]> = {}
   for (const companyId of companyIds) {
     locationScopeByCompany[companyId] = []
   }
   for (const binding of bindings) {
-    if (!locationScopeByCompany[binding.companyId]) {
-      locationScopeByCompany[binding.companyId] = []
+    const scopeCompanyId = binding.location?.clientCompanyId ?? binding.companyId
+    if (!locationScopeByCompany[scopeCompanyId]) {
+      locationScopeByCompany[scopeCompanyId] = []
     }
-    locationScopeByCompany[binding.companyId].push(binding.locationId)
+    locationScopeByCompany[scopeCompanyId].push(binding.locationId)
   }
   for (const companyId of Object.keys(locationScopeByCompany)) {
-    locationScopeByCompany[companyId] = Array.from(new Set(locationScopeByCompany[companyId]))
+    const interpreted = interpretUserAccessLocationScope({
+      explicitLocationMode: accessScope?.locationMode,
+      locationIds: locationScopeByCompany[companyId],
+    })
+    locationScopeByCompany[companyId] = interpreted.locationIds
+    if (
+      interpreted.runtimeMode === 'restricted_empty' ||
+      (interpreted.locationIds.length === 0 && interpreted.locationMode === 'SELECTED_LOCATIONS')
+    ) {
+      locationScopeByCompany[companyId] = [RESTRICTED_EMPTY_LOCATION_SENTINEL]
+    }
   }
 
   return {
@@ -467,7 +530,26 @@ async function buildSecondaryOperationalScopeWhere(params: {
   prisma: PrismaService
   providerCompanyId: string
   linkedClientCompanyId: string
+  actor?: TicketAccessActor
 }): Promise<Prisma.TicketWhereInput> {
+  const actorLocationScope = params.actor
+    ? await resolveActorLocationScope({
+        prisma: params.prisma,
+        actor: params.actor,
+        scopeCompanyId: params.linkedClientCompanyId,
+      })
+    : ({ mode: 'tenant_wide', locationIds: [] } as LocationScope)
+  if (actorLocationScope.mode === 'restricted_empty') {
+    return noAccessWhere()
+  }
+  const selectedLocationIds =
+    actorLocationScope.mode === 'bound_locations'
+      ? uniqueLocationIds(actorLocationScope.locationIds)
+      : null
+  if (selectedLocationIds && selectedLocationIds.length === 0) {
+    return noAccessWhere()
+  }
+
   const executors = await params.prisma.user.findMany({
     where: { companyId: params.providerCompanyId, isExecutor: true },
     select: { id: true },
@@ -481,18 +563,26 @@ async function buildSecondaryOperationalScopeWhere(params: {
     },
     select: { locationId: true },
   })
-  const boundLocationIds = Array.from(new Set(locationBindings.map((b) => b.locationId)))
+  const providerBoundLocationIds = uniqueLocationIds(locationBindings.map((b) => b.locationId))
+  const boundLocationIds = selectedLocationIds
+    ? providerBoundLocationIds.filter((locationId) => selectedLocationIds.includes(locationId))
+    : providerBoundLocationIds
 
   const orClauses: Prisma.TicketWhereInput[] = []
   if (executorIds.length > 0) {
-    orClauses.push({ assignedTechnicianId: { in: executorIds } })
+    const executorWhere: Prisma.TicketWhereInput = { assignedTechnicianId: { in: executorIds } }
+    orClauses.push(
+      selectedLocationIds
+        ? { AND: [executorWhere, { locationId: { in: selectedLocationIds } }] }
+        : executorWhere,
+    )
   }
   if (boundLocationIds.length > 0) {
     orClauses.push({ locationId: { in: boundLocationIds } })
   }
 
   if (orClauses.length === 0) {
-    return { id: { equals: '__no_access__' } }
+    return noAccessWhere()
   }
   return { OR: orClauses }
 }
@@ -507,6 +597,7 @@ export async function buildSecondaryOperationalTicketWhere(params: {
   serviceContractsService: ServiceContractsService
   providerCompanyId: string
   linkedClientCompanyId: string
+  actor?: TicketAccessActor
 }): Promise<Prisma.TicketWhereInput | null> {
   const access = await params.serviceContractsService.getLinkedClientAccess(
     params.providerCompanyId,
@@ -519,6 +610,7 @@ export async function buildSecondaryOperationalTicketWhere(params: {
     prisma: params.prisma,
     providerCompanyId: params.providerCompanyId,
     linkedClientCompanyId: params.linkedClientCompanyId,
+    actor: params.actor,
   })
 }
 
@@ -528,6 +620,7 @@ export async function buildSecondaryOperationalRestrictionWhere(params: {
   providerCompanyId: string
   linkedClientCompanyId?: string
   scopeCompanyIds?: string[]
+  actor?: TicketAccessActor
 }): Promise<Prisma.TicketWhereInput | null> {
   if (params.linkedClientCompanyId && params.linkedClientCompanyId !== params.providerCompanyId) {
     return buildSecondaryOperationalTicketWhere({
@@ -535,6 +628,7 @@ export async function buildSecondaryOperationalRestrictionWhere(params: {
       serviceContractsService: params.serviceContractsService,
       providerCompanyId: params.providerCompanyId,
       linkedClientCompanyId: params.linkedClientCompanyId,
+      actor: params.actor,
     })
   }
 
@@ -552,6 +646,7 @@ export async function buildSecondaryOperationalRestrictionWhere(params: {
       serviceContractsService: params.serviceContractsService,
       providerCompanyId: params.providerCompanyId,
       linkedClientCompanyId: clientId,
+      actor: params.actor,
     })
     if (secondaryWhere) {
       secondaryClauses.push({
@@ -644,6 +739,7 @@ export async function resolveReadableTicketAccess(params: {
       providerCompanyId: params.actor.companyId,
       linkedClientCompanyId: params.linkedClientCompanyId,
       scopeCompanyIds: technicianScope.companyIds,
+      actor: params.actor,
     })
     const executorWhere = secondaryOperationalWhere
       ? { AND: [executorBaseWhere, secondaryOperationalWhere] }
@@ -692,6 +788,7 @@ export async function resolveReadableTicketAccess(params: {
       select: {
         id: true,
         companyId: true,
+        locationId: true,
         assignedTechnicianId: true,
       },
     })
@@ -711,6 +808,7 @@ export async function resolveReadableTicketAccess(params: {
       select: {
         id: true,
         companyId: true,
+        locationId: true,
         assignedTechnicianId: true,
       },
     })
@@ -737,18 +835,27 @@ export async function resolveReadableTicketAccess(params: {
     // so detail access matches the board/list restriction and never leaks unrelated tickets.
     const perClientClauses: Prisma.TicketWhereInput[] = []
     for (const clientId of linkedClientIds) {
-      const clause: Prisma.TicketWhereInput = { companyId: clientId }
+      const actorClientLocationScope = await resolveActorLocationScope({
+        prisma: params.prisma,
+        actor: params.actor,
+        scopeCompanyId: clientId,
+      })
+      let clause: Prisma.TicketWhereInput = applyLocationScopeToLinkedClientWhere(
+        { companyId: clientId },
+        actorClientLocationScope,
+      )
       if (params.actor.role === UserRole.TECHNICIAN) {
-        clause.assignedTechnicianId = params.actor.id
+        clause = normalizeAnd(clause, [{ assignedTechnicianId: params.actor.id }])
       } else {
         const secondaryWhere = await buildSecondaryOperationalTicketWhere({
           prisma: params.prisma,
           serviceContractsService: params.serviceContractsService,
           providerCompanyId: params.actor.companyId,
           linkedClientCompanyId: clientId,
+          actor: params.actor,
         })
         if (secondaryWhere) {
-          clause.AND = [secondaryWhere]
+          clause = normalizeAnd(clause, [secondaryWhere])
         }
       }
       perClientClauses.push(clause)
@@ -795,9 +902,9 @@ export async function resolveReadableTicketAccess(params: {
 
   if (directTicket) {
     if (
-      locationScope.mode === 'bound_locations' &&
-      directTicket.companyId === params.actor.companyId &&
-      !locationScope.locationIds.includes(directTicket.locationId)
+      (locationScope.mode === 'restricted_empty' ||
+        (locationScope.mode === 'bound_locations' && !locationScope.locationIds.includes(directTicket.locationId))) &&
+      directTicket.companyId === params.actor.companyId
     ) {
       throw new NotFoundException('Ticket not found')
     }
@@ -820,6 +927,15 @@ export async function resolveReadableTicketAccess(params: {
         throw new NotFoundException('Ticket not found')
       }
 
+      const linkedLocationScope = await resolveActorLocationScope({
+        prisma: params.prisma,
+        actor: params.actor,
+        scopeCompanyId: directTicket.companyId,
+      })
+      if (!isTicketAllowedByLocationScope(directTicket, linkedLocationScope)) {
+        throw new NotFoundException('Ticket not found')
+      }
+
       // SECONDARY providers only get detail access inside their operational scope
       // (assigned executor / bound location) — same restriction as board/list.
       if (access.role === ServiceContractRole.SECONDARY) {
@@ -827,6 +943,7 @@ export async function resolveReadableTicketAccess(params: {
           prisma: params.prisma,
           providerCompanyId: params.actor.companyId,
           linkedClientCompanyId: directTicket.companyId,
+          actor: params.actor,
         })
         const inScope = await params.prisma.ticket.findFirst({
           where: { AND: [{ id: params.ticketId, companyId: directTicket.companyId }, secondaryScopeWhere] },
@@ -858,12 +975,13 @@ export async function resolveReadableTicketAccess(params: {
           locationId: directTicket.locationId,
           locationScopeByCompany: executorScope.locationScopeByCompany,
         })
-        const canReadAssigned = directTicket.assignedTechnicianId === params.actor.id
+        const canReadAssigned = directTicket.assignedTechnicianId === params.actor.id && locationAllowed
         const secondaryScopeWhere = await buildSecondaryOperationalTicketWhere({
           prisma: params.prisma,
           serviceContractsService: params.serviceContractsService,
           providerCompanyId: params.actor.companyId,
           linkedClientCompanyId: directTicket.companyId,
+          actor: params.actor,
         })
         const secondaryScopedTicket =
           secondaryScopeWhere && directTicket.status === 'NEW' && !directTicket.assignedTechnicianId

@@ -18,7 +18,13 @@ import { PermissionsService } from './permissions.service';
 import { PermissionCatalogResponseDto } from './dto/permission-catalog.dto';
 import { RoleMatrixResponseDto } from './dto/role-matrix.dto';
 import { UpdateMatrixDto } from './dto/update-matrix.dto';
-import { RemoveLocationBindingsDto, ReplaceLocationBindingsDto, UserPermissionCodesDto } from './dto/user-access-management.dto';
+import {
+  AccessDraftPreviewDto,
+  RemoveLocationBindingsDto,
+  ReplaceAllLocationBindingsDto,
+  ReplaceLocationBindingsDto,
+  UserPermissionCodesDto,
+} from './dto/user-access-management.dto';
 
 /**
  * Платформа → Роли и права.
@@ -90,6 +96,40 @@ export class PermissionsController {
       actorCompanyId: req.user.companyId,
       actorRole: req.user.role as UserRole,
       requestedCompanyId: companyId,
+    });
+  }
+
+  @Get('users/access-summary')
+  @Roles(UserRole.ADMIN, UserRole.PLATFORM_ADMIN)
+  @ApiOperation({ summary: 'List-ready user access summaries for Access Constructor' })
+  @ApiQuery({ name: 'companyId', required: false, description: 'Required for PLATFORM_ADMIN cross-company scope' })
+  @ApiQuery({ name: 'q', required: false })
+  @ApiQuery({ name: 'role', required: false })
+  @ApiQuery({ name: 'status', required: false, enum: ['active', 'inactive'] })
+  @ApiQuery({ name: 'issue', required: false })
+  @ApiQuery({ name: 'skip', required: false })
+  @ApiQuery({ name: 'take', required: false })
+  async getAccessSummary(
+    @Req() req: any,
+    @Query('companyId') companyId?: string,
+    @Query('q') q?: string,
+    @Query('role') role?: string,
+    @Query('status') status?: string,
+    @Query('issue') issue?: string,
+    @Query('skip') skip?: string,
+    @Query('take') take?: string,
+  ) {
+    return this.permissionsService.getAccessSummary({
+      actorId: req.user.id,
+      actorCompanyId: req.user.companyId,
+      actorRole: req.user.role as UserRole,
+      requestedCompanyId: companyId,
+      q,
+      role,
+      status,
+      issue,
+      skip,
+      take,
     });
   }
 
@@ -255,6 +295,29 @@ export class PermissionsController {
     });
   }
 
+  @Put('users/:userId/location-bindings/all')
+  @Roles(UserRole.ADMIN, UserRole.PLATFORM_ADMIN)
+  @ApiOperation({ summary: 'Grouped body-safe replacement of user location bindings' })
+  @ApiQuery({ name: 'companyId', required: false, description: 'Target company scope for PLATFORM_ADMIN' })
+  @ApiOkResponse({ description: 'Updated user location bindings or unchanged current bindings' })
+  @ApiForbiddenResponse({ description: 'Locations must belong to allowed active client contours' })
+  @ApiNotFoundResponse({ description: 'User not found in target scope' })
+  async replaceAllLocationBindings(
+    @Req() req: any,
+    @Param('userId', new ParseUUIDPipe({ version: '4' })) userId: string,
+    @Body() dto: ReplaceAllLocationBindingsDto,
+    @Query('companyId') companyId?: string,
+  ) {
+    return this.permissionsService.replaceAllLocationBindings({
+      actorId: req.user.id,
+      actorCompanyId: req.user.companyId,
+      actorRole: req.user.role as UserRole,
+      requestedCompanyId: companyId,
+      userId,
+      groups: dto.groups,
+    });
+  }
+
   @Get('client-contours')
   @Roles(UserRole.ADMIN, UserRole.PLATFORM_ADMIN)
   @ApiOperation({ summary: 'Read client company contours available to the acting admin/provider' })
@@ -266,6 +329,26 @@ export class PermissionsController {
       actorCompanyId: req.user.companyId,
       actorRole: req.user.role as UserRole,
       requestedCompanyId: companyId,
+    });
+  }
+
+  @Get('location-options')
+  @Roles(UserRole.ADMIN, UserRole.PLATFORM_ADMIN)
+  @ApiOperation({ summary: 'Read contour-aware location options for Access Constructor' })
+  @ApiQuery({ name: 'companyId', required: false, description: 'Provider/client company scope for PLATFORM_ADMIN' })
+  @ApiQuery({ name: 'clientCompanyIds', required: true, description: 'Comma-separated or repeated client company ids' })
+  @ApiOkResponse({ description: 'Client/city/location hierarchy' })
+  async getLocationOptions(
+    @Req() req: any,
+    @Query('clientCompanyIds') clientCompanyIds: string | string[],
+    @Query('companyId') companyId?: string,
+  ) {
+    return this.permissionsService.getLocationOptions({
+      actorId: req.user.id,
+      actorCompanyId: req.user.companyId,
+      actorRole: req.user.role as UserRole,
+      requestedCompanyId: companyId,
+      clientCompanyIds,
     });
   }
 
@@ -283,6 +366,31 @@ export class PermissionsController {
       actorRole: req.user.role as UserRole,
       requestedCompanyId: companyId,
       userId,
+    });
+  }
+
+  @Post('users/:userId/preview-draft')
+  @Roles(UserRole.ADMIN, UserRole.PLATFORM_ADMIN)
+  @ApiOperation({ summary: 'Preview proposed access changes without writes' })
+  @ApiQuery({ name: 'companyId', required: false, description: 'Target company scope for PLATFORM_ADMIN' })
+  @ApiOkResponse({ description: 'Read-only draft access preview' })
+  @ApiForbiddenResponse({ description: 'Uses the same authorization as write endpoints' })
+  @ApiNotFoundResponse({ description: 'User not found in target scope' })
+  async previewDraft(
+    @Req() req: any,
+    @Param('userId', new ParseUUIDPipe({ version: '4' })) userId: string,
+    @Body() dto: AccessDraftPreviewDto,
+    @Query('companyId') companyId?: string,
+  ) {
+    return this.permissionsService.previewDraft({
+      actorId: req.user.id,
+      actorCompanyId: req.user.companyId,
+      actorRole: req.user.role as UserRole,
+      requestedCompanyId: companyId,
+      userId,
+      additivePermissionCodes: dto.additivePermissionCodes,
+      locationIds: dto.locationIds,
+      selectedClientContourIds: dto.selectedClientContourIds,
     });
   }
 }
