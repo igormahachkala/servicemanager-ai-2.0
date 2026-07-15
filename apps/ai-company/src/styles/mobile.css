@@ -5495,3 +5495,67 @@ html.acMobileGuideActive .acMobileContent {
 .acMobileRegistryProfileList li + li {
   margin-top: 4px;
 }
+
+.acMobileConnectionsPage .acMobileConnectionCard,
+.acMobileConnectionsPage .acMobileConnectionCatalogCard,
+.acMobileConnectionsPage .acMobileConnectionLegacyCard {
+  border: 1px solid var(--theme-border);
+  border-radius: var(--mobile-radius-md);
+  background: var(--theme-surface);
+  padding: var(--mobile-spacing-md);
+  margin-bottom: var(--mobile-spacing-sm);
+}
+
+.acMobileConnectionCardHead,
+.acMobileConnectionCatalogCard {
+  display: flex;
+  gap: var(--mobile-spacing-sm);
+  align-items: flex-start;
+}
+
+.acConnectionProviderIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: var(--mobile-radius-sm);
+  background: color-mix(in srgb, var(--theme-accent) 12%, var(--theme-surface));
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.acMobileConnectionMeta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--mobile-spacing-xs);
+  margin: var(--mobile-spacing-sm) 0;
+}
+
+.acMobileConnectionMeta dt {
+  font-size: 0.75rem;
+  color: var(--theme-text-secondary);
+}
+
+.acMobileConnectionActions,
+.acMobileConnectionFilters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--mobile-spacing-xs);
+}
+
+.acMobileConnectionSetup .acMobileField,
+.acMobileConnectionSetup .acMobileCheckboxField {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: var(--mobile-spacing-sm);
+}
+
+.acMobileConnectionsWarning {
+  color: var(--theme-warning, #b45309);
+}
+
+.acMobileConnectionsNotice {
+  color: var(--theme-text-secondary);
+}

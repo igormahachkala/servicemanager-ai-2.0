@@ -6,6 +6,7 @@ export {
   isMobileEmployeeEnabled,
   listMobileEmployeeRegistry,
   mobileEmployeeChatPath,
+  mobileEmployeeConnectionsPath,
   mobileEmployeeProfilePath,
   mobileEmployeeRouteAlias,
   mobileEmployeeTasksNewPath,

@@ -41,10 +41,21 @@ function createGitHubEvidenceDevRelay(): Record<string, ProxyOptions> {
   }
 }
 
+function createConnectionsDevRelay(): Record<string, ProxyOptions> {
+  return {
+    '/runtime/connections': {
+      target: 'http://127.0.0.1:17321',
+      changeOrigin: true,
+      rewrite: (path: string) => path.replace(/^\/runtime\/connections/, ''),
+    },
+  }
+}
+
 function createDevProxy(): Record<string, ProxyOptions> {
   return {
     ...createOllamaDevRelay(),
     ...createGitHubEvidenceDevRelay(),
+    ...createConnectionsDevRelay(),
   }
 }
 

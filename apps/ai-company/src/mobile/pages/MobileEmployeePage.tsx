@@ -6,6 +6,7 @@ import {
   getDefaultMobileEmployeeId,
   hasMobileEmployeeCapability,
   mobileEmployeeChatPath,
+  mobileEmployeeConnectionsPath,
   mobileEmployeeProfilePath,
   mobileEmployeeTasksNewPath,
   resolveMobileEmployeeFromRoute,
@@ -111,6 +112,14 @@ export function MobileEmployeePage() {
             profile={profile.snapshot.registryProfile}
             copy={copy.registryProfile}
           />
+        </MobileSection>
+      ) : null}
+
+      {hasMobileEmployeeCapability(employeeId, 'connections') ? (
+        <MobileSection title={t.mobile.employeeConnections.pageTitle}>
+          <Link to={mobileEmployeeConnectionsPath(employeeId)} className="acMobilePrimaryBtn">
+            {t.mobile.employeeConnections.actions.addTool}
+          </Link>
         </MobileSection>
       ) : null}
 

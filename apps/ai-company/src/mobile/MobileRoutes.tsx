@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { getDefaultMobileEmployeeId } from '../domain/mobileEmployee'
 import { MobileAppShell } from './layout/MobileAppShell'
+import { MobileEmployeeConnectionsPage } from './pages/MobileEmployeeConnectionsPage'
 import { MobileEmployeePage } from './pages/MobileEmployeePage'
 import { MobileEmployeesPage } from './pages/MobileEmployeesPage'
 import { MobileDecisionsPage } from './pages/MobileDecisionsPage'
@@ -26,6 +27,7 @@ export function MobileRoutes() {
       <Routes>
         <Route index element={<Navigate to="today" replace />} />
         <Route path="today" element={<MobileTodayPage />} />
+        <Route path="employees/:id/connections" element={<MobileEmployeeConnectionsPage />} />
         <Route path="employees/:id" element={<MobileEmployeePage />} />
         <Route path="employees" element={<MobileEmployeesPage />} />
         <Route path="tasks/new" element={<MobileRunTaskPage />} />

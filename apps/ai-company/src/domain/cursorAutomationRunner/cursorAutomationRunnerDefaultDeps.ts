@@ -2,6 +2,8 @@
  * Cursor Automation Runner — default storage deps (AI-COMPANY-113 + 114).
  */
 
+import { BUILDER_EMPLOYEE_ID } from '../mobileEmployee'
+import { resolveCursorAutomationWebhookConfigFromConnections } from '../employeeConnections/connectionRuntimeIntegration'
 import { createEmployeeToolReview, getEmployeeToolReviewByRunId } from '../employeeToolReview/employeeToolReviewStorage'
 import { resolveGitHubExecutionEvidenceViaBridge } from '../githubEvidenceReader/githubEvidenceReaderClient'
 import {
@@ -15,7 +17,6 @@ import {
 import { reconcileCursorAutomationResult, type ReconcileCursorAutomationDeps } from './cursorAutomationReconciliation'
 import type { ReconcileCursorAutomationInput, RunCursorAutomationInput } from './cursorAutomationRunnerTypes'
 import { formatCursorAutomationRunnerEvent } from './cursorAutomationRunnerObservability'
-import { resolveCursorAutomationWebhookConfig } from './cursorAutomationWebhookConfig'
 import { runCursorAutomation, type RunCursorAutomationDeps } from './runCursorAutomation'
 
 function noopPostReviewCard(): void {
@@ -30,7 +31,8 @@ export function createDefaultRunCursorAutomationDeps(
     markQueued: markToolExecutionQueued,
     markRunning: markToolExecutionRunning,
     markFailed: failToolExecutionRun,
-    resolveWebhookConfig: resolveCursorAutomationWebhookConfig,
+    resolveWebhookConfig: () =>
+      resolveCursorAutomationWebhookConfigFromConnections(BUILDER_EMPLOYEE_ID),
     logEvent: (event) => {
       if (typeof console !== 'undefined') {
         console.info(formatCursorAutomationRunnerEvent(event))

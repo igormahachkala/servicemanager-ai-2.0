@@ -23,6 +23,7 @@ export type MobileEmployeeCapability =
   | 'worker_loop'
   | 'cursor_handoff'
   | 'standard_task_quick_start'
+  | 'connections'
 
 export type MobileEmployeeRegistryEntry = {
   employeeId: string
@@ -47,6 +48,7 @@ const MOBILE_EMPLOYEE_REGISTRY: MobileEmployeeRegistryEntry[] = [
       'worker_loop',
       'cursor_handoff',
       'standard_task_quick_start',
+      'connections',
     ],
   },
   {
@@ -62,6 +64,7 @@ const MOBILE_EMPLOYEE_REGISTRY: MobileEmployeeRegistryEntry[] = [
       'conversation_memory',
       'runtime_live',
       'worker_loop',
+      'connections',
     ],
   },
 ]
@@ -130,6 +133,10 @@ export function mobileEmployeeChatPath(employeeId: string): string {
 
 export function mobileEmployeeTasksNewPath(employeeId: string): string {
   return `/mobile/tasks/new?employee=${encodeURIComponent(resolveCanonicalEmployeeId(employeeId))}`
+}
+
+export function mobileEmployeeConnectionsPath(employeeId: string): string {
+  return `/mobile/employees/${mobileEmployeeRouteAlias(employeeId)}/connections`
 }
 
 /** Primary mobile employee for default redirects. */
