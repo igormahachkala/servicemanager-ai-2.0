@@ -31,6 +31,7 @@ import { InspectionRunPage } from './views/InspectionRunPage'
 import { InspectionRunReportPage } from './views/InspectionRunReportPage'
 import { InspectionQuickPage } from './views/InspectionQuickPage'
 import { MapPage } from './pages/MapPage'
+import { AccessConstructorPage } from './pages/platform/AccessConstructorPage'
 import { PermissionsPage } from './pages/platform/PermissionsPage'
 import { ManagementV2StubPage } from './views/v2/ManagementV2StubPage'
 import { ContractorsRoutePage } from './views/v2/ContractorsRoutePage'
@@ -160,6 +161,7 @@ export function AppRoutes() {
         <Route path="contractors" element={<ContractorsRoutePage />} />
         <Route path="acts" element={<ManagementV2StubPage />} />
         <Route path="permissions" element={<PermissionsPage />} />
+        <Route path="access-constructor" element={<AccessConstructorPage />} />
         <Route path="assistant" element={<ManagementV2StubPage />} />
         <Route path="companies" element={<CompaniesPage />} />
         <Route path="service-contracts" element={<ServiceContractsPage />} />
@@ -173,6 +175,7 @@ export function AppRoutes() {
         <Route path="settings" element={<SettingsPage />} />
         <Route path="company" element={<CompanyPage />} />
         <Route path="platform/permissions" element={<PermissionsPage />} />
+        <Route path="platform/access-constructor" element={<AccessConstructorPage />} />
         <Route path="technician" element={<TechnicianPage />} />
         <Route path="map" element={<MapPage />} />
         <Route path="problem-categories" element={<ProblemCategoriesPage />} />

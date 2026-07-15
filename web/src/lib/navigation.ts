@@ -25,6 +25,7 @@ const tenantDesktopNavItems: NavItem[] = [
   { id: 'tickets', label: 'Заявки', to: '/tickets' },
   { id: 'ticketsNew', label: 'Новая заявка', to: '/tickets/new' },
   { id: 'employees', label: 'Сотрудники', to: '/employees' },
+  { id: 'accessConstructor', label: 'Конструктор доступа', to: '/access-constructor' },
   { id: 'specializations', label: 'Специализации', to: '/specializations' },
   { id: 'problemCategories', label: 'Категории проблем', to: '/problem-categories' },
   { id: 'locations', label: 'Точки', to: '/locations' },

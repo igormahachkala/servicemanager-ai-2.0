@@ -60,6 +60,9 @@ function isActivePath(currentPath: string, targetPath: string) {
   if (targetPath === '/permissions') {
     return currentPath.startsWith('/permissions') || currentPath.startsWith('/platform/permissions')
   }
+  if (targetPath === '/access-constructor') {
+    return currentPath.startsWith('/access-constructor') || currentPath.startsWith('/platform/access-constructor')
+  }
   if (targetPath === '/assistant') return currentPath.startsWith('/assistant')
   if (targetPath === '/companies') return currentPath.startsWith('/companies')
   if (targetPath === '/service-contracts') return currentPath.startsWith('/service-contracts')
@@ -103,6 +106,9 @@ function isNavItemVisible(item: NavItem, role?: api.Role, canAccessEngineeringAg
   const fullAdmin = api.isFullAdminDesktopNavRole(role)
 
   if (item.to === '/employees' || item.to === '/locations' || item.to === '/problem-categories' || item.to === '/specializations') {
+    return fullAdmin
+  }
+  if (item.to === '/access-constructor') {
     return fullAdmin
   }
 

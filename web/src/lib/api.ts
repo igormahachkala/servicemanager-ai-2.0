@@ -2020,6 +2020,10 @@ export type PermissionCatalogItem = {
   name: string
   category: string
   description?: string | null
+  businessLabel?: string
+  productDomain?: string
+  riskLevel?: 'low' | 'medium' | 'high'
+  recommendedRoles?: string[]
 }
 
 export type PermissionMatrixEntry = {
@@ -2052,6 +2056,414 @@ export async function applyPermissionChanges(changes: PermissionMatrixChange[]):
     body: { changes },
   })
   return res.roles || []
+}
+
+// ── Access Constructor V1 endpoints ─────────────────────────────────────────
+export type AccessConstructorCompany = {
+  id: string
+  name: string
+  type: CompanyType
+}
+
+export type AccessConstructorUser = UserListItem & {
+  companyId?: string
+}
+
+export type AccessPermissionMeta = {
+  code: string
+  name: string
+  description?: string | null
+}
+
+export type AccessPermissionEntry = AccessPermissionMeta & {
+  source: 'role' | 'override'
+}
+
+export type AccessConstructorListEntry = {
+  user: AccessConstructorUser
+  permissions: {
+    roleCodes: string[]
+    overrideCodes: string[]
+    effectiveCodes: string[]
+    counts: {
+      role: number
+      overrides: number
+      effective: number
+    }
+  }
+}
+
+export type AccessConstructorUsersResponse = {
+  company: AccessConstructorCompany
+  users: AccessConstructorListEntry[]
+}
+
+export type AccessLocationMode = 'LEGACY_AUTO' | 'SELECTED_LOCATIONS' | 'RESTRICTED_EMPTY'
+export type AccessIssueFlag = 'no_locations' | 'stale_bindings' | 'elevated_overrides' | 'restricted_empty' | string
+
+export type AccessSummaryEntry = {
+  user: AccessConstructorUser
+  role: Role
+  company: AccessConstructorCompany
+  companyType: CompanyType
+  isActive: boolean
+  additiveOverrideCount: number
+  effectiveLocationBindingCount: number
+  staleBindingCount: number
+  availableClientContourCount: number
+  accessibleCompanyCount: number
+  accessibleLocationCount: number
+  locationMode: AccessLocationMode
+  ticketVisibilityMode: string
+  issueFlags: AccessIssueFlag[]
+  permissions: {
+    roleCodes: string[]
+    overrideCodes: string[]
+    effectiveCodes: string[]
+  }
+}
+
+export type AccessSummaryResponse = {
+  company: AccessConstructorCompany
+  page: {
+    total: number
+    skip: number
+    take: number
+  }
+  users: AccessSummaryEntry[]
+}
+
+export type AccessSummaryQuery = {
+  companyId?: string
+  q?: string
+  role?: string
+  status?: 'active' | 'inactive' | ''
+  issue?: string
+  skip?: number
+  take?: number
+}
+
+export type AccessEffectivePermissionsResponse = {
+  company: AccessConstructorCompany
+  user: AccessConstructorUser
+  permissions: {
+    role: AccessPermissionEntry[]
+    overrides: AccessPermissionEntry[]
+    effective: AccessPermissionEntry[]
+    codes: {
+      role: string[]
+      overrides: string[]
+      effective: string[]
+    }
+  }
+}
+
+export type AccessUserOverridesResponse = {
+  company: AccessConstructorCompany
+  user: AccessConstructorUser
+  overrides: AccessPermissionMeta[]
+  codes: string[]
+  count: number
+}
+
+export type AccessClientContour = {
+  id: string
+  name: string
+  type: CompanyType
+  serviceContractId: string | null
+  role: ServiceContractRole | 'OWN_CLIENT'
+  status: string
+}
+
+export type AccessClientContoursResponse = {
+  company: AccessConstructorCompany
+  contours: AccessClientContour[]
+  count: number
+}
+
+export type AccessLocationBinding = {
+  id: string
+  companyId: string
+  locationId: string
+  createdAt: string
+  location: {
+    id: string
+    clientCompanyId: string
+    name: string
+    platformCode: string
+    city?: string | null
+    region?: string | null
+    address?: string | null
+    isActive: boolean
+    deletedAt?: string | null
+  }
+}
+
+export type AccessLocationBindingsResponse = {
+  company: AccessConstructorCompany
+  user: AccessConstructorUser
+  bindings: AccessLocationBinding[]
+  count: number
+  staleBindings: AccessLocationBinding[]
+  staleCount: number
+  locationMode: AccessLocationMode
+  explicitLocationMode?: Exclude<AccessLocationMode, 'LEGACY_AUTO'> | null
+  emptyBindingSemantics: string
+}
+
+export type AccessPreviewResponse = {
+  company: AccessConstructorCompany
+  user: AccessConstructorUser
+  baseRole: Role
+  companyType: CompanyType
+  permissions: {
+    effectiveCodes: string[]
+    roleCodes: string[]
+    userAdditiveOverrideCodes: string[]
+  }
+  locationBindings: {
+    mode: 'legacy_auto' | 'restricted_empty' | 'bound_locations' | string
+    locationMode: AccessLocationMode
+    explicitMode?: Exclude<AccessLocationMode, 'LEGACY_AUTO'> | null
+    selected: AccessLocationBinding[]
+    selectedCount: number
+    stale: AccessLocationBinding[]
+    staleCount: number
+    emptyBindingSemantics: string
+  }
+  availableLinkedClientContours: AccessClientContour[]
+  estimates: {
+    accessibleCompanyCount: number
+    accessibleLocationCount: number
+  }
+  ticketVisibilityMode: string
+}
+
+export type AccessDraftPreviewResponse = {
+  company: AccessConstructorCompany
+  user: AccessConstructorUser
+  current: {
+    additiveOverrideCount: number
+    locationCount: number
+    companyCount: number
+    ticketVisibilityMode: string
+  }
+  proposed: {
+    additiveOverrideCount: number
+    locationCount: number
+    companyCount: number
+    ticketVisibilityMode: string
+  }
+  addedCapabilities: string[]
+  removedCapabilities: string[]
+  invalidSelections: string[]
+  warnings: string[]
+  saveRejected: boolean
+  saveBlockers: Array<{
+    code: string
+    message: string
+    minimumMigration?: string
+  }>
+  preview: AccessPreviewResponse
+}
+
+export type AccessLocationOption = {
+  id: string
+  displayName: string
+  name: string
+  platformCode: string
+  region?: string | null
+  address?: string | null
+  active: boolean
+  available: boolean
+}
+
+export type AccessLocationOptionsResponse = {
+  company: AccessConstructorCompany
+  clients: Array<{
+    client: AccessClientContour
+    cities: Array<{
+      city: string
+      locations: AccessLocationOption[]
+    }>
+  }>
+}
+
+export type AccessLocationBindingGroup =
+  | { mode: 'REPLACE_SELECTED'; clientCompanyId: string; locationIds: string[] }
+  | { mode: 'CLEAR_RESTRICTED_EMPTY'; clientCompanyId?: string }
+  | { mode: 'NO_CHANGE'; clientCompanyId?: string }
+
+function withCompanyScope(path: string, companyId?: string): string {
+  const search = new URLSearchParams()
+  if (companyId) search.set('companyId', companyId)
+  const suffix = search.toString() ? '?' + search.toString() : ''
+  return path + suffix
+}
+
+function withQuery(path: string, params: Record<string, string | number | undefined | null>): string {
+  const search = new URLSearchParams()
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === null || value === '') continue
+    search.set(key, String(value))
+  }
+  const suffix = search.toString() ? '?' + search.toString() : ''
+  return path + suffix
+}
+
+export async function fetchAccessConstructorUsers(companyId?: string): Promise<AccessConstructorUsersResponse> {
+  return request<AccessConstructorUsersResponse>(withCompanyScope('/permissions/users', companyId))
+}
+
+export async function fetchAccessSummary(query: AccessSummaryQuery = {}): Promise<AccessSummaryResponse> {
+  return request<AccessSummaryResponse>(
+    withQuery('/permissions/users/access-summary', {
+      companyId: query.companyId,
+      q: query.q,
+      role: query.role,
+      status: query.status,
+      issue: query.issue,
+      skip: query.skip,
+      take: query.take,
+    }),
+  )
+}
+
+export async function fetchAccessEffectivePermissions(
+  userId: string,
+  companyId?: string,
+): Promise<AccessEffectivePermissionsResponse> {
+  return request<AccessEffectivePermissionsResponse>(
+    withCompanyScope(`/permissions/users/${encodeURIComponent(userId)}/effective`, companyId),
+  )
+}
+
+export async function fetchAccessUserOverrides(userId: string, companyId?: string): Promise<AccessUserOverridesResponse> {
+  return request<AccessUserOverridesResponse>(
+    withCompanyScope(`/permissions/users/${encodeURIComponent(userId)}/overrides`, companyId),
+  )
+}
+
+export async function grantAccessUserPermissions(
+  userId: string,
+  codes: string[],
+  companyId?: string,
+): Promise<AccessEffectivePermissionsResponse> {
+  return request<AccessEffectivePermissionsResponse>(
+    withCompanyScope(`/permissions/users/${encodeURIComponent(userId)}/permissions`, companyId),
+    {
+      method: 'POST',
+      body: { codes },
+    },
+  )
+}
+
+export async function removeAccessUserPermissions(
+  userId: string,
+  codes: string[],
+  companyId?: string,
+): Promise<AccessEffectivePermissionsResponse> {
+  return request<AccessEffectivePermissionsResponse>(
+    withCompanyScope(`/permissions/users/${encodeURIComponent(userId)}/permissions/remove`, companyId),
+    {
+      method: 'POST',
+      body: { codes },
+    },
+  )
+}
+
+export async function fetchAccessLocationBindings(
+  userId: string,
+  companyId?: string,
+): Promise<AccessLocationBindingsResponse> {
+  return request<AccessLocationBindingsResponse>(
+    withCompanyScope(`/permissions/users/${encodeURIComponent(userId)}/location-bindings`, companyId),
+  )
+}
+
+export type AccessLocationBindingsInput = {
+  locationIds: string[]
+  clientCompanyId?: string
+}
+
+export async function replaceAccessLocationBindings(
+  userId: string,
+  input: AccessLocationBindingsInput,
+  companyId?: string,
+): Promise<AccessLocationBindingsResponse> {
+  return request<AccessLocationBindingsResponse>(
+    withCompanyScope(`/permissions/users/${encodeURIComponent(userId)}/location-bindings`, companyId),
+    {
+      method: 'PUT',
+      body: input,
+    },
+  )
+}
+
+export async function replaceAllAccessLocationBindings(
+  userId: string,
+  groups: AccessLocationBindingGroup[],
+  companyId?: string,
+): Promise<AccessLocationBindingsResponse> {
+  return request<AccessLocationBindingsResponse>(
+    withCompanyScope(`/permissions/users/${encodeURIComponent(userId)}/location-bindings/all`, companyId),
+    {
+      method: 'PUT',
+      body: { groups },
+    },
+  )
+}
+
+export async function removeAccessLocationBindings(
+  userId: string,
+  input: AccessLocationBindingsInput,
+  companyId?: string,
+): Promise<AccessLocationBindingsResponse> {
+  return request<AccessLocationBindingsResponse>(
+    withCompanyScope(`/permissions/users/${encodeURIComponent(userId)}/location-bindings/remove`, companyId),
+    {
+      method: 'POST',
+      body: input,
+    },
+  )
+}
+
+export async function fetchAccessClientContours(companyId?: string): Promise<AccessClientContoursResponse> {
+  return request<AccessClientContoursResponse>(withCompanyScope('/permissions/client-contours', companyId))
+}
+
+export async function fetchAccessPreview(userId: string, companyId?: string): Promise<AccessPreviewResponse> {
+  return request<AccessPreviewResponse>(withCompanyScope(`/permissions/users/${encodeURIComponent(userId)}/preview`, companyId))
+}
+
+export async function fetchAccessDraftPreview(
+  userId: string,
+  input: {
+    additivePermissionCodes?: string[]
+    locationIds?: string[]
+    selectedClientContourIds?: string[]
+  },
+  companyId?: string,
+): Promise<AccessDraftPreviewResponse> {
+  return request<AccessDraftPreviewResponse>(
+    withCompanyScope(`/permissions/users/${encodeURIComponent(userId)}/preview-draft`, companyId),
+    {
+      method: 'POST',
+      body: input,
+    },
+  )
+}
+
+export async function fetchAccessLocationOptions(
+  clientCompanyIds: string[],
+  companyId?: string,
+): Promise<AccessLocationOptionsResponse> {
+  return request<AccessLocationOptionsResponse>(
+    withQuery('/permissions/location-options', {
+      companyId,
+      clientCompanyIds: clientCompanyIds.join(','),
+    }),
+  )
 }
 
 export async function getLinkedClients(): Promise<LinkedClientSummary[]> {
