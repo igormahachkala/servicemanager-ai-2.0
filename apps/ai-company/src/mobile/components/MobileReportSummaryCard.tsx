@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useI18n } from '../../i18n'
 import type { OwnerMorningReportSnapshot } from '../../domain/morningReport'
-import { MOBILE_MORNING_REPORT_ID } from '../reports/mobileReportsSnapshot'
+import { MOBILE_MORNING_REPORT_ID } from '../reports/mobileReportConstants'
 
 type Props = {
   snapshot: OwnerMorningReportSnapshot

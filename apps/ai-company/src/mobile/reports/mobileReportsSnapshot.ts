@@ -17,6 +17,7 @@ import {
   mobileRuntimeLoopHref,
   mobileRuntimeRunHref,
 } from '../navigation/mobileHrefResolver'
+import { MOBILE_MORNING_REPORT_ID } from './mobileReportConstants'
 
 export type MobileReportKind =
   | 'morning_report'
@@ -74,8 +75,6 @@ export type MobileReportsSnapshot = {
   morningReport: OwnerMorningReportSnapshot | null
   items: MobileReportListItem[]
 }
-
-export const MOBILE_MORNING_REPORT_ID = 'morning-report'
 
 function employeeLabel(employeeId: string | null): string {
   if (!employeeId) return '—'

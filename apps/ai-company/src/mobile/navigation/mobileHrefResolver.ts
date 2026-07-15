@@ -5,7 +5,7 @@ import {
   mobileEmployeeProfilePath,
 } from '../../domain/mobileEmployee'
 import { resolveCanonicalEmployeeId } from '../../mission-control/data/employeeIdResolver'
-import { MOBILE_MORNING_REPORT_ID } from '../reports/mobileReportsSnapshot'
+import { MOBILE_MORNING_REPORT_ID } from '../reports/mobileReportConstants'
 import { MOBILE_STANDARD_TASK_TEMPLATE_ID } from '../runTask/mobileRunTaskConfig'
 
 export const MOBILE_PATHS = {

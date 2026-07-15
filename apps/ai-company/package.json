@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "test:domain": "node --import tsx --test src/domain/cursorExecutionRoute/cursorExecutionRoute.test.ts src/domain/toolDispatcher/toolDispatcherRouteIntegration.test.ts src/domain/cursorResultEnvelope/cursorResultEnvelope.test.ts src/domain/manualCloudAgentImport/manualCloudAgentImport.test.ts src/domain/manualCursorTaskFlow/manualCursorTaskFlow.test.ts src/domain/cursorAutomationRunner/cursorAutomationRunner.test.ts src/domain/githubEvidenceReader/githubEvidenceReader.test.ts src/domain/employeeConnections/employeeConnections.test.ts tools/github-evidence-bridge/githubEvidenceBridge.smoke.test.ts",
+    "test:domain": "node --import tsx --test src/domain/cursorExecutionRoute/cursorExecutionRoute.test.ts src/domain/toolDispatcher/toolDispatcherRouteIntegration.test.ts src/domain/cursorResultEnvelope/cursorResultEnvelope.test.ts src/domain/manualCloudAgentImport/manualCloudAgentImport.test.ts src/domain/manualCursorTaskFlow/manualCursorTaskFlow.test.ts src/domain/cursorAutomationRunner/cursorAutomationRunner.test.ts src/domain/githubEvidenceReader/githubEvidenceReader.test.ts src/domain/employeeConnections/employeeConnections.test.ts tools/github-evidence-bridge/githubEvidenceBridge.smoke.test.ts src/mobile/reports/mobileReportConstants.test.ts",
     "cursor:bridge": "tsx tools/cursor-local-bridge/src/index.ts run",
     "cursor:bridge:status": "tsx tools/cursor-local-bridge/src/index.ts status",
     "github:evidence": "tsx tools/github-evidence-bridge/src/index.ts run",

@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import { listEmployeeDailyJournalEntries } from '../../domain/employeeDailyJournal'
-import { MOBILE_MORNING_REPORT_ID } from '../reports/mobileReportsSnapshot'
+import { MOBILE_MORNING_REPORT_ID } from '../reports/mobileReportConstants'
 import { buildMobileReportsSnapshot } from '../reports/mobileReportsSnapshot'
 import { MOBILE_PATHS } from '../navigation/mobileHrefResolver'
 import { MobileCard } from './MobileCard'

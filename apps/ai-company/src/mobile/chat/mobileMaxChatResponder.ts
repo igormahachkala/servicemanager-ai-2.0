@@ -28,7 +28,7 @@ import {
   resolveOllamaModelTag,
   trimPromptForFastTest,
 } from '../../domain/runtime/providers/runtimeCapabilities'
-import { MOBILE_MORNING_REPORT_ID } from '../reports/mobileReportsSnapshot'
+import { MOBILE_MORNING_REPORT_ID } from '../reports/mobileReportConstants'
 import { resolveEmployee } from '../../mission-control/data/conversation'
 import {
   buildMobileChatDelegationProposal,

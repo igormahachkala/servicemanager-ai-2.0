@@ -3,7 +3,7 @@ import { useI18n } from '../../i18n'
 import { MobileReportCard } from '../components/MobileReportCard'
 import { MobileReportSummaryCard } from '../components/MobileReportSummaryCard'
 import { useMobileReports } from '../hooks/useMobileReports'
-import { MOBILE_MORNING_REPORT_ID } from '../reports/mobileReportsSnapshot'
+import { MOBILE_MORNING_REPORT_ID } from '../reports/mobileReportConstants'
 import { MOBILE_PATHS } from '../navigation/mobileHrefResolver'
 
 export function MobileReportsPage() {
