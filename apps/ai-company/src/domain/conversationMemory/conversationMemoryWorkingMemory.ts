@@ -157,7 +157,7 @@ function syncAwaitingConfirmation(employeeId: string, messages: MobileEmployeeCh
   return uniqueItems(items, 8)
 }
 
-export function refreshEmployeeWorkingMemory(
+export function computeEmployeeWorkingMemory(
   employeeId: string,
   messages: MobileEmployeeChatMessage[],
 ): EmployeeWorkingMemory {
@@ -165,7 +165,7 @@ export function refreshEmployeeWorkingMemory(
   const previous = getEmployeeWorkingMemory(canonical)
   const { olderMessages } = splitMessagesForContextWindow(messages)
 
-  const workingMemory: EmployeeWorkingMemory = {
+  return {
     currentlyDoing: syncCurrentlyDoing(canonical),
     promisedToDo: syncPromisedToDo(messages),
     awaitingConfirmation: syncAwaitingConfirmation(canonical, messages),
@@ -173,10 +173,16 @@ export function refreshEmployeeWorkingMemory(
       olderMessages,
       previous.conversationSummary,
     ),
-    updatedAt: new Date().toISOString(),
+    updatedAt: previous.updatedAt,
   }
+}
 
-  return saveEmployeeWorkingMemory(canonical, workingMemory)
+export function refreshEmployeeWorkingMemory(
+  employeeId: string,
+  messages: MobileEmployeeChatMessage[],
+): EmployeeWorkingMemory {
+  const workingMemory = computeEmployeeWorkingMemory(employeeId, messages)
+  return saveEmployeeWorkingMemory(employeeId, workingMemory)
 }
 
 export function recordConversationExchange(input: {

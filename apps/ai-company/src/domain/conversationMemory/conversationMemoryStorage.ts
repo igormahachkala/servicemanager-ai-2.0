@@ -106,15 +106,29 @@ export function getEmployeeWorkingMemory(employeeId: string): EmployeeWorkingMem
   return existing?.workingMemory ?? emptyWorkingMemory()
 }
 
+function workingMemorySignature(workingMemory: EmployeeWorkingMemory): string {
+  return JSON.stringify({
+    currentlyDoing: workingMemory.currentlyDoing,
+    promisedToDo: workingMemory.promisedToDo,
+    awaitingConfirmation: workingMemory.awaitingConfirmation,
+    conversationSummary: workingMemory.conversationSummary,
+  })
+}
+
 export function saveEmployeeWorkingMemory(
   employeeId: string,
   workingMemory: EmployeeWorkingMemory,
 ): EmployeeWorkingMemory {
   const canonical = resolveCanonicalEmployeeId(employeeId)
   const store = loadEmployeeConversationMemoryStore()
+  const existing = store.employees[canonical]?.workingMemory
   const next: EmployeeWorkingMemory = {
     ...workingMemory,
     updatedAt: nowIso(),
+  }
+
+  if (existing && workingMemorySignature(existing) === workingMemorySignature(next)) {
+    return existing
   }
 
   saveEmployeeConversationMemoryStore({

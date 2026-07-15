@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import {
   buildEmployeeConversationContext,
   CONVERSATION_MEMORY_SYNC_EVENT,
@@ -15,11 +16,16 @@ export type MobileEmployeeConversationMemorySnapshot = {
 }
 
 export function useMobileEmployeeConversationMemory(employeeId: string) {
+  const { pathname } = useLocation()
   const [tick, setTick] = useState(0)
 
   const refresh = useCallback(() => {
     setTick((value) => value + 1)
   }, [])
+
+  useEffect(() => {
+    refresh()
+  }, [pathname, refresh])
 
   useEffect(() => {
     const onChange = () => refresh()

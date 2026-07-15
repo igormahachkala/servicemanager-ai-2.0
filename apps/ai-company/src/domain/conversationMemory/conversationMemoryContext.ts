@@ -8,7 +8,7 @@ import { loadCursorHandoffFromChatProposals } from '../cursorHandoffFromChat'
 import { buildMobileReportsSnapshot } from '../../mobile/reports/mobileReportsSnapshot'
 import { getMobileEmployeeChatSession } from '../../mobile/chat/mobileEmployeeChatStorage'
 import { resolveCanonicalEmployeeId } from '../../mission-control/data/employeeIdResolver'
-import { refreshEmployeeWorkingMemory } from './conversationMemoryWorkingMemory'
+import { computeEmployeeWorkingMemory } from './conversationMemoryWorkingMemory'
 import {
   CONVERSATION_MEMORY_MESSAGE_WINDOW,
   type ConversationMemoryContextItem,
@@ -87,7 +87,7 @@ export function buildEmployeeConversationContext(
 ): EmployeeConversationContext {
   const canonical = resolveCanonicalEmployeeId(employeeId)
   const session = getMobileEmployeeChatSession(canonical)
-  const workingMemory = refreshEmployeeWorkingMemory(canonical, session.messages)
+  const workingMemory = computeEmployeeWorkingMemory(canonical, session.messages)
   const { windowMessages, olderMessages } = splitMessagesForContextWindow(session.messages)
 
   return {

@@ -1,6 +1,5 @@
 import { Link } from 'react-router-dom'
-import { useEffect } from 'react'
-import { Navigate, useLocation, useParams } from 'react-router-dom'
+import { Navigate, useParams } from 'react-router-dom'
 import {
   BUILDER_EMPLOYEE_ID,
   getDefaultMobileEmployeeId,
@@ -32,7 +31,6 @@ import { MobileBuilderWorkQueueActions } from '../components/MobileBuilderWorkQu
 
 export function MobileEmployeePage() {
   const { id: rawId } = useParams<{ id: string }>()
-  const location = useLocation()
   const { t } = useI18n()
   const registryEntry = rawId ? resolveMobileEmployeeFromRoute(rawId) : null
   const employeeId = registryEntry?.employeeId ?? getDefaultMobileEmployeeId()
@@ -40,11 +38,6 @@ export function MobileEmployeePage() {
   const memory = useMobileEmployeeConversationMemory(employeeId)
   const { openRunNextFlow } = useMobileRunNextSheet(employeeId)
   const copy = resolveMobileEmployeeProfileCopy(employeeId, t.mobile)
-
-  useEffect(() => {
-    profile.refresh()
-    memory.refresh()
-  }, [location.key, memory.refresh, profile.refresh])
 
   if (!rawId) {
     return <Navigate to={`/mobile/employees/${getDefaultMobileEmployeeId()}`} replace />
