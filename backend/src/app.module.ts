@@ -28,6 +28,7 @@ import { AgentTasksModule } from './agent-tasks/agent-tasks.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { UploadsModule } from './uploads/uploads.module';
 import { MaxBotModule } from './max-bot/max-bot.module';
+import { PushModule } from './push/push.module';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { MaxBotModule } from './max-bot/max-bot.module';
     RealtimeModule,
     UploadsModule,
     MaxBotModule,
+    PushModule,
   ],
   controllers: [AppController, HealthController, DebugController], // DebugController: TODO_REMOVE_AFTER_STABILIZATION
   providers: [AppService],

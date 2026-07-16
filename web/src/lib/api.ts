@@ -1775,6 +1775,69 @@ export async function markAllNotificationsRead(): Promise<{ ok: boolean; updated
   })
 }
 
+// --- Push-уведомления (Web Push) ---------------------------------------------
+// Контракт см. docs/PUSH_NOTIFICATIONS_ARCHITECTURE_V1.md §4.2.
+// Эндпоинтов пока нет на бэкенде (backend — shared zone, отдельный раунд согласования).
+// Фронт написан "вперёд" под точный контракт — при появлении бэкенда изменений не требуется.
+
+export type PushPreference = {
+  chat: boolean
+  ticketNew: boolean
+  assignment: boolean
+  statusChange: boolean
+  acceptance: boolean
+  acceptanceReject: boolean
+  sla: boolean
+  news: boolean
+  quietHoursFrom?: number | null
+  quietHoursTo?: number | null
+}
+
+export async function getPushVapidPublicKey(): Promise<{ key: string }> {
+  return request<{ key: string }>('/push/vapid-public-key')
+}
+
+export async function subscribeToPushBackend(input: {
+  endpoint: string
+  keys: { p256dh: string; auth: string }
+  platform?: string
+  declarative?: boolean
+}): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>('/push/subscriptions', {
+    method: 'POST',
+    body: input,
+  })
+}
+
+export async function unsubscribeFromPushBackend(endpoint: string): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>('/push/subscriptions', {
+    method: 'DELETE',
+    body: { endpoint },
+  })
+}
+
+export async function pushSubscriptionHeartbeat(endpoint: string): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>('/push/subscriptions/heartbeat', {
+    method: 'POST',
+    body: { endpoint },
+  })
+}
+
+export async function getPushPreferences(): Promise<PushPreference> {
+  return request<PushPreference>('/push/preferences')
+}
+
+export async function updatePushPreferences(patch: Partial<PushPreference>): Promise<PushPreference> {
+  return request<PushPreference>('/push/preferences', {
+    method: 'PATCH',
+    body: patch,
+  })
+}
+
+export async function sendTestPush(): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>('/push/test', { method: 'POST' })
+}
+
 export async function createUser(input: CreateUserInput): Promise<UserListItem> {
   return request<UserListItem>('/users', {
     method: 'POST',

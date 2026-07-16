@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ErrorBoundary, type FallbackProps } from 'react-error-boundary'
 import { AppRoutes } from './router'
 import { AppToastHost } from './components/AppToastHost'
+import { PushServiceWorkerBridge } from './components/PushServiceWorkerBridge'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -33,6 +34,7 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <ErrorBoundary FallbackComponent={ErrorFallback}>
         <BrowserRouter>
+          <PushServiceWorkerBridge />
           <AppRoutes />
           <AppToastHost />
         </BrowserRouter>

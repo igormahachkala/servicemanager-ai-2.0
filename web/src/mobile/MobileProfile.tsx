@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { BrowserNotificationsCard } from '../components/BrowserNotificationsCard'
 import { SupportContactBlock } from '../components/SupportContactBlock'
 import * as api from '../lib/api'
 import { canAccessManagementDesktop } from '../lib/navigation'
+import { ClientContourCard } from './ClientContourCard'
 import { getPendingAndFailedCounts, subscribeOfflineQueue } from './offlineQueue'
 import { mobilePath } from './mobileRoute'
 
@@ -22,16 +23,6 @@ function roleLabel(role?: string) {
   return role
 }
 
-function isProviderLinkedClientRole(role?: api.Role | null) {
-  return (
-    role === 'ADMIN' ||
-    role === 'ADMIN_PROVIDER' ||
-    role === 'MASTER' ||
-    role === 'DISPATCHER' ||
-    role === 'NETWORK_DIRECTOR'
-  )
-}
-
 /** Tabler chevron-right — inline SVG вместо глифа ›. */
 function ChevronRight() {
   return (
@@ -43,7 +34,6 @@ function ChevronRight() {
 
 export function MobileProfile() {
   const location = useLocation()
-  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
 
@@ -60,12 +50,6 @@ export function MobileProfile() {
     enabled: !!meQ.data && meQ.data.role !== 'TECHNICIAN',
   })
 
-  const companyQ = useQuery({
-    queryKey: ['mobile-shell-company'],
-    queryFn: () => api.company(),
-    enabled: !!meQ.data && meQ.data.role !== 'CLIENT' && meQ.data.role !== 'TECHNICIAN',
-  })
-
   const linkedClientCompanyId = useMemo(() => {
     const params = new URLSearchParams(location.search)
     return (params.get('linkedClientCompanyId') || api.getLinkedClientCompanyId(meQ.data)).trim()
@@ -75,29 +59,6 @@ export function MobileProfile() {
     const params = new URLSearchParams(location.search)
     return (params.get('companyId') || api.getObserverCompanyId(meQ.data)).trim()
   }, [location.search, meQ.data])
-
-  const isProviderCompany = companyQ.data?.type === 'PROVIDER'
-  const canShowLinkedClients = !!meQ.data && isProviderCompany && isProviderLinkedClientRole(meQ.data.role)
-  const linkedClientsLoaded = !canShowLinkedClients || linkedClientsQ.isSuccess || linkedClientsQ.isError
-  const selectedLinkedClient = useMemo(
-    () => linkedClientsQ.data?.find((row) => row.clientCompany.id === linkedClientCompanyId) || null,
-    [linkedClientsQ.data, linkedClientCompanyId],
-  )
-
-  function updateProviderScope(nextLinkedClientCompanyId: string) {
-    const params = new URLSearchParams(location.search)
-    params.delete('companyId')
-    if (nextLinkedClientCompanyId.trim()) {
-      params.set('linkedClientCompanyId', nextLinkedClientCompanyId.trim())
-    } else {
-      params.delete('linkedClientCompanyId')
-    }
-    api.persistScopeFromSearchParams(params, meQ.data)
-    const next = `${location.pathname}${params.toString() ? `?${params.toString()}` : ''}`
-    if (next !== `${location.pathname}${location.search}`) {
-      navigate(next, { replace: true })
-    }
-  }
 
   const managementHref = useMemo(() => {
     if (!meQ.data) return '/board'
@@ -116,34 +77,6 @@ export function MobileProfile() {
     queryFn: () => api.getTechnicianBoundContexts(linkedClientCompanyId),
     enabled: !!meQ.data && meQ.data.role === 'TECHNICIAN' && !!linkedClientCompanyId,
   })
-
-  // Полный список клиентских компаний техника (без scope-фильтра) — для переключателя контура.
-  // bound-contexts сортируются по имени (name asc) на бэке; [0] — лишь дефолт, выбор персистится.
-  const techBoundContextsAllQ = useQuery({
-    queryKey: ['mobile-profile-technician-bound-all', meQ.data?.id],
-    queryFn: () => api.getTechnicianBoundContexts(),
-    enabled: !!meQ.data && meQ.data.role === 'TECHNICIAN',
-  })
-  const techBoundContexts = techBoundContextsAllQ.data || []
-  const techCanSwitchCompany = meQ.data?.role === 'TECHNICIAN' && techBoundContexts.length >= 2
-
-  // Галочка «контур по умолчанию» — переиспользует тот же персист (LAST_SCOPE_KEY).
-  // Отмечена → выбранная компания запоминается дефолтом (persisted > [0]); снята → clear → авто-[0].
-  const [techRememberDefault, setTechRememberDefault] = useState(false)
-  useEffect(() => {
-    if (meQ.data?.role !== 'TECHNICIAN') return
-    setTechRememberDefault(!!api.getPersistedLinkedClientCompanyId(meQ.data))
-  }, [meQ.data, linkedClientCompanyId])
-  function toggleTechDefaultContour(checked: boolean) {
-    setTechRememberDefault(checked)
-    if (checked) {
-      if (linkedClientCompanyId) {
-        api.persistScopeFromSearchParams(new URLSearchParams({ linkedClientCompanyId }), meQ.data)
-      }
-    } else {
-      api.clearPersistedScope()
-    }
-  }
 
   const linkedClientName = useMemo(() => {
     if (!linkedClientCompanyId) return ''
@@ -227,7 +160,7 @@ export function MobileProfile() {
         <Link to={backHref} className="mobileDetailsBackLink">Назад</Link>
       </div>
       <div className="mobileSection">
-        {meQ.isError ? <div className="mobileNotice mobileNoticeError">{String((meQ.error as any)?.message || meQ.error)}</div> : null}
+        {meQ.isError ? <div className="mobileNotice mobileNoticeError">{String((meQ.error as { message?: string } | null)?.message || meQ.error)}</div> : null}
 
         {/* Hero card — Figma ProfileScreen: аватар-плитка слева + имя/email/бейджи */}
         <div className="mobileProfileHero">
@@ -267,74 +200,8 @@ export function MobileProfile() {
           </div>
         </div>
 
-        {/* Client context */}
-        {canShowLinkedClients ? (
-          <div className="mobileCard" style={{ marginTop: 8 }}>
-            <div className="mobileProfileSectionLabel">Клиентский контур</div>
-            {linkedClientsLoaded ? (
-              linkedClientsQ.data && linkedClientsQ.data.length > 0 ? (
-                <>
-                  <select
-                    className="mobileProviderContextSelect"
-                    value={linkedClientCompanyId}
-                    onChange={(e) => updateProviderScope(e.target.value)}
-                  >
-                    <option value="">Выберите клиента</option>
-                    {linkedClientsQ.data.map((item) => (
-                      <option key={item.clientCompany.id} value={item.clientCompany.id}>
-                        {item.clientCompany.name} · {item.role}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="mobileProviderContextHint" style={{ marginTop: 6 }}>
-                    Контекст применяется к доске, созданию заявки и карточкам заявок.
-                  </div>
-                  {selectedLinkedClient ? (
-                    <div className="mobileProviderContextHint">Роль: {selectedLinkedClient.role}</div>
-                  ) : null}
-                </>
-              ) : (
-                <div className="mobileProviderContextHint">У этой компании пока нет связанных клиентов.</div>
-              )
-            ) : (
-              <div className="mobileProviderContextHint">Загружаем список клиентов…</div>
-            )}
-            {linkedClientsQ.isError ? (
-              <div className="mobileNotice mobileNoticeError" style={{ marginTop: 8 }}>
-                {(linkedClientsQ.error as any)?.message || String(linkedClientsQ.error)}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-
-        {/* Client context switcher for TECHNICIAN — источник: bound-contexts (полный список) */}
-        {techCanSwitchCompany ? (
-          <div className="mobileCard" style={{ marginTop: 8 }}>
-            <div className="mobileProfileSectionLabel">Клиентская компания</div>
-            <select
-              className="mobileProviderContextSelect"
-              value={linkedClientCompanyId}
-              onChange={(e) => updateProviderScope(e.target.value)}
-            >
-              {techBoundContexts.map((ctx) => (
-                <option key={ctx.clientCompany.id} value={ctx.clientCompany.id}>
-                  {ctx.clientCompany.name}
-                </option>
-              ))}
-            </select>
-            <div className="mobileProviderContextHint" style={{ marginTop: 6 }}>
-              Контекст применяется к главной, моим заявкам и созданию заявки.
-            </div>
-            <label className="mobileProviderContextDefault" style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
-              <input
-                type="checkbox"
-                checked={techRememberDefault}
-                onChange={(e) => toggleTechDefaultContour(e.target.checked)}
-              />
-              <span>Запомнить как контур по умолчанию</span>
-            </label>
-          </div>
-        ) : null}
+        {/* Client context — общий компонент (тот же в /m/settings) */}
+        <ClientContourCard />
 
         {/* Menu */}
         <div className="mobileCard mobileProfileMenu">
@@ -347,6 +214,30 @@ export function MobileProfile() {
               </svg>
             </span>
             <span className="mobileProfileMenuLabel">Уведомления</span>
+            <span className="mobileProfileMenuChevron" aria-hidden><ChevronRight /></span>
+          </Link>
+          <Link to={mobilePath(location.pathname, '/push-settings')} className="mobileProfileMenuItem">
+            <span className="mobileProfileMenuIcon" aria-hidden>
+              {/* Tabler bell-ringing */}
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10 5a2 2 0 0 1 4 0a7 7 0 0 1 4 6v3a4 4 0 0 0 2 3H4a4 4 0 0 0 2 -3v-3a7 7 0 0 1 4 -6" />
+                <path d="M9 17v1a3 3 0 0 0 6 0v-1" />
+                <path d="M5 4l-1 1" />
+                <path d="M19 4l1 1" />
+              </svg>
+            </span>
+            <span className="mobileProfileMenuLabel">Push-уведомления</span>
+            <span className="mobileProfileMenuChevron" aria-hidden><ChevronRight /></span>
+          </Link>
+          <Link to={mobilePath(location.pathname, '/settings')} className="mobileProfileMenuItem">
+            <span className="mobileProfileMenuIcon" aria-hidden>
+              {/* Tabler settings (gear) */}
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+            </span>
+            <span className="mobileProfileMenuLabel">Настройки</span>
             <span className="mobileProfileMenuChevron" aria-hidden><ChevronRight /></span>
           </Link>
           <Link to={mobilePath(location.pathname, '/offline-queue')} className="mobileProfileMenuItem">
