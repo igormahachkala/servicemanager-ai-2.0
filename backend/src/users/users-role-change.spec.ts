@@ -204,9 +204,9 @@ describe('Role-change executor cleanup', () => {
     expect(prisma._tx.userLocationBinding.deleteMany).not.toHaveBeenCalled();
   });
 
-  // ── 3. non-executor-capable → executor-capable: no cleanup, isExecutor unchanged ─
+  // ── 3. non-executor-capable → executor-capable: no cleanup, executor flag follows target role ─
 
-  it('CLIENT → TECHNICIAN: no cleanup; isExecutor stays false when not explicitly set', async () => {
+  it('CLIENT → TECHNICIAN: no cleanup; auto-enables executor because TECHNICIAN is always an executor', async () => {
     const prisma = makePrisma({
       id: 'user-9',
       email: 'client@example.com',
@@ -220,9 +220,9 @@ describe('Role-change executor cleanup', () => {
 
     expect(prisma._tx.technicianSpecialization.deleteMany).not.toHaveBeenCalled();
     expect(prisma._tx.userLocationBinding.deleteMany).not.toHaveBeenCalled();
-    // isExecutor was not in dto and no forced override → not present in update data
-    const updateCall = prisma._tx.user.update.mock.calls[0][0];
-    expect(updateCall.data).not.toHaveProperty('isExecutor');
+    expect(prisma._tx.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ isExecutor: true }) }),
+    );
   });
 
   it('NETWORK_DIRECTOR → ADMIN: no cleanup; dto.isExecutor=true is accepted and passed through', async () => {

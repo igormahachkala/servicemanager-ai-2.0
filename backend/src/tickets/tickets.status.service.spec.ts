@@ -88,6 +88,7 @@ function makeSetup(opts: {
     scheduleTicketCommentAdded: jest.fn(),
     onTicketInProgress: jest.fn(),
     onTicketDone: jest.fn(),
+    onTicketAwaitingAcceptance: jest.fn(),
   }
 
   const svc = new TicketsStatusService(prisma, timeline as any, {} as any, notifications as any)
@@ -181,6 +182,14 @@ describe('TicketsStatusService.updateStatus', () => {
       expect.objectContaining({ data: expect.objectContaining({ status: TicketStatus.AWAITING_ACCEPTANCE }) }),
     )
     expect(notifications.onTicketDone).not.toHaveBeenCalled()
+    expect(notifications.onTicketAwaitingAcceptance).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ticketCompanyId: PROVIDER_ID,
+        actorUserId: TECH_ID,
+        ticketId: TICKET_ID,
+        ticketNumber: 42,
+      }),
+    )
   })
 
   it('denies executor not assigned to the ticket (ForbiddenException)', async () => {
