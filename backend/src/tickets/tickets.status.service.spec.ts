@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException } from '@nestjs/common'
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common'
 import { TicketStatus, UserRole } from '@prisma/client'
 
 import { TicketsStatusService } from './tickets.status.service'
@@ -112,6 +112,19 @@ describe('TicketsStatusService.updateStatus', () => {
     expect(tx.ticketStatusHistory.create).toHaveBeenCalled()
     expect(notifications.scheduleTicketStatusChanged).toHaveBeenCalled()
     expect(notifications.onTicketInProgress).toHaveBeenCalled()
+  })
+
+  it('rejects forbidden status update before ticket mutation', async () => {
+    const { svc, prisma } = makeSetup()
+    mockResolveAccess.mockRejectedValue(new NotFoundException('Ticket not found'))
+
+    await expect(
+      svc.updateStatus(PROVIDER_ID, { id: TECH_ID }, UserRole.TECHNICIAN, TICKET_ID, {
+        status: TicketStatus.IN_PROGRESS,
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException)
+
+    expect(prisma.$transaction).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -317,6 +330,17 @@ describe('TicketsStatusService.addComment', () => {
     await expect(
       svc.addComment(PROVIDER_ID, { id: TECH_ID }, UserRole.TECHNICIAN, TICKET_ID, { comment: 'Done' }),
     ).resolves.toEqual({ ok: true })
+  })
+
+  it('rejects forbidden comment before ticket mutation', async () => {
+    const { svc, prisma } = makeCommentSetup({ isExecutor: true })
+    mockResolveAccess.mockRejectedValue(new NotFoundException('Ticket not found'))
+
+    await expect(
+      svc.addComment(PROVIDER_ID, { id: TECH_ID }, UserRole.TECHNICIAN, TICKET_ID, { comment: 'Done' }),
+    ).rejects.toBeInstanceOf(NotFoundException)
+
+    expect(prisma.$transaction).not.toHaveBeenCalled()
   })
 
   it('rejects empty comment (BadRequestException)', async () => {

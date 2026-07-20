@@ -1,7 +1,13 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common'
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common'
 import { ServiceContractRole, UserAccessLocationMode, UserRole } from '@prisma/client'
 
-import { resolveActorLocationScope, resolveReadableTicketAccess, resolveTicketReadScope } from './ticket-access.utils'
+import {
+  resolveActorLocationScope,
+  resolveReadableTicketAccess,
+  resolveTechnicianOperationalScope,
+  resolveTicketOperationAccess,
+  resolveTicketReadScope,
+} from './ticket-access.utils'
 
 describe('ticket-access utils SECONDARY provider visibility', () => {
   const providerCompanyId = 'provider-1'
@@ -29,6 +35,18 @@ describe('ticket-access utils SECONDARY provider visibility', () => {
 
   // Evaluates a SECONDARY operational-scope WHERE (the shape produced by
   // buildSecondaryOperationalScopeWhere) against a ticket row.
+  function fieldMatches(condition: any, value: any): boolean {
+    if (condition === undefined) return true
+    if (condition === null || typeof condition !== 'object' || condition instanceof Date) {
+      return value === condition
+    }
+    if ('equals' in condition) return value === condition.equals
+    if ('in' in condition) return Array.isArray(condition.in) && condition.in.includes(value)
+    if ('notIn' in condition) return Array.isArray(condition.notIn) && !condition.notIn.includes(value)
+    if ('not' in condition) return value !== condition.not
+    return true
+  }
+
   function ticketMatchesScope(scopeWhere: any, ticket: any): boolean {
     if (!scopeWhere) return true
     if (scopeWhere.id?.equals === '__no_access__') return false
@@ -36,27 +54,13 @@ describe('ticket-access utils SECONDARY provider visibility', () => {
       return scopeWhere.AND.every((part: any) => ticketMatchesScope(part, ticket))
     }
     if (Array.isArray(scopeWhere.OR)) {
-      return scopeWhere.OR.some((clause: any) => {
-        if (clause.companyId?.notIn) {
-          return !clause.companyId.notIn.includes(ticket.companyId)
-        }
-        if (Array.isArray(clause.AND)) {
-          return clause.AND.every((part: any) => ticketMatchesScope(part, ticket))
-        }
-        return (
-          clause.assignedTechnicianId?.in?.includes(ticket.assignedTechnicianId) ||
-          clause.locationId?.in?.includes(ticket.locationId)
-        )
-      })
+      return scopeWhere.OR.some((clause: any) => ticketMatchesScope(clause, ticket))
     }
-    if (scopeWhere.companyId && typeof scopeWhere.companyId === 'string') {
-      if (scopeWhere.companyId !== ticket.companyId) return false
-      if (scopeWhere.locationId?.in) return scopeWhere.locationId.in.includes(ticket.locationId)
-      return scopeWhere.companyId === ticket.companyId
-    }
-    if (scopeWhere.locationId?.in) return scopeWhere.locationId.in.includes(ticket.locationId)
-    if (scopeWhere.assignedTechnicianId?.in) return scopeWhere.assignedTechnicianId.in.includes(ticket.assignedTechnicianId)
-    if (typeof scopeWhere.assignedTechnicianId === 'string') return scopeWhere.assignedTechnicianId === ticket.assignedTechnicianId
+    if (!fieldMatches(scopeWhere.id, ticket.id)) return false
+    if (!fieldMatches(scopeWhere.companyId, ticket.companyId)) return false
+    if (!fieldMatches(scopeWhere.locationId, ticket.locationId)) return false
+    if (!fieldMatches(scopeWhere.assignedTechnicianId, ticket.assignedTechnicianId)) return false
+    if (!fieldMatches(scopeWhere.status, ticket.status)) return false
     return true
   }
 
@@ -67,6 +71,7 @@ describe('ticket-access utils SECONDARY provider visibility', () => {
       ticketLocationId?: string | null
       executorIds?: string[]
       boundLocationIds?: string[]
+      boundLocationBindings?: Array<{ companyId: string; locationId: string; clientCompanyId?: string }>
       accessLocationMode?: UserAccessLocationMode | null
       directTicket?: any
     } = {},
@@ -76,29 +81,19 @@ describe('ticket-access utils SECONDARY provider visibility', () => {
       companyId: opts.ticketCompanyId ?? clientCompanyId,
       locationId: opts.ticketLocationId ?? null,
       assignedTechnicianId: opts.ticketAssignedTechnicianId ?? null,
+      status: opts.directTicket?.status ?? 'NEW',
     }
     const executorIds = opts.executorIds ?? []
+    const bindingRows = opts.boundLocationBindings ?? (opts.boundLocationIds ?? []).map((locationId) => ({
+      companyId: providerCompanyId,
+      locationId,
+      clientCompanyId: undefined,
+    }))
 
     return {
       ticket: {
         findFirst: jest.fn().mockImplementation(async ({ where }: any) => {
-          // own-company tenant check
-          if (where?.companyId === providerCompanyId) return null
-          // management path: { id, OR: [{ companyId, AND?: [scopeWhere] }, ...] }
-          if (Array.isArray(where?.OR)) {
-            const hit = where.OR.some((clause: any) => {
-              if (clause.companyId !== ticket.companyId) return false
-              if (!clause.AND) return true
-              return clause.AND.every((scope: any) => ticketMatchesScope(scope, ticket))
-            })
-            return hit ? { ...ticket } : null
-          }
-          // direct-fallback in-scope check: { AND: [{ id, companyId }, scopeWhere] }
-          if (Array.isArray(where?.AND)) {
-            const scope = where.AND[where.AND.length - 1]
-            return ticketMatchesScope(scope, ticket) ? { id: ticket.id } : null
-          }
-          return null
+          return ticketMatchesScope(where, ticket) ? { ...ticket } : null
         }),
         findUnique: jest.fn().mockResolvedValue(opts.directTicket ?? null),
       },
@@ -110,11 +105,16 @@ describe('ticket-access utils SECONDARY provider visibility', () => {
         findMany: jest.fn().mockResolvedValue(executorIds.map((id) => ({ id }))),
       },
       userLocationBinding: {
-        findMany: jest.fn().mockResolvedValue((opts.boundLocationIds ?? []).map((locationId) => ({
-          companyId: providerCompanyId,
-          locationId,
-          location: { clientCompanyId },
-        }))),
+        findMany: jest.fn().mockImplementation(async ({ where }: any = {}) =>
+          bindingRows
+            .filter((binding) => fieldMatches(where?.companyId, binding.companyId))
+            .filter((binding) => binding.clientCompanyId === undefined || fieldMatches(where?.location?.clientCompanyId, binding.clientCompanyId))
+            .map((binding) => ({
+              companyId: binding.companyId,
+              locationId: binding.locationId,
+              location: { clientCompanyId: binding.clientCompanyId },
+            })),
+        ),
       },
       userAccessScope: {
         findUnique: jest.fn().mockResolvedValue(
@@ -333,6 +333,210 @@ describe('ticket-access utils SECONDARY provider visibility', () => {
         allowedLinkedClientContractRoles: [ServiceContractRole.PRIMARY, ServiceContractRole.SECONDARY],
       }),
     ).rejects.toBeInstanceOf(NotFoundException)
+  })
+
+  function makeSelectedLocationTechnicianPrisma(ticketLocationId: string, ticketCompanyId = clientCompanyId) {
+    const directTicket = {
+      id: ticketId,
+      companyId: ticketCompanyId,
+      locationId: ticketLocationId,
+      assignedTechnicianId: 'tech-1',
+      status: 'ASSIGNED',
+      problemCategory: { specializationLinks: [] },
+    }
+    const prisma = makePrismaTicketMock({
+      accessLocationMode: UserAccessLocationMode.SELECTED_LOCATIONS,
+      executorIds: ['tech-1'],
+      ticketAssignedTechnicianId: 'tech-1',
+      ticketLocationId,
+      ticketCompanyId,
+      directTicket,
+      boundLocationBindings: [
+        { companyId: providerCompanyId, locationId: 'loc-allowed', clientCompanyId },
+        { companyId: clientCompanyId, locationId: 'loc-forbidden', clientCompanyId },
+      ],
+    })
+    prisma.user.findFirst.mockResolvedValue({
+      id: 'tech-1',
+      role: UserRole.TECHNICIAN,
+      isExecutor: true,
+      technicianSpecializations: [],
+    })
+    return prisma
+  }
+
+  it('TECHNICIAN SELECTED_LOCATIONS ignores stale client-company legacy bindings', async () => {
+    const prisma = makeSelectedLocationTechnicianPrisma('loc-allowed')
+    const serviceContractsService = makeServiceContractsService(ServiceContractRole.PRIMARY)
+
+    const scope = await resolveTechnicianOperationalScope({
+      prisma,
+      serviceContractsService: serviceContractsService as any,
+      actor: {
+        id: 'tech-1',
+        role: UserRole.TECHNICIAN,
+        companyId: providerCompanyId,
+      },
+      linkedClientCompanyId: clientCompanyId,
+    })
+
+    expect(scope.locationScopeByCompany[clientCompanyId]).toEqual(['loc-allowed'])
+    expect(scope.locationScopeByCompany[clientCompanyId]).not.toContain('loc-forbidden')
+    expect(prisma.userLocationBinding.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          companyId: { in: [providerCompanyId] },
+        }),
+      }),
+    )
+  })
+
+  it('TECHNICIAN without explicit scope keeps all permitted linked-client locations readable', async () => {
+    const prisma = makePrismaTicketMock({
+      executorIds: ['tech-1'],
+      ticketAssignedTechnicianId: 'tech-1',
+      ticketLocationId: 'loc-any',
+      directTicket: {
+        id: ticketId,
+        companyId: clientCompanyId,
+        locationId: 'loc-any',
+        assignedTechnicianId: 'tech-1',
+        status: 'ASSIGNED',
+        problemCategory: { specializationLinks: [] },
+      },
+    })
+    prisma.user.findFirst.mockResolvedValue({
+      id: 'tech-1',
+      role: UserRole.TECHNICIAN,
+      isExecutor: true,
+      technicianSpecializations: [],
+    })
+    const serviceContractsService = makeServiceContractsService(ServiceContractRole.PRIMARY)
+
+    const result = await resolveReadableTicketAccess({
+      prisma,
+      serviceContractsService: serviceContractsService as any,
+      actor: {
+        id: 'tech-1',
+        role: UserRole.TECHNICIAN,
+        companyId: providerCompanyId,
+      },
+      ticketId,
+      linkedClientCompanyId: clientCompanyId,
+      allowedLinkedClientContractRoles: [ServiceContractRole.PRIMARY, ServiceContractRole.SECONDARY],
+    })
+
+    expect(result.ticket.id).toBe(ticketId)
+  })
+
+  it('TECHNICIAN SELECTED_LOCATIONS can read an allowed linked-client ticket', async () => {
+    const prisma = makeSelectedLocationTechnicianPrisma('loc-allowed')
+    const serviceContractsService = makeServiceContractsService(ServiceContractRole.PRIMARY)
+
+    const result = await resolveReadableTicketAccess({
+      prisma,
+      serviceContractsService: serviceContractsService as any,
+      actor: {
+        id: 'tech-1',
+        role: UserRole.TECHNICIAN,
+        companyId: providerCompanyId,
+      },
+      ticketId,
+      linkedClientCompanyId: clientCompanyId,
+      allowedLinkedClientContractRoles: [ServiceContractRole.PRIMARY, ServiceContractRole.SECONDARY],
+    })
+
+    expect(result.ticket.id).toBe(ticketId)
+    expect(result.visibilityMode).toBe('provider_primary')
+  })
+
+  it('TECHNICIAN SELECTED_LOCATIONS cannot read a forbidden linked-client ticket', async () => {
+    const prisma = makeSelectedLocationTechnicianPrisma('loc-forbidden')
+    const serviceContractsService = makeServiceContractsService(ServiceContractRole.PRIMARY)
+
+    await expect(
+      resolveReadableTicketAccess({
+        prisma,
+        serviceContractsService: serviceContractsService as any,
+        actor: {
+          id: 'tech-1',
+          role: UserRole.TECHNICIAN,
+          companyId: providerCompanyId,
+        },
+        ticketId,
+        linkedClientCompanyId: clientCompanyId,
+        allowedLinkedClientContractRoles: [ServiceContractRole.PRIMARY, ServiceContractRole.SECONDARY],
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException)
+  })
+
+  it('TECHNICIAN SELECTED_LOCATIONS rejects forbidden status/comment operations', async () => {
+    const prisma = makeSelectedLocationTechnicianPrisma('loc-forbidden')
+    const serviceContractsService = makeServiceContractsService(ServiceContractRole.PRIMARY)
+
+    await expect(
+      resolveTicketOperationAccess({
+        prisma,
+        serviceContractsService: serviceContractsService as any,
+        actor: {
+          id: 'tech-1',
+          role: UserRole.TECHNICIAN,
+          companyId: providerCompanyId,
+        },
+        ticketId,
+        linkedClientCompanyId: clientCompanyId,
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException)
+  })
+
+  it('TECHNICIAN selected-location scope still denies another tenant', async () => {
+    const prisma = makeSelectedLocationTechnicianPrisma('loc-allowed', 'other-client')
+    const serviceContractsService = makeServiceContractsService(ServiceContractRole.PRIMARY)
+    serviceContractsService.getLinkedClientAccess.mockResolvedValue(null)
+
+    await expect(
+      resolveReadableTicketAccess({
+        prisma,
+        serviceContractsService: serviceContractsService as any,
+        actor: {
+          id: 'tech-1',
+          role: UserRole.TECHNICIAN,
+          companyId: providerCompanyId,
+        },
+        ticketId,
+        linkedClientCompanyId: 'other-client',
+        allowedLinkedClientContractRoles: [ServiceContractRole.PRIMARY, ServiceContractRole.SECONDARY],
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException)
+  })
+
+  it('PLATFORM_ADMIN can still read tickets outside selected-location scopes', async () => {
+    const prisma = makePrismaTicketMock({
+      directTicket: {
+        id: ticketId,
+        companyId: clientCompanyId,
+        locationId: 'loc-forbidden',
+        assignedTechnicianId: null,
+        status: 'NEW',
+        problemCategory: { specializationLinks: [] },
+      },
+    })
+    const serviceContractsService = makeServiceContractsService(ServiceContractRole.PRIMARY)
+
+    const result = await resolveReadableTicketAccess({
+      prisma,
+      serviceContractsService: serviceContractsService as any,
+      actor: {
+        id: 'platform-admin',
+        role: UserRole.PLATFORM_ADMIN,
+        companyId: 'platform-company',
+      },
+      ticketId,
+      allowedLinkedClientContractRoles: [ServiceContractRole.PRIMARY, ServiceContractRole.SECONDARY],
+    })
+
+    expect(result.ticket.id).toBe(ticketId)
+    expect(result.visibilityMode).toBe('platform_observer')
   })
 
   it('SECONDARY management path: explicit RESTRICTED_EMPTY does not inherit provider-wide executor scope', async () => {

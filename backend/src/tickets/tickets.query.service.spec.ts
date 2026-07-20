@@ -73,6 +73,35 @@ function makeSecondaryContracts() {
 
 const wideLocationScope = { mode: 'tenant_wide' as const, locationIds: [] as string[] }
 
+function fieldMatches(condition: any, value: any): boolean {
+  if (condition === undefined) return true
+  if (condition === null || typeof condition !== 'object' || condition instanceof Date) {
+    return value === condition
+  }
+  if ('equals' in condition) return value === condition.equals
+  if ('in' in condition) return Array.isArray(condition.in) && condition.in.includes(value)
+  if ('notIn' in condition) return Array.isArray(condition.notIn) && !condition.notIn.includes(value)
+  if ('not' in condition) return value !== condition.not
+  return true
+}
+
+function ticketMatchesWhere(where: any, ticket: any): boolean {
+  if (!where) return true
+  if (where.id?.equals === '__no_access__') return false
+  if (Array.isArray(where.AND)) {
+    return where.AND.every((part: any) => ticketMatchesWhere(part, ticket))
+  }
+  if (Array.isArray(where.OR)) {
+    return where.OR.some((part: any) => ticketMatchesWhere(part, ticket))
+  }
+  if (!fieldMatches(where.id, ticket.id)) return false
+  if (!fieldMatches(where.companyId, ticket.companyId)) return false
+  if (!fieldMatches(where.locationId, ticket.locationId)) return false
+  if (!fieldMatches(where.assignedTechnicianId, ticket.assignedTechnicianId)) return false
+  if (!fieldMatches(where.status, ticket.status)) return false
+  return true
+}
+
 // ── list ──────────────────────────────────────────────────────────────────────
 
 describe('TicketsQueryService.list', () => {
@@ -168,6 +197,40 @@ describe('TicketsQueryService.list', () => {
     expect(contracts.getLinkedClientAccess).toHaveBeenCalledWith(PROVIDER_ID, CLIENT_ID)
     const whereStr = JSON.stringify(prisma.ticket.findMany.mock.calls[0][0].where)
     expect(whereStr).toContain('__no_access__')
+  })
+
+  it('TECHNICIAN selected-location list omits forbidden location tickets', async () => {
+    const techScope = makeTechScope([PROVIDER_ID, CLIENT_ID])
+    techScope.locationScopeByCompany = {
+      [PROVIDER_ID]: ['__restricted_empty_location_scope__'],
+      [CLIENT_ID]: ['loc-allowed'],
+    }
+    spyTechScope.mockResolvedValue(techScope)
+    const rows = [
+      {
+        id: 'ticket-allowed',
+        companyId: CLIENT_ID,
+        locationId: 'loc-allowed',
+        assignedTechnicianId: USER_ID,
+        status: TicketStatus.ASSIGNED,
+      },
+      {
+        id: 'ticket-forbidden',
+        companyId: CLIENT_ID,
+        locationId: 'loc-forbidden',
+        assignedTechnicianId: USER_ID,
+        status: TicketStatus.ASSIGNED,
+      },
+    ]
+    const prisma = makePrisma()
+    prisma.ticket.findMany.mockImplementation(async ({ where }: any) =>
+      rows.filter((ticket) => ticketMatchesWhere(where, ticket)),
+    )
+    const svc = makeService(prisma)
+
+    const result = await svc.list(PROVIDER_ID, USER_ID, UserRole.TECHNICIAN, undefined, undefined, CLIENT_ID)
+
+    expect(result.map((ticket: any) => ticket.id)).toEqual(['ticket-allowed'])
   })
 })
 

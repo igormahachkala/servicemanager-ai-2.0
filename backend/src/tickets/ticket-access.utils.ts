@@ -341,18 +341,6 @@ export async function resolveTechnicianOperationalScope(params: {
   ).filter((name) => name.length > 0)
   const linkedScopeSelected = !!requestedLinked
   const hasLinkedCompanies = linkedClientIds.some((id) => id !== params.actor.companyId)
-  const bindings = await params.prisma.userLocationBinding.findMany({
-    where: {
-      userId: params.actor.id,
-      companyId: { in: companyIds },
-      location: { clientCompanyId: { in: companyIds } },
-    },
-    select: {
-      companyId: true,
-      locationId: true,
-      location: { select: { clientCompanyId: true } },
-    },
-  })
   const accessScope = params.prisma.userAccessScope?.findUnique
     ? await params.prisma.userAccessScope.findUnique({
         where: {
@@ -364,6 +352,19 @@ export async function resolveTechnicianOperationalScope(params: {
         select: { locationMode: true },
       })
     : null
+  const bindingCompanyIds = accessScope?.locationMode ? [params.actor.companyId] : companyIds
+  const bindings = await params.prisma.userLocationBinding.findMany({
+    where: {
+      userId: params.actor.id,
+      companyId: { in: bindingCompanyIds },
+      location: { clientCompanyId: { in: companyIds } },
+    },
+    select: {
+      companyId: true,
+      locationId: true,
+      location: { select: { clientCompanyId: true } },
+    },
+  })
   const locationScopeByCompany: Record<string, string[]> = {}
   for (const companyId of companyIds) {
     locationScopeByCompany[companyId] = []
