@@ -619,6 +619,12 @@ export class PermissionsService {
           location: { clientCompanyId },
         },
       });
+      await tx.userLocationBinding.deleteMany({
+        where: {
+          userId: target.user.id,
+          locationId: { in: locationIds },
+        },
+      });
       await tx.userLocationBinding.createMany({
         data: locationIds.map((locationId) => ({
           userId: target.user.id,
@@ -856,6 +862,12 @@ export class PermissionsService {
             userId: target.user.id,
             companyId: target.companyId,
             location: { clientCompanyId: replacement.clientCompanyId },
+          },
+        });
+        await tx.userLocationBinding.deleteMany({
+          where: {
+            userId: target.user.id,
+            locationId: { in: replacement.locationIds },
           },
         });
         await tx.userLocationBinding.createMany({

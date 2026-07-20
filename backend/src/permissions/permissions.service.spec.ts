@@ -734,6 +734,57 @@ describe('PermissionsService Access Constructor V1A', () => {
     expect(state.bindings).toHaveLength(1);
   });
 
+  it('migrates a selected legacy client-company binding into provider scope', async () => {
+    const { service, state } = makeService({
+      blocks,
+      companies: [
+        { id: 'provider-1', name: 'Provider', type: CompanyType.PROVIDER },
+        { id: 'client-1', name: 'Client', type: CompanyType.CLIENT },
+      ],
+      users: [
+        { id: 'admin', companyId: 'provider-1', email: 'admin@example.com', role: UserRole.ADMIN },
+        { id: 'tech', companyId: 'provider-1', email: 'tech@example.com', role: UserRole.TECHNICIAN },
+      ],
+      rolePermissions: [{ role: UserRole.ADMIN, companyType: CompanyType.PROVIDER, code: PERMISSIONS.USERS_MANAGE }],
+      locations: [{ id: 'loc-1', clientCompanyId: 'client-1', name: 'Location 1' }],
+      bindings: [
+        {
+          id: 'legacy-binding',
+          userId: 'tech',
+          companyId: 'client-1',
+          locationId: 'loc-1',
+          createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        },
+      ],
+      linkedClients: [
+        {
+          linkedClientCompanyId: 'client-1',
+          name: 'Client',
+          serviceContractId: 'contract-1',
+          role: ServiceContractRole.PRIMARY,
+          status: 'ACTIVE',
+        },
+      ],
+    });
+
+    await service.replaceLocationBindings({
+      actorId: 'admin',
+      actorCompanyId: 'provider-1',
+      actorRole: UserRole.ADMIN,
+      userId: 'tech',
+      clientCompanyId: 'client-1',
+      locationIds: ['loc-1'],
+    });
+
+    expect(state.bindings).toEqual([
+      expect.objectContaining({
+        userId: 'tech',
+        companyId: 'provider-1',
+        locationId: 'loc-1',
+      }),
+    ]);
+  });
+
   it('keeps legacy no-scope-row provider preview backward compatible without fail-closed reinterpretation', async () => {
     const { service } = makeService({
       blocks,
@@ -1406,6 +1457,66 @@ describe('PermissionsService Access Constructor V1A', () => {
     expect(state.accessScopes).toEqual([
       { userId: 'tech', companyId: 'provider-1', locationMode: UserAccessLocationMode.RESTRICTED_EMPTY },
     ]);
+  });
+
+  it('replaceAll keeps unselected legacy bindings stale while migrating selected locations', async () => {
+    const { service, state } = makeService({
+      blocks,
+      companies: [
+        { id: 'provider-1', name: 'Provider', type: CompanyType.PROVIDER },
+        { id: 'client-1', name: 'Client', type: CompanyType.CLIENT },
+      ],
+      users: [
+        { id: 'admin', companyId: 'provider-1', email: 'admin@example.com', role: UserRole.ADMIN },
+        { id: 'tech', companyId: 'provider-1', email: 'tech@example.com', role: UserRole.TECHNICIAN },
+      ],
+      rolePermissions: [{ role: UserRole.ADMIN, companyType: CompanyType.PROVIDER, code: PERMISSIONS.USERS_MANAGE }],
+      locations: [
+        { id: 'loc-selected', clientCompanyId: 'client-1', name: 'Selected' },
+        { id: 'loc-stale', clientCompanyId: 'client-1', name: 'Stale' },
+      ],
+      bindings: [
+        {
+          id: 'legacy-selected',
+          userId: 'tech',
+          companyId: 'client-1',
+          locationId: 'loc-selected',
+          createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        },
+        {
+          id: 'legacy-stale',
+          userId: 'tech',
+          companyId: 'client-1',
+          locationId: 'loc-stale',
+          createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        },
+      ],
+      linkedClients: [
+        {
+          linkedClientCompanyId: 'client-1',
+          name: 'Client',
+          serviceContractId: 'contract-1',
+          role: ServiceContractRole.PRIMARY,
+          status: ServiceContractStatus.ACTIVE,
+        },
+      ],
+    });
+
+    await service.replaceAllLocationBindings({
+      actorId: 'admin',
+      actorCompanyId: 'provider-1',
+      actorRole: UserRole.ADMIN,
+      userId: 'tech',
+      groups: [{ mode: 'REPLACE_SELECTED', clientCompanyId: 'client-1', locationIds: ['loc-selected'] }],
+    });
+
+    expect(state.bindings).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ userId: 'tech', companyId: 'provider-1', locationId: 'loc-selected' }),
+        expect.objectContaining({ userId: 'tech', companyId: 'client-1', locationId: 'loc-stale' }),
+      ]),
+    );
+    expect(state.bindings).toHaveLength(2);
   });
 
   it('rejects foreign location options', async () => {
