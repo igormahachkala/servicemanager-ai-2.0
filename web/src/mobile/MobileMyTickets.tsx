@@ -8,7 +8,7 @@ import {
   mobileTicketNavState,
   scopeForMobileTicketLink,
 } from './mobileTicketDisplay'
-import { ticketsForMobileMyPage } from './mobileHomeBoardFilters'
+import { isActiveMobileMyTicket, ticketsForMobileMyPage } from './mobileHomeBoardFilters'
 import { appendBoardNavigationContextToPath, readBoardNavigationContextFromSearch } from '../lib/boardNavigationContext'
 import { ticketMatchesMobileHomeSearch } from './mobileHomeListUtils'
 import { mobilePath } from './mobileRoute'
@@ -167,7 +167,7 @@ export function MobileMyTickets() {
     const activeScope = ticketsForMobileMyPage(allTickets, 'active', meQ.data?.id, meQ.data?.role)
     const archiveScope = ticketsForMobileMyPage(allTickets, 'archive', meQ.data?.id, meQ.data?.role)
     return {
-      active: activeScope.filter((t) => filterStatuses.active!.includes(t.status)).length,
+      active: activeScope.filter(isActiveMobileMyTicket).length,
       done: archiveScope.filter((t) => filterStatuses.done!.includes(t.status)).length,
       archive: archiveScope.filter((t) => filterStatuses.archive!.includes(t.status)).length,
     }

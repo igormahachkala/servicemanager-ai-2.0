@@ -17,17 +17,9 @@ import {
   subscribeToPush,
   unsubscribeFromPush,
 } from '../lib/pushNotifications'
+import { enablePushNotifications, PUSH_ENABLE_PREFS } from './mobilePushActivation'
 
-const DEFAULT_PREFS: PushPreference = {
-  chat: true,
-  ticketNew: true,
-  assignment: true,
-  statusChange: true,
-  acceptance: true,
-  acceptanceReject: true,
-  sla: true,
-  news: false,
-}
+const DEFAULT_PREFS: PushPreference = PUSH_ENABLE_PREFS
 
 const TYPE_ROWS: Array<{ key: keyof PushPreference; label: string; hint?: string }> = [
   { key: 'chat', label: 'Сообщения в чатах', hint: 'Главный сценарий — рекомендуем не выключать' },
@@ -140,36 +132,45 @@ export function MobilePushSettingsPage() {
   const testM = useMutation({ mutationFn: api.sendTestPush })
 
   async function handleEnable() {
+    if (busy) return
     setLocalError(null)
     setBusy(true)
     try {
-      const perm = await requestPushPermission()
-      setPermission(perm)
-      if (perm !== 'granted') return
-
-      if (!backendReady || !vapidQ.data?.key) {
-        // Бэкенд ещё не готов (нет VAPID-ключа) — разрешение получено, но подписаться
-        // технически нечем. Честно показываем это состояние, ничего не подделываем.
-        setLocalError('Разрешение получено. Подписка на push включится автоматически, когда бэкенд будет готов — ничего дополнительно делать не нужно.')
+      const result = await enablePushNotifications({
+        vapidPublicKey: vapidQ.data?.key,
+        platform,
+        deps: {
+          requestPermission: requestPushPermission,
+          registerServiceWorker: registerPushServiceWorker,
+          getExistingSubscription: getExistingPushSubscription,
+          subscribeToPush,
+          serializeSubscription,
+          saveSubscription: (payload) => api.subscribeToPushBackend(payload),
+          updatePreferences: (patch) => api.updatePushPreferences(patch),
+          refreshCanonicalState: async () => {
+            await queryClient.invalidateQueries({ queryKey: ['push-preferences'] })
+            await queryClient.invalidateQueries({ queryKey: ['push-vapid-key'] })
+            await queryClient.refetchQueries({ queryKey: ['push-preferences'], type: 'active' })
+          },
+        },
+      })
+      setPermission(result.permission)
+      setSubscribed(result.subscribed)
+      if (!result.ok) {
+        setLocalError(result.message)
         return
       }
-
-      const sub = await subscribeToPush(vapidQ.data.key)
-      if (!sub) {
-        setLocalError('Не удалось оформить подписку в этом браузере. Попробуйте ещё раз.')
-        return
-      }
-      const payload = serializeSubscription(sub)
-      await api.subscribeToPushBackend({ ...payload, platform, declarative: false })
-      setSubscribed(true)
-    } catch {
-      setLocalError('Что-то пошло не так. Попробуйте ещё раз чуть позже.')
+      queryClient.setQueryData<PushPreference>(['push-preferences'], result.preferences)
+    } catch (e) {
+      const message = e instanceof Error && e.message ? e.message : 'Что-то пошло не так. Попробуйте ещё раз чуть позже.'
+      setLocalError(message)
     } finally {
       setBusy(false)
     }
   }
 
   async function handleDisable() {
+    if (busy) return
     setBusy(true)
     try {
       const { endpoint } = await unsubscribeFromPush()

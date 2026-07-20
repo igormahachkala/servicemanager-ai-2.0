@@ -50,9 +50,13 @@ export function isTicketAssignedToMe(ticket: TicketCard, meId: string | undefine
   return (ticket.assignedTechnicianId || ticket.assignedTechnician?.id || '').trim() === meId.trim()
 }
 
+export function isMobileExecutorTicketRole(role: Role | undefined | null): boolean {
+  return role === 'TECHNICIAN' || role === 'MASTER' || role === 'DISPATCHER' || role === 'ADMIN' || role === 'ADMIN_PROVIDER'
+}
+
 /**
  * Ролевая семантика «Мои заявки»:
- * - TECHNICIAN: назначенные на текущего пользователя.
+ * - Полевые/исполнительские роли: назначенные на текущего пользователя.
  * - Остальные роли: созданные текущим пользователем.
  */
 export function isMineTicketForRole(
@@ -61,8 +65,10 @@ export function isMineTicketForRole(
   role: Role | undefined | null,
 ): boolean {
   if (!role || !meId) return false
+  const createdByMe = (ticket.createdByUserId || '').trim() === meId.trim()
   if (role === 'TECHNICIAN') return isTicketAssignedToMe(ticket, meId)
-  return (ticket.createdByUserId || '').trim() === meId.trim()
+  if (isMobileExecutorTicketRole(role)) return isTicketAssignedToMe(ticket, meId) || createdByMe
+  return createdByMe
 }
 
 export function isTicketInWorkStatus(ticket: TicketCard): boolean {
@@ -237,6 +243,15 @@ export function emptyMessageForMobileHomeTab(tab: MobileHomeBoardFilterTab): str
 }
 
 export type MobileMyTicketsFilterKey = 'active' | 'new' | 'archive'
+
+export function isActiveMobileMyTicket(ticket: TicketCard): boolean {
+  return (
+    ticket.status === 'NEW' ||
+    ticket.status === 'ASSIGNED' ||
+    ticket.status === 'IN_PROGRESS' ||
+    ticket.status === 'AWAITING_ACCEPTANCE'
+  )
+}
 
 /**
  * Архив в /m/my: история контура для provider/admin, личные — для TECH (assigned) и CLIENT (created).
