@@ -714,7 +714,8 @@ export function AccessConstructorPage() {
   if (saveBlocker) warnings.push(saveBlocker)
 
   return (
-    <div>
+    <div className="managementPage">
+      <div className="managementPageContext">
       <div className="row" style={{ marginBottom: 12, alignItems: 'flex-start' }}>
         <div>
           <h2 style={{ marginBottom: 4 }}>Конструктор доступа</h2>
@@ -722,7 +723,7 @@ export function AccessConstructorPage() {
         </div>
       </div>
 
-      <div className="panel uiCard" style={{ marginBottom: 12 }}>
+      <div className="panel uiCard managementContextPanel">
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px, 1fr) repeat(3, minmax(150px, 190px))', gap: 10 }}>
           <input
             placeholder="Поиск по имени, email, телефону или роли"
@@ -748,10 +749,11 @@ export function AccessConstructorPage() {
           </select>
         </div>
       </div>
+      </div>
 
       {summaryQ.isError ? <div className="alert">Не удалось загрузить сотрудников: {errorMessage(summaryQ.error)}</div> : null}
 
-      <div className="panel uiCard" style={{ overflow: 'hidden', padding: 0 }}>
+      <div className="panel uiCard managementTablePanel">
         <div className="row" style={{ padding: 12, borderBottom: '1px solid #e5e7eb' }}>
           <div>
             <div style={{ fontWeight: 800 }}>Сотрудники</div>
@@ -765,8 +767,8 @@ export function AccessConstructorPage() {
         ) : visibleRows.length === 0 ? (
           <div style={{ padding: 16 }} className="muted small">Сотрудники не найдены.</div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={tableStyle}>
+          <div className="managementTableScroll">
+            <table className="managementTable" style={tableStyle}>
               <thead>
                 <tr style={{ background: '#f8fafc' }}>
                   <th style={cellStyle}>Сотрудник</th>

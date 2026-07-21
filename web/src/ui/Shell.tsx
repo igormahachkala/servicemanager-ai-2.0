@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
@@ -135,6 +135,7 @@ function isNavItemVisible(item: NavItem, role?: api.Role, canAccessEngineeringAg
 
 export function Shell() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const contentMainRef = useRef<HTMLElement | null>(null)
 
   const nav = useNavigate()
   const loc = useLocation()
@@ -177,6 +178,12 @@ export function Shell() {
 
   useEffect(() => {
     setMobileMenuOpen(false)
+  }, [loc.pathname])
+
+  useEffect(() => {
+    const container = contentMainRef.current
+    if (!container) return
+    container.scrollTo({ top: 0, left: 0 })
   }, [loc.pathname])
 
   useEffect(() => {
@@ -345,7 +352,7 @@ export function Shell() {
           </div>
         ) : null}
 
-        <main className="contentMain">
+        <main className="contentMain" ref={contentMainRef}>
           <Outlet />
         </main>
       </div>

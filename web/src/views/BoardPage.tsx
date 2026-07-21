@@ -565,7 +565,8 @@ export function BoardPage() {
   })()
 
   return (
-    <div>
+    <div className="managementPage">
+      <div className="managementPageContext">
       <div className="row">
         <div>
           <h2 style={{ marginBottom: 4 }}>Доска заявок</h2>
@@ -603,6 +604,7 @@ export function BoardPage() {
 
       <div className="pageHint">
         Здесь отображаются заявки по статусам. Откройте карточку, чтобы назначить исполнителя или изменить статус.
+      </div>
       </div>
 
       <div style={{ display: 'grid', gap: 12, marginBottom: 12 }}>
@@ -781,7 +783,7 @@ export function BoardPage() {
       </div>
 
       {analyticsVisible ? (
-      <div className="panel uiCard" style={{ marginBottom: 12 }}>
+      <div className="panel uiCard managementStickyPanel" style={{ marginBottom: 12 }}>
         <div className="row" style={{ marginBottom: 10 }}>
           <div style={{ fontWeight: 700 }}>Service context аналитика</div>
           <div className="muted small">

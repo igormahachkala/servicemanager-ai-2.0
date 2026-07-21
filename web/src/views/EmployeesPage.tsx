@@ -604,7 +604,8 @@ export function EmployeesPage() {
   ) : null
 
   return (
-    <div>
+    <div className="managementPage">
+      <div className="managementPageContext">
       <div className="row">
         <div>
           <h2 style={{ marginBottom: 4 }}>Сотрудники</h2>
@@ -629,6 +630,21 @@ export function EmployeesPage() {
           <Link to={observerCompanyId ? `/company?companyId=${observerCompanyId}` : '/company'}><button className="ghost">К компании</button></Link>
           <Link to={observerCompanyId ? `/board?companyId=${observerCompanyId}` : '/board'}><button className="ghost">К доске</button></Link>
         </div>
+      </div>
+
+      <div className="managementContextControls">
+        <label className="muted small" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <input type="checkbox" checked={showDeleted} onChange={(e) => setShowDeleted(e.target.checked)} />
+          Показать удалённых
+        </label>
+        <input
+          type="search"
+          placeholder="Поиск: имя, email, телефон"
+          value={searchQ}
+          onChange={(e) => setSearchQ(e.target.value)}
+          style={{ flex: '1 1 260px', maxWidth: 420 }}
+        />
+      </div>
       </div>
 
       <div className="pageHint">
@@ -671,19 +687,6 @@ export function EmployeesPage() {
         <div className="panel">
           <div className="row" style={{ marginBottom: 10, gap: 8, flexWrap: 'wrap' }}>
             <h3 style={{ margin: 0 }}>Список сотрудников</h3>
-            <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: '0.9rem' }}>
-              <input type="checkbox" checked={showDeleted} onChange={(e) => setShowDeleted(e.target.checked)} />
-              Показать удалённых
-            </label>
-          </div>
-          <div style={{ marginBottom: 10 }}>
-            <input
-              type="search"
-              placeholder="Поиск: имя, email, телефон"
-              value={searchQ}
-              onChange={(e) => setSearchQ(e.target.value)}
-              style={{ width: '100%' }}
-            />
           </div>
           {usersQ.isLoading ? (
             <div className="muted">Загружаем сотрудников…</div>

@@ -240,7 +240,8 @@ export function LocationsPage() {
   const busy = createM.isPending || updateM.isPending || deleteLocationM.isPending || restoreLocationM.isPending
 
   return (
-    <div>
+    <div className="managementPage">
+      <div className="managementPageContext">
       <div className="row">
         <div>
           <h2 style={{ marginBottom: 4 }}>Локации</h2>
@@ -258,15 +259,13 @@ export function LocationsPage() {
         </div>
       </div>
 
-      <div className="pageHint">Точки — это реальные объекты клиента, к которым привязываются заявки.</div>
-
-      {err ? <div className="alert">{err}</div> : null}
-      {success ? <div className="panel" style={{ marginBottom: 12 }}>{success}</div> : null}
-      {locationsQ.isError ? <div className="alert">{(locationsQ.error as any)?.message || String(locationsQ.error)}</div> : null}
-
-      {isProviderScope ? (
-        <div className="panel" style={{ marginBottom: 12 }}>
-          <label style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+      <div className="managementContextControls">
+        <label className="muted small" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <input type="checkbox" checked={showDeleted} onChange={(e) => setShowDeleted(e.target.checked)} />
+          Показать удалённые
+        </label>
+        {isProviderScope ? (
+          <label className="muted small" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <span style={{ fontWeight: 600 }}>Клиент (контур):</span>
             <select value={selectedClientId} onChange={(e) => setSelectedClientId(e.target.value)}>
               <option value="">— выберите клиента —</option>
@@ -277,9 +276,19 @@ export function LocationsPage() {
               ))}
             </select>
           </label>
-          <div className="muted small" style={{ marginTop: 6 }}>
-            Точки создаются и отображаются в контуре выбранного клиента.
-          </div>
+        ) : null}
+      </div>
+      </div>
+
+      <div className="pageHint">Точки — это реальные объекты клиента, к которым привязываются заявки.</div>
+
+      {err ? <div className="alert">{err}</div> : null}
+      {success ? <div className="panel" style={{ marginBottom: 12 }}>{success}</div> : null}
+      {locationsQ.isError ? <div className="alert">{(locationsQ.error as any)?.message || String(locationsQ.error)}</div> : null}
+
+      {isProviderScope ? (
+        <div className="muted small">
+          Точки создаются и отображаются в контуре выбранного клиента.
         </div>
       ) : null}
 
@@ -304,10 +313,6 @@ export function LocationsPage() {
         <div className="panel">
           <div className="row" style={{ marginBottom: 10, gap: 8 }}>
             <h3 style={{ margin: 0 }}>Список локаций</h3>
-            <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: '0.9rem' }}>
-              <input type="checkbox" checked={showDeleted} onChange={(e) => setShowDeleted(e.target.checked)} />
-              Показать удалённые
-            </label>
           </div>
           {isProviderScope && !scopeCompanyId ? (
             <div className="muted">Выберите клиента, чтобы увидеть его локации.</div>

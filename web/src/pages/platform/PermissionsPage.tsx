@@ -179,7 +179,8 @@ export function PermissionsPage() {
   const isEmpty = !isLoading && !isError && matrix.length === 0
 
   return (
-    <div>
+    <div className="managementPage">
+      <div className="managementPageContext">
       <div className="row" style={{ marginBottom: 8, alignItems: 'flex-start' }}>
         <div>
           <h2 style={{ marginBottom: 4 }}>Роли и права</h2>
@@ -209,6 +210,18 @@ export function PermissionsPage() {
           : 'Read-only обзор прав по роли и типу компании. Нажмите «Редактировать», чтобы смоделировать изменения (без применения).'}
       </div>
 
+      {!isLoading && !isError && !isEmpty ? (
+        <PermissionFilters
+          roles={roles}
+          companyTypes={companyTypes}
+          roleFilter={roleFilter}
+          companyTypeFilter={companyTypeFilter}
+          onRoleChange={setRoleFilter}
+          onCompanyTypeChange={setCompanyTypeFilter}
+        />
+      ) : null}
+      </div>
+
       {isError ? (
         <div className="alert">
           Не удалось загрузить права. {String((catalogQ.error as any)?.message || (matrixQ.error as any)?.message || '')}
@@ -233,14 +246,6 @@ export function PermissionsPage() {
         <div className="panel"><div className="muted small">Нет данных о правах.</div></div>
       ) : !isError ? (
         <>
-          <PermissionFilters
-            roles={roles}
-            companyTypes={companyTypes}
-            roleFilter={roleFilter}
-            companyTypeFilter={companyTypeFilter}
-            onRoleChange={setRoleFilter}
-            onCompanyTypeChange={setCompanyTypeFilter}
-          />
           <PermissionMatrix
             entries={filtered}
             catalog={catalog}
