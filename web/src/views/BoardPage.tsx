@@ -5,11 +5,16 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { mapReason } from '../lib/assignmentExplain'
 import {
+  applyBoardNavigationContextToSearchParams,
+  appendBoardNavigationContextToPath,
+  readBoardNavigationContextFromSearch,
   sanitizeBoardNavigationContext,
+  type BoardSourcePath,
   type BoardTicketNavState,
 } from '../lib/boardNavigationContext'
 import { pushToast } from '../lib/appToast'
 import { logTicketActionError, mapTicketActionError } from '../lib/ticketOperationalErrors'
+import { OperationsViewSwitcher, type OperationsViewMode } from '../components/operations/OperationsViewSwitcher'
 
 function fmt(dt?: string | null) {
   if (!dt) return '—'
@@ -140,10 +145,17 @@ function canReadCompanyContext(role?: api.Role) {
   return role === 'ADMIN' || role === 'MASTER' || role === 'DISPATCHER' || role === 'NETWORK_DIRECTOR'
 }
 
+function normalizeOperationsViewMode(value?: string | null): OperationsViewMode | null {
+  if (value === 'registry' || value === 'board') return value
+  return null
+}
 
-function buildBoardLink(linkedClientCompanyId?: string | null) {
-  if (!linkedClientCompanyId) return '/board'
-  return `/board?linkedClientCompanyId=${linkedClientCompanyId}`
+function defaultOperationsViewMode(pathname: string): OperationsViewMode {
+  return pathname === '/tickets' ? 'registry' : 'board'
+}
+
+function defaultOperationsSourcePath(pathname: string): BoardSourcePath {
+  return pathname === '/tickets' ? '/tickets' : '/board'
 }
 
 function buildCreateTicketLink(linkedClientCompanyId?: string | null) {
@@ -184,6 +196,10 @@ export function BoardPage() {
   const [bulkError, setBulkError] = useState('')
   const boardDataRef = useRef<{ scopeKey: string; data: api.BoardResponse } | null>(null)
   const autoSelectedPrimaryRef = useRef(false)
+  const activeOperationsView = useMemo<OperationsViewMode>(() => {
+    const sp = new URLSearchParams(location.search)
+    return normalizeOperationsViewMode(sp.get('boardTab')) ?? defaultOperationsViewMode(location.pathname)
+  }, [location.pathname, location.search])
 
   useLayoutEffect(() => {
     const navState = location.state as BoardTicketNavState | null | undefined
@@ -193,7 +209,8 @@ export function BoardPage() {
     setSelectedEquipmentId(restore.selectedEquipmentId || '')
     setSelectedStatus(restore.selectedStatus || '')
     setIncludeArchived(!!restore.includeArchived)
-    navigate(`${location.pathname}${location.search}`, { replace: true, state: undefined })
+    if (restore.take) setTake(restore.take)
+    navigate(appendBoardNavigationContextToPath(`${location.pathname}${location.search}`, restore), { replace: true, state: undefined })
   }, [location.key, location.pathname, location.search, navigate])
 
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
@@ -254,6 +271,32 @@ export function BoardPage() {
   const providerHasNoLinkedClients = canShowLinkedClients && linkedClientsLoaded && linkedClients.length === 0
   const providerRestrictedSelection = canShowLinkedClients && !!selectedLinkedClient && selectedLinkedClient.role !== 'PRIMARY'
 
+  function buildOperationsPath(options?: {
+    linkedClientCompanyId?: string | null
+    view?: OperationsViewMode
+  }) {
+    const searchParams = new URLSearchParams(location.search)
+    const existingBoardContext = readBoardNavigationContextFromSearch(searchParams)
+    if (options && Object.prototype.hasOwnProperty.call(options, 'linkedClientCompanyId')) {
+      const nextLinkedClientCompanyId = (options.linkedClientCompanyId || '').trim()
+      if (nextLinkedClientCompanyId) searchParams.set('linkedClientCompanyId', nextLinkedClientCompanyId)
+      else searchParams.delete('linkedClientCompanyId')
+    }
+    applyBoardNavigationContextToSearchParams(searchParams, {
+      selectedLocationId: existingBoardContext?.selectedLocationId || selectedLocationId,
+      selectedEquipmentId: existingBoardContext?.selectedEquipmentId || selectedEquipmentId,
+      selectedStatus: existingBoardContext?.selectedStatus || selectedStatus,
+      includeArchived: !!existingBoardContext?.includeArchived || includeArchived,
+      take: existingBoardContext?.take || take,
+      tab: options?.view ?? activeOperationsView,
+      chips: existingBoardContext?.chips,
+      search: existingBoardContext?.search,
+      scopeLabel: existingBoardContext?.scopeLabel,
+    })
+    const query = searchParams.toString()
+    return `${location.pathname}${query ? `?${query}` : ''}`
+  }
+
   useEffect(() => {
     if (!canShowLinkedClients) {
       autoSelectedPrimaryRef.current = false
@@ -263,7 +306,7 @@ export function BoardPage() {
   useEffect(() => {
     const sp = new URLSearchParams(location.search)
     if (!sp.get('linkedClientCompanyId') && requestedLinkedClientCompanyId && !observerCompanyId) {
-      navigate(buildBoardLink(requestedLinkedClientCompanyId), { replace: true })
+      navigate(buildOperationsPath({ linkedClientCompanyId: requestedLinkedClientCompanyId }), { replace: true })
       return
     }
     if (!canShowLinkedClients) return
@@ -272,7 +315,7 @@ export function BoardPage() {
     if (autoSelectedPrimaryRef.current) return
 
     autoSelectedPrimaryRef.current = true
-    navigate(buildBoardLink(primaryLinkedClients[0].clientCompany.id), { replace: true })
+    navigate(buildOperationsPath({ linkedClientCompanyId: primaryLinkedClients[0].clientCompany.id }), { replace: true })
   }, [canShowLinkedClients, requestedLinkedClientCompanyId, primaryLinkedClients, navigate, observerCompanyId, location.search])
 
   const providerContextResolved = isObserverMode
@@ -519,7 +562,12 @@ export function BoardPage() {
 
   function onSelectLinkedClient(nextLinkedClientCompanyId: string) {
     if (!nextLinkedClientCompanyId) return
-    navigate(buildBoardLink(nextLinkedClientCompanyId), { replace: false })
+    navigate(buildOperationsPath({ linkedClientCompanyId: nextLinkedClientCompanyId }), { replace: false })
+  }
+
+  function onOperationsViewChange(nextView: OperationsViewMode) {
+    if (nextView === activeOperationsView) return
+    navigate(buildOperationsPath({ view: nextView }), { replace: false })
   }
 
   function buildTicketLink(ticket: api.TicketCard) {
@@ -543,8 +591,11 @@ export function BoardPage() {
       selectedEquipmentId,
       selectedStatus,
       includeArchived,
+      take,
+      tab: activeOperationsView,
     })
-    return boardContext ? { boardContext } : undefined
+    const sourcePath = defaultOperationsSourcePath(location.pathname)
+    return boardContext ? { boardContext, sourcePath } : { sourcePath }
   }
 
   const subtitle = (() => {
@@ -569,7 +620,7 @@ export function BoardPage() {
       <div className="managementPageContext">
       <div className="row">
         <div>
-          <h2 style={{ marginBottom: 4 }}>Доска заявок</h2>
+          <h2 style={{ marginBottom: 4 }}>{activeOperationsView === 'registry' ? 'Заявки' : 'Доска заявок'}</h2>
           <div className="muted small">{subtitle}</div>
           {selectedLinkedClient ? (
             <div className="muted small" style={{ marginTop: 4 }}>
@@ -602,11 +653,22 @@ export function BoardPage() {
         </div>
       </div>
 
+      <OperationsViewSwitcher value={activeOperationsView} onChange={onOperationsViewChange} />
+
       <div className="pageHint">
-        Здесь отображаются заявки по статусам. Откройте карточку, чтобы назначить исполнителя или изменить статус.
+        {activeOperationsView === 'registry'
+          ? 'Компактный реестр заявок будет добавлен следующим этапом.'
+          : 'Здесь отображаются заявки по статусам. Откройте карточку, чтобы назначить исполнителя или изменить статус.'}
       </div>
       </div>
 
+      {activeOperationsView === 'registry' ? (
+        <div className="panel uiCard operationsRegistryPlaceholder">
+          <h3>Реестр заявок</h3>
+          <div className="muted">Компактный реестр заявок будет добавлен следующим этапом</div>
+        </div>
+      ) : (
+        <>
       <div style={{ display: 'grid', gap: 12, marginBottom: 12 }}>
         <div className="panel" style={{ minHeight: 64, display: 'grid', alignContent: 'center' }}>
           {isObserverMode ? (
@@ -1199,6 +1261,8 @@ export function BoardPage() {
           </div>
         )}
       </div>
+        </>
+      )}
     </div>
   )
 }

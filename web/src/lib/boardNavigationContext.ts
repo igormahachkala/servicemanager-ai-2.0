@@ -25,12 +25,21 @@ export type BoardNavigationContext = {
   scopeLabel?: string
 }
 
+export type BoardSourcePath = '/tickets' | '/board'
+
 export type BoardTicketNavState = {
   boardContext?: BoardNavigationContext
+  sourcePath?: BoardSourcePath
 }
 
 function normalizeText(value: unknown) {
   return typeof value === 'string' ? value.trim() : ''
+}
+
+export function normalizeBoardSourcePath(value: unknown): BoardSourcePath | undefined {
+  const path = normalizeText(value)
+  if (path === '/tickets' || path === '/board') return path
+  return undefined
 }
 
 export function sanitizeBoardNavigationContext(
@@ -51,12 +60,19 @@ export function sanitizeBoardNavigationContext(
 
   if (locationId) next.selectedLocationId = locationId
   if (equipmentId) next.selectedEquipmentId = equipmentId
-  if (status === 'NEW' || status === 'ASSIGNED' || status === 'IN_PROGRESS' || status === 'DONE' || status === 'CANCELED') {
+  if (
+    status === 'NEW' ||
+    status === 'ASSIGNED' ||
+    status === 'IN_PROGRESS' ||
+    status === 'AWAITING_ACCEPTANCE' ||
+    status === 'DONE' ||
+    status === 'CANCELED'
+  ) {
     next.selectedStatus = status
   }
   if (ctx.includeArchived) next.includeArchived = true
-  if (Number.isFinite(take) && take > 0) next.take = Math.max(1, Math.min(500, Math.trunc(take)))
-  if (tab) next.tab = tab
+  if (Number.isFinite(take) && take > 0) next.take = Math.max(1, Math.min(1000, Math.trunc(take)))
+  if (tab === 'registry' || tab === 'board') next.tab = tab
   if (chips.length > 0) next.chips = Array.from(new Set(chips))
   if (search) next.search = search
   if (scopeLabel) next.scopeLabel = scopeLabel

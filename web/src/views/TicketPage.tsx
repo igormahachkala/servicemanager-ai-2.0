@@ -9,6 +9,8 @@ import {
 } from '../lib/ticketClientGuidance'
 import { TicketHeader } from './ticket-page/TicketHeader'
 import {
+  appendBoardNavigationContextToPath,
+  normalizeBoardSourcePath,
   sanitizeBoardNavigationContext,
   type BoardTicketNavState,
 } from '../lib/boardNavigationContext'
@@ -238,18 +240,22 @@ export function TicketPage() {
 
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
 
-  const backToBoardHref = useMemo(() => {
-    if (observerCompanyId) return `/board?companyId=${observerCompanyId}`
-    if (effectiveLinkedClientCompanyId) return `/board?linkedClientCompanyId=${effectiveLinkedClientCompanyId}`
-    return '/board'
-  }, [observerCompanyId, effectiveLinkedClientCompanyId])
+  const boardNavState = useMemo(() => location.state as BoardTicketNavState | null | undefined, [location.state])
   const boardNavContext = useMemo(() => {
-    const state = location.state as BoardTicketNavState | null | undefined
-    return sanitizeBoardNavigationContext(state?.boardContext)
-  }, [location.state])
+    return sanitizeBoardNavigationContext(boardNavState?.boardContext)
+  }, [boardNavState])
+  const boardSourcePath = useMemo(() => normalizeBoardSourcePath(boardNavState?.sourcePath) || '/board', [boardNavState])
+  const backToBoardHref = useMemo(() => {
+    const base = observerCompanyId
+      ? `${boardSourcePath}?companyId=${observerCompanyId}`
+      : effectiveLinkedClientCompanyId
+        ? `${boardSourcePath}?linkedClientCompanyId=${effectiveLinkedClientCompanyId}`
+        : boardSourcePath
+    return appendBoardNavigationContextToPath(base, boardNavContext)
+  }, [observerCompanyId, effectiveLinkedClientCompanyId, boardSourcePath, boardNavContext])
   const backToBoardState = useMemo<BoardTicketNavState | undefined>(
-    () => (boardNavContext ? { boardContext: boardNavContext } : undefined),
-    [boardNavContext],
+    () => (boardNavContext ? { boardContext: boardNavContext, sourcePath: boardSourcePath } : undefined),
+    [boardNavContext, boardSourcePath],
   )
 
   useEffect(() => {
