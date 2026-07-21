@@ -93,11 +93,15 @@ export function createGhCliTransport(config: GitHubEvidenceBridgeConfig): GitHub
             '.[] | {name: .name, updatedAt: .commit.commit.committer.date}',
           ])
           if (!result.ok) {
-            if (result.code === 403) throw Object.assign(new Error('access_denied'), { code: 403 })
-            if (result.code === 429) throw Object.assign(new Error('rate_limited'), { code: 429 })
-            // gh exits with process code 1 on API errors; the HTTP status is in stderr
-            // (e.g. "gh: Not Found (HTTP 404)"). Detect 404 there so a missing repo is
+            // gh exits with process code 1 on API errors; the real HTTP status is in
+            // stderr (e.g. "gh: Not Found (HTTP 404)"). Parse it so 403/404/429 are
             // surfaced distinctly instead of being swallowed as an empty branch list.
+            if (result.code === 403 || /\(HTTP 403\)/.test(result.stderr)) {
+              throw Object.assign(new Error('access_denied'), { code: 403 })
+            }
+            if (result.code === 429 || /\(HTTP 429\)/.test(result.stderr)) {
+              throw Object.assign(new Error('rate_limited'), { code: 429 })
+            }
             if (result.code === 404 || /\(HTTP 404\)/.test(result.stderr)) {
               throw Object.assign(new Error('repo_not_found'), { code: 404 })
             }

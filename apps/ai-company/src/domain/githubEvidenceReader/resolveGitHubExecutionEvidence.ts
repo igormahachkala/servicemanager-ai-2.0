@@ -129,11 +129,26 @@ export async function resolveGitHubExecutionEvidence(
       pullRequestUrl: null,
     })
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'GitHub transport failed.'
     const errorCode = (error as { code?: number }).code
-    const repoNotFound =
-      errorCode === 404 || (error instanceof Error && error.message === 'repo_not_found')
-    const reasonCode = repoNotFound ? 'GITHUB_REPO_NOT_FOUND' : 'GITHUB_TRANSPORT_ERROR'
+    const errorMessage = error instanceof Error ? error.message : ''
+    const reasonCode =
+      errorCode === 404 || errorMessage === 'repo_not_found'
+        ? 'GITHUB_REPO_NOT_FOUND'
+        : errorCode === 403 || errorMessage === 'access_denied'
+          ? 'GITHUB_ACCESS_DENIED'
+          : errorCode === 429 || errorMessage === 'rate_limited'
+            ? 'GITHUB_RATE_LIMITED'
+            : 'GITHUB_TRANSPORT_ERROR'
+    const message =
+      reasonCode === 'GITHUB_REPO_NOT_FOUND'
+        ? 'GitHub repository not found.'
+        : reasonCode === 'GITHUB_ACCESS_DENIED'
+          ? 'GitHub access denied for evidence reader.'
+          : reasonCode === 'GITHUB_RATE_LIMITED'
+            ? 'GitHub API rate limit reached.'
+            : error instanceof Error
+              ? error.message
+              : 'GitHub transport failed.'
     log(
       createGitHubEvidenceReaderEvent(
         'github_evidence_transport_failed',
@@ -152,14 +167,7 @@ export async function resolveGitHubExecutionEvidence(
       checks: [],
       reportedChecks: [],
       verifiedChecks: [],
-      errors: [
-        {
-          code: reasonCode,
-          message: repoNotFound ? 'GitHub repository not found.' : message,
-          source: 'transport',
-          terminal: false,
-        },
-      ],
+      errors: [{ code: reasonCode, message, source: 'transport', terminal: false }],
       evidence: [],
       reasonCode,
       checkedAt,

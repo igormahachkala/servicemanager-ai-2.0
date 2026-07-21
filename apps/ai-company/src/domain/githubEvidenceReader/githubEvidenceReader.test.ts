@@ -133,6 +133,34 @@ describe('githubEvidenceReader', () => {
     assert.equal(result.errors[0]?.code, 'GITHUB_REPO_NOT_FOUND')
   })
 
+  it('1c. gh 403 during branch listing → GITHUB_ACCESS_DENIED', async () => {
+    const result = await resolveGitHubExecutionEvidence(resolveInput(), {
+      transport: {
+        fetchSnapshot: async () => {
+          throw Object.assign(new Error('access_denied'), { code: 403 })
+        },
+      },
+      config: { mode: 'gh_cli', repositoryAllowlist: [], maxBranches: 20, branchPrefix: 'cursor/', clockSkewMs: 300_000 },
+    })
+    assert.equal(result.status, 'PENDING')
+    assert.equal(result.reasonCode, 'GITHUB_ACCESS_DENIED')
+    assert.equal(result.errors[0]?.code, 'GITHUB_ACCESS_DENIED')
+  })
+
+  it('1d. gh 429 during branch listing → GITHUB_RATE_LIMITED', async () => {
+    const result = await resolveGitHubExecutionEvidence(resolveInput(), {
+      transport: {
+        fetchSnapshot: async () => {
+          throw Object.assign(new Error('rate_limited'), { code: 429 })
+        },
+      },
+      config: { mode: 'gh_cli', repositoryAllowlist: [], maxBranches: 20, branchPrefix: 'cursor/', clockSkewMs: 300_000 },
+    })
+    assert.equal(result.status, 'PENDING')
+    assert.equal(result.reasonCode, 'GITHUB_RATE_LIMITED')
+    assert.equal(result.errors[0]?.code, 'GITHUB_RATE_LIMITED')
+  })
+
   it('2. valid marker found', async () => {
     const marker = baseMarker()
     const result = await resolveGitHubExecutionEvidence(resolveInput(), {
