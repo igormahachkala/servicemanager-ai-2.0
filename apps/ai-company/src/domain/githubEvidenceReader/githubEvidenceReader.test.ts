@@ -119,6 +119,20 @@ describe('githubEvidenceReader', () => {
     assert.equal(result.reasonCode, 'MARKER_NOT_FOUND')
   })
 
+  it('1b. repository not found (gh 404) → GITHUB_REPO_NOT_FOUND', async () => {
+    const result = await resolveGitHubExecutionEvidence(resolveInput(), {
+      transport: {
+        fetchSnapshot: async () => {
+          throw Object.assign(new Error('repo_not_found'), { code: 404 })
+        },
+      },
+      config: { mode: 'gh_cli', repositoryAllowlist: [], maxBranches: 20, branchPrefix: 'cursor/', clockSkewMs: 300_000 },
+    })
+    assert.equal(result.status, 'PENDING')
+    assert.equal(result.reasonCode, 'GITHUB_REPO_NOT_FOUND')
+    assert.equal(result.errors[0]?.code, 'GITHUB_REPO_NOT_FOUND')
+  })
+
   it('2. valid marker found', async () => {
     const marker = baseMarker()
     const result = await resolveGitHubExecutionEvidence(resolveInput(), {

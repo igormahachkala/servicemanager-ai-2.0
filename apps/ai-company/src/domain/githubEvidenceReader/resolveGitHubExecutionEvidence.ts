@@ -130,11 +130,15 @@ export async function resolveGitHubExecutionEvidence(
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'GitHub transport failed.'
+    const errorCode = (error as { code?: number }).code
+    const repoNotFound =
+      errorCode === 404 || (error instanceof Error && error.message === 'repo_not_found')
+    const reasonCode = repoNotFound ? 'GITHUB_REPO_NOT_FOUND' : 'GITHUB_TRANSPORT_ERROR'
     log(
       createGitHubEvidenceReaderEvent(
         'github_evidence_transport_failed',
         input.toolExecutionRunId,
-        'GITHUB_TRANSPORT_ERROR',
+        reasonCode,
         { message },
       ),
     )
@@ -148,9 +152,16 @@ export async function resolveGitHubExecutionEvidence(
       checks: [],
       reportedChecks: [],
       verifiedChecks: [],
-      errors: [{ code: 'GITHUB_TRANSPORT_ERROR', message, source: 'transport', terminal: false }],
+      errors: [
+        {
+          code: reasonCode,
+          message: repoNotFound ? 'GitHub repository not found.' : message,
+          source: 'transport',
+          terminal: false,
+        },
+      ],
       evidence: [],
-      reasonCode: 'GITHUB_TRANSPORT_ERROR',
+      reasonCode,
       checkedAt,
     }
   }
