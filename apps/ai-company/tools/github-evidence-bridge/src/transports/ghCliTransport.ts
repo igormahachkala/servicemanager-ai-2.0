@@ -143,11 +143,11 @@ export function createGhCliTransport(config: GitHubEvidenceBridgeConfig): GitHub
         },
 
         fetchFileAtRef: async (ref, path) => {
+          // ref goes in the query string: a `-f` field would flip gh api to POST,
+          // and contents API answers 404 for anything but GET.
           const result = await runGh([
             'api',
-            `${base}/contents/${path}`,
-            '-f',
-            `ref=${ref}`,
+            `${base}/contents/${path}?ref=${encodeURIComponent(ref)}`,
             '-q',
             '.content',
           ])
