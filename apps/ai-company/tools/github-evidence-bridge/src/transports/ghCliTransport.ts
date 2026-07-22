@@ -84,13 +84,13 @@ export function createGhCliTransport(config: GitHubEvidenceBridgeConfig): GitHub
         rateLimited: false,
         transportError: null,
 
-        listBranches: async () => {
+        listBranches: async (request) => {
           const result = await runGh([
             'api',
             `${base}/branches`,
             '--paginate',
             '-q',
-            '.[] | {name: .name, updatedAt: .commit.commit.committer.date}',
+            '.[].name',
           ])
           if (!result.ok) {
             // gh exits with process code 1 on API errors; the real HTTP status is in
@@ -107,37 +107,26 @@ export function createGhCliTransport(config: GitHubEvidenceBridgeConfig): GitHub
             }
             return []
           }
+          // The branch list carries commit.sha and commit.url only — no commit date.
+          // Fetching it costs one extra call per branch, so ask only for the branches
+          // this request can actually use: the prefixed ones, capped at maxBranches.
+          const names = result.stdout
+            .split('\n')
+            .map((line) => line.trim().replace(/^"|"$/g, ''))
+            .filter(Boolean)
+            .filter((name) => name.startsWith(request.branchPrefix))
+            .slice(0, request.maxBranches)
+
           const branches: GitHubEvidenceTransportBranch[] = []
-          for (const line of result.stdout.split('\n')) {
-            const trimmed = line.trim()
-            if (!trimmed) continue
-            try {
-              const parsed = JSON.parse(trimmed) as { name?: string; updatedAt?: string }
-              if (parsed.name) {
-                branches.push({
-                  name: parsed.name,
-                  updatedAt: parsed.updatedAt ?? null,
-                })
-              }
-            } catch {
-              // gh -q may output single JSON array in some versions — try full parse
-            }
-          }
-          if (branches.length === 0 && result.stdout.trim().startsWith('[')) {
-            try {
-              const parsed = JSON.parse(result.stdout) as Array<{
-                name: string
-                commit?: { commit?: { committer?: { date?: string } } }
-              }>
-              for (const item of parsed) {
-                branches.push({
-                  name: item.name,
-                  updatedAt: item.commit?.commit?.committer?.date ?? null,
-                })
-              }
-            } catch {
-              // ignore
-            }
+          for (const name of names) {
+            const detail = await runGh([
+              'api',
+              `${base}/branches/${name}`,
+              '-q',
+              '.commit.commit.committer.date',
+            ])
+            const date = detail.ok ? detail.stdout.trim().replace(/"/g, '') : ''
+            branches.push({ name, updatedAt: date || null })
           }
           return branches
         },

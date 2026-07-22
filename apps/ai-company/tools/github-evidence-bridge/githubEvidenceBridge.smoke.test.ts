@@ -52,6 +52,13 @@ describe('github-evidence-bridge runtime smoke', () => {
 })
 
 const MARKER_BRANCH = 'cursor/probe-001'
+const MARKER_BRANCH_DATE = '2026-07-22T09:51:42Z'
+
+/** Pushed long before dispatchedAt — filterBranches must drop it. */
+const STALE_BRANCH = 'cursor/stale-001'
+const STALE_BRANCH_DATE = '2026-07-01T00:00:00Z'
+
+const DISPATCHED_AT = '2026-07-22T00:00:00Z'
 
 const MARKER_JSON = JSON.stringify({
   toolExecutionRunId: 'probe-001',
@@ -91,8 +98,25 @@ done
 
 case "$url" in
   */branches)
-    printf '%s\\n' '{"name":"${MARKER_BRANCH}","updatedAt":null}'
+    # The list payload carries commit.sha only — no commit date. Emulate what
+    # \`gh -q\` prints for either shape the transport may ask for.
+    case "$*" in
+      *'.[].name'*)
+        printf '%s\\n' '${MARKER_BRANCH}' '${STALE_BRANCH}' 'main'
+        ;;
+      *)
+        printf '%s\\n' '{"name":"${MARKER_BRANCH}","updatedAt":null}' '{"name":"${STALE_BRANCH}","updatedAt":null}' '{"name":"main","updatedAt":null}'
+        ;;
+    esac
     exit 0
+    ;;
+  */branches/*)
+    case "$url" in
+      *${MARKER_BRANCH}) printf '%s\\n' '${MARKER_BRANCH_DATE}' ; exit 0 ;;
+      *${STALE_BRANCH}) printf '%s\\n' '${STALE_BRANCH_DATE}' ; exit 0 ;;
+    esac
+    echo 'gh: Not Found (HTTP 404)' >&2
+    exit 1
     ;;
   */contents/*)
     if [ "$method" != "GET" ]; then
@@ -112,32 +136,47 @@ exit 1
   fs.writeFileSync(target, script, { mode: 0o755 })
 }
 
+async function withGhStub<T>(
+  run: (context: {
+    snapshot: Awaited<ReturnType<ReturnType<typeof createGhCliTransport>['fetchSnapshot']>>
+    calls: string[]
+  }) => T,
+): Promise<T> {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gh-evidence-stub-'))
+  const logFile = path.join(dir, 'calls.log')
+  writeGhStub(dir, logFile)
+
+  const originalPath = process.env.PATH
+  process.env.PATH = `${dir}${path.delimiter}${originalPath ?? ''}`
+
+  try {
+    const transport = createGhCliTransport({
+      ...getGitHubEvidenceBridgeConfig(),
+      mode: 'gh_cli',
+    })
+
+    const snapshot = await transport.fetchSnapshot({
+      repository: { owner: 'acme', name: 'demo' },
+      branchPrefix: 'cursor/',
+      resultMarkerPath: 'tmp/ai-company-results/probe-001.json',
+      maxBranches: 20,
+      dispatchedAt: DISPATCHED_AT,
+      expectedBranch: null,
+      expectedCommitSha: null,
+      pullRequestUrl: null,
+    })
+
+    const calls = fs.readFileSync(logFile, 'utf8').split('\n').filter(Boolean)
+    return run({ snapshot, calls })
+  } finally {
+    process.env.PATH = originalPath
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+}
+
 describe('gh cli transport fetchFileAtRef', () => {
   it('reads the marker at a ref over GET (a -f field would make it POST → 404)', async () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'gh-evidence-stub-'))
-    const logFile = path.join(dir, 'calls.log')
-    writeGhStub(dir, logFile)
-
-    const originalPath = process.env.PATH
-    process.env.PATH = `${dir}${path.delimiter}${originalPath ?? ''}`
-
-    try {
-      const transport = createGhCliTransport({
-        ...getGitHubEvidenceBridgeConfig(),
-        mode: 'gh_cli',
-      })
-
-      const snapshot = await transport.fetchSnapshot({
-        repository: { owner: 'acme', name: 'demo' },
-        branchPrefix: 'cursor/',
-        resultMarkerPath: 'tmp/ai-company-results/probe-001.json',
-        maxBranches: 20,
-        dispatchedAt: '2026-07-22T00:00:00Z',
-        expectedBranch: null,
-        expectedCommitSha: null,
-        pullRequestUrl: null,
-      })
-
+    await withGhStub(({ snapshot, calls }) => {
       assert.equal(snapshot.markerBranch, MARKER_BRANCH)
       assert.ok(snapshot.markerContent, 'marker content must be read, not null')
       assert.equal(
@@ -145,18 +184,37 @@ describe('gh cli transport fetchFileAtRef', () => {
         '0123456789abcdef0123456789abcdef01234567',
       )
 
-      const contentsCall = fs
-        .readFileSync(logFile, 'utf8')
-        .split('\n')
-        .find((line) => line.includes('/contents/'))
+      const contentsCall = calls.find((line) => line.includes('/contents/'))
       assert.ok(contentsCall, 'contents API must be called')
       assert.ok(
         decodeURIComponent(contentsCall).includes(`ref=${MARKER_BRANCH}`),
         `ref must travel with the request: ${contentsCall}`,
       )
-    } finally {
-      process.env.PATH = originalPath
-      fs.rmSync(dir, { recursive: true, force: true })
-    }
+    })
+  })
+})
+
+describe('gh cli transport listBranches', () => {
+  it('resolves a real commit date per branch', async () => {
+    await withGhStub(({ snapshot }) => {
+      const branch = snapshot.branches.find((item) => item.name === MARKER_BRANCH)
+      assert.ok(branch, `${MARKER_BRANCH} must be listed`)
+      assert.equal(
+        branch.updatedAt,
+        MARKER_BRANCH_DATE,
+        'the branch list carries no commit date — it has to be fetched per branch',
+      )
+    })
+  })
+
+  it('drops branches last pushed before dispatchedAt', async () => {
+    await withGhStub(({ snapshot }) => {
+      const names = snapshot.branches.map((item) => item.name)
+      assert.ok(names.includes(MARKER_BRANCH), `${MARKER_BRANCH} must survive the filter`)
+      assert.ok(
+        !names.includes(STALE_BRANCH),
+        `${STALE_BRANCH} was pushed at ${STALE_BRANCH_DATE}, before dispatchedAt ${DISPATCHED_AT}`,
+      )
+    })
   })
 })
