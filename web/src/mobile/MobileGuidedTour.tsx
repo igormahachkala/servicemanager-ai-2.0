@@ -288,9 +288,9 @@ export function MobileGuidedTour({ userKey }: MobileGuidedTourProps) {
       <div className="mobileGuidedTourLayer" role="dialog" aria-modal="true" aria-labelledby="mobile-tour-welcome-title">
         <div className="mobileGuidedTourBackdrop" />
         <div className="mobileGuidedTourCard mobileGuidedTourCard--center">
-          <div className="mobileGuidedTourBrand">ServiceManager.AI</div>
+          <div className="mobileGuidedTourBrand">Сервис Менеджер</div>
           <h2 id="mobile-tour-welcome-title" className="mobileGuidedTourTitle">
-            Добро пожаловать в ServiceManager.AI
+            Добро пожаловать в Сервис Менеджер
           </h2>
           <p className="mobileGuidedTourText">
             Мы покажем основные возможности мобильной версии. Это займет около минуты.
