@@ -91,14 +91,42 @@ npm --prefix apps/ai-company run build            # tsc -b && vite build
 
 ## 6. Что дальше
 
-1. **Маршрут Ollama в Tool Dispatcher** — сегодня его нет. Нужны: `ollama` в `TOOL_DISPATCHER_TOOL_IDS`,
-   ветка диспетчера, маршрут в `EXECUTION_ROUTES`, и развязка `CursorResultEnvelope.route` от Cursor-энума,
-   чтобы туда лёг результат анализа (без branch/commit).
-2. **Перенести из `agent-runner` то, что переиспользуемо:** `runAnalysis` (стриминг NDJSON + таймаут),
-   system-шаблоны AUDIT/PLAN/DRY_RUN, детектор режима, редактор секретов. Слой контекста на `fs`
-   в браузере не заработает — нужен четвёртый мост или расширение существующего.
-3. **Персистентность `executionRoute`** — сейчас живёт в `result.output`, не колонкой на `ToolExecutionRun`
-   (известный пробел в 109/111/112).
+**Утверждён план развязки Result Envelope от Cursor — вариант B: нейтральный надтип, Cursor-маршруты
+как его подмножество.**
+
+Два факта определили выбор. Первый: **валидация envelope уже нейтральна** — `hasExecutionEvidence`
+(`cursorResultEnvelopeValidation.ts:41-49`) принимает один непустой `summary`, инвариантов на `branch` /
+`commitSha` / `artifacts` для `SUCCEEDED` нет вообще; единственный жёсткий блокер не-Cursor маршрута —
+allow-list парсера (`cursorResultEnvelopeValidation.ts:113`). Второй: **расширять существующий enum
+нельзя** — оба `switch` по маршруту в `cursorExecutionRoutePolicy.ts` (`:119`, `:140`) имеют ветку
+`default`, поэтому четвёртое значение TypeScript не поймает и новый маршрут молча стал бы
+`ROUTE_UNAVAILABLE`.
+
+Семь коммитов:
+
+1. `domain/executionRoute/` — `ExecutionRouteId` (надмножество) + `CursorExecutionRouteId` (подмножество)
+   + гварды. Аддитивно: 187 тестов проходят без правок.
+2. `ExecutionRoute` становится алиасом на `CursorExecutionRouteId`. Политика и cost guard не трогаются.
+   Страховка: `ExpectedCostByRoute` остаётся `Record`, поэтому протечка надтипа в Cursor-политику падает
+   на компиляции в `defaultExpectedCostByRoute()`.
+3. `route` в envelope расширяется до `ExecutionRouteId`; allow-list парсера → `EXECUTION_ROUTE_IDS`;
+   `parseCursorResultEnvelope` остаётся сужающей обёрткой, чтобы 22 файла-потребителя не правились.
+4. `createAnalysisResultEnvelope` + негативные тесты (пустой `summary` → `succeeded_missing_evidence`).
+5. Документация (`cursor-result-envelope-v1.md`, этот файл).
+6. `checksOutcome` — 4 состояния вместо булева `checksPassed`: `passed` / `failed` / `not_required` /
+   `missing`. Сегодня `length > 0 && every(passed)` (`employeeToolReviewEvaluation.ts:87`) схлопывает
+   «проверок не требовалось» и «проверки требовались, но не пришли» в один `false`. Попутно найден баг:
+   в том же файле пустой массив проверок трактуется противоположно — на строке 71 истинен, на 87 ложен.
+   «Требовалось ли» берём из запроса (`requiredChecks`), а не из пустоты ответа.
+7. `metadata.transportKind: 'local_inprocess'`.
+
+Решения: **`transportStatus` не расширяем** — у локального вызова транспорт настоящий (HTTP на `:11434`),
+все три значения несут смысл, `DISPATCHED` честен, инвариант «SUCCEEDED требует не-`NOT_DISPATCHED`»
+не трогаем. **`missing` не сворачиваем в `failed`** — это тихий провал, ради его отлова состояние и вводится.
+
+Вне плана: `ollama` в `TOOL_DISPATCHER_TOOL_IDS` + ветка диспетчера; перенос переиспользуемого из
+`agent-runner` (`runAnalysis`, system-шаблоны, детектор режима, редактор секретов — слой контекста на `fs`
+требует моста); персистентность `executionRoute` колонкой на `ToolExecutionRun`, а не в `result.output`.
 
 ## 7. Известные ловушки
 
