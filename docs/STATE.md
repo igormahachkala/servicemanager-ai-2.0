@@ -100,24 +100,18 @@ enum нельзя — оба `switch` по маршруту в `cursorExecutionR
 `default`, поэтому четвёртое значение TypeScript не поймал бы. Разбор — в
 [`cursor-result-envelope-v1.md`](architecture/cursor-result-envelope-v1.md) §4.
 
-Семь коммитов, 1–4 выполнены (тесты: 187 → 209, все зелёные):
+Семь коммитов, 1–6 выполнены (тесты: 187 → 222, все зелёные):
 
-1. ✅ `087877a` — `domain/executionRoute/`: `ExecutionRouteId` (надмножество) + `CursorExecutionRouteId`
-   (подмножество) + гварды. Аддитивно, 187 существующих тестов не правились.
-2. ✅ `0c36131` — `ExecutionRoute` стал алиасом на `CursorExecutionRouteId`. Политика и cost guard не
-   тронуты. Страховка проверена: привязка `ExecutionRoute` к надтипу падает на компиляции в
-   `defaultExpectedCostByRoute()`, потому что `ExpectedCostByRoute` — тотальный `Record`.
+1. ✅ `087877a` — `domain/executionRoute/`: `ExecutionRouteId` + `CursorExecutionRouteId` + гварды.
+2. ✅ `0c36131` — `ExecutionRoute` стал алиасом на `CursorExecutionRouteId`, политика не тронута.
+   Страховка проверена: протечка надтипа падает на компиляции в `defaultExpectedCostByRoute()`.
 3. ✅ `5dd3fc5` — `route` расширен до `ExecutionRouteId`, allow-list парсера → `EXECUTION_ROUTE_IDS`.
-   Все 22 файла-потребителя скомпилировались без правок: `validate`/`assert` стали дженериками по
-   `T extends ExecutionResultEnvelope`, а `parseCursorResultEnvelope` — сужающей обёрткой.
-4. ✅ `9cd036d` — `createAnalysisResultEnvelope`: возвращает нейтральный тип (объявление Cursor-типом
-   падает на `route: 'LOCAL_OLLAMA_ANALYSIS'` — проверено), негативные кейсы утверждают код issue.
-5. Документация (`cursor-result-envelope-v1.md`, этот файл).
-6. `checksOutcome` — 4 состояния вместо булева `checksPassed`: `passed` / `failed` / `not_required` /
-   `missing`. Сегодня `length > 0 && every(passed)` (`employeeToolReviewEvaluation.ts:87`) схлопывает
-   «проверок не требовалось» и «проверки требовались, но не пришли» в один `false`. Попутно найден баг:
-   в том же файле пустой массив проверок трактуется противоположно — на строке 71 истинен, на 87 ложен.
-   «Требовалось ли» берём из запроса (`requiredChecks`), а не из пустоты ответа.
+   22 файла-потребителя без правок: `validate`/`assert` — дженерики, `parseCursorResultEnvelope` — обёртка.
+4. ✅ `9cd036d` — `createAnalysisResultEnvelope`, возвращает нейтральный тип (проверено компилятором).
+5. ✅ `1b44980` — документация.
+6. ✅ `d84c997` — `checksOutcome`: `passed`/`failed`/`not_required`/`missing`, `checksPassed` производное,
+   «требовалось ли» берётся из `run.checks` (протаскивать ничего не пришлось). Починено противоречие:
+   строки 71 и 87 трактовали пустой список проверок противоположно. Плюс миграция записей localStorage.
 7. `metadata.transportKind: 'local_inprocess'`.
 
 Решения: **`transportStatus` не расширяем** — у локального вызова транспорт настоящий (HTTP на `:11434`),
@@ -146,5 +140,10 @@ enum нельзя — оба `switch` по маршруту в `cursorExecutionR
    `capabilities`. В промпт модели skills не попадают. Не строить логику на них.
 5. **Две несовместимые модели навыка** одновременно: `EmployeeSkill` (level — enum beginner…expert) и
    `Skill` из `domain/competencies/` (level — число 1–5, + `category`, `verified`). Не путать при чтении кода.
-6. **Сохранить конфиг ≠ подключиться.** Статус «Подключено» ставится только после успешного health-check
+6. **Тесты не типизируются.** `tsconfig.app.json:24` — `"exclude": ["src/**/*.test.ts"]`, поэтому
+   `tsc -b` и `npm run build` их не видят. Гарантия «сломается на компиляции» на тестовый код
+   **не распространяется**: фикстура с аннотацией типа может разойтись с самим типом и молча пройти
+   сборку — ровно это и случилось при добавлении `checksOutcome` в `d84c997`. Проверять тестовые
+   файлы приходится отдельным прогоном `tsc` с `--allowImportingTsExtensions`.
+7. **Сохранить конфиг ≠ подключиться.** Статус «Подключено» ставится только после успешного health-check
    через мост; при выключенном connections-bridge секреты вообще не сохраняются.
