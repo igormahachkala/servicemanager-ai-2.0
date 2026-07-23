@@ -3,13 +3,19 @@
  * Path C architecture — policy and guard only; no Cursor launch.
  */
 
-export const EXECUTION_ROUTES = [
-  'LOCAL_CURSOR_BRIDGE',
-  'MANUAL_CLOUD_AGENT',
-  'CURSOR_AUTOMATION_WEBHOOK',
-] as const
+import {
+  CURSOR_EXECUTION_ROUTE_IDS,
+  type CursorExecutionRouteId,
+} from '../executionRoute/executionRouteTypes'
 
-export type ExecutionRoute = (typeof EXECUTION_ROUTES)[number]
+/**
+ * Cursor Path C routes — the Cursor subset of the platform-wide route set.
+ * Single source of truth: `domain/executionRoute/`. Route policy and cost guard
+ * below keep operating over this subset only, never over `ExecutionRouteId`.
+ */
+export const EXECUTION_ROUTES = CURSOR_EXECUTION_ROUTE_IDS
+
+export type ExecutionRoute = CursorExecutionRouteId
 
 export const COST_CLASSIFICATIONS = [
   'INCLUDED_IN_SUBSCRIPTION',
