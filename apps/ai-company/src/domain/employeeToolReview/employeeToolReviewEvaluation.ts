@@ -4,7 +4,27 @@
 
 import type { CursorResultCheck, CursorResultEnvelope } from '../cursorResult/cursorResultEnvelopeTypes'
 import type { ToolExecutionRun } from '../toolExecution/toolExecutionRunTypes'
-import type { EmployeeToolReviewEvaluation } from './employeeToolReviewTypes'
+import {
+  checksPassedFromOutcome,
+  type EmployeeToolReviewChecksOutcome,
+  type EmployeeToolReviewEvaluation,
+} from './employeeToolReviewTypes'
+
+/**
+ * "Were checks required?" comes from the request (`run.checks`), never from the
+ * emptiness of the reported list. Reading it off the result would let an
+ * executor that silently skipped its checks grade exactly like an analysis task
+ * that legitimately had none.
+ */
+function resolveChecksOutcome(
+  assessments: Array<{ passed: boolean }>,
+  requiredChecks: string[],
+): EmployeeToolReviewChecksOutcome {
+  if (assessments.length === 0) {
+    return requiredChecks.length > 0 ? 'missing' : 'not_required'
+  }
+  return assessments.every((item) => item.passed) ? 'passed' : 'failed'
+}
 
 function fileMatchesScope(filePath: string, scopePattern: string): boolean {
   const normalizedFile = filePath.replace(/\\/g, '/').replace(/^\.\//, '')
@@ -39,6 +59,7 @@ function assessCheck(check: CursorResultCheck): {
 function evaluateExpectedResultAlignment(
   envelope: CursorResultEnvelope,
   expectedResult: string,
+  checksOutcome: EmployeeToolReviewChecksOutcome,
 ): boolean {
   const expected = expectedResult.trim()
   if (!expected) {
@@ -68,7 +89,7 @@ function evaluateExpectedResultAlignment(
   return (
     envelope.status === 'completed' &&
     envelope.errors.length === 0 &&
-    envelope.checks.every((item) => item.status === 'passed')
+    checksPassedFromOutcome(checksOutcome)
   )
 }
 
@@ -84,7 +105,8 @@ export function evaluateCursorResultForBuilderReview(
         )
 
   const checkAssessments = envelope.checks.map(assessCheck)
-  const checksPassed = checkAssessments.length > 0 && checkAssessments.every((item) => item.passed)
+  const checksOutcome = resolveChecksOutcome(checkAssessments, run.checks)
+  const checksPassed = checksPassedFromOutcome(checksOutcome)
   const hasErrors = envelope.errors.length > 0 || envelope.status === 'failed'
   const hasUnfinished = envelope.unfinishedItems.length > 0 || envelope.status === 'partial'
 
@@ -92,8 +114,11 @@ export function evaluateCursorResultForBuilderReview(
   if (outOfScope.length > 0) {
     notes.push(`Out of scope files: ${outOfScope.join(', ')}`)
   }
-  if (!checksPassed) {
+  if (checksOutcome === 'failed') {
     notes.push('One or more checks did not pass.')
+  }
+  if (checksOutcome === 'missing') {
+    notes.push(`Checks were required but none were reported: ${run.checks.join(', ')}`)
   }
   if (hasErrors) {
     notes.push('Result contains errors — review before accepting.')
@@ -108,9 +133,10 @@ export function evaluateCursorResultForBuilderReview(
   return {
     fileScopeOk: outOfScope.length === 0,
     outOfScopeFiles: outOfScope,
+    checksOutcome,
     checksPassed,
     checkAssessments,
-    expectedResultAligned: evaluateExpectedResultAlignment(envelope, run.expectedResult),
+    expectedResultAligned: evaluateExpectedResultAlignment(envelope, run.expectedResult, checksOutcome),
     hasErrors,
     hasUnfinished,
     notes,

@@ -7,8 +7,12 @@ import {
   EMPLOYEE_TOOL_REVIEW_STORAGE_KEY,
   EMPLOYEE_TOOL_REVIEW_SYNC_EVENT,
   EMPLOYEE_TOOL_REVIEW_VERSION,
+  checksPassedFromOutcome,
+  isEmployeeToolReviewChecksOutcome,
   type CreateEmployeeToolReviewInput,
   type EmployeeToolReview,
+  type EmployeeToolReviewChecksOutcome,
+  type EmployeeToolReviewEvaluation,
   type EmployeeToolReviewHistoryEntry,
   type EmployeeToolReviewHistoryKind,
   type ListEmployeeToolReviewsFilter,
@@ -41,6 +45,41 @@ function emptySnapshot(): StoreSnapshot {
   return { version: EMPLOYEE_TOOL_REVIEW_VERSION, reviews: [], updatedAt: nowIso() }
 }
 
+/**
+ * Records written before `checksOutcome` existed carry only the boolean.
+ * `true` becomes `passed`; `false` becomes `failed`.
+ *
+ * The `missing` / `not_required` distinction cannot be recovered for those
+ * records — the old formula collapsed both into `false` — so a stored `false`
+ * keeps its existing meaning ("something is wrong with the checks") rather than
+ * being upgraded to a claim the data does not support.
+ */
+export function upgradeStoredEvaluation(value: unknown): EmployeeToolReviewEvaluation {
+  const raw = isRecord(value) ? value : {}
+  const storedOutcome = raw.checksOutcome
+  const storedPassed = raw.checksPassed === true
+
+  const checksOutcome: EmployeeToolReviewChecksOutcome = isEmployeeToolReviewChecksOutcome(
+    storedOutcome,
+  )
+    ? storedOutcome
+    : storedPassed
+      ? 'passed'
+      : 'failed'
+
+  return {
+    ...(raw as EmployeeToolReviewEvaluation),
+    checksOutcome,
+    checksPassed: checksPassedFromOutcome(checksOutcome),
+  }
+}
+
+function upgradeStoredReview(value: unknown): EmployeeToolReview {
+  const review = value as EmployeeToolReview
+  if (!isRecord(value)) return review
+  return { ...review, evaluation: upgradeStoredEvaluation(value.evaluation) }
+}
+
 function readSnapshot(): StoreSnapshot {
   if (typeof window === 'undefined') return emptySnapshot()
   try {
@@ -50,7 +89,7 @@ function readSnapshot(): StoreSnapshot {
     if (!isRecord(parsed) || parsed.version !== EMPLOYEE_TOOL_REVIEW_VERSION) return emptySnapshot()
     return {
       version: EMPLOYEE_TOOL_REVIEW_VERSION,
-      reviews: Array.isArray(parsed.reviews) ? (parsed.reviews as EmployeeToolReview[]) : [],
+      reviews: Array.isArray(parsed.reviews) ? parsed.reviews.map(upgradeStoredReview) : [],
       updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : nowIso(),
     }
   } catch {

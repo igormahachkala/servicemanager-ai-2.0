@@ -31,6 +31,7 @@ import type { CreateManualCursorOwnerTaskInput } from './manualCursorTaskFlowTyp
 const baseEvaluation: EmployeeToolReviewEvaluation = {
   fileScopeOk: true,
   outOfScopeFiles: [],
+  checksOutcome: 'passed',
   checksPassed: true,
   checkAssessments: [],
   expectedResultAligned: true,
@@ -424,7 +425,7 @@ describe('manualCursorTaskFlow', () => {
         workItemId: run.workItemId,
         delegationPlanId: run.delegationPlanId,
         envelope: legacyEnvelope,
-        evaluation: { ...baseEvaluation, checksPassed: false },
+        evaluation: { ...baseEvaluation, checksOutcome: 'failed', checksPassed: false },
         status: 'rejected',
         reworkReason: null,
         reworkEnvelopeId: null,

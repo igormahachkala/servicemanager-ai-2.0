@@ -39,9 +39,42 @@ export type EmployeeToolReviewCheckAssessment = {
   passed: boolean
 }
 
+/**
+ * Outcome of the check gate. Four states, because a single boolean conflated
+ * three different situations: checks ran and failed, checks were never required,
+ * and checks were required but nothing was reported. The last one is a silent
+ * failure — an executor that skipped its checks used to look exactly like an
+ * analysis task that never had any.
+ */
+export const EMPLOYEE_TOOL_REVIEW_CHECKS_OUTCOMES = [
+  'passed',
+  'failed',
+  'not_required',
+  'missing',
+] as const
+
+export type EmployeeToolReviewChecksOutcome =
+  (typeof EMPLOYEE_TOOL_REVIEW_CHECKS_OUTCOMES)[number]
+
+export function isEmployeeToolReviewChecksOutcome(
+  value: unknown,
+): value is EmployeeToolReviewChecksOutcome {
+  return (
+    typeof value === 'string' &&
+    (EMPLOYEE_TOOL_REVIEW_CHECKS_OUTCOMES as readonly string[]).includes(value)
+  )
+}
+
+/** Derived view kept for existing callers: only `failed` and `missing` are bad. */
+export function checksPassedFromOutcome(outcome: EmployeeToolReviewChecksOutcome): boolean {
+  return outcome !== 'failed' && outcome !== 'missing'
+}
+
 export type EmployeeToolReviewEvaluation = {
   fileScopeOk: boolean
   outOfScopeFiles: string[]
+  checksOutcome: EmployeeToolReviewChecksOutcome
+  /** Derived from checksOutcome — never set independently. */
   checksPassed: boolean
   checkAssessments: EmployeeToolReviewCheckAssessment[]
   expectedResultAligned: boolean
