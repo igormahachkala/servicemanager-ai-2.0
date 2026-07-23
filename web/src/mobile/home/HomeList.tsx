@@ -162,7 +162,7 @@ export function HomeList(props: Props) {
 
   return (
     <>
-      <section className="mobileSection">
+      <section className="mobileSection" data-mobile-tour="ticket-list">
         {homeActionErr ? <div className="mobileNotice mobileNoticeError" style={{ marginBottom: 8 }}>{homeActionErr}</div> : null}
         {boardIsLoading ? (
           <div className="mobileCard mobileMeta">Загрузка заявок…</div>

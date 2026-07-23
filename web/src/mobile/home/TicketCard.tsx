@@ -80,7 +80,7 @@ export function TicketCard({
   const assigneeText = assignedTechnicianDisplay(ticket)
 
   return (
-    <div className={cardClass} style={{ padding: 0, overflow: 'hidden' }}>
+    <div className={cardClass} data-mobile-tour="ticket-card" style={{ padding: 0, overflow: 'hidden' }}>
       <Link to={ticketHref} state={linkState ?? mobileTicketNavState('home')} className="mobileCardClickable" style={{ borderRadius: 0 }}>
         <div className="mobileTicketCardV2">
           <div className="mobileTicketCardV2Body">

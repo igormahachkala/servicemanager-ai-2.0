@@ -11,6 +11,7 @@ import {
   subscribeOfflineQueue,
   useOnlineStatus,
 } from './offlineQueue'
+import { MobileGuidedTour } from './MobileGuidedTour'
 import { getMobileRouteRoot, mobilePath } from './mobileRoute'
 import './mobile.css'
 
@@ -315,7 +316,7 @@ export function MobileShell() {
         {syncMessage ? <div className="mobileNotice mobileNoticeSuccess">{syncMessage}</div> : null}
         <Outlet />
       </main>
-      <nav className="mobileBottomNav" aria-label="Мобильная навигация">
+      <nav className="mobileBottomNav" aria-label="Мобильная навигация" data-mobile-tour="main-menu">
         <div className="mobileBottomNavInner">
           {mobileNavItems.map((item) => {
             const active = isActivePath(location.pathname, item.to)
@@ -327,6 +328,7 @@ export function MobileShell() {
                   className="mobileNavItemCreate"
                   to={api.appendScopeToPath(item.to, scope, meQ.data)}
                   aria-label="Создать заявку"
+                  data-mobile-tour="create-ticket"
                 >
                   <button type="button" className="mobileNavCreateButton" aria-hidden>
                     +
@@ -340,6 +342,7 @@ export function MobileShell() {
                 className="mobileNavItem"
                 to={api.appendScopeToPath(item.to, scope, meQ.data)}
                 aria-current={active ? 'page' : undefined}
+                data-mobile-tour={item.id === 'tickets' ? 'tickets-nav' : undefined}
               >
                 <div className={active ? 'mobileNavButton mobileNavButtonActive' : 'mobileNavButton'}>
                   <span className="mobileNavIconWrap">
@@ -353,6 +356,7 @@ export function MobileShell() {
           })}
         </div>
       </nav>
+      <MobileGuidedTour userKey={meQ.data?.id || meQ.data?.email || null} />
     </div>
   )
 }

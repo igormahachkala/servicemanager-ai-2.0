@@ -6,6 +6,7 @@ import { SupportContactBlock } from '../components/SupportContactBlock'
 import * as api from '../lib/api'
 import { canAccessManagementDesktop } from '../lib/navigation'
 import { ClientContourCard } from './ClientContourCard'
+import { startMobileGuidedTour } from './MobileGuidedTour'
 import { getPendingAndFailedCounts, subscribeOfflineQueue } from './offlineQueue'
 import { mobilePath } from './mobileRoute'
 
@@ -240,6 +241,18 @@ export function MobileProfile() {
             <span className="mobileProfileMenuLabel">Настройки</span>
             <span className="mobileProfileMenuChevron" aria-hidden><ChevronRight /></span>
           </Link>
+          <button type="button" className="mobileProfileMenuItem" onClick={startMobileGuidedTour}>
+            <span className="mobileProfileMenuIcon" aria-hidden>
+              {/* Tabler route */}
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="6" cy="6" r="2" />
+                <circle cx="18" cy="18" r="2" />
+                <path d="M8 6h5a3 3 0 0 1 0 6h-2a3 3 0 0 0 0 6h5" />
+              </svg>
+            </span>
+            <span className="mobileProfileMenuLabel">Быстрый старт</span>
+            <span className="mobileProfileMenuChevron" aria-hidden><ChevronRight /></span>
+          </button>
           <Link to={mobilePath(location.pathname, '/offline-queue')} className="mobileProfileMenuItem">
             <span className="mobileProfileMenuIcon" aria-hidden>
               {/* Tabler send */}

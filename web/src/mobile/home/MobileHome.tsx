@@ -497,7 +497,7 @@ export function MobileHome() {
             onToggleRework={() => activateQuickFilter('rework')}
             onPlanning={() => setMobileActionToast('Планирование — раздел в разработке')}
           />
-          <div className="mobileHomeBoardSticky">
+          <div className="mobileHomeBoardSticky" data-mobile-tour="ticket-filters">
             <HomeTabs
               boardTab={boardTab}
               setBoardTab={selectBoardTab}

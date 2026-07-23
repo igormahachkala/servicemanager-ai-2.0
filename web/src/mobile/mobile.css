@@ -346,6 +346,151 @@ a.mobileBtn {
   cursor: not-allowed;
 }
 
+.mobileGuidedTourLayer {
+  position: fixed;
+  inset: 0;
+  z-index: 220;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.mobileGuidedTourBackdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.66);
+  animation: mobileGuidedTourFade 0.18s ease-out;
+}
+
+.mobileGuidedTourSpotlight {
+  position: fixed;
+  border-radius: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.92);
+  box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.66), 0 12px 34px rgba(37, 99, 235, 0.28);
+  pointer-events: none;
+  transition: top 0.22s ease, left 0.22s ease, width 0.22s ease, height 0.22s ease;
+}
+
+.mobileGuidedTourCard {
+  position: fixed;
+  z-index: 221;
+  max-width: calc(100vw - 28px);
+  max-height: calc(100dvh - 28px);
+  overflow-y: auto;
+  padding: 18px;
+  border-radius: 22px;
+  border: 1px solid rgba(191, 219, 254, 0.9);
+  background: #ffffff;
+  color: #0f172a;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
+  animation: mobileGuidedTourPop 0.2s ease-out;
+}
+
+.mobileGuidedTourCard--center {
+  top: 50%;
+  left: 50%;
+  width: min(336px, calc(100vw - 28px));
+  transform: translate(-50%, -50%);
+}
+
+.mobileGuidedTourBrand {
+  width: fit-content;
+  margin-bottom: 12px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.mobileGuidedTourProgress {
+  width: fit-content;
+  margin-bottom: 10px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: #111827;
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.mobileGuidedTourTitle {
+  margin: 0;
+  font-size: 1.18rem;
+  line-height: 1.2;
+  font-weight: 900;
+}
+
+.mobileGuidedTourText {
+  margin: 10px 0 0;
+  color: #475569;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.mobileGuidedTourActions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.mobileGuidedTourActions--step {
+  grid-template-columns: 0.85fr 1fr;
+}
+
+.mobileGuidedTourSkip {
+  width: 100%;
+  margin-top: 12px;
+  padding: 8px;
+  border: 0;
+  background: transparent;
+  color: #64748b;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.mobileGuidedTourDoneIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 54px;
+  height: 54px;
+  margin-bottom: 14px;
+  border-radius: 18px;
+  background: #dcfce7;
+  color: #15803d;
+}
+
+@keyframes mobileGuidedTourFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes mobileGuidedTourPop {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mobileGuidedTourBackdrop,
+  .mobileGuidedTourCard {
+    animation: none;
+  }
+
+  .mobileGuidedTourSpotlight {
+    transition: none;
+  }
+}
+
 .mobileForm {
   display: grid;
   gap: 12px;

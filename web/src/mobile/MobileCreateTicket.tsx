@@ -428,7 +428,7 @@ export function MobileCreateTicket() {
       ) : null}
 
       <div className="mobileCard">
-        <form className="mobileForm mobileCreateForm" onSubmit={(e) => e.preventDefault()}>
+        <form className="mobileForm mobileCreateForm" data-mobile-tour="create-form" onSubmit={(e) => e.preventDefault()}>
           {isTechnician ? (
             <label>
               Клиентская компания *
@@ -501,7 +501,7 @@ export function MobileCreateTicket() {
             <textarea value={urgencyReason} onChange={(e) => setUrgencyReason(e.target.value)} placeholder="Почему срочно? Какой конкретно риск?" rows={2} />
           </label>
 
-          <div className="mobileCard mobilePhotoCard" style={{ padding: 12, position: 'relative' }}>
+          <div className="mobileCard mobilePhotoCard" data-mobile-tour="photo-upload" style={{ padding: 12, position: 'relative' }}>
             <div style={{ fontWeight: 800, marginBottom: 8 }}>Фото заявки *</div>
             <p className="mobileHint">Снимите камерой или выберите из галереи — можно несколько; файлы загрузятся после выбора.</p>
             <input
@@ -603,7 +603,7 @@ export function MobileCreateTicket() {
           </div>
 
           <div className="mobileFormSubmitStack">
-            <button type="button" className="mobileBtn" disabled={!canSubmit || createM.isPending} onClick={() => onCreate(false)}>
+            <button type="button" className="mobileBtn" data-mobile-tour="submit-ticket" disabled={!canSubmit || createM.isPending} onClick={() => onCreate(false)}>
               {createM.isPending ? 'Создаём…' : 'Создать заявку'}
             </button>
             {isTechnician ? (
