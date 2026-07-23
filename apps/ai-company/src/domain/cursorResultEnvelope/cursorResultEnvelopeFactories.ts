@@ -407,6 +407,15 @@ export function normalizeLegacyOutboxEnvelope(
  * `metadata.enqueueOnly` is stripped: it means "the webhook accepted the job,
  * the work has not happened yet", which is never true here — a local call has
  * already finished by the time this returns.
+ *
+ * `metadata.transport` follows the convention the Cursor factories already use
+ * (`automation_webhook`, `local_cursor_bridge`, `manual_cloud_agent`) rather
+ * than introducing a second key meaning the same thing. `transportStatus` stays
+ * `DISPATCHED`: a local run has a real transport — HTTP to the model endpoint,
+ * which can genuinely fail — so the three existing states all carry meaning and
+ * the enum is not extended. That dispatch and completion coincide is already
+ * readable from `DISPATCHED` together with a populated `finishedAt`; it needs
+ * no key of its own. Both keys here are factory-owned: a caller can set neither.
  */
 export function createAnalysisResultEnvelope(input: {
   toolExecutionRunId: string
@@ -417,8 +426,9 @@ export function createAnalysisResultEnvelope(input: {
   metadata?: Record<string, unknown>
 }): ExecutionResultEnvelope {
   const finishedAt = input.finishedAt ?? new Date().toISOString()
-  const { enqueueOnly: _enqueueOnly, ...metadata } = input.metadata ?? {}
+  const { enqueueOnly: _enqueueOnly, transport: _transport, ...metadata } = input.metadata ?? {}
   void _enqueueOnly
+  void _transport
 
   const envelope = baseEnvelope({
     toolExecutionRunId: input.toolExecutionRunId,
@@ -433,7 +443,7 @@ export function createAnalysisResultEnvelope(input: {
     errors: [],
     startedAt: input.startedAt ?? finishedAt,
     finishedAt,
-    metadata,
+    metadata: { ...metadata, transport: 'local_ollama_analysis' },
   })
 
   return assertValidExecutionResultEnvelope(envelope)

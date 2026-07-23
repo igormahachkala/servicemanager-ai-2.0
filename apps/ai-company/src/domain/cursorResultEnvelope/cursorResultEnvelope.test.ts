@@ -454,6 +454,38 @@ describe('createAnalysisResultEnvelope', () => {
     assert.equal(forced.metadata.model, 'qwen3.6')
   })
 
+  it('29. tags the transport on the same metadata key as every other factory', () => {
+    const envelope = createAnalysisResultEnvelope({
+      toolExecutionRunId: RUN_ID,
+      summary: SUMMARY,
+      finishedAt: FINISHED_AT,
+    })
+    assert.equal(envelope.metadata.transport, 'local_ollama_analysis')
+    assert.equal(envelope.metadata.transportKind, undefined)
+    // The enum is deliberately untouched: a local call still has a real transport,
+    // and "dispatch and completion coincide" is readable from the pair below.
+    assert.equal(envelope.transportStatus, 'DISPATCHED')
+    assert.equal(envelope.finishedAt, FINISHED_AT)
+  })
+
+  it('30. the caller cannot override transport, and neighbours survive', () => {
+    const envelope = createAnalysisResultEnvelope({
+      toolExecutionRunId: RUN_ID,
+      summary: SUMMARY,
+      finishedAt: FINISHED_AT,
+      metadata: {
+        transport: 'automation_webhook',
+        enqueueOnly: true,
+        model: 'qwen3.6',
+        promptTokens: 1200,
+      },
+    })
+    assert.equal(envelope.metadata.transport, 'local_ollama_analysis')
+    assert.equal(envelope.metadata.enqueueOnly, undefined)
+    assert.equal(envelope.metadata.model, 'qwen3.6')
+    assert.equal(envelope.metadata.promptTokens, 1200)
+  })
+
   it('28. defaults startedAt to finishedAt rather than leaving a null window', () => {
     const envelope = createAnalysisResultEnvelope({
       toolExecutionRunId: RUN_ID,
