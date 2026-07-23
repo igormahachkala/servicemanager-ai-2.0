@@ -11,8 +11,11 @@ import {
   createTransportFailureEnvelope,
   normalizeLocalBridgeResult,
   normalizeManualCloudAgentResult,
+  parseCursorResultEnvelope,
+  parseExecutionResultEnvelope,
   serializeCursorResultEnvelope,
   validateCursorResultEnvelope,
+  validateExecutionResultEnvelope,
   cloneCursorResultEnvelope,
 } from './index.ts'
 
@@ -278,5 +281,72 @@ describe('cursorResultEnvelope', () => {
     const reviewed = applyMaxReview(base, { decision: 'APPROVED' })
     assert.equal(reviewed.executionStatus, 'SUCCEEDED')
     assert.equal(reviewed.reviewStatus, 'APPROVED')
+  })
+})
+
+describe('route-neutral envelope', () => {
+  const analysisRaw = {
+    toolExecutionRunId: RUN_ID,
+    route: 'LOCAL_OLLAMA_ANALYSIS',
+    transportStatus: 'DISPATCHED',
+    executionStatus: 'SUCCEEDED',
+    reviewStatus: 'PENDING',
+    summary: 'Audit of the tickets module: three findings, no blockers.',
+    startedAt: STARTED_AT,
+    finishedAt: FINISHED_AT,
+  }
+
+  it('17. parses a non-Cursor route', () => {
+    const envelope = parseExecutionResultEnvelope(analysisRaw)
+    assert.ok(envelope)
+    assert.equal(envelope.route, 'LOCAL_OLLAMA_ANALYSIS')
+    assert.deepEqual(envelope.artifacts, [])
+    assert.deepEqual(envelope.changedFiles, [])
+  })
+
+  it('18. the Cursor wrapper rejects a non-Cursor route', () => {
+    assert.equal(parseCursorResultEnvelope(analysisRaw), null)
+    assert.ok(parseCursorResultEnvelope({ ...analysisRaw, route: 'LOCAL_CURSOR_BRIDGE' }))
+  })
+
+  it('19. SUCCEEDED needs no repository artefacts — a summary is evidence', () => {
+    const envelope = parseExecutionResultEnvelope(analysisRaw)
+    assert.ok(envelope)
+    assert.equal(envelope.branch, null)
+    assert.equal(envelope.commitSha, null)
+    assert.equal(envelope.pullRequestUrl, null)
+    assert.equal(validateExecutionResultEnvelope(envelope).ok, true)
+  })
+
+  it('20. SUCCEEDED with no evidence at all is still rejected', () => {
+    const envelope = parseExecutionResultEnvelope({ ...analysisRaw, summary: '' })
+    assert.ok(envelope)
+    const validation = validateExecutionResultEnvelope(envelope)
+    assert.equal(validation.ok, false)
+    assert.ok(
+      !validation.ok &&
+        validation.issues.some((issue) => issue.code === 'succeeded_missing_evidence'),
+    )
+  })
+
+  it('21. the webhook-only invariant does not fire on other routes', () => {
+    const validation = validateExecutionResultEnvelope({
+      ...analysisRaw,
+      metadata: { enqueueOnly: true },
+      changedFiles: [],
+      checks: [],
+      artifacts: [],
+      errors: [],
+      branch: null,
+      commitSha: null,
+      pullRequestUrl: null,
+      externalCorrelationId: null,
+    })
+    assert.equal(validation.ok, true)
+  })
+
+  it('22. unknown routes are still rejected by both parsers', () => {
+    assert.equal(parseExecutionResultEnvelope({ ...analysisRaw, route: 'NOPE' }), null)
+    assert.equal(parseCursorResultEnvelope({ ...analysisRaw, route: 'NOPE' }), null)
   })
 })

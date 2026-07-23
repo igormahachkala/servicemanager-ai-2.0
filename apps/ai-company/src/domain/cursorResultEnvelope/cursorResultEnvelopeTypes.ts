@@ -1,9 +1,18 @@
 /**
- * Unified Cursor Result Envelope — domain contract (AI-COMPANY-110).
+ * Unified Result Envelope — domain contract (AI-COMPANY-110).
  * Separates transport, execution, review, repository artifacts, and pending state.
+ *
+ * The envelope is route-neutral: `ExecutionResultEnvelope` carries the result of
+ * any execution route, and `CursorResultEnvelope` is its Cursor Path C narrowing.
+ * Repository fields stay optional throughout — a local analysis run reports a
+ * summary and no branch, commit or pull request, and that is a complete result,
+ * not a degraded one.
  */
 
-import type { ExecutionRoute } from '../cursorExecutionRoute/cursorExecutionRouteTypes'
+import type {
+  CursorExecutionRouteId,
+  ExecutionRouteId,
+} from '../executionRoute/executionRouteTypes'
 
 export const CURSOR_EXECUTION_STATUSES = [
   'RESULT_PENDING',
@@ -74,10 +83,10 @@ export type CursorExecutionError = {
   terminal: boolean
 }
 
-/** Unified normalized result for all Path C routes. */
-export type CursorResultEnvelope = {
+/** Unified normalized result for every execution route — Cursor and non-Cursor. */
+export type ExecutionResultEnvelope = {
   toolExecutionRunId: string
-  route: ExecutionRoute
+  route: ExecutionRouteId
   transportStatus: CursorTransportStatus
   executionStatus: CursorExecutionStatus
   reviewStatus: CursorReviewStatus
@@ -95,12 +104,28 @@ export type CursorResultEnvelope = {
   metadata: Record<string, unknown>
 }
 
+/**
+ * Cursor Path C narrowing of the envelope.
+ *
+ * `Omit` + re-declare, deliberately not an intersection: `{ route: ExecutionRouteId }
+ * & { route: CursorExecutionRouteId }` types the property as the intersection of
+ * both unions, which happens to read as `CursorExecutionRouteId` today but
+ * collapses to `never` the moment the two sets stop overlapping — silently, at
+ * every construction site. `Omit` states the narrowing outright.
+ */
+export type CursorResultEnvelope = Omit<ExecutionResultEnvelope, 'route'> & {
+  route: CursorExecutionRouteId
+}
+
 export type CursorResultEnvelopeValidationIssue = {
   code: string
   message: string
   path?: string
 }
 
+export type ExecutionResultEnvelopeValidationResult<
+  T extends ExecutionResultEnvelope = ExecutionResultEnvelope,
+> = { ok: true; envelope: T } | { ok: false; issues: CursorResultEnvelopeValidationIssue[] }
+
 export type CursorResultEnvelopeValidationResult =
-  | { ok: true; envelope: CursorResultEnvelope }
-  | { ok: false; issues: CursorResultEnvelopeValidationIssue[] }
+  ExecutionResultEnvelopeValidationResult<CursorResultEnvelope>

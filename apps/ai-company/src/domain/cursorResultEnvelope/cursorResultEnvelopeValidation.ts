@@ -2,7 +2,10 @@
  * Unified Cursor Result Envelope — runtime validation (AI-COMPANY-110).
  */
 
-import { EXECUTION_ROUTES } from '../cursorExecutionRoute/cursorExecutionRouteTypes'
+import {
+  EXECUTION_ROUTE_IDS,
+  isCursorExecutionRoute,
+} from '../executionRoute/executionRouteTypes'
 import {
   CURSOR_CHECK_RESULT_STATUSES,
   CURSOR_EXECUTION_STATUSES,
@@ -14,7 +17,8 @@ import {
   type CursorRepositoryArtifact,
   type CursorResultEnvelope,
   type CursorResultEnvelopeValidationIssue,
-  type CursorResultEnvelopeValidationResult,
+  type ExecutionResultEnvelope,
+  type ExecutionResultEnvelopeValidationResult,
 } from './cursorResultEnvelopeTypes'
 
 const COMMIT_SHA_PATTERN = /^[0-9a-f]{7,40}$/i
@@ -38,7 +42,7 @@ function isValidPullRequestUrl(value: string): boolean {
   }
 }
 
-function hasExecutionEvidence(envelope: CursorResultEnvelope): boolean {
+function hasExecutionEvidence(envelope: ExecutionResultEnvelope): boolean {
   return (
     (envelope.summary?.trim().length ?? 0) > 0 ||
     envelope.changedFiles.length > 0 ||
@@ -48,7 +52,7 @@ function hasExecutionEvidence(envelope: CursorResultEnvelope): boolean {
   )
 }
 
-function hasTerminalExecutionError(envelope: CursorResultEnvelope): boolean {
+function hasTerminalExecutionError(envelope: ExecutionResultEnvelope): boolean {
   return envelope.errors.some(
     (error) => error.terminal && (error.source === 'execution' || error.source === 'transport'),
   )
@@ -105,12 +109,12 @@ function parseError(value: unknown): CursorExecutionError | null {
   }
 }
 
-export function parseCursorResultEnvelope(raw: unknown): CursorResultEnvelope | null {
+export function parseExecutionResultEnvelope(raw: unknown): ExecutionResultEnvelope | null {
   if (!isRecord(raw)) return null
   if (typeof raw.toolExecutionRunId !== 'string' || !raw.toolExecutionRunId.trim()) return null
   if (
     typeof raw.route !== 'string' ||
-    !(EXECUTION_ROUTES as readonly string[]).includes(raw.route)
+    !(EXECUTION_ROUTE_IDS as readonly string[]).includes(raw.route)
   ) {
     return null
   }
@@ -148,10 +152,10 @@ export function parseCursorResultEnvelope(raw: unknown): CursorResultEnvelope | 
 
   return {
     toolExecutionRunId: raw.toolExecutionRunId.trim(),
-    route: raw.route as CursorResultEnvelope['route'],
-    transportStatus: transportStatus as CursorResultEnvelope['transportStatus'],
-    executionStatus: executionStatus as CursorResultEnvelope['executionStatus'],
-    reviewStatus: reviewStatus as CursorResultEnvelope['reviewStatus'],
+    route: raw.route as ExecutionResultEnvelope['route'],
+    transportStatus: transportStatus as ExecutionResultEnvelope['transportStatus'],
+    executionStatus: executionStatus as ExecutionResultEnvelope['executionStatus'],
+    reviewStatus: reviewStatus as ExecutionResultEnvelope['reviewStatus'],
     summary: typeof raw.summary === 'string' ? raw.summary.trim() || null : null,
     branch: typeof raw.branch === 'string' ? raw.branch.trim() || null : null,
     commitSha: typeof raw.commitSha === 'string' ? raw.commitSha.trim() || null : null,
@@ -171,9 +175,22 @@ export function parseCursorResultEnvelope(raw: unknown): CursorResultEnvelope | 
   }
 }
 
-export function validateCursorResultEnvelope(
-  envelope: CursorResultEnvelope,
-): CursorResultEnvelopeValidationResult {
+/**
+ * Narrowing wrapper: parse, then keep only Cursor Path C routes.
+ * Existing Cursor call sites keep their exact type; a non-Cursor envelope is
+ * rejected here rather than leaking into code that expects a branch or a commit.
+ */
+export function parseCursorResultEnvelope(raw: unknown): CursorResultEnvelope | null {
+  const envelope = parseExecutionResultEnvelope(raw)
+  if (!envelope) return null
+  const route = envelope.route
+  if (!isCursorExecutionRoute(route)) return null
+  return { ...envelope, route }
+}
+
+export function validateExecutionResultEnvelope<T extends ExecutionResultEnvelope>(
+  envelope: T,
+): ExecutionResultEnvelopeValidationResult<T> {
   const issues: CursorResultEnvelopeValidationIssue[] = []
 
   if (envelope.transportStatus === 'TRANSPORT_FAILED' && envelope.executionStatus === 'SUCCEEDED') {
@@ -283,13 +300,20 @@ export function validateCursorResultEnvelope(
   return { ok: true, envelope }
 }
 
-export function assertValidCursorResultEnvelope(
-  envelope: CursorResultEnvelope,
-): CursorResultEnvelope {
-  const result = validateCursorResultEnvelope(envelope)
+export function assertValidExecutionResultEnvelope<T extends ExecutionResultEnvelope>(
+  envelope: T,
+): T {
+  const result = validateExecutionResultEnvelope(envelope)
   if (!result.ok) {
     const summary = result.issues.map((item) => item.message).join('; ')
     throw new Error(`Invalid CursorResultEnvelope: ${summary}`)
   }
   return result.envelope
 }
+
+/**
+ * Cursor-facing names. Generic, so passing a `CursorResultEnvelope` still returns
+ * a `CursorResultEnvelope` — the reason the 22 existing call sites need no edits.
+ */
+export const validateCursorResultEnvelope = validateExecutionResultEnvelope
+export const assertValidCursorResultEnvelope = assertValidExecutionResultEnvelope

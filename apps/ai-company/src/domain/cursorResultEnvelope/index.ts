@@ -20,12 +20,17 @@ export {
   type CursorResultEnvelopeValidationResult,
   type CursorReviewStatus,
   type CursorTransportStatus,
+  type ExecutionResultEnvelope,
+  type ExecutionResultEnvelopeValidationResult,
 } from './cursorResultEnvelopeTypes'
 
 export {
   assertValidCursorResultEnvelope,
+  assertValidExecutionResultEnvelope,
   parseCursorResultEnvelope,
+  parseExecutionResultEnvelope,
   validateCursorResultEnvelope,
+  validateExecutionResultEnvelope,
 } from './cursorResultEnvelopeValidation'
 
 export {
