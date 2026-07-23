@@ -26,6 +26,14 @@ describe('execution route identifiers', () => {
     }
   })
 
+  /**
+   * Tautological by design since 0c36131: EXECUTION_ROUTES *is*
+   * CURSOR_EXECUTION_ROUTE_IDS, so this compares an array with itself and
+   * cannot currently fail. It is kept as a guard against re-introducing the
+   * literals in cursorExecutionRouteTypes.ts — the day someone inlines the
+   * three strings there again, this starts comparing two independent tuples
+   * and earns its keep. Do not read it as a working check today.
+   */
   it('still mirrors the Cursor route tuple used by the route policy', () => {
     assert.deepEqual([...CURSOR_EXECUTION_ROUTE_IDS], [...EXECUTION_ROUTES])
   })

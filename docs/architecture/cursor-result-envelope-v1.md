@@ -74,10 +74,13 @@ apps/ai-company/src/domain/cursorResultEnvelope/
 
 ## 4. Envelope contract
 
+The envelope is **route-neutral**. `ExecutionResultEnvelope` carries the result of any
+execution route; `CursorResultEnvelope` is its Cursor Path C narrowing.
+
 ```typescript
-type CursorResultEnvelope = {
+type ExecutionResultEnvelope = {
   toolExecutionRunId: string
-  route: ExecutionRoute
+  route: ExecutionRouteId          // superset: Cursor routes + LOCAL_OLLAMA_ANALYSIS
   transportStatus: CursorTransportStatus
   executionStatus: CursorExecutionStatus
   reviewStatus: CursorReviewStatus
@@ -94,7 +97,35 @@ type CursorResultEnvelope = {
   finishedAt: string | null
   metadata: Record<string, unknown>
 }
+
+type CursorResultEnvelope = Omit<ExecutionResultEnvelope, 'route'> & {
+  route: CursorExecutionRouteId
+}
 ```
+
+### Why `Omit`, not an intersection
+
+`{ route: ExecutionRouteId } & { route: CursorExecutionRouteId }` types the property as
+the *intersection* of both unions. That reads as `CursorExecutionRouteId` today, but
+collapses to `never` the moment the two sets stop overlapping — silently, at every
+construction site. `Omit` + a re-declared property states the narrowing outright and
+fails loudly instead.
+
+### Repository fields are optional, not degraded
+
+`branch`, `commitSha`, `pullRequestUrl` were already nullable and `changedFiles` /
+`artifacts` already default to empty. `hasExecutionEvidence` accepts a single non-empty
+`summary`, so a local analysis result — a written finding and nothing else — is a
+complete `SUCCEEDED` envelope, not a partial one. No invariant has ever required a
+repository artefact.
+
+### Route identifiers
+
+`ExecutionRouteId` and `CursorExecutionRouteId` live in `domain/executionRoute/`, where a
+compile-time `_subsetCheck` proves the Cursor tuple is a subset of the platform one.
+Route policy and cost guard in `domain/cursorExecutionRoute/` keep operating over the
+Cursor subset alone — both of their route switches carry a `default` branch and would
+absorb an unknown route silently.
 
 ---
 
@@ -117,6 +148,7 @@ type CursorResultEnvelope = {
 
 | Function | Route | Output |
 |----------|-------|--------|
+| `createAnalysisResultEnvelope()` | `LOCAL_OLLAMA_ANALYSIS` | Local model run — summary as evidence, no repository artefacts, returns `ExecutionResultEnvelope` |
 | `createPendingAutomationEnvelope()` | `CURSOR_AUTOMATION_WEBHOOK` | Enqueue pending |
 | `createTransportFailureEnvelope()` | any | Transport failed |
 | `normalizeLocalBridgeResult()` | `LOCAL_CURSOR_BRIDGE` | Bridge payload → envelope |
@@ -232,10 +264,15 @@ MAX review uses `applyMaxReview()` with the same isolation rule.
 | Gap | Next slice |
 |-----|------------|
 | Webhook reconciliation → `SUCCEEDED` factory | AI-COMPANY-113 automation adapter |
-| Manual import HTTP endpoint | AI-COMPANY-111 |
 | Persist envelope on `ToolExecutionRun` | DB migration phase |
 | Auto attach on dispatch | Wire `mapEnvelopeToToolResultOutput` in dispatcher when approved |
 | 113F ingest uses unified envelope internally | Optional refactor — adapter ready |
+| No caller produces an analysis envelope yet | Needs `ollama` in `TOOL_DISPATCHER_TOOL_IDS` + a dispatcher branch |
+| `checksPassed` conflates "not required" with "failed" | Commit 6 — `checksOutcome` with four states |
+| `transportStatus` has no marker for a local call | Commit 7 — `metadata.transportKind: 'local_inprocess'`; the enum is deliberately not extended |
+
+**Closed since v1:** manual import HTTP endpoint (AI-COMPANY-112); the parser route
+allow-list, which was the single blocker for non-Cursor routes.
 
 ---
 

@@ -94,24 +94,24 @@ npm --prefix apps/ai-company run build            # tsc -b && vite build
 **Утверждён план развязки Result Envelope от Cursor — вариант B: нейтральный надтип, Cursor-маршруты
 как его подмножество.**
 
-Два факта определили выбор. Первый: **валидация envelope уже нейтральна** — `hasExecutionEvidence`
-(`cursorResultEnvelopeValidation.ts:41-49`) принимает один непустой `summary`, инвариантов на `branch` /
-`commitSha` / `artifacts` для `SUCCEEDED` нет вообще; единственный жёсткий блокер не-Cursor маршрута —
-allow-list парсера (`cursorResultEnvelopeValidation.ts:113`). Второй: **расширять существующий enum
-нельзя** — оба `switch` по маршруту в `cursorExecutionRoutePolicy.ts` (`:119`, `:140`) имеют ветку
-`default`, поэтому четвёртое значение TypeScript не поймает и новый маршрут молча стал бы
-`ROUTE_UNAVAILABLE`.
+Два факта определили выбор: валидация envelope уже была нейтральна (`hasExecutionEvidence` принимает
+один непустой `summary`, инвариантов на `branch`/`commitSha`/`artifacts` нет), а расширять существующий
+enum нельзя — оба `switch` по маршруту в `cursorExecutionRoutePolicy.ts` (`:119`, `:140`) имеют ветку
+`default`, поэтому четвёртое значение TypeScript не поймал бы. Разбор — в
+[`cursor-result-envelope-v1.md`](architecture/cursor-result-envelope-v1.md) §4.
 
-Семь коммитов:
+Семь коммитов, 1–4 выполнены (тесты: 187 → 209, все зелёные):
 
-1. `domain/executionRoute/` — `ExecutionRouteId` (надмножество) + `CursorExecutionRouteId` (подмножество)
-   + гварды. Аддитивно: 187 тестов проходят без правок.
-2. `ExecutionRoute` становится алиасом на `CursorExecutionRouteId`. Политика и cost guard не трогаются.
-   Страховка: `ExpectedCostByRoute` остаётся `Record`, поэтому протечка надтипа в Cursor-политику падает
-   на компиляции в `defaultExpectedCostByRoute()`.
-3. `route` в envelope расширяется до `ExecutionRouteId`; allow-list парсера → `EXECUTION_ROUTE_IDS`;
-   `parseCursorResultEnvelope` остаётся сужающей обёрткой, чтобы 22 файла-потребителя не правились.
-4. `createAnalysisResultEnvelope` + негативные тесты (пустой `summary` → `succeeded_missing_evidence`).
+1. ✅ `087877a` — `domain/executionRoute/`: `ExecutionRouteId` (надмножество) + `CursorExecutionRouteId`
+   (подмножество) + гварды. Аддитивно, 187 существующих тестов не правились.
+2. ✅ `0c36131` — `ExecutionRoute` стал алиасом на `CursorExecutionRouteId`. Политика и cost guard не
+   тронуты. Страховка проверена: привязка `ExecutionRoute` к надтипу падает на компиляции в
+   `defaultExpectedCostByRoute()`, потому что `ExpectedCostByRoute` — тотальный `Record`.
+3. ✅ `5dd3fc5` — `route` расширен до `ExecutionRouteId`, allow-list парсера → `EXECUTION_ROUTE_IDS`.
+   Все 22 файла-потребителя скомпилировались без правок: `validate`/`assert` стали дженериками по
+   `T extends ExecutionResultEnvelope`, а `parseCursorResultEnvelope` — сужающей обёрткой.
+4. ✅ `9cd036d` — `createAnalysisResultEnvelope`: возвращает нейтральный тип (объявление Cursor-типом
+   падает на `route: 'LOCAL_OLLAMA_ANALYSIS'` — проверено), негативные кейсы утверждают код issue.
 5. Документация (`cursor-result-envelope-v1.md`, этот файл).
 6. `checksOutcome` — 4 состояния вместо булева `checksPassed`: `passed` / `failed` / `not_required` /
    `missing`. Сегодня `length > 0 && every(passed)` (`employeeToolReviewEvaluation.ts:87`) схлопывает
