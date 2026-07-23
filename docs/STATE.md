@@ -100,19 +100,13 @@ enum нельзя — оба `switch` по маршруту в `cursorExecutionR
 `default`, поэтому четвёртое значение TypeScript не поймал бы. Разбор — в
 [`cursor-result-envelope-v1.md`](architecture/cursor-result-envelope-v1.md) §4.
 
-Семь коммитов, 1–6 выполнены (тесты: 187 → 222, все зелёные):
-
-1. ✅ `087877a` — `domain/executionRoute/`: `ExecutionRouteId` + `CursorExecutionRouteId` + гварды.
-2. ✅ `0c36131` — `ExecutionRoute` стал алиасом на `CursorExecutionRouteId`, политика не тронута.
-   Страховка проверена: протечка надтипа падает на компиляции в `defaultExpectedCostByRoute()`.
-3. ✅ `5dd3fc5` — `route` расширен до `ExecutionRouteId`, allow-list парсера → `EXECUTION_ROUTE_IDS`.
-   22 файла-потребителя без правок: `validate`/`assert` — дженерики, `parseCursorResultEnvelope` — обёртка.
-4. ✅ `9cd036d` — `createAnalysisResultEnvelope`, возвращает нейтральный тип (проверено компилятором).
-5. ✅ `1b44980` — документация.
-6. ✅ `d84c997` — `checksOutcome`: `passed`/`failed`/`not_required`/`missing`, `checksPassed` производное,
-   «требовалось ли» берётся из `run.checks` (протаскивать ничего не пришлось). Починено противоречие:
-   строки 71 и 87 трактовали пустой список проверок противоположно. Плюс миграция записей localStorage.
-7. `metadata.transportKind: 'local_inprocess'`.
+**Коммиты 1–6 выполнены** (тесты 187 → 222, все зелёные): `087877a` нейтральные route id;
+`0c36131` `ExecutionRoute` — алиас на подмножество, протечка надтипа падает на компиляции в
+`defaultExpectedCostByRoute()`; `5dd3fc5` `route` расширен, 22 потребителя без правок за счёт дженериков
+и сужающей обёртки; `9cd036d` `createAnalysisResultEnvelope`; `1b44980` документация; `d84c997`
+`checksOutcome` из четырёх состояний, «требовалось ли» из `run.checks`, починено противоречие строк
+71/87 и добавлена миграция записей localStorage.
+**Остался коммит 7** — `metadata.transportKind: 'local_inprocess'`.
 
 Решения: **`transportStatus` не расширяем** — у локального вызова транспорт настоящий (HTTP на `:11434`),
 все три значения несут смысл, `DISPATCHED` честен, инвариант «SUCCEEDED требует не-`NOT_DISPATCHED`»
@@ -145,5 +139,12 @@ enum нельзя — оба `switch` по маршруту в `cursorExecutionR
    **не распространяется**: фикстура с аннотацией типа может разойтись с самим типом и молча пройти
    сборку — ровно это и случилось при добавлении `checksOutcome` в `d84c997`. Проверять тестовые
    файлы приходится отдельным прогоном `tsc` с `--allowImportingTsExtensions`.
+   Замер (2026-07-23, временный конфиг без `exclude`): **55 ошибок в 12 файлах**. 49% —
+   `Cannot find module 'node:test'`, лечится строкой `types: ["vite/client", "node"]`; 20% — механика
+   (`assert.ok` не сужает тип, неиспользуемое, `as Window`); 31% — реальные расхождения фикстур,
+   из них 9 в одном `cursorAutomationRunner.test.ts`. Рекомендация: **отдельный `tsconfig.test.json`
+   + скрипт `typecheck:test`**, не снятие `exclude` — `npm run build` не должен падать из-за фикстур.
+   Худшее: `cursorAutomationRunner.test.ts` читает `.envelope` без сужения по `status` (3 места) —
+   в ветке `RESULT_PENDING` поля нет, тест молча сравнит `undefined` и всё равно пройдёт.
 7. **Сохранить конфиг ≠ подключиться.** Статус «Подключено» ставится только после успешного health-check
    через мост; при выключенном connections-bridge секреты вообще не сохраняются.
