@@ -197,7 +197,8 @@ Local scenario:
 
 | Gap | Notes |
 |-----|-------|
-| Live webhook success | Smoke test never observed `success: true`; runner implements documented contract |
+| Live webhook success | **Resolved in AI-COMPANY-107** — enqueue confirmed (HTTP 200, `success: true`, `backgroundComposerId`) after Cloud Environment + workspace fixes, which also cleared the `[unauthenticated]` composer blocker: [final-decision.md](../research/evidence/ai-company-107/final-decision.md) (2026-07-14). The AI-COMPANY-106 smoke test (2026-07-10) never observed it — superseded |
+| Payload visibility / repository artifact | **Not confirmed** on the configured branch within the 107 observation window. This, not auth, is why Path A was rejected in favour of Path C — [final-decision.md](../research/evidence/ai-company-107/final-decision.md) |
 | Production / Stage | Explicitly blocked |
 | Automatic merge / deploy | Out of scope |
 
@@ -206,6 +207,7 @@ Local scenario:
 ## 14. Related docs
 
 - [cursor-automation-webhook-smoke-test-v1.md](../research/cursor-automation-webhook-smoke-test-v1.md)
+- [final-decision.md](../research/evidence/ai-company-107/final-decision.md) (AI-COMPANY-107 — supersedes the 106 smoke-test result)
 - [cursor-execution-path-c-v1.md](../architecture/cursor-execution-path-c-v1.md)
 - [cursor-result-envelope-v1.md](../architecture/cursor-result-envelope-v1.md)
 - [github-evidence-reader-v1.md](../architecture/github-evidence-reader-v1.md)
