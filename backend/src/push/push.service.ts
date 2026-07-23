@@ -17,6 +17,12 @@ export type PushPayload = {
   body?: string;
   icon?: string;
   tag?: string;
+  url?: string;
+  targetRoute?: string;
+  ticketId?: string;
+  notificationType?: string;
+  linkedClientCompanyId?: string | null;
+  companyId?: string | null;
   navigate?: string;
   badge?: number;
   silent?: boolean;
@@ -160,6 +166,9 @@ export class PushService {
       title: 'Сервис Менеджер',
       body: 'Тестовое уведомление — push работает ✅',
       tag: 'push-test',
+      url: '/m',
+      targetRoute: '/m',
+      notificationType: 'test',
       navigate: '/m',
       badge: 1,
     };

@@ -10,6 +10,113 @@
 
 const DEFAULT_ICON = '/icons/icon-192.png'
 const DEFAULT_BADGE = '/icons/icon-192.png'
+const DEFAULT_TARGET = '/m'
+const PUSH_NAVIGATION_ACK_TIMEOUT_MS = 900
+
+function safeString(value) {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+function sameOriginPath(value) {
+  const raw = safeString(value)
+  if (!raw) return ''
+  try {
+    const url = new URL(raw, self.location.origin)
+    if (url.origin !== self.location.origin) return ''
+    if (!url.pathname.startsWith('/')) return ''
+    return `${url.pathname}${url.search}${url.hash}` || DEFAULT_TARGET
+  } catch {
+    return ''
+  }
+}
+
+function isMobileClient(client) {
+  try {
+    const url = new URL(client.url)
+    return url.pathname === '/m' || url.pathname.startsWith('/m/') || url.pathname === '/max' || url.pathname.startsWith('/max/')
+  } catch {
+    return true
+  }
+}
+
+function isChatNotification(notificationType) {
+  const type = safeString(notificationType).toLowerCase()
+  return type.includes('chat') || type.includes('comment') || type.includes('attachment')
+}
+
+function withScope(path, payload) {
+  const linkedClientCompanyId = safeString(payload.linkedClientCompanyId)
+  const companyId = safeString(payload.companyId)
+  if (!linkedClientCompanyId && !companyId) return path
+  try {
+    const url = new URL(path, self.location.origin)
+    if (linkedClientCompanyId && !url.searchParams.has('linkedClientCompanyId')) {
+      url.searchParams.set('linkedClientCompanyId', linkedClientCompanyId)
+    }
+    if (companyId && !url.searchParams.has('companyId')) {
+      url.searchParams.set('companyId', companyId)
+    }
+    return `${url.pathname}${url.search}${url.hash}`
+  } catch {
+    return path
+  }
+}
+
+function ticketTarget(payload, client) {
+  const ticketId = safeString(payload.ticketId)
+  if (!ticketId) return ''
+  const base = isMobileClient(client) ? `/m/tickets/${encodeURIComponent(ticketId)}` : `/tickets/${encodeURIComponent(ticketId)}`
+  if (!isChatNotification(payload.notificationType)) return withScope(base, payload)
+  const url = new URL(base, self.location.origin)
+  url.searchParams.set('tab', 'chat')
+  return withScope(`${url.pathname}${url.search}`, payload)
+}
+
+function notificationTarget(payload, client) {
+  const ticketPath = ticketTarget(payload, client)
+  const explicit = sameOriginPath(payload.url) || sameOriginPath(payload.targetRoute) || sameOriginPath(payload.navigate)
+  if (ticketPath && explicit.startsWith('/m/tickets/') && !isMobileClient(client)) return ticketPath
+  return withScope(explicit || ticketPath || DEFAULT_TARGET, payload)
+}
+
+function pushNavigationRequestId() {
+  return `push-${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+function waitForNavigationAck(requestId) {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      self.removeEventListener('message', onMessage)
+      resolve(false)
+    }, PUSH_NAVIGATION_ACK_TIMEOUT_MS)
+
+    function onMessage(event) {
+      const data = event.data || {}
+      if (data.type !== 'push-navigate-ack' || data.requestId !== requestId) return
+      clearTimeout(timer)
+      self.removeEventListener('message', onMessage)
+      resolve(data.ok !== false)
+    }
+
+    self.addEventListener('message', onMessage)
+  })
+}
+
+function pickWindowClient(clientList) {
+  const sameOrigin = clientList.filter((client) => {
+    try {
+      return new URL(client.url).origin === self.location.origin
+    } catch {
+      return false
+    }
+  })
+  return (
+    sameOrigin.find((client) => client.focused) ||
+    sameOrigin.find((client) => client.visibilityState === 'visible') ||
+    sameOrigin[0] ||
+    clientList[0]
+  )
+}
 
 self.addEventListener('install', () => {
   // Не ждём — новый SW должен активироваться сразу же после обновления кода.
@@ -49,7 +156,15 @@ self.addEventListener('push', (event) => {
     tag: payload.tag || undefined, // группировка сообщений одного чата в одно уведомление
     renotify: !!payload.tag,
     silent: !!payload.silent,
-    data: { navigate: payload.navigate || '/m' },
+    data: {
+      navigate: payload.navigate || payload.url || payload.targetRoute || undefined,
+      url: payload.url || undefined,
+      targetRoute: payload.targetRoute || undefined,
+      ticketId: payload.ticketId || undefined,
+      notificationType: payload.notificationType || undefined,
+      linkedClientCompanyId: payload.linkedClientCompanyId || undefined,
+      companyId: payload.companyId || undefined,
+    },
   }
 
   event.waitUntil(self.registration.showNotification(title, options))
@@ -68,18 +183,32 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
-  const target = (event.notification.data && event.notification.data.navigate) || '/m'
+  const payload = event.notification.data || {}
 
   event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      for (const client of clientList) {
-        // Если вкладка уже открыта — фокусируем и просим роутер перейти на target
-        if ('focus' in client) {
-          client.postMessage({ type: 'push-navigate', target })
-          return client.focus()
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (clientList) => {
+      const client = pickWindowClient(clientList)
+      if (client) {
+        const target = notificationTarget(payload, client)
+        const requestId = pushNavigationRequestId()
+        const ack = waitForNavigationAck(requestId)
+        client.postMessage({
+          type: 'push-navigate',
+          requestId,
+          target,
+          ticketId: payload.ticketId || undefined,
+          notificationType: payload.notificationType || undefined,
+        })
+        if ('focus' in client) await client.focus()
+        if (await ack) return client
+        if ('navigate' in client) {
+          const navigated = await client.navigate(target).catch(() => null)
+          if (navigated && 'focus' in navigated) return navigated.focus()
         }
+        return client
       }
       if (self.clients.openWindow) {
+        const target = notificationTarget(payload, null)
         return self.clients.openWindow(target)
       }
       return undefined

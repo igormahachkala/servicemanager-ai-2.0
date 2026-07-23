@@ -80,6 +80,20 @@ function clipMessage(text: string, max = 400) {
   return `${t.slice(0, max - 1)}…`;
 }
 
+function buildTicketPushRoute(params: {
+  ticketId: string;
+  chat?: boolean;
+  linkedClientCompanyId?: string | null;
+  companyId?: string | null;
+}) {
+  const query = new URLSearchParams();
+  if (params.chat) query.set('tab', 'chat');
+  if (params.linkedClientCompanyId) query.set('linkedClientCompanyId', params.linkedClientCompanyId);
+  if (params.companyId) query.set('companyId', params.companyId);
+  const qs = query.toString();
+  return `/m/tickets/${encodeURIComponent(params.ticketId)}${qs ? `?${qs}` : ''}`;
+}
+
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
@@ -104,15 +118,32 @@ export class NotificationsService {
     title: string;
     body: string;
     chat?: boolean;
+    notificationType?: string;
+    linkedClientCompanyId?: string | null;
+    companyId?: string | null;
   }) {
     try {
-      const navigate = params.chat
-        ? `/m/tickets/${params.ticketId}?tab=chat`
-        : `/m/tickets/${params.ticketId}`;
+      const navigate = buildTicketPushRoute({
+        ticketId: params.ticketId,
+        chat: params.chat,
+        linkedClientCompanyId: params.linkedClientCompanyId,
+        companyId: params.companyId,
+      });
       const tag = `${params.ticketId}:${params.chat ? 'chat' : params.type}`;
       await this.push.sendToUser(
         params.userId,
-        { title: params.title, body: clipMessage(params.body, 300), tag, navigate },
+        {
+          title: params.title,
+          body: clipMessage(params.body, 300),
+          tag,
+          url: navigate,
+          targetRoute: navigate,
+          ticketId: params.ticketId,
+          notificationType: params.notificationType ?? params.type,
+          linkedClientCompanyId: params.linkedClientCompanyId ?? undefined,
+          companyId: params.companyId ?? undefined,
+          navigate,
+        },
         params.type,
         params.ticketId,
       );
@@ -128,6 +159,9 @@ export class NotificationsService {
     title: string;
     body: string;
     chat?: boolean;
+    notificationType?: string;
+    linkedClientCompanyId?: string | null;
+    companyId?: string | null;
   }) {
     const unique = Array.from(new Set(params.userIds.filter(Boolean)));
     await Promise.all(
@@ -139,6 +173,9 @@ export class NotificationsService {
           title: params.title,
           body: params.body,
           chat: params.chat,
+          notificationType: params.notificationType,
+          linkedClientCompanyId: params.linkedClientCompanyId,
+          companyId: params.companyId,
         }),
       ),
     );
@@ -661,6 +698,8 @@ export class NotificationsService {
       ticketId: params.ticketId,
       title,
       body: message,
+      notificationType: 'ticket.assignment_requested',
+      linkedClientCompanyId: params.ticketCompanyId,
     });
     return { ok: true as const, notified: created.count };
   }
@@ -866,6 +905,7 @@ export class NotificationsService {
       title,
       body: message,
       chat: true,
+      notificationType: 'ticket.comment_added',
     });
 
     if (!params.assigneeUserId || !params.assigneeCompanyId) return;
@@ -899,6 +939,8 @@ export class NotificationsService {
         title,
         body: message,
         chat: true,
+        notificationType: 'ticket.comment_added',
+        linkedClientCompanyId: linked,
       });
     }
   }
@@ -957,6 +999,7 @@ export class NotificationsService {
       title,
       body: message,
       chat: true,
+      notificationType: 'ticket.attachment_uploaded',
     });
 
     if (!params.assigneeUserId || !params.assigneeCompanyId) return;
@@ -989,6 +1032,8 @@ export class NotificationsService {
         title,
         body: message,
         chat: true,
+        notificationType: 'ticket.attachment_uploaded',
+        linkedClientCompanyId: linked,
       });
     }
   }
@@ -1137,13 +1182,19 @@ export class NotificationsService {
     );
 
     // Push «новая заявка» наблюдателям (создатель уже исключён из recipients).
-    await this.pushTicketEventToMany({
-      userIds: recipients.map((recipient) => recipient.userId),
-      type: 'ticketNew',
-      ticketId: params.ticketId,
-      title,
-      body: message,
-    });
+    await Promise.all(
+      recipients.map((recipient) =>
+        this.pushTicketEvent({
+          userId: recipient.userId,
+          type: 'ticketNew',
+          ticketId: params.ticketId,
+          title,
+          body: message,
+          notificationType: 'ticket.created',
+          linkedClientCompanyId: recipient.linkedClientCompanyId,
+        }),
+      ),
+    );
   }
 
   private async resolveTicketCreatedNotificationScopes(params: {
@@ -1359,6 +1410,8 @@ export class NotificationsService {
       ticketId: params.ticketId,
       title,
       body: message,
+      notificationType: 'ticket.created',
+      linkedClientCompanyId: linked,
     });
   }
 
@@ -1413,6 +1466,7 @@ export class NotificationsService {
       ticketId: params.ticketId,
       title,
       body: message,
+      notificationType: 'ticket.assigned',
     })
   }
 
@@ -1512,13 +1566,20 @@ export class NotificationsService {
       })),
     );
 
-    await this.pushTicketEventToMany({
-      userIds: recipients.map((r) => r.id),
-      type: params.type,
-      ticketId: params.ticketId,
-      title: params.title,
-      body: params.message,
-    });
+    await Promise.all(
+      recipients.map((recipient) =>
+        this.pushTicketEvent({
+          userId: recipient.id,
+          type: params.type,
+          ticketId: params.ticketId,
+          title: params.title,
+          body: params.message,
+          notificationType: params.notificationType,
+          linkedClientCompanyId:
+            recipient.companyId !== params.ticketCompanyId ? params.ticketCompanyId : null,
+        }),
+      ),
+    );
   }
 
   private async emitTicketAssignedToAssignee(params: {
@@ -1576,6 +1637,8 @@ export class NotificationsService {
         ticketId: params.ticketId,
         title,
         body: message,
+        notificationType: 'ticket.assigned',
+        linkedClientCompanyId: linked,
       });
     }
 
@@ -1648,6 +1711,8 @@ export class NotificationsService {
       ticketId: params.ticketId,
       title,
       body: message,
+      notificationType: 'ticket.claimed',
+      linkedClientCompanyId: linkedResolved,
     });
   }
 
@@ -1729,6 +1794,7 @@ export class NotificationsService {
       ticketId: params.ticketId,
       title,
       body: message,
+      notificationType,
     });
   }
 
@@ -1788,6 +1854,8 @@ export class NotificationsService {
       ticketId: params.ticketId,
       title,
       body: message,
+      notificationType: 'ticket.status_changed',
+      linkedClientCompanyId: linked,
     });
   }
 
@@ -1838,6 +1906,7 @@ export class NotificationsService {
       ticketId: params.ticketId,
       title,
       body: message,
+      notificationType: 'ticket.awaiting_acceptance',
     });
 
     // Провайдер-сайд админы (генподрядчик + субподрядчик) — «на приёмке» (дыра a/b).
@@ -1896,6 +1965,8 @@ export class NotificationsService {
       ticketId: params.ticketId,
       title: 'Работа принята',
       body: `${ticketLabel(params.ticketNumber)} — клиент подтвердил выполнение.`,
+      notificationType: 'ticket.accepted',
+      linkedClientCompanyId: linked,
     });
 
     // Провайдер-сайд админы (генподрядчик + субподрядчик) — «принято». Исключаем инициатора и техника.
@@ -1959,6 +2030,8 @@ export class NotificationsService {
       ticketId: params.ticketId,
       title: 'Работа не принята',
       body,
+      notificationType: 'ticket.rejected',
+      linkedClientCompanyId: linked,
     });
   }
 }
