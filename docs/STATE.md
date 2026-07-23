@@ -91,30 +91,30 @@ npm --prefix apps/ai-company run build            # tsc -b && vite build
 
 ## 6. Что дальше
 
-**Утверждён план развязки Result Envelope от Cursor — вариант B: нейтральный надтип, Cursor-маршруты
-как его подмножество.**
-
-Два факта определили выбор: валидация envelope уже была нейтральна (`hasExecutionEvidence` принимает
-один непустой `summary`, инвариантов на `branch`/`commitSha`/`artifacts` нет), а расширять существующий
-enum нельзя — оба `switch` по маршруту в `cursorExecutionRoutePolicy.ts` (`:119`, `:140`) имеют ветку
-`default`, поэтому четвёртое значение TypeScript не поймал бы. Разбор — в
+Result Envelope развязан от Cursor: нейтральный надтип, Cursor-маршруты как подмножество. Надтип, а не
+четвёртое значение в enum, потому что оба `switch` в `cursorExecutionRoutePolicy.ts` (`:119`, `:140`)
+имеют `default` и TypeScript его не поймал бы. Разбор — в
 [`cursor-result-envelope-v1.md`](architecture/cursor-result-envelope-v1.md) §4.
 
-**Коммиты 1–6 выполнены** (тесты 187 → 222, все зелёные): `087877a` нейтральные route id;
-`0c36131` `ExecutionRoute` — алиас на подмножество, протечка надтипа падает на компиляции в
-`defaultExpectedCostByRoute()`; `5dd3fc5` `route` расширен, 22 потребителя без правок за счёт дженериков
-и сужающей обёртки; `9cd036d` `createAnalysisResultEnvelope`; `1b44980` документация; `d84c997`
-`checksOutcome` из четырёх состояний, «требовалось ли» из `run.checks`, починено противоречие строк
-71/87 и добавлена миграция записей localStorage.
-**Остался коммит 7** — `metadata.transportKind: 'local_inprocess'`.
+**План закрыт: все семь коммитов выполнены** (тесты 187 → 224, зелёные). `087877a` нейтральные route id;
+`0c36131` `ExecutionRoute` — алиас на подмножество, протечка надтипа падает в `defaultExpectedCostByRoute()`;
+`5dd3fc5` `route` расширен, 22 потребителя без правок за счёт дженериков и сужающей обёртки;
+`9cd036d` `createAnalysisResultEnvelope`; `1b44980` документация; `d84c997` `checksOutcome` из четырёх
+состояний, «требовалось ли» из `run.checks`, миграция localStorage; `86ecf43` тег транспорта.
 
 Решения: **`transportStatus` не расширяем** — у локального вызова транспорт настоящий (HTTP на `:11434`),
-все три значения несут смысл, `DISPATCHED` честен, инвариант «SUCCEEDED требует не-`NOT_DISPATCHED`»
-не трогаем. **`missing` не сворачиваем в `failed`** — это тихий провал, ради его отлова состояние и вводится.
+все три значения несут смысл, инвариант «SUCCEEDED требует не-`NOT_DISPATCHED`» не трогаем.
+**`missing` не сворачиваем в `failed`** — это тихий провал, ради его отлова состояние и вводится.
+**Транспорт помечается существующим `metadata.transport`** (`local_ollama_analysis`) по конвенции
+Cursor-фабрик; отдельный `transportKind` отвергнут, чтобы не заводить второй ключ об одном и том же.
+Локальность выводится из пары `DISPATCHED` + заполненный `finishedAt`, отдельного поля не нужно.
 
-Вне плана: `ollama` в `TOOL_DISPATCHER_TOOL_IDS` + ветка диспетчера; перенос переиспользуемого из
-`agent-runner` (`runAnalysis`, system-шаблоны, детектор режима, редактор секретов — слой контекста на `fs`
-требует моста); персистентность `executionRoute` колонкой на `ToolExecutionRun`, а не в `result.output`.
+**Следующий шаг:** `ollama` в `TOOL_DISPATCHER_TOOL_IDS`, ветка в `switch` диспетчера, маршрут
+`LOCAL_OLLAMA_ANALYSIS` в политике — тогда появится первый вызывающий для
+`createAnalysisResultEnvelope`. Затем адаптер поверх `ollamaProvider` с валидацией секций ответа
+(сегодня они запрашиваются промптом, но не разбираются). Дальше: перенос переиспользуемого из
+`agent-runner` (`runAnalysis`, system-шаблоны, детектор режима, редактор секретов — слой контекста
+на `fs` требует моста); персистентность `executionRoute` колонкой на `ToolExecutionRun`.
 
 ## 7. Известные ловушки
 
