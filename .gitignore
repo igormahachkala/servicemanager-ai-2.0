@@ -30,6 +30,14 @@ web/node_modules/
 web/dist/
 web/.vite/
 
+# ai-company local Cursor bridge runtime — task packages, results, bridge state
+.ai-company/cursor-bridge/
+.ai-company/cursor-inbox/
+.ai-company/cursor-outbox/
+
+# work-in-progress scratch, not part of any build
+apps/ai-company/.wip/
+
 # misc
 coverage/
 .tmp/
