@@ -7,6 +7,7 @@ import { describe, it } from 'node:test'
 import {
   applyBuilderReview,
   applyMaxReview,
+  createAnalysisResultEnvelope,
   createPendingAutomationEnvelope,
   createTransportFailureEnvelope,
   normalizeLocalBridgeResult,
@@ -348,5 +349,118 @@ describe('route-neutral envelope', () => {
   it('22. unknown routes are still rejected by both parsers', () => {
     assert.equal(parseExecutionResultEnvelope({ ...analysisRaw, route: 'NOPE' }), null)
     assert.equal(parseCursorResultEnvelope({ ...analysisRaw, route: 'NOPE' }), null)
+  })
+})
+
+describe('createAnalysisResultEnvelope', () => {
+  const SUMMARY = 'Audit of the tickets module: three findings, no blockers.'
+
+  it('23. produces a SUCCEEDED analysis result with no repository artefacts', () => {
+    const envelope = createAnalysisResultEnvelope({
+      toolExecutionRunId: RUN_ID,
+      summary: SUMMARY,
+      startedAt: STARTED_AT,
+      finishedAt: FINISHED_AT,
+    })
+    assert.equal(envelope.route, 'LOCAL_OLLAMA_ANALYSIS')
+    assert.equal(envelope.executionStatus, 'SUCCEEDED')
+    assert.equal(envelope.transportStatus, 'DISPATCHED')
+    assert.equal(envelope.reviewStatus, 'PENDING')
+    assert.equal(envelope.summary, SUMMARY)
+    assert.deepEqual(envelope.changedFiles, [])
+    assert.deepEqual(envelope.artifacts, [])
+    assert.equal(envelope.branch, null)
+    assert.equal(envelope.commitSha, null)
+    assert.equal(envelope.pullRequestUrl, null)
+    assert.equal(validateExecutionResultEnvelope(envelope).ok, true)
+  })
+
+  it('24. is not a Cursor envelope — the narrowing parser rejects it', () => {
+    const envelope = createAnalysisResultEnvelope({
+      toolExecutionRunId: RUN_ID,
+      summary: SUMMARY,
+      finishedAt: FINISHED_AT,
+    })
+    assert.equal(parseCursorResultEnvelope(JSON.parse(serializeCursorResultEnvelope(envelope))), null)
+  })
+
+  it('25. blank summary is rejected — succeeded_missing_evidence', () => {
+    assert.throws(
+      () =>
+        createAnalysisResultEnvelope({
+          toolExecutionRunId: RUN_ID,
+          summary: '   ',
+          finishedAt: FINISHED_AT,
+        }),
+      /execution evidence/,
+    )
+
+    const validation = validateExecutionResultEnvelope({
+      ...createAnalysisResultEnvelope({
+        toolExecutionRunId: RUN_ID,
+        summary: SUMMARY,
+        finishedAt: FINISHED_AT,
+      }),
+      summary: null,
+    })
+    assert.equal(validation.ok, false)
+    assert.ok(
+      !validation.ok &&
+        validation.issues.some((issue) => issue.code === 'succeeded_missing_evidence'),
+    )
+  })
+
+  it('26. finishedAt before startedAt is rejected — timestamp_order', () => {
+    assert.throws(
+      () =>
+        createAnalysisResultEnvelope({
+          toolExecutionRunId: RUN_ID,
+          summary: SUMMARY,
+          startedAt: FINISHED_AT,
+          finishedAt: STARTED_AT,
+        }),
+      /finishedAt cannot be before startedAt/,
+    )
+
+    const validation = validateExecutionResultEnvelope({
+      ...createAnalysisResultEnvelope({
+        toolExecutionRunId: RUN_ID,
+        summary: SUMMARY,
+        startedAt: STARTED_AT,
+        finishedAt: FINISHED_AT,
+      }),
+      startedAt: FINISHED_AT,
+      finishedAt: STARTED_AT,
+    })
+    assert.equal(validation.ok, false)
+    assert.ok(!validation.ok && validation.issues.some((issue) => issue.code === 'timestamp_order'))
+  })
+
+  it('27. never sets metadata.enqueueOnly, even when the caller passes it', () => {
+    const plain = createAnalysisResultEnvelope({
+      toolExecutionRunId: RUN_ID,
+      summary: SUMMARY,
+      finishedAt: FINISHED_AT,
+    })
+    assert.equal(plain.metadata.enqueueOnly, undefined)
+
+    const forced = createAnalysisResultEnvelope({
+      toolExecutionRunId: RUN_ID,
+      summary: SUMMARY,
+      finishedAt: FINISHED_AT,
+      metadata: { enqueueOnly: true, model: 'qwen3.6' },
+    })
+    assert.equal(forced.metadata.enqueueOnly, undefined)
+    assert.equal(forced.metadata.model, 'qwen3.6')
+  })
+
+  it('28. defaults startedAt to finishedAt rather than leaving a null window', () => {
+    const envelope = createAnalysisResultEnvelope({
+      toolExecutionRunId: RUN_ID,
+      summary: SUMMARY,
+      finishedAt: FINISHED_AT,
+    })
+    assert.equal(envelope.startedAt, FINISHED_AT)
+    assert.equal(envelope.finishedAt, FINISHED_AT)
   })
 })

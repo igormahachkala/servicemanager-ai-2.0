@@ -4,6 +4,7 @@
 
 import type { CursorLocalResultPayload } from '../cursorLocalBridge/cursorLocalBridgeTypes'
 import type { CursorResultEnvelope as LegacyCursorResultEnvelope } from '../cursorResult/cursorResultEnvelopeTypes'
+import type { ExecutionRouteId } from '../executionRoute/executionRouteTypes'
 import {
   type CursorCheckResult,
   type CursorExecutionError,
@@ -11,13 +12,22 @@ import {
   type CursorRepositoryArtifact,
   type CursorResultEnvelope,
   type CursorReviewStatus,
+  type ExecutionResultEnvelope,
 } from './cursorResultEnvelopeTypes'
-import { assertValidCursorResultEnvelope } from './cursorResultEnvelopeValidation'
+import {
+  assertValidCursorResultEnvelope,
+  assertValidExecutionResultEnvelope,
+} from './cursorResultEnvelopeValidation'
 
-function baseEnvelope(
-  partial: Pick<CursorResultEnvelope, 'toolExecutionRunId' | 'route'> &
-    Partial<Omit<CursorResultEnvelope, 'toolExecutionRunId' | 'route'>>,
-): CursorResultEnvelope {
+/**
+ * Generic over the route literal, so a Cursor route yields something assignable
+ * to `CursorResultEnvelope` and a non-Cursor route does not silently pass as one.
+ */
+function baseEnvelope<R extends ExecutionRouteId>(
+  partial: { toolExecutionRunId: string; route: R } & Partial<
+    Omit<ExecutionResultEnvelope, 'toolExecutionRunId' | 'route'>
+  >,
+): Omit<ExecutionResultEnvelope, 'route'> & { route: R } {
   return {
     toolExecutionRunId: partial.toolExecutionRunId,
     route: partial.route,
@@ -383,4 +393,48 @@ export function normalizeLegacyOutboxEnvelope(
     return assertValidCursorResultEnvelope(envelope)
   }
   return envelope
+}
+
+/**
+ * Result of a local model analysis run (route LOCAL_OLLAMA_ANALYSIS).
+ *
+ * Returns the neutral `ExecutionResultEnvelope`, not the Cursor narrowing: an
+ * analysis produces a written finding, never a branch, commit or pull request,
+ * so `changedFiles` and `artifacts` are empty by construction rather than by
+ * omission. The summary is the execution evidence — validation accepts it as
+ * such, and rejects the envelope outright when it is blank.
+ *
+ * `metadata.enqueueOnly` is stripped: it means "the webhook accepted the job,
+ * the work has not happened yet", which is never true here — a local call has
+ * already finished by the time this returns.
+ */
+export function createAnalysisResultEnvelope(input: {
+  toolExecutionRunId: string
+  summary: string
+  startedAt?: string | null
+  finishedAt?: string | null
+  checks?: CursorCheckResult[]
+  metadata?: Record<string, unknown>
+}): ExecutionResultEnvelope {
+  const finishedAt = input.finishedAt ?? new Date().toISOString()
+  const { enqueueOnly: _enqueueOnly, ...metadata } = input.metadata ?? {}
+  void _enqueueOnly
+
+  const envelope = baseEnvelope({
+    toolExecutionRunId: input.toolExecutionRunId,
+    route: 'LOCAL_OLLAMA_ANALYSIS',
+    transportStatus: 'DISPATCHED',
+    executionStatus: 'SUCCEEDED',
+    reviewStatus: 'PENDING',
+    summary: input.summary.trim() || null,
+    changedFiles: [],
+    artifacts: [],
+    checks: input.checks ?? [],
+    errors: [],
+    startedAt: input.startedAt ?? finishedAt,
+    finishedAt,
+    metadata,
+  })
+
+  return assertValidExecutionResultEnvelope(envelope)
 }
