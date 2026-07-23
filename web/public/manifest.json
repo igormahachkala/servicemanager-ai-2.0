@@ -1,6 +1,6 @@
 {
-  "name": "ServiceManager",
-  "short_name": "Заявки",
+  "name": "Сервис Менеджер",
+  "short_name": "Сервис Менеджер",
   "start_url": "/m",
   "scope": "/",
   "display": "standalone",

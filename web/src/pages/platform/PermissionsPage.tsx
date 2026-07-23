@@ -184,7 +184,7 @@ export function PermissionsPage() {
       <div className="row" style={{ marginBottom: 8, alignItems: 'flex-start' }}>
         <div>
           <h2 style={{ marginBottom: 4 }}>Роли и права</h2>
-          <div className="muted small">Матрица доступа пользователей в системе ServiceManager.AI</div>
+          <div className="muted small">Матрица доступа пользователей в платформе Сервис Менеджер</div>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {!isLoading && !isError && !isEmpty ? (

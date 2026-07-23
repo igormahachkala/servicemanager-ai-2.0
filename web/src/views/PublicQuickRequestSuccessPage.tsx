@@ -4,7 +4,7 @@ export function PublicQuickRequestSuccessPage() {
   const { token = '' } = useParams()
   const [params] = useSearchParams()
   const ticketNumber = params.get('ticketNumber') || params.get('ticketId') || ''
-  const companyName = params.get('companyName') || 'ServiceManager.AI'
+  const companyName = params.get('companyName') || 'Сервис Менеджер'
 
   return (
     <div className="page" style={{ paddingBottom: 'calc(24px + env(safe-area-inset-bottom))' }}>

@@ -244,7 +244,7 @@ export class AuthService {
     const password = (process.env.PLATFORM_ADMIN_PASSWORD || '').trim()
     const firstName = (process.env.PLATFORM_ADMIN_FIRST_NAME || 'Platform').trim()
     const lastName = (process.env.PLATFORM_ADMIN_LAST_NAME || 'Admin').trim()
-    const companyName = (process.env.PLATFORM_COMPANY_NAME || 'ServiceManager Platform').trim()
+    const companyName = (process.env.PLATFORM_COMPANY_NAME || 'СМА-Тех').trim()
     const timezone = (process.env.PLATFORM_COMPANY_TIMEZONE || 'UTC').trim() || 'UTC'
 
     if (!email && !password) return

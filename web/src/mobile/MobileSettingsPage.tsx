@@ -133,8 +133,8 @@ export function MobileSettingsPage() {
 
       {/* 5. Версия */}
       <div className="mobileCard" style={{ marginTop: 8, textAlign: 'center' }}>
-        <div className="mobileMeta">ServiceManager.AI · Версия 2.0.1</div>
-        <div style={{ fontSize: '0.68rem', color: '#cbd5e1', marginTop: 2 }}>Mobile UX V2 Final</div>
+        <div className="mobileMeta">Сервис Менеджер · Версия 2.0.1</div>
+        <div style={{ fontSize: '0.68rem', color: '#cbd5e1', marginTop: 2 }}>Разработчик — СМА-Тех</div>
       </div>
     </div>
   )

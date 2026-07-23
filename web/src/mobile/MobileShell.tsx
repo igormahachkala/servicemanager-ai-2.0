@@ -230,7 +230,7 @@ export function MobileShell() {
       <header className="mobileTopBar" aria-label="Панель приложения">
         <div className="mobileTopBarMain">
           <div className="mobileTopBarBrandRow">
-            <div className="mobileTopBarBrand">ServiceManager</div>
+            <div className="mobileTopBarBrand">Сервис Менеджер</div>
             <div
               className={`mobileTopBarStatusChip ${isOnline ? 'mobileTopBarStatusChip--online' : 'mobileTopBarStatusChip--offline'}`}
               role="status"

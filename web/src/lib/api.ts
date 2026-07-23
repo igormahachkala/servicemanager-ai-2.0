@@ -1307,7 +1307,7 @@ export function exitImpersonationSession(): boolean {
   }
 
   const backupRole = localStorage.getItem(PLATFORM_BACKUP_ROLE_KEY) || 'PLATFORM_ADMIN'
-  const backupCompanyLabel = localStorage.getItem(PLATFORM_BACKUP_COMPANY_LABEL_KEY) || 'ServiceManager Platform'
+  const backupCompanyLabel = localStorage.getItem(PLATFORM_BACKUP_COMPANY_LABEL_KEY) || 'Сервис Менеджер'
 
   setToken(backupToken)
   setUserRole(backupRole)

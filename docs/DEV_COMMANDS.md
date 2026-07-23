@@ -1,4 +1,4 @@
-# DEV COMMANDS - ServiceManager.AI
+# DEV COMMANDS - Сервис Менеджер
 
 Purpose:
 
@@ -8,6 +8,16 @@ Base URLs (dev):
 
 - Docker backend: `http://localhost:3000`
 - Local WSL backend: `http://localhost:3001`
+
+---
+
+# 0. Naming standard
+
+- Product/platform: `Сервис Менеджер`
+- Developer brand: `СМА-Тех`
+- Temporary right holder in legal documents: `ИП Ермаков И. А.`
+
+Do not use `СМА-Тех` as the product name and do not use `Сервис Менеджер` as the company name.
 
 ---
 

@@ -25,7 +25,7 @@ Current route groups:
 - Settings: `/settings`, `/company`, catalogs and notification settings.
 - Legacy/platform surfaces: IT Company and Engineering Agent remain referenced
   in the desktop navigation/routing configuration and should not be treated as
-  part of the ServiceManager.AI management product.
+  part of the Сервис Менеджер management product.
 
 The `/tickets` route currently renders the same `BoardPage` as `/board`.
 There is no separate `TicketsPage` implementation in the current codebase.
@@ -245,7 +245,7 @@ Primary problems:
 - Stub routes such as equipment, acts, assistant, and contractors should not
   appear as primary working destinations until they are real modules.
 - Legacy IT Company and Engineering Agent surfaces should not be treated as
-  ServiceManager.AI product navigation.
+  Сервис Менеджер product navigation.
 
 Navigation should be rebuilt around workspace switching:
 

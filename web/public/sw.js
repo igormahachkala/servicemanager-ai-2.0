@@ -1,4 +1,4 @@
-// ServiceManager.AI — Push Service Worker
+// Сервис Менеджер — Push Service Worker
 // Зона: mobile-поток (frontend). Не трогает offline-очередь заявок — это отдельный
 // механизм в src/mobile/offlineQueue.ts, работающий на уровне приложения, не SW.
 //
@@ -38,10 +38,10 @@ self.addEventListener('push', (event) => {
     payload = event.data ? event.data.json() : {}
   } catch {
     // Если payload не JSON — показываем как есть текстом, не роняем обработчик.
-    payload = { title: 'ServiceManager', body: event.data ? event.data.text() : '' }
+    payload = { title: 'Сервис Менеджер', body: event.data ? event.data.text() : '' }
   }
 
-  const title = payload.title || 'ServiceManager'
+  const title = payload.title || 'Сервис Менеджер'
   const options = {
     body: payload.body || '',
     icon: payload.icon || DEFAULT_ICON,

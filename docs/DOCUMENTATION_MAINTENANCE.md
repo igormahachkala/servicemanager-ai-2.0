@@ -1,4 +1,4 @@
-# DOCUMENTATION MAINTENANCE — ServiceManager.AI
+# DOCUMENTATION MAINTENANCE — Сервис Менеджер
 
 Статус: Active  
 Назначение: предотвратить устаревание документации.

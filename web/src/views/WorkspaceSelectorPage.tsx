@@ -59,8 +59,8 @@ export function WorkspaceSelectorPage() {
     <div className="page loginPageRoot">
       <div className="card loginPageCard">
         <div className="loginPageHeader">
-          <h1 style={{ marginBottom: 6 }}>ServiceManager.AI</h1>
-          <div className="muted">Service Operations Platform</div>
+          <h1 style={{ marginBottom: 6 }}>Сервис Менеджер</h1>
+          <div className="muted">Платформа управления сервисом</div>
         </div>
 
         <div className="loginModePicker">
@@ -100,6 +100,7 @@ export function WorkspaceSelectorPage() {
           }}
         >
           <SmaBrandLogo variant="footer" style={{ marginBottom: 10, opacity: 0.9 }} />
+          <div className="muted small">Разработано компанией СМА-Тех</div>
         </div>
       </div>
     </div>

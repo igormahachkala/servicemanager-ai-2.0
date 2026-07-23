@@ -307,8 +307,8 @@ export function Shell() {
           <div className="brand">
             <SmaBrandLogo variant="header" compact />
             <div>
-              <div className="title">ServiceManager.AI</div>
-              <div className="muted small">Технологии для сервиса</div>
+              <div className="title">Сервис Менеджер</div>
+              <div className="muted small">Продукт компании СМА-Тех</div>
             </div>
           </div>
 

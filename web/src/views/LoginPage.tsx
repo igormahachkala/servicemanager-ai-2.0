@@ -56,8 +56,8 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
     <div className="page loginPageRoot">
       <div className="card loginPageCard">
         <div className="loginPageHeader">
-          <h1 style={{ marginBottom: 6 }}>ServiceManager.AI</h1>
-          <div className="muted">Service Operations Platform</div>
+          <h1 style={{ marginBottom: 6 }}>Сервис Менеджер</h1>
+          <div className="muted">Платформа управления сервисом</div>
         </div>
 
         <h2 style={{ marginBottom: 16 }}>Войти</h2>
@@ -116,6 +116,7 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
           }}
         >
           <SmaBrandLogo variant="footer" style={{ marginBottom: 10, opacity: 0.9 }} />
+          <div className="muted small">Разработано компанией СМА-Тех</div>
           <div style={{ opacity: 0.6, marginTop: 8 }}>Version {VERSION} · Build {BUILD}</div>
         </div>
       </div>

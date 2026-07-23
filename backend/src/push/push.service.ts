@@ -157,7 +157,7 @@ export class PushService {
   /** POST /push/test — отправляет тестовый push на все активные подписки пользователя. */
   async sendTest(userId: string): Promise<{ ok: boolean }> {
     const payload: PushPayload = {
-      title: 'ServiceManager.AI',
+      title: 'Сервис Менеджер',
       body: 'Тестовое уведомление — push работает ✅',
       tag: 'push-test',
       navigate: '/m',

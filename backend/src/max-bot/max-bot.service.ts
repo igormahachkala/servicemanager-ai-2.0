@@ -630,20 +630,20 @@ export class MaxBotService implements OnModuleInit {
         },
         'max_bot_frontend_url_missing',
       );
-      return customText || 'Тестовое сообщение от ServiceManager.AI';
+      return customText || 'Тестовое сообщение от Сервис Менеджер';
     }
 
     if (params.ticketId && params.ticketId.trim()) {
       return customText
         ? `${customText}\n${link}`
-        : `✅ ServiceManager.AI MAX bot test: ${link}`;
+        : `✅ Сервис Менеджер MAX bot test: ${link}`;
     }
 
     if (customText) {
       return `${customText}\n${link}`;
     }
 
-    return `✅ ServiceManager.AI MAX bot test: ${link}`;
+    return `✅ Сервис Менеджер MAX bot test: ${link}`;
   }
 
   private buildUrl(path: string, params?: URLSearchParams) {

@@ -137,7 +137,7 @@ export class MaxBotCommandService {
     const now = new Date().toISOString();
     const env = process.env.NODE_ENV || 'production';
     const mode = process.env.MAX_BOT_WEBHOOK_ENABLED === 'true' ? 'webhook' : 'polling'
-    return `✅ ServiceManager.AI бот онлайн\nВремя: ${now}\nСреда: ${env}\nРежим: ${mode}`;
+    return `✅ Сервис Менеджер бот онлайн\nВремя: ${now}\nСреда: ${env}\nРежим: ${mode}`;
   }
 
   private async ticketListText(): Promise<string> {

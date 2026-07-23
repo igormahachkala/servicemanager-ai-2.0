@@ -1,6 +1,14 @@
-# MOBILE ARCHITECTURE — ServiceManager.AI
+# MOBILE ARCHITECTURE — Сервис Менеджер
 
 Цель: мобильное приложение для техник-мастеров с офлайн режимом.
+
+---
+
+## Naming standard
+
+- Product/platform: `Сервис Менеджер`.
+- Developer brand: `СМА-Тех`.
+- Temporary right holder in legal documents: `ИП Ермаков И. А.`.
 
 ---
 

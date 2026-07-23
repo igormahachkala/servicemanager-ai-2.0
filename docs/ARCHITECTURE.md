@@ -19,9 +19,9 @@ Temporary demo note:
 
 ---
 
-# ARCHITECTURE — ServiceManager.AI
+# ARCHITECTURE — Сервис Менеджер
 
-ServiceManager.AI evolves from an isolated tenant FSM product toward a service network platform.
+Сервис Менеджер развивается от изолированного tenant FSM продукта к платформе сервисной сети.
 
 Current stack:
 
@@ -31,6 +31,14 @@ Current stack:
 - Auth: JWT
 - Architecture: modular service layer + PBAC
 - Deployment: Docker + local WSL runtime
+
+---
+
+# 0. Naming standard
+
+- Product/platform: `Сервис Менеджер`.
+- Developer brand: `СМА-Тех`.
+- Temporary right holder in legal documents: `ИП Ермаков И. А.`.
 
 ---
 
@@ -173,6 +181,7 @@ Main business modules include:
 Canonical backend flow:
 
 `Controller -> Guard -> Policy -> Service -> Prisma`
+
 ---
 
 ## Platform observer scope

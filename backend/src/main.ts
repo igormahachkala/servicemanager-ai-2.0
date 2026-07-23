@@ -40,7 +40,7 @@ async function bootstrap() {
   });
 
   const config = new DocumentBuilder()
-    .setTitle('API ServiceManager.AI')
+    .setTitle('API Сервис Менеджер')
     .setDescription('Документация по серверному API')
     .setVersion('1.0')
     .addBearerAuth(

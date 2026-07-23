@@ -153,7 +153,7 @@ export function InspectionRunReportPage() {
                 />
               ) : null}
               <div>
-                <div className="workActEyebrow">ServiceManager.AI</div>
+                <div className="workActEyebrow">Сервис Менеджер</div>
                 <h1 className="workActTitle">{report.document.title}</h1>
                 <div className="muted small">№ {report.document.number} от {fmtDate(report.document.date)}</div>
               </div>

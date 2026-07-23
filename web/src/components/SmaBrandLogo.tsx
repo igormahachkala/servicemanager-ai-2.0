@@ -17,8 +17,8 @@ export function SmaBrandLogo({ compact = false, variant, style }: SmaBrandLogoPr
     .join(' ')
 
   return (
-    <div className={classes} aria-label="СМА" style={style}>
-      <img src={smaLogoRu} alt="СМА — Технологии для сервиса" />
+    <div className={classes} aria-label="СМА-Тех" style={style}>
+      <img src={smaLogoRu} alt="СМА-Тех — разработчик платформы Сервис Менеджер" />
     </div>
   )
 }
