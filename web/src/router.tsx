@@ -35,6 +35,8 @@ import { AccessConstructorPage } from './pages/platform/AccessConstructorPage'
 import { PermissionsPage } from './pages/platform/PermissionsPage'
 import { ManagementV2StubPage } from './views/v2/ManagementV2StubPage'
 import { ContractorsRoutePage } from './views/v2/ContractorsRoutePage'
+import { DocumentationCenterPage } from './docs-center/DocumentationCenterPage'
+import { DocumentationArticlePage } from './docs-center/DocumentationArticlePage'
 import { MobileShell } from './mobile/MobileShell'
 import { MobileHome } from './mobile/MobileHome'
 import { MobileCreateTicket } from './mobile/MobileCreateTicket'
@@ -177,6 +179,8 @@ export function AppRoutes() {
         <Route path="analytics" element={<AnalyticsPage />} />
         <Route path="analytics/locations" element={<LocationAnalyticsPage />} />
         <Route path="settings" element={<SettingsPage />} />
+        <Route path="docs" element={<DocumentationCenterPage />} />
+        <Route path="docs/:slug" element={<DocumentationArticlePage />} />
         <Route path="company" element={<CompanyPage />} />
         <Route path="platform/permissions" element={<PermissionsPage />} />
         <Route path="platform/access-constructor" element={<AccessConstructorPage />} />

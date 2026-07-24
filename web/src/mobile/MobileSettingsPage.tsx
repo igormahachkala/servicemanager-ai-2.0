@@ -82,6 +82,24 @@ export function MobileSettingsPage() {
           <span className="mobileProfileMenuChevron" aria-hidden><ChevronRight /></span>
         </button>
 
+        <Link to="/docs" className="mobileProfileMenuItem">
+          <span className="mobileProfileMenuIcon" aria-hidden>
+            {/* Tabler book */}
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 19a9 9 0 0 1 9 0a9 9 0 0 1 9 0" />
+              <path d="M3 6a9 9 0 0 1 9 0a9 9 0 0 1 9 0" />
+              <path d="M3 6v13" />
+              <path d="M12 6v13" />
+              <path d="M21 6v13" />
+            </svg>
+          </span>
+          <span className="mobileProfileMenuLabel">
+            Документация
+            <span className="mobileFieldHint" style={{ display: 'block', margin: 0, fontWeight: 400 }}>Справка по основным сценариям</span>
+          </span>
+          <span className="mobileProfileMenuChevron" aria-hidden><ChevronRight /></span>
+        </Link>
+
         <div className="mobileProfileMenuItem mobileProfileMenuItem--static" aria-disabled="true">
           <span className="mobileProfileMenuIcon" aria-hidden>
             {/* Tabler robot */}

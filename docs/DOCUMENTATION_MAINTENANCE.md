@@ -227,7 +227,24 @@ docs/AI_CONTEXT.md
 
 ---
 
-# 12. SYSTEM INVARIANTS
+# 12. Пользовательская документация
+
+docs/DOCUMENTATION_CENTER_V1.md
+
+Описывает frontend-only Documentation Center и правила статического каталога
+пользовательских материалов.
+
+Обновлять когда:
+
+- добавляется новый пользовательский раздел документации
+- меняется структура каталога `web/src/docs-center`
+- меняются правила stable docId или anchors
+- меняется статус юридического контента
+- появляются ссылки из Guided Tour или Context Help
+
+---
+
+# 13. SYSTEM INVARIANTS
 
 docs/SYSTEM_INVARIANTS.md
 
@@ -246,7 +263,7 @@ docs/SYSTEM_INVARIANTS.md
 
 ---
 
-# 13. Проверка документации (ежемесячная)
+# 14. Проверка документации (ежемесячная)
 
 Раз в месяц выполняется проверка:
 
@@ -257,7 +274,7 @@ docs/SYSTEM_INVARIANTS.md
 
 ---
 
-# 14. Definition of Done
+# 15. Definition of Done
 
 Задача считается завершённой только если:
 
@@ -267,7 +284,7 @@ docs/SYSTEM_INVARIANTS.md
 
 ---
 
-# 15. Цель документации
+# 16. Цель документации
 
 Документация нужна для:
 

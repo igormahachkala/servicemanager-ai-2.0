@@ -73,6 +73,7 @@ function isActivePath(currentPath: string, targetPath: string) {
   if (targetPath === '/map') return currentPath.startsWith('/map')
   if (targetPath === '/specializations') return currentPath.startsWith('/specializations')
   if (targetPath === '/analytics') return currentPath.startsWith('/analytics')
+  if (targetPath === '/docs') return currentPath.startsWith('/docs')
   if (targetPath === '/settings') return currentPath.startsWith('/settings')
   if (targetPath === '/company') return currentPath.startsWith('/company')
   if (targetPath === '/problem-categories') return currentPath.startsWith('/problem-categories')
@@ -98,6 +99,7 @@ function isNavItemVisible(item: NavItem, role?: api.Role, canAccessEngineeringAg
       item.to === '/archive' ||
       item.to === '/tickets' ||
       item.to === '/tickets/new' ||
+      item.to === '/docs' ||
       item.to === '/company' ||
       item.to === '/settings'
     )

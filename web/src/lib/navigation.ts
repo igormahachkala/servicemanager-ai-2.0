@@ -33,6 +33,7 @@ const tenantDesktopNavItems: NavItem[] = [
   { id: 'map', label: 'Карта', to: '/map' },
   { id: 'inspectionTemplates', label: 'Шаблоны обходов', to: '/inspection/templates' },
   { id: 'inspectionRuns', label: 'Обходы', to: '/inspection/runs' },
+  { id: 'docs', label: 'Документация', to: '/docs' },
   { id: 'company', label: 'Компания', to: '/company' },
   { id: 'settings', label: 'Настройки', to: '/settings' },
   // Раздел IT Company — виден только PLATFORM_ADMIN (gating в isNavItemVisible).
@@ -43,7 +44,7 @@ const tenantDesktopNavItems: NavItem[] = [
 
 const tenantNavById = Object.fromEntries(tenantDesktopNavItems.map((item) => [item.id, item])) as Record<string, NavItem>
 
-const tenantTopbarIds = ['board', 'archive', 'tickets', 'analytics', 'settings'] as const
+const tenantTopbarIds = ['board', 'archive', 'tickets', 'analytics', 'docs', 'settings'] as const
 
 export const platformNavigation: ShellNavigationConfig = {
   sidebar: [
