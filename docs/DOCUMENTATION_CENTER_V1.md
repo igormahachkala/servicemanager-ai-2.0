@@ -21,23 +21,67 @@ site.
 
 ## Routes
 
-Authenticated routes:
+The Documentation Center is served by a single static catalog and a single pair
+of route-aware pages, mounted in each runtime shell so the user never leaves
+their shell:
+
+Desktop (`Shell`):
 
 - `/docs`
-- `/docs/quick-start`
-- `/docs/user-guide`
-- `/docs/admin-guide`
-- `/docs/executor-guide`
-- `/docs/faq`
-- `/docs/glossary`
-- `/docs/legal`
-- `/docs/support`
+- `/docs/:slug`
 
-The routes are mounted under the existing desktop `Shell`, so unauthenticated
-access follows the existing auth model and redirects to `/login`.
+Mobile (`MobileShell` under `/m`):
 
-Mobile does not get a second content system. Mobile users enter the same
-adaptive `/docs` route from profile/settings links.
+- `/m/docs`
+- `/m/docs/:slug`
+
+MAX (`MobileShell` under `/max`):
+
+- `/max/docs`
+- `/max/docs/:slug`
+
+`:slug` is one of: `quick-start`, `user-guide`, `admin-guide`, `executor-guide`,
+`faq`, `glossary`, `legal`, `support`.
+
+Desktop routes are mounted under `Shell`; mobile/MAX routes are mounted under the
+respective `MobileShell`, so authentication follows the existing per-shell model
+and unauthenticated access redirects to `/login`.
+
+Mobile does not get a second content system. The same `DocumentationCenterPage`
+and `DocumentationArticlePage` are reused in all three runtimes. They resolve the
+active base path (`/docs`, `/m/docs`, `/max/docs`) from the current location via
+`web/src/docs-center/docsPaths.ts` (`getDocsBasePath`), so internal links and the
+unknown-slug fallback keep the user inside their shell and browser back returns to
+the same runtime context.
+
+Mobile profile/settings entry links use the existing `mobilePath` helper, so they
+resolve to `/m/docs` inside the mobile runtime and `/max/docs` inside MAX.
+
+### Unknown slug fallback
+
+An unknown `:slug` returns the user to the index of the current runtime:
+
+- from `/docs/:slug` → `/docs`
+- from `/m/docs/:slug` → `/m/docs`
+- from `/max/docs/:slug` → `/max/docs`
+
+## Audience Display Labels
+
+Articles store stable internal `audience` identifiers (`DocsAudience` in
+`docsTypes.ts`). The UI never shows the raw identifier — it renders a
+human-readable Russian label from the single mapping `DOCS_AUDIENCE_LABELS`
+(`getDocsAudienceLabel`) in `web/src/docs-center/docsCatalog.ts`:
+
+- `all` → Все пользователи
+- `platform-admin` → Администратор платформы
+- `provider-admin` → Администратор сервисной компании
+- `dispatcher` → Диспетчер
+- `master` → Мастер
+- `technician` → Исполнитель
+- `client` → Заказчик
+
+Do not rename the internal identifiers. When a new `DocsAudience` value is added,
+`Record<DocsAudience, string>` forces a matching label at compile time.
 
 ## Catalog Structure
 

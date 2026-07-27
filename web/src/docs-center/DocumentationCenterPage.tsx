@@ -1,11 +1,14 @@
 import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { SupportContactBlock } from '../components/SupportContactBlock'
 import { DOCS_ARTICLES, DOCS_SECTIONS, getDocsSectionMeta } from './docsCatalog'
+import { getDocsBasePath } from './docsPaths'
 import { searchDocs } from './docsSearch'
 import './docs-center.css'
 
 export function DocumentationCenterPage() {
+  const location = useLocation()
+  const docsBase = getDocsBasePath(location.pathname)
   const [query, setQuery] = useState('')
   const results = useMemo(() => searchDocs(query), [query])
   const isSearching = query.trim().length > 0
@@ -54,7 +57,7 @@ export function DocumentationCenterPage() {
             {DOCS_SECTIONS.map((section) => {
               const article = DOCS_ARTICLES.find((item) => item.section === section.id)
               return article ? (
-                <Link key={section.id} to={`/docs/${article.slug}`} className="docsSectionLink">
+                <Link key={section.id} to={`${docsBase}/${article.slug}`} className="docsSectionLink">
                   <span>{section.title}</span>
                   <span className="muted small">{section.summary}</span>
                 </Link>
@@ -85,7 +88,7 @@ export function DocumentationCenterPage() {
               {results.map((article) => {
                 const section = getDocsSectionMeta(article.section)
                 return (
-                  <Link key={article.id} to={`/docs/${article.slug}`} className="docsArticleCard">
+                  <Link key={article.id} to={`${docsBase}/${article.slug}`} className="docsArticleCard">
                     <span className="docsArticleSection">{section.title}</span>
                     <h3>{article.title}</h3>
                     <p>{article.summary}</p>
@@ -106,10 +109,10 @@ export function DocumentationCenterPage() {
           <section className="docsQuickLinks panel" aria-labelledby="docs-quick-links-title">
             <h2 id="docs-quick-links-title">Быстрые ссылки</h2>
             <div className="docsQuickLinksRow">
-              <Link to="/docs/quick-start">Первый вход</Link>
-              <Link to="/docs/executor-guide">Работа техника</Link>
-              <Link to="/docs/admin-guide">Администрирование</Link>
-              <Link to="/docs/support">Поддержка</Link>
+              <Link to={`${docsBase}/quick-start`}>Первый вход</Link>
+              <Link to={`${docsBase}/executor-guide`}>Работа техника</Link>
+              <Link to={`${docsBase}/admin-guide`}>Администрирование</Link>
+              <Link to={`${docsBase}/support`}>Поддержка</Link>
             </div>
           </section>
 

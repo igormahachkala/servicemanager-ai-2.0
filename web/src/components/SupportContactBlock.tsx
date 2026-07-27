@@ -26,14 +26,14 @@ export function SupportContactBlock({ titleTag = 'h3' }: SupportContactBlockProp
         <button
           type="button"
           className="supportContactBtn supportContactBtn--telegram"
-          onClick={() => window.open(SUPPORT_TELEGRAM_URL, '_blank')}
+          onClick={() => window.open(SUPPORT_TELEGRAM_URL, '_blank', 'noopener,noreferrer')}
         >
           Написать в Telegram
         </button>
         <button
           type="button"
           className="supportContactBtn supportContactBtn--max"
-          onClick={() => window.open(SUPPORT_MAX_URL, '_blank')}
+          onClick={() => window.open(SUPPORT_MAX_URL, '_blank', 'noopener,noreferrer')}
         >
           Написать в MAX
         </button>

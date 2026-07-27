@@ -253,7 +253,7 @@ export function MobileProfile() {
             <span className="mobileProfileMenuLabel">Быстрый старт</span>
             <span className="mobileProfileMenuChevron" aria-hidden><ChevronRight /></span>
           </button>
-          <Link to="/docs" className="mobileProfileMenuItem">
+          <Link to={mobilePath(location.pathname, '/docs')} className="mobileProfileMenuItem">
             <span className="mobileProfileMenuIcon" aria-hidden>
               {/* Tabler book */}
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

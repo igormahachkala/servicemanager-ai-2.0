@@ -1,6 +1,7 @@
-import { Link, Navigate, useParams } from 'react-router-dom'
+import { Link, Navigate, useLocation, useParams } from 'react-router-dom'
 import { SupportContactBlock } from '../components/SupportContactBlock'
-import { DOCS_ARTICLES, getDocsArticleBySlug, getDocsSectionMeta } from './docsCatalog'
+import { DOCS_ARTICLES, getDocsArticleBySlug, getDocsAudienceLabel, getDocsSectionMeta } from './docsCatalog'
+import { getDocsBasePath } from './docsPaths'
 import type { DocsContentBlock } from './docsTypes'
 import './docs-center.css'
 
@@ -55,9 +56,11 @@ function renderBlock(block: DocsContentBlock, index: number) {
 
 export function DocumentationArticlePage() {
   const { slug } = useParams()
+  const location = useLocation()
+  const docsBase = getDocsBasePath(location.pathname)
   const article = getDocsArticleBySlug(slug)
 
-  if (!article) return <Navigate to="/docs" replace />
+  if (!article) return <Navigate to={docsBase} replace />
 
   const section = getDocsSectionMeta(article.section)
 
@@ -65,7 +68,7 @@ export function DocumentationArticlePage() {
     <div className="docsCenterPage">
       <div className="docsArticleLayout">
         <aside className="docsSidebar panel" aria-label="Навигация по документации">
-          <Link to="/docs" className="docsBackLink">
+          <Link to={docsBase} className="docsBackLink">
             ← Документация
           </Link>
           <div className="docsSidebarGroup">
@@ -74,7 +77,7 @@ export function DocumentationArticlePage() {
               {DOCS_ARTICLES.map((item) => (
                 <Link
                   key={item.id}
-                  to={`/docs/${item.slug}`}
+                  to={`${docsBase}/${item.slug}`}
                   className={item.id === article.id ? 'docsSectionLink docsSectionLink--active' : 'docsSectionLink'}
                   aria-current={item.id === article.id ? 'page' : undefined}
                 >
@@ -103,7 +106,7 @@ export function DocumentationArticlePage() {
             <p>{article.summary}</p>
             <div className="docsAudienceRow" aria-label="Аудитория">
               {article.audience.map((audience) => (
-                <span key={audience}>{audience}</span>
+                <span key={audience}>{getDocsAudienceLabel(audience)}</span>
               ))}
             </div>
           </div>

@@ -144,6 +144,8 @@ export function AppRoutes() {
         <Route path="chats/:ticketId" element={<MobileChatsPage />} />
         <Route path="tickets/:id" element={<MobileTicketPage />} />
         <Route path="offline-queue" element={<MobileOfflineQueue />} />
+        <Route path="docs" element={<DocumentationCenterPage />} />
+        <Route path="docs/:slug" element={<DocumentationArticlePage />} />
         <Route path="inspection" element={<MobileInspectionList standalone />} />
         <Route path="inspection/:runId" element={<MobileInspectionRunPage />} />
         <Route path="inspection/object/:locationId" element={<MobileInspectionList />} />
@@ -212,6 +214,8 @@ export function AppRoutes() {
           <Route path="chats/:ticketId" element={<MobileChatsPage />} />
           <Route path="tickets/:id" element={<MobileTicketPage />} />
           <Route path="offline-queue" element={<MobileOfflineQueue />} />
+          <Route path="docs" element={<DocumentationCenterPage />} />
+          <Route path="docs/:slug" element={<DocumentationArticlePage />} />
           <Route path="inspection" element={<MobileInspectionList standalone />} />
           <Route path="inspection/:runId" element={<MobileInspectionRunPage />} />
         <Route path="inspection/object/:locationId" element={<MobileInspectionList />} />

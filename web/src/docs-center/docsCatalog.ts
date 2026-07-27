@@ -1,4 +1,24 @@
-import type { DocsArticle, DocsSectionMeta } from './docsTypes'
+import type { DocsArticle, DocsAudience, DocsSectionMeta } from './docsTypes'
+
+/**
+ * Единый источник человекочитаемых названий аудитории.
+ * Ключи — стабильные внутренние идентификаторы DocsAudience (не менять).
+ * Значения — русские подписи для UI. Тип Record<DocsAudience, string>
+ * заставляет TypeScript требовать подпись для каждого нового значения аудитории.
+ */
+export const DOCS_AUDIENCE_LABELS: Record<DocsAudience, string> = {
+  all: 'Все пользователи',
+  'platform-admin': 'Администратор платформы',
+  'provider-admin': 'Администратор сервисной компании',
+  dispatcher: 'Диспетчер',
+  master: 'Мастер',
+  technician: 'Исполнитель',
+  client: 'Заказчик',
+}
+
+export function getDocsAudienceLabel(audience: DocsAudience): string {
+  return DOCS_AUDIENCE_LABELS[audience] ?? audience
+}
 
 export const DOCS_SECTIONS: DocsSectionMeta[] = [
   {
