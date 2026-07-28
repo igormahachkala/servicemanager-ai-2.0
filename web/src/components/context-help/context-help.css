@@ -1,6 +1,5 @@
-/* Context Help V1 — self-contained, responsive, dark/light compatible.
-   Colors are driven by local --ch-* variables so the block adapts to the
-   viewer's color scheme without depending on a global theme system. */
+/* Context Help V1 — self-contained and responsive.
+   Light styling is the default because the application has no global theme system yet. */
 .contextHelp {
   --ch-bg: #ffffff;
   --ch-border: #e6e8f0;
@@ -130,15 +129,14 @@
   }
 }
 
-@media (prefers-color-scheme: dark) {
-  .contextHelp {
-    --ch-bg: #0f172a;
-    --ch-border: #24304a;
-    --ch-fg: #e5e9f0;
-    --ch-muted: #93a1b8;
-    --ch-accent: #6366f1;
-    --ch-accent-fg: #ffffff;
-    --ch-hover: #172136;
-    --ch-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
-  }
+[data-theme='dark'] .contextHelp,
+.theme-dark .contextHelp {
+  --ch-bg: #0f172a;
+  --ch-border: #24304a;
+  --ch-fg: #e5e9f0;
+  --ch-muted: #93a1b8;
+  --ch-accent: #6366f1;
+  --ch-accent-fg: #ffffff;
+  --ch-hover: #172136;
+  --ch-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
 }

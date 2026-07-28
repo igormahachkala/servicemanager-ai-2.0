@@ -54,8 +54,9 @@ export function ContextHelp({
 
   const docsBase = getDocsBasePath(location.pathname)
   const article = docSlug ? getDocsArticleBySlug(docSlug) : undefined
+  const anchor = article && docAnchorId ? article.anchors.find((item) => item.id === docAnchorId) : undefined
   const moreHref = article
-    ? `${docsBase}/${article.slug}${docAnchorId ? `#${docAnchorId}` : ''}`
+    ? `${docsBase}/${article.slug}${anchor ? `#${anchor.id}` : ''}`
     : docsBase
 
   return (
