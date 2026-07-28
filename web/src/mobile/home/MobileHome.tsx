@@ -38,6 +38,7 @@ import { HomeChips } from './HomeChips'
 import { HomeList, type TicketCloseModalState } from './HomeList'
 import { HomeQuickCards, type MobileHomeQuickFilter } from './HomeQuickCards'
 import { HomeFAB } from './HomeFAB'
+import { ContextHelp } from '../../components/context-help/ContextHelp'
 
 export function MobileHome() {
   const location = useLocation()
@@ -484,6 +485,15 @@ export function MobileHome() {
         activeBoardTab={quickFilter ? undefined : boardTab}
         searchQuery={searchQuery}
         setSearchQuery={changeSearchQuery}
+      />
+      <ContextHelp
+        title="Подсказка по главному экрану"
+        whatIsThis="Главный мобильный экран: ваши заявки, быстрые фильтры и создание новой заявки."
+        purpose="Отсюда вы следите за статусами, берёте заявки в работу и переходите к действиям на объекте."
+        currentState={`Требуют внимания: ${awaitingCount}. Ваши действия: ${myActionCount}.`}
+        nextStep="Выберите заявку из списка или создайте новую через кнопку внизу экрана."
+        docSlug="executor-guide"
+        docAnchorId="ticket-work"
       />
       {showMobileHomeTicketBoard ? (
         <>

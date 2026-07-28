@@ -15,6 +15,7 @@ import {
 import { pushToast } from '../lib/appToast'
 import { logTicketActionError, mapTicketActionError } from '../lib/ticketOperationalErrors'
 import { OperationsViewSwitcher, type OperationsViewMode } from '../components/operations/OperationsViewSwitcher'
+import { ContextHelp } from '../components/context-help/ContextHelp'
 
 function fmt(dt?: string | null) {
   if (!dt) return '—'
@@ -661,6 +662,16 @@ export function BoardPage() {
           : 'Здесь отображаются заявки по статусам. Откройте карточку, чтобы назначить исполнителя или изменить статус.'}
       </div>
       </div>
+
+      <ContextHelp
+        title="Подсказка по доске заявок"
+        whatIsThis="Доска заявок — операционный экран со всеми заявками, сгруппированными по статусам."
+        purpose="Здесь вы распределяете заявки, назначаете исполнителей и следите за сроками и приёмкой."
+        currentState={`Открыт режим: ${activeOperationsView === 'registry' ? 'реестр заявок' : 'доска по статусам'}.`}
+        nextStep="Откройте карточку заявки, чтобы назначить исполнителя или изменить статус."
+        docSlug="user-guide"
+        docAnchorId="tickets"
+      />
 
       {activeOperationsView === 'registry' ? (
         <div className="panel uiCard operationsRegistryPlaceholder">

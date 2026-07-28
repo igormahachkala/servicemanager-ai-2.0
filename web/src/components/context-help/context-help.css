@@ -1,0 +1,144 @@
+/* Context Help V1 — self-contained, responsive, dark/light compatible.
+   Colors are driven by local --ch-* variables so the block adapts to the
+   viewer's color scheme without depending on a global theme system. */
+.contextHelp {
+  --ch-bg: #ffffff;
+  --ch-border: #e6e8f0;
+  --ch-fg: #111827;
+  --ch-muted: #475569;
+  --ch-accent: #4f46e5;
+  --ch-accent-fg: #ffffff;
+  --ch-hover: #f8fafc;
+  --ch-shadow: 0 6px 18px rgba(17, 24, 39, 0.05);
+
+  display: block;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--ch-border);
+  border-radius: 14px;
+  background: var(--ch-bg);
+  color: var(--ch-fg);
+  box-shadow: var(--ch-shadow);
+  overflow: hidden;
+}
+
+.contextHelpToggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.contextHelpToggle:hover {
+  background: var(--ch-hover);
+}
+
+.contextHelpToggle:focus-visible {
+  outline: 2px solid var(--ch-accent);
+  outline-offset: -2px;
+}
+
+.contextHelpIcon {
+  display: inline-flex;
+  flex: none;
+  color: var(--ch-accent);
+}
+
+.contextHelpTitle {
+  flex: 1;
+  min-width: 0;
+}
+
+.contextHelpChevron {
+  display: inline-flex;
+  flex: none;
+  color: var(--ch-muted);
+  transition: transform 0.15s ease;
+}
+
+.contextHelpChevron--open {
+  transform: rotate(180deg);
+}
+
+.contextHelpBody {
+  display: grid;
+  gap: 12px;
+  padding: 0 14px 14px;
+}
+
+.contextHelpList {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.contextHelpItem {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.contextHelpItem dt {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--ch-muted);
+}
+
+.contextHelpItem dd {
+  margin: 0;
+  color: var(--ch-fg);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.contextHelpMore {
+  justify-self: start;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: var(--ch-accent);
+  color: var(--ch-accent-fg);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.contextHelpMore:hover {
+  filter: brightness(1.06);
+}
+
+.contextHelpMore:focus-visible {
+  outline: 2px solid var(--ch-accent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 560px) {
+  .contextHelpToggle {
+    padding: 12px;
+  }
+
+  .contextHelpBody {
+    padding: 0 12px 12px;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .contextHelp {
+    --ch-bg: #0f172a;
+    --ch-border: #24304a;
+    --ch-fg: #e5e9f0;
+    --ch-muted: #93a1b8;
+    --ch-accent: #6366f1;
+    --ch-accent-fg: #ffffff;
+    --ch-hover: #172136;
+    --ch-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  }
+}
