@@ -1,12 +1,13 @@
 import { type MutableRefObject, type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
 import { type UseMutationResult, type UseQueryResult } from '@tanstack/react-query'
 import * as api from '../../lib/api'
-import { mobileTicketCategoryLocationFromCard, mobileTicketNumberTitle } from '../mobileTicketDisplay'
+import { mobileTicketCategoryLocationFromCard, mobileTicketNumberTitle, type MobileTicketNavState } from '../mobileTicketDisplay'
 import { mobileHomeTabEmptyCopy, type MobileHomeBoardFilterTab } from '../mobileHomeBoardFilters'
 import { TicketCard } from './TicketCard'
 import { getPrimaryActionLabel, homeTicketActionProgressLabel } from './utils'
 import { formatMobileMutationError } from '../mobileActionErrors'
 import { defaultExpandedLocationIds, groupTicketsByLocation, type MobileHomeLocationGroup } from '../mobileHomeListUtils'
+import { compactIdentityLabel, presentActorIdentity } from '../../lib/ticketActorIdentity'
 
 export type TicketCloseModalState = {
   ticketId: string
@@ -36,11 +37,11 @@ type Props = {
   assignBusy: boolean
   assignTicket: api.TicketCard | null
   ticketHref: (ticket: api.TicketCard) => string
-  ticketLinkState: (ticket: api.TicketCard) => any
+  ticketLinkState: (ticket: api.TicketCard) => MobileTicketNavState
   onAction: (ticket: api.TicketCard) => void
   setAssignErr: (text: string) => void
   setAssignTicket: (ticket: api.TicketCard | null) => void
-  assignCandidatesQ: UseQueryResult<any, unknown>
+  assignCandidatesQ: UseQueryResult<api.AssignmentCandidatesResponse, unknown>
   assignTechOptions: api.AssignmentCandidateTechnician[]
   assignTechId: string
   setAssignTechId: (id: string) => void
@@ -355,7 +356,7 @@ function AssignModal(props: {
   assignTicket: api.TicketCard | null
   assignBusy: boolean
   setAssignTicket: (ticket: api.TicketCard | null) => void
-  assignCandidatesQ: UseQueryResult<any, unknown>
+  assignCandidatesQ: UseQueryResult<api.AssignmentCandidatesResponse, unknown>
   assignErr: string
   assignTechOptions: api.AssignmentCandidateTechnician[]
   assignTechId: string
@@ -390,7 +391,7 @@ function AssignModal(props: {
               <select value={assignTechId} disabled={assignBusy} onChange={(e) => setAssignTechId(e.target.value)}>
                 {assignTechOptions.map((row) => (
                   <option key={row.id} value={row.id}>
-                    {row.email}
+                    {compactIdentityLabel(presentActorIdentity(row, { roleFallback: 'Исполнитель' }))}
                     {row.matched ? ' · рекомендован' : ''}
                   </option>
                 ))}

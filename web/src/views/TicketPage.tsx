@@ -808,13 +808,17 @@ export function TicketPage() {
   }, [contextMode])
   const timelineItems = timelineQ.data?.timeline || timelineQ.data?.items || []
   const childTickets = ticket?.children || []
-  // SMA-ACCEPTANCE-ROLE-GAP-001: accept/reject only for client-company ADMIN / TERRITORIAL_MANAGER / NETWORK_DIRECTOR.
+  const serverCanAccept = ticket?.meta?.availableActions?.canAccept
+  const serverCanReject = ticket?.meta?.availableActions?.canReject
   const isAwaitingAcceptanceClient =
     !!ticket &&
     canMutateTicket &&
-    isClientTenantCompany &&
-    api.isClientAcceptanceRole(role) &&
-    ticket.status === 'AWAITING_ACCEPTANCE'
+    ticket.status === 'AWAITING_ACCEPTANCE' &&
+    (
+      typeof serverCanAccept === 'boolean' || typeof serverCanReject === 'boolean'
+        ? serverCanAccept === true || serverCanReject === true
+        : isClientTenantCompany && api.isClientAcceptanceRole(role)
+    )
   const requestAttachments = useMemo(
     () => (attachmentsQ.data || []).filter((item: any) => item?.purpose !== 'WORK_REPORT'),
     [attachmentsQ.data],

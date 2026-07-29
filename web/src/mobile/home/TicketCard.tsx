@@ -10,6 +10,7 @@ import {
   type MobileTicketNavState,
 } from '../mobileTicketDisplay'
 import { MobileBoardClaimFallbackHint, MobileClaimReasonHintBox } from '../MobileUxHints'
+import { compactTicketCreatorLabel } from '../../lib/ticketActorIdentity'
 import { assignedTechnicianDisplay, type HomePrimaryActionLabel } from './utils'
 
 type Props = {
@@ -78,6 +79,7 @@ export function TicketCard({
   const timeText = fmtCardTime(ticket.createdAt)
   const descText = (ticket.description || '').trim()
   const assigneeText = assignedTechnicianDisplay(ticket)
+  const creatorText = compactTicketCreatorLabel(ticket)
 
   return (
     <div className={cardClass} data-mobile-tour="ticket-card" style={{ padding: 0, overflow: 'hidden' }}>
@@ -100,6 +102,7 @@ export function TicketCard({
 
             {/* Row 3: description snippet */}
             {descText ? <div className="mobileTicketCardV2Desc">{descText}</div> : null}
+            {creatorText !== '—' ? <div className="mobileMeta" style={{ fontSize: '0.72rem' }}>Создал: {creatorText}</div> : null}
 
             {/* Row 4: assignee (small) + urgent badge + sla + status */}
             <div className="mobileTicketCardV2Bottom">

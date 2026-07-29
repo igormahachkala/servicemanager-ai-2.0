@@ -1,5 +1,5 @@
-import { BadRequestException, ForbiddenException } from '@nestjs/common'
-import { CompanyType, TicketStatus, UserRole } from '@prisma/client'
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common'
+import { CompanyType, ServiceContractRole, TicketStatus, UserRole } from '@prisma/client'
 
 import { TicketsAcceptanceService } from './tickets.acceptance.service'
 import * as ticketAccessUtils from './ticket-access.utils'
@@ -26,9 +26,35 @@ function makeAccess(overrides: any = {}): any {
   }
 }
 
-function makeSetup(opts: { ticketStatus?: TicketStatus; actorCompanyType?: CompanyType } = {}) {
+function makeTicket(overrides: Record<string, any> = {}) {
+  return {
+    id: TICKET_ID,
+    companyId: CLIENT_ID,
+    status: TicketStatus.AWAITING_ACCEPTANCE,
+    slaDueAt: null,
+    slaBreachedAt: null,
+    closedAt: null,
+    assignedTechnicianId: null,
+    createdByUserId: null,
+    assignedTechnician: null,
+    ticketNumber: 101,
+    ...overrides,
+  }
+}
+
+function makeSetup(opts: {
+  ticketStatus?: TicketStatus
+  actorRole?: UserRole
+  actorCompanyType?: CompanyType
+  actorActive?: boolean
+  ticket?: Record<string, any>
+  linkedContractRole?: ServiceContractRole | null
+} = {}) {
   const ticketStatus = opts.ticketStatus ?? TicketStatus.AWAITING_ACCEPTANCE
+  const actorRole = opts.actorRole ?? UserRole.ADMIN
   const actorCompanyType = opts.actorCompanyType ?? CompanyType.CLIENT
+  const actorActive = opts.actorActive ?? true
+  const accessTicket = makeTicket({ status: ticketStatus, ...(opts.ticket ?? {}) })
 
   const txTicket = {
     id: TICKET_ID,
@@ -37,6 +63,8 @@ function makeSetup(opts: { ticketStatus?: TicketStatus; actorCompanyType?: Compa
     slaDueAt: null,
     slaBreachedAt: null,
     closedAt: null,
+    assignedTechnicianId: accessTicket.assignedTechnicianId,
+    ticketNumber: accessTicket.ticketNumber,
   }
 
   const tx = {
@@ -50,16 +78,28 @@ function makeSetup(opts: { ticketStatus?: TicketStatus; actorCompanyType?: Compa
 
   const prisma = {
     $transaction: jest.fn().mockImplementation(async (cb: any) => cb(tx)),
-    // SMA-ACCEPTANCE-ROLE-GAP-001: actor-company-type lookup for the client-side gate.
-    company: { findUnique: jest.fn().mockResolvedValue({ id: 'co', type: actorCompanyType }) },
+    user: {
+      findFirst: jest.fn().mockImplementation(async ({ where }: any) => ({
+        id: where.id,
+        companyId: where.companyId,
+        role: actorRole,
+        isActive: actorActive,
+        company: { id: where.companyId, type: actorCompanyType },
+      })),
+    },
+    ticket: { findFirst: jest.fn().mockResolvedValue(accessTicket) },
   } as any
 
   const timeline = { recordTx: jest.fn().mockResolvedValue({ id: 'ev-1' }) }
-  const serviceContracts = { getLinkedClientAccess: jest.fn().mockResolvedValue({ role: 'PRIMARY' }) }
+  const serviceContracts = {
+    getLinkedClientAccess: jest.fn().mockResolvedValue(
+      opts.linkedContractRole === null ? null : { role: opts.linkedContractRole ?? ServiceContractRole.PRIMARY },
+    ),
+  }
   const notifications = { onTicketAccepted: jest.fn(), onTicketRejected: jest.fn() }
   const svc = new TicketsAcceptanceService(prisma, timeline as any, serviceContracts as any, notifications as any)
 
-  return { svc, prisma, tx, timeline, notifications }
+  return { svc, prisma, tx, timeline, serviceContracts, notifications }
 }
 
 // A client-company management role allowed to accept/reject.
@@ -69,7 +109,7 @@ describe('TicketsAcceptanceService.decide', () => {
   beforeEach(() => jest.clearAllMocks())
 
   it('ACCEPT moves AWAITING_ACCEPTANCE -> DONE', async () => {
-    const { svc, tx, notifications } = makeSetup()
+    const { svc, tx, notifications } = makeSetup({ actorRole: UserRole.ADMIN })
     mockResolveReadable.mockResolvedValue(makeAccess())
 
     const result = await svc.decide(clientAdmin, TICKET_ID, { decision: AcceptanceDecision.ACCEPT })
@@ -82,7 +122,7 @@ describe('TicketsAcceptanceService.decide', () => {
   })
 
   it('REJECT requires comment', async () => {
-    const { svc } = makeSetup()
+    const { svc } = makeSetup({ actorRole: UserRole.ADMIN })
     mockResolveReadable.mockResolvedValue(makeAccess())
 
     await expect(
@@ -91,7 +131,7 @@ describe('TicketsAcceptanceService.decide', () => {
   })
 
   it('REJECT moves AWAITING_ACCEPTANCE -> IN_PROGRESS and marks rejection attachments', async () => {
-    const { svc, tx, notifications } = makeSetup()
+    const { svc, tx, notifications } = makeSetup({ actorRole: UserRole.ADMIN })
     mockResolveReadable.mockResolvedValue(makeAccess())
 
     const result = await svc.decide(clientAdmin, TICKET_ID, {
@@ -110,9 +150,102 @@ describe('TicketsAcceptanceService.decide', () => {
     expect(notifications.onTicketRejected).toHaveBeenCalled()
   })
 
-  // SMA-ACCEPTANCE-ROLE-GAP-001 — policy gates.
+  it('allows the assigned technician to accept an accessible ticket', async () => {
+    const technician = { id: 'tech-1', role: UserRole.TECHNICIAN, companyId: PROVIDER_ID }
+    const { svc, notifications } = makeSetup({
+      actorRole: UserRole.TECHNICIAN,
+      actorCompanyType: CompanyType.PROVIDER,
+      ticket: {
+        assignedTechnicianId: technician.id,
+        assignedTechnician: { id: technician.id, companyId: PROVIDER_ID },
+      },
+    })
+    mockResolveReadable.mockResolvedValue(makeAccess())
+
+    const result = await svc.decide(technician, TICKET_ID, { decision: AcceptanceDecision.ACCEPT }, CLIENT_ID)
+
+    expect(result.status).toBe(TicketStatus.DONE)
+    expect(notifications.onTicketAccepted).toHaveBeenCalledWith(
+      expect.objectContaining({ actorUserId: technician.id }),
+    )
+  })
+
+  it('allows a contractor MASTER who created the accessible ticket', async () => {
+    const master = { id: 'master-1', role: UserRole.MASTER, companyId: PROVIDER_ID }
+    const { svc } = makeSetup({
+      actorRole: UserRole.MASTER,
+      actorCompanyType: CompanyType.PROVIDER,
+      ticket: { createdByUserId: master.id },
+    })
+    mockResolveReadable.mockResolvedValue(makeAccess())
+
+    await expect(
+      svc.decide(master, TICKET_ID, { decision: AcceptanceDecision.ACCEPT }, CLIENT_ID),
+    ).resolves.toEqual(expect.objectContaining({ status: TicketStatus.DONE }))
+  })
+
+  it('allows a contractor ADMIN when the ticket is assigned to an employee of that contractor', async () => {
+    const admin = { id: 'admin-provider-1', role: UserRole.ADMIN, companyId: PROVIDER_ID }
+    const { svc } = makeSetup({
+      actorRole: UserRole.ADMIN,
+      actorCompanyType: CompanyType.PROVIDER,
+      ticket: {
+        assignedTechnicianId: 'tech-1',
+        assignedTechnician: { id: 'tech-1', companyId: PROVIDER_ID },
+      },
+    })
+    mockResolveReadable.mockResolvedValue(makeAccess())
+
+    await expect(
+      svc.decide(admin, TICKET_ID, { decision: AcceptanceDecision.ACCEPT }, CLIENT_ID),
+    ).resolves.toEqual(expect.objectContaining({ status: TicketStatus.DONE }))
+  })
+
+  it('rejects a contractor MASTER with linked access when they neither created nor own the assignee contour', async () => {
+    const master = { id: 'master-1', role: UserRole.MASTER, companyId: PROVIDER_ID }
+    const { svc, prisma, serviceContracts } = makeSetup({
+      actorRole: UserRole.MASTER,
+      actorCompanyType: CompanyType.PROVIDER,
+      linkedContractRole: ServiceContractRole.PRIMARY,
+      ticket: {
+        createdByUserId: 'someone-else',
+        assignedTechnicianId: 'other-tech',
+        assignedTechnician: { id: 'other-tech', companyId: 'other-provider' },
+      },
+    })
+    mockResolveReadable.mockResolvedValue(makeAccess())
+
+    await expect(
+      svc.decide(master, TICKET_ID, { decision: AcceptanceDecision.ACCEPT }, CLIENT_ID),
+    ).rejects.toBeInstanceOf(ForbiddenException)
+    expect(serviceContracts.getLinkedClientAccess).not.toHaveBeenCalled()
+    expect(prisma.$transaction).not.toHaveBeenCalled()
+  })
+
+  it('rejects a contractor ADMIN with linked access when they neither created nor own the assignee contour', async () => {
+    const admin = { id: 'admin-provider-1', role: UserRole.ADMIN, companyId: PROVIDER_ID }
+    const { svc, prisma, serviceContracts } = makeSetup({
+      actorRole: UserRole.ADMIN,
+      actorCompanyType: CompanyType.PROVIDER,
+      linkedContractRole: ServiceContractRole.SECONDARY,
+      ticket: {
+        createdByUserId: 'someone-else',
+        assignedTechnicianId: 'other-tech',
+        assignedTechnician: { id: 'other-tech', companyId: 'other-provider' },
+      },
+    })
+    mockResolveReadable.mockResolvedValue(makeAccess())
+
+    await expect(
+      svc.decide(admin, TICKET_ID, { decision: AcceptanceDecision.ACCEPT }, CLIENT_ID),
+    ).rejects.toBeInstanceOf(ForbiddenException)
+    expect(serviceContracts.getLinkedClientAccess).not.toHaveBeenCalled()
+    expect(prisma.$transaction).not.toHaveBeenCalled()
+  })
+
+  // Acceptance gates.
   it('rejects the CLIENT requester role (not a management role)', async () => {
-    const { svc, prisma } = makeSetup()
+    const { svc, prisma } = makeSetup({ actorRole: UserRole.CLIENT })
     mockResolveReadable.mockResolvedValue(makeAccess())
 
     await expect(
@@ -124,15 +257,115 @@ describe('TicketsAcceptanceService.decide', () => {
     expect(prisma.$transaction).not.toHaveBeenCalled()
   })
 
-  it('rejects a provider-company actor (cannot accept own work)', async () => {
-    const { svc, prisma } = makeSetup({ actorCompanyType: CompanyType.PROVIDER })
+  it('rejects an inactive actor', async () => {
+    const { svc, prisma } = makeSetup({
+      actorRole: UserRole.ADMIN,
+      actorCompanyType: CompanyType.PROVIDER,
+      actorActive: false,
+    })
     mockResolveReadable.mockResolvedValue(makeAccess())
 
     await expect(
       svc.decide({ id: 'u-3', role: UserRole.ADMIN, companyId: PROVIDER_ID }, TICKET_ID, {
         decision: AcceptanceDecision.ACCEPT,
+      }, CLIENT_ID),
+    ).rejects.toBeInstanceOf(ForbiddenException)
+    expect(mockResolveReadable).not.toHaveBeenCalled()
+    expect(prisma.$transaction).not.toHaveBeenCalled()
+  })
+
+  it('rejects an unrelated contractor ADMIN without linked access, creator match or assignee-company match', async () => {
+    const { svc, prisma } = makeSetup({
+      actorRole: UserRole.ADMIN,
+      actorCompanyType: CompanyType.PROVIDER,
+      linkedContractRole: null,
+      ticket: {
+        createdByUserId: 'someone-else',
+        assignedTechnicianId: 'other-tech',
+        assignedTechnician: { id: 'other-tech', companyId: 'other-provider' },
+      },
+    })
+    mockResolveReadable.mockResolvedValue(makeAccess())
+
+    await expect(
+      svc.decide({ id: 'u-3', role: UserRole.ADMIN, companyId: PROVIDER_ID }, TICKET_ID, {
+        decision: AcceptanceDecision.ACCEPT,
+      }, CLIENT_ID),
+    ).rejects.toBeInstanceOf(ForbiddenException)
+    expect(prisma.$transaction).not.toHaveBeenCalled()
+  })
+
+  it('rejects a contractor DISPATCHER even when the ticket is readable', async () => {
+    const { svc, prisma } = makeSetup({
+      actorRole: UserRole.DISPATCHER,
+      actorCompanyType: CompanyType.PROVIDER,
+      ticket: { createdByUserId: 'dispatcher-1' },
+    })
+    mockResolveReadable.mockResolvedValue(makeAccess())
+
+    await expect(
+      svc.decide({ id: 'dispatcher-1', role: UserRole.DISPATCHER, companyId: PROVIDER_ID }, TICKET_ID, {
+        decision: AcceptanceDecision.ACCEPT,
+      }, CLIENT_ID),
+    ).rejects.toBeInstanceOf(ForbiddenException)
+    expect(prisma.$transaction).not.toHaveBeenCalled()
+  })
+
+  it('rejects a technician who is not assigned to the ticket', async () => {
+    const { svc, prisma } = makeSetup({
+      actorRole: UserRole.TECHNICIAN,
+      actorCompanyType: CompanyType.PROVIDER,
+      ticket: {
+        assignedTechnicianId: 'other-tech',
+        assignedTechnician: { id: 'other-tech', companyId: PROVIDER_ID },
+      },
+    })
+    mockResolveReadable.mockResolvedValue(makeAccess())
+
+    await expect(
+      svc.decide({ id: 'tech-1', role: UserRole.TECHNICIAN, companyId: PROVIDER_ID }, TICKET_ID, {
+        decision: AcceptanceDecision.ACCEPT,
+      }, CLIENT_ID),
+    ).rejects.toBeInstanceOf(ForbiddenException)
+    expect(prisma.$transaction).not.toHaveBeenCalled()
+  })
+
+  it('rejects a PLATFORM_ADMIN because observer mode remains read-only for acceptance', async () => {
+    const { svc, prisma } = makeSetup({
+      actorRole: UserRole.PLATFORM_ADMIN,
+      actorCompanyType: CompanyType.PROVIDER,
+    })
+    mockResolveReadable.mockResolvedValue(makeAccess({ visibilityMode: 'platform_observer' }))
+
+    await expect(
+      svc.decide({ id: 'platform-1', role: UserRole.PLATFORM_ADMIN, companyId: PROVIDER_ID }, TICKET_ID, {
+        decision: AcceptanceDecision.ACCEPT,
       }),
     ).rejects.toBeInstanceOf(ForbiddenException)
     expect(prisma.$transaction).not.toHaveBeenCalled()
+  })
+
+  it('rejects another tenant through the existing readable-ticket convention', async () => {
+    const { svc, prisma } = makeSetup({
+      actorRole: UserRole.ADMIN,
+      actorCompanyType: CompanyType.PROVIDER,
+    })
+    mockResolveReadable.mockRejectedValue(new NotFoundException('Ticket not found'))
+
+    await expect(
+      svc.decide({ id: 'u-3', role: UserRole.ADMIN, companyId: PROVIDER_ID }, TICKET_ID, {
+        decision: AcceptanceDecision.ACCEPT,
+      }, CLIENT_ID),
+    ).rejects.toBeInstanceOf(NotFoundException)
+    expect(prisma.$transaction).not.toHaveBeenCalled()
+  })
+
+  it('rejects repeated acceptance when the ticket is no longer awaiting acceptance', async () => {
+    const { svc } = makeSetup({ actorRole: UserRole.ADMIN, ticketStatus: TicketStatus.DONE })
+    mockResolveReadable.mockResolvedValue(makeAccess())
+
+    await expect(
+      svc.decide(clientAdmin, TICKET_ID, { decision: AcceptanceDecision.ACCEPT }),
+    ).rejects.toBeInstanceOf(BadRequestException)
   })
 })

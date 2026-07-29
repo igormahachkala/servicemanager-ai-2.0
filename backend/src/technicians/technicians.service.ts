@@ -1,9 +1,14 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
-import { Prisma, UserRole } from '@prisma/client'
+import { Prisma, UserAccessLocationMode, UserRole } from '@prisma/client'
 
 import { PrismaService } from '../prisma/prisma.service'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
 import { EXECUTOR_CAPABLE_ROLES } from '../common/executor.utils'
+import {
+  type ConstructorLocationMode,
+  interpretUserAccessLocationScope,
+  uniqueLocationIds,
+} from '../common/user-access-scope-mode.utils'
 
 const LOCATION_BINDABLE_USER_ROLES: UserRole[] = [
   UserRole.ADMIN,
@@ -39,11 +44,86 @@ export class TechniciansService {
     )
   }
 
+  private resolveLocationBindingStorageCompanyId(actorCompanyId: string, scopeCompanyId: string) {
+    return scopeCompanyId === actorCompanyId ? scopeCompanyId : actorCompanyId
+  }
+
+  private async getExplicitLocationMode(userId: string, storageCompanyId: string) {
+    const scope = await this.prisma.userAccessScope.findUnique({
+      where: {
+        userId_companyId: {
+          userId,
+          companyId: storageCompanyId,
+        },
+      },
+      select: { locationMode: true },
+    })
+    return scope?.locationMode ?? null
+  }
+
+  private resolveLocationBindingCompanyFilter(
+    storageCompanyId: string,
+    scopeCompanyId: string,
+    explicitLocationMode: UserAccessLocationMode | null,
+  ) {
+    if (explicitLocationMode) return storageCompanyId
+    if (storageCompanyId === scopeCompanyId) return storageCompanyId
+    return { in: uniqueLocationIds([storageCompanyId, scopeCompanyId]) }
+  }
+
+  private locationScopeResponseLabel(locationMode: ConstructorLocationMode) {
+    if (locationMode === 'LEGACY_AUTO') return 'ALL_COMPANY_LOCATIONS'
+    return locationMode
+  }
+
+  private async persistLocationScopeMode(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    storageCompanyId: string,
+    locationIds: string[],
+  ) {
+    const locationMode = locationIds.length > 0
+      ? UserAccessLocationMode.SELECTED_LOCATIONS
+      : UserAccessLocationMode.RESTRICTED_EMPTY
+    await tx.userAccessScope.upsert({
+      where: { userId_companyId: { userId, companyId: storageCompanyId } },
+      update: { locationMode },
+      create: {
+        userId,
+        companyId: storageCompanyId,
+        locationMode,
+      },
+    })
+  }
+
+  private async persistLocationScopeModeFromStoredBindings(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    storageCompanyId: string,
+  ) {
+    const bindings = await tx.userLocationBinding.findMany({
+      where: {
+        userId,
+        companyId: storageCompanyId,
+        location: {
+          isActive: true,
+          deletedAt: null,
+        },
+      },
+      select: {
+        locationId: true,
+      },
+    })
+    await this.persistLocationScopeMode(tx, userId, storageCompanyId, bindings.map((binding) => binding.locationId))
+  }
+
   async list(companyId: string) {
     return this.prisma.user.findMany({
       where: {
         companyId,
         isExecutor: true,
+        isActive: true,
+        deletedAt: null,
         role: { in: Array.from(EXECUTOR_CAPABLE_ROLES) },
       },
       select: {
@@ -75,6 +155,8 @@ export class TechniciansService {
         id: userId,
         companyId,
         role: UserRole.TECHNICIAN,
+        isActive: true,
+        deletedAt: null,
       },
       select: {
         id: true,
@@ -141,27 +223,34 @@ export class TechniciansService {
       return []
     }
 
+    const explicitLocationMode = await this.getExplicitLocationMode(technicianId, providerCompanyId)
+    const bindingCompanyFilter = explicitLocationMode
+      ? providerCompanyId
+      : { in: uniqueLocationIds([providerCompanyId, ...scopedClientIds]) }
     const bindings = await this.prisma.userLocationBinding.findMany({
       where: {
         userId: technicianId,
-        companyId: { in: scopedClientIds },
+        companyId: bindingCompanyFilter,
         location: {
           clientCompanyId: { in: scopedClientIds },
           isActive: true,
+          deletedAt: null,
         },
       },
       select: {
         companyId: true,
         locationId: true,
+        location: { select: { clientCompanyId: true } },
       },
-      orderBy: [{ companyId: 'asc' }, { locationId: 'asc' }],
+      orderBy: [{ locationId: 'asc' }],
     })
 
     const grouped = new Map<string, { locationIds: string[] }>()
     for (const binding of bindings) {
-      const current = grouped.get(binding.companyId) ?? { locationIds: [] }
+      const clientCompanyId = binding.location?.clientCompanyId ?? binding.companyId
+      const current = grouped.get(clientCompanyId) ?? { locationIds: [] }
       current.locationIds.push(binding.locationId)
-      grouped.set(binding.companyId, current)
+      grouped.set(clientCompanyId, current)
     }
 
     const clientCompanyIds = scopedClientIds
@@ -179,6 +268,7 @@ export class TechniciansService {
       where: {
         clientCompanyId: { in: clientCompanyIds },
         isActive: true,
+        deletedAt: null,
       },
       select: {
         id: true,
@@ -216,19 +306,24 @@ export class TechniciansService {
 
     return companies.map((company) => {
       const scope = grouped.get(company.id) ?? { locationIds: [] }
-      const hasBindings = scope.locationIds.length > 0
+      const interpretedScope = interpretUserAccessLocationScope({
+        explicitLocationMode,
+        locationIds: scope.locationIds,
+      })
       const visibleLocations = locations.filter((location) => {
         if (location.clientCompanyId !== company.id) return false
-        if (!hasBindings) return true
-        return scope.locationIds.includes(location.id)
+        if (interpretedScope.runtimeMode === 'tenant_wide') return true
+        if (interpretedScope.runtimeMode === 'restricted_empty') return false
+        return interpretedScope.locationIds.includes(location.id)
       })
 
       return {
         clientCompany: company,
-        locationScope: hasBindings ? 'SELECTED_LOCATIONS' : 'ALL_COMPANY_LOCATIONS',
+        locationScope: this.locationScopeResponseLabel(interpretedScope.locationMode),
+        locationScopeMode: interpretedScope.locationMode,
         locations: visibleLocations,
         categories: categories.filter((category) => category.companyId === company.id),
-        bindingCount: scope.locationIds.length,
+        bindingCount: interpretedScope.locationIds.length,
       }
     })
   }
@@ -257,6 +352,7 @@ export class TechniciansService {
             id: { in: locationIds },
             clientCompanyId: { in: clientCompanyIds },
             isActive: true,
+            deletedAt: null,
           },
           select: {
             id: true,
@@ -285,7 +381,7 @@ export class TechniciansService {
 
         rows.push({
           userId: technicianId,
-          companyId: binding.clientCompanyId,
+          companyId: providerCompanyId,
           locationId,
         })
       }
@@ -295,14 +391,18 @@ export class TechniciansService {
       await tx.userLocationBinding.deleteMany({
         where: {
           userId: technicianId,
-          companyId: { in: clientCompanyIds },
+          location: { clientCompanyId: { in: clientCompanyIds } },
         },
       })
 
       if (rows.length > 0) {
         await tx.userLocationBinding.createMany({
           data: rows,
+          skipDuplicates: true,
         })
+      }
+      if (clientCompanyIds.length > 0) {
+        await this.persistLocationScopeModeFromStoredBindings(tx, technicianId, providerCompanyId)
       }
     })
 
@@ -323,39 +423,57 @@ export class TechniciansService {
 
     await this.serviceContractsService.assertPrimaryLinkedClientAccess(providerCompanyId, clientCompanyId)
 
+    const explicitLocationMode = await this.getExplicitLocationMode(technicianId, providerCompanyId)
+    const bindingCompanyFilter = this.resolveLocationBindingCompanyFilter(
+      providerCompanyId,
+      clientCompanyId,
+      explicitLocationMode,
+    )
     const bindings = await this.prisma.userLocationBinding.findMany({
       where: {
         userId: technicianId,
-        companyId: clientCompanyId,
-        location: { clientCompanyId },
+        companyId: bindingCompanyFilter,
+        location: { clientCompanyId, isActive: true, deletedAt: null },
       },
       select: {
         locationId: true,
       },
     })
 
-    const hasExplicitBindings = bindings.length > 0
-    if (hasExplicitBindings) {
-      const locationAllowed = bindings.some((binding) => binding.locationId === locationId)
-      if (!locationAllowed) {
-        throw new ForbiddenException('Technician is not bound to this client location')
-      }
+    const locationScope = interpretUserAccessLocationScope({
+      explicitLocationMode,
+      locationIds: bindings.map((binding) => binding.locationId),
+    })
+    if (
+      locationScope.runtimeMode === 'restricted_empty' ||
+      (locationScope.runtimeMode === 'bound_locations' && !locationScope.locationIds.includes(locationId))
+    ) {
+      throw new ForbiddenException('Technician is not bound to this client location')
     }
 
     return {
       companyId: clientCompanyId,
-      locationScope: hasExplicitBindings ? 'SELECTED_LOCATIONS' : 'ALL_COMPANY_LOCATIONS',
+      locationScope: this.locationScopeResponseLabel(locationScope.locationMode),
+      locationScopeMode: locationScope.locationMode,
     }
   }
 
   async getLocationBindings(actorCompanyId: string, technicianId: string, requestedCompanyId?: string) {
     await this.ensureLocationBindableUser(actorCompanyId, technicianId)
     const scopeCompanyId = await this.resolveBindingScopeCompanyId(actorCompanyId, requestedCompanyId)
+    const storageCompanyId = this.resolveLocationBindingStorageCompanyId(actorCompanyId, scopeCompanyId)
+    const explicitLocationMode = await this.getExplicitLocationMode(technicianId, storageCompanyId)
+    const bindingCompanyFilter = this.resolveLocationBindingCompanyFilter(
+      storageCompanyId,
+      scopeCompanyId,
+      explicitLocationMode,
+    )
 
     const availableLocations = await this.prisma.location.findMany({
       where: {
         clientCompanyId: scopeCompanyId,
         isActive: true,
+        deletedAt: null,
       },
       select: {
         id: true,
@@ -376,8 +494,8 @@ export class TechniciansService {
       existingBindings = await this.prisma.userLocationBinding.findMany({
         where: {
           userId: technicianId,
-          companyId: scopeCompanyId,
-          location: { clientCompanyId: scopeCompanyId, isActive: true },
+          companyId: bindingCompanyFilter,
+          location: { clientCompanyId: scopeCompanyId, isActive: true, deletedAt: null },
         },
         select: { locationId: true },
       })
@@ -389,13 +507,19 @@ export class TechniciansService {
       existingBindings = []
     }
 
-    const locationIds = Array.from(new Set(existingBindings.map((item) => item.locationId)))
+    const locationScope = interpretUserAccessLocationScope({
+      explicitLocationMode,
+      locationIds: existingBindings.map((item) => item.locationId),
+    })
+    const locationIds = locationScope.runtimeMode === 'restricted_empty' ? [] : locationScope.locationIds
 
     return {
       companyId: scopeCompanyId,
       locationIds,
       availableLocations,
-      hasExplicitRestrictions: locationIds.length > 0,
+      locationScope: this.locationScopeResponseLabel(locationScope.locationMode),
+      locationScopeMode: locationScope.locationMode,
+      hasExplicitRestrictions: locationScope.locationMode !== 'LEGACY_AUTO' || locationIds.length > 0,
     }
   }
 
@@ -406,6 +530,7 @@ export class TechniciansService {
   ) {
     await this.ensureLocationBindableUser(actorCompanyId, technicianId)
     const scopeCompanyId = await this.resolveBindingScopeCompanyId(actorCompanyId, payload.companyId)
+    const storageCompanyId = this.resolveLocationBindingStorageCompanyId(actorCompanyId, scopeCompanyId)
     const locationIds = Array.from(new Set((payload.locationIds ?? []).map((id) => (id ?? '').trim()).filter(Boolean)))
 
     const validLocations = locationIds.length
@@ -414,6 +539,7 @@ export class TechniciansService {
             id: { in: locationIds },
             clientCompanyId: scopeCompanyId,
             isActive: true,
+            deletedAt: null,
           },
           select: { id: true },
         })
@@ -431,7 +557,7 @@ export class TechniciansService {
       await tx.userLocationBinding.deleteMany({
         where: {
           userId: technicianId,
-          companyId: scopeCompanyId,
+          location: { clientCompanyId: scopeCompanyId },
         },
       })
 
@@ -440,10 +566,12 @@ export class TechniciansService {
           data: locationIds.map((locationId) => ({
             userId: technicianId,
             locationId,
-            companyId: scopeCompanyId,
+            companyId: storageCompanyId,
           })),
+          skipDuplicates: true,
         })
       }
+      await this.persistLocationScopeModeFromStoredBindings(tx, technicianId, storageCompanyId)
     })
 
     return this.getLocationBindings(actorCompanyId, technicianId, scopeCompanyId)
@@ -501,6 +629,8 @@ export class TechniciansService {
       where: {
         id: tech.id,
         companyId,
+        isActive: true,
+        deletedAt: null,
       },
       select: {
         id: true,
@@ -523,6 +653,8 @@ export class TechniciansService {
         id: technicianId,
         companyId,
         isExecutor: true,
+        isActive: true,
+        deletedAt: null,
         role: { in: Array.from(EXECUTOR_CAPABLE_ROLES) },
       },
       select: {
@@ -542,6 +674,8 @@ export class TechniciansService {
       where: {
         id: userId,
         companyId,
+        isActive: true,
+        deletedAt: null,
         role: { in: LOCATION_BINDABLE_USER_ROLES },
       },
       select: {

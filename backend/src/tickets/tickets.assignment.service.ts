@@ -1,6 +1,10 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { CompanyType, Prisma, PublicRequestType, ServiceContractRole, TicketPriority, TicketSource, TicketStatus, TicketUrgency, UserRole } from '@prisma/client';
+import { CompanyType, Prisma, PublicRequestType, ServiceContractRole, TicketPriority, TicketSource, TicketStatus, TicketUrgency, UserAccessLocationMode, UserRole } from '@prisma/client';
 import { EXECUTOR_CAPABLE_ROLES, isExecutorEligible } from '../common/executor.utils';
+import {
+  interpretUserAccessLocationScope,
+  uniqueLocationIds,
+} from '../common/user-access-scope-mode.utils';
 import { randomUUID } from 'crypto';
 
 import { PrismaService } from '../prisma/prisma.service';
@@ -37,6 +41,23 @@ import {
   TICKET_ASSIGNMENT_REQUESTED_ENTITY,
   TICKET_ASSIGNMENT_REQUESTED_EVENT,
 } from './ticket-domain-event.types';
+
+const companyIdentitySelect = {
+  id: true,
+  name: true,
+  legalName: true,
+  brandName: true,
+  type: true,
+} as const;
+
+type LocationBindingAccessClient = Pick<
+  Prisma.TransactionClient,
+  'user' | 'userAccessScope' | 'userLocationBinding'
+>;
+
+function locationAccessKey(userId: string, companyId: string) {
+  return `${userId}:${companyId}`;
+}
 
 function computeSlaFromPriorityOrExplicitMinutes(params: {
   priority: TicketPriority;
@@ -281,6 +302,8 @@ export class TicketsAssignmentService {
       where: {
         companyId: companyId,
         isExecutor: true,
+        isActive: true,
+        deletedAt: null,
         role: { in: Array.from(EXECUTOR_CAPABLE_ROLES) },
         technicianSpecializations: {
           some: { specializationId: { in: specializationIds } },
@@ -289,6 +312,11 @@ export class TicketsAssignmentService {
       select: {
         id: true,
         email: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        companyId: true,
+        company: { select: companyIdentitySelect },
         technicianSpecializations: {
           where: { specializationId: { in: specializationIds } },
           include: { specialization: true },
@@ -316,6 +344,11 @@ export class TicketsAssignmentService {
       return {
         id: t.id,
         email: t.email,
+        firstName: t.firstName,
+        lastName: t.lastName,
+        role: t.role,
+        companyId: t.companyId,
+        company: t.company,
         matchedBy: t.technicianSpecializations.map((x) => x.specialization.name),
         matchReason: 'category_specialization' as const,
         matchedSpecializationsCount,
@@ -340,11 +373,18 @@ export class TicketsAssignmentService {
       where: {
         companyId: companyIdsArray.length === 1 ? companyIdsArray[0] : { in: companyIdsArray },
         isExecutor: true,
+        isActive: true,
+        deletedAt: null,
         role: { in: Array.from(EXECUTOR_CAPABLE_ROLES) },
       },
       select: {
         id: true,
         email: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        companyId: true,
+        company: { select: companyIdentitySelect },
         technicianSpecializations: {
           include: { specialization: true },
         },
@@ -379,6 +419,11 @@ export class TicketsAssignmentService {
       return {
         id: t.id,
         email: t.email,
+        firstName: t.firstName,
+        lastName: t.lastName,
+        role: t.role,
+        companyId: t.companyId,
+        company: t.company,
         matched: fallbackToAllWhenNoSpecializations || matchedLabels.length > 0,
         matchedBy: matchedLabels,
         matchReason: fallbackToAllWhenNoSpecializations
@@ -408,36 +453,107 @@ export class TicketsAssignmentService {
     technicians: T[],
     scopeCompanyId: string,
     locationId: string,
+    accessClient: LocationBindingAccessClient = this.prisma,
   ): Promise<T[]> {
     if (technicians.length === 0) {
       return technicians;
     }
     const technicianIds = Array.from(new Set(technicians.map((item) => item.id)));
-    const bindings = await this.prisma.userLocationBinding.findMany({
+
+    const activeUsers = await accessClient.user.findMany({
       where: {
-        userId: { in: technicianIds },
-        companyId: scopeCompanyId,
-        location: { clientCompanyId: scopeCompanyId },
+        id: { in: technicianIds },
+        isActive: true,
+        deletedAt: null,
       },
       select: {
-        userId: true,
-        locationId: true,
+        id: true,
+        companyId: true,
       },
     });
-    const bindingsByTechnician = new Map<string, Set<string>>();
+    const employerCompanyByUserId = new Map(activeUsers.map((item) => [item.id, item.companyId]));
+    const activeTechnicianIds = technicianIds.filter((id) => employerCompanyByUserId.has(id));
+    if (activeTechnicianIds.length === 0) {
+      return [];
+    }
+
+    const employerCompanyIds = uniqueLocationIds(activeUsers.map((item) => item.companyId));
+    const bindingCompanyIds = uniqueLocationIds([...employerCompanyIds, scopeCompanyId]);
+    const [accessScopes, bindings] = await Promise.all([
+      accessClient.userAccessScope.findMany({
+        where: {
+          userId: { in: activeTechnicianIds },
+          companyId: { in: employerCompanyIds },
+        },
+        select: {
+          userId: true,
+          companyId: true,
+          locationMode: true,
+        },
+      }),
+      accessClient.userLocationBinding.findMany({
+        where: {
+          userId: { in: activeTechnicianIds },
+          companyId: { in: bindingCompanyIds },
+          location: {
+            clientCompanyId: scopeCompanyId,
+            isActive: true,
+            deletedAt: null,
+          },
+        },
+        select: {
+          userId: true,
+          companyId: true,
+          locationId: true,
+        },
+      }),
+    ]);
+
+    const explicitScopeByTechnicianCompany = new Map<string, UserAccessLocationMode>();
+    for (const scope of accessScopes) {
+      explicitScopeByTechnicianCompany.set(
+        locationAccessKey(scope.userId, scope.companyId),
+        scope.locationMode,
+      );
+    }
+
+    const bindingsByTechnicianCompany = new Map<string, Set<string>>();
     for (const binding of bindings) {
-      if (!bindingsByTechnician.has(binding.userId)) {
-        bindingsByTechnician.set(binding.userId, new Set<string>());
+      const key = locationAccessKey(binding.userId, binding.companyId);
+      if (!bindingsByTechnicianCompany.has(key)) {
+        bindingsByTechnicianCompany.set(key, new Set<string>());
       }
-      bindingsByTechnician.get(binding.userId)!.add(binding.locationId);
+      bindingsByTechnicianCompany.get(key)!.add(binding.locationId);
     }
 
     return technicians.filter((technician) => {
-      const scope = bindingsByTechnician.get(technician.id);
-      if (!scope || scope.size === 0) {
+      const employerCompanyId = employerCompanyByUserId.get(technician.id);
+      if (!employerCompanyId) {
+        return false;
+      }
+
+      const explicitLocationMode =
+        explicitScopeByTechnicianCompany.get(locationAccessKey(technician.id, employerCompanyId)) ?? null;
+      const candidateBindingCompanyIds = explicitLocationMode
+        ? [employerCompanyId]
+        : uniqueLocationIds([employerCompanyId, scopeCompanyId]);
+      const locationIds = uniqueLocationIds(
+        candidateBindingCompanyIds.flatMap((companyId) =>
+          Array.from(bindingsByTechnicianCompany.get(locationAccessKey(technician.id, companyId)) ?? []),
+        ),
+      );
+      const interpreted = interpretUserAccessLocationScope({
+        explicitLocationMode,
+        locationIds,
+      });
+
+      if (interpreted.runtimeMode === 'tenant_wide') {
         return true;
       }
-      return scope.has(locationId);
+      if (interpreted.runtimeMode === 'restricted_empty') {
+        return false;
+      }
+      return interpreted.locationIds.includes(locationId);
     });
   }
 
@@ -1074,6 +1190,8 @@ export class TicketsAssignmentService {
       const tech = await tx.user.findFirst({
         where: {
           id: technicianId,
+          isActive: true,
+          deletedAt: null,
           ...(skipExecutorFlag ? {} : { isExecutor: true }),
           role: { in: Array.from(EXECUTOR_CAPABLE_ROLES) },
         },
@@ -1098,15 +1216,13 @@ export class TicketsAssignmentService {
           throw new NotFoundException('Technician not found');
         }
       }
-      const technicianBindings = await tx.userLocationBinding.findMany({
-        where: {
-          userId: technicianId,
-          companyId: ticket.companyId,
-          location: { clientCompanyId: ticket.companyId },
-        },
-        select: { locationId: true },
-      });
-      if (technicianBindings.length > 0 && !technicianBindings.some((row) => row.locationId === ticket.locationId)) {
+      const locationAllowed = await this.filterTechniciansByLocationBindings(
+        [tech],
+        ticket.companyId,
+        ticket.locationId,
+        tx,
+      );
+      if (locationAllowed.length === 0) {
         throw new ForbiddenException('Technician is not bound to ticket location');
       }
 

@@ -1,9 +1,15 @@
 import type { ReactNode } from 'react'
 import type * as api from '../../lib/api'
+import { compactIdentityLabel, identityLines, presentActorIdentity, presentTicketAssignee } from '../../lib/ticketActorIdentity'
 
 type AssignmentCandidate = {
   id: string
   email: string
+  firstName?: string | null
+  lastName?: string | null
+  role?: api.Role | string | null
+  companyId?: string | null
+  company?: api.IdentityCompany | null
   matchedBy: string[]
 }
 
@@ -21,9 +27,19 @@ type AssignmentData = {
 
 type SelectedCandidate = {
   email: string
+  firstName?: string | null
+  lastName?: string | null
+  role?: api.Role | string | null
+  companyId?: string | null
+  company?: api.IdentityCompany | null
   matched: boolean
   matchedBy: string[]
 } | null
+
+function candidateLabel(candidate: AssignmentCandidate | SelectedCandidate): string {
+  if (!candidate) return '—'
+  return compactIdentityLabel(presentActorIdentity(candidate, { roleFallback: 'Исполнитель' }))
+}
 
 export type TicketAssignmentPanelProps = {
   ticket: api.TicketGetOne
@@ -72,6 +88,8 @@ export function TicketAssignmentPanel({
   renderLoading,
   renderAssignError,
 }: TicketAssignmentPanelProps) {
+  const assignee = presentTicketAssignee(ticket)
+
   return (
     <div className="panel uiCard" style={{ marginBottom: 12 }}>
       <h3 style={{ marginBottom: 10 }}>Исполнитель</h3>
@@ -79,8 +97,10 @@ export function TicketAssignmentPanel({
         {hasAssignedTechnician ? (
           <div style={{ display: 'grid', gap: 6 }}>
             <div>
-              <b>Ответственный:</b>{' '}
-              {[ticket.assignedTechnician?.firstName, ticket.assignedTechnician?.lastName].filter(Boolean).join(' ') || ticket.assignedTechnician?.email}
+              <b>Ответственный:</b>
+              <div className="muted small" style={{ display: 'grid', gap: 2, marginTop: 4 }}>
+                {identityLines(assignee).map((line, index) => <div key={`${index}-${line}`}>{line}</div>)}
+              </div>
             </div>
             {ticket.assignedTechnician?.phone ? <div className="muted small">{ticket.assignedTechnician.phone}</div> : null}
             <div className="muted small">Заявка закреплена за техником.</div>
@@ -88,7 +108,7 @@ export function TicketAssignmentPanel({
               <div className="uiCard" style={{ padding: 10, marginTop: 6 }}>
                 <div style={{ fontWeight: 700, marginBottom: 4 }}>Назначение</div>
                 <div className="muted small">
-                  Исполнитель: {ticket.assignedTechnician?.email || '—'}
+                  Исполнитель: {compactIdentityLabel(assignee)}
                 </div>
                 <div className="muted small">
                   Причина: {assignmentDecisionReason}
@@ -98,7 +118,7 @@ export function TicketAssignmentPanel({
           </div>
         ) : (
           <div style={{ display: 'grid', gap: 6 }}>
-            <div><b>Ответственный:</b> не назначен</div>
+            <div><b>Ответственный:</b> Исполнитель не выбран</div>
             <div className="muted small">Назначьте техника, чтобы зафиксировать ответственность по заявке.</div>
           </div>
         )}
@@ -115,7 +135,7 @@ export function TicketAssignmentPanel({
       ) : assignmentData && showAssignmentEditor ? (
         <>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-            {renderTag(`Текущий: ${ticket.assignedTechnician?.email || 'не назначен'}`)}
+            {renderTag(`Текущий: ${hasAssignedTechnician ? compactIdentityLabel(assignee) : 'не назначен'}`)}
             {renderTag(`Подходящих: ${assignmentData.matched.length}`)}
           </div>
           <div className="uiActions" style={{ marginTop: 10 }}>
@@ -129,7 +149,7 @@ export function TicketAssignmentPanel({
                 <optgroup label="Подходящие техники">
                   {assignmentData.matched.map((item) => (
                     <option key={item.id} value={item.id}>
-                      {item.email}{item.id === assignmentData.currentAssigneeId ? ' · текущий' : ''}{item.matchedBy.length ? ` · подходит: ${item.matchedBy.join(', ')}` : ''}
+                      {candidateLabel(item)}{item.id === assignmentData.currentAssigneeId ? ' · текущий' : ''}{item.matchedBy.length ? ` · подходит: ${item.matchedBy.join(', ')}` : ''}
                     </option>
                   ))}
                 </optgroup>
@@ -138,7 +158,7 @@ export function TicketAssignmentPanel({
                 <optgroup label="Остальные техники">
                   {assignmentData.others.map((item) => (
                     <option key={item.id} value={item.id}>
-                      {item.email}{item.id === assignmentData.currentAssigneeId ? ' · текущий' : ''}
+                      {candidateLabel(item)}{item.id === assignmentData.currentAssigneeId ? ' · текущий' : ''}
                     </option>
                   ))}
                 </optgroup>
@@ -161,7 +181,7 @@ export function TicketAssignmentPanel({
           {selectedCandidate ? (
             <div className="assignmentSelectedBox">
               <div style={{ fontWeight: 700, marginBottom: 6 }}>Выбранный техник</div>
-              <div style={{ marginBottom: 6 }}>{selectedCandidate.email}</div>
+              <div style={{ marginBottom: 6 }}>{candidateLabel(selectedCandidate)}</div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 6 }}>
                 {renderRecommendationBadge(selectedCandidate.matched, selectedCandidate.matchedBy)}
                 {selectedIsCurrent ? <span className="uxBadge uxBadgeNeutral">Текущий исполнитель</span> : null}

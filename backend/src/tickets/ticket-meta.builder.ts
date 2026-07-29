@@ -14,6 +14,7 @@ import {
   technicianMatchesCategorySpecializationLinks,
   wasTicketCreatedByActor,
 } from './ticket-access.utils'
+import { canAcceptTicket } from './ticket-acceptance-access'
 import { TICKET_ASSIGNMENT_REQUESTED_ENTITY, TICKET_ASSIGNMENT_REQUESTED_EVENT } from './ticket-domain-event.types'
 
 export type TicketMetaBuildParams = {
@@ -29,6 +30,7 @@ export type TicketMetaBuildParams = {
   scopeCompanyId: string
   visibilityMode: TicketVisibilityMode
   linkedClientCompanyId?: string
+  accessFlags?: Record<string, any>
 }
 
 export class TicketMetaBuilder {
@@ -43,10 +45,12 @@ export class TicketMetaBuilder {
     const claimAvailability = await this.resolveClaimAvailability(params)
     const availableStatusTransitions = await this.resolveAvailableStatusTransitions(params)
     const assignmentRequestedByCurrentUser = await this.resolveAssignmentRequestedByCurrentUser(params)
+    const acceptanceAvailable = await this.resolveAcceptanceAvailability(params)
     const { availableActions, availableActionHints } = this.deriveAvailableActions(
       params,
       claimAvailability,
       availableStatusTransitions,
+      acceptanceAvailable,
     )
 
     return {
@@ -69,17 +73,20 @@ export class TicketMetaBuilder {
     params: TicketMetaBuildParams,
     claim: { canClaimByCurrentUser: boolean; claimAvailabilityReason: string | null },
     transitions: TicketStatus[],
+    acceptanceAvailable: boolean,
   ): {
     availableActions: {
       canClaim: boolean
       canStart: boolean
       canComplete: boolean
       canClose: boolean
+      canAccept: boolean
+      canReject: boolean
     }
-    availableActionHints?: Partial<Record<'canClaim' | 'canStart' | 'canComplete' | 'canClose', string | null>>
+    availableActionHints?: Partial<Record<'canClaim' | 'canStart' | 'canComplete' | 'canClose' | 'canAccept' | 'canReject', string | null>>
   } {
     const isExec = isExecutorEligible({ role: params.role, isExecutor: params.isExecutor })
-    const hints: Partial<Record<'canClaim' | 'canStart' | 'canComplete' | 'canClose', string | null>> = {}
+    const hints: Partial<Record<'canClaim' | 'canStart' | 'canComplete' | 'canClose' | 'canAccept' | 'canReject', string | null>> = {}
 
     const canClaim =
       isExec &&
@@ -121,9 +128,32 @@ export class TicketMetaBuilder {
 
     const outHints = Object.values(hints).some((v) => (v || '').length > 0) ? hints : undefined
     return {
-      availableActions: { canClaim, canStart, canComplete, canClose },
+      availableActions: {
+        canClaim,
+        canStart,
+        canComplete,
+        canClose,
+        canAccept: acceptanceAvailable,
+        canReject: acceptanceAvailable,
+      },
       availableActionHints: outHints,
     }
+  }
+
+  private async resolveAcceptanceAvailability(params: TicketMetaBuildParams): Promise<boolean> {
+    if (params.ticketStatus !== TicketStatus.AWAITING_ACCEPTANCE) return false
+    return canAcceptTicket({
+      prisma: this.prisma,
+      serviceContractsService: this.serviceContractsService,
+      actor: {
+        id: params.userId,
+        role: params.role,
+        companyId: params.actorCompanyId,
+        accessFlags: params.accessFlags,
+      },
+      ticketId: params.ticketId,
+      linkedClientCompanyId: params.linkedClientCompanyId,
+    })
   }
 
   private async resolveAssignmentRequestedByCurrentUser(params: TicketMetaBuildParams): Promise<boolean> {

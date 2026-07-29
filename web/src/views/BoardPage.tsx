@@ -15,6 +15,7 @@ import {
 import { pushToast } from '../lib/appToast'
 import { logTicketActionError, mapTicketActionError } from '../lib/ticketOperationalErrors'
 import { OperationsViewSwitcher, type OperationsViewMode } from '../components/operations/OperationsViewSwitcher'
+import { compactTicketAssigneeLabel, compactTicketCreatorLabel } from '../lib/ticketActorIdentity'
 
 function fmt(dt?: string | null) {
   if (!dt) return '—'
@@ -495,7 +496,7 @@ export function BoardPage() {
         if (assignRes.assigned && assignRes.technicianId) {
           const readableReason = mapReason(assignRes.reason)
           const techName = (
-            assignRes.technicianName ||
+            (assignRes.ticket?.assignedTechnician ? compactTicketAssigneeLabel(assignRes.ticket) : assignRes.technicianName) ||
             assignRes.technicianId ||
             'исполнитель'
           ).trim()
@@ -1146,6 +1147,9 @@ export function BoardPage() {
                           {compactServiceContext(ticket)}
                         </div>
                       ) : null}
+                      <div className="muted small" style={{ marginTop: 4, marginBottom: 2 }}>
+                        Создал: {compactTicketCreatorLabel(ticket)}
+                      </div>
 
                       <div className="ticketMeta">
                         <UrgencyTag urgency={ticket.urgency} />
@@ -1153,7 +1157,7 @@ export function BoardPage() {
                         {ticket.slaBreached ? <span className="tag danger">SLA нарушен</span> : null}
                         {isTechnician && ticket.status === 'NEW' && !ticket.assignedTechnician ? <span className="tag">Можно взять</span> : null}
                         {isTechnician && ticket.assignedTechnician?.id === meQ.data?.id ? <span className="tag">Моя заявка</span> : null}
-                        {ticket.assignedTechnician ? <span className="tag">{ticket.assignedTechnician.email}</span> : <span className="tag">Не назначено</span>}
+                        {ticket.assignedTechnician ? <span className="tag">{compactTicketAssigneeLabel(ticket)}</span> : <span className="tag">Не назначено</span>}
                       </div>
 
                       <div className="muted small" style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>

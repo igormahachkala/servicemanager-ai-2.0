@@ -1,4 +1,5 @@
 import * as api from '../../lib/api'
+import { compactTicketAssigneeLabel } from '../../lib/ticketActorIdentity'
 
 export type HomePrimaryActionLabel = 'Взять' | 'Запросить назначение' | 'Начать' | 'Закрыть' | null
 
@@ -23,9 +24,7 @@ export function getPrimaryActionLabel(
 export function assignedTechnicianDisplay(ticket: api.TicketCard): string {
   const t = ticket.assignedTechnician
   if (!t) return 'Не назначен'
-  const email = (t.email || '').trim()
-  if (email) return email
-  return (t.id || '').trim() || 'Не назначен'
+  return compactTicketAssigneeLabel(ticket)
 }
 
 export function homeTicketActionProgressLabel(

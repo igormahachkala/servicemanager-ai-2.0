@@ -1,4 +1,5 @@
 import type { TimelineItem } from './api'
+import { identityBlockText, presentActorIdentity, presentTimelineCreator } from './ticketActorIdentity'
 
 export type ChatMessage = {
   id: string
@@ -40,7 +41,7 @@ function isAcceptanceComment(item: TimelineItem): boolean {
   return (item.payload?.source || '').toString().toLowerCase() === 'acceptance'
 }
 
-function getSystemText(item: TimelineItem, _context?: TicketChatContext): string | null {
+function getSystemText(item: TimelineItem): string | null {
   const ev = getTimelineEvent(item)
 
   // Acceptance lifecycle — override backend titles with unified Russian labels
@@ -51,8 +52,10 @@ function getSystemText(item: TimelineItem, _context?: TicketChatContext): string
     return comment ? `Работа не принята: ${comment}` : 'Работа не принята'
   }
 
-  // FIX-2: краткий лейбл события (детали — в закреплённой ticket-card + вкладке Инфо, не в пилюле).
-  if (ev === 'TICKET_CREATED') return 'Создана заявка'
+  if (ev === 'TICKET_CREATED') {
+    const creator = presentTimelineCreator(item.actor, item.payload)
+    return identityBlockText('Заявку создал', creator)
+  }
 
   // Status changes — skip transitions covered by acceptance events
   if (ev === 'STATUS_CHANGED') {
@@ -64,7 +67,14 @@ function getSystemText(item: TimelineItem, _context?: TicketChatContext): string
   }
 
   // Assignment / claim
-  if (ev === 'TICKET_ASSIGNED' || ev === 'TICKET_CLAIMED') return 'Назначен исполнитель'
+  if (ev === 'TICKET_ASSIGNED' || ev === 'TICKET_CLAIMED') {
+    const assignee = presentActorIdentity(item.payload?.assignedTechnician ?? (ev === 'TICKET_CLAIMED' ? item.actor : null), {
+      nameFallback: 'Исполнитель не выбран',
+      roleFallback: 'Исполнитель',
+      organizationFallback: 'Организация исполнителя не указана',
+    })
+    return identityBlockText('Назначено', assignee)
+  }
 
   // Photo uploaded
   if (ev === 'TICKET_ATTACHMENT_UPLOADED') return 'Добавлено фото'
@@ -73,6 +83,7 @@ function getSystemText(item: TimelineItem, _context?: TicketChatContext): string
 }
 
 export function toChatMessages(items: TimelineItem[], meUserId: string, context?: TicketChatContext): ChatMessage[] {
+  void context
   const seenStatusKeys = new Set<string>()
   const seenAttachmentIds = new Set<string>()
 
@@ -81,7 +92,7 @@ export function toChatMessages(items: TimelineItem[], meUserId: string, context?
     if (isAcceptanceComment(item)) return acc
 
     const ev = getTimelineEvent(item)
-    const systemText = getSystemText(item, context)
+    const systemText = getSystemText(item)
     if (systemText !== null) {
       // Photo upload → фото-сообщение с inline-превью (матч по attachmentId; текст — fallback, если превью не найдётся)
       if (ev === 'TICKET_ATTACHMENT_UPLOADED' && item.payload?.attachmentId) {
