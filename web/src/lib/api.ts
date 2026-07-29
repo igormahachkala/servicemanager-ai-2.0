@@ -718,6 +718,8 @@ export type TicketGetOne = {
       canStart: boolean
       canComplete: boolean
       canClose: boolean
+      canAccept?: boolean
+      canReject?: boolean
     }
     /** Подсказки, когда действие недоступно (ключи совпадают с availableActions). */
     availableActionHints?: Partial<{
@@ -725,6 +727,8 @@ export type TicketGetOne = {
       canStart: string | null
       canComplete: string | null
       canClose: string | null
+      canAccept: string | null
+      canReject: string | null
     }>
   }
 }

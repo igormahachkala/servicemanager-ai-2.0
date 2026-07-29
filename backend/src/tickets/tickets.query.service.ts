@@ -901,6 +901,7 @@ export class TicketsQueryService {
       scopeCompanyId: readable.scopeCompanyId,
       visibilityMode: readable.visibilityMode,
       linkedClientCompanyId,
+      accessFlags,
     })
 
     return {

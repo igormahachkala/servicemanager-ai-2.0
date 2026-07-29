@@ -574,13 +574,16 @@ export function MobileTicketPage() {
     (aa ? aa.canComplete : transitions.includes('DONE')) &&
     (meQ.data?.role === 'TECHNICIAN' || canAssignProvider)
 
-  // SMA-ACCEPTANCE-ROLE-GAP-001: «Принять/Не принять» — только клиентские управленческие роли
-  // (ADMIN / TERRITORIAL_MANAGER / NETWORK_DIRECTOR) в client-компании; CLIENT-заявитель исключён.
+  const serverCanAccept = aa?.canAccept
+  const serverCanReject = aa?.canReject
   const canShowClientAcceptance =
-    isOwnCompanyClient &&
-    api.isClientAcceptanceRole(meQ.data?.role) &&
     !!ticket &&
-    ticket.status === 'AWAITING_ACCEPTANCE'
+    ticket.status === 'AWAITING_ACCEPTANCE' &&
+    (
+      typeof serverCanAccept === 'boolean' || typeof serverCanReject === 'boolean'
+        ? serverCanAccept === true || serverCanReject === true
+        : isOwnCompanyClient && api.isClientAcceptanceRole(meQ.data?.role)
+    )
 
   const [detailTab, setDetailTab] = useState<'chat' | 'info' | 'photos' | 'actions'>('chat')
 

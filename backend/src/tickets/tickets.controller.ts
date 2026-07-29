@@ -406,9 +406,8 @@ export class TicketsController {
   }
 
   @Post(':id/acceptance')
-  // SMA-ACCEPTANCE-ROLE-GAP-001: accept/reject is a client-company decision only.
-  // Coarse role gate here; client-company (vs provider) enforced in the service.
-  @Roles(UserRole.ADMIN, UserRole.TERRITORIAL_MANAGER, UserRole.NETWORK_DIRECTOR)
+  // Coarse role gate only; tenant, linked-client and assignment rules live in TicketsAcceptanceService.
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.TECHNICIAN, UserRole.TERRITORIAL_MANAGER, UserRole.NETWORK_DIRECTOR)
   @RequirePermission(PERMISSIONS.TICKETS_VIEW)
   decide(
     @Req() req: any,
