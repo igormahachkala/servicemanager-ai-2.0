@@ -365,6 +365,7 @@ describe('TicketsAssignmentService.assign — SECONDARY executor', () => {
         findFirst: jest.fn().mockResolvedValue({
           id: TECH_ID,
           companyId: techCompanyId,
+          isActive: true,
           technicianSpecializations: [],
         }),
       },
@@ -457,6 +458,49 @@ describe('TicketsAssignmentService.assign — SECONDARY executor', () => {
     );
     // Must have verified the SECONDARY contract for the cross-company executor
     expect(contracts.getLinkedClientAccess).toHaveBeenCalledWith(SECONDARY_PROVIDER_ID, CLIENT_ID);
+    expect(tx.user.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: TECH_ID,
+          isActive: true,
+        }),
+      }),
+    );
+  });
+
+  it('rejects direct assignment to inactive executor users', async () => {
+    const contracts = makeContracts(ServiceContractRole.SECONDARY);
+    const tx = makeTx(SECONDARY_PROVIDER_ID);
+    const inactiveExecutor = {
+      id: TECH_ID,
+      companyId: SECONDARY_PROVIDER_ID,
+      isActive: false,
+      technicianSpecializations: [],
+    };
+    tx.user.findFirst.mockImplementation(async (args: any) =>
+      args?.where?.isActive === true ? null : inactiveExecutor,
+    );
+    const prisma = makePrisma(tx);
+    const svc = makeService(prisma, contracts);
+
+    await expect(
+      svc.assign(
+        PRIMARY_PROVIDER_ID,
+        { id: 'actor-admin', role: UserRole.ADMIN, companyId: PRIMARY_PROVIDER_ID },
+        TICKET_ID,
+        TECH_ID,
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(tx.user.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: TECH_ID,
+          isActive: true,
+        }),
+      }),
+    );
+    expect(tx.ticket.update).not.toHaveBeenCalled();
   });
 
   it('throws NotFoundException when executor company has no contract with client', async () => {

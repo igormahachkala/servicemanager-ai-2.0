@@ -32,7 +32,7 @@ function cleanUnknown(value: unknown): string {
 }
 
 export function displayCompanyName(company?: api.IdentityCompany | null, fallback = 'Организация не указана'): string {
-  return clean(company?.legalName) || clean(company?.name) || clean(company?.brandName) || fallback
+  return clean(company?.legalName) || clean(company?.brandName) || clean(company?.name) || fallback
 }
 
 function actorName(actor?: ActorIdentityInput, fallback = 'Сотрудник не указан'): string {
@@ -86,7 +86,7 @@ export function presentTicketCreator(ticket?: TicketWithCreatorIdentity | null):
   const creator = ticket?.createdByUser ?? null
   if (creator) {
     return presentActorIdentity(creator, {
-      company: creator.company ?? ticket?.company ?? null,
+      company: creator.company ?? null,
       nameFallback: 'Создатель не указан',
     })
   }

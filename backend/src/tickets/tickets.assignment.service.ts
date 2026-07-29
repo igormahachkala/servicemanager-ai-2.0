@@ -289,6 +289,7 @@ export class TicketsAssignmentService {
       where: {
         companyId: companyId,
         isExecutor: true,
+        isActive: true,
         role: { in: Array.from(EXECUTOR_CAPABLE_ROLES) },
         technicianSpecializations: {
           some: { specializationId: { in: specializationIds } },
@@ -358,6 +359,7 @@ export class TicketsAssignmentService {
       where: {
         companyId: companyIdsArray.length === 1 ? companyIdsArray[0] : { in: companyIdsArray },
         isExecutor: true,
+        isActive: true,
         role: { in: Array.from(EXECUTOR_CAPABLE_ROLES) },
       },
       select: {
@@ -1102,6 +1104,7 @@ export class TicketsAssignmentService {
       const tech = await tx.user.findFirst({
         where: {
           id: technicianId,
+          isActive: true,
           ...(skipExecutorFlag ? {} : { isExecutor: true }),
           role: { in: Array.from(EXECUTOR_CAPABLE_ROLES) },
         },
