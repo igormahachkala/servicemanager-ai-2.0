@@ -521,7 +521,7 @@ export function EmployeesPage() {
     <div className="panel uiCard" style={{ marginTop: 12 }}>
       <h3 style={{ marginBottom: 8 }}>Доступные точки</h3>
       <div className="muted small" style={{ marginBottom: 10 }}>
-        Управление location-scope для роли {editValue.role}. Пустой список означает отсутствие явных ограничений.
+        Управление location-scope для роли {editValue.role}. Пустой список закрывает доступ к точкам до выбора разрешённых объектов.
       </div>
       <div className="fieldHint" style={{ marginBottom: 10 }}>
         Отметьте точки, куда сотрудник может ездить. Для подрядчика сначала выберите клиентский контур — список точек подгрузится для
@@ -582,7 +582,7 @@ export function EmployeesPage() {
               <div className="muted small" style={{ marginBottom: 10 }}>
                 {visibleSelectedLocationIds.length > 0
                   ? `Выбрано точек: ${visibleSelectedLocationIds.length}`
-                  : 'Ограничения не заданы: сотрудник работает без явных location-bound ограничений.'}
+                  : 'Точки не выбраны: после сохранения доступ к точкам будет закрыт.'}
               </div>
               {!bindingsHasChanges ? (
                 <div className="muted small" style={{ marginBottom: 10 }}>
