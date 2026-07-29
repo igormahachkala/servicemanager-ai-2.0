@@ -15,6 +15,17 @@ export type TimelineEvent =
 export type TimelineActor = {
   id: string;
   email: string;
+  firstName?: string | null;
+  lastName?: string | null;
+  role?: string | null;
+  companyId?: string | null;
+  company?: {
+    id: string;
+    name: string;
+    legalName?: string | null;
+    brandName?: string | null;
+    type?: string | null;
+  } | null;
 } | null;
 
 export type TimelineHistoryItem = {

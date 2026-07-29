@@ -25,6 +25,29 @@ import { TICKET_ASSIGNMENT_REQUESTED_ENTITY, TICKET_ASSIGNMENT_REQUESTED_EVENT }
 import { isExecutorCapableRole } from '../common/executor.utils'
 import { loadBoardImageAttachmentSummaries } from './board-attachment-summary'
 
+const companyIdentitySelect = {
+  id: true,
+  name: true,
+  legalName: true,
+  brandName: true,
+  type: true,
+} as const
+
+const userIdentitySelect = {
+  id: true,
+  email: true,
+  firstName: true,
+  lastName: true,
+  role: true,
+  companyId: true,
+  company: { select: companyIdentitySelect },
+} as const
+
+const assignedTechnicianIdentitySelect = {
+  ...userIdentitySelect,
+  phone: true,
+} as const
+
 type AccessFlags = {
   canTechnicianViewAllCompanyTickets?: boolean
 }
@@ -395,6 +418,7 @@ export class TicketsQueryService {
           select: {
             id: true,
             companyId: true,
+            company: { select: companyIdentitySelect },
             ticketNumber: true,
             status: true,
             urgency: true,
@@ -406,6 +430,7 @@ export class TicketsQueryService {
             problemText: true,
             requesterName: true,
             createdByUserId: true,
+            createdByUser: { select: userIdentitySelect },
             pointName: true,
             locationId: true,
             location: {
@@ -432,7 +457,7 @@ export class TicketsQueryService {
             },
             equipment: { select: { id: true, name: true, type: true, status: true } },
             assignedTechnicianId: true,
-            assignedTechnician: { select: { id: true, email: true, firstName: true, lastName: true, phone: true } },
+            assignedTechnician: { select: assignedTechnicianIdentitySelect },
             parentId: true,
           },
           take: decision.take,
@@ -496,11 +521,13 @@ export class TicketsQueryService {
         const base = {
           id: t.id,
           companyId: t.companyId,
+          company: t.company,
           ticketNumber: t.ticketNumber,
           title: t.problemCategory.name,
           description: t.problemText,
           requesterName: t.requesterName ?? null,
           createdByUserId: t.createdByUserId ?? null,
+          createdByUser: t.createdByUser ?? null,
           status: t.status,
           urgency: t.urgency,
           priority: t.priority,
@@ -785,6 +812,8 @@ export class TicketsQueryService {
       where: safeListWhere,
       orderBy: { createdAt: 'desc' },
       include: {
+        company: { select: companyIdentitySelect },
+        createdByUser: { select: userIdentitySelect },
         location: {
           select: {
             id: true,
@@ -797,7 +826,7 @@ export class TicketsQueryService {
           },
         },
         problemCategory: { select: { id: true, name: true } },
-        assignedTechnician: { select: { id: true, email: true, firstName: true, lastName: true, phone: true } },
+        assignedTechnician: { select: assignedTechnicianIdentitySelect },
       },
     })
   }
@@ -822,6 +851,8 @@ export class TicketsQueryService {
     })
 
     const include = {
+      company: { select: companyIdentitySelect },
+      createdByUser: { select: userIdentitySelect },
       location: {
         select: {
           id: true,
@@ -838,7 +869,7 @@ export class TicketsQueryService {
       },
       problemCategory: { select: { id: true, name: true, instructions: true } },
       equipment: { select: { id: true, name: true, type: true, status: true } },
-      assignedTechnician: { select: { id: true, email: true, firstName: true, lastName: true, phone: true } },
+      assignedTechnician: { select: assignedTechnicianIdentitySelect },
       statusHistory: { orderBy: { createdAt: 'asc' as const } },
       parent: {
         select: {
@@ -870,7 +901,7 @@ export class TicketsQueryService {
             },
           },
           problemCategory: { select: { id: true, name: true } },
-          assignedTechnician: { select: { id: true, email: true, firstName: true, lastName: true, phone: true } },
+          assignedTechnician: { select: assignedTechnicianIdentitySelect },
         },
       },
     }

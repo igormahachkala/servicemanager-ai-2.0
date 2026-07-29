@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react'
 import { explainClaimUnavailable } from '../../lib/claimAvailabilityHints'
 import * as api from '../../lib/api'
+import { compactTicketAssigneeLabel } from '../../lib/ticketActorIdentity'
 
 type TicketClaimBlockProps = {
   role?: api.Role | null
@@ -33,7 +34,7 @@ export function TicketClaimBlock(props: TicketClaimBlockProps) {
             ticket.assignedTechnicianId === meUserId ? (
               'Заявка уже назначена на вас.'
             ) : ticket.assignedTechnician ? (
-              `Заявка назначена на: ${ticket.assignedTechnician.email}.`
+              `Заявка назначена на: ${compactTicketAssigneeLabel(ticket)}.`
             ) : (
               (() => {
                 const { title, detail } = explainClaimUnavailable(ticket.meta?.claimAvailabilityReason)

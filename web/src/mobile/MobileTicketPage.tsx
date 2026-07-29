@@ -46,6 +46,7 @@ import { FullscreenPhotoViewer, type PhotoViewerItem } from '../components/Fulls
 import { MobileTicketPhotoGallery } from './MobileTicketPhotoGallery'
 import { MobileTicketActionsSheet, type TicketSheetAction } from './MobileTicketActionsSheet'
 import { MobileModalBackdrop } from './MobileModalBackdrop'
+import { compactIdentityLabel, identityLines, presentActorIdentity, presentTicketAssignee, presentTicketCreator } from '../lib/ticketActorIdentity'
 
 // SMA-ACCEPTANCE-005: модалка клиентского отказа в приёмке (комментарий обязателен, фото — желательно).
 type ClientRejectModalState =
@@ -214,7 +215,7 @@ function formatAddressBlock(ticket: api.TicketGetOne): string {
  * web app, so the ti-* icons are inlined as their SVG paths (design system rule:
  * Tabler icons, never emoji). Presentational only — no logic.
  */
-function RowIcon({ name }: { name: 'tool' | 'map-pin' | 'bolt' | 'alert-triangle' | 'user-check' | 'clock' | 'hash' }) {
+function RowIcon({ name }: { name: 'tool' | 'map-pin' | 'bolt' | 'alert-triangle' | 'user' | 'user-check' | 'clock' | 'hash' }) {
   const common = {
     width: 15,
     height: 15,
@@ -236,6 +237,8 @@ function RowIcon({ name }: { name: 'tool' | 'map-pin' | 'bolt' | 'alert-triangle
       return <svg {...common}><path d="M13 3l0 7l6 0l-8 11l0 -7l-6 0l8 -11" /></svg>
     case 'alert-triangle':
       return <svg {...common}><path d="M12 9v4" /><path d="M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.87l-8.106 -13.536a1.914 1.914 0 0 0 -3.274 0z" /><path d="M12 16h.01" /></svg>
+    case 'user':
+      return <svg {...common}><path d="M8 7a4 4 0 1 0 8 0a4 4 0 0 0 -8 0" /><path d="M6 21v-2a4 4 0 0 1 4 -4h4a4 4 0 0 1 4 4v2" /></svg>
     case 'user-check':
       return <svg {...common}><path d="M8 7a4 4 0 1 0 8 0a4 4 0 0 0 -8 0" /><path d="M6 21v-2a4 4 0 0 1 4 -4h4" /><path d="M15 19l2 2l4 -4" /></svg>
     case 'clock':
@@ -991,13 +994,9 @@ export function MobileTicketPage() {
   }
 
   const executorLine = ticket
-    ? (() => {
-        if (!ticket.assignedTechnician) return 'Не назначен'
-        const name = [ticket.assignedTechnician.firstName, ticket.assignedTechnician.lastName].filter(Boolean).join(' ').trim()
-        const label = name || ticket.assignedTechnician.email
-        return ticket.assignedTechnician.phone ? `${label}\n${ticket.assignedTechnician.phone}` : label
-      })()
+    ? identityLines(presentTicketAssignee(ticket)).join('\n')
     : '—'
+  const creatorLine = ticket ? identityLines(presentTicketCreator(ticket)).join('\n') : '—'
 
   // Назначение/переназначение: провайдер-роль может назначать на NEW и ПЕРЕназначать на ASSIGNED.
   // (раньше требовало status==='NEW' && !assigned → переназначить уже назначенную заявку было нельзя.)
@@ -1346,6 +1345,10 @@ export function MobileTicketPage() {
               <div className="mobileDetailRow">
                 <span className="mobileDetailRowLabel"><RowIcon name="user-check" />Исполнитель</span>
                 <span className="mobileDetailRowValue" style={{ whiteSpace: 'pre-line' }}>{executorLine}</span>
+              </div>
+              <div className="mobileDetailRow">
+                <span className="mobileDetailRowLabel"><RowIcon name="user" />Создал заявку</span>
+                <span className="mobileDetailRowValue" style={{ whiteSpace: 'pre-line' }}>{creatorLine}</span>
               </div>
               {ticket.slaDueAt ? (
                 <div className="mobileDetailRow">
@@ -2133,7 +2136,7 @@ export function MobileTicketPage() {
                   <select value={assignTechId} disabled={assignBusy} onChange={(e) => setAssignTechId(e.target.value)}>
                     {assignTechOptions.map((row) => (
                       <option key={row.id} value={row.id}>
-                        {row.email}
+                        {compactIdentityLabel(presentActorIdentity(row, { roleFallback: 'Исполнитель' }))}
                         {row.matched ? ' · рекомендован' : ''}
                       </option>
                     ))}

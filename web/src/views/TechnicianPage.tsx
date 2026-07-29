@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
+import { compactTicketAssigneeLabel } from '../lib/ticketActorIdentity'
 
 function fmt(dt?: string | null) {
   if (!dt) return '—'
@@ -38,7 +39,7 @@ function toCategory(ticket: any) {
 }
 
 function toAssignedEmail(ticket: any) {
-  return ticket?.assignedTechnician?.email || '—'
+  return ticket?.assignedTechnician ? compactTicketAssigneeLabel(ticket) : '—'
 }
 
 function toSla(ticket: any) {

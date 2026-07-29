@@ -172,6 +172,25 @@ export type ImpersonateResponse = {
 
 export type CompanyType = 'CLIENT' | 'PROVIDER'
 
+export type IdentityCompany = {
+  id: string
+  name: string
+  legalName?: string | null
+  brandName?: string | null
+  type?: CompanyType | null
+}
+
+export type TicketActorIdentity = {
+  id: string
+  email: string
+  firstName?: string | null
+  lastName?: string | null
+  role?: Role | string | null
+  companyId?: string | null
+  company?: IdentityCompany | null
+  phone?: string | null
+}
+
 export type PublicRequestDefaultType = 'REPAIR' | 'NOTE'
 export type PublicRequestLocationPresetMode = 'HIDE_WHEN_VALID' | 'ALWAYS_OPTIONAL'
 export type ServiceContractStatus = 'DRAFT' | 'ACTIVE' | 'INACTIVE' | 'ENDED'
@@ -469,6 +488,11 @@ export type TechnicianWorkloadItem = {
 export type AssignmentCandidateTechnician = {
   id: string
   email: string
+  firstName?: string | null
+  lastName?: string | null
+  role?: Role | string | null
+  companyId?: string | null
+  company?: IdentityCompany | null
   matched: boolean
   matchedBy: string[]
   matchReason?: 'category_specialization' | 'fallback_no_category_specializations' | 'no_match'
@@ -557,6 +581,7 @@ export type TicketCard = {
   id: string
   ticketNumber?: number
   companyId: string
+  company?: IdentityCompany | null
   title: string
   status: TicketStatus
   urgency: TicketUrgency
@@ -582,13 +607,15 @@ export type TicketCard = {
     status?: string | null
   } | null
   category: { id: string; name: string }
-  assignedTechnician: { id: string; email: string; firstName?: string | null; lastName?: string | null } | null
+  assignedTechnician: TicketActorIdentity | null
   /** Текст заявки (с board). */
   description?: string
   /** Имя заявителя, если есть (с board). */
   requesterName?: string | null
   /** Кто создал заявку (для честного фильтра «Мои заявки»). */
   createdByUserId?: string | null
+  /** Кто создал заявку; расширено для display-only identity без изменения прав. */
+  createdByUser?: TicketActorIdentity | null
   /** Дублируем id исполнителя отдельно от объекта исполнителя. */
   assignedTechnicianId?: string | null
   /** Для TECHNICIAN на board: согласовано с правилами claim по специализации (см. tickets.query.service). */
@@ -631,6 +658,7 @@ export type TicketGetOne = {
   id: string
   /** Tenant заявки (у linked-client заявки — id клиента). Нужен для согласования scope мутаций. */
   companyId?: string | null
+  company?: IdentityCompany | null
   ticketNumber?: number | null
   title?: string
   description?: string
@@ -668,7 +696,9 @@ export type TicketGetOne = {
     status?: string | null
   } | null
   problemCategory: { id: string; name: string; instructions: string | null }
-  assignedTechnician: { id: string; email: string; firstName?: string | null; lastName?: string | null; phone?: string | null } | null
+  assignedTechnician: TicketActorIdentity | null
+  createdByUserId?: string | null
+  createdByUser?: TicketActorIdentity | null
   parentId?: string | null
   parent?: {
     id: string
@@ -736,7 +766,7 @@ export type TimelineItem = {
   domainType?: string
   type?: string
   title: string
-  actor: { id: string; email: string } | null
+  actor: TicketActorIdentity | null
   payload: any
 }
 

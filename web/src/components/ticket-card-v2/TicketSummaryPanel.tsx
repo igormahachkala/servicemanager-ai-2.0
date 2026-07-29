@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import * as api from '../../lib/api'
+import { identityLines, presentTicketAssignee, presentTicketCreator, type TicketIdentityPresentation } from '../../lib/ticketActorIdentity'
 import { CategoryGuidancePanel } from '../CategoryGuidancePanel'
 
 export type TicketSummaryPanelProps = {
@@ -9,8 +10,23 @@ export type TicketSummaryPanelProps = {
   statusNode: ReactNode
 }
 
+function IdentitySummaryBlock({ title, identity, timestamp }: { title: string; identity: TicketIdentityPresentation; timestamp?: string | null }) {
+  return (
+    <div className="uiCard" style={{ padding: 10 }}>
+      <div style={{ fontWeight: 800, marginBottom: 4 }}>{title}</div>
+      <div className="muted small" style={{ display: 'grid', gap: 2 }}>
+        {identityLines(identity).map((line, index) => <div key={`${index}-${line}`}>{line}</div>)}
+        {timestamp ? <div>{new Date(timestamp).toLocaleString('ru-RU')}</div> : null}
+      </div>
+    </div>
+  )
+}
+
 export function TicketSummaryPanel({ ticket, shortProblemText, showLifecycleHint, statusNode }: TicketSummaryPanelProps) {
   if (!ticket) return null
+
+  const creator = presentTicketCreator(ticket)
+  const assignee = presentTicketAssignee(ticket)
 
   return (
     <div className="panel" style={{ marginBottom: 12 }}>
@@ -25,6 +41,10 @@ export function TicketSummaryPanel({ ticket, shortProblemText, showLifecycleHint
         ) : null}
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <b>Статус:</b> {statusNode}
+        </div>
+        <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+          <IdentitySummaryBlock title="Создал заявку" identity={creator} timestamp={ticket.createdAt} />
+          <IdentitySummaryBlock title="Назначено" identity={assignee} />
         </div>
         <div>
           <b>Локация:</b>{' '}

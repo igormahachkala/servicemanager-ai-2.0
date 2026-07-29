@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { useLinkedBoardScope } from '../hooks/useLinkedBoardScope'
 import { archiveStatusLabel, archiveTicketCount, selectArchiveColumns } from '../lib/ticketArchive'
+import { compactTicketAssigneeLabel } from '../lib/ticketActorIdentity'
 
 function fmt(dt?: string | null) {
   if (!dt) return '—'
@@ -22,6 +23,10 @@ function compactServiceContext(ticket: api.TicketCard) {
   if (locationText) return locationText
   if (equipmentText) return equipmentText
   return ticket.pointName || ''
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
 }
 
 /**
@@ -95,7 +100,7 @@ export function ArchivePage() {
       </div>
 
       {boardQ.isError ? (
-        <div className="alert">{(boardQ.error as any)?.message || String(boardQ.error)}</div>
+        <div className="alert">{errorMessage(boardQ.error)}</div>
       ) : null}
 
       {isEmpty ? (
@@ -131,7 +136,7 @@ export function ArchivePage() {
                     ) : null}
                     <div className="ticketMeta">
                       {ticket.assignedTechnician ? (
-                        <span className="tag">{ticket.assignedTechnician.email}</span>
+                        <span className="tag">{compactTicketAssigneeLabel(ticket)}</span>
                       ) : (
                         <span className="tag">Не назначено</span>
                       )}

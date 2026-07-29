@@ -38,6 +38,14 @@ import {
   TICKET_ASSIGNMENT_REQUESTED_EVENT,
 } from './ticket-domain-event.types';
 
+const companyIdentitySelect = {
+  id: true,
+  name: true,
+  legalName: true,
+  brandName: true,
+  type: true,
+} as const;
+
 function computeSlaFromPriorityOrExplicitMinutes(params: {
   priority: TicketPriority;
   explicitSlaMinutes?: number | null;
@@ -289,6 +297,11 @@ export class TicketsAssignmentService {
       select: {
         id: true,
         email: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        companyId: true,
+        company: { select: companyIdentitySelect },
         technicianSpecializations: {
           where: { specializationId: { in: specializationIds } },
           include: { specialization: true },
@@ -316,6 +329,11 @@ export class TicketsAssignmentService {
       return {
         id: t.id,
         email: t.email,
+        firstName: t.firstName,
+        lastName: t.lastName,
+        role: t.role,
+        companyId: t.companyId,
+        company: t.company,
         matchedBy: t.technicianSpecializations.map((x) => x.specialization.name),
         matchReason: 'category_specialization' as const,
         matchedSpecializationsCount,
@@ -345,6 +363,11 @@ export class TicketsAssignmentService {
       select: {
         id: true,
         email: true,
+        firstName: true,
+        lastName: true,
+        role: true,
+        companyId: true,
+        company: { select: companyIdentitySelect },
         technicianSpecializations: {
           include: { specialization: true },
         },
@@ -379,6 +402,11 @@ export class TicketsAssignmentService {
       return {
         id: t.id,
         email: t.email,
+        firstName: t.firstName,
+        lastName: t.lastName,
+        role: t.role,
+        companyId: t.companyId,
+        company: t.company,
         matched: fallbackToAllWhenNoSpecializations || matchedLabels.length > 0,
         matchedBy: matchedLabels,
         matchReason: fallbackToAllWhenNoSpecializations

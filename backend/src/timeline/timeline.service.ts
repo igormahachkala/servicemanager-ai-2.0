@@ -16,6 +16,33 @@ import {
   type TimelineRecordedEventItem,
 } from './timeline.types'
 
+const companyIdentitySelect = {
+  id: true,
+  name: true,
+  legalName: true,
+  brandName: true,
+  type: true,
+} as const
+
+function readPayloadUserId(payload: Prisma.JsonValue | null, key: string): string | null {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null
+  const value = (payload as Record<string, unknown>)[key]
+  return typeof value === 'string' && value.trim() ? value.trim() : null
+}
+
+function enrichAssignmentPayload(
+  payload: Prisma.JsonValue | null,
+  actorMap: Map<string, NonNullable<TimelineActor>>,
+) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return payload ?? null
+  const out: Record<string, unknown> = { ...(payload as Record<string, unknown>) }
+  const assignedTechnicianId = readPayloadUserId(payload, 'assignedTechnicianId')
+  const previousAssignedTechnicianId = readPayloadUserId(payload, 'previousAssignedTechnicianId')
+  if (assignedTechnicianId) out.assignedTechnician = actorMap.get(assignedTechnicianId) ?? null
+  if (previousAssignedTechnicianId) out.previousAssignedTechnician = actorMap.get(previousAssignedTechnicianId) ?? null
+  return out
+}
+
 @Injectable()
 export class TimelineService {
   private readonly eventToDomainType: Record<TimelineEvent, DomainEventType> = {
@@ -183,12 +210,26 @@ export class TimelineService {
 
     const actorIds = new Set<string>()
     for (const row of historyRows) if (row.changedByUserId) actorIds.add(row.changedByUserId)
-    for (const row of eventRows) if (row.actorUserId) actorIds.add(row.actorUserId)
+    for (const row of eventRows) {
+      if (row.actorUserId) actorIds.add(row.actorUserId)
+      const assignedTechnicianId = readPayloadUserId(row.payload, 'assignedTechnicianId')
+      const previousAssignedTechnicianId = readPayloadUserId(row.payload, 'previousAssignedTechnicianId')
+      if (assignedTechnicianId) actorIds.add(assignedTechnicianId)
+      if (previousAssignedTechnicianId) actorIds.add(previousAssignedTechnicianId)
+    }
 
     const actors = actorIds.size
       ? await this.prisma.user.findMany({
           where: { id: { in: Array.from(actorIds) } },
-          select: { id: true, email: true },
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            role: true,
+            companyId: true,
+            company: { select: companyIdentitySelect },
+          },
         })
       : []
 
@@ -220,7 +261,7 @@ export class TimelineService {
           domainType: row.type,
           title: this.eventTitle(row.type),
           actor: row.actorUserId ? actorMap.get(row.actorUserId) ?? null : null,
-          payload: row.payload ?? null,
+          payload: enrichAssignmentPayload(row.payload, actorMap),
         }
       })
       .filter((row): row is TimelineRecordedEventItem => row !== null)

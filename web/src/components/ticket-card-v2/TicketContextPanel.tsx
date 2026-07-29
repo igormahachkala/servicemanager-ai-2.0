@@ -1,4 +1,5 @@
 import * as api from '../../lib/api'
+import { identityLines, presentTicketAssignee, presentTicketCreator } from '../../lib/ticketActorIdentity'
 
 export type TicketContextPanelProps = {
   ticket: api.TicketGetOne | null
@@ -6,6 +7,9 @@ export type TicketContextPanelProps = {
 
 export function TicketContextPanel({ ticket }: TicketContextPanelProps) {
   if (!ticket) return null
+
+  const creator = presentTicketCreator(ticket)
+  const assignee = presentTicketAssignee(ticket)
 
   return (
     <div className="panel uiCard" style={{ marginBottom: 12 }}>
@@ -31,6 +35,21 @@ export function TicketContextPanel({ ticket }: TicketContextPanelProps) {
             <div><b>Телефон:</b> {ticket.requesterPhone || '—'}</div>
             <div><b>Точка:</b> {ticket.pointName || '—'}</div>
             <div><b>Адрес:</b> {ticket.address || '—'}</div>
+          </div>
+        </details>
+
+        <details>
+          <summary style={{ cursor: 'pointer', fontWeight: 700 }}>Участники</summary>
+          <div style={{ display: 'grid', gap: 10, marginTop: 8, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+            <div style={{ display: 'grid', gap: 4 }}>
+              <b>Создал заявку</b>
+              {identityLines(creator).map((line, index) => <div key={`${index}-${line}`}>{line}</div>)}
+              <div className="muted small">{new Date(ticket.createdAt).toLocaleString('ru-RU')}</div>
+            </div>
+            <div style={{ display: 'grid', gap: 4 }}>
+              <b>Назначено</b>
+              {identityLines(assignee).map((line, index) => <div key={`${index}-${line}`}>{line}</div>)}
+            </div>
           </div>
         </details>
 
@@ -64,7 +83,8 @@ export function TicketContextPanel({ ticket }: TicketContextPanelProps) {
             ) : (
               <div className="muted small">Коды локации не заданы</div>
             )}
-            <div><b>Назначен:</b> {ticket.assignedTechnician?.email || '—'}</div>
+            <div><b>Назначено:</b> {identityLines(assignee).join(' · ')}</div>
+            <div><b>Создал заявку:</b> {identityLines(creator).join(' · ')}</div>
             <div><b>Создана:</b> {new Date(ticket.createdAt).toLocaleString('ru-RU')}</div>
           </div>
         </details>
