@@ -218,6 +218,42 @@ describe('ticket-access utils SECONDARY provider visibility', () => {
     })).resolves.toEqual({ mode: 'bound_locations', locationIds: [] })
   })
 
+  it('TECHNICIAN operational scope rejects inactive JWT actors through the database guard', async () => {
+    const prisma = makePrismaTicketMock()
+    prisma.user.findFirst = jest.fn(async ({ where }: any) => {
+      if (where.isActive === true && where.deletedAt === null) return null
+      return {
+        id: 'tech-1',
+        role: UserRole.TECHNICIAN,
+        isExecutor: true,
+        technicianSpecializations: [],
+      }
+    })
+
+    await expect(
+      resolveTechnicianOperationalScope({
+        prisma,
+        serviceContractsService: makeServiceContractsService(ServiceContractRole.PRIMARY) as any,
+        actor: {
+          id: 'tech-1',
+          role: UserRole.TECHNICIAN,
+          companyId: providerCompanyId,
+        },
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException)
+
+    expect(prisma.user.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: 'tech-1',
+          companyId: providerCompanyId,
+          isActive: true,
+          deletedAt: null,
+        }),
+      }),
+    )
+  })
+
   it('keeps SECONDARY contract blocked by default for ticket reads (management path, non-executor role)', async () => {
     // Use NETWORK_DIRECTOR: in PROVIDER_LINKED_OVERVIEW_ROLES but NOT executor-capable.
     // This exercises the management board path without hitting the executor scope.

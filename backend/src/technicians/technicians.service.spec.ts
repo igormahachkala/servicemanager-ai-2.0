@@ -20,6 +20,7 @@ type FakeUser = {
   companyId: string;
   role: UserRole;
   isActive?: boolean;
+  deletedAt?: Date | null;
   isExecutor?: boolean;
 };
 type FakeLocation = {
@@ -60,6 +61,7 @@ function makeService(
     bindings: FakeBinding[];
     linkedClients: FakeLinkedClient[];
     locations: FakeLocation[];
+    users: FakeUser[];
   }>,
 ) {
   const state = {
@@ -68,15 +70,18 @@ function makeService(
       { id: 'client-co', name: 'Client', type: CompanyType.CLIENT },
       { id: 'other-client-co', name: 'Other Client', type: CompanyType.CLIENT },
     ] satisfies FakeCompany[],
-    users: [
-      {
-        id: 'tech-user',
-        companyId: 'provider-co',
-        role: UserRole.TECHNICIAN,
-        isActive: true,
-        isExecutor: true,
-      },
-    ] satisfies FakeUser[],
+    users:
+      seed?.users ??
+      ([
+        {
+          id: 'tech-user',
+          companyId: 'provider-co',
+          role: UserRole.TECHNICIAN,
+          isActive: true,
+          deletedAt: null,
+          isExecutor: true,
+        },
+      ] satisfies FakeUser[]),
     locations: seed?.locations ?? [
       { id: 'loc-a', clientCompanyId: 'client-co', name: 'Location A' },
       { id: 'loc-b', clientCompanyId: 'client-co', name: 'Location B' },
@@ -130,6 +135,10 @@ function makeService(
           )
             return false;
           if (args.where.isExecutor === true && candidate.isExecutor !== true)
+            return false;
+          if (args.where.isActive === true && candidate.isActive !== true)
+            return false;
+          if (args.where.deletedAt === null && candidate.deletedAt !== null)
             return false;
           if (
             Array.isArray(args.where.role?.in) &&
@@ -356,6 +365,8 @@ describe('TechniciansService location bindings', () => {
 
     expect(response.companyId).toBe('client-co');
     expect(response.locationIds).toEqual(['loc-a']);
+    expect(response.locationScope).toBe('SELECTED_LOCATIONS');
+    expect(response.locationScopeMode).toBe('SELECTED_LOCATIONS');
     expect(response.hasExplicitRestrictions).toBe(true);
     expect(state.bindings).toEqual([
       expect.objectContaining({
@@ -397,6 +408,8 @@ describe('TechniciansService location bindings', () => {
     ).resolves.toMatchObject({
       companyId: 'client-co',
       locationIds: ['loc-a'],
+      locationScope: 'SELECTED_LOCATIONS',
+      locationScopeMode: 'SELECTED_LOCATIONS',
       hasExplicitRestrictions: true,
     });
   });
@@ -426,6 +439,8 @@ describe('TechniciansService location bindings', () => {
     ).resolves.toMatchObject({
       companyId: 'client-co',
       locationIds: [],
+      locationScope: 'SELECTED_LOCATIONS',
+      locationScopeMode: 'SELECTED_LOCATIONS',
       hasExplicitRestrictions: true,
     });
   });
@@ -470,6 +485,8 @@ describe('TechniciansService location bindings', () => {
     ).resolves.toMatchObject({
       companyId: 'client-co',
       locationIds: [],
+      locationScope: 'SELECTED_LOCATIONS',
+      locationScopeMode: 'SELECTED_LOCATIONS',
       hasExplicitRestrictions: true,
     });
 
@@ -513,6 +530,7 @@ describe('TechniciansService location bindings', () => {
 
     expect(contexts).toHaveLength(1);
     expect(contexts[0].locationScope).toBe('SELECTED_LOCATIONS');
+    expect(contexts[0].locationScopeMode).toBe('SELECTED_LOCATIONS');
     expect(contexts[0].bindingCount).toBe(1);
     expect(
       contexts[0].locations.map((location: { id: string }) => location.id),
@@ -549,6 +567,7 @@ describe('TechniciansService location bindings', () => {
     ).resolves.toEqual({
       companyId: 'client-co',
       locationScope: 'SELECTED_LOCATIONS',
+      locationScopeMode: 'SELECTED_LOCATIONS',
     });
     await expect(
       service.resolveBoundCreateScope(
@@ -570,6 +589,322 @@ describe('TechniciansService location bindings', () => {
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
 
+    expect(state.bindings).toEqual([]);
+    expect(state.accessScopes).toEqual([]);
+  });
+
+  it('saves empty selected list as RESTRICTED_EMPTY and disables legacy fallback', async () => {
+    const { service, state } = makeService({
+      bindings: [
+        {
+          id: 'legacy-binding',
+          userId: 'tech-user',
+          companyId: 'client-co',
+          locationId: 'loc-a',
+          createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        },
+      ],
+    });
+
+    await expect(
+      service.setLocationBindings('provider-co', 'tech-user', {
+        companyId: 'client-co',
+        locationIds: [],
+      }),
+    ).resolves.toMatchObject({
+      companyId: 'client-co',
+      locationIds: [],
+      locationScope: 'RESTRICTED_EMPTY',
+      locationScopeMode: 'RESTRICTED_EMPTY',
+      hasExplicitRestrictions: true,
+    });
+
+    expect(state.bindings).toEqual([]);
+    expect(state.accessScopes).toEqual([
+      {
+        userId: 'tech-user',
+        companyId: 'provider-co',
+        locationMode: UserAccessLocationMode.RESTRICTED_EMPTY,
+      },
+    ]);
+
+    await expect(
+      service.getLocationBindings('provider-co', 'tech-user', 'client-co'),
+    ).resolves.toMatchObject({
+      locationIds: [],
+      locationScope: 'RESTRICTED_EMPTY',
+      locationScopeMode: 'RESTRICTED_EMPTY',
+      hasExplicitRestrictions: true,
+    });
+
+    const contexts = await service.getBoundContexts(
+      'provider-co',
+      'tech-user',
+      'client-co',
+    );
+    expect(contexts).toHaveLength(1);
+    expect(contexts[0].locationScope).toBe('RESTRICTED_EMPTY');
+    expect(contexts[0].locationScopeMode).toBe('RESTRICTED_EMPTY');
+    expect(contexts[0].locations).toEqual([]);
+
+    await expect(
+      service.resolveBoundCreateScope(
+        'provider-co',
+        'tech-user',
+        'client-co',
+        'loc-a',
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('blocks inactive technicians from saving selected locations', async () => {
+    const { service, state } = makeService({
+      users: [
+        {
+          id: 'tech-user',
+          companyId: 'provider-co',
+          role: UserRole.TECHNICIAN,
+          isActive: false,
+          deletedAt: null,
+          isExecutor: true,
+        },
+      ],
+    });
+
+    await expect(
+      service.setLocationBindings('provider-co', 'tech-user', {
+        companyId: 'client-co',
+        locationIds: ['loc-a'],
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(state.bindings).toEqual([]);
+    expect(state.accessScopes).toEqual([]);
+  });
+
+  it('blocks inactive technicians from saving empty restricted scope', async () => {
+    const { service, state } = makeService({
+      users: [
+        {
+          id: 'tech-user',
+          companyId: 'provider-co',
+          role: UserRole.TECHNICIAN,
+          isActive: false,
+          deletedAt: null,
+          isExecutor: true,
+        },
+      ],
+    });
+
+    await expect(
+      service.setLocationBindings('provider-co', 'tech-user', {
+        companyId: 'client-co',
+        locationIds: [],
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(state.bindings).toEqual([]);
+    expect(state.accessScopes).toEqual([]);
+  });
+
+  it('blocks inactive technicians from runtime contexts, create scope, and legacy fallback', async () => {
+    const { service } = makeService({
+      users: [
+        {
+          id: 'tech-user',
+          companyId: 'provider-co',
+          role: UserRole.TECHNICIAN,
+          isActive: false,
+          deletedAt: null,
+          isExecutor: true,
+        },
+      ],
+      bindings: [
+        {
+          id: 'legacy-binding',
+          userId: 'tech-user',
+          companyId: 'client-co',
+          locationId: 'loc-a',
+          createdAt: new Date('2026-01-01T00:00:00.000Z'),
+        },
+      ],
+    });
+
+    await expect(
+      service.getMe('provider-co', 'tech-user'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    await expect(
+      service.getLocationBindings('provider-co', 'tech-user', 'client-co'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    await expect(
+      service.getBoundContexts('provider-co', 'tech-user', 'client-co'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    await expect(
+      service.resolveBoundCreateScope(
+        'provider-co',
+        'tech-user',
+        'client-co',
+        'loc-a',
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('blocks inactive target users for admin location-binding save', async () => {
+    const { service } = makeService({
+      users: [
+        {
+          id: 'master-user',
+          companyId: 'provider-co',
+          role: UserRole.MASTER,
+          isActive: false,
+          deletedAt: null,
+          isExecutor: false,
+        },
+      ],
+    });
+
+    await expect(
+      service.setLocationBindings('provider-co', 'master-user', {
+        companyId: 'client-co',
+        locationIds: ['loc-a'],
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('blocks deleted technicians when deletedAt is set', async () => {
+    const { service } = makeService({
+      users: [
+        {
+          id: 'tech-user',
+          companyId: 'provider-co',
+          role: UserRole.TECHNICIAN,
+          isActive: true,
+          deletedAt: new Date('2026-01-02T00:00:00.000Z'),
+          isExecutor: true,
+        },
+      ],
+    });
+
+    await expect(
+      service.setLocationBindings('provider-co', 'tech-user', {
+        companyId: 'client-co',
+        locationIds: ['loc-a'],
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    await expect(
+      service.getBoundContexts('provider-co', 'tech-user', 'client-co'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('blocks inactive technicians from batch setBindings', async () => {
+    const { service } = makeService({
+      users: [
+        {
+          id: 'tech-user',
+          companyId: 'provider-co',
+          role: UserRole.TECHNICIAN,
+          isActive: false,
+          deletedAt: null,
+          isExecutor: true,
+        },
+      ],
+    });
+
+    await expect(
+      service.setBindings('provider-co', 'tech-user', [
+        { clientCompanyId: 'client-co', locationIds: ['loc-a'] },
+      ]),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('rejects SECONDARY and inactive linked-client contracts for direct saves', async () => {
+    const secondary = makeService({
+      linkedClients: [
+        {
+          linkedClientCompanyId: 'client-co',
+          role: ServiceContractRole.SECONDARY,
+          status: ServiceContractStatus.ACTIVE,
+        },
+      ],
+    });
+    const inactive = makeService({
+      linkedClients: [
+        {
+          linkedClientCompanyId: 'client-co',
+          role: ServiceContractRole.PRIMARY,
+          status: ServiceContractStatus.INACTIVE,
+        },
+      ],
+    });
+
+    await expect(
+      secondary.service.setLocationBindings('provider-co', 'tech-user', {
+        companyId: 'client-co',
+        locationIds: ['loc-a'],
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    await expect(
+      inactive.service.setLocationBindings('provider-co', 'tech-user', {
+        companyId: 'client-co',
+        locationIds: ['loc-a'],
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('rejects missing contracts and actors from another provider without mutating state', async () => {
+    const missingContract = makeService({ linkedClients: [] });
+    await expect(
+      missingContract.service.setLocationBindings('provider-co', 'tech-user', {
+        companyId: 'client-co',
+        locationIds: ['loc-a'],
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(missingContract.state.bindings).toEqual([]);
+
+    const foreignProvider = makeService();
+    await expect(
+      foreignProvider.service.setLocationBindings(
+        'other-provider-co',
+        'tech-user',
+        {
+          companyId: 'client-co',
+          locationIds: ['loc-a'],
+        },
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(foreignProvider.state.bindings).toEqual([]);
+  });
+
+  it('rejects inactive and deleted selected locations', async () => {
+    const { service, state } = makeService({
+      locations: [
+        {
+          id: 'loc-inactive',
+          clientCompanyId: 'client-co',
+          name: 'Inactive Location',
+          isActive: false,
+          deletedAt: null,
+        },
+        {
+          id: 'loc-deleted',
+          clientCompanyId: 'client-co',
+          name: 'Deleted Location',
+          isActive: true,
+          deletedAt: new Date('2026-01-02T00:00:00.000Z'),
+        },
+      ],
+    });
+
+    await expect(
+      service.setLocationBindings('provider-co', 'tech-user', {
+        companyId: 'client-co',
+        locationIds: ['loc-inactive'],
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      service.setLocationBindings('provider-co', 'tech-user', {
+        companyId: 'client-co',
+        locationIds: ['loc-deleted'],
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
     expect(state.bindings).toEqual([]);
     expect(state.accessScopes).toEqual([]);
   });

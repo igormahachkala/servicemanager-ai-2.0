@@ -163,7 +163,10 @@ export function EmployeesPage() {
   )
   const isEditingLocationBoundRole = !!editingUserId && LOCATION_BINDABLE_ROLES.includes(editValue.role)
   const providerLinkedClientOptions = useMemo(
-    () => (linkedClientsQ.data || []).map((item) => ({ id: item.clientCompany.id, name: item.clientCompany.name })),
+    () =>
+      (linkedClientsQ.data || [])
+        .filter((item) => item.status === 'ACTIVE' && item.role === 'PRIMARY')
+        .map((item) => ({ id: item.clientCompany.id, name: item.clientCompany.name })),
     [linkedClientsQ.data],
   )
   const effectiveBindingsCompanyId = useMemo(() => {

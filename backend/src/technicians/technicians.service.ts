@@ -4,7 +4,11 @@ import { Prisma, UserAccessLocationMode, UserRole } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
 import { EXECUTOR_CAPABLE_ROLES } from '../common/executor.utils'
-import { interpretUserAccessLocationScope, uniqueLocationIds } from '../common/user-access-scope-mode.utils'
+import {
+  type ConstructorLocationMode,
+  interpretUserAccessLocationScope,
+  uniqueLocationIds,
+} from '../common/user-access-scope-mode.utils'
 
 const LOCATION_BINDABLE_USER_ROLES: UserRole[] = [
   UserRole.ADMIN,
@@ -67,8 +71,9 @@ export class TechniciansService {
     return { in: uniqueLocationIds([storageCompanyId, scopeCompanyId]) }
   }
 
-  private locationScopeResponseLabel(runtimeMode: 'tenant_wide' | 'bound_locations' | 'restricted_empty') {
-    return runtimeMode === 'tenant_wide' ? 'ALL_COMPANY_LOCATIONS' : 'SELECTED_LOCATIONS'
+  private locationScopeResponseLabel(locationMode: ConstructorLocationMode) {
+    if (locationMode === 'LEGACY_AUTO') return 'ALL_COMPANY_LOCATIONS'
+    return locationMode
   }
 
   private async persistLocationScopeMode(
@@ -117,6 +122,8 @@ export class TechniciansService {
       where: {
         companyId,
         isExecutor: true,
+        isActive: true,
+        deletedAt: null,
         role: { in: Array.from(EXECUTOR_CAPABLE_ROLES) },
       },
       select: {
@@ -148,6 +155,8 @@ export class TechniciansService {
         id: userId,
         companyId,
         role: UserRole.TECHNICIAN,
+        isActive: true,
+        deletedAt: null,
       },
       select: {
         id: true,
@@ -310,7 +319,8 @@ export class TechniciansService {
 
       return {
         clientCompany: company,
-        locationScope: this.locationScopeResponseLabel(interpretedScope.runtimeMode),
+        locationScope: this.locationScopeResponseLabel(interpretedScope.locationMode),
+        locationScopeMode: interpretedScope.locationMode,
         locations: visibleLocations,
         categories: categories.filter((category) => category.companyId === company.id),
         bindingCount: interpretedScope.locationIds.length,
@@ -443,7 +453,8 @@ export class TechniciansService {
 
     return {
       companyId: clientCompanyId,
-      locationScope: this.locationScopeResponseLabel(locationScope.runtimeMode),
+      locationScope: this.locationScopeResponseLabel(locationScope.locationMode),
+      locationScopeMode: locationScope.locationMode,
     }
   }
 
@@ -506,6 +517,8 @@ export class TechniciansService {
       companyId: scopeCompanyId,
       locationIds,
       availableLocations,
+      locationScope: this.locationScopeResponseLabel(locationScope.locationMode),
+      locationScopeMode: locationScope.locationMode,
       hasExplicitRestrictions: locationScope.locationMode !== 'LEGACY_AUTO' || locationIds.length > 0,
     }
   }
@@ -616,6 +629,8 @@ export class TechniciansService {
       where: {
         id: tech.id,
         companyId,
+        isActive: true,
+        deletedAt: null,
       },
       select: {
         id: true,
@@ -638,6 +653,8 @@ export class TechniciansService {
         id: technicianId,
         companyId,
         isExecutor: true,
+        isActive: true,
+        deletedAt: null,
         role: { in: Array.from(EXECUTOR_CAPABLE_ROLES) },
       },
       select: {
@@ -657,6 +674,8 @@ export class TechniciansService {
       where: {
         id: userId,
         companyId,
+        isActive: true,
+        deletedAt: null,
         role: { in: LOCATION_BINDABLE_USER_ROLES },
       },
       select: {

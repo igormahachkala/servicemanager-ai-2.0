@@ -422,7 +422,8 @@ export type TechnicianBoundContext = {
     name: string
     type: CompanyType
   }
-  locationScope: 'ALL_COMPANY_LOCATIONS' | 'SELECTED_LOCATIONS'
+  locationScope: 'ALL_COMPANY_LOCATIONS' | 'SELECTED_LOCATIONS' | 'RESTRICTED_EMPTY'
+  locationScopeMode: 'LEGACY_AUTO' | 'SELECTED_LOCATIONS' | 'RESTRICTED_EMPTY'
   bindingCount: number
   locations: LocationListItem[]
   categories: ProblemCategoryListItem[]
@@ -440,6 +441,8 @@ export function pickFirstTechnicianBoundLinkedClientCompanyId(contexts: Technici
 export type TechnicianLocationBindingsResponse = {
   companyId: string
   locationIds: string[]
+  locationScope: 'ALL_COMPANY_LOCATIONS' | 'SELECTED_LOCATIONS' | 'RESTRICTED_EMPTY'
+  locationScopeMode: 'LEGACY_AUTO' | 'SELECTED_LOCATIONS' | 'RESTRICTED_EMPTY'
   hasExplicitRestrictions: boolean
   availableLocations: LocationListItem[]
 }

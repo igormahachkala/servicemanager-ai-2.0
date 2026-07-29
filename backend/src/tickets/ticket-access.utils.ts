@@ -269,6 +269,8 @@ export async function resolveTechnicianOperationalScope(params: {
     where: {
       id: params.actor.id,
       companyId: params.actor.companyId,
+      isActive: true,
+      deletedAt: null,
     },
     select: {
       id: true,
