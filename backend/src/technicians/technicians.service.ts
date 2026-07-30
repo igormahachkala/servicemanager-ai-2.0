@@ -209,7 +209,9 @@ export class TechniciansService {
   async getBoundContexts(providerCompanyId: string, technicianId: string, linkedClientCompanyId?: string) {
     await this.ensureTechnician(providerCompanyId, technicianId)
 
-    const activeClientIds = await this.serviceContractsService.listPrimaryLinkedClientIds(providerCompanyId)
+    const activeClientIds = (this.serviceContractsService as any).listActiveLinkedClientIds
+      ? await this.serviceContractsService.listActiveLinkedClientIds(providerCompanyId)
+      : await this.serviceContractsService.listPrimaryLinkedClientIds(providerCompanyId)
     if (activeClientIds.length === 0) {
       return []
     }
@@ -421,7 +423,14 @@ export class TechniciansService {
       throw new BadRequestException('clientCompanyId is required for technician ticket creation')
     }
 
-    await this.serviceContractsService.assertPrimaryLinkedClientAccess(providerCompanyId, clientCompanyId)
+    if ((this.serviceContractsService as any).getLinkedClientAccess) {
+      const linkedAccess = await this.serviceContractsService.getLinkedClientAccess(providerCompanyId, clientCompanyId)
+      if (!linkedAccess) {
+        throw new NotFoundException('Linked client not found')
+      }
+    } else {
+      await this.serviceContractsService.assertPrimaryLinkedClientAccess(providerCompanyId, clientCompanyId)
+    }
 
     const explicitLocationMode = await this.getExplicitLocationMode(technicianId, providerCompanyId)
     const bindingCompanyFilter = this.resolveLocationBindingCompanyFilter(

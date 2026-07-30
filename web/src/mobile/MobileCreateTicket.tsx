@@ -162,7 +162,10 @@ export function MobileCreateTicket() {
   }, [isTechnician, locationsQ.data, selectedTechnicianContext])
 
   const [locationId, setLocationId] = useState('')
+  const [equipmentId, setEquipmentId] = useState('')
   const [categoryId, setCategoryId] = useState('')
+  const [postCreateAction, setPostCreateAction] = useState<'leave_unassigned' | 'assign_employee'>('leave_unassigned')
+  const [assignTechnicianId, setAssignTechnicianId] = useState('')
   const [description, setDescription] = useState('')
   const [urgencyReason, setUrgencyReason] = useState('')
   const [slaPriority, setSlaPriority] = useState<api.TicketPriority>('NORMAL')
@@ -190,11 +193,62 @@ export function MobileCreateTicket() {
     () => activeCategories.find((row) => row.id === categoryId) || null,
     [activeCategories, categoryId],
   )
+  const selectedCreateClientCompanyId = isTechnician ? clientCompanyId : effectiveClientCompanyId
+
+  const equipmentQ = useQuery({
+    queryKey: ['mobile-create-equipment', selectedCreateClientCompanyId, locationId],
+    queryFn: () => api.equipmentByLocation(locationId, selectedCreateClientCompanyId || undefined),
+    enabled: !!locationId && !!selectedCreateClientCompanyId,
+  })
+  const locationEquipment = useMemo(
+    () => (equipmentQ.data || []).filter((row) => row.locationId === locationId || !row.locationId),
+    [equipmentQ.data, locationId],
+  )
+  const canAssignOnCreate =
+    !!meQ.data?.role &&
+    companyQ.data?.type === 'PROVIDER' &&
+    ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR'].includes(meQ.data.role) &&
+    !!selectedCreateClientCompanyId
+  const createCandidatesQ = useQuery({
+    queryKey: ['mobile-create-assignment-candidates', selectedCreateClientCompanyId, locationId, categoryId],
+    queryFn: () => api.createAssignmentCandidates({
+      clientCompanyId: selectedCreateClientCompanyId || undefined,
+      locationId,
+      categoryId,
+    }),
+    enabled: canAssignOnCreate && !!locationId && !!categoryId,
+  })
+  const createAssignmentCandidates = useMemo(
+    () => [...(createCandidatesQ.data?.matched || []), ...(createCandidatesQ.data?.others || [])],
+    [createCandidatesQ.data],
+  )
 
   useEffect(() => {
     if (!locationId && activeLocations.length > 0) setLocationId(activeLocations[0].id)
     if (locationId && !activeLocations.some((row) => row.id === locationId)) setLocationId(activeLocations[0]?.id || '')
   }, [activeLocations, locationId])
+
+  useEffect(() => {
+    if (!locationId) {
+      setEquipmentId('')
+      return
+    }
+    if (equipmentId && !locationEquipment.some((row) => row.id === equipmentId)) setEquipmentId('')
+  }, [equipmentId, locationEquipment, locationId])
+
+  useEffect(() => {
+    if (postCreateAction !== 'assign_employee') {
+      setAssignTechnicianId('')
+      return
+    }
+    if (!assignTechnicianId && createAssignmentCandidates.length > 0) {
+      setAssignTechnicianId(createAssignmentCandidates[0].id)
+      return
+    }
+    if (assignTechnicianId && !createAssignmentCandidates.some((candidate) => candidate.id === assignTechnicianId)) {
+      setAssignTechnicianId(createAssignmentCandidates[0]?.id || '')
+    }
+  }, [assignTechnicianId, createAssignmentCandidates, postCreateAction])
 
   useEffect(() => {
     setDraftAttachments([])
@@ -242,7 +296,10 @@ export function MobileCreateTicket() {
       const payload: api.CreateTicketInput = {
         createMode: 'quick',
         clientCompanyId: isTechnician ? clientCompanyId : linkedClientCompanyId ? linkedClientCompanyId : undefined,
+        postCreateAction: shouldClaim ? 'claim_self' : canAssignOnCreate ? postCreateAction : undefined,
+        assignTechnicianId: canAssignOnCreate && postCreateAction === 'assign_employee' ? assignTechnicianId || undefined : undefined,
         locationId,
+        equipmentId: equipmentId || undefined,
         categoryId,
         description: description.trim() || undefined,
         urgencyReason: urgencyReason.trim() || undefined,
@@ -253,19 +310,6 @@ export function MobileCreateTicket() {
       const created = await api.createTicket(payload, scope)
       const createdId = api.extractCreatedTicketId(created)
       if (!createdId) throw new Error('Не удалось определить id созданной заявки')
-      if (shouldClaim) {
-        try {
-          await api.claim(createdId, scope)
-        } catch (claimErr) {
-          return {
-            ticketId: createdId,
-            ticketNumber: created.ticket?.ticketNumber,
-            claimed: false,
-            claimFailed: true as const,
-            claimErr,
-          }
-        }
-      }
       return {
         ticketId: createdId,
         ticketNumber: created.ticket?.ticketNumber,
@@ -283,6 +327,9 @@ export function MobileCreateTicket() {
       setError('')
       setDescription('')
       setSlaPriority('NORMAL')
+      setEquipmentId('')
+      setPostCreateAction('leave_unassigned')
+      setAssignTechnicianId('')
       setDraftAttachments([])
       setPhotoPreview(null)
       clearPhotoInputs()
@@ -340,6 +387,10 @@ export function MobileCreateTicket() {
     }
     if (isTechnician && !clientCompanyId) {
       setError('Не выбран клиентский контур')
+      return
+    }
+    if (canAssignOnCreate && postCreateAction === 'assign_employee' && !assignTechnicianId) {
+      setError('Выберите сотрудника для назначения или оставьте заявку без назначения.')
       return
     }
     if (draftAttachments.length === 0) {
@@ -402,12 +453,14 @@ export function MobileCreateTicket() {
         <div className="mobileSubtitle">Укажите точку, категорию и загрузите фото — без снимков отправка недоступна.</div>
       </div>
 
-      {(locationsQ.isError || categoriesQ.isError || technicianContextsQ.isError) ? (
+      {(locationsQ.isError || categoriesQ.isError || technicianContextsQ.isError || equipmentQ.isError || createCandidatesQ.isError) ? (
         <div className="mobileNotice mobileNoticeError">
           {String(
             (locationsQ.error as any)?.message ||
               (categoriesQ.error as any)?.message ||
               (technicianContextsQ.error as any)?.message ||
+              (equipmentQ.error as any)?.message ||
+              (createCandidatesQ.error as any)?.message ||
               'Не удалось загрузить справочники',
           )}
         </div>
@@ -462,6 +515,19 @@ export function MobileCreateTicket() {
           </label>
 
           <label>
+            Оборудование
+            <select value={equipmentId} onChange={(e) => setEquipmentId(e.target.value)} disabled={!locationId || equipmentQ.isFetching}>
+              <option value="">Без оборудования</option>
+              {locationEquipment.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {[item.name, item.type, item.status].filter(Boolean).join(' · ')}
+                </option>
+              ))}
+            </select>
+            <div className="mobileFieldHint">Если поломка относится к конкретному оборудованию, выберите его из списка точки.</div>
+          </label>
+
+          <label>
             Категория *
             <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} disabled={isBootstrapping || !activeCategories.length}>
               {activeCategories.length === 0 ? <option value="">—</option> : null}
@@ -477,6 +543,36 @@ export function MobileCreateTicket() {
             </select>
             <div className="mobileFieldHint">По категории подбирается тип работ и исполнитель.</div>
           </label>
+
+          {canAssignOnCreate ? (
+            <div className="mobileCard" style={{ padding: 12 }}>
+              <label>
+                После создания
+                <select value={postCreateAction} onChange={(e) => setPostCreateAction(e.target.value as 'leave_unassigned' | 'assign_employee')} disabled={createM.isPending}>
+                  <option value="leave_unassigned">Оставить без назначения</option>
+                  <option value="assign_employee">Назначить сотруднику</option>
+                </select>
+              </label>
+              {postCreateAction === 'assign_employee' ? (
+                <label>
+                  Исполнитель
+                  <select
+                    value={assignTechnicianId}
+                    onChange={(e) => setAssignTechnicianId(e.target.value)}
+                    disabled={createM.isPending || createCandidatesQ.isFetching || createAssignmentCandidates.length === 0}
+                  >
+                    {createAssignmentCandidates.length === 0 ? <option value="">Нет доступных сотрудников</option> : null}
+                    {createAssignmentCandidates.map((candidate) => (
+                      <option key={candidate.id} value={candidate.id}>
+                        {[candidate.firstName, candidate.lastName, candidate.email].filter(Boolean).join(' ') || candidate.id}
+                        {candidate.matched ? ' · рекомендован' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+            </div>
+          ) : null}
 
           {!isTechnician && selectedCategory?.name ? (
             <CategoryGuidancePanel categoryName={selectedCategory.name} variant="mobile" />

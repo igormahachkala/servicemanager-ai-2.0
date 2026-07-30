@@ -48,6 +48,8 @@ export function CreateTicketPage() {
   const [locationId, setLocationId] = useState('')
   const [equipmentId, setEquipmentId] = useState('')
   const [categoryId, setCategoryId] = useState('')
+  const [postCreateAction, setPostCreateAction] = useState<'leave_unassigned' | 'assign_employee'>('leave_unassigned')
+  const [assignTechnicianId, setAssignTechnicianId] = useState('')
   const [urgency, setUrgency] = useState<'URGENT' | 'NOT_URGENT'>('NOT_URGENT')
   const [requesterName, setRequesterName] = useState('')
   const [requesterPhone, setRequesterPhone] = useState('')
@@ -106,6 +108,7 @@ export function CreateTicketPage() {
       : observerCompanyId
         ? 'observer'
         : 'tenant'
+  const selectedCreateClientCompanyId = isTechnician ? clientCompanyId : effectiveClientCompanyId
 
   useEffect(() => {
     api.persistScopeFromSearchParams(new URLSearchParams(location.search), meQ.data)
@@ -143,9 +146,23 @@ export function CreateTicketPage() {
       (technicianContextsQ.data || []).length === 0,
   })
   const equipmentQ = useQuery({
-    queryKey: ['equipment-by-location', locationId],
-    queryFn: () => api.equipmentByLocation(locationId),
+    queryKey: ['equipment-by-location', selectedCreateClientCompanyId, locationId],
+    queryFn: () => api.equipmentByLocation(locationId, selectedCreateClientCompanyId || undefined),
     enabled: !!locationId,
+  })
+  const canAssignOnCreate =
+    !!meQ.data?.role &&
+    companyQ.data?.type === 'PROVIDER' &&
+    ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR'].includes(meQ.data.role) &&
+    !!selectedCreateClientCompanyId
+  const createCandidatesQ = useQuery({
+    queryKey: ['create-assignment-candidates', selectedCreateClientCompanyId, locationId, categoryId],
+    queryFn: () => api.createAssignmentCandidates({
+      clientCompanyId: selectedCreateClientCompanyId || undefined,
+      locationId,
+      categoryId,
+    }),
+    enabled: canAssignOnCreate && !!locationId && !!categoryId,
   })
 
   const technicianContexts = technicianContextsQ.data || []
@@ -208,6 +225,10 @@ export function CreateTicketPage() {
     () => (equipmentQ.data || []).filter((row) => row.locationId === locationId || !row.locationId),
     [equipmentQ.data, locationId],
   )
+  const createAssignmentCandidates = useMemo(
+    () => [...(createCandidatesQ.data?.matched || []), ...(createCandidatesQ.data?.others || [])],
+    [createCandidatesQ.data],
+  )
 
   useEffect(() => {
     if (!isTechnician) return
@@ -256,6 +277,20 @@ export function CreateTicketPage() {
     if (equipmentId && !locationEquipment.some((row) => row.id === equipmentId)) setEquipmentId('')
   }, [locationId, equipmentId, locationEquipment])
 
+  useEffect(() => {
+    if (postCreateAction !== 'assign_employee') {
+      setAssignTechnicianId('')
+      return
+    }
+    if (!assignTechnicianId && createAssignmentCandidates.length > 0) {
+      setAssignTechnicianId(createAssignmentCandidates[0].id)
+      return
+    }
+    if (assignTechnicianId && !createAssignmentCandidates.some((candidate) => candidate.id === assignTechnicianId)) {
+      setAssignTechnicianId(createAssignmentCandidates[0]?.id || '')
+    }
+  }, [assignTechnicianId, createAssignmentCandidates, postCreateAction])
+
   const uploadM = useMutation({
     mutationFn: (file: File) => api.uploadDraftTicketAttachment(file),
     onSuccess: (uploaded) => {
@@ -302,7 +337,9 @@ export function CreateTicketPage() {
     setDraftAttachment,
     setDraftAttachmentScopeKey,
     setSelectedFile,
-    fileInputRef,
+    resetFileInput: () => {
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    },
   })
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -337,6 +374,14 @@ export function CreateTicketPage() {
     const base: api.CreateTicketInput = {
       createMode: mode,
       clientCompanyId: isTechnician ? clientCompanyId : (linkedClientCompanyId || observerCompanyId) || undefined,
+      postCreateAction: submitActionRef.current === 'createAndClaim'
+        ? 'claim_self'
+        : canAssignOnCreate
+          ? postCreateAction
+          : undefined,
+      assignTechnicianId: canAssignOnCreate && postCreateAction === 'assign_employee'
+        ? assignTechnicianId || undefined
+        : undefined,
       locationId,
       categoryId,
       requesterName: requesterName.trim() || undefined,
@@ -372,6 +417,9 @@ export function CreateTicketPage() {
     if (!activeCategories.some((row) => row.id === payload.categoryId)) {
       return 'Категория не входит в текущий scope. Обновите выбор категории.'
     }
+    if (payload.postCreateAction === 'assign_employee' && !payload.assignTechnicianId) {
+      return 'Выберите сотрудника для назначения или оставьте заявку без назначения.'
+    }
     if (payload.attachmentIds?.length) {
       if (!draftAttachment) return 'Фото в форме устарело. Загрузите фото повторно.'
       if (draftAttachmentScopeKey && draftAttachmentScopeKey !== currentCreateScopeKey) {
@@ -390,7 +438,6 @@ export function CreateTicketPage() {
     if (createM.isPending) return
     setErr(null)
     setSuccessPayload(null)
-    submitActionRef.current = 'create'
     if (!canCreateByRole) {
       setErr('Эта роль не может создавать заявки')
       return
@@ -471,6 +518,8 @@ export function CreateTicketPage() {
     setPointName('')
     setSlaMinutes('')
     setEquipmentId('')
+    setPostCreateAction('leave_unassigned')
+    setAssignTechnicianId('')
   }
 
   const isBusy = createM.isPending || uploadM.isPending || deleteDraftM.isPending
@@ -628,6 +677,40 @@ export function CreateTicketPage() {
             </select>
           </label>
 
+          {canAssignOnCreate ? (
+            <div className="panel" style={{ padding: 12 }}>
+              <div style={{ fontWeight: 700, marginBottom: 10 }}>После создания</div>
+              <label>
+                Действие
+                <select value={postCreateAction} onChange={(e) => setPostCreateAction(e.target.value as 'leave_unassigned' | 'assign_employee')} disabled={isBusy}>
+                  <option value="leave_unassigned">Оставить без назначения</option>
+                  <option value="assign_employee">Назначить сотруднику</option>
+                </select>
+              </label>
+              {postCreateAction === 'assign_employee' ? (
+                <label>
+                  Исполнитель
+                  <select
+                    value={assignTechnicianId}
+                    onChange={(e) => setAssignTechnicianId(e.target.value)}
+                    disabled={isBusy || createCandidatesQ.isFetching || createAssignmentCandidates.length === 0}
+                  >
+                    {createAssignmentCandidates.length === 0 ? <option value="">Нет доступных сотрудников</option> : null}
+                    {createAssignmentCandidates.map((candidate) => (
+                      <option key={candidate.id} value={candidate.id}>
+                        {[candidate.firstName, candidate.lastName, candidate.email].filter(Boolean).join(' ') || candidate.id}
+                        {candidate.matched ? ' · рекомендован' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+              {createCandidatesQ.isError ? (
+                <div className="alert">{(createCandidatesQ.error as any)?.message || String(createCandidatesQ.error)}</div>
+              ) : null}
+            </div>
+          ) : null}
+
           {mode === 'full' ? (
             <>
               <label>
@@ -711,7 +794,11 @@ export function CreateTicketPage() {
           </div>
 
           <div className="uiActions">
-            <button type="submit" disabled={!canCreateByRole || isBusy || isBootstrapping || noCategories || noLocations || !locationId || (isTechnician && !clientCompanyId)}>
+            <button
+              type="submit"
+              onClick={() => { submitActionRef.current = 'create' }}
+              disabled={!canCreateByRole || isBusy || isBootstrapping || noCategories || noLocations || !locationId || (isTechnician && !clientCompanyId)}
+            >
               {createM.isPending ? 'Отправляем...' : 'Создать заявку'}
             </button>
             {isTechnician ? (

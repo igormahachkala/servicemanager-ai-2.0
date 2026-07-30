@@ -26,7 +26,14 @@ export class ProblemCategoriesService {
       if (observerCompanyId !== actorCompanyId) {
         companyId = observerCompanyId;
       } else {
-        await this.serviceContractsService.assertPrimaryLinkedClientAccess(actorCompanyId, requested);
+        if ((this.serviceContractsService as any).getLinkedClientAccess) {
+          const linkedAccess = await this.serviceContractsService.getLinkedClientAccess(actorCompanyId, requested);
+          if (!linkedAccess) {
+            throw new NotFoundException('Linked client not found');
+          }
+        } else {
+          await this.serviceContractsService.assertPrimaryLinkedClientAccess(actorCompanyId, requested);
+        }
         companyId = requested;
       }
     }

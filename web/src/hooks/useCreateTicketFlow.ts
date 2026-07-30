@@ -1,6 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
-import { useRef, type RefObject } from 'react'
+import { useRef } from 'react'
 import * as api from '../lib/api'
 import { pushToast } from '../lib/appToast'
 import { mapTicketActionError } from '../lib/ticketOperationalErrors'
@@ -24,12 +23,11 @@ export type UseCreateTicketFlowParams = {
   setDraftAttachment: (v: api.DraftTicketAttachment | null) => void
   setDraftAttachmentScopeKey: (v: string) => void
   setSelectedFile: (v: File | null) => void
-  fileInputRef: RefObject<HTMLInputElement | null>
+  resetFileInput: () => void
 }
 
 export function useCreateTicketFlow(p: UseCreateTicketFlowParams) {
   const qc = useQueryClient()
-  const nav = useNavigate()
   const submitActionRef = useRef<'create' | 'createAndClaim'>('create')
 
   const createM = useMutation({
@@ -52,23 +50,14 @@ export function useCreateTicketFlow(p: UseCreateTicketFlowParams) {
       submitActionRef.current = 'create'
 
       if (submitAction === 'createAndClaim' && p.isTechnician) {
-        try {
-          await api.claim(createdId, p.buildTicketScope())
-          p.onCreateSuccess({
-            ticketId: createdId,
-            ticketNumber: created.ticket?.ticketNumber,
-            autoAssigned: true,
-            generatedTitle: created.generated?.title,
-          })
-          p.clearForNextCreate()
-          return
-        } catch (claimError: unknown) {
-          const raw = claimError instanceof Error ? claimError.message : String(claimError)
-          p.setErr(mapTicketActionError(raw))
-          pushToast('Заявка создана, но взять в работу не удалось — откройте карточку', 'error')
-          nav(p.buildTicketLink(createdId))
-          return
-        }
+        p.onCreateSuccess({
+          ticketId: createdId,
+          ticketNumber: created.ticket?.ticketNumber,
+          autoAssigned: true,
+          generatedTitle: created.generated?.title,
+        })
+        p.clearForNextCreate()
+        return
       }
 
       p.onCreateSuccess({
@@ -85,7 +74,7 @@ export function useCreateTicketFlow(p: UseCreateTicketFlowParams) {
         p.setDraftAttachment(null)
         p.setDraftAttachmentScopeKey('')
         p.setSelectedFile(null)
-        if (p.fileInputRef.current) p.fileInputRef.current.value = ''
+        p.resetFileInput()
         p.setErr(
           'Не удалось привязать фото: вложение устарело для текущего контура. Загрузите фото заново.',
         )

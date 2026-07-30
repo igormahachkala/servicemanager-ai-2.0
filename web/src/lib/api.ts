@@ -533,7 +533,7 @@ export type AssignmentDecisionItem = {
 }
 
 export type AssignmentCandidatesResponse = {
-  ticketId: string
+  ticketId: string | null
   category: {
     id: string
     name: string
@@ -793,6 +793,8 @@ export type TimelineResponse = {
 export type CreateTicketInput = {
   locationId: string
   createMode?: 'quick' | 'full'
+  postCreateAction?: 'leave_unassigned' | 'claim_self' | 'assign_employee'
+  assignTechnicianId?: string | null
   equipmentId?: string | null
   categoryId: string
   urgency?: TicketUrgency
@@ -2772,6 +2774,18 @@ export async function assignmentCandidates(id: string, scope?: string | TicketSc
   return request<AssignmentCandidatesResponse>(`/tickets/${id}/assignment-candidates${buildTicketScopeSuffix(scope)}`)
 }
 
+export async function createAssignmentCandidates(params: {
+  clientCompanyId?: string
+  locationId: string
+  categoryId: string
+}): Promise<AssignmentCandidatesResponse> {
+  const search = new URLSearchParams()
+  if (params.clientCompanyId) search.set('clientCompanyId', params.clientCompanyId)
+  search.set('locationId', params.locationId)
+  search.set('categoryId', params.categoryId)
+  return request<AssignmentCandidatesResponse>(`/tickets/create-assignment-candidates?${search.toString()}`)
+}
+
 export async function getTicketAssignmentCandidates(id: string, scope?: string | TicketScopeParams): Promise<AssignmentCandidatesResponse> {
   return assignmentCandidates(id, scope)
 }
@@ -3288,8 +3302,11 @@ export type CompleteInspectionRunResponse = {
   run: InspectionRun
   summary: InspectionRunSummary
 }
-export async function equipmentByLocation(locationId: string): Promise<EquipmentListItem[]> {
-  return request<EquipmentListItem[]>('/equipment/location/' + locationId)
+export async function equipmentByLocation(locationId: string, companyId?: string): Promise<EquipmentListItem[]> {
+  const search = new URLSearchParams()
+  if (companyId) search.set('companyId', companyId)
+  const suffix = search.toString() ? `?${search.toString()}` : ''
+  return request<EquipmentListItem[]>('/equipment/location/' + locationId + suffix)
 }
 
 export async function getInspectionTemplates(): Promise<InspectionTemplate[]> {

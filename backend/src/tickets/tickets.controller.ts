@@ -202,6 +202,22 @@ export class TicketsController {
     )
   }
 
+  @Get('create-assignment-candidates')
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR)
+  @RequirePermission(PERMISSIONS.TICKETS_ASSIGN)
+  createAssignmentCandidates(
+    @Req() req: any,
+    @Query('clientCompanyId') clientCompanyId?: string,
+    @Query('locationId') locationId?: string,
+    @Query('categoryId') categoryId?: string,
+  ) {
+    return this.svc.listCreateAssignmentCandidates(req.user.companyId, req.user, {
+      clientCompanyId,
+      locationId,
+      categoryId,
+    })
+  }
+
   @Get(':id')
   @Roles(
     UserRole.ADMIN,

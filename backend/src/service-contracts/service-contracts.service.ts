@@ -268,6 +268,28 @@ export class ServiceContractsService {
       .filter((companyId): companyId is string => !!companyId)
   }
 
+  async listActiveLinkedClientIds(providerCompanyId: string, roles?: ServiceContractRole[]) {
+    const normalizedProviderCompanyId = this.normalizeId(providerCompanyId)
+    if (!normalizedProviderCompanyId) {
+      return []
+    }
+
+    const contracts = await this.prisma.serviceContract.findMany({
+      where: {
+        providerCompanyId: normalizedProviderCompanyId,
+        status: ServiceContractStatus.ACTIVE,
+        ...(roles && roles.length > 0 ? { role: { in: roles } } : {}),
+      },
+      select: {
+        clientCompanyId: true,
+      },
+    })
+
+    return contracts
+      .map((contract) => this.normalizeId(contract.clientCompanyId))
+      .filter((companyId): companyId is string => !!companyId)
+  }
+
   async listSecondaryLinkedClientIds(providerCompanyId: string): Promise<string[]> {
     const normalized = this.normalizeId(providerCompanyId)
     if (!normalized) return []

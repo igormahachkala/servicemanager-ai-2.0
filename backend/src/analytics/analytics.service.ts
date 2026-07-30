@@ -1,11 +1,11 @@
 ﻿import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
-import { TicketSource, TicketStatus, UserRole } from '@prisma/client'
+import { Prisma, ServiceContractRole, TicketSource, TicketStatus, UserRole } from '@prisma/client'
 
 import { PrismaService } from '../prisma/prisma.service'
 import { TimelineService } from '../timeline/timeline.service'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
 import { isPlatformObserverScope, resolveObserverScopeCompanyId } from '../policy/policy.utils'
-import { resolveActorLocationScope } from '../tickets/ticket-access.utils'
+import { buildSecondaryOperationalTicketWhere, resolveActorLocationScope } from '../tickets/ticket-access.utils'
 import { EXECUTOR_CAPABLE_ROLES } from '../common/executor.utils'
 
 @Injectable()
@@ -16,7 +16,15 @@ export class AnalyticsService {
     private readonly serviceContractsService: ServiceContractsService,
   ) {}
 
-  private async resolveScopedTicketWhere(actorCompanyId: string, actorUserId: string, actorRole: UserRole, scopeCompanyId: string) {
+  private async resolveScopedTicketWhere(
+    actorCompanyId: string,
+    actorUserId: string,
+    actorRole: UserRole,
+    scope: {
+      scopeCompanyId: string
+      visibilityMode: 'tenant' | 'provider_primary' | 'provider_secondary' | 'platform_observer'
+    },
+  ): Promise<Prisma.TicketWhereInput> {
     const locationScope = await resolveActorLocationScope({
       prisma: this.prisma,
       actor: {
@@ -24,19 +32,45 @@ export class AnalyticsService {
         role: actorRole,
         companyId: actorCompanyId,
       },
-      scopeCompanyId,
+      scopeCompanyId: scope.scopeCompanyId,
     })
 
-    return {
-      companyId: scopeCompanyId,
+    const baseWhere: Prisma.TicketWhereInput = {
+      companyId: scope.scopeCompanyId,
       ...(locationScope.mode === 'bound_locations'
         ? { locationId: { in: locationScope.locationIds } }
         : {}),
     }
+    if (locationScope.mode === 'restricted_empty') {
+      return { AND: [baseWhere, { id: { equals: '__no_access__' } }] }
+    }
+
+    if (scope.visibilityMode !== 'provider_secondary') {
+      return baseWhere
+    }
+
+    const secondaryWhere = await buildSecondaryOperationalTicketWhere({
+      prisma: this.prisma,
+      serviceContractsService: this.serviceContractsService,
+      providerCompanyId: actorCompanyId,
+      linkedClientCompanyId: scope.scopeCompanyId,
+      actor: {
+        id: actorUserId,
+        role: actorRole,
+        companyId: actorCompanyId,
+      },
+    })
+
+    return secondaryWhere
+      ? { AND: [baseWhere, secondaryWhere] }
+      : { AND: [baseWhere, { id: { equals: '__no_access__' } }] }
   }
 
   async getCategoriesAnalytics(companyId: string, actorUserId: string, actorRole: UserRole) {
-    const ticketWhere = await this.resolveScopedTicketWhere(companyId, actorUserId, actorRole, companyId)
+    const ticketWhere = await this.resolveScopedTicketWhere(companyId, actorUserId, actorRole, {
+      scopeCompanyId: companyId,
+      visibilityMode: 'tenant',
+    })
     const categories = await this.prisma.problemCategory.findMany({
       where: { companyId },
       select: { id: true, name: true },
@@ -77,7 +111,10 @@ export class AnalyticsService {
   }
 
   async getSpecializationsAnalytics(companyId: string, actorUserId: string, actorRole: UserRole) {
-    const ticketWhere = await this.resolveScopedTicketWhere(companyId, actorUserId, actorRole, companyId)
+    const ticketWhere = await this.resolveScopedTicketWhere(companyId, actorUserId, actorRole, {
+      scopeCompanyId: companyId,
+      visibilityMode: 'tenant',
+    })
     const specializations = await this.prisma.specialization.findMany({
       where: { companyId },
       select: { id: true, name: true },
@@ -139,7 +176,10 @@ export class AnalyticsService {
   }
 
   async getWorkloadAnalytics(companyId: string, actorUserId: string, actorRole: UserRole) {
-    const ticketWhere = await this.resolveScopedTicketWhere(companyId, actorUserId, actorRole, companyId)
+    const ticketWhere = await this.resolveScopedTicketWhere(companyId, actorUserId, actorRole, {
+      scopeCompanyId: companyId,
+      visibilityMode: 'tenant',
+    })
     const categories = await this.prisma.problemCategory.findMany({
       where: { companyId },
       select: { id: true, name: true },
@@ -219,7 +259,7 @@ export class AnalyticsService {
   async overview(actorCompanyId: string, actorUserId: string, actorRole: UserRole, companyId?: string, linkedClientCompanyId?: string) {
     const scope = await this.resolveScope(actorCompanyId, actorRole, companyId, linkedClientCompanyId)
     const scopeCompanyId = scope.scopeCompanyId
-    const ticketWhere = await this.resolveScopedTicketWhere(actorCompanyId, actorUserId, actorRole, scopeCompanyId)
+    const ticketWhere = await this.resolveScopedTicketWhere(actorCompanyId, actorUserId, actorRole, scope)
     const now = new Date()
     const TICKETS_LIMIT = 2000
 
@@ -269,6 +309,7 @@ export class AnalyticsService {
         id: true,
         createdAt: true,
         assignedTechnicianId: true,
+        assignedTechnician: { select: { companyId: true } },
         status: true,
         source: true,
         publicRequestType: true,
@@ -285,8 +326,12 @@ export class AnalyticsService {
     const createdAtById = new Map<string, Date>()
     for (const t of tickets) createdAtById.set(t.id, t.createdAt)
 
+    const workforceCompanyId =
+      scope.visibilityMode === 'provider_primary' || scope.visibilityMode === 'provider_secondary'
+        ? actorCompanyId
+        : scopeCompanyId
     const technicians = await this.prisma.user.findMany({
-      where: { companyId: scopeCompanyId, role: 'TECHNICIAN' },
+      where: { companyId: workforceCompanyId, role: 'TECHNICIAN' },
       select: { id: true, email: true },
       orderBy: { createdAt: 'asc' },
     })
@@ -320,7 +365,7 @@ export class AnalyticsService {
         throughputByTechnician: [],
         note: 'overview v7 (platform observer + provider relationship aware + public intake slices)',
         now,
-        meta: { scopeCompanyId, visibilityMode: scope.visibilityMode },
+        meta: { scopeCompanyId, visibilityMode: scope.visibilityMode, workforceCompanyId },
       }
     }
 
@@ -369,6 +414,7 @@ export class AnalyticsService {
         ...ticketWhere,
         status: { in: [TicketStatus.ASSIGNED, TicketStatus.IN_PROGRESS] },
         assignedTechnicianId: { not: null },
+        assignedTechnician: { companyId: workforceCompanyId },
       },
       select: { assignedTechnicianId: true, status: true },
     })
@@ -400,6 +446,7 @@ export class AnalyticsService {
     const doneByTech = new Map<string, number>()
     for (const t of tickets) {
       if (t.status !== TicketStatus.DONE || !t.assignedTechnicianId) continue
+      if (t.assignedTechnician?.companyId !== workforceCompanyId) continue
       doneByTech.set(t.assignedTechnicianId, (doneByTech.get(t.assignedTechnicianId) ?? 0) + 1)
     }
 
@@ -487,7 +534,7 @@ export class AnalyticsService {
       workloadByTechnician,
       throughputByTechnician,
       now,
-      meta: { scopeCompanyId, visibilityMode: scope.visibilityMode },
+      meta: { scopeCompanyId, visibilityMode: scope.visibilityMode, workforceCompanyId },
       note: 'overview v7 (counts + backlog + sla percent + workload + throughput + public intake analytics + relationship-aware provider scope + platform observer)',
     }
   }
@@ -521,11 +568,15 @@ export class AnalyticsService {
       throw new BadRequestException('Linked client analytics is not available')
     }
 
-    if (access.role !== 'PRIMARY') {
-      throw new BadRequestException('Linked client analytics is available only for PRIMARY provider')
+    if (access.role === ServiceContractRole.PRIMARY) {
+      return { scopeCompanyId: linkedClientCompanyId, visibilityMode: 'provider_primary' as const }
     }
 
-    return { scopeCompanyId: linkedClientCompanyId, visibilityMode: 'provider_primary' as const }
+    if (access.role === ServiceContractRole.SECONDARY) {
+      return { scopeCompanyId: linkedClientCompanyId, visibilityMode: 'provider_secondary' as const }
+    }
+
+    throw new BadRequestException('Linked client analytics is not available')
   }
 
   async getLocationsAnalytics(
@@ -544,7 +595,11 @@ export class AnalyticsService {
   ) {
     const scope = await this.resolveScope(actorCompanyId, actorRole, params.companyId, params.linkedClientCompanyId)
     const scopeCompanyId = scope.scopeCompanyId
-    const baseWhere = await this.resolveScopedTicketWhere(actorCompanyId, actorUserId, actorRole, scopeCompanyId)
+    const workforceCompanyId =
+      scope.visibilityMode === 'provider_primary' || scope.visibilityMode === 'provider_secondary'
+        ? actorCompanyId
+        : scopeCompanyId
+    const baseWhere = await this.resolveScopedTicketWhere(actorCompanyId, actorUserId, actorRole, scope)
 
     const dateFilter: { gte?: Date; lte?: Date } = {}
     if (params.from) {
@@ -692,7 +747,7 @@ export class AnalyticsService {
         inProgressTotal,
         doneTotal,
       },
-      meta: { scopeCompanyId, visibilityMode: scope.visibilityMode },
+      meta: { scopeCompanyId, visibilityMode: scope.visibilityMode, workforceCompanyId },
     }
   }
 

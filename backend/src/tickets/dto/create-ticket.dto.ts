@@ -1,5 +1,5 @@
 import { TicketPriority, TicketUrgency } from '@prisma/client'
-import { IsArray, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, Max, Min } from 'class-validator'
+import { IsArray, IsEnum, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, Max, Min } from 'class-validator'
 
 import { IsCanonicalUuid } from '../../common/validators/is-canonical-uuid.decorator'
 
@@ -7,6 +7,14 @@ export class CreateTicketDto {
   @IsOptional()
   @IsString()
   createMode?: 'quick' | 'full'
+
+  @IsOptional()
+  @IsIn(['leave_unassigned', 'claim_self', 'assign_employee'])
+  postCreateAction?: 'leave_unassigned' | 'claim_self' | 'assign_employee'
+
+  @IsOptional()
+  @IsCanonicalUuid()
+  assignTechnicianId?: string | null
 
   @IsOptional()
   @IsCanonicalUuid()

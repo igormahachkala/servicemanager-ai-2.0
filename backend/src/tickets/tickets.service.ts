@@ -307,6 +307,14 @@ export class TicketsService {
     return this.assignment.requestAssignment(companyId, userId, role, ticketId, linkedClientCompanyId)
   }
 
+  listCreateAssignmentCandidates(
+    companyId: string,
+    actor: any,
+    params: { clientCompanyId?: string; locationId?: string; categoryId?: string },
+  ) {
+    return this.assignment.listCreateAssignmentCandidates(companyId, actor, params)
+  }
+
   decide(
     actor: { id: string; role: UserRole; companyId: string; accessFlags?: Record<string, any> },
     ticketId: string,

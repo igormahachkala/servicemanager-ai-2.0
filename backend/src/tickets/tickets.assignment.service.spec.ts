@@ -600,3 +600,156 @@ describe('TicketsAssignmentService assignment candidate location scope filtering
     await expect(filter(service, ['tech-foreign-binding'], allowedLocationId)).resolves.toEqual([])
   })
 })
+
+describe('TicketsAssignmentService create post-action policy', () => {
+  function makePrismaMock(opts?: {
+    blocksCount?: number
+    rolePermission?: boolean
+    userPermission?: boolean
+    companyType?: CompanyType
+  }) {
+    return {
+      permissionBlock: { count: jest.fn().mockResolvedValue(opts?.blocksCount ?? 1) },
+      company: {
+        findUnique: jest.fn().mockResolvedValue({ type: opts?.companyType ?? CompanyType.PROVIDER }),
+      },
+      rolePermission: {
+        findFirst: jest.fn().mockResolvedValue(opts?.rolePermission === false ? null : { id: 'role-perm' }),
+      },
+      userPermission: {
+        findFirst: jest.fn().mockResolvedValue(opts?.userPermission ? { id: 'user-perm' } : null),
+      },
+    }
+  }
+
+  function makeService(prisma: any) {
+    return new TicketsAssignmentService(
+      prisma,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    )
+  }
+
+  const baseCandidates = [
+    { id: 'master-1', email: 'master@example.test', role: UserRole.MASTER, companyId: 'provider-1', matched: true },
+    { id: 'tech-1', email: 'tech@example.test', role: UserRole.TECHNICIAN, companyId: 'provider-1', matched: true },
+    { id: 'foreign-1', email: 'foreign@example.test', role: UserRole.TECHNICIAN, companyId: 'provider-foreign', matched: true },
+  ]
+
+  it('allows create+claim only when the creator is an eligible in-scope candidate', async () => {
+    const svc = makeService(makePrismaMock())
+
+    await expect((svc as any).assertCreatePostActionAllowed({
+      actorCompanyId: 'provider-1',
+      actorUserId: 'tech-1',
+      actorRole: UserRole.TECHNICIAN,
+      action: 'claim_self',
+      technicianId: null,
+      candidates: baseCandidates,
+      providerCompanyId: 'provider-1',
+    })).resolves.toBe('tech-1')
+  })
+
+  it('denies create+claim when TICKETS_CLAIM is missing', async () => {
+    const svc = makeService(makePrismaMock({ rolePermission: false }))
+
+    await expect((svc as any).assertCreatePostActionAllowed({
+      actorCompanyId: 'provider-1',
+      actorUserId: 'tech-1',
+      actorRole: UserRole.TECHNICIAN,
+      action: 'claim_self',
+      technicianId: null,
+      candidates: baseCandidates,
+      providerCompanyId: 'provider-1',
+    })).rejects.toMatchObject({
+      response: expect.objectContaining({ message: 'Missing permission: TICKETS_CLAIM' }),
+    })
+  })
+
+  it('denies create+claim when the creator is outside the location/category candidate scope', async () => {
+    const svc = makeService(makePrismaMock())
+
+    await expect((svc as any).assertCreatePostActionAllowed({
+      actorCompanyId: 'provider-1',
+      actorUserId: 'dispatcher-1',
+      actorRole: UserRole.DISPATCHER,
+      action: 'claim_self',
+      technicianId: null,
+      candidates: baseCandidates,
+      providerCompanyId: 'provider-1',
+    })).rejects.toThrow('Current user is not available for this ticket location/category')
+  })
+
+  it('allows create+assign to an in-scope employee of the actor provider company', async () => {
+    const svc = makeService(makePrismaMock())
+
+    await expect((svc as any).assertCreatePostActionAllowed({
+      actorCompanyId: 'provider-1',
+      actorUserId: 'master-1',
+      actorRole: UserRole.MASTER,
+      action: 'assign_employee',
+      technicianId: 'tech-1',
+      candidates: baseCandidates,
+      providerCompanyId: 'provider-1',
+    })).resolves.toBe('tech-1')
+  })
+
+  it('denies create+assign to a foreign provider employee even when they are otherwise bound', async () => {
+    const svc = makeService(makePrismaMock())
+
+    await expect((svc as any).assertCreatePostActionAllowed({
+      actorCompanyId: 'provider-1',
+      actorUserId: 'master-1',
+      actorRole: UserRole.MASTER,
+      action: 'assign_employee',
+      technicianId: 'foreign-1',
+      candidates: baseCandidates,
+      providerCompanyId: 'provider-1',
+    })).rejects.toThrow('Technician not found')
+  })
+
+  it('denies create+assign when TICKETS_ASSIGN is missing', async () => {
+    const svc = makeService(makePrismaMock({ rolePermission: false }))
+
+    await expect((svc as any).assertCreatePostActionAllowed({
+      actorCompanyId: 'provider-1',
+      actorUserId: 'master-1',
+      actorRole: UserRole.MASTER,
+      action: 'assign_employee',
+      technicianId: 'tech-1',
+      candidates: baseCandidates,
+      providerCompanyId: 'provider-1',
+    })).rejects.toMatchObject({
+      response: expect.objectContaining({ message: 'Missing permission: TICKETS_ASSIGN' }),
+    })
+  })
+
+  it('keeps explicit leave_unassigned from auto-assigning', () => {
+    const svc = makeService(makePrismaMock())
+
+    expect((svc as any).resolveCreatePostAction({
+      requestedAction: 'leave_unassigned',
+      assignTechnicianId: null,
+      shouldAutoAssign: true,
+    })).toEqual({
+      action: 'leave_unassigned',
+      technicianId: null,
+      autoAssignAllowed: false,
+    })
+  })
+
+  it('requires assignTechnicianId for assign_employee', () => {
+    const svc = makeService(makePrismaMock())
+
+    expect(() => (svc as any).resolveCreatePostAction({
+      requestedAction: 'assign_employee',
+      assignTechnicianId: null,
+      shouldAutoAssign: false,
+    })).toThrow('assignTechnicianId is required for assign_employee')
+  })
+})

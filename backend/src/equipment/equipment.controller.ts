@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 
 import { JwtAuthGuard } from '../auth/jwt.guard';
@@ -36,8 +36,8 @@ export class EquipmentController {
     UserRole.TERRITORIAL_MANAGER,
   )
   @RequirePermission(PERMISSIONS.LOCATIONS_VIEW)
-  findAllByLocation(@Req() req: any, @Param('locationId') locationId: string) {
-    return this.svc.findAllByLocation(req.user.companyId, req.user.id, req.user.role as UserRole, locationId);
+  findAllByLocation(@Req() req: any, @Param('locationId') locationId: string, @Query('companyId') companyId?: string) {
+    return this.svc.findAllByLocation(req.user.companyId, req.user.id, req.user.role as UserRole, locationId, companyId);
   }
 
   @Get(':id')
@@ -51,8 +51,8 @@ export class EquipmentController {
     UserRole.TERRITORIAL_MANAGER,
   )
   @RequirePermission(PERMISSIONS.LOCATIONS_VIEW)
-  findOne(@Req() req: any, @Param('id') id: string) {
-    return this.svc.findOne(req.user.companyId, req.user.id, req.user.role as UserRole, id);
+  findOne(@Req() req: any, @Param('id') id: string, @Query('companyId') companyId?: string) {
+    return this.svc.findOne(req.user.companyId, req.user.id, req.user.role as UserRole, id, companyId);
   }
 
   @Patch(':id')
