@@ -712,6 +712,9 @@ export class TechniciansService {
     if (scopeCompanyId === actorCompanyId) {
       return
     }
-    await this.serviceContractsService.assertPrimaryLinkedClientAccess(actorCompanyId, scopeCompanyId)
+    const access = await this.serviceContractsService.getLinkedClientAccess(actorCompanyId, scopeCompanyId)
+    if (!access) {
+      throw new NotFoundException('Linked client not found')
+    }
   }
 }
