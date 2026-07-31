@@ -310,6 +310,14 @@ function makeService(
   };
 
   const serviceContractsService: any = {
+    getLinkedClientAccess: jest.fn(
+      async (_providerCompanyId: string, clientCompanyId: string) =>
+        state.linkedClients.find(
+          (client) =>
+            client.linkedClientCompanyId === clientCompanyId &&
+            client.status === ServiceContractStatus.ACTIVE,
+        ) ?? null,
+    ),
     listPrimaryLinkedClientIds: jest.fn(async () =>
       state.linkedClients
         .filter(
@@ -387,6 +395,90 @@ describe('TechniciansService location bindings', () => {
         { userId: 'tech-user', locationId: 'loc-a', companyId: 'provider-co' },
       ],
       skipDuplicates: true,
+    });
+  });
+
+  it('saves two selected locations and returns both from the read endpoint', async () => {
+    const { service, state } = makeService();
+
+    const response = await service.setLocationBindings(
+      'provider-co',
+      'tech-user',
+      {
+        companyId: 'client-co',
+        locationIds: ['loc-a', 'loc-b'],
+      },
+    );
+
+    expect(response).toMatchObject({
+      companyId: 'client-co',
+      locationIds: ['loc-a', 'loc-b'],
+      locationScope: 'SELECTED_LOCATIONS',
+      locationScopeMode: 'SELECTED_LOCATIONS',
+      hasExplicitRestrictions: true,
+    });
+    expect(state.bindings).toEqual([
+      expect.objectContaining({
+        userId: 'tech-user',
+        companyId: 'provider-co',
+        locationId: 'loc-a',
+      }),
+      expect.objectContaining({
+        userId: 'tech-user',
+        companyId: 'provider-co',
+        locationId: 'loc-b',
+      }),
+    ]);
+
+    await expect(
+      service.getLocationBindings('provider-co', 'tech-user', 'client-co'),
+    ).resolves.toMatchObject({
+      companyId: 'client-co',
+      locationIds: ['loc-a', 'loc-b'],
+      locationScopeMode: 'SELECTED_LOCATIONS',
+    });
+  });
+
+  it('replaces a saved selected-location list without leaving stale or duplicate bindings', async () => {
+    const { service, state } = makeService();
+
+    await service.setLocationBindings('provider-co', 'tech-user', {
+      companyId: 'client-co',
+      locationIds: ['loc-a', 'loc-b'],
+    });
+    await service.setLocationBindings('provider-co', 'tech-user', {
+      companyId: 'client-co',
+      locationIds: ['loc-b', 'loc-b'],
+    });
+
+    expect(state.bindings).toEqual([
+      expect.objectContaining({
+        userId: 'tech-user',
+        companyId: 'provider-co',
+        locationId: 'loc-b',
+      }),
+    ]);
+    await expect(
+      service.getLocationBindings('provider-co', 'tech-user', 'client-co'),
+    ).resolves.toMatchObject({
+      companyId: 'client-co',
+      locationIds: ['loc-b'],
+      locationScope: 'SELECTED_LOCATIONS',
+      locationScopeMode: 'SELECTED_LOCATIONS',
+    });
+  });
+
+  it('keeps ALL company locations as the legacy read mode when no explicit scope or bindings exist', async () => {
+    const { service } = makeService();
+
+    await expect(
+      service.getLocationBindings('provider-co', 'tech-user', 'client-co'),
+    ).resolves.toMatchObject({
+      companyId: 'client-co',
+      locationIds: [],
+      locationScope: 'ALL_COMPANY_LOCATIONS',
+      locationScopeMode: 'LEGACY_AUTO',
+      hasExplicitRestrictions: false,
     });
   });
 
@@ -815,7 +907,7 @@ describe('TechniciansService location bindings', () => {
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
-  it('rejects SECONDARY and inactive linked-client contracts for direct saves', async () => {
+  it('allows active SECONDARY linked-client contracts for direct saves and rereads selected bindings', async () => {
     const secondary = makeService({
       linkedClients: [
         {
@@ -825,6 +917,48 @@ describe('TechniciansService location bindings', () => {
         },
       ],
     });
+
+    await expect(
+      secondary.service.setLocationBindings('provider-co', 'tech-user', {
+        companyId: 'client-co',
+        locationIds: ['loc-a'],
+      }),
+    ).resolves.toMatchObject({
+      companyId: 'client-co',
+      locationIds: ['loc-a'],
+      locationScope: 'SELECTED_LOCATIONS',
+      locationScopeMode: 'SELECTED_LOCATIONS',
+      hasExplicitRestrictions: true,
+    });
+
+    expect(secondary.state.bindings).toEqual([
+      expect.objectContaining({
+        userId: 'tech-user',
+        companyId: 'provider-co',
+        locationId: 'loc-a',
+      }),
+    ]);
+    expect(secondary.state.accessScopes).toEqual([
+      {
+        userId: 'tech-user',
+        companyId: 'provider-co',
+        locationMode: UserAccessLocationMode.SELECTED_LOCATIONS,
+      },
+    ]);
+    await expect(
+      secondary.service.getLocationBindings(
+        'provider-co',
+        'tech-user',
+        'client-co',
+      ),
+    ).resolves.toMatchObject({
+      companyId: 'client-co',
+      locationIds: ['loc-a'],
+      locationScopeMode: 'SELECTED_LOCATIONS',
+    });
+  });
+
+  it('rejects inactive linked-client contracts for direct saves', async () => {
     const inactive = makeService({
       linkedClients: [
         {
@@ -835,12 +969,6 @@ describe('TechniciansService location bindings', () => {
       ],
     });
 
-    await expect(
-      secondary.service.setLocationBindings('provider-co', 'tech-user', {
-        companyId: 'client-co',
-        locationIds: ['loc-a'],
-      }),
-    ).rejects.toBeInstanceOf(NotFoundException);
     await expect(
       inactive.service.setLocationBindings('provider-co', 'tech-user', {
         companyId: 'client-co',

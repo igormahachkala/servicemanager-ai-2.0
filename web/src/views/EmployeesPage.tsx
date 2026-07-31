@@ -165,7 +165,7 @@ export function EmployeesPage() {
   const providerLinkedClientOptions = useMemo(
     () =>
       (linkedClientsQ.data || [])
-        .filter((item) => item.status === 'ACTIVE' && item.role === 'PRIMARY')
+        .filter((item) => item.status === 'ACTIVE')
         .map((item) => ({ id: item.clientCompany.id, name: item.clientCompany.name })),
     [linkedClientsQ.data],
   )
