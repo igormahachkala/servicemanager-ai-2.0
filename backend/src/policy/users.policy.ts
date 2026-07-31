@@ -98,4 +98,22 @@ export class UsersPolicy {
       },
     } as const;
   }
+
+  static selectPublicUserWithLocationScope() {
+    return {
+      ...this.selectPublicUser(),
+      locationBindings: {
+        select: {
+          companyId: true,
+          locationId: true,
+        },
+      },
+      accessScopes: {
+        select: {
+          companyId: true,
+          locationMode: true,
+        },
+      },
+    } as const;
+  }
 }

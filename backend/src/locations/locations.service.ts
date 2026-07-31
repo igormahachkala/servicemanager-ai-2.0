@@ -4,7 +4,12 @@ import { CompanyType, UserRole } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { resolveObserverScopeCompanyId } from '../policy/policy.utils'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
-import { resolveActorLocationScope } from '../tickets/ticket-access.utils'
+import {
+  isLocationAllowedByLocationScope,
+  isLocationScopeClosed,
+  resolveActorLocationScope,
+  type LocationScope,
+} from '../tickets/ticket-access.utils'
 
 type ListInput = {
   q?: string
@@ -38,9 +43,7 @@ export class LocationsService {
       where: {
         clientCompanyId: companyId,
         ...(input.includeDeleted ? {} : { deletedAt: null }),
-        ...(locationScope.mode === 'bound_locations'
-          ? { id: { in: locationScope.locationIds } }
-          : {}),
+        ...this.locationScopeWhere(locationScope),
         ...(typeof isActiveFilter === 'boolean' ? { isActive: isActiveFilter } : {}),
         ...(city ? { city: { equals: city, mode: 'insensitive' } } : {}),
         ...(q
@@ -79,13 +82,14 @@ export class LocationsService {
   async getOne(actorCompanyId: string, actorRole: UserRole, actorUserId: string, id: string, requestedCompanyId?: string) {
     const companyId = await this.resolveReadableCompanyId(actorCompanyId, actorRole, requestedCompanyId)
     const locationScope = await this.resolveLocationScope(actorCompanyId, actorRole, actorUserId, companyId)
+    if (!isLocationAllowedByLocationScope(locationScope, id)) {
+      throw new NotFoundException('Location not found')
+    }
+
     const location = await this.prisma.location.findFirst({
       where: {
         id,
         clientCompanyId: companyId,
-        ...(locationScope.mode === 'bound_locations'
-          ? { id: { in: locationScope.locationIds } }
-          : {}),
       },
       select: this.locationSelect(),
     })
@@ -367,6 +371,12 @@ export class LocationsService {
       },
       scopeCompanyId,
     })
+  }
+
+  private locationScopeWhere(locationScope: LocationScope) {
+    if (locationScope.mode === 'tenant_wide') return {}
+    if (isLocationScopeClosed(locationScope)) return { id: { equals: '__no_access__' } }
+    return { id: { in: locationScope.locationIds } }
   }
 
   private async ensureExists(companyId: string, id: string) {

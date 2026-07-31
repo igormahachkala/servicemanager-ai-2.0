@@ -4,7 +4,7 @@ import { CompanyType, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { resolveObserverScopeCompanyId } from '../policy/policy.utils';
 import { ServiceContractsService } from '../service-contracts/service-contracts.service';
-import { resolveActorLocationScope } from '../tickets/ticket-access.utils';
+import { isLocationAllowedByLocationScope, resolveActorLocationScope } from '../tickets/ticket-access.utils';
 import { EquipmentRepository } from './equipment.repository';
 import { CreateEquipmentDto } from './dto/create-equipment.dto';
 import { UpdateEquipmentDto } from './dto/update-equipment.dto';
@@ -60,7 +60,7 @@ export class EquipmentService {
       },
       scopeCompanyId,
     });
-    if (locationScope.mode === 'bound_locations' && !locationScope.locationIds.includes(locationId)) {
+    if (!isLocationAllowedByLocationScope(locationScope, locationId)) {
       throw new NotFoundException('Location not found');
     }
 
@@ -88,7 +88,7 @@ export class EquipmentService {
       },
       scopeCompanyId,
     });
-    if (locationScope.mode === 'bound_locations' && !locationScope.locationIds.includes(equipment.locationId)) {
+    if (!isLocationAllowedByLocationScope(locationScope, equipment.locationId)) {
       throw new NotFoundException('Equipment not found');
     }
 

@@ -1,4 +1,4 @@
-import { CompanyType, UserRole } from '@prisma/client'
+import { CompanyType, UserAccessLocationMode, UserRole } from '@prisma/client'
 
 import { LocationsService } from './locations.service'
 
@@ -13,6 +13,12 @@ describe('LocationsService location scope', () => {
         findFirst: jest.fn(),
         update: jest.fn(),
         create: jest.fn(),
+      },
+      user: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'user-1' }),
+      },
+      userAccessScope: {
+        findUnique: jest.fn().mockResolvedValue(null),
       },
       userLocationBinding: {
         findMany: jest.fn(),
@@ -114,6 +120,112 @@ describe('LocationsService location scope', () => {
     expect(result).toEqual([
       { id: 'linked-loc', clientCompanyId: 'client-company', name: 'Linked', isActive: true },
     ])
+  })
+
+  it('provider ADMIN with legacy ALL scope sees linked-client locations without binding fallback requirements', async () => {
+    const prisma = makePrismaMock()
+    prisma.company.findUnique.mockImplementation(({ where }: any) =>
+      Promise.resolve({ type: where.id === 'client-company' ? CompanyType.CLIENT : CompanyType.PROVIDER }),
+    )
+    prisma.userAccessScope.findUnique.mockResolvedValue(null)
+    prisma.userLocationBinding.findMany.mockResolvedValue([])
+    prisma.location.findMany.mockResolvedValue([
+      { id: 'loc-1', clientCompanyId: 'client-company', name: 'Allowed 1', isActive: true },
+      { id: 'loc-2', clientCompanyId: 'client-company', name: 'Allowed 2', isActive: true },
+    ])
+    const svc = new LocationsService(prisma as any, makeServiceContractsMock() as any)
+
+    await svc.list('provider-company', UserRole.ADMIN, 'admin-1', {}, 'client-company')
+
+    expect(prisma.location.findMany.mock.calls[0][0].where).toEqual(
+      expect.objectContaining({
+        clientCompanyId: 'client-company',
+      }),
+    )
+    expect(prisma.location.findMany.mock.calls[0][0].where).not.toHaveProperty('id')
+  })
+
+  it('provider ADMIN with SELECTED_LOCATIONS sees only selected linked-client locations', async () => {
+    const prisma = makePrismaMock()
+    prisma.company.findUnique.mockImplementation(({ where }: any) =>
+      Promise.resolve({ type: where.id === 'client-company' ? CompanyType.CLIENT : CompanyType.PROVIDER }),
+    )
+    prisma.userAccessScope.findUnique.mockResolvedValue({
+      locationMode: UserAccessLocationMode.SELECTED_LOCATIONS,
+    })
+    prisma.userLocationBinding.findMany.mockResolvedValue([{ locationId: 'loc-selected' }])
+    prisma.location.findMany.mockResolvedValue([
+      { id: 'loc-selected', clientCompanyId: 'client-company', name: 'Selected', isActive: true },
+    ])
+    const svc = new LocationsService(prisma as any, makeServiceContractsMock() as any)
+
+    await svc.list('provider-company', UserRole.ADMIN, 'admin-1', {}, 'client-company')
+
+    expect(prisma.location.findMany.mock.calls[0][0].where).toEqual(
+      expect.objectContaining({
+        clientCompanyId: 'client-company',
+        id: { in: ['loc-selected'] },
+      }),
+    )
+  })
+
+  it('provider ADMIN with SELECTED_LOCATIONS and no bindings sees no linked-client locations', async () => {
+    const prisma = makePrismaMock()
+    prisma.company.findUnique.mockImplementation(({ where }: any) =>
+      Promise.resolve({ type: where.id === 'client-company' ? CompanyType.CLIENT : CompanyType.PROVIDER }),
+    )
+    prisma.userAccessScope.findUnique.mockResolvedValue({
+      locationMode: UserAccessLocationMode.SELECTED_LOCATIONS,
+    })
+    prisma.userLocationBinding.findMany.mockResolvedValue([])
+    prisma.location.findMany.mockResolvedValue([])
+    const svc = new LocationsService(prisma as any, makeServiceContractsMock() as any)
+
+    const result = await svc.list('provider-company', UserRole.ADMIN, 'admin-1', {}, 'client-company')
+
+    expect(result).toEqual([])
+    expect(prisma.location.findMany.mock.calls[0][0].where).toEqual(
+      expect.objectContaining({
+        clientCompanyId: 'client-company',
+        id: { equals: '__no_access__' },
+      }),
+    )
+  })
+
+  it('provider ADMIN with SELECTED_LOCATIONS cannot read an unselected linked-client location directly', async () => {
+    const prisma = makePrismaMock()
+    prisma.company.findUnique.mockImplementation(({ where }: any) =>
+      Promise.resolve({ type: where.id === 'client-company' ? CompanyType.CLIENT : CompanyType.PROVIDER }),
+    )
+    prisma.userAccessScope.findUnique.mockResolvedValue({
+      locationMode: UserAccessLocationMode.SELECTED_LOCATIONS,
+    })
+    prisma.userLocationBinding.findMany.mockResolvedValue([])
+    const svc = new LocationsService(prisma as any, makeServiceContractsMock() as any)
+
+    await expect(
+      svc.getOne('provider-company', UserRole.ADMIN, 'admin-1', 'loc-forbidden', 'client-company'),
+    ).rejects.toThrow('Location not found')
+    expect(prisma.location.findFirst).not.toHaveBeenCalled()
+  })
+
+  it('inactive provider ADMIN with stale JWT sees no linked-client locations', async () => {
+    const prisma = makePrismaMock()
+    prisma.company.findUnique.mockImplementation(({ where }: any) =>
+      Promise.resolve({ type: where.id === 'client-company' ? CompanyType.CLIENT : CompanyType.PROVIDER }),
+    )
+    prisma.user.findFirst.mockResolvedValue(null)
+    prisma.location.findMany.mockResolvedValue([])
+    const svc = new LocationsService(prisma as any, makeServiceContractsMock() as any)
+
+    await svc.list('provider-company', UserRole.ADMIN, 'admin-1', {}, 'client-company')
+
+    expect(prisma.location.findMany.mock.calls[0][0].where).toEqual(
+      expect.objectContaining({
+        clientCompanyId: 'client-company',
+        id: { equals: '__no_access__' },
+      }),
+    )
   })
 
   it('create: provider in a linked-client scope creates a CLIENT-owned location', async () => {
