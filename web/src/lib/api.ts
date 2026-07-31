@@ -291,6 +291,14 @@ export type UserListItem = {
       isActive?: boolean
     }
   }>
+  locationBindings?: Array<{
+    companyId?: string
+    locationId?: string
+  }>
+  accessScopes?: Array<{
+    companyId?: string
+    locationMode?: 'SELECTED_LOCATIONS' | 'RESTRICTED_EMPTY'
+  }>
 }
 
 export type LocationListItem = {

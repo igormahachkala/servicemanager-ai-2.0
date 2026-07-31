@@ -218,6 +218,33 @@ describe('ticket-access utils SECONDARY provider visibility', () => {
     })).resolves.toEqual({ mode: 'bound_locations', locationIds: [] })
   })
 
+  it('runtime location scope fail-closes inactive ADMIN even with a stale JWT', async () => {
+    const prisma = makePrismaTicketMock()
+    prisma.user.findFirst = jest.fn().mockResolvedValue(null)
+
+    const scope = await resolveActorLocationScope({
+      prisma,
+      actor: {
+        id: 'admin-1',
+        role: UserRole.ADMIN,
+        companyId: providerCompanyId,
+      },
+      scopeCompanyId: clientCompanyId,
+    })
+
+    expect(scope).toEqual({ mode: 'restricted_empty', locationIds: [] })
+    expect(prisma.user.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: 'admin-1',
+          companyId: providerCompanyId,
+          isActive: true,
+          deletedAt: null,
+        }),
+      }),
+    )
+  })
+
   it('TECHNICIAN operational scope rejects inactive JWT actors through the database guard', async () => {
     const prisma = makePrismaTicketMock()
     prisma.user.findFirst = jest.fn(async ({ where }: any) => {
@@ -361,6 +388,29 @@ describe('ticket-access utils SECONDARY provider visibility', () => {
         serviceContractsService: serviceContractsService as any,
         actor: {
           id: 'user-1',
+          role: UserRole.ADMIN,
+          companyId: providerCompanyId,
+        },
+        ticketId,
+        linkedClientCompanyId: clientCompanyId,
+        allowedLinkedClientContractRoles: [ServiceContractRole.PRIMARY, ServiceContractRole.SECONDARY],
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException)
+  })
+
+  it('linked-client detail: SELECTED_LOCATIONS with no bindings denies provider ADMIN direct ticket access', async () => {
+    const prisma = makePrismaTicketMock({
+      accessLocationMode: UserAccessLocationMode.SELECTED_LOCATIONS,
+      ticketLocationId: 'loc-any',
+    })
+    const serviceContractsService = makeServiceContractsService(ServiceContractRole.PRIMARY)
+
+    await expect(
+      resolveReadableTicketAccess({
+        prisma,
+        serviceContractsService: serviceContractsService as any,
+        actor: {
+          id: 'admin-1',
           role: UserRole.ADMIN,
           companyId: providerCompanyId,
         },

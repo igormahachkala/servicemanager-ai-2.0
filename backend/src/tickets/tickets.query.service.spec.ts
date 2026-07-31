@@ -163,6 +163,43 @@ describe('TicketsQueryService.list', () => {
     expect(whereStr).toContain(PROVIDER_ID)
   })
 
+  it('ADMIN linked-client list applies SELECTED_LOCATIONS to one selected location', async () => {
+    spyReadScope.mockResolvedValue(makeManagementScope(CLIENT_ID))
+    spyLocationScope.mockResolvedValue({ mode: 'bound_locations', locationIds: ['loc-selected'] })
+    const rows = [
+      { id: 'ticket-selected', companyId: CLIENT_ID, locationId: 'loc-selected', assignedTechnicianId: null, status: TicketStatus.NEW },
+      { id: 'ticket-forbidden', companyId: CLIENT_ID, locationId: 'loc-forbidden', assignedTechnicianId: null, status: TicketStatus.NEW },
+    ]
+    const prisma = makePrisma()
+    prisma.ticket.findMany.mockImplementation(async ({ where }: any) =>
+      rows.filter((ticket) => ticketMatchesWhere(where, ticket)),
+    )
+    const svc = makeService(prisma)
+
+    const result = await svc.list(PROVIDER_ID, USER_ID, UserRole.ADMIN, undefined, undefined, CLIENT_ID)
+
+    expect(result.map((ticket: any) => ticket.id)).toEqual(['ticket-selected'])
+    expect(JSON.stringify(prisma.ticket.findMany.mock.calls[0][0].where)).toContain('loc-selected')
+  })
+
+  it('ADMIN linked-client list fail-closes SELECTED_LOCATIONS with no bindings', async () => {
+    spyReadScope.mockResolvedValue(makeManagementScope(CLIENT_ID))
+    spyLocationScope.mockResolvedValue({ mode: 'bound_locations', locationIds: [] })
+    const rows = [
+      { id: 'ticket-forbidden', companyId: CLIENT_ID, locationId: 'loc-forbidden', assignedTechnicianId: null, status: TicketStatus.NEW },
+    ]
+    const prisma = makePrisma()
+    prisma.ticket.findMany.mockImplementation(async ({ where }: any) =>
+      rows.filter((ticket) => ticketMatchesWhere(where, ticket)),
+    )
+    const svc = makeService(prisma)
+
+    const result = await svc.list(PROVIDER_ID, USER_ID, UserRole.ADMIN, undefined, undefined, CLIENT_ID)
+
+    expect(result).toEqual([])
+    expect(JSON.stringify(prisma.ticket.findMany.mock.calls[0][0].where)).toContain('__no_access__')
+  })
+
   it('ADMIN with linkedClientCompanyId: passes it through to resolveTicketReadScope', async () => {
     spyReadScope.mockResolvedValue(makeManagementScope(CLIENT_ID))
     const prisma = makePrisma()
@@ -288,6 +325,19 @@ describe('TicketsQueryService.board', () => {
 
     expect(spyTechScope).not.toHaveBeenCalled()
     expect(spyReadScope).toHaveBeenCalled()
+  })
+
+  it('ADMIN linked-client board fail-closes SELECTED_LOCATIONS with no bindings and zero counters', async () => {
+    spyReadScope.mockResolvedValue(makeManagementScope(CLIENT_ID))
+    spyLocationScope.mockResolvedValue({ mode: 'bound_locations', locationIds: [] })
+    const prisma = makePrisma()
+    const svc = makeService(prisma)
+
+    const result = await svc.board(PROVIDER_ID, USER_ID, UserRole.ADMIN, {}, undefined, CLIENT_ID)
+
+    expect(JSON.stringify(prisma.ticket.findMany.mock.calls[0][0].where)).toContain('__no_access__')
+    expect(result.meta.totalTickets).toBe(0)
+    expect(result.columns.every((column) => column.total === 0 && column.cards.length === 0)).toBe(true)
   })
 
   it('columns include sla counters and card arrays', async () => {

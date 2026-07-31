@@ -42,9 +42,13 @@ function pointsWord(count: number) {
 }
 
 function technicianBindingsSummary(user: api.UserListItem) {
-  const bindings = ((user as any).locationBindings || []) as Array<{ locationId?: string }>
+  const bindings = user.locationBindings || []
+  const scopes = user.accessScopes || []
   const locationIds = Array.from(new Set(bindings.map((item) => item.locationId).filter(Boolean)))
-  if (locationIds.length === 0) return 'Все доступные точки'
+  const hasRestrictedEmpty = scopes.some((scope) => scope.locationMode === 'RESTRICTED_EMPTY')
+  const hasSelectedMode = scopes.some((scope) => scope.locationMode === 'SELECTED_LOCATIONS')
+  if (hasRestrictedEmpty || (hasSelectedMode && locationIds.length === 0)) return 'Нет доступных точек'
+  if (!hasSelectedMode && locationIds.length === 0) return 'Все доступные точки'
   return `Ограничен: ${locationIds.length} ${pointsWord(locationIds.length)}`
 }
 
@@ -96,7 +100,7 @@ export function EmployeeList({
         const isLastAdmin = user.role === 'ADMIN' && !isInactive && activeAdminCount <= 1
         const editTitle = displayName(user) === user.email ? 'Редактировать ' + user.email : 'Редактировать ' + displayName(user)
 
-        const isDeleted = !!(user as any).deletedAt
+        const isDeleted = !!user.deletedAt
 
         return (
           <EmployeeCard

@@ -75,12 +75,26 @@ function noAccessWhere(): Prisma.TicketWhereInput {
   return { id: { equals: '__no_access__' } }
 }
 
+export function isLocationScopeClosed(locationScope: LocationScope): boolean {
+  return locationScope.mode === 'restricted_empty' ||
+    (locationScope.mode === 'bound_locations' && locationScope.locationIds.length === 0)
+}
+
+export function isLocationAllowedByLocationScope(
+  locationScope: LocationScope,
+  locationId: string | null | undefined,
+) {
+  if (locationScope.mode === 'tenant_wide') return true
+  if (isLocationScopeClosed(locationScope)) return false
+  return !!locationId && locationScope.locationIds.includes(locationId)
+}
+
 export function applyLocationScopeToTicketWhere(
   where: Prisma.TicketWhereInput,
   locationScope: LocationScope,
 ): Prisma.TicketWhereInput {
   if (locationScope.mode === 'tenant_wide') return where
-  if (locationScope.mode === 'restricted_empty' || locationScope.locationIds.length === 0) {
+  if (isLocationScopeClosed(locationScope)) {
     return normalizeAnd(where, [noAccessWhere()])
   }
   return normalizeAnd(where, [{ locationId: { in: locationScope.locationIds } }])
@@ -91,7 +105,7 @@ function applyLocationScopeToLinkedClientWhere(
   locationScope: LocationScope,
 ): Prisma.TicketWhereInput {
   if (locationScope.mode === 'tenant_wide') return where
-  if (locationScope.mode === 'restricted_empty' || locationScope.locationIds.length === 0) {
+  if (isLocationScopeClosed(locationScope)) {
     return normalizeAnd(where, [noAccessWhere()])
   }
   return normalizeAnd(where, [{ locationId: { in: locationScope.locationIds } }])
@@ -101,9 +115,7 @@ function isTicketAllowedByLocationScope(
   ticket: { locationId: string | null },
   locationScope: LocationScope,
 ) {
-  if (locationScope.mode === 'tenant_wide') return true
-  if (locationScope.mode === 'restricted_empty' || locationScope.locationIds.length === 0) return false
-  return !!ticket.locationId && locationScope.locationIds.includes(ticket.locationId)
+  return isLocationAllowedByLocationScope(locationScope, ticket.locationId)
 }
 
 export async function resolveActorLocationScope(params: {
@@ -131,6 +143,22 @@ export async function resolveActorLocationScope(params: {
    * Для контура linked client ищем привязки по employer companyId + локации клиента.
    */
   const bindingEmployerCompanyId = linkedClientScope ? params.actor.companyId : scopeCompanyId
+
+  const actorState = params.prisma.user?.findFirst
+    ? await params.prisma.user.findFirst({
+        where: {
+          id: params.actor.id,
+          companyId: params.actor.companyId,
+          isActive: true,
+          deletedAt: null,
+        },
+        select: { id: true },
+      })
+    : { id: params.actor.id }
+
+  if (!actorState) {
+    return { mode: 'restricted_empty', locationIds: [] }
+  }
 
   const [accessScope, bindings] = await Promise.all([
     params.prisma.userAccessScope?.findUnique
@@ -213,10 +241,7 @@ export async function assertActorCanUseLocation(params: {
     scopeCompanyId: params.scopeCompanyId,
   })
 
-  if (
-    locationScope.mode === 'restricted_empty' ||
-    (locationScope.mode === 'bound_locations' && !locationScope.locationIds.includes(params.locationId))
-  ) {
+  if (!isLocationAllowedByLocationScope(locationScope, params.locationId)) {
     throw new ForbiddenException('Location is not available in current user scope')
   }
 

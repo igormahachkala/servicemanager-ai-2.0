@@ -5,7 +5,13 @@ import { PrismaService } from '../prisma/prisma.service'
 import { TimelineService } from '../timeline/timeline.service'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
 import { isPlatformObserverScope, resolveObserverScopeCompanyId } from '../policy/policy.utils'
-import { buildSecondaryOperationalTicketWhere, resolveActorLocationScope } from '../tickets/ticket-access.utils'
+import {
+  applyLocationScopeToTicketWhere,
+  buildSecondaryOperationalTicketWhere,
+  isLocationScopeClosed,
+  resolveActorLocationScope,
+  type LocationScope,
+} from '../tickets/ticket-access.utils'
 import { EXECUTOR_CAPABLE_ROLES } from '../common/executor.utils'
 
 @Injectable()
@@ -24,26 +30,15 @@ export class AnalyticsService {
       scopeCompanyId: string
       visibilityMode: 'tenant' | 'provider_primary' | 'provider_secondary' | 'platform_observer'
     },
+    locationScopeOverride?: LocationScope,
   ): Promise<Prisma.TicketWhereInput> {
-    const locationScope = await resolveActorLocationScope({
-      prisma: this.prisma,
-      actor: {
-        id: actorUserId,
-        role: actorRole,
-        companyId: actorCompanyId,
-      },
-      scopeCompanyId: scope.scopeCompanyId,
-    })
-
-    const baseWhere: Prisma.TicketWhereInput = {
-      companyId: scope.scopeCompanyId,
-      ...(locationScope.mode === 'bound_locations'
-        ? { locationId: { in: locationScope.locationIds } }
-        : {}),
-    }
-    if (locationScope.mode === 'restricted_empty') {
-      return { AND: [baseWhere, { id: { equals: '__no_access__' } }] }
-    }
+    const locationScope = locationScopeOverride ?? await this.resolveLocationScope(
+      actorCompanyId,
+      actorUserId,
+      actorRole,
+      scope.scopeCompanyId,
+    )
+    const baseWhere = applyLocationScopeToTicketWhere({ companyId: scope.scopeCompanyId }, locationScope)
 
     if (scope.visibilityMode !== 'provider_secondary') {
       return baseWhere
@@ -64,6 +59,38 @@ export class AnalyticsService {
     return secondaryWhere
       ? { AND: [baseWhere, secondaryWhere] }
       : { AND: [baseWhere, { id: { equals: '__no_access__' } }] }
+  }
+
+  private resolveLocationScope(
+    actorCompanyId: string,
+    actorUserId: string,
+    actorRole: UserRole,
+    scopeCompanyId: string,
+  ) {
+    return resolveActorLocationScope({
+      prisma: this.prisma,
+      actor: {
+        id: actorUserId,
+        role: actorRole,
+        companyId: actorCompanyId,
+      },
+      scopeCompanyId,
+    })
+  }
+
+  private andTicketWhere(where: Prisma.TicketWhereInput, extra: Prisma.TicketWhereInput): Prisma.TicketWhereInput {
+    return Object.keys(extra).length > 0 ? { AND: [where, extra] } : where
+  }
+
+  private applyLocationScopeToLocationWhere(
+    where: Prisma.LocationWhereInput,
+    locationScope: LocationScope,
+  ): Prisma.LocationWhereInput {
+    if (locationScope.mode === 'tenant_wide') return where
+    if (isLocationScopeClosed(locationScope)) {
+      return { AND: [where, { id: { equals: '__no_access__' } }] }
+    }
+    return { AND: [where, { id: { in: locationScope.locationIds } }] }
   }
 
   async getCategoriesAnalytics(companyId: string, actorUserId: string, actorRole: UserRole) {
@@ -599,7 +626,14 @@ export class AnalyticsService {
       scope.visibilityMode === 'provider_primary' || scope.visibilityMode === 'provider_secondary'
         ? actorCompanyId
         : scopeCompanyId
-    const baseWhere = await this.resolveScopedTicketWhere(actorCompanyId, actorUserId, actorRole, scope)
+    const locationScope = await this.resolveLocationScope(actorCompanyId, actorUserId, actorRole, scopeCompanyId)
+    const baseWhere = await this.resolveScopedTicketWhere(
+      actorCompanyId,
+      actorUserId,
+      actorRole,
+      scope,
+      locationScope,
+    )
 
     const dateFilter: { gte?: Date; lte?: Date } = {}
     if (params.from) {
@@ -611,13 +645,12 @@ export class AnalyticsService {
       if (!isNaN(d.getTime())) { d.setHours(23, 59, 59, 999); dateFilter.lte = d }
     }
 
-    const ticketWhere: Record<string, any> = {
-      ...baseWhere,
+    const ticketWhere = this.andTicketWhere(baseWhere, {
       ...(Object.keys(dateFilter).length ? { createdAt: dateFilter } : {}),
       ...(params.locationId ? { locationId: params.locationId } : {}),
       ...(params.categoryId ? { problemCategoryId: params.categoryId } : {}),
-    }
-    const overdueWhere = { ...ticketWhere, slaBreachedAt: { not: null } }
+    })
+    const overdueWhere = this.andTicketWhere(ticketWhere, { slaBreachedAt: { not: null } })
 
     const [
       locations,
@@ -630,11 +663,11 @@ export class AnalyticsService {
       summaryOverdue,
     ] = await Promise.all([
       this.prisma.location.findMany({
-        where: {
+        where: this.applyLocationScopeToLocationWhere({
           clientCompanyId: scopeCompanyId,
           ...(params.locationId ? { id: params.locationId } : {}),
           isActive: true,
-        },
+        }, locationScope),
         select: { id: true, name: true, city: true, address: true },
         orderBy: { name: 'asc' },
       }),

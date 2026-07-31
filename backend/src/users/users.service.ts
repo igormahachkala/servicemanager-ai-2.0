@@ -34,7 +34,7 @@ export class UsersService {
 
     return this.prisma.user.findMany({
       where,
-      select: UsersPolicy.selectPublicUser(),
+      select: UsersPolicy.selectPublicUserWithLocationScope(),
       orderBy: [{ role: 'asc' }, { email: 'asc' }],
     })
   }
@@ -327,7 +327,7 @@ export class UsersService {
   private async getPublicUserById(companyId: string, userId: string) {
     const user = await this.prisma.user.findFirst({
       where: UsersPolicy.byIdWhere(companyId, userId),
-      select: UsersPolicy.selectPublicUser(),
+      select: UsersPolicy.selectPublicUserWithLocationScope(),
     })
 
     if (!user) {
@@ -340,7 +340,7 @@ export class UsersService {
   private async getPublicUserByIdIncludeDeleted(companyId: string, userId: string) {
     const user = await this.prisma.user.findFirst({
       where: { id: userId, companyId },
-      select: UsersPolicy.selectPublicUser(),
+      select: UsersPolicy.selectPublicUserWithLocationScope(),
     })
 
     if (!user) {
