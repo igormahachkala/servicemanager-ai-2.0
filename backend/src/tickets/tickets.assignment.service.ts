@@ -65,6 +65,7 @@ type CreateCandidate = {
   matched?: boolean;
   matchedBy?: string[];
   matchReason?: string;
+  specializations?: { id: string; name: string; isActive: boolean }[];
 };
 
 function locationAccessKey(userId: string, companyId: string) {
@@ -371,6 +372,41 @@ export class TicketsAssignmentService {
     });
   }
 
+  private candidateMatchesRequiredSpecializations(
+    candidate: {
+      matched?: boolean;
+      specializations?: { id: string; name: string | null; isActive?: boolean | null }[];
+      technicianSpecializations?: {
+        specializationId: string;
+        specialization?: { id?: string; name: string | null; isActive?: boolean | null } | null;
+      }[];
+    },
+    requiredSpecializations: { id: string; name: string; isActive: boolean }[],
+  ) {
+    if (requiredSpecializations.length === 0) return true;
+    if (candidate.matched === true) return true;
+
+    const candidateSpecializations =
+      candidate.specializations ??
+      candidate.technicianSpecializations?.map((link) => ({
+        id: link.specialization?.id ?? link.specializationId,
+        name: link.specialization?.name ?? '',
+        isActive: link.specialization?.isActive ?? true,
+      })) ??
+      [];
+
+    const matched = matchCategorySpecializationLinks({
+      categoryLinks: requiredSpecializations.map((specialization) => ({
+        specializationId: specialization.id,
+        specialization: { name: specialization.name },
+      })),
+      technicianSpecializationIds: candidateSpecializations.map((specialization) => specialization.id),
+      technicianSpecializationNames: candidateSpecializations.map((specialization) => specialization.name ?? ''),
+    });
+
+    return matched.length > 0;
+  }
+
   private async listAllTechnicians(
     companyIds: string | string[],
     requiredSpecializations: { id: string; name: string; isActive: boolean }[],
@@ -675,20 +711,14 @@ export class TicketsAssignmentService {
   }
 
   private async resolveCreateCandidates(params: {
-    providerCompanyId: string;
+    providerCompanyIds: string[];
     clientCompanyId: string;
     locationId: string;
     requiredSpecializations: { id: string; name: string; isActive: boolean }[];
   }): Promise<CreateCandidate[]> {
-    const raw: CreateCandidate[] =
-      params.requiredSpecializations.length > 0
-        ? await this.findCandidateTechnicians(
-            params.providerCompanyId,
-            params.requiredSpecializations.map((item) => item.id),
-          )
-        : await this.listAllTechnicians(params.providerCompanyId, params.requiredSpecializations, {
-            fallbackToAllWhenNoSpecializations: true,
-          });
+    const raw = await this.listAllTechnicians(params.providerCompanyIds, params.requiredSpecializations, {
+      fallbackToAllWhenNoSpecializations: true,
+    });
 
     return this.filterTechniciansByLocationBindings(
       raw,
@@ -728,13 +758,14 @@ export class TicketsAssignmentService {
     action: CreatePostAction | null;
     technicianId: string | null;
     candidates: CreateCandidate[];
-    providerCompanyId: string;
+    providerCompanyIds: string[];
   }) {
     if (!params.action || params.action === 'leave_unassigned') {
       return null;
     }
 
-    const candidateById = new Map(params.candidates.map((candidate) => [candidate.id, candidate]));
+    const eligibleCandidates = params.candidates.filter((candidate) => candidate.matched !== false);
+    const candidateById = new Map(eligibleCandidates.map((candidate) => [candidate.id, candidate]));
 
     if (params.action === 'claim_self') {
       await this.assertActorHasPermission({
@@ -744,7 +775,7 @@ export class TicketsAssignmentService {
         permission: PERMISSIONS.TICKETS_CLAIM,
       });
       const self = candidateById.get(params.actorUserId);
-      if (!self || self.companyId !== params.providerCompanyId) {
+      if (!self || !self.companyId || !params.providerCompanyIds.includes(self.companyId)) {
         throw new ForbiddenException('Current user is not available for this ticket location/category');
       }
       return params.actorUserId;
@@ -757,20 +788,39 @@ export class TicketsAssignmentService {
       permission: PERMISSIONS.TICKETS_ASSIGN,
     });
     const candidate = params.technicianId ? candidateById.get(params.technicianId) : null;
-    if (!candidate || candidate.companyId !== params.providerCompanyId) {
+    if (!candidate || !candidate.companyId || !params.providerCompanyIds.includes(candidate.companyId)) {
       throw new NotFoundException('Technician not found');
     }
     return candidate.id;
+  }
+
+  private async resolveCreateCandidateCompanyIds(params: {
+    actorCompanyId: string;
+    targetCompanyId: string;
+  }) {
+    if (params.targetCompanyId === params.actorCompanyId) {
+      return [params.targetCompanyId];
+    }
+
+    const access = await this.serviceContractsService.getLinkedClientAccess(
+      params.actorCompanyId,
+      params.targetCompanyId,
+    );
+    if (access?.role === ServiceContractRole.PRIMARY) {
+      const secondaryProviderIds = await this.serviceContractsService.listSecondaryProviderCompanyIds(
+        params.targetCompanyId,
+      );
+      return [...new Set([params.actorCompanyId, ...secondaryProviderIds])];
+    }
+
+    return [params.actorCompanyId];
   }
 
   private resolveCreateAssignmentCompanyId(params: {
     actorCompanyId: string;
     targetCompanyId: string;
   }) {
-    if (params.targetCompanyId !== params.actorCompanyId) {
-      return params.actorCompanyId;
-    }
-    return params.targetCompanyId;
+    return params.targetCompanyId !== params.actorCompanyId ? params.actorCompanyId : params.targetCompanyId;
   }
 
   async create(actorCompanyId: string, creatorUserId: string, creatorRole: UserRole, dto: CreateTicketDto) {
@@ -792,6 +842,10 @@ export class TicketsAssignmentService {
       ).companyId;
     }
     const assignmentCompanyId = this.resolveCreateAssignmentCompanyId({
+      actorCompanyId,
+      targetCompanyId,
+    });
+    const candidateCompanyIds = await this.resolveCreateCandidateCompanyIds({
       actorCompanyId,
       targetCompanyId,
     });
@@ -826,7 +880,7 @@ export class TicketsAssignmentService {
       isActive: x.specialization.isActive,
     }));
     const candidates = await this.resolveCreateCandidates({
-      providerCompanyId: assignmentCompanyId,
+      providerCompanyIds: candidateCompanyIds,
       clientCompanyId: targetCompanyId,
       locationId: location.id,
       requiredSpecializations,
@@ -844,7 +898,7 @@ export class TicketsAssignmentService {
       action: postAction.action,
       technicianId: postAction.technicianId,
       candidates,
-      providerCompanyId: assignmentCompanyId,
+      providerCompanyIds: candidateCompanyIds,
     });
 
     const ticketId = randomUUID();
@@ -1090,6 +1144,10 @@ export class TicketsAssignmentService {
       locationId,
       requestedClientCompanyId: params.clientCompanyId,
     });
+    const candidateCompanyIds = await this.resolveCreateCandidateCompanyIds({
+      actorCompanyId,
+      targetCompanyId,
+    });
     await this.assertActorCanUseLocationForScope({
       actor: {
         id: actorUserId,
@@ -1109,7 +1167,7 @@ export class TicketsAssignmentService {
       isActive: x.specialization.isActive,
     }));
     const candidates = await this.resolveCreateCandidates({
-      providerCompanyId: actorCompanyId,
+      providerCompanyIds: candidateCompanyIds,
       clientCompanyId: targetCompanyId,
       locationId: location.id,
       requiredSpecializations,
@@ -1132,6 +1190,7 @@ export class TicketsAssignmentService {
         scopeCompanyId: targetCompanyId,
         visibilityMode: 'provider_primary',
         workforceCompanyId: actorCompanyId,
+        workforceCompanyIds: candidateCompanyIds,
       },
     };
   }
@@ -1431,7 +1490,7 @@ export class TicketsAssignmentService {
           problemCategory: {
             include: {
               specializationLinks: {
-                select: { specializationId: true },
+                include: { specialization: true },
               },
             },
           },
@@ -1487,6 +1546,15 @@ export class TicketsAssignmentService {
       );
       if (locationAllowed.length === 0) {
         throw new ForbiddenException('Technician is not bound to ticket location');
+      }
+
+      const requiredSpecializations = ticket.problemCategory.specializationLinks.map((link) => ({
+        id: link.specializationId,
+        name: link.specialization.name,
+        isActive: link.specialization.isActive,
+      }));
+      if (!this.candidateMatchesRequiredSpecializations(tech, requiredSpecializations)) {
+        throw new NotFoundException('Technician not found');
       }
 
       const previousAssigneeId = ticket.assignedTechnicianId;

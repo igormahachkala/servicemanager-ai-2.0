@@ -506,6 +506,96 @@ describe('TicketsAssignmentService.assign — SECONDARY executor', () => {
     expect(tx.ticket.update).not.toHaveBeenCalled();
   });
 
+  it('allows direct assignment to SECONDARY executor when specialization names match across tenant UUIDs', async () => {
+    const contracts = makeContracts(ServiceContractRole.SECONDARY);
+    const tx = makeTx(SECONDARY_PROVIDER_ID);
+    tx.ticket.findFirst.mockResolvedValue({
+      id: TICKET_ID,
+      companyId: CLIENT_ID,
+      locationId: LOCATION_ID,
+      status: TicketStatus.NEW,
+      assignedTechnicianId: null,
+      problemCategory: {
+        specializationLinks: [
+          {
+            specializationId: 'client-spec-cond',
+            specialization: { id: 'client-spec-cond', name: 'Специалист по кондиционерам', isActive: true },
+          },
+        ],
+      },
+    });
+    tx.user.findFirst.mockResolvedValue({
+      id: TECH_ID,
+      companyId: SECONDARY_PROVIDER_ID,
+      isActive: true,
+      deletedAt: null,
+      technicianSpecializations: [
+        {
+          specializationId: 'subcontractor-spec-cond',
+          specialization: { id: 'subcontractor-spec-cond', name: 'Специалист по кондиционерам', isActive: true },
+        },
+      ],
+    });
+    const prisma = makePrisma(tx);
+    const svc = makeService(prisma, contracts);
+
+    await expect(
+      svc.assign(
+        PRIMARY_PROVIDER_ID,
+        { id: 'actor-admin', role: UserRole.ADMIN, companyId: PRIMARY_PROVIDER_ID },
+        TICKET_ID,
+        TECH_ID,
+      ),
+    ).resolves.toBeDefined();
+
+    expect(tx.ticket.update).toHaveBeenCalled();
+  });
+
+  it('rejects direct assignment to SECONDARY executor without required category specialization', async () => {
+    const contracts = makeContracts(ServiceContractRole.SECONDARY);
+    const tx = makeTx(SECONDARY_PROVIDER_ID);
+    tx.ticket.findFirst.mockResolvedValue({
+      id: TICKET_ID,
+      companyId: CLIENT_ID,
+      locationId: LOCATION_ID,
+      status: TicketStatus.NEW,
+      assignedTechnicianId: null,
+      problemCategory: {
+        specializationLinks: [
+          {
+            specializationId: 'client-spec-cond',
+            specialization: { id: 'client-spec-cond', name: 'Специалист по кондиционерам', isActive: true },
+          },
+        ],
+      },
+    });
+    tx.user.findFirst.mockResolvedValue({
+      id: TECH_ID,
+      companyId: SECONDARY_PROVIDER_ID,
+      isActive: true,
+      deletedAt: null,
+      technicianSpecializations: [
+        {
+          specializationId: 'subcontractor-spec-electric',
+          specialization: { id: 'subcontractor-spec-electric', name: 'Электрик', isActive: true },
+        },
+      ],
+    });
+    const prisma = makePrisma(tx);
+    const svc = makeService(prisma, contracts);
+
+    await expect(
+      svc.assign(
+        PRIMARY_PROVIDER_ID,
+        { id: 'actor-admin', role: UserRole.ADMIN, companyId: PRIMARY_PROVIDER_ID },
+        TICKET_ID,
+        TECH_ID,
+      ),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(tx.ticket.update).not.toHaveBeenCalled();
+  });
+
   it('throws NotFoundException when executor company has no contract with client', async () => {
     const contracts = makeContracts(null);
     const tx = makeTx('unrelated-company');
