@@ -439,12 +439,14 @@ export function CreateTicketPage() {
     setErr(null)
     setSuccessPayload(null)
     if (!canCreateByRole) {
+      submitActionRef.current = 'create'
       setErr('Эта роль не может создавать заявки')
       return
     }
     const payload = buildPayload()
     const validationError = validatePayload(payload)
     if (validationError) {
+      submitActionRef.current = 'create'
       setErr(validationError)
       return
     }

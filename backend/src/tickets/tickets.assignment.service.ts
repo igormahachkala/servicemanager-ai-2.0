@@ -762,6 +762,17 @@ export class TicketsAssignmentService {
     }
     return candidate.id;
   }
+
+  private resolveCreateAssignmentCompanyId(params: {
+    actorCompanyId: string;
+    targetCompanyId: string;
+  }) {
+    if (params.targetCompanyId !== params.actorCompanyId) {
+      return params.actorCompanyId;
+    }
+    return params.targetCompanyId;
+  }
+
   async create(actorCompanyId: string, creatorUserId: string, creatorRole: UserRole, dto: CreateTicketDto) {
     const input = this.normalizeCreateInput(dto);
     let targetCompanyId = await this.resolveTicketOwnerCompanyId({
@@ -780,8 +791,10 @@ export class TicketsAssignmentService {
         )
       ).companyId;
     }
-    const assignmentCompanyId =
-      creatorRole === UserRole.TECHNICIAN && targetCompanyId !== actorCompanyId ? actorCompanyId : targetCompanyId;
+    const assignmentCompanyId = this.resolveCreateAssignmentCompanyId({
+      actorCompanyId,
+      targetCompanyId,
+    });
     await this.assertActorCanUseLocationForScope({
       actor: {
         id: creatorUserId,

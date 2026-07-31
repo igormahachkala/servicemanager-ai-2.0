@@ -1,4 +1,4 @@
-import { CompanyType, UserAccessLocationMode, UserRole } from '@prisma/client'
+import { CompanyType, TicketStatus, UserAccessLocationMode, UserRole } from '@prisma/client'
 
 const mockAssertActorCanUseLocation = jest.fn()
 
@@ -751,5 +751,340 @@ describe('TicketsAssignmentService create post-action policy', () => {
       assignTechnicianId: null,
       shouldAutoAssign: false,
     })).toThrow('assignTechnicianId is required for assign_employee')
+  })
+})
+
+describe('TicketsAssignmentService linked-provider create assignment contour', () => {
+  const providerCompanyId = 'provider-company'
+  const clientCompanyId = 'client-company'
+  const locationId = 'location-1'
+  const categoryId = 'category-1'
+  const providerTech = {
+    id: 'provider-tech',
+    email: 'provider-tech@example.test',
+    firstName: 'Provider',
+    lastName: 'Tech',
+    role: UserRole.TECHNICIAN,
+    companyId: providerCompanyId,
+    matched: true,
+  }
+
+  function makeCreateHarness(options?: {
+    candidates?: any[]
+    autoAssignEnabled?: boolean
+    autoAssignedTechnicianId?: string | null
+  }) {
+    const createdTicket = {
+      id: 'ticket-1',
+      ticketNumber: 1001,
+      companyId: clientCompanyId,
+      locationId,
+      problemCategoryId: categoryId,
+      problemText: 'Generated problem',
+      urgency: 'NOT_URGENT',
+      status: TicketStatus.NEW,
+      assignedTechnicianId: null,
+    }
+    const assignedTicket = {
+      ...createdTicket,
+      status: TicketStatus.ASSIGNED,
+      assignedTechnicianId: options?.autoAssignedTechnicianId ?? providerTech.id,
+    }
+    const tx = {
+      ticket: {
+        create: jest.fn().mockResolvedValue(createdTicket),
+        update: jest.fn().mockResolvedValue(assignedTicket),
+      },
+      ticketStatusHistory: {
+        create: jest.fn().mockResolvedValue({ id: 'status-history-1' }),
+      },
+      ticketAttachment: {
+        findMany: jest.fn().mockResolvedValue([]),
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
+    }
+    const prisma = {
+      $transaction: jest.fn(async (callback: any) => callback(tx)),
+      permissionBlock: { count: jest.fn().mockResolvedValue(1) },
+      company: { findUnique: jest.fn().mockResolvedValue({ type: CompanyType.PROVIDER }) },
+      rolePermission: { findFirst: jest.fn().mockResolvedValue({ id: 'role-permission' }) },
+      userPermission: { findFirst: jest.fn().mockResolvedValue(null) },
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          companyId: options?.autoAssignedTechnicianId === 'client-tech' ? clientCompanyId : providerCompanyId,
+          email: 'provider-tech@example.test',
+        }),
+      },
+    }
+    const assignmentEngine = {
+      selectTechnicianForTicket: jest.fn().mockResolvedValue(
+        options?.autoAssignedTechnicianId
+          ? { technicianId: options.autoAssignedTechnicianId }
+          : null,
+      ),
+    }
+    const timeline = {
+      recordTx: jest.fn().mockResolvedValue({ id: 'timeline-event-1' }),
+      recordLegacyTx: jest.fn().mockResolvedValue({ id: 'legacy-event-1' }),
+    }
+    const attachments = {
+      bindAttachmentsToTicketTx: jest.fn().mockResolvedValue([]),
+    }
+    const serviceContracts = {
+      getLinkedClientAccess: jest.fn().mockResolvedValue({ role: 'SECONDARY', status: 'ACTIVE' }),
+    }
+    const technicians = {
+      resolveBoundCreateScope: jest.fn().mockResolvedValue({ companyId: clientCompanyId }),
+    }
+    const notifications = {
+      onTicketCreated: jest.fn(),
+      scheduleTicketCommentAdded: jest.fn(),
+      onTicketAssigned: jest.fn(),
+    }
+    const service = new TicketsAssignmentService(
+      prisma as any,
+      assignmentEngine as any,
+      {} as any,
+      timeline as any,
+      attachments as any,
+      serviceContracts as any,
+      technicians as any,
+      notifications as any,
+    )
+    jest.spyOn(service as any, 'resolveTicketOwnerCompanyId').mockResolvedValue(clientCompanyId)
+    jest.spyOn(service as any, 'assertActorCanUseLocationForScope').mockResolvedValue(undefined)
+    jest.spyOn(service as any, 'getCompany').mockResolvedValue({
+      id: clientCompanyId,
+      type: CompanyType.CLIENT,
+      autoAssignEnabled: options?.autoAssignEnabled ?? false,
+      allowTechnicianClaim: true,
+    })
+    jest.spyOn(service as any, 'getCategory').mockResolvedValue({
+      id: categoryId,
+      name: 'Electrical',
+      instructions: null,
+      specializationLinks: [
+        {
+          specializationId: 'spec-1',
+          specialization: { id: 'spec-1', name: 'Electrical', isActive: true },
+        },
+      ],
+    })
+    jest.spyOn(service as any, 'getLocation').mockResolvedValue({
+      id: locationId,
+      name: 'Client location',
+      address: 'Address 1',
+      city: 'Ufa',
+      region: null,
+      platformCode: null,
+      externalCode: null,
+    })
+    const resolveCreateCandidatesSpy = jest
+      .spyOn(service as any, 'resolveCreateCandidates')
+      .mockResolvedValue(options?.candidates ?? [providerTech])
+
+    return {
+      service,
+      prisma,
+      tx,
+      assignmentEngine,
+      resolveCreateCandidatesSpy,
+    }
+  }
+
+  function baseDto(overrides?: Record<string, any>) {
+    return {
+      clientCompanyId,
+      locationId,
+      categoryId,
+      description: 'Broken equipment',
+      ...overrides,
+    }
+  }
+
+  it('provider ADMIN creates a linked-client ticket and assigns own provider employee', async () => {
+    const { service, tx, resolveCreateCandidatesSpy } = makeCreateHarness()
+
+    const result = await service.create(providerCompanyId, 'admin-1', UserRole.ADMIN, baseDto({
+      postCreateAction: 'assign_employee',
+      assignTechnicianId: providerTech.id,
+    }) as any)
+
+    expect(resolveCreateCandidatesSpy).toHaveBeenCalledWith(expect.objectContaining({
+      providerCompanyId,
+      clientCompanyId,
+      locationId,
+    }))
+    expect(tx.ticket.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        companyId: clientCompanyId,
+        createdByUserId: 'admin-1',
+      }),
+    }))
+    expect(tx.ticket.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        assignedTechnicianId: providerTech.id,
+        status: TicketStatus.ASSIGNED,
+      }),
+    }))
+    expect(result.ticket.companyId).toBe(clientCompanyId)
+    expect(result.autoAssigned).toBe(true)
+  })
+
+  it('provider MASTER creates a linked-client ticket and assigns own provider employee', async () => {
+    const { service, tx, resolveCreateCandidatesSpy } = makeCreateHarness()
+
+    await expect(service.create(providerCompanyId, 'master-1', UserRole.MASTER, baseDto({
+      postCreateAction: 'assign_employee',
+      assignTechnicianId: providerTech.id,
+    }) as any)).resolves.toMatchObject({
+      ticket: expect.objectContaining({ companyId: clientCompanyId }),
+    })
+
+    expect(resolveCreateCandidatesSpy).toHaveBeenCalledWith(expect.objectContaining({
+      providerCompanyId,
+      clientCompanyId,
+    }))
+    expect(tx.ticket.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ assignedTechnicianId: providerTech.id }),
+    }))
+  })
+
+  it('provider TECHNICIAN creates a linked-client ticket and claims from provider workforce', async () => {
+    const { service, tx, resolveCreateCandidatesSpy } = makeCreateHarness()
+
+    const result = await service.create(providerCompanyId, providerTech.id, UserRole.TECHNICIAN, baseDto({
+      postCreateAction: 'claim_self',
+    }) as any)
+
+    expect(resolveCreateCandidatesSpy).toHaveBeenCalledWith(expect.objectContaining({
+      providerCompanyId,
+      clientCompanyId,
+      locationId,
+    }))
+    expect(tx.ticket.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ companyId: clientCompanyId }),
+    }))
+    expect(tx.ticket.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        assignedTechnicianId: providerTech.id,
+        status: TicketStatus.ASSIGNED,
+      }),
+    }))
+    expect(result.ticket.companyId).toBe(clientCompanyId)
+  })
+
+  it('client-side creation keeps client ticket ownership and client workforce', async () => {
+    const clientTech = {
+      ...providerTech,
+      id: 'client-own-tech',
+      companyId: clientCompanyId,
+    }
+    const { service, tx, resolveCreateCandidatesSpy } = makeCreateHarness({ candidates: [clientTech] })
+
+    const result = await service.create(clientCompanyId, 'client-admin-1', UserRole.ADMIN, baseDto({
+      postCreateAction: 'assign_employee',
+      assignTechnicianId: clientTech.id,
+    }) as any)
+
+    expect(resolveCreateCandidatesSpy).toHaveBeenCalledWith(expect.objectContaining({
+      providerCompanyId: clientCompanyId,
+      clientCompanyId,
+      locationId,
+    }))
+    expect(tx.ticket.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ companyId: clientCompanyId }),
+    }))
+    expect(tx.ticket.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ assignedTechnicianId: clientTech.id }),
+    }))
+    expect(result.ticket.companyId).toBe(clientCompanyId)
+  })
+
+  it('auto-assign uses provider workforce while keeping linked-client ticket ownership', async () => {
+    const { service, tx, assignmentEngine } = makeCreateHarness({
+      autoAssignEnabled: true,
+      autoAssignedTechnicianId: providerTech.id,
+    })
+
+    const result = await service.create(providerCompanyId, 'admin-1', UserRole.ADMIN, baseDto() as any)
+
+    expect(assignmentEngine.selectTechnicianForTicket).toHaveBeenCalledWith(expect.objectContaining({
+      companyId: providerCompanyId,
+      locationId,
+      categoryId,
+    }))
+    expect(tx.ticket.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ companyId: clientCompanyId }),
+    }))
+    expect(result.ticket.companyId).toBe(clientCompanyId)
+    expect(result.autoAssigned).toBe(true)
+  })
+
+  it('denies assigning a client-company employee from provider linked-client create', async () => {
+    const clientEmployee = {
+      ...providerTech,
+      id: 'client-tech',
+      companyId: clientCompanyId,
+    }
+    const { service } = makeCreateHarness({ candidates: [clientEmployee] })
+
+    await expect(service.create(providerCompanyId, 'admin-1', UserRole.ADMIN, baseDto({
+      postCreateAction: 'assign_employee',
+      assignTechnicianId: clientEmployee.id,
+    }) as any)).rejects.toThrow('Technician not found')
+  })
+
+  it('denies assigning another provider employee from provider linked-client create', async () => {
+    const foreignProviderEmployee = {
+      ...providerTech,
+      id: 'foreign-provider-tech',
+      companyId: 'foreign-provider',
+    }
+    const { service } = makeCreateHarness({ candidates: [foreignProviderEmployee] })
+
+    await expect(service.create(providerCompanyId, 'admin-1', UserRole.ADMIN, baseDto({
+      postCreateAction: 'assign_employee',
+      assignTechnicianId: foreignProviderEmployee.id,
+    }) as any)).rejects.toThrow('Technician not found')
+  })
+
+  it('denies inactive or deleted provider employees because they are absent from create candidates', async () => {
+    const { service } = makeCreateHarness({ candidates: [] })
+
+    await expect(service.create(providerCompanyId, 'admin-1', UserRole.ADMIN, baseDto({
+      postCreateAction: 'assign_employee',
+      assignTechnicianId: 'inactive-or-deleted-tech',
+    }) as any)).rejects.toThrow('Technician not found')
+  })
+
+  it('keeps create-assignment-candidates and create(assign_employee) on the same provider workforce contour', async () => {
+    const { service, resolveCreateCandidatesSpy } = makeCreateHarness()
+    jest.spyOn(service as any, 'assertExecutorOperationsAllowed').mockResolvedValue(undefined)
+
+    const candidateList = await service.listCreateAssignmentCandidates(providerCompanyId, {
+      id: 'admin-1',
+      role: UserRole.ADMIN,
+    }, {
+      clientCompanyId,
+      locationId,
+      categoryId,
+    })
+    await expect(service.create(providerCompanyId, 'admin-1', UserRole.ADMIN, baseDto({
+      postCreateAction: 'assign_employee',
+      assignTechnicianId: providerTech.id,
+    }) as any)).resolves.toBeTruthy()
+
+    expect(candidateList.matched.map((candidate: any) => candidate.id)).toContain(providerTech.id)
+    expect(resolveCreateCandidatesSpy).toHaveBeenNthCalledWith(1, expect.objectContaining({
+      providerCompanyId,
+      clientCompanyId,
+      locationId,
+    }))
+    expect(resolveCreateCandidatesSpy).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      providerCompanyId,
+      clientCompanyId,
+      locationId,
+    }))
   })
 })
