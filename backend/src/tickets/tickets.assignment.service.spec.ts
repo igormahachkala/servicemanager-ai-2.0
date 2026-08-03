@@ -1,4 +1,4 @@
-import { CompanyType, TicketStatus, UserAccessLocationMode, UserRole } from '@prisma/client'
+import { CompanyType, ServiceContractRole, TicketStatus, UserAccessLocationMode, UserRole } from '@prisma/client'
 
 const mockAssertActorCanUseLocation = jest.fn()
 
@@ -695,6 +695,360 @@ describe('TicketsAssignmentService assignment candidate location scope filtering
     })
 
     await expect(filter(service, ['tech-foreign-binding'], allowedLocationId)).resolves.toEqual([])
+  })
+})
+
+describe('TicketsAssignmentService.requestAssignment canonical eligibility', () => {
+  const providerCompanyId = 'provider-secondary'
+  const clientCompanyId = 'client-company'
+  const foreignClientCompanyId = 'foreign-client-company'
+  const technicianId = 'tech-secondary'
+  const ticketId = 'ticket-1'
+  const allowedLocationId = 'location-allowed'
+  const forbiddenLocationId = 'location-forbidden'
+  const categorySpecializationName = 'Специалист по кондиционерам'
+
+  type RequestHarnessOptions = {
+    technicianSpecializationNames?: string[]
+    categorySpecializationNames?: string[]
+    locationMode?: UserAccessLocationMode | null
+    bindingLocationIds?: string[]
+    isActive?: boolean
+    deletedAt?: Date | null
+    isExecutor?: boolean
+    ticketCompanyId?: string
+    ticketLocationId?: string
+    contractRole?: ServiceContractRole | null
+    contractStatus?: 'ACTIVE' | 'INACTIVE' | 'ENDED'
+    existingRequest?: boolean
+  }
+
+  function normalizeName(value: string) {
+    return value.trim().toLocaleLowerCase('ru-RU')
+  }
+
+  function makeRequestHarness(options: RequestHarnessOptions = {}) {
+    const ticketCompanyId = options.ticketCompanyId ?? clientCompanyId
+    const ticketLocationId = options.ticketLocationId ?? allowedLocationId
+    const technicianSpecializationNames = options.technicianSpecializationNames ?? [categorySpecializationName]
+    const categorySpecializationNames = options.categorySpecializationNames ?? [categorySpecializationName]
+    const locationMode =
+      options.locationMode === undefined ? UserAccessLocationMode.SELECTED_LOCATIONS : options.locationMode
+    const bindingLocationIds =
+      options.bindingLocationIds === undefined ? [ticketLocationId] : options.bindingLocationIds
+    const isActive = options.isActive ?? true
+    const deletedAt = options.deletedAt ?? null
+    const isExecutor = options.isExecutor ?? true
+    const contractRole =
+      options.contractRole === undefined ? ServiceContractRole.SECONDARY : options.contractRole
+    const contractStatus = options.contractStatus ?? 'ACTIVE'
+
+    const locationClientById: Record<string, string> = {
+      [allowedLocationId]: clientCompanyId,
+      [forbiddenLocationId]: clientCompanyId,
+      'foreign-location': foreignClientCompanyId,
+    }
+
+    const technicianSpecializations = technicianSpecializationNames.map((name, index) => ({
+      specializationId: `provider-spec-${index + 1}`,
+      specialization: {
+        id: `provider-spec-${index + 1}`,
+        name,
+        isActive: true,
+      },
+    }))
+    const categoryLinks = categorySpecializationNames.map((name, index) => ({
+      specializationId: `client-spec-${index + 1}`,
+      specialization: {
+        id: `client-spec-${index + 1}`,
+        name,
+        isActive: true,
+      },
+    }))
+
+    const specializationAllowed =
+      categorySpecializationNames.length === 0 ||
+      technicianSpecializationNames.some((candidateName) =>
+        categorySpecializationNames.some((requiredName) => normalizeName(candidateName) === normalizeName(requiredName)),
+      )
+
+    const locationAllowed =
+      locationMode === null ||
+      locationMode === UserAccessLocationMode.ALL_LOCATIONS ||
+      (locationMode === UserAccessLocationMode.SELECTED_LOCATIONS && bindingLocationIds.includes(ticketLocationId))
+
+    const ticket = {
+      id: ticketId,
+      status: TicketStatus.NEW,
+      assignedTechnicianId: null,
+      ticketNumber: 1001,
+      companyId: ticketCompanyId,
+      locationId: ticketLocationId,
+      problemCategory: { specializationLinks: categoryLinks },
+    }
+
+    const transactionDomainEventFindFirst = jest
+      .fn()
+      .mockResolvedValue(options.existingRequest ? { id: 'assignment-request-existing' } : null)
+    const tx = {
+      domainEvent: {
+        findFirst: transactionDomainEventFindFirst,
+      },
+    }
+    const prisma = {
+      company: {
+        findUnique: jest.fn().mockResolvedValue({ id: providerCompanyId, allowTechnicianClaim: true }),
+      },
+      user: {
+        findFirst: jest.fn().mockImplementation(async (query: any) => {
+          const where = query?.where ?? {}
+          if (where.id && where.id !== technicianId) return null
+          if (where.companyId && where.companyId !== providerCompanyId) return null
+          if (where.isActive === true && !isActive) return null
+          if (where.deletedAt === null && deletedAt) return null
+          return {
+            id: technicianId,
+            role: UserRole.TECHNICIAN,
+            companyId: providerCompanyId,
+            isExecutor,
+            isActive,
+            deletedAt,
+            technicianSpecializations,
+          }
+        }),
+        findMany: jest.fn().mockImplementation(async (query: any) => {
+          const where = query?.where ?? {}
+          if (where.companyId && where.companyId !== providerCompanyId) return []
+          if (where.isExecutor === true && !isExecutor) return []
+          if (!isActive || deletedAt) return []
+          return [{ id: technicianId }]
+        }),
+      },
+      userAccessScope: {
+        findUnique: jest.fn().mockResolvedValue(locationMode ? { locationMode } : null),
+      },
+      userLocationBinding: {
+        findMany: jest.fn().mockImplementation(async (query: any) => {
+          const where = query?.where ?? {}
+          return bindingLocationIds
+            .map((locationId) => ({
+              userId: technicianId,
+              companyId: providerCompanyId,
+              locationId,
+              location: { clientCompanyId: locationClientById[locationId] ?? ticketCompanyId },
+            }))
+            .filter((binding) => {
+              if (where.userId && typeof where.userId === 'string' && where.userId !== binding.userId) return false
+              if (where.userId?.in && !where.userId.in.includes(binding.userId)) return false
+              if (where.companyId && typeof where.companyId === 'string' && where.companyId !== binding.companyId) {
+                return false
+              }
+              if (where.companyId?.in && !where.companyId.in.includes(binding.companyId)) return false
+              const clientFilter = where.location?.clientCompanyId
+              if (typeof clientFilter === 'string' && clientFilter !== binding.location.clientCompanyId) return false
+              if (clientFilter?.in && !clientFilter.in.includes(binding.location.clientCompanyId)) return false
+              return true
+            })
+        }),
+      },
+      ticket: {
+        findFirst: jest.fn().mockImplementation(async (query: any) => {
+          const where = query?.where ?? {}
+          const whereJson = JSON.stringify(where)
+          if (!whereJson.includes(ticketId)) return null
+          if (whereJson.includes(providerCompanyId) && !whereJson.includes(ticketCompanyId)) return null
+          if (whereJson.includes('__no_access__')) {
+            return null
+          }
+          if (whereJson.includes('__restricted_empty_location_scope__') && !whereJson.includes(ticketLocationId)) {
+            return null
+          }
+          if (where.id === ticketId && where.companyId === ticketCompanyId && !where.status && !where.AND) {
+            return ticket
+          }
+          if (!locationAllowed) return null
+          if (whereJson.includes('problemCategory')) {
+            return specializationAllowed ? { id: ticket.id } : null
+          }
+          return {
+            id: ticket.id,
+            companyId: ticket.companyId,
+            locationId: ticket.locationId,
+            assignedTechnicianId: ticket.assignedTechnicianId,
+          }
+        }),
+        findUnique: jest.fn().mockResolvedValue(ticket),
+      },
+      $transaction: jest.fn().mockImplementation(async (callback: any) => callback(tx)),
+    }
+
+    const serviceContracts = {
+      getLinkedClientAccess: jest.fn().mockImplementation(async (companyId: string, linkedClientId: string) => {
+        if (
+          companyId !== providerCompanyId ||
+          linkedClientId !== ticketCompanyId ||
+          !contractRole ||
+          contractStatus !== 'ACTIVE'
+        ) {
+          return null
+        }
+        return {
+          role: contractRole,
+          status: contractStatus,
+          clientCompanyId: ticketCompanyId,
+          providerCompanyId,
+        }
+      }),
+      listPrimaryLinkedClientIds: jest.fn().mockResolvedValue([]),
+      listSecondaryLinkedClientIds: jest.fn().mockResolvedValue(contractRole ? [ticketCompanyId] : []),
+      listLinkedClients: jest.fn().mockResolvedValue([]),
+      assertPrimaryLinkedClientAccess: jest.fn(),
+    }
+    const timeline = {
+      recordLegacyTx: jest.fn().mockResolvedValue({ id: 'assignment-request-event' }),
+    }
+    const notifications = {
+      notifyTicketAssignmentRequested: jest.fn().mockResolvedValue({ notified: 1 }),
+    }
+    const service = new TicketsAssignmentService(
+      prisma as any,
+      {} as any,
+      {} as any,
+      timeline as any,
+      {} as any,
+      serviceContracts as any,
+      {} as any,
+      notifications as any,
+    )
+
+    return {
+      service,
+      prisma,
+      timeline,
+      notifications,
+      serviceContracts,
+      ticketCompanyId,
+    }
+  }
+
+  async function requestAssignment(harness: ReturnType<typeof makeRequestHarness>) {
+    return harness.service.requestAssignment(
+      providerCompanyId,
+      technicianId,
+      UserRole.TECHNICIAN,
+      ticketId,
+      harness.ticketCompanyId,
+    )
+  }
+
+  async function expectDeniedWithoutSideEffects(options: RequestHarnessOptions) {
+    const harness = makeRequestHarness(options)
+
+    await expect(requestAssignment(harness)).rejects.toBeDefined()
+    expect(harness.prisma.$transaction).not.toHaveBeenCalled()
+    expect(harness.timeline.recordLegacyTx).not.toHaveBeenCalled()
+    expect(harness.notifications.notifyTicketAssignmentRequested).not.toHaveBeenCalled()
+  }
+
+  it('denies assignment request from a SECONDARY technician with the wrong category specialization', async () => {
+    await expectDeniedWithoutSideEffects({
+      technicianSpecializationNames: ['Электрик'],
+    })
+  })
+
+  it('denies assignment request from a SECONDARY technician without required specialization', async () => {
+    await expectDeniedWithoutSideEffects({
+      technicianSpecializationNames: [],
+    })
+  })
+
+  it('denies assignment request when the technician has no binding for the ticket location', async () => {
+    await expectDeniedWithoutSideEffects({
+      bindingLocationIds: [forbiddenLocationId],
+    })
+  })
+
+  it('denies assignment request for explicit SELECTED_LOCATIONS with an empty location set', async () => {
+    await expectDeniedWithoutSideEffects({
+      bindingLocationIds: [],
+    })
+  })
+
+  it('denies assignment request from an inactive technician', async () => {
+    await expectDeniedWithoutSideEffects({
+      isActive: false,
+    })
+  })
+
+  it('denies assignment request from a deleted technician', async () => {
+    await expectDeniedWithoutSideEffects({
+      deletedAt: new Date('2026-01-01T00:00:00.000Z'),
+    })
+  })
+
+  it('denies assignment request across a foreign tenant without a valid contour', async () => {
+    await expectDeniedWithoutSideEffects({
+      ticketCompanyId: foreignClientCompanyId,
+      ticketLocationId: 'foreign-location',
+      contractRole: null,
+    })
+  })
+
+  it('denies assignment request when the secondary contract is inactive', async () => {
+    await expectDeniedWithoutSideEffects({
+      contractStatus: 'INACTIVE',
+    })
+  })
+
+  it('denies assignment request when the secondary contract is ended', async () => {
+    await expectDeniedWithoutSideEffects({
+      contractStatus: 'ENDED',
+    })
+  })
+
+  it('allows assignment request from a valid ACTIVE SECONDARY technician', async () => {
+    const harness = makeRequestHarness()
+
+    await expect(requestAssignment(harness)).resolves.toEqual({
+      ok: true,
+      alreadyRequested: false,
+      notified: 1,
+    })
+    expect(harness.prisma.$transaction).toHaveBeenCalledTimes(1)
+    expect(harness.timeline.recordLegacyTx).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        type: 'ticket.assignment_requested',
+        entityId: ticketId,
+        actorUserId: technicianId,
+      }),
+    )
+    expect(harness.notifications.notifyTicketAssignmentRequested).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerCompanyId,
+        technicianUserId: technicianId,
+        ticketId,
+      }),
+    )
+  })
+
+  it('preserves idempotent repeated assignment request behavior', async () => {
+    const harness = makeRequestHarness({ existingRequest: true })
+
+    await expect(requestAssignment(harness)).resolves.toEqual({
+      ok: true,
+      alreadyRequested: true,
+      notified: 0,
+    })
+    expect(harness.prisma.$transaction).toHaveBeenCalledTimes(1)
+    expect(harness.timeline.recordLegacyTx).not.toHaveBeenCalled()
+    expect(harness.notifications.notifyTicketAssignmentRequested).not.toHaveBeenCalled()
+  })
+
+  it('does not create events or notifications when canonical eligibility denies the request', async () => {
+    await expectDeniedWithoutSideEffects({
+      technicianSpecializationNames: ['Электрик'],
+    })
   })
 })
 

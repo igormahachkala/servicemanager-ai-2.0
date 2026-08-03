@@ -2427,7 +2427,7 @@ export class TicketsAssignmentService {
     linkedClientCompanyId?: string,
   ) {
     const executorUser = await this.prisma.user.findFirst({
-      where: { id: executorUserId, companyId: providerCompanyId, isActive: true },
+      where: { id: executorUserId, companyId: providerCompanyId, isActive: true, deletedAt: null },
       select: { role: true, isExecutor: true },
     });
     if (!executorUser || !isExecutorEligible(executorUser)) {
@@ -2448,7 +2448,7 @@ export class TicketsAssignmentService {
       serviceContractsService: this.serviceContractsService,
       actor: {
         id: executorUserId,
-        role: executorRole,
+        role: executorUser.role,
         companyId: providerCompanyId,
       },
       ticketId,
@@ -2471,6 +2471,45 @@ export class TicketsAssignmentService {
     }
     if (ticket.status !== TicketStatus.NEW || ticket.assignedTechnicianId) {
       throw new BadRequestException('Заявка уже назначена или недоступна для запроса');
+    }
+
+    const eligibilityLinkedClientCompanyId =
+      ticket.companyId !== providerCompanyId ? ticket.companyId : linkedClientCompanyId
+    const technicianScope = await resolveTechnicianOperationalScope({
+      prisma: this.prisma,
+      serviceContractsService: this.serviceContractsService,
+      actor: {
+        id: executorUserId,
+        role: executorUser.role,
+        companyId: providerCompanyId,
+      },
+      linkedClientCompanyId: eligibilityLinkedClientCompanyId,
+    })
+    const claimDecision = this.policy.claimWhere({
+      user: {
+        id: executorUserId,
+        role: executorUser.role,
+        isExecutor: executorUser.isExecutor,
+        companyId: providerCompanyId,
+      },
+      ticketId,
+      specializationIds: technicianScope.specializationIds,
+      specializationNames: technicianScope.specializationNames,
+      allowTechnicianClaim: technicianScope.allowTechnicianClaim,
+      companyIds: technicianScope.companyIds,
+    } satisfies TicketsClaimWhereParams)
+    assertAllowed(claimDecision)
+    const locationRestriction = buildTechnicianLocationRestrictionWhere({
+      companyIds: technicianScope.companyIds,
+      locationScopeByCompany: technicianScope.locationScopeByCompany,
+    })
+    const requestEligibilityWhere = this.normalizeAnd(claimDecision.where, [locationRestriction])
+    const eligibleTicket = await this.prisma.ticket.findFirst({
+      where: requestEligibilityWhere,
+      select: { id: true },
+    })
+    if (!eligibleTicket) {
+      throw new NotFoundException('Ticket not found or not available for assignment request')
     }
 
     const createdAtIso = new Date().toISOString()
