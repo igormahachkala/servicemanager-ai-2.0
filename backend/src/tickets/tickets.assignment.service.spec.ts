@@ -1052,6 +1052,243 @@ describe('TicketsAssignmentService.requestAssignment canonical eligibility', () 
   })
 })
 
+describe('TicketsAssignmentService canonical claim isolation', () => {
+  const providerCompanyId = 'secondary-provider'
+  const clientCompanyId = 'client-company'
+  const technicianId = 'tech-secondary'
+  const ticketId = 'ticket-claim-1'
+  const allowedLocationId = 'location-allowed'
+  const categorySpecializationName = 'Климатическое оборудование'
+
+  type ClaimIsolationOptions = {
+    contractRole?: ServiceContractRole
+    locationMode?: UserAccessLocationMode | null
+    bindingLocationIds?: string[]
+    technicianSpecializationNames?: string[]
+    categorySpecializationNames?: string[]
+  }
+
+  function normalized(value: string) {
+    return value.trim().toLocaleLowerCase('ru-RU')
+  }
+
+  function makeClaimIsolationHarness(options: ClaimIsolationOptions = {}) {
+    const contractRole = options.contractRole ?? ServiceContractRole.SECONDARY
+    const locationMode = options.locationMode === undefined ? null : options.locationMode
+    const bindingLocationIds = options.bindingLocationIds ?? []
+    const technicianSpecializationNames = options.technicianSpecializationNames ?? [categorySpecializationName]
+    const categorySpecializationNames = options.categorySpecializationNames ?? [categorySpecializationName]
+    const specializationAllowed =
+      categorySpecializationNames.length === 0 ||
+      technicianSpecializationNames.some((candidate) =>
+        categorySpecializationNames.some((required) => normalized(candidate) === normalized(required)),
+      )
+
+    const ticket = {
+      id: ticketId,
+      companyId: clientCompanyId,
+      locationId: allowedLocationId,
+      status: TicketStatus.NEW,
+      assignedTechnicianId: null,
+      ticketNumber: 42,
+      problemText: 'Test claim isolation',
+      problemCategory: {
+        specializationLinks: categorySpecializationNames.map((name, index) => ({
+          specializationId: `client-spec-${index + 1}`,
+          specialization: { id: `client-spec-${index + 1}`, name, isActive: true },
+        })),
+      },
+    }
+    const technicianSpecializations = technicianSpecializationNames.map((name, index) => ({
+      specializationId: `provider-spec-${index + 1}`,
+      specialization: { id: `provider-spec-${index + 1}`, name, isActive: true },
+    }))
+    const bindingRows = bindingLocationIds.map((locationId) => ({
+      userId: technicianId,
+      companyId: providerCompanyId,
+      locationId,
+      location: { clientCompanyId },
+    }))
+
+    function denyByCanonicalWhere(where: any) {
+      const whereJson = JSON.stringify(where ?? {})
+      if (!whereJson.includes(ticketId) && whereJson.includes('"id"')) return true
+      if (whereJson.includes('__no_access__')) return true
+      if (whereJson.includes('__restricted_empty_location_scope__') && !whereJson.includes(allowedLocationId)) {
+        return true
+      }
+      if (
+        ticket.assignedTechnicianId === null &&
+        whereJson.includes('"assignedTechnicianId":{"in"') &&
+        !whereJson.includes(`"locationId":{"in":["${allowedLocationId}"]}`)
+      ) {
+        return true
+      }
+      if (whereJson.includes('problemCategory') && !specializationAllowed) return true
+      if (whereJson.includes(providerCompanyId) && !whereJson.includes(clientCompanyId)) return true
+      return false
+    }
+
+    const tx = {
+      ticket: {
+        findFirst: jest.fn().mockImplementation(async ({ where }: any) => (denyByCanonicalWhere(where) ? null : ticket)),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      ticketStatusHistory: {
+        create: jest.fn().mockResolvedValue({}),
+      },
+    }
+    const prisma = {
+      company: {
+        findUnique: jest.fn().mockResolvedValue({ id: providerCompanyId, allowTechnicianClaim: true }),
+      },
+      user: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: technicianId,
+          role: UserRole.TECHNICIAN,
+          companyId: providerCompanyId,
+          isExecutor: true,
+          technicianSpecializations,
+        }),
+        findMany: jest.fn().mockResolvedValue([{ id: technicianId }]),
+      },
+      userAccessScope: {
+        findUnique: jest.fn().mockResolvedValue(locationMode ? { locationMode } : null),
+      },
+      userLocationBinding: {
+        findMany: jest.fn().mockImplementation(async (query: any) => {
+          const where = query?.where ?? {}
+          return bindingRows.filter((binding) => {
+            if (where.userId && where.userId !== binding.userId) return false
+            if (where.companyId && typeof where.companyId === 'string' && where.companyId !== binding.companyId) {
+              return false
+            }
+            if (where.companyId?.in && !where.companyId.in.includes(binding.companyId)) return false
+            const clientFilter = where.location?.clientCompanyId
+            if (clientFilter && clientFilter !== binding.location.clientCompanyId) return false
+            return true
+          })
+        }),
+      },
+      ticket: {
+        findFirst: jest.fn().mockImplementation(async ({ where }: any) => (denyByCanonicalWhere(where) ? null : {
+          id: ticket.id,
+          companyId: ticket.companyId,
+          locationId: ticket.locationId,
+          assignedTechnicianId: ticket.assignedTechnicianId,
+        })),
+        findMany: jest.fn().mockImplementation(async ({ where }: any) => (denyByCanonicalWhere(where) ? [] : [ticket])),
+        findUnique: jest.fn().mockResolvedValue(ticket),
+      },
+      $transaction: jest.fn().mockImplementation(async (callback: any) => callback(tx)),
+    }
+    const serviceContracts = {
+      getLinkedClientAccess: jest.fn().mockResolvedValue({
+        role: contractRole,
+        status: 'ACTIVE',
+        clientCompanyId,
+        providerCompanyId,
+      }),
+      listPrimaryLinkedClientIds: jest.fn().mockResolvedValue(
+        contractRole === ServiceContractRole.PRIMARY ? [clientCompanyId] : [],
+      ),
+      listSecondaryLinkedClientIds: jest.fn().mockResolvedValue(
+        contractRole === ServiceContractRole.SECONDARY ? [clientCompanyId] : [],
+      ),
+      listLinkedClients: jest.fn().mockResolvedValue([
+        { linkedClientCompanyId: clientCompanyId, role: contractRole },
+      ]),
+    }
+    const query = {
+      getOne: jest.fn().mockResolvedValue({ id: ticketId }),
+    }
+    const timeline = {
+      recordTx: jest.fn().mockResolvedValue({ id: 'claim-event-1' }),
+    }
+    const notifications = {
+      scheduleTicketClaimedDispatchers: jest.fn(),
+    }
+    const service = new TicketsAssignmentService(
+      prisma as any,
+      {} as any,
+      query as any,
+      timeline as any,
+      {} as any,
+      serviceContracts as any,
+      {} as any,
+      notifications as any,
+    )
+
+    return { service, prisma, tx, query, timeline, notifications }
+  }
+
+  it('denies SECONDARY available tickets when the provider has no location bindings', async () => {
+    const { service, prisma } = makeClaimIsolationHarness({
+      contractRole: ServiceContractRole.SECONDARY,
+      bindingLocationIds: [],
+    })
+
+    await expect(service.availableForTechnician(providerCompanyId, technicianId, clientCompanyId)).resolves.toEqual([])
+
+    expect(JSON.stringify(prisma.ticket.findMany.mock.calls[0][0].where)).toContain('"assignedTechnicianId":{"in"')
+  })
+
+  it('denies SECONDARY claim without location bindings before transaction side effects', async () => {
+    const { service, prisma, timeline, notifications } = makeClaimIsolationHarness({
+      contractRole: ServiceContractRole.SECONDARY,
+      bindingLocationIds: [],
+    })
+
+    await expect(service.claim(providerCompanyId, technicianId, ticketId, clientCompanyId)).rejects.toBeDefined()
+
+    expect(prisma.$transaction).not.toHaveBeenCalled()
+    expect(timeline.recordTx).not.toHaveBeenCalled()
+    expect(notifications.scheduleTicketClaimedDispatchers).not.toHaveBeenCalled()
+  })
+
+  it('allows SECONDARY available and claim only when the location binding is in the canonical contour', async () => {
+    const { service, prisma, tx, query, notifications } = makeClaimIsolationHarness({
+      contractRole: ServiceContractRole.SECONDARY,
+      bindingLocationIds: [allowedLocationId],
+    })
+
+    await expect(service.availableForTechnician(providerCompanyId, technicianId, clientCompanyId)).resolves.toHaveLength(1)
+    await expect(service.claim(providerCompanyId, technicianId, ticketId, clientCompanyId)).resolves.toEqual({ id: ticketId })
+
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1)
+    expect(tx.ticket.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          assignedTechnicianId: technicianId,
+          status: TicketStatus.ASSIGNED,
+        }),
+      }),
+    )
+    expect(query.getOne).toHaveBeenCalledWith(
+      providerCompanyId,
+      technicianId,
+      UserRole.TECHNICIAN,
+      ticketId,
+      undefined,
+      undefined,
+      clientCompanyId,
+    )
+    expect(notifications.scheduleTicketClaimedDispatchers).toHaveBeenCalled()
+  })
+
+  it('preserves PRIMARY claim availability through the same eligibility builder', async () => {
+    const { service, prisma } = makeClaimIsolationHarness({
+      contractRole: ServiceContractRole.PRIMARY,
+      bindingLocationIds: [],
+    })
+
+    await expect(service.availableForTechnician(providerCompanyId, technicianId, clientCompanyId)).resolves.toHaveLength(1)
+    await expect(service.claim(providerCompanyId, technicianId, ticketId, clientCompanyId)).resolves.toEqual({ id: ticketId })
+
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('TicketsAssignmentService create post-action policy', () => {
   function makePrismaMock(opts?: {
     blocksCount?: number

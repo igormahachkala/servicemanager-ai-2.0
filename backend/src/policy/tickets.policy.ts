@@ -62,7 +62,7 @@ export type BoardQuery = {
 /** Вход claimWhere: id + имена специализаций исполнителя (кросс-тенантный матч с категорией заявки). */
 export type TicketsClaimWhereParams = {
   user: { id: string; role: UserRole; isExecutor: boolean; companyId: string };
-  ticketId: string;
+  ticketId?: string;
   specializationIds: string[];
   specializationNames?: string[];
   allowTechnicianClaim: boolean;
@@ -230,7 +230,7 @@ export class TicketsPolicy {
     });
 
     return allow({
-      id: ticketId,
+      ...(ticketId ? { id: ticketId } : {}),
       companyId: effectiveCompanyIds.length === 1 ? effectiveCompanyIds[0] : { in: effectiveCompanyIds },
       status: TicketStatus.NEW,
       assignedTechnicianId: null,

@@ -6,13 +6,13 @@ import { PrismaService } from '../prisma/prisma.service'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
 import { decideTicketTransition } from '../workflow/ticket.workflow'
 import {
+  buildSecondaryOperationalRestrictionWhere,
   buildTechnicianLocationRestrictionWhere,
   isTechnicianLocationAllowed,
   resolveTechnicianOperationalScope,
   resolveTicketOperationAccess,
   type TicketVisibilityMode,
   technicianMatchesCategorySpecializationLinks,
-  wasTicketCreatedByActor,
 } from './ticket-access.utils'
 import { canAcceptTicket } from './ticket-acceptance-access'
 import { TICKET_ASSIGNMENT_REQUESTED_ENTITY, TICKET_ASSIGNMENT_REQUESTED_EVENT } from './ticket-domain-event.types'
@@ -212,6 +212,22 @@ export class TicketMetaBuilder {
       companyIds: technicianScope.companyIds,
       locationScopeByCompany: technicianScope.locationScopeByCompany,
     })
+    const secondaryOperationalRestriction = await buildSecondaryOperationalRestrictionWhere({
+      prisma: this.prisma,
+      serviceContractsService: this.serviceContractsService,
+      providerCompanyId: params.actorCompanyId,
+      linkedClientCompanyId: params.linkedClientCompanyId,
+      scopeCompanyIds: technicianScope.companyIds,
+      actor: {
+        id: params.userId,
+        role: params.role,
+        companyId: params.actorCompanyId,
+        accessFlags: params.accessFlags,
+      },
+    })
+    const claimWhereExtras = secondaryOperationalRestriction
+      ? [locationRestriction, secondaryOperationalRestriction]
+      : [locationRestriction]
 
     if (!decision.allowed) {
       return {
@@ -222,7 +238,7 @@ export class TicketMetaBuilder {
 
     const claimableTicket = await this.prisma.ticket.findFirst({
       where: {
-        AND: [decision.where, locationRestriction],
+        AND: [decision.where, ...claimWhereExtras],
       },
       select: { id: true },
     })
@@ -290,37 +306,6 @@ export class TicketMetaBuilder {
           claimAvailabilityReason:
             'Нет совпадения по специализации: категория заявки не связана с вашими активными специализациями (по id или по нормализованному имени)',
         }
-      }
-    }
-
-    const selfCreatedByCurrentUser = await wasTicketCreatedByActor({
-      prisma: this.prisma,
-      companyIds: technicianScope.companyIds,
-      ticketId: params.ticketId,
-      actorUserId: params.userId,
-    })
-
-    if (selfCreatedByCurrentUser) {
-      const selfCreatedTicket = await this.prisma.ticket.findFirst({
-        where: {
-          AND: [
-            {
-              id: params.ticketId,
-              companyId:
-                technicianScope.companyIds.length === 1
-                  ? technicianScope.companyIds[0]
-                  : { in: technicianScope.companyIds },
-              status: TicketStatus.NEW,
-              assignedTechnicianId: null,
-            },
-            locationRestriction,
-          ],
-        },
-        select: { id: true },
-      })
-
-      if (selfCreatedTicket) {
-        return { canClaimByCurrentUser: true, claimAvailabilityReason: null }
       }
     }
 
