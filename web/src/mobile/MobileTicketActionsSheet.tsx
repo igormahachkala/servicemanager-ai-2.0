@@ -20,6 +20,7 @@ const SHEET_ICONS: Record<string, ReactNode> = {
   bolt: (<polyline points="13 3 13 10 19 10 11 21 11 14 5 14 13 3" />),
   'map-pin': (<><path d="M9 11a3 3 0 1 0 6 0a3 3 0 0 0 -6 0" /><path d="M17.657 16.657l-4.243 4.243a2 2 0 0 1 -2.827 0l-4.244 -4.243a8 8 0 1 1 11.314 0z" /></>),
   'clipboard-check': (<><path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2" /><rect x="9" y="3" width="6" height="4" rx="2" /><path d="M9 14l2 2l4 -4" /></>),
+  edit: (<><path d="M7 7h-1a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-1" /><path d="M20.385 6.585a2.1 2.1 0 0 0 -2.97 -2.97l-8.415 8.385v3h3l8.385 -8.415z" /><path d="M16 5l3 3" /></>),
   check: (<polyline points="5 12 10 17 20 7" />),
   'arrow-back-up': (<path d="M9 14l-4 -4l4 -4M5 10h11a4 4 0 1 1 0 8h-1" />),
 }

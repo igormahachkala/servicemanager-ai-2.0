@@ -1823,6 +1823,11 @@ a.mobileBtn.mobileCreateTicketLink {
   width: 100%;
 }
 
+.mobileTicketEditModal {
+  max-height: calc(100vh - 32px);
+  overflow-y: auto;
+}
+
 /* SMA-022.1 — компактная карточка: номер · объект · статус · исполнитель · SLA/срочность */
 .mobileTicketCardBody {
   display: grid;

@@ -1,5 +1,6 @@
 import { TicketStatus, UserRole } from '@prisma/client'
 
+import { PERMISSIONS } from '../common/permissions.constants'
 import { TicketsPolicy, type TicketsClaimWhereParams } from '../policy/tickets.policy'
 import { isExecutorEligible } from '../common/executor.utils'
 import { PrismaService } from '../prisma/prisma.service'
@@ -16,6 +17,14 @@ import {
 } from './ticket-access.utils'
 import { canAcceptTicket } from './ticket-acceptance-access'
 import { TICKET_ASSIGNMENT_REQUESTED_ENTITY, TICKET_ASSIGNMENT_REQUESTED_EVENT } from './ticket-domain-event.types'
+
+const TICKET_EDIT_ROLES: UserRole[] = [
+  UserRole.ADMIN,
+  UserRole.MASTER,
+  UserRole.DISPATCHER,
+  UserRole.NETWORK_DIRECTOR,
+  UserRole.TERRITORIAL_MANAGER,
+]
 
 export type TicketMetaBuildParams = {
   actorCompanyId: string
@@ -46,11 +55,13 @@ export class TicketMetaBuilder {
     const availableStatusTransitions = await this.resolveAvailableStatusTransitions(params)
     const assignmentRequestedByCurrentUser = await this.resolveAssignmentRequestedByCurrentUser(params)
     const acceptanceAvailable = await this.resolveAcceptanceAvailability(params)
+    const editAvailable = await this.resolveEditAvailability(params)
     const { availableActions, availableActionHints } = this.deriveAvailableActions(
       params,
       claimAvailability,
       availableStatusTransitions,
       acceptanceAvailable,
+      editAvailable,
     )
 
     return {
@@ -74,8 +85,10 @@ export class TicketMetaBuilder {
     claim: { canClaimByCurrentUser: boolean; claimAvailabilityReason: string | null },
     transitions: TicketStatus[],
     acceptanceAvailable: boolean,
+    editAvailable: boolean,
   ): {
     availableActions: {
+      canEdit: boolean
       canClaim: boolean
       canStart: boolean
       canComplete: boolean
@@ -129,6 +142,7 @@ export class TicketMetaBuilder {
     const outHints = Object.values(hints).some((v) => (v || '').length > 0) ? hints : undefined
     return {
       availableActions: {
+        canEdit: editAvailable,
         canClaim,
         canStart,
         canComplete,
@@ -138,6 +152,52 @@ export class TicketMetaBuilder {
       },
       availableActionHints: outHints,
     }
+  }
+
+  private async resolveEditAvailability(params: TicketMetaBuildParams): Promise<boolean> {
+    if (!TICKET_EDIT_ROLES.includes(params.role)) return false
+    if (params.ticketStatus === TicketStatus.DONE || params.ticketStatus === TicketStatus.CANCELED) return false
+
+    if (params.role === UserRole.TERRITORIAL_MANAGER) {
+      if (params.linkedClientCompanyId) return false
+      if (params.ticketCompanyId !== params.actorCompanyId) return false
+      if (params.ticketStatus !== TicketStatus.NEW) return false
+    }
+
+    return this.hasTicketEditPermission(params)
+  }
+
+  private async hasTicketEditPermission(params: TicketMetaBuildParams): Promise<boolean> {
+    const permissionBlocksCount = await this.prisma.permissionBlock.count()
+    if (permissionBlocksCount === 0) return true
+
+    const company = await this.prisma.company.findUnique({
+      where: { id: params.actorCompanyId },
+      select: { type: true },
+    })
+
+    const [roleHit, userHit] = await Promise.all([
+      this.prisma.rolePermission.findFirst({
+        where: {
+          role: params.role,
+          OR: [
+            { companyType: company?.type ?? null },
+            { companyType: null },
+          ],
+          permissionBlock: { code: PERMISSIONS.TICKETS_EDIT },
+        },
+        select: { id: true },
+      }),
+      this.prisma.userPermission.findFirst({
+        where: {
+          userId: params.userId,
+          permissionBlock: { code: PERMISSIONS.TICKETS_EDIT },
+        },
+        select: { id: true },
+      }),
+    ])
+
+    return !!roleHit || !!userHit
   }
 
   private async resolveAcceptanceAvailability(params: TicketMetaBuildParams): Promise<boolean> {

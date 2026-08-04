@@ -536,6 +536,7 @@ export function MobileTicketPage() {
   const techPrimary = ticket && meQ.data?.id ? api.mobileTechnicianTicketPrimaryAction(ticket, meQ.data.id) : null
   const assigneePresent = !!(ticket?.assignedTechnicianId || ticket?.assignedTechnician)
   const aa = ticket?.meta?.availableActions
+  const canEditTicket = aa?.canEdit === true
   const transitions = ticket?.meta?.availableStatusTransitions || []
   const canShowTechClaimButton =
     meQ.data?.role === 'TECHNICIAN' &&
@@ -597,6 +598,9 @@ export function MobileTicketPage() {
 
   const [assignTicketOpen, setAssignTicketOpen] = useState(false)
   const [actionsSheetOpen, setActionsSheetOpen] = useState(false)
+  const [editTicketOpen, setEditTicketOpen] = useState(false)
+  const [editCategoryId, setEditCategoryId] = useState('')
+  const [editErr, setEditErr] = useState('')
   const [assignTechId, setAssignTechId] = useState('')
   const [assignErr, setAssignErr] = useState('')
   const [techActionErr, setTechActionErr] = useState('')
@@ -629,6 +633,12 @@ export function MobileTicketPage() {
     enabled: !!ticketId && !!ticket && assignTicketOpen && canAssignProvider,
   })
 
+  const editCategoriesQ = useQuery({
+    queryKey: ['mobile-ticket-edit-categories', ticket?.meta?.scopeCompanyId || ticket?.companyId || ''],
+    queryFn: () => api.problemCategories(ticket?.meta?.scopeCompanyId || ticket?.companyId || undefined),
+    enabled: !!ticket && editTicketOpen && canEditTicket,
+  })
+
   const assignTechOptions = useMemo(() => {
     const d = assignCandidatesQ.data
     if (!d) return []
@@ -652,6 +662,11 @@ export function MobileTicketPage() {
       return assignTechOptions[0]!.id
     })
   }, [assignTechOptions])
+
+  const editCategoryOptions = useMemo(() => {
+    const currentId = ticket?.problemCategory?.id || ''
+    return (editCategoriesQ.data || []).filter((row) => row.isActive !== false || row.id === currentId)
+  }, [editCategoriesQ.data, ticket?.problemCategory?.id])
 
   const invalidateTicketQueries = async () => {
     await queryClient.invalidateQueries({ queryKey: ['mobile-ticket-detail'] })
@@ -798,6 +813,25 @@ export function MobileTicketPage() {
     },
     onError: (e: unknown) => {
       setAssignErr(formatMobileMutationError(e, { operation: 'assign' }))
+    },
+  })
+
+  const editTicketM = useMutation({
+    mutationFn: async () => {
+      if (!ticket) throw new Error('Нет заявки')
+      const problemCategoryId = editCategoryId.trim()
+      if (!problemCategoryId) throw new Error('Выберите категорию')
+      await api.updateTicket(ticket.id, { problemCategoryId }, ticketResourceScope)
+    },
+    onMutate: () => setEditErr(''),
+    onSuccess: async () => {
+      setEditTicketOpen(false)
+      await invalidateTicketQueries()
+      await queryClient.refetchQueries({ queryKey: ['mobile-ticket-detail', ticketId] })
+      setOperationalToast('Категория обновлена.')
+    },
+    onError: (e: unknown) => {
+      setEditErr(formatMobileMutationError(e, { operation: 'other' }))
     },
   })
 
@@ -1018,6 +1052,12 @@ export function MobileTicketPage() {
   const claimBtnPending = techActionM.isPending && techActionM.variables === 'claim'
   const startBtnPending = techActionM.isPending && techActionM.variables === 'start'
   const assignBusy = assignM.isPending
+  const editBusy = editTicketM.isPending
+  const editSaveDisabled =
+    editBusy ||
+    editCategoriesQ.isLoading ||
+    !editCategoryId.trim() ||
+    editCategoryId === (ticket?.problemCategory?.id || '')
   const closeBusy = closeM.isPending
   const closeCanSubmit = !!closeModal?.file && closeModal.comment.trim().length >= 3 && !closeBusy
   // SMA-ACCEPTANCE-005: для отказа достаточно комментария (фото — по желанию).
@@ -1098,6 +1138,13 @@ export function MobileTicketPage() {
     window.setTimeout(() => chatInputRef.current?.focus(), 60)
   }
 
+  function openTicketEditor() {
+    if (!ticket) return
+    setEditCategoryId(ticket.problemCategory?.id || '')
+    setEditErr('')
+    setEditTicketOpen(true)
+  }
+
   const ticketSheetActions: TicketSheetAction[] = ticket
     ? ([
         meQ.data?.role === 'TECHNICIAN' && ticket.status === 'NEW' && !assigneePresent
@@ -1108,6 +1155,9 @@ export function MobileTicketPage() {
           : null,
         showAssignButton
           ? { id: 'assign', label: assignBtnLabel, icon: 'user-plus', onClick: () => { setAssignErr(''); setAssignTicketOpen(true) } }
+          : null,
+        canEditTicket
+          ? { id: 'edit-ticket', label: 'Редактировать заявку', icon: 'edit', onClick: openTicketEditor }
           : null,
         { id: 'comment', label: 'Написать в чат', icon: 'message', onClick: openChatComposer },
         { id: 'photo', label: 'Добавить фото', icon: 'camera', onClick: () => setDetailTab('photos') },
@@ -1191,7 +1241,7 @@ export function MobileTicketPage() {
             aria-label="Быстрые действия"
             onClick={() => setActionsSheetOpen(true)}
           >
-            •••
+            ⋯
           </button>
         ) : null}
       </div>
@@ -2160,6 +2210,80 @@ export function MobileTicketPage() {
             {!assignCandidatesQ.isLoading && assignCandidatesQ.data && assignTechOptions.length === 0 ? (
               <div className="mobileMeta" style={{ marginTop: 12 }}>
                 Нет доступных техников для назначения.
+              </div>
+            ) : null}
+          </div>
+        </MobileModalBackdrop>
+      ) : null}
+      {editTicketOpen && ticket && canEditTicket ? (
+        <MobileModalBackdrop
+          ariaLabel="Редактировать заявку"
+          onClose={() => {
+            if (editBusy) return
+            setEditTicketOpen(false)
+            setEditErr('')
+          }}
+        >
+          <div className="mobileAssignModal mobileTicketEditModal">
+            <div className="mobileRow" style={{ alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ fontWeight: 900 }}>Редактировать заявку</div>
+                <div className="mobileMeta" style={{ marginTop: 4 }}>
+                  {mobileTicketNumberTitle(ticket.ticketNumber)}
+                </div>
+              </div>
+              <button
+                type="button"
+                className="mobileBtn mobileBtnSecondary"
+                disabled={editBusy}
+                onClick={() => {
+                  setEditTicketOpen(false)
+                  setEditErr('')
+                }}
+              >
+                Отмена
+              </button>
+            </div>
+            {editCategoriesQ.isLoading ? (
+              <div className="mobileMeta" style={{ marginTop: 12 }}>Загружаем категории…</div>
+            ) : null}
+            {editCategoriesQ.isError ? (
+              <div className="mobileNotice mobileNoticeError" style={{ marginTop: 10 }}>
+                {formatMobileMutationError(editCategoriesQ.error, { operation: 'other' })}
+              </div>
+            ) : null}
+            {editErr ? <div className="mobileNotice mobileNoticeError" style={{ marginTop: 10 }}>{editErr}</div> : null}
+            {!editCategoriesQ.isLoading && !editCategoriesQ.isError ? (
+              <div className="mobileForm" style={{ marginTop: 12 }}>
+                <label>
+                  Категория
+                  <select
+                    value={editCategoryId}
+                    disabled={editBusy || editCategoriesQ.isLoading}
+                    onChange={(e) => {
+                      setEditCategoryId(e.target.value)
+                      setEditErr('')
+                    }}
+                  >
+                    <option value="" disabled>Выберите категорию</option>
+                    {editCategoryOptions.map((row) => (
+                      <option key={row.id} value={row.id}>{row.name}</option>
+                    ))}
+                  </select>
+                </label>
+                {editCategoryOptions.length === 0 ? (
+                  <div className="mobileMeta" style={{ marginTop: 10 }}>Нет доступных категорий.</div>
+                ) : null}
+                <div className="mobileFormSubmitStack" style={{ marginTop: 12 }}>
+                  <button
+                    type="button"
+                    className="mobileBtn mobileAssignModalConfirm"
+                    disabled={editSaveDisabled}
+                    onClick={() => editTicketM.mutate()}
+                  >
+                    {editBusy ? 'Сохраняем…' : 'Сохранить'}
+                  </button>
+                </div>
               </div>
             ) : null}
           </div>

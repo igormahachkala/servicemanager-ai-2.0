@@ -755,6 +755,7 @@ export type TicketGetOne = {
     availableStatusTransitions?: TicketStatus[]
     /** Политика + воркфлоу: единый источник для кнопок (без хардкода прав на фронте). */
     availableActions?: {
+      canEdit?: boolean
       canClaim: boolean
       canStart: boolean
       canComplete: boolean
