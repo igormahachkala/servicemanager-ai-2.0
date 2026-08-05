@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma/prisma.service'
 
 import { CreateServiceContractDto } from './dto/create-service-contract.dto'
 import { UpdateServiceContractDto } from './dto/update-service-contract.dto'
+import { activeServiceContractWhere, isServiceContractEffective } from './service-contract-window'
 
 @Injectable()
 export class ServiceContractsService {
@@ -46,7 +47,7 @@ export class ServiceContractsService {
     const contracts = await this.prisma.serviceContract.findMany({
       where: {
         providerCompanyId: normalizedProviderCompanyId,
-        status: ServiceContractStatus.ACTIVE,
+        ...activeServiceContractWhere(),
       },
       orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
       select: this.contractSelect(),
@@ -124,7 +125,7 @@ export class ServiceContractsService {
     return this.prisma.serviceContract.findMany({
       where: {
         clientCompanyId,
-        status: ServiceContractStatus.ACTIVE,
+        ...activeServiceContractWhere(),
       },
       orderBy: [{ updatedAt: 'desc' }, { createdAt: 'desc' }],
       select: this.contractSelect(),
@@ -146,6 +147,8 @@ export class ServiceContractsService {
 
   async create(dto: CreateServiceContractDto) {
     await this.validateContractParties(dto.clientCompanyId, dto.providerCompanyId)
+    const locationIds = this.normalizeIds(dto.locationIds)
+    await this.assertLocationsBelongToClient(dto.clientCompanyId, locationIds)
     this.validateDates(dto.startsAt, dto.endsAt)
 
     const existing = await this.prisma.serviceContract.findUnique({
@@ -171,14 +174,28 @@ export class ServiceContractsService {
         startsAt: dto.startsAt ? new Date(dto.startsAt) : null,
         endsAt: dto.endsAt ? new Date(dto.endsAt) : null,
         notes: dto.notes?.trim() || null,
+        locations: {
+          create: locationIds.map((locationId) => ({
+            clientCompanyId: dto.clientCompanyId,
+            locationId,
+          })),
+        },
       },
       select: this.contractSelect(),
     })
   }
 
   async update(id: string, dto: UpdateServiceContractDto) {
-    await this.getOne(id)
-    this.validateDates(dto.startsAt, dto.endsAt)
+    const current = await this.prisma.serviceContract.findUnique({
+      where: { id },
+      select: { startsAt: true, endsAt: true, clientCompanyId: true },
+    })
+    if (!current) throw new NotFoundException('Service contract not found')
+    const nextStartsAt = dto.startsAt !== undefined ? (dto.startsAt ? new Date(dto.startsAt) : null) : current.startsAt
+    const nextEndsAt = dto.endsAt !== undefined ? (dto.endsAt ? new Date(dto.endsAt) : null) : current.endsAt
+    this.validateDateValues(nextStartsAt, nextEndsAt)
+    const locationIds = dto.locationIds === undefined ? undefined : this.normalizeIds(dto.locationIds)
+    if (locationIds) await this.assertLocationsBelongToClient(current.clientCompanyId, locationIds)
 
     return this.prisma.serviceContract.update({
       where: { id },
@@ -188,6 +205,17 @@ export class ServiceContractsService {
         ...(dto.startsAt !== undefined ? { startsAt: dto.startsAt ? new Date(dto.startsAt) : null } : {}),
         ...(dto.endsAt !== undefined ? { endsAt: dto.endsAt ? new Date(dto.endsAt) : null } : {}),
         ...(dto.notes !== undefined ? { notes: dto.notes?.trim() || null } : {}),
+        ...(locationIds !== undefined
+          ? {
+              locations: {
+                deleteMany: {},
+                create: locationIds.map((locationId) => ({
+                  clientCompanyId: current.clientCompanyId,
+                  locationId,
+                })),
+              },
+            }
+          : {}),
       },
       select: this.contractSelect(),
     })
@@ -206,6 +234,7 @@ export class ServiceContractsService {
         status: ServiceContractStatus.ACTIVE,
         clientCompanyId: normalizedClientCompanyId,
         providerCompanyId: normalizedProviderCompanyId,
+        locations: [] as Array<{ locationId: string }>,
       }
     }
 
@@ -222,10 +251,13 @@ export class ServiceContractsService {
         role: true,
         clientCompanyId: true,
         providerCompanyId: true,
+        startsAt: true,
+        endsAt: true,
+        locations: { select: { locationId: true } },
       },
     })
 
-    if (!contract || contract.status !== ServiceContractStatus.ACTIVE) {
+    if (!contract || !isServiceContractEffective(contract)) {
       return null
     }
 
@@ -255,7 +287,7 @@ export class ServiceContractsService {
     const contracts = await this.prisma.serviceContract.findMany({
       where: {
         providerCompanyId: normalizedProviderCompanyId,
-        status: ServiceContractStatus.ACTIVE,
+        ...activeServiceContractWhere(),
         role: ServiceContractRole.PRIMARY,
       },
       select: {
@@ -277,7 +309,7 @@ export class ServiceContractsService {
     const contracts = await this.prisma.serviceContract.findMany({
       where: {
         providerCompanyId: normalizedProviderCompanyId,
-        status: ServiceContractStatus.ACTIVE,
+        ...activeServiceContractWhere(),
         ...(roles && roles.length > 0 ? { role: { in: roles } } : {}),
       },
       select: {
@@ -297,7 +329,7 @@ export class ServiceContractsService {
     const contracts = await this.prisma.serviceContract.findMany({
       where: {
         providerCompanyId: normalized,
-        status: ServiceContractStatus.ACTIVE,
+        ...activeServiceContractWhere(),
         role: ServiceContractRole.SECONDARY,
       },
       select: { clientCompanyId: true },
@@ -315,7 +347,7 @@ export class ServiceContractsService {
     const contracts = await this.prisma.serviceContract.findMany({
       where: {
         clientCompanyId: normalized,
-        status: ServiceContractStatus.ACTIVE,
+        ...activeServiceContractWhere(),
         role: ServiceContractRole.SECONDARY,
       },
       select: { providerCompanyId: true },
@@ -362,8 +394,35 @@ export class ServiceContractsService {
 
   private validateDates(startsAt?: string | null, endsAt?: string | null) {
     if (!startsAt || !endsAt) return
-    if (new Date(startsAt).getTime() > new Date(endsAt).getTime()) {
+    this.validateDateValues(new Date(startsAt), new Date(endsAt))
+  }
+
+  private validateDateValues(startsAt?: Date | null, endsAt?: Date | null) {
+    if (!startsAt || !endsAt) return
+    if (startsAt.getTime() > endsAt.getTime()) {
       throw new BadRequestException('startsAt must be earlier than or equal to endsAt')
+    }
+  }
+
+  private normalizeIds(values?: string[] | null) {
+    return Array.from(new Set((values ?? []).map((value) => value.trim()).filter(Boolean)))
+  }
+
+  private async assertLocationsBelongToClient(clientCompanyId: string, locationIds: string[]) {
+    if (locationIds.length === 0) return
+    const rows = await this.prisma.location.findMany({
+      where: {
+        id: { in: locationIds },
+        clientCompanyId,
+        isActive: true,
+        deletedAt: null,
+      },
+      select: { id: true },
+    })
+    const found = new Set(rows.map((row) => row.id))
+    const rejected = locationIds.filter((id) => !found.has(id))
+    if (rejected.length > 0) {
+      throw new BadRequestException('Some locations do not belong to the contract client')
     }
   }
 
@@ -407,6 +466,15 @@ export class ServiceContractsService {
           name: true,
           type: true,
           publicRequestEnabled: true,
+        },
+      },
+      locations: {
+        orderBy: { createdAt: 'asc' as const },
+        select: {
+          locationId: true,
+          location: {
+            select: { id: true, name: true, address: true, platformCode: true },
+          },
         },
       },
     }

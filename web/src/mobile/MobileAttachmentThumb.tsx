@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import * as api from '../lib/api'
+import { ticketMediaKind } from '../lib/ticketAttachmentMedia'
 
 export type MobileAttachmentLike = {
   id?: string | null
@@ -20,12 +21,6 @@ export function mobileAttachmentLabel(attachment: MobileAttachmentLike) {
   const filename = (attachment.filename || '').trim()
   if (filename) return filename
   return (attachment.originalName || '').trim() || 'Фото'
-}
-
-function canPreviewInBrowser(mimeType?: string | null) {
-  const mime = (mimeType || '').trim().toLowerCase()
-  if (!mime) return true
-  return mime.startsWith('image/')
 }
 
 function FallbackLink({ href, label }: { href: string; label: string }) {
@@ -53,7 +48,7 @@ export function MobileAttachmentThumb({
   const resolved = api.resolveTicketAttachmentUrl(attachment)
   const previewSrc = objectUrl || resolved
   const label = mobileAttachmentLabel(attachment)
-  const canPreview = canPreviewInBrowser(attachment.mimeType)
+  const mediaKind = ticketMediaKind(attachment)
 
   useEffect(() => {
     setBroken(false)
@@ -105,7 +100,7 @@ export function MobileAttachmentThumb({
     )
   }
 
-  if (!canPreview || (broken && fetchFailed)) {
+  if (!mediaKind || (broken && fetchFailed)) {
     return <FallbackLink href={resolved} label={label} />
   }
 
@@ -115,6 +110,27 @@ export function MobileAttachmentThumb({
         <span className="mobilePhotoFallbackTitle">{label}</span>
         <span className="mobilePhotoFallbackAction">Загрузка…</span>
       </div>
+    )
+  }
+
+  if (mediaKind === 'video') {
+    return (
+      <video
+        src={previewSrc}
+        className={loaded ? className : `${className} mobilePhotoThumbPending`}
+        controls
+        playsInline
+        preload="metadata"
+        aria-label={label}
+        onLoadedMetadata={() => setLoaded(true)}
+        onError={() => {
+          if (objectUrl) {
+            setFetchFailed(true)
+            return
+          }
+          setBroken(true)
+        }}
+      />
     )
   }
 

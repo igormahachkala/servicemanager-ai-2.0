@@ -35,7 +35,7 @@ describe('MaxBotService', () => {
     expect(result.savedChatId).toBe(202);
     expect(result.savedMarker).toBe(77);
     expect(global.fetch).toHaveBeenCalledWith(
-      'https://platform-api.max.ru/updates?limit=10&timeout=0&types=message_created',
+      'https://platform-api2.max.ru/updates?limit=10&timeout=0&types=message_created',
       expect.objectContaining({
         headers: expect.anything(),
       }),
@@ -73,7 +73,7 @@ describe('MaxBotService', () => {
     expect(result.message).toEqual({ message_id: 'abc', chat_id: 555 });
     expect(global.fetch).toHaveBeenNthCalledWith(
       2,
-      'https://platform-api.max.ru/messages?chat_id=555',
+      'https://platform-api2.max.ru/messages?chat_id=555',
       expect.objectContaining({
         method: 'POST',
       }),
@@ -169,11 +169,11 @@ describe('MaxBotService', () => {
     expect(health.status).toBe('ok');
     expect(health.tokenValidation.ok).toBe(true);
     expect(global.fetch).toHaveBeenCalledWith(
-      'https://platform-api.max.ru/subscriptions?limit=1',
+      'https://platform-api2.max.ru/subscriptions?limit=1',
       expect.objectContaining({
         method: 'GET',
         headers: expect.objectContaining({
-          Authorization: 'Bearer test-token',
+          Authorization: 'test-token',
         }),
       }),
     );
@@ -260,7 +260,7 @@ describe('MaxBotService', () => {
     });
 
     const calls = (global.fetch as jest.Mock).mock.calls;
-    expect(calls[0][0]).toBe('https://platform-api.max.ru/messages?chat_id=-75137613795359');
+    expect(calls[0][0]).toBe('https://platform-api2.max.ru/messages?chat_id=-75137613795359');
     expect(JSON.parse(calls[0][1].body)).toMatchObject({
       text: expect.stringContaining('Отправитель: Иван Петров'),
     });
@@ -364,7 +364,7 @@ describe('MaxBotService', () => {
     expect(prisma.maxLocationThread.create).toHaveBeenCalledTimes(1);
     expect(global.fetch).toHaveBeenNthCalledWith(
       1,
-      'https://platform-api.max.ru/messages?chat_id=-75137613795359',
+      'https://platform-api2.max.ru/messages?chat_id=-75137613795359',
       expect.objectContaining({
         method: 'POST',
         body: JSON.stringify({ text: '🏪 Кофейня U' }),

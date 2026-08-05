@@ -50,7 +50,7 @@ export class TicketsController {
   @Post('attachments/upload')
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.CLIENT, UserRole.TERRITORIAL_MANAGER, UserRole.TECHNICIAN)
   @RequirePermission(PERMISSIONS.TICKETS_CREATE)
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 25 * 1024 * 1024 } }))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 100 * 1024 * 1024 } }))
   uploadDraftAttachment(@Req() req: any, @UploadedFile() file: any) {
     return this.svc.uploadDraftAttachment(req.user.companyId, req.user.id, file)
   }
@@ -59,7 +59,7 @@ export class TicketsController {
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.CLIENT, UserRole.TERRITORIAL_MANAGER, UserRole.TECHNICIAN)
   @RequirePermission(PERMISSIONS.TICKETS_CREATE)
   deleteDraftAttachment(@Req() req: any, @Param('attachmentId') attachmentId: string) {
-    return this.svc.deleteDraftAttachment(req.user.companyId, attachmentId)
+    return this.svc.deleteDraftAttachment(req.user.companyId, req.user.id, attachmentId)
   }
 
   @Post(':id/child')
@@ -282,7 +282,7 @@ export class TicketsController {
   @Post(':id/attachments')
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TECHNICIAN, UserRole.CLIENT, UserRole.TERRITORIAL_MANAGER)
   @RequirePermission(PERMISSIONS.TICKETS_VIEW)
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 25 * 1024 * 1024 } }))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 100 * 1024 * 1024 } }))
   uploadAttachment(
     @Req() req: any,
     @Param('id') id: string,

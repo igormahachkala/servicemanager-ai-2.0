@@ -73,6 +73,7 @@ describe('ticket-access utils SECONDARY provider visibility', () => {
       boundLocationIds?: string[]
       boundLocationBindings?: Array<{ companyId: string; locationId: string; clientCompanyId?: string }>
       accessLocationMode?: UserAccessLocationMode | null
+      contractLocationIds?: string[]
       directTicket?: any
     } = {},
   ) {
@@ -120,6 +121,14 @@ describe('ticket-access utils SECONDARY provider visibility', () => {
         findUnique: jest.fn().mockResolvedValue(
           opts.accessLocationMode ? { locationMode: opts.accessLocationMode } : null,
         ),
+      },
+      serviceContract: {
+        findUnique: jest.fn().mockResolvedValue({
+          status: 'ACTIVE',
+          startsAt: null,
+          endsAt: null,
+          locations: (opts.contractLocationIds ?? []).map((locationId) => ({ locationId })),
+        }),
       },
     } as any
   }
@@ -216,6 +225,30 @@ describe('ticket-access utils SECONDARY provider visibility', () => {
       },
       scopeCompanyId: providerCompanyId,
     })).resolves.toEqual({ mode: 'bound_locations', locationIds: [] })
+  })
+
+  it('intersects employee bindings with the objects selected in the service contract', async () => {
+    const prisma = makePrismaTicketMock({
+      accessLocationMode: UserAccessLocationMode.SELECTED_LOCATIONS,
+      boundLocationIds: ['loc-contract', 'loc-outside'],
+      contractLocationIds: ['loc-contract', 'loc-other'],
+    })
+
+    await expect(resolveActorLocationScope({
+      prisma,
+      actor: { id: 'user-1', role: UserRole.TECHNICIAN, companyId: providerCompanyId },
+      scopeCompanyId: clientCompanyId,
+    })).resolves.toEqual({ mode: 'bound_locations', locationIds: ['loc-contract'] })
+  })
+
+  it('uses contract objects as the ceiling for a tenant-wide provider employee', async () => {
+    const prisma = makePrismaTicketMock({ contractLocationIds: ['loc-contract'] })
+
+    await expect(resolveActorLocationScope({
+      prisma,
+      actor: { id: 'admin-1', role: UserRole.ADMIN, companyId: providerCompanyId },
+      scopeCompanyId: clientCompanyId,
+    })).resolves.toEqual({ mode: 'bound_locations', locationIds: ['loc-contract'] })
   })
 
   it('runtime location scope fail-closes inactive ADMIN even with a stale JWT', async () => {

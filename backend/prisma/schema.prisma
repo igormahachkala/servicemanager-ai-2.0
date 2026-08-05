@@ -62,6 +62,18 @@ enum TicketAttachmentPurpose {
   DECLINE_REPORT
 }
 
+enum WorkShiftStatus {
+  OPEN
+  CLOSED
+  AUTO_CLOSED
+}
+
+enum WorkLogStatus {
+  RUNNING
+  STOPPED
+  AUTO_STOPPED
+}
+
 enum PublicRequestType {
   REPAIR
   NOTE
@@ -116,56 +128,60 @@ enum InspectionFrequency {
 }
 
 model Company {
-  id                   String      @id @default(uuid())
-  name                 String
-  brandName            String?
-  legalName            String?
-  address              String?
-  phone                String?
-  email                String?
-  taxId                String?
-  registrationNumber   String?
-  logoUrl              String?
-  signatureLineName    String?
-  signatureLineTitle   String?
-  type                 CompanyType @default(CLIENT)
-  autoAssignEnabled    Boolean     @default(false)
-  allowTechnicianClaim Boolean     @default(true)
-  slaStrictMode        Boolean     @default(false)
-  timezone             String?     @default("UTC")
-  publicRequestEnabled Boolean     @default(false)
-  publicRequestToken   String?     @unique
-  publicRequestIntro   String?
-  publicRequestAllowPhotos Boolean @default(true)
-  publicRequestMaxPhotos Int @default(3)
-  publicRequestRequirePhone Boolean @default(true)
-  publicRequestDefaultType PublicRequestType?
-  publicRequestRateLimitEnabled Boolean @default(true)
-  publicRequestLocationPresetMode String? @default("HIDE_WHEN_VALID")
-  createdAt            DateTime    @default(now())
-  updatedAt            DateTime    @updatedAt
+  id                              String             @id @default(uuid())
+  name                            String
+  brandName                       String?
+  legalName                       String?
+  address                         String?
+  phone                           String?
+  email                           String?
+  taxId                           String?
+  registrationNumber              String?
+  logoUrl                         String?
+  signatureLineName               String?
+  signatureLineTitle              String?
+  type                            CompanyType        @default(CLIENT)
+  autoAssignEnabled               Boolean            @default(false)
+  allowTechnicianClaim            Boolean            @default(true)
+  slaStrictMode                   Boolean            @default(false)
+  timezone                        String?            @default("UTC")
+  shiftAutoCloseTime              String             @default("19:00")
+  publicRequestEnabled            Boolean            @default(false)
+  publicRequestToken              String?            @unique
+  publicRequestIntro              String?
+  publicRequestAllowPhotos        Boolean            @default(true)
+  publicRequestMaxPhotos          Int                @default(3)
+  publicRequestRequirePhone       Boolean            @default(true)
+  publicRequestDefaultType        PublicRequestType?
+  publicRequestRateLimitEnabled   Boolean            @default(true)
+  publicRequestLocationPresetMode String?            @default("HIDE_WHEN_VALID")
+  createdAt                       DateTime           @default(now())
+  updatedAt                       DateTime           @updatedAt
 
-  users             User[]
-  locations         Location[]
-  maxLocationThreads MaxLocationThread[]
-  specializations   Specialization[]
-  problemCategories ProblemCategory[]
-  tickets           Ticket[]
-  ticketAttachments TicketAttachment[]
-  equipment         Equipment[]
-  publicRequestLogs PublicRequestLog[]
-  inspectionTemplates InspectionTemplate[]
-  inspectionRuns      InspectionRun[]
-  inspectionSchedules InspectionSchedule[]
+  users                        User[]
+  locations                    Location[]
+  maxLocationThreads           MaxLocationThread[]
+  specializations              Specialization[]
+  problemCategories            ProblemCategory[]
+  tickets                      Ticket[]
+  ticketAttachments            TicketAttachment[]
+  equipment                    Equipment[]
+  publicRequestLogs            PublicRequestLog[]
+  inspectionTemplates          InspectionTemplate[]
+  inspectionRuns               InspectionRun[]
+  inspectionSchedules          InspectionSchedule[]
   inspectionRunItemAttachments InspectionRunItemAttachment[]
-  clientContracts    ServiceContract[] @relation("ClientCompanyContracts")
-  providerContracts  ServiceContract[] @relation("ProviderCompanyContracts")
-  providedTechnicianBindings TechnicianClientBinding[] @relation("TechnicianBindingProviderCompany")
-  clientTechnicianBindings   TechnicianClientBinding[] @relation("TechnicianBindingClientCompany")
-  userLocationBindings UserLocationBinding[]
-  userAccessScopes     UserAccessScope[]
-  notifications      Notification[]
-  agentTasks         AgentTask[]
+  clientContracts              ServiceContract[]             @relation("ClientCompanyContracts")
+  providerContracts            ServiceContract[]             @relation("ProviderCompanyContracts")
+  providedTechnicianBindings   TechnicianClientBinding[]     @relation("TechnicianBindingProviderCompany")
+  clientTechnicianBindings     TechnicianClientBinding[]     @relation("TechnicianBindingClientCompany")
+  userLocationBindings         UserLocationBinding[]
+  userAccessScopes             UserAccessScope[]
+  notifications                Notification[]
+  agentTasks                   AgentTask[]
+  workShifts                   WorkShift[]
+  workLogs                     WorkLog[]
+  serviceContractLocations     ServiceContractLocation[]
 }
 
 model User {
@@ -173,38 +189,40 @@ model User {
   companyId String
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
-  email     String   @unique
-  password  String
-  firstName String?
-  lastName  String?
-  avatarUrl String? @map("profilePhotoUrl")
+  email      String    @unique
+  password   String
+  firstName  String?
+  lastName   String?
+  avatarUrl  String?   @map("profilePhotoUrl")
   role       UserRole
-  isActive   Boolean  @default(true)
-  isExecutor Boolean  @default(false)
+  isActive   Boolean   @default(true)
+  isExecutor Boolean   @default(false)
   phone      String?
   deletedAt  DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  ticketStatusChanges        TicketStatusHistory[] @relation("TicketStatusChangedBy")
-  technicianSpecializations  TechnicianSpecialization[]
-  assignedTickets            Ticket[] @relation("AssignedTechnician")
-  createdTickets             Ticket[] @relation("TicketCreatedBy")
-  ticketAttachmentsUploaded  TicketAttachment[] @relation("TicketAttachmentUploadedBy")
-  inspectionRunsPerformed    InspectionRun[] @relation("InspectionRunPerformedBy")
-  inspectionReportsSubmitted InspectionRun[] @relation("InspectionRunReportSubmittedBy")
-  inspectionReportsReviewed  InspectionRun[] @relation("InspectionRunReportReviewedBy")
-  inspectionSchedulesAssigned InspectionSchedule[] @relation("InspectionScheduleAssignee")
-  inspectionSchedulesCreated  InspectionSchedule[] @relation("InspectionScheduleCreatedBy")
-  agentTasksCreated           AgentTask[] @relation("AgentTaskCreatedBy")
-  userPermissions            UserPermission[]
-  technicianClientBindings   TechnicianClientBinding[] @relation("TechnicianClientBindings")
-  locationBindings           UserLocationBinding[]
-  accessScopes               UserAccessScope[]
-  notifications              Notification[]
-  pushSubscriptions          PushSubscription[]
-  pushPreference             PushPreference?
+  ticketStatusChanges         TicketStatusHistory[]      @relation("TicketStatusChangedBy")
+  technicianSpecializations   TechnicianSpecialization[]
+  assignedTickets             Ticket[]                   @relation("AssignedTechnician")
+  createdTickets              Ticket[]                   @relation("TicketCreatedBy")
+  ticketAttachmentsUploaded   TicketAttachment[]         @relation("TicketAttachmentUploadedBy")
+  inspectionRunsPerformed     InspectionRun[]            @relation("InspectionRunPerformedBy")
+  inspectionReportsSubmitted  InspectionRun[]            @relation("InspectionRunReportSubmittedBy")
+  inspectionReportsReviewed   InspectionRun[]            @relation("InspectionRunReportReviewedBy")
+  inspectionSchedulesAssigned InspectionSchedule[]       @relation("InspectionScheduleAssignee")
+  inspectionSchedulesCreated  InspectionSchedule[]       @relation("InspectionScheduleCreatedBy")
+  agentTasksCreated           AgentTask[]                @relation("AgentTaskCreatedBy")
+  userPermissions             UserPermission[]
+  technicianClientBindings    TechnicianClientBinding[]  @relation("TechnicianClientBindings")
+  locationBindings            UserLocationBinding[]
+  accessScopes                UserAccessScope[]
+  notifications               Notification[]
+  pushSubscriptions           PushSubscription[]
+  pushPreference              PushPreference?
+  workShifts                  WorkShift[]
+  workLogs                    WorkLog[]
 
   @@index([companyId, role])
   @@index([companyId, isActive])
@@ -213,20 +231,20 @@ model User {
 // Web Push (mobile-поток). См. docs/PUSH_NOTIFICATIONS_ARCHITECTURE_V1.md §4.
 // Одна запись = одна подписка браузера/устройства (endpoint уникален глобально).
 model PushSubscription {
-  id         String    @id @default(uuid())
-  userId     String
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  companyId  String
-  endpoint   String    @unique
-  p256dh     String
-  auth       String
-  platform   String?
-  userAgent  String?
-  declarative Boolean  @default(false)
-  createdAt  DateTime  @default(now())
-  lastSeenAt DateTime  @default(now())
-  failCount  Int       @default(0)
-  disabledAt DateTime?
+  id          String    @id @default(uuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyId   String
+  endpoint    String    @unique
+  p256dh      String
+  auth        String
+  platform    String?
+  userAgent   String?
+  declarative Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  lastSeenAt  DateTime  @default(now())
+  failCount   Int       @default(0)
+  disabledAt  DateTime?
 
   @@index([userId])
   @@index([companyId])
@@ -294,18 +312,19 @@ model Location {
   address      String?
   latitude     Float?
   longitude    Float?
-  isActive     Boolean  @default(true)
+  isActive     Boolean   @default(true)
   deletedAt    DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
-  tickets   Ticket[]
-  equipment Equipment[]
-  inspectionRuns InspectionRun[]
-  inspectionSchedules InspectionSchedule[]
-  technicianBindings TechnicianClientBinding[] @relation("TechnicianBindingLocation")
-  userBindings UserLocationBinding[]
-  maxLocationThreads MaxLocationThread[]
+  tickets              Ticket[]
+  equipment            Equipment[]
+  inspectionRuns       InspectionRun[]
+  inspectionSchedules  InspectionSchedule[]
+  technicianBindings   TechnicianClientBinding[] @relation("TechnicianBindingLocation")
+  userBindings         UserLocationBinding[]
+  maxLocationThreads   MaxLocationThread[]
+  serviceContractLinks ServiceContractLocation[]
 
   @@unique([clientCompanyId, platformCode])
   @@index([clientCompanyId, isActive])
@@ -313,16 +332,16 @@ model Location {
 }
 
 model MaxLocationThread {
-  id                  String   @id @default(uuid())
-  companyId           String
-  company             Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  locationId          String
-  location            Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
-  chatId              BigInt
-  anchorMessageId     String
+  id                     String    @id @default(uuid())
+  companyId              String
+  company                Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  locationId             String
+  location               Location  @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  chatId                 BigInt
+  anchorMessageId        String
   anchorMessageCreatedAt DateTime?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
   @@unique([locationId, chatId])
   @@index([companyId, chatId])
@@ -391,9 +410,9 @@ model TechnicianClientBinding {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  providerCompany Company  @relation("TechnicianBindingProviderCompany", fields: [providerCompanyId], references: [id], onDelete: Cascade)
-  technician      User     @relation("TechnicianClientBindings", fields: [technicianUserId], references: [id], onDelete: Cascade)
-  clientCompany   Company  @relation("TechnicianBindingClientCompany", fields: [clientCompanyId], references: [id], onDelete: Cascade)
+  providerCompany Company   @relation("TechnicianBindingProviderCompany", fields: [providerCompanyId], references: [id], onDelete: Cascade)
+  technician      User      @relation("TechnicianClientBindings", fields: [technicianUserId], references: [id], onDelete: Cascade)
+  clientCompany   Company   @relation("TechnicianBindingClientCompany", fields: [clientCompanyId], references: [id], onDelete: Cascade)
   location        Location? @relation("TechnicianBindingLocation", fields: [locationId], references: [id], onDelete: Cascade)
 
   @@unique([technicianUserId, clientCompanyId, locationId])
@@ -432,22 +451,23 @@ model UserAccessScope {
   @@unique([userId, companyId])
   @@index([companyId, locationMode])
 }
+
 model Equipment {
-  id         String   @id @default(uuid())
+  id         String @id @default(uuid())
   companyId  String
   locationId String
 
   name   String
   type   String
-  status String   @default("ACTIVE")
+  status String @default("ACTIVE")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  company  Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  location Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
-  tickets  Ticket[]
-  inspectionRuns InspectionRun[]
+  company             Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  location            Location             @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  tickets             Ticket[]
+  inspectionRuns      InspectionRun[]
   inspectionSchedules InspectionSchedule[]
 
   @@index([companyId, locationId])
@@ -467,12 +487,29 @@ model ServiceContract {
   createdAt         DateTime              @default(now())
   updatedAt         DateTime              @updatedAt
 
-  clientCompany   Company @relation("ClientCompanyContracts", fields: [clientCompanyId], references: [id], onDelete: Cascade)
-  providerCompany Company @relation("ProviderCompanyContracts", fields: [providerCompanyId], references: [id], onDelete: Cascade)
+  clientCompany   Company                   @relation("ClientCompanyContracts", fields: [clientCompanyId], references: [id], onDelete: Cascade)
+  providerCompany Company                   @relation("ProviderCompanyContracts", fields: [providerCompanyId], references: [id], onDelete: Cascade)
+  locations       ServiceContractLocation[]
 
   @@unique([clientCompanyId, providerCompanyId])
   @@index([clientCompanyId, status])
   @@index([providerCompanyId, status])
+}
+
+model ServiceContractLocation {
+  id                String   @id @default(uuid())
+  serviceContractId String
+  clientCompanyId   String
+  locationId        String
+  createdAt         DateTime @default(now())
+
+  serviceContract ServiceContract @relation(fields: [serviceContractId], references: [id], onDelete: Cascade)
+  clientCompany   Company         @relation(fields: [clientCompanyId], references: [id], onDelete: Cascade)
+  location        Location        @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@unique([serviceContractId, locationId])
+  @@index([clientCompanyId, locationId])
+  @@index([locationId])
 }
 
 model Ticket {
@@ -504,14 +541,15 @@ model Ticket {
 
   problemText String
 
-  urgency         TicketUrgency         @default(NOT_URGENT)
-  priority        TicketPriority        @default(NORMAL)
-  urgencyReason   String?
-  status          TicketStatus          @default(NEW)
-  statusUpdatedAt DateTime              @default(now())
-  statusHistory   TicketStatusHistory[]
-  attachments     TicketAttachment[]
+  urgency           TicketUrgency         @default(NOT_URGENT)
+  priority          TicketPriority        @default(NORMAL)
+  urgencyReason     String?
+  status            TicketStatus          @default(NEW)
+  statusUpdatedAt   DateTime              @default(now())
+  statusHistory     TicketStatusHistory[]
+  attachments       TicketAttachment[]
   inspectionRunItem InspectionRunItem?
+  workLogs          WorkLog[]
 
   slaMinutes    Int?
   slaDueAt      DateTime?
@@ -540,7 +578,7 @@ model Ticket {
 }
 
 model TicketAttachment {
-  id               String   @id @default(uuid())
+  id               String                  @id @default(uuid())
   companyId        String
   ticketId         String?
   uploadedByUserId String?
@@ -550,7 +588,7 @@ model TicketAttachment {
   sizeBytes        Int
   url              String
   purpose          TicketAttachmentPurpose @default(REQUEST)
-  createdAt        DateTime @default(now())
+  createdAt        DateTime                @default(now())
 
   company    Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
   ticket     Ticket? @relation(fields: [ticketId], references: [id], onDelete: SetNull)
@@ -561,6 +599,52 @@ model TicketAttachment {
   @@index([ticketId, purpose, createdAt])
   @@index([companyId, ticketId])
 }
+
+model WorkShift {
+  id          String          @id @default(uuid())
+  companyId   String
+  userId      String
+  status      WorkShiftStatus @default(OPEN)
+  openedAt    DateTime        @default(now())
+  closedAt    DateTime?
+  closeReason String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workLogs WorkLog[]
+
+  @@index([companyId, openedAt])
+  @@index([companyId, status, openedAt])
+  @@index([userId, openedAt])
+}
+
+model WorkLog {
+  id              String        @id @default(uuid())
+  companyId       String
+  userId          String
+  shiftId         String
+  ticketId        String
+  status          WorkLogStatus @default(RUNNING)
+  startedAt       DateTime      @default(now())
+  endedAt         DateTime?
+  durationMinutes Int?
+  notes           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  company Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  shift   WorkShift @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  ticket  Ticket    @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, startedAt])
+  @@index([companyId, userId, startedAt])
+  @@index([shiftId, startedAt])
+  @@index([ticketId, startedAt])
+}
+
 model TicketStatusHistory {
   id              String        @id @default(uuid())
   ticketId        String
@@ -590,7 +674,7 @@ model PermissionBlock {
 }
 
 model RolePermission {
-  id                String       @id @default(uuid())
+  id                String          @id @default(uuid())
   role              UserRole
   // Phase 1.5: ADMIN is shared between CLIENT and PROVIDER companies, so grants
   // are keyed by (role, companyType). NULL = wildcard (applies to any company type),
@@ -598,7 +682,7 @@ model RolePermission {
   companyType       CompanyType?
   permissionBlockId String
   permissionBlock   PermissionBlock @relation(fields: [permissionBlockId], references: [id], onDelete: Cascade)
-  createdAt         DateTime     @default(now())
+  createdAt         DateTime        @default(now())
 
   // Non-null rows are deduped by this composite. NULL (wildcard) rows are deduped
   // by a partial unique index added in the migration (Postgres treats NULLs as
@@ -609,12 +693,12 @@ model RolePermission {
 }
 
 model UserPermission {
-  id                String   @id @default(uuid())
+  id                String          @id @default(uuid())
   userId            String
   permissionBlockId String
   user              User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   permissionBlock   PermissionBlock @relation(fields: [permissionBlockId], references: [id], onDelete: Cascade)
-  createdAt         DateTime @default(now())
+  createdAt         DateTime        @default(now())
 
   @@unique([userId, permissionBlockId])
   @@index([userId])
@@ -662,8 +746,6 @@ model AssignmentDecision {
   @@index([createdAt])
 }
 
-
-
 model PublicRequestLog {
   id         String   @id @default(uuid())
   companyId  String
@@ -691,7 +773,7 @@ model InspectionTemplate {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company   Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   items     InspectionTemplateItem[]
   runs      InspectionRun[]
   schedules InspectionSchedule[]
@@ -710,7 +792,7 @@ model InspectionTemplateItem {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  template InspectionTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  template InspectionTemplate  @relation(fields: [templateId], references: [id], onDelete: Cascade)
   runItems InspectionRunItem[]
 
   @@index([templateId, sortOrder])
@@ -814,9 +896,9 @@ model InspectionRunItem {
   createdAt      DateTime                @default(now())
   updatedAt      DateTime                @updatedAt
 
-  run          InspectionRun            @relation(fields: [runId], references: [id], onDelete: Cascade)
-  templateItem InspectionTemplateItem?  @relation(fields: [templateItemId], references: [id], onDelete: SetNull)
-  ticket       Ticket?                  @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  run          InspectionRun                 @relation(fields: [runId], references: [id], onDelete: Cascade)
+  templateItem InspectionTemplateItem?       @relation(fields: [templateItemId], references: [id], onDelete: SetNull)
+  ticket       Ticket?                       @relation(fields: [ticketId], references: [id], onDelete: SetNull)
   attachments  InspectionRunItemAttachment[]
 
   @@index([runId, sortOrder])
@@ -835,8 +917,8 @@ model InspectionRunItemAttachment {
   url          String
   createdAt    DateTime @default(now())
 
-  company Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  runItem  InspectionRunItem @relation(fields: [runItemId], references: [id], onDelete: Cascade)
+  company Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  runItem InspectionRunItem @relation(fields: [runItemId], references: [id], onDelete: Cascade)
 
   @@index([companyId, runItemId])
   @@index([runItemId, createdAt])

@@ -29,6 +29,7 @@ import { RealtimeModule } from './realtime/realtime.module';
 import { UploadsModule } from './uploads/uploads.module';
 import { MaxBotModule } from './max-bot/max-bot.module';
 import { PushModule } from './push/push.module';
+import { WorkforceModule } from './workforce/workforce.module';
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { PushModule } from './push/push.module';
     UploadsModule,
     MaxBotModule,
     PushModule,
+    WorkforceModule,
   ],
   controllers: [AppController, HealthController, DebugController], // DebugController: TODO_REMOVE_AFTER_STABILIZATION
   providers: [AppService],

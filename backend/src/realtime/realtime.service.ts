@@ -1,12 +1,13 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { ServiceContractRole, ServiceContractStatus, UserRole } from '@prisma/client';
+import { ServiceContractRole, UserRole } from '@prisma/client';
 import { createHash, randomUUID } from 'node:crypto';
 import type { IncomingMessage, Server as HttpServer } from 'node:http';
 import type { Socket } from 'node:net';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { getJwtSecret } from '../config/required-env';
+import { isServiceContractEffective } from '../service-contracts/service-contract-window';
 
 type RealtimeUser = {
   id: string;
@@ -495,10 +496,12 @@ export class RealtimeService implements OnModuleInit, OnModuleDestroy {
         select: {
           status: true,
           role: true,
+          startsAt: true,
+          endsAt: true,
         },
       });
 
-      if (!contract || contract.status !== ServiceContractStatus.ACTIVE || contract.role !== ServiceContractRole.PRIMARY) {
+      if (!contract || !isServiceContractEffective(contract) || contract.role !== ServiceContractRole.PRIMARY) {
         throw new Error('Linked client board scope is not available');
       }
     }

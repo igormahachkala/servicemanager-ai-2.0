@@ -12,6 +12,7 @@ type ContractFormValue = {
   startsAt: string
   endsAt: string
   notes: string
+  locationIds: string[]
 }
 
 const emptyForm: ContractFormValue = {
@@ -22,6 +23,7 @@ const emptyForm: ContractFormValue = {
   startsAt: '',
   endsAt: '',
   notes: '',
+  locationIds: [],
 }
 
 function formatDate(value?: string | null) {
@@ -54,6 +56,11 @@ export function ServiceContractsPage() {
 
   const clientCompanies = useMemo(() => (companiesQ.data || []).filter((company) => company.type === 'CLIENT'), [companiesQ.data])
   const providerCompanies = useMemo(() => (companiesQ.data || []).filter((company) => company.type === 'PROVIDER'), [companiesQ.data])
+  const locationsQ = useQuery({
+    queryKey: ['service-contract-locations', form.clientCompanyId],
+    queryFn: () => api.locations(form.clientCompanyId),
+    enabled: meQ.data?.role === 'PLATFORM_ADMIN' && !!form.clientCompanyId,
+  })
 
   const createM = useMutation({
     mutationFn: async () =>
@@ -65,6 +72,7 @@ export function ServiceContractsPage() {
         startsAt: form.startsAt || undefined,
         endsAt: form.endsAt || undefined,
         notes: form.notes.trim() || undefined,
+        locationIds: form.locationIds,
       }),
     onSuccess: async () => {
       setErr(null)
@@ -87,6 +95,7 @@ export function ServiceContractsPage() {
         startsAt: form.startsAt || null,
         endsAt: form.endsAt || null,
         notes: form.notes.trim() || null,
+        locationIds: form.locationIds,
       })
     },
     onSuccess: async () => {
@@ -127,6 +136,7 @@ export function ServiceContractsPage() {
       startsAt: contract.startsAt ? contract.startsAt.slice(0, 10) : '',
       endsAt: contract.endsAt ? contract.endsAt.slice(0, 10) : '',
       notes: contract.notes || '',
+      locationIds: (contract.locations || []).map((row) => row.locationId),
     })
     setErr(null)
     setSuccess(null)
@@ -199,6 +209,31 @@ export function ServiceContractsPage() {
               <textarea value={form.notes} onChange={(e) => setForm((current) => ({ ...current, notes: e.target.value }))} rows={4} />
             </label>
 
+            <fieldset style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 12 }}>
+              <legend>Объекты договора</legend>
+              <div className="muted small" style={{ marginBottom: 8 }}>
+                Если ничего не выбрано, договор действует на все объекты клиента.
+              </div>
+              {locationsQ.isLoading ? <div className="muted small">Загрузка объектов…</div> : null}
+              <div style={{ display: 'grid', gap: 8, maxHeight: 220, overflowY: 'auto' }}>
+                {(locationsQ.data || []).map((location) => (
+                  <label key={location.id} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <input
+                      type="checkbox"
+                      checked={form.locationIds.includes(location.id)}
+                      onChange={(event) => setForm((current) => ({
+                        ...current,
+                        locationIds: event.target.checked
+                          ? [...current.locationIds, location.id]
+                          : current.locationIds.filter((id) => id !== location.id),
+                      }))}
+                    />
+                    <span>{location.name}{location.address ? ` — ${location.address}` : ''}</span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
             <div style={{ display: 'flex', gap: 8 }}>
               <button type="submit" disabled={createM.isPending || updateM.isPending}>{createM.isPending || updateM.isPending ? 'Сохраняем...' : editingId ? 'Сохранить' : 'Создать связь'}</button>
               {editingId ? <button type="button" className="ghost" onClick={() => { setEditingId(null); setForm(emptyForm) }}>Отмена</button> : null}
@@ -233,6 +268,9 @@ export function ServiceContractsPage() {
                   <div className="muted small">Статус: {contract.status}</div>
                   <div className="muted small">Роль: {contract.role}</div>
                   <div className="muted small">Срок: {formatDate(contract.startsAt)} — {formatDate(contract.endsAt)}</div>
+                  <div className="muted small">
+                    Объекты: {contract.locations?.length ? contract.locations.map((row) => row.location.name).join(', ') : 'все объекты клиента'}
+                  </div>
                   {contract.notes ? <div className="muted small" style={{ marginTop: 6 }}>{contract.notes}</div> : null}
                 </div>
                 <button type="button" className="ghost" onClick={() => startEdit(contract)}>Редактировать</button>

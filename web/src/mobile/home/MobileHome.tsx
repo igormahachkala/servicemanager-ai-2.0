@@ -383,7 +383,7 @@ export function MobileHome() {
   const closeM = useMutation({
     mutationFn: async () => {
       if (!closeModal) throw new Error('Нет данных для закрытия')
-      if (!closeModal.file) throw new Error('Нужно фото отчёта')
+      if (!closeModal.file) throw new Error('Нужно фото или видео отчёта')
       const comment = closeModal.comment.trim()
       if (comment.length < 3) throw new Error('Нужен короткий комментарий (backend требует комментарий для DONE)')
       await api.uploadTicketAttachment(closeModal.ticketId, closeModal.file, pageScope)

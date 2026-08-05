@@ -206,6 +206,29 @@ export function MobileProfile() {
 
         {/* Menu */}
         <div className="mobileCard mobileProfileMenu">
+          {meQ.data?.role && ['ADMIN', 'MASTER', 'DISPATCHER', 'TECHNICIAN'].includes(meQ.data.role) ? (
+            <Link to={mobilePath(location.pathname, '/shift')} className="mobileProfileMenuItem">
+              <span className="mobileProfileMenuIcon" aria-hidden>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M12 7v5l3 2" />
+                </svg>
+              </span>
+              <span className="mobileProfileMenuLabel">Рабочая смена</span>
+              <span className="mobileProfileMenuChevron" aria-hidden><ChevronRight /></span>
+            </Link>
+          ) : null}
+          {meQ.data?.role && ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR', 'TERRITORIAL_MANAGER'].includes(meQ.data.role) ? (
+            <Link to={mobilePath(location.pathname, '/workforce')} className="mobileProfileMenuItem">
+              <span className="mobileProfileMenuIcon" aria-hidden>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M4 19V9" /><path d="M10 19V5" /><path d="M16 19v-7" /><path d="M22 19V3" />
+                </svg>
+              </span>
+              <span className="mobileProfileMenuLabel">Смены сотрудников</span>
+              <span className="mobileProfileMenuChevron" aria-hidden><ChevronRight /></span>
+            </Link>
+          ) : null}
           <Link to={notificationsPath} className="mobileProfileMenuItem">
             <span className="mobileProfileMenuIcon" aria-hidden>
               {/* Tabler bell */}
@@ -271,17 +294,6 @@ export function MobileProfile() {
             </span>
             <span className="mobileProfileMenuChevron" aria-hidden><ChevronRight /></span>
           </Link>
-          <div className="mobileProfileMenuItem mobileProfileMenuItem--static" aria-disabled="true">
-            <span className="mobileProfileMenuIcon" aria-hidden>
-              {/* Tabler clock */}
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="9" />
-                <polyline points="12 7 12 12 15 15" />
-              </svg>
-            </span>
-            <span className="mobileProfileMenuLabel">Режим работы</span>
-            <span className="mobileProfileMenuSoon">Скоро</span>
-          </div>
           {canAccessManagementDesktop(meQ.data?.role) ? (
             <Link to={managementHref} className="mobileProfileMenuItem">
               <span className="mobileProfileMenuIcon" aria-hidden>

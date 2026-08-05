@@ -45,6 +45,8 @@ export const PERMISSION_BLOCKS: PermissionBlockSeed[] = [
   { code: PERMISSIONS.LOCATIONS_MANAGE, group: 'LOCATIONS', name: 'Manage locations', description: 'Управление точками/оборудованием' },
   { code: PERMISSIONS.USERS_MANAGE, group: 'EMPLOYEES', name: 'Manage users', description: 'Управление сотрудниками/привязками' },
   { code: PERMISSIONS.ANALYTICS_VIEW, group: 'ANALYTICS', name: 'View analytics', description: 'Аналитика' },
+  { code: PERMISSIONS.WORKFORCE_SHIFT_USE, group: 'EMPLOYEES', name: 'Use work shifts', description: 'Открытие и закрытие своей смены, учёт времени по заявкам' },
+  { code: PERMISSIONS.WORKFORCE_VIEW, group: 'EMPLOYEES', name: 'View workforce time', description: 'Просмотр смен и трудозатрат сотрудников' },
   { code: PERMISSIONS.COMPANY_SETTINGS_EDIT, group: 'MANAGEMENT', name: 'Edit company settings', description: 'Категории проблем / настройки' },
 ];
 
@@ -59,7 +61,7 @@ export const ROLE_GRANTS: RoleGrant[] = [
   {
     role: UserRole.PLATFORM_ADMIN,
     companyType: null,
-    codes: [P.TICKETS_VIEW, P.LOCATIONS_VIEW, P.USERS_MANAGE, P.ANALYTICS_VIEW],
+    codes: [P.TICKETS_VIEW, P.LOCATIONS_VIEW, P.USERS_MANAGE, P.ANALYTICS_VIEW, P.WORKFORCE_VIEW],
   },
   { role: UserRole.STAFF, companyType: null, codes: [P.TICKETS_VIEW] },
 
@@ -76,6 +78,8 @@ export const ROLE_GRANTS: RoleGrant[] = [
       P.USERS_MANAGE,
       P.ANALYTICS_VIEW,
       P.COMPANY_SETTINGS_EDIT,
+      P.WORKFORCE_SHIFT_USE,
+      P.WORKFORCE_VIEW,
       // НЕТ: ASSIGN, CLAIM, VIEW_AVAILABLE, STATUS_CHANGE
     ],
   },
@@ -94,6 +98,8 @@ export const ROLE_GRANTS: RoleGrant[] = [
       P.LOCATIONS_MANAGE,
       P.USERS_MANAGE,
       P.ANALYTICS_VIEW,
+      P.WORKFORCE_SHIFT_USE,
+      P.WORKFORCE_VIEW,
       P.COMPANY_SETTINGS_EDIT,
     ],
   },
@@ -114,6 +120,8 @@ export const ROLE_GRANTS: RoleGrant[] = [
       P.LOCATIONS_MANAGE,
       P.USERS_MANAGE,
       P.ANALYTICS_VIEW,
+      P.WORKFORCE_SHIFT_USE,
+      P.WORKFORCE_VIEW,
     ],
   },
   {
@@ -128,9 +136,11 @@ export const ROLE_GRANTS: RoleGrant[] = [
       P.TICKETS_CLAIM,
       P.TICKETS_STATUS_CHANGE,
       P.LOCATIONS_VIEW,
+      P.WORKFORCE_SHIFT_USE,
       P.LOCATIONS_MANAGE,
       P.USERS_MANAGE,
       P.ANALYTICS_VIEW,
+      P.WORKFORCE_VIEW,
     ],
   },
   {
@@ -143,6 +153,7 @@ export const ROLE_GRANTS: RoleGrant[] = [
       P.TICKETS_CLAIM,
       P.TICKETS_STATUS_CHANGE,
       P.LOCATIONS_VIEW,
+      P.WORKFORCE_SHIFT_USE,
     ],
   },
 
@@ -157,13 +168,14 @@ export const ROLE_GRANTS: RoleGrant[] = [
       P.LOCATIONS_VIEW,
       P.USERS_MANAGE,
       P.ANALYTICS_VIEW,
+      P.WORKFORCE_VIEW,
       // НЕТ: ASSIGN/CLAIM (decision), STATUS_CHANGE (client-side принцип)
     ],
   },
   {
     role: UserRole.TERRITORIAL_MANAGER,
     companyType: CompanyType.CLIENT,
-    codes: [P.TICKETS_VIEW, P.TICKETS_CREATE, P.TICKETS_EDIT, P.LOCATIONS_VIEW],
+    codes: [P.TICKETS_VIEW, P.TICKETS_CREATE, P.TICKETS_EDIT, P.LOCATIONS_VIEW, P.WORKFORCE_VIEW],
   },
   {
     role: UserRole.CLIENT,

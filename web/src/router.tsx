@@ -49,7 +49,10 @@ import { MobileChatsPage } from './mobile/MobileChatsPage'
 import { MobileOfflineQueue } from './mobile/MobileOfflineQueue'
 import { MobileInspectionList } from './mobile/MobileInspectionList'
 import { MobileInspectionRunPage } from './mobile/MobileInspectionRunPage'
+import { MobileShiftPage } from './mobile/MobileShiftPage'
+import { MobileWorkforcePage } from './mobile/MobileWorkforcePage'
 import { MaxApp } from './max/MaxApp'
+import { WorkforcePage } from './views/WorkforcePage'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const token = api.getToken()
@@ -138,6 +141,8 @@ export function AppRoutes() {
         <Route path="push-settings" element={<MobilePushSettingsPage />} />
         <Route path="settings" element={<MobileSettingsPage />} />
         <Route path="analytics" element={<MobileAnalytics />} />
+        <Route path="shift" element={<MobileShiftPage />} />
+        <Route path="workforce" element={<MobileWorkforcePage />} />
         <Route path="chats" element={<MobileChatsPage />} />
         <Route path="chats/:ticketId" element={<MobileChatsPage />} />
         <Route path="tickets/:id" element={<MobileTicketPage />} />
@@ -175,6 +180,7 @@ export function AppRoutes() {
         <Route path="employees" element={<EmployeesPage />} />
         <Route path="specializations" element={<SpecializationsPage />} />
         <Route path="analytics" element={<AnalyticsPage />} />
+        <Route path="workforce" element={<WorkforcePage />} />
         <Route path="analytics/locations" element={<LocationAnalyticsPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="company" element={<CompanyPage />} />
@@ -204,6 +210,8 @@ export function AppRoutes() {
           <Route path="push-settings" element={<MobilePushSettingsPage />} />
           <Route path="settings" element={<MobileSettingsPage />} />
           <Route path="analytics" element={<MobileAnalytics />} />
+          <Route path="shift" element={<MobileShiftPage />} />
+          <Route path="workforce" element={<MobileWorkforcePage />} />
           <Route path="chats" element={<MobileChatsPage />} />
           <Route path="chats/:ticketId" element={<MobileChatsPage />} />
           <Route path="tickets/:id" element={<MobileTicketPage />} />

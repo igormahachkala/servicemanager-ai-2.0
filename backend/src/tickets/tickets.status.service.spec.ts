@@ -246,7 +246,7 @@ describe('TicketsStatusService.updateStatus', () => {
     expect(mockResolveAccess).not.toHaveBeenCalled()
   })
 
-  it('rejects completion without work report photo (BadRequestException)', async () => {
+  it('rejects completion without work report photo or video (BadRequestException)', async () => {
     const txTicket = makeTxTicket({ status: TicketStatus.IN_PROGRESS })
     const { svc, tx } = makeSetup({ txTicket, updatedStatus: TicketStatus.AWAITING_ACCEPTANCE })
     tx.ticketAttachment.count.mockResolvedValue(0)

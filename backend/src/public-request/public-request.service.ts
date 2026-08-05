@@ -210,7 +210,7 @@ export class PublicRequestService {
       }
     } catch (error) {
       for (const attachment of draftAttachments) {
-        await this.attachments.deleteDraftAttachment(company.id, attachment.id).catch(() => undefined)
+        await this.attachments.deleteDraftAttachment(company.id, null, attachment.id).catch(() => undefined)
       }
       throw error
     }

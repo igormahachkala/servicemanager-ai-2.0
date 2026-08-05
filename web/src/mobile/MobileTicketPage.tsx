@@ -47,6 +47,13 @@ import { MobileTicketPhotoGallery } from './MobileTicketPhotoGallery'
 import { MobileTicketActionsSheet, type TicketSheetAction } from './MobileTicketActionsSheet'
 import { MobileModalBackdrop } from './MobileModalBackdrop'
 import { compactIdentityLabel, identityLines, presentActorIdentity, presentTicketAssignee, presentTicketCreator } from '../lib/ticketActorIdentity'
+import { MobileTicketWorkTimer } from './MobileTicketWorkTimer'
+import {
+  TICKET_MEDIA_ACCEPT,
+  normalizeTicketMediaFile,
+  ticketMediaKind,
+  validateTicketMediaFile,
+} from '../lib/ticketAttachmentMedia'
 
 // SMA-ACCEPTANCE-005: модалка клиентского отказа в приёмке (комментарий обязателен, фото — желательно).
 type ClientRejectModalState =
@@ -170,8 +177,6 @@ function isNotFoundGetTicketError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err)
   return /\b404\b/i.test(msg) || /not\s*found/i.test(msg) || /не\s+найден/i.test(msg)
 }
-
-const MAX_TICKET_PAGE_ATTACHMENT_BYTES = 10 * 1024 * 1024
 
 const PHOTO_ROLES: api.Role[] = [
   'ADMIN',
@@ -678,7 +683,7 @@ export function MobileTicketPage() {
       return
     }
     if (!isOnline) {
-      setTicketAddPhotoError('Нужно подключение к сети, чтобы загрузить фото')
+      setTicketAddPhotoError('Нужно подключение к сети, чтобы загрузить фото или видео')
       return
     }
     setTicketAddPhotoError(null)
@@ -703,21 +708,17 @@ export function MobileTicketPage() {
     const files = list ? Array.from(list) : []
     e.target.value = ''
     if (files.length === 0) return
-    for (const file of files) {
-      if (!file.type.startsWith('image/')) {
-        setTicketAddPhotoError('Можно загружать только изображения')
+    const normalizedFiles: File[] = []
+    for (const rawFile of files) {
+      const file = normalizeTicketMediaFile(rawFile)
+      const validationError = validateTicketMediaFile(file)
+      if (validationError) {
+        setTicketAddPhotoError(validationError)
         return
       }
-      if (file.size <= 0) {
-        setTicketAddPhotoError('Файл пустой')
-        return
-      }
-      if (file.size > MAX_TICKET_PAGE_ATTACHMENT_BYTES) {
-        setTicketAddPhotoError('Изображение слишком большое (максимум 10 МБ)')
-        return
-      }
+      normalizedFiles.push(file)
     }
-    void uploadFilesToExistingTicket(files)
+    void uploadFilesToExistingTicket(normalizedFiles)
   }
 
   useEffect(() => {
@@ -804,7 +805,7 @@ export function MobileTicketPage() {
   const closeM = useMutation({
     mutationFn: async () => {
       if (!closeModal) throw new Error('Нет данных для закрытия')
-      if (!closeModal.file) throw new Error('Нужно фото отчёта')
+      if (!closeModal.file) throw new Error('Нужно фото или видео отчёта')
       const comment = closeModal.comment.trim()
       if (comment.length < 3) throw new Error('Нужен комментарий не короче 3 символов')
       await api.uploadTicketAttachment(closeModal.ticketId, closeModal.file, ticketResourceScope)
@@ -949,7 +950,14 @@ export function MobileTicketPage() {
     return imgs.filter((a) => isReportTicketImage(a))
   }, [attachmentsQ.data])
 
-  const otherFiles = useMemo(() => (attachmentsQ.data || []).filter((a) => !isImageAttachment(a)), [attachmentsQ.data])
+  const videoFiles = useMemo(
+    () => (attachmentsQ.data || []).filter((a) => ticketMediaKind(a) === 'video'),
+    [attachmentsQ.data],
+  )
+  const otherFiles = useMemo(
+    () => (attachmentsQ.data || []).filter((a) => !isImageAttachment(a) && ticketMediaKind(a) !== 'video'),
+    [attachmentsQ.data],
+  )
 
   const [requestPhotoItems, setRequestPhotoItems] = useState<PhotoViewerItem[]>([])
   const [reportPhotoItems, setReportPhotoItems] = useState<PhotoViewerItem[]>([])
@@ -1378,6 +1386,13 @@ export function MobileTicketPage() {
             ) : null}
           </div>
 
+          <MobileTicketWorkTimer
+            ticketId={ticket.id}
+            ticketNumber={ticket.ticketNumber}
+            scope={ticketResourceScope}
+            enabled={isSelfAssigned && ticket.status !== 'DONE' && ticket.status !== 'CANCELED'}
+          />
+
           {showTechnicianNoActionsHint ? (
             <div className="mobileCard mobileEmptyState" style={{ marginTop: 8 }} role="status">
               <div className="mobileEmptyStateTitle">Действий нет</div>
@@ -1596,28 +1611,28 @@ export function MobileTicketPage() {
               {canUploadTicketPhotos && isOnline ? (
                 <div className="mobileTicketAddPhotos">
                   <div className="mobileSectionTitle" style={{ marginBottom: 8 }}>
-                    Добавить фото
+                    Добавить фото или видео
                   </div>
                   <p className="mobileHint" style={{ marginTop: 0 }}>
-                    Несколько файлов — из галереи; камера добавляет по одному снимку за раз.
+                    Несколько файлов — из галереи; камера добавляет по одному файлу за раз.
                   </p>
                   <input
                     ref={addTicketCameraRef}
                     type="file"
-                    accept="image/*"
+                    accept={TICKET_MEDIA_ACCEPT}
                     capture="environment"
                     className="mobilePhotoInputHidden"
-                    aria-label="Сделать фото для заявки"
+                    aria-label="Снять фото или видео для заявки"
                     onChange={handleTicketAddPhotos}
                     disabled={isTicketAddPhotoUploading}
                   />
                   <input
                     ref={addTicketGalleryRef}
                     type="file"
-                    accept="image/*"
+                    accept={TICKET_MEDIA_ACCEPT}
                     multiple
                     className="mobilePhotoInputHidden"
-                    aria-label="Выбрать фото из галереи для заявки"
+                    aria-label="Выбрать фото или видео из галереи для заявки"
                     onChange={handleTicketAddPhotos}
                     disabled={isTicketAddPhotoUploading}
                   />
@@ -1634,7 +1649,7 @@ export function MobileTicketPage() {
                           <circle cx="12" cy="13" r="3" />
                         </svg>
                       </span>
-                      Сделать фото
+                      Снять фото/видео
                     </button>
                     <button
                       type="button"
@@ -1683,6 +1698,16 @@ export function MobileTicketPage() {
                       onOpen={openReportPhoto}
                     />
                   </div>
+                  {videoFiles.length > 0 ? (
+                    <div style={{ marginTop: 14 }}>
+                      <div className="mobileSectionTitle" style={{ marginBottom: 8 }}>Видео</div>
+                      <div style={{ display: 'grid', gap: 10 }}>
+                        {videoFiles.map((attachment) => (
+                          <MobileAttachmentThumb key={attachment.id} attachment={attachment} className="mobileTicketVideo" />
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                   {otherFiles.length > 0 ? (
                     <>
                       <div className="mobileSectionTitle" style={{ marginTop: 14, marginBottom: 8 }}>
@@ -1851,27 +1876,27 @@ export function MobileTicketPage() {
                       <input
                         ref={chatCameraRef}
                         type="file"
-                        accept="image/*"
+                        accept={TICKET_MEDIA_ACCEPT}
                         capture="environment"
                         className="mobilePhotoInputHidden"
-                        aria-label="Сделать фото в чат"
+                        aria-label="Снять фото или видео в чат"
                         onChange={handleTicketAddPhotos}
                         disabled={isTicketAddPhotoUploading}
                       />
                       <input
                         ref={chatGalleryRef}
                         type="file"
-                        accept="image/*"
+                        accept={TICKET_MEDIA_ACCEPT}
                         multiple
                         className="mobilePhotoInputHidden"
-                        aria-label="Прикрепить фото в чат"
+                        aria-label="Прикрепить фото или видео в чат"
                         onChange={handleTicketAddPhotos}
                         disabled={isTicketAddPhotoUploading}
                       />
                       <button
                         type="button"
                         className="mobileChatComposerBtn"
-                        aria-label="Прикрепить фото"
+                        aria-label="Прикрепить фото или видео"
                         disabled={isTicketAddPhotoUploading}
                         onClick={() => chatGalleryRef.current?.click()}
                       >

@@ -1,5 +1,5 @@
 ﻿import { ServiceContractRole, ServiceContractStatus } from '@prisma/client'
-import { IsDateString, IsEnum, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator'
+import { ArrayUnique, IsArray, IsDateString, IsEnum, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator'
 
 export class CreateServiceContractDto {
   @IsUUID()
@@ -28,4 +28,10 @@ export class CreateServiceContractDto {
   @IsString()
   @MaxLength(2000)
   notes?: string
+
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsUUID('4', { each: true })
+  locationIds?: string[]
 }

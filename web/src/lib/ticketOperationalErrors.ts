@@ -24,7 +24,7 @@ export function mapTicketActionError(raw: string | null | undefined): string {
     return 'Нет доступа к точке этой заявки в вашем профиле.'
   }
   if (t.includes('Cannot complete ticket without at least 1 work report photo') || low.includes('work report photo')) {
-    return 'Чтобы завершить заявку, добавьте хотя бы одно фото отчёта.'
+    return 'Чтобы завершить заявку, добавьте хотя бы одно фото или видео отчёта.'
   }
   if (t.includes('Cannot complete ticket without at least 1 comment') || (low.includes('comment') && low.includes('complete'))) {
     return 'Чтобы завершить заявку, добавьте комментарий по выполнению.'

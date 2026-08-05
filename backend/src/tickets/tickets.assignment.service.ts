@@ -178,6 +178,10 @@ export class TicketsAssignmentService {
     if (!access) {
       throw new NotFoundException('Linked client not found');
     }
+    const contractLocationIds = access.locations?.map((row) => row.locationId) ?? [];
+    if (contractLocationIds.length > 0 && !contractLocationIds.includes(location.id)) {
+      throw new NotFoundException('Location not found');
+    }
 
     if (location.clientCompanyId !== resolvedClientCompanyId) {
       throw new NotFoundException('Location not found');
@@ -598,6 +602,25 @@ export class TicketsAssignmentService {
       return [];
     }
 
+    const contractLocationsByEmployer = new Map<string, Set<string> | null>();
+    const providerCompanyIds = uniqueLocationIds(
+      activeUsers
+        .map((item) => item.companyId)
+        .filter((companyId) => companyId !== scopeCompanyId),
+    );
+    await Promise.all(providerCompanyIds.map(async (providerCompanyId) => {
+      const access = await this.serviceContractsService.getLinkedClientAccess(providerCompanyId, scopeCompanyId);
+      if (!access) {
+        contractLocationsByEmployer.set(providerCompanyId, new Set());
+        return;
+      }
+      const locationIds = access.locations?.map((row) => row.locationId) ?? [];
+      contractLocationsByEmployer.set(
+        providerCompanyId,
+        locationIds.length > 0 ? new Set(locationIds) : null,
+      );
+    }));
+
     const employerCompanyIds = uniqueLocationIds(activeUsers.map((item) => item.companyId));
     const bindingCompanyIds = uniqueLocationIds([...employerCompanyIds, scopeCompanyId]);
     const [accessScopes, bindings] = await Promise.all([
@@ -651,6 +674,12 @@ export class TicketsAssignmentService {
       const employerCompanyId = employerCompanyByUserId.get(technician.id);
       if (!employerCompanyId) {
         return false;
+      }
+      if (employerCompanyId !== scopeCompanyId) {
+        const contractLocations = contractLocationsByEmployer.get(employerCompanyId);
+        if (contractLocations === undefined || (contractLocations !== null && !contractLocations.has(locationId))) {
+          return false;
+        }
       }
 
       const explicitLocationMode =
@@ -1608,6 +1637,10 @@ export class TicketsAssignmentService {
           access.ticket.companyId,
         );
         if (!linkedAccess || linkedAccess.role !== ServiceContractRole.SECONDARY) {
+          throw new NotFoundException('Technician not found');
+        }
+        const contractLocationIds = linkedAccess.locations?.map((row) => row.locationId) ?? [];
+        if (contractLocationIds.length > 0 && !contractLocationIds.includes(ticket.locationId)) {
           throw new NotFoundException('Technician not found');
         }
       }

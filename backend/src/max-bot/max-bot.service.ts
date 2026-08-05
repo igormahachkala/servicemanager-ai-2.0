@@ -89,7 +89,7 @@ type MaxBotTokenValidation = {
 @Injectable()
 export class MaxBotService implements OnModuleInit {
   private readonly logger = new Logger(MaxBotService.name);
-  private readonly baseUrl = this.normalizeBaseUrl(process.env.MAX_BOT_API_BASE_URL || 'https://platform-api.max.ru');
+  private readonly baseUrl = this.normalizeBaseUrl(process.env.MAX_BOT_API_BASE_URL || 'https://platform-api2.max.ru');
   private readonly token = (process.env.MAX_BOT_API_TOKEN || '').trim();
   private readonly frontendUrl = this.resolveFrontendUrl();
   private readonly groupChatId = this.resolveGroupChatId();
@@ -139,7 +139,7 @@ export class MaxBotService implements OnModuleInit {
       const response = await fetch(`${this.baseUrl}${path}`, {
         method: 'GET',
         headers: {
-          Authorization: `Bearer ${this.token}`,
+          Authorization: this.token,
         },
       });
 
@@ -206,7 +206,10 @@ export class MaxBotService implements OnModuleInit {
   }
 
   private normalizeBaseUrl(value: string) {
-    return value.trim().replace(/\/+$/, '');
+    const normalized = value.trim().replace(/\/+$/, '');
+    return normalized === 'https://platform-api.max.ru'
+      ? 'https://platform-api2.max.ru'
+      : normalized;
   }
 
   private resolveFrontendUrl() {

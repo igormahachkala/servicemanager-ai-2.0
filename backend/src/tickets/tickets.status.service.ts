@@ -120,12 +120,15 @@ export class TicketsStatusService {
       if (!wf.allowed) throw new BadRequestException(wf.reason);
 
       if (toStatus === TicketStatus.AWAITING_ACCEPTANCE) {
-        const [workReportPhotoCount, commentEventCount] = await Promise.all([
+        const [workReportMediaCount, commentEventCount] = await Promise.all([
           tx.ticketAttachment.count({
             where: {
               ticketId,
               purpose: TicketAttachmentPurpose.WORK_REPORT,
-              mimeType: { startsWith: 'image/' },
+              OR: [
+                { mimeType: { startsWith: 'image/' } },
+                { mimeType: { startsWith: 'video/' } },
+              ],
             },
           }),
           tx.domainEvent.count({
@@ -138,8 +141,8 @@ export class TicketsStatusService {
           }),
         ]);
 
-        if (workReportPhotoCount === 0) {
-          throw new BadRequestException('Cannot complete ticket without at least 1 work report photo');
+        if (workReportMediaCount === 0) {
+          throw new BadRequestException('Cannot complete ticket without at least 1 work report photo or video');
         }
 
         if (commentEventCount === 0) {

@@ -13,10 +13,9 @@ import {
 import { JwtService } from '@nestjs/jwt'
 import { ServiceContractRole, UserRole } from '@prisma/client'
 import type { Response } from 'express'
-import { createReadStream, existsSync } from 'fs'
+import { createReadStream, existsSync, statSync } from 'fs'
 import { join } from 'path'
 
-import { isExecutorCapableRole } from '../common/executor.utils'
 import { PrismaService } from '../prisma/prisma.service'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
 import { resolveReadableTicketAccess } from '../tickets/ticket-access.utils'
@@ -31,7 +30,7 @@ type JwtPayload = {
   userId?: string
   email?: string
   companyId: string
-  role: string
+  role: UserRole
 }
 
 @Controller('uploads')
@@ -50,6 +49,7 @@ export class UploadsController {
     @Param('filename') filename: string,
     @Query('token') queryToken: string | undefined,
     @Headers('authorization') authHeader: string | undefined,
+    @Headers('range') rangeHeader: string | undefined,
     @Res({ passthrough: true }) res: Response,
   ): Promise<StreamableFile> {
     if (!ALLOWED_FOLDERS.has(folder)) {
@@ -60,7 +60,7 @@ export class UploadsController {
       throw new NotFoundException('File not found')
     }
 
-    const user = this.resolveUser(authHeader, queryToken)
+    const user = await this.resolveUser(authHeader, queryToken)
     if (!user) {
       throw new UnauthorizedException('Authentication required')
     }
@@ -76,17 +76,34 @@ export class UploadsController {
       throw new NotFoundException('File not found')
     }
 
+    const fileSize = statSync(absolutePath).size
+    const range = this.parseRange(rangeHeader, fileSize)
+
     res.set({
       'Content-Type': mimeType,
       'X-Content-Type-Options': 'nosniff',
       'Content-Disposition': `inline; filename="${this.safeFilenameHeader(originalName)}"`,
       'Cache-Control': 'private, max-age=3600',
+      'Accept-Ranges': 'bytes',
     })
 
+    if (range) {
+      res.status(206)
+      res.set({
+        'Content-Range': `bytes ${range.start}-${range.end}/${fileSize}`,
+        'Content-Length': String(range.end - range.start + 1),
+      })
+      return new StreamableFile(createReadStream(absolutePath, range))
+    }
+
+    res.set('Content-Length', String(fileSize))
     return new StreamableFile(createReadStream(absolutePath))
   }
 
-  private resolveUser(authHeader: string | undefined, queryToken: string | undefined): JwtPayload | null {
+  private async resolveUser(
+    authHeader: string | undefined,
+    queryToken: string | undefined,
+  ): Promise<JwtPayload | null> {
     const raw =
       typeof queryToken === 'string' && queryToken.trim()
         ? queryToken.trim()
@@ -97,7 +114,28 @@ export class UploadsController {
     if (!raw) return null
 
     try {
-      return this.jwt.verify<JwtPayload>(raw)
+      const payload = this.jwt.verify<JwtPayload>(raw)
+      const userId = payload.userId || payload.sub
+      if (!userId || !payload.companyId) return null
+
+      const user = await this.prisma.user.findFirst({
+        where: {
+          id: userId,
+          companyId: payload.companyId,
+          isActive: true,
+          deletedAt: null,
+        },
+        select: { id: true, email: true, companyId: true, role: true },
+      })
+      if (!user) return null
+
+      return {
+        sub: user.id,
+        userId: user.id,
+        email: user.email,
+        companyId: user.companyId,
+        role: user.role,
+      }
     } catch {
       return null
     }
@@ -120,7 +158,13 @@ export class UploadsController {
   ): Promise<{ mimeType: string; originalName: string }> {
     const attachment = await this.prisma.ticketAttachment.findFirst({
       where: { storageKey },
-      select: { companyId: true, mimeType: true, originalName: true, ticketId: true },
+      select: {
+        companyId: true,
+        mimeType: true,
+        originalName: true,
+        ticketId: true,
+        uploadedByUserId: true,
+      },
     })
 
     if (!attachment) {
@@ -131,58 +175,37 @@ export class UploadsController {
       return { mimeType: attachment.mimeType, originalName: attachment.originalName }
     }
 
-    if (attachment.companyId === user.companyId) {
-      return { mimeType: attachment.mimeType, originalName: attachment.originalName }
-    }
-
-    // Provider accessing client attachment via PRIMARY service contract
-    const contract = await this.prisma.serviceContract.findUnique({
-      where: {
-        clientCompanyId_providerCompanyId: {
-          clientCompanyId: attachment.companyId,
-          providerCompanyId: user.companyId,
-        },
-      },
-      select: { status: true, role: true },
-    })
-
-    if (contract?.status === 'ACTIVE' && contract.role === 'PRIMARY') {
-      return { mimeType: attachment.mimeType, originalName: attachment.originalName }
-    }
-
-    // Executor roles (technician, etc.) with ticket read access via binding / assignment
-    if (attachment.ticketId) {
-      const userId = user.userId || user.sub
-      const role = user.role as UserRole
-      if (userId && isExecutorCapableRole(role)) {
-        try {
-          await resolveReadableTicketAccess({
-            prisma: this.prisma,
-            serviceContractsService: this.serviceContractsService,
-            actor: {
-              id: userId,
-              role,
-              companyId: user.companyId,
-            },
-            ticketId: attachment.ticketId,
-            linkedClientCompanyId:
-              attachment.companyId !== user.companyId ? attachment.companyId : undefined,
-            allowedLinkedClientContractRoles: [
-              ServiceContractRole.PRIMARY,
-              ServiceContractRole.SECONDARY,
-            ],
-          })
-          return { mimeType: attachment.mimeType, originalName: attachment.originalName }
-        } catch (err) {
-          if (err instanceof NotFoundException || err instanceof ForbiddenException) {
-            throw new ForbiddenException('Access denied')
-          }
-          throw err
-        }
+    if (!attachment.ticketId) {
+      if (attachment.companyId === user.companyId && attachment.uploadedByUserId === user.sub) {
+        return { mimeType: attachment.mimeType, originalName: attachment.originalName }
       }
+      throw new NotFoundException('File not found')
     }
 
-    throw new ForbiddenException('Access denied')
+    try {
+      await resolveReadableTicketAccess({
+        prisma: this.prisma,
+        serviceContractsService: this.serviceContractsService,
+        actor: {
+          id: user.sub,
+          role: user.role,
+          companyId: user.companyId,
+        },
+        ticketId: attachment.ticketId,
+        linkedClientCompanyId:
+          attachment.companyId !== user.companyId ? attachment.companyId : undefined,
+        allowedLinkedClientContractRoles: [
+          ServiceContractRole.PRIMARY,
+          ServiceContractRole.SECONDARY,
+        ],
+      })
+      return { mimeType: attachment.mimeType, originalName: attachment.originalName }
+    } catch (err) {
+      if (err instanceof NotFoundException || err instanceof ForbiddenException) {
+        throw new NotFoundException('File not found')
+      }
+      throw err
+    }
   }
 
   private async assertInspectionAttachmentAccess(
@@ -207,5 +230,31 @@ export class UploadsController {
 
   private safeFilenameHeader(name: string): string {
     return name.replace(/[^\w.\-_ ]/g, '_').slice(0, 200)
+  }
+
+  private parseRange(rangeHeader: string | undefined, fileSize: number): { start: number; end: number } | null {
+    if (!rangeHeader || fileSize <= 0) return null
+    const match = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader.trim())
+    if (!match) return null
+
+    const rawStart = match[1]
+    const rawEnd = match[2]
+    if (!rawStart && !rawEnd) return null
+
+    let start: number
+    let end: number
+    if (!rawStart) {
+      const suffixLength = Number(rawEnd)
+      if (!Number.isSafeInteger(suffixLength) || suffixLength <= 0) return null
+      start = Math.max(fileSize - suffixLength, 0)
+      end = fileSize - 1
+    } else {
+      start = Number(rawStart)
+      end = rawEnd ? Number(rawEnd) : fileSize - 1
+    }
+
+    if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end)) return null
+    if (start < 0 || end < start || start >= fileSize) return null
+    return { start, end: Math.min(end, fileSize - 1) }
   }
 }

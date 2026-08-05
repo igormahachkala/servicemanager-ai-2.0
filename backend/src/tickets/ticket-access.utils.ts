@@ -5,6 +5,7 @@ import { assertAllowed, isPlatformObserverScope, resolveObserverScopeCompanyId }
 import { TicketsPolicy, type UserCtx } from '../policy/tickets.policy'
 import { PrismaService } from '../prisma/prisma.service'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
+import { isServiceContractEffective } from '../service-contracts/service-contract-window'
 import { isExecutorCapableRole, isExecutorEligible } from '../common/executor.utils'
 import {
   interpretUserAccessLocationScope,
@@ -189,6 +190,43 @@ export async function resolveActorLocationScope(params: {
 
   if (scopeCompanyId !== params.actor.companyId && !linkedClientScope) {
     return { mode: 'restricted_empty', locationIds: [] }
+  }
+
+  if (linkedClientScope) {
+    const contractDelegate = (params.prisma as any).serviceContract
+    if (contractDelegate?.findUnique) {
+      const contract = await contractDelegate.findUnique({
+        where: {
+          clientCompanyId_providerCompanyId: {
+            clientCompanyId: scopeCompanyId,
+            providerCompanyId: params.actor.companyId,
+          },
+        },
+        select: {
+          status: true,
+          startsAt: true,
+          endsAt: true,
+          locations: { select: { locationId: true } },
+        },
+      })
+      if (!contract || !isServiceContractEffective(contract)) {
+        return { mode: 'restricted_empty', locationIds: [] }
+      }
+
+      const contractLocationIds = uniqueLocationIds(
+        contract.locations?.map((row: { locationId: string }) => row.locationId) ?? [],
+      )
+      if (contractLocationIds.length > 0) {
+        if (interpreted.runtimeMode === 'restricted_empty') {
+          return { mode: 'restricted_empty', locationIds: [] }
+        }
+        if (interpreted.runtimeMode === 'tenant_wide') {
+          return { mode: 'bound_locations', locationIds: contractLocationIds }
+        }
+        const allowed = interpreted.locationIds.filter((id) => contractLocationIds.includes(id))
+        return { mode: 'bound_locations', locationIds: allowed }
+      }
+    }
   }
 
   return {
@@ -1047,6 +1085,7 @@ export async function resolveTicketOperationAccess(params: {
   actor: TicketAccessActor
   ticketId: string
   linkedClientCompanyId?: string
+  allowedLinkedClientContractRoles?: ServiceContractRole[]
 }) {
   const readable = await resolveReadableTicketAccess({
     prisma: params.prisma,
@@ -1054,6 +1093,7 @@ export async function resolveTicketOperationAccess(params: {
     actor: params.actor,
     ticketId: params.ticketId,
     linkedClientCompanyId: params.linkedClientCompanyId,
+    allowedLinkedClientContractRoles: params.allowedLinkedClientContractRoles,
   })
 
   if (readable.visibilityMode === 'platform_observer') {

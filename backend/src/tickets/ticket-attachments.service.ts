@@ -1,5 +1,5 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
-import { Prisma, TicketAttachmentPurpose } from '@prisma/client'
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
+import { Prisma, TicketAttachmentPurpose, UserRole } from '@prisma/client'
 import { ServiceContractRole } from '@prisma/client'
 import { mkdir, rm, writeFile } from 'fs/promises'
 import { extname, join } from 'path'
@@ -10,7 +10,8 @@ import { TimelineService } from '../timeline/timeline.service'
 import { NotificationsService } from '../notifications/notifications.service'
 import { type UserCtx } from '../policy/tickets.policy'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
-import { resolveReadableTicketAccess } from './ticket-access.utils'
+import { resolveReadableTicketAccess, resolveTicketOperationAccess } from './ticket-access.utils'
+import { assertTicketAttachmentMedia, ticketAttachmentExtension } from './ticket-attachment-media'
 
 @Injectable()
 export class TicketAttachmentsService {
@@ -24,7 +25,7 @@ export class TicketAttachmentsService {
   ) {}
 
   async uploadDraftAttachment(companyId: string, uploadedByUserId: string | null, file: any) {
-    this.assertImageFile(file)
+    assertTicketAttachmentMedia(file)
 
     const stored = await this.persistFile(file)
 
@@ -139,8 +140,8 @@ export class TicketAttachmentsService {
   }
 
   async uploadToTicket(user: UserCtx, ticketId: string, file: any, linkedClientCompanyId?: string) {
-    const ticketCompanyId = await this.resolveReadableTicketCompanyId(user, ticketId, linkedClientCompanyId)
-    this.assertImageFile(file)
+    const ticketCompanyId = await this.resolveOperationalTicketCompanyId(user, ticketId, linkedClientCompanyId)
+    assertTicketAttachmentMedia(file)
 
     const stored = await this.persistFile(file)
 
@@ -204,11 +205,12 @@ export class TicketAttachmentsService {
     return attachment
   }
 
-  async deleteDraftAttachment(companyId: string, attachmentId: string) {
+  async deleteDraftAttachment(companyId: string, uploadedByUserId: string | null, attachmentId: string) {
     const attachment = await this.prisma.ticketAttachment.findFirst({
       where: {
         id: attachmentId,
         companyId,
+        uploadedByUserId,
         ticketId: null,
       },
     })
@@ -236,6 +238,20 @@ export class TicketAttachmentsService {
 
     if (!attachment) {
       throw new NotFoundException('Attachment not found')
+    }
+
+    if (attachment.uploadedByUserId !== user.id) {
+      const managementRoles: UserRole[] = [
+        UserRole.ADMIN,
+        UserRole.MASTER,
+        UserRole.DISPATCHER,
+        UserRole.NETWORK_DIRECTOR,
+        UserRole.TERRITORIAL_MANAGER,
+      ]
+      if (!managementRoles.includes(user.role)) {
+        throw new ForbiddenException('Only the uploader or a manager can delete this attachment')
+      }
+      await this.resolveOperationalTicketCompanyId(user, ticketId, linkedClientCompanyId)
     }
 
     await this.prisma.ticketAttachment.delete({ where: { id: attachment.id } })
@@ -268,6 +284,28 @@ export class TicketAttachmentsService {
     return readable.ticket.companyId
   }
 
+  private async resolveOperationalTicketCompanyId(
+    user: UserCtx,
+    ticketId: string,
+    linkedClientCompanyId?: string,
+  ) {
+    const access = await resolveTicketOperationAccess({
+      prisma: this.prisma,
+      serviceContractsService: this.serviceContractsService,
+      actor: {
+        id: user.id,
+        role: user.role,
+        companyId: user.companyId,
+        accessFlags: user.accessFlags,
+      },
+      ticketId,
+      linkedClientCompanyId,
+      allowedLinkedClientContractRoles: [ServiceContractRole.PRIMARY, ServiceContractRole.SECONDARY],
+    })
+
+    return access.ticket.companyId
+  }
+
   private attachmentSelect() {
     return {
       id: true,
@@ -287,65 +325,10 @@ export class TicketAttachmentsService {
     } satisfies Prisma.TicketAttachmentSelect
   }
 
-  private static readonly ALLOWED_MIME_TYPES = new Set([
-    'image/jpeg',
-    'image/png',
-    'image/webp',
-    'image/heic',
-    'image/heif',
-  ])
-
-  private static readonly EXT_MIME_MAP: Record<string, string> = {
-    jpg: 'image/jpeg',
-    jpeg: 'image/jpeg',
-    png: 'image/png',
-    webp: 'image/webp',
-    heic: 'image/heic',
-    heif: 'image/heif',
-  }
-
-  private assertImageFile(file: any) {
-    if (!file) {
-      throw new BadRequestException('file is required')
-    }
-
-    let mime = String(file.mimetype || '').toLowerCase().trim()
-
-    // iOS/MAX WebView camera uploads sometimes arrive as application/octet-stream.
-    // Fall back to extension-based detection before rejecting.
-    if (!mime || mime === 'application/octet-stream') {
-      const ext = (file.originalname || '').split('.').pop()?.toLowerCase() ?? ''
-      const inferred = TicketAttachmentsService.EXT_MIME_MAP[ext]
-      if (inferred) {
-        mime = inferred
-        file.mimetype = inferred
-      }
-    }
-
-    if (!TicketAttachmentsService.ALLOWED_MIME_TYPES.has(mime)) {
-      throw new BadRequestException('Only JPEG, PNG, WebP, HEIC and HEIF images are supported')
-    }
-
-    if (!file.buffer || !file.size) {
-      throw new BadRequestException('Uploaded file is empty')
-    }
-  }
-
-  private mimeExtension(mime: string): string {
-    const map: Record<string, string> = {
-      'image/jpeg': '.jpg',
-      'image/png': '.png',
-      'image/webp': '.webp',
-      'image/heic': '.heic',
-      'image/heif': '.heif',
-    }
-    return map[mime] ?? '.bin'
-  }
-
   private async persistFile(file: any) {
     await mkdir(this.uploadsDir, { recursive: true })
 
-    const ext = extname(file.originalname || '') || this.mimeExtension(file.mimetype || '')
+    const ext = extname(file.originalname || '') || ticketAttachmentExtension(file.mimetype || '')
     const storageKey = `${randomUUID()}${ext}`
     const absolutePath = join(this.uploadsDir, storageKey)
 

@@ -13,6 +13,8 @@ function makeContract(overrides: any = {}) {
     role: ServiceContractRole.PRIMARY,
     clientCompanyId: CLIENT_ID,
     providerCompanyId: PROVIDER_ID,
+    startsAt: null,
+    endsAt: null,
     ...overrides,
   }
 }
@@ -22,9 +24,13 @@ function makeService(prismaPartial: any = {}) {
     serviceContract: {
       findUnique: jest.fn().mockResolvedValue(null),
       findMany: jest.fn().mockResolvedValue([]),
+      update: jest.fn(),
     },
     company: {
       findUnique: jest.fn().mockResolvedValue({ id: PROVIDER_ID }),
+    },
+    location: {
+      findMany: jest.fn().mockResolvedValue([]),
     },
     ...prismaPartial,
   } as any
@@ -70,11 +76,57 @@ describe('ServiceContractsService.getLinkedClientAccess', () => {
     expect(result).toBeNull()
   })
 
+  it('returns null before the contract start date', async () => {
+    const { svc, prisma } = makeService()
+    prisma.serviceContract.findUnique.mockResolvedValue(
+      makeContract({ startsAt: new Date(Date.now() + 60_000) }),
+    )
+
+    await expect(svc.getLinkedClientAccess(PROVIDER_ID, CLIENT_ID)).resolves.toBeNull()
+  })
+
+  it('returns null after the contract end date', async () => {
+    const { svc, prisma } = makeService()
+    prisma.serviceContract.findUnique.mockResolvedValue(
+      makeContract({ endsAt: new Date(Date.now() - 60_000) }),
+    )
+
+    await expect(svc.getLinkedClientAccess(PROVIDER_ID, CLIENT_ID)).resolves.toBeNull()
+  })
+
   it('returns null when providerCompanyId is empty string', async () => {
     const { svc, prisma } = makeService()
     const result = await svc.getLinkedClientAccess('', CLIENT_ID)
     expect(result).toBeNull()
     expect(prisma.serviceContract.findUnique).not.toHaveBeenCalled()
+  })
+})
+
+describe('ServiceContractsService.update', () => {
+  it('validates a partial date update against the stored opposite boundary', async () => {
+    const { svc, prisma } = makeService()
+    prisma.serviceContract.findUnique.mockResolvedValue({
+      startsAt: new Date('2026-08-10T00:00:00.000Z'),
+      endsAt: new Date('2026-08-20T00:00:00.000Z'),
+    })
+
+    await expect(
+      svc.update('sc-1', { endsAt: '2026-08-01T00:00:00.000Z' }),
+    ).rejects.toBeInstanceOf(BadRequestException)
+    expect(prisma.serviceContract.update).not.toHaveBeenCalled()
+  })
+
+  it('rejects contract objects that do not belong to its client', async () => {
+    const { svc, prisma } = makeService()
+    prisma.serviceContract.findUnique.mockResolvedValue({
+      startsAt: null,
+      endsAt: null,
+      clientCompanyId: CLIENT_ID,
+    })
+
+    await expect(svc.update('sc-1', { locationIds: ['00000000-0000-4000-8000-000000000001'] }))
+      .rejects.toBeInstanceOf(BadRequestException)
+    expect(prisma.serviceContract.update).not.toHaveBeenCalled()
   })
 })
 

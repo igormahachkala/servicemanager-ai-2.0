@@ -1,4 +1,5 @@
 import type { ChangeEvent, RefObject } from 'react'
+import { TICKET_MEDIA_ACCEPT } from '../../lib/ticketAttachmentMedia'
 
 export type TicketUploadPanelProps = {
   inputRef: RefObject<HTMLInputElement | null>
@@ -26,11 +27,11 @@ export function TicketUploadPanel({
 }: TicketUploadPanelProps) {
   return (
     <div className="panel" style={{ marginBottom: 12 }}>
-      <h3 style={{ marginBottom: 10 }}>Фото</h3>
+      <h3 style={{ marginBottom: 10 }}>Фото или видео</h3>
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-        <input ref={inputRef} type="file" accept="image/*" onChange={onFileChange} disabled={pending} />
+        <input ref={inputRef} type="file" accept={TICKET_MEDIA_ACCEPT} onChange={onFileChange} disabled={pending} />
         <button onClick={onUploadClick} disabled={pending}>
-          {pending ? 'Загружаем…' : selectedFile ? 'Загрузить фото' : 'Выбрать фото'}
+          {pending ? 'Загружаем…' : selectedFile ? 'Загрузить файл' : 'Выбрать файл'}
         </button>
         <div className="muted small">{helperText}</div>
       </div>

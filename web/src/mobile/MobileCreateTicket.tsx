@@ -7,36 +7,15 @@ import { formatMobileMutationError } from './mobileActionErrors'
 import { mobileTicketNavState } from './mobileTicketDisplay'
 import { MobilePhotoLightbox } from './MobilePhotoLightbox'
 import { mobilePath } from './mobileRoute'
+import {
+  TICKET_MEDIA_ACCEPT,
+  normalizeTicketMediaFile,
+  ticketMediaKind,
+  validateTicketMediaFile,
+} from '../lib/ticketAttachmentMedia'
 
-const MAX_ATTACHMENT_SIZE_BYTES = 25 * 1024 * 1024
-
-/** Единый текст: нет загруженного draft-фото (не дублировать другими формулировками). */
-const PHOTO_REQUIRED_MSG = 'Фото обязательно для создания заявки. Сначала загрузите снимок.'
-
-function detectMimeFromName(file: File): string {
-  const name = (file.name || '').toLowerCase()
-  if (name.endsWith('.png')) return 'image/png'
-  if (name.endsWith('.webp')) return 'image/webp'
-  if (name.endsWith('.heic')) return 'image/heic'
-  if (name.endsWith('.heif')) return 'image/heif'
-  return 'image/jpeg'
-}
-
-function normalizePickedFile(file: File): File {
-  const type = (file.type || '').trim()
-  // Treat missing type and generic octet-stream the same: infer from filename
-  if (type && type !== 'application/octet-stream' && type.startsWith('image/')) return file
-  const guessedType = detectMimeFromName(file)
-  const filename = file.name || `camera-photo-${Date.now()}.jpg`
-  try {
-    return new File([file], filename, {
-      type: guessedType,
-      lastModified: file.lastModified || Date.now(),
-    })
-  } catch {
-    return file
-  }
-}
+/** Единый текст: нет загруженного доказательства проблемы. */
+const PHOTO_REQUIRED_MSG = 'Фото или видео обязательно для создания заявки. Сначала загрузите файл.'
 
 type CreatedTicketState = {
   ticketId: string
@@ -268,7 +247,7 @@ export function MobileCreateTicket() {
     try {
       for (let i = 0; i < files.length; i++) {
         setDraftUploadProgress({ current: i + 1, total: files.length })
-        const uploaded = await api.uploadDraftTicketAttachment(normalizePickedFile(files[i]))
+        const uploaded = await api.uploadDraftTicketAttachment(normalizeTicketMediaFile(files[i]))
         setDraftAttachments((prev) => [...prev, uploaded])
       }
     } catch (e: any) {
@@ -352,7 +331,7 @@ export function MobileCreateTicket() {
     },
   })
 
-  function handlePickedImage(e: React.ChangeEvent<HTMLInputElement>) {
+  function handlePickedMedia(e: React.ChangeEvent<HTMLInputElement>) {
     setUploadError(null)
     setError('')
     const list = e.target.files
@@ -361,17 +340,10 @@ export function MobileCreateTicket() {
     if (files.length === 0) return
     const valid: File[] = []
     for (const rawFile of files) {
-      const file = normalizePickedFile(rawFile)
-      if (!file.type.startsWith('image/')) {
-        setUploadError('Можно загружать только изображения')
-        return
-      }
-      if (file.size <= 0) {
-        setUploadError('Файл пустой')
-        return
-      }
-      if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
-        setUploadError(`Изображение слишком большое (максимум ${MAX_ATTACHMENT_SIZE_BYTES / 1024 / 1024} МБ)`)
+      const file = normalizeTicketMediaFile(rawFile)
+      const validationError = validateTicketMediaFile(file)
+      if (validationError) {
+        setUploadError(validationError)
         return
       }
       valid.push(file)
@@ -598,26 +570,26 @@ export function MobileCreateTicket() {
           </label>
 
           <div className="mobileCard mobilePhotoCard" data-mobile-tour="photo-upload" style={{ padding: 12, position: 'relative' }}>
-            <div style={{ fontWeight: 800, marginBottom: 8 }}>Фото заявки *</div>
-            <p className="mobileHint">Снимите камерой или выберите из галереи — можно несколько; файлы загрузятся после выбора.</p>
+            <div style={{ fontWeight: 800, marginBottom: 8 }}>Фото или видео заявки *</div>
+            <p className="mobileHint">Снимите камерой или выберите из галереи — можно несколько файлов; они загрузятся после выбора.</p>
             <input
               ref={cameraInputRef}
               type="file"
-              accept="image/*"
+              accept={TICKET_MEDIA_ACCEPT}
               capture="environment"
               className="mobilePhotoInputHidden"
-              aria-label="Сделать фото камерой"
-              onChange={handlePickedImage}
+              aria-label="Снять фото или видео камерой"
+              onChange={handlePickedMedia}
               disabled={isUploadingDrafts || createM.isPending}
             />
             <input
               ref={galleryInputRef}
               type="file"
-              accept="image/*"
+              accept={TICKET_MEDIA_ACCEPT}
               multiple
               className="mobilePhotoInputHidden"
-              aria-label="Выбрать фото из галереи"
-              onChange={handlePickedImage}
+              aria-label="Выбрать фото или видео из галереи"
+              onChange={handlePickedMedia}
               disabled={isUploadingDrafts || createM.isPending}
             />
             <div className="mobilePhotoSourceRow">
@@ -634,7 +606,7 @@ export function MobileCreateTicket() {
                     <circle cx="12" cy="13" r="3" />
                   </svg>
                 </span>
-                Сделать фото
+                Снять фото/видео
               </button>
               <button
                 type="button"
@@ -651,22 +623,25 @@ export function MobileCreateTicket() {
                     <path d="M14 14l1 -1a3 5 0 0 1 3 0l2 2" />
                   </svg>
                 </span>
-                Выбрать из телефона
+                Выбрать файл
               </button>
             </div>
             {isUploadingDrafts && draftUploadProgress ? (
               <div className="mobileMeta" style={{ marginTop: 10 }}>
-                Загружаем фото… {draftUploadProgress.current} из {draftUploadProgress.total}
+                Загружаем файлы… {draftUploadProgress.current} из {draftUploadProgress.total}
               </div>
             ) : null}
             {draftAttachments.length > 0 ? (
               <div className="mobileCreateDraftList">
                 {draftAttachments.map((d) => {
                   const src = api.resolveTicketAttachmentUrl(d)
-                  const alt = d.filename || d.originalName || 'Фото'
+                  const alt = d.filename || d.originalName || 'Медиафайл'
+                  const isVideo = ticketMediaKind(d) === 'video'
                   return (
                     <div key={d.id} className="mobileCreateDraftItem">
-                      {src ? (
+                      {src && isVideo ? (
+                        <video src={src} controls preload="metadata" className="mobileCreateDraftImg" aria-label={alt} />
+                      ) : src ? (
                         <button
                           type="button"
                           className="mobileCreateDraftImgBtn"
@@ -681,7 +656,7 @@ export function MobileCreateTicket() {
                       <button
                         type="button"
                         className="mobileCreateDraftRemove"
-                        aria-label="Удалить фото"
+                        aria-label="Удалить файл"
                         disabled={deleteDraftM.isPending || isUploadingDrafts || createM.isPending}
                         onClick={() => deleteDraftM.mutate(d.id)}
                       >

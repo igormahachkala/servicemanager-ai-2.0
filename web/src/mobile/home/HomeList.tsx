@@ -8,6 +8,12 @@ import { getPrimaryActionLabel, homeTicketActionProgressLabel } from './utils'
 import { formatMobileMutationError } from '../mobileActionErrors'
 import { defaultExpandedLocationIds, groupTicketsByLocation, type MobileHomeLocationGroup } from '../mobileHomeListUtils'
 import { compactIdentityLabel, presentActorIdentity } from '../../lib/ticketActorIdentity'
+import {
+  TICKET_MEDIA_ACCEPT,
+  normalizeTicketMediaFile,
+  ticketMediaKind,
+  validateTicketMediaFile,
+} from '../../lib/ticketAttachmentMedia'
 
 export type TicketCloseModalState = {
   ticketId: string
@@ -430,6 +436,16 @@ export function TicketCloseModal(props: {
   const submitLabel = props.submitLabel ?? 'Завершить'
   const submitBusyLabel = props.submitBusyLabel ?? 'Завершаем…'
   if (!closeModal) return null
+  const setReportFile = (rawFile: File | null) => {
+    const file = rawFile ? normalizeTicketMediaFile(rawFile) : null
+    const validationError = file ? validateTicketMediaFile(file) : null
+    setCloseModal((prev) => {
+      if (!prev) return prev
+      if (prev.previewUrl) URL.revokeObjectURL(prev.previewUrl)
+      if (validationError) return { ...prev, file: null, previewUrl: '', err: validationError }
+      return { ...prev, file, previewUrl: file ? URL.createObjectURL(file) : '', err: '' }
+    })
+  }
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(17, 24, 39, 0.55)', zIndex: 60, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: 12 }}>
       <div className="mobileCard" style={{ width: '100%', maxWidth: 720, marginBottom: 12 }}>
@@ -455,52 +471,44 @@ export function TicketCloseModal(props: {
         {closeModal.err ? <div className="mobileNotice mobileNoticeError" style={{ marginTop: 10 }}>{closeModal.err}</div> : null}
         <div className="mobileForm" style={{ marginTop: 12 }}>
           <div className="mobilePhotoCardBlock">
-            <div style={{ fontWeight: 800, marginBottom: 8 }}>Фото отчёта *</div>
-            <p className="mobileHint">Фото отчёта обязательно для закрытия заявки.</p>
+            <div style={{ fontWeight: 800, marginBottom: 8 }}>Фото или видео отчёта *</div>
+            <p className="mobileHint">Фото или видео результата обязательно для завершения заявки.</p>
             <input
               ref={closeCameraInputRef}
               className="mobileHiddenFileInput"
               type="file"
-              accept="image/*"
+              accept={TICKET_MEDIA_ACCEPT}
               capture="environment"
               disabled={closeBusy}
               onChange={(e) => {
-                const file = e.target.files?.[0] || null
-                setCloseModal((prev) => {
-                  if (!prev) return prev
-                  if (prev.previewUrl) URL.revokeObjectURL(prev.previewUrl)
-                  const previewUrl = file ? URL.createObjectURL(file) : ''
-                  return { ...prev, file, previewUrl, err: '' }
-                })
+                setReportFile(e.target.files?.[0] || null)
               }}
             />
             <input
               ref={closeGalleryInputRef}
               className="mobileHiddenFileInput"
               type="file"
-              accept="image/*"
+              accept={TICKET_MEDIA_ACCEPT}
               disabled={closeBusy}
               onChange={(e) => {
-                const file = e.target.files?.[0] || null
-                setCloseModal((prev) => {
-                  if (!prev) return prev
-                  if (prev.previewUrl) URL.revokeObjectURL(prev.previewUrl)
-                  const previewUrl = file ? URL.createObjectURL(file) : ''
-                  return { ...prev, file, previewUrl, err: '' }
-                })
+                setReportFile(e.target.files?.[0] || null)
               }}
             />
             <div className="mobilePhotoSourceRow">
               <button type="button" className="mobileBtn mobileBtnSecondary mobilePhotoSourceBtn" disabled={closeBusy} onClick={() => closeCameraInputRef.current?.click()}>
-                Сделать фото отчёта
+                Снять фото/видео отчёта
               </button>
               <button type="button" className="mobileBtn mobileBtnSecondary mobilePhotoSourceBtn" disabled={closeBusy} onClick={() => closeGalleryInputRef.current?.click()}>
-                Выбрать фото из телефона
+                Выбрать файл из телефона
               </button>
             </div>
             {closeModal.previewUrl ? (
               <div className="mobilePhotoPreview">
-                <img src={closeModal.previewUrl} alt={closeModal.file?.name || 'preview'} style={{ width: '100%', maxHeight: 240, objectFit: 'cover', borderRadius: 12, border: '1px solid #e5e7eb' }} />
+                {ticketMediaKind(closeModal.file || {}) === 'video' ? (
+                  <video src={closeModal.previewUrl} controls playsInline preload="metadata" style={{ width: '100%', maxHeight: 320, borderRadius: 12, border: '1px solid #e5e7eb', background: '#111827' }} />
+                ) : (
+                  <img src={closeModal.previewUrl} alt={closeModal.file?.name || 'preview'} style={{ width: '100%', maxHeight: 240, objectFit: 'cover', borderRadius: 12, border: '1px solid #e5e7eb' }} />
+                )}
               </div>
             ) : null}
             {closeModal.file ? <div className="mobileMeta" style={{ marginTop: 10 }}>Файл: {closeModal.file.name}</div> : null}
@@ -520,7 +528,7 @@ export function TicketCloseModal(props: {
               {closeBusy ? submitBusyLabel : submitLabel}
             </button>
             <p className="mobileHint" style={{ marginBottom: 0 }}>
-              Комментарий не короче трёх символов. Сначала сохранится фото отчёта на заявку, затем она закроется.
+              Комментарий не короче трёх символов. Сначала сохранится медиаотчёт, затем заявка перейдёт дальше по процессу.
             </p>
           </div>
         </div>

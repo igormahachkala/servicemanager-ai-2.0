@@ -68,6 +68,7 @@ function isActivePath(currentPath: string, targetPath: string) {
   if (targetPath === '/service-contracts') return currentPath.startsWith('/service-contracts')
   if (targetPath === '/locations') return currentPath.startsWith('/locations')
   if (targetPath === '/employees') return currentPath.startsWith('/employees')
+  if (targetPath === '/workforce') return currentPath.startsWith('/workforce')
   if (targetPath === '/inspection/runs') return currentPath.startsWith('/inspection/runs')
   if (targetPath === '/inspection/templates') return currentPath.startsWith('/inspection/templates')
   if (targetPath === '/map') return currentPath.startsWith('/map')
@@ -107,6 +108,9 @@ function isNavItemVisible(item: NavItem, role?: api.Role, canAccessEngineeringAg
 
   if (item.to === '/employees' || item.to === '/locations' || item.to === '/problem-categories' || item.to === '/specializations') {
     return fullAdmin
+  }
+  if (item.to === '/workforce') {
+    return role === 'ADMIN' || role === 'MASTER' || role === 'DISPATCHER' || role === 'NETWORK_DIRECTOR' || role === 'TERRITORIAL_MANAGER'
   }
   if (item.to === '/access-constructor') {
     return fullAdmin

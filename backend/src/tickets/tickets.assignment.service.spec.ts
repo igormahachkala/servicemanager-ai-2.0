@@ -135,6 +135,24 @@ describe('TicketsAssignmentService location scope override', () => {
     expect(companyId).toBe('client-company')
     expect(contracts.getLinkedClientAccess).toHaveBeenCalledWith('provider-company', 'client-company')
   })
+
+  it('hides a linked-client location outside the objects selected in the contract', async () => {
+    const prisma = makePrismaMock()
+    prisma.company.findUnique.mockResolvedValue({ id: 'provider-company', type: CompanyType.PROVIDER })
+    prisma.location.findFirst.mockResolvedValue({ id: 'loc-outside', clientCompanyId: 'client-company' })
+    const svc = makeService(prisma)
+    const contracts = (svc as any).serviceContractsService
+    contracts.getLinkedClientAccess.mockResolvedValue({
+      role: ServiceContractRole.PRIMARY,
+      locations: [{ locationId: 'loc-contract' }],
+    })
+
+    await expect((svc as any).resolveTicketOwnerCompanyId({
+      actorCompanyId: 'provider-company',
+      locationId: 'loc-outside',
+      requestedClientCompanyId: null,
+    })).rejects.toBeDefined()
+  })
 })
 
 describe('TicketsAssignmentService assignment executor eligibility', () => {
@@ -210,7 +228,12 @@ describe('TicketsAssignmentService assignment executor eligibility', () => {
   }
 
   function makeServiceWithCandidatePrisma(prisma: any) {
-    const serviceContracts = { getLinkedClientAccess: jest.fn() }
+    const serviceContracts = {
+      getLinkedClientAccess: jest.fn().mockResolvedValue({
+        role: ServiceContractRole.PRIMARY,
+        locations: [],
+      }),
+    }
     return new TicketsAssignmentService(
       prisma,
       {} as any,
@@ -466,7 +489,12 @@ describe('TicketsAssignmentService assignment candidate location scope filtering
         {} as any,
         {} as any,
         {} as any,
-        { getLinkedClientAccess: jest.fn() } as any,
+        {
+          getLinkedClientAccess: jest.fn().mockResolvedValue({
+            role: ServiceContractRole.PRIMARY,
+            locations: [],
+          }),
+        } as any,
         {} as any,
         {} as any,
       ),

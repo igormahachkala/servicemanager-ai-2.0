@@ -215,8 +215,8 @@ export class TicketsService {
     )
   }
 
-  deleteDraftAttachment(companyId: string, attachmentId: string) {
-    return this.attachments.deleteDraftAttachment(companyId, attachmentId)
+  deleteDraftAttachment(companyId: string, userId: string, attachmentId: string) {
+    return this.attachments.deleteDraftAttachment(companyId, userId, attachmentId)
   }
 
   deleteTicketAttachment(

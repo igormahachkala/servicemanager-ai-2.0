@@ -4,6 +4,13 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { CategoryGuidancePanel } from '../components/CategoryGuidancePanel'
 import { useCreateTicketFlow, type CreateSuccessResult } from '../hooks/useCreateTicketFlow'
+import {
+  TICKET_MEDIA_ACCEPT,
+  normalizeTicketMediaFile,
+  ticketMediaKind,
+  ticketMediaNoun,
+  validateTicketMediaFile,
+} from '../lib/ticketAttachmentMedia'
 
 type SuccessPayload = {
   ticketId: string
@@ -13,8 +20,6 @@ type SuccessPayload = {
   categoryName: string
   locationName: string
 }
-
-const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024
 
 const CREATE_ALLOWED_ROLES: api.Role[] = [
   'ADMIN',
@@ -349,25 +354,15 @@ export function CreateTicketPage() {
       setSelectedFile(null)
       return
     }
-    if (!file.type.startsWith('image/')) {
+    const normalized = normalizeTicketMediaFile(file)
+    const validationError = validateTicketMediaFile(normalized)
+    if (validationError) {
       setSelectedFile(null)
       e.target.value = ''
-      setUploadError('Можно загружать только изображения')
+      setUploadError(validationError)
       return
     }
-    if (file.size <= 0) {
-      setSelectedFile(null)
-      e.target.value = ''
-      setUploadError('Файл пустой')
-      return
-    }
-    if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
-      setSelectedFile(null)
-      e.target.value = ''
-      setUploadError('Изображение слишком большое (максимум 10 МБ)')
-      return
-    }
-    setSelectedFile(file)
+    setSelectedFile(normalized)
   }
 
   function buildPayload(): api.CreateTicketInput {
@@ -463,7 +458,7 @@ export function CreateTicketPage() {
 
   function onUpload() {
     if (!selectedFile) {
-      setUploadError('Сначала выберите фото')
+      setUploadError('Сначала выберите фото или видео')
       return
     }
     uploadM.mutate(selectedFile)
@@ -773,22 +768,26 @@ export function CreateTicketPage() {
           </label>
 
           <div className="panel" style={{ padding: 12 }}>
-            <div style={{ fontWeight: 700, marginBottom: 10 }}>{mode === 'quick' ? 'Шаг 4. Фото' : 'Фото'}</div>
+            <div style={{ fontWeight: 700, marginBottom: 10 }}>{mode === 'quick' ? 'Шаг 4. Фото или видео' : 'Фото или видео'}</div>
             <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-              <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} disabled={isBusy || !!draftAttachment} />
+              <input ref={fileInputRef} type="file" accept={TICKET_MEDIA_ACCEPT} onChange={handleFileChange} disabled={isBusy || !!draftAttachment} />
               <button type="button" onClick={onUpload} disabled={uploadM.isPending || !selectedFile || !!draftAttachment}>
-                {uploadM.isPending ? 'Загружаем...' : draftAttachment ? 'Фото загружено' : 'Загрузить фото'}
+                {uploadM.isPending ? 'Загружаем...' : draftAttachment ? `${ticketMediaNoun(draftAttachment)} загружено` : 'Загрузить файл'}
               </button>
               {selectedFile ? <div className="muted small">{selectedFile.name}</div> : null}
             </div>
 
             {draftAttachment ? (
               <div style={{ marginTop: 12, display: 'grid', gap: 10 }}>
-                <img src={api.resolveTicketAttachmentUrl(draftAttachment)} alt={draftAttachment.originalName} style={{ width: 260, maxWidth: '100%', borderRadius: 12, border: '1px solid #e5e7eb' }} />
-                <div className="muted small">Фото будет привязано к заявке при отправке.</div>
+                {ticketMediaKind(draftAttachment) === 'video' ? (
+                  <video src={api.resolveTicketAttachmentUrl(draftAttachment)} controls preload="metadata" style={{ width: 420, maxWidth: '100%', borderRadius: 12, border: '1px solid #e5e7eb' }} />
+                ) : (
+                  <img src={api.resolveTicketAttachmentUrl(draftAttachment)} alt={draftAttachment.originalName} style={{ width: 260, maxWidth: '100%', borderRadius: 12, border: '1px solid #e5e7eb' }} />
+                )}
+                <div className="muted small">Файл будет привязан к заявке при отправке.</div>
                 <div>
                   <button type="button" className="ghost" onClick={() => deleteDraftM.mutate(draftAttachment.id)} disabled={deleteDraftM.isPending}>
-                    {deleteDraftM.isPending ? 'Удаляем...' : 'Удалить фото'}
+                    {deleteDraftM.isPending ? 'Удаляем...' : 'Удалить файл'}
                   </button>
                 </div>
               </div>

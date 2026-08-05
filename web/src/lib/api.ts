@@ -205,6 +205,10 @@ export type ServiceContractItem = {
   notes?: string | null
   createdAt: string
   updatedAt: string
+  locations: Array<{
+    locationId: string
+    location: Pick<LocationListItem, 'id' | 'name' | 'address' | 'platformCode'>
+  }>
   clientCompany: {
     id: string
     name: string
@@ -1123,6 +1127,7 @@ export type CreateServiceContractInput = {
   startsAt?: string
   endsAt?: string
   notes?: string
+  locationIds?: string[]
 }
 
 export type UpdateServiceContractInput = {
@@ -1131,6 +1136,7 @@ export type UpdateServiceContractInput = {
   startsAt?: string | null
   endsAt?: string | null
   notes?: string | null
+  locationIds?: string[]
 }
 
 const BASE_URL_KEY = 'sm_base_url'
@@ -3728,4 +3734,102 @@ export async function updateAgentTaskStatus(id: string, status: AgentTaskStatus)
 
 export async function updateAgentTaskResult(id: string, result: string): Promise<AgentTask> {
   return request<AgentTask>('/agent-tasks/' + id + '/result', { method: 'PATCH', body: { result } })
+}
+
+// --- Workforce shifts and ticket work logs -------------------------------
+
+export type WorkShiftStatus = 'OPEN' | 'CLOSED' | 'AUTO_CLOSED'
+export type WorkLogStatus = 'RUNNING' | 'STOPPED' | 'AUTO_STOPPED'
+
+export type WorkLogItem = {
+  id: string
+  companyId: string
+  userId: string
+  shiftId: string
+  ticketId: string
+  status: WorkLogStatus
+  startedAt: string
+  endedAt?: string | null
+  durationMinutes?: number | null
+  ticket: {
+    id: string
+    ticketNumber: number
+    companyId: string
+    problemText: string
+    status: TicketStatus
+    location?: { id: string; name: string } | null
+    problemCategory?: { id: string; name: string } | null
+  }
+}
+
+export type WorkShiftItem = {
+  id: string
+  companyId: string
+  userId: string
+  status: WorkShiftStatus
+  openedAt: string
+  closedAt?: string | null
+  closeReason?: string | null
+  user: { id: string; firstName?: string | null; lastName?: string | null; email: string; role: Role }
+  workLogs: WorkLogItem[]
+}
+
+export type WorkforceMyState = {
+  company: { id: string; name: string; timezone?: string | null; shiftAutoCloseTime: string }
+  shift: WorkShiftItem | null
+  runningWorkLog: WorkLogItem | null
+  recentShifts: WorkShiftItem[]
+  serverNow: string
+}
+
+export type WorkforceReport = {
+  company: { id: string; name: string; timezone?: string | null; shiftAutoCloseTime: string }
+  period: { from: string; to: string }
+  summary: { shifts: number; employees: number; shiftMinutes: number; workMinutes: number }
+  employees: Array<{
+    user: WorkShiftItem['user']
+    shifts: number
+    shiftMinutes: number
+    workMinutes: number
+    tickets: number
+  }>
+  shifts: WorkShiftItem[]
+  serverNow: string
+}
+
+export async function workforceMyState(): Promise<WorkforceMyState> {
+  return request<WorkforceMyState>('/workforce/me')
+}
+
+export async function openWorkShift(): Promise<WorkforceMyState> {
+  return request<WorkforceMyState>('/workforce/shifts/open', { method: 'POST' })
+}
+
+export async function closeWorkShift(comment?: string): Promise<WorkforceMyState> {
+  return request<WorkforceMyState>('/workforce/shifts/close', { method: 'POST', body: { comment } })
+}
+
+export async function startTicketWorkLog(ticketId: string, scope?: string | TicketScopeParams): Promise<WorkforceMyState> {
+  return request<WorkforceMyState>(`/workforce/work-logs/tickets/${ticketId}/start${buildTicketScopeSuffix(scope)}`, { method: 'POST' })
+}
+
+export async function stopTicketWorkLog(ticketId: string): Promise<WorkforceMyState> {
+  return request<WorkforceMyState>(`/workforce/work-logs/tickets/${ticketId}/stop`, { method: 'POST' })
+}
+
+export async function workforceReport(params: { from?: string; to?: string; userId?: string; companyId?: string } = {}): Promise<WorkforceReport> {
+  const search = new URLSearchParams()
+  if (params.from) search.set('from', params.from)
+  if (params.to) search.set('to', params.to)
+  if (params.userId) search.set('userId', params.userId)
+  if (params.companyId) search.set('companyId', params.companyId)
+  const suffix = search.toString()
+  return request<WorkforceReport>(`/workforce/shifts${suffix ? `?${suffix}` : ''}`)
+}
+
+export async function updateWorkforceSettings(shiftAutoCloseTime: string) {
+  return request<{ id: string; name: string; timezone?: string | null; shiftAutoCloseTime: string }>('/workforce/settings', {
+    method: 'PATCH',
+    body: { shiftAutoCloseTime },
+  })
 }

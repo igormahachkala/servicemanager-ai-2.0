@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import * as api from '../../lib/api'
 import { FullscreenPhotoViewer, type PhotoViewerItem } from '../../components/FullscreenPhotoViewer'
+import { ticketMediaKind } from '../../lib/ticketAttachmentMedia'
 
 type TicketAttachmentsProps = {
   title?: string
@@ -57,6 +58,7 @@ export function TicketAttachments(props: TicketAttachmentsProps) {
         <div style={{ display: 'grid', gap: 12 }}>
           {data.map((attachment) => {
             const isImage = attachment.mimeType.startsWith('image/')
+            const isVideo = ticketMediaKind(attachment) === 'video'
             const idx = isImage ? photoIndexFor(attachment) : -1
             return (
               <div key={attachment.id} style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 12, display: 'grid', gap: 10 }}>
@@ -67,6 +69,13 @@ export function TicketAttachments(props: TicketAttachmentsProps) {
                       alt={attachment.originalName}
                       style={{ width: 220, maxWidth: '100%', borderRadius: 10, border: '1px solid #e5e7eb', objectFit: 'cover', cursor: 'zoom-in' }}
                       onClick={() => setViewerIndex(idx)}
+                    />
+                  ) : isVideo ? (
+                    <video
+                      src={api.resolveTicketAttachmentUrl(attachment)}
+                      controls
+                      preload="metadata"
+                      style={{ width: 420, maxWidth: '100%', maxHeight: 320, borderRadius: 10, border: '1px solid #e5e7eb', background: '#111827' }}
                     />
                   ) : (
                     <div style={{ width: 220, maxWidth: '100%', minHeight: 80, borderRadius: 10, border: '1px solid #e5e7eb', background: '#f9fafb', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -81,7 +90,7 @@ export function TicketAttachments(props: TicketAttachmentsProps) {
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 4 }}>
                       {isImage && (
                         <button className="ghost" onClick={() => setViewerIndex(idx)}>
-                          Просмотр
+                          Просмотр фото
                         </button>
                       )}
                       <a href={api.resolveTicketAttachmentUrl(attachment)} target="_blank" rel="noreferrer">

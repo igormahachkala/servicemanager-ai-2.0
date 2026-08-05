@@ -20,6 +20,12 @@ import { computePrimaryTicketAction } from '../lib/ticketOperationalModel'
 import { toChatMessages } from '../lib/ticketChat'
 import { resolveAdminProfile } from '../lib/resolveAdminProfile'
 import {
+  MAX_TICKET_IMAGE_BYTES,
+  TICKET_MEDIA_ACCEPT,
+  normalizeTicketMediaFile,
+  validateTicketMediaFile,
+} from '../lib/ticketAttachmentMedia'
+import {
   TicketActionsPanel,
   TicketAcceptancePanel,
   TicketAssignmentPanel,
@@ -34,8 +40,6 @@ import {
   TicketTimelinePanel,
   TicketUploadPanel,
 } from '../components/ticket-card-v2'
-
-const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024
 
 const MANAGEMENT_ROLES: api.Role[] = ['ADMIN', 'ADMIN_PROVIDER', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR']
 // SMA-ACCEPTANCE-ROLE-GAP-001: CLIENT requester can create/comment/photo but cannot edit.
@@ -685,7 +689,7 @@ export function TicketPage() {
       const normalizedComment = closeReportComment.trim()
       if (!normalizedComment) throw new Error('Добавьте комментарий к закрытию')
       const hasPhotoAlready = hasWorkReportPhotoEvidence
-      if (!hasPhotoAlready && !selectedFile) throw new Error('Добавьте фото для отправки на приёмку')
+      if (!hasPhotoAlready && !selectedFile) throw new Error('Добавьте фото или видео для отправки на приёмку')
       if (selectedFile) {
         await api.uploadTicketAttachment(ticketId, selectedFile, effectiveTicketScope)
       }
@@ -828,7 +832,7 @@ export function TicketPage() {
     [attachmentsQ.data],
   )
   const hasWorkReportPhotoEvidence = useMemo(
-    () => workReportAttachments.some((item) => (item.mimeType || '').startsWith('image/')),
+    () => workReportAttachments.some((item) => /^(image|video)\//.test(item.mimeType || '')),
     [workReportAttachments],
   )
   const timelinePreviewItems = useMemo(
@@ -869,28 +873,16 @@ export function TicketPage() {
       return
     }
 
-    if (!file.type.startsWith('image/')) {
+    const normalized = normalizeTicketMediaFile(file)
+    const validationError = validateTicketMediaFile(normalized)
+    if (validationError) {
       setSelectedFile(null)
       e.target.value = ''
-      setFileError('Можно загружать только изображения')
+      setFileError(validationError)
       return
     }
 
-    if (file.size <= 0) {
-      setSelectedFile(null)
-      e.target.value = ''
-      setFileError('Файл пустой')
-      return
-    }
-
-    if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
-      setSelectedFile(null)
-      e.target.value = ''
-      setFileError('Изображение слишком большое. Максимум 10 МБ.')
-      return
-    }
-
-    setSelectedFile(file)
+    setSelectedFile(normalized)
   }
 
   function handleOperationalPhotoPick(e: ChangeEvent<HTMLInputElement>) {
@@ -898,22 +890,14 @@ export function TicketPage() {
     setUploadError(null)
     const file = e.target.files?.[0] || null
     if (!file) return
-    if (!file.type.startsWith('image/')) {
+    const normalized = normalizeTicketMediaFile(file)
+    const validationError = validateTicketMediaFile(normalized)
+    if (validationError) {
       e.target.value = ''
-      setFileError('Можно загружать только изображения')
+      setFileError(validationError)
       return
     }
-    if (file.size <= 0) {
-      e.target.value = ''
-      setFileError('Файл пустой')
-      return
-    }
-    if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
-      e.target.value = ''
-      setFileError('Изображение слишком большое. Максимум 10 МБ.')
-      return
-    }
-    uploadM.mutate(file)
+    uploadM.mutate(normalized)
   }
 
   function handleAcceptanceFileChange(e: ChangeEvent<HTMLInputElement>) {
@@ -938,7 +922,7 @@ export function TicketPage() {
       return
     }
 
-    if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
+    if (file.size > MAX_TICKET_IMAGE_BYTES) {
       setAcceptanceFile(null)
       e.target.value = ''
       setAcceptanceFileError('Изображение слишком большое. Максимум 10 МБ.')
@@ -1117,7 +1101,7 @@ export function TicketPage() {
           <input
             ref={operationalFileInputRef}
             type="file"
-            accept="image/*"
+            accept={TICKET_MEDIA_ACCEPT}
             style={{ display: 'none' }}
             onChange={handleOperationalPhotoPick}
           />
@@ -1168,7 +1152,7 @@ export function TicketPage() {
         <div className="panel uiCard" style={{ marginBottom: 12, borderColor: '#c7d2fe', background: '#f8fafc' }}>
           <h3 style={{ marginBottom: 8 }}>Отправить на приёмку</h3>
           <div className="muted small" style={{ marginBottom: 12, lineHeight: 1.5 }}>
-            Заполните комментарий и прикрепите фото выполненной работы. После отправки заявка перейдёт в статус «Ожидает приёмки».
+            Заполните комментарий и прикрепите фото или видео выполненной работы. После отправки заявка перейдёт в статус «Ожидает приёмки».
           </div>
           <div className="form">
             <label>
@@ -1182,21 +1166,21 @@ export function TicketPage() {
               />
             </label>
             <label>
-              Фото отчёта {hasWorkReportPhotoEvidence ? `(уже загружено: ${workReportAttachments.filter((a) => (a.mimeType || '').startsWith('image/')).length} шт.)` : '*'}
+              Фото или видео отчёта {hasWorkReportPhotoEvidence ? `(уже загружено: ${workReportAttachments.filter((a) => /^(image|video)\//.test(a.mimeType || '')).length} шт.)` : '*'}
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
+                accept={TICKET_MEDIA_ACCEPT}
                 onChange={handleFileChange}
                 disabled={closeReportM.isPending}
               />
               {hasWorkReportPhotoEvidence ? (
                 <div className="muted small" style={{ marginTop: 6 }}>
-                  Уже есть фото отчёта. Можно добавить ещё или оставить как есть.
+                  Уже есть фото или видео отчёта. Можно добавить ещё или оставить как есть.
                 </div>
               ) : (
                 <div className="muted small" style={{ marginTop: 6 }}>
-                  Обязательно прикрепите фото результата работ.
+                  Обязательно прикрепите фото или видео результата работ.
                 </div>
               )}
             </label>
@@ -1394,7 +1378,7 @@ export function TicketPage() {
           onFileChange={handleFileChange}
           onUploadClick={handleUploadClick}
           pending={uploadM.isPending}
-          helperText={selectedFile ? `${selectedFile.name} · ${fmtBytes(selectedFile.size)}` : 'Выберите изображение до 10 МБ'}
+          helperText={selectedFile ? `${selectedFile.name} · ${fmtBytes(selectedFile.size)}` : 'Фото до 25 МБ или видео до 100 МБ'}
           errorMessage={fileError || uploadError}
         />
       ) : null}

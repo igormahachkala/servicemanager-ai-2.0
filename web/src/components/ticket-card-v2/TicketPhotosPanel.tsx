@@ -31,8 +31,8 @@ export function TicketPhotosPanel({
   return (
     <>
       <TicketAttachments
-        title="Фото заявки"
-        emptyText="Нет фото заявки"
+        title="Фото и видео заявки"
+        emptyText="Нет фото или видео заявки"
         loading={loading}
         isError={isError}
         error={error}
@@ -47,7 +47,7 @@ export function TicketPhotosPanel({
 
       <TicketAttachments
         title="Отчёт техника"
-        emptyText="Нет фото отчёта"
+        emptyText="Нет фото или видео отчёта"
         loading={loading}
         isError={isError}
         error={error}

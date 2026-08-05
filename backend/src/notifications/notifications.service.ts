@@ -3,7 +3,6 @@ import {
   CompanyType,
   Prisma,
   ServiceContractRole,
-  ServiceContractStatus,
   TicketStatus,
   UserRole,
 } from '@prisma/client';
@@ -11,6 +10,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { MaxBotService } from '../max-bot/max-bot.service';
 import { PushService, type PushEventType } from '../push/push.service';
+import { activeServiceContractWhere } from '../service-contracts/service-contract-window';
 
 const WATCHER_ROLES: UserRole[] = [
   UserRole.ADMIN,
@@ -804,6 +804,15 @@ export class NotificationsService {
     ticketNumber: number;
     sourceEventId?: string | null;
   }) {
+    this.scheduleTicketStatusChanged({
+      ticketCompanyId: params.ticketCompanyId,
+      locationId: null,
+      ticketId: params.ticketId,
+      ticketNumber: params.ticketNumber,
+      fromStatus: TicketStatus.AWAITING_ACCEPTANCE,
+      toStatus: TicketStatus.DONE,
+      sourceEventId: params.sourceEventId,
+    });
     if (!params.assignedTechnicianId) return;
     void this.safeNotify('ticket.accepted', () =>
       this.emitTicketAcceptedInternal({ ...params, assignedTechnicianId: params.assignedTechnicianId! }),
@@ -819,6 +828,15 @@ export class NotificationsService {
     comment: string | null;
     sourceEventId?: string | null;
   }) {
+    this.scheduleTicketStatusChanged({
+      ticketCompanyId: params.ticketCompanyId,
+      locationId: null,
+      ticketId: params.ticketId,
+      ticketNumber: params.ticketNumber,
+      fromStatus: TicketStatus.AWAITING_ACCEPTANCE,
+      toStatus: TicketStatus.IN_PROGRESS,
+      sourceEventId: params.sourceEventId,
+    });
     if (!params.assignedTechnicianId) return;
     void this.safeNotify('ticket.rejected', () =>
       this.emitTicketRejectedInternal({ ...params, assignedTechnicianId: params.assignedTechnicianId! }),
@@ -1235,7 +1253,7 @@ export class NotificationsService {
           where: {
             clientCompanyId: params.targetCompanyId,
             providerCompanyId: params.actorCompanyId,
-            status: ServiceContractStatus.ACTIVE,
+            ...activeServiceContractWhere(),
             role: ServiceContractRole.PRIMARY,
           },
           select: { providerCompanyId: true },
@@ -1247,7 +1265,7 @@ export class NotificationsService {
         const providerContracts = await this.prisma.serviceContract.findMany({
           where: {
             clientCompanyId: params.targetCompanyId,
-            status: ServiceContractStatus.ACTIVE,
+            ...activeServiceContractWhere(),
             role: ServiceContractRole.PRIMARY,
           },
           select: { providerCompanyId: true },
@@ -1487,7 +1505,7 @@ export class NotificationsService {
     const primaries = await this.prisma.serviceContract.findMany({
       where: {
         clientCompanyId: params.ticketCompanyId,
-        status: ServiceContractStatus.ACTIVE,
+        ...activeServiceContractWhere(),
         role: ServiceContractRole.PRIMARY,
       },
       select: { providerCompanyId: true },
