@@ -198,7 +198,7 @@ export function MobileCreateTicket() {
     enabled: canAssignOnCreate && !!locationId && !!categoryId,
   })
   const createAssignmentCandidates = useMemo(
-    () => [...(createCandidatesQ.data?.matched || []), ...(createCandidatesQ.data?.others || [])],
+    () => [...(createCandidatesQ.data?.matched || []), ...(createCandidatesQ.data?.others || [])].filter(api.isAssignableCandidate),
     [createCandidatesQ.data],
   )
 

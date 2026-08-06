@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import type * as api from '../../lib/api'
+import * as api from '../../lib/api'
 import { compactIdentityLabel, identityLines, presentActorIdentity, presentTicketAssignee } from '../../lib/ticketActorIdentity'
 
 type AssignmentCandidate = {
@@ -10,6 +10,8 @@ type AssignmentCandidate = {
   role?: api.Role | string | null
   companyId?: string | null
   company?: api.IdentityCompany | null
+  assignable?: boolean
+  matched?: boolean
   matchedBy: string[]
 }
 
@@ -89,6 +91,10 @@ export function TicketAssignmentPanel({
   renderAssignError,
 }: TicketAssignmentPanelProps) {
   const assignee = presentTicketAssignee(ticket)
+  const assignableMatched = assignmentData?.matched.filter(api.isAssignableCandidate) ?? []
+  const nonAssignableCandidates = assignmentData
+    ? [...assignmentData.matched, ...assignmentData.others].filter((item) => !api.isAssignableCandidate(item))
+    : []
 
   return (
     <div className="panel uiCard" style={{ marginBottom: 12 }}>
@@ -136,7 +142,7 @@ export function TicketAssignmentPanel({
         <>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
             {renderTag(`Текущий: ${hasAssignedTechnician ? compactIdentityLabel(assignee) : 'не назначен'}`)}
-            {renderTag(`Подходящих: ${assignmentData.matched.length}`)}
+            {renderTag(`Подходящих: ${assignableMatched.length}`)}
           </div>
           <div className="uiActions" style={{ marginTop: 10 }}>
             <select
@@ -145,26 +151,17 @@ export function TicketAssignmentPanel({
               style={{ width: '100%', maxWidth: 420, minWidth: 0 }}
             >
               <option value="">Выберите техника</option>
-              {assignmentData.matched.length > 0 ? (
+              {assignableMatched.length > 0 ? (
                 <optgroup label="Подходящие техники">
-                  {assignmentData.matched.map((item) => (
+                  {assignableMatched.map((item) => (
                     <option key={item.id} value={item.id}>
                       {candidateLabel(item)}{item.id === assignmentData.currentAssigneeId ? ' · текущий' : ''}{item.matchedBy.length ? ` · подходит: ${item.matchedBy.join(', ')}` : ''}
                     </option>
                   ))}
                 </optgroup>
               ) : null}
-              {assignmentData.others.length > 0 ? (
-                <optgroup label="Остальные техники">
-                  {assignmentData.others.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {candidateLabel(item)}{item.id === assignmentData.currentAssigneeId ? ' · текущий' : ''}
-                    </option>
-                  ))}
-                </optgroup>
-              ) : null}
             </select>
-            <button onClick={onAssign} disabled={assignPending || !selectedTechnicianId}>
+            <button onClick={onAssign} disabled={assignPending || !selectedTechnicianId || !selectedIsMatched}>
               {assignPending ? 'Назначаем…' : 'Назначить'}
             </button>
           </div>
@@ -176,6 +173,11 @@ export function TicketAssignmentPanel({
               <div className="muted small" style={{ marginTop: 6 }}>
                 Категория: {assignmentData.category.name} · Требуемые: {assignmentData.requiredSpecializations.length ? assignmentData.requiredSpecializations.map((item) => item.name).join(', ') : 'не заданы'}
               </div>
+              {nonAssignableCandidates.length > 0 ? (
+                <div className="muted small" style={{ marginTop: 6 }}>
+                  Не подходят по специализации: {nonAssignableCandidates.map(candidateLabel).join(', ')}
+                </div>
+              ) : null}
             </div>
           </details>
           {selectedCandidate ? (

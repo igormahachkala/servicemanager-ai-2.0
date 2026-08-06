@@ -514,12 +514,15 @@ export type TechnicianWorkloadItem = {
 
 export type AssignmentCandidateTechnician = {
   id: string
+  userId?: string
+  technicianProfileId?: string | null
   email: string
   firstName?: string | null
   lastName?: string | null
   role?: Role | string | null
   companyId?: string | null
   company?: IdentityCompany | null
+  assignable?: boolean
   matched: boolean
   matchedBy: string[]
   matchReason?: 'category_specialization' | 'fallback_no_category_specializations' | 'no_match'
@@ -585,6 +588,10 @@ export type AssignmentCandidatesResponse = {
     workforceCompanyId?: string
     visibilityMode?: 'tenant' | 'provider_primary' | 'platform_observer'
   }
+}
+
+export function isAssignableCandidate(candidate: { assignable?: boolean; matched?: boolean }): boolean {
+  return candidate.assignable ?? candidate.matched === true
 }
 
 export type TicketAttachmentItem = {

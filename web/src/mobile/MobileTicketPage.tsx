@@ -639,7 +639,7 @@ export function MobileTicketPage() {
     if (!d) return []
     const seen = new Set<string>()
     const out: api.AssignmentCandidateTechnician[] = []
-    for (const row of [...d.matched, ...d.others]) {
+    for (const row of [...d.matched, ...d.others].filter(api.isAssignableCandidate)) {
       if (seen.has(row.id)) continue
       seen.add(row.id)
       out.push(row)

@@ -348,6 +348,9 @@ describe('TicketsAssignmentService assignment executor eligibility', () => {
     expect(result).toEqual([
       expect.objectContaining({
         id: 'subcontractor-tech',
+        userId: 'subcontractor-tech',
+        technicianProfileId: null,
+        assignable: true,
         matched: true,
         matchedBy: ['специалист по кондиционерам'],
       }),
@@ -396,6 +399,9 @@ describe('TicketsAssignmentService assignment executor eligibility', () => {
     expect(result).toEqual([
       expect.objectContaining({
         id: 'subcontractor-tech',
+        userId: 'subcontractor-tech',
+        technicianProfileId: null,
+        assignable: false,
         matched: false,
         matchReason: 'no_match',
       }),
