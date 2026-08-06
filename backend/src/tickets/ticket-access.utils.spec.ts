@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common'
-import { ServiceContractRole, UserAccessLocationMode, UserRole } from '@prisma/client'
+import { ServiceContractLocationMode, ServiceContractRole, UserAccessLocationMode, UserRole } from '@prisma/client'
 
 import {
   resolveActorLocationScope,
@@ -73,7 +73,10 @@ describe('ticket-access utils SECONDARY provider visibility', () => {
       boundLocationIds?: string[]
       boundLocationBindings?: Array<{ companyId: string; locationId: string; clientCompanyId?: string }>
       accessLocationMode?: UserAccessLocationMode | null
+      contractLocationMode?: ServiceContractLocationMode | null
       contractLocationIds?: string[]
+      primaryContractLocationMode?: ServiceContractLocationMode | null
+      primaryContractLocationIds?: string[]
       directTicket?: any
     } = {},
   ) {
@@ -124,11 +127,19 @@ describe('ticket-access utils SECONDARY provider visibility', () => {
       },
       serviceContract: {
         findUnique: jest.fn().mockResolvedValue({
+          id: 'contract-1',
           status: 'ACTIVE',
           startsAt: null,
           endsAt: null,
+          locationMode: opts.contractLocationMode,
           locations: (opts.contractLocationIds ?? []).map((locationId) => ({ locationId })),
         }),
+        findMany: jest.fn().mockResolvedValue([
+          {
+            locationMode: opts.primaryContractLocationMode,
+            locations: (opts.primaryContractLocationIds ?? []).map((locationId) => ({ locationId })),
+          },
+        ]),
       },
     } as any
   }
@@ -242,13 +253,43 @@ describe('ticket-access utils SECONDARY provider visibility', () => {
   })
 
   it('uses contract objects as the ceiling for a tenant-wide provider employee', async () => {
-    const prisma = makePrismaTicketMock({ contractLocationIds: ['loc-contract'] })
+    const prisma = makePrismaTicketMock({
+      contractLocationMode: ServiceContractLocationMode.SELECTED_LOCATIONS,
+      contractLocationIds: ['loc-contract'],
+    })
 
     await expect(resolveActorLocationScope({
       prisma,
       actor: { id: 'admin-1', role: UserRole.ADMIN, companyId: providerCompanyId },
       scopeCompanyId: clientCompanyId,
     })).resolves.toEqual({ mode: 'bound_locations', locationIds: ['loc-contract'] })
+  })
+
+  it('contract SELECTED_LOCATIONS with an empty object list fail-closes provider ADMIN visibility', async () => {
+    const prisma = makePrismaTicketMock({
+      contractLocationMode: ServiceContractLocationMode.SELECTED_LOCATIONS,
+      contractLocationIds: [],
+    })
+
+    await expect(resolveActorLocationScope({
+      prisma,
+      actor: { id: 'admin-1', role: UserRole.ADMIN, companyId: providerCompanyId },
+      scopeCompanyId: clientCompanyId,
+    })).resolves.toEqual({ mode: 'restricted_empty', locationIds: [] })
+  })
+
+  it('contract INHERIT_PRIMARY reuses the PRIMARY selected object scope', async () => {
+    const prisma = makePrismaTicketMock({
+      contractLocationMode: ServiceContractLocationMode.INHERIT_PRIMARY,
+      primaryContractLocationMode: ServiceContractLocationMode.SELECTED_LOCATIONS,
+      primaryContractLocationIds: ['loc-primary'],
+    })
+
+    await expect(resolveActorLocationScope({
+      prisma,
+      actor: { id: 'admin-1', role: UserRole.ADMIN, companyId: providerCompanyId },
+      scopeCompanyId: clientCompanyId,
+    })).resolves.toEqual({ mode: 'bound_locations', locationIds: ['loc-primary'] })
   })
 
   it('runtime location scope fail-closes inactive ADMIN even with a stale JWT', async () => {

@@ -1,11 +1,15 @@
 ﻿import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common'
-import { Prisma, ServiceContractRole, UserRole } from '@prisma/client'
+import { Prisma, ServiceContractLocationMode, ServiceContractRole, UserRole } from '@prisma/client'
 
 import { assertAllowed, isPlatformObserverScope, resolveObserverScopeCompanyId } from '../policy/policy.utils'
 import { TicketsPolicy, type UserCtx } from '../policy/tickets.policy'
 import { PrismaService } from '../prisma/prisma.service'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
-import { isServiceContractEffective } from '../service-contracts/service-contract-window'
+import {
+  resolveServiceContractLocationScope,
+  type ResolvedServiceContractLocationScope,
+} from '../service-contracts/service-contract-location-scope'
+import { activeServiceContractWhere, isServiceContractEffective } from '../service-contracts/service-contract-window'
 import { isExecutorCapableRole, isExecutorEligible } from '../common/executor.utils'
 import {
   interpretUserAccessLocationScope,
@@ -203,9 +207,11 @@ export async function resolveActorLocationScope(params: {
           },
         },
         select: {
+          id: true,
           status: true,
           startsAt: true,
           endsAt: true,
+          locationMode: true,
           locations: { select: { locationId: true } },
         },
       })
@@ -213,10 +219,47 @@ export async function resolveActorLocationScope(params: {
         return { mode: 'restricted_empty', locationIds: [] }
       }
 
-      const contractLocationIds = uniqueLocationIds(
-        contract.locations?.map((row: { locationId: string }) => row.locationId) ?? [],
-      )
-      if (contractLocationIds.length > 0) {
+      let inheritedLocationIds: string[] | null | undefined
+      let hasPrimarySource: boolean | undefined
+      if (contract.locationMode === ServiceContractLocationMode.INHERIT_PRIMARY && contractDelegate?.findMany) {
+        const primaryContracts = await contractDelegate.findMany({
+          where: {
+            clientCompanyId: scopeCompanyId,
+            ...activeServiceContractWhere(),
+            role: ServiceContractRole.PRIMARY,
+            id: { not: contract.id },
+          },
+          select: {
+            locationMode: true,
+            locations: { select: { locationId: true } },
+          },
+        })
+        hasPrimarySource = primaryContracts.length > 0
+        inheritedLocationIds = []
+        for (const primary of primaryContracts) {
+          const primaryScope = resolveServiceContractLocationScope({
+            locationMode: primary.locationMode,
+            locationIds: primary.locations?.map((row: { locationId: string }) => row.locationId) ?? [],
+          })
+          if (primaryScope.mode === 'tenant_wide') {
+            inheritedLocationIds = null
+            break
+          }
+          inheritedLocationIds.push(...primaryScope.locationIds)
+        }
+      }
+
+      const contractLocationScope = resolveServiceContractLocationScope({
+        locationMode: contract.locationMode,
+        locationIds: contract.locations?.map((row: { locationId: string }) => row.locationId) ?? [],
+        inheritedLocationIds,
+        hasPrimarySource,
+      })
+      if (contractLocationScope.mode === 'restricted_empty') {
+        return { mode: 'restricted_empty', locationIds: [] }
+      }
+      if (contractLocationScope.mode === 'bound_locations') {
+        const contractLocationIds = uniqueLocationIds(contractLocationScope.locationIds)
         if (interpreted.runtimeMode === 'restricted_empty') {
           return { mode: 'restricted_empty', locationIds: [] }
         }
@@ -441,15 +484,47 @@ export async function resolveTechnicianOperationalScope(params: {
     }
     locationScopeByCompany[scopeCompanyId].push(binding.locationId)
   }
+
+  const serviceContractScopeByCompany = new Map<string, ResolvedServiceContractLocationScope>()
+  for (const companyId of companyIds) {
+    if (companyId === params.actor.companyId) continue
+    const access = await params.serviceContractsService.getLinkedClientAccess(params.actor.companyId, companyId)
+    if (!access) {
+      serviceContractScopeByCompany.set(companyId, { mode: 'restricted_empty', locationIds: [] })
+      continue
+    }
+    serviceContractScopeByCompany.set(
+      companyId,
+      access.effectiveLocationScope ?? resolveServiceContractLocationScope({
+        locationMode: access.locationMode,
+        locationIds: access.locations?.map((row) => row.locationId) ?? [],
+      }),
+    )
+  }
+
   for (const companyId of Object.keys(locationScopeByCompany)) {
     const interpreted = interpretUserAccessLocationScope({
       explicitLocationMode: accessScope?.locationMode,
       locationIds: locationScopeByCompany[companyId],
     })
-    locationScopeByCompany[companyId] = interpreted.locationIds
+
+    const contractScope = serviceContractScopeByCompany.get(companyId)
+    let effectiveLocationIds = interpreted.locationIds
+    if (contractScope?.mode === 'restricted_empty') {
+      locationScopeByCompany[companyId] = [RESTRICTED_EMPTY_LOCATION_SENTINEL]
+      continue
+    }
+    if (contractScope?.mode === 'bound_locations') {
+      effectiveLocationIds =
+        interpreted.runtimeMode === 'tenant_wide'
+          ? contractScope.locationIds
+          : interpreted.locationIds.filter((locationId) => contractScope.locationIds.includes(locationId))
+    }
+
+    locationScopeByCompany[companyId] = effectiveLocationIds
     if (
       interpreted.runtimeMode === 'restricted_empty' ||
-      (interpreted.locationIds.length === 0 && interpreted.locationMode === 'SELECTED_LOCATIONS')
+      (effectiveLocationIds.length === 0 && interpreted.locationMode === 'SELECTED_LOCATIONS')
     ) {
       locationScopeByCompany[companyId] = [RESTRICTED_EMPTY_LOCATION_SENTINEL]
     }

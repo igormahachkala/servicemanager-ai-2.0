@@ -91,6 +91,12 @@ enum ServiceContractRole {
   SECONDARY
 }
 
+enum ServiceContractLocationMode {
+  ALL_LOCATIONS
+  SELECTED_LOCATIONS
+  INHERIT_PRIMARY
+}
+
 enum UserAccessLocationMode {
   SELECTED_LOCATIONS
   RESTRICTED_EMPTY
@@ -481,6 +487,7 @@ model ServiceContract {
   providerCompanyId String
   status            ServiceContractStatus @default(DRAFT)
   role              ServiceContractRole   @default(PRIMARY)
+  locationMode      ServiceContractLocationMode @default(ALL_LOCATIONS)
   startsAt          DateTime?
   endsAt            DateTime?
   notes             String?

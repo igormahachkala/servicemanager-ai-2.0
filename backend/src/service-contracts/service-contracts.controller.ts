@@ -40,14 +40,14 @@ export class ServiceContractsController {
 
   @Post('service-contracts')
   @Roles(UserRole.PLATFORM_ADMIN)
-  create(@Body() dto: CreateServiceContractDto) {
-    return this.svc.create(dto)
+  create(@Req() req: any, @Body() dto: CreateServiceContractDto) {
+    return this.svc.create(dto, req?.user?.id)
   }
 
   @Patch('service-contracts/:id')
   @Roles(UserRole.PLATFORM_ADMIN)
-  update(@Param('id') id: string, @Body() dto: UpdateServiceContractDto) {
-    return this.svc.update(id, dto)
+  update(@Req() req: any, @Param('id') id: string, @Body() dto: UpdateServiceContractDto) {
+    return this.svc.update(id, dto, req?.user?.id)
   }
 
   @Get('companies/:id/service-contracts')

@@ -34,6 +34,10 @@ import {
 } from './ticket-access.utils';
 import { matchCategorySpecializationLinks } from './ticket-specialization-match.utils';
 import { ServiceContractsService } from '../service-contracts/service-contracts.service';
+import {
+  isServiceContractLocationAllowed,
+  resolveServiceContractLocationScope,
+} from '../service-contracts/service-contract-location-scope';
 import { TechniciansService } from '../technicians/technicians.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { PERMISSIONS, type PermissionCode } from '../common/permissions.constants';
@@ -178,8 +182,7 @@ export class TicketsAssignmentService {
     if (!access) {
       throw new NotFoundException('Linked client not found');
     }
-    const contractLocationIds = access.locations?.map((row) => row.locationId) ?? [];
-    if (contractLocationIds.length > 0 && !contractLocationIds.includes(location.id)) {
+    if (!isServiceContractLocationAllowed(access, location.id)) {
       throw new NotFoundException('Location not found');
     }
 
@@ -614,10 +617,15 @@ export class TicketsAssignmentService {
         contractLocationsByEmployer.set(providerCompanyId, new Set());
         return;
       }
-      const locationIds = access.locations?.map((row) => row.locationId) ?? [];
+      const contractLocationScope = access.effectiveLocationScope ?? resolveServiceContractLocationScope({
+        locationMode: access.locationMode,
+        locationIds: access.locations?.map((row) => row.locationId) ?? [],
+      });
       contractLocationsByEmployer.set(
         providerCompanyId,
-        locationIds.length > 0 ? new Set(locationIds) : null,
+        contractLocationScope.mode === 'tenant_wide'
+          ? null
+          : new Set(contractLocationScope.locationIds),
       );
     }));
 
@@ -1639,8 +1647,7 @@ export class TicketsAssignmentService {
         if (!linkedAccess || linkedAccess.role !== ServiceContractRole.SECONDARY) {
           throw new NotFoundException('Technician not found');
         }
-        const contractLocationIds = linkedAccess.locations?.map((row) => row.locationId) ?? [];
-        if (contractLocationIds.length > 0 && !contractLocationIds.includes(ticket.locationId)) {
+        if (!isServiceContractLocationAllowed(linkedAccess, ticket.locationId)) {
           throw new NotFoundException('Technician not found');
         }
       }

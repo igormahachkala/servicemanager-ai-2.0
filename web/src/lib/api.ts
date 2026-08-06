@@ -195,11 +195,23 @@ export type PublicRequestDefaultType = 'REPAIR' | 'NOTE'
 export type PublicRequestLocationPresetMode = 'HIDE_WHEN_VALID' | 'ALWAYS_OPTIONAL'
 export type ServiceContractStatus = 'DRAFT' | 'ACTIVE' | 'INACTIVE' | 'ENDED'
 export type ServiceContractRole = 'PRIMARY' | 'SECONDARY'
+export type ServiceContractLocationMode = 'ALL_LOCATIONS' | 'SELECTED_LOCATIONS' | 'INHERIT_PRIMARY'
 
 export type ServiceContractItem = {
   id: string
   status: ServiceContractStatus
   role: ServiceContractRole
+  locationMode: ServiceContractLocationMode
+  effectiveLocationScope?: {
+    mode: 'tenant_wide' | 'bound_locations' | 'restricted_empty'
+    locationIds: string[]
+  } | null
+  locationSummary?: {
+    mode: ServiceContractLocationMode
+    totalLocations: number
+    selectedLocations: number
+    effectiveLocations: number
+  }
   startsAt?: string | null
   endsAt?: string | null
   notes?: string | null
@@ -1124,6 +1136,7 @@ export type CreateServiceContractInput = {
   providerCompanyId: string
   status?: ServiceContractStatus
   role?: ServiceContractRole
+  locationMode?: ServiceContractLocationMode
   startsAt?: string
   endsAt?: string
   notes?: string
@@ -1131,8 +1144,11 @@ export type CreateServiceContractInput = {
 }
 
 export type UpdateServiceContractInput = {
+  clientCompanyId?: string
+  providerCompanyId?: string
   status?: ServiceContractStatus
   role?: ServiceContractRole
+  locationMode?: ServiceContractLocationMode
   startsAt?: string | null
   endsAt?: string | null
   notes?: string | null
