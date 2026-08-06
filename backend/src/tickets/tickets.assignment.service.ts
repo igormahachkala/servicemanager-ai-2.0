@@ -62,9 +62,12 @@ type LocationBindingAccessClient = Pick<
 type CreatePostAction = 'leave_unassigned' | 'claim_self' | 'assign_employee';
 type CreateCandidate = {
   id: string;
+  userId?: string;
+  technicianProfileId?: string | null;
   email: string;
   role?: UserRole | null;
   companyId?: string | null;
+  assignable?: boolean;
   matched?: boolean;
   matchedBy?: string[];
   matchReason?: string;
@@ -362,12 +365,16 @@ export class TicketsAssignmentService {
 
       return {
         id: t.id,
+        userId: t.id,
+        technicianProfileId: null,
         email: t.email,
         firstName: t.firstName,
         lastName: t.lastName,
         role: t.role,
         companyId: t.companyId,
         company: t.company,
+        assignable: true,
+        matched: true,
         matchedBy: t.technicianSpecializations.map((x) => x.specialization.name),
         matchReason: 'category_specialization' as const,
         matchedSpecializationsCount,
@@ -472,12 +479,15 @@ export class TicketsAssignmentService {
 
       return {
         id: t.id,
+        userId: t.id,
+        technicianProfileId: null,
         email: t.email,
         firstName: t.firstName,
         lastName: t.lastName,
         role: t.role,
         companyId: t.companyId,
         company: t.company,
+        assignable: fallbackToAllWhenNoSpecializations || matchedLabels.length > 0,
         matched: fallbackToAllWhenNoSpecializations || matchedLabels.length > 0,
         matchedBy: matchedLabels,
         matchReason: fallbackToAllWhenNoSpecializations
@@ -1488,7 +1498,8 @@ export class TicketsAssignmentService {
       prisma: this.prisma,
       serviceContractsService: this.serviceContractsService,
       actor: accessActor,
-      ticketId
+      ticketId,
+      linkedClientCompanyId,
     });
 
     const decision = this.policy.canAssign({
@@ -1583,7 +1594,8 @@ export class TicketsAssignmentService {
       prisma: this.prisma,
       serviceContractsService: this.serviceContractsService,
       actor: accessActor,
-      ticketId
+      ticketId,
+      linkedClientCompanyId,
     });
 
     const decision = this.policy.canAssign({

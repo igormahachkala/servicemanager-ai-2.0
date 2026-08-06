@@ -447,13 +447,14 @@ export function TicketPage() {
     if (!data) return
     if (selectedTechnicianId) return
 
-    if (data.currentAssigneeId) {
+    const assignableCandidates = data.matched.filter(api.isAssignableCandidate)
+    if (data.currentAssigneeId && assignableCandidates.some((item) => item.id === data.currentAssigneeId)) {
       setSelectedTechnicianId(data.currentAssigneeId)
       return
     }
 
-    if (data.matched.length > 0) {
-      setSelectedTechnicianId(data.matched[0].id)
+    if (assignableCandidates.length > 0) {
+      setSelectedTechnicianId(assignableCandidates[0].id)
     }
   }, [assignmentCandidatesQ.data, selectedTechnicianId])
 
@@ -787,7 +788,7 @@ export function TicketPage() {
     return [...assignmentData.matched, ...assignmentData.others].find((item) => item.id === selectedTechnicianId) || null
   }, [assignmentData, selectedTechnicianId])
 
-  const selectedIsMatched = !!selectedCandidate?.matched
+  const selectedIsMatched = !!selectedCandidate && api.isAssignableCandidate(selectedCandidate)
   const selectedIsCurrent = !!assignmentData?.currentAssigneeId && assignmentData.currentAssigneeId === selectedTechnicianId
 
   const slaState = useMemo(() => {
