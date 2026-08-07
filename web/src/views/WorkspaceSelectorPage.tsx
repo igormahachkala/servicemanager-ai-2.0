@@ -64,8 +64,8 @@ export function WorkspaceSelectorPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, workspaces])
 
-  function logout() {
-    api.clearToken()
+  async function logout() {
+    await api.logout().catch(() => undefined)
     queryClient.clear()
     navigate('/login', { replace: true })
   }

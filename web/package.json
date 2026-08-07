@@ -13,6 +13,7 @@
     "gen:pwa-icons": "node scripts/gen-pwa-icons.mjs",
     "test:mobile-rc": "node scripts/verify-mobile-rc-fixes.mjs",
     "test:session-continuity": "node scripts/test-session-continuity.mjs",
+    "test:refresh-session": "node scripts/test-refresh-session-client.mjs",
     "split:api": "node scripts/split-api-layer.mjs",
     "split:api:apply": "node scripts/split-api-layer.mjs --apply-barrel"
   },
