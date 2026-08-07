@@ -7,6 +7,16 @@ export type SessionState =
   | 'BACKEND_UNAVAILABLE'
   | 'UNKNOWN_ERROR'
 
+export type SessionStateInput = {
+  hasSessionData: boolean
+  isError: boolean
+  error: unknown
+  isRefetchError?: boolean
+  failureReason?: unknown
+  dataUpdatedAt?: number
+  errorUpdatedAt?: number
+}
+
 const AUTH_INVALID_STATUSES = new Set([401])
 const BACKEND_UNAVAILABLE_STATUSES = new Set([502, 503, 504])
 const MAX_SESSION_CHECK_RETRIES = 5
@@ -44,17 +54,24 @@ export function classifySessionError(error: unknown): Exclude<SessionState, 'AUT
   return 'UNKNOWN_ERROR'
 }
 
-export function resolveSessionState(params: {
-  hasSessionData: boolean
-  isError: boolean
-  error: unknown
-}): SessionState {
-  if (!params.isError) return 'AUTHENTICATED'
+export function resolveSessionState(params: SessionStateInput): SessionState {
+  const hasNewerSuccess =
+    !!params.dataUpdatedAt &&
+    !!params.errorUpdatedAt &&
+    params.dataUpdatedAt > params.errorUpdatedAt &&
+    !params.failureReason
+
+  if (hasNewerSuccess) return 'AUTHENTICATED'
+
+  const hasSessionCheckFailure = params.isError || !!params.isRefetchError || !!params.failureReason
+  if (!hasSessionCheckFailure) return 'AUTHENTICATED'
+
+  const error = params.failureReason || params.error
   if (params.hasSessionData) {
-    const state = classifySessionError(params.error)
+    const state = classifySessionError(error)
     return state === 'AUTH_EXPIRED' ? 'AUTH_EXPIRED' : state
   }
-  return classifySessionError(params.error)
+  return classifySessionError(error)
 }
 
 export function shouldClearTokenForSessionError(error: unknown): boolean {

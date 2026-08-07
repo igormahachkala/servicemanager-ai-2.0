@@ -4,9 +4,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { getAvailableWorkspaces, type WorkspaceCard } from '../lib/navigation'
 import { SmaBrandLogo } from '../components/SmaBrandLogo'
+import { SessionRecoveryNotice } from '../components/SessionRecoveryNotice'
 import { useSessionRecoveryRefetch } from '../hooks/useSessionRecoveryRefetch'
 import {
-  SESSION_TEMPORARY_UNAVAILABLE_MESSAGE,
   buildLoginPathWithReturnTo,
   isTransientSessionState,
   resolveSessionState,
@@ -31,9 +31,13 @@ export function WorkspaceSelectorPage() {
   const sessionState = resolveSessionState({
     hasSessionData: !!user,
     isError: meQ.isError,
+    isRefetchError: meQ.isRefetchError,
     error: meQ.error,
+    failureReason: meQ.failureReason,
+    dataUpdatedAt: meQ.dataUpdatedAt,
+    errorUpdatedAt: meQ.errorUpdatedAt,
   })
-  const hasTransientSessionIssue = meQ.isError && isTransientSessionState(sessionState)
+  const hasTransientSessionIssue = isTransientSessionState(sessionState)
 
   const scope = useMemo(() => (user ? api.restoreScopeForUser(user) : {}), [user])
   const workspaces = useMemo(() => getAvailableWorkspaces(user), [user])
@@ -51,11 +55,11 @@ export function WorkspaceSelectorPage() {
 
   // Невалидный токен — назад на логин. Временные ошибки не разлогинивают.
   useEffect(() => {
-    if (!meQ.isError || sessionState !== 'AUTH_EXPIRED') return
+    if (sessionState !== 'AUTH_EXPIRED') return
     api.clearToken()
     queryClient.clear()
     navigate(buildLoginPathWithReturnTo('/workspaces'), { replace: true })
-  }, [meQ.isError, navigate, queryClient, sessionState])
+  }, [navigate, queryClient, sessionState])
 
   // Единственный доступный контур — переходим сразу.
   useEffect(() => {
@@ -89,9 +93,7 @@ export function WorkspaceSelectorPage() {
           </div>
 
           {hasTransientSessionIssue ? (
-            <div className="alert" role="status" aria-live="polite">
-              {SESSION_TEMPORARY_UNAVAILABLE_MESSAGE}
-            </div>
+            <SessionRecoveryNotice />
           ) : meQ.isLoading ? (
             <div className="muted small">Загрузка…</div>
           ) : workspaces.length === 0 ? (

@@ -53,6 +53,18 @@ for (const status of [500, 502, 503, 504]) {
   assert.equal(session.classifySessionError(err), 'BACKEND_UNAVAILABLE')
   assert.equal(session.shouldClearTokenForSessionError(err), false)
   assert.equal(session.shouldRetrySessionCheck(0, err), true)
+  assert.equal(
+    session.resolveSessionState({
+      hasSessionData: true,
+      isError: false,
+      isRefetchError: true,
+      error: err,
+      failureReason: null,
+      dataUpdatedAt: 10,
+      errorUpdatedAt: 20,
+    }),
+    'BACKEND_UNAVAILABLE',
+  )
 }
 
 {
@@ -60,6 +72,17 @@ for (const status of [500, 502, 503, 504]) {
   assert.equal(session.classifySessionError(err), 'NETWORK_ERROR')
   assert.equal(session.shouldClearTokenForSessionError(err), false)
   assert.equal(session.shouldRetrySessionCheck(0, err), true)
+  assert.equal(
+    session.resolveSessionState({
+      hasSessionData: true,
+      isError: false,
+      error: null,
+      failureReason: err,
+      dataUpdatedAt: 10,
+      errorUpdatedAt: 0,
+    }),
+    'NETWORK_ERROR',
+  )
 }
 
 {
@@ -67,7 +90,49 @@ for (const status of [500, 502, 503, 504]) {
   const err = new Error('temporary failure')
   assert.equal(session.classifySessionError(err), 'NETWORK_ERROR')
   assert.equal(session.shouldClearTokenForSessionError(err), false)
+  assert.equal(
+    session.resolveSessionState({
+      hasSessionData: true,
+      isError: false,
+      error: null,
+      failureReason: err,
+      dataUpdatedAt: 10,
+      errorUpdatedAt: 0,
+    }),
+    'NETWORK_ERROR',
+  )
   context.navigator.onLine = true
+}
+
+{
+  const err = httpError(401)
+  assert.equal(
+    session.resolveSessionState({
+      hasSessionData: true,
+      isError: false,
+      isRefetchError: true,
+      error: err,
+      failureReason: null,
+      dataUpdatedAt: 10,
+      errorUpdatedAt: 20,
+    }),
+    'AUTH_EXPIRED',
+  )
+}
+
+{
+  const err = new TypeError('Failed to fetch')
+  assert.equal(
+    session.resolveSessionState({
+      hasSessionData: true,
+      isError: false,
+      error: err,
+      failureReason: null,
+      dataUpdatedAt: 30,
+      errorUpdatedAt: 20,
+    }),
+    'AUTHENTICATED',
+  )
 }
 
 {
@@ -97,6 +162,8 @@ for (const status of [500, 502, 503, 504]) {
 for (const file of ['src/ui/Shell.tsx', 'src/views/WorkspaceSelectorPage.tsx', 'src/mobile/MobileShell.tsx']) {
   const source = readFileSync(resolve(root, file), 'utf8')
   assert.match(source, /sessionState !== 'AUTH_EXPIRED'/, `${file} must only clear token after confirmed AUTH_EXPIRED`)
+  assert.match(source, /failureReason:\s*meQ\.failureReason/, `${file} must surface background session check failures`)
+  assert.match(source, /SessionRecoveryNotice/, `${file} must render the shared transient recovery notice`)
   assert.doesNotMatch(
     source,
     /if\s*\(\s*!?meQ\.isError\s*\)\s*return[\s\S]{0,80}api\.clearToken\(\)/,

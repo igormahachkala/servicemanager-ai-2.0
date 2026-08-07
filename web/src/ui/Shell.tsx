@@ -12,6 +12,7 @@ import {
 } from '../lib/navigation'
 import { getRoleDisplayLabel } from '../lib/resolveAdminProfile'
 import { SmaBrandLogo } from '../components/SmaBrandLogo'
+import { SessionRecoveryNotice } from '../components/SessionRecoveryNotice'
 import { canViewITCompany } from '../it-company'
 import { useWsInvalidation } from './useWsInvalidation'
 import { useRealtimeNotifications } from '../hooks/useRealtimeNotifications'
@@ -183,9 +184,13 @@ export function Shell() {
   const sessionState = resolveSessionState({
     hasSessionData: !!meQ.data,
     isError: meQ.isError,
+    isRefetchError: meQ.isRefetchError,
     error: meQ.error,
+    failureReason: meQ.failureReason,
+    dataUpdatedAt: meQ.dataUpdatedAt,
+    errorUpdatedAt: meQ.errorUpdatedAt,
   })
-  const hasTransientSessionIssue = meQ.isError && isTransientSessionState(sessionState)
+  const hasTransientSessionIssue = isTransientSessionState(sessionState)
 
   useSessionRecoveryRefetch({
     enabled: hasTransientSessionIssue,
@@ -193,11 +198,11 @@ export function Shell() {
   })
 
   useEffect(() => {
-    if (!meQ.isError || sessionState !== 'AUTH_EXPIRED') return
+    if (sessionState !== 'AUTH_EXPIRED') return
     api.clearToken()
     queryClient.clear()
     nav(buildLoginPathWithReturnTo(loc.pathname, loc.search, loc.hash), { replace: true })
-  }, [loc.hash, loc.pathname, loc.search, meQ.isError, nav, queryClient, sessionState])
+  }, [loc.hash, loc.pathname, loc.search, nav, queryClient, sessionState])
 
   useEffect(() => {
     setMobileMenuOpen(false)
@@ -376,14 +381,7 @@ export function Shell() {
         ) : null}
 
         {hasTransientSessionIssue ? (
-          <div
-            className="alert"
-            role="status"
-            aria-live="polite"
-            style={{ margin: '12px 24px 0' }}
-          >
-            {SESSION_TEMPORARY_UNAVAILABLE_MESSAGE}
-          </div>
+          <SessionRecoveryNotice style={{ margin: '12px 24px 0' }} />
         ) : null}
 
         <main className="contentMain" ref={contentMainRef}>

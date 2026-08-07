@@ -5,6 +5,7 @@ import * as api from '../lib/api'
 import { useWsInvalidation } from '../ui/useWsInvalidation'
 import { useRealtimeNotifications } from '../hooks/useRealtimeNotifications'
 import { useSessionRecoveryRefetch } from '../hooks/useSessionRecoveryRefetch'
+import { SessionRecoveryNotice } from '../components/SessionRecoveryNotice'
 import {
   SESSION_TEMPORARY_UNAVAILABLE_MESSAGE,
   buildLoginPathWithReturnTo,
@@ -103,9 +104,13 @@ export function MobileShell() {
   const sessionState = resolveSessionState({
     hasSessionData: !!meQ.data,
     isError: meQ.isError,
+    isRefetchError: meQ.isRefetchError,
     error: meQ.error,
+    failureReason: meQ.failureReason,
+    dataUpdatedAt: meQ.dataUpdatedAt,
+    errorUpdatedAt: meQ.errorUpdatedAt,
   })
-  const hasTransientSessionIssue = meQ.isError && isTransientSessionState(sessionState)
+  const hasTransientSessionIssue = isTransientSessionState(sessionState)
 
   useSessionRecoveryRefetch({
     enabled: hasTransientSessionIssue,
@@ -177,11 +182,11 @@ export function MobileShell() {
   }, [location.search, meQ.data])
 
   useEffect(() => {
-    if (!meQ.isError || sessionState !== 'AUTH_EXPIRED') return
+    if (sessionState !== 'AUTH_EXPIRED') return
     api.clearToken()
     queryClient.clear()
     navigate(buildLoginPathWithReturnTo(location.pathname, location.search, location.hash), { replace: true })
-  }, [location.hash, location.pathname, location.search, meQ.isError, navigate, queryClient, sessionState])
+  }, [location.hash, location.pathname, location.search, navigate, queryClient, sessionState])
 
   useEffect(() => {
     const refresh = () => {
@@ -341,9 +346,7 @@ export function MobileShell() {
         ) : null}
         {syncMessage ? <div className="mobileNotice mobileNoticeSuccess">{syncMessage}</div> : null}
         {hasTransientSessionIssue ? (
-          <div className="mobileOfflineBanner mobileOfflineBannerWarning" role="status" aria-live="polite">
-            <div>{SESSION_TEMPORARY_UNAVAILABLE_MESSAGE}</div>
-          </div>
+          <SessionRecoveryNotice variant="mobile" />
         ) : null}
         {!meQ.data && hasTransientSessionIssue ? (
           <div className="mobileCard mobileEmptyState">
