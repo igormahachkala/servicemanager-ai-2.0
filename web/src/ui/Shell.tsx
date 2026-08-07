@@ -229,8 +229,8 @@ export function Shell() {
     nav(path, { replace: true })
   }
 
-  function logout() {
-    api.clearToken()
+  async function logout() {
+    await api.logout().catch(() => undefined)
     queryClient.clear()
     hardRedirect('/login')
   }

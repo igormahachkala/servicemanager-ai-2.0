@@ -226,12 +226,30 @@ model User {
   accessScopes                UserAccessScope[]
   notifications               Notification[]
   pushSubscriptions           PushSubscription[]
+  refreshSessions             RefreshSession[]
   pushPreference              PushPreference?
   workShifts                  WorkShift[]
   workLogs                    WorkLog[]
 
   @@index([companyId, role])
   @@index([companyId, isActive])
+}
+
+model RefreshSession {
+  id            String    @id @default(uuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash     String    @unique
+  userAgent     String?
+  createdAt     DateTime  @default(now())
+  expiresAt     DateTime
+  lastUsedAt    DateTime?
+  revokedAt     DateTime?
+  revokedReason String?
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([revokedAt])
 }
 
 // Web Push (mobile-поток). См. docs/PUSH_NOTIFICATIONS_ARCHITECTURE_V1.md §4.

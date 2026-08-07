@@ -6,13 +6,14 @@ import { JwtStrategy } from './jwt.strategy';
 import { PrismaModule } from '../prisma/prisma.module';
 import { LoginRateLimiterService } from './login-rate-limiter.service';
 import { getJwtSecret } from '../config/required-env';
+import { accessTokenSignOptions } from './auth-token-policy';
 
 @Module({
   imports: [
     PrismaModule,
     JwtModule.register({
       secret: getJwtSecret(),
-      signOptions: { expiresIn: '7d' },
+      signOptions: accessTokenSignOptions(),
     }),
   ],
   controllers: [AuthController],

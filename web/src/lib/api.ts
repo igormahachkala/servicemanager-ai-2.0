@@ -1736,6 +1736,7 @@ type RequestOptions = {
   body?: unknown
   headers?: Record<string, string>
   auth?: boolean
+  skipAuthRefresh?: boolean
 }
 
 /** Ошибка HTTP API с кодом ответа (для дружелюбных сообщений на мобилке). */
@@ -1748,6 +1749,43 @@ export class ApiRequestError extends Error {
     this.status = status
     Object.setPrototypeOf(this, new.target.prototype)
   }
+}
+
+let refreshInFlight: Promise<LoginResponse> | null = null
+
+function applyAuthPayload(payload: LoginResponse) {
+  setToken(payload.access_token)
+  setUserRole(payload.user.role)
+  setCompanyLabel(payload.user.companyName || payload.user.email)
+  restoreScopeForUser(payload.user)
+}
+
+function isConfirmedAuthInvalid(error: unknown): boolean {
+  return error instanceof ApiRequestError && (error.status === 401 || error.status === 403)
+}
+
+async function refreshAccessToken(): Promise<LoginResponse> {
+  if (!refreshInFlight) {
+    refreshInFlight = request<LoginResponse>('/auth/refresh', {
+      method: 'POST',
+      auth: false,
+      skipAuthRefresh: true,
+    })
+      .then((payload) => {
+        applyAuthPayload(payload)
+        return payload
+      })
+      .catch((error) => {
+        if (isConfirmedAuthInvalid(error)) {
+          clearToken()
+        }
+        throw error
+      })
+      .finally(() => {
+        refreshInFlight = null
+      })
+  }
+  return refreshInFlight
 }
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -1767,6 +1805,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   const res = await fetch(`${getBaseUrl()}${path}`, {
     method,
     headers,
+    credentials: 'include',
     body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
   })
 
@@ -1788,7 +1827,13 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
         : String(data.message)
       : `HTTP ${res.status}`
 
-    throw new ApiRequestError(message, res.status)
+    const error = new ApiRequestError(message, res.status)
+    if (res.status === 401 && options.auth !== false && !options.skipAuthRefresh) {
+      await refreshAccessToken()
+      return request<T>(path, { ...options, skipAuthRefresh: true })
+    }
+
+    throw error
   }
 
   return data as T
@@ -1807,7 +1852,7 @@ function normalizeArrayResponse<T>(payload: unknown, candidates: string[]): T[] 
 
 
 export async function login(input: LoginInput): Promise<LoginResponse> {
-  return request<LoginResponse>('/auth/login', {
+  const payload = await request<LoginResponse>('/auth/login', {
     method: 'POST',
     auth: false,
     body: {
@@ -1815,6 +1860,20 @@ export async function login(input: LoginInput): Promise<LoginResponse> {
       password: input.password,
     },
   })
+  applyAuthPayload(payload)
+  return payload
+}
+
+export async function logout(): Promise<{ ok: boolean; revoked?: number }> {
+  try {
+    return await request<{ ok: boolean; revoked?: number }>('/auth/logout', {
+      method: 'POST',
+      auth: false,
+      skipAuthRefresh: true,
+    })
+  } finally {
+    clearToken()
+  }
 }
 
 export async function impersonate(companyId: string): Promise<ImpersonateResponse> {

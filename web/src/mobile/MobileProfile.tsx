@@ -123,7 +123,7 @@ export function MobileProfile() {
     return h || '—'
   }, [])
 
-  function logout() {
+  async function logout() {
     const params = new URLSearchParams()
     params.set('next', mobilePath(location.pathname, ''))
     params.set('mode', 'mobile')
@@ -135,7 +135,7 @@ export function MobileProfile() {
     const suffix = params.toString()
     const target = suffix ? `/login?${suffix}` : '/login'
 
-    api.clearToken()
+    await api.logout().catch(() => undefined)
     queryClient.clear()
 
     if (typeof window !== 'undefined') {
