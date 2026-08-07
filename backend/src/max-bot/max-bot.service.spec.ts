@@ -104,13 +104,13 @@ describe('MaxBotService', () => {
     const service = new MaxBotService();
     const loggerWarnSpy = jest.spyOn((service as any).logger, 'warn');
 
-    await expect(service.pollUpdates({})).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.sendTestMessage({ chatId: 123 })).rejects.toBeInstanceOf(BadRequestException);
 
     expect(loggerWarnSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         status: 401,
         statusText: 'Unauthorized',
-        path: expect.stringContaining('/updates'),
+        path: expect.stringContaining('/messages'),
         body: expect.stringContaining('Invalid access_token'),
       }),
       'max_api_request_failed',
@@ -200,6 +200,29 @@ describe('MaxBotService', () => {
     expect(health.tokenValidation.ok).toBe(false);
     expect(health.tokenValidation.status).toBe(401);
     expect(health.tokenValidation.reason).toContain('Invalid access_token');
+  });
+
+  it('reports health degraded on TLS trust failures without leaking the token', async () => {
+    process.env.MAX_BOT_API_BASE_URL = 'https://platform-api.max.ru';
+    process.env.MAX_BOT_API_TOKEN = 'secret-token-do-not-log';
+    process.env.MAX_BOT_COMMANDS_ENABLED = 'true';
+    process.env.MAX_BOT_WEBHOOK_ENABLED = 'false';
+    process.env.MAX_GROUP_CHAT_ID = '-75137613795359';
+    const tlsError = new TypeError('fetch failed');
+    (tlsError as any).cause = new Error('unable to get local issuer certificate');
+
+    global.fetch = jest.fn().mockRejectedValue(tlsError) as any;
+
+    const service = new MaxBotService();
+    const health = await service.getHealthDiagnostics();
+
+    expect(health.status).toBe('degraded');
+    expect(health.tokenValidation).toMatchObject({
+      ok: false,
+      status: null,
+      reason: 'fetch failed',
+    });
+    expect(JSON.stringify(health)).not.toContain('secret-token-do-not-log');
   });
 
   it('builds operational MAX messages against the configured frontend url and group chat', async () => {

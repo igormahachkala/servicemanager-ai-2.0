@@ -1,3 +1,5 @@
+import { BadRequestException } from '@nestjs/common';
+
 import { MaxBotPollingService } from './max-bot-polling.service';
 
 function makeMockService(overrides?: Partial<{ pollUpdates: jest.Mock; registerWebhook: jest.Mock }>) {
@@ -17,6 +19,8 @@ describe('MaxBotPollingService', () => {
     delete process.env.MAX_BOT_WEBHOOK_ENABLED;
     delete process.env.MAX_BOT_WEBHOOK_URL;
     delete process.env.MAX_BOT_WEBHOOK_SECRET;
+    delete process.env.MAX_BOT_API_TOKEN;
+    delete process.env.MAX_BOT_ERROR_LOG_INTERVAL_MS;
   });
 
   afterEach(() => {
@@ -107,6 +111,88 @@ describe('MaxBotPollingService', () => {
     });
     const service = new MaxBotPollingService(mock as any);
     await expect((service as any).tick()).resolves.toBeUndefined();
+  });
+
+  it('logs TLS transport errors without leaking tokens', async () => {
+    process.env.MAX_BOT_COMMANDS_ENABLED = 'true';
+    process.env.MAX_BOT_API_TOKEN = 'secret-token-do-not-log';
+    const tlsError = new TypeError('fetch failed');
+    (tlsError as any).cause = new Error('unable to get local issuer certificate');
+    const mock = makeMockService({
+      pollUpdates: jest.fn().mockRejectedValue(tlsError),
+    });
+    const service = new MaxBotPollingService(mock as any);
+    const warnSpy = jest.spyOn((service as any).logger, 'warn');
+
+    await expect((service as any).tick()).resolves.toBeUndefined();
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      {
+        err: {
+          name: 'TypeError',
+          message: 'fetch failed',
+          causeName: 'Error',
+          causeMessage: 'unable to get local issuer certificate',
+        },
+      },
+      'max_bot_poll_failed',
+    );
+    expect(JSON.stringify(warnSpy.mock.calls)).not.toContain('secret-token-do-not-log');
+  });
+
+  it('throttles repeated polling errors while continuing retries', async () => {
+    process.env.MAX_BOT_COMMANDS_ENABLED = 'true';
+    process.env.MAX_BOT_ERROR_LOG_INTERVAL_MS = '60000';
+    jest.setSystemTime(new Date('2026-08-06T12:00:00.000Z'));
+    const tlsError = new TypeError('fetch failed');
+    (tlsError as any).cause = new Error('unable to get local issuer certificate');
+    const mock = makeMockService({
+      pollUpdates: jest.fn().mockRejectedValue(tlsError),
+    });
+    const service = new MaxBotPollingService(mock as any);
+    const warnSpy = jest.spyOn((service as any).logger, 'warn');
+
+    await (service as any).tick();
+    jest.setSystemTime(new Date('2026-08-06T12:00:05.000Z'));
+    await (service as any).tick();
+    jest.setSystemTime(new Date('2026-08-06T12:01:01.000Z'));
+    await (service as any).tick();
+
+    expect(mock.pollUpdates).toHaveBeenCalledTimes(3);
+    expect(warnSpy).toHaveBeenCalledTimes(2);
+    expect(warnSpy).toHaveBeenLastCalledWith(
+      expect.objectContaining({ suppressedSimilarErrors: 1 }),
+      'max_bot_poll_failed',
+    );
+  });
+
+  it('logs polling API status details without leaking tokens', async () => {
+    process.env.MAX_BOT_COMMANDS_ENABLED = 'true';
+    process.env.MAX_BOT_API_TOKEN = 'secret-token-do-not-log';
+    const mock = makeMockService({
+      pollUpdates: jest.fn().mockRejectedValue(new BadRequestException({
+        message: 'MAX API request failed',
+        status: 401,
+        body: '{"code":"verify.token","message":"Invalid access_token"}',
+      })),
+    });
+    const service = new MaxBotPollingService(mock as any);
+    const warnSpy = jest.spyOn((service as any).logger, 'warn');
+
+    await (service as any).tick();
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      {
+        err: expect.objectContaining({
+          name: 'BadRequestException',
+          message: 'MAX API request failed',
+          status: 401,
+          body: expect.stringContaining('Invalid access_token'),
+        }),
+      },
+      'max_bot_poll_failed',
+    );
+    expect(JSON.stringify(warnSpy.mock.calls)).not.toContain('secret-token-do-not-log');
   });
 
   it('skips concurrent tick if previous is still running', async () => {
