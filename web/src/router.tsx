@@ -60,21 +60,35 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-/** Сброс клиентской сессии (QA, смена аккаунта). Без запроса к API. */
+/** Сброс клиентской сессии: backend refresh-session revoke + локальная очистка. */
 function LogoutAndRedirect() {
-  if (typeof window !== 'undefined') {
-    try {
-      sessionStorage.clear()
-    } catch {
-      /* noop */
+  React.useEffect(() => {
+    let cancelled = false
+
+    const clearBrowserSession = () => {
+      try {
+        sessionStorage.clear()
+      } catch {
+        /* noop */
+      }
+      try {
+        localStorage.clear()
+      } catch {
+        /* noop */
+      }
+      if (!cancelled && typeof window !== 'undefined') {
+        window.location.replace('/login')
+      }
     }
-    try {
-      localStorage.clear()
-    } catch {
-      /* noop */
+
+    void api.logout().finally(clearBrowserSession)
+
+    return () => {
+      cancelled = true
     }
-  }
-  return <Navigate to="/login" replace />
+  }, [])
+
+  return <div className="page">Выходим…</div>
 }
 
 /** `/login?clear=1` — очистка storage до редиректа по токену (удобно для QA без отдельного маршрута). */

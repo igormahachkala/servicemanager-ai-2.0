@@ -2,11 +2,50 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException,
 import { CompanyType, UserRole } from '@prisma/client'
 import * as bcrypt from 'bcrypt'
 import { JwtService } from '@nestjs/jwt'
+import { createHash, randomBytes } from 'node:crypto'
 
 import { PrismaService } from '../prisma/prisma.service'
 import { isEngineeringAgentOwner } from '../agent-tasks/agent-tasks.access'
 
 import { LoginDto } from './dto/login.dto'
+import { accessTokenSignOptions, refreshSessionExpiresAt, type RefreshSessionRequestContext } from './auth-token-policy'
+
+type AuthUser = {
+  id: string
+  email: string
+  firstName: string | null
+  lastName: string | null
+  avatarUrl?: string | null
+  phone?: string | null
+  role: UserRole
+  companyId: string
+  isActive: boolean
+  companyName: string | null
+}
+
+type PublicAuthUser = {
+  id: string
+  email: string
+  firstName: string | null
+  lastName: string | null
+  avatarUrl: string | null
+  phone: string | null
+  role: UserRole
+  companyId: string
+  companyName: string | null
+  isActive: boolean
+  canAccessEngineeringAgent: boolean
+}
+
+type AuthPayload = {
+  access_token: string
+  user: PublicAuthUser
+}
+
+type SessionAuthResult = {
+  payload: AuthPayload
+  refreshToken: string
+}
 
 @Injectable()
 export class AuthService {
@@ -89,7 +128,7 @@ export class AuthService {
     })
   }
 
-  async login(dto: LoginDto) {
+  async login(dto: LoginDto, context: RefreshSessionRequestContext = {}): Promise<SessionAuthResult> {
     await this.ensurePlatformAdmin()
 
     const email = dto.email.toLowerCase().trim()
@@ -127,7 +166,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid credentials')
     }
 
-    return this.issueAuthPayload({
+    return this.issueSessionAuthPayload({
       id: user.id,
       email: user.email,
       firstName: user.firstName,
@@ -137,7 +176,7 @@ export class AuthService {
       companyId: user.companyId,
       isActive: user.isActive,
       companyName: user.company?.name ?? null,
-    })
+    }, context)
   }
 
   async impersonate(platformUser: { role?: UserRole | string }, targetCompanyId: string) {
@@ -180,7 +219,7 @@ export class AuthService {
       userId: admin.id,
       companyId: admin.companyId,
       role: admin.role,
-    })
+    }, accessTokenSignOptions())
 
     return {
       access_token,
@@ -234,6 +273,96 @@ export class AuthService {
       isActive: user.isActive,
       companyName: user.company?.name ?? null,
     })
+  }
+
+  async refresh(refreshToken: string, context: RefreshSessionRequestContext = {}): Promise<SessionAuthResult> {
+    const normalizedToken = (refreshToken || '').trim()
+    if (!normalizedToken) {
+      throw new UnauthorizedException('Refresh session is required')
+    }
+
+    const tokenHash = this.hashRefreshToken(normalizedToken)
+    const session = await this.prisma.refreshSession.findUnique({
+      where: { tokenHash },
+      select: {
+        id: true,
+        expiresAt: true,
+        revokedAt: true,
+        userAgent: true,
+        user: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            avatarUrl: true,
+            phone: true,
+            role: true,
+            companyId: true,
+            isActive: true,
+            deletedAt: true,
+            company: {
+              select: { name: true },
+            },
+          },
+        },
+      },
+    })
+
+    const now = new Date()
+    if (!session || session.revokedAt || session.expiresAt <= now) {
+      throw new UnauthorizedException('Refresh session is invalid')
+    }
+
+    if (!session.user.isActive || session.user.deletedAt) {
+      await this.revokeRefreshSessionById(session.id, 'user_invalid')
+      throw new UnauthorizedException('User is inactive or no longer exists')
+    }
+
+    const nextRefreshToken = this.generateRefreshToken()
+    await this.prisma.refreshSession.update({
+      where: { id: session.id },
+      data: {
+        tokenHash: this.hashRefreshToken(nextRefreshToken),
+        lastUsedAt: now,
+        expiresAt: refreshSessionExpiresAt(now),
+        userAgent: context.userAgent || session.userAgent,
+      },
+    })
+
+    return {
+      payload: this.issueAuthPayload({
+        id: session.user.id,
+        email: session.user.email,
+        firstName: session.user.firstName,
+        lastName: session.user.lastName,
+        avatarUrl: session.user.avatarUrl ?? null,
+        phone: session.user.phone ?? null,
+        role: session.user.role,
+        companyId: session.user.companyId,
+        isActive: session.user.isActive,
+        companyName: session.user.company?.name ?? null,
+      }),
+      refreshToken: nextRefreshToken,
+    }
+  }
+
+  async logout(refreshToken: string): Promise<{ ok: true; revoked: number }> {
+    const normalizedToken = (refreshToken || '').trim()
+    if (!normalizedToken) return { ok: true, revoked: 0 }
+
+    const result = await this.prisma.refreshSession.updateMany({
+      where: {
+        tokenHash: this.hashRefreshToken(normalizedToken),
+        revokedAt: null,
+      },
+      data: {
+        revokedAt: new Date(),
+        revokedReason: 'logout',
+      },
+    })
+
+    return { ok: true, revoked: result.count }
   }
 
   // Temporary demo bootstrap: ensures one PLATFORM_ADMIN exists from env.
@@ -296,24 +425,31 @@ export class AuthService {
     })
   }
 
-  private issueAuthPayload(user: {
-    id: string
-    email: string
-    firstName: string | null
-    lastName: string | null
-    avatarUrl?: string | null
-    role: UserRole
-    companyId: string
-    isActive: boolean
-    companyName: string | null
-  }) {
+  private async issueSessionAuthPayload(user: AuthUser, context: RefreshSessionRequestContext): Promise<SessionAuthResult> {
+    const refreshToken = this.generateRefreshToken()
+    await this.prisma.refreshSession.create({
+      data: {
+        userId: user.id,
+        tokenHash: this.hashRefreshToken(refreshToken),
+        expiresAt: refreshSessionExpiresAt(),
+        userAgent: context.userAgent || null,
+      },
+    })
+
+    return {
+      payload: this.issueAuthPayload(user),
+      refreshToken,
+    }
+  }
+
+  private issueAuthPayload(user: AuthUser): AuthPayload {
     const access_token = this.jwt.sign({
       sub: user.id,
       userId: user.id,
       email: user.email,
       companyId: user.companyId,
       role: user.role,
-    })
+    }, accessTokenSignOptions())
 
     return {
       access_token,
@@ -321,18 +457,28 @@ export class AuthService {
     }
   }
 
-  private toPublicUser(user: {
-    id: string
-    email: string
-    firstName: string | null
-    lastName: string | null
-    avatarUrl?: string | null
-    phone?: string | null
-    role: UserRole
-    companyId: string
-    isActive: boolean
-    companyName: string | null
-  }) {
+  private generateRefreshToken(): string {
+    return randomBytes(48).toString('base64url')
+  }
+
+  private hashRefreshToken(token: string): string {
+    return createHash('sha256').update(token).digest('hex')
+  }
+
+  private async revokeRefreshSessionById(id: string, reason: string) {
+    await this.prisma.refreshSession.updateMany({
+      where: {
+        id,
+        revokedAt: null,
+      },
+      data: {
+        revokedAt: new Date(),
+        revokedReason: reason,
+      },
+    })
+  }
+
+  private toPublicUser(user: AuthUser) {
     return {
       id: user.id,
       email: user.email,
