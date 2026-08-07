@@ -349,6 +349,10 @@ export class LocationsService {
     actorUserId: string,
     scopeCompanyId: string,
   ) {
+    if (actorRole === UserRole.PLATFORM_ADMIN && scopeCompanyId !== actorCompanyId) {
+      return { mode: 'tenant_wide' as const, locationIds: [] as string[] }
+    }
+
     const actorCompany = await this.prisma.company.findUnique({
       where: { id: actorCompanyId },
       select: { type: true },
