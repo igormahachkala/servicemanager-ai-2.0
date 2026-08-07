@@ -679,15 +679,17 @@ export class MaxBotService implements OnModuleInit {
 
     if (!response.ok) {
       const safeBody = text.slice(0, 500);
-      this.logger.warn(
-        {
-          status: response.status,
-          statusText: response.statusText,
-          path,
-          body: safeBody,
-        },
-        'max_api_request_failed',
-      );
+      if (!path.startsWith('/updates')) {
+        this.logger.warn(
+          {
+            status: response.status,
+            statusText: response.statusText,
+            path,
+            body: safeBody,
+          },
+          'max_api_request_failed',
+        );
+      }
       throw new BadRequestException({
         message: 'MAX API request failed',
         status: response.status,
