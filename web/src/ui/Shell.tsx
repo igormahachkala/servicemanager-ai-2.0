@@ -15,6 +15,14 @@ import { SmaBrandLogo } from '../components/SmaBrandLogo'
 import { canViewITCompany } from '../it-company'
 import { useWsInvalidation } from './useWsInvalidation'
 import { useRealtimeNotifications } from '../hooks/useRealtimeNotifications'
+import { useSessionRecoveryRefetch } from '../hooks/useSessionRecoveryRefetch'
+import {
+  SESSION_TEMPORARY_UNAVAILABLE_MESSAGE,
+  buildLoginPathWithReturnTo,
+  isTransientSessionState,
+  resolveSessionState,
+  sessionCheckQueryOptions,
+} from '../lib/sessionContinuity'
 
 function NavItemButton(props: { to: string; label: string; active: boolean; onNavigate?: () => void }) {
   return (
@@ -148,6 +156,7 @@ export function Shell() {
   const meQ = useQuery({
     queryKey: ['me'],
     queryFn: api.me,
+    ...sessionCheckQueryOptions,
   })
 
   const tenantCompanyQ = useQuery({
@@ -171,14 +180,24 @@ export function Shell() {
 
   const impersonationMeta = useMemo(() => api.getImpersonationMeta(), [meQ.data?.id, loc.key])
   const isImpersonating = api.isImpersonating() && !!impersonationMeta
+  const sessionState = resolveSessionState({
+    hasSessionData: !!meQ.data,
+    isError: meQ.isError,
+    error: meQ.error,
+  })
+  const hasTransientSessionIssue = meQ.isError && isTransientSessionState(sessionState)
+
+  useSessionRecoveryRefetch({
+    enabled: hasTransientSessionIssue,
+    refetch: meQ.refetch,
+  })
 
   useEffect(() => {
-    if (meQ.isError) {
-      api.clearToken()
-      queryClient.clear()
-      nav('/login', { replace: true })
-    }
-  }, [meQ.isError, nav, queryClient])
+    if (!meQ.isError || sessionState !== 'AUTH_EXPIRED') return
+    api.clearToken()
+    queryClient.clear()
+    nav(buildLoginPathWithReturnTo(loc.pathname, loc.search, loc.hash), { replace: true })
+  }, [loc.hash, loc.pathname, loc.search, meQ.isError, nav, queryClient, sessionState])
 
   useEffect(() => {
     setMobileMenuOpen(false)
@@ -356,8 +375,26 @@ export function Shell() {
           </div>
         ) : null}
 
+        {hasTransientSessionIssue ? (
+          <div
+            className="alert"
+            role="status"
+            aria-live="polite"
+            style={{ margin: '12px 24px 0' }}
+          >
+            {SESSION_TEMPORARY_UNAVAILABLE_MESSAGE}
+          </div>
+        ) : null}
+
         <main className="contentMain" ref={contentMainRef}>
-          <Outlet />
+          {!meQ.data && hasTransientSessionIssue ? (
+            <div className="card">
+              <h2 style={{ marginTop: 0 }}>Подключение восстанавливается</h2>
+              <p className="muted">{SESSION_TEMPORARY_UNAVAILABLE_MESSAGE}</p>
+            </div>
+          ) : (
+            <Outlet />
+          )}
         </main>
       </div>
       {mobileMenuOpen ? <div className="mobileBackdrop" onClick={() => setMobileMenuOpen(false)} /> : null}
