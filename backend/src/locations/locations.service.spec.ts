@@ -58,6 +58,96 @@ describe('LocationsService location scope', () => {
     expect(prisma.location.findMany.mock.calls[0][0].where).not.toHaveProperty('id')
   })
 
+  it('lets PLATFORM_ADMIN list an explicit CLIENT company locations without personal scope truncation', async () => {
+    const prisma = makePrismaMock()
+    prisma.company.findUnique.mockImplementation(({ where }: any) =>
+      Promise.resolve({ type: where.id === 'client-company' ? CompanyType.CLIENT : CompanyType.PROVIDER }),
+    )
+    prisma.userAccessScope.findUnique.mockResolvedValue({
+      locationMode: UserAccessLocationMode.SELECTED_LOCATIONS,
+    })
+    prisma.userLocationBinding.findMany.mockResolvedValue([])
+    prisma.location.findMany.mockResolvedValue([
+      { id: 'loc-1', clientCompanyId: 'client-company', name: 'Client location 1', isActive: true },
+      { id: 'loc-2', clientCompanyId: 'client-company', name: 'Client location 2', isActive: true },
+      { id: 'loc-3', clientCompanyId: 'client-company', name: 'Client location 3', isActive: true },
+    ])
+
+    const svc = new LocationsService(prisma as any, makeServiceContractsMock() as any)
+
+    const result = await svc.list('platform-company', UserRole.PLATFORM_ADMIN, 'platform-admin', {}, 'client-company')
+
+    expect(result).toHaveLength(3)
+    expect(prisma.userAccessScope.findUnique).not.toHaveBeenCalled()
+    expect(prisma.userLocationBinding.findMany).not.toHaveBeenCalled()
+    expect(prisma.location.findMany.mock.calls[0][0].where).toEqual(
+      expect.objectContaining({
+        clientCompanyId: 'client-company',
+      }),
+    )
+    expect(prisma.location.findMany.mock.calls[0][0].where).not.toHaveProperty('id')
+  })
+
+  it('rejects PLATFORM_ADMIN location list for a nonexistent company', async () => {
+    const prisma = makePrismaMock()
+    prisma.company.findUnique.mockResolvedValue(null)
+    const svc = new LocationsService(prisma as any, makeServiceContractsMock() as any)
+
+    await expect(
+      svc.list('platform-company', UserRole.PLATFORM_ADMIN, 'platform-admin', {}, 'missing-company'),
+    ).rejects.toThrow('Company not found')
+    expect(prisma.location.findMany).not.toHaveBeenCalled()
+  })
+
+  it('rejects PLATFORM_ADMIN location list when explicit company is not CLIENT', async () => {
+    const prisma = makePrismaMock()
+    prisma.company.findUnique.mockResolvedValue({ type: CompanyType.PROVIDER })
+    const svc = new LocationsService(prisma as any, makeServiceContractsMock() as any)
+
+    await expect(
+      svc.list('platform-company', UserRole.PLATFORM_ADMIN, 'platform-admin', {}, 'provider-company'),
+    ).rejects.toThrow('Observer scope must be a CLIENT company')
+    expect(prisma.location.findMany).not.toHaveBeenCalled()
+  })
+
+  it('does not leak another client when PLATFORM_ADMIN requests a specific CLIENT company', async () => {
+    const prisma = makePrismaMock()
+    prisma.company.findUnique.mockResolvedValue({ type: CompanyType.CLIENT })
+    prisma.location.findMany.mockResolvedValue([
+      { id: 'client-a-loc', clientCompanyId: 'client-a', name: 'Client A', isActive: true },
+    ])
+    const svc = new LocationsService(prisma as any, makeServiceContractsMock() as any)
+
+    await svc.list('platform-company', UserRole.PLATFORM_ADMIN, 'platform-admin', {}, 'client-a')
+
+    expect(prisma.location.findMany.mock.calls[0][0].where).toEqual(
+      expect.objectContaining({
+        clientCompanyId: 'client-a',
+      }),
+    )
+    expect(prisma.location.findMany.mock.calls[0][0].where).not.toEqual(
+      expect.objectContaining({
+        clientCompanyId: 'client-b',
+      }),
+    )
+  })
+
+  it('does not turn PLATFORM_ADMIN request without companyId into a global locations list', async () => {
+    const prisma = makePrismaMock()
+    prisma.company.findUnique.mockResolvedValue({ type: CompanyType.PROVIDER })
+    prisma.userLocationBinding.findMany.mockResolvedValue([])
+    prisma.location.findMany.mockResolvedValue([])
+    const svc = new LocationsService(prisma as any, makeServiceContractsMock() as any)
+
+    await svc.list('platform-company', UserRole.PLATFORM_ADMIN, 'platform-admin', {})
+
+    expect(prisma.location.findMany.mock.calls[0][0].where).toEqual(
+      expect.objectContaining({
+        clientCompanyId: 'platform-company',
+      }),
+    )
+  })
+
   it('keeps TECHNICIAN restricted to explicit location bindings', async () => {
     const prisma = makePrismaMock()
     prisma.company.findUnique.mockResolvedValue({ type: CompanyType.CLIENT })
