@@ -4,6 +4,14 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { getAvailableWorkspaces, type WorkspaceCard } from '../lib/navigation'
 import { SmaBrandLogo } from '../components/SmaBrandLogo'
+import { useSessionRecoveryRefetch } from '../hooks/useSessionRecoveryRefetch'
+import {
+  SESSION_TEMPORARY_UNAVAILABLE_MESSAGE,
+  buildLoginPathWithReturnTo,
+  isTransientSessionState,
+  resolveSessionState,
+  sessionCheckQueryOptions,
+} from '../lib/sessionContinuity'
 import '../mobile/mobile.css'
 
 /**
@@ -18,11 +26,22 @@ export function WorkspaceSelectorPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
+  const meQ = useQuery({ queryKey: ['me'], queryFn: api.me, ...sessionCheckQueryOptions })
   const user = meQ.data
+  const sessionState = resolveSessionState({
+    hasSessionData: !!user,
+    isError: meQ.isError,
+    error: meQ.error,
+  })
+  const hasTransientSessionIssue = meQ.isError && isTransientSessionState(sessionState)
 
   const scope = useMemo(() => (user ? api.restoreScopeForUser(user) : {}), [user])
   const workspaces = useMemo(() => getAvailableWorkspaces(user), [user])
+
+  useSessionRecoveryRefetch({
+    enabled: hasTransientSessionIssue,
+    refetch: meQ.refetch,
+  })
 
   function resolvePath(ws: WorkspaceCard): string {
     // IT Company не использует scope-параметры заявок.
@@ -30,13 +49,13 @@ export function WorkspaceSelectorPage() {
     return api.appendScopeToPath(ws.to, scope, user)
   }
 
-  // Невалидный токен — назад на логин.
+  // Невалидный токен — назад на логин. Временные ошибки не разлогинивают.
   useEffect(() => {
-    if (!meQ.isError) return
+    if (!meQ.isError || sessionState !== 'AUTH_EXPIRED') return
     api.clearToken()
     queryClient.clear()
-    navigate('/login', { replace: true })
-  }, [meQ.isError, navigate, queryClient])
+    navigate(buildLoginPathWithReturnTo('/workspaces'), { replace: true })
+  }, [meQ.isError, navigate, queryClient, sessionState])
 
   // Единственный доступный контур — переходим сразу.
   useEffect(() => {
@@ -69,7 +88,11 @@ export function WorkspaceSelectorPage() {
             <div className="muted small">{user?.email || '—'}</div>
           </div>
 
-          {meQ.isLoading ? (
+          {hasTransientSessionIssue ? (
+            <div className="alert" role="status" aria-live="polite">
+              {SESSION_TEMPORARY_UNAVAILABLE_MESSAGE}
+            </div>
+          ) : meQ.isLoading ? (
             <div className="muted small">Загрузка…</div>
           ) : workspaces.length === 0 ? (
             <div className="alert">Нет доступных контуров. Обратитесь в поддержку.</div>

@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import * as api from '../lib/api'
+import { readSafeLoginReturnTo } from '../lib/sessionContinuity'
 
 import '../mobile/mobile.css'
 import { SmaBrandLogo } from '../components/SmaBrandLogo'
@@ -15,6 +16,7 @@ const BUILD = '2026'
 
 export function LoginPage({ onLoggedIn }: LoginPageProps) {
   const navigate = useNavigate()
+  const location = useLocation()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -43,8 +45,9 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
       }
 
       setPassword('')
-      // После логина — экран выбора контура.
-      navigate('/workspaces', { replace: true })
+      const returnTo = readSafeLoginReturnTo(new URLSearchParams(location.search).get('returnTo'))
+      // После обычного логина — экран выбора контура. После истечения сессии — исходный экран.
+      navigate(returnTo || '/workspaces', { replace: true })
     } catch (err: any) {
       setError(err?.message || 'Не удалось войти')
     } finally {

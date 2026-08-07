@@ -4,6 +4,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { useWsInvalidation } from '../ui/useWsInvalidation'
 import { useRealtimeNotifications } from '../hooks/useRealtimeNotifications'
+import { useSessionRecoveryRefetch } from '../hooks/useSessionRecoveryRefetch'
+import {
+  SESSION_TEMPORARY_UNAVAILABLE_MESSAGE,
+  buildLoginPathWithReturnTo,
+  isTransientSessionState,
+  resolveSessionState,
+  sessionCheckQueryOptions,
+} from '../lib/sessionContinuity'
 import {
   getPendingAndFailedCounts,
   getPendingOfflineActionsCount,
@@ -86,12 +94,23 @@ function isProviderLinkedClientRole(role?: api.Role | null) {
 export function MobileShell() {
   const location = useLocation()
   const navigate = useNavigate()
-  const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
+  const meQ = useQuery({ queryKey: ['me'], queryFn: api.me, ...sessionCheckQueryOptions })
   const queryClient = useQueryClient()
   const isOnline = useOnlineStatus()
   const [pendingCount, setPendingCount] = useState(getPendingOfflineActionsCount())
   const [queueCounts, setQueueCounts] = useState(() => getPendingAndFailedCounts())
   const [syncMessage, setSyncMessage] = useState('')
+  const sessionState = resolveSessionState({
+    hasSessionData: !!meQ.data,
+    isError: meQ.isError,
+    error: meQ.error,
+  })
+  const hasTransientSessionIssue = meQ.isError && isTransientSessionState(sessionState)
+
+  useSessionRecoveryRefetch({
+    enabled: hasTransientSessionIssue,
+    refetch: meQ.refetch,
+  })
 
   const companyQ = useQuery({
     queryKey: ['mobile-shell-company'],
@@ -156,6 +175,13 @@ export function MobileShell() {
     if (!meQ.data) return
     api.persistScopeFromSearchParams(new URLSearchParams(location.search), meQ.data)
   }, [location.search, meQ.data])
+
+  useEffect(() => {
+    if (!meQ.isError || sessionState !== 'AUTH_EXPIRED') return
+    api.clearToken()
+    queryClient.clear()
+    navigate(buildLoginPathWithReturnTo(location.pathname, location.search, location.hash), { replace: true })
+  }, [location.hash, location.pathname, location.search, meQ.isError, navigate, queryClient, sessionState])
 
   useEffect(() => {
     const refresh = () => {
@@ -314,7 +340,19 @@ export function MobileShell() {
           </div>
         ) : null}
         {syncMessage ? <div className="mobileNotice mobileNoticeSuccess">{syncMessage}</div> : null}
-        <Outlet />
+        {hasTransientSessionIssue ? (
+          <div className="mobileOfflineBanner mobileOfflineBannerWarning" role="status" aria-live="polite">
+            <div>{SESSION_TEMPORARY_UNAVAILABLE_MESSAGE}</div>
+          </div>
+        ) : null}
+        {!meQ.data && hasTransientSessionIssue ? (
+          <div className="mobileCard mobileEmptyState">
+            <div className="mobileEmptyStateTitle">Подключение восстанавливается</div>
+            <p className="mobileEmptyStateHint">{SESSION_TEMPORARY_UNAVAILABLE_MESSAGE}</p>
+          </div>
+        ) : (
+          <Outlet />
+        )}
       </main>
       <nav className="mobileBottomNav" aria-label="Мобильная навигация" data-mobile-tour="main-menu">
         <div className="mobileBottomNavInner">
