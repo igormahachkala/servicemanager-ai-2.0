@@ -22,6 +22,7 @@ const SHEET_ICONS: Record<string, ReactNode> = {
   'clipboard-check': (<><path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2 -2v-12a2 2 0 0 0 -2 -2h-2" /><rect x="9" y="3" width="6" height="4" rx="2" /><path d="M9 14l2 2l4 -4" /></>),
   check: (<polyline points="5 12 10 17 20 7" />),
   'arrow-back-up': (<path d="M9 14l-4 -4l4 -4M5 10h11a4 4 0 1 1 0 8h-1" />),
+  edit: (<><path d="M7 7h-1a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-1" /><path d="M20.385 6.585a2.1 2.1 0 0 0 -2.97 -2.97l-8.415 8.385v3h3l8.385 -8.415z" /><path d="M16 5l3 3" /></>),
 }
 
 function SheetActionIcon({ name }: { name: string }) {

@@ -192,6 +192,14 @@ function roleCanUploadTicketPhoto(role?: api.Role | null) {
   return !!role && PHOTO_ROLES.includes(role)
 }
 
+// SMA-MOBILE-TICKET-EDIT-V1: зеркалит desktop EDIT_ROLES (views/TicketPage.tsx) — единая политика,
+// кто может редактировать заявку. Backend остаётся источником истины (PATCH /tickets/:id).
+const EDIT_ROLES: api.Role[] = ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR', 'TERRITORIAL_MANAGER']
+
+function roleCanEdit(role?: api.Role | null) {
+  return !!role && EDIT_ROLES.includes(role)
+}
+
 function dedupeTimeline(items: api.TimelineItem[]): api.TimelineItem[] {
   const seen = new Set<string>()
   return items.filter((item) => {
@@ -434,6 +442,17 @@ export function MobileTicketPage() {
     return canMutateTicket && roleCanUploadTicketPhoto(role)
   }, [meQ.data?.role, contextMode])
 
+  // SMA-MOBILE-TICKET-EDIT-V1: тот же gate, что и на desktop — canMutateTicket && roleCanEdit(role).
+  // Проходят роли из EDIT_ROLES (ADMIN/MASTER/DISPATCHER/NETWORK_DIRECTOR/TERRITORIAL_MANAGER).
+  // CLIENT в observer/не-tenant режиме и TECHNICIAN — не проходят. Backend — источник истины.
+  const canEditTicket = useMemo(() => {
+    const role = meQ.data?.role
+    const isClientRole = role === 'CLIENT'
+    const readOnlyByVisibilityMode = contextMode === 'observer'
+    const canMutateTicket = !readOnlyByVisibilityMode && !(isClientRole && contextMode !== 'tenant')
+    return canMutateTicket && roleCanEdit(role)
+  }, [meQ.data?.role, contextMode])
+
   const canSendComment = useMemo(
     () => resolveMobileCanSendComment(meQ.data, ticket, observerCompanyId),
     [meQ.data, ticket, observerCompanyId],
@@ -602,6 +621,19 @@ export function MobileTicketPage() {
 
   const [assignTicketOpen, setAssignTicketOpen] = useState(false)
   const [actionsSheetOpen, setActionsSheetOpen] = useState(false)
+  // SMA-MOBILE-TICKET-EDIT-V1: состояние формы редактирования заявки (переиспользует desktop-поля и PATCH-контракт).
+  const [editOpen, setEditOpen] = useState(false)
+  const [editErr, setEditErr] = useState('')
+  const [editProblemCategoryId, setEditProblemCategoryId] = useState('')
+  const [editLocationId, setEditLocationId] = useState('')
+  const [editEquipmentId, setEditEquipmentId] = useState('')
+  const [editProblemText, setEditProblemText] = useState('')
+  const [editUrgency, setEditUrgency] = useState<api.TicketUrgency>('NOT_URGENT')
+  const [editRequesterName, setEditRequesterName] = useState('')
+  const [editRequesterPhone, setEditRequesterPhone] = useState('')
+  const [editAddress, setEditAddress] = useState('')
+  const [editPointName, setEditPointName] = useState('')
+  const [editComment, setEditComment] = useState('')
   const [assignTechId, setAssignTechId] = useState('')
   const [assignErr, setAssignErr] = useState('')
   const [techActionErr, setTechActionErr] = useState('')
@@ -667,6 +699,74 @@ export function MobileTicketPage() {
     await queryClient.invalidateQueries({ queryKey: ['mobile-my-board'] })
     await queryClient.invalidateQueries({ queryKey: ['board'] })
   }
+
+  // SMA-MOBILE-TICKET-EDIT-V1: справочники для формы редактирования — те же api-эндпоинты и scope,
+  // что и на desktop (views/TicketPage.tsx). Грузим только когда форма открыта у роли с правом edit.
+  const editCategoriesQ = useQuery({
+    queryKey: ['problem-categories', ticket?.meta?.scopeCompanyId || ''],
+    queryFn: () => api.problemCategories(ticket?.meta?.scopeCompanyId || undefined),
+    enabled: !!ticket && canEditTicket && editOpen,
+  })
+  const editLocationsQ = useQuery({
+    queryKey: ['locations', ticket?.meta?.scopeCompanyId || ''],
+    queryFn: () => api.locations(ticket?.meta?.scopeCompanyId || undefined),
+    enabled: !!ticket && canEditTicket && editOpen,
+  })
+  const editEquipmentQ = useQuery({
+    queryKey: ['equipment-by-location', editLocationId || ticket?.location?.id || ''],
+    queryFn: () => api.equipmentByLocation(editLocationId || ticket?.location?.id || ''),
+    enabled: !!(editLocationId || ticket?.location?.id) && canEditTicket && editOpen,
+  })
+
+  // Инициализация полей из заявки (как desktop useEffect на ticketQ.data).
+  useEffect(() => {
+    const t = ticketQ.data
+    if (!t) return
+    setEditProblemCategoryId(t.problemCategory?.id || '')
+    setEditLocationId(t.location?.id || '')
+    setEditEquipmentId(t.equipment?.id || '')
+    setEditProblemText(t.problemText || '')
+    setEditUrgency(t.urgency)
+    setEditRequesterName(t.requesterName || '')
+    setEditRequesterPhone(t.requesterPhone || '')
+    setEditAddress(t.address || '')
+    setEditPointName(t.pointName || '')
+    setEditComment('')
+  }, [ticketQ.data])
+
+  // PATCH /tickets/:id — тот же контракт api.updateTicket и тот же scope, что desktop.
+  // Смена категории НЕ трогает исполнителя: назначение — отдельное действие на backend.
+  const updateTicketM = useMutation({
+    mutationFn: () => {
+      if (!ticket) throw new Error('Заявка не загружена')
+      if (!canEditTicket) throw new Error('Редактирование заявки недоступно в текущем режиме')
+      return api.updateTicket(
+        ticket.id,
+        {
+          problemCategoryId: editProblemCategoryId,
+          locationId: editLocationId,
+          equipmentId: editEquipmentId || null,
+          problemText: editProblemText,
+          urgency: editUrgency,
+          requesterName: editRequesterName || null,
+          requesterPhone: editRequesterPhone || null,
+          address: editAddress || null,
+          pointName: editPointName || null,
+          comment: editComment.trim() || undefined,
+        },
+        ticketResourceScope,
+      )
+    },
+    onSuccess: async () => {
+      setEditErr('')
+      setEditOpen(false)
+      await invalidateTicketQueries()
+      await queryClient.refetchQueries({ queryKey: ['mobile-ticket-detail', ticketId] })
+    },
+    onError: (e: unknown) => {
+      setEditErr(formatMobileMutationError(e, { operation: 'other' }))
+    },
+  })
 
   const isTicketAddPhotoUploading = ticketAddPhotoProgress !== null
 
@@ -1116,6 +1216,9 @@ export function MobileTicketPage() {
           : null,
         showAssignButton
           ? { id: 'assign', label: assignBtnLabel, icon: 'user-plus', onClick: () => { setAssignErr(''); setAssignTicketOpen(true) } }
+          : null,
+        canEditTicket
+          ? { id: 'edit', label: 'Редактировать заявку', icon: 'edit', onClick: () => { setEditErr(''); setEditOpen(true) } }
           : null,
         { id: 'comment', label: 'Написать в чат', icon: 'message', onClick: openChatComposer },
         { id: 'photo', label: 'Добавить фото', icon: 'camera', onClick: () => setDetailTab('photos') },
@@ -2187,6 +2290,149 @@ export function MobileTicketPage() {
                 Нет доступных техников для назначения.
               </div>
             ) : null}
+          </div>
+        </MobileModalBackdrop>
+      ) : null}
+      {/* SMA-MOBILE-TICKET-EDIT-V1: форма редактирования заявки. Те же поля и PATCH-контракт, что desktop. */}
+      {editOpen && ticket && canEditTicket ? (
+        <MobileModalBackdrop
+          ariaLabel="Редактировать заявку"
+          onClose={() => {
+            if (updateTicketM.isPending) return
+            setEditOpen(false)
+            setEditErr('')
+          }}
+        >
+          <div className="mobileAssignModal">
+            <div className="mobileRow" style={{ alignItems: 'flex-start' }}>
+              <div>
+                <div style={{ fontWeight: 900 }}>Редактировать заявку</div>
+                <div className="mobileMeta" style={{ marginTop: 4 }}>
+                  {mobileTicketNumberTitle(ticket.ticketNumber)}
+                </div>
+              </div>
+              <button
+                type="button"
+                className="mobileBtn mobileBtnSecondary"
+                disabled={updateTicketM.isPending}
+                onClick={() => {
+                  setEditOpen(false)
+                  setEditErr('')
+                }}
+              >
+                Отмена
+              </button>
+            </div>
+            {editErr ? <div className="mobileNotice mobileNoticeError" style={{ marginTop: 10 }}>{editErr}</div> : null}
+            <div className="mobileForm" style={{ marginTop: 12 }}>
+              <label className="mobileFormField">
+                Категория
+                <select
+                  value={editProblemCategoryId}
+                  disabled={updateTicketM.isPending || editCategoriesQ.isFetching}
+                  onChange={(e) => setEditProblemCategoryId(e.target.value)}
+                >
+                  <option value="">Выберите категорию</option>
+                  {(editCategoriesQ.data || []).filter((row) => row.isActive !== false).map((row) => (
+                    <option key={row.id} value={row.id}>{row.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="mobileFormField">
+                Локация
+                <select
+                  value={editLocationId}
+                  disabled={updateTicketM.isPending || editLocationsQ.isFetching}
+                  onChange={(e) => {
+                    // Смена локации сбрасывает выбранное оборудование (equipment привязан к локации), как на desktop.
+                    setEditLocationId(e.target.value)
+                    setEditEquipmentId('')
+                  }}
+                >
+                  <option value="">Выберите локацию</option>
+                  {(editLocationsQ.data || []).filter((row) => row.isActive !== false).map((row) => (
+                    <option key={row.id} value={row.id}>{[row.name, row.city, row.address].filter(Boolean).join(' · ')}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="mobileFormField">
+                Оборудование / Asset (опционально)
+                <select
+                  value={editEquipmentId}
+                  disabled={updateTicketM.isPending || editEquipmentQ.isFetching}
+                  onChange={(e) => setEditEquipmentId(e.target.value)}
+                >
+                  <option value="">Без оборудования</option>
+                  {(editEquipmentQ.data || []).map((equipment) => (
+                    <option key={equipment.id} value={equipment.id}>
+                      {[equipment.name, equipment.type, equipment.status].filter(Boolean).join(' · ')}
+                    </option>
+                  ))}
+                </select>
+                <div className="mobileMeta" style={{ marginTop: 6 }}>
+                  {editEquipmentQ.isFetching
+                    ? 'Загружаем оборудование для текущей локации…'
+                    : (editEquipmentQ.data || []).length === 0
+                      ? 'Для текущей локации оборудование не найдено. Можно сохранить без оборудования.'
+                      : 'Оборудование доступно только из текущей локации заявки.'}
+                </div>
+              </label>
+              <label className="mobileFormField">
+                Описание проблемы
+                <textarea
+                  rows={5}
+                  value={editProblemText}
+                  disabled={updateTicketM.isPending}
+                  onChange={(e) => setEditProblemText(e.target.value)}
+                />
+              </label>
+              <label className="mobileFormField">
+                Срочность
+                <select
+                  value={editUrgency}
+                  disabled={updateTicketM.isPending}
+                  onChange={(e) => setEditUrgency(e.target.value as api.TicketUrgency)}
+                >
+                  <option value="NOT_URGENT">Не срочно</option>
+                  <option value="URGENT">Срочно</option>
+                </select>
+              </label>
+              <label className="mobileFormField">
+                Заявитель
+                <input value={editRequesterName} disabled={updateTicketM.isPending} onChange={(e) => setEditRequesterName(e.target.value)} />
+              </label>
+              <label className="mobileFormField">
+                Телефон
+                <input value={editRequesterPhone} disabled={updateTicketM.isPending} onChange={(e) => setEditRequesterPhone(e.target.value)} />
+              </label>
+              <label className="mobileFormField">
+                Точка
+                <input value={editPointName} disabled={updateTicketM.isPending} onChange={(e) => setEditPointName(e.target.value)} />
+              </label>
+              <label className="mobileFormField">
+                Адрес
+                <input value={editAddress} disabled={updateTicketM.isPending} onChange={(e) => setEditAddress(e.target.value)} />
+              </label>
+              <label className="mobileFormField">
+                Комментарий
+                <textarea
+                  rows={3}
+                  value={editComment}
+                  disabled={updateTicketM.isPending}
+                  onChange={(e) => setEditComment(e.target.value)}
+                />
+              </label>
+              <div className="mobileFormSubmitStack" style={{ marginTop: 12 }}>
+                <button
+                  type="button"
+                  className="mobileBtn"
+                  disabled={updateTicketM.isPending}
+                  onClick={() => updateTicketM.mutate()}
+                >
+                  {updateTicketM.isPending ? 'Сохраняем…' : 'Сохранить изменения'}
+                </button>
+              </div>
+            </div>
           </div>
         </MobileModalBackdrop>
       ) : null}
