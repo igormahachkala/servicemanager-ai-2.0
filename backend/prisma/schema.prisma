@@ -10,6 +10,7 @@ datasource db {
 enum UserRole {
   PLATFORM_ADMIN
   ADMIN
+  CLIENT_ADMIN
   DISPATCHER
   MASTER
   TECHNICIAN

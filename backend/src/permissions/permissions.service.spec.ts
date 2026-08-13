@@ -378,6 +378,32 @@ describe('PermissionsService Access Constructor V1A', () => {
     ]);
   });
 
+  it('decodes CLIENT_ADMIN grants for forward-DB compatibility without changing ADMIN grants', async () => {
+    const { service } = makeService({
+      blocks,
+      companies: [{ id: 'client-1', name: 'Client', type: CompanyType.CLIENT }],
+      users: [{ id: 'client-admin', companyId: 'client-1', email: 'client@example.com', role: UserRole.ADMIN }],
+      rolePermissions: [
+        { role: UserRole.ADMIN, companyType: CompanyType.CLIENT, code: PERMISSIONS.TICKETS_VIEW },
+        { role: UserRole.ADMIN, companyType: CompanyType.CLIENT, code: PERMISSIONS.USERS_MANAGE },
+        { role: UserRole.CLIENT_ADMIN, companyType: CompanyType.CLIENT, code: PERMISSIONS.TICKETS_ASSIGN },
+      ],
+    });
+
+    const matrix = await service.getMatrix();
+    expect(matrix.some((entry) => entry.role === UserRole.CLIENT_ADMIN)).toBe(true);
+
+    const effective = await service.getEffectivePermissions({
+      actorId: 'client-admin',
+      actorCompanyId: 'client-1',
+      actorRole: UserRole.ADMIN,
+      userId: 'client-admin',
+    });
+
+    expect(effective.permissions.codes.effective).toEqual([PERMISSIONS.TICKETS_VIEW, PERMISSIONS.USERS_MANAGE]);
+    expect(effective.permissions.codes.effective).not.toContain(PERMISSIONS.TICKETS_ASSIGN);
+  });
+
   it('blocks company ADMIN from granting permissions they do not effectively have', async () => {
     const { service, prisma } = makeService({
       blocks,

@@ -1,6 +1,7 @@
 ﻿export type Role =
   | 'PLATFORM_ADMIN'
   | 'ADMIN'
+  | 'CLIENT_ADMIN'
   /** Если бэкенд отдаёт отдельное значение роли провайдера-админа */
   | 'ADMIN_PROVIDER'
   | 'DISPATCHER'
