@@ -1210,8 +1210,8 @@ export async function resolveReadableTicketAccess(params: {
     }
   }
 
-  const directTicket = await params.prisma.ticket.findUnique({
-    where: { id: params.ticketId },
+  const directTicket = await params.prisma.ticket.findFirst({
+    where: applySpecializationScopeToTicketWhere({ id: params.ticketId }, specializationScope),
     select: {
       id: true,
       companyId: true,

@@ -53,6 +53,42 @@ describe('ticket-access utils SECONDARY provider visibility', () => {
     return true
   }
 
+  function specializationLinkMatches(where: any, link: any): boolean {
+    if (!where) return true
+    if (Array.isArray(where.AND)) {
+      return where.AND.every((part: any) => specializationLinkMatches(part, link))
+    }
+    if (Array.isArray(where.OR)) {
+      return where.OR.some((part: any) => specializationLinkMatches(part, link))
+    }
+    if (!fieldMatches(where.specializationId, link.specializationId)) return false
+    const nameCondition = where.specialization?.name
+    if (nameCondition !== undefined) {
+      const actual = String(link.specialization?.name ?? '')
+      if (typeof nameCondition === 'object' && nameCondition && 'equals' in nameCondition) {
+        const expected = String(nameCondition.equals ?? '')
+        const mode = nameCondition.mode
+        return mode === 'insensitive'
+          ? actual.toLowerCase() === expected.toLowerCase()
+          : actual === expected
+      }
+      return actual === nameCondition
+    }
+    return true
+  }
+
+  function problemCategoryMatches(where: any, category: any): boolean {
+    if (!where) return true
+    const links = category?.specializationLinks ?? []
+    const specializationLinks = where.specializationLinks
+    if (!specializationLinks) return true
+    if (specializationLinks.none !== undefined) return links.length === 0
+    if (specializationLinks.some !== undefined) {
+      return links.some((link: any) => specializationLinkMatches(specializationLinks.some, link))
+    }
+    return true
+  }
+
   function ticketMatchesScope(scopeWhere: any, ticket: any): boolean {
     if (!scopeWhere) return true
     if (scopeWhere.id?.equals === '__no_access__') return false
@@ -67,6 +103,7 @@ describe('ticket-access utils SECONDARY provider visibility', () => {
     if (!fieldMatches(scopeWhere.locationId, ticket.locationId)) return false
     if (!fieldMatches(scopeWhere.assignedTechnicianId, ticket.assignedTechnicianId)) return false
     if (!fieldMatches(scopeWhere.status, ticket.status)) return false
+    if (!problemCategoryMatches(scopeWhere.problemCategory, ticket.problemCategory)) return false
     return true
   }
 
@@ -86,15 +123,17 @@ describe('ticket-access utils SECONDARY provider visibility', () => {
       directTicket?: any
     } = {},
   ) {
+    const problemCategory = opts.directTicket?.problemCategory ?? { specializationLinks: [] }
     const ticket = {
       id: ticketId,
-      companyId: opts.ticketCompanyId ?? clientCompanyId,
-      locationId: opts.ticketLocationId ?? null,
-      assignedTechnicianId: opts.ticketAssignedTechnicianId ?? null,
+      companyId: opts.ticketCompanyId ?? opts.directTicket?.companyId ?? clientCompanyId,
+      locationId: opts.ticketLocationId ?? opts.directTicket?.locationId ?? null,
+      assignedTechnicianId: opts.ticketAssignedTechnicianId ?? opts.directTicket?.assignedTechnicianId ?? null,
       status: opts.directTicket?.status ?? 'NEW',
+      problemCategory,
     }
     const directTicket = opts.directTicket
-      ? { problemCategory: { specializationLinks: [] }, ...opts.directTicket }
+      ? { problemCategory, ...opts.directTicket }
       : null
     const executorIds = opts.executorIds ?? []
     const bindingRows = opts.boundLocationBindings ?? (opts.boundLocationIds ?? []).map((locationId) => ({
@@ -622,6 +661,135 @@ describe('ticket-access utils SECONDARY provider visibility', () => {
         allowedLinkedClientContractRoles: [ServiceContractRole.PRIMARY, ServiceContractRole.SECONDARY],
       }),
     ).rejects.toBeInstanceOf(NotFoundException)
+  })
+
+  describe('linked-client direct detail fallback composes location and specialization scopes', () => {
+    function makeDirectDetailMatrixPrisma(params: {
+      ticketLocationId: string
+      actorSpecializationId: string
+      actorSpecializationName: string
+      categorySpecializationId: string
+      categorySpecializationName: string
+    }) {
+      const prisma = makePrismaTicketMock({
+        accessLocationMode: UserAccessLocationMode.SELECTED_LOCATIONS,
+        boundLocationIds: ['loc-allowed'],
+        ticketLocationId: params.ticketLocationId,
+        directTicket: {
+          id: ticketId,
+          companyId: clientCompanyId,
+          locationId: params.ticketLocationId,
+          assignedTechnicianId: null,
+          status: 'NEW',
+          problemCategory: {
+            specializationLinks: [
+              {
+                specializationId: params.categorySpecializationId,
+                specialization: { name: params.categorySpecializationName },
+              },
+            ],
+          },
+        },
+      })
+      prisma.technicianSpecialization.findMany.mockResolvedValue([
+        {
+          specializationId: params.actorSpecializationId,
+          specialization: { name: params.actorSpecializationName },
+        },
+      ])
+      return prisma
+    }
+
+    function makeDirectFallbackContracts() {
+      const serviceContractsService = makeServiceContractsService(ServiceContractRole.PRIMARY)
+      serviceContractsService.listLinkedClients.mockResolvedValue([])
+      return serviceContractsService
+    }
+
+    const allowedActorSpec = {
+      actorSpecializationId: 'spec-hvac',
+      actorSpecializationName: 'Холодильное оборудование',
+      categorySpecializationId: 'spec-hvac',
+      categorySpecializationName: 'Холодильное оборудование',
+    }
+    const deniedActorSpec = {
+      actorSpecializationId: 'spec-electric',
+      actorSpecializationName: 'Электрика',
+      categorySpecializationId: 'spec-hvac',
+      categorySpecializationName: 'Холодильное оборудование',
+    }
+
+    it('YES location + YES specialization allows direct ticket detail', async () => {
+      const prisma = makeDirectDetailMatrixPrisma({
+        ticketLocationId: 'loc-allowed',
+        ...allowedActorSpec,
+      })
+      const serviceContractsService = makeDirectFallbackContracts()
+
+      const result = await resolveReadableTicketAccess({
+        prisma,
+        serviceContractsService: serviceContractsService as any,
+        actor: { id: 'admin-1', role: UserRole.ADMIN, companyId: providerCompanyId },
+        ticketId,
+        allowedLinkedClientContractRoles: [ServiceContractRole.PRIMARY, ServiceContractRole.SECONDARY],
+      })
+
+      expect(result.ticket.id).toBe(ticketId)
+    })
+
+    it('YES location + NO specialization denies direct ticket detail', async () => {
+      const prisma = makeDirectDetailMatrixPrisma({
+        ticketLocationId: 'loc-allowed',
+        ...deniedActorSpec,
+      })
+      const serviceContractsService = makeDirectFallbackContracts()
+
+      await expect(
+        resolveReadableTicketAccess({
+          prisma,
+          serviceContractsService: serviceContractsService as any,
+          actor: { id: 'admin-1', role: UserRole.ADMIN, companyId: providerCompanyId },
+          ticketId,
+          allowedLinkedClientContractRoles: [ServiceContractRole.PRIMARY, ServiceContractRole.SECONDARY],
+        }),
+      ).rejects.toBeInstanceOf(NotFoundException)
+    })
+
+    it('NO location + YES specialization denies direct ticket detail', async () => {
+      const prisma = makeDirectDetailMatrixPrisma({
+        ticketLocationId: 'loc-forbidden',
+        ...allowedActorSpec,
+      })
+      const serviceContractsService = makeDirectFallbackContracts()
+
+      await expect(
+        resolveReadableTicketAccess({
+          prisma,
+          serviceContractsService: serviceContractsService as any,
+          actor: { id: 'admin-1', role: UserRole.ADMIN, companyId: providerCompanyId },
+          ticketId,
+          allowedLinkedClientContractRoles: [ServiceContractRole.PRIMARY, ServiceContractRole.SECONDARY],
+        }),
+      ).rejects.toBeInstanceOf(NotFoundException)
+    })
+
+    it('NO location + NO specialization denies direct ticket detail', async () => {
+      const prisma = makeDirectDetailMatrixPrisma({
+        ticketLocationId: 'loc-forbidden',
+        ...deniedActorSpec,
+      })
+      const serviceContractsService = makeDirectFallbackContracts()
+
+      await expect(
+        resolveReadableTicketAccess({
+          prisma,
+          serviceContractsService: serviceContractsService as any,
+          actor: { id: 'admin-1', role: UserRole.ADMIN, companyId: providerCompanyId },
+          ticketId,
+          allowedLinkedClientContractRoles: [ServiceContractRole.PRIMARY, ServiceContractRole.SECONDARY],
+        }),
+      ).rejects.toBeInstanceOf(NotFoundException)
+    })
   })
 
   function makeSelectedLocationTechnicianPrisma(ticketLocationId: string, ticketCompanyId = clientCompanyId) {
@@ -1347,14 +1515,19 @@ describe('resolveReadableTicketAccess — PRIMARY provider ADMIN with linkedClie
   }
 
   function makePrisma() {
-    const ticket = { id: ticketId, companyId: clientCompanyId, assignedTechnicianId: null }
+    const ticket = {
+      id: ticketId,
+      companyId: clientCompanyId,
+      locationId: 'loc-1',
+      assignedTechnicianId: null,
+      problemCategory: { specializationLinks: [] },
+    }
     return {
       ticket: {
         findFirst: jest.fn().mockImplementation(async ({ where }: any) => {
-          // Return null for own-company check (companyId = providerCompanyId)
-          if (where?.companyId === providerCompanyId) return null
-          // Return ticket for linked-client lookup (companyId: { in: [clientCompanyId] })
-          if (where?.companyId?.in?.includes(clientCompanyId)) return ticket
+          const whereJson = JSON.stringify(where)
+          if (!whereJson.includes(ticketId)) return null
+          if (whereJson.includes(clientCompanyId)) return ticket
           return null
         }),
         findUnique: jest.fn().mockResolvedValue(ticket),
