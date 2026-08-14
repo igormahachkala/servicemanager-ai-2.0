@@ -143,7 +143,8 @@ export class UsersService {
 
     const leavingExecutorRole = isLeavingExecutorRole(existingUser.role, nextRole)
 
-    // When leaving the executor-capable set, force isExecutor=false and clear executor scope.
+    // When leaving the executor-capable set, force isExecutor=false.
+    // Location and specialization bindings are role-agnostic access scope and must be preserved.
     // When explicitly set in DTO, respect it.
     // When role is TECHNICIAN, auto-enable (TECHNICIAN is always executor by definition).
     const effectiveIsExecutor = leavingExecutorRole
@@ -170,14 +171,6 @@ export class UsersService {
         }),
       })
 
-      if (leavingExecutorRole) {
-        await tx.technicianSpecialization.deleteMany({
-          where: { userId: existingUser.id },
-        })
-        await tx.userLocationBinding.deleteMany({
-          where: { userId: existingUser.id },
-        })
-      }
     })
 
     return this.getPublicUserById(companyId, existingUser.id)
@@ -255,10 +248,6 @@ export class UsersService {
 
   async updateSpecializations(companyId: string, userId: string, specializationIds: string[]) {
     const existingUser = await this.findCompanyUser(companyId, userId)
-
-    if (!isExecutorCapableRole(existingUser.role)) {
-      throw new BadRequestException('Specializations can only be assigned to executor-capable roles')
-    }
 
     const normalizedIds = [
       ...new Set(

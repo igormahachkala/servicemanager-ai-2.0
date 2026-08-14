@@ -51,6 +51,10 @@ export type LocationScope =
   | { mode: 'bound_locations'; locationIds: string[] }
   | { mode: 'restricted_empty'; locationIds: string[] }
 
+export type SpecializationScope =
+  | { mode: 'all_in_contract'; specializationIds: string[]; specializationNames: string[] }
+  | { mode: 'selected_specializations'; specializationIds: string[]; specializationNames: string[] }
+
 export const PROVIDER_LINKED_OVERVIEW_ROLES: UserRole[] = [
   UserRole.ADMIN,
   UserRole.MASTER,
@@ -80,6 +84,32 @@ function noAccessWhere(): Prisma.TicketWhereInput {
   return { id: { equals: '__no_access__' } }
 }
 
+function normalizeSpecializationScope(params: {
+  specializationIds: Array<string | null | undefined>
+  specializationNames: Array<string | null | undefined>
+}): { specializationIds: string[]; specializationNames: string[] } {
+  const specializationIds = Array.from(
+    new Set(
+      params.specializationIds
+        .map((id) => (typeof id === 'string' ? id.trim() : ''))
+        .filter((id) => id.length > 0),
+    ),
+  )
+  const specializationNames = Array.from(
+    new Set(
+      params.specializationNames.flatMap((name) => {
+        const raw = typeof name === 'string' ? name.trim() : ''
+        if (!raw) return []
+        const out = [raw, ...specializationNameMatchVariants(raw)]
+        const normalized = normalizeSpecializationLabel(raw)
+        if (normalized) out.push(normalized)
+        return out
+      }),
+    ),
+  ).filter((name) => name.length > 0)
+  return { specializationIds, specializationNames }
+}
+
 export function isLocationScopeClosed(locationScope: LocationScope): boolean {
   return locationScope.mode === 'restricted_empty' ||
     (locationScope.mode === 'bound_locations' && locationScope.locationIds.length === 0)
@@ -103,6 +133,152 @@ export function applyLocationScopeToTicketWhere(
     return normalizeAnd(where, [noAccessWhere()])
   }
   return normalizeAnd(where, [{ locationId: { in: locationScope.locationIds } }])
+}
+
+export function buildSpecializationScopeFromBindings(params: {
+  specializationIds: Array<string | null | undefined>
+  specializationNames: Array<string | null | undefined>
+}): SpecializationScope {
+  const normalized = normalizeSpecializationScope(params)
+  if (normalized.specializationIds.length === 0 && normalized.specializationNames.length === 0) {
+    return {
+      mode: 'all_in_contract',
+      specializationIds: [],
+      specializationNames: [],
+    }
+  }
+  return {
+    mode: 'selected_specializations',
+    ...normalized,
+  }
+}
+
+export async function resolveActorSpecializationScope(params: {
+  prisma: PrismaService | Prisma.TransactionClient
+  actor: TicketAccessActor
+}): Promise<SpecializationScope> {
+  const rows = await params.prisma.technicianSpecialization.findMany({
+    where: {
+      userId: params.actor.id,
+      specialization: {
+        isActive: true,
+      },
+    },
+    select: {
+      specializationId: true,
+      specialization: {
+        select: {
+          name: true,
+        },
+      },
+    },
+  })
+
+  return buildSpecializationScopeFromBindings({
+    specializationIds: rows.map((row) => row.specializationId),
+    specializationNames: rows.map((row) => row.specialization?.name ?? null),
+  })
+}
+
+export function buildSpecializationRestrictionWhere(
+  specializationScope: SpecializationScope,
+): Prisma.TicketWhereInput {
+  if (specializationScope.mode === 'all_in_contract') return {}
+
+  const specSome = buildSpecializationLinksSomeWhereInput({
+    specializationIds: specializationScope.specializationIds,
+    specializationNames: specializationScope.specializationNames,
+  })
+  if (!specSome) return noAccessWhere()
+
+  return {
+    OR: [
+      {
+        problemCategory: {
+          specializationLinks: {
+            none: {},
+          },
+        },
+      },
+      {
+        problemCategory: {
+          specializationLinks: {
+            some: specSome,
+          },
+        },
+      },
+    ],
+  }
+}
+
+export function applySpecializationScopeToTicketWhere(
+  where: Prisma.TicketWhereInput,
+  specializationScope: SpecializationScope,
+): Prisma.TicketWhereInput {
+  if (specializationScope.mode === 'all_in_contract') return where
+  return normalizeAnd(where, [buildSpecializationRestrictionWhere(specializationScope)])
+}
+
+export function isProblemCategoryAllowedBySpecializationScope(
+  category: {
+    specializationLinks?: Array<{
+      specializationId: string
+      specialization?: { name: string | null } | null
+    }> | null
+  },
+  specializationScope: SpecializationScope,
+) {
+  if (specializationScope.mode === 'all_in_contract') return true
+  const links = category.specializationLinks ?? []
+  if (links.length === 0) return true
+  return technicianMatchesCategorySpecializationLinks({
+    categoryLinks: links,
+    technicianSpecializationIds: specializationScope.specializationIds,
+    technicianSpecializationNames: specializationScope.specializationNames,
+  })
+}
+
+export async function assertActorCanUseProblemCategory(params: {
+  prisma: PrismaService | Prisma.TransactionClient
+  actor: TicketAccessActor
+  scopeCompanyId: string
+  problemCategoryId: string
+}) {
+  const category = await params.prisma.problemCategory.findFirst({
+    where: {
+      id: params.problemCategoryId,
+      companyId: params.scopeCompanyId,
+      isActive: true,
+    },
+    select: {
+      id: true,
+      specializationLinks: {
+        select: {
+          specializationId: true,
+          specialization: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      },
+    },
+  })
+
+  if (!category) {
+    throw new NotFoundException('Problem category not found')
+  }
+
+  const specializationScope = await resolveActorSpecializationScope({
+    prisma: params.prisma,
+    actor: params.actor,
+  })
+
+  if (!isProblemCategoryAllowedBySpecializationScope(category, specializationScope)) {
+    throw new ForbiddenException('Problem category is not available in current user scope')
+  }
+
+  return category
 }
 
 function applyLocationScopeToLinkedClientWhere(
@@ -819,11 +995,18 @@ export async function resolveReadableTicketAccess(params: {
     prisma: params.prisma,
     actor: params.actor,
   })
+  const specializationScope = await resolveActorSpecializationScope({
+    prisma: params.prisma,
+    actor: params.actor,
+  })
 
   const tenantDecision = ticketsPolicy.getOneWhere(params.actor as UserCtx, params.ticketId)
   assertAllowed(tenantDecision)
 
-  const tenantWhere = applyLocationScopeToTicketWhere(tenantDecision.where, locationScope)
+  const tenantWhere = applySpecializationScopeToTicketWhere(
+    applyLocationScopeToTicketWhere(tenantDecision.where, locationScope),
+    specializationScope,
+  )
   const tenantTicket = await params.prisma.ticket.findFirst({
     where: tenantWhere,
     select: {
@@ -859,7 +1042,11 @@ export async function resolveReadableTicketAccess(params: {
       linkedClientCompanyId: params.linkedClientCompanyId,
     })
 
-    const executorBaseWhere: Prisma.TicketWhereInput = {
+    const executorSpecializationScope = buildSpecializationScopeFromBindings({
+      specializationIds: technicianScope.specializationIds,
+      specializationNames: technicianScope.specializationNames,
+    })
+    const executorBaseWhere: Prisma.TicketWhereInput = applySpecializationScopeToTicketWhere({
       AND: [
         {
           id: params.ticketId,
@@ -873,7 +1060,7 @@ export async function resolveReadableTicketAccess(params: {
           locationScopeByCompany: technicianScope.locationScopeByCompany,
         }),
       ],
-    }
+    }, executorSpecializationScope)
     const secondaryOperationalWhere = await buildSecondaryOperationalRestrictionWhere({
       prisma: params.prisma,
       serviceContractsService: params.serviceContractsService,
@@ -981,9 +1168,12 @@ export async function resolveReadableTicketAccess(params: {
         actor: params.actor,
         scopeCompanyId: clientId,
       })
-      let clause: Prisma.TicketWhereInput = applyLocationScopeToLinkedClientWhere(
-        { companyId: clientId },
-        actorClientLocationScope,
+      let clause: Prisma.TicketWhereInput = applySpecializationScopeToTicketWhere(
+        applyLocationScopeToLinkedClientWhere(
+          { companyId: clientId },
+          actorClientLocationScope,
+        ),
+        specializationScope,
       )
       if (params.actor.role === UserRole.TECHNICIAN) {
         clause = normalizeAnd(clause, [{ assignedTechnicianId: params.actor.id }])
@@ -1042,6 +1232,10 @@ export async function resolveReadableTicketAccess(params: {
   })
 
   if (directTicket) {
+    if (!isProblemCategoryAllowedBySpecializationScope(directTicket.problemCategory, specializationScope)) {
+      throw new NotFoundException('Ticket not found')
+    }
+
     if (
       (locationScope.mode === 'restricted_empty' ||
         (locationScope.mode === 'bound_locations' && !locationScope.locationIds.includes(directTicket.locationId))) &&

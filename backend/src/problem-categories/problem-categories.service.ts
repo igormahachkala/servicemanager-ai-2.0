@@ -1,9 +1,13 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, UserRole } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { resolveObserverScopeCompanyId } from '../policy/policy.utils';
 import { ServiceContractsService } from '../service-contracts/service-contracts.service';
+import {
+  isProblemCategoryAllowedBySpecializationScope,
+  resolveActorSpecializationScope,
+} from '../tickets/ticket-access.utils';
 import { CreateProblemCategoryDto } from './dto/create-problem-category.dto';
 import { UpdateProblemCategoryDto } from './dto/update-problem-category.dto';
 
@@ -14,7 +18,7 @@ export class ProblemCategoriesService {
     private readonly serviceContractsService: ServiceContractsService,
   ) {}
 
-  async list(actorCompanyId: string, actorRole?: any, requestedCompanyId?: string) {
+  async list(actorCompanyId: string, actorRole: UserRole, actorUserId?: string, requestedCompanyId?: string) {
     let companyId = actorCompanyId;
     const requested = (requestedCompanyId || '').trim();
     if (requested && requested !== actorCompanyId) {
@@ -74,7 +78,20 @@ export class ProblemCategoriesService {
       },
     });
 
-    return categories.map((category) => {
+    const specializationScope = actorUserId && actorRole
+      ? await resolveActorSpecializationScope({
+          prisma: this.prisma,
+          actor: {
+            id: actorUserId,
+            role: actorRole,
+            companyId: actorCompanyId,
+          },
+        })
+      : { mode: 'all_in_contract' as const, specializationIds: [], specializationNames: [] }
+
+    return categories.filter((category) =>
+      isProblemCategoryAllowedBySpecializationScope(category, specializationScope),
+    ).map((category) => {
       const requiredSpecializationIds = category.specializationLinks.map((link) => link.specializationId);
       const fallbackMode = requiredSpecializationIds.length === 0;
 

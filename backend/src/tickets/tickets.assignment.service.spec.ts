@@ -1,12 +1,15 @@
+import { ForbiddenException } from '@nestjs/common'
 import { CompanyType, ServiceContractRole, TicketStatus, UserAccessLocationMode, UserRole } from '@prisma/client'
 
 const mockAssertActorCanUseLocation = jest.fn()
+const mockAssertActorCanUseProblemCategory = jest.fn()
 
 jest.mock('./ticket-access.utils', () => {
   const actual = jest.requireActual('./ticket-access.utils')
   return {
     ...actual,
     assertActorCanUseLocation: (...args: any[]) => mockAssertActorCanUseLocation(...args),
+    assertActorCanUseProblemCategory: (...args: any[]) => mockAssertActorCanUseProblemCategory(...args),
   }
 })
 
@@ -45,13 +48,14 @@ describe('TicketsAssignmentService location scope override', () => {
 
   beforeEach(() => {
     mockAssertActorCanUseLocation.mockReset()
+    mockAssertActorCanUseProblemCategory.mockReset()
+    mockAssertActorCanUseProblemCategory.mockResolvedValue({ id: 'category-1' })
   })
 
-  it('lets own-company client ADMIN use any active location without bindings', async () => {
+  it('keeps own-company client ADMIN bound through the shared location helper', async () => {
     const prisma = makePrismaMock()
-    prisma.company.findUnique.mockResolvedValue({ type: CompanyType.CLIENT })
-    prisma.location.findFirst.mockResolvedValue({ id: 'loc-1' })
     const svc = makeService(prisma)
+    mockAssertActorCanUseLocation.mockResolvedValue(undefined)
 
     await (svc as any).assertActorCanUseLocationForScope({
       actor: { id: 'user-1', role: UserRole.ADMIN, companyId: 'client-company' },
@@ -59,20 +63,13 @@ describe('TicketsAssignmentService location scope override', () => {
       locationId: 'loc-1',
     })
 
-    expect(prisma.company.findUnique).toHaveBeenCalledWith({
-      where: { id: 'client-company' },
-      select: { type: true },
-    })
-    expect(prisma.location.findFirst).toHaveBeenCalledWith(
+    expect(mockAssertActorCanUseLocation).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: {
-          id: 'loc-1',
-          clientCompanyId: 'client-company',
-          isActive: true,
-        },
+        scopeCompanyId: 'client-company',
+        locationId: 'loc-1',
       }),
     )
-    expect(mockAssertActorCanUseLocation).not.toHaveBeenCalled()
+    expect(prisma.location.findFirst).not.toHaveBeenCalled()
   })
 
   it('keeps technician scope bound through the shared helper', async () => {
@@ -852,6 +849,9 @@ describe('TicketsAssignmentService.requestAssignment canonical eligibility', () 
           return [{ id: technicianId }]
         }),
       },
+      technicianSpecialization: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
       userAccessScope: {
         findUnique: jest.fn().mockResolvedValue(locationMode ? { locationMode } : null),
       },
@@ -896,7 +896,14 @@ describe('TicketsAssignmentService.requestAssignment canonical eligibility', () 
           }
           if (!locationAllowed) return null
           if (whereJson.includes('problemCategory')) {
-            return specializationAllowed ? { id: ticket.id } : null
+            return specializationAllowed
+              ? {
+                  id: ticket.id,
+                  companyId: ticket.companyId,
+                  locationId: ticket.locationId,
+                  assignedTechnicianId: ticket.assignedTechnicianId,
+                }
+              : null
           }
           return {
             id: ticket.id,
@@ -1179,6 +1186,9 @@ describe('TicketsAssignmentService canonical claim isolation', () => {
           technicianSpecializations,
         }),
         findMany: jest.fn().mockResolvedValue([{ id: technicianId }]),
+      },
+      technicianSpecialization: {
+        findMany: jest.fn().mockResolvedValue([]),
       },
       userAccessScope: {
         findUnique: jest.fn().mockResolvedValue(locationMode ? { locationMode } : null),
@@ -1661,6 +1671,15 @@ describe('TicketsAssignmentService linked-provider create assignment contour', (
       clientCompanyId,
       locationId,
     }))
+    expect(mockAssertActorCanUseProblemCategory).toHaveBeenCalledWith(expect.objectContaining({
+      actor: expect.objectContaining({
+        id: 'admin-1',
+        role: UserRole.ADMIN,
+        companyId: providerCompanyId,
+      }),
+      scopeCompanyId: clientCompanyId,
+      problemCategoryId: categoryId,
+    }))
     expect(tx.ticket.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
         companyId: clientCompanyId,
@@ -1694,6 +1713,18 @@ describe('TicketsAssignmentService linked-provider create assignment contour', (
     expect(tx.ticket.update).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ assignedTechnicianId: providerTech.id }),
     }))
+  })
+
+  it('denies create when category specialization is outside actor scope', async () => {
+    const { service, tx } = makeCreateHarness()
+    mockAssertActorCanUseProblemCategory.mockRejectedValueOnce(
+      new ForbiddenException('Problem category is not available in current user scope'),
+    )
+
+    await expect(service.create(providerCompanyId, 'admin-1', UserRole.ADMIN, baseDto() as any))
+      .rejects.toBeInstanceOf(ForbiddenException)
+
+    expect(tx.ticket.create).not.toHaveBeenCalled()
   })
 
   it('provider TECHNICIAN creates a linked-client ticket and claims from provider workforce', async () => {

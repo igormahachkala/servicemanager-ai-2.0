@@ -32,13 +32,11 @@ describe('LocationsService location scope', () => {
     }
   }
 
-  it('lets client ADMIN see all own-company locations without binding truncation', async () => {
+  it('keeps client ADMIN restricted to explicit own-company location bindings', async () => {
     const prisma = makePrismaMock()
     prisma.company.findUnique.mockResolvedValue({ type: CompanyType.CLIENT })
     prisma.location.findMany.mockResolvedValue([
       { id: 'loc-1', clientCompanyId: 'client-company', name: 'Кофейня U', isActive: true },
-      { id: 'loc-2', clientCompanyId: 'client-company', name: 'Уфа 1', isActive: true },
-      { id: 'loc-3', clientCompanyId: 'client-company', name: 'Уфа 11', isActive: true },
     ])
     prisma.userLocationBinding.findMany.mockResolvedValue([{ locationId: 'loc-1' }])
 
@@ -46,16 +44,45 @@ describe('LocationsService location scope', () => {
 
     const result = await svc.list('client-company', UserRole.ADMIN, 'user-1', {})
 
-    expect(result).toHaveLength(3)
-    expect(prisma.userLocationBinding.findMany).not.toHaveBeenCalled()
+    expect(result).toHaveLength(1)
+    expect(prisma.userLocationBinding.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          userId: 'user-1',
+          companyId: 'client-company',
+        }),
+      }),
+    )
     expect(prisma.location.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
           clientCompanyId: 'client-company',
+          id: { in: ['loc-1'] },
         }),
       }),
     )
-    expect(prisma.location.findMany.mock.calls[0][0].where).not.toHaveProperty('id')
+  })
+
+  it('keeps restricted NETWORK_DIRECTOR location list scoped to bindings', async () => {
+    const prisma = makePrismaMock()
+    prisma.company.findUnique.mockResolvedValue({ type: CompanyType.CLIENT })
+    prisma.userAccessScope.findUnique.mockResolvedValue({
+      locationMode: UserAccessLocationMode.SELECTED_LOCATIONS,
+    })
+    prisma.userLocationBinding.findMany.mockResolvedValue([{ locationId: 'loc-network' }])
+    prisma.location.findMany.mockResolvedValue([
+      { id: 'loc-network', clientCompanyId: 'client-company', name: 'Network', isActive: true },
+    ])
+    const svc = new LocationsService(prisma as any, makeServiceContractsMock() as any)
+
+    await svc.list('client-company', UserRole.NETWORK_DIRECTOR, 'network-1', {})
+
+    expect(prisma.location.findMany.mock.calls[0][0].where).toEqual(
+      expect.objectContaining({
+        clientCompanyId: 'client-company',
+        id: { in: ['loc-network'] },
+      }),
+    )
   })
 
   it('keeps TECHNICIAN restricted to explicit location bindings', async () => {

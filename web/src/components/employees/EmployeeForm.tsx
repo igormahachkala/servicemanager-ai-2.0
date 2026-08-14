@@ -151,20 +151,18 @@ export function EmployeeForm({
         </label>
       ) : null}
 
-      {value.role === 'TECHNICIAN' ? (
-        <div>
-          <div style={{ fontWeight: 600, marginBottom: 8 }}>Специализации</div>
-          <div className="fieldHint" style={{ marginBottom: 8 }}>
-            Отметьте направления работ техника — по ним система предложит подходящие заявки и ограничит самостоятельный claim.
-          </div>
-          <EmployeeSpecializationsField
-            specializations={activeSpecializations}
-            selectedIds={value.specializationIds}
-            disabled={submitting}
-            onToggle={onToggleSpecialization}
-          />
+      <div>
+        <div style={{ fontWeight: 600, marginBottom: 8 }}>Специализации</div>
+        <div className="fieldHint" style={{ marginBottom: 8 }}>
+          Отметьте направления работ сотрудника — по ним система ограничит видимость заявок и подберёт исполнителей.
         </div>
-      ) : null}
+        <EmployeeSpecializationsField
+          specializations={activeSpecializations}
+          selectedIds={value.specializationIds}
+          disabled={submitting}
+          onToggle={onToggleSpecialization}
+        />
+      </div>
 
       <div style={{ display: 'flex', gap: 8 }}>
         <button disabled={submitting}>{submitting ? 'Сохраняем...' : submitLabel}</button>

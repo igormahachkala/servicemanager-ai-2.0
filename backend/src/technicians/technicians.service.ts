@@ -12,6 +12,7 @@ import {
 
 const LOCATION_BINDABLE_USER_ROLES: UserRole[] = [
   UserRole.ADMIN,
+  UserRole.CLIENT_ADMIN,
   UserRole.MASTER,
   UserRole.DISPATCHER,
   UserRole.TECHNICIAN,

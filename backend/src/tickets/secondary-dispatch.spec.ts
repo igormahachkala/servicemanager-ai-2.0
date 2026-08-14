@@ -248,6 +248,7 @@ describe('resolveReadableTicketAccess — SECONDARY executor sees scoped tickets
         findMany: jest.fn().mockResolvedValue([{ id: TECH_ID }]),
       },
       userLocationBinding: { findMany: jest.fn().mockResolvedValue([{ companyId: SECONDARY_PROVIDER_ID, locationId: LOCATION_ID }]) },
+      technicianSpecialization: { findMany: jest.fn().mockResolvedValue([]) },
       ticket: {
         findFirst: jest.fn().mockImplementation(async ({ where }: any) => {
           callCount++;
@@ -397,6 +398,7 @@ describe('TicketsAssignmentService.assign — SECONDARY executor', () => {
         findFirst: jest.fn().mockResolvedValue({ id: 'actor', technicianSpecializations: [] }),
         findUnique: jest.fn().mockResolvedValue({ companyId: CLIENT_ID, email: 'tech@example.com' }),
       },
+      technicianSpecialization: { findMany: jest.fn().mockResolvedValue([]) },
       ticket: {
         findFirst: jest.fn().mockImplementation(async () => {
           callSeq++;
@@ -671,6 +673,7 @@ describe('TicketsPolicy.canChangeStatus — SECONDARY executor', () => {
         findFirst: jest.fn().mockResolvedValue({ id: TECH_ID, technicianSpecializations: [] }),
       },
       userLocationBinding: { findMany: jest.fn().mockResolvedValue([]) },
+      technicianSpecialization: { findMany: jest.fn().mockResolvedValue([]) },
       ticket: {
         findFirst: jest.fn().mockImplementation(async () => {
           callCount++;
@@ -747,6 +750,7 @@ describe('TicketsAssignmentService.listAssignmentCandidates — SECONDARY execut
         findUnique: jest.fn().mockResolvedValue(fullTicket),
       },
       userLocationBinding: { findMany: jest.fn().mockResolvedValue([]) },
+      technicianSpecialization: { findMany: jest.fn().mockResolvedValue([]) },
     } as any;
 
     const query = { getOne: jest.fn().mockResolvedValue({}) };

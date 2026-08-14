@@ -19,8 +19,6 @@ type ListInput = {
 
 @Injectable()
 export class LocationsService {
-  private readonly clientLeadershipRoles = new Set<UserRole>([UserRole.ADMIN, UserRole.NETWORK_DIRECTOR])
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly serviceContractsService: ServiceContractsService,
@@ -349,19 +347,6 @@ export class LocationsService {
     actorUserId: string,
     scopeCompanyId: string,
   ) {
-    const actorCompany = await this.prisma.company.findUnique({
-      where: { id: actorCompanyId },
-      select: { type: true },
-    })
-
-    if (
-      scopeCompanyId === actorCompanyId &&
-      actorCompany?.type === CompanyType.CLIENT &&
-      this.clientLeadershipRoles.has(actorRole)
-    ) {
-      return { mode: 'tenant_wide' as const, locationIds: [] as string[] }
-    }
-
     return resolveActorLocationScope({
       prisma: this.prisma,
       actor: {

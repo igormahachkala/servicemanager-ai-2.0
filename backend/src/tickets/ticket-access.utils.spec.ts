@@ -2,7 +2,13 @@ import { BadRequestException, ForbiddenException, NotFoundException } from '@nes
 import { ServiceContractLocationMode, ServiceContractRole, UserAccessLocationMode, UserRole } from '@prisma/client'
 
 import {
+  applyLocationScopeToTicketWhere,
+  applySpecializationScopeToTicketWhere,
+  assertActorCanUseProblemCategory,
+  buildSpecializationScopeFromBindings,
+  isProblemCategoryAllowedBySpecializationScope,
   resolveActorLocationScope,
+  resolveActorSpecializationScope,
   resolveReadableTicketAccess,
   resolveTechnicianOperationalScope,
   resolveTicketOperationAccess,
@@ -87,6 +93,9 @@ describe('ticket-access utils SECONDARY provider visibility', () => {
       assignedTechnicianId: opts.ticketAssignedTechnicianId ?? null,
       status: opts.directTicket?.status ?? 'NEW',
     }
+    const directTicket = opts.directTicket
+      ? { problemCategory: { specializationLinks: [] }, ...opts.directTicket }
+      : null
     const executorIds = opts.executorIds ?? []
     const bindingRows = opts.boundLocationBindings ?? (opts.boundLocationIds ?? []).map((locationId) => ({
       companyId: providerCompanyId,
@@ -99,7 +108,7 @@ describe('ticket-access utils SECONDARY provider visibility', () => {
         findFirst: jest.fn().mockImplementation(async ({ where }: any) => {
           return ticketMatchesScope(where, ticket) ? { ...ticket } : null
         }),
-        findUnique: jest.fn().mockResolvedValue(opts.directTicket ?? null),
+        findUnique: jest.fn().mockResolvedValue(directTicket),
       },
       company: {
         findUnique: jest.fn().mockResolvedValue({ id: providerCompanyId }),
@@ -124,6 +133,12 @@ describe('ticket-access utils SECONDARY provider visibility', () => {
         findUnique: jest.fn().mockResolvedValue(
           opts.accessLocationMode ? { locationMode: opts.accessLocationMode } : null,
         ),
+      },
+      technicianSpecialization: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      problemCategory: {
+        findFirst: jest.fn().mockResolvedValue(null),
       },
       serviceContract: {
         findUnique: jest.fn().mockResolvedValue({
@@ -353,6 +368,120 @@ describe('ticket-access utils SECONDARY provider visibility', () => {
         }),
       }),
     )
+  })
+
+  it('specialization scope preserves all-in-contract compatibility when no bindings exist', async () => {
+    const prisma = makePrismaTicketMock()
+
+    const scope = await resolveActorSpecializationScope({
+      prisma,
+      actor: {
+        id: 'manager-1',
+        role: UserRole.MASTER,
+        companyId: providerCompanyId,
+      },
+    })
+
+    expect(scope).toEqual({
+      mode: 'all_in_contract',
+      specializationIds: [],
+      specializationNames: [],
+    })
+  })
+
+  it('specialization scope restricts tickets to matching category links when bindings exist', () => {
+    const scope = buildSpecializationScopeFromBindings({
+      specializationIds: ['spec-hvac'],
+      specializationNames: ['Холодильное оборудование'],
+    })
+
+    expect(
+      isProblemCategoryAllowedBySpecializationScope(
+        {
+          specializationLinks: [
+            {
+              specializationId: 'spec-hvac',
+              specialization: { name: 'Холодильное оборудование' },
+            },
+          ],
+        },
+        scope,
+      ),
+    ).toBe(true)
+    expect(
+      isProblemCategoryAllowedBySpecializationScope(
+        {
+          specializationLinks: [
+            {
+              specializationId: 'spec-electric',
+              specialization: { name: 'Электрика' },
+            },
+          ],
+        },
+        scope,
+      ),
+    ).toBe(false)
+  })
+
+  it('specialization scope treats categories without links as all-in-contract fallback', () => {
+    const scope = buildSpecializationScopeFromBindings({
+      specializationIds: ['spec-hvac'],
+      specializationNames: ['Холодильное оборудование'],
+    })
+
+    expect(
+      isProblemCategoryAllowedBySpecializationScope({ specializationLinks: [] }, scope),
+    ).toBe(true)
+  })
+
+  it('location and specialization filters are composed with AND for ticket visibility', () => {
+    const where = applySpecializationScopeToTicketWhere(
+      applyLocationScopeToTicketWhere(
+        { companyId: clientCompanyId },
+        { mode: 'bound_locations', locationIds: ['loc-1'] },
+      ),
+      buildSpecializationScopeFromBindings({
+        specializationIds: ['spec-hvac'],
+        specializationNames: ['Холодильное оборудование'],
+      }),
+    )
+    const whereStr = JSON.stringify(where)
+
+    expect(whereStr).toContain('loc-1')
+    expect(whereStr).toContain('spec-hvac')
+    expect(Array.isArray((where as any).AND)).toBe(true)
+  })
+
+  it('problem category guard rejects forbidden specialization for create/edit', async () => {
+    const prisma = makePrismaTicketMock()
+    prisma.technicianSpecialization.findMany.mockResolvedValue([
+      {
+        specializationId: 'spec-hvac',
+        specialization: { name: 'Холодильное оборудование' },
+      },
+    ])
+    prisma.problemCategory.findFirst.mockResolvedValue({
+      id: 'cat-electric',
+      specializationLinks: [
+        {
+          specializationId: 'spec-electric',
+          specialization: { name: 'Электрика' },
+        },
+      ],
+    })
+
+    await expect(
+      assertActorCanUseProblemCategory({
+        prisma,
+        actor: {
+          id: 'manager-1',
+          role: UserRole.MASTER,
+          companyId: providerCompanyId,
+        },
+        scopeCompanyId: clientCompanyId,
+        problemCategoryId: 'cat-electric',
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException)
   })
 
   it('keeps SECONDARY contract blocked by default for ticket reads (management path, non-executor role)', async () => {
@@ -1152,6 +1281,9 @@ describe('resolveReadableTicketAccess — cross-company ticket with no contract 
       userAccessScope: {
         findUnique: jest.fn().mockResolvedValue(null),
       },
+      technicianSpecialization: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
     } as any
   }
 
@@ -1238,6 +1370,9 @@ describe('resolveReadableTicketAccess — PRIMARY provider ADMIN with linkedClie
       },
       userAccessScope: {
         findUnique: jest.fn().mockResolvedValue(null),
+      },
+      technicianSpecialization: {
+        findMany: jest.fn().mockResolvedValue([]),
       },
     } as any
   }

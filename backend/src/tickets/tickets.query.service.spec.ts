@@ -43,6 +43,9 @@ function makePrisma(opts: { executorIds?: string[]; boundLocationIds?: string[] 
     userLocationBinding: {
       findMany: jest.fn().mockResolvedValue((opts.boundLocationIds ?? []).map((locationId) => ({ locationId }))),
     },
+    technicianSpecialization: {
+      findMany: jest.fn().mockResolvedValue([]),
+    },
   } as any
 }
 
@@ -200,6 +203,26 @@ describe('TicketsQueryService.list', () => {
     expect(JSON.stringify(prisma.ticket.findMany.mock.calls[0][0].where)).toContain('__no_access__')
   })
 
+  it('ADMIN list composes location and specialization scopes through one ticket predicate', async () => {
+    spyReadScope.mockResolvedValue(makeManagementScope(CLIENT_ID))
+    spyLocationScope.mockResolvedValue({ mode: 'bound_locations', locationIds: ['loc-selected'] })
+    const prisma = makePrisma()
+    prisma.technicianSpecialization.findMany.mockResolvedValue([
+      {
+        specializationId: 'spec-hvac',
+        specialization: { name: 'Холодильное оборудование' },
+      },
+    ])
+    const svc = makeService(prisma)
+
+    await svc.list(PROVIDER_ID, USER_ID, UserRole.ADMIN, undefined, undefined, CLIENT_ID)
+
+    const whereStr = JSON.stringify(prisma.ticket.findMany.mock.calls[0][0].where)
+    expect(whereStr).toContain('loc-selected')
+    expect(whereStr).toContain('spec-hvac')
+    expect(whereStr).toContain('specializationLinks')
+  })
+
   it('ADMIN with linkedClientCompanyId: passes it through to resolveTicketReadScope', async () => {
     spyReadScope.mockResolvedValue(makeManagementScope(CLIENT_ID))
     const prisma = makePrisma()
@@ -340,6 +363,26 @@ describe('TicketsQueryService.board', () => {
     expect(result.columns.every((column) => column.total === 0 && column.cards.length === 0)).toBe(true)
   })
 
+  it('ADMIN board uses the same location and specialization predicate as list/mobile data', async () => {
+    spyReadScope.mockResolvedValue(makeManagementScope(CLIENT_ID))
+    spyLocationScope.mockResolvedValue({ mode: 'bound_locations', locationIds: ['loc-selected'] })
+    const prisma = makePrisma()
+    prisma.technicianSpecialization.findMany.mockResolvedValue([
+      {
+        specializationId: 'spec-hvac',
+        specialization: { name: 'Холодильное оборудование' },
+      },
+    ])
+    const svc = makeService(prisma)
+
+    await svc.board(PROVIDER_ID, USER_ID, UserRole.ADMIN, {}, undefined, CLIENT_ID)
+
+    const whereStr = JSON.stringify(prisma.ticket.findMany.mock.calls[0][0].where)
+    expect(whereStr).toContain('loc-selected')
+    expect(whereStr).toContain('spec-hvac')
+    expect(whereStr).toContain('specializationLinks')
+  })
+
   it('columns include sla counters and card arrays', async () => {
     spyTechScope.mockResolvedValue(makeTechScope())
     const svc = makeService(makePrisma())
@@ -444,6 +487,26 @@ describe('TicketsQueryService.contextAnalytics', () => {
     expect(contracts.getLinkedClientAccess).toHaveBeenCalledWith(PROVIDER_ID, CLIENT_ID)
     const whereStr = JSON.stringify(prisma.ticket.findMany.mock.calls[0][0].where)
     expect(whereStr).toContain('__no_access__')
+  })
+
+  it('context analytics applies specialization scope consistently with board/list', async () => {
+    spyReadScope.mockResolvedValue(makeManagementScope(CLIENT_ID))
+    spyLocationScope.mockResolvedValue({ mode: 'bound_locations', locationIds: ['loc-selected'] })
+    const prisma = makePrisma()
+    prisma.technicianSpecialization.findMany.mockResolvedValue([
+      {
+        specializationId: 'spec-hvac',
+        specialization: { name: 'Холодильное оборудование' },
+      },
+    ])
+    const svc = makeService(prisma)
+
+    await svc.contextAnalytics(PROVIDER_ID, USER_ID, UserRole.ADMIN, undefined, CLIENT_ID)
+
+    const whereStr = JSON.stringify(prisma.ticket.findMany.mock.calls[0][0].where)
+    expect(whereStr).toContain('loc-selected')
+    expect(whereStr).toContain('spec-hvac')
+    expect(whereStr).toContain('specializationLinks')
   })
 })
 

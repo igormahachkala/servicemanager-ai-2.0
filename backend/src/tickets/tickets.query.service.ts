@@ -9,11 +9,14 @@ import { TicketsPolicy, type BoardQueryInput } from '../policy/tickets.policy'
 import { assertAllowed } from '../policy/policy.utils'
 import {
   applyLocationScopeToTicketWhere,
+  applySpecializationScopeToTicketWhere,
+  buildSpecializationScopeFromBindings,
   buildSecondaryOperationalRestrictionWhere,
   buildSpecializationLinksSomeWhereInput,
   buildTechnicianLocationRestrictionWhere,
   PROVIDER_LINKED_OVERVIEW_ROLES,
   resolveActorLocationScope,
+  resolveActorSpecializationScope,
   resolveReadableTicketAccess,
   resolveTechnicianOperationalScope,
   resolveTicketReadScope,
@@ -123,8 +126,6 @@ export class TicketsQueryService {
 
     const visibilityOr: any[] = [{ ...companyScope, assignedTechnicianId: params.userId }]
 
-    // Board: NEW unassigned visibility follows company + location scope only (no category/specialization gate).
-    // Claim/available endpoints keep specialization matching in assignment/ticket-access flows.
     if (params.allowTechnicianClaim) {
       visibilityOr.push({
         ...companyScope,
@@ -204,7 +205,13 @@ export class TicketsQueryService {
     ])
 
     return {
-      where,
+      where: applySpecializationScopeToTicketWhere(
+        where,
+        buildSpecializationScopeFromBindings({
+          specializationIds: params.specializationIds,
+          specializationNames: params.specializationNames,
+        }),
+      ),
       take: limitedToLast,
       meta: { atRiskThresholdMinutes, limitedToLast },
     }
@@ -256,12 +263,19 @@ export class TicketsQueryService {
 
     const baseWhere: any = visibilityOr.length === 1 ? visibilityOr[0] : { OR: visibilityOr }
     const withStatus = params.status === undefined ? baseWhere : this.normalizeAnd(baseWhere, [{ status: params.status }])
-    return this.normalizeAnd(withStatus, [
+    const withLocation = this.normalizeAnd(withStatus, [
       buildTechnicianLocationRestrictionWhere({
         companyIds: params.companyIds,
         locationScopeByCompany: params.locationScopeByCompany,
       }),
     ])
+    return applySpecializationScopeToTicketWhere(
+      withLocation,
+      buildSpecializationScopeFromBindings({
+        specializationIds: params.specializationIds,
+        specializationNames: params.specializationNames,
+      }),
+    )
   }
   /**
    * Returns an additional WHERE clause that restricts the board to the
@@ -383,7 +397,19 @@ export class TicketsQueryService {
           actor: { id: userId, role, companyId, accessFlags },
           scopeCompanyId: scope.scopeCompanyId,
         })
-    const whereWithLocationScope = applyLocationScopeToTicketWhere(decision.where, locationScope)
+    const specializationScope = technicianScope
+      ? buildSpecializationScopeFromBindings({
+          specializationIds: technicianScope.specializationIds,
+          specializationNames: technicianScope.specializationNames,
+        })
+      : await resolveActorSpecializationScope({
+          prisma: this.prisma,
+          actor: { id: userId, role, companyId, accessFlags },
+        })
+    const whereWithLocationScope = applySpecializationScopeToTicketWhere(
+      applyLocationScopeToTicketWhere(decision.where, locationScope),
+      specializationScope,
+    )
 
     // SECONDARY providers must only see tickets within their operational scope:
     // assigned to their executors, at locations bound to their company, or (NEW/unassigned).
@@ -659,7 +685,19 @@ export class TicketsQueryService {
           actor: { id: userId, role, companyId, accessFlags },
           scopeCompanyId: scope.scopeCompanyId,
         })
-    const scopedWhere = applyLocationScopeToTicketWhere(baseWhere, locationScope)
+    const specializationScope = technicianScope
+      ? buildSpecializationScopeFromBindings({
+          specializationIds: technicianScope.specializationIds,
+          specializationNames: technicianScope.specializationNames,
+        })
+      : await resolveActorSpecializationScope({
+          prisma: this.prisma,
+          actor: { id: userId, role, companyId, accessFlags },
+        })
+    const scopedWhere = applySpecializationScopeToTicketWhere(
+      applyLocationScopeToTicketWhere(baseWhere, locationScope),
+      specializationScope,
+    )
     const secondaryOperationalWhere = await this.resolveSecondaryOperationalWhere({
       providerCompanyId: companyId,
       linkedClientCompanyId,
@@ -793,7 +831,19 @@ export class TicketsQueryService {
           actor: { id: userId, role, companyId, accessFlags },
           scopeCompanyId: scope.scopeCompanyId,
         })
-    const whereWithLocationScope = applyLocationScopeToTicketWhere(where, locationScope)
+    const specializationScope = technicianScope
+      ? buildSpecializationScopeFromBindings({
+          specializationIds: technicianScope.specializationIds,
+          specializationNames: technicianScope.specializationNames,
+        })
+      : await resolveActorSpecializationScope({
+          prisma: this.prisma,
+          actor: { id: userId, role, companyId, accessFlags },
+        })
+    const whereWithLocationScope = applySpecializationScopeToTicketWhere(
+      applyLocationScopeToTicketWhere(where, locationScope),
+      specializationScope,
+    )
     const secondaryOperationalWhere = await this.resolveSecondaryOperationalWhere({
       providerCompanyId: companyId,
       linkedClientCompanyId,

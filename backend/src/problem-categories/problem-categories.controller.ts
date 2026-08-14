@@ -31,7 +31,7 @@ export class ProblemCategoriesController {
   )
   @RequirePermission(PERMISSIONS.LOCATIONS_VIEW)
   list(@Req() req: any, @Query('companyId') companyId?: string) {
-    return this.svc.list(req.user.companyId, req.user.role as UserRole, companyId)
+    return this.svc.list(req.user.companyId, req.user.role as UserRole, req.user.id, companyId)
   }
 
   @Post()

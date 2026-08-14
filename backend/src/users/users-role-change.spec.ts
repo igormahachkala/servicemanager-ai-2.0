@@ -6,7 +6,10 @@ import { UsersService } from './users.service';
 function makeTx() {
   return {
     user: { update: jest.fn().mockResolvedValue({}) },
-    technicianSpecialization: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
+    technicianSpecialization: {
+      deleteMany: jest.fn().mockResolvedValue({ count: 0 }),
+      createMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
     userLocationBinding: { deleteMany: jest.fn().mockResolvedValue({ count: 0 }) },
   };
 }
@@ -44,9 +47,9 @@ function makePrisma(existingUser: {
 // ── isLeavingExecutorRole (tested via update behaviour) ──────────────────────
 
 describe('Role-change executor cleanup', () => {
-  // ── 1. executor-capable → non-executor-capable: full cleanup ─────────────
+  // ── 1. executor-capable → non-executor-capable: preserve role-agnostic scope ─
 
-  it('ADMIN executor → CLIENT: clears specializations, bindings, forces isExecutor=false', async () => {
+  it('ADMIN executor → CLIENT: preserves specializations/bindings and forces isExecutor=false', async () => {
     const prisma = makePrisma({
       id: 'user-1',
       email: 'admin@example.com',
@@ -58,12 +61,8 @@ describe('Role-change executor cleanup', () => {
     const svc = new UsersService(prisma as any);
     await svc.update('co-1', 'actor-1', 'user-1', { role: UserRole.CLIENT });
 
-    expect(prisma._tx.technicianSpecialization.deleteMany).toHaveBeenCalledWith({
-      where: { userId: 'user-1' },
-    });
-    expect(prisma._tx.userLocationBinding.deleteMany).toHaveBeenCalledWith({
-      where: { userId: 'user-1' },
-    });
+    expect(prisma._tx.technicianSpecialization.deleteMany).not.toHaveBeenCalled();
+    expect(prisma._tx.userLocationBinding.deleteMany).not.toHaveBeenCalled();
     // user.update must include isExecutor: false
     expect(prisma._tx.user.update).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -72,7 +71,7 @@ describe('Role-change executor cleanup', () => {
     );
   });
 
-  it('TECHNICIAN executor → NETWORK_DIRECTOR: clears specializations, bindings, forces isExecutor=false', async () => {
+  it('TECHNICIAN executor → NETWORK_DIRECTOR: preserves specializations/bindings and forces isExecutor=false', async () => {
     const prisma = makePrisma({
       id: 'user-2',
       email: 'tech@example.com',
@@ -84,8 +83,8 @@ describe('Role-change executor cleanup', () => {
     const svc = new UsersService(prisma as any);
     await svc.update('co-1', 'actor-1', 'user-2', { role: UserRole.NETWORK_DIRECTOR });
 
-    expect(prisma._tx.technicianSpecialization.deleteMany).toHaveBeenCalled();
-    expect(prisma._tx.userLocationBinding.deleteMany).toHaveBeenCalled();
+    expect(prisma._tx.technicianSpecialization.deleteMany).not.toHaveBeenCalled();
+    expect(prisma._tx.userLocationBinding.deleteMany).not.toHaveBeenCalled();
     expect(prisma._tx.user.update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ isExecutor: false }),
@@ -93,7 +92,7 @@ describe('Role-change executor cleanup', () => {
     );
   });
 
-  it('MASTER executor → CLIENT: clears specializations, bindings, forces isExecutor=false', async () => {
+  it('MASTER executor → CLIENT: preserves specializations/bindings and forces isExecutor=false', async () => {
     const prisma = makePrisma({
       id: 'user-3',
       email: 'master@example.com',
@@ -105,14 +104,14 @@ describe('Role-change executor cleanup', () => {
     const svc = new UsersService(prisma as any);
     await svc.update('co-1', 'actor-1', 'user-3', { role: UserRole.CLIENT });
 
-    expect(prisma._tx.technicianSpecialization.deleteMany).toHaveBeenCalled();
-    expect(prisma._tx.userLocationBinding.deleteMany).toHaveBeenCalled();
+    expect(prisma._tx.technicianSpecialization.deleteMany).not.toHaveBeenCalled();
+    expect(prisma._tx.userLocationBinding.deleteMany).not.toHaveBeenCalled();
     expect(prisma._tx.user.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ isExecutor: false }) }),
     );
   });
 
-  it('DISPATCHER executor → NETWORK_DIRECTOR: clears specializations, bindings, forces isExecutor=false', async () => {
+  it('DISPATCHER executor → NETWORK_DIRECTOR: preserves specializations/bindings and forces isExecutor=false', async () => {
     const prisma = makePrisma({
       id: 'user-4',
       email: 'disp@example.com',
@@ -124,14 +123,14 @@ describe('Role-change executor cleanup', () => {
     const svc = new UsersService(prisma as any);
     await svc.update('co-1', 'actor-1', 'user-4', { role: UserRole.NETWORK_DIRECTOR });
 
-    expect(prisma._tx.technicianSpecialization.deleteMany).toHaveBeenCalled();
-    expect(prisma._tx.userLocationBinding.deleteMany).toHaveBeenCalled();
+    expect(prisma._tx.technicianSpecialization.deleteMany).not.toHaveBeenCalled();
+    expect(prisma._tx.userLocationBinding.deleteMany).not.toHaveBeenCalled();
     expect(prisma._tx.user.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ isExecutor: false }) }),
     );
   });
 
-  it('ADMIN (isExecutor=false) → CLIENT: still clears executor scope data and forces isExecutor=false', async () => {
+  it('ADMIN (isExecutor=false) → CLIENT: preserves scope data and forces isExecutor=false', async () => {
     const prisma = makePrisma({
       id: 'user-5',
       email: 'admin2@example.com',
@@ -143,9 +142,8 @@ describe('Role-change executor cleanup', () => {
     const svc = new UsersService(prisma as any);
     await svc.update('co-1', 'actor-1', 'user-5', { role: UserRole.CLIENT });
 
-    // deleteMany still runs (no-op is fine; keeps logic simple and consistent)
-    expect(prisma._tx.technicianSpecialization.deleteMany).toHaveBeenCalled();
-    expect(prisma._tx.userLocationBinding.deleteMany).toHaveBeenCalled();
+    expect(prisma._tx.technicianSpecialization.deleteMany).not.toHaveBeenCalled();
+    expect(prisma._tx.userLocationBinding.deleteMany).not.toHaveBeenCalled();
     expect(prisma._tx.user.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ isExecutor: false }) }),
     );
@@ -264,5 +262,52 @@ describe('Role-change executor cleanup', () => {
 
     expect(prisma._tx.technicianSpecialization.deleteMany).not.toHaveBeenCalled();
     expect(prisma._tx.userLocationBinding.deleteMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('User specialization scope', () => {
+  it('allows specialization bindings for non-executor management roles', async () => {
+    const existingUser = {
+      id: 'network-1',
+      email: 'network@example.com',
+      role: UserRole.NETWORK_DIRECTOR,
+      isActive: true,
+      isExecutor: false,
+    };
+    const tx = makeTx();
+    const prisma = {
+      _tx: tx,
+      user: {
+        findFirst: jest
+          .fn()
+          .mockResolvedValueOnce(existingUser)
+          .mockResolvedValue({
+            ...existingUser,
+            technicianSpecializations: [
+              { specialization: { id: 'spec-1', name: 'HVAC', isActive: true } },
+            ],
+            createdAt: new Date(),
+          }),
+      },
+      specialization: {
+        findMany: jest.fn().mockResolvedValue([{ id: 'spec-1' }]),
+      },
+      $transaction: jest.fn().mockImplementation(async (cb: (txArg: any) => Promise<any>) => cb(tx)),
+    };
+
+    const svc = new UsersService(prisma as any);
+    await svc.updateSpecializations('co-1', 'network-1', ['spec-1']);
+
+    expect(prisma.specialization.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          companyId: 'co-1',
+          id: { in: ['spec-1'] },
+        }),
+      }),
+    );
+    expect(tx.technicianSpecialization.createMany).toHaveBeenCalledWith({
+      data: [{ userId: 'network-1', specializationId: 'spec-1' }],
+    });
   });
 });

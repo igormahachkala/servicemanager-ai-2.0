@@ -25,6 +25,7 @@ import { TicketAttachmentsService } from './ticket-attachments.service';
 import { buildTicketDescription } from './ticket-description.builder';
 import {
   assertActorCanUseLocation,
+  assertActorCanUseProblemCategory,
   buildSecondaryOperationalRestrictionWhere,
   buildTechnicianLocationRestrictionWhere,
   resolveReadableTicketAccess,
@@ -209,39 +210,11 @@ export class TicketsAssignmentService {
     }
   }
 
-  private async canUseOwnClientLocationsForScope(actorCompanyId: string, actorRole: UserRole, scopeCompanyId: string) {
-    if (scopeCompanyId !== actorCompanyId) return false;
-    if (actorRole !== UserRole.ADMIN && actorRole !== UserRole.NETWORK_DIRECTOR) return false;
-
-    const company = await this.prisma.company.findUnique({
-      where: { id: actorCompanyId },
-      select: { type: true },
-    });
-
-    return company?.type === CompanyType.CLIENT;
-  }
-
   private async assertActorCanUseLocationForScope(params: {
     actor: { id: string; role: UserRole; companyId: string; accessFlags?: any }
     scopeCompanyId: string
     locationId: string
   }) {
-    if (await this.canUseOwnClientLocationsForScope(params.actor.companyId, params.actor.role, params.scopeCompanyId)) {
-      const location = await this.prisma.location.findFirst({
-        where: {
-          id: params.locationId,
-          clientCompanyId: params.scopeCompanyId,
-          isActive: true,
-        },
-        select: { id: true },
-      });
-
-      if (!location) {
-        throw new NotFoundException('Location not found');
-      }
-      return;
-    }
-
     await assertActorCanUseLocation({
       prisma: this.prisma,
       actor: params.actor,
@@ -973,6 +946,16 @@ export class TicketsAssignmentService {
       throw new BadRequestException('Ticket owner company must be a CLIENT company');
     }
     const category = await this.getCategory(targetCompanyId, input.categoryId);
+    await assertActorCanUseProblemCategory({
+      prisma: this.prisma,
+      actor: {
+        id: creatorUserId,
+        role: creatorRole,
+        companyId: actorCompanyId,
+      },
+      scopeCompanyId: targetCompanyId,
+      problemCategoryId: input.categoryId,
+    });
     const location = await this.getLocation(targetCompanyId, input.locationId);
     const equipment = input.equipmentId
       ? await this.getEquipment(targetCompanyId, location.id, input.equipmentId)
@@ -1970,6 +1953,20 @@ export class TicketsAssignmentService {
       throw new BadRequestException('equipmentId cannot be empty');
     }
 
+    if (normalizedCategoryId) {
+      await assertActorCanUseProblemCategory({
+        prisma: this.prisma,
+        actor: {
+          id: actor.id,
+          role: actor.role,
+          companyId: actor.companyId,
+          accessFlags: actor?.accessFlags,
+        },
+        scopeCompanyId: access.ticket.companyId,
+        problemCategoryId: normalizedCategoryId,
+      });
+    }
+
     const updatedTicketId = await this.prisma.$transaction(async (tx) => {
       const ticket = await tx.ticket.findFirst({
         where: { id: ticketId, companyId: access.ticket.companyId },
@@ -2250,6 +2247,17 @@ export class TicketsAssignmentService {
     if (!category) {
       throw new NotFoundException('Problem category not found');
     }
+
+    await assertActorCanUseProblemCategory({
+      prisma: this.prisma,
+      actor: {
+        id: actor?.id,
+        role: actor?.role as UserRole,
+        companyId,
+      },
+      scopeCompanyId: companyId,
+      problemCategoryId: normalizedCategoryId,
+    });
 
     if (ticket.problemCategoryId === normalizedCategoryId) {
       return this.query.getOne(companyId, actor?.id, actor?.role as UserRole, ticket.id);

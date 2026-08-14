@@ -247,10 +247,8 @@ export function EmployeesPage() {
         role: value.role,
       })
 
-      if (value.role === 'TECHNICIAN') {
-        const specIds = sanitizeTechnicianSpecializationIds(value.specializationIds, specsQ.data)
-        await api.updateUserSpecializations(created.id, specIds)
-      }
+      const specIds = sanitizeTechnicianSpecializationIds(value.specializationIds, specsQ.data)
+      await api.updateUserSpecializations(created.id, specIds)
 
       return created
     },
@@ -279,10 +277,8 @@ export function EmployeesPage() {
         isActive: params.value.isActive,
       })
 
-      if (params.value.role === 'TECHNICIAN') {
-        const specIds = sanitizeTechnicianSpecializationIds(params.value.specializationIds, specsQ.data)
-        await api.updateUserSpecializations(params.userId, specIds)
-      }
+      const specIds = sanitizeTechnicianSpecializationIds(params.value.specializationIds, specsQ.data)
+      await api.updateUserSpecializations(params.userId, specIds)
 
       return updated
     },
@@ -372,17 +368,13 @@ export function EmployeesPage() {
 
   function patchCreate(patch: Partial<EmployeeFormValue>) {
     setCreateValue((current) => {
-      const next = { ...current, ...patch }
-      if (next.role !== 'TECHNICIAN') next.specializationIds = []
-      return next
+      return { ...current, ...patch }
     })
   }
 
   function patchEdit(patch: Partial<EmployeeFormValue>) {
     setEditValue((current) => {
-      const next = { ...current, ...patch }
-      if (next.role !== 'TECHNICIAN') next.specializationIds = []
-      return next
+      return { ...current, ...patch }
     })
   }
 
