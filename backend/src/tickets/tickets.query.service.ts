@@ -518,6 +518,21 @@ export class TicketsQueryService {
       }
     }
 
+    const claimRelationshipByTicketCompanyId = new Map<string, ServiceContractRole | null>()
+    if (role === UserRole.TECHNICIAN && technicianScope) {
+      const linkedTicketCompanyIds = Array.from(
+        new Set(
+          tickets
+            .filter((t) => t.status === TicketStatus.NEW && !t.assignedTechnician && t.companyId !== companyId)
+            .map((t) => t.companyId),
+        ),
+      )
+      for (const ticketCompanyId of linkedTicketCompanyIds) {
+        const access = await this.serviceContractsService.getLinkedClientAccess(companyId, ticketCompanyId)
+        claimRelationshipByTicketCompanyId.set(ticketCompanyId, access?.role ?? null)
+      }
+    }
+
     const allStatuses: TicketStatus[] = [
       TicketStatus.NEW,
       TicketStatus.ASSIGNED,
@@ -587,7 +602,13 @@ export class TicketsQueryService {
               locationId: locId,
               locationScopeByCompany: technicianScope.locationScopeByCompany,
             })
-          const canClaimByCurrentUser = technicianScope.allowTechnicianClaim && specOk && locationOk
+          const relationshipRole = t.companyId === companyId ? ServiceContractRole.PRIMARY : claimRelationshipByTicketCompanyId.get(t.companyId)
+          const relationshipAllowsDirectClaim =
+            t.companyId === companyId ||
+            relationshipRole === ServiceContractRole.PRIMARY ||
+            (relationshipRole === ServiceContractRole.SECONDARY && t.createdByUserId === userId)
+          const canClaimByCurrentUser =
+            technicianScope.allowTechnicianClaim && specOk && locationOk && relationshipAllowsDirectClaim
           const assignmentRequestedByCurrentUser = assignmentRequestedByCurrentUserIds.has(t.id)
           return { ...base, canClaimByCurrentUser, assignmentRequestedByCurrentUser }
         }
@@ -977,6 +998,7 @@ export class TicketsQueryService {
       isExecutor: actorUserMeta?.isExecutor ?? false,
       ticketId,
       ticketCompanyId: ticket.companyId,
+      ticketCreatedByUserId: ticket.createdByUserId,
       ticketStatus: ticket.status,
       assignedTechnicianId: ticket.assignedTechnicianId,
       scopeCompanyId: readable.scopeCompanyId,

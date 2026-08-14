@@ -349,15 +349,22 @@ describe('TicketsAssignmentService.assign — SECONDARY executor', () => {
     };
   }
 
-  function makeTx(techCompanyId: string) {
+  function makeTx(
+    techCompanyId: string,
+    overrides?: {
+      status?: TicketStatus
+      assignedTechnicianId?: string | null
+      previousAssigneeCompanyId?: string
+    },
+  ) {
     return {
       ticket: {
         findFirst: jest.fn().mockResolvedValue({
           id: TICKET_ID,
           companyId: CLIENT_ID,
           locationId: LOCATION_ID,
-          status: TicketStatus.NEW,
-          assignedTechnicianId: null,
+          status: overrides?.status ?? TicketStatus.NEW,
+          assignedTechnicianId: overrides?.assignedTechnicianId ?? null,
           problemCategory: { specializationLinks: [] },
         }),
         update: jest.fn().mockResolvedValue({}),
@@ -369,6 +376,9 @@ describe('TicketsAssignmentService.assign — SECONDARY executor', () => {
           isActive: true,
           deletedAt: null,
           technicianSpecializations: [],
+        }),
+        findUnique: jest.fn().mockResolvedValue({
+          companyId: overrides?.previousAssigneeCompanyId ?? techCompanyId,
         }),
         findMany: jest.fn().mockResolvedValue([{ id: TECH_ID, companyId: techCompanyId }]),
       },
@@ -397,6 +407,7 @@ describe('TicketsAssignmentService.assign — SECONDARY executor', () => {
         // Executor specialization lookup in resolveTechnicianOperationalScope
         findFirst: jest.fn().mockResolvedValue({ id: 'actor', technicianSpecializations: [] }),
         findUnique: jest.fn().mockResolvedValue({ companyId: CLIENT_ID, email: 'tech@example.com' }),
+        findMany: jest.fn().mockResolvedValue([]),
       },
       technicianSpecialization: { findMany: jest.fn().mockResolvedValue([]) },
       ticket: {
@@ -471,6 +482,57 @@ describe('TicketsAssignmentService.assign — SECONDARY executor', () => {
         }),
       }),
     );
+  });
+
+  it('allows SECONDARY provider admin to reassign internally after the ticket entered its contour', async () => {
+    const contracts = makeContracts(ServiceContractRole.SECONDARY);
+    const tx = makeTx(SECONDARY_PROVIDER_ID, {
+      status: TicketStatus.ASSIGNED,
+      assignedTechnicianId: 'old-secondary-tech',
+      previousAssigneeCompanyId: SECONDARY_PROVIDER_ID,
+    });
+    const prisma = makePrisma(tx);
+    const svc = makeService(prisma, contracts);
+
+    await expect(
+      svc.assign(
+        SECONDARY_PROVIDER_ID,
+        { id: 'secondary-admin', role: UserRole.ADMIN, companyId: SECONDARY_PROVIDER_ID },
+        TICKET_ID,
+        TECH_ID,
+        CLIENT_ID,
+      ),
+    ).resolves.toBeDefined();
+
+    expect(tx.ticket.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ assignedTechnicianId: TECH_ID }),
+      }),
+    );
+  });
+
+  it('denies SECONDARY provider admin assigning to another subcontractor company', async () => {
+    const otherSecondaryProviderId = 'provider-secondary-other';
+    const contracts = makeContracts(ServiceContractRole.SECONDARY);
+    const tx = makeTx(otherSecondaryProviderId, {
+      status: TicketStatus.ASSIGNED,
+      assignedTechnicianId: 'old-secondary-tech',
+      previousAssigneeCompanyId: SECONDARY_PROVIDER_ID,
+    });
+    const prisma = makePrisma(tx);
+    const svc = makeService(prisma, contracts);
+
+    await expect(
+      svc.assign(
+        SECONDARY_PROVIDER_ID,
+        { id: 'secondary-admin', role: UserRole.ADMIN, companyId: SECONDARY_PROVIDER_ID },
+        TICKET_ID,
+        TECH_ID,
+        CLIENT_ID,
+      ),
+    ).rejects.toBeDefined();
+
+    expect(tx.ticket.update).not.toHaveBeenCalled();
   });
 
   it('rejects direct assignment to inactive executor users', async () => {

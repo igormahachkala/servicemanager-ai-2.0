@@ -2926,11 +2926,13 @@ export async function claim(id: string, scope?: string | TicketScopeParams): Pro
 export async function requestTicketAssignment(
   id: string,
   scope?: string | TicketScopeParams,
+  targetUserId?: string,
 ): Promise<{ ok: true; notified: number; alreadyRequested: boolean }> {
   return request<{ ok: true; notified: number; alreadyRequested: boolean }>(
     `/tickets/${id}/request-assignment${buildTicketScopeSuffix(scope)}`,
     {
       method: 'POST',
+      ...(targetUserId ? { body: { targetUserId } } : {}),
     },
   )
 }

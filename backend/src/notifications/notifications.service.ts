@@ -631,29 +631,47 @@ export class NotificationsService {
    */
   async notifyTicketAssignmentRequested(params: {
     providerCompanyId: string;
+    requesterUserId?: string | null;
     technicianUserId: string;
     ticketId: string;
     ticketNumber: number | null;
     ticketCompanyId: string;
     sourceEventId?: string | null;
   }) {
-    const tech = await this.prisma.user.findFirst({
-      where: { id: params.technicianUserId, companyId: params.providerCompanyId, isActive: true },
-      select: { email: true, firstName: true, lastName: true },
+    const identityUsers = await this.prisma.user.findMany({
+      where: {
+        id: { in: Array.from(new Set([params.technicianUserId, params.requesterUserId].filter(Boolean) as string[])) },
+        companyId: params.providerCompanyId,
+        isActive: true,
+      },
+      select: { id: true, email: true, firstName: true, lastName: true },
     });
+    const usersById = new Map(identityUsers.map((user) => [user.id, user]));
+    const tech = usersById.get(params.technicianUserId) ?? null;
+    const requester = params.requesterUserId && params.requesterUserId !== params.technicianUserId
+      ? usersById.get(params.requesterUserId) ?? null
+      : null;
     const namePart = [tech?.firstName, tech?.lastName]
       .map((x) => (typeof x === 'string' ? x.trim() : ''))
       .filter(Boolean)
       .join(' ')
       .trim();
     const techLabel = namePart || (tech?.email || '').trim() || 'Техник';
+    const requesterNamePart = [requester?.firstName, requester?.lastName]
+      .map((x) => (typeof x === 'string' ? x.trim() : ''))
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+    const requesterLabel = requesterNamePart || (requester?.email || '').trim() || null;
     const numLabel =
       typeof params.ticketNumber === 'number' && !Number.isNaN(params.ticketNumber) && params.ticketNumber > 0
         ? String(params.ticketNumber)
         : params.ticketId.slice(0, 8).toUpperCase();
 
     const refSuffix = `|ref:${params.technicianUserId}`;
-    const inner = `${techLabel} просит назначить его на заявку #${numLabel}`;
+    const inner = requesterLabel
+      ? `${requesterLabel} просит назначить ${techLabel} на заявку #${numLabel}`
+      : `${techLabel} просит назначить его на заявку #${numLabel}`;
     const maxInner = Math.max(0, 400 - refSuffix.length);
     const innerClip = inner.length <= maxInner ? inner : `${inner.slice(0, Math.max(0, maxInner - 1))}…`;
     const messageWithRef = `${innerClip}${refSuffix}`;

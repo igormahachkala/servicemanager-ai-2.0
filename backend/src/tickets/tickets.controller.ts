@@ -34,6 +34,7 @@ import { UpdateTicketStatusDto } from './dto/update-ticket-status.dto'
 import { BoardQueryDto } from './dto/board-query.dto'
 import { AddTicketCommentDto } from './dto/add-ticket-comment.dto'
 import { TicketAcceptanceDto } from './dto/ticket-acceptance.dto'
+import { RequestAssignmentDto } from './dto/request-assignment.dto'
 
 @UseGuards(JwtAuthGuard, RolesGuard, PermissionsContextGuard, PermissionsGuard)
 @Controller('tickets')
@@ -191,6 +192,7 @@ export class TicketsController {
     @Req() req: any,
     @Param('id') id: string,
     @Query('linkedClientCompanyId') linkedClientCompanyId?: string,
+    @Body() dto?: RequestAssignmentDto,
   ) {
     const linked = (linkedClientCompanyId || '').trim() || undefined
     return this.svc.requestAssignment(
@@ -199,6 +201,7 @@ export class TicketsController {
       req.user.role as UserRole,
       id,
       linked,
+      dto?.targetUserId,
     )
   }
 

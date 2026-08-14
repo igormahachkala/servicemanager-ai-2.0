@@ -728,6 +728,9 @@ describe('TicketsAssignmentService.requestAssignment canonical eligibility', () 
   const clientCompanyId = 'client-company'
   const foreignClientCompanyId = 'foreign-client-company'
   const technicianId = 'tech-secondary'
+  const targetTechnicianId = 'target-tech-secondary'
+  const foreignTechnicianId = 'foreign-tech'
+  const foreignProviderCompanyId = 'foreign-provider'
   const ticketId = 'ticket-1'
   const allowedLocationId = 'location-allowed'
   const forbiddenLocationId = 'location-forbidden'
@@ -745,7 +748,15 @@ describe('TicketsAssignmentService.requestAssignment canonical eligibility', () 
     ticketLocationId?: string
     contractRole?: ServiceContractRole | null
     contractStatus?: 'ACTIVE' | 'INACTIVE' | 'ENDED'
-    existingRequest?: boolean
+    requesterId?: string
+    requesterRole?: UserRole
+    requesterIsExecutor?: boolean
+    targetUserId?: string
+    targetCompanyId?: string
+    targetIsExecutor?: boolean
+    targetSpecializationNames?: string[]
+    targetBindingLocationIds?: string[]
+    existingRequestTargetUserIds?: string[]
   }
 
   function normalizeName(value: string) {
@@ -764,6 +775,15 @@ describe('TicketsAssignmentService.requestAssignment canonical eligibility', () 
     const isActive = options.isActive ?? true
     const deletedAt = options.deletedAt ?? null
     const isExecutor = options.isExecutor ?? true
+    const requesterId = options.requesterId ?? technicianId
+    const requesterRole = options.requesterRole ?? UserRole.TECHNICIAN
+    const requesterIsExecutor = options.requesterIsExecutor ?? isExecutor
+    const requestedTargetUserId = options.targetUserId ?? requesterId
+    const targetCompanyId = options.targetCompanyId ?? providerCompanyId
+    const targetIsExecutor = options.targetIsExecutor ?? isExecutor
+    const targetSpecializationNames = options.targetSpecializationNames ?? technicianSpecializationNames
+    const targetBindingLocationIds =
+      options.targetBindingLocationIds === undefined ? bindingLocationIds : options.targetBindingLocationIds
     const contractRole =
       options.contractRole === undefined ? ServiceContractRole.SECONDARY : options.contractRole
     const contractStatus = options.contractStatus ?? 'ACTIVE'
@@ -778,6 +798,14 @@ describe('TicketsAssignmentService.requestAssignment canonical eligibility', () 
       specializationId: `provider-spec-${index + 1}`,
       specialization: {
         id: `provider-spec-${index + 1}`,
+        name,
+        isActive: true,
+      },
+    }))
+    const targetSpecializations = targetSpecializationNames.map((name, index) => ({
+      specializationId: `target-provider-spec-${index + 1}`,
+      specialization: {
+        id: `target-provider-spec-${index + 1}`,
         name,
         isActive: true,
       },
@@ -801,6 +829,15 @@ describe('TicketsAssignmentService.requestAssignment canonical eligibility', () 
       locationMode === null ||
       locationMode === UserAccessLocationMode.ALL_LOCATIONS ||
       (locationMode === UserAccessLocationMode.SELECTED_LOCATIONS && bindingLocationIds.includes(ticketLocationId))
+    const targetLocationAllowed =
+      locationMode === null ||
+      locationMode === UserAccessLocationMode.ALL_LOCATIONS ||
+      (locationMode === UserAccessLocationMode.SELECTED_LOCATIONS && targetBindingLocationIds.includes(ticketLocationId))
+    const targetSpecializationAllowed =
+      categorySpecializationNames.length === 0 ||
+      targetSpecializationNames.some((candidateName) =>
+        categorySpecializationNames.some((requiredName) => normalizeName(candidateName) === normalizeName(requiredName)),
+      )
 
     const ticket = {
       id: ticketId,
@@ -812,12 +849,15 @@ describe('TicketsAssignmentService.requestAssignment canonical eligibility', () 
       problemCategory: { specializationLinks: categoryLinks },
     }
 
-    const transactionDomainEventFindFirst = jest
-      .fn()
-      .mockResolvedValue(options.existingRequest ? { id: 'assignment-request-existing' } : null)
+    const transactionDomainEventFindMany = jest.fn().mockResolvedValue(
+      (options.existingRequestTargetUserIds ?? []).map((targetId) => ({
+        id: `assignment-request-existing-${targetId}`,
+        payload: { requestedTargetUserId: targetId },
+      })),
+    )
     const tx = {
       domainEvent: {
-        findFirst: transactionDomainEventFindFirst,
+        findMany: transactionDomainEventFindMany,
       },
     }
     const prisma = {
@@ -827,15 +867,28 @@ describe('TicketsAssignmentService.requestAssignment canonical eligibility', () 
       user: {
         findFirst: jest.fn().mockImplementation(async (query: any) => {
           const where = query?.where ?? {}
-          if (where.id && where.id !== technicianId) return null
-          if (where.companyId && where.companyId !== providerCompanyId) return null
+          const id = where.id as string | undefined
+          if (id && id !== requesterId && id !== requestedTargetUserId) return null
+          if (where.companyId && where.companyId !== (id === requestedTargetUserId ? targetCompanyId : providerCompanyId)) return null
           if (where.isActive === true && !isActive) return null
           if (where.deletedAt === null && deletedAt) return null
+          if (id === requestedTargetUserId) {
+            if (where.isExecutor === true && !targetIsExecutor) return null
+            return {
+              id: requestedTargetUserId,
+              role: requestedTargetUserId === requesterId ? requesterRole : UserRole.TECHNICIAN,
+              companyId: targetCompanyId,
+              isExecutor: targetIsExecutor,
+              isActive,
+              deletedAt,
+              technicianSpecializations: targetSpecializations,
+            }
+          }
           return {
-            id: technicianId,
-            role: UserRole.TECHNICIAN,
+            id: requesterId,
+            role: requesterRole,
             companyId: providerCompanyId,
-            isExecutor,
+            isExecutor: requesterIsExecutor,
             isActive,
             deletedAt,
             technicianSpecializations,
@@ -846,7 +899,7 @@ describe('TicketsAssignmentService.requestAssignment canonical eligibility', () 
           if (where.companyId && where.companyId !== providerCompanyId) return []
           if (where.isExecutor === true && !isExecutor) return []
           if (!isActive || deletedAt) return []
-          return [{ id: technicianId }]
+          return [{ id: requestedTargetUserId }]
         }),
       },
       technicianSpecialization: {
@@ -860,11 +913,19 @@ describe('TicketsAssignmentService.requestAssignment canonical eligibility', () 
           const where = query?.where ?? {}
           return bindingLocationIds
             .map((locationId) => ({
-              userId: technicianId,
+              userId: requesterId,
               companyId: providerCompanyId,
               locationId,
               location: { clientCompanyId: locationClientById[locationId] ?? ticketCompanyId },
             }))
+            .concat(
+              targetBindingLocationIds.map((locationId) => ({
+                userId: requestedTargetUserId,
+                companyId: targetCompanyId,
+                locationId,
+                location: { clientCompanyId: locationClientById[locationId] ?? ticketCompanyId },
+              })),
+            )
             .filter((binding) => {
               if (where.userId && typeof where.userId === 'string' && where.userId !== binding.userId) return false
               if (where.userId?.in && !where.userId.in.includes(binding.userId)) return false
@@ -894,9 +955,11 @@ describe('TicketsAssignmentService.requestAssignment canonical eligibility', () 
           if (where.id === ticketId && where.companyId === ticketCompanyId && !where.status && !where.AND) {
             return ticket
           }
-          if (!locationAllowed) return null
+          const checksTarget = whereJson.includes(requestedTargetUserId)
+          if (checksTarget ? !targetLocationAllowed : !locationAllowed) return null
           if (whereJson.includes('problemCategory')) {
-            return specializationAllowed
+            const ok = checksTarget ? targetSpecializationAllowed : specializationAllowed
+            return ok
               ? {
                   id: ticket.id,
                   companyId: ticket.companyId,
@@ -963,16 +1026,20 @@ describe('TicketsAssignmentService.requestAssignment canonical eligibility', () 
       notifications,
       serviceContracts,
       ticketCompanyId,
+      requesterId,
+      requesterRole,
+      requestedTargetUserId,
     }
   }
 
   async function requestAssignment(harness: ReturnType<typeof makeRequestHarness>) {
     return harness.service.requestAssignment(
       providerCompanyId,
-      technicianId,
-      UserRole.TECHNICIAN,
+      harness.requesterId,
+      harness.requesterRole,
       ticketId,
       harness.ticketCompanyId,
+      harness.requestedTargetUserId === harness.requesterId ? undefined : harness.requestedTargetUserId,
     )
   }
 
@@ -1067,8 +1134,111 @@ describe('TicketsAssignmentService.requestAssignment canonical eligibility', () 
     )
   })
 
+  it('allows subcontractor ADMIN to request assignment for an own eligible technician', async () => {
+    const harness = makeRequestHarness({
+      requesterId: 'admin-secondary',
+      requesterRole: UserRole.ADMIN,
+      requesterIsExecutor: false,
+      targetUserId: targetTechnicianId,
+    })
+
+    await expect(requestAssignment(harness)).resolves.toEqual({
+      ok: true,
+      alreadyRequested: false,
+      notified: 1,
+    })
+    expect(harness.timeline.recordLegacyTx).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          requestedByUserId: 'admin-secondary',
+          requestedTargetUserId: targetTechnicianId,
+        }),
+      }),
+    )
+    expect(harness.notifications.notifyTicketAssignmentRequested).toHaveBeenCalledWith(
+      expect.objectContaining({
+        requesterUserId: 'admin-secondary',
+        technicianUserId: targetTechnicianId,
+      }),
+    )
+  })
+
+  it('denies subcontractor ADMIN request to self when the admin is not executor-eligible', async () => {
+    await expectDeniedWithoutSideEffects({
+      requesterId: 'admin-secondary',
+      requesterRole: UserRole.ADMIN,
+      requesterIsExecutor: false,
+      targetUserId: 'admin-secondary',
+      targetIsExecutor: false,
+    })
+  })
+
+  it('allows subcontractor ADMIN request to self when the admin is executor-eligible', async () => {
+    const harness = makeRequestHarness({
+      requesterId: 'admin-secondary',
+      requesterRole: UserRole.ADMIN,
+      requesterIsExecutor: true,
+      targetUserId: 'admin-secondary',
+      targetIsExecutor: true,
+    })
+
+    await expect(requestAssignment(harness)).resolves.toEqual({
+      ok: true,
+      alreadyRequested: false,
+      notified: 1,
+    })
+  })
+
+  it('denies assignment request for a foreign-company technician target', async () => {
+    await expectDeniedWithoutSideEffects({
+      requesterId: 'admin-secondary',
+      requesterRole: UserRole.ADMIN,
+      requesterIsExecutor: false,
+      targetUserId: foreignTechnicianId,
+      targetCompanyId: foreignProviderCompanyId,
+    })
+  })
+
+  it('denies assignment request for a target technician without the ticket location', async () => {
+    await expectDeniedWithoutSideEffects({
+      requesterId: 'admin-secondary',
+      requesterRole: UserRole.ADMIN,
+      requesterIsExecutor: false,
+      targetUserId: targetTechnicianId,
+      targetBindingLocationIds: [forbiddenLocationId],
+    })
+  })
+
+  it('denies assignment request for a target technician without the ticket specialization', async () => {
+    await expectDeniedWithoutSideEffects({
+      requesterId: 'admin-secondary',
+      requesterRole: UserRole.ADMIN,
+      requesterIsExecutor: false,
+      targetUserId: targetTechnicianId,
+      targetSpecializationNames: ['Электрик'],
+    })
+  })
+
+  it('deduplicates assignment requests by requester and target user', async () => {
+    const harness = makeRequestHarness({
+      requesterId: 'admin-secondary',
+      requesterRole: UserRole.ADMIN,
+      requesterIsExecutor: false,
+      targetUserId: targetTechnicianId,
+      existingRequestTargetUserIds: ['other-tech'],
+    })
+
+    await expect(requestAssignment(harness)).resolves.toEqual({
+      ok: true,
+      alreadyRequested: false,
+      notified: 1,
+    })
+    expect(harness.timeline.recordLegacyTx).toHaveBeenCalled()
+  })
+
   it('preserves idempotent repeated assignment request behavior', async () => {
-    const harness = makeRequestHarness({ existingRequest: true })
+    const harness = makeRequestHarness({ existingRequestTargetUserIds: [technicianId] })
 
     await expect(requestAssignment(harness)).resolves.toEqual({
       ok: true,
@@ -1101,6 +1271,7 @@ describe('TicketsAssignmentService canonical claim isolation', () => {
     bindingLocationIds?: string[]
     technicianSpecializationNames?: string[]
     categorySpecializationNames?: string[]
+    createdByUserId?: string | null
   }
 
   function normalized(value: string) {
@@ -1125,6 +1296,7 @@ describe('TicketsAssignmentService canonical claim isolation', () => {
       locationId: allowedLocationId,
       status: TicketStatus.NEW,
       assignedTechnicianId: null,
+      createdByUserId: options.createdByUserId ?? 'client-requester',
       ticketNumber: 42,
       problemText: 'Test claim isolation',
       problemCategory: {
@@ -1213,6 +1385,7 @@ describe('TicketsAssignmentService canonical claim isolation', () => {
           id: ticket.id,
           companyId: ticket.companyId,
           locationId: ticket.locationId,
+          createdByUserId: ticket.createdByUserId,
           assignedTechnicianId: ticket.assignedTechnicianId,
         })),
         findMany: jest.fn().mockImplementation(async ({ where }: any) => (denyByCanonicalWhere(where) ? [] : [ticket])),
@@ -1284,13 +1457,27 @@ describe('TicketsAssignmentService canonical claim isolation', () => {
     expect(notifications.scheduleTicketClaimedDispatchers).not.toHaveBeenCalled()
   })
 
-  it('allows SECONDARY available and claim only when the location binding is in the canonical contour', async () => {
-    const { service, prisma, tx, query, notifications } = makeClaimIsolationHarness({
+  it('denies SECONDARY direct claim for a client-created ticket even when location and specialization match', async () => {
+    const { service, prisma, timeline, notifications } = makeClaimIsolationHarness({
       contractRole: ServiceContractRole.SECONDARY,
       bindingLocationIds: [allowedLocationId],
     })
 
     await expect(service.availableForTechnician(providerCompanyId, technicianId, clientCompanyId)).resolves.toHaveLength(1)
+    await expect(service.claim(providerCompanyId, technicianId, ticketId, clientCompanyId)).rejects.toBeDefined()
+
+    expect(prisma.$transaction).not.toHaveBeenCalled()
+    expect(timeline.recordTx).not.toHaveBeenCalled()
+    expect(notifications.scheduleTicketClaimedDispatchers).not.toHaveBeenCalled()
+  })
+
+  it('allows SECONDARY direct claim for a self-created ticket inside the canonical contour', async () => {
+    const { service, prisma, tx, query, notifications } = makeClaimIsolationHarness({
+      contractRole: ServiceContractRole.SECONDARY,
+      bindingLocationIds: [allowedLocationId],
+      createdByUserId: technicianId,
+    })
+
     await expect(service.claim(providerCompanyId, technicianId, ticketId, clientCompanyId)).resolves.toEqual({ id: ticketId })
 
     expect(prisma.$transaction).toHaveBeenCalledTimes(1)

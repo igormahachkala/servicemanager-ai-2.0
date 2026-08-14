@@ -1,4 +1,4 @@
-import { TicketStatus, UserRole } from '@prisma/client'
+import { ServiceContractRole, TicketStatus, UserRole } from '@prisma/client'
 
 import { TicketsPolicy, type TicketsClaimWhereParams } from '../policy/tickets.policy'
 import { isExecutorEligible } from '../common/executor.utils'
@@ -25,6 +25,7 @@ export type TicketMetaBuildParams = {
   ticketId: string
   /** companyId тенанта заявки (DomainEvent.companyId при запросе назначения). */
   ticketCompanyId: string
+  ticketCreatedByUserId?: string | null
   ticketStatus: TicketStatus
   assignedTechnicianId: string | null
   scopeCompanyId: string
@@ -240,10 +241,23 @@ export class TicketMetaBuilder {
       where: {
         AND: [decision.where, ...claimWhereExtras],
       },
-      select: { id: true },
+      select: { id: true, companyId: true, createdByUserId: true },
     })
 
     if (claimableTicket) {
+      if (
+        !(await this.canDirectClaimInRelationship({
+          actorCompanyId: params.actorCompanyId,
+          actorUserId: params.userId,
+          ticketCompanyId: claimableTicket.companyId,
+          ticketCreatedByUserId: claimableTicket.createdByUserId,
+        }))
+      ) {
+        return {
+          canClaimByCurrentUser: false,
+          claimAvailabilityReason: 'Субподрядчик может запросить назначение; прямое взятие доступно только для собственных заявок.',
+        }
+      }
       return { canClaimByCurrentUser: true, claimAvailabilityReason: null }
     }
 
@@ -313,6 +327,25 @@ export class TicketMetaBuilder {
       canClaimByCurrentUser: false,
       claimAvailabilityReason: 'Claim доступен только для новых неназначенных заявок в вашем operational scope',
     }
+  }
+
+  private async canDirectClaimInRelationship(params: {
+    actorCompanyId: string
+    actorUserId: string
+    ticketCompanyId: string
+    ticketCreatedByUserId?: string | null
+  }) {
+    if (params.ticketCompanyId === params.actorCompanyId) return true
+    const access = await this.serviceContractsService.getLinkedClientAccess(
+      params.actorCompanyId,
+      params.ticketCompanyId,
+    )
+    if (!access) return false
+    if (access.role === ServiceContractRole.PRIMARY) return true
+    if (access.role === ServiceContractRole.SECONDARY) {
+      return params.ticketCreatedByUserId === params.actorUserId
+    }
+    return false
   }
 
   private async resolveAvailableStatusTransitions(params: TicketMetaBuildParams): Promise<TicketStatus[]> {

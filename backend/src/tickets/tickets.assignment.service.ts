@@ -476,6 +476,21 @@ export class TicketsAssignmentService {
     return { ...where, AND: [...baseArr, ...extra] };
   }
 
+  private canDirectClaimInRelationship(params: {
+    actorCompanyId: string
+    actorUserId: string
+    ticketCompanyId: string
+    ticketCreatedByUserId?: string | null
+    linkedClientContractRole?: ServiceContractRole | null
+  }) {
+    if (params.ticketCompanyId === params.actorCompanyId) return true
+    if (params.linkedClientContractRole === ServiceContractRole.PRIMARY) return true
+    if (params.linkedClientContractRole === ServiceContractRole.SECONDARY) {
+      return params.ticketCreatedByUserId === params.actorUserId
+    }
+    return false
+  }
+
   private async resolveExecutorClaimEligibility(params: {
     companyId: string;
     executorUserId: string;
@@ -504,6 +519,18 @@ export class TicketsAssignmentService {
         readable.ticket.companyId !== params.companyId
           ? readable.ticket.companyId
           : params.linkedClientCompanyId;
+    }
+
+    let linkedClientContractRole: ServiceContractRole | null = null;
+    if (effectiveLinkedClientCompanyId && effectiveLinkedClientCompanyId !== params.companyId) {
+      const access = await this.serviceContractsService.getLinkedClientAccess(
+        params.companyId,
+        effectiveLinkedClientCompanyId,
+      );
+      if (!access) {
+        throw new ForbiddenException('Linked client access is not available');
+      }
+      linkedClientContractRole = access.role;
     }
 
     const technicianScope = await resolveTechnicianOperationalScope({
@@ -547,6 +574,8 @@ export class TicketsAssignmentService {
     return {
       technicianScope,
       where: this.normalizeAnd(decision.where as Prisma.TicketWhereInput, extraWhere),
+      effectiveLinkedClientCompanyId,
+      linkedClientContractRole,
     };
   }
 
@@ -1471,7 +1500,9 @@ export class TicketsAssignmentService {
       prisma: this.prisma,
       serviceContractsService: this.serviceContractsService,
       actor: accessActor,
-      ticketId
+      ticketId,
+      linkedClientCompanyId,
+      allowedLinkedClientContractRoles: [ServiceContractRole.PRIMARY, ServiceContractRole.SECONDARY],
     });
 
     const decision = this.policy.canAssign({
@@ -1576,6 +1607,11 @@ export class TicketsAssignmentService {
     });
     assertAllowed(decision);
 
+    const actorLinkedAccess =
+      access.ticket.companyId !== accessActor.companyId
+        ? await this.serviceContractsService.getLinkedClientAccess(accessActor.companyId, access.ticket.companyId)
+        : null;
+
     const assignResult = await this.prisma.$transaction(async (tx) => {
       const ticket = await tx.ticket.findFirst({
         where: { id: ticketId, companyId: access.ticket.companyId },
@@ -1601,6 +1637,7 @@ export class TicketsAssignmentService {
       const MANAGEMENT_SELF_ASSIGN_ROLES: UserRole[] = [UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER];
       const skipExecutorFlag =
         technicianId === accessActor.id &&
+        actorLinkedAccess?.role !== ServiceContractRole.SECONDARY &&
         MANAGEMENT_SELF_ASSIGN_ROLES.includes(accessActor.role as UserRole);
 
       const tech = await tx.user.findFirst({
@@ -1622,7 +1659,26 @@ export class TicketsAssignmentService {
         throw new NotFoundException('Technician not found');
       }
 
+      const previousAssignee = ticket.assignedTechnicianId
+        ? await tx.user.findUnique({
+            where: { id: ticket.assignedTechnicianId },
+            select: { companyId: true },
+          })
+        : null;
+      const actorActsAsSecondary = actorLinkedAccess?.role === ServiceContractRole.SECONDARY;
+      if (actorActsAsSecondary) {
+        if (tech.companyId !== accessActor.companyId) {
+          throw new NotFoundException('Technician not found');
+        }
+        if (previousAssignee?.companyId !== accessActor.companyId) {
+          throw new ForbiddenException('Subcontractor can reassign only tickets already assigned inside its company');
+        }
+      }
+
       if (tech.companyId !== access.operationCompanyId) {
+        if (actorLinkedAccess?.role !== ServiceContractRole.PRIMARY) {
+          throw new NotFoundException('Technician not found');
+        }
         const linkedAccess = await this.serviceContractsService.getLinkedClientAccess(
           tech.companyId,
           access.ticket.companyId,
@@ -1702,6 +1758,7 @@ export class TicketsAssignmentService {
           payload: {
             previousAssignedTechnicianId: previousAssigneeId,
             assignedTechnicianId: technicianId,
+            assignerUserId: actor?.id ?? null,
             mode: 'reassign',
           },
         });
@@ -1714,7 +1771,9 @@ export class TicketsAssignmentService {
           ticketId: ticket.id,
           actorUserId: actor?.id ?? null,
           payload: {
+            previousAssignedTechnicianId: previousAssigneeId ?? null,
             assignedTechnicianId: technicianId,
+            assignerUserId: actor?.id ?? null,
             mode: 'manual',
           },
         });
@@ -2374,10 +2433,21 @@ export class TicketsAssignmentService {
     });
     const claimableTicket = await this.prisma.ticket.findFirst({
       where: eligibility.where,
-      select: { id: true },
+      select: { id: true, companyId: true, createdByUserId: true },
     });
     if (!claimableTicket) {
       throw new NotFoundException('Ticket not found or not available for claim');
+    }
+    if (
+      !this.canDirectClaimInRelationship({
+        actorCompanyId: companyId,
+        actorUserId: executorUserId,
+        ticketCompanyId: claimableTicket.companyId,
+        ticketCreatedByUserId: claimableTicket.createdByUserId,
+        linkedClientContractRole: eligibility.linkedClientContractRole,
+      })
+    ) {
+      throw new ForbiddenException('Subcontractor users must request assignment for this ticket');
     }
 
     const claimResult = await this.prisma.$transaction(async (tx) => {
@@ -2457,23 +2527,30 @@ export class TicketsAssignmentService {
    */
   async requestAssignment(
     providerCompanyId: string,
-    executorUserId: string,
-    executorRole: UserRole,
+    requesterUserId: string,
+    requesterRole: UserRole,
     ticketId: string,
     linkedClientCompanyId?: string,
+    targetUserId?: string,
   ) {
-    const executorUser = await this.prisma.user.findFirst({
-      where: { id: executorUserId, companyId: providerCompanyId, isActive: true, deletedAt: null },
+    const requesterUser = await this.prisma.user.findFirst({
+      where: { id: requesterUserId, companyId: providerCompanyId, isActive: true, deletedAt: null },
       select: { role: true, isExecutor: true },
     });
-    if (!executorUser || !isExecutorEligible(executorUser)) {
+    if (!requesterUser) {
+      throw new ForbiddenException('User is not active');
+    }
+    const requestedTargetUserId = (targetUserId || '').trim() || requesterUserId;
+    const requestingSelf = requestedTargetUserId === requesterUserId;
+    if (requestingSelf && !isExecutorEligible(requesterUser)) {
       throw new ForbiddenException('User is not an eligible executor');
     }
     this.logger.log({
       event: 'executor_request_assignment',
-      executorUserId,
-      executorRole: executorUser.role,
-      isExecutor: executorUser.isExecutor,
+      requesterUserId,
+      requesterRole: requesterUser.role,
+      isRequesterExecutor: requesterUser.isExecutor,
+      requestedTargetUserId,
       ticketId,
       providerCompanyId,
     });
@@ -2483,12 +2560,13 @@ export class TicketsAssignmentService {
       prisma: this.prisma,
       serviceContractsService: this.serviceContractsService,
       actor: {
-        id: executorUserId,
-        role: executorUser.role,
+        id: requesterUserId,
+        role: requesterUser.role,
         companyId: providerCompanyId,
       },
       ticketId,
       linkedClientCompanyId,
+      allowedLinkedClientContractRoles: [ServiceContractRole.PRIMARY, ServiceContractRole.SECONDARY],
     });
 
     const ticket = await this.prisma.ticket.findFirst({
@@ -2499,6 +2577,17 @@ export class TicketsAssignmentService {
         assignedTechnicianId: true,
         ticketNumber: true,
         companyId: true,
+        locationId: true,
+        problemCategory: {
+          select: {
+            specializationLinks: {
+              select: {
+                specializationId: true,
+                specialization: { select: { id: true, name: true, isActive: true } },
+              },
+            },
+          },
+        },
       },
     });
 
@@ -2509,13 +2598,35 @@ export class TicketsAssignmentService {
       throw new BadRequestException('Заявка уже назначена или недоступна для запроса');
     }
 
+    const targetUser = await this.prisma.user.findFirst({
+      where: {
+        id: requestedTargetUserId,
+        companyId: providerCompanyId,
+        isActive: true,
+        deletedAt: null,
+        isExecutor: true,
+        role: { in: Array.from(EXECUTOR_CAPABLE_ROLES) },
+      },
+      select: {
+        id: true,
+        role: true,
+        isExecutor: true,
+      },
+    });
+    if (!targetUser) {
+      throw new NotFoundException('Technician not found');
+    }
+
     const eligibility = await this.resolveExecutorClaimEligibility({
       companyId: providerCompanyId,
-      executorUserId,
-      executorUser,
+      executorUserId: requestedTargetUserId,
+      executorUser: {
+        role: targetUser.role,
+        isExecutor: targetUser.isExecutor,
+      },
       ticketId,
       linkedClientCompanyId,
-      requireReadableTicket: false,
+      requireReadableTicket: true,
     });
     const eligibleTicket = await this.prisma.ticket.findFirst({
       where: eligibility.where,
@@ -2527,15 +2638,22 @@ export class TicketsAssignmentService {
 
     const createdAtIso = new Date().toISOString()
     const txResult = await this.prisma.$transaction(async (tx) => {
-      const existingRequest = await tx.domainEvent.findFirst({
+      const existingRequests = await tx.domainEvent.findMany({
         where: {
           type: TICKET_ASSIGNMENT_REQUESTED_EVENT,
           entityType: TICKET_ASSIGNMENT_REQUESTED_ENTITY,
           entityId: ticket.id,
           companyId: ticket.companyId,
-          actorUserId: executorUserId,
+          actorUserId: requesterUserId,
         },
-        select: { id: true },
+        select: { id: true, payload: true },
+      })
+      const existingRequest = existingRequests.find((event) => {
+        const target =
+          event.payload && typeof event.payload === 'object' && !Array.isArray(event.payload)
+            ? ((event.payload as Record<string, unknown>).requestedTargetUserId as string | undefined)
+            : undefined
+        return (target || requesterUserId) === requestedTargetUserId
       })
       if (existingRequest) {
         return { alreadyRequested: true as const }
@@ -2545,10 +2663,14 @@ export class TicketsAssignmentService {
         companyId: ticket.companyId,
         entityType: TICKET_ASSIGNMENT_REQUESTED_ENTITY,
         entityId: ticket.id,
-        actorUserId: executorUserId,
+        actorUserId: requesterUserId,
         payload: {
           ticketId: ticket.id,
-          requestedByUserId: executorUserId,
+          requestedByUserId: requesterUserId,
+          requestedByRole: requesterUser.role,
+          requestedTargetUserId,
+          requestedTargetRole: targetUser.role,
+          requestedTargetCompanyId: providerCompanyId,
           linkedClientCompanyId: linkedClientCompanyId?.trim() || null,
           createdAt: createdAtIso,
         },
@@ -2562,7 +2684,8 @@ export class TicketsAssignmentService {
 
     const notify = await this.notifications.notifyTicketAssignmentRequested({
       providerCompanyId,
-      technicianUserId: executorUserId,
+      requesterUserId,
+      technicianUserId: requestedTargetUserId,
       ticketId: ticket.id,
       ticketNumber: ticket.ticketNumber,
       ticketCompanyId: ticket.companyId,

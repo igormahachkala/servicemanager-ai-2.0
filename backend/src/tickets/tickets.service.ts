@@ -303,8 +303,9 @@ export class TicketsService {
     role: UserRole,
     ticketId: string,
     linkedClientCompanyId?: string,
+    targetUserId?: string,
   ) {
-    return this.assignment.requestAssignment(companyId, userId, role, ticketId, linkedClientCompanyId)
+    return this.assignment.requestAssignment(companyId, userId, role, ticketId, linkedClientCompanyId, targetUserId)
   }
 
   listCreateAssignmentCandidates(
