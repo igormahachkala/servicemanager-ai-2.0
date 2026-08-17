@@ -441,7 +441,7 @@ describe('TicketsAssignmentService.assign — SECONDARY executor', () => {
       scheduleTicketAssignedToTechnician: jest.fn(),
       onTicketAssigned: jest.fn(),
     };
-    return new TicketsAssignmentService(
+    const service = new TicketsAssignmentService(
       prisma,
       {} as any,
       query as any,
@@ -451,6 +451,7 @@ describe('TicketsAssignmentService.assign — SECONDARY executor', () => {
       {} as any,
       notifications as any,
     );
+    return Object.assign(service, { __testTimeline: timeline });
   }
 
   it('succeeds when executor belongs to a SECONDARY provider', async () => {
@@ -482,6 +483,20 @@ describe('TicketsAssignmentService.assign — SECONDARY executor', () => {
         }),
       }),
     );
+    expect((svc as any).__testTimeline.recordTx).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        event: 'TICKET_ASSIGNMENT_CHANGED',
+        actorUserId: 'actor-admin',
+        payload: expect.objectContaining({
+          operationType: 'provider_assignment',
+          previousValue: null,
+          newValue: TECH_ID,
+          assignedTechnicianId: TECH_ID,
+          timestamp: expect.any(String),
+        }),
+      }),
+    );
   });
 
   it('allows SECONDARY provider admin to reassign internally after the ticket entered its contour', async () => {
@@ -507,6 +522,21 @@ describe('TicketsAssignmentService.assign — SECONDARY executor', () => {
     expect(tx.ticket.update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ assignedTechnicianId: TECH_ID }),
+      }),
+    );
+    expect((svc as any).__testTimeline.recordTx).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        event: 'TICKET_ASSIGNMENT_CHANGED',
+        actorUserId: 'secondary-admin',
+        payload: expect.objectContaining({
+          operationType: 'reassign_technician',
+          previousValue: 'old-secondary-tech',
+          newValue: TECH_ID,
+          previousAssignedTechnicianId: 'old-secondary-tech',
+          assignedTechnicianId: TECH_ID,
+          timestamp: expect.any(String),
+        }),
       }),
     );
   });

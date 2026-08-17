@@ -61,6 +61,14 @@ type LocationBindingAccessClient = Pick<
 >;
 
 type CreatePostAction = 'leave_unassigned' | 'claim_self' | 'assign_employee';
+type AssignmentHistoryOperation =
+  | 'assign_technician'
+  | 'reassign_technician'
+  | 'provider_assignment'
+  | 'unassign'
+  | 'self_claim'
+  | 'assignment_cancel'
+  | 'auto_assignment';
 type CreateCandidate = {
   id: string;
   email: string;
@@ -104,6 +112,46 @@ export class TicketsAssignmentService {
   ) {}
 
   private readonly policy = new TicketsPolicy();
+
+  private async recordAssignmentHistoryTx(
+    tx: Prisma.TransactionClient,
+    params: {
+      companyId: string;
+      ticketId: string;
+      actorUserId?: string | null;
+      previousAssignedTechnicianId?: string | null;
+      assignedTechnicianId?: string | null;
+      operationType: AssignmentHistoryOperation;
+      timestamp?: Date;
+      mode?: string | null;
+      reason?: string | null;
+      operationCompanyId?: string | null;
+    },
+  ) {
+    const previousValue = params.previousAssignedTechnicianId ?? null;
+    const newValue = params.assignedTechnicianId ?? null;
+    if (previousValue === newValue) return null;
+
+    const timestamp = params.timestamp ?? new Date();
+    return this.timelineService.recordTx(tx, {
+      event: 'TICKET_ASSIGNMENT_CHANGED',
+      companyId: params.companyId,
+      ticketId: params.ticketId,
+      actorUserId: params.actorUserId ?? null,
+      createdAt: timestamp,
+      payload: {
+        operationType: params.operationType,
+        previousValue,
+        newValue,
+        previousAssignedTechnicianId: previousValue,
+        assignedTechnicianId: newValue,
+        timestamp: timestamp.toISOString(),
+        mode: params.mode ?? params.operationType,
+        reason: params.reason ?? null,
+        operationCompanyId: params.operationCompanyId ?? null,
+      },
+    });
+  }
 
   private requireAccessActor(actor: any, companyId: string): TicketAccessActor {
     if (!actor?.id || !actor?.role) {
@@ -1149,6 +1197,25 @@ export class TicketsAssignmentService {
               : 'Auto assigned',
         });
 
+        await this.recordAssignmentHistoryTx(tx, {
+          companyId: targetCompanyId,
+          ticketId: ticket.id,
+          actorUserId: postAction.action ? creatorUserId : null,
+          previousAssignedTechnicianId: null,
+          assignedTechnicianId,
+          operationType: postAction.action === 'claim_self'
+            ? 'self_claim'
+            : postAction.action === 'assign_employee'
+              ? 'provider_assignment'
+              : 'auto_assignment',
+          mode: postAction.action === 'claim_self'
+            ? 'claim'
+            : postAction.action === 'assign_employee'
+              ? 'manual'
+              : 'auto',
+          reason: postAction.action ?? 'assignment_engine_v1',
+        });
+
         const assignedEvent = await this.timelineService.recordTx(tx, {
           event: postAction.action === 'claim_self' ? 'TICKET_CLAIMED' : 'TICKET_ASSIGNED',
           companyId: targetCompanyId,
@@ -1445,6 +1512,17 @@ export class TicketsAssignmentService {
           toStatus: TicketStatus.ASSIGNED,
           changedByUserId: null,
           comment: 'Auto assigned',
+        });
+
+        await this.recordAssignmentHistoryTx(tx, {
+          companyId,
+          ticketId: ticket.id,
+          actorUserId: null,
+          previousAssignedTechnicianId: null,
+          assignedTechnicianId,
+          operationType: 'auto_assignment',
+          mode: 'auto',
+          reason: 'assignment_engine_v1',
         });
 
         const assignedEvent = await this.timelineService.recordTx(tx, {
@@ -1746,10 +1824,27 @@ export class TicketsAssignmentService {
       let assignmentTimelineRecorded = false;
       let assignmentEventId: string | null = null;
       let assignMode: 'manual' | 'reassign' = 'manual';
+      const assignmentOperation: AssignmentHistoryOperation = isReassign
+        ? 'reassign_technician'
+        : tech.companyId !== ticket.companyId
+          ? 'provider_assignment'
+          : 'assign_technician';
 
       if (isReassign) {
         assignMode = 'reassign';
         assignmentTimelineRecorded = true;
+        await this.recordAssignmentHistoryTx(tx, {
+          companyId: ticket.companyId,
+          ticketId: ticket.id,
+          actorUserId: actor?.id ?? null,
+          previousAssignedTechnicianId: previousAssigneeId,
+          assignedTechnicianId: technicianId,
+          operationType: assignmentOperation,
+          timestamp: now,
+          mode: 'reassign',
+          reason: 'manual_reassign',
+          operationCompanyId: access.operationCompanyId,
+        });
         const assignmentEvent = await this.timelineService.recordTx(tx, {
           event: 'TICKET_ASSIGNED',
           companyId: ticket.companyId,
@@ -1765,6 +1860,18 @@ export class TicketsAssignmentService {
         assignmentEventId = assignmentEvent.id;
       } else if (isFirstAssign || ticket.status === TicketStatus.NEW) {
         assignmentTimelineRecorded = true;
+        await this.recordAssignmentHistoryTx(tx, {
+          companyId: ticket.companyId,
+          ticketId: ticket.id,
+          actorUserId: actor?.id ?? null,
+          previousAssignedTechnicianId: previousAssigneeId ?? null,
+          assignedTechnicianId: technicianId,
+          operationType: assignmentOperation,
+          timestamp: now,
+          mode: 'manual',
+          reason: 'manual_select',
+          operationCompanyId: access.operationCompanyId,
+        });
         const assignmentEvent = await this.timelineService.recordTx(tx, {
           event: 'TICKET_ASSIGNED',
           companyId: ticket.companyId,
@@ -2481,6 +2588,19 @@ export class TicketsAssignmentService {
         comment: 'Claimed by executor',
       })
 
+      await this.recordAssignmentHistoryTx(tx, {
+        companyId: ticket.companyId,
+        ticketId: ticket.id,
+        actorUserId: executorUserId,
+        previousAssignedTechnicianId: null,
+        assignedTechnicianId: executorUserId,
+        operationType: 'self_claim',
+        timestamp: now,
+        mode: 'claim',
+        reason: 'executor_claim',
+        operationCompanyId: companyId,
+      })
+
       const claimEvent = await this.timelineService.recordTx(tx, {
         event: 'TICKET_CLAIMED',
         companyId: ticket.companyId,
@@ -2834,6 +2954,17 @@ export class TicketsAssignmentService {
           toStatus: TicketStatus.ASSIGNED,
           changedByUserId: null,
           comment: 'Auto assigned',
+        });
+
+        await this.recordAssignmentHistoryTx(tx, {
+          companyId,
+          ticketId: ticket.id,
+          actorUserId: null,
+          previousAssignedTechnicianId: null,
+          assignedTechnicianId,
+          operationType: 'auto_assignment',
+          mode: 'auto',
+          reason: 'assignment_engine_v1',
         });
 
         const assignedEvent = await this.timelineService.recordTx(tx, {

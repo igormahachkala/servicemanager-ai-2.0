@@ -10,6 +10,7 @@ export type DomainEventType =
   | 'ticket.created'
   | 'ticket.assigned'
   | 'ticket.claimed'
+  | 'ticket.assignment_changed'
   | 'ticket.attachment_uploaded'
   | 'ticket.reassigned'
   | 'ticket.category_changed'

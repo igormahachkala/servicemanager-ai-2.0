@@ -3,6 +3,7 @@ import { TicketStatus } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { TimelineService } from '../timeline/timeline.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class SlaWorkerService implements OnModuleInit, OnModuleDestroy {
@@ -15,6 +16,7 @@ export class SlaWorkerService implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly prisma: PrismaService,
     private readonly timelineService: TimelineService,
+    private readonly notifications: NotificationsService,
   ) {}
 
   onModuleInit() {
@@ -59,6 +61,8 @@ export class SlaWorkerService implements OnModuleInit, OnModuleDestroy {
       select: {
         id: true,
         companyId: true,
+        ticketNumber: true,
+        problemText: true,
         slaDueAt: true,
         status: true,
       },
@@ -81,8 +85,8 @@ export class SlaWorkerService implements OnModuleInit, OnModuleDestroy {
 
       if (existing) continue;
 
-      await this.prisma.$transaction(async (tx) => {
-        await this.timelineService.recordTx(tx, {
+      const event = await this.prisma.$transaction(async (tx) => {
+        return this.timelineService.recordTx(tx, {
           event: 'SLA_WARNING',
           companyId: ticket.companyId,
           ticketId: ticket.id,
@@ -94,6 +98,15 @@ export class SlaWorkerService implements OnModuleInit, OnModuleDestroy {
             warningAt: now.toISOString(),
           },
         });
+      });
+
+      this.notifications.scheduleTicketSlaWarning({
+        ticketCompanyId: ticket.companyId,
+        ticketId: ticket.id,
+        ticketNumber: ticket.ticketNumber,
+        summary: ticket.problemText,
+        slaDueAt: ticket.slaDueAt,
+        sourceEventId: event.id,
       });
 
       createdCount += 1;
@@ -114,6 +127,8 @@ export class SlaWorkerService implements OnModuleInit, OnModuleDestroy {
       select: {
         id: true,
         companyId: true,
+        ticketNumber: true,
+        problemText: true,
         slaDueAt: true,
         status: true,
       },
@@ -124,7 +139,7 @@ export class SlaWorkerService implements OnModuleInit, OnModuleDestroy {
     let breachedCount = 0;
 
     for (const ticket of candidates) {
-      await this.prisma.$transaction(async (tx) => {
+      const event = await this.prisma.$transaction(async (tx) => {
         await tx.ticket.update({
           where: { id: ticket.id },
           data: {
@@ -132,7 +147,7 @@ export class SlaWorkerService implements OnModuleInit, OnModuleDestroy {
           },
         });
 
-        await this.timelineService.recordTx(tx, {
+        return this.timelineService.recordTx(tx, {
           event: 'SLA_BREACH',
           companyId: ticket.companyId,
           ticketId: ticket.id,
@@ -143,6 +158,15 @@ export class SlaWorkerService implements OnModuleInit, OnModuleDestroy {
             breachedAt: now.toISOString(),
           },
         });
+      });
+
+      this.notifications.scheduleTicketSlaBreached({
+        ticketCompanyId: ticket.companyId,
+        ticketId: ticket.id,
+        ticketNumber: ticket.ticketNumber,
+        summary: ticket.problemText,
+        slaDueAt: ticket.slaDueAt,
+        sourceEventId: event.id,
       });
 
       breachedCount += 1;

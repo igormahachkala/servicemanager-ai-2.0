@@ -49,6 +49,7 @@ export class TimelineService {
     TICKET_CREATED: 'ticket.created',
     TICKET_ASSIGNED: 'ticket.assigned',
     TICKET_CLAIMED: 'ticket.claimed',
+    TICKET_ASSIGNMENT_CHANGED: 'ticket.assignment_changed',
     TICKET_ATTACHMENT_UPLOADED: 'ticket.attachment_uploaded',
     TICKET_ASSIGNMENT_REQUESTED: 'ticket.assignment_requested',
     STATUS_CHANGED: 'ticket.status_changed',
@@ -305,6 +306,7 @@ export class TimelineService {
     if (type === 'ticket.created') return 'TICKET_CREATED'
     if (type === 'ticket.assigned') return 'TICKET_ASSIGNED'
     if (type === 'ticket.claimed') return 'TICKET_CLAIMED'
+    if (type === 'ticket.assignment_changed') return 'TICKET_ASSIGNMENT_CHANGED'
     if (type === 'ticket.attachment_uploaded') return 'TICKET_ATTACHMENT_UPLOADED'
     if (type === 'ticket.assignment_requested') return 'TICKET_ASSIGNMENT_REQUESTED'
     if (type === 'ticket.status_changed') return 'STATUS_CHANGED'
@@ -322,6 +324,7 @@ export class TimelineService {
     if (type === 'ticket.created') return 'Ticket created'
     if (type === 'ticket.assigned') return 'Ticket assigned'
     if (type === 'ticket.claimed') return 'Ticket claimed'
+    if (type === 'ticket.assignment_changed') return 'Assignment changed'
     if (type === 'ticket.attachment_uploaded') return 'Attachment uploaded'
     if (type === 'ticket.assignment_requested') return 'Запрос назначения'
     if (type === 'ticket.reassigned') return 'Ticket reassigned'

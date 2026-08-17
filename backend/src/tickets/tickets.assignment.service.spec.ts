@@ -1472,7 +1472,7 @@ describe('TicketsAssignmentService canonical claim isolation', () => {
   })
 
   it('allows SECONDARY direct claim for a self-created ticket inside the canonical contour', async () => {
-    const { service, prisma, tx, query, notifications } = makeClaimIsolationHarness({
+    const { service, prisma, tx, query, timeline, notifications } = makeClaimIsolationHarness({
       contractRole: ServiceContractRole.SECONDARY,
       bindingLocationIds: [allowedLocationId],
       createdByUserId: technicianId,
@@ -1497,6 +1497,20 @@ describe('TicketsAssignmentService canonical claim isolation', () => {
       undefined,
       undefined,
       clientCompanyId,
+    )
+    expect(timeline.recordTx).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        event: 'TICKET_ASSIGNMENT_CHANGED',
+        actorUserId: technicianId,
+        payload: expect.objectContaining({
+          operationType: 'self_claim',
+          previousValue: null,
+          newValue: technicianId,
+          assignedTechnicianId: technicianId,
+          timestamp: expect.any(String),
+        }),
+      }),
     )
     expect(notifications.scheduleTicketClaimedDispatchers).toHaveBeenCalled()
   })
