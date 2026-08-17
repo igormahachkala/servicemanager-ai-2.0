@@ -1817,6 +1817,12 @@ a.mobileBtn.mobileCreateTicketLink {
   max-width: 720px;
   margin-bottom: 12px;
   pointer-events: auto;
+  /* SMA-MOBILE-EDIT-SCROLL-001: панель ограничена высотой backdrop (за вычетом
+     собственного margin), содержимое прокручивается внутри, а не уезжает за экран. */
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  max-height: calc(100% - 12px);
 }
 
 .mobileAssignModal {
@@ -1825,6 +1831,11 @@ a.mobileBtn.mobileCreateTicketLink {
   border: 1px solid #e5e7eb;
   box-shadow: 0 18px 40px rgba(15, 23, 42, 0.18);
   padding: 14px;
+  /* Длинные формы (редактирование заявки) прокручиваются внутри модалки. */
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .mobileAssignModalConfirm {

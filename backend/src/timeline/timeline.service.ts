@@ -52,6 +52,7 @@ export class TimelineService {
     TICKET_ASSIGNMENT_CHANGED: 'ticket.assignment_changed',
     TICKET_ATTACHMENT_UPLOADED: 'ticket.attachment_uploaded',
     TICKET_ASSIGNMENT_REQUESTED: 'ticket.assignment_requested',
+    TICKET_FIELDS_UPDATED: 'ticket.updated',
     STATUS_CHANGED: 'ticket.status_changed',
     COMMENT_ADDED: 'ticket.comment_added',
     SLA_WARNING: 'ticket.sla_warning',
@@ -309,6 +310,9 @@ export class TimelineService {
     if (type === 'ticket.assignment_changed') return 'TICKET_ASSIGNMENT_CHANGED'
     if (type === 'ticket.attachment_uploaded') return 'TICKET_ATTACHMENT_UPLOADED'
     if (type === 'ticket.assignment_requested') return 'TICKET_ASSIGNMENT_REQUESTED'
+    // SMA-TICKET-HISTORY-AUDIT-001: событие правки заявки писалось в DomainEvent,
+    // но не имело маппинга и отбрасывалось до попадания в ленту.
+    if (type === 'ticket.updated') return 'TICKET_FIELDS_UPDATED'
     if (type === 'ticket.status_changed') return 'STATUS_CHANGED'
     if (type === 'ticket.comment_added') return 'COMMENT_ADDED'
     if (type === 'ticket.sla_warning') return 'SLA_WARNING'

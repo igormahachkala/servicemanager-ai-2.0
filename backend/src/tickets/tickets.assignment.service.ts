@@ -2054,6 +2054,106 @@ export class TicketsAssignmentService {
   }
 
 
+  /**
+   * SMA-TICKET-HISTORY-AUDIT-001.
+   * Строит карту изменений `{ поле: { from, to } }` для события ticket.updated.
+   * Только реально изменённые поля (список приходит из changedFields).
+   * Для связанных сущностей дополнительно резолвит человекочитаемые названия,
+   * чтобы лента могла показать «Уфа 18 → Уфа 11», а не пару идентификаторов.
+   */
+  private async buildTicketUpdateChanges(
+    tx: Prisma.TransactionClient,
+    params: {
+      changedFields: string[];
+      before: {
+        locationId: string | null;
+        equipmentId: string | null;
+        problemCategoryId: string | null;
+        problemText: string | null;
+        urgency: TicketUrgency | null;
+        urgencyReason: string | null;
+        requesterName: string | null;
+        requesterPhone: string | null;
+        address: string | null;
+        pointName: string | null;
+      };
+      after: {
+        problemCategoryId?: string;
+        locationId?: string;
+        equipmentId?: string | null;
+        problemText?: string;
+        urgency?: TicketUrgency;
+        urgencyReason?: string | null;
+        requesterName?: string | null;
+        requesterPhone?: string | null;
+        address?: string | null;
+        pointName?: string | null;
+      };
+    },
+  ): Promise<Record<string, { from: unknown; to: unknown; fromId?: string | null; toId?: string | null }>> {
+    const { changedFields, before, after } = params;
+    const changed = new Set(changedFields);
+
+    const locationIds = new Set<string>();
+    const categoryIds = new Set<string>();
+    const equipmentIds = new Set<string>();
+    const collect = (set: Set<string>, ...ids: (string | null | undefined)[]) => {
+      for (const id of ids) if (id) set.add(id);
+    };
+    if (changed.has('locationId')) collect(locationIds, before.locationId, after.locationId);
+    if (changed.has('problemCategoryId')) collect(categoryIds, before.problemCategoryId, after.problemCategoryId);
+    if (changed.has('equipmentId')) collect(equipmentIds, before.equipmentId, after.equipmentId);
+
+    const [locations, categories, equipment] = await Promise.all([
+      locationIds.size
+        ? tx.location.findMany({ where: { id: { in: [...locationIds] } }, select: { id: true, name: true } })
+        : Promise.resolve([]),
+      categoryIds.size
+        ? tx.problemCategory.findMany({ where: { id: { in: [...categoryIds] } }, select: { id: true, name: true } })
+        : Promise.resolve([]),
+      equipmentIds.size
+        ? tx.equipment.findMany({ where: { id: { in: [...equipmentIds] } }, select: { id: true, name: true } })
+        : Promise.resolve([]),
+    ]);
+
+    const nameOf = (rows: { id: string; name: string }[], id?: string | null) =>
+      id ? (rows.find((row) => row.id === id)?.name ?? null) : null;
+
+    const changes: Record<string, { from: unknown; to: unknown; fromId?: string | null; toId?: string | null }> = {};
+
+    const putScalar = (field: string, from: unknown, to: unknown) => {
+      if (changed.has(field)) changes[field] = { from: from ?? null, to: to ?? null };
+    };
+    const putRef = (
+      field: string,
+      rows: { id: string; name: string }[],
+      fromId: string | null,
+      toId: string | null,
+    ) => {
+      if (!changed.has(field)) return;
+      changes[field] = {
+        from: nameOf(rows, fromId),
+        to: nameOf(rows, toId),
+        fromId: fromId ?? null,
+        toId: toId ?? null,
+      };
+    };
+
+    putRef('locationId', locations, before.locationId, after.locationId ?? before.locationId);
+    putRef('problemCategoryId', categories, before.problemCategoryId, after.problemCategoryId ?? before.problemCategoryId);
+    putRef('equipmentId', equipment, before.equipmentId, after.equipmentId === undefined ? before.equipmentId : after.equipmentId);
+
+    putScalar('problemText', before.problemText, after.problemText);
+    putScalar('urgency', before.urgency, after.urgency);
+    putScalar('urgencyReason', before.urgencyReason, after.urgencyReason);
+    putScalar('requesterName', before.requesterName, after.requesterName);
+    putScalar('requesterPhone', before.requesterPhone, after.requesterPhone);
+    putScalar('address', before.address, after.address);
+    putScalar('pointName', before.pointName, after.pointName);
+
+    return changes;
+  }
+
   async update(companyId: string, actor: any, ticketId: string, dto: UpdateTicketDto, linkedClientCompanyId?: string) {
     if (!actor?.id || !actor?.companyId || !actor?.role) {
       throw new ForbiddenException('Actor context is required');
@@ -2144,6 +2244,7 @@ export class TicketsAssignmentService {
           problemCategoryId: true,
           problemText: true,
           urgency: true,
+          urgencyReason: true,
           requesterName: true,
           requesterPhone: true,
           address: true,
@@ -2256,7 +2357,7 @@ export class TicketsAssignmentService {
       };
 
       const urgencyReason = normalizeNullable(dto.urgencyReason);
-      if (urgencyReason !== undefined) {
+      if (urgencyReason !== undefined && urgencyReason !== ticket.urgencyReason) {
         data.urgencyReason = urgencyReason;
         changedFields.push('urgencyReason');
       }
@@ -2308,6 +2409,26 @@ export class TicketsAssignmentService {
         });
       }
 
+      // SMA-TICKET-HISTORY-AUDIT-001: до сих пор событие несло только имена изменённых
+      // полей, поэтому в истории нельзя было увидеть, что именно поменялось. Добавляем
+      // карту старое → новое к тому же событию; отдельной системы истории не заводим.
+      const changes = await this.buildTicketUpdateChanges(tx, {
+        changedFields,
+        before: ticket,
+        after: {
+          problemCategoryId: normalizedCategoryId,
+          locationId: normalizedLocationId,
+          equipmentId: normalizedEquipmentId,
+          problemText: normalizedProblemText,
+          urgency: dto.urgency,
+          urgencyReason,
+          requesterName,
+          requesterPhone,
+          address,
+          pointName,
+        },
+      });
+
       await this.timelineService.recordLegacyTx(tx, {
         type: 'ticket.updated',
         companyId: ticket.companyId,
@@ -2316,6 +2437,7 @@ export class TicketsAssignmentService {
         actorUserId: actor?.id ?? null,
         payload: {
           changedFields,
+          changes,
           operationCompanyId: access.operationCompanyId,
         },
       });

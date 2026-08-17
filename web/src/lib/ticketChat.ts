@@ -41,12 +41,64 @@ function isAcceptanceComment(item: TimelineItem): boolean {
   return (item.payload?.source || '').toString().toLowerCase() === 'acceptance'
 }
 
+const FIELD_LABELS_RU: Record<string, string> = {
+  locationId: 'Локация',
+  problemCategoryId: 'Категория',
+  equipmentId: 'Оборудование',
+  problemText: 'Описание',
+  urgency: 'Срочность',
+  urgencyReason: 'Причина срочности',
+  requesterName: 'Заявитель',
+  requesterPhone: 'Телефон заявителя',
+  address: 'Адрес',
+  pointName: 'Точка',
+}
+
+const URGENCY_RU: Record<string, string> = {
+  URGENT: 'Срочная',
+  NOT_URGENT: 'Обычная',
+}
+
+function formatFieldValue(field: string, value: unknown): string {
+  if (value === null || value === undefined || value === '') return '—'
+  const text = String(value)
+  if (field === 'urgency') return URGENCY_RU[text] ?? text
+  return text.length > 120 ? `${text.slice(0, 120)}…` : text
+}
+
+/** Разворачивает payload.changes в строки «Поле:\nстарое → новое». */
+export function fieldChangeLines(changes: unknown): string[] {
+  if (!changes || typeof changes !== 'object' || Array.isArray(changes)) return []
+  const lines: string[] = []
+  for (const [field, raw] of Object.entries(changes as Record<string, unknown>)) {
+    if (!raw || typeof raw !== 'object') continue
+    const entry = raw as { from?: unknown; to?: unknown }
+    if (!('from' in entry) && !('to' in entry)) continue
+    const label = FIELD_LABELS_RU[field] ?? field
+    if (lines.length) lines.push('')
+    lines.push(`${label}:`)
+    lines.push(`${formatFieldValue(field, entry.from)} → ${formatFieldValue(field, entry.to)}`)
+  }
+  return lines
+}
+
 function getSystemText(item: TimelineItem): string | null {
   const ev = getTimelineEvent(item)
 
   // Acceptance lifecycle — override backend titles with unified Russian labels
   if (ev === 'TICKET_READY_FOR_ACCEPTANCE') return 'Работа отправлена на приёмку'
-  if (ev === 'TICKET_ACCEPTED') return 'Работа принята клиентом'
+  // SMA-ACCEPTANCE-ACTOR-001: бэкенд пишет actorUserId в TICKET_ACCEPTED
+  // (tickets.acceptance.service). Показываем, кто именно принял работу; обобщённая
+  // формулировка остаётся только для старых событий без актора.
+  if (ev === 'TICKET_ACCEPTED') {
+    if (!item.actor) return 'Работа принята клиентом'
+    const acceptor = presentActorIdentity(item.actor, {
+      nameFallback: 'Пользователь не указан',
+      roleFallback: 'Роль не указана',
+      organizationFallback: 'Организация не указана',
+    })
+    return identityBlockText('Работу принял', acceptor)
+  }
   if (ev === 'TICKET_REJECTED') {
     const comment = String(item.payload?.comment ?? '').trim()
     return comment ? `Работа не принята: ${comment}` : 'Работа не принята'
@@ -55,6 +107,17 @@ function getSystemText(item: TimelineItem): string | null {
   if (ev === 'TICKET_CREATED') {
     const creator = presentTimelineCreator(item.actor, item.payload)
     return identityBlockText('Заявку создал', creator)
+  }
+
+  // SMA-TICKET-HISTORY-AUDIT-001: правка полей заявки. Бэкенд кладёт в payload карту
+  // { поле: { from, to } } — показываем её человекочитаемо, без сырого JSON.
+  if (ev === 'TICKET_FIELDS_UPDATED') {
+    const lines = fieldChangeLines(item.payload?.changes)
+    if (!lines.length) return null
+    const who = item.actor
+      ? presentActorIdentity(item.actor, { nameFallback: 'Пользователь' }).name
+      : null
+    return [who ? `${who} изменил заявку` : 'Заявка изменена', '', ...lines].join('\n')
   }
 
   // Status changes — skip transitions covered by acceptance events

@@ -136,13 +136,22 @@ export function MobileMyTickets() {
     setTake(PAGE_SIZE)
   }, [linkedClientCompanyId, companyId])
 
+  // SMA-MOBILE-COMPLETED-001: board отдаёт последние `take` заявок по createdAt desc и
+  // по умолчанию скрывает DONE старше 7 дней (applyArchivedFilter на бэкенде). Из-за этого
+  // на вкладках «Завершённые»/«Архив» старые заявки не попадали в выдачу вообще.
+  // Для архивных вкладок сужаем запрос до нужного статуса и снимаем архивный фильтр,
+  // чтобы весь бюджет `take` уходил на этот статус. Вкладка «Активные» не меняется.
+  const archivedFilterStatus = filter === 'done' ? 'DONE' : filter === 'archive' ? 'CANCELED' : null
   const boardQ = useQuery({
-    queryKey: ['mobile-my-board', linkedClientCompanyId, companyId, take],
+    queryKey: ['mobile-my-board', linkedClientCompanyId, companyId, take, archivedFilterStatus],
     queryFn: () =>
       api.board({
         linkedClientCompanyId: linkedClientCompanyId || undefined,
         companyId: companyId || undefined,
         take,
+        ...(archivedFilterStatus
+          ? { status: archivedFilterStatus as api.TicketStatus, includeArchived: true }
+          : {}),
       }),
     // Техник без контура (напр. субподрядчик SECONDARY: bound-contexts=[], [0] нет) тоже грузит board:
     // бэкенд сам скоупит по assignedTechnicianId + PRIMARY∪SECONDARY. Ждём, пока bound-contexts
@@ -331,7 +340,10 @@ export function MobileMyTickets() {
                 }}
               >
                 {SEGMENT_LABELS[seg]}
-                {boardQ.isSuccess && count > 0 ? (
+                {/* Запрос сужен под активную вкладку, поэтому счётчик достоверен
+                    только для неё. Для остальных бейдж не показываем, чтобы не
+                    выводить заведомо неверный ноль. */}
+                {boardQ.isSuccess && seg === filter && count > 0 ? (
                   <span className="mobileSegmentBtnBadge">{count}</span>
                 ) : null}
               </button>
