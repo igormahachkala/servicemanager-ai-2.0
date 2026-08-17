@@ -72,6 +72,8 @@ const STATUS_RU: Record<TicketStatus, string> = {
   CANCELED: 'Отменена',
 };
 
+const NOTIFICATION_ACCESS_CHECK_CONCURRENCY = 8;
+
 type NotificationRecipientCandidate = {
   id: string;
   companyId: string;
@@ -288,6 +290,28 @@ export class NotificationsService {
     return recipientCompanyId !== ticketCompanyId ? ticketCompanyId : null;
   }
 
+  private async mapWithConcurrency<T, R>(
+    items: T[],
+    limit: number,
+    mapper: (item: T) => Promise<R>,
+  ): Promise<R[]> {
+    if (!items.length) return [];
+    const safeLimit = Math.max(1, Math.min(limit, items.length));
+    const results = new Array<R>(items.length);
+    let nextIndex = 0;
+
+    const workers = Array.from({ length: safeLimit }, async () => {
+      while (nextIndex < items.length) {
+        const index = nextIndex;
+        nextIndex += 1;
+        results[index] = await mapper(items[index]);
+      }
+    });
+
+    await Promise.all(workers);
+    return results;
+  }
+
   private async canReadTicketForNotification(params: {
     recipient: NotificationRecipientCandidate;
     ticketId: string;
@@ -328,15 +352,17 @@ export class NotificationsService {
       seen.add(key);
       return true;
     });
-    const checked = await Promise.all(
-      unique.map(async (user) => ({
+    const checked = await this.mapWithConcurrency(
+      unique,
+      NOTIFICATION_ACCESS_CHECK_CONCURRENCY,
+      async (user) => ({
         user,
         allowed: await this.canReadTicketForNotification({
           recipient: user,
           ticketId: params.ticketId,
           ticketCompanyId: params.ticketCompanyId,
         }),
-      })),
+      }),
     );
     return checked
       .filter((item) => item.allowed)

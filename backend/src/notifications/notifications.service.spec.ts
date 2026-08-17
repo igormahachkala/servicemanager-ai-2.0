@@ -137,6 +137,74 @@ describe('NotificationsService access resolver delivery gate', () => {
     }));
   });
 
+  it('recipient access checks are bounded without changing the allowed recipient set', async () => {
+    let inFlight = 0;
+    let maxInFlight = 0;
+    const allowedUserIds = new Set(
+      Array.from({ length: 12 }, (_, index) => `user-${index}`).filter((_, index) => index % 3 !== 1),
+    );
+
+    resolveReadableSpy = jest
+      .spyOn(ticketAccess, 'resolveReadableTicketAccess')
+      .mockImplementation(async (params: any) => {
+        inFlight += 1;
+        maxInFlight = Math.max(maxInFlight, inFlight);
+        await new Promise((resolve) => setTimeout(resolve, 1));
+        inFlight -= 1;
+        if (!allowedUserIds.has(params.actor.id)) {
+          throw new Error('denied');
+        }
+        return {
+          ticket: { id: params.ticketId, companyId: ticketCompanyId, assignedTechnicianId: null },
+          scopeCompanyId: ticketCompanyId,
+          visibilityMode: params.linkedClientCompanyId ? 'provider_primary' : 'tenant',
+        };
+      });
+
+    const users = Array.from({ length: 12 }, (_, index) =>
+      candidate(`user-${index}`, index % 2 ? providerCompanyId : ticketCompanyId, UserRole.ADMIN),
+    );
+    const service = new NotificationsService({} as any, {} as any, {} as any, {} as any);
+
+    const result = await (service as any).filterRecipientsByTicketAccess({
+      users,
+      ticketId,
+      ticketCompanyId,
+    });
+
+    expect(result.map((item: any) => item.id)).toEqual([
+      'user-0',
+      'user-2',
+      'user-3',
+      'user-5',
+      'user-6',
+      'user-8',
+      'user-9',
+      'user-11',
+    ]);
+    expect(resolveReadableSpy).toHaveBeenCalledTimes(users.length);
+    expect(maxInFlight).toBeLessThanOrEqual(8);
+  });
+
+  it('deduplicates candidates before bounded access checks and keeps first-seen order', async () => {
+    const { service } = makeService({
+      allowedUserIds: ['same-user', 'second-user'],
+    });
+    const result = await (service as any).filterRecipientsByTicketAccess({
+      users: [
+        candidate('same-user'),
+        candidate('same-user'),
+        candidate('denied-user'),
+        candidate('second-user', providerCompanyId, UserRole.DISPATCHER),
+      ],
+      ticketId,
+      ticketCompanyId,
+    });
+
+    expect(result.map((item: any) => item.id)).toEqual(['same-user', 'second-user']);
+    expect(resolveReadableSpy).toHaveBeenCalledTimes(3);
+  });
+
   it('assignment request recipients do not bypass ticket access', async () => {
     const { service, prisma } = makeService({
       allowedUserIds: ['dispatcher-allowed'],
