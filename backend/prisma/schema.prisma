@@ -366,6 +366,7 @@ model Specialization {
 
   problemCategoryLinks ProblemCategorySpecialization[]
   technicianLinks      TechnicianSpecialization[]
+  serviceContractLinks ServiceContractSpecialization[]
 
   @@index([companyId, isActive])
 }
@@ -498,6 +499,7 @@ model ServiceContract {
   clientCompany   Company                   @relation("ClientCompanyContracts", fields: [clientCompanyId], references: [id], onDelete: Cascade)
   providerCompany Company                   @relation("ProviderCompanyContracts", fields: [providerCompanyId], references: [id], onDelete: Cascade)
   locations       ServiceContractLocation[]
+  specializationLinks ServiceContractSpecialization[]
 
   @@unique([clientCompanyId, providerCompanyId])
   @@index([clientCompanyId, status])
@@ -518,6 +520,21 @@ model ServiceContractLocation {
   @@unique([serviceContractId, locationId])
   @@index([clientCompanyId, locationId])
   @@index([locationId])
+}
+
+model ServiceContractSpecialization {
+  id                String   @id @default(uuid())
+  serviceContractId String
+  specializationId  String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  serviceContract ServiceContract @relation(fields: [serviceContractId], references: [id], onDelete: Cascade)
+  specialization  Specialization  @relation(fields: [specializationId], references: [id], onDelete: Cascade)
+
+  @@unique([serviceContractId, specializationId])
+  @@index([serviceContractId])
+  @@index([specializationId])
 }
 
 model Ticket {
