@@ -204,19 +204,21 @@ export type MobileHomeLocationGroup = {
   locationName: string
   city: string | null
   address: string | null
-  /** SMA-112: только активные заявки (NEW/ASSIGNED/IN_PROGRESS) — для раскрытого списка. */
+  /** Renderable tickets for the selected home-board context. */
   tickets: TicketCard[]
   /** Полный счётчик: все статусы (включая DONE/CANCELED). */
   totalTickets: number
   newTickets: number
   inProgressTickets: number
-  /** Активные = NEW + ASSIGNED + IN_PROGRESS. */
+  /** Активные = NEW + ASSIGNED + IN_PROGRESS + AWAITING_ACCEPTANCE. */
   activeTickets: number
   doneTickets: number
   canceledTickets: number
   /** Просроченные только среди активных заявок. */
   overdueTickets: number
 }
+
+export type MobileHomeLocationGroupRenderMode = 'active' | 'done'
 
 /** SMA-112: активная заявка для главной (диспетчерский экран). */
 function isActiveHomeTicketStatus(status: TicketCard['status']): boolean {
@@ -229,15 +231,24 @@ function isActiveHomeTicketStatus(status: TicketCard['status']): boolean {
   )
 }
 
+function shouldRenderTicketInLocationGroup(status: TicketCard['status'], renderMode: MobileHomeLocationGroupRenderMode): boolean {
+  if (renderMode === 'done') return status === 'DONE'
+  return isActiveHomeTicketStatus(status)
+}
+
 /**
  * Group an already-sorted ticket list by location, preserving ticket sort order within
  * each group. Group order = insertion order (first group contains the globally most-critical ticket).
  *
  * SMA-112: счётчики точки считаются по ВСЕМ статусам (total/active/done/canceled/overdue),
- * но в `tickets` (для раскрытого списка) попадают ТОЛЬКО активные заявки.
+ * но в `tickets` (для раскрытого списка) попадают заявки выбранного контекста вкладки.
  * Группа создаётся даже если у точки нет активных заявок (карточка остаётся видимой).
  */
-export function groupTicketsByLocation(tickets: TicketCard[]): MobileHomeLocationGroup[] {
+export function groupTicketsByLocation(
+  tickets: TicketCard[],
+  options: { renderMode?: MobileHomeLocationGroupRenderMode } = {},
+): MobileHomeLocationGroup[] {
+  const renderMode = options.renderMode ?? 'active'
   const map = new Map<string, MobileHomeLocationGroup>()
   for (const t of tickets) {
     const locId = t.location?.id ?? '__none__'
@@ -265,9 +276,9 @@ export function groupTicketsByLocation(tickets: TicketCard[]): MobileHomeLocatio
     if (t.status === 'CANCELED') g.canceledTickets++
     if (isActiveHomeTicketStatus(t.status)) {
       g.activeTickets++
-      g.tickets.push(t) // раскрытый список — только активные
       if (t.slaBreached) g.overdueTickets++
     }
+    if (shouldRenderTicketInLocationGroup(t.status, renderMode)) g.tickets.push(t)
   }
   return [...map.values()]
 }

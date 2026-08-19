@@ -105,7 +105,11 @@ export function HomeList(props: Props) {
     mobileActionToast,
   } = props
 
-  const groups = useMemo(() => groupTicketsByLocation(visibleTickets), [visibleTickets])
+  const groupRenderMode = boardTab === 'done' ? 'done' : 'active'
+  const groups = useMemo(
+    () => groupTicketsByLocation(visibleTickets, { renderMode: groupRenderMode }),
+    [visibleTickets, groupRenderMode],
+  )
 
   const [expandedLocations, setExpandedLocations] = useState<Set<string>>(() => defaultExpandedLocationIds(groups))
 
@@ -182,6 +186,7 @@ export function HomeList(props: Props) {
             <LocationGroupCard
               key={group.locationId}
               group={group}
+              boardTab={boardTab}
               expanded={expandedLocations.has(group.locationId)}
               onToggle={() => toggleLocation(group.locationId)}
               renderTicket={renderTicket}
@@ -223,11 +228,13 @@ export function HomeList(props: Props) {
 
 function LocationGroupCard({
   group,
+  boardTab,
   expanded,
   onToggle,
   renderTicket,
 }: {
   group: MobileHomeLocationGroup
+  boardTab: MobileHomeBoardFilterTab
   expanded: boolean
   onToggle: () => void
   renderTicket: (ticket: api.TicketCard) => ReactNode
@@ -237,14 +244,18 @@ function LocationGroupCard({
   const assignedCount = group.tickets.filter((t) => t.status === 'ASSIGNED').length
   const inWorkCount = group.tickets.filter((t) => t.status === 'IN_PROGRESS').length
   const awaitingCount = group.tickets.filter((t) => t.status === 'AWAITING_ACCEPTANCE').length
+  const isDoneTab = boardTab === 'done'
+  const headerCount = isDoneTab ? group.doneTickets : group.activeTickets
   const hasOverdue = group.overdueTickets > 0
-  const statCells: { label: string; value: number; tone: string }[] = [
-    { label: 'Новые', value: group.newTickets, tone: 'new' },
-    { label: 'Назначены', value: assignedCount, tone: 'assigned' },
-    { label: 'В работе', value: inWorkCount, tone: 'inwork' },
-    { label: 'Приёмка', value: awaitingCount, tone: 'awaiting' },
-    { label: 'Просроч.', value: group.overdueTickets, tone: 'overdue' },
-  ]
+  const statCells: { label: string; value: number; tone: string }[] = isDoneTab
+    ? [{ label: 'Завершено', value: group.doneTickets, tone: 'done' }]
+    : [
+        { label: 'Новые', value: group.newTickets, tone: 'new' },
+        { label: 'Назначены', value: assignedCount, tone: 'assigned' },
+        { label: 'В работе', value: inWorkCount, tone: 'inwork' },
+        { label: 'Приёмка', value: awaitingCount, tone: 'awaiting' },
+        { label: 'Просроч.', value: group.overdueTickets, tone: 'overdue' },
+      ]
 
   return (
     <div className={`mobileLocationGroup${hasOverdue ? ' mobileLocationGroup--overdue' : ''}`}>
@@ -271,8 +282,8 @@ function LocationGroupCard({
           <div className="mobileLocationGroupTitleRow">
             <div className="mobileLocationGroupName">{group.locationName}</div>
             <div className="mobileLocationGroupHeaderRight">
-              {group.activeTickets > 0 ? (
-                <span className="mobileLocationGroupBadge">{group.activeTickets}</span>
+              {headerCount > 0 ? (
+                <span className="mobileLocationGroupBadge">{headerCount}</span>
               ) : null}
               <span className={`mobileLocationGroupChevron${expanded ? ' mobileLocationGroupChevron--open' : ''}`} aria-hidden>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -286,7 +297,7 @@ function LocationGroupCard({
               {[group.city, group.address].filter(Boolean).join(', ')}
             </div>
           ) : null}
-          <div className="mobileLocationGroupStatGrid">
+          <div className={`mobileLocationGroupStatGrid${isDoneTab ? ' mobileLocationGroupStatGrid--done' : ''}`}>
             {statCells.map((cell) => (
               <div
                 key={cell.label}
@@ -304,7 +315,9 @@ function LocationGroupCard({
           {group.tickets.length > 0 ? (
             group.tickets.map((t) => renderTicket(t))
           ) : (
-            <div className="mobileLocationGroupEmptyActive mobileMeta">Нет активных заявок</div>
+            <div className="mobileLocationGroupEmptyActive mobileMeta">
+              {isDoneTab ? 'Нет завершённых заявок' : 'Нет активных заявок'}
+            </div>
           )}
         </div>
       ) : null}

@@ -1,14 +1,34 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
-import { dirname, resolve } from 'node:path'
+import { existsSync, readFileSync, statSync } from 'node:fs'
+import { dirname, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import vm from 'node:vm'
 import ts from 'typescript'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+const moduleCache = new Map()
+
+function resolveLocalTsModule(id, fromFilename) {
+  const targetBase = resolve(dirname(fromFilename), id)
+  const candidates = [
+    targetBase,
+    `${targetBase}.ts`,
+    `${targetBase}.tsx`,
+    resolve(targetBase, 'index.ts'),
+    resolve(targetBase, 'index.tsx'),
+  ]
+  for (const candidate of candidates) {
+    if (!existsSync(candidate)) continue
+    if (statSync(candidate).isDirectory()) continue
+    return candidate
+  }
+  throw new Error(`Cannot resolve runtime require(${id}) from ${relative(root, fromFilename)}`)
+}
 
 function loadTsModule(relativePath) {
   const filename = resolve(root, relativePath)
+  const cached = moduleCache.get(filename)
+  if (cached) return cached.exports
   const source = readFileSync(filename, 'utf8')
   const output = ts.transpileModule(source, {
     compilerOptions: {
@@ -19,10 +39,12 @@ function loadTsModule(relativePath) {
     fileName: filename,
   }).outputText
   const module = { exports: {} }
+  moduleCache.set(filename, module)
   const context = vm.createContext({
     module,
     exports: module.exports,
     require: (id) => {
+      if (id.startsWith('.')) return loadTsModule(relative(root, resolveLocalTsModule(id, filename)))
       throw new Error(`Unexpected runtime require(${id}) from ${relativePath}`)
     },
     console,
@@ -34,6 +56,7 @@ function loadTsModule(relativePath) {
 }
 
 const filters = loadTsModule('src/mobile/mobileHomeBoardFilters.ts')
+const listUtils = loadTsModule('src/mobile/mobileHomeListUtils.ts')
 const push = loadTsModule('src/mobile/mobilePushActivation.ts')
 const mobileHomeSource = readFileSync(resolve(root, 'src/mobile/home/MobileHome.tsx'), 'utf8')
 
@@ -49,6 +72,39 @@ function ticket(id, status, assignedTechnicianId, createdByUserId = 'creator') {
     assignedTechnician: assignedTechnicianId ? { id: assignedTechnicianId, email: `${assignedTechnicianId}@test.local` } : null,
     createdByUserId,
   }
+}
+
+function homeTicket(id, status, locationId = 'loc-a') {
+  return {
+    ...ticket(id, status, status === 'NEW' ? null : 'me'),
+    ticketNumber: Number(id.replace(/\D/g, '')) || 1,
+    title: `Ticket ${id}`,
+    description: `Description ${id}`,
+    createdAt: '2026-08-18T12:00:00.000Z',
+    priority: 'NORMAL',
+    urgency: 'NORMAL',
+    slaBreached: false,
+    category: { id: 'cat-other', name: 'Другое' },
+    location: {
+      id: locationId,
+      name: locationId === 'loc-a' ? 'Фудзияма ИП Шиц' : 'ИП Ермаков',
+      city: 'Ижевск',
+      address: locationId === 'loc-a' ? 'Пушкина, 1' : 'Ленина, 2',
+    },
+  }
+}
+
+function visibleHomeTickets(cards, tab) {
+  return listUtils.buildMobileHomeVisibleTickets({
+    cards,
+    tab,
+    meId: 'me',
+    meRole: 'TECHNICIAN',
+    chips: new Set(),
+    searchQuery: '',
+    atRiskThresholdMinutes: 60,
+    nowMs: Date.parse('2026-08-19T00:00:00.000Z'),
+  })
 }
 
 function activeMine(tickets, role = 'TECHNICIAN') {
@@ -99,6 +155,34 @@ function activeMine(tickets, role = 'TECHNICIAN') {
   assert.match(mobileHomeSource, /status:\s*['"]DONE['"]/)
   assert.match(mobileHomeSource, /includeArchived:\s*true/)
   assert.match(mobileHomeSource, /enabled:\s*boardEnabled\s*&&\s*isOnline\s*&&\s*boardTab\s*===\s*['"]done['"]/)
+}
+
+{
+  const completed = [
+    homeTicket('done-1', 'DONE', 'loc-a'),
+    homeTicket('done-2', 'DONE', 'loc-a'),
+    homeTicket('done-3', 'DONE', 'loc-b'),
+  ]
+  const visible = visibleHomeTickets(completed, 'done')
+  assert.deepEqual(plain(visible.map((t) => t.id).sort()), ['done-1', 'done-2', 'done-3'])
+  const groups = listUtils.groupTicketsByLocation(visible, { renderMode: 'done' })
+  assert.equal(groups.length, 2)
+  assert.equal(groups.reduce((sum, group) => sum + group.doneTickets, 0), 3)
+  assert.equal(groups.reduce((sum, group) => sum + group.tickets.length, 0), 3)
+}
+
+{
+  const mixed = [homeTicket('new-1', 'NEW', 'loc-a'), homeTicket('done-1', 'DONE', 'loc-a')]
+  const visible = visibleHomeTickets(mixed, 'all')
+  const groups = listUtils.groupTicketsByLocation(visible)
+  assert.deepEqual(plain(groups.flatMap((group) => group.tickets).map((t) => t.id)), ['new-1'])
+}
+
+{
+  const visible = visibleHomeTickets([homeTicket('done-1', 'DONE', 'loc-a')], 'done')
+  const groups = listUtils.groupTicketsByLocation(visible, { renderMode: 'done' })
+  assert.equal(visible.length, 1)
+  assert.equal(groups.flatMap((group) => group.tickets).length, 1)
 }
 
 function makeSub(id = 'sub') {

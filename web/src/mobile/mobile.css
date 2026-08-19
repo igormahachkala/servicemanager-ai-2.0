@@ -5407,6 +5407,10 @@ a.mobileBtn.mobileCreateTicketLink {
   margin-top: 10px;
 }
 
+.mobileLocationGroupStatGrid--done {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .mobileLocationGroupStatCell {
   display: flex;
   flex-direction: column;
@@ -5440,6 +5444,8 @@ a.mobileBtn.mobileCreateTicketLink {
 .mobileLocationGroupStatCell--awaiting .mobileLocationGroupStatCellValue { color: #d97706; }
 .mobileLocationGroupStatCell--overdue { background: #fef2f2; }
 .mobileLocationGroupStatCell--overdue .mobileLocationGroupStatCellValue { color: #dc2626; }
+.mobileLocationGroupStatCell--done { background: #ecfdf5; }
+.mobileLocationGroupStatCell--done .mobileLocationGroupStatCellValue { color: #059669; }
 
 /* нулевой счётчик — приглушён */
 .mobileLocationGroupStatCell--off {
