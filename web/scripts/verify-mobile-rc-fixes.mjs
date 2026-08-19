@@ -35,6 +35,7 @@ function loadTsModule(relativePath) {
 
 const filters = loadTsModule('src/mobile/mobileHomeBoardFilters.ts')
 const push = loadTsModule('src/mobile/mobilePushActivation.ts')
+const mobileHomeSource = readFileSync(resolve(root, 'src/mobile/home/MobileHome.tsx'), 'utf8')
 
 function plain(value) {
   return JSON.parse(JSON.stringify(value))
@@ -91,6 +92,13 @@ function activeMine(tickets, role = 'TECHNICIAN') {
   assert.equal(filters.isActiveMobileMyTicket(ticket('done', 'DONE', 'me')), false)
   assert.equal(filters.isActiveMobileMyTicket(ticket('canceled', 'CANCELED', 'me')), false)
   assert.equal(filters.isActiveMobileMyTicket(ticket('awaiting', 'AWAITING_ACCEPTANCE', 'me')), true)
+}
+
+{
+  assert.match(mobileHomeSource, /queryKey:\s*\[\s*['"]mobile-home-completed-board['"]/)
+  assert.match(mobileHomeSource, /status:\s*['"]DONE['"]/)
+  assert.match(mobileHomeSource, /includeArchived:\s*true/)
+  assert.match(mobileHomeSource, /enabled:\s*boardEnabled\s*&&\s*isOnline\s*&&\s*boardTab\s*===\s*['"]done['"]/)
 }
 
 function makeSub(id = 'sub') {

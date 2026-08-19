@@ -55,6 +55,13 @@ export function MobileHome() {
   const pageScope = { linkedClientCompanyId: linkedClientCompanyId || undefined, companyId: companyId || undefined }
   const queryClient = useQueryClient()
   const [mobileActionToast, setMobileActionToast] = useState('')
+  const persistedBoardUi = useMemo(() => readPersistedMobileHomeBoardUi(), [])
+  const [boardTab, setBoardTab] = useState<MobileHomeBoardFilterTab>(persistedBoardUi.tab)
+  const [activeChips, setActiveChips] = useState<Set<MobileHomeBoardChipId>>(() => new Set(persistedBoardUi.chips))
+  const [searchQuery, setSearchQuery] = useState('')
+  const [filtersExpanded, setFiltersExpanded] = useState(false)
+  // E3: быстрая карта персистится (как tab+chips) — вернулся из заявки → карта осталась активной; сброс её гасит.
+  const [quickFilter, setQuickFilter] = useState<MobileHomeQuickFilter>(persistedBoardUi.quickFilter)
 
   const providerContextKnown =
     !meQ.data || meQ.data.role === 'CLIENT' || meQ.data.role === 'TECHNICIAN' || companyQ.isSuccess || companyQ.isError
@@ -72,6 +79,14 @@ export function MobileHome() {
     queryFn: () => api.getTechnicianBoundContexts(),
     enabled: !!meQ.data && meQ.data.role === 'TECHNICIAN' && !linkedClientCompanyId,
   })
+  const boardEnabled =
+    providerContextKnown &&
+    ((!isOnline || !!meQ.data) &&
+      (!meQ.data ||
+        meQ.data.role !== 'TECHNICIAN' ||
+        !!linkedClientCompanyId ||
+        (techBoundDefaultsQ.isSuccess && (techBoundDefaultsQ.data || []).length === 0))) &&
+    !providerNeedsLinkedClient
 
   useEffect(() => {
     if (meQ.data?.role !== 'TECHNICIAN' || linkedClientCompanyId || !techBoundDefaultsQ.isSuccess) return
@@ -97,14 +112,20 @@ export function MobileHome() {
     // Техник без контура (субподрядчик SECONDARY: bound-contexts=[], [0] нет) тоже грузит board —
     // бэкенд скоупит по assignedTechnicianId + PRIMARY∪SECONDARY. Empty-scope разрешаем только когда
     // bound-contexts отстрелялся пустым, чтобы у PRIMARY-техника не было лишнего фетча до выбора [0].
-    enabled:
-      providerContextKnown &&
-      ((!isOnline || !!meQ.data) &&
-        (!meQ.data ||
-          meQ.data.role !== 'TECHNICIAN' ||
-          !!linkedClientCompanyId ||
-          (techBoundDefaultsQ.isSuccess && (techBoundDefaultsQ.data || []).length === 0))) &&
-      !providerNeedsLinkedClient,
+    enabled: boardEnabled,
+  })
+
+  const completedBoardQ = useQuery({
+    queryKey: ['mobile-home-completed-board', linkedClientCompanyId, companyId],
+    queryFn: () =>
+      api.board({
+        linkedClientCompanyId: pageScope.linkedClientCompanyId,
+        companyId: pageScope.companyId,
+        take: 500,
+        status: 'DONE',
+        includeArchived: true,
+      }),
+    enabled: boardEnabled && isOnline && boardTab === 'done',
   })
 
   const linkedClientsQ = useQuery({
@@ -113,7 +134,9 @@ export function MobileHome() {
     enabled: !!linkedClientCompanyId && !!meQ.data && meQ.data.role !== 'TECHNICIAN',
   })
 
-  const cards = boardQ.data?.columns.flatMap((col) => col.cards || []) || []
+  const baseCards = boardQ.data?.columns.flatMap((col) => col.cards || []) || []
+  const completedCards = completedBoardQ.data?.columns.flatMap((col) => col.cards || []) || []
+  const cards = boardTab === 'done' && completedBoardQ.data ? completedCards : baseCards
   const canAssignProvider = api.isProviderTicketAssignRole(meQ.data?.role)
   // E4: быстрая приёмка на карте — тот же гейт, что «Принять» в карточке (MobileTicketPage canShowClientAcceptance):
   // своя client-компания (не наблюдатель) + клиент-управленческая роль (ADMIN/TM/ND, не CLIENT-заявитель).
@@ -137,14 +160,6 @@ export function MobileHome() {
     return ids
   }, [reworkNotificationsQ.data])
 
-  const persistedBoardUi = useMemo(() => readPersistedMobileHomeBoardUi(), [])
-  const [boardTab, setBoardTab] = useState<MobileHomeBoardFilterTab>(persistedBoardUi.tab)
-  const [activeChips, setActiveChips] = useState<Set<MobileHomeBoardChipId>>(() => new Set(persistedBoardUi.chips))
-  const [searchQuery, setSearchQuery] = useState('')
-  const [filtersExpanded, setFiltersExpanded] = useState(false)
-  // E3: быстрая карта персистится (как tab+chips) — вернулся из заявки → карта осталась активной; сброс её гасит.
-  const [quickFilter, setQuickFilter] = useState<MobileHomeQuickFilter>(persistedBoardUi.quickFilter)
-
   useLayoutEffect(() => {
     const s = location.state as MobileTicketNavState | null | undefined
     if (!s || typeof s !== 'object') return
@@ -164,8 +179,20 @@ export function MobileHome() {
     writePersistedMobileHomeBoardUi(boardTab, activeChips, quickFilter)
   }, [boardTab, activeChips, quickFilter])
 
-  const tabCounts = useMemo(() => mobileHomeBoardTabCounts(cards, meQ.data?.id, meQ.data?.role), [cards, meQ.data?.id, meQ.data?.role])
-  const atRiskThresholdMinutes = boardQ.data?.meta.atRiskThresholdMinutes ?? 60
+  const tabCounts = useMemo(() => {
+    const counts = mobileHomeBoardTabCounts(baseCards, meQ.data?.id, meQ.data?.role)
+    if (completedBoardQ.data) {
+      counts.done = filterTicketsForMobileHomeTab(completedCards, 'done', meQ.data?.id, meQ.data?.role).length
+    }
+    return counts
+  }, [baseCards, completedBoardQ.data, completedCards, meQ.data?.id, meQ.data?.role])
+  const atRiskThresholdMinutes =
+    boardTab === 'done' && completedBoardQ.data
+      ? completedBoardQ.data.meta.atRiskThresholdMinutes
+      : boardQ.data?.meta.atRiskThresholdMinutes ?? 60
+  const activeBoardIsLoading = boardTab === 'done' ? completedBoardQ.isLoading : boardQ.isLoading
+  const activeBoardError = boardTab === 'done' ? completedBoardQ.error : boardQ.error
+  const activeBoardHasData = boardTab === 'done' ? !!completedBoardQ.data : !!boardQ.data
 
   const visibleTickets = useMemo(
     () => buildMobileHomeVisibleTickets({ cards, tab: boardTab, meId: meQ.data?.id, meRole: meQ.data?.role, chips: activeChips, searchQuery, atRiskThresholdMinutes }),
@@ -361,6 +388,7 @@ export function MobileHome() {
         setMobileActionToast('Запрос отправлен')
       }
       await queryClient.invalidateQueries({ queryKey: ['mobile-home-board'] })
+      await queryClient.invalidateQueries({ queryKey: ['mobile-home-completed-board'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-home-available'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-my-board'] })
       await queryClient.invalidateQueries({ queryKey: ['board'] })
@@ -396,6 +424,7 @@ export function MobileHome() {
       if (closeCameraInputRef.current) closeCameraInputRef.current.value = ''
       if (closeGalleryInputRef.current) closeGalleryInputRef.current.value = ''
       await queryClient.invalidateQueries({ queryKey: ['mobile-home-board'] })
+      await queryClient.invalidateQueries({ queryKey: ['mobile-home-completed-board'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-home-available'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-my-board'] })
       await queryClient.invalidateQueries({ queryKey: ['board'] })
@@ -412,6 +441,7 @@ export function MobileHome() {
       setAssignTicket(null)
       setAssignTechId('')
       await queryClient.invalidateQueries({ queryKey: ['mobile-home-board'] })
+      await queryClient.invalidateQueries({ queryKey: ['mobile-home-completed-board'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-home-available'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-my-board'] })
       await queryClient.invalidateQueries({ queryKey: ['board'] })
@@ -428,6 +458,7 @@ export function MobileHome() {
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['mobile-home-board'] })
+      await queryClient.invalidateQueries({ queryKey: ['mobile-home-completed-board'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-home-available'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-my-board'] })
       await queryClient.invalidateQueries({ queryKey: ['board'] })
@@ -448,7 +479,7 @@ export function MobileHome() {
 
   const techWillRedirectForScope = techNoLinked && techBoundDefaultsQ.isSuccess && (techBoundDefaultsQ.data?.length ?? 0) > 0
   const technicianScopeGateReady = !techNoLinked || techBoundDefaultsQ.isFetched || techBoundDefaultsQ.isError
-  const showMobileHomeTicketBoard = technicianScopeGateReady && !techWillRedirectForScope && !boardQ.isError && (meQ.data || (!!boardQ.data && !isOnline))
+  const showMobileHomeTicketBoard = technicianScopeGateReady && !techWillRedirectForScope && !activeBoardError && (meQ.data || (!!boardQ.data && !isOnline))
 
   if (providerNeedsLinkedClient) {
     return (
@@ -469,8 +500,8 @@ export function MobileHome() {
       <HomeHeader
         me={meQ.data}
         isOnline={isOnline}
-        boardHasData={!!boardQ.data}
-        boardError={boardQ.isError ? boardQ.error : null}
+        boardHasData={activeBoardHasData}
+        boardError={activeBoardError}
         companyPrimaryLine={companyPrimaryLine}
         linkedClientCompanyId={linkedClientCompanyId}
         linkedClientDisplayName={linkedClientDisplayName}
@@ -529,7 +560,7 @@ export function MobileHome() {
             ) : null}
           </div>
           <HomeList
-            boardIsLoading={boardQ.isLoading}
+            boardIsLoading={activeBoardIsLoading}
             visibleTickets={quickFilter ? quickTickets ?? [] : visibleTickets}
             tabOnlyTickets={tabOnlyTickets}
             boardTab={boardTab}
