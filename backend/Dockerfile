@@ -14,6 +14,9 @@ RUN apt-get update \
 ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt \
   SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 
+COPY docker-entrypoint.sh /usr/local/bin/sma-backend-entrypoint.sh
+RUN chmod +x /usr/local/bin/sma-backend-entrypoint.sh
+
 COPY package*.json ./
 RUN npm install
 
@@ -24,4 +27,5 @@ RUN npm run build
 
 EXPOSE 3000
 
+ENTRYPOINT ["sma-backend-entrypoint.sh"]
 CMD ["npm", "run", "start:prod"]
