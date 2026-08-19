@@ -1,5 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common'
-import { Prisma, ServiceContractRole, TicketStatus, UserRole } from '@prisma/client'
+import {
+  Prisma,
+  ServiceContractRole,
+  TicketStatus,
+  UserRole,
+} from '@prisma/client'
 
 import { PrismaService } from '../prisma/prisma.service'
 import { TimelineService } from '../timeline/timeline.service'
@@ -13,7 +18,9 @@ import {
   buildSpecializationScopeFromBindings,
   buildSecondaryOperationalRestrictionWhere,
   buildSpecializationLinksSomeWhereInput,
+  buildProviderContractSpecializationRestrictionWhere,
   buildTechnicianLocationRestrictionWhere,
+  buildStrictSpecializationScopeFromBindings,
   PROVIDER_LINKED_OVERVIEW_ROLES,
   resolveActorLocationScope,
   resolveActorSpecializationScope,
@@ -24,7 +31,10 @@ import {
   technicianMatchesCategorySpecializationLinks,
 } from './ticket-access.utils'
 import { TicketMetaBuilder } from './ticket-meta.builder'
-import { TICKET_ASSIGNMENT_REQUESTED_ENTITY, TICKET_ASSIGNMENT_REQUESTED_EVENT } from './ticket-domain-event.types'
+import {
+  TICKET_ASSIGNMENT_REQUESTED_ENTITY,
+  TICKET_ASSIGNMENT_REQUESTED_EVENT,
+} from './ticket-domain-event.types'
 import { isExecutorCapableRole } from '../common/executor.utils'
 import { loadBoardImageAttachmentSummaries } from './board-attachment-summary'
 
@@ -64,7 +74,10 @@ export class TicketsQueryService {
     private readonly timelineService: TimelineService,
     private readonly serviceContractsService: ServiceContractsService,
   ) {
-    this.ticketMetaBuilder = new TicketMetaBuilder(this.prisma, this.serviceContractsService)
+    this.ticketMetaBuilder = new TicketMetaBuilder(
+      this.prisma,
+      this.serviceContractsService,
+    )
   }
 
   private readonly policy = new TicketsPolicy()
@@ -76,7 +89,10 @@ export class TicketsQueryService {
     return where as Record<string, unknown>
   }
 
-  private applyContextFilters(where: any, params: { locationId?: string; equipmentId?: string }) {
+  private applyContextFilters(
+    where: any,
+    params: { locationId?: string; equipmentId?: string },
+  ) {
     const extraAnd: any[] = []
     if (params.locationId && params.locationId.trim().length > 0) {
       extraAnd.push({ locationId: params.locationId.trim() })
@@ -94,7 +110,10 @@ export class TicketsQueryService {
     return { ...where, AND: [...baseArr, ...extra] }
   }
 
-  private applyArchivedFilter(where: Prisma.TicketWhereInput, includeArchived?: boolean): Prisma.TicketWhereInput {
+  private applyArchivedFilter(
+    where: Prisma.TicketWhereInput,
+    includeArchived?: boolean,
+  ): Prisma.TicketWhereInput {
     if (includeArchived) return where
     const archiveThreshold = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
     return this.normalizeAnd(where, [
@@ -122,9 +141,13 @@ export class TicketsQueryService {
     const atRiskThresholdMinutes = 60
     const limitedToLast = Math.min(Math.max(params.input.take ?? 500, 1), 500)
     const companyScope =
-      params.companyIds.length === 1 ? { companyId: params.companyIds[0] } : { companyId: { in: params.companyIds } }
+      params.companyIds.length === 1
+        ? { companyId: params.companyIds[0] }
+        : { companyId: { in: params.companyIds } }
 
-    const visibilityOr: any[] = [{ ...companyScope, assignedTechnicianId: params.userId }]
+    const visibilityOr: any[] = [
+      { ...companyScope, assignedTechnicianId: params.userId },
+    ]
 
     if (params.allowTechnicianClaim) {
       visibilityOr.push({
@@ -134,14 +157,18 @@ export class TicketsQueryService {
       })
     }
 
-    let where: any = visibilityOr.length === 1 ? visibilityOr[0] : { OR: visibilityOr }
+    let where: any =
+      visibilityOr.length === 1 ? visibilityOr[0] : { OR: visibilityOr }
     const extraAnd: any[] = []
 
     if (params.input.statuses && params.input.statuses.length > 0) {
       extraAnd.push({ status: { in: params.input.statuses } })
     }
 
-    if (typeof params.input.assigneeId === 'string' && params.input.assigneeId.length > 0) {
+    if (
+      typeof params.input.assigneeId === 'string' &&
+      params.input.assigneeId.length > 0
+    ) {
       extraAnd.push({ assignedTechnicianId: params.input.assigneeId })
     } else if (params.input.assigneeId === null) {
       extraAnd.push({ assignedTechnicianId: null })
@@ -160,7 +187,10 @@ export class TicketsQueryService {
     if (params.input.locationId && params.input.locationId.trim().length > 0) {
       extraAnd.push({ locationId: params.input.locationId.trim() })
     }
-    if (params.input.equipmentId && params.input.equipmentId.trim().length > 0) {
+    if (
+      params.input.equipmentId &&
+      params.input.equipmentId.trim().length > 0
+    ) {
       extraAnd.push({ equipmentId: params.input.equipmentId.trim() })
     }
 
@@ -227,9 +257,13 @@ export class TicketsQueryService {
     status?: TicketStatus
   }) {
     const companyScope =
-      params.companyIds.length === 1 ? { companyId: params.companyIds[0] } : { companyId: { in: params.companyIds } }
+      params.companyIds.length === 1
+        ? { companyId: params.companyIds[0] }
+        : { companyId: { in: params.companyIds } }
 
-    const visibilityOr: any[] = [{ ...companyScope, assignedTechnicianId: params.userId }]
+    const visibilityOr: any[] = [
+      { ...companyScope, assignedTechnicianId: params.userId },
+    ]
 
     if (params.allowTechnicianClaim) {
       const specSome = buildSpecializationLinksSomeWhereInput({
@@ -261,8 +295,12 @@ export class TicketsQueryService {
       })
     }
 
-    const baseWhere: any = visibilityOr.length === 1 ? visibilityOr[0] : { OR: visibilityOr }
-    const withStatus = params.status === undefined ? baseWhere : this.normalizeAnd(baseWhere, [{ status: params.status }])
+    const baseWhere: any =
+      visibilityOr.length === 1 ? visibilityOr[0] : { OR: visibilityOr }
+    const withStatus =
+      params.status === undefined
+        ? baseWhere
+        : this.normalizeAnd(baseWhere, [{ status: params.status }])
     const withLocation = this.normalizeAnd(withStatus, [
       buildTechnicianLocationRestrictionWhere({
         companyIds: params.companyIds,
@@ -291,7 +329,12 @@ export class TicketsQueryService {
     providerCompanyId: string
     linkedClientCompanyId?: string
     technicianScope: { companyIds: string[] } | null
-    actor: { id: string; role: UserRole; companyId: string; accessFlags?: AccessFlags }
+    actor: {
+      id: string
+      role: UserRole
+      companyId: string
+      accessFlags?: AccessFlags
+    }
   }): Promise<Prisma.TicketWhereInput | null> {
     return buildSecondaryOperationalRestrictionWhere({
       prisma: this.prisma,
@@ -327,7 +370,7 @@ export class TicketsQueryService {
           scopeCompanyId: technicianScope.scopeCompanyId,
           visibilityMode: technicianScope.visibilityMode,
         }
-        : await resolveTicketReadScope({
+      : await resolveTicketReadScope({
           prisma: this.prisma,
           serviceContractsService: this.serviceContractsService,
           actorCompanyId: companyId,
@@ -335,7 +378,10 @@ export class TicketsQueryService {
           linkedClientCompanyId,
           observerCompanyId,
           allowedLinkedClientRoles: PROVIDER_LINKED_OVERVIEW_ROLES,
-          allowedLinkedClientContractRoles: [ServiceContractRole.PRIMARY, ServiceContractRole.SECONDARY],
+          allowedLinkedClientContractRoles: [
+            ServiceContractRole.PRIMARY,
+            ServiceContractRole.SECONDARY,
+          ],
         })
 
     const atRiskThresholdMinutes = 60
@@ -352,21 +398,39 @@ export class TicketsQueryService {
         })
       : (() => {
           const ownTenantScopeCompanyId =
-            !observerCompanyId && !linkedClientCompanyId && (role === UserRole.CLIENT || role === UserRole.ADMIN)
+            !observerCompanyId &&
+            !linkedClientCompanyId &&
+            (role === UserRole.CLIENT || role === UserRole.ADMIN)
               ? companyId
               : scope.scopeCompanyId
 
-          const policyDecision = this.policy.boardWhere({ id: userId, role, companyId: ownTenantScopeCompanyId, accessFlags }, input)
+          const policyDecision = this.policy.boardWhere(
+            {
+              id: userId,
+              role,
+              companyId: ownTenantScopeCompanyId,
+              accessFlags,
+            },
+            input,
+          )
           assertAllowed(policyDecision)
           const policyQuery = this.safeTicketWhereOrNull(policyDecision.where)
           let prismaWhere = (policyQuery?.where ?? policyDecision.where) as any
-          if (!prismaWhere || typeof prismaWhere !== 'object' || Array.isArray(prismaWhere)) {
+          if (
+            !prismaWhere ||
+            typeof prismaWhere !== 'object' ||
+            Array.isArray(prismaWhere)
+          ) {
             prismaWhere = {}
           }
           if ('where' in prismaWhere) {
             const nestedWhere = prismaWhere.where
             prismaWhere =
-              nestedWhere && typeof nestedWhere === 'object' && !Array.isArray(nestedWhere) ? nestedWhere : {}
+              nestedWhere &&
+              typeof nestedWhere === 'object' &&
+              !Array.isArray(nestedWhere)
+                ? nestedWhere
+                : {}
           }
 
           const take =
@@ -375,7 +439,9 @@ export class TicketsQueryService {
               : typeof (policyDecision as any).take === 'number'
                 ? (policyDecision as any).take
                 : limitedToLast
-          const queryMeta = this.safeTicketWhereOrNull(policyQuery?.meta ?? (policyDecision as any).meta)
+          const queryMeta = this.safeTicketWhereOrNull(
+            policyQuery?.meta ?? (policyDecision as any).meta,
+          )
           const meta = {
             atRiskThresholdMinutes:
               typeof queryMeta?.atRiskThresholdMinutes === 'number'
@@ -397,44 +463,87 @@ export class TicketsQueryService {
           actor: { id: userId, role, companyId, accessFlags },
           scopeCompanyId: scope.scopeCompanyId,
         })
+    const linkedProviderManagementScope =
+      !technicianScope && scope.visibilityMode === 'provider_primary'
     const specializationScope = technicianScope
       ? buildSpecializationScopeFromBindings({
           specializationIds: technicianScope.specializationIds,
           specializationNames: technicianScope.specializationNames,
         })
-      : await resolveActorSpecializationScope({
-          prisma: this.prisma,
-          actor: { id: userId, role, companyId, accessFlags },
-        })
-    const whereWithLocationScope = applySpecializationScopeToTicketWhere(
-      applyLocationScopeToTicketWhere(decision.where, locationScope),
-      specializationScope,
-    )
+      : linkedProviderManagementScope
+        ? {
+            mode: 'all_in_contract' as const,
+            specializationIds: [] as string[],
+            specializationNames: [] as string[],
+          }
+        : await resolveActorSpecializationScope({
+            prisma: this.prisma,
+            actor: { id: userId, role, companyId, accessFlags },
+          })
+    const whereWithLocationScopeAndUserSpecialization =
+      applySpecializationScopeToTicketWhere(
+        applyLocationScopeToTicketWhere(decision.where, locationScope),
+        specializationScope,
+      )
+    const providerContractSpecializationWhere =
+      await buildProviderContractSpecializationRestrictionWhere({
+        prisma: this.prisma,
+        providerCompanyId: companyId,
+        linkedClientCompanyIds: technicianScope
+          ? technicianScope.companyIds.filter((id) => id !== companyId)
+          : scope.visibilityMode === 'provider_primary'
+            ? [scope.scopeCompanyId]
+            : [],
+        technicianSpecializationScope: technicianScope
+          ? buildStrictSpecializationScopeFromBindings({
+              specializationIds: technicianScope.specializationIds,
+              specializationNames: technicianScope.specializationNames,
+            })
+          : undefined,
+      })
+    const whereWithLocationScope = providerContractSpecializationWhere
+      ? this.normalizeAnd(whereWithLocationScopeAndUserSpecialization, [
+          providerContractSpecializationWhere,
+        ])
+      : whereWithLocationScopeAndUserSpecialization
 
     // SECONDARY providers must only see tickets within their operational scope:
     // assigned to their executors, at locations bound to their company, or (NEW/unassigned).
     // Without this restriction they would receive the full client management board.
-    const secondaryOperationalWhere = await this.resolveSecondaryOperationalWhere({
-      providerCompanyId: companyId,
-      linkedClientCompanyId,
-      technicianScope,
-      actor: { id: userId, role, companyId, accessFlags },
-    })
+    const secondaryOperationalWhere =
+      await this.resolveSecondaryOperationalWhere({
+        providerCompanyId: companyId,
+        linkedClientCompanyId,
+        technicianScope,
+        actor: { id: userId, role, companyId, accessFlags },
+      })
     const whereAfterSecondary =
       secondaryOperationalWhere !== null
         ? { AND: [whereWithLocationScope, secondaryOperationalWhere] }
         : whereWithLocationScope
 
-    const whereWithArchiveFilter = this.applyArchivedFilter(whereAfterSecondary, input.includeArchived)
+    const whereWithArchiveFilter = this.applyArchivedFilter(
+      whereAfterSecondary,
+      input.includeArchived,
+    )
 
     const nowMs = Date.now()
     const atRiskThresholdMs = decision.meta.atRiskThresholdMinutes * 60_000
 
     let prismaWhere = whereWithArchiveFilter as any
-    if (prismaWhere && typeof prismaWhere === 'object' && !Array.isArray(prismaWhere) && 'where' in prismaWhere) {
+    if (
+      prismaWhere &&
+      typeof prismaWhere === 'object' &&
+      !Array.isArray(prismaWhere) &&
+      'where' in prismaWhere
+    ) {
       const nestedWhere = prismaWhere.where
       prismaWhere =
-        nestedWhere && typeof nestedWhere === 'object' && !Array.isArray(nestedWhere) ? nestedWhere : {}
+        nestedWhere &&
+        typeof nestedWhere === 'object' &&
+        !Array.isArray(nestedWhere)
+          ? nestedWhere
+          : {}
     }
     const safeBoardWhere = this.safeTicketWhereOrNull(prismaWhere)
     const tickets = safeBoardWhere
@@ -481,7 +590,9 @@ export class TicketsQueryService {
                 },
               },
             },
-            equipment: { select: { id: true, name: true, type: true, status: true } },
+            equipment: {
+              select: { id: true, name: true, type: true, status: true },
+            },
             assignedTechnicianId: true,
             assignedTechnician: { select: assignedTechnicianIdentitySelect },
             parentId: true,
@@ -497,7 +608,9 @@ export class TicketsQueryService {
 
     const assignmentRequestedByCurrentUserIds = new Set<string>()
     if (isExecutorCapableRole(role)) {
-      const candidateTickets = tickets.filter((t) => t.status === TicketStatus.NEW && !t.assignedTechnician)
+      const candidateTickets = tickets.filter(
+        (t) => t.status === TicketStatus.NEW && !t.assignedTechnician,
+      )
       const candidateIds = candidateTickets.map((t) => t.id)
       if (candidateIds.length) {
         const events = await this.prisma.domainEvent.findMany({
@@ -509,7 +622,9 @@ export class TicketsQueryService {
           },
           select: { entityId: true, companyId: true },
         })
-        const tenantByTicketId = new Map(candidateTickets.map((t) => [t.id, t.companyId]))
+        const tenantByTicketId = new Map(
+          candidateTickets.map((t) => [t.id, t.companyId]),
+        )
         for (const ev of events) {
           if (tenantByTicketId.get(ev.entityId) === ev.companyId) {
             assignmentRequestedByCurrentUserIds.add(ev.entityId)
@@ -518,18 +633,32 @@ export class TicketsQueryService {
       }
     }
 
-    const claimRelationshipByTicketCompanyId = new Map<string, ServiceContractRole | null>()
+    const claimRelationshipByTicketCompanyId = new Map<
+      string,
+      ServiceContractRole | null
+    >()
     if (role === UserRole.TECHNICIAN && technicianScope) {
       const linkedTicketCompanyIds = Array.from(
         new Set(
           tickets
-            .filter((t) => t.status === TicketStatus.NEW && !t.assignedTechnician && t.companyId !== companyId)
+            .filter(
+              (t) =>
+                t.status === TicketStatus.NEW &&
+                !t.assignedTechnician &&
+                t.companyId !== companyId,
+            )
             .map((t) => t.companyId),
         ),
       )
       for (const ticketCompanyId of linkedTicketCompanyIds) {
-        const access = await this.serviceContractsService.getLinkedClientAccess(companyId, ticketCompanyId)
-        claimRelationshipByTicketCompanyId.set(ticketCompanyId, access?.role ?? null)
+        const access = await this.serviceContractsService.getLinkedClientAccess(
+          companyId,
+          ticketCompanyId,
+        )
+        claimRelationshipByTicketCompanyId.set(
+          ticketCompanyId,
+          access?.role ?? null,
+        )
       }
     }
 
@@ -551,7 +680,8 @@ export class TicketsQueryService {
       for (const t of byStatus) {
         const due = t.slaDueAt ? t.slaDueAt.getTime() : null
         const isBreached = !!t.slaBreachedAt || (due !== null && nowMs > due)
-        const isAtRisk = !isBreached && due !== null && nowMs > due - atRiskThresholdMs
+        const isAtRisk =
+          !isBreached && due !== null && nowMs > due - atRiskThresholdMs
 
         if (isBreached) breached += 1
         else if (isAtRisk) atRisk += 1
@@ -575,7 +705,9 @@ export class TicketsQueryService {
           urgencyReason: t.urgencyReason ?? null,
           createdAt: t.createdAt,
           slaDueAt: t.slaDueAt,
-          slaBreached: !!t.slaBreachedAt || (t.slaDueAt ? nowMs > t.slaDueAt.getTime() : false),
+          slaBreached:
+            !!t.slaBreachedAt ||
+            (t.slaDueAt ? nowMs > t.slaDueAt.getTime() : false),
           isChild: !!t.parentId,
           pointName: t.pointName,
           location: t.location,
@@ -585,14 +717,20 @@ export class TicketsQueryService {
           attachmentPreviewUrl: attachmentSummary?.previewUrl ?? null,
           imageAttachmentCount: attachmentSummary?.imageCount ?? 0,
         }
-        if (role === UserRole.TECHNICIAN && technicianScope && t.status === TicketStatus.NEW && !t.assignedTechnician) {
+        if (
+          role === UserRole.TECHNICIAN &&
+          technicianScope &&
+          t.status === TicketStatus.NEW &&
+          !t.assignedTechnician
+        ) {
           const links = t.problemCategory.specializationLinks ?? []
           const specOk =
             links.length === 0 ||
             technicianMatchesCategorySpecializationLinks({
               categoryLinks: links,
               technicianSpecializationIds: technicianScope.specializationIds,
-              technicianSpecializationNames: technicianScope.specializationNames,
+              technicianSpecializationNames:
+                technicianScope.specializationNames,
             })
           const locId = (t.locationId || t.location?.id || '').trim()
           const locationOk =
@@ -602,15 +740,27 @@ export class TicketsQueryService {
               locationId: locId,
               locationScopeByCompany: technicianScope.locationScopeByCompany,
             })
-          const relationshipRole = t.companyId === companyId ? ServiceContractRole.PRIMARY : claimRelationshipByTicketCompanyId.get(t.companyId)
+          const relationshipRole =
+            t.companyId === companyId
+              ? ServiceContractRole.PRIMARY
+              : claimRelationshipByTicketCompanyId.get(t.companyId)
           const relationshipAllowsDirectClaim =
             t.companyId === companyId ||
             relationshipRole === ServiceContractRole.PRIMARY ||
-            (relationshipRole === ServiceContractRole.SECONDARY && t.createdByUserId === userId)
+            (relationshipRole === ServiceContractRole.SECONDARY &&
+              t.createdByUserId === userId)
           const canClaimByCurrentUser =
-            technicianScope.allowTechnicianClaim && specOk && locationOk && relationshipAllowsDirectClaim
-          const assignmentRequestedByCurrentUser = assignmentRequestedByCurrentUserIds.has(t.id)
-          return { ...base, canClaimByCurrentUser, assignmentRequestedByCurrentUser }
+            technicianScope.allowTechnicianClaim &&
+            specOk &&
+            locationOk &&
+            relationshipAllowsDirectClaim
+          const assignmentRequestedByCurrentUser =
+            assignmentRequestedByCurrentUserIds.has(t.id)
+          return {
+            ...base,
+            canClaimByCurrentUser,
+            assignmentRequestedByCurrentUser,
+          }
         }
         return base
       })
@@ -645,21 +795,22 @@ export class TicketsQueryService {
     locationId?: string,
     equipmentId?: string,
   ) {
-    const technicianScope = role === UserRole.TECHNICIAN && !observerCompanyId
-      ? await resolveTechnicianOperationalScope({
-          prisma: this.prisma,
-          serviceContractsService: this.serviceContractsService,
-          actor: { id: userId, role, companyId, accessFlags },
-          linkedClientCompanyId,
-        })
-      : null
+    const technicianScope =
+      role === UserRole.TECHNICIAN && !observerCompanyId
+        ? await resolveTechnicianOperationalScope({
+            prisma: this.prisma,
+            serviceContractsService: this.serviceContractsService,
+            actor: { id: userId, role, companyId, accessFlags },
+            linkedClientCompanyId,
+          })
+        : null
 
     const scope = technicianScope
       ? {
           scopeCompanyId: technicianScope.scopeCompanyId,
           visibilityMode: technicianScope.visibilityMode,
         }
-        : await resolveTicketReadScope({
+      : await resolveTicketReadScope({
           prisma: this.prisma,
           serviceContractsService: this.serviceContractsService,
           actorCompanyId: companyId,
@@ -667,7 +818,10 @@ export class TicketsQueryService {
           linkedClientCompanyId,
           observerCompanyId,
           allowedLinkedClientRoles: PROVIDER_LINKED_OVERVIEW_ROLES,
-          allowedLinkedClientContractRoles: [ServiceContractRole.PRIMARY, ServiceContractRole.SECONDARY],
+          allowedLinkedClientContractRoles: [
+            ServiceContractRole.PRIMARY,
+            ServiceContractRole.SECONDARY,
+          ],
         })
 
     const baseWhere = technicianScope
@@ -682,10 +836,17 @@ export class TicketsQueryService {
         }).where
       : (() => {
           const ownTenantScopeCompanyId =
-            !observerCompanyId && !linkedClientCompanyId && (role === UserRole.CLIENT || role === UserRole.ADMIN)
+            !observerCompanyId &&
+            !linkedClientCompanyId &&
+            (role === UserRole.CLIENT || role === UserRole.ADMIN)
               ? companyId
               : scope.scopeCompanyId
-          const policyDecision = this.policy.listWhere({ id: userId, role, companyId: ownTenantScopeCompanyId, accessFlags })
+          const policyDecision = this.policy.listWhere({
+            id: userId,
+            role,
+            companyId: ownTenantScopeCompanyId,
+            accessFlags,
+          })
           assertAllowed(policyDecision)
           const resolvedWhere = policyDecision.where as any
           if (
@@ -706,30 +867,64 @@ export class TicketsQueryService {
           actor: { id: userId, role, companyId, accessFlags },
           scopeCompanyId: scope.scopeCompanyId,
         })
+    const linkedProviderManagementScope =
+      !technicianScope && scope.visibilityMode === 'provider_primary'
     const specializationScope = technicianScope
       ? buildSpecializationScopeFromBindings({
           specializationIds: technicianScope.specializationIds,
           specializationNames: technicianScope.specializationNames,
         })
-      : await resolveActorSpecializationScope({
-          prisma: this.prisma,
-          actor: { id: userId, role, companyId, accessFlags },
-        })
-    const scopedWhere = applySpecializationScopeToTicketWhere(
-      applyLocationScopeToTicketWhere(baseWhere, locationScope),
-      specializationScope,
-    )
-    const secondaryOperationalWhere = await this.resolveSecondaryOperationalWhere({
-      providerCompanyId: companyId,
-      linkedClientCompanyId,
-      technicianScope,
-      actor: { id: userId, role, companyId, accessFlags },
-    })
+      : linkedProviderManagementScope
+        ? {
+            mode: 'all_in_contract' as const,
+            specializationIds: [] as string[],
+            specializationNames: [] as string[],
+          }
+        : await resolveActorSpecializationScope({
+            prisma: this.prisma,
+            actor: { id: userId, role, companyId, accessFlags },
+          })
+    const scopedWhereWithUserSpecialization =
+      applySpecializationScopeToTicketWhere(
+        applyLocationScopeToTicketWhere(baseWhere, locationScope),
+        specializationScope,
+      )
+    const providerContractSpecializationWhere =
+      await buildProviderContractSpecializationRestrictionWhere({
+        prisma: this.prisma,
+        providerCompanyId: companyId,
+        linkedClientCompanyIds: technicianScope
+          ? technicianScope.companyIds.filter((id) => id !== companyId)
+          : scope.visibilityMode === 'provider_primary'
+            ? [scope.scopeCompanyId]
+            : [],
+        technicianSpecializationScope: technicianScope
+          ? buildStrictSpecializationScopeFromBindings({
+              specializationIds: technicianScope.specializationIds,
+              specializationNames: technicianScope.specializationNames,
+            })
+          : undefined,
+      })
+    const scopedWhere = providerContractSpecializationWhere
+      ? this.normalizeAnd(scopedWhereWithUserSpecialization, [
+          providerContractSpecializationWhere,
+        ])
+      : scopedWhereWithUserSpecialization
+    const secondaryOperationalWhere =
+      await this.resolveSecondaryOperationalWhere({
+        providerCompanyId: companyId,
+        linkedClientCompanyId,
+        technicianScope,
+        actor: { id: userId, role, companyId, accessFlags },
+      })
     const whereAfterSecondary =
       secondaryOperationalWhere !== null
         ? { AND: [scopedWhere, secondaryOperationalWhere] }
         : scopedWhere
-    const where = this.applyContextFilters(whereAfterSecondary, { locationId, equipmentId })
+    const where = this.applyContextFilters(whereAfterSecondary, {
+      locationId,
+      equipmentId,
+    })
 
     const safeAnalyticsWhere = this.safeTicketWhereOrNull(where)
     const rows = safeAnalyticsWhere
@@ -743,9 +938,39 @@ export class TicketsQueryService {
         })
       : []
 
-    const ensureBucket = () => ({ total: 0, NEW: 0, IN_PROGRESS: 0, AWAITING_ACCEPTANCE: 0, DONE: 0 })
-    const byLocation = new Map<string, { locationId: string; locationName: string; total: number; NEW: number; IN_PROGRESS: number; AWAITING_ACCEPTANCE: number; DONE: number }>()
-    const byEquipment = new Map<string, { equipmentId: string; equipmentName: string; locationId: string | null; locationName: string | null; total: number; NEW: number; IN_PROGRESS: number; AWAITING_ACCEPTANCE: number; DONE: number }>()
+    const ensureBucket = () => ({
+      total: 0,
+      NEW: 0,
+      IN_PROGRESS: 0,
+      AWAITING_ACCEPTANCE: 0,
+      DONE: 0,
+    })
+    const byLocation = new Map<
+      string,
+      {
+        locationId: string
+        locationName: string
+        total: number
+        NEW: number
+        IN_PROGRESS: number
+        AWAITING_ACCEPTANCE: number
+        DONE: number
+      }
+    >()
+    const byEquipment = new Map<
+      string,
+      {
+        equipmentId: string
+        equipmentName: string
+        locationId: string | null
+        locationName: string | null
+        total: number
+        NEW: number
+        IN_PROGRESS: number
+        AWAITING_ACCEPTANCE: number
+        DONE: number
+      }
+    >()
 
     for (const row of rows) {
       const status = row.status
@@ -758,7 +983,8 @@ export class TicketsQueryService {
         current.total += 1
         if (status === TicketStatus.NEW) current.NEW += 1
         if (status === TicketStatus.IN_PROGRESS) current.IN_PROGRESS += 1
-        if (status === TicketStatus.AWAITING_ACCEPTANCE) current.AWAITING_ACCEPTANCE += 1
+        if (status === TicketStatus.AWAITING_ACCEPTANCE)
+          current.AWAITING_ACCEPTANCE += 1
         if (status === TicketStatus.DONE) current.DONE += 1
         byLocation.set(row.location.id, current)
       }
@@ -774,15 +1000,20 @@ export class TicketsQueryService {
         current.total += 1
         if (status === TicketStatus.NEW) current.NEW += 1
         if (status === TicketStatus.IN_PROGRESS) current.IN_PROGRESS += 1
-        if (status === TicketStatus.AWAITING_ACCEPTANCE) current.AWAITING_ACCEPTANCE += 1
+        if (status === TicketStatus.AWAITING_ACCEPTANCE)
+          current.AWAITING_ACCEPTANCE += 1
         if (status === TicketStatus.DONE) current.DONE += 1
         byEquipment.set(row.equipment.id, current)
       }
     }
 
     return {
-      byLocation: Array.from(byLocation.values()).sort((a, b) => b.total - a.total),
-      byEquipment: Array.from(byEquipment.values()).sort((a, b) => b.total - a.total),
+      byLocation: Array.from(byLocation.values()).sort(
+        (a, b) => b.total - a.total,
+      ),
+      byEquipment: Array.from(byEquipment.values()).sort(
+        (a, b) => b.total - a.total,
+      ),
       meta: {
         totalTickets: rows.length,
         scopeCompanyId: scope.scopeCompanyId,
@@ -800,21 +1031,22 @@ export class TicketsQueryService {
     linkedClientCompanyId?: string,
     observerCompanyId?: string,
   ) {
-    const technicianScope = role === UserRole.TECHNICIAN && !observerCompanyId
-      ? await resolveTechnicianOperationalScope({
-          prisma: this.prisma,
-          serviceContractsService: this.serviceContractsService,
-          actor: { id: userId, role, companyId, accessFlags },
-          linkedClientCompanyId,
-        })
-      : null
+    const technicianScope =
+      role === UserRole.TECHNICIAN && !observerCompanyId
+        ? await resolveTechnicianOperationalScope({
+            prisma: this.prisma,
+            serviceContractsService: this.serviceContractsService,
+            actor: { id: userId, role, companyId, accessFlags },
+            linkedClientCompanyId,
+          })
+        : null
 
     const scope = technicianScope
       ? {
           scopeCompanyId: technicianScope.scopeCompanyId,
           visibilityMode: technicianScope.visibilityMode,
         }
-        : await resolveTicketReadScope({
+      : await resolveTicketReadScope({
           prisma: this.prisma,
           serviceContractsService: this.serviceContractsService,
           actorCompanyId: companyId,
@@ -822,7 +1054,10 @@ export class TicketsQueryService {
           linkedClientCompanyId,
           observerCompanyId,
           allowedLinkedClientRoles: PROVIDER_LINKED_OVERVIEW_ROLES,
-          allowedLinkedClientContractRoles: [ServiceContractRole.PRIMARY, ServiceContractRole.SECONDARY],
+          allowedLinkedClientContractRoles: [
+            ServiceContractRole.PRIMARY,
+            ServiceContractRole.SECONDARY,
+          ],
         })
 
     const where = technicianScope
@@ -837,11 +1072,21 @@ export class TicketsQueryService {
         })
       : (() => {
           const ownTenantScopeCompanyId =
-            !observerCompanyId && !linkedClientCompanyId && (role === UserRole.CLIENT || role === UserRole.ADMIN)
+            !observerCompanyId &&
+            !linkedClientCompanyId &&
+            (role === UserRole.CLIENT || role === UserRole.ADMIN)
               ? companyId
               : scope.scopeCompanyId
 
-          const decision = this.policy.listWhere({ id: userId, role, companyId: ownTenantScopeCompanyId, accessFlags }, status)
+          const decision = this.policy.listWhere(
+            {
+              id: userId,
+              role,
+              companyId: ownTenantScopeCompanyId,
+              accessFlags,
+            },
+            status,
+          )
           assertAllowed(decision)
           return decision.where
         })()
@@ -852,25 +1097,56 @@ export class TicketsQueryService {
           actor: { id: userId, role, companyId, accessFlags },
           scopeCompanyId: scope.scopeCompanyId,
         })
+    const linkedProviderManagementScope =
+      !technicianScope && scope.visibilityMode === 'provider_primary'
     const specializationScope = technicianScope
       ? buildSpecializationScopeFromBindings({
           specializationIds: technicianScope.specializationIds,
           specializationNames: technicianScope.specializationNames,
         })
-      : await resolveActorSpecializationScope({
-          prisma: this.prisma,
-          actor: { id: userId, role, companyId, accessFlags },
-        })
-    const whereWithLocationScope = applySpecializationScopeToTicketWhere(
-      applyLocationScopeToTicketWhere(where, locationScope),
-      specializationScope,
-    )
-    const secondaryOperationalWhere = await this.resolveSecondaryOperationalWhere({
-      providerCompanyId: companyId,
-      linkedClientCompanyId,
-      technicianScope,
-      actor: { id: userId, role, companyId, accessFlags },
-    })
+      : linkedProviderManagementScope
+        ? {
+            mode: 'all_in_contract' as const,
+            specializationIds: [] as string[],
+            specializationNames: [] as string[],
+          }
+        : await resolveActorSpecializationScope({
+            prisma: this.prisma,
+            actor: { id: userId, role, companyId, accessFlags },
+          })
+    const whereWithLocationScopeAndUserSpecialization =
+      applySpecializationScopeToTicketWhere(
+        applyLocationScopeToTicketWhere(where, locationScope),
+        specializationScope,
+      )
+    const providerContractSpecializationWhere =
+      await buildProviderContractSpecializationRestrictionWhere({
+        prisma: this.prisma,
+        providerCompanyId: companyId,
+        linkedClientCompanyIds: technicianScope
+          ? technicianScope.companyIds.filter((id) => id !== companyId)
+          : scope.visibilityMode === 'provider_primary'
+            ? [scope.scopeCompanyId]
+            : [],
+        technicianSpecializationScope: technicianScope
+          ? buildStrictSpecializationScopeFromBindings({
+              specializationIds: technicianScope.specializationIds,
+              specializationNames: technicianScope.specializationNames,
+            })
+          : undefined,
+      })
+    const whereWithLocationScope = providerContractSpecializationWhere
+      ? this.normalizeAnd(whereWithLocationScopeAndUserSpecialization, [
+          providerContractSpecializationWhere,
+        ])
+      : whereWithLocationScopeAndUserSpecialization
+    const secondaryOperationalWhere =
+      await this.resolveSecondaryOperationalWhere({
+        providerCompanyId: companyId,
+        linkedClientCompanyId,
+        technicianScope,
+        actor: { id: userId, role, companyId, accessFlags },
+      })
     const whereAfterSecondary =
       secondaryOperationalWhere !== null
         ? { AND: [whereWithLocationScope, secondaryOperationalWhere] }
@@ -918,7 +1194,10 @@ export class TicketsQueryService {
       ticketId,
       linkedClientCompanyId,
       observerCompanyId,
-      allowedLinkedClientContractRoles: [ServiceContractRole.PRIMARY, ServiceContractRole.SECONDARY],
+      allowedLinkedClientContractRoles: [
+        ServiceContractRole.PRIMARY,
+        ServiceContractRole.SECONDARY,
+      ],
     })
 
     const include = {

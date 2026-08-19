@@ -1,5 +1,8 @@
 import { Injectable } from '@nestjs/common'
-import { ServiceContractLocationMode, ServiceContractRole } from '@prisma/client'
+import {
+  ServiceContractLocationMode,
+  ServiceContractRole,
+} from '@prisma/client'
 
 import { PrismaService } from '../prisma/prisma.service'
 
@@ -10,8 +13,12 @@ import {
 import { activeServiceContractWhere } from './service-contract-window'
 
 export type ContractSpecializationScope =
-  | { mode: 'EXPLICIT'; specializationIds: string[] }
-  | { mode: 'UNCONFIGURED'; specializationIds: [] }
+  | {
+      mode: 'EXPLICIT'
+      specializationIds: string[]
+      specializationNames: string[]
+    }
+  | { mode: 'UNCONFIGURED'; specializationIds: []; specializationNames: [] }
 
 export type ContractContextInput = {
   actorCompanyId?: string | null
@@ -31,6 +38,7 @@ export type ContractContext = {
   locationIds: string[]
   specializationMode: ContractSpecializationScope['mode']
   specializationIds: string[]
+  specializationNames: string[]
   contractLocationScope: ResolvedServiceContractLocationScope
   contractSpecializationScope: ContractSpecializationScope
 }
@@ -48,11 +56,18 @@ type ContractLocationCarrier = {
 export class ContractContextService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getContractContext(input: ContractContextInput): Promise<ContractContext | null> {
-    const providerCompanyId = this.normalizeId(input.providerCompanyId) ?? this.normalizeId(input.actorCompanyId)
+  async getContractContext(
+    input: ContractContextInput,
+  ): Promise<ContractContext | null> {
+    const providerCompanyId =
+      this.normalizeId(input.providerCompanyId) ??
+      this.normalizeId(input.actorCompanyId)
     const explicitClientCompanyId =
-      this.normalizeId(input.clientCompanyId) ?? this.normalizeId(input.linkedClientCompanyId)
-    const clientCompanyId = explicitClientCompanyId ?? await this.resolveTicketClientCompanyId(input.ticketId)
+      this.normalizeId(input.clientCompanyId) ??
+      this.normalizeId(input.linkedClientCompanyId)
+    const clientCompanyId =
+      explicitClientCompanyId ??
+      (await this.resolveTicketClientCompanyId(input.ticketId))
 
     if (!providerCompanyId || !clientCompanyId) {
       return null
@@ -74,7 +89,9 @@ export class ContractContextService {
     return this.buildContractContext(contract)
   }
 
-  async getContractLocationScope(serviceContractId: string): Promise<ResolvedServiceContractLocationScope | null> {
+  async getContractLocationScope(
+    serviceContractId: string,
+  ): Promise<ResolvedServiceContractLocationScope | null> {
     const normalizedId = this.normalizeId(serviceContractId)
     if (!normalizedId) {
       return null
@@ -95,27 +112,49 @@ export class ContractContextService {
     return this.resolveEffectiveLocationScope(contract)
   }
 
-  async getContractSpecializationScope(serviceContractId: string): Promise<ContractSpecializationScope> {
+  async getContractSpecializationScope(
+    serviceContractId: string,
+  ): Promise<ContractSpecializationScope> {
     const normalizedId = this.normalizeId(serviceContractId)
     if (!normalizedId) {
-      return { mode: 'UNCONFIGURED', specializationIds: [] }
+      return {
+        mode: 'UNCONFIGURED',
+        specializationIds: [],
+        specializationNames: [],
+      }
     }
 
     const rows = await this.prisma.serviceContractSpecialization.findMany({
       where: { serviceContractId: normalizedId },
       orderBy: [{ createdAt: 'asc' }, { specializationId: 'asc' }],
-      select: { specializationId: true },
+      select: {
+        specializationId: true,
+        specialization: {
+          select: { name: true },
+        },
+      },
     })
-    const specializationIds = this.uniqueIds(rows.map((row) => row.specializationId))
+    const specializationIds = this.uniqueIds(
+      rows.map((row) => row.specializationId),
+    )
+    const specializationNames = this.uniqueIds(
+      rows.map((row) => row.specialization?.name ?? ''),
+    )
 
-    if (specializationIds.length === 0) {
-      return { mode: 'UNCONFIGURED', specializationIds: [] }
+    if (specializationIds.length === 0 && specializationNames.length === 0) {
+      return {
+        mode: 'UNCONFIGURED',
+        specializationIds: [],
+        specializationNames: [],
+      }
     }
 
-    return { mode: 'EXPLICIT', specializationIds }
+    return { mode: 'EXPLICIT', specializationIds, specializationNames }
   }
 
-  private async resolveTicketClientCompanyId(ticketId?: string | null): Promise<string | null> {
+  private async resolveTicketClientCompanyId(
+    ticketId?: string | null,
+  ): Promise<string | null> {
     const normalizedTicketId = this.normalizeId(ticketId)
     if (!normalizedTicketId) {
       return null
@@ -129,10 +168,15 @@ export class ContractContextService {
     return this.normalizeId(ticket?.companyId)
   }
 
-  private async buildContractContext(contract: ContractLocationCarrier): Promise<ContractContext> {
-    const contractLocationScope = await this.resolveEffectiveLocationScope(contract)
-    const contractSpecializationScope = await this.getContractSpecializationScope(contract.id)
-    const locationMode = contract.locationMode ?? ServiceContractLocationMode.ALL_LOCATIONS
+  private async buildContractContext(
+    contract: ContractLocationCarrier,
+  ): Promise<ContractContext> {
+    const contractLocationScope =
+      await this.resolveEffectiveLocationScope(contract)
+    const contractSpecializationScope =
+      await this.getContractSpecializationScope(contract.id)
+    const locationMode =
+      contract.locationMode ?? ServiceContractLocationMode.ALL_LOCATIONS
 
     return {
       contractId: contract.id,
@@ -144,6 +188,7 @@ export class ContractContextService {
       locationIds: contractLocationScope.locationIds,
       specializationMode: contractSpecializationScope.mode,
       specializationIds: contractSpecializationScope.specializationIds,
+      specializationNames: contractSpecializationScope.specializationNames,
       contractLocationScope,
       contractSpecializationScope,
     }
@@ -153,7 +198,10 @@ export class ContractContextService {
     contract: ContractLocationCarrier,
   ): Promise<ResolvedServiceContractLocationScope> {
     if (contract.locationMode === ServiceContractLocationMode.INHERIT_PRIMARY) {
-      const inherited = await this.resolvePrimaryInheritanceSource(contract.clientCompanyId, contract.id)
+      const inherited = await this.resolvePrimaryInheritanceSource(
+        contract.clientCompanyId,
+        contract.id,
+      )
 
       return resolveServiceContractLocationScope({
         locationMode: contract.locationMode,
@@ -172,7 +220,10 @@ export class ContractContextService {
   private async resolvePrimaryInheritanceSource(
     clientCompanyId: string,
     excludeContractId?: string,
-  ): Promise<{ hasPrimarySource: boolean; inheritedLocationIds: string[] | null }> {
+  ): Promise<{
+    hasPrimarySource: boolean
+    inheritedLocationIds: string[] | null
+  }> {
     const primaryContracts = await this.prisma.serviceContract.findMany({
       where: {
         clientCompanyId,
@@ -204,7 +255,10 @@ export class ContractContextService {
       }
     }
 
-    return { hasPrimarySource: true, inheritedLocationIds: Array.from(inherited) }
+    return {
+      hasPrimarySource: true,
+      inheritedLocationIds: Array.from(inherited),
+    }
   }
 
   private normalizeId(value?: string | null): string | null {
@@ -214,7 +268,9 @@ export class ContractContextService {
   }
 
   private uniqueIds(values: string[]): string[] {
-    return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)))
+    return Array.from(
+      new Set(values.map((value) => value.trim()).filter(Boolean)),
+    )
   }
 
   private contractSelect() {

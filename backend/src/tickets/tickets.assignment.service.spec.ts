@@ -1,5 +1,11 @@
 import { ForbiddenException } from '@nestjs/common'
-import { CompanyType, ServiceContractRole, TicketStatus, UserAccessLocationMode, UserRole } from '@prisma/client'
+import {
+  CompanyType,
+  ServiceContractRole,
+  TicketStatus,
+  UserAccessLocationMode,
+  UserRole,
+} from '@prisma/client'
 
 const mockAssertActorCanUseLocation = jest.fn()
 const mockAssertActorCanUseProblemCategory = jest.fn()
@@ -8,8 +14,10 @@ jest.mock('./ticket-access.utils', () => {
   const actual = jest.requireActual('./ticket-access.utils')
   return {
     ...actual,
-    assertActorCanUseLocation: (...args: any[]) => mockAssertActorCanUseLocation(...args),
-    assertActorCanUseProblemCategory: (...args: any[]) => mockAssertActorCanUseProblemCategory(...args),
+    assertActorCanUseLocation: (...args: any[]) =>
+      mockAssertActorCanUseLocation(...args),
+    assertActorCanUseProblemCategory: (...args: any[]) =>
+      mockAssertActorCanUseProblemCategory(...args),
   }
 })
 
@@ -49,7 +57,9 @@ describe('TicketsAssignmentService location scope override', () => {
   beforeEach(() => {
     mockAssertActorCanUseLocation.mockReset()
     mockAssertActorCanUseProblemCategory.mockReset()
-    mockAssertActorCanUseProblemCategory.mockResolvedValue({ id: 'category-1' })
+    mockAssertActorCanUseProblemCategory.mockResolvedValue({
+      id: 'category-1',
+    })
   })
 
   it('keeps own-company client ADMIN bound through the shared location helper', async () => {
@@ -58,7 +68,11 @@ describe('TicketsAssignmentService location scope override', () => {
     mockAssertActorCanUseLocation.mockResolvedValue(undefined)
 
     await (svc as any).assertActorCanUseLocationForScope({
-      actor: { id: 'user-1', role: UserRole.ADMIN, companyId: 'client-company' },
+      actor: {
+        id: 'user-1',
+        role: UserRole.ADMIN,
+        companyId: 'client-company',
+      },
       scopeCompanyId: 'client-company',
       locationId: 'loc-1',
     })
@@ -80,7 +94,11 @@ describe('TicketsAssignmentService location scope override', () => {
     mockAssertActorCanUseLocation.mockResolvedValue(undefined)
 
     await (svc as any).assertActorCanUseLocationForScope({
-      actor: { id: 'tech-1', role: UserRole.TECHNICIAN, companyId: 'client-company' },
+      actor: {
+        id: 'tech-1',
+        role: UserRole.TECHNICIAN,
+        companyId: 'client-company',
+      },
       scopeCompanyId: 'client-company',
       locationId: 'loc-2',
     })
@@ -101,7 +119,11 @@ describe('TicketsAssignmentService location scope override', () => {
     mockAssertActorCanUseLocation.mockResolvedValue(undefined)
 
     await (svc as any).assertActorCanUseLocationForScope({
-      actor: { id: 'provider-1', role: UserRole.NETWORK_DIRECTOR, companyId: 'provider-company' },
+      actor: {
+        id: 'provider-1',
+        role: UserRole.NETWORK_DIRECTOR,
+        companyId: 'provider-company',
+      },
       scopeCompanyId: 'linked-client-company',
       locationId: 'loc-3',
     })
@@ -117,8 +139,14 @@ describe('TicketsAssignmentService location scope override', () => {
 
   it('resolves provider ticket ownership from the linked client location', async () => {
     const prisma = makePrismaMock()
-    prisma.company.findUnique.mockResolvedValue({ id: 'provider-company', type: CompanyType.PROVIDER })
-    prisma.location.findFirst.mockResolvedValue({ id: 'loc-4', clientCompanyId: 'client-company' })
+    prisma.company.findUnique.mockResolvedValue({
+      id: 'provider-company',
+      type: CompanyType.PROVIDER,
+    })
+    prisma.location.findFirst.mockResolvedValue({
+      id: 'loc-4',
+      clientCompanyId: 'client-company',
+    })
     const svc = makeService(prisma)
     const contracts = (svc as any).serviceContractsService
     contracts.getLinkedClientAccess.mockResolvedValue({ role: 'SECONDARY' })
@@ -130,13 +158,22 @@ describe('TicketsAssignmentService location scope override', () => {
     })
 
     expect(companyId).toBe('client-company')
-    expect(contracts.getLinkedClientAccess).toHaveBeenCalledWith('provider-company', 'client-company')
+    expect(contracts.getLinkedClientAccess).toHaveBeenCalledWith(
+      'provider-company',
+      'client-company',
+    )
   })
 
   it('hides a linked-client location outside the objects selected in the contract', async () => {
     const prisma = makePrismaMock()
-    prisma.company.findUnique.mockResolvedValue({ id: 'provider-company', type: CompanyType.PROVIDER })
-    prisma.location.findFirst.mockResolvedValue({ id: 'loc-outside', clientCompanyId: 'client-company' })
+    prisma.company.findUnique.mockResolvedValue({
+      id: 'provider-company',
+      type: CompanyType.PROVIDER,
+    })
+    prisma.location.findFirst.mockResolvedValue({
+      id: 'loc-outside',
+      clientCompanyId: 'client-company',
+    })
     const svc = makeService(prisma)
     const contracts = (svc as any).serviceContractsService
     contracts.getLinkedClientAccess.mockResolvedValue({
@@ -144,11 +181,13 @@ describe('TicketsAssignmentService location scope override', () => {
       locations: [{ locationId: 'loc-contract' }],
     })
 
-    await expect((svc as any).resolveTicketOwnerCompanyId({
-      actorCompanyId: 'provider-company',
-      locationId: 'loc-outside',
-      requestedClientCompanyId: null,
-    })).rejects.toBeDefined()
+    await expect(
+      (svc as any).resolveTicketOwnerCompanyId({
+        actorCompanyId: 'provider-company',
+        locationId: 'loc-outside',
+        requestedClientCompanyId: null,
+      }),
+    ).rejects.toBeDefined()
   })
 })
 
@@ -176,15 +215,20 @@ describe('TicketsAssignmentService assignment executor eligibility', () => {
       lastName: 'Executor',
       role: overrides.role,
       companyId: overrides.companyId ?? providerCompany.id,
-      company: overrides.companyId && overrides.companyId !== providerCompany.id
-        ? { ...providerCompany, id: overrides.companyId }
-        : providerCompany,
+      company:
+        overrides.companyId && overrides.companyId !== providerCompany.id
+          ? { ...providerCompany, id: overrides.companyId }
+          : providerCompany,
       isActive: overrides.isActive,
-      technicianSpecializations: (overrides.specializationIds ?? ['spec-1']).map((id) => ({
+      technicianSpecializations: (
+        overrides.specializationIds ?? ['spec-1']
+      ).map((id) => ({
         specializationId: id,
         specialization: {
           id,
-          name: overrides.specializationNameById?.[id] ?? (id === 'spec-1' ? 'Сантехника' : 'Электрика'),
+          name:
+            overrides.specializationNameById?.[id] ??
+            (id === 'spec-1' ? 'Сантехника' : 'Электрика'),
           isActive: true,
         },
       })),
@@ -192,14 +236,18 @@ describe('TicketsAssignmentService assignment executor eligibility', () => {
     }
   }
 
-  function makePrismaWithCandidates(candidates: Array<ReturnType<typeof makeCandidate>>) {
+  function makePrismaWithCandidates(
+    candidates: Array<ReturnType<typeof makeCandidate>>,
+  ) {
     return {
       user: {
         findMany: jest.fn().mockImplementation(async (query: any) => {
           const where = query?.where ?? {}
           let rows = candidates.slice()
           if (where.companyId?.in) {
-            rows = rows.filter((item) => where.companyId.in.includes(item.companyId))
+            rows = rows.filter((item) =>
+              where.companyId.in.includes(item.companyId),
+            )
           } else if (typeof where.companyId === 'string') {
             rows = rows.filter((item) => item.companyId === where.companyId)
           }
@@ -212,10 +260,13 @@ describe('TicketsAssignmentService assignment executor eligibility', () => {
           if (where.isActive === true) {
             rows = rows.filter((item) => item.isActive === true)
           }
-          const requiredIds = where.technicianSpecializations?.some?.specializationId?.in
+          const requiredIds =
+            where.technicianSpecializations?.some?.specializationId?.in
           if (Array.isArray(requiredIds)) {
             rows = rows.filter((item) =>
-              item.technicianSpecializations.some((link) => requiredIds.includes(link.specializationId)),
+              item.technicianSpecializations.some((link) =>
+                requiredIds.includes(link.specializationId),
+              ),
             )
           }
           return rows
@@ -244,13 +295,32 @@ describe('TicketsAssignmentService assignment executor eligibility', () => {
   }
 
   it('excludes inactive executors from specialization-matched candidates', async () => {
-    const activeTechnician = makeCandidate({ id: 'active-tech', role: UserRole.TECHNICIAN, isActive: true })
-    const inactiveTechnician = makeCandidate({ id: 'inactive-tech', role: UserRole.TECHNICIAN, isActive: false })
-    const inactiveMaster = makeCandidate({ id: 'inactive-master', role: UserRole.MASTER, isActive: false })
-    const prisma = makePrismaWithCandidates([activeTechnician, inactiveTechnician, inactiveMaster])
+    const activeTechnician = makeCandidate({
+      id: 'active-tech',
+      role: UserRole.TECHNICIAN,
+      isActive: true,
+    })
+    const inactiveTechnician = makeCandidate({
+      id: 'inactive-tech',
+      role: UserRole.TECHNICIAN,
+      isActive: false,
+    })
+    const inactiveMaster = makeCandidate({
+      id: 'inactive-master',
+      role: UserRole.MASTER,
+      isActive: false,
+    })
+    const prisma = makePrismaWithCandidates([
+      activeTechnician,
+      inactiveTechnician,
+      inactiveMaster,
+    ])
     const svc = makeServiceWithCandidatePrisma(prisma)
 
-    const result = await (svc as any).findCandidateTechnicians(providerCompany.id, ['spec-1'])
+    const result = await (svc as any).findCandidateTechnicians(
+      providerCompany.id,
+      ['spec-1'],
+    )
 
     expect(prisma.user.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -258,7 +328,9 @@ describe('TicketsAssignmentService assignment executor eligibility', () => {
           companyId: providerCompany.id,
           isExecutor: true,
           isActive: true,
-          role: expect.objectContaining({ in: expect.arrayContaining([UserRole.TECHNICIAN, UserRole.MASTER]) }),
+          role: expect.objectContaining({
+            in: expect.arrayContaining([UserRole.TECHNICIAN, UserRole.MASTER]),
+          }),
         }),
       }),
     )
@@ -266,16 +338,41 @@ describe('TicketsAssignmentService assignment executor eligibility', () => {
   })
 
   it('excludes inactive technicians and inactive MASTER users from fallback assignment candidates', async () => {
-    const activeTechnician = makeCandidate({ id: 'active-tech', role: UserRole.TECHNICIAN, isActive: true })
-    const inactiveTechnician = makeCandidate({ id: 'inactive-tech', role: UserRole.TECHNICIAN, isActive: false })
-    const activeMaster = makeCandidate({ id: 'active-master', role: UserRole.MASTER, isActive: true })
-    const inactiveMaster = makeCandidate({ id: 'inactive-master', role: UserRole.MASTER, isActive: false })
-    const prisma = makePrismaWithCandidates([activeTechnician, inactiveTechnician, activeMaster, inactiveMaster])
+    const activeTechnician = makeCandidate({
+      id: 'active-tech',
+      role: UserRole.TECHNICIAN,
+      isActive: true,
+    })
+    const inactiveTechnician = makeCandidate({
+      id: 'inactive-tech',
+      role: UserRole.TECHNICIAN,
+      isActive: false,
+    })
+    const activeMaster = makeCandidate({
+      id: 'active-master',
+      role: UserRole.MASTER,
+      isActive: true,
+    })
+    const inactiveMaster = makeCandidate({
+      id: 'inactive-master',
+      role: UserRole.MASTER,
+      isActive: false,
+    })
+    const prisma = makePrismaWithCandidates([
+      activeTechnician,
+      inactiveTechnician,
+      activeMaster,
+      inactiveMaster,
+    ])
     const svc = makeServiceWithCandidatePrisma(prisma)
 
-    const result = await (svc as any).listAllTechnicians(providerCompany.id, [], {
-      fallbackToAllWhenNoSpecializations: true,
-    })
+    const result = await (svc as any).listAllTechnicians(
+      providerCompany.id,
+      [],
+      {
+        fallbackToAllWhenNoSpecializations: true,
+      },
+    )
 
     expect(prisma.user.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -283,19 +380,31 @@ describe('TicketsAssignmentService assignment executor eligibility', () => {
           companyId: providerCompany.id,
           isExecutor: true,
           isActive: true,
-          role: expect.objectContaining({ in: expect.arrayContaining([UserRole.TECHNICIAN, UserRole.MASTER]) }),
+          role: expect.objectContaining({
+            in: expect.arrayContaining([UserRole.TECHNICIAN, UserRole.MASTER]),
+          }),
         }),
       }),
     )
-    expect(result.map((item: any) => item.id)).toEqual(['active-tech', 'active-master'])
+    expect(result.map((item: any) => item.id)).toEqual([
+      'active-tech',
+      'active-master',
+    ])
   })
 
   it('keeps active executor identity fields in enriched candidate DTOs', async () => {
-    const activeTechnician = makeCandidate({ id: 'active-tech', role: UserRole.TECHNICIAN, isActive: true })
+    const activeTechnician = makeCandidate({
+      id: 'active-tech',
+      role: UserRole.TECHNICIAN,
+      isActive: true,
+    })
     const prisma = makePrismaWithCandidates([activeTechnician])
     const svc = makeServiceWithCandidatePrisma(prisma)
 
-    const result = await (svc as any).findCandidateTechnicians(providerCompany.id, ['spec-1'])
+    const result = await (svc as any).findCandidateTechnicians(
+      providerCompany.id,
+      ['spec-1'],
+    )
 
     expect(result).toEqual([
       expect.objectContaining({
@@ -316,7 +425,9 @@ describe('TicketsAssignmentService assignment executor eligibility', () => {
       role: UserRole.TECHNICIAN,
       isActive: true,
       specializationIds: ['provider-spec-cond'],
-      specializationNameById: { 'provider-spec-cond': 'Специалист по кондиционерам' },
+      specializationNameById: {
+        'provider-spec-cond': 'Специалист по кондиционерам',
+      },
     })
     const prisma = {
       ...makePrismaWithCandidates([subcontractorTechnician]),
@@ -427,10 +538,17 @@ describe('TicketsAssignmentService assignment candidate location scope filtering
     locationId: string
   }
 
-  const locationById: Record<string, { clientCompanyId: string; isActive: boolean; deletedAt: Date | null }> = {
+  const locationById: Record<
+    string,
+    { clientCompanyId: string; isActive: boolean; deletedAt: Date | null }
+  > = {
     [allowedLocationId]: { clientCompanyId, isActive: true, deletedAt: null },
     [forbiddenLocationId]: { clientCompanyId, isActive: true, deletedAt: null },
-    [otherClientLocationId]: { clientCompanyId: 'other-client-company', isActive: true, deletedAt: null },
+    [otherClientLocationId]: {
+      clientCompanyId: 'other-client-company',
+      isActive: true,
+      deletedAt: null,
+    },
   }
 
   function makeServiceForLocationScope(params: {
@@ -445,8 +563,12 @@ describe('TicketsAssignmentService assignment candidate location scope filtering
           const ids = where.id?.in ?? []
           return params.users
             .filter((user) => ids.includes(user.id))
-            .filter((user) => (where.isActive === true ? user.isActive !== false : true))
-            .filter((user) => (where.deletedAt === null ? !user.deletedAt : true))
+            .filter((user) =>
+              where.isActive === true ? user.isActive !== false : true,
+            )
+            .filter((user) =>
+              where.deletedAt === null ? !user.deletedAt : true,
+            )
             .map((user) => ({ id: user.id, companyId: user.companyId }))
         }),
       },
@@ -455,7 +577,9 @@ describe('TicketsAssignmentService assignment candidate location scope filtering
           const userIds = query?.where?.userId?.in ?? []
           const companyIds = query?.where?.companyId?.in ?? []
           return (params.accessScopes ?? []).filter(
-            (scope) => userIds.includes(scope.userId) && companyIds.includes(scope.companyId),
+            (scope) =>
+              userIds.includes(scope.userId) &&
+              companyIds.includes(scope.companyId),
           )
         }),
       },
@@ -469,9 +593,15 @@ describe('TicketsAssignmentService assignment candidate location scope filtering
             if (!location) return false
             if (!userIds.includes(binding.userId)) return false
             if (!companyIds.includes(binding.companyId)) return false
-            if (clientScope && location.clientCompanyId !== clientScope) return false
-            if (query?.where?.location?.isActive === true && !location.isActive) return false
-            if (query?.where?.location?.deletedAt === null && location.deletedAt) return false
+            if (clientScope && location.clientCompanyId !== clientScope)
+              return false
+            if (query?.where?.location?.isActive === true && !location.isActive)
+              return false
+            if (
+              query?.where?.location?.deletedAt === null &&
+              location.deletedAt
+            )
+              return false
             return true
           })
         }),
@@ -502,7 +632,11 @@ describe('TicketsAssignmentService assignment candidate location scope filtering
     return { id, companyId, isActive: true, deletedAt: null }
   }
 
-  async function filter(service: TicketsAssignmentService, userIds: string[], locationId: string) {
+  async function filter(
+    service: TicketsAssignmentService,
+    userIds: string[],
+    locationId: string,
+  ) {
     return (service as any).filterTechniciansByLocationBindings(
       userIds.map((id) => ({ id })),
       clientCompanyId,
@@ -520,15 +654,27 @@ describe('TicketsAssignmentService assignment candidate location scope filtering
           locationMode: UserAccessLocationMode.SELECTED_LOCATIONS,
         },
       ],
-      bindings: [{ userId: 'tech-selected', companyId: providerCompanyId, locationId: allowedLocationId }],
+      bindings: [
+        {
+          userId: 'tech-selected',
+          companyId: providerCompanyId,
+          locationId: allowedLocationId,
+        },
+      ],
     })
 
-    await expect(filter(service, ['tech-selected'], allowedLocationId)).resolves.toEqual([{ id: 'tech-selected' }])
-    await expect(filter(service, ['tech-selected'], forbiddenLocationId)).resolves.toEqual([])
+    await expect(
+      filter(service, ['tech-selected'], allowedLocationId),
+    ).resolves.toEqual([{ id: 'tech-selected' }])
+    await expect(
+      filter(service, ['tech-selected'], forbiddenLocationId),
+    ).resolves.toEqual([])
     expect(prisma.userLocationBinding.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
-          companyId: { in: expect.arrayContaining([providerCompanyId, clientCompanyId]) },
+          companyId: {
+            in: expect.arrayContaining([providerCompanyId, clientCompanyId]),
+          },
           location: expect.objectContaining({ clientCompanyId }),
         }),
       }),
@@ -545,10 +691,18 @@ describe('TicketsAssignmentService assignment candidate location scope filtering
           locationMode: UserAccessLocationMode.SELECTED_LOCATIONS,
         },
       ],
-      bindings: [{ userId: 'tech-selected', companyId: providerCompanyId, locationId: otherClientLocationId }],
+      bindings: [
+        {
+          userId: 'tech-selected',
+          companyId: providerCompanyId,
+          locationId: otherClientLocationId,
+        },
+      ],
     })
 
-    await expect(filter(service, ['tech-selected'], otherClientLocationId)).resolves.toEqual([])
+    await expect(
+      filter(service, ['tech-selected'], otherClientLocationId),
+    ).resolves.toEqual([])
   })
 
   it('keeps RESTRICTED_EMPTY fail-closed even when stale legacy client bindings exist', async () => {
@@ -561,10 +715,18 @@ describe('TicketsAssignmentService assignment candidate location scope filtering
           locationMode: UserAccessLocationMode.RESTRICTED_EMPTY,
         },
       ],
-      bindings: [{ userId: 'tech-restricted', companyId: clientCompanyId, locationId: allowedLocationId }],
+      bindings: [
+        {
+          userId: 'tech-restricted',
+          companyId: clientCompanyId,
+          locationId: allowedLocationId,
+        },
+      ],
     })
 
-    await expect(filter(service, ['tech-restricted'], allowedLocationId)).resolves.toEqual([])
+    await expect(
+      filter(service, ['tech-restricted'], allowedLocationId),
+    ).resolves.toEqual([])
   })
 
   it('does not let stale legacy client bindings broaden explicit selected provider scope', async () => {
@@ -578,40 +740,82 @@ describe('TicketsAssignmentService assignment candidate location scope filtering
         },
       ],
       bindings: [
-        { userId: 'tech-selected', companyId: providerCompanyId, locationId: allowedLocationId },
-        { userId: 'tech-selected', companyId: clientCompanyId, locationId: forbiddenLocationId },
+        {
+          userId: 'tech-selected',
+          companyId: providerCompanyId,
+          locationId: allowedLocationId,
+        },
+        {
+          userId: 'tech-selected',
+          companyId: clientCompanyId,
+          locationId: forbiddenLocationId,
+        },
       ],
     })
 
-    await expect(filter(service, ['tech-selected'], allowedLocationId)).resolves.toEqual([{ id: 'tech-selected' }])
-    await expect(filter(service, ['tech-selected'], forbiddenLocationId)).resolves.toEqual([])
+    await expect(
+      filter(service, ['tech-selected'], allowedLocationId),
+    ).resolves.toEqual([{ id: 'tech-selected' }])
+    await expect(
+      filter(service, ['tech-selected'], forbiddenLocationId),
+    ).resolves.toEqual([])
   })
 
   it('supports legacy client-scoped bindings when no explicit access scope exists', async () => {
     const { service } = makeServiceForLocationScope({
       users: [activeUser('tech-legacy')],
-      bindings: [{ userId: 'tech-legacy', companyId: clientCompanyId, locationId: allowedLocationId }],
+      bindings: [
+        {
+          userId: 'tech-legacy',
+          companyId: clientCompanyId,
+          locationId: allowedLocationId,
+        },
+      ],
     })
 
-    await expect(filter(service, ['tech-legacy'], allowedLocationId)).resolves.toEqual([{ id: 'tech-legacy' }])
-    await expect(filter(service, ['tech-legacy'], forbiddenLocationId)).resolves.toEqual([])
+    await expect(
+      filter(service, ['tech-legacy'], allowedLocationId),
+    ).resolves.toEqual([{ id: 'tech-legacy' }])
+    await expect(
+      filter(service, ['tech-legacy'], forbiddenLocationId),
+    ).resolves.toEqual([])
   })
 
   it('supports canonical provider-scoped bindings when no explicit access scope exists', async () => {
     const { service } = makeServiceForLocationScope({
       users: [activeUser('tech-canonical')],
-      bindings: [{ userId: 'tech-canonical', companyId: providerCompanyId, locationId: allowedLocationId }],
+      bindings: [
+        {
+          userId: 'tech-canonical',
+          companyId: providerCompanyId,
+          locationId: allowedLocationId,
+        },
+      ],
     })
 
-    await expect(filter(service, ['tech-canonical'], allowedLocationId)).resolves.toEqual([{ id: 'tech-canonical' }])
-    await expect(filter(service, ['tech-canonical'], forbiddenLocationId)).resolves.toEqual([])
+    await expect(
+      filter(service, ['tech-canonical'], allowedLocationId),
+    ).resolves.toEqual([{ id: 'tech-canonical' }])
+    await expect(
+      filter(service, ['tech-canonical'], forbiddenLocationId),
+    ).resolves.toEqual([])
   })
 
   it('excludes inactive and deleted candidates before location scope evaluation', async () => {
     const { service } = makeServiceForLocationScope({
       users: [
-        { id: 'tech-inactive', companyId: providerCompanyId, isActive: false, deletedAt: null },
-        { id: 'tech-deleted', companyId: providerCompanyId, isActive: true, deletedAt: new Date('2026-01-01') },
+        {
+          id: 'tech-inactive',
+          companyId: providerCompanyId,
+          isActive: false,
+          deletedAt: null,
+        },
+        {
+          id: 'tech-deleted',
+          companyId: providerCompanyId,
+          isActive: true,
+          deletedAt: new Date('2026-01-01'),
+        },
       ],
       accessScopes: [
         {
@@ -626,19 +830,34 @@ describe('TicketsAssignmentService assignment candidate location scope filtering
         },
       ],
       bindings: [
-        { userId: 'tech-inactive', companyId: providerCompanyId, locationId: allowedLocationId },
-        { userId: 'tech-deleted', companyId: providerCompanyId, locationId: allowedLocationId },
+        {
+          userId: 'tech-inactive',
+          companyId: providerCompanyId,
+          locationId: allowedLocationId,
+        },
+        {
+          userId: 'tech-deleted',
+          companyId: providerCompanyId,
+          locationId: allowedLocationId,
+        },
       ],
     })
 
-    await expect(filter(service, ['tech-inactive', 'tech-deleted'], allowedLocationId)).resolves.toEqual([])
+    await expect(
+      filter(service, ['tech-inactive', 'tech-deleted'], allowedLocationId),
+    ).resolves.toEqual([])
   })
 
   it('keeps active MASTER candidates bound and inactive MASTER candidates excluded', async () => {
     const { service } = makeServiceForLocationScope({
       users: [
         activeUser('active-master'),
-        { id: 'inactive-master', companyId: providerCompanyId, isActive: false, deletedAt: null },
+        {
+          id: 'inactive-master',
+          companyId: providerCompanyId,
+          isActive: false,
+          deletedAt: null,
+        },
       ],
       accessScopes: [
         {
@@ -653,26 +872,44 @@ describe('TicketsAssignmentService assignment candidate location scope filtering
         },
       ],
       bindings: [
-        { userId: 'active-master', companyId: providerCompanyId, locationId: allowedLocationId },
-        { userId: 'inactive-master', companyId: providerCompanyId, locationId: allowedLocationId },
+        {
+          userId: 'active-master',
+          companyId: providerCompanyId,
+          locationId: allowedLocationId,
+        },
+        {
+          userId: 'inactive-master',
+          companyId: providerCompanyId,
+          locationId: allowedLocationId,
+        },
       ],
     })
 
-    await expect(filter(service, ['active-master', 'inactive-master'], allowedLocationId)).resolves.toEqual([
-      { id: 'active-master' },
-    ])
+    await expect(
+      filter(service, ['active-master', 'inactive-master'], allowedLocationId),
+    ).resolves.toEqual([{ id: 'active-master' }])
   })
 
   it('does not duplicate candidates when duplicate location binding rows are returned', async () => {
     const { service } = makeServiceForLocationScope({
       users: [activeUser('tech-duplicate')],
       bindings: [
-        { userId: 'tech-duplicate', companyId: providerCompanyId, locationId: allowedLocationId },
-        { userId: 'tech-duplicate', companyId: providerCompanyId, locationId: allowedLocationId },
+        {
+          userId: 'tech-duplicate',
+          companyId: providerCompanyId,
+          locationId: allowedLocationId,
+        },
+        {
+          userId: 'tech-duplicate',
+          companyId: providerCompanyId,
+          locationId: allowedLocationId,
+        },
       ],
     })
 
-    await expect(filter(service, ['tech-duplicate'], allowedLocationId)).resolves.toEqual([{ id: 'tech-duplicate' }])
+    await expect(
+      filter(service, ['tech-duplicate'], allowedLocationId),
+    ).resolves.toEqual([{ id: 'tech-duplicate' }])
   })
 
   it('preserves legacy tenant-wide behavior only when no explicit scope and no bindings exist', async () => {
@@ -680,9 +917,9 @@ describe('TicketsAssignmentService assignment candidate location scope filtering
       users: [activeUser('tech-legacy-open')],
     })
 
-    await expect(filter(service, ['tech-legacy-open'], forbiddenLocationId)).resolves.toEqual([
-      { id: 'tech-legacy-open' },
-    ])
+    await expect(
+      filter(service, ['tech-legacy-open'], forbiddenLocationId),
+    ).resolves.toEqual([{ id: 'tech-legacy-open' }])
   })
 
   it('does not interpret empty explicit SELECTED_LOCATIONS scope as unrestricted', async () => {
@@ -697,7 +934,9 @@ describe('TicketsAssignmentService assignment candidate location scope filtering
       ],
     })
 
-    await expect(filter(service, ['tech-empty-selected'], allowedLocationId)).resolves.toEqual([])
+    await expect(
+      filter(service, ['tech-empty-selected'], allowedLocationId),
+    ).resolves.toEqual([])
   })
 
   it('does not let bindings from a foreign provider company authorize a candidate', async () => {
@@ -719,7 +958,9 @@ describe('TicketsAssignmentService assignment candidate location scope filtering
       ],
     })
 
-    await expect(filter(service, ['tech-foreign-binding'], allowedLocationId)).resolves.toEqual([])
+    await expect(
+      filter(service, ['tech-foreign-binding'], allowedLocationId),
+    ).resolves.toEqual([])
   })
 })
 
@@ -766,12 +1007,19 @@ describe('TicketsAssignmentService.requestAssignment canonical eligibility', () 
   function makeRequestHarness(options: RequestHarnessOptions = {}) {
     const ticketCompanyId = options.ticketCompanyId ?? clientCompanyId
     const ticketLocationId = options.ticketLocationId ?? allowedLocationId
-    const technicianSpecializationNames = options.technicianSpecializationNames ?? [categorySpecializationName]
-    const categorySpecializationNames = options.categorySpecializationNames ?? [categorySpecializationName]
+    const technicianSpecializationNames =
+      options.technicianSpecializationNames ?? [categorySpecializationName]
+    const categorySpecializationNames = options.categorySpecializationNames ?? [
+      categorySpecializationName,
+    ]
     const locationMode =
-      options.locationMode === undefined ? UserAccessLocationMode.SELECTED_LOCATIONS : options.locationMode
+      options.locationMode === undefined
+        ? UserAccessLocationMode.SELECTED_LOCATIONS
+        : options.locationMode
     const bindingLocationIds =
-      options.bindingLocationIds === undefined ? [ticketLocationId] : options.bindingLocationIds
+      options.bindingLocationIds === undefined
+        ? [ticketLocationId]
+        : options.bindingLocationIds
     const isActive = options.isActive ?? true
     const deletedAt = options.deletedAt ?? null
     const isExecutor = options.isExecutor ?? true
@@ -781,11 +1029,16 @@ describe('TicketsAssignmentService.requestAssignment canonical eligibility', () 
     const requestedTargetUserId = options.targetUserId ?? requesterId
     const targetCompanyId = options.targetCompanyId ?? providerCompanyId
     const targetIsExecutor = options.targetIsExecutor ?? isExecutor
-    const targetSpecializationNames = options.targetSpecializationNames ?? technicianSpecializationNames
+    const targetSpecializationNames =
+      options.targetSpecializationNames ?? technicianSpecializationNames
     const targetBindingLocationIds =
-      options.targetBindingLocationIds === undefined ? bindingLocationIds : options.targetBindingLocationIds
+      options.targetBindingLocationIds === undefined
+        ? bindingLocationIds
+        : options.targetBindingLocationIds
     const contractRole =
-      options.contractRole === undefined ? ServiceContractRole.SECONDARY : options.contractRole
+      options.contractRole === undefined
+        ? ServiceContractRole.SECONDARY
+        : options.contractRole
     const contractStatus = options.contractStatus ?? 'ACTIVE'
 
     const locationClientById: Record<string, string> = {
@@ -794,22 +1047,26 @@ describe('TicketsAssignmentService.requestAssignment canonical eligibility', () 
       'foreign-location': foreignClientCompanyId,
     }
 
-    const technicianSpecializations = technicianSpecializationNames.map((name, index) => ({
-      specializationId: `provider-spec-${index + 1}`,
-      specialization: {
-        id: `provider-spec-${index + 1}`,
-        name,
-        isActive: true,
-      },
-    }))
-    const targetSpecializations = targetSpecializationNames.map((name, index) => ({
-      specializationId: `target-provider-spec-${index + 1}`,
-      specialization: {
-        id: `target-provider-spec-${index + 1}`,
-        name,
-        isActive: true,
-      },
-    }))
+    const technicianSpecializations = technicianSpecializationNames.map(
+      (name, index) => ({
+        specializationId: `provider-spec-${index + 1}`,
+        specialization: {
+          id: `provider-spec-${index + 1}`,
+          name,
+          isActive: true,
+        },
+      }),
+    )
+    const targetSpecializations = targetSpecializationNames.map(
+      (name, index) => ({
+        specializationId: `target-provider-spec-${index + 1}`,
+        specialization: {
+          id: `target-provider-spec-${index + 1}`,
+          name,
+          isActive: true,
+        },
+      }),
+    )
     const categoryLinks = categorySpecializationNames.map((name, index) => ({
       specializationId: `client-spec-${index + 1}`,
       specialization: {
@@ -822,21 +1079,29 @@ describe('TicketsAssignmentService.requestAssignment canonical eligibility', () 
     const specializationAllowed =
       categorySpecializationNames.length === 0 ||
       technicianSpecializationNames.some((candidateName) =>
-        categorySpecializationNames.some((requiredName) => normalizeName(candidateName) === normalizeName(requiredName)),
+        categorySpecializationNames.some(
+          (requiredName) =>
+            normalizeName(candidateName) === normalizeName(requiredName),
+        ),
       )
 
     const locationAllowed =
       locationMode === null ||
       locationMode === UserAccessLocationMode.ALL_LOCATIONS ||
-      (locationMode === UserAccessLocationMode.SELECTED_LOCATIONS && bindingLocationIds.includes(ticketLocationId))
+      (locationMode === UserAccessLocationMode.SELECTED_LOCATIONS &&
+        bindingLocationIds.includes(ticketLocationId))
     const targetLocationAllowed =
       locationMode === null ||
       locationMode === UserAccessLocationMode.ALL_LOCATIONS ||
-      (locationMode === UserAccessLocationMode.SELECTED_LOCATIONS && targetBindingLocationIds.includes(ticketLocationId))
+      (locationMode === UserAccessLocationMode.SELECTED_LOCATIONS &&
+        targetBindingLocationIds.includes(ticketLocationId))
     const targetSpecializationAllowed =
       categorySpecializationNames.length === 0 ||
       targetSpecializationNames.some((candidateName) =>
-        categorySpecializationNames.some((requiredName) => normalizeName(candidateName) === normalizeName(requiredName)),
+        categorySpecializationNames.some(
+          (requiredName) =>
+            normalizeName(candidateName) === normalizeName(requiredName),
+        ),
       )
 
     const ticket = {
@@ -862,21 +1127,35 @@ describe('TicketsAssignmentService.requestAssignment canonical eligibility', () 
     }
     const prisma = {
       company: {
-        findUnique: jest.fn().mockResolvedValue({ id: providerCompanyId, allowTechnicianClaim: true }),
+        findUnique: jest.fn().mockResolvedValue({
+          id: providerCompanyId,
+          allowTechnicianClaim: true,
+        }),
       },
       user: {
         findFirst: jest.fn().mockImplementation(async (query: any) => {
           const where = query?.where ?? {}
           const id = where.id as string | undefined
-          if (id && id !== requesterId && id !== requestedTargetUserId) return null
-          if (where.companyId && where.companyId !== (id === requestedTargetUserId ? targetCompanyId : providerCompanyId)) return null
+          if (id && id !== requesterId && id !== requestedTargetUserId)
+            return null
+          if (
+            where.companyId &&
+            where.companyId !==
+              (id === requestedTargetUserId
+                ? targetCompanyId
+                : providerCompanyId)
+          )
+            return null
           if (where.isActive === true && !isActive) return null
           if (where.deletedAt === null && deletedAt) return null
           if (id === requestedTargetUserId) {
             if (where.isExecutor === true && !targetIsExecutor) return null
             return {
               id: requestedTargetUserId,
-              role: requestedTargetUserId === requesterId ? requesterRole : UserRole.TECHNICIAN,
+              role:
+                requestedTargetUserId === requesterId
+                  ? requesterRole
+                  : UserRole.TECHNICIAN,
               companyId: targetCompanyId,
               isExecutor: targetIsExecutor,
               isActive,
@@ -896,7 +1175,8 @@ describe('TicketsAssignmentService.requestAssignment canonical eligibility', () 
         }),
         findMany: jest.fn().mockImplementation(async (query: any) => {
           const where = query?.where ?? {}
-          if (where.companyId && where.companyId !== providerCompanyId) return []
+          if (where.companyId && where.companyId !== providerCompanyId)
+            return []
           if (where.isExecutor === true && !isExecutor) return []
           if (!isActive || deletedAt) return []
           return [{ id: requestedTargetUserId }]
@@ -905,8 +1185,34 @@ describe('TicketsAssignmentService.requestAssignment canonical eligibility', () 
       technicianSpecialization: {
         findMany: jest.fn().mockResolvedValue([]),
       },
+      serviceContract: {
+        findFirst: jest.fn().mockImplementation(async ({ where }: any) => {
+          if (
+            where?.providerCompanyId !== providerCompanyId ||
+            where?.clientCompanyId !== ticketCompanyId ||
+            !contractRole ||
+            contractStatus !== 'ACTIVE'
+          ) {
+            return null
+          }
+          return { id: 'contract-1' }
+        }),
+      },
+      serviceContractSpecialization: {
+        findMany: jest.fn().mockResolvedValue(
+          (categorySpecializationNames.length > 0
+            ? categorySpecializationNames
+            : ['Default']
+          ).map((name, index) => ({
+            specializationId: `contract-spec-${index + 1}`,
+            specialization: { name },
+          })),
+        ),
+      },
       userAccessScope: {
-        findUnique: jest.fn().mockResolvedValue(locationMode ? { locationMode } : null),
+        findUnique: jest
+          .fn()
+          .mockResolvedValue(locationMode ? { locationMode } : null),
       },
       userLocationBinding: {
         findMany: jest.fn().mockImplementation(async (query: any) => {
@@ -916,26 +1222,54 @@ describe('TicketsAssignmentService.requestAssignment canonical eligibility', () 
               userId: requesterId,
               companyId: providerCompanyId,
               locationId,
-              location: { clientCompanyId: locationClientById[locationId] ?? ticketCompanyId },
+              location: {
+                clientCompanyId:
+                  locationClientById[locationId] ?? ticketCompanyId,
+              },
             }))
             .concat(
               targetBindingLocationIds.map((locationId) => ({
                 userId: requestedTargetUserId,
                 companyId: targetCompanyId,
                 locationId,
-                location: { clientCompanyId: locationClientById[locationId] ?? ticketCompanyId },
+                location: {
+                  clientCompanyId:
+                    locationClientById[locationId] ?? ticketCompanyId,
+                },
               })),
             )
             .filter((binding) => {
-              if (where.userId && typeof where.userId === 'string' && where.userId !== binding.userId) return false
-              if (where.userId?.in && !where.userId.in.includes(binding.userId)) return false
-              if (where.companyId && typeof where.companyId === 'string' && where.companyId !== binding.companyId) {
+              if (
+                where.userId &&
+                typeof where.userId === 'string' &&
+                where.userId !== binding.userId
+              )
+                return false
+              if (where.userId?.in && !where.userId.in.includes(binding.userId))
+                return false
+              if (
+                where.companyId &&
+                typeof where.companyId === 'string' &&
+                where.companyId !== binding.companyId
+              ) {
                 return false
               }
-              if (where.companyId?.in && !where.companyId.in.includes(binding.companyId)) return false
+              if (
+                where.companyId?.in &&
+                !where.companyId.in.includes(binding.companyId)
+              )
+                return false
               const clientFilter = where.location?.clientCompanyId
-              if (typeof clientFilter === 'string' && clientFilter !== binding.location.clientCompanyId) return false
-              if (clientFilter?.in && !clientFilter.in.includes(binding.location.clientCompanyId)) return false
+              if (
+                typeof clientFilter === 'string' &&
+                clientFilter !== binding.location.clientCompanyId
+              )
+                return false
+              if (
+                clientFilter?.in &&
+                !clientFilter.in.includes(binding.location.clientCompanyId)
+              )
+                return false
               return true
             })
         }),
@@ -945,20 +1279,35 @@ describe('TicketsAssignmentService.requestAssignment canonical eligibility', () 
           const where = query?.where ?? {}
           const whereJson = JSON.stringify(where)
           if (!whereJson.includes(ticketId)) return null
-          if (whereJson.includes(providerCompanyId) && !whereJson.includes(ticketCompanyId)) return null
+          if (
+            whereJson.includes(providerCompanyId) &&
+            !whereJson.includes(ticketCompanyId)
+          )
+            return null
           if (whereJson.includes('__no_access__')) {
             return null
           }
-          if (whereJson.includes('__restricted_empty_location_scope__') && !whereJson.includes(ticketLocationId)) {
+          if (
+            whereJson.includes('__restricted_empty_location_scope__') &&
+            !whereJson.includes(ticketLocationId)
+          ) {
             return null
           }
-          if (where.id === ticketId && where.companyId === ticketCompanyId && !where.status && !where.AND) {
+          if (
+            where.id === ticketId &&
+            where.companyId === ticketCompanyId &&
+            !where.status &&
+            !where.AND
+          ) {
             return ticket
           }
           const checksTarget = whereJson.includes(requestedTargetUserId)
-          if (checksTarget ? !targetLocationAllowed : !locationAllowed) return null
+          if (checksTarget ? !targetLocationAllowed : !locationAllowed)
+            return null
           if (whereJson.includes('problemCategory')) {
-            const ok = checksTarget ? targetSpecializationAllowed : specializationAllowed
+            const ok = checksTarget
+              ? targetSpecializationAllowed
+              : specializationAllowed
             return ok
               ? {
                   id: ticket.id,
@@ -977,36 +1326,48 @@ describe('TicketsAssignmentService.requestAssignment canonical eligibility', () 
         }),
         findUnique: jest.fn().mockResolvedValue(ticket),
       },
-      $transaction: jest.fn().mockImplementation(async (callback: any) => callback(tx)),
+      $transaction: jest
+        .fn()
+        .mockImplementation(async (callback: any) => callback(tx)),
     }
 
     const serviceContracts = {
-      getLinkedClientAccess: jest.fn().mockImplementation(async (companyId: string, linkedClientId: string) => {
-        if (
-          companyId !== providerCompanyId ||
-          linkedClientId !== ticketCompanyId ||
-          !contractRole ||
-          contractStatus !== 'ACTIVE'
-        ) {
-          return null
-        }
-        return {
-          role: contractRole,
-          status: contractStatus,
-          clientCompanyId: ticketCompanyId,
-          providerCompanyId,
-        }
-      }),
+      getLinkedClientAccess: jest
+        .fn()
+        .mockImplementation(
+          async (companyId: string, linkedClientId: string) => {
+            if (
+              companyId !== providerCompanyId ||
+              linkedClientId !== ticketCompanyId ||
+              !contractRole ||
+              contractStatus !== 'ACTIVE'
+            ) {
+              return null
+            }
+            return {
+              role: contractRole,
+              status: contractStatus,
+              clientCompanyId: ticketCompanyId,
+              providerCompanyId,
+            }
+          },
+        ),
       listPrimaryLinkedClientIds: jest.fn().mockResolvedValue([]),
-      listSecondaryLinkedClientIds: jest.fn().mockResolvedValue(contractRole ? [ticketCompanyId] : []),
+      listSecondaryLinkedClientIds: jest
+        .fn()
+        .mockResolvedValue(contractRole ? [ticketCompanyId] : []),
       listLinkedClients: jest.fn().mockResolvedValue([]),
       assertPrimaryLinkedClientAccess: jest.fn(),
     }
     const timeline = {
-      recordLegacyTx: jest.fn().mockResolvedValue({ id: 'assignment-request-event' }),
+      recordLegacyTx: jest
+        .fn()
+        .mockResolvedValue({ id: 'assignment-request-event' }),
     }
     const notifications = {
-      notifyTicketAssignmentRequested: jest.fn().mockResolvedValue({ notified: 1 }),
+      notifyTicketAssignmentRequested: jest
+        .fn()
+        .mockResolvedValue({ notified: 1 }),
     }
     const service = new TicketsAssignmentService(
       prisma as any,
@@ -1032,24 +1393,32 @@ describe('TicketsAssignmentService.requestAssignment canonical eligibility', () 
     }
   }
 
-  async function requestAssignment(harness: ReturnType<typeof makeRequestHarness>) {
+  async function requestAssignment(
+    harness: ReturnType<typeof makeRequestHarness>,
+  ) {
     return harness.service.requestAssignment(
       providerCompanyId,
       harness.requesterId,
       harness.requesterRole,
       ticketId,
       harness.ticketCompanyId,
-      harness.requestedTargetUserId === harness.requesterId ? undefined : harness.requestedTargetUserId,
+      harness.requestedTargetUserId === harness.requesterId
+        ? undefined
+        : harness.requestedTargetUserId,
     )
   }
 
-  async function expectDeniedWithoutSideEffects(options: RequestHarnessOptions) {
+  async function expectDeniedWithoutSideEffects(
+    options: RequestHarnessOptions,
+  ) {
     const harness = makeRequestHarness(options)
 
     await expect(requestAssignment(harness)).rejects.toBeDefined()
     expect(harness.prisma.$transaction).not.toHaveBeenCalled()
     expect(harness.timeline.recordLegacyTx).not.toHaveBeenCalled()
-    expect(harness.notifications.notifyTicketAssignmentRequested).not.toHaveBeenCalled()
+    expect(
+      harness.notifications.notifyTicketAssignmentRequested,
+    ).not.toHaveBeenCalled()
   }
 
   it('denies assignment request from a SECONDARY technician with the wrong category specialization', async () => {
@@ -1125,7 +1494,9 @@ describe('TicketsAssignmentService.requestAssignment canonical eligibility', () 
         actorUserId: technicianId,
       }),
     )
-    expect(harness.notifications.notifyTicketAssignmentRequested).toHaveBeenCalledWith(
+    expect(
+      harness.notifications.notifyTicketAssignmentRequested,
+    ).toHaveBeenCalledWith(
       expect.objectContaining({
         providerCompanyId,
         technicianUserId: technicianId,
@@ -1156,7 +1527,9 @@ describe('TicketsAssignmentService.requestAssignment canonical eligibility', () 
         }),
       }),
     )
-    expect(harness.notifications.notifyTicketAssignmentRequested).toHaveBeenCalledWith(
+    expect(
+      harness.notifications.notifyTicketAssignmentRequested,
+    ).toHaveBeenCalledWith(
       expect.objectContaining({
         requesterUserId: 'admin-secondary',
         technicianUserId: targetTechnicianId,
@@ -1238,7 +1611,9 @@ describe('TicketsAssignmentService.requestAssignment canonical eligibility', () 
   })
 
   it('preserves idempotent repeated assignment request behavior', async () => {
-    const harness = makeRequestHarness({ existingRequestTargetUserIds: [technicianId] })
+    const harness = makeRequestHarness({
+      existingRequestTargetUserIds: [technicianId],
+    })
 
     await expect(requestAssignment(harness)).resolves.toEqual({
       ok: true,
@@ -1247,7 +1622,9 @@ describe('TicketsAssignmentService.requestAssignment canonical eligibility', () 
     })
     expect(harness.prisma.$transaction).toHaveBeenCalledTimes(1)
     expect(harness.timeline.recordLegacyTx).not.toHaveBeenCalled()
-    expect(harness.notifications.notifyTicketAssignmentRequested).not.toHaveBeenCalled()
+    expect(
+      harness.notifications.notifyTicketAssignmentRequested,
+    ).not.toHaveBeenCalled()
   })
 
   it('does not create events or notifications when canonical eligibility denies the request', async () => {
@@ -1280,14 +1657,20 @@ describe('TicketsAssignmentService canonical claim isolation', () => {
 
   function makeClaimIsolationHarness(options: ClaimIsolationOptions = {}) {
     const contractRole = options.contractRole ?? ServiceContractRole.SECONDARY
-    const locationMode = options.locationMode === undefined ? null : options.locationMode
+    const locationMode =
+      options.locationMode === undefined ? null : options.locationMode
     const bindingLocationIds = options.bindingLocationIds ?? []
-    const technicianSpecializationNames = options.technicianSpecializationNames ?? [categorySpecializationName]
-    const categorySpecializationNames = options.categorySpecializationNames ?? [categorySpecializationName]
+    const technicianSpecializationNames =
+      options.technicianSpecializationNames ?? [categorySpecializationName]
+    const categorySpecializationNames = options.categorySpecializationNames ?? [
+      categorySpecializationName,
+    ]
     const specializationAllowed =
       categorySpecializationNames.length === 0 ||
       technicianSpecializationNames.some((candidate) =>
-        categorySpecializationNames.some((required) => normalized(candidate) === normalized(required)),
+        categorySpecializationNames.some(
+          (required) => normalized(candidate) === normalized(required),
+        ),
       )
 
     const ticket = {
@@ -1302,14 +1685,24 @@ describe('TicketsAssignmentService canonical claim isolation', () => {
       problemCategory: {
         specializationLinks: categorySpecializationNames.map((name, index) => ({
           specializationId: `client-spec-${index + 1}`,
-          specialization: { id: `client-spec-${index + 1}`, name, isActive: true },
+          specialization: {
+            id: `client-spec-${index + 1}`,
+            name,
+            isActive: true,
+          },
         })),
       },
     }
-    const technicianSpecializations = technicianSpecializationNames.map((name, index) => ({
-      specializationId: `provider-spec-${index + 1}`,
-      specialization: { id: `provider-spec-${index + 1}`, name, isActive: true },
-    }))
+    const technicianSpecializations = technicianSpecializationNames.map(
+      (name, index) => ({
+        specializationId: `provider-spec-${index + 1}`,
+        specialization: {
+          id: `provider-spec-${index + 1}`,
+          name,
+          isActive: true,
+        },
+      }),
+    )
     const bindingRows = bindingLocationIds.map((locationId) => ({
       userId: technicianId,
       companyId: providerCompanyId,
@@ -1319,9 +1712,13 @@ describe('TicketsAssignmentService canonical claim isolation', () => {
 
     function denyByCanonicalWhere(where: any) {
       const whereJson = JSON.stringify(where ?? {})
-      if (!whereJson.includes(ticketId) && whereJson.includes('"id"')) return true
+      if (!whereJson.includes(ticketId) && whereJson.includes('"id"'))
+        return true
       if (whereJson.includes('__no_access__')) return true
-      if (whereJson.includes('__restricted_empty_location_scope__') && !whereJson.includes(allowedLocationId)) {
+      if (
+        whereJson.includes('__restricted_empty_location_scope__') &&
+        !whereJson.includes(allowedLocationId)
+      ) {
         return true
       }
       if (
@@ -1331,14 +1728,23 @@ describe('TicketsAssignmentService canonical claim isolation', () => {
       ) {
         return true
       }
-      if (whereJson.includes('problemCategory') && !specializationAllowed) return true
-      if (whereJson.includes(providerCompanyId) && !whereJson.includes(clientCompanyId)) return true
+      if (whereJson.includes('problemCategory') && !specializationAllowed)
+        return true
+      if (
+        whereJson.includes(providerCompanyId) &&
+        !whereJson.includes(clientCompanyId)
+      )
+        return true
       return false
     }
 
     const tx = {
       ticket: {
-        findFirst: jest.fn().mockImplementation(async ({ where }: any) => (denyByCanonicalWhere(where) ? null : ticket)),
+        findFirst: jest
+          .fn()
+          .mockImplementation(async ({ where }: any) =>
+            denyByCanonicalWhere(where) ? null : ticket,
+          ),
         update: jest.fn().mockResolvedValue({}),
       },
       ticketStatusHistory: {
@@ -1347,7 +1753,10 @@ describe('TicketsAssignmentService canonical claim isolation', () => {
     }
     const prisma = {
       company: {
-        findUnique: jest.fn().mockResolvedValue({ id: providerCompanyId, allowTechnicianClaim: true }),
+        findUnique: jest.fn().mockResolvedValue({
+          id: providerCompanyId,
+          allowTechnicianClaim: true,
+        }),
       },
       user: {
         findFirst: jest.fn().mockResolvedValue({
@@ -1362,36 +1771,74 @@ describe('TicketsAssignmentService canonical claim isolation', () => {
       technicianSpecialization: {
         findMany: jest.fn().mockResolvedValue([]),
       },
+      serviceContract: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'contract-1' }),
+      },
+      serviceContractSpecialization: {
+        findMany: jest.fn().mockResolvedValue(
+          (categorySpecializationNames.length > 0
+            ? categorySpecializationNames
+            : ['Default']
+          ).map((name, index) => ({
+            specializationId: `contract-spec-${index + 1}`,
+            specialization: { name },
+          })),
+        ),
+      },
       userAccessScope: {
-        findUnique: jest.fn().mockResolvedValue(locationMode ? { locationMode } : null),
+        findUnique: jest
+          .fn()
+          .mockResolvedValue(locationMode ? { locationMode } : null),
       },
       userLocationBinding: {
         findMany: jest.fn().mockImplementation(async (query: any) => {
           const where = query?.where ?? {}
           return bindingRows.filter((binding) => {
             if (where.userId && where.userId !== binding.userId) return false
-            if (where.companyId && typeof where.companyId === 'string' && where.companyId !== binding.companyId) {
+            if (
+              where.companyId &&
+              typeof where.companyId === 'string' &&
+              where.companyId !== binding.companyId
+            ) {
               return false
             }
-            if (where.companyId?.in && !where.companyId.in.includes(binding.companyId)) return false
+            if (
+              where.companyId?.in &&
+              !where.companyId.in.includes(binding.companyId)
+            )
+              return false
             const clientFilter = where.location?.clientCompanyId
-            if (clientFilter && clientFilter !== binding.location.clientCompanyId) return false
+            if (
+              clientFilter &&
+              clientFilter !== binding.location.clientCompanyId
+            )
+              return false
             return true
           })
         }),
       },
       ticket: {
-        findFirst: jest.fn().mockImplementation(async ({ where }: any) => (denyByCanonicalWhere(where) ? null : {
-          id: ticket.id,
-          companyId: ticket.companyId,
-          locationId: ticket.locationId,
-          createdByUserId: ticket.createdByUserId,
-          assignedTechnicianId: ticket.assignedTechnicianId,
-        })),
-        findMany: jest.fn().mockImplementation(async ({ where }: any) => (denyByCanonicalWhere(where) ? [] : [ticket])),
+        findFirst: jest.fn().mockImplementation(async ({ where }: any) =>
+          denyByCanonicalWhere(where)
+            ? null
+            : {
+                id: ticket.id,
+                companyId: ticket.companyId,
+                locationId: ticket.locationId,
+                createdByUserId: ticket.createdByUserId,
+                assignedTechnicianId: ticket.assignedTechnicianId,
+              },
+        ),
+        findMany: jest
+          .fn()
+          .mockImplementation(async ({ where }: any) =>
+            denyByCanonicalWhere(where) ? [] : [ticket],
+          ),
         findUnique: jest.fn().mockResolvedValue(ticket),
       },
-      $transaction: jest.fn().mockImplementation(async (callback: any) => callback(tx)),
+      $transaction: jest
+        .fn()
+        .mockImplementation(async (callback: any) => callback(tx)),
     }
     const serviceContracts = {
       getLinkedClientAccess: jest.fn().mockResolvedValue({
@@ -1400,15 +1847,23 @@ describe('TicketsAssignmentService canonical claim isolation', () => {
         clientCompanyId,
         providerCompanyId,
       }),
-      listPrimaryLinkedClientIds: jest.fn().mockResolvedValue(
-        contractRole === ServiceContractRole.PRIMARY ? [clientCompanyId] : [],
-      ),
-      listSecondaryLinkedClientIds: jest.fn().mockResolvedValue(
-        contractRole === ServiceContractRole.SECONDARY ? [clientCompanyId] : [],
-      ),
-      listLinkedClients: jest.fn().mockResolvedValue([
-        { linkedClientCompanyId: clientCompanyId, role: contractRole },
-      ]),
+      listPrimaryLinkedClientIds: jest
+        .fn()
+        .mockResolvedValue(
+          contractRole === ServiceContractRole.PRIMARY ? [clientCompanyId] : [],
+        ),
+      listSecondaryLinkedClientIds: jest
+        .fn()
+        .mockResolvedValue(
+          contractRole === ServiceContractRole.SECONDARY
+            ? [clientCompanyId]
+            : [],
+        ),
+      listLinkedClients: jest
+        .fn()
+        .mockResolvedValue([
+          { linkedClientCompanyId: clientCompanyId, role: contractRole },
+        ]),
     }
     const query = {
       getOne: jest.fn().mockResolvedValue({ id: ticketId }),
@@ -1439,46 +1894,73 @@ describe('TicketsAssignmentService canonical claim isolation', () => {
       bindingLocationIds: [],
     })
 
-    await expect(service.availableForTechnician(providerCompanyId, technicianId, clientCompanyId)).resolves.toEqual([])
+    await expect(
+      service.availableForTechnician(
+        providerCompanyId,
+        technicianId,
+        clientCompanyId,
+      ),
+    ).resolves.toEqual([])
 
-    expect(JSON.stringify(prisma.ticket.findMany.mock.calls[0][0].where)).toContain('"assignedTechnicianId":{"in"')
+    expect(
+      JSON.stringify(prisma.ticket.findMany.mock.calls[0][0].where),
+    ).toContain('"assignedTechnicianId":{"in"')
   })
 
   it('denies SECONDARY claim without location bindings before transaction side effects', async () => {
-    const { service, prisma, timeline, notifications } = makeClaimIsolationHarness({
-      contractRole: ServiceContractRole.SECONDARY,
-      bindingLocationIds: [],
-    })
+    const { service, prisma, timeline, notifications } =
+      makeClaimIsolationHarness({
+        contractRole: ServiceContractRole.SECONDARY,
+        bindingLocationIds: [],
+      })
 
-    await expect(service.claim(providerCompanyId, technicianId, ticketId, clientCompanyId)).rejects.toBeDefined()
+    await expect(
+      service.claim(providerCompanyId, technicianId, ticketId, clientCompanyId),
+    ).rejects.toBeDefined()
 
     expect(prisma.$transaction).not.toHaveBeenCalled()
     expect(timeline.recordTx).not.toHaveBeenCalled()
-    expect(notifications.scheduleTicketClaimedDispatchers).not.toHaveBeenCalled()
+    expect(
+      notifications.scheduleTicketClaimedDispatchers,
+    ).not.toHaveBeenCalled()
   })
 
   it('denies SECONDARY direct claim for a client-created ticket even when location and specialization match', async () => {
-    const { service, prisma, timeline, notifications } = makeClaimIsolationHarness({
-      contractRole: ServiceContractRole.SECONDARY,
-      bindingLocationIds: [allowedLocationId],
-    })
+    const { service, prisma, timeline, notifications } =
+      makeClaimIsolationHarness({
+        contractRole: ServiceContractRole.SECONDARY,
+        bindingLocationIds: [allowedLocationId],
+      })
 
-    await expect(service.availableForTechnician(providerCompanyId, technicianId, clientCompanyId)).resolves.toHaveLength(1)
-    await expect(service.claim(providerCompanyId, technicianId, ticketId, clientCompanyId)).rejects.toBeDefined()
+    await expect(
+      service.availableForTechnician(
+        providerCompanyId,
+        technicianId,
+        clientCompanyId,
+      ),
+    ).resolves.toHaveLength(1)
+    await expect(
+      service.claim(providerCompanyId, technicianId, ticketId, clientCompanyId),
+    ).rejects.toBeDefined()
 
     expect(prisma.$transaction).not.toHaveBeenCalled()
     expect(timeline.recordTx).not.toHaveBeenCalled()
-    expect(notifications.scheduleTicketClaimedDispatchers).not.toHaveBeenCalled()
+    expect(
+      notifications.scheduleTicketClaimedDispatchers,
+    ).not.toHaveBeenCalled()
   })
 
   it('allows SECONDARY direct claim for a self-created ticket inside the canonical contour', async () => {
-    const { service, prisma, tx, query, timeline, notifications } = makeClaimIsolationHarness({
-      contractRole: ServiceContractRole.SECONDARY,
-      bindingLocationIds: [allowedLocationId],
-      createdByUserId: technicianId,
-    })
+    const { service, prisma, tx, query, timeline, notifications } =
+      makeClaimIsolationHarness({
+        contractRole: ServiceContractRole.SECONDARY,
+        bindingLocationIds: [allowedLocationId],
+        createdByUserId: technicianId,
+      })
 
-    await expect(service.claim(providerCompanyId, technicianId, ticketId, clientCompanyId)).resolves.toEqual({ id: ticketId })
+    await expect(
+      service.claim(providerCompanyId, technicianId, ticketId, clientCompanyId),
+    ).resolves.toEqual({ id: ticketId })
 
     expect(prisma.$transaction).toHaveBeenCalledTimes(1)
     expect(tx.ticket.update).toHaveBeenCalledWith(
@@ -1521,8 +2003,16 @@ describe('TicketsAssignmentService canonical claim isolation', () => {
       bindingLocationIds: [],
     })
 
-    await expect(service.availableForTechnician(providerCompanyId, technicianId, clientCompanyId)).resolves.toHaveLength(1)
-    await expect(service.claim(providerCompanyId, technicianId, ticketId, clientCompanyId)).resolves.toEqual({ id: ticketId })
+    await expect(
+      service.availableForTechnician(
+        providerCompanyId,
+        technicianId,
+        clientCompanyId,
+      ),
+    ).resolves.toHaveLength(1)
+    await expect(
+      service.claim(providerCompanyId, technicianId, ticketId, clientCompanyId),
+    ).resolves.toEqual({ id: ticketId })
 
     expect(prisma.$transaction).toHaveBeenCalledTimes(1)
   })
@@ -1536,15 +2026,25 @@ describe('TicketsAssignmentService create post-action policy', () => {
     companyType?: CompanyType
   }) {
     return {
-      permissionBlock: { count: jest.fn().mockResolvedValue(opts?.blocksCount ?? 1) },
+      permissionBlock: {
+        count: jest.fn().mockResolvedValue(opts?.blocksCount ?? 1),
+      },
       company: {
-        findUnique: jest.fn().mockResolvedValue({ type: opts?.companyType ?? CompanyType.PROVIDER }),
+        findUnique: jest.fn().mockResolvedValue({
+          type: opts?.companyType ?? CompanyType.PROVIDER,
+        }),
       },
       rolePermission: {
-        findFirst: jest.fn().mockResolvedValue(opts?.rolePermission === false ? null : { id: 'role-perm' }),
+        findFirst: jest
+          .fn()
+          .mockResolvedValue(
+            opts?.rolePermission === false ? null : { id: 'role-perm' },
+          ),
       },
       userPermission: {
-        findFirst: jest.fn().mockResolvedValue(opts?.userPermission ? { id: 'user-perm' } : null),
+        findFirst: jest
+          .fn()
+          .mockResolvedValue(opts?.userPermission ? { id: 'user-perm' } : null),
       },
     }
   }
@@ -1563,131 +2063,171 @@ describe('TicketsAssignmentService create post-action policy', () => {
   }
 
   const baseCandidates = [
-    { id: 'master-1', email: 'master@example.test', role: UserRole.MASTER, companyId: 'provider-1', matched: true },
-    { id: 'tech-1', email: 'tech@example.test', role: UserRole.TECHNICIAN, companyId: 'provider-1', matched: true },
-    { id: 'foreign-1', email: 'foreign@example.test', role: UserRole.TECHNICIAN, companyId: 'provider-foreign', matched: true },
+    {
+      id: 'master-1',
+      email: 'master@example.test',
+      role: UserRole.MASTER,
+      companyId: 'provider-1',
+      matched: true,
+    },
+    {
+      id: 'tech-1',
+      email: 'tech@example.test',
+      role: UserRole.TECHNICIAN,
+      companyId: 'provider-1',
+      matched: true,
+    },
+    {
+      id: 'foreign-1',
+      email: 'foreign@example.test',
+      role: UserRole.TECHNICIAN,
+      companyId: 'provider-foreign',
+      matched: true,
+    },
   ]
 
   it('allows create+claim only when the creator is an eligible in-scope candidate', async () => {
     const svc = makeService(makePrismaMock())
 
-    await expect((svc as any).assertCreatePostActionAllowed({
-      actorCompanyId: 'provider-1',
-      actorUserId: 'tech-1',
-      actorRole: UserRole.TECHNICIAN,
-      action: 'claim_self',
-      technicianId: null,
-      candidates: baseCandidates,
-      providerCompanyIds: ['provider-1'],
-    })).resolves.toBe('tech-1')
+    await expect(
+      (svc as any).assertCreatePostActionAllowed({
+        actorCompanyId: 'provider-1',
+        actorUserId: 'tech-1',
+        actorRole: UserRole.TECHNICIAN,
+        action: 'claim_self',
+        technicianId: null,
+        candidates: baseCandidates,
+        providerCompanyIds: ['provider-1'],
+      }),
+    ).resolves.toBe('tech-1')
   })
 
   it('denies create+claim when TICKETS_CLAIM is missing', async () => {
     const svc = makeService(makePrismaMock({ rolePermission: false }))
 
-    await expect((svc as any).assertCreatePostActionAllowed({
-      actorCompanyId: 'provider-1',
-      actorUserId: 'tech-1',
-      actorRole: UserRole.TECHNICIAN,
-      action: 'claim_self',
-      technicianId: null,
-      candidates: baseCandidates,
-      providerCompanyIds: ['provider-1'],
-    })).rejects.toMatchObject({
-      response: expect.objectContaining({ message: 'Missing permission: TICKETS_CLAIM' }),
+    await expect(
+      (svc as any).assertCreatePostActionAllowed({
+        actorCompanyId: 'provider-1',
+        actorUserId: 'tech-1',
+        actorRole: UserRole.TECHNICIAN,
+        action: 'claim_self',
+        technicianId: null,
+        candidates: baseCandidates,
+        providerCompanyIds: ['provider-1'],
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        message: 'Missing permission: TICKETS_CLAIM',
+      }),
     })
   })
 
   it('denies create+claim when the creator is outside the location/category candidate scope', async () => {
     const svc = makeService(makePrismaMock())
 
-    await expect((svc as any).assertCreatePostActionAllowed({
-      actorCompanyId: 'provider-1',
-      actorUserId: 'dispatcher-1',
-      actorRole: UserRole.DISPATCHER,
-      action: 'claim_self',
-      technicianId: null,
-      candidates: baseCandidates,
-      providerCompanyIds: ['provider-1'],
-    })).rejects.toThrow('Current user is not available for this ticket location/category')
+    await expect(
+      (svc as any).assertCreatePostActionAllowed({
+        actorCompanyId: 'provider-1',
+        actorUserId: 'dispatcher-1',
+        actorRole: UserRole.DISPATCHER,
+        action: 'claim_self',
+        technicianId: null,
+        candidates: baseCandidates,
+        providerCompanyIds: ['provider-1'],
+      }),
+    ).rejects.toThrow(
+      'Current user is not available for this ticket location/category',
+    )
   })
 
   it('allows create+assign to an in-scope employee of the actor provider company', async () => {
     const svc = makeService(makePrismaMock())
 
-    await expect((svc as any).assertCreatePostActionAllowed({
-      actorCompanyId: 'provider-1',
-      actorUserId: 'master-1',
-      actorRole: UserRole.MASTER,
-      action: 'assign_employee',
-      technicianId: 'tech-1',
-      candidates: baseCandidates,
-      providerCompanyIds: ['provider-1'],
-    })).resolves.toBe('tech-1')
+    await expect(
+      (svc as any).assertCreatePostActionAllowed({
+        actorCompanyId: 'provider-1',
+        actorUserId: 'master-1',
+        actorRole: UserRole.MASTER,
+        action: 'assign_employee',
+        technicianId: 'tech-1',
+        candidates: baseCandidates,
+        providerCompanyIds: ['provider-1'],
+      }),
+    ).resolves.toBe('tech-1')
   })
 
   it('denies create+assign when the candidate was excluded by specialization diagnostics', async () => {
     const svc = makeService(makePrismaMock())
 
-    await expect((svc as any).assertCreatePostActionAllowed({
-      actorCompanyId: 'provider-1',
-      actorUserId: 'master-1',
-      actorRole: UserRole.MASTER,
-      action: 'assign_employee',
-      technicianId: 'tech-no-specialization',
-      candidates: [
-        ...baseCandidates,
-        {
-          id: 'tech-no-specialization',
-          email: 'tech-no-specialization@example.test',
-          role: UserRole.TECHNICIAN,
-          companyId: 'provider-1',
-          matched: false,
-          matchReason: 'no_match',
-        },
-      ],
-      providerCompanyIds: ['provider-1'],
-    })).rejects.toThrow('Technician not found')
+    await expect(
+      (svc as any).assertCreatePostActionAllowed({
+        actorCompanyId: 'provider-1',
+        actorUserId: 'master-1',
+        actorRole: UserRole.MASTER,
+        action: 'assign_employee',
+        technicianId: 'tech-no-specialization',
+        candidates: [
+          ...baseCandidates,
+          {
+            id: 'tech-no-specialization',
+            email: 'tech-no-specialization@example.test',
+            role: UserRole.TECHNICIAN,
+            companyId: 'provider-1',
+            matched: false,
+            matchReason: 'no_match',
+          },
+        ],
+        providerCompanyIds: ['provider-1'],
+      }),
+    ).rejects.toThrow('Technician not found')
   })
 
   it('denies create+assign to a foreign provider employee even when they are otherwise bound', async () => {
     const svc = makeService(makePrismaMock())
 
-    await expect((svc as any).assertCreatePostActionAllowed({
-      actorCompanyId: 'provider-1',
-      actorUserId: 'master-1',
-      actorRole: UserRole.MASTER,
-      action: 'assign_employee',
-      technicianId: 'foreign-1',
-      candidates: baseCandidates,
-      providerCompanyIds: ['provider-1'],
-    })).rejects.toThrow('Technician not found')
+    await expect(
+      (svc as any).assertCreatePostActionAllowed({
+        actorCompanyId: 'provider-1',
+        actorUserId: 'master-1',
+        actorRole: UserRole.MASTER,
+        action: 'assign_employee',
+        technicianId: 'foreign-1',
+        candidates: baseCandidates,
+        providerCompanyIds: ['provider-1'],
+      }),
+    ).rejects.toThrow('Technician not found')
   })
 
   it('denies create+assign when TICKETS_ASSIGN is missing', async () => {
     const svc = makeService(makePrismaMock({ rolePermission: false }))
 
-    await expect((svc as any).assertCreatePostActionAllowed({
-      actorCompanyId: 'provider-1',
-      actorUserId: 'master-1',
-      actorRole: UserRole.MASTER,
-      action: 'assign_employee',
-      technicianId: 'tech-1',
-      candidates: baseCandidates,
-      providerCompanyIds: ['provider-1'],
-    })).rejects.toMatchObject({
-      response: expect.objectContaining({ message: 'Missing permission: TICKETS_ASSIGN' }),
+    await expect(
+      (svc as any).assertCreatePostActionAllowed({
+        actorCompanyId: 'provider-1',
+        actorUserId: 'master-1',
+        actorRole: UserRole.MASTER,
+        action: 'assign_employee',
+        technicianId: 'tech-1',
+        candidates: baseCandidates,
+        providerCompanyIds: ['provider-1'],
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        message: 'Missing permission: TICKETS_ASSIGN',
+      }),
     })
   })
 
   it('keeps explicit leave_unassigned from auto-assigning', () => {
     const svc = makeService(makePrismaMock())
 
-    expect((svc as any).resolveCreatePostAction({
-      requestedAction: 'leave_unassigned',
-      assignTechnicianId: null,
-      shouldAutoAssign: true,
-    })).toEqual({
+    expect(
+      (svc as any).resolveCreatePostAction({
+        requestedAction: 'leave_unassigned',
+        assignTechnicianId: null,
+        shouldAutoAssign: true,
+      }),
+    ).toEqual({
       action: 'leave_unassigned',
       technicianId: null,
       autoAssignAllowed: false,
@@ -1697,11 +2237,13 @@ describe('TicketsAssignmentService create post-action policy', () => {
   it('requires assignTechnicianId for assign_employee', () => {
     const svc = makeService(makePrismaMock())
 
-    expect(() => (svc as any).resolveCreatePostAction({
-      requestedAction: 'assign_employee',
-      assignTechnicianId: null,
-      shouldAutoAssign: false,
-    })).toThrow('assignTechnicianId is required for assign_employee')
+    expect(() =>
+      (svc as any).resolveCreatePostAction({
+        requestedAction: 'assign_employee',
+        assignTechnicianId: null,
+        shouldAutoAssign: false,
+      }),
+    ).toThrow('assignTechnicianId is required for assign_employee')
   })
 })
 
@@ -1741,7 +2283,8 @@ describe('TicketsAssignmentService linked-provider create assignment contour', (
     const assignedTicket = {
       ...createdTicket,
       status: TicketStatus.ASSIGNED,
-      assignedTechnicianId: options?.autoAssignedTechnicianId ?? providerTech.id,
+      assignedTechnicianId:
+        options?.autoAssignedTechnicianId ?? providerTech.id,
     }
     const tx = {
       ticket: {
@@ -1759,22 +2302,31 @@ describe('TicketsAssignmentService linked-provider create assignment contour', (
     const prisma = {
       $transaction: jest.fn(async (callback: any) => callback(tx)),
       permissionBlock: { count: jest.fn().mockResolvedValue(1) },
-      company: { findUnique: jest.fn().mockResolvedValue({ type: CompanyType.PROVIDER }) },
-      rolePermission: { findFirst: jest.fn().mockResolvedValue({ id: 'role-permission' }) },
+      company: {
+        findUnique: jest.fn().mockResolvedValue({ type: CompanyType.PROVIDER }),
+      },
+      rolePermission: {
+        findFirst: jest.fn().mockResolvedValue({ id: 'role-permission' }),
+      },
       userPermission: { findFirst: jest.fn().mockResolvedValue(null) },
       user: {
         findUnique: jest.fn().mockResolvedValue({
-          companyId: options?.autoAssignedTechnicianId === 'client-tech' ? clientCompanyId : providerCompanyId,
+          companyId:
+            options?.autoAssignedTechnicianId === 'client-tech'
+              ? clientCompanyId
+              : providerCompanyId,
           email: 'provider-tech@example.test',
         }),
       },
     }
     const assignmentEngine = {
-      selectTechnicianForTicket: jest.fn().mockResolvedValue(
-        options?.autoAssignedTechnicianId
-          ? { technicianId: options.autoAssignedTechnicianId }
-          : null,
-      ),
+      selectTechnicianForTicket: jest
+        .fn()
+        .mockResolvedValue(
+          options?.autoAssignedTechnicianId
+            ? { technicianId: options.autoAssignedTechnicianId }
+            : null,
+        ),
     }
     const timeline = {
       recordTx: jest.fn().mockResolvedValue({ id: 'timeline-event-1' }),
@@ -1788,10 +2340,14 @@ describe('TicketsAssignmentService linked-provider create assignment contour', (
         role: options?.linkedAccessRole ?? 'SECONDARY',
         status: 'ACTIVE',
       }),
-      listSecondaryProviderCompanyIds: jest.fn().mockResolvedValue(options?.secondaryProviderIds ?? []),
+      listSecondaryProviderCompanyIds: jest
+        .fn()
+        .mockResolvedValue(options?.secondaryProviderIds ?? []),
     }
     const technicians = {
-      resolveBoundCreateScope: jest.fn().mockResolvedValue({ companyId: clientCompanyId }),
+      resolveBoundCreateScope: jest
+        .fn()
+        .mockResolvedValue({ companyId: clientCompanyId }),
     }
     const notifications = {
       onTicketCreated: jest.fn(),
@@ -1808,8 +2364,12 @@ describe('TicketsAssignmentService linked-provider create assignment contour', (
       technicians as any,
       notifications as any,
     )
-    jest.spyOn(service as any, 'resolveTicketOwnerCompanyId').mockResolvedValue(clientCompanyId)
-    jest.spyOn(service as any, 'assertActorCanUseLocationForScope').mockResolvedValue(undefined)
+    jest
+      .spyOn(service as any, 'resolveTicketOwnerCompanyId')
+      .mockResolvedValue(clientCompanyId)
+    jest
+      .spyOn(service as any, 'assertActorCanUseLocationForScope')
+      .mockResolvedValue(undefined)
     jest.spyOn(service as any, 'getCompany').mockResolvedValue({
       id: clientCompanyId,
       type: CompanyType.CLIENT,
@@ -1862,37 +2422,50 @@ describe('TicketsAssignmentService linked-provider create assignment contour', (
   it('provider ADMIN creates a linked-client ticket and assigns own provider employee', async () => {
     const { service, tx, resolveCreateCandidatesSpy } = makeCreateHarness()
 
-    const result = await service.create(providerCompanyId, 'admin-1', UserRole.ADMIN, baseDto({
-      postCreateAction: 'assign_employee',
-      assignTechnicianId: providerTech.id,
-    }) as any)
+    const result = await service.create(
+      providerCompanyId,
+      'admin-1',
+      UserRole.ADMIN,
+      baseDto({
+        postCreateAction: 'assign_employee',
+        assignTechnicianId: providerTech.id,
+      }) as any,
+    )
 
-    expect(resolveCreateCandidatesSpy).toHaveBeenCalledWith(expect.objectContaining({
-      providerCompanyIds: [providerCompanyId],
-      clientCompanyId,
-      locationId,
-    }))
-    expect(mockAssertActorCanUseProblemCategory).toHaveBeenCalledWith(expect.objectContaining({
-      actor: expect.objectContaining({
-        id: 'admin-1',
-        role: UserRole.ADMIN,
-        companyId: providerCompanyId,
+    expect(resolveCreateCandidatesSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerCompanyIds: [providerCompanyId],
+        clientCompanyId,
+        locationId,
       }),
-      scopeCompanyId: clientCompanyId,
-      problemCategoryId: categoryId,
-    }))
-    expect(tx.ticket.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({
-        companyId: clientCompanyId,
-        createdByUserId: 'admin-1',
+    )
+    expect(mockAssertActorCanUseProblemCategory).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actor: expect.objectContaining({
+          id: 'admin-1',
+          role: UserRole.ADMIN,
+          companyId: providerCompanyId,
+        }),
+        scopeCompanyId: clientCompanyId,
+        problemCategoryId: categoryId,
       }),
-    }))
-    expect(tx.ticket.update).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({
-        assignedTechnicianId: providerTech.id,
-        status: TicketStatus.ASSIGNED,
+    )
+    expect(tx.ticket.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          companyId: clientCompanyId,
+          createdByUserId: 'admin-1',
+        }),
       }),
-    }))
+    )
+    expect(tx.ticket.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          assignedTechnicianId: providerTech.id,
+          status: TicketStatus.ASSIGNED,
+        }),
+      }),
+    )
     expect(result.ticket.companyId).toBe(clientCompanyId)
     expect(result.autoAssigned).toBe(true)
   })
@@ -1900,30 +2473,51 @@ describe('TicketsAssignmentService linked-provider create assignment contour', (
   it('provider MASTER creates a linked-client ticket and assigns own provider employee', async () => {
     const { service, tx, resolveCreateCandidatesSpy } = makeCreateHarness()
 
-    await expect(service.create(providerCompanyId, 'master-1', UserRole.MASTER, baseDto({
-      postCreateAction: 'assign_employee',
-      assignTechnicianId: providerTech.id,
-    }) as any)).resolves.toMatchObject({
+    await expect(
+      service.create(
+        providerCompanyId,
+        'master-1',
+        UserRole.MASTER,
+        baseDto({
+          postCreateAction: 'assign_employee',
+          assignTechnicianId: providerTech.id,
+        }) as any,
+      ),
+    ).resolves.toMatchObject({
       ticket: expect.objectContaining({ companyId: clientCompanyId }),
     })
 
-    expect(resolveCreateCandidatesSpy).toHaveBeenCalledWith(expect.objectContaining({
-      providerCompanyIds: [providerCompanyId],
-      clientCompanyId,
-    }))
-    expect(tx.ticket.update).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ assignedTechnicianId: providerTech.id }),
-    }))
+    expect(resolveCreateCandidatesSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerCompanyIds: [providerCompanyId],
+        clientCompanyId,
+      }),
+    )
+    expect(tx.ticket.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          assignedTechnicianId: providerTech.id,
+        }),
+      }),
+    )
   })
 
   it('denies create when category specialization is outside actor scope', async () => {
     const { service, tx } = makeCreateHarness()
     mockAssertActorCanUseProblemCategory.mockRejectedValueOnce(
-      new ForbiddenException('Problem category is not available in current user scope'),
+      new ForbiddenException(
+        'Problem category is not available in current user scope',
+      ),
     )
 
-    await expect(service.create(providerCompanyId, 'admin-1', UserRole.ADMIN, baseDto() as any))
-      .rejects.toBeInstanceOf(ForbiddenException)
+    await expect(
+      service.create(
+        providerCompanyId,
+        'admin-1',
+        UserRole.ADMIN,
+        baseDto() as any,
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException)
 
     expect(tx.ticket.create).not.toHaveBeenCalled()
   })
@@ -1931,24 +2525,35 @@ describe('TicketsAssignmentService linked-provider create assignment contour', (
   it('provider TECHNICIAN creates a linked-client ticket and claims from provider workforce', async () => {
     const { service, tx, resolveCreateCandidatesSpy } = makeCreateHarness()
 
-    const result = await service.create(providerCompanyId, providerTech.id, UserRole.TECHNICIAN, baseDto({
-      postCreateAction: 'claim_self',
-    }) as any)
+    const result = await service.create(
+      providerCompanyId,
+      providerTech.id,
+      UserRole.TECHNICIAN,
+      baseDto({
+        postCreateAction: 'claim_self',
+      }) as any,
+    )
 
-    expect(resolveCreateCandidatesSpy).toHaveBeenCalledWith(expect.objectContaining({
-      providerCompanyIds: [providerCompanyId],
-      clientCompanyId,
-      locationId,
-    }))
-    expect(tx.ticket.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ companyId: clientCompanyId }),
-    }))
-    expect(tx.ticket.update).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({
-        assignedTechnicianId: providerTech.id,
-        status: TicketStatus.ASSIGNED,
+    expect(resolveCreateCandidatesSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerCompanyIds: [providerCompanyId],
+        clientCompanyId,
+        locationId,
       }),
-    }))
+    )
+    expect(tx.ticket.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ companyId: clientCompanyId }),
+      }),
+    )
+    expect(tx.ticket.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          assignedTechnicianId: providerTech.id,
+          status: TicketStatus.ASSIGNED,
+        }),
+      }),
+    )
     expect(result.ticket.companyId).toBe(clientCompanyId)
   })
 
@@ -1958,24 +2563,37 @@ describe('TicketsAssignmentService linked-provider create assignment contour', (
       id: 'client-own-tech',
       companyId: clientCompanyId,
     }
-    const { service, tx, resolveCreateCandidatesSpy } = makeCreateHarness({ candidates: [clientTech] })
+    const { service, tx, resolveCreateCandidatesSpy } = makeCreateHarness({
+      candidates: [clientTech],
+    })
 
-    const result = await service.create(clientCompanyId, 'client-admin-1', UserRole.ADMIN, baseDto({
-      postCreateAction: 'assign_employee',
-      assignTechnicianId: clientTech.id,
-    }) as any)
-
-    expect(resolveCreateCandidatesSpy).toHaveBeenCalledWith(expect.objectContaining({
-      providerCompanyIds: [clientCompanyId],
+    const result = await service.create(
       clientCompanyId,
-      locationId,
-    }))
-    expect(tx.ticket.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ companyId: clientCompanyId }),
-    }))
-    expect(tx.ticket.update).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ assignedTechnicianId: clientTech.id }),
-    }))
+      'client-admin-1',
+      UserRole.ADMIN,
+      baseDto({
+        postCreateAction: 'assign_employee',
+        assignTechnicianId: clientTech.id,
+      }) as any,
+    )
+
+    expect(resolveCreateCandidatesSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerCompanyIds: [clientCompanyId],
+        clientCompanyId,
+        locationId,
+      }),
+    )
+    expect(tx.ticket.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ companyId: clientCompanyId }),
+      }),
+    )
+    expect(tx.ticket.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ assignedTechnicianId: clientTech.id }),
+      }),
+    )
     expect(result.ticket.companyId).toBe(clientCompanyId)
   })
 
@@ -1985,16 +2603,25 @@ describe('TicketsAssignmentService linked-provider create assignment contour', (
       autoAssignedTechnicianId: providerTech.id,
     })
 
-    const result = await service.create(providerCompanyId, 'admin-1', UserRole.ADMIN, baseDto() as any)
+    const result = await service.create(
+      providerCompanyId,
+      'admin-1',
+      UserRole.ADMIN,
+      baseDto() as any,
+    )
 
-    expect(assignmentEngine.selectTechnicianForTicket).toHaveBeenCalledWith(expect.objectContaining({
-      companyId: providerCompanyId,
-      locationId,
-      categoryId,
-    }))
-    expect(tx.ticket.create).toHaveBeenCalledWith(expect.objectContaining({
-      data: expect.objectContaining({ companyId: clientCompanyId }),
-    }))
+    expect(assignmentEngine.selectTechnicianForTicket).toHaveBeenCalledWith(
+      expect.objectContaining({
+        companyId: providerCompanyId,
+        locationId,
+        categoryId,
+      }),
+    )
+    expect(tx.ticket.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ companyId: clientCompanyId }),
+      }),
+    )
     expect(result.ticket.companyId).toBe(clientCompanyId)
     expect(result.autoAssigned).toBe(true)
   })
@@ -2007,10 +2634,17 @@ describe('TicketsAssignmentService linked-provider create assignment contour', (
     }
     const { service } = makeCreateHarness({ candidates: [clientEmployee] })
 
-    await expect(service.create(providerCompanyId, 'admin-1', UserRole.ADMIN, baseDto({
-      postCreateAction: 'assign_employee',
-      assignTechnicianId: clientEmployee.id,
-    }) as any)).rejects.toThrow('Technician not found')
+    await expect(
+      service.create(
+        providerCompanyId,
+        'admin-1',
+        UserRole.ADMIN,
+        baseDto({
+          postCreateAction: 'assign_employee',
+          assignTechnicianId: clientEmployee.id,
+        }) as any,
+      ),
+    ).rejects.toThrow('Technician not found')
   })
 
   it('denies assigning another provider employee from provider linked-client create', async () => {
@@ -2019,51 +2653,88 @@ describe('TicketsAssignmentService linked-provider create assignment contour', (
       id: 'foreign-provider-tech',
       companyId: 'foreign-provider',
     }
-    const { service } = makeCreateHarness({ candidates: [foreignProviderEmployee] })
+    const { service } = makeCreateHarness({
+      candidates: [foreignProviderEmployee],
+    })
 
-    await expect(service.create(providerCompanyId, 'admin-1', UserRole.ADMIN, baseDto({
-      postCreateAction: 'assign_employee',
-      assignTechnicianId: foreignProviderEmployee.id,
-    }) as any)).rejects.toThrow('Technician not found')
+    await expect(
+      service.create(
+        providerCompanyId,
+        'admin-1',
+        UserRole.ADMIN,
+        baseDto({
+          postCreateAction: 'assign_employee',
+          assignTechnicianId: foreignProviderEmployee.id,
+        }) as any,
+      ),
+    ).rejects.toThrow('Technician not found')
   })
 
   it('denies inactive or deleted provider employees because they are absent from create candidates', async () => {
     const { service } = makeCreateHarness({ candidates: [] })
 
-    await expect(service.create(providerCompanyId, 'admin-1', UserRole.ADMIN, baseDto({
-      postCreateAction: 'assign_employee',
-      assignTechnicianId: 'inactive-or-deleted-tech',
-    }) as any)).rejects.toThrow('Technician not found')
+    await expect(
+      service.create(
+        providerCompanyId,
+        'admin-1',
+        UserRole.ADMIN,
+        baseDto({
+          postCreateAction: 'assign_employee',
+          assignTechnicianId: 'inactive-or-deleted-tech',
+        }) as any,
+      ),
+    ).rejects.toThrow('Technician not found')
   })
 
   it('keeps create-assignment-candidates and create(assign_employee) on the same provider workforce contour', async () => {
     const { service, resolveCreateCandidatesSpy } = makeCreateHarness()
-    jest.spyOn(service as any, 'assertExecutorOperationsAllowed').mockResolvedValue(undefined)
+    jest
+      .spyOn(service as any, 'assertExecutorOperationsAllowed')
+      .mockResolvedValue(undefined)
 
-    const candidateList = await service.listCreateAssignmentCandidates(providerCompanyId, {
-      id: 'admin-1',
-      role: UserRole.ADMIN,
-    }, {
-      clientCompanyId,
-      locationId,
-      categoryId,
-    })
-    await expect(service.create(providerCompanyId, 'admin-1', UserRole.ADMIN, baseDto({
-      postCreateAction: 'assign_employee',
-      assignTechnicianId: providerTech.id,
-    }) as any)).resolves.toBeTruthy()
+    const candidateList = await service.listCreateAssignmentCandidates(
+      providerCompanyId,
+      {
+        id: 'admin-1',
+        role: UserRole.ADMIN,
+      },
+      {
+        clientCompanyId,
+        locationId,
+        categoryId,
+      },
+    )
+    await expect(
+      service.create(
+        providerCompanyId,
+        'admin-1',
+        UserRole.ADMIN,
+        baseDto({
+          postCreateAction: 'assign_employee',
+          assignTechnicianId: providerTech.id,
+        }) as any,
+      ),
+    ).resolves.toBeTruthy()
 
-    expect(candidateList.matched.map((candidate: any) => candidate.id)).toContain(providerTech.id)
-    expect(resolveCreateCandidatesSpy).toHaveBeenNthCalledWith(1, expect.objectContaining({
-      providerCompanyIds: [providerCompanyId],
-      clientCompanyId,
-      locationId,
-    }))
-    expect(resolveCreateCandidatesSpy).toHaveBeenNthCalledWith(2, expect.objectContaining({
-      providerCompanyIds: [providerCompanyId],
-      clientCompanyId,
-      locationId,
-    }))
+    expect(
+      candidateList.matched.map((candidate: any) => candidate.id),
+    ).toContain(providerTech.id)
+    expect(resolveCreateCandidatesSpy).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        providerCompanyIds: [providerCompanyId],
+        clientCompanyId,
+        locationId,
+      }),
+    )
+    expect(resolveCreateCandidatesSpy).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        providerCompanyIds: [providerCompanyId],
+        clientCompanyId,
+        locationId,
+      }),
+    )
   })
 
   it('keeps primary create and create-assignment-candidates aligned with SECONDARY provider candidates', async () => {
@@ -2079,31 +2750,52 @@ describe('TicketsAssignmentService linked-provider create assignment contour', (
       linkedAccessRole: 'PRIMARY',
       secondaryProviderIds: [secondaryProviderId],
     })
-    jest.spyOn(service as any, 'assertExecutorOperationsAllowed').mockResolvedValue(undefined)
+    jest
+      .spyOn(service as any, 'assertExecutorOperationsAllowed')
+      .mockResolvedValue(undefined)
 
-    const candidateList = await service.listCreateAssignmentCandidates(providerCompanyId, {
-      id: 'admin-1',
-      role: UserRole.ADMIN,
-    }, {
-      clientCompanyId,
-      locationId,
-      categoryId,
-    })
-    await expect(service.create(providerCompanyId, 'admin-1', UserRole.ADMIN, baseDto({
-      postCreateAction: 'assign_employee',
-      assignTechnicianId: secondaryTech.id,
-    }) as any)).resolves.toBeTruthy()
+    const candidateList = await service.listCreateAssignmentCandidates(
+      providerCompanyId,
+      {
+        id: 'admin-1',
+        role: UserRole.ADMIN,
+      },
+      {
+        clientCompanyId,
+        locationId,
+        categoryId,
+      },
+    )
+    await expect(
+      service.create(
+        providerCompanyId,
+        'admin-1',
+        UserRole.ADMIN,
+        baseDto({
+          postCreateAction: 'assign_employee',
+          assignTechnicianId: secondaryTech.id,
+        }) as any,
+      ),
+    ).resolves.toBeTruthy()
 
-    expect(candidateList.matched.map((candidate: any) => candidate.id)).toContain(secondaryTech.id)
-    expect(resolveCreateCandidatesSpy).toHaveBeenNthCalledWith(1, expect.objectContaining({
-      providerCompanyIds: [providerCompanyId, secondaryProviderId],
-      clientCompanyId,
-      locationId,
-    }))
-    expect(resolveCreateCandidatesSpy).toHaveBeenNthCalledWith(2, expect.objectContaining({
-      providerCompanyIds: [providerCompanyId, secondaryProviderId],
-      clientCompanyId,
-      locationId,
-    }))
+    expect(
+      candidateList.matched.map((candidate: any) => candidate.id),
+    ).toContain(secondaryTech.id)
+    expect(resolveCreateCandidatesSpy).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        providerCompanyIds: [providerCompanyId, secondaryProviderId],
+        clientCompanyId,
+        locationId,
+      }),
+    )
+    expect(resolveCreateCandidatesSpy).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        providerCompanyIds: [providerCompanyId, secondaryProviderId],
+        clientCompanyId,
+        locationId,
+      }),
+    )
   })
 })

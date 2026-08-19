@@ -1,4 +1,8 @@
-import { ServiceContractLocationMode, ServiceContractRole, ServiceContractStatus } from '@prisma/client'
+import {
+  ServiceContractLocationMode,
+  ServiceContractRole,
+  ServiceContractStatus,
+} from '@prisma/client'
 
 import { ContractContextService } from './contract-context.service'
 
@@ -51,6 +55,10 @@ function makeService() {
     ['contract-x', [HVAC]],
     ['contract-y', [ELECTRICAL]],
   ])
+  const specializationNames = new Map<string, string>([
+    [HVAC, 'HVAC'],
+    [ELECTRICAL, 'Electrical'],
+  ])
   const tickets = new Map([
     ['ticket-y', { id: 'ticket-y', companyId: CLIENT_Y }],
   ])
@@ -61,28 +69,40 @@ function makeService() {
         if (where.id) {
           return contracts.find((contract) => contract.id === where.id) ?? null
         }
-        return contracts.find((contract) =>
-          contract.providerCompanyId === where.providerCompanyId &&
-          contract.clientCompanyId === where.clientCompanyId
-        ) ?? null
+        return (
+          contracts.find(
+            (contract) =>
+              contract.providerCompanyId === where.providerCompanyId &&
+              contract.clientCompanyId === where.clientCompanyId,
+          ) ?? null
+        )
       }),
       findMany: jest.fn(async ({ where }: any) =>
-        contracts.filter((contract) =>
-          contract.clientCompanyId === where.clientCompanyId &&
-          (!where.role || contract.role === where.role) &&
-          (!where.id?.not || contract.id !== where.id.not)
+        contracts.filter(
+          (contract) =>
+            contract.clientCompanyId === where.clientCompanyId &&
+            (!where.role || contract.role === where.role) &&
+            (!where.id?.not || contract.id !== where.id.not),
         ),
       ),
     },
     serviceContractSpecialization: {
       findMany: jest.fn(async ({ where }: any) =>
-        (contractSpecializations.get(where.serviceContractId) ?? []).map((specializationId) => ({
-          specializationId,
-        })),
+        (contractSpecializations.get(where.serviceContractId) ?? []).map(
+          (specializationId) => ({
+            specializationId,
+            specialization: {
+              name:
+                specializationNames.get(specializationId) ?? specializationId,
+            },
+          }),
+        ),
       ),
     },
     ticket: {
-      findUnique: jest.fn(async ({ where }: any) => tickets.get(where.id) ?? null),
+      findUnique: jest.fn(
+        async ({ where }: any) => tickets.get(where.id) ?? null,
+      ),
     },
   }
 
@@ -133,7 +153,9 @@ describe('ContractContextService', () => {
     expect(contractX?.specializationIds).not.toContain(ELECTRICAL)
     expect(contractY?.specializationIds).not.toContain(HVAC)
     expect(contractX?.locationIds).not.toContain('y1')
-    expect(contractY?.locationIds).not.toEqual(expect.arrayContaining(['x1', 'x2']))
+    expect(contractY?.locationIds).not.toEqual(
+      expect.arrayContaining(['x1', 'x2']),
+    )
   })
 
   it('resolves client context from the ticket when linked client is not explicit', async () => {
@@ -159,18 +181,24 @@ describe('ContractContextService', () => {
       mode: 'bound_locations',
       locationIds: ['x1', 'x2'],
     })
-    await expect(svc.getContractSpecializationScope('contract-x')).resolves.toEqual({
+    await expect(
+      svc.getContractSpecializationScope('contract-x'),
+    ).resolves.toEqual({
       mode: 'EXPLICIT',
       specializationIds: [HVAC],
+      specializationNames: ['HVAC'],
     })
   })
 
   it('returns UNCONFIGURED for contracts without specialization rows', async () => {
     const { svc } = makeService()
 
-    await expect(svc.getContractSpecializationScope('contract-z')).resolves.toEqual({
+    await expect(
+      svc.getContractSpecializationScope('contract-z'),
+    ).resolves.toEqual({
       mode: 'UNCONFIGURED',
       specializationIds: [],
+      specializationNames: [],
     })
   })
 })
