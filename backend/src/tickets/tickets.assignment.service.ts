@@ -519,6 +519,60 @@ export class TicketsAssignmentService {
     );
   }
 
+  private async resolveProviderTicketContractContext(params: {
+    providerCompanyId: string;
+    ticket: AssignmentAuthorityTicket;
+    linkedClientCompanyId?: string | null;
+  }) {
+    if (params.providerCompanyId === params.ticket.companyId) {
+      return null;
+    }
+
+    const context = await this.contractContextService.getContractContext({
+      providerCompanyId: params.providerCompanyId,
+      clientCompanyId: params.ticket.companyId,
+      linkedClientCompanyId: params.linkedClientCompanyId,
+    });
+    if (!context) {
+      throw new NotFoundException('Linked client not found');
+    }
+    return context;
+  }
+
+  private assertContractContextCoversTicket(params: {
+    context: ContractContext;
+    ticket: AssignmentAuthorityTicket;
+  }) {
+    const requiredSpecializations = this.ticketRequiredSpecializations(params.ticket);
+    if (
+      !this.contractContextAllowsTicket(params.context, {
+        ticketLocationId: params.ticket.locationId,
+        requiredSpecializations,
+      })
+    ) {
+      throw new NotFoundException('Ticket not found');
+    }
+  }
+
+  private async resolveLinkedClientContractRole(params: {
+    providerCompanyId: string;
+    clientCompanyId?: string | null;
+  }): Promise<ServiceContractRole | null> {
+    const clientCompanyId = params.clientCompanyId?.trim();
+    if (!clientCompanyId || clientCompanyId === params.providerCompanyId) {
+      return null;
+    }
+
+    const context = await this.contractContextService.getContractContext({
+      providerCompanyId: params.providerCompanyId,
+      clientCompanyId,
+    });
+    if (!context) {
+      throw new ForbiddenException('Linked client access is not available');
+    }
+    return context.roleInContract;
+  }
+
   private async resolveEligibleSecondaryProviderCompanyIds(params: {
     clientCompanyId: string;
     ticketLocationId: string;
@@ -832,17 +886,11 @@ export class TicketsAssignmentService {
           : params.linkedClientCompanyId;
     }
 
-    let linkedClientContractRole: ServiceContractRole | null = null;
-    if (effectiveLinkedClientCompanyId && effectiveLinkedClientCompanyId !== params.companyId) {
-      const access = await this.serviceContractsService.getLinkedClientAccess(
-        params.companyId,
-        effectiveLinkedClientCompanyId,
-      );
-      if (!access) {
-        throw new ForbiddenException('Linked client access is not available');
-      }
-      linkedClientContractRole = access.role;
-    }
+    const linkedClientContractRole =
+      await this.resolveLinkedClientContractRole({
+        providerCompanyId: params.companyId,
+        clientCompanyId: effectiveLinkedClientCompanyId,
+      });
 
     const technicianScope = await resolveTechnicianOperationalScope({
       prisma: this.prisma,
@@ -3026,6 +3074,19 @@ export class TicketsAssignmentService {
     if (ticket.status !== TicketStatus.NEW || ticket.assignedTechnicianId) {
       throw new BadRequestException('Заявка уже назначена или недоступна для запроса');
     }
+
+    const contractContext = await this.resolveProviderTicketContractContext({
+      providerCompanyId,
+      ticket,
+      linkedClientCompanyId,
+    });
+    if (!contractContext || contractContext.roleInContract !== ServiceContractRole.SECONDARY) {
+      throw new ForbiddenException('Request assignment is available only for SECONDARY provider contracts');
+    }
+    this.assertContractContextCoversTicket({
+      context: contractContext,
+      ticket,
+    });
 
     const targetUser = await this.prisma.user.findFirst({
       where: {

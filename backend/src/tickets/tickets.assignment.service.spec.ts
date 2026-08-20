@@ -972,6 +972,7 @@ describe('TicketsAssignmentService.requestAssignment canonical eligibility', () 
   const targetTechnicianId = 'target-tech-secondary'
   const foreignTechnicianId = 'foreign-tech'
   const foreignProviderCompanyId = 'foreign-provider'
+  const primaryClientCompanyId = 'primary-client-company'
   const ticketId = 'ticket-1'
   const allowedLocationId = 'location-allowed'
   const forbiddenLocationId = 'location-forbidden'
@@ -1042,8 +1043,8 @@ describe('TicketsAssignmentService.requestAssignment canonical eligibility', () 
     const contractStatus = options.contractStatus ?? 'ACTIVE'
 
     const locationClientById: Record<string, string> = {
-      [allowedLocationId]: clientCompanyId,
-      [forbiddenLocationId]: clientCompanyId,
+      [allowedLocationId]: ticketCompanyId,
+      [forbiddenLocationId]: ticketCompanyId,
       'foreign-location': foreignClientCompanyId,
     }
 
@@ -1369,6 +1370,55 @@ describe('TicketsAssignmentService.requestAssignment canonical eligibility', () 
         .fn()
         .mockResolvedValue({ notified: 1 }),
     }
+    const contractContext = {
+      getContractContext: jest.fn(async ({
+        providerCompanyId: contractProviderCompanyId,
+        clientCompanyId: contractClientCompanyId,
+      }: any) => {
+        if (
+          contractProviderCompanyId !== providerCompanyId ||
+          contractClientCompanyId !== ticketCompanyId ||
+          !contractRole ||
+          contractStatus !== 'ACTIVE'
+        ) {
+          return null
+        }
+        const specializationNames =
+          categorySpecializationNames.length > 0
+            ? categorySpecializationNames
+            : []
+        return {
+          contractId: 'contract-1',
+          serviceContractId: 'contract-1',
+          clientCompanyId: ticketCompanyId,
+          providerCompanyId,
+          roleInContract: contractRole,
+          locationMode: 'ALL_LOCATIONS',
+          locationIds: [],
+          specializationMode:
+            specializationNames.length > 0 ? 'EXPLICIT' : 'UNCONFIGURED',
+          specializationIds: specializationNames.map(
+            (_, index) => `contract-spec-${index + 1}`,
+          ),
+          specializationNames,
+          contractLocationScope: { mode: 'tenant_wide', locationIds: [] },
+          contractSpecializationScope:
+            specializationNames.length > 0
+              ? {
+                  mode: 'EXPLICIT',
+                  specializationIds: specializationNames.map(
+                    (_, index) => `contract-spec-${index + 1}`,
+                  ),
+                  specializationNames,
+                }
+              : {
+                  mode: 'UNCONFIGURED',
+                  specializationIds: [],
+                  specializationNames: [],
+                },
+        }
+      }),
+    }
     const service = new TicketsAssignmentService(
       prisma as any,
       {} as any,
@@ -1378,6 +1428,7 @@ describe('TicketsAssignmentService.requestAssignment canonical eligibility', () 
       serviceContracts as any,
       {} as any,
       notifications as any,
+      contractContext as any,
     )
 
     return {
@@ -1386,6 +1437,7 @@ describe('TicketsAssignmentService.requestAssignment canonical eligibility', () 
       timeline,
       notifications,
       serviceContracts,
+      contractContext,
       ticketCompanyId,
       requesterId,
       requesterRole,
@@ -1477,6 +1529,19 @@ describe('TicketsAssignmentService.requestAssignment canonical eligibility', () 
     })
   })
 
+  it('denies Request Assignment when the provider is PRIMARY in the current contract', async () => {
+    await expectDeniedWithoutSideEffects({
+      contractRole: ServiceContractRole.PRIMARY,
+    })
+  })
+
+  it('keeps the same provider in PRIMARY behavior for another client contract', async () => {
+    await expectDeniedWithoutSideEffects({
+      ticketCompanyId: primaryClientCompanyId,
+      contractRole: ServiceContractRole.PRIMARY,
+    })
+  })
+
   it('allows assignment request from a valid ACTIVE SECONDARY technician', async () => {
     const harness = makeRequestHarness()
 
@@ -1501,6 +1566,12 @@ describe('TicketsAssignmentService.requestAssignment canonical eligibility', () 
         providerCompanyId,
         technicianUserId: technicianId,
         ticketId,
+      }),
+    )
+    expect(harness.contractContext.getContractContext).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerCompanyId,
+        clientCompanyId: clientCompanyId,
       }),
     )
   })
@@ -1643,7 +1714,7 @@ describe('TicketsAssignmentService canonical claim isolation', () => {
   const categorySpecializationName = 'Климатическое оборудование'
 
   type ClaimIsolationOptions = {
-    contractRole?: ServiceContractRole
+    contractRole?: ServiceContractRole | null
     locationMode?: UserAccessLocationMode | null
     bindingLocationIds?: string[]
     technicianSpecializationNames?: string[]
@@ -1656,7 +1727,10 @@ describe('TicketsAssignmentService canonical claim isolation', () => {
   }
 
   function makeClaimIsolationHarness(options: ClaimIsolationOptions = {}) {
-    const contractRole = options.contractRole ?? ServiceContractRole.SECONDARY
+    const contractRole =
+      options.contractRole === undefined
+        ? ServiceContractRole.SECONDARY
+        : options.contractRole
     const locationMode =
       options.locationMode === undefined ? null : options.locationMode
     const bindingLocationIds = options.bindingLocationIds ?? []
@@ -1841,12 +1915,16 @@ describe('TicketsAssignmentService canonical claim isolation', () => {
         .mockImplementation(async (callback: any) => callback(tx)),
     }
     const serviceContracts = {
-      getLinkedClientAccess: jest.fn().mockResolvedValue({
-        role: contractRole,
-        status: 'ACTIVE',
-        clientCompanyId,
-        providerCompanyId,
-      }),
+      getLinkedClientAccess: jest.fn().mockImplementation(async () =>
+        contractRole
+          ? {
+              role: contractRole,
+              status: 'ACTIVE',
+              clientCompanyId,
+              providerCompanyId,
+            }
+          : null,
+      ),
       listPrimaryLinkedClientIds: jest
         .fn()
         .mockResolvedValue(
@@ -1861,9 +1939,59 @@ describe('TicketsAssignmentService canonical claim isolation', () => {
         ),
       listLinkedClients: jest
         .fn()
-        .mockResolvedValue([
-          { linkedClientCompanyId: clientCompanyId, role: contractRole },
-        ]),
+        .mockResolvedValue(
+          contractRole
+            ? [{ linkedClientCompanyId: clientCompanyId, role: contractRole }]
+            : [],
+        ),
+    }
+    const contractContext = {
+      getContractContext: jest.fn(async ({
+        providerCompanyId: contractProviderCompanyId,
+        clientCompanyId: contractClientCompanyId,
+      }: any) => {
+        if (
+          contractProviderCompanyId !== providerCompanyId ||
+          contractClientCompanyId !== clientCompanyId ||
+          !contractRole
+        ) {
+          return null
+        }
+        const specializationNames =
+          categorySpecializationNames.length > 0
+            ? categorySpecializationNames
+            : []
+        return {
+          contractId: 'contract-1',
+          serviceContractId: 'contract-1',
+          clientCompanyId,
+          providerCompanyId,
+          roleInContract: contractRole,
+          locationMode: 'ALL_LOCATIONS',
+          locationIds: [],
+          specializationMode:
+            specializationNames.length > 0 ? 'EXPLICIT' : 'UNCONFIGURED',
+          specializationIds: specializationNames.map(
+            (_, index) => `contract-spec-${index + 1}`,
+          ),
+          specializationNames,
+          contractLocationScope: { mode: 'tenant_wide', locationIds: [] },
+          contractSpecializationScope:
+            specializationNames.length > 0
+              ? {
+                  mode: 'EXPLICIT',
+                  specializationIds: specializationNames.map(
+                    (_, index) => `contract-spec-${index + 1}`,
+                  ),
+                  specializationNames,
+                }
+              : {
+                  mode: 'UNCONFIGURED',
+                  specializationIds: [],
+                  specializationNames: [],
+                },
+        }
+      }),
     }
     const query = {
       getOne: jest.fn().mockResolvedValue({ id: ticketId }),
@@ -1883,9 +2011,18 @@ describe('TicketsAssignmentService canonical claim isolation', () => {
       serviceContracts as any,
       {} as any,
       notifications as any,
+      contractContext as any,
     )
 
-    return { service, prisma, tx, query, timeline, notifications }
+    return {
+      service,
+      prisma,
+      tx,
+      query,
+      timeline,
+      notifications,
+      contractContext,
+    }
   }
 
   it('denies SECONDARY available tickets when the provider has no location bindings', async () => {
@@ -1950,13 +2087,38 @@ describe('TicketsAssignmentService canonical claim isolation', () => {
     ).not.toHaveBeenCalled()
   })
 
-  it('allows SECONDARY direct claim for a self-created ticket inside the canonical contour', async () => {
-    const { service, prisma, tx, query, timeline, notifications } =
+  it('denies claim for an unrelated client ticket before transaction side effects', async () => {
+    const { service, prisma, timeline, notifications } =
       makeClaimIsolationHarness({
-        contractRole: ServiceContractRole.SECONDARY,
+        contractRole: null,
         bindingLocationIds: [allowedLocationId],
-        createdByUserId: technicianId,
       })
+
+    await expect(
+      service.claim(providerCompanyId, technicianId, ticketId, clientCompanyId),
+    ).rejects.toBeDefined()
+
+    expect(prisma.$transaction).not.toHaveBeenCalled()
+    expect(timeline.recordTx).not.toHaveBeenCalled()
+    expect(
+      notifications.scheduleTicketClaimedDispatchers,
+    ).not.toHaveBeenCalled()
+  })
+
+  it('allows SECONDARY direct claim for a self-created ticket inside the canonical contour', async () => {
+    const {
+      service,
+      prisma,
+      tx,
+      query,
+      timeline,
+      notifications,
+      contractContext,
+    } = makeClaimIsolationHarness({
+      contractRole: ServiceContractRole.SECONDARY,
+      bindingLocationIds: [allowedLocationId],
+      createdByUserId: technicianId,
+    })
 
     await expect(
       service.claim(providerCompanyId, technicianId, ticketId, clientCompanyId),
@@ -1995,10 +2157,16 @@ describe('TicketsAssignmentService canonical claim isolation', () => {
       }),
     )
     expect(notifications.scheduleTicketClaimedDispatchers).toHaveBeenCalled()
+    expect(contractContext.getContractContext).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerCompanyId,
+        clientCompanyId,
+      }),
+    )
   })
 
   it('preserves PRIMARY claim availability through the same eligibility builder', async () => {
-    const { service, prisma } = makeClaimIsolationHarness({
+    const { service, prisma, contractContext } = makeClaimIsolationHarness({
       contractRole: ServiceContractRole.PRIMARY,
       bindingLocationIds: [],
     })
@@ -2015,6 +2183,12 @@ describe('TicketsAssignmentService canonical claim isolation', () => {
     ).resolves.toEqual({ id: ticketId })
 
     expect(prisma.$transaction).toHaveBeenCalledTimes(1)
+    expect(contractContext.getContractContext).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerCompanyId,
+        clientCompanyId,
+      }),
+    )
   })
 })
 
