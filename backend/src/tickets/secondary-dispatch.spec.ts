@@ -13,7 +13,12 @@
  */
 
 import { ForbiddenException, NotFoundException } from '@nestjs/common'
-import { ServiceContractRole, TicketStatus, UserRole } from '@prisma/client'
+import {
+  ServiceContractLocationMode,
+  ServiceContractRole,
+  TicketStatus,
+  UserRole,
+} from '@prisma/client'
 
 import {
   resolveTechnicianOperationalScope,
@@ -30,6 +35,8 @@ const CLIENT_ID = 'client-co'
 const TECH_ID = 'tech-secondary'
 const TICKET_ID = 'ticket-1'
 const LOCATION_ID = 'loc-1'
+const HVAC_SPEC_ID = 'spec-hvac'
+const HVAC_SPEC_NAME = 'Специалист по кондиционерам'
 
 // ── 1. resolveTechnicianOperationalScope — SECONDARY scope ─────────────────────
 
@@ -427,6 +434,7 @@ describe('TicketsAssignmentService.assign — SECONDARY executor', () => {
   /** Build a service-contracts mock that returns a given contract role for the SECONDARY lookup. */
   function makeContracts(linkedAccessRole: ServiceContractRole | null) {
     return {
+      __linkedAccessRole: linkedAccessRole,
       // Arg-aware: the acting PRIMARY provider holds PRIMARY access to the client
       // (so its detail read is unrestricted), while the cross-company executor's
       // SECONDARY_PROVIDER_ID resolves to the role under test.
@@ -466,14 +474,115 @@ describe('TicketsAssignmentService.assign — SECONDARY executor', () => {
     }
   }
 
+  function makeContractContextMock(
+    linkedAccessRole: ServiceContractRole | null,
+    options?: {
+      primarySpecializationNames?: string[]
+      secondarySpecializationNames?: string[]
+      secondaryLocationIds?: string[]
+    },
+  ) {
+    const buildContext = (
+      providerCompanyId: string,
+      roleInContract: ServiceContractRole,
+      specializationNames: string[],
+      locationIds: string[] = [],
+    ) => ({
+      contractId: `contract-${providerCompanyId}`,
+      serviceContractId: `contract-${providerCompanyId}`,
+      clientCompanyId: CLIENT_ID,
+      providerCompanyId,
+      roleInContract,
+      locationMode:
+        locationIds.length > 0
+          ? ServiceContractLocationMode.SELECTED_LOCATIONS
+          : ServiceContractLocationMode.ALL_LOCATIONS,
+      locationIds,
+      specializationMode:
+        specializationNames.length > 0 ? 'EXPLICIT' : 'UNCONFIGURED',
+      specializationIds: specializationNames.map((name) => `${providerCompanyId}-${name}`),
+      specializationNames,
+      contractLocationScope:
+        locationIds.length > 0
+          ? { mode: 'bound_locations' as const, locationIds }
+          : { mode: 'tenant_wide' as const, locationIds: [] },
+      contractSpecializationScope:
+        specializationNames.length > 0
+          ? {
+              mode: 'EXPLICIT' as const,
+              specializationIds: specializationNames.map((name) => `${providerCompanyId}-${name}`),
+              specializationNames,
+            }
+          : {
+              mode: 'UNCONFIGURED' as const,
+              specializationIds: [],
+              specializationNames: [],
+            },
+    })
+
+    return {
+      getContractContext: jest.fn(async ({ providerCompanyId }: any) => {
+        if (providerCompanyId === PRIMARY_PROVIDER_ID) {
+          return buildContext(
+            PRIMARY_PROVIDER_ID,
+            ServiceContractRole.PRIMARY,
+            options?.primarySpecializationNames ?? [],
+          )
+        }
+        if (providerCompanyId === SECONDARY_PROVIDER_ID && linkedAccessRole) {
+          return buildContext(
+            SECONDARY_PROVIDER_ID,
+            linkedAccessRole,
+            options?.secondarySpecializationNames ?? [],
+            options?.secondaryLocationIds,
+          )
+        }
+        return null
+      }),
+    }
+  }
+
+  function makeTechnicianRow(
+    companyId: string,
+    overrides?: {
+      id?: string
+      isActive?: boolean
+      specializations?: Array<{ id: string; name: string; isActive?: boolean }>
+    },
+  ) {
+    return {
+      id: overrides?.id ?? TECH_ID,
+      email: `${overrides?.id ?? TECH_ID}@example.com`,
+      firstName: null,
+      lastName: null,
+      role: UserRole.TECHNICIAN,
+      companyId,
+      company: null,
+      isActive: overrides?.isActive ?? true,
+      deletedAt: null,
+      technicianSpecializations: (overrides?.specializations ?? []).map((specialization) => ({
+        specializationId: specialization.id,
+        specialization: {
+          id: specialization.id,
+          name: specialization.name,
+          isActive: specialization.isActive ?? true,
+        },
+      })),
+      assignedTickets: [],
+    }
+  }
+
   function makeTx(
     techCompanyId: string,
     overrides?: {
       status?: TicketStatus
       assignedTechnicianId?: string | null
       previousAssigneeCompanyId?: string
+      technicianRows?: any[]
     },
   ) {
+    const assignedTechnicianId = overrides?.assignedTechnicianId ?? null
+    const technicianRows = overrides?.technicianRows ?? [makeTechnicianRow(techCompanyId)]
     return {
       ticket: {
         findFirst: jest.fn().mockResolvedValue({
@@ -481,7 +590,10 @@ describe('TicketsAssignmentService.assign — SECONDARY executor', () => {
           companyId: CLIENT_ID,
           locationId: LOCATION_ID,
           status: overrides?.status ?? TicketStatus.NEW,
-          assignedTechnicianId: overrides?.assignedTechnicianId ?? null,
+          assignedTechnicianId,
+          assignedTechnician: assignedTechnicianId
+            ? { companyId: overrides?.previousAssigneeCompanyId ?? techCompanyId }
+            : null,
           problemCategory: { specializationLinks: [] },
         }),
         update: jest.fn().mockResolvedValue({}),
@@ -497,9 +609,7 @@ describe('TicketsAssignmentService.assign — SECONDARY executor', () => {
         findUnique: jest.fn().mockResolvedValue({
           companyId: overrides?.previousAssigneeCompanyId ?? techCompanyId,
         }),
-        findMany: jest
-          .fn()
-          .mockResolvedValue([{ id: TECH_ID, companyId: techCompanyId }]),
+        findMany: jest.fn().mockResolvedValue(technicianRows),
       },
       userAccessScope: { findMany: jest.fn().mockResolvedValue([]) },
       userLocationBinding: { findMany: jest.fn().mockResolvedValue([]) },
@@ -554,7 +664,10 @@ describe('TicketsAssignmentService.assign — SECONDARY executor', () => {
           return {
             id: TICKET_ID,
             companyId: CLIENT_ID,
+            locationId: LOCATION_ID,
+            status: TicketStatus.NEW,
             assignedTechnicianId: null,
+            problemCategory: { specializationLinks: [] },
           }
         }),
         findUnique: jest.fn().mockResolvedValue({
@@ -570,7 +683,7 @@ describe('TicketsAssignmentService.assign — SECONDARY executor', () => {
     } as any
   }
 
-  function makeService(prisma: any, contracts: any) {
+  function makeService(prisma: any, contracts: any, contractContext?: any) {
     const query = { getOne: jest.fn().mockResolvedValue({ id: TICKET_ID }) }
     const timeline = {
       recordTx: jest.fn().mockResolvedValue({ id: 'ev-1' }),
@@ -589,6 +702,7 @@ describe('TicketsAssignmentService.assign — SECONDARY executor', () => {
       contracts,
       {} as any,
       notifications as any,
+      (contractContext ?? makeContractContextMock(contracts.__linkedAccessRole ?? null)) as any,
     )
     return Object.assign(service, { __testTimeline: timeline })
   }
@@ -621,11 +735,11 @@ describe('TicketsAssignmentService.assign — SECONDARY executor', () => {
       SECONDARY_PROVIDER_ID,
       CLIENT_ID,
     )
-    expect(tx.user.findFirst).toHaveBeenCalledWith(
+    expect(tx.user.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
-          id: TECH_ID,
           isActive: true,
+          deletedAt: null,
         }),
       }),
     )
@@ -691,6 +805,56 @@ describe('TicketsAssignmentService.assign — SECONDARY executor', () => {
     )
   })
 
+  it('denies SECONDARY provider admin direct assignment before the ticket enters its contour', async () => {
+    const contracts = makeContracts(ServiceContractRole.SECONDARY)
+    const tx = makeTx(SECONDARY_PROVIDER_ID)
+    const prisma = makePrisma(tx)
+    const svc = makeService(prisma, contracts)
+
+    await expect(
+      svc.assign(
+        SECONDARY_PROVIDER_ID,
+        {
+          id: 'secondary-admin',
+          role: UserRole.ADMIN,
+          companyId: SECONDARY_PROVIDER_ID,
+        },
+        TICKET_ID,
+        TECH_ID,
+        CLIENT_ID,
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException)
+
+    expect(tx.ticket.update).not.toHaveBeenCalled()
+  })
+
+  it('denies SECONDARY provider admin reassigning work owned by another provider', async () => {
+    const contracts = makeContracts(ServiceContractRole.SECONDARY)
+    const tx = makeTx(SECONDARY_PROVIDER_ID, {
+      status: TicketStatus.ASSIGNED,
+      assignedTechnicianId: 'old-other-provider-tech',
+      previousAssigneeCompanyId: 'provider-secondary-other',
+    })
+    const prisma = makePrisma(tx)
+    const svc = makeService(prisma, contracts)
+
+    await expect(
+      svc.assign(
+        SECONDARY_PROVIDER_ID,
+        {
+          id: 'secondary-admin',
+          role: UserRole.ADMIN,
+          companyId: SECONDARY_PROVIDER_ID,
+        },
+        TICKET_ID,
+        TECH_ID,
+        CLIENT_ID,
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException)
+
+    expect(tx.ticket.update).not.toHaveBeenCalled()
+  })
+
   it('denies SECONDARY provider admin assigning to another subcontractor company', async () => {
     const otherSecondaryProviderId = 'provider-secondary-other'
     const contracts = makeContracts(ServiceContractRole.SECONDARY)
@@ -721,16 +885,7 @@ describe('TicketsAssignmentService.assign — SECONDARY executor', () => {
 
   it('rejects direct assignment to inactive executor users', async () => {
     const contracts = makeContracts(ServiceContractRole.SECONDARY)
-    const tx = makeTx(SECONDARY_PROVIDER_ID)
-    const inactiveExecutor = {
-      id: TECH_ID,
-      companyId: SECONDARY_PROVIDER_ID,
-      isActive: false,
-      technicianSpecializations: [],
-    }
-    tx.user.findFirst.mockImplementation(async (args: any) =>
-      args?.where?.isActive === true ? null : inactiveExecutor,
-    )
+    const tx = makeTx(SECONDARY_PROVIDER_ID, { technicianRows: [] })
     const prisma = makePrisma(tx)
     const svc = makeService(prisma, contracts)
 
@@ -747,11 +902,11 @@ describe('TicketsAssignmentService.assign — SECONDARY executor', () => {
       ),
     ).rejects.toBeInstanceOf(NotFoundException)
 
-    expect(tx.user.findFirst).toHaveBeenCalledWith(
+    expect(tx.user.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
-          id: TECH_ID,
           isActive: true,
+          deletedAt: null,
         }),
       }),
     )
@@ -760,44 +915,47 @@ describe('TicketsAssignmentService.assign — SECONDARY executor', () => {
 
   it('allows direct assignment to SECONDARY executor when specialization names match across tenant UUIDs', async () => {
     const contracts = makeContracts(ServiceContractRole.SECONDARY)
-    const tx = makeTx(SECONDARY_PROVIDER_ID)
+    const tx = makeTx(SECONDARY_PROVIDER_ID, {
+      technicianRows: [
+        makeTechnicianRow(SECONDARY_PROVIDER_ID, {
+          specializations: [
+            {
+              id: 'subcontractor-spec-cond',
+              name: HVAC_SPEC_NAME,
+            },
+          ],
+        }),
+      ],
+    })
     tx.ticket.findFirst.mockResolvedValue({
       id: TICKET_ID,
       companyId: CLIENT_ID,
       locationId: LOCATION_ID,
       status: TicketStatus.NEW,
       assignedTechnicianId: null,
+      assignedTechnician: null,
       problemCategory: {
         specializationLinks: [
           {
-            specializationId: 'client-spec-cond',
+            specializationId: HVAC_SPEC_ID,
             specialization: {
-              id: 'client-spec-cond',
-              name: 'Специалист по кондиционерам',
+              id: HVAC_SPEC_ID,
+              name: HVAC_SPEC_NAME,
               isActive: true,
             },
           },
         ],
       },
     })
-    tx.user.findFirst.mockResolvedValue({
-      id: TECH_ID,
-      companyId: SECONDARY_PROVIDER_ID,
-      isActive: true,
-      deletedAt: null,
-      technicianSpecializations: [
-        {
-          specializationId: 'subcontractor-spec-cond',
-          specialization: {
-            id: 'subcontractor-spec-cond',
-            name: 'Специалист по кондиционерам',
-            isActive: true,
-          },
-        },
-      ],
-    })
     const prisma = makePrisma(tx)
-    const svc = makeService(prisma, contracts)
+    const svc = makeService(
+      prisma,
+      contracts,
+      makeContractContextMock(ServiceContractRole.SECONDARY, {
+        primarySpecializationNames: [HVAC_SPEC_NAME],
+        secondarySpecializationNames: [HVAC_SPEC_NAME],
+      }),
+    )
 
     await expect(
       svc.assign(
@@ -817,44 +975,47 @@ describe('TicketsAssignmentService.assign — SECONDARY executor', () => {
 
   it('rejects direct assignment to SECONDARY executor without required category specialization', async () => {
     const contracts = makeContracts(ServiceContractRole.SECONDARY)
-    const tx = makeTx(SECONDARY_PROVIDER_ID)
+    const tx = makeTx(SECONDARY_PROVIDER_ID, {
+      technicianRows: [
+        makeTechnicianRow(SECONDARY_PROVIDER_ID, {
+          specializations: [
+            {
+              id: 'subcontractor-spec-electric',
+              name: 'Электрик',
+            },
+          ],
+        }),
+      ],
+    })
     tx.ticket.findFirst.mockResolvedValue({
       id: TICKET_ID,
       companyId: CLIENT_ID,
       locationId: LOCATION_ID,
       status: TicketStatus.NEW,
       assignedTechnicianId: null,
+      assignedTechnician: null,
       problemCategory: {
         specializationLinks: [
           {
-            specializationId: 'client-spec-cond',
+            specializationId: HVAC_SPEC_ID,
             specialization: {
-              id: 'client-spec-cond',
-              name: 'Специалист по кондиционерам',
+              id: HVAC_SPEC_ID,
+              name: HVAC_SPEC_NAME,
               isActive: true,
             },
           },
         ],
       },
     })
-    tx.user.findFirst.mockResolvedValue({
-      id: TECH_ID,
-      companyId: SECONDARY_PROVIDER_ID,
-      isActive: true,
-      deletedAt: null,
-      technicianSpecializations: [
-        {
-          specializationId: 'subcontractor-spec-electric',
-          specialization: {
-            id: 'subcontractor-spec-electric',
-            name: 'Электрик',
-            isActive: true,
-          },
-        },
-      ],
-    })
     const prisma = makePrisma(tx)
-    const svc = makeService(prisma, contracts)
+    const svc = makeService(
+      prisma,
+      contracts,
+      makeContractContextMock(ServiceContractRole.SECONDARY, {
+        primarySpecializationNames: [HVAC_SPEC_NAME],
+        secondarySpecializationNames: [HVAC_SPEC_NAME],
+      }),
+    )
 
     await expect(
       svc.assign(
@@ -1001,44 +1162,59 @@ describe('TicketsPolicy.canChangeStatus — SECONDARY executor', () => {
   })
 })
 
-// ── 5. listAssignmentCandidates includes SECONDARY executors ──────────────────
+// ── 5. listAssignmentCandidates follows current ContractContext ──────────────
 
-describe('TicketsAssignmentService.listAssignmentCandidates — SECONDARY executors', () => {
-  it('queries executors from both PRIMARY and SECONDARY provider companies', async () => {
-    const contracts = {
-      getLinkedClientAccess: jest.fn().mockResolvedValue({
-        role: ServiceContractRole.PRIMARY,
-        status: 'ACTIVE',
-        clientCompanyId: CLIENT_ID,
-        providerCompanyId: PRIMARY_PROVIDER_ID,
-      }),
-      listPrimaryLinkedClientIds: jest.fn().mockResolvedValue([CLIENT_ID]),
-      listSecondaryLinkedClientIds: jest.fn().mockResolvedValue([]),
-      listSecondaryProviderCompanyIds: jest
-        .fn()
-        .mockResolvedValue([SECONDARY_PROVIDER_ID]),
-      listLinkedClients: jest.fn().mockResolvedValue([
-        {
-          linkedClientCompanyId: CLIENT_ID,
-          role: ServiceContractRole.PRIMARY,
+describe('TicketsAssignmentService.listAssignmentCandidates — contract context authority', () => {
+  const OTHER_SECONDARY_PROVIDER_ID = 'provider-secondary-other'
+  const CLIENT_Y_ID = 'client-y'
+
+  function pairKey(providerCompanyId: string, clientCompanyId: string) {
+    return `${providerCompanyId}:${clientCompanyId}`
+  }
+
+  function makeCandidateRow(
+    id: string,
+    companyId: string,
+    specializations: Array<{ id: string; name: string; isActive?: boolean }> = [],
+  ) {
+    return {
+      id,
+      email: `${id}@example.com`,
+      firstName: null,
+      lastName: null,
+      role: UserRole.TECHNICIAN,
+      companyId,
+      company: null,
+      technicianSpecializations: specializations.map((specialization) => ({
+        specializationId: specialization.id,
+        specialization: {
+          id: specialization.id,
+          name: specialization.name,
+          isActive: specialization.isActive ?? true,
         },
-      ]),
-      assertPrimaryLinkedClientAccess: jest.fn().mockResolvedValue(undefined),
+      })),
+      assignedTickets: [],
     }
+  }
 
-    const fullTicket = {
+  function makeTicket(overrides: any = {}) {
+    const assignedTechnicianId = overrides.assignedTechnicianId ?? null
+    return {
       id: TICKET_ID,
-      companyId: CLIENT_ID,
-      locationId: LOCATION_ID,
-      status: TicketStatus.NEW,
-      assignedTechnicianId: null,
+      companyId: overrides.companyId ?? CLIENT_ID,
+      locationId: overrides.locationId ?? LOCATION_ID,
+      status: overrides.status ?? TicketStatus.NEW,
+      assignedTechnicianId,
+      assignedTechnician: assignedTechnicianId
+        ? { companyId: overrides.assignedTechnicianCompanyId }
+        : null,
       problemCategory: {
         id: 'cat-1',
         name: 'Test',
-        specializationLinks: [],
+        specializationLinks: overrides.specializationLinks ?? [],
       },
       location: {
-        id: LOCATION_ID,
+        id: overrides.locationId ?? LOCATION_ID,
         name: 'Loc',
         platformCode: null,
         externalCode: null,
@@ -1046,9 +1222,122 @@ describe('TicketsAssignmentService.listAssignmentCandidates — SECONDARY execut
         address: 'Addr',
       },
     }
+  }
 
-    let ticketFindFirstSeq = 0
-    const prisma = {
+  function makeContracts(params: {
+    roles: Record<string, ServiceContractRole | null>
+    secondaryProviderIdsByClient?: Record<string, string[]>
+  }) {
+    const roleFor = (providerCompanyId: string, clientCompanyId: string) =>
+      params.roles[pairKey(providerCompanyId, clientCompanyId)] ?? null
+
+    return {
+      getLinkedClientAccess: jest.fn(async (providerCompanyId: string, clientCompanyId: string) => {
+        const role = roleFor(providerCompanyId, clientCompanyId)
+        if (!role) return null
+        return {
+          role,
+          status: 'ACTIVE',
+          clientCompanyId,
+          providerCompanyId,
+          locationMode: ServiceContractLocationMode.ALL_LOCATIONS,
+          effectiveLocationScope: { mode: 'tenant_wide' as const, locationIds: [] },
+          locations: [],
+        }
+      }),
+      listPrimaryLinkedClientIds: jest.fn(async (providerCompanyId: string) =>
+        Object.entries(params.roles)
+          .filter(([key, role]) => key.startsWith(`${providerCompanyId}:`) && role === ServiceContractRole.PRIMARY)
+          .map(([key]) => key.split(':')[1]),
+      ),
+      listSecondaryLinkedClientIds: jest.fn(async (providerCompanyId: string) =>
+        Object.entries(params.roles)
+          .filter(([key, role]) => key.startsWith(`${providerCompanyId}:`) && role === ServiceContractRole.SECONDARY)
+          .map(([key]) => key.split(':')[1]),
+      ),
+      listSecondaryProviderCompanyIds: jest.fn(async (clientCompanyId: string) =>
+        params.secondaryProviderIdsByClient?.[clientCompanyId] ?? [],
+      ),
+      listLinkedClients: jest.fn(async (providerCompanyId: string) =>
+        Object.entries(params.roles)
+          .filter(([key, role]) => key.startsWith(`${providerCompanyId}:`) && !!role)
+          .map(([key, role]) => ({
+            linkedClientCompanyId: key.split(':')[1],
+            role,
+          })),
+      ),
+      assertPrimaryLinkedClientAccess: jest.fn().mockResolvedValue(undefined),
+    }
+  }
+
+  function makeContractContext(params: {
+    roles: Record<string, ServiceContractRole | null>
+    specializationNamesByPair?: Record<string, string[]>
+    locationIdsByPair?: Record<string, string[]>
+  }) {
+    return {
+      getContractContext: jest.fn(async ({ providerCompanyId, clientCompanyId }: any) => {
+        const key = pairKey(providerCompanyId, clientCompanyId)
+        const role = params.roles[key]
+        if (!role) return null
+        const specializationNames = params.specializationNamesByPair?.[key] ?? []
+        const specializationIds = specializationNames.map((name) => `${providerCompanyId}-${name}`)
+        const locationIds = params.locationIdsByPair?.[key] ?? []
+        return {
+          contractId: `contract-${key}`,
+          serviceContractId: `contract-${key}`,
+          clientCompanyId,
+          providerCompanyId,
+          roleInContract: role,
+          locationMode:
+            locationIds.length > 0
+              ? ServiceContractLocationMode.SELECTED_LOCATIONS
+              : ServiceContractLocationMode.ALL_LOCATIONS,
+          locationIds,
+          specializationMode: specializationNames.length > 0 ? 'EXPLICIT' : 'UNCONFIGURED',
+          specializationIds,
+          specializationNames,
+          contractLocationScope:
+            locationIds.length > 0
+              ? { mode: 'bound_locations' as const, locationIds }
+              : { mode: 'tenant_wide' as const, locationIds: [] },
+          contractSpecializationScope:
+            specializationNames.length > 0
+              ? {
+                  mode: 'EXPLICIT' as const,
+                  specializationIds,
+                  specializationNames,
+                }
+              : {
+                  mode: 'UNCONFIGURED' as const,
+                  specializationIds: [],
+                  specializationNames: [],
+                },
+        }
+      }),
+    }
+  }
+
+  function makeCandidatePrisma(params: {
+    ticket: ReturnType<typeof makeTicket>
+    rows?: any[]
+    userLocationBindings?: any[]
+  }) {
+    const rows = params.rows ?? []
+    const candidateUserFindMany = jest.fn(async ({ where }: any) => {
+      if (where?.id?.in) {
+        return rows.filter((row) => where.id.in.includes(row.id))
+      }
+      const filter = where?.companyId
+      const companyIds =
+        typeof filter === 'string'
+          ? [filter]
+          : Array.isArray(filter?.in)
+            ? filter.in
+            : []
+      return rows.filter((row) => companyIds.includes(row.companyId))
+    })
+    return {
       company: {
         findUnique: jest.fn().mockResolvedValue({
           id: PRIMARY_PROVIDER_ID,
@@ -1059,71 +1348,318 @@ describe('TicketsAssignmentService.listAssignmentCandidates — SECONDARY execut
       user: {
         findFirst: jest
           .fn()
-          .mockResolvedValue({ id: 'actor', technicianSpecializations: [] }),
-        findMany: jest.fn().mockResolvedValue([]),
+          .mockResolvedValue({ id: 'actor', isExecutor: true, technicianSpecializations: [] }),
+        findMany: candidateUserFindMany,
       },
       ticket: {
-        findFirst: jest.fn().mockImplementation(async () => {
-          ticketFindFirstSeq++
-          if (ticketFindFirstSeq === 1) return null // own-company
-          if (ticketFindFirstSeq === 2) return null // executor scope
-          // management path
-          if (ticketFindFirstSeq === 3)
+        findFirst: jest.fn(async ({ where, include }: any) => {
+          if (include?.problemCategory) return params.ticket
+          const serializedWhere = JSON.stringify(where ?? {})
+          if (!serializedWhere.includes(TICKET_ID)) return null
+          if (serializedWhere.includes(params.ticket.companyId)) {
             return {
-              id: TICKET_ID,
-              companyId: CLIENT_ID,
-              assignedTechnicianId: null,
+              id: params.ticket.id,
+              companyId: params.ticket.companyId,
+              locationId: params.ticket.locationId,
+              assignedTechnicianId: params.ticket.assignedTechnicianId,
+              status: params.ticket.status,
+              problemCategory: params.ticket.problemCategory,
             }
-          // full ticket fetch for listAssignmentCandidates
-          return fullTicket
+          }
+          return null
         }),
-        findUnique: jest.fn().mockResolvedValue(fullTicket),
+        findUnique: jest.fn().mockResolvedValue(params.ticket),
       },
-      userLocationBinding: { findMany: jest.fn().mockResolvedValue([]) },
+      userAccessScope: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      userLocationBinding: {
+        findMany: jest.fn().mockResolvedValue(params.userLocationBindings ?? []),
+      },
       technicianSpecialization: { findMany: jest.fn().mockResolvedValue([]) },
       serviceContract: {
-        findFirst: jest.fn().mockResolvedValue({ id: 'contract-1' }),
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'contract-access',
+          locationMode: ServiceContractLocationMode.ALL_LOCATIONS,
+          locations: [],
+        }),
+        findMany: jest.fn().mockResolvedValue([]),
       },
       serviceContractSpecialization: {
         findMany: jest.fn().mockResolvedValue([
           {
-            specializationId: 'contract-default',
-            specialization: { name: 'Default' },
+            specializationId: HVAC_SPEC_ID,
+            specialization: { name: HVAC_SPEC_NAME },
           },
         ]),
       },
     } as any
+  }
 
-    const query = { getOne: jest.fn().mockResolvedValue({}) }
-    const svc = new TicketsAssignmentService(
+  function makeService(prisma: any, contracts: any, contractContext: any) {
+    return new TicketsAssignmentService(
       prisma,
       {} as any,
-      query as any,
+      { getOne: jest.fn().mockResolvedValue({}) } as any,
       {} as any,
       {} as any,
       contracts as any,
       {} as any,
       {} as any,
+      contractContext as any,
     )
+  }
 
-    await svc.listAssignmentCandidates(
+  it('PRIMARY candidates include own workforce and eligible SECONDARY providers in the same contract context', async () => {
+    const roles = {
+      [pairKey(PRIMARY_PROVIDER_ID, CLIENT_ID)]: ServiceContractRole.PRIMARY,
+      [pairKey(SECONDARY_PROVIDER_ID, CLIENT_ID)]: ServiceContractRole.SECONDARY,
+    }
+    const contracts = makeContracts({
+      roles,
+      secondaryProviderIdsByClient: { [CLIENT_ID]: [SECONDARY_PROVIDER_ID] },
+    })
+    const prisma = makeCandidatePrisma({ ticket: makeTicket(), rows: [] })
+    const svc = makeService(prisma, contracts, makeContractContext({ roles }))
+
+    const result = await svc.listAssignmentCandidates(
       PRIMARY_PROVIDER_ID,
       { id: 'actor', role: UserRole.ADMIN },
       TICKET_ID,
-    )
-
-    expect(contracts.listSecondaryProviderCompanyIds).toHaveBeenCalledWith(
       CLIENT_ID,
     )
 
-    // The user.findMany query must cover both provider company IDs
+    expect(contracts.listSecondaryProviderCompanyIds).toHaveBeenCalledWith(CLIENT_ID)
     const findManyCall = prisma.user.findMany.mock.calls[0][0]
-    const whereCompanyId = findManyCall?.where?.companyId
-    const coversSecondary =
-      whereCompanyId === PRIMARY_PROVIDER_ID
-        ? false // single-company mode only covers primary
-        : whereCompanyId?.in?.includes(PRIMARY_PROVIDER_ID) &&
-          whereCompanyId?.in?.includes(SECONDARY_PROVIDER_ID)
-    expect(coversSecondary).toBe(true)
+    expect(findManyCall.where.companyId.in).toEqual(
+      expect.arrayContaining([PRIMARY_PROVIDER_ID, SECONDARY_PROVIDER_ID]),
+    )
+    expect(result.meta.roleInContract).toBe(ServiceContractRole.PRIMARY)
+    expect(result.meta.directAssignmentAllowed).toBe(true)
+  })
+
+  it('SECONDARY candidates contain only own employees after the ticket is assigned to that provider', async () => {
+    const roles = {
+      [pairKey(SECONDARY_PROVIDER_ID, CLIENT_ID)]: ServiceContractRole.SECONDARY,
+      [pairKey(OTHER_SECONDARY_PROVIDER_ID, CLIENT_ID)]: ServiceContractRole.SECONDARY,
+    }
+    const ticket = makeTicket({
+      status: TicketStatus.ASSIGNED,
+      assignedTechnicianId: 'old-secondary-tech',
+      assignedTechnicianCompanyId: SECONDARY_PROVIDER_ID,
+    })
+    const prisma = makeCandidatePrisma({
+      ticket,
+      rows: [
+        makeCandidateRow(TECH_ID, SECONDARY_PROVIDER_ID),
+        makeCandidateRow('other-tech', OTHER_SECONDARY_PROVIDER_ID),
+      ],
+    })
+    const svc = makeService(
+      prisma,
+      makeContracts({ roles, secondaryProviderIdsByClient: { [CLIENT_ID]: [OTHER_SECONDARY_PROVIDER_ID] } }),
+      makeContractContext({ roles }),
+    )
+
+    const result = await svc.listAssignmentCandidates(
+      SECONDARY_PROVIDER_ID,
+      { id: 'secondary-admin', role: UserRole.ADMIN },
+      TICKET_ID,
+      CLIENT_ID,
+    )
+
+    expect(result.matched.map((candidate: any) => candidate.id)).toEqual([TECH_ID])
+    expect(result.meta.workforceCompanyIds).toEqual([SECONDARY_PROVIDER_ID])
+    expect(result.meta.roleInContract).toBe(ServiceContractRole.SECONDARY)
+    expect(result.meta.directAssignmentAllowed).toBe(true)
+    expect(prisma.user.findMany.mock.calls[0][0].where.companyId).toBe(SECONDARY_PROVIDER_ID)
+  })
+
+  it('SECONDARY returns no direct candidates for a NEW ticket before delegation', async () => {
+    const roles = {
+      [pairKey(SECONDARY_PROVIDER_ID, CLIENT_ID)]: ServiceContractRole.SECONDARY,
+    }
+    const prisma = makeCandidatePrisma({
+      ticket: makeTicket(),
+      rows: [makeCandidateRow(TECH_ID, SECONDARY_PROVIDER_ID)],
+    })
+    const svc = makeService(
+      prisma,
+      makeContracts({ roles }),
+      makeContractContext({ roles }),
+    )
+
+    const result = await svc.listAssignmentCandidates(
+      SECONDARY_PROVIDER_ID,
+      { id: 'secondary-admin', role: UserRole.ADMIN },
+      TICKET_ID,
+      CLIENT_ID,
+    )
+
+    expect(result.matched).toEqual([])
+    expect(result.others).toEqual([])
+    expect(result.meta.directAssignmentAllowed).toBe(false)
+    expect(result.meta.blockReason).toBe('secondary_requires_existing_assignment')
+    const candidateQueries = prisma.user.findMany.mock.calls.filter(
+      ([call]: any[]) => !!call?.where?.role,
+    )
+    expect(candidateQueries).toHaveLength(0)
+  })
+
+  it('SECONDARY returns no direct candidates when another provider currently owns the work', async () => {
+    const roles = {
+      [pairKey(SECONDARY_PROVIDER_ID, CLIENT_ID)]: ServiceContractRole.SECONDARY,
+      [pairKey(OTHER_SECONDARY_PROVIDER_ID, CLIENT_ID)]: ServiceContractRole.SECONDARY,
+    }
+    const prisma = makeCandidatePrisma({
+      ticket: makeTicket({
+        status: TicketStatus.ASSIGNED,
+        assignedTechnicianId: 'old-other-tech',
+        assignedTechnicianCompanyId: OTHER_SECONDARY_PROVIDER_ID,
+      }),
+      rows: [makeCandidateRow(TECH_ID, SECONDARY_PROVIDER_ID)],
+    })
+    const svc = makeService(
+      prisma,
+      makeContracts({ roles }),
+      makeContractContext({ roles }),
+    )
+
+    const result = await svc.listAssignmentCandidates(
+      SECONDARY_PROVIDER_ID,
+      { id: 'secondary-admin', role: UserRole.ADMIN },
+      TICKET_ID,
+      CLIENT_ID,
+    )
+
+    expect(result.matched).toEqual([])
+    expect(result.meta.workforceCompanyIds).toEqual([])
+    expect(result.meta.blockReason).toBe('secondary_requires_existing_assignment')
+    const candidateQueries = prisma.user.findMany.mock.calls.filter(
+      ([call]: any[]) => !!call?.where?.role,
+    )
+    expect(candidateQueries).toHaveLength(0)
+  })
+
+  it('same provider receives PRIMARY assignment authority in another client contract', async () => {
+    const roles = {
+      [pairKey(SECONDARY_PROVIDER_ID, CLIENT_Y_ID)]: ServiceContractRole.PRIMARY,
+      [pairKey(OTHER_SECONDARY_PROVIDER_ID, CLIENT_Y_ID)]: ServiceContractRole.SECONDARY,
+    }
+    const prisma = makeCandidatePrisma({
+      ticket: makeTicket({ companyId: CLIENT_Y_ID }),
+      rows: [],
+    })
+    const svc = makeService(
+      prisma,
+      makeContracts({
+        roles,
+        secondaryProviderIdsByClient: { [CLIENT_Y_ID]: [OTHER_SECONDARY_PROVIDER_ID] },
+      }),
+      makeContractContext({ roles }),
+    )
+
+    const result = await svc.listAssignmentCandidates(
+      SECONDARY_PROVIDER_ID,
+      { id: 'provider-admin', role: UserRole.ADMIN },
+      TICKET_ID,
+      CLIENT_Y_ID,
+    )
+
+    const findManyCall = prisma.user.findMany.mock.calls[0][0]
+    expect(findManyCall.where.companyId.in).toEqual(
+      expect.arrayContaining([SECONDARY_PROVIDER_ID, OTHER_SECONDARY_PROVIDER_ID]),
+    )
+    expect(result.meta.roleInContract).toBe(ServiceContractRole.PRIMARY)
+    expect(result.meta.directAssignmentAllowed).toBe(true)
+  })
+
+  it('excludes technicians without the required ticket specialization', async () => {
+    const roles = {
+      [pairKey(PRIMARY_PROVIDER_ID, CLIENT_ID)]: ServiceContractRole.PRIMARY,
+      [pairKey(SECONDARY_PROVIDER_ID, CLIENT_ID)]: ServiceContractRole.SECONDARY,
+    }
+    const specializationLinks = [
+      {
+        specializationId: HVAC_SPEC_ID,
+        specialization: {
+          id: HVAC_SPEC_ID,
+          name: HVAC_SPEC_NAME,
+          isActive: true,
+        },
+      },
+    ]
+    const prisma = makeCandidatePrisma({
+      ticket: makeTicket({ specializationLinks }),
+      rows: [
+        makeCandidateRow('hvac-tech', SECONDARY_PROVIDER_ID, [
+          { id: 'secondary-hvac', name: HVAC_SPEC_NAME },
+        ]),
+        makeCandidateRow('electric-tech', SECONDARY_PROVIDER_ID, [
+          { id: 'secondary-electric', name: 'Электрик' },
+        ]),
+      ],
+    })
+    const svc = makeService(
+      prisma,
+      makeContracts({
+        roles,
+        secondaryProviderIdsByClient: { [CLIENT_ID]: [SECONDARY_PROVIDER_ID] },
+      }),
+      makeContractContext({
+        roles,
+        specializationNamesByPair: {
+          [pairKey(PRIMARY_PROVIDER_ID, CLIENT_ID)]: [HVAC_SPEC_NAME],
+          [pairKey(SECONDARY_PROVIDER_ID, CLIENT_ID)]: [HVAC_SPEC_NAME],
+        },
+      }),
+    )
+
+    const result = await svc.listAssignmentCandidates(
+      PRIMARY_PROVIDER_ID,
+      { id: 'actor', role: UserRole.ADMIN },
+      TICKET_ID,
+      CLIENT_ID,
+    )
+
+    expect(result.matched.map((candidate: any) => candidate.id)).toEqual(['hvac-tech'])
+    expect(result.others).toEqual([])
+  })
+
+  it('excludes technicians outside their employee location bindings', async () => {
+    const roles = {
+      [pairKey(PRIMARY_PROVIDER_ID, CLIENT_ID)]: ServiceContractRole.PRIMARY,
+      [pairKey(SECONDARY_PROVIDER_ID, CLIENT_ID)]: ServiceContractRole.SECONDARY,
+    }
+    const prisma = makeCandidatePrisma({
+      ticket: makeTicket(),
+      rows: [makeCandidateRow(TECH_ID, SECONDARY_PROVIDER_ID)],
+      userLocationBindings: [
+        {
+          userId: TECH_ID,
+          companyId: SECONDARY_PROVIDER_ID,
+          locationId: 'different-location',
+        },
+      ],
+    })
+    const svc = makeService(
+      prisma,
+      makeContracts({
+        roles,
+        secondaryProviderIdsByClient: { [CLIENT_ID]: [SECONDARY_PROVIDER_ID] },
+      }),
+      makeContractContext({ roles }),
+    )
+
+    const result = await svc.listAssignmentCandidates(
+      PRIMARY_PROVIDER_ID,
+      { id: 'actor', role: UserRole.ADMIN },
+      TICKET_ID,
+      CLIENT_ID,
+    )
+
+    expect(result.matched).toEqual([])
+    expect(result.others).toEqual([])
   })
 })
