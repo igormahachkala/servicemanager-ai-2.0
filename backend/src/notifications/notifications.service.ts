@@ -10,9 +10,14 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { MaxBotService } from '../max-bot/max-bot.service';
 import { PushService, type PushEventType } from '../push/push.service';
+import {
+  ContractContextService,
+  type ContractContext,
+} from '../service-contracts/contract-context.service';
 import { ServiceContractsService } from '../service-contracts/service-contracts.service';
 import { activeServiceContractWhere } from '../service-contracts/service-contract-window';
 import * as ticketAccess from '../tickets/ticket-access.utils';
+import { matchCategorySpecializationLinks } from '../tickets/ticket-specialization-match.utils';
 
 const WATCHER_ROLES: UserRole[] = [
   UserRole.ADMIN,
@@ -84,6 +89,29 @@ type AccessibleNotificationRecipient = NotificationRecipientCandidate & {
   linkedClientCompanyId: string | null;
 };
 
+type NotificationRequiredSpecialization = {
+  id: string;
+  name: string;
+  isActive: boolean;
+};
+
+type NotificationTicketContext = {
+  id: string;
+  companyId: string;
+  locationId: string | null;
+  assignedTechnicianId: string | null;
+  problemCategory?: {
+    specializationLinks?: Array<{
+      specializationId: string;
+      specialization?: {
+        id?: string | null;
+        name: string | null;
+        isActive?: boolean | null;
+      } | null;
+    }> | null;
+  } | null;
+};
+
 function ticketLabel(ticketNumber: number) {
   return `Заявка #${ticketNumber}`;
 }
@@ -117,6 +145,7 @@ export class NotificationsService {
     private readonly maxBot: MaxBotService,
     private readonly push: PushService,
     private readonly serviceContractsService: ServiceContractsService,
+    private readonly contractContextService: ContractContextService,
   ) {}
 
   /**
@@ -290,6 +319,91 @@ export class NotificationsService {
     return recipientCompanyId !== ticketCompanyId ? ticketCompanyId : null;
   }
 
+  private ticketRequiredSpecializations(
+    ticket: NotificationTicketContext,
+  ): NotificationRequiredSpecialization[] {
+    return (ticket.problemCategory?.specializationLinks ?? []).map((link) => ({
+      id: link.specialization?.id ?? link.specializationId,
+      name: link.specialization?.name ?? '',
+      isActive: link.specialization?.isActive ?? true,
+    }));
+  }
+
+  private contractContextAllowsLocation(
+    context: ContractContext,
+    locationId: string | null | undefined,
+  ) {
+    if (context.contractLocationScope.mode === 'tenant_wide') return true;
+    if (context.contractLocationScope.mode === 'restricted_empty') return false;
+    return !!locationId && context.contractLocationScope.locationIds.includes(locationId);
+  }
+
+  private contractContextAllowsSpecializations(
+    context: ContractContext,
+    requiredSpecializations: NotificationRequiredSpecialization[],
+  ) {
+    if (requiredSpecializations.length === 0) return true;
+    if (context.contractSpecializationScope.mode === 'UNCONFIGURED') return false;
+
+    const matched = matchCategorySpecializationLinks({
+      categoryLinks: requiredSpecializations.map((specialization) => ({
+        specializationId: specialization.id,
+        specialization: { name: specialization.name },
+      })),
+      technicianSpecializationIds: context.contractSpecializationScope.specializationIds,
+      technicianSpecializationNames: context.contractSpecializationScope.specializationNames,
+    });
+
+    return matched.length > 0;
+  }
+
+  private contractContextAllowsTicket(
+    context: ContractContext,
+    ticket: NotificationTicketContext,
+  ) {
+    return (
+      this.contractContextAllowsLocation(context, ticket.locationId) &&
+      this.contractContextAllowsSpecializations(
+        context,
+        this.ticketRequiredSpecializations(ticket),
+      )
+    );
+  }
+
+  private async resolveNotificationTicketContext(params: {
+    ticketId: string;
+    ticketCompanyId: string;
+  }): Promise<NotificationTicketContext | null> {
+    return this.prisma.ticket.findFirst({
+      where: {
+        id: params.ticketId,
+        companyId: params.ticketCompanyId,
+      },
+      select: {
+        id: true,
+        companyId: true,
+        locationId: true,
+        assignedTechnicianId: true,
+        problemCategory: {
+          select: {
+            specializationLinks: {
+              select: {
+                specializationId: true,
+                specialization: {
+                  select: {
+                    id: true,
+                    name: true,
+                    isActive: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
   private async mapWithConcurrency<T, R>(
     items: T[],
     limit: number,
@@ -314,9 +428,34 @@ export class NotificationsService {
 
   private async canReadTicketForNotification(params: {
     recipient: NotificationRecipientCandidate;
-    ticketId: string;
-    ticketCompanyId: string;
+    ticket: NotificationTicketContext;
   }) {
+    const linkedClientCompanyId = this.linkedClientForRecipientCompany(
+      params.recipient.companyId,
+      params.ticket.companyId,
+    );
+    let allowedLinkedClientContractRoles: ServiceContractRole[] | undefined;
+
+    if (linkedClientCompanyId) {
+      const contractContext = await this.contractContextService.getContractContext({
+        providerCompanyId: params.recipient.companyId,
+        clientCompanyId: params.ticket.companyId,
+        ticketId: params.ticket.id,
+      });
+
+      if (
+        !contractContext ||
+        ![ServiceContractRole.PRIMARY, ServiceContractRole.SECONDARY].includes(
+          contractContext.roleInContract,
+        ) ||
+        !this.contractContextAllowsTicket(contractContext, params.ticket)
+      ) {
+        return false;
+      }
+
+      allowedLinkedClientContractRoles = [contractContext.roleInContract];
+    }
+
     try {
       await ticketAccess.resolveReadableTicketAccess({
         prisma: this.prisma,
@@ -326,13 +465,9 @@ export class NotificationsService {
           role: params.recipient.role,
           companyId: params.recipient.companyId,
         },
-        ticketId: params.ticketId,
-        linkedClientCompanyId:
-          this.linkedClientForRecipientCompany(params.recipient.companyId, params.ticketCompanyId) ?? undefined,
-        allowedLinkedClientContractRoles: [
-          ServiceContractRole.PRIMARY,
-          ServiceContractRole.SECONDARY,
-        ],
+        ticketId: params.ticket.id,
+        linkedClientCompanyId: linkedClientCompanyId ?? undefined,
+        allowedLinkedClientContractRoles,
       });
       return true;
     } catch {
@@ -345,6 +480,12 @@ export class NotificationsService {
     ticketId: string;
     ticketCompanyId: string;
   }): Promise<AccessibleNotificationRecipient[]> {
+    const ticket = await this.resolveNotificationTicketContext({
+      ticketId: params.ticketId,
+      ticketCompanyId: params.ticketCompanyId,
+    });
+    if (!ticket) return [];
+
     const seen = new Set<string>();
     const unique = params.users.filter((user) => {
       const key = `${user.companyId}:${user.id}`;
@@ -359,8 +500,7 @@ export class NotificationsService {
         user,
         allowed: await this.canReadTicketForNotification({
           recipient: user,
-          ticketId: params.ticketId,
-          ticketCompanyId: params.ticketCompanyId,
+          ticket,
         }),
       }),
     );
@@ -370,7 +510,7 @@ export class NotificationsService {
         ...item.user,
         linkedClientCompanyId: this.linkedClientForRecipientCompany(
           item.user.companyId,
-          params.ticketCompanyId,
+          ticket.companyId,
         ),
       }));
   }
