@@ -13,6 +13,15 @@ type LoginPageProps = {
 const VERSION = 'v0.1'
 const BUILD = '2026'
 
+function getLoginErrorMessage(err: unknown): string {
+  if (api.isLoginSessionStorageError(err)) return api.LOGIN_SESSION_STORAGE_ERROR_MESSAGE
+  if (err instanceof api.ApiRequestError) {
+    if (err.status === 401) return 'Неверный email или пароль.'
+    if (err.status === 429) return 'Слишком много попыток входа. Подождите и повторите попытку.'
+  }
+  return err instanceof Error && err.message ? err.message : 'Не удалось войти'
+}
+
 export function LoginPage({ onLoggedIn }: LoginPageProps) {
   const navigate = useNavigate()
 
@@ -42,11 +51,7 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
       // После логина — экран выбора контура.
       navigate('/workspaces', { replace: true })
     } catch (err: unknown) {
-      if (api.isLoginSessionStorageError(err)) {
-        setError(api.LOGIN_SESSION_STORAGE_ERROR_MESSAGE)
-      } else {
-        setError(err instanceof Error && err.message ? err.message : 'Не удалось войти')
-      }
+      setError(getLoginErrorMessage(err))
     } finally {
       setLoading(false)
     }
