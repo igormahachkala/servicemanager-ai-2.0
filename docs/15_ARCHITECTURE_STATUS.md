@@ -39,6 +39,7 @@ Current status:
 | [13 Troubleshooting](13_TROUBLESHOOTING.md) | Current debugging entry points. |
 | [14 Glossary](14_GLOSSARY.md) | Current terminology. |
 | [16 Architecture Changelog](16_ARCHITECTURE_CHANGELOG.md) | Decision history leading to the current model. |
+| [17 Decision Log](17_DECISION_LOG.md) | Why each rule exists, and which alternatives were rejected. |
 
 ## Stable Decisions
 
