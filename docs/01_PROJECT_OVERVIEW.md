@@ -37,7 +37,7 @@ For the field-level entity map, read [06 Domain Model](06_DOMAIN_MODEL.md).
 .
 |-- backend/                 # NestJS API, Prisma schema, migrations, backend tests
 |-- web/                     # React/Vite management platform and mobile frontend
-|-- agent-runner/            # supporting automation runner package
+|-- agent-runner/            # internal Engineering Agent tooling, not customer product functionality
 |-- docs/                    # onboarding, architecture, operations, and references
 |-- scripts/                 # repository utility scripts
 |-- test/                    # shared test infrastructure
@@ -53,6 +53,10 @@ Important package and configuration files:
 - `.gitignore` - ignored local runtime files, archives, logs, and build outputs.
 
 For the module-by-module map, read [09 Repository Guide](09_REPOSITORY_GUIDE.md).
+
+The Engineering Agent and `AgentTask` subsystem are internal engineering tooling.
+They are not ServiceManager customer-facing product functionality or a separate
+product domain.
 For project-specific engineering rules, read [10 Coding Standards](10_CODING_STANDARDS.md).
 
 ## Main Backend Modules

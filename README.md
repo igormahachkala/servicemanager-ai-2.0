@@ -16,7 +16,7 @@ That document contains the canonical 00-05 reading sequence. Read that sequence 
 
 - `backend/` - NestJS API, Prisma data access, authorization, ticket workflow, service contracts, notifications, uploads, and integrations.
 - `web/` - React and Vite management platform plus mobile web interface.
-- `agent-runner/` - supporting automation runner package.
+- `agent-runner/` - internal Engineering Agent runner package for repository automation; not ServiceManager product functionality.
 - `docs/` - canonical onboarding, architecture, operations, and reference documentation.
 - `scripts/` - repository utility scripts.
 - `test/` - shared test infrastructure.

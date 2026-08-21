@@ -589,17 +589,20 @@ No entity below should infer provider authority from a provider company alone.
 - Can read: users who can read the parent inspection run item.
 - Related services: `inspection`, `uploads`.
 
-## Automation Entity
+## Internal Engineering Tooling Entity
 
 ### AgentTask
 
-- Purpose: internal automation task record for engineering/agent workflows.
+- Purpose: internal automation task record for Engineering Agent workflows.
+  This is not a ServiceManager customer business entity, ServiceManager core
+  domain, or separate product feature.
 - Owner: company context in which the task was created.
 - Main fields: `id`, `companyId`, `createdByUserId`, `title`, `prompt`,
   `status`, `result`, timestamps.
 - Relations: company, optional creator user.
-- Can modify: authorized agent-task API and task runner.
-- Can read: authorized company/platform users and automation diagnostics.
+- Can modify: authorized internal agent-task API and task runner.
+- Can read: authorized internal company/platform users and automation
+  diagnostics.
 - Related services: `agent-tasks`.
 
 ## Enumerations

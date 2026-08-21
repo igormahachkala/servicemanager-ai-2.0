@@ -13,15 +13,15 @@ architecture task.
 | --- | --- | --- | --- | --- |
 | `backend/` | NestJS API, Prisma schema, migrations, backend tests, runtime integrations. | `backend/src/main.ts`, `backend/src/app.module.ts`, `backend/package.json`, `backend/prisma/schema.prisma`. | Backend services, controllers, policies, access checks, database schema, migrations, backend tests. | Frontend-only rendering, browser state, deployment-only host notes, generated runtime uploads. |
 | `web/` | React/Vite management platform, mobile web app, MAX web entry, PWA assets. | `web/src/main.tsx`, `web/src/App.tsx`, `web/src/router.tsx`, `web/src/lib/api.ts`, `web/package.json`. | Screens, components, frontend API calls, mobile UI, route wiring, browser-facing UX. | Backend authorization, database writes, independent security decisions, server-side workflow rules. |
-| `agent-runner/` | Supporting Engineering Agent runner package. | `agent-runner/src/index.ts`, `agent-runner/src/executor.ts`, `agent-runner/package.json`. | Runner configuration, task polling, context loading, read-only analysis behavior. | Product API rules, ticket workflow, ServiceManager runtime authorization, frontend screens. |
+| `agent-runner/` | Internal Engineering Agent runner package; not customer-facing ServiceManager product functionality. | `agent-runner/src/index.ts`, `agent-runner/src/executor.ts`, `agent-runner/package.json`. | Runner configuration, task polling, context loading, read-only analysis behavior. | Product API rules, ticket workflow, ServiceManager runtime authorization, frontend screens. |
 | `scripts/` | Repository utility scripts. | `scripts/ai_context_export.sh`, `scripts/build_docs_pdf.sh`. | Repository-level documentation/export helpers. | Application business logic, migrations, deployment state. |
 | `test/` | Shared test infrastructure outside the backend package. | `test/docker-compose.test.yml`. | Shared test containers and cross-package test support. | Backend unit tests, e2e specs, application code. |
 | `docs/` | Canonical onboarding, architecture, workflow, and reference documentation. | `docs/00_START_HERE.md`, `docs/01_PROJECT_OVERVIEW.md`, `docs/02_ARCHITECTURE.md`. | Current developer guidance, accepted architecture, runtime rules, operational references. | Source code, secrets, generated reports, historical guidance as active documentation. |
 | `docker-compose.yml` | Production-oriented compose definition. | `docker-compose.yml`. | Production compose changes only when explicitly authorized. | Stage-only changes, local dev hacks, secrets. |
 | `docker-compose.stage.yml` | Stage compose definition. | `docker-compose.stage.yml`. | Stage deployment wiring when explicitly authorized. | Production changes, application behavior changes. |
 
-There is no root `package.json`. Backend, frontend, and agent-runner commands are
-run from their own package directories.
+There is no root `package.json`. Backend, frontend, and internal agent-runner
+commands are run from their own package directories.
 
 ## Backend Overview
 
@@ -175,7 +175,7 @@ than a Nest module.
 | `backend/src/public-request/` | Public request token and intake flow. | `public-request.controller.ts`, `public-request.service.ts`, `public-request-security.service.ts`, `dto/`. |
 | `backend/src/inspection/` | Inspection templates, runs, reports, and ticket creation from inspection items. | `inspection.controller.ts`, `inspection.service.ts`, `inspection.export.service.ts`, `inspection.report.mapper.ts`, `dto/`. |
 | `backend/src/sla/` | SLA worker module. | `sla.module.ts`, `sla.worker.service.ts`. |
-| `backend/src/agent-tasks/` | Engineering Agent task API and owner guard. | `agent-tasks.controller.ts`, `agent-tasks.service.ts`, `engineering-agent.guard.ts`, `dto/`. |
+| `backend/src/agent-tasks/` | Internal Engineering Agent task API and owner guard; not customer-facing product domain. | `agent-tasks.controller.ts`, `agent-tasks.service.ts`, `engineering-agent.guard.ts`, `dto/`. |
 | `backend/src/map/` | Map data API. | `map.controller.ts`, `map.service.ts`. |
 | `backend/src/technicians/` | Technician bindings, specializations, locations, workload. | `technicians.controller.ts`, `technicians.service.ts`, `technicians.workload.service.ts`, `dto/`. |
 | `backend/src/events/` | Domain event bus and event type definitions. | `events.bus.ts`, `events.types.ts`. |

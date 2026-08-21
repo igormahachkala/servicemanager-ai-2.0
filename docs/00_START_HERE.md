@@ -32,8 +32,9 @@ These are not part of the onboarding path. Read them when a task needs them.
 | 12 - [Release Process](12_RELEASE_PROCESS.md) | you are assembling or shipping a release |
 | 13 - [Troubleshooting](13_TROUBLESHOOTING.md) | something fails and you need the likely layer |
 | 14 - [Glossary](14_GLOSSARY.md) | a term in these documents is unfamiliar |
-| 17 - [Decision Log](17_DECISION_LOG.md) | a rule looks unnecessarily strict and you want to know why |
 | 15 - [Architecture Status](15_ARCHITECTURE_STATUS.md) | you need the official architecture freeze status and invariants |
+| 16 - [Architecture Changelog](16_ARCHITECTURE_CHANGELOG.md) | you need the chronological architecture decision history |
+| 17 - [Decision Log](17_DECISION_LOG.md) | a rule looks unnecessarily strict and you want to know why |
 
 Start with 13 when you are debugging: it orders the checks environment-first, which is
 where most reported defects actually live.
