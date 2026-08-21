@@ -105,6 +105,9 @@ Use Prisma migrations for schema changes. Keep generated clients and migration s
 
 ## Local To Stage To Production
 
+Detailed runtime acceptance guidance is documented in [11 Runtime Acceptance](11_RUNTIME_ACCEPTANCE.md).
+Detailed release procedure and checklists are documented in [12 Release Process](12_RELEASE_PROCESS.md).
+
 The normal path is:
 
 ```text
@@ -131,7 +134,7 @@ Stage is the acceptance contour, deployed from `docker-compose.stage.yml`:
 
 The web image is built, not served live. `VITE_API_BASE_URL` is baked into the frontend image through a Docker build argument, and `vite preview` serves static output. A frontend change does not appear on Stage without rebuilding the image.
 
-Stage migrations require explicit handling. If a task adds a migration, apply it on Stage through the accepted Stage deployment procedure. Do not fabricate schema objects manually.
+Stage migrations require explicit handling. If a task adds a migration, apply it on Stage through the accepted Stage deployment procedure in [12 Release Process](12_RELEASE_PROCESS.md). Do not fabricate schema objects manually.
 
 Before runtime acceptance, verify:
 
@@ -145,6 +148,8 @@ Before runtime acceptance, verify:
 ## Runtime Acceptance
 
 Runtime acceptance answers: does this work for a real user in the deployed environment?
+
+Use [11 Runtime Acceptance](11_RUNTIME_ACCEPTANCE.md) as the detailed acceptance protocol.
 
 For user-facing behavior, verify the actual contour affected by the change:
 
@@ -173,6 +178,8 @@ If the deployed code is not the candidate, acceptance has not run.
 ## Production Safety
 
 Production tasks must follow the task restrictions exactly.
+
+Use [12 Release Process](12_RELEASE_PROCESS.md) for the detailed Production gate, backup, migration, smoke, monitoring, and rollback checklist.
 
 Before Production deployment, verify:
 
@@ -228,6 +235,8 @@ Use:
 - `03_ACCESS_MODEL.md` for visibility, assignment, claim, acceptance, and notification eligibility.
 - `04_DEVELOPMENT_WORKFLOW.md` for workflow, deployment, and verification process.
 - `05_TESTING_AND_FIRST_TASK.md` for test expectations and the first onboarding exercise.
+- `11_RUNTIME_ACCEPTANCE.md` for Stage runtime acceptance evidence and PASS/FAIL criteria.
+- `12_RELEASE_PROCESS.md` for release gates, migrations, Production authorization, smoke, monitoring, and rollback.
 
 Do not create a new root entry point. If a reference is historical or no longer safe as active guidance, move it to `docs/LEGACY/` in a documentation task.
 
