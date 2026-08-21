@@ -29,6 +29,8 @@ The product has two primary contours:
 - Public request intake - customer-facing request creation through configured public entry points.
 - Mobile technician flow - field-oriented ticket lists, ticket details, comments, attachments, status changes, and completed-ticket access.
 
+For the field-level entity map, read [06 Domain Model](06_DOMAIN_MODEL.md).
+
 ## Repository Structure
 
 ```text

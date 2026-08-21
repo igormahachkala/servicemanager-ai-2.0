@@ -25,6 +25,9 @@ Access = Capability + Contract Context + Location Scope + Specialization Scope +
 
 ## Domain Model
 
+This section summarizes the main model. The complete entity reference is
+[06 Domain Model](06_DOMAIN_MODEL.md).
+
 ### Company
 
 `Company` is the tenant boundary. A company is either:
