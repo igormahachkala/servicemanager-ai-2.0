@@ -1169,6 +1169,9 @@ const PLATFORM_BACKUP_ROLE_KEY = 'platform_user_role_backup'
 const PLATFORM_BACKUP_COMPANY_LABEL_KEY = 'platform_company_label_backup'
 const IMPERSONATION_META_KEY = 'impersonation_meta'
 
+export const LOGIN_SESSION_STORAGE_ERROR_MESSAGE =
+  'Не удалось сохранить данные входа в браузере. Очистите данные сайта или освободите хранилище и повторите вход.'
+
 // Current local Docker backend runtime
 const FALLBACK_API_BASE_URL = 'http://localhost:3000'
 
@@ -1188,6 +1191,83 @@ type PersistedScope = TicketScopeParams & {
   ownerUserId?: string
   ownerCompanyId?: string
   ownerRole?: Role | string
+}
+
+type StorageSnapshotEntry = {
+  key: string
+  value: string | null
+}
+
+const LOGIN_SESSION_STORAGE_KEYS = [
+  TOKEN_KEY,
+  COMPANY_LABEL_KEY,
+  USER_ROLE_KEY,
+  LAST_SCOPE_KEY,
+  SCOPE_OWNER_USER_ID_KEY,
+  SCOPE_OWNER_COMPANY_ID_KEY,
+  SCOPE_OWNER_ROLE_KEY,
+  PLATFORM_BACKUP_KEY,
+  PLATFORM_BACKUP_ROLE_KEY,
+  PLATFORM_BACKUP_COMPANY_LABEL_KEY,
+  IMPERSONATION_META_KEY,
+]
+
+export class LoginSessionStorageError extends Error {
+  constructor() {
+    super(LOGIN_SESSION_STORAGE_ERROR_MESSAGE)
+    this.name = 'LoginSessionStorageError'
+    Object.setPrototypeOf(this, new.target.prototype)
+  }
+}
+
+export function isLoginSessionStorageError(err: unknown): err is LoginSessionStorageError {
+  return err instanceof LoginSessionStorageError
+}
+
+function throwLoginSessionStorageError(): never {
+  throw new LoginSessionStorageError()
+}
+
+function writeLocalStorageItem(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value)
+  } catch {
+    throwLoginSessionStorageError()
+  }
+}
+
+function snapshotLocalStorage(keys: string[]): StorageSnapshotEntry[] {
+  try {
+    return keys.map((key) => ({ key, value: localStorage.getItem(key) }))
+  } catch {
+    throwLoginSessionStorageError()
+  }
+}
+
+function restoreLocalStorageSnapshot(snapshot: StorageSnapshotEntry[]) {
+  for (const entry of snapshot) {
+    try {
+      if (entry.value === null) {
+        localStorage.removeItem(entry.key)
+      } else {
+        localStorage.setItem(entry.key, entry.value)
+      }
+    } catch {
+      // Best-effort rollback: the caller will show the storage-specific login error.
+    }
+  }
+}
+
+function persistLoginSessionSafely(action: () => void) {
+  if (typeof window === 'undefined') return
+
+  const snapshot = snapshotLocalStorage(LOGIN_SESSION_STORAGE_KEYS)
+  try {
+    action()
+  } catch {
+    restoreLocalStorageSnapshot(snapshot)
+    throwLoginSessionStorageError()
+  }
 }
 
 function readBaseUrl(): string {
@@ -1304,7 +1384,7 @@ export function setBaseUrl(url: string) {
     localStorage.removeItem(BASE_URL_KEY)
     return
   }
-  localStorage.setItem(BASE_URL_KEY, normalized)
+  writeLocalStorageItem(BASE_URL_KEY, normalized)
 }
 
 export function getToken(): string {
@@ -1314,7 +1394,7 @@ export function getToken(): string {
 
 export function setToken(token: string) {
   if (typeof window === 'undefined') return
-  localStorage.setItem(TOKEN_KEY, token)
+  writeLocalStorageItem(TOKEN_KEY, token)
 }
 
 export function getImpersonationMeta(): ImpersonationMeta | null {
@@ -1349,15 +1429,15 @@ export function beginImpersonationSession(payload: ImpersonateResponse) {
 
   const currentToken = getToken()
   if (currentToken && !localStorage.getItem(PLATFORM_BACKUP_KEY)) {
-    localStorage.setItem(PLATFORM_BACKUP_KEY, currentToken)
-    localStorage.setItem(PLATFORM_BACKUP_ROLE_KEY, getUserRole() || 'PLATFORM_ADMIN')
-    localStorage.setItem(PLATFORM_BACKUP_COMPANY_LABEL_KEY, getCompanyLabel())
+    writeLocalStorageItem(PLATFORM_BACKUP_KEY, currentToken)
+    writeLocalStorageItem(PLATFORM_BACKUP_ROLE_KEY, getUserRole() || 'PLATFORM_ADMIN')
+    writeLocalStorageItem(PLATFORM_BACKUP_COMPANY_LABEL_KEY, getCompanyLabel())
   }
 
   setToken(payload.access_token)
   setUserRole('ADMIN')
   setCompanyLabel(payload.company.name)
-  localStorage.setItem(
+  writeLocalStorageItem(
     IMPERSONATION_META_KEY,
     JSON.stringify({
       companyId: payload.company.id,
@@ -1399,6 +1479,16 @@ export function clearToken() {
   clearImpersonationState()
 }
 
+export function persistLoginSession(result: LoginResponse) {
+  persistLoginSessionSafely(() => {
+    clearImpersonationState()
+    setToken(result.access_token)
+    setUserRole(result.user.role)
+    setCompanyLabel(result.user.companyName || result.user.email)
+    restoreScopeForUser(result.user)
+  })
+}
+
 export function getUserRole(): Role | '' {
   if (typeof window === 'undefined') return ''
   return (localStorage.getItem(USER_ROLE_KEY) || '') as Role | ''
@@ -1411,7 +1501,7 @@ export function setUserRole(role?: string | null) {
     localStorage.removeItem(USER_ROLE_KEY)
     return
   }
-  localStorage.setItem(USER_ROLE_KEY, normalized)
+  writeLocalStorageItem(USER_ROLE_KEY, normalized)
 }
 
 export function getHomeRoute(role?: string | null): string {
@@ -1604,9 +1694,9 @@ export function syncScopeOwnerProfile(user?: Pick<Me, 'id' | 'companyId' | 'role
     localStorage.removeItem(SCOPE_OWNER_ROLE_KEY)
     return
   }
-  localStorage.setItem(SCOPE_OWNER_USER_ID_KEY, user.id)
-  localStorage.setItem(SCOPE_OWNER_COMPANY_ID_KEY, user.companyId)
-  localStorage.setItem(SCOPE_OWNER_ROLE_KEY, user.role)
+  writeLocalStorageItem(SCOPE_OWNER_USER_ID_KEY, user.id)
+  writeLocalStorageItem(SCOPE_OWNER_COMPANY_ID_KEY, user.companyId)
+  writeLocalStorageItem(SCOPE_OWNER_ROLE_KEY, user.role)
 }
 
 export function clearPersistedScope() {
@@ -1676,7 +1766,7 @@ export function persistScopeFromSearchParams(search: URLSearchParams, owner?: Sc
   const linkedClientCompanyId = normalized.linkedClientCompanyId || ''
   const companyId = normalized.companyId || ''
   if (!linkedClientCompanyId && !companyId) return
-  localStorage.setItem(
+  writeLocalStorageItem(
     LAST_SCOPE_KEY,
     JSON.stringify({
       linkedClientCompanyId,
@@ -1720,7 +1810,7 @@ export function getCompanyLabel(me?: Partial<Me> | null): string {
 
 export function setCompanyLabel(label: string) {
   if (typeof window === 'undefined') return
-  localStorage.setItem(COMPANY_LABEL_KEY, (label || '').trim())
+  writeLocalStorageItem(COMPANY_LABEL_KEY, (label || '').trim())
 }
 
 export function extractCreatedTicketId(payload: any): string | null {

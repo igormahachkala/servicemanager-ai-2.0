@@ -32,11 +32,7 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
         password,
       })
 
-      api.clearImpersonationState()
-      api.setToken(result.access_token)
-      api.setUserRole(result.user.role)
-      api.setCompanyLabel(result.user.companyName || result.user.email)
-      api.restoreScopeForUser(result.user)
+      api.persistLoginSession(result)
 
       if (onLoggedIn) {
         onLoggedIn(result.access_token)
@@ -45,8 +41,12 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
       setPassword('')
       // После логина — экран выбора контура.
       navigate('/workspaces', { replace: true })
-    } catch (err: any) {
-      setError(err?.message || 'Не удалось войти')
+    } catch (err: unknown) {
+      if (api.isLoginSessionStorageError(err)) {
+        setError(api.LOGIN_SESSION_STORAGE_ERROR_MESSAGE)
+      } else {
+        setError(err instanceof Error && err.message ? err.message : 'Не удалось войти')
+      }
     } finally {
       setLoading(false)
     }
