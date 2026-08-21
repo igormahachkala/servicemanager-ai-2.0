@@ -2,6 +2,9 @@
 
 This document describes the accepted runtime architecture of ServiceManager.AI.
 
+Official freeze status: [15 Architecture Status](15_ARCHITECTURE_STATUS.md).
+Decision history: [16 Architecture Changelog](16_ARCHITECTURE_CHANGELOG.md).
+
 ## Core Principles
 
 ServiceManager.AI is an operational service-management system for client companies and provider companies. The backend is the source of truth for business decisions and authorization.
