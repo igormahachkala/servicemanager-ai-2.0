@@ -52,6 +52,9 @@ Important package and configuration files:
 - `web/package.json` - frontend scripts, React, Vite, TypeScript, and browser verification scripts.
 - `.gitignore` - ignored local runtime files, archives, logs, and build outputs.
 
+For the module-by-module map, read [09 Repository Guide](09_REPOSITORY_GUIDE.md).
+For project-specific engineering rules, read [10 Coding Standards](10_CODING_STANDARDS.md).
+
 ## Main Backend Modules
 
 Backend modules live under `backend/src/`:

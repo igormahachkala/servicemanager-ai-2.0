@@ -32,6 +32,9 @@ Commits follow Conventional Commits with a scope: `fix(tickets):`, `feat(access)
 
 ## One Task = One Commit
 
+Project-specific coding standards are documented in
+[10 Coding Standards](10_CODING_STANDARDS.md).
+
 One logical defect, feature, audit result, or docs integration is one commit unless the task explicitly says otherwise.
 
 Problems found along the way are separate tasks, not additions to the current commit.
@@ -212,6 +215,9 @@ After Production deployment, verify:
 - runtime acceptance result.
 
 ## Code Review
+
+Use [10 Coding Standards](10_CODING_STANDARDS.md) as the review checklist for
+project-specific architecture risks.
 
 Beyond the obvious, this project looks for:
 

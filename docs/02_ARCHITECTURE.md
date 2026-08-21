@@ -153,6 +153,10 @@ Key modules:
 - `realtime` - websocket invalidation/notification transport.
 - `max-bot` - MAX notification transport and command runtime integration.
 
+For module ownership and main entry files, read
+[09 Repository Guide](09_REPOSITORY_GUIDE.md). For implementation rules, read
+[10 Coding Standards](10_CODING_STANDARDS.md).
+
 ## Frontend Boundaries
 
 The frontend is a React/Vite application.
@@ -165,7 +169,7 @@ Key areas:
 - Service contracts and access management surfaces in management/platform pages.
 - Mobile shell and mobile routes in `web/src/mobile/`.
 - Push and realtime client code in shared frontend hooks and libraries.
-- Browser storage safety in `web/src/lib/browserStorage.ts`.
+- Browser storage and session helpers in `web/src/lib/api.ts` and related `web/src/lib/` helpers.
 
 The frontend renders backend-provided actions and metadata. It may hide buttons for usability, but backend services remain authoritative for every mutation.
 
@@ -199,7 +203,7 @@ Status changes are implemented in ticket status services. Acceptance is implemen
 
 | Area | Main backend files |
 | --- | --- |
-| Contract context | `service-contracts/contract-context.service.ts` |
+| Contract context | `service-contracts/service-contracts.service.ts`, `tickets/ticket-access.utils.ts` |
 | Contract location scope | `service-contracts/service-contract-location-scope.ts` |
 | Contract active window | `service-contracts/service-contract-window.ts` |
 | Ticket read access | `tickets/ticket-access.utils.ts` |

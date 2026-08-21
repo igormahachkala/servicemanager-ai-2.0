@@ -4,7 +4,7 @@ This is the canonical developer entry point for ServiceManager.AI.
 
 ## Onboarding Goal
 
-A new developer should understand the product, the current architecture, the access model, the repository structure, and the safe development workflow before changing code.
+A new developer should understand the product, the current architecture, the access model, the repository structure, coding standards, and the safe development workflow before changing code.
 
 Read documents in this order:
 
@@ -26,6 +26,8 @@ These are not part of the onboarding path. Read them when a task needs them.
 | 06 - [Domain Model](06_DOMAIN_MODEL.md) | you need the entities and their relationships |
 | 07 - [Ticket Lifecycle](07_TICKET_LIFECYCLE.md) | you are changing statuses or transitions |
 | 08 - [Permissions Matrix](08_PERMISSIONS_MATRIX.md) | you need to know whether a role may do something |
+| 09 - [Repository Guide](09_REPOSITORY_GUIDE.md) | you need module ownership or the right place to make a change |
+| 10 - [Coding Standards](10_CODING_STANDARDS.md) | you need project-specific engineering rules |
 | 11 - [Runtime Acceptance](11_RUNTIME_ACCEPTANCE.md) | you are verifying a candidate on Stage |
 | 12 - [Release Process](12_RELEASE_PROCESS.md) | you are assembling or shipping a release |
 | 13 - [Troubleshooting](13_TROUBLESHOOTING.md) | something fails and you need the likely layer |

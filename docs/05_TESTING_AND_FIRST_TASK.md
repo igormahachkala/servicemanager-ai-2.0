@@ -9,6 +9,9 @@ This document has two parts:
 
 Use checks that match the changed surface.
 
+Project-specific test standards are summarized in
+[10 Coding Standards](10_CODING_STANDARDS.md).
+
 Backend-only change:
 
 ```bash
