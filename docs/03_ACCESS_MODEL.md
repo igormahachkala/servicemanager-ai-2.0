@@ -2,6 +2,11 @@
 
 This is the canonical access architecture document for the accepted ServiceManager.AI runtime.
 
+It states the rules. For the cell-level capability table — which role may do what, and
+where the answer is conditional — see [08 Permissions Matrix](08_PERMISSIONS_MATRIX.md).
+When the two documents disagree, this one defines intent and the matrix records the
+current implementation; reconcile against code before changing behavior.
+
 ## Source Of Truth
 
 The backend is the only source of truth for access.
@@ -247,6 +252,8 @@ Self-created exception:
 
 ## Status, Completion, And Acceptance
 
+Detailed lifecycle rules are documented in [07 Ticket Lifecycle](07_TICKET_LIFECYCLE.md).
+
 ### Status Changes
 
 Provider status changes are executor operations. They must pass:
@@ -337,3 +344,8 @@ Access must fail closed when:
 - the target candidate is inactive, deleted, not executor-capable, or specialization-mismatched;
 - a secondary provider attempts to reach unrelated client work;
 - any provider-side actor attempts client acceptance.
+
+## Related Documents
+
+- [08 Permissions Matrix](08_PERMISSIONS_MATRIX.md) — the full capability table derived from controller guards, permission blocks, and these rules
+- [04 Development Workflow](04_DEVELOPMENT_WORKFLOW.md) — how to change access code safely

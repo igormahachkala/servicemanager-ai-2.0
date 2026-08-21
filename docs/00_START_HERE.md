@@ -14,6 +14,7 @@ Read documents in this order:
 4. 03 - [Access Model](03_ACCESS_MODEL.md)
 5. 04 - [Development Workflow](04_DEVELOPMENT_WORKFLOW.md)
 6. 05 - [Testing And First Task](05_TESTING_AND_FIRST_TASK.md)
+7. 08 - [Permissions Matrix](08_PERMISSIONS_MATRIX.md) - reference table, use when you need a specific capability
 
 Then start coding.
 
