@@ -168,6 +168,8 @@ The frontend renders backend-provided actions and metadata. It may hide buttons 
 
 ## Ticket Lifecycle
 
+Detailed lifecycle rules are documented in [07 Ticket Lifecycle](07_TICKET_LIFECYCLE.md).
+
 The accepted lifecycle states are:
 
 ```text
