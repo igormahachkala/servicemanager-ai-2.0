@@ -18,6 +18,9 @@ yarn-error.log*
 *.tgz
 *.zip
 
+# generated documentation output
+docs_pdf/
+
 # backend build/runtime
 backend/node_modules/
 backend/dist/
@@ -26,6 +29,7 @@ uploads/
 
 # web build/runtime
 web/node_modules/
+web/.npm-cache/
 web/dist/
 web/.vite/
 
@@ -33,6 +37,7 @@ web/.vite/
 coverage/
 .tmp/
 .cache/
+.npm-cache/
 
 # local docker temp
 .docker-tmp/

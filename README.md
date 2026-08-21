@@ -1,86 +1,25 @@
 # ServiceManager.AI
 
-ServiceManager.AI — сервисная SaaS-платформа для управления клиентами, подрядчиками, объектами, заявками, исполнителями, SLA и операционными процессами.
+ServiceManager.AI is a service operations platform for client companies and provider companies. It manages service contracts, tickets, assignment, field execution, completion, client acceptance, audit history, attachments, and notifications across the management web app and the mobile technician flow.
 
-## Новому разработчику
+## Start Here
 
-Не начинайте с чтения случайных файлов в `docs/` и истории старых веток.
+The root README is the only repository entry point for developer onboarding.
 
-Канонический onboarding находится здесь:
+Start here:
 
-1. [`docs/00_START_HERE.md`](docs/00_START_HERE.md)
-2. [`docs/01_PROJECT_OVERVIEW.md`](docs/01_PROJECT_OVERVIEW.md)
-3. [`docs/02_ARCHITECTURE.md`](docs/02_ARCHITECTURE.md)
-4. [`docs/03_ACCESS_MODEL.md`](docs/03_ACCESS_MODEL.md)
-5. [`docs/04_DEVELOPMENT_WORKFLOW.md`](docs/04_DEVELOPMENT_WORKFLOW.md)
-6. [`docs/05_FIRST_TASK.md`](docs/05_FIRST_TASK.md)
+[docs/00_START_HERE.md](docs/00_START_HERE.md)
 
-После чтения документов 00–04 разработчик должен понимать архитектуру и правила безопасности. Документ 05 используется как практическая проверка перед первой рабочей задачей.
+That document contains the canonical 00-05 reading sequence. Read that sequence before coding.
 
-## Стек
+## Repository Shape
 
-- Backend: NestJS + TypeScript
-- ORM: Prisma
-- Database: PostgreSQL
-- Frontend: React + Vite + TypeScript
-- Auth: JWT
-- Runtime: Docker / Docker Compose
-- API: REST
+- `backend/` - NestJS API, Prisma data access, authorization, ticket workflow, service contracts, notifications, uploads, and integrations.
+- `web/` - React and Vite management platform plus mobile web interface.
+- `agent-runner/` - supporting automation runner package.
+- `docs/` - canonical onboarding, architecture, operations, and reference documentation.
+- `scripts/` - repository utility scripts.
+- `test/` - shared test infrastructure.
+- `docker-compose.yml` and `docker-compose.stage.yml` - container orchestration definitions.
 
-## Основной архитектурный принцип
-
-Для provider-логики источник истины — `ServiceContract`.
-
-```text
-Service Contract
-→ Role in Contract (PRIMARY / SECONDARY)
-→ Contract Locations
-→ Contract Specializations
-→ Allowed Work Area
-→ User Permissions
-```
-
-`PRIMARY` и `SECONDARY` — свойства договора, а не компании.
-
-Роль пользователя определяет действия внутри уже разрешённой договором области, но не расширяет эту область.
-
-## Ключевые правила
-
-- Multi-tenant граница сохраняется через `companyId`.
-- Provider-доступ определяется Contract Context.
-- `ADMIN / MASTER / DISPATCHER` используют специализации договора.
-- `TECHNICIAN` дополнительно ограничен своими специализациями и operational scope.
-- `Candidate List = Assignment Authority`.
-- `Completion != Acceptance`.
-- Provider завершает работу; CLIENT принимает работу.
-- Production изменяется только после Stage acceptance.
-
-## Репозиторий
-
-Основные каталоги:
-
-```text
-backend/      NestJS API, Prisma, migrations, backend tests
-web/          React/Vite frontend and mobile/PWA code
-docs/         canonical developer documentation
-scripts/      operational/development scripts
-test/         environment/e2e support
-```
-
-## Рабочий процесс
-
-```text
-Local development
-→ commit
-→ Stage deploy
-→ runtime acceptance
-→ Production release
-```
-
-Подробно: [`docs/04_DEVELOPMENT_WORKFLOW.md`](docs/04_DEVELOPMENT_WORKFLOW.md).
-
-## Source of Truth
-
-Документы `docs/00_...` — `docs/05_...` являются основной точкой входа для разработчиков.
-
-Если старый документ, комментарий или историческая ветка противоречат каноническим документам или текущему runtime acceptance, не используйте старую модель без отдельного архитектурного решения.
+Do not use root sidecar notes, generated artifacts, or legacy documents as onboarding entry points.
