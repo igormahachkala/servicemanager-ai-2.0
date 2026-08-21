@@ -2,7 +2,7 @@
 
 > Source of Truth для **границ модулей** и зон ответственности агентов.
 > Связанные документы: [Agent Development Workflow](./agent-development-workflow.md) ·
-> [Deployment Workflow](./deployment-workflow.md).
+> [Deployment Workflow](../../process/deployment-workflow.md).
 
 ## Purpose
 

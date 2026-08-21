@@ -136,8 +136,8 @@ AI не должен:
 
 Перед работой AI должен учитывать:
 
-- docs/CHAT_BOOTSTRAP.md
-- docs/ARCHITECTURE.md
+- docs/00_START_HERE.md
+- docs/02_ARCHITECTURE.md
 - docs/API_SPEC.md
 - docs/SECURITY_MODEL.md
 

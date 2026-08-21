@@ -9,10 +9,10 @@ Read this section first. Every line is a distinction that has caused confusion.
 
 - **Not a customer-facing FSM capability.** No client, provider, or technician ever
   sees it. It does not appear in any tenant workflow.
-- **Not the AI Company project.** That is a separate initiative with its own planning
-  material. The Engineering Agent predates it, shares no code with it, and must not be
-  cited as its implementation.
-- **Not the IT Company module.** The desktop IT Company UI is gated by
+- **Not a separate automation roadmap.** That initiative has its own planning
+  material outside the active ServiceManager documentation. The Engineering Agent
+  predates it, shares no code with it, and must not be cited as its implementation.
+- **Not the provider-facing admin module.** That desktop surface is gated by
   `canViewITCompany` (strictly `PLATFORM_ADMIN`) and deliberately does **not** use the
   Engineering Agent's owner flag. The code says so explicitly in
   `web/src/it-company/access.ts`, which refers to the Engineering Agent screen as

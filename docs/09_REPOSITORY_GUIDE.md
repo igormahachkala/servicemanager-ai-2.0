@@ -14,7 +14,7 @@ architecture task.
 | `backend/` | NestJS API, Prisma schema, migrations, backend tests, runtime integrations. | `backend/src/main.ts`, `backend/src/app.module.ts`, `backend/package.json`, `backend/prisma/schema.prisma`. | Backend services, controllers, policies, access checks, database schema, migrations, backend tests. | Frontend-only rendering, browser state, deployment-only host notes, generated runtime uploads. |
 | `web/` | React/Vite management platform, mobile web app, MAX web entry, PWA assets. | `web/src/main.tsx`, `web/src/App.tsx`, `web/src/router.tsx`, `web/src/lib/api.ts`, `web/package.json`. | Screens, components, frontend API calls, mobile UI, route wiring, browser-facing UX. | Backend authorization, database writes, independent security decisions, server-side workflow rules. |
 | `agent-runner/` | Internal Engineering Agent runner package; not customer-facing ServiceManager product functionality. | `agent-runner/src/index.ts`, `agent-runner/src/executor.ts`, `agent-runner/package.json`. | Runner configuration, task polling, context loading, read-only analysis behavior. | Product API rules, ticket workflow, ServiceManager runtime authorization, frontend screens. |
-| `scripts/` | Repository utility scripts. | `scripts/ai_context_export.sh`, `scripts/build_docs_pdf.sh`. | Repository-level documentation/export helpers. | Application business logic, migrations, deployment state. |
+| `scripts/` | Repository utility scripts. | `scripts/build_docs_pdf.sh`. | Repository-level documentation/export helpers. | Application business logic, migrations, deployment state. |
 | `test/` | Shared test infrastructure outside the backend package. | `test/docker-compose.test.yml`. | Shared test containers and cross-package test support. | Backend unit tests, e2e specs, application code. |
 | `docs/` | Canonical onboarding, architecture, workflow, and reference documentation. | `docs/00_START_HERE.md`, `docs/01_PROJECT_OVERVIEW.md`, `docs/02_ARCHITECTURE.md`. | Current developer guidance, accepted architecture, runtime rules, operational references. | Source code, secrets, generated reports, historical guidance as active documentation. |
 | `docker-compose.yml` | Production-oriented compose definition. | `docker-compose.yml`. | Production compose changes only when explicitly authorized. | Stage-only changes, local dev hacks, secrets. |
@@ -286,7 +286,7 @@ Primary runtime entry points:
 - Numbered docs are active onboarding and architecture references.
 - `docs/LEGACY/` is historical material. Do not use it as active architecture guidance.
 - `docs/process/` contains process-specific workflow references.
-- `docs/ai-company/`, `docs/management/`, and `docs/operations/` contain focused product/process references.
+- `docs/management/` and `docs/operations/` contain focused product/process references.
 
 When an architecture rule changes, update the numbered canonical docs that
 describe that rule.

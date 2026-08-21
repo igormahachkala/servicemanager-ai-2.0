@@ -64,7 +64,7 @@ HEAD: 8d87d24 Stabilize PBAC/Policy + SLA indexes/worker + analytics + e2e green
 ## 4) Какие файлы попросить в новом чате (минимальный набор)
 ### Документация (docs/)
 1) docs/CHAT_BOOTSTRAP.md
-2) docs/CONTRIBUTING_AI_RULES.md
+2) docs/LEGACY/CONTRIBUTING_AI_RULES.md
 3) docs/PLATFORM_CONSTITUTION_V2.md
 4) docs/SECURITY_MODEL.md
 5) docs/AUTHORIZATION_ARCHITECTURE.md

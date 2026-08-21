@@ -283,10 +283,10 @@ ticket.status_changed
 Перед изменением системы AI обязан учитывать:
 
 docs/PLATFORM_CONSTITUTION_V2.md  
-docs/ARCHITECTURE.md  
-docs/SECURITY_MODEL.md  
-docs/TICKET_VISIBILITY_MATRIX.md  
-docs/CONTRIBUTING_AI_RULES.md  
+docs/02_ARCHITECTURE.md
+docs/03_ACCESS_MODEL.md
+docs/08_PERMISSIONS_MATRIX.md
+docs/LEGACY/CONTRIBUTING_AI_RULES.md
 
 
 ---

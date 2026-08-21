@@ -2,7 +2,7 @@
 
 > Source of Truth для того, **как** агенты вносят изменения в этот репозиторий.
 > Связанные документы: [Module Boundaries](./module-boundaries.md) ·
-> [Deployment Workflow](./deployment-workflow.md).
+> [Deployment Workflow](../../process/deployment-workflow.md).
 
 ## Purpose
 
@@ -82,7 +82,7 @@ git log origin/<branch>..HEAD --oneline
 
 ## Stage Deployment Rules
 
-Деплой на Stage выполняется по [Deployment Workflow](./deployment-workflow.md)
+Деплой на Stage выполняется по [Deployment Workflow](../../process/deployment-workflow.md)
 и только после approval.
 
 - Обязательны: Backup → Pull → Build → Smoke Test.
@@ -92,7 +92,7 @@ git log origin/<branch>..HEAD --oneline
 ## Production Deployment Rules
 
 Production — наиболее охраняемый контур. Подробности и чеклист — в
-[Deployment Workflow](./deployment-workflow.md).
+[Deployment Workflow](../../process/deployment-workflow.md).
 
 - **Stage Validation Required** — изменение должно быть проверено на Stage.
 - **Backup Required** — перед деплоем обязателен бэкап.

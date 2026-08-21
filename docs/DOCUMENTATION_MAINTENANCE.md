@@ -212,13 +212,14 @@ docs/SCALING_STRATEGY.md
 
 ---
 
-# 11. AI Context
+# 11. Legacy AI Context
 
-docs/AI_CONTEXT.md
+docs/LEGACY/AI_CONTEXT.md
 
 Назначение:
 
-даёт AI быстрый контекст системы.
+исторический быстрый контекст системы. Не использовать как активное
+руководство, если он конфликтует с numbered-документами.
 
 Обновлять когда:
 

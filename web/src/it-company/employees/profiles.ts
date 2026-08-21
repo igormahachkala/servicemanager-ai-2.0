@@ -1,9 +1,8 @@
 /**
  * AI Employee profiles (mock) — canonical source for the IT Company staff.
  *
- * Mirrors the roles in docs/ai-company/. The summary registry (registry.ts) is
- * derived from these profiles, so there is a single source of truth. Mock data;
- * no API.
+ * The summary registry (registry.ts) is derived from these profiles, so there is
+ * a single source of truth. Mock data; no API.
  */
 
 export type AIEmployeeStatus = 'Active' | 'Planned'

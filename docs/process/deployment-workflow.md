@@ -1,15 +1,15 @@
 # Deployment Workflow
 
 > Source of Truth для процесса деплоя на **Stage** и в **Production**.
-> Связанные документы: [Agent Development Workflow](./agent-development-workflow.md) ·
-> [Module Boundaries](./module-boundaries.md).
+> Связанные документы: [Development Workflow](../04_DEVELOPMENT_WORKFLOW.md) ·
+> [Repository Guide](../09_REPOSITORY_GUIDE.md).
 
 ## Purpose
 
 Зафиксировать безопасный, повторяемый процесс доставки изменений. Деплой
 выполняется только из чистого коммита в репозитории (без локальных hotfix'ов на
 сервере) и только после approval, согласно
-[Agent Development Workflow](./agent-development-workflow.md).
+[Development Workflow](../04_DEVELOPMENT_WORKFLOW.md).
 
 ## Stage Workflow
 
