@@ -89,6 +89,10 @@ export class TicketsStatusService {
       });
       if (!ticket) throw new NotFoundException('Ticket not found');
 
+      if (ticket.status === TicketStatus.AWAITING_ACCEPTANCE && dto.status === TicketStatus.DONE) {
+        throw new ForbiddenException('Only client acceptance can move awaiting work to DONE');
+      }
+
       const actorIsExecutor = isExecutorCapableRole(role)
         ? (await this.prisma.user.findFirst({ where: { id: user?.id }, select: { isExecutor: true } }))?.isExecutor ?? false
         : false;

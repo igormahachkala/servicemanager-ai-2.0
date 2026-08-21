@@ -388,6 +388,10 @@ export class TicketMetaBuilder {
       TicketStatus.CANCELED,
     ]
 
-    return allStatuses.filter((nextStatus) => decideTicketTransition(params.ticketStatus, nextStatus).allowed)
+    const transitions = allStatuses.filter((nextStatus) => decideTicketTransition(params.ticketStatus, nextStatus).allowed)
+    if (params.ticketStatus === TicketStatus.AWAITING_ACCEPTANCE) {
+      return transitions.filter((nextStatus) => nextStatus !== TicketStatus.DONE)
+    }
+    return transitions
   }
 }

@@ -1,5 +1,5 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
-import { CompanyType, ServiceContractRole, UserRole } from '@prisma/client';
+import { CompanyType, UserRole } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { ServiceContractsService } from '../service-contracts/service-contracts.service';
@@ -34,22 +34,13 @@ export type TicketAcceptanceAccess = {
   };
   scopeCompanyId: string;
   visibilityMode: TicketVisibilityMode;
-  reason:
-    | 'client_management'
-    | 'assigned_technician'
-    | 'contractor_creator'
-    | 'contractor_assignee_company';
+  reason: 'client_management';
 };
 
 const CLIENT_ACCEPTANCE_ROLES: UserRole[] = [
   UserRole.ADMIN,
   UserRole.TERRITORIAL_MANAGER,
   UserRole.NETWORK_DIRECTOR,
-];
-
-const CONTRACTOR_ACCEPTANCE_ROLES: UserRole[] = [
-  UserRole.ADMIN,
-  UserRole.MASTER,
 ];
 
 async function loadActiveAcceptanceActor(
@@ -92,16 +83,21 @@ export async function resolveTicketAcceptanceAccess(params: {
     accessFlags: params.actor.accessFlags,
   };
 
+  if (
+    actor.company.type !== CompanyType.CLIENT ||
+    !CLIENT_ACCEPTANCE_ROLES.includes(actor.role)
+  ) {
+    throw new ForbiddenException(
+      'Only client management roles can accept or reject work',
+    );
+  }
+
   const readable = await resolveReadableTicketAccess({
     prisma: params.prisma,
     serviceContractsService: params.serviceContractsService,
     actor: normalizedActor,
     ticketId: params.ticketId,
     linkedClientCompanyId: params.linkedClientCompanyId,
-    allowedLinkedClientContractRoles: [
-      ServiceContractRole.PRIMARY,
-      ServiceContractRole.SECONDARY,
-    ],
   });
 
   const ticket = await params.prisma.ticket.findFirst({
@@ -119,11 +115,7 @@ export async function resolveTicketAcceptanceAccess(params: {
     throw new NotFoundException('Ticket not found');
   }
 
-  if (
-    actor.company.type === CompanyType.CLIENT &&
-    CLIENT_ACCEPTANCE_ROLES.includes(actor.role) &&
-    ticket.companyId === actor.companyId
-  ) {
+  if (ticket.companyId === actor.companyId) {
     return {
       actor,
       ticket,
@@ -133,45 +125,9 @@ export async function resolveTicketAcceptanceAccess(params: {
     };
   }
 
-  if (
-    actor.role === UserRole.TECHNICIAN &&
-    ticket.assignedTechnicianId === actor.id
-  ) {
-    return {
-      actor,
-      ticket,
-      scopeCompanyId: readable.scopeCompanyId,
-      visibilityMode: readable.visibilityMode,
-      reason: 'assigned_technician',
-    };
-  }
-
-  if (
-    actor.company.type === CompanyType.PROVIDER &&
-    CONTRACTOR_ACCEPTANCE_ROLES.includes(actor.role)
-  ) {
-    if (ticket.createdByUserId === actor.id) {
-      return {
-        actor,
-        ticket,
-        scopeCompanyId: readable.scopeCompanyId,
-        visibilityMode: readable.visibilityMode,
-        reason: 'contractor_creator',
-      };
-    }
-
-    if (ticket.assignedTechnician?.companyId === actor.companyId) {
-      return {
-        actor,
-        ticket,
-        scopeCompanyId: readable.scopeCompanyId,
-        visibilityMode: readable.visibilityMode,
-        reason: 'contractor_assignee_company',
-      };
-    }
-  }
-
-  throw new ForbiddenException('Role cannot accept or reject work');
+  throw new ForbiddenException(
+    'Only the client company can accept or reject work',
+  );
 }
 
 export async function canAcceptTicket(params: {

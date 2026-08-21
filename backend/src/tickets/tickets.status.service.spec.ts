@@ -205,6 +205,38 @@ describe('TicketsStatusService.updateStatus', () => {
     )
   })
 
+  it.each([
+    [UserRole.ADMIN, false],
+    [UserRole.MASTER, false],
+    [UserRole.DISPATCHER, false],
+    [UserRole.TECHNICIAN, true],
+  ])('denies provider %s from accepting awaiting work via status DONE', async (role, isExecutor) => {
+    const txTicket = makeTxTicket({
+      status: TicketStatus.AWAITING_ACCEPTANCE,
+      companyId: PROVIDER_ID,
+      assignedTechnicianId: USER_ID,
+    })
+    const { svc, tx, timeline, notifications } = makeSetup({ isExecutor, txTicket })
+    mockResolveAccess.mockResolvedValue(
+      makeAccess({
+        ticket: { id: TICKET_ID, companyId: PROVIDER_ID, assignedTechnicianId: USER_ID },
+        operationCompanyId: PROVIDER_ID,
+        visibilityMode: 'tenant',
+      }),
+    )
+
+    await expect(
+      svc.updateStatus(PROVIDER_ID, { id: USER_ID }, role, TICKET_ID, {
+        status: TicketStatus.DONE,
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException)
+
+    expect(tx.ticket.update).not.toHaveBeenCalled()
+    expect(tx.ticketStatusHistory.create).not.toHaveBeenCalled()
+    expect(timeline.recordTx).not.toHaveBeenCalled()
+    expect(notifications.scheduleTicketStatusChanged).not.toHaveBeenCalled()
+  })
+
   it('denies executor not assigned to the ticket (ForbiddenException)', async () => {
     const txTicket = makeTxTicket({ companyId: PROVIDER_ID, assignedTechnicianId: 'other-tech' })
     const { svc } = makeSetup({ isExecutor: true, txTicket })
