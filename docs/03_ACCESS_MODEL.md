@@ -2,6 +2,8 @@
 
 This is the canonical access architecture document for the accepted ServiceManager.AI runtime.
 
+Official freeze status: [15 Architecture Status](15_ARCHITECTURE_STATUS.md).
+
 It states the rules. For the cell-level capability table — which role may do what, and
 where the answer is conditional — see [08 Permissions Matrix](08_PERMISSIONS_MATRIX.md).
 When the two documents disagree, this one defines intent and the matrix records the
@@ -347,5 +349,6 @@ Access must fail closed when:
 
 ## Related Documents
 
+- [15 Architecture Status](15_ARCHITECTURE_STATUS.md) — official architecture freeze status and invariants
 - [08 Permissions Matrix](08_PERMISSIONS_MATRIX.md) — the full capability table derived from controller guards, permission blocks, and these rules
 - [04 Development Workflow](04_DEVELOPMENT_WORKFLOW.md) — how to change access code safely
