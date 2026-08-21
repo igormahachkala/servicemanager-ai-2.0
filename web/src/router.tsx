@@ -62,18 +62,7 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 
 /** Сброс клиентской сессии (QA, смена аккаунта). Без запроса к API. */
 function LogoutAndRedirect() {
-  if (typeof window !== 'undefined') {
-    try {
-      sessionStorage.clear()
-    } catch {
-      /* noop */
-    }
-    try {
-      localStorage.clear()
-    } catch {
-      /* noop */
-    }
-  }
+  api.clearClientBrowserStorage()
   return <Navigate to="/login" replace />
 }
 
@@ -86,16 +75,7 @@ function LoginGate() {
   if (typeof window !== 'undefined') {
     const sp = new URLSearchParams(window.location.search)
     if (sp.get('clear') === '1') {
-      try {
-        sessionStorage.clear()
-      } catch {
-        /* noop */
-      }
-      try {
-        localStorage.clear()
-      } catch {
-        /* noop */
-      }
+      api.clearClientBrowserStorage()
       const url = new URL(window.location.href)
       url.searchParams.delete('clear')
       const qs = url.searchParams.toString()
@@ -107,6 +87,10 @@ function LoginGate() {
 }
 
 export function AppRoutes() {
+  React.useEffect(() => {
+    api.initializeBrowserStorage()
+  }, [])
+
   return (
     <Routes>
       <Route path="/" element={<Navigate to={api.getToken() ? authHomePath() : '/login'} replace />} />

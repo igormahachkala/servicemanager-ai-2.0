@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { safeGetItem, safeSetItem } from '../lib/browserStorage'
 import { getMobileRouteRoot, mobilePath } from './mobileRoute'
 
 const MOBILE_TOUR_STORAGE_PREFIX = 'sma.mobileGuidedTour.v1'
@@ -86,21 +87,14 @@ function storageKeyFor(userKey?: string | null) {
 
 function readTourSeen(storageKey: string) {
   if (typeof window === 'undefined') return true
-  try {
-    return window.localStorage.getItem(storageKey) === 'completed' || window.localStorage.getItem(storageKey) === 'skipped'
-  } catch {
-    return true
-  }
+  const stored = safeGetItem('local', storageKey, null)
+  return stored === 'completed' || stored === 'skipped'
 }
 
 function writeTourSeen(storageKey: string, value: 'completed' | 'skipped') {
   if (typeof window === 'undefined') return
-  try {
-    if (value === 'skipped' && window.localStorage.getItem(storageKey) === 'completed') return
-    window.localStorage.setItem(storageKey, value)
-  } catch {
-    /* noop */
-  }
+  if (value === 'skipped' && safeGetItem('local', storageKey, null) === 'completed') return
+  safeSetItem('local', storageKey, value)
 }
 
 function clamp(value: number, min: number, max: number) {

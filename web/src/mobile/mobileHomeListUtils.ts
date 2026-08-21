@@ -1,4 +1,5 @@
 import type { Role, TicketCard } from '../lib/api'
+import { safeReadJson, safeWriteJson } from '../lib/browserStorage'
 import {
   dedupeBoardCards,
   filterTicketsForMobileHomeTab,
@@ -23,19 +24,14 @@ export function readPersistedMobileHomeBoardUi(): {
   chips: MobileHomeBoardChipId[]
   quickFilter: MobileHomeQuickFilter
 } {
-  try {
-    const raw = localStorage.getItem(LS_KEY)
-    if (!raw) return { tab: 'all', chips: [], quickFilter: null }
-    const o = JSON.parse(raw) as { tab?: string; chips?: unknown; quickFilter?: unknown }
-    const tab = isMobileHomeBoardFilterTab(o.tab) ? o.tab : 'all'
-    const chipsRaw = Array.isArray(o.chips) ? o.chips : []
-    const chips = chipsRaw.filter((c): c is MobileHomeBoardChipId =>
-      MOBILE_HOME_BOARD_CHIP_IDS.includes(c as MobileHomeBoardChipId),
-    )
-    return { tab, chips, quickFilter: readQuickFilter(o.quickFilter) }
-  } catch {
-    return { tab: 'all', chips: [], quickFilter: null }
-  }
+  const o = safeReadJson<{ tab?: string; chips?: unknown; quickFilter?: unknown } | null>('local', LS_KEY, null)
+  if (!o) return { tab: 'all', chips: [], quickFilter: null }
+  const tab = isMobileHomeBoardFilterTab(o.tab) ? o.tab : 'all'
+  const chipsRaw = Array.isArray(o.chips) ? o.chips : []
+  const chips = chipsRaw.filter((c): c is MobileHomeBoardChipId =>
+    MOBILE_HOME_BOARD_CHIP_IDS.includes(c as MobileHomeBoardChipId),
+  )
+  return { tab, chips, quickFilter: readQuickFilter(o.quickFilter) }
 }
 
 export function writePersistedMobileHomeBoardUi(
@@ -43,11 +39,7 @@ export function writePersistedMobileHomeBoardUi(
   chips: Iterable<MobileHomeBoardChipId>,
   quickFilter: MobileHomeQuickFilter,
 ) {
-  try {
-    localStorage.setItem(LS_KEY, JSON.stringify({ tab, chips: [...new Set(chips)], quickFilter }))
-  } catch {
-    /* ignore quota / private mode */
-  }
+  safeWriteJson('local', LS_KEY, { tab, chips: [...new Set(chips)], quickFilter })
 }
 
 function norm(s: string): string {

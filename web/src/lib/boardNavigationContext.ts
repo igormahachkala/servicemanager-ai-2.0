@@ -1,4 +1,5 @@
 import type { TicketStatus } from './api'
+import { safeGetItem, safeRemoveItem, safeSetItem } from './browserStorage'
 
 const BOARD_SCROLL_PREFIX = 'sma:board-scroll:'
 const BOARD_QUERY_KEYS = {
@@ -152,23 +153,15 @@ export function appendBoardNavigationContextToPath(
 
 export function saveBoardScrollPosition(pathWithSearch: string, scrollY: number) {
   if (typeof window === 'undefined') return
-  try {
-    window.sessionStorage.setItem(`${BOARD_SCROLL_PREFIX}${pathWithSearch}`, String(Math.max(0, Math.trunc(scrollY))))
-  } catch {
-    // ignore storage issues
-  }
+  safeSetItem('session', `${BOARD_SCROLL_PREFIX}${pathWithSearch}`, String(Math.max(0, Math.trunc(scrollY))))
 }
 
 export function consumeBoardScrollPosition(pathWithSearch: string): number | null {
   if (typeof window === 'undefined') return null
-  try {
-    const key = `${BOARD_SCROLL_PREFIX}${pathWithSearch}`
-    const raw = window.sessionStorage.getItem(key)
-    if (!raw) return null
-    window.sessionStorage.removeItem(key)
-    const value = Number(raw)
-    return Number.isFinite(value) ? value : null
-  } catch {
-    return null
-  }
+  const key = `${BOARD_SCROLL_PREFIX}${pathWithSearch}`
+  const raw = safeGetItem('session', key, null)
+  if (!raw) return null
+  safeRemoveItem('session', key)
+  const value = Number(raw)
+  return Number.isFinite(value) ? value : null
 }

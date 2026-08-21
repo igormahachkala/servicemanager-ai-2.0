@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useState } from 'react'
 import * as api from '../lib/api'
+import { safeReadJson as readBrowserStorageJson, safeWriteJson as writeBrowserStorageJson } from '../lib/browserStorage'
 
 export type OfflineQueueActionType = 'ticket_status_change' | 'ticket_comment' | 'ticket_photo_upload'
 export type OfflineQueueItemStatus = 'pending' | 'syncing' | 'failed' | 'synced'
@@ -44,10 +45,6 @@ const OFFLINE_BOARD_CACHE_KEY = 'sm_mobile_board_cache_v1'
 const OFFLINE_TICKET_CACHE_KEY = 'sm_mobile_ticket_cache_v1'
 const OFFLINE_QUEUE_EVENT = 'sm_mobile_offline_queue_changed'
 
-function canUseStorage() {
-  return typeof window !== 'undefined' && !!window.localStorage
-}
-
 function emitQueueChanged() {
   if (typeof window === 'undefined') return
   window.dispatchEvent(new Event(OFFLINE_QUEUE_EVENT))
@@ -69,23 +66,11 @@ function ticketDetailKey(ticketId: string, scope?: api.TicketScopeParams): strin
 }
 
 function safeReadJson<T>(key: string, fallback: T): T {
-  if (!canUseStorage()) return fallback
-  try {
-    const raw = window.localStorage.getItem(key)
-    if (!raw) return fallback
-    return JSON.parse(raw) as T
-  } catch {
-    return fallback
-  }
+  return readBrowserStorageJson('local', key, fallback)
 }
 
 function safeWriteJson(key: string, value: unknown) {
-  if (!canUseStorage()) return
-  try {
-    window.localStorage.setItem(key, JSON.stringify(value))
-  } catch {
-    // ignore storage/quota issues in V1
-  }
+  writeBrowserStorageJson('local', key, value)
 }
 
 export function getOnlineStatus(): boolean {

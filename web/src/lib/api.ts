@@ -1,4 +1,16 @@
-﻿export type Role =
+﻿import {
+  BROWSER_STORAGE_ERROR_MESSAGE,
+  BrowserStorageError,
+  applyStorageSchemaVersion,
+  requireSetItem,
+  restoreStorageSnapshot,
+  safeClearNamespace,
+  safeGetItem,
+  safeRemoveItem,
+  snapshotStorageItems,
+} from './browserStorage'
+
+export type Role =
   | 'PLATFORM_ADMIN'
   | 'ADMIN'
   | 'CLIENT_ADMIN'
@@ -1170,7 +1182,7 @@ const PLATFORM_BACKUP_COMPANY_LABEL_KEY = 'platform_company_label_backup'
 const IMPERSONATION_META_KEY = 'impersonation_meta'
 
 export const LOGIN_SESSION_STORAGE_ERROR_MESSAGE =
-  'Не удалось сохранить данные входа в браузере. Очистите данные сайта или освободите хранилище и повторите вход.'
+  BROWSER_STORAGE_ERROR_MESSAGE
 
 // Current local Docker backend runtime
 const FALLBACK_API_BASE_URL = 'http://localhost:3000'
@@ -1193,11 +1205,6 @@ type PersistedScope = TicketScopeParams & {
   ownerRole?: Role | string
 }
 
-type StorageSnapshotEntry = {
-  key: string
-  value: string | null
-}
-
 const LOGIN_SESSION_STORAGE_KEYS = [
   TOKEN_KEY,
   COMPANY_LABEL_KEY,
@@ -1212,6 +1219,22 @@ const LOGIN_SESSION_STORAGE_KEYS = [
   IMPERSONATION_META_KEY,
 ]
 
+const STORAGE_SCHEMA_VERSION_KEY = 'sma_storage_schema_version'
+const STORAGE_SCHEMA_VERSION = '1'
+const APP_LOCAL_STORAGE_KEYS = [
+  STORAGE_SCHEMA_VERSION_KEY,
+  BASE_URL_KEY,
+  ...LOGIN_SESSION_STORAGE_KEYS,
+  'browserNotificationsEnabled',
+  'sma.permissions.draft.v1',
+  'sma.mobileHome.boardUi.v1',
+  'sm_mobile_offline_queue_v1',
+  'sm_mobile_board_cache_v1',
+  'sm_mobile_ticket_cache_v1',
+]
+const APP_LOCAL_STORAGE_PREFIXES = ['sma.mobileGuidedTour.v1.']
+const APP_SESSION_STORAGE_PREFIXES = ['sma:board-scroll:']
+
 export class LoginSessionStorageError extends Error {
   constructor() {
     super(LOGIN_SESSION_STORAGE_ERROR_MESSAGE)
@@ -1221,7 +1244,7 @@ export class LoginSessionStorageError extends Error {
 }
 
 export function isLoginSessionStorageError(err: unknown): err is LoginSessionStorageError {
-  return err instanceof LoginSessionStorageError
+  return err instanceof LoginSessionStorageError || err instanceof BrowserStorageError
 }
 
 function throwLoginSessionStorageError(): never {
@@ -1230,32 +1253,22 @@ function throwLoginSessionStorageError(): never {
 
 function writeLocalStorageItem(key: string, value: string) {
   try {
-    localStorage.setItem(key, value)
+    requireSetItem('local', key, value)
   } catch {
     throwLoginSessionStorageError()
   }
 }
 
-function snapshotLocalStorage(keys: string[]): StorageSnapshotEntry[] {
+function snapshotLocalStorage(keys: string[]) {
   try {
-    return keys.map((key) => ({ key, value: localStorage.getItem(key) }))
+    return snapshotStorageItems('local', keys)
   } catch {
     throwLoginSessionStorageError()
   }
 }
 
-function restoreLocalStorageSnapshot(snapshot: StorageSnapshotEntry[]) {
-  for (const entry of snapshot) {
-    try {
-      if (entry.value === null) {
-        localStorage.removeItem(entry.key)
-      } else {
-        localStorage.setItem(entry.key, entry.value)
-      }
-    } catch {
-      // Best-effort rollback: the caller will show the storage-specific login error.
-    }
-  }
+function restoreLocalStorageSnapshot(snapshot: ReturnType<typeof snapshotLocalStorage>) {
+  restoreStorageSnapshot('local', snapshot)
 }
 
 function persistLoginSessionSafely(action: () => void) {
@@ -1270,11 +1283,30 @@ function persistLoginSessionSafely(action: () => void) {
   }
 }
 
+export function initializeBrowserStorage() {
+  if (typeof window === 'undefined') return
+  applyStorageSchemaVersion({
+    versionKey: STORAGE_SCHEMA_VERSION_KEY,
+    currentVersion: STORAGE_SCHEMA_VERSION,
+    obsoleteLocalStorageKeys: [],
+    obsoleteSessionStorageKeys: [],
+  })
+}
+
+export function clearClientBrowserStorage() {
+  if (typeof window === 'undefined') return
+  safeClearNamespace('session', { prefixes: APP_SESSION_STORAGE_PREFIXES })
+  safeClearNamespace('local', {
+    keys: APP_LOCAL_STORAGE_KEYS,
+    prefixes: APP_LOCAL_STORAGE_PREFIXES,
+  })
+}
+
 function readBaseUrl(): string {
   const envBaseUrl = resolveEnvApiBaseUrl()
   if (typeof window === 'undefined') return envBaseUrl
   if (canUseManualBackendConfig()) {
-    return normalizeBaseUrl(localStorage.getItem(BASE_URL_KEY) || envBaseUrl)
+    return normalizeBaseUrl(safeGetItem('local', BASE_URL_KEY, envBaseUrl) || envBaseUrl)
   }
   return envBaseUrl
 }
@@ -1381,7 +1413,7 @@ export function setBaseUrl(url: string) {
   if (!canUseManualBackendConfig()) return
   const normalized = normalizeBaseUrl(url)
   if (!normalized) {
-    localStorage.removeItem(BASE_URL_KEY)
+    safeRemoveItem('local', BASE_URL_KEY)
     return
   }
   writeLocalStorageItem(BASE_URL_KEY, normalized)
@@ -1389,7 +1421,7 @@ export function setBaseUrl(url: string) {
 
 export function getToken(): string {
   if (typeof window === 'undefined') return ''
-  return localStorage.getItem(TOKEN_KEY) || ''
+  return safeGetItem('local', TOKEN_KEY, '') || ''
 }
 
 export function setToken(token: string) {
@@ -1399,7 +1431,7 @@ export function setToken(token: string) {
 
 export function getImpersonationMeta(): ImpersonationMeta | null {
   if (typeof window === 'undefined') return null
-  const raw = localStorage.getItem(IMPERSONATION_META_KEY)
+  const raw = safeGetItem('local', IMPERSONATION_META_KEY, null)
   if (!raw) return null
 
   try {
@@ -1413,22 +1445,22 @@ export function getImpersonationMeta(): ImpersonationMeta | null {
 
 export function isImpersonating(): boolean {
   if (typeof window === 'undefined') return false
-  return !!localStorage.getItem(PLATFORM_BACKUP_KEY) && !!getImpersonationMeta()
+  return !!safeGetItem('local', PLATFORM_BACKUP_KEY, null) && !!getImpersonationMeta()
 }
 
 export function clearImpersonationState() {
   if (typeof window === 'undefined') return
-  localStorage.removeItem(PLATFORM_BACKUP_KEY)
-  localStorage.removeItem(PLATFORM_BACKUP_ROLE_KEY)
-  localStorage.removeItem(PLATFORM_BACKUP_COMPANY_LABEL_KEY)
-  localStorage.removeItem(IMPERSONATION_META_KEY)
+  safeRemoveItem('local', PLATFORM_BACKUP_KEY)
+  safeRemoveItem('local', PLATFORM_BACKUP_ROLE_KEY)
+  safeRemoveItem('local', PLATFORM_BACKUP_COMPANY_LABEL_KEY)
+  safeRemoveItem('local', IMPERSONATION_META_KEY)
 }
 
 export function beginImpersonationSession(payload: ImpersonateResponse) {
   if (typeof window === 'undefined') return
 
   const currentToken = getToken()
-  if (currentToken && !localStorage.getItem(PLATFORM_BACKUP_KEY)) {
+  if (currentToken && !safeGetItem('local', PLATFORM_BACKUP_KEY, null)) {
     writeLocalStorageItem(PLATFORM_BACKUP_KEY, currentToken)
     writeLocalStorageItem(PLATFORM_BACKUP_ROLE_KEY, getUserRole() || 'PLATFORM_ADMIN')
     writeLocalStorageItem(PLATFORM_BACKUP_COMPANY_LABEL_KEY, getCompanyLabel())
@@ -1450,14 +1482,14 @@ export function beginImpersonationSession(payload: ImpersonateResponse) {
 export function exitImpersonationSession(): boolean {
   if (typeof window === 'undefined') return false
 
-  const backupToken = localStorage.getItem(PLATFORM_BACKUP_KEY)
+  const backupToken = safeGetItem('local', PLATFORM_BACKUP_KEY, null)
   if (!backupToken) {
     clearToken()
     return false
   }
 
-  const backupRole = localStorage.getItem(PLATFORM_BACKUP_ROLE_KEY) || 'PLATFORM_ADMIN'
-  const backupCompanyLabel = localStorage.getItem(PLATFORM_BACKUP_COMPANY_LABEL_KEY) || 'Сервис Менеджер'
+  const backupRole = safeGetItem('local', PLATFORM_BACKUP_ROLE_KEY, 'PLATFORM_ADMIN') || 'PLATFORM_ADMIN'
+  const backupCompanyLabel = safeGetItem('local', PLATFORM_BACKUP_COMPANY_LABEL_KEY, 'Сервис Менеджер') || 'Сервис Менеджер'
 
   setToken(backupToken)
   setUserRole(backupRole)
@@ -1468,14 +1500,14 @@ export function exitImpersonationSession(): boolean {
 
 export function clearToken() {
   if (typeof window === 'undefined') return
-  localStorage.removeItem(TOKEN_KEY)
-  localStorage.removeItem(USER_ROLE_KEY)
-  localStorage.removeItem(COMPANY_LABEL_KEY)
+  safeRemoveItem('local', TOKEN_KEY)
+  safeRemoveItem('local', USER_ROLE_KEY)
+  safeRemoveItem('local', COMPANY_LABEL_KEY)
   // НЕ чистим persisted scope (sm_last_scope) при logout/истечении токена — дефолтный контур
   // должен переживать перезаход (вариант «дефолт на устройстве»). Безопасно: ключ owner-keyed
   // (ownerUserId/ownerCompanyId) → у другого пользователя ownerMatches не сойдётся → его дефолт [0].
   // Явная очистка дефолта осталась: снятие галочки «по умолчанию» (clearPersistedScope),
-  // hard-reset /logout (LogoutAndRedirect) и QA `?clear=1` — там localStorage.clear() намеренный.
+  // hard-reset /logout (LogoutAndRedirect) и QA `?clear=1` чистят только известные SMA-ключи.
   clearImpersonationState()
 }
 
@@ -1491,14 +1523,14 @@ export function persistLoginSession(result: LoginResponse) {
 
 export function getUserRole(): Role | '' {
   if (typeof window === 'undefined') return ''
-  return (localStorage.getItem(USER_ROLE_KEY) || '') as Role | ''
+  return (safeGetItem('local', USER_ROLE_KEY, '') || '') as Role | ''
 }
 
 export function setUserRole(role?: string | null) {
   if (typeof window === 'undefined') return
   const normalized = (role || '').trim()
   if (!normalized) {
-    localStorage.removeItem(USER_ROLE_KEY)
+    safeRemoveItem('local', USER_ROLE_KEY)
     return
   }
   writeLocalStorageItem(USER_ROLE_KEY, normalized)
@@ -1628,7 +1660,7 @@ export function pickDefaultLinkedClientCompanyId(contracts: LinkedClientSummary[
 function readPersistedScope(): PersistedScope | null {
   if (typeof window === 'undefined') return null
   try {
-    const raw = localStorage.getItem(LAST_SCOPE_KEY)
+    const raw = safeGetItem('local', LAST_SCOPE_KEY, null)
     if (!raw) return null
     return JSON.parse(raw) as PersistedScope
   } catch {
@@ -1639,9 +1671,9 @@ function readPersistedScope(): PersistedScope | null {
 function readScopeOwnerContext(): ScopeOwner {
   if (typeof window === 'undefined') return {}
   return {
-    userId: localStorage.getItem(SCOPE_OWNER_USER_ID_KEY) || undefined,
-    companyId: localStorage.getItem(SCOPE_OWNER_COMPANY_ID_KEY) || undefined,
-    role: localStorage.getItem(SCOPE_OWNER_ROLE_KEY) || undefined,
+    userId: safeGetItem('local', SCOPE_OWNER_USER_ID_KEY, null) || undefined,
+    companyId: safeGetItem('local', SCOPE_OWNER_COMPANY_ID_KEY, null) || undefined,
+    role: safeGetItem('local', SCOPE_OWNER_ROLE_KEY, null) || undefined,
   }
 }
 
@@ -1689,9 +1721,9 @@ function getStoredScopeForOwner(owner?: ScopeOwner): TicketScopeParams {
 export function syncScopeOwnerProfile(user?: Pick<Me, 'id' | 'companyId' | 'role'> | null) {
   if (typeof window === 'undefined') return
   if (!user?.id || !user.companyId) {
-    localStorage.removeItem(SCOPE_OWNER_USER_ID_KEY)
-    localStorage.removeItem(SCOPE_OWNER_COMPANY_ID_KEY)
-    localStorage.removeItem(SCOPE_OWNER_ROLE_KEY)
+    safeRemoveItem('local', SCOPE_OWNER_USER_ID_KEY)
+    safeRemoveItem('local', SCOPE_OWNER_COMPANY_ID_KEY)
+    safeRemoveItem('local', SCOPE_OWNER_ROLE_KEY)
     return
   }
   writeLocalStorageItem(SCOPE_OWNER_USER_ID_KEY, user.id)
@@ -1701,10 +1733,10 @@ export function syncScopeOwnerProfile(user?: Pick<Me, 'id' | 'companyId' | 'role
 
 export function clearPersistedScope() {
   if (typeof window === 'undefined') return
-  localStorage.removeItem(LAST_SCOPE_KEY)
-  localStorage.removeItem(SCOPE_OWNER_USER_ID_KEY)
-  localStorage.removeItem(SCOPE_OWNER_COMPANY_ID_KEY)
-  localStorage.removeItem(SCOPE_OWNER_ROLE_KEY)
+  safeRemoveItem('local', LAST_SCOPE_KEY)
+  safeRemoveItem('local', SCOPE_OWNER_USER_ID_KEY)
+  safeRemoveItem('local', SCOPE_OWNER_COMPANY_ID_KEY)
+  safeRemoveItem('local', SCOPE_OWNER_ROLE_KEY)
 }
 
 export function restoreScopeForUser(user?: Pick<Me, 'id' | 'companyId' | 'role'> | null): TicketScopeParams {
@@ -1715,7 +1747,7 @@ export function restoreScopeForUser(user?: Pick<Me, 'id' | 'companyId' | 'role'>
   const owner: ScopeOwner = { userId: user.id, companyId: user.companyId, role: user.role }
   const persisted = readPersistedScope()
   if (!ownerMatches(owner, persisted)) {
-    localStorage.removeItem(LAST_SCOPE_KEY)
+    safeRemoveItem('local', LAST_SCOPE_KEY)
     syncScopeOwnerProfile(user)
     return {}
   }
@@ -1798,7 +1830,7 @@ export function appendScopeToPath(path: string, scope?: TicketScopeParams, owner
 
 export function getCompanyLabel(me?: Partial<Me> | null): string {
   if (typeof window !== 'undefined') {
-    const saved = localStorage.getItem(COMPANY_LABEL_KEY)
+    const saved = safeGetItem('local', COMPANY_LABEL_KEY, null)
     if (saved && saved.trim()) return saved.trim()
   }
 

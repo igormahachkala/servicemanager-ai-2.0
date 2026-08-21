@@ -1,3 +1,5 @@
+import { safeGetItem, safeRemoveItem, safeSetItem } from './browserStorage'
+
 const BROWSER_NOTIFICATIONS_ENABLED_KEY = 'browserNotificationsEnabled'
 
 export type BrowserNotificationHandle = {
@@ -10,17 +12,17 @@ export function canUseBrowserNotifications(): boolean {
 
 export function getBrowserNotificationsEnabled(): boolean {
   if (typeof window === 'undefined') return false
-  return localStorage.getItem(BROWSER_NOTIFICATIONS_ENABLED_KEY) === 'true'
+  return safeGetItem('local', BROWSER_NOTIFICATIONS_ENABLED_KEY, null) === 'true'
 }
 
 export function setBrowserNotificationsEnabled(enabled: boolean) {
   if (typeof window === 'undefined') return
-  localStorage.setItem(BROWSER_NOTIFICATIONS_ENABLED_KEY, enabled ? 'true' : 'false')
+  safeSetItem('local', BROWSER_NOTIFICATIONS_ENABLED_KEY, enabled ? 'true' : 'false')
 }
 
 export function clearBrowserNotificationsEnabled() {
   if (typeof window === 'undefined') return
-  localStorage.removeItem(BROWSER_NOTIFICATIONS_ENABLED_KEY)
+  safeRemoveItem('local', BROWSER_NOTIFICATIONS_ENABLED_KEY)
 }
 
 export async function requestBrowserNotificationPermission(): Promise<NotificationPermission> {

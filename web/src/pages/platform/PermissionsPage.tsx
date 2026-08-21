@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../../lib/api'
+import { safeGetItem, safeRemoveItem, safeSetItem } from '../../lib/browserStorage'
 import { PermissionFilters } from '../../components/permissions/PermissionFilters'
 import { PermissionMatrix } from '../../components/permissions/PermissionMatrix'
 import { entryKey, type DraftMap, type EntryChange } from '../../components/permissions/permissionDraft'
@@ -91,11 +92,7 @@ export function PermissionsPage() {
       ),
     onMutate: () => setApplyError(''),
     onSuccess: async () => {
-      try {
-        localStorage.removeItem(DRAFT_LS_KEY)
-      } catch {
-        /* ignore */
-      }
+      safeRemoveItem('local', DRAFT_LS_KEY)
       setDraft({})
       setEditMode(false)
       setShowConfirm(false)
@@ -108,7 +105,7 @@ export function PermissionsPage() {
     // Инициализируем черновик из сохранённого (localStorage) либо из исходной матрицы.
     let initial: DraftMap = { ...originalMap }
     try {
-      const raw = localStorage.getItem(DRAFT_LS_KEY)
+      const raw = safeGetItem('local', DRAFT_LS_KEY, null)
       if (raw) {
         const saved = JSON.parse(raw) as DraftMap
         initial = { ...initial, ...saved }
@@ -130,14 +127,10 @@ export function PermissionsPage() {
   }
 
   function saveDraft() {
-    try {
-      // Сохраняем только изменённые записи (компактно). Запись локальная, без API.
-      const payload: DraftMap = {}
-      for (const c of changes) payload[entryKey(c.role, c.companyType)] = draft[entryKey(c.role, c.companyType)] || []
-      localStorage.setItem(DRAFT_LS_KEY, JSON.stringify(payload))
-    } catch {
-      /* ignore quota */
-    }
+    // Сохраняем только изменённые записи (компактно). Запись локальная, без API.
+    const payload: DraftMap = {}
+    for (const c of changes) payload[entryKey(c.role, c.companyType)] = draft[entryKey(c.role, c.companyType)] || []
+    safeSetItem('local', DRAFT_LS_KEY, JSON.stringify(payload))
   }
 
   function toggle(role: string, companyType: 'CLIENT' | 'PROVIDER' | null, code: string) {
