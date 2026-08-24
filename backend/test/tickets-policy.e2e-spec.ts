@@ -60,7 +60,7 @@ describe('Tickets Policy Contract (e2e)', () => {
   beforeEach(async () => {
     await resetDb();
 
-    // включаем PBAC (чтобы PermissionsGuard НЕ был в bypass-режиме)
+    // включаем PBAC (иначе PermissionsGuard fail-closed с PBAC_NOT_INITIALIZED)
     await ensurePermissionBlocks(PERMS);
 
     // управленческие роли получают полный доступ (в рамках тестов)
