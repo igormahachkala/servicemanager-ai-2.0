@@ -1,113 +1,144 @@
-# PLATFORM CONSTITUTION V2 — ServiceManager.AI
+# Platform Constitution V2 - ServiceManager.AI
 
-Статус: Active
-Тип: Архитектурная конституция платформы
+Status: Active
 
-Этот документ фиксирует фундаментальные правила архитектуры
-ServiceManager.AI.
+Purpose: define the high-level engineering invariants that protect the
+ServiceManager.AI product. This is a reference document. The official freeze
+state is [15 Architecture Status](15_ARCHITECTURE_STATUS.md), and the numbered
+documents remain the onboarding source of truth.
 
-Нарушение этих правил приводит к архитектурной деградации системы.
+## 1. Product Boundary
 
-Документ обязателен для:
+ServiceManager.AI is a service operations platform for client companies and
+provider companies.
 
-- разработчиков
-- AI-ассистентов
-- архитекторов системы
+The product manages:
 
----
+- service contracts;
+- locations and equipment;
+- tickets;
+- assignment and claim;
+- provider completion;
+- client acceptance;
+- comments, attachments, history, and timeline;
+- notifications across web, push, realtime, and MAX.
 
-# 1. Цель платформы
+Internal engineering tooling is not customer-facing product functionality.
 
-ServiceManager.AI — это SaaS-платформа управления сервисной сетью.
+## 2. Source Of Truth
 
-Платформа должна масштабироваться до:
+The backend is the authority for business rules.
 
-- крупных сервисных компаний
-- сетевых структур
-- франчайзинговых сетей
-- enterprise-клиентов
+The database schema and Prisma migrations are the authority for persistent
+state.
 
-Система должна быть:
+The numbered documentation path is the authority for onboarding and current
+architecture:
 
-- multi-tenant
-- безопасной
-- масштабируемой
-- расширяемой
+```text
+README.md
+-> docs/00_START_HERE.md
+-> docs/01_PROJECT_OVERVIEW.md through docs/17_DECISION_LOG.md
+```
 
----
+Legacy documents are historical only. They must not override the numbered
+documents or current code.
 
-# 2. Главные архитектурные инварианты
+## 3. Tenant And Contract Model
 
-Инварианты — это правила, которые **никогда нельзя нарушать**.
+Every operational record must stay tenant-scoped.
 
-## 2.1 Multi-tenant инвариант
+`Company` is the tenant boundary. `ServiceContract` is the source of truth for
+client-provider work.
 
-Каждая доменная сущность обязана содержать:
+`PRIMARY` and `SECONDARY` are roles in a current `ServiceContract`. They are not
+global properties of a provider company.
 
-companyId
+Contract Context is canonical:
 
-Все запросы к базе должны фильтроваться по:
+```text
+Service Contract
+-> Role In Contract
+-> Contract Locations
+-> Contract Specializations
+-> Current Access
+```
 
-req.user.companyId
+No feature may introduce company-global PRIMARY or SECONDARY assumptions.
 
-Запрещено:
+## 4. Authorization
 
-- глобальные выборки
-- cross-tenant доступ
-- отсутствие фильтра companyId
+Access must fail closed.
 
----
+Controllers handle transport, DTOs, authentication guards, and coarse route
+guards. Services, policies, and shared access helpers own object-level business
+authorization.
 
-## 2.2 Backend — источник истины
+Frontend checks are presentation only. Frontend code may render backend
+decisions, but it must not be the source of security decisions.
 
-Backend является единственным источником бизнес-логики.
+Candidate List equals Assignment Authority. If a user can assign work to a
+person or company, that target must come from the same eligibility model used by
+the backend mutation.
 
-Запрещено:
+Management provider roles use Contract Specialization. Technicians additionally
+use Technician Specialization where operational rules require it.
 
-- переносить бизнес-логику во frontend
-- дублировать бизнес-логику
+## 5. Workflow
 
----
+Completion is not Acceptance.
 
-## 2.3 Service-layer правило
+Providers perform Completion. A valid provider completion moves work to
+`AWAITING_ACCEPTANCE`.
 
-Бизнес-логика размещается только в:
+Clients perform Acceptance. Only a valid client-side actor may finalize accepted
+work as `DONE`.
 
-Service
+No provider-side role may perform Acceptance, including:
 
-Controller отвечает только за:
+- `ADMIN`;
+- `MASTER`;
+- `DISPATCHER`;
+- `TECHNICIAN`.
 
-- HTTP
-- DTO
-- передачу данных
+## 6. Notifications
 
----
+Notification eligibility must follow Contract Context.
 
-## 2.4 Runtime separation invariant
+Web notifications and Push notifications may share internal recipient
+eligibility helpers, but they must not fork authorization rules.
 
-Backend обязан разделять runtime environments.
+MAX is a delivery transport. MAX must not create a separate access model.
 
-Local WSL backend:
+## 7. Runtime Safety
 
-- читает `backend/.env`
-- использует `localhost:5432`
+Stage and Production are separate operational contours.
 
-Docker backend:
+Production work requires explicit authorization, backup readiness, rollback
+readiness, and exact task boundaries.
 
-- читает `backend/.env.docker`
-- использует `postgres:5432`
+Deploy only clean, reproducible commits. Do not deploy dirty worktrees or
+server-local hotfixes.
 
-Запрещено:
+Use Prisma migrations for schema changes. Do not fabricate schema objects
+manually.
 
-- ручное переключение одного `.env` между runtime modes
-- смешение Docker-only host и local-only host
+Do not print secrets, tokens, passwords, private keys, or credential-bearing
+environment values in reports.
 
----
+## 8. Documentation Maintenance
 
-# 3. Capability vs Data Scope
+When architecture changes, update the numbered documents that describe the
+changed rule.
 
-Архитектура доступа разделена на два уровня.
+Common updates:
 
-Capability
-v
-Data Scope
+- domain/entity change: update `06_DOMAIN_MODEL.md`;
+- access or visibility change: update `03_ACCESS_MODEL.md`,
+  `08_PERMISSIONS_MATRIX.md`, and `15_ARCHITECTURE_STATUS.md` if an invariant
+  changes;
+- lifecycle change: update `07_TICKET_LIFECYCLE.md`;
+- release or runtime change: update `11_RUNTIME_ACCEPTANCE.md` and
+  `12_RELEASE_PROCESS.md`;
+- architectural decision: update `16_ARCHITECTURE_CHANGELOG.md` and
+  `17_DECISION_LOG.md`.

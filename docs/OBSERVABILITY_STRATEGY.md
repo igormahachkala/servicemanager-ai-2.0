@@ -1,298 +1,140 @@
-cat > docs/OBSERVABILITY_STRATEGY.md <<'EOF'
-# OBSERVABILITY STRATEGY — ServiceManager.AI
+# Observability Strategy - ServiceManager.AI
 
-Этот документ описывает стратегию наблюдаемости системы
-(Observability).
+Status: Active
 
-Цель:
+Purpose: define the signals engineers need to diagnose Stage and Production
+without changing runtime state.
 
-- понимать состояние системы
-- быстро находить ошибки
-- отслеживать производительность
-- контролировать рост системы
+This is a reference document. For symptom-first debugging, use
+[13 Troubleshooting](13_TROUBLESHOOTING.md). For release verification, use
+[11 Runtime Acceptance](11_RUNTIME_ACCEPTANCE.md) and
+[12 Release Process](12_RELEASE_PROCESS.md).
 
+## Principles
 
---------------------------------------------------
+Observability must help answer:
 
-1. Что такое Observability
+- is the API healthy;
+- is the web app healthy;
+- is the database reachable;
+- did the expected container rebuild or restart;
+- did a request fail because of auth, access, workflow, data, or infrastructure;
+- did notifications reach the intended delivery channel.
 
-Observability — это способность системы
-объяснить своё состояние через:
+Observability must not expose secrets. Logs and reports must not print:
 
-- логи
-- метрики
-- трассировку
+- passwords;
+- JWTs;
+- database URLs;
+- API tokens;
+- private keys;
+- raw credential-bearing environment variables.
 
-В SaaS системе это критически важно.
+## Required Runtime Signals
 
+### API
 
---------------------------------------------------
+Verify:
 
-2. Три столпа Observability
+- health endpoint status;
+- backend container status;
+- restart count;
+- recent backend logs;
+- `500`, `401`, and `403` patterns;
+- schema/runtime errors after migrations.
 
-Observability состоит из трех элементов:
+### Web
 
-Logs  
-Metrics  
-Tracing
+Verify:
 
+- web health or successful page load;
+- frontend image or build identity when relevant;
+- browser console errors;
+- failed network requests;
+- unexpected redirects or retries;
+- stale service worker or cached asset symptoms.
 
---------------------------------------------------
+### Database
 
-3. Logs (логи)
+Verify:
 
-Логи фиксируют события системы.
+- database readiness;
+- migration status;
+- expected schema objects after migrations;
+- backup readiness before Production release;
+- rollback and restore procedures when required.
 
-Примеры логов:
+### Notifications
 
-- ошибки API
-- создание тикета
-- назначение техника
-- изменение статуса
+Verify:
 
-Каждый лог должен содержать:
+- domain event emission;
+- notification row creation;
+- recipient eligibility;
+- Push delivery attempts and results;
+- realtime fanout;
+- MAX delivery attempts and results.
 
-timestamp  
-level  
-message  
-context
+Notification logs must prove delivery or failure. Absence of errors is not proof
+of delivery.
 
+### Uploads And Attachments
 
---------------------------------------------------
+Verify:
 
-4. Уровни логирования
+- upload source path;
+- attachment persistence;
+- attachment listing and preview;
+- backup coverage for Production uploads.
 
-Используются уровни:
+## Logging Standards
 
-debug  
-log  
-warn  
-error  
+Backend code should use structured NestJS logging or the project's existing
+logging helpers.
 
+Logs should include useful context such as:
 
-debug
+- module or service name;
+- operation;
+- ticket id or entity id when safe;
+- actor id when safe;
+- delivery channel;
+- error type.
 
-используется только в разработке
+Logs should not include full request bodies when they may contain credentials or
+personal data.
 
+## Runtime Acceptance Evidence
 
-log
+Runtime acceptance reports should include:
 
-обычные события системы
+- environment;
+- deployed SHA;
+- account or role tested;
+- ticket or entity ids used as evidence;
+- browser console summary;
+- network summary;
+- API failures;
+- backend log summary;
+- unexpected authorization results.
 
+For authorization and workflow changes, evidence must include both:
 
-warn
+- frontend action discovery or `availableActions`;
+- actual backend mutation result.
 
-подозрительные ситуации
+## Production Monitoring After Release
 
+After Production deploy, monitor:
 
-error
+- API health;
+- web health;
+- database health;
+- changed container restart count;
+- backend logs for the changed surface;
+- user-visible workflow errors;
+- notification delivery errors;
+- MAX TLS or delivery warnings where MAX was affected.
 
-ошибки системы
-
-
---------------------------------------------------
-
-5. Логирование в NestJS
-
-Использовать:
-
-NestJS Logger
-
-Пример:
-
-this.logger.log('Ticket created')
-
-Запрещено использовать:
-
-console.log
-
-
---------------------------------------------------
-
-6. Структура логов
-
-Каждый лог должен содержать:
-
-timestamp  
-service  
-message  
-context
-
-Пример:
-
-timestamp: 2026-03-04T12:00:00Z  
-service: tickets  
-message: ticket created  
-ticketId: 123
-
-
---------------------------------------------------
-
-7. Error logging
-
-Все ошибки уровня 500
-должны логироваться.
-
-Особенно:
-
-- database errors
-- unexpected exceptions
-
-
---------------------------------------------------
-
-8. Metrics (метрики)
-
-Метрики показывают
-состояние системы.
-
-Примеры метрик:
-
-requests per second  
-API latency  
-error rate  
-tickets created per hour
-
-
---------------------------------------------------
-
-9. Основные метрики
-
-ServiceManager.AI должен отслеживать:
-
-API requests  
-API latency  
-error rate  
-tickets created  
-tickets closed  
-active technicians  
-
-
---------------------------------------------------
-
-10. SLA метрики
-
-Будущие метрики:
-
-SLA breached  
-SLA warning  
-average response time
-
-
---------------------------------------------------
-
-11. Tracing (трассировка)
-
-Tracing показывает
-как проходит запрос через систему.
-
-Пример цепочки:
-
-API request  
-→ service  
-→ database  
-→ response
-
-Это помогает находить:
-
-slow queries  
-bottlenecks
-
-
---------------------------------------------------
-
-12. Correlation ID
-
-Каждый API запрос должен иметь:
-
-correlationId.
-
-Он передается через весь pipeline.
-
-Это позволяет связывать логи одного запроса.
-
-
---------------------------------------------------
-
-13. Monitoring stack
-
-Рекомендуемый стек:
-
-Prometheus  
-Grafana
-
-Prometheus собирает метрики.
-
-Grafana визуализирует данные.
-
-
---------------------------------------------------
-
-14. Logging stack
-
-Для production рекомендуется:
-
-ELK stack
-
-Elasticsearch  
-Logstash  
-Kibana
-
-Это позволяет:
-
-- хранить логи
-- искать ошибки
-- анализировать события
-
-
---------------------------------------------------
-
-15. Alerting
-
-Система должна отправлять
-алерты при проблемах.
-
-Примеры алертов:
-
-error rate > 5%  
-API latency > 2s  
-database errors
-
-
---------------------------------------------------
-
-16. Health checks
-
-Система должна иметь health endpoints.
-
-Пример:
-
-GET /health
-
-Он должен проверять:
-
-database connection  
-service availability
-
-
---------------------------------------------------
-
-17. Архитектурная цель
-
-Observability должна позволять:
-
-- быстро находить ошибки
-- контролировать рост системы
-- анализировать поведение пользователей
-
-Это обязательный элемент
-production SaaS системы.
-
-
---------------------------------------------------
-
-18. Главный принцип
-
-Если система не наблюдаема —
-она не управляемая.
-EOF
+Production monitoring is read-only unless a separate task explicitly authorizes
+rollback or remediation.

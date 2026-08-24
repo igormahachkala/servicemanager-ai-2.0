@@ -173,7 +173,8 @@ is decided by the owner check, not by company membership.
 
 ## agent-runner Behavior
 
-Described by its own README as an MVP executor, read-only, HTTP API only.
+Described by its own README as an initial read-only executor that uses HTTP API
+calls only.
 
 1. Polls the backend for `AgentTask` rows with status `NEW`.
 2. Selects relevant project source files using a code-aware context planner.

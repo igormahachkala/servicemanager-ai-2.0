@@ -1,4 +1,4 @@
-# API SPEC вЂ” ServiceManager.AI
+# API Spec - ServiceManager.AI
 
 Base URL (dev, local WSL):
 

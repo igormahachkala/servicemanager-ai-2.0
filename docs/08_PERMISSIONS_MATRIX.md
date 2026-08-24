@@ -376,5 +376,5 @@ effective behavior, as with acceptance in §3. Verify the deepest gate, not the 
 
 - [03 Access Model](03_ACCESS_MODEL.md) — the canonical rules behind every `C` in this table
 - [04 Development Workflow](04_DEVELOPMENT_WORKFLOW.md) — how to change any of this safely
-- `TICKET_VISIBILITY_MATRIX.md` — older visibility notes; verify against code before use
-- `RBAC_MATRIX.md` — predates the current permission model; superseded by this document
+- [Legacy Ticket Visibility Matrix](LEGACY/TICKET_VISIBILITY_MATRIX.md) — older visibility notes; verify against code before use
+- [Legacy RBAC Matrix](LEGACY/RBAC_MATRIX.md) — predates the current permission model; superseded by this document
