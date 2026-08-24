@@ -1167,7 +1167,9 @@ export function BoardPage() {
                       <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
                         {meQ.data?.role === 'TECHNICIAN' ? (
                           <>
-                            {ticket.status === 'NEW' && !ticket.assignedTechnician && ticket.canClaimByCurrentUser === true ? (
+                            {ticket.status === 'NEW' &&
+                            !ticket.assignedTechnician &&
+                            (ticket.canClaim === true || ticket.canClaimByCurrentUser === true) ? (
                               <button
                                 type="button"
                                 className="ghost"

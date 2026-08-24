@@ -2022,6 +2022,7 @@ describe('TicketsAssignmentService canonical claim isolation', () => {
       timeline,
       notifications,
       contractContext,
+      serviceContracts,
     }
   }
 
@@ -2069,16 +2070,15 @@ describe('TicketsAssignmentService canonical claim isolation', () => {
         bindingLocationIds: [allowedLocationId],
       })
 
-    await expect(
-      service.availableForTechnician(
-        providerCompanyId,
-        technicianId,
-        clientCompanyId,
-      ),
-    ).resolves.toHaveLength(1)
-    await expect(
-      service.claim(providerCompanyId, technicianId, ticketId, clientCompanyId),
-    ).rejects.toBeDefined()
+    const available = await service.availableForTechnician(providerCompanyId, technicianId, clientCompanyId)
+    expect(available).toHaveLength(1)
+    expect(available[0]).toMatchObject({
+      canClaim: false,
+      canClaimByCurrentUser: false,
+      canRequestAssignment: true,
+      claimAvailabilityReason: 'Субподрядчик может запросить назначение; прямое взятие доступно только для собственных заявок.',
+    })
+    await expect(service.claim(providerCompanyId, technicianId, ticketId, clientCompanyId)).rejects.toBeDefined()
 
     expect(prisma.$transaction).not.toHaveBeenCalled()
     expect(timeline.recordTx).not.toHaveBeenCalled()
@@ -2113,16 +2113,22 @@ describe('TicketsAssignmentService canonical claim isolation', () => {
       query,
       timeline,
       notifications,
-      contractContext,
+      serviceContracts,
     } = makeClaimIsolationHarness({
       contractRole: ServiceContractRole.SECONDARY,
       bindingLocationIds: [allowedLocationId],
       createdByUserId: technicianId,
     })
 
-    await expect(
-      service.claim(providerCompanyId, technicianId, ticketId, clientCompanyId),
-    ).resolves.toEqual({ id: ticketId })
+    const available = await service.availableForTechnician(providerCompanyId, technicianId, clientCompanyId)
+    expect(available).toHaveLength(1)
+    expect(available[0]).toMatchObject({
+      canClaim: true,
+      canClaimByCurrentUser: true,
+      canRequestAssignment: false,
+      claimAvailabilityReason: null,
+    })
+    await expect(service.claim(providerCompanyId, technicianId, ticketId, clientCompanyId)).resolves.toEqual({ id: ticketId })
 
     expect(prisma.$transaction).toHaveBeenCalledTimes(1)
     expect(tx.ticket.update).toHaveBeenCalledWith(
@@ -2157,37 +2163,32 @@ describe('TicketsAssignmentService canonical claim isolation', () => {
       }),
     )
     expect(notifications.scheduleTicketClaimedDispatchers).toHaveBeenCalled()
-    expect(contractContext.getContractContext).toHaveBeenCalledWith(
-      expect.objectContaining({
-        providerCompanyId,
-        clientCompanyId,
-      }),
+    expect(serviceContracts.getLinkedClientAccess).toHaveBeenCalledWith(
+      providerCompanyId,
+      clientCompanyId,
     )
   })
 
   it('preserves PRIMARY claim availability through the same eligibility builder', async () => {
-    const { service, prisma, contractContext } = makeClaimIsolationHarness({
+    const { service, prisma, serviceContracts } = makeClaimIsolationHarness({
       contractRole: ServiceContractRole.PRIMARY,
       bindingLocationIds: [],
     })
 
-    await expect(
-      service.availableForTechnician(
-        providerCompanyId,
-        technicianId,
-        clientCompanyId,
-      ),
-    ).resolves.toHaveLength(1)
-    await expect(
-      service.claim(providerCompanyId, technicianId, ticketId, clientCompanyId),
-    ).resolves.toEqual({ id: ticketId })
+    const available = await service.availableForTechnician(providerCompanyId, technicianId, clientCompanyId)
+    expect(available).toHaveLength(1)
+    expect(available[0]).toMatchObject({
+      canClaim: true,
+      canClaimByCurrentUser: true,
+      canRequestAssignment: false,
+      claimAvailabilityReason: null,
+    })
+    await expect(service.claim(providerCompanyId, technicianId, ticketId, clientCompanyId)).resolves.toEqual({ id: ticketId })
 
     expect(prisma.$transaction).toHaveBeenCalledTimes(1)
-    expect(contractContext.getContractContext).toHaveBeenCalledWith(
-      expect.objectContaining({
-        providerCompanyId,
-        clientCompanyId,
-      }),
+    expect(serviceContracts.getLinkedClientAccess).toHaveBeenCalledWith(
+      providerCompanyId,
+      clientCompanyId,
     )
   })
 })

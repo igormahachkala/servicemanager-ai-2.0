@@ -1,20 +1,16 @@
-import { ServiceContractRole, TicketStatus, UserRole } from '@prisma/client'
+import { TicketStatus, UserRole } from '@prisma/client'
 
-import { TicketsPolicy, type TicketsClaimWhereParams } from '../policy/tickets.policy'
+import { TicketsPolicy } from '../policy/tickets.policy'
 import { isExecutorEligible } from '../common/executor.utils'
 import { PrismaService } from '../prisma/prisma.service'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
 import { decideTicketTransition } from '../workflow/ticket.workflow'
 import {
-  buildSecondaryOperationalRestrictionWhere,
-  buildTechnicianLocationRestrictionWhere,
-  isTechnicianLocationAllowed,
-  resolveTechnicianOperationalScope,
   resolveTicketOperationAccess,
   type TicketVisibilityMode,
-  technicianMatchesCategorySpecializationLinks,
 } from './ticket-access.utils'
 import { canAcceptTicket } from './ticket-acceptance-access'
+import { resolveTicketClaimCapability, type TicketClaimCapability } from './ticket-claim-eligibility'
 import { TICKET_ASSIGNMENT_REQUESTED_ENTITY, TICKET_ASSIGNMENT_REQUESTED_EVENT } from './ticket-domain-event.types'
 
 export type TicketMetaBuildParams = {
@@ -57,8 +53,11 @@ export class TicketMetaBuilder {
     return {
       scopeCompanyId: params.scopeCompanyId,
       visibilityMode: params.visibilityMode,
-      canClaimByCurrentUser: claimAvailability.canClaimByCurrentUser,
+      canClaim: claimAvailability.canClaim,
+      canClaimByCurrentUser: claimAvailability.canClaim,
+      canRequestAssignment: claimAvailability.canRequestAssignment,
       claimAvailabilityReason: claimAvailability.claimAvailabilityReason,
+      requestAssignmentAvailabilityReason: claimAvailability.requestAssignmentAvailabilityReason,
       assignmentRequestedByCurrentUser,
       availableStatusTransitions,
       availableActions,
@@ -72,7 +71,7 @@ export class TicketMetaBuilder {
    */
   private deriveAvailableActions(
     params: TicketMetaBuildParams,
-    claim: { canClaimByCurrentUser: boolean; claimAvailabilityReason: string | null },
+    claim: TicketClaimCapability,
     transitions: TicketStatus[],
     acceptanceAvailable: boolean,
   ): {
@@ -83,15 +82,21 @@ export class TicketMetaBuilder {
       canClose: boolean
       canAccept: boolean
       canReject: boolean
+      canRequestAssignment: boolean
     }
-    availableActionHints?: Partial<Record<'canClaim' | 'canStart' | 'canComplete' | 'canClose' | 'canAccept' | 'canReject', string | null>>
+    availableActionHints?: Partial<Record<'canClaim' | 'canRequestAssignment' | 'canStart' | 'canComplete' | 'canClose' | 'canAccept' | 'canReject', string | null>>
   } {
     const isExec = isExecutorEligible({ role: params.role, isExecutor: params.isExecutor })
-    const hints: Partial<Record<'canClaim' | 'canStart' | 'canComplete' | 'canClose' | 'canAccept' | 'canReject', string | null>> = {}
+    const hints: Partial<Record<'canClaim' | 'canRequestAssignment' | 'canStart' | 'canComplete' | 'canClose' | 'canAccept' | 'canReject', string | null>> = {}
 
     const canClaim =
       isExec &&
-      claim.canClaimByCurrentUser &&
+      claim.canClaim &&
+      params.ticketStatus === TicketStatus.NEW &&
+      !params.assignedTechnicianId
+    const canRequestAssignment =
+      isExec &&
+      claim.canRequestAssignment &&
       params.ticketStatus === TicketStatus.NEW &&
       !params.assignedTechnicianId
 
@@ -108,7 +113,7 @@ export class TicketMetaBuilder {
     const preferClaimOverDirectInProgress =
       isExec &&
       params.ticketStatus === TicketStatus.NEW &&
-      claim.canClaimByCurrentUser &&
+      claim.canClaim &&
       !params.assignedTechnicianId
 
     const canStart =
@@ -136,6 +141,7 @@ export class TicketMetaBuilder {
         canClose,
         canAccept: acceptanceAvailable,
         canReject: acceptanceAvailable,
+        canRequestAssignment,
       },
       availableActionHints: outHints,
     }
@@ -173,179 +179,25 @@ export class TicketMetaBuilder {
     return !!ev
   }
 
-  private async resolveClaimAvailability(params: TicketMetaBuildParams): Promise<{ canClaimByCurrentUser: boolean; claimAvailabilityReason: string | null }> {
-    if (!isExecutorEligible({ role: params.role, isExecutor: params.isExecutor })) {
-      return { canClaimByCurrentUser: false, claimAvailabilityReason: null }
-    }
+  private async resolveClaimAvailability(params: TicketMetaBuildParams): Promise<TicketClaimCapability> {
+    const effectiveLinkedClientCompanyId =
+      params.linkedClientCompanyId ??
+      (params.ticketCompanyId !== params.actorCompanyId ? params.ticketCompanyId : undefined)
 
-    const technicianScope = await resolveTechnicianOperationalScope({
+    return resolveTicketClaimCapability({
       prisma: this.prisma,
       serviceContractsService: this.serviceContractsService,
+      policy: this.policy,
       actor: {
         id: params.userId,
         role: params.role,
         companyId: params.actorCompanyId,
-      },
-      linkedClientCompanyId: params.linkedClientCompanyId,
-    })
-
-    if (!technicianScope.allowTechnicianClaim) {
-      return {
-        canClaimByCurrentUser: false,
-        claimAvailabilityReason: 'Claim отключен настройками компании',
-      }
-    }
-
-    const decision = this.policy.claimWhere({
-      user: {
-        id: params.userId,
-        role: params.role,
         isExecutor: params.isExecutor,
-        companyId: params.actorCompanyId,
-      },
-      ticketId: params.ticketId,
-      specializationIds: technicianScope.specializationIds,
-      specializationNames: technicianScope.specializationNames,
-      allowTechnicianClaim: technicianScope.allowTechnicianClaim,
-      companyIds: technicianScope.companyIds,
-    } satisfies TicketsClaimWhereParams)
-    const locationRestriction = buildTechnicianLocationRestrictionWhere({
-      companyIds: technicianScope.companyIds,
-      locationScopeByCompany: technicianScope.locationScopeByCompany,
-    })
-    const secondaryOperationalRestriction = await buildSecondaryOperationalRestrictionWhere({
-      prisma: this.prisma,
-      serviceContractsService: this.serviceContractsService,
-      providerCompanyId: params.actorCompanyId,
-      linkedClientCompanyId: params.linkedClientCompanyId,
-      scopeCompanyIds: technicianScope.companyIds,
-      actor: {
-        id: params.userId,
-        role: params.role,
-        companyId: params.actorCompanyId,
         accessFlags: params.accessFlags,
       },
+      ticketId: params.ticketId,
+      linkedClientCompanyId: effectiveLinkedClientCompanyId,
     })
-    const claimWhereExtras = secondaryOperationalRestriction
-      ? [locationRestriction, secondaryOperationalRestriction]
-      : [locationRestriction]
-
-    if (!decision.allowed) {
-      return {
-        canClaimByCurrentUser: false,
-        claimAvailabilityReason: decision.reason || 'Claim недоступен',
-      }
-    }
-
-    const claimableTicket = await this.prisma.ticket.findFirst({
-      where: {
-        AND: [decision.where, ...claimWhereExtras],
-      },
-      select: { id: true, companyId: true, createdByUserId: true },
-    })
-
-    if (claimableTicket) {
-      if (
-        !(await this.canDirectClaimInRelationship({
-          actorCompanyId: params.actorCompanyId,
-          actorUserId: params.userId,
-          ticketCompanyId: claimableTicket.companyId,
-          ticketCreatedByUserId: claimableTicket.createdByUserId,
-        }))
-      ) {
-        return {
-          canClaimByCurrentUser: false,
-          claimAvailabilityReason: 'Субподрядчик может запросить назначение; прямое взятие доступно только для собственных заявок.',
-        }
-      }
-      return { canClaimByCurrentUser: true, claimAvailabilityReason: null }
-    }
-
-    const ticketForClaimDiag = await this.prisma.ticket.findFirst({
-      where: { id: params.ticketId },
-      select: {
-        status: true,
-        assignedTechnicianId: true,
-        companyId: true,
-        locationId: true,
-        problemCategory: {
-          select: {
-            specializationLinks: {
-              select: {
-                specializationId: true,
-                specialization: { select: { name: true } },
-              },
-            },
-          },
-        },
-      },
-    })
-
-    if (ticketForClaimDiag) {
-      if (ticketForClaimDiag.status !== TicketStatus.NEW) {
-        return {
-          canClaimByCurrentUser: false,
-          claimAvailabilityReason: 'Заявка не в статусе NEW: claim доступен только для новых заявок',
-        }
-      }
-      if (ticketForClaimDiag.assignedTechnicianId) {
-        return {
-          canClaimByCurrentUser: false,
-          claimAvailabilityReason: 'Заявка уже назначена: claim только для заявок без исполнителя',
-        }
-      }
-      const locationAllowed = isTechnicianLocationAllowed({
-        companyId: ticketForClaimDiag.companyId,
-        locationId: ticketForClaimDiag.locationId,
-        locationScopeByCompany: technicianScope.locationScopeByCompany,
-      })
-      if (!locationAllowed) {
-        return {
-          canClaimByCurrentUser: false,
-          claimAvailabilityReason:
-            'Локация заявки недоступна: нет привязки UserLocationBinding к этой точке в текущем scope',
-        }
-      }
-      const categoryLinks = ticketForClaimDiag.problemCategory?.specializationLinks ?? []
-      if (
-        categoryLinks.length > 0 &&
-        !technicianMatchesCategorySpecializationLinks({
-          categoryLinks,
-          technicianSpecializationIds: technicianScope.specializationIds,
-          technicianSpecializationNames: technicianScope.specializationNames,
-        })
-      ) {
-        return {
-          canClaimByCurrentUser: false,
-          claimAvailabilityReason:
-            'Нет совпадения по специализации: категория заявки не связана с вашими активными специализациями (по id или по нормализованному имени)',
-        }
-      }
-    }
-
-    return {
-      canClaimByCurrentUser: false,
-      claimAvailabilityReason: 'Claim доступен только для новых неназначенных заявок в вашем operational scope',
-    }
-  }
-
-  private async canDirectClaimInRelationship(params: {
-    actorCompanyId: string
-    actorUserId: string
-    ticketCompanyId: string
-    ticketCreatedByUserId?: string | null
-  }) {
-    if (params.ticketCompanyId === params.actorCompanyId) return true
-    const access = await this.serviceContractsService.getLinkedClientAccess(
-      params.actorCompanyId,
-      params.ticketCompanyId,
-    )
-    if (!access) return false
-    if (access.role === ServiceContractRole.PRIMARY) return true
-    if (access.role === ServiceContractRole.SECONDARY) {
-      return params.ticketCreatedByUserId === params.actorUserId
-    }
-    return false
   }
 
   private async resolveAvailableStatusTransitions(params: TicketMetaBuildParams): Promise<TicketStatus[]> {

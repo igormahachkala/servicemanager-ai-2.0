@@ -12,8 +12,9 @@ export function getPrimaryActionLabel(
 
   if (ticket.status === 'NEW' && !ticket.assignedTechnician) {
     if (ticket.assignmentRequestedByCurrentUser) return null
-    if (ticket.canClaimByCurrentUser === false) return 'Запросить назначение'
-    return 'Взять'
+    if (ticket.canClaim === true || ticket.canClaimByCurrentUser === true) return 'Взять'
+    if (ticket.canRequestAssignment === true) return 'Запросить назначение'
+    return null
   }
 
   if (ticket.status === 'ASSIGNED' && ticket.assignedTechnician?.id === meId) return 'Начать'
@@ -39,7 +40,7 @@ export function homeTicketActionProgressLabel(
   if (assignBusy && assignTicketId === ticket.id) return 'Назначаем…'
   if (actionM.isPending && actionM.variables?.id === ticket.id) {
     if (ticket.status === 'NEW') {
-      if (ticket.canClaimByCurrentUser === false && !ticket.assignmentRequestedByCurrentUser) {
+      if (ticket.canRequestAssignment === true && !ticket.assignmentRequestedByCurrentUser) {
         return 'Отправляем запрос…'
       }
       return 'Берём заявку…'

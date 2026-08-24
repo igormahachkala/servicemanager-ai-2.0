@@ -658,12 +658,17 @@ export type TicketCard = {
   createdByUser?: TicketActorIdentity | null
   /** Дублируем id исполнителя отдельно от объекта исполнителя. */
   assignedTechnicianId?: string | null
-  /** Для TECHNICIAN на board: согласовано с правилами claim по специализации (см. tickets.query.service). */
+  /** Canonical backend capability: direct self-claim is allowed. */
+  canClaim?: boolean
+  /** Legacy alias for canClaim. */
   canClaimByCurrentUser?: boolean
+  /** Canonical backend capability: SECONDARY request-assignment flow is allowed. */
+  canRequestAssignment?: boolean
   /** Техник уже отправил запрос назначения по этой NEW-заявке (см. tickets.query.service). */
   assignmentRequestedByCurrentUser?: boolean
   /** Если бэкенд начнёт отдавать причину на доске — покажем на карточке без отдельного getTicket. */
   claimAvailabilityReason?: string | null
+  requestAssignmentAvailabilityReason?: string | null
   /** Первое image-вложение (REQUEST приоритетнее) для превью на карточке. */
   attachmentPreviewUrl?: string | null
   /** Количество image-вложений на заявке. */
@@ -778,8 +783,11 @@ export type TicketGetOne = {
   meta?: {
     scopeCompanyId?: string
     visibilityMode?: 'tenant' | 'provider_primary' | 'platform_observer'
+    canClaim?: boolean
     canClaimByCurrentUser?: boolean
+    canRequestAssignment?: boolean
     claimAvailabilityReason?: string | null
+    requestAssignmentAvailabilityReason?: string | null
     assignmentRequestedByCurrentUser?: boolean
     availableStatusTransitions?: TicketStatus[]
     /** Политика + воркфлоу: единый источник для кнопок (без хардкода прав на фронте). */
@@ -790,10 +798,12 @@ export type TicketGetOne = {
       canClose: boolean
       canAccept?: boolean
       canReject?: boolean
+      canRequestAssignment?: boolean
     }
     /** Подсказки, когда действие недоступно (ключи совпадают с availableActions). */
     availableActionHints?: Partial<{
       canClaim: string | null
+      canRequestAssignment: string | null
       canStart: string | null
       canComplete: string | null
       canClose: string | null

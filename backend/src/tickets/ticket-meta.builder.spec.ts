@@ -1,4 +1,4 @@
-import { CompanyType, TicketStatus, UserRole } from '@prisma/client';
+import { CompanyType, ServiceContractRole, TicketStatus, UserRole } from '@prisma/client';
 
 import { TicketMetaBuilder } from './ticket-meta.builder';
 import * as ticketAccessUtils from './ticket-access.utils';
@@ -35,9 +35,18 @@ const CLIENT_ID = 'client-1';
 const PROVIDER_ID = 'provider-1';
 const TICKET_ID = 'ticket-1';
 
-function makeServiceContracts() {
+function makeServiceContracts(role: ServiceContractRole | null = ServiceContractRole.PRIMARY) {
   return {
-    getLinkedClientAccess: jest.fn().mockResolvedValue(null),
+    getLinkedClientAccess: jest.fn().mockResolvedValue(
+      role
+        ? {
+            role,
+            status: 'ACTIVE',
+            clientCompanyId: CLIENT_ID,
+            providerCompanyId: PROVIDER_ID,
+          }
+        : null,
+    ),
   };
 }
 
