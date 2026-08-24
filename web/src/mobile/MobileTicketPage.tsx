@@ -566,21 +566,21 @@ export function MobileTicketPage() {
     !!ticket &&
     ticket.status === 'NEW' &&
     !assigneePresent &&
-    (aa ? aa.canClaim : techPrimary === 'claim' && ticket.meta?.canClaimByCurrentUser !== false) &&
+    (aa ? aa.canClaim : techPrimary === 'claim' && (ticket.meta?.canClaim === true || ticket.meta?.canClaimByCurrentUser === true)) &&
     !ticket.meta?.assignmentRequestedByCurrentUser
   const canShowAssignmentRequest =
     meQ.data?.role === 'TECHNICIAN' &&
     !!ticket &&
     ticket.status === 'NEW' &&
     !assigneePresent &&
-    (aa ? !aa.canClaim : techPrimary === 'claim' && ticket.meta?.canClaimByCurrentUser === false) &&
+    (aa ? aa.canRequestAssignment === true : ticket.meta?.canRequestAssignment === true) &&
     !ticket.meta?.assignmentRequestedByCurrentUser
   const showAssignmentRequestAck =
     meQ.data?.role === 'TECHNICIAN' &&
     !!ticket &&
     ticket.status === 'NEW' &&
     !assigneePresent &&
-    (aa ? !aa.canClaim : techPrimary === 'claim') &&
+    (aa ? aa.canRequestAssignment === true : ticket.meta?.canRequestAssignment === true) &&
     ticket.meta?.assignmentRequestedByCurrentUser === true
   const assigneeIdForMe =
     ticket && meQ.data?.id ? (ticket.assignedTechnicianId || ticket.assignedTechnician?.id || '').trim() : ''
@@ -856,7 +856,7 @@ export function MobileTicketPage() {
     onError: (e: unknown, vars: 'claim' | 'start') => {
       const claimBlocked = ticket?.meta?.availableActions
         ? !ticket.meta.availableActions.canClaim
-        : ticket?.meta?.canClaimByCurrentUser === false
+        : ticket?.meta?.canClaim !== true && ticket?.meta?.canClaimByCurrentUser !== true
       setTechActionErr(
         formatMobileMutationError(e, {
           operation: vars,

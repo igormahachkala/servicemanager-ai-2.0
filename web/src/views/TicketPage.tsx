@@ -749,7 +749,7 @@ export function TicketPage() {
     if (!executorActionsAllowed) return false
     const aa = ticket.meta?.availableActions
     if (aa) return aa.canClaim
-    return ticket.meta?.canClaimByCurrentUser === true
+    return ticket.meta?.canClaim === true || ticket.meta?.canClaimByCurrentUser === true
   }, [role, ticket, executorActionsAllowed])
 
   const showSelfAssign =

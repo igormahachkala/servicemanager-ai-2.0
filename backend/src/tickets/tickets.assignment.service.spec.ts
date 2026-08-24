@@ -1463,7 +1463,14 @@ describe('TicketsAssignmentService canonical claim isolation', () => {
       bindingLocationIds: [allowedLocationId],
     })
 
-    await expect(service.availableForTechnician(providerCompanyId, technicianId, clientCompanyId)).resolves.toHaveLength(1)
+    const available = await service.availableForTechnician(providerCompanyId, technicianId, clientCompanyId)
+    expect(available).toHaveLength(1)
+    expect(available[0]).toMatchObject({
+      canClaim: false,
+      canClaimByCurrentUser: false,
+      canRequestAssignment: true,
+      claimAvailabilityReason: 'Субподрядчик может запросить назначение; прямое взятие доступно только для собственных заявок.',
+    })
     await expect(service.claim(providerCompanyId, technicianId, ticketId, clientCompanyId)).rejects.toBeDefined()
 
     expect(prisma.$transaction).not.toHaveBeenCalled()
@@ -1478,6 +1485,14 @@ describe('TicketsAssignmentService canonical claim isolation', () => {
       createdByUserId: technicianId,
     })
 
+    const available = await service.availableForTechnician(providerCompanyId, technicianId, clientCompanyId)
+    expect(available).toHaveLength(1)
+    expect(available[0]).toMatchObject({
+      canClaim: true,
+      canClaimByCurrentUser: true,
+      canRequestAssignment: false,
+      claimAvailabilityReason: null,
+    })
     await expect(service.claim(providerCompanyId, technicianId, ticketId, clientCompanyId)).resolves.toEqual({ id: ticketId })
 
     expect(prisma.$transaction).toHaveBeenCalledTimes(1)
@@ -1521,7 +1536,14 @@ describe('TicketsAssignmentService canonical claim isolation', () => {
       bindingLocationIds: [],
     })
 
-    await expect(service.availableForTechnician(providerCompanyId, technicianId, clientCompanyId)).resolves.toHaveLength(1)
+    const available = await service.availableForTechnician(providerCompanyId, technicianId, clientCompanyId)
+    expect(available).toHaveLength(1)
+    expect(available[0]).toMatchObject({
+      canClaim: true,
+      canClaimByCurrentUser: true,
+      canRequestAssignment: false,
+      claimAvailabilityReason: null,
+    })
     await expect(service.claim(providerCompanyId, technicianId, ticketId, clientCompanyId)).resolves.toEqual({ id: ticketId })
 
     expect(prisma.$transaction).toHaveBeenCalledTimes(1)

@@ -325,10 +325,13 @@ export function MobileHome() {
         if (role !== 'TECHNICIAN') {
           throw new Error('Полевое действие «Взять» доступно только технику')
         }
-        if (ticket.canClaimByCurrentUser === false) {
+        if (ticket.canRequestAssignment === true) {
           if (ticket.assignmentRequestedByCurrentUser) return
           await api.requestTicketAssignment(ticket.id, pageScope)
           return
+        }
+        if (ticket.canClaim !== true && ticket.canClaimByCurrentUser !== true) {
+          throw new Error('Действие недоступно для этой заявки')
         }
         await api.claim(ticket.id, pageScope)
         return
@@ -357,7 +360,7 @@ export function MobileHome() {
     onMutate: () => setHomeActionErr(''),
     onSuccess: async (_data, ticket) => {
       if (ticket.status === 'IN_PROGRESS') return
-      if (ticket.status === 'NEW' && meQ.data?.role === 'TECHNICIAN' && ticket.canClaimByCurrentUser === false) {
+      if (ticket.status === 'NEW' && meQ.data?.role === 'TECHNICIAN' && ticket.canRequestAssignment === true) {
         setMobileActionToast('Запрос отправлен')
       }
       await queryClient.invalidateQueries({ queryKey: ['mobile-home-board'] })
@@ -369,7 +372,7 @@ export function MobileHome() {
       const op =
         ticket.status === 'NEW' &&
         meQ.data?.role === 'TECHNICIAN' &&
-        ticket.canClaimByCurrentUser === false
+        ticket.canRequestAssignment === true
           ? 'request_assignment'
           : ticket.status === 'NEW'
             ? 'claim'

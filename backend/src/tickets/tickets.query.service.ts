@@ -20,10 +20,9 @@ import {
   resolveReadableTicketAccess,
   resolveTechnicianOperationalScope,
   resolveTicketReadScope,
-  isTechnicianLocationAllowed,
-  technicianMatchesCategorySpecializationLinks,
 } from './ticket-access.utils'
 import { TicketMetaBuilder } from './ticket-meta.builder'
+import { resolveClaimCapabilitiesForVisibleTickets } from './ticket-claim-eligibility'
 import { TICKET_ASSIGNMENT_REQUESTED_ENTITY, TICKET_ASSIGNMENT_REQUESTED_EVENT } from './ticket-domain-event.types'
 import { isExecutorCapableRole } from '../common/executor.utils'
 import { loadBoardImageAttachmentSummaries } from './board-attachment-summary'
@@ -495,10 +494,34 @@ export class TicketsQueryService {
       tickets.map((ticket) => ticket.id),
     )
 
+    const candidateTickets = tickets.filter((t) => t.status === TicketStatus.NEW && !t.assignedTechnician)
+    const candidateIds = candidateTickets.map((t) => t.id)
+    const actorUserMeta = isExecutorCapableRole(role)
+      ? await this.prisma.user.findFirst({
+          where: { id: userId, companyId, isActive: true },
+          select: { isExecutor: true },
+        })
+      : null
+    const claimCapabilityByTicketId =
+      candidateIds.length && actorUserMeta?.isExecutor === true
+        ? await resolveClaimCapabilitiesForVisibleTickets({
+            prisma: this.prisma,
+            serviceContractsService: this.serviceContractsService,
+            policy: this.policy,
+            actor: {
+              id: userId,
+              role,
+              companyId,
+              isExecutor: actorUserMeta.isExecutor,
+              accessFlags,
+            },
+            ticketIds: candidateIds,
+            linkedClientCompanyId,
+          })
+        : new Map()
+
     const assignmentRequestedByCurrentUserIds = new Set<string>()
     if (isExecutorCapableRole(role)) {
-      const candidateTickets = tickets.filter((t) => t.status === TicketStatus.NEW && !t.assignedTechnician)
-      const candidateIds = candidateTickets.map((t) => t.id)
       if (candidateIds.length) {
         const events = await this.prisma.domainEvent.findMany({
           where: {
@@ -515,21 +538,6 @@ export class TicketsQueryService {
             assignmentRequestedByCurrentUserIds.add(ev.entityId)
           }
         }
-      }
-    }
-
-    const claimRelationshipByTicketCompanyId = new Map<string, ServiceContractRole | null>()
-    if (role === UserRole.TECHNICIAN && technicianScope) {
-      const linkedTicketCompanyIds = Array.from(
-        new Set(
-          tickets
-            .filter((t) => t.status === TicketStatus.NEW && !t.assignedTechnician && t.companyId !== companyId)
-            .map((t) => t.companyId),
-        ),
-      )
-      for (const ticketCompanyId of linkedTicketCompanyIds) {
-        const access = await this.serviceContractsService.getLinkedClientAccess(companyId, ticketCompanyId)
-        claimRelationshipByTicketCompanyId.set(ticketCompanyId, access?.role ?? null)
       }
     }
 
@@ -585,32 +593,27 @@ export class TicketsQueryService {
           attachmentPreviewUrl: attachmentSummary?.previewUrl ?? null,
           imageAttachmentCount: attachmentSummary?.imageCount ?? 0,
         }
-        if (role === UserRole.TECHNICIAN && technicianScope && t.status === TicketStatus.NEW && !t.assignedTechnician) {
-          const links = t.problemCategory.specializationLinks ?? []
-          const specOk =
-            links.length === 0 ||
-            technicianMatchesCategorySpecializationLinks({
-              categoryLinks: links,
-              technicianSpecializationIds: technicianScope.specializationIds,
-              technicianSpecializationNames: technicianScope.specializationNames,
-            })
-          const locId = (t.locationId || t.location?.id || '').trim()
-          const locationOk =
-            !locId ||
-            isTechnicianLocationAllowed({
-              companyId: t.companyId,
-              locationId: locId,
-              locationScopeByCompany: technicianScope.locationScopeByCompany,
-            })
-          const relationshipRole = t.companyId === companyId ? ServiceContractRole.PRIMARY : claimRelationshipByTicketCompanyId.get(t.companyId)
-          const relationshipAllowsDirectClaim =
-            t.companyId === companyId ||
-            relationshipRole === ServiceContractRole.PRIMARY ||
-            (relationshipRole === ServiceContractRole.SECONDARY && t.createdByUserId === userId)
-          const canClaimByCurrentUser =
-            technicianScope.allowTechnicianClaim && specOk && locationOk && relationshipAllowsDirectClaim
+        if (t.status === TicketStatus.NEW && !t.assignedTechnician) {
+          const capability = claimCapabilityByTicketId.get(t.id)
           const assignmentRequestedByCurrentUser = assignmentRequestedByCurrentUserIds.has(t.id)
-          return { ...base, canClaimByCurrentUser, assignmentRequestedByCurrentUser }
+          if (capability) {
+            return {
+              ...base,
+              canClaim: capability.canClaim,
+              canClaimByCurrentUser: capability.canClaim,
+              canRequestAssignment: capability.canRequestAssignment,
+              claimAvailabilityReason: capability.claimAvailabilityReason,
+              requestAssignmentAvailabilityReason: capability.requestAssignmentAvailabilityReason,
+              assignmentRequestedByCurrentUser,
+            }
+          }
+          return {
+            ...base,
+            canClaim: false,
+            canClaimByCurrentUser: false,
+            canRequestAssignment: false,
+            assignmentRequestedByCurrentUser,
+          }
         }
         return base
       })
