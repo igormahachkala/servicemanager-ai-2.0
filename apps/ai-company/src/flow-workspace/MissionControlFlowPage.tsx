@@ -8,7 +8,7 @@ import { InspectorPanel } from './components/InspectorPanel';
 import { ExecutionLog } from './components/ExecutionLog';
 
 /**
- * IT Company — Mission Control (Flow Workspace).
+ * AI Company — Mission Control (Flow Workspace).
  *
  * Self-contained screen (CSS-in-TS, no global stylesheet, no UI-kit changes).
  * Designed at 1440×900; fills its container. Mount this as a standalone page

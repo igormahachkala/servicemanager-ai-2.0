@@ -1413,7 +1413,7 @@ export const ru: Messages = {
     idle: "Простой"
   },
   flow: {
-    brand: "IT Company",
+    brand: "AI Company",
     workflow: "WORKFLOW",
     breadcrumb: "org.workflow · main",
     subtitle: "Инженерная автоматизация · v1.4",

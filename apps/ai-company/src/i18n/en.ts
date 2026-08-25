@@ -1432,7 +1432,7 @@ export const en = {
     idle: 'Idle',
   },
   flow: {
-    brand: 'IT Company',
+    brand: 'AI Company',
     workflow: 'WORKFLOW',
     breadcrumb: 'org.workflow · main',
     subtitle: 'Engineering automation · v1.4',

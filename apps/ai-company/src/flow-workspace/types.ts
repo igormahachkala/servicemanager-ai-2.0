@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// IT Company · Mission Control (Flow Workspace) — domain model
+// AI Company · Mission Control (Flow Workspace) — domain model
 // Location: web/src/it-company/flow-workspace/types.ts
 // ─────────────────────────────────────────────────────────────────────────────
 
