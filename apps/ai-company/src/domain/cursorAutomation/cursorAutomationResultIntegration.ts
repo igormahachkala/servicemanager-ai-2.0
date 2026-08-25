@@ -430,6 +430,7 @@ export function buildCursorResultIntegrationIfReady(input: {
   memoryEvolutionDraft: MemoryEvolutionDraft
   baseKnowledgeCandidates: KnowledgeCandidateDraft[]
   externalExecutorRequired?: boolean
+  actualResult?: CursorAutomationExpectedResult | null
 }): CursorResultIntegrationBundle | null {
   if (!input.run || !input.report) return null
   if (input.loop.status !== 'completed') return null
@@ -453,6 +454,11 @@ export function buildCursorResultIntegrationIfReady(input: {
     source = submitRun.deliveryMode === 'mock_v1_stub' ? 'mock_v1' : 'adapter_v1'
   } else if (!expectedResult || !input.externalExecutorRequired) {
     return null
+  }
+
+  if (input.actualResult) {
+    expectedResult = input.actualResult
+    source = 'adapter_v1'
   }
 
   if (!expectedResult) return null
