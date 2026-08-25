@@ -790,6 +790,15 @@ export const mobileEn = {
     },
     presence: {
       unknown: 'Unknown',
+      offline: 'Offline',
+      available: 'Available',
+      busy: 'Busy',
+      in_discussion: 'In a meeting',
+      working: 'Working',
+      waiting_approval: 'Awaiting approval',
+      reviewing: 'In review',
+      learning: 'Learning',
+      break: 'On a break',
     },
     actions: {
       open: 'Open',

@@ -94,7 +94,6 @@
   "mission-control/data/employeeIdentity.ts",
   "mobile/chat/mobileMaxChatResponder.ts",
   "mobile/components/MobileEmployeeHeroCard.tsx",
-  "mobile/components/MobileEmployeeRosterCard.tsx",
   "mobile/components/MobileRunNextConfirmationSheet.tsx",
   "mobile/components/MobileRuntimePhaseCard.tsx",
   "mobile/demo/mobileDemoSeed.ts",

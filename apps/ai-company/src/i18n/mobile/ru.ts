@@ -790,6 +790,15 @@ export const mobileRu = {
     },
     presence: {
       unknown: 'Неизвестно',
+      offline: 'Не в сети',
+      available: 'Доступен',
+      busy: 'Занят',
+      in_discussion: 'На совещании',
+      working: 'Работает',
+      waiting_approval: 'Ждёт решения',
+      reviewing: 'На ревью',
+      learning: 'Обучение',
+      break: 'Перерыв',
     },
     actions: {
       open: 'Открыть',

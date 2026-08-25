@@ -7,18 +7,6 @@ type Props = {
   entry: MobileEmployeeRosterEntry
 }
 
-const PRESENCE_LABELS: Record<string, string> = {
-  offline: 'Не в сети',
-  available: 'Доступен',
-  busy: 'Занят',
-  in_discussion: 'На совещании',
-  working: 'Работает',
-  waiting_approval: 'Ждёт решения',
-  reviewing: 'На ревью',
-  learning: 'Обучение',
-  break: 'Перерыв',
-}
-
 function formatWhen(iso: string | null): string | null {
   if (!iso) return null
   const parsed = Date.parse(iso)
@@ -40,7 +28,7 @@ export function MobileEmployeeRosterCard({ entry }: Props) {
   const role = entry.title || entry.role
   const statusLabel = isActive
     ? entry.presenceStatus
-      ? (PRESENCE_LABELS[entry.presenceStatus] ?? entry.presenceStatus)
+      ? ((copy.presence as Record<string, string>)[entry.presenceStatus] ?? entry.presenceStatus)
       : copy.presence.unknown
     : copy.placeholderBadge
 
