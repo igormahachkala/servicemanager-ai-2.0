@@ -2297,6 +2297,29 @@ describe('TicketsAssignmentService create post-action policy', () => {
     })
   })
 
+  it('denies create+claim when PermissionBlock catalog is empty', async () => {
+    const prisma = makePrismaMock({ blocksCount: 0 })
+    const svc = makeService(prisma)
+
+    await expect(
+      (svc as any).assertCreatePostActionAllowed({
+        actorCompanyId: 'provider-1',
+        actorUserId: 'tech-1',
+        actorRole: UserRole.TECHNICIAN,
+        action: 'claim_self',
+        technicianId: null,
+        candidates: baseCandidates,
+        providerCompanyIds: ['provider-1'],
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        message: 'Missing permission: TICKETS_CLAIM',
+      }),
+    })
+    expect(prisma.rolePermission.findFirst).not.toHaveBeenCalled()
+    expect(prisma.userPermission.findFirst).not.toHaveBeenCalled()
+  })
+
   it('denies create+claim when the creator is outside the location/category candidate scope', async () => {
     const svc = makeService(makePrismaMock())
 
@@ -2393,6 +2416,29 @@ describe('TicketsAssignmentService create post-action policy', () => {
     })
   })
 
+  it('denies create+assign when PermissionBlock catalog is empty', async () => {
+    const prisma = makePrismaMock({ blocksCount: 0 })
+    const svc = makeService(prisma)
+
+    await expect(
+      (svc as any).assertCreatePostActionAllowed({
+        actorCompanyId: 'provider-1',
+        actorUserId: 'master-1',
+        actorRole: UserRole.MASTER,
+        action: 'assign_employee',
+        technicianId: 'tech-1',
+        candidates: baseCandidates,
+        providerCompanyIds: ['provider-1'],
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        message: 'Missing permission: TICKETS_ASSIGN',
+      }),
+    })
+    expect(prisma.rolePermission.findFirst).not.toHaveBeenCalled()
+    expect(prisma.userPermission.findFirst).not.toHaveBeenCalled()
+  })
+
   it('keeps explicit leave_unassigned from auto-assigning', () => {
     const svc = makeService(makePrismaMock())
 
@@ -2443,6 +2489,9 @@ describe('TicketsAssignmentService linked-provider create assignment contour', (
     autoAssignedTechnicianId?: string | null
     linkedAccessRole?: 'PRIMARY' | 'SECONDARY'
     secondaryProviderIds?: string[]
+    blocksCount?: number
+    rolePermission?: boolean
+    userPermission?: boolean
   }) {
     const createdTicket = {
       id: 'ticket-1',
@@ -2476,14 +2525,28 @@ describe('TicketsAssignmentService linked-provider create assignment contour', (
     }
     const prisma = {
       $transaction: jest.fn(async (callback: any) => callback(tx)),
-      permissionBlock: { count: jest.fn().mockResolvedValue(1) },
+      permissionBlock: {
+        count: jest.fn().mockResolvedValue(options?.blocksCount ?? 1),
+      },
       company: {
         findUnique: jest.fn().mockResolvedValue({ type: CompanyType.PROVIDER }),
       },
       rolePermission: {
-        findFirst: jest.fn().mockResolvedValue({ id: 'role-permission' }),
+        findFirst: jest
+          .fn()
+          .mockResolvedValue(
+            options?.rolePermission === false
+              ? null
+              : { id: 'role-permission' },
+          ),
       },
-      userPermission: { findFirst: jest.fn().mockResolvedValue(null) },
+      userPermission: {
+        findFirst: jest
+          .fn()
+          .mockResolvedValue(
+            options?.userPermission ? { id: 'user-permission' } : null,
+          ),
+      },
       user: {
         findUnique: jest.fn().mockResolvedValue({
           companyId:
@@ -2910,6 +2973,66 @@ describe('TicketsAssignmentService linked-provider create assignment contour', (
         locationId,
       }),
     )
+  })
+
+  it('denies create-assignment-candidates when PermissionBlock catalog is empty', async () => {
+    const { service, prisma, resolveCreateCandidatesSpy } = makeCreateHarness({
+      blocksCount: 0,
+    })
+    jest
+      .spyOn(service as any, 'assertExecutorOperationsAllowed')
+      .mockResolvedValue(undefined)
+
+    await expect(
+      service.listCreateAssignmentCandidates(
+        providerCompanyId,
+        {
+          id: 'admin-1',
+          role: UserRole.ADMIN,
+        },
+        {
+          clientCompanyId,
+          locationId,
+          categoryId,
+        },
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        message: 'Missing permission: TICKETS_ASSIGN',
+      }),
+    })
+    expect(prisma.rolePermission.findFirst).not.toHaveBeenCalled()
+    expect(prisma.userPermission.findFirst).not.toHaveBeenCalled()
+    expect(resolveCreateCandidatesSpy).not.toHaveBeenCalled()
+  })
+
+  it('denies create-assignment-candidates when RolePermission is missing', async () => {
+    const { service, resolveCreateCandidatesSpy } = makeCreateHarness({
+      rolePermission: false,
+    })
+    jest
+      .spyOn(service as any, 'assertExecutorOperationsAllowed')
+      .mockResolvedValue(undefined)
+
+    await expect(
+      service.listCreateAssignmentCandidates(
+        providerCompanyId,
+        {
+          id: 'admin-1',
+          role: UserRole.ADMIN,
+        },
+        {
+          clientCompanyId,
+          locationId,
+          categoryId,
+        },
+      ),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        message: 'Missing permission: TICKETS_ASSIGN',
+      }),
+    })
+    expect(resolveCreateCandidatesSpy).not.toHaveBeenCalled()
   })
 
   it('keeps primary create and create-assignment-candidates aligned with SECONDARY provider candidates', async () => {

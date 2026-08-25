@@ -1040,7 +1040,7 @@ export class TicketsAssignmentService {
     permission: PermissionCode;
   }) {
     const blocksCount = await this.prisma.permissionBlock.count();
-    if (blocksCount === 0) return true;
+    if (blocksCount === 0) return false;
 
     const company = await this.prisma.company.findUnique({
       where: { id: params.companyId },
