@@ -58,7 +58,7 @@ describe('Users PBAC/Policy (e2e)', () => {
     adminPassword = created.admin.passwordPlain;
 
     // ВАЖНО: включаем PBAC "по-настоящему":
-    // если PermissionBlock пуст — PermissionsGuard будет в transition-mode и пропустит всё.
+    // если PermissionBlock пуст — PermissionsGuard fail-closed и вернет PBAC_NOT_INITIALIZED.
     await ensurePermissionBlocks([PERMISSIONS.USERS_MANAGE]);
 
     // Логинимся, чтобы получить JWT

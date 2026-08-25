@@ -36,9 +36,6 @@ export class PermissionsContextGuard implements CanActivate {
     const userId = user?.id;
     if (!userId) return true;
 
-    const blocksCount = await this.prisma.permissionBlock.count();
-    if (blocksCount === 0) return true;
-
     // собираем “toggle” флаги
     const toggles: PermissionCode[] = [PERMISSIONS.TICKETS_VIEW_ALL_COMPANY];
 

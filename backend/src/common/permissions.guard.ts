@@ -41,11 +41,15 @@ export class PermissionsGuard implements CanActivate {
     // Если permissions не заданы — пропускаем любого авторизованного пользователя
     if (!requiredPermissions || requiredPermissions.length === 0) return true;
 
-    // Переходный режим:
-    // Если в системе еще нет ни одного PermissionBlock, значит PBAC не "включен" (не засеян).
-    // В этом случае не блокируем работу — опираемся на RolesGuard + service-scope.
+    // PBAC is authoritative. Missing permission catalog is a deployment/data
+    // initialization error and must fail closed.
     const blocksCount = await this.prisma.permissionBlock.count();
-    if (blocksCount === 0) return true;
+    if (blocksCount === 0) {
+      throw new ForbiddenException({
+        code: 'PBAC_NOT_INITIALIZED',
+        message: 'PBAC permission blocks are not initialized.',
+      });
+    }
 
     const req = context.switchToHttp().getRequest();
     const user = req.user as { id?: string; role?: UserRole | string; companyId?: string } | undefined;
