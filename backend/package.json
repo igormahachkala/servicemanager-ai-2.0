@@ -31,6 +31,7 @@
     "platform:admin:create": "ts-node scripts/create-platform-admin.ts",
     "db:seed": "dotenv -e .env -- prisma db seed",
     "seed:standard-catalog": "dotenv -e .env -- ts-node scripts/seed-standard-catalog.ts",
+    "seed:stage-canonical": "dotenv -e .env -- ts-node scripts/seed-stage-qa.ts",
     "seed:stage-qa": "dotenv -e .env -- ts-node scripts/seed-stage-qa.ts",
     "seed:permissions": "dotenv -e .env -- ts-node scripts/seed-permissions-matrix.ts",
     "seed:permissions:rollback": "dotenv -e .env -- ts-node scripts/rollback-permissions.ts",

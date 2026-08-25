@@ -1,355 +1,1610 @@
 import {
-  PrismaClient,
   CompanyType,
+  Prisma,
+  PrismaClient,
+  ServiceContractLocationMode,
   ServiceContractRole,
   ServiceContractStatus,
+  TicketAttachmentPurpose,
+  TicketPriority,
+  TicketSource,
   TicketStatus,
+  TicketUrgency,
+  UserAccessLocationMode,
   UserRole,
 } from '@prisma/client'
 import * as bcrypt from 'bcrypt'
 
-const prisma = new PrismaClient()
+import { PERMISSION_BLOCKS, ROLE_GRANTS } from '../src/common/permissions-matrix'
 
-/**
- * Official Stage QA seed — FRESH-RESET ONLY.
- *
- * Models the universal hierarchy that the future SubcontractorContract will formalize:
- *
- *   QA Client Co (Фудзияма)
- *     ↑ PRIMARY ServiceContract
- *   QA General Provider Co (ИП Ермаков)
- *     ↓ (future) SubcontractorContract  → QA Subcontractor Zosimov Co (ИП Зосимов)
- *     ↓ (future) SubcontractorContract  → QA Other Subcontractor Co
- *
- * ── FRESH-RESET ONLY ────────────────────────────────────────────────────────
- * Run this ONLY against a freshly reset / empty Stage database. It is NOT safe to
- * re-run against a populated DB: every row is upserted by a hard-coded UUID `id`,
- * but `User.email` (and other natural keys) are globally @unique. If the DB already
- * holds rows with these emails under different ids, the create branch fires and the
- * insert fails on the unique-email constraint. Reset the DB first, then seed.
- * ────────────────────────────────────────────────────────────────────────────
- *
- * SubcontractorContract does NOT exist in the schema yet, so it is intentionally NOT
- * created here, and no provider-to-provider ServiceContract is created either. The
- * data below is shaped so that, once the model lands, no fixtures need to change —
- * only the General → Subcontractor contracts get added.
- *
- * Subcontractor technician scoping is pre-staged via BOTH TechnicianClientBinding
- * (provider → client[/location]) and UserLocationBinding (user → client location),
- * so runtime visibility/scoping that keys off either binding works today.
- *
- * Ticket.companyId is ALWAYS the CLIENT company (hard invariant). Cross-company
- * assignment (subcontractor technician on a client ticket) is written directly here
- * to pre-stage realistic data; the runtime assign() guards are bypassed by the seed.
- */
+const PASSWORD_ENV = 'STAGE_CANONICAL_PASSWORD'
 
-// ---- Stable IDs -------------------------------------------------------------
-const CO = {
-  client: '10000000-0000-4000-8000-000000000001',
-  general: '10000000-0000-4000-8000-000000000002',
-  secondary: '10000000-0000-4000-8000-000000000003',
-  zosimov: '10000000-0000-4000-8000-000000000004',
-  otherSub: '10000000-0000-4000-8000-000000000005',
+const IDS = {
+  company: {
+    client: '10000000-0000-4000-8000-000000001001',
+    primaryProvider: '10000000-0000-4000-8000-000000001002',
+    secondaryProvider: '10000000-0000-4000-8000-000000001003',
+  },
+  location: {
+    primary: '30000000-0000-4000-8000-000000001001',
+    secondary: '30000000-0000-4000-8000-000000001002',
+    outside: '30000000-0000-4000-8000-000000001003',
+  },
+  specialization: {
+    hvac: '40000000-0000-4000-8000-000000001001',
+    electrical: '40000000-0000-4000-8000-000000001002',
+    plumbing: '40000000-0000-4000-8000-000000001003',
+  },
+  category: {
+    hvac: '41000000-0000-4000-8000-000000001001',
+    electrical: '41000000-0000-4000-8000-000000001002',
+    plumbing: '41000000-0000-4000-8000-000000001003',
+  },
+  user: {
+    clientAdmin: '20000000-0000-4000-8000-000000001001',
+    networkDirector: '20000000-0000-4000-8000-000000001002',
+    territorialManager: '20000000-0000-4000-8000-000000001003',
+    primaryAdmin: '20000000-0000-4000-8000-000000001101',
+    primaryDispatcher: '20000000-0000-4000-8000-000000001102',
+    primaryMaster: '20000000-0000-4000-8000-000000001103',
+    primaryTechnician: '20000000-0000-4000-8000-000000001104',
+    secondaryAdmin: '20000000-0000-4000-8000-000000001201',
+    secondaryDispatcher: '20000000-0000-4000-8000-000000001202',
+    secondaryMaster: '20000000-0000-4000-8000-000000001203',
+    secondaryTechnician: '20000000-0000-4000-8000-000000001204',
+    mobileTechnician: '20000000-0000-4000-8000-000000001205',
+  },
+  ticket: {
+    A: '50000000-0000-4000-8000-000000001001',
+    B: '50000000-0000-4000-8000-000000001002',
+    C: '50000000-0000-4000-8000-000000001003',
+    D: '50000000-0000-4000-8000-000000001004',
+    E: '50000000-0000-4000-8000-000000001005',
+    F: '50000000-0000-4000-8000-000000001006',
+    G: '50000000-0000-4000-8000-000000001007',
+    H: '50000000-0000-4000-8000-000000001008',
+    I: '50000000-0000-4000-8000-000000001009',
+    DONE: '50000000-0000-4000-8000-000000001010',
+  },
 }
 
-const USR = {
-  client: '20000000-0000-4000-8000-000000000001',
-  // CLIENT-company ADMIN — for Phase 1.5 verification (ADMIN+CLIENT cannot assign).
-  clientAdmin: '20000000-0000-4000-8000-000000000010',
-  // CLIENT-company TERRITORIAL_MANAGER — for Phase 1.5 verification (can comment, cannot assign).
-  clientTerritorialManager: '20000000-0000-4000-8000-000000000011',
-  general: '20000000-0000-4000-8000-000000000002',
-  secondary: '20000000-0000-4000-8000-000000000003',
-  secondaryTech: '20000000-0000-4000-8000-000000000004',
-  zosimovAdmin: '20000000-0000-4000-8000-000000000005',
-  zosimovTech1: '20000000-0000-4000-8000-000000000006',
-  zosimovTech2: '20000000-0000-4000-8000-000000000007',
-  otherSubAdmin: '20000000-0000-4000-8000-000000000008',
-  otherSubTech: '20000000-0000-4000-8000-000000000009',
+type CompanyKey = keyof typeof IDS.company
+type LocationKey = keyof typeof IDS.location
+type SpecializationKey = keyof typeof IDS.specialization
+type CategoryKey = keyof typeof IDS.category
+type UserKey = keyof typeof IDS.user
+export type StageFixtureKey = keyof typeof IDS.ticket
+
+type CanonicalCompany = {
+  key: CompanyKey
+  id: string
+  name: string
+  type: CompanyType
 }
 
-const LOC = {
-  zosimovBound: '30000000-0000-4000-8000-000000000001', // bound to Zosimov
-  otherBound: '30000000-0000-4000-8000-000000000002', // bound to Other Subcontractor
-  unrelated: '30000000-0000-4000-8000-000000000003', // not bound to any subcontractor
+type CanonicalUser = {
+  key: UserKey
+  id: string
+  email: string
+  firstName: string
+  lastName: string
+  role: UserRole
+  companyKey: CompanyKey
+  isExecutor: boolean
 }
 
-const CAT = {
-  general: '40000000-0000-4000-8000-000000000001',
+type CanonicalLocation = {
+  key: LocationKey
+  id: string
+  platformCode: string
+  name: string
+  city: string
+  address: string
 }
 
-const TKT = {
-  generalScope: '50000000-0000-4000-8000-000000000001', // unassigned, unrelated location
-  zosimovAssigned: '50000000-0000-4000-8000-000000000002', // assigned to Zosimov tech1
-  otherAssigned: '50000000-0000-4000-8000-000000000003', // assigned to Other Subcontractor tech
-  zosimovLocationUnassigned: '50000000-0000-4000-8000-000000000004', // unassigned @ Zosimov location
-  unrelatedUnassigned: '50000000-0000-4000-8000-000000000005', // unassigned @ unrelated location
+type CanonicalSpecialization = {
+  key: SpecializationKey
+  id: string
+  name: string
 }
 
-const TCB = {
-  zosimovTech1: '70000000-0000-4000-8000-000000000001', // Zosimov tech1 @ FJ-001
-  zosimovTech2: '70000000-0000-4000-8000-000000000002', // Zosimov tech2 @ FJ-001
-  otherSubTech: '70000000-0000-4000-8000-000000000003', // Other Subcontractor tech @ FJ-002
-  secondaryTech: '70000000-0000-4000-8000-000000000004', // tech@test.local @ FJ-002 (Arbat)
+type CanonicalCategory = {
+  key: CategoryKey
+  id: string
+  name: string
+  specializationKey: SpecializationKey
+}
+
+type CanonicalTicket = {
+  key: StageFixtureKey
+  id: string
+  ticketNumber: number
+  title: string
+  purpose: string
+  status: TicketStatus
+  locationKey: LocationKey
+  categoryKey: CategoryKey
+  createdByUserKey: UserKey
+  assignedUserKey?: UserKey
+  requesterName: string
+  priority: TicketPriority
+  urgency: TicketUrgency
+  slaMinutes: number
+  createdAt: Date
+}
+
+export const CANONICAL_STAGE_SEED = {
+  passwordEnv: PASSWORD_ENV,
+  defaultPasswordLabel: 'No default password is committed; provide STAGE_CANONICAL_PASSWORD at runtime',
+  companies: [
+    {
+      key: 'client',
+      id: IDS.company.client,
+      name: 'SMA Stage Canonical Client',
+      type: CompanyType.CLIENT,
+    },
+    {
+      key: 'primaryProvider',
+      id: IDS.company.primaryProvider,
+      name: 'SMA Stage Canonical Primary Provider',
+      type: CompanyType.PROVIDER,
+    },
+    {
+      key: 'secondaryProvider',
+      id: IDS.company.secondaryProvider,
+      name: 'SMA Stage Canonical Secondary Provider',
+      type: CompanyType.PROVIDER,
+    },
+  ] satisfies CanonicalCompany[],
+  users: [
+    {
+      key: 'clientAdmin',
+      id: IDS.user.clientAdmin,
+      email: 'stage.client.admin@stage.local',
+      firstName: 'Stage Client',
+      lastName: 'Admin',
+      role: UserRole.ADMIN,
+      companyKey: 'client',
+      isExecutor: false,
+    },
+    {
+      key: 'networkDirector',
+      id: IDS.user.networkDirector,
+      email: 'stage.network.director@stage.local',
+      firstName: 'Stage Network',
+      lastName: 'Director',
+      role: UserRole.NETWORK_DIRECTOR,
+      companyKey: 'client',
+      isExecutor: false,
+    },
+    {
+      key: 'territorialManager',
+      id: IDS.user.territorialManager,
+      email: 'stage.territorial.manager@stage.local',
+      firstName: 'Stage Territorial',
+      lastName: 'Manager',
+      role: UserRole.TERRITORIAL_MANAGER,
+      companyKey: 'client',
+      isExecutor: false,
+    },
+    {
+      key: 'primaryAdmin',
+      id: IDS.user.primaryAdmin,
+      email: 'stage.primary.admin@stage.local',
+      firstName: 'Stage Primary',
+      lastName: 'Admin',
+      role: UserRole.ADMIN,
+      companyKey: 'primaryProvider',
+      isExecutor: false,
+    },
+    {
+      key: 'primaryDispatcher',
+      id: IDS.user.primaryDispatcher,
+      email: 'stage.primary.dispatcher@stage.local',
+      firstName: 'Stage Primary',
+      lastName: 'Dispatcher',
+      role: UserRole.DISPATCHER,
+      companyKey: 'primaryProvider',
+      isExecutor: false,
+    },
+    {
+      key: 'primaryMaster',
+      id: IDS.user.primaryMaster,
+      email: 'stage.primary.master@stage.local',
+      firstName: 'Stage Primary',
+      lastName: 'Master',
+      role: UserRole.MASTER,
+      companyKey: 'primaryProvider',
+      isExecutor: false,
+    },
+    {
+      key: 'primaryTechnician',
+      id: IDS.user.primaryTechnician,
+      email: 'stage.primary.tech@stage.local',
+      firstName: 'Stage Primary',
+      lastName: 'Technician',
+      role: UserRole.TECHNICIAN,
+      companyKey: 'primaryProvider',
+      isExecutor: true,
+    },
+    {
+      key: 'secondaryAdmin',
+      id: IDS.user.secondaryAdmin,
+      email: 'stage.secondary.admin@stage.local',
+      firstName: 'Stage Secondary',
+      lastName: 'Admin',
+      role: UserRole.ADMIN,
+      companyKey: 'secondaryProvider',
+      isExecutor: false,
+    },
+    {
+      key: 'secondaryDispatcher',
+      id: IDS.user.secondaryDispatcher,
+      email: 'stage.secondary.dispatcher@stage.local',
+      firstName: 'Stage Secondary',
+      lastName: 'Dispatcher',
+      role: UserRole.DISPATCHER,
+      companyKey: 'secondaryProvider',
+      isExecutor: false,
+    },
+    {
+      key: 'secondaryMaster',
+      id: IDS.user.secondaryMaster,
+      email: 'stage.secondary.master@stage.local',
+      firstName: 'Stage Secondary',
+      lastName: 'Master',
+      role: UserRole.MASTER,
+      companyKey: 'secondaryProvider',
+      isExecutor: false,
+    },
+    {
+      key: 'secondaryTechnician',
+      id: IDS.user.secondaryTechnician,
+      email: 'stage.secondary.tech@stage.local',
+      firstName: 'Stage Secondary',
+      lastName: 'Technician',
+      role: UserRole.TECHNICIAN,
+      companyKey: 'secondaryProvider',
+      isExecutor: true,
+    },
+    {
+      key: 'mobileTechnician',
+      id: IDS.user.mobileTechnician,
+      email: 'stage.mobile.tech@stage.local',
+      firstName: 'Stage Mobile',
+      lastName: 'Technician',
+      role: UserRole.TECHNICIAN,
+      companyKey: 'secondaryProvider',
+      isExecutor: true,
+    },
+  ] satisfies CanonicalUser[],
+  locations: [
+    {
+      key: 'primary',
+      id: IDS.location.primary,
+      platformCode: 'SMA-QA-PRIMARY',
+      name: 'SMA QA Primary Location',
+      city: 'Москва',
+      address: 'Москва, Stage QA Primary, 1',
+    },
+    {
+      key: 'secondary',
+      id: IDS.location.secondary,
+      platformCode: 'SMA-QA-SECONDARY',
+      name: 'SMA QA Secondary Location',
+      city: 'Москва',
+      address: 'Москва, Stage QA Secondary, 2',
+    },
+    {
+      key: 'outside',
+      id: IDS.location.outside,
+      platformCode: 'SMA-QA-OUTSIDE',
+      name: 'SMA QA Outside Location',
+      city: 'Москва',
+      address: 'Москва, Stage QA Outside, 3',
+    },
+  ] satisfies CanonicalLocation[],
+  specializations: [
+    { key: 'hvac', id: IDS.specialization.hvac, name: 'Stage QA HVAC' },
+    { key: 'electrical', id: IDS.specialization.electrical, name: 'Stage QA Electrical' },
+    { key: 'plumbing', id: IDS.specialization.plumbing, name: 'Stage QA Plumbing' },
+  ] satisfies CanonicalSpecialization[],
+  categories: [
+    {
+      key: 'hvac',
+      id: IDS.category.hvac,
+      name: 'Stage QA HVAC category',
+      specializationKey: 'hvac',
+    },
+    {
+      key: 'electrical',
+      id: IDS.category.electrical,
+      name: 'Stage QA Electrical category',
+      specializationKey: 'electrical',
+    },
+    {
+      key: 'plumbing',
+      id: IDS.category.plumbing,
+      name: 'Stage QA Plumbing category',
+      specializationKey: 'plumbing',
+    },
+  ] satisfies CanonicalCategory[],
+  contracts: [
+    {
+      providerCompanyKey: 'primaryProvider' as const,
+      role: ServiceContractRole.PRIMARY,
+      locationKeys: ['primary', 'secondary'] as LocationKey[],
+      specializationKeys: ['hvac', 'electrical'] as SpecializationKey[],
+    },
+    {
+      providerCompanyKey: 'secondaryProvider' as const,
+      role: ServiceContractRole.SECONDARY,
+      locationKeys: ['secondary'] as LocationKey[],
+      specializationKeys: ['electrical'] as SpecializationKey[],
+    },
+  ],
+  userScopes: [
+    {
+      userKey: 'clientAdmin' as const,
+      locationKeys: ['primary', 'secondary', 'outside'] as LocationKey[],
+      specializationKeys: ['hvac', 'electrical', 'plumbing'] as SpecializationKey[],
+    },
+    {
+      userKey: 'networkDirector' as const,
+      locationKeys: ['primary', 'secondary'] as LocationKey[],
+      specializationKeys: ['hvac', 'electrical'] as SpecializationKey[],
+    },
+    {
+      userKey: 'territorialManager' as const,
+      locationKeys: ['secondary'] as LocationKey[],
+      specializationKeys: ['electrical'] as SpecializationKey[],
+    },
+    {
+      userKey: 'primaryAdmin' as const,
+      locationKeys: ['primary', 'secondary'] as LocationKey[],
+      specializationKeys: ['hvac', 'electrical'] as SpecializationKey[],
+    },
+    {
+      userKey: 'primaryDispatcher' as const,
+      locationKeys: ['primary', 'secondary'] as LocationKey[],
+      specializationKeys: ['hvac', 'electrical'] as SpecializationKey[],
+    },
+    {
+      userKey: 'primaryMaster' as const,
+      locationKeys: ['primary', 'secondary'] as LocationKey[],
+      specializationKeys: ['hvac', 'electrical'] as SpecializationKey[],
+    },
+    {
+      userKey: 'primaryTechnician' as const,
+      locationKeys: ['primary'] as LocationKey[],
+      specializationKeys: ['hvac'] as SpecializationKey[],
+    },
+    {
+      userKey: 'secondaryAdmin' as const,
+      locationKeys: ['secondary'] as LocationKey[],
+      specializationKeys: ['electrical'] as SpecializationKey[],
+    },
+    {
+      userKey: 'secondaryDispatcher' as const,
+      locationKeys: ['secondary'] as LocationKey[],
+      specializationKeys: ['electrical'] as SpecializationKey[],
+    },
+    {
+      userKey: 'secondaryMaster' as const,
+      locationKeys: ['secondary'] as LocationKey[],
+      specializationKeys: ['electrical'] as SpecializationKey[],
+    },
+    {
+      userKey: 'secondaryTechnician' as const,
+      locationKeys: ['secondary'] as LocationKey[],
+      specializationKeys: ['electrical'] as SpecializationKey[],
+    },
+    {
+      userKey: 'mobileTechnician' as const,
+      locationKeys: ['secondary'] as LocationKey[],
+      specializationKeys: ['electrical'] as SpecializationKey[],
+    },
+  ],
+  tickets: [
+    {
+      key: 'A',
+      id: IDS.ticket.A,
+      ticketNumber: 9101,
+      title: 'A — valid PRIMARY work',
+      purpose: 'PRIMARY positive visibility and assignment fixture',
+      status: TicketStatus.NEW,
+      locationKey: 'primary',
+      categoryKey: 'hvac',
+      createdByUserKey: 'clientAdmin',
+      requesterName: 'Stage QA Client Admin',
+      priority: TicketPriority.NORMAL,
+      urgency: TicketUrgency.NOT_URGENT,
+      slaMinutes: 240,
+      createdAt: new Date('2026-08-20T07:00:00.000Z'),
+    },
+    {
+      key: 'B',
+      id: IDS.ticket.B,
+      ticketNumber: 9102,
+      title: 'B — valid SECONDARY assigned work',
+      purpose: 'SECONDARY assigned technician fixture',
+      status: TicketStatus.ASSIGNED,
+      locationKey: 'secondary',
+      categoryKey: 'electrical',
+      createdByUserKey: 'clientAdmin',
+      assignedUserKey: 'secondaryTechnician',
+      requesterName: 'Stage QA Client Admin',
+      priority: TicketPriority.URGENT,
+      urgency: TicketUrgency.URGENT,
+      slaMinutes: 120,
+      createdAt: new Date('2026-08-20T07:10:00.000Z'),
+    },
+    {
+      key: 'C',
+      id: IDS.ticket.C,
+      ticketNumber: 9103,
+      title: 'C — valid SECONDARY unassigned work',
+      purpose: 'SECONDARY visible unassigned fixture',
+      status: TicketStatus.NEW,
+      locationKey: 'secondary',
+      categoryKey: 'electrical',
+      createdByUserKey: 'clientAdmin',
+      requesterName: 'Stage QA Client Admin',
+      priority: TicketPriority.NORMAL,
+      urgency: TicketUrgency.NOT_URGENT,
+      slaMinutes: 240,
+      createdAt: new Date('2026-08-20T07:20:00.000Z'),
+    },
+    {
+      key: 'D',
+      id: IDS.ticket.D,
+      ticketNumber: 9104,
+      title: 'D — wrong location negative',
+      purpose: 'Location mismatch only: electrical specialization but outside contract/user location',
+      status: TicketStatus.NEW,
+      locationKey: 'outside',
+      categoryKey: 'electrical',
+      createdByUserKey: 'clientAdmin',
+      requesterName: 'Stage QA Client Admin',
+      priority: TicketPriority.NORMAL,
+      urgency: TicketUrgency.NOT_URGENT,
+      slaMinutes: 240,
+      createdAt: new Date('2026-08-20T07:30:00.000Z'),
+    },
+    {
+      key: 'E',
+      id: IDS.ticket.E,
+      ticketNumber: 9105,
+      title: 'E — wrong specialization negative',
+      purpose: 'Specialization mismatch only: secondary location but plumbing specialization',
+      status: TicketStatus.DONE,
+      locationKey: 'secondary',
+      categoryKey: 'plumbing',
+      createdByUserKey: 'clientAdmin',
+      assignedUserKey: 'primaryTechnician',
+      requesterName: 'Stage QA Client Admin',
+      priority: TicketPriority.NORMAL,
+      urgency: TicketUrgency.NOT_URGENT,
+      slaMinutes: 240,
+      createdAt: new Date('2026-08-20T07:40:00.000Z'),
+    },
+    {
+      key: 'F',
+      id: IDS.ticket.F,
+      ticketNumber: 9106,
+      title: 'F — awaiting client acceptance',
+      purpose: 'CLIENT acceptance positive fixture',
+      status: TicketStatus.AWAITING_ACCEPTANCE,
+      locationKey: 'primary',
+      categoryKey: 'hvac',
+      createdByUserKey: 'clientAdmin',
+      assignedUserKey: 'primaryTechnician',
+      requesterName: 'Stage QA Client Admin',
+      priority: TicketPriority.NORMAL,
+      urgency: TicketUrgency.NOT_URGENT,
+      slaMinutes: 240,
+      createdAt: new Date('2026-08-20T07:50:00.000Z'),
+    },
+    {
+      key: 'G',
+      id: IDS.ticket.G,
+      ticketNumber: 9107,
+      title: 'G — SECONDARY in progress',
+      purpose: 'SECONDARY technician completion fixture',
+      status: TicketStatus.IN_PROGRESS,
+      locationKey: 'secondary',
+      categoryKey: 'electrical',
+      createdByUserKey: 'clientAdmin',
+      assignedUserKey: 'secondaryTechnician',
+      requesterName: 'Stage QA Client Admin',
+      priority: TicketPriority.URGENT,
+      urgency: TicketUrgency.URGENT,
+      slaMinutes: 120,
+      createdAt: new Date('2026-08-20T08:00:00.000Z'),
+    },
+    {
+      key: 'H',
+      id: IDS.ticket.H,
+      ticketNumber: 9108,
+      title: 'H — client-created SECONDARY claim denial',
+      purpose: 'SECONDARY technician direct claim denial fixture',
+      status: TicketStatus.NEW,
+      locationKey: 'secondary',
+      categoryKey: 'electrical',
+      createdByUserKey: 'clientAdmin',
+      requesterName: 'Stage QA Client Admin',
+      priority: TicketPriority.NORMAL,
+      urgency: TicketUrgency.NOT_URGENT,
+      slaMinutes: 240,
+      createdAt: new Date('2026-08-20T08:10:00.000Z'),
+    },
+    {
+      key: 'I',
+      id: IDS.ticket.I,
+      ticketNumber: 9109,
+      title: 'I — SECONDARY technician self-created claim exception',
+      purpose: 'Self-created SECONDARY technician claim exception fixture',
+      status: TicketStatus.NEW,
+      locationKey: 'secondary',
+      categoryKey: 'electrical',
+      createdByUserKey: 'secondaryTechnician',
+      requesterName: 'Stage QA Secondary Technician',
+      priority: TicketPriority.NORMAL,
+      urgency: TicketUrgency.NOT_URGENT,
+      slaMinutes: 240,
+      createdAt: new Date('2026-08-20T08:20:00.000Z'),
+    },
+    {
+      key: 'DONE',
+      id: IDS.ticket.DONE,
+      ticketNumber: 9110,
+      title: 'DONE — visible completed PRIMARY ticket',
+      purpose: 'Completed ticket visibility fixture for desktop and mobile',
+      status: TicketStatus.DONE,
+      locationKey: 'primary',
+      categoryKey: 'hvac',
+      createdByUserKey: 'clientAdmin',
+      assignedUserKey: 'primaryTechnician',
+      requesterName: 'Stage QA Client Admin',
+      priority: TicketPriority.NORMAL,
+      urgency: TicketUrgency.NOT_URGENT,
+      slaMinutes: 240,
+      createdAt: new Date('2026-08-20T08:30:00.000Z'),
+    },
+  ] satisfies CanonicalTicket[],
+} as const
+
+type ResolvedSeedIds = {
+  companies: Record<CompanyKey, string>
+  locations: Record<LocationKey, string>
+  specializations: Record<SpecializationKey, string>
+  categories: Record<CategoryKey, string>
+  users: Record<UserKey, string>
+  contracts: Partial<Record<'primaryProvider' | 'secondaryProvider', string>>
+}
+
+type SeedTicketResult = {
+  key: StageFixtureKey
+  id: string
+  ticketNumber: number
+  status: TicketStatus
+  purpose: string
+}
+
+export type CanonicalStageSeedResult = {
+  companies: number
+  users: number
+  locations: number
+  specializations: number
+  categories: number
+  contracts: number
+  tickets: SeedTicketResult[]
+  permissionBlocks: number
+  rolePermissions: number
+  providerDelegation: 'not_supported_by_current_schema'
+}
+
+function lowerEmail(email: string) {
+  return email.trim().toLowerCase()
+}
+
+function addMinutes(date: Date, minutes: number) {
+  return new Date(date.getTime() + minutes * 60_000)
+}
+
+function unique<T>(items: readonly T[]) {
+  return Array.from(new Set(items))
+}
+
+function hasTicketStatus(statuses: readonly TicketStatus[], status: TicketStatus) {
+  return statuses.includes(status)
+}
+
+function assertUnique(label: string, items: readonly string[]) {
+  const seen = new Set<string>()
+  for (const item of items) {
+    if (seen.has(item)) {
+      throw new Error(`[seed-stage-canonical] duplicate ${label}: ${item}`)
+    }
+    seen.add(item)
+  }
+}
+
+function resolveSeedPassword(passwordOverride?: string) {
+  const password = passwordOverride ?? process.env[PASSWORD_ENV]
+  if (!password) {
+    throw new Error(`[seed-stage-canonical] ${PASSWORD_ENV} is required; no password is stored in source`)
+  }
+  return password
+}
+
+export function validateCanonicalStageSeedPlan() {
+  assertUnique('company id', CANONICAL_STAGE_SEED.companies.map((row) => row.id))
+  assertUnique('user id', CANONICAL_STAGE_SEED.users.map((row) => row.id))
+  assertUnique('user email', CANONICAL_STAGE_SEED.users.map((row) => lowerEmail(row.email)))
+  assertUnique('location id', CANONICAL_STAGE_SEED.locations.map((row) => row.id))
+  assertUnique('location platformCode', CANONICAL_STAGE_SEED.locations.map((row) => row.platformCode))
+  assertUnique('specialization id', CANONICAL_STAGE_SEED.specializations.map((row) => row.id))
+  assertUnique('category id', CANONICAL_STAGE_SEED.categories.map((row) => row.id))
+  assertUnique('ticket id', CANONICAL_STAGE_SEED.tickets.map((row) => row.id))
+  assertUnique('ticket number', CANONICAL_STAGE_SEED.tickets.map((row) => String(row.ticketNumber)))
+
+  const statuses = new Set(CANONICAL_STAGE_SEED.tickets.map((row) => row.status))
+  for (const status of [
+    TicketStatus.NEW,
+    TicketStatus.ASSIGNED,
+    TicketStatus.IN_PROGRESS,
+    TicketStatus.AWAITING_ACCEPTANCE,
+    TicketStatus.DONE,
+  ]) {
+    if (!statuses.has(status)) {
+      throw new Error(`[seed-stage-canonical] missing ticket status fixture: ${status}`)
+    }
+  }
+
+  for (const key of ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I'] satisfies StageFixtureKey[]) {
+    if (!CANONICAL_STAGE_SEED.tickets.some((row) => row.key === key)) {
+      throw new Error(`[seed-stage-canonical] missing acceptance fixture ${key}`)
+    }
+  }
+}
+
+async function seedPermissions(prisma: PrismaClient) {
+  for (const block of PERMISSION_BLOCKS) {
+    await prisma.permissionBlock.upsert({
+      where: { code: block.code },
+      update: { name: block.name, description: block.description ?? null },
+      create: {
+        code: block.code,
+        name: block.name,
+        description: block.description ?? null,
+      },
+    })
+  }
+
+  const blocks = await prisma.permissionBlock.findMany({
+    select: { id: true, code: true },
+  })
+  const codeToId = new Map(blocks.map((block) => [block.code, block.id]))
+
+  const rows: Array<{
+    role: UserRole
+    companyType: CompanyType | null
+    permissionBlockId: string
+  }> = []
+  for (const grant of ROLE_GRANTS) {
+    for (const code of grant.codes) {
+      const permissionBlockId = codeToId.get(code)
+      if (!permissionBlockId) {
+        throw new Error(`[seed-stage-canonical] missing PermissionBlock for ${code}`)
+      }
+      rows.push({
+        role: grant.role,
+        companyType: grant.companyType,
+        permissionBlockId,
+      })
+    }
+  }
+
+  await prisma.$transaction([
+    prisma.rolePermission.deleteMany({}),
+    prisma.rolePermission.createMany({ data: rows, skipDuplicates: true }),
+  ])
+}
+
+async function ensureCompany(prisma: PrismaClient, row: CanonicalCompany) {
+  const existingById = await prisma.company.findUnique({
+    where: { id: row.id },
+    select: { id: true },
+  })
+  const existing =
+    existingById ??
+    (await prisma.company.findFirst({
+      where: { name: row.name },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    }))
+
+  if (existing) {
+    const updated = await prisma.company.update({
+      where: { id: existing.id },
+      data: {
+        name: row.name,
+        type: row.type,
+        autoAssignEnabled: false,
+        allowTechnicianClaim: true,
+        publicRequestEnabled: false,
+        slaStrictMode: false,
+      },
+      select: { id: true },
+    })
+    return updated.id
+  }
+
+  const created = await prisma.company.create({
+    data: {
+      id: row.id,
+      name: row.name,
+      type: row.type,
+      autoAssignEnabled: false,
+      allowTechnicianClaim: true,
+      publicRequestEnabled: false,
+      slaStrictMode: false,
+    },
+    select: { id: true },
+  })
+  return created.id
+}
+
+async function ensureUser(
+  prisma: PrismaClient,
+  row: CanonicalUser,
+  companyId: string,
+  passwordHash: string,
+) {
+  const email = lowerEmail(row.email)
+  const existingByEmail = await prisma.user.findUnique({
+    where: { email },
+    select: { id: true },
+  })
+  const existing =
+    existingByEmail ??
+    (await prisma.user.findUnique({
+      where: { id: row.id },
+      select: { id: true },
+    }))
+
+  if (existing) {
+    const updated = await prisma.user.update({
+      where: { id: existing.id },
+      data: {
+        email,
+        password: passwordHash,
+        firstName: row.firstName,
+        lastName: row.lastName,
+        role: row.role,
+        companyId,
+        isExecutor: row.isExecutor,
+        isActive: true,
+        deletedAt: null,
+      },
+      select: { id: true },
+    })
+    return updated.id
+  }
+
+  const created = await prisma.user.create({
+    data: {
+      id: row.id,
+      email,
+      password: passwordHash,
+      firstName: row.firstName,
+      lastName: row.lastName,
+      role: row.role,
+      companyId,
+      isExecutor: row.isExecutor,
+      isActive: true,
+      deletedAt: null,
+    },
+    select: { id: true },
+  })
+  return created.id
+}
+
+async function ensureLocation(
+  prisma: PrismaClient,
+  row: CanonicalLocation,
+  clientCompanyId: string,
+) {
+  const location = await prisma.location.upsert({
+    where: {
+      clientCompanyId_platformCode: {
+        clientCompanyId,
+        platformCode: row.platformCode,
+      },
+    },
+    update: {
+      name: row.name,
+      city: row.city,
+      address: row.address,
+      isActive: true,
+      deletedAt: null,
+    },
+    create: {
+      id: row.id,
+      clientCompanyId,
+      platformCode: row.platformCode,
+      name: row.name,
+      city: row.city,
+      address: row.address,
+      isActive: true,
+    },
+    select: { id: true },
+  })
+  return location.id
+}
+
+async function ensureSpecialization(
+  prisma: PrismaClient,
+  row: CanonicalSpecialization,
+  companyId: string,
+) {
+  const existing =
+    (await prisma.specialization.findFirst({
+      where: { id: row.id },
+      select: { id: true },
+    })) ??
+    (await prisma.specialization.findFirst({
+      where: { companyId, name: row.name },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    }))
+
+  if (existing) {
+    const updated = await prisma.specialization.update({
+      where: { id: existing.id },
+      data: { companyId, name: row.name, isActive: true },
+      select: { id: true },
+    })
+    return updated.id
+  }
+
+  const created = await prisma.specialization.create({
+    data: { id: row.id, companyId, name: row.name, isActive: true },
+    select: { id: true },
+  })
+  return created.id
+}
+
+async function ensureCategory(
+  prisma: PrismaClient,
+  row: CanonicalCategory,
+  companyId: string,
+  specializationId: string,
+) {
+  const category = await prisma.problemCategory.upsert({
+    where: { companyId_name: { companyId, name: row.name } },
+    update: { isActive: true, instructions: `Canonical Stage QA fixture: ${row.key}` },
+    create: {
+      id: row.id,
+      companyId,
+      name: row.name,
+      instructions: `Canonical Stage QA fixture: ${row.key}`,
+      isActive: true,
+    },
+    select: { id: true },
+  })
+
+  await prisma.problemCategorySpecialization.deleteMany({
+    where: { problemCategoryId: category.id },
+  })
+  await prisma.problemCategorySpecialization.create({
+    data: { problemCategoryId: category.id, specializationId },
+  })
+
+  return category.id
+}
+
+async function ensureServiceContract(
+  prisma: PrismaClient,
+  params: {
+    clientCompanyId: string
+    providerCompanyId: string
+    role: ServiceContractRole
+    locationIds: string[]
+    specializationIds: string[]
+  },
+) {
+  const contract = await prisma.serviceContract.upsert({
+    where: {
+      clientCompanyId_providerCompanyId: {
+        clientCompanyId: params.clientCompanyId,
+        providerCompanyId: params.providerCompanyId,
+      },
+    },
+    update: {
+      status: ServiceContractStatus.ACTIVE,
+      role: params.role,
+      locationMode: ServiceContractLocationMode.SELECTED_LOCATIONS,
+      startsAt: null,
+      endsAt: null,
+      notes: `Canonical Stage ${params.role} contract context fixture`,
+    },
+    create: {
+      clientCompanyId: params.clientCompanyId,
+      providerCompanyId: params.providerCompanyId,
+      status: ServiceContractStatus.ACTIVE,
+      role: params.role,
+      locationMode: ServiceContractLocationMode.SELECTED_LOCATIONS,
+      startsAt: null,
+      endsAt: null,
+      notes: `Canonical Stage ${params.role} contract context fixture`,
+    },
+    select: { id: true },
+  })
+
+  await prisma.serviceContractLocation.deleteMany({
+    where: {
+      serviceContractId: contract.id,
+      locationId: { notIn: params.locationIds },
+    },
+  })
+  await prisma.serviceContractLocation.createMany({
+    data: params.locationIds.map((locationId) => ({
+      serviceContractId: contract.id,
+      clientCompanyId: params.clientCompanyId,
+      locationId,
+    })),
+    skipDuplicates: true,
+  })
+
+  await prisma.serviceContractSpecialization.deleteMany({
+    where: {
+      serviceContractId: contract.id,
+      specializationId: { notIn: params.specializationIds },
+    },
+  })
+  await prisma.serviceContractSpecialization.createMany({
+    data: params.specializationIds.map((specializationId) => ({
+      serviceContractId: contract.id,
+      specializationId,
+    })),
+    skipDuplicates: true,
+  })
+
+  return contract.id
+}
+
+async function resetCanonicalUserScopes(prisma: PrismaClient, ids: ResolvedSeedIds) {
+  const userIds = Object.values(ids.users)
+  await prisma.$transaction([
+    prisma.userLocationBinding.deleteMany({ where: { userId: { in: userIds } } }),
+    prisma.technicianSpecialization.deleteMany({ where: { userId: { in: userIds } } }),
+    prisma.userAccessScope.deleteMany({ where: { userId: { in: userIds } } }),
+  ])
+
+  const scopeRows = CANONICAL_STAGE_SEED.userScopes.map((scope) => {
+    const user = CANONICAL_STAGE_SEED.users.find((row) => row.key === scope.userKey)!
+    return {
+      userId: ids.users[scope.userKey],
+      companyId: ids.companies[user.companyKey],
+      locationMode: UserAccessLocationMode.SELECTED_LOCATIONS,
+    }
+  })
+
+  await prisma.userAccessScope.createMany({
+    data: scopeRows,
+    skipDuplicates: true,
+  })
+
+  const locationRows = CANONICAL_STAGE_SEED.userScopes.flatMap((scope) => {
+    const user = CANONICAL_STAGE_SEED.users.find((row) => row.key === scope.userKey)!
+    return scope.locationKeys.map((locationKey) => ({
+      userId: ids.users[scope.userKey],
+      companyId: ids.companies[user.companyKey],
+      locationId: ids.locations[locationKey],
+    }))
+  })
+
+  await prisma.userLocationBinding.createMany({
+    data: locationRows,
+    skipDuplicates: true,
+  })
+
+  const specializationRows = CANONICAL_STAGE_SEED.userScopes.flatMap((scope) =>
+    scope.specializationKeys.map((specializationKey) => ({
+      userId: ids.users[scope.userKey],
+      specializationId: ids.specializations[specializationKey],
+    })),
+  )
+
+  await prisma.technicianSpecialization.createMany({
+    data: specializationRows,
+    skipDuplicates: true,
+  })
+}
+
+async function ensureTechnicianClientBindings(prisma: PrismaClient, ids: ResolvedSeedIds) {
+  const rows = [
+    {
+      providerCompanyKey: 'primaryProvider' as CompanyKey,
+      technicianUserKey: 'primaryTechnician' as UserKey,
+      locationKey: 'primary' as LocationKey,
+    },
+    {
+      providerCompanyKey: 'secondaryProvider' as CompanyKey,
+      technicianUserKey: 'secondaryTechnician' as UserKey,
+      locationKey: 'secondary' as LocationKey,
+    },
+    {
+      providerCompanyKey: 'secondaryProvider' as CompanyKey,
+      technicianUserKey: 'mobileTechnician' as UserKey,
+      locationKey: 'secondary' as LocationKey,
+    },
+  ]
+
+  await prisma.technicianClientBinding.deleteMany({
+    where: {
+      technicianUserId: { in: rows.map((row) => ids.users[row.technicianUserKey]) },
+      clientCompanyId: ids.companies.client,
+    },
+  })
+
+  await prisma.technicianClientBinding.createMany({
+    data: rows.map((row, index) => ({
+      id: `70000000-0000-4000-8000-00000000100${index + 1}`,
+      providerCompanyId: ids.companies[row.providerCompanyKey],
+      technicianUserId: ids.users[row.technicianUserKey],
+      clientCompanyId: ids.companies.client,
+      locationId: ids.locations[row.locationKey],
+    })),
+    skipDuplicates: true,
+  })
+}
+
+async function assertTicketNumberAvailable(
+  prisma: PrismaClient,
+  ticketId: string,
+  ticketNumber: number,
+) {
+  const existing = await prisma.ticket.findUnique({
+    where: { ticketNumber },
+    select: { id: true },
+  })
+  if (existing && existing.id !== ticketId) {
+    throw new Error(
+      `[seed-stage-canonical] ticket number ${ticketNumber} is already used by non-canonical ticket ${existing.id}`,
+    )
+  }
+}
+
+function ticketLifecycle(ticket: CanonicalTicket, ids: ResolvedSeedIds) {
+  const actorId = ids.users[ticket.createdByUserKey]
+  const assigneeId = ticket.assignedUserKey ? ids.users[ticket.assignedUserKey] : null
+  const rows: Array<{
+    fromStatus: TicketStatus | null
+    toStatus: TicketStatus
+    changedByUserId: string | null
+    comment: string
+    at: Date
+  }> = [
+    {
+      fromStatus: null,
+      toStatus: TicketStatus.NEW,
+      changedByUserId: actorId,
+      comment: `Stage fixture ${ticket.key} created`,
+      at: ticket.createdAt,
+    },
+  ]
+
+  if (
+    hasTicketStatus([
+      TicketStatus.ASSIGNED,
+      TicketStatus.IN_PROGRESS,
+      TicketStatus.AWAITING_ACCEPTANCE,
+      TicketStatus.DONE,
+    ], ticket.status)
+  ) {
+    rows.push({
+      fromStatus: TicketStatus.NEW,
+      toStatus: TicketStatus.ASSIGNED,
+      changedByUserId: ids.users.primaryAdmin,
+      comment: assigneeId ? 'Stage fixture assigned' : 'Stage fixture assigned without executor',
+      at: addMinutes(ticket.createdAt, 10),
+    })
+  }
+
+  if (
+    hasTicketStatus([
+      TicketStatus.IN_PROGRESS,
+      TicketStatus.AWAITING_ACCEPTANCE,
+      TicketStatus.DONE,
+    ], ticket.status)
+  ) {
+    rows.push({
+      fromStatus: TicketStatus.ASSIGNED,
+      toStatus: TicketStatus.IN_PROGRESS,
+      changedByUserId: assigneeId,
+      comment: 'Stage fixture work started',
+      at: addMinutes(ticket.createdAt, 20),
+    })
+  }
+
+  if (hasTicketStatus([TicketStatus.AWAITING_ACCEPTANCE, TicketStatus.DONE], ticket.status)) {
+    rows.push({
+      fromStatus: TicketStatus.IN_PROGRESS,
+      toStatus: TicketStatus.AWAITING_ACCEPTANCE,
+      changedByUserId: assigneeId,
+      comment: 'Stage fixture work completed and sent to acceptance',
+      at: addMinutes(ticket.createdAt, 40),
+    })
+  }
+
+  if (ticket.status === TicketStatus.DONE) {
+    rows.push({
+      fromStatus: TicketStatus.AWAITING_ACCEPTANCE,
+      toStatus: TicketStatus.DONE,
+      changedByUserId: ids.users.clientAdmin,
+      comment: 'Stage fixture accepted by client',
+      at: addMinutes(ticket.createdAt, 60),
+    })
+  }
+
+  return rows
+}
+
+function ticketEvents(ticket: CanonicalTicket, ids: ResolvedSeedIds) {
+  const actorId = ids.users[ticket.createdByUserKey]
+  const assigneeId = ticket.assignedUserKey ? ids.users[ticket.assignedUserKey] : null
+  const rows: Array<{
+    type: string
+    actorUserId: string | null
+    payload: Prisma.InputJsonValue
+    createdAt: Date
+  }> = [
+    {
+      type: 'ticket.created',
+      actorUserId: actorId,
+      payload: {
+        fixtureKey: ticket.key,
+        purpose: ticket.purpose,
+        locationId: ids.locations[ticket.locationKey],
+        problemCategoryId: ids.categories[ticket.categoryKey],
+        status: TicketStatus.NEW,
+      },
+      createdAt: ticket.createdAt,
+    },
+    {
+      type: 'ticket.comment_added',
+      actorUserId: actorId,
+      payload: {
+        comment: `Canonical Stage comment for fixture ${ticket.key}`,
+        source: 'stage_seed',
+      },
+      createdAt: addMinutes(ticket.createdAt, 5),
+    },
+    {
+      type: 'ticket.updated',
+      actorUserId: ids.users.clientAdmin,
+      payload: {
+        fixtureKey: ticket.key,
+        changes: [
+          {
+            field: 'priority',
+            oldValue: TicketPriority.NORMAL,
+            newValue: ticket.priority,
+          },
+        ],
+      },
+      createdAt: addMinutes(ticket.createdAt, 6),
+    },
+  ]
+
+  if (assigneeId) {
+    rows.push({
+      type: 'ticket.assigned',
+      actorUserId: ids.users.primaryAdmin,
+      payload: {
+        previousAssignedTechnicianId: null,
+        assignedTechnicianId: assigneeId,
+        assignerUserId: ids.users.primaryAdmin,
+        mode: 'stage_seed',
+      },
+      createdAt: addMinutes(ticket.createdAt, 10),
+    })
+  }
+
+  if (
+    hasTicketStatus([
+      TicketStatus.IN_PROGRESS,
+      TicketStatus.AWAITING_ACCEPTANCE,
+      TicketStatus.DONE,
+    ], ticket.status)
+  ) {
+    rows.push({
+      type: 'ticket.status_changed',
+      actorUserId: assigneeId,
+      payload: {
+        fromStatus: TicketStatus.ASSIGNED,
+        toStatus: TicketStatus.IN_PROGRESS,
+        comment: 'Stage fixture work started',
+      },
+      createdAt: addMinutes(ticket.createdAt, 20),
+    })
+  }
+
+  if (hasTicketStatus([TicketStatus.AWAITING_ACCEPTANCE, TicketStatus.DONE], ticket.status)) {
+    rows.push({
+      type: 'ticket.ready_for_acceptance',
+      actorUserId: assigneeId,
+      payload: {
+        fromStatus: TicketStatus.IN_PROGRESS,
+        toStatus: TicketStatus.AWAITING_ACCEPTANCE,
+      },
+      createdAt: addMinutes(ticket.createdAt, 40),
+    })
+  }
+
+  if (ticket.status === TicketStatus.DONE) {
+    rows.push({
+      type: 'ticket.accepted',
+      actorUserId: ids.users.clientAdmin,
+      payload: {
+        decision: 'ACCEPT',
+        comment: 'Stage fixture accepted by client',
+      },
+      createdAt: addMinutes(ticket.createdAt, 60),
+    })
+  }
+
+  return rows
+}
+
+async function seedTickets(prisma: PrismaClient, ids: ResolvedSeedIds) {
+  const ticketIds = CANONICAL_STAGE_SEED.tickets.map((ticket) => ticket.id)
+
+  await prisma.$transaction([
+    prisma.assignmentDecision.deleteMany({ where: { ticketId: { in: ticketIds } } }),
+    prisma.ticketAttachment.deleteMany({ where: { ticketId: { in: ticketIds } } }),
+    prisma.ticketStatusHistory.deleteMany({ where: { ticketId: { in: ticketIds } } }),
+    prisma.domainEvent.deleteMany({
+      where: {
+        entityType: 'Ticket',
+        entityId: { in: ticketIds },
+      },
+    }),
+  ])
+
+  const results: SeedTicketResult[] = []
+
+  for (const ticket of CANONICAL_STAGE_SEED.tickets) {
+    await assertTicketNumberAvailable(prisma, ticket.id, ticket.ticketNumber)
+
+    const locationId = ids.locations[ticket.locationKey]
+    const createdByUserId = ids.users[ticket.createdByUserKey]
+    const assignedTechnicianId = ticket.assignedUserKey ? ids.users[ticket.assignedUserKey] : null
+    const lifecycle = ticketLifecycle(ticket, ids)
+    const statusUpdatedAt = lifecycle[lifecycle.length - 1]?.at ?? ticket.createdAt
+
+    const row = await prisma.ticket.upsert({
+      where: { id: ticket.id },
+      update: {
+        ticketNumber: ticket.ticketNumber,
+        companyId: ids.companies.client,
+        locationId,
+        problemCategoryId: ids.categories[ticket.categoryKey],
+        problemText: ticket.title,
+        requesterName: ticket.requesterName,
+        requesterPhone: '+7 900 000-00-00',
+        pointName: CANONICAL_STAGE_SEED.locations.find((item) => item.key === ticket.locationKey)?.name ?? null,
+        address: CANONICAL_STAGE_SEED.locations.find((item) => item.key === ticket.locationKey)?.address ?? null,
+        source: TicketSource.INTERNAL,
+        urgency: ticket.urgency,
+        priority: ticket.priority,
+        status: ticket.status,
+        assignedTechnicianId,
+        createdByUserId,
+        slaMinutes: ticket.slaMinutes,
+        slaDueAt: addMinutes(ticket.createdAt, ticket.slaMinutes),
+        slaBreachedAt: null,
+        statusUpdatedAt,
+        closedAt: ticket.status === TicketStatus.DONE ? statusUpdatedAt : null,
+      },
+      create: {
+        id: ticket.id,
+        ticketNumber: ticket.ticketNumber,
+        companyId: ids.companies.client,
+        locationId,
+        problemCategoryId: ids.categories[ticket.categoryKey],
+        problemText: ticket.title,
+        requesterName: ticket.requesterName,
+        requesterPhone: '+7 900 000-00-00',
+        pointName: CANONICAL_STAGE_SEED.locations.find((item) => item.key === ticket.locationKey)?.name ?? null,
+        address: CANONICAL_STAGE_SEED.locations.find((item) => item.key === ticket.locationKey)?.address ?? null,
+        source: TicketSource.INTERNAL,
+        urgency: ticket.urgency,
+        priority: ticket.priority,
+        status: ticket.status,
+        assignedTechnicianId,
+        createdByUserId,
+        slaMinutes: ticket.slaMinutes,
+        slaDueAt: addMinutes(ticket.createdAt, ticket.slaMinutes),
+        slaBreachedAt: null,
+        statusUpdatedAt,
+        closedAt: ticket.status === TicketStatus.DONE ? statusUpdatedAt : null,
+        createdAt: ticket.createdAt,
+      },
+      select: { id: true, ticketNumber: true, status: true },
+    })
+
+    await prisma.ticketStatusHistory.createMany({
+      data: lifecycle.map((item) => ({
+        ticketId: ticket.id,
+        fromStatus: item.fromStatus,
+        toStatus: item.toStatus,
+        changedByUserId: item.changedByUserId,
+        comment: item.comment,
+        createdAt: item.at,
+      })),
+    })
+
+    const events = ticketEvents(ticket, ids)
+    await prisma.domainEvent.createMany({
+      data: events.map((event) => ({
+        companyId: ids.companies.client,
+        entityType: 'Ticket',
+        entityId: ticket.id,
+        type: event.type,
+        actorUserId: event.actorUserId,
+        payload: event.payload,
+        createdAt: event.createdAt,
+      })),
+    })
+
+    const requestAttachmentId = `80000000-0000-4000-8000-${ticket.ticketNumber.toString().padStart(12, '0')}`
+    await prisma.ticketAttachment.create({
+      data: {
+        id: requestAttachmentId,
+        companyId: ids.companies.client,
+        ticketId: ticket.id,
+        uploadedByUserId: createdByUserId,
+        originalName: `stage-fixture-${ticket.key}-request.jpg`,
+        storageKey: `stage-fixtures/${ticket.key}/request.jpg`,
+        mimeType: 'image/jpeg',
+        sizeBytes: 1024,
+        url: `/uploads/stage-fixtures/${ticket.key}/request.jpg`,
+        purpose: TicketAttachmentPurpose.REQUEST,
+        createdAt: addMinutes(ticket.createdAt, 2),
+      },
+    })
+
+    if (
+      hasTicketStatus([
+        TicketStatus.IN_PROGRESS,
+        TicketStatus.AWAITING_ACCEPTANCE,
+        TicketStatus.DONE,
+      ], ticket.status)
+    ) {
+      const reportAttachmentId = `81000000-0000-4000-8000-${ticket.ticketNumber.toString().padStart(12, '0')}`
+      await prisma.ticketAttachment.create({
+        data: {
+          id: reportAttachmentId,
+          companyId: ids.companies.client,
+          ticketId: ticket.id,
+          uploadedByUserId: assignedTechnicianId,
+          originalName: `stage-fixture-${ticket.key}-work-report.jpg`,
+          storageKey: `stage-fixtures/${ticket.key}/work-report.jpg`,
+          mimeType: 'image/jpeg',
+          sizeBytes: 2048,
+          url: `/uploads/stage-fixtures/${ticket.key}/work-report.jpg`,
+          purpose: TicketAttachmentPurpose.WORK_REPORT,
+          createdAt: addMinutes(ticket.createdAt, 35),
+        },
+      })
+
+      await prisma.domainEvent.create({
+        data: {
+          companyId: ids.companies.client,
+          entityType: 'Ticket',
+          entityId: ticket.id,
+          type: 'ticket.attachment_uploaded',
+          actorUserId: assignedTechnicianId,
+          payload: {
+            attachmentId: reportAttachmentId,
+            purpose: TicketAttachmentPurpose.WORK_REPORT,
+          },
+          createdAt: addMinutes(ticket.createdAt, 35),
+        },
+      })
+    }
+
+    if (assignedTechnicianId) {
+      await prisma.assignmentDecision.create({
+        data: {
+          ticketId: ticket.id,
+          technicianId: assignedTechnicianId,
+          candidatesCount: 1,
+          reason: 'stage_seed',
+          createdAt: addMinutes(ticket.createdAt, 10),
+        },
+      })
+    }
+
+    results.push({
+      key: ticket.key,
+      id: row.id,
+      ticketNumber: row.ticketNumber,
+      status: row.status,
+      purpose: ticket.purpose,
+    })
+  }
+
+  return results
+}
+
+async function seedPushPreferences(prisma: PrismaClient, userIds: string[]) {
+  for (const userId of userIds) {
+    await prisma.pushPreference.upsert({
+      where: { userId },
+      update: {
+        chat: true,
+        ticketNew: true,
+        assignment: true,
+        statusChange: true,
+        acceptance: true,
+        acceptanceReject: true,
+        sla: true,
+      },
+      create: {
+        userId,
+        chat: true,
+        ticketNew: true,
+        assignment: true,
+        statusChange: true,
+        acceptance: true,
+        acceptanceReject: true,
+        sla: true,
+      },
+    })
+  }
+}
+
+export async function runCanonicalStageSeed(
+  prisma: PrismaClient,
+  options?: { password?: string },
+): Promise<CanonicalStageSeedResult> {
+  validateCanonicalStageSeedPlan()
+
+  const password = resolveSeedPassword(options?.password)
+  const passwordHash = await bcrypt.hash(password, 10)
+
+  await seedPermissions(prisma)
+
+  const ids: ResolvedSeedIds = {
+    companies: {} as Record<CompanyKey, string>,
+    locations: {} as Record<LocationKey, string>,
+    specializations: {} as Record<SpecializationKey, string>,
+    categories: {} as Record<CategoryKey, string>,
+    users: {} as Record<UserKey, string>,
+    contracts: {},
+  }
+
+  for (const company of CANONICAL_STAGE_SEED.companies) {
+    ids.companies[company.key] = await ensureCompany(prisma, company)
+  }
+
+  for (const user of CANONICAL_STAGE_SEED.users) {
+    ids.users[user.key] = await ensureUser(
+      prisma,
+      user,
+      ids.companies[user.companyKey],
+      passwordHash,
+    )
+  }
+
+  for (const location of CANONICAL_STAGE_SEED.locations) {
+    ids.locations[location.key] = await ensureLocation(
+      prisma,
+      location,
+      ids.companies.client,
+    )
+  }
+
+  for (const specialization of CANONICAL_STAGE_SEED.specializations) {
+    ids.specializations[specialization.key] = await ensureSpecialization(
+      prisma,
+      specialization,
+      ids.companies.client,
+    )
+  }
+
+  for (const category of CANONICAL_STAGE_SEED.categories) {
+    ids.categories[category.key] = await ensureCategory(
+      prisma,
+      category,
+      ids.companies.client,
+      ids.specializations[category.specializationKey],
+    )
+  }
+
+  for (const contract of CANONICAL_STAGE_SEED.contracts) {
+    ids.contracts[contract.providerCompanyKey] = await ensureServiceContract(prisma, {
+      clientCompanyId: ids.companies.client,
+      providerCompanyId: ids.companies[contract.providerCompanyKey],
+      role: contract.role,
+      locationIds: contract.locationKeys.map((key) => ids.locations[key]),
+      specializationIds: contract.specializationKeys.map((key) => ids.specializations[key]),
+    })
+  }
+
+  await resetCanonicalUserScopes(prisma, ids)
+  await ensureTechnicianClientBindings(prisma, ids)
+  await seedPushPreferences(prisma, Object.values(ids.users))
+  const tickets = await seedTickets(prisma, ids)
+
+  const [permissionBlocks, rolePermissions] = await Promise.all([
+    prisma.permissionBlock.count(),
+    prisma.rolePermission.count(),
+  ])
+
+  return {
+    companies: CANONICAL_STAGE_SEED.companies.length,
+    users: CANONICAL_STAGE_SEED.users.length,
+    locations: CANONICAL_STAGE_SEED.locations.length,
+    specializations: CANONICAL_STAGE_SEED.specializations.length,
+    categories: CANONICAL_STAGE_SEED.categories.length,
+    contracts: CANONICAL_STAGE_SEED.contracts.length,
+    tickets,
+    permissionBlocks,
+    rolePermissions,
+    providerDelegation: 'not_supported_by_current_schema',
+  }
+}
+
+function printDryRun() {
+  validateCanonicalStageSeedPlan()
+  const statuses = unique(CANONICAL_STAGE_SEED.tickets.map((ticket) => ticket.status))
+  console.log('[seed-stage-canonical] dry-run OK')
+  console.log(`[seed-stage-canonical] companies: ${CANONICAL_STAGE_SEED.companies.length}`)
+  console.log(`[seed-stage-canonical] users: ${CANONICAL_STAGE_SEED.users.length}`)
+  console.log(`[seed-stage-canonical] contracts: ${CANONICAL_STAGE_SEED.contracts.length}`)
+  console.log(`[seed-stage-canonical] tickets: ${CANONICAL_STAGE_SEED.tickets.length}`)
+  console.log(`[seed-stage-canonical] statuses: ${statuses.join(', ')}`)
+  console.log('[seed-stage-canonical] providerDelegation: not supported by current schema')
 }
 
 async function main() {
-  const passwordHash = await bcrypt.hash('StageQa123!', 10)
-
-  // ---- Companies ------------------------------------------------------------
-  const companies: Array<{ id: string; name: string; type: CompanyType }> = [
-    { id: CO.client, name: 'QA Client Co', type: CompanyType.CLIENT },
-    { id: CO.general, name: 'QA General Provider Co', type: CompanyType.PROVIDER },
-    { id: CO.secondary, name: 'QA Secondary Provider Co', type: CompanyType.PROVIDER },
-    { id: CO.zosimov, name: 'QA Subcontractor Zosimov Co', type: CompanyType.PROVIDER },
-    { id: CO.otherSub, name: 'QA Other Subcontractor Co', type: CompanyType.PROVIDER },
-  ]
-
-  for (const c of companies) {
-    await prisma.company.upsert({
-      where: { id: c.id },
-      update: { name: c.name, type: c.type },
-      create: { id: c.id, name: c.name, type: c.type },
-    })
+  if (process.env.STAGE_CANONICAL_SEED_DRY_RUN === '1') {
+    printDryRun()
+    return
   }
 
-  // ---- Users ----------------------------------------------------------------
-  const users: Array<{ id: string; email: string; role: UserRole; companyId: string; isExecutor: boolean }> = [
-    { id: USR.client, email: 'client@test.local', role: UserRole.CLIENT, companyId: CO.client, isExecutor: false },
-    // CLIENT-company ADMIN: can view/comment/create, but NOT assign/claim/change-status (Phase 1.5 matrix).
-    { id: USR.clientAdmin, email: 'client.admin@test.local', role: UserRole.ADMIN, companyId: CO.client, isExecutor: false },
-    // CLIENT-company TERRITORIAL_MANAGER: can view/comment scoped tickets, NOT assign/claim/change-status.
-    { id: USR.clientTerritorialManager, email: 'territorial.manager@test.local', role: UserRole.TERRITORIAL_MANAGER, companyId: CO.client, isExecutor: false },
-    { id: USR.general, email: 'provider@test.local', role: UserRole.ADMIN, companyId: CO.general, isExecutor: false },
-    { id: USR.secondary, email: 'secondary.provider@test.local', role: UserRole.ADMIN, companyId: CO.secondary, isExecutor: false },
-    { id: USR.secondaryTech, email: 'tech@test.local', role: UserRole.TECHNICIAN, companyId: CO.secondary, isExecutor: true },
-    { id: USR.zosimovAdmin, email: 'zosimov.admin@test.local', role: UserRole.ADMIN, companyId: CO.zosimov, isExecutor: false },
-    { id: USR.zosimovTech1, email: 'zosimov.tech1@test.local', role: UserRole.TECHNICIAN, companyId: CO.zosimov, isExecutor: true },
-    { id: USR.zosimovTech2, email: 'zosimov.tech2@test.local', role: UserRole.TECHNICIAN, companyId: CO.zosimov, isExecutor: true },
-    { id: USR.otherSubAdmin, email: 'other.sub.admin@test.local', role: UserRole.ADMIN, companyId: CO.otherSub, isExecutor: false },
-    { id: USR.otherSubTech, email: 'other.sub.tech@test.local', role: UserRole.TECHNICIAN, companyId: CO.otherSub, isExecutor: true },
-  ]
-
-  for (const u of users) {
-    await prisma.user.upsert({
-      where: { id: u.id },
-      update: {
-        email: u.email,
-        password: passwordHash,
-        role: u.role,
-        companyId: u.companyId,
-        isExecutor: u.isExecutor,
-        isActive: true,
-      },
-      create: {
-        id: u.id,
-        email: u.email,
-        password: passwordHash,
-        role: u.role,
-        firstName: u.email.split('@')[0],
-        isExecutor: u.isExecutor,
-        isActive: true,
-        companyId: u.companyId,
-      },
-    })
+  const prisma = new PrismaClient()
+  try {
+    const result = await runCanonicalStageSeed(prisma)
+    console.log('[seed-stage-canonical] complete')
+    console.log(`[seed-stage-canonical] companies: ${result.companies}`)
+    console.log(`[seed-stage-canonical] users: ${result.users}`)
+    console.log(`[seed-stage-canonical] locations: ${result.locations}`)
+    console.log(`[seed-stage-canonical] specializations: ${result.specializations}`)
+    console.log(`[seed-stage-canonical] categories: ${result.categories}`)
+    console.log(`[seed-stage-canonical] contracts: ${result.contracts}`)
+    console.log(`[seed-stage-canonical] PermissionBlock: ${result.permissionBlocks}`)
+    console.log(`[seed-stage-canonical] RolePermission: ${result.rolePermissions}`)
+    for (const ticket of result.tickets) {
+      console.log(
+        `[seed-stage-canonical] fixture ${ticket.key}: #${ticket.ticketNumber} ${ticket.status} — ${ticket.purpose}`,
+      )
+    }
+    console.log('[seed-stage-canonical] providerDelegation: not supported by current schema')
+  } finally {
+    await prisma.$disconnect()
   }
-
-  // ---- Locations (owned by the CLIENT company) ------------------------------
-  const locations: Array<{ id: string; name: string; platformCode: string; city: string }> = [
-    { id: LOC.zosimovBound, name: 'Фудзияма — Тверская', platformCode: 'FJ-001', city: 'Москва' },
-    { id: LOC.otherBound, name: 'Фудзияма — Арбат', platformCode: 'FJ-002', city: 'Москва' },
-    { id: LOC.unrelated, name: 'Фудзияма — Невский', platformCode: 'FJ-003', city: 'Санкт-Петербург' },
-  ]
-
-  for (const l of locations) {
-    await prisma.location.upsert({
-      where: { clientCompanyId_platformCode: { clientCompanyId: CO.client, platformCode: l.platformCode } },
-      update: { name: l.name, city: l.city, isActive: true },
-      create: {
-        id: l.id,
-        clientCompanyId: CO.client,
-        name: l.name,
-        platformCode: l.platformCode,
-        city: l.city,
-        isActive: true,
-      },
-    })
-  }
-
-  // ---- Problem category (owned by the CLIENT company) -----------------------
-  await prisma.problemCategory.upsert({
-    where: { companyId_name: { companyId: CO.client, name: 'Общее обслуживание' } },
-    update: { isActive: true },
-    create: { id: CAT.general, companyId: CO.client, name: 'Общее обслуживание', isActive: true },
-  })
-
-  // ---- Provider-user → client-location bindings -----------------------------
-  // companyId semantics depend on the tech's contract type:
-  //   • Sub-contractor techs (zosimov/otherSub): companyId = their PROVIDER company (scoping via TechnicianClientBinding)
-  //   • PRIMARY-contract techs (secondaryTech): companyId = CLIENT company
-  //     because getBoundContexts queries `companyId IN (clientIds)` — it expects the client side.
-  const bindings: Array<{ id: string; userId: string; locationId: string; companyId: string }> = [
-    // Zosimov tech1 is bound to the Zosimov location (provider-scoped via TechnicianClientBinding flow).
-    { id: '60000000-0000-4000-8000-000000000001', userId: USR.zosimovTech1, locationId: LOC.zosimovBound, companyId: CO.zosimov },
-    // Other Subcontractor tech is bound to the Other location (provider-scoped).
-    { id: '60000000-0000-4000-8000-000000000002', userId: USR.otherSubTech, locationId: LOC.otherBound, companyId: CO.otherSub },
-    // tech@test.local (CO.secondary PRIMARY tech): bound to Фудзияма–Арбат via CLIENT company ID
-    // so that getBoundContexts returns QA Client Co / Фудзияма–Арбат.
-    { id: '60000000-0000-4000-8000-000000000003', userId: USR.secondaryTech, locationId: LOC.otherBound, companyId: CO.client },
-    // CLIENT-company TERRITORIAL_MANAGER: scoped to Фудзияма — Арбат (client-owned location).
-    { id: '60000000-0000-4000-8000-000000000004', userId: USR.clientTerritorialManager, locationId: LOC.otherBound, companyId: CO.client },
-  ]
-
-  for (const b of bindings) {
-    await prisma.userLocationBinding.upsert({
-      where: { userId_locationId: { userId: b.userId, locationId: b.locationId } },
-      update: { companyId: b.companyId },
-      create: { id: b.id, userId: b.userId, locationId: b.locationId, companyId: b.companyId },
-    })
-  }
-
-  // ---- Technician → client bindings (provider-scoped) -----------------------
-  // providerCompanyId = the subcontractor company that employs the technician;
-  // clientCompanyId    = QA Client Co; locationId scopes the binding to one client location.
-  // Zosimov tech1 + tech2 are both scoped to FJ-001 (multiple techs of one subcontractor
-  // at one client location); Other Subcontractor tech is scoped to FJ-002 — keeping the
-  // two subcontractors on disjoint locations so cross-subcontractor isolation is testable.
-  const technicianClientBindings: Array<{
-    id: string
-    providerCompanyId: string
-    technicianUserId: string
-    clientCompanyId: string
-    locationId: string
-  }> = [
-    { id: TCB.zosimovTech1, providerCompanyId: CO.zosimov, technicianUserId: USR.zosimovTech1, clientCompanyId: CO.client, locationId: LOC.zosimovBound },
-    { id: TCB.zosimovTech2, providerCompanyId: CO.zosimov, technicianUserId: USR.zosimovTech2, clientCompanyId: CO.client, locationId: LOC.zosimovBound },
-    { id: TCB.otherSubTech, providerCompanyId: CO.otherSub, technicianUserId: USR.otherSubTech, clientCompanyId: CO.client, locationId: LOC.otherBound },
-    { id: TCB.secondaryTech, providerCompanyId: CO.secondary, technicianUserId: USR.secondaryTech, clientCompanyId: CO.client, locationId: LOC.otherBound },
-  ]
-
-  for (const b of technicianClientBindings) {
-    await prisma.technicianClientBinding.upsert({
-      where: {
-        technicianUserId_clientCompanyId_locationId: {
-          technicianUserId: b.technicianUserId,
-          clientCompanyId: b.clientCompanyId,
-          locationId: b.locationId,
-        },
-      },
-      update: { providerCompanyId: b.providerCompanyId },
-      create: {
-        id: b.id,
-        providerCompanyId: b.providerCompanyId,
-        technicianUserId: b.technicianUserId,
-        clientCompanyId: b.clientCompanyId,
-        locationId: b.locationId,
-      },
-    })
-  }
-
-  // ---- Tickets (companyId = CLIENT, invariant) ------------------------------
-  const tickets: Array<{
-    id: string
-    locationId: string
-    problemText: string
-    status: TicketStatus
-    assignedTechnicianId: string | null
-  }> = [
-    {
-      id: TKT.generalScope,
-      locationId: LOC.unrelated,
-      problemText: 'General provider scope — unassigned ticket at unrelated location',
-      status: TicketStatus.NEW,
-      assignedTechnicianId: null,
-    },
-    {
-      id: TKT.zosimovAssigned,
-      locationId: LOC.zosimovBound,
-      problemText: 'Assigned to Zosimov technician #1',
-      status: TicketStatus.ASSIGNED,
-      assignedTechnicianId: USR.zosimovTech1,
-    },
-    {
-      id: TKT.otherAssigned,
-      locationId: LOC.otherBound,
-      problemText: 'Assigned to Other Subcontractor technician',
-      status: TicketStatus.ASSIGNED,
-      assignedTechnicianId: USR.otherSubTech,
-    },
-    {
-      id: TKT.zosimovLocationUnassigned,
-      locationId: LOC.zosimovBound,
-      problemText: 'Unassigned ticket at Zosimov-bound location',
-      status: TicketStatus.NEW,
-      assignedTechnicianId: null,
-    },
-    {
-      id: TKT.unrelatedUnassigned,
-      locationId: LOC.unrelated,
-      problemText: 'Unassigned ticket at unrelated location',
-      status: TicketStatus.NEW,
-      assignedTechnicianId: null,
-    },
-  ]
-
-  for (const t of tickets) {
-    await prisma.ticket.upsert({
-      where: { id: t.id },
-      update: {
-        locationId: t.locationId,
-        problemText: t.problemText,
-        status: t.status,
-        assignedTechnicianId: t.assignedTechnicianId,
-      },
-      create: {
-        id: t.id,
-        companyId: CO.client,
-        locationId: t.locationId,
-        problemCategoryId: CAT.general,
-        problemText: t.problemText,
-        status: t.status,
-        assignedTechnicianId: t.assignedTechnicianId,
-      },
-    })
-  }
-
-  // ---- Service contracts (current Client ↔ Provider model) ------------------
-  // QA General Provider → QA Client as PRIMARY
-  await prisma.serviceContract.upsert({
-    where: { clientCompanyId_providerCompanyId: { clientCompanyId: CO.client, providerCompanyId: CO.general } },
-    update: { role: ServiceContractRole.PRIMARY, status: ServiceContractStatus.ACTIVE },
-    create: {
-      clientCompanyId: CO.client,
-      providerCompanyId: CO.general,
-      role: ServiceContractRole.PRIMARY,
-      status: ServiceContractStatus.ACTIVE,
-    },
-  })
-
-  // QA Secondary Provider → QA Client as PRIMARY
-  // PRIMARY (not SECONDARY) so that getBoundContexts → listPrimaryLinkedClientIds returns
-  // CO.client for tech@test.local, enabling the mobile bound-context flow.
-  await prisma.serviceContract.upsert({
-    where: { clientCompanyId_providerCompanyId: { clientCompanyId: CO.client, providerCompanyId: CO.secondary } },
-    update: { role: ServiceContractRole.PRIMARY, status: ServiceContractStatus.ACTIVE },
-    create: {
-      clientCompanyId: CO.client,
-      providerCompanyId: CO.secondary,
-      role: ServiceContractRole.PRIMARY,
-      status: ServiceContractStatus.ACTIVE,
-    },
-  })
-
-  // NOTE: SubcontractorContract (General → Zosimov / General → Other Subcontractor)
-  // is intentionally NOT created — the model does not exist yet. Once it lands,
-  // add it here; no other fixture changes are required.
-
-  console.log('Stage QA seed complete.')
 }
 
-main()
-  .catch((e) => {
-    console.error(e)
-    process.exitCode = 1
+if (require.main === module) {
+  main().catch((error) => {
+    console.error('[seed-stage-canonical] failed', error)
+    process.exit(1)
   })
-  .finally(() => prisma.$disconnect())
+}
