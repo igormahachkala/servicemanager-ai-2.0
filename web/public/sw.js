@@ -40,8 +40,9 @@ function isMobileClient(client) {
 }
 
 function clientSurface(client) {
+  if (!client) return 'mobile'
   try {
-    const url = new URL(client && client.url ? client.url : self.location.href)
+    const url = new URL(client.url)
     if (url.pathname === '/max' || url.pathname.startsWith('/max/')) return 'max'
     if (url.pathname === '/m' || url.pathname.startsWith('/m/')) return 'mobile'
     return 'desktop'
@@ -106,11 +107,28 @@ function ticketTarget(payload, client) {
   return withScope(`${url.pathname}${url.search}`, payload)
 }
 
+function mobilePwaTicketPath(path) {
+  const raw = safeString(path)
+  if (!raw) return ''
+  try {
+    const url = new URL(raw, self.location.origin)
+    if (url.origin !== self.location.origin) return ''
+    if (url.pathname.startsWith('/m/tickets/')) return `${url.pathname}${url.search}${url.hash}`
+    if (url.pathname.startsWith('/tickets/')) return `/m${url.pathname}${url.search}${url.hash}`
+    return ''
+  } catch {
+    return ''
+  }
+}
+
 function notificationTarget(payload, client) {
   const canonical = canonicalTicketTarget(payload, client)
   if (canonical) return withScope(canonical, payload)
   const ticketPath = ticketTarget(payload, client)
   const explicit = sameOriginPath(payload.url) || sameOriginPath(payload.targetRoute) || sameOriginPath(payload.navigate)
+  if (!client) {
+    return withScope(mobilePwaTicketPath(explicit) || ticketPath || DEFAULT_TARGET, payload)
+  }
   if (ticketPath && explicit.startsWith('/m/tickets/') && !isMobileClient(client)) return ticketPath
   return withScope(explicit || ticketPath || DEFAULT_TARGET, payload)
 }
