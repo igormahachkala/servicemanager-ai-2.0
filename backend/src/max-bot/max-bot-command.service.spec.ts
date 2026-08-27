@@ -1,189 +1,149 @@
 import { MaxBotCommandService } from './max-bot-command.service';
+import { MaxIdentityService } from './max-identity.service';
 
-const makeUpdate = (text: string) => ({
-  update_type: 'message_created',
-  message: { text, chat_id: 123 },
+/**
+ * A prisma double whose every ticket accessor throws. If any command path still reads
+ * ticket data, these tests fail loudly instead of silently passing on a mock that
+ * happens to return nothing.
+ */
+function makeForbiddenPrisma() {
+  const boom = () => {
+    throw new Error('ticket data must never be read from a MAX command');
+  };
+  return {
+    ticket: { findMany: boom, findUnique: boom, findFirst: boom, count: boom },
+    maxUserBinding: { findUnique: jest.fn().mockResolvedValue(null) },
+  } as any;
+}
+
+function makeService(prisma = makeForbiddenPrisma()) {
+  return new MaxBotCommandService(prisma, new MaxIdentityService(prisma));
+}
+
+const msg = (text: string) => ({ message: { text } });
+
+describe('MaxBotCommandService — entry points', () => {
+  const OLD_ENV = process.env;
+  beforeEach(() => {
+    process.env = { ...OLD_ENV, MAX_PUBLIC_FRONTEND_URL: 'https://sm.example' };
+  });
+  afterEach(() => {
+    process.env = OLD_ENV;
+  });
+
+  it('/start returns the menu', async () => {
+    const res = await makeService().handleUpdate(msg('/start'));
+    expect(res).toContain('Сервис Менеджер');
+    expect(res).toContain('Помощь');
+  });
+
+  it('/menu is an alias for /start', async () => {
+    const start = await makeService().handleUpdate(msg('/start'));
+    const menu = await makeService().handleUpdate(msg('/menu'));
+    expect(menu).toBe(start);
+  });
+
+  it('/help explains the menu rather than listing commands', async () => {
+    const res = (await makeService().handleUpdate(msg('/help'))) as string;
+    expect(res).toContain('Как пользоваться');
+    expect(res).not.toContain('/tickets');
+    expect(res).not.toContain('/ticket ');
+    expect(res).not.toContain('/open');
+  });
+
+  it('/status still answers for operators', async () => {
+    const res = (await makeService().handleUpdate(msg('/status'))) as string;
+    expect(res).toContain('бот онлайн');
+  });
+
+  it('includes the application link when a frontend URL is configured', async () => {
+    const res = (await makeService().handleUpdate(msg('/start'))) as string;
+    expect(res).toContain('https://sm.example/max');
+  });
 });
 
-describe('MaxBotCommandService', () => {
-  afterEach(() => {
-    jest.restoreAllMocks();
-    delete process.env.FRONTEND_URL;
-    delete process.env.MAX_PUBLIC_FRONTEND_URL;
+describe('MaxBotCommandService — unknown input is never silent', () => {
+  it('unknown command returns the menu', async () => {
+    const res = (await makeService().handleUpdate(msg('/wat'))) as string;
+    expect(res).not.toBeNull();
+    expect(res).toContain('Не понял запрос');
+    expect(res).toContain('Сервис Менеджер');
   });
 
-  it('returns help text for /help', async () => {
-    const service = new MaxBotCommandService();
-    const result = await service.handleUpdate(makeUpdate('/help'));
-    expect(result).toContain('/tickets');
-    expect(result).toContain('/ticket');
-    expect(result).toContain('/open');
-    expect(result).toContain('/status');
+  it('free text returns the menu', async () => {
+    const res = (await makeService().handleUpdate(msg('привет'))) as string;
+    expect(res).not.toBeNull();
+    expect(res).toContain('Не понял запрос');
   });
 
-  it('returns status for /status', async () => {
-    const service = new MaxBotCommandService();
-    const result = await service.handleUpdate(makeUpdate('/status'));
-    expect(result).toContain('онлайн');
-    expect(result).toContain('Время:');
-    expect(result).toContain('Среда:');
+  it('still returns null when the update carries no text at all', async () => {
+    expect(await makeService().handleUpdate({ update_type: 'message_created' })).toBeNull();
+  });
+});
+
+describe('MaxBotCommandService — legacy data commands are closed', () => {
+  it.each(['/tickets', '/ticket 123', '/open 123'])(
+    '%s returns navigation and reads no ticket data',
+    async (input) => {
+      const prisma = makeForbiddenPrisma();
+      const res = (await makeService(prisma).handleUpdate(msg(input))) as string;
+      expect(res).toContain('Заявки теперь открываются в приложении');
+    },
+  );
+
+  it.each(['/ticket 123', '/ticket 999999', '/open 1'])(
+    '%s discloses nothing about ticket existence',
+    async (input) => {
+      const res = (await makeService().handleUpdate(msg(input))) as string;
+      expect(res).not.toMatch(/не найдена|Заявка №|\d{3,}/);
+    },
+  );
+
+  it('gives an identical reply for an existing-looking and an absurd ticket number', async () => {
+    const a = await makeService().handleUpdate(msg('/ticket 1'));
+    const b = await makeService().handleUpdate(msg('/ticket 987654321'));
+    expect(a).toBe(b);
   });
 
-  it('returns null for non-command text', async () => {
-    const service = new MaxBotCommandService();
-    expect(await service.handleUpdate(makeUpdate('Привет, мир!'))).toBeNull();
+  it('never emits requester identity fields', async () => {
+    for (const input of ['/tickets', '/ticket 1', '/open 1', '/start', '/help']) {
+      const res = (await makeService().handleUpdate(msg(input))) as string;
+      expect(res).not.toContain('Заявитель');
+      expect(res).not.toContain('Телефон');
+    }
+  });
+});
+
+describe('MaxBotCommandService — unbound identity leaks nothing', () => {
+  it('an unbound MAX user gets only linking and help', async () => {
+    const res = (await makeService().handleUpdate({
+      message: { text: '/start', sender: { user_id: 4242 } },
+    })) as string;
+    expect(res).toContain('Привязать аккаунт');
+    expect(res).not.toContain('Мои заявки');
+    expect(res).not.toContain('Требуют приёмки');
+  });
+});
+
+describe('MaxBotCommandService — text extraction regressions', () => {
+  it('reads message.body.text (MAX webhook shape)', async () => {
+    const res = (await makeService().handleUpdate({
+      message: { body: { mid: 'm1', seq: 1, text: '/status' } },
+    })) as string;
+    expect(res).toContain('бот онлайн');
   });
 
-  it('returns null for unknown command', async () => {
-    const service = new MaxBotCommandService();
-    expect(await service.handleUpdate(makeUpdate('/unknown'))).toBeNull();
+  it('reads update.text', async () => {
+    const res = (await makeService().handleUpdate({ text: '/status' })) as string;
+    expect(res).toContain('бот онлайн');
   });
 
-  it('returns null for update without message text', async () => {
-    const service = new MaxBotCommandService();
-    expect(await service.handleUpdate({ update_type: 'message_created' })).toBeNull();
+  it('is case-insensitive', async () => {
+    const res = (await makeService().handleUpdate(msg('/START'))) as string;
+    expect(res).toContain('Сервис Менеджер');
   });
 
-  it('returns ticket list for /tickets', async () => {
-    const prisma = {
-      ticket: {
-        findMany: jest.fn().mockResolvedValue([
-          { id: 'abc', ticketNumber: 7, status: 'NEW', problemText: 'Сломалась дверь', location: { name: 'Кофейня' } },
-          { id: 'def', ticketNumber: 8, status: 'IN_PROGRESS', problemText: 'Нет света', location: { name: 'Офис' } },
-        ]),
-      },
-    };
-    const service = new MaxBotCommandService(prisma as any);
-    const result = await service.handleUpdate(makeUpdate('/tickets'));
-    expect(result).toContain('#7');
-    expect(result).toContain('#8');
-    expect(result).toContain('Кофейня');
-    expect(result).toContain('Новая');
-    expect(result).toContain('В работе');
-  });
-
-  it('returns "no open tickets" message when list is empty', async () => {
-    const prisma = { ticket: { findMany: jest.fn().mockResolvedValue([]) } };
-    const service = new MaxBotCommandService(prisma as any);
-    const result = await service.handleUpdate(makeUpdate('/tickets'));
-    expect(result).toContain('нет');
-  });
-
-  it('returns "db unavailable" for /tickets without prisma', async () => {
-    const service = new MaxBotCommandService();
-    const result = await service.handleUpdate(makeUpdate('/tickets'));
-    expect(result).toContain('недоступна');
-  });
-
-  it('returns ticket detail for /ticket <n>', async () => {
-    process.env.FRONTEND_URL = 'https://servicemanagerai.ru';
-    const prisma = {
-      ticket: {
-        findUnique: jest.fn().mockResolvedValue({
-          id: 'ticket-abc',
-          ticketNumber: 42,
-          status: 'IN_PROGRESS',
-          problemText: 'Не работает кондиционер',
-          requesterName: 'Иван Иванов',
-          requesterPhone: '+7 999 000-00-00',
-          location: { name: 'Офис 1' },
-          problemCategory: { name: 'Климат' },
-        }),
-      },
-    };
-    const service = new MaxBotCommandService(prisma as any);
-    const result = await service.handleUpdate(makeUpdate('/ticket 42'));
-    expect(result).toContain('#42');
-    expect(result).toContain('В работе');
-    expect(result).toContain('Иван Иванов');
-    expect(result).toContain('+7 999 000-00-00');
-    expect(result).toContain('Климат');
-    expect(result).toContain('Офис 1');
-    expect(result).toContain('https://servicemanagerai.ru/m/tickets/ticket-abc');
-  });
-
-  it('returns error for /ticket without number', async () => {
-    const service = new MaxBotCommandService();
-    const result = await service.handleUpdate(makeUpdate('/ticket'));
-    expect(result).toContain('/ticket 123');
-  });
-
-  it('returns "not found" for /ticket with unknown number', async () => {
-    const prisma = { ticket: { findUnique: jest.fn().mockResolvedValue(null) } };
-    const service = new MaxBotCommandService(prisma as any);
-    const result = await service.handleUpdate(makeUpdate('/ticket 999'));
-    expect(result).toContain('не найдена');
-  });
-
-  it('returns link for /open <n>', async () => {
-    process.env.FRONTEND_URL = 'https://servicemanagerai.ru';
-    const prisma = {
-      ticket: {
-        findUnique: jest.fn().mockResolvedValue({ id: 'ticket-xyz', ticketNumber: 5 }),
-      },
-    };
-    const service = new MaxBotCommandService(prisma as any);
-    const result = await service.handleUpdate(makeUpdate('/open 5'));
-    expect(result).toContain('#5');
-    expect(result).toContain('https://servicemanagerai.ru/m/tickets/ticket-xyz');
-  });
-
-  it('returns error for /open without number', async () => {
-    const service = new MaxBotCommandService();
-    const result = await service.handleUpdate(makeUpdate('/open'));
-    expect(result).toContain('/open 123');
-  });
-
-  it('returns "not found" for /open with unknown number', async () => {
-    const prisma = { ticket: { findUnique: jest.fn().mockResolvedValue(null) } };
-    const service = new MaxBotCommandService(prisma as any);
-    const result = await service.handleUpdate(makeUpdate('/open 404'));
-    expect(result).toContain('не найдена');
-  });
-
-  it('extracts text from update.text when message is absent', async () => {
-    const service = new MaxBotCommandService();
-    const result = await service.handleUpdate({ update_type: 'message_created', text: '/help' });
-    expect(result).toContain('/tickets');
-  });
-
-  it('handles command case-insensitively', async () => {
-    const service = new MaxBotCommandService();
-    const result = await service.handleUpdate(makeUpdate('/HELP'));
-    expect(result).toContain('/tickets');
-  });
-
-  it('extracts text from message.body.text (MAX webhook actual structure)', async () => {
-    const service = new MaxBotCommandService();
-    const update = {
-      update_type: 'message_created',
-      message: {
-        sender: { user_id: 42 },
-        recipient: { chat_id: -75137613795359 },
-        body: { mid: 'mid1', seq: 1, text: '/help' },
-      },
-    };
-    const result = await service.handleUpdate(update);
-    expect(result).toContain('/tickets');
-  });
-
-  it('extracts text from message.body.text for /status (MAX webhook)', async () => {
-    const service = new MaxBotCommandService();
-    const update = {
-      update_type: 'message_created',
-      message: { body: { text: '/status', mid: 'mid2', seq: 2 } },
-    };
-    const result = await service.handleUpdate(update);
-    expect(result).toContain('онлайн');
-  });
-
-  it('returns null when message.body is an object with no text field', async () => {
-    const service = new MaxBotCommandService();
-    const update = {
-      update_type: 'message_created',
-      message: { body: { mid: 'mid3', seq: 3 } },
-    };
-    const result = await service.handleUpdate(update);
-    expect(result).toBeNull();
+  it('returns null when message.body is an object without text', async () => {
+    expect(await makeService().handleUpdate({ message: { body: { mid: 'm1' } } })).toBeNull();
   });
 });
