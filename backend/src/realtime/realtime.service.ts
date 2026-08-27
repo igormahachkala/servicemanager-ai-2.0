@@ -8,6 +8,7 @@ import type { Socket } from 'node:net';
 import { PrismaService } from '../prisma/prisma.service';
 import { getJwtSecret } from '../config/required-env';
 import { isServiceContractEffective } from '../service-contracts/service-contract-window';
+import { buildLegacyNotificationNavigationTarget } from '../notifications/notification-navigation';
 
 type RealtimeUser = {
   id: string;
@@ -52,6 +53,7 @@ type NotificationRow = {
   entityType: string;
   entityId: string;
   linkedClientCompanyId: string | null;
+  navigationTarget: unknown | null;
   createdAt: Date;
 };
 
@@ -573,6 +575,7 @@ export class RealtimeService implements OnModuleInit, OnModuleDestroy {
         entityType: true,
         entityId: true,
         linkedClientCompanyId: true,
+        navigationTarget: true,
         createdAt: true,
       },
     });
@@ -629,6 +632,14 @@ export class RealtimeService implements OnModuleInit, OnModuleDestroy {
       entityType: notification.entityType,
       entityId: notification.entityId,
       linkedClientCompanyId: notification.linkedClientCompanyId,
+      navigationTarget:
+        notification.navigationTarget ??
+        buildLegacyNotificationNavigationTarget({
+          entityType: notification.entityType,
+          entityId: notification.entityId,
+          type: notification.type,
+          linkedClientCompanyId: notification.linkedClientCompanyId,
+        }),
       createdAt: notification.createdAt.toISOString(),
     };
 
@@ -643,6 +654,14 @@ export class RealtimeService implements OnModuleInit, OnModuleDestroy {
       entityType: notification.entityType,
       entityId: notification.entityId,
       linkedClientCompanyId: notification.linkedClientCompanyId,
+      navigationTarget:
+        notification.navigationTarget ??
+        buildLegacyNotificationNavigationTarget({
+          entityType: notification.entityType,
+          entityId: notification.entityId,
+          type: notification.type,
+          linkedClientCompanyId: notification.linkedClientCompanyId,
+        }),
       createdAt: notification.createdAt.toISOString(),
     };
 

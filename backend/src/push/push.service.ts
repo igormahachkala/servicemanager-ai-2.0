@@ -23,6 +23,7 @@ export type PushPayload = {
   notificationType?: string;
   linkedClientCompanyId?: string | null;
   companyId?: string | null;
+  navigationTarget?: Record<string, unknown> | null;
   navigate?: string;
   badge?: number;
   silent?: boolean;

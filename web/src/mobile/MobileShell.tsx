@@ -149,7 +149,7 @@ export function MobileShell() {
     }
   }, [canShowLinkedClients, linkedClients, linkedClientsLoaded, selectedLinkedClientCompanyId, location.pathname, location.search, meQ.data, navigate])
 
-  const onNotification = useRealtimeNotifications(`${getMobileRouteRoot(location.pathname)}/tickets/`)
+  const onNotification = useRealtimeNotifications(getMobileRouteRoot(location.pathname) === '/max' ? 'max' : 'mobile')
   useWsInvalidation(scope, { onNotification })
 
   useEffect(() => {

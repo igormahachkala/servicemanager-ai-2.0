@@ -9,6 +9,13 @@
   safeRemoveItem,
   snapshotStorageItems,
 } from './browserStorage'
+export {
+  currentInternalAppPath,
+  getReturnToFromSearch,
+  loginPathWithReturnTo,
+  sanitizeInternalAppPath,
+  workspacePathWithReturnTo,
+} from './returnToNavigation'
 
 export type Role =
   | 'PLATFORM_ADMIN'
@@ -63,6 +70,7 @@ export type NotificationItem = {
   entityType: string
   entityId: string
   linkedClientCompanyId?: string | null
+  navigationTarget?: unknown
   readAt?: string | null
   createdAt: string
 }
@@ -82,6 +90,8 @@ export type InAppNotificationType =
   | 'ticket.assigned'
   | 'ticket.claimed'
   | 'ticket.status_changed'
+  | 'ticket.in_progress'
+  | 'ticket.done'
   | 'ticket.category_changed'
   | 'ticket.assignment_requested'
   | 'ticket.awaiting_acceptance'
@@ -90,6 +100,7 @@ export type InAppNotificationType =
   | 'ticket.comment_added'
   | 'ticket.attachment_uploaded'
   | 'ticket.sla_warning'
+  | 'ticket.sla_breached'
   | (string & {})
 
 const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
@@ -98,6 +109,8 @@ const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
   'ticket.assigned': 'Техник назначен',
   'ticket.claimed': 'Взята в работу',
   'ticket.status_changed': 'Статус изменён',
+  'ticket.in_progress': 'В работе',
+  'ticket.done': 'Работы завершены',
   'ticket.category_changed': 'Категория изменена',
   'ticket.assignment_requested': 'Запрос назначения',
   'ticket.awaiting_acceptance': 'Отправлена на приёмку',
@@ -106,6 +119,7 @@ const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
   'ticket.comment_added': 'Новый комментарий',
   'ticket.attachment_uploaded': 'Новое фото',
   'ticket.sla_warning': 'Скоро дедлайн',
+  'ticket.sla_breached': 'Срок нарушен',
 }
 
 /** Короткая метка типа для чипа в UI (fallback — сам type). */
@@ -125,6 +139,8 @@ export function getNotificationTypeTone(type: string): string {
     'ticket.assigned': 'ticketAssigned',
     'ticket.claimed': 'ticketClaimed',
     'ticket.status_changed': 'statusChanged',
+    'ticket.in_progress': 'statusChanged',
+    'ticket.done': 'statusChanged',
     'ticket.category_changed': 'statusChanged',
     'ticket.assignment_requested': 'assignmentRequested',
     'ticket.awaiting_acceptance': 'statusChanged',
@@ -133,6 +149,7 @@ export function getNotificationTypeTone(type: string): string {
     'ticket.comment_added': 'ticketCreated',
     'ticket.attachment_uploaded': 'ticketCreated',
     'ticket.sla_warning': 'slaWarning',
+    'ticket.sla_breached': 'slaOverdue',
   }
   return map[(type || '').trim()] || 'other'
 }

@@ -235,6 +235,13 @@ describe('NotificationsService access resolver delivery gate', () => {
       .toBe(ticketCompanyId);
     expect(data.find((item: any) => item.userId === 'allowed-client').linkedClientCompanyId)
       .toBeNull();
+    expect(data.find((item: any) => item.userId === 'allowed-provider').navigationTarget)
+      .toEqual({
+        kind: 'ticket',
+        ticketId,
+        section: 'overview',
+        linkedClientCompanyId: ticketCompanyId,
+      });
     expect(contractContext.getContractContext).toHaveBeenCalledWith(
       expect.objectContaining({
         providerCompanyId,
@@ -249,7 +256,15 @@ describe('NotificationsService access resolver delivery gate', () => {
     }));
     expect(push.sendToUser).toHaveBeenCalledWith(
       'allowed-provider',
-      expect.objectContaining({ linkedClientCompanyId: ticketCompanyId }),
+      expect.objectContaining({
+        linkedClientCompanyId: ticketCompanyId,
+        navigationTarget: expect.objectContaining({
+          kind: 'ticket',
+          ticketId,
+          section: 'overview',
+          linkedClientCompanyId: ticketCompanyId,
+        }),
+      }),
       'ticketNew',
       ticketId,
     );
@@ -352,6 +367,12 @@ describe('NotificationsService access resolver delivery gate', () => {
     const data = prisma.notification.createMany.mock.calls[0][0].data;
     expect(data.map((item: any) => item.userId)).toEqual(['secondary-admin']);
     expect(data[0].linkedClientCompanyId).toBe(ticketCompanyId);
+    expect(data[0].navigationTarget).toEqual({
+      kind: 'ticket',
+      ticketId,
+      section: 'overview',
+      linkedClientCompanyId: ticketCompanyId,
+    });
     expect(contractContext.getContractContext).toHaveBeenCalledWith(
       expect.objectContaining({
         providerCompanyId,
@@ -364,7 +385,15 @@ describe('NotificationsService access resolver delivery gate', () => {
     }));
     expect(push.sendToUser).toHaveBeenCalledWith(
       'secondary-admin',
-      expect.objectContaining({ linkedClientCompanyId: ticketCompanyId }),
+      expect.objectContaining({
+        linkedClientCompanyId: ticketCompanyId,
+        navigationTarget: expect.objectContaining({
+          kind: 'ticket',
+          ticketId,
+          section: 'overview',
+          linkedClientCompanyId: ticketCompanyId,
+        }),
+      }),
       'sla',
       ticketId,
     );
@@ -520,12 +549,26 @@ describe('NotificationsService access resolver delivery gate', () => {
         data: expect.objectContaining({
           userId: 'assignee-allowed',
           linkedClientCompanyId: ticketCompanyId,
+          navigationTarget: {
+            kind: 'ticket',
+            ticketId,
+            section: 'comments',
+            linkedClientCompanyId: ticketCompanyId,
+          },
         }),
       }),
     );
     expect(push.sendToUser).toHaveBeenCalledWith(
       'assignee-allowed',
-      expect.objectContaining({ linkedClientCompanyId: ticketCompanyId }),
+      expect.objectContaining({
+        linkedClientCompanyId: ticketCompanyId,
+        navigationTarget: expect.objectContaining({
+          kind: 'ticket',
+          ticketId,
+          section: 'comments',
+          linkedClientCompanyId: ticketCompanyId,
+        }),
+      }),
       'chat',
       ticketId,
     );

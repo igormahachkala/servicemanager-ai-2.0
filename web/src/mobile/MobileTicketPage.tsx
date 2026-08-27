@@ -263,12 +263,32 @@ function RowIcon({ name }: { name: 'tool' | 'map-pin' | 'bolt' | 'alert-triangle
   }
 }
 
+function notificationSectionToDetailTab(value?: string | null): 'chat' | 'info' | 'photos' | 'actions' {
+  switch ((value || '').trim()) {
+    case 'attachments':
+      return 'photos'
+    case 'actions':
+    case 'acceptance':
+      return 'actions'
+    case 'overview':
+    case 'history':
+      return 'info'
+    case 'comments':
+    default:
+      return 'chat'
+  }
+}
+
 export function MobileTicketPage() {
   const { id } = useParams()
   const ticketId = id || ''
   const location = useLocation()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
+  const requestedDetailTab = useMemo(
+    () => notificationSectionToDetailTab(new URLSearchParams(location.search).get('section')),
+    [location.search],
+  )
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
   const queryClient = useQueryClient()
 
@@ -612,7 +632,11 @@ export function MobileTicketPage() {
         : isOwnCompanyClient && api.isClientAcceptanceRole(meQ.data?.role)
     )
 
-  const [detailTab, setDetailTab] = useState<'chat' | 'info' | 'photos' | 'actions'>('chat')
+  const [detailTab, setDetailTab] = useState<'chat' | 'info' | 'photos' | 'actions'>(requestedDetailTab)
+
+  useEffect(() => {
+    setDetailTab(requestedDetailTab)
+  }, [requestedDetailTab, ticketId])
 
   type OfflinePendingComment = { queueId: string; text: string; at: string }
   const [offlinePendingComments, setOfflinePendingComments] = useState<OfflinePendingComment[]>([])

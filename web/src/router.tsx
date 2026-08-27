@@ -1,5 +1,5 @@
 ﻿import React from 'react'
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import * as api from './lib/api'
 import { Shell } from './ui/Shell'
 import { LoginPage } from './views/LoginPage'
@@ -56,7 +56,10 @@ import { WorkforcePage } from './views/WorkforcePage'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const token = api.getToken()
-  if (!token) return <Navigate to="/login" replace />
+  const location = useLocation()
+  if (!token) {
+    return <Navigate to={api.loginPathWithReturnTo(`${location.pathname}${location.search}${location.hash}`)} replace />
+  }
   return <>{children}</>
 }
 
@@ -82,7 +85,13 @@ function LoginGate() {
       window.history.replaceState({}, '', `${url.pathname}${qs ? `?${qs}` : ''}${url.hash}`)
     }
   }
-  if (api.getToken()) return <Navigate to={authHomePath()} replace />
+  if (api.getToken()) {
+    const returnTo =
+      typeof window !== 'undefined'
+        ? api.getReturnToFromSearch(window.location.search)
+        : ''
+    return <Navigate to={returnTo ? api.workspacePathWithReturnTo(returnTo) : authHomePath()} replace />
+  }
   return <LoginPage />
 }
 

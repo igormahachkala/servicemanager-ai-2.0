@@ -166,7 +166,7 @@ export function Shell() {
     }
   }, [loc.search, meQ.data])
 
-  const onNotification = useRealtimeNotifications('/tickets/')
+  const onNotification = useRealtimeNotifications('desktop')
   useWsInvalidation(currentScope, { onNotification })
 
   const impersonationMeta = useMemo(() => api.getImpersonationMeta(), [meQ.data?.id, loc.key])
@@ -176,9 +176,9 @@ export function Shell() {
     if (meQ.isError) {
       api.clearToken()
       queryClient.clear()
-      nav('/login', { replace: true })
+      nav(api.loginPathWithReturnTo(`${loc.pathname}${loc.search}${loc.hash}`), { replace: true })
     }
-  }, [meQ.isError, nav, queryClient])
+  }, [loc.hash, loc.pathname, loc.search, meQ.isError, nav, queryClient])
 
   useEffect(() => {
     setMobileMenuOpen(false)

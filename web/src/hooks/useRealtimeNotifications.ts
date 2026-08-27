@@ -9,32 +9,25 @@ import {
 } from '../lib/browserNotifications'
 import { pushRichToast } from '../lib/appToast'
 import { shouldShowNotificationToast, type WsNotifMsg } from '../lib/realtimeNotificationToast'
+import { resolveNotificationSourcePath, type NotificationSurface } from '../lib/notificationNavigation'
 
 /**
  * Returns a stable callback to pass to useWsInvalidation({ onNotification }).
  *
- * @param ticketBasePath  Route prefix for ticket detail: '/m/tickets/' (mobile, default)
- *                        or '/tickets/' (desktop).
+ * @param surface  Current shell surface used to translate canonical notification targets.
  */
-export function useRealtimeNotifications(ticketBasePath = '/m/tickets/') {
+export function useRealtimeNotifications(surface: NotificationSurface = 'mobile') {
   const navigate = useNavigate()
   const qc = useQueryClient()
 
   return useCallback(
     (msg: WsNotifMsg) => {
-      const { notificationId, notificationType, entityType, entityId, linkedClientCompanyId } = msg
+      const { notificationId, notificationType } = msg
 
       if (!notificationId) return
       if (!shouldShowNotificationToast(notificationId)) return
 
-      // Build navigation target; only Ticket entities are currently navigable
-      let href: string | undefined
-      if (entityType === 'Ticket' && entityId) {
-        href = `${ticketBasePath}${encodeURIComponent(entityId)}`
-        if (linkedClientCompanyId) {
-          href += `?linkedClientCompanyId=${encodeURIComponent(linkedClientCompanyId)}`
-        }
-      }
+      const href = resolveNotificationSourcePath(msg, surface) || undefined
 
       const title = api.getNotificationTypeLabel(notificationType || '')
 
@@ -67,8 +60,8 @@ export function useRealtimeNotifications(ticketBasePath = '/m/tickets/') {
           : undefined,
       })
     },
-    // ticketBasePath is a string literal passed from each shell — stable across renders
+    // surface is a string literal passed from each shell — stable across renders
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [navigate, qc, ticketBasePath],
+    [navigate, qc, surface],
   )
 }

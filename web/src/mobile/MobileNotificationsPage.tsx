@@ -3,8 +3,9 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { formatMobileMutationError } from './mobileActionErrors'
-import { mobilePath } from './mobileRoute'
+import { getMobileRouteRoot, mobilePath } from './mobileRoute'
 import { mobileTicketNavState } from './mobileTicketDisplay'
+import { resolveNotificationSourcePath } from '../lib/notificationNavigation'
 
 export function MobileNotificationsPage() {
   const location = useLocation()
@@ -123,9 +124,11 @@ export function MobileNotificationsPage() {
               companyId: scope.companyId,
             }
             const href =
-              n.entityType === 'Ticket'
-                ? api.appendScopeToPath(mobilePath(location.pathname, `/tickets/${encodeURIComponent(n.entityId)}`), ticketScope, meQ.data)
-                : undefined
+              resolveNotificationSourcePath(
+                n,
+                getMobileRouteRoot(location.pathname) === '/max' ? 'max' : 'mobile',
+                ticketScope,
+              ) || undefined
             const ticketNavState = mobileTicketNavState(
               'notifications',
               n.linkedClientCompanyId || scope.linkedClientCompanyId,

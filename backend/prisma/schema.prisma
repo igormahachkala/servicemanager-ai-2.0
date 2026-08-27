@@ -299,6 +299,7 @@ model Notification {
   entityType            String
   entityId              String
   linkedClientCompanyId String?
+  navigationTarget      Json?
   readAt                DateTime?
   createdAt             DateTime  @default(now())
 

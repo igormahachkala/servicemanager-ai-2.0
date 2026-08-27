@@ -13,6 +13,7 @@ export type WsNotifMsg = {
   entityType?: string
   entityId?: string
   linkedClientCompanyId?: string | null
+  navigationTarget?: unknown
   createdAt?: string
 }
 
