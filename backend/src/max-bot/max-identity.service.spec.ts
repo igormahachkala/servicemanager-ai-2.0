@@ -37,8 +37,10 @@ describe('extractMaxUserId', () => {
 });
 
 describe('MaxIdentityService', () => {
-  it('binding creation stays disabled in this task', () => {
-    expect(MaxIdentityService.BINDING_CREATION_ENABLED).toBe(false);
+  // SMA-MAX-SECURE-USER-BINDING-054: the secure ceremony now exists, so creation is on.
+  // Resolution stays fail-closed regardless — the cases below are what actually guard it.
+  it('binding creation is enabled once the secure ceremony exists', () => {
+    expect(MaxIdentityService.BINDING_CREATION_ENABLED).toBe(true);
   });
 
   it('resolves an active binding for an active user', async () => {
