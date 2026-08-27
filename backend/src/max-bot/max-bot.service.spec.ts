@@ -215,7 +215,7 @@ describe('MaxBotService', () => {
     expect(health.tokenValidation.reason).toContain('Invalid access_token');
   });
 
-  it('registers webhook subscriptions for messages and callbacks', async () => {
+  it('registers webhook subscriptions for messages, callbacks and bot_started', async () => {
     process.env.MAX_BOT_API_BASE_URL = 'https://platform-api.max.ru';
     process.env.MAX_BOT_API_TOKEN = 'test-token';
 
@@ -234,7 +234,7 @@ describe('MaxBotService', () => {
         method: 'POST',
         body: JSON.stringify({
           url: 'https://api.example/max-bot/webhook',
-          update_types: ['message_created', 'message_callback'],
+          update_types: ['message_created', 'message_callback', 'bot_started'],
         }),
       }),
     );
@@ -619,6 +619,12 @@ describe('MaxBotService.extractChatId — webhook payload shapes', () => {
       },
     ])).toEqual([-666]);
   });
+
+  it('falls back to the sender user_id for private bot_started updates', async () => {
+    expect(await chatIdsFrom([
+      { update_type: 'bot_started', user: { user_id: 4242 } },
+    ])).toEqual([4242]);
+  });
 });
 
 // ── handleWebhookUpdate — full MAX webhook payload ────────────────────────────
@@ -636,6 +642,27 @@ describe('MaxBotService.handleWebhookUpdate — MAX webhook payload', () => {
         body: { mid: 'mid1', seq: 1, text },
         timestamp: 1700000000000,
       },
+    };
+  }
+
+  function makePrivateUpdate(text: string) {
+    return {
+      update_type: 'message_created',
+      timestamp: 1700000000000,
+      message: {
+        sender: { user_id: 4242, name: 'Private User' },
+        recipient: { chat_id: 4242, chat_type: 'dialog' },
+        body: { mid: 'mid-private', seq: 1, text },
+        timestamp: 1700000000000,
+      },
+    };
+  }
+
+  function makeBotStartedUpdate() {
+    return {
+      update_type: 'bot_started',
+      timestamp: 1700000000000,
+      user: { user_id: 4242, name: 'Private User' },
     };
   }
 
@@ -695,7 +722,52 @@ describe('MaxBotService.handleWebhookUpdate — MAX webhook payload', () => {
     );
   });
 
-  it('ignores update when chat_id does not match MAX_GROUP_CHAT_ID', async () => {
+  it.each(['/start', '/menu', '/help', 'Привет'])(
+    'allows private %s command flow and replies to the private chat',
+    async (text) => {
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ message: { mid: 'private-response' } }),
+      }) as any;
+
+      const commandService = { handleUpdate: jest.fn().mockResolvedValue({ text: 'safe menu' }) } as any;
+      const svc = new MaxBotService(undefined, commandService);
+
+      await svc.handleWebhookUpdate(makePrivateUpdate(text));
+
+      expect(commandService.handleUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({ update_type: 'message_created' }),
+      );
+      expect(global.fetch).toHaveBeenCalledWith(
+        'https://platform-api2.max.ru/messages?chat_id=4242',
+        expect.objectContaining({ method: 'POST' }),
+      );
+    },
+  );
+
+  it('allows private bot_started and replies with the command service response', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ message: { mid: 'started-response' } }),
+    }) as any;
+
+    const commandService = { handleUpdate: jest.fn().mockResolvedValue({ text: 'safe menu' }) } as any;
+    const svc = new MaxBotService(undefined, commandService);
+
+    await svc.handleWebhookUpdate(makeBotStartedUpdate());
+
+    expect(commandService.handleUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({ update_type: 'bot_started' }),
+    );
+    expect(global.fetch).toHaveBeenCalledWith(
+      'https://platform-api2.max.ru/messages?chat_id=4242',
+      expect.objectContaining({ method: 'POST' }),
+    );
+  });
+
+  it('blocks other group chats', async () => {
     const commandService = { handleUpdate: jest.fn() } as any;
     const svc = new MaxBotService(undefined, commandService);
     const logSpy = jest.spyOn((svc as any).logger, 'log');
@@ -703,14 +775,14 @@ describe('MaxBotService.handleWebhookUpdate — MAX webhook payload', () => {
     const wrongChatUpdate = {
       update_type: 'message_created',
       message: {
-        recipient: { chat_id: -999 },
+        recipient: { chat_id: -999, chat_type: 'chat' },
         body: { text: '/help' },
       },
     };
     await svc.handleWebhookUpdate(wrongChatUpdate);
 
     expect(commandService.handleUpdate).not.toHaveBeenCalled();
-    const ignored = logSpy.mock.calls.find(([obj, event]) => event === 'max_bot_update_ignored' && obj?.reason === 'chat_mismatch');
+    const ignored = logSpy.mock.calls.find(([obj, event]) => event === 'max_bot_update_ignored' && obj?.reason === 'other_group_chat');
     expect(ignored).toBeDefined();
   });
 

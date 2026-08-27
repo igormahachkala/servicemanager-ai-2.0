@@ -1,5 +1,11 @@
 export type MaxBotUpdate = Record<string, unknown>;
 
+export const MAX_BOT_COMMAND_UPDATE_TYPES = [
+  'message_created',
+  'message_callback',
+  'bot_started',
+] as const;
+
 export type MaxBotInlineKeyboardButton =
   | { type: 'callback'; text: string; payload: string; intent?: 'default' | 'positive' | 'negative' }
   | { type: 'link'; text: string; url: string }

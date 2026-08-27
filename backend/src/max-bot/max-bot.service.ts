@@ -9,6 +9,7 @@ import { TicketStatus, TicketUrgency } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 import { MaxBotCommandService } from './max-bot-command.service';
+import { extractMaxUserId } from './max-identity.service';
 import {
   buildMinimalMaxBotCommands,
   normalizeMaxBotUsername,
@@ -18,6 +19,7 @@ import {
 } from './max-menu.builder';
 import { getMaxBotRuntimeDiagnostics, type MaxBotRuntimeDiagnostics } from './max-bot-runtime';
 import {
+  MAX_BOT_COMMAND_UPDATE_TYPES,
   type MaxBotCommandResponse,
   type MaxBotMessageBody,
   MaxBotSendMessageResponse,
@@ -98,6 +100,15 @@ type MaxBotTokenValidation = {
   path: string;
   reason: string | null;
 };
+
+type CommandChatDecision = {
+  allowed: boolean;
+  scope: 'configured_group' | 'private' | 'other_group' | 'unknown';
+  reason?: 'other_group_chat' | 'untrusted_chat';
+};
+
+const PRIVATE_MAX_CHAT_TYPES = new Set(['dialog', 'private', 'direct', 'user']);
+const GROUP_MAX_CHAT_TYPES = new Set(['chat', 'group', 'supergroup', 'channel']);
 
 @Injectable()
 export class MaxBotService implements OnModuleInit {
@@ -820,7 +831,105 @@ export class MaxBotService implements OnModuleInit {
       }
     }
 
+    if (update.update_type === 'bot_started') {
+      return this.parseChatId(extractMaxUserId(update));
+    }
+
     return null;
+  }
+
+  private classifyCommandChat(
+    update: MaxBotUpdate,
+    chatId: number,
+    chatType: string | null,
+    groupChatId: number | null,
+  ): CommandChatDecision {
+    if (groupChatId !== null && chatId === groupChatId) {
+      return { allowed: true, scope: 'configured_group' };
+    }
+
+    if (chatType && PRIVATE_MAX_CHAT_TYPES.has(chatType)) {
+      return { allowed: true, scope: 'private' };
+    }
+
+    if (chatType && GROUP_MAX_CHAT_TYPES.has(chatType)) {
+      return { allowed: false, scope: 'other_group', reason: 'other_group_chat' };
+    }
+
+    if (this.looksLikePrivateDialog(update, chatId)) {
+      return { allowed: true, scope: 'private' };
+    }
+
+    return { allowed: false, scope: 'unknown', reason: 'untrusted_chat' };
+  }
+
+  private looksLikePrivateDialog(update: MaxBotUpdate, chatId: number) {
+    const maxUserId = extractMaxUserId(update);
+    if (!maxUserId) return false;
+    if (update.update_type === 'bot_started') return true;
+    return chatId > 0;
+  }
+
+  private extractChatType(update: MaxBotUpdate): string | null {
+    const msg = this.readRecord(update.message);
+    const topChat = this.readRecord(update.chat);
+    const topRecipient = this.readRecord(update.recipient);
+    const msgRecipient = this.readRecord(msg?.recipient);
+    const msgChat = this.readRecord(msg?.chat);
+    const callback = this.readRecord(update.callback);
+    const callbackChat = this.readRecord(callback?.chat);
+    const callbackRecipient = this.readRecord(callback?.recipient);
+    const callbackMessage = this.readRecord(callback?.message);
+    const callbackMessageRecipient = this.readRecord(callbackMessage?.recipient);
+    const callbackMessageChat = this.readRecord(callbackMessage?.chat);
+
+    const candidates = [
+      update.chat_type,
+      update.chatType,
+      update.dialog_type,
+      update.dialogType,
+      topChat?.chat_type,
+      topChat?.chatType,
+      topChat?.type,
+      topRecipient?.chat_type,
+      topRecipient?.chatType,
+      topRecipient?.type,
+      msg?.chat_type,
+      msg?.chatType,
+      msgRecipient?.chat_type,
+      msgRecipient?.chatType,
+      msgRecipient?.type,
+      msgChat?.chat_type,
+      msgChat?.chatType,
+      msgChat?.type,
+      callback?.chat_type,
+      callback?.chatType,
+      callbackChat?.chat_type,
+      callbackChat?.chatType,
+      callbackChat?.type,
+      callbackRecipient?.chat_type,
+      callbackRecipient?.chatType,
+      callbackRecipient?.type,
+      callbackMessage?.chat_type,
+      callbackMessage?.chatType,
+      callbackMessageRecipient?.chat_type,
+      callbackMessageRecipient?.chatType,
+      callbackMessageRecipient?.type,
+      callbackMessageChat?.chat_type,
+      callbackMessageChat?.chatType,
+      callbackMessageChat?.type,
+    ];
+
+    for (const candidate of candidates) {
+      if (typeof candidate === 'string' && candidate.trim()) {
+        return candidate.trim().toLowerCase();
+      }
+    }
+    return null;
+  }
+
+  private readRecord(value: unknown): Record<string, unknown> | null {
+    return value && typeof value === 'object' ? value as Record<string, unknown> : null;
   }
 
   private extractCallbackId(update: MaxBotUpdate): string | null {
@@ -864,7 +973,7 @@ export class MaxBotService implements OnModuleInit {
   async registerWebhook(params: { url: string; updateTypes?: string[]; secret?: string }) {
     const body: Record<string, unknown> = {
       url: params.url,
-      update_types: params.updateTypes ?? ['message_created', 'message_callback'],
+      update_types: params.updateTypes ?? [...MAX_BOT_COMMAND_UPDATE_TYPES],
     };
     if (params.secret) body.secret = params.secret;
     return this.requestJson<unknown>('/subscriptions', {
@@ -907,23 +1016,19 @@ export class MaxBotService implements OnModuleInit {
       );
       return;
     }
-    if (groupChatId === null) {
-      this.logger.warn(
-        {
-          reason: 'group_chat_missing',
-          updates: updates.length,
-        },
-        'max_bot_command_ignored',
-      );
-      return;
-    }
 
     for (const update of updates) {
       const chatId = this.extractChatId(update);
+      const chatType = this.extractChatType(update);
+      const chatDecision = chatId === null
+        ? null
+        : this.classifyCommandChat(update, chatId, chatType, groupChatId);
       this.logger.log(
         {
           update_type: typeof update.update_type === 'string' ? update.update_type : null,
           chatId,
+          chatType,
+          chatScope: chatDecision?.scope ?? null,
           hasMessage: !!update.message,
         },
         'max_bot_update_received',
@@ -938,11 +1043,13 @@ export class MaxBotService implements OnModuleInit {
         );
         continue;
       }
-      if (chatId !== groupChatId) {
+      if (!chatDecision?.allowed) {
         this.logger.log(
           {
-            reason: 'chat_mismatch',
+            reason: chatDecision?.reason ?? 'untrusted_chat',
             chatId,
+            chatType,
+            chatScope: chatDecision?.scope ?? 'unknown',
             groupChatId,
           },
           'max_bot_update_ignored',

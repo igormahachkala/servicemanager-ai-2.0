@@ -21,6 +21,11 @@ function makeService(prisma = makeForbiddenPrisma()) {
 }
 
 const msg = (text: string) => ({ message: { text } });
+const botStarted = () => ({
+  update_type: 'bot_started',
+  chat_id: 4242,
+  user: { user_id: 4242 },
+});
 const callback = (payload: string) => ({
   callback: {
     callback_id: 'cb-1',
@@ -58,6 +63,12 @@ describe('MaxBotCommandService — entry points', () => {
     const start = await makeService().handleUpdate(msg('/start'));
     const menu = await makeService().handleUpdate(msg('/menu'));
     expect(menu).toEqual(start);
+  });
+
+  it('bot_started returns the same safe menu as /start', async () => {
+    const start = await makeService().handleUpdate(msg('/start'));
+    const started = await makeService().handleUpdate(botStarted());
+    expect(started).toEqual(start);
   });
 
   it('/help explains the menu rather than listing commands', async () => {
@@ -115,7 +126,7 @@ describe('MaxBotCommandService — unknown input is never silent', () => {
 });
 
 describe('MaxBotCommandService — legacy data commands are closed', () => {
-  it.each(['/tickets', '/ticket 123', '/open 123'])(
+  it.each(['/tickets', '/ticket 1', '/ticket 123', '/ticket 999999', '/open 1', '/open 123', '/open arbitrary-id'])(
     '%s returns navigation and reads no ticket data',
     async (input) => {
       const prisma = makeForbiddenPrisma();
@@ -127,7 +138,7 @@ describe('MaxBotCommandService — legacy data commands are closed', () => {
     },
   );
 
-  it.each(['/ticket 123', '/ticket 999999', '/open 1'])(
+  it.each(['/tickets', '/ticket 1', '/ticket 123', '/ticket 999999', '/open 1', '/open arbitrary-id'])(
     '%s discloses nothing about ticket existence',
     async (input) => {
       const res = await makeService().handleUpdate(msg(input));
@@ -155,6 +166,30 @@ describe('MaxBotCommandService — unbound identity leaks nothing', () => {
     const res = await makeService().handleUpdate({
       message: { text: '/start', sender: { user_id: 4242 } },
     });
+    expect(buttonsOf(res).map((button) => button.text)).toEqual([
+      'Открыть ServiceManager',
+      'Помощь',
+    ]);
+    expect(res?.text).not.toContain('Мои заявки');
+    expect(res?.text).not.toContain('Требуют приёмки');
+  });
+
+  it('a bound MAX user still enters through the identity resolver and receives no business data', async () => {
+    const identity = {
+      resolve: jest.fn().mockResolvedValue({
+        resolved: true,
+        userId: 'user-1',
+        companyId: 'company-1',
+        role: 'ADMIN',
+        maxUserId: '4242',
+      }),
+    };
+    const service = new MaxBotCommandService(makeForbiddenPrisma(), identity as any);
+    const update = botStarted();
+
+    const res = await service.handleUpdate(update);
+
+    expect(identity.resolve).toHaveBeenCalledWith(update);
     expect(buttonsOf(res).map((button) => button.text)).toEqual([
       'Открыть ServiceManager',
       'Помощь',

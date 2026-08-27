@@ -52,6 +52,18 @@ export class MaxBotCommandService {
       return this.handleCallback(update, callback.payload);
     }
 
+    if (this.isBotStarted(update)) {
+      this.logger.log(
+        {
+          update_type: this.safeString(update.update_type),
+          source: 'update_type',
+          command: '/start',
+        },
+        'max_bot_command_parsed',
+      );
+      return this.handleParsedCommand('/start', this.menuMessage(update));
+    }
+
     const extracted = this.extractMessageText(update);
     if (!extracted) {
       this.logger.log(
@@ -189,6 +201,10 @@ export class MaxBotCommandService {
 
   private safeString(value: unknown) {
     return typeof value === 'string' ? value : null;
+  }
+
+  private isBotStarted(update: MaxBotUpdate) {
+    return update.update_type === 'bot_started';
   }
 
   private extractMessageText(update: MaxBotUpdate): { text: string; source: string } | null {

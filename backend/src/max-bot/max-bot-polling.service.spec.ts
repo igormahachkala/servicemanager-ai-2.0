@@ -69,7 +69,10 @@ describe('MaxBotPollingService', () => {
     const mock = makeMockService();
     const service = new MaxBotPollingService(mock as any);
     await (service as any).tick();
-    expect(mock.pollUpdates).toHaveBeenCalledWith(expect.objectContaining({ timeout: 7 }));
+    expect(mock.pollUpdates).toHaveBeenCalledWith(expect.objectContaining({
+      timeout: 7,
+      types: ['message_created', 'message_callback', 'bot_started'],
+    }));
   });
 
   it('starts with null marker and advances after first poll', async () => {
@@ -162,7 +165,7 @@ describe('MaxBotPollingService', () => {
     expect(mock.registerWebhook).toHaveBeenCalledWith({
       url: 'https://api.example.com/max-bot/webhook',
       secret: 'my-secret',
-      updateTypes: ['message_created', 'message_callback'],
+      updateTypes: ['message_created', 'message_callback', 'bot_started'],
     });
     service.onModuleDestroy();
   });
