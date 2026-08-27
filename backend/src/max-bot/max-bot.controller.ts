@@ -72,6 +72,11 @@ export class MaxBotController {
     });
   }
 
+  @Post('commands/minimal')
+  registerMinimalCommandMenu() {
+    return this.maxBot.registerMinimalCommandMenu();
+  }
+
   @Delete('subscriptions')
   deleteSubscriptions() {
     return this.maxBot.deleteSubscriptions();

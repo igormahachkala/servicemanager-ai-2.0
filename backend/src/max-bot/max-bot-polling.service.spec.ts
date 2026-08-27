@@ -162,7 +162,7 @@ describe('MaxBotPollingService', () => {
     expect(mock.registerWebhook).toHaveBeenCalledWith({
       url: 'https://api.example.com/max-bot/webhook',
       secret: 'my-secret',
-      updateTypes: ['message_created'],
+      updateTypes: ['message_created', 'message_callback'],
     });
     service.onModuleDestroy();
   });

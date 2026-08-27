@@ -4,10 +4,15 @@ import { PrismaService } from '../prisma/prisma.service';
 import { MaxIdentityService } from './max-identity.service';
 import {
   buildUnboundMenuModel,
+  isSafeMaxCallbackPayload,
+  normalizeMaxBotUsername,
+  renderHelpMessage,
+  renderLegacyNavigationMessage,
+  renderMenuMessage,
   renderMenuText,
   type MaxMenuModel,
 } from './max-menu.builder';
-import { MaxBotUpdate } from './max-bot.types';
+import { MaxBotCommandResponse, MaxBotUpdate } from './max-bot.types';
 
 /**
  * SMA-MAX-BOT-V2-FOUNDATION-037.
@@ -32,17 +37,21 @@ const LEGACY_DATA_COMMANDS = new Set(['/tickets', '/ticket', '/open']);
 @Injectable()
 export class MaxBotCommandService {
   private readonly logger = new Logger(MaxBotCommandService.name);
-  private readonly frontendUrl: string | null;
+  private readonly botUsername: string;
 
   constructor(
     private readonly prisma?: PrismaService,
     private readonly identity?: MaxIdentityService,
   ) {
-    const raw = (process.env.MAX_PUBLIC_FRONTEND_URL || process.env.FRONTEND_URL || '').trim();
-    this.frontendUrl = raw ? raw.replace(/\/+$/, '') : null;
+    this.botUsername = normalizeMaxBotUsername(process.env.MAX_BOT_USERNAME);
   }
 
-  async handleUpdate(update: MaxBotUpdate): Promise<string | null> {
+  async handleUpdate(update: MaxBotUpdate): Promise<MaxBotCommandResponse | null> {
+    const callback = this.extractCallback(update);
+    if (callback) {
+      return this.handleCallback(update, callback.payload);
+    }
+
     const extracted = this.extractMessageText(update);
     if (!extracted) {
       this.logger.log(
@@ -71,22 +80,24 @@ export class MaxBotCommandService {
 
     try {
       if (cmd === '/start' || cmd === '/menu') {
-        return this.handleParsedCommand(cmd, this.menuText(update));
+        return this.handleParsedCommand(cmd, this.menuMessage(update));
       }
       if (cmd === '/help') {
-        return this.handleParsedCommand(cmd, this.helpText());
+        return this.handleParsedCommand(cmd, this.helpMessage());
       }
       // Operator diagnostic. Retained but absent from user-facing copy.
       if (cmd === '/status') {
-        return this.handleParsedCommand(cmd, this.statusText());
+        return this.handleParsedCommand(cmd, this.statusMessage());
       }
       if (LEGACY_DATA_COMMANDS.has(cmd)) {
         this.logger.log({ command: cmd }, 'max_bot_legacy_command_redirected');
-        return this.handleParsedCommand(cmd, this.legacyRedirectText());
+        return this.handleParsedCommand(cmd, this.legacyRedirectMessage());
       }
     } catch (err) {
       this.logger.warn({ err, cmd }, 'max_bot_command_error');
-      return 'Не удалось выполнить действие.\nПопробуйте ещё раз через минуту.';
+      return {
+        text: 'Не удалось выполнить действие.\nПопробуйте ещё раз через минуту.',
+      };
     }
 
     // Anything else — unknown command or ordinary text. Previously the bot returned null
@@ -99,7 +110,7 @@ export class MaxBotCommandService {
       },
       'max_bot_command_fallback',
     );
-    return this.unknownInputText(update);
+    return this.unknownInputMessage(update);
   }
 
   /**
@@ -122,49 +133,30 @@ export class MaxBotCommandService {
     return buildUnboundMenuModel();
   }
 
-  private async menuText(update: MaxBotUpdate): Promise<string> {
+  private async menuMessage(update: MaxBotUpdate): Promise<MaxBotCommandResponse> {
     const model = await this.menuModelFor(update);
-    const body = renderMenuText(model);
-    const link = this.appLink();
-    return link ? `${body}\n${link}` : body;
+    return renderMenuMessage(model, this.botUsername);
   }
 
-  private async unknownInputText(update: MaxBotUpdate): Promise<string> {
-    const menu = await this.menuText(update);
-    return `Не понял запрос. Вот что можно сделать:\n\n${menu}`;
+  private async unknownInputMessage(update: MaxBotUpdate): Promise<MaxBotCommandResponse> {
+    const model = await this.menuModelFor(update);
+    const menu = renderMenuMessage(model, this.botUsername);
+    return {
+      ...menu,
+      text: `Не понял запрос. Вот что можно сделать:\n\n${menu.text || renderMenuText(model)}`,
+    };
   }
 
-  private helpText(): string {
-    const lines = [
-      'Как пользоваться',
-      '',
-      'Выбирайте пункт меню — вводить команды не нужно.',
-      '',
-      '«Мои заявки» — то, что закреплено за вами.',
-      '«Доступные заявки» — заявки, которые можно взять или запросить.',
-      '«Требуют приёмки» — работы, ожидающие вашего решения.',
-      '«Уведомления» — последние события.',
-      '',
-      'Подробности заявки открываются в приложении.',
-    ];
-    const link = this.appLink();
-    if (link) lines.push('', link);
-    return lines.join('\n');
+  private helpMessage(): MaxBotCommandResponse {
+    return renderHelpMessage(this.botUsername);
   }
 
   /**
    * Replaces the three ticket-reading commands. Deliberately says nothing about whether
    * any ticket exists — the reply is identical no matter what argument was passed.
    */
-  private legacyRedirectText(): string {
-    const lines = [
-      'Заявки теперь открываются в приложении.',
-      '',
-      'Откройте «Мои заявки» в меню — там доступны только ваши заявки.',
-    ];
-    const link = this.appLink();
-    if (link) lines.push('', link);
-    return lines.join('\n');
+  private legacyRedirectMessage(): MaxBotCommandResponse {
+    return renderLegacyNavigationMessage(this.botUsername);
   }
 
   private statusText(): string {
@@ -174,13 +166,25 @@ export class MaxBotCommandService {
     return `Сервис Менеджер бот онлайн\nВремя: ${now}\nСреда: ${env}\nРежим: ${mode}`;
   }
 
-  private appLink(): string | null {
-    return this.frontendUrl ? `${this.frontendUrl}/max` : null;
+  private statusMessage(): MaxBotCommandResponse {
+    return { text: this.statusText() };
   }
 
-  private async handleParsedCommand(cmd: string, response: string | Promise<string>) {
+  private async handleParsedCommand(
+    cmd: string,
+    response: MaxBotCommandResponse | Promise<MaxBotCommandResponse>,
+  ) {
     this.logger.log({ command: cmd }, 'max_bot_command_handled');
     return response;
+  }
+
+  private async handleCallback(update: MaxBotUpdate, payload: string): Promise<MaxBotCommandResponse> {
+    if (!isSafeMaxCallbackPayload(payload)) {
+      this.logger.log({ payload }, 'max_bot_callback_fallback');
+      return this.menuMessage(update);
+    }
+    this.logger.log({ payload }, 'max_bot_callback_handled');
+    return payload === 'help' ? this.helpMessage() : this.menuMessage(update);
   }
 
   private safeString(value: unknown) {
@@ -200,6 +204,16 @@ export class MaxBotCommandService {
       }
     }
     if (typeof update.text === 'string') return { text: update.text, source: 'update.text' };
+    return null;
+  }
+
+  private extractCallback(update: MaxBotUpdate): { payload: string; source: string } | null {
+    const callback = update.callback;
+    if (!callback || typeof callback !== 'object') return null;
+    const cb = callback as Record<string, unknown>;
+    if (typeof cb.payload === 'string') {
+      return { payload: cb.payload.trim(), source: 'callback.payload' };
+    }
     return null;
   }
 }
