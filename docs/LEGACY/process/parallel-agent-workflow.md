@@ -3,7 +3,7 @@
 > Source of Truth для параллельной работы Claude Code, Codex и ChatGPT в этом
 > репозитории.
 > Связанные документы: [Agent Development Workflow](./agent-development-workflow.md) ·
-> [Deployment Workflow](./deployment-workflow.md) ·
+> [Deployment Workflow](../../process/deployment-workflow.md) ·
 > [Module Boundaries](./module-boundaries.md).
 
 ## Цель
