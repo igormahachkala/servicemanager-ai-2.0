@@ -189,6 +189,7 @@ model Company {
   workShifts                   WorkShift[]
   workLogs                     WorkLog[]
   serviceContractLocations     ServiceContractLocation[]
+  maxUserBindings              MaxUserBinding[]
 }
 
 model User {
@@ -230,6 +231,7 @@ model User {
   pushPreference              PushPreference?
   workShifts                  WorkShift[]
   workLogs                    WorkLog[]
+  maxUserBindings             MaxUserBinding[]
 
   @@index([companyId, role])
   @@index([companyId, isActive])
@@ -337,6 +339,37 @@ model Location {
   @@unique([clientCompanyId, platformCode])
   @@index([clientCompanyId, isActive])
   @@index([clientCompanyId, city])
+}
+
+/// SMA-MAX-BOT-V2-FOUNDATION-037.
+/// Explicit, revocable link between a MAX platform identity and a ServiceManager user.
+/// Shape is intentionally identical to the historical 202608080001_max_work_console_v1
+/// table that already exists in the forward-migrated Production database, so the
+/// re-introduction migration is a no-op there and a create elsewhere.
+model MaxUserBinding {
+  id             String               @id @default(uuid())
+  userId         String
+  user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyId      String
+  company        Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  maxUserId      String
+  maxChatId      String?
+  status         MaxUserBindingStatus @default(ACTIVE)
+  linkedAt       DateTime             @default(now())
+  lastVerifiedAt DateTime?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  @@unique([maxUserId])
+  @@index([userId])
+  @@index([companyId, status])
+  @@index([maxChatId])
+}
+
+enum MaxUserBindingStatus {
+  ACTIVE
+  SUSPENDED
+  REVOKED
 }
 
 model MaxLocationThread {
