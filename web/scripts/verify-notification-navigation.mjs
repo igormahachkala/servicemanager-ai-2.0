@@ -149,4 +149,113 @@ assert.match(swSource, /navigationTarget/)
 assert.match(swSource, /canonicalTicketTarget/)
 assert.match(swSource, /postMessage\(\{\s*type:\s*['"]push-navigate['"]/s)
 
+function loadServiceWorkerContext() {
+  const listeners = new Map()
+  const self = {
+    location: {
+      origin: 'https://servicemanagerai.ru',
+      href: 'https://servicemanagerai.ru/sw.js',
+    },
+    registration: {
+      showNotification() {},
+      navigationPreload: undefined,
+      pushManager: {
+        subscribe: async () => ({ endpoint: 'https://push.example/sub', toJSON: () => ({ keys: {} }) }),
+      },
+    },
+    clients: {
+      claim() {},
+      matchAll: async () => [],
+      openWindow: async (target) => ({ target }),
+    },
+    skipWaiting() {},
+    addEventListener(type, handler) {
+      const existing = listeners.get(type) || []
+      existing.push(handler)
+      listeners.set(type, existing)
+    },
+    removeEventListener() {},
+  }
+  const context = vm.createContext({
+    console,
+    URL,
+    setTimeout,
+    clearTimeout,
+    fetch: async () => undefined,
+    self,
+  })
+  vm.runInContext(swSource, context, { filename: resolve(root, 'public/sw.js') })
+  assert.equal(typeof context.notificationTarget, 'function')
+  return { context, listeners }
+}
+
+const sw = loadServiceWorkerContext().context
+
+function client(pathname) {
+  return { url: `https://servicemanagerai.ru${pathname}` }
+}
+
+{
+  assert.equal(
+    sw.notificationTarget(
+      {
+        navigationTarget: { kind: 'ticket', ticketId: 'ticket-closed', section: 'actions' },
+      },
+      null,
+    ),
+    '/m/tickets/ticket-closed?section=actions',
+  )
+}
+
+{
+  assert.equal(
+    sw.notificationTarget(
+      {
+        navigationTarget: {
+          kind: 'ticket',
+          ticketId: 'ticket-comments',
+          section: 'comments',
+          linkedClientCompanyId: 'client-1',
+          sourceEventId: 'event-1',
+        },
+      },
+      null,
+    ),
+    '/m/tickets/ticket-comments?section=comments&tab=chat&linkedClientCompanyId=client-1&sourceEventId=event-1',
+  )
+}
+
+{
+  const payload = { navigationTarget: { kind: 'ticket', ticketId: 'ticket-mobile', section: 'history' } }
+  assert.equal(sw.notificationTarget(payload, client('/m')), '/m/tickets/ticket-mobile?section=history')
+}
+
+{
+  const payload = { navigationTarget: { kind: 'ticket', ticketId: 'ticket-max', section: 'comments' } }
+  assert.equal(sw.notificationTarget(payload, client('/max')), '/max/tickets/ticket-max?section=comments&tab=chat')
+}
+
+{
+  const payload = { navigationTarget: { kind: 'ticket', ticketId: 'ticket-desktop', section: 'attachments' } }
+  assert.equal(sw.notificationTarget(payload, client('/board')), '/tickets/ticket-desktop?section=attachments')
+}
+
+{
+  assert.equal(
+    sw.notificationTarget(
+      {
+        ticketId: 'legacy-ticket',
+        notificationType: 'ticket.comment_added',
+        targetRoute: '/tickets/legacy-ticket?section=comments&tab=chat',
+      },
+      null,
+    ),
+    '/m/tickets/legacy-ticket?section=comments&tab=chat',
+  )
+}
+
+{
+  assert.equal(sw.notificationTarget({}, null), '/m')
+}
+
 console.log('verify-notification-navigation: PASS')
