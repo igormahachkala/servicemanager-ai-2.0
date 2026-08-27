@@ -6,6 +6,10 @@ import {
   registerPushServiceWorker,
   subscribeToServiceWorkerMessages,
 } from '../lib/pushNotifications'
+import {
+  normalizeNotificationNavigationTarget,
+  resolveNotificationNavigationTargetPath,
+} from '../lib/notificationNavigation'
 
 type PushNavigateMessage = {
   type?: string
@@ -15,6 +19,7 @@ type PushNavigateMessage = {
   targetRoute?: string
   ticketId?: string
   notificationType?: string
+  navigationTarget?: unknown
   count?: number
 }
 
@@ -37,6 +42,13 @@ function isMobileRoute() {
   return pathname === '/m' || pathname.startsWith('/m/') || pathname === '/max' || pathname.startsWith('/max/')
 }
 
+function currentSurface() {
+  const pathname = window.location.pathname
+  if (pathname === '/max' || pathname.startsWith('/max/')) return 'max' as const
+  if (pathname === '/m' || pathname.startsWith('/m/')) return 'mobile' as const
+  return 'desktop' as const
+}
+
 function isChatNotification(value: unknown) {
   if (typeof value !== 'string') return false
   const type = value.toLowerCase()
@@ -55,7 +67,11 @@ function ticketTarget(msg: PushNavigateMessage): string | null {
 }
 
 function navigationTarget(msg: PushNavigateMessage): string | null {
-  return sameOriginPath(msg.target) || sameOriginPath(msg.url) || sameOriginPath(msg.targetRoute) || ticketTarget(msg)
+  const canonical = resolveNotificationNavigationTargetPath(
+    normalizeNotificationNavigationTarget(msg.navigationTarget),
+    currentSurface(),
+  )
+  return sameOriginPath(msg.target) || canonical || sameOriginPath(msg.url) || sameOriginPath(msg.targetRoute) || ticketTarget(msg)
 }
 
 function ackPushNavigation(requestId: string | undefined, ok: boolean, target?: string) {

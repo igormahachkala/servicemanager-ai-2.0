@@ -39,6 +39,17 @@ function isMobileClient(client) {
   }
 }
 
+function clientSurface(client) {
+  try {
+    const url = new URL(client && client.url ? client.url : self.location.href)
+    if (url.pathname === '/max' || url.pathname.startsWith('/max/')) return 'max'
+    if (url.pathname === '/m' || url.pathname.startsWith('/m/')) return 'mobile'
+    return 'desktop'
+  } catch {
+    return 'mobile'
+  }
+}
+
 function isChatNotification(notificationType) {
   const type = safeString(notificationType).toLowerCase()
   return type.includes('chat') || type.includes('comment') || type.includes('attachment')
@@ -62,6 +73,29 @@ function withScope(path, payload) {
   }
 }
 
+function safeTargetObject(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : null
+}
+
+function canonicalTicketTarget(payload, client) {
+  const target = safeTargetObject(payload.navigationTarget)
+  if (!target || safeString(target.kind) !== 'ticket') return ''
+  const ticketId = safeString(target.ticketId)
+  if (!ticketId) return ''
+
+  const surface = clientSurface(client)
+  const root = surface === 'desktop' ? '/tickets' : surface === 'max' ? '/max/tickets' : '/m/tickets'
+  const url = new URL(`${root}/${encodeURIComponent(ticketId)}`, self.location.origin)
+  const section = safeString(target.section)
+  if (section && section !== 'overview') url.searchParams.set('section', section)
+  if (section === 'comments') url.searchParams.set('tab', 'chat')
+  const linkedClientCompanyId = safeString(target.linkedClientCompanyId)
+  if (linkedClientCompanyId) url.searchParams.set('linkedClientCompanyId', linkedClientCompanyId)
+  const sourceEventId = safeString(target.sourceEventId)
+  if (sourceEventId) url.searchParams.set('sourceEventId', sourceEventId)
+  return `${url.pathname}${url.search}${url.hash}`
+}
+
 function ticketTarget(payload, client) {
   const ticketId = safeString(payload.ticketId)
   if (!ticketId) return ''
@@ -73,6 +107,8 @@ function ticketTarget(payload, client) {
 }
 
 function notificationTarget(payload, client) {
+  const canonical = canonicalTicketTarget(payload, client)
+  if (canonical) return withScope(canonical, payload)
   const ticketPath = ticketTarget(payload, client)
   const explicit = sameOriginPath(payload.url) || sameOriginPath(payload.targetRoute) || sameOriginPath(payload.navigate)
   if (ticketPath && explicit.startsWith('/m/tickets/') && !isMobileClient(client)) return ticketPath
@@ -164,6 +200,7 @@ self.addEventListener('push', (event) => {
       notificationType: payload.notificationType || undefined,
       linkedClientCompanyId: payload.linkedClientCompanyId || undefined,
       companyId: payload.companyId || undefined,
+      navigationTarget: payload.navigationTarget || undefined,
     },
   }
 
@@ -198,6 +235,7 @@ self.addEventListener('notificationclick', (event) => {
           target,
           ticketId: payload.ticketId || undefined,
           notificationType: payload.notificationType || undefined,
+          navigationTarget: payload.navigationTarget || undefined,
         })
         if ('focus' in client) await client.focus()
         if (await ack) return client

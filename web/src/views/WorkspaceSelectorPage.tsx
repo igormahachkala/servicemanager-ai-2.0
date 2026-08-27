@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { getAvailableWorkspaces, type WorkspaceCard } from '../lib/navigation'
@@ -16,6 +16,7 @@ import '../mobile/mobile.css'
  */
 export function WorkspaceSelectorPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const queryClient = useQueryClient()
 
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
@@ -23,8 +24,10 @@ export function WorkspaceSelectorPage() {
 
   const scope = useMemo(() => (user ? api.restoreScopeForUser(user) : {}), [user])
   const workspaces = useMemo(() => getAvailableWorkspaces(user), [user])
+  const returnTo = useMemo(() => api.getReturnToFromSearch(location.search), [location.search])
 
   function resolvePath(ws: WorkspaceCard): string {
+    if (returnTo) return returnTo
     // IT Company не использует scope-параметры заявок.
     if (ws.id === 'it') return ws.to
     return api.appendScopeToPath(ws.to, scope, user)
@@ -35,8 +38,8 @@ export function WorkspaceSelectorPage() {
     if (!meQ.isError) return
     api.clearToken()
     queryClient.clear()
-    navigate('/login', { replace: true })
-  }, [meQ.isError, navigate, queryClient])
+    navigate(api.loginPathWithReturnTo(returnTo), { replace: true })
+  }, [meQ.isError, navigate, queryClient, returnTo])
 
   // Единственный доступный контур — переходим сразу.
   useEffect(() => {
@@ -48,7 +51,7 @@ export function WorkspaceSelectorPage() {
   function logout() {
     api.clearToken()
     queryClient.clear()
-    navigate('/login', { replace: true })
+    navigate(api.loginPathWithReturnTo(returnTo), { replace: true })
   }
 
   function enter(ws: WorkspaceCard) {

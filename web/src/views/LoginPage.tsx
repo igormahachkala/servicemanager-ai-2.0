@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import * as api from '../lib/api'
 
 import '../mobile/mobile.css'
@@ -24,6 +24,7 @@ function getLoginErrorMessage(err: unknown): string {
 
 export function LoginPage({ onLoggedIn }: LoginPageProps) {
   const navigate = useNavigate()
+  const location = useLocation()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -48,8 +49,9 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
       }
 
       setPassword('')
-      // После логина — экран выбора контура.
-      navigate('/workspaces', { replace: true })
+      const returnTo = api.getReturnToFromSearch(location.search)
+      // После логина — экран выбора контура; returnTo применится после выбора.
+      navigate(api.workspacePathWithReturnTo(returnTo), { replace: true })
     } catch (err: unknown) {
       setError(getLoginErrorMessage(err))
     } finally {

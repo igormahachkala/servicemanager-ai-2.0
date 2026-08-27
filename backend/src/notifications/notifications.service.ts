@@ -18,6 +18,13 @@ import { ServiceContractsService } from '../service-contracts/service-contracts.
 import { activeServiceContractWhere } from '../service-contracts/service-contract-window';
 import * as ticketAccess from '../tickets/ticket-access.utils';
 import { matchCategorySpecializationLinks } from '../tickets/ticket-specialization-match.utils';
+import {
+  buildLegacyNotificationNavigationTarget,
+  buildTicketNotificationNavigationTarget,
+  ticketNotificationSectionForType,
+  type NotificationNavigationTarget,
+  type NotificationTicketSection,
+} from './notification-navigation';
 
 const WATCHER_ROLES: UserRole[] = [
   UserRole.ADMIN,
@@ -125,11 +132,14 @@ function clipMessage(text: string, max = 400) {
 function buildTicketPushRoute(params: {
   ticketId: string;
   chat?: boolean;
+  section?: NotificationTicketSection;
   linkedClientCompanyId?: string | null;
   companyId?: string | null;
 }) {
   const query = new URLSearchParams();
-  if (params.chat) query.set('tab', 'chat');
+  const section = params.section ?? (params.chat ? 'comments' : 'overview');
+  if (section && section !== 'overview') query.set('section', section);
+  if (section === 'comments') query.set('tab', 'chat');
   if (params.linkedClientCompanyId) query.set('linkedClientCompanyId', params.linkedClientCompanyId);
   if (params.companyId) query.set('companyId', params.companyId);
   const qs = query.toString();
@@ -167,9 +177,18 @@ export class NotificationsService {
     companyId?: string | null;
   }) {
     try {
+      const notificationType = params.notificationType ?? params.type;
+      const section = ticketNotificationSectionForType(notificationType);
+      const navigationTarget = buildTicketNotificationNavigationTarget({
+        ticketId: params.ticketId,
+        type: notificationType,
+        section,
+        linkedClientCompanyId: params.linkedClientCompanyId,
+      });
       const navigate = buildTicketPushRoute({
         ticketId: params.ticketId,
         chat: params.chat,
+        section,
         linkedClientCompanyId: params.linkedClientCompanyId,
         companyId: params.companyId,
       });
@@ -183,9 +202,10 @@ export class NotificationsService {
           url: navigate,
           targetRoute: navigate,
           ticketId: params.ticketId,
-          notificationType: params.notificationType ?? params.type,
+          notificationType,
           linkedClientCompanyId: params.linkedClientCompanyId ?? undefined,
           companyId: params.companyId ?? undefined,
+          navigationTarget,
           navigate,
         },
         params.type,
@@ -296,7 +316,7 @@ export class NotificationsService {
 
   private async createNotification(data: Prisma.NotificationUncheckedCreateInput & { dedupeKey: string }) {
     try {
-      return await this.prisma.notification.create({ data });
+      return await this.prisma.notification.create({ data: this.withNavigationTarget(data) });
     } catch (err) {
       if (this.isUniqueViolation(err)) {
         return null;
@@ -310,9 +330,28 @@ export class NotificationsService {
   ) {
     if (!data.length) return { count: 0 };
     return this.prisma.notification.createMany({
-      data,
+      data: data.map((item) => this.withNavigationTarget(item)),
       skipDuplicates: true,
     });
+  }
+
+  private withNavigationTarget<T>(data: T): T {
+    const item = data as {
+      type?: string | null;
+      entityType?: string | null;
+      entityId?: string | null;
+      linkedClientCompanyId?: string | null;
+      navigationTarget?: unknown;
+    };
+    if (item.navigationTarget !== undefined) return data;
+    const navigationTarget = buildLegacyNotificationNavigationTarget({
+      entityType: item.entityType,
+      entityId: item.entityId,
+      type: item.type,
+      linkedClientCompanyId: item.linkedClientCompanyId,
+    }) as NotificationNavigationTarget | null;
+    if (!navigationTarget) return data;
+    return { ...(data as Record<string, unknown>), navigationTarget } as T;
   }
 
   private linkedClientForRecipientCompany(recipientCompanyId: string, ticketCompanyId: string) {
