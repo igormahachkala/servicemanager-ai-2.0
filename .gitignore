@@ -40,3 +40,6 @@ coverage/
 backup_before_*.sql
 *.sql
 !backend/prisma/migrations/**/migration.sql
+
+# local claudes files
+_claude
