@@ -5,6 +5,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 import { AppModule } from './app.module';
 import { RealtimeService } from './realtime/realtime.service';
+import { createCorsOriginDelegate, parseCorsAllowedOrigins } from './config/cors';
 import { getJwtSecret } from './config/required-env';
 
 async function bootstrap() {
@@ -23,16 +24,10 @@ async function bootstrap() {
     }),
   );
 
-  const rawOrigins = (process.env.CORS_ALLOWED_ORIGINS || '').split(',').map((o) => o.trim()).filter(Boolean);
-  const allowedOrigins = new Set(rawOrigins);
+  const allowedOrigins = parseCorsAllowedOrigins(process.env.CORS_ALLOWED_ORIGINS || '');
 
   app.enableCors({
-    origin: (origin, callback) => {
-      // No Origin header = curl / server-side request: allow
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.has(origin)) return callback(null, true);
-      callback(null, false);
-    },
+    origin: createCorsOriginDelegate(allowedOrigins),
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
