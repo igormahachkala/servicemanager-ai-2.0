@@ -34,7 +34,7 @@ export class MaxBotPollingService implements OnModuleInit, OnModuleDestroy {
           .registerWebhook({
             url: this.webhookUrl,
             secret: this.webhookSecret || undefined,
-            updateTypes: ['message_created'],
+            updateTypes: ['message_created', 'message_callback'],
           })
           .then(() => {
             this.logger.log(`MAX bot webhook registered: ${this.webhookUrl}`);
