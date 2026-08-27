@@ -78,24 +78,42 @@ export class MaxIdentityService {
   private readonly logger = new Logger(MaxIdentityService.name);
 
   /**
-   * Binding creation is intentionally not implemented. Flipping this on requires a
-   * ceremony that proves possession of BOTH identities — the design lands with the
-   * Mini App, where `initData` can be verified server-side against the bot token while
-   * an authenticated ServiceManager session is already present.
+   * SMA-MAX-SECURE-USER-BINDING-054 turned this on.
+   *
+   * The precondition stated when this was `false` has now been met: `MaxBindingService`
+   * implements a ceremony that proves possession of BOTH identities in one request — the
+   * ServiceManager side by an authenticated session, the MAX side by `initData` verified
+   * against the bot token per dev.max.ru/docs/webapps/validation, with a freshness window
+   * and single-use consumption layered on top.
+   *
+   * This flag says bindings can now be created. It says nothing about what a bound user may
+   * do: that remains entirely with PBAC, Contract Context and the tenant access resolver.
    */
-  static readonly BINDING_CREATION_ENABLED = false;
+  static readonly BINDING_CREATION_ENABLED = true;
 
   constructor(private readonly prisma?: PrismaService) {}
 
   /**
-   * Resolve a MAX identity. Fails closed on every uncertainty: no id, no binding,
-   * a binding that is not ACTIVE, an inactive or deleted user, or a binding whose
-   * company no longer matches the user's company.
+   * THE bot-facing identity contract. Everything the bot renders or acts upon starts here
+   * and nowhere else — callbacks, menus and any future button handler all enter through
+   * this one method, so there is exactly one place where a MAX update becomes an actor.
+   *
+   * Returns identity only. The caller takes the resolved user to the canonical permission
+   * and access services; this resolver never decides scope, and there is deliberately no
+   * MAX-specific permission or role matrix anywhere in this module.
+   *
+   * Fails closed on every uncertainty: no id, no binding, a binding that is not ACTIVE,
+   * an inactive or deleted user, or a binding whose company no longer matches the user's.
    */
-  async resolve(update: unknown): Promise<MaxIdentity> {
+  async resolveMaxIdentity(update: unknown): Promise<MaxIdentity> {
     const maxUserId = extractMaxUserId(update);
     if (!maxUserId) return { resolved: false, reason: 'no_max_user_id' };
     return this.resolveByMaxUserId(maxUserId);
+  }
+
+  /** Back-compatible alias for {@link resolveMaxIdentity}. */
+  async resolve(update: unknown): Promise<MaxIdentity> {
+    return this.resolveMaxIdentity(update);
   }
 
   async resolveByMaxUserId(maxUserId: string): Promise<MaxIdentity> {
