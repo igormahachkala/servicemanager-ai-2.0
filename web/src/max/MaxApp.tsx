@@ -1,17 +1,28 @@
 import { useEffect, useRef, useState } from 'react'
-import { Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
+import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import * as api from '../lib/api'
 import {
   getMaxEnvironmentContext,
-  getWebApp,
-  isMaxEnvironment,
   getStartParamFromLocation,
+  getWebApp,
   loadMaxBridgeScript,
   parseStartParam,
   type MaxWebApp,
 } from './maxBridge'
 import { MaxTicketEntry } from './MaxTicketEntry'
-
-type LoadState = 'loading' | 'ready' | 'error'
+import {
+  MAX_APP_ERROR_MESSAGE,
+  MAX_APP_ERROR_TITLE,
+  MAX_AUTH_TIMEOUT_MS,
+  MAX_CONTEXT_UNAVAILABLE_MESSAGE,
+  MAX_CONTEXT_UNAVAILABLE_TITLE,
+  classifyMaxAuthFailure,
+  hasSmaSessionToken,
+  isMaxContextAvailable,
+  resolveMaxReturnTo,
+  type MaxBootstrapState,
+} from './maxBootstrap'
 
 const rootStyle: React.CSSProperties = {
   fontFamily: 'system-ui, -apple-system, sans-serif',
@@ -43,25 +54,92 @@ const btnGhostStyle: React.CSSProperties = {
   fontWeight: 400,
 }
 
+function currentMaxRoute(location: ReturnType<typeof useLocation>, startParam?: string | null): string {
+  return resolveMaxReturnTo({
+    pathname: location.pathname,
+    search: location.search,
+    hash: location.hash,
+    startParam,
+  })
+}
+
+function MaxLoadingScreen({ state }: { state: MaxBootstrapState }) {
+  const label = state === 'checking_auth' ? 'Проверяем вход…' : state === 'detecting_context' ? 'Проверяем MAX…' : 'Загрузка…'
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh' }}>
+      <span style={{ color: '#888', fontSize: 15 }}>{label}</span>
+    </div>
+  )
+}
+
 export function MaxApp() {
   const location = useLocation()
   const navigate = useNavigate()
-  const [loadState, setLoadState] = useState<LoadState>('loading')
+  const queryClient = useQueryClient()
+  const latestLocationRef = useRef(location)
+  latestLocationRef.current = location
+  const [bootstrapState, setBootstrapState] = useState<MaxBootstrapState>('loading_bridge')
   const [webApp, setWebApp] = useState<MaxWebApp | null>(null)
-  const [loadError, setLoadError] = useState('')
+  const [returnTo, setReturnTo] = useState('/max')
+  const [retryNonce, setRetryNonce] = useState(0)
   const loggedRef = useRef(false)
 
   useEffect(() => {
-    loadMaxBridgeScript()
-      .then(() => {
-        setWebApp(getWebApp())
-        setLoadState('ready')
-      })
-      .catch((e: unknown) => {
-        setLoadError(e instanceof Error ? e.message : String(e))
-        setLoadState('error')
-      })
-  }, [])
+    let cancelled = false
+
+    async function bootstrap() {
+      setBootstrapState('loading_bridge')
+      try {
+        await loadMaxBridgeScript()
+      } catch {
+        if (!cancelled) setBootstrapState('temporary_error')
+        return
+      }
+
+      if (cancelled) return
+      setBootstrapState('detecting_context')
+      const app = getWebApp()
+      setWebApp(app)
+      const envContext = getMaxEnvironmentContext()
+      const rawStartParam = envContext.startParam || getStartParamFromLocation()
+      const nextReturnTo = currentMaxRoute(latestLocationRef.current, rawStartParam)
+      setReturnTo(nextReturnTo)
+
+      if (!isMaxContextAvailable(envContext)) {
+        setBootstrapState('context_unavailable')
+        return
+      }
+
+      if (!hasSmaSessionToken(api.getToken())) {
+        setBootstrapState('unauthenticated')
+        return
+      }
+
+      setBootstrapState('checking_auth')
+      try {
+        await api.meWithTimeout(MAX_AUTH_TIMEOUT_MS)
+      } catch (err) {
+        if (cancelled) return
+        const failure = classifyMaxAuthFailure(err)
+        if (failure === 'unauthenticated') {
+          api.clearToken()
+          queryClient.clear()
+          setBootstrapState('unauthenticated')
+          return
+        }
+        setBootstrapState('temporary_error')
+        return
+      }
+
+      if (!cancelled) setBootstrapState('authenticated')
+    }
+
+    bootstrap()
+
+    return () => {
+      cancelled = true
+    }
+  }, [queryClient, retryNonce])
 
   useEffect(() => {
     if (!webApp) return
@@ -83,46 +161,48 @@ export function MaxApp() {
     })
   }, [location.pathname, webApp])
 
-  if (loadState === 'loading') {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh' }}>
-        <span style={{ color: '#888', fontSize: 15 }}>Загрузка…</span>
-      </div>
-    )
+  if (
+    bootstrapState === 'loading_bridge' ||
+    bootstrapState === 'detecting_context' ||
+    bootstrapState === 'checking_auth'
+  ) {
+    return <MaxLoadingScreen state={bootstrapState} />
   }
 
-  if (loadState === 'error') {
+  if (bootstrapState === 'temporary_error') {
     return (
       <div style={rootStyle}>
-        <h2 style={{ margin: '0 0 12px', fontSize: 20 }}>Ошибка загрузки</h2>
-        <p style={{ color: '#666', fontSize: 14, margin: '0 0 20px' }}>{loadError}</p>
-        <button style={btnStyle} onClick={() => navigate('/m')}>Открыть мобильную версию</button>
+        <h2 style={{ margin: '0 0 12px', fontSize: 20 }}>{MAX_APP_ERROR_TITLE}</h2>
+        <p style={{ color: '#666', fontSize: 14, margin: '0 0 20px' }}>{MAX_APP_ERROR_MESSAGE}</p>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <button style={btnStyle} onClick={() => setRetryNonce((value) => value + 1)}>Повторить</button>
+          <button style={btnGhostStyle} onClick={() => navigate('/m')}>Открыть ServiceManager</button>
+        </div>
       </div>
     )
   }
 
-  const inMax = isMaxEnvironment()
   const envContext = getMaxEnvironmentContext()
   const rawStartParam = envContext.startParam || getStartParamFromLocation()
   const parsed = parseStartParam(rawStartParam)
 
-  if (inMax && parsed.type === 'ticket' && location.pathname === '/max') {
-    return <MaxTicketEntry ticketId={parsed.ticketId} webApp={webApp} />
+  if (bootstrapState === 'unauthenticated') {
+    return <Navigate to={api.loginPathWithReturnTo(returnTo)} replace />
   }
 
-  if (!inMax) {
+  if (bootstrapState === 'context_unavailable') {
     return (
       <div style={rootStyle}>
-        <h2 style={{ margin: '0 0 16px', fontSize: 20 }}>MAX Mini App context not detected</h2>
+        <h2 style={{ margin: '0 0 16px', fontSize: 20 }}>{MAX_CONTEXT_UNAVAILABLE_TITLE}</h2>
         <div style={{ padding: '12px 16px', background: '#fff8e1', border: '1px solid #ffe082', borderRadius: 10, fontSize: 14, marginBottom: 24 }}>
-          <strong>MAX Mini App context not detected</strong>
+          <strong>{MAX_CONTEXT_UNAVAILABLE_TITLE}</strong>
           <div style={{ marginTop: 4, color: '#666' }}>
-            window.WebApp не обнаружен. Откройте через приложение MAX.
+            {MAX_CONTEXT_UNAVAILABLE_MESSAGE}
           </div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <button style={btnStyle} onClick={() => navigate('/m')}>Открыть мобильную версию</button>
-          <button style={btnGhostStyle} onClick={() => navigate('/m')}>Открыть заявки</button>
+          <button style={btnStyle} onClick={() => setRetryNonce((value) => value + 1)}>Повторить</button>
+          <button style={btnGhostStyle} onClick={() => navigate('/m')}>Открыть ServiceManager</button>
         </div>
         <div style={{ marginTop: 28, fontSize: 11, color: '#bbb', lineHeight: 1.6 }}>
           <div>start_param: {rawStartParam || '(нет)'}</div>
@@ -134,6 +214,10 @@ export function MaxApp() {
         </div>
       </div>
     )
+  }
+
+  if (parsed.type === 'ticket' && location.pathname === '/max') {
+    return <MaxTicketEntry ticketId={parsed.ticketId} webApp={webApp} />
   }
 
   return (

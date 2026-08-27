@@ -15,11 +15,12 @@ const BUILD = '2026'
 
 function getLoginErrorMessage(err: unknown): string {
   if (api.isLoginSessionStorageError(err)) return api.LOGIN_SESSION_STORAGE_ERROR_MESSAGE
+  if (api.isApiTimeoutError(err)) return api.API_TIMEOUT_ERROR_MESSAGE
   if (err instanceof api.ApiRequestError) {
     if (err.status === 401) return 'Неверный email или пароль.'
     if (err.status === 429) return 'Слишком много попыток входа. Подождите и повторите попытку.'
   }
-  return err instanceof Error && err.message ? err.message : 'Не удалось войти'
+  return 'Не удалось войти. Проверьте подключение и повторите попытку.'
 }
 
 export function LoginPage({ onLoggedIn }: LoginPageProps) {

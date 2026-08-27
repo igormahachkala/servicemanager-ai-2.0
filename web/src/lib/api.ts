@@ -1886,7 +1886,12 @@ type RequestOptions = {
   body?: unknown
   headers?: Record<string, string>
   auth?: boolean
+  timeoutMs?: number
 }
+
+export const API_TIMEOUT_ERROR_MESSAGE =
+  'Сервер не ответил. Проверьте соединение и повторите попытку.'
+const LOGIN_REQUEST_TIMEOUT_MS = 12_000
 
 /** Ошибка HTTP API с кодом ответа (для дружелюбных сообщений на мобилке). */
 export class ApiRequestError extends Error {
@@ -1898,6 +1903,22 @@ export class ApiRequestError extends Error {
     this.status = status
     Object.setPrototypeOf(this, new.target.prototype)
   }
+}
+
+export class ApiTimeoutError extends Error {
+  constructor() {
+    super(API_TIMEOUT_ERROR_MESSAGE)
+    this.name = 'ApiTimeoutError'
+    Object.setPrototypeOf(this, new.target.prototype)
+  }
+}
+
+export function isApiTimeoutError(err: unknown): err is ApiTimeoutError {
+  return err instanceof ApiTimeoutError
+}
+
+function isAbortError(err: unknown): boolean {
+  return (err as { name?: unknown })?.name === 'AbortError'
 }
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -1914,13 +1935,28 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     }
   }
 
-  const res = await fetch(`${getBaseUrl()}${path}`, {
-    method,
-    headers,
-    body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
-  })
+  const controller = options.timeoutMs ? new AbortController() : null
+  const timeoutId = controller
+    ? setTimeout(() => controller.abort(), options.timeoutMs)
+    : null
 
-  const text = await res.text()
+  let res: Response
+  let text = ''
+  try {
+    res = await fetch(`${getBaseUrl()}${path}`, {
+      method,
+      headers,
+      body: options.body !== undefined ? JSON.stringify(options.body) : undefined,
+      signal: controller?.signal,
+    })
+    text = await res.text()
+  } catch (err) {
+    if (controller?.signal.aborted || isAbortError(err)) throw new ApiTimeoutError()
+    throw err
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId)
+  }
+
   let data: any = null
 
   if (text) {
@@ -1960,6 +1996,7 @@ export async function login(input: LoginInput): Promise<LoginResponse> {
   return request<LoginResponse>('/auth/login', {
     method: 'POST',
     auth: false,
+    timeoutMs: LOGIN_REQUEST_TIMEOUT_MS,
     body: {
       email: input.email,
       password: input.password,
@@ -1976,6 +2013,10 @@ export async function impersonate(companyId: string): Promise<ImpersonateRespons
 
 export async function me(): Promise<Me> {
   return request<Me>('/auth/me')
+}
+
+export async function meWithTimeout(timeoutMs: number): Promise<Me> {
+  return request<Me>('/auth/me', { timeoutMs })
 }
 
 export async function fetchNotifications(): Promise<NotificationsListResponse> {

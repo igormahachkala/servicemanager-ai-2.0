@@ -18,13 +18,18 @@ export function WorkspaceSelectorPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const queryClient = useQueryClient()
+  const returnTo = useMemo(() => api.getReturnToFromSearch(location.search), [location.search])
+  const isMaxReturnTo = returnTo.startsWith('/max')
 
-  const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
+  const meQ = useQuery({
+    queryKey: ['me'],
+    queryFn: () => isMaxReturnTo ? api.meWithTimeout(12_000) : api.me(),
+    retry: isMaxReturnTo ? false : undefined,
+  })
   const user = meQ.data
 
   const scope = useMemo(() => (user ? api.restoreScopeForUser(user) : {}), [user])
   const workspaces = useMemo(() => getAvailableWorkspaces(user), [user])
-  const returnTo = useMemo(() => api.getReturnToFromSearch(location.search), [location.search])
 
   function resolvePath(ws: WorkspaceCard): string {
     if (returnTo) return returnTo
