@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { safeGetItem, safeSetItem } from '../lib/browserStorage'
+import { MOBILE_TOUR_START_EVENT } from './MobileGuidedTourEvents'
 import { getMobileRouteRoot, mobilePath } from './mobileRoute'
 
 const MOBILE_TOUR_STORAGE_PREFIX = 'sma.mobileGuidedTour.v1'
-const MOBILE_TOUR_START_EVENT = 'sma-mobile-guided-tour:start'
 const CARD_WIDTH = 336
 const CARD_HEIGHT_ESTIMATE = 236
 
@@ -42,7 +42,7 @@ const TOUR_STEPS: TourStep[] = [
     text: 'Здесь находятся основные разделы приложения.',
   },
   {
-    target: 'tickets-nav',
+    target: 'ticket-list',
     routeSuffix: '',
     text: 'Здесь отображаются все ваши заявки.',
   },
@@ -166,11 +166,6 @@ function positionCard(spotlight: SpotlightRect | null): CardPosition {
   }
 }
 
-export function startMobileGuidedTour() {
-  if (typeof window === 'undefined') return
-  window.dispatchEvent(new CustomEvent(MOBILE_TOUR_START_EVENT))
-}
-
 export function MobileGuidedTour({ userKey }: MobileGuidedTourProps) {
   const location = useLocation()
   const navigate = useNavigate()
@@ -187,8 +182,11 @@ export function MobileGuidedTour({ userKey }: MobileGuidedTourProps) {
     if (!userKey || autoPromptedRef.current) return
     autoPromptedRef.current = true
     if (!readTourSeen(storageKey)) {
-      setPhase('welcome')
-      setStepIndex(0)
+      const timer = window.setTimeout(() => {
+        setPhase('welcome')
+        setStepIndex(0)
+      }, 0)
+      return () => window.clearTimeout(timer)
     }
   }, [storageKey, userKey])
 
