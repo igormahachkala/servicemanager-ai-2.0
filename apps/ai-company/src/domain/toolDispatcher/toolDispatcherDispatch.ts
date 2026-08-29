@@ -173,6 +173,37 @@ function buildFailedResult(
   }
 }
 
+/**
+ * Ollama is registered and routable, but the local-analysis adapter is not
+ * written yet. The request is validated and persisted, then declined explicitly.
+ *
+ * `rejected`, not `failed`: the dispatcher knows this tool and refuses on
+ * purpose, while `failed` stays the signal for an unknown tool or a broken run.
+ * `ok: false` and a null output — nothing ran, and a synthetic success is
+ * forbidden. `planned_v1` because no mock delivery happened either.
+ */
+function buildOllamaNotImplementedResult(
+  request: ToolRequest,
+  logs: ToolDispatcherLogEntry[],
+): ToolResult {
+  logs.push(log('warn', 'Ollama is routable but has no dispatcher adapter yet — nothing executed'))
+
+  return {
+    requestId: request.requestId,
+    toolId: request.toolId,
+    status: 'rejected',
+    ok: false,
+    deliveryMode: 'planned_v1',
+    output: null,
+    error:
+      'OLLAMA_ADAPTER_NOT_IMPLEMENTED: local analysis adapter (route LOCAL_OLLAMA_ANALYSIS) is not wired yet',
+    cursorAutomationTaskId: null,
+    registryInvokePlanId: null,
+    finishedAt: nowIso(),
+    logs,
+  }
+}
+
 function validateDispatchInput(
   input: DispatchToolRequestInput,
   logs: ToolDispatcherLogEntry[],
@@ -395,6 +426,14 @@ export function dispatchToolRequestPlannedOnly(
     return { request, result }
   }
 
+  if (input.toolId === 'ollama') {
+    const request = buildToolRequest(input)
+    upsertToolDispatcherRequest(request)
+    const result = buildOllamaNotImplementedResult(request, logs)
+    upsertToolDispatcherResult(result)
+    return { request, result }
+  }
+
   const request = buildToolRequest(input)
   upsertToolDispatcherRequest(request)
   const result = buildPlannedResult(request, logs)
@@ -438,6 +477,9 @@ export function dispatchToolRequest(
   switch (input.toolId) {
     case 'cursor':
       result = dispatchCursorMock(request, routeDecision!)
+      break
+    case 'ollama':
+      result = buildOllamaNotImplementedResult(request, logs)
       break
     default:
       result = buildFailedResult(request, `No dispatcher handler for ${input.toolId}`, logs)

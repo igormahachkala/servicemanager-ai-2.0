@@ -1,6 +1,7 @@
 /**
  * Tool Dispatcher — registered tools catalog (AI-COMPANY-111B).
- * V1: Cursor only. Add tools via registerToolDispatcherEntry().
+ * V1: Cursor (dispatching) + Ollama (routable, adapter pending).
+ * Add tools via registerToolDispatcherEntry().
  */
 
 import { CURSOR_AUTOMATION_TOOL_ID } from '../cursorAutomation'
@@ -31,9 +32,34 @@ function createCursorCapability(): ToolCapability {
   }
 }
 
+/**
+ * Ollama — local model analysis (route `LOCAL_OLLAMA_ANALYSIS`).
+ * Registered so dispatch is routable; the adapter itself is not written yet, so
+ * a dispatch is declined explicitly instead of failing as an unknown tool.
+ */
+function createOllamaCapability(): ToolCapability {
+  return {
+    toolId: 'ollama',
+    label: 'Ollama (local)',
+    description:
+      'Local model analysis — read-only reasoning, no repo writes. Tool, not a digital employee.',
+    registryToolId: null,
+    isEmployee: false,
+    supportedActions: ['analyze'],
+    requiresOwnerApproval: false,
+    endpoint: getToolDispatcherEndpointConfig('ollama'),
+  }
+}
+
 const REGISTRY: Record<ToolDispatcherToolId, ToolDispatcherRegistryEntry> = {
   cursor: {
     capability: createCursorCapability(),
+    status: 'available',
+    statusReason: null,
+    updatedAt: nowIso(),
+  },
+  ollama: {
+    capability: createOllamaCapability(),
     status: 'available',
     statusReason: null,
     updatedAt: nowIso(),

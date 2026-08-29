@@ -10,8 +10,11 @@ import type { ToolRegistryV1ToolId } from '../toolRegistry/toolRegistry'
 
 export const TOOL_DISPATCHER_VERSION = 'v1' as const
 
-/** Dispatcher-level tool ids (shorter aliases for routing). */
-export const TOOL_DISPATCHER_TOOL_IDS = ['cursor'] as const
+/**
+ * Dispatcher-level tool ids (shorter aliases for routing).
+ * `ollama` is routable but has no adapter yet — see `dispatchToolRequest`.
+ */
+export const TOOL_DISPATCHER_TOOL_IDS = ['cursor', 'ollama'] as const
 
 export type ToolDispatcherToolId = (typeof TOOL_DISPATCHER_TOOL_IDS)[number]
 
@@ -43,7 +46,8 @@ export type ToolCapability = {
   toolId: ToolDispatcherToolId
   label: string
   description: string
-  registryToolId: ToolRegistryV1ToolId
+  /** Null when the tool has no Mission Control registry entry yet (Ollama). */
+  registryToolId: ToolRegistryV1ToolId | null
   /** Always false — explicit invariant for callers and UI. */
   isEmployee: false
   supportedActions: readonly string[]

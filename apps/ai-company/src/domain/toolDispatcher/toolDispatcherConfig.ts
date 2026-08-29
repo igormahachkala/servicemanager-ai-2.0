@@ -67,6 +67,22 @@ export function getToolDispatcherEndpointConfig(
     }
   }
 
+  if (toolId === 'ollama') {
+    // Same-origin dev relay (`/runtime/ollama` -> 127.0.0.1:11434, see vite.config.ts).
+    // The raw-IP guard applies to the configured value only: on a LAN phone the
+    // origin legitimately *is* an IP (108C), and that must not throw.
+    const explicit = readEnv('VITE_TOOL_DISPATCHER_OLLAMA_BASE_URL')
+    if (explicit) assertToolEndpointHasNoRawIp(explicit)
+
+    return {
+      configKey: 'VITE_TOOL_DISPATCHER_OLLAMA_BASE_URL',
+      baseUrl: explicit ?? resolveRelativeBaseUrl(),
+      submitPath:
+        readEnv('VITE_TOOL_DISPATCHER_OLLAMA_SUBMIT_PATH') ?? '/runtime/ollama/api/generate',
+      statusPath: readEnv('VITE_TOOL_DISPATCHER_OLLAMA_STATUS_PATH') ?? '/runtime/ollama/api/tags',
+    }
+  }
+
   throw new Error(`Unknown tool dispatcher id: ${toolId}`)
 }
 
