@@ -148,3 +148,17 @@ Cursor-фабрик; отдельный `transportKind` отвергнут, чт
    в ветке `RESULT_PENDING` поля нет, тест молча сравнит `undefined` и всё равно пройдёт.
 7. **Сохранить конфиг ≠ подключиться.** Статус «Подключено» ставится только после успешного health-check
    через мост; при выключенном connections-bridge секреты вообще не сохраняются.
+8. **`tsc -b` красный и без твоих правок** (замер 2026-08-29). Две ошибки `TS1294`
+   («This syntax is not allowed when `erasableSyntaxOnly` is enabled») в
+   `src/domain/memory/contradictionJudge.ts:33` и `:41`, предсуществуют с `5c73cb3`. К Ollama-маршруту
+   и к диспетчеру отношения не имеют. Не принимать их за поломку своей ветки: сравнивать вывод
+   `tsc -b` с этими двумя строками, а не с пустым выводом. Чинить отдельно — здесь только зафиксировано.
+9. **`readCursorBaseUrl` падает на LAN-происхождении.** При пустом
+   `VITE_TOOL_DISPATCHER_CURSOR_BASE_URL` фолбэк — `window.location.origin`
+   (`toolDispatcherConfig.ts`, `resolveRelativeBaseUrl`), а вызывающий прогоняет результат через
+   `assertToolEndpointHasNoRawIp`. С телефона по LAN origin — это `http://192.168.x.x:5174`, что
+   попадает под запрещённый паттерн → исключение. Оно летит из `createCursorCapability()` при
+   инициализации `REGISTRY`, то есть **на импорте модуля**, а не в момент диспатча: сломается всё,
+   что тянет `toolDispatcher`. Guard задуман против захардкоженного IP в конфиге, а бьёт по
+   собственному origin. Ветка `ollama` капкан обошла — там `assertToolEndpointHasNoRawIp` стоит только
+   на значении из env, не на same-origin фолбэке (`bd6a018`); у Cursor по-прежнему на обоих.
