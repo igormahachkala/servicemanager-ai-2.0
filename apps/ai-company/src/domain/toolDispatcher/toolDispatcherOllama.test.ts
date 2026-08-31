@@ -61,31 +61,46 @@ describe('toolDispatcher accepts ollama', () => {
     assert.match(capability.endpoint.submitPath, /^\/runtime\/ollama\//)
   })
 
-  it('dispatchToolRequest routes ollama to the not-implemented branch, not to default', () => {
+  it('dispatchToolRequest routes ollama to its own branch, not to default', () => {
     const { request, result } = dispatchToolRequest(ollamaDispatchInput())
 
     assert.equal(request.toolId, 'ollama')
     assert.equal(result.toolId, 'ollama')
-    assert.equal(result.status, 'rejected')
-    assert.equal(result.ok, false)
-    assert.equal(result.output, null)
-    assert.match(result.error ?? '', /OLLAMA_ADAPTER_NOT_IMPLEMENTED/)
+    assert.equal(result.status, 'accepted')
+    assert.equal(result.error, null)
 
-    // The two failure modes this block exists to remove.
+    // Accepted means dispatched, never analyzed: the result itself is the
+    // envelope runOllamaAnalysis produces, so this output must stay pending.
+    const output = result.output as Record<string, unknown>
+    assert.equal(output.executionPending, true)
+    assert.equal(output.plannedRoute, 'LOCAL_OLLAMA_ANALYSIS')
+    assert.equal(output.analysisModel, 'qwen3-coder:30b')
+
+    // The two failure modes block 1 removed — still gone.
     assert.doesNotMatch(result.error ?? '', /Unknown tool/)
     assert.doesNotMatch(result.error ?? '', /No dispatcher handler/)
   })
 
-  it('dispatchToolRequestPlannedOnly declines ollama instead of faking a planned run', () => {
+  it('dispatchToolRequestPlannedOnly accepts ollama without claiming an owner plan', () => {
     const { result } = dispatchToolRequestPlannedOnly(ollamaDispatchInput())
 
-    assert.equal(result.status, 'rejected')
-    assert.equal(result.ok, false)
-    assert.match(result.error ?? '', /OLLAMA_ADAPTER_NOT_IMPLEMENTED/)
+    assert.equal(result.status, 'accepted')
     assert.doesNotMatch(result.error ?? '', /Unknown tool/)
 
-    // No fake success: a pending adapter must not report an awaiting_owner plan.
+    // Ollama needs no Owner approval, so it must not land in the cursor plan shape.
     assert.notEqual(result.status, 'planned')
+    const output = result.output as Record<string, unknown>
+    assert.equal(output.lifecycleStatus, undefined)
+    assert.equal(output.executionPending, true)
+  })
+
+  it('an explicit payload model overrides the default in the accepted result', () => {
+    const { result } = dispatchToolRequest(
+      ollamaDispatchInput({ payload: { model: 'deepseek-r1:8b' } }),
+    )
+
+    const output = result.output as Record<string, unknown>
+    assert.equal(output.analysisModel, 'deepseek-r1:8b')
   })
 
   it('an unsupported ollama action still fails validation before the branch', () => {

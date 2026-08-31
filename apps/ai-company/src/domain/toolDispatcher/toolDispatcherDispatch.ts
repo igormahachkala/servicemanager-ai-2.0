@@ -11,6 +11,7 @@ import {
   resolveCursorRoutePolicyDispatchConfig,
   type ExecutionRouteDecision,
 } from '../cursorExecutionRoute'
+import { resolveOllamaAnalysisModel } from '../ollamaAnalysis/ollamaAnalysisRunner'
 import { planCursorAutomationHandoff } from '../toolRegistry/toolRegistryCursorAutomationBridge'
 import { buildToolDispatcherEndpointUrl } from './toolDispatcherConfig'
 import { getToolCapability, getToolDispatcherEntry, getToolStatus } from './toolDispatcherRegistry'
@@ -174,29 +175,41 @@ function buildFailedResult(
 }
 
 /**
- * Ollama is registered and routable, but the local-analysis adapter is not
- * written yet. The request is validated and persisted, then declined explicitly.
+ * Ollama is dispatched here, not executed here. The analysis is an async HTTP
+ * call while both dispatch entry points are synchronous, so execution lives in
+ * `runOllamaAnalysis` (domain/ollamaAnalysis), next to the ToolExecutionRun that
+ * owns the result — the same split Cursor uses, where the dispatcher plans and
+ * cursorAutomationRunner runs.
  *
- * `rejected`, not `failed`: the dispatcher knows this tool and refuses on
- * purpose, while `failed` stays the signal for an unknown tool or a broken run.
- * `ok: false` and a null output — nothing ran, and a synthetic success is
- * forbidden. `planned_v1` because no mock delivery happened either.
+ * `accepted` claims only that the request was taken. It says nothing about the
+ * analysis, whose real outcome is the envelope the runner produces; `output`
+ * marks the execution as still pending so no reader mistakes this for a result.
  */
-function buildOllamaNotImplementedResult(
+function buildOllamaAcceptedResult(
   request: ToolRequest,
   logs: ToolDispatcherLogEntry[],
 ): ToolResult {
-  logs.push(log('warn', 'Ollama is routable but has no dispatcher adapter yet — nothing executed'))
+  const analysisModel = resolveOllamaAnalysisModel(
+    typeof request.payload.model === 'string' ? request.payload.model : null,
+  )
+
+  logs.push(
+    log('info', `Ollama analysis accepted — execution runs via runOllamaAnalysis (${analysisModel})`),
+  )
 
   return {
     requestId: request.requestId,
     toolId: request.toolId,
-    status: 'rejected',
-    ok: false,
+    status: 'accepted',
+    ok: true,
     deliveryMode: 'planned_v1',
-    output: null,
-    error:
-      'OLLAMA_ADAPTER_NOT_IMPLEMENTED: local analysis adapter (route LOCAL_OLLAMA_ANALYSIS) is not wired yet',
+    output: {
+      executionPending: true,
+      plannedRoute: 'LOCAL_OLLAMA_ANALYSIS',
+      analysisModel,
+      runner: 'runOllamaAnalysis',
+    },
+    error: null,
     cursorAutomationTaskId: null,
     registryInvokePlanId: null,
     finishedAt: nowIso(),
@@ -429,7 +442,7 @@ export function dispatchToolRequestPlannedOnly(
   if (input.toolId === 'ollama') {
     const request = buildToolRequest(input)
     upsertToolDispatcherRequest(request)
-    const result = buildOllamaNotImplementedResult(request, logs)
+    const result = buildOllamaAcceptedResult(request, logs)
     upsertToolDispatcherResult(result)
     return { request, result }
   }
@@ -479,7 +492,7 @@ export function dispatchToolRequest(
       result = dispatchCursorMock(request, routeDecision!)
       break
     case 'ollama':
-      result = buildOllamaNotImplementedResult(request, logs)
+      result = buildOllamaAcceptedResult(request, logs)
       break
     default:
       result = buildFailedResult(request, `No dispatcher handler for ${input.toolId}`, logs)
