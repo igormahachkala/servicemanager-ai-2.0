@@ -14,6 +14,7 @@ import { LocationsModule } from './locations/locations.module';
 import { TicketsModule } from './tickets/tickets.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { HealthController } from './health.controller';
+import { VersionController } from './version.controller';
 
 import { SlaModule } from './sla/sla.module';
 import { AssignmentModule } from './assignment/assignment.module';
@@ -59,7 +60,7 @@ import { WorkforceModule } from './workforce/workforce.module';
     PushModule,
     WorkforceModule,
   ],
-  controllers: [AppController, HealthController, DebugController], // DebugController: TODO_REMOVE_AFTER_STABILIZATION
+  controllers: [AppController, HealthController, VersionController, DebugController], // DebugController: TODO_REMOVE_AFTER_STABILIZATION
   providers: [AppService],
 })
 export class AppModule {}
