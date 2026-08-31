@@ -366,6 +366,27 @@ model MaxUserBinding {
   @@index([maxChatId])
 }
 
+/// SMA-MAX-SECURE-USER-BINDING-054.
+///
+/// Single-use guard for verified MAX `initData` payloads.
+///
+/// MAX signs `initData` but documents no replay protection, so a payload that verified
+/// once would otherwise verify forever. This table makes verification consumable: the
+/// unique digest is inserted inside the binding ceremony, and a second attempt with the
+/// same payload loses the race and is refused.
+///
+/// Only a one-way digest of the signature is stored — never the payload, never the
+/// signature itself — so a leak of this table yields nothing replayable.
+model MaxInitDataNonce {
+  id         String   @id @default(uuid())
+  digest     String   @unique
+  authDate   DateTime
+  expiresAt  DateTime
+  consumedAt DateTime @default(now())
+
+  @@index([expiresAt])
+}
+
 enum MaxUserBindingStatus {
   ACTIVE
   SUSPENDED

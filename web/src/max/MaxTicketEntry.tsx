@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Navigate, useNavigate } from 'react-router-dom'
 import type { MaxWebApp } from './maxBridge'
 
 type Props = {
@@ -9,6 +9,7 @@ type Props = {
 
 export function MaxTicketEntry({ ticketId, webApp }: Props) {
   const navigate = useNavigate()
+  const target = `/max/tickets/${encodeURIComponent(ticketId)}`
 
   useEffect(() => {
     const bb = webApp?.BackButton
@@ -22,16 +23,5 @@ export function MaxTicketEntry({ ticketId, webApp }: Props) {
     }
   }, [webApp, navigate])
 
-  useEffect(() => {
-    navigate(`/max/tickets/${encodeURIComponent(ticketId)}`, { replace: true })
-  }, [ticketId, navigate])
-
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100dvh', fontFamily: 'system-ui, sans-serif' }}>
-      <div style={{ textAlign: 'center', color: '#555' }}>
-        <div style={{ fontSize: 16 }}>Открываем заявку…</div>
-        <div style={{ marginTop: 8, fontSize: 12, color: '#aaa' }}>{ticketId}</div>
-      </div>
-    </div>
-  )
+  return <Navigate to={target} replace />
 }
