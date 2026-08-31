@@ -133,14 +133,23 @@ export function createPendingAutomationEnvelope(input: {
   return assertValidCursorResultEnvelope(envelope)
 }
 
-export function createTransportFailureEnvelope(input: {
+/**
+ * Generic over the route literal, like `baseEnvelope`: a Cursor route still
+ * yields something assignable to `CursorResultEnvelope`, while a non-Cursor
+ * route yields the supertype. Widening the return type outright would have
+ * given callers strictly less and broken runCursorAutomation; the default type
+ * argument keeps callers that pass no literal on the Cursor shape.
+ */
+export function createTransportFailureEnvelope<
+  R extends ExecutionRouteId = CursorResultEnvelope['route'],
+>(input: {
   toolExecutionRunId: string
-  route: CursorResultEnvelope['route']
+  route: R
   errors: CursorExecutionError[]
   startedAt?: string | null
   finishedAt?: string | null
   metadata?: Record<string, unknown>
-}): CursorResultEnvelope {
+}): Omit<ExecutionResultEnvelope, 'route'> & { route: R } {
   const finishedAt = input.finishedAt ?? new Date().toISOString()
   const envelope = baseEnvelope({
     toolExecutionRunId: input.toolExecutionRunId,
@@ -154,7 +163,7 @@ export function createTransportFailureEnvelope(input: {
     metadata: input.metadata ?? {},
   })
 
-  return assertValidCursorResultEnvelope(envelope)
+  return assertValidExecutionResultEnvelope(envelope)
 }
 
 export function normalizeLocalBridgeResult(input: {

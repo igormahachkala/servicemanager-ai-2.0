@@ -157,7 +157,7 @@ describe('queueToolExecutionRunForOllamaAnalysis', () => {
     assert.equal(envelope.summary, OFF_FORMAT_ANSWER)
   })
 
-  it('a transport failure fails the run with no result at all', async () => {
+  it('a transport failure fails the run but records the transport envelope', async () => {
     const runId = approvedOllamaRunId()
 
     const outcome = await queueToolExecutionRunForOllamaAnalysis(runId, {
@@ -171,7 +171,14 @@ describe('queueToolExecutionRunForOllamaAnalysis', () => {
 
     const run = getToolExecutionRun(runId)
     assert.equal(run?.status, 'failed')
-    assert.equal(run?.result, null)
+
+    // Since the transport-failure factory was decoupled, a dead endpoint leaves
+    // an envelope too — the run is failed, but not silent about why.
+    const envelope = (run?.result?.output as Record<string, unknown>)
+      .cursorResultEnvelopeV110 as Record<string, unknown>
+    assert.equal(envelope.transportStatus, 'TRANSPORT_FAILED')
+    assert.equal(envelope.executionStatus, 'FAILED')
+    assert.equal(envelope.route, 'LOCAL_OLLAMA_ANALYSIS')
   })
 
   it('a run that is not approved is left untouched', async () => {

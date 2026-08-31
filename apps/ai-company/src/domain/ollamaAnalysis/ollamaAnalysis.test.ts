@@ -256,7 +256,54 @@ describe('runOllamaAnalysis', () => {
 
     assert.equal(outcome.code, 'OLLAMA_UNAVAILABLE')
     assert.match(outcome.message, /ECONNREFUSED/)
-    assert.ok(!('envelope' in outcome), 'a failed run must not carry an envelope')
+
+    // A dead endpoint now leaves evidence too: TRANSPORT_FAILED, which the
+    // envelope invariant pairs with FAILED.
+    assert.equal(outcome.envelope?.transportStatus, 'TRANSPORT_FAILED')
+    assert.equal(outcome.envelope?.executionStatus, 'FAILED')
+    assert.equal(outcome.envelope?.route, 'LOCAL_OLLAMA_ANALYSIS')
+    assert.equal(outcome.envelope?.errors[0]?.source, 'transport')
+    assert.equal(outcome.envelope?.errors[0]?.code, 'OLLAMA_UNAVAILABLE')
+    assert.equal(outcome.envelope?.metadata.transport, 'local_ollama_analysis')
+  })
+
+  it('an empty generation is FAILED but not TRANSPORT_FAILED', async () => {
+    const outcome = await runOllamaAnalysis(
+      baseRequest({
+        fetchImpl: async () =>
+          ndjsonResponse([
+            JSON.stringify({ model: 'qwen3-coder:30b', response: '   ' }),
+            JSON.stringify({ model: 'qwen3-coder:30b', done: true }),
+          ]),
+      }),
+    )
+
+    assert.equal(outcome.ok, false)
+    if (outcome.ok) return
+
+    assert.equal(outcome.code, 'OLLAMA_EMPTY_RESPONSE')
+    // HTTP 200 with a fully read stream: the transport did its job.
+    assert.equal(outcome.envelope?.transportStatus, 'DISPATCHED')
+    assert.equal(outcome.envelope?.executionStatus, 'FAILED')
+    assert.equal(outcome.envelope?.errors[0]?.source, 'execution')
+  })
+
+  it('a timeout leaves a TRANSPORT_FAILED envelope', async () => {
+    const outcome = await runOllamaAnalysis(
+      baseRequest({
+        timeoutMs: 5,
+        fetchImpl: (_url: string | URL | Request, init?: RequestInit) =>
+          new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener('abort', () => reject(new Error('aborted')))
+          }),
+      }),
+    )
+
+    assert.equal(outcome.ok, false)
+    if (outcome.ok) return
+    assert.equal(outcome.code, 'OLLAMA_TIMEOUT')
+    assert.equal(outcome.envelope?.transportStatus, 'TRANSPORT_FAILED')
+    assert.equal(outcome.envelope?.executionStatus, 'FAILED')
   })
 
   it('reports a non-2xx response as an HTTP error', async () => {

@@ -5,14 +5,18 @@
  * the call is async while both dispatch entry points are synchronous — the same
  * split Cursor uses (dispatcher plans, cursorAutomationRunner executes).
  *
- * A failure never produces an envelope: createAnalysisResultEnvelope can only
- * express SUCCEEDED, and createTransportFailureEnvelope is still typed to Cursor
- * routes. The caller turns a failed outcome into a rejected ToolResult.
+ * Every failure that reached the model produces an envelope, so a failed run
+ * leaves evidence exactly as a rejected one does. Which envelope depends on what
+ * actually broke: a dead or erroring endpoint is TRANSPORT_FAILED, while an
+ * empty generation is DISPATCHED + FAILED — HTTP 200 with a fully read stream is
+ * not a transport failure. The only outcome without an envelope is an endpoint
+ * that could not be resolved at all, where nothing was ever attempted.
  */
 
 import {
   createAnalysisRejectedEnvelope,
   createAnalysisResultEnvelope,
+  createTransportFailureEnvelope,
 } from '../cursorResultEnvelope'
 import {
   buildToolDispatcherEndpointUrl,
@@ -76,13 +80,52 @@ export async function runOllamaAnalysis(
   })
 
   if (!generated.ok) {
+    const failedAt = nowIso()
+    const failureMetadata = {
+      analysisModel: model,
+      analysisModelRequested: model,
+      sectionsValidated: false,
+      transport: 'local_ollama_analysis',
+    }
+    const errors = [
+      {
+        code: generated.code,
+        message: generated.message,
+        terminal: true,
+      },
+    ]
+
+    // An empty generation is NOT a transport failure: HTTP 200, the stream was
+    // read to the end, and the model simply produced nothing. Calling it
+    // TRANSPORT_FAILED would repeat the lie block 3 avoided, so it takes the
+    // DISPATCHED + FAILED shape the rejected-analysis factory already gives.
+    const envelope =
+      generated.code === 'OLLAMA_EMPTY_RESPONSE'
+        ? createAnalysisRejectedEnvelope({
+            toolExecutionRunId: request.toolExecutionRunId,
+            summary: '',
+            errors: errors.map((error) => ({ ...error, source: 'execution' as const })),
+            startedAt,
+            finishedAt: failedAt,
+            metadata: failureMetadata,
+          })
+        : createTransportFailureEnvelope({
+            toolExecutionRunId: request.toolExecutionRunId,
+            route: 'LOCAL_OLLAMA_ANALYSIS',
+            errors: errors.map((error) => ({ ...error, source: 'transport' as const })),
+            startedAt,
+            finishedAt: failedAt,
+            metadata: failureMetadata,
+          })
+
     return {
       ok: false,
       code: generated.code,
       message: generated.message,
       model,
       startedAt,
-      failedAt: nowIso(),
+      failedAt,
+      envelope,
     }
   }
 

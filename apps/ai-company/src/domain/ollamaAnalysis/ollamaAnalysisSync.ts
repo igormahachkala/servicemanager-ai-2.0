@@ -76,8 +76,10 @@ export async function queueToolExecutionRunForOllamaAnalysis(
 
   const error = `${outcome.code}: ${outcome.message}`
 
-  // A contract failure still produced an envelope; record it first so the
-  // rejected answer survives as evidence, then fail the run honestly.
+  // Every failure that reached the model carries an envelope — an off-format
+  // answer, a dead endpoint, an empty generation alike. Record it first so the
+  // evidence survives, then fail the run honestly. Only an unresolved endpoint
+  // arrives without one, since nothing was attempted.
   if (outcome.envelope) {
     recordToolExecutionResult({
       runId,
@@ -87,7 +89,6 @@ export async function queueToolExecutionRunForOllamaAnalysis(
     })
   }
 
-  // A transport failure has no envelope at all — nothing to record, only to fail.
   failToolExecutionRun(runId, error)
   return { ok: false, error }
 }
