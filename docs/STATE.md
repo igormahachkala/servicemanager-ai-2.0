@@ -190,9 +190,40 @@ local_ollama_analysis`. Машинерия отдаёт результат, а �
 
 **Блоки 1, 2, 2.5, 3, 4a, 4b закрыты — сквозной путь замкнут.** `test:domain`: **293 pass, 0 fail**.
 
-Дальше, вне сквозного пути: развязка `createTransportFailureEnvelope` от Cursor-маршрутов; перенос слоя
-контекста из `agent-runner` (`contextLoader`/`fileSelector` требуют моста к `fs` — сейчас промпт честно
-пишет, что контекста нет); персистентность `executionRoute` колонкой на `ToolExecutionRun`.
+### СЛЕДУЮЩИЙ БЛОК — UI-путь для ollama
+
+Разрыв: **домен headless готов, интерфейс заточен под Cursor.** Владелец сегодня не может ни создать
+ollama-задачу, ни увидеть её статусы, ни прочитать ответ модели. Разведка 2026-08-31, только чтение.
+
+**Порядок: 2 → 1 → 3 → 4.** Сначала снимается фильтр, иначе даже созданная задача невидима и
+проверить пункт 1 нечем.
+
+1. **Форма создания.** В UI нет входа с выбором инструмента: `.tsx` не вызывает `requestToolExecution`
+   ни разу, а два хука — `useManualCursorTaskFlow.ts:131` и `useBuilderAutomationTaskFlow.ts:104` —
+   идут в cursor-специфичные создатели, где `toolId` захардкожен. Прокинуть `toolId` в хук или сделать
+   отдельный экран ollama-анализа поверх нейтральной `requestToolExecution` (готова с `dae9664`).
+2. **Снять зависимость от `builderToolDecisionId` в двух местах** — `mobileOwnerDecisionsSnapshot.ts:202`
+   и `MobileBuilderToolStatusCard.tsx:27`. Оба фильтруют прогоны по `builderToolDecisionId !== null`,
+   а это поле заполняет только Cursor-поток builder-решений; у ollama-run там `null`, поэтому он не
+   появится **ни в списке одобрения, ни в карточке статусов**. Фильтра по `toolId` при этом нет нигде —
+   мешает именно это поле. Либо заводить decision и для ollama, либо ослаблять условие. Это ключ сразу
+   к двум вещам: к кнопке approve и к показу статусов. **Делать первым.**
+3. **Рендер конверта.** У `run.result.output` **нет ни одного читателя в UI**: поиск по `.tsx` на
+   `cursorResultEnvelopeV110` / `result.output` / `readEnvelopeFromToolResult` даёт ноль совпадений
+   (`TaskResultDetailsPage.tsx:105` показывает `outputPreview` совсем другой сущности из
+   `domain/taskResults`). Нужен компонент: секции ответа, `sectionsValidated`, `executionStatus`,
+   метрики (`tokensPerSecond`, токены). Сейчас всё это пишется в run и никем не видно.
+4. **Косметика:** `toolLabel: 'Cursor'` захардкожен (`mobileOwnerDecisionsSnapshot.ts:214`) — брать из
+   capability; `filterKind: 'cursor'` ставится жёстко (`:122`); текст одобрения «Cursor разрешён
+   Owner — ready for local adapter» (`:422`).
+
+**`approveMobileOwnerDecision` не переписывать.** Она уже инструмент-нейтральна: зовёт
+`approveToolExecutionRun(item.toolExecutionRunId, …)`, а значит ollama-ветка подхватит run сама, как
+только он попадёт в список после пункта 2.
+
+Дальше, вне сквозного пути: перенос слоя контекста из `agent-runner` (`contextLoader`/`fileSelector`
+требуют моста к `fs` — сейчас промпт честно пишет, что контекста нет; живой прогон это подтвердил:
+модель угадывала пути к файлам неточно); персистентность `executionRoute` колонкой на `ToolExecutionRun`.
 
 ## 7. Известные ловушки
 
