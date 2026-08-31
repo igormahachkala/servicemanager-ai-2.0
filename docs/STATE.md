@@ -123,17 +123,44 @@ Cursor-фабрик; отдельный `transportKind` отвергнут, чт
 `qwen3-coder:30b`. Неуспех конверта не порождает никогда: пять типизированных кодов и никакого
 результата.
 
-**Следующий шаг — разрыв перед первым сквозным прогоном.** Раннер готов, но вызывающего в проде нет:
-единственная точка входа, создающая `ToolExecutionRun`, — `requestBuilderCursorToolExecution`
-(`toolExecutionRunBridge.ts:123`), и в ней `toolId: 'cursor'` захардкожен. Ниже по стеку
-`createToolExecutionFromDispatcherRequest` уже нейтрален (берёт `input.request.toolId`), так что
-чинится это входом в мост, а не переписыванием run'а. Пока разрыв не закрыт, `runOllamaAnalysis`
-вызывается только из тестов, и сквозного пути «задача → анализ → конверт» не существует.
+**Блок 2.5 сделан** (`2f77db1`, `7ed6f34`). Headless-эндпоинт: `process.env.OLLAMA_BASE_URL` даёт
+абсолютную базу, когда Vite-переменной нет, читается через `globalThis` (в `tsconfig.app.json`
+`types: ["vite/client"]`, без node — упоминание `process` по имени валит `tsc -b` на `TS2580`).
+Важнее самого фолбэка: **префикс пути следует за базой** — `/runtime/ollama` существует только потому,
+что его срезает vite-прокси, поэтому при явной абсолютной базе он снимается. Иначе Ollama получила бы
+`/runtime/ollama/api/generate` и ответила 404 — латентный баг блока 1 для любого, кто задал бы
+Vite-переменную с прямым хостом. Браузерный путь не тронут. Метрики: `eval_count`, `eval_duration`,
+`prompt_eval_count`, `total_duration` из финального чанка едут в `metadata.analysisMetrics`; tok/s
+считается по длительности генерации, а не общей, чтобы загрузка модели не занижала скорость.
+**Отсутствующий счётчик — `null`, никогда не `0`:** неизвестная стоимость не должна читаться как
+бесплатная.
 
-Дальше: блок 3 — валидатор секций (`Problem:/Risk:/Recommendation:/Effort:` запрашиваются
-`ollamaAnalysisPrompt.ts`, но не разбираются; в конверте стоит `metadata.sectionsValidated: false`).
-Затем: развязка `createTransportFailureEnvelope` от Cursor-маршрутов, чтобы провал анализа тоже
-выражался конвертом; перенос слоя контекста из `agent-runner` (нужен мост к `fs`); персистентность
+**Живой прогон подтверждён** (2026-08-31, `scripts/ollama-live-run.ts`, untracked): `qwen3-coder:30b`,
+7.0s, 220 промпт-токенов, 141 токен ответа, **87.65 tok/s**. Модель нашла подсунутый баг
+(`sum(a,b){return a-b}`) и выдержала формат `Problem:/Risk:/Recommendation:/Effort:` с первого раза.
+Конверт настоящий: `LOCAL_OLLAMA_ANALYSIS`, `DISPATCHED`, `SUCCEEDED`, `transport:
+local_ollama_analysis`. Машинерия отдаёт результат, а не заглушку.
+
+`test:domain`: **276 pass, 0 fail**.
+
+**ОСТАЛОСЬ до сквозного пути — два пункта.**
+
+1. **Блок 3 — валидатор секций.** Сегодня секции запрашиваются `ollamaAnalysisPrompt.ts`, но не
+   разбираются, и в конверте вечно стоит `metadata.sectionsValidated: false` — результат валидатора
+   должен занять это поле вместо константы. Требование, добытое живым прогоном: **допускать хвост
+   после `Effort`** — модель дописала свободный блок `Files needed for certainty:`, и это следствие
+   нашего же промпта, который просит назвать недостающие файлы; строгая проверка «ровно четыре
+   секции» забракует корректный ответ. При непрохождении секций `executionStatus` **не** `SUCCEEDED` —
+   значит, понадобится либо новая фабрика, либо развязка `createTransportFailureEnvelope` (он всё ещё
+   типизирован по `CursorResultEnvelope['route']`, `LOCAL_OLLAMA_ANALYSIS` туда не проходит).
+2. **Развязка `toolId: 'cursor'`** в `requestBuilderCursorToolExecution`
+   (`toolExecutionRunBridge.ts:123`) — единственная точка входа, создающая `ToolExecutionRun`. Ниже по
+   стеку `createToolExecutionFromDispatcherRequest` уже нейтрален (берёт `input.request.toolId`), так
+   что чинится вход в мост, а не сам run. Пока разрыв не закрыт, `runOllamaAnalysis` вызывается только
+   из тестов и скрипта, и сквозного пути «задача → анализ → конверт» в проде не существует.
+
+Дальше, вне сквозного пути: перенос слоя контекста из `agent-runner` (`contextLoader`/`fileSelector`
+требуют моста к `fs` — сейчас промпт честно пишет, что контекста нет); персистентность
 `executionRoute` колонкой на `ToolExecutionRun`.
 
 ## 7. Известные ловушки
