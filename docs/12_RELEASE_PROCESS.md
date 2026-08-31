@@ -1,5 +1,18 @@
 # 12 Release Process
 
+> **Заменено. Порядок ветвления и доставки кода определяют skill, не этот документ.**
+>
+> - `skills/git-workflow.md` — ветвление и работа над задачей
+> - `skills/deploy-stage.md` — проверки, PR в `beta`, развёртывание на Stage, приёмка
+> - `skills/deploy-prod.md` — проверки, PR в `prod`, развёртывание в Production, откат
+> - `skills/agent-setup.md` — подготовка машины: ssh и `gh`
+> - `skills/secrets.md` — переменные окружения и секреты
+>
+> Разделы ниже описывают порядок, действовавший до введения ствола: веток
+> `prod` и `beta` в нём нет, доставка кода допускалась мимо `origin`.
+> При расхождении с skill верны skill. Документ сохранён как история
+> и как источник наборов проверок.
+
 This document describes the accepted delivery path from local work to Production.
 
 Production is live. Production deployment, migration, data changes, and rollback require explicit authorization from the owner or release manager.
