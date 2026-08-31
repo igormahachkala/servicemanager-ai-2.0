@@ -86,7 +86,7 @@ export class WorkforceController {
   @Roles(UserRole.ADMIN)
   @RequirePermission(PERMISSIONS.COMPANY_SETTINGS_EDIT)
   updateSettings(@Req() req: any, @Body() dto: UpdateWorkforceSettingsDto) {
-    return this.workforce.updateSettings(req.user.companyId, dto.shiftAutoCloseTime)
+    return this.workforce.updateSettings(req.user.companyId, dto)
   }
 
   private actor(req: any) {
