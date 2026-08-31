@@ -14,6 +14,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
 import { resolveTicketOperationAccess, type TicketAccessActor } from '../tickets/ticket-access.utils'
+import { ShiftPolicyService } from './shift-policy.service'
 import { elapsedMinutes, isWorkShiftAutoCloseDue, parseShiftCloseTime } from './workforce-time'
 
 type WorkforceActor = TicketAccessActor
@@ -302,14 +303,64 @@ export class WorkforceService {
     }
   }
 
-  async updateSettings(companyId: string, shiftAutoCloseTime: string) {
-    if (!parseShiftCloseTime(shiftAutoCloseTime)) {
-      throw new BadRequestException('shiftAutoCloseTime must use HH:mm')
+  /**
+   * Company-level workforce settings.
+   *
+   * SMA-PROVIDER-SHIFT-POLICY-FOUNDATION-078 added `requireActiveShiftForWork` here rather
+   * than behind a new endpoint, so authorization stays exactly where it already is
+   * (ADMIN + COMPANY_SETTINGS_EDIT on the controller) and there is one settings surface
+   * rather than two to keep in sync.
+   *
+   * Both fields are optional: an omitted field is left untouched, so a caller updating one
+   * setting cannot accidentally reset the other.
+   */
+  async updateSettings(
+    companyId: string,
+    settings: { shiftAutoCloseTime?: string; requireActiveShiftForWork?: boolean },
+  ) {
+    const data: Prisma.CompanyUpdateInput = {}
+
+    if (settings.shiftAutoCloseTime !== undefined) {
+      if (!parseShiftCloseTime(settings.shiftAutoCloseTime)) {
+        throw new BadRequestException('shiftAutoCloseTime must use HH:mm')
+      }
+      data.shiftAutoCloseTime = settings.shiftAutoCloseTime
     }
+
+    if (settings.requireActiveShiftForWork !== undefined) {
+      const company = await this.prisma.company.findUnique({
+        where: { id: companyId },
+        select: { type: true },
+      })
+      if (!company) throw new NotFoundException('Company not found')
+
+      // Refuse rather than store an inert value: on a CLIENT company the policy could never
+      // take effect, and a setting that reads as configured but does nothing is a trap.
+      if (
+        settings.requireActiveShiftForWork &&
+        !ShiftPolicyService.canCompanyUseShiftPolicy(company.type)
+      ) {
+        throw new BadRequestException(
+          'requireActiveShiftForWork доступен только для компаний-подрядчиков',
+        )
+      }
+      data.requireActiveShiftForWork = settings.requireActiveShiftForWork
+    }
+
+    if (Object.keys(data).length === 0) {
+      throw new BadRequestException('No settings provided')
+    }
+
     return this.prisma.company.update({
       where: { id: companyId },
-      data: { shiftAutoCloseTime },
-      select: { id: true, name: true, timezone: true, shiftAutoCloseTime: true },
+      data,
+      select: {
+        id: true,
+        name: true,
+        timezone: true,
+        shiftAutoCloseTime: true,
+        requireActiveShiftForWork: true,
+      },
     })
   }
 

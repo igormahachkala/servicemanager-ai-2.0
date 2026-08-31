@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common'
-import { UserRole, WorkShiftStatus } from '@prisma/client'
+import { CompanyType, UserRole, WorkShiftStatus } from '@prisma/client'
 
 import { resolveTicketOperationAccess } from '../tickets/ticket-access.utils'
 import { WorkforceService } from './workforce.service'
@@ -77,5 +77,94 @@ describe('WorkforceService', () => {
     ).resolves.toBe(false)
     expect(tx.workShift.findUnique).not.toHaveBeenCalled()
     expect(tx.domainEvent.create).not.toHaveBeenCalled()
+  })
+})
+
+/**
+ * SMA-PROVIDER-SHIFT-POLICY-FOUNDATION-078 — settings surface.
+ *
+ * The policy is exposed through the existing PATCH /workforce/settings, so authorization
+ * is unchanged (ADMIN + COMPANY_SETTINGS_EDIT on the controller) and there is one settings
+ * endpoint rather than two.
+ */
+describe('WorkforceService.updateSettings — provider shift policy', () => {
+  beforeEach(() => jest.clearAllMocks())
+
+  function settingsPrisma(companyType: CompanyType = CompanyType.PROVIDER) {
+    const prisma = makePrisma()
+    prisma.company.findUnique.mockResolvedValue({ type: companyType })
+    prisma.company.update = jest.fn(async ({ data }: any) => ({ id: actor.companyId, ...data }))
+    return prisma
+  }
+
+  it('enables the policy for a PROVIDER company', async () => {
+    const prisma = settingsPrisma(CompanyType.PROVIDER)
+    const service = new WorkforceService(prisma, {} as any)
+
+    await service.updateSettings(actor.companyId, { requireActiveShiftForWork: true })
+
+    expect(prisma.company.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { requireActiveShiftForWork: true } }),
+    )
+  })
+
+  it('refuses to enable the policy on a CLIENT company rather than storing it inert', async () => {
+    const prisma = settingsPrisma(CompanyType.CLIENT)
+    const service = new WorkforceService(prisma, {} as any)
+
+    await expect(
+      service.updateSettings(actor.companyId, { requireActiveShiftForWork: true }),
+    ).rejects.toBeInstanceOf(BadRequestException)
+    expect(prisma.company.update).not.toHaveBeenCalled()
+  })
+
+  it('allows a CLIENT company to explicitly disable the policy', async () => {
+    const prisma = settingsPrisma(CompanyType.CLIENT)
+    const service = new WorkforceService(prisma, {} as any)
+
+    await service.updateSettings(actor.companyId, { requireActiveShiftForWork: false })
+
+    expect(prisma.company.update).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { requireActiveShiftForWork: false } }),
+    )
+  })
+
+  it('leaves shiftAutoCloseTime untouched when only the policy is sent', async () => {
+    const prisma = settingsPrisma()
+    const service = new WorkforceService(prisma, {} as any)
+
+    await service.updateSettings(actor.companyId, { requireActiveShiftForWork: true })
+
+    const data = (prisma.company.update as jest.Mock).mock.calls[0][0].data
+    expect(data).not.toHaveProperty('shiftAutoCloseTime')
+  })
+
+  it('still updates shiftAutoCloseTime on its own, as before', async () => {
+    const prisma = settingsPrisma()
+    const service = new WorkforceService(prisma, {} as any)
+
+    await service.updateSettings(actor.companyId, { shiftAutoCloseTime: '21:30' })
+
+    const data = (prisma.company.update as jest.Mock).mock.calls[0][0].data
+    expect(data).toEqual({ shiftAutoCloseTime: '21:30' })
+    expect(prisma.company.findUnique).not.toHaveBeenCalled()
+  })
+
+  it('rejects a malformed shiftAutoCloseTime', async () => {
+    const prisma = settingsPrisma()
+    const service = new WorkforceService(prisma, {} as any)
+
+    await expect(
+      service.updateSettings(actor.companyId, { shiftAutoCloseTime: '25:99' }),
+    ).rejects.toBeInstanceOf(BadRequestException)
+  })
+
+  it('rejects an empty settings payload', async () => {
+    const prisma = settingsPrisma()
+    const service = new WorkforceService(prisma, {} as any)
+
+    await expect(service.updateSettings(actor.companyId, {})).rejects.toBeInstanceOf(
+      BadRequestException,
+    )
   })
 })

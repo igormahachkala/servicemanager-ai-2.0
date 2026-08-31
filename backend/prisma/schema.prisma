@@ -153,6 +153,15 @@ model Company {
   slaStrictMode                   Boolean            @default(false)
   timezone                        String?            @default("UTC")
   shiftAutoCloseTime              String             @default("19:00")
+  /// Provider Shift Policy (SMA-PROVIDER-SHIFT-POLICY-FOUNDATION-078).
+  ///
+  /// When true, operational work by TECHNICIAN and MASTER requires an open WorkShift.
+  /// Meaningful only for PROVIDER companies — a CLIENT company has no field workforce,
+  /// so the flag is refused there rather than stored and silently ignored.
+  ///
+  /// Default false preserves current behaviour exactly. Enforcement on ticket
+  /// mutations is deliberately NOT wired here; see ShiftPolicyService.
+  requireActiveShiftForWork       Boolean            @default(false)
   publicRequestEnabled            Boolean            @default(false)
   publicRequestToken              String?            @unique
   publicRequestIntro              String?
