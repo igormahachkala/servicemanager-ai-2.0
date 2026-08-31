@@ -4,9 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { BrowserNotificationsCard } from '../components/BrowserNotificationsCard'
 import { SupportContactBlock } from '../components/SupportContactBlock'
 import * as api from '../lib/api'
-import { canAccessManagementDesktop } from '../lib/navigation'
-import { ClientContourCard } from './ClientContourCard'
-import { startMobileGuidedTour } from './MobileGuidedTour'
+import { startMobileGuidedTour } from './MobileGuidedTourEvents'
 import { getPendingAndFailedCounts, subscribeOfflineQueue } from './offlineQueue'
 import { mobilePath } from './mobileRoute'
 
@@ -45,75 +43,6 @@ export function MobileProfile() {
     return subscribeOfflineQueue(refresh)
   }, [])
 
-  const linkedClientsQ = useQuery({
-    queryKey: ['linked-clients'],
-    queryFn: () => api.getLinkedClients(),
-    enabled: !!meQ.data && meQ.data.role !== 'TECHNICIAN',
-  })
-
-  const linkedClientCompanyId = useMemo(() => {
-    const params = new URLSearchParams(location.search)
-    return (params.get('linkedClientCompanyId') || api.getLinkedClientCompanyId(meQ.data)).trim()
-  }, [location.search, meQ.data])
-
-  const observerCompanyId = useMemo(() => {
-    const params = new URLSearchParams(location.search)
-    return (params.get('companyId') || api.getObserverCompanyId(meQ.data)).trim()
-  }, [location.search, meQ.data])
-
-  const managementHref = useMemo(() => {
-    if (!meQ.data) return '/board'
-    return api.appendScopeToPath(
-      '/board',
-      {
-        linkedClientCompanyId: linkedClientCompanyId || undefined,
-        companyId: observerCompanyId || undefined,
-      },
-      meQ.data,
-    )
-  }, [linkedClientCompanyId, observerCompanyId, meQ.data])
-
-  const techBoundLabelQ = useQuery({
-    queryKey: ['mobile-profile-technician-bound', linkedClientCompanyId, meQ.data?.id],
-    queryFn: () => api.getTechnicianBoundContexts(linkedClientCompanyId),
-    enabled: !!meQ.data && meQ.data.role === 'TECHNICIAN' && !!linkedClientCompanyId,
-  })
-
-  const linkedClientName = useMemo(() => {
-    if (!linkedClientCompanyId) return ''
-    if (meQ.data?.role === 'TECHNICIAN') {
-      const rows = techBoundLabelQ.data || []
-      const hit = rows.find((c) => (c.clientCompany?.id || '').trim() === linkedClientCompanyId)
-      return (hit?.clientCompany?.name || '').trim()
-    }
-    const row = linkedClientsQ.data?.find((c) => c.clientCompany.id === linkedClientCompanyId)
-    const name = row?.clientCompany.name?.trim()
-    return name || ''
-  }, [linkedClientCompanyId, linkedClientsQ.data, meQ.data?.role, techBoundLabelQ.data])
-
-  const statsBoardQ = useQuery({
-    queryKey: ['mobile-profile-board', linkedClientCompanyId, observerCompanyId],
-    queryFn: () =>
-      api.board({
-        linkedClientCompanyId: linkedClientCompanyId || undefined,
-        companyId: observerCompanyId || undefined,
-        take: 500,
-      }),
-    enabled: !!meQ.data,
-  })
-
-  const stats = useMemo(() => {
-    const cols = statsBoardQ.data?.columns || []
-    const totalFor = (status: string) => cols.find((c) => c.status === status)?.total ?? null
-    return {
-      assigned: totalFor('ASSIGNED'),
-      inProgress: totalFor('IN_PROGRESS'),
-      done: totalFor('DONE'),
-    }
-  }, [statsBoardQ.data])
-  const statsReady = statsBoardQ.isSuccess && !!statsBoardQ.data
-  const fmtStat = (n: number | null) => (statsReady && n != null ? String(n) : '—')
-
   const appContour = useMemo(() => {
     if (typeof window === 'undefined') return '—'
     const h = window.location.hostname
@@ -122,15 +51,22 @@ export function MobileProfile() {
     if (h === 'localhost' || h === '127.0.0.1') return 'Локально'
     return h || '—'
   }, [])
+  const currentScope = useMemo(() => {
+    const params = new URLSearchParams(location.search)
+    const linked = (params.get('linkedClientCompanyId') || api.getLinkedClientCompanyId(meQ.data)).trim()
+    const observer = (params.get('companyId') || api.getObserverCompanyId(meQ.data)).trim()
+    return {
+      linkedClientCompanyId: linked || undefined,
+      companyId: observer || undefined,
+    }
+  }, [location.search, meQ.data])
 
   function logout() {
     const params = new URLSearchParams()
     params.set('next', mobilePath(location.pathname, ''))
     params.set('mode', 'mobile')
-    const linked = (new URLSearchParams(location.search).get('linkedClientCompanyId') || api.getLinkedClientCompanyId()).trim()
-    const observer = (new URLSearchParams(location.search).get('companyId') || api.getObserverCompanyId()).trim()
-    if (linked) params.set('linkedClientCompanyId', linked)
-    if (observer) params.set('companyId', observer)
+    if (currentScope.linkedClientCompanyId) params.set('linkedClientCompanyId', currentScope.linkedClientCompanyId)
+    if (currentScope.companyId) params.set('companyId', currentScope.companyId)
 
     const suffix = params.toString()
     const target = suffix ? `/login?${suffix}` : '/login'
@@ -151,7 +87,7 @@ export function MobileProfile() {
   const notificationsPath = mobilePath(location.pathname, '/notifications')
   const backHref = api.appendScopeToPath(
     mobilePath(location.pathname, ''),
-    { linkedClientCompanyId: linkedClientCompanyId || undefined, companyId: observerCompanyId || undefined },
+    currentScope,
     meQ.data,
   )
 
@@ -174,35 +110,29 @@ export function MobileProfile() {
               <span className="mobileProfileContourBadge">{appContour}</span>
             </div>
             {meQ.data?.companyName ? <div className="mobileProfileCompany">{meQ.data.companyName}</div> : null}
-            {linkedClientCompanyId ? (
-              <div className="mobileProfileLinkedClient">
-                {(meQ.data?.role === 'TECHNICIAN' ? techBoundLabelQ.isLoading : linkedClientsQ.isLoading)
-                  ? 'Загрузка клиента…'
-                  : linkedClientName || linkedClientCompanyId}
-              </div>
-            ) : null}
             {meQ.data?.phone ? <div className="mobileProfileCompany">{meQ.data.phone}</div> : null}
           </div>
         </div>
 
-        {/* Stats */}
-        <div className="mobileCard mobileProfileStats" aria-label="Статистика заявок">
-          <div className="mobileProfileStat">
-            <div className="mobileProfileStatValue">{fmtStat(stats.assigned)}</div>
-            <div className="mobileProfileStatLabel">Назначено</div>
+        <div className="mobileCard">
+          <div className="mobileProfileSectionLabel">Личные данные</div>
+          <div className="mobileProfileInfoRow">
+            <span className="mobileMeta">Email</span>
+            <span>{meQ.data?.email || '—'}</span>
           </div>
-          <div className="mobileProfileStat">
-            <div className="mobileProfileStatValue">{fmtStat(stats.inProgress)}</div>
-            <div className="mobileProfileStatLabel">В работе</div>
+          <div className="mobileProfileInfoRow">
+            <span className="mobileMeta">Телефон</span>
+            <span>{meQ.data?.phone || '—'}</span>
           </div>
-          <div className="mobileProfileStat">
-            <div className="mobileProfileStatValue">{fmtStat(stats.done)}</div>
-            <div className="mobileProfileStatLabel">Завершено</div>
+          <div className="mobileProfileInfoRow">
+            <span className="mobileMeta">Роль</span>
+            <span>{roleLabel(meQ.data?.role)}</span>
+          </div>
+          <div className="mobileProfileInfoRow">
+            <span className="mobileMeta">Компания</span>
+            <span>{meQ.data?.companyName || '—'}</span>
           </div>
         </div>
-
-        {/* Client context — общий компонент (тот же в /m/settings) */}
-        <ClientContourCard />
 
         {/* Menu */}
         <div className="mobileCard mobileProfileMenu">
@@ -215,17 +145,6 @@ export function MobileProfile() {
                 </svg>
               </span>
               <span className="mobileProfileMenuLabel">Рабочая смена</span>
-              <span className="mobileProfileMenuChevron" aria-hidden><ChevronRight /></span>
-            </Link>
-          ) : null}
-          {meQ.data?.role && ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR', 'TERRITORIAL_MANAGER'].includes(meQ.data.role) ? (
-            <Link to={mobilePath(location.pathname, '/workforce')} className="mobileProfileMenuItem">
-              <span className="mobileProfileMenuIcon" aria-hidden>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M4 19V9" /><path d="M10 19V5" /><path d="M16 19v-7" /><path d="M22 19V3" />
-                </svg>
-              </span>
-              <span className="mobileProfileMenuLabel">Смены сотрудников</span>
               <span className="mobileProfileMenuChevron" aria-hidden><ChevronRight /></span>
             </Link>
           ) : null}
@@ -253,17 +172,20 @@ export function MobileProfile() {
             <span className="mobileProfileMenuLabel">Push-уведомления</span>
             <span className="mobileProfileMenuChevron" aria-hidden><ChevronRight /></span>
           </Link>
-          <Link to={mobilePath(location.pathname, '/settings')} className="mobileProfileMenuItem">
+          <div className="mobileProfileMenuItem mobileProfileMenuItem--static" aria-disabled="true">
             <span className="mobileProfileMenuIcon" aria-hidden>
-              {/* Tabler settings (gear) */}
+              {/* Tabler lock */}
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M10.325 4.317c.426 -1.756 2.924 -1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543 -.94 3.31 .826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756 .426 1.756 2.924 0 3.35a1.724 1.724 0 0 0 -1.066 2.573c.94 1.543 -.826 3.31 -2.37 2.37a1.724 1.724 0 0 0 -2.572 1.065c-.426 1.756 -2.924 1.756 -3.35 0a1.724 1.724 0 0 0 -2.573 -1.066c-1.543 .94 -3.31 -.826 -2.37 -2.37a1.724 1.724 0 0 0 -1.065 -2.572c-1.756 -.426 -1.756 -2.924 0 -3.35a1.724 1.724 0 0 0 1.066 -2.573c-.94 -1.543 .826 -3.31 2.37 -2.37c1 .608 2.296 .07 2.572 -1.065z" />
-                <circle cx="12" cy="12" r="3" />
+                <rect x="5" y="11" width="14" height="10" rx="2" />
+                <path d="M8 11V7a4 4 0 0 1 8 0v4" />
               </svg>
             </span>
-            <span className="mobileProfileMenuLabel">Настройки</span>
-            <span className="mobileProfileMenuChevron" aria-hidden><ChevronRight /></span>
-          </Link>
+            <span className="mobileProfileMenuLabel">
+              Пароль
+              <span className="mobileFieldHint" style={{ display: 'block', margin: 0, fontWeight: 400 }}>Изменение пароля будет доступно позже</span>
+            </span>
+            <span className="mobileProfileMenuSoon">Скоро</span>
+          </div>
           <button type="button" className="mobileProfileMenuItem" onClick={startMobileGuidedTour}>
             <span className="mobileProfileMenuIcon" aria-hidden>
               {/* Tabler route */}
@@ -294,21 +216,6 @@ export function MobileProfile() {
             </span>
             <span className="mobileProfileMenuChevron" aria-hidden><ChevronRight /></span>
           </Link>
-          {canAccessManagementDesktop(meQ.data?.role) ? (
-            <Link to={managementHref} className="mobileProfileMenuItem">
-              <span className="mobileProfileMenuIcon" aria-hidden>
-                {/* Tabler layout-dashboard */}
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="4" y="4" width="6" height="8" rx="1" />
-                  <rect x="4" y="16" width="6" height="4" rx="1" />
-                  <rect x="14" y="4" width="6" height="4" rx="1" />
-                  <rect x="14" y="12" width="6" height="8" rx="1" />
-                </svg>
-              </span>
-              <span className="mobileProfileMenuLabel">Управленческая часть</span>
-              <span className="mobileProfileMenuChevron" aria-hidden><ChevronRight /></span>
-            </Link>
-          ) : null}
           <button type="button" className="mobileProfileMenuItem mobileProfileMenuItem--danger" onClick={logout}>
             <span className="mobileProfileMenuIcon" aria-hidden>
               {/* Tabler logout */}
@@ -335,12 +242,6 @@ export function MobileProfile() {
             title="Push-уведомления браузера"
             description="Системные уведомления для realtime-событий, пока приложение открыто."
           />
-        </div>
-
-        {/* Specializations */}
-        <div className="mobileCard" style={{ marginTop: 8 }}>
-          <div className="mobileProfileSectionLabel">Мои специализации</div>
-          <div className="mobileFieldHint">Специализации будут доступны позже.</div>
         </div>
 
         {/* App info */}

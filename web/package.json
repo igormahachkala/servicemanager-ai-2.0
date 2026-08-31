@@ -12,6 +12,7 @@
     "preview": "vite preview",
     "gen:pwa-icons": "node scripts/gen-pwa-icons.mjs",
     "test:notification-navigation": "node scripts/verify-notification-navigation.mjs",
+    "test:owner-navigation": "node scripts/verify-owner-operations-navigation.mjs",
     "test:max-bootstrap": "node scripts/verify-max-miniapp-bootstrap.mjs",
     "test:browser-storage": "node scripts/verify-browser-storage-reliability.mjs",
     "test:mobile-rc": "node scripts/verify-mobile-rc-fixes.mjs",
