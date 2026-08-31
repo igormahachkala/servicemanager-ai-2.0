@@ -92,6 +92,9 @@ export async function runOllamaAnalysis(
       analysisModelRequested: model,
       // Sections are asked for by the prompt but not parsed yet — block 3.
       sectionsValidated: false,
+      // Telemetry for Cost Guard and load measurement. A null means Ollama did
+      // not report that counter, not that the work was free.
+      analysisMetrics: generated.metrics,
     },
   })
 

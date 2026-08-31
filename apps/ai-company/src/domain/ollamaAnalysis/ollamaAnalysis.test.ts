@@ -28,7 +28,15 @@ function successStream(): string[] {
     JSON.stringify({ model: 'qwen3-coder:30b', response: 'Problem: the switch has no ollama arm.\n' }),
     JSON.stringify({ model: 'qwen3-coder:30b', response: 'Risk: every dispatch fails. Medium.\n' }),
     JSON.stringify({ model: 'qwen3-coder:30b', response: 'Recommendation: add the branch.' }),
-    JSON.stringify({ model: 'qwen3-coder:30b', done: true }),
+    // Ollama reports the counters on the final chunk, durations in nanoseconds.
+    JSON.stringify({
+      model: 'qwen3-coder:30b',
+      done: true,
+      prompt_eval_count: 220,
+      eval_count: 120,
+      eval_duration: 2_000_000_000,
+      total_duration: 6_900_000_000,
+    }),
   ]
 }
 
@@ -64,6 +72,48 @@ describe('runOllamaAnalysis', () => {
     assert.match(outcome.text, /Recommendation: add the branch\.$/)
     assert.equal(outcome.envelope.summary, outcome.text)
     assert.ok(outcome.envelope.finishedAt)
+  })
+
+  it('carries the model metrics into the envelope', async () => {
+    const outcome = await runOllamaAnalysis(
+      baseRequest({ fetchImpl: async () => ndjsonResponse(successStream()) }),
+    )
+
+    assert.equal(outcome.ok, true)
+    if (!outcome.ok) return
+
+    assert.deepEqual(outcome.envelope.metadata.analysisMetrics, {
+      promptTokens: 220,
+      completionTokens: 120,
+      // 120 tokens over 2s of generation.
+      tokensPerSecond: 60,
+      generationDurationMs: 2000,
+      totalDurationMs: 6900,
+    })
+  })
+
+  it('reports a counter Ollama omitted as null, never as zero', async () => {
+    const outcome = await runOllamaAnalysis(
+      baseRequest({
+        fetchImpl: async () =>
+          ndjsonResponse([
+            JSON.stringify({ model: 'qwen3-coder:30b', response: 'Problem: something.' }),
+            JSON.stringify({ model: 'qwen3-coder:30b', done: true }),
+          ]),
+      }),
+    )
+
+    assert.equal(outcome.ok, true)
+    if (!outcome.ok) return
+
+    // Unknown cost must not read as free cost.
+    assert.deepEqual(outcome.envelope.metadata.analysisMetrics, {
+      promptTokens: null,
+      completionTokens: null,
+      tokensPerSecond: null,
+      generationDurationMs: null,
+      totalDurationMs: null,
+    })
   })
 
   it('reports an unreachable Ollama instead of an empty success', async () => {

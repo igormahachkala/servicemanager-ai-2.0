@@ -13,6 +13,10 @@ export {
   buildOllamaAnalysisPrompt,
 } from './ollamaAnalysisPrompt'
 
-export { callOllamaGenerate, type OllamaGenerateOutcome } from './ollamaAnalysisClient'
+export {
+  callOllamaGenerate,
+  type OllamaGenerateOutcome,
+  type OllamaGenerationMetrics,
+} from './ollamaAnalysisClient'
 
 export { resolveOllamaAnalysisModel, runOllamaAnalysis } from './ollamaAnalysisRunner'

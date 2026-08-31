@@ -18,8 +18,21 @@
 
 import type { OllamaAnalysisErrorCode } from './ollamaAnalysisTypes'
 
+/**
+ * What the run cost, as Ollama itself reported it in the final chunk. Telemetry
+ * for Cost Guard and load measurement — a local route is free in money but not
+ * in time and hardware.
+ */
+export type OllamaGenerationMetrics = {
+  promptTokens: number | null
+  completionTokens: number | null
+  generationDurationMs: number | null
+  totalDurationMs: number | null
+  tokensPerSecond: number | null
+}
+
 export type OllamaGenerateOutcome =
-  | { ok: true; text: string; model: string }
+  | { ok: true; text: string; model: string; metrics: OllamaGenerationMetrics }
   | { ok: false; code: OllamaAnalysisErrorCode; message: string }
 
 type OllamaStreamChunk = {
@@ -27,6 +40,36 @@ type OllamaStreamChunk = {
   model?: unknown
   done?: unknown
   error?: unknown
+  eval_count?: unknown
+  eval_duration?: unknown
+  prompt_eval_count?: unknown
+  total_duration?: unknown
+}
+
+type RawCounters = {
+  promptTokens?: number
+  completionTokens?: number
+  generationNs?: number
+  totalNs?: number
+}
+
+/**
+ * Ollama reports durations in nanoseconds. A counter Ollama did not send stays
+ * null — never a fabricated 0, which would read as "free" instead of "unknown".
+ */
+function toMetrics(raw: RawCounters): OllamaGenerationMetrics {
+  const completionTokens = raw.completionTokens ?? null
+
+  return {
+    promptTokens: raw.promptTokens ?? null,
+    completionTokens,
+    generationDurationMs: raw.generationNs != null ? Math.round(raw.generationNs / 1e6) : null,
+    totalDurationMs: raw.totalNs != null ? Math.round(raw.totalNs / 1e6) : null,
+    tokensPerSecond:
+      completionTokens != null && raw.generationNs
+        ? Number((completionTokens / (raw.generationNs / 1e9)).toFixed(2))
+        : null,
+  }
 }
 
 function describeError(error: unknown): string {
@@ -106,6 +149,9 @@ export async function callOllamaGenerate(input: {
     let model = input.model
     let done = false
     let streamError: string | null = null
+    // Mutated inside consume(); an object keeps the counters out of the
+    // control-flow narrowing that the loop below depends on.
+    const counters: RawCounters = {}
 
     const parseLine = (line: string): OllamaStreamChunk | null => {
       const trimmed = line.trim()
@@ -124,6 +170,10 @@ export async function callOllamaGenerate(input: {
       if (typeof chunk.error === 'string' && chunk.error) return { done: true, error: chunk.error }
       if (typeof chunk.response === 'string') out += chunk.response
       if (typeof chunk.model === 'string' && chunk.model) model = chunk.model
+      if (typeof chunk.prompt_eval_count === 'number') counters.promptTokens = chunk.prompt_eval_count
+      if (typeof chunk.eval_count === 'number') counters.completionTokens = chunk.eval_count
+      if (typeof chunk.eval_duration === 'number') counters.generationNs = chunk.eval_duration
+      if (typeof chunk.total_duration === 'number') counters.totalNs = chunk.total_duration
       return { done: chunk.done === true }
     }
 
@@ -171,7 +221,7 @@ export async function callOllamaGenerate(input: {
       }
     }
 
-    return { ok: true, text, model }
+    return { ok: true, text, model, metrics: toMetrics(counters) }
   } catch (error) {
     if (timedOut) {
       return {
