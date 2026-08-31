@@ -281,6 +281,18 @@ export function approveToolExecutionRun(id: string, message?: string | null): To
     )
   }
 
+  // No window guard, unlike the Cursor branch above: the ollama route runs
+  // headless since OLLAMA_BASE_URL landed. Detached here because this function
+  // is synchronous — a headless caller awaits
+  // queueToolExecutionRunForOllamaAnalysis directly instead of going through
+  // approval, so nothing depends on this promise being observed.
+  if (approved && approved.toolId === 'ollama') {
+    void import('../ollamaAnalysis/ollamaAnalysisSync').then(
+      ({ queueToolExecutionRunForOllamaAnalysis }) =>
+        queueToolExecutionRunForOllamaAnalysis(approved.id),
+    )
+  }
+
   return approved
 }
 

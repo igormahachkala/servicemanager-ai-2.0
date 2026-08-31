@@ -4,12 +4,21 @@
  */
 
 import type { ToolResult } from '../toolDispatcher/toolDispatcherTypes'
-import type { CursorResultEnvelope } from './cursorResultEnvelopeTypes'
+import type {
+  CursorResultEnvelope,
+  ExecutionResultEnvelope,
+} from './cursorResultEnvelopeTypes'
 import { serializeCursorResultEnvelope } from './cursorResultEnvelopeSerialization'
 
-/** Attach unified envelope to ToolResult.output without altering dispatch decisions. */
+/**
+ * Attach unified envelope to ToolResult.output without altering dispatch decisions.
+ *
+ * Takes the supertype so a LOCAL_OLLAMA_ANALYSIS envelope can be attached too.
+ * The output key keeps its historical name — renaming it would break
+ * readEnvelopeFromToolResult and every result already stored.
+ */
 export function mapEnvelopeToToolResultOutput(
-  envelope: CursorResultEnvelope,
+  envelope: ExecutionResultEnvelope,
   base: Record<string, unknown> = {},
 ): Record<string, unknown> {
   return {

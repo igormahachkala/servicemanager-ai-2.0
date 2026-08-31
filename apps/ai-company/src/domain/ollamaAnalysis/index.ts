@@ -28,3 +28,9 @@ export {
 } from './ollamaAnalysisSections'
 
 export { resolveOllamaAnalysisModel, runOllamaAnalysis } from './ollamaAnalysisRunner'
+
+export {
+  queueToolExecutionRunForOllamaAnalysis,
+  type QueueOllamaAnalysisOptions,
+  type QueueOllamaAnalysisOutcome,
+} from './ollamaAnalysisSync'

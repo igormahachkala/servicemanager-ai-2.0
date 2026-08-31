@@ -29,7 +29,12 @@ export type ToolExecutionRunStatus = (typeof TOOL_EXECUTION_RUN_STATUSES)[number
 export type ToolExecutionRunResult = {
   plannedOnly: boolean
   output: Record<string, unknown> | null
-  deliveryMode: 'planned_v1' | 'cursor_v1' | null
+  /**
+   * `local_analysis_v1` is the LOCAL_OLLAMA_ANALYSIS route. Stored runs are
+   * never validated against this union on load (readSnapshot → normalizeRun
+   * only patches three nullable ids), so older values keep parsing unchanged.
+   */
+  deliveryMode: 'planned_v1' | 'cursor_v1' | 'local_analysis_v1' | null
   cursorAutomationTaskId: string | null
   registryInvokePlanId: string | null
   receivedAt: string | null

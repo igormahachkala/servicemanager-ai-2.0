@@ -37,7 +37,7 @@ function installStorageMock(): void {
     localStorage: storage as Storage,
     dispatchEvent: () => true,
     location: { origin: 'http://localhost:5174' },
-  } as Window
+  } as unknown as Window
   ;(globalThis as { localStorage?: Storage }).localStorage = storage as Storage
 }
 

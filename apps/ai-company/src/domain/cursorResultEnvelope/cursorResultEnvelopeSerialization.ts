@@ -2,7 +2,10 @@
  * Unified Cursor Result Envelope — stable serialization (AI-COMPANY-110).
  */
 
-import type { CursorResultEnvelope } from './cursorResultEnvelopeTypes'
+import type {
+  CursorResultEnvelope,
+  ExecutionResultEnvelope,
+} from './cursorResultEnvelopeTypes'
 
 function sortValue(value: unknown): unknown {
   if (Array.isArray(value)) {
@@ -20,7 +23,13 @@ function sortValue(value: unknown): unknown {
 }
 
 /** Deterministic JSON for tests and persistence comparisons. */
-export function serializeCursorResultEnvelope(envelope: CursorResultEnvelope): string {
+/**
+ * Accepts the supertype: serialization is route-blind, and a LOCAL_OLLAMA_ANALYSIS
+ * envelope has to reach ToolExecutionRun.result the same way a Cursor one does.
+ * Widening a parameter accepts strictly more, so every existing caller is
+ * unaffected.
+ */
+export function serializeCursorResultEnvelope(envelope: ExecutionResultEnvelope): string {
   return JSON.stringify(sortValue(envelope))
 }
 

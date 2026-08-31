@@ -1,0 +1,93 @@
+/**
+ * Executes an approved ollama ToolExecutionRun — the link between a created run
+ * and runOllamaAnalysis.
+ *
+ * Awaitable on purpose, and free of any `typeof window` guard: the ollama route
+ * works headless since OLLAMA_BASE_URL landed, and a detached promise would let
+ * a script or a cron exit mid-analysis. The browser trigger in
+ * approveToolExecutionRun calls this and forgets; a headless caller awaits it
+ * directly instead of going through approval.
+ *
+ * Transitions are the guarded ones Cursor already uses:
+ *   approved -> queued -> running -> result_received -> awaiting_employee_review
+ * A rejected analysis then goes on to `failed`, keeping the evidence it just
+ * recorded: `awaiting_employee_review` is not in TERMINAL_STATUSES, so the
+ * second write lands and the run ends up failed WITH the envelope attached.
+ */
+
+import { mapEnvelopeToToolResultOutput } from '../cursorResultEnvelope/cursorResultEnvelopeAdapters'
+import {
+  failToolExecutionRun,
+  getToolExecutionRun,
+  markToolExecutionQueued,
+  markToolExecutionRunning,
+  recordToolExecutionResult,
+} from '../toolExecution/toolExecutionRunStorage'
+import { runOllamaAnalysis } from './ollamaAnalysisRunner'
+
+export type QueueOllamaAnalysisOptions = {
+  /** Injected by tests; production uses global fetch. */
+  fetchImpl?: typeof fetch
+  model?: string | null
+}
+
+export type QueueOllamaAnalysisOutcome = { ok: boolean; error: string | null }
+
+export async function queueToolExecutionRunForOllamaAnalysis(
+  runId: string,
+  options: QueueOllamaAnalysisOptions = {},
+): Promise<QueueOllamaAnalysisOutcome> {
+  const existing = getToolExecutionRun(runId)
+
+  if (!existing) {
+    return { ok: false, error: `ToolExecutionRun ${runId} was not found.` }
+  }
+  if (existing.toolId !== 'ollama') {
+    return { ok: false, error: `ToolExecutionRun ${runId} is not an ollama run.` }
+  }
+  if (existing.status !== 'approved') {
+    return { ok: false, error: `ToolExecutionRun ${runId} must be approved.` }
+  }
+
+  if (!markToolExecutionQueued(runId, 'Queued for local Ollama analysis.')) {
+    return { ok: false, error: `ToolExecutionRun ${runId} could not be queued.` }
+  }
+  if (!markToolExecutionRunning(runId, 'Local Ollama analysis started.')) {
+    return { ok: false, error: `ToolExecutionRun ${runId} could not be started.` }
+  }
+
+  const outcome = await runOllamaAnalysis({
+    toolExecutionRunId: runId,
+    title: existing.title,
+    instructions: existing.instructions,
+    model: options.model ?? null,
+    fetchImpl: options.fetchImpl,
+  })
+
+  if (outcome.ok) {
+    recordToolExecutionResult({
+      runId,
+      output: mapEnvelopeToToolResultOutput(outcome.envelope),
+      deliveryMode: 'local_analysis_v1',
+      plannedOnly: false,
+    })
+    return { ok: true, error: null }
+  }
+
+  const error = `${outcome.code}: ${outcome.message}`
+
+  // A contract failure still produced an envelope; record it first so the
+  // rejected answer survives as evidence, then fail the run honestly.
+  if (outcome.envelope) {
+    recordToolExecutionResult({
+      runId,
+      output: mapEnvelopeToToolResultOutput(outcome.envelope),
+      deliveryMode: 'local_analysis_v1',
+      plannedOnly: false,
+    })
+  }
+
+  // A transport failure has no envelope at all — nothing to record, only to fail.
+  failToolExecutionRun(runId, error)
+  return { ok: false, error }
+}
