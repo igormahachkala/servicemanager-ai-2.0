@@ -193,6 +193,14 @@ local_ollama_analysis`. Машинерия отдаёт результат, а �
    + скрипт `typecheck:test`**, не снятие `exclude` — `npm run build` не должен падать из-за фикстур.
    Худшее: `cursorAutomationRunner.test.ts` читает `.envelope` без сужения по `status` (3 места) —
    в ветке `RESULT_PENDING` поля нет, тест молча сравнит `undefined` и всё равно пройдёт.
+   **Конкретные известные расхождения** (найдены 2026-08-31 при точечном прогоне `tsc` по тестам):
+   `cursorResultEnvelope.test.ts:334` — в `validateExecutionResultEnvelope({...analysisRaw, …})`
+   у спреда `route` выводится как `string`, а не как литеральный union (`TS2345`);
+   `cursorResultEnvelope.test.ts:384` — `parseCursorResultEnvelope` получает `ExecutionResultEnvelope`,
+   в который `LOCAL_OLLAMA_ANALYSIS` не сужается. Blame: `5dd3fc5` и `9cd036d` от 2026-07-23, то есть
+   наследие развязки надтипа, **не блока 3**. Тесты зелёные — `tsx` типы стирает, рантайму всё равно, —
+   но оба всплывут в первый же день, когда появится `typecheck:test`. Чинить вместе с введением этого
+   скрипта, а не вслепую по одному.
 7. **Сохранить конфиг ≠ подключиться.** Статус «Подключено» ставится только после успешного health-check
    через мост; при выключенном connections-bridge секреты вообще не сохраняются.
 8. **`tsc -b` красный и без твоих правок** (замер 2026-08-29). Две ошибки `TS1294`
