@@ -13,6 +13,7 @@ import {
   dispatchToolRequestPlannedOnly,
   type DispatchToolRequestInput,
   type DispatchToolRequestOutcome,
+  type ToolDispatcherToolId,
   type ToolRequest as ToolDispatcherRequest,
 } from '../toolDispatcher'
 import { createToolExecutionRun } from './toolExecutionRunStorage'
@@ -50,6 +51,24 @@ export type BuilderCursorToolExecutionInput = {
 export type BuilderCursorToolExecutionOutcome = {
   run: ToolExecutionRun
   dispatch: DispatchToolRequestOutcome
+}
+
+export type RequestToolExecutionInput = BuilderCursorToolExecutionInput & {
+  /** Defaults to 'cursor' — the historical behaviour of this entry point. */
+  toolId?: ToolDispatcherToolId
+}
+
+/**
+ * Default dispatcher action per tool. Cursor keeps 'handoff', the value this
+ * entry point has always sent. Ollama's capability supports only 'analyze', so
+ * without a per-tool default an ollama request would die in
+ * validateDispatchInput — "Action handoff not supported by ollama" — before
+ * reaching any branch. Exhaustive by type: a new dispatcher tool cannot be
+ * added without deciding its action here.
+ */
+const DEFAULT_ACTION_BY_TOOL: Record<ToolDispatcherToolId, string> = {
+  cursor: 'handoff',
+  ollama: 'analyze',
 }
 
 function assertWorkItemBinding(input: {
@@ -104,9 +123,10 @@ export function createToolExecutionFromDispatcherRequest(
   })
 }
 
-export function requestBuilderCursorToolExecution(
-  input: BuilderCursorToolExecutionInput,
+export function requestToolExecution(
+  input: RequestToolExecutionInput,
 ): BuilderCursorToolExecutionOutcome {
+  const toolId = input.toolId ?? 'cursor'
   const companyId = input.companyId ?? DEFAULT_COMPANY_ID
   const employeeId = resolveCanonicalEmployeeId(EMPLOYEE_ROUTE_IDS.builder)
   const decidedBy = resolveCanonicalEmployeeId(
@@ -121,8 +141,8 @@ export function requestBuilderCursorToolExecution(
   })
 
   const dispatchInput: DispatchToolRequestInput = {
-    toolId: 'cursor',
-    action: input.action ?? 'handoff',
+    toolId,
+    action: input.action ?? DEFAULT_ACTION_BY_TOOL[toolId],
     title: input.title,
     instructions: input.instructions,
     requestedByEmployeeId: employeeId,
@@ -157,6 +177,17 @@ export function requestBuilderCursorToolExecution(
   })
 
   return { run, dispatch }
+}
+
+/**
+ * Cursor-shaped entry point, unchanged for its two callers
+ * (manualCursorTaskFlowCreate, builderAutomationTaskFlowCreate). Kept as a thin
+ * wrapper so the cursor path is provably the old one: same toolId, same action.
+ */
+export function requestBuilderCursorToolExecution(
+  input: BuilderCursorToolExecutionInput,
+): BuilderCursorToolExecutionOutcome {
+  return requestToolExecution({ ...input, toolId: 'cursor' })
 }
 
 /**

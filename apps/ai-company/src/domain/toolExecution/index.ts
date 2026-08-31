@@ -85,7 +85,9 @@ export {
   createToolExecutionFromDispatcherRequest,
   dispatchToolRequestLegacyMock,
   requestBuilderCursorToolExecution,
+  requestToolExecution,
   type BuilderCursorToolExecutionInput,
   type BuilderCursorToolExecutionOutcome,
+  type RequestToolExecutionInput,
   type CreateToolExecutionFromDispatcherRequestInput,
 } from './toolExecutionRunBridge'
