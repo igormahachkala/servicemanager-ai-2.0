@@ -2,6 +2,9 @@
 
 WORKDIR /app
 
+ARG SMA_RELEASE_COMMIT_SHA=unknown
+ARG SMA_RELEASE_ENVIRONMENT=unknown
+
 # SMA-MAX-TLS-001: образ должен нести актуальный набор корневых сертификатов.
 # Без него исходящие HTTPS-запросы (опрос MAX) падают с
 # UNABLE_TO_GET_ISSUER_CERT_LOCALLY — "unable to get local issuer certificate".
@@ -12,7 +15,9 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt \
-  SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+  SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
+  SMA_RELEASE_COMMIT_SHA=${SMA_RELEASE_COMMIT_SHA} \
+  SMA_RELEASE_ENVIRONMENT=${SMA_RELEASE_ENVIRONMENT}
 
 COPY docker-entrypoint.sh /usr/local/bin/sma-backend-entrypoint.sh
 RUN chmod +x /usr/local/bin/sma-backend-entrypoint.sh
