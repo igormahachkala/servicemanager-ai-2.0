@@ -62,7 +62,7 @@ export function currentInternalAppPath(): string {
 
 export function getReturnToFromSearch(search: string | URLSearchParams): string {
   const params = typeof search === 'string' ? new URLSearchParams(search) : search
-  return sanitizeInternalAppPath(params.get('returnTo'))
+  return sanitizeInternalAppPath(params.get('returnTo') || params.get('next'))
 }
 
 export function loginPathWithReturnTo(returnTo?: string | null): string {

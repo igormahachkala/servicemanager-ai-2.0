@@ -9,8 +9,23 @@ import { TicketStatus, TicketUrgency } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 import { MaxBotCommandService } from './max-bot-command.service';
+import { extractMaxUserId } from './max-identity.service';
+import {
+  buildMinimalMaxBotCommands,
+  normalizeMaxBotUsername,
+  renderOpenAppMessage,
+  renderTicketNavigationMessage,
+  type MaxTicketNotificationButtonKind,
+} from './max-menu.builder';
 import { getMaxBotRuntimeDiagnostics, type MaxBotRuntimeDiagnostics } from './max-bot-runtime';
-import { MaxBotSendMessageResponse, MaxBotUpdate, MaxBotUpdatesResponse } from './max-bot.types';
+import {
+  MAX_BOT_COMMAND_UPDATE_TYPES,
+  type MaxBotCommandResponse,
+  type MaxBotMessageBody,
+  MaxBotSendMessageResponse,
+  MaxBotUpdate,
+  MaxBotUpdatesResponse,
+} from './max-bot.types';
 
 type PollParams = {
   limit?: number;
@@ -86,12 +101,22 @@ type MaxBotTokenValidation = {
   reason: string | null;
 };
 
+type CommandChatDecision = {
+  allowed: boolean;
+  scope: 'configured_group' | 'private' | 'other_group' | 'unknown';
+  reason?: 'other_group_chat' | 'untrusted_chat';
+};
+
+const PRIVATE_MAX_CHAT_TYPES = new Set(['dialog', 'private', 'direct', 'user']);
+const GROUP_MAX_CHAT_TYPES = new Set(['chat', 'group', 'supergroup', 'channel']);
+
 @Injectable()
 export class MaxBotService implements OnModuleInit {
   private readonly logger = new Logger(MaxBotService.name);
   private readonly baseUrl = this.normalizeBaseUrl(process.env.MAX_BOT_API_BASE_URL || 'https://platform-api2.max.ru');
   private readonly token = (process.env.MAX_BOT_API_TOKEN || '').trim();
   private readonly frontendUrl = this.resolveFrontendUrl();
+  private readonly botUsername = normalizeMaxBotUsername(process.env.MAX_BOT_USERNAME);
   private readonly groupChatId = this.resolveGroupChatId();
   private readonly runtimeDiagnostics: MaxBotRuntimeDiagnostics = getMaxBotRuntimeDiagnostics();
   private readonly locationAnchorLocks = new Map<string, Promise<LocationAnchor | null>>();
@@ -313,17 +338,26 @@ export class MaxBotService implements OnModuleInit {
     return `${normalized.slice(0, max - 1)}…`;
   }
 
-  private buildTicketLink(ticketId: string) {
-    const frontendUrl = this.frontendUrl;
-    return frontendUrl ? `${frontendUrl}/m/tickets/${encodeURIComponent(ticketId)}` : null;
+  private ticketNavigationMessage(
+    text: string,
+    ticketId: string,
+    kind: MaxTicketNotificationButtonKind,
+  ): MaxBotMessageBody {
+    return renderTicketNavigationMessage({
+      text,
+      botUsername: this.botUsername,
+      ticketId,
+      kind,
+    });
   }
 
-  private buildGroupMessage(payload: string) {
+  private buildGroupMessage(payload: string | MaxBotMessageBody) {
     const groupChatId = this.groupChatId;
     if (groupChatId === null) {
+      const text = typeof payload === 'string' ? payload : payload.text || '';
       this.logger.warn(
         {
-          payload: payload.slice(0, 180),
+          payload: text.slice(0, 180),
         },
         'max_group_chat_id_missing',
       );
@@ -362,8 +396,12 @@ export class MaxBotService implements OnModuleInit {
     return { reply_to_message_id: messageId };
   }
 
-  private async sendRawMessage(chatId: number, text: string, replyToMessageId?: string | null) {
-    const body: Record<string, unknown> = { text };
+  private normalizeMessageBody(message: string | MaxBotMessageBody): MaxBotMessageBody {
+    return typeof message === 'string' ? { text: message } : message;
+  }
+
+  private async sendRawMessage(chatId: number, message: string | MaxBotMessageBody, replyToMessageId?: string | null) {
+    const body: Record<string, unknown> = { ...this.normalizeMessageBody(message) };
     if (replyToMessageId) {
       Object.assign(body, this.parseReplyMessageId(replyToMessageId));
     }
@@ -377,11 +415,20 @@ export class MaxBotService implements OnModuleInit {
     );
 
     const messageId = this.extractMessageId(result);
-    this.logger.log({ chatId, text: text.slice(0, 220) }, 'max_bot_message_sent');
+    const text = typeof body.text === 'string' ? body.text : '';
+    this.logger.log(
+      {
+        chatId,
+        text: text.slice(0, 220),
+        attachments: Array.isArray(body.attachments) ? body.attachments.length : 0,
+      },
+      'max_bot_message_sent',
+    );
 
     return {
       chatId,
       text,
+      attachments: body.attachments,
       messageId,
       ...result,
     };
@@ -494,10 +541,10 @@ export class MaxBotService implements OnModuleInit {
     companyId: string;
     locationId?: string | null;
     locationName?: string | null;
-    text: string;
+    message: string | MaxBotMessageBody;
   }) {
     if (!params.locationId?.trim()) {
-      return this.sendOperationalMessage(params.text);
+      return this.sendOperationalMessage(params.message);
     }
     const anchor = await this.getOrCreateLocationAnchor({
       companyId: params.companyId,
@@ -505,10 +552,10 @@ export class MaxBotService implements OnModuleInit {
       locationName: params.locationName,
     });
     if (!anchor?.anchorMessageId) {
-      return this.sendOperationalMessage(params.text);
+      return this.sendOperationalMessage(params.message);
     }
     try {
-      return await this.sendRawMessage(this.groupChatId!, params.text, anchor.anchorMessageId);
+      return await this.sendRawMessage(this.groupChatId!, params.message, anchor.anchorMessageId);
     } catch (err) {
       this.logger.warn(
         {
@@ -519,12 +566,12 @@ export class MaxBotService implements OnModuleInit {
         },
         'max_location_reply_failed_fallback_to_group',
       );
-      return this.sendOperationalMessage(params.text);
+      return this.sendOperationalMessage(params.message);
     }
   }
 
-  private async sendOperationalMessage(text: string) {
-    return this.buildGroupMessage(text);
+  private async sendOperationalMessage(message: string | MaxBotMessageBody) {
+    return this.buildGroupMessage(message);
   }
 
   async sendTicketCreatedMessage(params: TicketCreatedMessageParams) {
@@ -552,17 +599,13 @@ export class MaxBotService implements OnModuleInit {
     const comment = this.normalizeMultiline(params.description) || 'Комментарий отсутствует';
     lines.push(`"${comment}"`);
 
-    const link = this.buildTicketLink(params.ticketId);
-    if (link) {
-      lines.push(`Открыть:`);
-      lines.push(link);
-    }
+    const message = this.ticketNavigationMessage(this.clip(lines.join('\n')), params.ticketId, 'ticket');
 
     return this.sendLocationReplyNotification({
       companyId: params.companyId,
       locationId: params.locationId,
       locationName: params.locationName,
-      text: this.clip(lines.join('\n')),
+      message,
     });
   }
 
@@ -572,16 +615,13 @@ export class MaxBotService implements OnModuleInit {
     const tech = (params.technicianLabel || '').trim();
     lines.push(`Исполнитель: ${tech || 'Исполнитель'}`);
 
-    const link = this.buildTicketLink(params.ticketId);
-    if (link) {
-      lines.push(`Открыть: ${link}`);
-    }
+    const message = this.ticketNavigationMessage(this.clip(lines.join('\n')), params.ticketId, 'assignment');
 
     return this.sendLocationReplyNotification({
       companyId: params.companyId,
       locationId: params.locationId,
       locationName: params.locationName,
-      text: this.clip(lines.join('\n')),
+      message,
     });
   }
 
@@ -591,16 +631,13 @@ export class MaxBotService implements OnModuleInit {
     const tech = (params.technicianLabel || '').trim();
     lines.push(`Исполнитель: ${tech || 'Исполнитель'}`);
 
-    const link = this.buildTicketLink(params.ticketId);
-    if (link) {
-      lines.push(`Открыть: ${link}`);
-    }
+    const message = this.ticketNavigationMessage(this.clip(lines.join('\n')), params.ticketId, 'ticket');
 
     return this.sendLocationReplyNotification({
       companyId: params.companyId,
       locationId: params.locationId,
       locationName: params.locationName,
-      text: this.clip(lines.join('\n')),
+      message,
     });
   }
 
@@ -609,20 +646,19 @@ export class MaxBotService implements OnModuleInit {
     lines.push(`Заявка: ${this.formatShortTicketLabel(params.ticketNumber, params.ticketId)}`);
     lines.push(`Статус: ${this.formatStatusLabel(params.fromStatus)} → ${this.formatStatusLabel(params.toStatus)}`);
 
-    const link = this.buildTicketLink(params.ticketId);
-    if (link) {
-      lines.push(`Открыть: ${link}`);
-    }
+    const buttonKind: MaxTicketNotificationButtonKind =
+      params.toStatus === TicketStatus.AWAITING_ACCEPTANCE ? 'acceptance' : 'ticket';
+    const message = this.ticketNavigationMessage(this.clip(lines.join('\n')), params.ticketId, buttonKind);
 
     return this.sendLocationReplyNotification({
       companyId: params.companyId,
       locationId: params.locationId,
       locationName: params.locationName,
-      text: this.clip(lines.join('\n')),
+      message,
     });
   }
 
-  private composeTestMessage(params: SendMessageParams) {
+  private composeTestMessage(params: SendMessageParams): MaxBotMessageBody {
     const link = this.buildFrontendLink(params.ticketId);
     const customText = (params.text || '').trim();
 
@@ -633,20 +669,22 @@ export class MaxBotService implements OnModuleInit {
         },
         'max_bot_frontend_url_missing',
       );
-      return customText || 'Тестовое сообщение от Сервис Менеджер';
+      return { text: customText || 'Тестовое сообщение от Сервис Менеджер' };
     }
 
     if (params.ticketId && params.ticketId.trim()) {
-      return customText
-        ? `${customText}\n${link}`
-        : `✅ Сервис Менеджер MAX bot test: ${link}`;
+      return this.ticketNavigationMessage(
+        customText || 'Сервис Менеджер MAX bot test',
+        params.ticketId,
+        'ticket',
+      );
     }
 
     if (customText) {
-      return `${customText}\n${link}`;
+      return { text: customText };
     }
 
-    return `✅ Сервис Менеджер MAX bot test: ${link}`;
+    return renderOpenAppMessage('Сервис Менеджер MAX bot test', this.botUsername);
   }
 
   private buildUrl(path: string, params?: URLSearchParams) {
@@ -739,26 +777,51 @@ export class MaxBotService implements OnModuleInit {
       ? (msg.recipient as Record<string, unknown>) : null;
     const msgChat = msg?.chat && typeof msg.chat === 'object'
       ? (msg.chat as Record<string, unknown>) : null;
+    const callback = update.callback && typeof update.callback === 'object'
+      ? (update.callback as Record<string, unknown>) : null;
+    const callbackChat = callback?.chat && typeof callback.chat === 'object'
+      ? (callback.chat as Record<string, unknown>) : null;
+    const callbackRecipient = callback?.recipient && typeof callback.recipient === 'object'
+      ? (callback.recipient as Record<string, unknown>) : null;
+    const callbackMessage = callback?.message && typeof callback.message === 'object'
+      ? (callback.message as Record<string, unknown>) : null;
+    const callbackMessageRecipient = callbackMessage?.recipient && typeof callbackMessage.recipient === 'object'
+      ? (callbackMessage.recipient as Record<string, unknown>) : null;
+    const callbackMessageChat = callbackMessage?.chat && typeof callbackMessage.chat === 'object'
+      ? (callbackMessage.chat as Record<string, unknown>) : null;
 
     const candidates = [
       // top-level flat fields (polling responses)
       update.chat_id,
       update.chatId,
       update.dialog_id,
+      callback?.chat_id,
+      callback?.chatId,
+      callback?.dialog_id,
       // top-level nested objects
       topChat?.chat_id,
       topChat?.id,
       topRecipient?.chat_id,
       topRecipient?.chatId,
+      callbackChat?.chat_id,
+      callbackChat?.id,
+      callbackRecipient?.chat_id,
+      callbackRecipient?.chatId,
       // message-level fields (webhook: message.chat_id or message.dialog_id)
       msg?.chat_id,
       msg?.dialog_id,
+      callbackMessage?.chat_id,
+      callbackMessage?.dialog_id,
       // message.recipient.chat_id — actual MAX webhook structure
       msgRecipient?.chat_id,
       msgRecipient?.chatId,
+      callbackMessageRecipient?.chat_id,
+      callbackMessageRecipient?.chatId,
       // message.chat.id — alternative nested shape
       msgChat?.chat_id,
       msgChat?.id,
+      callbackMessageChat?.chat_id,
+      callbackMessageChat?.id,
     ];
 
     for (const candidate of candidates) {
@@ -768,6 +831,123 @@ export class MaxBotService implements OnModuleInit {
       }
     }
 
+    if (update.update_type === 'bot_started') {
+      return this.parseChatId(extractMaxUserId(update));
+    }
+
+    return null;
+  }
+
+  private classifyCommandChat(
+    update: MaxBotUpdate,
+    chatId: number,
+    chatType: string | null,
+    groupChatId: number | null,
+  ): CommandChatDecision {
+    if (groupChatId !== null && chatId === groupChatId) {
+      return { allowed: true, scope: 'configured_group' };
+    }
+
+    if (chatType && PRIVATE_MAX_CHAT_TYPES.has(chatType)) {
+      return { allowed: true, scope: 'private' };
+    }
+
+    if (chatType && GROUP_MAX_CHAT_TYPES.has(chatType)) {
+      return { allowed: false, scope: 'other_group', reason: 'other_group_chat' };
+    }
+
+    if (this.looksLikePrivateDialog(update, chatId)) {
+      return { allowed: true, scope: 'private' };
+    }
+
+    return { allowed: false, scope: 'unknown', reason: 'untrusted_chat' };
+  }
+
+  private looksLikePrivateDialog(update: MaxBotUpdate, chatId: number) {
+    const maxUserId = extractMaxUserId(update);
+    if (!maxUserId) return false;
+    if (update.update_type === 'bot_started') return true;
+    return chatId > 0;
+  }
+
+  private extractChatType(update: MaxBotUpdate): string | null {
+    const msg = this.readRecord(update.message);
+    const topChat = this.readRecord(update.chat);
+    const topRecipient = this.readRecord(update.recipient);
+    const msgRecipient = this.readRecord(msg?.recipient);
+    const msgChat = this.readRecord(msg?.chat);
+    const callback = this.readRecord(update.callback);
+    const callbackChat = this.readRecord(callback?.chat);
+    const callbackRecipient = this.readRecord(callback?.recipient);
+    const callbackMessage = this.readRecord(callback?.message);
+    const callbackMessageRecipient = this.readRecord(callbackMessage?.recipient);
+    const callbackMessageChat = this.readRecord(callbackMessage?.chat);
+
+    const candidates = [
+      update.chat_type,
+      update.chatType,
+      update.dialog_type,
+      update.dialogType,
+      topChat?.chat_type,
+      topChat?.chatType,
+      topChat?.type,
+      topRecipient?.chat_type,
+      topRecipient?.chatType,
+      topRecipient?.type,
+      msg?.chat_type,
+      msg?.chatType,
+      msgRecipient?.chat_type,
+      msgRecipient?.chatType,
+      msgRecipient?.type,
+      msgChat?.chat_type,
+      msgChat?.chatType,
+      msgChat?.type,
+      callback?.chat_type,
+      callback?.chatType,
+      callbackChat?.chat_type,
+      callbackChat?.chatType,
+      callbackChat?.type,
+      callbackRecipient?.chat_type,
+      callbackRecipient?.chatType,
+      callbackRecipient?.type,
+      callbackMessage?.chat_type,
+      callbackMessage?.chatType,
+      callbackMessageRecipient?.chat_type,
+      callbackMessageRecipient?.chatType,
+      callbackMessageRecipient?.type,
+      callbackMessageChat?.chat_type,
+      callbackMessageChat?.chatType,
+      callbackMessageChat?.type,
+    ];
+
+    for (const candidate of candidates) {
+      if (typeof candidate === 'string' && candidate.trim()) {
+        return candidate.trim().toLowerCase();
+      }
+    }
+    return null;
+  }
+
+  private readRecord(value: unknown): Record<string, unknown> | null {
+    return value && typeof value === 'object' ? value as Record<string, unknown> : null;
+  }
+
+  private extractCallbackId(update: MaxBotUpdate): string | null {
+    const callback = update.callback && typeof update.callback === 'object'
+      ? (update.callback as Record<string, unknown>)
+      : null;
+    const candidates = [
+      update.callback_id,
+      update.callbackId,
+      callback?.callback_id,
+      callback?.callbackId,
+      callback?.id,
+    ];
+
+    for (const candidate of candidates) {
+      if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+      if (typeof candidate === 'number' && Number.isFinite(candidate)) return String(candidate);
+    }
     return null;
   }
 
@@ -793,7 +973,7 @@ export class MaxBotService implements OnModuleInit {
   async registerWebhook(params: { url: string; updateTypes?: string[]; secret?: string }) {
     const body: Record<string, unknown> = {
       url: params.url,
-      update_types: params.updateTypes ?? ['message_created'],
+      update_types: params.updateTypes ?? [...MAX_BOT_COMMAND_UPDATE_TYPES],
     };
     if (params.secret) body.secret = params.secret;
     return this.requestJson<unknown>('/subscriptions', {
@@ -804,6 +984,23 @@ export class MaxBotService implements OnModuleInit {
 
   async deleteSubscriptions() {
     return this.requestJson<unknown>('/subscriptions', { method: 'DELETE' });
+  }
+
+  async registerMinimalCommandMenu() {
+    return this.requestJson<unknown>('/me/commands', {
+      method: 'PATCH',
+      body: JSON.stringify({ commands: buildMinimalMaxBotCommands() }),
+    });
+  }
+
+  private async answerCallback(callbackId: string, message: MaxBotMessageBody) {
+    return this.requestJson<unknown>(
+      `/answers?callback_id=${encodeURIComponent(callbackId)}`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ message }),
+      },
+    );
   }
 
   private async processCommandUpdates(updates: MaxBotUpdate[]) {
@@ -819,23 +1016,19 @@ export class MaxBotService implements OnModuleInit {
       );
       return;
     }
-    if (groupChatId === null) {
-      this.logger.warn(
-        {
-          reason: 'group_chat_missing',
-          updates: updates.length,
-        },
-        'max_bot_command_ignored',
-      );
-      return;
-    }
 
     for (const update of updates) {
       const chatId = this.extractChatId(update);
+      const chatType = this.extractChatType(update);
+      const chatDecision = chatId === null
+        ? null
+        : this.classifyCommandChat(update, chatId, chatType, groupChatId);
       this.logger.log(
         {
           update_type: typeof update.update_type === 'string' ? update.update_type : null,
           chatId,
+          chatType,
+          chatScope: chatDecision?.scope ?? null,
           hasMessage: !!update.message,
         },
         'max_bot_update_received',
@@ -850,11 +1043,13 @@ export class MaxBotService implements OnModuleInit {
         );
         continue;
       }
-      if (chatId !== groupChatId) {
+      if (!chatDecision?.allowed) {
         this.logger.log(
           {
-            reason: 'chat_mismatch',
+            reason: chatDecision?.reason ?? 'untrusted_chat',
             chatId,
+            chatType,
+            chatScope: chatDecision?.scope ?? 'unknown',
             groupChatId,
           },
           'max_bot_update_ignored',
@@ -862,13 +1057,15 @@ export class MaxBotService implements OnModuleInit {
         continue;
       }
 
-      let responseText: string | null = null;
+      let response: MaxBotCommandResponse | null = null;
       try {
-        responseText = await commandService.handleUpdate(update);
+        response = await commandService.handleUpdate(update);
       } catch (err) {
         this.logger.warn({ err }, 'max_bot_command_handle_error');
       }
-      if (!responseText) continue;
+      if (!response) continue;
+
+      const responseText = response.text || '';
 
       this.logger.log(
         {
@@ -879,11 +1076,17 @@ export class MaxBotService implements OnModuleInit {
       );
 
       try {
-        await this.sendRawMessage(chatId, responseText);
+        const callbackId = this.extractCallbackId(update);
+        if (callbackId) {
+          await this.answerCallback(callbackId, response);
+        } else {
+          await this.sendRawMessage(chatId, response);
+        }
         this.logger.log(
           {
             chatId,
             responseLength: responseText.length,
+            transport: callbackId ? 'answers' : 'messages',
           },
           'max_bot_command_response_sent',
         );
@@ -945,23 +1148,24 @@ export class MaxBotService implements OnModuleInit {
       throw new BadRequestException('chatId is required. Poll updates first or pass chatId explicitly.');
     }
 
-    const text = this.composeTestMessage(params);
+    const message = this.composeTestMessage(params);
     const frontendUrl = this.buildFrontendLink(params.ticketId);
     const result = await this.requestJson<MaxBotSendMessageResponse>(
       `/messages?chat_id=${encodeURIComponent(String(chatId))}`,
       {
         method: 'POST',
-        body: JSON.stringify({ text }),
+        body: JSON.stringify(message),
       },
     );
 
-    this.logger.log({ chatId, text }, 'max_bot_message_sent');
+    this.logger.log({ chatId, text: message.text }, 'max_bot_message_sent');
 
     return {
       chatId,
       lastChatId: this.lastChatId,
       frontendUrl,
-      text,
+      text: message.text,
+      attachments: message.attachments,
       ...result,
     };
   }

@@ -35,6 +35,9 @@ export type MaxWebApp = {
   expand?(): void
 }
 
+export const MAX_BRIDGE_SCRIPT_URL = 'https://st.max.ru/js/max-web-app.js'
+export const DEFAULT_MAX_BRIDGE_TIMEOUT_MS = 8_000
+
 declare global {
   interface Window {
     WebApp?: MaxWebApp
@@ -105,7 +108,28 @@ export function getStartParamFromLocation(): string | null {
   return hashParams.get('startapp') || hashParams.get('start_param') || hashParams.get('startParam')
 }
 
-export function loadMaxBridgeScript(): Promise<void> {
+type MaxBridgeScriptElement = HTMLScriptElement & {
+  readyState?: string
+}
+
+export type MaxBridgeLoadOptions = {
+  timeoutMs?: number
+}
+
+function isLoadedBridgeScript(script: MaxBridgeScriptElement): boolean {
+  return script.getAttribute('data-max-bridge-loaded') === '1' || script.readyState === 'complete'
+}
+
+function isFailedBridgeScript(script: MaxBridgeScriptElement): boolean {
+  return script.getAttribute('data-max-bridge-error') === '1'
+}
+
+function removeScript(script: MaxBridgeScriptElement) {
+  script.parentNode?.removeChild(script)
+}
+
+export function loadMaxBridgeScript(options: MaxBridgeLoadOptions = {}): Promise<void> {
+  const timeoutMs = options.timeoutMs ?? DEFAULT_MAX_BRIDGE_TIMEOUT_MS
   return new Promise((resolve, reject) => {
     if (typeof window === 'undefined') {
       resolve()
@@ -115,18 +139,74 @@ export function loadMaxBridgeScript(): Promise<void> {
       resolve()
       return
     }
-    const existing = document.querySelector('script[data-max-bridge]')
-    if (existing) {
-      existing.addEventListener('load', () => resolve())
-      existing.addEventListener('error', () => reject(new Error('Не удалось загрузить MAX Bridge')))
+
+    if (typeof document === 'undefined') {
+      resolve()
       return
     }
+
+    const existing = document.querySelector('script[data-max-bridge]') as MaxBridgeScriptElement | null
+    if (existing) {
+      if (isFailedBridgeScript(existing)) {
+        removeScript(existing)
+      } else if (isLoadedBridgeScript(existing)) {
+        resolve()
+        return
+      } else {
+        waitForBridgeScript(existing, timeoutMs, resolve, reject)
+        return
+      }
+    }
+
     const script = document.createElement('script')
-    script.src = 'https://st.max.ru/js/max-web-app.js'
+    script.src = MAX_BRIDGE_SCRIPT_URL
     script.setAttribute('data-max-bridge', '1')
     script.async = true
-    script.onload = () => resolve()
-    script.onerror = () => reject(new Error('Не удалось загрузить MAX Bridge'))
+    waitForBridgeScript(script, timeoutMs, resolve, reject)
     document.head.appendChild(script)
   })
+}
+
+function waitForBridgeScript(
+  script: MaxBridgeScriptElement,
+  timeoutMs: number,
+  resolve: () => void,
+  reject: (reason?: unknown) => void,
+) {
+  let finished = false
+  let timeoutId: ReturnType<typeof setTimeout> | null = null
+
+  const cleanup = () => {
+    if (timeoutId) clearTimeout(timeoutId)
+    script.removeEventListener('load', onLoad)
+    script.removeEventListener('error', onError)
+  }
+
+  const finish = (fn: () => void) => {
+    if (finished) return
+    finished = true
+    cleanup()
+    fn()
+  }
+
+  const onLoad = () => {
+    script.setAttribute('data-max-bridge-loaded', '1')
+    finish(resolve)
+  }
+
+  const onError = () => {
+    script.setAttribute('data-max-bridge-error', '1')
+    finish(() => reject(new Error('MAX Bridge load failed')))
+  }
+
+  script.addEventListener('load', onLoad)
+  script.addEventListener('error', onError)
+
+  if (timeoutMs > 0) {
+    timeoutId = setTimeout(() => {
+      script.setAttribute('data-max-bridge-error', '1')
+      removeScript(script)
+      finish(() => reject(new Error('MAX Bridge load timeout')))
+    }, timeoutMs)
+  }
 }
