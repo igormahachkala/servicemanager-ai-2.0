@@ -217,3 +217,23 @@ local_ollama_analysis`. Машинерия отдаёт результат, а �
    что тянет `toolDispatcher`. Guard задуман против захардкоженного IP в конфиге, а бьёт по
    собственному origin. Ветка `ollama` капкан обошла — там `assertToolEndpointHasNoRawIp` стоит только
    на значении из env, не на same-origin фолбэке (`bd6a018`); у Cursor по-прежнему на обоих.
+10. **Cursor-ветка в `approveToolExecutionRun:268` не тест-безопасна.** Под моканым `window`
+    (а его мокает весь харнесс тестов, см. `manualCursorTaskFlow.test.ts`) условие
+    `typeof window !== 'undefined'` истинно, ветка динамически импортирует `cursorLocalBridgeSync`
+    и лезет в **реальный** мост. Прогон падает асинхронным `TypeError: Cannot read properties of
+    undefined (reading 'trim')` уже **после** конца теста — node сообщает это как
+    `unhandledRejection`, и виноватым выглядит следующий тест. Налетит любой будущий тест,
+    одобряющий cursor-run под моком `window`; обходится тем, чтобы cursor-run в тестах не одобрять.
+    **У ollama-ветки этого нет, но причина не та, что кажется:** `window`-guard'а у неё нет вовсе,
+    а безопасна она потому, что `queueToolExecutionRunForOllamaAnalysis` никогда не бросает —
+    любой провал возвращается типизированным исходом. Плюс её detached-вызов из `approve` не
+    доходит до сети: прямой вызов успевает синхронно перевести run `approved → queued → running`
+    до первого `await`, а динамический импорт резолвится тиком позже и находит run уже не в
+    `approved`. **Если в `queueToolExecutionRunForOllamaAnalysis` появится `await` до этих
+    переходов — тесты начнут ходить в живую модель** через dev-сервер на `:5174`. Подстраховка:
+    `ollamaAnalysisSync.test.ts` выставляет `OLLAMA_BASE_URL` на закрытый порт.
+11. **Каст `as Window` в харнессе мока storage даёт `TS2352`.** Пришёл из
+    `manualCursorTaskFlow.test.ts` и копируется вместе с харнессом. В новых файлах
+    (`toolExecutionRunBridge.test.ts`, `ollamaAnalysisSync.test.ts`) исправлено на
+    `as unknown as Window`; в исходном осталось как есть — это та же «механика» из капкана №6,
+    чинить вместе с `typecheck:test`. Копируя харнесс, сразу пиши `as unknown as Window`.
