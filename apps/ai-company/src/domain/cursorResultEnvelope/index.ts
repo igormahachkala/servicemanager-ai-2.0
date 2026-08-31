@@ -36,6 +36,7 @@ export {
 export {
   applyBuilderReview,
   applyMaxReview,
+  createAnalysisRejectedEnvelope,
   createAnalysisResultEnvelope,
   createPendingAutomationEnvelope,
   createTransportFailureEnvelope,

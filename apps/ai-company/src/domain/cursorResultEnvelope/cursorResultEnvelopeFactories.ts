@@ -448,3 +448,50 @@ export function createAnalysisResultEnvelope(input: {
 
   return assertValidExecutionResultEnvelope(envelope)
 }
+
+/**
+ * A local analysis that reached the model but failed its output contract.
+ *
+ * `transportStatus` stays DISPATCHED because the transport genuinely worked:
+ * the HTTP call, the stream and the generation all succeeded, and only the
+ * answer was off-format. `createTransportFailureEnvelope` cannot express that —
+ * its invariant forces TRANSPORT_FAILED, which would erase the difference
+ * between "Ollama is down" and "Ollama answered off-format", the two states a
+ * reader most needs to tell apart. `errors[].source` is 'validation' for the
+ * same reason.
+ *
+ * The raw answer is kept in `summary`: a rejected analysis is still evidence,
+ * and a human has to be able to see what the model actually said. `route` and
+ * `metadata.transport` are factory-owned, as in the success twin.
+ */
+export function createAnalysisRejectedEnvelope(input: {
+  toolExecutionRunId: string
+  summary: string
+  errors: CursorExecutionError[]
+  startedAt?: string | null
+  finishedAt?: string | null
+  metadata?: Record<string, unknown>
+}): ExecutionResultEnvelope {
+  const finishedAt = input.finishedAt ?? new Date().toISOString()
+  const { enqueueOnly: _enqueueOnly, transport: _transport, ...metadata } = input.metadata ?? {}
+  void _enqueueOnly
+  void _transport
+
+  const envelope = baseEnvelope({
+    toolExecutionRunId: input.toolExecutionRunId,
+    route: 'LOCAL_OLLAMA_ANALYSIS',
+    transportStatus: 'DISPATCHED',
+    executionStatus: 'FAILED',
+    reviewStatus: 'NOT_REQUIRED',
+    summary: input.summary.trim() || null,
+    changedFiles: [],
+    artifacts: [],
+    checks: [],
+    errors: input.errors,
+    startedAt: input.startedAt ?? finishedAt,
+    finishedAt,
+    metadata: { ...metadata, transport: 'local_ollama_analysis' },
+  })
+
+  return assertValidExecutionResultEnvelope(envelope)
+}

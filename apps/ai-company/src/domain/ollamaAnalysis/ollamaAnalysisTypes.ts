@@ -3,6 +3,7 @@
  */
 
 import type { ExecutionResultEnvelope } from '../cursorResultEnvelope/cursorResultEnvelopeTypes'
+import type { AnalysisSectionValidation } from './ollamaAnalysisSections'
 
 /** Won the blind coder benchmark (scripts/output/ollama-coder-quality-blind-2.json). */
 export const OLLAMA_ANALYSIS_DEFAULT_MODEL = 'qwen3-coder:30b'
@@ -16,6 +17,8 @@ export const OLLAMA_ANALYSIS_ERROR_CODES = [
   'OLLAMA_STREAM_ERROR',
   'OLLAMA_EMPTY_RESPONSE',
   'OLLAMA_TIMEOUT',
+  /** The model answered, but the answer failed the section contract. */
+  'OLLAMA_SECTIONS_INVALID',
 ] as const
 
 export type OllamaAnalysisErrorCode = (typeof OLLAMA_ANALYSIS_ERROR_CODES)[number]
@@ -33,7 +36,13 @@ export type OllamaAnalysisRequest = {
 }
 
 export type OllamaAnalysisOutcome =
-  | { ok: true; envelope: ExecutionResultEnvelope; model: string; text: string }
+  | {
+      ok: true
+      envelope: ExecutionResultEnvelope
+      model: string
+      text: string
+      sections: AnalysisSectionValidation
+    }
   | {
       ok: false
       code: OllamaAnalysisErrorCode
@@ -41,4 +50,11 @@ export type OllamaAnalysisOutcome =
       model: string
       startedAt: string
       failedAt: string
+      /**
+       * Set only when the model answered but its output failed the contract —
+       * a transport failure produces no envelope at all.
+       */
+      envelope?: ExecutionResultEnvelope
+      text?: string
+      sections?: AnalysisSectionValidation
     }

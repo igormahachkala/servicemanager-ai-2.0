@@ -10,13 +10,17 @@
  * routes. The caller turns a failed outcome into a rejected ToolResult.
  */
 
-import { createAnalysisResultEnvelope } from '../cursorResultEnvelope'
+import {
+  createAnalysisRejectedEnvelope,
+  createAnalysisResultEnvelope,
+} from '../cursorResultEnvelope'
 import {
   buildToolDispatcherEndpointUrl,
   getToolDispatcherEndpointConfig,
 } from '../toolDispatcher/toolDispatcherConfig'
 import { callOllamaGenerate } from './ollamaAnalysisClient'
 import { buildOllamaAnalysisPrompt, OLLAMA_ANALYSIS_SYSTEM } from './ollamaAnalysisPrompt'
+import { describeSectionFailure, validateAnalysisSections } from './ollamaAnalysisSections'
 import {
   OLLAMA_ANALYSIS_DEFAULT_MODEL,
   OLLAMA_ANALYSIS_TIMEOUT_MS,
@@ -82,21 +86,58 @@ export async function runOllamaAnalysis(
     }
   }
 
+  const sections = validateAnalysisSections(generated.text)
+  const finishedAt = nowIso()
+
+  const metadata = {
+    analysisModel: generated.model,
+    analysisModelRequested: model,
+    sectionsValidated: sections.ok,
+    analysisSections: { missing: sections.missing, empty: sections.empty },
+    // Telemetry for Cost Guard and load measurement. A null means Ollama did
+    // not report that counter, not that the work was free.
+    analysisMetrics: generated.metrics,
+  }
+
+  // An answer that misses the contract is not a success. The envelope still gets
+  // built — the run reached the model and its text is evidence — but as FAILED.
+  if (!sections.ok) {
+    const reason = describeSectionFailure(sections)
+
+    return {
+      ok: false,
+      code: 'OLLAMA_SECTIONS_INVALID',
+      message: `Analysis did not satisfy the section contract — ${reason}`,
+      model,
+      startedAt,
+      failedAt: finishedAt,
+      text: generated.text,
+      sections,
+      envelope: createAnalysisRejectedEnvelope({
+        toolExecutionRunId: request.toolExecutionRunId,
+        summary: generated.text,
+        errors: [
+          {
+            code: 'ANALYSIS_SECTIONS_INVALID',
+            message: reason,
+            source: 'validation',
+            terminal: true,
+          },
+        ],
+        startedAt,
+        finishedAt,
+        metadata,
+      }),
+    }
+  }
+
   const envelope = createAnalysisResultEnvelope({
     toolExecutionRunId: request.toolExecutionRunId,
     summary: generated.text,
     startedAt,
-    finishedAt: nowIso(),
-    metadata: {
-      analysisModel: generated.model,
-      analysisModelRequested: model,
-      // Sections are asked for by the prompt but not parsed yet — block 3.
-      sectionsValidated: false,
-      // Telemetry for Cost Guard and load measurement. A null means Ollama did
-      // not report that counter, not that the work was free.
-      analysisMetrics: generated.metrics,
-    },
+    finishedAt,
+    metadata,
   })
 
-  return { ok: true, envelope, model: generated.model, text: generated.text }
+  return { ok: true, envelope, model: generated.model, text: generated.text, sections }
 }

@@ -19,4 +19,12 @@ export {
   type OllamaGenerationMetrics,
 } from './ollamaAnalysisClient'
 
+export {
+  REQUIRED_ANALYSIS_SECTIONS,
+  describeSectionFailure,
+  validateAnalysisSections,
+  type AnalysisSectionName,
+  type AnalysisSectionValidation,
+} from './ollamaAnalysisSections'
+
 export { resolveOllamaAnalysisModel, runOllamaAnalysis } from './ollamaAnalysisRunner'
