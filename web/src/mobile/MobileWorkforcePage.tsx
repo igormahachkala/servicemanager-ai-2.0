@@ -35,7 +35,7 @@ export function MobileWorkforcePage() {
   return (
     <>
       <div className="mobileTicketDetailsToolbar">
-        <Link to={mobilePath(location.pathname, '/profile')} className="mobileDetailsBackLink">Назад</Link>
+        <Link to={mobilePath(location.pathname, '/settings')} className="mobileDetailsBackLink">Настройки</Link>
       </div>
       <div className="mobileSection">
         <div className="mobileSectionTitle">Смены сотрудников</div>

@@ -14,6 +14,10 @@ function fmtDateTime(value?: string | null): string {
   }
 }
 
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
 const STATUS_LABEL: Record<api.InspectionRunItemStatus, string> = {
   PENDING: 'Ожидает',
   OK: 'OK',
@@ -72,7 +76,7 @@ export function MobileInspectionRunPage() {
       api.uploadInspectionRunItemAttachment(runId, input.itemId, input.file),
   })
 
-  const backHref = mobilePath(location.pathname, '/my')
+  const backHref = mobilePath(location.pathname, '/inspection')
 
   const activeCategories = useMemo(
     () => (categoriesQ.data || []).filter((row) => row.isActive !== false),
@@ -101,8 +105,8 @@ export function MobileInspectionRunPage() {
     try {
       await updateM.mutateAsync({ itemId, payload: { status: 'OK', requiresRepair: false } })
       await invalidate()
-    } catch (err: any) {
-      flash('err', err?.message || String(err))
+    } catch (err: unknown) {
+      flash('err', errorMessage(err))
     } finally {
       setBusyItemIds((s) => { const n = new Set(s); n.delete(itemId); return n })
     }
@@ -119,8 +123,8 @@ export function MobileInspectionRunPage() {
       await invalidate()
       setActiveIssueItemId(null)
       setIssueComment('')
-    } catch (err: any) {
-      flash('err', err?.message || String(err))
+    } catch (err: unknown) {
+      flash('err', errorMessage(err))
     } finally {
       setBusyItemIds((s) => { const n = new Set(s); n.delete(itemId); return n })
     }
@@ -152,8 +156,8 @@ export function MobileInspectionRunPage() {
       }
       flash('ok', ticketNumber != null ? `Заявка #${ticketNumber} создана` : 'Заявка создана')
       await invalidate()
-    } catch (err: any) {
-      flash('err', err?.message || String(err))
+    } catch (err: unknown) {
+      flash('err', errorMessage(err))
     } finally {
       setBusyItemIds((s) => {
         const n = new Set(s)
@@ -170,8 +174,8 @@ export function MobileInspectionRunPage() {
       await invalidate()
       setConfirmComplete(false)
       flash('ok', 'Обход завершён')
-    } catch (err: any) {
-      flash('err', err?.message || String(err))
+    } catch (err: unknown) {
+      flash('err', errorMessage(err))
     } finally {
       setCompleteBusy(false)
     }
@@ -186,8 +190,8 @@ export function MobileInspectionRunPage() {
         await uploadM.mutateAsync({ itemId, file })
       }
       await invalidate()
-    } catch (err: any) {
-      flash('err', err?.message || String(err))
+    } catch (err: unknown) {
+      flash('err', errorMessage(err))
     } finally {
       setUploadBusyItemIds((s) => { const n = new Set(s); n.delete(itemId); return n })
       setUploadTargetItemId(null)
@@ -218,14 +222,14 @@ export function MobileInspectionRunPage() {
             <line x1="19" y1="12" x2="5" y2="12" />
             <polyline points="12 19 5 12 12 5" />
           </svg>
-          Назад
+          Обходы
         </Link>
       </div>
 
       <div className="mobileSection">
         {runQ.isError ? (
           <div className="mobileNotice mobileNoticeError">
-            {(runQ.error as any)?.message || String(runQ.error)}
+            {errorMessage(runQ.error)}
           </div>
         ) : null}
 
