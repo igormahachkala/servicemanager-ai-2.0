@@ -54,16 +54,14 @@ describe('CORS allowlist', () => {
     expect(callback).toHaveBeenCalledWith(null, true);
   });
 
-  it('documents the nginx API CORS allowlist without wildcard origin', () => {
+  it('documents nginx as not owning API CORS headers', () => {
     const config = readFileSync(
       resolve(__dirname, '../../../docs/nginx-api.servicemanagerai.ru.conf'),
       'utf8',
     );
 
-    expect(config).toContain('"https://servicemanagerai.ru" $http_origin;');
-    expect(config).toContain('"https://max.servicemanagerai.ru" $http_origin;');
-    expect(config).toContain('"https://servicemanagerai.ru" "true";');
-    expect(config).toContain('"https://max.servicemanagerai.ru" "true";');
+    expect(config).not.toContain('sma_api_cors_origin');
+    expect(config).not.toMatch(/Access-Control-Allow-Credentials/i);
     expect(config).not.toMatch(/default\s+"\*"/);
     expect(config).not.toMatch(/Access-Control-Allow-Origin\s+"\*"/);
   });

@@ -21,6 +21,23 @@ function makeService(prisma = makeForbiddenPrisma()) {
 }
 
 const msg = (text: string) => ({ message: { text } });
+const botStarted = () => ({
+  update_type: 'bot_started',
+  chat_id: 4242,
+  user: { user_id: 4242 },
+});
+const callback = (payload: string) => ({
+  callback: {
+    callback_id: 'cb-1',
+    payload,
+    message: { recipient: { chat_id: -100 }, body: { text: 'menu' } },
+    user: { user_id: 4242 },
+  },
+});
+
+function buttonsOf(response: Awaited<ReturnType<MaxBotCommandService['handleUpdate']>>) {
+  return response?.attachments?.[0]?.payload.buttons.flat() || [];
+}
 
 describe('MaxBotCommandService — entry points', () => {
   const OLD_ENV = process.env;
@@ -33,47 +50,74 @@ describe('MaxBotCommandService — entry points', () => {
 
   it('/start returns the menu', async () => {
     const res = await makeService().handleUpdate(msg('/start'));
-    expect(res).toContain('Сервис Менеджер');
-    expect(res).toContain('Помощь');
+    expect(res?.text).toContain('Сервис Менеджер');
+    expect(buttonsOf(res)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: 'open_app', text: 'Открыть ServiceManager' }),
+        expect.objectContaining({ type: 'callback', text: 'Помощь', payload: 'help' }),
+      ]),
+    );
   });
 
   it('/menu is an alias for /start', async () => {
     const start = await makeService().handleUpdate(msg('/start'));
     const menu = await makeService().handleUpdate(msg('/menu'));
-    expect(menu).toBe(start);
+    expect(menu).toEqual(start);
+  });
+
+  it('bot_started returns the same safe menu as /start', async () => {
+    const start = await makeService().handleUpdate(msg('/start'));
+    const started = await makeService().handleUpdate(botStarted());
+    expect(started).toEqual(start);
   });
 
   it('/help explains the menu rather than listing commands', async () => {
-    const res = (await makeService().handleUpdate(msg('/help'))) as string;
-    expect(res).toContain('Как пользоваться');
-    expect(res).not.toContain('/tickets');
-    expect(res).not.toContain('/ticket ');
-    expect(res).not.toContain('/open');
+    const res = await makeService().handleUpdate(msg('/help'));
+    expect(res?.text).toContain('Помощь');
+    expect(res?.text).not.toContain('/tickets');
+    expect(res?.text).not.toContain('/ticket ');
+    expect(res?.text).not.toContain('/open');
+    expect(buttonsOf(res)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: 'open_app', text: 'Открыть ServiceManager' }),
+        expect.objectContaining({ type: 'callback', text: 'Меню', payload: 'menu' }),
+      ]),
+    );
   });
 
   it('/status still answers for operators', async () => {
-    const res = (await makeService().handleUpdate(msg('/status'))) as string;
-    expect(res).toContain('бот онлайн');
+    const res = await makeService().handleUpdate(msg('/status'));
+    expect(res?.text).toContain('бот онлайн');
   });
 
-  it('includes the application link when a frontend URL is configured', async () => {
-    const res = (await makeService().handleUpdate(msg('/start'))) as string;
-    expect(res).toContain('https://sm.example/max');
+  it('uses open_app rather than a plain URL when a frontend URL is configured', async () => {
+    const res = await makeService().handleUpdate(msg('/start'));
+    expect(res?.text).not.toContain('https://');
+    expect(buttonsOf(res)).toContainEqual(
+      expect.objectContaining({
+        type: 'open_app',
+        web_app: 'id056001679003_bot',
+        payload: 'app',
+      }),
+    );
   });
 });
 
 describe('MaxBotCommandService — unknown input is never silent', () => {
   it('unknown command returns the menu', async () => {
-    const res = (await makeService().handleUpdate(msg('/wat'))) as string;
+    const res = await makeService().handleUpdate(msg('/wat'));
     expect(res).not.toBeNull();
-    expect(res).toContain('Не понял запрос');
-    expect(res).toContain('Сервис Менеджер');
+    expect(res?.text).toContain('Не понял запрос');
+    expect(res?.text).toContain('Сервис Менеджер');
+    expect(buttonsOf(res)).toContainEqual(
+      expect.objectContaining({ type: 'open_app', text: 'Открыть ServiceManager' }),
+    );
   });
 
   it('free text returns the menu', async () => {
-    const res = (await makeService().handleUpdate(msg('привет'))) as string;
+    const res = await makeService().handleUpdate(msg('привет'));
     expect(res).not.toBeNull();
-    expect(res).toContain('Не понял запрос');
+    expect(res?.text).toContain('Не понял запрос');
   });
 
   it('still returns null when the update carries no text at all', async () => {
@@ -82,65 +126,109 @@ describe('MaxBotCommandService — unknown input is never silent', () => {
 });
 
 describe('MaxBotCommandService — legacy data commands are closed', () => {
-  it.each(['/tickets', '/ticket 123', '/open 123'])(
+  it.each(['/tickets', '/ticket 1', '/ticket 123', '/ticket 999999', '/open 1', '/open 123', '/open arbitrary-id'])(
     '%s returns navigation and reads no ticket data',
     async (input) => {
       const prisma = makeForbiddenPrisma();
-      const res = (await makeService(prisma).handleUpdate(msg(input))) as string;
-      expect(res).toContain('Заявки теперь открываются в приложении');
+      const res = await makeService(prisma).handleUpdate(msg(input));
+      expect(res?.text).toContain('Заявки теперь открываются в приложении');
+      expect(buttonsOf(res)).toContainEqual(
+        expect.objectContaining({ type: 'open_app', text: 'Открыть ServiceManager' }),
+      );
     },
   );
 
-  it.each(['/ticket 123', '/ticket 999999', '/open 1'])(
+  it.each(['/tickets', '/ticket 1', '/ticket 123', '/ticket 999999', '/open 1', '/open arbitrary-id'])(
     '%s discloses nothing about ticket existence',
     async (input) => {
-      const res = (await makeService().handleUpdate(msg(input))) as string;
-      expect(res).not.toMatch(/не найдена|Заявка №|\d{3,}/);
+      const res = await makeService().handleUpdate(msg(input));
+      expect(res?.text).not.toMatch(/не найдена|Заявка №|\d{3,}/);
     },
   );
 
   it('gives an identical reply for an existing-looking and an absurd ticket number', async () => {
     const a = await makeService().handleUpdate(msg('/ticket 1'));
     const b = await makeService().handleUpdate(msg('/ticket 987654321'));
-    expect(a).toBe(b);
+    expect(a).toEqual(b);
   });
 
   it('never emits requester identity fields', async () => {
     for (const input of ['/tickets', '/ticket 1', '/open 1', '/start', '/help']) {
-      const res = (await makeService().handleUpdate(msg(input))) as string;
-      expect(res).not.toContain('Заявитель');
-      expect(res).not.toContain('Телефон');
+      const res = await makeService().handleUpdate(msg(input));
+      expect(res?.text).not.toContain('Заявитель');
+      expect(res?.text).not.toContain('Телефон');
     }
   });
 });
 
 describe('MaxBotCommandService — unbound identity leaks nothing', () => {
   it('an unbound MAX user gets only linking and help', async () => {
-    const res = (await makeService().handleUpdate({
+    const res = await makeService().handleUpdate({
       message: { text: '/start', sender: { user_id: 4242 } },
-    })) as string;
-    expect(res).toContain('Привязать аккаунт');
-    expect(res).not.toContain('Мои заявки');
-    expect(res).not.toContain('Требуют приёмки');
+    });
+    expect(buttonsOf(res).map((button) => button.text)).toEqual([
+      'Открыть ServiceManager',
+      'Помощь',
+    ]);
+    expect(res?.text).not.toContain('Мои заявки');
+    expect(res?.text).not.toContain('Требуют приёмки');
+  });
+
+  it('a bound MAX user still enters through the identity resolver and receives no business data', async () => {
+    const identity = {
+      resolve: jest.fn().mockResolvedValue({
+        resolved: true,
+        userId: 'user-1',
+        companyId: 'company-1',
+        role: 'ADMIN',
+        maxUserId: '4242',
+      }),
+    };
+    const service = new MaxBotCommandService(makeForbiddenPrisma(), identity as any);
+    const update = botStarted();
+
+    const res = await service.handleUpdate(update);
+
+    expect(identity.resolve).toHaveBeenCalledWith(update);
+    expect(buttonsOf(res).map((button) => button.text)).toEqual([
+      'Открыть ServiceManager',
+      'Помощь',
+    ]);
+    expect(res?.text).not.toContain('Мои заявки');
+    expect(res?.text).not.toContain('Требуют приёмки');
+  });
+});
+
+describe('MaxBotCommandService — callbacks are navigation/help only', () => {
+  it('renders help for the help callback', async () => {
+    const res = await makeService().handleUpdate(callback('help'));
+    expect(res?.text).toContain('Помощь');
+    expect(JSON.stringify(res)).not.toMatch(/Принять|Отклонить|Взять|Назначить/);
+  });
+
+  it('renders the safe menu for unknown callbacks', async () => {
+    const res = await makeService().handleUpdate(callback('claim_ticket_123'));
+    expect(res?.text).toContain('Сервис Менеджер');
+    expect(JSON.stringify(res)).not.toContain('claim_ticket_123');
   });
 });
 
 describe('MaxBotCommandService — text extraction regressions', () => {
   it('reads message.body.text (MAX webhook shape)', async () => {
-    const res = (await makeService().handleUpdate({
+    const res = await makeService().handleUpdate({
       message: { body: { mid: 'm1', seq: 1, text: '/status' } },
-    })) as string;
-    expect(res).toContain('бот онлайн');
+    });
+    expect(res?.text).toContain('бот онлайн');
   });
 
   it('reads update.text', async () => {
-    const res = (await makeService().handleUpdate({ text: '/status' })) as string;
-    expect(res).toContain('бот онлайн');
+    const res = await makeService().handleUpdate({ text: '/status' });
+    expect(res?.text).toContain('бот онлайн');
   });
 
   it('is case-insensitive', async () => {
-    const res = (await makeService().handleUpdate(msg('/START'))) as string;
-    expect(res).toContain('Сервис Менеджер');
+    const res = await makeService().handleUpdate(msg('/START'));
+    expect(res?.text).toContain('Сервис Менеджер');
   });
 
   it('returns null when message.body is an object without text', async () => {

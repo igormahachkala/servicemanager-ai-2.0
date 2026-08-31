@@ -1,14 +1,19 @@
 import { CompanyType, UserRole } from '@prisma/client';
 
 import { PERMISSIONS, type PermissionCode } from '../common/permissions.constants';
+import {
+  type MaxBotCommandResponse,
+  type MaxBotInlineKeyboardAttachment,
+  type MaxBotInlineKeyboardButton,
+  type MaxBotMessageBody,
+} from './max-bot.types';
 
 /**
  * SMA-MAX-BOT-V2-FOUNDATION-037.
  *
  * One menu model, two renderings. The model says *what* the user may do; a renderer says
- * how it looks. Today only the text renderer exists because the bot sends `{ text }`;
- * when the button renderer lands (MAX supports `inline_keyboard`, see the capability
- * proof) it consumes this same model and no menu semantics move.
+ * how it looks. The MAX renderer emits the official `inline_keyboard` attachment shape
+ * and keeps launch payloads as navigation hints only.
  *
  * The builder is a pure function on purpose. It performs no database access and owns no
  * permission logic of its own — it receives already-resolved capabilities and only decides
@@ -58,7 +63,30 @@ export type MaxMenuCapabilities = {
 };
 
 const MENU_TITLE = 'Сервис Менеджер';
-const MENU_SUBTITLE = 'Управление заявками и сервисными работами.';
+const MENU_SUBTITLE = 'Управляйте заявками и сервисными работами прямо из MAX.';
+export const DEFAULT_MAX_BOT_USERNAME = 'id056001679003_bot';
+
+const MAX_BOT_USERNAME_RE = /^[A-Za-z0-9_]{1,64}$/;
+const MAX_STARTAPP_PAYLOAD_RE = /^[A-Za-z0-9_-]{1,512}$/;
+const MAX_MENU_CALLBACKS = new Set(['menu', 'help']);
+
+const TARGET_PAYLOAD: Record<string, string> = {
+  app: 'app',
+  list_my: 'my',
+  list_available: 'available',
+  list_acceptance: 'acceptance',
+  notifications: 'notifications',
+  shift: 'shift',
+};
+
+export type MaxTicketNotificationButtonKind = 'ticket' | 'comment' | 'acceptance' | 'assignment';
+
+const TICKET_NOTIFICATION_LABELS: Record<MaxTicketNotificationButtonKind, string> = {
+  ticket: 'Открыть заявку',
+  comment: 'Открыть комментарий',
+  acceptance: 'Открыть приёмку',
+  assignment: 'Открыть заявку',
+};
 
 /** Roles allowed to accept or reject completed work. Mirrors ticket-acceptance-access.ts. */
 const CLIENT_ACCEPTANCE_ROLES: readonly UserRole[] = [
@@ -81,10 +109,10 @@ function has(capabilities: MaxMenuCapabilities, code: PermissionCode): boolean {
 export function buildUnboundMenuModel(): MaxMenuModel {
   return {
     title: MENU_TITLE,
-    subtitle: 'Заявки, работы и уведомления — в одном месте.',
+    subtitle: MENU_SUBTITLE,
     unbound: true,
     items: [
-      { id: 'link_account', label: 'Привязать аккаунт', target: 'link' },
+      { id: 'open_app', label: 'Открыть ServiceManager', target: 'app' },
       { id: 'help', label: 'Помощь', target: 'help' },
     ],
   };
@@ -97,7 +125,7 @@ export function buildUnboundMenuModel(): MaxMenuModel {
  */
 export function buildMenuModel(capabilities: MaxMenuCapabilities): MaxMenuModel {
   const items: MaxMenuItem[] = [
-    { id: 'open_app', label: 'Открыть Сервис Менеджер', target: 'app' },
+    { id: 'open_app', label: 'Открыть ServiceManager', target: 'app' },
   ];
 
   if (has(capabilities, PERMISSIONS.TICKETS_VIEW)) {
@@ -108,6 +136,8 @@ export function buildMenuModel(capabilities: MaxMenuCapabilities): MaxMenuModel 
   if (has(capabilities, PERMISSIONS.TICKETS_VIEW_AVAILABLE)) {
     items.push({ id: 'available_tickets', label: 'Доступные заявки', target: 'list_available' });
   }
+
+  items.push({ id: 'notifications', label: 'Уведомления', target: 'notifications' });
 
   // Acceptance is client-management only. A provider company can never accept its own
   // work, so the entry is withheld from every provider role regardless of permissions.
@@ -120,10 +150,9 @@ export function buildMenuModel(capabilities: MaxMenuCapabilities): MaxMenuModel 
   }
 
   if (has(capabilities, PERMISSIONS.WORKFORCE_SHIFT_USE)) {
-    items.push({ id: 'shift', label: 'Смена', target: 'shift' });
+    items.push({ id: 'shift', label: 'Моя смена', target: 'shift' });
   }
 
-  items.push({ id: 'notifications', label: 'Уведомления', target: 'notifications' });
   items.push({ id: 'help', label: 'Помощь', target: 'help' });
 
   return { title: MENU_TITLE, subtitle: MENU_SUBTITLE, items, unbound: false };
@@ -134,15 +163,161 @@ export function buildMenuModel(capabilities: MaxMenuCapabilities): MaxMenuModel 
  * `sendRawMessage` posts `{ text }`. Replaced, not rewritten, once buttons ship.
  */
 export function renderMenuText(model: MaxMenuModel): string {
-  const lines = [model.title, model.subtitle, ''];
-  for (const item of model.items) {
-    lines.push(`• ${item.label}`);
-  }
-  lines.push('');
+  const lines = [model.title, '', model.subtitle];
   lines.push(
     model.unbound
-      ? 'Откройте приложение, чтобы связать MAX с вашей учётной записью.'
+      ? 'Откройте приложение и войдите в ServiceManager. Бот не показывает данные заявок без входа.'
       : 'Подробности заявок открываются в приложении.',
   );
   return lines.join('\n');
+}
+
+export function normalizeMaxBotUsername(value?: string | null) {
+  const candidate = (value || '').trim() || DEFAULT_MAX_BOT_USERNAME;
+  return MAX_BOT_USERNAME_RE.test(candidate) ? candidate : DEFAULT_MAX_BOT_USERNAME;
+}
+
+export function isValidMaxStartAppPayload(payload: string) {
+  return MAX_STARTAPP_PAYLOAD_RE.test(payload);
+}
+
+export function buildMaxStartAppDeepLink(botUsername: string, payload?: string | null) {
+  const username = normalizeMaxBotUsername(botUsername);
+  const normalizedPayload = (payload || '').trim();
+  if (!normalizedPayload) return `https://max.ru/${username}?startapp`;
+  if (!isValidMaxStartAppPayload(normalizedPayload)) return null;
+  return `https://max.ru/${username}?startapp=${normalizedPayload}`;
+}
+
+export function buildTicketStartAppPayload(ticketId: string) {
+  const normalizedTicketId = ticketId.trim();
+  if (!normalizedTicketId) return null;
+  const payload = `ticket_${normalizedTicketId}`;
+  return isValidMaxStartAppPayload(payload) ? payload : null;
+}
+
+export function renderInlineKeyboard(
+  rows: MaxBotInlineKeyboardButton[][],
+): MaxBotInlineKeyboardAttachment | null {
+  const buttons = rows
+    .map((row) => row.filter(Boolean))
+    .filter((row) => row.length > 0);
+
+  if (!buttons.length) return null;
+  return {
+    type: 'inline_keyboard',
+    payload: { buttons },
+  };
+}
+
+function openAppButton(text: string, botUsername: string, payload?: string | null): MaxBotInlineKeyboardButton {
+  const normalizedPayload = (payload || '').trim();
+  const safePayload = normalizedPayload && isValidMaxStartAppPayload(normalizedPayload)
+    ? normalizedPayload
+    : null;
+  return {
+    type: 'open_app',
+    text,
+    web_app: normalizeMaxBotUsername(botUsername),
+    ...(safePayload ? { payload: safePayload } : {}),
+  };
+}
+
+function callbackButton(text: string, payload: string): MaxBotInlineKeyboardButton {
+  return { type: 'callback', text, payload };
+}
+
+function menuItemToButton(item: MaxMenuItem, botUsername: string): MaxBotInlineKeyboardButton | null {
+  if (item.target === 'help') return callbackButton(item.label, 'help');
+  if (item.target === 'link') return null;
+
+  const payload = TARGET_PAYLOAD[item.target];
+  if (!payload) return null;
+  return openAppButton(item.label, botUsername, payload);
+}
+
+export function renderMenuKeyboard(model: MaxMenuModel, botUsername: string) {
+  return renderInlineKeyboard(
+    model.items
+      .map((item) => menuItemToButton(item, botUsername))
+      .filter((button): button is MaxBotInlineKeyboardButton => !!button)
+      .map((button) => [button]),
+  );
+}
+
+export function renderMenuMessage(model: MaxMenuModel, botUsername: string): MaxBotCommandResponse {
+  const keyboard = renderMenuKeyboard(model, botUsername);
+  return {
+    text: renderMenuText(model),
+    ...(keyboard ? { attachments: [keyboard] } : {}),
+  };
+}
+
+export function renderHelpMessage(botUsername: string): MaxBotCommandResponse {
+  const keyboard = renderInlineKeyboard([
+    [openAppButton('Открыть ServiceManager', botUsername, 'app')],
+    [callbackButton('Меню', 'menu')],
+  ]);
+  return {
+    text: [
+      'Помощь',
+      '',
+      'Нажмите кнопку, чтобы открыть ServiceManager. Заявки и уведомления доступны только после входа в приложение.',
+    ].join('\n'),
+    ...(keyboard ? { attachments: [keyboard] } : {}),
+  };
+}
+
+export function renderLegacyNavigationMessage(botUsername: string): MaxBotCommandResponse {
+  const keyboard = renderInlineKeyboard([
+    [openAppButton('Открыть ServiceManager', botUsername, 'app')],
+    [callbackButton('Меню', 'menu')],
+  ]);
+  return {
+    text: [
+      'Заявки теперь открываются в приложении.',
+      '',
+      'Откройте ServiceManager: там доступны только ваши заявки.',
+    ].join('\n'),
+    ...(keyboard ? { attachments: [keyboard] } : {}),
+  };
+}
+
+export function renderOpenAppMessage(text: string, botUsername: string): MaxBotMessageBody {
+  const keyboard = renderInlineKeyboard([[openAppButton('Открыть ServiceManager', botUsername, 'app')]]);
+  return {
+    text,
+    ...(keyboard ? { attachments: [keyboard] } : {}),
+  };
+}
+
+export function renderTicketNavigationMessage(params: {
+  text: string;
+  botUsername: string;
+  ticketId: string;
+  kind: MaxTicketNotificationButtonKind;
+}): MaxBotMessageBody {
+  const payload = buildTicketStartAppPayload(params.ticketId);
+  const keyboard = payload
+    ? renderInlineKeyboard([
+        [openAppButton(TICKET_NOTIFICATION_LABELS[params.kind], params.botUsername, payload)],
+      ])
+    : null;
+
+  return {
+    text: params.text,
+    ...(keyboard ? { attachments: [keyboard] } : {}),
+  };
+}
+
+export function isSafeMaxCallbackPayload(payload: string) {
+  return MAX_MENU_CALLBACKS.has(payload);
+}
+
+export function buildMinimalMaxBotCommands() {
+  return [
+    { name: 'start', description: 'Открыть меню' },
+    { name: 'menu', description: 'Показать меню' },
+    { name: 'help', description: 'Помощь' },
+  ];
 }
