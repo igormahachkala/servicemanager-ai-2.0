@@ -1,8 +1,11 @@
-<skill name="deploy-stage">
+---
+name: sma-deploy-stage
+description: "Развёртывание на контур Stage: проверки на результате слияния, PR в ветку beta, выкладка на сервер, приёмка и тег stage-ok. Обязательно применять, когда пользователь просит выкатить, задеплоить, развернуть, проверить изменение на Stage или beta, а также когда работа в ветке закончена и её надо довести до контура. Применять и тогда, когда контур не назван: любая доставка кода начинается со Stage, ускоренного маршрута в Production нет. Скилл работает с живым сервером по ssh. Требует настроенной машины, это sma-agent-setup. Следующий шаг после тега stage-ok, это sma-deploy-prod."
+---
 
 <purpose>
 Проверки, PR в beta, развёртывание на Stage, приёмка. Заканчивается тегом
-stage-ok, который допускает задачу к skills/deploy-prod.md.
+stage-ok, который допускает задачу к sma-deploy-prod.
 </purpose>
 
 <contour name="stage">
@@ -18,57 +21,12 @@ stage-ok, который допускает задачу к skills/deploy-prod.m
 <url_health>https://stage-api.sma-assistants.ru/health</url_health>
 </contour>
 
-<precedence>
-При расхождении с docs/04_DEVELOPMENT_WORKFLOW.md и docs/12_RELEASE_PROCESS.md
-верны skill: документы описывают порядок до введения ствола. Полная
-формулировка — блок precedence в skills/git-workflow.md.
-</precedence>
+<ref file="skills/_shared/precedence.md">Приоритет над документацией. Прочитать до начала работы.</ref>
 
-<execution_context>
-<rule>
-Команда выполняется на машине агента, если явно не начинается с ssh sma.
-Docker на машине агента отсутствует либо содержит посторонние контейнеры,
-поэтому любая команда docker и любая работа с каталогами сервера идут
-только через ssh sma.
-</rule>
-<on_agent_machine>
-git по своей рабочей копии; gh; npm и сборка при локальных проверках;
-curl по публичным адресам контура — он намеренно идёт снаружи и проверяет
-доступность через nginx, а не изнутри сети docker.
-</on_agent_machine>
-<on_server>
-Всё остальное: docker inspect, docker ps, docker logs, docker compose,
-git в каталогах развёртывания.
-</on_server>
-<check>Строка содержит docker без префикса ssh sma — это дефект, исправить.</check>
-</execution_context>
+<ref file="skills/_shared/execution-context.md">Где выполняется команда: машина агента или сервер. Прочитать до первой команды.</ref>
 
-<prerequisites fail="остановиться, сообщить пользователю, не начинать">
-<p name="доступ к серверу">
-<command>ssh -o BatchMode=yes sma 'whoami'</command>
-<expect>deploy</expect>
-</p>
-<p name="gh авторизован и имеет право на PR">
-<command>gh api repos/igormahachkala/servicemanager-ai-2.0/pulls --jq 'length'</command>
-<expect>Число.</expect>
-<rationale>
-Проверяется работоспособность, а не устройство токена. Вернулось число —
-вход есть и право на PR есть, независимо от того, каким токеном агент
-авторизован. Запрос читающий, ничего не создаёт.
-
-Требования к токену — skills/agent-setup.md, часть C. Здесь они не
-повторяются: при изменении правил выдачи правка нужна в одном месте.
-</rationale>
-<on_failure>Настройка и разбор отказов — skills/agent-setup.md, часть C, шаг 3.</on_failure>
-</p>
-<p name="правила по секретам прочитаны">
-<expect>skills/secrets.md прочитан до первой команды, затрагивающей сервер.</expect>
-</p>
-<p name="критерий приёмки">
-<expect>Сформулирован в git-workflow шаг 1.</expect>
-</p>
-<on_missing>Настройка машины — skills/agent-setup.md.</on_missing>
-</prerequisites>
+<ref file="skills/_shared/prerequisites.md">Условия допуска к работе. Прочитать и выполнить до шага 0. Пункты с contour="stage" относятся к этому скилу.</ref>
+<ref file="skills/_shared/secrets.md">Обращение с секретами и переменными окружения. Прочитать до первой команды, затрагивающей сервер: этого требует блок prerequisites.</ref>
 
 <step id="0" name="восстановить инвариант beta ⊇ prod">
 <command>
@@ -97,225 +55,27 @@ merge-base. Прошла — идти дальше, ничего не делая
 </on_push_rejected>
 <allowed_exception>
 Это одна из двух служебных операций, разрешённых напрямую в beta,
-см. branch_status в skills/git-workflow.md. Запрет на прямой push
+см. branch_status в sma-code-delivery. Запрет на прямой push
 относится к коду задач, здесь в beta добавляется только код,
 уже работающий в Production.
 </allowed_exception>
 <rationale>
-Инвариант ломается после каждого релиза: задача уходит в prod своим коммитом
-слияния, которого в beta нет. Без восстановления проверка на Stage пойдёт
-на базе, где последней выложенной задачи не хватает.
+После релиза в beta нет коммита слияния, ушедшего в prod. Без восстановления
+проверка пойдёт на базе без последней выложенной задачи.
 </rationale>
 </step>
 
 <step id="1" name="определить область изменения">
 <command>git diff --name-only origin/prod...&lt;ветка&gt;</command>
-<map path="backend/"                      area="backend"/>
-<map path="web/"                          area="frontend"/>
-<map path="docker-compose*.yml"           area="infra"/>
-<map path="test/docker-compose.test.yml"  area="infra"/>
-<map path="docs/nginx-*.conf"             area="nginx"/>
-<map path="agent-runner/"                 area="agent-runner"/>
-<map path="scripts/"                      area="scripts"/>
-<map path="skills/"                       area="skills"/>
-<map path="docs/"                         area="none"/>
-<map path="docs_pdf/"                     area="none"/>
-<map path=".cursor/"                      area="none"/>
-<map path="*.md"                          area="none"/>
-<map path=".gitignore | .cursorignore"    area="none"/>
-<map path="child | .npm-cache/"           area="none"/>
-<map_note>
-Старшинство: побеждает более точный путь. Правило docs/nginx-*.conf сильнее
-правила docs/. Правило *.md — запасное: оно срабатывает только для файлов,
-не попавших ни в один каталог из перечисленных выше. Файл skills/git-workflow.md
-относится к области skills, а не none; backend/README.md — к области backend.
-Каталог _claude/ в карте отсутствует намеренно — он в .gitignore
-и в выводе git diff не появится.
-Файлы child, .npm-cache/, docs_pdf/ действий не требуют, но перечислены:
-иначе сработает правило о неизвестном пути и поток остановится.
-В test/ сейчас лежит только compose-файл, поэтому правило указывает на него,
-а не на каталог: настоящие тесты, когда появятся, инфраструктурой не будут.
-</map_note>
-<flag path="backend/prisma/schema.prisma | backend/prisma/migrations/" set="has_migration"/>
-<flag path="backend/Dockerfile | web/Dockerfile | */docker-entrypoint.sh" set="needs_rebuild"/>
-<resolution>
-Совпало несколько — области объединяются, выполняются все наборы.
-none учитывается только если других совпадений нет.
-Неизвестный путь — остановиться и спросить пользователя, к какой области его отнести.
-</resolution>
-
-<area name="agent-runner">
-<what>
-Отдельный исполнитель задач на Node, каталог agent-runner/. В compose
-отсутствует, нашим потоком не разворачивается. Работы по нему заморожены
-на неопределённый срок.
-</what>
-<checks>
-npm --prefix agent-runner run typecheck
-npm --prefix agent-runner run build
-</checks>
-<why_checks>
-Заморозка не повод пропускать сломанную сборку: код в репозитории должен
-оставаться собираемым.
-</why_checks>
-<deploy>
-На Stage развёртывание не выполняется: программы там нет, в compose она
-не описана. Слияние в beta идёт обычным порядком после проверок.
-Вопрос о доставке возникает в deploy-prod, здесь останавливаться не нужно.
-</deploy>
-<open>Порядок доставки agent-runner — открытый вопрос, бэклог.</open>
-</area>
-
-<area name="scripts">
-<what>Утилиты для работы: выгрузка контекста, сборка PDF документации.</what>
-<checks>bash -n &lt;каждый изменённый файл&gt;</checks>
-<why_checks>Разбор синтаксиса без выполнения. Запускать сами скрипты не требуется.</why_checks>
-<deploy>Не требуется: на сервере не используются.</deploy>
-</area>
-
-<area name="skills">
-<what>Правила работы агентов, каталог skills/.</what>
-<checks>Автоматических нет.</checks>
-<deploy>Не требуется.</deploy>
-<pr_body>
-В теле PR перечислить, что именно в правилах изменено и почему.
-Изменение skills меняет порядок работы всех агентов, включая того, кто
-эту правку везёт. Без перечня следующий агент не поймёт, что поменялось,
-и продолжит по прежним правилам.
-</pr_body>
-</area>
-
-<area name="nginx">
-<what>
-docs/nginx-*.conf — копии конфигурации nginx. Работающая конфигурация лежит
-в системном каталоге сервера, nginx работает вне compose. Развёртывание
-контейнеров её не затрагивает, пересборка не применяет.
-</what>
-<stop>
-Изменение конфигурации nginx автоматически не применяется. Развёртывание
-по остальным задетым областям идёт обычным порядком. Для nginx агент
-определяет расположение, сравнивает с репозиторием и выдаёт пользователю
-готовые команды применения.
-</stop>
-<when_applied>
-Порядок относительно развёртывания кода: сначала код, потом конфигурация
-nginx, приёмка объявляется после обоих.
-<why>
-Задача часто меняет и то и другое: новый маршрут API и правило проксирования
-для него. Выкатить сначала конфигурацию — nginx станет проксировать
-на обработчик, которого ещё нет. Выкатить только код — маршрут не будет
-доступен снаружи.
-</why>
-<sequence>
-1. Развёртывание по остальным задетым областям, шаг 8.
-2. Сверка после развёртывания, шаг 10.
-3. Команды nginx из блока propose — выполняет пользователь.
-4. Повторить проверку доступности контура: она должна идти уже
-   с новой конфигурацией.
-5. Приёмка критерия.
-</sequence>
-<constraint>
-Приёмку не объявлять, пока команды nginx не выполнены: проверяемое
-поведение до этого недостижимо.
-</constraint>
-</when_applied>
-<locate>
-Определить, где лежит работающая конфигурация, до составления команд:
-ssh sma 'ls -l /etc/nginx/sites-enabled/ /etc/nginx/conf.d/ 2&gt;/dev/null'
-ssh sma 'ls -l /etc/nginx/sites-available/ 2&gt;/dev/null'
-<on_failure>
-Каталоги не читаются пользователем deploy — запросить у пользователя путь
-к рабочему файлу и продолжить с ним.
-</on_failure>
-</locate>
-
-<diff>
-Показать, чем файл в репозитории отличается от работающего:
-ssh sma 'cat &lt;путь к рабочему файлу&gt;' &gt; /tmp/nginx-live.conf
-diff /tmp/nginx-live.conf docs/&lt;имя файла&gt;.conf
-<why>
-Файл в репозитории — копия, её соответствие рабочей конфигурации
-не установлено. Без сравнения непонятно, что именно применяется:
-только ваше изменение или ещё расхождение, накопленное раньше.
-</why>
-</diff>
-
-<stage_note>
-В docs/ лежат конфигурации доменов Production: api.servicemanagerai.ru
-и max.servicemanagerai.ru. Конфигурации доменов Stage там нет, работающая
-на сервере в репозитории не отражена. Область nginx на Stage срабатывает
-редко и требует уточнения у пользователя, к какому контуру относится файл.
-</stage_note>
-
-<propose>
-Выдать пользователю готовые команды. Все требуют root, выполняет пользователь.
-
-# 1. сохранить прежнюю конфигурацию
-sudo cp &lt;путь к рабочему файлу&gt; &lt;путь&gt;.bak-$(date +%Y%m%d-%H%M%S)
-
-# 2. положить новую
-sudo cp /opt/sma-beta/docs/&lt;имя файла&gt;.conf &lt;путь к рабочему файлу&gt;
-
-# 3. проверить синтаксис до применения
-sudo nginx -t
-
-# 4. применить, только если шаг 3 прошёл
-sudo systemctl reload nginx
-
-# 5. убедиться, что контур отвечает
-curl -o /dev/null -w "%{http_code}" &lt;url контура&gt;
-
-<critical>
-Шаг 3 обязателен. reload с ошибочной конфигурацией оставит nginx на прежней,
-но при следующем перезапуске он не поднимется. Пропуск проверки превращает
-опечатку в отказ, отложенный во времени.
-</critical>
-<rollback>
-sudo cp &lt;путь&gt;.bak-&lt;отметка&gt; &lt;путь к рабочему файлу&gt; &amp;&amp; sudo nginx -t &amp;&amp; sudo systemctl reload nginx
-</rollback>
-<note>
-reload не рвёт текущие соединения, в отличие от restart. Применять reload.
-</note>
-</propose>
-
-<report>
-Сообщить пользователю: какой файл изменён, где лежит работающий, что показало
-сравнение, и что до выполнения команд изменение не действует.
-</report>
-
-
-<ask_user>Выполнение команд под root. Составляет их агент, выполняет пользователь.</ask_user>
-<verification_limits>
-<can>
-Прочитать конкретный файл из sites-enabled или conf.d и сравнить
-с репозиторием — блок diff. Каталоги nginx обычно доступны на чтение всем,
-cat под deploy проходит.
-</can>
-<cannot>
-Получить полную действующую конфигурацию: nginx -T разворачивает все
-включения и требует root. Агент сверяет один файл, а не всё, что nginx
-применяет фактически.
-</cannot>
-<on_diff_unexpected>
-Сравнение показало отличия сверх вашего изменения — на сервере есть правки,
-не отражённые в репозитории. Остановиться, показать diff пользователю.
-Перезапись затрёт их без следа.
-</on_diff_unexpected>
-</verification_limits>
-
-<forbidden>
-<f>Править конфигурацию nginx на сервере от имени deploy: файлы принадлежат root.</f>
-<f>Считать изменение применённым после развёртывания контейнеров.</f>
-</forbidden>
-</area>
-
+<ref file="skills/_shared/area-map.md">Карта путей и наборов проверок по областям. Прочитать целиком: без неё область не определяется. Блоки с contour="stage" относятся к этому скилу, с contour="production" пропускаются.</ref>
+<carry>Определённые области переносятся в шаги 5 и 8.</carry>
 </step>
 
 <step id="2" name="опубликовать ветку">
 <command>git push -u origin &lt;ветка&gt;</command>
 <expect>push принят, ветка есть в origin.</expect>
 <on_failure>
-Отказ по правам — проверить токен, skills/agent-setup.md часть C.
+Отказ по правам — проверить токен, sma-agent-setup часть C.
 Отказ non-fast-forward — ветка в origin ушла вперёд: над той же задачей
 работает другой агент. Остановиться, сообщить пользователю, не перезаписывать.
 </on_failure>
@@ -362,18 +122,11 @@ git switch --detach FETCH_HEAD
 не принадлежит ни одной ветке и пропадёт при следующем переключении.
 Все правки — только после возврата в ветку задачи.
 </constraint>
-<rationale>
-refs/pull/N/merge — пробное слияние, которое GitHub считает для открытого PR.
-Это состояние beta после слияния. Ветка задачи не переписывается,
-force-push не требуется, база всегда актуальна.
-</rationale>
 <mergeability>
 <why>
-GitHub считает пробное слияние фоновой задачей после создания PR. Между
-gh pr create и появлением ссылки проходит от долей секунды до нескольких
-секунд. Отсутствие ссылки в этом окне означает "ещё не посчитано",
-а не конфликт. Состояние спрашивается у GitHub, а не выводится
-из неудачи git fetch.
+Пробное слияние считается фоново, ссылка появляется через секунды после
+gh pr create. Отсутствие ссылки в этом окне — не конфликт.
+Состояние спрашивать у GitHub, не выводить из неудачи git fetch.
 </why>
 <command>gh pr view &lt;номер&gt; --json mergeable,mergeStateStatus</command>
 <case value="UNKNOWN">
@@ -385,14 +138,14 @@ GitHub не отдаёт состояние PR.
 <case value="MERGEABLE">Ссылка готова, тянуть её и продолжать.</case>
 <case value="CONFLICTING">Конфликт настоящий, перейти к блоку conflict_files.</case>
 <note>
-Досланный в ветку коммит запускает пересчёт: ссылка на время указывает
-на прежнее состояние либо пропадает. Правило то же — переспросить состояние.
+Досланный коммит запускает пересчёт: ссылка временно указывает на прежнее
+состояние либо пропадает. Переспросить состояние.
 </note>
 </mergeability>
 <conflict_files>
 <why>
-Список конфликтующих файлов взять неоткуда: ссылки нет, локально ничего
-не сливалось. Конфликт воспроизводится в своей копии.
+Списка конфликтующих файлов нет: ссылка не создана, локально не сливалось.
+Воспроизвести конфликт в своей копии.
 </why>
 <command>
 git switch &lt;ветка&gt;
@@ -410,146 +163,7 @@ git merge --abort обязателен и выполняется в любом �
 </step>
 
 <step id="5" name="проверки на результате слияния">
-
-<prepare_local>
-<when>Перед первым запуском набора backend, frontend или agent-runner.</when>
-<check by_area="true">
-область backend    → test -d backend/node_modules
-область frontend   → test -d web/node_modules
-область agent-runner → test -d agent-runner/node_modules
-</check>
-<on_missing by_area="true">
-область backend    → npm ci --prefix backend
-область frontend   → npm ci --prefix web
-область agent-runner → npm ci --prefix agent-runner
-</on_missing>
-<constraint>
-Ставить зависимости только тех каталогов, чьи области задеты. Лишний npm ci
-занимает минуты и ничего не проверяет.
-</constraint>
-<why>
-Зависимости ставятся из package-lock.json, секретов не требуют, это работа
-агента. Без них nest build, jest и typecheck упадут не по вине проверяемого
-кода, и агент решит, что сломана задача.
-</why>
-<env_file>
-Набор backend требует файла backend/.env с переменной DATABASE_URL:
-npm run prisma:generate — это dotenv -e .env -- npx prisma generate.
-Агент этот файл не создаёт и значения не подбирает.
-
-Без файла набор backend локально не проходит целиком:
-  prisma:generate      — падает на dotenv, файла нет;
-  build                — от файла не зависит;
-  test                 — пойдёт на несгенерированном клиенте Prisma,
-                         результат недостоверен.
-
-Нет файла — остановиться и сообщить разработчику. Единственный полный
-выход: разработчик даёт значение DATABASE_URL для локальной проверки.
-
-Частичная замена, только с согласия разработчика: проверить схему
-внутри контейнера на контуре.
-ssh sma 'docker compose -p sma-service -f /opt/sma-beta/docker-compose.stage.yml -f /etc/servicemanager-ai/docker-compose.stage.override.yml exec -T stage_backend npx prisma validate'
-Это закрывает одну команду из четырёх. Сборка и тесты так не проверяются,
-и контур на время занят. Не считать эту замену равноценной.
-</env_file>
-<forbidden>
-<f>Создавать backend/.env самостоятельно.</f>
-<f>Подставлять DATABASE_URL наугад, в том числе адрес контура.</f>
-</forbidden>
-</prepare_local>
-
-<local if="задета хотя бы одна область из: backend, frontend, agent-runner, scripts">
-<case area="backend">
-npm --prefix backend run prisma:generate
-npm --prefix backend run build
-npm --prefix backend test
-</case>
-<case area="frontend">
-npm --prefix web run build
-</case>
-<case area="agent-runner">
-npm --prefix agent-runner run typecheck
-npm --prefix agent-runner run build
-</case>
-<case area="scripts">
-bash -n &lt;каждый изменённый файл из scripts/&gt;
-</case>
-<how>
-Выполняются наборы всех задетых областей. Наборы независимы, порядок
-не важен. Все идут на машине агента.
-Значения области fullstack не существует: карта шага 1 его не порождает,
-задеты backend и frontend — это две области, выполняются оба набора.
-</how>
-<why_no_validate>
-Отдельного prisma validate в наборе нет намеренно.
-
-Схему разбирает и проверяет сам prisma generate: тем же кодом, с теми же
-ошибками. Отдельный вызов ничего не добавляет.
-
-Вызвать его правильно к тому же непросто. Через npm --prefix backend exec —
-не работает: проверено запуском, npm --prefix X run ставит рабочим каталогом X,
-а npm --prefix X exec оставляет текущий, и схема не найдётся. Напрямую
-из backend/node_modules/.bin с флагом --schema — команда запускается из корня
-репозитория и не видит backend/.env, а схема требует DATABASE_URL: ожидается
-отказ P1012.
-
-prisma:generate этих затруднений не имеет: он идёт через npm --prefix backend run,
-рабочий каталог — backend, файл backend/.env на месте.
-</why_no_validate>
-<why_prefix>
---prefix вместо cd: наборы backend и web выполняются подряд, и второй cd
-считался бы от каталога, куда увёл первый. Все команды идут от корня
-репозитория и не зависят от порядка.
-</why_prefix>
-</local>
-
-<remote if="область содержит infra">
-<setup>
-ssh sma 'cd /opt/sma-beta &amp;&amp; git fetch origin refs/pull/&lt;номер&gt;/merge'
-ssh sma 'cd /opt/sma-beta &amp;&amp; git worktree add /tmp/verify-&lt;номер&gt; FETCH_HEAD'
-</setup>
-<check>
-ssh sma 'docker compose -p sma-service -f /tmp/verify-&lt;номер&gt;/docker-compose.stage.yml -f /etc/servicemanager-ai/docker-compose.stage.override.yml config -q'
-</check>
-<cleanup mandatory="true">
-ssh sma 'cd /opt/sma-beta &amp;&amp; git worktree remove --force /tmp/verify-&lt;номер&gt;'
-</cleanup>
-<why_mandatory>
-Удаление выполняется в любом исходе, включая отказ проверки. Иначе
-/tmp/verify-N остаётся вместе с записью в .git/worktrees, и повторный
-прогон с тем же номером PR откажет: путь занят. Правило то же,
-что у git merge --abort в блоке conflict_files.
-Результат проверки разбирается после удаления, а не вместо него.
-</why_mandatory>
-<note>
-Проверять на сервере обязательно: оверрайды лежат в /etc/servicemanager-ai/
-и в репозитории отсутствуют. Флаг -q оставляет только ошибки.
-Полный вывод config содержит значения переменных — не выводить.
-</note>
-<cleanup_exception>
-Временный worktree удаляет тот же шаг, который его создал. Единственное
-исключение из запрета на удаление.
-</cleanup_exception>
-</remote>
-
-<skip if="ни одна из задетых областей не имеет проверок: none, skills">Автоматических проверок нет.</skip>
-<expect>Все команды завершились кодом 0.</expect>
-<always_after_checks>
-git switch &lt;ветка задачи&gt;
-</always_after_checks>
-<why>
-Возврат в ветку задачи выполняется в обоих исходах, до разбора результата.
-Отсоединённое состояние нужно было только для прогона проверок. Оставшись
-в нём, агент потеряет любой коммит, который сделает дальше.
-Ветка называется явно, не git switch -: разбор конфликта уже переключал
-рабочую копию, и "предыдущая позиция" увела бы обратно в отсоединённое
-состояние.
-</why>
-<on_failure>Не сливать. Исправить в ветке задачи, повторить с шага 4.</on_failure>
-<excluded tool="npm run lint">
-Во фронтенде 301 ошибка, в бэкенде ~11900. Бэкендовый lint содержит --fix
-и изменяет исходники, поэтому не является read-only проверкой.
-</excluded>
+<ref file="skills/_shared/merge-checks.md">Наборы проверок, локальных и на сервере. Прочитать целиком перед выполнением. Команды приведены готовыми строками для каждого контура: брать блок contour="stage".</ref>
 </step>
 
 <step id="6" name="проверить каталог и конфигурацию контура">
@@ -573,7 +187,7 @@ sma-service, а не по каталогу. Команда up -d из одног
 <why_before_merge>
 Окружение проверяется до слияния PR. Слияние необратимо, а отказ этой
 проверки означает, что разворачивать некуда: контур поднят из другого
-каталога или другим набором файлов. Тот же порядок в skills/deploy-prod.md.
+каталога или другим набором файлов. Тот же порядок в sma-deploy-prod.
 </why_before_merge>
 <command>
 ssh sma 'docker inspect sma_stage_web --format "{{index .Config.Labels \"com.docker.compose.project.working_dir\"}}"'
@@ -597,12 +211,6 @@ config_files совпадает со списком compose_file в &lt;contour&
 
 <step id="8" name="развернуть">
 <skip_deploy if="ни одна из задетых областей не требует развёртывания контейнеров: none, scripts, skills, nginx" first="true">
-<why>
-Контекст сборки образов — каталоги ./backend и ./web. Файлы областей
-none, scripts и skills лежат вне них и в образы не попадают.
-Область nginx работает вне compose, контейнеров не касается.
-Пересобирать и перезапускать нечего ни в одном из четырёх случаев.
-</why>
 <not_here>
 Область agent-runner сюда не входит: порядок её доставки не определён.
 При ней остановиться и спросить пользователя, см. блок area agent-runner.
@@ -697,10 +305,6 @@ ssh sma 'docker compose -p sma-service -f /opt/sma-beta/docker-compose.stage.yml
 <always>
 ssh sma 'docker compose -p sma-service -f /opt/sma-beta/docker-compose.stage.yml -f /etc/servicemanager-ai/docker-compose.stage.override.yml up -d --no-deps stage_backend stage_web'
 </always>
-<note>
-Пересоздавать контейнер или нет — решает compose, сравнивая конфигурацию
-и образ с текущими. Агент решает только вопрос пересборки.
-</note>
 <constraint>--no-deps обязателен: stage_postgres не пересоздавать.</constraint>
 </step>
 
@@ -772,10 +376,6 @@ ssh sma 'docker logs sma_stage_backend 2&gt;&amp;1 | grep -icE "error|exception"
 Считается весь лог нового контейнера. Ожидание — ноль либо известные
 штатные строки. Любая ошибка при старте разбирается сразу.
 </case>
-<why>
-Прежние редакции сравнивали числа из разных окон: 10 минут до и 3 минуты
-после. Несопоставимо, а при пересборке сравнение вообще теряет смысл.
-</why>
 </must>
 <conditional name="перезапуск контейнеров">
 ssh sma 'docker inspect sma_stage_backend sma_stage_web --format "{{.Name}} {{.State.StartedAt}}"'
@@ -828,17 +428,13 @@ date: &lt;дата&gt;"
 git push origin stage-ok/&lt;ветка&gt;
 </command>
 <rationale>
-В потоке три разных коммита: вершина ветки B, слияние с beta M, слияние
-с prod. Приёмка проводится на M, но M существует только в истории beta
-и в prod не попадает никогда. В prod уходит своё слияние, общий объект
-у всех трёх состояний — только B.
+Три коммита: вершина ветки B, слияние с beta M, слияние с prod. Приёмка
+идёт на M, но M в prod не попадает никогда. Общий объект всех трёх
+состояний — только B, поэтому тег на B, а M пишется в тело тега.
 
-Поэтому тег ставится на B, а M записывается в тело тега как обстоятельство
-приёмки: по нему потом видно, на какой базе проверяли.
-
-Тег на B работает в обе стороны: появится новый коммит в ветке — тег
-останется на старом, deploy-prod это обнаружит. Уедет в prod — B станет
-предком prod, и тег перестанет блокировать сброс beta.
+Тег на B работает в обе стороны: новый коммит в ветке — тег остался
+на старом, sma-deploy-prod обнаружит. Ветка ушла в prod — B стал предком
+prod, тег не блокирует сброс beta.
 </rationale>
 <on_failure>
 Тег stage-ok/&lt;ветка&gt; уже существует — это повторная приёмка после исправлений.
@@ -848,16 +444,23 @@ git push origin stage-ok/&lt;ветка&gt;
 </step>
 
 <step id="13" name="завершение">
-<action>Задача допущена к Production. Перейти к skills/deploy-prod.md.</action>
+<action>Задача допущена к Production. Перейти к sma-deploy-prod.</action>
+<if_skill_missing>
+Скилл недоступен — файла нет либо он не читается. Остановиться и сообщить
+пользователю. Разворачивать в Production без скила запрещено: ни по памяти,
+ни по документации, ни по старым файлам в skills/ вне каталогов скилов.
+Причина запрета в том, что ворота допуска, бэкап перед миграциями и порядок
+отката заданы только скилом. Без него они не выполняются, а отказ проявится
+на работающем Production.
+</if_skill_missing>
 </step>
 
 <beta_reset>
 <when>После развёртывания prod в Production.</when>
 <why>
-beta накапливает всё, что в неё слили: и доехавшее до Production, и отброшенное.
-Проверка на Stage теряет смысл, когда идёт на базе, которой в Production нет.
-Сброс возвращает beta к состоянию Production. Незавершённые задачи не теряются,
-они лежат в своих ветках.
+beta накапливает и доехавшее до Production, и отброшенное. Проверка на базе,
+которой в Production нет, смысла не имеет. Незавершённые задачи лежат
+в своих ветках и не теряются.
 </why>
 <precondition fail="ask_user">
 Нет тегов stage-ok, чей коммит не влит в prod:
@@ -876,17 +479,14 @@ done
 
 В переборе остаются только теги задач с пройденной приёмкой, не доехавших
 до Production. Прошедшие сняты при закрытии задачи, блок tag_release
-в skills/deploy-prod.md шаг 12. Теги откаченных задач переименованы
+в sma-deploy-prod шаг 12. Теги откаченных задач переименованы
 в reverted/&lt;ветка&gt; блоком tag_void там же.
 </precondition>
 <rationale>
-Тег стоит на вершине ветки задачи. Пока задача не слита в prod, её вершина
-предком prod не является, тег попадает в список БЛОКИРУЕТ и сброс запрещён.
-После слияния вершина становится предком prod, и тег блокировать перестаёт.
-
-Защита нужна потому, что сброс убирает из beta код чужой задачи, уже прошедшей
-приёмку. Её тег остался бы удостоверять проверку на состоянии, которого больше
-нет на контуре.
+До слияния в prod вершина ветки предком prod не является: тег попадает
+в список БЛОКИРУЕТ, сброс запрещён. После слияния блокировать перестаёт.
+Иначе сброс убрал бы из beta чужую принятую задачу, а её тег удостоверял бы
+проверку на состоянии, которого на контуре нет.
 </rationale>
 <precondition>Текущая ветка — не beta.</precondition>
 <on_precondition_failure>
@@ -901,7 +501,7 @@ git push --force-with-lease origin beta
 </command>
 <allowed_exception>
 Вторая из двух служебных операций, разрешённых напрямую в beta,
-см. branch_status в skills/git-workflow.md. Через PR force push не делается.
+см. branch_status в sma-code-delivery. Через PR force push не делается.
 </allowed_exception>
 </beta_reset>
 
@@ -914,7 +514,7 @@ git push --force-with-lease origin beta
 
 <env_and_secrets>
 Правила обращения с переменными окружения и секретами вынесены
-в skills/secrets.md. Файл общий для обоих контуров, читается до первой
+в skills/_shared/secrets.md. Файл общий для обоих контуров, читается до первой
 команды, затрагивающей сервер. Здесь не дублируются, чтобы не разошлись.
 </env_and_secrets>
 
@@ -938,10 +538,8 @@ git push --force-with-lease origin beta
 </ask_user>
 
 <related>
-<r file="skills/agent-setup.md">подготовка машины: ssh и gh</r>
-<r file="skills/secrets.md">переменные окружения и секреты, обязательно</r>
-<r file="skills/git-workflow.md">ветвление и работа над задачей</r>
-<r file="skills/deploy-prod.md">развёртывание в Production</r>
+<r skill="sma-agent-setup" file="skills/sma-agent-setup/SKILL.md">подготовка машины: ssh и gh</r>
+<r file="skills/_shared/secrets.md">переменные окружения и секреты, обязательно</r>
+<r skill="sma-code-delivery" file="skills/sma-code-delivery/SKILL.md">ветвление и работа над задачей</r>
+<r skill="sma-deploy-prod" file="skills/sma-deploy-prod/SKILL.md">развёртывание в Production</r>
 </related>
-
-</skill>
