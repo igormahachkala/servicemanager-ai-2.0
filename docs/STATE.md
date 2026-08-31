@@ -109,12 +109,32 @@ Result Envelope развязан от Cursor: нейтральный надти�
 Cursor-фабрик; отдельный `transportKind` отвергнут, чтобы не заводить второй ключ об одном и том же.
 Локальность выводится из пары `DISPATCHED` + заполненный `finishedAt`, отдельного поля не нужно.
 
-**Следующий шаг:** `ollama` в `TOOL_DISPATCHER_TOOL_IDS`, ветка в `switch` диспетчера, маршрут
-`LOCAL_OLLAMA_ANALYSIS` в политике — тогда появится первый вызывающий для
-`createAnalysisResultEnvelope`. Затем адаптер поверх `ollamaProvider` с валидацией секций ответа
-(сегодня они запрашиваются промптом, но не разбираются). Дальше: перенос переиспользуемого из
-`agent-runner` (`runAnalysis`, system-шаблоны, детектор режима, редактор секретов — слой контекста
-на `fs` требует моста); персистентность `executionRoute` колонкой на `ToolExecutionRun`.
+**Блок 1 сделан** (`bd6a018`): `ollama` в `TOOL_DISPATCHER_TOOL_IDS` + запись в реестре диспетчера +
+ветка эндпоинта. Одного id не хватило: без записи в реестре `validateDispatchInput` роняет запрос как
+`Unknown tool` ещё до `switch`, а `getToolDispatcherEndpointConfig` кидает на импорте модуля.
+`registryToolId` стал нулевым — у Ollama нет записи в Mission Control реестре.
+
+**Блок 2 сделан** (`49bb7fc`): `domain/ollamaAnalysis` — промпт → `/api/generate` → конверт.
+Живёт рядом с `ToolExecutionRun`, а не внутри диспетчера: вызов асинхронный, а обе точки входа
+диспатча синхронные — тот же раздел, что у Cursor (диспетчер планирует, `cursorAutomationRunner`
+исполняет). Ветка диспетчера отдаёт `accepted` + `executionPending`. Порт из `agent-runner`, не через
+`ollamaProvider`: у провайдера `window.setTimeout` и девятиполый `RuntimeExecutionRequest` — не
+тестируется в node и не заполняется честно из задачи диспетчера. Модель — `payload.model` с дефолтом
+`qwen3-coder:30b`. Неуспех конверта не порождает никогда: пять типизированных кодов и никакого
+результата.
+
+**Следующий шаг — разрыв перед первым сквозным прогоном.** Раннер готов, но вызывающего в проде нет:
+единственная точка входа, создающая `ToolExecutionRun`, — `requestBuilderCursorToolExecution`
+(`toolExecutionRunBridge.ts:123`), и в ней `toolId: 'cursor'` захардкожен. Ниже по стеку
+`createToolExecutionFromDispatcherRequest` уже нейтрален (берёт `input.request.toolId`), так что
+чинится это входом в мост, а не переписыванием run'а. Пока разрыв не закрыт, `runOllamaAnalysis`
+вызывается только из тестов, и сквозного пути «задача → анализ → конверт» не существует.
+
+Дальше: блок 3 — валидатор секций (`Problem:/Risk:/Recommendation:/Effort:` запрашиваются
+`ollamaAnalysisPrompt.ts`, но не разбираются; в конверте стоит `metadata.sectionsValidated: false`).
+Затем: развязка `createTransportFailureEnvelope` от Cursor-маршрутов, чтобы провал анализа тоже
+выражался конвертом; перенос слоя контекста из `agent-runner` (нужен мост к `fs`); персистентность
+`executionRoute` колонкой на `ToolExecutionRun`.
 
 ## 7. Известные ловушки
 
