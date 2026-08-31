@@ -12,6 +12,21 @@ function readEnv(key: string): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim() : undefined
 }
 
+/**
+ * Headless fallback. Outside Vite there is no import.meta.env and no origin, so
+ * a cron job, a script or a night shift cannot name the endpoint at all.
+ *
+ * Read through globalThis rather than the bare `process` identifier: the app
+ * compiles with types ["vite/client"] and no node types, and a browser bundle
+ * has no process binding — a property lookup is safe in both worlds.
+ */
+function readProcessEnv(key: string): string | undefined {
+  const env = (globalThis as { process?: { env?: Record<string, string | undefined> } }).process
+    ?.env
+  const value = env?.[key]
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
 const RAW_IP_PATTERNS = [
   /^https?:\/\/192\.\d+\.\d+\.\d+/i,
   /^https?:\/\/83\.\d+\.\d+\.\d+/i,
@@ -68,18 +83,27 @@ export function getToolDispatcherEndpointConfig(
   }
 
   if (toolId === 'ollama') {
-    // Same-origin dev relay (`/runtime/ollama` -> 127.0.0.1:11434, see vite.config.ts).
-    // The raw-IP guard applies to the configured value only: on a LAN phone the
+    // Two shapes, and the path prefix follows the base:
+    //   same-origin (browser) -> `/runtime/ollama/*`, a prefix Vite strips before
+    //                            forwarding to 127.0.0.1:11434 (vite.config.ts)
+    //   explicit absolute base -> talk to Ollama directly, so no relay prefix;
+    //                            keeping it would ask Ollama for /runtime/... → 404
+    // The raw-IP guard applies to a configured value only: on a LAN phone the
     // origin legitimately *is* an IP (108C), and that must not throw.
-    const explicit = readEnv('VITE_TOOL_DISPATCHER_OLLAMA_BASE_URL')
+    const viteBase = readEnv('VITE_TOOL_DISPATCHER_OLLAMA_BASE_URL')
+    const headlessBase = viteBase ? undefined : readProcessEnv('OLLAMA_BASE_URL')
+    const explicit = viteBase ?? headlessBase
     if (explicit) assertToolEndpointHasNoRawIp(explicit)
 
+    const relayPrefix = explicit ? '' : '/runtime/ollama'
+
     return {
-      configKey: 'VITE_TOOL_DISPATCHER_OLLAMA_BASE_URL',
+      configKey: headlessBase ? 'OLLAMA_BASE_URL' : 'VITE_TOOL_DISPATCHER_OLLAMA_BASE_URL',
       baseUrl: explicit ?? resolveRelativeBaseUrl(),
       submitPath:
-        readEnv('VITE_TOOL_DISPATCHER_OLLAMA_SUBMIT_PATH') ?? '/runtime/ollama/api/generate',
-      statusPath: readEnv('VITE_TOOL_DISPATCHER_OLLAMA_STATUS_PATH') ?? '/runtime/ollama/api/tags',
+        readEnv('VITE_TOOL_DISPATCHER_OLLAMA_SUBMIT_PATH') ?? `${relayPrefix}/api/generate`,
+      statusPath:
+        readEnv('VITE_TOOL_DISPATCHER_OLLAMA_STATUS_PATH') ?? `${relayPrefix}/api/tags`,
     }
   }
 

@@ -14,6 +14,10 @@ import {
   dispatchToolRequestPlannedOnly,
 } from '../toolDispatcher/toolDispatcherDispatch.ts'
 import {
+  buildToolDispatcherEndpointUrl,
+  getToolDispatcherEndpointConfig,
+} from '../toolDispatcher/toolDispatcherConfig.ts'
+import {
   getToolCapability,
   getToolDispatcherEntry,
   listToolDispatcherEntries,
@@ -57,8 +61,9 @@ describe('toolDispatcher accepts ollama', () => {
   it('ollama capability resolves an endpoint instead of throwing on an unknown id', () => {
     const capability = getToolCapability('ollama')
     assert.ok(capability)
-    assert.equal(capability.endpoint.configKey, 'VITE_TOOL_DISPATCHER_OLLAMA_BASE_URL')
-    assert.match(capability.endpoint.submitPath, /^\/runtime\/ollama\//)
+    // The registry builds this at module import, so the ambient env decides
+    // whether the path is relay-prefixed — assert only what holds either way.
+    assert.match(capability.endpoint.submitPath, /\/api\/generate$/)
   })
 
   it('dispatchToolRequest routes ollama to its own branch, not to default', () => {
@@ -119,3 +124,62 @@ describe('toolDispatcher accepts ollama', () => {
     assert.equal(result.ok, true)
   })
 })
+
+describe('ollama endpoint resolution', () => {
+  const KEY = 'OLLAMA_BASE_URL'
+  const original = process.env[KEY]
+
+  const restore = (): void => {
+    if (original === undefined) delete process.env[KEY]
+    else process.env[KEY] = original
+  }
+
+  it('headless: an absolute base from process.env yields a direct URL', () => {
+    process.env[KEY] = 'http://localhost:11434'
+    try {
+      const endpoint = getToolDispatcherEndpointConfig('ollama')
+
+      assert.equal(endpoint.baseUrl, 'http://localhost:11434')
+      assert.equal(endpoint.configKey, KEY)
+      // No relay prefix: nothing strips it outside the dev server, and Ollama
+      // would answer 404 for /runtime/ollama/api/generate.
+      assert.equal(
+        buildToolDispatcherEndpointUrl(endpoint, 'submit'),
+        'http://localhost:11434/api/generate',
+      )
+      assert.equal(
+        buildToolDispatcherEndpointUrl(endpoint, 'status'),
+        'http://localhost:11434/api/tags',
+      )
+    } finally {
+      restore()
+    }
+  })
+
+  it('no env: keeps the same-origin relay path for the browser', () => {
+    delete process.env[KEY]
+    try {
+      const endpoint = getToolDispatcherEndpointConfig('ollama')
+
+      assert.equal(endpoint.configKey, 'VITE_TOOL_DISPATCHER_OLLAMA_BASE_URL')
+      assert.equal(endpoint.submitPath, '/runtime/ollama/api/generate')
+      assert.equal(endpoint.statusPath, '/runtime/ollama/api/tags')
+      assert.equal(
+        buildToolDispatcherEndpointUrl(endpoint, 'submit'),
+        '/runtime/ollama/api/generate',
+      )
+    } finally {
+      restore()
+    }
+  })
+
+  it('the raw-IP guard still applies to the headless value', () => {
+    process.env[KEY] = 'http://192.168.0.103:11434'
+    try {
+      assert.throws(() => getToolDispatcherEndpointConfig('ollama'), /raw IP/)
+    } finally {
+      restore()
+    }
+  })
+})
+
