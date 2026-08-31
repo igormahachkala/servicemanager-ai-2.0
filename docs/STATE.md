@@ -143,25 +143,56 @@ local_ollama_analysis`. Машинерия отдаёт результат, а �
 
 `test:domain`: **276 pass, 0 fail**.
 
-**ОСТАЛОСЬ до сквозного пути — два пункта.**
+**Блок 3 сделан** (`2ccdccf`): `metadata.sectionsValidated` больше не константа — `validateAnalysisSections`
+проверяет наличие и непустоту `Problem/Risk/Recommendation/Effort`. Развилка «новая фабрика или развязка
+`createTransportFailureEnvelope`» решена **новой фабрикой** `createAnalysisRejectedEnvelope`, и не ради
+удобства типов: у последней инвариант принуждает к `TRANSPORT_FAILED`, а транспорт при кривом ответе
+отработал (HTTP 200, поток дочитан, токены сгенерированы). Пометить его сломанным значило бы стереть
+разницу между «Ollama лежит» и «Ollama ответила не по форме» — два состояния с разным ремонтом.
+Отбракованный анализ получает `DISPATCHED` + `FAILED` (эту пару не запрещает ни один инвариант) и
+`errors[].source: 'validation'`, а сырой ответ сохраняется в `summary` как улика. Хвост после `Effort`
+допускается: любая размеченная строка закрывает предыдущую секцию, поэтому `Effort:` с одним лишь
+хвостом всё равно пуст и падает. Регистр заголовков не важен, порядок не проверяется.
+Развязка `createTransportFailureEnvelope` **остаётся в очереди** — для настоящего падения транспорта,
+которое сегодня конверта не даёт вовсе.
 
-1. **Блок 3 — валидатор секций.** Сегодня секции запрашиваются `ollamaAnalysisPrompt.ts`, но не
-   разбираются, и в конверте вечно стоит `metadata.sectionsValidated: false` — результат валидатора
-   должен занять это поле вместо константы. Требование, добытое живым прогоном: **допускать хвост
-   после `Effort`** — модель дописала свободный блок `Files needed for certainty:`, и это следствие
-   нашего же промпта, который просит назвать недостающие файлы; строгая проверка «ровно четыре
-   секции» забракует корректный ответ. При непрохождении секций `executionStatus` **не** `SUCCEEDED` —
-   значит, понадобится либо новая фабрика, либо развязка `createTransportFailureEnvelope` (он всё ещё
-   типизирован по `CursorResultEnvelope['route']`, `LOCAL_OLLAMA_ANALYSIS` туда не проходит).
-2. **Развязка `toolId: 'cursor'`** в `requestBuilderCursorToolExecution`
-   (`toolExecutionRunBridge.ts:123`) — единственная точка входа, создающая `ToolExecutionRun`. Ниже по
-   стеку `createToolExecutionFromDispatcherRequest` уже нейтрален (берёт `input.request.toolId`), так
-   что чинится вход в мост, а не сам run. Пока разрыв не закрыт, `runOllamaAnalysis` вызывается только
-   из тестов и скрипта, и сквозного пути «задача → анализ → конверт» в проде не существует.
+**Блоки 4a и 4b сделаны** (`dae9664`, `840e8a1`). 4a: `requestToolExecution({ toolId? })` с дефолтом
+`'cursor'`, а `requestBuilderCursorToolExecution` — обёртка в одну строку, поэтому оба её вызывающих не
+тронуты и cursor-путь неизменен по построению. Не переименование: действие тоже пришлось привязать к
+инструменту (`DEFAULT_ACTION_BY_TOOL`), иначе ollama-запрос с историческим `handoff` умирал бы в
+`validateDispatchInput` до всякой ветки. 4b: `queueToolExecutionRunForOllamaAnalysis` ведёт run
+`approved → queued → running → result_received → awaiting_employee_review`, вызывая между ними
+`runOllamaAnalysis` и записывая конверт в `run.result`. Awaitable и **без** `window`-guard'а — маршрут
+работает headless, а detached-промис дал бы скрипту завершиться на полпути. Провал контракта пишет
+конверт-улику и **затем** валит run (`awaiting_employee_review` не терминальный — проверено), провал
+транспорта конверта не даёт и просто валит run. `deliveryMode` получил `'local_analysis_v1'`, иначе
+`recordToolExecutionResult` по умолчанию записал бы локальный анализ как cursor-доставку.
+Попутно пришлось расширить до надтипа `mapEnvelopeToToolResultOutput` и `serializeCursorResultEnvelope` —
+они были типизированы по сужённому `CursorResultEnvelope`, и конверт в run не проходил вовсе.
 
-Дальше, вне сквозного пути: перенос слоя контекста из `agent-runner` (`contextLoader`/`fileSelector`
-требуют моста к `fs` — сейчас промпт честно пишет, что контекста нет); персистентность
-`executionRoute` колонкой на `ToolExecutionRun`.
+### ПЕРВЫЙ СКВОЗНОЙ ПРОГОН — состоялся
+
+**2026-08-31**, `scripts/ollama-e2e-run.ts` (untracked). Run прошёл
+`awaiting_owner → approved → queued → running → result_received → awaiting_employee_review`
+за **8.2 с**. Модель `qwen3-coder:30b`, **85 tok/s**, 227 промпт-токенов и 227 токенов ответа;
+`sectionsValidated: true`, `executionStatus: SUCCEEDED`, `deliveryMode: local_analysis_v1`,
+`errors: []`. Баг в подсунутой `applyDiscount(total, percent) { return total - percent }` найден верно,
+с исправлением `total * (1 - percent/100)`.
+
+**Моков в домене нет.** Настоящие: диспетчер, реестр, мост, машина статусов, HTTP-вызов, валидатор
+секций, фабрики конверта, сама модель. Шима два и оба named: **хранилище** — домен пишет в
+`localStorage`, которого в node нет, поэтому подставлен тот же in-memory шим, что в юнит-тестах;
+**одобрение** делает скрипт, а не Владелец в UI, но через тот же `approveToolExecutionRun`.
+
+Деталь, подтвердившая капкан №10 на живом прогоне: `queued` и `running` легли в один миллисекундный
+тик (`.332`) — это то самое синхронное окно до первого `await`, из-за которого detached-триггер из
+`approve` не успевает влезть и уйти в сеть.
+
+**Блоки 1, 2, 2.5, 3, 4a, 4b закрыты — сквозной путь замкнут.** `test:domain`: **293 pass, 0 fail**.
+
+Дальше, вне сквозного пути: развязка `createTransportFailureEnvelope` от Cursor-маршрутов; перенос слоя
+контекста из `agent-runner` (`contextLoader`/`fileSelector` требуют моста к `fs` — сейчас промпт честно
+пишет, что контекста нет); персистентность `executionRoute` колонкой на `ToolExecutionRun`.
 
 ## 7. Известные ловушки
 
