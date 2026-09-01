@@ -32,8 +32,10 @@ import {
   type TicketAccessActor,
 } from './ticket-access.utils';
 import {
+  applyShiftPolicyToClaimCapability,
   assertExecutorClaimEligibilityAllowed,
   resolveEligibleTicketClaimCapability,
+  resolveClaimShiftBlockReason,
   resolveExecutorClaimEligibility,
 } from './ticket-claim-eligibility';
 import { matchCategorySpecializationLinks } from './ticket-specialization-match.utils';
@@ -53,6 +55,11 @@ import {
   TICKET_ASSIGNMENT_REQUESTED_ENTITY,
   TICKET_ASSIGNMENT_REQUESTED_EVENT,
 } from './ticket-domain-event.types';
+import {
+  ACTIVE_SHIFT_REQUIRED,
+  ACTIVE_SHIFT_REQUIRED_MESSAGE,
+  ShiftPolicyService,
+} from '../workforce/shift-policy.service';
 
 const companyIdentitySelect = {
   id: true,
@@ -68,6 +75,9 @@ type LocationBindingAccessClient = Pick<
 >;
 
 type CreatePostAction = 'leave_unassigned' | 'claim_self' | 'assign_employee';
+type CreatePostActionResult =
+  | { action: Exclude<CreatePostAction, 'leave_unassigned'>; ok: true }
+  | { action: 'claim_self'; ok: false; code: typeof ACTIVE_SHIFT_REQUIRED; message: string };
 type AssignmentHistoryOperation =
   | 'assign_technician'
   | 'reassign_technician'
@@ -143,6 +153,7 @@ export class TicketsAssignmentService {
     private readonly techniciansService: TechniciansService,
     private readonly notifications: NotificationsService,
     contractContextService?: ContractContextService,
+    private readonly shiftPolicyService?: ShiftPolicyService,
   ) {
     this.contractContextService = contractContextService ?? new ContractContextService(prisma);
   }
@@ -1281,6 +1292,13 @@ export class TicketsAssignmentService {
       candidates,
       providerCompanyIds: candidateCompanyIds,
     });
+    const postActionShiftBlockReason =
+      postAction.action === 'claim_self'
+        ? await resolveClaimShiftBlockReason({
+            shiftPolicyService: this.shiftPolicyService,
+            actor: { id: creatorUserId, role: creatorRole, companyId: actorCompanyId },
+          })
+        : null;
 
     const ticketId = randomUUID();
 
@@ -1298,7 +1316,8 @@ export class TicketsAssignmentService {
             categoryId: input.categoryId,
           })
         : null;
-      const assignedTechnicianId = postActionTechnicianId ?? selected?.technicianId ?? null;
+      const assignedTechnicianId =
+        (postActionShiftBlockReason ? null : postActionTechnicianId) ?? selected?.technicianId ?? null;
 
       let ticket = await tx.ticket.create({
         data: {
@@ -1444,10 +1463,26 @@ export class TicketsAssignmentService {
           },
         });
 
-        return { ticket, assignedTechnicianId, generated, createdEventId: createdEvent.id, commentEventId: commentEvent?.id ?? null, assignedEventId: assignedEvent.id };
+        const postCreateActionResult: CreatePostActionResult | null =
+          postAction.action && postAction.action !== 'leave_unassigned'
+          ? ({ action: postAction.action, ok: true } as CreatePostActionResult)
+          : null;
+        return { ticket, assignedTechnicianId, generated, createdEventId: createdEvent.id, commentEventId: commentEvent?.id ?? null, assignedEventId: assignedEvent.id, postCreateActionResult };
       }
 
-      return { ticket, assignedTechnicianId, generated, createdEventId: createdEvent.id, commentEventId: commentEvent?.id ?? null, assignedEventId: null };
+      const postCreateActionResult: CreatePostActionResult | null =
+        postAction.action === 'claim_self' && postActionShiftBlockReason
+          ? {
+              action: 'claim_self',
+              ok: false,
+              code: ACTIVE_SHIFT_REQUIRED,
+              message: ACTIVE_SHIFT_REQUIRED_MESSAGE,
+            }
+          : postAction.action && postAction.action !== 'leave_unassigned'
+            ? ({ action: postAction.action, ok: true } as CreatePostActionResult)
+            : null;
+
+      return { ticket, assignedTechnicianId, generated, createdEventId: createdEvent.id, commentEventId: commentEvent?.id ?? null, assignedEventId: null, postCreateActionResult };
     });
 
     this.notifications.onTicketCreated({
@@ -1513,6 +1548,7 @@ export class TicketsAssignmentService {
       instructions: category.instructions || null,
       candidates,
       autoAssigned: !!created.assignedTechnicianId,
+      ...(created.postCreateActionResult ? { postCreateActionResult: created.postCreateActionResult } : {}),
     };
   }
 
@@ -2777,16 +2813,23 @@ export class TicketsAssignmentService {
       claimAvailabilityReason: string | null
       requestAssignmentAvailabilityReason: string | null
     }> = []
+    const shiftBlockReason = await resolveClaimShiftBlockReason({
+      shiftPolicyService: this.shiftPolicyService,
+      actor: { id: executorUserId, role: executorUser.role, companyId },
+    })
     for (const ticket of tickets) {
-      const capability = await resolveEligibleTicketClaimCapability({
-        serviceContractsService: this.serviceContractsService,
-        actor: { id: executorUserId, companyId },
-        ticket,
-        linkedClientContractRole:
-          eligibility.effectiveLinkedClientCompanyId === ticket.companyId
-            ? eligibility.linkedClientContractRole
-            : null,
-      })
+      const capability = applyShiftPolicyToClaimCapability(
+        await resolveEligibleTicketClaimCapability({
+          serviceContractsService: this.serviceContractsService,
+          actor: { id: executorUserId, companyId },
+          ticket,
+          linkedClientContractRole:
+            eligibility.effectiveLinkedClientCompanyId === ticket.companyId
+              ? eligibility.linkedClientContractRole
+              : null,
+        }),
+        shiftBlockReason,
+      )
       if (!capability.canClaim && !capability.canRequestAssignment) continue
       out.push({
         ...ticket,
@@ -2854,6 +2897,11 @@ export class TicketsAssignmentService {
     if (!capability.canClaim) {
       throw new ForbiddenException('Subcontractor users must request assignment for this ticket');
     }
+    await this.shiftPolicyService?.assertActiveShiftForOperationalWork({
+      id: executorUserId,
+      role: executorUser.role,
+      companyId,
+    })
 
     const claimResult = await this.prisma.$transaction(async (tx) => {
       const ticket = await tx.ticket.findFirst({
