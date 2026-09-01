@@ -253,7 +253,7 @@ Stage занят другим агентом. Не сливать, не разв
 git tag -a stage-busy/&lt;ветка&gt; -m "Контур занят
 branch: &lt;ветка задачи&gt;
 pr: &lt;номер PR&gt;
-agent: &lt;машина или имя агента&gt;
+agent: &lt;имя машины&gt; / &lt;кто ведёт задачу&gt;
 date: &lt;дата и время UTC&gt;"
 git push origin stage-busy/&lt;ветка&gt;
 </acquire>
