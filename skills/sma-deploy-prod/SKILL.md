@@ -623,6 +623,7 @@ git push origin :refs/tags/stage-ok/&lt;ветка&gt;
 
 <ask_user>
 <a>Развёртывание в Production — всегда.</a>
+<a>Начало работы по этому скилу без явной команды пользователя выкатить в Production. Тег stage-ok — допуск, а не разрешение катить.</a>
 <a>Миграция с DELETE, DROP или ALTER.</a>
 <a>Удаление ветки задачи.</a>
 <a>Откат Production.</a>
