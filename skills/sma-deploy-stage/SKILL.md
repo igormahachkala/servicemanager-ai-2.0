@@ -240,27 +240,45 @@ beta: агент, занявший контур после чужого слия
 вместе со своим и не знает об этом.
 </why_before_merge>
 <precondition name="контур свободен">
-git ls-remote --tags origin 'refs/tags/stage-busy/*'
+git ls-remote --tags origin 'refs/tags/stage-busy'
 </precondition>
 <on_precondition_failure>
+Контур занят. Сначала выяснить, чей замок: имя у него общее, принадлежность
+видна только из тела.
+
+git fetch origin tag stage-busy
+git tag -l --format='%(contents)' stage-busy
+
+<case name="поле branch называет вашу ветку">
+Замок ваш, поставлен на предыдущем проходе и удержан — так бывает после
+отказа приёмки, шаг 11. Заново не ставить, идти к слиянию.
+</case>
+<case name="поле branch называет чужую ветку">
 Stage занят другим агентом. Не сливать, не разворачивать.
 Разобрать замок блоком classify общего файла: возраст, ветка, PR, что
 развёрнуто на контуре, — и показать пользователю одним сообщением.
 Порог для Stage 4 часа. Чужой замок не снимать, блок foreign_lock;
 снятие по команде пользователя выполняется блоком lock_void.
+</case>
 </on_precondition_failure>
 <acquire>
-git tag -a stage-busy/&lt;ветка&gt; -m "Контур занят
+git tag -a stage-busy -m "Контур занят
 branch: &lt;ветка задачи&gt;
 pr: &lt;номер PR&gt;
 agent: &lt;имя машины&gt; / &lt;кто ведёт задачу&gt;
 date: &lt;дата и время UTC&gt;"
-git push origin stage-busy/&lt;ветка&gt;
+git push origin stage-busy
 </acquire>
+<why_no_branch_in_name>
+Имя фиксированное, без ветки: только тогда два агента с разными ветками
+сталкиваются на одном теге и второй получает отказ. Ветка — в теле.
+Обоснование целиком: блок why_fixed_name общего файла.
+</why_no_branch_in_name>
 <on_push_rejected>
 Замок уже стоит: контур заняли между вашей проверкой и постановкой.
-Удалить свой локальный тег — git tag -d stage-busy/&lt;ветка&gt; — и остановиться,
-как при занятом контуре. Штатный исход, не сбой.
+Удалить свой локальный тег — git tag -d stage-busy — и остановиться,
+как при занятом контуре. Штатный исход, не сбой. Это и есть настоящая
+защита от гонки: проверка предусловия её не закрывает.
 </on_push_rejected>
 <command>gh pr merge &lt;номер&gt; --merge --delete-branch=false</command>
 <constraint>Ветку не удалять: она понадобится для PR в prod.</constraint>
@@ -286,7 +304,7 @@ git push origin stage-busy/&lt;ветка&gt;
 <skip>Пересборка и подъём контейнеров. Запись состояния до развёртывания.</skip>
 <still_required>
 ssh sma 'cd /opt/sma-beta &amp;&amp; test -z "$(git status --porcelain)"'
-ssh sma 'cd /opt/sma-beta &amp;&amp; git fetch origin'
+ssh sma 'cd /opt/sma-beta &amp;&amp; git fetch --prune --prune-tags origin'
 ssh sma 'cd /opt/sma-beta &amp;&amp; git checkout beta'
 ssh sma 'cd /opt/sma-beta &amp;&amp; git pull --ff-only'
 </still_required>
@@ -335,7 +353,7 @@ ssh sma 'cd /opt/sma-beta &amp;&amp; git status --short'
 в обход потока.
 </on_failure>
 <command>
-ssh sma 'cd /opt/sma-beta &amp;&amp; git fetch origin'
+ssh sma 'cd /opt/sma-beta &amp;&amp; git fetch --prune --prune-tags origin'
 ssh sma 'cd /opt/sma-beta &amp;&amp; git checkout beta'
 ssh sma 'cd /opt/sma-beta &amp;&amp; git pull --ff-only'
 </command>
@@ -344,6 +362,15 @@ ssh sma 'cd /opt/sma-beta &amp;&amp; git pull --ff-only'
 и при грязной копии, цепочка пойдёт дальше. Останавливает только команда,
 дающая ненулевой код, — test -z по выводу git status --porcelain.
 </why_separate>
+<why_prune_tags>
+Флаги --prune --prune-tags обязательны. Замки — теги фиксированного имени,
+они появляются и снимаются постоянно; снятый в origin тег локально остаётся
+и мешает следующему: имя ссылки не может быть префиксом другого имени.
+Отказ вида 'refs/tags/stage-busy/&lt;что-то&gt;' exists; cannot create
+'refs/tags/stage-busy' валит fetch целиком, за ним не проходит pull,
+и каталог остаётся на прежнем коммите. Разбор — блок stale_local_tags
+общего файла.
+</why_prune_tags>
 <why_ff_only>
 --ff-only не даёт создать коммит слияния в каталоге развёртывания.
 Отказ означает, что локальная ветка на сервере разошлась с origin,
@@ -462,7 +489,25 @@ ssh sma 'docker inspect sma_stage_backend sma_stage_web --format "{{.Name}} {{.S
 Имя файла бандла. Совпадение не доказывает успех, изменение не доказывает поломку.
 Смена имени при неизменных исходниках штатна: npm install без фиксации версий.
 </not_proof>
-<on_failure>Не ставить тег, сообщить пользователю.</on_failure>
+<on_failure>
+Не ставить тег, сообщить пользователю.
+<lock>
+Замок stage-busy не снимать. Контур остался в незавершённом состоянии:
+код задачи слит в beta шагом 7 и развёрнут, а прошёл он или нет — неизвестно.
+Пустить следующего агента сюда нельзя.
+</lock>
+<what_ends_it>
+Разбор заканчивается одним из трёх: развёртывание повторено и сверка прошла —
+идти дальше по шагам; задача исправляется — повтор с шага 2, замок при этом
+разбирается по шагу 11, вопрос пользователю; задача отменяется — снятие замка
+и разбор beta решает пользователь, сам агент замок не снимает.
+</what_ends_it>
+<why_say_it>
+Иначе агент останавливается, замок висит, и через четыре часа он попадает
+под порог блока classify как «похоже на брошенный» — у следующего агента
+не будет способа отличить это от настоящей потери владельца.
+</why_say_it>
+</on_failure>
 </step>
 
 <step id="11" name="приёмка">
@@ -479,9 +524,9 @@ ssh sma 'docker inspect sma_stage_backend sma_stage_web --format "{{.Name}} {{.S
 Не ставить тег. Исправлять в ветке задачи, повторить с шага 2.
 Не с шага 4: PR слит на шаге 7, дослать в него коммит нельзя. Precheck
 шага 3 обнаружит отсутствие открытого PR и создаст новый, ветка та же.
-Замок stage-busy самостоятельно не снимать и самостоятельно не удерживать:
-спросить пользователя. Показать имя замка, ветку, что именно не прошло
-в приёмке, и два исхода — снять замок либо удержать до исправления.
+Замок stage-busy самостоятельно не снимать и не удерживать: спросить
+пользователя. Показать ветку из тела замка, что именно не прошло в приёмке,
+и два исхода — снять замок либо удержать до исправления.
 <default>
 Правило очереди: не получилось — освобождаем контур и встаём в очередь
 заново. Это умолчание, которое предлагается пользователю первым.
@@ -492,7 +537,7 @@ ssh sma 'docker inspect sma_stage_backend sma_stage_web --format "{{.Name}} {{.S
 пользователь.
 </why_ask>
 <if name="замок удержан">
-Повторный проход шага 7 увидит собственный замок: сверить имя ветки в теле,
+Повторный проход шага 7 увидит замок и сверит поле branch его тела:
 своё продолжать, чужое разбирать по foreign_lock.
 </if>
 <if name="замок снят">
@@ -542,13 +587,18 @@ prod, тег не блокирует сброс beta.
 Перестановка допустима только на вершину той же ветки задачи.
 </on_failure>
 <release_lock>
-После того как stage-ok отправлен в origin, снять замок:
+После того как stage-ok отправлен в origin, снять замок. Перед снятием
+сверить, что замок ваш: имя общее, принадлежность видна только из тела.
 
-git tag -d stage-busy/&lt;ветка&gt;
-git push origin :refs/tags/stage-busy/&lt;ветка&gt;
+git fetch origin tag stage-busy
+git tag -l --format='%(contents)' stage-busy     # поле branch — ваша ветка?
+
+git tag -d stage-busy
+git push origin :refs/tags/stage-busy
 </release_lock>
-<if name="своего замка в origin нет">
-Не продолжать. Замок мог снять другой агент по решению пользователя.
+<if name="замка нет либо он чужой">
+Не продолжать и чужой замок не снимать. Своего замка нет: его мог снять
+другой агент по решению пользователя, а контур занять третий.
 Блок own_lock_missing общего файла: прочитать lock-void/&lt;ветка&gt;
 и показать пользователю.
 </if>
@@ -558,7 +608,7 @@ git push origin :refs/tags/stage-busy/&lt;ветка&gt;
 а признака этого ещё нет: его сброс beta снесёт вашу задачу молча.
 </release_order>
 <verify>
-git ls-remote --tags origin 'refs/tags/stage-busy/&lt;ветка&gt;'
+git ls-remote --tags origin 'refs/tags/stage-busy'
 Вывод пуст — замок снят.
 </verify>
 </step>
@@ -624,10 +674,10 @@ done
 проверку на состоянии, которого на контуре нет.
 </rationale>
 <precondition fail="ask_user" name="живых замков нет">
-git ls-remote --tags origin 'refs/tags/stage-busy/*'
+git ls-remote --tags origin 'refs/tags/stage-busy'
 
-Вывод пуст — сброс разрешён. Любая строка запрещает сброс, независимо
-от того, чья это ветка и своя ли она.
+Вывод пуст — сброс разрешён. Непустой вывод запрещает сброс, независимо
+от того, чей это замок и свой ли он.
 <why>
 Замок означает, что задача на контуре в работе, а тега stage-ok у неё
 ещё нет: предусловие по тегам её не видит и пропустит сброс, который

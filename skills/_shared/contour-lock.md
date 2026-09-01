@@ -17,40 +17,70 @@ Stage и Production обслуживают 4-6 агентов. До введен
 </why>
 
 <mechanism>
-Замок — тег в origin. Имя: stage-busy/&lt;ветка&gt; для Stage,
-prod-busy/&lt;ветка&gt; для Production.
+Замок — тег в origin с фиксированным именем: stage-busy для Stage,
+prod-busy для Production. Ветки в имени нет.
 
-Имя тега содержит полное имя ветки вместе с типом: stage-busy/fix/push-fix,
-не stage-busy/push-fix. То же правило, что у stage-ok, и по той же причине:
-fix/push-fix и feat/push-fix иначе дают один тег.
+Ветка, PR и владелец пишутся в тело тега и читаются блоком read.
 </mechanism>
+<why_fixed_name>
+Имя обязано быть общим для всех агентов, иначе замка нет. Отказ push
+возникает только при совпадении имён: с именем вида stage-busy/&lt;ветка&gt;
+два агента с разными ветками ставят разные теги, оба push проходят,
+и оба считают контур своим. Проверка ls-remote перед постановкой гонку
+не закрывает — между проверкой и постановкой есть промежуток, ровно тот,
+ради которого написан on_push_rejected.
+
+Правило именования тега stage-ok обратное: там имя содержит ветку, потому
+что тег принадлежит ветке и удостоверяет её приёмку. Замок принадлежит
+контуру, а контур один. Общее имя здесь требование, а не недосмотр.
+</why_fixed_name>
 
 <why_tag>
-Тег виден всем агентам сразу после git fetch, ставится одной командой
-и не требует коммита. Занятие контура атомарно: git push существующего
-в origin тега отклоняется, и второй агент получает отказ, а не тихую победу.
-Файл в репозитории так не работает: его надо коммитить, а два коммита
-в одну ветку не конфликтуют.
+Тег виден всем агентам сразу после git fetch и ставится одной командой.
+Занятие контура атомарно: git push тега, уже существующего в origin,
+отклоняется, и второй агент получает отказ, а не тихую победу.
+
+Почему не файл-замок в репозитории: взаимное исключение он дал бы —
+второй push в ту же ветку получит non-fast-forward, — но за это пришлось бы
+платить коммитом, а на защищённых ветках и PR, засорять историю служебными
+правками и ждать слияния там, где нужна одна команда.
 </why_tag>
+<why_annotated>
+Тег обязан быть аннотированным, флаг -a. Лёгкий тег на тот же коммит
+проходит у обоих агентов с ответом Everything up-to-date: замок не работает,
+и никто об этом не узнаёт. Тело тега при этом хранит владельца, что и делает
+разбор возможным.
+</why_annotated>
 
 <check>
 Проверять занятость только по origin. Локальный список тегов устаревает:
 чужой замок поставлен минуту назад и в вашей копии его нет.
 
-git ls-remote --tags origin 'refs/tags/stage-busy/*'    # Stage
-git ls-remote --tags origin 'refs/tags/prod-busy/*'     # Production
+git ls-remote --tags origin 'refs/tags/stage-busy'    # Stage
+git ls-remote --tags origin 'refs/tags/prod-busy'     # Production
 
 Вывод пуст — контур свободен.
-Вывод содержит строки — контур занят, читать тело замка блоком read.
+Вывод содержит строки — контур занят. Прочитать тело блоком read и сверить
+ветку: свой замок продолжаем, чужой разбираем блоком classify.
+<note>
+Код возврата ls-remote равен 0 и при пустом выводе. Решение принимается
+по выводу, не по коду.
+</note>
 </check>
 
 <read>
 Чей замок и с каких пор:
 
-git fetch origin tag &lt;имя замка&gt;
-git tag -l --format='%(contents)' &lt;имя замка&gt;
-git for-each-ref --format='%(creatordate:iso)' refs/tags/&lt;имя замка&gt;
+git fetch origin tag &lt;stage-busy | prod-busy&gt;
+git tag -l --format='%(contents)' &lt;stage-busy | prod-busy&gt;
+git for-each-ref --format='%(creatordate:iso)' refs/tags/&lt;stage-busy | prod-busy&gt;
 </read>
+<own_or_foreign>
+Поле branch тела отвечает, чей замок. Совпадает с вашей веткой задачи —
+замок ваш, работа продолжается. Не совпадает — замок чужой, дальше
+блок classify. Определять принадлежность по имени тега больше нельзя:
+имя у замка общее.
+</own_or_foreign>
 <why_creatordate>
 Возраст замка берётся из объекта тега, а не из поля date его тела. Тело
 пишет сам агент: поле может отсутствовать, содержать местное время или
@@ -58,12 +88,12 @@ git for-each-ref --format='%(creatordate:iso)' refs/tags/&lt;имя замка&g
 </why_creatordate>
 
 <acquire>
-git tag -a &lt;префикс&gt;/&lt;ветка&gt; -m "Контур занят
+git tag -a &lt;stage-busy | prod-busy&gt; -m "Контур занят
 branch: &lt;ветка задачи&gt;
 pr: &lt;номер PR&gt;
 agent: &lt;имя машины&gt; / &lt;кто ведёт задачу&gt;
 date: &lt;дата и время UTC&gt;"
-git push origin &lt;префикс&gt;/&lt;ветка&gt;
+git push origin &lt;stage-busy | prod-busy&gt;
 </acquire>
 <agent_field>
 Поле agent заполняется так, чтобы по нему можно было найти владельца:
@@ -74,8 +104,8 @@ git push origin &lt;префикс&gt;/&lt;ветка&gt;
 <on_push_rejected>
 Отказ означает, что замок уже стоит: контур занял другой агент в промежутке
 между вашей проверкой и вашей постановкой. Это штатный исход, а не сбой.
-Свой локальный тег удалить — git tag -d &lt;имя&gt; — и остановиться,
-как при занятом контуре.
+Свой локальный тег удалить — git tag -d &lt;stage-busy | prod-busy&gt; —
+и остановиться, как при занятом контуре.
 </on_push_rejected>
 <why_local_delete>
 Локальный тег остался бы и попал в следующую проверку через git tag -l,
@@ -83,9 +113,23 @@ git push origin &lt;префикс&gt;/&lt;ветка&gt;
 </why_local_delete>
 
 <release>
-git tag -d &lt;префикс&gt;/&lt;ветка&gt;
-git push origin :refs/tags/&lt;префикс&gt;/&lt;ветка&gt;
+Перед снятием сверить, что замок ваш:
+
+git fetch origin tag &lt;stage-busy | prod-busy&gt;
+git tag -l --format='%(contents)' &lt;stage-busy | prod-busy&gt;
+
+Поле branch называет вашу ветку — снимать:
+
+git tag -d &lt;stage-busy | prod-busy&gt;
+git push origin :refs/tags/&lt;stage-busy | prod-busy&gt;
 </release>
+<why_verify_before_release>
+Имя замка общее. Без сверки агент снимет чужой замок, приняв его за свой:
+если его собственный замок кто-то снял, а контур успел занять третий,
+команда снятия попадёт в чужой. Поле branch — единственный признак
+принадлежности.
+Тело называет чужую ветку — свой замок уже снят, дальше own_lock_missing.
+</why_verify_before_release>
 <release_order>
 Снимать после того, как контур приведён в конечное состояние: на Stage —
 после постановки stage-ok, в Production — после сверки и проверки критерия.
@@ -97,9 +141,9 @@ git push origin :refs/tags/&lt;префикс&gt;/&lt;ветка&gt;
 одним сообщением. Снятие в любом случае за пользователем, агент не решает.
 
 Что собрать:
-  имя замка и тело                git tag -l --format='%(contents)' &lt;имя&gt;
-  возраст                         git for-each-ref --format='%(creatordate:iso)' refs/tags/&lt;имя&gt;
-  ветка существует в origin       git ls-remote --heads origin '&lt;ветка из имени замка&gt;'
+  тело замка                      git tag -l --format='%(contents)' &lt;stage-busy | prod-busy&gt;
+  возраст                         git for-each-ref --format='%(creatordate:iso)' refs/tags/&lt;stage-busy | prod-busy&gt;
+  ветка существует в origin       git ls-remote --heads origin '&lt;ветка из поля branch&gt;'
   состояние PR                    gh pr list --head &lt;ветка&gt; --state all --json number,state
   что развёрнуто на контуре       ssh sma 'cd &lt;workdir контура&gt; &amp;&amp; git rev-parse HEAD'
   входит ли ветка замка           git merge-base --is-ancestor origin/&lt;ветка&gt; &lt;вершина контура&gt;
@@ -153,17 +197,22 @@ Production занимают ненадолго, порог там ниже.
 <lock_void>
 <when>Пользователь распорядился снять чужой замок.</when>
 <command>
-git tag -a lock-void/&lt;ветка&gt; -m "Чужой замок снят
-lock: &lt;имя снятого замка&gt;
+git tag -a lock-void/&lt;ветка из поля branch&gt; -m "Чужой замок снят
+lock: &lt;stage-busy | prod-busy&gt;
 owner: &lt;поле agent из тела снятого замка&gt;
 age: &lt;возраст на момент снятия&gt;
 reason: &lt;почему сочли брошенным&gt;
 by: &lt;кто снял&gt;
 date: &lt;дата и время UTC&gt;"
-git push origin lock-void/&lt;ветка&gt;
+git push origin lock-void/&lt;ветка из поля branch&gt;
 
-git push origin :refs/tags/&lt;имя снятого замка&gt;
+git push origin :refs/tags/&lt;stage-busy | prod-busy&gt;
 </command>
+<why_branch_in_name>
+Имя lock-void содержит ветку, в отличие от самого замка. Столкновение имён
+здесь не нужно и вредно: запись адресована конкретному владельцу, и он ищет
+её по имени своей ветки. Двум снятым замкам разных веток нужны две записи.
+</why_branch_in_name>
 <order>
 Сначала поставить lock-void, потом снять замок. Обратный порядок оставляет
 промежуток, в котором контур свободен, а объяснения не существует.
@@ -181,9 +230,14 @@ git push origin :refs/tags/&lt;имя снятого замка&gt;
 </lock_void>
 
 <own_lock_missing>
-<when>Агент дошёл до снятия своего замка, а замка в origin нет.</when>
+<when>
+Агент дошёл до снятия своего замка, а замка в origin нет — либо замок есть,
+но поле branch его тела называет чужую ветку. Второе означает то же самое:
+своего замка нет, а контур успел занять другой агент.
+</when>
 <action>
 Остановиться. Не считать это мелочью и не продолжать работу на контуре.
+Чужой замок, оказавшийся на месте своего, не снимать.
 Проверить, не снимал ли замок кто-то другой:
 
 git ls-remote --tags origin 'refs/tags/lock-void/&lt;ветка&gt;'
@@ -215,6 +269,45 @@ git tag -l --format='%(contents)' lock-void/&lt;ветка&gt;
 </item>
 <where>Реестр: _claude/tasks/git-flow/open-questions.md.</where>
 </not_covered>
+
+<stale_local_tags>
+Локальные теги замков надо вычищать: git fetch --prune --prune-tags origin.
+Обычный fetch снятые в origin теги не удаляет, они копятся в каждой копии.
+
+Отдельный случай — переход с прежней схемы имён stage-busy/&lt;ветка&gt;
+на фиксированное имя. Пока старый тег жив, тег с именем stage-busy создать
+нельзя: имя ссылки не может быть префиксом имени другой ссылки.
+
+Текст отказа зависит от того, как хранятся ссылки, а не от сути:
+
+  распакованные:  cannot lock ref 'refs/tags/stage-busy':
+                  'refs/tags/stage-busy/&lt;ветка&gt;' exists;
+                  cannot create 'refs/tags/stage-busy'
+  упакованные:    'refs/tags/stage-busy/&lt;ветка&gt;' exists;
+                  cannot create 'refs/tags/stage-busy'
+
+Отказ валит весь fetch, а не одну ссылку: не обновляются ни ветки, ни теги.
+Лечится удалением старого тега — git tag -d stage-busy/&lt;ветка&gt; — либо
+тем же --prune-tags, если в origin его уже нет.
+<why_not_directory>
+Распакованная ссылка со слешем в имени — это файл в подкаталоге
+.git/refs/tags/stage-busy/, и кажется, что мешает именно каталог. Каталог
+здесь следствие способа хранения, а не причина. После git pack-refs --all
+распакованных файлов не остаётся вовсе, ссылка лежит строкой в packed-refs,
+каталога на диске нет — создание тега всё равно отклоняется. Проверено
+запуском 2 сентября 2026.
+Практическое следствие: искать и удалять каталог руками бесполезно, лечит
+только удаление ссылки командой git.
+</why_not_directory>
+<scope>
+Каталог, если он есть, лежит внутри .git каталога развёртывания. В рабочее
+дерево ничего не попадает, git status его не видит, правило о каталоге
+развёртывания он не нарушает. Ломается другое: fetch в этом каталоге,
+из-за чего каталог отстаёт от вершины ветки — то, что ловят сверки
+шага 10 Stage и шага 9 Production.
+</scope>
+Проверено 2 сентября 2026 в /opt/sma-beta.
+</stale_local_tags>
 
 <limits>
 Замок держит контур, а не ветку: два агента с разными ветками не развернут
