@@ -68,6 +68,20 @@ ssh sma 'cd /opt/sma-prod &amp;&amp; git checkout prod &amp;&amp; git pull --ff-
 ssh sma 'cd /opt/sma-prod &amp;&amp; test "$(git rev-parse prod^{tree})" = "$(git rev-parse &lt;точка отката&gt;^{tree})"'
 </check>
 <on_success>Три состояния сошлись, фаза 2 завершена.</on_success>
+<release_lock>
+Снять замок Production: контур приведён в согласованное состояние.
+
+git tag -d prod-busy/&lt;ветка&gt;
+git push origin :refs/tags/prod-busy/&lt;ветка&gt;
+
+Раньше не снимать. Пока идут фазы 1 и 2, контур занят по-настоящему:
+каталог в отсоединённом состоянии, вершина prod и работающий код расходятся.
+Механизм — skills/_shared/contour-lock.md.
+</release_lock>
+<lock_on_return>
+Возврат в Production, фаза 4, — это отдельное занятие контура: замок ставится
+заново шагом 7 sma-deploy-prod, как при обычном развёртывании.
+</lock_on_return>
 <on_failure>
 Пока шёл откат, другой агент влил в prod свою задачу. Вершина ветки содержит
 её, работающие контейнеры — нет. Инвариант нарушен, откат не закончен.

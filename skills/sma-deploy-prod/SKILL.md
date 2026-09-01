@@ -26,6 +26,8 @@ sma-deploy-stage, подтверждением служит тег stage-ok.
 
 <ref file="skills/_shared/execution-context.md">Где выполняется команда: машина агента или сервер. Прочитать до первой команды.</ref>
 
+<ref file="skills/_shared/contour-lock.md">Замок контура: проверка, постановка, снятие. Прочитать до шага 0, он проверяет занятость.</ref>
+
 <ref file="skills/_shared/prerequisites.md">Условия допуска к работе. Прочитать и выполнить до шага 0. Пункты с contour="stage" к этому скилу не относятся.</ref>
 <ref file="skills/_shared/secrets.md">Обращение с секретами и переменными окружения. Прочитать до первой команды, затрагивающей сервер: этого требует блок prerequisites.</ref>
 
@@ -63,6 +65,23 @@ git merge-base --is-ancestor "$(git rev-parse stage-ok/&lt;ветка&gt;^{commi
 stage_sha тела тега. Выбор сознательный: Stage один на 4-6 агентов, строгое
 равенство HEAD снимало бы допуск при каждом чужом развёртывании.
 </known_limit>
+<lock_check name="Production не занят">
+git ls-remote --tags origin 'refs/tags/prod-busy/*'
+
+Вывод пуст — контур свободен, идти дальше. Механизм —
+skills/_shared/contour-lock.md.
+</lock_check>
+<on_lock_failure>
+Production занят другим агентом. Не создавать PR, не сливать, не разворачивать.
+Прочитать тело замка блоком read общего файла и показать пользователю: чья
+ветка, какой PR, с какого времени. Чужой замок не снимать, блок foreign_lock.
+</on_lock_failure>
+<why_here>
+Проверка стоит в шаге 0, а не перед слиянием: до занятого контура нет смысла
+создавать PR и гонять проверки. Замок при этом ставится позже, шагом 7 —
+между проверкой и постановкой контур может занять другой агент, и постановка
+это ловит своим отказом.
+</why_here>
 </step>
 
 <step id="1" name="определить область изменения">
@@ -310,9 +329,37 @@ gunzip -c &lt;файл&gt; | docker exec -i sma_postgres sh -c 'psql -U $POSTGRE
 </open>
 </step>
 
-<step id="7" name="слить PR">
+<step id="7" name="занять контур и слить PR">
+<order>
+Проверить замок заново, поставить свой, слить PR. Между шагом 0 и этим
+местом прошли проверки и подтверждение пользователя — за это время контур
+мог занять другой агент.
+</order>
+<precondition name="контур свободен">
+git ls-remote --tags origin 'refs/tags/prod-busy/*'
+</precondition>
+<on_precondition_failure>
+Production занят. Не сливать. Показать пользователю тело замка,
+блок foreign_lock общего файла.
+</on_precondition_failure>
+<acquire>
+git tag -a prod-busy/&lt;ветка&gt; -m "Контур занят
+branch: &lt;ветка задачи&gt;
+pr: &lt;номер PR&gt;
+agent: &lt;машина или имя агента&gt;
+date: &lt;дата и время UTC&gt;"
+git push origin prod-busy/&lt;ветка&gt;
+</acquire>
+<on_push_rejected>
+Замок уже стоит: контур заняли между проверкой и постановкой. Удалить свой
+локальный тег — git tag -d prod-busy/&lt;ветка&gt; — и остановиться. Штатный
+исход, не сбой.
+</on_push_rejected>
 <command>gh pr merge &lt;номер&gt; --merge --delete-branch=false</command>
-<on_failure>Отказ с указанием, что ветка устарела — prod ушёл вперёд. Повторить с шага 3.</on_failure>
+<on_failure>
+Отказ с указанием, что ветка устарела — prod ушёл вперёд. Повторить с шага 3.
+Замок снять: контур занят, а слияния не было.
+</on_failure>
 </step>
 
 <step id="8" name="развернуть">
@@ -545,6 +592,22 @@ git merge-base --is-ancestor origin/&lt;ветка&gt; origin/prod
 влитой, хотя часть её в prod не попала.
 </why_origin>
 <on_success>Ветку задачи можно удалить.</on_success>
+<release_lock>
+Снять замок Production. Выполняется первым в этом шаге: сверка шага 9
+и критерий шага 10 пройдены, контур в конечном состоянии, держать его дольше
+нечем оправдать.
+
+git tag -d prod-busy/&lt;ветка&gt;
+git push origin :refs/tags/prod-busy/&lt;ветка&gt;
+
+git ls-remote --tags origin 'refs/tags/prod-busy/&lt;ветка&gt;'
+Вывод пуст — замок снят.
+</release_lock>
+<lock_on_rollback>
+Развёртывание не прошло и выполняется откат — замок не снимать до конца
+фазы 2 блока rollback: контур занят, пока вершина prod и работающий код
+не сведены. Порядок там же.
+</lock_on_rollback>
 <tag_release>
 Тег stage-ok снимается: своё дело он сделал, задача прошла ворота допуска
 и работает в Production.
