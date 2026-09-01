@@ -423,7 +423,7 @@ ssh sma 'docker inspect sma_stage_backend sma_stage_web --format "{{.Name}} {{.S
 на новом коде, а маршрутизация — на прежней конфигурации.
 Не объявлять приёмку, ждать подтверждения пользователя.
 </precondition>
-<action>Проверить критерий, зафиксированный в git-workflow шаг 1.</action>
+<action>Проверить критерий, зафиксированный в sma-code-delivery шаг 1.</action>
 <reference file="docs/11_RUNTIME_ACCEPTANCE.md">протокол приёмки</reference>
 <expect>Критерий выполнен.</expect>
 <on_failure>
@@ -496,6 +496,13 @@ prod, тег не блокирует сброс beta.
 
 <beta_reset>
 <when>После развёртывания prod в Production.</when>
+<when name="после отката">
+В Production откатили задачу и к ней в этом виде не возвращаются:
+ревёрт лежит в prod, а в beta слияние ветки осталось, и код задачи там
+на месте. Сброс убирает его. Правило и разбор по случаям — блок
+beta_after_rollback в skills/sma-deploy-prod/references/rollback.md.
+К задаче возвращаемся — сброс не делать, код в beta нужен для исправления.
+</when>
 <why>
 beta накапливает и доехавшее до Production, и отброшенное. Проверка на базе,
 которой в Production нет, смысла не имеет. Незавершённые задачи лежат
