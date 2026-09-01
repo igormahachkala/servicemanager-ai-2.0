@@ -270,6 +270,23 @@ git tag -l --format='%(contents)' lock-void/&lt;ветка&gt;
 <where>Реестр: _claude/tasks/git-flow/open-questions.md.</where>
 </not_covered>
 
+<stale_local_tags>
+Локальные теги замков надо вычищать: git fetch --prune --prune-tags origin.
+Обычный fetch снятые в origin теги не удаляет, они копятся в каждой копии.
+
+Отдельный случай — переход с прежней схемы имён stage-busy/&lt;ветка&gt;
+на фиксированное имя. Оставшийся старый тег создаёт каталог
+refs/tags/stage-busy/, и новый тег с этим именем создать нельзя:
+
+  cannot lock ref 'refs/tags/stage-busy':
+  'refs/tags/stage-busy/&lt;ветка&gt;' exists; cannot create 'refs/tags/stage-busy'
+
+Отказ валит весь fetch, а не одну ссылку: не обновляются ни ветки, ни теги.
+Лечится удалением старого тега — git tag -d stage-busy/&lt;ветка&gt; — либо
+тем же --prune-tags, если в origin его уже нет.
+Проверено 2 сентября 2026 в /opt/sma-beta.
+</stale_local_tags>
+
 <limits>
 Замок держит контур, а не ветку: два агента с разными ветками не развернут
 одновременно, но замок не мешает третьему читать контур и не мешает

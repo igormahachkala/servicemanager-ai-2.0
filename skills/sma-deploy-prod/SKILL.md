@@ -391,7 +391,7 @@ git push origin prod-busy
 <skip>Пересборка и подъём контейнеров. Запись состояния до развёртывания.</skip>
 <still_required>
 ssh sma 'cd /opt/sma-prod &amp;&amp; test -z "$(git status --porcelain)"'
-ssh sma 'cd /opt/sma-prod &amp;&amp; git fetch origin'
+ssh sma 'cd /opt/sma-prod &amp;&amp; git fetch --prune --prune-tags origin'
 ssh sma 'cd /opt/sma-prod &amp;&amp; git checkout prod'
 ssh sma 'cd /opt/sma-prod &amp;&amp; git pull --ff-only'
 </still_required>
@@ -428,7 +428,7 @@ ssh sma 'cd /opt/sma-prod &amp;&amp; git status --short'
 в обход потока.
 </on_failure>
 <command>
-ssh sma 'cd /opt/sma-prod &amp;&amp; git fetch origin'
+ssh sma 'cd /opt/sma-prod &amp;&amp; git fetch --prune --prune-tags origin'
 ssh sma 'cd /opt/sma-prod &amp;&amp; git checkout prod'
 ssh sma 'cd /opt/sma-prod &amp;&amp; git pull --ff-only'
 </command>
@@ -437,6 +437,14 @@ ssh sma 'cd /opt/sma-prod &amp;&amp; git pull --ff-only'
 и при грязной копии, цепочка пойдёт дальше. Останавливает только команда,
 дающая ненулевой код, — test -z по выводу git status --porcelain.
 </why_separate>
+<why_prune_tags>
+Флаги --prune --prune-tags обязательны. Замки — теги фиксированного имени,
+они появляются и снимаются постоянно; снятый в origin тег локально остаётся
+и мешает следующему. Отказ выглядит так:
+cannot lock ref 'refs/tags/stage-busy': 'refs/tags/stage-busy/&lt;что-то&gt;' exists.
+После него не проходит ни fetch, ни pull, и каталог остаётся на прежнем
+коммите.
+</why_prune_tags>
 <why_ff_only>
 --ff-only не даёт создать коммит слияния в каталоге развёртывания.
 Отказ означает, что локальная ветка на сервере разошлась с origin,
