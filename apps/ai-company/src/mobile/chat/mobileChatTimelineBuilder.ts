@@ -10,6 +10,7 @@ import { loadEmployeeWorkItems } from '../../domain/employeeWorkQueue/employeeWo
 import { listDelegationPlans } from '../../domain/delegationPlan'
 import { getEmployeeWorkItemById } from '../../domain/employeeWorkQueue/employeeWorkQueueStorage'
 import { BUILDER_EMPLOYEE_ID } from '../../domain/mobileEmployee'
+import { isOwnerVisibleBuilderRun } from '../../domain/toolExecution/builderToolVisibility'
 import { listToolExecutionRuns } from '../../domain/toolExecution/toolExecutionRunStorage'
 import type { ToolExecutionRunStatus } from '../../domain/toolExecution/toolExecutionRunTypes'
 import { listEmployeeToolReviews } from '../../domain/employeeToolReview/employeeToolReviewStorage'
@@ -677,9 +678,7 @@ function collectToolExecutionEvents(
     },
   }
 
-  for (const run of listToolExecutionRuns({ employeeId }).filter(
-    (item) => item.builderToolDecisionId !== null,
-  )) {
+  for (const run of listToolExecutionRuns({ employeeId }).filter(isOwnerVisibleBuilderRun)) {
     const emitted = new Set<ToolExecutionRunStatus>()
     for (const entry of run.history) {
       if (entry.status === 'draft') continue
