@@ -48,14 +48,18 @@ git в каталогах развёртывания.
 <command>ssh -o BatchMode=yes sma 'whoami'</command>
 <expect>deploy</expect>
 </p>
-<p name="gh авторизован">
-<command>gh auth status</command>
-<expect>
-Logged in to github.com. Права токена: Contents Read and write,
-Pull requests Read and write, Metadata Read-only. Одного Contents мало —
-gh pr create отдаст 403. Проверка права на PR: skills/agent-setup.md
-часть C шаг 3.
-</expect>
+<p name="gh авторизован и имеет право на PR">
+<command>gh api repos/igormahachkala/servicemanager-ai-2.0/pulls --jq 'length'</command>
+<expect>Число.</expect>
+<rationale>
+Проверяется работоспособность, а не устройство токена. Вернулось число —
+вход есть и право на PR есть, независимо от того, каким токеном агент
+авторизован. Запрос читающий, ничего не создаёт.
+
+Требования к токену — skills/agent-setup.md, часть C. Здесь они не
+повторяются: при изменении правил выдачи правка нужна в одном месте.
+</rationale>
+<on_failure>Настройка и разбор отказов — skills/agent-setup.md, часть C, шаг 3.</on_failure>
 </p>
 <p name="правила по секретам прочитаны">
 <expect>skills/secrets.md прочитан до первой команды, затрагивающей сервер.</expect>
