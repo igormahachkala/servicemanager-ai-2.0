@@ -5,6 +5,7 @@
 #
 # Использование:  area-map.sh <ветка задачи>
 # База сравнения: origin/prod
+# Ссылка задачи:  сначала локальная <ветка>, при её отсутствии origin/<ветка>
 #
 # Вывод:  areas: backend frontend
 #         flags: has_migration
@@ -30,16 +31,26 @@ BRANCH="$1"
 
 git rev-parse --verify --quiet "$BASE" >/dev/null || {
   echo "Не найдено: $BASE. Выполнить git fetch origin." >&2; exit 3; }
-git rev-parse --verify --quiet "$BRANCH" >/dev/null || {
-  echo "Ветка не найдена: $BRANCH" >&2; exit 3; }
+# Ссылка задачи: сначала локальная ветка, при её отсутствии origin/<ветка>.
+# Порядок обязателен. Область определяется до публикации ветки, шаг 2 скила:
+# origin/<ветка> в этот момент либо отсутствует, либо указывает на прежнее
+# состояние. Обратный порядок вернул бы неполный список областей с кодом 0,
+# без признака ошибки.
+# Запасной разбор нужен для клона на сервере: git fetch создаёт только ссылки
+# origin/<имя>, локальных веток задач там нет.
+REF="$BRANCH"
+git rev-parse --verify --quiet "$REF" >/dev/null || REF="origin/$BRANCH"
+git rev-parse --verify --quiet "$REF" >/dev/null || {
+  echo "Ветка не найдена ни как $BRANCH, ни как origin/$BRANCH" >&2; exit 3; }
+[ "$REF" = "$BRANCH" ] || echo "Локальной ветки $BRANCH нет, взята $REF" >&2
 
 # core.quotepath=false: иначе пути с кириллицей приходят в кавычках
 # и с восьмеричным экранированием, и правила по ним не срабатывают
-FILES="$(git -c core.quotepath=false diff --name-only "$BASE...$BRANCH")" || {
-  echo "git diff не выполнился для $BASE...$BRANCH" >&2; exit 3; }
+FILES="$(git -c core.quotepath=false diff --name-only "$BASE...$REF")" || {
+  echo "git diff не выполнился для $BASE...$REF" >&2; exit 3; }
 
 if [ -z "$FILES" ]; then
-  echo "Изменений относительно $BASE нет: ветка $BRANCH уже влита либо пуста." >&2
+  echo "Изменений относительно $BASE нет: ветка $REF уже влита либо пуста." >&2
   echo "Разворачивать нечего. Остановиться и сообщить пользователю." >&2
   exit 5
 fi
