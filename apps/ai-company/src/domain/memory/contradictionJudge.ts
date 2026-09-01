@@ -30,7 +30,10 @@ function jaccard(a: string, b: string): number {
  * an LLM-backed judge for real contradiction detection via the same interface.
  */
 export class HeuristicContradictionJudge implements ContradictionJudge {
-  constructor(private readonly duplicateThreshold = 0.9) {}
+  private readonly duplicateThreshold: number
+  constructor(duplicateThreshold = 0.9) {
+    this.duplicateThreshold = duplicateThreshold
+  }
   async judge(a: string, b: string): Promise<ContradictionVerdict> {
     return { contradicts: false, duplicate: jaccard(a, b) >= this.duplicateThreshold }
   }
@@ -38,7 +41,10 @@ export class HeuristicContradictionJudge implements ContradictionJudge {
 
 /** Scriptable judge for tests / fixtures. */
 export class ScriptedContradictionJudge implements ContradictionJudge {
-  constructor(private readonly fn: (a: string, b: string) => ContradictionVerdict) {}
+  private readonly fn: (a: string, b: string) => ContradictionVerdict
+  constructor(fn: (a: string, b: string) => ContradictionVerdict) {
+    this.fn = fn
+  }
   async judge(a: string, b: string): Promise<ContradictionVerdict> {
     return this.fn(a, b)
   }
