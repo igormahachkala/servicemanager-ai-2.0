@@ -2,11 +2,11 @@
 
 > **Заменено. Порядок ветвления и доставки кода определяют skill, не этот документ.**
 >
-> - `skills/git-workflow.md` — ветвление и работа над задачей
-> - `skills/deploy-stage.md` — проверки, PR в `beta`, развёртывание на Stage, приёмка
-> - `skills/deploy-prod.md` — проверки, PR в `prod`, развёртывание в Production, откат
-> - `skills/agent-setup.md` — подготовка машины: ssh и `gh`
-> - `skills/secrets.md` — переменные окружения и секреты
+> - `skills/sma-code-delivery/SKILL.md` — ветвление и работа над задачей
+> - `skills/sma-deploy-stage/SKILL.md` — проверки, PR в `beta`, развёртывание на Stage, приёмка
+> - `skills/sma-deploy-prod/SKILL.md` — проверки, PR в `prod`, развёртывание в Production, откат
+> - `skills/sma-agent-setup/SKILL.md` — подготовка машины: ssh и `gh`
+> - `skills/_shared/secrets.md` — переменные окружения и секреты
 >
 > Разделы ниже описывают порядок, действовавший до введения ствола: веток
 > `prod` и `beta` в нём нет, доставка кода допускалась мимо `origin`.
