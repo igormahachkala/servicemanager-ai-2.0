@@ -71,8 +71,9 @@ ssh sma 'cd /opt/sma-prod &amp;&amp; test "$(git rev-parse prod^{tree})" = "$(gi
 <release_lock>
 Снять замок Production: контур приведён в согласованное состояние.
 
-git tag -d prod-busy/&lt;ветка&gt;
-git push origin :refs/tags/prod-busy/&lt;ветка&gt;
+git tag -l --format='%(contents)' prod-busy     # сверить: поле branch — ваша ветка
+git tag -d prod-busy
+git push origin :refs/tags/prod-busy
 
 Раньше не снимать. Пока идут фазы 1 и 2, контур занят по-настоящему:
 каталог в отсоединённом состоянии, вершина prod и работающий код расходятся.

@@ -66,9 +66,10 @@ stage_sha тела тега. Выбор сознательный: Stage один
 равенство HEAD снимало бы допуск при каждом чужом развёртывании.
 </known_limit>
 <lock_check name="Production не занят">
-git ls-remote --tags origin 'refs/tags/prod-busy/*'
+git ls-remote --tags origin 'refs/tags/prod-busy'
 
-Вывод пуст — контур свободен, идти дальше. Механизм —
+Вывод пуст — контур свободен, идти дальше. Имя замка фиксированное,
+без ветки: принадлежность читается из тела. Механизм —
 skills/_shared/contour-lock.md.
 </lock_check>
 <on_lock_failure>
@@ -338,24 +339,35 @@ gunzip -c &lt;файл&gt; | docker exec -i sma_postgres sh -c 'psql -U $POSTGRE
 мог занять другой агент.
 </order>
 <precondition name="контур свободен">
-git ls-remote --tags origin 'refs/tags/prod-busy/*'
+git ls-remote --tags origin 'refs/tags/prod-busy'
 </precondition>
 <on_precondition_failure>
-Production занят. Не сливать. Разобрать замок блоком classify общего файла
-и показать пользователю.
+Контур занят. Прочитать тело и выяснить, чей замок:
+
+git fetch origin tag prod-busy
+git tag -l --format='%(contents)' prod-busy
+
+Поле branch называет вашу ветку — замок ваш, повторно не ставить, идти
+к слиянию. Называет чужую — Production занят: не сливать, разобрать блоком
+classify общего файла и показать пользователю.
 </on_precondition_failure>
 <acquire>
-git tag -a prod-busy/&lt;ветка&gt; -m "Контур занят
+git tag -a prod-busy -m "Контур занят
 branch: &lt;ветка задачи&gt;
 pr: &lt;номер PR&gt;
 agent: &lt;имя машины&gt; / &lt;кто ведёт задачу&gt;
 date: &lt;дата и время UTC&gt;"
-git push origin prod-busy/&lt;ветка&gt;
+git push origin prod-busy
 </acquire>
+<why_no_branch_in_name>
+Имя фиксированное, без ветки: только тогда два агента с разными ветками
+сталкиваются на одном теге и второй получает отказ. Блок why_fixed_name
+общего файла.
+</why_no_branch_in_name>
 <on_push_rejected>
 Замок уже стоит: контур заняли между проверкой и постановкой. Удалить свой
-локальный тег — git tag -d prod-busy/&lt;ветка&gt; — и остановиться. Штатный
-исход, не сбой.
+локальный тег — git tag -d prod-busy — и остановиться. Штатный исход,
+не сбой, и единственная настоящая защита от гонки.
 </on_push_rejected>
 <command>gh pr merge &lt;номер&gt; --merge --delete-branch=false</command>
 <on_failure>
@@ -599,15 +611,19 @@ git merge-base --is-ancestor origin/&lt;ветка&gt; origin/prod
 и критерий шага 10 пройдены, контур в конечном состоянии, держать его дольше
 нечем оправдать.
 
-git tag -d prod-busy/&lt;ветка&gt;
-git push origin :refs/tags/prod-busy/&lt;ветка&gt;
+git fetch origin tag prod-busy
+git tag -l --format='%(contents)' prod-busy     # поле branch — ваша ветка?
 
-git ls-remote --tags origin 'refs/tags/prod-busy/&lt;ветка&gt;'
+git tag -d prod-busy
+git push origin :refs/tags/prod-busy
+
+git ls-remote --tags origin 'refs/tags/prod-busy'
 Вывод пуст — замок снят.
-<if name="своего замка в origin нет">
-Не продолжать закрытие задачи. Блок own_lock_missing общего файла:
-прочитать lock-void/&lt;ветка&gt; и показать пользователю. В Production это
-означает, что кто-то мог занять контур поверх вашего развёртывания.
+<if name="замка нет либо он чужой">
+Не продолжать закрытие задачи и чужой замок не снимать. Блок
+own_lock_missing общего файла: прочитать lock-void/&lt;ветка&gt; и показать
+пользователю. В Production это означает, что кто-то мог занять контур
+поверх вашего развёртывания.
 </if>
 </release_lock>
 <lock_on_rollback>
