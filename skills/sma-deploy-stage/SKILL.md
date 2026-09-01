@@ -365,10 +365,11 @@ ssh sma 'cd /opt/sma-beta &amp;&amp; git pull --ff-only'
 <why_prune_tags>
 Флаги --prune --prune-tags обязательны. Замки — теги фиксированного имени,
 они появляются и снимаются постоянно; снятый в origin тег локально остаётся
-и мешает следующему. Отказ выглядит так:
-cannot lock ref 'refs/tags/stage-busy': 'refs/tags/stage-busy/&lt;что-то&gt;' exists.
-После него не проходит ни fetch, ни pull, и каталог остаётся на прежнем
-коммите.
+и мешает следующему: имя ссылки не может быть префиксом другого имени.
+Отказ вида 'refs/tags/stage-busy/&lt;что-то&gt;' exists; cannot create
+'refs/tags/stage-busy' валит fetch целиком, за ним не проходит pull,
+и каталог остаётся на прежнем коммите. Разбор — блок stale_local_tags
+общего файла.
 </why_prune_tags>
 <why_ff_only>
 --ff-only не даёт создать коммит слияния в каталоге развёртывания.
