@@ -196,30 +196,57 @@ local_ollama_analysis`. Машинерия отдаёт результат, а �
 ollama-задачу, ни увидеть её статусы, ни прочитать ответ модели. Разведка 2026-08-31, только чтение.
 
 **Порядок: 2 → 1 → 3 → 4.** Сначала снимается фильтр, иначе даже созданная задача невидима и
-проверить пункт 1 нечем.
+проверить пункт 1 нечем. **Пункт 2 закрыт** (2026-09-01), следующий — пункт 1.
 
 1. **Форма создания.** В UI нет входа с выбором инструмента: `.tsx` не вызывает `requestToolExecution`
    ни разу, а два хука — `useManualCursorTaskFlow.ts:131` и `useBuilderAutomationTaskFlow.ts:104` —
    идут в cursor-специфичные создатели, где `toolId` захардкожен. Прокинуть `toolId` в хук или сделать
    отдельный экран ollama-анализа поверх нейтральной `requestToolExecution` (готова с `dae9664`).
-2. **Снять зависимость от `builderToolDecisionId` в двух местах** — `mobileOwnerDecisionsSnapshot.ts:202`
-   и `MobileBuilderToolStatusCard.tsx:27`. Оба фильтруют прогоны по `builderToolDecisionId !== null`,
-   а это поле заполняет только Cursor-поток builder-решений; у ollama-run там `null`, поэтому он не
-   появится **ни в списке одобрения, ни в карточке статусов**. Фильтра по `toolId` при этом нет нигде —
-   мешает именно это поле. Либо заводить decision и для ollama, либо ослаблять условие. Это ключ сразу
-   к двум вещам: к кнопке approve и к показу статусов. **Делать первым.**
+2. **Зависимость от `builderToolDecisionId` снята — СДЕЛАНО** (`562c8c1`, `8c6d217`).
+   **Фильтр был не тем замком.** В снапшоте строкой ниже стояло `if (!decision) continue`, а весь блок
+   `builderTool` собирался из `BuilderToolDecision` — снять только `.filter` не дало бы ничего. Условие
+   заменено на вопрос, ради которого оно стояло: `requiresBuilderToolDecision(toolId)` в новом
+   `domain/toolExecution/builderToolVisibility.ts`, а decision-free прогон собирает ту же мету из самого
+   run — `title`, `instructions`, `fileScope`, `checks` там уже лежат, их положил диспетчер, так что
+   ничего не выдумывается. **Фиктивный decision отвергнут:** он лёг бы в cursor-owned store, и фасад
+   `builderToolExecutionRun.ts` вместе с `formatBuilderToolDecisionConfidenceLabel` читали бы выдумку
+   как настоящую запись. Cursor неизменен по построению — decision ему по-прежнему нужен, прогон со
+   ссылкой на исчезнувший decision по-прежнему скрыт, и **скрыт cursor-прогон, созданный вообще без
+   decision**: именно такие делают `manualCursorTaskFlowCreate` и `builderAutomationTaskFlowCreate`,
+   поэтому слепое ослабление вытащило бы их в список с пустой мета-панелью. Закреплено тестом.
+   Мест оказалось **три, а не два:** тот же фильтр стоял в `mobileChatTimelineBuilder.ts:681`, без него
+   статусы не доехали бы до чата Max — отдельный коммит `8c6d217`. Ярлыки передаются в новый модуль
+   аргументом, потому что ratchet `i18nGuard.test.ts` запрещает новые русские литералы вне `src/i18n`;
+   побочная польза — увод строк в бандлы станет одной правкой. Карточка статусов берёт ярлык из
+   capability (`'Cursor'` совпадает с копией байт-в-байт), а её заголовок больше не называет Cursor.
+   `test:domain`: **305 pass, 0 fail** — десять новых кейсов, включая три cursor-регрессии и защиту от
+   впуска инструмента, не объявленного decision-free.
 3. **Рендер конверта.** У `run.result.output` **нет ни одного читателя в UI**: поиск по `.tsx` на
    `cursorResultEnvelopeV110` / `result.output` / `readEnvelopeFromToolResult` даёт ноль совпадений
    (`TaskResultDetailsPage.tsx:105` показывает `outputPreview` совсем другой сущности из
    `domain/taskResults`). Нужен компонент: секции ответа, `sectionsValidated`, `executionStatus`,
    метрики (`tokensPerSecond`, токены). Сейчас всё это пишется в run и никем не видно.
-4. **Косметика:** `toolLabel: 'Cursor'` захардкожен (`mobileOwnerDecisionsSnapshot.ts:214`) — брать из
-   capability; `filterKind: 'cursor'` ставится жёстко (`:122`); текст одобрения «Cursor разрешён
-   Owner — ready for local adapter» (`:422`).
+4. **Косметика:** `toolLabel: 'Cursor'` в cursor-ветке — теперь
+   `mobileOwnerDecisionsBuilderTool.ts:100`, брать из capability, как это уже делает карточка статусов;
+   `filterKind: 'cursor'` ставится жёстко (`mobileOwnerDecisionsSnapshot.ts:207`), из-за чего
+   ollama-элемент лежит во вкладке «Cursor»; текст одобрения «Cursor разрешён Owner — ready for local
+   adapter» (`:409`); русские ярлыки из `BUILDER_TOOL_LABELS_RU` (`:102`) пора увести в `src/i18n` —
+   они собраны в один объект именно под это.
 
 **`approveMobileOwnerDecision` не переписывать.** Она уже инструмент-нейтральна: зовёт
 `approveToolExecutionRun(item.toolExecutionRunId, …)`, а значит ollama-ветка подхватит run сама, как
-только он попадёт в список после пункта 2.
+только он попадёт в список после пункта 2. Подтверждено на пункте 2: не тронута, ollama-run одобряется
+через неё же.
+
+**ДОЛГ, найденный на пункте 2: код игнорирует `requiresOwnerApproval` из capability.** У ollama флаг
+стоит `false` (`toolDispatcherRegistry.ts:49`), но `createToolExecutionFromDispatcherRequest` ставит
+`initialStatus: 'awaiting_owner'` (`toolExecutionRunBridge.ts:122`) **всем без разбора**, поэтому
+ollama-run всё равно ждёт Владельца. Сейчас **оставлено сознательно:** одобрение через UI нужно для
+демо, и на нём же держится проверка пункта 2. Решений ровно два, и они несимметричны по риску: либо
+capability переводится в `true` — тогда флаг честно описывает поведение и ничего в жизненном цикле не
+двигается; либо создание run начинает флаг учитывать — тогда ollama пойдёт сразу в `approved`, минуя
+Владельца, и demo-путь придётся заводить иначе. **Второй вариант меняет жизненный цикл прогона, поэтому
+не делать заодно с другой задачей.**
 
 Дальше, вне сквозного пути: перенос слоя контекста из `agent-runner` (`contextLoader`/`fileSelector`
 требуют моста к `fs` — сейчас промпт честно пишет, что контекста нет; живой прогон это подтвердил:
@@ -313,3 +340,9 @@ ollama-задачу, ни увидеть её статусы, ни прочит�
     дочитанным потоком транспортом не сломан). Расщепление требует двух кодов в
     `ollamaAnalysisClient.ts` — `consume()` знает, откуда пришла ошибка. Делать вместе со
     следующей правкой клиента, не отдельным заходом.
+14. **Зелёный `test:domain` ничего не говорит о сборке.** `node --test` через `tsx` типы не проверяет —
+    он их стирает, — поэтому ветка спокойно жила с красным `tsc -b`: `contradictionJudge.ts` объявлял
+    поля через parameter properties конструктора, что запрещено включённым `erasableSyntaxOnly`
+    (`TS1294`), и `npm run build` падал начиная с `5c73cb3`, пока тесты оставались зелёными. Починено
+    механически в `aed9dc3`. **Гонять `npm run build` вместе с `test:domain`, а не вместо;** один
+    другого не заменяет и не перекрывает.
