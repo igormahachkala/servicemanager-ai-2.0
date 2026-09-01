@@ -67,6 +67,12 @@ sma-agent-setup (skills/sma-agent-setup/SKILL.md). Часть шагов тре�
 </example>
 <example task="заменить шрифты на локальные">curl -s &lt;css&gt; | grep -c googleapis → 0</example>
 <example task="исправить отрисовку завершённых заявок">На /m раскрыть группу локаций, вкладка «Завершённые» — карточки отображаются.</example>
+<example task="правка текста скила или его скрипта">
+Изменение не исполняется на контуре, оно лежит там файлом. Критерий —
+чтение файла в каталоге контура: в skills/sma-deploy-prod/SKILL.md шаг 12
+содержит блок keep_branch. Для скрипта — его запуск в каталоге контура
+с ожидаемым выводом и кодом возврата.
+</example>
 <on_missing>Критерий не сформулирован — спросить пользователя, не начинать работу.</on_missing>
 <carry>Критерий переносится в тело PR и в сообщение тега stage-ok.</carry>
 </step>
@@ -76,7 +82,17 @@ sma-agent-setup (skills/sma-agent-setup/SKILL.md). Часть шагов тре�
 git fetch origin
 git switch -c &lt;тип&gt;/&lt;тема&gt; origin/prod
 </command>
-<naming>fix/ | feat/ | docs/ | chore/</naming>
+<naming>fix/ | feat/ | docs/ | chore/ | skills/</naming>
+<naming_scope>
+skills/ — правки самих скилов и их скриптов, пути skills/*. Тип введён
+1 сентября 2026. До него такие задачи шли под docs/, и имя ветки вводило
+в заблуждение: правится skills/, каталог docs/ при этом не затрагивается.
+Имя типа совпадает с областью, которую печатает area-map.sh для этих путей.
+docs/ остаётся за документацией проекта, каталог docs/.
+Ветка, задевающая несколько областей, называется по той, ради которой
+задача заведена. Наборы проверок при этом берутся по фактическим областям
+из area-map.sh, а не по типу ветки.
+</naming_scope>
 <expect>git rev-parse HEAD равен git rev-parse origin/prod</expect>
 <on_failure>
 Ветка создана не от prod. Пересоздать поверх, не удаляя:
