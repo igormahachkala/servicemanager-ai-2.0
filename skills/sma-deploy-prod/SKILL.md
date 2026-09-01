@@ -73,8 +73,10 @@ skills/_shared/contour-lock.md.
 </lock_check>
 <on_lock_failure>
 Production занят другим агентом. Не создавать PR, не сливать, не разворачивать.
-Прочитать тело замка блоком read общего файла и показать пользователю: чья
-ветка, какой PR, с какого времени. Чужой замок не снимать, блок foreign_lock.
+Разобрать замок блоком classify общего файла: возраст, ветка, PR, что
+развёрнуто в /opt/sma-prod, — и показать пользователю одним сообщением.
+Порог для Production 2 часа. Чужой замок не снимать, блок foreign_lock;
+снятие по команде пользователя выполняется блоком lock_void.
 </on_lock_failure>
 <why_here>
 Проверка стоит в шаге 0, а не перед слиянием: до занятого контура нет смысла
@@ -339,8 +341,8 @@ gunzip -c &lt;файл&gt; | docker exec -i sma_postgres sh -c 'psql -U $POSTGRE
 git ls-remote --tags origin 'refs/tags/prod-busy/*'
 </precondition>
 <on_precondition_failure>
-Production занят. Не сливать. Показать пользователю тело замка,
-блок foreign_lock общего файла.
+Production занят. Не сливать. Разобрать замок блоком classify общего файла
+и показать пользователю.
 </on_precondition_failure>
 <acquire>
 git tag -a prod-busy/&lt;ветка&gt; -m "Контур занят
@@ -602,6 +604,11 @@ git push origin :refs/tags/prod-busy/&lt;ветка&gt;
 
 git ls-remote --tags origin 'refs/tags/prod-busy/&lt;ветка&gt;'
 Вывод пуст — замок снят.
+<if name="своего замка в origin нет">
+Не продолжать закрытие задачи. Блок own_lock_missing общего файла:
+прочитать lock-void/&lt;ветка&gt; и показать пользователю. В Production это
+означает, что кто-то мог занять контур поверх вашего развёртывания.
+</if>
 </release_lock>
 <lock_on_rollback>
 Развёртывание не прошло и выполняется откат — замок не снимать до конца
