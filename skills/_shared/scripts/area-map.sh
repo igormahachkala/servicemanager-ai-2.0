@@ -54,6 +54,7 @@ area_of() {
     web/*)                         echo frontend ;;
     agent-runner/*)                echo agent-runner ;;
     scripts/*)                     echo scripts ;;
+    skills/*/scripts/*)            echo scripts ;;
     skills/*)                      echo skills ;;
     .claude/skills/*)              echo skills ;;
     .claude/*)                     echo none ;;

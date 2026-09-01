@@ -143,7 +143,9 @@ if has_area scripts; then
   # проверка молча пропустится и скрипт отчитается успехом.
   MISSING=""
   CHECKED=0
-  for f in $(git diff --name-only "origin/prod...$BRANCH" -- scripts/); do
+  # :(glob) обязателен: без него git не раскрывает * в pathspec
+  # и скрипты скилов в набор не попадают
+  for f in $(git diff --name-only "origin/prod...$BRANCH" -- scripts/ ':(glob)skills/*/scripts/*'); do
     if [ -f "$f" ]; then
       run "scripts: bash -n $f" bash -n "$f"
       CHECKED=$((CHECKED + 1))
