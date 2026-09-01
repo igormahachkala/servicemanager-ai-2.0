@@ -283,7 +283,7 @@ export const mobileEn = {
       runtimeGuideHint: 'Runtime Live shows Builder Worker Loop progress.',
       executionNotice: null,
       toolStatus: {
-        title: 'Cursor tool request',
+        title: 'Tool request',
         description: 'Builder tool decision and Owner approval status.',
         toolLabel: 'Cursor',
         openDecisions: 'Open decisions',

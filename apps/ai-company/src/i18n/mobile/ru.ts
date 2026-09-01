@@ -283,7 +283,7 @@ export const mobileRu = {
       runtimeGuideHint: 'Runtime Live показывает прогресс Worker Loop Builder.',
       executionNotice: null,
       toolStatus: {
-        title: 'Запрос инструмента Cursor',
+        title: 'Запрос инструмента',
         description: 'Статус tool decision и одобрения Owner.',
         toolLabel: 'Cursor',
         openDecisions: 'Открыть решения',

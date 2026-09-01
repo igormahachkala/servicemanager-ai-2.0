@@ -5,10 +5,6 @@
 
 import { applyApprovalAction, loadApprovalStore, type ApprovalPriority } from '../approval/approvalStorage'
 import {
-  formatBuilderToolDecisionConfidenceLabel,
-  getBuilderToolDecisionById,
-} from '../builderToolDecision'
-import {
   approveToolExecutionRun,
   getToolExecutionRunByWorkerLoopId,
   listToolExecutionRuns,
@@ -33,6 +29,13 @@ import { buildJournalMemoryAndKnowledge } from '../morningReport/ownerMorningRep
 import { getTodayDateKey } from '../workday/workdayStorage'
 import { mobileEmployeeProfilePath, BUILDER_EMPLOYEE_ID } from '../mobileEmployee'
 import { resolveEmployee } from '../../mission-control/data/conversation'
+import {
+  resolveMobileOwnerDecisionBuilderToolItem,
+  type MobileOwnerDecisionBuilderToolLabels,
+  type MobileOwnerDecisionBuilderToolMeta,
+} from './mobileOwnerDecisionsBuilderTool'
+
+export type { MobileOwnerDecisionBuilderToolMeta } from './mobileOwnerDecisionsBuilderTool'
 
 export type MobileOwnerDecisionKind =
   | 'approval'
@@ -43,21 +46,6 @@ export type MobileOwnerDecisionKind =
   | 'worker_loop_failed'
   | 'delegation_plan'
   | 'builder_tool_request'
-
-export type MobileOwnerDecisionBuilderToolMeta = {
-  toolLabel: string
-  taskTitle: string
-  reason: string
-  fileScope: string[]
-  checks: string[]
-  expectedResult: string
-  risk: string
-  confidenceLabel: string
-  workItemId: string
-  workerLoopId: string
-  builderProfileHref: string
-  workItemHref: string
-}
 
 export type MobileOwnerDecisionDelegationMeta = {
   decidedByLabel: string
@@ -109,6 +97,15 @@ const PRIORITY_RISK_RU: Record<ApprovalPriority, string> = {
   high: 'Высокий риск',
   medium: 'Средний риск',
   low: 'Низкий риск',
+}
+
+const BUILDER_TOOL_LABELS_RU: MobileOwnerDecisionBuilderToolLabels = {
+  riskHigh: 'Высокий риск',
+  riskMedium: 'Средний риск',
+  riskLow: 'Низкий риск',
+  localAnalysisRisk: 'Локальный анализ — без записи в репозиторий',
+  analysisExpectedResult: 'Секции анализа: Problem / Risk / Recommendation / Effort',
+  unknownConfidence: '—',
 }
 
 function employeeLabel(employeeId: string | null | undefined): string {
@@ -196,19 +193,21 @@ export function buildMobileOwnerDecisionsSnapshot(
     })
   }
 
+  // No pre-filter on builderToolDecisionId: the resolver decides per tool
+  // whether a decision is required, and drops the run when it is missing.
   for (const run of listToolExecutionRuns({
     status: 'awaiting_owner',
     employeeId: BUILDER_EMPLOYEE_ID,
-  }).filter((item) => item.builderToolDecisionId)) {
-    const decision = getBuilderToolDecisionById(run.builderToolDecisionId ?? '')
-    if (!decision) continue
+  })) {
+    const meta = resolveMobileOwnerDecisionBuilderToolItem(run, BUILDER_TOOL_LABELS_RU)
+    if (!meta) continue
     items.push({
       id: `builder-tool-${run.id}`,
       kind: 'builder_tool_request',
       filterKind: 'cursor',
       title: run.title,
-      reason: decision.reason,
-      risk: decision.risk === 'high' ? 'Высокий риск' : decision.risk === 'medium' ? 'Средний риск' : 'Низкий риск',
+      reason: meta.reason,
+      risk: meta.riskLabel,
       employeeId: run.employeeId,
       employeeLabel: employeeLabel(run.employeeId),
       createdAt: run.createdAt,
@@ -220,20 +219,7 @@ export function buildMobileOwnerDecisionsSnapshot(
       delegationPlanId: null,
       delegation: null,
       toolExecutionRunId: run.id,
-      builderTool: {
-        toolLabel: 'Cursor',
-        taskTitle: run.title,
-        reason: decision.reason,
-        fileScope: decision.fileScope,
-        checks: decision.checks,
-        expectedResult: decision.expectedResult,
-        risk: decision.risk,
-        confidenceLabel: formatBuilderToolDecisionConfidenceLabel(decision.confidence),
-        workItemId: run.workItemId,
-        workerLoopId: run.workerLoopId ?? '',
-        builderProfileHref: mobileEmployeeProfilePath(run.employeeId),
-        workItemHref: `/mobile/tasks?highlight=${encodeURIComponent(run.workItemId)}`,
-      },
+      builderTool: meta.builderTool,
     })
   }
 
