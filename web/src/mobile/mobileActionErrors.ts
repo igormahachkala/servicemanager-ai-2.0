@@ -76,6 +76,9 @@ export function formatMobileMutationError(
   logMobileMutationDebug(e)
   const msg = rawMessage(e)
   if (isNetworkError(msg)) return NETWORK
+  if (msg.includes('ACTIVE_SHIFT_REQUIRED') || msg.includes('Откройте рабочую смену')) {
+    return 'Откройте рабочую смену, чтобы выполнить это действие.'
+  }
 
   if (ctx.claimBlockedByCategoryPolicy && ctx.operation === 'claim') return SPEC
 
