@@ -66,10 +66,34 @@ merge-base. Прошла — идти дальше, ничего не делая
 </step>
 
 <step id="1" name="определить область изменения">
-<command>git diff --name-only origin/prod...&lt;ветка&gt;</command>
-<ref file="skills/_shared/area-map.md">Карта путей и наборов проверок по областям. Прочитать целиком: без неё область не определяется. Блоки с contour="stage" относятся к этому скилу, с contour="production" пропускаются.</ref>
-<carry>Определённые области переносятся в шаги 5 и 8.</carry>
+<run script="skills/_shared/scripts/area-map.sh">
+skills/_shared/scripts/area-map.sh &lt;ветка задачи&gt;
+</run>
+<expect>
+Две строки: areas со списком областей, flags с признаками has_migration
+и needs_rebuild. Код возврата 0.
+</expect>
+<on_failure>
+Код 1 — неизвестный путь, скрипт назвал какие. Остановиться и спросить
+пользователя, к какой области отнести, затем добавить правило в скрипт.
+Код 5 — изменений относительно origin/prod нет, разворачивать нечего.
+Код 2 или 3 — неверные аргументы либо git не отработал, разобрать вывод.
+</on_failure>
+<resolution>
+Совпало несколько областей — выполняются все наборы.
+Скрипт уже отбросил none, если были другие совпадения.
+</resolution>
+<areas>
+Описание области читается только для той, что вернул скрипт. Областей
+backend, frontend, infra и none описаний нет: их наборы проверок заданы
+в skills/_shared/merge-checks.md.
+</areas>
+<carry>Области и флаги переносятся в шаги 5 и 8.</carry>
 </step>
+<ref file="skills/_shared/areas/nginx.md">Область nginx: конфигурация вне compose, сравнение с рабочей, порядок применения. Читать, только если скрипт вернул nginx.</ref>
+<ref file="skills/_shared/areas/agent-runner.md">Область agent-runner: порядок доставки не определён. Читать, только если скрипт вернул agent-runner.</ref>
+<ref file="skills/_shared/areas/skills.md">Область skills: требования к телу PR. Читать, только если скрипт вернул skills.</ref>
+<ref file="skills/_shared/areas/scripts.md">Область scripts: проверка синтаксиса. Читать, только если скрипт вернул scripts.</ref>
 
 <step id="2" name="опубликовать ветку">
 <command>git push -u origin &lt;ветка&gt;</command>
