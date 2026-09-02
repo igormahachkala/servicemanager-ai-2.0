@@ -1,6 +1,7 @@
 ﻿import React, { Suspense, lazy, type ComponentType } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import * as api from './lib/api'
+import { IT_COMPANY_ROUTES } from './it-company/routes'
 import { LoginPage } from './views/LoginPage'
 
 function lazyExport<P extends object>(loader: () => Promise<Record<string, ComponentType<P>>>, exportName: string) {
@@ -19,7 +20,7 @@ function LazyRoute<P extends object>({
   component: Comp,
   props,
 }: {
-  component: React.LazyExoticComponent<ComponentType<P>>
+  component: ComponentType<P>
   props?: P
 }) {
   return (
@@ -82,11 +83,6 @@ const MobileInspectionRunPage = lazyExport(() => import('./mobile/MobileInspecti
 const MobileShiftPage = lazyExport(() => import('./mobile/MobileShiftPage'), 'MobileShiftPage')
 const MobileWorkforcePage = lazyExport(() => import('./mobile/MobileWorkforcePage'), 'MobileWorkforcePage')
 const MaxApp = lazyExport(() => import('./max/MaxApp'), 'MaxApp')
-const ITCompanyPage = lazyExport(() => import('./it-company/pages/ITCompanyPage'), 'ITCompanyPage')
-const AIEmployeesPage = lazyExport(() => import('./it-company/pages/AIEmployeesPage'), 'AIEmployeesPage')
-const AIEmployeeDetailsPage = lazyExport(() => import('./it-company/pages/AIEmployeeDetailsPage'), 'AIEmployeeDetailsPage')
-const MissionControlPage = lazyExport(() => import('./it-company/pages/MissionControlPage'), 'MissionControlPage')
-const AIDeveloperPage = lazyExport(() => import('./it-company/pages/AIDeveloperPage'), 'AIDeveloperPage')
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const token = api.getToken()
@@ -225,11 +221,9 @@ export function AppRoutes() {
         <Route path="inspection/quick/:runId" element={<LazyRoute component={InspectionQuickPage} />} />
         <Route path="inspection/runs/:id/report" element={<LazyRoute component={InspectionRunReportPage} />} />
         <Route path="agents/engineering" element={<LazyRoute component={EngineeringAgentPage} />} />
-        <Route path="it" element={<LazyRoute component={ITCompanyPage} />} />
-        <Route path="it/employees" element={<LazyRoute component={AIEmployeesPage} />} />
-        <Route path="it/employees/:slug" element={<LazyRoute component={AIEmployeeDetailsPage} />} />
-        <Route path="it/mission-control" element={<LazyRoute component={MissionControlPage} />} />
-        <Route path="it/ai-developer" element={<LazyRoute component={AIDeveloperPage} />} />
+        {IT_COMPANY_ROUTES.map(({ path, Component }) => (
+          <Route key={path} path={path} element={<LazyRoute component={Component} />} />
+        ))}
       </Route>
 
       <Route path="/max" element={<LazyRoute component={MaxApp} />}>

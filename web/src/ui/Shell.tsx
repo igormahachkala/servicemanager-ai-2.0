@@ -12,7 +12,7 @@ import {
 } from '../lib/navigation'
 import { getRoleDisplayLabel } from '../lib/resolveAdminProfile'
 import { SmaBrandLogo } from '../components/SmaBrandLogo'
-import { canViewITCompany } from '../it-company'
+import { canViewITCompany } from '../it-company/access'
 import { useWsInvalidation } from './useWsInvalidation'
 import { useRealtimeNotifications } from '../hooks/useRealtimeNotifications'
 
