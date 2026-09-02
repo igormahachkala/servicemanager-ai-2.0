@@ -163,7 +163,8 @@ fi
 LOCK_RAW=$(git ls-remote --tags origin 'refs/tags/stage-busy' 2>/dev/null || true)
 if [ -n "$LOCK_RAW" ]; then
   echo "Живой замок stage-busy: сброс запрещён, независимо от всего выше."
-  echo "Разбор — блок classify в skills/_shared/contour-lock.md."
+  echo "Разбор — блок classify в справочнике"
+  echo "skills/_shared/references/contour-lock-cases.md."
 else
   echo "Живых замков stage-busy нет."
 fi

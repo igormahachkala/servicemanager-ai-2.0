@@ -287,8 +287,8 @@ skills/_shared/scripts/lock-acquire.sh stage &lt;ветка задачи&gt; &lt
   0  контур ваш: замок поставлен либо уже стоял и ветка в нём ваша,
      идти к слиянию
   1  контур занят другим агентом: разбор напечатан, показать его
-     пользователю и остановиться. Чужой замок не снимать, блок foreign_lock;
-     снятие по команде пользователя выполняется блоком lock_void
+     пользователю и остановиться. Чужой замок не снимать, блоки foreign_lock и lock_void
+     справочника skills/_shared/references/contour-lock-cases.md
   2  неверные аргументы
   3  git не отработал
   5  контур заняли между проверкой и постановкой: свой локальный тег скрипт
@@ -406,7 +406,7 @@ ssh sma 'cd /opt/sma-beta &amp;&amp; git pull --ff-only'
 Отказ вида 'refs/tags/stage-busy/&lt;что-то&gt;' exists; cannot create
 'refs/tags/stage-busy' валит fetch целиком, за ним не проходит pull,
 и каталог остаётся на прежнем коммите. Разбор — блок stale_local_tags
-общего файла.
+справочника skills/_shared/references/contour-lock-cases.md.
 
 Отдельно, и это не ошибка: строка
 '! [rejected] stage-busy -&gt; stage-busy (would clobber existing tag)'.
@@ -414,7 +414,7 @@ ssh sma 'cd /opt/sma-beta &amp;&amp; git pull --ff-only'
 Отклонён только тег замка, ветки обновлены, git pull следом проходит.
 Код возврата у fetch при этом 1 — тот же, что при отказе выше, поэтому
 различать надо по выводу, а не по коду. Не останавливаться, разбор — блок
-clobber_not_error общего файла.
+clobber_not_error справочника skills/_shared/references/contour-lock-cases.md.
 
 Отсюда же требование к командам ниже: fetch, checkout и pull выполняются
 отдельными вызовами. Связать их через &amp;&amp; нельзя — код 1 от fetch оборвал бы
@@ -587,7 +587,7 @@ ssh sma 'docker inspect sma_stage_backend sma_stage_web --format "{{.Name}} {{.S
 </why_ask>
 <if name="замок удержан">
 Повторный проход шага 7 увидит замок и сверит поле branch его тела:
-своё продолжать, чужое разбирать по foreign_lock.
+своё продолжать, чужое разбирать по foreign_lock справочника.
 </if>
 <if name="замок снят">
 Повторный проход шага 7 занимает контур заново обычным порядком и может
@@ -648,7 +648,8 @@ git push origin :refs/tags/stage-busy
 <if name="замка нет либо он чужой">
 Не продолжать и чужой замок не снимать. Своего замка нет: его мог снять
 другой агент по решению пользователя, а контур занять третий.
-Блок own_lock_missing общего файла: прочитать lock-void/&lt;ветка&gt;
+Блок own_lock_missing справочника
+skills/_shared/references/contour-lock-cases.md: прочитать lock-void/&lt;ветка&gt;
 и показать пользователю.
 </if>
 <release_order>
@@ -735,7 +736,9 @@ test -z "$(git ls-remote --tags origin 'refs/tags/stage-busy')"
 из beta код, который сейчас проверяется.
 </why>
 <on_failure>
-Не сбрасывать. Разобрать замок блоком classify общего файла и показать
+Не сбрасывать. Разобрать замок блоком classify справочника
+skills/_shared/references/contour-lock-cases.md
+и показать
 пользователю. Чужой замок не снимать, блок foreign_lock.
 </on_failure>
 </precondition>

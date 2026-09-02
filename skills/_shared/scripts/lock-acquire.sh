@@ -22,7 +22,9 @@
 #   3  git-команда не выполнилась
 #   5  контур заняли между проверкой и постановкой: повторить позже
 #
-# Механизм и разбор чужого замка: skills/_shared/contour-lock.md
+# Механизм: skills/_shared/contour-lock.md
+# Разбор чужого замка и редкие отказы:
+#   skills/_shared/references/contour-lock-cases.md
 # Временного не создаёт, ничего не удаляет, кроме своего локального тега
 # при отказе push.
 
@@ -76,7 +78,8 @@ if [ "$MODE" = "owned" ]; then
 fi
 
 # Вычистить локальные теги, снятые в origin: иначе постановка упрётся
-# в собственный мусор, блок stale_local_tags общего файла.
+# в собственный мусор, блок stale_local_tags справочника
+# skills/_shared/references/contour-lock-cases.md.
 git fetch --prune --prune-tags origin >/dev/null 2>&1 || {
   echo "git fetch не выполнился." >&2; exit 3; }
 
@@ -126,7 +129,8 @@ if [ -n "$REMOTE" ]; then
 
   echo
   echo "Чужой замок не снимать. Показать это пользователю и ждать решения."
-  echo "Снятие по его команде выполняется блоком lock_void общего файла."
+  echo "Снятие по его команде выполняется блоком lock_void справочника"
+  echo "skills/_shared/references/contour-lock-cases.md."
   exit 1
 fi
 
