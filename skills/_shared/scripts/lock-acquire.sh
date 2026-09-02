@@ -3,6 +3,13 @@
 # чужой. Слияние PR не выполняет: оно остаётся отдельным вызовом агента.
 #
 # Использование:  lock-acquire.sh <контур> <ветка задачи> <номер PR>
+#                 занять контур
+#
+#                 lock-acquire.sh --owned <контур> <ветка задачи>
+#                 проверить, что замок стоит и он ваш. Этот режим ставится
+#                 слева от слияния: gh pr merge выполняется, только если
+#                 проверка вернула 0.
+#
 #                 контур: stage | production
 # Где запускать:  на машине агента. Нужен git по рабочей копии; gh нужен
 #                 только для разбора чужого замка и его отсутствие
@@ -22,14 +29,25 @@
 set -euo pipefail
 
 usage() {
-  echo "Использование: $(basename "$0") <stage|production> <ветка задачи> <номер PR>" >&2
+  echo "Использование:" >&2
+  echo "  $(basename "$0") <stage|production> <ветка задачи> <номер PR>   занять контур" >&2
+  echo "  $(basename "$0") --owned <stage|production> <ветка задачи>      замок стоит и он ваш?" >&2
 }
 
-[ $# -eq 3 ] || { usage; exit 2; }
-
-CONTOUR="$1"
-BRANCH="$2"
-PR="$3"
+MODE=acquire
+if [ "${1:-}" = "--owned" ]; then
+  MODE=owned
+  shift
+  [ $# -eq 2 ] || { usage; exit 2; }
+  CONTOUR="$1"
+  BRANCH="$2"
+  PR=""
+else
+  [ $# -eq 3 ] || { usage; exit 2; }
+  CONTOUR="$1"
+  BRANCH="$2"
+  PR="$3"
+fi
 
 case "$CONTOUR" in
   stage)      TAG="stage-busy"; WORKDIR="/opt/sma-beta"; THRESHOLD_H=4 ;;
@@ -38,7 +56,24 @@ case "$CONTOUR" in
 esac
 
 [ -n "$BRANCH" ] || { echo "Пустое имя ветки." >&2; exit 2; }
-[ -n "$PR" ] || { echo "Пустой номер PR." >&2; exit 2; }
+[ "$MODE" = "owned" ] || [ -n "$PR" ] || { echo "Пустой номер PR." >&2; exit 2; }
+
+# Режим проверки владения. Ставится слева от слияния.
+if [ "$MODE" = "owned" ]; then
+  git fetch --prune --prune-tags origin >/dev/null 2>&1 || {
+    echo "git fetch не выполнился." >&2; exit 3; }
+  if [ -z "$(git ls-remote --tags origin "refs/tags/$TAG" 2>/dev/null || true)" ]; then
+    echo "Замка $TAG нет: контур не занят вами, сливать нельзя." >&2
+    exit 1
+  fi
+  git fetch origin "tag $TAG" >/dev/null 2>&1 || true
+  OWNER=$(git tag -l --format='%(contents)' "$TAG" 2>/dev/null | awk -F': ' '/^branch: /{print $2; exit}')
+  if [ "$OWNER" = "$BRANCH" ]; then
+    exit 0
+  fi
+  echo "Замок $TAG принадлежит ветке ${OWNER:-неизвестной}, а не $BRANCH: сливать нельзя." >&2
+  exit 1
+fi
 
 # Вычистить локальные теги, снятые в origin: иначе постановка упрётся
 # в собственный мусор, блок stale_local_tags общего файла.
