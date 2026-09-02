@@ -77,6 +77,7 @@ echo
 
 # Ветки-источники: вторые родители слияний, не входящие в prod.
 FOUND=0
+SEEN=""   # имена уже напечатанных веток, разделитель |
 while IFS='|' read -r parents subject; do
   P2=$(echo "$parents" | awk '{print $2}')
   [ -n "$P2" ] || continue
@@ -89,6 +90,16 @@ while IFS='|' read -r parents subject; do
   BRANCH=$(echo "$subject" | sed -n 's|^Merge pull request #[0-9]* from [^/]*/\(.*\)$|\1|p')
   if [ -z "$BRANCH" ]; then
     BRANCH=$(git ls-remote --heads origin 2>/dev/null | awk -v sha="$P2" '$1 == sha {sub("refs/heads/", "", $2); print $2; exit}')
+  fi
+
+  # Одна ветка могла влиться в beta несколькими PR — например, после отказа
+  # приёмки и исправления. Перебор идёт от свежих слияний к старым, поэтому
+  # первое встреченное и есть последнее состояние ветки, остальные пропускаем.
+  if [ -n "$BRANCH" ]; then
+    case "|$SEEN|" in
+      *"|$BRANCH|"*) continue ;;
+    esac
+    SEEN="$SEEN|$BRANCH"
   fi
 
   FOUND=$(( FOUND + 1 ))

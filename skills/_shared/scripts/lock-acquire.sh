@@ -62,13 +62,19 @@ esac
 
 # Режим проверки владения. Ставится слева от слияния.
 if [ "$MODE" = "owned" ]; then
-  git fetch --prune --prune-tags origin >/dev/null 2>&1 || {
-    echo "git fetch не выполнился." >&2; exit 3; }
-  if [ -z "$(git ls-remote --tags origin "refs/tags/$TAG" 2>/dev/null || true)" ]; then
+  # Код 1 здесь штатен: fetch отклоняет разошедшийся локальный тег замка
+  # строкой would clobber existing tag, ветки при этом обновлены. Связь
+  # с origin проверяет ls-remote ниже.
+  git fetch --prune --prune-tags origin >/dev/null 2>&1 || true
+  REMOTE=$(git ls-remote --tags origin "refs/tags/$TAG" 2>/dev/null) || {
+    echo "origin недоступен: связь или права." >&2; exit 3; }
+  if [ -z "$REMOTE" ]; then
     echo "Замка $TAG нет: контур не занят вами, сливать нельзя." >&2
     exit 1
   fi
-  git fetch origin "tag $TAG" >/dev/null 2>&1 || true
+  # --force обязателен: без него разошедшийся локальный тег остаётся старым
+  # (would clobber existing tag), и тело замка читается устаревшее
+  git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG" >/dev/null 2>&1 || true
   OWNER=$(git tag -l --format='%(contents)' "$TAG" 2>/dev/null | awk -F': ' '/^branch: /{print $2; exit}')
   if [ "$OWNER" = "$BRANCH" ]; then
     exit 0
@@ -80,13 +86,16 @@ fi
 # Вычистить локальные теги, снятые в origin: иначе постановка упрётся
 # в собственный мусор, блок stale_local_tags справочника
 # skills/_shared/references/contour-lock-cases.md.
-git fetch --prune --prune-tags origin >/dev/null 2>&1 || {
-  echo "git fetch не выполнился." >&2; exit 3; }
+# Код 1 здесь штатен, причина та же, что в режиме --owned выше.
+git fetch --prune --prune-tags origin >/dev/null 2>&1 || true
 
-REMOTE=$(git ls-remote --tags origin "refs/tags/$TAG" 2>/dev/null || true)
+REMOTE=$(git ls-remote --tags origin "refs/tags/$TAG" 2>/dev/null) || {
+  echo "origin недоступен: связь или права." >&2; exit 3; }
 
 if [ -n "$REMOTE" ]; then
-  git fetch origin "tag $TAG" >/dev/null 2>&1 || true
+  # --force обязателен: без него разошедшийся локальный тег остаётся старым
+  # (would clobber existing tag), и тело замка читается устаревшее
+  git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG" >/dev/null 2>&1 || true
   BODY=$(git tag -l --format='%(contents)' "$TAG" 2>/dev/null || true)
   OWNER=$(echo "$BODY" | awk -F': ' '/^branch: /{print $2; exit}')
 
@@ -117,7 +126,9 @@ if [ -n "$REMOTE" ]; then
       echo "  ветка в origin     нет: замок мусорный, задача закрыта"
     fi
     if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then
-      PRS=$(gh pr list --head "$OWNER" --state all --json number,state --jq '.[] | "#\(.number) \(.state)"' 2>/dev/null | tr '\n' ' ' | sed 's/ *$//')
+      # || true обязателен: под set -o pipefail ненулевой код gh убил бы
+      # скрипт посреди разбора, и агент увидел бы код 1 без двух последних строк
+      PRS=$(gh pr list --head "$OWNER" --state all --json number,state --jq '.[] | "#\(.number) \(.state)"' 2>/dev/null | tr '\n' ' ' | sed 's/ *$//' || true)
       echo "  PR владельца       ${PRS:-нет}"
     else
       echo "  PR владельца       не проверено: gh недоступен"
