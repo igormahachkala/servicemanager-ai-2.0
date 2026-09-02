@@ -472,10 +472,16 @@ ssh sma 'cd /opt/sma-prod &amp;&amp; git pull --ff-only'
 Флаги --prune --prune-tags обязательны. Замки — теги фиксированного имени,
 они появляются и снимаются постоянно; снятый в origin тег локально остаётся
 и мешает следующему: имя ссылки не может быть префиксом другого имени.
-Отказ вида 'refs/tags/stage-busy/&lt;что-то&gt;' exists; cannot create
-'refs/tags/stage-busy' валит fetch целиком, за ним не проходит pull,
+Отказ вида 'refs/tags/prod-busy/&lt;что-то&gt;' exists; cannot create
+'refs/tags/prod-busy' валит fetch целиком, за ним не проходит pull,
 и каталог остаётся на прежнем коммите. Разбор — блок stale_local_tags
 общего файла.
+
+Отдельно, и это не ошибка: строка
+'! [rejected] prod-busy -&gt; prod-busy (would clobber existing tag)'.
+Она означает, что локальная копия замка разошлась с origin по объекту.
+Код возврата 0, остальные ссылки обновлены, git pull следом проходит.
+Не останавливаться, разбор — блок clobber_not_error общего файла.
 </why_prune_tags>
 <why_ff_only>
 --ff-only не даёт создать коммит слияния в каталоге развёртывания.
