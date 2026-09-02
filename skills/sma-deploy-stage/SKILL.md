@@ -77,6 +77,12 @@ git merge origin/prod
 git push origin beta
 git switch &lt;ветка задачи&gt;
 </on_failure>
+<on_branch_busy>
+Отказ 'fatal: beta is already used by worktree at &lt;путь&gt;' — ветку держит
+рабочее дерево другой сессии. Переключаться не нужно, тот же результат даёт
+работа на отсоединённом состоянии: блок beta_without_switch
+в sma-code-delivery.
+</on_branch_busy>
 <on_push_rejected>
 Отказ non-fast-forward означает, что инвариант уже восстановил другой агент:
 при 4-6 агентах после релиза отставание обнаруживают все сразу.
