@@ -2,7 +2,7 @@ import { Controller, Get } from '@nestjs/common';
 
 const SERVICE_NAME = 'ServiceManager.AI';
 const UNKNOWN = 'unknown';
-const SHA_PATTERN = /^[0-9a-f]{7,40}$/i;
+const SHA_PATTERN = /^[0-9a-f]{40}$/i;
 const ENVIRONMENTS = new Set(['beta', 'prod']);
 
 export interface VersionResponse {

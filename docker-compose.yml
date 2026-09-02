@@ -15,7 +15,12 @@ services:
       - postgres_data:/var/lib/postgresql/data
 
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      args:
+        SMA_RELEASE_ENFORCE: ${SMA_RELEASE_ENFORCE:-false}
+        SMA_RELEASE_COMMIT_SHA: ${SMA_RELEASE_COMMIT_SHA:-local}
+        SMA_RELEASE_ENVIRONMENT: ${SMA_RELEASE_ENVIRONMENT:-local}
     container_name: sma_backend
     restart: unless-stopped
     ports:

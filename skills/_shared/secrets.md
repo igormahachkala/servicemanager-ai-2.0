@@ -50,8 +50,9 @@ docker compose config без -q печатает значения всех пе�
 абсолютным значением. Относительный путь ./backend/.env.docker из базового
 docker-compose.yml не применяется: !override заменяет список целиком,
 а не дополняет его.
-Проверено 2026-08-28: /opt/sma-prod/backend/.env.docker не существует,
-файл лежит только в /opt/sma-service/backend/.env.docker.
+Канонический файл окружения Production лежит вне worktree развёртывания:
+/opt/sma-service/backend/.env.docker. Файл /opt/sma-prod/backend/.env.docker
+не является каноническим источником и не должен создаваться для деплоя.
 Каталог /opt/sma-service — действующая зависимость Production: там же
 смонтированы загруженные пользователями файлы, /opt/sma-service/uploads.
 </path_note>
