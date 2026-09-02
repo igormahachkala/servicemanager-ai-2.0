@@ -8,6 +8,41 @@
 
 <contour_lock>
 
+<contents>
+Файл длиннее 300 строк, ниже карта. Искать по имени блока: номера строк
+тут не приводятся, они сдвигаются при каждой правке.
+
+  Успешный путь, нужен всегда
+    check                 проверка занятости по origin, кодом возврата
+    script                вызов lock-acquire.sh, коды возврата
+    acquire               постановка замка вручную, тело тега
+    merge_bound_to_lock   слияние только при своём замке, через &&
+    release               снятие замка со сверкой владельца
+    release_order         когда снимать: после конечного состояния контура
+
+  Обоснования, читать при сомнении
+    why, mechanism, why_fixed_name, why_tag, why_annotated,
+    why_test_z, why_creatordate, why_fetch_first, why_local_delete,
+    why_verify_before_release, separate_calls, no_chaining, limits
+
+  Отказы и редкие случаи
+    on_tag_failed         локальный тег мешает постановке
+    on_push_rejected      контур заняли между проверкой и постановкой
+    stale_local_tags      мусорные теги ломают fetch, разбор и починка
+    clobber_not_error     чужой замок перетёрт, признаки и что делать
+    own_lock_missing      своего замка в origin нет
+    on_acceptance_failure судьба замка при непройденной приёмке
+
+  Чужой замок
+    read                  чей и с каких пор
+    own_or_foreign        признак принадлежности — поле branch тела
+    classify              сбор фактов, пороги 4 часа и 2 часа, случаи
+    contour_state         что при этом лежит на контуре
+    foreign_lock          чужой замок агент не снимает
+    lock_void             снятие по команде пользователя, след в теге
+    not_covered           автоматического снятия нет и не планируется
+</contents>
+
 <why>
 Stage и Production обслуживают 4-6 агентов. До введения замка два агента
 могли слить свои PR и развернуть подряд, не узнав друг о друге: сверка после
