@@ -16,6 +16,10 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+      args:
+        SMA_RELEASE_ENFORCE: ${SMA_RELEASE_ENFORCE:-false}
+        SMA_RELEASE_COMMIT_SHA: ${SMA_RELEASE_COMMIT_SHA:-local}
+        SMA_RELEASE_ENVIRONMENT: ${SMA_RELEASE_ENVIRONMENT:-local}
     container_name: sma_stage_backend
     restart: unless-stopped
     depends_on:

@@ -162,6 +162,10 @@ if has_area scripts; then
   [ "$CHECKED" = "0" ] && echo "-- scripts: изменённых файлов нет"
 fi
 
+if has_area backend || has_area infra || has_area scripts || has_area skills; then
+  run "deploy metadata safety" bash scripts/verify-deploy-metadata-safety.sh
+fi
+
 # ── разбор конфигурации compose на сервере ─────────────────────────────
 if has_area infra; then
   ssh -o BatchMode=yes -o ConnectTimeout=10 sma true 2>/dev/null || {
@@ -188,8 +192,8 @@ docker compose config на сервере"
 fi
 
 # ── итог ───────────────────────────────────────────────────────────────
-if has_area none || has_area skills; then
-  if [ -z "$AREAS" ] || [ "$(echo "$AREAS" | tr ' ' '\n' | grep -vcE '^(none|skills)$')" = "0" ]; then
+if has_area none; then
+  if [ -z "$AREAS" ] || [ "$(echo "$AREAS" | tr ' ' '\n' | grep -vcE '^none$')" = "0" ]; then
     echo "Автоматических проверок нет: области $AREAS."
   fi
 fi
