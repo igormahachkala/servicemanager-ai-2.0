@@ -1842,6 +1842,20 @@ a.mobileBtn.mobileCreateTicketLink {
   width: 100%;
 }
 
+.mobileShiftGatePrompt {
+  display: grid;
+  gap: 10px;
+}
+
+.mobileShiftGatePrompt .mobileHint {
+  margin: 0;
+}
+
+.mobileShiftGateActions {
+  display: grid;
+  gap: 8px;
+}
+
 /* SMA-022.1 — компактная карточка: номер · объект · статус · исполнитель · SLA/срочность */
 .mobileTicketCardBody {
   display: grid;

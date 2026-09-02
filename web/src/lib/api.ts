@@ -3986,8 +3986,17 @@ export type WorkShiftItem = {
   workLogs: WorkLogItem[]
 }
 
+export type WorkforceCompanyState = {
+  id: string
+  name: string
+  type?: CompanyType | null
+  timezone?: string | null
+  shiftAutoCloseTime: string
+  requireActiveShiftForWork?: boolean
+}
+
 export type WorkforceMyState = {
-  company: { id: string; name: string; timezone?: string | null; shiftAutoCloseTime: string }
+  company: WorkforceCompanyState & { type: CompanyType; requireActiveShiftForWork: boolean }
   shift: WorkShiftItem | null
   runningWorkLog: WorkLogItem | null
   recentShifts: WorkShiftItem[]
@@ -3995,7 +4004,7 @@ export type WorkforceMyState = {
 }
 
 export type WorkforceReport = {
-  company: { id: string; name: string; timezone?: string | null; shiftAutoCloseTime: string }
+  company: WorkforceCompanyState
   period: { from: string; to: string }
   summary: { shifts: number; employees: number; shiftMinutes: number; workMinutes: number }
   employees: Array<{
