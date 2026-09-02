@@ -2,8 +2,21 @@
 
 WORKDIR /app
 
-ARG SMA_RELEASE_COMMIT_SHA=unknown
-ARG SMA_RELEASE_ENVIRONMENT=unknown
+ARG SMA_RELEASE_COMMIT_SHA=local
+ARG SMA_RELEASE_ENVIRONMENT=local
+ARG SMA_RELEASE_ENFORCE=false
+
+RUN set -eu; \
+  case "$SMA_RELEASE_ENFORCE" in true|false) ;; \
+    *) echo "SMA_RELEASE_ENFORCE must be true or false" >&2; exit 1 ;; \
+  esac; \
+  if [ "$SMA_RELEASE_ENFORCE" = "true" ]; then \
+    printf '%s' "$SMA_RELEASE_COMMIT_SHA" | grep -Eq '^[0-9a-fA-F]{40}$' \
+      || { echo "SMA_RELEASE_COMMIT_SHA must be a full 40 character git SHA for enforced builds" >&2; exit 1; }; \
+    case "$SMA_RELEASE_ENVIRONMENT" in beta|prod) ;; \
+      *) echo "SMA_RELEASE_ENVIRONMENT must be beta or prod for enforced builds" >&2; exit 1 ;; \
+    esac; \
+  fi
 
 # SMA-MAX-TLS-001: образ должен нести актуальный набор корневых сертификатов.
 # Без него исходящие HTTPS-запросы (опрос MAX) падают с

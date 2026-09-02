@@ -33,12 +33,12 @@ describe('VersionController', () => {
   });
 
   it('returns a present commitSha and environment without requiring database access', () => {
-    process.env.SMA_RELEASE_COMMIT_SHA = 'e1dfbbd';
+    process.env.SMA_RELEASE_COMMIT_SHA = 'e1dfbbd718a71957b40aac0cd112bf5a1425feb1';
     process.env.SMA_RELEASE_ENVIRONMENT = 'prod';
 
     const response = new VersionController().getVersion();
 
-    expect(response.commitSha).toBe('e1dfbbd');
+    expect(response.commitSha).toBe('e1dfbbd718a71957b40aac0cd112bf5a1425feb1');
     expect(response.environment).toBe('prod');
   });
 
@@ -84,5 +84,37 @@ describe('VersionController', () => {
       commitSha: 'unknown',
       environment: 'unknown',
     });
+  });
+
+  it('does not treat local build placeholders as deployed release identity', () => {
+    process.env.SMA_RELEASE_COMMIT_SHA = 'local';
+    process.env.SMA_RELEASE_ENVIRONMENT = 'local';
+
+    expect(new VersionController().getVersion()).toEqual({
+      service: 'ServiceManager.AI',
+      commitSha: 'unknown',
+      environment: 'unknown',
+    });
+  });
+
+  it('does not treat short SHAs as exact deployed release identity', () => {
+    process.env.SMA_RELEASE_COMMIT_SHA = 'e1dfbbd';
+    process.env.SMA_RELEASE_ENVIRONMENT = 'prod';
+
+    expect(new VersionController().getVersion()).toEqual({
+      service: 'ServiceManager.AI',
+      commitSha: 'unknown',
+      environment: 'prod',
+    });
+  });
+
+  it('accepts both beta and prod as deployment environments', () => {
+    process.env.SMA_RELEASE_COMMIT_SHA = '7c3ce2a5f16b3fd1433f1c4fb2c8a04e9a1f2597';
+
+    process.env.SMA_RELEASE_ENVIRONMENT = 'beta';
+    expect(new VersionController().getVersion().environment).toBe('beta');
+
+    process.env.SMA_RELEASE_ENVIRONMENT = 'prod';
+    expect(new VersionController().getVersion().environment).toBe('prod');
   });
 });

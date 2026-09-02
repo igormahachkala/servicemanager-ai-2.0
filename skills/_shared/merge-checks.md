@@ -57,6 +57,11 @@ skills/_shared/scripts/merge-checks.sh stage 42 fix/tema-001 backend frontend
 
 Значения области fullstack не существует: карта шага 1 его не порождает.
 Задеты backend и frontend — это две области, выполняются оба набора.
+
+Для областей backend, infra, scripts и skills дополнительно выполняется
+scripts/verify-deploy-metadata-safety.sh. Он проверяет, что backend/.env.docker
+не попадает в Docker build context, а Stage/Production build flow передаёт
+SMA_RELEASE_COMMIT_SHA и SMA_RELEASE_ENVIRONMENT явно.
 </what_runs>
 
 <env_file>
