@@ -601,6 +601,12 @@ git merge origin/prod
 git push origin beta
 git switch &lt;ветка задачи&gt;
 </on_failure>
+<on_branch_busy>
+Отказ 'fatal: beta is already used by worktree at &lt;путь&gt;' — ветку держит
+рабочее дерево другой сессии. Переключаться не нужно, тот же результат даёт
+работа на отсоединённом состоянии: блок beta_without_switch
+в sma-code-delivery.
+</on_branch_busy>
 <why_switch_C>
 Флаг -C ставит локальную beta ровно на origin/beta: локальная может
 отсутствовать на свежем клоне либо отставать, и тогда слияние пойдёт
