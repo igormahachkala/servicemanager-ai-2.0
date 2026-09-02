@@ -4,7 +4,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { getAvailableWorkspaces, type WorkspaceCard } from '../lib/navigation'
 import { SmaBrandLogo } from '../components/SmaBrandLogo'
-import '../mobile/mobile.css'
+import '../assets/css/import/login-page.css'
+import './WorkspaceSelectorPage.css'
 
 /**
  * Экран выбора контура после логина (/workspaces).
