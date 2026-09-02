@@ -576,7 +576,7 @@ prod, тег не блокирует сброс beta.
 После того как stage-ok отправлен в origin, снять замок. Перед снятием
 сверить, что замок ваш: имя общее, принадлежность видна только из тела.
 
-git fetch origin tag stage-busy
+git fetch --force origin 'refs/tags/stage-busy:refs/tags/stage-busy'   # --force: копия могла разойтись, блок read
 git tag -l --format='%(contents)' stage-busy     # поле branch — ваша ветка?
 
 git tag -d stage-busy
