@@ -102,6 +102,12 @@ git for-each-ref --format='%(creatordate:iso)' refs/tags/&lt;stage-busy | prod-b
 просто быть неверным. creatordate ставит git при создании тега.
 </why_creatordate>
 
+<script>
+Проверку и постановку выполняет skills/_shared/scripts/lock-acquire.sh,
+вызов стоит в шаге 7 обоих деплойных скилов. Команды ниже — тот же порядок
+вручную, на случай когда скрипт недоступен либо когда надо понять, что он
+делает.
+</script>
 <acquire>
 git fetch --prune --prune-tags origin        # обязательна, первой строкой
 
