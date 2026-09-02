@@ -1,4 +1,5 @@
 import { ApiRequestError } from '../lib/api'
+import { ACTIVE_SHIFT_REQUIRED_FRIENDLY_MESSAGE, isActiveShiftRequiredError } from './mobileShiftGate'
 
 export type MobileMutationOperation =
   | 'claim'
@@ -80,6 +81,8 @@ export function formatMobileMutationError(
   if (ctx.claimBlockedByCategoryPolicy && ctx.operation === 'claim') return SPEC
 
   const status = e instanceof ApiRequestError ? e.status : undefined
+
+  if (isActiveShiftRequiredError(e)) return ACTIVE_SHIFT_REQUIRED_FRIENDLY_MESSAGE
 
   if (looksLikeAlreadyAssigned(msg)) return ASSIGNED_OTHER
 

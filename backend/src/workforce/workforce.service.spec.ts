@@ -78,6 +78,35 @@ describe('WorkforceService', () => {
     expect(tx.workShift.findUnique).not.toHaveBeenCalled()
     expect(tx.domainEvent.create).not.toHaveBeenCalled()
   })
+
+  it('exposes company shift-policy metadata through my workforce state', async () => {
+    const prisma = makePrisma()
+    const company = {
+      id: actor.companyId,
+      name: 'Provider',
+      type: CompanyType.PROVIDER,
+      timezone: 'UTC',
+      shiftAutoCloseTime: '19:00',
+      requireActiveShiftForWork: true,
+    }
+    prisma.company.findUnique.mockResolvedValue(company)
+    const service = new WorkforceService(prisma, {} as any)
+
+    const result = await service.getMyState(actor)
+
+    expect(prisma.company.findUnique).toHaveBeenCalledWith({
+      where: { id: actor.companyId },
+      select: {
+        id: true,
+        name: true,
+        type: true,
+        timezone: true,
+        shiftAutoCloseTime: true,
+        requireActiveShiftForWork: true,
+      },
+    })
+    expect(result.company).toEqual(company)
+  })
 })
 
 /**

@@ -53,7 +53,14 @@ export class WorkforceService {
     const [company, openShift, recentShifts] = await Promise.all([
       this.prisma.company.findUnique({
         where: { id: actor.companyId },
-        select: { id: true, name: true, timezone: true, shiftAutoCloseTime: true },
+        select: {
+          id: true,
+          name: true,
+          type: true,
+          timezone: true,
+          shiftAutoCloseTime: true,
+          requireActiveShiftForWork: true,
+        },
       }),
       this.prisma.workShift.findFirst({
         where: { companyId: actor.companyId, userId: actor.id, status: WorkShiftStatus.OPEN },
