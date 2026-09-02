@@ -262,6 +262,8 @@ Stage занят другим агентом. Не сливать, не разв
 </case>
 </on_precondition_failure>
 <acquire>
+git fetch --prune --prune-tags origin        # обязательна, первой строкой
+
 git tag -a stage-busy -m "Контур занят
 branch: &lt;ветка задачи&gt;
 pr: &lt;номер PR&gt;
@@ -274,6 +276,21 @@ git push origin stage-busy
 сталкиваются на одном теге и второй получает отказ. Ветка — в теле.
 Обоснование целиком: блок why_fixed_name общего файла.
 </why_no_branch_in_name>
+<why_fetch_first>
+Без неё постановка падает при свободном контуре: fatal: tag 'stage-busy' already
+exists, код 128, ещё до push. Локальная копия чужого замка появляется
+по нашему же порядку — при занятом контуре предписано
+git fetch origin tag stage-busy, чтобы прочитать, чей замок; владелец потом
+снимает замок в origin, а копия остаётся. Блоки why_fetch_first
+и on_tag_failed общего файла.
+</why_fetch_first>
+<on_tag_failed>
+git tag вернул 128 с already exists — локальный мусор, а не занятый контур:
+ls-remote прошёл, в origin замка нет. Выполнить
+git fetch --prune --prune-tags origin и повторить постановку. Флаг -f
+не применять: он замаскирует настоящий чужой замок, попавший в копию
+секунду назад.
+</on_tag_failed>
 <on_push_rejected>
 Замок уже стоит: контур заняли между вашей проверкой и постановкой.
 Удалить свой локальный тег — git tag -d stage-busy — и остановиться,
