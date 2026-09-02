@@ -684,7 +684,7 @@ git merge-base --is-ancestor origin/&lt;ветка&gt; origin/prod
 и критерий шага 10 пройдены, контур в конечном состоянии, держать его дольше
 нечем оправдать.
 
-git fetch origin tag prod-busy
+git fetch --force origin 'refs/tags/prod-busy:refs/tags/prod-busy'   # --force: копия могла разойтись, блок read
 git tag -l --format='%(contents)' prod-busy     # поле branch — ваша ветка?
 
 git tag -d prod-busy
