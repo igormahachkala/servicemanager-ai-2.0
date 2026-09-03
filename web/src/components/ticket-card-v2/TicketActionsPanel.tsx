@@ -26,9 +26,6 @@ export type TicketActionsPanelProps = {
   claimError?: string | null
   statusError?: string | null
   onOpenSubmitForm?: () => void
-  showSelfAssign: boolean
-  selfAssignPending: boolean
-  onSelfAssign: () => void
   canEditTicket: boolean
   editOpen: boolean
   onToggleEdit: () => void
@@ -65,9 +62,6 @@ export function TicketActionsPanel(props: TicketActionsPanelProps) {
     claimError,
     statusError,
     onOpenSubmitForm,
-    showSelfAssign,
-    selfAssignPending,
-    onSelfAssign,
     canEditTicket,
     editOpen,
     onToggleEdit,
@@ -114,13 +108,6 @@ export function TicketActionsPanel(props: TicketActionsPanelProps) {
   return (
     <div className="panel" style={{ marginBottom: 12 }}>
       <h3 style={{ marginBottom: 10 }}>Действия</h3>
-      {showSelfAssign ? (
-        <div style={{ marginBottom: 8 }}>
-          <button onClick={onSelfAssign} disabled={selfAssignPending} style={{ width: '100%' }}>
-            {selfAssignPending ? 'Берём заявку…' : 'Взять заявку себе'}
-          </button>
-        </div>
-      ) : null}
       {primaryAction ? (
         <div style={{ marginBottom: 8 }}>
           {primaryAction.kind === 'claim' ? (
