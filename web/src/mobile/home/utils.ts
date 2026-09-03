@@ -1,4 +1,5 @@
 import * as api from '../../lib/api'
+import { canOfferTicketClaimAction } from '../../lib/ticketActionCapabilities'
 import { compactTicketAssigneeLabel } from '../../lib/ticketActorIdentity'
 
 export type HomePrimaryActionLabel = 'Взять' | 'Запросить назначение' | 'Начать' | 'Закрыть' | null
@@ -8,14 +9,16 @@ export function getPrimaryActionLabel(
   meId: string | undefined,
   role: api.Role | undefined,
 ): HomePrimaryActionLabel {
-  if (role !== 'TECHNICIAN' || !meId) return null
+  if (!meId) return null
 
   if (ticket.status === 'NEW' && !ticket.assignedTechnician) {
     if (ticket.assignmentRequestedByCurrentUser) return null
-    if (ticket.canClaim === true || ticket.canClaimByCurrentUser === true) return 'Взять'
-    if (ticket.canRequestAssignment === true) return 'Запросить назначение'
+    if (canOfferTicketClaimAction(ticket)) return 'Взять'
+    if (role === 'TECHNICIAN' && ticket.canRequestAssignment === true) return 'Запросить назначение'
     return null
   }
+
+  if (role !== 'TECHNICIAN') return null
 
   if (ticket.status === 'ASSIGNED' && ticket.assignedTechnician?.id === meId) return 'Начать'
   if (ticket.status === 'IN_PROGRESS' && ticket.assignedTechnician?.id === meId) return 'Закрыть'

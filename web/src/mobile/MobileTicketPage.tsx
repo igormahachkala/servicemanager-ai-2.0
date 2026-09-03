@@ -48,6 +48,7 @@ import { MobileTicketActionsSheet, type TicketSheetAction } from './MobileTicket
 import { MobileModalBackdrop } from './MobileModalBackdrop'
 import { compactIdentityLabel, identityLines, presentActorIdentity, presentTicketAssignee, presentTicketCreator } from '../lib/ticketActorIdentity'
 import { MobileTicketWorkTimer } from './MobileTicketWorkTimer'
+import { canOfferTicketClaimAction, readBackendCanClaim } from '../lib/ticketActionCapabilities'
 import {
   TICKET_MEDIA_ACCEPT,
   normalizeTicketMediaFile,
@@ -582,12 +583,9 @@ export function MobileTicketPage() {
   const aa = ticket?.meta?.availableActions
   const transitions = ticket?.meta?.availableStatusTransitions || []
   const canShowTechClaimButton =
-    meQ.data?.role === 'TECHNICIAN' &&
+    !!meQ.data?.id &&
     !!ticket &&
-    ticket.status === 'NEW' &&
-    !assigneePresent &&
-    (aa ? aa.canClaim : techPrimary === 'claim' && (ticket.meta?.canClaim === true || ticket.meta?.canClaimByCurrentUser === true)) &&
-    !ticket.meta?.assignmentRequestedByCurrentUser
+    canOfferTicketClaimAction(ticket)
   const canShowAssignmentRequest =
     meQ.data?.role === 'TECHNICIAN' &&
     !!ticket &&
@@ -880,7 +878,7 @@ export function MobileTicketPage() {
     onError: (e: unknown, vars: 'claim' | 'start') => {
       const claimBlocked = ticket?.meta?.availableActions
         ? !ticket.meta.availableActions.canClaim
-        : ticket?.meta?.canClaim !== true && ticket?.meta?.canClaimByCurrentUser !== true
+        : !readBackendCanClaim(ticket)
       setTechActionErr(
         formatMobileMutationError(e, {
           operation: vars,
@@ -1141,12 +1139,6 @@ export function MobileTicketPage() {
     (ticket.status === 'NEW' || ticket.status === 'ASSIGNED')
   const assignBtnLabel = assigneePresent ? 'Переназначить' : 'Назначить исполнителя'
 
-  const showSelfAssignButton =
-    !!ticket &&
-    canAssignProvider &&
-    ticket.status === 'NEW' &&
-    !assigneePresent
-
   const claimBtnPending = techActionM.isPending && techActionM.variables === 'claim'
   const startBtnPending = techActionM.isPending && techActionM.variables === 'start'
   const assignBusy = assignM.isPending
@@ -1168,7 +1160,6 @@ export function MobileTicketPage() {
     showAssignmentRequestAck ||
     canShowTechStart ||
     showAssignButton ||
-    showSelfAssignButton ||
     canShowComplete ||
     showCompleteBlockedHint
   const showTechnicianNoActionsHint =
@@ -1232,11 +1223,8 @@ export function MobileTicketPage() {
 
   const ticketSheetActions: TicketSheetAction[] = ticket
     ? ([
-        meQ.data?.role === 'TECHNICIAN' && ticket.status === 'NEW' && !assigneePresent
+        canShowTechClaimButton
           ? { id: 'take', label: 'Взять в работу', icon: 'user-check', onClick: () => handleTechActionWithOfflineSupport('claim') }
-          : null,
-        showSelfAssignButton
-          ? { id: 'self-assign', label: 'Взять заявку себе', icon: 'user-check', onClick: () => { if (meQ.data?.id) assignM.mutate({ technicianId: meQ.data.id }) } }
           : null,
         showAssignButton
           ? { id: 'assign', label: assignBtnLabel, icon: 'user-plus', onClick: () => { setAssignErr(''); setAssignTicketOpen(true) } }
@@ -1702,17 +1690,6 @@ export function MobileTicketPage() {
                     {(ticket.meta?.availableActionHints?.canComplete || '').trim() || 'Политика или отсутствие данных (комментарий, фото) не позволяют закрыть заявку из приложения.'}
                   </div>
                 </div>
-              ) : null}
-              {showSelfAssignButton ? (
-                <button
-                  type="button"
-                  className="mobileBtn mobileBtn--claim"
-                  style={{ width: '100%', marginTop: 8 }}
-                  disabled={assignBusy}
-                  onClick={() => { if (!meQ.data?.id) return; assignM.mutate({ technicianId: meQ.data.id }) }}
-                >
-                  {assignBusy ? 'Берём заявку…' : 'Взять заявку себе'}
-                </button>
               ) : null}
               {showAssignButton ? (
                 <button
@@ -2194,17 +2171,6 @@ export function MobileTicketPage() {
                         {(ticket.meta?.availableActionHints?.canComplete || '').trim() || 'Политика или отсутствие данных (комментарий, фото) не позволяют закрыть заявку из приложения.'}
                       </div>
                     </div>
-                  ) : null}
-                  {showSelfAssignButton ? (
-                    <button
-                      type="button"
-                      className="mobileBtn mobileBtn--claim"
-                      style={{ width: '100%', marginTop: 8 }}
-                      disabled={assignBusy}
-                      onClick={() => { if (!meQ.data?.id) return; assignM.mutate({ technicianId: meQ.data.id }) }}
-                    >
-                      {assignBusy ? 'Берём заявку…' : 'Взять заявку себе'}
-                    </button>
                   ) : null}
                   {showAssignButton ? (
                     <button

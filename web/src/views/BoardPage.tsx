@@ -14,6 +14,7 @@ import {
 } from '../lib/boardNavigationContext'
 import { pushToast } from '../lib/appToast'
 import { logTicketActionError, mapTicketActionError } from '../lib/ticketOperationalErrors'
+import { canOfferTicketClaimAction } from '../lib/ticketActionCapabilities'
 import { OperationsViewSwitcher, type OperationsViewMode } from '../components/operations/OperationsViewSwitcher'
 import { compactTicketAssigneeLabel, compactTicketCreatorLabel } from '../lib/ticketActorIdentity'
 
@@ -448,6 +449,22 @@ export function BoardPage() {
     [observerCompanyId, effectiveLinkedClientCompanyId],
   )
   const allVisibleTicketIds = useMemo(() => columns.flatMap((c) => c.cards.map((card) => card.id)), [columns])
+  const ticketById = useMemo(
+    () => new Map(columns.flatMap((c) => c.cards.map((card) => [card.id, card] as const))),
+    [columns],
+  )
+  const selectedTickets = useMemo(
+    () => selectedTicketIds.map((id) => ticketById.get(id)).filter((ticket): ticket is api.TicketCard => !!ticket),
+    [selectedTicketIds, ticketById],
+  )
+  const visibleClaimableTickets = useMemo(
+    () => columns.flatMap((c) => c.cards).filter((ticket) => canOfferTicketClaimAction(ticket)),
+    [columns],
+  )
+  const canClaimSelectedTickets =
+    selectedTickets.length > 0 &&
+    selectedTickets.length === selectedTicketIds.length &&
+    selectedTickets.every((ticket) => canOfferTicketClaimAction(ticket))
   const allVisibleSelected = allVisibleTicketIds.length > 0 && allVisibleTicketIds.every((id) => selectedTicketIds.includes(id))
   const [quickActionError, setQuickActionError] = useState('')
   const [quickActionSuccess, setQuickActionSuccess] = useState('')
@@ -544,6 +561,7 @@ export function BoardPage() {
     setBulkError('')
     try {
       if (action === 'claim') {
+        if (!canClaimSelectedTickets) throw new Error('Выбранные заявки нельзя взять по текущим правилам доступа')
         await Promise.all(selectedTicketIds.map((ticketId) => api.claimTicket(ticketId, ticketScope)))
       } else {
         await Promise.all(
@@ -1013,11 +1031,11 @@ export function BoardPage() {
               Выбрать все на доске
             </label>
             <span className="muted small">Выбрано: {selectedTicketIds.length}</span>
-            {isTechnician ? (
+            {visibleClaimableTickets.length > 0 ? (
               <button
                 className="ghost"
                 type="button"
-                disabled={!selectedTicketIds.length || bulkBusy}
+                disabled={!canClaimSelectedTickets || bulkBusy}
                 onClick={() => runBulkAction('claim')}
               >
                 Взять себе
@@ -1155,7 +1173,7 @@ export function BoardPage() {
                         <UrgencyTag urgency={ticket.urgency} />
                         {ticket.isChild ? <span className="tag">Доп. работа</span> : null}
                         {ticket.slaBreached ? <span className="tag danger">SLA нарушен</span> : null}
-                        {isTechnician && ticket.status === 'NEW' && !ticket.assignedTechnician ? <span className="tag">Можно взять</span> : null}
+                        {canOfferTicketClaimAction(ticket) ? <span className="tag">Можно взять</span> : null}
                         {isTechnician && ticket.assignedTechnician?.id === meQ.data?.id ? <span className="tag">Моя заявка</span> : null}
                         {ticket.assignedTechnician ? <span className="tag">{compactTicketAssigneeLabel(ticket)}</span> : <span className="tag">Не назначено</span>}
                       </div>
@@ -1165,25 +1183,23 @@ export function BoardPage() {
                         <span title="Срок SLA">{ticket.slaDueAt ? `Срок: ${fmt(ticket.slaDueAt)}` : 'Срок: —'}</span>
                       </div>
                       <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                        {canOfferTicketClaimAction(ticket) ? (
+                          <button
+                            type="button"
+                            className="ghost"
+                            disabled={quickActionM.isPending}
+                            onClick={() =>
+                              quickActionM.mutate({
+                                ticket,
+                                action: 'claim',
+                              })
+                            }
+                          >
+                            Взять заявку
+                          </button>
+                        ) : null}
                         {meQ.data?.role === 'TECHNICIAN' ? (
                           <>
-                            {ticket.status === 'NEW' &&
-                            !ticket.assignedTechnician &&
-                            (ticket.canClaim === true || ticket.canClaimByCurrentUser === true) ? (
-                              <button
-                                type="button"
-                                className="ghost"
-                                disabled={quickActionM.isPending}
-                                onClick={() =>
-                                  quickActionM.mutate({
-                                    ticket,
-                                    action: 'claim',
-                                  })
-                                }
-                              >
-                                Взять заявку
-                              </button>
-                            ) : null}
                             {ticket.status === 'ASSIGNED' && ticket.assignedTechnician?.id === meQ.data?.id ? (
                               <button
                                 type="button"

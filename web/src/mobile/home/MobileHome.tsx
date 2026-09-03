@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../../lib/api'
+import { canOfferTicketClaimAction } from '../../lib/ticketActionCapabilities'
 import {
   compactTicketScope,
   mobileTicketCategoryLocationFromCard,
@@ -349,15 +350,12 @@ export function MobileHome() {
     mutationFn: async (ticket: api.TicketCard) => {
       const role = meQ.data?.role
       if (ticket.status === 'NEW') {
-        if (role !== 'TECHNICIAN') {
-          throw new Error('Полевое действие «Взять» доступно только технику')
-        }
-        if (ticket.canRequestAssignment === true) {
+        if (role === 'TECHNICIAN' && ticket.canRequestAssignment === true) {
           if (ticket.assignmentRequestedByCurrentUser) return
           await api.requestTicketAssignment(ticket.id, pageScope)
           return
         }
-        if (ticket.canClaim !== true && ticket.canClaimByCurrentUser !== true) {
+        if (!canOfferTicketClaimAction(ticket)) {
           throw new Error('Действие недоступно для этой заявки')
         }
         await api.claim(ticket.id, pageScope)
