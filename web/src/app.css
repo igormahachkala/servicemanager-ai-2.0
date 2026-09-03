@@ -31,28 +31,6 @@
   box-sizing: border-box;
 }
 
-/* Login / mobile: не центрировать весь viewport (iOS Safari + клавиатура даёт съезд). */
-.page.loginPageRoot {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  justify-content: flex-start;
-  min-height: 100%;
-  min-height: 100dvh;
-  min-height: 100svh;
-  padding: calc(12px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px))
-    calc(16px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
-}
-
-.page.loginPageRoot .card {
-  width: 100%;
-  max-width: min(520px, 100%);
-  min-width: 0;
-}
-
 .card {
   width: 420px;
   max-width: 100%;
@@ -1352,41 +1330,6 @@ button.toastItem:active {
   .successDialogActions a button {
     width: 100%;
   }
-}
-
-.loginModePicker {
-  display: grid;
-  gap: 16px;
-}
-
-.loginModeGrid {
-  display: grid;
-  gap: 10px;
-}
-
-.loginModeBtn {
-  height: auto;
-  min-height: 78px;
-  padding: 14px;
-  text-align: left;
-  display: grid;
-  gap: 6px;
-  border-color: #111827;
-}
-
-.loginModeTitle {
-  font-weight: 900;
-  font-size: 15px;
-}
-
-.loginModeHint {
-  color: rgba(255, 255, 255, 0.78);
-  font-size: 12px;
-  line-height: 1.35;
-}
-
-.loginModeReset {
-  width: 100%;
 }
 
 .ticketActionBarSticky {

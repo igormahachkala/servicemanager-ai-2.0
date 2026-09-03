@@ -1,0 +1,62 @@
+/* Поддержка: Telegram + MAX (один стиль, крупные кнопки) */
+.supportContactBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.supportContactTitle {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #111827;
+  letter-spacing: 0.01em;
+}
+
+.loginPageRoot .supportContactTitle {
+  color: #f9fafb;
+}
+
+.supportContactStack {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+}
+
+.supportContactBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 52px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  border: 1px solid transparent;
+  font-family: inherit;
+  line-height: 1.2;
+  text-align: center;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.supportContactBtn:active {
+  opacity: 0.94;
+  transform: scale(0.99);
+}
+
+.supportContactBtn--telegram {
+  background: #229ed9;
+  border-color: #1b8ec4;
+  color: #fff;
+}
+
+.supportContactBtn--max {
+  background: #059669;
+  border-color: #047857;
+  color: #fff;
+}

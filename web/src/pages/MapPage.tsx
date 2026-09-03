@@ -1,8 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, lazy, Suspense } from 'react'
 
-import { OperationsMap } from '../components/map/OperationsMap'
 import { LocationSummaryCard } from '../components/map/LocationSummaryCard'
 import { useMapLocations } from '../hooks/useMapLocations'
+
+const OperationsMap = lazy(() =>
+  import('../components/map/OperationsMap').then((m) => ({ default: m.OperationsMap })),
+)
 
 export function MapPage() {
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(null)
@@ -39,11 +42,13 @@ export function MapPage() {
         </div>
       ) : (
         <div className="grid2" style={{ gridTemplateColumns: '1.5fr 0.9fr', alignItems: 'start' }}>
-          <OperationsMap
-            locations={locations}
-            selectedLocationId={selectedLocationId}
-            onSelect={setSelectedLocationId}
-          />
+          <Suspense fallback={<div className="panel">Loading map locations...</div>}>
+            <OperationsMap
+              locations={locations}
+              selectedLocationId={selectedLocationId}
+              onSelect={setSelectedLocationId}
+            />
+          </Suspense>
           <LocationSummaryCard
             detail={selectedLocationQ.data}
             isLoading={selectedLocationQ.isLoading}

@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import * as api from '../lib/api'
 
-import '../mobile/mobile.css'
+import '../assets/css/import/login-page.css'
 import { SmaBrandLogo } from '../components/SmaBrandLogo'
 import { SupportContactBlock } from '../components/SupportContactBlock'
 
