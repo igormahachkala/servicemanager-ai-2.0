@@ -3,7 +3,7 @@ import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
-import { PublicQrModal, downloadQrPosterPng } from '../components/public/PublicQrModal'
+import { PublicQrModalLazy, downloadQrPosterPng } from '../components/public/PublicQrLazy'
 
 type CompanyFormValue = {
   name: string
@@ -620,7 +620,7 @@ export function CompaniesPage() {
         </div>
       </div>
 
-      <PublicQrModal
+      <PublicQrModalLazy
         open={!!qrTarget}
         url={qrTarget?.url || ''}
         title={qrTarget?.title || 'QR-код'}

@@ -1,5 +1,5 @@
 import { SUPPORT_MAX_URL, SUPPORT_TELEGRAM_URL } from '../lib/supportUrls'
-import '../mobile/mobile.css'
+import './SupportContactBlock.css'
 
 type SupportContactBlockProps = {
   /** Заголовок секции для иерархии заголовков на странице. */
