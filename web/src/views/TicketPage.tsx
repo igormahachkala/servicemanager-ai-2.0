@@ -17,6 +17,7 @@ import {
 import { pushToast } from '../lib/appToast'
 import { logTicketActionError, mapTicketActionError } from '../lib/ticketOperationalErrors'
 import { computePrimaryTicketAction } from '../lib/ticketOperationalModel'
+import { readBackendCanClaim } from '../lib/ticketActionCapabilities'
 import { toChatMessages } from '../lib/ticketChat'
 import { resolveAdminProfile } from '../lib/resolveAdminProfile'
 import {
@@ -503,24 +504,6 @@ export function TicketPage() {
     },
   })
 
-  const selfAssignM = useMutation({
-    mutationFn: () => {
-      if (!canMutateTicket) throw new Error('Изменение заявки запрещено в текущем режиме видимости')
-      if (!meQ.data?.id) throw new Error('Не удалось определить пользователя')
-      return api.assignTicket(ticketId, meQ.data.id, effectiveTicketScope)
-    },
-    onSuccess: async () => {
-      clearActionErrors()
-      pushToast('Заявка взята на себя', 'success')
-      await refreshAll()
-    },
-    onError: (e: any) => {
-      const raw = e?.message || String(e)
-      logTicketActionError('self_assign', raw)
-      setAssignError(mapTicketActionError(raw))
-    },
-  })
-
   const statusM = useMutation({
     mutationFn: (input: api.UpdateTicketStatusInput) => {
       if (!canMutateTicket) throw new Error('Изменение заявки запрещено в текущем режиме видимости')
@@ -745,18 +728,10 @@ export function TicketPage() {
   const ticket = ticketQ.data
   const hasAssignedTechnician = !!ticket?.assignedTechnician
   const canClaim = useMemo(() => {
-    if (role !== 'TECHNICIAN' || !ticket) return false
+    if (!ticket) return false
     if (!executorActionsAllowed) return false
-    const aa = ticket.meta?.availableActions
-    if (aa) return aa.canClaim
-    return ticket.meta?.canClaim === true || ticket.meta?.canClaimByCurrentUser === true
-  }, [role, ticket, executorActionsAllowed])
-
-  const showSelfAssign =
-    canAssign &&
-    !!ticket &&
-    ticket.status === 'NEW' &&
-    !hasAssignedTechnician
+    return readBackendCanClaim(ticket)
+  }, [ticket, executorActionsAllowed])
 
   const assignmentData = assignmentCandidatesQ.data
   const availableStatusTransitions = ticket?.meta?.availableStatusTransitions || []
@@ -1129,9 +1104,6 @@ export function TicketPage() {
             claimError={claimError}
             statusError={statusError}
             onOpenSubmitForm={canSubmitToAcceptance ? () => setShowSubmitToAcceptanceForm(true) : undefined}
-            showSelfAssign={showSelfAssign}
-            selfAssignPending={selfAssignM.isPending}
-            onSelfAssign={() => selfAssignM.mutate()}
             canEditTicket={canEditTicket}
             editOpen={editOpen}
             onToggleEdit={() => setEditOpen((value) => !value)}
