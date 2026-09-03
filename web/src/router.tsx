@@ -1,58 +1,88 @@
-﻿import React from 'react'
+﻿import React, { Suspense, lazy, type ComponentType } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import * as api from './lib/api'
-import { Shell } from './ui/Shell'
+import { IT_COMPANY_ROUTES } from './it-company/routes'
 import { LoginPage } from './views/LoginPage'
-import { WorkspaceSelectorPage } from './views/WorkspaceSelectorPage'
-import { RequestAccessPage } from './views/RequestAccessPage'
-import { PublicQuickRequestPage } from './views/PublicQuickRequestPage'
-import { PublicQuickRequestSuccessPage } from './views/PublicQuickRequestSuccessPage'
-import { BoardPage } from './views/BoardPage'
-import { ArchivePage } from './views/ArchivePage'
-import { TicketPage } from './views/TicketPage'
-import { CreateTicketPage } from './views/CreateTicketPage'
-import { EmployeesPage } from './views/EmployeesPage'
-import { LocationsPage } from './views/LocationsPage'
-import { AnalyticsPage } from './views/AnalyticsPage'
-import { LocationAnalyticsPage } from './views/LocationAnalyticsPage'
-import { SettingsPage } from './views/SettingsPage'
-import { ProblemCategoriesPage } from './views/ProblemCategoriesPage'
-import { SpecializationsPage } from './views/SpecializationsPage'
-import { CompanyPage } from './views/CompanyPage'
-import { TechnicianPage } from './views/TechnicianPage'
-import { CompaniesPage } from './views/CompaniesPage'
-import { ServiceContractsPage } from './views/ServiceContractsPage'
-import { InspectionTemplatesPage } from './views/InspectionTemplatesPage'
-import { EngineeringAgentPage } from './views/EngineeringAgentPage'
-import { IT_COMPANY_ROUTES } from './it-company'
-import { DashboardPage } from './views/DashboardPage'
-import { InspectionRunsPage } from './views/InspectionRunsPage'
-import { InspectionRunPage } from './views/InspectionRunPage'
-import { InspectionRunReportPage } from './views/InspectionRunReportPage'
-import { InspectionQuickPage } from './views/InspectionQuickPage'
-import { MapPage } from './pages/MapPage'
-import { AccessConstructorPage } from './pages/platform/AccessConstructorPage'
-import { PermissionsPage } from './pages/platform/PermissionsPage'
-import { ManagementV2StubPage } from './views/v2/ManagementV2StubPage'
-import { ContractorsRoutePage } from './views/v2/ContractorsRoutePage'
-import { MobileShell } from './mobile/MobileShell'
-import { MobileHome } from './mobile/MobileHome'
-import { MobileCreateTicket } from './mobile/MobileCreateTicket'
-import { MobileMyTickets } from './mobile/MobileMyTickets'
-import { MobileProfile } from './mobile/MobileProfile'
-import { MobileTicketPage } from './mobile/MobileTicketPage'
-import { MobileNotificationsPage } from './mobile/MobileNotificationsPage'
-import { MobilePushSettingsPage } from './mobile/MobilePushSettingsPage'
-import { MobileSettingsPage } from './mobile/MobileSettingsPage'
-import { MobileAnalytics } from './mobile/MobileAnalytics'
-import { MobileChatsPage } from './mobile/MobileChatsPage'
-import { MobileOfflineQueue } from './mobile/MobileOfflineQueue'
-import { MobileInspectionList } from './mobile/MobileInspectionList'
-import { MobileInspectionRunPage } from './mobile/MobileInspectionRunPage'
-import { MobileShiftPage } from './mobile/MobileShiftPage'
-import { MobileWorkforcePage } from './mobile/MobileWorkforcePage'
-import { MaxApp } from './max/MaxApp'
-import { WorkforcePage } from './views/WorkforcePage'
+
+function lazyExport<P extends object>(loader: () => Promise<Record<string, ComponentType<P>>>, exportName: string) {
+  return lazy(() => loader().then((mod) => ({ default: mod[exportName] })))
+}
+
+function RouteFallback() {
+  return (
+    <div className="muted small" style={{ padding: 24 }}>
+      Загрузка…
+    </div>
+  )
+}
+
+function LazyRoute<P extends object>({
+  component: Comp,
+  props,
+}: {
+  component: ComponentType<P>
+  props?: P
+}) {
+  return (
+    <Suspense fallback={<RouteFallback />}>
+      <Comp {...((props ?? {}) as P)} />
+    </Suspense>
+  )
+}
+
+const WorkspaceSelectorPage = lazyExport(() => import('./views/WorkspaceSelectorPage'), 'WorkspaceSelectorPage')
+const RequestAccessPage = lazyExport(() => import('./views/RequestAccessPage'), 'RequestAccessPage')
+const PublicQuickRequestPage = lazyExport(() => import('./views/PublicQuickRequestPage'), 'PublicQuickRequestPage')
+const PublicQuickRequestSuccessPage = lazyExport(
+  () => import('./views/PublicQuickRequestSuccessPage'),
+  'PublicQuickRequestSuccessPage',
+)
+const Shell = lazyExport(() => import('./ui/Shell'), 'Shell')
+const BoardPage = lazyExport(() => import('./views/BoardPage'), 'BoardPage')
+const ArchivePage = lazyExport(() => import('./views/ArchivePage'), 'ArchivePage')
+const TicketPage = lazyExport(() => import('./views/TicketPage'), 'TicketPage')
+const CreateTicketPage = lazyExport(() => import('./views/CreateTicketPage'), 'CreateTicketPage')
+const EmployeesPage = lazyExport(() => import('./views/EmployeesPage'), 'EmployeesPage')
+const LocationsPage = lazyExport(() => import('./views/LocationsPage'), 'LocationsPage')
+const AnalyticsPage = lazyExport(() => import('./views/AnalyticsPage'), 'AnalyticsPage')
+const LocationAnalyticsPage = lazyExport(() => import('./views/LocationAnalyticsPage'), 'LocationAnalyticsPage')
+const SettingsPage = lazyExport(() => import('./views/SettingsPage'), 'SettingsPage')
+const ProblemCategoriesPage = lazyExport(() => import('./views/ProblemCategoriesPage'), 'ProblemCategoriesPage')
+const SpecializationsPage = lazyExport(() => import('./views/SpecializationsPage'), 'SpecializationsPage')
+const CompanyPage = lazyExport(() => import('./views/CompanyPage'), 'CompanyPage')
+const TechnicianPage = lazyExport(() => import('./views/TechnicianPage'), 'TechnicianPage')
+const CompaniesPage = lazyExport(() => import('./views/CompaniesPage'), 'CompaniesPage')
+const ServiceContractsPage = lazyExport(() => import('./views/ServiceContractsPage'), 'ServiceContractsPage')
+const InspectionTemplatesPage = lazyExport(() => import('./views/InspectionTemplatesPage'), 'InspectionTemplatesPage')
+const EngineeringAgentPage = lazyExport(() => import('./views/EngineeringAgentPage'), 'EngineeringAgentPage')
+const DashboardPage = lazyExport(() => import('./views/DashboardPage'), 'DashboardPage')
+const InspectionRunsPage = lazyExport(() => import('./views/InspectionRunsPage'), 'InspectionRunsPage')
+const InspectionRunPage = lazyExport(() => import('./views/InspectionRunPage'), 'InspectionRunPage')
+const InspectionRunReportPage = lazyExport(() => import('./views/InspectionRunReportPage'), 'InspectionRunReportPage')
+const InspectionQuickPage = lazyExport(() => import('./views/InspectionQuickPage'), 'InspectionQuickPage')
+const MapPage = lazyExport(() => import('./pages/MapPage'), 'MapPage')
+const AccessConstructorPage = lazyExport(() => import('./pages/platform/AccessConstructorPage'), 'AccessConstructorPage')
+const PermissionsPage = lazyExport(() => import('./pages/platform/PermissionsPage'), 'PermissionsPage')
+const ManagementV2StubPage = lazyExport(() => import('./views/v2/ManagementV2StubPage'), 'ManagementV2StubPage')
+const ContractorsRoutePage = lazyExport(() => import('./views/v2/ContractorsRoutePage'), 'ContractorsRoutePage')
+const WorkforcePage = lazyExport(() => import('./views/WorkforcePage'), 'WorkforcePage')
+const MobileShell = lazyExport(() => import('./mobile/MobileShell'), 'MobileShell')
+const MobileHome = lazyExport(() => import('./mobile/MobileHome'), 'MobileHome')
+const MobileCreateTicket = lazyExport(() => import('./mobile/MobileCreateTicket'), 'MobileCreateTicket')
+const MobileMyTickets = lazyExport(() => import('./mobile/MobileMyTickets'), 'MobileMyTickets')
+const MobileProfile = lazyExport(() => import('./mobile/MobileProfile'), 'MobileProfile')
+const MobileTicketPage = lazyExport(() => import('./mobile/MobileTicketPage'), 'MobileTicketPage')
+const MobileNotificationsPage = lazyExport(() => import('./mobile/MobileNotificationsPage'), 'MobileNotificationsPage')
+const MobilePushSettingsPage = lazyExport(() => import('./mobile/MobilePushSettingsPage'), 'MobilePushSettingsPage')
+const MobileSettingsPage = lazyExport(() => import('./mobile/MobileSettingsPage'), 'MobileSettingsPage')
+const MobileAnalytics = lazyExport(() => import('./mobile/MobileAnalytics'), 'MobileAnalytics')
+const MobileChatsPage = lazyExport(() => import('./mobile/MobileChatsPage'), 'MobileChatsPage')
+const MobileOfflineQueue = lazyExport(() => import('./mobile/MobileOfflineQueue'), 'MobileOfflineQueue')
+const MobileInspectionList = lazyExport(() => import('./mobile/MobileInspectionList'), 'MobileInspectionList')
+const MobileInspectionRunPage = lazyExport(() => import('./mobile/MobileInspectionRunPage'), 'MobileInspectionRunPage')
+const MobileShiftPage = lazyExport(() => import('./mobile/MobileShiftPage'), 'MobileShiftPage')
+const MobileWorkforcePage = lazyExport(() => import('./mobile/MobileWorkforcePage'), 'MobileWorkforcePage')
+const MaxApp = lazyExport(() => import('./max/MaxApp'), 'MaxApp')
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const token = api.getToken()
@@ -104,114 +134,117 @@ export function AppRoutes() {
     <Routes>
       <Route path="/" element={<Navigate to={api.getToken() ? authHomePath() : '/login'} replace />} />
       <Route path="/login" element={<LoginGate />} />
-      <Route path="/request-access" element={api.getToken() ? <Navigate to={authHomePath()} replace /> : <RequestAccessPage />} />
+      <Route
+        path="/request-access"
+        element={api.getToken() ? <Navigate to={authHomePath()} replace /> : <LazyRoute component={RequestAccessPage} />}
+      />
       <Route path="/register" element={<Navigate to="/request-access" replace />} />
       <Route path="/logout" element={<LogoutAndRedirect />} />
       <Route
         path="/workspaces"
         element={
           <RequireAuth>
-            <WorkspaceSelectorPage />
+            <LazyRoute component={WorkspaceSelectorPage} />
           </RequireAuth>
         }
       />
-      <Route path="/r/:token" element={<PublicQuickRequestPage />} />
-      <Route path="/r/:token/success" element={<PublicQuickRequestSuccessPage />} />
+      <Route path="/r/:token" element={<LazyRoute component={PublicQuickRequestPage} />} />
+      <Route path="/r/:token/success" element={<LazyRoute component={PublicQuickRequestSuccessPage} />} />
 
       <Route
         path="/m"
         element={
           <RequireAuth>
-            <MobileShell />
+            <LazyRoute component={MobileShell} />
           </RequireAuth>
         }
       >
-        <Route index element={<MobileHome />} />
-        <Route path="create" element={<MobileCreateTicket />} />
-        <Route path="my" element={<MobileMyTickets />} />
-        <Route path="profile" element={<MobileProfile />} />
-        <Route path="notifications" element={<MobileNotificationsPage />} />
-        <Route path="push-settings" element={<MobilePushSettingsPage />} />
-        <Route path="settings" element={<MobileSettingsPage />} />
-        <Route path="analytics" element={<MobileAnalytics />} />
-        <Route path="shift" element={<MobileShiftPage />} />
-        <Route path="workforce" element={<MobileWorkforcePage />} />
-        <Route path="chats" element={<MobileChatsPage />} />
-        <Route path="chats/:ticketId" element={<MobileChatsPage />} />
-        <Route path="tickets/:id" element={<MobileTicketPage />} />
-        <Route path="offline-queue" element={<MobileOfflineQueue />} />
-        <Route path="inspection" element={<MobileInspectionList standalone />} />
-        <Route path="inspection/:runId" element={<MobileInspectionRunPage />} />
-        <Route path="inspection/object/:locationId" element={<MobileInspectionList />} />
+        <Route index element={<LazyRoute component={MobileHome} />} />
+        <Route path="create" element={<LazyRoute component={MobileCreateTicket} />} />
+        <Route path="my" element={<LazyRoute component={MobileMyTickets} />} />
+        <Route path="profile" element={<LazyRoute component={MobileProfile} />} />
+        <Route path="notifications" element={<LazyRoute component={MobileNotificationsPage} />} />
+        <Route path="push-settings" element={<LazyRoute component={MobilePushSettingsPage} />} />
+        <Route path="settings" element={<LazyRoute component={MobileSettingsPage} />} />
+        <Route path="analytics" element={<LazyRoute component={MobileAnalytics} />} />
+        <Route path="shift" element={<LazyRoute component={MobileShiftPage} />} />
+        <Route path="workforce" element={<LazyRoute component={MobileWorkforcePage} />} />
+        <Route path="chats" element={<LazyRoute component={MobileChatsPage} />} />
+        <Route path="chats/:ticketId" element={<LazyRoute component={MobileChatsPage} />} />
+        <Route path="tickets/:id" element={<LazyRoute component={MobileTicketPage} />} />
+        <Route path="offline-queue" element={<LazyRoute component={MobileOfflineQueue} />} />
+        <Route path="inspection" element={<LazyRoute component={MobileInspectionList} props={{ standalone: true }} />} />
+        <Route path="inspection/:runId" element={<LazyRoute component={MobileInspectionRunPage} />} />
+        <Route path="inspection/object/:locationId" element={<LazyRoute component={MobileInspectionList} />} />
       </Route>
 
       <Route
         path="/"
         element={
           <RequireAuth>
-            <Shell />
+            <LazyRoute component={Shell} />
           </RequireAuth>
         }
       >
-        <Route path="dashboard" element={<DashboardPage />} />
-        <Route path="board" element={<BoardPage />} />
-        <Route path="archive" element={<ArchivePage />} />
-        <Route path="tickets" element={<BoardPage />} />
-        <Route path="objects" element={<LocationsPage />} />
-        <Route path="equipment" element={<ManagementV2StubPage />} />
-        <Route path="users" element={<EmployeesPage />} />
-        <Route path="contractors" element={<ContractorsRoutePage />} />
-        <Route path="acts" element={<ManagementV2StubPage />} />
-        <Route path="permissions" element={<PermissionsPage />} />
-        <Route path="access-constructor" element={<AccessConstructorPage />} />
-        <Route path="assistant" element={<ManagementV2StubPage />} />
-        <Route path="companies" element={<CompaniesPage />} />
-        <Route path="service-contracts" element={<ServiceContractsPage />} />
-        <Route path="tickets/new" element={<CreateTicketPage />} />
-        <Route path="tickets/:id" element={<TicketPage />} />
-        <Route path="locations" element={<LocationsPage />} />
-        <Route path="employees" element={<EmployeesPage />} />
-        <Route path="specializations" element={<SpecializationsPage />} />
-        <Route path="analytics" element={<AnalyticsPage />} />
-        <Route path="workforce" element={<WorkforcePage />} />
-        <Route path="analytics/locations" element={<LocationAnalyticsPage />} />
-        <Route path="settings" element={<SettingsPage />} />
-        <Route path="company" element={<CompanyPage />} />
-        <Route path="platform/permissions" element={<PermissionsPage />} />
-        <Route path="platform/access-constructor" element={<AccessConstructorPage />} />
-        <Route path="technician" element={<TechnicianPage />} />
-        <Route path="map" element={<MapPage />} />
-        <Route path="problem-categories" element={<ProblemCategoriesPage />} />
-        <Route path="inspection/templates" element={<InspectionTemplatesPage />} />
-        <Route path="inspection/runs" element={<InspectionRunsPage />} />
-        <Route path="inspection/runs/:id" element={<InspectionRunPage />} />
-        <Route path="inspection/quick/:runId" element={<InspectionQuickPage />} />
-        <Route path="inspection/runs/:id/report" element={<InspectionRunReportPage />} />
-        <Route path="agents/engineering" element={<EngineeringAgentPage />} />
+        <Route path="dashboard" element={<LazyRoute component={DashboardPage} />} />
+        <Route path="board" element={<LazyRoute component={BoardPage} />} />
+        <Route path="archive" element={<LazyRoute component={ArchivePage} />} />
+        <Route path="tickets" element={<LazyRoute component={BoardPage} />} />
+        <Route path="objects" element={<LazyRoute component={LocationsPage} />} />
+        <Route path="equipment" element={<LazyRoute component={ManagementV2StubPage} />} />
+        <Route path="users" element={<LazyRoute component={EmployeesPage} />} />
+        <Route path="contractors" element={<LazyRoute component={ContractorsRoutePage} />} />
+        <Route path="acts" element={<LazyRoute component={ManagementV2StubPage} />} />
+        <Route path="permissions" element={<LazyRoute component={PermissionsPage} />} />
+        <Route path="access-constructor" element={<LazyRoute component={AccessConstructorPage} />} />
+        <Route path="assistant" element={<LazyRoute component={ManagementV2StubPage} />} />
+        <Route path="companies" element={<LazyRoute component={CompaniesPage} />} />
+        <Route path="service-contracts" element={<LazyRoute component={ServiceContractsPage} />} />
+        <Route path="tickets/new" element={<LazyRoute component={CreateTicketPage} />} />
+        <Route path="tickets/:id" element={<LazyRoute component={TicketPage} />} />
+        <Route path="locations" element={<LazyRoute component={LocationsPage} />} />
+        <Route path="employees" element={<LazyRoute component={EmployeesPage} />} />
+        <Route path="specializations" element={<LazyRoute component={SpecializationsPage} />} />
+        <Route path="analytics" element={<LazyRoute component={AnalyticsPage} />} />
+        <Route path="workforce" element={<LazyRoute component={WorkforcePage} />} />
+        <Route path="analytics/locations" element={<LazyRoute component={LocationAnalyticsPage} />} />
+        <Route path="settings" element={<LazyRoute component={SettingsPage} />} />
+        <Route path="company" element={<LazyRoute component={CompanyPage} />} />
+        <Route path="platform/permissions" element={<LazyRoute component={PermissionsPage} />} />
+        <Route path="platform/access-constructor" element={<LazyRoute component={AccessConstructorPage} />} />
+        <Route path="technician" element={<LazyRoute component={TechnicianPage} />} />
+        <Route path="map" element={<LazyRoute component={MapPage} />} />
+        <Route path="problem-categories" element={<LazyRoute component={ProblemCategoriesPage} />} />
+        <Route path="inspection/templates" element={<LazyRoute component={InspectionTemplatesPage} />} />
+        <Route path="inspection/runs" element={<LazyRoute component={InspectionRunsPage} />} />
+        <Route path="inspection/runs/:id" element={<LazyRoute component={InspectionRunPage} />} />
+        <Route path="inspection/quick/:runId" element={<LazyRoute component={InspectionQuickPage} />} />
+        <Route path="inspection/runs/:id/report" element={<LazyRoute component={InspectionRunReportPage} />} />
+        <Route path="agents/engineering" element={<LazyRoute component={EngineeringAgentPage} />} />
         {IT_COMPANY_ROUTES.map(({ path, Component }) => (
-          <Route key={path} path={path} element={<Component />} />
+          <Route key={path} path={path} element={<LazyRoute component={Component} />} />
         ))}
       </Route>
 
-      <Route path="/max" element={<MaxApp />}>
-        <Route element={<MobileShell />}>
-          <Route index element={<MobileHome />} />
-          <Route path="create" element={<MobileCreateTicket />} />
-          <Route path="my" element={<MobileMyTickets />} />
-          <Route path="profile" element={<MobileProfile />} />
-          <Route path="notifications" element={<MobileNotificationsPage />} />
-          <Route path="push-settings" element={<MobilePushSettingsPage />} />
-          <Route path="settings" element={<MobileSettingsPage />} />
-          <Route path="analytics" element={<MobileAnalytics />} />
-          <Route path="shift" element={<MobileShiftPage />} />
-          <Route path="workforce" element={<MobileWorkforcePage />} />
-          <Route path="chats" element={<MobileChatsPage />} />
-          <Route path="chats/:ticketId" element={<MobileChatsPage />} />
-          <Route path="tickets/:id" element={<MobileTicketPage />} />
-          <Route path="offline-queue" element={<MobileOfflineQueue />} />
-          <Route path="inspection" element={<MobileInspectionList standalone />} />
-          <Route path="inspection/:runId" element={<MobileInspectionRunPage />} />
-        <Route path="inspection/object/:locationId" element={<MobileInspectionList />} />
+      <Route path="/max" element={<LazyRoute component={MaxApp} />}>
+        <Route element={<LazyRoute component={MobileShell} />}>
+          <Route index element={<LazyRoute component={MobileHome} />} />
+          <Route path="create" element={<LazyRoute component={MobileCreateTicket} />} />
+          <Route path="my" element={<LazyRoute component={MobileMyTickets} />} />
+          <Route path="profile" element={<LazyRoute component={MobileProfile} />} />
+          <Route path="notifications" element={<LazyRoute component={MobileNotificationsPage} />} />
+          <Route path="push-settings" element={<LazyRoute component={MobilePushSettingsPage} />} />
+          <Route path="settings" element={<LazyRoute component={MobileSettingsPage} />} />
+          <Route path="analytics" element={<LazyRoute component={MobileAnalytics} />} />
+          <Route path="shift" element={<LazyRoute component={MobileShiftPage} />} />
+          <Route path="workforce" element={<LazyRoute component={MobileWorkforcePage} />} />
+          <Route path="chats" element={<LazyRoute component={MobileChatsPage} />} />
+          <Route path="chats/:ticketId" element={<LazyRoute component={MobileChatsPage} />} />
+          <Route path="tickets/:id" element={<LazyRoute component={MobileTicketPage} />} />
+          <Route path="offline-queue" element={<LazyRoute component={MobileOfflineQueue} />} />
+          <Route path="inspection" element={<LazyRoute component={MobileInspectionList} props={{ standalone: true }} />} />
+          <Route path="inspection/:runId" element={<LazyRoute component={MobileInspectionRunPage} />} />
+          <Route path="inspection/object/:locationId" element={<LazyRoute component={MobileInspectionList} />} />
         </Route>
       </Route>
 

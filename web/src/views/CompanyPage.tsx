@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
-import { PublicQrModal, downloadQrPosterPng } from '../components/public/PublicQrModal'
+import { PublicQrModalLazy, downloadQrPosterPng } from '../components/public/PublicQrLazy'
 
 type QrTarget = {
   title: string
@@ -624,7 +624,7 @@ export function CompanyPage() {
         </>
       ) : null}
 
-      <PublicQrModal open={!!qrTarget} url={qrTarget?.url || ''} title={qrTarget?.title || 'QR-код'} subtitle={qrTarget?.subtitle} fileName={qrTarget?.fileName || 'public-request-qr.png'} onClose={() => setQrTarget(null)} />
+      <PublicQrModalLazy open={!!qrTarget} url={qrTarget?.url || ''} title={qrTarget?.title || 'QR-код'} subtitle={qrTarget?.subtitle} fileName={qrTarget?.fileName || 'public-request-qr.png'} onClose={() => setQrTarget(null)} />
     </div>
   )
 }
