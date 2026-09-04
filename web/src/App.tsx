@@ -4,11 +4,15 @@ import { ErrorBoundary, type FallbackProps } from 'react-error-boundary'
 import { AppRoutes } from './router'
 import { AppToastHost } from './components/AppToastHost'
 import { PushServiceWorkerBridge } from './components/PushServiceWorkerBridge'
+import { ApiRequestError } from './lib/api'
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      retry: 1,
+      retry: (failureCount, error) => {
+        if (error instanceof ApiRequestError && error.status === 404) return false
+        return failureCount < 1
+      },
       refetchOnWindowFocus: false,
       staleTime: 5000,
     },

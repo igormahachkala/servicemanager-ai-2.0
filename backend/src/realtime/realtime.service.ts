@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { getJwtSecret } from '../config/required-env';
 import { isServiceContractEffective } from '../service-contracts/service-contract-window';
 import { buildLegacyNotificationNavigationTarget } from '../notifications/notification-navigation';
+import { heartbeatTimedOut, REALTIME_HEARTBEAT_MS } from './realtime.heartbeat';
 
 type RealtimeUser = {
   id: string;
@@ -32,6 +33,7 @@ type RealtimeClient = {
   subscriptions: Map<string, RealtimeSubscription>;
   user: RealtimeUser | null;
   authTimer: NodeJS.Timeout | null;
+  lastPongAt: number;
   closed: boolean;
 };
 
@@ -71,6 +73,7 @@ export class RealtimeService implements OnModuleInit, OnModuleDestroy {
 
   private attachedServer: HttpServer | null = null;
   private pollTimer: NodeJS.Timeout | null = null;
+  private heartbeatTimer: NodeJS.Timeout | null = null;
   private pollInFlight = false;
   private domainCursor = new Date(Date.now() - 1000);
   private notificationCursor = new Date(Date.now() - 1000);
@@ -85,12 +88,21 @@ export class RealtimeService implements OnModuleInit, OnModuleDestroy {
       void this.pollRealtimeEvents();
     }, this.pollMs);
     this.pollTimer.unref?.();
+
+    this.heartbeatTimer = setInterval(() => {
+      this.sweepHeartbeats();
+    }, REALTIME_HEARTBEAT_MS);
+    this.heartbeatTimer.unref?.();
   }
 
   onModuleDestroy() {
     if (this.pollTimer) {
       clearInterval(this.pollTimer);
       this.pollTimer = null;
+    }
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
     }
 
     for (const client of this.clients.values()) {
@@ -182,6 +194,7 @@ export class RealtimeService implements OnModuleInit, OnModuleDestroy {
       subscriptions: new Map(),
       user: null,
       authTimer: null,
+      lastPongAt: Date.now(),
       closed: false,
     };
     this.clients.set(client.id, client);
@@ -285,7 +298,13 @@ export class RealtimeService implements OnModuleInit, OnModuleDestroy {
       }
 
       if (opcode === 0x9) {
+        client.lastPongAt = Date.now();
         this.writeFrame(client, payload, 0x0a);
+        continue;
+      }
+
+      if (opcode === 0x0a) {
+        client.lastPongAt = Date.now();
         continue;
       }
 
@@ -334,6 +353,7 @@ export class RealtimeService implements OnModuleInit, OnModuleDestroy {
     }
 
     if (type === 'ping') {
+      client.lastPongAt = Date.now();
       this.send(client, { type: 'pong', serverTime: new Date().toISOString() });
     }
   }
@@ -682,6 +702,18 @@ export class RealtimeService implements OnModuleInit, OnModuleDestroy {
     }
 
     return boardSubscriptions.some((subscription) => subscription.targetCompanyId === companyId);
+  }
+
+  private sweepHeartbeats() {
+    const now = Date.now();
+    for (const client of this.clients.values()) {
+      if (client.closed) continue;
+      if (heartbeatTimedOut(client.lastPongAt, now)) {
+        this.closeClient(client, 1001, 'Heartbeat timeout');
+        continue;
+      }
+      this.writeFrame(client, Buffer.alloc(0), 0x9);
+    }
   }
 
   private send(client: RealtimeClient, payload: Record<string, any>) {
