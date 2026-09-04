@@ -124,6 +124,7 @@ enum InspectionReportStatus {
 }
 
 enum InspectionFrequency {
+  ONCE
   DAILY
   WEEKLY
   BIWEEKLY
@@ -957,7 +958,7 @@ model InspectionSchedule {
   assignedToUserId String?
   createdByUserId  String?
   name             String
-  frequency        InspectionFrequency @default(MONTHLY)
+  frequency        InspectionFrequency @default(ONCE)
   intervalDays     Int?
   startDate        DateTime
   nextDueAt        DateTime
