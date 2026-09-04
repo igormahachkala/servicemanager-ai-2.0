@@ -25,6 +25,10 @@ import {
   type NotificationNavigationTarget,
   type NotificationTicketSection,
 } from './notification-navigation';
+import {
+  formatNotificationLocationContext,
+  withNotificationLocationContext,
+} from './notification-location-context';
 
 const WATCHER_ROLES: UserRole[] = [
   UserRole.ADMIN,
@@ -85,6 +89,13 @@ const STATUS_RU: Record<TicketStatus, string> = {
 };
 
 const NOTIFICATION_ACCESS_CHECK_CONCURRENCY = 8;
+
+/**
+ * Контекст локации живёт ровно столько, сколько идёт веер одного события:
+ * получателей у события десятки, заявка одна, запрос к ней нужен один.
+ */
+const LOCATION_CONTEXT_CACHE_TTL_MS = 60_000;
+const LOCATION_CONTEXT_CACHE_MAX_ENTRIES = 500;
 
 type NotificationRecipientCandidate = {
   id: string;
@@ -149,6 +160,10 @@ function buildTicketPushRoute(params: {
 @Injectable()
 export class NotificationsService {
   private readonly logger = new Logger(NotificationsService.name);
+  private readonly locationContextCache = new Map<
+    string,
+    { value: Promise<string | null>; expiresAt: number }
+  >();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -193,11 +208,14 @@ export class NotificationsService {
         companyId: params.companyId,
       });
       const tag = `${params.ticketId}:${params.chat ? 'chat' : params.type}`;
+      // Контекст локации ставится после обрезки: длинный текст не должен его съедать.
+      const locationContext = await this.resolveTicketLocationContext(params.ticketId);
+      const body = withNotificationLocationContext(clipMessage(params.body, 300), locationContext);
       await this.push.sendToUser(
         params.userId,
         {
           title: params.title,
-          body: clipMessage(params.body, 300),
+          body,
           tag,
           url: navigate,
           targetRoute: navigate,
@@ -315,8 +333,9 @@ export class NotificationsService {
   }
 
   private async createNotification(data: Prisma.NotificationUncheckedCreateInput & { dedupeKey: string }) {
+    const withLocation = await this.withTicketLocationContext(data);
     try {
-      return await this.prisma.notification.create({ data: this.withNavigationTarget(data) });
+      return await this.prisma.notification.create({ data: this.withNavigationTarget(withLocation) });
     } catch (err) {
       if (this.isUniqueViolation(err)) {
         return null;
@@ -329,8 +348,9 @@ export class NotificationsService {
     data: Array<Prisma.NotificationCreateManyInput & { dedupeKey: string }>,
   ) {
     if (!data.length) return { count: 0 };
+    const withLocation = await this.withTicketLocationContextMany(data);
     return this.prisma.notification.createMany({
-      data: data.map((item) => this.withNavigationTarget(item)),
+      data: withLocation.map((item) => this.withNavigationTarget(item)),
       skipDuplicates: true,
     });
   }
@@ -352,6 +372,85 @@ export class NotificationsService {
     }) as NotificationNavigationTarget | null;
     if (!navigationTarget) return data;
     return { ...(data as Record<string, unknown>), navigationTarget } as T;
+  }
+
+  /**
+   * Каноническая строка «<Город> · <Точка>» по заявке.
+   *
+   * Второго резолвера локации не заводим: источник — Location.city и
+   * Location.name, связанные с заявкой через Ticket.locationId. Кэш короткий и
+   * держит саму задачу, а не результат: получатели одного события идут веером,
+   * и без него на каждое уведомление приходился бы отдельный одинаковый запрос.
+   *
+   * Отказ запроса контекст обнуляет, но текст уведомления не роняет.
+   */
+  private async resolveTicketLocationContext(
+    ticketId: string | null | undefined,
+  ): Promise<string | null> {
+    const id = (ticketId || '').trim();
+    if (!id) return null;
+
+    const now = Date.now();
+    const cached = this.locationContextCache.get(id);
+    if (cached && cached.expiresAt > now) return cached.value;
+
+    if (this.locationContextCache.size >= LOCATION_CONTEXT_CACHE_MAX_ENTRIES) {
+      this.locationContextCache.clear();
+    }
+
+    let task: Promise<string | null>;
+    try {
+      task = Promise.resolve(
+        this.prisma.ticket.findUnique({
+          where: { id },
+          select: { location: { select: { name: true, city: true } } },
+        }),
+      )
+        .then((ticket) => formatNotificationLocationContext(ticket?.location))
+        .catch((err) => {
+          this.locationContextCache.delete(id);
+          this.logger.warn({ err, ticketId: id }, 'notification_location_context_failed');
+          return null;
+        });
+    } catch (err) {
+      this.logger.warn({ err, ticketId: id }, 'notification_location_context_failed');
+      return null;
+    }
+
+    this.locationContextCache.set(id, { value: task, expiresAt: now + LOCATION_CONTEXT_CACHE_TTL_MS });
+    return task;
+  }
+
+  private isTicketNotificationRow(item: { entityType?: string | null; entityId?: string | null }) {
+    return item.entityType === 'Ticket' && !!(item.entityId || '').trim();
+  }
+
+  /**
+   * Единственное место, где контекст локации попадает в запись уведомления.
+   * Все in-app уведомления идут через createNotification/createNotifications,
+   * поэтому центр уведомлений и список получают его без правок на каждое событие.
+   */
+  private async withTicketLocationContext<T>(item: T): Promise<T> {
+    const row = item as {
+      entityType?: string | null;
+      entityId?: string | null;
+      message?: string | null;
+    };
+    if (!this.isTicketNotificationRow(row)) return item;
+
+    const context = await this.resolveTicketLocationContext(row.entityId);
+    if (!context) return item;
+
+    return {
+      ...(item as Record<string, unknown>),
+      message: withNotificationLocationContext(row.message ?? '', context),
+    } as T;
+  }
+
+  private async withTicketLocationContextMany<T>(items: T[]): Promise<T[]> {
+    // Кэш регистрируется синхронно, поэтому на пачку получателей одной заявки
+    // приходится один запрос, а не по одному на получателя.
+    return Promise.all(items.map((item) => this.withTicketLocationContext(item)));
   }
 
   private linkedClientForRecipientCompany(recipientCompanyId: string, ticketCompanyId: string) {
@@ -659,16 +758,18 @@ export class NotificationsService {
     categoryName?: string | null;
     urgency?: string | null;
   }) {
-    const [requesterLabel, fallbackPhone] = await Promise.all([
+    const [requesterLabel, fallbackPhone, locationContext] = await Promise.all([
       params.requesterName?.trim()
         ? Promise.resolve(params.requesterName.trim())
         : params.creatorUserId
           ? this.resolveUserLabel(params.creatorUserId)
           : Promise.resolve('Не указан'),
       this.resolveCompanyPhone(params.targetCompanyId),
+      this.resolveTicketLocationContext(params.ticketId),
     ]);
 
     await this.maxBot.sendTicketCreatedMessage({
+      locationContext,
       companyId: params.targetCompanyId,
       locationId: params.locationId,
       locationName: params.pointName,
@@ -692,11 +793,15 @@ export class NotificationsService {
     ticketNumber: number;
     technicianUserId: string;
   }) {
-    const technicianLabel = await this.resolveUserLabel(params.technicianUserId);
+    const [technicianLabel, locationContext] = await Promise.all([
+      this.resolveUserLabel(params.technicianUserId),
+      this.resolveTicketLocationContext(params.ticketId),
+    ]);
     await this.maxBot.sendTicketAssignedMessage({
       companyId: params.companyId,
       locationId: params.locationId,
       locationName: params.locationName,
+      locationContext,
       ticketId: params.ticketId,
       ticketNumber: params.ticketNumber,
       technicianLabel,
@@ -711,11 +816,15 @@ export class NotificationsService {
     ticketNumber: number;
     technicianUserId: string;
   }) {
-    const technicianLabel = await this.resolveUserLabel(params.technicianUserId);
+    const [technicianLabel, locationContext] = await Promise.all([
+      this.resolveUserLabel(params.technicianUserId),
+      this.resolveTicketLocationContext(params.ticketId),
+    ]);
     await this.maxBot.sendTicketClaimedMessage({
       companyId: params.companyId,
       locationId: params.locationId,
       locationName: params.locationName,
+      locationContext,
       ticketId: params.ticketId,
       ticketNumber: params.ticketNumber,
       technicianLabel,
@@ -731,10 +840,12 @@ export class NotificationsService {
     fromStatus: TicketStatus;
     toStatus: TicketStatus;
   }) {
+    const locationContext = await this.resolveTicketLocationContext(params.ticketId);
     await this.maxBot.sendTicketStatusChangedMessage({
       companyId: params.companyId,
       locationId: params.locationId,
       locationName: params.locationName,
+      locationContext,
       ticketId: params.ticketId,
       ticketNumber: params.ticketNumber,
       fromStatus: params.fromStatus,
