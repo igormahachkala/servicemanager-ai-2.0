@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
+import { numericConstraintLabel, responseTypeLabel } from '../lib/inspectionZones'
 
 const REVIEW_ROLES: api.Role[] = ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR']
 
@@ -292,7 +293,18 @@ export function InspectionRunReportPage() {
                       <td>{index + 1}</td>
                       <td>
                         <div className="workActStrong">{item.title}</div>
+                        <div className="muted small">
+                          {(item.zoneName?.trim() || 'Без зоны') + ' · ' + responseTypeLabel(item.responseType)}
+                          {numericConstraintLabel(item) ? ` · ${numericConstraintLabel(item)}` : ''}
+                        </div>
                         {item.description ? <div className="muted small">{item.description}</div> : null}
+                        {item.booleanValue !== null && item.booleanValue !== undefined ? (
+                          <div className="muted small">Ответ: {item.booleanValue ? 'Да' : 'Нет'}</div>
+                        ) : null}
+                        {item.numberValue !== null && item.numberValue !== undefined ? (
+                          <div className="muted small">Значение: {item.numberValue}{item.numericUnit ? ` ${item.numericUnit}` : ''}</div>
+                        ) : null}
+                        {item.textValue ? <div className="muted small">Ответ: {item.textValue}</div> : null}
                         {item.requiresRepair ? <div className="small" style={{ marginTop: 4 }}>Требуется ремонт</div> : null}
                       </td>
                       <td>{itemStatusLabel(item.status)}</td>

@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
+import { numericConstraintLabel, responseTypeLabel } from '../lib/inspectionZones'
 
 const MAX_PHOTO_SIZE = 10 * 1024 * 1024
 
@@ -13,6 +14,9 @@ type ItemDraft = {
   categoryId: string
   title: string
   description: string
+  booleanValue: boolean | null
+  numberValue: string
+  textValue: string
 }
 
 function statusLabel(status: api.InspectionRunItemStatus) {
@@ -42,6 +46,13 @@ function fmtDate(value?: string | null) {
   } catch {
     return value
   }
+}
+
+function parseOptionalDraftNumber(value: string): number | undefined {
+  const trimmed = value.trim()
+  if (!trimmed) return undefined
+  const parsed = Number(trimmed)
+  return Number.isFinite(parsed) ? parsed : undefined
 }
 
 function buildSummaryFromRun(run: api.InspectionRun): api.InspectionRunSummary {
@@ -97,6 +108,9 @@ export function InspectionRunPage() {
           categoryId: firstCategoryId,
           title: item.title,
           description: item.comment || item.description || '',
+          booleanValue: item.booleanValue ?? null,
+          numberValue: item.numberValue === null || item.numberValue === undefined ? '' : String(item.numberValue),
+          textValue: item.textValue || '',
         }
       }
       return next
@@ -181,6 +195,11 @@ export function InspectionRunPage() {
   function saveItem(item: api.InspectionRunItem) {
     const draft = drafts[item.id]
     if (!draft) return
+    const numberValue = parseOptionalDraftNumber(draft.numberValue)
+    if (item.responseType === 'NUMBER' && draft.numberValue.trim() && numberValue === undefined) {
+      setError('Укажите числовое значение пункта')
+      return
+    }
     setSavingItemId(item.id)
     updateItemM.mutate({
       itemId: item.id,
@@ -188,6 +207,9 @@ export function InspectionRunPage() {
         status: draft.status,
         requiresRepair: draft.status === 'ISSUE' || draft.status === 'CRITICAL' ? draft.requiresRepair : false,
         comment: draft.comment,
+        booleanValue: item.responseType === 'YES_NO' ? draft.booleanValue ?? undefined : undefined,
+        numberValue: item.responseType === 'NUMBER' ? numberValue : undefined,
+        textValue: item.responseType === 'TEXT' ? draft.textValue : undefined,
       },
     })
   }
@@ -300,17 +322,37 @@ export function InspectionRunPage() {
                 categoryId: categories[0]?.id || '',
                 title: item.title,
                 description: item.comment || item.description || '',
+                booleanValue: item.booleanValue ?? null,
+                numberValue: item.numberValue === null || item.numberValue === undefined ? '' : String(item.numberValue),
+                textValue: item.textValue || '',
               }
               const problemState = draft.status === 'ISSUE' || draft.status === 'CRITICAL'
               const ticketExists = !!item.ticketId
               const itemReadOnly = isCompleted
+              const previous = run.items[index - 1]
+              const zoneName = item.zoneName?.trim() || 'Без зоны'
+              const showZoneHeader =
+                !previous ||
+                (previous.zoneName?.trim() || 'Без зоны') !== zoneName ||
+                (previous.zoneSortOrder ?? 0) !== (item.zoneSortOrder ?? 0)
 
               return (
-                <div key={item.id} className="panel">
+                <div key={item.id}>
+                  {showZoneHeader ? (
+                    <div style={{ fontWeight: 800, margin: '8px 0 2px' }}>
+                      {zoneName}
+                    </div>
+                  ) : null}
+                <div className="panel">
                   <div className="row" style={{ alignItems: 'flex-start', marginBottom: 10 }}>
                     <div>
-                      <div style={{ fontWeight: 700 }}>{index + 1}. {item.title}</div>
+                      <div style={{ fontWeight: 700 }}>{item.checkpointSortOrder + 1}. {item.title}</div>
                       {item.description ? <div className="muted small" style={{ marginTop: 4 }}>{item.description}</div> : null}
+                      <div className="muted small" style={{ marginTop: 4 }}>
+                        {responseTypeLabel(item.responseType)}
+                        {numericConstraintLabel(item) ? ` · ${numericConstraintLabel(item)}` : ''}
+                        {item.isRequired ? ' · обязательный' : ' · необязательный'}
+                      </div>
                     </div>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                       <span className="tag">{statusLabel(item.status)}</span>
@@ -324,6 +366,51 @@ export function InspectionRunPage() {
                     <button type="button" disabled={itemReadOnly} style={statusButtonStyle(draft.status === 'CRITICAL', 'danger')} onClick={() => patchDraft(item.id, { status: 'CRITICAL', requiresRepair: true })}>CRITICAL</button>
                     <button type="button" disabled={itemReadOnly} style={statusButtonStyle(draft.status === 'SKIPPED', 'neutral')} onClick={() => patchDraft(item.id, { status: 'SKIPPED', requiresRepair: false })}>Пропустить</button>
                   </div>
+
+                  {item.responseType === 'YES_NO' ? (
+                    <label style={{ display: 'block', marginBottom: 12 }}>
+                      Ответ
+                      <select
+                        value={draft.booleanValue === null ? '' : draft.booleanValue ? 'true' : 'false'}
+                        onChange={(e) =>
+                          patchDraft(item.id, {
+                            booleanValue: e.target.value === '' ? null : e.target.value === 'true',
+                          })
+                        }
+                        disabled={itemReadOnly}
+                      >
+                        <option value="">Не выбран</option>
+                        <option value="true">Да</option>
+                        <option value="false">Нет</option>
+                      </select>
+                    </label>
+                  ) : null}
+
+                  {item.responseType === 'NUMBER' ? (
+                    <label style={{ display: 'block', marginBottom: 12 }}>
+                      Значение{item.numericUnit ? `, ${item.numericUnit}` : ''}
+                      <input
+                        type="number"
+                        value={draft.numberValue}
+                        min={item.numericMin ?? undefined}
+                        max={item.numericMax ?? undefined}
+                        onChange={(e) => patchDraft(item.id, { numberValue: e.target.value })}
+                        disabled={itemReadOnly}
+                      />
+                    </label>
+                  ) : null}
+
+                  {item.responseType === 'TEXT' ? (
+                    <label style={{ display: 'block', marginBottom: 12 }}>
+                      Текстовый ответ
+                      <textarea
+                        value={draft.textValue}
+                        onChange={(e) => patchDraft(item.id, { textValue: e.target.value })}
+                        rows={2}
+                        disabled={itemReadOnly}
+                      />
+                    </label>
+                  ) : null}
 
                   <div className="grid2" style={{ gridTemplateColumns: '1.3fr 0.7fr', gap: 12 }}>
                     <label>
@@ -419,6 +506,7 @@ export function InspectionRunPage() {
                       ) : null}
                     </div>
                   ) : null}
+                </div>
                 </div>
               )
             })}

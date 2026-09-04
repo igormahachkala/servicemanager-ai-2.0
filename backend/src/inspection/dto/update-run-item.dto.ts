@@ -1,4 +1,5 @@
-﻿import { IsBoolean, IsEnum, IsOptional, IsString, MaxLength } from 'class-validator'
+import { Type } from 'class-transformer'
+import { IsBoolean, IsEnum, IsNumber, IsOptional, IsString, MaxLength } from 'class-validator'
 
 export enum InspectionRunItemStatusDto {
   PENDING = 'PENDING',
@@ -21,4 +22,18 @@ export class UpdateRunItemDto {
   @IsString()
   @MaxLength(1000)
   comment?: string
+
+  @IsOptional()
+  @IsBoolean()
+  booleanValue?: boolean
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  numberValue?: number
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(4000)
+  textValue?: string
 }

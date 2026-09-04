@@ -123,6 +123,14 @@ enum InspectionReportStatus {
   REJECTED
 }
 
+enum InspectionCheckpointResponseType {
+  NORMAL_PROBLEM
+  YES_NO
+  NUMBER
+  TEXT
+  PHOTO
+}
+
 enum InspectionFrequency {
   DAILY
   WEEKLY
@@ -872,19 +880,27 @@ model InspectionTemplate {
 }
 
 model InspectionTemplateItem {
-  id          String   @id @default(uuid())
-  templateId  String
-  title       String
-  description String?
-  sortOrder   Int      @default(0)
-  isRequired  Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                  String                           @id @default(uuid())
+  templateId          String
+  title               String
+  description         String?
+  sortOrder           Int                              @default(0)
+  zoneName            String?
+  zoneSortOrder       Int                              @default(0)
+  checkpointSortOrder Int                              @default(0)
+  responseType        InspectionCheckpointResponseType @default(NORMAL_PROBLEM)
+  numericMin          Float?
+  numericMax          Float?
+  numericUnit         String?
+  isRequired          Boolean                          @default(true)
+  createdAt           DateTime                         @default(now())
+  updatedAt           DateTime                         @updatedAt
 
   template InspectionTemplate  @relation(fields: [templateId], references: [id], onDelete: Cascade)
   runItems InspectionRunItem[]
 
   @@index([templateId, sortOrder])
+  @@index([templateId, zoneSortOrder, checkpointSortOrder], map: "InspectionTemplateItem_template_zone_checkpoint_idx")
 }
 
 model InspectionRun {
@@ -971,19 +987,29 @@ model InspectionSchedule {
 }
 
 model InspectionRunItem {
-  id             String                  @id @default(uuid())
-  runId          String
-  templateItemId String?
-  title          String
-  description    String?
-  sortOrder      Int                     @default(0)
-  isRequired     Boolean                 @default(true)
-  status         InspectionRunItemStatus @default(PENDING)
-  requiresRepair Boolean                 @default(false)
-  comment        String?
-  ticketId       String?                 @unique
-  createdAt      DateTime                @default(now())
-  updatedAt      DateTime                @updatedAt
+  id                  String                           @id @default(uuid())
+  runId               String
+  templateItemId      String?
+  title               String
+  description         String?
+  sortOrder           Int                              @default(0)
+  zoneName            String?
+  zoneSortOrder       Int                              @default(0)
+  checkpointSortOrder Int                              @default(0)
+  responseType        InspectionCheckpointResponseType @default(NORMAL_PROBLEM)
+  numericMin          Float?
+  numericMax          Float?
+  numericUnit         String?
+  booleanValue        Boolean?
+  numberValue         Float?
+  textValue           String?
+  isRequired          Boolean                          @default(true)
+  status              InspectionRunItemStatus          @default(PENDING)
+  requiresRepair      Boolean                          @default(false)
+  comment             String?
+  ticketId            String?                          @unique
+  createdAt           DateTime                         @default(now())
+  updatedAt           DateTime                         @updatedAt
 
   run          InspectionRun                 @relation(fields: [runId], references: [id], onDelete: Cascade)
   templateItem InspectionTemplateItem?       @relation(fields: [templateItemId], references: [id], onDelete: SetNull)
@@ -991,6 +1017,7 @@ model InspectionRunItem {
   attachments  InspectionRunItemAttachment[]
 
   @@index([runId, sortOrder])
+  @@index([runId, zoneSortOrder, checkpointSortOrder], map: "InspectionRunItem_run_zone_checkpoint_idx")
   @@index([runId, status])
   @@index([ticketId])
 }

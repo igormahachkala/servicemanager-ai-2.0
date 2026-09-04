@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
+import { numericConstraintLabel, responseTypeLabel } from '../lib/inspectionZones'
 
 const MAX_PHOTO_SIZE = 10 * 1024 * 1024
 
@@ -190,24 +191,38 @@ export function InspectionQuickPage() {
           </div>
 
           <div style={{ display: 'grid', gap: 10 }}>
-            {run.items.map((item) => {
+            {run.items.map((item, index) => {
               const isOk = item.status === 'OK'
               const isIssue = item.status === 'ISSUE' || item.status === 'CRITICAL'
               const isBusyRow = okBusyItemId === item.id || issueBusyItemId === item.id
+              const previous = run.items[index - 1]
+              const zoneName = item.zoneName?.trim() || 'Без зоны'
+              const showZoneHeader =
+                !previous ||
+                (previous.zoneName?.trim() || 'Без зоны') !== zoneName ||
+                (previous.zoneSortOrder ?? 0) !== (item.zoneSortOrder ?? 0)
               return (
-                <div
-                  key={item.id}
-                  className="panel"
-                  style={{
-                    border: isOk ? '1px solid #86efac' : isIssue ? '1px solid #fdba74' : undefined,
-                    background: isOk ? '#f0fdf4' : isIssue ? '#fff7ed' : undefined,
-                  }}
-                >
+                <div key={item.id}>
+                  {showZoneHeader ? (
+                    <div style={{ fontWeight: 800, margin: '8px 0 2px' }}>{zoneName}</div>
+                  ) : null}
+                  <div
+                    className="panel"
+                    style={{
+                      border: isOk ? '1px solid #86efac' : isIssue ? '1px solid #fdba74' : undefined,
+                      background: isOk ? '#f0fdf4' : isIssue ? '#fff7ed' : undefined,
+                    }}
+                  >
                   <div className="row" style={{ marginBottom: 6, alignItems: 'flex-start' }}>
                     <div>
-                      <div style={{ fontWeight: 700 }}>{item.title}</div>
+                      <div style={{ fontWeight: 700 }}>{item.checkpointSortOrder + 1}. {item.title}</div>
                       <div className="muted small">
                         {run.equipment?.name || 'Equipment'}{run.equipment?.type ? ` · ${run.equipment.type}` : ''}
+                      </div>
+                      <div className="muted small">
+                        {responseTypeLabel(item.responseType)}
+                        {numericConstraintLabel(item) ? ` · ${numericConstraintLabel(item)}` : ''}
+                        {item.isRequired ? ' · обязательный' : ' · необязательный'}
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -226,6 +241,7 @@ export function InspectionQuickPage() {
                     <button className="ghost" type="button" disabled={busy || isBusyRow || !!item.ticketId} onClick={() => openIssueModal(item)}>
                       {isIssue ? 'Проблема ✓' : 'Проблема'}
                     </button>
+                  </div>
                   </div>
                 </div>
               )

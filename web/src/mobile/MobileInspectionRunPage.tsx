@@ -2,6 +2,7 @@ import { useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
+import { numericConstraintLabel, responseTypeLabel } from '../lib/inspectionZones'
 import { mobilePath } from './mobileRoute'
 import { mobileTicketNavState } from './mobileTicketDisplay'
 
@@ -319,7 +320,7 @@ export function MobileInspectionRunPage() {
 
             {/* Checklist items */}
             <div className="mobilePatrolItems">
-              {run.items.map((item) => {
+              {run.items.map((item, index) => {
                 const mod = ITEM_MOD[item.status]
                 const busy = busyItemIds.has(item.id)
                 const uploadBusy = uploadBusyItemIds.has(item.id)
@@ -327,10 +328,22 @@ export function MobileInspectionRunPage() {
                 const createdTicketId = getCreatedTicketId(item)
                 const createdTicketNumber = createdTicketsByItemId[item.id]?.ticketNumber ?? null
                 const canCreateTicket = (item.status === 'ISSUE' || item.status === 'CRITICAL') && !createdTicketId
+                const previous = run.items[index - 1]
+                const zoneName = item.zoneName?.trim() || 'Без зоны'
+                const showZoneHeader =
+                  !previous ||
+                  (previous.zoneName?.trim() || 'Без зоны') !== zoneName ||
+                  (previous.zoneSortOrder ?? 0) !== (item.zoneSortOrder ?? 0)
                 return (
-                  <div key={item.id} className={`mobilePatrolItem mobilePatrolItem--${mod}`}>
+                  <div key={item.id}>
+                    {showZoneHeader ? (
+                      <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#111827', margin: '4px 2px -2px' }}>
+                        {zoneName}
+                      </div>
+                    ) : null}
+                  <div className={`mobilePatrolItem mobilePatrolItem--${mod}`}>
                     <div className="mobilePatrolItemTop">
-                      <div className="mobilePatrolItemTitle">{item.title}</div>
+                      <div className="mobilePatrolItemTitle">{item.checkpointSortOrder + 1}. {item.title}</div>
                       <span className={`mobilePatrolItemBadge mobilePatrolItemBadge--${mod}`}>
                         {STATUS_LABEL[item.status]}
                       </span>
@@ -339,6 +352,18 @@ export function MobileInspectionRunPage() {
                     {item.description ? (
                       <div style={{ fontSize: '0.82rem', color: '#6b7280' }}>{item.description}</div>
                     ) : null}
+                    <div style={{ fontSize: '0.78rem', color: '#6b7280', fontWeight: 600 }}>
+                      {responseTypeLabel(item.responseType)}
+                      {numericConstraintLabel(item) ? ` · ${numericConstraintLabel(item)}` : ''}
+                      {item.isRequired ? ' · обязательный' : ' · необязательный'}
+                    </div>
+                    {item.booleanValue !== null && item.booleanValue !== undefined ? (
+                      <div className="mobileMeta">Ответ: {item.booleanValue ? 'Да' : 'Нет'}</div>
+                    ) : null}
+                    {item.numberValue !== null && item.numberValue !== undefined ? (
+                      <div className="mobileMeta">Значение: {item.numberValue}{item.numericUnit ? ` ${item.numericUnit}` : ''}</div>
+                    ) : null}
+                    {item.textValue ? <div className="mobileMeta">Ответ: {item.textValue}</div> : null}
                     {item.comment ? (
                       <div className="mobilePatrolItemComment">"{item.comment}"</div>
                     ) : null}
@@ -469,6 +494,7 @@ export function MobileInspectionRunPage() {
                         </Link>
                       </div>
                     ) : null}
+                  </div>
                   </div>
                 )
               })}

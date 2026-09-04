@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
+import { groupInspectionItemsByZone, numericConstraintLabel, responseTypeLabel } from '../lib/inspectionZones'
 
 function fmtDate(value?: string | null) {
   if (!value) return '—'
@@ -16,14 +17,43 @@ function fmtDate(value?: string | null) {
 type TemplateDraftItem = {
   title: string
   description: string
+  zoneName: string
+  zoneSortOrder: string
+  checkpointSortOrder: string
+  responseType: api.InspectionCheckpointResponseType
+  numericMin: string
+  numericMax: string
+  numericUnit: string
   isRequired: boolean
 }
 
 const emptyDraftItem = (): TemplateDraftItem => ({
   title: '',
   description: '',
+  zoneName: '',
+  zoneSortOrder: '',
+  checkpointSortOrder: '',
+  responseType: 'NORMAL_PROBLEM',
+  numericMin: '',
+  numericMax: '',
+  numericUnit: '',
   isRequired: true,
 })
+
+function parseOptionalNumber(value: string, label: string): number | undefined {
+  const trimmed = value.trim()
+  if (!trimmed) return undefined
+  const parsed = Number(trimmed)
+  if (!Number.isFinite(parsed)) throw new Error(`${label}: укажите число`)
+  return parsed
+}
+
+function parseOptionalInteger(value: string, label: string): number | undefined {
+  const parsed = parseOptionalNumber(value, label)
+  if (parsed === undefined) return undefined
+  if (!Number.isInteger(parsed)) throw new Error(`${label}: укажите целое число`)
+  return parsed
+}
 
 export function InspectionTemplatesPage() {
   const navigate = useNavigate()
@@ -63,6 +93,10 @@ export function InspectionTemplatesPage() {
     () => activeTemplates.find((item) => item.id === selectedTemplateId) || null,
     [activeTemplates, selectedTemplateId],
   )
+  const selectedTemplateZones = useMemo(
+    () => (selectedTemplate ? groupInspectionItemsByZone(selectedTemplate.items) : []),
+    [selectedTemplate],
+  )
 
   const startRunM = useMutation({
     mutationFn: api.startInspectionRun,
@@ -78,12 +112,27 @@ export function InspectionTemplatesPage() {
   const createTemplateM = useMutation({
     mutationFn: async () => {
       const items = draftItems
-        .map((item, index) => ({
-          title: item.title.trim(),
-          description: item.description.trim() || undefined,
-          isRequired: item.isRequired,
-          sortOrder: index,
-        }))
+        .map((item, index) => {
+          const numericMin = parseOptionalNumber(item.numericMin, 'Минимум')
+          const numericMax = parseOptionalNumber(item.numericMax, 'Максимум')
+          if (numericMin !== undefined && numericMax !== undefined && numericMin > numericMax) {
+            throw new Error('Минимум не может быть больше максимума')
+          }
+
+          return {
+            title: item.title.trim(),
+            description: item.description.trim() || undefined,
+            zoneName: item.zoneName.trim() || undefined,
+            zoneSortOrder: parseOptionalInteger(item.zoneSortOrder, 'Порядок зоны') ?? 0,
+            checkpointSortOrder: parseOptionalInteger(item.checkpointSortOrder, 'Порядок пункта') ?? index,
+            responseType: item.responseType,
+            numericMin,
+            numericMax,
+            numericUnit: item.numericUnit.trim() || undefined,
+            isRequired: item.isRequired,
+            sortOrder: index,
+          }
+        })
         .filter((item) => item.title)
 
       if (!templateName.trim()) {
@@ -179,6 +228,37 @@ export function InspectionTemplatesPage() {
                 <div key={index} className="card" style={{ padding: 12 }}>
                   <div style={{ fontWeight: 700, marginBottom: 8 }}>Пункт {index + 1}</div>
                   <div className="form">
+                    <div className="grid2" style={{ gridTemplateColumns: '1fr 120px 120px', gap: 10 }}>
+                      <label>
+                        Зона
+                        <input
+                          value={item.zoneName}
+                          onChange={(e) => updateDraftItem(index, { zoneName: e.target.value })}
+                          placeholder="Например: Зал"
+                        />
+                      </label>
+                      <label>
+                        Порядок зоны
+                        <input
+                          type="number"
+                          min={0}
+                          value={item.zoneSortOrder}
+                          onChange={(e) => updateDraftItem(index, { zoneSortOrder: e.target.value })}
+                          placeholder="0"
+                        />
+                      </label>
+                      <label>
+                        Порядок пункта
+                        <input
+                          type="number"
+                          min={0}
+                          value={item.checkpointSortOrder}
+                          onChange={(e) => updateDraftItem(index, { checkpointSortOrder: e.target.value })}
+                          placeholder={String(index)}
+                        />
+                      </label>
+                    </div>
+
                     <label>
                       Заголовок
                       <input
@@ -196,6 +276,56 @@ export function InspectionTemplatesPage() {
                         placeholder="Что именно нужно проверить"
                       />
                     </label>
+
+                    <div className="grid2" style={{ gridTemplateColumns: '1fr 110px 110px 110px', gap: 10 }}>
+                      <label>
+                        Тип ответа
+                        <select
+                          value={item.responseType}
+                          onChange={(e) =>
+                            updateDraftItem(index, {
+                              responseType: e.target.value as api.InspectionCheckpointResponseType,
+                              numericMin: e.target.value === 'NUMBER' ? item.numericMin : '',
+                              numericMax: e.target.value === 'NUMBER' ? item.numericMax : '',
+                              numericUnit: e.target.value === 'NUMBER' ? item.numericUnit : '',
+                            })
+                          }
+                        >
+                          <option value="NORMAL_PROBLEM">Проблема/норма</option>
+                          <option value="YES_NO">Да/Нет</option>
+                          <option value="NUMBER">Число</option>
+                          <option value="TEXT">Текст</option>
+                          <option value="PHOTO">Фото</option>
+                        </select>
+                      </label>
+                      <label>
+                        Мин.
+                        <input
+                          type="number"
+                          value={item.numericMin}
+                          onChange={(e) => updateDraftItem(index, { numericMin: e.target.value })}
+                          disabled={item.responseType !== 'NUMBER'}
+                        />
+                      </label>
+                      <label>
+                        Макс.
+                        <input
+                          type="number"
+                          value={item.numericMax}
+                          onChange={(e) => updateDraftItem(index, { numericMax: e.target.value })}
+                          disabled={item.responseType !== 'NUMBER'}
+                        />
+                      </label>
+                      <label>
+                        Ед.
+                        <input
+                          value={item.numericUnit}
+                          onChange={(e) => updateDraftItem(index, { numericUnit: e.target.value })}
+                          disabled={item.responseType !== 'NUMBER'}
+                          placeholder="°C"
+                        />
+                      </label>
+                    </div>
 
                     <label className="small" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                       <input
@@ -336,9 +466,16 @@ export function InspectionTemplatesPage() {
               <div className="panel" style={{ padding: 12 }}>
                 <div style={{ fontWeight: 700, marginBottom: 6 }}>Что будет в обходе</div>
                 <div style={{ display: 'grid', gap: 6 }}>
-                  {selectedTemplate.items.map((item) => (
-                    <div key={item.id} className="muted small">
-                      {item.sortOrder + 1}. {item.title}{item.isRequired ? '' : ' (необязательно)'}
+                  {selectedTemplateZones.map((zone) => (
+                    <div key={zone.key} style={{ display: 'grid', gap: 4 }}>
+                      <div style={{ fontWeight: 700 }}>{zone.name}</div>
+                      {zone.items.map((item) => (
+                        <div key={item.id} className="muted small">
+                          {item.checkpointSortOrder + 1}. {item.title} · {responseTypeLabel(item.responseType)}
+                          {numericConstraintLabel(item) ? ` · ${numericConstraintLabel(item)}` : ''}
+                          {item.isRequired ? '' : ' (необязательно)'}
+                        </div>
+                      ))}
                     </div>
                   ))}
                 </div>
