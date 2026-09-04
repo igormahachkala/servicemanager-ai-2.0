@@ -12,8 +12,9 @@ export function MobileTicketCardPhoto({ previewUrl, imageCount = 0, alt = 'Фо�
   const [objectUrl, setObjectUrl] = useState<string | null>(null)
   const [fetchFailed, setFetchFailed] = useState(false)
   const resolved = previewUrl ? api.resolveTicketAttachmentUrl({ url: previewUrl }) : ''
-  const src = objectUrl || resolved
+  const src = objectUrl || (resolved && !api.isProtectedUploadUrl(resolved) ? resolved : '')
   const count = Math.max(0, imageCount)
+  const waitingForBlob = Boolean(resolved) && api.isProtectedUploadUrl(resolved) && !objectUrl && !fetchFailed
 
   useEffect(() => {
     setBroken(false)
@@ -28,7 +29,7 @@ export function MobileTicketCardPhoto({ previewUrl, imageCount = 0, alt = 'Фо�
   }, [objectUrl])
 
   useEffect(() => {
-    if (!broken || objectUrl || fetchFailed || !resolved || !api.isProtectedUploadUrl(resolved)) return
+    if (objectUrl || fetchFailed || !resolved || !api.isProtectedUploadUrl(resolved)) return
     let cancelled = false
     void api.fetchProtectedUploadBlob(resolved).then((blob) => {
       if (cancelled) return
@@ -57,7 +58,7 @@ export function MobileTicketCardPhoto({ previewUrl, imageCount = 0, alt = 'Фо�
     )
   }
 
-  if (broken && !objectUrl) {
+  if (waitingForBlob || (broken && !objectUrl)) {
     return (
       <div className="mobileTicketCardPhoto mobileTicketCardPhotoPlaceholder" aria-hidden="true">
         <span className="mobileTicketCardPhotoIcon" aria-hidden="true">…</span>
