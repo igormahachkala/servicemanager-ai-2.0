@@ -14,6 +14,7 @@ import { JwtService } from '@nestjs/jwt'
 import { ServiceContractRole, UserRole } from '@prisma/client'
 import type { Response } from 'express'
 import { createReadStream, existsSync, statSync } from 'fs'
+import type { Stats } from 'fs'
 import { join } from 'path'
 
 import { PrismaService } from '../prisma/prisma.service'
@@ -24,6 +25,8 @@ const ALLOWED_FOLDERS = new Set(['ticket-attachments', 'inspection-run-items'])
 
 // UUID v4 followed by a short safe extension: e.g. uuid.png, uuid.jpeg, uuid.bin
 const SAFE_FILENAME_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.[a-zA-Z0-9]{1,10}$/
+
+const UPLOAD_CACHE_CONTROL = 'private, max-age=31536000, immutable'
 
 type JwtPayload = {
   sub: string
@@ -50,8 +53,10 @@ export class UploadsController {
     @Query('token') queryToken: string | undefined,
     @Headers('authorization') authHeader: string | undefined,
     @Headers('range') rangeHeader: string | undefined,
+    @Headers('if-none-match') ifNoneMatch: string | undefined,
+    @Headers('if-modified-since') ifModifiedSince: string | undefined,
     @Res({ passthrough: true }) res: Response,
-  ): Promise<StreamableFile> {
+  ): Promise<StreamableFile | void> {
     if (!ALLOWED_FOLDERS.has(folder)) {
       throw new NotFoundException('File not found')
     }
@@ -76,28 +81,57 @@ export class UploadsController {
       throw new NotFoundException('File not found')
     }
 
-    const fileSize = statSync(absolutePath).size
-    const range = this.parseRange(rangeHeader, fileSize)
+    const stat = statSync(absolutePath)
+    const etag = this.fileEtag(stat)
+    const lastModified = stat.mtime.toUTCString()
+    const range = this.parseRange(rangeHeader, stat.size)
 
     res.set({
       'Content-Type': mimeType,
       'X-Content-Type-Options': 'nosniff',
       'Content-Disposition': `inline; filename="${this.safeFilenameHeader(originalName)}"`,
-      'Cache-Control': 'private, max-age=3600',
+      'Cache-Control': UPLOAD_CACHE_CONTROL,
       'Accept-Ranges': 'bytes',
+      ETag: etag,
+      'Last-Modified': lastModified,
     })
+
+    if (!range && this.isNotModified(stat, etag, ifNoneMatch, ifModifiedSince)) {
+      res.status(304)
+      return
+    }
 
     if (range) {
       res.status(206)
       res.set({
-        'Content-Range': `bytes ${range.start}-${range.end}/${fileSize}`,
+        'Content-Range': `bytes ${range.start}-${range.end}/${stat.size}`,
         'Content-Length': String(range.end - range.start + 1),
       })
       return new StreamableFile(createReadStream(absolutePath, range))
     }
 
-    res.set('Content-Length', String(fileSize))
+    res.set('Content-Length', String(stat.size))
     return new StreamableFile(createReadStream(absolutePath))
+  }
+
+  private fileEtag(stat: Stats): string {
+    return `"${stat.size}-${stat.mtimeMs}"`
+  }
+
+  private isNotModified(
+    stat: Stats,
+    etag: string,
+    ifNoneMatch: string | undefined,
+    ifModifiedSince: string | undefined,
+  ): boolean {
+    if (ifNoneMatch) {
+      const tokens = ifNoneMatch.split(',').map((token) => token.trim())
+      return tokens.includes('*') || tokens.includes(etag)
+    }
+    if (!ifModifiedSince) return false
+    const since = Date.parse(ifModifiedSince)
+    if (!Number.isFinite(since)) return false
+    return Math.floor(stat.mtimeMs / 1000) <= Math.floor(since / 1000)
   }
 
   private async resolveUser(
