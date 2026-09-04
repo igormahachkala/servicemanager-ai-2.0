@@ -61,6 +61,7 @@ area_of() {
   case "$1" in
     test/docker-compose.test.yml)  echo infra ;;
     docs/nginx-*.conf)             echo nginx ;;
+    configs/*.conf)                echo nginx ;;
     backend/*)                     echo backend ;;
     web/*)                         echo frontend ;;
     agent-runner/*)                echo agent-runner ;;
