@@ -19,6 +19,10 @@ export type TicketActionBarProps = {
   onAddComment: () => void
   addCommentPending: boolean
   onClaim: () => void
+  /** 096: управленческое самоназначение, приходит из backend meta. */
+  canAssignSelf?: boolean
+  assignSelfPending?: boolean
+  onAssignSelf?: () => void
   onSetStatus: (input: UpdateTicketStatusInput) => void
   /** Фото к заявке (не отчёт): открыть скрытый input */
   onPickOperationalPhoto: () => void
@@ -45,6 +49,9 @@ export function TicketActionBar(props: TicketActionBarProps) {
     onAddComment,
     addCommentPending,
     onClaim,
+    canAssignSelf,
+    assignSelfPending,
+    onAssignSelf,
     onSetStatus,
     onPickOperationalPhoto,
     operationalPhotoPending,
@@ -100,6 +107,11 @@ export function TicketActionBar(props: TicketActionBarProps) {
             </TicketActionButton>
           </Link>
 
+          {canAssignSelf && onAssignSelf ? (
+            <button className="ghost" data-testid="assign-self" onClick={onAssignSelf} disabled={!!assignSelfPending}>
+              {assignSelfPending ? 'Назначаем…' : 'Назначить на себя'}
+            </button>
+          ) : null}
           {canClaim && primaryAction?.kind !== 'claim' ? (
             <TicketActionButton variant="ghost" onClick={onClaim} disabled={claimPending || busy}>
               {claimPending ? 'Забираем…' : 'Взять'}

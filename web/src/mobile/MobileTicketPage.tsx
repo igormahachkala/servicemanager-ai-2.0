@@ -888,6 +888,27 @@ export function MobileTicketPage() {
     },
   })
 
+  /**
+   * 096: «Назначить на себя» для управляющих ролей подрядчика.
+   * Тот же эндпоинт назначения, цель — сам актор; право приходит из backend meta.
+   */
+  const assignSelfM = useMutation({
+    mutationFn: async () => {
+      if (!ticket) throw new Error('Нет заявки')
+      const meId = meQ.data?.id
+      if (!meId) throw new Error('Не удалось определить текущего пользователя')
+      return api.assignTicket(ticket.id, meId, ticketResourceScope)
+    },
+    onMutate: () => setTechActionErr(''),
+    onSuccess: async () => {
+      await invalidateTicketQueries()
+      await queryClient.refetchQueries({ queryKey: ['mobile-ticket-detail', ticketId] })
+    },
+    onError: (e: unknown) => {
+      setTechActionErr(formatMobileMutationError(e, { operation: 'claim' }))
+    },
+  })
+
   const assignmentRequestM = useMutation({
     mutationFn: async () => {
       if (!ticket) throw new Error('Нет заявки')
@@ -1140,6 +1161,8 @@ export function MobileTicketPage() {
   const assignBtnLabel = assigneePresent ? 'Переназначить' : 'Назначить исполнителя'
 
   const claimBtnPending = techActionM.isPending && techActionM.variables === 'claim'
+  // Единственный источник — backend meta; ролевых проверок на фронте нет.
+  const canShowAssignSelf = ticket?.meta?.availableActions?.canAssignSelf === true
   const startBtnPending = techActionM.isPending && techActionM.variables === 'start'
   const assignBusy = assignM.isPending
   const closeBusy = closeM.isPending
@@ -1645,6 +1668,18 @@ export function MobileTicketPage() {
                   {claimBtnPending ? 'Берём заявку…' : 'Взять заявку'}
                 </button>
               ) : null}
+              {canShowAssignSelf ? (
+                <button
+                  type="button"
+                  data-testid="assign-self"
+                  className="mobileBtn mobileBtnSecondary"
+                  style={{ width: '100%', marginTop: canShowTechClaimButton ? 8 : 0 }}
+                  disabled={assignSelfM.isPending}
+                  onClick={() => assignSelfM.mutate()}
+                >
+                  {assignSelfM.isPending ? 'Назначаем…' : 'Назначить на себя'}
+                </button>
+              ) : null}
               {canShowAssignmentRequest || showAssignmentRequestAck ? (
                 <button
                   type="button"
@@ -2124,6 +2159,18 @@ export function MobileTicketPage() {
                       onClick={() => handleTechActionWithOfflineSupport('claim')}
                     >
                       {claimBtnPending ? 'Берём заявку…' : 'Взять заявку'}
+                    </button>
+                  ) : null}
+                  {canShowAssignSelf ? (
+                    <button
+                      type="button"
+                      data-testid="assign-self"
+                      className="mobileBtn mobileBtnSecondary"
+                      style={{ width: '100%', marginTop: canShowTechClaimButton ? 8 : 0 }}
+                      disabled={assignSelfM.isPending}
+                      onClick={() => assignSelfM.mutate()}
+                    >
+                      {assignSelfM.isPending ? 'Назначаем…' : 'Назначить на себя'}
                     </button>
                   ) : null}
                   {canShowAssignmentRequest || showAssignmentRequestAck ? (

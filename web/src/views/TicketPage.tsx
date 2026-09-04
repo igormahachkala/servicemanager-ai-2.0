@@ -485,6 +485,30 @@ export function TicketPage() {
     },
   })
 
+  /**
+   * 096: «Назначить на себя» — то же управленческое назначение, только цель — сам актор.
+   * Право приходит из backend meta (canAssignSelf); ролевых проверок на фронте нет.
+   */
+  const assignSelfM = useMutation({
+    mutationFn: () => {
+      if (!canMutateTicket) throw new Error('Изменение заявки запрещено в текущем режиме видимости')
+      const meId = meQ.data?.id
+      if (!meId) throw new Error('Не удалось определить текущего пользователя')
+      return api.assignTicket(ticketId, meId, effectiveTicketScope)
+    },
+    onSuccess: async () => {
+      setClaimError(null)
+      clearActionErrors()
+      pushToast('Заявка назначена на вас', 'success')
+      await refreshAll()
+    },
+    onError: (e: any) => {
+      const raw = e?.message || String(e)
+      logTicketActionError('assign_self', raw)
+      setClaimError(mapTicketActionError(raw))
+    },
+  })
+
   const assignM = useMutation({
     mutationFn: () => {
       if (isClientRole) throw new Error('Клиент не может назначать техников')
@@ -732,6 +756,9 @@ export function TicketPage() {
     if (!executorActionsAllowed) return false
     return readBackendCanClaim(ticket)
   }, [ticket, executorActionsAllowed])
+
+  // Единственный источник — backend meta. Роль на фронте не проверяется.
+  const canAssignSelf = ticket?.meta?.availableActions?.canAssignSelf === true
 
   const assignmentData = assignmentCandidatesQ.data
   const availableStatusTransitions = ticket?.meta?.availableStatusTransitions || []
@@ -1097,6 +1124,9 @@ export function TicketPage() {
             onAddComment={() => addCommentM.mutate()}
             addCommentPending={addCommentM.isPending}
             onClaim={() => claimM.mutate()}
+            canAssignSelf={canAssignSelf}
+            assignSelfPending={assignSelfM.isPending}
+            onAssignSelf={() => assignSelfM.mutate()}
             onSetStatus={(input) => statusM.mutate(input)}
             onPickOperationalPhoto={() => operationalFileInputRef.current?.click()}
             operationalPhotoPending={uploadM.isPending}

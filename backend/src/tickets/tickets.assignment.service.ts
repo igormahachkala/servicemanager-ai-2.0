@@ -36,6 +36,22 @@ import {
   resolveEligibleTicketClaimCapability,
   resolveExecutorClaimEligibility,
 } from './ticket-claim-eligibility';
+import {
+  contractContextAllowsTicket,
+  resolveAssignmentAuthorityContext,
+  resolveEligibleSecondaryProviderCompanyIds,
+  ticketRequiredSpecializations,
+  type AssignmentAuthorityContext,
+  type AssignmentAuthorityTicket,
+  type AssignmentRequiredSpecialization,
+} from './ticket-assignment-authority';
+import {
+  assertTicketSelfAssignAllowed,
+  deriveTicketSelfAssignCapability,
+  resolveTicketSelfAssignCapability,
+  SELF_ASSIGN_MANAGEMENT_ROLES,
+  type TicketSelfAssignCapability,
+} from './ticket-self-assign-capability';
 import { matchCategorySpecializationLinks } from './ticket-specialization-match.utils';
 import { ServiceContractsService } from '../service-contracts/service-contracts.service';
 import {
@@ -85,32 +101,6 @@ type CreateCandidate = {
   matchedBy?: string[];
   matchReason?: string;
   specializations?: { id: string; name: string; isActive: boolean }[];
-};
-type AssignmentRequiredSpecialization = { id: string; name: string; isActive: boolean };
-type AssignmentAuthorityTicket = {
-  id: string;
-  companyId: string;
-  locationId: string;
-  assignedTechnicianId?: string | null;
-  assignedTechnician?: { companyId: string | null } | null;
-  problemCategory?: {
-    specializationLinks?: Array<{
-      specializationId: string;
-      specialization: { id?: string; name: string; isActive: boolean };
-    }>;
-  } | null;
-};
-type AssignmentAuthorityContext = {
-  ticketId: string;
-  ticketCompanyId: string;
-  ticketLocationId: string;
-  currentAssigneeCompanyId: string | null;
-  roleInContract: ServiceContractRole;
-  contractId: string | null;
-  requiredSpecializations: AssignmentRequiredSpecialization[];
-  candidateCompanyIds: string[];
-  directAssignmentAllowed: boolean;
-  blockReason: string | null;
 };
 
 function locationAccessKey(userId: string, companyId: string) {
@@ -474,39 +464,7 @@ export class TicketsAssignmentService {
   private ticketRequiredSpecializations(
     ticket: AssignmentAuthorityTicket,
   ): AssignmentRequiredSpecialization[] {
-    return (ticket.problemCategory?.specializationLinks ?? []).map((link) => ({
-      id: link.specialization?.id ?? link.specializationId,
-      name: link.specialization?.name ?? '',
-      isActive: link.specialization?.isActive ?? true,
-    }));
-  }
-
-  private contractContextAllowsLocation(
-    context: ContractContext,
-    locationId: string | null | undefined,
-  ) {
-    if (context.contractLocationScope.mode === 'tenant_wide') return true;
-    if (context.contractLocationScope.mode === 'restricted_empty') return false;
-    return !!locationId && context.contractLocationScope.locationIds.includes(locationId);
-  }
-
-  private contractContextAllowsSpecializations(
-    context: ContractContext,
-    requiredSpecializations: AssignmentRequiredSpecialization[],
-  ) {
-    if (requiredSpecializations.length === 0) return true;
-    if (context.contractSpecializationScope.mode === 'UNCONFIGURED') return false;
-
-    const matched = matchCategorySpecializationLinks({
-      categoryLinks: requiredSpecializations.map((specialization) => ({
-        specializationId: specialization.id,
-        specialization: { name: specialization.name },
-      })),
-      technicianSpecializationIds: context.contractSpecializationScope.specializationIds,
-      technicianSpecializationNames: context.contractSpecializationScope.specializationNames,
-    });
-
-    return matched.length > 0;
+    return ticketRequiredSpecializations(ticket);
   }
 
   private contractContextAllowsTicket(
@@ -516,10 +474,7 @@ export class TicketsAssignmentService {
       requiredSpecializations: AssignmentRequiredSpecialization[];
     },
   ) {
-    return (
-      this.contractContextAllowsLocation(context, params.ticketLocationId) &&
-      this.contractContextAllowsSpecializations(context, params.requiredSpecializations)
-    );
+    return contractContextAllowsTicket(context, params);
   }
 
   private async resolveProviderTicketContractContext(params: {
@@ -581,28 +536,64 @@ export class TicketsAssignmentService {
     ticketLocationId: string;
     requiredSpecializations: AssignmentRequiredSpecialization[];
   }) {
-    const secondaryProviderIds = await this.serviceContractsService.listSecondaryProviderCompanyIds(
-      params.clientCompanyId,
-    );
-    const eligible: string[] = [];
-    for (const providerCompanyId of secondaryProviderIds) {
-      const context = await this.contractContextService.getContractContext({
-        providerCompanyId,
-        clientCompanyId: params.clientCompanyId,
-      });
-      if (!context || context.roleInContract !== ServiceContractRole.SECONDARY) {
-        continue;
-      }
-      if (
-        this.contractContextAllowsTicket(context, {
-          ticketLocationId: params.ticketLocationId,
-          requiredSpecializations: params.requiredSpecializations,
-        })
-      ) {
-        eligible.push(providerCompanyId);
-      }
+    return resolveEligibleSecondaryProviderCompanyIds(this.assignmentAuthorityDeps(), params);
+  }
+
+  /**
+   * Самоназначение по тому же решению, что отдаётся в UI как canAssignSelf.
+   * Возвращает форму кандидата, которую ждёт остальной поток assign.
+   */
+  private async assertSelfAssignable(params: {
+    actor: TicketAccessActor;
+    ticket: AssignmentAuthorityTicket & { status: TicketStatus; assignedTechnicianId?: string | null };
+    assignmentContext: AssignmentAuthorityContext;
+    policyAllowsAssign: boolean;
+  }) {
+    const actorCompany = await this.prisma.company.findUnique({
+      where: { id: params.actor.companyId },
+      select: { type: true },
+    });
+    if (!actorCompany) {
+      throw new NotFoundException('Company not found');
     }
-    return Array.from(new Set(eligible));
+
+    const capability = deriveTicketSelfAssignCapability({
+      actor: params.actor,
+      actorCompanyType: actorCompany.type,
+      policyAllowsAssign: params.policyAllowsAssign,
+      ticket: {
+        status: params.ticket.status,
+        assignedTechnicianId: params.ticket.assignedTechnicianId ?? null,
+      },
+      authority: params.assignmentContext,
+    });
+    assertTicketSelfAssignAllowed(capability);
+
+    return { id: params.actor.id, companyId: params.actor.companyId };
+  }
+
+  /** Публичная точка для UI: то же решение, что применяет assign. */
+  async resolveSelfAssignCapability(params: {
+    actor: TicketAccessActor;
+    ticketId: string;
+    linkedClientCompanyId?: string;
+  }): Promise<TicketSelfAssignCapability> {
+    return resolveTicketSelfAssignCapability(
+      {
+        prisma: this.prisma,
+        serviceContractsService: this.serviceContractsService,
+        contractContextService: this.contractContextService,
+        policy: this.policy,
+      },
+      params,
+    );
+  }
+
+  private assignmentAuthorityDeps() {
+    return {
+      contractContextService: this.contractContextService,
+      serviceContractsService: this.serviceContractsService,
+    };
   }
 
   private async resolveAssignmentAuthorityContext(params: {
@@ -610,101 +601,7 @@ export class TicketsAssignmentService {
     ticket: AssignmentAuthorityTicket;
     linkedClientCompanyId?: string | null;
   }): Promise<AssignmentAuthorityContext> {
-    const requiredSpecializations = this.ticketRequiredSpecializations(params.ticket);
-    const currentAssigneeCompanyId = params.ticket.assignedTechnician?.companyId ?? null;
-
-    if (params.actor.companyId === params.ticket.companyId) {
-      return {
-        ticketId: params.ticket.id,
-        ticketCompanyId: params.ticket.companyId,
-        ticketLocationId: params.ticket.locationId,
-        currentAssigneeCompanyId,
-        roleInContract: ServiceContractRole.PRIMARY,
-        contractId: null,
-        requiredSpecializations,
-        candidateCompanyIds: [params.actor.companyId],
-        directAssignmentAllowed: true,
-        blockReason: null,
-      };
-    }
-
-    const context = await this.contractContextService.getContractContext({
-      providerCompanyId: params.actor.companyId,
-      clientCompanyId: params.ticket.companyId,
-      linkedClientCompanyId: params.linkedClientCompanyId,
-    });
-    if (!context) {
-      throw new NotFoundException('Linked client not found');
-    }
-
-    if (
-      !this.contractContextAllowsTicket(context, {
-        ticketLocationId: params.ticket.locationId,
-        requiredSpecializations,
-      })
-    ) {
-      return {
-        ticketId: params.ticket.id,
-        ticketCompanyId: params.ticket.companyId,
-        ticketLocationId: params.ticket.locationId,
-        currentAssigneeCompanyId,
-        roleInContract: context.roleInContract,
-        contractId: context.contractId,
-        requiredSpecializations,
-        candidateCompanyIds: [],
-        directAssignmentAllowed: false,
-        blockReason: 'contract_scope_excludes_ticket',
-      };
-    }
-
-    if (context.roleInContract === ServiceContractRole.PRIMARY) {
-      const secondaryProviderIds = await this.resolveEligibleSecondaryProviderCompanyIds({
-        clientCompanyId: params.ticket.companyId,
-        ticketLocationId: params.ticket.locationId,
-        requiredSpecializations,
-      });
-      return {
-        ticketId: params.ticket.id,
-        ticketCompanyId: params.ticket.companyId,
-        ticketLocationId: params.ticket.locationId,
-        currentAssigneeCompanyId,
-        roleInContract: context.roleInContract,
-        contractId: context.contractId,
-        requiredSpecializations,
-        candidateCompanyIds: Array.from(new Set([params.actor.companyId, ...secondaryProviderIds])),
-        directAssignmentAllowed: true,
-        blockReason: null,
-      };
-    }
-
-    if (context.roleInContract === ServiceContractRole.SECONDARY) {
-      const directAssignmentAllowed = currentAssigneeCompanyId === params.actor.companyId;
-      return {
-        ticketId: params.ticket.id,
-        ticketCompanyId: params.ticket.companyId,
-        ticketLocationId: params.ticket.locationId,
-        currentAssigneeCompanyId,
-        roleInContract: context.roleInContract,
-        contractId: context.contractId,
-        requiredSpecializations,
-        candidateCompanyIds: directAssignmentAllowed ? [params.actor.companyId] : [],
-        directAssignmentAllowed,
-        blockReason: directAssignmentAllowed ? null : 'secondary_requires_existing_assignment',
-      };
-    }
-
-    return {
-      ticketId: params.ticket.id,
-      ticketCompanyId: params.ticket.companyId,
-      ticketLocationId: params.ticket.locationId,
-      currentAssigneeCompanyId,
-      roleInContract: context.roleInContract,
-      contractId: context.contractId,
-      requiredSpecializations,
-      candidateCompanyIds: [],
-      directAssignmentAllowed: false,
-      blockReason: 'unsupported_contract_role',
-    };
+    return resolveAssignmentAuthorityContext(this.assignmentAuthorityDeps(), params);
   }
 
   private async listAssignableTechnicians(
@@ -1920,7 +1817,19 @@ export class TicketsAssignmentService {
         ticket,
         linkedClientCompanyId,
       });
-      const tech = await this.assertTechnicianAssignable(assignmentContext, technicianId, tx);
+      // Самоназначение руководителя — управленческое действие, а не выдача работы
+      // исполнителю: пул исполнителей (isExecutor + специализации + привязки локаций)
+      // здесь неприменим, полномочия даёт тот же assignmentContext.
+      const isSelfAssignment =
+        technicianId === accessActor.id && SELF_ASSIGN_MANAGEMENT_ROLES.has(accessActor.role);
+      const tech = isSelfAssignment
+        ? await this.assertSelfAssignable({
+            actor: accessActor,
+            ticket,
+            assignmentContext,
+            policyAllowsAssign: decision.allowed,
+          })
+        : await this.assertTechnicianAssignable(assignmentContext, technicianId, tx);
 
       const previousAssigneeId = ticket.assignedTechnicianId;
       const isReassign = !!previousAssigneeId && previousAssigneeId !== technicianId;
