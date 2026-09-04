@@ -15,8 +15,9 @@ function HeroImage({ photo, onTap }: HeroImageProps) {
   const [objectUrl, setObjectUrl] = useState<string | null>(null)
   const [fetchFailed, setFetchFailed] = useState(false)
   const resolved = api.resolveTicketAttachmentUrl(photo)
-  const previewSrc = objectUrl || resolved
+  const previewSrc = objectUrl || (api.isProtectedUploadUrl(resolved) ? '' : resolved)
   const label = mobileAttachmentLabel(photo)
+  const waitingForBlob = Boolean(resolved) && api.isProtectedUploadUrl(resolved) && !objectUrl && !fetchFailed
 
   useEffect(() => {
     setBroken(false)
@@ -32,7 +33,7 @@ function HeroImage({ photo, onTap }: HeroImageProps) {
   }, [objectUrl])
 
   useEffect(() => {
-    if (!broken || objectUrl || fetchFailed || !resolved || !api.isProtectedUploadUrl(resolved)) return
+    if (objectUrl || fetchFailed || !resolved || !api.isProtectedUploadUrl(resolved)) return
     let cancelled = false
     void api.fetchProtectedUploadBlob(resolved).then((blob) => {
       if (cancelled) return
@@ -52,7 +53,7 @@ function HeroImage({ photo, onTap }: HeroImageProps) {
     return (
       <a
         className="mobileTicketPhotoHeroPlaceholder mobileTicketPhotoHeroPlaceholder--link"
-        href={resolved}
+        href={objectUrl || resolved}
         target="_blank"
         rel="noreferrer"
       >
@@ -66,7 +67,7 @@ function HeroImage({ photo, onTap }: HeroImageProps) {
     )
   }
 
-  if (broken && !objectUrl) {
+  if ((broken && !objectUrl) || waitingForBlob) {
     return (
       <div className="mobileTicketPhotoHeroPlaceholder">
         <span style={{ fontSize: '0.78rem' }}>Загрузка…</span>

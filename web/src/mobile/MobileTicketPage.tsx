@@ -43,6 +43,8 @@ import { TicketCloseModal, type TicketCloseModalState } from './home/HomeList'
 import { MobileAttachmentThumb, mobileAttachmentLabel } from './MobileAttachmentThumb'
 import { toChatMessages } from '../lib/ticketChat'
 import { FullscreenPhotoViewer, type PhotoViewerItem } from '../components/FullscreenPhotoViewer'
+import { ProtectedUploadAnchor } from '../ui/ProtectedUploadMedia'
+import { useProtectedUploadSrcs } from '../ui/useProtectedUploadSrc'
 import { MobileTicketPhotoGallery } from './MobileTicketPhotoGallery'
 import { MobileTicketActionsSheet, type TicketSheetAction } from './MobileTicketActionsSheet'
 import { MobileModalBackdrop } from './MobileModalBackdrop'
@@ -1081,16 +1083,27 @@ export function MobileTicketPage() {
     [attachmentsQ.data],
   )
 
+  const requestImageUrls = useMemo(
+    () => requestImages.map((a) => api.resolveTicketAttachmentUrl(a)),
+    [requestImages],
+  )
+  const reportImageUrls = useMemo(
+    () => reportImages.map((a) => api.resolveTicketAttachmentUrl(a)),
+    [reportImages],
+  )
+  const requestPhotoSrcs = useProtectedUploadSrcs(requestImageUrls)
+  const reportPhotoSrcs = useProtectedUploadSrcs(reportImageUrls)
+
   const [requestPhotoItems, setRequestPhotoItems] = useState<PhotoViewerItem[]>([])
   const [reportPhotoItems, setReportPhotoItems] = useState<PhotoViewerItem[]>([])
 
   useEffect(() => {
-    setRequestPhotoItems(requestImages.map((a) => ({ src: api.resolveTicketAttachmentUrl(a), alt: a.originalName || 'Фото' })))
-  }, [requestImages])
+    setRequestPhotoItems(requestImages.map((a, i) => ({ src: requestPhotoSrcs[i] || '', alt: a.originalName || 'Фото' })))
+  }, [requestImages, requestPhotoSrcs])
 
   useEffect(() => {
-    setReportPhotoItems(reportImages.map((a) => ({ src: api.resolveTicketAttachmentUrl(a), alt: a.originalName || 'Фото отчёта' })))
-  }, [reportImages])
+    setReportPhotoItems(reportImages.map((a, i) => ({ src: reportPhotoSrcs[i] || '', alt: a.originalName || 'Фото отчёта' })))
+  }, [reportImages, reportPhotoSrcs])
 
   function openRequestPhoto(idx: number, resolvedSrc: string) {
     setRequestPhotoItems((prev) => {
@@ -1119,11 +1132,10 @@ export function MobileTicketPage() {
 
   // Тап по фото в ленте открывает тот же FullscreenPhotoViewer, что и вкладка Фото.
   function openChatPhoto(att: api.TicketAttachmentItem) {
-    const src = api.resolveTicketAttachmentUrl(att)
     const ri = reportImages.findIndex((a) => a.id === att.id)
-    if (ri >= 0) return openReportPhoto(ri, src)
+    if (ri >= 0) return openReportPhoto(ri, reportPhotoSrcs[ri] || '')
     const qi = requestImages.findIndex((a) => a.id === att.id)
-    if (qi >= 0) return openRequestPhoto(qi, src)
+    if (qi >= 0) return openRequestPhoto(qi, requestPhotoSrcs[qi] || '')
   }
 
   const executorLine = ticket
@@ -1818,20 +1830,13 @@ export function MobileTicketPage() {
                         Другие вложения
                       </div>
                       <ul className="mobileMeta" style={{ margin: 0, paddingLeft: 18 }}>
-                        {otherFiles.map((a) => {
-                          const href = api.resolveTicketAttachmentUrl(a)
-                          return (
+                        {otherFiles.map((a) => (
                             <li key={a.id} style={{ marginBottom: 6 }}>
-                              {href ? (
-                                <a href={href} target="_blank" rel="noreferrer">
-                                  {mobileAttachmentLabel(a)}
-                                </a>
-                              ) : (
-                                mobileAttachmentLabel(a)
-                              )}
+                              <ProtectedUploadAnchor url={api.resolveTicketAttachmentUrl(a)}>
+                                {mobileAttachmentLabel(a)}
+                              </ProtectedUploadAnchor>
                             </li>
-                          )
-                        })}
+                          ))}
                       </ul>
                     </>
                   ) : null}

@@ -18,6 +18,7 @@ import {
 } from './mobileTicketDisplay'
 import { MobileTicketPhotoGallery } from './MobileTicketPhotoGallery'
 import { FullscreenPhotoViewer, type PhotoViewerItem } from '../components/FullscreenPhotoViewer'
+import { useProtectedUploadSrcs } from '../ui/useProtectedUploadSrc'
 import { toChatMessages } from '../lib/ticketChat'
 
 type ChatsFilter = 'all' | 'mine' | 'active' | 'with_photo'
@@ -511,9 +512,14 @@ export function MobileChatsPage() {
     () => (attachmentsQ.data || []).filter((a) => (a.mimeType || '').toLowerCase().startsWith('image/')),
     [attachmentsQ.data],
   )
-  const photoViewerItems = useMemo<PhotoViewerItem[]>(
-    () => photoAttachments.map((a) => ({ src: api.resolveTicketAttachmentUrl(a), alt: a.originalName || a.filename || 'Фото' })),
+  const photoViewerUrls = useMemo(
+    () => photoAttachments.map((a) => api.resolveTicketAttachmentUrl(a)),
     [photoAttachments],
+  )
+  const photoViewerSrcs = useProtectedUploadSrcs(photoViewerUrls)
+  const photoViewerItems = useMemo<PhotoViewerItem[]>(
+    () => photoAttachments.map((a, i) => ({ src: photoViewerSrcs[i] || '', alt: a.originalName || a.filename || 'Фото' })),
+    [photoAttachments, photoViewerSrcs],
   )
 
   const sendCommentM = useMutation({

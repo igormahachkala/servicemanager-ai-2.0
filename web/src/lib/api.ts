@@ -1374,7 +1374,7 @@ export function resolveFileUrl(url: string): string {
   return getBaseUrl() + normalized
 }
 
-/** Абсолютный URL файла вложения тикета с JWT-токеном в query (?token=) для <img> тегов. */
+/** Абсолютный URL файла вложения тикета без токена в query. Для <img> грузить через fetchProtectedUploadBlob. */
 export function resolveTicketAttachmentUrl(
   attachment: {
     url?: string | null
@@ -1387,34 +1387,17 @@ export function resolveTicketAttachmentUrl(
     (typeof attachment.url === 'string' && attachment.url.trim()) ||
     (typeof attachment.path === 'string' && attachment.path.trim()) ||
     ''
-  const base = resolveFileUrl(raw)
-  if (!base.includes('/uploads/ticket-attachments/')) return base
-  return appendUploadToken(base)
+  return resolveFileUrl(raw)
 }
 
-/** Абсолютный URL файла вложения чек-листа с JWT-токеном в query (?token=) для <img> тегов. */
+/** Абсолютный URL файла вложения чек-листа без токена в query. Для <img> грузить через fetchProtectedUploadBlob. */
 export function resolveInspectionAttachmentUrl(
   attachment: {
     url?: string | null
   },
 ): string {
   const raw = (typeof attachment.url === 'string' && attachment.url.trim()) || ''
-  const base = resolveFileUrl(raw)
-  if (!base.includes('/uploads/inspection-run-items/')) return base
-  return appendUploadToken(base)
-}
-
-/** Appends ?token=<jwt> to a protected /uploads/* URL. Safe to call on already-signed URLs. */
-function appendUploadToken(base: string): string {
-  const token = getToken()
-  if (!token) return base
-  try {
-    const parsed = new URL(base)
-    parsed.searchParams.set('token', token)
-    return parsed.toString()
-  } catch {
-    return base
-  }
+  return resolveFileUrl(raw)
 }
 
 export function isProtectedUploadUrl(url: string): boolean {
@@ -1426,8 +1409,17 @@ export async function fetchProtectedUploadBlob(url: string): Promise<Blob | null
   const token = getToken()
   if (!token || !url) return null
 
+  let fetchUrl = url
   try {
-    const response = await fetch(url, {
+    const parsed = new URL(url)
+    parsed.searchParams.delete('token')
+    fetchUrl = parsed.toString()
+  } catch {
+    fetchUrl = url
+  }
+
+  try {
+    const response = await fetch(fetchUrl, {
       headers: { Authorization: `Bearer ${token}` },
       credentials: 'include',
     })
