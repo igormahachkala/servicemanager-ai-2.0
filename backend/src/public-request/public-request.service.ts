@@ -4,6 +4,7 @@ import { PublicRequestType, TicketUrgency } from '@prisma/client'
 import { PrismaService } from '../prisma/prisma.service'
 import { TicketsService } from '../tickets/tickets.service'
 import { TicketAttachmentsService } from '../tickets/ticket-attachments.service'
+import { requestClientIpOrNull } from '../http/client-ip'
 import {
   CreatePublicRequestDto,
   PublicQuickRequestChannel,
@@ -142,7 +143,7 @@ export class PublicRequestService {
     const normalizedDescription = this.security.normalizeDescription(dto.description)
     const normalizedName = this.security.normalizeName(dto.name)
     const normalizedPhone = this.security.normalizePhone(dto.phone, company.publicRequestRequirePhone)
-    const normalizedIp = this.security.normalizeIp(req?.headers?.['x-forwarded-for'] || req?.ip || null)
+    const normalizedIp = this.security.normalizeIp(requestClientIpOrNull(req))
 
     await this.security.assertSubmitAllowed({
       companyId: company.id,
