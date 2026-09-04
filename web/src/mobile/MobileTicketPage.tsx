@@ -1132,11 +1132,10 @@ export function MobileTicketPage() {
 
   // Тап по фото в ленте открывает тот же FullscreenPhotoViewer, что и вкладка Фото.
   function openChatPhoto(att: api.TicketAttachmentItem) {
-    const src = api.resolveTicketAttachmentUrl(att)
     const ri = reportImages.findIndex((a) => a.id === att.id)
-    if (ri >= 0) return openReportPhoto(ri, src)
+    if (ri >= 0) return openReportPhoto(ri, reportPhotoSrcs[ri] || '')
     const qi = requestImages.findIndex((a) => a.id === att.id)
-    if (qi >= 0) return openRequestPhoto(qi, src)
+    if (qi >= 0) return openRequestPhoto(qi, requestPhotoSrcs[qi] || '')
   }
 
   const executorLine = ticket
