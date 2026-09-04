@@ -1,4 +1,4 @@
-﻿FROM node:20
+FROM node:20 AS build
 
 WORKDIR /app
 
@@ -14,6 +14,9 @@ ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 RUN chmod +x node_modules/.bin/* \
   && npm run build
 
-EXPOSE 4173
+FROM nginx:1.24-alpine
 
-CMD ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "4173"]
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/dist /usr/share/nginx/html
+
+EXPOSE 4173
