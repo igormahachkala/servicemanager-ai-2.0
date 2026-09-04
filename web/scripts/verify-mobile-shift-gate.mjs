@@ -76,6 +76,124 @@ function loadTsModule(relativePath) {
   return module.exports
 }
 
+function parseTsx(relativePath, source) {
+  return ts.createSourceFile(resolve(root, relativePath), source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX)
+}
+
+function nodeContains(node, predicate) {
+  let found = false
+  const visit = (current) => {
+    if (found) return
+    if (predicate(current)) {
+      found = true
+      return
+    }
+    ts.forEachChild(current, visit)
+  }
+  visit(node)
+  return found
+}
+
+function tagNameText(tagName) {
+  return ts.isIdentifier(tagName) ? tagName.text : tagName.getText()
+}
+
+function collectJsxElements(sourceFile, tagName) {
+  const elements = []
+  const visit = (node) => {
+    if (ts.isJsxElement(node) && tagNameText(node.openingElement.tagName) === tagName) {
+      elements.push({ node, opening: node.openingElement })
+    } else if (ts.isJsxSelfClosingElement(node) && tagNameText(node.tagName) === tagName) {
+      elements.push({ node, opening: node })
+    }
+    ts.forEachChild(node, visit)
+  }
+  visit(sourceFile)
+  return elements
+}
+
+function jsxAttribute(opening, name) {
+  return opening.attributes.properties.find((property) => (
+    ts.isJsxAttribute(property) && property.name.text === name
+  ))
+}
+
+function jsxAttributeString(opening, name) {
+  const initializer = jsxAttribute(opening, name)?.initializer
+  return initializer && ts.isStringLiteral(initializer) ? initializer.text : undefined
+}
+
+function jsxAttributeExpression(opening, name) {
+  const initializer = jsxAttribute(opening, name)?.initializer
+  if (!initializer || !ts.isJsxExpression(initializer)) return undefined
+  return initializer.expression
+}
+
+function nodeRendersComponent(node, componentName) {
+  if (!node) return false
+  return nodeContains(node, (current) => {
+    if (!ts.isJsxOpeningElement(current) && !ts.isJsxSelfClosingElement(current)) return false
+    const tagName = tagNameText(current.tagName)
+    if (tagName === componentName) return true
+    if (tagName !== 'LazyRoute') return false
+    const component = jsxAttributeExpression(current, 'component')
+    return Boolean(component && ts.isIdentifier(component) && component.text === componentName)
+  })
+}
+
+function hasNamedImport(sourceFile, moduleSpecifier, importedName) {
+  return sourceFile.statements.some((statement) => {
+    if (!ts.isImportDeclaration(statement)) return false
+    if (!ts.isStringLiteral(statement.moduleSpecifier)) return false
+    if (statement.moduleSpecifier.text !== moduleSpecifier) return false
+    const bindings = statement.importClause?.namedBindings
+    if (!bindings || !ts.isNamedImports(bindings)) return false
+    return bindings.elements.some((element) => element.name.text === importedName)
+  })
+}
+
+function hasLazyExportComponent(sourceFile, constName, importPath, exportName) {
+  return sourceFile.statements.some((statement) => {
+    if (!ts.isVariableStatement(statement)) return false
+    return statement.declarationList.declarations.some((declaration) => {
+      if (!ts.isIdentifier(declaration.name) || declaration.name.text !== constName) return false
+      const initializer = declaration.initializer
+      if (!initializer || !ts.isCallExpression(initializer)) return false
+      if (!ts.isIdentifier(initializer.expression) || initializer.expression.text !== 'lazyExport') return false
+      const [, exported] = initializer.arguments
+      if (!exported || !ts.isStringLiteral(exported) || exported.text !== exportName) return false
+      return nodeContains(initializer.arguments[0], (node) => (
+        ts.isCallExpression(node) &&
+        node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+        node.arguments.length === 1 &&
+        ts.isStringLiteral(node.arguments[0]) &&
+        node.arguments[0].text === importPath
+      ))
+    })
+  })
+}
+
+function findSingleRoute(sourceFile, path) {
+  const routes = collectJsxElements(sourceFile, 'Route').filter((route) => jsxAttributeString(route.opening, 'path') === path)
+  assert.equal(routes.length, 1, `Expected one Route with path="${path}"`)
+  return routes[0]
+}
+
+function routeElementRenders(sourceFile, path, componentName) {
+  const route = findSingleRoute(sourceFile, path)
+  const element = jsxAttributeExpression(route.opening, 'element')
+  assert.equal(nodeRendersComponent(element, componentName), true, `Route path="${path}" must render ${componentName}`)
+  return route
+}
+
+function nestedRouteRenders(parentRoute, componentName) {
+  return nodeContains(parentRoute.node, (current) => {
+    if (!ts.isJsxOpeningElement(current) && !ts.isJsxSelfClosingElement(current)) return false
+    if (tagNameText(current.tagName) !== 'Route') return false
+    return nodeRendersComponent(jsxAttributeExpression(current, 'element'), componentName)
+  })
+}
+
 const gate = loadTsModule('src/mobile/mobileShiftGate.ts')
 
 function plain(value) {
@@ -161,10 +279,25 @@ const routerSource = readFileSync(resolve(root, 'src/router.tsx'), 'utf8')
 const apiSource = readFileSync(resolve(root, 'src/lib/api.ts'), 'utf8')
 const errorsSource = readFileSync(resolve(root, 'src/mobile/mobileActionErrors.ts'), 'utf8')
 const workforceServiceSource = readFileSync(resolve(root, '../backend/src/workforce/workforce.service.ts'), 'utf8')
+const shellAst = parseTsx('src/mobile/MobileShell.tsx', shellSource)
+const routerAst = parseTsx('src/router.tsx', routerSource)
 
-assert.match(shellSource, /import \{ MobileShiftGatePrompt \} from ['"]\.\/MobileShiftGatePrompt['"]/)
-assert.match(shellSource, /<MobileShiftGatePrompt user=\{meQ\.data\} \/>/)
-assert.match(routerSource, /path="\/max"[\s\S]*<MobileShell \/>/)
+assert.equal(hasNamedImport(shellAst, './MobileShiftGatePrompt', 'MobileShiftGatePrompt'), true)
+const shiftGatePromptMounts = collectJsxElements(shellAst, 'MobileShiftGatePrompt')
+assert.equal(shiftGatePromptMounts.length, 1, 'MobileShell must mount MobileShiftGatePrompt once')
+assert.equal(
+  shiftGatePromptMounts.some((mount) => jsxAttributeExpression(mount.opening, 'user')?.getText(shellAst) === 'meQ.data'),
+  true,
+  'MobileShiftGatePrompt must receive current MobileShell user data',
+)
+assert.equal(
+  hasLazyExportComponent(routerAst, 'MobileShell', './mobile/MobileShell', 'MobileShell'),
+  true,
+  'MobileShell must stay lazy-loaded through router component binding',
+)
+routeElementRenders(routerAst, '/m', 'MobileShell')
+const maxRoute = routeElementRenders(routerAst, '/max', 'MaxApp')
+assert.equal(nestedRouteRenders(maxRoute, 'MobileShell'), true, 'MAX routes must reuse shared MobileShell')
 
 assert.match(promptSource, /queryKey:\s*\[\s*['"]workforce-me['"]\s*\]/)
 assert.match(promptSource, /queryFn:\s*api\.workforceMyState/)
