@@ -13,6 +13,7 @@ async function bootstrap() {
   getJwtSecret();
 
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  app.set('trust proxy', 1);
 
   // Глобальная валидация DTO (enterprise baseline)
   app.useGlobalPipes(
