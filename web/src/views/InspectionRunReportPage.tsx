@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
+import { ProtectedUploadThumbLink } from '../ui/ProtectedUploadMedia'
 
 const REVIEW_ROLES: api.Role[] = ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR']
 
@@ -301,9 +302,13 @@ export function InspectionRunReportPage() {
                         {item.attachments.length ? (
                           <div className="workActAttachmentGrid">
                             {item.attachments.map((attachment) => (
-                              <a key={attachment.id} href={api.resolveInspectionAttachmentUrl(attachment)} target="_blank" rel="noreferrer" className="workActAttachmentLink">
-                                <img src={api.resolveInspectionAttachmentUrl(attachment)} alt={attachment.originalName || 'inspection attachment'} className="workActAttachmentImage" />
-                              </a>
+                              <ProtectedUploadThumbLink
+                                key={attachment.id}
+                                url={api.resolveInspectionAttachmentUrl(attachment)}
+                                alt={attachment.originalName || 'inspection attachment'}
+                                className="workActAttachmentLink"
+                                imgClassName="workActAttachmentImage"
+                              />
                             ))}
                           </div>
                         ) : '—'}

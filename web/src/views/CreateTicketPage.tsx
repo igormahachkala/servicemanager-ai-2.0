@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import * as api from '../lib/api'
+import { ProtectedUploadImg, ProtectedUploadVideo } from '../ui/ProtectedUploadMedia'
 import { CategoryGuidancePanel } from '../components/CategoryGuidancePanel'
 import { useCreateTicketFlow, type CreateSuccessResult } from '../hooks/useCreateTicketFlow'
 import {
@@ -780,9 +781,9 @@ export function CreateTicketPage() {
             {draftAttachment ? (
               <div style={{ marginTop: 12, display: 'grid', gap: 10 }}>
                 {ticketMediaKind(draftAttachment) === 'video' ? (
-                  <video src={api.resolveTicketAttachmentUrl(draftAttachment)} controls preload="metadata" style={{ width: 420, maxWidth: '100%', borderRadius: 12, border: '1px solid #e5e7eb' }} />
+                  <ProtectedUploadVideo url={api.resolveTicketAttachmentUrl(draftAttachment)} controls preload="metadata" style={{ width: 420, maxWidth: '100%', borderRadius: 12, border: '1px solid #e5e7eb' }} />
                 ) : (
-                  <img src={api.resolveTicketAttachmentUrl(draftAttachment)} alt={draftAttachment.originalName} style={{ width: 260, maxWidth: '100%', borderRadius: 12, border: '1px solid #e5e7eb' }} />
+                  <ProtectedUploadImg url={api.resolveTicketAttachmentUrl(draftAttachment)} alt={draftAttachment.originalName} style={{ width: 260, maxWidth: '100%', borderRadius: 12, border: '1px solid #e5e7eb' }} />
                 )}
                 <div className="muted small">Файл будет привязан к заявке при отправке.</div>
                 <div>
