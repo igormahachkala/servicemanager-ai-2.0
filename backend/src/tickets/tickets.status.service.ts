@@ -11,6 +11,7 @@ import { decideTicketTransition } from '../workflow/ticket.workflow';
 import { TimelineService } from '../timeline/timeline.service';
 import { ServiceContractsService } from '../service-contracts/service-contracts.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { ShiftPolicyService } from '../workforce/shift-policy.service';
 import { resolveTicketOperationAccess } from './ticket-access.utils';
 
 @Injectable()
@@ -20,6 +21,7 @@ export class TicketsStatusService {
     private readonly timelineService: TimelineService,
     private readonly serviceContractsService: ServiceContractsService,
     private readonly notifications: NotificationsService,
+    private readonly shiftPolicyService?: ShiftPolicyService,
   ) {}
 
   private readonly policy = new TicketsPolicy();
@@ -113,6 +115,12 @@ export class TicketsStatusService {
         denialReason: decision.allowed ? undefined : (decision as { reason?: string }).reason,
       });
       assertAllowed(decision);
+
+      await this.shiftPolicyService?.assertActiveShiftForOperationalWork({
+        id: user?.id ?? '',
+        role,
+        companyId,
+      });
 
       const toStatus =
         dto.status === TicketStatus.DONE && ticket.status !== TicketStatus.AWAITING_ACCEPTANCE

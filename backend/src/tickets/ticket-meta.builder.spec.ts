@@ -2,6 +2,7 @@ import { CompanyType, ServiceContractRole, TicketStatus, UserRole } from '@prism
 
 import { TicketMetaBuilder } from './ticket-meta.builder';
 import * as ticketAccessUtils from './ticket-access.utils';
+import { ACTIVE_SHIFT_REQUIRED_MESSAGE } from '../workforce/shift-policy.service';
 
 jest.mock('./ticket-access.utils', () => {
   const actual = jest.requireActual('./ticket-access.utils');
@@ -210,5 +211,65 @@ describe('TicketMetaBuilder acceptance actions', () => {
     expect(meta.availableActions.canReject).toBe(false);
     expect(meta.availableActions.canComplete).toBe(false);
     expect(meta.availableStatusTransitions).not.toContain(TicketStatus.DONE);
+  });
+
+  it('keeps ticket readable but disables operational metadata when active shift is required', async () => {
+    const actorId = 'provider-tech-1';
+    const prisma = makePrisma({
+      actorId,
+      actorRole: UserRole.TECHNICIAN,
+      actorCompanyId: PROVIDER_ID,
+      actorCompanyType: CompanyType.PROVIDER,
+      assignedTechnicianId: null,
+    });
+    const shiftPolicyService = {
+      isShiftRequiredForActor: jest
+        .fn()
+        .mockResolvedValue({ required: true, reason: 'required' }),
+      hasActiveShift: jest.fn().mockResolvedValue(false),
+    };
+    mockResolveTicketOperationAccess.mockResolvedValue({
+      ticket: {
+        id: TICKET_ID,
+        companyId: CLIENT_ID,
+        assignedTechnicianId: null,
+      },
+      scopeCompanyId: CLIENT_ID,
+      visibilityMode: 'provider_primary',
+      operationCompanyId: PROVIDER_ID,
+    } as any);
+
+    const builder = new TicketMetaBuilder(
+      prisma,
+      makeServiceContracts(ServiceContractRole.PRIMARY) as any,
+      shiftPolicyService as any,
+    );
+    const meta = await builder.buildForGetOne({
+      ...defaultMetaParams({
+        actorCompanyId: PROVIDER_ID,
+        userId: actorId,
+        role: UserRole.TECHNICIAN,
+        isExecutor: true,
+      }),
+      ticketStatus: TicketStatus.NEW,
+      assignedTechnicianId: null,
+    });
+
+    expect(meta.scopeCompanyId).toBe(CLIENT_ID);
+    expect(meta.canClaim).toBe(false);
+    expect(meta.canRequestAssignment).toBe(false);
+    expect(meta.claimAvailabilityReason).toBe(ACTIVE_SHIFT_REQUIRED_MESSAGE);
+    expect(meta.availableStatusTransitions).toEqual([]);
+    expect(meta.availableActions).toMatchObject({
+      canClaim: false,
+      canStart: false,
+      canComplete: false,
+      canClose: false,
+    });
+    expect(meta.availableActionHints).toMatchObject({
+      canClaim: ACTIVE_SHIFT_REQUIRED_MESSAGE,
+      canStart: ACTIVE_SHIFT_REQUIRED_MESSAGE,
+      canClose: ACTIVE_SHIFT_REQUIRED_MESSAGE,
+    });
   });
 });
