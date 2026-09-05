@@ -4,11 +4,12 @@ import { InspectionController } from './inspection.controller'
 import { InspectionService } from './inspection.service'
 import { InspectionExportService } from './inspection.export.service'
 
+import { ServiceContractsModule } from '../service-contracts/service-contracts.module'
 import { TicketsModule } from '../tickets/tickets.module'
 import { TimelineModule } from '../timeline/timeline.module'
 
 @Module({
-  imports: [TicketsModule, TimelineModule],
+  imports: [TicketsModule, TimelineModule, ServiceContractsModule],
   controllers: [InspectionController],
   providers: [InspectionService, InspectionExportService],
 })
