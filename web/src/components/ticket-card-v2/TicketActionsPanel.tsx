@@ -19,6 +19,10 @@ export type TicketActionsPanelProps = {
   onAddComment: () => void
   addCommentPending: boolean
   onClaim: () => void
+  /** 096: «Назначить на себя» — управленческое действие, отличное от «Взять заявку». */
+  canAssignSelf?: boolean
+  assignSelfPending?: boolean
+  onAssignSelf?: () => void
   onSetStatus: (input: api.UpdateTicketStatusInput) => void
   onPickOperationalPhoto: () => void
   operationalPhotoPending: boolean
@@ -55,6 +59,9 @@ export function TicketActionsPanel(props: TicketActionsPanelProps) {
     onAddComment,
     addCommentPending,
     onClaim,
+    canAssignSelf,
+    assignSelfPending,
+    onAssignSelf,
     onSetStatus,
     onPickOperationalPhoto,
     operationalPhotoPending,
@@ -93,6 +100,9 @@ export function TicketActionsPanel(props: TicketActionsPanelProps) {
           onAddComment={onAddComment}
           addCommentPending={addCommentPending}
           onClaim={onClaim}
+          canAssignSelf={canAssignSelf}
+          assignSelfPending={assignSelfPending}
+          onAssignSelf={onAssignSelf}
           onSetStatus={onSetStatus}
           onPickOperationalPhoto={onPickOperationalPhoto}
           operationalPhotoPending={operationalPhotoPending}
@@ -140,6 +150,11 @@ export function TicketActionsPanel(props: TicketActionsPanelProps) {
         {canClaim && primaryAction?.kind !== 'claim' ? (
           <button className="ghost" onClick={onClaim} disabled={claimPending}>
             {claimPending ? 'Забираем…' : 'Взять заявку'}
+          </button>
+        ) : null}
+        {canAssignSelf && onAssignSelf ? (
+          <button className="ghost" data-testid="assign-self" onClick={onAssignSelf} disabled={!!assignSelfPending}>
+            {assignSelfPending ? 'Назначаем…' : 'Назначить на себя'}
           </button>
         ) : null}
         {canChangeStatus ? (

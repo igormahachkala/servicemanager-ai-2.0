@@ -35,10 +35,10 @@ assert.match(shell, /aria-label="Создать заявку"/, 'center create a
 assert.match(shell, /mobilePath\(location\.pathname, '\/create'\)/, 'center create action must keep canonical mobile create route')
 assert.match(shell, /aria-label="Личный аккаунт"/, 'top user icon must be the personal account entry')
 
-assert.match(router, /<Route path="create" element=\{<MobileCreateTicket \/>\}/, 'mobile create route must remain')
-assert.match(router, /<Route path="tickets\/:id" element=\{<MobileTicketPage \/>\}/, 'mobile ticket deep link route must remain')
-assert.match(router, /<Route path="my" element=\{<MobileMyTickets \/>\}/, 'legacy/internal my tickets route must remain reachable')
-assert.match(router, /<Route path="chats" element=\{<MobileChatsPage \/>\}/, 'legacy/internal chats route must remain reachable')
+assert.match(router, /<Route path="create" element=\{<LazyRoute component=\{MobileCreateTicket\} \/>\}/, 'mobile create route must remain')
+assert.match(router, /<Route path="tickets\/:id" element=\{<LazyRoute component=\{MobileTicketPage\} \/>\}/, 'mobile ticket deep link route must remain')
+assert.match(router, /<Route path="my" element=\{<LazyRoute component=\{MobileMyTickets\} \/>\}/, 'legacy/internal my tickets route must remain reachable')
+assert.match(router, /<Route path="chats" element=\{<LazyRoute component=\{MobileChatsPage\} \/>\}/, 'legacy/internal chats route must remain reachable')
 assert.match(sw, /\/m\/tickets/, 'service worker must keep mobile ticket deep-link support')
 
 assert.doesNotMatch(profile, /ClientContourCard|canAccessManagementDesktop|Управленческая часть|Смены сотрудников|Статистика заявок/, 'profile must not expose company/system management entries')
