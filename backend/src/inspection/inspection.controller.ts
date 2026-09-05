@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -25,7 +26,11 @@ import { RequirePermission } from '../common/permissions.decorator'
 import { PERMISSIONS } from '../common/permissions.constants'
 
 import { InspectionService } from './inspection.service'
+import { InspectionScheduleService } from './inspection-schedule.service'
 import { CreateTemplateDto } from './dto/create-template.dto'
+import { CreateScheduleDto } from './dto/create-schedule.dto'
+import { ListSchedulesDto } from './dto/list-schedules.dto'
+import { UpdateScheduleDto } from './dto/update-schedule.dto'
 import { StartRunDto } from './dto/start-run.dto'
 import { UpdateRunItemDto } from './dto/update-run-item.dto'
 import { CreateTicketFromItemDto } from './dto/create-ticket-from-item.dto'
@@ -35,7 +40,56 @@ import { ReviewRunReportDto } from './dto/review-run-report.dto'
 @UseGuards(JwtAuthGuard, RolesGuard, PermissionsContextGuard, PermissionsGuard)
 @Controller('inspection')
 export class InspectionController {
-  constructor(private readonly svc: InspectionService) {}
+  constructor(
+    private readonly svc: InspectionService,
+    private readonly schedules: InspectionScheduleService,
+  ) {}
+
+  /**
+   * SMA-ROUNDS-V1-SCHEDULE-CRUD-098 — schedule routes.
+   *
+   * Paths match the client functions that already exist in web/src/lib/api.ts. Management
+   * routes require LOCATIONS_MANAGE, the same canonical grant that gates template management,
+   * so ADMIN / MASTER / DISPATCHER can plan and TECHNICIAN cannot. Reading only requires
+   * LOCATIONS_VIEW, and the service narrows a non-manager to their own assignments.
+   *
+   * Declared before the run routes so `runs/:id` can never swallow a schedules path.
+   */
+
+  @Get('schedules')
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TECHNICIAN)
+  @RequirePermission(PERMISSIONS.LOCATIONS_VIEW)
+  listSchedules(@Req() req: any, @Query() query: ListSchedulesDto) {
+    return this.schedules.list(this.userFromRequest(req), query)
+  }
+
+  @Get('schedules/:id')
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TECHNICIAN)
+  @RequirePermission(PERMISSIONS.LOCATIONS_VIEW)
+  getSchedule(@Req() req: any, @Param('id') scheduleId: string) {
+    return this.schedules.get(this.userFromRequest(req), scheduleId)
+  }
+
+  @Post('schedules')
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR)
+  @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
+  createSchedule(@Req() req: any, @Body() dto: CreateScheduleDto) {
+    return this.schedules.create(this.userFromRequest(req), dto)
+  }
+
+  @Patch('schedules/:id')
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR)
+  @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
+  updateSchedule(@Req() req: any, @Param('id') scheduleId: string, @Body() dto: UpdateScheduleDto) {
+    return this.schedules.update(this.userFromRequest(req), scheduleId, dto)
+  }
+
+  @Delete('schedules/:id')
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR)
+  @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
+  deleteSchedule(@Req() req: any, @Param('id') scheduleId: string) {
+    return this.schedules.remove(this.userFromRequest(req), scheduleId)
+  }
 
   @Get('templates')
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TECHNICIAN)

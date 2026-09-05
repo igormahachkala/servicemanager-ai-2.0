@@ -3715,8 +3715,34 @@ export type UpdateInspectionScheduleInput = Partial<{
   isActive: boolean
 }>
 
-export async function getInspectionSchedules(): Promise<InspectionSchedule[]> {
-  return request<InspectionSchedule[]>('/inspection/schedules')
+/** SMA-098: фильтры планирования. Все необязательные — вызов без аргументов не изменился. */
+export type InspectionScheduleFilters = {
+  /** Нижняя граница ближайшего срока (nextDueAt), ISO. */
+  from?: string
+  /** Верхняя граница ближайшего срока (nextDueAt), ISO. */
+  to?: string
+  locationId?: string
+  assignedToUserId?: string
+  frequency?: InspectionFrequency
+  active?: boolean
+}
+
+export async function getInspectionSchedules(
+  filters?: InspectionScheduleFilters,
+): Promise<InspectionSchedule[]> {
+  const search = new URLSearchParams()
+  if (filters?.from) search.set('from', filters.from)
+  if (filters?.to) search.set('to', filters.to)
+  if (filters?.locationId) search.set('locationId', filters.locationId)
+  if (filters?.assignedToUserId) search.set('assignedToUserId', filters.assignedToUserId)
+  if (filters?.frequency) search.set('frequency', filters.frequency)
+  if (filters?.active !== undefined) search.set('active', String(filters.active))
+  const suffix = search.toString() ? '?' + search.toString() : ''
+  return request<InspectionSchedule[]>('/inspection/schedules' + suffix)
+}
+
+export async function getInspectionSchedule(id: string): Promise<InspectionSchedule> {
+  return request<InspectionSchedule>('/inspection/schedules/' + id)
 }
 
 export async function createInspectionSchedule(
@@ -3732,8 +3758,16 @@ export async function updateInspectionSchedule(
   return request<InspectionSchedule>('/inspection/schedules/' + id, { method: 'PATCH', body: input })
 }
 
-export async function deleteInspectionSchedule(id: string): Promise<{ id: string; deleted: boolean }> {
-  return request<{ id: string; deleted: boolean }>('/inspection/schedules/' + id, { method: 'DELETE' })
+/**
+ * SMA-098: `deleted: true` — план удалён (обходов по нему не было);
+ * `deleted: false` — план снят с плана (isActive=false), связь с историей обходов сохранена.
+ */
+export async function deleteInspectionSchedule(
+  id: string,
+): Promise<{ id: string; deleted: boolean; isActive?: boolean }> {
+  return request<{ id: string; deleted: boolean; isActive?: boolean }>('/inspection/schedules/' + id, {
+    method: 'DELETE',
+  })
 }
 
 export async function runInspectionScheduleNow(id: string): Promise<InspectionRun> {
