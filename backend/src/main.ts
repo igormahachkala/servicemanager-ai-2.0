@@ -13,6 +13,7 @@ async function bootstrap() {
   getJwtSecret();
 
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  app.set('trust proxy', 1);
 
   // Глобальная валидация DTO (enterprise baseline)
   app.useGlobalPipes(
@@ -32,6 +33,7 @@ async function bootstrap() {
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     optionsSuccessStatus: 204,
+    maxAge: 86400,
   });
 
   const config = new DocumentBuilder()

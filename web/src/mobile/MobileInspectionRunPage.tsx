@@ -3,6 +3,7 @@ import { Link, useLocation, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { numericConstraintLabel, responseTypeLabel } from '../lib/inspectionZones'
+import { ProtectedUploadImg } from '../ui/ProtectedUploadMedia'
 import { mobilePath } from './mobileRoute'
 import { mobileTicketNavState } from './mobileTicketDisplay'
 
@@ -370,9 +371,9 @@ export function MobileInspectionRunPage() {
                     {item.attachments.length > 0 ? (
                       <div className="mobilePatrolItemPhotos">
                         {item.attachments.map((a) => (
-                          <img
+                          <ProtectedUploadImg
                             key={a.id}
-                            src={api.resolveInspectionAttachmentUrl(a)}
+                            url={api.resolveInspectionAttachmentUrl(a)}
                             alt=""
                             className="mobilePatrolItemPhoto"
                           />
