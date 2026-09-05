@@ -24,6 +24,7 @@ type CreatedTicketState = {
   ticketNumber?: number | null
   claimed: boolean
   claimFailed: boolean
+  claimFailureMessage?: string
   ticketOwnerCompanyId?: string
   categoryName?: string
   locationName?: string
@@ -339,11 +340,18 @@ export function MobileCreateTicket() {
       const created = await api.createTicket(payload, scope)
       const createdId = api.extractCreatedTicketId(created)
       if (!createdId) throw new Error('Не удалось определить id созданной заявки')
+      const claimFailed =
+        created.postCreateActionResult?.action === 'claim_self' &&
+        created.postCreateActionResult.ok === false
       return {
         ticketId: createdId,
         ticketNumber: created.ticket?.ticketNumber,
-        claimed: shouldClaim,
-        claimFailed: false as const,
+        claimed: shouldClaim && !claimFailed,
+        claimFailed,
+        claimFailureMessage:
+          claimFailed && created.postCreateActionResult?.ok === false
+            ? created.postCreateActionResult.message
+            : undefined,
       }
     },
     onSuccess: async (created) => {
@@ -371,6 +379,7 @@ export function MobileCreateTicket() {
         ticketNumber: created.ticketNumber,
         claimed: created.claimed,
         claimFailed: created.claimFailed,
+        claimFailureMessage: created.claimFailureMessage,
         ticketOwnerCompanyId: ticketOwnerForNav,
         categoryName: selectedCategory?.name || undefined,
         locationName: activeLocations.find((row) => row.id === locationId)?.name || undefined,
@@ -731,7 +740,7 @@ export function MobileCreateTicket() {
             </div>
             <p className="successDialogText">
               {createdTicket.claimFailed
-                ? 'Заявка создана, но закрепить её за собой не удалось. Откройте карточку и нажмите «Взять заявку» или запросите назначение.'
+                ? `Заявка создана, но закрепить её за собой не удалось. ${createdTicket.claimFailureMessage || 'Откройте рабочую смену, чтобы выполнить это действие.'}`
                 : createdTicket.claimed
                   ? 'Заявка создана и закреплена за вами.'
                   : 'Заявка сохранена и доступна в списке.'}

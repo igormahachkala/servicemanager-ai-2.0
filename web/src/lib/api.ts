@@ -903,6 +903,9 @@ export type CreateTicketResponse = {
     recommendedActions?: string[]
   }
   autoAssigned?: boolean
+  postCreateActionResult?:
+    | { action: 'claim_self' | 'assign_employee'; ok: true }
+    | { action: 'claim_self'; ok: false; code: string; message: string }
 }
 
 export type CreateChildTicketInput = {
