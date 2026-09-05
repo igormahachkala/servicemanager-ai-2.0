@@ -44,6 +44,8 @@ type TicketCreatedMessageParams = {
   companyId: string;
   locationId?: string | null;
   locationName?: string | null;
+  /** Готовая строка «<Город> · <Точка>» из notification-location-context. Канал её не пересобирает. */
+  locationContext?: string | null;
   ticketId: string;
   ticketNumber: number;
   requesterLabel?: string | null;
@@ -59,6 +61,8 @@ type TicketAssignedMessageParams = {
   companyId: string;
   locationId?: string | null;
   locationName?: string | null;
+  /** Готовая строка «<Город> · <Точка>» из notification-location-context. Канал её не пересобирает. */
+  locationContext?: string | null;
   ticketId: string;
   ticketNumber: number;
   technicianLabel?: string | null;
@@ -68,6 +72,8 @@ type TicketClaimedMessageParams = {
   companyId: string;
   locationId?: string | null;
   locationName?: string | null;
+  /** Готовая строка «<Город> · <Точка>» из notification-location-context. Канал её не пересобирает. */
+  locationContext?: string | null;
   ticketId: string;
   ticketNumber: number;
   technicianLabel?: string | null;
@@ -77,6 +83,8 @@ type TicketStatusChangedMessageParams = {
   companyId: string;
   locationId?: string | null;
   locationName?: string | null;
+  /** Готовая строка «<Город> · <Точка>» из notification-location-context. Канал её не пересобирает. */
+  locationContext?: string | null;
   ticketId: string;
   ticketNumber: number;
   fromStatus: TicketStatus;
@@ -316,6 +324,23 @@ export class MaxBotService implements OnModuleInit {
   private normalizeSingleLine(value?: string | null) {
     const normalized = (value || '').replace(/\s+/g, ' ').trim();
     return normalized.length > 0 ? normalized : null;
+  }
+
+  /**
+   * Строка локации в сообщении: канонический контекст «<Город> · <Точка>»,
+   * посчитанный в notifications, иначе имя точки. Своего формата у канала нет.
+   */
+  private formatLocationLine(params: {
+    locationContext?: string | null;
+    pointName?: string | null;
+    locationName?: string | null;
+  }) {
+    return (
+      this.normalizeSingleLine(params.locationContext) ||
+      this.normalizeSingleLine(params.pointName) ||
+      this.normalizeSingleLine(params.locationName) ||
+      ''
+    );
   }
 
   private normalizeMultiline(value?: string | null, max = 650) {
@@ -583,7 +608,7 @@ export class MaxBotService implements OnModuleInit {
     lines.push(`Отправитель: ${requester}`);
     lines.push(`Телефон: ${phone}`);
 
-    const point = (params.pointName || '').trim() || (params.address || '').trim();
+    const point = this.formatLocationLine(params) || (params.address || '').trim();
     if (point) {
       lines.push(`Точка: ${point}`);
     }
@@ -612,6 +637,10 @@ export class MaxBotService implements OnModuleInit {
   async sendTicketAssignedMessage(params: TicketAssignedMessageParams) {
     const lines = ['👷 Заявка назначена'];
     lines.push(`Заявка: ${this.formatShortTicketLabel(params.ticketNumber, params.ticketId)}`);
+    const point = this.formatLocationLine(params);
+    if (point) {
+      lines.push(`Точка: ${point}`);
+    }
     const tech = (params.technicianLabel || '').trim();
     lines.push(`Исполнитель: ${tech || 'Исполнитель'}`);
 
@@ -628,6 +657,10 @@ export class MaxBotService implements OnModuleInit {
   async sendTicketClaimedMessage(params: TicketClaimedMessageParams) {
     const lines = ['🙋 Заявка взята в работу'];
     lines.push(`Заявка: ${this.formatShortTicketLabel(params.ticketNumber, params.ticketId)}`);
+    const point = this.formatLocationLine(params);
+    if (point) {
+      lines.push(`Точка: ${point}`);
+    }
     const tech = (params.technicianLabel || '').trim();
     lines.push(`Исполнитель: ${tech || 'Исполнитель'}`);
 
@@ -644,6 +677,10 @@ export class MaxBotService implements OnModuleInit {
   async sendTicketStatusChangedMessage(params: TicketStatusChangedMessageParams) {
     const lines = ['🔄 Статус заявки изменён'];
     lines.push(`Заявка: ${this.formatShortTicketLabel(params.ticketNumber, params.ticketId)}`);
+    const point = this.formatLocationLine(params);
+    if (point) {
+      lines.push(`Точка: ${point}`);
+    }
     lines.push(`Статус: ${this.formatStatusLabel(params.fromStatus)} → ${this.formatStatusLabel(params.toStatus)}`);
 
     const buttonKind: MaxTicketNotificationButtonKind =
