@@ -8,6 +8,9 @@ export function mapTicketActionError(raw: string | null | undefined): string {
 
   const low = t.toLowerCase()
 
+  if (t.includes('ACTIVE_SHIFT_REQUIRED') || t.includes('Откройте рабочую смену')) {
+    return 'Откройте рабочую смену, чтобы выполнить это действие.'
+  }
   if (low.includes('forbidden') || t.includes('Недостаточно прав') || t.includes('недостаточно прав')) {
     return 'Недостаточно прав для этого действия.'
   }

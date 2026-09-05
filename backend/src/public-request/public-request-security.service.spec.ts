@@ -110,7 +110,11 @@ describe('PublicRequestSecurityService.normalizeIp', () => {
     expect(svc.normalizeIp('1.2.3.4')).toBe('1.2.3.4')
   })
 
-  it('takes first IP from comma-separated X-Forwarded-For header', () => {
+  it('returns a single address from X-Qrator-IP-Source or req.ip unchanged', () => {
+    expect(svc.normalizeIp('203.0.113.10')).toBe('203.0.113.10')
+  })
+
+  it('still takes the first token if a leftover comma-separated chain is passed', () => {
     expect(svc.normalizeIp('1.2.3.4, 5.6.7.8, 9.10.11.12')).toBe('1.2.3.4')
   })
 })

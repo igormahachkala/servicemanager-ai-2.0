@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
+import { ProtectedUploadVideo } from '../ui/ProtectedUploadMedia'
+import { useProtectedUploadSrc } from '../ui/useProtectedUploadSrc'
 import { CategoryGuidancePanel } from '../components/CategoryGuidancePanel'
 import { formatMobileMutationError } from './mobileActionErrors'
 import { mobileTicketNavState } from './mobileTicketDisplay'
@@ -22,9 +24,58 @@ type CreatedTicketState = {
   ticketNumber?: number | null
   claimed: boolean
   claimFailed: boolean
+  claimFailureMessage?: string
   ticketOwnerCompanyId?: string
   categoryName?: string
   locationName?: string
+}
+
+function DraftAttachmentPreview({
+  attachment,
+  onOpen,
+  onRemove,
+  removeDisabled,
+}: {
+  attachment: api.TicketAttachmentItem
+  onOpen: (payload: { src: string; alt: string }) => void
+  onRemove: () => void
+  removeDisabled: boolean
+}) {
+  const url = api.resolveTicketAttachmentUrl(attachment)
+  const src = useProtectedUploadSrc(url)
+  const alt = attachment.filename || attachment.originalName || 'Медиафайл'
+  const isVideo = ticketMediaKind(attachment) === 'video'
+
+  return (
+    <div className="mobileCreateDraftItem">
+      {src && isVideo ? (
+        <ProtectedUploadVideo url={url} controls preload="metadata" className="mobileCreateDraftImg" aria-label={alt} />
+      ) : src ? (
+        <button
+          type="button"
+          className="mobileCreateDraftImgBtn"
+          aria-label={`Просмотр: ${alt}`}
+          onClick={() => onOpen({ src, alt })}
+        >
+          <img src={src} alt={alt} className="mobileCreateDraftImg" />
+        </button>
+      ) : (
+        <div className="mobileCreateDraftEmpty">Нет превью</div>
+      )}
+      <button
+        type="button"
+        className="mobileCreateDraftRemove"
+        aria-label="Удалить файл"
+        disabled={removeDisabled}
+        onClick={onRemove}
+      >
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <line x1="18" y1="6" x2="6" y2="18" />
+          <line x1="6" y1="6" x2="18" y2="18" />
+        </svg>
+      </button>
+    </div>
+  )
 }
 
 function categoryEligibleForTechnician(cat: api.ProblemCategoryListItem): boolean {
@@ -289,11 +340,18 @@ export function MobileCreateTicket() {
       const created = await api.createTicket(payload, scope)
       const createdId = api.extractCreatedTicketId(created)
       if (!createdId) throw new Error('Не удалось определить id созданной заявки')
+      const claimFailed =
+        created.postCreateActionResult?.action === 'claim_self' &&
+        created.postCreateActionResult.ok === false
       return {
         ticketId: createdId,
         ticketNumber: created.ticket?.ticketNumber,
-        claimed: shouldClaim,
-        claimFailed: false as const,
+        claimed: shouldClaim && !claimFailed,
+        claimFailed,
+        claimFailureMessage:
+          claimFailed && created.postCreateActionResult?.ok === false
+            ? created.postCreateActionResult.message
+            : undefined,
       }
     },
     onSuccess: async (created) => {
@@ -321,6 +379,7 @@ export function MobileCreateTicket() {
         ticketNumber: created.ticketNumber,
         claimed: created.claimed,
         claimFailed: created.claimFailed,
+        claimFailureMessage: created.claimFailureMessage,
         ticketOwnerCompanyId: ticketOwnerForNav,
         categoryName: selectedCategory?.name || undefined,
         locationName: activeLocations.find((row) => row.id === locationId)?.name || undefined,
@@ -633,42 +692,15 @@ export function MobileCreateTicket() {
             ) : null}
             {draftAttachments.length > 0 ? (
               <div className="mobileCreateDraftList">
-                {draftAttachments.map((d) => {
-                  const src = api.resolveTicketAttachmentUrl(d)
-                  const alt = d.filename || d.originalName || 'Медиафайл'
-                  const isVideo = ticketMediaKind(d) === 'video'
-                  return (
-                    <div key={d.id} className="mobileCreateDraftItem">
-                      {src && isVideo ? (
-                        <video src={src} controls preload="metadata" className="mobileCreateDraftImg" aria-label={alt} />
-                      ) : src ? (
-                        <button
-                          type="button"
-                          className="mobileCreateDraftImgBtn"
-                          aria-label={`Просмотр: ${alt}`}
-                          onClick={() => setPhotoPreview({ src, alt })}
-                        >
-                          <img src={src} alt={alt} className="mobileCreateDraftImg" />
-                        </button>
-                      ) : (
-                        <div className="mobileCreateDraftEmpty">Нет превью</div>
-                      )}
-                      <button
-                        type="button"
-                        className="mobileCreateDraftRemove"
-                        aria-label="Удалить файл"
-                        disabled={deleteDraftM.isPending || isUploadingDrafts || createM.isPending}
-                        onClick={() => deleteDraftM.mutate(d.id)}
-                      >
-                        {/* Tabler x */}
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                          <line x1="18" y1="6" x2="6" y2="18" />
-                          <line x1="6" y1="6" x2="18" y2="18" />
-                        </svg>
-                      </button>
-                    </div>
-                  )
-                })}
+                {draftAttachments.map((d) => (
+                  <DraftAttachmentPreview
+                    key={d.id}
+                    attachment={d}
+                    onOpen={setPhotoPreview}
+                    onRemove={() => deleteDraftM.mutate(d.id)}
+                    removeDisabled={deleteDraftM.isPending || isUploadingDrafts || createM.isPending}
+                  />
+                ))}
               </div>
             ) : null}
           </div>
@@ -708,7 +740,7 @@ export function MobileCreateTicket() {
             </div>
             <p className="successDialogText">
               {createdTicket.claimFailed
-                ? 'Заявка создана, но закрепить её за собой не удалось. Откройте карточку и нажмите «Взять заявку» или запросите назначение.'
+                ? `Заявка создана, но закрепить её за собой не удалось. ${createdTicket.claimFailureMessage || 'Откройте рабочую смену, чтобы выполнить это действие.'}`
                 : createdTicket.claimed
                   ? 'Заявка создана и закреплена за вами.'
                   : 'Заявка сохранена и доступна в списке.'}

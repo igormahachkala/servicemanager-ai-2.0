@@ -48,12 +48,21 @@ export function useCreateTicketFlow(p: UseCreateTicketFlowParams) {
 
       const submitAction = submitActionRef.current
       submitActionRef.current = 'create'
+      const postCreateActionResult = created.postCreateActionResult
+      const claimSelfBlockMessage =
+        postCreateActionResult?.action === 'claim_self' &&
+        postCreateActionResult.ok === false
+          ? postCreateActionResult.message
+          : null
 
       if (submitAction === 'createAndClaim' && p.isTechnician) {
+        if (claimSelfBlockMessage) {
+          pushToast(claimSelfBlockMessage, 'error')
+        }
         p.onCreateSuccess({
           ticketId: createdId,
           ticketNumber: created.ticket?.ticketNumber,
-          autoAssigned: true,
+          autoAssigned: !claimSelfBlockMessage,
           generatedTitle: created.generated?.title,
         })
         p.clearForNextCreate()

@@ -7,6 +7,12 @@ import {
   UserRole,
 } from '@prisma/client'
 
+import {
+  ACTIVE_SHIFT_REQUIRED,
+  ACTIVE_SHIFT_REQUIRED_MESSAGE,
+  ActiveShiftRequiredException,
+} from '../workforce/shift-policy.service'
+
 const mockAssertActorCanUseLocation = jest.fn()
 const mockAssertActorCanUseProblemCategory = jest.fn()
 
@@ -22,6 +28,7 @@ jest.mock('./ticket-access.utils', () => {
 })
 
 import { TicketsAssignmentService } from './tickets.assignment.service'
+import { CLAIM_REQUEST_ASSIGNMENT_REASON } from './ticket-claim-eligibility'
 
 describe('TicketsAssignmentService location scope override', () => {
   function makePrismaMock() {
@@ -1714,12 +1721,15 @@ describe('TicketsAssignmentService canonical claim isolation', () => {
   const categorySpecializationName = 'Климатическое оборудование'
 
   type ClaimIsolationOptions = {
+    actorRole?: UserRole
+    isExecutor?: boolean
     contractRole?: ServiceContractRole | null
     locationMode?: UserAccessLocationMode | null
     bindingLocationIds?: string[]
     technicianSpecializationNames?: string[]
     categorySpecializationNames?: string[]
     createdByUserId?: string | null
+    shiftPolicyService?: any
   }
 
   function normalized(value: string) {
@@ -1731,6 +1741,7 @@ describe('TicketsAssignmentService canonical claim isolation', () => {
       options.contractRole === undefined
         ? ServiceContractRole.SECONDARY
         : options.contractRole
+    const actorRole = options.actorRole ?? UserRole.TECHNICIAN
     const locationMode =
       options.locationMode === undefined ? null : options.locationMode
     const bindingLocationIds = options.bindingLocationIds ?? []
@@ -1835,9 +1846,9 @@ describe('TicketsAssignmentService canonical claim isolation', () => {
       user: {
         findFirst: jest.fn().mockResolvedValue({
           id: technicianId,
-          role: UserRole.TECHNICIAN,
+          role: actorRole,
           companyId: providerCompanyId,
-          isExecutor: true,
+          isExecutor: options.isExecutor ?? true,
           technicianSpecializations,
         }),
         findMany: jest.fn().mockResolvedValue([{ id: technicianId }]),
@@ -2012,6 +2023,7 @@ describe('TicketsAssignmentService canonical claim isolation', () => {
       {} as any,
       notifications as any,
       contractContext as any,
+      options.shiftPolicyService as any,
     )
 
     return {
@@ -2190,6 +2202,97 @@ describe('TicketsAssignmentService canonical claim isolation', () => {
       providerCompanyId,
       clientCompanyId,
     )
+  })
+
+  it.each([UserRole.TECHNICIAN, UserRole.MASTER])(
+    'blocks %s direct claim when provider shift policy requires an open shift',
+    async (actorRole) => {
+      const shiftPolicyService = {
+        assertActiveShiftForOperationalWork: jest
+          .fn()
+          .mockRejectedValue(new ActiveShiftRequiredException()),
+      }
+      const { service, prisma, timeline, notifications } =
+        makeClaimIsolationHarness({
+          actorRole,
+          contractRole: ServiceContractRole.PRIMARY,
+          bindingLocationIds: [allowedLocationId],
+          shiftPolicyService,
+        })
+
+      await expect(
+        service.claim(providerCompanyId, technicianId, ticketId, clientCompanyId),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({
+          code: ACTIVE_SHIFT_REQUIRED,
+          message: ACTIVE_SHIFT_REQUIRED_MESSAGE,
+        }),
+      })
+
+      expect(shiftPolicyService.assertActiveShiftForOperationalWork).toHaveBeenCalledWith({
+        id: technicianId,
+        role: actorRole,
+        companyId: providerCompanyId,
+      })
+      expect(prisma.$transaction).not.toHaveBeenCalled()
+      expect(timeline.recordTx).not.toHaveBeenCalled()
+      expect(
+        notifications.scheduleTicketClaimedDispatchers,
+      ).not.toHaveBeenCalled()
+    },
+  )
+
+  it.each([UserRole.TECHNICIAN, UserRole.MASTER])(
+    'hides %s primary claim from available tickets when no active shift exists',
+    async (actorRole) => {
+      const shiftPolicyService = {
+        isShiftRequiredForActor: jest
+          .fn()
+          .mockResolvedValue({ required: true, reason: 'required' }),
+        hasActiveShift: jest.fn().mockResolvedValue(false),
+      }
+      const { service } = makeClaimIsolationHarness({
+        actorRole,
+        contractRole: ServiceContractRole.PRIMARY,
+        bindingLocationIds: [allowedLocationId],
+        shiftPolicyService,
+      })
+
+      await expect(
+        service.availableForTechnician(
+          providerCompanyId,
+          technicianId,
+          clientCompanyId,
+        ),
+      ).resolves.toEqual([])
+    },
+  )
+
+  it('keeps SECONDARY request-assignment visible when claim is shift-blocked', async () => {
+    const shiftPolicyService = {
+      isShiftRequiredForActor: jest
+        .fn()
+        .mockResolvedValue({ required: true, reason: 'required' }),
+      hasActiveShift: jest.fn().mockResolvedValue(false),
+    }
+    const { service } = makeClaimIsolationHarness({
+      contractRole: ServiceContractRole.SECONDARY,
+      bindingLocationIds: [allowedLocationId],
+      shiftPolicyService,
+    })
+
+    const available = await service.availableForTechnician(
+      providerCompanyId,
+      technicianId,
+      clientCompanyId,
+    )
+
+    expect(available).toHaveLength(1)
+    expect(available[0]).toMatchObject({
+      canClaim: false,
+      canRequestAssignment: true,
+      claimAvailabilityReason: CLAIM_REQUEST_ASSIGNMENT_REASON,
+    })
   })
 })
 
@@ -2492,6 +2595,7 @@ describe('TicketsAssignmentService linked-provider create assignment contour', (
     blocksCount?: number
     rolePermission?: boolean
     userPermission?: boolean
+    shiftPolicyService?: any
   }) {
     const createdTicket = {
       id: 'ticket-1',
@@ -2601,6 +2705,8 @@ describe('TicketsAssignmentService linked-provider create assignment contour', (
       serviceContracts as any,
       technicians as any,
       notifications as any,
+      undefined,
+      options?.shiftPolicyService as any,
     )
     jest
       .spyOn(service as any, 'resolveTicketOwnerCompanyId')
@@ -2644,6 +2750,7 @@ describe('TicketsAssignmentService linked-provider create assignment contour', (
       tx,
       assignmentEngine,
       resolveCreateCandidatesSpy,
+      notifications,
     }
   }
 
@@ -2793,6 +2900,46 @@ describe('TicketsAssignmentService linked-provider create assignment contour', (
       }),
     )
     expect(result.ticket.companyId).toBe(clientCompanyId)
+  })
+
+  it('creates the ticket but blocks claim_self when the creator has no active shift', async () => {
+    const shiftPolicyService = {
+      isShiftRequiredForActor: jest
+        .fn()
+        .mockResolvedValue({ required: true, reason: 'required' }),
+      hasActiveShift: jest.fn().mockResolvedValue(false),
+    }
+    const { service, tx, notifications } = makeCreateHarness({
+      shiftPolicyService,
+    })
+
+    const result = await service.create(
+      providerCompanyId,
+      providerTech.id,
+      UserRole.TECHNICIAN,
+      baseDto({
+        postCreateAction: 'claim_self',
+      }) as any,
+    )
+
+    expect(tx.ticket.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          companyId: clientCompanyId,
+          status: TicketStatus.NEW,
+          assignedTechnicianId: null,
+        }),
+      }),
+    )
+    expect(tx.ticket.update).not.toHaveBeenCalled()
+    expect(result.autoAssigned).toBe(false)
+    expect(result.postCreateActionResult).toEqual({
+      action: 'claim_self',
+      ok: false,
+      code: ACTIVE_SHIFT_REQUIRED,
+      message: ACTIVE_SHIFT_REQUIRED_MESSAGE,
+    })
+    expect(notifications.onTicketAssigned).not.toHaveBeenCalled()
   })
 
   it('client-side creation keeps client ticket ownership and client workforce', async () => {

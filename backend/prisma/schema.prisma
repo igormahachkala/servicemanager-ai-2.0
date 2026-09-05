@@ -515,7 +515,10 @@ model UserAccessScope {
   companyId    String
   locationMode UserAccessLocationMode @default(SELECTED_LOCATIONS)
   createdAt    DateTime               @default(now())
-  updatedAt    DateTime               @updatedAt
+  /// SMA-MIGRATION-HISTORY-RECONCILIATION-090: @default(now()) описывает
+  /// DEFAULT CURRENT_TIMESTAMP, заданный миграцией при создании таблицы.
+  /// Без него Prisma планировала ALTER COLUMN ... DROP DEFAULT на живой таблице.
+  updatedAt    DateTime               @updatedAt @default(now())
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
@@ -568,6 +571,12 @@ model ServiceContract {
   @@unique([clientCompanyId, providerCompanyId])
   @@index([clientCompanyId, status])
   @@index([providerCompanyId, status])
+  /// SMA-MIGRATION-HISTORY-RECONCILIATION-090.
+  /// Индекс создан миграцией 202608060001_service_contract_location_mode и живёт
+  /// в обоих контурах. В схеме он объявлен не был, поэтому Prisma планировала
+  /// DROP INDEX по работающему индексу. Объявляем его здесь, а не удаляем в базе:
+  /// история и БД уже согласованы между собой, расходилась только схема.
+  @@index([clientCompanyId, role, status])
 }
 
 model ServiceContractLocation {
@@ -596,7 +605,12 @@ model ServiceContractSpecialization {
   serviceContract ServiceContract @relation(fields: [serviceContractId], references: [id], onDelete: Cascade)
   specialization  Specialization  @relation(fields: [specializationId], references: [id], onDelete: Cascade)
 
-  @@unique([serviceContractId, specializationId])
+  /// SMA-MIGRATION-HISTORY-RECONCILIATION-090.
+  /// Миграция 202608250001 задала имя длиной 68 символов; PostgreSQL усекает
+  /// идентификаторы до 63 байт, поэтому в базе индекс называется иначе, чем
+  /// сгенерировала бы Prisma. Закрепляем фактическое имя через map, чтобы не
+  /// переименовывать работающий уникальный индекс.
+  @@unique([serviceContractId, specializationId], map: "ServiceContractSpecialization_serviceContractId_specializationI")
   @@index([serviceContractId])
   @@index([specializationId])
 }

@@ -69,7 +69,7 @@ describe('TicketsAssignmentService self-assignment', () => {
     return prisma;
   }
 
-  function makeService(prisma: any) {
+  function makeService(prisma: any, options?: { shiftPolicyService?: any }) {
     const timeline = { recordTx: jest.fn().mockResolvedValue({ id: 'event-1' }) };
     const notifications = {
       scheduleTicketAssignedToTechnician: jest.fn(),
@@ -88,6 +88,7 @@ describe('TicketsAssignmentService self-assignment', () => {
       {} as any,
       notifications as any,
       contractContext as any,
+      options?.shiftPolicyService as any,
     );
   }
 
@@ -142,6 +143,21 @@ describe('TicketsAssignmentService self-assignment', () => {
     // ShiftPolicyService в этот поток не внедряется вовсе — назначение проходит без смены.
     await expect(service.assign(PROVIDER, me, TICKET, me.id)).resolves.toBeDefined();
   });
+
+  it.each([UserRole.ADMIN, UserRole.MASTER])(
+    '%s самоназначается без проверки активной смены',
+    async (role) => {
+      const prisma = makePrisma();
+      const shiftPolicyService = {
+        assertActiveShiftForOperationalWork: jest.fn().mockRejectedValue(new Error('shift required')),
+      };
+      const service = makeService(prisma, { shiftPolicyService });
+      const me = actor(role, `${role.toLowerCase()}-1`);
+
+      await expect(service.assign(PROVIDER, me, TICKET, me.id)).resolves.toBeDefined();
+      expect(shiftPolicyService.assertActiveShiftForOperationalWork).not.toHaveBeenCalled();
+    },
+  );
 
   it('заявка уже назначена на актора — повторного самоназначения нет', async () => {
     const prisma = makePrisma({ status: TicketStatus.ASSIGNED, assignedTechnicianId: 'actor-1' });

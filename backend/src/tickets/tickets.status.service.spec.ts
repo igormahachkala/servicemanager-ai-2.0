@@ -3,6 +3,11 @@ import { TicketStatus, UserRole } from '@prisma/client'
 
 import { TicketsStatusService } from './tickets.status.service'
 import * as ticketAccessUtils from './ticket-access.utils'
+import {
+  ACTIVE_SHIFT_REQUIRED,
+  ACTIVE_SHIFT_REQUIRED_MESSAGE,
+  ActiveShiftRequiredException,
+} from '../workforce/shift-policy.service'
 
 jest.mock('./ticket-access.utils', () => ({
   resolveTicketOperationAccess: jest.fn(),
@@ -49,6 +54,7 @@ function makeSetup(opts: {
   isExecutor?: boolean
   txTicket?: ReturnType<typeof makeTxTicket>
   updatedStatus?: TicketStatus
+  shiftPolicyService?: any
 } = {}) {
   const {
     companyType = 'PROVIDER',
@@ -91,7 +97,13 @@ function makeSetup(opts: {
     onTicketAwaitingAcceptance: jest.fn(),
   }
 
-  const svc = new TicketsStatusService(prisma, timeline as any, {} as any, notifications as any)
+  const svc = new TicketsStatusService(
+    prisma,
+    timeline as any,
+    {} as any,
+    notifications as any,
+    opts.shiftPolicyService as any,
+  )
   return { svc, prisma, tx, timeline, notifications }
 }
 
@@ -168,6 +180,96 @@ describe('TicketsStatusService.updateStatus', () => {
     })
 
     expect(tx.ticket.update).toHaveBeenCalled()
+  })
+
+  it.each([UserRole.TECHNICIAN, UserRole.MASTER])(
+    'blocks provider %s status mutation without an active shift before writes',
+    async (role) => {
+      const shiftPolicyService = {
+        assertActiveShiftForOperationalWork: jest
+          .fn()
+          .mockRejectedValue(new ActiveShiftRequiredException()),
+      }
+      const txTicket = makeTxTicket({
+        companyId: PROVIDER_ID,
+        assignedTechnicianId: USER_ID,
+      })
+      const { svc, prisma, tx, timeline, notifications } = makeSetup({
+        isExecutor: true,
+        txTicket,
+        shiftPolicyService,
+      })
+      mockResolveAccess.mockResolvedValue(
+        makeAccess({
+          ticket: { id: TICKET_ID, companyId: PROVIDER_ID, assignedTechnicianId: USER_ID },
+          operationCompanyId: PROVIDER_ID,
+          visibilityMode: 'tenant',
+        }),
+      )
+
+      await expect(
+        svc.updateStatus(PROVIDER_ID, { id: USER_ID }, role, TICKET_ID, {
+          status: TicketStatus.IN_PROGRESS,
+        }),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({
+          code: ACTIVE_SHIFT_REQUIRED,
+          message: ACTIVE_SHIFT_REQUIRED_MESSAGE,
+        }),
+      })
+
+      expect(shiftPolicyService.assertActiveShiftForOperationalWork).toHaveBeenCalledWith({
+        id: USER_ID,
+        role,
+        companyId: PROVIDER_ID,
+      })
+      expect(prisma.$transaction).toHaveBeenCalledTimes(1)
+      expect(tx.ticket.update).not.toHaveBeenCalled()
+      expect(timeline.recordTx).not.toHaveBeenCalled()
+      expect(notifications.scheduleTicketStatusChanged).not.toHaveBeenCalled()
+    },
+  )
+
+  it('blocks provider completion without an active shift before awaiting-acceptance writes', async () => {
+    const shiftPolicyService = {
+      assertActiveShiftForOperationalWork: jest
+        .fn()
+        .mockRejectedValue(new ActiveShiftRequiredException()),
+    }
+    const txTicket = makeTxTicket({
+      status: TicketStatus.IN_PROGRESS,
+      companyId: PROVIDER_ID,
+      assignedTechnicianId: TECH_ID,
+    })
+    const { svc, prisma, tx, timeline, notifications } = makeSetup({
+      isExecutor: true,
+      txTicket,
+      updatedStatus: TicketStatus.AWAITING_ACCEPTANCE,
+      shiftPolicyService,
+    })
+    mockResolveAccess.mockResolvedValue(
+      makeAccess({
+        ticket: { id: TICKET_ID, companyId: PROVIDER_ID, assignedTechnicianId: TECH_ID },
+        operationCompanyId: PROVIDER_ID,
+        visibilityMode: 'tenant',
+      }),
+    )
+
+    await expect(
+      svc.updateStatus(PROVIDER_ID, { id: TECH_ID }, UserRole.TECHNICIAN, TICKET_ID, {
+        status: TicketStatus.DONE,
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: ACTIVE_SHIFT_REQUIRED,
+        message: ACTIVE_SHIFT_REQUIRED_MESSAGE,
+      }),
+    })
+
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1)
+    expect(tx.ticket.update).not.toHaveBeenCalled()
+    expect(timeline.recordTx).not.toHaveBeenCalled()
+    expect(notifications.onTicketAwaitingAcceptance).not.toHaveBeenCalled()
   })
 
   it('maps technician completion DONE→AWAITING_ACCEPTANCE', async () => {

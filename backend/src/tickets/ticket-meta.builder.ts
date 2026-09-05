@@ -17,6 +17,10 @@ import {
   type TicketSelfAssignCapability,
 } from './ticket-self-assign-capability'
 import { TICKET_ASSIGNMENT_REQUESTED_ENTITY, TICKET_ASSIGNMENT_REQUESTED_EVENT } from './ticket-domain-event.types'
+import {
+  ACTIVE_SHIFT_REQUIRED_MESSAGE,
+  ShiftPolicyService,
+} from '../workforce/shift-policy.service'
 
 export type TicketMetaBuildParams = {
   actorCompanyId: string
@@ -37,17 +41,22 @@ export type TicketMetaBuildParams = {
 
 export class TicketMetaBuilder {
   private readonly policy = new TicketsPolicy()
+  private readonly contractContextService: ContractContextService
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly serviceContractsService: ServiceContractsService,
-    private readonly contractContextService: ContractContextService,
-  ) {}
+    contractContextService?: ContractContextService,
+    private readonly shiftPolicyService?: ShiftPolicyService,
+  ) {
+    this.contractContextService = contractContextService ?? new ContractContextService(prisma)
+  }
 
   async buildForGetOne(params: TicketMetaBuildParams) {
     const claimAvailability = await this.resolveClaimAvailability(params)
     const selfAssignAvailability = await this.resolveSelfAssignAvailability(params)
-    const availableStatusTransitions = await this.resolveAvailableStatusTransitions(params)
+    const shiftBlockReason = await this.resolveOperationalShiftBlockReason(params)
+    const availableStatusTransitions = shiftBlockReason ? [] : await this.resolveAvailableStatusTransitions(params)
     const assignmentRequestedByCurrentUser = await this.resolveAssignmentRequestedByCurrentUser(params)
     const acceptanceAvailable = await this.resolveAcceptanceAvailability(params)
     const { availableActions, availableActionHints } = this.deriveAvailableActions(
@@ -56,6 +65,7 @@ export class TicketMetaBuilder {
       availableStatusTransitions,
       acceptanceAvailable,
       selfAssignAvailability,
+      shiftBlockReason,
     )
 
     return {
@@ -85,6 +95,7 @@ export class TicketMetaBuilder {
     transitions: TicketStatus[],
     acceptanceAvailable: boolean,
     selfAssign: TicketSelfAssignCapability,
+    shiftBlockReason: string | null,
   ): {
     availableActions: {
       canClaim: boolean
@@ -135,18 +146,25 @@ export class TicketMetaBuilder {
     const canStart =
       transitions.includes(TicketStatus.IN_PROGRESS) && !preferClaimOverDirectInProgress
 
-    if (!canStart && transitions.includes(TicketStatus.IN_PROGRESS) && preferClaimOverDirectInProgress) {
+    if (shiftBlockReason && (params.ticketStatus === TicketStatus.NEW || params.ticketStatus === TicketStatus.ASSIGNED)) {
+      hints.canStart = shiftBlockReason
+    } else if (!canStart && transitions.includes(TicketStatus.IN_PROGRESS) && preferClaimOverDirectInProgress) {
       hints.canStart = 'Сначала закрепите заявку за собой (самовзятие), затем можно начать работу.'
     } else if (!canStart && params.ticketStatus === TicketStatus.ASSIGNED) {
       hints.canStart = 'Перевод в «В работе» сейчас недоступен для вашей роли или назначения.'
     }
 
     const canComplete = transitions.includes(TicketStatus.DONE)
-    if (!canComplete && params.ticketStatus === TicketStatus.IN_PROGRESS) {
+    if (shiftBlockReason && params.ticketStatus === TicketStatus.IN_PROGRESS) {
+      hints.canComplete = shiftBlockReason
+    } else if (!canComplete && params.ticketStatus === TicketStatus.IN_PROGRESS) {
       hints.canComplete = 'Завершение сейчас недоступно: проверьте права, назначение или требования к отчёту (комментарий и фото).'
     }
 
     const canClose = transitions.includes(TicketStatus.CANCELED)
+    if (shiftBlockReason) {
+      hints.canClose = shiftBlockReason
+    }
 
     const outHints = Object.values(hints).some((v) => (v || '').length > 0) ? hints : undefined
     return {
@@ -214,6 +232,7 @@ export class TicketMetaBuilder {
       },
       ticketId: params.ticketId,
       linkedClientCompanyId: effectiveLinkedClientCompanyId,
+      shiftPolicyService: this.shiftPolicyService,
     })
   }
 
@@ -252,6 +271,19 @@ export class TicketMetaBuilder {
       // Необязательная capability не должна ронять карточку заявки; отказ закрытый.
       return { canAssignSelf: false, assignSelfAvailabilityReason: null }
     }
+  }
+
+  private async resolveOperationalShiftBlockReason(params: TicketMetaBuildParams): Promise<string | null> {
+    if (!this.shiftPolicyService) return null
+    const actor = {
+      id: params.userId,
+      companyId: params.actorCompanyId,
+      role: params.role,
+    }
+    const decision = await this.shiftPolicyService.isShiftRequiredForActor(actor)
+    if (!decision.required) return null
+    if (await this.shiftPolicyService.hasActiveShift(actor)) return null
+    return ACTIVE_SHIFT_REQUIRED_MESSAGE
   }
 
   private async resolveAvailableStatusTransitions(params: TicketMetaBuildParams): Promise<TicketStatus[]> {

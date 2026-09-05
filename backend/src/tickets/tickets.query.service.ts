@@ -34,6 +34,7 @@ import { resolveClaimCapabilitiesForVisibleTickets } from './ticket-claim-eligib
 import { TICKET_ASSIGNMENT_REQUESTED_ENTITY, TICKET_ASSIGNMENT_REQUESTED_EVENT } from './ticket-domain-event.types'
 import { isExecutorCapableRole } from '../common/executor.utils'
 import { loadBoardImageAttachmentSummaries } from './board-attachment-summary'
+import { ShiftPolicyService } from '../workforce/shift-policy.service'
 
 const companyIdentitySelect = {
   id: true,
@@ -71,11 +72,13 @@ export class TicketsQueryService {
     private readonly timelineService: TimelineService,
     private readonly serviceContractsService: ServiceContractsService,
     private readonly contractContextService: ContractContextService,
+    private readonly shiftPolicyService?: ShiftPolicyService,
   ) {
     this.ticketMetaBuilder = new TicketMetaBuilder(
       this.prisma,
       this.serviceContractsService,
       this.contractContextService,
+      this.shiftPolicyService,
     )
   }
 
@@ -628,6 +631,7 @@ export class TicketsQueryService {
             },
             ticketIds: candidateIds,
             linkedClientCompanyId,
+            shiftPolicyService: this.shiftPolicyService,
           })
         : new Map()
 

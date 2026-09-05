@@ -1,5 +1,7 @@
-import { HttpException, HttpStatus, Injectable, OnModuleDestroy } from '@nestjs/common'
+import { HttpException, HttpStatus, Injectable, Logger, OnModuleDestroy } from '@nestjs/common'
 import { createHash } from 'node:crypto'
+
+import { resolveRequestClientIp } from '../http/client-ip'
 
 type LoginRateLimitEntry = {
   attempts: number
@@ -8,6 +10,7 @@ type LoginRateLimitEntry = {
 
 @Injectable()
 export class LoginRateLimiterService implements OnModuleDestroy {
+  private readonly logger = new Logger(LoginRateLimiterService.name)
   private readonly attempts = new Map<string, LoginRateLimitEntry>()
   private readonly maxAttempts = this.envNumber('LOGIN_RATE_LIMIT_MAX_ATTEMPTS', 5)
   private readonly windowMs = this.envNumber('LOGIN_RATE_LIMIT_WINDOW_MS', 60_000)
@@ -24,7 +27,9 @@ export class LoginRateLimiterService implements OnModuleDestroy {
 
   consume(email: string, req: any) {
     const now = Date.now()
-    const key = this.keyFor(email, this.clientIp(req))
+    const ip = resolveRequestClientIp(req)
+    this.logger.log(`login rate-limit ip=${ip}`)
+    const key = this.keyFor(email, ip)
     const current = this.attempts.get(key)
     const entry =
       !current || current.resetAt <= now
@@ -52,26 +57,6 @@ export class LoginRateLimiterService implements OnModuleDestroy {
     const normalizedEmail = (email || '').trim().toLowerCase() || 'unknown-email'
     const normalizedIp = (ip || '').trim() || 'unknown-ip'
     return createHash('sha256').update(`${normalizedIp}\n${normalizedEmail}`).digest('hex')
-  }
-
-  private clientIp(req: any) {
-    const forwardedFor = req?.headers?.['x-forwarded-for']
-    const realIp = req?.headers?.['x-real-ip']
-    const raw =
-      this.firstHeaderValue(forwardedFor)?.split(',')[0]?.trim() ||
-      this.firstHeaderValue(realIp)?.trim() ||
-      req?.ip ||
-      req?.socket?.remoteAddress ||
-      req?.connection?.remoteAddress ||
-      'unknown'
-
-    return String(raw).replace(/^::ffff:/, '').trim() || 'unknown'
-  }
-
-  private firstHeaderValue(value: unknown) {
-    if (Array.isArray(value)) return value.find((item) => typeof item === 'string' && item.trim().length > 0)
-    if (typeof value === 'string') return value
-    return ''
   }
 
   private cleanupExpired() {

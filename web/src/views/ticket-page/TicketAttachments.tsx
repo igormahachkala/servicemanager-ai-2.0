@@ -2,6 +2,8 @@ import { useState } from 'react'
 import * as api from '../../lib/api'
 import { FullscreenPhotoViewer, type PhotoViewerItem } from '../../components/FullscreenPhotoViewer'
 import { ticketMediaKind } from '../../lib/ticketAttachmentMedia'
+import { ProtectedUploadAnchor, ProtectedUploadImg, ProtectedUploadVideo } from '../../ui/ProtectedUploadMedia'
+import { useProtectedUploadSrcs } from '../../ui/useProtectedUploadSrc'
 
 type TicketAttachmentsProps = {
   title?: string
@@ -36,12 +38,16 @@ export function TicketAttachments(props: TicketAttachmentsProps) {
 
   const [viewerIndex, setViewerIndex] = useState<number | null>(null)
 
-  const photos: PhotoViewerItem[] = (data ?? [])
-    .filter((a) => a.mimeType.startsWith('image/'))
-    .map((a) => ({ src: api.resolveTicketAttachmentUrl(a), alt: a.originalName }))
+  const imageAttachments = (data ?? []).filter((a) => a.mimeType.startsWith('image/'))
+  const imageUrls = imageAttachments.map((a) => api.resolveTicketAttachmentUrl(a))
+  const imageSrcs = useProtectedUploadSrcs(imageUrls)
+  const photos: PhotoViewerItem[] = imageAttachments.map((a, i) => ({
+    src: imageSrcs[i] || '',
+    alt: a.originalName,
+  }))
 
   function photoIndexFor(attachment: api.TicketAttachmentItem): number {
-    return photos.findIndex((p) => p.alt === attachment.originalName && p.src === api.resolveTicketAttachmentUrl(attachment))
+    return imageAttachments.findIndex((a) => a.id === attachment.id)
   }
 
   return (
@@ -60,19 +66,20 @@ export function TicketAttachments(props: TicketAttachmentsProps) {
             const isImage = attachment.mimeType.startsWith('image/')
             const isVideo = ticketMediaKind(attachment) === 'video'
             const idx = isImage ? photoIndexFor(attachment) : -1
+            const url = api.resolveTicketAttachmentUrl(attachment)
             return (
               <div key={attachment.id} style={{ border: '1px solid #e5e7eb', borderRadius: 12, padding: 12, display: 'grid', gap: 10 }}>
                 <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap' }}>
                   {isImage ? (
-                    <img
-                      src={api.resolveTicketAttachmentUrl(attachment)}
+                    <ProtectedUploadImg
+                      url={url}
                       alt={attachment.originalName}
                       style={{ width: 220, maxWidth: '100%', borderRadius: 10, border: '1px solid #e5e7eb', objectFit: 'cover', cursor: 'zoom-in' }}
                       onClick={() => setViewerIndex(idx)}
                     />
                   ) : isVideo ? (
-                    <video
-                      src={api.resolveTicketAttachmentUrl(attachment)}
+                    <ProtectedUploadVideo
+                      url={url}
                       controls
                       preload="metadata"
                       style={{ width: 420, maxWidth: '100%', maxHeight: 320, borderRadius: 10, border: '1px solid #e5e7eb', background: '#111827' }}
@@ -93,9 +100,9 @@ export function TicketAttachments(props: TicketAttachmentsProps) {
                           Просмотр фото
                         </button>
                       )}
-                      <a href={api.resolveTicketAttachmentUrl(attachment)} target="_blank" rel="noreferrer">
+                      <ProtectedUploadAnchor url={url}>
                         <button className="ghost">Открыть</button>
-                      </a>
+                      </ProtectedUploadAnchor>
                       {canDeletePhoto ? (
                         <button className="ghost" onClick={() => onDelete(attachment.id)} disabled={deletePending}>
                           {deletePending ? 'Удаляем…' : 'Удалить'}
@@ -113,7 +120,7 @@ export function TicketAttachments(props: TicketAttachmentsProps) {
       )}
       {deleteAttachmentError ? <div className="alert" style={{ marginTop: 10 }}>{deleteAttachmentError}</div> : null}
 
-      {viewerIndex !== null && photos.length > 0 && (
+      {viewerIndex !== null && photos.length > 0 && photos.every((p) => p.src) && (
         <FullscreenPhotoViewer
           items={photos}
           initialIndex={viewerIndex}

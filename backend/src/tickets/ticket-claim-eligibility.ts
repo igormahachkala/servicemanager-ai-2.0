@@ -8,6 +8,10 @@ import type { DenyCode } from '../policy/policy.types'
 import { PrismaService } from '../prisma/prisma.service'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
 import {
+  ACTIVE_SHIFT_REQUIRED_MESSAGE,
+  ShiftPolicyService,
+} from '../workforce/shift-policy.service'
+import {
   buildSecondaryOperationalRestrictionWhere,
   buildTechnicianLocationRestrictionWhere,
   isTechnicianLocationAllowed,
@@ -44,6 +48,11 @@ export type TicketClaimCapability = {
   claimAvailabilityReason: string | null
   requestAssignmentAvailabilityReason: string | null
 }
+
+export type ClaimShiftPolicy = Pick<
+  ShiftPolicyService,
+  'isShiftRequiredForActor' | 'hasActiveShift'
+>
 
 type ClaimEligibilityDenied = {
   allowed: false
@@ -94,6 +103,34 @@ function claimAvailable(): TicketClaimCapability {
     canRequestAssignment: false,
     claimAvailabilityReason: null,
     requestAssignmentAvailabilityReason: null,
+  }
+}
+
+export async function resolveClaimShiftBlockReason(params: {
+  shiftPolicyService?: ClaimShiftPolicy
+  actor: Pick<ClaimActor, 'id' | 'companyId' | 'role'>
+}): Promise<string | null> {
+  if (!params.shiftPolicyService) return null
+  const actor = {
+    id: params.actor.id,
+    companyId: params.actor.companyId,
+    role: params.actor.role,
+  }
+  const decision = await params.shiftPolicyService.isShiftRequiredForActor(actor)
+  if (!decision.required) return null
+  if (await params.shiftPolicyService.hasActiveShift(actor)) return null
+  return ACTIVE_SHIFT_REQUIRED_MESSAGE
+}
+
+export function applyShiftPolicyToClaimCapability(
+  capability: TicketClaimCapability,
+  shiftBlockReason: string | null,
+): TicketClaimCapability {
+  if (!shiftBlockReason || !capability.canClaim) return capability
+  return {
+    ...capability,
+    canClaim: false,
+    claimAvailabilityReason: shiftBlockReason,
   }
 }
 
@@ -266,6 +303,7 @@ export async function resolveTicketClaimCapability(params: {
   linkedClientCompanyId?: string
   requireReadableTicket?: boolean
   policy?: TicketsPolicy
+  shiftPolicyService?: ClaimShiftPolicy
 }): Promise<TicketClaimCapability> {
   if (!isExecutorEligible(params.actor)) {
     return deniedClaim(null)
@@ -288,12 +326,17 @@ export async function resolveTicketClaimCapability(params: {
   })
 
   if (claimableTicket) {
-    return resolveEligibleTicketClaimCapability({
+    const capability = await resolveEligibleTicketClaimCapability({
       serviceContractsService: params.serviceContractsService,
       actor: params.actor,
       ticket: claimableTicket,
       linkedClientContractRole: eligibility.linkedClientContractRole,
     })
+    const shiftBlockReason = await resolveClaimShiftBlockReason({
+      shiftPolicyService: params.shiftPolicyService,
+      actor: params.actor,
+    })
+    return applyShiftPolicyToClaimCapability(capability, shiftBlockReason)
   }
 
   const ticketForClaimDiag = await params.prisma.ticket.findFirst({
@@ -358,6 +401,7 @@ export async function resolveClaimCapabilitiesForVisibleTickets(params: {
   ticketIds: string[]
   linkedClientCompanyId?: string
   policy?: TicketsPolicy
+  shiftPolicyService?: ClaimShiftPolicy
 }): Promise<Map<string, TicketClaimCapability>> {
   const uniqueTicketIds = Array.from(new Set(params.ticketIds.filter((id) => id.trim().length > 0)))
   const out = new Map<string, TicketClaimCapability>()
@@ -380,6 +424,11 @@ export async function resolveClaimCapabilitiesForVisibleTickets(params: {
     return out
   }
 
+  const shiftBlockReason = await resolveClaimShiftBlockReason({
+    shiftPolicyService: params.shiftPolicyService,
+    actor: params.actor,
+  })
+
   for (const ticketId of uniqueTicketIds) {
     out.set(ticketId, deniedClaim(CLAIM_SCOPE_REASON))
   }
@@ -398,17 +447,18 @@ export async function resolveClaimCapabilitiesForVisibleTickets(params: {
   })
 
   for (const ticket of eligibleTickets) {
+    const capability = await resolveEligibleTicketClaimCapability({
+      serviceContractsService: params.serviceContractsService,
+      actor: params.actor,
+      ticket,
+      linkedClientContractRole:
+        eligibility.effectiveLinkedClientCompanyId === ticket.companyId
+          ? eligibility.linkedClientContractRole
+          : null,
+    })
     out.set(
       ticket.id,
-      await resolveEligibleTicketClaimCapability({
-        serviceContractsService: params.serviceContractsService,
-        actor: params.actor,
-        ticket,
-        linkedClientContractRole:
-          eligibility.effectiveLinkedClientCompanyId === ticket.companyId
-            ? eligibility.linkedClientContractRole
-            : null,
-      }),
+      applyShiftPolicyToClaimCapability(capability, shiftBlockReason),
     )
   }
 

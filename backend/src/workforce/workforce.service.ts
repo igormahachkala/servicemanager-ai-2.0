@@ -46,6 +46,7 @@ export class WorkforceService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly serviceContractsService: ServiceContractsService,
+    private readonly shiftPolicyService?: ShiftPolicyService,
   ) {}
 
   async getMyState(actor: WorkforceActor) {
@@ -122,6 +123,7 @@ export class WorkforceService {
 
   async startTicketWork(actor: WorkforceActor, ticketId: string, linkedClientCompanyId?: string) {
     await this.assertActiveActor(actor)
+    await this.shiftPolicyService?.assertActiveShiftForOperationalWork(actor)
     const shift = await this.prisma.workShift.findFirst({
       where: { companyId: actor.companyId, userId: actor.id, status: WorkShiftStatus.OPEN },
       select: { id: true },

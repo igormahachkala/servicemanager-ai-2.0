@@ -46,9 +46,10 @@ export function MobileAttachmentThumb({
   const [objectUrl, setObjectUrl] = useState<string | null>(null)
   const [fetchFailed, setFetchFailed] = useState(false)
   const resolved = api.resolveTicketAttachmentUrl(attachment)
-  const previewSrc = objectUrl || resolved
+  const previewSrc = objectUrl || (api.isProtectedUploadUrl(resolved) ? '' : resolved)
   const label = mobileAttachmentLabel(attachment)
   const mediaKind = ticketMediaKind(attachment)
+  const waitingForBlob = Boolean(resolved) && api.isProtectedUploadUrl(resolved) && !objectUrl && !fetchFailed
 
   useEffect(() => {
     setBroken(false)
@@ -72,7 +73,7 @@ export function MobileAttachmentThumb({
   }, [objectUrl])
 
   useEffect(() => {
-    if (!broken || objectUrl || fetchFailed || !resolved || !api.isProtectedUploadUrl(resolved)) return
+    if (objectUrl || fetchFailed || !resolved || !api.isProtectedUploadUrl(resolved)) return
 
     let cancelled = false
     void api.fetchProtectedUploadBlob(resolved).then((blob) => {
@@ -101,10 +102,10 @@ export function MobileAttachmentThumb({
   }
 
   if (!mediaKind || (broken && fetchFailed)) {
-    return <FallbackLink href={resolved} label={label} />
+    return <FallbackLink href={objectUrl || resolved} label={label} />
   }
 
-  if (broken && !objectUrl) {
+  if ((broken && !objectUrl) || waitingForBlob) {
     return (
       <div className="mobilePhotoFallbackLink mobilePhotoFallbackLinkStatic">
         <span className="mobilePhotoFallbackTitle">{label}</span>

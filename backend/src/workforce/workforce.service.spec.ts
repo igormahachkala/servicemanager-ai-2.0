@@ -2,6 +2,11 @@ import { BadRequestException, ForbiddenException } from '@nestjs/common'
 import { CompanyType, UserRole, WorkShiftStatus } from '@prisma/client'
 
 import { resolveTicketOperationAccess } from '../tickets/ticket-access.utils'
+import {
+  ACTIVE_SHIFT_REQUIRED,
+  ACTIVE_SHIFT_REQUIRED_MESSAGE,
+  ActiveShiftRequiredException,
+} from './shift-policy.service'
 import { WorkforceService } from './workforce.service'
 
 jest.mock('../tickets/ticket-access.utils', () => ({
@@ -35,6 +40,27 @@ describe('WorkforceService', () => {
     expect(resolveTicketOperationAccess).not.toHaveBeenCalled()
   })
 
+  it('enforces provider shift policy before starting ticket work', async () => {
+    const prisma = makePrisma()
+    const shiftPolicyService = {
+      assertActiveShiftForOperationalWork: jest
+        .fn()
+        .mockRejectedValue(new ActiveShiftRequiredException()),
+    }
+    const service = new WorkforceService(prisma, {} as any, shiftPolicyService as any)
+
+    await expect(service.startTicketWork(actor, 'ticket-1')).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: ACTIVE_SHIFT_REQUIRED,
+        message: ACTIVE_SHIFT_REQUIRED_MESSAGE,
+      }),
+    })
+
+    expect(shiftPolicyService.assertActiveShiftForOperationalWork).toHaveBeenCalledWith(actor)
+    expect(prisma.workShift.findFirst).not.toHaveBeenCalled()
+    expect(resolveTicketOperationAccess).not.toHaveBeenCalled()
+  })
+
   it('allows time tracking only on a ticket assigned to the employee', async () => {
     const prisma = makePrisma()
     prisma.workShift.findFirst.mockResolvedValue({ id: 'shift-1' })
@@ -51,6 +77,45 @@ describe('WorkforceService', () => {
 
     await expect(service.startTicketWork(actor, 'ticket-1', 'client-1')).rejects.toBeInstanceOf(
       ForbiddenException,
+    )
+  })
+
+  it('allows stopping an already running worklog even when shift policy would block new work', async () => {
+    const prisma = makePrisma()
+    const running = {
+      id: 'worklog-1',
+      ticketId: 'ticket-1',
+      startedAt: new Date('2026-08-31T08:00:00.000Z'),
+      ticket: { companyId: 'client-1' },
+    }
+    const tx = {
+      workLog: { update: jest.fn().mockResolvedValue({}) },
+      domainEvent: { create: jest.fn().mockResolvedValue({}) },
+    }
+    prisma.workLog.findFirst.mockResolvedValue(running)
+    prisma.$transaction.mockImplementation(async (callback: any) => callback(tx))
+    const shiftPolicyService = {
+      assertActiveShiftForOperationalWork: jest
+        .fn()
+        .mockRejectedValue(new ActiveShiftRequiredException()),
+    }
+    const service = new WorkforceService(prisma, {} as any, shiftPolicyService as any)
+
+    await expect(service.stopTicketWork(actor, 'ticket-1')).resolves.toMatchObject({
+      company: { id: actor.companyId },
+    })
+
+    expect(shiftPolicyService.assertActiveShiftForOperationalWork).not.toHaveBeenCalled()
+    expect(tx.workLog.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: running.id } }),
+    )
+    expect(tx.domainEvent.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          type: 'ticket.work_stopped',
+          entityId: 'ticket-1',
+        }),
+      }),
     )
   })
 
