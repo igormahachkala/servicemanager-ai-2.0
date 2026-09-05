@@ -3661,6 +3661,7 @@ export async function completeInspectionRun(runId: string): Promise<CompleteInsp
 }
 
 export type InspectionFrequency =
+  | 'ONCE'
   | 'DAILY'
   | 'WEEKLY'
   | 'BIWEEKLY'
