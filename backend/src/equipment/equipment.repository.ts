@@ -42,6 +42,17 @@ export class EquipmentRepository {
     });
   }
 
+  findLocationById(locationId: string) {
+    return this.prisma.location.findUnique({
+      where: { id: locationId },
+      select: {
+        id: true,
+        clientCompanyId: true,
+        isActive: true,
+      },
+    });
+  }
+
   findAllByLocation(companyId: string, locationId: string) {
     return this.prisma.equipment.findMany({
       where: {
@@ -59,6 +70,13 @@ export class EquipmentRepository {
         id,
         companyId,
       },
+      select: this.select,
+    });
+  }
+
+  findOneById(id: string) {
+    return this.prisma.equipment.findUnique({
+      where: { id },
       select: this.select,
     });
   }
