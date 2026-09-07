@@ -55,6 +55,20 @@ export function MobileInspectionRunPage() {
   const [busyItemIds, setBusyItemIds] = useState<Set<string>>(new Set())
   const [activeIssueItemId, setActiveIssueItemId] = useState<string | null>(null)
   const [issueComment, setIssueComment] = useState('')
+  /**
+   * Категория заявки выбирается человеком.
+   *
+   * Раньше мобильный молча брал activeCategories[0]. Каталог приходит
+   * отсортированным по createdAt desc, то есть первой оказывается самая свежая
+   * категория клиента — какая угодно. Если её специализации нет в контракте,
+   * заявка создаётся, но обратно провайдеру уже не видна: чтение линкованных
+   * заявок сужается специализациями контракта, и карточка отвечает 404.
+   * Проверено на Stage: #777 с категорией из контракта открывается, #778 и #779
+   * с «Wrong Specialization Category» — нет.
+   *
+   * Десктоп категорию всегда спрашивал; мобильный теперь тоже.
+   */
+  const [ticketCategoryId, setTicketCategoryId] = useState('')
   const [confirmComplete, setConfirmComplete] = useState(false)
   const [completeBusy, setCompleteBusy] = useState(false)
   const [flashMsg, setFlashMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
@@ -195,9 +209,13 @@ export function MobileInspectionRunPage() {
 
   async function createTicket(item: api.InspectionRunItem) {
     if (busyItemIds.has(item.id)) return
-    const categoryId = activeCategories[0]?.id || ''
-    if (!categoryId) {
+    if (!activeCategories.length) {
       flash('err', 'Нет активной категории для создания заявки')
+      return
+    }
+    const categoryId = ticketCategoryId.trim()
+    if (!categoryId) {
+      flash('err', 'Выберите категорию заявки')
       return
     }
     if (getCreatedTicketId(item)) return
@@ -533,12 +551,26 @@ export function MobileInspectionRunPage() {
                     ) : null}
 
                     {canCreateTicket ? (
-                      <div className="mobilePatrolItemActions">
+                      <div className="mobilePatrolItemActions" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }}>
+                        <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#374151' }}>
+                          Категория заявки
+                          <select
+                            style={{ width: '100%', marginTop: 4, minHeight: 34, fontSize: '0.82rem', borderRadius: 8 }}
+                            value={ticketCategoryId}
+                            disabled={busy}
+                            onChange={(e) => setTicketCategoryId(e.target.value)}
+                          >
+                            <option value="">— выберите категорию —</option>
+                            {activeCategories.map((category) => (
+                              <option key={category.id} value={category.id}>{category.name}</option>
+                            ))}
+                          </select>
+                        </label>
                         <button
                           type="button"
                           className="mobileBtn"
                           style={{ minHeight: 34, padding: '6px 14px', fontSize: '0.82rem', borderRadius: 8 }}
-                          disabled={busy}
+                          disabled={busy || !ticketCategoryId}
                           onClick={() => createTicket(item)}
                         >
                           {busy ? 'Создаём…' : 'Создать заявку'}
