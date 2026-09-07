@@ -100,9 +100,26 @@ export function InspectionRunPage() {
     queryFn: () => api.getInspectionRun(runId),
     enabled: !!runId,
   })
+  /**
+   * Каталог категорий берётся по компании-владельцу площадки, а не по компании
+   * исполнителя. Обход по площадке клиента ведёт провайдер, а заявка по найденной
+   * проблеме принадлежит клиенту: канонический TicketsService выводит владельца
+   * из Location.clientCompanyId, и категория обязана принадлежать тому же
+   * владельцу — иначе getCategory её не найдёт.
+   *
+   * Эндпоинт тот же самый, /problem-categories?companyId=<клиент>: он сам
+   * проверяет связь провайдер→клиент через getLinkedClientAccess и отвечает
+   * «Linked client not found», если связи нет. Своей проверки здесь не нужно
+   * и заводить её нельзя.
+   *
+   * companyId входит в ключ кэша: иначе каталог одного клиента показался бы
+   * в обходе по площадке другого.
+   */
+  const targetClientCompanyId = runQ.data?.location?.clientCompanyId || ''
   const categoriesQ = useQuery<api.ProblemCategoryListItem[]>({
-    queryKey: ['problem-categories'],
-    queryFn: () => api.problemCategories(),
+    queryKey: ['problem-categories', targetClientCompanyId],
+    queryFn: () => api.problemCategories(targetClientCompanyId),
+    enabled: !!targetClientCompanyId,
   })
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
 
