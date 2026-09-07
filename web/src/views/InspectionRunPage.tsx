@@ -25,6 +25,21 @@ function statusLabel(status: api.InspectionRunItemStatus) {
   return status
 }
 
+/**
+ * Статус связанной заявки словами. Держим рядом со statusLabel пункта: обход —
+ * отдельная поверхность со своими подписями, как и мобильная. Общий словарь
+ * заводить не под что — вторая подпись здесь единственная.
+ */
+function ticketStatusLabel(status: api.TicketStatus) {
+  if (status === 'NEW') return 'Новая'
+  if (status === 'ASSIGNED') return 'Назначена'
+  if (status === 'IN_PROGRESS') return 'В работе'
+  if (status === 'AWAITING_ACCEPTANCE') return 'Ожидает приёмки'
+  if (status === 'DONE') return 'Завершена'
+  if (status === 'CANCELED') return 'Отменена'
+  return status
+}
+
 function statusButtonStyle(active: boolean, tone: 'neutral' | 'good' | 'warn' | 'danger') {
   const palettes = {
     neutral: active ? ['#e0f2fe', '#0284c7', '#075985'] : ['#fff', '#d1d5db', '#374151'],
@@ -383,12 +398,20 @@ export function InspectionRunPage() {
                           <div className="muted small">Проблемный пункт можно сразу перевести в обычный ticket.</div>
                         </div>
                         {ticketExists && item.ticketId ? (
-                          <Link to={'/tickets/' + item.ticketId}><button className="ghost">Открыть заявку</button></Link>
+                          <Link to={'/tickets/' + item.ticketId}>
+                            <button className="ghost">
+                              {item.ticket?.ticketNumber != null ? `Открыть заявку #${item.ticket.ticketNumber}` : 'Открыть заявку'}
+                            </button>
+                          </Link>
                         ) : null}
                       </div>
 
                       {ticketExists ? (
-                        <div className="muted small">Заявка уже создана для этого пункта.</div>
+                        <div className="muted small">
+                          {item.ticket
+                            ? `Заявка #${item.ticket.ticketNumber} — ${ticketStatusLabel(item.ticket.status)}. Обход можно продолжать.`
+                            : 'Заявка уже создана для этого пункта.'}
+                        </div>
                       ) : (
                         <div className="grid2" style={{ gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                           <label>

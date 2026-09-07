@@ -629,6 +629,10 @@ function runItemSelect() {
     ticket: {
       select: {
         id: true,
+        // Номер заявки нужен обходу, чтобы показать связь «пункт → заявка»
+        // человеку: id — uuid, по нему в разговоре заявку не назовёшь.
+        // Берётся из канонического Ticket, второй нумерации не заводится.
+        ticketNumber: true,
         status: true,
         urgency: true,
         createdAt: true,
