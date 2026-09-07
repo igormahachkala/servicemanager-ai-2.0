@@ -18,6 +18,7 @@
     "test:browser-storage": "node scripts/verify-browser-storage-reliability.mjs",
     "test:mobile-rc": "node scripts/verify-mobile-rc-fixes.mjs",
     "test:mobile-shift-gate": "node scripts/verify-mobile-shift-gate.mjs",
+    "test:rounds-location-scope": "node scripts/verify-rounds-provider-location-scope.mjs",
     "split:api": "node scripts/split-api-layer.mjs",
     "split:api:apply": "node scripts/split-api-layer.mjs --apply-barrel"
   },
