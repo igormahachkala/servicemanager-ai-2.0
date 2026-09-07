@@ -158,8 +158,8 @@ describe('097 provider/client location scope for Rounds', () => {
   // ── 8: status and date window ───────────────────────────────────────────────
   it.each([
     ['DRAFT', { status: ServiceContractStatus.DRAFT }],
-    ['SUSPENDED', { status: ServiceContractStatus.SUSPENDED }],
-    ['TERMINATED', { status: ServiceContractStatus.TERMINATED }],
+    ['INACTIVE', { status: ServiceContractStatus.INACTIVE }],
+    ['ENDED', { status: ServiceContractStatus.ENDED }],
   ])('DENIES a %s contract', async (_label, overrides) => {
     const contracts = makeContracts([makeContract(overrides)])
 
@@ -265,7 +265,7 @@ describe('097 provider/client location scope for Rounds', () => {
     const contracts = makeContracts([
       makeContract({
         role: ServiceContractRole.SECONDARY,
-        status: ServiceContractStatus.TERMINATED,
+        status: ServiceContractStatus.INACTIVE,
         locationMode: ServiceContractLocationMode.SELECTED_LOCATIONS,
         locations: [{ locationId: LOC_A1.id }],
       }),

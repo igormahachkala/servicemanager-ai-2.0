@@ -305,7 +305,7 @@ describe('097 InspectionService run access re-validation', () => {
 
   it('DENIES reading a provider run after the contract lapsed', async () => {
     const { svc, prisma } = makeSuite({
-      contracts: [makeContract({ status: ServiceContractStatus.TERMINATED })],
+      contracts: [makeContract({ status: ServiceContractStatus.ENDED })],
     })
     prisma.inspectionRun.findFirst.mockResolvedValue(runRow())
 
@@ -395,7 +395,7 @@ describe('097 ticket raised from a provider-executed round', () => {
 
   it('DENIES raising a ticket from a run whose contract lapsed', async () => {
     const { svc, prisma, tickets } = makeSuite({
-      contracts: [makeContract({ status: ServiceContractStatus.SUSPENDED })],
+      contracts: [makeContract({ status: ServiceContractStatus.INACTIVE })],
     })
     prisma.inspectionRun.findFirst.mockResolvedValue({
       id: 'run-1',
