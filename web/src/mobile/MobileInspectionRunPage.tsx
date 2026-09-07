@@ -5,7 +5,12 @@ import * as api from '../lib/api'
 import { numericConstraintLabel, responseTypeLabel } from '../lib/inspectionZones'
 import { ProtectedUploadImg } from '../ui/ProtectedUploadMedia'
 import { mobilePath } from './mobileRoute'
-import { mobileTicketNavState, mobileTicketStatusLabelRu } from './mobileTicketDisplay'
+import {
+  compactTicketScope,
+  mobileTicketNavState,
+  mobileTicketStatusLabelRu,
+  scopeForMobileTicketLink,
+} from './mobileTicketDisplay'
 
 function fmtDateTime(value?: string | null): string {
   if (!value) return '—'
@@ -58,6 +63,19 @@ export function MobileInspectionRunPage() {
   const [uploadTargetItemId, setUploadTargetItemId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
+
+  /**
+   * Контур текущей страницы: то же чтение, что в «Моих заявках» — параметр URL,
+   * иначе сохранённый контур владельца.
+   */
+  const pageScope = useMemo<api.TicketScopeParams>(() => {
+    const search = new URLSearchParams(location.search)
+    const linked = (search.get('linkedClientCompanyId') || api.getLinkedClientCompanyId(meQ.data)).trim()
+    const company = (search.get('companyId') || api.getObserverCompanyId(meQ.data)).trim()
+    return { linkedClientCompanyId: linked || undefined, companyId: company || undefined }
+  }, [location.search, meQ.data])
+
   const runQ = useQuery({
     queryKey: ['inspection-run', runId],
     queryFn: () => api.getInspectionRun(runId),
@@ -108,6 +126,30 @@ export function MobileInspectionRunPage() {
 
   function getCreatedTicketId(item: api.InspectionRunItem): string {
     return (item.ticketId || item.ticket?.id || createdTicketsByItemId[item.id]?.ticketId || '').trim()
+  }
+
+  /**
+   * Ссылка на связанную заявку.
+   *
+   * Заявка принадлежит владельцу площадки, а обход ведёт исполнитель. Раньше сюда
+   * уходил run.companyId — компания исполнителя, — и на провайдерском обходе по
+   * площадке клиента мобильная карточка заявки запрашивалась в контуре самого
+   * провайдера и отвечала «Заявка не найдена или недоступна». Десктоп этим путём
+   * не ходит: там обычная ссылка /tickets/<id> без мобильного контура.
+   *
+   * Контур считает scopeForMobileTicketLink — тот же помощник, которым пользуются
+   * «Мои заявки» и чаты: своя компания — контур не добавляется, чужая — добавляется
+   * linkedClientCompanyId владельца, и только для ролей из его списка. Своих правил
+   * доступа здесь нет, доступ по-прежнему решает бэкенд.
+   *
+   * Раньше к ссылке подставлялся location.search обхода целиком: чужой
+   * linkedClientCompanyId из него побеждал бы владельца заявки.
+   */
+  function linkedTicketHref(ticketId: string): string {
+    const base = mobilePath(location.pathname, `/tickets/${ticketId}`)
+    if (!meQ.data || !targetClientCompanyId) return `${base}${location.search}`
+    const linkScope = scopeForMobileTicketLink(meQ.data, pageScope, { companyId: targetClientCompanyId })
+    return api.appendScopeToPath(base, compactTicketScope(linkScope), meQ.data)
   }
 
   /**
@@ -507,8 +549,8 @@ export function MobileInspectionRunPage() {
                     {createdTicketId ? (
                       <div className="mobilePatrolItemActions">
                         <Link
-                          to={`${mobilePath(location.pathname, `/tickets/${createdTicketId}`)}${location.search}`}
-                          state={mobileTicketNavState('home', run?.companyId)}
+                          to={linkedTicketHref(createdTicketId)}
+                          state={mobileTicketNavState('home', targetClientCompanyId || run?.companyId)}
                           className="mobileBtn mobileBtnSecondary"
                           style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minHeight: 34, padding: '6px 14px', fontSize: '0.82rem', borderRadius: 8 }}
                         >
