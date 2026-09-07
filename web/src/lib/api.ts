@@ -3372,6 +3372,12 @@ export type InspectionRun = {
   } | null
   location: {
     id: string
+    /**
+     * Компания-владелец площадки. Для обхода, который ведёт провайдер, это НЕ
+     * компания исполнителя: заявка по найденной проблеме принадлежит клиенту.
+     * Поле приходит из выборки обхода с 097.
+     */
+    clientCompanyId: string
     name: string
     city?: string | null
     address?: string | null

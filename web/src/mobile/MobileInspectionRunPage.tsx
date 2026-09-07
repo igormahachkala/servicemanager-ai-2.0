@@ -63,9 +63,18 @@ export function MobileInspectionRunPage() {
     queryFn: () => api.getInspectionRun(runId),
     enabled: !!runId,
   })
+  /**
+   * Каталог категорий — по компании-владельцу площадки, а не по компании
+   * исполнителя: обход по площадке клиента ведёт провайдер, а заявка
+   * принадлежит клиенту. Тот же эндпоинт /problem-categories?companyId=<клиент>
+   * сам проверяет связь провайдер→клиент; своей проверки здесь нет.
+   * Подробнее — тот же блок в InspectionRunPage.
+   */
+  const targetClientCompanyId = runQ.data?.location?.clientCompanyId || ''
   const categoriesQ = useQuery<api.ProblemCategoryListItem[]>({
-    queryKey: ['problem-categories'],
-    queryFn: () => api.problemCategories(),
+    queryKey: ['problem-categories', targetClientCompanyId],
+    queryFn: () => api.problemCategories(targetClientCompanyId),
+    enabled: !!targetClientCompanyId,
   })
 
   const updateM = useMutation({
