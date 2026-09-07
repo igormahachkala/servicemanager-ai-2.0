@@ -3,6 +3,7 @@ import { TicketStatus, UserRole } from '@prisma/client'
 import { TicketsPolicy } from '../policy/tickets.policy'
 import { isExecutorEligible } from '../common/executor.utils'
 import { PrismaService } from '../prisma/prisma.service'
+import { ContractContextService } from '../service-contracts/contract-context.service'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
 import { decideTicketTransition } from '../workflow/ticket.workflow'
 import {
@@ -11,6 +12,10 @@ import {
 } from './ticket-access.utils'
 import { canAcceptTicket } from './ticket-acceptance-access'
 import { resolveTicketClaimCapability, type TicketClaimCapability } from './ticket-claim-eligibility'
+import {
+  resolveTicketSelfAssignCapability,
+  type TicketSelfAssignCapability,
+} from './ticket-self-assign-capability'
 import { TICKET_ASSIGNMENT_REQUESTED_ENTITY, TICKET_ASSIGNMENT_REQUESTED_EVENT } from './ticket-domain-event.types'
 import {
   ACTIVE_SHIFT_REQUIRED_MESSAGE,
@@ -36,15 +41,20 @@ export type TicketMetaBuildParams = {
 
 export class TicketMetaBuilder {
   private readonly policy = new TicketsPolicy()
+  private readonly contractContextService: ContractContextService
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly serviceContractsService: ServiceContractsService,
+    contractContextService?: ContractContextService,
     private readonly shiftPolicyService?: ShiftPolicyService,
-  ) {}
+  ) {
+    this.contractContextService = contractContextService ?? new ContractContextService(prisma)
+  }
 
   async buildForGetOne(params: TicketMetaBuildParams) {
     const claimAvailability = await this.resolveClaimAvailability(params)
+    const selfAssignAvailability = await this.resolveSelfAssignAvailability(params)
     const shiftBlockReason = await this.resolveOperationalShiftBlockReason(params)
     const availableStatusTransitions = shiftBlockReason ? [] : await this.resolveAvailableStatusTransitions(params)
     const assignmentRequestedByCurrentUser = await this.resolveAssignmentRequestedByCurrentUser(params)
@@ -54,6 +64,7 @@ export class TicketMetaBuilder {
       claimAvailability,
       availableStatusTransitions,
       acceptanceAvailable,
+      selfAssignAvailability,
       shiftBlockReason,
     )
 
@@ -63,6 +74,8 @@ export class TicketMetaBuilder {
       canClaim: claimAvailability.canClaim,
       canClaimByCurrentUser: claimAvailability.canClaim,
       canRequestAssignment: claimAvailability.canRequestAssignment,
+      canAssignSelf: selfAssignAvailability.canAssignSelf,
+      assignSelfAvailabilityReason: selfAssignAvailability.assignSelfAvailabilityReason,
       claimAvailabilityReason: claimAvailability.claimAvailabilityReason,
       requestAssignmentAvailabilityReason: claimAvailability.requestAssignmentAvailabilityReason,
       assignmentRequestedByCurrentUser,
@@ -81,10 +94,12 @@ export class TicketMetaBuilder {
     claim: TicketClaimCapability,
     transitions: TicketStatus[],
     acceptanceAvailable: boolean,
+    selfAssign: TicketSelfAssignCapability,
     shiftBlockReason: string | null,
   ): {
     availableActions: {
       canClaim: boolean
+      canAssignSelf: boolean
       canStart: boolean
       canComplete: boolean
       canClose: boolean
@@ -92,10 +107,10 @@ export class TicketMetaBuilder {
       canReject: boolean
       canRequestAssignment: boolean
     }
-    availableActionHints?: Partial<Record<'canClaim' | 'canRequestAssignment' | 'canStart' | 'canComplete' | 'canClose' | 'canAccept' | 'canReject', string | null>>
+    availableActionHints?: Partial<Record<'canClaim' | 'canAssignSelf' | 'canRequestAssignment' | 'canStart' | 'canComplete' | 'canClose' | 'canAccept' | 'canReject', string | null>>
   } {
     const isExec = isExecutorEligible({ role: params.role, isExecutor: params.isExecutor })
-    const hints: Partial<Record<'canClaim' | 'canRequestAssignment' | 'canStart' | 'canComplete' | 'canClose' | 'canAccept' | 'canReject', string | null>> = {}
+    const hints: Partial<Record<'canClaim' | 'canAssignSelf' | 'canRequestAssignment' | 'canStart' | 'canComplete' | 'canClose' | 'canAccept' | 'canReject', string | null>> = {}
 
     const canClaim =
       isExec &&
@@ -116,6 +131,10 @@ export class TicketMetaBuilder {
       claim.claimAvailabilityReason
     ) {
       hints.canClaim = claim.claimAvailabilityReason
+    }
+
+    if (!selfAssign.canAssignSelf && selfAssign.assignSelfAvailabilityReason) {
+      hints.canAssignSelf = selfAssign.assignSelfAvailabilityReason
     }
 
     const preferClaimOverDirectInProgress =
@@ -151,6 +170,7 @@ export class TicketMetaBuilder {
     return {
       availableActions: {
         canClaim,
+        canAssignSelf: selfAssign.canAssignSelf,
         canStart,
         canComplete,
         canClose,
@@ -214,6 +234,43 @@ export class TicketMetaBuilder {
       linkedClientCompanyId: effectiveLinkedClientCompanyId,
       shiftPolicyService: this.shiftPolicyService,
     })
+  }
+
+  /**
+   * «Назначить на себя» для управляющих ролей подрядчика. Отдельная capability:
+   * claim (086) отвечает за исполнителей, здесь — управленческое действие,
+   * и путать их нельзя ни в UI, ни в правах.
+   */
+  private async resolveSelfAssignAvailability(
+    params: TicketMetaBuildParams,
+  ): Promise<TicketSelfAssignCapability> {
+    const effectiveLinkedClientCompanyId =
+      params.linkedClientCompanyId ??
+      (params.ticketCompanyId !== params.actorCompanyId ? params.ticketCompanyId : undefined)
+
+    try {
+      return await resolveTicketSelfAssignCapability(
+        {
+          prisma: this.prisma,
+          serviceContractsService: this.serviceContractsService,
+          contractContextService: this.contractContextService,
+          policy: this.policy,
+        },
+        {
+          actor: {
+            id: params.userId,
+            role: params.role,
+            companyId: params.actorCompanyId,
+            accessFlags: params.accessFlags,
+          },
+          ticketId: params.ticketId,
+          linkedClientCompanyId: effectiveLinkedClientCompanyId,
+        },
+      )
+    } catch {
+      // Необязательная capability не должна ронять карточку заявки; отказ закрытый.
+      return { canAssignSelf: false, assignSelfAvailabilityReason: null }
+    }
   }
 
   private async resolveOperationalShiftBlockReason(params: TicketMetaBuildParams): Promise<string | null> {
