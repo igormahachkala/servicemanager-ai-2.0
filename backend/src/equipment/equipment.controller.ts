@@ -1,4 +1,15 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 
 import { JwtAuthGuard } from '../auth/jwt.guard';
@@ -22,7 +33,12 @@ export class EquipmentController {
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER)
   @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
   create(@Req() req: any, @Body() dto: CreateEquipmentDto) {
-    return this.svc.create(req.user.companyId, dto);
+    return this.svc.create(
+      req.user.companyId,
+      req.user.id,
+      req.user.role as UserRole,
+      dto,
+    );
   }
 
   @Get('location/:locationId')
@@ -36,8 +52,18 @@ export class EquipmentController {
     UserRole.TERRITORIAL_MANAGER,
   )
   @RequirePermission(PERMISSIONS.LOCATIONS_VIEW)
-  findAllByLocation(@Req() req: any, @Param('locationId') locationId: string, @Query('companyId') companyId?: string) {
-    return this.svc.findAllByLocation(req.user.companyId, req.user.id, req.user.role as UserRole, locationId, companyId);
+  findAllByLocation(
+    @Req() req: any,
+    @Param('locationId') locationId: string,
+    @Query('companyId') companyId?: string,
+  ) {
+    return this.svc.findAllByLocation(
+      req.user.companyId,
+      req.user.id,
+      req.user.role as UserRole,
+      locationId,
+      companyId,
+    );
   }
 
   @Get(':id')
@@ -51,21 +77,46 @@ export class EquipmentController {
     UserRole.TERRITORIAL_MANAGER,
   )
   @RequirePermission(PERMISSIONS.LOCATIONS_VIEW)
-  findOne(@Req() req: any, @Param('id') id: string, @Query('companyId') companyId?: string) {
-    return this.svc.findOne(req.user.companyId, req.user.id, req.user.role as UserRole, id, companyId);
+  findOne(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Query('companyId') companyId?: string,
+  ) {
+    return this.svc.findOne(
+      req.user.companyId,
+      req.user.id,
+      req.user.role as UserRole,
+      id,
+      companyId,
+    );
   }
 
   @Patch(':id')
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER)
   @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
-  update(@Req() req: any, @Param('id') id: string, @Body() dto: UpdateEquipmentDto) {
-    return this.svc.update(req.user.companyId, id, dto);
+  update(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() dto: UpdateEquipmentDto,
+  ) {
+    return this.svc.update(
+      req.user.companyId,
+      req.user.id,
+      req.user.role as UserRole,
+      id,
+      dto,
+    );
   }
 
   @Delete(':id')
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER)
   @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
   remove(@Req() req: any, @Param('id') id: string) {
-    return this.svc.remove(req.user.companyId, id);
+    return this.svc.remove(
+      req.user.companyId,
+      req.user.id,
+      req.user.role as UserRole,
+      id,
+    );
   }
 }
