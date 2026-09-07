@@ -3312,6 +3312,7 @@ export type InspectionRunItemAttachment = {
 
 export type InspectionLinkedTicket = {
   id: string
+  ticketNumber: number
   status: TicketStatus
   urgency: TicketUrgency
   createdAt: string
