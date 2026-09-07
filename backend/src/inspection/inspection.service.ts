@@ -14,8 +14,15 @@ import { extname, join } from 'path'
 import { assertAllowed } from '../policy/policy.utils'
 import { InspectionPolicy, type InspectionUserCtx } from '../policy/inspection.policy'
 import { PrismaService } from '../prisma/prisma.service'
+import { ServiceContractsService } from '../service-contracts/service-contracts.service'
 import { TicketsService } from '../tickets/tickets.service'
 import { TimelineService } from '../timeline/timeline.service'
+
+import {
+  assertInspectionLocationAccess,
+  resolveInspectionLocationAccess,
+  type InspectionLocationRef,
+} from './inspection-location-scope'
 
 import { InspectionExportService } from './inspection.export.service'
 import { CreateTemplateDto } from './dto/create-template.dto'
@@ -39,6 +46,7 @@ export class InspectionService {
     private readonly tickets: TicketsService,
     private readonly timeline: TimelineService,
     private readonly exporter: InspectionExportService,
+    private readonly serviceContracts: ServiceContractsService,
   ) {}
 
   async listTemplates(user: InspectionUserCtx) {
@@ -111,12 +119,21 @@ export class InspectionService {
   async listRuns(user: InspectionUserCtx) {
     assertAllowed(this.policy.canStartRun(user))
 
-    return this.prisma.inspectionRun.findMany({
+    const runs = await this.prisma.inspectionRun.findMany({
       where: { companyId: user.companyId },
       orderBy: [{ createdAt: 'desc' }],
       take: 50,
       select: runListSelect(),
     })
+
+    /**
+     * 097: `companyId` is the executing company, so this list already excludes other tenants'
+     * runs. What it cannot express is a provider run whose authorising contract has since
+     * lapsed or had the location removed from its scope. Those are dropped here so the list
+     * fails closed the same way the single-run paths do. Runs at the actor's own locations
+     * skip the check entirely, so the client-owned path issues no extra queries.
+     */
+    return this.filterRunsByLocationScope(user, runs)
   }
 
   async startRun(user: InspectionUserCtx, dto: StartRunDto) {
@@ -153,15 +170,50 @@ export class InspectionService {
     })
     if (!template) throw new NotFoundException('Inspection template not found')
 
-    const location = await this.prisma.location.findFirst({
-      where: { id: dto.locationId, clientCompanyId: user.companyId },
-      select: { id: true, name: true },
+    /**
+     * 097: the location is no longer required to belong to the actor's own company. It is
+     * looked up on its own and then authorised through the canonical contract primitives, so
+     * a provider can run its template at a permitted client location. For a client acting on
+     * its own location the check short-circuits to tenant-wide self-access and the outcome is
+     * identical to the pre-097 `clientCompanyId: user.companyId` filter.
+     */
+    let location = await this.prisma.location.findFirst({
+      where: { id: dto.locationId },
+      select: { id: true, name: true, clientCompanyId: true },
     })
     if (!location) throw new NotFoundException('Location not found')
+    if (!location.clientCompanyId) {
+      const ownCompanyLocation = await this.prisma.location.findFirst({
+        where: { id: dto.locationId, clientCompanyId: user.companyId },
+        select: { id: true, name: true, clientCompanyId: true },
+      })
+      if (ownCompanyLocation) {
+        location = {
+          ...ownCompanyLocation,
+          clientCompanyId: ownCompanyLocation.clientCompanyId || user.companyId,
+        }
+      }
+    }
 
+    const locationAccess = await assertInspectionLocationAccess({
+      serviceContracts: this.serviceContracts,
+      actorCompanyId: user.companyId,
+      location,
+      notFoundMessage: 'Location not found',
+    })
+
+    /**
+     * Equipment belongs to the company that owns the site, not to the executing company.
+     * Scoping it by the resolved client company keeps the equipment tenant correct in both
+     * the client-owned and the provider-executed case.
+     */
     const equipment = dto.equipmentId
       ? await this.prisma.equipment.findFirst({
-          where: { id: dto.equipmentId, companyId: user.companyId, locationId: location.id },
+          where: {
+            id: dto.equipmentId,
+            companyId: locationAccess.clientCompanyId,
+            locationId: location.id,
+          },
           select: { id: true },
         })
       : null
@@ -211,6 +263,7 @@ export class InspectionService {
     })
 
     if (!run) throw new NotFoundException('Inspection run not found')
+    await this.assertRunLocationStillInScope(user, run)
     return run
   }
 
@@ -223,6 +276,7 @@ export class InspectionService {
     })
 
     if (!run) throw new NotFoundException('Inspection run not found')
+    await this.assertRunLocationStillInScope(user, run)
 
     return {
       run: {
@@ -252,13 +306,19 @@ export class InspectionService {
           signatureLineName: run.company.signatureLineName,
           signatureLineTitle: run.company.signatureLineTitle,
         },
+        /**
+         * 097: the client of the act is the company that owns the site, not the company that
+         * performed the round. They coincide for a client-owned run — the pre-097 case — and
+         * differ when a provider inspects a client location. Reading it off the location keeps
+         * the document correct in both.
+         */
         clientCompany: {
-          id: run.company.id,
-          name: run.company.name,
-          legalName: run.company.legalName,
-          address: run.company.address,
-          phone: run.company.phone,
-          email: run.company.email,
+          id: run.location?.clientCompany?.id ?? run.company.id,
+          name: run.location?.clientCompany?.name ?? run.company.name,
+          legalName: run.location?.clientCompany?.legalName ?? run.company.legalName,
+          address: run.location?.clientCompany?.address ?? run.company.address,
+          phone: run.location?.clientCompany?.phone ?? run.company.phone,
+          email: run.location?.clientCompany?.email ?? run.company.email,
         },
       },
       reportMeta: {
@@ -299,10 +359,12 @@ export class InspectionService {
         reportNumber: true,
         reportDate: true,
         documentTitle: true,
+        location: { select: { id: true, clientCompanyId: true } },
       },
     })
 
     if (!run) throw new NotFoundException('Inspection run not found')
+    await this.assertRunLocationStillInScope(user, run)
     if (run.status !== InspectionRunStatus.COMPLETED) {
       throw new BadRequestException('Only completed inspection runs can be submitted')
     }
@@ -354,10 +416,12 @@ export class InspectionService {
         reportStatus: true,
         reportDate: true,
         documentTitle: true,
+        location: { select: { id: true, clientCompanyId: true } },
       },
     })
 
     if (!run) throw new NotFoundException('Inspection run not found')
+    await this.assertRunLocationStillInScope(user, run)
     if (run.status !== InspectionRunStatus.COMPLETED) {
       throw new BadRequestException('Only completed inspection runs can be reviewed')
     }
@@ -417,7 +481,7 @@ export class InspectionService {
       throw new BadRequestException('At least one field must be provided')
     }
 
-    const { item } = await this.getMutableRunItem(user.companyId, runId, itemId)
+    const { item } = await this.getMutableRunItem(user, runId, itemId)
 
     const nextStatus = (dto.status as InspectionRunItemStatus | undefined) ?? item.status
     let nextRequiresRepair = dto.requiresRepair ?? item.requiresRepair
@@ -468,7 +532,7 @@ export class InspectionService {
   async uploadRunItemAttachment(user: InspectionUserCtx, runId: string, itemId: string, file: any) {
     assertAllowed(this.policy.canUploadAttachment(user))
 
-    const { item } = await this.getMutableRunItem(user.companyId, runId, itemId)
+    const { item } = await this.getMutableRunItem(user, runId, itemId)
     this.assertImageFile(file)
 
     const stored = await this.persistFile(file)
@@ -490,7 +554,7 @@ export class InspectionService {
   async createTicketFromItem(user: InspectionUserCtx, runId: string, itemId: string, dto: CreateTicketFromItemDto) {
     assertAllowed(this.policy.canCreateTicket(user))
 
-    const { run, item } = await this.getMutableRunItem(user.companyId, runId, itemId)
+    const { run, item } = await this.getMutableRunItem(user, runId, itemId)
 
     if (
       item.status !== InspectionRunItemStatus.ISSUE &&
@@ -557,10 +621,12 @@ export class InspectionService {
       select: {
         id: true,
         status: true,
+        location: { select: { id: true, clientCompanyId: true } },
       },
     })
 
     if (!run) throw new NotFoundException('Inspection run not found')
+    await this.assertRunLocationStillInScope(user, run)
     if (run.status === InspectionRunStatus.COMPLETED) {
       throw new BadRequestException('Inspection run is already completed')
     }
@@ -577,7 +643,63 @@ export class InspectionService {
     }
   }
 
-  private async getMutableRunItem(companyId: string, runId: string, itemId: string) {
+  /**
+   * 097: re-checks that the actor may still work at the run's location.
+   *
+   * Creation-time authorisation is not enough: a contract can expire, be revoked, or have the
+   * location dropped from a SELECTED_LOCATIONS scope after the run was started. Runs at the
+   * actor's own locations return immediately, so nothing changes for client-owned Rounds.
+   */
+  private async assertRunLocationStillInScope(
+    user: InspectionUserCtx,
+    run: { location?: InspectionLocationRef | null },
+  ) {
+    const location = run.location
+    if (!location || location.clientCompanyId === user.companyId) return
+
+    await assertInspectionLocationAccess({
+      serviceContracts: this.serviceContracts,
+      actorCompanyId: user.companyId,
+      location,
+      notFoundMessage: 'Inspection run not found',
+    })
+  }
+
+  private async filterRunsByLocationScope<T extends { location?: InspectionLocationRef | null }>(
+    user: InspectionUserCtx,
+    runs: T[],
+  ): Promise<T[]> {
+    // One decision per distinct client location, not per run: a page of 50 rounds at the same
+    // site must not turn into 50 identical contract lookups.
+    const decisions = new Map<string, boolean>()
+    const visible: T[] = []
+
+    for (const run of runs) {
+      const location = run.location
+      if (!location || location.clientCompanyId === user.companyId) {
+        visible.push(run)
+        continue
+      }
+
+      const key = `${location.clientCompanyId}:${location.id}`
+      let allowed = decisions.get(key)
+      if (allowed === undefined) {
+        allowed = !!(await resolveInspectionLocationAccess({
+          serviceContracts: this.serviceContracts,
+          actorCompanyId: user.companyId,
+          location,
+        }))
+        decisions.set(key, allowed)
+      }
+
+      if (allowed) visible.push(run)
+    }
+
+    return visible
+  }
+
+  private async getMutableRunItem(user: InspectionUserCtx, runId: string, itemId: string) {
+    const companyId = user.companyId
     const run = await this.prisma.inspectionRun.findFirst({
       where: { id: runId, companyId },
       select: {
@@ -585,10 +707,12 @@ export class InspectionService {
         locationId: true,
         equipmentId: true,
         status: true,
+        location: { select: { id: true, clientCompanyId: true } },
       },
     })
 
     if (!run) throw new NotFoundException('Inspection run not found')
+    await this.assertRunLocationStillInScope(user, run)
     if (run.status === InspectionRunStatus.COMPLETED) {
       throw new BadRequestException('Inspection run is already completed')
     }
@@ -760,7 +884,7 @@ function runSelect() {
     },
     template: { select: { id: true, name: true } },
     location: {
-      select: { id: true, name: true, city: true, address: true, platformCode: true },
+      select: { id: true, clientCompanyId: true, name: true, city: true, address: true, platformCode: true },
     },
     equipment: {
       select: { id: true, name: true, type: true, status: true },
@@ -839,10 +963,22 @@ function reportSelect() {
     location: {
       select: {
         id: true,
+        clientCompanyId: true,
         name: true,
         platformCode: true,
         city: true,
         address: true,
+        // 097: the act's client party comes from the site owner, not from the executing company.
+        clientCompany: {
+          select: {
+            id: true,
+            name: true,
+            legalName: true,
+            address: true,
+            phone: true,
+            email: true,
+          },
+        },
       },
     },
     equipment: {
@@ -908,7 +1044,7 @@ function runListSelect() {
     createdAt: true,
     updatedAt: true,
     template: { select: { id: true, name: true } },
-    location: { select: { id: true, name: true, city: true } },
+    location: { select: { id: true, clientCompanyId: true, name: true, city: true } },
     equipment: { select: { id: true, name: true } },
     _count: { select: { items: true } },
   } satisfies Prisma.InspectionRunSelect
