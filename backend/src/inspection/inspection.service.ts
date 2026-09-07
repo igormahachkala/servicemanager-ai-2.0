@@ -142,11 +142,23 @@ export class InspectionService {
      * its own location the check short-circuits to tenant-wide self-access and the outcome is
      * identical to the pre-097 `clientCompanyId: user.companyId` filter.
      */
-    const location = await this.prisma.location.findFirst({
+    let location = await this.prisma.location.findFirst({
       where: { id: dto.locationId },
       select: { id: true, name: true, clientCompanyId: true },
     })
     if (!location) throw new NotFoundException('Location not found')
+    if (!location.clientCompanyId) {
+      const ownCompanyLocation = await this.prisma.location.findFirst({
+        where: { id: dto.locationId, clientCompanyId: user.companyId },
+        select: { id: true, name: true, clientCompanyId: true },
+      })
+      if (ownCompanyLocation) {
+        location = {
+          ...ownCompanyLocation,
+          clientCompanyId: ownCompanyLocation.clientCompanyId || user.companyId,
+        }
+      }
+    }
 
     const locationAccess = await assertInspectionLocationAccess({
       serviceContracts: this.serviceContracts,
