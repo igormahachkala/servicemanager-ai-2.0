@@ -39,9 +39,16 @@ export function InspectionQuickPage() {
     queryFn: () => api.getInspectionRun(runId),
     enabled: !!runId,
   })
+  /**
+   * Каталог категорий — по компании-владельцу площадки: эта страница создаёт
+   * заявку тем же каноническим путём, что и полный экран обхода.
+   * Подробнее — тот же блок в InspectionRunPage.
+   */
+  const targetClientCompanyId = runQ.data?.location?.clientCompanyId || ''
   const categoriesQ = useQuery<api.ProblemCategoryListItem[]>({
-    queryKey: ['problem-categories'],
-    queryFn: () => api.problemCategories(),
+    queryKey: ['problem-categories', targetClientCompanyId],
+    queryFn: () => api.problemCategories(targetClientCompanyId),
+    enabled: !!targetClientCompanyId,
   })
 
   const activeCategories = useMemo(
