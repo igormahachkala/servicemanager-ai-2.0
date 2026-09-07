@@ -12,6 +12,7 @@ import {
   useOnlineStatus,
 } from './offlineQueue'
 import { MobileGuidedTour } from './MobileGuidedTour'
+import { MobileShiftGatePrompt } from './MobileShiftGatePrompt'
 import { getMobileRouteRoot, mobilePath } from './mobileRoute'
 import './mobile.css'
 
@@ -370,6 +371,7 @@ export function MobileShell() {
           })}
         </div>
       </nav>
+      <MobileShiftGatePrompt user={meQ.data} />
       <MobileGuidedTour userKey={meQ.data?.id || meQ.data?.email || null} />
     </div>
   )

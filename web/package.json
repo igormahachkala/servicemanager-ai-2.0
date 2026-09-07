@@ -17,6 +17,7 @@
     "test:max-bootstrap": "node scripts/verify-max-miniapp-bootstrap.mjs",
     "test:browser-storage": "node scripts/verify-browser-storage-reliability.mjs",
     "test:mobile-rc": "node scripts/verify-mobile-rc-fixes.mjs",
+    "test:mobile-shift-gate": "node scripts/verify-mobile-shift-gate.mjs",
     "split:api": "node scripts/split-api-layer.mjs",
     "split:api:apply": "node scripts/split-api-layer.mjs --apply-barrel"
   },

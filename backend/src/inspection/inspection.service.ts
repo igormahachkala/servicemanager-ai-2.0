@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
 import {
+  InspectionCheckpointResponseType,
   InspectionReportStatus,
   InspectionRunItemStatus,
   InspectionRunStatus,
@@ -73,13 +74,35 @@ export class InspectionService {
         title: item.title.trim(),
         description: item.description?.trim() || null,
         sortOrder: item.sortOrder ?? index,
+        zoneName: item.zoneName?.trim() || null,
+        zoneSortOrder: item.zoneSortOrder ?? 0,
+        checkpointSortOrder: item.checkpointSortOrder ?? item.sortOrder ?? index,
+        responseType: item.responseType ?? InspectionCheckpointResponseType.NORMAL_PROBLEM,
+        numericMin: item.numericMin ?? null,
+        numericMax: item.numericMax ?? null,
+        numericUnit: item.numericUnit?.trim() || null,
         isRequired: item.isRequired ?? true,
       }))
-      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .sort(
+        (a, b) =>
+          a.zoneSortOrder - b.zoneSortOrder ||
+          a.checkpointSortOrder - b.checkpointSortOrder ||
+          a.sortOrder - b.sortOrder,
+      )
 
     if (items.length === 0) throw new BadRequestException('Template must contain at least one item')
     if (items.some((item) => !item.title)) {
       throw new BadRequestException('Template item title is required')
+    }
+    for (const item of items) {
+      if (item.responseType !== InspectionCheckpointResponseType.NUMBER) {
+        if (item.numericMin !== null || item.numericMax !== null || item.numericUnit !== null) {
+          throw new BadRequestException('Numeric limits are allowed only for NUMBER checkpoints')
+        }
+      }
+      if (item.numericMin !== null && item.numericMax !== null && item.numericMin > item.numericMax) {
+        throw new BadRequestException('numericMin cannot be greater than numericMax')
+      }
     }
 
     return this.prisma.inspectionTemplate.create({
@@ -122,12 +145,24 @@ export class InspectionService {
         id: true,
         name: true,
         items: {
-          orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }],
+          orderBy: [
+            { zoneSortOrder: 'asc' },
+            { checkpointSortOrder: 'asc' },
+            { sortOrder: 'asc' },
+            { createdAt: 'asc' },
+          ],
           select: {
             id: true,
             title: true,
             description: true,
             sortOrder: true,
+            zoneName: true,
+            zoneSortOrder: true,
+            checkpointSortOrder: true,
+            responseType: true,
+            numericMin: true,
+            numericMax: true,
+            numericUnit: true,
             isRequired: true,
           },
         },
@@ -142,11 +177,23 @@ export class InspectionService {
      * its own location the check short-circuits to tenant-wide self-access and the outcome is
      * identical to the pre-097 `clientCompanyId: user.companyId` filter.
      */
-    const location = await this.prisma.location.findFirst({
+    let location = await this.prisma.location.findFirst({
       where: { id: dto.locationId },
       select: { id: true, name: true, clientCompanyId: true },
     })
     if (!location) throw new NotFoundException('Location not found')
+    if (!location.clientCompanyId) {
+      const ownCompanyLocation = await this.prisma.location.findFirst({
+        where: { id: dto.locationId, clientCompanyId: user.companyId },
+        select: { id: true, name: true, clientCompanyId: true },
+      })
+      if (ownCompanyLocation) {
+        location = {
+          ...ownCompanyLocation,
+          clientCompanyId: ownCompanyLocation.clientCompanyId || user.companyId,
+        }
+      }
+    }
 
     const locationAccess = await assertInspectionLocationAccess({
       serviceContracts: this.serviceContracts,
@@ -190,6 +237,13 @@ export class InspectionService {
             title: item.title,
             description: item.description,
             sortOrder: item.sortOrder,
+            zoneName: item.zoneName,
+            zoneSortOrder: item.zoneSortOrder,
+            checkpointSortOrder: item.checkpointSortOrder,
+            responseType: item.responseType,
+            numericMin: item.numericMin,
+            numericMax: item.numericMax,
+            numericUnit: item.numericUnit,
             isRequired: item.isRequired,
             status: InspectionRunItemStatus.PENDING,
             requiresRepair: false,
@@ -416,7 +470,14 @@ export class InspectionService {
   async updateRunItem(user: InspectionUserCtx, runId: string, itemId: string, dto: UpdateRunItemDto) {
     assertAllowed(this.policy.canUpdateRunItem(user))
 
-    if (dto.status === undefined && dto.comment === undefined && dto.requiresRepair === undefined) {
+    if (
+      dto.status === undefined &&
+      dto.comment === undefined &&
+      dto.requiresRepair === undefined &&
+      dto.booleanValue === undefined &&
+      dto.numberValue === undefined &&
+      dto.textValue === undefined
+    ) {
       throw new BadRequestException('At least one field must be provided')
     }
 
@@ -436,13 +497,33 @@ export class InspectionService {
     ) {
       throw new BadRequestException('requiresRepair is allowed only for ISSUE or CRITICAL items')
     }
+    if (dto.booleanValue !== undefined && item.responseType !== InspectionCheckpointResponseType.YES_NO) {
+      throw new BadRequestException('booleanValue is allowed only for YES_NO checkpoints')
+    }
+    if (dto.numberValue !== undefined) {
+      if (item.responseType !== InspectionCheckpointResponseType.NUMBER) {
+        throw new BadRequestException('numberValue is allowed only for NUMBER checkpoints')
+      }
+      if (item.numericMin !== null && dto.numberValue < item.numericMin) {
+        throw new BadRequestException('numberValue is below checkpoint minimum')
+      }
+      if (item.numericMax !== null && dto.numberValue > item.numericMax) {
+        throw new BadRequestException('numberValue is above checkpoint maximum')
+      }
+    }
+    if (dto.textValue !== undefined && item.responseType !== InspectionCheckpointResponseType.TEXT) {
+      throw new BadRequestException('textValue is allowed only for TEXT checkpoints')
+    }
 
     return this.prisma.inspectionRunItem.update({
       where: { id: item.id },
       data: {
         status: nextStatus,
         requiresRepair: nextRequiresRepair,
-        comment: dto.comment?.trim() || null,
+        comment: dto.comment === undefined ? undefined : dto.comment.trim() || null,
+        booleanValue: dto.booleanValue,
+        numberValue: dto.numberValue,
+        textValue: dto.textValue === undefined ? undefined : dto.textValue.trim() || null,
       },
       select: runItemSelect(),
     })
@@ -643,6 +724,9 @@ export class InspectionService {
         templateItemId: true,
         title: true,
         description: true,
+        responseType: true,
+        numericMin: true,
+        numericMax: true,
         status: true,
         requiresRepair: true,
         comment: true,
@@ -697,12 +781,24 @@ function templateSelect() {
     createdAt: true,
     updatedAt: true,
     items: {
-      orderBy: [{ sortOrder: 'asc' as const }, { createdAt: 'asc' as const }],
+      orderBy: [
+        { zoneSortOrder: 'asc' as const },
+        { checkpointSortOrder: 'asc' as const },
+        { sortOrder: 'asc' as const },
+        { createdAt: 'asc' as const },
+      ],
       select: {
         id: true,
         title: true,
         description: true,
         sortOrder: true,
+        zoneName: true,
+        zoneSortOrder: true,
+        checkpointSortOrder: true,
+        responseType: true,
+        numericMin: true,
+        numericMax: true,
+        numericUnit: true,
         isRequired: true,
         createdAt: true,
         updatedAt: true,
@@ -731,6 +827,16 @@ function runItemSelect() {
     title: true,
     description: true,
     sortOrder: true,
+    zoneName: true,
+    zoneSortOrder: true,
+    checkpointSortOrder: true,
+    responseType: true,
+    numericMin: true,
+    numericMax: true,
+    numericUnit: true,
+    booleanValue: true,
+    numberValue: true,
+    textValue: true,
     isRequired: true,
     status: true,
     requiresRepair: true,
@@ -784,7 +890,12 @@ function runSelect() {
       select: { id: true, name: true, type: true, status: true },
     },
     items: {
-      orderBy: [{ sortOrder: 'asc' as const }, { createdAt: 'asc' as const }],
+      orderBy: [
+        { zoneSortOrder: 'asc' as const },
+        { checkpointSortOrder: 'asc' as const },
+        { sortOrder: 'asc' as const },
+        { createdAt: 'asc' as const },
+      ],
       select: runItemSelect(),
     },
   } satisfies Prisma.InspectionRunSelect
@@ -878,11 +989,26 @@ function reportSelect() {
       },
     },
     items: {
-      orderBy: [{ sortOrder: 'asc' as const }, { createdAt: 'asc' as const }],
+      orderBy: [
+        { zoneSortOrder: 'asc' as const },
+        { checkpointSortOrder: 'asc' as const },
+        { sortOrder: 'asc' as const },
+        { createdAt: 'asc' as const },
+      ],
       select: {
         id: true,
         title: true,
         description: true,
+        zoneName: true,
+        zoneSortOrder: true,
+        checkpointSortOrder: true,
+        responseType: true,
+        numericMin: true,
+        numericMax: true,
+        numericUnit: true,
+        booleanValue: true,
+        numberValue: true,
+        textValue: true,
         status: true,
         comment: true,
         requiresRepair: true,

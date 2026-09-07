@@ -213,8 +213,12 @@ describe('098 schedule CREATE', () => {
     expect(prisma.inspectionSchedule.create).not.toHaveBeenCalled()
   })
 
-  it('DENIES an inactive contract', async () => {
-    const { svc } = makeSuite({ contracts: [makeContract({ status: ServiceContractStatus.TERMINATED })] })
+  it.each([
+    ['DRAFT', ServiceContractStatus.DRAFT],
+    ['INACTIVE', ServiceContractStatus.INACTIVE],
+    ['ENDED', ServiceContractStatus.ENDED],
+  ])('DENIES a %s contract', async (_label, status) => {
+    const { svc } = makeSuite({ contracts: [makeContract({ status })] })
 
     await expect(
       svc.create(admin, {
@@ -224,6 +228,56 @@ describe('098 schedule CREATE', () => {
         startDate: VALID_START,
       } as any),
     ).rejects.toThrow(new NotFoundException('Location not found'))
+  })
+
+  it('DENIES an ACTIVE contract whose endsAt is in the past', async () => {
+    const { svc } = makeSuite({
+      contracts: [makeContract({ endsAt: new Date(Date.now() - 86_400_000) })],
+    })
+
+    await expect(
+      svc.create(admin, {
+        templateId: 'tpl-1',
+        locationId: LOC_A.id,
+        frequency: InspectionFrequency.ONCE,
+        startDate: VALID_START,
+      } as any),
+    ).rejects.toThrow(new NotFoundException('Location not found'))
+  })
+
+  it('DENIES an ACTIVE contract whose startsAt is in the future', async () => {
+    const { svc } = makeSuite({
+      contracts: [makeContract({ startsAt: new Date(Date.now() + 86_400_000) })],
+    })
+
+    await expect(
+      svc.create(admin, {
+        templateId: 'tpl-1',
+        locationId: LOC_A.id,
+        frequency: InspectionFrequency.ONCE,
+        startDate: VALID_START,
+      } as any),
+    ).rejects.toThrow(new NotFoundException('Location not found'))
+  })
+
+  it('ALLOWS a listed location under a SELECTED_LOCATIONS contract', async () => {
+    const { svc, prisma } = makeSuite({
+      contracts: [
+        makeContract({
+          locationMode: ServiceContractLocationMode.SELECTED_LOCATIONS,
+          locations: [{ locationId: LOC_A.id }],
+        }),
+      ],
+    })
+
+    await svc.create(admin, {
+      templateId: 'tpl-1',
+      locationId: LOC_A.id,
+      frequency: InspectionFrequency.ONCE,
+      startDate: VALID_START,
+    } as any)
+
+    expect(prisma.inspectionSchedule.create).toHaveBeenCalled()
   })
 
   it('DENIES a location outside a SELECTED_LOCATIONS contract', async () => {
@@ -503,7 +557,7 @@ describe('098 schedule READ and LIST', () => {
 
   it('DENIES reading a schedule whose contract lapsed', async () => {
     const { svc } = makeSuite({
-      contracts: [makeContract({ status: ServiceContractStatus.SUSPENDED })],
+      contracts: [makeContract({ status: ServiceContractStatus.INACTIVE })],
       schedules: [scheduleRow()],
     })
 
