@@ -5,7 +5,12 @@ import * as api from '../lib/api'
 import { numericConstraintLabel, responseTypeLabel } from '../lib/inspectionZones'
 import { ProtectedUploadImg } from '../ui/ProtectedUploadMedia'
 import { mobilePath } from './mobileRoute'
-import { mobileTicketNavState } from './mobileTicketDisplay'
+import {
+  compactTicketScope,
+  mobileTicketNavState,
+  mobileTicketStatusLabelRu,
+  scopeForMobileTicketLink,
+} from './mobileTicketDisplay'
 
 function fmtDateTime(value?: string | null): string {
   if (!value) return '—'
@@ -50,6 +55,20 @@ export function MobileInspectionRunPage() {
   const [busyItemIds, setBusyItemIds] = useState<Set<string>>(new Set())
   const [activeIssueItemId, setActiveIssueItemId] = useState<string | null>(null)
   const [issueComment, setIssueComment] = useState('')
+  /**
+   * Категория заявки выбирается человеком.
+   *
+   * Раньше мобильный молча брал activeCategories[0]. Каталог приходит
+   * отсортированным по createdAt desc, то есть первой оказывается самая свежая
+   * категория клиента — какая угодно. Если её специализации нет в контракте,
+   * заявка создаётся, но обратно провайдеру уже не видна: чтение линкованных
+   * заявок сужается специализациями контракта, и карточка отвечает 404.
+   * Проверено на Stage: #777 с категорией из контракта открывается, #778 и #779
+   * с «Wrong Specialization Category» — нет.
+   *
+   * Десктоп категорию всегда спрашивал; мобильный теперь тоже.
+   */
+  const [ticketCategoryId, setTicketCategoryId] = useState('')
   const [confirmComplete, setConfirmComplete] = useState(false)
   const [completeBusy, setCompleteBusy] = useState(false)
   const [flashMsg, setFlashMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
@@ -58,14 +77,36 @@ export function MobileInspectionRunPage() {
   const [uploadTargetItemId, setUploadTargetItemId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
+
+  /**
+   * Контур текущей страницы: то же чтение, что в «Моих заявках» — параметр URL,
+   * иначе сохранённый контур владельца.
+   */
+  const pageScope = useMemo<api.TicketScopeParams>(() => {
+    const search = new URLSearchParams(location.search)
+    const linked = (search.get('linkedClientCompanyId') || api.getLinkedClientCompanyId(meQ.data)).trim()
+    const company = (search.get('companyId') || api.getObserverCompanyId(meQ.data)).trim()
+    return { linkedClientCompanyId: linked || undefined, companyId: company || undefined }
+  }, [location.search, meQ.data])
+
   const runQ = useQuery({
     queryKey: ['inspection-run', runId],
     queryFn: () => api.getInspectionRun(runId),
     enabled: !!runId,
   })
+  /**
+   * Каталог категорий — по компании-владельцу площадки, а не по компании
+   * исполнителя: обход по площадке клиента ведёт провайдер, а заявка
+   * принадлежит клиенту. Тот же эндпоинт /problem-categories?companyId=<клиент>
+   * сам проверяет связь провайдер→клиент; своей проверки здесь нет.
+   * Подробнее — тот же блок в InspectionRunPage.
+   */
+  const targetClientCompanyId = runQ.data?.location?.clientCompanyId || ''
   const categoriesQ = useQuery<api.ProblemCategoryListItem[]>({
-    queryKey: ['problem-categories'],
-    queryFn: () => api.problemCategories(),
+    queryKey: ['problem-categories', targetClientCompanyId],
+    queryFn: () => api.problemCategories(targetClientCompanyId),
+    enabled: !!targetClientCompanyId,
   })
 
   const updateM = useMutation({
@@ -101,6 +142,40 @@ export function MobileInspectionRunPage() {
     return (item.ticketId || item.ticket?.id || createdTicketsByItemId[item.id]?.ticketId || '').trim()
   }
 
+  /**
+   * Ссылка на связанную заявку.
+   *
+   * Заявка принадлежит владельцу площадки, а обход ведёт исполнитель. Раньше сюда
+   * уходил run.companyId — компания исполнителя, — и на провайдерском обходе по
+   * площадке клиента мобильная карточка заявки запрашивалась в контуре самого
+   * провайдера и отвечала «Заявка не найдена или недоступна». Десктоп этим путём
+   * не ходит: там обычная ссылка /tickets/<id> без мобильного контура.
+   *
+   * Контур считает scopeForMobileTicketLink — тот же помощник, которым пользуются
+   * «Мои заявки» и чаты: своя компания — контур не добавляется, чужая — добавляется
+   * linkedClientCompanyId владельца, и только для ролей из его списка. Своих правил
+   * доступа здесь нет, доступ по-прежнему решает бэкенд.
+   *
+   * Раньше к ссылке подставлялся location.search обхода целиком: чужой
+   * linkedClientCompanyId из него побеждал бы владельца заявки.
+   */
+  function linkedTicketHref(ticketId: string): string {
+    const base = mobilePath(location.pathname, `/tickets/${ticketId}`)
+    if (!meQ.data || !targetClientCompanyId) return `${base}${location.search}`
+    const linkScope = scopeForMobileTicketLink(meQ.data, pageScope, { companyId: targetClientCompanyId })
+    return api.appendScopeToPath(base, compactTicketScope(linkScope), meQ.data)
+  }
+
+  /**
+   * Номер связанной заявки. Канонический источник — item.ticket с сервера:
+   * состояние createdTicketsByItemId живёт только до перезагрузки, а обход
+   * открывают повторно. Оно остаётся запасным вариантом на те секунды между
+   * ответом на создание и обновлением обхода.
+   */
+  function getCreatedTicketNumber(item: api.InspectionRunItem): number | null {
+    return item.ticket?.ticketNumber ?? createdTicketsByItemId[item.id]?.ticketNumber ?? null
+  }
+
   async function markOk(itemId: string) {
     if (busyItemIds.has(itemId)) return
     setBusyItemIds((s) => new Set(s).add(itemId))
@@ -134,9 +209,13 @@ export function MobileInspectionRunPage() {
 
   async function createTicket(item: api.InspectionRunItem) {
     if (busyItemIds.has(item.id)) return
-    const categoryId = activeCategories[0]?.id || ''
-    if (!categoryId) {
+    if (!activeCategories.length) {
       flash('err', 'Нет активной категории для создания заявки')
+      return
+    }
+    const categoryId = ticketCategoryId.trim()
+    if (!categoryId) {
+      flash('err', 'Выберите категорию заявки')
       return
     }
     if (getCreatedTicketId(item)) return
@@ -327,7 +406,8 @@ export function MobileInspectionRunPage() {
                 const uploadBusy = uploadBusyItemIds.has(item.id)
                 const isShowingIssueForm = activeIssueItemId === item.id
                 const createdTicketId = getCreatedTicketId(item)
-                const createdTicketNumber = createdTicketsByItemId[item.id]?.ticketNumber ?? null
+                const createdTicketNumber = getCreatedTicketNumber(item)
+                const createdTicketStatus = item.ticket?.status ?? null
                 const canCreateTicket = (item.status === 'ISSUE' || item.status === 'CRITICAL') && !createdTicketId
                 const previous = run.items[index - 1]
                 const zoneName = item.zoneName?.trim() || 'Без зоны'
@@ -382,7 +462,8 @@ export function MobileInspectionRunPage() {
                     ) : null}
                     {createdTicketId ? (
                       <div style={{ fontSize: '0.8rem', color: '#2563eb', fontWeight: 600 }}>
-                        {createdTicketNumber != null ? `Заявка #${createdTicketNumber} создана` : 'Заявка создана'}
+                        {createdTicketNumber != null ? `Заявка #${createdTicketNumber}` : 'Заявка создана'}
+                        {createdTicketStatus ? ` — ${mobileTicketStatusLabelRu(createdTicketStatus)}` : ''}
                       </div>
                     ) : null}
 
@@ -470,12 +551,26 @@ export function MobileInspectionRunPage() {
                     ) : null}
 
                     {canCreateTicket ? (
-                      <div className="mobilePatrolItemActions">
+                      <div className="mobilePatrolItemActions" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 6 }}>
+                        <label style={{ fontSize: '0.78rem', fontWeight: 600, color: '#374151' }}>
+                          Категория заявки
+                          <select
+                            style={{ width: '100%', marginTop: 4, minHeight: 34, fontSize: '0.82rem', borderRadius: 8 }}
+                            value={ticketCategoryId}
+                            disabled={busy}
+                            onChange={(e) => setTicketCategoryId(e.target.value)}
+                          >
+                            <option value="">— выберите категорию —</option>
+                            {activeCategories.map((category) => (
+                              <option key={category.id} value={category.id}>{category.name}</option>
+                            ))}
+                          </select>
+                        </label>
                         <button
                           type="button"
                           className="mobileBtn"
                           style={{ minHeight: 34, padding: '6px 14px', fontSize: '0.82rem', borderRadius: 8 }}
-                          disabled={busy}
+                          disabled={busy || !ticketCategoryId}
                           onClick={() => createTicket(item)}
                         >
                           {busy ? 'Создаём…' : 'Создать заявку'}
@@ -486,12 +581,12 @@ export function MobileInspectionRunPage() {
                     {createdTicketId ? (
                       <div className="mobilePatrolItemActions">
                         <Link
-                          to={`${mobilePath(location.pathname, `/tickets/${createdTicketId}`)}${location.search}`}
-                          state={mobileTicketNavState('home', run?.companyId)}
+                          to={linkedTicketHref(createdTicketId)}
+                          state={mobileTicketNavState('home', targetClientCompanyId || run?.companyId)}
                           className="mobileBtn mobileBtnSecondary"
                           style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minHeight: 34, padding: '6px 14px', fontSize: '0.82rem', borderRadius: 8 }}
                         >
-                          Открыть заявку
+                          {createdTicketNumber != null ? `Открыть заявку #${createdTicketNumber}` : 'Открыть заявку'}
                         </Link>
                       </div>
                     ) : null}
