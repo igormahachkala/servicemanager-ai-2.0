@@ -7,6 +7,8 @@ import {
   UserRole,
 } from '@prisma/client'
 
+import { ServiceContractsService } from '../service-contracts/service-contracts.service'
+
 import { InspectionService } from './inspection.service'
 
 const USER = {
@@ -29,7 +31,7 @@ function makeService(overrides: Record<string, any> = {}) {
       findMany: jest.fn(),
     },
     location: {
-      findFirst: jest.fn().mockResolvedValue({ id: 'location-1', name: 'Location 1' }),
+      findFirst: jest.fn().mockResolvedValue({ id: 'location-1', name: 'Location 1', clientCompanyId: USER.companyId }),
     },
     equipment: {
       findFirst: jest.fn(),
@@ -52,12 +54,18 @@ function makeService(overrides: Record<string, any> = {}) {
   }
   const timeline = { recordLegacy: jest.fn().mockResolvedValue(undefined) }
   const exporter = { exportReport: jest.fn() }
+  const serviceContracts = new ServiceContractsService({
+    serviceContract: {
+      findUnique: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
+    },
+  } as any)
 
   return {
     prisma,
     tickets,
     timeline,
-    service: new InspectionService(prisma as any, tickets as any, timeline as any, exporter as any),
+    service: new InspectionService(prisma as any, tickets as any, timeline as any, exporter as any, serviceContracts),
   }
 }
 
