@@ -15,12 +15,20 @@ import { InspectionService } from './inspection.service'
  */
 
 const technician = { id: 'tech-1', companyId: 'provider-1', role: UserRole.TECHNICIAN }
+const dispatcher = { id: 'disp-1', companyId: 'provider-1', role: UserRole.DISPATCHER }
+
+/** Площадка клиента, которую обслуживает провайдер. */
+const CLIENT_COMPANY_ID = 'client-1'
 
 const RUN = {
   id: 'run-1',
   locationId: 'loc-1',
   equipmentId: 'eq-1',
   status: InspectionRunStatus.IN_PROGRESS,
+  // Владелец площадки — клиент, исполнитель обхода — провайдер. Именно этот
+  // разрыв делает заявку клиентской: канонический TicketsService выводит
+  // владельца из Location.clientCompanyId, а не из компании исполнителя.
+  location: { id: 'loc-1', clientCompanyId: CLIENT_COMPANY_ID },
 }
 
 const ITEM = {
@@ -55,11 +63,20 @@ function makeDeps(overrides: { run?: any; item?: any } = {}) {
 
   const timeline = { recordLegacy: jest.fn().mockResolvedValue(undefined) } as any
 
-  return { prisma, tickets, timeline }
+  // Канонический контракт провайдер→клиент: тот же примитив, которым пользуются
+  // заявки, аналитика, оборудование и 097. Своего резолвера доступа тут нет.
+  const serviceContracts = {
+    getLinkedClientAccess: jest.fn().mockResolvedValue({
+      role: 'PRIMARY',
+      effectiveLocationScope: { mode: 'tenant_wide', locationIds: [] },
+    }),
+  } as any
+
+  return { prisma, tickets, timeline, serviceContracts }
 }
 
 function makeService(deps: ReturnType<typeof makeDeps>) {
-  return new InspectionService(deps.prisma, deps.tickets, deps.timeline, {} as any)
+  return new InspectionService(deps.prisma, deps.tickets, deps.timeline, {} as any, deps.serviceContracts)
 }
 
 describe('InspectionService.createTicketFromItem', () => {
@@ -155,6 +172,116 @@ describe('InspectionService.createTicketFromItem', () => {
     await service.createTicketFromItem(technician, RUN.id, ITEM.id, { categoryId: 'cat-1' })
 
     expect(deps.tickets.create.mock.calls[0][2].urgency).toBe(TicketUrgency.URGENT)
+  })
+
+  describe('provider executes a round at a client-owned location', () => {
+    it('hands the canonical creator the actor company and the run location, so the owner resolves to the client', async () => {
+      const deps = makeDeps()
+      const service = makeService(deps)
+
+      await service.createTicketFromItem(dispatcher, RUN.id, ITEM.id, { categoryId: 'cat-client-1' })
+
+      const [actorCompanyId, actor, payload] = deps.tickets.create.mock.calls[0]
+
+      // Первый аргумент — компания ИСПОЛНИТЕЛЯ, а не владельца заявки.
+      // Владельца канонический TicketsService выводит сам из локации:
+      // resolveTicketOwnerCompanyId → location.clientCompanyId + проверка контракта.
+      expect(actorCompanyId).toBe(dispatcher.companyId)
+      expect(actor).toEqual({ id: dispatcher.id, role: dispatcher.role })
+      expect(payload.locationId).toBe(RUN.locationId)
+
+      // Обход не навязывает владельца и не подменяет площадку.
+      expect(payload).not.toHaveProperty('companyId')
+      expect(payload).not.toHaveProperty('clientCompanyId')
+    })
+
+    it('passes the client catalogue category through untouched', async () => {
+      const deps = makeDeps()
+      const service = makeService(deps)
+
+      await service.createTicketFromItem(dispatcher, RUN.id, ITEM.id, { categoryId: 'cat-client-1' })
+
+      // Категория принадлежит каталогу клиента; обход её не подменяет и не ищет
+      // аналог в каталоге провайдера. Принадлежность проверяет getCategory
+      // по компании-владельцу заявки.
+      expect(deps.tickets.create.mock.calls[0][2].categoryId).toBe('cat-client-1')
+    })
+
+    it('re-checks the run location against the canonical contract before touching anything', async () => {
+      const deps = makeDeps()
+      const service = makeService(deps)
+
+      await service.createTicketFromItem(dispatcher, RUN.id, ITEM.id, { categoryId: 'cat-client-1' })
+
+      expect(deps.serviceContracts.getLinkedClientAccess).toHaveBeenCalledWith(
+        dispatcher.companyId,
+        CLIENT_COMPANY_ID,
+      )
+    })
+
+    it('denies when the provider has no effective contract with the client', async () => {
+      const deps = makeDeps()
+      deps.serviceContracts.getLinkedClientAccess.mockResolvedValue(null)
+      const service = makeService(deps)
+
+      await expect(
+        service.createTicketFromItem(dispatcher, RUN.id, ITEM.id, { categoryId: 'cat-client-1' }),
+      ).rejects.toBeInstanceOf(NotFoundException)
+      expect(deps.tickets.create).not.toHaveBeenCalled()
+    })
+
+    it('denies when the contract scope does not cover this location', async () => {
+      const deps = makeDeps()
+      deps.serviceContracts.getLinkedClientAccess.mockResolvedValue({
+        role: 'PRIMARY',
+        effectiveLocationScope: { mode: 'bound_locations', locationIds: ['some-other-location'] },
+      })
+      const service = makeService(deps)
+
+      await expect(
+        service.createTicketFromItem(dispatcher, RUN.id, ITEM.id, { categoryId: 'cat-client-1' }),
+      ).rejects.toBeInstanceOf(NotFoundException)
+      expect(deps.tickets.create).not.toHaveBeenCalled()
+    })
+
+    it('denies when the contract resolves to an empty restricted scope', async () => {
+      const deps = makeDeps()
+      deps.serviceContracts.getLinkedClientAccess.mockResolvedValue({
+        role: 'PRIMARY',
+        effectiveLocationScope: { mode: 'restricted_empty', locationIds: [] },
+      })
+      const service = makeService(deps)
+
+      await expect(
+        service.createTicketFromItem(dispatcher, RUN.id, ITEM.id, { categoryId: 'cat-client-1' }),
+      ).rejects.toBeInstanceOf(NotFoundException)
+      expect(deps.tickets.create).not.toHaveBeenCalled()
+    })
+
+    it('allows a location explicitly listed in a SELECTED_LOCATIONS contract', async () => {
+      const deps = makeDeps()
+      deps.serviceContracts.getLinkedClientAccess.mockResolvedValue({
+        role: 'PRIMARY',
+        effectiveLocationScope: { mode: 'bound_locations', locationIds: [RUN.locationId] },
+      })
+      const service = makeService(deps)
+
+      await service.createTicketFromItem(dispatcher, RUN.id, ITEM.id, { categoryId: 'cat-client-1' })
+
+      expect(deps.tickets.create).toHaveBeenCalledTimes(1)
+    })
+  })
+
+  it('leaves the client-owned round untouched: actor company is also the owner', async () => {
+    const clientActor = { id: 'admin-1', companyId: CLIENT_COMPANY_ID, role: UserRole.ADMIN }
+    const deps = makeDeps()
+    const service = makeService(deps)
+
+    await service.createTicketFromItem(clientActor, RUN.id, ITEM.id, { categoryId: 'cat-client-1' })
+
+    expect(deps.tickets.create.mock.calls[0][0]).toBe(CLIENT_COMPANY_ID)
+    // Своя площадка — контракт не спрашивается вовсе, путь до 097 без изменений.
+    expect(deps.serviceContracts.getLinkedClientAccess).not.toHaveBeenCalled()
   })
 
   it('refuses a second ticket for the same checkpoint', async () => {
