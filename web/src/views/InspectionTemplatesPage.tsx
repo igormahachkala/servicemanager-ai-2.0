@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
@@ -71,12 +71,59 @@ export function InspectionTemplatesPage() {
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
   const templatesQ = useQuery({ queryKey: ['inspection-templates'], queryFn: api.getInspectionTemplates })
   const runsQ = useQuery({ queryKey: ['inspection-runs'], queryFn: api.getInspectionRuns })
-  const locationsQ = useQuery({ queryKey: ['locations'], queryFn: () => api.locations() })
+  /**
+   * SMA-ROUNDS-V1-PROVIDER-CLIENT-LOCATION-SELECTOR-103B.
+   *
+   * Обход по площадке клиента ведёт провайдер, и площадка принадлежит клиенту,
+   * а не исполнителю. Список без companyId возвращал точки своей компании, поэтому
+   * у провайдера в выборе не было ни одной обслуживаемой площадки.
+   *
+   * Контур выбирается так же, как на «Точках» и при создании заявки: linked-clients
+   * непуст → это провайдерский контур. Свой резолвер доступа не заводится: и список
+   * клиентов, и /locations?companyId=<клиент> проверяются на бэкенде каноническими
+   * правилами контракта, а startRun ещё раз проверяет площадку через 097.
+   * У клиента linked-clients пуст, companyId не передаётся — прежнее поведение.
+   */
+  const linkedClientsQ = useQuery({
+    queryKey: ['inspection-linked-clients'],
+    queryFn: () => api.getLinkedClients().catch(() => []),
+  })
+  const linkedClients = linkedClientsQ.data || []
+  const isProviderScope = linkedClients.length > 0
+  const [selectedClientId, setSelectedClientId] = useState('')
+
+  useEffect(() => {
+    if (!isProviderScope) {
+      if (selectedClientId) setSelectedClientId('')
+      return
+    }
+    if (selectedClientId && linkedClients.some((c) => c.clientCompany.id === selectedClientId)) return
+    const hint = api.getLinkedClientCompanyIdFromMe(meQ.data)
+    const fromHint = hint && linkedClients.some((c) => c.clientCompany.id === hint) ? hint : ''
+    const onlyOne = linkedClients.length === 1 ? linkedClients[0].clientCompany.id : ''
+    const next = fromHint || onlyOne || ''
+    if (next !== selectedClientId) setSelectedClientId(next)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isProviderScope, linkedClientsQ.dataUpdatedAt, meQ.dataUpdatedAt])
+
+  const scopeCompanyId = isProviderScope ? selectedClientId : ''
+
+  const locationsQ = useQuery({
+    queryKey: ['locations', scopeCompanyId],
+    queryFn: () => api.locations(scopeCompanyId || undefined),
+    enabled: !isProviderScope || !!scopeCompanyId,
+  })
   const equipmentQ = useQuery({
     queryKey: ['equipment-by-location', locationId],
     queryFn: () => api.equipmentByLocation(locationId),
     enabled: !!locationId,
   })
+
+  useEffect(() => {
+    // Смена клиента обнуляет выбор: площадка и оборудование принадлежат прежнему контуру.
+    setLocationId('')
+    setEquipmentId('')
+  }, [scopeCompanyId])
 
   const canCreateTemplate = meQ.data?.role === 'ADMIN'
 
@@ -435,10 +482,28 @@ export function InspectionTemplatesPage() {
               </select>
             </label>
 
+            {isProviderScope ? (
+              <label>
+                Клиент (контур)
+                <select value={selectedClientId} onChange={(e) => setSelectedClientId(e.target.value)}>
+                  <option value="">— выберите клиента —</option>
+                  {linkedClients.map((c) => (
+                    <option key={c.clientCompany.id} value={c.clientCompany.id}>
+                      {c.clientCompany.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
+
             <label>
               Локация
-              <select value={locationId} onChange={(e) => { setLocationId(e.target.value); setEquipmentId('') }}>
-                <option value="">Выберите локацию</option>
+              <select
+                value={locationId}
+                onChange={(e) => { setLocationId(e.target.value); setEquipmentId('') }}
+                disabled={isProviderScope && !scopeCompanyId}
+              >
+                <option value="">{isProviderScope && !scopeCompanyId ? 'Сначала выберите клиента' : 'Выберите локацию'}</option>
                 {activeLocations.map((location) => (
                   <option key={location.id} value={location.id}>
                     {location.name}{location.city ? ` · ${location.city}` : ''}
