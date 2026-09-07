@@ -95,7 +95,15 @@ function makeService(
     listSecondaryLinkedClientIds: jest.fn().mockResolvedValue([]),
     ...serviceContractsOverride,
   }
-  return new TicketsQueryService(prisma, {} as any, serviceContracts as any)
+  const contractContext = {
+    getContractContext: jest.fn().mockResolvedValue(null),
+  }
+  return new TicketsQueryService(
+    prisma,
+    {} as any,
+    serviceContracts as any,
+    contractContext as any,
+  )
 }
 
 function makeSecondaryContracts() {

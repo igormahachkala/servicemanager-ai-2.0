@@ -803,6 +803,9 @@ export type TicketGetOne = {
     canClaim?: boolean
     canClaimByCurrentUser?: boolean
     canRequestAssignment?: boolean
+    /** 096: управленческое «Назначить на себя» — отдельная capability, не claim. */
+    canAssignSelf?: boolean
+    assignSelfAvailabilityReason?: string | null
     claimAvailabilityReason?: string | null
     requestAssignmentAvailabilityReason?: string | null
     assignmentRequestedByCurrentUser?: boolean
@@ -810,6 +813,7 @@ export type TicketGetOne = {
     /** Политика + воркфлоу: единый источник для кнопок (без хардкода прав на фронте). */
     availableActions?: {
       canClaim: boolean
+      canAssignSelf?: boolean
       canStart: boolean
       canComplete: boolean
       canClose: boolean
@@ -820,6 +824,7 @@ export type TicketGetOne = {
     /** Подсказки, когда действие недоступно (ключи совпадают с availableActions). */
     availableActionHints?: Partial<{
       canClaim: string | null
+      canAssignSelf: string | null
       canRequestAssignment: string | null
       canStart: string | null
       canComplete: string | null
