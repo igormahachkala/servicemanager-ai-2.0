@@ -1,10 +1,18 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { CompanyType, UserRole } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { resolveObserverScopeCompanyId } from '../policy/policy.utils';
+import { isServiceContractLocationAllowed } from '../service-contracts/service-contract-location-scope';
 import { ServiceContractsService } from '../service-contracts/service-contracts.service';
-import { isLocationAllowedByLocationScope, resolveActorLocationScope } from '../tickets/ticket-access.utils';
+import {
+  isLocationAllowedByLocationScope,
+  resolveActorLocationScope,
+} from '../tickets/ticket-access.utils';
 import { EquipmentRepository } from './equipment.repository';
 import { CreateEquipmentDto } from './dto/create-equipment.dto';
 import { UpdateEquipmentDto } from './dto/update-equipment.dto';
@@ -17,7 +25,12 @@ export class EquipmentService {
     private readonly serviceContractsService: ServiceContractsService,
   ) {}
 
-  async create(companyId: string, dto: CreateEquipmentDto) {
+  async create(
+    actorCompanyId: string,
+    actorUserId: string,
+    actorRole: UserRole,
+    dto: CreateEquipmentDto,
+  ) {
     const name = dto.name.trim();
     const type = dto.type.trim().toUpperCase();
 
@@ -29,13 +42,15 @@ export class EquipmentService {
       throw new BadRequestException('type is required');
     }
 
-    const location = await this.repo.findLocation(companyId, dto.locationId);
-    if (!location) {
-      throw new NotFoundException('Location not found');
-    }
+    const location = await this.assertWritableLocation({
+      actorCompanyId,
+      actorUserId,
+      actorRole,
+      locationId: dto.locationId,
+    });
 
     return this.repo.create({
-      companyId,
+      companyId: location.clientCompanyId,
       locationId: location.id,
       name,
       type,
@@ -50,7 +65,11 @@ export class EquipmentService {
     locationId: string,
     requestedCompanyId?: string,
   ) {
-    const scopeCompanyId = await this.resolveReadableCompanyId(companyId, actorRole, requestedCompanyId)
+    const scopeCompanyId = await this.resolveReadableCompanyId(
+      companyId,
+      actorRole,
+      requestedCompanyId,
+    );
     const locationScope = await resolveActorLocationScope({
       prisma: this.prisma,
       actor: {
@@ -72,8 +91,18 @@ export class EquipmentService {
     return this.repo.findAllByLocation(scopeCompanyId, locationId);
   }
 
-  async findOne(companyId: string, actorUserId: string, actorRole: UserRole, id: string, requestedCompanyId?: string) {
-    const scopeCompanyId = await this.resolveReadableCompanyId(companyId, actorRole, requestedCompanyId)
+  async findOne(
+    companyId: string,
+    actorUserId: string,
+    actorRole: UserRole,
+    id: string,
+    requestedCompanyId?: string,
+  ) {
+    const scopeCompanyId = await this.resolveReadableCompanyId(
+      companyId,
+      actorRole,
+      requestedCompanyId,
+    );
     const equipment = await this.repo.findOne(scopeCompanyId, id);
     if (!equipment) {
       throw new NotFoundException('Equipment not found');
@@ -88,55 +117,85 @@ export class EquipmentService {
       },
       scopeCompanyId,
     });
-    if (!isLocationAllowedByLocationScope(locationScope, equipment.locationId)) {
+    if (
+      !isLocationAllowedByLocationScope(locationScope, equipment.locationId)
+    ) {
       throw new NotFoundException('Equipment not found');
     }
 
     return equipment;
   }
 
-  private async resolveReadableCompanyId(actorCompanyId: string, actorRole: UserRole, requestedCompanyId?: string) {
-    const requested = (requestedCompanyId || '').trim()
+  private async resolveReadableCompanyId(
+    actorCompanyId: string,
+    actorRole: UserRole,
+    requestedCompanyId?: string,
+  ) {
+    const requested = (requestedCompanyId || '').trim();
     if (!requested || requested === actorCompanyId) {
-      return actorCompanyId
+      return actorCompanyId;
     }
 
     const observerCompanyId = resolveObserverScopeCompanyId({
       actorCompanyId,
       actorRole,
       requestedCompanyId: requested,
-    })
+    });
     if (observerCompanyId !== actorCompanyId) {
       const company = await this.prisma.company.findUnique({
         where: { id: observerCompanyId },
         select: { type: true },
-      })
+      });
       if (!company) {
-        throw new NotFoundException('Company not found')
+        throw new NotFoundException('Company not found');
       }
       if (company.type !== CompanyType.CLIENT) {
-        throw new BadRequestException('Observer scope must be a CLIENT company')
+        throw new BadRequestException(
+          'Observer scope must be a CLIENT company',
+        );
       }
-      return observerCompanyId
+      return observerCompanyId;
     }
 
-    const linkedAccess = await this.serviceContractsService.getLinkedClientAccess(actorCompanyId, requested)
+    const linkedAccess =
+      await this.serviceContractsService.getLinkedClientAccess(
+        actorCompanyId,
+        requested,
+      );
     if (!linkedAccess) {
-      throw new NotFoundException('Linked client not found')
+      throw new NotFoundException('Linked client not found');
     }
     const linkedCompany = await this.prisma.company.findUnique({
       where: { id: requested },
       select: { type: true },
-    })
+    });
     if (!linkedCompany || linkedCompany.type !== CompanyType.CLIENT) {
-      throw new BadRequestException('Linked client scope must be a CLIENT company')
+      throw new BadRequestException(
+        'Linked client scope must be a CLIENT company',
+      );
     }
-    return requested
+    return requested;
   }
 
-  async update(companyId: string, id: string, dto: UpdateEquipmentDto) {
-    const existing = await this.repo.findOne(companyId, id);
+  async update(
+    actorCompanyId: string,
+    actorUserId: string,
+    actorRole: UserRole,
+    id: string,
+    dto: UpdateEquipmentDto,
+  ) {
+    const existing = await this.repo.findOneById(id);
     if (!existing) {
+      throw new NotFoundException('Equipment not found');
+    }
+
+    const location = await this.assertWritableLocation({
+      actorCompanyId,
+      actorUserId,
+      actorRole,
+      locationId: existing.locationId,
+    });
+    if (existing.companyId !== location.clientCompanyId) {
       throw new NotFoundException('Equipment not found');
     }
 
@@ -144,12 +203,14 @@ export class EquipmentService {
       throw new BadRequestException('name cannot be empty');
     }
 
-    const nextType = dto.type !== undefined ? dto.type.trim().toUpperCase() : undefined;
+    const nextType =
+      dto.type !== undefined ? dto.type.trim().toUpperCase() : undefined;
     if (nextType !== undefined && !nextType) {
       throw new BadRequestException('type cannot be empty');
     }
 
-    const nextStatus = dto.status !== undefined ? dto.status.trim().toUpperCase() : undefined;
+    const nextStatus =
+      dto.status !== undefined ? dto.status.trim().toUpperCase() : undefined;
     if (nextStatus !== undefined && !nextStatus) {
       throw new BadRequestException('status cannot be empty');
     }
@@ -161,14 +222,85 @@ export class EquipmentService {
     });
   }
 
-  async remove(companyId: string, id: string) {
-    const existing = await this.repo.findOne(companyId, id);
+  async remove(
+    actorCompanyId: string,
+    actorUserId: string,
+    actorRole: UserRole,
+    id: string,
+  ) {
+    const existing = await this.repo.findOneById(id);
     if (!existing) {
+      throw new NotFoundException('Equipment not found');
+    }
+
+    const location = await this.assertWritableLocation({
+      actorCompanyId,
+      actorUserId,
+      actorRole,
+      locationId: existing.locationId,
+    });
+    if (existing.companyId !== location.clientCompanyId) {
       throw new NotFoundException('Equipment not found');
     }
 
     return this.repo.update(id, {
       status: 'INACTIVE',
     });
+  }
+
+  private async assertWritableLocation(params: {
+    actorCompanyId: string;
+    actorUserId: string;
+    actorRole: UserRole;
+    locationId: string;
+  }) {
+    const location = await this.repo.findLocationById(params.locationId);
+    if (!location) {
+      throw new NotFoundException('Location not found');
+    }
+
+    const owner = await this.prisma.company.findUnique({
+      where: { id: location.clientCompanyId },
+      select: { type: true },
+    });
+    if (!owner || owner.type !== CompanyType.CLIENT) {
+      throw new NotFoundException('Location not found');
+    }
+
+    if (params.actorCompanyId === location.clientCompanyId) {
+      return location;
+    }
+
+    const actorCompany = await this.prisma.company.findUnique({
+      where: { id: params.actorCompanyId },
+      select: { type: true },
+    });
+    if (!actorCompany || actorCompany.type !== CompanyType.PROVIDER) {
+      throw new NotFoundException('Location not found');
+    }
+
+    const access =
+      await this.serviceContractsService.assertPrimaryLinkedClientAccess(
+        params.actorCompanyId,
+        location.clientCompanyId,
+      );
+    if (!isServiceContractLocationAllowed(access, location.id)) {
+      throw new NotFoundException('Location not found');
+    }
+
+    const actorLocationScope = await resolveActorLocationScope({
+      prisma: this.prisma,
+      actor: {
+        id: params.actorUserId,
+        role: params.actorRole,
+        companyId: params.actorCompanyId,
+      },
+      scopeCompanyId: location.clientCompanyId,
+    });
+    if (!isLocationAllowedByLocationScope(actorLocationScope, location.id)) {
+      throw new NotFoundException('Location not found');
+    }
+
+    return location;
   }
 }
