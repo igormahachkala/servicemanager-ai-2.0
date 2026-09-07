@@ -8,6 +8,7 @@ import {
 
 import { PrismaService } from '../prisma/prisma.service'
 import { TimelineService } from '../timeline/timeline.service'
+import { ContractContextService } from '../service-contracts/contract-context.service'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
 
 import { TicketsPolicy, type BoardQueryInput } from '../policy/tickets.policy'
@@ -70,11 +71,13 @@ export class TicketsQueryService {
     private readonly prisma: PrismaService,
     private readonly timelineService: TimelineService,
     private readonly serviceContractsService: ServiceContractsService,
+    private readonly contractContextService: ContractContextService,
     private readonly shiftPolicyService?: ShiftPolicyService,
   ) {
     this.ticketMetaBuilder = new TicketMetaBuilder(
       this.prisma,
       this.serviceContractsService,
+      this.contractContextService,
       this.shiftPolicyService,
     )
   }

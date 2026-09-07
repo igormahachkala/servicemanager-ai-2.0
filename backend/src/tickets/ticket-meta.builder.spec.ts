@@ -84,6 +84,9 @@ function makePrisma(params: {
         company: { id: where.companyId, type: params.actorCompanyType },
       })),
     },
+    company: {
+      findUnique: jest.fn().mockResolvedValue({ type: params.actorCompanyType }),
+    },
   } as any;
 }
 
@@ -154,6 +157,7 @@ describe('TicketMetaBuilder acceptance actions', () => {
     const builder = new TicketMetaBuilder(
       prisma,
       makeServiceContracts() as any,
+      { getContractContext: jest.fn().mockResolvedValue(null) } as any,
     );
     const meta = await builder.buildForGetOne({
       ...defaultMetaParams({
@@ -197,6 +201,7 @@ describe('TicketMetaBuilder acceptance actions', () => {
     const builder = new TicketMetaBuilder(
       prisma,
       makeServiceContracts() as any,
+      { getContractContext: jest.fn().mockResolvedValue(null) } as any,
     );
     const meta = await builder.buildForGetOne(
       defaultMetaParams({
@@ -242,6 +247,7 @@ describe('TicketMetaBuilder acceptance actions', () => {
     const builder = new TicketMetaBuilder(
       prisma,
       makeServiceContracts(ServiceContractRole.PRIMARY) as any,
+      { getContractContext: jest.fn().mockResolvedValue(null) } as any,
       shiftPolicyService as any,
     );
     const meta = await builder.buildForGetOne({
