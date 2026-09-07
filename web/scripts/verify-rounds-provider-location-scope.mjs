@@ -23,6 +23,17 @@ const desktopRun = read('src/views/InspectionRunPage.tsx')
 const mobileRun = read('src/mobile/MobileInspectionRunPage.tsx')
 const quickRun = read('src/views/InspectionQuickPage.tsx')
 
+/**
+ * Комментарии убираются: в них имена канонических примитивов и прежнего
+ * поведения упоминаются намеренно — чтобы читатель знал, где живут правила и
+ * что именно было исправлено. Запреты ниже относятся к коду, не к тексту.
+ */
+function stripComments(source) {
+  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+}
+
+const mobileRunCode = stripComments(mobileRun)
+
 // ── создание обхода: площадки берутся в контуре выбранного клиента ──────────
 assert.match(roundCreation, /api\.getLinkedClients\(\)/)
 assert.match(roundCreation, /const isProviderScope = linkedClients\.length > 0/)
@@ -94,15 +105,23 @@ assert.doesNotMatch(
   'search обхода не должен подставляться в ссылку на заявку',
 )
 
-// ── второго резолвера доступа во фронтенде нет ─────────────────────────────
-/**
- * Комментарии убираются: в них имена канонических примитивов упоминаются
- * намеренно — чтобы читатель знал, где живут правила. Запрет относится к коду.
- */
-function stripComments(source) {
-  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
-}
+// ── категория заявки выбирается человеком (SMA-103-MOBILE-TICKET-OPEN) ────
+// Молчаливый activeCategories[0] брал самую свежую категорию клиента (каталог
+// приходит createdAt desc). Если её специализации нет в контракте, заявка
+// создаётся, но обратно провайдеру не видна — сужение по специализациям
+// контракта отдаёт 404. Проверено на Stage: #777 открывается, #778/#779 нет.
+assert.doesNotMatch(
+  mobileRunCode,
+  /activeCategories\[0\]/,
+  'мобильный не должен молча брать первую категорию',
+)
+assert.match(mobileRun, /const \[ticketCategoryId, setTicketCategoryId\] = useState\(''\)/)
+assert.match(mobileRun, /const categoryId = ticketCategoryId\.trim\(\)/)
+assert.match(mobileRun, /Выберите категорию заявки/, 'без выбора создание отклоняется с понятным текстом')
+assert.match(mobileRun, /disabled=\{busy \|\| !ticketCategoryId\}/, 'кнопка заблокирована до выбора категории')
+assert.match(mobileRun, /— выберите категорию —/)
 
+// ── второго резолвера доступа во фронтенде нет ─────────────────────────────
 for (const [name, source] of [
   ['InspectionTemplatesPage', roundCreation],
   ['InspectionRunPage', desktopRun],

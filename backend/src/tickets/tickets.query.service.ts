@@ -1160,60 +1160,18 @@ export class TicketsQueryService {
     observerCompanyId?: string,
     linkedClientCompanyId?: string,
   ) {
-    // SMA-103-DIAG: ВРЕМЕННАЯ диагностика мобильного открытия заявки из обхода.
-    // Только идентификаторы: ни токенов, ни заголовков, ни секретов.
-    // УДАЛИТЬ вместе с этим комментарием после снятия показаний.
-    // eslint-disable-next-line no-console
-    console.log(
-      'SMA103DIAG_IN ' +
-        JSON.stringify({
-          ticketId,
-          actorUserId: userId,
-          actorCompanyId: companyId,
-          actorRole: role,
-          reqObserverCompanyId: observerCompanyId ?? null,
-          reqLinkedClientCompanyId: linkedClientCompanyId ?? null,
-        }),
-    )
-
-    let readable: Awaited<ReturnType<typeof resolveReadableTicketAccess>>
-    try {
-      readable = await resolveReadableTicketAccess({
-        prisma: this.prisma,
-        serviceContractsService: this.serviceContractsService,
-        actor: { id: userId, role, companyId, accessFlags },
-        ticketId,
-        linkedClientCompanyId,
-        observerCompanyId,
-        allowedLinkedClientContractRoles: [
-          ServiceContractRole.PRIMARY,
-          ServiceContractRole.SECONDARY,
-        ],
-      })
-    } catch (diagErr) {
-      // eslint-disable-next-line no-console
-      console.log(
-        'SMA103DIAG_DENY ' +
-          JSON.stringify({
-            ticketId,
-            reqLinkedClientCompanyId: linkedClientCompanyId ?? null,
-            errorName: (diagErr as { name?: string })?.name ?? null,
-            status: (diagErr as { status?: number })?.status ?? null,
-            message: (diagErr as { message?: string })?.message ?? null,
-          }),
-      )
-      throw diagErr
-    }
-
-    // eslint-disable-next-line no-console
-    console.log(
-      'SMA103DIAG_OK ' +
-        JSON.stringify({
-          ticketId,
-          scopeCompanyId: readable.scopeCompanyId,
-          visibilityMode: readable.visibilityMode,
-        }),
-    )
+    const readable = await resolveReadableTicketAccess({
+      prisma: this.prisma,
+      serviceContractsService: this.serviceContractsService,
+      actor: { id: userId, role, companyId, accessFlags },
+      ticketId,
+      linkedClientCompanyId,
+      observerCompanyId,
+      allowedLinkedClientContractRoles: [
+        ServiceContractRole.PRIMARY,
+        ServiceContractRole.SECONDARY,
+      ],
+    })
 
     const include = {
       company: { select: companyIdentitySelect },
