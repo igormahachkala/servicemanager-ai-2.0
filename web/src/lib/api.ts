@@ -3267,6 +3267,13 @@ export type InspectionTemplateItem = {
   title: string
   description?: string | null
   sortOrder: number
+  zoneName?: string | null
+  zoneSortOrder: number
+  checkpointSortOrder: number
+  responseType: InspectionCheckpointResponseType
+  numericMin?: number | null
+  numericMax?: number | null
+  numericUnit?: string | null
   isRequired: boolean
   createdAt?: string
   updatedAt?: string
@@ -3286,6 +3293,7 @@ export type InspectionTemplate = {
 export type InspectionRunItemStatus = 'PENDING' | 'OK' | 'ISSUE' | 'CRITICAL' | 'SKIPPED'
 export type InspectionRunStatus = 'IN_PROGRESS' | 'COMPLETED'
 export type InspectionReportStatus = 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED'
+export type InspectionCheckpointResponseType = 'NORMAL_PROBLEM' | 'YES_NO' | 'NUMBER' | 'TEXT' | 'PHOTO'
 
 export type InspectionRunItemAttachment = {
   id: string
@@ -3311,6 +3319,16 @@ export type InspectionRunItem = {
   title: string
   description?: string | null
   sortOrder: number
+  zoneName?: string | null
+  zoneSortOrder: number
+  checkpointSortOrder: number
+  responseType: InspectionCheckpointResponseType
+  numericMin?: number | null
+  numericMax?: number | null
+  numericUnit?: string | null
+  booleanValue?: boolean | null
+  numberValue?: number | null
+  textValue?: string | null
   isRequired: boolean
   status: InspectionRunItemStatus
   requiresRepair: boolean
@@ -3473,6 +3491,16 @@ export type InspectionRunReport = {
     id: string
     title: string
     description?: string | null
+    zoneName?: string | null
+    zoneSortOrder: number
+    checkpointSortOrder: number
+    responseType: InspectionCheckpointResponseType
+    numericMin?: number | null
+    numericMax?: number | null
+    numericUnit?: string | null
+    booleanValue?: boolean | null
+    numberValue?: number | null
+    textValue?: string | null
     status: InspectionRunItemStatus
     comment?: string | null
     requiresRepair: boolean
@@ -3502,6 +3530,9 @@ export type UpdateInspectionRunItemInput = {
   status?: InspectionRunItemStatus
   requiresRepair?: boolean
   comment?: string
+  booleanValue?: boolean
+  numberValue?: number
+  textValue?: string
 }
 
 export type CreateTicketFromInspectionItemInput = {
@@ -3538,6 +3569,13 @@ export async function createInspectionTemplate(input: {
     title: string
     description?: string
     sortOrder?: number
+    zoneName?: string
+    zoneSortOrder?: number
+    checkpointSortOrder?: number
+    responseType?: InspectionCheckpointResponseType
+    numericMin?: number
+    numericMax?: number
+    numericUnit?: string
     isRequired?: boolean
   }>
 }): Promise<InspectionTemplate> {
