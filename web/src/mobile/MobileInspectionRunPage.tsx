@@ -5,7 +5,7 @@ import * as api from '../lib/api'
 import { numericConstraintLabel, responseTypeLabel } from '../lib/inspectionZones'
 import { ProtectedUploadImg } from '../ui/ProtectedUploadMedia'
 import { mobilePath } from './mobileRoute'
-import { mobileTicketNavState } from './mobileTicketDisplay'
+import { mobileTicketNavState, mobileTicketStatusLabelRu } from './mobileTicketDisplay'
 
 function fmtDateTime(value?: string | null): string {
   if (!value) return '—'
@@ -99,6 +99,16 @@ export function MobileInspectionRunPage() {
 
   function getCreatedTicketId(item: api.InspectionRunItem): string {
     return (item.ticketId || item.ticket?.id || createdTicketsByItemId[item.id]?.ticketId || '').trim()
+  }
+
+  /**
+   * Номер связанной заявки. Канонический источник — item.ticket с сервера:
+   * состояние createdTicketsByItemId живёт только до перезагрузки, а обход
+   * открывают повторно. Оно остаётся запасным вариантом на те секунды между
+   * ответом на создание и обновлением обхода.
+   */
+  function getCreatedTicketNumber(item: api.InspectionRunItem): number | null {
+    return item.ticket?.ticketNumber ?? createdTicketsByItemId[item.id]?.ticketNumber ?? null
   }
 
   async function markOk(itemId: string) {
@@ -327,7 +337,8 @@ export function MobileInspectionRunPage() {
                 const uploadBusy = uploadBusyItemIds.has(item.id)
                 const isShowingIssueForm = activeIssueItemId === item.id
                 const createdTicketId = getCreatedTicketId(item)
-                const createdTicketNumber = createdTicketsByItemId[item.id]?.ticketNumber ?? null
+                const createdTicketNumber = getCreatedTicketNumber(item)
+                const createdTicketStatus = item.ticket?.status ?? null
                 const canCreateTicket = (item.status === 'ISSUE' || item.status === 'CRITICAL') && !createdTicketId
                 const previous = run.items[index - 1]
                 const zoneName = item.zoneName?.trim() || 'Без зоны'
@@ -382,7 +393,8 @@ export function MobileInspectionRunPage() {
                     ) : null}
                     {createdTicketId ? (
                       <div style={{ fontSize: '0.8rem', color: '#2563eb', fontWeight: 600 }}>
-                        {createdTicketNumber != null ? `Заявка #${createdTicketNumber} создана` : 'Заявка создана'}
+                        {createdTicketNumber != null ? `Заявка #${createdTicketNumber}` : 'Заявка создана'}
+                        {createdTicketStatus ? ` — ${mobileTicketStatusLabelRu(createdTicketStatus)}` : ''}
                       </div>
                     ) : null}
 
@@ -491,7 +503,7 @@ export function MobileInspectionRunPage() {
                           className="mobileBtn mobileBtnSecondary"
                           style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minHeight: 34, padding: '6px 14px', fontSize: '0.82rem', borderRadius: 8 }}
                         >
-                          Открыть заявку
+                          {createdTicketNumber != null ? `Открыть заявку #${createdTicketNumber}` : 'Открыть заявку'}
                         </Link>
                       </div>
                     ) : null}
