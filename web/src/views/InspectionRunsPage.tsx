@@ -22,7 +22,10 @@ export function InspectionRunsPage() {
           <h2 style={{ marginBottom: 4 }}>История обходов</h2>
           <div className="muted small">Последние запуски обходов по вашей компании.</div>
         </div>
-        <Link to="/inspection/templates"><button className="ghost">Новый обход</button></Link>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <Link to="/inspection/schedules"><button className="ghost">Планирование</button></Link>
+          <Link to="/inspection/templates"><button className="ghost">Новый обход</button></Link>
+        </div>
       </div>
 
       {runsQ.isError ? <div className="alert">{(runsQ.error as any)?.message || String(runsQ.error)}</div> : null}
