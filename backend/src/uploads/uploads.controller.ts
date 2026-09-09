@@ -19,9 +19,15 @@ import { join } from 'path'
 
 import { PrismaService } from '../prisma/prisma.service'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
-import { resolveReadableTicketAccess } from '../tickets/ticket-access.utils'
+import {
+  isLocationAllowedByLocationScope,
+  resolveActorLocationScope,
+  resolveReadableTicketAccess,
+} from '../tickets/ticket-access.utils'
 
-const ALLOWED_FOLDERS = new Set(['ticket-attachments', 'inspection-run-items'])
+// SMA-EQUIPMENT-V2-110A: снимки оборудования раздаются тем же авторизованным
+// маршрутом. Публичного каталога у них нет — только эта папка в общем списке.
+const ALLOWED_FOLDERS = new Set(['ticket-attachments', 'inspection-run-items', 'equipment'])
 
 // UUID v4 followed by a short safe extension: e.g. uuid.png, uuid.jpeg, uuid.bin
 const SAFE_FILENAME_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.[a-zA-Z0-9]{1,10}$/
@@ -183,6 +189,9 @@ export class UploadsController {
     if (folder === 'ticket-attachments') {
       return this.assertTicketAttachmentAccess(storageKey, user)
     }
+    if (folder === 'equipment') {
+      return this.assertEquipmentAttachmentAccess(storageKey, user)
+    }
     return this.assertInspectionAttachmentAccess(storageKey, user)
   }
 
@@ -240,6 +249,58 @@ export class UploadsController {
       }
       throw err
     }
+  }
+
+  /**
+   * SMA-EQUIPMENT-V2-110A.
+   * Снимок виден тому, кто видит саму единицу: свой tenant, либо провайдер с
+   * действующим договором и площадкой в своей области. Правила берутся из общих
+   * примитивов доступа, второго резолвера здесь не заводится.
+   */
+  private async assertEquipmentAttachmentAccess(
+    storageKey: string,
+    user: JwtPayload,
+  ): Promise<{ mimeType: string; originalName: string }> {
+    const attachment = await this.prisma.equipmentAttachment.findFirst({
+      where: { storageKey },
+      select: {
+        companyId: true,
+        mimeType: true,
+        originalName: true,
+        equipment: { select: { locationId: true } },
+      },
+    })
+
+    if (!attachment) {
+      throw new NotFoundException('File not found')
+    }
+
+    const meta = { mimeType: attachment.mimeType, originalName: attachment.originalName }
+
+    if (user.role === 'PLATFORM_ADMIN') {
+      return meta
+    }
+
+    if (attachment.companyId !== user.companyId) {
+      const access = await this.serviceContractsService.getLinkedClientAccess(
+        user.companyId,
+        attachment.companyId,
+      )
+      if (!access) {
+        throw new NotFoundException('File not found')
+      }
+    }
+
+    const locationScope = await resolveActorLocationScope({
+      prisma: this.prisma,
+      actor: { id: user.sub, role: user.role, companyId: user.companyId },
+      scopeCompanyId: attachment.companyId,
+    })
+    if (!isLocationAllowedByLocationScope(locationScope, attachment.equipment.locationId)) {
+      throw new NotFoundException('File not found')
+    }
+
+    return meta
   }
 
   private async assertInspectionAttachmentAccess(

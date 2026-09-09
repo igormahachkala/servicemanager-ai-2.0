@@ -44,6 +44,8 @@ const TicketPage = lazyExport(() => import('./views/TicketPage'), 'TicketPage')
 const CreateTicketPage = lazyExport(() => import('./views/CreateTicketPage'), 'CreateTicketPage')
 const EmployeesPage = lazyExport(() => import('./views/EmployeesPage'), 'EmployeesPage')
 const LocationsPage = lazyExport(() => import('./views/LocationsPage'), 'LocationsPage')
+// SMA-EQUIPMENT-V2-110A: /equipment больше не заглушка.
+const EquipmentPage = lazyExport(() => import('./views/EquipmentPage'), 'EquipmentPage')
 const AnalyticsPage = lazyExport(() => import('./views/AnalyticsPage'), 'AnalyticsPage')
 const LocationAnalyticsPage = lazyExport(() => import('./views/LocationAnalyticsPage'), 'LocationAnalyticsPage')
 const SettingsPage = lazyExport(() => import('./views/SettingsPage'), 'SettingsPage')
@@ -80,6 +82,8 @@ const MobileAnalytics = lazyExport(() => import('./mobile/MobileAnalytics'), 'Mo
 const MobileChatsPage = lazyExport(() => import('./mobile/MobileChatsPage'), 'MobileChatsPage')
 const MobileOfflineQueue = lazyExport(() => import('./mobile/MobileOfflineQueue'), 'MobileOfflineQueue')
 const MobileInspectionList = lazyExport(() => import('./mobile/MobileInspectionList'), 'MobileInspectionList')
+// SMA-EQUIPMENT-V2-110A: карточка оборудования на телефоне — только чтение.
+const MobileEquipmentPage = lazyExport(() => import('./mobile/MobileEquipmentPage'), 'MobileEquipmentPage')
 const MobileInspectionRunPage = lazyExport(() => import('./mobile/MobileInspectionRunPage'), 'MobileInspectionRunPage')
 const MobileShiftPage = lazyExport(() => import('./mobile/MobileShiftPage'), 'MobileShiftPage')
 const MobileWorkforcePage = lazyExport(() => import('./mobile/MobileWorkforcePage'), 'MobileWorkforcePage')
@@ -177,6 +181,8 @@ export function AppRoutes() {
         <Route path="inspection" element={<LazyRoute component={MobileInspectionList} props={{ standalone: true }} />} />
         <Route path="inspection/:runId" element={<LazyRoute component={MobileInspectionRunPage} />} />
         <Route path="inspection/object/:locationId" element={<LazyRoute component={MobileInspectionList} />} />
+        <Route path="equipment" element={<LazyRoute component={MobileEquipmentPage} />} />
+        <Route path="equipment/:id" element={<LazyRoute component={MobileEquipmentPage} />} />
       </Route>
 
       <Route
@@ -192,7 +198,7 @@ export function AppRoutes() {
         <Route path="archive" element={<LazyRoute component={ArchivePage} />} />
         <Route path="tickets" element={<LazyRoute component={BoardPage} />} />
         <Route path="objects" element={<LazyRoute component={LocationsPage} />} />
-        <Route path="equipment" element={<LazyRoute component={ManagementV2StubPage} />} />
+        <Route path="equipment" element={<LazyRoute component={EquipmentPage} />} />
         <Route path="users" element={<LazyRoute component={EmployeesPage} />} />
         <Route path="contractors" element={<LazyRoute component={ContractorsRoutePage} />} />
         <Route path="acts" element={<LazyRoute component={ManagementV2StubPage} />} />
@@ -247,6 +253,8 @@ export function AppRoutes() {
           <Route path="inspection" element={<LazyRoute component={MobileInspectionList} props={{ standalone: true }} />} />
           <Route path="inspection/:runId" element={<LazyRoute component={MobileInspectionRunPage} />} />
           <Route path="inspection/object/:locationId" element={<LazyRoute component={MobileInspectionList} />} />
+        <Route path="equipment" element={<LazyRoute component={MobileEquipmentPage} />} />
+        <Route path="equipment/:id" element={<LazyRoute component={MobileEquipmentPage} />} />
         </Route>
       </Route>
 

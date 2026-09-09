@@ -27,16 +27,6 @@ export const V2_STUB_PAGES: V2PageMeta[] = [
     taskRef: 'SMA-MGMT-T02',
   },
   {
-    path: '/equipment',
-    title: 'Оборудование',
-    description:
-      'Реестр оборудования по объектам: карточки, привязка к заявкам, история обслуживания. Отдельный раздел появится в Operations Center V2.',
-    status: 'in_progress',
-    taskRef: 'SMA-MGMT-T02',
-    legacyPath: '/tickets',
-    legacyLabel: 'Открыть заявки',
-  },
-  {
     path: '/acts',
     title: 'Акты',
     description:

@@ -196,6 +196,7 @@ model Company {
   inspectionRuns               InspectionRun[]
   inspectionSchedules          InspectionSchedule[]
   inspectionRunItemAttachments InspectionRunItemAttachment[]
+  equipmentAttachments         EquipmentAttachment[]
   clientContracts              ServiceContract[]             @relation("ClientCompanyContracts")
   providerContracts            ServiceContract[]             @relation("ProviderCompanyContracts")
   providedTechnicianBindings   TechnicianClientBinding[]     @relation("TechnicianBindingProviderCompany")
@@ -234,6 +235,7 @@ model User {
   assignedTickets             Ticket[]                   @relation("AssignedTechnician")
   createdTickets              Ticket[]                   @relation("TicketCreatedBy")
   ticketAttachmentsUploaded   TicketAttachment[]         @relation("TicketAttachmentUploadedBy")
+  equipmentAttachmentsUploaded EquipmentAttachment[]     @relation("EquipmentAttachmentUploadedBy")
   inspectionRunsPerformed     InspectionRun[]            @relation("InspectionRunPerformedBy")
   inspectionReportsSubmitted  InspectionRun[]            @relation("InspectionRunReportSubmittedBy")
   inspectionReportsReviewed   InspectionRun[]            @relation("InspectionRunReportReviewedBy")
@@ -543,20 +545,67 @@ model Equipment {
 
   name   String
   type   String
+  /// SMA-EQUIPMENT-V2-110A: остаётся строкой намеренно. Значение INACTIVE несёт
+  /// мягкое удаление (EquipmentService.remove), и предложенный набор
+  /// ACTIVE/REPAIR/DECOMMISSIONED его не содержит. Перевод в enum требует
+  /// продуктового решения, равны ли INACTIVE и DECOMMISSIONED; допустимые
+  /// значения пока проверяются на сервисе.
   status String @default("ACTIVE")
+
+  /// Паспортные поля V2.1. Все необязательные: карточка заполняется постепенно.
+  manufacturer    String?
+  model           String?
+  serialNumber    String?
+  inventoryNumber String?
+  commissionedAt  DateTime?
+  warrantyUntil   DateTime?
+  description     String?
+
+  /// Главное фото карточки. Отдельная связь, потому что снимков может быть много,
+  /// а обложка — одна.
+  mainPhotoId String?              @unique
+  mainPhoto   EquipmentAttachment? @relation("EquipmentMainPhoto", fields: [mainPhotoId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  company             Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  location            Location             @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  company             Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  location            Location              @relation(fields: [locationId], references: [id], onDelete: Cascade)
   tickets             Ticket[]
   inspectionRuns      InspectionRun[]
   inspectionSchedules InspectionSchedule[]
+  attachments         EquipmentAttachment[] @relation("EquipmentAttachments")
 
   @@index([companyId, locationId])
   @@index([companyId, status])
   @@index([locationId, status])
+  @@index([companyId, serialNumber])
+  @@index([companyId, inventoryNumber])
+}
+
+/// SMA-EQUIPMENT-V2-110A.
+/// Повторяет форму TicketAttachment и InspectionRunItemAttachment: файлы лежат
+/// в том же защищённом хранилище и отдаются тем же авторизованным маршрутом
+/// /uploads/:folder/:filename. Своего хранилища не заводится.
+model EquipmentAttachment {
+  id               String   @id @default(uuid())
+  companyId        String
+  equipmentId      String
+  uploadedByUserId String?
+  originalName     String
+  storageKey       String
+  mimeType         String
+  sizeBytes        Int
+  url              String
+  createdAt        DateTime @default(now())
+
+  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  equipment  Equipment   @relation("EquipmentAttachments", fields: [equipmentId], references: [id], onDelete: Cascade)
+  uploadedBy User?       @relation("EquipmentAttachmentUploadedBy", fields: [uploadedByUserId], references: [id], onDelete: SetNull)
+  mainPhotoOf Equipment? @relation("EquipmentMainPhoto")
+
+  @@index([companyId, equipmentId])
+  @@index([equipmentId, createdAt])
 }
 
 model ServiceContract {
