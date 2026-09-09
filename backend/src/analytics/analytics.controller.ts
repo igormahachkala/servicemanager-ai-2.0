@@ -37,6 +37,48 @@ export class AnalyticsController {
     return this.svc.getWorkloadAnalytics(req.user.companyId, req.user.id, req.user.role as UserRole)
   }
 
+  /**
+   * SMA-TICKET-LIFECYCLE-TIME-ANALYTICS-108A.
+   * Роли и право — те же, что у остальной аналитики: своего набора не заводится.
+   * TECHNICIAN сюда не входит, чтобы управленческий срез не утёк исполнителю.
+   */
+  @Get('ticket-lifecycle')
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.PLATFORM_ADMIN)
+  @RequirePermission(PERMISSIONS.ANALYTICS_VIEW)
+  ticketLifecycle(
+    @Req() req: any,
+    @Query('linkedClientCompanyId') linkedClientCompanyId?: string,
+    @Query('companyId') companyId?: string,
+    @Query('groupBy') groupBy?: string,
+    @Query('locationId') locationId?: string,
+    @Query('categoryId') categoryId?: string,
+    @Query('city') city?: string,
+    @Query('assigneeId') assigneeId?: string,
+    @Query('urgency') urgency?: string,
+    @Query('status') status?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.svc.getTicketLifecycleAnalytics(
+      req.user.companyId,
+      req.user.id,
+      req.user.role as UserRole,
+      {
+        companyId,
+        linkedClientCompanyId,
+        groupBy: groupBy as any,
+        locationId,
+        categoryId,
+        city,
+        assigneeId,
+        urgency,
+        status,
+        from,
+        to,
+      },
+    )
+  }
+
   @Get('locations')
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.PLATFORM_ADMIN)
   @RequirePermission(PERMISSIONS.ANALYTICS_VIEW)

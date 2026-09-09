@@ -1,5 +1,5 @@
 ﻿import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
-import { Prisma, ServiceContractRole, TicketSource, TicketStatus, UserRole } from '@prisma/client'
+import { Prisma, ServiceContractRole, TicketSource, TicketStatus, TicketUrgency, UserRole } from '@prisma/client'
 
 import { PrismaService } from '../prisma/prisma.service'
 import { TimelineService } from '../timeline/timeline.service'
@@ -13,6 +13,90 @@ import {
   type LocationScope,
 } from '../tickets/ticket-access.utils'
 import { EXECUTOR_CAPABLE_ROLES } from '../common/executor.utils'
+import {
+  computeTicketLifecycleDurations,
+  resolveTicketLifecycleTimestamps,
+  summarizeTicketLifecycles,
+  type TicketLifecycleDurations,
+} from './ticket-lifecycle-timing'
+
+/**
+ * SMA-TICKET-LIFECYCLE-TIME-ANALYTICS-108A.
+ * Потолок выборки. Заявки тянутся вместе с историей статусов, поэтому объём
+ * ограничен явно; ответ помечается truncated, если предел достигнут.
+ */
+const MAX_LIFECYCLE_TICKETS = 5000
+
+export const TICKET_LIFECYCLE_GROUPINGS = [
+  'none',
+  'category',
+  'city',
+  'location',
+  'assignee',
+  'provider',
+] as const
+
+export type TicketLifecycleGrouping = (typeof TICKET_LIFECYCLE_GROUPINGS)[number]
+
+function isTicketStatus(value: string): value is TicketStatus {
+  return (Object.values(TicketStatus) as string[]).includes(value)
+}
+
+function isTicketUrgency(value: string): value is TicketUrgency {
+  return (Object.values(TicketUrgency) as string[]).includes(value)
+}
+
+type LifecycleTicketRow = {
+  problemCategoryId: string | null
+  problemCategory: { id: string; name: string } | null
+  locationId: string | null
+  location: { id: string; name: string; city: string | null } | null
+  assignedTechnicianId: string | null
+  assignedTechnician: {
+    id: string
+    firstName: string | null
+    lastName: string | null
+    email: string
+    companyId: string
+  } | null
+}
+
+/** Ключ и человекочитаемая подпись группы. Без ключа группа была бы «прочее». */
+function resolveLifecycleGroupKey(
+  groupBy: TicketLifecycleGrouping,
+  ticket: LifecycleTicketRow,
+  providerNameById: Map<string, string>,
+): { key: string; label: string } {
+  if (groupBy === 'category') {
+    return {
+      key: ticket.problemCategoryId ?? 'none',
+      label: ticket.problemCategory?.name ?? 'Без категории',
+    }
+  }
+  if (groupBy === 'city') {
+    const city = ticket.location?.city?.trim()
+    return { key: city || 'none', label: city || 'Без города' }
+  }
+  if (groupBy === 'location') {
+    return {
+      key: ticket.locationId ?? 'none',
+      label: ticket.location?.name ?? 'Без точки',
+    }
+  }
+  if (groupBy === 'assignee') {
+    const person = ticket.assignedTechnician
+    const name = [person?.lastName, person?.firstName].filter(Boolean).join(' ').trim()
+    return {
+      key: ticket.assignedTechnicianId ?? 'none',
+      label: name || person?.email || 'Не назначен',
+    }
+  }
+  const providerId = ticket.assignedTechnician?.companyId
+  return {
+    key: providerId ?? 'none',
+    label: providerId ? providerNameById.get(providerId) ?? 'Подрядчик' : 'Без подрядчика',
+  }
+}
 
 @Injectable()
 export class AnalyticsService {
@@ -604,6 +688,177 @@ export class AnalyticsService {
     }
 
     throw new BadRequestException('Linked client analytics is not available')
+  }
+
+  /**
+   * SMA-TICKET-LIFECYCLE-TIME-ANALYTICS-108A.
+   *
+   * Календарное время этапов заявки. Это НЕ трудозатраты техника: фактический
+   * труд живёт в WorkLog, а он на момент задачи пуст (0 строк в Production),
+   * поэтому смешивать их нельзя — см. labor в ответе.
+   *
+   * Доступ не изобретается: берутся те же resolveScope / resolveLocationScope /
+   * resolveScopedTicketWhere, что и у остальной аналитики, поэтому клиент,
+   * NETWORK_DIRECTOR, PRIMARY и SECONDARY видят ровно свой канонический срез.
+   *
+   * Стратегия запроса: агрегация на бэкенде. Заявки и их история берутся одним
+   * запросом с ограничением MAX_LIFECYCLE_TICKETS; при упоре в предел ответ
+   * помечается truncated, чтобы цифры не выглядели полными, когда они не полны.
+   */
+  async getTicketLifecycleAnalytics(
+    actorCompanyId: string,
+    actorUserId: string,
+    actorRole: UserRole,
+    params: {
+      companyId?: string
+      linkedClientCompanyId?: string
+      groupBy?: TicketLifecycleGrouping
+      locationId?: string
+      categoryId?: string
+      city?: string
+      assigneeId?: string
+      urgency?: string
+      status?: string
+      from?: string
+      to?: string
+    },
+  ) {
+    const scope = await this.resolveScope(actorCompanyId, actorRole, params.companyId, params.linkedClientCompanyId)
+    const locationScope = await this.resolveLocationScope(actorCompanyId, actorUserId, actorRole, scope.scopeCompanyId)
+    const baseWhere = await this.resolveScopedTicketWhere(
+      actorCompanyId,
+      actorUserId,
+      actorRole,
+      scope,
+      locationScope,
+    )
+
+    const dateFilter: { gte?: Date; lte?: Date } = {}
+    if (params.from) {
+      const d = new Date(params.from)
+      if (!isNaN(d.getTime())) dateFilter.gte = d
+    }
+    if (params.to) {
+      const d = new Date(params.to)
+      if (!isNaN(d.getTime())) {
+        d.setHours(23, 59, 59, 999)
+        dateFilter.lte = d
+      }
+    }
+
+    const ticketWhere = this.andTicketWhere(baseWhere, {
+      ...(Object.keys(dateFilter).length ? { createdAt: dateFilter } : {}),
+      ...(params.locationId ? { locationId: params.locationId } : {}),
+      ...(params.categoryId ? { problemCategoryId: params.categoryId } : {}),
+      ...(params.assigneeId ? { assignedTechnicianId: params.assigneeId } : {}),
+      ...(params.city ? { location: { city: params.city } } : {}),
+      ...(params.urgency && isTicketUrgency(params.urgency) ? { urgency: params.urgency } : {}),
+      ...(params.status && isTicketStatus(params.status) ? { status: params.status } : {}),
+    })
+
+    const tickets = await this.prisma.ticket.findMany({
+      where: ticketWhere,
+      take: MAX_LIFECYCLE_TICKETS + 1,
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        createdAt: true,
+        closedAt: true,
+        slaMinutes: true,
+        slaBreachedAt: true,
+        problemCategoryId: true,
+        problemCategory: { select: { id: true, name: true } },
+        locationId: true,
+        location: { select: { id: true, name: true, city: true } },
+        assignedTechnicianId: true,
+        assignedTechnician: {
+          select: { id: true, firstName: true, lastName: true, email: true, companyId: true },
+        },
+        statusHistory: {
+          select: { fromStatus: true, toStatus: true, createdAt: true },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    })
+
+    const truncated = tickets.length > MAX_LIFECYCLE_TICKETS
+    const rows = truncated ? tickets.slice(0, MAX_LIFECYCLE_TICKETS) : tickets
+
+    const groupBy: TicketLifecycleGrouping = TICKET_LIFECYCLE_GROUPINGS.includes(
+      params.groupBy as TicketLifecycleGrouping,
+    )
+      ? (params.groupBy as TicketLifecycleGrouping)
+      : 'none'
+
+    // Названия подрядчиков нужны только для одной группировки — лишний запрос
+    // в остальных случаях не делается.
+    const providerCompanyIds =
+      groupBy === 'provider'
+        ? Array.from(
+            new Set(
+              rows
+                .map((ticket) => ticket.assignedTechnician?.companyId)
+                .filter((id): id is string => !!id),
+            ),
+          )
+        : []
+    const providerCompanies = providerCompanyIds.length
+      ? await this.prisma.company.findMany({
+          where: { id: { in: providerCompanyIds } },
+          select: { id: true, name: true },
+        })
+      : []
+    const providerNameById = new Map(providerCompanies.map((company) => [company.id, company.name]))
+
+    const computed = rows.map((ticket) => {
+      const timestamps = resolveTicketLifecycleTimestamps({
+        createdAt: ticket.createdAt,
+        closedAt: ticket.closedAt,
+        statusHistory: ticket.statusHistory,
+      })
+      return { ticket, durations: computeTicketLifecycleDurations(timestamps) }
+    })
+
+    const groups = new Map<string, { key: string; label: string; durations: TicketLifecycleDurations[] }>()
+    if (groupBy !== 'none') {
+      for (const row of computed) {
+        const { key, label } = resolveLifecycleGroupKey(groupBy, row.ticket, providerNameById)
+        const bucket = groups.get(key) ?? { key, label, durations: [] }
+        bucket.durations.push(row.durations)
+        groups.set(key, bucket)
+      }
+    }
+
+    // SLA берётся канонический: slaBreachedAt проставляет существующий движок,
+    // своей копии правил здесь нет.
+    const slaTracked = rows.filter((ticket) => ticket.slaMinutes !== null)
+    const slaBreached = slaTracked.filter((ticket) => ticket.slaBreachedAt !== null)
+
+    return {
+      scope: { companyId: scope.scopeCompanyId, visibilityMode: scope.visibilityMode },
+      period: { from: dateFilter.gte ?? null, to: dateFilter.lte ?? null },
+      groupBy,
+      truncated,
+      limit: MAX_LIFECYCLE_TICKETS,
+      overall: summarizeTicketLifecycles(computed.map((row) => row.durations)),
+      groups: [...groups.values()]
+        .map((bucket) => ({
+          key: bucket.key,
+          label: bucket.label,
+          ...summarizeTicketLifecycles(bucket.durations),
+        }))
+        .sort((a, b) => (b.totalLifecycleTime.averageMs ?? -1) - (a.totalLifecycleTime.averageMs ?? -1)),
+      sla: {
+        trackedTickets: slaTracked.length,
+        breachedTickets: slaBreached.length,
+        withinSlaRate: slaTracked.length
+          ? Math.round(((slaTracked.length - slaBreached.length) / slaTracked.length) * 1000) / 10
+          : null,
+      },
+      // Фактические трудозатраты сюда не подмешиваются: WorkLog пуст, и выдавать
+      // календарное время за труд техника нельзя.
+      labor: { source: 'WorkLog', available: false, reason: 'work_logs_not_recorded' },
+    }
   }
 
   async getLocationsAnalytics(

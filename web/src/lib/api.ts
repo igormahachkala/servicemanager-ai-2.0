@@ -3220,6 +3220,67 @@ export async function analyticsOverview(params?: { linkedClientCompanyId?: strin
   return request<AnalyticsOverviewResponse>('/analytics/overview' + suffix)
 }
 
+/** SMA-TICKET-LIFECYCLE-TIME-ANALYTICS-108A. Сводка по одной метрике этапа. */
+export type LifecycleDurationSummary = {
+  count: number
+  averageMs: number | null
+  medianMs: number | null
+  p75Ms: number | null
+  p90Ms: number | null
+}
+
+export type LifecycleMetrics = {
+  tickets: number
+  timeToAssignment: LifecycleDurationSummary
+  timeAssignmentToWork: LifecycleDurationSummary
+  timeToCompletion: LifecycleDurationSummary
+  workCycleTime: LifecycleDurationSummary
+  acceptanceWaitTime: LifecycleDurationSummary
+  totalLifecycleTime: LifecycleDurationSummary
+}
+
+export type TicketLifecycleGrouping =
+  | 'none'
+  | 'category'
+  | 'city'
+  | 'location'
+  | 'assignee'
+  | 'provider'
+
+export type TicketLifecycleAnalyticsResponse = {
+  scope: { companyId: string; visibilityMode: string }
+  period: { from: string | null; to: string | null }
+  groupBy: TicketLifecycleGrouping
+  truncated: boolean
+  limit: number
+  overall: LifecycleMetrics
+  groups: Array<LifecycleMetrics & { key: string; label: string }>
+  sla: { trackedTickets: number; breachedTickets: number; withinSlaRate: number | null }
+  /** Календарное время — не трудозатраты. WorkLog пока не заполняется. */
+  labor: { source: string; available: boolean; reason?: string }
+}
+
+export async function analyticsTicketLifecycle(params?: {
+  linkedClientCompanyId?: string
+  companyId?: string
+  groupBy?: TicketLifecycleGrouping
+  locationId?: string
+  categoryId?: string
+  city?: string
+  assigneeId?: string
+  urgency?: string
+  status?: string
+  from?: string
+  to?: string
+}): Promise<TicketLifecycleAnalyticsResponse> {
+  const search = new URLSearchParams()
+  for (const [key, value] of Object.entries(params ?? {})) {
+    if (value) search.set(key, String(value))
+  }
+  const suffix = search.toString() ? '?' + search.toString() : ''
+  return request<TicketLifecycleAnalyticsResponse>('/analytics/ticket-lifecycle' + suffix)
+}
+
 export async function analyticsLocations(params?: {
   linkedClientCompanyId?: string
   companyId?: string

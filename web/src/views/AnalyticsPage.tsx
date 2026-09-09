@@ -3,6 +3,39 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import * as api from '../lib/api'
 
+/**
+ * SMA-TICKET-LIFECYCLE-TIME-ANALYTICS-108A.
+ * Длительность человеку: «2ч 15м». Прочерк означает «этап не наступил»,
+ * а не «ноль» — иначе незавершённые заявки читались бы как мгновенные.
+ */
+function fmtDuration(ms?: number | null): string {
+  if (ms == null || !Number.isFinite(ms)) return '—'
+  const totalMinutes = Math.round(ms / 60000)
+  if (totalMinutes < 1) return '<1м'
+  const days = Math.floor(totalMinutes / 1440)
+  const hours = Math.floor((totalMinutes % 1440) / 60)
+  const minutes = totalMinutes % 60
+  if (days > 0) return hours > 0 ? `${days}д ${hours}ч` : `${days}д`
+  if (hours > 0) return minutes > 0 ? `${hours}ч ${minutes}м` : `${hours}ч`
+  return `${minutes}м`
+}
+
+/** Верхние карточки блока: этап → среднее, медиана и размер выборки. */
+function lifecycleMetricCards(overall: api.LifecycleMetrics) {
+  return [
+    { label: 'Среднее время заявки', metric: overall.totalLifecycleTime },
+    { label: 'До назначения', metric: overall.timeToAssignment },
+    { label: 'До начала работ', metric: overall.timeAssignmentToWork },
+    { label: 'Выполнение', metric: overall.workCycleTime },
+    { label: 'Ожидание приёмки', metric: overall.acceptanceWaitTime },
+  ].map((row) => ({
+    label: row.label,
+    average: fmtDuration(row.metric.averageMs),
+    median: fmtDuration(row.metric.medianMs),
+    count: row.metric.count,
+  }))
+}
+
 function fmtNumber(v?: number | null) {
   if (typeof v !== 'number' || Number.isNaN(v)) return '—'
   return new Intl.NumberFormat('ru-RU').format(v)
@@ -123,6 +156,36 @@ export function AnalyticsPage() {
       api.analyticsOverview({
         linkedClientCompanyId: observerCompanyId ? undefined : activeLinkedClientCompanyId || undefined,
         companyId: observerCompanyId || undefined,
+      }),
+    enabled: analyticsEnabled,
+  })
+
+  /**
+   * SMA-TICKET-LIFECYCLE-TIME-ANALYTICS-108A.
+   * Календарное время этапов заявки. Живёт в общей аналитике, а не отдельным
+   * продуктом: тот же контур клиента и тот же режим наблюдателя.
+   */
+  const [lifecycleGroupBy, setLifecycleGroupBy] = useState<api.TicketLifecycleGrouping>('none')
+  const [lifecycleFrom, setLifecycleFrom] = useState('')
+  const [lifecycleTo, setLifecycleTo] = useState('')
+
+  const lifecycleQ = useQuery<api.TicketLifecycleAnalyticsResponse>({
+    queryKey: [
+      'analytics',
+      'ticket-lifecycle',
+      activeLinkedClientCompanyId,
+      observerCompanyId,
+      lifecycleGroupBy,
+      lifecycleFrom,
+      lifecycleTo,
+    ],
+    queryFn: () =>
+      api.analyticsTicketLifecycle({
+        linkedClientCompanyId: observerCompanyId ? undefined : activeLinkedClientCompanyId || undefined,
+        companyId: observerCompanyId || undefined,
+        groupBy: lifecycleGroupBy,
+        from: lifecycleFrom || undefined,
+        to: lifecycleTo || undefined,
       }),
     enabled: analyticsEnabled,
   })
@@ -386,6 +449,107 @@ export function AnalyticsPage() {
             </div>
           ))}
         </div>
+      </div>
+
+      <div className="panel" style={{ marginTop: 12 }}>
+        <div className="row" style={{ marginBottom: 10, alignItems: 'flex-end', flexWrap: 'wrap', gap: 10 }}>
+          <div>
+            <h3 style={{ marginBottom: 4 }}>Время выполнения заявок</h3>
+            <div className="muted small">
+              Календарное время этапов, а не трудозатраты техника.
+              {lifecycleQ.data && !lifecycleQ.data.labor.available
+                ? ' Учёт рабочего времени пока не ведётся.'
+                : ''}
+            </div>
+          </div>
+          <label className="muted small" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            Разрез
+            <select
+              value={lifecycleGroupBy}
+              onChange={(e) => setLifecycleGroupBy(e.target.value as api.TicketLifecycleGrouping)}
+            >
+              <option value="none">Все</option>
+              <option value="category">Категория</option>
+              <option value="city">Город</option>
+              <option value="location">Точка</option>
+              <option value="assignee">Сотрудник</option>
+              <option value="provider">Подрядчик</option>
+            </select>
+          </label>
+          <label className="muted small" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            С
+            <input type="date" value={lifecycleFrom} onChange={(e) => setLifecycleFrom(e.target.value)} />
+          </label>
+          <label className="muted small" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            По
+            <input type="date" value={lifecycleTo} onChange={(e) => setLifecycleTo(e.target.value)} />
+          </label>
+        </div>
+
+        {!analyticsEnabled ? (
+          <div className="muted small">Выберите доступного клиента, чтобы увидеть время выполнения.</div>
+        ) : lifecycleQ.isLoading ? (
+          <div className="muted small">Считаем…</div>
+        ) : lifecycleQ.isError ? (
+          <div className="alert">{(lifecycleQ.error as any)?.message || 'Не удалось загрузить'}</div>
+        ) : !lifecycleQ.data || lifecycleQ.data.overall.tickets === 0 ? (
+          <div className="muted small">За выбранный период заявок нет.</div>
+        ) : (
+          <>
+            <div className="grid2" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10 }}>
+              {lifecycleMetricCards(lifecycleQ.data.overall).map((card) => (
+                <div key={card.label} className="panel" style={{ padding: 10 }}>
+                  <div className="muted small">{card.label}</div>
+                  <div style={{ fontWeight: 700, fontSize: '1.05rem' }}>{card.average}</div>
+                  <div className="muted small">медиана {card.median} · n={card.count}</div>
+                </div>
+              ))}
+            </div>
+
+            <div className="muted small" style={{ marginTop: 8 }}>
+              Заявок в выборке: {lifecycleQ.data.overall.tickets}
+              {lifecycleQ.data.sla.withinSlaRate != null
+                ? ` · в SLA: ${lifecycleQ.data.sla.withinSlaRate}% (${lifecycleQ.data.sla.trackedTickets} с SLA)`
+                : ''}
+              {lifecycleQ.data.truncated ? ` · показаны первые ${lifecycleQ.data.limit}` : ''}
+            </div>
+
+            {lifecycleQ.data.groups.length > 0 ? (
+              <div style={{ overflowX: 'auto', marginTop: 12 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                  <thead>
+                    <tr>
+                      {['', 'Заявок', 'Среднее', 'Медиана', 'Назначение', 'Начало', 'Выполнение', 'Приёмка'].map(
+                        (head, index) => (
+                          <th
+                            key={head || index}
+                            style={{ textAlign: index === 0 ? 'left' : 'right', padding: '6px 8px', whiteSpace: 'nowrap' }}
+                          >
+                            {head}
+                          </th>
+                        ),
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {lifecycleQ.data.groups.map((group) => (
+                      <tr key={group.key} style={{ borderTop: '1px solid #e5e7eb' }}>
+                        <td style={{ padding: '6px 8px' }}>{group.label}</td>
+                        <td style={{ padding: '6px 8px', textAlign: 'right' }}>{group.tickets}</td>
+                        <td style={{ padding: '6px 8px', textAlign: 'right' }}>{fmtDuration(group.totalLifecycleTime.averageMs)}</td>
+                        <td style={{ padding: '6px 8px', textAlign: 'right' }}>{fmtDuration(group.totalLifecycleTime.medianMs)}</td>
+                        <td style={{ padding: '6px 8px', textAlign: 'right' }}>{fmtDuration(group.timeToAssignment.averageMs)}</td>
+                        <td style={{ padding: '6px 8px', textAlign: 'right' }}>{fmtDuration(group.timeAssignmentToWork.averageMs)}</td>
+                        <td style={{ padding: '6px 8px', textAlign: 'right' }}>{fmtDuration(group.workCycleTime.averageMs)}</td>
+                        <td style={{ padding: '6px 8px', textAlign: 'right' }}>{fmtDuration(group.acceptanceWaitTime.averageMs)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
+          </>
+        )}
       </div>
     </div>
   )
