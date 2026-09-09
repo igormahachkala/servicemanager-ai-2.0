@@ -205,6 +205,7 @@ model Company {
   notifications                Notification[]
   agentTasks                   AgentTask[]
   workShifts                   WorkShift[]
+  workShiftCorrections         WorkShiftCorrection[]
   workLogs                     WorkLog[]
   serviceContractLocations     ServiceContractLocation[]
   maxUserBindings              MaxUserBinding[]
@@ -248,6 +249,7 @@ model User {
   pushSubscriptions           PushSubscription[]
   pushPreference              PushPreference?
   workShifts                  WorkShift[]
+  workShiftCorrections        WorkShiftCorrection[] @relation("WorkShiftCorrectionAuthor")
   workLogs                    WorkLog[]
   maxUserBindings             MaxUserBinding[]
 
@@ -712,6 +714,25 @@ model TicketAttachment {
   @@index([companyId, ticketId])
 }
 
+/// SMA-SHIFT-LABOR-LEDGER-INTEGRITY-106B.
+///
+/// INVARIANT NOT EXPRESSIBLE IN THIS SCHEMA — DO NOT "FIX" THE DRIFT BY DROPPING IT.
+///
+/// The database holds a PARTIAL unique index that permits exactly one OPEN shift per user:
+///
+///   CREATE UNIQUE INDEX "WorkShift_one_open_per_user_key"
+///     ON "WorkShift"("userId") WHERE "status" = 'OPEN';
+///
+/// It was created by 202608040001_workforce_shifts_worklogs_v1 and re-asserted idempotently by
+/// 202609090001_shift_labor_ledger_integrity. Prisma 5.x has no declarative form for a filtered
+/// index on PostgreSQL, so it cannot appear as @@unique here: a plain @@unique([userId]) would
+/// forbid a user from ever having a second shift, which is the opposite of the rule.
+///
+/// Consequence: `prisma migrate dev` sees an index it does not know and will offer to DROP it.
+/// Accepting that would silently remove the only thing stopping two concurrent opens from both
+/// succeeding — openShift relies on the resulting P2002 to collapse the race. If a generated
+/// migration contains a DROP of this index, delete that statement before applying it.
+/// workforce-open-shift-invariant.spec.ts fails if the index stops being created.
 model WorkShift {
   id          String          @id @default(uuid())
   companyId   String
@@ -723,13 +744,47 @@ model WorkShift {
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
-  company  Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  workLogs WorkLog[]
+  company     Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  /// 106B: Restrict, not Cascade. A labour record must outlive the employee account it belongs
+  /// to. Users are soft-deleted everywhere in this codebase (isActive + deletedAt), so nothing
+  /// today performs the delete this guards against — it exists so a future hard-delete path
+  /// cannot erase payroll history as a side effect.
+  user        User                  @relation(fields: [userId], references: [id], onDelete: Restrict)
+  workLogs    WorkLog[]
+  corrections WorkShiftCorrection[]
 
   @@index([companyId, openedAt])
   @@index([companyId, status, openedAt])
   @@index([userId, openedAt])
+}
+
+/// SMA-SHIFT-LABOR-LEDGER-INTEGRITY-106B.
+///
+/// An append-only audit log of manager corrections to a shift. Nothing here ever overwrites
+/// WorkShift.openedAt / closedAt: the recorded time and the corrected time must stay separately
+/// readable, otherwise a report can no longer show what the system observed versus what a human
+/// decided. The newest row wins for reporting; older rows remain as history.
+///
+/// Rows are never updated or deleted. A mistaken correction is superseded by a further one.
+model WorkShiftCorrection {
+  id                String    @id @default(uuid())
+  companyId         String
+  shiftId           String
+  /// Required: there is no anonymous correction.
+  correctedByUserId String
+  /// At least one of the two is set; a null field means "leave the recorded value alone".
+  correctedOpenedAt DateTime?
+  correctedClosedAt DateTime?
+  /// Required and non-blank — a correction without a stated reason is not auditable.
+  reason            String
+  createdAt         DateTime  @default(now())
+
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  shift       WorkShift @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  correctedBy User      @relation("WorkShiftCorrectionAuthor", fields: [correctedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([shiftId, createdAt])
+  @@index([companyId, createdAt])
 }
 
 model WorkLog {
@@ -747,7 +802,8 @@ model WorkLog {
   updatedAt       DateTime      @updatedAt
 
   company Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  user    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// 106B: Restrict, for the same reason as WorkShift.user — worked time is a payroll fact.
+  user    User      @relation(fields: [userId], references: [id], onDelete: Restrict)
   shift   WorkShift @relation(fields: [shiftId], references: [id], onDelete: Cascade)
   ticket  Ticket    @relation(fields: [ticketId], references: [id], onDelete: Cascade)
 

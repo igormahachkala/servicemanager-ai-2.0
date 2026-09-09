@@ -15,6 +15,12 @@ import { PrismaService } from '../prisma/prisma.service'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
 import { resolveTicketOperationAccess, type TicketAccessActor } from '../tickets/ticket-access.utils'
 import { ShiftPolicyService } from './shift-policy.service'
+import { CreateShiftCorrectionDto } from './dto/create-shift-correction.dto'
+import {
+  latestCorrection,
+  resolveEffectiveShiftTime,
+  type EffectiveShiftTime,
+} from './workforce-effective-time'
 import {
   elapsedMinutes,
   isWorkShiftAutoCloseDue,
@@ -24,10 +30,21 @@ import {
 
 type WorkforceActor = TicketAccessActor
 
+const correctionSelect = {
+  id: true,
+  correctedOpenedAt: true,
+  correctedClosedAt: true,
+  reason: true,
+  createdAt: true,
+  correctedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
+} as const
+
 const shiftInclude = {
   user: {
     select: { id: true, firstName: true, lastName: true, email: true, role: true },
   },
+  // 106B: newest first, so latestCorrection() and any consumer reading [0] agree.
+  corrections: { orderBy: { createdAt: 'desc' as const }, select: correctionSelect },
   workLogs: {
     orderBy: { startedAt: 'desc' as const },
     include: {
@@ -277,7 +294,11 @@ export class WorkforceService {
       workMinutes: number
       tickets: Set<string>
     }>()
-    for (const shift of shifts) {
+    // 106B: shifts carry their resolved effective time, and the aggregate is built from it —
+    // a corrected shift must contribute its corrected hours, not the recorded ones.
+    const decorated = shifts.map((shift) => this.withEffectiveTime(shift))
+
+    for (const shift of decorated) {
       const row = employeeMap.get(shift.userId) ?? {
         user: shift.user,
         shifts: 0,
@@ -286,7 +307,9 @@ export class WorkforceService {
         tickets: new Set<string>(),
       }
       row.shifts += 1
-      row.shiftMinutes += elapsedMinutes(shift.openedAt, shift.closedAt ?? now)
+      row.shiftMinutes +=
+        shift.effective.effectiveDurationMinutes ??
+        elapsedMinutes(shift.effective.effectiveOpenedAt, now)
       for (const log of shift.workLogs) {
         row.workMinutes += log.durationMinutes ?? elapsedMinutes(log.startedAt, log.endedAt ?? now)
         row.tickets.add(log.ticketId)
@@ -312,9 +335,124 @@ export class WorkforceService {
         workMinutes: employees.reduce((sum, row) => sum + row.workMinutes, 0),
       },
       employees,
-      shifts,
+      shifts: decorated,
       serverNow: now,
     }
+  }
+
+  /**
+   * SMA-SHIFT-LABOR-LEDGER-INTEGRITY-106B — record a manager's correction to a shift.
+   *
+   * Appends to WorkShiftCorrection. The WorkShift row itself is never touched: openedAt,
+   * closedAt, status and closeReason stay exactly as the system recorded them, so a report can
+   * always show observed-versus-corrected. Superseding a wrong correction means appending
+   * another one, never editing or deleting the first.
+   */
+  async createShiftCorrection(
+    actor: WorkforceActor,
+    shiftId: string,
+    dto: CreateShiftCorrectionDto,
+  ) {
+    await this.assertActiveActor(actor)
+
+    const reason = dto.reason?.trim()
+    if (!reason) throw new BadRequestException('Причина исправления обязательна')
+
+    const correctedOpenedAt = this.parseCorrectionDate(dto.correctedOpenedAt, 'correctedOpenedAt')
+    const correctedClosedAt = this.parseCorrectionDate(dto.correctedClosedAt, 'correctedClosedAt')
+    if (!correctedOpenedAt && !correctedClosedAt) {
+      throw new BadRequestException('Укажите исправленное время начала или окончания смены')
+    }
+
+    // Tenant isolation: a shift of another company is simply not found, exactly as elsewhere.
+    const shift = await this.prisma.workShift.findFirst({
+      where: { id: shiftId, companyId: actor.companyId },
+      select: { id: true, companyId: true, status: true, openedAt: true, closedAt: true },
+    })
+    if (!shift) throw new NotFoundException('Смена не найдена')
+
+    const nextOpenedAt = correctedOpenedAt ?? shift.openedAt
+    const nextClosedAt = correctedClosedAt ?? shift.closedAt
+
+    if (correctedClosedAt && shift.status === WorkShiftStatus.OPEN) {
+      // Closing a shift is an operational act with its own rules; a correction records what
+      // already happened and must not become a second way to end a running shift.
+      throw new BadRequestException('Нельзя исправить время окончания у открытой смены')
+    }
+
+    if (nextClosedAt && nextClosedAt.getTime() <= nextOpenedAt.getTime()) {
+      throw new BadRequestException('Окончание смены должно быть позже начала')
+    }
+
+    const now = new Date()
+    if (nextOpenedAt.getTime() > now.getTime()) {
+      throw new BadRequestException('Начало смены не может быть в будущем')
+    }
+    if (nextClosedAt && nextClosedAt.getTime() > now.getTime()) {
+      throw new BadRequestException('Окончание смены не может быть в будущем')
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      const correction = await tx.workShiftCorrection.create({
+        data: {
+          companyId: shift.companyId,
+          shiftId: shift.id,
+          correctedByUserId: actor.id,
+          correctedOpenedAt,
+          correctedClosedAt,
+          reason,
+        },
+      })
+      await tx.domainEvent.create({
+        data: {
+          companyId: shift.companyId,
+          entityType: 'WorkShift',
+          entityId: shift.id,
+          type: 'workforce.shift_corrected',
+          actorUserId: actor.id,
+          payload: {
+            correctionId: correction.id,
+            reason,
+            recordedOpenedAt: shift.openedAt.toISOString(),
+            recordedClosedAt: shift.closedAt?.toISOString() ?? null,
+            correctedOpenedAt: correctedOpenedAt?.toISOString() ?? null,
+            correctedClosedAt: correctedClosedAt?.toISOString() ?? null,
+          },
+        },
+      })
+    })
+
+    return this.getShiftWithCorrections(actor, shift.id)
+  }
+
+  /** The shift plus its full correction history and the resolved effective time. */
+  async getShiftWithCorrections(actor: WorkforceActor, shiftId: string) {
+    const shift = await this.prisma.workShift.findFirst({
+      where: { id: shiftId, companyId: actor.companyId },
+      include: shiftInclude,
+    })
+    if (!shift) throw new NotFoundException('Смена не найдена')
+    return this.withEffectiveTime(shift)
+  }
+
+  /**
+   * Attaches the resolved effective time to a shift row. Single entry point on purpose: no
+   * consumer may re-derive it, or two screens will disagree about the same shift.
+   */
+  private withEffectiveTime<T extends {
+    openedAt: Date
+    closedAt: Date | null
+    corrections?: Array<{ correctedOpenedAt: Date | null; correctedClosedAt: Date | null; createdAt: Date }>
+  }>(shift: T): T & { effective: EffectiveShiftTime } {
+    const applied = latestCorrection(shift.corrections ?? [])
+    return { ...shift, effective: resolveEffectiveShiftTime(shift, applied) }
+  }
+
+  private parseCorrectionDate(value: string | undefined, field: string): Date | null {
+    if (value === undefined) return null
+    const parsed = new Date(value)
+    if (Number.isNaN(parsed.getTime())) throw new BadRequestException(`Invalid ${field}`)
+    return parsed
   }
 
   /**
