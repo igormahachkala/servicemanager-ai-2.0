@@ -527,7 +527,6 @@ export function MobileHome() {
             onToggleAwaiting={() => activateQuickFilter('awaiting')}
             onToggleMyAction={() => activateQuickFilter('myaction')}
             onToggleRework={() => activateQuickFilter('rework')}
-            onPlanning={() => setMobileActionToast('Планирование — раздел в разработке')}
           />
           <div className="mobileHomeBoardSticky" data-mobile-tour="ticket-filters">
             <HomeTabs

@@ -8,7 +8,6 @@ type Props = {
   onToggleAwaiting: () => void
   onToggleMyAction: () => void
   onToggleRework: () => void
-  onPlanning: () => void
 }
 
 /** Быстрые карты главной (Figma HomeScreen): Требуют доработки / На приёмке / Требует действия / Планирование. Иконки — Tabler SVG, без эмодзи. */
@@ -20,7 +19,6 @@ export function HomeQuickCards({
   onToggleAwaiting,
   onToggleMyAction,
   onToggleRework,
-  onPlanning,
 }: Props) {
   const myActionActive = activeQuickFilter === 'myaction'
   const reworkActive = activeQuickFilter === 'rework'
@@ -94,10 +92,9 @@ export function HomeQuickCards({
       ) : null}
 
       {/* TODO(mobile-v3): в проде нет модуля планирования смен — карта-заглушка под будущий раздел (Figma HomeScreen). */}
-      <button
-        type="button"
+      <div
         className="mobileHomeQuickCard mobileHomeQuickCard--violet mobileHomeQuickCard--stub"
-        onClick={onPlanning}
+        aria-disabled="true"
       >
         <span className="mobileHomeQuickCardIcon" aria-hidden>
           {/* Tabler calendar */}
@@ -110,14 +107,10 @@ export function HomeQuickCards({
         </span>
         <span className="mobileHomeQuickCardBody">
           <span className="mobileHomeQuickCardTitle">Планирование</span>
-          <span className="mobileHomeQuickCardSub">Раздел в разработке</span>
+          <span className="mobileHomeQuickCardSub">Будет доступно позже</span>
         </span>
-        <span className="mobileHomeQuickCardChevron" aria-hidden>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="9 18 15 12 9 6" />
-          </svg>
-        </span>
-      </button>
+        <span className="mobileHomeQuickCardBadge">Скоро</span>
+      </div>
     </div>
   )
 }

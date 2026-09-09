@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import * as api from '../lib/api'
+import { formatMobileMutationError } from './mobileActionErrors'
 import { TicketCard } from './home/TicketCard'
 import {
   compactTicketScope,
@@ -505,7 +506,7 @@ export function MobileMyTickets() {
         </div>
       ) : null}
 
-      {boardQ.isError ? <div className="mobileNotice mobileNoticeError">{String((boardQ.error as any)?.message || boardQ.error)}</div> : null}
+      {boardQ.isError ? <div className="mobileNotice mobileNoticeError">{formatMobileMutationError(boardQ.error, { operation: 'other' })}</div> : null}
 
       {!showMyTicketsList ? null : (
         <>

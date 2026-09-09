@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import * as api from '../lib/api'
+import { getServiceContractRoleDisplayLabel } from '../lib/resolveAdminProfile'
+import { formatMobileMutationError } from './mobileActionErrors'
 
 /**
  * Карточка переключения клиентского контура — общая для Профиля и Настроек.
@@ -111,7 +113,7 @@ export function ClientContourCard() {
                 <option value="">Выберите клиента</option>
                 {linkedClientsQ.data.map((item) => (
                   <option key={item.clientCompany.id} value={item.clientCompany.id}>
-                    {item.clientCompany.name} · {item.role}
+                    {item.clientCompany.name} · {getServiceContractRoleDisplayLabel(item.role)}
                   </option>
                 ))}
               </select>
@@ -119,7 +121,7 @@ export function ClientContourCard() {
                 Контекст применяется к доске, созданию заявки и карточкам заявок.
               </div>
               {selectedLinkedClient ? (
-                <div className="mobileProviderContextHint">Роль: {selectedLinkedClient.role}</div>
+                <div className="mobileProviderContextHint">Роль: {getServiceContractRoleDisplayLabel(selectedLinkedClient.role)}</div>
               ) : null}
             </>
           ) : (
@@ -130,7 +132,7 @@ export function ClientContourCard() {
         )}
         {linkedClientsQ.isError ? (
           <div className="mobileNotice mobileNoticeError" style={{ marginTop: 8 }}>
-            {(linkedClientsQ.error as { message?: string } | null)?.message || String(linkedClientsQ.error)}
+            {formatMobileMutationError(linkedClientsQ.error, { operation: 'other' })}
           </div>
         ) : null}
       </div>

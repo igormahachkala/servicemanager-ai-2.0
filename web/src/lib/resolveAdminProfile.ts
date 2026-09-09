@@ -58,6 +58,7 @@ export function getRoleDisplayLabel(input: {
   }
 
   if (role === 'PLATFORM_ADMIN') return 'Администратор платформы'
+  if (role === 'CLIENT_ADMIN') return 'Администратор клиента'
   if (role === 'ADMIN_PROVIDER') return 'Администратор (провайдер)'
   if (role === 'DISPATCHER') return 'Диспетчер'
   if (role === 'MASTER') return 'Мастер'
@@ -67,4 +68,10 @@ export function getRoleDisplayLabel(input: {
   if (role === 'NETWORK_DIRECTOR') return 'Сетевой директор'
   if (role === 'STAFF') return 'Сотрудник'
   return role
+}
+
+export function getServiceContractRoleDisplayLabel(role?: string | null): string {
+  if (role === 'PRIMARY') return 'Основной подрядчик'
+  if (role === 'SECONDARY') return 'Дополнительный подрядчик'
+  return 'Роль по договору не указана'
 }

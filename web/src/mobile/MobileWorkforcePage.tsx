@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Link, useLocation } from 'react-router-dom'
 
 import * as api from '../lib/api'
+import { formatMobileMutationError } from './mobileActionErrors'
 import { mobilePath } from './mobileRoute'
 
 function dateInput(date: Date) {
@@ -47,7 +48,7 @@ export function MobileWorkforcePage() {
         </div>
 
         {reportQ.isLoading ? <div className="mobileNotice">Загрузка…</div> : null}
-        {reportQ.isError ? <div className="mobileNotice mobileNoticeError">{(reportQ.error as Error).message}</div> : null}
+        {reportQ.isError ? <div className="mobileNotice mobileNoticeError">{formatMobileMutationError(reportQ.error, { operation: 'other' })}</div> : null}
 
         {report ? (
           <>

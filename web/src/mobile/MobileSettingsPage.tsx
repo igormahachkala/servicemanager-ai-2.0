@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { canAccessManagementDesktop, managementHomePath } from '../lib/navigation'
 import { ClientContourCard } from './ClientContourCard'
+import { formatMobileMutationError } from './mobileActionErrors'
 import { mobilePath } from './mobileRoute'
 
 type ManagementLink = {
@@ -226,7 +227,7 @@ export function MobileSettingsPage() {
         {meQ.isLoading ? <div className="mobileMeta">Загружаем доступные разделы…</div> : null}
         {meQ.isError ? (
           <div className="mobileNotice mobileNoticeError">
-            {(meQ.error as { message?: string } | null)?.message || String(meQ.error)}
+            {formatMobileMutationError(meQ.error, { operation: 'other' })}
           </div>
         ) : null}
         {!meQ.isLoading && !meQ.isError && managementLinks.length === 0 ? (
@@ -249,7 +250,7 @@ export function MobileSettingsPage() {
       </div>
 
       <div className="mobileCard" style={{ marginTop: 8, textAlign: 'center' }}>
-        <div className="mobileMeta">Сервис Менеджер · Mobile Workspace V1</div>
+        <div className="mobileMeta">Сервис Менеджер</div>
       </div>
     </div>
   )

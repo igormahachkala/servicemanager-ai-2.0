@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
+import { formatMobileMutationError } from './mobileActionErrors'
 import type { PushPreference } from '../lib/api'
 import { mobilePath } from './mobileRoute'
 import {
@@ -162,8 +163,7 @@ export function MobilePushSettingsPage() {
       }
       queryClient.setQueryData<PushPreference>(['push-preferences'], result.preferences)
     } catch (e) {
-      const message = e instanceof Error && e.message ? e.message : 'Что-то пошло не так. Попробуйте ещё раз чуть позже.'
-      setLocalError(message)
+      setLocalError(formatMobileMutationError(e, { operation: 'other' }))
     } finally {
       setBusy(false)
     }

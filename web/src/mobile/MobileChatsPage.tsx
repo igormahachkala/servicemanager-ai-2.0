@@ -3,6 +3,7 @@ import { Link, useLocation, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
+import { formatMobileMutationError } from './mobileActionErrors'
 import { useLinkedBoardScope } from '../hooks/useLinkedBoardScope'
 import { mobilePath } from './mobileRoute'
 import { isMineTicketForRole } from './mobileHomeBoardFilters'
@@ -578,9 +579,7 @@ export function MobileChatsPage() {
     if (ticketQ.isError || !ticketQ.data) {
       const reason = isNotFoundGetTicketError(ticketQ.error)
         ? 'Чат по этой заявке не найден или недоступен в текущем контексте.'
-        : ticketQ.error instanceof Error
-          ? ticketQ.error.message
-          : 'Не удалось загрузить чат.'
+        : formatMobileMutationError(ticketQ.error, { operation: 'other' })
       return (
         <div className="mobileSection mobileChatsDialog">
           <div className="mobileChatsDialogHeader">

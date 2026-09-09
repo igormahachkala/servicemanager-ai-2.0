@@ -10,6 +10,7 @@ import {
   type OfflineQueueItem,
 } from './offlineQueue'
 import { mobilePath } from './mobileRoute'
+import { formatMobileMutationError } from './mobileActionErrors'
 
 function actionTypeLabel(type: OfflineQueueItem['type']): string {
   if (type === 'ticket_comment') return 'Комментарий'
@@ -206,13 +207,13 @@ export function MobileOfflineQueue() {
 
             {item.lastError ? (
               <div className="mobileNotice mobileNoticeError" style={{ margin: '6px 0', fontSize: '0.78rem' }}>
-                {item.lastError}
+                {formatMobileMutationError(new Error(item.lastError), { operation: 'other' })}
               </div>
             ) : null}
 
             {retryErr ? (
               <div className="mobileNotice mobileNoticeError" style={{ margin: '6px 0', fontSize: '0.78rem' }}>
-                {retryErr}
+                {formatMobileMutationError(new Error(retryErr), { operation: 'other' })}
               </div>
             ) : null}
 

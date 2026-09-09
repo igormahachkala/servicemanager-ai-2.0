@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
+import { formatMobileMutationError } from './mobileActionErrors'
 import { mobilePath } from './mobileRoute'
 import { mobileTicketNumberTitle, mobileTicketStatusLabelRu } from './mobileTicketDisplay'
 
@@ -539,17 +540,17 @@ export function MobileAnalytics() {
       {/* Ошибки запросов — не ломают экран, показываем баннером */}
       {isAnalyticsAdmin && overviewQ.isError ? (
         <div className="mobileNotice mobileNoticeError">
-          Не удалось загрузить обзор. {String((overviewQ.error as any)?.message || '')}
+          {formatMobileMutationError(overviewQ.error, { operation: 'other' })}
         </div>
       ) : null}
       {isAnalyticsAdmin && locationsQ.isError ? (
         <div className="mobileNotice mobileNoticeError">
-          Не удалось загрузить данные по точкам. {String((locationsQ.error as any)?.message || '')}
+          {formatMobileMutationError(locationsQ.error, { operation: 'other' })}
         </div>
       ) : null}
       {!isAnalyticsAdmin && contextQ.isError ? (
         <div className="mobileNotice mobileNoticeError">
-          Не удалось загрузить аналитику. {String((contextQ.error as any)?.message || '')}
+          {formatMobileMutationError(contextQ.error, { operation: 'other' })}
         </div>
       ) : null}
 

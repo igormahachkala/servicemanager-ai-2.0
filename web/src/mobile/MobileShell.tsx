@@ -13,6 +13,7 @@ import {
 } from './offlineQueue'
 import { MobileGuidedTour } from './MobileGuidedTour'
 import { MobileShiftGatePrompt } from './MobileShiftGatePrompt'
+import { formatMobileMutationError } from './mobileActionErrors'
 import { getMobileRouteRoot, mobilePath } from './mobileRoute'
 import './mobile.css'
 
@@ -213,7 +214,7 @@ export function MobileShell() {
       await queryClient.invalidateQueries({ queryKey: ['board'] })
     },
     onError: (error: unknown) => {
-      setSyncMessage(error instanceof Error ? error.message : String(error))
+      setSyncMessage(formatMobileMutationError(error, { operation: 'other' }))
       setPendingCount(getPendingOfflineActionsCount())
     },
   })

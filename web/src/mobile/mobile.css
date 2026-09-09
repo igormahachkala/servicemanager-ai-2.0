@@ -3939,6 +3939,11 @@ a.mobileBtn.mobileCreateTicketLink {
 /* заглушка «Планирование» — приглушена */
 .mobileHomeQuickCard--stub {
   opacity: 0.82;
+  cursor: default;
+}
+
+.mobileHomeQuickCard--stub:active {
+  transform: none;
 }
 
 /* ── V2 ticket list card (no thumbnail, clean text) ─────── */
