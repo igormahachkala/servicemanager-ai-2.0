@@ -36,7 +36,7 @@ skills/_shared/scripts/merge-checks.sh stage 42 fix/tema-001 backend frontend
   0    все наборы прошли
   1    набор не прошёл, в выводе названо какой
   2    неверные аргументы, неизвестный контур либо копия не на результате слияния
-  3    нет доступа к серверу по ssh sma
+  3    нет доступа к серверу: stage — ssh sma-spare, production — ssh sma
   4    нет backend/.env, набор backend невыполним
   6    уборка не удалась: временный worktree остался, команда для удаления в выводе
   130  прервано с клавиатуры
@@ -75,7 +75,7 @@ npm run prisma:generate — это dotenv -e .env -- npx prisma generate.
 Частичная замена, только с согласия разработчика: проверить схему внутри
 контейнера на контуре. Скрипт этого не делает — согласия он спросить не может.
 <on contour="stage">
-ssh sma 'docker compose -p sma-service -f /opt/sma-beta/docker-compose.stage.yml -f /etc/servicemanager-ai/docker-compose.stage.override.yml exec -T stage_backend npx prisma validate'
+ssh sma-spare 'docker compose -p sma-service -f /opt/sma-beta/docker-compose.stage.yml -f /etc/servicemanager-ai/docker-compose.stage.override.yml exec -T stage_backend npx prisma validate'
 </on>
 <on contour="production">
 ssh sma 'docker compose -p sma-service -f /opt/sma-prod/docker-compose.yml -f /etc/servicemanager-ai/docker-compose.production.override.yml -f /etc/servicemanager-ai/docker-compose.production.stable.override.yml exec -T backend npx prisma validate'
