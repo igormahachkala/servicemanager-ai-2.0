@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
 import { numericConstraintLabel, responseTypeLabel } from '../lib/inspectionZones'
+import { InspectionTicketReview } from '../components/inspection/InspectionTicketReview'
+import { inspectionItemStatusLabel } from '../lib/inspectionPresentation'
 
 const MAX_PHOTO_SIZE = 10 * 1024 * 1024
 
@@ -12,6 +14,7 @@ type IssueModalState = {
   categoryId: string
   comment: string
   photo: File | null
+  reviewing: boolean
 }
 
 function fmtDate(value?: string | null) {
@@ -90,8 +93,8 @@ export function InspectionQuickPage() {
         },
       })
       await refetchRun()
-    } catch (err: any) {
-      setError(err?.message || String(err))
+    } catch {
+      setError('Не удалось сохранить результат. Повторите ещё раз.')
     } finally {
       setOkBusyItemId(null)
     }
@@ -102,9 +105,10 @@ export function InspectionQuickPage() {
     setSuccess(null)
     setIssueModal({
       itemId: item.id,
-      categoryId: activeCategories[0]?.id || '',
+      categoryId: '',
       comment: item.comment || '',
       photo: null,
+      reviewing: false,
     })
   }
 
@@ -142,15 +146,14 @@ export function InspectionQuickPage() {
         payload: {
           categoryId: issueModal.categoryId,
           description: issueModal.comment.trim() || undefined,
-          urgency: 'NOT_URGENT',
         },
       })
 
       await refetchRun()
       setIssueModal(null)
       setSuccess('Заявка создана')
-    } catch (err: any) {
-      setError(err?.message || String(err))
+    } catch {
+      setError('Не удалось создать заявку. Проверьте выбранную категорию и доступ по договору.')
     } finally {
       setIssueBusyItemId(null)
     }
@@ -164,7 +167,7 @@ export function InspectionQuickPage() {
       <div className="row">
         <div>
           <h2 style={{ marginBottom: 4 }}>Быстрый обход</h2>
-          <div className="muted small">Отметьте оборудование как OK в один тап или сразу создайте заявку из проблемы.</div>
+          <div className="muted small">Отметьте пункт как норму в один шаг или оформите заявку по проблеме.</div>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {runId ? (
@@ -180,7 +183,7 @@ export function InspectionQuickPage() {
 
       {error ? <div className="alert">{error}</div> : null}
       {success ? <div className="panel" style={{ marginBottom: 12, border: '1px solid #bbf7d0', background: '#f0fdf4' }}>✅ {success}</div> : null}
-      {runQ.isError ? <div className="alert">{(runQ.error as any)?.message || String(runQ.error)}</div> : null}
+      {runQ.isError ? <div className="alert">Не удалось загрузить обход.</div> : null}
 
       {run ? (
         <>
@@ -192,7 +195,7 @@ export function InspectionQuickPage() {
               {' · '}Единиц в обходе: {run.items.length}
             </div>
             <div className="muted small" style={{ marginTop: 4 }}>
-              Equipment: {run.equipment ? `${run.equipment.name} · ${run.equipment.type}` : 'Не указано'}
+              Оборудование: {run.equipment ? `${run.equipment.name} · ${run.equipment.type}` : 'Не указано'}
               {' · '}Создан: {fmtDate(run.createdAt)}
             </div>
           </div>
@@ -224,7 +227,7 @@ export function InspectionQuickPage() {
                     <div>
                       <div style={{ fontWeight: 700 }}>{item.checkpointSortOrder + 1}. {item.title}</div>
                       <div className="muted small">
-                        {run.equipment?.name || 'Equipment'}{run.equipment?.type ? ` · ${run.equipment.type}` : ''}
+                        {run.equipment?.name || 'Без привязки к оборудованию'}{run.equipment?.type ? ` · ${run.equipment.type}` : ''}
                       </div>
                       <div className="muted small">
                         {responseTypeLabel(item.responseType)}
@@ -238,12 +241,12 @@ export function InspectionQuickPage() {
                           <button className="ghost" type="button">Открыть заявку</button>
                         </Link>
                       ) : null}
-                      <span className="tag">{item.status}</span>
+                      <span className="tag">{inspectionItemStatusLabel(item.status)}</span>
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                     <button type="button" disabled={busy || isBusyRow} onClick={() => markOk(item)}>
-                      {okBusyItemId === item.id ? 'Сохраняем…' : isOk ? 'OK ✓' : 'OK'}
+                      {okBusyItemId === item.id ? 'Сохраняем…' : isOk ? 'Норма ✓' : 'Норма'}
                     </button>
                     <button className="ghost" type="button" disabled={busy || isBusyRow || !!item.ticketId} onClick={() => openIssueModal(item)}>
                       {isIssue ? 'Проблема ✓' : 'Проблема'}
@@ -282,8 +285,8 @@ export function InspectionQuickPage() {
             </div>
 
             <div style={{ display: 'grid', gap: 10 }}>
-              <label>
-                Фото (опционально)
+              <label className="inspectionUploadControl">
+                <span>{issueModal.photo ? 'Фото выбрано' : 'Добавить фото'}</span>
                 <input
                   type="file"
                   accept="image/*"
@@ -294,6 +297,7 @@ export function InspectionQuickPage() {
                         ? {
                             ...prev,
                             photo: e.target.files?.[0] || null,
+                            reviewing: false,
                           }
                         : prev,
                     )
@@ -305,7 +309,7 @@ export function InspectionQuickPage() {
                 <select
                   value={issueModal.categoryId}
                   disabled={!!issueBusyItemId}
-                  onChange={(e) => setIssueModal((prev) => (prev ? { ...prev, categoryId: e.target.value } : prev))}
+                  onChange={(e) => setIssueModal((prev) => (prev ? { ...prev, categoryId: e.target.value, reviewing: false } : prev))}
                 >
                   <option value="">Выберите категорию</option>
                   {activeCategories.map((category) => (
@@ -321,16 +325,36 @@ export function InspectionQuickPage() {
                   rows={3}
                   value={issueModal.comment}
                   disabled={!!issueBusyItemId}
-                  onChange={(e) => setIssueModal((prev) => (prev ? { ...prev, comment: e.target.value } : prev))}
+                  onChange={(e) => setIssueModal((prev) => (prev ? { ...prev, comment: e.target.value, reviewing: false } : prev))}
                 />
               </label>
             </div>
 
-            <div style={{ marginTop: 12, display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button type="button" onClick={() => submitIssue()} disabled={!!issueBusyItemId}>
-                {issueBusyItemId ? 'Создаём заявку…' : 'Создать заявку'}
-              </button>
-            </div>
+            {!issueModal.reviewing ? (
+              <div style={{ marginTop: 12, display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  onClick={() => setIssueModal((prev) => (prev ? { ...prev, reviewing: true } : prev))}
+                  disabled={!!issueBusyItemId || !issueModal.categoryId}
+                >
+                  Проверить заявку
+                </button>
+              </div>
+            ) : run ? (
+              <InspectionTicketReview
+                checkpointTitle={run.items.find((item) => item.id === issueModal.itemId)?.title || 'Пункт обхода'}
+                location={run.location}
+                equipment={run.equipment}
+                categoryName={activeCategories.find((category) => category.id === issueModal.categoryId)?.name || 'Категория не найдена'}
+                status="ISSUE"
+                description={issueModal.comment}
+                attachments={[]}
+                pendingAttachmentCount={issueModal.photo ? 1 : 0}
+                busy={!!issueBusyItemId}
+                onConfirm={() => submitIssue()}
+                onCancel={() => setIssueModal((prev) => (prev ? { ...prev, reviewing: false } : prev))}
+              />
+            ) : null}
           </div>
         </div>
       ) : null}

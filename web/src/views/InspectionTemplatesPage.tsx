@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
 import { groupInspectionItemsByZone, numericConstraintLabel, responseTypeLabel } from '../lib/inspectionZones'
+import { inspectionRunStatusLabel } from '../lib/inspectionPresentation'
 
 function fmtDate(value?: string | null) {
   if (!value) return '—'
@@ -153,7 +154,7 @@ export function InspectionTemplatesPage() {
       queryClient.setQueryData(['inspection-run', run.id], run)
       navigate('/inspection/runs/' + run.id)
     },
-    onError: (err: any) => setError(err?.message || String(err)),
+    onError: () => setError('Не удалось запустить обход. Проверьте выбранные данные и повторите.'),
   })
 
   const createTemplateM = useMutation({
@@ -204,7 +205,16 @@ export function InspectionTemplatesPage() {
       await queryClient.invalidateQueries({ queryKey: ['inspection-templates'] })
       setSelectedTemplateId(template.id)
     },
-    onError: (err: any) => setError(err?.message || String(err)),
+    onError: (err: unknown) => {
+      const message = err instanceof Error && err.message.startsWith('Минимум')
+        ? err.message
+        : err instanceof Error && err.message.startsWith('Название')
+          ? err.message
+          : err instanceof Error && err.message.startsWith('Добавьте')
+            ? err.message
+            : 'Не удалось создать шаблон. Проверьте заполнение и повторите.'
+      setError(message)
+    },
   })
 
   function startRun() {
@@ -230,7 +240,7 @@ export function InspectionTemplatesPage() {
   }
 
   return (
-    <div>
+    <div className="inspectionTemplatesPage">
       <div className="row">
         <div>
           <h2 style={{ marginBottom: 4 }}>Обходы</h2>
@@ -247,8 +257,8 @@ export function InspectionTemplatesPage() {
       </div>
 
       {error ? <div className="alert">{error}</div> : null}
-      {templatesQ.isError ? <div className="alert">{(templatesQ.error as any)?.message || String(templatesQ.error)}</div> : null}
-      {locationsQ.isError ? <div className="alert">{(locationsQ.error as any)?.message || String(locationsQ.error)}</div> : null}
+      {templatesQ.isError ? <div className="alert">Не удалось загрузить шаблоны обходов.</div> : null}
+      {locationsQ.isError ? <div className="alert">Не удалось загрузить доступные локации.</div> : null}
 
       {createOpen && canCreateTemplate ? (
         <div className="panel" style={{ marginBottom: 12 }}>
@@ -275,7 +285,7 @@ export function InspectionTemplatesPage() {
                 <div key={index} className="card" style={{ padding: 12 }}>
                   <div style={{ fontWeight: 700, marginBottom: 8 }}>Пункт {index + 1}</div>
                   <div className="form">
-                    <div className="grid2" style={{ gridTemplateColumns: '1fr 120px 120px', gap: 10 }}>
+                    <div className="inspectionTemplateZoneFields">
                       <label>
                         Зона
                         <input
@@ -324,7 +334,7 @@ export function InspectionTemplatesPage() {
                       />
                     </label>
 
-                    <div className="grid2" style={{ gridTemplateColumns: '1fr 110px 110px 110px', gap: 10 }}>
+                    <div className="inspectionTemplateResponseFields">
                       <label>
                         Тип ответа
                         <select
@@ -419,7 +429,7 @@ export function InspectionTemplatesPage() {
         </div>
       ) : null}
 
-      <div className="grid2" style={{ gridTemplateColumns: '1.3fr 0.9fr' }}>
+      <div className="inspectionTemplateWorkspace">
         <div className="panel">
           <div className="row" style={{ marginBottom: 10 }}>
             <h3 style={{ margin: 0 }}>Шаблоны обхода</h3>
@@ -436,14 +446,7 @@ export function InspectionTemplatesPage() {
                   key={template.id}
                   type="button"
                   onClick={() => setSelectedTemplateId(template.id)}
-                  className="panel"
-                  style={{
-                    textAlign: 'left',
-                    border: active ? '1px solid #2563eb' : '1px solid #e5e7eb',
-                    background: active ? '#eff6ff' : '#fff',
-                    padding: 14,
-                    cursor: 'pointer',
-                  }}
+                  className={`inspectionTemplateChoice${active ? ' inspectionTemplateChoice--selected' : ''}`}
                 >
                   <div style={{ fontWeight: 700, marginBottom: 4 }}>{template.name}</div>
                   {template.description ? <div className="muted small" style={{ marginBottom: 8 }}>{template.description}</div> : null}
@@ -569,7 +572,7 @@ export function InspectionTemplatesPage() {
                   <div className="muted small">{run.template.name} · {run.location.name} · пунктов: {run._count.items}</div>
                 </div>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <span className="tag">{run.status}</span>
+                  <span className="tag">{inspectionRunStatusLabel(run.status)}</span>
                   <Link to={'/inspection/runs/' + run.id}><button className="ghost">Открыть</button></Link>
                 </div>
               </div>

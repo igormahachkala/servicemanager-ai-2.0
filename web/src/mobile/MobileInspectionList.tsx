@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import * as api from '../lib/api'
+import { inspectionReportStatusLabel, inspectionRunStatusLabel } from '../lib/inspectionPresentation'
 import { mobilePath } from './mobileRoute'
 
 /** Иконка-плитка обхода (Tabler clipboard-check, тон по статусу) — Figma PatrolsScreen. */
@@ -33,18 +34,6 @@ function fmtDate(value?: string | null): string {
   } catch {
     return value
   }
-}
-
-function runStatusLabel(status: api.InspectionRunStatus): string {
-  return status === 'IN_PROGRESS' ? 'В процессе' : 'Завершён'
-}
-
-function reportStatusLabel(status: api.InspectionReportStatus): string {
-  if (status === 'DRAFT') return 'Черновик'
-  if (status === 'SUBMITTED') return 'На проверке'
-  if (status === 'APPROVED') return 'Утверждён'
-  if (status === 'REJECTED') return 'Отклонён'
-  return 'Статус не определён'
 }
 
 function reportStatusMod(status: api.InspectionReportStatus): string {
@@ -124,7 +113,7 @@ export function MobileInspectionList({ standalone = false }: { standalone?: bool
                   <PatrolClipboardIcon tone={run.status === 'IN_PROGRESS' ? 'inprogress' : 'completed'} />
                   <div className="mobilePatrolCardTitle">{run.title}</div>
                   <span className={`mobilePatrolRunStatus mobilePatrolRunStatus--${run.status === 'IN_PROGRESS' ? 'inprogress' : 'completed'}`}>
-                    {runStatusLabel(run.status)}
+                    {inspectionRunStatusLabel(run.status)}
                   </span>
                 </div>
                 <div className="mobilePatrolCardMeta">
@@ -132,7 +121,7 @@ export function MobileInspectionList({ standalone = false }: { standalone?: bool
                   <span>· {performer}</span>
                   {run.reportStatus ? (
                     <span className={`mobilePatrolReportBadge mobilePatrolReportBadge--${reportStatusMod(run.reportStatus)}`}>
-                      {reportStatusLabel(run.reportStatus)}
+                      {inspectionReportStatusLabel(run.reportStatus)}
                     </span>
                   ) : null}
                 </div>
@@ -183,7 +172,7 @@ export function MobileInspectionList({ standalone = false }: { standalone?: bool
                 <PatrolClipboardIcon tone={run.status === 'IN_PROGRESS' ? 'inprogress' : 'completed'} />
                 <div className="mobilePatrolCardTitle">{run.title}</div>
                 <span className={`mobilePatrolRunStatus mobilePatrolRunStatus--${run.status === 'IN_PROGRESS' ? 'inprogress' : 'completed'}`}>
-                  {runStatusLabel(run.status)}
+                  {inspectionRunStatusLabel(run.status)}
                 </span>
               </div>
 
@@ -192,7 +181,7 @@ export function MobileInspectionList({ standalone = false }: { standalone?: bool
                 {run.location.city ? <span>· {run.location.city}</span> : null}
                 {run.reportStatus ? (
                   <span className={`mobilePatrolReportBadge mobilePatrolReportBadge--${reportStatusMod(run.reportStatus)}`}>
-                    {reportStatusLabel(run.reportStatus)}
+                    {inspectionReportStatusLabel(run.reportStatus)}
                   </span>
                 ) : null}
               </div>

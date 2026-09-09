@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { numericConstraintLabel, responseTypeLabel } from '../lib/inspectionZones'
 import { ProtectedUploadThumbLink } from '../ui/ProtectedUploadMedia'
+import { inspectionItemStatusLabel, inspectionReportStatusLabel, ticketStatusLabel } from '../lib/inspectionPresentation'
 
 const REVIEW_ROLES: api.Role[] = ['ADMIN', 'MASTER', 'DISPATCHER', 'NETWORK_DIRECTOR']
 
@@ -30,23 +31,6 @@ function performerLabel(user?: { firstName?: string | null; lastName?: string | 
   if (!user) return '—'
   const fullName = `${user.firstName || ''} ${user.lastName || ''}`.trim()
   return fullName || user.email
-}
-
-function itemStatusLabel(status: api.InspectionRunItemStatus) {
-  if (status === 'PENDING') return 'Не заполнено'
-  if (status === 'OK') return 'OK'
-  if (status === 'ISSUE') return 'Проблема'
-  if (status === 'CRITICAL') return 'Критично'
-  if (status === 'SKIPPED') return 'Пропущено'
-  return status
-}
-
-function reportStatusLabel(status: api.InspectionReportStatus) {
-  if (status === 'DRAFT') return 'Черновик'
-  if (status === 'SUBMITTED') return 'Отправлен на подтверждение'
-  if (status === 'APPROVED') return 'Подтверждено'
-  if (status === 'REJECTED') return 'Возвращено'
-  return status
 }
 
 export function InspectionRunReportPage() {
@@ -81,7 +65,7 @@ export function InspectionRunReportPage() {
         queryClient.invalidateQueries({ queryKey: ['inspection-runs'] }),
       ])
     },
-    onError: (error: any) => setActionError(error?.message || String(error)),
+    onError: () => setActionError('Не удалось отправить акт. Повторите ещё раз.'),
   })
 
   const reviewM = useMutation({
@@ -95,7 +79,7 @@ export function InspectionRunReportPage() {
         queryClient.invalidateQueries({ queryKey: ['inspection-runs'] }),
       ])
     },
-    onError: (error: any) => setActionError(error?.message || String(error)),
+    onError: () => setActionError('Не удалось сохранить решение по акту. Повторите ещё раз.'),
   })
 
   const statusTone = useMemo(() => {
@@ -124,7 +108,7 @@ export function InspectionRunReportPage() {
   }
 
   if (reportQ.isError || !report) {
-    return <div className="alert">{(reportQ.error as any)?.message || 'Не удалось загрузить акт'}</div>
+    return <div className="alert">Не удалось загрузить акт.</div>
   }
 
   return (
@@ -132,7 +116,7 @@ export function InspectionRunReportPage() {
       <div className="row no-print">
         <div>
           <h2 style={{ marginBottom: 4 }}>Акт выполненных работ</h2>
-          <div className="muted small">Печатная версия клиентского документа по completed inspection run.</div>
+          <div className="muted small">Печатная версия клиентского документа по завершённому обходу.</div>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <Link to={`/inspection/runs/${id}`}><button className="ghost">Назад к обходу</button></Link>
@@ -161,7 +145,7 @@ export function InspectionRunReportPage() {
               </div>
             </div>
             <div className="workActStatusBlock">
-              <span className="tag" style={{ color: statusTone, borderColor: statusTone }}>{reportStatusLabel(report.reportMeta.status)}</span>
+              <span className="tag" style={{ color: statusTone, borderColor: statusTone }}>{inspectionReportStatusLabel(report.reportMeta.status)}</span>
               <div className="muted small" style={{ marginTop: 8 }}>
                 Начат: {fmtDateTime(report.run.startedAt)}
                 <br />
@@ -221,7 +205,7 @@ export function InspectionRunReportPage() {
             <h3 style={{ marginBottom: 10 }}>Сводка</h3>
             <div className="workActSummaryGrid">
               <div><div className="muted small">Всего пунктов</div><div className="workActMetric">{report.summary.totalItems}</div></div>
-              <div><div className="muted small">OK</div><div className="workActMetric">{report.summary.okCount}</div></div>
+              <div><div className="muted small">Норма</div><div className="workActMetric">{report.summary.okCount}</div></div>
               <div><div className="muted small">Проблемы</div><div className="workActMetric">{report.summary.issueCount}</div></div>
               <div><div className="muted small">Критично</div><div className="workActMetric">{report.summary.criticalCount}</div></div>
               <div><div className="muted small">Пропущено</div><div className="workActMetric">{report.summary.skippedCount || 0}</div></div>
@@ -238,7 +222,7 @@ export function InspectionRunReportPage() {
                 <div className="muted small">
                   {report.reportMeta.status === 'REJECTED'
                     ? 'Акт был возвращен. После исправлений его можно отправить повторно.'
-                    : 'Completed run можно отправить на подтверждение.'}
+                    : 'Завершённый обход можно отправить на подтверждение.'}
                 </div>
                 <button type="button" onClick={() => submitM.mutate()} disabled={submitM.isPending || reviewM.isPending}>
                   {submitM.isPending ? 'Отправляем…' : report.reportMeta.status === 'REJECTED' ? 'Отправить повторно' : 'Отправить на подтверждение'}
@@ -308,7 +292,7 @@ export function InspectionRunReportPage() {
                         {item.textValue ? <div className="muted small">Ответ: {item.textValue}</div> : null}
                         {item.requiresRepair ? <div className="small" style={{ marginTop: 4 }}>Требуется ремонт</div> : null}
                       </td>
-                      <td>{itemStatusLabel(item.status)}</td>
+                      <td>{inspectionItemStatusLabel(item.status)}</td>
                       <td>{item.comment || '—'}</td>
                       <td>
                         {item.attachments.length ? (
@@ -317,7 +301,7 @@ export function InspectionRunReportPage() {
                               <ProtectedUploadThumbLink
                                 key={attachment.id}
                                 url={api.resolveInspectionAttachmentUrl(attachment)}
-                                alt={attachment.originalName || 'inspection attachment'}
+                                alt={attachment.originalName || 'Фото пункта обхода'}
                                 className="workActAttachmentLink"
                                 imgClassName="workActAttachmentImage"
                               />
@@ -328,12 +312,12 @@ export function InspectionRunReportPage() {
                       <td>
                         {item.ticket ? (
                           <div>
-                            <div className="workActStrong">{item.ticket.status}</div>
+                            <div className="workActStrong">{ticketStatusLabel(item.ticket.status)}</div>
                             <div className="muted small">{item.ticket.problemText || 'Без описания'}</div>
                             <div className="no-print" style={{ marginTop: 8 }}>
-                              <Link to={`/tickets/${item.ticket.id}`}><button className="ghost">Открыть ticket</button></Link>
+                              <Link to={`/tickets/${item.ticket.id}`}><button className="ghost">Открыть заявку</button></Link>
                             </div>
-                            <div className="print-ticket-ref">Ticket #{item.ticket.id}</div>
+                            <div className="print-ticket-ref">Заявка №{item.ticket.id}</div>
                           </div>
                         ) : '—'}
                       </td>

@@ -530,6 +530,120 @@ button.ghost {
   border-radius: var(--ui-radius);
   padding: var(--ui-space-2);
 }
+
+/* Inspection ticket review is shared by Desktop and Mobile Round surfaces. */
+.inspectionTicketReview {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 14px;
+  border: 1px solid #f59e0b;
+  border-radius: 10px;
+  background: #fffbeb;
+  color: #451a03;
+}
+.inspectionTicketReview--urgent {
+  border-color: #ef4444;
+  background: #fef2f2;
+  color: #450a0a;
+}
+.inspectionTicketReviewHeader,
+.inspectionTicketReviewActions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.inspectionTicketReviewEyebrow,
+.inspectionTicketReviewGrid dt {
+  color: #6b7280;
+  font-size: 12px;
+  font-weight: 650;
+}
+.inspectionTicketReviewTitle { margin-top: 2px; font-size: 16px; font-weight: 800; }
+.inspectionTicketReviewStatus {
+  padding: 4px 8px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 750;
+}
+.inspectionTicketReviewGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 14px;
+  margin: 0;
+}
+.inspectionTicketReviewGrid > div { min-width: 0; }
+.inspectionTicketReviewGrid dt,
+.inspectionTicketReviewGrid dd { margin: 0; overflow-wrap: anywhere; }
+.inspectionTicketReviewGrid dd { margin-top: 2px; color: #111827; font-size: 13px; }
+.inspectionTicketReviewActions { justify-content: flex-start; }
+
+/* Desktop Rounds editor: flexible tracks replace the former 120/110px columns. */
+.inspectionTemplatesPage { min-width: 0; }
+.inspectionTemplateEditorFields,
+.inspectionTemplateWorkspace { display: grid; gap: 12px; }
+.inspectionTemplateZoneFields {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) repeat(2, minmax(130px, 0.4fr));
+  gap: 10px;
+}
+.inspectionTemplateResponseFields {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) repeat(3, minmax(96px, 0.42fr));
+  gap: 10px;
+}
+.inspectionTemplateWorkspace {
+  grid-template-columns: minmax(0, 1.3fr) minmax(300px, 0.9fr);
+}
+.inspectionTemplateChoice {
+  width: 100%;
+  height: auto;
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: var(--ui-radius);
+  background: #fff;
+  color: #111827;
+  text-align: left;
+  cursor: pointer;
+}
+.inspectionTemplateChoice--selected {
+  border-color: #2563eb;
+  background: #dbeafe;
+  color: #172554;
+  box-shadow: inset 3px 0 0 #2563eb;
+}
+.inspectionTemplateChoice .muted { color: #4b5563; }
+.inspectionTemplateChoice--selected .muted { color: #1e3a8a; }
+.inspectionUploadControl { position: relative; display: inline-flex; align-items: center; gap: 8px; }
+.inspectionUploadControl > span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid #d1d5db;
+  border-radius: var(--ui-radius);
+  background: #fff;
+  color: #374151;
+  font-weight: 650;
+  cursor: pointer;
+}
+.inspectionUploadControl input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); }
+
+@media (max-width: 1180px) {
+  .topbar { align-items: flex-start; flex-wrap: wrap; }
+  .topbar .actions { width: 100%; justify-content: flex-start; flex-wrap: wrap; }
+  .inspectionTemplateWorkspace { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 1040px) {
+  .inspectionTemplateZoneFields,
+  .inspectionTemplateResponseFields { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .inspectionTicketReviewGrid { grid-template-columns: 1fr; }
+}
 .uiSection {
   display: grid;
   gap: var(--ui-space-2);
