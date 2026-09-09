@@ -27,8 +27,8 @@ function errorMessage(error: unknown): string {
 
 const STATUS_LABEL: Record<api.InspectionRunItemStatus, string> = {
   PENDING: 'Ожидает',
-  OK: 'OK',
-  ISSUE: 'Нарушение',
+  OK: 'Норма',
+  ISSUE: 'Проблема',
   CRITICAL: 'Критично',
   SKIPPED: 'Пропущен',
 }
@@ -53,8 +53,9 @@ export function MobileInspectionRunPage() {
   const queryClient = useQueryClient()
 
   const [busyItemIds, setBusyItemIds] = useState<Set<string>>(new Set())
-  const [activeIssueItemId, setActiveIssueItemId] = useState<string | null>(null)
-  const [issueComment, setIssueComment] = useState('')
+  const [activeProblemItemId, setActiveProblemItemId] = useState<string | null>(null)
+  const [problemStatus, setProblemStatus] = useState<'ISSUE' | 'CRITICAL'>('ISSUE')
+  const [problemComment, setProblemComment] = useState('')
   /**
    * Категория заявки выбирается человеком.
    *
@@ -119,7 +120,7 @@ export function MobileInspectionRunPage() {
       api.uploadInspectionRunItemAttachment(runId, input.itemId, input.file),
   })
 
-  const backHref = mobilePath(location.pathname, '/inspection')
+  const backHref = `${mobilePath(location.pathname, '/inspection')}${location.search}`
 
   const activeCategories = useMemo(
     () => (categoriesQ.data || []).filter((row) => row.isActive !== false),
@@ -189,17 +190,17 @@ export function MobileInspectionRunPage() {
     }
   }
 
-  async function markIssue(itemId: string) {
+  async function markProblem(itemId: string) {
     if (busyItemIds.has(itemId)) return
     setBusyItemIds((s) => new Set(s).add(itemId))
     try {
       await updateM.mutateAsync({
         itemId,
-        payload: { status: 'ISSUE', requiresRepair: true, comment: issueComment.trim() || undefined },
+        payload: { status: problemStatus, requiresRepair: true, comment: problemComment.trim() || undefined },
       })
       await invalidate()
-      setActiveIssueItemId(null)
-      setIssueComment('')
+      setActiveProblemItemId(null)
+      setProblemComment('')
     } catch (err: unknown) {
       flash('err', errorMessage(err))
     } finally {
@@ -225,7 +226,6 @@ export function MobileInspectionRunPage() {
         categoryId,
         title: item.title?.trim() || undefined,
         description: item.comment?.trim() || item.description?.trim() || undefined,
-        urgency: item.status === 'CRITICAL' ? 'URGENT' : 'NOT_URGENT',
       })
       const ticketId = created.ticket?.id || ''
       const ticketNumber = created.ticket?.ticketNumber ?? null
@@ -346,7 +346,7 @@ export function MobileInspectionRunPage() {
                 </div>
                 {run.location?.id ? (
                   <Link
-                    to={mobilePath(location.pathname, `/inspection/object/${run.location.id}`)}
+                    to={`${mobilePath(location.pathname, `/inspection/object/${run.location.id}`)}${location.search}`}
                     className="mobileBtn mobileBtnGhost"
                     style={{ textAlign: 'center', marginTop: 4 }}
                   >
@@ -382,11 +382,11 @@ export function MobileInspectionRunPage() {
             <div className="mobilePatrolSummary">
               <div className="mobilePatrolSummaryCell mobilePatrolSummaryCell--ok">
                 <div className="mobilePatrolSummaryValue">{summary.ok}</div>
-                <div className="mobilePatrolSummaryLabel">OK</div>
+                <div className="mobilePatrolSummaryLabel">Норма</div>
               </div>
               <div className="mobilePatrolSummaryCell mobilePatrolSummaryCell--issue">
                 <div className="mobilePatrolSummaryValue">{summary.issue}</div>
-                <div className="mobilePatrolSummaryLabel">Нарушений</div>
+                <div className="mobilePatrolSummaryLabel">Проблем</div>
               </div>
               <div className="mobilePatrolSummaryCell mobilePatrolSummaryCell--critical">
                 <div className="mobilePatrolSummaryValue">{summary.critical}</div>
@@ -404,7 +404,7 @@ export function MobileInspectionRunPage() {
                 const mod = ITEM_MOD[item.status]
                 const busy = busyItemIds.has(item.id)
                 const uploadBusy = uploadBusyItemIds.has(item.id)
-                const isShowingIssueForm = activeIssueItemId === item.id
+                const isShowingProblemForm = activeProblemItemId === item.id
                 const createdTicketId = getCreatedTicketId(item)
                 const createdTicketNumber = getCreatedTicketNumber(item)
                 const createdTicketStatus = item.ticket?.status ?? null
@@ -468,41 +468,46 @@ export function MobileInspectionRunPage() {
                     ) : null}
 
                     {isInProgress && !busy ? (
-                      <div className="mobilePatrolItemActions">
-                        {item.status !== 'OK' ? (
+                      <>
+                        <div className="mobilePatrolStatusChoices" aria-label="Результат проверки">
                           <button
                             type="button"
-                            className="mobileBtn"
-                            style={{ minHeight: 34, padding: '6px 14px', fontSize: '0.82rem', borderRadius: 8 }}
-                            disabled={busy}
+                            className={`mobilePatrolStatusChoice mobilePatrolStatusChoice--ok${item.status === 'OK' ? ' mobilePatrolStatusChoice--selected' : ''}`}
+                            aria-pressed={item.status === 'OK'}
                             onClick={() => markOk(item.id)}
                           >
-                            <span className="mobilePatrolBtnIcon" aria-hidden>
-                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                                <polyline points="20 6 9 17 4 12" />
-                              </svg>
-                            </span>
-                            OK
+                            Норма
                           </button>
-                        ) : null}
-                        {item.status !== 'ISSUE' && item.status !== 'CRITICAL' ? (
                           <button
                             type="button"
-                            className="mobileBtn mobileBtnSecondary"
-                            style={{ minHeight: 34, padding: '6px 14px', fontSize: '0.82rem', borderRadius: 8 }}
-                            disabled={busy}
+                            className={`mobilePatrolStatusChoice mobilePatrolStatusChoice--issue${item.status === 'ISSUE' ? ' mobilePatrolStatusChoice--selected' : ''}`}
+                            aria-pressed={item.status === 'ISSUE'}
                             onClick={() => {
-                              setActiveIssueItemId(isShowingIssueForm ? null : item.id)
-                              setIssueComment(item.comment || '')
+                              setActiveProblemItemId(isShowingProblemForm && problemStatus === 'ISSUE' ? null : item.id)
+                              setProblemStatus('ISSUE')
+                              setProblemComment(item.comment || '')
                             }}
                           >
-                            {isShowingIssueForm ? 'Отмена' : 'Нарушение'}
+                            Проблема
                           </button>
-                        ) : null}
+                          <button
+                            type="button"
+                            className={`mobilePatrolStatusChoice mobilePatrolStatusChoice--critical${item.status === 'CRITICAL' ? ' mobilePatrolStatusChoice--selected' : ''}`}
+                            aria-pressed={item.status === 'CRITICAL'}
+                            onClick={() => {
+                              setActiveProblemItemId(isShowingProblemForm && problemStatus === 'CRITICAL' ? null : item.id)
+                              setProblemStatus('CRITICAL')
+                              setProblemComment(item.comment || '')
+                            }}
+                          >
+                            Критично
+                          </button>
+                        </div>
+                        <div className="mobilePatrolItemActions">
                         <button
                           type="button"
                           className="mobileBtn mobileBtnSecondary"
-                          style={{ minHeight: 34, padding: '6px 14px', fontSize: '0.82rem', borderRadius: 8 }}
+                          style={{ width: '100%' }}
                           disabled={uploadBusy}
                           onClick={() => {
                             setUploadTargetItemId(item.id)
@@ -523,29 +528,32 @@ export function MobileInspectionRunPage() {
                             </>
                           )}
                         </button>
-                      </div>
+                        </div>
+                      </>
                     ) : busy ? (
                       <div className="mobileMeta" style={{ fontSize: '0.82rem' }}>Сохраняем…</div>
                     ) : null}
 
-                    {isShowingIssueForm ? (
-                      <div className="mobilePatrolItemIssueForm">
-                        <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#92400e' }}>Комментарий к нарушению</div>
+                    {isShowingProblemForm ? (
+                      <div className={`mobilePatrolItemIssueForm${problemStatus === 'CRITICAL' ? ' mobilePatrolItemIssueForm--critical' : ''}`}>
+                        <div style={{ fontSize: '0.8rem', fontWeight: 600, color: problemStatus === 'CRITICAL' ? '#991b1b' : '#92400e' }}>
+                          {problemStatus === 'CRITICAL' ? 'Комментарий к критичному состоянию' : 'Комментарий к проблеме'}
+                        </div>
                         <textarea
                           className="mobilePatrolItemIssueFormTextarea"
                           rows={2}
-                          placeholder="Опишите нарушение…"
-                          value={issueComment}
-                          onChange={(e) => setIssueComment(e.target.value)}
+                          placeholder={problemStatus === 'CRITICAL' ? 'Опишите критичное состояние…' : 'Опишите проблему…'}
+                          value={problemComment}
+                          onChange={(e) => setProblemComment(e.target.value)}
                         />
                         <button
                           type="button"
                           className="mobileBtn"
-                          style={{ minHeight: 36, padding: '6px 14px', fontSize: '0.84rem', borderRadius: 8, background: '#d97706' }}
+                          style={{ background: problemStatus === 'CRITICAL' ? '#dc2626' : '#d97706' }}
                           disabled={busyItemIds.has(item.id)}
-                          onClick={() => markIssue(item.id)}
+                          onClick={() => markProblem(item.id)}
                         >
-                          Подтвердить нарушение
+                          {problemStatus === 'CRITICAL' ? 'Подтвердить критичное состояние' : 'Подтвердить проблему'}
                         </button>
                       </div>
                     ) : null}

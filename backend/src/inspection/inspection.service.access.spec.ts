@@ -101,10 +101,11 @@ function makeSuite(options: { contracts?: any[]; prisma?: any } = {}) {
   const tickets = { create: jest.fn().mockResolvedValue({ ticket: { id: 'tk-1' }, generated: null, autoAssigned: null }) } as any
   const timeline = { recordLegacy: jest.fn().mockResolvedValue(undefined) } as any
   const exporter = { exportReport: jest.fn() } as any
+  const shiftPolicy = { assertActiveShiftForOperationalWork: jest.fn().mockResolvedValue(undefined) } as any
 
-  const svc = new InspectionService(prisma, tickets, timeline, exporter, serviceContracts)
+  const svc = new InspectionService(prisma, tickets, timeline, exporter, serviceContracts, shiftPolicy)
 
-  return { svc, prisma, tickets, timeline, contractsPrisma }
+  return { svc, prisma, tickets, timeline, contractsPrisma, shiftPolicy }
 }
 
 // ── startRun ─────────────────────────────────────────────────────────────────
