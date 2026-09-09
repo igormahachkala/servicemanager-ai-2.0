@@ -567,6 +567,243 @@ button.ghost {
   overflow: auto;
 }
 
+.notificationPreferences {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.notificationPreferencesCompact {
+  margin-top: 8px;
+}
+
+.notifSettingsSection {
+  display: grid;
+  gap: 12px;
+}
+
+.notifSectionHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.notifSectionHeader h3 {
+  margin: 0 0 4px;
+}
+
+.notifStatusBadge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 3px 8px;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.notifMaxNotice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  background: #fffbeb;
+  color: #78350f;
+  font-size: 13px;
+}
+
+.notifMaxNotice strong {
+  flex: 0 0 auto;
+}
+
+.notifSegmentRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.notifRoleSegments {
+  padding-top: 2px;
+}
+
+.notifSegment,
+.notifSegmentActive {
+  min-height: 34px;
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #374151;
+}
+
+.notifSegmentActive {
+  border-color: #2563eb;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.notifEventGroups {
+  display: grid;
+  gap: 12px;
+}
+
+.notifEventGroup {
+  display: grid;
+  gap: 8px;
+}
+
+.notifEventGroupTitle {
+  color: #374151;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.notifEventRows {
+  display: grid;
+  gap: 8px;
+}
+
+.notifEventRow {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.9fr) minmax(0, 1.4fr);
+  gap: 10px;
+  align-items: stretch;
+  padding: 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.notifEventInfo {
+  min-width: 0;
+}
+
+.notifEventLabel {
+  color: #111827;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.notifEventDescription {
+  margin-top: 3px;
+  color: #6b7280;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.notifChannelCells {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.notifChannelCell {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.notifChannelLabel {
+  color: #4b5563;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.notifPreferenceControl {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.notifTriState {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  min-width: 0;
+}
+
+.notifTriStateButton {
+  min-height: 30px;
+  min-width: 0;
+  padding: 5px 6px;
+  border-radius: 7px;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  color: #4b5563;
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.15;
+}
+
+.notifTriStateButtonActive {
+  border-color: #15803d;
+  background: #ecfdf5;
+  color: #166534;
+}
+
+.notifDefaultHint {
+  color: #6b7280;
+  font-size: 11px;
+}
+
+.notifCurrentRole {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  padding: 7px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f9fafb;
+  font-size: 13px;
+}
+
+.notifCurrentRole span {
+  color: #6b7280;
+}
+
+.notifEmptyState {
+  padding: 12px;
+  border: 1px dashed #d1d5db;
+  border-radius: 8px;
+  background: #f9fafb;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+@media (max-width: 860px) {
+  .notifEventRow {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .notifSectionHeader {
+    flex-direction: column;
+  }
+
+  .notifMaxNotice {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .notifChannelCells {
+    grid-template-columns: 1fr;
+  }
+
+  .notifTriState {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ===== ASSIGNMENT UX ===== */
 
 .assignmentHintBox {

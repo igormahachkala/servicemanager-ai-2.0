@@ -2035,6 +2035,185 @@ export async function markAllNotificationsRead(): Promise<{ ok: boolean; updated
   })
 }
 
+export type NotificationContour = 'CLIENT' | 'PRIMARY_PROVIDER' | 'SECONDARY_PROVIDER'
+export type NotificationChannel = 'IN_APP' | 'PUSH' | 'MAX'
+export type NotificationChannelDeliveryKind = 'USER_ADDRESSABLE' | 'SHARED_OPERATIONAL_BROADCAST'
+export type NotificationPreferenceSource =
+  | 'SYSTEM_DEFAULT'
+  | 'CURRENT_DELIVERY_DEFAULT'
+  | 'COMPANY_ROLE_OVERRIDE'
+  | 'USER_OVERRIDE'
+  | 'LEGACY_PUSH_PREFERENCE'
+  | 'UNKNOWN_EVENT'
+  | 'INVALID_INPUT'
+
+export type NotificationEventDefinition = {
+  key: string
+  labelRu: string
+  descriptionRu: string
+  group: string
+  groupLabelRu: string
+  defaultSection?: string
+}
+
+export type NotificationChannelDefinition = {
+  key: NotificationChannel
+  labelRu: string
+  configurableByUser: boolean
+  deliveryKind: NotificationChannelDeliveryKind
+  descriptionRu: string
+}
+
+export type NotificationRoleDefinition = {
+  key: Role
+  labelRu: string
+}
+
+export type NotificationContourDefinition = {
+  key: NotificationContour
+  labelRu: string
+  roles: NotificationRoleDefinition[]
+}
+
+export type NotificationPreferenceCatalog = {
+  events: NotificationEventDefinition[]
+  channels: NotificationChannelDefinition[]
+  contours: NotificationContourDefinition[]
+  canManageCompanyRoleMatrix: boolean
+  defaultRollout: {
+    strategy: string
+    existingCompanyDeliveryPreservedUntilOverride: boolean
+  }
+}
+
+export type NotificationPreferenceCell = {
+  contour: NotificationContour
+  role?: Role
+  eventType: string
+  channel: NotificationChannel
+  productDefaultEnabled: boolean
+  overrideEnabled: boolean | null
+  settingsEffectiveEnabled: boolean
+  deliveryEnabled: boolean
+  deliverySource: NotificationPreferenceSource
+}
+
+export type NotificationCompanyRoleMatrixRole = NotificationRoleDefinition & {
+  preferences: Array<NotificationPreferenceCell & { role: Role }>
+}
+
+export type NotificationCompanyRoleMatrixContour = {
+  key: NotificationContour
+  labelRu: string
+  roles: NotificationCompanyRoleMatrixRole[]
+}
+
+export type NotificationCompanyRoleMatrix = {
+  company: {
+    id: string
+    name: string
+    type: CompanyType
+  }
+  canManage: boolean
+  contours: NotificationCompanyRoleMatrixContour[]
+  catalog: NotificationPreferenceCatalog
+}
+
+export type NotificationUserPreferenceCell = NotificationPreferenceCell & {
+  companyRoleOverrideEnabled: boolean | null
+  userOverrideEnabled: boolean | null
+}
+
+export type NotificationUserPreferenceContour = {
+  key: NotificationContour
+  labelRu: string
+  role: NotificationRoleDefinition
+  preferences: NotificationUserPreferenceCell[]
+}
+
+export type NotificationUserPreferences = {
+  user: {
+    id: string
+    companyId: string
+    email: string
+    firstName: string | null
+    lastName: string | null
+    role: Role
+    roleLabelRu: string
+  }
+  company: {
+    id: string
+    name: string
+    type: CompanyType
+  }
+  canManage: boolean
+  contours: NotificationUserPreferenceContour[]
+  catalog: NotificationPreferenceCatalog
+}
+
+export type UpdateCompanyNotificationRolePreferenceInput = {
+  companyId?: string
+  contour: NotificationContour
+  role: Role
+  eventType: string
+  channel: NotificationChannel
+  enabled: boolean | null
+}
+
+export type UpdateUserNotificationPreferenceInput = {
+  contour: NotificationContour
+  eventType: string
+  channel: NotificationChannel
+  enabled: boolean | null
+}
+
+export async function notificationPreferenceCatalog(): Promise<NotificationPreferenceCatalog> {
+  return request<NotificationPreferenceCatalog>('/notifications/preferences/catalog')
+}
+
+export async function companyNotificationRoleMatrix(companyId?: string): Promise<NotificationCompanyRoleMatrix> {
+  const search = new URLSearchParams()
+  if (companyId) search.set('companyId', companyId)
+  const suffix = search.toString() ? '?' + search.toString() : ''
+  return request<NotificationCompanyRoleMatrix>('/notifications/preferences/company-role-matrix' + suffix)
+}
+
+export async function updateCompanyNotificationRolePreference(
+  input: UpdateCompanyNotificationRolePreferenceInput,
+): Promise<NotificationCompanyRoleMatrix> {
+  return request<NotificationCompanyRoleMatrix>('/notifications/preferences/company-role', {
+    method: 'PATCH',
+    body: input,
+  })
+}
+
+export async function myNotificationPreferences(): Promise<NotificationUserPreferences> {
+  return request<NotificationUserPreferences>('/notifications/preferences/me')
+}
+
+export async function updateMyNotificationPreference(
+  input: UpdateUserNotificationPreferenceInput,
+): Promise<NotificationUserPreferences> {
+  return request<NotificationUserPreferences>('/notifications/preferences/me', {
+    method: 'PATCH',
+    body: input,
+  })
+}
+
+export async function userNotificationPreferences(userId: string): Promise<NotificationUserPreferences> {
+  return request<NotificationUserPreferences>(`/notifications/preferences/users/${encodeURIComponent(userId)}`)
+}
+
+export async function updateUserNotificationPreference(
+  userId: string,
+  input: UpdateUserNotificationPreferenceInput,
+): Promise<NotificationUserPreferences> {
+  return request<NotificationUserPreferences>(`/notifications/preferences/users/${encodeURIComponent(userId)}`, {
+    method: 'PATCH',
+    body: input,
+  })
+}
+
 // --- Push-уведомления (Web Push) ---------------------------------------------
 // Контракт см. docs/PUSH_NOTIFICATIONS_ARCHITECTURE_V1.md §4.2.
 // Эндпоинтов пока нет на бэкенде (backend — shared zone, отдельный раунд согласования).

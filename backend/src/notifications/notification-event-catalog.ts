@@ -1,4 +1,5 @@
 import {
+  CompanyType,
   NotificationChannel,
   NotificationContour,
   UserRole,
@@ -16,12 +17,7 @@ export type LegacyPushPreferenceKey =
   | 'sla';
 
 export type NotificationEventGroup =
-  | 'TICKET'
-  | 'ASSIGNMENT'
-  | 'CHAT'
-  | 'STATUS'
-  | 'SLA'
-  | 'ACCEPTANCE';
+  'TICKET' | 'ASSIGNMENT' | 'CHAT' | 'STATUS' | 'SLA' | 'ACCEPTANCE';
 
 export type NotificationEventDefinition = {
   key: string;
@@ -160,11 +156,86 @@ export const NOTIFICATION_CHANNELS = [
   NotificationChannel.MAX,
 ] as const;
 
+export type NotificationChannelDeliveryKind =
+  'USER_ADDRESSABLE' | 'SHARED_OPERATIONAL_BROADCAST';
+
+export type NotificationChannelDefinition = {
+  key: NotificationChannel;
+  labelRu: string;
+  configurableByUser: boolean;
+  deliveryKind: NotificationChannelDeliveryKind;
+  descriptionRu: string;
+};
+
+export const NOTIFICATION_CHANNEL_DEFINITIONS: readonly NotificationChannelDefinition[] =
+  [
+    {
+      key: NotificationChannel.IN_APP,
+      labelRu: 'В сервисе',
+      configurableByUser: true,
+      deliveryKind: 'USER_ADDRESSABLE',
+      descriptionRu: 'Уведомления внутри сервиса.',
+    },
+    {
+      key: NotificationChannel.PUSH,
+      labelRu: 'Push',
+      configurableByUser: true,
+      deliveryKind: 'USER_ADDRESSABLE',
+      descriptionRu: 'Push-уведомления пользователя.',
+    },
+    {
+      key: NotificationChannel.MAX,
+      labelRu: 'MAX',
+      configurableByUser: false,
+      deliveryKind: 'SHARED_OPERATIONAL_BROADCAST',
+      descriptionRu: 'Общая операционная лента MAX на уровне группы или точки.',
+    },
+  ];
+
+export const USER_CONFIGURABLE_NOTIFICATION_CHANNELS = [
+  NotificationChannel.IN_APP,
+  NotificationChannel.PUSH,
+] as const;
+
 export const NOTIFICATION_CONTOURS = [
   NotificationContour.CLIENT,
   NotificationContour.PRIMARY_PROVIDER,
   NotificationContour.SECONDARY_PROVIDER,
 ] as const;
+
+export const NOTIFICATION_CONTOUR_LABELS_RU: Record<
+  NotificationContour,
+  string
+> = {
+  [NotificationContour.CLIENT]: 'КЛИЕНТ',
+  [NotificationContour.PRIMARY_PROVIDER]: 'ПОДРЯДЧИК',
+  [NotificationContour.SECONDARY_PROVIDER]: 'СУБПОДРЯДЧИК',
+};
+
+export const NOTIFICATION_EVENT_GROUP_LABELS_RU: Record<
+  NotificationEventGroup,
+  string
+> = {
+  TICKET: 'Заявки',
+  ASSIGNMENT: 'Назначения',
+  CHAT: 'Комментарии и файлы',
+  STATUS: 'Статусы',
+  SLA: 'SLA',
+  ACCEPTANCE: 'Приёмка',
+};
+
+export const NOTIFICATION_ROLE_LABELS_RU: Partial<Record<UserRole, string>> = {
+  [UserRole.PLATFORM_ADMIN]: 'Администратор платформы',
+  [UserRole.ADMIN]: 'Администратор',
+  [UserRole.CLIENT_ADMIN]: 'Администратор клиента',
+  [UserRole.NETWORK_DIRECTOR]: 'Сетевой директор',
+  [UserRole.TERRITORIAL_MANAGER]: 'Территориальный менеджер',
+  [UserRole.CLIENT]: 'Клиент',
+  [UserRole.MASTER]: 'Мастер',
+  [UserRole.DISPATCHER]: 'Диспетчер',
+  [UserRole.TECHNICIAN]: 'Техник',
+  [UserRole.STAFF]: 'Сотрудник',
+};
 
 export const NOTIFICATION_ROLES_BY_CONTOUR: Record<
   NotificationContour,
@@ -347,6 +418,38 @@ export function isSupportedNotificationChannel(
   channel: string,
 ): channel is NotificationChannel {
   return (NOTIFICATION_CHANNELS as readonly string[]).includes(channel);
+}
+
+export function isUserConfigurableNotificationChannel(
+  channel: NotificationChannel,
+) {
+  return (
+    USER_CONFIGURABLE_NOTIFICATION_CHANNELS as readonly NotificationChannel[]
+  ).includes(channel);
+}
+
+export function getNotificationContoursForCompanyType(
+  companyType: CompanyType,
+): readonly NotificationContour[] {
+  if (companyType === CompanyType.CLIENT) {
+    return [NotificationContour.CLIENT];
+  }
+  if (companyType === CompanyType.PROVIDER) {
+    return [
+      NotificationContour.PRIMARY_PROVIDER,
+      NotificationContour.SECONDARY_PROVIDER,
+    ];
+  }
+  return [];
+}
+
+export function isNotificationContourApplicableForCompanyType(params: {
+  contour: NotificationContour;
+  companyType: CompanyType;
+}) {
+  return getNotificationContoursForCompanyType(params.companyType).includes(
+    params.contour,
+  );
 }
 
 export function isRoleRepresentableForNotificationContour(params: {
