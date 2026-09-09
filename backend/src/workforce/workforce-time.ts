@@ -169,6 +169,50 @@ export function resolveWorkShiftAutoCloseAt(params: {
   return boundary
 }
 
+/**
+ * SMA-WORKFORCE-MONTHLY-MATRIX-106D.
+ *
+ * The local calendar day an instant falls on, `YYYY-MM-DD`. A shift belongs to the day it
+ * STARTED in the company's timezone — the same convention 106A's auto-close already uses, and
+ * the one a timesheet reader expects: a shift begun on the 9th is the 9th's work even if it
+ * ends after midnight.
+ */
+export function localDateKey(instant: Date, timezone?: string | null): string {
+  return localParts(instant, safeTimeZone(timezone)).dateKey
+}
+
+/**
+ * The half-open UTC range [from, to) covering a `YYYY-MM` month in the company's timezone,
+ * together with the local day keys it contains.
+ *
+ * Computed from the zone, not from UTC: for a UTC+3 company the month starts three hours
+ * earlier in UTC than a naive reading would give, and shifts opened in those hours belong to
+ * this month, not the previous one.
+ */
+export function monthRangeInTimeZone(
+  month: string,
+  timezone?: string | null,
+): { from: Date; to: Date; days: string[] } | null {
+  const match = /^(\d{4})-(\d{2})$/.exec((month || '').trim())
+  if (!match) return null
+  const year = Number(match[1])
+  const monthIndex = Number(match[2])
+  if (monthIndex < 1 || monthIndex > 12) return null
+
+  const timeZone = safeTimeZone(timezone)
+  const firstKey = `${match[1]}-${match[2]}-01`
+  const nextMonthKey =
+    monthIndex === 12 ? `${year + 1}-01-01` : `${year}-${String(monthIndex + 1).padStart(2, '0')}-01`
+
+  const from = utcInstantForLocalTime(firstKey, 0, 0, timeZone)
+  const to = utcInstantForLocalTime(nextMonthKey, 0, 0, timeZone)
+
+  const days: string[] = []
+  for (let key = firstKey; key < nextMonthKey; key = addLocalDays(key, 1)) days.push(key)
+
+  return { from, to, days }
+}
+
 export function elapsedMinutes(startedAt: Date, endedAt: Date): number {
   return Math.max(1, Math.ceil((endedAt.getTime() - startedAt.getTime()) / 60_000))
 }

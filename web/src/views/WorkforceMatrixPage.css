@@ -1,0 +1,91 @@
+/* SMA-WORKFORCE-MONTHLY-MATRIX-106D — табель «Сотрудник × День × Месяц». */
+
+.wfMonthPicker { display: flex; align-items: center; gap: 10px; }
+.wfMonthLabel { font-weight: 700; min-width: 150px; text-align: center; text-transform: capitalize; }
+
+.wfTimezoneWarning { margin: 12px 0; }
+
+.wfSummary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+.wfSummaryValue { font-size: 26px; font-weight: 800; line-height: 1.2; }
+
+.wfMatrixPanel { padding: 12px; }
+
+/* Месяц шире экрана — прокручивается внутри панели, страница по горизонтали не едет. */
+.wfMatrixScroll { overflow-x: auto; }
+
+.wfMatrix { border-collapse: collapse; width: 100%; font-size: 13px; }
+.wfMatrix th, .wfMatrix td { border: 1px solid #e5e7eb; padding: 4px 6px; }
+
+/* Имя и итог остаются видимыми при прокрутке по дням. */
+.wfMatrix .wfEmployeeCol {
+  position: sticky; left: 0; z-index: 2; background: #fff;
+  min-width: 190px; text-align: left; box-shadow: 1px 0 0 #e5e7eb;
+}
+.wfMatrix thead .wfEmployeeCol { z-index: 3; }
+.wfEmployeeName { font-weight: 600; }
+
+.wfMatrix .wfDay { width: 44px; text-align: center; font-weight: 600; color: #6b7280; }
+.wfMatrix .wfWeekend { background: #fafafa; }
+.wfMatrix thead .wfWeekend { color: #b91c1c; }
+
+.wfCell { text-align: center; white-space: nowrap; }
+.wfCell--clickable { cursor: pointer; }
+.wfCell--clickable:hover { outline: 2px solid #2563eb; outline-offset: -2px; }
+.wfCellNone { color: #d1d5db; }
+.wfCellValue { font-variant-numeric: tabular-nums; }
+.wfCellOpen { color: #2563eb; font-weight: 600; font-size: 11px; }
+
+.wfCell--closed { background: #f0fdf4; }
+.wfCell--auto_closed { background: #fffbeb; }
+.wfCell--open { background: #eff6ff; }
+.wfCell--corrected { box-shadow: inset 0 -3px 0 #7c3aed; }
+
+.wfFlag { color: #b45309; font-weight: 700; }
+
+.wfMatrix .wfTotalCol {
+  position: sticky; right: 0; z-index: 2; background: #fff;
+  min-width: 96px; text-align: right; box-shadow: -1px 0 0 #e5e7eb;
+}
+.wfMatrix thead .wfTotalCol { z-index: 3; }
+.wfEmployeeTotal { font-weight: 800; font-variant-numeric: tabular-nums; }
+
+.wfLegend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 12px; }
+
+/* ── Карточка дня ── */
+.wfDrawerBackdrop {
+  position: fixed; inset: 0; background: rgba(15, 23, 42, 0.35);
+  display: flex; justify-content: flex-end; z-index: 40;
+}
+.wfDrawer {
+  width: min(560px, 100%); height: 100%; overflow-y: auto;
+  background: #fff; padding: 20px; box-shadow: -8px 0 24px rgba(15, 23, 42, 0.15);
+}
+.wfShiftPanel { margin-top: 16px; }
+
+.wfShiftTable { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+.wfShiftTable th { text-align: left; font-size: 12px; color: #6b7280; font-weight: 600; padding: 4px 6px; }
+.wfShiftTable td { padding: 4px 6px; border-top: 1px solid #f1f5f9; font-variant-numeric: tabular-nums; }
+.wfChanged { font-weight: 700; color: #7c3aed; }
+
+.wfTagCorrected { background: #ede9fe; color: #5b21b6; }
+
+.wfCorrectionHistory { border-top: 1px solid #f1f5f9; padding-top: 10px; margin-top: 10px; }
+.wfCorrectionRow { padding: 6px 0; border-bottom: 1px dashed #f1f5f9; }
+
+.wfCorrectionForm { border-top: 1px solid #f1f5f9; padding-top: 12px; margin-top: 12px; }
+.wfCorrectionFields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 10px; }
+.wfBeforeAfter {
+  margin: 10px 0; padding: 8px 10px;
+  background: #f8fafc; border-left: 3px solid #7c3aed; border-radius: 4px;
+}
+.wfCorrectionActions { display: flex; gap: 8px; margin-top: 12px; }
+
+@media (max-width: 720px) {
+  .wfCorrectionFields { grid-template-columns: 1fr; }
+  .wfDrawer { width: 100%; }
+}
