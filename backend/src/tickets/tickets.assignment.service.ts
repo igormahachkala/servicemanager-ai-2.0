@@ -26,6 +26,7 @@ import { buildTicketDescription } from './ticket-description.builder';
 import {
   assertActorCanUseLocation,
   assertActorCanUseProblemCategory,
+  assertProviderContractAllowsProblemCategory,
   resolveReadableTicketAccess,
   resolveTechnicianOperationalScope,
   resolveTicketOperationAccess,
@@ -1142,7 +1143,7 @@ export class TicketsAssignmentService {
       throw new BadRequestException('Ticket owner company must be a CLIENT company');
     }
     const category = await this.getCategory(targetCompanyId, input.categoryId);
-    await assertActorCanUseProblemCategory({
+    const actorCategory = await assertActorCanUseProblemCategory({
       prisma: this.prisma,
       actor: {
         id: creatorUserId,
@@ -1151,6 +1152,15 @@ export class TicketsAssignmentService {
       },
       scopeCompanyId: targetCompanyId,
       problemCategoryId: input.categoryId,
+    });
+    // 107A: заявка в контуре чужого клиента — только по специализациям договора.
+    // Проверка стоит до записи: заявку, которую создатель потом не прочитает,
+    // заводить нельзя. Свой контур сюда не попадает — см. саму функцию.
+    await assertProviderContractAllowsProblemCategory({
+      prisma: this.prisma,
+      actorCompanyId,
+      ownerCompanyId: targetCompanyId,
+      category: actorCategory,
     });
     const location = await this.getLocation(targetCompanyId, input.locationId);
     const equipment = input.equipmentId

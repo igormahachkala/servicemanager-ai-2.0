@@ -66,6 +66,9 @@ describe('TicketsAssignmentService location scope override', () => {
     mockAssertActorCanUseProblemCategory.mockReset()
     mockAssertActorCanUseProblemCategory.mockResolvedValue({
       id: 'category-1',
+      specializationLinks: [
+        { specializationId: 'spec-1', specialization: { name: 'spec-1' } },
+      ],
     })
   })
 
@@ -2660,6 +2663,30 @@ describe('TicketsAssignmentService linked-provider create assignment contour', (
           email: 'provider-tech@example.test',
         }),
       },
+      // 107A: создание в контуре клиента сверяет категорию со специализациями
+      // договора. По умолчанию договор покрывает категорию — это состояние всех
+      // действующих договоров в Production. Тест на отказ подменяет список.
+      serviceContract: {
+        findFirst: jest
+          .fn()
+          .mockResolvedValue(
+            options?.contractSpecializationIds === null
+              ? null
+              : { id: 'contract-1' },
+          ),
+      },
+      serviceContractSpecialization: {
+        findMany: jest
+          .fn()
+          .mockResolvedValue(
+            (options?.contractSpecializationIds ?? ['spec-1']).map(
+              (specializationId: string) => ({
+                specializationId,
+                specialization: { name: specializationId },
+              }),
+            ),
+          ),
+      },
     }
     const assignmentEngine = {
       selectTechnicianForTicket: jest
@@ -2763,6 +2790,41 @@ describe('TicketsAssignmentService linked-provider create assignment contour', (
       ...overrides,
     }
   }
+
+  it('107A: провайдер создаёт заявку по категории, покрытой договором', async () => {
+    const { service, tx } = makeCreateHarness()
+
+    await expect(
+      service.create(providerCompanyId, 'admin-1', UserRole.ADMIN, baseDto() as any),
+    ).resolves.toBeDefined()
+    expect(tx.ticket.create).toHaveBeenCalled()
+  })
+
+  it('107A: категория вне специализаций договора отклоняется ДО записи заявки', async () => {
+    // Договор покрывает только spec-other, категория привязана к spec-1.
+    const { service, tx } = makeCreateHarness({
+      contractSpecializationIds: ['spec-other'],
+    } as any)
+
+    await expect(
+      service.create(providerCompanyId, 'admin-1', UserRole.ADMIN, baseDto() as any),
+    ).rejects.toThrow('Категория заявки недоступна по специализациям действующего договора.')
+
+    // Главное: заявка не создана. Иначе получилась бы запись, которую
+    // её же автор не сможет прочитать — ровно исходный дефект.
+    expect(tx.ticket.create).not.toHaveBeenCalled()
+  })
+
+  it('107A: без действующего договора заявка в чужом контуре не создаётся', async () => {
+    const { service, tx } = makeCreateHarness({
+      contractSpecializationIds: null,
+    } as any)
+
+    await expect(
+      service.create(providerCompanyId, 'admin-1', UserRole.ADMIN, baseDto() as any),
+    ).rejects.toThrow('Категория заявки недоступна по специализациям действующего договора.')
+    expect(tx.ticket.create).not.toHaveBeenCalled()
+  })
 
   it('provider ADMIN creates a linked-client ticket and assigns own provider employee', async () => {
     const { service, tx, resolveCreateCandidatesSpy } = makeCreateHarness()

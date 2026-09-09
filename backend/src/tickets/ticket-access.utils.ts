@@ -438,6 +438,58 @@ export function isProblemCategoryAllowedBySpecializationScope(
   })
 }
 
+/**
+ * SMA-TICKET-CATEGORY-CONTRACT-VALIDATION-107A.
+ *
+ * Провайдер заводит заявку в контуре клиента только по тем специализациям,
+ * которые есть в действующем договоре с этим клиентом.
+ *
+ * Зачем отдельная проверка. assertActorCanUseProblemCategory смотрит на
+ * специализации САМОГО пользователя, а у management-ролей их нет — значит,
+ * на создании не ограничивало ничто. Чтение же сужается специализациями
+ * ДОГОВОРА (buildProviderContractSpecializationRestrictionWhere). Из-за этого
+ * провайдер мог создать заявку, которую сам же потом не видел: канонический
+ * доступ отвечал 404. Воспроизведено на Stage в приёмке 103.
+ *
+ * Лечится сужением создания, а не расширением чтения. Здесь переиспользуются
+ * ровно те же примитивы, что и на чтении, — resolveProviderContractSpecializationScope
+ * и isProblemCategoryAllowedBySpecializationScope, — поэтому создание и чтение
+ * согласованы по построению, при любой форме договора. Своего правила доступа
+ * эта функция не вводит.
+ *
+ * Свой контур (провайдер == владелец заявки) не затрагивается: резолвер
+ * возвращает all_in_contract, и предикат пропускает всё.
+ */
+export async function assertProviderContractAllowsProblemCategory(params: {
+  prisma: PrismaService | Prisma.TransactionClient
+  actorCompanyId: string
+  ownerCompanyId: string
+  category: {
+    specializationLinks?: Array<{
+      specializationId: string
+      specialization?: { name: string | null } | null
+    }> | null
+  }
+}) {
+  const actorCompanyId = params.actorCompanyId?.trim()
+  const ownerCompanyId = params.ownerCompanyId?.trim()
+  if (!actorCompanyId || !ownerCompanyId || actorCompanyId === ownerCompanyId) {
+    return
+  }
+
+  const contractScope = await resolveProviderContractSpecializationScope({
+    prisma: params.prisma,
+    providerCompanyId: actorCompanyId,
+    clientCompanyId: ownerCompanyId,
+  })
+
+  if (!isProblemCategoryAllowedBySpecializationScope(params.category, contractScope)) {
+    throw new BadRequestException(
+      'Категория заявки недоступна по специализациям действующего договора.',
+    )
+  }
+}
+
 export async function assertActorCanUseProblemCategory(params: {
   prisma: PrismaService | Prisma.TransactionClient
   actor: TicketAccessActor
