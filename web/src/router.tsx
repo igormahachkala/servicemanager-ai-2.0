@@ -67,6 +67,7 @@ const PermissionsPage = lazyExport(() => import('./pages/platform/PermissionsPag
 const ManagementV2StubPage = lazyExport(() => import('./views/v2/ManagementV2StubPage'), 'ManagementV2StubPage')
 const ContractorsRoutePage = lazyExport(() => import('./views/v2/ContractorsRoutePage'), 'ContractorsRoutePage')
 const WorkforcePage = lazyExport(() => import('./views/WorkforcePage'), 'WorkforcePage')
+const WorkforceMatrixPage = lazyExport(() => import('./views/WorkforceMatrixPage'), 'WorkforceMatrixPage')
 const MobileShell = lazyExport(() => import('./mobile/MobileShell'), 'MobileShell')
 const MobileHome = lazyExport(() => import('./mobile/MobileHome'), 'MobileHome')
 const MobileCreateTicket = lazyExport(() => import('./mobile/MobileCreateTicket'), 'MobileCreateTicket')
@@ -208,6 +209,7 @@ export function AppRoutes() {
         <Route path="specializations" element={<LazyRoute component={SpecializationsPage} />} />
         <Route path="analytics" element={<LazyRoute component={AnalyticsPage} />} />
         <Route path="workforce" element={<LazyRoute component={WorkforcePage} />} />
+        <Route path="workforce/matrix" element={<LazyRoute component={WorkforceMatrixPage} />} />
         <Route path="analytics/locations" element={<LazyRoute component={LocationAnalyticsPage} />} />
         <Route path="settings" element={<LazyRoute component={SettingsPage} />} />
         <Route path="company" element={<LazyRoute component={CompanyPage} />} />

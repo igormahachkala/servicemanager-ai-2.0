@@ -21,9 +21,11 @@ import {
   resolveEffectiveShiftTime,
   type EffectiveShiftTime,
 } from './workforce-effective-time'
+import { buildWorkforceMatrix, type MatrixShiftRow } from './workforce-matrix'
 import {
   elapsedMinutes,
   isWorkShiftAutoCloseDue,
+  monthRangeInTimeZone,
   parseShiftCloseTime,
   resolveWorkShiftAutoCloseAt,
 } from './workforce-time'
@@ -337,6 +339,77 @@ export class WorkforceService {
       employees,
       shifts: decorated,
       serverNow: now,
+    }
+  }
+
+  /**
+   * SMA-WORKFORCE-MONTHLY-MATRIX-106D — Сотрудник × День × Месяц for one month.
+   *
+   * One query for the whole month, then one pass to shape it: the previous report's `take: 500`
+   * silently truncated a 30-employee month (~900 shifts) and is not reused here. The bound is
+   * the month itself, which is what makes it safe to drop the cap — a company cannot have more
+   * shifts in a month than its employees can open.
+   *
+   * Days are the company's local calendar days, and the UTC range is derived from that zone
+   * rather than from the naive month, so a shift opened in the hours a UTC+3 month starts early
+   * lands in the right month.
+   */
+  async getMonthlyMatrix(params: {
+    actor: WorkforceActor
+    month: string
+    observerCompanyId?: string
+    userId?: string
+  }) {
+    await this.assertActiveActor(params.actor)
+
+    const targetCompanyId =
+      params.actor.role === UserRole.PLATFORM_ADMIN && params.observerCompanyId
+        ? params.observerCompanyId
+        : params.actor.companyId
+
+    const company = await this.prisma.company.findUnique({
+      where: { id: targetCompanyId },
+      select: { id: true, name: true, timezone: true, shiftAutoCloseTime: true },
+    })
+    if (!company) throw new NotFoundException('Company not found')
+
+    const range = monthRangeInTimeZone(params.month, company.timezone)
+    if (!range) throw new BadRequestException('month must be YYYY-MM')
+
+    const shifts = await this.prisma.workShift.findMany({
+      where: {
+        companyId: targetCompanyId,
+        ...(params.userId ? { userId: params.userId } : {}),
+        // Half-open range: a shift opened exactly at local midnight on the 1st of the next
+        // month belongs to that month, not this one.
+        openedAt: { gte: range.from, lt: range.to },
+      },
+      orderBy: { openedAt: 'asc' },
+      select: {
+        id: true,
+        userId: true,
+        status: true,
+        openedAt: true,
+        closedAt: true,
+        closeReason: true,
+        user: { select: { id: true, firstName: true, lastName: true, email: true, role: true } },
+        corrections: { orderBy: { createdAt: 'desc' }, select: correctionSelect },
+      },
+    })
+
+    const matrix = buildWorkforceMatrix({
+      shifts: shifts as unknown as MatrixShiftRow[],
+      days: range.days,
+      timezone: company.timezone,
+    })
+
+    return {
+      company,
+      month: { key: params.month, from: range.from, to: range.to, days: range.days },
+      employees: matrix.employees,
+      totals: matrix.totals,
+      shifts: matrix.shifts,
+      serverNow: new Date(),
     }
   }
 

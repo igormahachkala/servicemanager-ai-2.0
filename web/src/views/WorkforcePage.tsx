@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
@@ -52,7 +53,10 @@ export function WorkforcePage() {
   const report = reportQ.data
   return (
     <div>
-      <h1>Смены и трудозатраты</h1>
+      <div className="row">
+        <h1 style={{ margin: 0 }}>Смены и трудозатраты</h1>
+        <Link to="/workforce/matrix"><button className="ghost">Табель по месяцу</button></Link>
+      </div>
       <p className="muted">Фактическое рабочее время сотрудников и время, зафиксированное по заявкам.</p>
 
       <div className="panel" style={{ marginBottom: 12 }}>

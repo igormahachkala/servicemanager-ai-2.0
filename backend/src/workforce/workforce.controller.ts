@@ -84,6 +84,38 @@ export class WorkforceController {
   }
 
   /**
+   * SMA-WORKFORCE-MONTHLY-MATRIX-106D — the management timesheet.
+   *
+   * Same gate as the existing shift report — WORKFORCE_VIEW plus the management role list — so
+   * the matrix inherits the access rule already in force rather than defining a second one.
+   * TECHNICIAN is absent from that list and is therefore denied, which is the required
+   * behaviour: a technician has /m/shift for their own shift, not the company timesheet.
+   */
+  @Get('matrix')
+  @Roles(
+    UserRole.PLATFORM_ADMIN,
+    UserRole.ADMIN,
+    UserRole.MASTER,
+    UserRole.DISPATCHER,
+    UserRole.NETWORK_DIRECTOR,
+    UserRole.TERRITORIAL_MANAGER,
+  )
+  @RequirePermission(PERMISSIONS.WORKFORCE_VIEW)
+  matrix(
+    @Req() req: any,
+    @Query('month') month: string,
+    @Query('companyId') companyId?: string,
+    @Query('userId') userId?: string,
+  ) {
+    return this.workforce.getMonthlyMatrix({
+      actor: this.actor(req),
+      month,
+      observerCompanyId: companyId,
+      userId,
+    })
+  }
+
+  /**
    * SMA-SHIFT-LABOR-LEDGER-INTEGRITY-106B — correct a shift.
    *
    * Gated on USERS_MANAGE, the canonical grant for managing people in

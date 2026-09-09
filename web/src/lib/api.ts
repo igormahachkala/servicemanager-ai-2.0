@@ -4125,6 +4125,97 @@ export async function workforceReport(params: { from?: string; to?: string; user
   return request<WorkforceReport>(`/workforce/shifts${suffix ? `?${suffix}` : ''}`)
 }
 
+// ── SMA-WORKFORCE-MONTHLY-MATRIX-106D ────────────────────────────────────────
+
+export type WorkforceMatrixCellState = 'none' | 'open' | 'closed' | 'auto_closed'
+
+export type WorkforceMatrixCell = {
+  date: string
+  state: WorkforceMatrixCellState
+  /** null = ничего не завершено в этот день. Открытая смена намеренно не даёт минут. */
+  durationMinutes: number | null
+  hasCorrection: boolean
+  hasOpenShift: boolean
+  shiftIds: string[]
+}
+
+export type WorkforceMatrixTotals = {
+  closedShiftMinutes: number
+  closedShifts: number
+  autoClosedShifts: number
+  correctedShifts: number
+  openShifts: number
+  daysWithoutClosedShift: number
+}
+
+export type WorkforceMatrixEmployee = {
+  user: { id: string; firstName?: string | null; lastName?: string | null; email: string; role: string }
+  days: WorkforceMatrixCell[]
+  totals: WorkforceMatrixTotals
+}
+
+export type WorkforceEffectiveTime = {
+  recordedOpenedAt: string
+  recordedClosedAt: string | null
+  effectiveOpenedAt: string
+  effectiveClosedAt: string | null
+  effectiveDurationMinutes: number | null
+  isCorrected: boolean
+  correctedFields: Array<'openedAt' | 'closedAt'>
+}
+
+export type WorkforceShiftCorrection = {
+  id: string
+  correctedOpenedAt: string | null
+  correctedClosedAt: string | null
+  reason: string
+  createdAt: string
+  correctedBy?: { id: string; firstName?: string | null; lastName?: string | null; email: string } | null
+}
+
+export type WorkforceMatrixShift = {
+  id: string
+  date: string
+  status: 'OPEN' | 'CLOSED' | 'AUTO_CLOSED'
+  closeReason: string | null
+  effective: WorkforceEffectiveTime
+  corrections: WorkforceShiftCorrection[]
+}
+
+export type WorkforceMatrix = {
+  company: { id: string; name: string; timezone?: string | null; shiftAutoCloseTime: string }
+  month: { key: string; from: string; to: string; days: string[] }
+  employees: WorkforceMatrixEmployee[]
+  totals: WorkforceMatrixTotals & { employees: number }
+  shifts: WorkforceMatrixShift[]
+  serverNow: string
+}
+
+export async function workforceMatrix(params: {
+  month: string
+  companyId?: string
+  userId?: string
+}): Promise<WorkforceMatrix> {
+  const search = new URLSearchParams({ month: params.month })
+  if (params.companyId) search.set('companyId', params.companyId)
+  if (params.userId) search.set('userId', params.userId)
+  return request<WorkforceMatrix>('/workforce/matrix?' + search.toString())
+}
+
+/**
+ * 106B: запись исправления. WorkShift не переписывается — добавляется запись аудита,
+ * поэтому «Было» остаётся доступным вместе с «Стало».
+ */
+export async function createShiftCorrection(
+  shiftId: string,
+  input: { correctedOpenedAt?: string; correctedClosedAt?: string; reason: string },
+): Promise<WorkforceMatrixShift> {
+  return request<WorkforceMatrixShift>('/workforce/shifts/' + shiftId + '/corrections', {
+    method: 'POST',
+    body: input,
+  })
+}
+
 export async function updateWorkforceSettings(shiftAutoCloseTime: string) {
   return request<{ id: string; name: string; timezone?: string | null; shiftAutoCloseTime: string }>('/workforce/settings', {
     method: 'PATCH',
