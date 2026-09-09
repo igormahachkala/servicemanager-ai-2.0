@@ -1,6 +1,14 @@
-import { CompanyType, ServiceContractRole, TicketStatus, UserRole } from '@prisma/client';
+import {
+  CompanyType,
+  NotificationChannel,
+  NotificationContour,
+  ServiceContractRole,
+  TicketStatus,
+  UserRole,
+} from '@prisma/client';
 
 import * as ticketAccess from '../tickets/ticket-access.utils';
+import { NotificationPreferencesService } from './notification-preferences.service';
 import { NotificationsService } from './notifications.service';
 
 describe('NotificationsService access resolver delivery gate', () => {
@@ -14,7 +22,11 @@ describe('NotificationsService access resolver delivery gate', () => {
 
   let resolveReadableSpy: jest.SpyInstance;
 
-  function candidate(id: string, companyId = ticketCompanyId, role = UserRole.ADMIN) {
+  function candidate(
+    id: string,
+    companyId = ticketCompanyId,
+    role = UserRole.ADMIN,
+  ) {
     return { id, companyId, role };
   }
 
@@ -28,13 +40,37 @@ describe('NotificationsService access resolver delivery gate', () => {
 
   function makeService(options?: {
     allowedUserIds?: string[];
-    usersByCompany?: Record<string, Array<{ id: string; companyId: string; role: UserRole }>>;
+    usersByCompany?: Record<
+      string,
+      Array<{ id: string; companyId: string; role: UserRole }>
+    >;
     allUsers?: Array<{ id: string; companyId: string; role: UserRole }>;
     ticketLocationId?: string | null;
+    ticketCompanyType?: CompanyType;
     ticketSpecializations?: Array<{ specializationId: string; name: string }>;
     contractsByProvider?: Record<string, ContractFixture | null | undefined>;
+    companyNotificationRolePreferences?: Array<{
+      companyId: string;
+      contour: NotificationContour;
+      role: UserRole;
+      eventType: string;
+      channel: NotificationChannel;
+      enabled: boolean;
+    }>;
+    userNotificationPreferences?: Array<{
+      userId: string;
+      contour: NotificationContour;
+      eventType: string;
+      channel: NotificationChannel;
+      enabled: boolean;
+    }>;
+    legacyPushPreferences?: Array<Record<string, boolean | string | null>>;
     resolveReadableImplementation?: (params: any) => Promise<{
-      ticket: { id: string; companyId: string; assignedTechnicianId: string | null };
+      ticket: {
+        id: string;
+        companyId: string;
+        assignedTechnicianId: string | null;
+      };
       scopeCompanyId: string;
       visibilityMode: string;
     }>;
@@ -45,16 +81,25 @@ describe('NotificationsService access resolver delivery gate', () => {
     ];
     resolveReadableSpy = jest
       .spyOn(ticketAccess, 'resolveReadableTicketAccess')
-      .mockImplementation(options?.resolveReadableImplementation ?? (async (params: any) => {
-          if (!allowedUserIds.has(params.actor.id)) {
-            throw new Error('denied');
-          }
-          return {
-            ticket: { id: params.ticketId, companyId: ticketCompanyId, assignedTechnicianId: null },
-            scopeCompanyId: ticketCompanyId,
-            visibilityMode: params.linkedClientCompanyId ? 'provider_primary' : 'tenant',
-          };
-        }));
+      .mockImplementation(
+        options?.resolveReadableImplementation ??
+          (async (params: any) => {
+            if (!allowedUserIds.has(params.actor.id)) {
+              throw new Error('denied');
+            }
+            return {
+              ticket: {
+                id: params.ticketId,
+                companyId: ticketCompanyId,
+                assignedTechnicianId: null,
+              },
+              scopeCompanyId: ticketCompanyId,
+              visibilityMode: params.linkedClientCompanyId
+                ? 'provider_primary'
+                : 'tenant',
+            };
+          }),
+      );
 
     const usersByCompany = options?.usersByCompany ?? {};
     const allUsers = options?.allUsers ?? Object.values(usersByCompany).flat();
@@ -81,11 +126,11 @@ describe('NotificationsService access resolver delivery gate', () => {
       const specializationMode = fixture.specializationMode ?? 'EXPLICIT';
       const specializationIds =
         specializationMode === 'EXPLICIT'
-          ? fixture.specializationIds ?? [specializationId]
+          ? (fixture.specializationIds ?? [specializationId])
           : [];
       const specializationNames =
         specializationMode === 'EXPLICIT'
-          ? fixture.specializationNames ?? [specializationName]
+          ? (fixture.specializationNames ?? [specializationName])
           : [];
       return {
         contractId: `${contractProviderCompanyId}-contract`,
@@ -93,7 +138,9 @@ describe('NotificationsService access resolver delivery gate', () => {
         clientCompanyId: contractClientCompanyId,
         providerCompanyId: contractProviderCompanyId,
         roleInContract: fixture.role,
-        locationMode: locationIds.length ? 'SELECTED_LOCATIONS' : 'ALL_LOCATIONS',
+        locationMode: locationIds.length
+          ? 'SELECTED_LOCATIONS'
+          : 'ALL_LOCATIONS',
         locationIds,
         specializationMode,
         specializationIds,
@@ -133,16 +180,21 @@ describe('NotificationsService access resolver delivery gate', () => {
             return usersByCompany[where.companyId] ?? [];
           }
           if (where.companyId?.in) {
-            return allUsers.filter((user) => where.companyId.in.includes(user.companyId));
+            return allUsers.filter((user) =>
+              where.companyId.in.includes(user.companyId),
+            );
           }
           if (Array.isArray(where.OR)) {
             const companyIds = new Set<string>();
             const userIds = new Set<string>();
             for (const clause of where.OR) {
-              for (const companyId of clause.companyId?.in ?? []) companyIds.add(companyId);
+              for (const companyId of clause.companyId?.in ?? [])
+                companyIds.add(companyId);
               for (const userId of clause.id?.in ?? []) userIds.add(userId);
             }
-            return allUsers.filter((user) => companyIds.has(user.companyId) || userIds.has(user.id));
+            return allUsers.filter(
+              (user) => companyIds.has(user.companyId) || userIds.has(user.id),
+            );
           }
           return allUsers;
         }),
@@ -159,32 +211,79 @@ describe('NotificationsService access resolver delivery gate', () => {
           locationId: options?.ticketLocationId ?? ticketLocationId,
           assignedTechnicianId: null,
           problemCategory: {
-            specializationLinks: ticketSpecializations.map((specialization) => ({
-              specializationId: specialization.specializationId,
-              specialization: {
-                id: specialization.specializationId,
-                name: specialization.name,
-                isActive: true,
-              },
-            })),
+            specializationLinks: ticketSpecializations.map(
+              (specialization) => ({
+                specializationId: specialization.specializationId,
+                specialization: {
+                  id: specialization.specializationId,
+                  name: specialization.name,
+                  isActive: true,
+                },
+              }),
+            ),
           },
         }),
       },
       notification: {
-        createMany: jest.fn().mockImplementation(async ({ data }: any) => ({ count: data.length })),
-        create: jest.fn().mockImplementation(async ({ data }: any) => ({ id: 'notification-1', ...data })),
+        createMany: jest
+          .fn()
+          .mockImplementation(async ({ data }: any) => ({
+            count: data.length,
+          })),
+        create: jest
+          .fn()
+          .mockImplementation(async ({ data }: any) => ({
+            id: 'notification-1',
+            ...data,
+          })),
+      },
+      companyNotificationRolePreference: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        findMany: jest
+          .fn()
+          .mockResolvedValue(options?.companyNotificationRolePreferences ?? []),
+      },
+      userNotificationPreference: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        findMany: jest
+          .fn()
+          .mockResolvedValue(options?.userNotificationPreferences ?? []),
+      },
+      pushPreference: {
+        findUnique: jest.fn().mockResolvedValue(null),
+        findMany: jest
+          .fn()
+          .mockResolvedValue(options?.legacyPushPreferences ?? []),
       },
     };
+    (prisma.ticket.findFirst as jest.Mock).mockResolvedValue({
+      id: ticketId,
+      companyId: ticketCompanyId,
+      company: { type: options?.ticketCompanyType ?? CompanyType.CLIENT },
+      locationId: options?.ticketLocationId ?? ticketLocationId,
+      assignedTechnicianId: null,
+      problemCategory: {
+        specializationLinks: ticketSpecializations.map((specialization) => ({
+          specializationId: specialization.specializationId,
+          specialization: {
+            id: specialization.specializationId,
+            name: specialization.name,
+            isActive: true,
+          },
+        })),
+      },
+    });
     const push = { sendToUser: jest.fn().mockResolvedValue({}) };
     const contractContext = {
-      getContractContext: jest.fn(async ({
-        providerCompanyId: contractProviderCompanyId,
-        clientCompanyId: contractClientCompanyId,
-      }: any) =>
-        makeContractContext(
-          contractProviderCompanyId,
-          contractClientCompanyId,
-        ),
+      getContractContext: jest.fn(
+        async ({
+          providerCompanyId: contractProviderCompanyId,
+          clientCompanyId: contractClientCompanyId,
+        }: any) =>
+          makeContractContext(
+            contractProviderCompanyId,
+            contractClientCompanyId,
+          ),
       ),
     };
     const service = new NotificationsService(
@@ -193,6 +292,7 @@ describe('NotificationsService access resolver delivery gate', () => {
       push as any,
       {} as any,
       contractContext as any,
+      new NotificationPreferencesService(prisma as any),
     );
     return { service, prisma, push, contractContext };
   }
@@ -231,17 +331,23 @@ describe('NotificationsService access resolver delivery gate', () => {
       'allowed-client',
       'allowed-provider',
     ]);
-    expect(data.find((item: any) => item.userId === 'allowed-provider').linkedClientCompanyId)
-      .toBe(ticketCompanyId);
-    expect(data.find((item: any) => item.userId === 'allowed-client').linkedClientCompanyId)
-      .toBeNull();
-    expect(data.find((item: any) => item.userId === 'allowed-provider').navigationTarget)
-      .toEqual({
-        kind: 'ticket',
-        ticketId,
-        section: 'overview',
-        linkedClientCompanyId: ticketCompanyId,
-      });
+    expect(
+      data.find((item: any) => item.userId === 'allowed-provider')
+        .linkedClientCompanyId,
+    ).toBe(ticketCompanyId);
+    expect(
+      data.find((item: any) => item.userId === 'allowed-client')
+        .linkedClientCompanyId,
+    ).toBeNull();
+    expect(
+      data.find((item: any) => item.userId === 'allowed-provider')
+        .navigationTarget,
+    ).toEqual({
+      kind: 'ticket',
+      ticketId,
+      section: 'overview',
+      linkedClientCompanyId: ticketCompanyId,
+    });
     expect(contractContext.getContractContext).toHaveBeenCalledWith(
       expect.objectContaining({
         providerCompanyId,
@@ -249,11 +355,13 @@ describe('NotificationsService access resolver delivery gate', () => {
         ticketId,
       }),
     );
-    expect(resolveReadableSpy).toHaveBeenCalledWith(expect.objectContaining({
-      actor: expect.objectContaining({ id: 'allowed-provider' }),
-      linkedClientCompanyId: ticketCompanyId,
-      allowedLinkedClientContractRoles: [ServiceContractRole.PRIMARY],
-    }));
+    expect(resolveReadableSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actor: expect.objectContaining({ id: 'allowed-provider' }),
+        linkedClientCompanyId: ticketCompanyId,
+        allowedLinkedClientContractRoles: [ServiceContractRole.PRIMARY],
+      }),
+    );
     expect(push.sendToUser).toHaveBeenCalledWith(
       'allowed-provider',
       expect.objectContaining({
@@ -274,7 +382,9 @@ describe('NotificationsService access resolver delivery gate', () => {
     let inFlight = 0;
     let maxInFlight = 0;
     const allowedUserIds = new Set(
-      Array.from({ length: 12 }, (_, index) => `user-${index}`).filter((_, index) => index % 3 !== 1),
+      Array.from({ length: 12 }, (_, index) => `user-${index}`).filter(
+        (_, index) => index % 3 !== 1,
+      ),
     );
 
     const { service } = makeService({
@@ -288,15 +398,25 @@ describe('NotificationsService access resolver delivery gate', () => {
           throw new Error('denied');
         }
         return {
-          ticket: { id: params.ticketId, companyId: ticketCompanyId, assignedTechnicianId: null },
+          ticket: {
+            id: params.ticketId,
+            companyId: ticketCompanyId,
+            assignedTechnicianId: null,
+          },
           scopeCompanyId: ticketCompanyId,
-          visibilityMode: params.linkedClientCompanyId ? 'provider_primary' : 'tenant',
+          visibilityMode: params.linkedClientCompanyId
+            ? 'provider_primary'
+            : 'tenant',
         };
       },
     });
 
     const users = Array.from({ length: 12 }, (_, index) =>
-      candidate(`user-${index}`, index % 2 ? providerCompanyId : ticketCompanyId, UserRole.ADMIN),
+      candidate(
+        `user-${index}`,
+        index % 2 ? providerCompanyId : ticketCompanyId,
+        UserRole.ADMIN,
+      ),
     );
 
     const result = await (service as any).filterRecipientsByTicketAccess({
@@ -334,7 +454,10 @@ describe('NotificationsService access resolver delivery gate', () => {
       ticketCompanyId,
     });
 
-    expect(result.map((item: any) => item.id)).toEqual(['same-user', 'second-user']);
+    expect(result.map((item: any) => item.id)).toEqual([
+      'same-user',
+      'second-user',
+    ]);
     expect(resolveReadableSpy).toHaveBeenCalledTimes(3);
   });
 
@@ -379,10 +502,12 @@ describe('NotificationsService access resolver delivery gate', () => {
         clientCompanyId: ticketCompanyId,
       }),
     );
-    expect(resolveReadableSpy).toHaveBeenCalledWith(expect.objectContaining({
-      actor: expect.objectContaining({ id: 'secondary-admin' }),
-      allowedLinkedClientContractRoles: [ServiceContractRole.SECONDARY],
-    }));
+    expect(resolveReadableSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actor: expect.objectContaining({ id: 'secondary-admin' }),
+        allowedLinkedClientContractRoles: [ServiceContractRole.SECONDARY],
+      }),
+    );
     expect(push.sendToUser).toHaveBeenCalledWith(
       'secondary-admin',
       expect.objectContaining({
@@ -492,8 +617,16 @@ describe('NotificationsService access resolver delivery gate', () => {
       allowedUserIds: ['dispatcher-allowed'],
       usersByCompany: {
         [providerCompanyId]: [
-          candidate('dispatcher-allowed', providerCompanyId, UserRole.DISPATCHER),
-          candidate('dispatcher-denied', providerCompanyId, UserRole.DISPATCHER),
+          candidate(
+            'dispatcher-allowed',
+            providerCompanyId,
+            UserRole.DISPATCHER,
+          ),
+          candidate(
+            'dispatcher-denied',
+            providerCompanyId,
+            UserRole.DISPATCHER,
+          ),
           candidate('tech-1', providerCompanyId, UserRole.TECHNICIAN),
         ],
       },
@@ -509,7 +642,9 @@ describe('NotificationsService access resolver delivery gate', () => {
 
     expect(result).toEqual({ ok: true, notified: 1 });
     const data = prisma.notification.createMany.mock.calls[0][0].data;
-    expect(data.map((item: any) => item.userId)).toEqual(['dispatcher-allowed']);
+    expect(data.map((item: any) => item.userId)).toEqual([
+      'dispatcher-allowed',
+    ]);
     expect(data[0].linkedClientCompanyId).toBe(ticketCompanyId);
   });
 
@@ -543,7 +678,9 @@ describe('NotificationsService access resolver delivery gate', () => {
     });
 
     const watcherData = prisma.notification.createMany.mock.calls[0][0].data;
-    expect(watcherData.map((item: any) => item.userId)).toEqual(['watcher-allowed']);
+    expect(watcherData.map((item: any) => item.userId)).toEqual([
+      'watcher-allowed',
+    ]);
     expect(prisma.notification.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -620,7 +757,9 @@ describe('NotificationsService access resolver delivery gate', () => {
     });
 
     const data = prisma.notification.createMany.mock.calls[0][0].data;
-    expect(data.map((item: any) => item.userId)).toEqual(['acceptance-allowed']);
+    expect(data.map((item: any) => item.userId)).toEqual([
+      'acceptance-allowed',
+    ]);
     expect(data[0].type).toBe('ticket.awaiting_acceptance');
   });
 
@@ -650,7 +789,464 @@ describe('NotificationsService access resolver delivery gate', () => {
       'client-admin',
       'provider-master',
     ]);
-    expect(data.find((item: any) => item.userId === 'provider-master').linkedClientCompanyId)
-      .toBe(ticketCompanyId);
+    expect(
+      data.find((item: any) => item.userId === 'provider-master')
+        .linkedClientCompanyId,
+    ).toBe(ticketCompanyId);
+  });
+
+  it('does not let an enabled preference create a recipient before access passes', async () => {
+    const { service, prisma, push } = makeService({
+      allowedUserIds: [],
+      allUsers: [candidate('denied-client')],
+      companyNotificationRolePreferences: [
+        {
+          companyId: ticketCompanyId,
+          contour: NotificationContour.CLIENT,
+          role: UserRole.ADMIN,
+          eventType: 'ticket.sla_warning',
+          channel: NotificationChannel.IN_APP,
+          enabled: true,
+        },
+        {
+          companyId: ticketCompanyId,
+          contour: NotificationContour.CLIENT,
+          role: UserRole.ADMIN,
+          eventType: 'ticket.sla_warning',
+          channel: NotificationChannel.PUSH,
+          enabled: true,
+        },
+      ],
+    });
+
+    await (service as any).emitTicketSlaInternal({
+      ticketCompanyId,
+      ticketId,
+      ticketNumber: 1001,
+      notificationType: 'ticket.sla_warning',
+      title: 'Заявка близка к сроку',
+      body: 'SLA',
+      dedupeKind: 'ticket.sla_warning',
+    });
+
+    expect(resolveReadableSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actor: expect.objectContaining({ id: 'denied-client' }),
+      }),
+    );
+    expect(prisma.notification.createMany).not.toHaveBeenCalled();
+    expect(push.sendToUser).not.toHaveBeenCalled();
+    expect(
+      prisma.companyNotificationRolePreference.findMany,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('suppresses only IN_APP rows when IN_APP is disabled and PUSH remains enabled', async () => {
+    const { service, prisma, push } = makeService({
+      allowedUserIds: ['client-admin'],
+      usersByCompany: {
+        [ticketCompanyId]: [candidate('client-admin')],
+      },
+      companyNotificationRolePreferences: [
+        {
+          companyId: ticketCompanyId,
+          contour: NotificationContour.CLIENT,
+          role: UserRole.ADMIN,
+          eventType: 'ticket.created',
+          channel: NotificationChannel.IN_APP,
+          enabled: false,
+        },
+      ],
+    });
+
+    await (service as any).emitTicketCreatedWatchers({
+      actorCompanyId: ticketCompanyId,
+      creatorUserId: null,
+      targetCompanyId: ticketCompanyId,
+      locationId: ticketLocationId,
+      ticketId,
+      ticketNumber: 1001,
+      summary: 'Test ticket',
+    });
+
+    expect(prisma.notification.createMany).not.toHaveBeenCalled();
+    expect(push.sendToUser).toHaveBeenCalledWith(
+      'client-admin',
+      expect.objectContaining({ notificationType: 'ticket.created' }),
+      'ticketNew',
+      ticketId,
+    );
+  });
+
+  it('suppresses only PUSH when PUSH is disabled and IN_APP remains enabled', async () => {
+    const { service, prisma, push } = makeService({
+      allowedUserIds: ['client-admin'],
+      usersByCompany: {
+        [ticketCompanyId]: [candidate('client-admin')],
+      },
+      companyNotificationRolePreferences: [
+        {
+          companyId: ticketCompanyId,
+          contour: NotificationContour.CLIENT,
+          role: UserRole.ADMIN,
+          eventType: 'ticket.created',
+          channel: NotificationChannel.PUSH,
+          enabled: false,
+        },
+      ],
+    });
+
+    await (service as any).emitTicketCreatedWatchers({
+      actorCompanyId: ticketCompanyId,
+      creatorUserId: null,
+      targetCompanyId: ticketCompanyId,
+      locationId: ticketLocationId,
+      ticketId,
+      ticketNumber: 1001,
+      summary: 'Test ticket',
+    });
+
+    expect(prisma.notification.createMany.mock.calls[0][0].data).toHaveLength(
+      1,
+    );
+    expect(push.sendToUser).not.toHaveBeenCalled();
+  });
+
+  it('applies user override over a company-role delivery override', async () => {
+    const { service, prisma } = makeService({
+      allowedUserIds: ['client-admin'],
+      usersByCompany: {
+        [ticketCompanyId]: [candidate('client-admin')],
+      },
+      companyNotificationRolePreferences: [
+        {
+          companyId: ticketCompanyId,
+          contour: NotificationContour.CLIENT,
+          role: UserRole.ADMIN,
+          eventType: 'ticket.created',
+          channel: NotificationChannel.IN_APP,
+          enabled: false,
+        },
+      ],
+      userNotificationPreferences: [
+        {
+          userId: 'client-admin',
+          contour: NotificationContour.CLIENT,
+          eventType: 'ticket.created',
+          channel: NotificationChannel.IN_APP,
+          enabled: true,
+        },
+      ],
+    });
+
+    await (service as any).emitTicketCreatedWatchers({
+      actorCompanyId: ticketCompanyId,
+      creatorUserId: null,
+      targetCompanyId: ticketCompanyId,
+      locationId: ticketLocationId,
+      ticketId,
+      ticketNumber: 1001,
+      summary: 'Test ticket',
+    });
+
+    expect(prisma.notification.createMany.mock.calls[0][0].data).toHaveLength(
+      1,
+    );
+  });
+
+  it('uses CLIENT contour for location-scoped client management recipients', async () => {
+    const { service, prisma, push } = makeService({
+      allowedUserIds: ['territory-manager'],
+      usersByCompany: {
+        [ticketCompanyId]: [
+          candidate(
+            'territory-manager',
+            ticketCompanyId,
+            UserRole.TERRITORIAL_MANAGER,
+          ),
+        ],
+      },
+      companyNotificationRolePreferences: [
+        {
+          companyId: ticketCompanyId,
+          contour: NotificationContour.CLIENT,
+          role: UserRole.TERRITORIAL_MANAGER,
+          eventType: 'ticket.in_progress',
+          channel: NotificationChannel.IN_APP,
+          enabled: false,
+        },
+        {
+          companyId: ticketCompanyId,
+          contour: NotificationContour.CLIENT,
+          role: UserRole.TERRITORIAL_MANAGER,
+          eventType: 'ticket.in_progress',
+          channel: NotificationChannel.PUSH,
+          enabled: false,
+        },
+      ],
+    });
+
+    await (service as any).emitTicketStatusForClientCompanyInternal({
+      ticketCompanyId,
+      actorUserId: null,
+      ticketId,
+      ticketNumber: 1001,
+      summary: 'Status',
+      fromStatus: TicketStatus.NEW,
+      toStatus: TicketStatus.IN_PROGRESS,
+    });
+
+    expect(prisma.notification.createMany).not.toHaveBeenCalled();
+    expect(push.sendToUser).not.toHaveBeenCalled();
+  });
+
+  it('uses PRIMARY_PROVIDER contour for primary provider recipients', async () => {
+    const { service, prisma, push } = makeService({
+      allowedUserIds: ['provider-dispatcher'],
+      usersByCompany: {
+        [providerCompanyId]: [
+          candidate(
+            'provider-dispatcher',
+            providerCompanyId,
+            UserRole.DISPATCHER,
+          ),
+        ],
+      },
+      companyNotificationRolePreferences: [
+        {
+          companyId: providerCompanyId,
+          contour: NotificationContour.PRIMARY_PROVIDER,
+          role: UserRole.DISPATCHER,
+          eventType: 'ticket.created',
+          channel: NotificationChannel.IN_APP,
+          enabled: false,
+        },
+        {
+          companyId: providerCompanyId,
+          contour: NotificationContour.PRIMARY_PROVIDER,
+          role: UserRole.DISPATCHER,
+          eventType: 'ticket.created',
+          channel: NotificationChannel.PUSH,
+          enabled: false,
+        },
+      ],
+    });
+
+    await (service as any).emitTicketCreatedWatchers({
+      actorCompanyId: providerCompanyId,
+      creatorUserId: null,
+      targetCompanyId: ticketCompanyId,
+      locationId: ticketLocationId,
+      ticketId,
+      ticketNumber: 1001,
+      summary: 'Test ticket',
+    });
+
+    expect(prisma.notification.createMany).not.toHaveBeenCalled();
+    expect(push.sendToUser).not.toHaveBeenCalled();
+  });
+
+  it('uses SECONDARY_PROVIDER contour for delegated provider recipients', async () => {
+    const { service, prisma, push } = makeService({
+      allowedUserIds: ['secondary-master'],
+      allUsers: [
+        candidate('secondary-master', providerCompanyId, UserRole.MASTER),
+      ],
+      contractsByProvider: {
+        [providerCompanyId]: {
+          role: ServiceContractRole.SECONDARY,
+          locationIds: [ticketLocationId],
+          specializationIds: [specializationId],
+          specializationNames: [specializationName],
+        },
+      },
+      companyNotificationRolePreferences: [
+        {
+          companyId: providerCompanyId,
+          contour: NotificationContour.SECONDARY_PROVIDER,
+          role: UserRole.MASTER,
+          eventType: 'ticket.sla_warning',
+          channel: NotificationChannel.IN_APP,
+          enabled: false,
+        },
+        {
+          companyId: providerCompanyId,
+          contour: NotificationContour.SECONDARY_PROVIDER,
+          role: UserRole.MASTER,
+          eventType: 'ticket.sla_warning',
+          channel: NotificationChannel.PUSH,
+          enabled: false,
+        },
+      ],
+    });
+
+    await (service as any).emitTicketSlaInternal({
+      ticketCompanyId,
+      ticketId,
+      ticketNumber: 1001,
+      notificationType: 'ticket.sla_warning',
+      title: 'Заявка близка к сроку',
+      body: 'SLA',
+      dedupeKind: 'ticket.sla_warning',
+    });
+
+    expect(prisma.notification.createMany).not.toHaveBeenCalled();
+    expect(push.sendToUser).not.toHaveBeenCalled();
+  });
+
+  it('does not let SECONDARY preferences bypass delegation scope denial', async () => {
+    const { service, prisma, push } = makeService({
+      allowedUserIds: ['secondary-master'],
+      allUsers: [
+        candidate('secondary-master', providerCompanyId, UserRole.MASTER),
+      ],
+      contractsByProvider: {
+        [providerCompanyId]: {
+          role: ServiceContractRole.SECONDARY,
+          locationIds: [wrongLocationId],
+          specializationIds: [specializationId],
+          specializationNames: [specializationName],
+        },
+      },
+      companyNotificationRolePreferences: [
+        {
+          companyId: providerCompanyId,
+          contour: NotificationContour.SECONDARY_PROVIDER,
+          role: UserRole.MASTER,
+          eventType: 'ticket.sla_warning',
+          channel: NotificationChannel.IN_APP,
+          enabled: true,
+        },
+        {
+          companyId: providerCompanyId,
+          contour: NotificationContour.SECONDARY_PROVIDER,
+          role: UserRole.MASTER,
+          eventType: 'ticket.sla_warning',
+          channel: NotificationChannel.PUSH,
+          enabled: true,
+        },
+      ],
+    });
+
+    await (service as any).emitTicketSlaInternal({
+      ticketCompanyId,
+      ticketId,
+      ticketNumber: 1001,
+      notificationType: 'ticket.sla_warning',
+      title: 'Заявка близка к сроку',
+      body: 'SLA',
+      dedupeKind: 'ticket.sla_warning',
+    });
+
+    expect(prisma.notification.createMany).not.toHaveBeenCalled();
+    expect(push.sendToUser).not.toHaveBeenCalled();
+    expect(
+      prisma.companyNotificationRolePreference.findMany,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('keeps legacy PUSH=false disabled after V2 delivery filtering', async () => {
+    const { service, prisma, push } = makeService({
+      allowedUserIds: ['client-admin'],
+      usersByCompany: {
+        [ticketCompanyId]: [candidate('client-admin')],
+      },
+      legacyPushPreferences: [{ userId: 'client-admin', ticketNew: false }],
+    });
+
+    await (service as any).emitTicketCreatedWatchers({
+      actorCompanyId: ticketCompanyId,
+      creatorUserId: null,
+      targetCompanyId: ticketCompanyId,
+      locationId: ticketLocationId,
+      ticketId,
+      ticketNumber: 1001,
+      summary: 'Test ticket',
+    });
+
+    expect(prisma.notification.createMany.mock.calls[0][0].data).toHaveLength(
+      1,
+    );
+    expect(push.sendToUser).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    'ticket.created',
+    'ticket.assigned',
+    'ticket.claimed',
+    'ticket.assignment_requested',
+    'ticket.comment_added',
+    'ticket.attachment_uploaded',
+    'ticket.status_changed',
+    'ticket.in_progress',
+    'ticket.done',
+    'ticket.sla_warning',
+    'ticket.sla_breached',
+    'ticket.awaiting_acceptance',
+    'ticket.accepted',
+    'ticket.rejected',
+  ])(
+    'can suppress current catalog event %s after access',
+    async (eventType) => {
+      const { service } = makeService({
+        companyNotificationRolePreferences: [
+          {
+            companyId: ticketCompanyId,
+            contour: NotificationContour.CLIENT,
+            role: UserRole.ADMIN,
+            eventType,
+            channel: NotificationChannel.IN_APP,
+            enabled: false,
+          },
+        ],
+      });
+
+      const selection = await (
+        service as any
+      ).splitRecipientsByNotificationPreference({
+        recipients: [
+          {
+            ...candidate('client-admin'),
+            linkedClientCompanyId: null,
+            notificationContour: NotificationContour.CLIENT,
+            serviceContractRole: null,
+          },
+        ],
+        eventType,
+        channel: NotificationChannel.IN_APP,
+      });
+
+      expect(selection.delivered).toEqual([]);
+      expect(selection.suppressedByPreference).toHaveLength(1);
+      expect(selection.suppressedByPreference[0].decision).toEqual({
+        enabled: false,
+        source: 'COMPANY_ROLE_OVERRIDE',
+      });
+    },
+  );
+
+  it('fails safe for unknown delivery events after access', async () => {
+    const { service } = makeService();
+
+    const selection = await (
+      service as any
+    ).splitRecipientsByNotificationPreference({
+      recipients: [
+        {
+          ...candidate('client-admin'),
+          linkedClientCompanyId: null,
+          notificationContour: NotificationContour.CLIENT,
+          serviceContractRole: null,
+        },
+      ],
+      eventType: 'ticket.mentioned',
+      channel: NotificationChannel.IN_APP,
+    });
+
+    expect(selection.delivered).toEqual([]);
+    expect(selection.suppressedByPreference[0].decision).toEqual({
+      enabled: false,
+      source: 'UNKNOWN_EVENT',
+    });
   });
 });
