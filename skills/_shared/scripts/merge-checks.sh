@@ -35,10 +35,12 @@ AREAS="$*"
 case "$CONTOUR" in
   stage)
     WORKDIR="/opt/sma-beta"
+    SSH_HOST="sma-spare"
     COMPOSE_VERIFY="-f /tmp/verify-$PR/docker-compose.stage.yml -f /etc/servicemanager-ai/docker-compose.stage.override.yml"
     ;;
   production)
     WORKDIR="/opt/sma-prod"
+    SSH_HOST="sma"
     COMPOSE_VERIFY="-f /tmp/verify-$PR/docker-compose.yml -f /etc/servicemanager-ai/docker-compose.production.override.yml -f /etc/servicemanager-ai/docker-compose.production.stable.override.yml"
     ;;
   *) echo "Неизвестный контур: $CONTOUR. Допустимо stage или production." >&2; usage; exit 2 ;;
@@ -67,11 +69,11 @@ cleanup() {
   # уже удалён, git ответит отказом, и скрипт ложно сообщит о неудаче.
   trap - EXIT INT TERM
   if [ "$WORKTREE_CREATED" = "1" ]; then
-    if ssh sma "cd $WORKDIR && git worktree remove --force /tmp/verify-$PR" 2>/dev/null; then
+    if ssh "$SSH_HOST" "cd $WORKDIR && git worktree remove --force /tmp/verify-$PR" 2>/dev/null; then
       echo "  убран временный worktree /tmp/verify-$PR"
     else
       echo "УБОРКА НЕ УДАЛАСЬ: /tmp/verify-$PR остался на сервере." >&2
-      echo "Удалить вручную: ssh sma 'cd $WORKDIR && git worktree remove --force /tmp/verify-$PR'" >&2
+      echo "Удалить вручную: ssh $SSH_HOST 'cd $WORKDIR && git worktree remove --force /tmp/verify-$PR'" >&2
       [ "$rc" = "0" ] && rc=6
     fi
   fi
@@ -168,21 +170,21 @@ fi
 
 # ── разбор конфигурации compose на сервере ─────────────────────────────
 if has_area infra; then
-  ssh -o BatchMode=yes -o ConnectTimeout=10 sma true 2>/dev/null || {
-    echo "Нет доступа к серверу по ssh sma." >&2; exit 3; }
+  ssh -o BatchMode=yes -o ConnectTimeout=10 "$SSH_HOST" true 2>/dev/null || {
+    echo "Нет доступа к серверу по ssh $SSH_HOST." >&2; exit 3; }
 
   echo "-- сервер: получить результат слияния PR $PR"
-  ssh sma "cd $WORKDIR && git fetch origin refs/pull/$PR/merge" || {
+  ssh "$SSH_HOST" "cd $WORKDIR && git fetch origin refs/pull/$PR/merge" || {
     echo "   ОТКАЗ: git fetch refs/pull/$PR/merge на сервере" >&2; exit 1; }
 
-  ssh sma "cd $WORKDIR && git worktree add /tmp/verify-$PR FETCH_HEAD" || {
+  ssh "$SSH_HOST" "cd $WORKDIR && git worktree add /tmp/verify-$PR FETCH_HEAD" || {
     echo "   ОТКАЗ: git worktree add /tmp/verify-$PR" >&2; exit 1; }
   WORKTREE_CREATED=1
   echo "   создан /tmp/verify-$PR"
 
   # -q оставляет только ошибки: полный вывод config печатает значения переменных
   echo "-- сервер: разбор конфигурации compose"
-  if ssh sma "docker compose -p sma-service $COMPOSE_VERIFY config -q"; then
+  if ssh "$SSH_HOST" "docker compose -p sma-service $COMPOSE_VERIFY config -q"; then
     echo "   ок"
   else
     echo "   ОТКАЗ: docker compose config" >&2
