@@ -30,7 +30,16 @@ nginx, приёмка объявляется после обоих.
 поведение до этого недостижимо.
 </constraint>
 </when_applied>
-<locate>
+<locate contour="stage">
+Определить, где лежит работающая конфигурация, до составления команд:
+ssh sma-spare 'ls -l /etc/nginx/sites-enabled/ /etc/nginx/conf.d/ 2&gt;/dev/null'
+ssh sma-spare 'ls -l /etc/nginx/sites-available/ 2&gt;/dev/null'
+<on_failure>
+Каталоги не читаются пользователем deploy — запросить у пользователя путь
+к рабочему файлу и продолжить с ним.
+</on_failure>
+</locate>
+<locate contour="production">
 Определить, где лежит работающая конфигурация, до составления команд:
 ssh sma 'ls -l /etc/nginx/sites-enabled/ /etc/nginx/conf.d/ 2&gt;/dev/null'
 ssh sma 'ls -l /etc/nginx/sites-available/ 2&gt;/dev/null'
@@ -40,7 +49,16 @@ ssh sma 'ls -l /etc/nginx/sites-available/ 2&gt;/dev/null'
 </on_failure>
 </locate>
 
-<diff>
+<diff contour="stage">
+Показать, чем файл в репозитории отличается от работающего:
+ssh sma-spare 'cat &lt;путь к рабочему файлу&gt;' &gt; /tmp/nginx-live.conf
+diff /tmp/nginx-live.conf docs/&lt;имя файла&gt;.conf
+<why>
+Файл в репозитории — копия, соответствие рабочей не установлено.
+Без сравнения применится и расхождение, накопленное раньше.
+</why>
+</diff>
+<diff contour="production">
 Показать, чем файл в репозитории отличается от работающего:
 ssh sma 'cat &lt;путь к рабочему файлу&gt;' &gt; /tmp/nginx-live.conf
 diff /tmp/nginx-live.conf docs/&lt;имя файла&gt;.conf

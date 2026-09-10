@@ -29,7 +29,8 @@
   возраст                         git for-each-ref --format='%(creatordate:iso)' refs/tags/&lt;stage-busy | prod-busy&gt;
   ветка существует в origin       git ls-remote --heads origin '&lt;ветка из поля branch&gt;'
   состояние PR                    gh pr list --head &lt;ветка&gt; --state all --json number,state
-  что развёрнуто на контуре       ssh sma 'cd &lt;workdir контура&gt; &amp;&amp; git rev-parse HEAD'
+  что развёрнуто на контуре Stage        ssh sma-spare 'cd /opt/sma-beta &amp;&amp; git rev-parse HEAD'
+  что развёрнуто на контуре Production   ssh sma 'cd /opt/sma-prod &amp;&amp; git rev-parse HEAD'
   входит ли ветка замка           git merge-base --is-ancestor origin/&lt;ветка&gt; &lt;вершина контура&gt;
 
 <threshold contour="stage">4 часа</threshold>

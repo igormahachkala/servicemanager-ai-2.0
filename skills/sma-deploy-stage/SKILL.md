@@ -9,6 +9,7 @@ stage-ok, который допускает задачу к sma-deploy-prod.
 </purpose>
 
 <contour name="stage">
+<host>sma-spare</host>
 <branch>beta</branch>
 <workdir>/opt/sma-beta</workdir>
 <project>sma-service</project>
@@ -235,8 +236,8 @@ backend, frontend, infra. Для областей none, scripts, skills, nginx
 каталога или другим набором файлов. Тот же порядок в sma-deploy-prod.
 </why_before_merge>
 <command>
-ssh sma 'docker inspect sma_stage_web --format "{{index .Config.Labels \"com.docker.compose.project.working_dir\"}}"'
-ssh sma 'docker inspect sma_stage_web --format "{{index .Config.Labels \"com.docker.compose.project.config_files\"}}"'
+ssh sma-spare 'docker inspect sma_stage_web --format "{{index .Config.Labels \"com.docker.compose.project.working_dir\"}}"'
+ssh sma-spare 'docker inspect sma_stage_web --format "{{index .Config.Labels \"com.docker.compose.project.config_files\"}}"'
 </command>
 <expect>
 workdir равен /opt/sma-beta.
@@ -313,10 +314,10 @@ skills/_shared/scripts/lock-acquire.sh --owned stage &lt;ветка&gt; \
 </nginx_note>
 <skip>Пересборка и подъём контейнеров. Запись состояния до развёртывания.</skip>
 <still_required>
-ssh sma 'cd /opt/sma-beta &amp;&amp; test -z "$(git status --porcelain)"'
-ssh sma 'cd /opt/sma-beta &amp;&amp; git fetch --prune --prune-tags origin'
-ssh sma 'cd /opt/sma-beta &amp;&amp; git checkout beta'
-ssh sma 'cd /opt/sma-beta &amp;&amp; git pull --ff-only'
+ssh sma-spare 'cd /opt/sma-beta &amp;&amp; test -z "$(git status --porcelain)"'
+ssh sma-spare 'cd /opt/sma-beta &amp;&amp; git fetch --prune --prune-tags origin'
+ssh sma-spare 'cd /opt/sma-beta &amp;&amp; git checkout beta'
+ssh sma-spare 'cd /opt/sma-beta &amp;&amp; git pull --ff-only'
 </still_required>
 <why_still>
 Ветка уходит вперёд и при изменении одной документации. Без git pull
@@ -340,25 +341,25 @@ ssh sma 'cd /opt/sma-beta &amp;&amp; git pull --ff-only'
 </skip_deploy>
 
 <record before="развёртыванием">
-ssh sma 'docker inspect sma_stage_postgres sma_stage_backend sma_stage_web --format "{{.Name}} {{.State.StartedAt}} {{.State.Status}}"'
+ssh sma-spare 'docker inspect sma_stage_postgres sma_stage_backend sma_stage_web --format "{{.Name}} {{.State.StartedAt}} {{.State.Status}}"'
 MARK=$(date -u +%FT%TZ)   # отметка времени до развёртывания, от неё считаются ошибки после
-ssh sma 'docker logs sma_stage_backend --since 10m 2&gt;&amp;1 | grep -icE "error|exception"'
+ssh sma-spare 'docker logs sma_stage_backend --since 10m 2&gt;&amp;1 | grep -icE "error|exception"'
 </record>
 <precondition name="рабочая копия чистая">
-ssh sma 'cd /opt/sma-beta &amp;&amp; test -z "$(git status --porcelain)"'
+ssh sma-spare 'cd /opt/sma-beta &amp;&amp; test -z "$(git status --porcelain)"'
 </precondition>
 <on_failure>
 Код возврата не 0 — в каталоге развёртывания есть незакоммиченные изменения.
 Не разворачивать. Показать пользователю, что именно там лежит:
-ssh sma 'cd /opt/sma-beta &amp;&amp; git status --short'
+ssh sma-spare 'cd /opt/sma-beta &amp;&amp; git status --short'
 Происхождение выяснить до продолжения: содержимое каталога должно
 совпадать с веткой, посторонние правки означают ручное вмешательство
 в обход потока.
 </on_failure>
 <command>
-ssh sma 'cd /opt/sma-beta &amp;&amp; git fetch --prune --prune-tags origin'
-ssh sma 'cd /opt/sma-beta &amp;&amp; git checkout beta'
-ssh sma 'cd /opt/sma-beta &amp;&amp; git pull --ff-only'   # отказ означает
+ssh sma-spare 'cd /opt/sma-beta &amp;&amp; git fetch --prune --prune-tags origin'
+ssh sma-spare 'cd /opt/sma-beta &amp;&amp; git checkout beta'
+ssh sma-spare 'cd /opt/sma-beta &amp;&amp; git pull --ff-only'   # отказ означает
 # коммиты в каталоге развёртывания: разбираться, не сливать
 </command>
 <why_separate>
@@ -381,7 +382,7 @@ Fetch, checkout и pull ниже выполняются отдельными в�
 </why_prune_tags>
 
 <rebuild if="область содержит backend или frontend, либо флаг needs_rebuild">
-ssh sma 'cd /opt/sma-beta &amp;&amp; RELEASE_SHA=$(git rev-parse HEAD) &amp;&amp; SMA_RELEASE_ENFORCE=true SMA_RELEASE_COMMIT_SHA="$RELEASE_SHA" SMA_RELEASE_ENVIRONMENT=beta docker compose -p sma-service -f /opt/sma-beta/docker-compose.stage.yml -f /etc/servicemanager-ai/docker-compose.stage.override.yml build --build-arg SMA_RELEASE_ENFORCE=true --build-arg SMA_RELEASE_COMMIT_SHA="$RELEASE_SHA" --build-arg SMA_RELEASE_ENVIRONMENT=beta &lt;сервисы по области&gt;'
+ssh sma-spare 'cd /opt/sma-beta &amp;&amp; RELEASE_SHA=$(git rev-parse HEAD) &amp;&amp; SMA_RELEASE_ENFORCE=true SMA_RELEASE_COMMIT_SHA="$RELEASE_SHA" SMA_RELEASE_ENVIRONMENT=beta docker compose -p sma-service -f /opt/sma-beta/docker-compose.stage.yml -f /etc/servicemanager-ai/docker-compose.stage.override.yml build --build-arg SMA_RELEASE_ENFORCE=true --build-arg SMA_RELEASE_COMMIT_SHA="$RELEASE_SHA" --build-arg SMA_RELEASE_ENVIRONMENT=beta &lt;сервисы по области&gt;'
 </rebuild>
 <rebuild if="область только infra">не требуется, образы не затронуты</rebuild>
 
@@ -395,7 +396,7 @@ ssh sma 'cd /opt/sma-beta &amp;&amp; RELEASE_SHA=$(git rev-parse HEAD) &amp;&amp
 Не «наводить порядок», подставляя сюда сервисы по области.
 </service_map_scope>
 <always>
-ssh sma 'docker compose -p sma-service -f /opt/sma-beta/docker-compose.stage.yml -f /etc/servicemanager-ai/docker-compose.stage.override.yml up -d --no-deps stage_backend stage_web'
+ssh sma-spare 'docker compose -p sma-service -f /opt/sma-beta/docker-compose.stage.yml -f /etc/servicemanager-ai/docker-compose.stage.override.yml up -d --no-deps stage_backend stage_web'
 </always>
 <constraint>--no-deps обязателен: stage_postgres не пересоздавать.</constraint>
 </step>
@@ -407,19 +408,19 @@ Stage не применяет миграции автоматически: в do
 </fact>
 <ask_user>Миграция содержит DELETE, DROP или ALTER.</ask_user>
 <command>
-ssh sma 'docker compose -p sma-service -f /opt/sma-beta/docker-compose.stage.yml -f /etc/servicemanager-ai/docker-compose.stage.override.yml exec -T stage_backend npx prisma migrate deploy'
-ssh sma 'docker compose -p sma-service -f /opt/sma-beta/docker-compose.stage.yml -f /etc/servicemanager-ai/docker-compose.stage.override.yml exec -T stage_backend npx prisma migrate status'
+ssh sma-spare 'docker compose -p sma-service -f /opt/sma-beta/docker-compose.stage.yml -f /etc/servicemanager-ai/docker-compose.stage.override.yml exec -T stage_backend npx prisma migrate deploy'
+ssh sma-spare 'docker compose -p sma-service -f /opt/sma-beta/docker-compose.stage.yml -f /etc/servicemanager-ai/docker-compose.stage.override.yml exec -T stage_backend npx prisma migrate status'
 </command>
 <expect>Database schema is up to date</expect>
 </step>
 
 <step id="10" name="сверка после развёртывания">
 <must name="контур на своей ветке">
-ssh sma 'cd /opt/sma-beta &amp;&amp; git rev-parse --abbrev-ref HEAD'
+ssh sma-spare 'cd /opt/sma-beta &amp;&amp; git rev-parse --abbrev-ref HEAD'
 Равно beta. Значение HEAD означает отсоединённое состояние — отказ.
 </must>
 <must name="развёрнутый коммит содержит код задачи">
-STAGE_HEAD=$(ssh sma 'cd /opt/sma-beta &amp;&amp; git rev-parse HEAD')
+STAGE_HEAD=$(ssh sma-spare 'cd /opt/sma-beta &amp;&amp; git rev-parse HEAD')
 git fetch origin
 git merge-base --is-ancestor "$(git rev-parse origin/&lt;ветка&gt;)" "$STAGE_HEAD"
 Код возврата 0.
@@ -434,7 +435,7 @@ git merge-base --is-ancestor "$(git rev-parse origin/&lt;ветка&gt;)" "$STAG
 и отличить это агент не сможет.
 </not_covered>
 <must name="база не тронута">
-ssh sma 'docker inspect sma_stage_postgres --format "{{.State.StartedAt}}"'
+ssh sma-spare 'docker inspect sma_stage_postgres --format "{{.State.StartedAt}}"'
 Строка совпадает с записанной до развёртывания посимвольно.
 Отличается — контейнер базы пересоздан или перезапущен. Авария,
 немедленно сообщить пользователю, дальнейшие шаги не выполнять.
@@ -446,7 +447,7 @@ curl -o /dev/null -w "%{http_code}" https://stage-api.sma-assistants.ru/health �
 <must name="нет новых ошибок в логах">
 <case name="контейнер не пересоздавался">
 StartedAt тот же, что записан до развёртывания.
-ssh sma 'docker logs sma_stage_backend --since &lt;MARK&gt; 2&gt;&amp;1 | grep -icE "error|exception"'
+ssh sma-spare 'docker logs sma_stage_backend --since &lt;MARK&gt; 2&gt;&amp;1 | grep -icE "error|exception"'
 Считаются только строки после отметки MARK, снятой до развёртывания.
 Ожидание — ноль. Любое ненулевое значение разбирается.
 </case>
@@ -458,13 +459,13 @@ ssh sma 'docker logs sma_stage_backend --since &lt;MARK&gt; 2&gt;&amp;1 | grep -
 <case name="контейнер пересоздан">
 StartedAt новее. Лог начался с нуля, сравнивать не с чем: запись «до»
 относится к контейнеру, которого больше нет.
-ssh sma 'docker logs sma_stage_backend 2&gt;&amp;1 | grep -icE "error|exception"'
+ssh sma-spare 'docker logs sma_stage_backend 2&gt;&amp;1 | grep -icE "error|exception"'
 Считается весь лог нового контейнера. Ожидание — ноль либо известные
 штатные строки. Любая ошибка при старте разбирается сразу.
 </case>
 </must>
 <conditional name="перезапуск контейнеров">
-ssh sma 'docker inspect sma_stage_backend sma_stage_web --format "{{.Name}} {{.State.StartedAt}}"'
+ssh sma-spare 'docker inspect sma_stage_backend sma_stage_web --format "{{.Name}} {{.State.StartedAt}}"'
 Пересобирали образ — StartedAt новее записанного, контейнеры пересозданы.
 Пересборки не было и конфигурация не менялась — StartedAt прежний,
 вывод compose содержит Running.
@@ -547,7 +548,7 @@ ssh sma 'docker inspect sma_stage_backend sma_stage_web --format "{{.Name}} {{.S
 </naming>
 <command>
 git rev-parse origin/&lt;ветка&gt;                    # это B, на него ставится тег
-ssh sma 'cd /opt/sma-beta &amp;&amp; git rev-parse HEAD'  # это M, на нём проводилась приёмка
+ssh sma-spare 'cd /opt/sma-beta &amp;&amp; git rev-parse HEAD'  # это M, на нём проводилась приёмка
 
 git tag -a stage-ok/&lt;ветка&gt; $(git rev-parse origin/&lt;ветка&gt;) -m "Stage acceptance passed
 branch: &lt;ветка&gt;
