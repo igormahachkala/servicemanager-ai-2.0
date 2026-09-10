@@ -12,6 +12,7 @@
 export {
   currentInternalAppPath,
   getReturnToFromSearch,
+  getWorkspaceFromSearch,
   loginPathWithReturnTo,
   sanitizeInternalAppPath,
   workspacePathWithReturnTo,
