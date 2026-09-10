@@ -60,9 +60,22 @@ export function currentInternalAppPath(): string {
   return sanitizeInternalAppPath(`${window.location.pathname}${window.location.search}${window.location.hash}`)
 }
 
+const WORKSPACE_IDS = ['management', 'mobile', 'it'] as const
+export type WorkspaceQueryId = (typeof WORKSPACE_IDS)[number]
+
+function sanitizeWorkspaceId(value?: string | null): WorkspaceQueryId | '' {
+  const raw = (value || '').trim()
+  return (WORKSPACE_IDS as readonly string[]).includes(raw) ? (raw as WorkspaceQueryId) : ''
+}
+
 export function getReturnToFromSearch(search: string | URLSearchParams): string {
   const params = typeof search === 'string' ? new URLSearchParams(search) : search
   return sanitizeInternalAppPath(params.get('returnTo') || params.get('next'))
+}
+
+export function getWorkspaceFromSearch(search: string | URLSearchParams): WorkspaceQueryId | '' {
+  const params = typeof search === 'string' ? new URLSearchParams(search) : search
+  return sanitizeWorkspaceId(params.get('workspace'))
 }
 
 export function loginPathWithReturnTo(returnTo?: string | null): string {
@@ -70,7 +83,12 @@ export function loginPathWithReturnTo(returnTo?: string | null): string {
   return safe ? `/login?returnTo=${encodeURIComponent(safe)}` : '/login'
 }
 
-export function workspacePathWithReturnTo(returnTo?: string | null): string {
+export function workspacePathWithReturnTo(returnTo?: string | null, workspace?: string | null): string {
+  const params = new URLSearchParams()
   const safe = sanitizeInternalAppPath(returnTo)
-  return safe ? `/workspaces?returnTo=${encodeURIComponent(safe)}` : '/workspaces'
+  if (safe) params.set('returnTo', safe)
+  const ws = sanitizeWorkspaceId(workspace)
+  if (ws) params.set('workspace', ws)
+  const qs = params.toString()
+  return qs ? `/workspaces?${qs}` : '/workspaces'
 }

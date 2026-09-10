@@ -118,6 +118,10 @@ const returnTo = loadTsModule('src/lib/returnToNavigation.ts')
     returnTo.workspacePathWithReturnTo('/max/tickets/ticket-42?section=actions'),
     '/workspaces?returnTo=%2Fmax%2Ftickets%2Fticket-42%3Fsection%3Dactions',
   )
+  assert.equal(returnTo.workspacePathWithReturnTo(null, 'management'), '/workspaces?workspace=management')
+  assert.equal(returnTo.workspacePathWithReturnTo('/m', 'mobile'), '/workspaces?returnTo=%2Fm&workspace=mobile')
+  assert.equal(returnTo.getWorkspaceFromSearch('?workspace=management'), 'management')
+  assert.equal(returnTo.getWorkspaceFromSearch('?workspace=evil'), '')
 }
 
 {

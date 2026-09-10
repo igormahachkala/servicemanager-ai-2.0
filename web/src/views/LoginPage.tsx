@@ -51,8 +51,8 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
 
       setPassword('')
       const returnTo = api.getReturnToFromSearch(location.search)
-      // После логина — экран выбора контура; returnTo применится после выбора.
-      navigate(api.workspacePathWithReturnTo(returnTo), { replace: true })
+      const workspace = api.getWorkspaceFromSearch(location.search)
+      navigate(api.workspacePathWithReturnTo(returnTo, workspace), { replace: true })
     } catch (err: unknown) {
       setError(getLoginErrorMessage(err))
     } finally {

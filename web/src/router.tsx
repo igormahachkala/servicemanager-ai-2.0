@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import * as api from './lib/api'
 import { IT_COMPANY_ROUTES } from './it-company/routes'
 import { LoginPage } from './views/LoginPage'
+import { VhodPage } from './views/VhodPage'
 
 function lazyExport<P extends object>(loader: () => Promise<Record<string, ComponentType<P>>>, exportName: string) {
   return lazy(() => loader().then((mod) => ({ default: mod[exportName] })))
@@ -109,6 +110,13 @@ function authHomePath() {
   return api.appendScopeToPath(api.getHomeRoute())
 }
 
+function LandingGate() {
+  if (api.getToken()) {
+    return <Navigate to={authHomePath()} replace />
+  }
+  return <VhodPage />
+}
+
 function LoginGate() {
   if (typeof window !== 'undefined') {
     const sp = new URLSearchParams(window.location.search)
@@ -122,10 +130,13 @@ function LoginGate() {
   }
   if (api.getToken()) {
     const returnTo =
-      typeof window !== 'undefined'
-        ? api.getReturnToFromSearch(window.location.search)
-        : ''
-    return <Navigate to={returnTo ? api.workspacePathWithReturnTo(returnTo) : authHomePath()} replace />
+      typeof window !== 'undefined' ? api.getReturnToFromSearch(window.location.search) : ''
+    const workspace =
+      typeof window !== 'undefined' ? api.getWorkspaceFromSearch(window.location.search) : ''
+    if (returnTo || workspace) {
+      return <Navigate to={api.workspacePathWithReturnTo(returnTo, workspace)} replace />
+    }
+    return <Navigate to={authHomePath()} replace />
   }
   return <LoginPage />
 }
@@ -137,7 +148,7 @@ export function AppRoutes() {
 
   return (
     <Routes>
-      <Route path="/" element={<Navigate to={api.getToken() ? authHomePath() : '/login'} replace />} />
+      <Route path="/" element={<LandingGate />} />
       <Route path="/login" element={<LoginGate />} />
       <Route
         path="/request-access"

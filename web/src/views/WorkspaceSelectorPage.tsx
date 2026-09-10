@@ -13,13 +13,18 @@ import './WorkspaceSelectorPage.css'
  * Показывает доступные пользователю контуры (управленческая часть, мобильная
  * версия, IT Company). Видимость карточек считается в `getAvailableWorkspaces`
  * (IT Company — строго PLATFORM_ADMIN). Если контур ровно один — сразу
- * переходим в него, не показывая выбор.
+ * переходим в него, не показывая выбор. То же, если в query задан
+ * workspace=management|mobile|it и этот контур пользователю доступен.
  */
 export function WorkspaceSelectorPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const queryClient = useQueryClient()
   const returnTo = useMemo(() => api.getReturnToFromSearch(location.search), [location.search])
+  const preferredWorkspace = useMemo(
+    () => api.getWorkspaceFromSearch(location.search),
+    [location.search],
+  )
   const isMaxReturnTo = returnTo.startsWith('/max')
 
   const meQ = useQuery({
@@ -47,12 +52,17 @@ export function WorkspaceSelectorPage() {
     navigate(api.loginPathWithReturnTo(returnTo), { replace: true })
   }, [meQ.isError, navigate, queryClient, returnTo])
 
-  // Единственный доступный контур — переходим сразу.
+  const autoWorkspace = useMemo(() => {
+    if (!user) return null
+    if (workspaces.length === 1) return workspaces[0]
+    return workspaces.find((ws) => ws.id === preferredWorkspace) ?? null
+  }, [user, workspaces, preferredWorkspace])
+
   useEffect(() => {
-    if (!user || workspaces.length !== 1) return
-    navigate(resolvePath(workspaces[0]), { replace: true })
+    if (!autoWorkspace) return
+    navigate(resolvePath(autoWorkspace), { replace: true })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, workspaces])
+  }, [autoWorkspace])
 
   function logout() {
     api.clearToken()
@@ -78,7 +88,7 @@ export function WorkspaceSelectorPage() {
             <div className="muted small">{user?.email || '—'}</div>
           </div>
 
-          {meQ.isLoading ? (
+          {meQ.isLoading || autoWorkspace ? (
             <div className="muted small">Загрузка…</div>
           ) : workspaces.length === 0 ? (
             <div className="alert">Нет доступных контуров. Обратитесь в поддержку.</div>
