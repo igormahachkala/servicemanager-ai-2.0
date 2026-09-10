@@ -21,6 +21,7 @@ import { AssignmentModule } from './assignment/assignment.module';
 import { TimelineModule } from './timeline/timeline.module';
 import { MapModule } from './map/map.module';
 import { EquipmentModule } from './equipment/equipment.module';
+import { IdempotencyModule } from './common/idempotency/idempotency.module';
 import { PublicRequestModule } from './public-request/public-request.module';
 import { ServiceContractsModule } from './service-contracts/service-contracts.module';
 import { PermissionsModule } from './permissions/permissions.module';
@@ -49,6 +50,7 @@ import { WorkforceModule } from './workforce/workforce.module';
     TimelineModule,
     MapModule,
     EquipmentModule,
+    IdempotencyModule,
     PublicRequestModule,
     ServiceContractsModule,
     PermissionsModule,

@@ -206,12 +206,14 @@ export class TicketsService {
     file: any,
     accessFlags?: AccessFlags,
     linkedClientCompanyId?: string,
+    idempotencyKey?: string | null,
   ) {
     return this.attachments.uploadToTicket(
       { id: userId, role, companyId, accessFlags },
       ticketId,
       file,
       linkedClientCompanyId,
+      idempotencyKey,
     )
   }
 
@@ -289,8 +291,9 @@ export class TicketsService {
     ticketId: string,
     dto: { comment: string },
     linkedClientCompanyId?: string,
+    idempotencyKey?: string | null,
   ) {
-    return this.status.addComment(companyId, user, role, ticketId, dto, linkedClientCompanyId)
+    return this.status.addComment(companyId, user, role, ticketId, dto, linkedClientCompanyId, idempotencyKey)
   }
 
   availableForTechnician(companyId: string, technicianUserId: string, linkedClientCompanyId?: string) {
