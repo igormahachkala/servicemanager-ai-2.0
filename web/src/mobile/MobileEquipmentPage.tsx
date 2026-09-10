@@ -52,6 +52,103 @@ function Row({ label, value }: { label: string; value: string }) {
   )
 }
 
+/**
+ * SMA-EQUIPMENT-HISTORY-PARTS-110B.
+ * История и комплектующие на телефоне — только чтение. Технику в поле нужно
+ * знать, что стоит и что меняли; заводить записи с телефона, стоя у котла, —
+ * не та задача, ради которой открывают приложение.
+ */
+const TICKET_STATUS_LABELS: Record<string, string> = {
+  NEW: 'Новая',
+  ASSIGNED: 'Назначена',
+  IN_PROGRESS: 'В работе',
+  AWAITING_ACCEPTANCE: 'На приёмке',
+  DONE: 'Выполнена',
+  REJECTED: 'Отклонена',
+  CANCELLED: 'Отменена',
+}
+
+function MobileEquipmentHistory({ equipmentId }: { equipmentId: string }) {
+  const q = useQuery({
+    queryKey: ['mobile-equipment-history', equipmentId],
+    queryFn: () => api.getEquipmentHistory(equipmentId),
+  })
+  if (q.isLoading) return <div className="mobileCard mobileMeta">Загружаем историю…</div>
+  if (q.isError) return <div className="mobileNotice mobileNoticeError">{(q.error as any)?.message || String(q.error)}</div>
+  const entries = q.data?.tickets || []
+  if (entries.length === 0) {
+    return (
+      <div className="mobileCard mobileEmptyState" role="status">
+        <div className="mobileEmptyStateTitle">Заявок по этой единице ещё не было</div>
+      </div>
+    )
+  }
+  return (
+    <>
+      {entries.map((e) => (
+        <div key={e.ticketId} className="mobileCard" style={{ display: 'grid', gap: 4 }}>
+          <div style={{ fontWeight: 600 }}>{fmtDate(e.createdAt)} · №{e.ticketNumber}</div>
+          <div className="mobileMeta">{[e.category, TICKET_STATUS_LABELS[e.status] || e.status].filter(Boolean).join(' · ')}</div>
+          <div>{e.problem}</div>
+          {e.performedBy ? <div className="mobileMeta">Исполнитель: {e.performedBy}</div> : null}
+          {e.result ? <div className="mobileMeta">Результат: {e.result}</div> : null}
+          {e.partsRemoved.length > 0 ? (
+            <div className="mobileMeta">Снято: {e.partsRemoved.map((p) => p.name).join(', ')}</div>
+          ) : null}
+          {e.partsInstalled.length > 0 ? (
+            <div className="mobileMeta">Установлено: {e.partsInstalled.map((p) => p.name).join(', ')}</div>
+          ) : null}
+          <Link to={`/m/tickets/${e.ticketId}`} className="mobileBtn mobileBtnGhost" style={{ textAlign: 'center', marginTop: 2 }}>
+            Открыть заявку
+          </Link>
+        </div>
+      ))}
+    </>
+  )
+}
+
+function MobileEquipmentParts({ equipmentId }: { equipmentId: string }) {
+  const q = useQuery({
+    queryKey: ['mobile-equipment-parts', equipmentId],
+    queryFn: () => api.getEquipmentParts(equipmentId),
+  })
+  if (q.isLoading) return <div className="mobileCard mobileMeta">Загружаем комплектующие…</div>
+  if (q.isError) return <div className="mobileNotice mobileNoticeError">{(q.error as any)?.message || String(q.error)}</div>
+  const installed = q.data?.installed || []
+  const history = q.data?.history || []
+  return (
+    <>
+      <h2 className="mobileSectionTitle">Установлено сейчас</h2>
+      {installed.length === 0 ? (
+        <div className="mobileCard mobileMeta">Комплектующие не заведены.</div>
+      ) : (
+        installed.map((p) => (
+          <div key={p.id} className="mobileCard" style={{ display: 'grid', gap: 2 }}>
+            <div style={{ fontWeight: 600 }}>{p.displayName}</div>
+            <div className="mobileMeta">
+              {[p.serialNumber ? `с/н ${p.serialNumber}` : null, `с ${fmtDate(p.installedAt)}`].filter(Boolean).join(' · ')}
+            </div>
+            {p.installedTicket ? <div className="mobileMeta">По заявке №{p.installedTicket.ticketNumber}</div> : null}
+          </div>
+        ))
+      )}
+      <h2 className="mobileSectionTitle">История замен</h2>
+      {history.length === 0 ? (
+        <div className="mobileCard mobileMeta">Замен пока не было.</div>
+      ) : (
+        history.map((p) => (
+          <div key={p.id} className="mobileCard" style={{ display: 'grid', gap: 2, opacity: 0.85 }}>
+            <div style={{ fontWeight: 600 }}>{p.displayName}</div>
+            <div className="mobileMeta">{fmtDate(p.installedAt)} — {fmtDate(p.removedAt)}</div>
+            {p.removedTicket ? <div className="mobileMeta">Снято по заявке №{p.removedTicket.ticketNumber}</div> : null}
+          </div>
+        ))
+      )}
+      <p className="mobileFieldHint">Комплектующие заводятся и заменяются в управленческой части.</p>
+    </>
+  )
+}
+
 export function MobileEquipmentPage() {
   const location = useLocation()
   const params = useParams<{ id?: string }>()
@@ -59,6 +156,7 @@ export function MobileEquipmentPage() {
 
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
+  const [tab, setTab] = useState<'overview' | 'history' | 'parts'>('overview')
 
   useEffect(() => {
     const timer = setTimeout(() => setSearch(searchInput.trim()), 300)
@@ -115,6 +213,24 @@ export function MobileEquipmentPage() {
               />
             ) : null}
 
+            <div style={{ display: 'flex', gap: 6 }}>
+              {([['overview', 'Обзор'], ['history', 'История'], ['parts', 'Компоненты']] as const).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  className="mobileBtn mobileBtnGhost"
+                  onClick={() => setTab(key)}
+                  style={{ flex: 1, fontWeight: tab === key ? 700 : 400 }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {tab === 'history' ? <MobileEquipmentHistory equipmentId={item.id} /> : null}
+            {tab === 'parts' ? <MobileEquipmentParts equipmentId={item.id} /> : null}
+
+            {tab === 'overview' ? (
             <div className="mobileCard" style={{ display: 'grid', gap: 6 }}>
               <Row label="Объект" value={locationLabel(item)} />
               <Row label="Производитель" value={item.manufacturer || '—'} />
@@ -124,14 +240,17 @@ export function MobileEquipmentPage() {
               <Row label="Ввод в эксплуатацию" value={fmtDate(item.commissionedAt)} />
               <Row label="Гарантия до" value={fmtDate(item.warrantyUntil)} />
             </div>
+            ) : null}
 
-            {item.description ? (
+            {tab === 'overview' && item.description ? (
               <div className="mobileCard" style={{ whiteSpace: 'pre-wrap' }}>{item.description}</div>
             ) : null}
 
-            <p className="mobileFieldHint">
-              Паспорт заполняется в управленческой части — здесь он доступен только для просмотра.
-            </p>
+            {tab === 'overview' ? (
+              <p className="mobileFieldHint">
+                Паспорт заполняется в управленческой части — здесь он доступен только для просмотра.
+              </p>
+            ) : null}
           </>
         )}
       </div>
