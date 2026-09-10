@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
 import { ProtectedUploadImg } from '../ui/ProtectedUploadMedia'
+import { EquipmentHistoryTab } from '../components/equipment/EquipmentHistoryTab'
+import { EquipmentPartsTab } from '../components/equipment/EquipmentPartsTab'
 
 /**
  * SMA-EQUIPMENT-V2-110A.
@@ -125,6 +127,8 @@ export function EquipmentPage() {
   const [statusFilter, setStatusFilter] = useState('')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [mode, setMode] = useState<'view' | 'edit' | 'create'>('view')
+  // SMA-EQUIPMENT-HISTORY-PARTS-110B: карточка разделена на вкладки.
+  const [tab, setTab] = useState<'overview' | 'history' | 'parts'>('overview')
   const [form, setForm] = useState<FormValue>(emptyForm)
   const photoInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -395,6 +399,7 @@ export function EquipmentPage() {
                   onClick={() => {
                     setSelectedId(item.id)
                     setMode('view')
+                    setTab('overview')
                     setErr(null)
                     setSuccess(null)
                   }}
@@ -532,13 +537,40 @@ export function EquipmentPage() {
                   <h3 style={{ marginTop: 0, marginBottom: 4 }}>{selected.name}</h3>
                   <div className="muted small">{selected.type}</div>
                 </div>
-                {canManage ? (
+                {canManage && tab === 'overview' ? (
                   <button className="ghost" onClick={() => beginEdit(selected)} disabled={busy}>
                     Редактировать
                   </button>
                 ) : null}
               </div>
 
+              <div style={{ display: 'flex', gap: 6, margin: '10px 0' }}>
+                {([
+                  ['overview', 'Обзор'],
+                  ['history', 'История'],
+                  ['parts', 'Компоненты'],
+                ] as const).map(([key, label]) => (
+                  <button
+                    key={key}
+                    className="ghost"
+                    onClick={() => setTab(key)}
+                    style={{ fontWeight: tab === key ? 700 : 400 }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {tab === 'history' ? (
+                <EquipmentHistoryTab equipmentId={selected.id} scopeCompanyId={scopeCompanyId || undefined} />
+              ) : tab === 'parts' ? (
+                <EquipmentPartsTab
+                  equipmentId={selected.id}
+                  scopeCompanyId={scopeCompanyId || undefined}
+                  canManage={canManage}
+                />
+              ) : (
+              <>
               {selected.mainPhoto?.url ? (
                 <ProtectedUploadImg
                   url={selected.mainPhoto.url}
@@ -589,6 +621,8 @@ export function EquipmentPage() {
               {selected.description ? (
                 <p style={{ marginTop: 12, whiteSpace: 'pre-wrap' }}>{selected.description}</p>
               ) : null}
+              </>
+              )}
             </div>
           ) : (
             <div className="muted small">Выберите единицу в реестре, чтобы открыть карточку.</div>

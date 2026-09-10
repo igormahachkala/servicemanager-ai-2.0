@@ -174,21 +174,13 @@ export class EquipmentService {
     equipmentId: string,
     file: any,
   ) {
-    const existing = await this.repo.findOneById(equipmentId);
-    if (!existing) {
-      throw new NotFoundException('Equipment not found');
-    }
-
     // Право на запись — та же проверка, что у create/update: SECONDARY сюда не пройдёт.
-    const location = await this.assertWritableLocation({
+    const existing = await this.assertWritableEquipment(
       actorCompanyId,
       actorUserId,
       actorRole,
-      locationId: existing.locationId,
-    });
-    if (existing.companyId !== location.clientCompanyId) {
-      throw new NotFoundException('Equipment not found');
-    }
+      equipmentId,
+    );
 
     this.assertImageFile(file);
     const stored = await this.persistFile(file);
@@ -245,6 +237,39 @@ export class EquipmentService {
     const storageKey = `${randomUUID()}${ext}`;
     await writeFile(join(this.uploadsDir, storageKey), file.buffer);
     return { storageKey, url: `/uploads/equipment/${storageKey}` };
+  }
+
+  /**
+   * SMA-EQUIPMENT-HISTORY-PARTS-110B.
+   *
+   * Канонический шлюз записи по единице оборудования. Ровно эта преамбула
+   * повторялась в update, remove и uploadPhoto; теперь она одна, и модуль
+   * комплектующих ходит через неё же. Второго резолвера доступа не заводится:
+   * SECONDARY-провайдер сюда не проходит, потому что внутри
+   * assertPrimaryLinkedClientAccess.
+   */
+  async assertWritableEquipment(
+    actorCompanyId: string,
+    actorUserId: string,
+    actorRole: UserRole,
+    equipmentId: string,
+  ) {
+    const existing = await this.repo.findOneById(equipmentId);
+    if (!existing) {
+      throw new NotFoundException('Equipment not found');
+    }
+
+    const location = await this.assertWritableLocation({
+      actorCompanyId,
+      actorUserId,
+      actorRole,
+      locationId: existing.locationId,
+    });
+    if (existing.companyId !== location.clientCompanyId) {
+      throw new NotFoundException('Equipment not found');
+    }
+
+    return existing;
   }
 
   async findAllByLocation(
@@ -315,7 +340,11 @@ export class EquipmentService {
     return equipment;
   }
 
-  private async resolveReadableCompanyId(
+  /**
+   * SMA-EQUIPMENT-HISTORY-PARTS-110B: стал публичным — тем же разрешением
+   * контура пользуется справочник комплектующих. Правило одно на модуль.
+   */
+  async resolveReadableCompanyId(
     actorCompanyId: string,
     actorRole: UserRole,
     requestedCompanyId?: string,
@@ -373,20 +402,7 @@ export class EquipmentService {
     id: string,
     dto: UpdateEquipmentDto,
   ) {
-    const existing = await this.repo.findOneById(id);
-    if (!existing) {
-      throw new NotFoundException('Equipment not found');
-    }
-
-    const location = await this.assertWritableLocation({
-      actorCompanyId,
-      actorUserId,
-      actorRole,
-      locationId: existing.locationId,
-    });
-    if (existing.companyId !== location.clientCompanyId) {
-      throw new NotFoundException('Equipment not found');
-    }
+    await this.assertWritableEquipment(actorCompanyId, actorUserId, actorRole, id);
 
     if (dto.name !== undefined && !dto.name.trim()) {
       throw new BadRequestException('name cannot be empty');
@@ -460,27 +476,18 @@ export class EquipmentService {
     actorRole: UserRole,
     id: string,
   ) {
-    const existing = await this.repo.findOneById(id);
-    if (!existing) {
-      throw new NotFoundException('Equipment not found');
-    }
-
-    const location = await this.assertWritableLocation({
-      actorCompanyId,
-      actorUserId,
-      actorRole,
-      locationId: existing.locationId,
-    });
-    if (existing.companyId !== location.clientCompanyId) {
-      throw new NotFoundException('Equipment not found');
-    }
+    await this.assertWritableEquipment(actorCompanyId, actorUserId, actorRole, id);
 
     return this.repo.update(id, {
       status: 'INACTIVE',
     });
   }
 
-  private async assertWritableLocation(params: {
+  /**
+   * SMA-EQUIPMENT-HISTORY-PARTS-110B: стал публичным — через него заводятся
+   * позиции каталога комплектующих в контуре клиента.
+   */
+  async assertWritableLocation(params: {
     actorCompanyId: string;
     actorUserId: string;
     actorRole: UserRole;
