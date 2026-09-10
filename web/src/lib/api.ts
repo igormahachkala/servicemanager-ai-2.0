@@ -3257,14 +3257,69 @@ export async function ticketContextAnalytics(params?: {
 }
 
 
+/** SMA-EQUIPMENT-V2-110A: паспорт и обложка появились здесь, поля необязательные. */
+export type EquipmentAttachmentItem = {
+  id: string
+  url: string
+  originalName?: string
+  mimeType?: string
+}
+
 export type EquipmentListItem = {
   id: string
+  companyId?: string
   locationId?: string
   name: string
   type: string
   status?: string
+  manufacturer?: string | null
+  model?: string | null
+  serialNumber?: string | null
+  inventoryNumber?: string | null
+  commissionedAt?: string | null
+  warrantyUntil?: string | null
+  description?: string | null
+  mainPhotoId?: string | null
+  mainPhoto?: EquipmentAttachmentItem | null
+  location?: {
+    id: string
+    name?: string | null
+    platformCode?: string | null
+    city?: string | null
+    address?: string | null
+    isActive?: boolean
+  } | null
   createdAt?: string
   updatedAt?: string
+}
+
+export const EQUIPMENT_STATUS_LABELS: Record<string, string> = {
+  ACTIVE: 'В работе',
+  REPAIR: 'В ремонте',
+  INACTIVE: 'Не используется',
+  DECOMMISSIONED: 'Списано',
+}
+
+export type EquipmentListParams = {
+  companyId?: string
+  locationId?: string
+  status?: string
+  search?: string
+}
+
+export type SaveEquipmentInput = {
+  locationId?: string
+  name?: string
+  type?: string
+  status?: string
+  manufacturer?: string | null
+  model?: string | null
+  serialNumber?: string | null
+  inventoryNumber?: string | null
+  commissionedAt?: string | null
+  warrantyUntil?: string | null
+  description?: string | null
+  mainPhotoId?: string | null
 }
 
 export type InspectionTemplateItem = {
@@ -3563,6 +3618,65 @@ export type CompleteInspectionRunResponse = {
   run: InspectionRun
   summary: InspectionRunSummary
 }
+/**
+ * SMA-EQUIPMENT-V2-110A.
+ * Список парка. Поиск и фильтры уходят на сервер: выгружать весь парк в браузер
+ * и фильтровать его там — и медленно, и небезопасно.
+ */
+export async function listEquipment(params?: EquipmentListParams): Promise<EquipmentListItem[]> {
+  const search = new URLSearchParams()
+  if (params?.companyId) search.set('companyId', params.companyId)
+  if (params?.locationId) search.set('locationId', params.locationId)
+  if (params?.status) search.set('status', params.status)
+  if (params?.search) search.set('search', params.search)
+  const suffix = search.toString() ? `?${search.toString()}` : ''
+  return request<EquipmentListItem[]>('/equipment' + suffix)
+}
+
+export async function getEquipment(id: string, companyId?: string): Promise<EquipmentListItem> {
+  const suffix = companyId ? `?companyId=${encodeURIComponent(companyId)}` : ''
+  return request<EquipmentListItem>('/equipment/' + id + suffix)
+}
+
+export async function createEquipment(input: SaveEquipmentInput): Promise<EquipmentListItem> {
+  return request<EquipmentListItem>('/equipment', { method: 'POST', body: input })
+}
+
+export async function updateEquipment(id: string, input: SaveEquipmentInput): Promise<EquipmentListItem> {
+  return request<EquipmentListItem>('/equipment/' + id, { method: 'PATCH', body: input })
+}
+
+export async function deleteEquipment(id: string): Promise<EquipmentListItem> {
+  return request<EquipmentListItem>('/equipment/' + id, { method: 'DELETE' })
+}
+
+/** Снимок уходит multipart; отдаётся ссылка на защищённую раздачу /uploads/equipment. */
+export async function uploadEquipmentPhoto(id: string, file: File): Promise<EquipmentAttachmentItem> {
+  const token = getToken()
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const res = await fetch(`${getBaseUrl()}/equipment/${id}/photos`, {
+    method: 'POST',
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    body: formData,
+  })
+
+  const text = await res.text()
+  let data: any = null
+  if (text) {
+    try {
+      data = JSON.parse(text)
+    } catch {
+      data = text
+    }
+  }
+  if (!res.ok) {
+    throw new Error((data && data.message) || 'Не удалось загрузить снимок')
+  }
+  return data as EquipmentAttachmentItem
+}
+
 export async function equipmentByLocation(locationId: string, companyId?: string): Promise<EquipmentListItem[]> {
   const search = new URLSearchParams()
   if (companyId) search.set('companyId', companyId)
