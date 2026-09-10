@@ -17,13 +17,13 @@ gh для работы с PR. Выполняется один раз для ка
 Файл длиннее 300 строк, ниже карта разделов.
 
   part A  состояние сервера — когда проверять, что проверять, разовая настройка
-          verify_server  строка 79    проверки доступа к файлам окружения
-          diagnostics    строка 137   разбор отказов
-          initial_setup  строка 147   что делает root, что делает агент
+          verify_server  проверки доступа к файлам окружения по машинам
+          diagnostics    разбор отказов
+          initial_setup  что делает root, что делает агент
   part B  подключение новой машины или нового агента
           шаг 1  сгенерировать пару ключей
-          шаг 2  добавить алиас sma
-          шаг 3  доверить хост, сверка отпечатка
+          шаг 2  добавить алиасы sma и sma-spare
+          шаг 3  доверить хосты, сверка отпечатков
           шаг 4  передать публичный ключ, требует человека с root
           шаг 5  проверить доступ
   part C  gh — работа с Pull Request
@@ -35,27 +35,33 @@ gh для работы с PR. Выполняется один раз для ка
           шаг 1  ссылки и фронтматтер, скрипт skills-check.sh
           шаг 2  срабатывание у агента, проба в чистой сессии
 
-Номера строк указаны для этой редакции и сдвигаются при правках. Искать
-по именам блоков.
+Искать по именам блоков.
 </contents>
 
-<server>
+<server contour="production">
 <host>194.67.101.37</host>
 <user>deploy</user>
 <alias>sma</alias>
+</server>
+
+<server contour="stage">
+<host>194.67.92.186</host>
+<user>deploy</user>
+<alias>sma-spare</alias>
 </server>
 
 <hard_limit>
 Агент не может добавить себя сам. Запись в /home/deploy/.ssh/authorized_keys
 требует root, которого у агента нет и не должно быть. Порядок всегда такой:
 агент генерирует пару ключей и отдаёт публичный, человек с root добавляет его
-на сервер.
+на обе машины: Production-машину и Stage-машину.
 </hard_limit>
 
 <rule>
 Работать под пользователем deploy, не под root. Root оставлен для
-администрирования сервера. Права deploy: группа docker, владение каталогами
-/opt/sma-prod, /opt/sma-beta и /var/backups/sma, чтение /etc/servicemanager-ai/.
+администрирования сервера. Права deploy: группа docker, чтение
+/etc/servicemanager-ai/. На Production-машине владение /opt/sma-prod
+и /var/backups/sma. На Stage-машине владение /opt/sma-beta.
 Полный перечень с командами проверки — часть A, блок verify_server.
 </rule>
 
@@ -72,40 +78,69 @@ gh для работы с PR. Выполняется один раз для ка
 <case>Подключение новой машины или нового агента — полностью, блок verify_server ниже. Часть B шаг 5 проверяет только доступ, это подмножество.</case>
 <case>Отказ во время развёртывания — по таблице diagnostics.</case>
 <case name="перед каждым развёртыванием">
-Полная проверка не нужна. В prerequisites деплойных skill стоит
-ssh -o BatchMode=yes sma 'whoami' — одна команда, доли секунды, доказывает
+Полная проверка не нужна. В prerequisites деплойного skill стоит
+ssh -o BatchMode=yes &lt;алиас контура&gt; 'whoami' — одна команда, доли секунды, доказывает
 разом: ключ принят, алиас настроен, сервер доступен, пользователь тот.
+Production — ssh sma. Stage — ssh sma-spare.
 Этого достаточно.
 </case>
 </when_to_verify>
 
 <verify_server>
+<host alias="sma">
 <v name="пользователь и группа">ssh sma 'id'</v>
 <expect>uid=deploy, в списке групп присутствует docker</expect>
 
-<v name="владение каталогами">ssh sma 'stat -c "%n %U:%G" /opt/sma-prod /opt/sma-beta'</v>
-<expect>оба каталога принадлежат deploy</expect>
+<v name="владение каталогами">ssh sma 'stat -c "%n %U:%G" /opt/sma-prod'</v>
+<expect>/opt/sma-prod принадлежит deploy</expect>
 
 <v name="файлы окружения читаются пользователем deploy">
-ssh sma 'test -r /etc/servicemanager-ai/stage-backend-isolated.env'
 ssh sma 'test -r /opt/sma-service/backend/.env.docker'
 </v>
-<expect>код возврата 0 в обеих</expect>
+<expect>код возврата 0</expect>
+
+<v name="переменные дошли до контейнеров">
+ssh sma 'docker inspect sma_backend --format "{{range .Config.Env}}{{println .}}{{end}}"' | cut -d= -f1 | grep -c DATABASE_URL
+</v>
+<expect>1</expect>
+
+<v name="доступ к docker">ssh sma 'docker ps --format "{{.Names}}" | head -3'</v>
+<expect>перечень контейнеров, отказа нет</expect>
+
+<v name="каталог для дампов">ssh sma 'stat -c "%n %U:%G %a" /var/backups/sma'</v>
+<expect>/var/backups/sma deploy:deploy 700</expect>
+</host>
+
+<host alias="sma-spare">
+<v name="пользователь и группа">ssh sma-spare 'id'</v>
+<expect>uid=deploy, в списке групп присутствует docker</expect>
+
+<v name="владение каталогами">ssh sma-spare 'stat -c "%n %U:%G" /opt/sma-beta'</v>
+<expect>/opt/sma-beta принадлежит deploy</expect>
+
+<v name="файлы окружения читаются пользователем deploy">
+ssh sma-spare 'test -r /etc/servicemanager-ai/stage-backend-isolated.env'
+</v>
+<expect>код возврата 0</expect>
+
+<v name="переменные дошли до контейнеров">
+ssh sma-spare 'docker inspect sma_stage_backend --format "{{range .Config.Env}}{{println .}}{{end}}"' | cut -d= -f1 | grep -c VAPID_PUBLIC_KEY
+</v>
+<expect>1</expect>
+
+<v name="доступ к docker">ssh sma-spare 'docker ps --format "{{.Names}}" | head -3'</v>
+<expect>перечень контейнеров, отказа нет</expect>
+</host>
+
 <why>
 Файлы читает клиент docker compose под пользователем deploy в момент up,
 а не демон. Работающий контейнер держит переменные с прошлого запуска
 и потерю доступа не покажет — откажет следующее развёртывание.
 Пути подтверждены на сервере 2026-08-28, см. path_note в skills/_shared/secrets.md.
-</why>
 
-<v name="переменные дошли до контейнеров">
-ssh sma 'docker inspect sma_backend --format "{{range .Config.Env}}{{println .}}{{end}}"' | cut -d= -f1 | grep -c DATABASE_URL
-ssh sma 'docker inspect sma_stage_backend --format "{{range .Config.Env}}{{println .}}{{end}}"' | cut -d= -f1 | grep -c VAPID_PUBLIC_KEY
-</v>
-<expect>по единице в каждой команде</expect>
-<why>
-Две проверки отвечают на разные вопросы. Предыдущая — есть ли у deploy
-доступ к файлу сейчас. Эта — дошло ли содержимое файла до контейнера.
+Две проверки на каждой машине отвечают на разные вопросы. Файл читается —
+есть ли у deploy доступ к файлу сейчас. Переменная в контейнере — дошло ли
+содержимое файла до контейнера.
 
 Маркер выбирается так, чтобы переменная приходила только из файла.
 Установлено 2026-08-28:
@@ -129,22 +164,16 @@ cut -d= -f1 отрезает значения: в вывод попадают т
 Не отличает свежий файл от устаревшего: переменная есть, а верное ли
 в ней значение — не видно.
 </limit>
-
-<v name="доступ к docker">ssh sma 'docker ps --format "{{.Names}}" | head -3'</v>
-<expect>перечень контейнеров, отказа нет</expect>
-
-<v name="каталог для дампов">ssh sma 'stat -c "%n %U:%G %a" /var/backups/sma'</v>
-<expect>/var/backups/sma deploy:deploy 700</expect>
 </verify_server>
 
 <diagnostics>
-<d symptom="Permission denied (publickey) при подключении">Публичный ключ не добавлен в /home/deploy/.ssh/authorized_keys. Часть B шаг 4.</d>
-<d symptom="whoami возвращает не deploy">Алиас sma указывает на другого пользователя. Часть B шаг 2.</d>
+<d symptom="Permission denied (publickey) при подключении">Публичный ключ не добавлен в /home/deploy/.ssh/authorized_keys на той машине, куда идёт ssh. Часть B шаг 4.</d>
+<d symptom="whoami возвращает не deploy">Алиас sma или sma-spare указывает на другого пользователя. Часть B шаг 2.</d>
 <d symptom="отказ docker ps">Пользователь не в группе docker. initial_setup, строка usermod.</d>
 <d symptom="permission denied на каталоге развёртывания">Каталог не принадлежит deploy. initial_setup, строка chown.</d>
 <d symptom="env file not found при docker compose up">Файл окружения недоступен пользователю deploy. Проверка «файлы окружения читаются» в verify_server, лечение — initial_setup, строки chgrp и chmod. Работающий контейнер этого не покажет: переменные у него с прошлого запуска.</d>
-<d symptom="отказ записи в /var/backups/sma при снятии дампа">Каталог не создан либо принадлежит не deploy. initial_setup, строки mkdir, chown, chmod.</d>
-<d symptom="Host key verification failed">Ключ хоста не в known_hosts либо изменился. Часть B шаг 3, сверить отпечаток заново.</d>
+<d symptom="отказ записи в /var/backups/sma при снятии дампа">Каталог не создан либо принадлежит не deploy. initial_setup на Production-машине, строки mkdir, chown, chmod.</d>
+<d symptom="Host key verification failed">Ключ хоста не в known_hosts либо изменился. Часть B шаг 3, сверить отпечаток заново для того IP, куда идёт ssh.</d>
 </diagnostics>
 
 <initial_setup>
@@ -153,16 +182,27 @@ cut -d= -f1 отрезает значения: в вывод попадают т
 <by_agent>Ничего. Все команды ниже требуют root.</by_agent>
 
 <by_root>
+На каждой машине, которую настраивают:
+
 adduser --disabled-password --gecos "" deploy
 usermod -aG docker deploy
 mkdir -p /home/deploy/.ssh &amp;&amp; chmod 700 /home/deploy/.ssh
 chown -R deploy:deploy /home/deploy/.ssh
-chown deploy:deploy /opt/sma-prod /opt/sma-beta
-chgrp deploy /etc/servicemanager-ai/stage-backend-isolated.env /opt/sma-service/backend/.env.docker
-chmod 640 /etc/servicemanager-ai/stage-backend-isolated.env /opt/sma-service/backend/.env.docker
+
+На Production-машине:
+
+chown deploy:deploy /opt/sma-prod
+chgrp deploy /opt/sma-service/backend/.env.docker
+chmod 640 /opt/sma-service/backend/.env.docker
 mkdir -p /var/backups/sma
 chown deploy:deploy /var/backups/sma
 chmod 700 /var/backups/sma
+
+На Stage-машине:
+
+chown deploy:deploy /opt/sma-beta
+chgrp deploy /etc/servicemanager-ai/stage-backend-isolated.env
+chmod 640 /etc/servicemanager-ai/stage-backend-isolated.env
 </by_root>
 <why_700>
 В дампе базы лежат пароли пользователей, ключи push-подписок и персональные
@@ -201,48 +241,59 @@ ssh-keygen -t ed25519 -f ~/.ssh/sma_deploy -N "" -C "&lt;кто&gt;@sma"
 <naming>Комментарий -C должен опознавать владельца: claude-deploy@sma, codex-deploy@sma, cursor-deploy@sma.</naming>
 </step>
 
-<step id="2" name="добавить алиас">
-<action>Дописать в ~/.ssh/config:</action>
+<step id="2" name="добавить алиасы">
+<action>Дописать в ~/.ssh/config. Блок Host sma не менять, если он уже есть.</action>
 <content>
 Host sma
   HostName 194.67.101.37
   User deploy
   IdentityFile ~/.ssh/sma_deploy
   IdentitiesOnly yes
+
+Host sma-spare
+  HostName 194.67.92.186
+  User deploy
+  IdentityFile ~/.ssh/sma_deploy
+  IdentitiesOnly yes
 </content>
 <rationale>
-Деплойные skill обращаются к серверу как ssh sma. Адрес, пользователь и путь
-к ключу остаются в личной конфигурации машины и в общие файлы не попадают.
+sma-deploy-prod обращается к Production-машине как ssh sma.
+sma-deploy-stage обращается к Stage-машине как ssh sma-spare.
+Адрес, пользователь и путь к ключу остаются в личной конфигурации машины
+и в общие файлы не попадают. Один ключ sma_deploy — на обе машины.
 </rationale>
 </step>
 
-<step id="3" name="доверить хост">
+<step id="3" name="доверить хосты">
 <why>
 Без записи в known_hosts ssh откажется подключаться к неизвестному серверу.
 Но запись без сверки принимает на веру то, что ответило по адресу. Встань
 между вами и сервером посредник — в known_hosts попадёт его ключ, и защита
 от подмены перестанет работать навсегда: чужой ключ будет числиться
 правильным, предупреждения не будет.
-Поэтому отпечаток получают по другому каналу и сверяют.
+Поэтому отпечаток получают по другому каналу и сверяют. Две машины — два
+отпечатка, два ssh-keyscan.
 </why>
 
-<substep id="3.1" name="получить эталонный отпечаток">
+<substep id="3.1" name="получить эталонные отпечатки">
 <action>
-Попросить человека с доступом root выполнить на сервере:
+Попросить человека с доступом root выполнить на каждой машине:
 
 ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub
 
-и передать полученную строку. Канал передачи — любой, кроме этого же
-ssh-подключения: смысл сверки в том, что источник независим.
+и передать две полученные строки, с пометкой какая Production-машина
+(194.67.101.37), какая Stage-машина (194.67.92.186). Канал передачи —
+любой, кроме этого же ssh-подключения: смысл сверки в том, что источник
+независим.
 </action>
 </substep>
 
-<substep id="3.2" name="снять ключ и сверить">
+<substep id="3.2" name="снять ключ Production-машины и сверить">
 <command>
 ssh-keyscan -t ed25519 194.67.101.37 &gt; /tmp/sma_host_key
 ssh-keygen -lf /tmp/sma_host_key
 </command>
-<expect>Отпечаток совпадает с полученным на шаге 3.1 посимвольно.</expect>
+<expect>Отпечаток совпадает с полученным на шаге 3.1 для 194.67.101.37 посимвольно.</expect>
 <on_failure>
 Не совпал — остановиться, в known_hosts не записывать, сообщить пользователю.
 Возможные причины: ключ хоста на сервере переустанавливали, либо соединение
@@ -250,10 +301,30 @@ ssh-keygen -lf /tmp/sma_host_key
 </on_failure>
 </substep>
 
-<substep id="3.3" name="записать">
+<substep id="3.3" name="записать Production-машину">
 <precondition>Отпечатки совпали.</precondition>
 <command>
 cat /tmp/sma_host_key &gt;&gt; ~/.ssh/known_hosts
+</command>
+</substep>
+
+<substep id="3.4" name="снять ключ Stage-машины и сверить">
+<command>
+ssh-keyscan -t ed25519 194.67.92.186 &gt; /tmp/sma_spare_host_key
+ssh-keygen -lf /tmp/sma_spare_host_key
+</command>
+<expect>Отпечаток совпадает с полученным на шаге 3.1 для 194.67.92.186 посимвольно.</expect>
+<on_failure>
+Не совпал — остановиться, в known_hosts не записывать, сообщить пользователю.
+Возможные причины: ключ хоста на сервере переустанавливали, либо соединение
+перехвачено. Разбираться до подключения, а не после.
+</on_failure>
+</substep>
+
+<substep id="3.5" name="записать Stage-машину">
+<precondition>Отпечатки совпали.</precondition>
+<command>
+cat /tmp/sma_spare_host_key &gt;&gt; ~/.ssh/known_hosts
 </command>
 </substep>
 </step>
@@ -262,7 +333,7 @@ cat /tmp/sma_host_key &gt;&gt; ~/.ssh/known_hosts
 <command>cat ~/.ssh/sma_deploy.pub</command>
 <action>
 Показать вывод пользователю. Попросить человека с доступом root выполнить
-на сервере:
+на Production-машине и на Stage-машине одну и ту же пару команд:
 
 echo '&lt;строка публичного ключа&gt;' &gt;&gt; /home/deploy/.ssh/authorized_keys
 chown deploy:deploy /home/deploy/.ssh/authorized_keys
@@ -274,10 +345,11 @@ chmod 600 /home/deploy/.ssh/authorized_keys
 <step id="5" name="проверить доступ">
 <command>
 ssh -o BatchMode=yes sma 'whoami; id; docker ps --format "{{.Names}}" | head -3'
+ssh -o BatchMode=yes sma-spare 'whoami; id; docker ps --format "{{.Names}}" | head -3'
 </command>
-<expect>whoami возвращает deploy. В группах присутствует docker. docker ps выводит контейнеры.</expect>
+<expect>whoami на обоих хостах возвращает deploy. В группах присутствует docker. docker ps выводит контейнеры.</expect>
 <on_failure>
-Permission denied — ключ не добавлен либо добавлен не тому пользователю.
+Permission denied — ключ не добавлен на ту машину, куда идёт ssh, либо добавлен не тому пользователю.
 Connection refused или timeout — недоступен порт 22.
 Отказ docker ps — пользователь не в группе docker.
 </on_failure>
@@ -389,7 +461,8 @@ missing required scope при входе — в токене отмечены н
 <part id="D" name="отзыв доступа к серверу">
 <action>
 Удалить строку с соответствующим комментарием из
-/home/deploy/.ssh/authorized_keys. Выполняет человек с root.
+/home/deploy/.ssh/authorized_keys на Production-машине и на Stage-машине.
+Выполняет человек с root.
 </action>
 <rule>
 Доступ, выданный под конкретную задачу, отзывается после её закрытия.
@@ -416,7 +489,7 @@ skills/_shared/scripts/skills-check.sh
 </run>
 <expect>По строке на каждый скилл, затем «Все скилы прошли проверку». Код 0.</expect>
 <on_failure>
-Код 1 — в выводе названо, что не сошлось у каждого скила. Подмену ссылки
+Код 1 — в выводе названо, что не совпало у каждого скила. Подмену ссылки
 файлом скрипт печатает вместе с командами разбора и починки: включить
 core.symlinks и переоформить рабочую копию каталога. Расхождение имени
 с каталогом и превышение длин правятся во фронтматтере скила.
@@ -477,10 +550,11 @@ core.symlinks и переоформить рабочую копию катало
 </part>
 
 <verification>
-<v name="готовность машины целиком">ssh -o BatchMode=yes sma 'whoami' &amp;&amp; gh auth status</v>
-<v name="чьи ключи есть у deploy">ssh sma 'awk "{print \$1, \$3}" ~/.ssh/authorized_keys'</v>
+<v name="готовность машины целиком">ssh -o BatchMode=yes sma 'whoami' &amp;&amp; ssh -o BatchMode=yes sma-spare 'whoami' &amp;&amp; gh auth status</v>
+<v name="чьи ключи есть у deploy">ssh sma 'awk "{print \$1, \$3}" ~/.ssh/authorized_keys'
+ssh sma-spare 'awk "{print \$1, \$3}" ~/.ssh/authorized_keys'</v>
 <note>
-Состояние сервера проверяется блоком verify_server в части A. Здесь только
+Состояние серверов проверяется блоком verify_server в части A. Здесь только
 то, чего там нет: готовность машины агента целиком и перечень выданных ключей.
 Второе печатает тип ключа и комментарий, само значение ключа не выводится.
 </note>
