@@ -69,6 +69,32 @@ describe('EquipmentRepository.findAllByCompany', () => {
     expect(findMany.mock.calls[0][0].where.OR).toBeUndefined();
   });
 
+  it('фильтр по площадке и область площадок действуют одновременно', () => {
+    // Раньше второй спред затирал первый, и выбор точки в интерфейсе не влиял
+    // ни на что у пользователя, привязанного к нескольким площадкам.
+    const { repo, findMany } = makeRepo();
+
+    repo.findAllByCompany(COMPANY, { locationIds: ['loc-1', 'loc-2'], locationId: 'loc-1' });
+
+    expect(findMany.mock.calls[0][0].where.locationId).toBe('loc-1');
+  });
+
+  it('запрошенная площадка вне области даёт пустую выдачу, а не всю область', () => {
+    const { repo, findMany } = makeRepo();
+
+    repo.findAllByCompany(COMPANY, { locationIds: ['loc-1', 'loc-2'], locationId: 'loc-9' });
+
+    expect(findMany.mock.calls[0][0].where.locationId).toEqual({ in: [] });
+  });
+
+  it('без области фильтр по площадке применяется как есть', () => {
+    const { repo, findMany } = makeRepo();
+
+    repo.findAllByCompany(COMPANY, { locationId: 'loc-1' });
+
+    expect(findMany.mock.calls[0][0].where.locationId).toBe('loc-1');
+  });
+
   it('область площадок сужает запрос', () => {
     const { repo, findMany } = makeRepo();
 
