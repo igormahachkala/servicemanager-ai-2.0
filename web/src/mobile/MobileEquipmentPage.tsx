@@ -69,13 +69,24 @@ const TICKET_STATUS_LABELS: Record<string, string> = {
 }
 
 function MobileEquipmentHistory({ equipmentId }: { equipmentId: string }) {
+  // SMA-EQUIPMENT-PARTS-POLISH-110C: телефон тоже не тянет всю историю
+  // разом — страницы догружаются кнопкой.
+  const [cursor, setCursor] = useState<string | undefined>(undefined)
+  const [acc, setAcc] = useState<api.EquipmentHistoryEntry[]>([])
   const q = useQuery({
-    queryKey: ['mobile-equipment-history', equipmentId],
-    queryFn: () => api.getEquipmentHistory(equipmentId),
+    queryKey: ['mobile-equipment-history', equipmentId, cursor || ''],
+    queryFn: () => api.getEquipmentHistory(equipmentId, undefined, { limit: 20, cursor }),
   })
-  if (q.isLoading) return <div className="mobileCard mobileMeta">Загружаем историю…</div>
+  useEffect(() => {
+    if (!q.data) return
+    setAcc((prev) => {
+      const seen = new Set(prev.map((e) => e.ticketId))
+      return [...prev, ...q.data!.tickets.filter((e) => !seen.has(e.ticketId))]
+    })
+  }, [q.data])
+  if (q.isLoading && acc.length === 0) return <div className="mobileCard mobileMeta">Загружаем историю…</div>
   if (q.isError) return <div className="mobileNotice mobileNoticeError">{(q.error as any)?.message || String(q.error)}</div>
-  const entries = q.data?.tickets || []
+  const entries = acc
   if (entries.length === 0) {
     return (
       <div className="mobileCard mobileEmptyState" role="status">
@@ -103,6 +114,16 @@ function MobileEquipmentHistory({ equipmentId }: { equipmentId: string }) {
           </Link>
         </div>
       ))}
+      {q.data?.page?.nextCursor ? (
+        <button
+          type="button"
+          className="mobileBtn mobileBtnGhost"
+          onClick={() => setCursor(q.data!.page.nextCursor!)}
+          disabled={q.isFetching}
+        >
+          {q.isFetching ? 'Загрузка…' : 'Показать ещё'}
+        </button>
+      ) : null}
     </>
   )
 }

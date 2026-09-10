@@ -742,6 +742,10 @@ model Ticket {
   @@index([companyId, slaDueAt])
   @@index([locationId])
   @@index([equipmentId])
+  /// SMA-EQUIPMENT-PARTS-POLISH-110C: курсорная пагинация истории единицы
+  /// идёт по (equipmentId, createdAt desc, id desc). Без составного индекса
+  /// каждая страница фильтровала бы по equipmentId и сортировала заново.
+  @@index([equipmentId, createdAt])
   @@index([companyId, source])
 }
 
