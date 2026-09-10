@@ -29,6 +29,28 @@ export function resolveMaxReturnTo(input: MaxReturnToInput): string {
   if (parsed.type === 'ticket') {
     return `/max/tickets/${encodeURIComponent(parsed.ticketId)}`
   }
+  if (parsed.type === 'workspace') {
+    switch (parsed.target) {
+      case 'my':
+        return '/max/my'
+      case 'available':
+        return '/max?homeTab=new&homeChip=unassigned'
+      case 'acceptance':
+        return '/max?homeQuick=awaiting'
+      case 'notifications':
+        return '/max/notifications'
+      case 'shift':
+        return '/max/shift'
+      case 'today':
+        return '/max?homeChip=today'
+      case 'rounds':
+      case 'inspection':
+        return '/max/inspection'
+      case 'app':
+      default:
+        return '/max'
+    }
+  }
 
   const current = sanitizeInternalAppPath(`${input.pathname}${input.search || ''}${input.hash || ''}`)
   if (current && current.startsWith('/max')) return current

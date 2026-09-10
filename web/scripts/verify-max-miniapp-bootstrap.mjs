@@ -224,6 +224,13 @@ async function assertRejectsWithTimeout(promise) {
 
 {
   assert.equal(maxBootstrap.resolveMaxReturnTo({ pathname: '/max', search: '?startapp=ticket_42', startParam: 'ticket_42' }), '/max/tickets/42')
+  assert.equal(maxBootstrap.resolveMaxReturnTo({ pathname: '/max', search: '?startapp=my', startParam: 'my' }), '/max/my')
+  assert.equal(maxBootstrap.resolveMaxReturnTo({ pathname: '/max', search: '?startapp=available', startParam: 'available' }), '/max?homeTab=new&homeChip=unassigned')
+  assert.equal(maxBootstrap.resolveMaxReturnTo({ pathname: '/max', search: '?startapp=acceptance', startParam: 'acceptance' }), '/max?homeQuick=awaiting')
+  assert.equal(maxBootstrap.resolveMaxReturnTo({ pathname: '/max', search: '?startapp=notifications', startParam: 'notifications' }), '/max/notifications')
+  assert.equal(maxBootstrap.resolveMaxReturnTo({ pathname: '/max', search: '?startapp=shift', startParam: 'shift' }), '/max/shift')
+  assert.equal(maxBootstrap.resolveMaxReturnTo({ pathname: '/max', search: '?startapp=today', startParam: 'today' }), '/max?homeChip=today')
+  assert.equal(maxBootstrap.resolveMaxReturnTo({ pathname: '/max', search: '?startapp=rounds', startParam: 'rounds' }), '/max/inspection')
   assert.equal(maxBootstrap.resolveMaxReturnTo({ pathname: '/max/tickets/42', search: '?section=comments', hash: '#top' }), '/max/tickets/42?section=comments#top')
   assert.equal(maxBootstrap.resolveMaxReturnTo({ pathname: '/login', search: '?returnTo=https%3A%2F%2Fevil.example' }), '/max')
 }
@@ -265,6 +272,17 @@ async function assertRejectsWithTimeout(promise) {
   assert.match(maxBootstrapSource, /Не удалось загрузить приложение/)
   assert.match(maxAppSource, /Повторить/)
   assert.match(maxAppSource, /Открыть ServiceManager/)
+  assert.doesNotMatch(maxAppSource, /start_param: \{rawStartParam/)
+  assert.doesNotMatch(maxAppSource, /initData: \{envContext\.initData/)
+  assert.doesNotMatch(maxAppSource, /platform: \{envContext\.platform/)
+  assert.match(maxAppSource, /import\.meta\.env\.DEV\) return/)
+}
+
+{
+  const mobileHomeSource = readFileSync(resolve(root, 'src/mobile/home/MobileHome.tsx'), 'utf8')
+  assert.match(mobileHomeSource, /homeChip/)
+  assert.match(mobileHomeSource, /homeQuick/)
+  assert.match(mobileHomeSource, /homeTab/)
 }
 
 {

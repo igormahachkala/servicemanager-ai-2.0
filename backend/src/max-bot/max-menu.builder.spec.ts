@@ -15,7 +15,8 @@ import {
   type MaxMenuCapabilities,
 } from './max-menu.builder';
 
-const ids = (caps: MaxMenuCapabilities) => buildMenuModel(caps).items.map((i) => i.id);
+const ids = (caps: MaxMenuCapabilities) =>
+  buildMenuModel(caps).items.map((i) => i.id);
 
 const CLIENT_ADMIN: MaxMenuCapabilities = {
   role: UserRole.ADMIN,
@@ -35,6 +36,7 @@ const PROVIDER_TECHNICIAN: MaxMenuCapabilities = {
     PERMISSIONS.TICKETS_VIEW,
     PERMISSIONS.TICKETS_VIEW_AVAILABLE,
     PERMISSIONS.TICKETS_CLAIM,
+    PERMISSIONS.LOCATIONS_VIEW,
     PERMISSIONS.WORKFORCE_SHIFT_USE,
   ],
 };
@@ -48,7 +50,9 @@ describe('buildUnboundMenuModel', () => {
 
   it('exposes no ticket destination to an unbound viewer', () => {
     const targets = buildUnboundMenuModel().items.map((i) => i.target);
-    expect(targets.some((t) => t.startsWith('list_') || t.startsWith('ticket'))).toBe(false);
+    expect(
+      targets.some((t) => t.startsWith('list_') || t.startsWith('ticket')),
+    ).toBe(false);
   });
 });
 
@@ -59,54 +63,67 @@ describe('buildMenuModel', () => {
 
   it('gives a client admin acceptance but never the provider queue', () => {
     const items = ids(CLIENT_ADMIN);
+    expect(items).toContain('today');
+    expect(items).toContain('rounds');
     expect(items).toContain('awaiting_acceptance');
     expect(items).not.toContain('available_tickets');
   });
 
   it('gives a provider technician the available queue but never acceptance', () => {
     const items = ids(PROVIDER_TECHNICIAN);
+    expect(items).toContain('today');
     expect(items).toContain('available_tickets');
+    expect(items).toContain('rounds');
     expect(items).not.toContain('awaiting_acceptance');
   });
 
-  it.each([UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.TECHNICIAN])(
-    'never offers acceptance to provider role %s',
-    (role) => {
-      const items = ids({
-        role,
-        companyType: CompanyType.PROVIDER,
-        permissions: [PERMISSIONS.TICKETS_VIEW, PERMISSIONS.TICKETS_ASSIGN],
-      });
-      expect(items).not.toContain('awaiting_acceptance');
-    },
-  );
+  it.each([
+    UserRole.ADMIN,
+    UserRole.MASTER,
+    UserRole.DISPATCHER,
+    UserRole.TECHNICIAN,
+  ])('never offers acceptance to provider role %s', (role) => {
+    const items = ids({
+      role,
+      companyType: CompanyType.PROVIDER,
+      permissions: [PERMISSIONS.TICKETS_VIEW, PERMISSIONS.TICKETS_ASSIGN],
+    });
+    expect(items).not.toContain('awaiting_acceptance');
+  });
 
-  it.each([UserRole.MASTER, UserRole.DISPATCHER, UserRole.TECHNICIAN, UserRole.CLIENT])(
-    'never offers acceptance to non-acceptance client role %s',
-    (role) => {
-      const items = ids({
-        role,
-        companyType: CompanyType.CLIENT,
-        permissions: [PERMISSIONS.TICKETS_VIEW],
-      });
-      expect(items).not.toContain('awaiting_acceptance');
-    },
-  );
+  it.each([
+    UserRole.MASTER,
+    UserRole.DISPATCHER,
+    UserRole.TECHNICIAN,
+    UserRole.CLIENT,
+  ])('never offers acceptance to non-acceptance client role %s', (role) => {
+    const items = ids({
+      role,
+      companyType: CompanyType.CLIENT,
+      permissions: [PERMISSIONS.TICKETS_VIEW],
+    });
+    expect(items).not.toContain('awaiting_acceptance');
+  });
 
-  it.each([UserRole.ADMIN, UserRole.TERRITORIAL_MANAGER, UserRole.NETWORK_DIRECTOR])(
-    'offers acceptance to client management role %s',
-    (role) => {
-      const items = ids({
-        role,
-        companyType: CompanyType.CLIENT,
-        permissions: [PERMISSIONS.TICKETS_VIEW],
-      });
-      expect(items).toContain('awaiting_acceptance');
-    },
-  );
+  it.each([
+    UserRole.ADMIN,
+    UserRole.TERRITORIAL_MANAGER,
+    UserRole.NETWORK_DIRECTOR,
+  ])('offers acceptance to client management role %s', (role) => {
+    const items = ids({
+      role,
+      companyType: CompanyType.CLIENT,
+      permissions: [PERMISSIONS.TICKETS_VIEW],
+    });
+    expect(items).toContain('awaiting_acceptance');
+  });
 
   it('withholds every permission-gated entry when the user holds no permissions', () => {
-    const items = ids({ role: UserRole.STAFF, companyType: CompanyType.CLIENT, permissions: [] });
+    const items = ids({
+      role: UserRole.STAFF,
+      companyType: CompanyType.CLIENT,
+      permissions: [],
+    });
     expect(items).not.toContain('my_tickets');
     expect(items).not.toContain('available_tickets');
     expect(items).not.toContain('awaiting_acceptance');
@@ -121,9 +138,18 @@ describe('buildMenuModel', () => {
     ).not.toContain('shift');
   });
 
+  it('gates the rounds entry on LOCATIONS_VIEW', () => {
+    expect(ids(PROVIDER_TECHNICIAN)).toContain('rounds');
+    expect(
+      ids({ ...PROVIDER_TECHNICIAN, permissions: [PERMISSIONS.TICKETS_VIEW] }),
+    ).not.toContain('rounds');
+  });
+
   it('carries navigation targets only — no ticket ids or authority', () => {
     for (const item of buildMenuModel(PROVIDER_TECHNICIAN).items) {
-      expect(item.target).toMatch(/^(app|list_[a-z]+|notifications|shift|help|link)$/);
+      expect(item.target).toMatch(
+        /^(app|list_[a-z]+|notifications|shift|today|rounds|help|link)$/,
+      );
     }
   });
 });
@@ -133,7 +159,9 @@ describe('renderMenuText', () => {
     const model = buildMenuModel(CLIENT_ADMIN);
     const text = renderMenuText(model);
     expect(text).toContain('Сервис Менеджер');
-    expect(text).toContain('Управляйте заявками и сервисными работами прямо из MAX');
+    expect(text).toContain(
+      'Управляйте заявками и сервисными работами прямо из MAX',
+    );
     expect(text).not.toContain('/start');
     expect(text).not.toContain('/tickets');
   });
@@ -150,20 +178,25 @@ describe('MAX startapp deep links', () => {
     expect(buildMaxStartAppDeepLink('id056001679003_bot')).toBe(
       'https://max.ru/id056001679003_bot?startapp',
     );
-    expect(buildMaxStartAppDeepLink('id056001679003_bot', 'ticket_abc-123')).toBe(
-      'https://max.ru/id056001679003_bot?startapp=ticket_abc-123',
-    );
+    expect(
+      buildMaxStartAppDeepLink('id056001679003_bot', 'ticket_abc-123'),
+    ).toBe('https://max.ru/id056001679003_bot?startapp=ticket_abc-123');
   });
 
   it('accepts only official Mini App payload characters', () => {
-    expect(buildTicketStartAppPayload('abc-123_DEF')).toBe('ticket_abc-123_DEF');
+    expect(buildTicketStartAppPayload('abc-123_DEF')).toBe(
+      'ticket_abc-123_DEF',
+    );
     expect(buildTicketStartAppPayload('../secret')).toBeNull();
   });
 });
 
 describe('renderMenuKeyboard', () => {
   it('serializes the unbound menu as one inline_keyboard attachment', () => {
-    const keyboard = renderMenuKeyboard(buildUnboundMenuModel(), 'id056001679003_bot');
+    const keyboard = renderMenuKeyboard(
+      buildUnboundMenuModel(),
+      'id056001679003_bot',
+    );
 
     expect(keyboard).toEqual({
       type: 'inline_keyboard',
@@ -184,7 +217,10 @@ describe('renderMenuKeyboard', () => {
   });
 
   it('renders future bound menu entries as navigation-only open_app buttons', () => {
-    const message = renderMenuMessage(buildMenuModel(CLIENT_ADMIN), 'id056001679003_bot');
+    const message = renderMenuMessage(
+      buildMenuModel(CLIENT_ADMIN),
+      'id056001679003_bot',
+    );
     const buttons = message.attachments?.[0]?.payload.buttons.flat() || [];
 
     expect(buttons).toEqual(
@@ -194,6 +230,18 @@ describe('renderMenuKeyboard', () => {
           text: 'Мои заявки',
           web_app: 'id056001679003_bot',
           payload: 'my',
+        }),
+        expect.objectContaining({
+          type: 'open_app',
+          text: 'Сегодня',
+          web_app: 'id056001679003_bot',
+          payload: 'today',
+        }),
+        expect.objectContaining({
+          type: 'open_app',
+          text: 'Обходы',
+          web_app: 'id056001679003_bot',
+          payload: 'rounds',
         }),
         expect.objectContaining({
           type: 'open_app',
@@ -209,7 +257,9 @@ describe('renderMenuKeyboard', () => {
         }),
       ]),
     );
-    expect(JSON.stringify(buttons)).not.toMatch(/Принять|Отклонить|Взять|Назначить/);
+    expect(JSON.stringify(buttons)).not.toMatch(
+      /Принять|Отклонить|Взять|Назначить/,
+    );
   });
 });
 

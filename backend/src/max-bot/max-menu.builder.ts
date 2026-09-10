@@ -1,6 +1,9 @@
 import { CompanyType, UserRole } from '@prisma/client';
 
-import { PERMISSIONS, type PermissionCode } from '../common/permissions.constants';
+import {
+  PERMISSIONS,
+  type PermissionCode,
+} from '../common/permissions.constants';
 import {
   type MaxBotCommandResponse,
   type MaxBotInlineKeyboardAttachment,
@@ -24,8 +27,10 @@ import {
 export type MaxMenuItemId =
   | 'open_app'
   | 'my_tickets'
+  | 'today'
   | 'available_tickets'
   | 'awaiting_acceptance'
+  | 'rounds'
   | 'notifications'
   | 'shift'
   | 'help'
@@ -77,11 +82,17 @@ const TARGET_PAYLOAD: Record<string, string> = {
   list_acceptance: 'acceptance',
   notifications: 'notifications',
   shift: 'shift',
+  today: 'today',
+  rounds: 'rounds',
 };
 
-export type MaxTicketNotificationButtonKind = 'ticket' | 'comment' | 'acceptance' | 'assignment';
+export type MaxTicketNotificationButtonKind =
+  'ticket' | 'comment' | 'acceptance' | 'assignment';
 
-const TICKET_NOTIFICATION_LABELS: Record<MaxTicketNotificationButtonKind, string> = {
+const TICKET_NOTIFICATION_LABELS: Record<
+  MaxTicketNotificationButtonKind,
+  string
+> = {
   ticket: 'Открыть заявку',
   comment: 'Открыть комментарий',
   acceptance: 'Открыть приёмку',
@@ -123,21 +134,36 @@ export function buildUnboundMenuModel(): MaxMenuModel {
  * permission its destination requires, so the menu cannot advertise an action that the
  * API would then refuse.
  */
-export function buildMenuModel(capabilities: MaxMenuCapabilities): MaxMenuModel {
+export function buildMenuModel(
+  capabilities: MaxMenuCapabilities,
+): MaxMenuModel {
   const items: MaxMenuItem[] = [
     { id: 'open_app', label: 'Открыть ServiceManager', target: 'app' },
   ];
 
   if (has(capabilities, PERMISSIONS.TICKETS_VIEW)) {
     items.push({ id: 'my_tickets', label: 'Мои заявки', target: 'list_my' });
+    items.push({ id: 'today', label: 'Сегодня', target: 'today' });
   }
 
   // Provider-side only: the "available to take" queue is meaningless for a client tenant.
   if (has(capabilities, PERMISSIONS.TICKETS_VIEW_AVAILABLE)) {
-    items.push({ id: 'available_tickets', label: 'Доступные заявки', target: 'list_available' });
+    items.push({
+      id: 'available_tickets',
+      label: 'Доступные заявки',
+      target: 'list_available',
+    });
   }
 
-  items.push({ id: 'notifications', label: 'Уведомления', target: 'notifications' });
+  if (has(capabilities, PERMISSIONS.LOCATIONS_VIEW)) {
+    items.push({ id: 'rounds', label: 'Обходы', target: 'rounds' });
+  }
+
+  items.push({
+    id: 'notifications',
+    label: 'Уведомления',
+    target: 'notifications',
+  });
 
   // Acceptance is client-management only. A provider company can never accept its own
   // work, so the entry is withheld from every provider role regardless of permissions.
@@ -146,7 +172,11 @@ export function buildMenuModel(capabilities: MaxMenuCapabilities): MaxMenuModel 
     CLIENT_ACCEPTANCE_ROLES.includes(capabilities.role) &&
     has(capabilities, PERMISSIONS.TICKETS_VIEW);
   if (canAccept) {
-    items.push({ id: 'awaiting_acceptance', label: 'Требуют приёмки', target: 'list_acceptance' });
+    items.push({
+      id: 'awaiting_acceptance',
+      label: 'Требуют приёмки',
+      target: 'list_acceptance',
+    });
   }
 
   if (has(capabilities, PERMISSIONS.WORKFORCE_SHIFT_USE)) {
@@ -174,19 +204,28 @@ export function renderMenuText(model: MaxMenuModel): string {
 
 export function normalizeMaxBotUsername(value?: string | null) {
   const candidate = (value || '').trim() || DEFAULT_MAX_BOT_USERNAME;
-  return MAX_BOT_USERNAME_RE.test(candidate) ? candidate : DEFAULT_MAX_BOT_USERNAME;
+  return MAX_BOT_USERNAME_RE.test(candidate)
+    ? candidate
+    : DEFAULT_MAX_BOT_USERNAME;
 }
 
 export function isValidMaxStartAppPayload(payload: string) {
   return MAX_STARTAPP_PAYLOAD_RE.test(payload);
 }
 
-export function buildMaxStartAppDeepLink(botUsername: string, payload?: string | null) {
+export function buildMaxStartAppDeepLink(
+  botUsername: string,
+  payload?: string | null,
+) {
   const username = normalizeMaxBotUsername(botUsername);
   const normalizedPayload = (payload || '').trim();
   if (!normalizedPayload) return `https://max.ru/${username}?startapp`;
   if (!isValidMaxStartAppPayload(normalizedPayload)) return null;
   return `https://max.ru/${username}?startapp=${normalizedPayload}`;
+}
+
+export function maxStartAppPayloadForTarget(target: string) {
+  return TARGET_PAYLOAD[target] ?? null;
 }
 
 export function buildTicketStartAppPayload(ticketId: string) {
@@ -210,11 +249,16 @@ export function renderInlineKeyboard(
   };
 }
 
-function openAppButton(text: string, botUsername: string, payload?: string | null): MaxBotInlineKeyboardButton {
+function openAppButton(
+  text: string,
+  botUsername: string,
+  payload?: string | null,
+): MaxBotInlineKeyboardButton {
   const normalizedPayload = (payload || '').trim();
-  const safePayload = normalizedPayload && isValidMaxStartAppPayload(normalizedPayload)
-    ? normalizedPayload
-    : null;
+  const safePayload =
+    normalizedPayload && isValidMaxStartAppPayload(normalizedPayload)
+      ? normalizedPayload
+      : null;
   return {
     type: 'open_app',
     text,
@@ -223,11 +267,17 @@ function openAppButton(text: string, botUsername: string, payload?: string | nul
   };
 }
 
-function callbackButton(text: string, payload: string): MaxBotInlineKeyboardButton {
+function callbackButton(
+  text: string,
+  payload: string,
+): MaxBotInlineKeyboardButton {
   return { type: 'callback', text, payload };
 }
 
-function menuItemToButton(item: MaxMenuItem, botUsername: string): MaxBotInlineKeyboardButton | null {
+function menuItemToButton(
+  item: MaxMenuItem,
+  botUsername: string,
+): MaxBotInlineKeyboardButton | null {
   if (item.target === 'help') return callbackButton(item.label, 'help');
   if (item.target === 'link') return null;
 
@@ -245,7 +295,10 @@ export function renderMenuKeyboard(model: MaxMenuModel, botUsername: string) {
   );
 }
 
-export function renderMenuMessage(model: MaxMenuModel, botUsername: string): MaxBotCommandResponse {
+export function renderMenuMessage(
+  model: MaxMenuModel,
+  botUsername: string,
+): MaxBotCommandResponse {
   const keyboard = renderMenuKeyboard(model, botUsername);
   return {
     text: renderMenuText(model),
@@ -268,7 +321,9 @@ export function renderHelpMessage(botUsername: string): MaxBotCommandResponse {
   };
 }
 
-export function renderLegacyNavigationMessage(botUsername: string): MaxBotCommandResponse {
+export function renderLegacyNavigationMessage(
+  botUsername: string,
+): MaxBotCommandResponse {
   const keyboard = renderInlineKeyboard([
     [openAppButton('Открыть ServiceManager', botUsername, 'app')],
     [callbackButton('Меню', 'menu')],
@@ -283,10 +338,31 @@ export function renderLegacyNavigationMessage(botUsername: string): MaxBotComman
   };
 }
 
-export function renderOpenAppMessage(text: string, botUsername: string): MaxBotMessageBody {
-  const keyboard = renderInlineKeyboard([[openAppButton('Открыть ServiceManager', botUsername, 'app')]]);
+export function renderOpenAppMessage(
+  text: string,
+  botUsername: string,
+): MaxBotMessageBody {
+  const keyboard = renderInlineKeyboard([
+    [openAppButton('Открыть ServiceManager', botUsername, 'app')],
+  ]);
   return {
     text,
+    ...(keyboard ? { attachments: [keyboard] } : {}),
+  };
+}
+
+export function renderWorkspaceNavigationMessage(params: {
+  text: string;
+  buttonLabel: string;
+  botUsername: string;
+  target: string;
+}): MaxBotMessageBody {
+  const payload = maxStartAppPayloadForTarget(params.target);
+  const keyboard = renderInlineKeyboard([
+    [openAppButton(params.buttonLabel, params.botUsername, payload)],
+  ]);
+  return {
+    text: params.text,
     ...(keyboard ? { attachments: [keyboard] } : {}),
   };
 }
@@ -300,7 +376,13 @@ export function renderTicketNavigationMessage(params: {
   const payload = buildTicketStartAppPayload(params.ticketId);
   const keyboard = payload
     ? renderInlineKeyboard([
-        [openAppButton(TICKET_NOTIFICATION_LABELS[params.kind], params.botUsername, payload)],
+        [
+          openAppButton(
+            TICKET_NOTIFICATION_LABELS[params.kind],
+            params.botUsername,
+            payload,
+          ),
+        ],
       ])
     : null;
 

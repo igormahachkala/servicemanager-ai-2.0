@@ -83,16 +83,45 @@ export function getMaxEnvironmentContext(): MaxEnvironmentContext {
 
 export type ParsedStartParam =
   | { type: 'ticket'; ticketId: string }
+  | { type: 'workspace'; target: MaxWorkspaceTarget }
   | { type: 'unknown'; raw: string }
   | { type: 'none' }
 
+export type MaxWorkspaceTarget =
+  | 'app'
+  | 'my'
+  | 'available'
+  | 'acceptance'
+  | 'notifications'
+  | 'shift'
+  | 'today'
+  | 'rounds'
+  | 'inspection'
+
+const WORKSPACE_TARGETS = new Set<MaxWorkspaceTarget>([
+  'app',
+  'my',
+  'available',
+  'acceptance',
+  'notifications',
+  'shift',
+  'today',
+  'rounds',
+  'inspection',
+])
+
 export function parseStartParam(startParam?: string | null): ParsedStartParam {
   if (!startParam) return { type: 'none' }
-  if (startParam.startsWith('ticket_')) {
-    const ticketId = startParam.slice('ticket_'.length).trim()
+  const normalized = startParam.trim()
+  if (!normalized) return { type: 'none' }
+  if (normalized.startsWith('ticket_')) {
+    const ticketId = normalized.slice('ticket_'.length).trim()
     if (ticketId) return { type: 'ticket', ticketId }
   }
-  return { type: 'unknown', raw: startParam }
+  if (WORKSPACE_TARGETS.has(normalized as MaxWorkspaceTarget)) {
+    return { type: 'workspace', target: normalized as MaxWorkspaceTarget }
+  }
+  return { type: 'unknown', raw: normalized }
 }
 
 export function getStartParamFromLocation(): string | null {

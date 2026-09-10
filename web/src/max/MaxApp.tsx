@@ -148,6 +148,7 @@ export function MaxApp() {
   }, [webApp])
 
   useEffect(() => {
+    if (!import.meta.env.DEV) return
     const ctx = getMaxEnvironmentContext()
     if (!ctx.detected || loggedRef.current) return
     loggedRef.current = true
@@ -204,20 +205,19 @@ export function MaxApp() {
           <button style={btnStyle} onClick={() => setRetryNonce((value) => value + 1)}>Повторить</button>
           <button style={btnGhostStyle} onClick={() => navigate('/m')}>Открыть ServiceManager</button>
         </div>
-        <div style={{ marginTop: 28, fontSize: 11, color: '#bbb', lineHeight: 1.6 }}>
-          <div>start_param: {rawStartParam || '(нет)'}</div>
-          <div>platform: {envContext.platform || '(не определена)'}</div>
-          <div>version: {envContext.version || '(не определена)'}</div>
-          <div>initData: {envContext.initData ? 'есть' : 'нет'}</div>
-          <div>user: {envContext.user ? 'есть' : 'нет'}</div>
-          <div>chat: {envContext.chat ? 'есть' : 'нет'}</div>
-        </div>
       </div>
     )
   }
 
   if (parsed.type === 'ticket' && location.pathname === '/max') {
     return <MaxTicketEntry ticketId={parsed.ticketId} webApp={webApp} />
+  }
+  if (parsed.type === 'workspace' && location.pathname === '/max') {
+    const target = currentMaxRoute(location, rawStartParam)
+    const current = `${location.pathname}${location.search}${location.hash}`
+    if (target !== current) {
+      return <Navigate to={target} replace />
+    }
   }
 
   return (

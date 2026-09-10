@@ -40,6 +40,10 @@ import { HomeList, type TicketCloseModalState } from './HomeList'
 import { HomeQuickCards, type MobileHomeQuickFilter } from './HomeQuickCards'
 import { HomeFAB } from './HomeFAB'
 
+function isMobileHomeQuickFilter(value: unknown): value is Exclude<MobileHomeQuickFilter, null> {
+  return value === 'awaiting' || value === 'myaction' || value === 'rework'
+}
+
 export function MobileHome() {
   const location = useLocation()
   const navigate = useNavigate()
@@ -175,6 +179,37 @@ export function MobileHome() {
     if (hasSearch) setSearchQuery((s.homeBoardSearch || '').slice(0, 240))
     navigate(`${location.pathname}${location.search}`, { replace: true, state: stripMobileHomeRestoreFromNavState(s) ?? undefined })
   }, [location.key, location.pathname, location.search, navigate])
+
+  useLayoutEffect(() => {
+    const params = new URLSearchParams(location.search)
+    const tabParam = params.get('homeTab')
+    const chipParam = params.get('homeChip')
+    const quickParam = params.get('homeQuick')
+    const nextTab = isMobileHomeBoardFilterTab(tabParam) ? tabParam : null
+    const nextChips = (chipParam || '')
+      .split(',')
+      .map((value) => value.trim())
+      .filter((value): value is MobileHomeBoardChipId => MOBILE_HOME_BOARD_CHIP_IDS.includes(value as MobileHomeBoardChipId))
+    const nextQuick = isMobileHomeQuickFilter(quickParam) ? quickParam : null
+
+    if (!nextTab && nextChips.length === 0 && !nextQuick) return
+
+    if (nextQuick) {
+      setQuickFilter(nextQuick)
+      setBoardTab('all')
+      setActiveChips(new Set())
+    } else {
+      setQuickFilter(null)
+      if (nextTab) setBoardTab(nextTab)
+      if (nextChips.length > 0) setActiveChips(new Set(nextChips))
+    }
+
+    params.delete('homeTab')
+    params.delete('homeChip')
+    params.delete('homeQuick')
+    const nextSearch = params.toString()
+    navigate(`${location.pathname}${nextSearch ? `?${nextSearch}` : ''}`, { replace: true, state: location.state })
+  }, [location.key, location.pathname, location.search, location.state, navigate])
 
   useEffect(() => {
     writePersistedMobileHomeBoardUi(boardTab, activeChips, quickFilter)

@@ -21,14 +21,22 @@ describe('MaxBotService', () => {
         JSON.stringify({
           updates: [
             { update_type: 'message_created', chat_id: 101, timestamp: 1 },
-            { update_type: 'message_created', message: { chat_id: 202 }, timestamp: 2 },
+            {
+              update_type: 'message_created',
+              message: { chat_id: 202 },
+              timestamp: 2,
+            },
           ],
           marker: 77,
         }),
     }) as any;
 
     const service = new MaxBotService();
-    const result = await service.pollUpdates({ limit: 10, timeout: 0, types: ['message_created'] });
+    const result = await service.pollUpdates({
+      limit: 10,
+      timeout: 0,
+      types: ['message_created'],
+    });
 
     expect(result.chatIds).toEqual([101, 202]);
     expect(result.lastChatId).toBe(202);
@@ -47,20 +55,24 @@ describe('MaxBotService', () => {
     process.env.MAX_BOT_API_TOKEN = 'test-token';
     process.env.FRONTEND_URL = 'http://194.67.101.37:4173/';
 
-    global.fetch = jest.fn()
+    global.fetch = jest
+      .fn()
       .mockResolvedValueOnce({
         ok: true,
         status: 200,
         text: async () =>
           JSON.stringify({
-            updates: [{ update_type: 'message_created', chat_id: 555, timestamp: 1 }],
+            updates: [
+              { update_type: 'message_created', chat_id: 555, timestamp: 1 },
+            ],
             marker: 10,
           }),
       })
       .mockResolvedValueOnce({
         ok: true,
         status: 200,
-        text: async () => JSON.stringify({ message: { message_id: 'abc', chat_id: 555 } }),
+        text: async () =>
+          JSON.stringify({ message: { message_id: 'abc', chat_id: 555 } }),
       }) as any;
 
     const service = new MaxBotService();
@@ -82,7 +94,9 @@ describe('MaxBotService', () => {
       'https://platform-api2.max.ru/messages?chat_id=555',
       expect.objectContaining({ method: 'POST' }),
     );
-    expect(JSON.parse((global.fetch as jest.Mock).mock.calls[1][1].body)).toMatchObject({
+    expect(
+      JSON.parse((global.fetch as jest.Mock).mock.calls[1][1].body),
+    ).toMatchObject({
       attachments: expect.any(Array),
     });
   });
@@ -94,7 +108,9 @@ describe('MaxBotService', () => {
 
     const service = new MaxBotService();
 
-    await expect(service.sendTestMessage({})).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.sendTestMessage({})).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
   });
 
   it('logs status, statusText, path and body on non-2xx — without leaking the token', async () => {
@@ -111,7 +127,9 @@ describe('MaxBotService', () => {
     const service = new MaxBotService();
     const loggerWarnSpy = jest.spyOn((service as any).logger, 'warn');
 
-    await expect(service.pollUpdates({})).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.pollUpdates({})).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
 
     expect(loggerWarnSpy).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -132,28 +150,36 @@ describe('MaxBotService', () => {
     process.env.MAX_BOT_API_TOKEN = 'test-token';
     process.env.MAX_PUBLIC_FRONTEND_URL = 'http://194.67.101.37:4174/';
 
-    global.fetch = jest.fn()
+    global.fetch = jest
+      .fn()
       .mockResolvedValueOnce({
         ok: true,
         status: 200,
         text: async () =>
           JSON.stringify({
-            updates: [{ update_type: 'message_created', chat_id: 555, timestamp: 1 }],
+            updates: [
+              { update_type: 'message_created', chat_id: 555, timestamp: 1 },
+            ],
             marker: 10,
           }),
       })
       .mockResolvedValueOnce({
         ok: true,
         status: 200,
-        text: async () => JSON.stringify({ message: { message_id: 'abc', chat_id: 555 } }),
+        text: async () =>
+          JSON.stringify({ message: { message_id: 'abc', chat_id: 555 } }),
       }) as any;
 
     const service = new MaxBotService();
     await service.pollUpdates({});
     const result = await service.sendTestMessage({ ticketId: 'ticket-123' });
 
-    expect(result.frontendUrl).toBe('http://194.67.101.37:4174/m/tickets/ticket-123');
-    expect(result.text).not.toContain('http://194.67.101.37:4174/m/tickets/ticket-123');
+    expect(result.frontendUrl).toBe(
+      'http://194.67.101.37:4174/m/tickets/ticket-123',
+    );
+    expect(result.text).not.toContain(
+      'http://194.67.101.37:4174/m/tickets/ticket-123',
+    );
     expect(result.attachments?.[0]?.payload.buttons[0]?.[0]).toMatchObject({
       type: 'open_app',
       text: 'Открыть заявку',
@@ -203,7 +229,8 @@ describe('MaxBotService', () => {
       ok: false,
       status: 401,
       statusText: 'Unauthorized',
-      text: async () => '{"code":"verify.token","message":"Invalid access_token"}',
+      text: async () =>
+        '{"code":"verify.token","message":"Invalid access_token"}',
     }) as any;
 
     const service = new MaxBotService();
@@ -226,7 +253,9 @@ describe('MaxBotService', () => {
     }) as any;
 
     const service = new MaxBotService();
-    await service.registerWebhook({ url: 'https://api.example/max-bot/webhook' });
+    await service.registerWebhook({
+      url: 'https://api.example/max-bot/webhook',
+    });
 
     expect(global.fetch).toHaveBeenCalledWith(
       'https://platform-api2.max.ru/subscriptions',
@@ -285,7 +314,9 @@ describe('MaxBotService', () => {
       .fn()
       .mockImplementation(async (url: string, init?: RequestInit) => {
         if (String(url).includes('/messages?chat_id=-75137613795359')) {
-          const payload = sendResponses.shift() || { message: { message_id: 'mX' } };
+          const payload = sendResponses.shift() || {
+            message: { message_id: 'mX' },
+          };
           return {
             ok: true,
             status: 200,
@@ -326,8 +357,28 @@ describe('MaxBotService', () => {
     });
 
     const calls = (global.fetch as jest.Mock).mock.calls;
-    expect(calls[0][0]).toBe('https://platform-api2.max.ru/messages?chat_id=-75137613795359');
+    expect(calls[0][0]).toBe(
+      'https://platform-api2.max.ru/messages?chat_id=-75137613795359',
+    );
     const createdPayload = JSON.parse(calls[0][1].body);
+    expect(createdPayload).toMatchObject({
+      text: expect.stringContaining('Заявка №123'),
+    });
+    expect(createdPayload).toMatchObject({
+      text: expect.stringContaining('Точка: Уфа 1'),
+    });
+    expect(createdPayload).toMatchObject({
+      text: expect.stringContaining('Категория: Электрика'),
+    });
+    expect(createdPayload).toMatchObject({
+      text: expect.stringContaining('Срочность: Срочная'),
+    });
+    expect(createdPayload).toMatchObject({
+      text: expect.stringContaining('Статус: Новая'),
+    });
+    expect(createdPayload).toMatchObject({
+      text: expect.stringContaining('Исполнитель: Не назначен'),
+    });
     expect(createdPayload).toMatchObject({
       text: expect.stringContaining('Отправитель: Иван Петров'),
     });
@@ -335,9 +386,13 @@ describe('MaxBotService', () => {
       text: expect.stringContaining('Телефон: +7 999 123-45-67'),
     });
     expect(createdPayload).toMatchObject({
-      text: expect.stringContaining('Комментарий:\n"Не работает вывеска\n\nТребуется проверить"'),
+      text: expect.stringContaining(
+        'Комментарий:\n"Не работает вывеска\n\nТребуется проверить"',
+      ),
     });
-    expect(createdPayload.text).not.toContain('http://194.67.101.37:4173/m/tickets/ticket-123');
+    expect(createdPayload.text).not.toContain(
+      'http://194.67.101.37:4173/m/tickets/ticket-123',
+    );
     expect(createdPayload.attachments[0].payload.buttons[0][0]).toMatchObject({
       type: 'open_app',
       text: 'Открыть заявку',
@@ -345,7 +400,13 @@ describe('MaxBotService', () => {
       payload: 'ticket_ticket-123',
     });
     expect(JSON.parse(calls[1][1].body)).toMatchObject({
-      text: expect.stringContaining('Исполнитель: Иван Иванов / ivan@test.local'),
+      text: expect.stringContaining('Статус: Назначена'),
+      attachments: expect.any(Array),
+    });
+    expect(JSON.parse(calls[1][1].body)).toMatchObject({
+      text: expect.stringContaining(
+        'Исполнитель: Иван Иванов / ivan@test.local',
+      ),
       attachments: expect.any(Array),
     });
     expect(JSON.parse(calls[2][1].body)).toMatchObject({
@@ -473,11 +534,15 @@ describe('MaxBotService', () => {
         body: JSON.stringify({ text: '🏪 Кофейня U' }),
       }),
     );
-    expect(JSON.parse((global.fetch as jest.Mock).mock.calls[1][1].body)).toMatchObject({
+    expect(
+      JSON.parse((global.fetch as jest.Mock).mock.calls[1][1].body),
+    ).toMatchObject({
       reply_to_message_id: '1234',
       reply_to_mid: 1234,
     });
-    expect(JSON.parse((global.fetch as jest.Mock).mock.calls[2][1].body)).toMatchObject({
+    expect(
+      JSON.parse((global.fetch as jest.Mock).mock.calls[2][1].body),
+    ).toMatchObject({
       reply_to_message_id: '1234',
       reply_to_mid: 1234,
     });
@@ -538,7 +603,9 @@ describe('MaxBotService', () => {
     });
 
     expect(global.fetch).toHaveBeenCalledTimes(3);
-    expect(JSON.parse((global.fetch as jest.Mock).mock.calls[2][1].body)).toMatchObject({
+    expect(
+      JSON.parse((global.fetch as jest.Mock).mock.calls[2][1].body),
+    ).toMatchObject({
       text: expect.stringContaining('🆕 Новая заявка'),
     });
   });
@@ -568,11 +635,17 @@ describe('MaxBotService.extractChatId — webhook payload shapes', () => {
   });
 
   it('flat chat_id on update root (polling)', async () => {
-    expect(await chatIdsFrom([{ update_type: 'message_created', chat_id: -111 }])).toEqual([-111]);
+    expect(
+      await chatIdsFrom([{ update_type: 'message_created', chat_id: -111 }]),
+    ).toEqual([-111]);
   });
 
   it('message.chat_id (polling variant)', async () => {
-    expect(await chatIdsFrom([{ update_type: 'message_created', message: { chat_id: -222 } }])).toEqual([-222]);
+    expect(
+      await chatIdsFrom([
+        { update_type: 'message_created', message: { chat_id: -222 } },
+      ]),
+    ).toEqual([-222]);
   });
 
   it('message.recipient.chat_id (MAX webhook actual structure)', async () => {
@@ -590,40 +663,59 @@ describe('MaxBotService.extractChatId — webhook payload shapes', () => {
   });
 
   it('message.recipient.chatId (camelCase variant)', async () => {
-    expect(await chatIdsFrom([
-      { update_type: 'message_created', message: { recipient: { chatId: -333 } } },
-    ])).toEqual([-333]);
+    expect(
+      await chatIdsFrom([
+        {
+          update_type: 'message_created',
+          message: { recipient: { chatId: -333 } },
+        },
+      ]),
+    ).toEqual([-333]);
   });
 
   it('chat.id on update root', async () => {
-    expect(await chatIdsFrom([{ update_type: 'message_created', chat: { id: -444 } }])).toEqual([-444]);
+    expect(
+      await chatIdsFrom([
+        { update_type: 'message_created', chat: { id: -444 } },
+      ]),
+    ).toEqual([-444]);
   });
 
   it('dialog_id on update root', async () => {
-    expect(await chatIdsFrom([{ update_type: 'message_created', dialog_id: -555 }])).toEqual([-555]);
+    expect(
+      await chatIdsFrom([{ update_type: 'message_created', dialog_id: -555 }]),
+    ).toEqual([-555]);
   });
 
   it('returns no chatIds when structure is unrecognised', async () => {
-    expect(await chatIdsFrom([{ update_type: 'message_created', unknown_field: 'x' }])).toEqual([]);
+    expect(
+      await chatIdsFrom([
+        { update_type: 'message_created', unknown_field: 'x' },
+      ]),
+    ).toEqual([]);
   });
 
   it('reads callback.message.recipient.chat_id', async () => {
-    expect(await chatIdsFrom([
-      {
-        update_type: 'message_callback',
-        callback: {
-          callback_id: 'cb-1',
-          payload: 'help',
-          message: { recipient: { chat_id: -666 } },
+    expect(
+      await chatIdsFrom([
+        {
+          update_type: 'message_callback',
+          callback: {
+            callback_id: 'cb-1',
+            payload: 'help',
+            message: { recipient: { chat_id: -666 } },
+          },
         },
-      },
-    ])).toEqual([-666]);
+      ]),
+    ).toEqual([-666]);
   });
 
   it('falls back to the sender user_id for private bot_started updates', async () => {
-    expect(await chatIdsFrom([
-      { update_type: 'bot_started', user: { user_id: 4242 } },
-    ])).toEqual([4242]);
+    expect(
+      await chatIdsFrom([
+        { update_type: 'bot_started', user: { user_id: 4242 } },
+      ]),
+    ).toEqual([4242]);
   });
 });
 
@@ -702,7 +794,9 @@ describe('MaxBotService.handleWebhookUpdate — MAX webhook payload', () => {
       text: async () => JSON.stringify({ message: { mid: 'resp1' } }),
     }) as any;
 
-    const commandService = { handleUpdate: jest.fn().mockResolvedValue('📋 Доступные команды...') } as any;
+    const commandService = {
+      handleUpdate: jest.fn().mockResolvedValue('📋 Доступные команды...'),
+    } as any;
     const svc = new MaxBotService(undefined, commandService);
     const logSpy = jest.spyOn((svc as any).logger, 'log');
 
@@ -717,7 +811,9 @@ describe('MaxBotService.handleWebhookUpdate — MAX webhook payload', () => {
     expect(loggedEvents).toContain('max_bot_command_handled');
     expect(loggedEvents).toContain('max_bot_command_response_sent');
     expect(global.fetch).toHaveBeenCalledWith(
-      expect.stringContaining(`/messages?chat_id=${encodeURIComponent(String(GROUP_CHAT_ID))}`),
+      expect.stringContaining(
+        `/messages?chat_id=${encodeURIComponent(String(GROUP_CHAT_ID))}`,
+      ),
       expect.objectContaining({ method: 'POST' }),
     );
   });
@@ -728,10 +824,13 @@ describe('MaxBotService.handleWebhookUpdate — MAX webhook payload', () => {
       global.fetch = jest.fn().mockResolvedValue({
         ok: true,
         status: 200,
-        text: async () => JSON.stringify({ message: { mid: 'private-response' } }),
+        text: async () =>
+          JSON.stringify({ message: { mid: 'private-response' } }),
       }) as any;
 
-      const commandService = { handleUpdate: jest.fn().mockResolvedValue({ text: 'safe menu' }) } as any;
+      const commandService = {
+        handleUpdate: jest.fn().mockResolvedValue({ text: 'safe menu' }),
+      } as any;
       const svc = new MaxBotService(undefined, commandService);
 
       await svc.handleWebhookUpdate(makePrivateUpdate(text));
@@ -750,10 +849,13 @@ describe('MaxBotService.handleWebhookUpdate — MAX webhook payload', () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
       status: 200,
-      text: async () => JSON.stringify({ message: { mid: 'started-response' } }),
+      text: async () =>
+        JSON.stringify({ message: { mid: 'started-response' } }),
     }) as any;
 
-    const commandService = { handleUpdate: jest.fn().mockResolvedValue({ text: 'safe menu' }) } as any;
+    const commandService = {
+      handleUpdate: jest.fn().mockResolvedValue({ text: 'safe menu' }),
+    } as any;
     const svc = new MaxBotService(undefined, commandService);
 
     await svc.handleWebhookUpdate(makeBotStartedUpdate());
@@ -782,7 +884,11 @@ describe('MaxBotService.handleWebhookUpdate — MAX webhook payload', () => {
     await svc.handleWebhookUpdate(wrongChatUpdate);
 
     expect(commandService.handleUpdate).not.toHaveBeenCalled();
-    const ignored = logSpy.mock.calls.find(([obj, event]) => event === 'max_bot_update_ignored' && obj?.reason === 'other_group_chat');
+    const ignored = logSpy.mock.calls.find(
+      ([obj, event]) =>
+        event === 'max_bot_update_ignored' &&
+        obj?.reason === 'other_group_chat',
+    );
     expect(ignored).toBeDefined();
   });
 
@@ -790,7 +896,9 @@ describe('MaxBotService.handleWebhookUpdate — MAX webhook payload', () => {
     const fetchMock = jest.fn() as jest.Mock;
     global.fetch = fetchMock;
 
-    const commandService = { handleUpdate: jest.fn().mockResolvedValue(null) } as any;
+    const commandService = {
+      handleUpdate: jest.fn().mockResolvedValue(null),
+    } as any;
     const svc = new MaxBotService(undefined, commandService);
 
     await svc.handleWebhookUpdate(makeWebhookUpdate('Привет!'));
@@ -812,7 +920,9 @@ describe('MaxBotService.handleWebhookUpdate — MAX webhook payload', () => {
         attachments: [
           {
             type: 'inline_keyboard',
-            payload: { buttons: [[{ type: 'callback', text: 'Меню', payload: 'menu' }]] },
+            payload: {
+              buttons: [[{ type: 'callback', text: 'Меню', payload: 'menu' }]],
+            },
           },
         ],
       }),
@@ -834,7 +944,11 @@ describe('MaxBotService.handleWebhookUpdate — MAX webhook payload', () => {
             attachments: [
               {
                 type: 'inline_keyboard',
-                payload: { buttons: [[{ type: 'callback', text: 'Меню', payload: 'menu' }]] },
+                payload: {
+                  buttons: [
+                    [{ type: 'callback', text: 'Меню', payload: 'menu' }],
+                  ],
+                },
               },
             ],
           },

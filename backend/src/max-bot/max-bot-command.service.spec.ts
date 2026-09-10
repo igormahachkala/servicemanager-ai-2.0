@@ -1,5 +1,8 @@
 import { MaxBotCommandService } from './max-bot-command.service';
 import { MaxIdentityService } from './max-identity.service';
+import { CompanyType, UserRole } from '@prisma/client';
+
+import { PERMISSIONS } from '../common/permissions.constants';
 
 /**
  * A prisma double whose every ticket accessor throws. If any command path still reads
@@ -13,6 +16,46 @@ function makeForbiddenPrisma() {
   return {
     ticket: { findMany: boom, findUnique: boom, findFirst: boom, count: boom },
     maxUserBinding: { findUnique: jest.fn().mockResolvedValue(null) },
+  } as any;
+}
+
+function makeBoundMenuPrisma(
+  options: {
+    companyType?: CompanyType;
+    rolePermissions?: string[];
+    userPermissions?: string[];
+    permissionBlockCount?: number;
+  } = {},
+) {
+  const boom = jest.fn(() => {
+    throw new Error('ticket data must never be read from a MAX command');
+  });
+  const rolePermissions = options.rolePermissions ?? [];
+  const userPermissions = options.userPermissions ?? [];
+  return {
+    ticket: { findMany: boom, findUnique: boom, findFirst: boom, count: boom },
+    company: {
+      findUnique: jest.fn().mockResolvedValue({
+        type: options.companyType ?? CompanyType.PROVIDER,
+      }),
+    },
+    permissionBlock: {
+      count: jest.fn().mockResolvedValue(options.permissionBlockCount ?? 10),
+    },
+    rolePermission: {
+      findMany: jest
+        .fn()
+        .mockResolvedValue(
+          rolePermissions.map((code) => ({ permissionBlock: { code } })),
+        ),
+    },
+    userPermission: {
+      findMany: jest
+        .fn()
+        .mockResolvedValue(
+          userPermissions.map((code) => ({ permissionBlock: { code } })),
+        ),
+    },
   } as any;
 }
 
@@ -35,7 +78,9 @@ const callback = (payload: string) => ({
   },
 });
 
-function buttonsOf(response: Awaited<ReturnType<MaxBotCommandService['handleUpdate']>>) {
+function buttonsOf(
+  response: Awaited<ReturnType<MaxBotCommandService['handleUpdate']>>,
+) {
   return response?.attachments?.[0]?.payload.buttons.flat() || [];
 }
 
@@ -53,8 +98,15 @@ describe('MaxBotCommandService — entry points', () => {
     expect(res?.text).toContain('Сервис Менеджер');
     expect(buttonsOf(res)).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ type: 'open_app', text: 'Открыть ServiceManager' }),
-        expect.objectContaining({ type: 'callback', text: 'Помощь', payload: 'help' }),
+        expect.objectContaining({
+          type: 'open_app',
+          text: 'Открыть ServiceManager',
+        }),
+        expect.objectContaining({
+          type: 'callback',
+          text: 'Помощь',
+          payload: 'help',
+        }),
       ]),
     );
   });
@@ -79,8 +131,15 @@ describe('MaxBotCommandService — entry points', () => {
     expect(res?.text).not.toContain('/open');
     expect(buttonsOf(res)).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ type: 'open_app', text: 'Открыть ServiceManager' }),
-        expect.objectContaining({ type: 'callback', text: 'Меню', payload: 'menu' }),
+        expect.objectContaining({
+          type: 'open_app',
+          text: 'Открыть ServiceManager',
+        }),
+        expect.objectContaining({
+          type: 'callback',
+          text: 'Меню',
+          payload: 'menu',
+        }),
       ]),
     );
   });
@@ -88,6 +147,8 @@ describe('MaxBotCommandService — entry points', () => {
   it('/status still answers for operators', async () => {
     const res = await makeService().handleUpdate(msg('/status'));
     expect(res?.text).toContain('бот онлайн');
+    expect(res?.text).not.toContain('Среда:');
+    expect(res?.text).not.toContain('Режим:');
   });
 
   it('uses open_app rather than a plain URL when a frontend URL is configured', async () => {
@@ -110,7 +171,10 @@ describe('MaxBotCommandService — unknown input is never silent', () => {
     expect(res?.text).toContain('Не понял запрос');
     expect(res?.text).toContain('Сервис Менеджер');
     expect(buttonsOf(res)).toContainEqual(
-      expect.objectContaining({ type: 'open_app', text: 'Открыть ServiceManager' }),
+      expect.objectContaining({
+        type: 'open_app',
+        text: 'Открыть ServiceManager',
+      }),
     );
   });
 
@@ -121,30 +185,44 @@ describe('MaxBotCommandService — unknown input is never silent', () => {
   });
 
   it('still returns null when the update carries no text at all', async () => {
-    expect(await makeService().handleUpdate({ update_type: 'message_created' })).toBeNull();
+    expect(
+      await makeService().handleUpdate({ update_type: 'message_created' }),
+    ).toBeNull();
   });
 });
 
 describe('MaxBotCommandService — legacy data commands are closed', () => {
-  it.each(['/tickets', '/ticket 1', '/ticket 123', '/ticket 999999', '/open 1', '/open 123', '/open arbitrary-id'])(
-    '%s returns navigation and reads no ticket data',
-    async (input) => {
-      const prisma = makeForbiddenPrisma();
-      const res = await makeService(prisma).handleUpdate(msg(input));
-      expect(res?.text).toContain('Заявки теперь открываются в приложении');
-      expect(buttonsOf(res)).toContainEqual(
-        expect.objectContaining({ type: 'open_app', text: 'Открыть ServiceManager' }),
-      );
-    },
-  );
+  it.each([
+    '/tickets',
+    '/ticket 1',
+    '/ticket 123',
+    '/ticket 999999',
+    '/open 1',
+    '/open 123',
+    '/open arbitrary-id',
+  ])('%s returns navigation and reads no ticket data', async (input) => {
+    const prisma = makeForbiddenPrisma();
+    const res = await makeService(prisma).handleUpdate(msg(input));
+    expect(res?.text).toContain('Заявки теперь открываются в приложении');
+    expect(buttonsOf(res)).toContainEqual(
+      expect.objectContaining({
+        type: 'open_app',
+        text: 'Открыть ServiceManager',
+      }),
+    );
+  });
 
-  it.each(['/tickets', '/ticket 1', '/ticket 123', '/ticket 999999', '/open 1', '/open arbitrary-id'])(
-    '%s discloses nothing about ticket existence',
-    async (input) => {
-      const res = await makeService().handleUpdate(msg(input));
-      expect(res?.text).not.toMatch(/не найдена|Заявка №|\d{3,}/);
-    },
-  );
+  it.each([
+    '/tickets',
+    '/ticket 1',
+    '/ticket 123',
+    '/ticket 999999',
+    '/open 1',
+    '/open arbitrary-id',
+  ])('%s discloses nothing about ticket existence', async (input) => {
+    const res = await makeService().handleUpdate(msg(input));
+    expect(res?.text).not.toMatch(/не найдена|Заявка №|\d{3,}/);
+  });
 
   it('gives an identical reply for an existing-looking and an absurd ticket number', async () => {
     const a = await makeService().handleUpdate(msg('/ticket 1'));
@@ -153,7 +231,13 @@ describe('MaxBotCommandService — legacy data commands are closed', () => {
   });
 
   it('never emits requester identity fields', async () => {
-    for (const input of ['/tickets', '/ticket 1', '/open 1', '/start', '/help']) {
+    for (const input of [
+      '/tickets',
+      '/ticket 1',
+      '/open 1',
+      '/start',
+      '/help',
+    ]) {
       const res = await makeService().handleUpdate(msg(input));
       expect(res?.text).not.toContain('Заявитель');
       expect(res?.text).not.toContain('Телефон');
@@ -174,28 +258,167 @@ describe('MaxBotCommandService — unbound identity leaks nothing', () => {
     expect(res?.text).not.toContain('Требуют приёмки');
   });
 
-  it('a bound MAX user still enters through the identity resolver and receives no business data', async () => {
+  it('a bound MAX user enters through identity and PBAC, then receives only navigation', async () => {
     const identity = {
       resolve: jest.fn().mockResolvedValue({
         resolved: true,
         userId: 'user-1',
         companyId: 'company-1',
-        role: 'ADMIN',
+        role: UserRole.ADMIN,
         maxUserId: '4242',
       }),
     };
-    const service = new MaxBotCommandService(makeForbiddenPrisma(), identity as any);
+    const prisma = makeBoundMenuPrisma({
+      companyType: CompanyType.PROVIDER,
+      rolePermissions: [
+        PERMISSIONS.TICKETS_VIEW,
+        PERMISSIONS.TICKETS_VIEW_AVAILABLE,
+        PERMISSIONS.LOCATIONS_VIEW,
+        PERMISSIONS.WORKFORCE_SHIFT_USE,
+      ],
+    });
+    const service = new MaxBotCommandService(prisma, identity as any);
     const update = botStarted();
 
     const res = await service.handleUpdate(update);
 
     expect(identity.resolve).toHaveBeenCalledWith(update);
+    expect(buttonsOf(res).map((button) => button.text)).toEqual(
+      expect.arrayContaining([
+        'Открыть ServiceManager',
+        'Мои заявки',
+        'Сегодня',
+        'Доступные заявки',
+        'Обходы',
+        'Моя смена',
+      ]),
+    );
+    expect(res?.text).toContain('Подробности заявок открываются в приложении');
+    expect(res?.text).not.toContain('Требуют приёмки');
+    expect(prisma.ticket.findMany).not.toHaveBeenCalled();
+    expect(prisma.rolePermission.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          role: UserRole.ADMIN,
+          OR: [{ companyType: CompanyType.PROVIDER }, { companyType: null }],
+        }),
+      }),
+    );
+  });
+
+  it('uses companyType-scoped grants and does not offer provider queue to client admin', async () => {
+    const identity = {
+      resolve: jest.fn().mockResolvedValue({
+        resolved: true,
+        userId: 'user-1',
+        companyId: 'company-1',
+        role: UserRole.ADMIN,
+        maxUserId: '4242',
+      }),
+    };
+    const service = new MaxBotCommandService(
+      makeBoundMenuPrisma({
+        companyType: CompanyType.CLIENT,
+        rolePermissions: [PERMISSIONS.TICKETS_VIEW, PERMISSIONS.LOCATIONS_VIEW],
+      }),
+      identity as any,
+    );
+
+    const res = await service.handleUpdate(botStarted());
+    const buttonTexts = buttonsOf(res).map((button) => button.text);
+    expect(buttonTexts).toContain('Мои заявки');
+    expect(buttonTexts).toContain('Сегодня');
+    expect(buttonTexts).toContain('Обходы');
+    expect(buttonTexts).toContain('Требуют приёмки');
+    expect(buttonTexts).not.toContain('Доступные заявки');
+  });
+
+  it('fails closed when PBAC is not initialized', async () => {
+    const identity = {
+      resolve: jest.fn().mockResolvedValue({
+        resolved: true,
+        userId: 'user-1',
+        companyId: 'company-1',
+        role: UserRole.TECHNICIAN,
+        maxUserId: '4242',
+      }),
+    };
+    const service = new MaxBotCommandService(
+      makeBoundMenuPrisma({ permissionBlockCount: 0 }),
+      identity as any,
+    );
+
+    const res = await service.handleUpdate(botStarted());
     expect(buttonsOf(res).map((button) => button.text)).toEqual([
       'Открыть ServiceManager',
+      'Уведомления',
       'Помощь',
     ]);
-    expect(res?.text).not.toContain('Мои заявки');
-    expect(res?.text).not.toContain('Требуют приёмки');
+  });
+});
+
+describe('MaxBotCommandService — RU workspace text actions', () => {
+  function makeBoundService(rolePermissions: string[]) {
+    const identity = {
+      resolve: jest.fn().mockResolvedValue({
+        resolved: true,
+        userId: 'user-1',
+        companyId: 'company-1',
+        role: UserRole.TECHNICIAN,
+        maxUserId: '4242',
+      }),
+    };
+    return new MaxBotCommandService(
+      makeBoundMenuPrisma({
+        rolePermissions,
+        companyType: CompanyType.PROVIDER,
+      }),
+      identity as any,
+    );
+  }
+
+  it.each([
+    ['Мои заявки', 'Мои заявки', 'my'],
+    ['Открыть заявку', 'Мои заявки', 'my'],
+    ['Сегодня', 'Сегодня', 'today'],
+    ['Обходы', 'Обходы', 'rounds'],
+    ['Моя смена', 'Моя смена', 'shift'],
+  ])(
+    '%s opens a permitted workspace target',
+    async (text, buttonText, payload) => {
+      const service = makeBoundService([
+        PERMISSIONS.TICKETS_VIEW,
+        PERMISSIONS.LOCATIONS_VIEW,
+        PERMISSIONS.WORKFORCE_SHIFT_USE,
+      ]);
+
+      const res = await service.handleUpdate(msg(text));
+
+      expect(buttonsOf(res)).toContainEqual(
+        expect.objectContaining({
+          type: 'open_app',
+          text: buttonText,
+          payload,
+        }),
+      );
+      expect(JSON.stringify(res)).not.toMatch(
+        /Принять|Завершить|Назначить на себя/,
+      );
+    },
+  );
+
+  it('does not expose a shift entrypoint when PBAC lacks WORKFORCE_SHIFT_USE', async () => {
+    const service = makeBoundService([
+      PERMISSIONS.TICKETS_VIEW,
+      PERMISSIONS.LOCATIONS_VIEW,
+    ]);
+
+    const res = await service.handleUpdate(msg('Моя смена'));
+
+    expect(res?.text).toContain('Действие недоступно для вашей роли');
+    expect(buttonsOf(res).map((button) => button.text)).not.toContain(
+      'Моя смена',
+    );
   });
 });
 
@@ -203,7 +426,9 @@ describe('MaxBotCommandService — callbacks are navigation/help only', () => {
   it('renders help for the help callback', async () => {
     const res = await makeService().handleUpdate(callback('help'));
     expect(res?.text).toContain('Помощь');
-    expect(JSON.stringify(res)).not.toMatch(/Принять|Отклонить|Взять|Назначить/);
+    expect(JSON.stringify(res)).not.toMatch(
+      /Принять|Отклонить|Взять|Назначить/,
+    );
   });
 
   it('renders the safe menu for unknown callbacks', async () => {
@@ -232,6 +457,8 @@ describe('MaxBotCommandService — text extraction regressions', () => {
   });
 
   it('returns null when message.body is an object without text', async () => {
-    expect(await makeService().handleUpdate({ message: { body: { mid: 'm1' } } })).toBeNull();
+    expect(
+      await makeService().handleUpdate({ message: { body: { mid: 'm1' } } }),
+    ).toBeNull();
   });
 });

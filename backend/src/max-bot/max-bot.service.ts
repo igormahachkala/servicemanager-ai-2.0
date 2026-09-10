@@ -17,7 +17,10 @@ import {
   renderTicketNavigationMessage,
   type MaxTicketNotificationButtonKind,
 } from './max-menu.builder';
-import { getMaxBotRuntimeDiagnostics, type MaxBotRuntimeDiagnostics } from './max-bot-runtime';
+import {
+  getMaxBotRuntimeDiagnostics,
+  type MaxBotRuntimeDiagnostics,
+} from './max-bot-runtime';
 import {
   MAX_BOT_COMMAND_UPDATE_TYPES,
   type MaxBotCommandResponse,
@@ -116,18 +119,31 @@ type CommandChatDecision = {
 };
 
 const PRIVATE_MAX_CHAT_TYPES = new Set(['dialog', 'private', 'direct', 'user']);
-const GROUP_MAX_CHAT_TYPES = new Set(['chat', 'group', 'supergroup', 'channel']);
+const GROUP_MAX_CHAT_TYPES = new Set([
+  'chat',
+  'group',
+  'supergroup',
+  'channel',
+]);
 
 @Injectable()
 export class MaxBotService implements OnModuleInit {
   private readonly logger = new Logger(MaxBotService.name);
-  private readonly baseUrl = this.normalizeBaseUrl(process.env.MAX_BOT_API_BASE_URL || 'https://platform-api2.max.ru');
+  private readonly baseUrl = this.normalizeBaseUrl(
+    process.env.MAX_BOT_API_BASE_URL || 'https://platform-api2.max.ru',
+  );
   private readonly token = (process.env.MAX_BOT_API_TOKEN || '').trim();
   private readonly frontendUrl = this.resolveFrontendUrl();
-  private readonly botUsername = normalizeMaxBotUsername(process.env.MAX_BOT_USERNAME);
+  private readonly botUsername = normalizeMaxBotUsername(
+    process.env.MAX_BOT_USERNAME,
+  );
   private readonly groupChatId = this.resolveGroupChatId();
-  private readonly runtimeDiagnostics: MaxBotRuntimeDiagnostics = getMaxBotRuntimeDiagnostics();
-  private readonly locationAnchorLocks = new Map<string, Promise<LocationAnchor | null>>();
+  private readonly runtimeDiagnostics: MaxBotRuntimeDiagnostics =
+    getMaxBotRuntimeDiagnostics();
+  private readonly locationAnchorLocks = new Map<
+    string,
+    Promise<LocationAnchor | null>
+  >();
   private lastChatId: number | null = null;
   private lastMarker: number | null = null;
 
@@ -145,7 +161,9 @@ export class MaxBotService implements OnModuleInit {
   }
 
   private async validateTokenConnectivity(): Promise<MaxBotTokenValidation> {
-    const required = this.runtimeDiagnostics.commandsEnabled || this.runtimeDiagnostics.webhookEnabled;
+    const required =
+      this.runtimeDiagnostics.commandsEnabled ||
+      this.runtimeDiagnostics.webhookEnabled;
     const path = '/subscriptions?limit=1';
     if (!required) {
       return {
@@ -211,7 +229,9 @@ export class MaxBotService implements OnModuleInit {
   async getHealthDiagnostics() {
     const tokenValidation = await this.validateTokenConnectivity();
     const status =
-      this.runtimeDiagnostics.status === 'ok' && tokenValidation.ok ? 'ok' : 'degraded';
+      this.runtimeDiagnostics.status === 'ok' && tokenValidation.ok
+        ? 'ok'
+        : 'degraded';
     return {
       status,
       diagnostics: this.runtimeDiagnostics,
@@ -246,7 +266,11 @@ export class MaxBotService implements OnModuleInit {
   }
 
   private resolveFrontendUrl() {
-    const raw = (process.env.MAX_PUBLIC_FRONTEND_URL || process.env.FRONTEND_URL || '').trim();
+    const raw = (
+      process.env.MAX_PUBLIC_FRONTEND_URL ||
+      process.env.FRONTEND_URL ||
+      ''
+    ).trim();
     if (!raw) return null;
     return raw.replace(/\/+$/, '');
   }
@@ -284,9 +308,9 @@ export class MaxBotService implements OnModuleInit {
 
   private formatShortTicketLabel(ticketNumber: number, ticketId: string) {
     if (Number.isFinite(ticketNumber) && ticketNumber > 0) {
-      return `#${ticketNumber}`;
+      return `№${ticketNumber}`;
     }
-    return `#${ticketId.slice(0, 8).toUpperCase()}`;
+    return `№${ticketId.slice(0, 8).toUpperCase()}`;
   }
 
   private formatUrgencyLabel(urgency?: TicketUrgency | string | null) {
@@ -394,7 +418,10 @@ export class MaxBotService implements OnModuleInit {
   private extractMessageId(payload: unknown): string | null {
     if (!payload || typeof payload !== 'object') return null;
     const root = payload as Record<string, unknown>;
-    const message = root.message && typeof root.message === 'object' ? (root.message as Record<string, unknown>) : null;
+    const message =
+      root.message && typeof root.message === 'object'
+        ? (root.message as Record<string, unknown>)
+        : null;
     const candidates = [
       message?.mid,
       message?.message_id,
@@ -406,8 +433,10 @@ export class MaxBotService implements OnModuleInit {
       root.id,
     ];
     for (const candidate of candidates) {
-      if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
-      if (typeof candidate === 'number' && Number.isFinite(candidate)) return String(candidate);
+      if (typeof candidate === 'string' && candidate.trim())
+        return candidate.trim();
+      if (typeof candidate === 'number' && Number.isFinite(candidate))
+        return String(candidate);
       if (typeof candidate === 'bigint') return candidate.toString();
     }
     return null;
@@ -415,18 +444,32 @@ export class MaxBotService implements OnModuleInit {
 
   private parseReplyMessageId(messageId: string) {
     const numeric = Number(messageId);
-    if (Number.isFinite(numeric) && String(Math.trunc(numeric)) === messageId.trim()) {
-      return { reply_to_message_id: messageId, reply_to_mid: Math.trunc(numeric) };
+    if (
+      Number.isFinite(numeric) &&
+      String(Math.trunc(numeric)) === messageId.trim()
+    ) {
+      return {
+        reply_to_message_id: messageId,
+        reply_to_mid: Math.trunc(numeric),
+      };
     }
     return { reply_to_message_id: messageId };
   }
 
-  private normalizeMessageBody(message: string | MaxBotMessageBody): MaxBotMessageBody {
+  private normalizeMessageBody(
+    message: string | MaxBotMessageBody,
+  ): MaxBotMessageBody {
     return typeof message === 'string' ? { text: message } : message;
   }
 
-  private async sendRawMessage(chatId: number, message: string | MaxBotMessageBody, replyToMessageId?: string | null) {
-    const body: Record<string, unknown> = { ...this.normalizeMessageBody(message) };
+  private async sendRawMessage(
+    chatId: number,
+    message: string | MaxBotMessageBody,
+    replyToMessageId?: string | null,
+  ) {
+    const body: Record<string, unknown> = {
+      ...this.normalizeMessageBody(message),
+    };
     if (replyToMessageId) {
       Object.assign(body, this.parseReplyMessageId(replyToMessageId));
     }
@@ -445,7 +488,9 @@ export class MaxBotService implements OnModuleInit {
       {
         chatId,
         text: text.slice(0, 220),
-        attachments: Array.isArray(body.attachments) ? body.attachments.length : 0,
+        attachments: Array.isArray(body.attachments)
+          ? body.attachments.length
+          : 0,
       },
       'max_bot_message_sent',
     );
@@ -459,7 +504,10 @@ export class MaxBotService implements OnModuleInit {
     };
   }
 
-  private async findLocationAnchorRecord(companyId: string, locationId: string): Promise<LocationAnchor | null> {
+  private async findLocationAnchorRecord(
+    companyId: string,
+    locationId: string,
+  ): Promise<LocationAnchor | null> {
     if (!this.prisma || this.groupChatId === null) return null;
     return this.prisma.maxLocationThread.findUnique({
       where: {
@@ -471,7 +519,11 @@ export class MaxBotService implements OnModuleInit {
     });
   }
 
-  private async loadLocationName(companyId: string, locationId: string, fallback?: string | null) {
+  private async loadLocationName(
+    companyId: string,
+    locationId: string,
+    fallback?: string | null,
+  ) {
     const fallbackName = this.normalizeSingleLine(fallback);
     if (!this.prisma) return fallbackName || 'Локация';
     const location = await this.prisma.location.findFirst({
@@ -482,7 +534,9 @@ export class MaxBotService implements OnModuleInit {
       },
       select: { name: true },
     });
-    return this.normalizeSingleLine(location?.name) || fallbackName || 'Локация';
+    return (
+      this.normalizeSingleLine(location?.name) || fallbackName || 'Локация'
+    );
   }
 
   async getOrCreateLocationAnchor(params: {
@@ -498,17 +552,28 @@ export class MaxBotService implements OnModuleInit {
     if (existingLock) return existingLock;
 
     const task = (async () => {
-      const existing = await this.findLocationAnchorRecord(params.companyId, params.locationId);
+      const existing = await this.findLocationAnchorRecord(
+        params.companyId,
+        params.locationId,
+      );
       if (existing?.anchorMessageId) {
         return existing;
       }
 
-      const locationName = await this.loadLocationName(params.companyId, params.locationId, params.locationName);
+      const locationName = await this.loadLocationName(
+        params.companyId,
+        params.locationId,
+        params.locationName,
+      );
       const sent = await this.sendRawMessage(groupChatId, `🏪 ${locationName}`);
       const anchorMessageId = sent.messageId;
       if (!anchorMessageId) {
         this.logger.warn(
-          { companyId: params.companyId, locationId: params.locationId, chatId: groupChatId },
+          {
+            companyId: params.companyId,
+            locationId: params.locationId,
+            chatId: groupChatId,
+          },
           'max_location_anchor_message_id_missing',
         );
         return null;
@@ -580,7 +645,11 @@ export class MaxBotService implements OnModuleInit {
       return this.sendOperationalMessage(params.message);
     }
     try {
-      return await this.sendRawMessage(this.groupChatId!, params.message, anchor.anchorMessageId);
+      return await this.sendRawMessage(
+        this.groupChatId!,
+        params.message,
+        anchor.anchorMessageId,
+      );
     } catch (err) {
       this.logger.warn(
         {
@@ -601,14 +670,19 @@ export class MaxBotService implements OnModuleInit {
 
   async sendTicketCreatedMessage(params: TicketCreatedMessageParams) {
     const lines = ['🆕 Новая заявка'];
-    lines.push(`Заявка: ${this.formatShortTicketLabel(params.ticketNumber, params.ticketId)}`);
+    lines.push(
+      `Заявка ${this.formatShortTicketLabel(params.ticketNumber, params.ticketId)}`,
+    );
 
-    const requester = this.normalizeSingleLine(params.requesterLabel) || 'Не указан';
-    const phone = this.normalizeSingleLine(params.requesterPhone) || 'Не указан';
+    const requester =
+      this.normalizeSingleLine(params.requesterLabel) || 'Не указан';
+    const phone =
+      this.normalizeSingleLine(params.requesterPhone) || 'Не указан';
     lines.push(`Отправитель: ${requester}`);
     lines.push(`Телефон: ${phone}`);
 
-    const point = this.formatLocationLine(params) || (params.address || '').trim();
+    const point =
+      this.formatLocationLine(params) || (params.address || '').trim();
     if (point) {
       lines.push(`Точка: ${point}`);
     }
@@ -619,12 +693,19 @@ export class MaxBotService implements OnModuleInit {
     if (urgency) {
       lines.push(`Срочность: ${urgency}`);
     }
+    lines.push(`Статус: ${this.formatStatusLabel(TicketStatus.NEW)}`);
+    lines.push('Исполнитель: Не назначен');
 
     lines.push('Комментарий:');
-    const comment = this.normalizeMultiline(params.description) || 'Комментарий отсутствует';
+    const comment =
+      this.normalizeMultiline(params.description) || 'Комментарий отсутствует';
     lines.push(`"${comment}"`);
 
-    const message = this.ticketNavigationMessage(this.clip(lines.join('\n')), params.ticketId, 'ticket');
+    const message = this.ticketNavigationMessage(
+      this.clip(lines.join('\n')),
+      params.ticketId,
+      'ticket',
+    );
 
     return this.sendLocationReplyNotification({
       companyId: params.companyId,
@@ -636,15 +717,22 @@ export class MaxBotService implements OnModuleInit {
 
   async sendTicketAssignedMessage(params: TicketAssignedMessageParams) {
     const lines = ['👷 Заявка назначена'];
-    lines.push(`Заявка: ${this.formatShortTicketLabel(params.ticketNumber, params.ticketId)}`);
+    lines.push(
+      `Заявка ${this.formatShortTicketLabel(params.ticketNumber, params.ticketId)}`,
+    );
     const point = this.formatLocationLine(params);
     if (point) {
       lines.push(`Точка: ${point}`);
     }
+    lines.push(`Статус: ${this.formatStatusLabel(TicketStatus.ASSIGNED)}`);
     const tech = (params.technicianLabel || '').trim();
     lines.push(`Исполнитель: ${tech || 'Исполнитель'}`);
 
-    const message = this.ticketNavigationMessage(this.clip(lines.join('\n')), params.ticketId, 'assignment');
+    const message = this.ticketNavigationMessage(
+      this.clip(lines.join('\n')),
+      params.ticketId,
+      'assignment',
+    );
 
     return this.sendLocationReplyNotification({
       companyId: params.companyId,
@@ -656,15 +744,22 @@ export class MaxBotService implements OnModuleInit {
 
   async sendTicketClaimedMessage(params: TicketClaimedMessageParams) {
     const lines = ['🙋 Заявка взята в работу'];
-    lines.push(`Заявка: ${this.formatShortTicketLabel(params.ticketNumber, params.ticketId)}`);
+    lines.push(
+      `Заявка ${this.formatShortTicketLabel(params.ticketNumber, params.ticketId)}`,
+    );
     const point = this.formatLocationLine(params);
     if (point) {
       lines.push(`Точка: ${point}`);
     }
+    lines.push(`Статус: ${this.formatStatusLabel(TicketStatus.ASSIGNED)}`);
     const tech = (params.technicianLabel || '').trim();
     lines.push(`Исполнитель: ${tech || 'Исполнитель'}`);
 
-    const message = this.ticketNavigationMessage(this.clip(lines.join('\n')), params.ticketId, 'ticket');
+    const message = this.ticketNavigationMessage(
+      this.clip(lines.join('\n')),
+      params.ticketId,
+      'ticket',
+    );
 
     return this.sendLocationReplyNotification({
       companyId: params.companyId,
@@ -674,18 +769,30 @@ export class MaxBotService implements OnModuleInit {
     });
   }
 
-  async sendTicketStatusChangedMessage(params: TicketStatusChangedMessageParams) {
+  async sendTicketStatusChangedMessage(
+    params: TicketStatusChangedMessageParams,
+  ) {
     const lines = ['🔄 Статус заявки изменён'];
-    lines.push(`Заявка: ${this.formatShortTicketLabel(params.ticketNumber, params.ticketId)}`);
+    lines.push(
+      `Заявка ${this.formatShortTicketLabel(params.ticketNumber, params.ticketId)}`,
+    );
     const point = this.formatLocationLine(params);
     if (point) {
       lines.push(`Точка: ${point}`);
     }
-    lines.push(`Статус: ${this.formatStatusLabel(params.fromStatus)} → ${this.formatStatusLabel(params.toStatus)}`);
+    lines.push(
+      `Статус: ${this.formatStatusLabel(params.fromStatus)} → ${this.formatStatusLabel(params.toStatus)}`,
+    );
 
     const buttonKind: MaxTicketNotificationButtonKind =
-      params.toStatus === TicketStatus.AWAITING_ACCEPTANCE ? 'acceptance' : 'ticket';
-    const message = this.ticketNavigationMessage(this.clip(lines.join('\n')), params.ticketId, buttonKind);
+      params.toStatus === TicketStatus.AWAITING_ACCEPTANCE
+        ? 'acceptance'
+        : 'ticket';
+    const message = this.ticketNavigationMessage(
+      this.clip(lines.join('\n')),
+      params.ticketId,
+      buttonKind,
+    );
 
     return this.sendLocationReplyNotification({
       companyId: params.companyId,
@@ -721,7 +828,10 @@ export class MaxBotService implements OnModuleInit {
       return { text: customText };
     }
 
-    return renderOpenAppMessage('Сервис Менеджер MAX bot test', this.botUsername);
+    return renderOpenAppMessage(
+      'Сервис Менеджер MAX bot test',
+      this.botUsername,
+    );
   }
 
   private buildUrl(path: string, params?: URLSearchParams) {
@@ -804,28 +914,51 @@ export class MaxBotService implements OnModuleInit {
   }
 
   private extractChatId(update: MaxBotUpdate): number | null {
-    const msg = update.message && typeof update.message === 'object'
-      ? (update.message as Record<string, unknown>) : null;
-    const topChat = update.chat && typeof update.chat === 'object'
-      ? (update.chat as Record<string, unknown>) : null;
-    const topRecipient = update.recipient && typeof update.recipient === 'object'
-      ? (update.recipient as Record<string, unknown>) : null;
-    const msgRecipient = msg?.recipient && typeof msg.recipient === 'object'
-      ? (msg.recipient as Record<string, unknown>) : null;
-    const msgChat = msg?.chat && typeof msg.chat === 'object'
-      ? (msg.chat as Record<string, unknown>) : null;
-    const callback = update.callback && typeof update.callback === 'object'
-      ? (update.callback as Record<string, unknown>) : null;
-    const callbackChat = callback?.chat && typeof callback.chat === 'object'
-      ? (callback.chat as Record<string, unknown>) : null;
-    const callbackRecipient = callback?.recipient && typeof callback.recipient === 'object'
-      ? (callback.recipient as Record<string, unknown>) : null;
-    const callbackMessage = callback?.message && typeof callback.message === 'object'
-      ? (callback.message as Record<string, unknown>) : null;
-    const callbackMessageRecipient = callbackMessage?.recipient && typeof callbackMessage.recipient === 'object'
-      ? (callbackMessage.recipient as Record<string, unknown>) : null;
-    const callbackMessageChat = callbackMessage?.chat && typeof callbackMessage.chat === 'object'
-      ? (callbackMessage.chat as Record<string, unknown>) : null;
+    const msg =
+      update.message && typeof update.message === 'object'
+        ? (update.message as Record<string, unknown>)
+        : null;
+    const topChat =
+      update.chat && typeof update.chat === 'object'
+        ? (update.chat as Record<string, unknown>)
+        : null;
+    const topRecipient =
+      update.recipient && typeof update.recipient === 'object'
+        ? (update.recipient as Record<string, unknown>)
+        : null;
+    const msgRecipient =
+      msg?.recipient && typeof msg.recipient === 'object'
+        ? (msg.recipient as Record<string, unknown>)
+        : null;
+    const msgChat =
+      msg?.chat && typeof msg.chat === 'object'
+        ? (msg.chat as Record<string, unknown>)
+        : null;
+    const callback =
+      update.callback && typeof update.callback === 'object'
+        ? (update.callback as Record<string, unknown>)
+        : null;
+    const callbackChat =
+      callback?.chat && typeof callback.chat === 'object'
+        ? (callback.chat as Record<string, unknown>)
+        : null;
+    const callbackRecipient =
+      callback?.recipient && typeof callback.recipient === 'object'
+        ? (callback.recipient as Record<string, unknown>)
+        : null;
+    const callbackMessage =
+      callback?.message && typeof callback.message === 'object'
+        ? (callback.message as Record<string, unknown>)
+        : null;
+    const callbackMessageRecipient =
+      callbackMessage?.recipient &&
+      typeof callbackMessage.recipient === 'object'
+        ? (callbackMessage.recipient as Record<string, unknown>)
+        : null;
+    const callbackMessageChat =
+      callbackMessage?.chat && typeof callbackMessage.chat === 'object'
+        ? (callbackMessage.chat as Record<string, unknown>)
+        : null;
 
     const candidates = [
       // top-level flat fields (polling responses)
@@ -890,7 +1023,11 @@ export class MaxBotService implements OnModuleInit {
     }
 
     if (chatType && GROUP_MAX_CHAT_TYPES.has(chatType)) {
-      return { allowed: false, scope: 'other_group', reason: 'other_group_chat' };
+      return {
+        allowed: false,
+        scope: 'other_group',
+        reason: 'other_group_chat',
+      };
     }
 
     if (this.looksLikePrivateDialog(update, chatId)) {
@@ -917,7 +1054,9 @@ export class MaxBotService implements OnModuleInit {
     const callbackChat = this.readRecord(callback?.chat);
     const callbackRecipient = this.readRecord(callback?.recipient);
     const callbackMessage = this.readRecord(callback?.message);
-    const callbackMessageRecipient = this.readRecord(callbackMessage?.recipient);
+    const callbackMessageRecipient = this.readRecord(
+      callbackMessage?.recipient,
+    );
     const callbackMessageChat = this.readRecord(callbackMessage?.chat);
 
     const candidates = [
@@ -966,13 +1105,16 @@ export class MaxBotService implements OnModuleInit {
   }
 
   private readRecord(value: unknown): Record<string, unknown> | null {
-    return value && typeof value === 'object' ? value as Record<string, unknown> : null;
+    return value && typeof value === 'object'
+      ? (value as Record<string, unknown>)
+      : null;
   }
 
   private extractCallbackId(update: MaxBotUpdate): string | null {
-    const callback = update.callback && typeof update.callback === 'object'
-      ? (update.callback as Record<string, unknown>)
-      : null;
+    const callback =
+      update.callback && typeof update.callback === 'object'
+        ? (update.callback as Record<string, unknown>)
+        : null;
     const candidates = [
       update.callback_id,
       update.callbackId,
@@ -982,8 +1124,10 @@ export class MaxBotService implements OnModuleInit {
     ];
 
     for (const candidate of candidates) {
-      if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
-      if (typeof candidate === 'number' && Number.isFinite(candidate)) return String(candidate);
+      if (typeof candidate === 'string' && candidate.trim())
+        return candidate.trim();
+      if (typeof candidate === 'number' && Number.isFinite(candidate))
+        return String(candidate);
     }
     return null;
   }
@@ -1007,7 +1151,11 @@ export class MaxBotService implements OnModuleInit {
     return this.requestJson<unknown>('/subscriptions');
   }
 
-  async registerWebhook(params: { url: string; updateTypes?: string[]; secret?: string }) {
+  async registerWebhook(params: {
+    url: string;
+    updateTypes?: string[];
+    secret?: string;
+  }) {
     const body: Record<string, unknown> = {
       url: params.url,
       update_types: params.updateTypes ?? [...MAX_BOT_COMMAND_UPDATE_TYPES],
@@ -1057,12 +1205,14 @@ export class MaxBotService implements OnModuleInit {
     for (const update of updates) {
       const chatId = this.extractChatId(update);
       const chatType = this.extractChatType(update);
-      const chatDecision = chatId === null
-        ? null
-        : this.classifyCommandChat(update, chatId, chatType, groupChatId);
+      const chatDecision =
+        chatId === null
+          ? null
+          : this.classifyCommandChat(update, chatId, chatType, groupChatId);
       this.logger.log(
         {
-          update_type: typeof update.update_type === 'string' ? update.update_type : null,
+          update_type:
+            typeof update.update_type === 'string' ? update.update_type : null,
           chatId,
           chatType,
           chatScope: chatDecision?.scope ?? null,
@@ -1074,7 +1224,10 @@ export class MaxBotService implements OnModuleInit {
         this.logger.log(
           {
             reason: 'missing_chat_id',
-            update_type: typeof update.update_type === 'string' ? update.update_type : null,
+            update_type:
+              typeof update.update_type === 'string'
+                ? update.update_type
+                : null,
           },
           'max_bot_update_ignored',
         );
@@ -1136,9 +1289,12 @@ export class MaxBotService implements OnModuleInit {
   async pollUpdates(params: PollParams) {
     const query = new URLSearchParams();
 
-    if (typeof params.limit === 'number') query.set('limit', String(params.limit));
-    if (typeof params.timeout === 'number') query.set('timeout', String(params.timeout));
-    if (typeof params.marker === 'number') query.set('marker', String(params.marker));
+    if (typeof params.limit === 'number')
+      query.set('limit', String(params.limit));
+    if (typeof params.timeout === 'number')
+      query.set('timeout', String(params.timeout));
+    if (typeof params.marker === 'number')
+      query.set('marker', String(params.marker));
     if (params.types?.length) query.set('types', params.types.join(','));
 
     const result = await this.requestJson<MaxBotUpdatesResponse>(
@@ -1182,7 +1338,9 @@ export class MaxBotService implements OnModuleInit {
   async sendTestMessage(params: SendMessageParams) {
     const chatId = params.chatId ?? this.lastChatId;
     if (chatId === null) {
-      throw new BadRequestException('chatId is required. Poll updates first or pass chatId explicitly.');
+      throw new BadRequestException(
+        'chatId is required. Poll updates first or pass chatId explicitly.',
+      );
     }
 
     const message = this.composeTestMessage(params);
