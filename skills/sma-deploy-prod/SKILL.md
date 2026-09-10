@@ -87,7 +87,7 @@ git rev-parse stage-ok/&lt;ветка&gt;^{commit}
 test "$(git rev-parse stage-ok/&lt;ветка&gt;^{commit})" = "$(git rev-parse origin/&lt;ветка&gt;)"
 
 # 3 — принятый код есть на Stage сейчас
-STAGE_HEAD=$(ssh sma 'cd /opt/sma-beta &amp;&amp; git rev-parse HEAD')
+STAGE_HEAD=$(ssh sma-spare 'cd /opt/sma-beta &amp;&amp; git rev-parse HEAD')
 git fetch origin beta
 git merge-base --is-ancestor "$(git rev-parse stage-ok/&lt;ветка&gt;^{commit})" "$STAGE_HEAD"
 </command>

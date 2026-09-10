@@ -52,8 +52,8 @@ else
 fi
 
 case "$CONTOUR" in
-  stage)      TAG="stage-busy"; WORKDIR="/opt/sma-beta"; THRESHOLD_H=4 ;;
-  production) TAG="prod-busy";  WORKDIR="/opt/sma-prod"; THRESHOLD_H=2 ;;
+  stage)      TAG="stage-busy"; WORKDIR="/opt/sma-beta"; SSH_HOST="sma-spare"; THRESHOLD_H=4 ;;
+  production) TAG="prod-busy";  WORKDIR="/opt/sma-prod"; SSH_HOST="sma"; THRESHOLD_H=2 ;;
   *) echo "Неизвестный контур: $CONTOUR. Ожидается stage либо production." >&2; usage; exit 2 ;;
 esac
 
@@ -135,7 +135,7 @@ if [ -n "$REMOTE" ]; then
     fi
   fi
 
-  DEPLOYED=$(ssh sma "cd $WORKDIR && git rev-parse --short HEAD" 2>/dev/null || echo "")
+  DEPLOYED=$(ssh "$SSH_HOST" "cd $WORKDIR && git rev-parse --short HEAD" 2>/dev/null || echo "")
   [ -n "$DEPLOYED" ] && echo "  развёрнуто         $DEPLOYED"
 
   echo

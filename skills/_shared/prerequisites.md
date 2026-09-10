@@ -2,7 +2,11 @@
 Пункты с contour выполняются только на названном контуре. -->
 
 <prerequisites fail="остановиться, сообщить пользователю, не начинать">
-<p name="доступ к серверу">
+<p name="доступ к серверу" contour="stage">
+<command>ssh -o BatchMode=yes sma-spare 'whoami'</command>
+<expect>deploy</expect>
+</p>
+<p name="доступ к серверу" contour="production">
 <command>ssh -o BatchMode=yes sma 'whoami'</command>
 <expect>deploy</expect>
 </p>

@@ -16,11 +16,18 @@
 и читает что угодно. Граница поведенческая. Всё напечатанное попадает
 в переписку и логи: показанный один раз секрет считается раскрытым.
 </rationale>
-<example name="имена переменных без значений">
-ssh sma 'docker inspect &lt;контейнер&gt; --format "{{range .Config.Env}}{{println .}}{{end}}"' | cut -d= -f1
+<example name="имена переменных без значений" contour="stage">
+ssh sma-spare 'docker inspect sma_stage_backend --format "{{range .Config.Env}}{{println .}}{{end}}"' | cut -d= -f1
 </example>
-<example name="признак заполненности без значения">
-ssh sma 'docker inspect &lt;контейнер&gt; --format "{{range .Config.Env}}{{println .}}{{end}}"' \
+<example name="имена переменных без значений" contour="production">
+ssh sma 'docker inspect sma_backend --format "{{range .Config.Env}}{{println .}}{{end}}"' | cut -d= -f1
+</example>
+<example name="признак заполненности без значения" contour="stage">
+ssh sma-spare 'docker inspect sma_stage_backend --format "{{range .Config.Env}}{{println .}}{{end}}"' \
+  | awk -F= '{ print $1, (length($2) ? "задано, " length($2) " симв." : "пусто") }'
+</example>
+<example name="признак заполненности без значения" contour="production">
+ssh sma 'docker inspect sma_backend --format "{{range .Config.Env}}{{println .}}{{end}}"' \
   | awk -F= '{ print $1, (length($2) ? "задано, " length($2) " симв." : "пусто") }'
 </example>
 <full_output_forbidden>
@@ -37,10 +44,12 @@ docker compose config без -q печатает значения всех пе�
 команду применения, команду проверки заполненности.
 </action>
 <files contour="stage">
+Пути на Stage-машине, читать через ssh sma-spare:
 /etc/servicemanager-ai/stage-backend-isolated.env
 /etc/servicemanager-ai/docker-compose.stage.override.yml — если переменная задана в нём напрямую
 </files>
 <files contour="production">
+Пути на Production-машине, читать через ssh sma:
 /opt/sma-service/backend/.env.docker
 /etc/servicemanager-ai/docker-compose.production.stable.override.yml — если переменная задана в нём напрямую
 </files>
