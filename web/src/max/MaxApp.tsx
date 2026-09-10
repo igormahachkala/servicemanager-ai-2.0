@@ -204,14 +204,16 @@ export function MaxApp() {
           <button style={btnStyle} onClick={() => setRetryNonce((value) => value + 1)}>Повторить</button>
           <button style={btnGhostStyle} onClick={() => navigate('/m')}>Открыть ServiceManager</button>
         </div>
-        <div style={{ marginTop: 28, fontSize: 11, color: '#bbb', lineHeight: 1.6 }}>
-          <div>start_param: {rawStartParam || '(нет)'}</div>
-          <div>platform: {envContext.platform || '(не определена)'}</div>
-          <div>version: {envContext.version || '(не определена)'}</div>
-          <div>initData: {envContext.initData ? 'есть' : 'нет'}</div>
-          <div>user: {envContext.user ? 'есть' : 'нет'}</div>
-          <div>chat: {envContext.chat ? 'есть' : 'нет'}</div>
-        </div>
+        {import.meta.env.DEV ? (
+          <div style={{ marginTop: 28, fontSize: 11, color: '#bbb', lineHeight: 1.6 }}>
+            <div>start_param: {rawStartParam || '(нет)'}</div>
+            <div>platform: {envContext.platform || '(не определена)'}</div>
+            <div>version: {envContext.version || '(не определена)'}</div>
+            <div>initData: {envContext.initData ? 'есть' : 'нет'}</div>
+            <div>user: {envContext.user ? 'есть' : 'нет'}</div>
+            <div>chat: {envContext.chat ? 'есть' : 'нет'}</div>
+          </div>
+        ) : null}
       </div>
     )
   }

@@ -27,6 +27,14 @@ const UPLOAD_TOO_LARGE = 'Файл слишком большой или не п�
 const ASSIGN_CANDIDATES_FAIL = 'Не удалось загрузить список техников. Проверьте доступ в этом контуре.'
 const ATTACHMENTS_LIST_FAIL = 'Не удалось загрузить вложения. Проверьте доступ или подключение.'
 
+function isSafeRussianMessage(message: string): boolean {
+  if (!/[А-Яа-яЁё]/.test(message)) return false
+  if (/https?:\/\//i.test(message)) return false
+  if (/\b(?:Error|Exception|TypeError|SyntaxError|stack|fetch|request|response)\b/i.test(message)) return false
+  if (/\b[A-Z][A-Z0-9]+(?:_[A-Z0-9]+)+\b/.test(message)) return false
+  return message.length <= 240
+}
+
 /** Сохраняем сырое исключение в консоль для отладки (сообщение на экране — человекочитаемое). */
 export function logMobileMutationDebug(e: unknown) {
   if (!import.meta.env.DEV) return
@@ -145,6 +153,8 @@ export function formatMobileMutationError(
     if (status === 404) return NOT_FOUND
     return FALLBACK
   }
+
+  if (isSafeRussianMessage(msg)) return msg
 
   return FALLBACK
 }

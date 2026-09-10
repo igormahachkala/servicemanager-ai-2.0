@@ -81,6 +81,7 @@ const MobileChatsPage = lazyExport(() => import('./mobile/MobileChatsPage'), 'Mo
 const MobileOfflineQueue = lazyExport(() => import('./mobile/MobileOfflineQueue'), 'MobileOfflineQueue')
 const MobileInspectionList = lazyExport(() => import('./mobile/MobileInspectionList'), 'MobileInspectionList')
 const MobileInspectionRunPage = lazyExport(() => import('./mobile/MobileInspectionRunPage'), 'MobileInspectionRunPage')
+const MobileInspectionStartPage = lazyExport(() => import('./mobile/MobileInspectionStartPage'), 'MobileInspectionStartPage')
 const MobileShiftPage = lazyExport(() => import('./mobile/MobileShiftPage'), 'MobileShiftPage')
 const MobileWorkforcePage = lazyExport(() => import('./mobile/MobileWorkforcePage'), 'MobileWorkforcePage')
 const MaxApp = lazyExport(() => import('./max/MaxApp'), 'MaxApp')
@@ -175,6 +176,7 @@ export function AppRoutes() {
         <Route path="tickets/:id" element={<LazyRoute component={MobileTicketPage} />} />
         <Route path="offline-queue" element={<LazyRoute component={MobileOfflineQueue} />} />
         <Route path="inspection" element={<LazyRoute component={MobileInspectionList} props={{ standalone: true }} />} />
+        <Route path="inspection/start" element={<LazyRoute component={MobileInspectionStartPage} />} />
         <Route path="inspection/:runId" element={<LazyRoute component={MobileInspectionRunPage} />} />
         <Route path="inspection/object/:locationId" element={<LazyRoute component={MobileInspectionList} />} />
       </Route>
@@ -245,6 +247,7 @@ export function AppRoutes() {
           <Route path="tickets/:id" element={<LazyRoute component={MobileTicketPage} />} />
           <Route path="offline-queue" element={<LazyRoute component={MobileOfflineQueue} />} />
           <Route path="inspection" element={<LazyRoute component={MobileInspectionList} props={{ standalone: true }} />} />
+          <Route path="inspection/start" element={<LazyRoute component={MobileInspectionStartPage} />} />
           <Route path="inspection/:runId" element={<LazyRoute component={MobileInspectionRunPage} />} />
           <Route path="inspection/object/:locationId" element={<LazyRoute component={MobileInspectionList} />} />
         </Route>

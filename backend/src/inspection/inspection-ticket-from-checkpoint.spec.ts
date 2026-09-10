@@ -76,7 +76,14 @@ function makeDeps(overrides: { run?: any; item?: any } = {}) {
 }
 
 function makeService(deps: ReturnType<typeof makeDeps>) {
-  return new InspectionService(deps.prisma, deps.tickets, deps.timeline, {} as any, deps.serviceContracts)
+  return new InspectionService(
+    deps.prisma,
+    deps.tickets,
+    deps.timeline,
+    {} as any,
+    deps.serviceContracts,
+    { assertActiveShiftForOperationalWork: jest.fn().mockResolvedValue(undefined) } as any,
+  )
 }
 
 describe('InspectionService.createTicketFromItem', () => {

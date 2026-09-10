@@ -19,6 +19,9 @@
     "test:mobile-rc": "node scripts/verify-mobile-rc-fixes.mjs",
     "test:mobile-shift-gate": "node scripts/verify-mobile-shift-gate.mjs",
     "test:rounds-location-scope": "node scripts/verify-rounds-provider-location-scope.mjs",
+    "test:mobile-rounds": "node scripts/verify-mobile-rounds-full-cycle.mjs",
+    "test:rounds-ux-review": "node scripts/verify-rounds-ux-ticket-review.mjs",
+    "test:operational-ux-ru": "node scripts/verify-operational-ux-ru-cleanup.mjs",
     "split:api": "node scripts/split-api-layer.mjs",
     "split:api:apply": "node scripts/split-api-layer.mjs --apply-barrel"
   },

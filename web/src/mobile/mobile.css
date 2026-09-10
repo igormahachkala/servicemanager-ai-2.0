@@ -3939,6 +3939,11 @@ a.mobileBtn.mobileCreateTicketLink {
 /* заглушка «Планирование» — приглушена */
 .mobileHomeQuickCard--stub {
   opacity: 0.82;
+  cursor: default;
+}
+
+.mobileHomeQuickCard--stub:active {
+  transform: none;
 }
 
 /* ── V2 ticket list card (no thumbnail, clean text) ─────── */
@@ -6127,6 +6132,127 @@ a.mobileBtn.mobileCreateTicketLink {
 
 .mobilePatrolItemActions { display: flex; gap: 8px; flex-wrap: wrap; }
 
+.mobileInspectionListHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.mobileInspectionStartLink {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding-inline: 16px;
+}
+.mobileInspectionStart { overflow-x: clip; }
+.mobileInspectionStartGroup {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.mobileInspectionStartGroup > legend,
+.mobileInspectionStartField > span {
+  display: block;
+  margin-bottom: 7px;
+  color: #374151;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+.mobileInspectionTemplateChoices { display: grid; gap: 8px; }
+.mobileInspectionTemplateChoice {
+  height: auto;
+  width: 100%;
+  min-width: 0;
+  min-height: 64px;
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  background: #fff;
+  color: #4b5563;
+  text-align: left;
+  font: inherit;
+  overflow-wrap: anywhere;
+}
+.mobileInspectionTemplateChoice--selected {
+  border-color: #2563eb;
+  background: #eff6ff;
+  box-shadow: 0 0 0 1px #2563eb;
+}
+.mobileInspectionTemplateChoiceTitle { color: #111827; font-weight: 800; }
+.mobileInspectionStartField { display: block; min-width: 0; }
+.mobileInspectionStartField select {
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  box-sizing: border-box;
+  padding: 10px 38px 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 12px;
+  background: #fff;
+  color: #111827;
+  font: inherit;
+}
+.mobileInspectionCurrentContext { display: grid; gap: 4px; }
+.mobileInspectionCurrentContext > span { color: #6b7280; font-size: 0.8rem; }
+.mobileInspectionStartPreview { display: grid; gap: 8px; }
+.mobileInspectionStartZone { margin-top: 2px; font-size: 0.88rem; font-weight: 700; overflow-wrap: anywhere; }
+.mobileInspectionStartSubmit { width: 100%; min-height: 52px; }
+
+.mobileSection .inspectionTicketReview {
+  margin-top: 4px;
+  padding: 12px;
+  border-radius: 8px;
+}
+.mobileSection .inspectionTicketReviewGrid { grid-template-columns: 1fr; gap: 8px; }
+.mobileSection .inspectionTicketReviewActions { display: grid; grid-template-columns: 1fr; }
+.mobileSection .inspectionTicketReviewActions button { width: 100%; min-height: 48px; }
+.mobileInspectionTicketCreated {
+  display: grid;
+  gap: 3px;
+  padding: 10px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1e3a8a;
+  font-size: 0.8rem;
+}
+.mobileInspectionTicketCreated strong { font-size: 0.9rem; color: #1e40af; }
+
+.mobilePatrolStatusChoices {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.mobilePatrolStatusChoice {
+  min-width: 0;
+  min-height: 46px;
+  padding: 8px 4px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  background: #fff;
+  color: #374151;
+  font-size: 0.78rem;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+.mobilePatrolStatusChoice--ok.mobilePatrolStatusChoice--selected {
+  border-color: #22c55e;
+  background: #dcfce7;
+  color: #166534;
+}
+.mobilePatrolStatusChoice--issue.mobilePatrolStatusChoice--selected {
+  border-color: #f59e0b;
+  background: #fef3c7;
+  color: #92400e;
+}
+.mobilePatrolStatusChoice--critical.mobilePatrolStatusChoice--selected {
+  border-color: #ef4444;
+  background: #fee2e2;
+  color: #991b1b;
+}
+
 .mobilePatrolItemIssueForm {
   display: grid;
   gap: 8px;
@@ -6134,6 +6260,10 @@ a.mobileBtn.mobileCreateTicketLink {
   background: #fff7ed;
   border-radius: 8px;
   border: 1px solid #fed7aa;
+}
+.mobilePatrolItemIssueForm--critical {
+  border-color: #fecaca;
+  background: #fef2f2;
 }
 .mobilePatrolItemIssueFormTextarea {
   width: 100%;
@@ -6145,6 +6275,12 @@ a.mobileBtn.mobileCreateTicketLink {
   resize: vertical;
   box-sizing: border-box;
   font-family: inherit;
+}
+
+@media (max-width: 360px) {
+  .mobileInspectionListHeader { display: grid; }
+  .mobileInspectionStartLink { width: 100%; }
+  .mobilePatrolStatusChoice { font-size: 0.72rem; }
 }
 
 /* SMA-MOBILE-133: collapsible home summary */

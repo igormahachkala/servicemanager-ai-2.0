@@ -2,6 +2,7 @@
 import { useQuery } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
+import { inspectionRunStatusLabel } from '../lib/inspectionPresentation'
 
 function fmtDate(value?: string | null) {
   if (!value) return '—'
@@ -28,7 +29,7 @@ export function InspectionRunsPage() {
         </div>
       </div>
 
-      {runsQ.isError ? <div className="alert">{(runsQ.error as any)?.message || String(runsQ.error)}</div> : null}
+      {runsQ.isError ? <div className="alert">Не удалось загрузить историю обходов.</div> : null}
 
       <div className="panel">
         {runsQ.isLoading ? <div className="muted">Загружаем обходы…</div> : null}
@@ -41,7 +42,7 @@ export function InspectionRunsPage() {
                   <div className="muted small">{run.template.name} · {run.location.name}{run.location.city ? ` · ${run.location.city}` : ''}</div>
                 </div>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <span className="tag">{run.status}</span>
+                  <span className="tag">{inspectionRunStatusLabel(run.status)}</span>
                   <Link to={'/inspection/runs/' + run.id}><button className="ghost">Открыть</button></Link>
                 </div>
               </div>

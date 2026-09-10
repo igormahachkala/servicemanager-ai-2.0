@@ -4,23 +4,12 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { BrowserNotificationsCard } from '../components/BrowserNotificationsCard'
 import { SupportContactBlock } from '../components/SupportContactBlock'
 import * as api from '../lib/api'
+import { getRoleDisplayLabel } from '../lib/resolveAdminProfile'
 import { startMobileGuidedTour } from './MobileGuidedTourEvents'
 import { getPendingAndFailedCounts, subscribeOfflineQueue } from './offlineQueue'
 import { mobilePath } from './mobileRoute'
-
-function roleLabel(role?: string) {
-  if (!role) return '—'
-  if (role === 'PLATFORM_ADMIN') return 'Администратор платформы'
-  if (role === 'ADMIN') return 'Администратор'
-  if (role === 'DISPATCHER') return 'Диспетчер'
-  if (role === 'MASTER') return 'Мастер'
-  if (role === 'TECHNICIAN') return 'Техник'
-  if (role === 'CLIENT') return 'Клиент'
-  if (role === 'TERRITORIAL_MANAGER') return 'Территориальный менеджер'
-  if (role === 'NETWORK_DIRECTOR') return 'Сетевой директор'
-  if (role === 'STAFF') return 'Сотрудник'
-  return role
-}
+import { formatMobileMutationError } from './mobileActionErrors'
+import { isShiftGateSubjectRole } from './mobileShiftGate'
 
 /** Tabler chevron-right — inline SVG вместо глифа ›. */
 function ChevronRight() {
@@ -97,7 +86,7 @@ export function MobileProfile() {
         <Link to={backHref} className="mobileDetailsBackLink">Назад</Link>
       </div>
       <div className="mobileSection">
-        {meQ.isError ? <div className="mobileNotice mobileNoticeError">{String((meQ.error as { message?: string } | null)?.message || meQ.error)}</div> : null}
+        {meQ.isError ? <div className="mobileNotice mobileNoticeError">{formatMobileMutationError(meQ.error, { operation: 'other' })}</div> : null}
 
         {/* Hero card — Figma ProfileScreen: аватар-плитка слева + имя/email/бейджи */}
         <div className="mobileProfileHero">
@@ -106,7 +95,7 @@ export function MobileProfile() {
             <div className="mobileProfileName">{fullName || meQ.data?.email || '—'}</div>
             {meQ.data?.email && fullName ? <div className="mobileProfileEmail">{meQ.data.email}</div> : null}
             <div className="mobileProfileBadgeRow">
-              <span className={`mobileProfileRoleBadge mobileProfileRoleBadge--${roleBadgeTone}`}>{roleLabel(meQ.data?.role)}</span>
+              <span className={`mobileProfileRoleBadge mobileProfileRoleBadge--${roleBadgeTone}`}>{getRoleDisplayLabel({ role: meQ.data?.role })}</span>
               <span className="mobileProfileContourBadge">{appContour}</span>
             </div>
             {meQ.data?.companyName ? <div className="mobileProfileCompany">{meQ.data.companyName}</div> : null}
@@ -117,7 +106,7 @@ export function MobileProfile() {
         <div className="mobileCard">
           <div className="mobileProfileSectionLabel">Личные данные</div>
           <div className="mobileProfileInfoRow">
-            <span className="mobileMeta">Email</span>
+            <span className="mobileMeta">Электронная почта</span>
             <span>{meQ.data?.email || '—'}</span>
           </div>
           <div className="mobileProfileInfoRow">
@@ -126,7 +115,7 @@ export function MobileProfile() {
           </div>
           <div className="mobileProfileInfoRow">
             <span className="mobileMeta">Роль</span>
-            <span>{roleLabel(meQ.data?.role)}</span>
+            <span>{getRoleDisplayLabel({ role: meQ.data?.role })}</span>
           </div>
           <div className="mobileProfileInfoRow">
             <span className="mobileMeta">Компания</span>
@@ -136,7 +125,7 @@ export function MobileProfile() {
 
         {/* Menu */}
         <div className="mobileCard mobileProfileMenu">
-          {meQ.data?.role && ['ADMIN', 'MASTER', 'DISPATCHER', 'TECHNICIAN'].includes(meQ.data.role) ? (
+          {isShiftGateSubjectRole(meQ.data?.role) ? (
             <Link to={mobilePath(location.pathname, '/shift')} className="mobileProfileMenuItem">
               <span className="mobileProfileMenuIcon" aria-hidden>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -240,7 +229,7 @@ export function MobileProfile() {
         <div className="mobileCard" style={{ marginTop: 8 }}>
           <BrowserNotificationsCard
             title="Push-уведомления браузера"
-            description="Системные уведомления для realtime-событий, пока приложение открыто."
+            description="Системные уведомления о новых событиях, пока приложение открыто."
           />
         </div>
 
@@ -252,8 +241,8 @@ export function MobileProfile() {
             <span>{appContour}</span>
           </div>
           <div className="mobileProfileInfoRow">
-            <span className="mobileMeta">Версия</span>
-            <span>Mobile Workspace V1</span>
+            <span className="mobileMeta">Приложение</span>
+            <span>Мобильный Сервис Менеджер</span>
           </div>
         </div>
       </div>

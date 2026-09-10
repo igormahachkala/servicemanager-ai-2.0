@@ -1,10 +1,17 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+﻿import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
 import { numericConstraintLabel, responseTypeLabel } from '../lib/inspectionZones'
 import { ProtectedUploadThumbLink } from '../ui/ProtectedUploadMedia'
+import { InspectionTicketReview } from '../components/inspection/InspectionTicketReview'
+import {
+  inspectionItemStatusLabel,
+  inspectionRunStatusLabel,
+  ticketStatusLabel,
+  ticketUrgencyLabel,
+} from '../lib/inspectionPresentation'
 
 const MAX_PHOTO_SIZE = 10 * 1024 * 1024
 
@@ -18,30 +25,6 @@ type ItemDraft = {
   booleanValue: boolean | null
   numberValue: string
   textValue: string
-}
-
-function statusLabel(status: api.InspectionRunItemStatus) {
-  if (status === 'PENDING') return 'Не заполнено'
-  if (status === 'OK') return 'OK'
-  if (status === 'ISSUE') return 'Проблема'
-  if (status === 'CRITICAL') return 'Критично'
-  if (status === 'SKIPPED') return 'Пропущено'
-  return status
-}
-
-/**
- * Статус связанной заявки словами. Держим рядом со statusLabel пункта: обход —
- * отдельная поверхность со своими подписями, как и мобильная. Общий словарь
- * заводить не под что — вторая подпись здесь единственная.
- */
-function ticketStatusLabel(status: api.TicketStatus) {
-  if (status === 'NEW') return 'Новая'
-  if (status === 'ASSIGNED') return 'Назначена'
-  if (status === 'IN_PROGRESS') return 'В работе'
-  if (status === 'AWAITING_ACCEPTANCE') return 'Ожидает приёмки'
-  if (status === 'DONE') return 'Завершена'
-  if (status === 'CANCELED') return 'Отменена'
-  return status
 }
 
 function statusButtonStyle(active: boolean, tone: 'neutral' | 'good' | 'warn' | 'danger') {
@@ -94,6 +77,8 @@ export function InspectionRunPage() {
   const [savingItemId, setSavingItemId] = useState<string | null>(null)
   const [uploadingItemId, setUploadingItemId] = useState<string | null>(null)
   const [creatingTicketItemId, setCreatingTicketItemId] = useState<string | null>(null)
+  const [reviewingTicketItemId, setReviewingTicketItemId] = useState<string | null>(null)
+  const submittingTicketItemIdsRef = useRef(new Set<string>())
 
   const runQ = useQuery({
     queryKey: ['inspection-run', runId],
@@ -130,7 +115,6 @@ export function InspectionRunPage() {
 
   useEffect(() => {
     if (!runQ.data) return
-    const firstCategoryId = categories[0]?.id || ''
     setDrafts((current) => {
       const next: Record<string, ItemDraft> = {}
       for (const item of runQ.data.items) {
@@ -138,7 +122,7 @@ export function InspectionRunPage() {
           status: item.status,
           requiresRepair: item.requiresRepair,
           comment: item.comment || '',
-          categoryId: firstCategoryId,
+          categoryId: '',
           title: item.title,
           description: item.comment || item.description || '',
           booleanValue: item.booleanValue ?? null,
@@ -163,9 +147,9 @@ export function InspectionRunPage() {
       await queryClient.invalidateQueries({ queryKey: ['inspection-run', runId] })
       await queryClient.invalidateQueries({ queryKey: ['inspection-runs'] })
     },
-    onError: (err: any) => {
+    onError: () => {
       setSavingItemId(null)
-      setError(err?.message || String(err))
+      setError('Не удалось сохранить пункт обхода. Повторите ещё раз.')
     },
   })
 
@@ -176,9 +160,9 @@ export function InspectionRunPage() {
       setUploadingItemId(null)
       await queryClient.invalidateQueries({ queryKey: ['inspection-run', runId] })
     },
-    onError: (err: any) => {
+    onError: () => {
       setUploadingItemId(null)
-      setError(err?.message || String(err))
+      setError('Не удалось загрузить фото. Выберите изображение и повторите.')
     },
   })
 
@@ -188,14 +172,15 @@ export function InspectionRunPage() {
     onSuccess: async () => {
       setError(null)
       setCreatingTicketItemId(null)
+      setReviewingTicketItemId(null)
       await queryClient.invalidateQueries({ queryKey: ['inspection-run', runId] })
       await queryClient.invalidateQueries({ queryKey: ['inspection-runs'] })
       await queryClient.invalidateQueries({ queryKey: ['board'] })
       await queryClient.invalidateQueries({ queryKey: ['tickets'] })
     },
-    onError: (err: any) => {
+    onError: () => {
       setCreatingTicketItemId(null)
-      setError(err?.message || String(err))
+      setError('Не удалось создать заявку. Проверьте выбранную категорию и доступ по договору.')
     },
   })
 
@@ -209,7 +194,7 @@ export function InspectionRunPage() {
       await queryClient.invalidateQueries({ queryKey: ['inspection-runs'] })
       await queryClient.invalidateQueries({ queryKey: ['inspection-run-report', runId] })
     },
-    onError: (err: any) => setError(err?.message || String(err)),
+    onError: () => setError('Не удалось завершить обход. Проверьте заполнение пунктов и повторите.'),
   })
 
   const run = runQ.data
@@ -262,25 +247,29 @@ export function InspectionRunPage() {
   }
 
   function createTicket(item: api.InspectionRunItem) {
+    if (submittingTicketItemIdsRef.current.has(item.id)) return
     const draft = drafts[item.id]
     if (!draft?.categoryId) {
       setError('Выберите категорию для создания заявки')
       return
     }
+    submittingTicketItemIdsRef.current.add(item.id)
     setCreatingTicketItemId(item.id)
-    createTicketM.mutate({
-      itemId: item.id,
-      payload: {
-        categoryId: draft.categoryId,
-        title: draft.title.trim() || undefined,
-        description: draft.description.trim() || draft.comment.trim() || undefined,
-        urgency: draft.status === 'CRITICAL' ? 'URGENT' : 'NOT_URGENT',
+    createTicketM.mutate(
+      {
+        itemId: item.id,
+        payload: {
+          categoryId: draft.categoryId,
+          title: draft.title.trim() || undefined,
+          description: draft.description.trim() || draft.comment.trim() || undefined,
+        },
       },
-    })
+      { onSettled: () => submittingTicketItemIdsRef.current.delete(item.id) },
+    )
   }
 
   return (
-    <div>
+    <div className="inspectionRunPage">
       <div className="row">
         <div>
           <h2 style={{ marginBottom: 4 }}>Прохождение обхода</h2>
@@ -298,7 +287,7 @@ export function InspectionRunPage() {
       </div>
 
       {error ? <div className="alert">{error}</div> : null}
-      {runQ.isError ? <div className="alert">{(runQ.error as any)?.message || String(runQ.error)}</div> : null}
+      {runQ.isError ? <div className="alert">Не удалось загрузить обход. Обновите страницу и повторите.</div> : null}
 
       {run ? (
         <>
@@ -313,13 +302,13 @@ export function InspectionRunPage() {
                 </div>
                 <div className="muted small" style={{ marginTop: 4 }}>
                   Исполнитель: {run.performedBy ? `${run.performedBy.firstName || ''} ${run.performedBy.lastName || ''}`.trim() || run.performedBy.email : meQ.data?.email || '—'}
-                  {' · '}Статус: {run.status}
+                  {' · '}Статус: {inspectionRunStatusLabel(run.status)}
                   {' · '}Создан: {fmtDate(run.createdAt)}
                   {run.completedAt ? ` · Завершён: ${fmtDate(run.completedAt)}` : ''}
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                <span className="tag">{run.status}</span>
+                <span className="tag">{inspectionRunStatusLabel(run.status)}</span>
                 {isCompleted ? (
                   <Link to={`/inspection/runs/${run.id}/report`}>
                     <button type="button" className="ghost">Открыть отчёт</button>
@@ -337,7 +326,7 @@ export function InspectionRunPage() {
               <h3 style={{ marginBottom: 10 }}>Итоги обхода</h3>
               <div className="grid2" style={{ gridTemplateColumns: 'repeat(6, minmax(0, 1fr))', gap: 12 }}>
                 <div><div className="muted small">Всего</div><div style={{ fontWeight: 800 }}>{summary.totalItems}</div></div>
-                <div><div className="muted small">OK</div><div style={{ fontWeight: 800 }}>{summary.okCount}</div></div>
+                <div><div className="muted small">Норма</div><div style={{ fontWeight: 800 }}>{summary.okCount}</div></div>
                 <div><div className="muted small">Проблемы</div><div style={{ fontWeight: 800 }}>{summary.issueCount}</div></div>
                 <div><div className="muted small">Критичные</div><div style={{ fontWeight: 800 }}>{summary.criticalCount}</div></div>
                 <div><div className="muted small">Пропущено</div><div style={{ fontWeight: 800 }}>{summary.skippedCount || 0}</div></div>
@@ -352,7 +341,7 @@ export function InspectionRunPage() {
                 status: item.status,
                 requiresRepair: item.requiresRepair,
                 comment: item.comment || '',
-                categoryId: categories[0]?.id || '',
+                categoryId: '',
                 title: item.title,
                 description: item.comment || item.description || '',
                 booleanValue: item.booleanValue ?? null,
@@ -388,15 +377,15 @@ export function InspectionRunPage() {
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                      <span className="tag">{statusLabel(item.status)}</span>
+                      <span className="tag">{inspectionItemStatusLabel(item.status)}</span>
                       {ticketExists ? <span className="tag">Заявка создана</span> : null}
                     </div>
                   </div>
 
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-                    <button type="button" disabled={itemReadOnly} style={statusButtonStyle(draft.status === 'OK', 'good')} onClick={() => patchDraft(item.id, { status: 'OK', requiresRepair: false })}>OK</button>
-                    <button type="button" disabled={itemReadOnly} style={statusButtonStyle(draft.status === 'ISSUE', 'warn')} onClick={() => patchDraft(item.id, { status: 'ISSUE' })}>ISSUE</button>
-                    <button type="button" disabled={itemReadOnly} style={statusButtonStyle(draft.status === 'CRITICAL', 'danger')} onClick={() => patchDraft(item.id, { status: 'CRITICAL', requiresRepair: true })}>CRITICAL</button>
+                    <button type="button" disabled={itemReadOnly} style={statusButtonStyle(draft.status === 'OK', 'good')} onClick={() => patchDraft(item.id, { status: 'OK', requiresRepair: false })}>Норма</button>
+                    <button type="button" disabled={itemReadOnly} style={statusButtonStyle(draft.status === 'ISSUE', 'warn')} onClick={() => patchDraft(item.id, { status: 'ISSUE' })}>Проблема</button>
+                    <button type="button" disabled={itemReadOnly} style={statusButtonStyle(draft.status === 'CRITICAL', 'danger')} onClick={() => patchDraft(item.id, { status: 'CRITICAL', requiresRepair: true })}>Критично</button>
                     <button type="button" disabled={itemReadOnly} style={statusButtonStyle(draft.status === 'SKIPPED', 'neutral')} onClick={() => patchDraft(item.id, { status: 'SKIPPED', requiresRepair: false })}>Пропустить</button>
                   </div>
 
@@ -470,16 +459,19 @@ export function InspectionRunPage() {
 
                   <div className="panel" style={{ marginTop: 12, padding: 12 }}>
                     <div style={{ fontWeight: 700, marginBottom: 8 }}>Фото</div>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      disabled={itemReadOnly || uploadingItemId === item.id}
-                      onChange={(e) => {
-                        const file = e.target.files?.[0] || null
-                        uploadFile(item, file)
-                        e.currentTarget.value = ''
-                      }}
-                    />
+                    <label className="inspectionUploadControl">
+                      <span>{uploadingItemId === item.id ? 'Загружаем…' : 'Добавить фото'}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        disabled={itemReadOnly || uploadingItemId === item.id}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] || null
+                          uploadFile(item, file)
+                          e.currentTarget.value = ''
+                        }}
+                      />
+                    </label>
                     <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 10 }}>
                       {item.attachments.map((attachment) => (
                         <ProtectedUploadThumbLink
@@ -499,12 +491,12 @@ export function InspectionRunPage() {
                       <div className="row" style={{ marginBottom: 10 }}>
                         <div>
                           <div style={{ fontWeight: 700 }}>Создание заявки</div>
-                          <div className="muted small">Проблемный пункт можно сразу перевести в обычный ticket.</div>
+                          <div className="muted small">Проверьте контекст и подтвердите создание заявки.</div>
                         </div>
                         {ticketExists && item.ticketId ? (
                           <Link to={'/tickets/' + item.ticketId}>
                             <button className="ghost">
-                              {item.ticket?.ticketNumber != null ? `Открыть заявку #${item.ticket.ticketNumber}` : 'Открыть заявку'}
+                              {item.ticket?.ticketNumber != null ? `Открыть заявку №${item.ticket.ticketNumber}` : 'Открыть заявку'}
                             </button>
                           </Link>
                         ) : null}
@@ -513,14 +505,21 @@ export function InspectionRunPage() {
                       {ticketExists ? (
                         <div className="muted small">
                           {item.ticket
-                            ? `Заявка #${item.ticket.ticketNumber} — ${ticketStatusLabel(item.ticket.status)}. Обход можно продолжать.`
+                            ? `Создана заявка №${item.ticket.ticketNumber} — ${ticketStatusLabel(item.ticket.status)}. ${ticketUrgencyLabel(item.ticket.urgency) || ''} Обход можно продолжать.`
                             : 'Заявка уже создана для этого пункта.'}
                         </div>
                       ) : (
                         <div className="grid2" style={{ gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                           <label>
                             Категория заявки
-                            <select value={draft.categoryId} onChange={(e) => patchDraft(item.id, { categoryId: e.target.value })} disabled={itemReadOnly || creatingTicketItemId === item.id}>
+                            <select
+                              value={draft.categoryId}
+                              onChange={(e) => {
+                                patchDraft(item.id, { categoryId: e.target.value })
+                                setReviewingTicketItemId(null)
+                              }}
+                              disabled={itemReadOnly || creatingTicketItemId === item.id}
+                            >
                               <option value="">Выберите категорию</option>
                               {categories.map((category) => (
                                 <option key={category.id} value={category.id}>{category.name}</option>
@@ -540,10 +539,30 @@ export function InspectionRunPage() {
                         </div>
                       )}
 
-                      {!ticketExists ? (
-                        <button type="button" style={{ marginTop: 10 }} onClick={() => createTicket(item)} disabled={itemReadOnly || creatingTicketItemId === item.id || !draft.categoryId}>
-                          {creatingTicketItemId === item.id ? 'Создаём заявку…' : 'Создать заявку'}
+                      {!ticketExists && reviewingTicketItemId !== item.id ? (
+                        <button
+                          type="button"
+                          style={{ marginTop: 10 }}
+                          onClick={() => setReviewingTicketItemId(item.id)}
+                          disabled={itemReadOnly || creatingTicketItemId === item.id || !draft.categoryId}
+                        >
+                          Проверить заявку
                         </button>
+                      ) : null}
+
+                      {!ticketExists && reviewingTicketItemId === item.id && draft.categoryId ? (
+                        <InspectionTicketReview
+                          checkpointTitle={item.title}
+                          location={run.location}
+                          equipment={run.equipment}
+                          categoryName={categories.find((category) => category.id === draft.categoryId)?.name || 'Категория не найдена'}
+                          status={draft.status as 'ISSUE' | 'CRITICAL'}
+                          description={draft.description || draft.comment}
+                          attachments={item.attachments}
+                          busy={creatingTicketItemId === item.id}
+                          onConfirm={() => createTicket(item)}
+                          onCancel={() => setReviewingTicketItemId(null)}
+                        />
                       ) : null}
                     </div>
                   ) : null}

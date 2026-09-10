@@ -17,6 +17,7 @@ import { PrismaService } from '../prisma/prisma.service'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
 import { TicketsService } from '../tickets/tickets.service'
 import { TimelineService } from '../timeline/timeline.service'
+import { ShiftPolicyService } from '../workforce/shift-policy.service'
 
 import {
   assertInspectionLocationAccess,
@@ -47,6 +48,7 @@ export class InspectionService {
     private readonly timeline: TimelineService,
     private readonly exporter: InspectionExportService,
     private readonly serviceContracts: ServiceContractsService,
+    private readonly shiftPolicy: ShiftPolicyService,
   ) {}
 
   async listTemplates(user: InspectionUserCtx) {
@@ -138,6 +140,7 @@ export class InspectionService {
 
   async startRun(user: InspectionUserCtx, dto: StartRunDto) {
     assertAllowed(this.policy.canStartRun(user))
+    await this.shiftPolicy.assertActiveShiftForOperationalWork(user)
 
     const template = await this.prisma.inspectionTemplate.findFirst({
       where: { id: dto.templateId, companyId: user.companyId, isActive: true },

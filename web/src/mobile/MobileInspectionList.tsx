@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import { useQueries, useQuery } from '@tanstack/react-query'
 import * as api from '../lib/api'
+import { inspectionReportStatusLabel, inspectionRunStatusLabel } from '../lib/inspectionPresentation'
 import { mobilePath } from './mobileRoute'
 
 /** Иконка-плитка обхода (Tabler clipboard-check, тон по статусу) — Figma PatrolsScreen. */
@@ -33,18 +34,6 @@ function fmtDate(value?: string | null): string {
   } catch {
     return value
   }
-}
-
-function runStatusLabel(status: api.InspectionRunStatus): string {
-  return status === 'IN_PROGRESS' ? 'В процессе' : 'Завершён'
-}
-
-function reportStatusLabel(status: api.InspectionReportStatus): string {
-  if (status === 'DRAFT') return 'Черновик'
-  if (status === 'SUBMITTED') return 'На проверке'
-  if (status === 'APPROVED') return 'Утверждён'
-  if (status === 'REJECTED') return 'Отклонён'
-  return status
 }
 
 function reportStatusMod(status: api.InspectionReportStatus): string {
@@ -91,7 +80,7 @@ export function MobileInspectionList({ standalone = false }: { standalone?: bool
     return (
       <div className="mobileSection">
         <div className="mobileTicketDetailsToolbar">
-          <Link to={mobilePath(location.pathname, '/inspection')} className="mobileDetailsBackLink mobilePatrolBackLink"><BackArrow />Обходы</Link>
+          <Link to={`${mobilePath(location.pathname, '/inspection')}${location.search}`} className="mobileDetailsBackLink mobilePatrolBackLink"><BackArrow />Обходы</Link>
         </div>
         <div>
           <h1 className="mobileTitle">История обходов</h1>
@@ -100,7 +89,7 @@ export function MobileInspectionList({ standalone = false }: { standalone?: bool
         {runsQ.isLoading ? (
           <div className="mobileCard mobileMeta">Загружаем обходы…</div>
         ) : runsQ.isError ? (
-          <div className="mobileNotice mobileNoticeError">{(runsQ.error as any)?.message || String(runsQ.error)}</div>
+          <div className="mobileNotice mobileNoticeError">Не удалось загрузить историю обходов. Обновите страницу и повторите.</div>
         ) : objectRuns.length === 0 ? (
           <div className="mobileCard mobileEmptyState" role="status">
             <div className="mobileEmptyStateTitle">По этому объекту обходов пока нет</div>
@@ -124,7 +113,7 @@ export function MobileInspectionList({ standalone = false }: { standalone?: bool
                   <PatrolClipboardIcon tone={run.status === 'IN_PROGRESS' ? 'inprogress' : 'completed'} />
                   <div className="mobilePatrolCardTitle">{run.title}</div>
                   <span className={`mobilePatrolRunStatus mobilePatrolRunStatus--${run.status === 'IN_PROGRESS' ? 'inprogress' : 'completed'}`}>
-                    {runStatusLabel(run.status)}
+                    {inspectionRunStatusLabel(run.status)}
                   </span>
                 </div>
                 <div className="mobilePatrolCardMeta">
@@ -132,7 +121,7 @@ export function MobileInspectionList({ standalone = false }: { standalone?: bool
                   <span>· {performer}</span>
                   {run.reportStatus ? (
                     <span className={`mobilePatrolReportBadge mobilePatrolReportBadge--${reportStatusMod(run.reportStatus)}`}>
-                      {reportStatusLabel(run.reportStatus)}
+                      {inspectionReportStatusLabel(run.reportStatus)}
                     </span>
                   ) : null}
                 </div>
@@ -140,7 +129,7 @@ export function MobileInspectionList({ standalone = false }: { standalone?: bool
                   <span>Нарушений: {loading ? '…' : violations}</span>
                   <span>· Заявок создано: {loading ? '…' : tickets}</span>
                 </div>
-                <Link to={mobilePath(location.pathname, `/inspection/${run.id}`)} className="mobileBtn mobileBtnGhost" style={{ textAlign: 'center', marginTop: 2 }}>
+                <Link to={`${mobilePath(location.pathname, `/inspection/${run.id}`)}${location.search}`} className="mobileBtn mobileBtnGhost" style={{ textAlign: 'center', marginTop: 2 }}>
                   Открыть
                 </Link>
               </div>
@@ -158,7 +147,7 @@ export function MobileInspectionList({ standalone = false }: { standalone?: bool
     if (runsQ.isError) {
       return (
         <div className="mobileNotice mobileNoticeError">
-          {(runsQ.error as any)?.message || String(runsQ.error)}
+          Не удалось загрузить обходы. Обновите страницу и повторите.
         </div>
       )
     }
@@ -168,7 +157,7 @@ export function MobileInspectionList({ standalone = false }: { standalone?: bool
         <div className="mobileCard mobileEmptyState" role="status">
           <div className="mobileEmptyStateTitle">Обходов пока нет</div>
           <p className="mobileEmptyStateHint">
-            Создайте шаблон и запустите первый обход через управленческую часть.
+            Нажмите «Начать обход», выберите тип и доступную локацию.
           </p>
         </div>
       )
@@ -176,14 +165,14 @@ export function MobileInspectionList({ standalone = false }: { standalone?: bool
     return (
       <>
         {runs.map((run) => {
-          const runHref = mobilePath(location.pathname, `/inspection/${run.id}`)
+          const runHref = `${mobilePath(location.pathname, `/inspection/${run.id}`)}${location.search}`
           return (
             <div key={run.id} className="mobileCard mobilePatrolCard">
               <div className="mobilePatrolCardTop">
                 <PatrolClipboardIcon tone={run.status === 'IN_PROGRESS' ? 'inprogress' : 'completed'} />
                 <div className="mobilePatrolCardTitle">{run.title}</div>
                 <span className={`mobilePatrolRunStatus mobilePatrolRunStatus--${run.status === 'IN_PROGRESS' ? 'inprogress' : 'completed'}`}>
-                  {runStatusLabel(run.status)}
+                  {inspectionRunStatusLabel(run.status)}
                 </span>
               </div>
 
@@ -192,7 +181,7 @@ export function MobileInspectionList({ standalone = false }: { standalone?: bool
                 {run.location.city ? <span>· {run.location.city}</span> : null}
                 {run.reportStatus ? (
                   <span className={`mobilePatrolReportBadge mobilePatrolReportBadge--${reportStatusMod(run.reportStatus)}`}>
-                    {reportStatusLabel(run.reportStatus)}
+                    {inspectionReportStatusLabel(run.reportStatus)}
                   </span>
                 ) : null}
               </div>
@@ -216,9 +205,14 @@ export function MobileInspectionList({ standalone = false }: { standalone?: bool
   if (standalone) {
     return (
       <div className="mobileSection">
-        <div>
-          <h1 className="mobileTitle">Обходы</h1>
-          <div className="mobileSubtitle">Инспекционные обходы объектов</div>
+        <div className="mobileInspectionListHeader">
+          <div>
+            <h1 className="mobileTitle">Обходы</h1>
+            <div className="mobileSubtitle">Инспекционные обходы объектов</div>
+          </div>
+          <Link to={`${mobilePath(location.pathname, '/inspection/start')}${location.search}`} className="mobileBtn mobileInspectionStartLink">
+            Начать обход
+          </Link>
         </div>
         {content}
       </div>

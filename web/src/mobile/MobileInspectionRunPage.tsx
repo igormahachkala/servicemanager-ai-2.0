@@ -4,6 +4,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { numericConstraintLabel, responseTypeLabel } from '../lib/inspectionZones'
 import { ProtectedUploadImg } from '../ui/ProtectedUploadMedia'
+import { InspectionTicketReview } from '../components/inspection/InspectionTicketReview'
+import { inspectionItemStatusLabel, inspectionRunStatusLabel, ticketUrgencyLabel } from '../lib/inspectionPresentation'
 import { mobilePath } from './mobileRoute'
 import {
   compactTicketScope,
@@ -21,16 +23,9 @@ function fmtDateTime(value?: string | null): string {
   }
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
-}
-
-const STATUS_LABEL: Record<api.InspectionRunItemStatus, string> = {
-  PENDING: 'Ожидает',
-  OK: 'OK',
-  ISSUE: 'Нарушение',
-  CRITICAL: 'Критично',
-  SKIPPED: 'Пропущен',
+function roundErrorMessage(error: unknown, fallback: string): string {
+  if (error instanceof api.ApiRequestError && (error.status === 400 || error.status === 403)) return fallback
+  return fallback
 }
 
 const ITEM_MOD: Record<api.InspectionRunItemStatus, string> = {
@@ -44,6 +39,8 @@ const ITEM_MOD: Record<api.InspectionRunItemStatus, string> = {
 type CreatedInspectionTicket = {
   ticketId: string
   ticketNumber?: number | null
+  urgencyLabel?: string | null
+  categoryName?: string
 }
 
 export function MobileInspectionRunPage() {
@@ -53,8 +50,9 @@ export function MobileInspectionRunPage() {
   const queryClient = useQueryClient()
 
   const [busyItemIds, setBusyItemIds] = useState<Set<string>>(new Set())
-  const [activeIssueItemId, setActiveIssueItemId] = useState<string | null>(null)
-  const [issueComment, setIssueComment] = useState('')
+  const [activeProblemItemId, setActiveProblemItemId] = useState<string | null>(null)
+  const [problemStatus, setProblemStatus] = useState<'ISSUE' | 'CRITICAL'>('ISSUE')
+  const [problemComment, setProblemComment] = useState('')
   /**
    * Категория заявки выбирается человеком.
    *
@@ -69,6 +67,7 @@ export function MobileInspectionRunPage() {
    * Десктоп категорию всегда спрашивал; мобильный теперь тоже.
    */
   const [ticketCategoryId, setTicketCategoryId] = useState('')
+  const [ticketReviewItemId, setTicketReviewItemId] = useState<string | null>(null)
   const [confirmComplete, setConfirmComplete] = useState(false)
   const [completeBusy, setCompleteBusy] = useState(false)
   const [flashMsg, setFlashMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
@@ -76,6 +75,7 @@ export function MobileInspectionRunPage() {
   const [uploadBusyItemIds, setUploadBusyItemIds] = useState<Set<string>>(new Set())
   const [uploadTargetItemId, setUploadTargetItemId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const submittingTicketItemIdsRef = useRef(new Set<string>())
 
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
 
@@ -119,7 +119,7 @@ export function MobileInspectionRunPage() {
       api.uploadInspectionRunItemAttachment(runId, input.itemId, input.file),
   })
 
-  const backHref = mobilePath(location.pathname, '/inspection')
+  const backHref = `${mobilePath(location.pathname, '/inspection')}${location.search}`
 
   const activeCategories = useMemo(
     () => (categoriesQ.data || []).filter((row) => row.isActive !== false),
@@ -183,32 +183,32 @@ export function MobileInspectionRunPage() {
       await updateM.mutateAsync({ itemId, payload: { status: 'OK', requiresRepair: false } })
       await invalidate()
     } catch (err: unknown) {
-      flash('err', errorMessage(err))
+      flash('err', roundErrorMessage(err, 'Не удалось сохранить результат. Повторите ещё раз.'))
     } finally {
       setBusyItemIds((s) => { const n = new Set(s); n.delete(itemId); return n })
     }
   }
 
-  async function markIssue(itemId: string) {
+  async function markProblem(itemId: string) {
     if (busyItemIds.has(itemId)) return
     setBusyItemIds((s) => new Set(s).add(itemId))
     try {
       await updateM.mutateAsync({
         itemId,
-        payload: { status: 'ISSUE', requiresRepair: true, comment: issueComment.trim() || undefined },
+        payload: { status: problemStatus, requiresRepair: true, comment: problemComment.trim() || undefined },
       })
       await invalidate()
-      setActiveIssueItemId(null)
-      setIssueComment('')
+      setActiveProblemItemId(null)
+      setProblemComment('')
     } catch (err: unknown) {
-      flash('err', errorMessage(err))
+      flash('err', roundErrorMessage(err, 'Не удалось сохранить проблему. Повторите ещё раз.'))
     } finally {
       setBusyItemIds((s) => { const n = new Set(s); n.delete(itemId); return n })
     }
   }
 
   async function createTicket(item: api.InspectionRunItem) {
-    if (busyItemIds.has(item.id)) return
+    if (busyItemIds.has(item.id) || submittingTicketItemIdsRef.current.has(item.id)) return
     if (!activeCategories.length) {
       flash('err', 'Нет активной категории для создания заявки')
       return
@@ -219,27 +219,35 @@ export function MobileInspectionRunPage() {
       return
     }
     if (getCreatedTicketId(item)) return
+    const categoryName = activeCategories.find((category) => category.id === categoryId)?.name || ''
+    submittingTicketItemIdsRef.current.add(item.id)
     setBusyItemIds((s) => new Set(s).add(item.id))
     try {
       const created = await api.createTicketFromInspectionItem(runId, item.id, {
         categoryId,
         title: item.title?.trim() || undefined,
         description: item.comment?.trim() || item.description?.trim() || undefined,
-        urgency: item.status === 'CRITICAL' ? 'URGENT' : 'NOT_URGENT',
       })
       const ticketId = created.ticket?.id || ''
       const ticketNumber = created.ticket?.ticketNumber ?? null
       if (ticketId) {
         setCreatedTicketsByItemId((current) => ({
           ...current,
-          [item.id]: { ticketId, ticketNumber },
+          [item.id]: {
+            ticketId,
+            ticketNumber,
+            urgencyLabel: ticketUrgencyLabel(created.ticket?.urgency),
+            categoryName,
+          },
         }))
       }
-      flash('ok', ticketNumber != null ? `Заявка #${ticketNumber} создана` : 'Заявка создана')
+      setTicketReviewItemId(null)
+      flash('ok', ticketNumber != null ? `Создана заявка №${ticketNumber}` : 'Заявка создана')
       await invalidate()
     } catch (err: unknown) {
-      flash('err', errorMessage(err))
+      flash('err', roundErrorMessage(err, 'Не удалось создать заявку. Проверьте выбранную категорию и доступ по договору.'))
     } finally {
+      submittingTicketItemIdsRef.current.delete(item.id)
       setBusyItemIds((s) => {
         const n = new Set(s)
         n.delete(item.id)
@@ -256,7 +264,7 @@ export function MobileInspectionRunPage() {
       setConfirmComplete(false)
       flash('ok', 'Обход завершён')
     } catch (err: unknown) {
-      flash('err', errorMessage(err))
+      flash('err', roundErrorMessage(err, 'Не удалось завершить обход. Проверьте заполнение пунктов и повторите.'))
     } finally {
       setCompleteBusy(false)
     }
@@ -272,7 +280,7 @@ export function MobileInspectionRunPage() {
       }
       await invalidate()
     } catch (err: unknown) {
-      flash('err', errorMessage(err))
+      flash('err', roundErrorMessage(err, 'Не удалось загрузить фото. Выберите изображение и повторите.'))
     } finally {
       setUploadBusyItemIds((s) => { const n = new Set(s); n.delete(itemId); return n })
       setUploadTargetItemId(null)
@@ -310,7 +318,7 @@ export function MobileInspectionRunPage() {
       <div className="mobileSection">
         {runQ.isError ? (
           <div className="mobileNotice mobileNoticeError">
-            {errorMessage(runQ.error)}
+            Не удалось загрузить обход. Обновите страницу и повторите.
           </div>
         ) : null}
 
@@ -333,7 +341,7 @@ export function MobileInspectionRunPage() {
                   {run.title}
                 </div>
                 <span className={`mobilePatrolRunStatus mobilePatrolRunStatus--${run.status === 'IN_PROGRESS' ? 'inprogress' : 'completed'}`}>
-                  {run.status === 'IN_PROGRESS' ? 'В процессе' : 'Завершён'}
+                  {inspectionRunStatusLabel(run.status)}
                 </span>
               </div>
               <div className="mobilePatrolMeta">
@@ -346,7 +354,7 @@ export function MobileInspectionRunPage() {
                 </div>
                 {run.location?.id ? (
                   <Link
-                    to={mobilePath(location.pathname, `/inspection/object/${run.location.id}`)}
+                    to={`${mobilePath(location.pathname, `/inspection/object/${run.location.id}`)}${location.search}`}
                     className="mobileBtn mobileBtnGhost"
                     style={{ textAlign: 'center', marginTop: 4 }}
                   >
@@ -382,11 +390,11 @@ export function MobileInspectionRunPage() {
             <div className="mobilePatrolSummary">
               <div className="mobilePatrolSummaryCell mobilePatrolSummaryCell--ok">
                 <div className="mobilePatrolSummaryValue">{summary.ok}</div>
-                <div className="mobilePatrolSummaryLabel">OK</div>
+                <div className="mobilePatrolSummaryLabel">Норма</div>
               </div>
               <div className="mobilePatrolSummaryCell mobilePatrolSummaryCell--issue">
                 <div className="mobilePatrolSummaryValue">{summary.issue}</div>
-                <div className="mobilePatrolSummaryLabel">Нарушений</div>
+                <div className="mobilePatrolSummaryLabel">Проблем</div>
               </div>
               <div className="mobilePatrolSummaryCell mobilePatrolSummaryCell--critical">
                 <div className="mobilePatrolSummaryValue">{summary.critical}</div>
@@ -404,10 +412,14 @@ export function MobileInspectionRunPage() {
                 const mod = ITEM_MOD[item.status]
                 const busy = busyItemIds.has(item.id)
                 const uploadBusy = uploadBusyItemIds.has(item.id)
-                const isShowingIssueForm = activeIssueItemId === item.id
+                const isShowingProblemForm = activeProblemItemId === item.id
                 const createdTicketId = getCreatedTicketId(item)
                 const createdTicketNumber = getCreatedTicketNumber(item)
                 const createdTicketStatus = item.ticket?.status ?? null
+                const createdTicketState = createdTicketsByItemId[item.id]
+                const createdUrgency = ticketUrgencyLabel(item.ticket?.urgency) || createdTicketState?.urgencyLabel
+                const selectedCategory = activeCategories.find((category) => category.id === ticketCategoryId) || null
+                const isReviewingTicket = ticketReviewItemId === item.id
                 const canCreateTicket = (item.status === 'ISSUE' || item.status === 'CRITICAL') && !createdTicketId
                 const previous = run.items[index - 1]
                 const zoneName = item.zoneName?.trim() || 'Без зоны'
@@ -426,7 +438,7 @@ export function MobileInspectionRunPage() {
                     <div className="mobilePatrolItemTop">
                       <div className="mobilePatrolItemTitle">{item.checkpointSortOrder + 1}. {item.title}</div>
                       <span className={`mobilePatrolItemBadge mobilePatrolItemBadge--${mod}`}>
-                        {STATUS_LABEL[item.status]}
+                        {inspectionItemStatusLabel(item.status)}
                       </span>
                     </div>
 
@@ -461,48 +473,57 @@ export function MobileInspectionRunPage() {
                       </div>
                     ) : null}
                     {createdTicketId ? (
-                      <div style={{ fontSize: '0.8rem', color: '#2563eb', fontWeight: 600 }}>
-                        {createdTicketNumber != null ? `Заявка #${createdTicketNumber}` : 'Заявка создана'}
-                        {createdTicketStatus ? ` — ${mobileTicketStatusLabelRu(createdTicketStatus)}` : ''}
+                      <div className="mobileInspectionTicketCreated" role="status">
+                        <strong>{createdTicketNumber != null ? `Создана заявка №${createdTicketNumber}` : 'Заявка создана'}</strong>
+                        <span>{createdTicketStatus ? mobileTicketStatusLabelRu(createdTicketStatus) : 'Создана'}</span>
+                        {createdUrgency ? <span>{createdUrgency}</span> : null}
+                        {createdTicketState?.categoryName ? <span>Категория: {createdTicketState.categoryName}</span> : null}
+                        <span>Локация: {run.location.name}</span>
+                        {run.equipment ? <span>Оборудование: {run.equipment.name}</span> : null}
                       </div>
                     ) : null}
 
                     {isInProgress && !busy ? (
-                      <div className="mobilePatrolItemActions">
-                        {item.status !== 'OK' ? (
+                      <>
+                        <div className="mobilePatrolStatusChoices" aria-label="Результат проверки">
                           <button
                             type="button"
-                            className="mobileBtn"
-                            style={{ minHeight: 34, padding: '6px 14px', fontSize: '0.82rem', borderRadius: 8 }}
-                            disabled={busy}
+                            className={`mobilePatrolStatusChoice mobilePatrolStatusChoice--ok${item.status === 'OK' ? ' mobilePatrolStatusChoice--selected' : ''}`}
+                            aria-pressed={item.status === 'OK'}
                             onClick={() => markOk(item.id)}
                           >
-                            <span className="mobilePatrolBtnIcon" aria-hidden>
-                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                                <polyline points="20 6 9 17 4 12" />
-                              </svg>
-                            </span>
-                            OK
+                            Норма
                           </button>
-                        ) : null}
-                        {item.status !== 'ISSUE' && item.status !== 'CRITICAL' ? (
                           <button
                             type="button"
-                            className="mobileBtn mobileBtnSecondary"
-                            style={{ minHeight: 34, padding: '6px 14px', fontSize: '0.82rem', borderRadius: 8 }}
-                            disabled={busy}
+                            className={`mobilePatrolStatusChoice mobilePatrolStatusChoice--issue${item.status === 'ISSUE' ? ' mobilePatrolStatusChoice--selected' : ''}`}
+                            aria-pressed={item.status === 'ISSUE'}
                             onClick={() => {
-                              setActiveIssueItemId(isShowingIssueForm ? null : item.id)
-                              setIssueComment(item.comment || '')
+                              setActiveProblemItemId(isShowingProblemForm && problemStatus === 'ISSUE' ? null : item.id)
+                              setProblemStatus('ISSUE')
+                              setProblemComment(item.comment || '')
                             }}
                           >
-                            {isShowingIssueForm ? 'Отмена' : 'Нарушение'}
+                            Проблема
                           </button>
-                        ) : null}
+                          <button
+                            type="button"
+                            className={`mobilePatrolStatusChoice mobilePatrolStatusChoice--critical${item.status === 'CRITICAL' ? ' mobilePatrolStatusChoice--selected' : ''}`}
+                            aria-pressed={item.status === 'CRITICAL'}
+                            onClick={() => {
+                              setActiveProblemItemId(isShowingProblemForm && problemStatus === 'CRITICAL' ? null : item.id)
+                              setProblemStatus('CRITICAL')
+                              setProblemComment(item.comment || '')
+                            }}
+                          >
+                            Критично
+                          </button>
+                        </div>
+                        <div className="mobilePatrolItemActions">
                         <button
                           type="button"
                           className="mobileBtn mobileBtnSecondary"
-                          style={{ minHeight: 34, padding: '6px 14px', fontSize: '0.82rem', borderRadius: 8 }}
+                          style={{ width: '100%' }}
                           disabled={uploadBusy}
                           onClick={() => {
                             setUploadTargetItemId(item.id)
@@ -523,29 +544,32 @@ export function MobileInspectionRunPage() {
                             </>
                           )}
                         </button>
-                      </div>
+                        </div>
+                      </>
                     ) : busy ? (
                       <div className="mobileMeta" style={{ fontSize: '0.82rem' }}>Сохраняем…</div>
                     ) : null}
 
-                    {isShowingIssueForm ? (
-                      <div className="mobilePatrolItemIssueForm">
-                        <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#92400e' }}>Комментарий к нарушению</div>
+                    {isShowingProblemForm ? (
+                      <div className={`mobilePatrolItemIssueForm${problemStatus === 'CRITICAL' ? ' mobilePatrolItemIssueForm--critical' : ''}`}>
+                        <div style={{ fontSize: '0.8rem', fontWeight: 600, color: problemStatus === 'CRITICAL' ? '#991b1b' : '#92400e' }}>
+                          {problemStatus === 'CRITICAL' ? 'Комментарий к критичному состоянию' : 'Комментарий к проблеме'}
+                        </div>
                         <textarea
                           className="mobilePatrolItemIssueFormTextarea"
                           rows={2}
-                          placeholder="Опишите нарушение…"
-                          value={issueComment}
-                          onChange={(e) => setIssueComment(e.target.value)}
+                          placeholder={problemStatus === 'CRITICAL' ? 'Опишите критичное состояние…' : 'Опишите проблему…'}
+                          value={problemComment}
+                          onChange={(e) => setProblemComment(e.target.value)}
                         />
                         <button
                           type="button"
                           className="mobileBtn"
-                          style={{ minHeight: 36, padding: '6px 14px', fontSize: '0.84rem', borderRadius: 8, background: '#d97706' }}
+                          style={{ background: problemStatus === 'CRITICAL' ? '#dc2626' : '#d97706' }}
                           disabled={busyItemIds.has(item.id)}
-                          onClick={() => markIssue(item.id)}
+                          onClick={() => markProblem(item.id)}
                         >
-                          Подтвердить нарушение
+                          {problemStatus === 'CRITICAL' ? 'Подтвердить критичное состояние' : 'Подтвердить проблему'}
                         </button>
                       </div>
                     ) : null}
@@ -558,7 +582,10 @@ export function MobileInspectionRunPage() {
                             style={{ width: '100%', marginTop: 4, minHeight: 34, fontSize: '0.82rem', borderRadius: 8 }}
                             value={ticketCategoryId}
                             disabled={busy}
-                            onChange={(e) => setTicketCategoryId(e.target.value)}
+                            onChange={(e) => {
+                              setTicketCategoryId(e.target.value)
+                              setTicketReviewItemId(null)
+                            }}
                           >
                             <option value="">— выберите категорию —</option>
                             {activeCategories.map((category) => (
@@ -571,11 +598,26 @@ export function MobileInspectionRunPage() {
                           className="mobileBtn"
                           style={{ minHeight: 34, padding: '6px 14px', fontSize: '0.82rem', borderRadius: 8 }}
                           disabled={busy || !ticketCategoryId}
-                          onClick={() => createTicket(item)}
+                          onClick={() => setTicketReviewItemId(item.id)}
                         >
-                          {busy ? 'Создаём…' : 'Создать заявку'}
+                          Проверить заявку
                         </button>
                       </div>
+                    ) : null}
+
+                    {canCreateTicket && isReviewingTicket && selectedCategory ? (
+                      <InspectionTicketReview
+                        checkpointTitle={item.title}
+                        location={run.location}
+                        equipment={run.equipment}
+                        categoryName={selectedCategory.name}
+                        status={item.status as 'ISSUE' | 'CRITICAL'}
+                        description={item.comment || item.description}
+                        attachments={item.attachments}
+                        busy={busy}
+                        onConfirm={() => createTicket(item)}
+                        onCancel={() => setTicketReviewItemId(null)}
+                      />
                     ) : null}
 
                     {createdTicketId ? (

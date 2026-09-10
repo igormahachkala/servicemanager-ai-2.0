@@ -54,6 +54,7 @@ function makeService(overrides: Record<string, any> = {}) {
   }
   const timeline = { recordLegacy: jest.fn().mockResolvedValue(undefined) }
   const exporter = { exportReport: jest.fn() }
+  const shiftPolicy = { assertActiveShiftForOperationalWork: jest.fn().mockResolvedValue(undefined) }
   const serviceContracts = new ServiceContractsService({
     serviceContract: {
       findUnique: jest.fn(),
@@ -65,11 +66,24 @@ function makeService(overrides: Record<string, any> = {}) {
     prisma,
     tickets,
     timeline,
-    service: new InspectionService(prisma as any, tickets as any, timeline as any, exporter as any, serviceContracts),
+    shiftPolicy,
+    service: new InspectionService(prisma as any, tickets as any, timeline as any, exporter as any, serviceContracts, shiftPolicy as any),
   }
 }
 
 describe('InspectionService round zone/checkpoint foundation', () => {
+  it('checks the canonical shift policy before starting operational Round work', async () => {
+    const { prisma, service, shiftPolicy } = makeService()
+    shiftPolicy.assertActiveShiftForOperationalWork.mockRejectedValueOnce(new Error('ACTIVE_SHIFT_REQUIRED'))
+
+    await expect(service.startRun(USER, { templateId: 'template-1', locationId: 'location-1' })).rejects.toThrow(
+      'ACTIVE_SHIFT_REQUIRED',
+    )
+    expect(shiftPolicy.assertActiveShiftForOperationalWork).toHaveBeenCalledWith(USER)
+    expect(prisma.inspectionTemplate.findFirst).not.toHaveBeenCalled()
+    expect(prisma.inspectionRun.create).not.toHaveBeenCalled()
+  })
+
   it('creates templates with multiple ordered zones and checkpoint metadata', async () => {
     const { prisma, service } = makeService()
 

@@ -1,4 +1,5 @@
 import * as api from '../../lib/api'
+import { getRoleDisplayLabel } from '../../lib/resolveAdminProfile'
 import { formatMobileMutationError } from '../mobileActionErrors'
 import type { MobileHomeBoardFilterTab } from '../mobileHomeBoardFilters'
 
@@ -47,8 +48,7 @@ export function HomeHeader(props: Props) {
   const displayInitials =
     ([me?.firstName, me?.lastName].filter(Boolean).map((s) => (s || '').trim().charAt(0)).join('') ||
       (me?.email || '').charAt(0)).toUpperCase() || '—'
-  const roleLabel =
-    me?.role === 'TECHNICIAN' ? 'Техник' : me?.role === 'CLIENT' ? 'Клиент' : me?.role === 'PLATFORM_ADMIN' ? 'Платформа' : 'Администратор'
+  const roleLabel = getRoleDisplayLabel({ role: me?.role })
 
   return (
     <>
@@ -145,7 +145,7 @@ export function HomeHeader(props: Props) {
           {techBoundPending ? <div className="mobileNotice">Определяем клиентский контур…</div> : null}
           {techWillRedirectForScope ? <div className="mobileNotice">Подключаем клиентский контур…</div> : null}
           {techBoundError ? (
-            <div className="mobileNotice mobileNoticeError">{(techBoundError as any)?.message || String(techBoundError)}</div>
+            <div className="mobileNotice mobileNoticeError">{formatMobileMutationError(techBoundError, { operation: 'other' })}</div>
           ) : null}
           {!techBoundPending && !techBoundError && techBoundEmpty ? (
             <div className="mobileNotice" style={{ border: '1px solid #fcd34d', background: '#fffbeb', color: '#92400e' }}>

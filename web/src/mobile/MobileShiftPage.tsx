@@ -3,7 +3,9 @@ import { Link, useLocation } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
+import { formatMobileMutationError } from './mobileActionErrors'
 import { mobilePath } from './mobileRoute'
+import { isShiftGateSubjectRole } from './mobileShiftGate'
 
 function durationLabel(start: string, end?: string | null, now = Date.now()) {
   const startMs = new Date(start).getTime()
@@ -29,6 +31,8 @@ export function MobileShiftPage() {
   const queryClient = useQueryClient()
   const [now, setNow] = useState(Date.now())
   const [error, setError] = useState('')
+  const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
+  const isShiftSubject = isShiftGateSubjectRole(meQ.data?.role)
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 15_000)
@@ -38,6 +42,7 @@ export function MobileShiftPage() {
   const stateQ = useQuery({
     queryKey: ['workforce-me'],
     queryFn: api.workforceMyState,
+    enabled: isShiftSubject,
     refetchInterval: 30_000,
   })
 
@@ -50,13 +55,13 @@ export function MobileShiftPage() {
     mutationFn: api.openWorkShift,
     onMutate: () => setError(''),
     onSuccess: refresh,
-    onError: (e: unknown) => setError(e instanceof Error ? e.message : String(e)),
+    onError: (e: unknown) => setError(formatMobileMutationError(e, { operation: 'other' })),
   })
   const closeM = useMutation({
     mutationFn: () => api.closeWorkShift(),
     onMutate: () => setError(''),
     onSuccess: refresh,
-    onError: (e: unknown) => setError(e instanceof Error ? e.message : String(e)),
+    onError: (e: unknown) => setError(formatMobileMutationError(e, { operation: 'other' })),
   })
 
   const data = stateQ.data
@@ -77,15 +82,25 @@ export function MobileShiftPage() {
       <div>
         <h1 className="mobileTitle">Рабочая смена</h1>
         <div className="mobileSubtitle">
-          Учёт рабочего дня и фактического времени по заявкам. Автозакрытие: {data?.company.shiftAutoCloseTime || '19:00'}.
+          {meQ.data && !isShiftSubject
+            ? 'Учёт рабочей смены применяется к мастерам и техникам.'
+            : `Учёт рабочего дня и фактического времени по заявкам. Автозакрытие: ${data?.company.shiftAutoCloseTime || '19:00'}.`}
         </div>
       </div>
 
-      {stateQ.isLoading ? <div className="mobileCard mobileMeta">Загрузка смены…</div> : null}
-      {stateQ.isError ? <div className="mobileNotice mobileNoticeError">{(stateQ.error as Error)?.message || 'Смена недоступна'}</div> : null}
+      {meQ.isLoading ? <div className="mobileCard mobileMeta">Проверяем доступ…</div> : null}
+      {meQ.isError ? <div className="mobileNotice mobileNoticeError">{formatMobileMutationError(meQ.error, { operation: 'other' })}</div> : null}
+      {meQ.data && !isShiftSubject ? (
+        <div className="mobileCard">
+          <div className="mobileSectionTitle">Рабочая смена не требуется</div>
+          <p className="mobileHint">Для вашей роли учёт рабочей смены не применяется.</p>
+        </div>
+      ) : null}
+      {isShiftSubject && stateQ.isLoading ? <div className="mobileCard mobileMeta">Загрузка смены…</div> : null}
+      {isShiftSubject && stateQ.isError ? <div className="mobileNotice mobileNoticeError">{formatMobileMutationError(stateQ.error, { operation: 'other' })}</div> : null}
       {error ? <div className="mobileNotice mobileNoticeError">{error}</div> : null}
 
-      {data && !shift ? (
+      {isShiftSubject && data && !shift ? (
         <div className="mobileCard" style={{ textAlign: 'center' }}>
           <div className="mobileSectionTitle">Смена не открыта</div>
           <p className="mobileHint">Откройте смену перед началом работы по заявкам.</p>
@@ -95,7 +110,7 @@ export function MobileShiftPage() {
         </div>
       ) : null}
 
-      {shift ? (
+      {isShiftSubject && shift ? (
         <div className="mobileCard">
           <div className="mobileRow" style={{ alignItems: 'flex-start' }}>
             <div>
@@ -132,7 +147,7 @@ export function MobileShiftPage() {
         </div>
       ) : null}
 
-      {data?.recentShifts.length ? (
+      {isShiftSubject && data?.recentShifts.length ? (
         <div>
           <div className="mobileSectionTitle" style={{ marginBottom: 8 }}>Последние смены</div>
           <div style={{ display: 'grid', gap: 8 }}>

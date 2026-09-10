@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
+import { formatMobileMutationError } from './mobileActionErrors'
 import { mobilePath } from './mobileRoute'
 
 function timerLabel(startedAt: string, now: number) {
@@ -43,13 +44,13 @@ export function MobileTicketWorkTimer(props: {
     mutationFn: () => api.startTicketWorkLog(props.ticketId, props.scope),
     onMutate: () => setError(''),
     onSuccess: refresh,
-    onError: (e: unknown) => setError(e instanceof Error ? e.message : String(e)),
+    onError: (e: unknown) => setError(formatMobileMutationError(e, { operation: 'other' })),
   })
   const stopM = useMutation({
     mutationFn: () => api.stopTicketWorkLog(props.ticketId),
     onMutate: () => setError(''),
     onSuccess: refresh,
-    onError: (e: unknown) => setError(e instanceof Error ? e.message : String(e)),
+    onError: (e: unknown) => setError(formatMobileMutationError(e, { operation: 'other' })),
   })
 
   if (!props.enabled || stateQ.isError) return null
