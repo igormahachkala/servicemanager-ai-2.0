@@ -71,7 +71,18 @@ export function MobileProfile() {
     const suffix = params.toString()
     const target = suffix ? `/login?${suffix}` : '/login'
 
+    /**
+     * SMA-MOBILE-OFFLINE-MODE-V1-113A — a device handover must not carry work across accounts.
+     *
+     * clearToken() only drops the credential; the cached board, cached ticket details and any
+     * pending offline queue live in localStorage and survived it. On a shared technician phone
+     * the next person to sign in inherited the previous one's tickets, and their queued actions
+     * would then be sent under the new session. clearClientBrowserStorage() removes exactly the
+     * app-owned keys, which is what the /logout route already did — the mobile button simply
+     * never went through it.
+     */
     api.clearToken()
+    api.clearClientBrowserStorage()
     queryClient.clear()
 
     if (typeof window !== 'undefined') {

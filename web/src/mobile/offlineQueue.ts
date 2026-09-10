@@ -1,22 +1,56 @@
 import { useEffect, useLayoutEffect, useState } from 'react'
 import * as api from '../lib/api'
 import { safeReadJson as readBrowserStorageJson, safeWriteJson as writeBrowserStorageJson } from '../lib/browserStorage'
+import {
+  getOfflineOperationSpec,
+  isAlreadyAppliedRejection,
+  isOfflineWriteEnabled,
+  mayAutoRetry,
+  SEND_ONCE_PARKED_MESSAGE,
+} from './offlineOperations'
 
-export type OfflineQueueActionType = 'ticket_status_change' | 'ticket_comment' | 'ticket_photo_upload'
+/**
+ * SMA-MOBILE-OFFLINE-MODE-V1-113A.
+ *
+ * `inspection_checkpoint_update` joins the queue because it is the one operation in the current
+ * API that is provably safe to replay: an absolute-value update addressed by id. The remaining
+ * types stay declared so existing stored items keep their shape across the upgrade, but
+ * offlineOperations.ts decides which of them may be enqueued.
+ */
+export type OfflineQueueActionType =
+  | 'ticket_status_change'
+  | 'ticket_comment'
+  | 'ticket_photo_upload'
+  | 'inspection_checkpoint_update'
 export type OfflineQueueItemStatus = 'pending' | 'syncing' | 'failed' | 'synced'
 
 export type OfflineQueueItem = {
   id: string
   type: OfflineQueueActionType
+  /** Empty for operations that do not target a ticket (a round checkpoint, for example). */
   ticketId: string
   scope: api.TicketScopeParams
   payload: {
     status?: api.TicketStatus
     comment?: string
+    /** 113A: round checkpoint target and absolute values to write. */
+    runId?: string
+    itemId?: string
+    checkpoint?: {
+      status?: string
+      comment?: string
+      requiresRepair?: boolean
+      booleanValue?: boolean
+      numberValue?: number
+      textValue?: string
+    }
   }
   createdAt: string
   status: OfflineQueueItemStatus
   lastError?: string
+  /** 113A retry metadata — without it a permanently failing item is indistinguishable from a new one. */
+  attempts?: number
+  lastAttemptAt?: string
 }
 
 /** Результат ручной синхронизации очереди (synced-записи из storage удаляются). */
@@ -158,6 +192,7 @@ export function enqueueOfflineStatusChange(params: {
   status: api.TicketStatus
   comment?: string
 }): OfflineQueueItem {
+  assertOfflineWriteEnabled('ticket_status_change')
   const scope = normalizeScope(params.scope)
   const current = readOfflineQueue()
   const dup = findPendingOrFailedStatusChangeDuplicate(current, params.ticketId, scope, params.status)
@@ -182,11 +217,91 @@ export function enqueueOfflineStatusChange(params: {
   return item
 }
 
+/**
+ * 113A: refuse to queue an operation whose replay could duplicate server state.
+ *
+ * Enforced here rather than at each call site: the failure this prevents — a second identical
+ * comment or a second uploaded photo after a lost response — is invisible at the call site and
+ * only shows up in the ticket history days later.
+ */
+export class OfflineWriteNotSupportedError extends Error {
+  readonly operationType: string
+  constructor(type: string) {
+    const spec = getOfflineOperationSpec(type)
+    super(
+      spec?.requires
+        ? `Офлайн-отправка недоступна для «${type}»: ${spec.requires}`
+        : `Офлайн-отправка недоступна для «${type}»`,
+    )
+    this.name = 'OfflineWriteNotSupportedError'
+    this.operationType = type
+  }
+}
+
+function assertOfflineWriteEnabled(type: OfflineQueueActionType) {
+  if (!isOfflineWriteEnabled(type)) throw new OfflineWriteNotSupportedError(type)
+}
+
+/**
+ * 113A: queue an absolute-value update of a round checkpoint. The one write this task enables,
+ * because PATCH /inspection/runs/:runId/items/:itemId is the one endpoint that converges on
+ * replay instead of appending.
+ *
+ * Repeated edits of the same checkpoint collapse onto one queued item: the last value wins,
+ * which is what the technician means and what keeps the queue from growing per keystroke.
+ */
+export function enqueueOfflineCheckpointUpdate(params: {
+  runId: string
+  itemId: string
+  checkpoint: NonNullable<OfflineQueueItem['payload']['checkpoint']>
+}): OfflineQueueItem {
+  assertOfflineWriteEnabled('inspection_checkpoint_update')
+
+  const current = readOfflineQueue()
+  const existingIdx = current.findIndex(
+    (row) =>
+      row.type === 'inspection_checkpoint_update' &&
+      row.payload.runId === params.runId &&
+      row.payload.itemId === params.itemId &&
+      (row.status === 'pending' || row.status === 'failed'),
+  )
+
+  if (existingIdx !== -1) {
+    const merged: OfflineQueueItem = {
+      ...current[existingIdx]!,
+      status: 'pending',
+      lastError: undefined,
+      payload: {
+        ...current[existingIdx]!.payload,
+        checkpoint: { ...current[existingIdx]!.payload.checkpoint, ...params.checkpoint },
+      },
+    }
+    current[existingIdx] = merged
+    writeOfflineQueue(current)
+    return merged
+  }
+
+  const item: OfflineQueueItem = {
+    id: `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
+    type: 'inspection_checkpoint_update',
+    ticketId: '',
+    scope: normalizeScope(undefined),
+    payload: { runId: params.runId, itemId: params.itemId, checkpoint: params.checkpoint },
+    createdAt: new Date().toISOString(),
+    status: 'pending',
+    attempts: 0,
+  }
+  current.push(item)
+  writeOfflineQueue(current)
+  return item
+}
+
 export function enqueueOfflineComment(params: {
   ticketId: string
   scope?: api.TicketScopeParams
   comment: string
 }): OfflineQueueItem {
+  assertOfflineWriteEnabled('ticket_comment')
   const item: OfflineQueueItem = {
     id: `${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
     type: 'ticket_comment',
@@ -211,7 +326,10 @@ async function processOneItem(item: OfflineQueueItem): Promise<void> {
     const comment = item.payload.comment?.trim()
     if (!comment) throw new Error('Пустой комментарий')
     await api.addTicketComment(item.ticketId, comment, item.scope)
-  } else if (item.type === 'ticket_status_change') {
+    return
+  }
+
+  if (item.type === 'ticket_status_change') {
     const status = item.payload.status
     if (!status) throw new Error('Не указан статус')
     const comment = item.payload.comment?.trim()
@@ -219,7 +337,27 @@ async function processOneItem(item: OfflineQueueItem): Promise<void> {
       await api.addTicketComment(item.ticketId, comment, item.scope)
     }
     await api.updateTicketStatus(item.ticketId, { status }, item.scope)
+    return
   }
+
+  if (item.type === 'inspection_checkpoint_update') {
+    const { runId, itemId, checkpoint } = item.payload
+    if (!runId || !itemId) throw new Error('Не указан обход или пункт')
+    if (!checkpoint || Object.keys(checkpoint).length === 0) {
+      throw new Error('Пустое изменение пункта обхода')
+    }
+    // Absolute values, addressed by id: replaying this converges rather than appending.
+    await api.updateInspectionRunItem(runId, itemId, checkpoint as any)
+    return
+  }
+
+  /**
+   * 113A: previously this function ended after the two known branches, so an item of any other
+   * type — ticket_photo_upload was declared but never handled — fell through, resolved, and was
+   * deleted from the queue as if it had been sent. A queued photo disappeared and the technician
+   * was told it synced. Refusing loudly keeps the item in the queue where it can be seen.
+   */
+  throw new Error(`Тип действия не поддерживается офлайн: ${item.type}`)
 }
 
 async function runRetryOfflineQueue(): Promise<OfflineQueueRetryResult> {
@@ -231,6 +369,10 @@ async function runRetryOfflineQueue(): Promise<OfflineQueueRetryResult> {
 
   const toProcess = stored
     .filter((row) => row.status === 'pending' || row.status === 'failed')
+    // 113A: a send-once item that has already been attempted is not retried automatically —
+    // the sync cannot distinguish a lost response from a rejected request, and guessing wrong
+    // duplicates the technician's comment. It stays visible for a manual decision.
+    .filter((row) => mayAutoRetry(row.type, row.attempts ?? 0))
     .map((row) => row.id)
 
   for (const id of toProcess) {
@@ -240,7 +382,12 @@ async function runRetryOfflineQueue(): Promise<OfflineQueueRetryResult> {
     const item = current[idx]!
     if (item.status === 'synced') continue
 
-    current[idx] = { ...item, status: 'syncing' }
+    current[idx] = {
+      ...item,
+      status: 'syncing',
+      attempts: (item.attempts ?? 0) + 1,
+      lastAttemptAt: new Date().toISOString(),
+    }
     writeOfflineQueue(current)
 
     try {
@@ -249,10 +396,26 @@ async function runRetryOfflineQueue(): Promise<OfflineQueueRetryResult> {
       synced += 1
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : String(error)
+      /**
+       * 113A: a replay of a safe_with_reconciliation operation can be rejected precisely
+       * because the earlier attempt already landed. Retrying that forever would show the
+       * technician a permanent error for work that is done, so it counts as synced.
+       */
+      if (isAlreadyAppliedRejection(item.type, errMsg)) {
+        writeOfflineQueue(readOfflineQueue().filter((r) => r.id !== id))
+        synced += 1
+        continue
+      }
       const after = readOfflineQueue()
       const fi = after.findIndex((r) => r.id === id)
       if (fi !== -1) {
-        after[fi] = { ...after[fi]!, status: 'failed', lastError: errMsg }
+        const spec = getOfflineOperationSpec(item.type)
+        after[fi] = {
+          ...after[fi]!,
+          status: 'failed',
+          lastError:
+            spec?.kind === 'send_once_no_auto_retry' ? SEND_ONCE_PARKED_MESSAGE : errMsg,
+        }
         writeOfflineQueue(after)
       }
       failed += 1
@@ -269,7 +432,12 @@ export async function retrySingleQueueItem(id: string): Promise<{ ok: boolean; e
   const item = queue[idx]!
   if (item.status === 'synced') return { ok: true }
 
-  queue[idx] = { ...item, status: 'syncing' }
+  queue[idx] = {
+    ...item,
+    status: 'syncing',
+    attempts: (item.attempts ?? 0) + 1,
+    lastAttemptAt: new Date().toISOString(),
+  }
   writeOfflineQueue(queue)
 
   try {
@@ -278,6 +446,10 @@ export async function retrySingleQueueItem(id: string): Promise<{ ok: boolean; e
     return { ok: true }
   } catch (error) {
     const errMsg = error instanceof Error ? error.message : String(error)
+    if (isAlreadyAppliedRejection(item.type, errMsg)) {
+      writeOfflineQueue(readOfflineQueue().filter((r) => r.id !== id))
+      return { ok: true }
+    }
     const after = readOfflineQueue()
     const fi = after.findIndex((r) => r.id === id)
     if (fi !== -1) {
