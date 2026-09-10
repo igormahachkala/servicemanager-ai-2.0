@@ -15,7 +15,12 @@ import { PrismaService } from '../prisma/prisma.service'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
 import { resolveTicketOperationAccess, type TicketAccessActor } from '../tickets/ticket-access.utils'
 import { ShiftPolicyService } from './shift-policy.service'
-import { elapsedMinutes, isWorkShiftAutoCloseDue, parseShiftCloseTime } from './workforce-time'
+import {
+  elapsedMinutes,
+  isWorkShiftAutoCloseDue,
+  parseShiftCloseTime,
+  resolveWorkShiftAutoCloseAt,
+} from './workforce-time'
 
 type WorkforceActor = TicketAccessActor
 
@@ -393,29 +398,53 @@ export class WorkforceService {
     )
     let closed = 0
     for (const shift of due) {
+      /**
+       * 106A: close at the configured boundary, not at the moment this loop reached the row.
+       * A null boundary means existing configuration does not justify one — see
+       * resolveWorkShiftAutoCloseAt — and the pre-106A behaviour (`now`) is kept unchanged
+       * rather than replaced by an invented rule.
+       */
+      const boundary = resolveWorkShiftAutoCloseAt({
+        now,
+        openedAt: shift.openedAt,
+        timezone: shift.company.timezone,
+        closeTime: shift.company.shiftAutoCloseTime,
+      })
+
       const didClose = await this.closeShiftById(
         shift.id,
         WorkShiftStatus.AUTO_CLOSED,
         null,
         `AUTO_CLOSE_${shift.company.shiftAutoCloseTime}`,
-        now,
+        boundary ?? now,
+        { sweptAt: now, boundaryResolved: boundary !== null },
       )
       if (didClose) closed += 1
     }
     return closed
   }
 
+  /**
+   * 106A: `closedAt` is now the effective close instant supplied by the caller, not
+   * unconditionally "right now".
+   *
+   * Manual close still passes the current time, so nothing changes there. Auto-close passes
+   * the configured boundary. The claim stays an OPEN-guarded updateMany, so a second sweeper
+   * pass over the same row still finds count 0 and returns false — idempotency is unchanged
+   * and does not depend on the timestamp.
+   */
   private async closeShiftById(
     shiftId: string,
     status: WorkShiftStatus,
     actorUserId: string | null,
     reason: string,
-    now = new Date(),
+    closedAt = new Date(),
+    audit?: { sweptAt: Date; boundaryResolved: boolean },
   ) {
     return this.prisma.$transaction(async (tx) => {
       const claimed = await tx.workShift.updateMany({
         where: { id: shiftId, status: WorkShiftStatus.OPEN },
-        data: { status, closedAt: now, closeReason: reason },
+        data: { status, closedAt, closeReason: reason },
       })
       if (claimed.count === 0) return false
 
@@ -431,12 +460,21 @@ export class WorkforceService {
       if (!shift) throw new NotFoundException('Work shift not found after close claim')
 
       for (const log of shift.workLogs) {
-        const durationMinutes = elapsedMinutes(log.startedAt, now)
+        /**
+         * 106A: a running log ends with its shift. Pulling the shift's end back to the
+         * configured boundary must not drag a log's end before its own start, which can happen
+         * for a log begun in the window between the boundary and the sweeper pass — the shift
+         * was still OPEN then, so starting work was legal. Such a log ends at its start
+         * instant (one minute by elapsedMinutes' floor) rather than being given a negative
+         * duration or being silently discarded.
+         */
+        const logEndedAt = log.startedAt > closedAt ? log.startedAt : closedAt
+        const durationMinutes = elapsedMinutes(log.startedAt, logEndedAt)
         await tx.workLog.update({
           where: { id: log.id },
           data: {
             status: status === WorkShiftStatus.AUTO_CLOSED ? WorkLogStatus.AUTO_STOPPED : WorkLogStatus.STOPPED,
-            endedAt: now,
+            endedAt: logEndedAt,
             durationMinutes,
           },
         })
@@ -459,7 +497,14 @@ export class WorkforceService {
           entityId: shift.id,
           type: status === WorkShiftStatus.AUTO_CLOSED ? 'workforce.shift_auto_closed' : 'workforce.shift_closed',
           actorUserId,
-          payload: { closedAt: now.toISOString(), reason },
+          payload: {
+            closedAt: closedAt.toISOString(),
+            reason,
+            // 106A: keeps the sweeper's own clock visible for audit without moving closedAt.
+            ...(audit
+              ? { sweptAt: audit.sweptAt.toISOString(), boundaryResolved: audit.boundaryResolved }
+              : {}),
+          },
         },
       })
       return true
