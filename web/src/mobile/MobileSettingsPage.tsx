@@ -124,7 +124,7 @@ export function MobileSettingsPage() {
     const scoped = (to: string) => api.appendScopeToPath(to, currentScope, meQ.data)
     const fullAdmin = api.isFullAdminDesktopNavRole(role)
 
-    if (canAccessManagementDesktop(role)) {
+    if (canAccessManagementDesktop(meQ.data)) {
       links.push({
         id: 'desktop',
         label: 'Управленческая часть',

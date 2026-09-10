@@ -24,6 +24,7 @@ import { PermissionsContextGuard } from '../common/permissions-context.guard'
 import { PermissionsGuard } from '../common/permissions.guard'
 import { RequirePermission } from '../common/permissions.decorator'
 import { PERMISSIONS } from '../common/permissions.constants'
+import { ManagementSurface } from '../common/management-surface-access'
 
 import { InspectionService } from './inspection.service'
 import { InspectionScheduleService } from './inspection-schedule.service'
@@ -71,6 +72,7 @@ export class InspectionController {
   }
 
   @Post('schedules')
+  @ManagementSurface()
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR)
   @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
   createSchedule(@Req() req: any, @Body() dto: CreateScheduleDto) {
@@ -78,6 +80,7 @@ export class InspectionController {
   }
 
   @Patch('schedules/:id')
+  @ManagementSurface()
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR)
   @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
   updateSchedule(@Req() req: any, @Param('id') scheduleId: string, @Body() dto: UpdateScheduleDto) {
@@ -85,6 +88,7 @@ export class InspectionController {
   }
 
   @Delete('schedules/:id')
+  @ManagementSurface()
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR)
   @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
   deleteSchedule(@Req() req: any, @Param('id') scheduleId: string) {
@@ -99,6 +103,7 @@ export class InspectionController {
   }
 
   @Post('templates')
+  @ManagementSurface()
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR)
   @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
   createTemplate(@Req() req: any, @Body() dto: CreateTemplateDto) {
@@ -149,6 +154,7 @@ export class InspectionController {
   }
 
   @Post('runs/:id/report/review')
+  @ManagementSurface()
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR)
   @RequirePermission(PERMISSIONS.LOCATIONS_VIEW)
   reviewRunReport(@Req() req: any, @Param('id') runId: string, @Body() dto: ReviewRunReportDto) {

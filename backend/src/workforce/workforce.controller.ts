@@ -8,6 +8,7 @@ import { PermissionsGuard } from '../common/permissions.guard'
 import { PERMISSIONS } from '../common/permissions.constants'
 import { Roles } from '../common/roles.decorator'
 import { RolesGuard } from '../common/roles.guard'
+import { ManagementSurface } from '../common/management-surface-access'
 import { CloseWorkShiftDto } from './dto/close-work-shift.dto'
 import { UpdateWorkforceSettingsDto } from './dto/update-workforce-settings.dto'
 import { WorkforceService } from './workforce.service'
@@ -57,6 +58,7 @@ export class WorkforceController {
   }
 
   @Get('shifts')
+  @ManagementSurface()
   @Roles(
     UserRole.PLATFORM_ADMIN,
     UserRole.ADMIN,
@@ -83,6 +85,7 @@ export class WorkforceController {
   }
 
   @Patch('settings')
+  @ManagementSurface()
   @Roles(UserRole.ADMIN)
   @RequirePermission(PERMISSIONS.COMPANY_SETTINGS_EDIT)
   updateSettings(@Req() req: any, @Body() dto: UpdateWorkforceSettingsDto) {
