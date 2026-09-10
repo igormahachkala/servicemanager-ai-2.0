@@ -8,8 +8,11 @@ import {
   Post,
   Query,
   Req,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { UserRole } from '@prisma/client';
 
 import { JwtAuthGuard } from '../auth/jwt.guard';
@@ -38,6 +41,56 @@ export class EquipmentController {
       req.user.id,
       req.user.role as UserRole,
       dto,
+    );
+  }
+
+  /**
+   * SMA-EQUIPMENT-V2-110A.
+   * Список парка компании: поиск и фильтры. Роли для чтения те же, что у выборки
+   * по площадке — отдельного набора прав не заводится.
+   */
+  @Get()
+  @Roles(
+    UserRole.ADMIN,
+    UserRole.MASTER,
+    UserRole.DISPATCHER,
+    UserRole.NETWORK_DIRECTOR,
+    UserRole.TERRITORIAL_MANAGER,
+    UserRole.TECHNICIAN,
+    UserRole.CLIENT,
+    UserRole.PLATFORM_ADMIN,
+  )
+  @RequirePermission(PERMISSIONS.LOCATIONS_VIEW)
+  list(
+    @Req() req: any,
+    @Query('companyId') companyId?: string,
+    @Query('locationId') locationId?: string,
+    @Query('status') status?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.svc.findAllByCompany(
+      req.user.companyId,
+      req.user.id,
+      req.user.role as UserRole,
+      { companyId, locationId, status, search },
+    );
+  }
+
+  /**
+   * Загрузка снимка. Право на запись — то же, что у создания и правки, поэтому
+   * SECONDARY-провайдер сюда не проходит.
+   */
+  @Post(':id/photos')
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER)
+  @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
+  uploadPhoto(@Req() req: any, @Param('id') id: string, @UploadedFile() file: any) {
+    return this.svc.uploadPhoto(
+      req.user.companyId,
+      req.user.id,
+      req.user.role as UserRole,
+      id,
+      file,
     );
   }
 

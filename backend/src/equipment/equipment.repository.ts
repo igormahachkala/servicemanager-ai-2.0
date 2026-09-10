@@ -3,6 +3,30 @@ import { Prisma } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 
+/**
+ * SMA-EQUIPMENT-V2-110A.
+ *
+ * Область площадок пользователя и явный фильтр «Точка» — разные условия,
+ * и действовать обязаны оба. Сначала они писались двумя спредами в один ключ
+ * locationId, и второй молча затирал первый: у пользователя, привязанного
+ * к нескольким площадкам, выбор точки в интерфейсе не менял ничего.
+ * Область при этом всегда побеждала, поэтому доступ не расширялся — ломался
+ * отбор. Обнаружено на приёмке Stage 110A: фильтр по площадке вернул весь парк.
+ *
+ * Запрошенная площадка вне области даёт пустую выдачу, а не выдачу по области:
+ * иначе фильтр «покажи точку, которую мне не видно» тихо показал бы соседние.
+ */
+function locationWhere(scopedIds?: string[], requested?: string) {
+  const wanted = (requested || '').trim();
+  if (!wanted) {
+    return scopedIds ? { locationId: { in: scopedIds } } : {};
+  }
+  if (scopedIds && !scopedIds.includes(wanted)) {
+    return { locationId: { in: [] as string[] } };
+  }
+  return { locationId: wanted };
+}
+
 @Injectable()
 export class EquipmentRepository {
   constructor(private readonly prisma: PrismaService) {}
@@ -14,6 +38,18 @@ export class EquipmentRepository {
     name: true,
     type: true,
     status: true,
+    // SMA-EQUIPMENT-V2-110A: паспорт карточки.
+    manufacturer: true,
+    model: true,
+    serialNumber: true,
+    inventoryNumber: true,
+    commissionedAt: true,
+    warrantyUntil: true,
+    description: true,
+    mainPhotoId: true,
+    mainPhoto: {
+      select: { id: true, url: true, originalName: true, mimeType: true },
+    },
     createdAt: true,
     updatedAt: true,
     location: {
@@ -50,6 +86,39 @@ export class EquipmentRepository {
         clientCompanyId: true,
         isActive: true,
       },
+    });
+  }
+
+  /**
+   * SMA-EQUIPMENT-V2-110A.
+   * Список по компании с поиском и фильтрами. Отбор идёт в базе, а не в браузере:
+   * иначе поиск по серийному номеру означал бы выгрузку всего парка на клиент.
+   */
+  findAllByCompany(
+    companyId: string,
+    params: { locationIds?: string[]; locationId?: string; status?: string; search?: string; take?: number },
+  ) {
+    const search = (params.search || '').trim();
+    return this.prisma.equipment.findMany({
+      where: {
+        companyId,
+        ...locationWhere(params.locationIds, params.locationId),
+        ...(params.status ? { status: params.status } : {}),
+        ...(search
+          ? {
+              OR: [
+                { name: { contains: search, mode: 'insensitive' as const } },
+                { manufacturer: { contains: search, mode: 'insensitive' as const } },
+                { model: { contains: search, mode: 'insensitive' as const } },
+                { serialNumber: { contains: search, mode: 'insensitive' as const } },
+                { inventoryNumber: { contains: search, mode: 'insensitive' as const } },
+              ],
+            }
+          : {}),
+      },
+      select: this.select,
+      orderBy: [{ status: 'asc' }, { name: 'asc' }, { createdAt: 'asc' }],
+      take: params.take ?? 200,
     });
   }
 
