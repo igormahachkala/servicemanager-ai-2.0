@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { BrowserNotificationsCard } from '../components/BrowserNotificationsCard'
+import { NotificationPreferencesPanel } from '../components/NotificationPreferencesPanel'
 import * as api from '../lib/api'
 import { getRoleDisplayLabel } from '../lib/resolveAdminProfile'
 
@@ -37,7 +38,7 @@ export function SettingsPage() {
       <div className="row">
         <div>
           <h2 style={{ marginBottom: 4 }}>Настройки</h2>
-          <div className="muted small">Минимальные настройки V1 для демо и внутренней работы</div>
+          <div className="muted small">Параметры приложения, компании и уведомлений</div>
         </div>
 
         <div>
@@ -62,7 +63,7 @@ export function SettingsPage() {
           <form onSubmit={saveSettings} className="form">
             {canManualBackendConfig ? (
               <label>
-                URL backend (dev)
+                Адрес backend (dev)
                 <input value={baseUrl} onChange={(e) => setBaseUrlState(e.target.value)} placeholder="http://localhost:3000" />
               </label>
             ) : null}
@@ -97,10 +98,10 @@ export function SettingsPage() {
                 {getRoleDisplayLabel({ role: meQ.data.role, companyType: tenantCompanyQ.data?.type })}
               </div>
 
-              <div className="k">Company ID</div>
+              <div className="k">ID компании</div>
               <div className="v">{meQ.data.companyId}</div>
 
-              <div className="k">Backend</div>
+              <div className="k">Сервер API</div>
               <div className="v">{api.getBaseUrl()}</div>
 
               <div className="k">Название компании</div>
@@ -113,21 +114,15 @@ export function SettingsPage() {
       <div className="panel" style={{ marginTop: 12 }}>
         <h3 style={{ marginBottom: 10 }}>Настройки компании</h3>
         <div className="muted small" style={{ marginBottom: 10 }}>
-          Здесь можно перейти к tenant-level настройкам компании и диспетчеризации.
+          Здесь можно перейти к настройкам компании и диспетчеризации.
         </div>
 
         <Link to="/company">
-          <button>Открыть Company Settings</button>
+          <button>Открыть настройки компании</button>
         </Link>
       </div>
 
-      <div className="panel" style={{ marginTop: 12 }}>
-        <h3 style={{ marginBottom: 10 }}>Что можно добавить следующим шагом</h3>
-        <div className="muted small">
-          Редактирование профиля компании, правила SLA, настройки ролей, специализации техников, загрузку логотипа и параметры
-          уведомлений.
-        </div>
-      </div>
+      <NotificationPreferencesPanel />
 
       <div className="panel" style={{ marginTop: 12 }}>
         <BrowserNotificationsCard />

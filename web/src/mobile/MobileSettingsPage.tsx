@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import { NotificationPreferencesPanel } from '../components/NotificationPreferencesPanel'
 import * as api from '../lib/api'
 import { canAccessManagementDesktop, managementHomePath } from '../lib/navigation'
 import { ClientContourCard } from './ClientContourCard'
@@ -220,6 +221,8 @@ export function MobileSettingsPage() {
       <div className="mobileSubtitle">Системные и управленческие разделы</div>
 
       <ClientContourCard />
+
+      <NotificationPreferencesPanel compact showCompanyMatrix={false} />
 
       <div className="mobileCard mobileProfileMenu" style={{ marginTop: 8 }}>
         <div className="mobileProfileSectionLabel" style={{ padding: '2px 0 4px' }}>Управление</div>

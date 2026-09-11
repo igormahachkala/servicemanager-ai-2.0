@@ -25,6 +25,18 @@ enum CompanyType {
   PROVIDER
 }
 
+enum NotificationContour {
+  CLIENT
+  PRIMARY_PROVIDER
+  SECONDARY_PROVIDER
+}
+
+enum NotificationChannel {
+  IN_APP
+  PUSH
+  MAX
+}
+
 enum AgentTaskStatus {
   NEW
   IN_PROGRESS
@@ -211,6 +223,8 @@ model Company {
   workLogs                     WorkLog[]
   serviceContractLocations     ServiceContractLocation[]
   maxUserBindings              MaxUserBinding[]
+  notificationRolePreferences  CompanyNotificationRolePreference[]
+  userNotificationPreferences  UserNotificationPreference[]
 }
 
 model User {
@@ -256,6 +270,7 @@ model User {
   workShifts                  WorkShift[]
   workLogs                    WorkLog[]
   maxUserBindings             MaxUserBinding[]
+  notificationPreferencesV2    UserNotificationPreference[]
 
   @@index([companyId, role])
   @@index([companyId, isActive])
@@ -331,6 +346,45 @@ model Notification {
 
   @@index([userId, companyId, readAt])
   @@index([userId, companyId, createdAt])
+}
+
+model CompanyNotificationRolePreference {
+  id              String              @id @default(uuid())
+  companyId       String
+  company         Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  contour         NotificationContour
+  role            UserRole
+  eventType       String
+  channel         NotificationChannel
+  enabled         Boolean
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  createdByUserId String?
+  updatedByUserId String?
+
+  @@unique([companyId, contour, role, eventType, channel], map: "CompanyNotifRolePref_scope_key")
+  @@index([companyId, contour, role], map: "CompanyNotifRolePref_role_idx")
+  @@index([eventType, channel], map: "CompanyNotifRolePref_event_idx")
+}
+
+model UserNotificationPreference {
+  id              String              @id @default(uuid())
+  userId          String
+  user            User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  companyId       String
+  company         Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  contour         NotificationContour
+  eventType       String
+  channel         NotificationChannel
+  enabled         Boolean
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  createdByUserId String?
+  updatedByUserId String?
+
+  @@unique([userId, contour, eventType, channel], map: "UserNotifPref_scope_key")
+  @@index([companyId, contour], map: "UserNotifPref_company_contour_idx")
+  @@index([eventType, channel], map: "UserNotifPref_event_idx")
 }
 
 model Location {

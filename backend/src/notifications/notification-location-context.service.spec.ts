@@ -13,7 +13,9 @@ describe('NotificationsService location context', () => {
   const ticketId = 'ticket-1';
   const ticketLocationId = 'location-1';
 
-  function makeService(location: { name: string | null; city: string | null } | null) {
+  function makeService(
+    location: { name: string | null; city: string | null } | null,
+  ) {
     jest.spyOn(ticketAccess, 'resolveReadableTicketAccess').mockImplementation(
       async (params: any) =>
         ({
@@ -34,7 +36,11 @@ describe('NotificationsService location context', () => {
 
     const prisma = {
       company: {
-        findMany: jest.fn().mockResolvedValue([{ id: ticketCompanyId, type: CompanyType.CLIENT }]),
+        findMany: jest
+          .fn()
+          .mockResolvedValue([
+            { id: ticketCompanyId, type: CompanyType.CLIENT },
+          ]),
         findUnique: jest.fn().mockResolvedValue({ type: CompanyType.CLIENT }),
         findFirst: jest.fn().mockResolvedValue({ phone: '+70000000000' }),
       },
@@ -47,15 +53,19 @@ describe('NotificationsService location context', () => {
         findFirst: jest
           .fn()
           .mockImplementation(
-            async (query: any) => users.find((user) => user.id === query?.where?.id) ?? null,
+            async (query: any) =>
+              users.find((user) => user.id === query?.where?.id) ?? null,
           ),
       },
       ticket: {
         // Резолвер контекста локации — единственный потребитель findUnique с select.location.
-        findUnique: jest.fn().mockResolvedValue(location ? { location } : { location: null }),
+        findUnique: jest
+          .fn()
+          .mockResolvedValue(location ? { location } : { location: null }),
         findFirst: jest.fn().mockResolvedValue({
           id: ticketId,
           companyId: ticketCompanyId,
+          company: { type: CompanyType.CLIENT },
           locationId: ticketLocationId,
           assignedTechnicianId: null,
           problemCategory: { specializationLinks: [] },
@@ -81,6 +91,14 @@ describe('NotificationsService location context', () => {
     const contractContext = {
       getContractContext: jest.fn().mockResolvedValue(null),
     };
+    const notificationPreferences = {
+      resolveDeliveryPreferences: jest.fn(async (inputs: unknown[]) =>
+        inputs.map(() => ({
+          enabled: true,
+          source: 'CURRENT_DELIVERY_DEFAULT',
+        })),
+      ),
+    };
 
     const service = new NotificationsService(
       prisma as any,
@@ -88,6 +106,7 @@ describe('NotificationsService location context', () => {
       push as any,
       {} as any,
       contractContext as any,
+      notificationPreferences as any,
     );
     return { service, prisma, push, maxBot };
   }
@@ -119,11 +138,15 @@ describe('NotificationsService location context', () => {
     const rows = prisma.notification.createMany.mock.calls[0][0].data;
     expect(rows).toHaveLength(2);
     for (const row of rows) {
-      expect(row.message).toBe('Уфа · Фудзияма, Проспект Октября\nЗаявка #1001 — Не работает касса');
+      expect(row.message).toBe(
+        'Уфа · Фудзияма, Проспект Октября\nЗаявка #1001 — Не работает касса',
+      );
     }
     expect(push.sendToUser).toHaveBeenCalledTimes(2);
     for (const call of push.sendToUser.mock.calls) {
-      expect(call[1].body).toBe('Уфа · Фудзияма, Проспект Октября\nЗаявка #1001 — Не работает касса');
+      expect(call[1].body).toBe(
+        'Уфа · Фудзияма, Проспект Октября\nЗаявка #1001 — Не работает касса',
+      );
     }
   });
 
@@ -135,10 +158,12 @@ describe('NotificationsService location context', () => {
 
     await emitCreated(service);
 
-    expect(prisma.notification.createMany.mock.calls[0][0].data[0].message).toBe(
+    expect(
+      prisma.notification.createMany.mock.calls[0][0].data[0].message,
+    ).toBe('Фудзияма\nЗаявка #1001 — Не работает касса');
+    expect(push.sendToUser.mock.calls[0][1].body).toBe(
       'Фудзияма\nЗаявка #1001 — Не работает касса',
     );
-    expect(push.sendToUser.mock.calls[0][1].body).toBe('Фудзияма\nЗаявка #1001 — Не работает касса');
   });
 
   it('точка отсутствует: остаётся город', async () => {
@@ -146,9 +171,9 @@ describe('NotificationsService location context', () => {
 
     await emitCreated(service);
 
-    expect(prisma.notification.createMany.mock.calls[0][0].data[0].message).toBe(
-      'Уфа\nЗаявка #1001 — Не работает касса',
-    );
+    expect(
+      prisma.notification.createMany.mock.calls[0][0].data[0].message,
+    ).toBe('Уфа\nЗаявка #1001 — Не работает касса');
   });
 
   it('локации нет вовсе: текст уведомления сохраняется как был', async () => {
@@ -156,10 +181,12 @@ describe('NotificationsService location context', () => {
 
     await emitCreated(service);
 
-    expect(prisma.notification.createMany.mock.calls[0][0].data[0].message).toBe(
+    expect(
+      prisma.notification.createMany.mock.calls[0][0].data[0].message,
+    ).toBe('Заявка #1001 — Не работает касса');
+    expect(push.sendToUser.mock.calls[0][1].body).toBe(
       'Заявка #1001 — Не работает касса',
     );
-    expect(push.sendToUser.mock.calls[0][1].body).toBe('Заявка #1001 — Не работает касса');
   });
 
   it('смена статуса: контекст есть и в записи, и в push', async () => {
@@ -182,7 +209,9 @@ describe('NotificationsService location context', () => {
 
     const row = prisma.notification.create.mock.calls[0][0].data;
     expect(row.message.startsWith('Уфа · Фудзияма\n')).toBe(true);
-    expect(push.sendToUser.mock.calls[0][1].body.startsWith('Уфа · Фудзияма\n')).toBe(true);
+    expect(
+      push.sendToUser.mock.calls[0][1].body.startsWith('Уфа · Фудзияма\n'),
+    ).toBe(true);
   });
 
   it('комментарий: контекст есть и на пачке наблюдателей, и на одиночной записи исполнителю', async () => {
@@ -198,9 +227,9 @@ describe('NotificationsService location context', () => {
       assigneeCompanyId: ticketCompanyId,
     });
 
-    expect(prisma.notification.createMany.mock.calls[0][0].data[0].message).toBe(
-      'Уфа · Фудзияма\nЗаявка #1001 — Приеду завтра',
-    );
+    expect(
+      prisma.notification.createMany.mock.calls[0][0].data[0].message,
+    ).toBe('Уфа · Фудзияма\nЗаявка #1001 — Приеду завтра');
     expect(prisma.notification.create.mock.calls[0][0].data.message).toBe(
       'Уфа · Фудзияма\nЗаявка #1001 — Приеду завтра',
     );
@@ -222,7 +251,9 @@ describe('NotificationsService location context', () => {
       ticketId,
       section: 'overview',
     });
-    expect(push.sendToUser.mock.calls[0][1].navigate).toBe(`/m/tickets/${ticketId}`);
+    expect(push.sendToUser.mock.calls[0][1].navigate).toBe(
+      `/m/tickets/${ticketId}`,
+    );
     expect(push.sendToUser.mock.calls[0][1].url).toBe(`/m/tickets/${ticketId}`);
     expect(push.sendToUser.mock.calls[0][1].navigationTarget).toEqual({
       kind: 'ticket',
@@ -266,8 +297,13 @@ describe('NotificationsService location context', () => {
     await emitCreated(service);
 
     const rows = prisma.notification.createMany.mock.calls[0][0].data;
-    expect(rows.map((row: any) => row.userId).sort()).toEqual(['user-a', 'user-b']);
+    expect(rows.map((row: any) => row.userId).sort()).toEqual([
+      'user-a',
+      'user-b',
+    ]);
     expect(rows.every((row: any) => row.type === 'ticket.created')).toBe(true);
-    expect(rows.every((row: any) => row.linkedClientCompanyId === null)).toBe(true);
+    expect(rows.every((row: any) => row.linkedClientCompanyId === null)).toBe(
+      true,
+    );
   });
 });

@@ -1,6 +1,8 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
   CompanyType,
+  NotificationChannel,
+  NotificationContour,
   Prisma,
   ServiceContractRole,
   TicketStatus,
@@ -29,6 +31,10 @@ import {
   formatNotificationLocationContext,
   withNotificationLocationContext,
 } from './notification-location-context';
+import {
+  NotificationPreferencesService,
+  type NotificationPreferenceDecision,
+} from './notification-preferences.service';
 
 const WATCHER_ROLES: UserRole[] = [
   UserRole.ADMIN,
@@ -105,6 +111,27 @@ type NotificationRecipientCandidate = {
 
 type AccessibleNotificationRecipient = NotificationRecipientCandidate & {
   linkedClientCompanyId: string | null;
+  notificationContour: NotificationContour;
+  serviceContractRole: ServiceContractRole | null;
+};
+
+type NotificationAccessDecision = {
+  allowed: boolean;
+  linkedClientCompanyId: string | null;
+  notificationContour: NotificationContour | null;
+  serviceContractRole: ServiceContractRole | null;
+};
+
+type NotificationPreferenceSelection = {
+  delivered: AccessibleNotificationRecipient[];
+  suppressedByPreference: Array<{
+    recipient: AccessibleNotificationRecipient;
+    decision: NotificationPreferenceDecision;
+  }>;
+  decisions: Array<{
+    recipient: AccessibleNotificationRecipient;
+    decision: NotificationPreferenceDecision;
+  }>;
 };
 
 type NotificationRequiredSpecialization = {
@@ -116,6 +143,9 @@ type NotificationRequiredSpecialization = {
 type NotificationTicketContext = {
   id: string;
   companyId: string;
+  company?: {
+    type: CompanyType;
+  } | null;
   locationId: string | null;
   assignedTechnicianId: string | null;
   problemCategory?: {
@@ -151,7 +181,8 @@ function buildTicketPushRoute(params: {
   const section = params.section ?? (params.chat ? 'comments' : 'overview');
   if (section && section !== 'overview') query.set('section', section);
   if (section === 'comments') query.set('tab', 'chat');
-  if (params.linkedClientCompanyId) query.set('linkedClientCompanyId', params.linkedClientCompanyId);
+  if (params.linkedClientCompanyId)
+    query.set('linkedClientCompanyId', params.linkedClientCompanyId);
   if (params.companyId) query.set('companyId', params.companyId);
   const qs = query.toString();
   return `/m/tickets/${encodeURIComponent(params.ticketId)}${qs ? `?${qs}` : ''}`;
@@ -171,6 +202,7 @@ export class NotificationsService {
     private readonly push: PushService,
     private readonly serviceContractsService: ServiceContractsService,
     private readonly contractContextService: ContractContextService,
+    private readonly notificationPreferences: NotificationPreferencesService,
   ) {}
 
   /**
@@ -209,8 +241,13 @@ export class NotificationsService {
       });
       const tag = `${params.ticketId}:${params.chat ? 'chat' : params.type}`;
       // Контекст локации ставится после обрезки: длинный текст не должен его съедать.
-      const locationContext = await this.resolveTicketLocationContext(params.ticketId);
-      const body = withNotificationLocationContext(clipMessage(params.body, 300), locationContext);
+      const locationContext = await this.resolveTicketLocationContext(
+        params.ticketId,
+      );
+      const body = withNotificationLocationContext(
+        clipMessage(params.body, 300),
+        locationContext,
+      );
       await this.push.sendToUser(
         params.userId,
         {
@@ -232,35 +269,6 @@ export class NotificationsService {
     } catch (err) {
       this.logger.warn({ err, type: params.type }, 'push_emit_failed');
     }
-  }
-
-  private async pushTicketEventToMany(params: {
-    userIds: string[];
-    type: PushEventType;
-    ticketId: string;
-    title: string;
-    body: string;
-    chat?: boolean;
-    notificationType?: string;
-    linkedClientCompanyId?: string | null;
-    companyId?: string | null;
-  }) {
-    const unique = Array.from(new Set(params.userIds.filter(Boolean)));
-    await Promise.all(
-      unique.map((userId) =>
-        this.pushTicketEvent({
-          userId,
-          type: params.type,
-          ticketId: params.ticketId,
-          title: params.title,
-          body: params.body,
-          chat: params.chat,
-          notificationType: params.notificationType,
-          linkedClientCompanyId: params.linkedClientCompanyId,
-          companyId: params.companyId,
-        }),
-      ),
-    );
   }
 
   /**
@@ -315,12 +323,18 @@ export class NotificationsService {
     }
   }
 
-  private notificationDedupeKey(kind: string, ...parts: Array<string | number | null | undefined>) {
-    return [kind, ...parts.map((part) => {
-      if (part === null || part === undefined) return '-';
-      const text = String(part).trim();
-      return text.length > 0 ? text : '-';
-    })].join('|');
+  private notificationDedupeKey(
+    kind: string,
+    ...parts: Array<string | number | null | undefined>
+  ) {
+    return [
+      kind,
+      ...parts.map((part) => {
+        if (part === null || part === undefined) return '-';
+        const text = String(part).trim();
+        return text.length > 0 ? text : '-';
+      }),
+    ].join('|');
   }
 
   private isUniqueViolation(err: unknown) {
@@ -332,10 +346,14 @@ export class NotificationsService {
     );
   }
 
-  private async createNotification(data: Prisma.NotificationUncheckedCreateInput & { dedupeKey: string }) {
+  private async createNotification(
+    data: Prisma.NotificationUncheckedCreateInput & { dedupeKey: string },
+  ) {
     const withLocation = await this.withTicketLocationContext(data);
     try {
-      return await this.prisma.notification.create({ data: this.withNavigationTarget(withLocation) });
+      return await this.prisma.notification.create({
+        data: this.withNavigationTarget(withLocation),
+      });
     } catch (err) {
       if (this.isUniqueViolation(err)) {
         return null;
@@ -409,19 +427,31 @@ export class NotificationsService {
         .then((ticket) => formatNotificationLocationContext(ticket?.location))
         .catch((err) => {
           this.locationContextCache.delete(id);
-          this.logger.warn({ err, ticketId: id }, 'notification_location_context_failed');
+          this.logger.warn(
+            { err, ticketId: id },
+            'notification_location_context_failed',
+          );
           return null;
         });
     } catch (err) {
-      this.logger.warn({ err, ticketId: id }, 'notification_location_context_failed');
+      this.logger.warn(
+        { err, ticketId: id },
+        'notification_location_context_failed',
+      );
       return null;
     }
 
-    this.locationContextCache.set(id, { value: task, expiresAt: now + LOCATION_CONTEXT_CACHE_TTL_MS });
+    this.locationContextCache.set(id, {
+      value: task,
+      expiresAt: now + LOCATION_CONTEXT_CACHE_TTL_MS,
+    });
     return task;
   }
 
-  private isTicketNotificationRow(item: { entityType?: string | null; entityId?: string | null }) {
+  private isTicketNotificationRow(item: {
+    entityType?: string | null;
+    entityId?: string | null;
+  }) {
     return item.entityType === 'Ticket' && !!(item.entityId || '').trim();
   }
 
@@ -450,10 +480,15 @@ export class NotificationsService {
   private async withTicketLocationContextMany<T>(items: T[]): Promise<T[]> {
     // Кэш регистрируется синхронно, поэтому на пачку получателей одной заявки
     // приходится один запрос, а не по одному на получателя.
-    return Promise.all(items.map((item) => this.withTicketLocationContext(item)));
+    return Promise.all(
+      items.map((item) => this.withTicketLocationContext(item)),
+    );
   }
 
-  private linkedClientForRecipientCompany(recipientCompanyId: string, ticketCompanyId: string) {
+  private linkedClientForRecipientCompany(
+    recipientCompanyId: string,
+    ticketCompanyId: string,
+  ) {
     return recipientCompanyId !== ticketCompanyId ? ticketCompanyId : null;
   }
 
@@ -473,7 +508,10 @@ export class NotificationsService {
   ) {
     if (context.contractLocationScope.mode === 'tenant_wide') return true;
     if (context.contractLocationScope.mode === 'restricted_empty') return false;
-    return !!locationId && context.contractLocationScope.locationIds.includes(locationId);
+    return (
+      !!locationId &&
+      context.contractLocationScope.locationIds.includes(locationId)
+    );
   }
 
   private contractContextAllowsSpecializations(
@@ -481,15 +519,18 @@ export class NotificationsService {
     requiredSpecializations: NotificationRequiredSpecialization[],
   ) {
     if (requiredSpecializations.length === 0) return true;
-    if (context.contractSpecializationScope.mode === 'UNCONFIGURED') return false;
+    if (context.contractSpecializationScope.mode === 'UNCONFIGURED')
+      return false;
 
     const matched = matchCategorySpecializationLinks({
       categoryLinks: requiredSpecializations.map((specialization) => ({
         specializationId: specialization.id,
         specialization: { name: specialization.name },
       })),
-      technicianSpecializationIds: context.contractSpecializationScope.specializationIds,
-      technicianSpecializationNames: context.contractSpecializationScope.specializationNames,
+      technicianSpecializationIds:
+        context.contractSpecializationScope.specializationIds,
+      technicianSpecializationNames:
+        context.contractSpecializationScope.specializationNames,
     });
 
     return matched.length > 0;
@@ -520,6 +561,7 @@ export class NotificationsService {
       select: {
         id: true,
         companyId: true,
+        company: { select: { type: true } },
         locationId: true,
         assignedTechnicianId: true,
         problemCategory: {
@@ -540,6 +582,39 @@ export class NotificationsService {
         },
       },
     });
+  }
+
+  private deniedNotificationAccess(): NotificationAccessDecision {
+    return {
+      allowed: false,
+      linkedClientCompanyId: null,
+      notificationContour: null,
+      serviceContractRole: null,
+    };
+  }
+
+  private sameCompanyNotificationContour(
+    ticket: NotificationTicketContext,
+  ): NotificationContour | null {
+    if (ticket.company?.type === CompanyType.CLIENT) {
+      return NotificationContour.CLIENT;
+    }
+    if (ticket.company?.type === CompanyType.PROVIDER) {
+      return NotificationContour.PRIMARY_PROVIDER;
+    }
+    return null;
+  }
+
+  private providerContractNotificationContour(
+    role: ServiceContractRole,
+  ): NotificationContour | null {
+    if (role === ServiceContractRole.PRIMARY) {
+      return NotificationContour.PRIMARY_PROVIDER;
+    }
+    if (role === ServiceContractRole.SECONDARY) {
+      return NotificationContour.SECONDARY_PROVIDER;
+    }
+    return null;
   }
 
   private async mapWithConcurrency<T, R>(
@@ -564,22 +639,26 @@ export class NotificationsService {
     return results;
   }
 
-  private async canReadTicketForNotification(params: {
+  private async resolveTicketAccessForNotification(params: {
     recipient: NotificationRecipientCandidate;
     ticket: NotificationTicketContext;
-  }) {
+  }): Promise<NotificationAccessDecision> {
     const linkedClientCompanyId = this.linkedClientForRecipientCompany(
       params.recipient.companyId,
       params.ticket.companyId,
     );
     let allowedLinkedClientContractRoles: ServiceContractRole[] | undefined;
+    let notificationContour: NotificationContour | null =
+      this.sameCompanyNotificationContour(params.ticket);
+    let serviceContractRole: ServiceContractRole | null = null;
 
     if (linkedClientCompanyId) {
-      const contractContext = await this.contractContextService.getContractContext({
-        providerCompanyId: params.recipient.companyId,
-        clientCompanyId: params.ticket.companyId,
-        ticketId: params.ticket.id,
-      });
+      const contractContext =
+        await this.contractContextService.getContractContext({
+          providerCompanyId: params.recipient.companyId,
+          clientCompanyId: params.ticket.companyId,
+          ticketId: params.ticket.id,
+        });
 
       if (
         !contractContext ||
@@ -588,10 +667,18 @@ export class NotificationsService {
         ) ||
         !this.contractContextAllowsTicket(contractContext, params.ticket)
       ) {
-        return false;
+        return this.deniedNotificationAccess();
       }
 
       allowedLinkedClientContractRoles = [contractContext.roleInContract];
+      serviceContractRole = contractContext.roleInContract;
+      notificationContour = this.providerContractNotificationContour(
+        contractContext.roleInContract,
+      );
+    }
+
+    if (!notificationContour) {
+      return this.deniedNotificationAccess();
     }
 
     try {
@@ -607,9 +694,14 @@ export class NotificationsService {
         linkedClientCompanyId: linkedClientCompanyId ?? undefined,
         allowedLinkedClientContractRoles,
       });
-      return true;
+      return {
+        allowed: true,
+        linkedClientCompanyId,
+        notificationContour,
+        serviceContractRole,
+      };
     } catch {
-      return false;
+      return this.deniedNotificationAccess();
     }
   }
 
@@ -636,20 +728,19 @@ export class NotificationsService {
       NOTIFICATION_ACCESS_CHECK_CONCURRENCY,
       async (user) => ({
         user,
-        allowed: await this.canReadTicketForNotification({
+        access: await this.resolveTicketAccessForNotification({
           recipient: user,
           ticket,
         }),
       }),
     );
     return checked
-      .filter((item) => item.allowed)
+      .filter((item) => item.access.allowed && item.access.notificationContour)
       .map((item) => ({
         ...item.user,
-        linkedClientCompanyId: this.linkedClientForRecipientCompany(
-          item.user.companyId,
-          ticket.companyId,
-        ),
+        linkedClientCompanyId: item.access.linkedClientCompanyId,
+        notificationContour: item.access.notificationContour!,
+        serviceContractRole: item.access.serviceContractRole,
       }));
   }
 
@@ -717,7 +808,13 @@ export class NotificationsService {
     });
   }
 
-  private formatUserLabel(user?: { email?: string | null; firstName?: string | null; lastName?: string | null } | null) {
+  private formatUserLabel(
+    user?: {
+      email?: string | null;
+      firstName?: string | null;
+      lastName?: string | null;
+    } | null,
+  ) {
     if (!user) return 'Исполнитель';
     const namePart = [user.firstName, user.lastName]
       .map((value) => (typeof value === 'string' ? value.trim() : ''))
@@ -840,7 +937,9 @@ export class NotificationsService {
     fromStatus: TicketStatus;
     toStatus: TicketStatus;
   }) {
-    const locationContext = await this.resolveTicketLocationContext(params.ticketId);
+    const locationContext = await this.resolveTicketLocationContext(
+      params.ticketId,
+    );
     await this.maxBot.sendTicketStatusChangedMessage({
       companyId: params.companyId,
       locationId: params.locationId,
@@ -871,7 +970,9 @@ export class NotificationsService {
     assignedTechnicianId: string | null;
     sourceEventId?: string | null;
   }) {
-    void this.safeNotify('ticket.created+assign', () => this.emitTicketCreatedAndMaybeAssign(params));
+    void this.safeNotify('ticket.created+assign', () =>
+      this.emitTicketCreatedAndMaybeAssign(params),
+    );
     void this.safeNotify('max.ticket.created', () =>
       this.sendMaxTicketCreated({
         companyId: params.targetCompanyId,
@@ -889,6 +990,122 @@ export class NotificationsService {
         urgency: params.urgency,
       }),
     );
+  }
+
+  private async splitRecipientsByNotificationPreference(params: {
+    recipients: AccessibleNotificationRecipient[];
+    eventType: string;
+    channel: NotificationChannel;
+  }): Promise<NotificationPreferenceSelection> {
+    if (!params.recipients.length) {
+      return {
+        delivered: [],
+        suppressedByPreference: [],
+        decisions: [],
+      };
+    }
+
+    const decisions =
+      await this.notificationPreferences.resolveDeliveryPreferences(
+        params.recipients.map((recipient) => ({
+          companyId: recipient.companyId,
+          contour: recipient.notificationContour,
+          role: recipient.role,
+          userId: recipient.id,
+          eventType: params.eventType,
+          channel: params.channel,
+        })),
+      );
+
+    const selection: NotificationPreferenceSelection = {
+      delivered: [],
+      suppressedByPreference: [],
+      decisions: [],
+    };
+    params.recipients.forEach((recipient, index) => {
+      const decision = decisions[index] ?? {
+        enabled: false,
+        source: 'INVALID_INPUT' as const,
+      };
+      selection.decisions.push({ recipient, decision });
+      if (decision.enabled) {
+        selection.delivered.push(recipient);
+      } else {
+        selection.suppressedByPreference.push({ recipient, decision });
+      }
+    });
+    return selection;
+  }
+
+  private async createNotificationsForRecipients(params: {
+    recipients: AccessibleNotificationRecipient[];
+    eventType: string;
+    buildData: (
+      recipient: AccessibleNotificationRecipient,
+    ) => Prisma.NotificationCreateManyInput & { dedupeKey: string };
+  }) {
+    const selection = await this.splitRecipientsByNotificationPreference({
+      recipients: params.recipients,
+      eventType: params.eventType,
+      channel: NotificationChannel.IN_APP,
+    });
+    const created = await this.createNotifications(
+      selection.delivered.map((recipient) => params.buildData(recipient)),
+    );
+    return { created, selection };
+  }
+
+  private async createNotificationForRecipient(params: {
+    recipient: AccessibleNotificationRecipient;
+    eventType: string;
+    buildData: (
+      recipient: AccessibleNotificationRecipient,
+    ) => Prisma.NotificationUncheckedCreateInput & { dedupeKey: string };
+  }) {
+    const selection = await this.splitRecipientsByNotificationPreference({
+      recipients: [params.recipient],
+      eventType: params.eventType,
+      channel: NotificationChannel.IN_APP,
+    });
+    const recipient = selection.delivered[0];
+    if (!recipient) return { notification: null, selection };
+    const notification = await this.createNotification(
+      params.buildData(recipient),
+    );
+    return { notification, selection };
+  }
+
+  private async pushTicketEventToRecipients(params: {
+    recipients: AccessibleNotificationRecipient[];
+    type: PushEventType;
+    ticketId: string;
+    title: string;
+    body: string;
+    chat?: boolean;
+    notificationType: string;
+    companyId?: string | null;
+  }) {
+    const selection = await this.splitRecipientsByNotificationPreference({
+      recipients: params.recipients,
+      eventType: params.notificationType,
+      channel: NotificationChannel.PUSH,
+    });
+    await Promise.all(
+      selection.delivered.map((recipient) =>
+        this.pushTicketEvent({
+          userId: recipient.id,
+          type: params.type,
+          ticketId: params.ticketId,
+          title: params.title,
+          body: params.body,
+          chat: params.chat,
+          notificationType: params.notificationType,
+          linkedClientCompanyId: recipient.linkedClientCompanyId,
+          companyId: params.companyId,
+        }),
+      ),
+    );
+    return selection;
   }
 
   onTicketCreated(params: {
@@ -928,7 +1145,9 @@ export class NotificationsService {
     assignedTechnicianId: string | null;
     sourceEventId?: string | null;
   }) {
-    void this.safeNotify('ticket.created.public', () => this.emitTicketCreatedPublicInternal(params));
+    void this.safeNotify('ticket.created.public', () =>
+      this.emitTicketCreatedPublicInternal(params),
+    );
     void this.safeNotify('max.ticket.created.public', () =>
       this.sendMaxTicketCreated({
         companyId: params.ticketCompanyId,
@@ -1009,7 +1228,9 @@ export class NotificationsService {
     mode: 'manual' | 'auto' | 'reassign' | 'claim';
     sourceEventId?: string | null;
   }) {
-    void this.safeNotify('ticket.assigned', () => this.emitTicketAssignedToAssignee(params));
+    void this.safeNotify('ticket.assigned', () =>
+      this.emitTicketAssignedToAssignee(params),
+    );
     void this.safeNotify('max.ticket.assigned', () =>
       this.sendMaxTicketAssigned({
         companyId: params.ticketCompanyId,
@@ -1036,7 +1257,9 @@ export class NotificationsService {
     summary: string;
     sourceEventId?: string | null;
   }) {
-    void this.safeNotify('ticket.assigned_client', () => this.emitTicketAssignedClientCompanyInternal(params));
+    void this.safeNotify('ticket.assigned_client', () =>
+      this.emitTicketAssignedClientCompanyInternal(params),
+    );
   }
 
   onTicketAssigned(params: {
@@ -1064,7 +1287,9 @@ export class NotificationsService {
     linkedHint?: string | null;
     sourceEventId?: string | null;
   }) {
-    void this.safeNotify('ticket.claimed', () => this.emitTicketClaimedDispatchersInternal(params));
+    void this.safeNotify('ticket.claimed', () =>
+      this.emitTicketClaimedDispatchersInternal(params),
+    );
     void this.safeNotify('max.ticket.claimed', () =>
       this.sendMaxTicketClaimed({
         companyId: params.ticketCompanyId,
@@ -1092,7 +1317,15 @@ export class NotificationsService {
   }) {
     const identityUsers = await this.prisma.user.findMany({
       where: {
-        id: { in: Array.from(new Set([params.technicianUserId, params.requesterUserId].filter(Boolean) as string[])) },
+        id: {
+          in: Array.from(
+            new Set(
+              [params.technicianUserId, params.requesterUserId].filter(
+                Boolean,
+              ) as string[],
+            ),
+          ),
+        },
         companyId: params.providerCompanyId,
         isActive: true,
         deletedAt: null,
@@ -1101,9 +1334,11 @@ export class NotificationsService {
     });
     const usersById = new Map(identityUsers.map((user) => [user.id, user]));
     const tech = usersById.get(params.technicianUserId) ?? null;
-    const requester = params.requesterUserId && params.requesterUserId !== params.technicianUserId
-      ? usersById.get(params.requesterUserId) ?? null
-      : null;
+    const requester =
+      params.requesterUserId &&
+      params.requesterUserId !== params.technicianUserId
+        ? (usersById.get(params.requesterUserId) ?? null)
+        : null;
     const namePart = [tech?.firstName, tech?.lastName]
       .map((x) => (typeof x === 'string' ? x.trim() : ''))
       .filter(Boolean)
@@ -1115,9 +1350,12 @@ export class NotificationsService {
       .filter(Boolean)
       .join(' ')
       .trim();
-    const requesterLabel = requesterNamePart || (requester?.email || '').trim() || null;
+    const requesterLabel =
+      requesterNamePart || (requester?.email || '').trim() || null;
     const numLabel =
-      typeof params.ticketNumber === 'number' && !Number.isNaN(params.ticketNumber) && params.ticketNumber > 0
+      typeof params.ticketNumber === 'number' &&
+      !Number.isNaN(params.ticketNumber) &&
+      params.ticketNumber > 0
         ? String(params.ticketNumber)
         : params.ticketId.slice(0, 8).toUpperCase();
 
@@ -1126,7 +1364,10 @@ export class NotificationsService {
       ? `${requesterLabel} просит назначить ${techLabel} на заявку #${numLabel}`
       : `${techLabel} просит назначить его на заявку #${numLabel}`;
     const maxInner = Math.max(0, 400 - refSuffix.length);
-    const innerClip = inner.length <= maxInner ? inner : `${inner.slice(0, Math.max(0, maxInner - 1))}…`;
+    const innerClip =
+      inner.length <= maxInner
+        ? inner
+        : `${inner.slice(0, Math.max(0, maxInner - 1))}…`;
     const messageWithRef = `${innerClip}${refSuffix}`;
 
     const users = await this.prisma.user.findMany({
@@ -1148,40 +1389,40 @@ export class NotificationsService {
     }
 
     const title = 'Запрос назначения';
-    const message = messageWithRef.length <= 400 ? messageWithRef : clipMessage(messageWithRef);
-    const created = await this.createNotifications(
-      recipients.map((u) => ({
-        companyId: u.companyId,
-        userId: u.id,
+    const message =
+      messageWithRef.length <= 400
+        ? messageWithRef
+        : clipMessage(messageWithRef);
+    const { created } = await this.createNotificationsForRecipients({
+      recipients,
+      eventType: 'ticket.assignment_requested',
+      buildData: (recipient) => ({
+        companyId: recipient.companyId,
+        userId: recipient.id,
         type: 'ticket.assignment_requested',
         title,
         message,
         entityType: 'Ticket',
         entityId: params.ticketId,
-        linkedClientCompanyId: u.linkedClientCompanyId,
+        linkedClientCompanyId: recipient.linkedClientCompanyId,
         dedupeKey: this.notificationDedupeKey(
           'ticket.assignment_requested',
           params.sourceEventId || params.ticketId,
-          u.companyId,
-          u.id,
+          recipient.companyId,
+          recipient.id,
         ),
-      })),
-    );
+      }),
+    });
 
     // Запрос назначения от техника → диспетчерам (техник не входит в роли-получатели).
-    await Promise.all(
-      recipients.map((recipient) =>
-        this.pushTicketEvent({
-          userId: recipient.id,
-          type: 'assignment',
-          ticketId: params.ticketId,
-          title,
-          body: message,
-          notificationType: 'ticket.assignment_requested',
-          linkedClientCompanyId: recipient.linkedClientCompanyId,
-        }),
-      ),
-    );
+    await this.pushTicketEventToRecipients({
+      recipients,
+      type: 'assignment',
+      ticketId: params.ticketId,
+      title,
+      body: message,
+      notificationType: 'ticket.assignment_requested',
+    });
     return { ok: true as const, notified: created.count };
   }
 
@@ -1197,7 +1438,9 @@ export class NotificationsService {
     linkedClientCompanyId: string | null;
     sourceEventId?: string | null;
   }) {
-    void this.safeNotify('ticket.status_changed', () => this.emitTicketStatusChangedForAssignee(params));
+    void this.safeNotify('ticket.status_changed', () =>
+      this.emitTicketStatusChangedForAssignee(params),
+    );
   }
 
   scheduleTicketStatusChanged(params: {
@@ -1234,7 +1477,9 @@ export class NotificationsService {
     toStatus: TicketStatus;
     sourceEventId?: string | null;
   }) {
-    void this.safeNotify('ticket.status_client', () => this.emitTicketStatusForClientCompanyInternal(params));
+    void this.safeNotify('ticket.status_client', () =>
+      this.emitTicketStatusForClientCompanyInternal(params),
+    );
   }
 
   onTicketInProgress(params: {
@@ -1274,7 +1519,9 @@ export class NotificationsService {
     ticketNumber: number;
     sourceEventId?: string | null;
   }) {
-    void this.safeNotify('ticket.awaiting_acceptance', () => this.emitTicketAwaitingAcceptanceInternal(params));
+    void this.safeNotify('ticket.awaiting_acceptance', () =>
+      this.emitTicketAwaitingAcceptanceInternal(params),
+    );
   }
 
   onTicketAccepted(params: {
@@ -1296,7 +1543,10 @@ export class NotificationsService {
     });
     if (!params.assignedTechnicianId) return;
     void this.safeNotify('ticket.accepted', () =>
-      this.emitTicketAcceptedInternal({ ...params, assignedTechnicianId: params.assignedTechnicianId! }),
+      this.emitTicketAcceptedInternal({
+        ...params,
+        assignedTechnicianId: params.assignedTechnicianId!,
+      }),
     );
   }
 
@@ -1320,7 +1570,10 @@ export class NotificationsService {
     });
     if (!params.assignedTechnicianId) return;
     void this.safeNotify('ticket.rejected', () =>
-      this.emitTicketRejectedInternal({ ...params, assignedTechnicianId: params.assignedTechnicianId! }),
+      this.emitTicketRejectedInternal({
+        ...params,
+        assignedTechnicianId: params.assignedTechnicianId!,
+      }),
     );
   }
 
@@ -1334,7 +1587,9 @@ export class NotificationsService {
     assigneeCompanyId: string | null;
     sourceEventId?: string | null;
   }) {
-    void this.safeNotify('ticket.comment_added', () => this.emitTicketCommentAddedInternal(params));
+    void this.safeNotify('ticket.comment_added', () =>
+      this.emitTicketCommentAddedInternal(params),
+    );
   }
 
   scheduleTicketAttachmentUploaded(params: {
@@ -1347,7 +1602,9 @@ export class NotificationsService {
     assigneeCompanyId: string | null;
     sourceEventId?: string | null;
   }) {
-    void this.safeNotify('ticket.attachment_uploaded', () => this.emitTicketAttachmentUploadedInternal(params));
+    void this.safeNotify('ticket.attachment_uploaded', () =>
+      this.emitTicketAttachmentUploadedInternal(params),
+    );
   }
 
   scheduleTicketSlaWarning(params: {
@@ -1409,8 +1666,10 @@ export class NotificationsService {
     if (!recipients.length) return;
 
     const message = clipMessage(params.body);
-    await this.createNotifications(
-      recipients.map((recipient) => ({
+    await this.createNotificationsForRecipients({
+      recipients,
+      eventType: params.notificationType,
+      buildData: (recipient) => ({
         companyId: recipient.companyId,
         userId: recipient.id,
         type: params.notificationType,
@@ -1425,22 +1684,17 @@ export class NotificationsService {
           recipient.companyId,
           recipient.id,
         ),
-      })),
-    );
+      }),
+    });
 
-    await Promise.all(
-      recipients.map((recipient) =>
-        this.pushTicketEvent({
-          userId: recipient.id,
-          type: 'sla',
-          ticketId: params.ticketId,
-          title: params.title,
-          body: message,
-          notificationType: params.notificationType,
-          linkedClientCompanyId: recipient.linkedClientCompanyId,
-        }),
-      ),
-    );
+    await this.pushTicketEventToRecipients({
+      recipients,
+      type: 'sla',
+      ticketId: params.ticketId,
+      title: params.title,
+      body: message,
+      notificationType: params.notificationType,
+    });
   }
 
   private async emitTicketCommentAddedInternal(params: {
@@ -1474,42 +1728,41 @@ export class NotificationsService {
     });
 
     const title = 'Комментарий к заявке';
-    const message = clipMessage(`${ticketLabel(params.ticketNumber)} — ${params.summary}`);
+    const message = clipMessage(
+      `${ticketLabel(params.ticketNumber)} — ${params.summary}`,
+    );
 
-    await this.createNotifications(
-      recipients.map((u) => ({
-        companyId: u.companyId,
-        userId: u.id,
+    await this.createNotificationsForRecipients({
+      recipients,
+      eventType: 'ticket.comment_added',
+      buildData: (recipient) => ({
+        companyId: recipient.companyId,
+        userId: recipient.id,
         type: 'ticket.comment_added',
         title,
         message,
         entityType: 'Ticket',
         entityId: params.ticketId,
-        linkedClientCompanyId: u.linkedClientCompanyId,
+        linkedClientCompanyId: recipient.linkedClientCompanyId,
         dedupeKey: this.notificationDedupeKey(
           'ticket.comment_added.watchers',
           params.sourceEventId || params.ticketId,
-          u.companyId,
-          u.id,
+          recipient.companyId,
+          recipient.id,
         ),
-      })),
-    );
+      }),
+    });
 
     // Push: комментарий = чат-событие (тред заявки). Получатели уже без инициатора.
-    await Promise.all(
-      recipients.map((recipient) =>
-        this.pushTicketEvent({
-          userId: recipient.id,
-          type: 'chat',
-          ticketId: params.ticketId,
-          title,
-          body: message,
-          chat: true,
-          notificationType: 'ticket.comment_added',
-          linkedClientCompanyId: recipient.linkedClientCompanyId,
-        }),
-      ),
-    );
+    await this.pushTicketEventToRecipients({
+      recipients,
+      type: 'chat',
+      ticketId: params.ticketId,
+      title,
+      body: message,
+      chat: true,
+      notificationType: 'ticket.comment_added',
+    });
 
     if (!params.assigneeUserId || !params.assigneeCompanyId) return;
 
@@ -1530,34 +1783,37 @@ export class NotificationsService {
     });
     if (!assigneeRecipient) return;
 
-    await this.createNotification({
-      companyId: assigneeRecipient.companyId,
-      userId: assigneeRecipient.id,
-      type: 'ticket.comment_added',
-      title,
-      message,
-      entityType: 'Ticket',
-      entityId: params.ticketId,
-      linkedClientCompanyId: assigneeRecipient.linkedClientCompanyId,
-      dedupeKey: this.notificationDedupeKey(
-        'ticket.comment_added.assignee',
-        params.sourceEventId || params.ticketId,
-        assigneeRecipient.companyId,
-        assigneeRecipient.id,
-      ),
+    await this.createNotificationForRecipient({
+      recipient: assigneeRecipient,
+      eventType: 'ticket.comment_added',
+      buildData: (recipient) => ({
+        companyId: recipient.companyId,
+        userId: recipient.id,
+        type: 'ticket.comment_added',
+        title,
+        message,
+        entityType: 'Ticket',
+        entityId: params.ticketId,
+        linkedClientCompanyId: recipient.linkedClientCompanyId,
+        dedupeKey: this.notificationDedupeKey(
+          'ticket.comment_added.assignee',
+          params.sourceEventId || params.ticketId,
+          recipient.companyId,
+          recipient.id,
+        ),
+      }),
     });
 
     // Исполнителю — только если он не автор комментария (не пушим инициатору его действия).
     if (assigneeRecipient.id !== params.actorUserId) {
-      await this.pushTicketEvent({
-        userId: assigneeRecipient.id,
+      await this.pushTicketEventToRecipients({
+        recipients: [assigneeRecipient],
         type: 'chat',
         ticketId: params.ticketId,
         title,
         body: message,
         chat: true,
         notificationType: 'ticket.comment_added',
-        linkedClientCompanyId: assigneeRecipient.linkedClientCompanyId,
       });
     }
   }
@@ -1593,42 +1849,41 @@ export class NotificationsService {
     });
 
     const title = 'Фото добавлено';
-    const message = clipMessage(`${ticketLabel(params.ticketNumber)} — ${params.summary}`);
+    const message = clipMessage(
+      `${ticketLabel(params.ticketNumber)} — ${params.summary}`,
+    );
 
-    await this.createNotifications(
-      recipients.map((u) => ({
-        companyId: u.companyId,
-        userId: u.id,
+    await this.createNotificationsForRecipients({
+      recipients,
+      eventType: 'ticket.attachment_uploaded',
+      buildData: (recipient) => ({
+        companyId: recipient.companyId,
+        userId: recipient.id,
         type: 'ticket.attachment_uploaded',
         title,
         message,
         entityType: 'Ticket',
         entityId: params.ticketId,
-        linkedClientCompanyId: u.linkedClientCompanyId,
+        linkedClientCompanyId: recipient.linkedClientCompanyId,
         dedupeKey: this.notificationDedupeKey(
           'ticket.attachment_uploaded.watchers',
           params.sourceEventId || params.ticketId,
-          u.companyId,
-          u.id,
+          recipient.companyId,
+          recipient.id,
         ),
-      })),
-    );
+      }),
+    });
 
     // Push: добавленное фото = чат-событие (вкладка Чат/Фото). Инициатор уже исключён.
-    await Promise.all(
-      recipients.map((recipient) =>
-        this.pushTicketEvent({
-          userId: recipient.id,
-          type: 'chat',
-          ticketId: params.ticketId,
-          title,
-          body: message,
-          chat: true,
-          notificationType: 'ticket.attachment_uploaded',
-          linkedClientCompanyId: recipient.linkedClientCompanyId,
-        }),
-      ),
-    );
+    await this.pushTicketEventToRecipients({
+      recipients,
+      type: 'chat',
+      ticketId: params.ticketId,
+      title,
+      body: message,
+      chat: true,
+      notificationType: 'ticket.attachment_uploaded',
+    });
 
     if (!params.assigneeUserId || !params.assigneeCompanyId) return;
 
@@ -1649,33 +1904,36 @@ export class NotificationsService {
     });
     if (!assigneeRecipient) return;
 
-    await this.createNotification({
-      companyId: assigneeRecipient.companyId,
-      userId: assigneeRecipient.id,
-      type: 'ticket.attachment_uploaded',
-      title,
-      message,
-      entityType: 'Ticket',
-      entityId: params.ticketId,
-      linkedClientCompanyId: assigneeRecipient.linkedClientCompanyId,
-      dedupeKey: this.notificationDedupeKey(
-        'ticket.attachment_uploaded.assignee',
-        params.sourceEventId || params.ticketId,
-        assigneeRecipient.companyId,
-        assigneeRecipient.id,
-      ),
+    await this.createNotificationForRecipient({
+      recipient: assigneeRecipient,
+      eventType: 'ticket.attachment_uploaded',
+      buildData: (recipient) => ({
+        companyId: recipient.companyId,
+        userId: recipient.id,
+        type: 'ticket.attachment_uploaded',
+        title,
+        message,
+        entityType: 'Ticket',
+        entityId: params.ticketId,
+        linkedClientCompanyId: recipient.linkedClientCompanyId,
+        dedupeKey: this.notificationDedupeKey(
+          'ticket.attachment_uploaded.assignee',
+          params.sourceEventId || params.ticketId,
+          recipient.companyId,
+          recipient.id,
+        ),
+      }),
     });
 
     if (assigneeRecipient.id !== params.actorUserId) {
-      await this.pushTicketEvent({
-        userId: assigneeRecipient.id,
+      await this.pushTicketEventToRecipients({
+        recipients: [assigneeRecipient],
         type: 'chat',
         ticketId: params.ticketId,
         title,
         body: message,
         chat: true,
         notificationType: 'ticket.attachment_uploaded',
-        linkedClientCompanyId: assigneeRecipient.linkedClientCompanyId,
       });
     }
   }
@@ -1763,14 +2021,7 @@ export class NotificationsService {
         })
       : null;
 
-    const recipientMap = new Map<
-      string,
-      {
-        companyId: string;
-        userId: string;
-        linkedClientCompanyId: string | null;
-      }
-    >();
+    const recipientMap = new Map<string, AccessibleNotificationRecipient>();
 
     for (const scope of scopes) {
       let users = await this.prisma.user.findMany({
@@ -1779,7 +2030,9 @@ export class NotificationsService {
           isActive: true,
           deletedAt: null,
           role: { in: scope.roles },
-          ...(creator?.companyId === scope.companyId ? { id: { not: creator.id } } : {}),
+          ...(creator?.companyId === scope.companyId
+            ? { id: { not: creator.id } }
+            : {}),
         },
         select: { id: true, companyId: true, role: true },
       });
@@ -1791,11 +2044,7 @@ export class NotificationsService {
       });
 
       for (const user of accessibleUsers) {
-        recipientMap.set(`${user.companyId}:${user.id}`, {
-          companyId: user.companyId,
-          userId: user.id,
-          linkedClientCompanyId: user.linkedClientCompanyId,
-        });
+        recipientMap.set(`${user.companyId}:${user.id}`, user);
       }
     }
 
@@ -1803,12 +2052,16 @@ export class NotificationsService {
     if (!recipients.length) return;
 
     const title = 'Новая заявка';
-    const message = clipMessage(`${ticketLabel(params.ticketNumber)} — ${params.summary}`);
+    const message = clipMessage(
+      `${ticketLabel(params.ticketNumber)} — ${params.summary}`,
+    );
 
-    await this.createNotifications(
-      recipients.map((recipient) => ({
+    await this.createNotificationsForRecipients({
+      recipients,
+      eventType: 'ticket.created',
+      buildData: (recipient) => ({
         companyId: recipient.companyId,
-        userId: recipient.userId,
+        userId: recipient.id,
         type: 'ticket.created',
         title,
         message,
@@ -1819,25 +2072,20 @@ export class NotificationsService {
           'ticket.created.watchers',
           params.sourceEventId || params.ticketId,
           recipient.companyId,
-          recipient.userId,
+          recipient.id,
         ),
-      })),
-    );
+      }),
+    });
 
     // Push «новая заявка» наблюдателям (создатель уже исключён из recipients).
-    await Promise.all(
-      recipients.map((recipient) =>
-        this.pushTicketEvent({
-          userId: recipient.userId,
-          type: 'ticketNew',
-          ticketId: params.ticketId,
-          title,
-          body: message,
-          notificationType: 'ticket.created',
-          linkedClientCompanyId: recipient.linkedClientCompanyId,
-        }),
-      ),
-    );
+    await this.pushTicketEventToRecipients({
+      recipients,
+      type: 'ticketNew',
+      ticketId: params.ticketId,
+      title,
+      body: message,
+      notificationType: 'ticket.created',
+    });
   }
 
   private async resolveTicketCreatedNotificationScopes(params: {
@@ -1845,10 +2093,18 @@ export class NotificationsService {
     targetCompanyId: string;
   }) {
     const companies = await this.prisma.company.findMany({
-      where: { id: { in: Array.from(new Set([params.actorCompanyId, params.targetCompanyId])) } },
+      where: {
+        id: {
+          in: Array.from(
+            new Set([params.actorCompanyId, params.targetCompanyId]),
+          ),
+        },
+      },
       select: { id: true, type: true },
     });
-    const companyTypeById = new Map(companies.map((company) => [company.id, company.type]));
+    const companyTypeById = new Map(
+      companies.map((company) => [company.id, company.type]),
+    );
     const targetType = companyTypeById.get(params.targetCompanyId);
     if (!targetType) return [];
 
@@ -1860,7 +2116,11 @@ export class NotificationsService {
         linkedClientCompanyId: string | null;
       }
     >();
-    const addScope = (companyId: string, roles: UserRole[], linkedClientCompanyId: string | null) => {
+    const addScope = (
+      companyId: string,
+      roles: UserRole[],
+      linkedClientCompanyId: string | null,
+    ) => {
       scopes.set(companyId, { companyId, roles, linkedClientCompanyId });
     };
 
@@ -1884,7 +2144,11 @@ export class NotificationsService {
           select: { providerCompanyId: true },
         });
         if (contract) {
-          addScope(contract.providerCompanyId, PROVIDER_CREATED_NOTIFY_ROLES, params.targetCompanyId);
+          addScope(
+            contract.providerCompanyId,
+            PROVIDER_CREATED_NOTIFY_ROLES,
+            params.targetCompanyId,
+          );
         }
       } else {
         const providerContracts = await this.prisma.serviceContract.findMany({
@@ -1896,7 +2160,11 @@ export class NotificationsService {
           select: { providerCompanyId: true },
         });
         for (const contract of providerContracts) {
-          addScope(contract.providerCompanyId, PROVIDER_CREATED_NOTIFY_ROLES, params.targetCompanyId);
+          addScope(
+            contract.providerCompanyId,
+            PROVIDER_CREATED_NOTIFY_ROLES,
+            params.targetCompanyId,
+          );
         }
       }
     } else {
@@ -1932,28 +2200,34 @@ export class NotificationsService {
     if (!recipient) return;
 
     const notifCompanyId =
-      recipient.companyId === params.targetCompanyId ? params.targetCompanyId : recipient.companyId;
+      recipient.companyId === params.targetCompanyId
+        ? params.targetCompanyId
+        : recipient.companyId;
 
     const title = 'Заявка создана';
     const message = clipMessage(
       `${ticketLabel(params.ticketNumber)} принята. Следите за статусом в разделе «Мои заявки» и в уведомлениях. ${params.summary}`,
     );
 
-    await this.createNotification({
-      companyId: notifCompanyId,
-      userId: creator.id,
-      type: 'ticket.created',
-      title,
-      message,
-      entityType: 'Ticket',
-      entityId: params.ticketId,
-      linkedClientCompanyId: recipient.linkedClientCompanyId,
-      dedupeKey: this.notificationDedupeKey(
-        'ticket.created.creator',
-        params.sourceEventId || params.ticketId,
-        notifCompanyId,
-        creator.id,
-      ),
+    await this.createNotificationForRecipient({
+      recipient,
+      eventType: 'ticket.created',
+      buildData: () => ({
+        companyId: notifCompanyId,
+        userId: creator.id,
+        type: 'ticket.created',
+        title,
+        message,
+        entityType: 'Ticket',
+        entityId: params.ticketId,
+        linkedClientCompanyId: recipient.linkedClientCompanyId,
+        dedupeKey: this.notificationDedupeKey(
+          'ticket.created.creator',
+          params.sourceEventId || params.ticketId,
+          notifCompanyId,
+          creator.id,
+        ),
+      }),
     });
   }
 
@@ -1986,28 +2260,32 @@ export class NotificationsService {
     if (!recipients.length) return;
 
     const title = 'Новая заявка';
-    const message = clipMessage(`${ticketLabel(params.ticketNumber)} — ${params.summary}`);
-    await this.createNotifications(
-      recipients.map((u) => ({
-        companyId: u.companyId,
-        userId: u.id,
+    const message = clipMessage(
+      `${ticketLabel(params.ticketNumber)} — ${params.summary}`,
+    );
+    await this.createNotificationsForRecipients({
+      recipients,
+      eventType: 'ticket.created',
+      buildData: (recipient) => ({
+        companyId: recipient.companyId,
+        userId: recipient.id,
         type: 'ticket.created',
         title,
         message,
         entityType: 'Ticket',
         entityId: params.ticketId,
-        linkedClientCompanyId: u.linkedClientCompanyId,
+        linkedClientCompanyId: recipient.linkedClientCompanyId,
         dedupeKey: this.notificationDedupeKey(
           'ticket.created.public',
           params.sourceEventId || params.ticketId,
-          u.companyId,
-          u.id,
+          recipient.companyId,
+          recipient.id,
         ),
-      })),
-    );
+      }),
+    });
 
-    await this.pushTicketEventToMany({
-      userIds: recipients.map((u) => u.id),
+    await this.pushTicketEventToRecipients({
+      recipients,
       type: 'ticketNew',
       ticketId: params.ticketId,
       title,
@@ -2017,16 +2295,18 @@ export class NotificationsService {
   }
 
   private async emitTicketAssignedClientCompanyInternal(params: {
-    ticketCompanyId: string
-    assigneeUserId: string
-    assigneeEmail: string
-    actorUserId: string | null
-    ticketId: string
-    ticketNumber: number
-    summary: string
-    sourceEventId?: string | null
+    ticketCompanyId: string;
+    assigneeUserId: string;
+    assigneeEmail: string;
+    actorUserId: string | null;
+    ticketId: string;
+    ticketNumber: number;
+    summary: string;
+    sourceEventId?: string | null;
   }) {
-    const excludeIds = [params.assigneeUserId, params.actorUserId].filter((x): x is string => !!x && x.length > 0)
+    const excludeIds = [params.assigneeUserId, params.actorUserId].filter(
+      (x): x is string => !!x && x.length > 0,
+    );
     const users = await this.prisma.user.findMany({
       where: {
         companyId: params.ticketCompanyId,
@@ -2036,45 +2316,50 @@ export class NotificationsService {
         ...(excludeIds.length ? { id: { notIn: excludeIds } } : {}),
       },
       select: { id: true, companyId: true, role: true },
-    })
+    });
     const recipients = await this.filterRecipientsByTicketAccess({
       users,
       ticketId: params.ticketId,
       ticketCompanyId: params.ticketCompanyId,
-    })
-    if (!recipients.length) return
+    });
+    if (!recipients.length) return;
 
-    const tech = (params.assigneeEmail || '').trim() || 'Исполнитель подрядчика'
-    const title = 'Назначен исполнитель'
-    const message = clipMessage(`${ticketLabel(params.ticketNumber)} — ${tech}. ${params.summary}`)
+    const tech =
+      (params.assigneeEmail || '').trim() || 'Исполнитель подрядчика';
+    const title = 'Назначен исполнитель';
+    const message = clipMessage(
+      `${ticketLabel(params.ticketNumber)} — ${tech}. ${params.summary}`,
+    );
 
-    await this.createNotifications(
-      recipients.map((u) => ({
-        companyId: u.companyId,
-        userId: u.id,
+    await this.createNotificationsForRecipients({
+      recipients,
+      eventType: 'ticket.assigned',
+      buildData: (recipient) => ({
+        companyId: recipient.companyId,
+        userId: recipient.id,
         type: 'ticket.assigned',
         title,
         message,
         entityType: 'Ticket',
         entityId: params.ticketId,
-        linkedClientCompanyId: u.linkedClientCompanyId,
+        linkedClientCompanyId: recipient.linkedClientCompanyId,
         dedupeKey: this.notificationDedupeKey(
           'ticket.assigned.client',
           params.sourceEventId || params.ticketId,
-          u.companyId,
-          u.id,
+          recipient.companyId,
+          recipient.id,
         ),
-      })),
-    )
+      }),
+    });
 
-    await this.pushTicketEventToMany({
-      userIds: recipients.map((u) => u.id),
+    await this.pushTicketEventToRecipients({
+      recipients,
       type: 'assignment',
       ticketId: params.ticketId,
       title,
       body: message,
       notificationType: 'ticket.assigned',
-    })
+    });
   }
 
   /**
@@ -2159,38 +2444,35 @@ export class NotificationsService {
     });
     if (!accessibleRecipients.length) return;
 
-    await this.createNotifications(
-      accessibleRecipients.map((r) => ({
-        companyId: r.companyId,
-        userId: r.id,
+    await this.createNotificationsForRecipients({
+      recipients: accessibleRecipients,
+      eventType: params.notificationType,
+      buildData: (recipient) => ({
+        companyId: recipient.companyId,
+        userId: recipient.id,
         type: params.notificationType,
         title: params.title,
         message: params.message,
         entityType: 'Ticket',
         entityId: params.ticketId,
-        linkedClientCompanyId: r.linkedClientCompanyId,
+        linkedClientCompanyId: recipient.linkedClientCompanyId,
         dedupeKey: this.notificationDedupeKey(
           params.dedupeKind,
           params.sourceEventId || params.ticketId,
-          r.companyId,
-          r.id,
+          recipient.companyId,
+          recipient.id,
         ),
-      })),
-    );
+      }),
+    });
 
-    await Promise.all(
-      accessibleRecipients.map((recipient) =>
-        this.pushTicketEvent({
-          userId: recipient.id,
-          type: params.type,
-          ticketId: params.ticketId,
-          title: params.title,
-          body: params.message,
-          notificationType: params.notificationType,
-          linkedClientCompanyId: recipient.linkedClientCompanyId,
-        }),
-      ),
-    );
+    await this.pushTicketEventToRecipients({
+      recipients: accessibleRecipients,
+      type: params.type,
+      ticketId: params.ticketId,
+      title: params.title,
+      body: params.message,
+      notificationType: params.notificationType,
+    });
   }
 
   private async emitTicketAssignedToAssignee(params: {
@@ -2223,38 +2505,43 @@ export class NotificationsService {
         : params.mode === 'reassign'
           ? 'Заявка переназначена'
           : 'Вам назначена заявка';
-    const message = clipMessage(`${ticketLabel(params.ticketNumber)} — ${params.summary}`);
+    const message = clipMessage(
+      `${ticketLabel(params.ticketNumber)} — ${params.summary}`,
+    );
 
     if (recipient) {
-      await this.createNotification({
-        companyId: recipient.companyId,
-        userId: recipient.id,
-        type: 'ticket.assigned',
-        title,
-        message,
-        entityType: 'Ticket',
-        entityId: params.ticketId,
-        linkedClientCompanyId: recipient.linkedClientCompanyId,
-        dedupeKey: this.notificationDedupeKey(
-          'ticket.assigned.assignee',
-          params.sourceEventId || params.ticketId,
-          recipient.companyId,
-          recipient.id,
-          params.mode,
-        ),
+      await this.createNotificationForRecipient({
+        recipient,
+        eventType: 'ticket.assigned',
+        buildData: (deliveredRecipient) => ({
+          companyId: deliveredRecipient.companyId,
+          userId: deliveredRecipient.id,
+          type: 'ticket.assigned',
+          title,
+          message,
+          entityType: 'Ticket',
+          entityId: params.ticketId,
+          linkedClientCompanyId: deliveredRecipient.linkedClientCompanyId,
+          dedupeKey: this.notificationDedupeKey(
+            'ticket.assigned.assignee',
+            params.sourceEventId || params.ticketId,
+            deliveredRecipient.companyId,
+            deliveredRecipient.id,
+            params.mode,
+          ),
+        }),
       });
     }
 
     // Push исполнителю — но не когда он сам себя назначил/забрал (claim/self-assign).
     if (recipient && params.actorUserId !== recipient.id) {
-      await this.pushTicketEvent({
-        userId: recipient.id,
+      await this.pushTicketEventToRecipients({
+        recipients: [recipient],
         type: 'assignment',
         ticketId: params.ticketId,
         title,
         body: message,
         notificationType: 'ticket.assigned',
-        linkedClientCompanyId: recipient.linkedClientCompanyId,
       });
     }
 
@@ -2302,40 +2589,39 @@ export class NotificationsService {
     if (!recipients.length) return;
 
     const title = 'Заявку забрал исполнитель';
-    const message = clipMessage(`${ticketLabel(params.ticketNumber)} — ${params.summary}`);
-    await this.createNotifications(
-      recipients.map((u) => ({
-        companyId: u.companyId,
-        userId: u.id,
+    const message = clipMessage(
+      `${ticketLabel(params.ticketNumber)} — ${params.summary}`,
+    );
+    await this.createNotificationsForRecipients({
+      recipients,
+      eventType: 'ticket.claimed',
+      buildData: (recipient) => ({
+        companyId: recipient.companyId,
+        userId: recipient.id,
         type: 'ticket.claimed',
         title,
         message,
         entityType: 'Ticket',
         entityId: params.ticketId,
-        linkedClientCompanyId: u.linkedClientCompanyId,
+        linkedClientCompanyId: recipient.linkedClientCompanyId,
         dedupeKey: this.notificationDedupeKey(
           'ticket.claimed',
           params.sourceEventId || params.ticketId,
-          u.companyId,
-          u.id,
+          recipient.companyId,
+          recipient.id,
         ),
-      })),
-    );
+      }),
+    });
 
     // Взятие заявки исполнителем = событие назначения для диспетчеров (забравший исключён).
-    await Promise.all(
-      recipients.map((recipient) =>
-        this.pushTicketEvent({
-          userId: recipient.id,
-          type: 'assignment',
-          ticketId: params.ticketId,
-          title,
-          body: message,
-          notificationType: 'ticket.claimed',
-          linkedClientCompanyId: recipient.linkedClientCompanyId,
-        }),
-      ),
-    );
+    await this.pushTicketEventToRecipients({
+      recipients,
+      type: 'assignment',
+      ticketId: params.ticketId,
+      title,
+      body: message,
+      notificationType: 'ticket.claimed',
+    });
   }
 
   private async emitTicketStatusForClientCompanyInternal(params: {
@@ -2349,7 +2635,11 @@ export class NotificationsService {
     sourceEventId?: string | null;
   }) {
     if (params.fromStatus === params.toStatus) return;
-    if (params.toStatus !== TicketStatus.IN_PROGRESS && params.toStatus !== TicketStatus.DONE) return;
+    if (
+      params.toStatus !== TicketStatus.IN_PROGRESS &&
+      params.toStatus !== TicketStatus.DONE
+    )
+      return;
 
     const company = await this.prisma.company.findUnique({
       where: { id: params.ticketCompanyId },
@@ -2386,7 +2676,8 @@ export class NotificationsService {
     if (!recipients.length) return;
 
     const title = 'Статус изменён';
-    let notificationType: 'ticket.in_progress' | 'ticket.done' = 'ticket.in_progress';
+    let notificationType: 'ticket.in_progress' | 'ticket.done' =
+      'ticket.in_progress';
     let body = '';
     if (params.toStatus === TicketStatus.IN_PROGRESS) {
       body = `${ticketLabel(params.ticketNumber)} — техник приступил к работам.`;
@@ -2397,27 +2688,29 @@ export class NotificationsService {
     }
     const message = clipMessage(`${body} ${params.summary}`.trim());
 
-    await this.createNotifications(
-      recipients.map((u) => ({
-        companyId: u.companyId,
-        userId: u.id,
+    await this.createNotificationsForRecipients({
+      recipients,
+      eventType: notificationType,
+      buildData: (recipient) => ({
+        companyId: recipient.companyId,
+        userId: recipient.id,
         type: notificationType,
         title,
         message,
         entityType: 'Ticket',
         entityId: params.ticketId,
-        linkedClientCompanyId: u.linkedClientCompanyId,
+        linkedClientCompanyId: recipient.linkedClientCompanyId,
         dedupeKey: this.notificationDedupeKey(
           notificationType,
           params.sourceEventId || params.ticketId,
-          u.companyId,
-          u.id,
+          recipient.companyId,
+          recipient.id,
         ),
-      })),
-    );
+      }),
+    });
 
-    await this.pushTicketEventToMany({
-      userIds: recipients.map((u) => u.id),
+    await this.pushTicketEventToRecipients({
+      recipients,
       type: 'statusChange',
       ticketId: params.ticketId,
       title,
@@ -2459,34 +2752,37 @@ export class NotificationsService {
       `${ticketLabel(params.ticketNumber)} — ${STATUS_RU[params.fromStatus]} → ${STATUS_RU[params.toStatus]}. ${params.summary}`,
     );
 
-    await this.createNotification({
-      companyId: recipient.companyId,
-      userId: recipient.id,
-      type: 'ticket.status_changed',
-      title,
-      message,
-      entityType: 'Ticket',
-      entityId: params.ticketId,
-      linkedClientCompanyId: recipient.linkedClientCompanyId,
-      dedupeKey: this.notificationDedupeKey(
-        'ticket.status_changed.assignee',
-        params.sourceEventId || params.ticketId,
-        recipient.companyId,
-        recipient.id,
-        params.fromStatus,
-        params.toStatus,
-      ),
+    await this.createNotificationForRecipient({
+      recipient,
+      eventType: 'ticket.status_changed',
+      buildData: (deliveredRecipient) => ({
+        companyId: deliveredRecipient.companyId,
+        userId: deliveredRecipient.id,
+        type: 'ticket.status_changed',
+        title,
+        message,
+        entityType: 'Ticket',
+        entityId: params.ticketId,
+        linkedClientCompanyId: deliveredRecipient.linkedClientCompanyId,
+        dedupeKey: this.notificationDedupeKey(
+          'ticket.status_changed.assignee',
+          params.sourceEventId || params.ticketId,
+          deliveredRecipient.companyId,
+          deliveredRecipient.id,
+          params.fromStatus,
+          params.toStatus,
+        ),
+      }),
     });
 
     // actor===assignee уже отсечён early-return выше.
-    await this.pushTicketEvent({
-      userId: recipient.id,
+    await this.pushTicketEventToRecipients({
+      recipients: [recipient],
       type: 'statusChange',
       ticketId: params.ticketId,
       title,
       body: message,
       notificationType: 'ticket.status_changed',
-      linkedClientCompanyId: recipient.linkedClientCompanyId,
     });
   }
 
@@ -2516,29 +2812,33 @@ export class NotificationsService {
     if (!recipients.length) return;
 
     const title = 'Работа выполнена, ожидает приёмки';
-    const message = clipMessage(`${ticketLabel(params.ticketNumber)} — проверьте и подтвердите выполненную работу.`);
+    const message = clipMessage(
+      `${ticketLabel(params.ticketNumber)} — проверьте и подтвердите выполненную работу.`,
+    );
 
-    await this.createNotifications(
-      recipients.map((u) => ({
-        companyId: u.companyId,
-        userId: u.id,
+    await this.createNotificationsForRecipients({
+      recipients,
+      eventType: 'ticket.awaiting_acceptance',
+      buildData: (recipient) => ({
+        companyId: recipient.companyId,
+        userId: recipient.id,
         type: 'ticket.awaiting_acceptance',
         title,
         message,
         entityType: 'Ticket',
         entityId: params.ticketId,
-        linkedClientCompanyId: u.linkedClientCompanyId,
+        linkedClientCompanyId: recipient.linkedClientCompanyId,
         dedupeKey: this.notificationDedupeKey(
           'ticket.awaiting_acceptance',
           params.sourceEventId || params.ticketId,
-          u.companyId,
-          u.id,
+          recipient.companyId,
+          recipient.id,
         ),
-      })),
-    );
+      }),
+    });
 
-    await this.pushTicketEventToMany({
-      userIds: recipients.map((u) => u.id),
+    await this.pushTicketEventToRecipients({
+      recipients,
       type: 'acceptance',
       ticketId: params.ticketId,
       title,
@@ -2571,7 +2871,11 @@ export class NotificationsService {
     if (params.actorUserId === params.assignedTechnicianId) return;
 
     const assignee = await this.prisma.user.findFirst({
-      where: { id: params.assignedTechnicianId, isActive: true, deletedAt: null },
+      where: {
+        id: params.assignedTechnicianId,
+        isActive: true,
+        deletedAt: null,
+      },
       select: { id: true, companyId: true, role: true },
     });
     if (!assignee) return;
@@ -2582,32 +2886,37 @@ export class NotificationsService {
       ticketCompanyId: params.ticketCompanyId,
     });
     if (recipient) {
-      await this.createNotification({
-        companyId: recipient.companyId,
-        userId: recipient.id,
-        type: 'ticket.accepted',
-        title: 'Работа принята',
-        message: clipMessage(`${ticketLabel(params.ticketNumber)} — клиент подтвердил выполнение.`),
-        entityType: 'Ticket',
-        entityId: params.ticketId,
-        linkedClientCompanyId: recipient.linkedClientCompanyId,
-        dedupeKey: this.notificationDedupeKey(
-          'ticket.accepted',
-          params.sourceEventId || params.ticketId,
-          recipient.companyId,
-          recipient.id,
-        ),
+      await this.createNotificationForRecipient({
+        recipient,
+        eventType: 'ticket.accepted',
+        buildData: (deliveredRecipient) => ({
+          companyId: deliveredRecipient.companyId,
+          userId: deliveredRecipient.id,
+          type: 'ticket.accepted',
+          title: 'Работа принята',
+          message: clipMessage(
+            `${ticketLabel(params.ticketNumber)} — клиент подтвердил выполнение.`,
+          ),
+          entityType: 'Ticket',
+          entityId: params.ticketId,
+          linkedClientCompanyId: deliveredRecipient.linkedClientCompanyId,
+          dedupeKey: this.notificationDedupeKey(
+            'ticket.accepted',
+            params.sourceEventId || params.ticketId,
+            deliveredRecipient.companyId,
+            deliveredRecipient.id,
+          ),
+        }),
       });
 
       // actor===assignee уже отсечён early-return выше.
-      await this.pushTicketEvent({
-        userId: recipient.id,
+      await this.pushTicketEventToRecipients({
+        recipients: [recipient],
         type: 'acceptance',
         ticketId: params.ticketId,
         title: 'Работа принята',
         body: `${ticketLabel(params.ticketNumber)} — клиент подтвердил выполнение.`,
         notificationType: 'ticket.accepted',
-        linkedClientCompanyId: recipient.linkedClientCompanyId,
       });
     }
 
@@ -2620,7 +2929,9 @@ export class NotificationsService {
       type: 'acceptance',
       notificationType: 'ticket.accepted',
       title: 'Работа принята',
-      message: clipMessage(`${ticketLabel(params.ticketNumber)} — клиент подтвердил выполнение.`),
+      message: clipMessage(
+        `${ticketLabel(params.ticketNumber)} — клиент подтвердил выполнение.`,
+      ),
       dedupeKind: 'ticket.accepted.provider_admin',
       sourceEventId: params.sourceEventId,
     });
@@ -2638,7 +2949,11 @@ export class NotificationsService {
     if (params.actorUserId === params.assignedTechnicianId) return;
 
     const assignee = await this.prisma.user.findFirst({
-      where: { id: params.assignedTechnicianId, isActive: true, deletedAt: null },
+      where: {
+        id: params.assignedTechnicianId,
+        isActive: true,
+        deletedAt: null,
+      },
       select: { id: true, companyId: true, role: true },
     });
     if (!assignee) return;
@@ -2653,32 +2968,35 @@ export class NotificationsService {
       ? `${ticketLabel(params.ticketNumber)} — ${params.comment}`
       : `${ticketLabel(params.ticketNumber)} — работа не принята, проверьте комментарий.`;
 
-    await this.createNotification({
-      companyId: recipient.companyId,
-      userId: recipient.id,
-      type: 'ticket.rejected',
-      title: 'Работа не принята',
-      message: clipMessage(body),
-      entityType: 'Ticket',
-      entityId: params.ticketId,
-      linkedClientCompanyId: recipient.linkedClientCompanyId,
-      dedupeKey: this.notificationDedupeKey(
-        'ticket.rejected',
-        params.sourceEventId || params.ticketId,
-        recipient.companyId,
-        recipient.id,
-      ),
+    await this.createNotificationForRecipient({
+      recipient,
+      eventType: 'ticket.rejected',
+      buildData: (deliveredRecipient) => ({
+        companyId: deliveredRecipient.companyId,
+        userId: deliveredRecipient.id,
+        type: 'ticket.rejected',
+        title: 'Работа не принята',
+        message: clipMessage(body),
+        entityType: 'Ticket',
+        entityId: params.ticketId,
+        linkedClientCompanyId: deliveredRecipient.linkedClientCompanyId,
+        dedupeKey: this.notificationDedupeKey(
+          'ticket.rejected',
+          params.sourceEventId || params.ticketId,
+          deliveredRecipient.companyId,
+          deliveredRecipient.id,
+        ),
+      }),
     });
 
     // Отклонение приёмки → доработка. actor===assignee уже отсечён early-return выше.
-    await this.pushTicketEvent({
-      userId: recipient.id,
+    await this.pushTicketEventToRecipients({
+      recipients: [recipient],
       type: 'acceptanceReject',
       ticketId: params.ticketId,
       title: 'Работа не принята',
       body,
       notificationType: 'ticket.rejected',
-      linkedClientCompanyId: recipient.linkedClientCompanyId,
     });
   }
 }
