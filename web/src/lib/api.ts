@@ -3624,6 +3624,145 @@ export type CompleteInspectionRunResponse = {
   summary: InspectionRunSummary
 }
 /**
+ * SMA-EQUIPMENT-HISTORY-PARTS-110B.
+ * История обслуживания и комплектующие. Складского здесь нет: остатки, цены
+ * и резервы — будущий Stock, отдельная сущность.
+ */
+export type EquipmentWorkReport = {
+  id: string
+  url: string
+  originalName: string
+  mimeType: string
+  createdAt: string
+}
+
+export type EquipmentHistoryPartRef = {
+  id: string
+  name: string
+  serialNumber?: string | null
+  quantity: string
+}
+
+export type EquipmentHistoryEntry = {
+  ticketId: string
+  ticketNumber: number
+  createdAt: string
+  closedAt?: string | null
+  status: TicketStatus
+  problem: string
+  category?: string | null
+  performedBy?: string | null
+  performedByCompany?: string | null
+  /** Комментарий приёмки. Из текста заявки результат не выводится. */
+  result?: string | null
+  resultAt?: string | null
+  workReports: EquipmentWorkReport[]
+  /** Заполняется только из InstalledPart — не угадывается по тексту. */
+  partsInstalled: EquipmentHistoryPartRef[]
+  partsRemoved: EquipmentHistoryPartRef[]
+}
+
+export type EquipmentHistoryResponse = {
+  equipment: { id: string; name: string; companyId: string; locationId: string }
+  tickets: EquipmentHistoryEntry[]
+  truncated: boolean
+}
+
+export type PartDefinitionItem = {
+  id: string
+  companyId: string
+  name: string
+  manufacturer?: string | null
+  model?: string | null
+  article?: string | null
+  unit: string
+  isActive: boolean
+}
+
+export type InstalledPartItem = {
+  id: string
+  equipmentId: string
+  partDefinitionId?: string | null
+  partDefinition?: Pick<PartDefinitionItem, 'id' | 'name' | 'manufacturer' | 'model' | 'article' | 'unit'> | null
+  displayName: string
+  serialNumber?: string | null
+  quantity: string
+  unit?: string | null
+  /** Вычисляется на сервере из removedAt; хранимой колонки нет. */
+  status: 'INSTALLED' | 'REMOVED'
+  installedAt: string
+  removedAt?: string | null
+  installedTicket?: { id: string; ticketNumber: number; status: TicketStatus } | null
+  removedTicket?: { id: string; ticketNumber: number; status: TicketStatus } | null
+  installedBy?: { id: string; firstName?: string | null; lastName?: string | null; email: string } | null
+  removedBy?: { id: string; firstName?: string | null; lastName?: string | null; email: string } | null
+  comment?: string | null
+  removalComment?: string | null
+}
+
+export type EquipmentPartsResponse = {
+  installed: InstalledPartItem[]
+  history: InstalledPartItem[]
+}
+
+export async function getEquipmentHistory(id: string, companyId?: string): Promise<EquipmentHistoryResponse> {
+  const suffix = companyId ? `?companyId=${encodeURIComponent(companyId)}` : ''
+  return request<EquipmentHistoryResponse>('/equipment/' + id + '/history' + suffix)
+}
+
+export async function getEquipmentParts(id: string, companyId?: string): Promise<EquipmentPartsResponse> {
+  const suffix = companyId ? `?companyId=${encodeURIComponent(companyId)}` : ''
+  return request<EquipmentPartsResponse>('/equipment/' + id + '/parts' + suffix)
+}
+
+export type InstallPartInput = {
+  partDefinitionId?: string
+  displayName?: string
+  serialNumber?: string
+  quantity?: string
+  installedAt?: string
+  ticketId?: string
+  comment?: string
+}
+
+export async function installEquipmentPart(id: string, input: InstallPartInput): Promise<InstalledPartItem> {
+  return request<InstalledPartItem>('/equipment/' + id + '/parts', { method: 'POST', body: input })
+}
+
+/** Заявка обязательна: замена — сервисная работа, она должна быть прослеживаемой. */
+export type ReplacePartInput = InstallPartInput & { ticketId: string; replacedAt?: string; removalComment?: string }
+
+export async function replaceEquipmentPart(
+  id: string,
+  partId: string,
+  input: ReplacePartInput,
+): Promise<{ removed: InstalledPartItem; installed: InstalledPartItem }> {
+  return request<{ removed: InstalledPartItem; installed: InstalledPartItem }>(
+    `/equipment/${id}/parts/${partId}/replace`,
+    { method: 'POST', body: input },
+  )
+}
+
+export async function listPartDefinitions(params?: { companyId?: string; search?: string }): Promise<PartDefinitionItem[]> {
+  const search = new URLSearchParams()
+  if (params?.companyId) search.set('companyId', params.companyId)
+  if (params?.search) search.set('search', params.search)
+  const suffix = search.toString() ? `?${search.toString()}` : ''
+  return request<PartDefinitionItem[]>('/part-definitions' + suffix)
+}
+
+export async function createPartDefinition(input: {
+  locationId: string
+  name: string
+  manufacturer?: string
+  model?: string
+  article?: string
+  unit?: string
+}): Promise<PartDefinitionItem> {
+  return request<PartDefinitionItem>('/part-definitions', { method: 'POST', body: input })
+}
+
+/**
  * SMA-EQUIPMENT-V2-110A.
  * Список парка. Поиск и фильтры уходят на сервер: выгружать весь парк в браузер
  * и фильтровать его там — и медленно, и небезопасно.

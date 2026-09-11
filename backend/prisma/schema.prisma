@@ -197,6 +197,8 @@ model Company {
   inspectionSchedules          InspectionSchedule[]
   inspectionRunItemAttachments InspectionRunItemAttachment[]
   equipmentAttachments         EquipmentAttachment[]
+  partDefinitions              PartDefinition[]
+  installedParts               InstalledPart[]
   clientContracts              ServiceContract[]             @relation("ClientCompanyContracts")
   providerContracts            ServiceContract[]             @relation("ProviderCompanyContracts")
   providedTechnicianBindings   TechnicianClientBinding[]     @relation("TechnicianBindingProviderCompany")
@@ -236,6 +238,8 @@ model User {
   createdTickets              Ticket[]                   @relation("TicketCreatedBy")
   ticketAttachmentsUploaded   TicketAttachment[]         @relation("TicketAttachmentUploadedBy")
   equipmentAttachmentsUploaded EquipmentAttachment[]     @relation("EquipmentAttachmentUploadedBy")
+  partsInstalled               InstalledPart[]           @relation("InstalledPartInstalledBy")
+  partsRemoved                 InstalledPart[]           @relation("InstalledPartRemovedBy")
   inspectionRunsPerformed     InspectionRun[]            @relation("InspectionRunPerformedBy")
   inspectionReportsSubmitted  InspectionRun[]            @relation("InspectionRunReportSubmittedBy")
   inspectionReportsReviewed   InspectionRun[]            @relation("InspectionRunReportReviewedBy")
@@ -575,6 +579,7 @@ model Equipment {
   inspectionRuns      InspectionRun[]
   inspectionSchedules InspectionSchedule[]
   attachments         EquipmentAttachment[] @relation("EquipmentAttachments")
+  installedParts      InstalledPart[]
 
   @@index([companyId, locationId])
   @@index([companyId, status])
@@ -709,6 +714,8 @@ model Ticket {
   statusUpdatedAt   DateTime              @default(now())
   statusHistory     TicketStatusHistory[]
   attachments       TicketAttachment[]
+  partsInstalled    InstalledPart[]       @relation("InstalledPartInstalledTicket")
+  partsRemoved      InstalledPart[]       @relation("InstalledPartRemovedTicket")
   inspectionRunItem InspectionRunItem?
   workLogs          WorkLog[]
 
@@ -1120,4 +1127,98 @@ model AgentTask {
 
   @@index([companyId, status])
   @@index([companyId, createdAt])
+}
+
+/// SMA-EQUIPMENT-HISTORY-PARTS-110B.
+///
+/// Справочник комплектующих. Складского в нём намеренно нет: ни остатков,
+/// ни цен, ни резервов. Будущий шов — PartDefinition → Stock → Issue →
+/// Ticket → InstalledPart, и Stock появится отдельной сущностью, не полем здесь.
+model PartDefinition {
+  id        String @id @default(uuid())
+  /// Владелец — CLIENT-компания контура, как и у Equipment.
+  companyId String
+
+  name         String
+  manufacturer String?
+  model        String?
+  /// Артикул поставщика или внутренний SKU.
+  article String?
+  /// Единица измерения: шт, м, л. Свободная строка — набор у разных клиентов свой.
+  unit      String  @default("шт")
+  isActive  Boolean @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  installedParts InstalledPart[]
+
+  @@index([companyId, name])
+  @@index([companyId, article])
+  @@index([companyId, isActive])
+}
+
+/// SMA-EQUIPMENT-HISTORY-PARTS-110B.
+///
+/// Комплектующая, установленная в единицу оборудования. Строка не переписывается
+/// при замене: снятие проставляет removedAt и removedTicketId, а новая деталь
+/// приходит новой строкой. Так «что стояло раньше» остаётся видимым.
+///
+/// Поля status здесь нет намеренно. Состояние однозначно определяется removedAt:
+/// снята тогда и только тогда, когда removedAt заполнено. Отдельная колонка
+/// завела бы второй источник правды, который рано или поздно разойдётся
+/// с датой — строка сказала бы INSTALLED при заполненном removedAt.
+/// Наружу status отдаётся вычисленным.
+model InstalledPart {
+  id          String @id @default(uuid())
+  /// Контур клиента, тот же, что у оборудования. Держим денормализованно:
+  /// по нему идёт изоляция арендаторов в запросах.
+  companyId   String
+  equipmentId String
+  /// Ссылка на справочник необязательна: разовую деталь заводят по месту,
+  /// не заводя карточку в каталоге.
+  partDefinitionId String?
+
+  /// Что стоит по факту. Заполняется всегда, даже когда есть справочник:
+  /// переименование позиции в каталоге не должно менять историю.
+  displayName  String
+  serialNumber String?
+  /// Дробное количество допустимо: единица измерения бывает метром или литром.
+  quantity Decimal @default(1) @db.Decimal(12, 3)
+
+  installedAt DateTime  @default(now())
+  removedAt   DateTime?
+
+  /// Заявка, по которой ставили. Необязательна: первичная комплектация
+  /// оборудования — административная операция, и выдумывать под неё заявку
+  /// нельзя. Для замены заявка обязательна, это проверяет сервис.
+  installedTicketId String?
+  /// Заявка, по которой снимали.
+  removedTicketId String?
+
+  installedByUserId String?
+  removedByUserId   String?
+
+  comment        String?
+  removalComment String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company        Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  equipment      Equipment       @relation(fields: [equipmentId], references: [id], onDelete: Cascade)
+  partDefinition PartDefinition? @relation(fields: [partDefinitionId], references: [id], onDelete: SetNull)
+
+  installedTicket Ticket? @relation("InstalledPartInstalledTicket", fields: [installedTicketId], references: [id], onDelete: SetNull)
+  removedTicket   Ticket? @relation("InstalledPartRemovedTicket", fields: [removedTicketId], references: [id], onDelete: SetNull)
+
+  installedBy User? @relation("InstalledPartInstalledBy", fields: [installedByUserId], references: [id], onDelete: SetNull)
+  removedBy   User? @relation("InstalledPartRemovedBy", fields: [removedByUserId], references: [id], onDelete: SetNull)
+
+  /// Основная выборка карточки: что стоит сейчас — removedAt IS NULL.
+  @@index([equipmentId, removedAt])
+  @@index([equipmentId, installedAt])
+  @@index([companyId, equipmentId])
+  @@index([installedTicketId])
+  @@index([removedTicketId])
 }

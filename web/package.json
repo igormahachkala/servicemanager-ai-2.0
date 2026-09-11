@@ -21,6 +21,7 @@
     "test:rounds-location-scope": "node scripts/verify-rounds-provider-location-scope.mjs",
     "test:equipment-v2": "node scripts/verify-equipment-v2.mjs",
     "test:realtime-resilience": "node scripts/verify-realtime-websocket-resilience.mjs",
+    "test:equipment-history-parts": "node scripts/verify-equipment-history-parts.mjs",
     "split:api": "node scripts/split-api-layer.mjs",
     "split:api:apply": "node scripts/split-api-layer.mjs --apply-barrel"
   },
