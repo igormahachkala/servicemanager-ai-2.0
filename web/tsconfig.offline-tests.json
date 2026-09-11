@@ -1,0 +1,16 @@
+{
+  "//": "SMA-MOBILE-OFFLINE-MODE-V1-113C: отдельная сборка offline-слоя и его тестов под встроенный тест-раннер Node. Новых зависимостей задача не добавляет: во фронтенде тест-фреймворка нет и не заводится, компилируем существующим tsc.",
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM"],
+    "strict": true,
+    "skipLibCheck": true,
+    "outDir": ".offline-test-build",
+    "rootDir": "src",
+    "types": ["node"],
+    "noEmitOnError": true
+  },
+  "include": ["src/mobile/offline/**/*.ts"]
+}

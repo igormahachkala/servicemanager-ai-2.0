@@ -172,13 +172,75 @@ function pickWindowClient(clientList) {
   )
 }
 
-self.addEventListener('install', () => {
+// ── SMA-MOBILE-OFFLINE-MODE-V1-113C: оболочка приложения офлайн ──────────
+//
+// Задача узкая: если техник уже открывал /m, при пропаже связи приложение
+// должно открыться заново, а не показать ошибку браузера. Дальше работает
+// offline-слой на IndexedDB.
+//
+// Кэш здесь — только оболочка. Второй операционной базой он не становится
+// намеренно: данные заявок и обходов живут в IndexedDB, где ими управляет
+// код с понятными правилами и пространством имён по пользователю. Класть
+// авторизованные ответы API в кэш Service Worker нельзя ещё и потому, что
+// он общий для всех, кто открывал браузер: на общем планшете следующий
+// техник увидел бы чужие данные.
+const APP_SHELL_CACHE = 'sma-app-shell-v1'
+const APP_SHELL_URL = '/index.html'
+
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches
+      .open(APP_SHELL_CACHE)
+      .then((cache) => cache.addAll([APP_SHELL_URL, '/']))
+      .catch(() => undefined),
+  )
   // Не ждём — новый SW должен активироваться сразу же после обновления кода.
   self.skipWaiting()
 })
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim())
+  event.waitUntil(
+    Promise.all([
+      self.clients.claim(),
+      // Старые версии оболочки убираем, иначе после релиза техник получит
+      // вчерашний бандл.
+      caches.keys().then((keys) =>
+        Promise.all(keys.filter((k) => k.startsWith('sma-app-shell-') && k !== APP_SHELL_CACHE).map((k) => caches.delete(k))),
+      ),
+    ]),
+  )
+})
+
+self.addEventListener('fetch', (event) => {
+  const request = event.request
+
+  // Кэшируется исключительно навигация. Всё остальное — включая любые
+  // запросы с Authorization, вызовы api и защищённую раздачу /uploads —
+  // идёт в сеть и в кэш не попадает.
+  if (request.method !== 'GET') return
+  if (request.mode !== 'navigate') return
+
+  const url = new URL(request.url)
+  if (url.origin !== self.location.origin) return
+  if (url.pathname.startsWith('/uploads/') || url.pathname.startsWith('/api/')) return
+
+  event.respondWith(
+    fetch(request)
+      .then((response) => {
+        // Свежую оболочку сохраняем, чтобы в следующий раз было что показать.
+        const copy = response.clone()
+        caches.open(APP_SHELL_CACHE).then((cache) => cache.put(APP_SHELL_URL, copy)).catch(() => undefined)
+        return response
+      })
+      .catch(async () => {
+        const cached = await caches.match(APP_SHELL_URL)
+        if (cached) return cached
+        return new Response('Нет связи и нет сохранённой копии приложения.', {
+          status: 503,
+          headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+        })
+      }),
+  )
 })
 
 /**

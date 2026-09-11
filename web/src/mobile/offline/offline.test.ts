@@ -1,0 +1,588 @@
+/**
+ * SMA-MOBILE-OFFLINE-MODE-V1-113C — поведенческие тесты offline-слоя.
+ *
+ * Запускаются встроенным тест-раннером Node по скомпилированным файлам:
+ * во фронтенде тест-фреймворка нет, и задача его не заводит.
+ *
+ * Драйвер подменяется на хранилище в памяти. Это не обход проверки:
+ * IndexedDB-драйвер намеренно сделан тонким и обязан вести себя так же,
+ * а вся логика — очередь, ключи, зависимости, конфликты — живёт выше него
+ * и проверяется здесь по-настоящему.
+ */
+
+import test from 'node:test'
+import assert from 'node:assert/strict'
+
+import { MemoryDriver, UnavailableDriver } from './driver.js'
+import { OfflineStore, isLocalId, LOCAL_ID_PREFIX } from './store.js'
+import { SyncCoordinator, type SyncTransport } from './sync.js'
+import { migrateLegacyQueue, LEGACY_QUEUE_KEY } from './migration.js'
+import {
+  classifySyncFailure,
+  offlineDatabaseName,
+  offlineNamespace,
+  OFFLINE_SYNC_LABEL,
+  syncStateOf,
+} from './types.js'
+import {
+  openOfflineSession,
+  wipeOfflineSession,
+  setOfflineDriverFactory,
+  currentOfflineStore,
+} from './session.js'
+
+function makeStore(namespace = 'co-1:user-1') {
+  const driver = new MemoryDriver()
+  return { driver, store: new OfflineStore(driver, namespace) }
+}
+
+// ── 1. очередь переживает перезагрузку ────────────────────────────────────
+
+test('1. очередь переживает перезагрузку', async () => {
+  const driver = new MemoryDriver()
+  const first = new OfflineStore(driver, 'co-1:user-1')
+  const r = await first.enqueue({ kind: 'ticket.comment', target: { ticketId: 'tk-1' }, payload: { comment: 'текст' } })
+  assert.equal(r.ok, true)
+
+  // «Перезагрузка» — новый объект поверх того же хранилища.
+  const afterReload = new OfflineStore(driver, 'co-1:user-1')
+  const items = await afterReload.listQueue()
+  assert.equal(items.length, 1)
+  assert.equal(items[0].payload.comment, 'текст')
+  assert.equal(items[0].status, 'pending')
+})
+
+// ── 2-4, 25. пространства имён, выход, смена пользователя ─────────────────
+
+test('2. пространство имён строится из компании и пользователя', () => {
+  assert.equal(offlineNamespace({ companyId: 'co-1', id: 'user-1' }), 'co-1:user-1')
+  assert.equal(offlineNamespace({ companyId: 'co-1', id: '' }), null)
+  assert.equal(offlineNamespace(null), null)
+  assert.notEqual(
+    offlineDatabaseName('co-1:user-1'),
+    offlineDatabaseName('co-1:user-2'),
+  )
+})
+
+test('3. выход удаляет данные пространства имён', async () => {
+  const drivers = new Map<string, MemoryDriver>()
+  setOfflineDriverFactory((name) => {
+    if (!drivers.has(name)) drivers.set(name, new MemoryDriver())
+    return drivers.get(name)!
+  })
+
+  const opened = await openOfflineSession({ companyId: 'co-1', id: 'user-1' }, { legacyStorage: null })
+  await opened.store!.enqueue({ kind: 'ticket.comment', target: { ticketId: 'tk-1' }, payload: { comment: 'a' } })
+  assert.equal((await opened.store!.listQueue()).length, 1)
+
+  await wipeOfflineSession({ companyId: 'co-1', id: 'user-1' })
+  const reopened = await openOfflineSession({ companyId: 'co-1', id: 'user-1' }, { legacyStorage: null })
+  assert.equal((await reopened.store!.listQueue()).length, 0)
+  setOfflineDriverFactory(null)
+})
+
+test('4 и 25. следующий пользователь не видит данные предыдущего', async () => {
+  const drivers = new Map<string, MemoryDriver>()
+  setOfflineDriverFactory((name) => {
+    if (!drivers.has(name)) drivers.set(name, new MemoryDriver())
+    return drivers.get(name)!
+  })
+
+  const first = await openOfflineSession({ companyId: 'co-1', id: 'user-1' }, { legacyStorage: null })
+  await first.store!.enqueue({ kind: 'ticket.comment', target: { ticketId: 'tk-secret' }, payload: { comment: 'приватное' } })
+
+  // Смена пользователя без выхода: база другая.
+  const second = await openOfflineSession({ companyId: 'co-1', id: 'user-2' }, { legacyStorage: null })
+  assert.notEqual(second.namespace, first.namespace)
+  assert.equal((await second.store!.listQueue()).length, 0)
+
+  const seen = JSON.stringify(await second.store!.listQueue())
+  assert.ok(!seen.includes('приватное'))
+  assert.ok(!seen.includes('tk-secret'))
+  setOfflineDriverFactory(null)
+})
+
+// ── 5-6. чек-поинты ───────────────────────────────────────────────────────
+
+test('5. отметка чек-поинта ставится в очередь офлайн', async () => {
+  const { store } = makeStore()
+  const r = await store.enqueue({
+    kind: 'checkpoint.update',
+    target: { roundId: 'r-1', checkpointId: 'c-1' },
+    payload: { value: 'PROBLEM', comment: 'подтекает' },
+  })
+  assert.equal(r.ok, true)
+  const [item] = await store.listQueue()
+  assert.equal(item.kind, 'checkpoint.update')
+  assert.equal(item.payload.value, 'PROBLEM')
+  assert.equal(syncStateOf(item), 'pending')
+})
+
+test('6. повторная отметка того же чек-поинта схлопывается, ключ сохраняется', async () => {
+  const { store } = makeStore()
+  const target = { roundId: 'r-1', checkpointId: 'c-1' }
+  const first = await store.enqueue({ kind: 'checkpoint.update', target, payload: { value: 'OK' } })
+  assert.equal(first.ok, true)
+  const firstKey = first.ok ? first.item.idempotencyKey : ''
+
+  await store.enqueue({ kind: 'checkpoint.update', target, payload: { value: 'PROBLEM' } })
+  const last = await store.enqueue({ kind: 'checkpoint.update', target, payload: { value: 'CRITICAL' } })
+
+  const items = await store.listQueue()
+  assert.equal(items.length, 1, 'три переключения дают одну строку')
+  assert.equal(items[0].payload.value, 'CRITICAL', 'побеждает последнее значение')
+  assert.equal(items[0].idempotencyKey, firstKey, 'ключ не пересоздаётся при схлопывании')
+  assert.equal(last.ok, true)
+})
+
+// ── 7-8. стабильность ключа идемпотентности ───────────────────────────────
+
+test('7. у комментария стабильный ключ идемпотентности', async () => {
+  const driver = new MemoryDriver()
+  const store = new OfflineStore(driver, 'co-1:user-1')
+  const r = await store.enqueue({ kind: 'ticket.comment', target: { ticketId: 'tk-1' }, payload: { comment: 'a' } })
+  assert.equal(r.ok, true)
+  const key = r.ok ? r.item.idempotencyKey : ''
+  assert.ok(key.startsWith('ticket.comment:'))
+
+  // Перезагрузка: ключ читается из хранилища, а не создаётся заново.
+  const reloaded = new OfflineStore(driver, 'co-1:user-1')
+  assert.equal((await reloaded.listQueue())[0].idempotencyKey, key)
+
+  // Два разных комментария — два разных ключа.
+  const other = await store.enqueue({ kind: 'ticket.comment', target: { ticketId: 'tk-1' }, payload: { comment: 'b' } })
+  assert.notEqual(other.ok && other.item.idempotencyKey, key)
+})
+
+test('8. повтор после ошибки не меняет ключ', async () => {
+  const { store } = makeStore()
+  const r = await store.enqueue({ kind: 'ticket.comment', target: { ticketId: 'tk-1' }, payload: { comment: 'a' } })
+  const key = r.ok ? r.item.idempotencyKey : ''
+
+  let attempts = 0
+  const flaky: SyncTransport = {
+    async send(item) {
+      attempts += 1
+      assert.equal(item.idempotencyKey, key, 'транспорт всегда получает исходный ключ')
+      return attempts < 3 ? { kind: 'retry', message: 'нет сети' } : { kind: 'ok' }
+    },
+  }
+  const sync = new SyncCoordinator(store, flaky, { useWebLocks: false })
+  await sync.run()
+  await sync.run()
+  await sync.run()
+  assert.equal(attempts, 3)
+  assert.equal((await store.listQueue()).length, 0, 'после подтверждения строка удалена')
+})
+
+// ── 9-11. снимки ──────────────────────────────────────────────────────────
+
+test('9. Blob фото заявки переживает перезагрузку', async () => {
+  const driver = new MemoryDriver()
+  const store = new OfflineStore(driver, 'co-1:user-1')
+  const blob = new Blob(['фото'], { type: 'image/jpeg' })
+  const r = await store.enqueue({ kind: 'ticket.attachment', target: { ticketId: 'tk-1' }, blob })
+  assert.equal(r.ok, true)
+
+  const reloaded = new OfflineStore(driver, 'co-1:user-1')
+  const [item] = await reloaded.listQueue()
+  assert.ok(item.blobId, 'строка ссылается на снимок')
+  const restored = await reloaded.getBlob(item.blobId!)
+  assert.ok(restored, 'снимок доступен после перезагрузки')
+  assert.equal(await restored!.text(), 'фото')
+})
+
+test('10. Blob фото чек-поинта переживает перезагрузку', async () => {
+  const driver = new MemoryDriver()
+  const store = new OfflineStore(driver, 'co-1:user-1')
+  const blob = new Blob(['чек'], { type: 'image/png' })
+  await store.enqueue({ kind: 'checkpoint.attachment', target: { roundId: 'r-1', checkpointId: 'c-1' }, blob })
+
+  const reloaded = new OfflineStore(driver, 'co-1:user-1')
+  const [item] = await reloaded.listQueue()
+  assert.equal(item.kind, 'checkpoint.attachment')
+  assert.equal(await (await reloaded.getBlob(item.blobId!))!.text(), 'чек')
+})
+
+test('11. повтор загрузки фото не создаёт дубль и не теряет Blob до подтверждения', async () => {
+  const { store } = makeStore()
+  const blob = new Blob(['фото'], { type: 'image/jpeg' })
+  const r = await store.enqueue({ kind: 'ticket.attachment', target: { ticketId: 'tk-1' }, blob })
+  const key = r.ok ? r.item.idempotencyKey : ''
+  const blobId = r.ok ? r.item.blobId! : ''
+
+  const keys: string[] = []
+  let failFirst = true
+  const transport: SyncTransport = {
+    async send(item, ctx) {
+      keys.push(item.idempotencyKey)
+      assert.ok(ctx.blob, 'снимок передан в транспорт')
+      if (failFirst) { failFirst = false; return { kind: 'retry', message: 'обрыв' } }
+      return { kind: 'ok' }
+    },
+  }
+  const sync = new SyncCoordinator(store, transport, { useWebLocks: false })
+
+  await sync.run()
+  assert.ok(await store.getBlob(blobId), 'после неудачи снимок остаётся на устройстве')
+
+  await sync.run()
+  assert.deepEqual(keys, [key, key], 'обе попытки с одним ключом — сервер не создаст дубль')
+  assert.equal(await store.getBlob(blobId), null, 'снимок удалён только после подтверждения')
+  assert.equal((await store.listQueue()).length, 0)
+})
+
+// ── 12-13. заявка из обхода и причинный порядок ───────────────────────────
+
+test('12. заявка из обхода ставится в очередь офлайн', async () => {
+  const { store } = makeStore()
+  const localTicketId = `${LOCAL_ID_PREFIX}tk-draft`
+  const r = await store.enqueue({
+    kind: 'ticket.fromRound',
+    target: { ticketId: localTicketId, roundId: 'r-1', checkpointId: 'c-1' },
+    payload: { problemText: 'течь' },
+    producesTicketId: true,
+  })
+  assert.equal(r.ok, true)
+  assert.ok(isLocalId(localTicketId))
+  assert.equal((await store.listQueue())[0].producesTicketId, true)
+})
+
+test('13. зависимая операция ждёт настоящий id заявки и получает его', async () => {
+  const { store } = makeStore()
+  const localTicketId = `${LOCAL_ID_PREFIX}tk-draft`
+
+  const parent = await store.enqueue({
+    kind: 'ticket.fromRound',
+    target: { ticketId: localTicketId, roundId: 'r-1' },
+    payload: { problemText: 'течь' },
+    producesTicketId: true,
+  })
+  assert.equal(parent.ok, true)
+  await store.enqueue({
+    kind: 'ticket.comment',
+    target: { ticketId: localTicketId },
+    payload: { comment: 'подробности' },
+    dependsOnId: parent.ok ? parent.item.id : undefined,
+  })
+
+  const seen: Array<{ kind: string; ticketId?: string }> = []
+  const transport: SyncTransport = {
+    async send(item) {
+      seen.push({ kind: item.kind, ticketId: item.target.ticketId })
+      return item.kind === 'ticket.fromRound' ? { kind: 'ok', serverId: 'tk-real' } : { kind: 'ok' }
+    },
+  }
+  await new SyncCoordinator(store, transport, { useWebLocks: false }).run()
+
+  assert.equal(seen.length, 2)
+  assert.equal(seen[0].kind, 'ticket.fromRound', 'родитель уходит первым')
+  assert.equal(seen[1].kind, 'ticket.comment')
+  assert.equal(seen[1].ticketId, 'tk-real', 'зависимая операция получила серверный id, а не local:')
+})
+
+test('13b. зависимая операция не уходит, пока родитель не подтверждён', async () => {
+  const { store } = makeStore()
+  const localTicketId = `${LOCAL_ID_PREFIX}tk-draft`
+  const parent = await store.enqueue({
+    kind: 'ticket.fromRound', target: { ticketId: localTicketId }, producesTicketId: true,
+  })
+  await store.enqueue({
+    kind: 'ticket.comment', target: { ticketId: localTicketId },
+    payload: { comment: 'x' }, dependsOnId: parent.ok ? parent.item.id : undefined,
+  })
+
+  const seen: string[] = []
+  const transport: SyncTransport = {
+    async send(item) {
+      seen.push(item.kind)
+      return { kind: 'retry', message: 'нет сети' }
+    },
+  }
+  await new SyncCoordinator(store, transport, { useWebLocks: false }).run()
+  assert.deepEqual(seen, ['ticket.fromRound'], 'комментарий не отправлен: родитель не подтверждён')
+})
+
+// ── 14-15. единственность координатора ────────────────────────────────────
+
+test('14. ровно один обработчик синхронизации', async () => {
+  const { store } = makeStore()
+  for (let i = 0; i < 3; i += 1) {
+    await store.enqueue({ kind: 'ticket.comment', target: { ticketId: `tk-${i}` }, payload: { comment: String(i) } })
+  }
+
+  let concurrent = 0
+  let maxConcurrent = 0
+  const transport: SyncTransport = {
+    async send() {
+      concurrent += 1
+      maxConcurrent = Math.max(maxConcurrent, concurrent)
+      await new Promise((r) => setTimeout(r, 5))
+      concurrent -= 1
+      return { kind: 'ok' }
+    },
+  }
+  const sync = new SyncCoordinator(store, transport, { useWebLocks: false })
+  await Promise.all([sync.run(), sync.run(), sync.run()])
+  assert.equal(maxConcurrent, 1, 'параллельных отправок нет')
+})
+
+test('15. повторное событие online не создаёт второй обработчик', async () => {
+  const { store } = makeStore()
+  await store.enqueue({ kind: 'ticket.comment', target: { ticketId: 'tk-1' }, payload: { comment: 'a' } })
+
+  let sends = 0
+  const transport: SyncTransport = {
+    async send() { sends += 1; await new Promise((r) => setTimeout(r, 10)); return { kind: 'ok' } },
+  }
+  const sync = new SyncCoordinator(store, transport, { useWebLocks: false })
+
+  const first = sync.run()
+  const second = await sync.run()
+  assert.equal(second.alreadyRunning, true, 'второй запуск отклонён')
+  await first
+  assert.equal(sends, 1, 'операция отправлена один раз')
+})
+
+// ── 16. взаимодействие с realtime 112A ────────────────────────────────────
+
+test('16. переподключение realtime не запускает вторую синхронизацию', async () => {
+  const { store } = makeStore()
+  await store.enqueue({ kind: 'ticket.comment', target: { ticketId: 'tk-1' }, payload: { comment: 'a' } })
+
+  let sends = 0
+  const transport: SyncTransport = {
+    async send() { sends += 1; await new Promise((r) => setTimeout(r, 10)); return { kind: 'ok' } },
+  }
+  const sync = new SyncCoordinator(store, transport, { useWebLocks: false })
+
+  // Сокет 112A при восстановлении связи дёргает тот же координатор, а не
+  // свой: второго менеджера и второй очереди не заводится.
+  const running = sync.run()
+  const realtimeReconnect = await sync.run()
+  assert.equal(realtimeReconnect.alreadyRunning, true)
+  await running
+  assert.equal(sends, 1)
+})
+
+// ── 17-20. конфликты ──────────────────────────────────────────────────────
+
+test('17. IDEMPOTENCY_KEY_CONFLICT уводит в «Требует внимания»', async () => {
+  const { store } = makeStore()
+  await store.enqueue({ kind: 'ticket.comment', target: { ticketId: 'tk-1' }, payload: { comment: 'a' } })
+  const transport: SyncTransport = {
+    async send() { return classifySyncFailure({ status: 409, code: 'IDEMPOTENCY_KEY_CONFLICT' }) },
+  }
+  await new SyncCoordinator(store, transport, { useWebLocks: false }).run()
+
+  const [item] = await store.listQueue()
+  assert.equal(item.status, 'attention')
+  assert.equal(syncStateOf(item), 'attention')
+  assert.match(item.attentionReason || '', /уже выполнялась/)
+})
+
+test('18. IDEMPOTENCY_IN_PROGRESS — это ожидание, а не ошибка', async () => {
+  const outcome = classifySyncFailure({ status: 409, code: 'IDEMPOTENCY_IN_PROGRESS' })
+  assert.equal(outcome.kind, 'retry')
+
+  const { store } = makeStore()
+  await store.enqueue({ kind: 'ticket.comment', target: { ticketId: 'tk-1' }, payload: { comment: 'a' } })
+  const transport: SyncTransport = { async send() { return outcome } }
+  await new SyncCoordinator(store, transport, { useWebLocks: false }).run()
+
+  const [item] = await store.listQueue()
+  assert.equal(item.status, 'pending', 'строка остаётся в очереди и будет повторена')
+  assert.equal(item.attempts, 1)
+})
+
+test('19. IDEMPOTENCY_RESULT_GONE не повторяется вслепую', async () => {
+  const { store } = makeStore()
+  await store.enqueue({ kind: 'ticket.attachment', target: { ticketId: 'tk-1' }, blob: new Blob(['x']) })
+  const transport: SyncTransport = {
+    async send() { return classifySyncFailure({ status: 410, code: 'IDEMPOTENCY_RESULT_GONE' }) },
+  }
+  await new SyncCoordinator(store, transport, { useWebLocks: false }).run()
+
+  const [item] = await store.listQueue()
+  assert.equal(item.status, 'attention')
+  assert.match(item.attentionReason || '', /не помнит результат/)
+  assert.ok(await store.getBlob(item.blobId!), 'снимок сохранён — работа не потеряна')
+})
+
+test('20. 403 и 404 сохраняют локальную работу', async () => {
+  for (const status of [403, 404]) {
+    const { store } = makeStore()
+    await store.enqueue({ kind: 'ticket.comment', target: { ticketId: 'tk-1' }, payload: { comment: 'важное' } })
+    const transport: SyncTransport = { async send() { return classifySyncFailure({ status }) } }
+    await new SyncCoordinator(store, transport, { useWebLocks: false }).run()
+
+    const items = await store.listQueue()
+    assert.equal(items.length, 1, `${status}: строка не удалена`)
+    assert.equal(items[0].status, 'attention')
+    assert.equal(items[0].payload.comment, 'важное', `${status}: содержимое сохранено`)
+  }
+})
+
+// ── 21-22. отказы хранилища ───────────────────────────────────────────────
+
+test('21. переполнение квоты не выдаётся за успешное сохранение', async () => {
+  const { driver, store } = makeStore()
+  driver.failNextWrite = { ok: false, reason: 'quota', message: 'Недостаточно места на устройстве' }
+
+  const r = await store.enqueue({ kind: 'ticket.attachment', target: { ticketId: 'tk-1' }, blob: new Blob(['x']) })
+  assert.equal(r.ok, false)
+  assert.equal(r.ok === false && r.quota, true)
+  assert.equal((await store.listQueue()).length, 0, 'строки нет — и интерфейс не скажет «сохранено»')
+})
+
+test('22. недоступная IndexedDB честно отказывает', async () => {
+  const store = new OfflineStore(new UnavailableDriver(), 'co-1:user-1')
+  assert.equal(store.available, false)
+  const r = await store.enqueue({ kind: 'ticket.comment', target: { ticketId: 'tk-1' }, payload: { comment: 'a' } })
+  assert.equal(r.ok, false)
+  assert.equal((await store.listQueue()).length, 0)
+})
+
+test('22b. сирота-Blob не остаётся, если строка очереди не записалась', async () => {
+  const { driver, store } = makeStore()
+  let writes = 0
+  const originalPut = driver.put.bind(driver)
+  driver.put = async (s, k, v) => {
+    writes += 1
+    // Первая запись — Blob, она проходит. Вторая — строка очереди, отказ.
+    if (writes === 2) return { ok: false, reason: 'failed', message: 'сбой' }
+    return originalPut(s, k, v)
+  }
+  const r = await store.enqueue({ kind: 'ticket.attachment', target: { ticketId: 'tk-1' }, blob: new Blob(['x']) })
+  assert.equal(r.ok, false)
+  driver.put = originalPut
+  assert.deepEqual(await store.listBlobIds(), [], 'снимок удалён вместе с неудавшейся строкой')
+})
+
+// ── 23. перенос из localStorage ───────────────────────────────────────────
+
+test('23. очередь из localStorage переносится и не дублируется', async () => {
+  const { store } = makeStore()
+  const legacy = [
+    { id: 'l1', type: 'comment', ticketId: 'tk-1', payload: { comment: 'старый' }, status: 'pending', createdAt: '2026-09-01T00:00:00Z' },
+    { id: 'l2', type: 'status', ticketId: 'tk-2', payload: { status: 'IN_PROGRESS' }, status: 'failed', createdAt: '2026-09-01T00:01:00Z' },
+    { id: 'l3', type: 'comment', ticketId: 'tk-3', payload: { comment: 'уже ушёл' }, status: 'synced', createdAt: '2026-09-01T00:02:00Z' },
+  ]
+  let removed = false
+  const storage = {
+    getItem: (k: string) => (k === LEGACY_QUEUE_KEY && !removed ? JSON.stringify(legacy) : null),
+    removeItem: () => { removed = true },
+  }
+
+  const first = await migrateLegacyQueue(store, storage)
+  assert.equal(first.migrated, 2, 'перенесены незавершённые')
+  assert.equal(first.skipped, 1, 'уже отправленная пропущена')
+  assert.equal(removed, true, 'исходный ключ очищен после успешного переноса')
+
+  const items = await store.listQueue()
+  assert.equal(items.length, 2)
+  assert.ok(items.every((i) => i.idempotencyKey), 'перенесённым строкам выдан ключ идемпотентности')
+  assert.equal(items.find((i) => i.kind === 'ticket.status')?.status, 'failed')
+
+  // Повторный запуск ничего не дублирует.
+  const second = await migrateLegacyQueue(store, storage)
+  assert.equal(second.alreadyDone, true)
+  assert.equal((await store.listQueue()).length, 2)
+})
+
+test('23b. при отказе записи исходная очередь не удаляется', async () => {
+  const { driver, store } = makeStore()
+  const legacy = [{ id: 'l1', type: 'comment', ticketId: 'tk-1', payload: { comment: 'важное' }, status: 'pending' }]
+  let removed = false
+  const storage = {
+    getItem: () => (removed ? null : JSON.stringify(legacy)),
+    removeItem: () => { removed = true },
+  }
+  driver.failNextWrite = { ok: false, reason: 'quota', message: 'нет места' }
+
+  const report = await migrateLegacyQueue(store, storage)
+  assert.equal(report.migrated, 0)
+  assert.equal(report.sourceKept, true)
+  assert.equal(removed, false, 'работа техника не осиротела')
+})
+
+// ── 24. оболочка приложения офлайн ────────────────────────────────────────
+
+test('24. Service Worker кэширует оболочку и не кэширует API', async () => {
+  const { readFileSync } = await import('node:fs')
+  const sw = readFileSync(new URL('../../../public/sw.js', import.meta.url), 'utf8')
+
+  assert.match(sw, /addEventListener\('fetch'/, 'обработчик fetch добавлен')
+  assert.match(sw, /APP_SHELL_CACHE/, 'есть отдельный кэш оболочки')
+  // Оболочка отдаётся из кэша только для навигации: всё остальное выходит
+  // из обработчика раньше, чем дойдёт до кэша.
+  assert.match(sw, /request\.mode !== 'navigate'/, 'кэшируется только навигация')
+  assert.match(sw, /request\.method !== 'GET'/, 'мутации не кэшируются')
+  assert.match(sw, /\/uploads\//, 'защищённая раздача исключена явно')
+  // Ответы API в кэш не кладутся: put вызывается только для оболочки.
+  const puts = sw.match(/cache\.put\([^)]*\)/g) ?? []
+  assert.equal(puts.length, 1, 'в кэш пишется единственный объект — оболочка')
+  assert.match(puts[0], /APP_SHELL_URL/)
+})
+
+// ── дополнительные инварианты ─────────────────────────────────────────────
+
+test('русские подписи состояний заданы одним словарём', () => {
+  assert.equal(OFFLINE_SYNC_LABEL.savedLocally, 'Сохранено на устройстве')
+  assert.equal(OFFLINE_SYNC_LABEL.pending, 'Ожидает отправки')
+  assert.equal(OFFLINE_SYNC_LABEL.syncing, 'Синхронизация')
+  assert.equal(OFFLINE_SYNC_LABEL.synced, 'Синхронизировано')
+  assert.equal(OFFLINE_SYNC_LABEL.attention, 'Требует внимания')
+  assert.equal(OFFLINE_SYNC_LABEL.failed, 'Ошибка отправки')
+})
+
+test('успех сервера не показывается до подтверждения', async () => {
+  const { store } = makeStore()
+  const r = await store.enqueue({ kind: 'ticket.comment', target: { ticketId: 'tk-1' }, payload: { comment: 'a' } })
+  assert.equal(r.ok && r.item.status, 'pending')
+  assert.notEqual(r.ok && syncStateOf(r.item), 'synced')
+})
+
+test('в хранилище не попадают токены и пароли', async () => {
+  const { driver, store } = makeStore()
+  await store.enqueue({ kind: 'ticket.comment', target: { ticketId: 'tk-1' }, payload: { comment: 'a' } })
+  await store.cacheTicket({ id: 'tk-1', title: 'Заявка' })
+  const dump = JSON.stringify(await Promise.all([
+    driver.getAll('queue'), driver.getAll('tickets'), driver.getAll('meta'),
+  ]))
+  for (const forbidden of ['token', 'accessToken', 'password', 'Authorization']) {
+    assert.ok(!dump.toLowerCase().includes(forbidden.toLowerCase()), `в хранилище не должно быть ${forbidden}`)
+  }
+})
+
+test('рабочий пакет кэшируется и читается офлайн', async () => {
+  const { store } = makeStore()
+  await store.cacheLocation({ id: 'loc-1', name: 'Фудзияма' })
+  await store.cacheTicket({ id: 'tk-1', problemText: 'течь' })
+  await store.cacheRound({ id: 'r-1', title: 'Обход' })
+  await store.cacheCheckpoint({ id: 'c-1', roundId: 'r-1', title: 'Насос' })
+
+  assert.equal((await store.readLocation<{ name: string }>('loc-1'))!.name, 'Фудзияма')
+  assert.equal((await store.readTicket<{ problemText: string }>('tk-1'))!.problemText, 'течь')
+  assert.equal((await store.readRound<{ title: string }>('r-1'))!.title, 'Обход')
+  assert.equal((await store.readCheckpoints()).length, 1)
+})
+
+test('счётчики для интерфейса', async () => {
+  const { store } = makeStore()
+  await store.enqueue({ kind: 'ticket.comment', target: { ticketId: 'tk-1' }, payload: { comment: 'a' } })
+  const second = await store.enqueue({ kind: 'ticket.comment', target: { ticketId: 'tk-2' }, payload: { comment: 'b' } })
+  if (second.ok) await store.setStatus(second.item.id, 'attention', { attentionReason: 'доступ отозван' })
+
+  assert.equal(await store.pendingCount(), 1)
+  assert.equal(await store.attentionCount(), 1)
+})
+
+test('сессия не открывается без пользователя', async () => {
+  setOfflineDriverFactory(() => new MemoryDriver())
+  const result = await openOfflineSession(null, { legacyStorage: null })
+  assert.equal(result.store, null)
+  assert.equal(result.available, false)
+  assert.equal(currentOfflineStore(), null)
+  setOfflineDriverFactory(null)
+})
