@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Headers,
   Delete,
   Get,
   Param,
@@ -179,15 +180,29 @@ export class InspectionController {
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TECHNICIAN)
   @RequirePermission(PERMISSIONS.LOCATIONS_VIEW)
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
-  uploadRunItemAttachment(@Req() req: any, @Param('runId') runId: string, @Param('itemId') itemId: string, @UploadedFile() file: any) {
-    return this.svc.uploadRunItemAttachment(this.userFromRequest(req), runId, itemId, file)
+  uploadRunItemAttachment(
+    @Req() req: any,
+    @Param('runId') runId: string,
+    @Param('itemId') itemId: string,
+    @UploadedFile() file: any,
+    /** 113B: present for a replayable offline-queued photo, absent for online callers. */
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ) {
+    return this.svc.uploadRunItemAttachment(this.userFromRequest(req), runId, itemId, file, idempotencyKey)
   }
 
   @Post('runs/:runId/items/:itemId/create-ticket')
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TECHNICIAN)
   @RequirePermission(PERMISSIONS.LOCATIONS_VIEW)
-  createTicketFromItem(@Req() req: any, @Param('runId') runId: string, @Param('itemId') itemId: string, @Body() dto: CreateTicketFromItemDto) {
-    return this.svc.createTicketFromItem(this.userFromRequest(req), runId, itemId, dto)
+  createTicketFromItem(
+    @Req() req: any,
+    @Param('runId') runId: string,
+    @Param('itemId') itemId: string,
+    @Body() dto: CreateTicketFromItemDto,
+    /** 113B: present for a replayable offline-queued ticket, absent for online callers. */
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ) {
+    return this.svc.createTicketFromItem(this.userFromRequest(req), runId, itemId, dto, idempotencyKey)
   }
 
   @Post('runs/:id/complete')
