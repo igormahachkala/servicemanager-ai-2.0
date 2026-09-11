@@ -5,6 +5,7 @@ import { JwtService } from '@nestjs/jwt'
 
 import { PrismaService } from '../prisma/prisma.service'
 import { isEngineeringAgentOwner } from '../agent-tasks/agent-tasks.access'
+import { canAccessManagementSurface } from '../common/management-surface-access'
 
 import { LoginDto } from './dto/login.dto'
 
@@ -51,7 +52,7 @@ export class AuthService {
         name: companyName,
         type: CompanyType.CLIENT,
       },
-      select: { id: true, name: true },
+      select: { id: true, name: true, type: true },
     })
 
     const user = await this.prisma.user.create({
@@ -86,6 +87,7 @@ export class AuthService {
       companyId: user.companyId,
       isActive: user.isActive,
       companyName: company.name,
+      companyType: company.type,
     })
   }
 
@@ -108,7 +110,7 @@ export class AuthService {
         companyId: true,
         isActive: true,
         company: {
-          select: { name: true },
+          select: { name: true, type: true },
         },
       },
     })
@@ -137,6 +139,7 @@ export class AuthService {
       companyId: user.companyId,
       isActive: user.isActive,
       companyName: user.company?.name ?? null,
+      companyType: user.company?.type ?? null,
     })
   }
 
@@ -209,7 +212,7 @@ export class AuthService {
         companyId: true,
         isActive: true,
         company: {
-          select: { name: true },
+          select: { name: true, type: true },
         },
       },
     })
@@ -233,6 +236,7 @@ export class AuthService {
       companyId: user.companyId,
       isActive: user.isActive,
       companyName: user.company?.name ?? null,
+      companyType: user.company?.type ?? null,
     })
   }
 
@@ -306,6 +310,7 @@ export class AuthService {
     companyId: string
     isActive: boolean
     companyName: string | null
+    companyType?: CompanyType | null
   }) {
     const access_token = this.jwt.sign({
       sub: user.id,
@@ -332,6 +337,7 @@ export class AuthService {
     companyId: string
     isActive: boolean
     companyName: string | null
+    companyType?: CompanyType | null
   }) {
     return {
       id: user.id,
@@ -345,6 +351,10 @@ export class AuthService {
       companyName: user.companyName,
       isActive: user.isActive,
       canAccessEngineeringAgent: isEngineeringAgentOwner({ role: user.role, email: user.email }),
+      canAccessManagementSurface: canAccessManagementSurface({
+        role: user.role,
+        companyType: user.companyType,
+      }),
     }
   }
 }

@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Headers,
   Delete,
   Get,
   Param,
@@ -24,6 +25,7 @@ import { PermissionsContextGuard } from '../common/permissions-context.guard'
 import { PermissionsGuard } from '../common/permissions.guard'
 import { RequirePermission } from '../common/permissions.decorator'
 import { PERMISSIONS } from '../common/permissions.constants'
+import { ManagementSurface } from '../common/management-surface-access'
 
 import { InspectionService } from './inspection.service'
 import { InspectionScheduleService } from './inspection-schedule.service'
@@ -71,6 +73,7 @@ export class InspectionController {
   }
 
   @Post('schedules')
+  @ManagementSurface()
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR)
   @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
   createSchedule(@Req() req: any, @Body() dto: CreateScheduleDto) {
@@ -78,6 +81,7 @@ export class InspectionController {
   }
 
   @Patch('schedules/:id')
+  @ManagementSurface()
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR)
   @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
   updateSchedule(@Req() req: any, @Param('id') scheduleId: string, @Body() dto: UpdateScheduleDto) {
@@ -85,6 +89,7 @@ export class InspectionController {
   }
 
   @Delete('schedules/:id')
+  @ManagementSurface()
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR)
   @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
   deleteSchedule(@Req() req: any, @Param('id') scheduleId: string) {
@@ -99,6 +104,7 @@ export class InspectionController {
   }
 
   @Post('templates')
+  @ManagementSurface()
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR)
   @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
   createTemplate(@Req() req: any, @Body() dto: CreateTemplateDto) {
@@ -149,6 +155,7 @@ export class InspectionController {
   }
 
   @Post('runs/:id/report/review')
+  @ManagementSurface()
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR)
   @RequirePermission(PERMISSIONS.LOCATIONS_VIEW)
   reviewRunReport(@Req() req: any, @Param('id') runId: string, @Body() dto: ReviewRunReportDto) {
@@ -173,15 +180,29 @@ export class InspectionController {
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TECHNICIAN)
   @RequirePermission(PERMISSIONS.LOCATIONS_VIEW)
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
-  uploadRunItemAttachment(@Req() req: any, @Param('runId') runId: string, @Param('itemId') itemId: string, @UploadedFile() file: any) {
-    return this.svc.uploadRunItemAttachment(this.userFromRequest(req), runId, itemId, file)
+  uploadRunItemAttachment(
+    @Req() req: any,
+    @Param('runId') runId: string,
+    @Param('itemId') itemId: string,
+    @UploadedFile() file: any,
+    /** 113B: present for a replayable offline-queued photo, absent for online callers. */
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ) {
+    return this.svc.uploadRunItemAttachment(this.userFromRequest(req), runId, itemId, file, idempotencyKey)
   }
 
   @Post('runs/:runId/items/:itemId/create-ticket')
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TECHNICIAN)
   @RequirePermission(PERMISSIONS.LOCATIONS_VIEW)
-  createTicketFromItem(@Req() req: any, @Param('runId') runId: string, @Param('itemId') itemId: string, @Body() dto: CreateTicketFromItemDto) {
-    return this.svc.createTicketFromItem(this.userFromRequest(req), runId, itemId, dto)
+  createTicketFromItem(
+    @Req() req: any,
+    @Param('runId') runId: string,
+    @Param('itemId') itemId: string,
+    @Body() dto: CreateTicketFromItemDto,
+    /** 113B: present for a replayable offline-queued ticket, absent for online callers. */
+    @Headers('idempotency-key') idempotencyKey?: string,
+  ) {
+    return this.svc.createTicketFromItem(this.userFromRequest(req), runId, itemId, dto, idempotencyKey)
   }
 
   @Post('runs/:id/complete')

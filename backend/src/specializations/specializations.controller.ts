@@ -6,8 +6,9 @@ import { RolesGuard } from '../common/roles.guard';
 import { UserRole } from '@prisma/client';
 import { CreateSpecializationDto } from './dto/create-specialization.dto';
 import { UpdateSpecializationDto } from './dto/update-specialization.dto';
+import { ManagementSurfaceGuard } from '../common/management-surface-access';
 
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, ManagementSurfaceGuard, RolesGuard)
 @Roles(UserRole.ADMIN)
 @Controller('specializations')
 export class SpecializationsController {

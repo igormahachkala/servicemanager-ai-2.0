@@ -1,5 +1,6 @@
 ﻿import React, { Suspense, lazy, type ComponentType } from 'react'
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from './lib/api'
 import { IT_COMPANY_ROUTES } from './it-company/routes'
 import { LoginPage } from './views/LoginPage'
@@ -96,6 +97,44 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   if (!token) {
     return <Navigate to={api.loginPathWithReturnTo(`${location.pathname}${location.search}${location.hash}`)} replace />
   }
+  return <>{children}</>
+}
+
+function RequireManagementAccess({ children }: { children: React.ReactNode }) {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
+
+  React.useEffect(() => {
+    if (!meQ.isError) return
+    api.clearToken()
+    queryClient.clear()
+    navigate(api.loginPathWithReturnTo(`${location.pathname}${location.search}${location.hash}`), {
+      replace: true,
+    })
+  }, [location.hash, location.pathname, location.search, meQ.isError, navigate, queryClient])
+
+  if (meQ.isLoading || meQ.isError) {
+    return <div className="page"><div className="muted">Проверяем доступ…</div></div>
+  }
+
+  if (!meQ.data) {
+    return <Navigate to="/login" replace />
+  }
+
+  if (!meQ.data.canAccessManagementSurface) {
+    return (
+      <div className="page" style={{ maxWidth: 560, margin: '0 auto', paddingTop: 48 }}>
+        <div className="card">
+          <h1 style={{ fontSize: 24, marginBottom: 12 }}>Управленческая часть недоступна</h1>
+          <p className="muted">Для вашей роли доступна мобильная версия ServiceManager.</p>
+          <a href="/m" style={{ display: 'inline-block', marginTop: 16 }}>Открыть мобильную версию</a>
+        </div>
+      </div>
+    )
+  }
+
   return <>{children}</>
 }
 
@@ -200,7 +239,9 @@ export function AppRoutes() {
         path="/"
         element={
           <RequireAuth>
-            <LazyRoute component={Shell} />
+            <RequireManagementAccess>
+              <LazyRoute component={Shell} />
+            </RequireManagementAccess>
           </RequireAuth>
         }
       >

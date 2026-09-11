@@ -9,6 +9,7 @@
   safeRemoveItem,
   snapshotStorageItems,
 } from './browserStorage'
+import { notifyRealtimeAuthChanged } from './realtimeSocket'
 export {
   currentInternalAppPath,
   getReturnToFromSearch,
@@ -56,6 +57,8 @@ export type Me = {
   isActive?: boolean
   /** Серверный флаг доступа к скрытому модулю Engineering Agent (owner-only). */
   canAccessEngineeringAgent?: boolean
+  /** Канонический серверный доступ к Desktop Management; frontend только применяет решение. */
+  canAccessManagementSurface: boolean
   /** Если бэкенд добавит подсказку контура для техника — используем при мобильном входе без getLinkedClients */
   linkedClientCompanyId?: string | null
   linkedClientCompanyIds?: string[] | null
@@ -1336,6 +1339,7 @@ export function clearClientBrowserStorage() {
     keys: APP_LOCAL_STORAGE_KEYS,
     prefixes: APP_LOCAL_STORAGE_PREFIXES,
   })
+  notifyRealtimeAuthChanged('')
 }
 
 function readBaseUrl(): string {
@@ -1455,6 +1459,7 @@ export function getToken(): string {
 export function setToken(token: string) {
   if (typeof window === 'undefined') return
   writeLocalStorageItem(TOKEN_KEY, token)
+  notifyRealtimeAuthChanged(token)
 }
 
 export function getImpersonationMeta(): ImpersonationMeta | null {
@@ -1529,6 +1534,7 @@ export function exitImpersonationSession(): boolean {
 export function clearToken() {
   if (typeof window === 'undefined') return
   safeRemoveItem('local', TOKEN_KEY)
+  notifyRealtimeAuthChanged('')
   safeRemoveItem('local', USER_ROLE_KEY)
   safeRemoveItem('local', COMPANY_LABEL_KEY)
   // НЕ чистим persisted scope (sm_last_scope) при logout/истечении токена — дефолтный контур

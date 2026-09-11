@@ -8,6 +8,7 @@ import { RolesGuard } from '../common/roles.guard'
 import { PermissionsGuard } from '../common/permissions.guard'
 import { RequirePermission } from '../common/permissions.decorator'
 import { PERMISSIONS } from '../common/permissions.constants'
+import { ManagementSurface } from '../common/management-surface-access'
 
 import { ProblemCategoriesService } from './problem-categories.service'
 import { CreateProblemCategoryDto } from './dto/create-problem-category.dto'
@@ -35,6 +36,7 @@ export class ProblemCategoriesController {
   }
 
   @Post()
+  @ManagementSurface()
   @Roles(UserRole.ADMIN)
   @RequirePermission(PERMISSIONS.COMPANY_SETTINGS_EDIT)
   create(@Req() req: any, @Body() dto: CreateProblemCategoryDto) {
@@ -42,6 +44,7 @@ export class ProblemCategoriesController {
   }
 
   @Patch(':id')
+  @ManagementSurface()
   @Roles(UserRole.ADMIN)
   @RequirePermission(PERMISSIONS.COMPANY_SETTINGS_EDIT)
   update(@Req() req: any, @Param('id') id: string, @Body() dto: UpdateProblemCategoryDto) {
@@ -49,6 +52,7 @@ export class ProblemCategoriesController {
   }
 
   @Patch(':id/status')
+  @ManagementSurface()
   @Roles(UserRole.ADMIN)
   @RequirePermission(PERMISSIONS.COMPANY_SETTINGS_EDIT)
   setStatus(@Req() req: any, @Param('id') id: string, @Body() body: { isActive: boolean }) {
@@ -56,6 +60,7 @@ export class ProblemCategoriesController {
   }
 
   @Put(':id/specializations')
+  @ManagementSurface()
   @Roles(UserRole.ADMIN)
   @RequirePermission(PERMISSIONS.COMPANY_SETTINGS_EDIT)
   setSpecializations(
@@ -67,6 +72,7 @@ export class ProblemCategoriesController {
   }
 
   @Delete(':id')
+  @ManagementSurface()
   @Roles(UserRole.ADMIN)
   @RequirePermission(PERMISSIONS.COMPANY_SETTINGS_EDIT)
   remove(@Req() req: any, @Param('id') id: string) {
