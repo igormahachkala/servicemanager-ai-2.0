@@ -102,4 +102,44 @@ for (const term of ['price', 'stock', 'cost', 'reserved']) {
 // status установленной детали приходит с сервера вычисленным.
 assert.match(apiLayer, /status: 'INSTALLED' \| 'REMOVED'/)
 
+// ── SMA-EQUIPMENT-PARTS-POLISH-110C ───────────────────────────────────────
+
+// Снятие без замены доступно из интерфейса.
+assert.match(partsTab, /Снять/)
+assert.match(partsTab, /api\.removeEquipmentPart/)
+assert.match(partsTab, /замена не создаётся/)
+
+// Исправление административных полей — и явный отказ трогать историю.
+assert.match(partsTab, /api\.correctEquipmentPart/)
+assert.match(partsTab, /Даты установки и снятия, заявки/)
+// Форма правки не предлагает менять историю: этих полей в ней нет.
+const correctCall = apiLayer.match(/export type CorrectInstalledPartInput = \{[\s\S]*?\n\}/)
+assert.ok(correctCall, 'нет типа CorrectInstalledPartInput')
+for (const historical of ['installedAt', 'removedAt', 'installedTicketId', 'removedTicketId', 'installedByUserId', 'removedByUserId']) {
+  assert.doesNotMatch(correctCall[0], new RegExp(historical), `правка не должна принимать ${historical}`)
+}
+
+// Управление каталогом: правка и вывод из обращения, без удаления.
+assert.match(partsTab, /api\.updatePartDefinition/)
+assert.match(partsTab, /выведена из обращения/)
+assert.match(partsTab, /Вывести|Вернуть/)
+assert.doesNotMatch(partsTab, /deletePartDefinition/)
+assert.doesNotMatch(apiLayer, /deletePartDefinition/)
+
+// Пагинация истории: курсор, догрузка, никакого «последние 200».
+assert.match(apiLayer, /export type EquipmentHistoryPage/)
+assert.match(apiLayer, /nextCursor: string \| null/)
+assert.doesNotMatch(apiLayer, /truncated/)
+assert.match(historyTab, /useInfiniteQuery/)
+assert.match(historyTab, /getNextPageParam/)
+assert.match(historyTab, /Показать ещё/)
+assert.doesNotMatch(historyTab, /последние 200/)
+
+// Мобильный экран догружает страницы, но по-прежнему ничего не пишет.
+assert.match(mobile, /Показать ещё/)
+assert.match(mobile, /nextCursor/)
+for (const write of ['removeEquipmentPart', 'correctEquipmentPart', 'updatePartDefinition']) {
+  assert.doesNotMatch(mobile, new RegExp(`api\\.${write}`), `mobile: запись ${write} недопустима`)
+}
+
 console.log('verify-equipment-history-parts: OK')

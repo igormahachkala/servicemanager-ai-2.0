@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery } from '@tanstack/react-query'
 
 import * as api from '../../lib/api'
 import { ProtectedUploadThumbLink } from '../../ui/ProtectedUploadMedia'
@@ -14,6 +14,11 @@ import { ProtectedUploadThumbLink } from '../../ui/ProtectedUploadMedia'
  * Состав работ по деталям показывается только тогда, когда он занесён
  * в комплектующие. Догадываться о заменах по тексту заявки нельзя: там
  * свободный текст, и правдоподобная выдумка хуже честного пробела.
+ *
+ * SMA-EQUIPMENT-PARTS-POLISH-110C: выдача постраничная. 110B показывал
+ * последние 200 и молчал об остальном — по такой карточке нельзя было
+ * отличить «заявок 200» от «их 900, и семисот вы не видите». Страницы
+ * догружаются по курсору, вся история в память браузера не поднимается.
  */
 
 const STATUS_LABELS: Record<string, string> = {
@@ -40,15 +45,18 @@ export function EquipmentHistoryTab({
   equipmentId: string
   scopeCompanyId?: string
 }) {
-  const q = useQuery({
+  const q = useInfiniteQuery({
     queryKey: ['equipment-history', equipmentId, scopeCompanyId || ''],
-    queryFn: () => api.getEquipmentHistory(equipmentId, scopeCompanyId || undefined),
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam }) =>
+      api.getEquipmentHistory(equipmentId, scopeCompanyId || undefined, { cursor: pageParam }),
+    getNextPageParam: (last) => last.page.nextCursor ?? undefined,
   })
 
   if (q.isLoading) return <div className="muted small">Загрузка истории…</div>
   if (q.isError) return <div className="alert">{(q.error as any)?.message || String(q.error)}</div>
 
-  const entries = q.data?.tickets || []
+  const entries = (q.data?.pages || []).flatMap((page) => page.tickets)
   if (entries.length === 0) {
     return (
       <div className="muted small">
@@ -60,10 +68,6 @@ export function EquipmentHistoryTab({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-      {q.data?.truncated ? (
-        <div className="muted small">Показаны последние 200 заявок.</div>
-      ) : null}
-
       {entries.map((entry) => (
         <div key={entry.ticketId} className="panel" style={{ margin: 0 }}>
           <div className="row" style={{ alignItems: 'flex-start' }}>
@@ -128,6 +132,14 @@ export function EquipmentHistoryTab({
           ) : null}
         </div>
       ))}
+
+      {q.hasNextPage ? (
+        <button className="ghost" onClick={() => q.fetchNextPage()} disabled={q.isFetchingNextPage}>
+          {q.isFetchingNextPage ? 'Загрузка…' : 'Показать ещё'}
+        </button>
+      ) : (
+        <div className="muted small">Показана вся история: {entries.length} заявок.</div>
+      )}
     </div>
   )
 }

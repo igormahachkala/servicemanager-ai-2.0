@@ -206,7 +206,8 @@ describe('История оборудования', () => {
     const w = makeWorld({ tickets: [] });
     const res = await w.history.getHistory(...asClient, EQUIPMENT);
     expect(res.tickets).toEqual([]);
-    expect(res.truncated).toBe(false);
+    expect(res.page.hasMore).toBe(false);
+    expect(res.page.nextCursor).toBeNull();
   });
 
   it('показывает связанную заявку целиком', async () => {
@@ -374,7 +375,7 @@ describe('Комплектующие — установка', () => {
   });
 
   it('имя берётся из каталога, но сохраняется в строке', async () => {
-    const w = makeWorld({ partDefinition: { id: 'pd-1', name: 'Вентилятор 120мм' } });
+    const w = makeWorld({ partDefinition: { id: 'pd-1', name: 'Вентилятор 120мм', isActive: true } });
     await w.parts.install(...asClient, EQUIPMENT, { partDefinitionId: 'pd-1' });
     const data = w.prisma.installedPart.create.mock.calls[0][0].data;
     expect(data.displayName).toBe('Вентилятор 120мм');
