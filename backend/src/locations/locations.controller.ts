@@ -9,6 +9,7 @@ import { PermissionsContextGuard } from '../common/permissions-context.guard'
 import { PermissionsGuard } from '../common/permissions.guard'
 import { RequirePermission } from '../common/permissions.decorator'
 import { PERMISSIONS } from '../common/permissions.constants'
+import { ManagementSurface } from '../common/management-surface-access'
 
 import { LocationsService } from './locations.service'
 import { CreateLocationDto } from './dto/create-location.dto'
@@ -65,6 +66,7 @@ export class LocationsController {
   }
 
   @Post()
+  @ManagementSurface()
   @Roles(UserRole.ADMIN, UserRole.MASTER)
   @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
   create(@Req() req: any, @Body() dto: CreateLocationDto, @Query('companyId') companyId?: string) {
@@ -72,6 +74,7 @@ export class LocationsController {
   }
 
   @Patch(':id')
+  @ManagementSurface()
   @Roles(UserRole.ADMIN, UserRole.MASTER)
   @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
   update(@Req() req: any, @Param('id') id: string, @Body() dto: UpdateLocationDto) {
@@ -79,6 +82,7 @@ export class LocationsController {
   }
 
   @Patch(':id/status')
+  @ManagementSurface()
   @Roles(UserRole.ADMIN, UserRole.MASTER)
   @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
   setStatus(@Req() req: any, @Param('id') id: string, @Body() dto: SetLocationStatusDto) {
@@ -86,6 +90,7 @@ export class LocationsController {
   }
 
   @Delete(':id')
+  @ManagementSurface()
   @Roles(UserRole.ADMIN, UserRole.MASTER)
   @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
   softDelete(@Req() req: any, @Param('id') id: string) {
@@ -93,6 +98,7 @@ export class LocationsController {
   }
 
   @Patch(':id/restore')
+  @ManagementSurface()
   @Roles(UserRole.ADMIN, UserRole.MASTER)
   @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
   restore(@Req() req: any, @Param('id') id: string) {

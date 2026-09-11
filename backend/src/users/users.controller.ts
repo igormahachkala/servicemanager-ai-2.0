@@ -7,13 +7,14 @@ import { RolesGuard } from '../common/roles.guard'
 import { PermissionsGuard } from '../common/permissions.guard'
 import { RequirePermission } from '../common/permissions.decorator'
 import { PERMISSIONS } from '../common/permissions.constants'
+import { ManagementSurfaceGuard } from '../common/management-surface-access'
 
 import { UsersService } from './users.service'
 import { CreateUserDto } from './dto/create-user.dto'
 import { UpdateUserDto } from './dto/update-user.dto'
 import { UpdateUserSpecializationsDto } from './dto/update-user-specializations.dto'
 
-@UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+@UseGuards(JwtAuthGuard, ManagementSurfaceGuard, RolesGuard, PermissionsGuard)
 @Controller('users')
 export class UsersController {
   constructor(private readonly users: UsersService) {}

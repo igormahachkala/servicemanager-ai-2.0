@@ -8,10 +8,11 @@ import { Roles } from '../common/roles.decorator'
 import { PermissionsGuard } from '../common/permissions.guard'
 import { RequirePermission } from '../common/permissions.decorator'
 import { PERMISSIONS } from '../common/permissions.constants'
+import { ManagementSurfaceGuard } from '../common/management-surface-access'
 
 import { AnalyticsService } from './analytics.service'
 
-@UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
+@UseGuards(JwtAuthGuard, ManagementSurfaceGuard, RolesGuard, PermissionsGuard)
 @Controller('analytics')
 export class AnalyticsController {
   constructor(private readonly svc: AnalyticsService) {}

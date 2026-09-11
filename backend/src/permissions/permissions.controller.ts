@@ -13,6 +13,7 @@ import { UserRole } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/jwt.guard';
 import { RolesGuard } from '../common/roles.guard';
 import { Roles } from '../common/roles.decorator';
+import { ManagementSurfaceGuard } from '../common/management-surface-access';
 
 import { PermissionsService } from './permissions.service';
 import { PermissionCatalogResponseDto } from './dto/permission-catalog.dto';
@@ -34,7 +35,7 @@ import {
  */
 @ApiTags('permissions')
 @ApiBearerAuth()
-@UseGuards(JwtAuthGuard, RolesGuard)
+@UseGuards(JwtAuthGuard, ManagementSurfaceGuard, RolesGuard)
 @Controller('permissions')
 export class PermissionsController {
   constructor(private readonly permissionsService: PermissionsService) {}
