@@ -9,6 +9,7 @@
   safeRemoveItem,
   snapshotStorageItems,
 } from './browserStorage'
+import { notifyRealtimeAuthChanged } from './realtimeSocket'
 export {
   currentInternalAppPath,
   getReturnToFromSearch,
@@ -1338,6 +1339,7 @@ export function clearClientBrowserStorage() {
     keys: APP_LOCAL_STORAGE_KEYS,
     prefixes: APP_LOCAL_STORAGE_PREFIXES,
   })
+  notifyRealtimeAuthChanged('')
 }
 
 function readBaseUrl(): string {
@@ -1457,6 +1459,7 @@ export function getToken(): string {
 export function setToken(token: string) {
   if (typeof window === 'undefined') return
   writeLocalStorageItem(TOKEN_KEY, token)
+  notifyRealtimeAuthChanged(token)
 }
 
 export function getImpersonationMeta(): ImpersonationMeta | null {
@@ -1531,6 +1534,7 @@ export function exitImpersonationSession(): boolean {
 export function clearToken() {
   if (typeof window === 'undefined') return
   safeRemoveItem('local', TOKEN_KEY)
+  notifyRealtimeAuthChanged('')
   safeRemoveItem('local', USER_ROLE_KEY)
   safeRemoveItem('local', COMPANY_LABEL_KEY)
   // НЕ чистим persisted scope (sm_last_scope) при logout/истечении токена — дефолтный контур
