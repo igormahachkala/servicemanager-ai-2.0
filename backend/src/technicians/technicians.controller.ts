@@ -7,6 +7,7 @@ import { RolesGuard } from '../common/roles.guard'
 import { PermissionsGuard } from '../common/permissions.guard'
 import { RequirePermission } from '../common/permissions.decorator'
 import { PERMISSIONS } from '../common/permissions.constants'
+import { ManagementSurface } from '../common/management-surface-access'
 
 import { TechniciansService } from './technicians.service'
 import { TechniciansWorkloadService } from './technicians.workload.service'
@@ -43,6 +44,7 @@ export class TechniciansController {
   }
 
   @Get('workload')
+  @ManagementSurface()
   @Roles(UserRole.ADMIN)
   @RequirePermission(PERMISSIONS.USERS_MANAGE)
   workload(@Req() req: any) {
@@ -50,6 +52,7 @@ export class TechniciansController {
   }
 
   @Get()
+  @ManagementSurface()
   @Roles(UserRole.ADMIN)
   @RequirePermission(PERMISSIONS.USERS_MANAGE)
   list(@Req() req: any) {
@@ -57,6 +60,7 @@ export class TechniciansController {
   }
 
   @Put(':id/specializations')
+  @ManagementSurface()
   @Roles(UserRole.ADMIN)
   @RequirePermission(PERMISSIONS.USERS_MANAGE)
   setSpecializations(
@@ -68,6 +72,7 @@ export class TechniciansController {
   }
 
   @Put(':id/bindings')
+  @ManagementSurface()
   @Roles(UserRole.ADMIN)
   @RequirePermission(PERMISSIONS.USERS_MANAGE)
   setBindings(
@@ -79,6 +84,7 @@ export class TechniciansController {
   }
 
   @Get(':id/location-bindings')
+  @ManagementSurface()
   @Roles(...LOCATION_BINDING_MANAGER_ROLES)
   @RequirePermission(PERMISSIONS.USERS_MANAGE)
   getLocationBindings(
@@ -90,6 +96,7 @@ export class TechniciansController {
   }
 
   @Put(':id/location-bindings')
+  @ManagementSurface()
   @Roles(...LOCATION_BINDING_MANAGER_ROLES)
   @RequirePermission(PERMISSIONS.USERS_MANAGE)
   setLocationBindings(

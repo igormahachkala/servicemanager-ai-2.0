@@ -89,17 +89,7 @@ export const mobileAppNavItem: NavItem = {
 const MOBILE_APP_ROLES = new Set([
   'PLATFORM_ADMIN',
   'ADMIN',
-  'MASTER',
-  'DISPATCHER',
-  'NETWORK_DIRECTOR',
-  'TECHNICIAN',
-  'CLIENT',
-  'TERRITORIAL_MANAGER',
-])
-
-const MANAGEMENT_DESKTOP_ROLES = new Set([
-  'PLATFORM_ADMIN',
-  'ADMIN',
+  'CLIENT_ADMIN',
   'MASTER',
   'DISPATCHER',
   'NETWORK_DIRECTOR',
@@ -112,8 +102,8 @@ export function canAccessMobileApp(role?: string | null): boolean {
   return !!role && MOBILE_APP_ROLES.has(role)
 }
 
-export function canAccessManagementDesktop(role?: string | null): boolean {
-  return !!role && MANAGEMENT_DESKTOP_ROLES.has(role)
+export function canAccessManagementDesktop(user?: { canAccessManagementSurface?: boolean } | null): boolean {
+  return user?.canAccessManagementSurface === true
 }
 
 /** Стартовая страница управленческой части (десктоп) по роли. */
@@ -135,18 +125,17 @@ export type WorkspaceCard = {
  * Контуры, доступные пользователю после логина (экран /workspaces).
  *
  * Видимость:
- * - Управленческая часть — любой аутентифицированный пользователь (это основное
- *   приложение, домашний маршрут по умолчанию для всех ролей). Намеренно НЕ
- *   используем `canAccessManagementDesktop` — тот набор заточен под кнопку
- *   «вернуться в десктоп» в мобильном профиле и не включает ADMIN_PROVIDER/STAFF.
+ * - Управленческая часть — только по серверному Management Surface capability.
  * - Мобильная версия — `canAccessMobileApp`
  * - IT Company — строго PLATFORM_ADMIN (`canViewITCompany`)
  */
-export function getAvailableWorkspaces(user?: { role?: string | null } | null): WorkspaceCard[] {
+export function getAvailableWorkspaces(
+  user?: { role?: string | null; canAccessManagementSurface?: boolean } | null,
+): WorkspaceCard[] {
   const role = user?.role
   const cards: WorkspaceCard[] = []
 
-  if (role) {
+  if (canAccessManagementDesktop(user)) {
     cards.push({
       id: 'management',
       to: managementHomePath(role),

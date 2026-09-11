@@ -57,6 +57,8 @@ export type Me = {
   isActive?: boolean
   /** Серверный флаг доступа к скрытому модулю Engineering Agent (owner-only). */
   canAccessEngineeringAgent?: boolean
+  /** Канонический серверный доступ к Desktop Management; frontend только применяет решение. */
+  canAccessManagementSurface: boolean
   /** Если бэкенд добавит подсказку контура для техника — используем при мобильном входе без getLinkedClients */
   linkedClientCompanyId?: string | null
   linkedClientCompanyIds?: string[] | null

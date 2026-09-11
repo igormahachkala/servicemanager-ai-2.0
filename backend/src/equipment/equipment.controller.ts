@@ -20,6 +20,7 @@ import { RolesGuard } from '../common/roles.guard';
 import { Roles } from '../common/roles.decorator';
 import { PermissionsContextGuard } from '../common/permissions-context.guard';
 import { PermissionsGuard } from '../common/permissions.guard';
+import { ManagementSurface } from '../common/management-surface-access';
 import { RequirePermission } from '../common/permissions.decorator';
 import { PERMISSIONS } from '../common/permissions.constants';
 
@@ -44,6 +45,7 @@ export class EquipmentController {
   ) {}
 
   @Post()
+  @ManagementSurface()
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER)
   @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
   create(@Req() req: any, @Body() dto: CreateEquipmentDto) {
@@ -92,6 +94,7 @@ export class EquipmentController {
    * SECONDARY-провайдер сюда не проходит.
    */
   @Post(':id/photos')
+  @ManagementSurface()
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER)
   @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 10 * 1024 * 1024 } }))
@@ -251,6 +254,7 @@ export class EquipmentController {
   }
 
   @Patch(':id')
+  @ManagementSurface()
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER)
   @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
   update(
@@ -268,6 +272,7 @@ export class EquipmentController {
   }
 
   @Delete(':id')
+  @ManagementSurface()
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER)
   @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
   remove(@Req() req: any, @Param('id') id: string) {
