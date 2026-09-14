@@ -112,11 +112,18 @@ export async function closeOfflineSession(): Promise<void> {
  */
 export async function wipeOfflineSession(identity: OfflineIdentity): Promise<void> {
   const namespace = offlineNamespace(identity)
-  if (namespace && current?.namespace === namespace) {
+
+  // Открытая сессия стирается всегда, даже если личность не передали.
+  // Без сети `/auth/me` не отвечает, и вызывающий код вполне может её не
+  // знать — а выход обязан унести данные предыдущего пользователя в любом
+  // случае. Прежняя версия при identity === null просто забывала ссылку,
+  // оставляя базу на общем планшете следующему человеку.
+  if (current && (!namespace || current.namespace === namespace)) {
     await current.store.destroy()
     current = null
-    return
+    if (!namespace) return
   }
+
   if (namespace) {
     const driver = driverFactory(offlineDatabaseName(namespace))
     await new OfflineStore(driver, namespace).destroy()

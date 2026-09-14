@@ -922,3 +922,36 @@ test('113D-13. мутации с офлайн-веткой не ставятся
     `мутации с офлайн-веткой обязаны объявить networkMode: 'always' — ${offenders.join(', ')}`,
   )
 })
+
+test('113D-14. личность для офлайна берётся из токена, когда сервер недоступен', async () => {
+  const { identityFromToken } = await import('./identity.js')
+
+  const payload = { sub: 'user-1', userId: 'user-1', companyId: 'co-1', role: 'TECHNICIAN' }
+  const b64 = (o: unknown) =>
+    Buffer.from(JSON.stringify(o)).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+  const token = `${b64({ alg: 'HS256' })}.${b64(payload)}.signature`
+
+  assert.deepEqual(identityFromToken(token), { id: 'user-1', companyId: 'co-1' })
+  // Без companyId пространство имён не построить — лучше отказать, чем
+  // открыть общую на всех базу.
+  assert.equal(identityFromToken(`${b64({})}.${b64({ sub: 'user-1' })}.s`), null)
+  assert.equal(identityFromToken('мусор'), null)
+  assert.equal(identityFromToken(''), null)
+  assert.equal(identityFromToken(null), null)
+})
+
+test('113D-15. выход стирает открытую базу, даже если личность неизвестна', async () => {
+  setOfflineDriverFactory(() => new MemoryDriver())
+  const opened = await openOfflineSession({ id: 'user-1', companyId: 'co-1' }, { legacyStorage: null })
+  const store = opened.store!
+  await store.enqueue({ kind: 'ticket.comment', target: { ticketId: 'tk-1' }, payload: { comment: 'приватное' } })
+  assert.equal((await store.listQueue()).length, 1)
+
+  // Без сети `/auth/me` не отвечает, и выход вызывается без личности.
+  // Данные предыдущего пользователя обязаны уйти всё равно.
+  await wipeOfflineSession(null)
+
+  assert.equal(currentOfflineStore(), null, 'сессия закрыта')
+  assert.equal((await store.listQueue()).length, 0, 'данные стёрты, а не просто забыты')
+  setOfflineDriverFactory(null)
+})
