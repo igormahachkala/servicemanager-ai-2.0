@@ -1014,3 +1014,21 @@ test('113D-18. повтор не превращается в вечный опр
   const max = Number(/const MAX_AUTO_ATTEMPTS = (\d+)/.exec(sync)?.[1])
   assert.ok(max >= 2 && max <= 10, `разумный предел попыток, сейчас ${max}`)
 })
+
+test('113D-19. съёмка не выключается из-за недоступного /auth/me', async () => {
+  const { readFileSync } = await import('node:fs')
+  const page = readFileSync(new URL('../../../src/mobile/MobileTicketPage.tsx', import.meta.url), 'utf8')
+
+  /*
+   * Без сети `/auth/me` не отвечает, и роль из него пуста. Если разрешение
+   * на съёмку считать только по нему, после перезагрузки в офлайне техник
+   * увидит вкладку «Фото» без единой кнопки — при полностью рабочей очереди
+   * под ней. Найдено живой приёмкой на Stage.
+   *
+   * Запасной источник роли — не расширение прав: сервер по-прежнему решает,
+   * принять ли снимок.
+   */
+  const block = /const canUploadTicketPhotos = useMemo\(\(\) => \{([\s\S]*?)\n  \}, \[/.exec(page)?.[1] ?? ''
+  assert.ok(block, 'блок разрешения найден')
+  assert.match(block, /api\.getUserRole\(\)/, 'роль имеет запасной источник на время без сети')
+})

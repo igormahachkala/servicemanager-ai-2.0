@@ -459,7 +459,20 @@ export function MobileTicketPage() {
   )
 
   const canUploadTicketPhotos = useMemo(() => {
-    const role = meQ.data?.role
+    /*
+     * SMA-MOBILE-OFFLINE-INTEGRATION-113D: роль берётся с запасным источником.
+     *
+     * Без сети ответ `/auth/me` не приходит — react-query держит запрос
+     * приостановленным, — и роль оказывалась пустой. После перезагрузки
+     * в офлайне это выключало съёмку целиком: техник видел вкладку «Фото»
+     * без единой кнопки. Запасной источник — роль, сохранённая при входе
+     * тем же `lib/api`; она же стирается при выходе.
+     *
+     * Правом это не является и проверку не заменяет: сервер по-прежнему
+     * решает, принять ли снимок, а здесь решается только, показывать ли
+     * кнопку. Найдено живой приёмкой на Stage.
+     */
+    const role = meQ.data?.role || api.getUserRole() || undefined
     const isClientRole = role === 'CLIENT'
     const readOnlyByVisibilityMode = contextMode === 'observer'
     const canMutateTicket = !readOnlyByVisibilityMode && !(isClientRole && contextMode !== 'tenant')
