@@ -1,16 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { useWsInvalidation } from '../ui/useWsInvalidation'
 import { useRealtimeNotifications } from '../hooks/useRealtimeNotifications'
-import {
-  getPendingAndFailedCounts,
-  getPendingOfflineActionsCount,
-  retryOfflineQueue,
-  subscribeOfflineQueue,
-  useOnlineStatus,
-} from './offlineQueue'
+import { registerAppShellServiceWorker } from './offline/appShell'
+import { startOffline, stopOffline } from './offline/runtime'
+import { syncNow, useOfflineStatus } from './offline/useOffline'
+import { getOfflineStatus } from './offline/runtime'
 import { MobileGuidedTour } from './MobileGuidedTour'
 import { MobileShiftGatePrompt } from './MobileShiftGatePrompt'
 import { getMobileRouteRoot, mobilePath } from './mobileRoute'
@@ -101,10 +98,25 @@ export function MobileShell() {
   const location = useLocation()
   const navigate = useNavigate()
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
+
+  // SMA-MOBILE-OFFLINE-INTEGRATION-113D: офлайн-режим открывается один раз
+  // на оболочку и под конкретного пользователя. Здесь же он закрывается при
+  // размонтировании — иначе подписка продолжила бы разбирать очередь чужого
+  // хранилища после смены пользователя.
+  const offline = useOfflineStatus()
+  // Оболочка для работы без связи. Регистрируется независимо от push:
+  // офлайн-режим не должен требовать включённых уведомлений.
+  useEffect(() => {
+    void registerAppShellServiceWorker()
+  }, [])
+  useEffect(() => {
+    if (!meQ.data?.id) return
+    void startOffline({ id: meQ.data.id, companyId: meQ.data.companyId })
+    return () => stopOffline()
+  }, [meQ.data?.id, meQ.data?.companyId])
   const queryClient = useQueryClient()
-  const isOnline = useOnlineStatus()
-  const [pendingCount, setPendingCount] = useState(getPendingOfflineActionsCount())
-  const [queueCounts, setQueueCounts] = useState(() => getPendingAndFailedCounts())
+  // Состояние связи берётся из офлайн-слоя: один источник на приложение.
+  const isOnline = offline.online
   const [syncMessage, setSyncMessage] = useState('')
 
   const companyQ = useQuery({
@@ -171,15 +183,6 @@ export function MobileShell() {
     api.persistScopeFromSearchParams(new URLSearchParams(location.search), meQ.data)
   }, [location.search, meQ.data])
 
-  useEffect(() => {
-    const refresh = () => {
-      setPendingCount(getPendingOfflineActionsCount())
-      setQueueCounts(getPendingAndFailedCounts())
-    }
-    refresh()
-    return subscribeOfflineQueue(refresh)
-  }, [])
-
   /** Тот же queryKey, что у `/m/notifications`: оптимистичные PATCH там сразу обновляют бейдж. */
   const notifQ = useQuery({
     queryKey: ['mobile-notifications'],
@@ -190,19 +193,24 @@ export function MobileShell() {
     refetchOnMount: 'always',
   })
 
+  // SMA-MOBILE-OFFLINE-INTEGRATION-113D: ручная отправка идёт через тот же
+  // единственный координатор. Обновление кэшей осталось здесь: координатор
+  // о React Query ничего не знает и знать не должен, но после успешной
+  // отправки экраны обязаны показать серверное состояние.
   const retryM = useMutation({
-    mutationFn: retryOfflineQueue,
+    mutationFn: async () => {
+      await syncNow()
+      return getOfflineStatus()
+    },
     onMutate: () => setSyncMessage(''),
     onSuccess: async (result) => {
-      const { synced, failed } = result
-      if (failed > 0) {
-        setSyncMessage(`Не удалось отправить: ${failed}. Успешно синхронизировано: ${synced}.`)
-      } else if (synced > 0) {
-        setSyncMessage(`Изменения отправлены: ${synced}.`)
+      if (result.attention > 0) {
+        setSyncMessage(`Требует внимания: ${result.attention}. Откройте очередь.`)
+      } else if (result.pending > 0) {
+        setSyncMessage(`Осталось отправить: ${result.pending}.`)
       } else {
-        setSyncMessage('Очередь уже пуста.')
+        setSyncMessage('Синхронизировано.')
       }
-      setPendingCount(getPendingOfflineActionsCount())
       await queryClient.invalidateQueries({ queryKey: ['mobile-home-board'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-home-available'] })
       await queryClient.invalidateQueries({ queryKey: ['mobile-ticket-detail'] })
@@ -214,20 +222,15 @@ export function MobileShell() {
     },
     onError: (error: unknown) => {
       setSyncMessage(error instanceof Error ? error.message : String(error))
-      setPendingCount(getPendingOfflineActionsCount())
     },
   })
-  const retryOfflineActions = retryM.mutate
-  const retryOfflinePending = retryM.isPending
 
-  const prevIsOnlineRef = useRef(isOnline)
-  useEffect(() => {
-    const wasOffline = !prevIsOnlineRef.current
-    prevIsOnlineRef.current = isOnline
-    if (wasOffline && isOnline && getPendingOfflineActionsCount() > 0 && !retryOfflinePending) {
-      retryOfflineActions()
-    }
-  }, [isOnline, retryOfflineActions, retryOfflinePending])
+  // SMA-MOBILE-OFFLINE-INTEGRATION-113D: прежний автоповтор по возвращении
+  // связи убран намеренно. Он был вторым обработчиком очереди: разбирал
+  // localStorage параллельно с координатором 113C, который подписывается на
+  // то же событие `online`. Требование задачи — ровно один координатор,
+  // и он живёт в offline/runtime. Прежние строки очереди при этом не
+  // теряются: они переносятся в новое хранилище при открытии сессии.
 
   const unread = notifQ.data?.unreadCount ?? 0
   const mobileRoot = getMobileRouteRoot(location.pathname)
@@ -288,30 +291,54 @@ export function MobileShell() {
         </div>
       </header>
       <main className="mobilePage">
-        {!isOnline && pendingCount > 0 ? (
-          <Link
-            className="mobileOfflineBanner mobileOfflineBannerWarning mobileOfflineBannerLink"
-            to={mobilePath(location.pathname, '/offline-queue')}
-          >
-            <div>Офлайн. Ожидает отправки: {pendingCount}</div>
-          </Link>
-        ) : !isOnline ? (
-          <div className="mobileOfflineBanner mobileOfflineBannerWarning">
-            <div>Нет соединения. Показываем сохранённые данные.</div>
+        {/*
+          SMA-MOBILE-OFFLINE-INTEGRATION-113D: полоса состояния читает новый
+          offline-слой (IndexedDB), а не прежнюю очередь в localStorage.
+          Порядок ветвей — по важности для техника: сперва то, что требует
+          его вмешательства, и только потом обычное ожидание отправки.
+
+          «Синхронизировано» отдельной строкой не показывается: пустая очередь
+          и есть этот случай, а постоянная зелёная плашка быстро перестаёт
+          читаться. Успех сервера здесь не рисуется до подтверждения — строка
+          уходит из очереди только после него.
+        */}
+        {!offline.ready && offline.unavailableReason ? (
+          <div className="mobileOfflineBanner mobileOfflineBannerFailed">
+            <div>{offline.unavailableReason}</div>
           </div>
-        ) : queueCounts.failed > 0 ? (
+        ) : offline.attention > 0 ? (
           <Link
             className="mobileOfflineBanner mobileOfflineBannerFailed mobileOfflineBannerLink"
             to={mobilePath(location.pathname, '/offline-queue')}
           >
-            <div>Ошибка отправки: {queueCounts.failed}</div>
+            <div>Требует внимания: {offline.attention}</div>
             <span className="mobileOfflineBannerLinkHint">Открыть очередь ›</span>
           </Link>
-        ) : isOnline && pendingCount > 0 ? (
+        ) : !offline.online && offline.pending > 0 ? (
+          <Link
+            className="mobileOfflineBanner mobileOfflineBannerWarning mobileOfflineBannerLink"
+            to={mobilePath(location.pathname, '/offline-queue')}
+          >
+            <div>Нет сети · Сохранено на устройстве: {offline.pending}</div>
+          </Link>
+        ) : !offline.online ? (
+          <div className="mobileOfflineBanner mobileOfflineBannerWarning">
+            <div>Нет сети. Показываем сохранённые данные.</div>
+          </div>
+        ) : offline.syncing ? (
           <div className="mobileOfflineBanner mobileOfflineBannerPending">
-            <div>{retryM.isPending ? 'Синхронизация…' : `Ожидает отправки: ${pendingCount}`}</div>
+            <div>Синхронизация…</div>
+          </div>
+        ) : offline.pending > 0 ? (
+          <div className="mobileOfflineBanner mobileOfflineBannerPending">
+            <div>Ожидает отправки: {offline.pending}</div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button type="button" className="mobileBtn mobileOfflineBannerBtn" disabled={retryM.isPending} onClick={() => retryM.mutate()}>
+              <button
+                type="button"
+                className="mobileBtn mobileOfflineBannerBtn"
+                disabled={retryM.isPending}
+                onClick={() => retryM.mutate()}
+              >
                 {retryM.isPending ? '…' : 'Отправить'}
               </button>
               <Link
@@ -325,8 +352,8 @@ export function MobileShell() {
         ) : null}
         {import.meta.env.DEV ? (
           <div className="mobileDevConnectivityDebug" aria-hidden>
-            UI: {isOnline ? 'online' : 'offline'} · navigator.onLine:{' '}
-            {typeof navigator !== 'undefined' ? String(navigator.onLine) : 'n/a'} · очередь: {pendingCount}
+            UI: {offline.online ? 'online' : 'offline'} · navigator.onLine:{' '}
+            {typeof navigator !== 'undefined' ? String(navigator.onLine) : 'n/a'} · очередь: {offline.pending} · внимание: {offline.attention}
           </div>
         ) : null}
         {syncMessage ? <div className="mobileNotice mobileNoticeSuccess">{syncMessage}</div> : null}

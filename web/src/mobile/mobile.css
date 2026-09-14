@@ -6364,3 +6364,34 @@ a.mobileBtn.mobileCreateTicketLink {
 .mobilePushSwitch--on .mobilePushSwitchThumb {
   transform: translateX(18px);
 }
+
+/* SMA-MOBILE-OFFLINE-INTEGRATION-113D: состояние строки в очереди отправки.
+   Цветом разделены «повторится само» (нейтральное) и «нужен человек»
+   (тревожное): техник в поле должен понимать это без чтения текста. */
+.mobileQueueState {
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.mobileQueueState--pending {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.mobileQueueState--syncing {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.mobileQueueState--failed {
+  background: #fffbeb;
+  color: #92400e;
+}
+
+.mobileQueueState--attention {
+  background: #fef2f2;
+  color: #991b1b;
+}

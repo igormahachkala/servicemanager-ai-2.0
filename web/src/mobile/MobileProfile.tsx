@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { BrowserNotificationsCard } from '../components/BrowserNotificationsCard'
 import { SupportContactBlock } from '../components/SupportContactBlock'
 import * as api from '../lib/api'
+import { hasUnsentWork, wipeOfflineOnLogout } from './offline/runtime'
+import { useOfflineStatus } from './offline/useOffline'
+import { clearLegacyOfflineCaches } from './offlineQueue'
 import { startMobileGuidedTour } from './MobileGuidedTourEvents'
-import { getPendingAndFailedCounts, subscribeOfflineQueue } from './offlineQueue'
 import { mobilePath } from './mobileRoute'
 
 function roleLabel(role?: string) {
@@ -36,12 +38,11 @@ export function MobileProfile() {
   const queryClient = useQueryClient()
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
 
-  const [queueCounts, setQueueCounts] = useState(() => getPendingAndFailedCounts())
-  useEffect(() => {
-    const refresh = () => setQueueCounts(getPendingAndFailedCounts())
-    refresh()
-    return subscribeOfflineQueue(refresh)
-  }, [])
+  // Счётчик берётся из офлайн-слоя на IndexedDB. Прежний читал очередь из
+  // localStorage, куда 113D уже ничего не пишет, — бейдж молча показывал ноль
+  // при несинхронизированной работе.
+  const offline = useOfflineStatus()
+  const unsentCount = offline.pending + offline.attention
 
   const appContour = useMemo(() => {
     if (typeof window === 'undefined') return '—'
@@ -61,7 +62,38 @@ export function MobileProfile() {
     }
   }, [location.search, meQ.data])
 
-  function logout() {
+  /**
+   * SMA-MOBILE-OFFLINE-INTEGRATION-113D.
+   *
+   * Выход удаляет приватные офлайн-данные: на общем планшете работа
+   * предыдущего техника не должна пережить выход и стать видимой следующему.
+   *
+   * Поэтому перед удалением спрашиваем. Неотправленная работа — это снимки
+   * и записи, сделанные в поле без сети; потерять их молча значит потерять
+   * рабочий день человека. Предупреждение идёт ДО того, как токен сброшен:
+   * после сброса отправить уже нечего и нечем.
+   */
+  async function logout() {
+    const { unsent, attention } = await hasUnsentWork()
+    if (unsent > 0 || attention > 0) {
+      const parts = [
+        unsent > 0 ? `не отправлено записей: ${unsent}` : '',
+        attention > 0 ? `требует внимания: ${attention}` : '',
+      ].filter(Boolean).join(', ')
+      const proceed = window.confirm(
+        `На устройстве осталась несинхронизированная работа (${parts}).\n\n` +
+        'Выход удалит её безвозвратно. Если есть сеть, сначала дождитесь отправки.\n\n' +
+        'Выйти и удалить?',
+      )
+      if (!proceed) return
+    }
+
+    // Синхронизация останавливается и хранилище этого пользователя стирается.
+    await wipeOfflineOnLogout(meQ.data ? { id: meQ.data.id, companyId: meQ.data.companyId } : null)
+    // Прежние кэши доски и карточек лежат в localStorage без разделения по
+    // пользователю — на общем планшете их обязан унести выход.
+    clearLegacyOfflineCaches()
+
     const params = new URLSearchParams()
     params.set('next', mobilePath(location.pathname, ''))
     params.set('mode', 'mobile')
@@ -208,9 +240,9 @@ export function MobileProfile() {
             </span>
             <span className="mobileProfileMenuLabel">
               Очередь отправки
-              {queueCounts.pending + queueCounts.failed > 0 ? (
+              {unsentCount > 0 ? (
                 <span className="mobileProfileMenuBadge mobileProfileMenuBadge--queue">
-                  {queueCounts.pending + queueCounts.failed}
+                  {unsentCount}
                 </span>
               ) : null}
             </span>
