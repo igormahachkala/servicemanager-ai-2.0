@@ -10,6 +10,7 @@ import { Roles } from '../common/roles.decorator'
 import { RolesGuard } from '../common/roles.guard'
 import { ManagementSurface } from '../common/management-surface-access'
 import { CloseWorkShiftDto } from './dto/close-work-shift.dto'
+import { CreateShiftCorrectionDto } from './dto/create-shift-correction.dto'
 import { UpdateWorkforceSettingsDto } from './dto/update-workforce-settings.dto'
 import { WorkforceService } from './workforce.service'
 
@@ -82,6 +83,44 @@ export class WorkforceController {
       to,
       userId,
     })
+  }
+
+  /**
+   * SMA-SHIFT-LABOR-LEDGER-INTEGRITY-106B — correct a shift.
+   *
+   * Gated on USERS_MANAGE, the canonical grant for managing people in
+   * common/permissions-matrix.ts: ADMIN (client and provider), MASTER+PROVIDER,
+   * DISPATCHER+PROVIDER and NETWORK_DIRECTOR+CLIENT hold it; TECHNICIAN, TERRITORIAL_MANAGER
+   * and CLIENT do not. That is exactly the boundary this task requires — a technician cannot
+   * administratively rewrite their own history — and it is read off the existing matrix rather
+   * than invented here. Tenant isolation is enforced in the service by companyId.
+  */
+  @Post('shifts/:shiftId/corrections')
+  @ManagementSurface()
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR)
+  @RequirePermission(PERMISSIONS.USERS_MANAGE)
+  createShiftCorrection(
+    @Req() req: any,
+    @Param('shiftId') shiftId: string,
+    @Body() dto: CreateShiftCorrectionDto,
+  ) {
+    return this.workforce.createShiftCorrection(this.actor(req), shiftId, dto)
+  }
+
+  /** Correction history plus resolved effective time. Read-only, so WORKFORCE_VIEW is enough. */
+  @Get('shifts/:shiftId')
+  @ManagementSurface()
+  @Roles(
+    UserRole.PLATFORM_ADMIN,
+    UserRole.ADMIN,
+    UserRole.MASTER,
+    UserRole.DISPATCHER,
+    UserRole.NETWORK_DIRECTOR,
+    UserRole.TERRITORIAL_MANAGER,
+  )
+  @RequirePermission(PERMISSIONS.WORKFORCE_VIEW)
+  getShift(@Req() req: any, @Param('shiftId') shiftId: string) {
+    return this.workforce.getShiftWithCorrections(this.actor(req), shiftId)
   }
 
   @Patch('settings')
