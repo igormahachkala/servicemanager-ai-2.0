@@ -31,7 +31,16 @@ async function bootstrap() {
     origin: createCorsOriginDelegate(allowedOrigins),
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    // SMA-MOBILE-OFFLINE-INTEGRATION-113D: Idempotency-Key must be allowed here.
+    //
+    // 113B added the header on the server, but the browser never got to send
+    // it: a request carrying a header absent from this list is blocked by the
+    // preflight, and fetch fails with a bare "Failed to fetch". Every replayed
+    // offline operation — comment, attachment, ticket from a round — failed
+    // that way, while the one operation that sends no key went through. Found
+    // by live Stage acceptance; the same gap is in Production, where nothing
+    // has been sending the header yet.
+    allowedHeaders: ['Content-Type', 'Authorization', 'Idempotency-Key'],
     optionsSuccessStatus: 204,
     maxAge: 86400,
   });
