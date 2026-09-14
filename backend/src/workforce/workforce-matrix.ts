@@ -106,11 +106,26 @@ export function buildWorkforceMatrix(params: {
   shifts: MatrixShiftRow[]
   days: string[]
   timezone?: string | null
+  /**
+   * Employees who could have worked this month, whether or not they did.
+   *
+   * Without it the grid is built from shifts alone, so a person who opened nothing all month
+   * simply is not in the report — and that is the very case a manager opens it for. A row of
+   * empty days is the answer; an absent row looks like the employee does not exist.
+   *
+   * Optional so the pure function stays usable from tests that only care about shift shaping.
+   */
+  roster?: MatrixShiftRow['user'][]
 }): { employees: MatrixEmployeeRow[]; totals: MatrixEmployeeTotals & { employees: number }; shifts: MatrixShiftDetail[] } {
-  const { shifts, days, timezone } = params
+  const { shifts, days, timezone, roster } = params
 
   const byUser = new Map<string, { user: MatrixShiftRow['user']; cells: Map<string, MatrixDayCell> }>()
   const details: MatrixShiftDetail[] = []
+
+  // Roster first, so an employee with no shift still gets a row. Shifts below only fill cells.
+  for (const user of roster ?? []) {
+    byUser.set(user.id, { user, cells: new Map() })
+  }
 
   for (const shift of shifts) {
     // The day a shift belongs to is the day it STARTED, in the company's zone.
@@ -127,6 +142,7 @@ export function buildWorkforceMatrix(params: {
       corrections: shift.corrections,
     })
 
+    // Реестр мог завести строку заранее; тогда дополняем её, а не создаём вторую.
     const employee = byUser.get(shift.userId) ?? { user: shift.user, cells: new Map() }
     const cell =
       employee.cells.get(date) ??

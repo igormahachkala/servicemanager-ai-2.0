@@ -397,10 +397,38 @@ export class WorkforceService {
       },
     })
 
+    /*
+     * Реестр сотрудников месяца.
+     *
+     * Сетка, построенная по одним сменам, не содержит того, кто за месяц не открыл ни одной, —
+     * а именно этот случай управляющий и приходит смотреть. Пустая строка отвечает на вопрос;
+     * отсутствующая выглядит так, будто сотрудника нет вовсе.
+     *
+     * Берутся роли, которые вообще могут открыть смену (тот же список, что у POST
+     * /workforce/shifts/open), активные и не удалённые. Второго определения «сотрудника»
+     * здесь не заводится: список ролей один и тот же.
+     *
+     * Отсутствие смены — это отсутствие смены, а не прогул: невыходы в схеме не заведены,
+     * и называть их так значило бы придумать факт, которого нет.
+     */
+    const roster = await this.prisma.user.findMany({
+      where: {
+        companyId: targetCompanyId,
+        isActive: true,
+        deletedAt: null,
+        role: {
+          in: [UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.TECHNICIAN],
+        },
+        ...(params.userId ? { id: params.userId } : {}),
+      },
+      select: { id: true, firstName: true, lastName: true, email: true, role: true },
+    })
+
     const matrix = buildWorkforceMatrix({
       shifts: shifts as unknown as MatrixShiftRow[],
       days: range.days,
       timezone: company.timezone,
+      roster,
     })
 
     return {
