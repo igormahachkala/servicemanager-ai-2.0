@@ -5,6 +5,14 @@ export type RealtimeScope = {
 
 export type RealtimeMessage = Record<string, unknown> & { type?: string }
 
+export type RealtimeServerNotice = {
+  code: string
+  text: string
+}
+
+export const REALTIME_SERVER_REJECT_NOTICE =
+  'Живое обновление доски отклонено. Данные на экране могли устареть. Перезагрузите страницу.'
+
 type RealtimeListener = (message: RealtimeMessage) => void
 type RealtimeDiagnostic = (state: string, details?: Record<string, number | string>) => void
 
@@ -19,6 +27,8 @@ type RealtimeSocketOptions = {
   addWindowListener?: typeof window.addEventListener
   removeWindowListener?: typeof window.removeEventListener
   diagnostic?: RealtimeDiagnostic
+  onAuthRejected?: () => void
+  onServerNotice?: (notice: RealtimeServerNotice) => void
 }
 
 const AUTH_CHANGED_EVENT = 'sma:auth-token-changed'
@@ -26,7 +36,7 @@ const TOKEN_STORAGE_KEY = 'sm_token'
 const MAX_RECONNECT_DELAY_MS = 30_000
 const HEARTBEAT_INTERVAL_MS = 25_000
 const PONG_TIMEOUT_MS = 10_000
-const STABLE_CONNECTION_MS = 10_000
+const MIN_STABLE_CONNECTION_MS = 60_000
 const IDLE_DISCONNECT_GRACE_MS = 250
 const MAX_SEEN_MESSAGES = 500
 
@@ -46,8 +56,12 @@ export class RealtimeSocketManager {
   private readonly addWindowListener?: typeof window.addEventListener
   private readonly removeWindowListener?: typeof window.removeEventListener
   private readonly diagnostic?: RealtimeDiagnostic
+  private readonly onAuthRejectedFn?: () => void
+  private readonly onServerNoticeFn?: (notice: RealtimeServerNotice) => void
 
   private listeners = new Set<RealtimeListener>()
+  private authRejectedListeners = new Set<() => void>()
+  private serverNoticeListeners = new Set<(notice: RealtimeServerNotice) => void>()
   private socket: WebSocket | null = null
   private reconnectTimer: number | null = null
   private heartbeatTimer: number | null = null
@@ -58,7 +72,9 @@ export class RealtimeSocketManager {
   private token = ''
   private scope: RealtimeScope = {}
   private reconnectAttempt = 0
+  private lastReconnectDelayMs = 0
   private authRejected = false
+  private ignoreAuthClose = false
   private windowListenersAttached = false
   private seenMessageKeys = new Set<string>()
 
@@ -73,6 +89,8 @@ export class RealtimeSocketManager {
     this.addWindowListener = options.addWindowListener || window.addEventListener.bind(window)
     this.removeWindowListener = options.removeWindowListener || window.removeEventListener.bind(window)
     this.diagnostic = options.diagnostic
+    this.onAuthRejectedFn = options.onAuthRejected
+    this.onServerNoticeFn = options.onServerNotice
   }
 
   configure(config: { url: string; token: string; scope?: RealtimeScope }) {
@@ -88,8 +106,8 @@ export class RealtimeSocketManager {
 
     if (tokenChanged) {
       this.token = config.token
+      this.resetReconnectState()
       this.authRejected = false
-      this.reconnectAttempt = 0
       this.stopConnection()
     }
 
@@ -116,9 +134,23 @@ export class RealtimeSocketManager {
         this.idleDisconnectTimer = null
         if (this.listeners.size > 0) return
         this.stopConnection()
-        this.reconnectAttempt = 0
+        this.resetReconnectState()
         this.authRejected = false
       }, IDLE_DISCONNECT_GRACE_MS)
+    }
+  }
+
+  subscribeAuthRejected(listener: () => void) {
+    this.authRejectedListeners.add(listener)
+    return () => {
+      this.authRejectedListeners.delete(listener)
+    }
+  }
+
+  subscribeServerNotice(listener: (notice: RealtimeServerNotice) => void) {
+    this.serverNoticeListeners.add(listener)
+    return () => {
+      this.serverNoticeListeners.delete(listener)
     }
   }
 
@@ -131,6 +163,7 @@ export class RealtimeSocketManager {
   private connect() {
     if (this.listeners.size === 0 || !this.token || this.authRejected || !this.isOnline()) return
 
+    this.ignoreAuthClose = false
     this.diagnostic?.('connecting', { attempt: this.reconnectAttempt + 1 })
     let socket: WebSocket
     try {
@@ -161,11 +194,15 @@ export class RealtimeSocketManager {
         return
       }
 
-      if (message.type === 'AUTH_INVALID' || message.type === 'AUTH_REQUIRED') {
-        this.authRejected = true
-        this.clearReconnectTimer()
-        this.diagnostic?.('auth rejected')
+      if (message.type === 'AUTH_INVALID') {
+        this.rejectAuth()
         socket.close(1000, 'Authentication rejected')
+        return
+      }
+
+      if (message.type === 'AUTH_REQUIRED') {
+        this.ignoreAuthClose = true
+        this.diagnostic?.('auth required')
         return
       }
 
@@ -177,6 +214,12 @@ export class RealtimeSocketManager {
         return
       }
 
+      if (typeof message.code === 'string' && message.code) {
+        if (this.isDuplicateMessage(message)) return
+        this.emitServerNotice(message)
+        return
+      }
+
       if (this.isDuplicateMessage(message)) return
       for (const listener of this.listeners) listener(message)
     }
@@ -185,7 +228,8 @@ export class RealtimeSocketManager {
       if (this.socket !== socket) return
       this.socket = null
       this.clearConnectionTimers()
-      if (event.code === 1008) this.authRejected = true
+      if (event.code === 1008 && !this.ignoreAuthClose) this.rejectAuth()
+      this.ignoreAuthClose = false
       this.diagnostic?.(this.authRejected ? 'auth rejected' : 'disconnected', { code: event.code })
       this.scheduleReconnect()
     }
@@ -219,6 +263,7 @@ export class RealtimeSocketManager {
     ) return
 
     const delay = delayOverride ?? reconnectDelayMs(this.reconnectAttempt, this.random)
+    this.lastReconnectDelayMs = delay
     this.reconnectAttempt += 1
     this.diagnostic?.('retry scheduled', { attempt: this.reconnectAttempt, delayMs: delay })
     this.reconnectTimer = this.setTimeoutFn(() => {
@@ -229,10 +274,11 @@ export class RealtimeSocketManager {
 
   private startStableConnectionTimer() {
     if (this.stableTimer !== null) this.clearTimeoutFn(this.stableTimer)
+    const delay = Math.max(this.lastReconnectDelayMs, MIN_STABLE_CONNECTION_MS)
     this.stableTimer = this.setTimeoutFn(() => {
       this.stableTimer = null
       this.reconnectAttempt = 0
-    }, STABLE_CONNECTION_MS)
+    }, delay)
   }
 
   private startHeartbeat() {
@@ -298,6 +344,29 @@ export class RealtimeSocketManager {
     return false
   }
 
+  private resetReconnectState() {
+    this.reconnectAttempt = 0
+    this.lastReconnectDelayMs = 0
+  }
+
+  private rejectAuth() {
+    if (this.authRejected) return
+    this.authRejected = true
+    this.clearReconnectTimer()
+    this.diagnostic?.('auth rejected')
+    this.onAuthRejectedFn?.()
+    for (const listener of this.authRejectedListeners) listener()
+  }
+
+  private emitServerNotice(message: RealtimeMessage) {
+    const code = typeof message.code === 'string' ? message.code : ''
+    const serverMessage = typeof message.message === 'string' ? message.message : ''
+    this.diagnostic?.('server rejected', serverMessage ? { code, message: serverMessage } : { code })
+    const notice: RealtimeServerNotice = { code, text: REALTIME_SERVER_REJECT_NOTICE }
+    this.onServerNoticeFn?.(notice)
+    for (const listener of this.serverNoticeListeners) listener(notice)
+  }
+
   private stopConnection() {
     this.clearReconnectTimer()
     this.clearConnectionTimers()
@@ -332,7 +401,7 @@ export class RealtimeSocketManager {
     if (this.token === token) return
     this.token = token
     this.authRejected = false
-    this.reconnectAttempt = 0
+    this.resetReconnectState()
     this.clearIdleDisconnectTimer()
     this.stopConnection()
     this.ensureConnection()
@@ -376,6 +445,14 @@ export function configureRealtimeSocket(config: { url: string; token: string; sc
 
 export function subscribeRealtimeSocket(listener: RealtimeListener) {
   return getSharedManager().subscribe(listener)
+}
+
+export function subscribeRealtimeAuthRejected(listener: () => void) {
+  return getSharedManager().subscribeAuthRejected(listener)
+}
+
+export function subscribeRealtimeServerNotice(listener: (notice: RealtimeServerNotice) => void) {
+  return getSharedManager().subscribeServerNotice(listener)
 }
 
 export function notifyRealtimeAuthChanged(token: string) {

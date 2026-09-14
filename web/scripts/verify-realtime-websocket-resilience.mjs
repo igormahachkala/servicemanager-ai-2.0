@@ -19,7 +19,7 @@ function loadTypeScript() {
 
 const ts = loadTypeScript()
 const filename = resolve(root, 'src/lib/realtimeSocket.ts')
-const source = readFileSync(filename, 'utf8').replace('import.meta.env.DEV', 'false')
+const source = readFileSync(filename, 'utf8').replaceAll('import.meta.env.DEV', 'false')
 const output = ts.transpileModule(source, {
   compilerOptions: {
     module: ts.ModuleKind.CommonJS,
@@ -30,7 +30,7 @@ const output = ts.transpileModule(source, {
 const module = { exports: {} }
 const context = vm.createContext({ module, exports: module.exports, console })
 vm.runInContext(output, context, { filename })
-const { RealtimeSocketManager, reconnectDelayMs } = module.exports
+const { RealtimeSocketManager, reconnectDelayMs, REALTIME_SERVER_REJECT_NOTICE } = module.exports
 
 class MockSocket {
   readyState = 0
@@ -71,6 +71,8 @@ function createHarness() {
   const timeouts = new Map()
   const intervals = new Map()
   const windowListeners = new Map()
+  const authRejectedEvents = []
+  const serverNotices = []
 
   const addWindowListener = (type, listener) => {
     const listeners = windowListeners.get(type) || new Set()
@@ -101,6 +103,8 @@ function createHarness() {
     isOnline: () => online,
     addWindowListener,
     removeWindowListener,
+    onAuthRejected: () => authRejectedEvents.push({}),
+    onServerNotice: (notice) => serverNotices.push(notice),
   })
 
   return {
@@ -109,6 +113,8 @@ function createHarness() {
     timeouts,
     intervals,
     windowListeners,
+    authRejectedEvents,
+    serverNotices,
     setOnline(value) {
       online = value
       for (const listener of windowListeners.get(value ? 'online' : 'offline') || []) listener({ type: value ? 'online' : 'offline' })
@@ -123,7 +129,19 @@ function createHarness() {
       timeouts.delete(id)
       timer.callback()
     },
+    runInterval(delay) {
+      const entry = [...intervals.entries()].find(([, timer]) => timer.delay === delay)
+      assert.ok(entry, `Expected interval with delay ${delay}; got ${[...intervals.values()].map((timer) => timer.delay).join(', ')}`)
+      entry[1].callback()
+    },
   }
+}
+
+function openReadySocket(h) {
+  h.manager.configure({ url: 'ws://example/ws', token: 'token' })
+  h.manager.subscribe(() => {})
+  h.sockets.at(-1).open()
+  h.sockets.at(-1).message({ type: 'session.ready' })
 }
 
 assert.equal(reconnectDelayMs(0, () => 0), 500)
@@ -184,12 +202,37 @@ assert.equal(reconnectDelayMs(20, () => 0.999), 30000)
   assert.equal(h.sockets.length, 2)
   h.sockets[1].close()
   assert.deepEqual([...h.timeouts.values()].map((timer) => timer.delay), [1000], 'backoff must increase after consecutive failures')
+}
+
+{
+  const h = createHarness()
+  h.manager.configure({ url: 'ws://example/ws', token: 'token' })
+  h.manager.subscribe(() => {})
+  h.sockets[0].close()
+  h.runTimeout(500)
+  h.sockets[1].close()
   h.runTimeout(1000)
   h.sockets[2].open()
   h.sockets[2].message({ type: 'session.ready' })
-  h.runTimeout(10000)
+  assert.ok([...h.timeouts.values()].some((timer) => timer.delay === 60_000), 'stable timer must wait at least 60s')
+  assert.equal([...h.timeouts.values()].some((timer) => timer.delay === 10_000), false, '10s stable timer must not be scheduled')
   h.sockets[2].close()
-  assert.deepEqual([...h.timeouts.values()].map((timer) => timer.delay), [500], 'stable connection must reset backoff')
+  assert.deepEqual([...h.timeouts.values()].map((timer) => timer.delay), [2000], 'close before stable timer must keep growing backoff')
+}
+
+{
+  const h = createHarness()
+  h.manager.configure({ url: 'ws://example/ws', token: 'token' })
+  h.manager.subscribe(() => {})
+  h.sockets[0].close()
+  h.runTimeout(500)
+  h.sockets[1].close()
+  h.runTimeout(1000)
+  h.sockets[2].open()
+  h.sockets[2].message({ type: 'session.ready' })
+  h.runTimeout(60_000)
+  h.sockets[2].close()
+  assert.deepEqual([...h.timeouts.values()].map((timer) => timer.delay), [500], 'stable connection must reset backoff after 60s')
 }
 
 {
@@ -228,6 +271,136 @@ assert.equal(reconnectDelayMs(20, () => 0.999), 30000)
   assert.equal(h.timeouts.size, 0, 'logout must cancel reconnect work')
   h.dispatch('sma:auth-token-changed', { type: 'sma:auth-token-changed', detail: { token: 'new-token' } })
   assert.equal(h.sockets.length, 2, 'a new authenticated session may reconnect once')
+}
+
+{
+  const h = createHarness()
+  openReadySocket(h)
+  assert.ok([...h.intervals.values()].some((timer) => timer.delay === 25_000), 'heartbeat interval must start after session.ready')
+  h.runInterval(25_000)
+  assert.deepEqual(h.sockets[0].messages().at(-1), { type: 'ping' })
+  assert.ok([...h.timeouts.values()].some((timer) => timer.delay === 10_000), 'ping must arm the pong wait timer')
+}
+
+{
+  const h = createHarness()
+  openReadySocket(h)
+  h.runInterval(25_000)
+  h.sockets[0].message({ type: 'pong' })
+  assert.equal([...h.timeouts.values()].some((timer) => timer.delay === 10_000), false, 'pong must clear the wait timer')
+}
+
+{
+  const h = createHarness()
+  openReadySocket(h)
+  h.runInterval(25_000)
+  h.runTimeout(10_000)
+  assert.equal(h.sockets[0].readyState, 3, 'missing pong must close the socket once')
+  assert.deepEqual([...h.timeouts.values()].map((timer) => timer.delay), [500], 'missing pong must schedule exactly one retry')
+}
+
+{
+  const h = createHarness()
+  openReadySocket(h)
+  h.sockets[0].close()
+  assert.equal([...h.intervals.values()].some((timer) => timer.delay === 25_000), false, 'close must clear the heartbeat interval')
+}
+
+{
+  const h = createHarness()
+  h.manager.configure({ url: 'ws://example/ws', token: 'token' })
+  h.manager.subscribe(() => {})
+  h.sockets[0].open()
+  h.sockets[0].message({ type: 'AUTH_REQUIRED' })
+  h.sockets[0].close()
+  assert.equal(h.authRejectedEvents.length, 0, 'AUTH_REQUIRED must not emit auth rejected')
+  assert.deepEqual([...h.timeouts.values()].map((timer) => timer.delay), [500], 'AUTH_REQUIRED close must reconnect with backoff')
+  h.runTimeout(500)
+  h.sockets[1].close()
+  assert.deepEqual([...h.timeouts.values()].map((timer) => timer.delay), [1000], 'AUTH_REQUIRED reconnects must grow backoff')
+}
+
+{
+  const h = createHarness()
+  h.manager.configure({ url: 'ws://example/ws', token: 'expired-token' })
+  h.manager.subscribe(() => {})
+  h.sockets[0].open()
+  h.sockets[0].message({ type: 'AUTH_INVALID' })
+  h.sockets[0].close(1008)
+  assert.equal(h.authRejectedEvents.length, 1, 'AUTH_INVALID must emit auth rejected once')
+  assert.equal(h.serverNotices.length, 0, 'auth rejection must not show a server notice')
+}
+
+{
+  const h = createHarness()
+  h.manager.configure({ url: 'ws://example/ws', token: 'token' })
+  h.manager.subscribe(() => {})
+  h.sockets[0].open()
+  h.sockets[0].close(1008)
+  assert.equal(h.authRejectedEvents.length, 1, 'close 1008 without a frame must behave as AUTH_INVALID')
+  assert.equal(h.timeouts.size, 0)
+  assert.equal(h.sockets.length, 1)
+}
+
+{
+  const h = createHarness()
+  h.manager.configure({ url: 'ws://example/ws', token: 'expired-token' })
+  h.manager.subscribe(() => {})
+  h.sockets[0].open()
+  h.sockets[0].message({ type: 'AUTH_INVALID' })
+  const socketsAfterReject = h.sockets.length
+  h.manager.subscribe(() => {})
+  assert.equal(h.sockets.length, socketsAfterReject, 'subscribe after auth rejection must not open a socket')
+  assert.equal(h.timeouts.size, 0, 'subscribe after auth rejection must not schedule retries')
+}
+
+{
+  const h = createHarness()
+  openReadySocket(h)
+  const planted = 'Observer company scope is not allowed for this user'
+  h.sockets[0].message({ type: 'SUBSCRIPTION_INVALID', code: 'SUBSCRIPTION_INVALID', message: planted })
+  assert.equal(h.serverNotices.length, 1)
+  assert.equal(h.serverNotices[0].text, REALTIME_SERVER_REJECT_NOTICE)
+  assert.notEqual(h.serverNotices[0].text, planted)
+  assert.equal(h.authRejectedEvents.length, 0)
+  assert.equal(h.sockets[0].readyState, 1, 'subscription reject must keep the socket open')
+  assert.equal(h.sockets.length, 1)
+  assert.equal([...h.timeouts.values()].some((timer) => timer.delay === 500 || timer.delay === 1000), false)
+
+  h.sockets[0].message({ type: 'BAD_MESSAGE', code: 'BAD_MESSAGE', message: 'Message must be JSON' })
+  h.sockets[0].message({ type: 'CUSTOM_REJECT', code: 'UNKNOWN_CODE', message: 'planted-unknown' })
+  assert.equal(h.serverNotices.length, 3, 'any frame with code must use the same notice branch')
+  assert.ok(h.serverNotices.every((notice) => notice.text === REALTIME_SERVER_REJECT_NOTICE))
+  assert.ok(h.serverNotices.every((notice) => notice.text !== 'planted-unknown'))
+  assert.equal(h.authRejectedEvents.length, 0)
+  assert.equal(h.sockets[0].readyState, 1)
+  assert.equal(h.sockets.length, 1)
+}
+
+{
+  const h = createHarness()
+  const received = []
+  h.manager.configure({ url: 'ws://example/ws', token: 'token' })
+  h.manager.subscribe((message) => received.push(message))
+  h.sockets[0].open()
+  h.sockets[0].message({ type: 'session.ready' })
+  h.sockets[0].message({ type: 'ticket.updated', notificationId: 'n-1', ticketId: 'ticket-1' })
+  h.sockets[0].message({ type: 'ticket.updated', notificationId: 'n-1', ticketId: 'ticket-1' })
+  assert.equal(received.length, 1, 'replayed notification IDs must be delivered only once')
+
+  h.sockets[0].message({
+    type: 'SUBSCRIPTION_INVALID',
+    code: 'SUBSCRIPTION_INVALID',
+    notificationId: 'n-2',
+    message: 'Observer company scope does not exist',
+  })
+  h.sockets[0].message({
+    type: 'SUBSCRIPTION_INVALID',
+    code: 'SUBSCRIPTION_INVALID',
+    notificationId: 'n-2',
+    message: 'Observer company scope does not exist',
+  })
+  assert.equal(h.serverNotices.length, 1, 'notice frames must also dedupe by notificationId')
 }
 
 console.log('Realtime WebSocket resilience checks passed')
