@@ -1,5 +1,7 @@
 /* Login / mobile: не центрировать весь viewport (iOS Safari + клавиатура даёт съезд). */
 .page.loginPageRoot {
+  --tint: #f5f7fa;
+  --mut: #6f7788;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -32,6 +34,16 @@
   padding: 0 0 12px;
   margin: 0 0 8px;
   text-align: center;
+}
+
+/* Те же значения, что .vh-push на главной (VhodPage). Отступ сверху снят: плашка стоит над формой. */
+.loginPageCard .vh-push {
+  margin: 0 0 16px;
+  padding: 14px 16px;
+  background: var(--tint);
+  border-radius: 10px;
+  color: var(--mut);
+  font-size: 14px;
 }
 
 @media (min-width: 900px) {
