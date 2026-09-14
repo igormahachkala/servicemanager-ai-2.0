@@ -12,6 +12,8 @@ type LoginPageProps = {
 
 const VERSION = 'v0.1'
 const BUILD = '2026'
+const LOGIN_DOCS_NOTICE =
+  'Продолжая пользоваться сервисом, вы подтверждаете наличие всех необходимых документов.'
 
 function getLoginErrorMessage(err: unknown): string {
   if (api.isLoginSessionStorageError(err)) return api.LOGIN_SESSION_STORAGE_ERROR_MESSAGE
@@ -69,6 +71,8 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
         </div>
 
         <h2 style={{ marginBottom: 16 }}>Войти</h2>
+
+        <p className="vh-push">{LOGIN_DOCS_NOTICE}</p>
 
         {error && (
           <div className="alert" style={{ marginBottom: 16 }}>
