@@ -94,6 +94,16 @@ export class WorkforceController {
    * behaviour: a technician has /m/shift for their own shift, not the company timesheet.
    */
   @Get('matrix')
+  /*
+   * SMA-WORKFORCE-MONTHLY-MATRIX-106D — reconciliation against 111A.
+   *
+   * The matrix was written before the management surface gate existed, and its @Roles list
+   * still carries NETWORK_DIRECTOR and TERRITORIAL_MANAGER. 111A denies both from the
+   * management surface, so without this guard the monthly timesheet would be the one
+   * management screen they could still open. The guard is the canonical rule and narrows the
+   * list below; a second role list is deliberately not introduced here.
+   */
+  @ManagementSurface()
   @Roles(
     UserRole.PLATFORM_ADMIN,
     UserRole.ADMIN,
