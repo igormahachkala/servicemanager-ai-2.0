@@ -6,6 +6,7 @@ import { SupportContactBlock } from '../components/SupportContactBlock'
 import * as api from '../lib/api'
 import { hasUnsentWork, wipeOfflineOnLogout } from './offline/runtime'
 import { useOfflineStatus } from './offline/useOffline'
+import { identityFromToken } from './offline/identity'
 import { clearLegacyOfflineCaches } from './offlineQueue'
 import { startMobileGuidedTour } from './MobileGuidedTourEvents'
 import { mobilePath } from './mobileRoute'
@@ -89,7 +90,13 @@ export function MobileProfile() {
     }
 
     // Синхронизация останавливается и хранилище этого пользователя стирается.
-    await wipeOfflineOnLogout(meQ.data ? { id: meQ.data.id, companyId: meQ.data.companyId } : null)
+    // Личность берётся из токена, если ответа `/auth/me` нет: выход без сети
+    // обязан унести данные так же надёжно, как выход со связью.
+    const identity =
+      meQ.data?.id && meQ.data?.companyId
+        ? { id: meQ.data.id, companyId: meQ.data.companyId }
+        : identityFromToken(api.getToken())
+    await wipeOfflineOnLogout(identity)
     // Прежние кэши доски и карточек лежат в localStorage без разделения по
     // пользователю — на общем планшете их обязан унести выход.
     clearLegacyOfflineCaches()

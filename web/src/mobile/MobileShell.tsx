@@ -5,6 +5,7 @@ import * as api from '../lib/api'
 import { useWsInvalidation } from '../ui/useWsInvalidation'
 import { useRealtimeNotifications } from '../hooks/useRealtimeNotifications'
 import { registerAppShellServiceWorker } from './offline/appShell'
+import { identityFromToken } from './offline/identity'
 import { startOffline, stopOffline } from './offline/runtime'
 import { syncNow, useOfflineStatus } from './offline/useOffline'
 import { getOfflineStatus } from './offline/runtime'
@@ -109,11 +110,25 @@ export function MobileShell() {
   useEffect(() => {
     void registerAppShellServiceWorker()
   }, [])
-  useEffect(() => {
-    if (!meQ.data?.id) return
-    void startOffline({ id: meQ.data.id, companyId: meQ.data.companyId })
-    return () => stopOffline()
+  /**
+   * Личность для офлайн-хранилища. Ответ `/auth/me` без сети не приходит —
+   * react-query держит запрос приостановленным, — поэтому запасной источник
+   * это токен на устройстве. Без него после перезагрузки в офлайне слой
+   * не открывался бы вовсе: ни сохранённого обхода, ни возможности
+   * сохранить новую работу.
+   */
+  const offlineIdentity = useMemo(() => {
+    if (meQ.data?.id && meQ.data?.companyId) {
+      return { id: meQ.data.id, companyId: meQ.data.companyId }
+    }
+    return identityFromToken(api.getToken())
   }, [meQ.data?.id, meQ.data?.companyId])
+
+  useEffect(() => {
+    if (!offlineIdentity) return
+    void startOffline(offlineIdentity)
+    return () => stopOffline()
+  }, [offlineIdentity?.id, offlineIdentity?.companyId])
   const queryClient = useQueryClient()
   // Состояние связи берётся из офлайн-слоя: один источник на приложение.
   const isOnline = offline.online
