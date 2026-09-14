@@ -39,6 +39,40 @@ let store: OfflineStore | null = null
 let coordinator: SyncCoordinator | null = null
 let identityKey: string | null = null
 let connectivityWatched = false
+
+/**
+ * Повтор с нарастающей паузой.
+ *
+ * Событие `online` приходит раньше, чем связь действительно работает: радио
+ * ещё поднимается, и первый же запрос падает с «Failed to fetch». Одного
+ * такого отказа хватало, чтобы работа техника осталась на устройстве
+ * навсегда — другого события `online` в тот выход в зону покрытия не будет,
+ * и очередь разбиралась бы только вручную, если человек заметит баннер.
+ * Обнаружено живой приёмкой 113D на Stage.
+ *
+ * Паузы растут, чтобы не долбить сервер в туннеле. Число попыток ограничено
+ * самим координатором: после MAX_AUTO_ATTEMPTS строка переходит в «Ошибка
+ * отправки» и ждёт человека — автоповтор не бесконечен.
+ */
+const RETRY_STEPS_MS = [4000, 12000, 40000, 120000]
+let retryTimer: ReturnType<typeof setTimeout> | null = null
+let retryStep = 0
+
+function cancelRetry() {
+  if (retryTimer) clearTimeout(retryTimer)
+  retryTimer = null
+  retryStep = 0
+}
+
+function scheduleRetry() {
+  if (retryTimer || !coordinator || !status.online) return
+  const delay = RETRY_STEPS_MS[Math.min(retryStep, RETRY_STEPS_MS.length - 1)]
+  retryStep += 1
+  retryTimer = setTimeout(() => {
+    retryTimer = null
+    void syncNow()
+  }, delay)
+}
 const listeners = new Set<Listener>()
 
 let status: OfflineStatus = {
@@ -60,9 +94,15 @@ function watchConnectivity() {
   connectivityWatched = true
   window.addEventListener('online', () => {
     emit({ online: true })
+    // Счётчик пауз сбрасывается: это новый выход в зону покрытия.
+    cancelRetry()
     void syncNow()
   })
-  window.addEventListener('offline', () => emit({ online: false }))
+  window.addEventListener('offline', () => {
+    emit({ online: false })
+    // Без сети повторять нечего: следующий круг закажет событие `online`.
+    cancelRetry()
+  })
 }
 
 export function getOfflineStatus(): OfflineStatus {
@@ -119,6 +159,7 @@ export async function startOffline(identity: { id?: string | null; companyId?: s
 }
 
 export function stopOffline() {
+  cancelRetry()
   coordinator = null
   store = null
   identityKey = null
@@ -133,6 +174,10 @@ export async function syncNow(): Promise<void> {
   } finally {
     await refreshOfflineStatus()
     emit({ syncing: false })
+    // Осталась неотправленная работа — назначаем следующий круг сами.
+    // Ждать второго события `online` нельзя: его может не быть.
+    if (status.online && status.pending > 0) scheduleRetry()
+    else cancelRetry()
   }
 }
 

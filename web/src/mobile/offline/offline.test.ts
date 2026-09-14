@@ -521,10 +521,19 @@ test('24. Service Worker кэширует оболочку и не кэширу�
   assert.match(sw, /request\.mode !== 'navigate'/, 'кэшируется только навигация')
   assert.match(sw, /request\.method !== 'GET'/, 'мутации не кэшируются')
   assert.match(sw, /\/uploads\//, 'защищённая раздача исключена явно')
-  // Ответы API в кэш не кладутся: put вызывается только для оболочки.
+  // Ответы API в кэш не кладутся. Записей в кэш ровно две, и обе безопасны:
+  // сама оболочка и сборочный файл, отобранный isBuildAsset. 113D добавил
+  // вторую — без неё экран, который техник не открывал до потери связи,
+  // не открывался вовсе.
   const puts = sw.match(/cache\.put\([^)]*\)/g) ?? []
-  assert.equal(puts.length, 1, 'в кэш пишется единственный объект — оболочка')
-  assert.match(puts[0], /APP_SHELL_URL/)
+  assert.equal(puts.length, 2, `в кэш пишутся только оболочка и сборочный файл, найдено: ${puts.length}`)
+  assert.ok(puts.some((p) => /APP_SHELL_URL/.test(p)), 'оболочка сохраняется')
+  assert.ok(puts.some((p) => /\(request, copy\)/.test(p)), 'сборочный файл сохраняется по своему запросу')
+
+  // Отбор сборочных файлов ограничен каталогом сборки и известными
+  // расширениями: под него не должен попасть ни один ответ с данными.
+  assert.match(sw, /function isBuildAsset/, 'отбор сборочных файлов выделен явно')
+  assert.match(sw, /url\.pathname\.startsWith\('\/assets\/'\)/, 'только каталог /assets/')
 })
 
 // ── дополнительные инварианты ─────────────────────────────────────────────
@@ -973,4 +982,35 @@ test('113D-16. снимок заявки не запрещён отсутств�
     'выбор файла не должен зависеть от наличия сети',
   )
   assert.match(page, /kind: 'ticket\.attachment'/, 'снимок ставится в очередь')
+})
+
+test('113D-17. неудачная попытка после возвращения связи повторяется сама', async () => {
+  const { readFileSync } = await import('node:fs')
+  const runtime = readFileSync(new URL('../../../src/mobile/offline/runtime.ts', import.meta.url), 'utf8')
+
+  /*
+   * Событие `online` приходит раньше, чем связь работает: первый запрос
+   * падает с «Failed to fetch». Второго такого события в этот выход в зону
+   * покрытия не будет. Без собственного повтора работа техника остаётся
+   * на устройстве навсегда, а счётчик «Ожидает отправки» никогда не дойдёт
+   * до нуля. Найдено живой приёмкой на Stage.
+   */
+  assert.match(runtime, /function scheduleRetry/, 'повтор назначается сам')
+  assert.match(runtime, /status\.online && status\.pending > 0\) scheduleRetry\(\)/, 'повтор назначается после неудачного круга')
+  assert.match(runtime, /RETRY_STEPS_MS/, 'паузы нарастают')
+  // Без сети и после выхода таймер обязан сниматься, иначе он будет будить
+  // разбор очереди для чужой или уже закрытой сессии.
+  for (const place of [/window\.addEventListener\('offline'[\s\S]{0,220}cancelRetry\(\)/, /export function stopOffline\(\)\s*\{\s*cancelRetry\(\)/]) {
+    assert.match(runtime, place)
+  }
+})
+
+test('113D-18. повтор не превращается в вечный опрос сервера', async () => {
+  const { readFileSync } = await import('node:fs')
+  const sync = readFileSync(new URL('../../../src/mobile/offline/sync.ts', import.meta.url), 'utf8')
+  // Автоповтор ограничен: после MAX_AUTO_ATTEMPTS строка уходит в «Ошибка
+  // отправки» и ждёт человека. Иначе телефон в туннеле молотил бы вечно.
+  assert.match(sync, /attempts >= MAX_AUTO_ATTEMPTS \? 'failed' : 'pending'/)
+  const max = Number(/const MAX_AUTO_ATTEMPTS = (\d+)/.exec(sync)?.[1])
+  assert.ok(max >= 2 && max <= 10, `разумный предел попыток, сейчас ${max}`)
 })

@@ -212,13 +212,49 @@ self.addEventListener('activate', (event) => {
   )
 })
 
+/**
+ * SMA-MOBILE-OFFLINE-INTEGRATION-113D: сборочные файлы оболочки.
+ *
+ * Одного index.html мало. Экраны грузятся отдельными файлами по требованию,
+ * и тот, который техник не открывал до потери связи, взять неоткуда: без
+ * сети приложение показывает пустоту вместо экрана. На приёмке так не
+ * открывался профиль — то есть и выход из учётной записи.
+ *
+ * Имена файлов содержат хэш содержимого, поэтому старая версия никогда
+ * не выдаётся за новую: после релиза имена меняются, а прежние записи
+ * убирает activate вместе со своим кэшем. Личных данных здесь нет —
+ * только код приложения, одинаковый для всех.
+ */
+function isBuildAsset(url) {
+  return url.pathname.startsWith('/assets/') && /\.(js|css|woff2?|svg|png|jpg|webp)$/.test(url.pathname)
+}
+
 self.addEventListener('fetch', (event) => {
   const request = event.request
 
-  // Кэшируется исключительно навигация. Всё остальное — включая любые
+  // Кэшируется навигация и сборочные файлы. Всё остальное — включая любые
   // запросы с Authorization, вызовы api и защищённую раздачу /uploads —
   // идёт в сеть и в кэш не попадает.
   if (request.method !== 'GET') return
+
+  const assetUrl = new URL(request.url)
+  if (request.mode !== 'navigate' && assetUrl.origin === self.location.origin && isBuildAsset(assetUrl)) {
+    // Сначала кэш: файл неизменяем, ходить за ним по сети незачем.
+    event.respondWith(
+      caches.match(request).then((hit) => {
+        if (hit) return hit
+        return fetch(request).then((response) => {
+          if (response && response.ok && response.type === 'basic') {
+            const copy = response.clone()
+            caches.open(APP_SHELL_CACHE).then((cache) => cache.put(request, copy)).catch(() => undefined)
+          }
+          return response
+        })
+      }),
+    )
+    return
+  }
+
   if (request.mode !== 'navigate') return
 
   const url = new URL(request.url)
