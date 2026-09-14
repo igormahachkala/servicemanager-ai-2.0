@@ -218,15 +218,13 @@ function getWebLocks(): { request: (...args: unknown[]) => unknown } | null {
   return nav?.locks ?? null
 }
 
-/**
- * Подписка на восстановление связи. Один слушатель на приложение; повторные
- * события не плодят обработчики — за этим следит сам координатор.
+/*
+ * Подписки на `online` здесь намеренно нет.
+ *
+ * 113C оставлял здесь attachOnlineTrigger — никем не вызванный. 113D отдал
+ * единственный слушатель offline/runtime.ts: там же живёт единственный
+ * координатор. Экспортируемая функция «подключить запуск по связи» — ловушка
+ * для следующего разработчика: вызвать её значит завести второй запуск
+ * разбора очереди. Координатор от одновременного запуска защищён, но
+ * проверять это на работающем контуре незачем.
  */
-export function attachOnlineTrigger(coordinator: SyncCoordinator): () => void {
-  const handler = () => {
-    void coordinator.run()
-  }
-  if (typeof window === 'undefined') return () => {}
-  window.addEventListener('online', handler)
-  return () => window.removeEventListener('online', handler)
-}
