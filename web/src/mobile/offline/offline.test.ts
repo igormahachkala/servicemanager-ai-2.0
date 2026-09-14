@@ -24,6 +24,8 @@ import {
   OFFLINE_SYNC_LABEL,
   syncStateOf,
 } from './types.js'
+import { createHttpSyncTransport, type TransportApi } from './transport.js'
+import { cacheRoundSnapshot, readPendingRoundTicketItemIds, readRoundSnapshot } from './roundCache.js'
 import {
   openOfflineSession,
   wipeOfflineSession,
@@ -584,5 +586,286 @@ test('сессия не открывается без пользователя',
   assert.equal(result.store, null)
   assert.equal(result.available, false)
   assert.equal(currentOfflineStore(), null)
+  setOfflineDriverFactory(null)
+})
+
+// ══ SMA-MOBILE-OFFLINE-INTEGRATION-113D ═══════════════════════════════════
+//
+// Тесты настоящего транспорта. Транспорт принимает набор функций API
+// параметром, поэтому проверяется именно он — тот код, который поедет на
+// устройство, — а не его тестовая копия.
+
+type ApiCall = { fn: string; key?: string; args: unknown[] }
+
+function makeFakeApi(behaviour: Partial<Record<string, () => unknown>> = {}) {
+  const calls: ApiCall[] = []
+  const run = (fn: string, key: string | undefined, args: unknown[]) => {
+    calls.push({ fn, key, args })
+    const impl = behaviour[fn]
+    return impl ? impl() : ({} as unknown)
+  }
+  const fake = {
+    async addTicketComment(id: string, comment: string, scope?: unknown, key?: string) {
+      return run('addTicketComment', key, [id, comment, scope]) as { ok: boolean }
+    },
+    async uploadTicketAttachment(id: string, file: unknown, scope?: unknown, key?: string) {
+      return run('uploadTicketAttachment', key, [id, file, scope])
+    },
+    async updateTicketStatus(id: string, input: unknown, scope?: unknown) {
+      return run('updateTicketStatus', undefined, [id, input, scope])
+    },
+    async updateInspectionRunItem(runId: string, itemId: string, input: unknown) {
+      return run('updateInspectionRunItem', undefined, [runId, itemId, input])
+    },
+    async uploadInspectionRunItemAttachment(runId: string, itemId: string, file: unknown, key?: string) {
+      return run('uploadInspectionRunItemAttachment', key, [runId, itemId, file])
+    },
+    async createTicketFromInspectionItem(runId: string, itemId: string, input: unknown, key?: string) {
+      return run('createTicketFromInspectionItem', key, [runId, itemId, input]) as { ticket?: { id: string } }
+    },
+  }
+  return { calls, api: fake as unknown as TransportApi }
+}
+
+test('113D-1. транспорт передаёт ключ идемпотентности во все создающие операции', async () => {
+  const { calls, api } = makeFakeApi()
+  const transport = createHttpSyncTransport(api)
+  const { store } = makeStore()
+
+  const comment = await store.enqueue({ kind: 'ticket.comment', target: { ticketId: 'tk-1' }, payload: { comment: 'а' } })
+  const photo = await store.enqueue({
+    kind: 'ticket.attachment', target: { ticketId: 'tk-1' }, payload: {}, blob: new Blob(['x']),
+  })
+  const checkpointPhoto = await store.enqueue({
+    kind: 'checkpoint.attachment', target: { roundId: 'r-1', checkpointId: 'c-1' }, payload: {}, blob: new Blob(['x']),
+  })
+  const fromRound = await store.enqueue({
+    kind: 'ticket.fromRound',
+    target: { roundId: 'r-1', checkpointId: 'c-1', ticketId: `${LOCAL_ID_PREFIX}r-1:c-1` },
+    payload: { problemText: 'течь' },
+    producesTicketId: true,
+  })
+  assert.ok(comment.ok && photo.ok && checkpointPhoto.ok && fromRound.ok)
+
+  for (const created of [comment, photo, checkpointPhoto, fromRound]) {
+    if (!created.ok) throw new Error('строка не сохранилась')
+    const blob = created.item.blobId ? await store.getBlob(created.item.blobId) : null
+    const outcome = await transport.send(created.item, { blob })
+    assert.equal(outcome.kind, 'ok', `${created.item.kind} должна уйти успешно`)
+  }
+
+  assert.equal(calls.length, 4)
+  for (const call of calls) {
+    assert.ok(call.key, `${call.fn} обязана получить Idempotency-Key`)
+  }
+  // Ключи разных операций не совпадают: иначе сервер счёл бы их повтором одной.
+  assert.equal(new Set(calls.map((c) => c.key)).size, 4)
+})
+
+test('113D-2. обновление чек-поинта идёт без ключа: оно идемпотентно само по себе', async () => {
+  const { calls, api } = makeFakeApi()
+  const transport = createHttpSyncTransport(api)
+  const { store } = makeStore()
+
+  const created = await store.enqueue({
+    kind: 'checkpoint.update', target: { roundId: 'r-1', checkpointId: 'c-1' }, payload: { value: 'OK' },
+  })
+  if (!created.ok) throw new Error('строка не сохранилась')
+
+  assert.equal((await transport.send(created.item, { blob: null })).kind, 'ok')
+  assert.equal(calls[0].fn, 'updateInspectionRunItem')
+  assert.equal(calls[0].key, undefined)
+})
+
+test('113D-3. повтор после обрыва связи уходит с тем же ключом — дубля не будет', async () => {
+  let attempt = 0
+  const { calls, api } = makeFakeApi({
+    addTicketComment: () => {
+      attempt += 1
+      if (attempt === 1) throw new Error('Failed to fetch')
+      return { ok: true }
+    },
+  })
+  const { store } = makeStore()
+  const coordinator = new SyncCoordinator(store, createHttpSyncTransport(api), { useWebLocks: false })
+
+  await store.enqueue({ kind: 'ticket.comment', target: { ticketId: 'tk-1' }, payload: { comment: 'а' } })
+
+  const first = await coordinator.run()
+  assert.equal(first.failed, 1, 'обрыв связи — повторяемая неудача, не «требует внимания»')
+  assert.equal((await store.listQueue()).length, 1, 'работа остаётся на устройстве')
+
+  const second = await coordinator.run()
+  assert.equal(second.synced, 1)
+  assert.equal((await store.listQueue()).length, 0, 'подтверждённая работа уходит из очереди')
+
+  assert.equal(calls.length, 2)
+  assert.equal(calls[0].key, calls[1].key, 'ключ обязан пережить повтор')
+})
+
+test('113D-4. заявка из обхода отдаёт реальный id, и зависимые операции идут в неё', async () => {
+  const { calls, api } = makeFakeApi({
+    createTicketFromInspectionItem: () => ({ ticket: { id: 'tk-real' } }),
+  })
+  const { store } = makeStore()
+  const coordinator = new SyncCoordinator(store, createHttpSyncTransport(api), { useWebLocks: false })
+
+  const localId = `${LOCAL_ID_PREFIX}r-1:c-1`
+  await store.enqueue({
+    kind: 'ticket.fromRound',
+    target: { roundId: 'r-1', checkpointId: 'c-1', ticketId: localId },
+    payload: { problemText: 'течь' },
+    producesTicketId: true,
+  })
+  await store.enqueue({ kind: 'ticket.comment', target: { ticketId: localId }, payload: { comment: 'подробности' } })
+
+  const report = await coordinator.run()
+  assert.equal(report.synced, 2)
+
+  const commentCall = calls.find((c) => c.fn === 'addTicketComment')!
+  assert.equal(commentCall.args[0], 'tk-real', 'комментарий обязан уйти в настоящую заявку')
+  assert.ok(!isLocalId(String(commentCall.args[0])))
+})
+
+test('113D-5. ответы 113B разбираются по смыслу, а не по факту ошибки', async () => {
+  const cases: Array<[string, 'attention' | 'retry']> = [
+    ['IDEMPOTENCY_KEY_CONFLICT', 'attention'],
+    ['IDEMPOTENCY_RESULT_GONE', 'attention'],
+    ['IDEMPOTENCY_IN_PROGRESS', 'retry'],
+    ['HTTP 403', 'attention'],
+    ['HTTP 500', 'retry'],
+    ['Failed to fetch', 'retry'],
+  ]
+  for (const [message, expected] of cases) {
+    const { api } = makeFakeApi({ addTicketComment: () => { throw new Error(message) } })
+    const transport = createHttpSyncTransport(api)
+    const { store } = makeStore()
+    const created = await store.enqueue({ kind: 'ticket.comment', target: { ticketId: 'tk-1' }, payload: { comment: 'а' } })
+    if (!created.ok) throw new Error('строка не сохранилась')
+    const outcome = await transport.send(created.item, { blob: null })
+    assert.equal(outcome.kind, expected, `${message} → ${expected}`)
+  }
+})
+
+test('113D-6. пропавший снимок не выдаётся за отправленный', async () => {
+  const { calls, api } = makeFakeApi()
+  const transport = createHttpSyncTransport(api)
+  const { store } = makeStore()
+  const created = await store.enqueue({
+    kind: 'ticket.attachment', target: { ticketId: 'tk-1' }, payload: {}, blob: new Blob(['x']),
+  })
+  if (!created.ok) throw new Error('строка не сохранилась')
+
+  const outcome = await transport.send(created.item, { blob: null })
+  assert.equal(outcome.kind, 'attention')
+  assert.equal(calls.length, 0, 'пустой файл на сервер не уходит')
+})
+
+test('113D-7. экран очереди располагает подписью для каждого состояния', async () => {
+  const { store } = makeStore()
+  const pending = await store.enqueue({ kind: 'ticket.comment', target: { ticketId: 'tk-1' }, payload: { comment: 'а' } })
+  if (!pending.ok) throw new Error('строка не сохранилась')
+
+  const seen: string[] = []
+  for (const status of ['pending', 'syncing', 'failed', 'attention', 'synced'] as const) {
+    await store.setStatus(pending.item.id, status)
+    const item = (await store.listQueue()).find((i) => i.id === pending.item.id)
+      ?? { ...pending.item, status }
+    seen.push(OFFLINE_SYNC_LABEL[syncStateOf(item)])
+  }
+
+  assert.deepEqual(seen, [
+    'Ожидает отправки',
+    'Синхронизация',
+    'Ошибка отправки',
+    'Требует внимания',
+    'Синхронизировано',
+  ])
+  assert.equal(OFFLINE_SYNC_LABEL.savedLocally, 'Сохранено на устройстве')
+})
+
+test('113D-8. оболочка не подменяется страницей ошибки и регистрируется без push', async () => {
+  const { readFileSync } = await import('node:fs')
+  const sw = readFileSync(new URL('../../../public/sw.js', import.meta.url), 'utf8')
+  // Кэш оболочки обновляется только успешным ответом: иначе страница 502 от
+  // упавшего прокси осталась бы в кэше и после починки сервера.
+  assert.match(sw, /response\.ok/, 'в кэш идёт только успешный ответ')
+
+  // Пути от скомпилированного файла к исходникам: тест читает то, что поедет.
+  const appShell = readFileSync(new URL('../../../src/mobile/offline/appShell.ts', import.meta.url), 'utf8')
+  assert.match(appShell, /navigator\.serviceWorker\.register/, 'оболочка регистрирует SW сама')
+  assert.doesNotMatch(appShell, /Notification|pushManager/, 'регистрация не зависит от разрешения на уведомления')
+
+  const shell = readFileSync(new URL('../../../src/mobile/MobileShell.tsx', import.meta.url), 'utf8')
+  assert.match(shell, /registerAppShellServiceWorker\(\)/, 'мобильная оболочка вызывает регистрацию')
+})
+
+test('113D-9. экраны не пишут в прежнюю очередь на localStorage', async () => {
+  const { readFileSync, readdirSync } = await import('node:fs')
+  const dir = new URL('../../../src/mobile/', import.meta.url)
+  const screens = readdirSync(dir).filter((f) => f.endsWith('.tsx'))
+
+  // Две очереди одновременно — это потерянная работа: счётчики читают одну,
+  // отправка разбирает другую. Писать разрешено только в новый слой.
+  const legacyWriters = /enqueueOfflineAction|enqueueOfflineStatusChange|retryOfflineQueue|retrySingleQueueItem/
+  for (const file of screens) {
+    const source = readFileSync(new URL(file, dir), 'utf8')
+    assert.doesNotMatch(source, legacyWriters, `${file} обязан ставить работу через offline/runtime`)
+  }
+})
+
+test('113D-10. обход открывается из копии, неотправленные отметки видны поверх неё', async () => {
+  setOfflineDriverFactory(() => new MemoryDriver())
+  const opened = await openOfflineSession({ id: 'user-1', companyId: 'co-1' }, { legacyStorage: null })
+  const store = opened.store!
+  assert.ok(store)
+
+  await cacheRoundSnapshot({
+    id: 'run-1',
+    items: [
+      { id: 'c-1', status: 'PENDING' },
+      { id: 'c-2', status: 'PENDING' },
+    ],
+  })
+  await store.enqueue({
+    kind: 'checkpoint.update',
+    target: { roundId: 'run-1', checkpointId: 'c-1' },
+    payload: { status: 'ISSUE', comment: 'течь' },
+  })
+
+  const restored = await readRoundSnapshot<{ id: string; items: Array<{ id: string } & Record<string, unknown>> }>('run-1')
+  assert.ok(restored, 'обход обязан открыться без сети')
+  const first = restored.items.find((i) => i.id === 'c-1')!
+  // Отметка лежит в очереди — экран обязан показать её, иначе техник
+  // отметит чек-поинт второй раз.
+  assert.equal(first.status, 'ISSUE')
+  assert.equal(first.comment, 'течь')
+  assert.equal(first.offlinePending, true)
+  assert.equal(restored.items.find((i) => i.id === 'c-2')!.status, 'PENDING')
+
+  await wipeOfflineSession({ id: 'user-1', companyId: 'co-1' })
+  setOfflineDriverFactory(null)
+})
+
+test('113D-11. повторное создание заявки из чек-поинта не плодит вторую', async () => {
+  setOfflineDriverFactory(() => new MemoryDriver())
+  const opened = await openOfflineSession({ id: 'user-1', companyId: 'co-1' }, { legacyStorage: null })
+  const store = opened.store!
+
+  const target = { roundId: 'run-1', checkpointId: 'c-1', ticketId: `${LOCAL_ID_PREFIX}run-1:c-1` }
+  const first = await store.enqueue({ kind: 'ticket.fromRound', target, payload: { categoryId: 'cat-1' }, producesTicketId: true })
+  const second = await store.enqueue({ kind: 'ticket.fromRound', target, payload: { categoryId: 'cat-1', title: 'уточнение' }, producesTicketId: true })
+  assert.ok(first.ok && second.ok)
+
+  const queue = (await store.listQueue()).filter((i) => i.kind === 'ticket.fromRound')
+  assert.equal(queue.length, 1, 'две заявки по одному чек-поинту не ставятся в очередь')
+  assert.equal(queue[0].idempotencyKey, first.ok ? first.item.idempotencyKey : '', 'ключ не пересоздаётся')
+  assert.equal((queue[0].payload as { title?: string }).title, 'уточнение', 'побеждает последнее описание')
+
+  // Экран обхода узнаёт об отложенной заявке и прячет кнопку.
+  const pending = await readPendingRoundTicketItemIds('run-1')
+  assert.ok(pending.has('c-1'))
+
+  await wipeOfflineSession({ id: 'user-1', companyId: 'co-1' })
   setOfflineDriverFactory(null)
 })

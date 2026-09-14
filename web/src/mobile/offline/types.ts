@@ -101,7 +101,12 @@ export const OFFLINE_OPERATIONS: Record<OfflineOperationKind, OfflineOperationSp
     title: 'Заявка из обхода',
     requiresIdempotencyKey: true,
     autoRetry: true,
-    collapseByTarget: false,
+    // 113D: схлопывание по цели. Чек-поинт порождает одну заявку, а без сети
+    // техник легко нажмёт «создать» дважды — экран ведь не может показать
+    // ему созданную заявку. Схлопывание оставляет одну строку с прежним
+    // ключом идемпотентности, так что второе нажатие уточняет описание,
+    // а не заводит вторую заявку.
+    collapseByTarget: true,
   },
 }
 

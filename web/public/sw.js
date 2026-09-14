@@ -1,6 +1,7 @@
 // Сервис Менеджер — Push Service Worker
-// Зона: mobile-поток (frontend). Не трогает offline-очередь заявок — это отдельный
-// механизм в src/mobile/offlineQueue.ts, работающий на уровне приложения, не SW.
+// Зона: mobile-поток (frontend). Очередь отложенной работы здесь не живёт —
+// она в IndexedDB (src/mobile/offline/*), на уровне приложения. SW отвечает
+// только за push и за оболочку, которую видно без связи.
 //
 // Что делает этот файл:
 //  1. push          — показывает системное уведомление (или ждёт подписки заново, если payload пуст)
@@ -228,8 +229,12 @@ self.addEventListener('fetch', (event) => {
     fetch(request)
       .then((response) => {
         // Свежую оболочку сохраняем, чтобы в следующий раз было что показать.
-        const copy = response.clone()
-        caches.open(APP_SHELL_CACHE).then((cache) => cache.put(APP_SHELL_URL, copy)).catch(() => undefined)
+        // Только успешный ответ: страницей 502 от упавшего прокси кэш затирать
+        // нельзя — она осталась бы там и после починки сервера.
+        if (response && response.ok && response.type === 'basic') {
+          const copy = response.clone()
+          caches.open(APP_SHELL_CACHE).then((cache) => cache.put(APP_SHELL_URL, copy)).catch(() => undefined)
+        }
         return response
       })
       .catch(async () => {

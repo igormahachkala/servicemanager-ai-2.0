@@ -23,14 +23,13 @@ import {
   type MobileHomeBoardChipId,
 } from './mobileHomeBoardFilters'
 import {
-  enqueueOfflineComment,
-  enqueueOfflineStatusChange,
   getOnlineStatus,
   loadAnyTicketDetailCache,
   loadTicketDetailCache,
   saveTicketDetailCache,
-  useOnlineStatus,
 } from './offlineQueue'
+import { queueOffline, useOfflineStatus } from './offline/useOffline'
+import { listOfflineQueue } from './offline/runtime'
 import { formatMobileMutationError } from './mobileActionErrors'
 import { mobilePath } from './mobileRoute'
 import {
@@ -369,7 +368,9 @@ export function MobileTicketPage() {
     api.persistScopeFromSearchParams(searchParams, meQ.data)
   }, [searchParams, meQ.data])
 
-  const isOnline = useOnlineStatus()
+  // Один источник состояния связи на приложение — офлайн-слой.
+  const offline = useOfflineStatus()
+  const isOnline = offline.online
 
   const ticketQ = useQuery({
     enabled: !!ticketId,
@@ -640,6 +641,36 @@ export function MobileTicketPage() {
 
   type OfflinePendingComment = { queueId: string; text: string; at: string }
   const [offlinePendingComments, setOfflinePendingComments] = useState<OfflinePendingComment[]>([])
+  /** Снимки этой заявки, сохранённые на устройстве и ещё не отправленные. */
+  const [offlinePendingPhotos, setOfflinePendingPhotos] = useState(0)
+
+  /**
+   * Неотправленное восстанавливается из очереди, а не живёт в состоянии
+   * экрана. Иначе после перезагрузки без сети техник не увидит собственный
+   * комментарий, а после синхронизации увидит его дважды: один раз с сервера
+   * и один раз из памяти вкладки.
+   */
+  useEffect(() => {
+    if (!ticketId) return
+    let alive = true
+    void listOfflineQueue().then((queue) => {
+      if (!alive) return
+      const mine = queue.filter((i) => i.target.ticketId === ticketId && i.status !== 'synced')
+      setOfflinePendingComments(
+        mine
+          .filter((i) => i.kind === 'ticket.comment')
+          .map((i) => ({
+            queueId: i.id,
+            text: String((i.payload as { comment?: string }).comment ?? ''),
+            at: i.createdAt,
+          })),
+      )
+      setOfflinePendingPhotos(mine.filter((i) => i.kind === 'ticket.attachment').length)
+    })
+    return () => {
+      alive = false
+    }
+  }, [ticketId, offline.pending, offline.attention, offline.ready])
   const [offlineQueuedNotice, setOfflineQueuedNotice] = useState('')
   const timelineFirstMountRef = useRef(true)
 
@@ -806,8 +837,36 @@ export function MobileTicketPage() {
       setTicketAddPhotoError('Недостаточно прав для загрузки')
       return
     }
+    // SMA-MOBILE-OFFLINE-INTEGRATION-113D: в офлайне снимок больше не
+    // отклоняется. Blob ложится в IndexedDB и уходит на сервер при связи
+    // с тем же ключом идемпотентности, поэтому повтор не создаёт дубля.
     if (!isOnline) {
-      setTicketAddPhotoError('Нужно подключение к сети, чтобы загрузить фото или видео')
+      setTicketAddPhotoError(null)
+      setTicketAddPhotoProgress({ current: 0, total: files.length })
+      let saved = 0
+      let failure = ''
+      for (let i = 0; i < files.length; i++) {
+        setTicketAddPhotoProgress({ current: i + 1, total: files.length })
+        const queued = await queueOffline({
+          kind: 'ticket.attachment',
+          target: { ticketId },
+          payload: { scope: ticketResourceScope },
+          blob: files[i],
+        })
+        if (queued.ok) saved += 1
+        // Отказ хранилища не выдаём за успех: техник должен знать, что
+        // снимок не сохранён, и сделать его заново.
+        else failure = queued.message
+      }
+      setTicketAddPhotoProgress(null)
+      clearTicketAddPhotoInputs()
+      setTicketAddPhotoError(
+        failure
+          ? `Не удалось сохранить на устройстве: ${failure}`
+          : saved > 0
+            ? `Сохранено на устройстве: ${saved}. Отправим, когда появится сеть.`
+            : '',
+      )
       return
     }
     setTicketAddPhotoError(null)
@@ -1219,9 +1278,22 @@ export function MobileTicketPage() {
     if (!trimmed || chatSending) return
 
     if (!isOnline) {
-      const queued = enqueueOfflineComment({ ticketId, scope: ticketResourceScope, comment: trimmed })
+      // Ключ идемпотентности создаётся здесь, при постановке в очередь, и
+      // переживает перезагрузку: повтор после обрыва не продублирует запись.
+      const queued = await queueOffline({
+        kind: 'ticket.comment',
+        target: { ticketId },
+        payload: { comment: trimmed, scope: ticketResourceScope },
+      })
+      if (!queued.ok) {
+        setChatSendError(`Не удалось сохранить на устройстве: ${queued.message}`)
+        return
+      }
       setChatText('')
-      setOfflinePendingComments((prev) => [...prev, { queueId: queued.id, text: trimmed, at: queued.createdAt }])
+      setOfflinePendingComments((prev) => [
+        ...prev,
+        { queueId: queued.item.id, text: trimmed, at: queued.item.createdAt },
+      ])
       return
     }
 
@@ -1238,11 +1310,28 @@ export function MobileTicketPage() {
     }
   }
 
-  function handleTechActionWithOfflineSupport(mode: 'claim' | 'start') {
+  /**
+   * «Взять в работу» без сети. Начало работы откладывается: техник уже стоит
+   * у оборудования, и запрещать ему стартовать из-за связи бессмысленно.
+   * «Принять заявку» отложить нельзя — её может забрать другой техник, и
+   * подтвердить это способен только сервер.
+   *
+   * Сообщение об успехе печатается лишь после подтверждения записи: 113D
+   * запрещает выдавать несохранённое за сохранённое.
+   */
+  async function handleTechActionWithOfflineSupport(mode: 'claim' | 'start') {
     if (!getOnlineStatus()) {
       if (mode === 'start' && ticket) {
-        enqueueOfflineStatusChange({ ticketId: ticket.id, scope: ticketResourceScope, status: 'IN_PROGRESS' })
-        setOfflineQueuedNotice('Действие сохранено и будет отправлено после восстановления сети.')
+        const queued = await queueOffline({
+          kind: 'ticket.status',
+          target: { ticketId: ticket.id },
+          payload: { status: 'IN_PROGRESS', scope: ticketResourceScope },
+        })
+        if (queued.ok) {
+          setOfflineQueuedNotice('Сохранено на устройстве. Будет отправлено после восстановления сети.')
+        } else {
+          setTechActionErr(queued.message)
+        }
         return
       }
       setTechActionErr('Нет соединения. Действие требует подключения к сети.')
@@ -1825,6 +1914,13 @@ export function MobileTicketPage() {
                     </div>
                   ) : null}
                   {ticketAddPhotoError ? <div className="mobileNotice mobileNoticeError" style={{ marginTop: 10 }}>{ticketAddPhotoError}</div> : null}
+                  {/* Снимки в очереди не показываются в галерее: их ещё нет на
+                      сервере. Но техник должен видеть, что они не потеряны. */}
+                  {offlinePendingPhotos > 0 ? (
+                    <div className="mobileMeta" style={{ marginTop: 10 }}>
+                      Сохранено на устройстве, ожидает отправки: {offlinePendingPhotos}
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
               {attachmentsQ.isLoading ? <div className="mobileMeta">Загрузка вложений…</div> : null}

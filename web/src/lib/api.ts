@@ -3155,10 +3155,26 @@ export async function decideTicketAcceptance(id: string, input: TicketAcceptance
   })
 }
 
-export async function addTicketComment(id: string, comment: string, scope?: string | TicketScopeParams): Promise<{ ok: boolean }> {
+/**
+ * SMA-MOBILE-OFFLINE-INTEGRATION-113D.
+ *
+ * Необязательный ключ идемпотентности. Онлайн-вызов его не передаёт и ведёт
+ * себя как раньше; отложенная операция приносит ключ из очереди, и повтор
+ * после обрыва не создаёт дубль (контракт 113B).
+ *
+ * Ключ здесь только передаётся. Создаётся он один раз при постановке в
+ * очередь и больше не меняется — см. offline/store.ts.
+ */
+export async function addTicketComment(
+  id: string,
+  comment: string,
+  scope?: string | TicketScopeParams,
+  idempotencyKey?: string,
+): Promise<{ ok: boolean }> {
   return request<{ ok: boolean }>(`/tickets/${id}/comments${buildTicketScopeSuffix(scope)}`, {
     method: 'POST',
     body: { comment },
+    headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
   })
 }
 
@@ -3166,14 +3182,26 @@ export async function ticketAttachments(id: string, scope?: string | TicketScope
   return request<TicketAttachmentItem[]>(`/tickets/${id}/attachments${buildTicketScopeSuffix(scope)}`)
 }
 
-export async function uploadTicketAttachment(id: string, file: File, scope?: string | TicketScopeParams): Promise<any> {
+export async function uploadTicketAttachment(
+  id: string,
+  file: File | Blob,
+  scope?: string | TicketScopeParams,
+  idempotencyKey?: string,
+): Promise<any> {
   const token = getToken()
   const formData = new FormData()
-  formData.append('file', file)
+  // Blob из офлайн-хранилища приходит без имени — multipart требует имени файла.
+  formData.append('file', file, (file as File).name || 'photo.jpg')
 
+  // Multipart идёт мимо request(): Content-Type должен проставить браузер
+  // вместе с boundary. Поэтому заголовки собираются здесь вручную, и ключ
+  // идемпотентности легко потерять — он добавлен явно.
   const res = await fetch(`${getBaseUrl()}/tickets/${id}/attachments${buildTicketScopeSuffix(scope)}`, {
     method: 'POST',
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
+    },
     body: formData,
   })
 
@@ -3886,15 +3914,21 @@ export async function updateInspectionRunItem(
 export async function uploadInspectionRunItemAttachment(
   runId: string,
   itemId: string,
-  file: File,
+  file: File | Blob,
+  idempotencyKey?: string,
 ): Promise<InspectionRunItemAttachment> {
   const token = getToken()
   const formData = new FormData()
-  formData.append('file', file)
+  formData.append('file', file, (file as File).name || 'photo.jpg')
 
+  // Тот же случай, что и с вложением заявки: multipart собирается руками,
+  // и ключ идемпотентности надо передать явно.
   const res = await fetch(`${getBaseUrl()}/inspection/runs/${runId}/items/${itemId}/attachments`, {
     method: 'POST',
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
+    },
     body: formData,
   })
 
@@ -3926,6 +3960,7 @@ export async function createTicketFromInspectionItem(
   runId: string,
   itemId: string,
   input: CreateTicketFromInspectionItemInput,
+  idempotencyKey?: string,
 ): Promise<{
   item: InspectionRunItem
   ticket: CreateTicketResponse['ticket'] & { status?: TicketStatus; urgency?: TicketUrgency; createdAt?: string }
@@ -3935,6 +3970,7 @@ export async function createTicketFromInspectionItem(
   return request(`/inspection/runs/${runId}/items/${itemId}/create-ticket`, {
     method: 'POST',
     body: input,
+    headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
   })
 }
 
