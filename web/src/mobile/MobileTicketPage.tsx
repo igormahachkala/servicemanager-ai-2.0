@@ -922,7 +922,9 @@ export function MobileTicketPage() {
 
   useEffect(() => {
     if (timelineFirstMountRef.current) { timelineFirstMountRef.current = false; return }
-    if (isOnline) setOfflinePendingComments([])
+    // Список неотправленного ведёт очередь, а не этот обработчик: чистить
+    // его по обновлению ленты значило бы стереть с экрана работу, которая
+    // ещё лежит на устройстве. Очередь перечитывается эффектом выше.
   }, [timelineQ.dataUpdatedAt])
 
   const techActionM = useMutation({
@@ -1843,12 +1845,20 @@ export function MobileTicketPage() {
           {/* ── Photos tab ───────────────────────────────────── */}
           {detailTab === 'photos' ? (
             <div className="mobileCard">
+              {/*
+                SMA-MOBILE-OFFLINE-INTEGRATION-113D: снимок без сети разрешён.
+                Раньше здесь стоял запрет, и техник, стоящий у оборудования
+                без связи, просто не мог сфотографировать неисправность —
+                а вернувшись в зону покрытия, уже не имел что показать.
+                Blob ложится в IndexedDB и уходит с тем же ключом
+                идемпотентности, поэтому повтор не создаёт второго вложения.
+              */}
               {canUploadTicketPhotos && !isOnline ? (
                 <div className="mobileMeta" style={{ marginBottom: 10 }}>
-                  Офлайн: загрузка фото недоступна. Подключитесь к сети, чтобы добавить снимки.
+                  Нет сети: снимок сохранится на устройстве и уйдёт после восстановления связи.
                 </div>
               ) : null}
-              {canUploadTicketPhotos && isOnline ? (
+              {canUploadTicketPhotos ? (
                 <div className="mobileTicketAddPhotos">
                   <div className="mobileSectionTitle" style={{ marginBottom: 8 }}>
                     Добавить фото или видео
@@ -2111,7 +2121,8 @@ export function MobileTicketPage() {
               ) : null}
               {canSendComment ? (
                 <div className="mobileTicketChatComposer">
-                  {canUploadTicketPhotos && isOnline ? (
+                  {/* Без сети снимок тоже допустим: он уходит в очередь. */}
+                  {canUploadTicketPhotos ? (
                     <>
                       <input
                         ref={chatCameraRef}

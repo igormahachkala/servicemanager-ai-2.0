@@ -955,3 +955,22 @@ test('113D-15. выход стирает открытую базу, даже е�
   assert.equal((await store.listQueue()).length, 0, 'данные стёрты, а не просто забыты')
   setOfflineDriverFactory(null)
 })
+
+test('113D-16. снимок заявки не запрещён отсутствием сети', async () => {
+  const { readFileSync } = await import('node:fs')
+  const page = readFileSync(new URL('../../../src/mobile/MobileTicketPage.tsx', import.meta.url), 'utf8')
+
+  /*
+   * Поля выбора файла нельзя прятать за `isOnline`. Очередь умеет принять
+   * снимок без сети, но техник до неё не доберётся: у него просто нет кнопки.
+   * Он стоит у неисправного оборудования в подвале — именно там снимок и
+   * нужен, а вернувшись в зону покрытия, показывать уже нечего.
+   * Найдено живой приёмкой на Stage.
+   */
+  assert.doesNotMatch(
+    page,
+    /canUploadTicketPhotos && isOnline/,
+    'выбор файла не должен зависеть от наличия сети',
+  )
+  assert.match(page, /kind: 'ticket\.attachment'/, 'снимок ставится в очередь')
+})
