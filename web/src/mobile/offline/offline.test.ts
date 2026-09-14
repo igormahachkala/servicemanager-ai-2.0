@@ -869,3 +869,19 @@ test('113D-11. повторное создание заявки из чек-по
   await wipeOfflineSession({ id: 'user-1', companyId: 'co-1' })
   setOfflineDriverFactory(null)
 })
+
+test('113D-12. выход уносит и прежние кэши на localStorage', async () => {
+  const { readFileSync } = await import('node:fs')
+  const legacy = readFileSync(new URL('../../../src/mobile/offlineQueue.ts', import.meta.url), 'utf8')
+  const profile = readFileSync(new URL('../../../src/mobile/MobileProfile.tsx', import.meta.url), 'utf8')
+
+  // Доска и карточки заявок лежат там без разделения по пользователю:
+  // на общем планшете следующий техник не должен увидеть чужие заявки.
+  assert.match(legacy, /export function clearLegacyOfflineCaches/)
+  for (const key of ['sm_mobile_offline_queue_v1', 'sm_mobile_board_cache_v1', 'sm_mobile_ticket_cache_v1']) {
+    assert.ok(legacy.includes(key), `ключ ${key} обязан быть известен очистке`)
+  }
+  assert.match(profile, /clearLegacyOfflineCaches\(\)/, 'выход вызывает очистку')
+  assert.match(profile, /wipeOfflineOnLogout\(/, 'выход стирает базу текущего пользователя')
+  assert.match(profile, /hasUnsentWork\(\)/, 'о несинхронизированной работе предупреждают до удаления')
+})
