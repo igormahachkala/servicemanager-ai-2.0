@@ -2,6 +2,8 @@ import {
   Body,
   Controller,
   Get,
+  Param,
+  Patch,
   Post,
   Query,
   Req,
@@ -18,7 +20,7 @@ import { RequirePermission } from '../common/permissions.decorator';
 import { PERMISSIONS } from '../common/permissions.constants';
 
 import { EquipmentPartsService } from './equipment-parts.service';
-import { CreatePartDefinitionDto } from './dto/parts.dto';
+import { CreatePartDefinitionDto, UpdatePartDefinitionDto } from './dto/parts.dto';
 
 /**
  * SMA-EQUIPMENT-HISTORY-PARTS-110B.
@@ -47,12 +49,13 @@ export class PartDefinitionsController {
     @Req() req: any,
     @Query('companyId') companyId?: string,
     @Query('search') search?: string,
+    @Query('includeInactive') includeInactive?: string,
   ) {
     return this.parts.listDefinitions(
       req.user.companyId,
       req.user.id,
       req.user.role as UserRole,
-      { companyId, search },
+      { companyId, search, includeInactive: includeInactive === 'true' },
     );
   }
 
@@ -64,6 +67,24 @@ export class PartDefinitionsController {
       req.user.companyId,
       req.user.id,
       req.user.role as UserRole,
+      dto,
+    );
+  }
+
+  /**
+   * SMA-EQUIPMENT-PARTS-POLISH-110C.
+   * Правка позиции и вывод из обращения (isActive=false). Жёсткого удаления
+   * нет: на позицию ссылаются исторические строки.
+   */
+  @Patch(':id')
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER)
+  @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
+  update(@Req() req: any, @Param('id') id: string, @Body() dto: UpdatePartDefinitionDto) {
+    return this.parts.updateDefinition(
+      req.user.companyId,
+      req.user.id,
+      req.user.role as UserRole,
+      id,
       dto,
     );
   }

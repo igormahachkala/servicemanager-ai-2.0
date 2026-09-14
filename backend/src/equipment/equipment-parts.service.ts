@@ -114,7 +114,7 @@ export class EquipmentPartsService {
     actorCompanyId: string,
     actorUserId: string,
     actorRole: UserRole,
-    params: { companyId?: string; search?: string } = {},
+    params: { companyId?: string; search?: string; includeInactive?: boolean } = {},
   ) {
     const companyId = await this.equipmentService.resolveReadableCompanyId(
       actorCompanyId,
@@ -125,7 +125,10 @@ export class EquipmentPartsService {
     return this.prisma.partDefinition.findMany({
       where: {
         companyId,
-        isActive: true,
+        // По умолчанию только действующие: выбирать для установки можно
+        // лишь их. Выведенные из обращения нужны экрану управления каталогом
+        // и истории — за ними приходят с includeInactive.
+        ...(params.includeInactive ? {} : { isActive: true }),
         ...(search
           ? {
               OR: [
@@ -137,7 +140,7 @@ export class EquipmentPartsService {
             }
           : {}),
       },
-      orderBy: [{ name: 'asc' }],
+      orderBy: [{ isActive: 'desc' }, { name: 'asc' }],
       take: 200,
     });
   }
@@ -324,6 +327,256 @@ export class EquipmentPartsService {
     });
   }
 
+  /**
+   * SMA-EQUIPMENT-PARTS-POLISH-110C.
+   *
+   * Снятие без замены. Деталь вышла из строя, новая приедет завтра —
+   * до 110C такое состояние выразить было нечем: замена требовала сразу
+   * поставить что-то взамен.
+   *
+   * Новой строки не создаётся. Старая остаётся в истории навсегда, а из
+   * «установлено сейчас» уходит, потому что список определяется removedAt.
+   *
+   * Заявка необязательна: снять деталь могут и административно, при выводе
+   * оборудования из эксплуатации. Придумывать под это заявку нельзя — то же
+   * правило, что и у первичной комплектации.
+   */
+  async removePart(
+    actorCompanyId: string,
+    actorUserId: string,
+    actorRole: UserRole,
+    equipmentId: string,
+    partId: string,
+    dto: { ticketId?: string; removedAt?: string; removalComment?: string },
+  ) {
+    const equipment = await this.equipmentService.assertWritableEquipment(
+      actorCompanyId,
+      actorUserId,
+      actorRole,
+      equipmentId,
+    );
+
+    const existing = await this.findOwnPart(equipment, partId);
+    if (existing.removedAt) {
+      throw new BadRequestException('Эта комплектующая уже снята');
+    }
+
+    const ticketId = (dto.ticketId || '').trim();
+    if (ticketId) {
+      await this.assertTicketBelongsToEquipment(equipment, ticketId);
+    }
+
+    const updated = await this.prisma.installedPart.update({
+      where: { id: existing.id },
+      data: {
+        removedAt: this.parseMoment(dto.removedAt),
+        removedTicketId: ticketId || null,
+        removedByUserId: actorUserId,
+        removalComment: optionalText(dto.removalComment) ?? null,
+      },
+      select: PART_SELECT,
+    });
+    return toPartView(updated);
+  }
+
+  /**
+   * SMA-EQUIPMENT-PARTS-POLISH-110C.
+   *
+   * Правка административных полей: опечатка в серийном номере, неверное
+   * количество, комментарий, привязка к каталогу.
+   *
+   * Историю правка не трогает намеренно. installedAt, removedAt, обе заявки
+   * и оба исполнителя здесь недоступны: это следы произошедшего, и тихо
+   * переписать их значит потерять то, ради чего история и ведётся. DTO их
+   * не принимает; порядок исправления таких полей описан в отчёте задачи,
+   * отдельной аудируемой операцией.
+   *
+   * Сама правка пишется в DomainEvent — канонический журнал системы. Новой
+   * таблицы аудита не заводится.
+   */
+  async correctPart(
+    actorCompanyId: string,
+    actorUserId: string,
+    actorRole: UserRole,
+    equipmentId: string,
+    partId: string,
+    dto: {
+      serialNumber?: string;
+      quantity?: unknown;
+      comment?: string;
+      removalComment?: string;
+      partDefinitionId?: string | null;
+    },
+  ) {
+    const equipment = await this.equipmentService.assertWritableEquipment(
+      actorCompanyId,
+      actorUserId,
+      actorRole,
+      equipmentId,
+    );
+    const existing = await this.findOwnPart(equipment, partId);
+
+    const data: Prisma.InstalledPartUncheckedUpdateInput = {};
+    if (dto.serialNumber !== undefined) data.serialNumber = optionalText(dto.serialNumber, 200) ?? null;
+    if (dto.comment !== undefined) data.comment = optionalText(dto.comment) ?? null;
+    if (dto.removalComment !== undefined) data.removalComment = optionalText(dto.removalComment) ?? null;
+    if (dto.quantity !== undefined) data.quantity = parseQuantity(dto.quantity);
+
+    if (dto.partDefinitionId !== undefined) {
+      const requested = (dto.partDefinitionId || '').trim();
+      if (!requested) {
+        data.partDefinitionId = null;
+      } else {
+        const row = await this.prisma.partDefinition.findFirst({
+          where: { id: requested, companyId: equipment.companyId },
+          select: { id: true, isActive: true },
+        });
+        if (!row) throw new NotFoundException('Part definition not found');
+        if (!row.isActive) {
+          throw new BadRequestException('Позиция каталога выведена из обращения');
+        }
+        data.partDefinitionId = row.id;
+      }
+    }
+
+    if (Object.keys(data).length === 0) {
+      throw new BadRequestException('Не передано ни одного поля для исправления');
+    }
+
+    const updated = await this.prisma.installedPart.update({
+      where: { id: existing.id },
+      data,
+      select: PART_SELECT,
+    });
+
+    await this.prisma.domainEvent.create({
+      data: {
+        companyId: equipment.companyId,
+        entityType: 'InstalledPart',
+        entityId: existing.id,
+        type: 'equipment.part_corrected',
+        actorUserId: actorUserId,
+        payload: {
+          equipmentId: equipment.id,
+          fields: Object.keys(data),
+          before: {
+            serialNumber: existing.serialNumber,
+            quantity: String(existing.quantity),
+            comment: existing.comment,
+            removalComment: existing.removalComment,
+            partDefinitionId: existing.partDefinitionId,
+          },
+        },
+      },
+    });
+
+    return toPartView(updated);
+  }
+
+  /**
+   * SMA-EQUIPMENT-PARTS-POLISH-110C.
+   * Правка позиции каталога и вывод её из обращения. Жёсткого удаления нет:
+   * на позицию ссылаются исторические строки, и удаление обрубило бы им связь.
+   */
+  async updateDefinition(
+    actorCompanyId: string,
+    actorUserId: string,
+    actorRole: UserRole,
+    definitionId: string,
+    dto: {
+      name?: string;
+      manufacturer?: string;
+      model?: string;
+      article?: string;
+      unit?: string;
+      isActive?: boolean;
+    },
+  ) {
+    const scopeCompanyId = await this.equipmentService.resolveReadableCompanyId(
+      actorCompanyId,
+      actorRole,
+      undefined,
+    );
+    const existing = await this.prisma.partDefinition.findFirst({
+      where: { id: definitionId },
+      select: { id: true, companyId: true },
+    });
+    if (!existing) throw new NotFoundException('Part definition not found');
+
+    // Право на правку каталога — то же, что и на запись в оборудование
+    // клиента: проверяется по любой его площадке, отдельного правила нет.
+    await this.assertCanManageCatalogue(actorCompanyId, actorUserId, actorRole, existing.companyId, scopeCompanyId);
+
+    const data: Prisma.PartDefinitionUncheckedUpdateInput = {};
+    if (dto.name !== undefined) data.name = requiredText(dto.name, 'Название');
+    if (dto.manufacturer !== undefined) data.manufacturer = optionalText(dto.manufacturer, 200) ?? null;
+    if (dto.model !== undefined) data.model = optionalText(dto.model, 200) ?? null;
+    if (dto.article !== undefined) data.article = optionalText(dto.article, 200) ?? null;
+    if (dto.unit !== undefined) data.unit = (dto.unit || '').trim().slice(0, 20) || 'шт';
+    if (dto.isActive !== undefined) data.isActive = Boolean(dto.isActive);
+
+    if (Object.keys(data).length === 0) {
+      throw new BadRequestException('Не передано ни одного поля');
+    }
+
+    return this.prisma.partDefinition.update({ where: { id: existing.id }, data });
+  }
+
+  /**
+   * Каталог принадлежит клиентской компании. Право на управление им сводится
+   * к праву записи в оборудование этого клиента: своя матрица не заводится.
+   */
+  private async assertCanManageCatalogue(
+    actorCompanyId: string,
+    actorUserId: string,
+    actorRole: UserRole,
+    ownerCompanyId: string,
+    scopeCompanyId: string,
+  ) {
+    if (actorCompanyId === ownerCompanyId) return;
+
+    const location = await this.prisma.location.findFirst({
+      where: { clientCompanyId: ownerCompanyId, isActive: true },
+      select: { id: true },
+    });
+    if (!location) {
+      throw new NotFoundException('Part definition not found');
+    }
+    await this.equipmentService.assertWritableLocation({
+      actorCompanyId,
+      actorUserId,
+      actorRole,
+      locationId: location.id,
+    });
+  }
+
+  private async findOwnPart(equipment: { id: string; companyId: string }, partId: string) {
+    const row = await this.prisma.installedPart.findFirst({
+      where: { id: partId, equipmentId: equipment.id, companyId: equipment.companyId },
+      select: {
+        id: true, removedAt: true, displayName: true, partDefinitionId: true,
+        serialNumber: true, quantity: true, comment: true, removalComment: true,
+      },
+    });
+    if (!row) {
+      throw new NotFoundException('Installed part not found');
+    }
+    return row;
+  }
+
+  private async assertTicketBelongsToEquipment(
+    equipment: { id: string; companyId: string },
+    ticketId: string,
+  ) {
+    const ticket = await this.prisma.ticket.findFirst({
+      where: { id: ticketId, companyId: equipment.companyId, equipmentId: equipment.id },
+      select: { id: true },
+    });
+    if (!ticket) {
+      throw new BadRequestException('Заявка не относится к этой единице оборудования');
+    }
+  }
+
   // ── внутреннее ──────────────────────────────────────────────────────────
 
   private parseMoment(value?: string): Date {
@@ -353,15 +606,22 @@ export class EquipmentPartsService {
     let definition: { id: string; name: string } | null = null;
     const definitionId = (dto.partDefinitionId || '').trim();
     if (definitionId) {
-      definition = await this.prisma.partDefinition.findFirst({
+      const row = await this.prisma.partDefinition.findFirst({
         // Каталог чужого контура недоступен: позиция обязана принадлежать
         // той же клиентской компании, что и оборудование.
         where: { id: definitionId, companyId: equipment.companyId },
-        select: { id: true, name: true },
+        select: { id: true, name: true, isActive: true },
       });
-      if (!definition) {
+      if (!row) {
         throw new NotFoundException('Part definition not found');
       }
+      // SMA-EQUIPMENT-PARTS-POLISH-110C: выведенную из обращения позицию
+      // нельзя поставить заново. В истории она остаётся — там ссылка уже есть,
+      // и запрет на выбор её не трогает.
+      if (!row.isActive) {
+        throw new BadRequestException('Позиция каталога выведена из обращения и недоступна для установки');
+      }
+      definition = { id: row.id, name: row.name };
     }
 
     // Имя хранится в строке всегда, даже когда есть справочник: переименование
