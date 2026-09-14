@@ -885,3 +885,40 @@ test('113D-12. выход уносит и прежние кэши на localStor
   assert.match(profile, /wipeOfflineOnLogout\(/, 'выход стирает базу текущего пользователя')
   assert.match(profile, /hasUnsentWork\(\)/, 'о несинхронизированной работе предупреждают до удаления')
 })
+
+test('113D-13. мутации с офлайн-веткой не ставятся на паузу react-query', async () => {
+  const { readFileSync, readdirSync } = await import('node:fs')
+  const dir = new URL('../../../src/mobile/', import.meta.url)
+
+  /*
+   * react-query по умолчанию (networkMode: 'online') не вызывает mutationFn,
+   * пока браузер считает себя офлайн: мутация ждёт связи. Для обычной мутации
+   * это верно, но для той, что сама сохраняет работу на устройство, — гибельно:
+   * офлайн-ветка внутри неё становится мёртвым кодом, отметка техника не
+   * попадает ни на сервер, ни в очередь, а экран навсегда остаётся в
+   * «Сохраняем…». Найдено живой приёмкой на Stage, не тестами.
+   */
+  const files = readdirSync(dir).filter((f) => f.endsWith('.tsx'))
+  const offenders: string[] = []
+
+  for (const file of files) {
+    const source = readFileSync(new URL(file, dir), 'utf8')
+    // Каждый блок useMutation({...}) до его mutationFn.
+    for (const match of source.matchAll(/useMutation\(\{([\s\S]{0,4000}?)\n  \}\)/g)) {
+      const block = match[1]
+      const handlesOffline = /!offline\.online|!isOnline|!getOnlineStatus\(\)|queueOffline\(|syncNow\(/.test(block)
+      // Якорь на начало строки: иначе упоминание в комментарии внутри блока
+      // сошло бы за объявление, и тест перестал бы что-либо проверять.
+      const declared = /^\s*networkMode:\s*'always',/m.test(block)
+      if (handlesOffline && !declared) {
+        offenders.push(file)
+      }
+    }
+  }
+
+  assert.deepEqual(
+    offenders,
+    [],
+    `мутации с офлайн-веткой обязаны объявить networkMode: 'always' — ${offenders.join(', ')}`,
+  )
+})

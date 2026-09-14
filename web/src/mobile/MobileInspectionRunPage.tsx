@@ -131,6 +131,18 @@ export function MobileInspectionRunPage() {
   }
 
   const updateM = useMutation({
+    /**
+     * networkMode: 'always' обязателен.
+     *
+     * По умолчанию react-query ставит мутацию на паузу, когда браузер считает
+     * себя офлайн: mutationFn не вызывается вовсе. Вся офлайн-ветка внутри неё
+     * оказалась бы мёртвым кодом — отметка техника не попала бы ни на сервер,
+     * ни в очередь, а экран навсегда остался бы в «Сохраняем…».
+     *
+     * Здесь отсутствие сети обрабатывается самой функцией, поэтому пауза
+     * не нужна и вредна. Обнаружено живой приёмкой 113D на Stage.
+     */
+    networkMode: 'always',
     mutationFn: async (input: { itemId: string; payload: api.UpdateInspectionRunItemInput }) => {
       if (!offline.online) {
         // Отметка чек-поинта схлопывается по цели: серверу нужно последнее
@@ -155,6 +167,9 @@ export function MobileInspectionRunPage() {
   })
 
   const uploadM = useMutation({
+    // Причина та же, что у updateM: снимок сохраняется на устройстве сам,
+    // пауза по отсутствию сети отменила бы это.
+    networkMode: 'always',
     mutationFn: async (input: { itemId: string; file: File }) => {
       if (!offline.online) {
         const queued = await queueOffline({
@@ -180,6 +195,10 @@ export function MobileInspectionRunPage() {
   )
 
   async function invalidate() {
+    // Без сети перезапрашивать нечего, а ждать нельзя: react-query держит
+    // такой перезапрос приостановленным, и обещание не разрешается до
+    // восстановления связи — вызывающий код навсегда остался бы «занят».
+    if (!offline.online) return
     await queryClient.invalidateQueries({ queryKey: ['inspection-run', runId] })
     await queryClient.invalidateQueries({ queryKey: ['inspection-runs'] })
     await queryClient.invalidateQueries({ queryKey: ['board'] })
