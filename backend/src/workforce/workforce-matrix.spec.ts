@@ -270,4 +270,77 @@ describe('buildWorkforceMatrix', () => {
     expect(m.totals.employees).toBe(0)
     expect(m.totals.closedShiftMinutes).toBe(0)
   })
+
+  // ── сотрудник без единой смены ─────────────────────────────────────────────
+  //
+  // Сетка по одним сменам его не содержит, а управляющий открывает отчёт именно
+  // ради этого случая. Пустая строка отвечает на вопрос; отсутствующая выглядит
+  // так, будто сотрудника нет вовсе.
+
+  it('keeps an employee who worked nothing this month as a full row of empty days', () => {
+    const m = buildWorkforceMatrix({
+      shifts: [],
+      days: SEPT.days,
+      timezone: MSK,
+      roster: [user('u9', 'Петров')],
+    })
+
+    expect(m.employees).toHaveLength(1)
+    expect(m.totals.employees).toBe(1)
+
+    const row = m.employees[0]
+    expect(row.user.id).toBe('u9')
+    expect(row.days).toHaveLength(30)
+    expect(row.days.every((d) => d.state === 'none')).toBe(true)
+    expect(row.days.every((d) => d.durationMinutes === null)).toBe(true)
+
+    // Ноль отработанного — это ноль, а не прогул: невыходы в схеме не заведены.
+    expect(row.totals.closedShiftMinutes).toBe(0)
+    expect(row.totals.closedShifts).toBe(0)
+    expect(row.totals.autoClosedShifts).toBe(0)
+    expect(row.totals.correctedShifts).toBe(0)
+    expect(row.totals.daysWithoutClosedShift).toBe(30)
+  })
+
+  it('does not duplicate an employee who is both in the roster and has shifts', () => {
+    const m = buildWorkforceMatrix({
+      shifts: [
+        shift({
+          id: 's1',
+          openedAt: new Date('2026-09-09T05:00:00.000Z'),
+          closedAt: new Date('2026-09-09T13:00:00.000Z'),
+        }),
+      ],
+      days: SEPT.days,
+      timezone: MSK,
+      roster: [user('u1', 'Иванов')],
+    })
+
+    expect(m.employees).toHaveLength(1)
+    expect(m.employees[0].totals.closedShifts).toBe(1)
+    expect(m.employees[0].days.find((d) => d.date === '2026-09-09')!.durationMinutes).toBe(480)
+  })
+
+  it('shows workers and non-workers side by side, sorted by name', () => {
+    const m = buildWorkforceMatrix({
+      shifts: [
+        shift({
+          id: 's1',
+          userId: 'u2',
+          user: user('u2', 'Яковлев'),
+          openedAt: new Date('2026-09-09T05:00:00.000Z'),
+          closedAt: new Date('2026-09-09T13:00:00.000Z'),
+        }),
+      ],
+      days: SEPT.days,
+      timezone: MSK,
+      roster: [user('u2', 'Яковлев'), user('u3', 'Абрамов')],
+    })
+
+    expect(m.employees.map((e) => e.user.id)).toEqual(['u3', 'u2'])
+    expect(m.employees[0].totals.closedShiftMinutes).toBe(0)
+    expect(m.employees[1].totals.closedShiftMinutes).toBe(480)
+    expect(m.totals.employees).toBe(2)
+    expect(m.totals.closedShiftMinutes).toBe(480)
+  })
 })
