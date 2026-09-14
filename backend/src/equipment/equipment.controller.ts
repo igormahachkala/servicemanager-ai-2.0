@@ -30,8 +30,10 @@ import { EquipmentPartsService } from './equipment-parts.service';
 import { CreateEquipmentDto } from './dto/create-equipment.dto';
 import { UpdateEquipmentDto } from './dto/update-equipment.dto';
 import {
+  CorrectInstalledPartDto,
   CreatePartDefinitionDto,
   InstallPartDto,
+  RemovePartDto,
   ReplacePartDto,
 } from './dto/parts.dto';
 
@@ -129,6 +131,8 @@ export class EquipmentController {
     @Req() req: any,
     @Param('id') id: string,
     @Query('companyId') companyId?: string,
+    @Query('limit') limit?: string,
+    @Query('cursor') cursor?: string,
   ) {
     return this.history.getHistory(
       req.user.companyId,
@@ -136,6 +140,7 @@ export class EquipmentController {
       req.user.role as UserRole,
       id,
       companyId,
+      { limit, cursor },
     );
   }
 
@@ -194,6 +199,49 @@ export class EquipmentController {
     @Body() dto: ReplacePartDto,
   ) {
     return this.parts.replace(
+      req.user.companyId,
+      req.user.id,
+      req.user.role as UserRole,
+      id,
+      partId,
+      dto,
+    );
+  }
+
+  /**
+   * SMA-EQUIPMENT-PARTS-POLISH-110C.
+   * Снятие без замены. Права те же, что у установки: SECONDARY не проходит.
+   */
+  @Post(':id/parts/:partId/remove')
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER)
+  @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
+  removePart(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Param('partId') partId: string,
+    @Body() dto: RemovePartDto,
+  ) {
+    return this.parts.removePart(
+      req.user.companyId,
+      req.user.id,
+      req.user.role as UserRole,
+      id,
+      partId,
+      dto,
+    );
+  }
+
+  /** Исправление административных полей. Историю правка не трогает. */
+  @Patch(':id/parts/:partId')
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER)
+  @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
+  correctPart(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Param('partId') partId: string,
+    @Body() dto: CorrectInstalledPartDto,
+  ) {
+    return this.parts.correctPart(
       req.user.companyId,
       req.user.id,
       req.user.role as UserRole,

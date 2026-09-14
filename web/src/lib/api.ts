@@ -3664,10 +3664,17 @@ export type EquipmentHistoryEntry = {
   partsRemoved: EquipmentHistoryPartRef[]
 }
 
+/** SMA-EQUIPMENT-PARTS-POLISH-110C: постраничная выдача вместо молчаливого обрезания на 200. */
+export type EquipmentHistoryPage = {
+  limit: number
+  hasMore: boolean
+  nextCursor: string | null
+}
+
 export type EquipmentHistoryResponse = {
   equipment: { id: string; name: string; companyId: string; locationId: string }
   tickets: EquipmentHistoryEntry[]
-  truncated: boolean
+  page: EquipmentHistoryPage
 }
 
 export type PartDefinitionItem = {
@@ -3707,8 +3714,16 @@ export type EquipmentPartsResponse = {
   history: InstalledPartItem[]
 }
 
-export async function getEquipmentHistory(id: string, companyId?: string): Promise<EquipmentHistoryResponse> {
-  const suffix = companyId ? `?companyId=${encodeURIComponent(companyId)}` : ''
+export async function getEquipmentHistory(
+  id: string,
+  companyId?: string,
+  page?: { limit?: number; cursor?: string },
+): Promise<EquipmentHistoryResponse> {
+  const search = new URLSearchParams()
+  if (companyId) search.set('companyId', companyId)
+  if (page?.limit) search.set('limit', String(page.limit))
+  if (page?.cursor) search.set('cursor', page.cursor)
+  const suffix = search.toString() ? `?${search.toString()}` : ''
   return request<EquipmentHistoryResponse>('/equipment/' + id + '/history' + suffix)
 }
 
@@ -3745,12 +3760,71 @@ export async function replaceEquipmentPart(
   )
 }
 
-export async function listPartDefinitions(params?: { companyId?: string; search?: string }): Promise<PartDefinitionItem[]> {
+export async function listPartDefinitions(params?: {
+  companyId?: string
+  search?: string
+  includeInactive?: boolean
+}): Promise<PartDefinitionItem[]> {
   const search = new URLSearchParams()
   if (params?.companyId) search.set('companyId', params.companyId)
   if (params?.search) search.set('search', params.search)
+  if (params?.includeInactive) search.set('includeInactive', 'true')
   const suffix = search.toString() ? `?${search.toString()}` : ''
   return request<PartDefinitionItem[]>('/part-definitions' + suffix)
+}
+
+/**
+ * SMA-EQUIPMENT-PARTS-POLISH-110C.
+ * Снятие без замены: деталь ушла, новая ещё не приехала. Строки замены
+ * не создаётся, старая остаётся в истории. Заявка необязательна.
+ */
+export async function removeEquipmentPart(
+  id: string,
+  partId: string,
+  input: { ticketId?: string; removedAt?: string; removalComment?: string },
+): Promise<InstalledPartItem> {
+  return request<InstalledPartItem>(`/equipment/${id}/parts/${partId}/remove`, {
+    method: 'POST',
+    body: input,
+  })
+}
+
+/**
+ * Исправление административных полей. Даты, заявки и исполнители сюда
+ * не входят намеренно: это следы произошедшего. Правка пишется в DomainEvent.
+ */
+export type CorrectInstalledPartInput = {
+  serialNumber?: string
+  quantity?: string
+  comment?: string
+  removalComment?: string
+  partDefinitionId?: string | null
+}
+
+export async function correctEquipmentPart(
+  id: string,
+  partId: string,
+  input: CorrectInstalledPartInput,
+): Promise<InstalledPartItem> {
+  return request<InstalledPartItem>(`/equipment/${id}/parts/${partId}`, {
+    method: 'PATCH',
+    body: input,
+  })
+}
+
+/** Правка позиции каталога и вывод из обращения (isActive=false). Удаления нет. */
+export async function updatePartDefinition(
+  id: string,
+  input: {
+    name?: string
+    manufacturer?: string
+    model?: string
+    article?: string
+    unit?: string
+    isActive?: boolean
+  },
+): Promise<PartDefinitionItem> {
+  return request<PartDefinitionItem>('/part-definitions/' + id, { method: 'PATCH', body: input })
 }
 
 export async function createPartDefinition(input: {

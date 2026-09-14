@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsDateString,
   IsNumberString,
   IsOptional,
@@ -120,4 +121,91 @@ export class ReplacePartDto {
   @IsString()
   @MaxLength(2000)
   removalComment?: string;
+}
+
+/**
+ * SMA-EQUIPMENT-PARTS-POLISH-110C.
+ * Снятие без замены. Заявка необязательна: снять деталь могут и
+ * административно, при выводе оборудования из эксплуатации.
+ */
+export class RemovePartDto {
+  @IsOptional()
+  @IsUUID()
+  ticketId?: string;
+
+  @IsOptional()
+  @IsDateString()
+  removedAt?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  removalComment?: string;
+}
+
+/**
+ * SMA-EQUIPMENT-PARTS-POLISH-110C.
+ *
+ * Исправление административных полей. Историю здесь править нельзя:
+ * installedAt, removedAt, installedTicketId, removedTicketId и исполнителей
+ * этот DTO не принимает намеренно — это следы произошедшего, и тихая правка
+ * обесценила бы саму историю.
+ */
+export class CorrectInstalledPartDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  serialNumber?: string;
+
+  @IsOptional()
+  @IsNumberString()
+  quantity?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  comment?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  removalComment?: string;
+
+  /** Пустая строка снимает привязку к каталогу; имя в строке остаётся. */
+  @IsOptional()
+  @IsString()
+  partDefinitionId?: string | null;
+}
+
+/** SMA-EQUIPMENT-PARTS-POLISH-110C: правка позиции каталога и вывод из обращения. */
+export class UpdatePartDefinitionDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  manufacturer?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  model?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  article?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  unit?: string;
+
+  /** false — вывести из обращения. Жёсткого удаления нет: на позицию ссылается история. */
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }
