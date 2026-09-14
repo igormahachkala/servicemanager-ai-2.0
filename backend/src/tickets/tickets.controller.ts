@@ -1,5 +1,6 @@
 import {
   Body,
+  Headers,
   Controller,
   Delete,
   Get,
@@ -291,6 +292,8 @@ export class TicketsController {
     @Param('id') id: string,
     @UploadedFile() file: any,
     @Query('linkedClientCompanyId') linkedClientCompanyId?: string,
+    /** 113B: present for a replayable offline-queued photo, absent for online callers. */
+    @Headers('idempotency-key') idempotencyKey?: string,
   ) {
     return this.svc.uploadTicketAttachment(
       req.user.companyId,
@@ -300,6 +303,7 @@ export class TicketsController {
       file,
       req.accessFlags,
       linkedClientCompanyId,
+      idempotencyKey,
     )
   }
 
@@ -420,8 +424,12 @@ export class TicketsController {
     @Param('id') id: string,
     @Body() dto: AddTicketCommentDto,
     @Query('linkedClientCompanyId') linkedClientCompanyId?: string,
+    /** 113B: absent for online callers, present for a replayable offline-queued comment. */
+    @Headers('idempotency-key') idempotencyKey?: string,
   ) {
-    return this.svc.addComment(req.user.companyId, req.user, req.user.role, id, dto, linkedClientCompanyId)
+    return this.svc.addComment(
+      req.user.companyId, req.user, req.user.role, id, dto, linkedClientCompanyId, idempotencyKey,
+    )
   }
 
   @Post(':id/acceptance')

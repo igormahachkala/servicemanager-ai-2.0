@@ -12,6 +12,7 @@ import { TimelineService } from '../timeline/timeline.service';
 import { ServiceContractsService } from '../service-contracts/service-contracts.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ShiftPolicyService } from '../workforce/shift-policy.service';
+import { IdempotencyService } from '../common/idempotency/idempotency.service';
 import { resolveTicketOperationAccess } from './ticket-access.utils';
 
 @Injectable()
@@ -22,6 +23,8 @@ export class TicketsStatusService {
     private readonly serviceContractsService: ServiceContractsService,
     private readonly notifications: NotificationsService,
     private readonly shiftPolicyService?: ShiftPolicyService,
+    /** 113B: optional so existing unit tests constructing this service directly keep working. */
+    private readonly idempotency?: IdempotencyService,
   ) {}
 
   private readonly policy = new TicketsPolicy();
@@ -341,11 +344,54 @@ export class TicketsStatusService {
     ticketId: string,
     dto: { comment: string },
     linkedClientCompanyId?: string,
+    idempotencyKey?: string | null,
   ) {
     const comment = (dto.comment || '').trim();
     if (!comment) {
       throw new BadRequestException('comment is required');
     }
+
+    /**
+     * SMA-OFFLINE-IDEMPOTENCY-113B — an offline queue may replay this after a lost response.
+     *
+     * Access resolution below still runs on every call, replay included: the key proves the
+     * client asked before, not that it may still act. Without a key the endpoint behaves
+     * exactly as it did, so online callers are unaffected.
+     */
+    const key = IdempotencyService.normalizeKey(idempotencyKey);
+    if (key && this.idempotency && user?.id) {
+      const fingerprint = IdempotencyService.fingerprint({ ticketId, comment });
+      const outcome = await this.idempotency.run<{ ok: boolean }>(
+        { companyId, userId: user.id, operationType: 'ticket_comment', key },
+        fingerprint,
+        {
+          execute: async () => {
+            const created = await this.addCommentInternal(
+              companyId, user, role, ticketId, comment, linkedClientCompanyId,
+            );
+            return { result: { ok: true }, entityType: 'DomainEvent', entityId: created.sourceEventId };
+          },
+          // The comment lives in the timeline; its event id proves the first call landed.
+          replay: async (entityId) => {
+            const event = await this.prisma.domainEvent.findUnique({ where: { id: entityId }, select: { id: true } });
+            return event ? { ok: true } : null;
+          },
+        },
+      );
+      return outcome.result;
+    }
+
+    return this.addCommentInternal(companyId, user, role, ticketId, comment, linkedClientCompanyId).then(() => ({ ok: true }));
+  }
+
+  private async addCommentInternal(
+    companyId: string,
+    user: { id?: string } | any,
+    role: UserRole,
+    ticketId: string,
+    comment: string,
+    linkedClientCompanyId?: string,
+  ) {
 
     const access = await resolveTicketOperationAccess({
       prisma: this.prisma,
@@ -429,6 +475,6 @@ export class TicketsStatusService {
       sourceEventId: result.sourceEventId,
     });
 
-    return { ok: true };
+    return { sourceEventId: result.sourceEventId };
   }
 }

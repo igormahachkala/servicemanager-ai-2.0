@@ -208,6 +208,7 @@ model Company {
   notifications                Notification[]
   agentTasks                   AgentTask[]
   workShifts                   WorkShift[]
+  idempotencyRecords           IdempotencyRecord[]
   workLogs                     WorkLog[]
   serviceContractLocations     ServiceContractLocation[]
   maxUserBindings              MaxUserBinding[]
@@ -254,6 +255,7 @@ model User {
   pushSubscriptions           PushSubscription[]
   pushPreference              PushPreference?
   workShifts                  WorkShift[]
+  idempotencyRecords          IdempotencyRecord[]
   workLogs                    WorkLog[]
   maxUserBindings             MaxUserBinding[]
 
@@ -1109,6 +1111,60 @@ model InspectionRunItemAttachment {
 
   @@index([companyId, runItemId])
   @@index([runItemId, createdAt])
+}
+
+/// SMA-OFFLINE-IDEMPOTENCY-113B.
+///
+/// One reusable record for "this client already asked for this operation", so append-style
+/// endpoints can be retried safely from an offline queue. A column per domain model was the
+/// alternative and was rejected: it would have to be added again for every future endpoint, and
+/// nothing would enforce that the checks stayed identical.
+///
+/// The key is scoped by company AND user: a key is meaningless outside the actor who minted it,
+/// so guessing another user's key cannot surface their result. Access control is unaffected —
+/// callers run their normal permission and tenant checks before consulting this table.
+///
+/// Only a fingerprint of the request is stored, never the body: enough to detect the same key
+/// being reused for a different operation, without keeping comment text or file contents here.
+model IdempotencyRecord {
+  id            String                  @id @default(uuid())
+  companyId     String
+  userId        String
+  operationType String
+  key           String
+  /// SHA-256 over the canonical operation input. Same key + different fingerprint = conflict.
+  fingerprint   String
+  status        IdempotencyRecordStatus @default(IN_PROGRESS)
+
+  /// What the first successful call produced, re-read on replay instead of being cached here.
+  resultEntityType String?
+  resultEntityId   String?
+
+  /// Set as soon as a binary is written, so a retry after a crash between file and row can
+  /// reclaim or clean the orphan rather than storing a second copy.
+  storageKey String?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  completedAt DateTime?
+  /// Retention horizon. Records are worthless once no client could still be retrying.
+  expiresAt   DateTime
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// The concurrency primitive: two simultaneous retries race to insert, one wins, the loser
+  /// waits for the winner's result instead of performing a second domain write.
+  /// Name pinned so the hand-written migration and Prisma agree — an unpinned name would
+  /// reappear as drift the next time someone runs migrate dev (see SMA-090).
+  @@unique([companyId, userId, operationType, key], map: "IdempotencyRecord_scope_key_key")
+  @@index([expiresAt])
+  @@index([companyId, createdAt])
+}
+
+enum IdempotencyRecordStatus {
+  IN_PROGRESS
+  COMPLETED
 }
 
 model AgentTask {

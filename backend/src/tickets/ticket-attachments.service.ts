@@ -6,6 +6,7 @@ import { extname, join } from 'path'
 import { randomUUID } from 'crypto'
 
 import { PrismaService } from '../prisma/prisma.service'
+import { IdempotencyService } from '../common/idempotency/idempotency.service'
 import { TimelineService } from '../timeline/timeline.service'
 import { NotificationsService } from '../notifications/notifications.service'
 import { type UserCtx } from '../policy/tickets.policy'
@@ -22,6 +23,8 @@ export class TicketAttachmentsService {
     private readonly serviceContractsService: ServiceContractsService,
     private readonly timeline: TimelineService,
     private readonly notifications: NotificationsService,
+    /** 113B: optional so existing unit tests constructing this service directly keep working. */
+    private readonly idempotency?: IdempotencyService,
   ) {}
 
   async uploadDraftAttachment(companyId: string, uploadedByUserId: string | null, file: any) {
@@ -139,11 +142,68 @@ export class TicketAttachmentsService {
     })
   }
 
-  async uploadToTicket(user: UserCtx, ticketId: string, file: any, linkedClientCompanyId?: string) {
+  async uploadToTicket(
+    user: UserCtx,
+    ticketId: string,
+    file: any,
+    linkedClientCompanyId?: string,
+    idempotencyKey?: string | null,
+  ) {
+    /**
+     * SMA-OFFLINE-IDEMPOTENCY-113B.
+     *
+     * Access is resolved first and on every call, replay included — a key never substitutes for
+     * permission. Only then may a replay short-circuit the write.
+     */
     const ticketCompanyId = await this.resolveOperationalTicketCompanyId(user, ticketId, linkedClientCompanyId)
     assertTicketAttachmentMedia(file)
 
+    const key = IdempotencyService.normalizeKey(idempotencyKey)
+    if (key && this.idempotency) {
+      /**
+       * The fingerprint deliberately covers the file's identity, not its bytes: name, size and
+       * type are enough to catch a key reused for a different photo, and hashing an arbitrarily
+       * large upload on every retry would cost more than it protects.
+       */
+      const fingerprint = IdempotencyService.fingerprint({
+        ticketId,
+        originalName: file?.originalname,
+        size: file?.size,
+        mimeType: file?.mimetype,
+      })
+      const outcome = await this.idempotency.run<any>(
+        { companyId: ticketCompanyId, userId: user.id, operationType: 'ticket_attachment', key },
+        fingerprint,
+        {
+          execute: async (ctx) => {
+            const created = await this.uploadToTicketInternal(user, ticketId, file, ticketCompanyId, ctx)
+            return { result: created, entityType: 'TicketAttachment', entityId: created.id }
+          },
+          replay: async (entityId) =>
+            this.prisma.ticketAttachment.findUnique({
+              where: { id: entityId },
+              select: this.attachmentSelect(),
+            }),
+          // A crash between writing the file and committing the row leaves an orphan on disk.
+          discardOrphan: async (storageKey) => this.removeStoredFile(storageKey),
+        },
+      )
+      return outcome.result
+    }
+
+    return this.uploadToTicketInternal(user, ticketId, file, ticketCompanyId)
+  }
+
+  private async uploadToTicketInternal(
+    user: UserCtx,
+    ticketId: string,
+    file: any,
+    ticketCompanyId: string,
+    ctx?: { noteStorageKey: (k: string) => Promise<void> },
+  ) {
     const stored = await this.persistFile(file)
+    // Record the binary before the row exists, so a retry can find and clean this exact orphan.
+    if (ctx) await ctx.noteStorageKey(stored.storageKey)
 
     const attachment = await this.prisma.ticketAttachment.create({
       data: {

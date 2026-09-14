@@ -7,13 +7,14 @@ import {
   Prisma,
   TicketUrgency,
 } from '@prisma/client'
-import { mkdir, writeFile } from 'fs/promises'
+import { mkdir, rm, writeFile } from 'fs/promises'
 import { randomUUID } from 'crypto'
 import { extname, join } from 'path'
 
 import { assertAllowed } from '../policy/policy.utils'
 import { InspectionPolicy, type InspectionUserCtx } from '../policy/inspection.policy'
 import { PrismaService } from '../prisma/prisma.service'
+import { IdempotencyService } from '../common/idempotency/idempotency.service'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
 import { TicketsService } from '../tickets/tickets.service'
 import { TimelineService } from '../timeline/timeline.service'
@@ -47,6 +48,8 @@ export class InspectionService {
     private readonly timeline: TimelineService,
     private readonly exporter: InspectionExportService,
     private readonly serviceContracts: ServiceContractsService,
+    /** 113B: optional so existing unit tests constructing this service directly keep working. */
+    private readonly idempotency?: IdempotencyService,
   ) {}
 
   async listTemplates(user: InspectionUserCtx) {
@@ -529,13 +532,69 @@ export class InspectionService {
     })
   }
 
-  async uploadRunItemAttachment(user: InspectionUserCtx, runId: string, itemId: string, file: any) {
+  async uploadRunItemAttachment(
+    user: InspectionUserCtx,
+    runId: string,
+    itemId: string,
+    file: any,
+    idempotencyKey?: string | null,
+  ) {
+    /**
+     * SMA-OFFLINE-IDEMPOTENCY-113B — a round photo queued offline may be replayed after a lost
+     * response. Policy and run-item access are re-checked inside the internal path on every
+     * call, so a key never grants reach.
+     */
+    const key = IdempotencyService.normalizeKey(idempotencyKey)
+    if (key && this.idempotency) {
+      const fingerprint = IdempotencyService.fingerprint({
+        runId,
+        itemId,
+        originalName: file?.originalname,
+        size: file?.size,
+        mimeType: file?.mimetype,
+      })
+      const outcome = await this.idempotency.run<any>(
+        {
+          companyId: user.companyId,
+          userId: user.id,
+          operationType: 'inspection_run_item_attachment',
+          key,
+        },
+        fingerprint,
+        {
+          execute: async (ctx) => {
+            const created = await this.uploadRunItemAttachmentInternal(user, runId, itemId, file, ctx)
+            return { result: created, entityType: 'InspectionRunItemAttachment', entityId: created.id }
+          },
+          replay: async (entityId) =>
+            this.prisma.inspectionRunItemAttachment.findUnique({
+              where: { id: entityId },
+              select: { id: true, url: true, mimeType: true, originalName: true, createdAt: true },
+            }),
+          discardOrphan: async (storageKey) => this.removeStoredInspectionFile(storageKey),
+        },
+      )
+      return outcome.result
+    }
+
+    return this.uploadRunItemAttachmentInternal(user, runId, itemId, file)
+  }
+
+  private async uploadRunItemAttachmentInternal(
+    user: InspectionUserCtx,
+    runId: string,
+    itemId: string,
+    file: any,
+    ctx?: { noteStorageKey: (k: string) => Promise<void> },
+  ) {
     assertAllowed(this.policy.canUploadAttachment(user))
 
     const { item } = await this.getMutableRunItem(user, runId, itemId)
     this.assertImageFile(file)
 
     const stored = await this.persistFile(file)
+    // Record the binary before the row exists, so a retry can clean this exact orphan.
+    if (ctx) await ctx.noteStorageKey(stored.storageKey)
 
     return this.prisma.inspectionRunItemAttachment.create({
       data: {
@@ -551,7 +610,66 @@ export class InspectionService {
     })
   }
 
-  async createTicketFromItem(user: InspectionUserCtx, runId: string, itemId: string, dto: CreateTicketFromItemDto) {
+  async createTicketFromItem(
+    user: InspectionUserCtx,
+    runId: string,
+    itemId: string,
+    dto: CreateTicketFromItemDto,
+    idempotencyKey?: string | null,
+  ) {
+    /**
+     * SMA-OFFLINE-IDEMPOTENCY-113B — 113A left this blocked, and the key is what unblocks it.
+     *
+     * InspectionRunItem.ticketId is @unique and the internal path refuses a second ticket for
+     * the same item, so duplication was never the risk. The risk was ambiguity: offline, the
+     * client could not tell "my earlier attempt succeeded" from "a colleague raised it", and
+     * the refusal looks identical either way. A key owned by this actor removes that — a replay
+     * returns the ticket this actor created, and the refusal keeps its original meaning.
+     */
+    const key = IdempotencyService.normalizeKey(idempotencyKey)
+    if (key && this.idempotency) {
+      const fingerprint = IdempotencyService.fingerprint({
+        runId,
+        itemId,
+        categoryId: dto.categoryId,
+        title: dto.title,
+        description: dto.description,
+        urgency: dto.urgency,
+      })
+      const outcome = await this.idempotency.run<any>(
+        { companyId: user.companyId, userId: user.id, operationType: 'inspection_ticket_from_item', key },
+        fingerprint,
+        {
+          execute: async () => {
+            const created = await this.createTicketFromItemInternal(user, runId, itemId, dto)
+            return { result: created, entityType: 'Ticket', entityId: created.ticket.id }
+          },
+          replay: async (entityId) => {
+            const ticket = await this.prisma.ticket.findUnique({
+              where: { id: entityId },
+              select: { id: true, ticketNumber: true, status: true, companyId: true },
+            })
+            if (!ticket) return null
+            const item = await this.prisma.inspectionRunItem.findFirst({
+              where: { id: itemId, ticketId: entityId },
+              select: runItemSelect(),
+            })
+            return { item, ticket, generated: null, autoAssigned: null }
+          },
+        },
+      )
+      return outcome.result
+    }
+
+    return this.createTicketFromItemInternal(user, runId, itemId, dto)
+  }
+
+  private async createTicketFromItemInternal(
+    user: InspectionUserCtx,
+    runId: string,
+    itemId: string,
+    dto: CreateTicketFromItemDto,
+  ) {
     assertAllowed(this.policy.canCreateTicket(user))
 
     const { run, item } = await this.getMutableRunItem(user, runId, itemId)
@@ -755,6 +873,13 @@ export class InspectionService {
     if (!file.buffer || !file.size) {
       throw new BadRequestException('Uploaded file is empty')
     }
+  }
+
+  /** 113B: delete a binary left behind by an attempt that died before committing its row. */
+  private async removeStoredInspectionFile(storageKey: string) {
+    if (!storageKey) return
+    const target = join(this.uploadsDir, storageKey)
+    await rm(target, { force: true }).catch(() => undefined)
   }
 
   private async persistFile(file: any) {
