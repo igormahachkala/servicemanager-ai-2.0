@@ -9,8 +9,33 @@ import { PrismaService } from '../prisma/prisma.service';
 import { getJwtSecret } from '../config/required-env';
 import { isServiceContractEffective } from '../service-contracts/service-contract-window';
 import { buildLegacyNotificationNavigationTarget } from '../notifications/notification-navigation';
-import { applyHeartbeatSweep, AUTH_INVALID_PAYLOAD, REALTIME_HEARTBEAT_MS, tokenExpiresAtMs } from './realtime.heartbeat';
-import type { RealtimeClient, RealtimeSubscription, RealtimeUser } from './realtime.types';
+import { heartbeatTimedOut, REALTIME_HEARTBEAT_MS } from './realtime.heartbeat';
+
+type RealtimeUser = {
+  id: string;
+  email: string;
+  companyId: string;
+  role: UserRole;
+};
+
+type RealtimeSubscription = {
+  id: string;
+  scope: 'board' | 'notifications';
+  targetCompanyId: string;
+  linkedClientCompanyId: string | null;
+  observerCompanyId: string | null;
+};
+
+type RealtimeClient = {
+  id: string;
+  socket: Socket;
+  receiveBuffer: Buffer;
+  subscriptions: Map<string, RealtimeSubscription>;
+  user: RealtimeUser | null;
+  authTimer: NodeJS.Timeout | null;
+  lastPongAt: number;
+  closed: boolean;
+};
 
 type DomainEventRow = {
   id: string;
@@ -65,7 +90,7 @@ export class RealtimeService implements OnModuleInit, OnModuleDestroy {
     this.pollTimer.unref?.();
 
     this.heartbeatTimer = setInterval(() => {
-      void this.sweepHeartbeats();
+      this.sweepHeartbeats();
     }, REALTIME_HEARTBEAT_MS);
     this.heartbeatTimer.unref?.();
   }
@@ -168,7 +193,6 @@ export class RealtimeService implements OnModuleInit, OnModuleDestroy {
       receiveBuffer: Buffer.alloc(0),
       subscriptions: new Map(),
       user: null,
-      tokenExpiresAt: null,
       authTimer: null,
       lastPongAt: Date.now(),
       closed: false,
@@ -346,15 +370,11 @@ export class RealtimeService implements OnModuleInit, OnModuleDestroy {
         throw new Error('JWT missing user scope');
       }
 
-      const expiresAt = tokenExpiresAtMs(payload?.exp);
-      if (expiresAt === null) throw new Error('JWT missing exp');
-
       const user = await this.prisma.user.findFirst({
         where: {
           id: userId,
           companyId,
           isActive: true,
-          deletedAt: null,
         },
         select: {
           id: true,
@@ -369,7 +389,6 @@ export class RealtimeService implements OnModuleInit, OnModuleDestroy {
       }
 
       client.user = user;
-      client.tokenExpiresAt = expiresAt;
       if (client.authTimer) {
         clearTimeout(client.authTimer);
         client.authTimer = null;
@@ -381,7 +400,12 @@ export class RealtimeService implements OnModuleInit, OnModuleDestroy {
         serverTime: new Date().toISOString(),
       });
     } catch {
-      this.rejectInvalidAuth(client);
+      this.send(client, {
+        type: 'AUTH_INVALID',
+        code: 'AUTH_INVALID',
+        message: 'Authentication token is invalid',
+      });
+      this.closeClient(client, 1008, 'Authentication token is invalid');
     }
   }
 
@@ -680,23 +704,16 @@ export class RealtimeService implements OnModuleInit, OnModuleDestroy {
     return boardSubscriptions.some((subscription) => subscription.targetCompanyId === companyId);
   }
 
-  private async sweepHeartbeats() {
-    await applyHeartbeatSweep({
-      clients: this.clients.values(),
-      now: Date.now(),
-      findActiveUsers: (ids) => this.prisma.user.findMany({
-        where: { id: { in: ids }, isActive: true, deletedAt: null },
-        select: { id: true, companyId: true },
-      }),
-      onTimeout: (client) => this.closeClient(client, 1001, 'Heartbeat timeout'),
-      onRejectAuth: (client) => this.rejectInvalidAuth(client),
-      onPing: (client) => this.writeFrame(client, Buffer.alloc(0), 0x9),
-    });
-  }
-
-  private rejectInvalidAuth(client: RealtimeClient) {
-    this.send(client, AUTH_INVALID_PAYLOAD);
-    this.closeClient(client, 1008, AUTH_INVALID_PAYLOAD.message);
+  private sweepHeartbeats() {
+    const now = Date.now();
+    for (const client of this.clients.values()) {
+      if (client.closed) continue;
+      if (heartbeatTimedOut(client.lastPongAt, now)) {
+        this.closeClient(client, 1001, 'Heartbeat timeout');
+        continue;
+      }
+      this.writeFrame(client, Buffer.alloc(0), 0x9);
+    }
   }
 
   private send(client: RealtimeClient, payload: Record<string, any>) {

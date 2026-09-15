@@ -69,6 +69,3 @@ postgres-data/
 *.pid
 *.seed
 *.tgz
-
-# SMA-MOBILE-OFFLINE-MODE-V1-113C: временная сборка под тесты offline-слоя
-.offline-test-build/

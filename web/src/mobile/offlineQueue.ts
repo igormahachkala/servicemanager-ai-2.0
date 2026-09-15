@@ -1,10 +1,6 @@
 import { useEffect, useLayoutEffect, useState } from 'react'
 import * as api from '../lib/api'
-import {
-  safeReadJson as readBrowserStorageJson,
-  safeRemoveItem as removeBrowserStorageItem,
-  safeWriteJson as writeBrowserStorageJson,
-} from '../lib/browserStorage'
+import { safeReadJson as readBrowserStorageJson, safeWriteJson as writeBrowserStorageJson } from '../lib/browserStorage'
 
 export type OfflineQueueActionType = 'ticket_status_change' | 'ticket_comment' | 'ticket_photo_upload'
 export type OfflineQueueItemStatus = 'pending' | 'syncing' | 'failed' | 'synced'
@@ -75,24 +71,6 @@ function safeReadJson<T>(key: string, fallback: T): T {
 
 function safeWriteJson(key: string, value: unknown) {
   writeBrowserStorageJson('local', key, value)
-}
-
-/**
- * SMA-MOBILE-OFFLINE-INTEGRATION-113D: очистка прежних кэшей при выходе.
- *
- * Доска и карточки заявок здесь лежат в localStorage без разделения по
- * пользователю. На общем планшете это значит, что следующий техник открыл бы
- * приложение без сети и увидел заявки предыдущего. Очередь из этого же
- * хранилища переносится в IndexedDB миграцией 113C, но если перенос не
- * состоялся, оставлять её чужому пользователю тем более нельзя.
- *
- * Новый офлайн-слой этой проблемы не имеет: он открывает отдельную базу на
- * связку компания+пользователь и стирает её при выходе.
- */
-export function clearLegacyOfflineCaches() {
-  for (const key of [OFFLINE_QUEUE_KEY, OFFLINE_BOARD_CACHE_KEY, OFFLINE_TICKET_CACHE_KEY]) {
-    removeBrowserStorageItem('local', key)
-  }
 }
 
 export function getOnlineStatus(): boolean {

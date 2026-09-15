@@ -1,214 +1,257 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-
+import {
+  deleteSingleQueueItem,
+  readOfflineQueue,
+  retrySingleQueueItem,
+  retryOfflineQueue,
+  subscribeOfflineQueue,
+  useOnlineStatus,
+  type OfflineQueueItem,
+} from './offlineQueue'
 import { mobilePath } from './mobileRoute'
-import { listOfflineQueue, offlineStore, refreshOfflineStatus } from './offline/runtime'
-import { syncNow, useOfflineStatus } from './offline/useOffline'
-import { OFFLINE_OPERATIONS, OFFLINE_SYNC_LABEL, syncStateOf, type OfflineQueueItem } from './offline/types'
 
-/**
- * SMA-MOBILE-OFFLINE-INTEGRATION-113D.
- *
- * Очередь отложенной работы. Читает новый слой на IndexedDB: прежний экран
- * показывал очередь из localStorage и не знал ни о снимках, ни о состоянии
- * «Требует внимания».
- *
- * Главное правило экрана: не выдавать неотправленное за отправленное.
- * Строка исчезает отсюда только после подтверждения сервером — до тех пор
- * техник видит её и понимает, что работа ещё на устройстве.
- */
-
-function operationLabel(item: OfflineQueueItem): string {
-  return OFFLINE_OPERATIONS[item.kind]?.title ?? item.kind
+function actionTypeLabel(type: OfflineQueueItem['type']): string {
+  if (type === 'ticket_comment') return 'Комментарий'
+  if (type === 'ticket_status_change') return 'Смена статуса'
+  if (type === 'ticket_photo_upload') return 'Фото'
+  return type
 }
 
-function stateLabel(item: OfflineQueueItem): string {
-  return OFFLINE_SYNC_LABEL[syncStateOf(item)]
+function statusLabel(status: OfflineQueueItem['status']): string {
+  if (status === 'pending') return 'Ожидает отправки'
+  if (status === 'syncing') return 'Синхронизация'
+  if (status === 'failed') return 'Ошибка'
+  if (status === 'synced') return 'Отправлено'
+  return status
 }
 
-function stateModifier(item: OfflineQueueItem): string {
-  const state = syncStateOf(item)
-  if (state === 'attention') return 'attention'
-  if (state === 'failed') return 'failed'
-  if (state === 'syncing') return 'syncing'
-  return 'pending'
-}
-
-function summary(item: OfflineQueueItem): string {
-  const payload = item.payload as { comment?: string; value?: string; status?: string }
-  if (item.kind === 'ticket.comment' && payload.comment) {
-    const c = payload.comment.trim()
-    return c.length > 60 ? `«${c.slice(0, 60)}…»` : `«${c}»`
+function payloadSummary(item: OfflineQueueItem): string {
+  if (item.type === 'ticket_comment') {
+    const c = (item.payload.comment || '').trim()
+    return c ? `"${c.length > 60 ? c.slice(0, 60) + '…' : c}"` : ''
   }
-  if (item.kind === 'checkpoint.update' && payload.value) {
-    const LABELS: Record<string, string> = { OK: 'Норма', ISSUE: 'Проблема', CRITICAL: 'Критично' }
-    return LABELS[payload.value] || String(payload.value)
+  if (item.type === 'ticket_status_change') {
+    const STATUS_LABELS: Record<string, string> = {
+      NEW: 'Новая',
+      ASSIGNED: 'Назначена',
+      IN_PROGRESS: 'В работе',
+      DONE: 'Завершена',
+      CANCELED: 'Отменена',
+    }
+    const st = item.payload.status || ''
+    return `Статус: ${STATUS_LABELS[st] || st}`
   }
-  if (item.blobId) return 'Снимок сохранён на устройстве'
   return ''
 }
 
 function fmtDate(iso: string): string {
   return new Date(iso).toLocaleString('ru-RU', {
-    day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
   })
 }
 
 export function MobileOfflineQueue() {
   const location = useLocation()
-  const offline = useOfflineStatus()
-  const [items, setItems] = useState<OfflineQueueItem[]>([])
-  const [busy, setBusy] = useState(false)
+  const isOnline = useOnlineStatus()
 
-  const reload = useCallback(async () => {
-    const rows = await listOfflineQueue()
-    setItems(rows)
-    await refreshOfflineStatus()
+  const [items, setItems] = useState<OfflineQueueItem[]>(() =>
+    readOfflineQueue().filter((i) => i.status !== 'synced'),
+  )
+  const [syncStatus, setSyncStatus] = useState<'' | 'syncing' | 'done' | 'error'>('')
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
+  const [retryErrors, setRetryErrors] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    const refresh = () => setItems(readOfflineQueue().filter((i) => i.status !== 'synced'))
+    refresh()
+    return subscribeOfflineQueue(refresh)
   }, [])
 
-  // Список перечитывается при каждом изменении счётчиков: отправка идёт
-  // фоном, и строка обязана исчезнуть ровно тогда, когда сервер подтвердил.
   useEffect(() => {
-    let alive = true
-    void listOfflineQueue().then((rows) => {
-      if (alive) setItems(rows)
+    if (syncStatus !== 'done' && syncStatus !== 'error') return
+    const tid = window.setTimeout(() => setSyncStatus(''), 3000)
+    return () => window.clearTimeout(tid)
+  }, [syncStatus])
+
+  async function handleSyncAll() {
+    if (!isOnline) return
+    setSyncStatus('syncing')
+    try {
+      const result = await retryOfflineQueue()
+      setSyncStatus(result.failed > 0 ? 'error' : 'done')
+    } catch {
+      setSyncStatus('error')
+    }
+  }
+
+  async function handleRetryOne(id: string) {
+    if (!isOnline) {
+      setRetryErrors((prev) => ({ ...prev, [id]: 'Нет соединения' }))
+      return
+    }
+    setRetryErrors((prev) => {
+      const next = { ...prev }
+      delete next[id]
+      return next
     })
-    return () => {
-      alive = false
-    }
-  }, [offline.pending, offline.attention, offline.syncing])
-
-  async function sendAll() {
-    setBusy(true)
-    try {
-      await syncNow()
-      await reload()
-    } finally {
-      setBusy(false)
+    const result = await retrySingleQueueItem(id)
+    if (!result.ok && result.error) {
+      setRetryErrors((prev) => ({ ...prev, [id]: result.error! }))
     }
   }
 
-  /**
-   * Повтор строки из «Требует внимания» — осознанное действие техника.
-   * Автоматически такие не повторяются: сервер уже сказал, что применить
-   * изменение нельзя, и молча долбиться в него бессмысленно.
-   */
-  async function retryOne(item: OfflineQueueItem) {
-    const store = offlineStore()
-    if (!store) return
-    setBusy(true)
-    try {
-      await store.setStatus(item.id, 'pending', { attempts: 0, attentionReason: undefined })
-      await syncNow()
-      await reload()
-    } finally {
-      setBusy(false)
+  function handleDelete(id: string) {
+    if (pendingDeleteId === id) {
+      deleteSingleQueueItem(id)
+      setPendingDeleteId(null)
+    } else {
+      setPendingDeleteId(id)
     }
   }
 
-  /**
-   * Удаление строки. Единственный путь, которым локальная работа исчезает
-   * без отправки, и он требует явного подтверждения: обратно её не вернуть.
-   */
-  async function dropOne(item: OfflineQueueItem) {
-    const store = offlineStore()
-    if (!store) return
-    const ok = window.confirm(
-      `Удалить «${operationLabel(item)}» без отправки? Работа будет потеряна безвозвратно.`,
-    )
-    if (!ok) return
-    setBusy(true)
-    try {
-      await store.setStatus(item.id, 'synced')
-      await store.removeSynced(item.id)
-      await reload()
-    } finally {
-      setBusy(false)
-    }
-  }
+  const pendingCount = items.filter((i) => i.status === 'pending' || i.status === 'syncing').length
+  const failedCount = items.filter((i) => i.status === 'failed').length
+  const backPath = mobilePath(location.pathname, '/profile')
+  const isEmpty = items.length === 0
+  const syncAllDisabled = !isOnline || syncStatus === 'syncing'
 
   return (
     <div className="mobileSection">
       <div className="mobileTicketDetailsToolbar">
-        <Link to={mobilePath(location.pathname, '/')} className="mobileDetailsBackLink">
-          Главная
+        <Link to={backPath} className="mobileDetailsBackLink">
+          Назад
         </Link>
       </div>
 
-      <div>
-        <h1 className="mobileTitle">Очередь отправки</h1>
-        <div className="mobileSubtitle">
-          {!offline.ready && offline.unavailableReason
-            ? offline.unavailableReason
-            : !offline.online
-              ? 'Нет сети. Работа сохранена на устройстве.'
-              : offline.syncing
-                ? OFFLINE_SYNC_LABEL.syncing
-                : items.length === 0
-                  ? 'Всё отправлено.'
-                  : `${OFFLINE_SYNC_LABEL.pending}: ${offline.pending}`}
-        </div>
+      <div className="mobileRow" style={{ marginBottom: 12, alignItems: 'center' }}>
+        <h1 className="mobileTitle" style={{ margin: 0, fontSize: '1.2rem' }}>
+          Очередь отправки
+        </h1>
+        {(pendingCount > 0 || failedCount > 0) ? (
+          <span className="mobileOfflineQueueCountBadge">
+            {pendingCount + failedCount}
+          </span>
+        ) : null}
       </div>
 
-      {offline.attention > 0 ? (
-        <div className="mobileNotice mobileNoticeError">
-          {OFFLINE_SYNC_LABEL.attention}: {offline.attention}. Эти записи не отправятся сами —
-          проверьте их и повторите вручную.
+      {!isOnline ? (
+        <div className="mobileNotice" style={{ background: '#fef3c7', border: '1px solid #fcd34d', color: '#78350f' }}>
+          Нет соединения. Синхронизация выполнится автоматически после восстановления сети.
         </div>
       ) : null}
 
-      {items.length > 0 && offline.online ? (
-        <button type="button" className="mobileBtn" disabled={busy} onClick={sendAll}>
-          {busy ? '…' : 'Отправить всё'}
-        </button>
+      {!isEmpty ? (
+        <div className="mobileCard" style={{ marginBottom: 10 }}>
+          <button
+            type="button"
+            className="mobileBtn"
+            style={{ width: '100%' }}
+            disabled={syncAllDisabled}
+            onClick={() => void handleSyncAll()}
+          >
+            {syncStatus === 'syncing' ? 'Синхронизация…' : 'Синхронизировать всё'}
+          </button>
+          {syncStatus === 'done' ? (
+            <div className="mobileNotice mobileNoticeSuccess" style={{ marginTop: 8 }}>
+              Готово
+            </div>
+          ) : null}
+          {syncStatus === 'error' ? (
+            <div className="mobileNotice mobileNoticeError" style={{ marginTop: 8 }}>
+              Есть ошибки — проверьте элементы ниже
+            </div>
+          ) : null}
+        </div>
       ) : null}
 
-      {items.length === 0 ? (
-        <div className="mobileCard mobileEmptyState" role="status">
+      {isEmpty ? (
+        <div className="mobileCard mobileEmptyState">
           <div className="mobileEmptyStateTitle">Очередь пуста</div>
-          <p className="mobileEmptyStateHint">
-            Всё, что вы делали без сети, уже подтверждено сервером.
-          </p>
+          <p className="mobileEmptyStateHint">Все действия отправлены.</p>
         </div>
-      ) : (
-        items.map((item) => (
-          <div key={item.id} className="mobileCard" style={{ display: 'grid', gap: 4 }}>
-            <div className="mobileRow">
-              <span style={{ fontWeight: 600 }}>{operationLabel(item)}</span>
-              <span className={`mobileQueueState mobileQueueState--${stateModifier(item)}`}>
-                {stateLabel(item)}
+      ) : null}
+
+      {items.map((item) => {
+        const isConfirmDelete = pendingDeleteId === item.id
+        const isSyncing = item.status === 'syncing'
+        const retryErr = retryErrors[item.id]
+        const summary = payloadSummary(item)
+
+        return (
+          <div key={item.id} className="mobileCard mobileOfflineQueueItem">
+            <div className="mobileRow" style={{ marginBottom: 6 }}>
+              <span className={`mobileOfflineQueueStatusBadge mobileOfflineQueueStatusBadge--${item.status}`}>
+                {statusLabel(item.status)}
+              </span>
+              <span className="mobileMeta" style={{ fontSize: '0.75rem' }}>
+                {fmtDate(item.createdAt)}
               </span>
             </div>
-            {summary(item) ? <div className="mobileMeta">{summary(item)}</div> : null}
-            <div className="mobileMeta">{fmtDate(item.createdAt)}</div>
-            {item.attentionReason ? (
-              <div className="mobileMeta" style={{ color: '#b91c1c' }}>{item.attentionReason}</div>
-            ) : null}
-            {item.lastError && !item.attentionReason ? (
-              <div className="mobileMeta">{item.lastError}</div>
+
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>{actionTypeLabel(item.type)}</div>
+
+            <div className="mobileMeta" style={{ fontSize: '0.76rem', marginBottom: summary ? 4 : 0, wordBreak: 'break-all' }}>
+              ID заявки: {item.ticketId}
+            </div>
+
+            {summary ? (
+              <div className="mobileMeta" style={{ fontSize: '0.83rem', marginBottom: 6 }}>
+                {summary}
+              </div>
             ) : null}
 
-            <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+            {item.lastError ? (
+              <div className="mobileNotice mobileNoticeError" style={{ margin: '6px 0', fontSize: '0.78rem' }}>
+                {item.lastError}
+              </div>
+            ) : null}
+
+            {retryErr ? (
+              <div className="mobileNotice mobileNoticeError" style={{ margin: '6px 0', fontSize: '0.78rem' }}>
+                {retryErr}
+              </div>
+            ) : null}
+
+            {isSyncing ? (
+              <div className="mobileMeta" style={{ fontSize: '0.82rem', marginTop: 6 }}>
+                Синхронизация…
+              </div>
+            ) : (
+              <div className="mobileRow" style={{ gap: 8, marginTop: 8 }}>
+                <button
+                  type="button"
+                  className="mobileBtn mobileBtnSecondary mobileOfflineQueueAction"
+                  onClick={() => void handleRetryOne(item.id)}
+                >
+                  Повторить
+                </button>
+                <button
+                  type="button"
+                  className={`mobileBtn mobileOfflineQueueAction${isConfirmDelete ? ' mobileOfflineQueueAction--danger' : ' mobileBtnSecondary'}`}
+                  onClick={() => handleDelete(item.id)}
+                >
+                  {isConfirmDelete ? 'Подтвердить удаление' : 'Удалить'}
+                </button>
+              </div>
+            )}
+
+            {isConfirmDelete && !isSyncing ? (
               <button
                 type="button"
-                className="mobileBtn mobileBtnGhost"
-                disabled={busy || !offline.online}
-                onClick={() => retryOne(item)}
+                className="mobileBtn mobileBtnSecondary"
+                style={{ width: '100%', marginTop: 6, fontSize: '0.82rem', minHeight: 36 }}
+                onClick={() => setPendingDeleteId(null)}
               >
-                Повторить
+                Отмена
               </button>
-              <button
-                type="button"
-                className="mobileBtn mobileBtnGhost"
-                disabled={busy}
-                onClick={() => dropOne(item)}
-              >
-                Удалить
-              </button>
-            </div>
+            ) : null}
           </div>
-        ))
-      )}
+        )
+      })}
     </div>
   )
 }

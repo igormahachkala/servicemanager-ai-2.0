@@ -1,13 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { numericConstraintLabel, responseTypeLabel } from '../lib/inspectionZones'
 import { ProtectedUploadImg } from '../ui/ProtectedUploadMedia'
 import { mobilePath } from './mobileRoute'
-import { queueOffline, useOfflineStatus } from './offline/useOffline'
-import { LOCAL_ID_PREFIX } from './offline/store'
-import { cacheRoundSnapshot, readPendingRoundTicketItemIds, readRoundSnapshot } from './offline/roundCache'
 import {
   compactTicketScope,
   mobileTicketNavState,
@@ -112,79 +109,14 @@ export function MobileInspectionRunPage() {
     enabled: !!targetClientCompanyId,
   })
 
-  // SMA-MOBILE-OFFLINE-INTEGRATION-113D: обход продолжается без сети.
-  const offline = useOfflineStatus()
-
-  /**
-   * Локальная правка открытого обхода. Действует и в памяти вкладки, и в
-   * сохранённой копии, чтобы отметка пережила перезагрузку без сети.
-   */
-  function patchRunItemLocally(itemId: string, payload: api.UpdateInspectionRunItemInput) {
-    queryClient.setQueryData<api.InspectionRun>(['inspection-run', runId], (prev) =>
-      prev
-        ? { ...prev, items: prev.items.map((i) => (i.id === itemId ? { ...i, ...payload } : i)) }
-        : prev,
-    )
-    setCachedRun((prev) =>
-      prev ? { ...prev, items: prev.items.map((i) => (i.id === itemId ? { ...i, ...payload } : i)) } : prev,
-    )
-  }
-
   const updateM = useMutation({
-    /**
-     * networkMode: 'always' обязателен.
-     *
-     * По умолчанию react-query ставит мутацию на паузу, когда браузер считает
-     * себя офлайн: mutationFn не вызывается вовсе. Вся офлайн-ветка внутри неё
-     * оказалась бы мёртвым кодом — отметка техника не попала бы ни на сервер,
-     * ни в очередь, а экран навсегда остался бы в «Сохраняем…».
-     *
-     * Здесь отсутствие сети обрабатывается самой функцией, поэтому пауза
-     * не нужна и вредна. Обнаружено живой приёмкой 113D на Stage.
-     */
-    networkMode: 'always',
-    mutationFn: async (input: { itemId: string; payload: api.UpdateInspectionRunItemInput }) => {
-      if (!offline.online) {
-        // Отметка чек-поинта схлопывается по цели: серверу нужно последнее
-        // значение, а не цепочка переключений Норма → Проблема → Норма.
-        const queued = await queueOffline({
-          kind: 'checkpoint.update',
-          target: { roundId: runId, checkpointId: input.itemId },
-          payload: input.payload as Record<string, unknown>,
-        })
-        if (!queued.ok) throw new Error(`Не удалось сохранить на устройстве: ${queued.message}`)
-        // Отметка сразу видна в открытом обходе: иначе техник решит, что
-        // нажатие не сработало, и отметит чек-поинт ещё раз.
-        patchRunItemLocally(input.itemId, input.payload)
-        return null
-      }
-      return api.updateInspectionRunItem(runId, input.itemId, input.payload)
-    },
-    onSuccess: (result) => {
-      // null возвращает только офлайн-ветка: подтверждения сервера ещё нет.
-      if (result === null) flash('ok', 'Сохранено на устройстве. Отправим после восстановления связи.')
-    },
+    mutationFn: (input: { itemId: string; payload: api.UpdateInspectionRunItemInput }) =>
+      api.updateInspectionRunItem(runId, input.itemId, input.payload),
   })
 
   const uploadM = useMutation({
-    // Причина та же, что у updateM: снимок сохраняется на устройстве сам,
-    // пауза по отсутствию сети отменила бы это.
-    networkMode: 'always',
-    mutationFn: async (input: { itemId: string; file: File }) => {
-      if (!offline.online) {
-        const queued = await queueOffline({
-          kind: 'checkpoint.attachment',
-          target: { roundId: runId, checkpointId: input.itemId },
-          blob: input.file,
-        })
-        if (!queued.ok) throw new Error(`Не удалось сохранить на устройстве: ${queued.message}`)
-        return null
-      }
-      return api.uploadInspectionRunItemAttachment(runId, input.itemId, input.file)
-    },
-    onSuccess: (result) => {
-      if (result === null) flash('ok', 'Снимок сохранён на устройстве. Отправим после восстановления связи.')
-    },
+    mutationFn: (input: { itemId: string; file: File }) =>
+      api.uploadInspectionRunItemAttachment(runId, input.itemId, input.file),
   })
 
   const backHref = mobilePath(location.pathname, '/inspection')
@@ -195,10 +127,6 @@ export function MobileInspectionRunPage() {
   )
 
   async function invalidate() {
-    // Без сети перезапрашивать нечего, а ждать нельзя: react-query держит
-    // такой перезапрос приостановленным, и обещание не разрешается до
-    // восстановления связи — вызывающий код навсегда остался бы «занят».
-    if (!offline.online) return
     await queryClient.invalidateQueries({ queryKey: ['inspection-run', runId] })
     await queryClient.invalidateQueries({ queryKey: ['inspection-runs'] })
     await queryClient.invalidateQueries({ queryKey: ['board'] })
@@ -291,46 +219,14 @@ export function MobileInspectionRunPage() {
       return
     }
     if (getCreatedTicketId(item)) return
-    if (pendingTicketItemIds.has(item.id)) return
     setBusyItemIds((s) => new Set(s).add(item.id))
     try {
-      const payload: api.CreateTicketFromInspectionItemInput = {
+      const created = await api.createTicketFromInspectionItem(runId, item.id, {
         categoryId,
         title: item.title?.trim() || undefined,
         description: item.comment?.trim() || item.description?.trim() || undefined,
         urgency: item.status === 'CRITICAL' ? 'URGENT' : 'NOT_URGENT',
-      }
-
-      if (!offline.online) {
-        // Локальный идентификатор нужен зависимым операциям: пока заявка
-        // не создана на сервере, её нечем адресовать. Настоящий id подставит
-        // координатор после подтверждения.
-        const queued = await queueOffline({
-          kind: 'ticket.fromRound',
-          target: {
-            ticketId: `${LOCAL_ID_PREFIX}${runId}:${item.id}`,
-            roundId: runId,
-            checkpointId: item.id,
-          },
-          payload,
-          producesTicketId: true,
-        })
-        if (!queued.ok) {
-          flash('err', `Не удалось сохранить на устройстве: ${queued.message}`)
-        } else {
-          // Успех сервера не показывается: заявки ещё нет.
-          flash('ok', 'Сохранено на устройстве. Заявка будет создана при связи.')
-          setPendingTicketItemIds((prev) => new Set(prev).add(item.id))
-        }
-        setBusyItemIds((s2) => {
-          const next = new Set(s2)
-          next.delete(item.id)
-          return next
-        })
-        return
-      }
-
-      const created = await api.createTicketFromInspectionItem(runId, item.id, payload)
+      })
       const ticketId = created.ticket?.id || ''
       const ticketNumber = created.ticket?.ticketNumber ?? null
       if (ticketId) {
@@ -384,41 +280,7 @@ export function MobileInspectionRunPage() {
     }
   }
 
-  /**
-   * Обход без сети. Пока связь есть, свежая копия ложится в IndexedDB;
-   * когда её нет — читается оттуда вместе с неотправленными отметками.
-   * Кэш react-query живёт в памяти вкладки и перезагрузку не переживает,
-   * а техник перезагружает приложение именно там, где связи нет.
-   */
-  const [cachedRun, setCachedRun] = useState<api.InspectionRun | null>(null)
-  /** Чек-поинты с заявкой, сохранённой на устройстве и ещё не созданной. */
-  const [pendingTicketItemIds, setPendingTicketItemIds] = useState<Set<string>>(() => new Set())
-  useEffect(() => {
-    if (!runId) return
-    let alive = true
-    void readPendingRoundTicketItemIds(runId).then((ids) => {
-      if (alive) setPendingTicketItemIds(ids)
-    })
-    return () => {
-      alive = false
-    }
-  }, [runId, offline.pending, offline.attention, offline.ready])
-  useEffect(() => {
-    if (runQ.data) void cacheRoundSnapshot(runQ.data)
-  }, [runQ.data])
-  useEffect(() => {
-    if (runQ.data || !runId) return
-    let alive = true
-    void readRoundSnapshot<api.InspectionRun>(runId).then((row) => {
-      if (alive) setCachedRun(row)
-    })
-    return () => {
-      alive = false
-    }
-  }, [runQ.data, runId, offline.pending, offline.ready])
-
-  const run = runQ.data ?? cachedRun ?? undefined
-  const isFromCache = !runQ.data && !!cachedRun
+  const run = runQ.data
 
   const summary = useMemo(() => {
     if (!run) return { ok: 0, issue: 0, critical: 0, pending: 0, total: 0 }
@@ -446,15 +308,9 @@ export function MobileInspectionRunPage() {
       </div>
 
       <div className="mobileSection">
-        {runQ.isError && !isFromCache ? (
+        {runQ.isError ? (
           <div className="mobileNotice mobileNoticeError">
             {errorMessage(runQ.error)}
-          </div>
-        ) : null}
-
-        {isFromCache ? (
-          <div className="mobileNotice">
-            Нет сети. Показана копия, сохранённая на устройстве. Отметки уйдут после восстановления связи.
           </div>
         ) : null}
 
@@ -464,7 +320,7 @@ export function MobileInspectionRunPage() {
           </div>
         ) : null}
 
-        {runQ.isLoading && !isFromCache ? (
+        {runQ.isLoading ? (
           <div className="mobileCard mobileMeta">Загружаем обход…</div>
         ) : null}
 
@@ -552,9 +408,7 @@ export function MobileInspectionRunPage() {
                 const createdTicketId = getCreatedTicketId(item)
                 const createdTicketNumber = getCreatedTicketNumber(item)
                 const createdTicketStatus = item.ticket?.status ?? null
-                const ticketQueuedOffline = pendingTicketItemIds.has(item.id)
-                const canCreateTicket =
-                  (item.status === 'ISSUE' || item.status === 'CRITICAL') && !createdTicketId && !ticketQueuedOffline
+                const canCreateTicket = (item.status === 'ISSUE' || item.status === 'CRITICAL') && !createdTicketId
                 const previous = run.items[index - 1]
                 const zoneName = item.zoneName?.trim() || 'Без зоны'
                 const showZoneHeader =
@@ -610,13 +464,6 @@ export function MobileInspectionRunPage() {
                       <div style={{ fontSize: '0.8rem', color: '#2563eb', fontWeight: 600 }}>
                         {createdTicketNumber != null ? `Заявка #${createdTicketNumber}` : 'Заявка создана'}
                         {createdTicketStatus ? ` — ${mobileTicketStatusLabelRu(createdTicketStatus)}` : ''}
-                      </div>
-                    ) : null}
-
-                    {/* Ссылки нет намеренно: заявки на сервере ещё не существует. */}
-                    {ticketQueuedOffline && !createdTicketId ? (
-                      <div style={{ fontSize: '0.8rem', color: '#92400e', fontWeight: 600 }}>
-                        Заявка сохранена на устройстве · ожидает отправки
                       </div>
                     ) : null}
 
