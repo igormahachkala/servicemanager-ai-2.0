@@ -32,8 +32,9 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
  * Freshness is enforced here; single-use lives in the binding service, which owns storage.
  */
 
-/** Our policy, not MAX's: how old an `auth_date` may be and still be accepted. */
-export const MAX_INIT_DATA_MAX_AGE_SECONDS = 300;
+/** Our policy, not MAX's: how old an `auth_date` may be and still be accepted.
+ * MAX recommends invalidating after 1 hour; 5 minutes broke bind after a slow SMA login. */
+export const MAX_INIT_DATA_MAX_AGE_SECONDS = 3600;
 
 /** Our policy: reject timestamps implausibly far in the future (clock skew tolerance). */
 export const MAX_INIT_DATA_FUTURE_SKEW_SECONDS = 60;

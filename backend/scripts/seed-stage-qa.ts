@@ -18,6 +18,50 @@ import * as bcrypt from 'bcrypt'
 import { PERMISSION_BLOCKS, ROLE_GRANTS } from '../src/common/permissions-matrix'
 
 const PASSWORD_ENV = 'STAGE_CANONICAL_PASSWORD'
+const SEED_CONFIRM_ENV = 'STAGE_CANONICAL_SEED_CONFIRM'
+const RELEASE_ENV = 'SMA_RELEASE_ENVIRONMENT'
+const DRY_RUN_ENV = 'STAGE_CANONICAL_SEED_DRY_RUN'
+const EXPECTED_SEED_CONFIRM = 'stage'
+const EXPECTED_RELEASE_ENVIRONMENT = 'beta'
+const EXPECTED_STAGE_DATABASE = 'sma_stage_db'
+
+export const STAGE_QA_SEED_GUARD = {
+  passwordEnv: PASSWORD_ENV,
+  confirmEnv: SEED_CONFIRM_ENV,
+  dryRunEnv: DRY_RUN_ENV,
+  releaseEnv: RELEASE_ENV,
+  expectedConfirm: EXPECTED_SEED_CONFIRM,
+  expectedReleaseEnvironment: EXPECTED_RELEASE_ENVIRONMENT,
+  expectedDatabase: EXPECTED_STAGE_DATABASE,
+} as const
+
+type ParsedDatabaseUrlIdentity = {
+  status: 'missing' | 'malformed' | 'unsupported_protocol' | 'parsed'
+  protocol: string | null
+  host: string | null
+  port: string | null
+  database: string | null
+  schema: string | null
+}
+
+type ConfirmationIdentity = 'missing' | 'invalid' | 'valid'
+
+type ConnectedDatabaseIdentityStatus = 'not_checked' | 'checked' | 'failed'
+
+export type StageQaSeedTargetIdentity = {
+  confirmation: ConfirmationIdentity
+  releaseEnvironment: string | null
+  nodeEnvironment: string | null
+  databaseUrl: ParsedDatabaseUrlIdentity
+  connectedDatabaseStatus: ConnectedDatabaseIdentityStatus
+  connectedDatabase: string | null
+}
+
+export type StageQaSeedGuardEvaluation = {
+  allowed: boolean
+  identity: StageQaSeedTargetIdentity
+  failures: string[]
+}
 
 const IDS = {
   company: {
@@ -616,6 +660,203 @@ function unique<T>(items: readonly T[]) {
   return Array.from(new Set(items))
 }
 
+function normalizedEnvValue(env: NodeJS.ProcessEnv, name: string) {
+  const value = env[name]
+  if (typeof value !== 'string') {
+    return null
+  }
+  const trimmed = value.trim()
+  return trimmed.length > 0 ? trimmed : null
+}
+
+function parseDatabaseUrlIdentity(databaseUrl: string | undefined): ParsedDatabaseUrlIdentity {
+  const raw = databaseUrl?.trim()
+  if (!raw) {
+    return {
+      status: 'missing',
+      protocol: null,
+      host: null,
+      port: null,
+      database: null,
+      schema: null,
+    }
+  }
+
+  try {
+    const url = new URL(raw)
+    const protocol = url.protocol.replace(/:$/, '')
+    const database = decodeURIComponent(url.pathname.replace(/^\/+/, '').split('/')[0] ?? '')
+    const identity: ParsedDatabaseUrlIdentity = {
+      status: protocol === 'postgresql' || protocol === 'postgres' ? 'parsed' : 'unsupported_protocol',
+      protocol,
+      host: url.hostname || null,
+      port: url.port || null,
+      database: database || null,
+      schema: url.searchParams.get('schema'),
+    }
+
+    return identity
+  } catch {
+    return {
+      status: 'malformed',
+      protocol: null,
+      host: null,
+      port: null,
+      database: null,
+      schema: null,
+    }
+  }
+}
+
+function confirmationIdentity(env: NodeJS.ProcessEnv): ConfirmationIdentity {
+  const confirmation = normalizedEnvValue(env, SEED_CONFIRM_ENV)
+  if (!confirmation) {
+    return 'missing'
+  }
+  return confirmation === EXPECTED_SEED_CONFIRM ? 'valid' : 'invalid'
+}
+
+function safeDisplay(value: string | null) {
+  return value ?? 'unknown'
+}
+
+export function formatStageQaSeedTargetIdentity(identity: StageQaSeedTargetIdentity) {
+  const confirmation =
+    identity.confirmation === 'valid' ? 'valid' : identity.confirmation
+  const databaseUrl = identity.databaseUrl
+  const hostAndPort = databaseUrl.port ? `${databaseUrl.host}:${databaseUrl.port}` : databaseUrl.host
+
+  return [
+    `${SEED_CONFIRM_ENV}=${confirmation}`,
+    `${RELEASE_ENV}=${safeDisplay(identity.releaseEnvironment)}`,
+    `NODE_ENV=${safeDisplay(identity.nodeEnvironment)}`,
+    `databaseUrlStatus=${databaseUrl.status}`,
+    `databaseHost=${safeDisplay(hostAndPort)}`,
+    `databaseName=${safeDisplay(databaseUrl.database)}`,
+    `databaseSchema=${safeDisplay(databaseUrl.schema)}`,
+    `connectedDatabaseStatus=${identity.connectedDatabaseStatus}`,
+    `connectedDatabase=${safeDisplay(identity.connectedDatabase)}`,
+  ].join(', ')
+}
+
+export function evaluateStageQaSeedTargetGuard(params?: {
+  env?: NodeJS.ProcessEnv
+  connectedDatabase?: string | null
+  connectedDatabaseStatus?: ConnectedDatabaseIdentityStatus
+}): StageQaSeedGuardEvaluation {
+  const env = params?.env ?? process.env
+  const releaseEnvironment = normalizedEnvValue(env, RELEASE_ENV)
+  const nodeEnvironment = normalizedEnvValue(env, 'NODE_ENV')
+  const databaseUrl = parseDatabaseUrlIdentity(env.DATABASE_URL)
+  const connectedDatabaseStatus = params?.connectedDatabaseStatus ?? 'not_checked'
+  const connectedDatabase = params?.connectedDatabase?.trim() || null
+
+  const identity: StageQaSeedTargetIdentity = {
+    confirmation: confirmationIdentity(env),
+    releaseEnvironment,
+    nodeEnvironment,
+    databaseUrl,
+    connectedDatabaseStatus,
+    connectedDatabase,
+  }
+
+  const failures: string[] = []
+
+  if (identity.confirmation !== 'valid') {
+    failures.push(`${SEED_CONFIRM_ENV} must be set to "${EXPECTED_SEED_CONFIRM}"`)
+  }
+  if (releaseEnvironment !== EXPECTED_RELEASE_ENVIRONMENT) {
+    failures.push(`${RELEASE_ENV} must be "${EXPECTED_RELEASE_ENVIRONMENT}"`)
+  }
+  if (nodeEnvironment && ['prod', 'production'].includes(nodeEnvironment.toLowerCase())) {
+    failures.push('NODE_ENV=production is forbidden for the Stage QA seed')
+  }
+  if (databaseUrl.status !== 'parsed') {
+    failures.push('DATABASE_URL must be a valid PostgreSQL URL')
+  } else if (databaseUrl.database !== EXPECTED_STAGE_DATABASE) {
+    failures.push(`DATABASE_URL database must be "${EXPECTED_STAGE_DATABASE}"`)
+  }
+
+  if (connectedDatabaseStatus === 'failed') {
+    failures.push('connected database identity could not be read')
+  } else if (connectedDatabaseStatus !== 'checked') {
+    failures.push('connected database identity was not checked')
+  } else if (connectedDatabase !== EXPECTED_STAGE_DATABASE) {
+    failures.push(`connected database must be "${EXPECTED_STAGE_DATABASE}"`)
+  }
+
+  if (
+    databaseUrl.status === 'parsed' &&
+    connectedDatabaseStatus === 'checked' &&
+    connectedDatabase &&
+    databaseUrl.database !== connectedDatabase
+  ) {
+    failures.push('DATABASE_URL database and connected database identity disagree')
+  }
+
+  return {
+    allowed: failures.length === 0,
+    identity,
+    failures,
+  }
+}
+
+export function formatStageQaSeedGuardFailure(evaluation: StageQaSeedGuardEvaluation) {
+  return [
+    '[seed-stage-canonical] Stage QA seed was NOT executed.',
+    'Refusing to run against target database.',
+    `Reasons: ${evaluation.failures.join('; ') || 'unknown guard failure'}.`,
+    `Target identity: ${formatStageQaSeedTargetIdentity(evaluation.identity)}.`,
+  ].join(' ')
+}
+
+async function readConnectedDatabaseName(prisma: PrismaClient) {
+  const rows = await prisma.$queryRaw<Array<{ database: string }>>`
+    SELECT current_database() AS database
+  `
+  return rows[0]?.database ?? null
+}
+
+export async function inspectStageQaSeedTarget(
+  prisma: PrismaClient | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+) {
+  const parsed = parseDatabaseUrlIdentity(env.DATABASE_URL)
+  if (!prisma || parsed.status !== 'parsed') {
+    return evaluateStageQaSeedTargetGuard({
+      env,
+      connectedDatabase: null,
+      connectedDatabaseStatus: 'not_checked',
+    })
+  }
+
+  try {
+    const connectedDatabase = await readConnectedDatabaseName(prisma)
+    return evaluateStageQaSeedTargetGuard({
+      env,
+      connectedDatabase,
+      connectedDatabaseStatus: 'checked',
+    })
+  } catch {
+    return evaluateStageQaSeedTargetGuard({
+      env,
+      connectedDatabase: null,
+      connectedDatabaseStatus: 'failed',
+    })
+  }
+}
+
+export async function assertStageQaSeedTarget(
+  prisma: PrismaClient,
+  env: NodeJS.ProcessEnv = process.env,
+) {
+  const evaluation = await inspectStageQaSeedTarget(prisma, env)
+  if (!evaluation.allowed) {
+    throw new Error(formatStageQaSeedGuardFailure(evaluation))
+  }
+  return evaluation
+}
+
 function hasTicketStatus(statuses: readonly TicketStatus[], status: TicketStatus) {
   return statuses.includes(status)
 }
@@ -630,8 +871,8 @@ function assertUnique(label: string, items: readonly string[]) {
   }
 }
 
-function resolveSeedPassword(passwordOverride?: string) {
-  const password = passwordOverride ?? process.env[PASSWORD_ENV]
+function resolveSeedPassword(passwordOverride?: string, env: NodeJS.ProcessEnv = process.env) {
+  const password = passwordOverride ?? env[PASSWORD_ENV]
   if (!password) {
     throw new Error(`[seed-stage-canonical] ${PASSWORD_ENV} is required; no password is stored in source`)
   }
@@ -1471,11 +1712,14 @@ async function seedPushPreferences(prisma: PrismaClient, userIds: string[]) {
 
 export async function runCanonicalStageSeed(
   prisma: PrismaClient,
-  options?: { password?: string },
+  options?: { password?: string; env?: NodeJS.ProcessEnv },
 ): Promise<CanonicalStageSeedResult> {
+  const env = options?.env ?? process.env
+  await assertStageQaSeedTarget(prisma, env)
+
   validateCanonicalStageSeedPlan()
 
-  const password = resolveSeedPassword(options?.password)
+  const password = resolveSeedPassword(options?.password, env)
   const passwordHash = await bcrypt.hash(password, 10)
 
   await seedPermissions(prisma)
@@ -1561,9 +1805,17 @@ export async function runCanonicalStageSeed(
   }
 }
 
-function printDryRun() {
+export async function printCanonicalStageSeedDryRun(
+  prisma: PrismaClient | undefined,
+  env: NodeJS.ProcessEnv = process.env,
+) {
   validateCanonicalStageSeedPlan()
+  const guard = await inspectStageQaSeedTarget(prisma, env)
   const statuses = unique(CANONICAL_STAGE_SEED.tickets.map((ticket) => ticket.status))
+  console.log(`[seed-stage-canonical] target: ${formatStageQaSeedTargetIdentity(guard.identity)}`)
+  if (!guard.allowed) {
+    throw new Error(formatStageQaSeedGuardFailure(guard))
+  }
   console.log('[seed-stage-canonical] dry-run OK')
   console.log(`[seed-stage-canonical] companies: ${CANONICAL_STAGE_SEED.companies.length}`)
   console.log(`[seed-stage-canonical] users: ${CANONICAL_STAGE_SEED.users.length}`)
@@ -1573,14 +1825,19 @@ function printDryRun() {
   console.log('[seed-stage-canonical] providerDelegation: not supported by current schema')
 }
 
-async function main() {
-  if (process.env.STAGE_CANONICAL_SEED_DRY_RUN === '1') {
-    printDryRun()
-    return
-  }
+function sanitizeErrorMessage(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error)
+  return message.replace(/postgres(?:ql)?:\/\/\S+/gi, '[redacted DATABASE_URL]')
+}
 
+async function main() {
   const prisma = new PrismaClient()
   try {
+    if (process.env[DRY_RUN_ENV] === '1') {
+      await printCanonicalStageSeedDryRun(prisma)
+      return
+    }
+
     const result = await runCanonicalStageSeed(prisma)
     console.log('[seed-stage-canonical] complete')
     console.log(`[seed-stage-canonical] companies: ${result.companies}`)
@@ -1604,7 +1861,7 @@ async function main() {
 
 if (require.main === module) {
   main().catch((error) => {
-    console.error('[seed-stage-canonical] failed', error)
+    console.error(`[seed-stage-canonical] failed: ${sanitizeErrorMessage(error)}`)
     process.exit(1)
   })
 }

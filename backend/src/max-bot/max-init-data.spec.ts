@@ -140,6 +140,11 @@ describe('verifyMaxInitData', () => {
     expect(result).toEqual({ valid: false, reason: 'expired' });
   });
 
+  it('accepts a payload 10 minutes old (inside the 1 hour window)', () => {
+    const authDate = Math.floor(Date.now() / 1000) - 600;
+    expect(verifyMaxInitData(buildInitData({ auth_date: String(authDate) }), BOT_TOKEN).valid).toBe(true);
+  });
+
   it('accepts a payload inside the freshness window', () => {
     const authDate = Math.floor(Date.now() / 1000) - Math.floor(MAX_INIT_DATA_MAX_AGE_SECONDS / 2);
     expect(verifyMaxInitData(buildInitData({ auth_date: String(authDate) }), BOT_TOKEN).valid).toBe(true);

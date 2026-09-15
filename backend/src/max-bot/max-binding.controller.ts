@@ -30,6 +30,7 @@ import { MaxBindingService } from './max-binding.service';
   UserRole.NETWORK_DIRECTOR,
   UserRole.TECHNICIAN,
   UserRole.CLIENT,
+  UserRole.CLIENT_ADMIN,
   UserRole.TERRITORIAL_MANAGER,
   UserRole.STAFF,
   UserRole.PLATFORM_ADMIN,

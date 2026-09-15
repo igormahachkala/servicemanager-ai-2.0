@@ -1,8 +1,14 @@
 import { useEffect, useRef } from 'react'
 import { useQueryClient, type QueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
+import { pushToast } from '../lib/appToast'
 import type { WsNotifMsg } from '../lib/realtimeNotificationToast'
-import { configureRealtimeSocket, subscribeRealtimeSocket } from '../lib/realtimeSocket'
+import {
+  configureRealtimeSocket,
+  subscribeRealtimeAuthRejected,
+  subscribeRealtimeServerNotice,
+  subscribeRealtimeSocket,
+} from '../lib/realtimeSocket'
 
 type WsBoardScope = {
   linkedClientCompanyId?: string
@@ -84,6 +90,19 @@ export function useWsInvalidation(scope?: WsBoardScope, opts?: UseWsInvalidation
       },
     })
   }, [scope?.companyId, scope?.linkedClientCompanyId])
+
+  useEffect(() => {
+    const unsubscribeAuth = subscribeRealtimeAuthRejected(() => {
+      qc.invalidateQueries({ queryKey: ['me'] })
+    })
+    const unsubscribeNotice = subscribeRealtimeServerNotice((notice) => {
+      pushToast(notice.text, 'error')
+    })
+    return () => {
+      unsubscribeAuth()
+      unsubscribeNotice()
+    }
+  }, [qc])
 
   useEffect(
     () =>

@@ -4,12 +4,14 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
 import { PrismaModule } from '../prisma/prisma.module';
+import { MaxBotModule } from '../max-bot/max-bot.module';
 import { LoginRateLimiterService } from './login-rate-limiter.service';
 import { getJwtSecret } from '../config/required-env';
 
 @Module({
   imports: [
     PrismaModule,
+    MaxBotModule,
     JwtModule.register({
       secret: getJwtSecret(),
       signOptions: { expiresIn: '7d' },

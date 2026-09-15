@@ -94,9 +94,27 @@ const MaxApp = lazyExport(() => import('./max/MaxApp'), 'MaxApp')
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const token = api.getToken()
   const location = useLocation()
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const meQ = useQuery({ queryKey: ['me'], queryFn: api.me, enabled: Boolean(token) })
+
+  React.useEffect(() => {
+    if (!meQ.isError) return
+    api.clearToken()
+    queryClient.clear()
+    navigate(api.loginPathWithReturnTo(`${location.pathname}${location.search}${location.hash}`), {
+      replace: true,
+    })
+  }, [location.hash, location.pathname, location.search, meQ.isError, navigate, queryClient])
+
   if (!token) {
     return <Navigate to={api.loginPathWithReturnTo(`${location.pathname}${location.search}${location.hash}`)} replace />
   }
+
+  if (meQ.isLoading || meQ.isError) {
+    return <div className="page"><div className="muted">Проверяем доступ…</div></div>
+  }
+
   return <>{children}</>
 }
 

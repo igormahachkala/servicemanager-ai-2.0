@@ -195,6 +195,21 @@ export class MaxBindingService {
   }
 
   /**
+   * Silent Mini App login: burn this `initData` once and refresh `lastVerifiedAt`.
+   * Does not create or re-point a binding. Call only after `resolveByMaxUserId` succeeded.
+   */
+  async consumeInitDataForSilentLogin(hash: string, authDate: Date, userId: string): Promise<boolean> {
+    const digest = maxInitDataReplayDigest(hash);
+    const consumed = await this.consumeReplayDigest(digest, authDate);
+    if (!consumed) return false;
+    await this.prisma.maxUserBinding.updateMany({
+      where: { userId, status: MaxUserBindingStatus.ACTIVE },
+      data: { lastVerifiedAt: new Date() },
+    });
+    return true;
+  }
+
+  /**
    * Records the payload digest, returning false when it was already used.
    *
    * Expiry is set from `auth_date` plus the freshness window: once a payload is too old to
