@@ -1032,3 +1032,30 @@ test('113D-19. съёмка не выключается из-за недосту
   assert.ok(block, 'блок разрешения найден')
   assert.match(block, /api\.getUserRole\(\)/, 'роль имеет запасной источник на время без сети')
 })
+
+test('113D-20. отказ сети не считается недействительной сессией', async () => {
+  const { readFileSync } = await import('node:fs')
+  const router = readFileSync(new URL('../../../src/router.tsx', import.meta.url), 'utf8')
+  const api = readFileSync(new URL('../../../src/lib/api.ts', import.meta.url), 'utf8')
+
+  /*
+   * `/m` обёрнут RequireAuth. Production добавил туда проверку `/auth/me`, которая
+   * стирала токен на ЛЮБОМ отказе. Для техника это разрушительно: первый запрос после
+   * возвращения в зону покрытия падает штатно — радио ещё не поднялось, — и в этот
+   * момент у человека с неотправленной работой пропадал токен. Очередь после этого
+   * не уходит никогда: отправлять её нечем.
+   *
+   * Уводить на вход должен только явный отказ сервера. То же различие realtime уже
+   * делает: сокет сбрасывает авторизацию на AUTH_INVALID и коде 1008.
+   */
+  assert.match(api, /export function isSessionRejected/, 'различие вынесено в общую функцию')
+  assert.match(api, /error\.status === 401 \|\| error\.status === 403/, 'отказ сессии — это 401\/403')
+
+  const guard = /function RequireAuth\(\{[\s\S]*?\n\}/.exec(router)?.[0] ?? ''
+  assert.ok(guard, 'RequireAuth найден')
+  assert.match(guard, /api\.isSessionRejected\(meQ\.error\)/, 'решение принимается по виду отказа')
+  assert.match(guard, /if \(!sessionRejected\) return/, 'токен стирается только при отказе сессии')
+  assert.doesNotMatch(guard, /if \(!meQ\.isError\) return/, 'любой отказ больше не стирает токен')
+  // Приостановленный без сети запрос не должен держать экран «Проверяем доступ…».
+  assert.match(guard, /meQ\.fetchStatus === 'fetching'/, 'ожидание только пока запрос реально идёт')
+})

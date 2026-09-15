@@ -1925,6 +1925,22 @@ export function getApiDenyReason(err: unknown): string | null {
   return null
 }
 
+/**
+ * SMA-MOBILE-OFFLINE-INTEGRATION-113D — «сессия отвергнута» против «сеть не доехала».
+ *
+ * Различие не косметическое. Отказ сервера 401/403 означает, что входить надо заново.
+ * Отказ транспорта не означает ничего о сессии: телефон в подвале, радио ещё не поднялось,
+ * прокси отдал 502. Если считать второе первым, приложение сотрёт токен у техника,
+ * у которого на устройстве лежит неотправленная работа, — и очередь больше никогда
+ * не уйдёт на сервер, потому что отправлять её нечем.
+ *
+ * Realtime это различие уже делает: сокет сбрасывает авторизацию только на AUTH_INVALID
+ * и код закрытия 1008, а не на любом обрыве. Здесь то же правило для HTTP.
+ */
+export function isSessionRejected(error: unknown): boolean {
+  return error instanceof ApiRequestError && (error.status === 401 || error.status === 403)
+}
+
 export class ApiTimeoutError extends Error {
   constructor() {
     super(API_TIMEOUT_ERROR_MESSAGE)
