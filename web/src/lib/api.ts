@@ -3685,6 +3685,7 @@ export type InspectionRunReport = {
     }>
     ticket?: {
       id: string
+      ticketNumber?: number | null
       status: TicketStatus
       problemText: string
     } | null
