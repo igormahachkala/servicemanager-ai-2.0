@@ -54,6 +54,27 @@ describe('CORS allowlist', () => {
     expect(callback).toHaveBeenCalledWith(null, true);
   });
 
+  it('allows the Idempotency-Key header through the preflight', () => {
+    /*
+     * SMA-MOBILE-OFFLINE-INTEGRATION-113D.
+     *
+     * 113B accepts this header on every replayable write, but a browser can
+     * only send a header named in allowedHeaders: anything else is rejected
+     * by the preflight, and fetch fails with a bare "Failed to fetch" that
+     * looks exactly like no connectivity. The offline queue then retried
+     * forever and the technician's work never left the device.
+     *
+     * Found by live Stage acceptance, not by tests — which is why the check
+     * is pinned to the source here.
+     */
+    const main = readFileSync(resolve(__dirname, '../main.ts'), 'utf8');
+    const allowed = /allowedHeaders:\s*\[([^\]]*)\]/.exec(main)?.[1] ?? '';
+
+    expect(allowed).toContain("'Idempotency-Key'");
+    expect(allowed).toContain("'Authorization'");
+    expect(allowed).toContain("'Content-Type'");
+  });
+
   it('documents nginx as not owning API CORS headers', () => {
     const config = readFileSync(
       resolve(__dirname, '../../../docs/nginx-api.servicemanagerai.ru.conf'),
