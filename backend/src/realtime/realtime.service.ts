@@ -10,7 +10,7 @@ import { getJwtSecret } from '../config/required-env';
 import { isServiceContractEffective } from '../service-contracts/service-contract-window';
 import { buildLegacyNotificationNavigationTarget } from '../notifications/notification-navigation';
 import { applyHeartbeatSweep, AUTH_INVALID_PAYLOAD, REALTIME_HEARTBEAT_MS, tokenExpiresAtMs } from './realtime.heartbeat';
-import type { RealtimeClient } from './realtime.types';
+import type { RealtimeClient, RealtimeSubscription, RealtimeUser } from './realtime.types';
 
 type DomainEventRow = {
   id: string;
