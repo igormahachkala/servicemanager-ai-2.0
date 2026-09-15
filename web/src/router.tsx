@@ -98,20 +98,54 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient()
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me, enabled: Boolean(token) })
 
+  /*
+   * SMA-MOBILE-OFFLINE-INTEGRATION-113D — сверка с офлайн-режимом.
+   *
+   * Прежняя проверка считала недействительной сессией ЛЮБОЙ отказ `/auth/me` и стирала
+   * токен. Для мобильного техника это разрушительно: `/m` обёрнут именно этой проверкой,
+   * а первый запрос после возвращения в зону покрытия падает штатно — радио ещё не
+   * поднялось. В этот момент приложение стирало токен у человека, у которого на
+   * устройстве лежит неотправленная работа. Очередь после этого не уйдёт никогда:
+   * отправлять её нечем, а предупреждение о потере работы показывает только осознанный
+   * выход.
+   *
+   * Теперь на вход уводит лишь явный отказ сервера — 401/403. Замысел правки сохранён
+   * полностью: недействительная сессия по-прежнему ведёт на вход. Не-авторизационный
+   * отказ сессию не трогает, и приложение работает на сохранённых данных, как и
+   * задумано офлайн-режимом. То же различие realtime уже делает: сокет сбрасывает
+   * авторизацию на AUTH_INVALID и коде 1008, а не на любом обрыве.
+   */
+  const sessionRejected = api.isSessionRejected(meQ.error)
+
   React.useEffect(() => {
-    if (!meQ.isError) return
+    if (!sessionRejected) return
     api.clearToken()
     queryClient.clear()
     navigate(api.loginPathWithReturnTo(`${location.pathname}${location.search}${location.hash}`), {
       replace: true,
     })
-  }, [location.hash, location.pathname, location.search, meQ.isError, navigate, queryClient])
+  }, [location.hash, location.pathname, location.search, sessionRejected, navigate, queryClient])
 
   if (!token) {
     return <Navigate to={api.loginPathWithReturnTo(`${location.pathname}${location.search}${location.hash}`)} replace />
   }
 
-  if (meQ.isLoading || meQ.isError) {
+  /*
+   * Заглушку показываем только при живой связи.
+   *
+   * Без сети `/auth/me` не ответит никогда: запрос уходит в повторы и висит,
+   * а экран «Проверяем доступ…» держит техника снаружи его же сохранённой
+   * работы — она в этот момент лежит на устройстве и ждёт отправки. Измерено
+   * живой приёмкой на Stage: после перезагрузки в офлайне приложение не
+   * поднималось вовсе.
+   *
+   * Рендерить оболочку без подтверждения безопасно: она ничего не решает
+   * сама. Каждый запрос по-прежнему авторизует сервер, а явный отказ сессии
+   * уводит на вход ветвью выше, когда ответ действительно придёт.
+   */
+  const connected = typeof navigator === 'undefined' ? true : navigator.onLine !== false
+
+  if (sessionRejected || (meQ.isPending && connected)) {
     return <div className="page"><div className="muted">Проверяем доступ…</div></div>
   }
 
