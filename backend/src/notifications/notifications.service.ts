@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import {
   CompanyType,
+  NotificationChannel,
   Prisma,
   ServiceContractRole,
   TicketStatus,
@@ -10,6 +11,10 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { MaxBotService } from '../max-bot/max-bot.service';
 import { PushService, type PushEventType } from '../push/push.service';
+import {
+  NotificationPreferenceGate,
+  type PreferenceGateRow,
+} from './notification-preference-gate';
 import {
   ContractContextService,
   type ContractContext,
@@ -171,6 +176,13 @@ export class NotificationsService {
     private readonly push: PushService,
     private readonly serviceContractsService: ServiceContractsService,
     private readonly contractContextService: ContractContextService,
+    /**
+     * 105B: последним параметром и необязательный — чтобы порядок уже
+     * существующих зависимостей не сдвигался. Nest всегда его подставляет;
+     * отсутствие ворот означает «настройки не применяем», то есть текущее
+     * поведение доставки без изменений.
+     */
+    private readonly preferenceGate?: NotificationPreferenceGate,
   ) {}
 
   /**
@@ -193,6 +205,23 @@ export class NotificationsService {
   }) {
     try {
       const notificationType = params.notificationType ?? params.type;
+      /**
+       * 105B: канал PUSH — отдельная настройка того же события. Legacy-тумблер
+       * PushPreference по-прежнему уважает PushService, здесь он не дублируется:
+       * ворота гасят только по явной настройке V2.
+       */
+      const pushAllowed = this.preferenceGate
+        ? await this.preferenceGate.allows(
+            {
+              userId: params.userId,
+              companyId: params.companyId || '',
+              type: notificationType,
+              linkedClientCompanyId: params.linkedClientCompanyId ?? null,
+            },
+            NotificationChannel.PUSH,
+          )
+        : true;
+      if (!pushAllowed) return;
       const section = ticketNotificationSectionForType(notificationType);
       const navigationTarget = buildTicketNotificationNavigationTarget({
         ticketId: params.ticketId,
@@ -333,6 +362,19 @@ export class NotificationsService {
   }
 
   private async createNotification(data: Prisma.NotificationUncheckedCreateInput & { dedupeKey: string }) {
+    /**
+     * 105B: настройки применяются здесь — на единственном пути записи Notification,
+     * уже после того, как доступ получателя разрешён вызывающей стороной.
+     * Ворота только убирают строку; добавить получателя они не могут.
+     */
+    const [allowed] = this.preferenceGate
+      ? await this.preferenceGate.filterRows(
+          [data as unknown as PreferenceGateRow],
+          NotificationChannel.IN_APP,
+        )
+      : [data];
+    if (!allowed) return null;
+
     const withLocation = await this.withTicketLocationContext(data);
     try {
       return await this.prisma.notification.create({ data: this.withNavigationTarget(withLocation) });
@@ -348,7 +390,15 @@ export class NotificationsService {
     data: Array<Prisma.NotificationCreateManyInput & { dedupeKey: string }>,
   ) {
     if (!data.length) return { count: 0 };
-    const withLocation = await this.withTicketLocationContextMany(data);
+    // 105B: тот же фильтр на пакетной записи. См. createNotification выше.
+    const permitted = this.preferenceGate
+      ? await this.preferenceGate.filterRows(
+          data as unknown as Array<Prisma.NotificationCreateManyInput & { dedupeKey: string } & PreferenceGateRow>,
+          NotificationChannel.IN_APP,
+        )
+      : data;
+    if (!permitted.length) return { count: 0 };
+    const withLocation = await this.withTicketLocationContextMany(permitted);
     return this.prisma.notification.createMany({
       data: withLocation.map((item) => this.withNavigationTarget(item)),
       skipDuplicates: true,
