@@ -6,6 +6,9 @@ import { JwtService } from '@nestjs/jwt'
 import { PrismaService } from '../prisma/prisma.service'
 import { isEngineeringAgentOwner } from '../agent-tasks/agent-tasks.access'
 import { canAccessManagementSurface } from '../common/management-surface-access'
+import { MaxBindingService } from '../max-bot/max-binding.service'
+import { MaxIdentityService } from '../max-bot/max-identity.service'
+import { verifyMaxInitData } from '../max-bot/max-init-data'
 
 import { LoginDto } from './dto/login.dto'
 
@@ -14,6 +17,8 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
+    private readonly maxIdentity: MaxIdentityService,
+    private readonly maxBindings: MaxBindingService,
   ) {}
 
   async register(dto?: { companyName?: string; email?: string; password?: string }) {
@@ -141,6 +146,65 @@ export class AuthService {
       companyName: user.company?.name ?? null,
       companyType: user.company?.type ?? null,
     })
+  }
+
+  async loginWithMaxInitData(initData: string) {
+    const verification = verifyMaxInitData(initData, (process.env.MAX_BOT_API_TOKEN || '').trim())
+    if (!verification.valid) {
+      this.throwMaxSessionDenied(`init_data_${verification.reason}`)
+    }
+
+    const identity = await this.maxIdentity.resolveByMaxUserId(verification.data.maxUserId)
+    if (!identity.resolved) {
+      this.throwMaxSessionDenied(identity.reason)
+    }
+
+    const consumed = await this.maxBindings.consumeInitDataForSilentLogin(
+      verification.data.hash,
+      verification.data.authDate,
+      identity.userId,
+    )
+    if (!consumed) {
+      this.throwMaxSessionDenied('replayed')
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: identity.userId },
+      select: {
+        id: true,
+        email: true,
+        firstName: true,
+        lastName: true,
+        avatarUrl: true,
+        role: true,
+        companyId: true,
+        isActive: true,
+        company: {
+          select: { name: true, type: true },
+        },
+      },
+    })
+
+    if (!user || !user.isActive) {
+      this.throwMaxSessionDenied('user_inactive')
+    }
+
+    return this.issueAuthPayload({
+      id: user.id,
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      avatarUrl: user.avatarUrl,
+      role: user.role,
+      companyId: user.companyId,
+      isActive: user.isActive,
+      companyName: user.company?.name ?? null,
+      companyType: user.company?.type ?? null,
+    })
+  }
+
+  private throwMaxSessionDenied(reason: string): never {
+    throw new UnauthorizedException({ code: 'MAX_SESSION_DENIED', reason })
   }
 
   async impersonate(platformUser: { role?: UserRole | string }, targetCompanyId: string) {

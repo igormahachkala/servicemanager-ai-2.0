@@ -74,4 +74,15 @@ describe('LoginRateLimiterService', () => {
       ),
     ).not.toThrow()
   })
+
+  it('limits POST /auth/max by IP without sharing the password-login bucket', () => {
+    const loginReq = req({ ip: '10.0.0.8' })
+    for (let i = 0; i < 5; i += 1) {
+      svc.consumeIp(loginReq)
+    }
+    expect(() => svc.consumeIp(loginReq)).toThrow(
+      expect.objectContaining({ status: HttpStatus.TOO_MANY_REQUESTS }),
+    )
+    expect(() => svc.consume('user@example.com', loginReq)).not.toThrow()
+  })
 })

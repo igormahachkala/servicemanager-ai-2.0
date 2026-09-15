@@ -25,6 +25,10 @@ export class LoginRateLimiterService implements OnModuleDestroy {
     clearInterval(this.cleanupTimer)
   }
 
+  consumeIp(req: any) {
+    this.consume('__max_session__', req)
+  }
+
   consume(email: string, req: any) {
     const now = Date.now()
     const ip = resolveRequestClientIp(req)
