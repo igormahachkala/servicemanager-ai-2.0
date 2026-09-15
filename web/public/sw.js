@@ -1,6 +1,7 @@
 // Сервис Менеджер — Push Service Worker
-// Зона: mobile-поток (frontend). Не трогает offline-очередь заявок — это отдельный
-// механизм в src/mobile/offlineQueue.ts, работающий на уровне приложения, не SW.
+// Зона: mobile-поток (frontend). Очередь отложенной работы здесь не живёт —
+// она в IndexedDB (src/mobile/offline/*), на уровне приложения. SW отвечает
+// только за push и за оболочку, которую видно без связи.
 //
 // Что делает этот файл:
 //  1. push          — показывает системное уведомление (или ждёт подписки заново, если payload пуст)
@@ -172,13 +173,115 @@ function pickWindowClient(clientList) {
   )
 }
 
-self.addEventListener('install', () => {
+// ── SMA-MOBILE-OFFLINE-MODE-V1-113C: оболочка приложения офлайн ──────────
+//
+// Задача узкая: если техник уже открывал /m, при пропаже связи приложение
+// должно открыться заново, а не показать ошибку браузера. Дальше работает
+// offline-слой на IndexedDB.
+//
+// Кэш здесь — только оболочка. Второй операционной базой он не становится
+// намеренно: данные заявок и обходов живут в IndexedDB, где ими управляет
+// код с понятными правилами и пространством имён по пользователю. Класть
+// авторизованные ответы API в кэш Service Worker нельзя ещё и потому, что
+// он общий для всех, кто открывал браузер: на общем планшете следующий
+// техник увидел бы чужие данные.
+const APP_SHELL_CACHE = 'sma-app-shell-v1'
+const APP_SHELL_URL = '/index.html'
+
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches
+      .open(APP_SHELL_CACHE)
+      .then((cache) => cache.addAll([APP_SHELL_URL, '/']))
+      .catch(() => undefined),
+  )
   // Не ждём — новый SW должен активироваться сразу же после обновления кода.
   self.skipWaiting()
 })
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim())
+  event.waitUntil(
+    Promise.all([
+      self.clients.claim(),
+      // Старые версии оболочки убираем, иначе после релиза техник получит
+      // вчерашний бандл.
+      caches.keys().then((keys) =>
+        Promise.all(keys.filter((k) => k.startsWith('sma-app-shell-') && k !== APP_SHELL_CACHE).map((k) => caches.delete(k))),
+      ),
+    ]),
+  )
+})
+
+/**
+ * SMA-MOBILE-OFFLINE-INTEGRATION-113D: сборочные файлы оболочки.
+ *
+ * Одного index.html мало. Экраны грузятся отдельными файлами по требованию,
+ * и тот, который техник не открывал до потери связи, взять неоткуда: без
+ * сети приложение показывает пустоту вместо экрана. На приёмке так не
+ * открывался профиль — то есть и выход из учётной записи.
+ *
+ * Имена файлов содержат хэш содержимого, поэтому старая версия никогда
+ * не выдаётся за новую: после релиза имена меняются, а прежние записи
+ * убирает activate вместе со своим кэшем. Личных данных здесь нет —
+ * только код приложения, одинаковый для всех.
+ */
+function isBuildAsset(url) {
+  return url.pathname.startsWith('/assets/') && /\.(js|css|woff2?|svg|png|jpg|webp)$/.test(url.pathname)
+}
+
+self.addEventListener('fetch', (event) => {
+  const request = event.request
+
+  // Кэшируется навигация и сборочные файлы. Всё остальное — включая любые
+  // запросы с Authorization, вызовы api и защищённую раздачу /uploads —
+  // идёт в сеть и в кэш не попадает.
+  if (request.method !== 'GET') return
+
+  const assetUrl = new URL(request.url)
+  if (request.mode !== 'navigate' && assetUrl.origin === self.location.origin && isBuildAsset(assetUrl)) {
+    // Сначала кэш: файл неизменяем, ходить за ним по сети незачем.
+    event.respondWith(
+      caches.match(request).then((hit) => {
+        if (hit) return hit
+        return fetch(request).then((response) => {
+          if (response && response.ok && response.type === 'basic') {
+            const copy = response.clone()
+            caches.open(APP_SHELL_CACHE).then((cache) => cache.put(request, copy)).catch(() => undefined)
+          }
+          return response
+        })
+      }),
+    )
+    return
+  }
+
+  if (request.mode !== 'navigate') return
+
+  const url = new URL(request.url)
+  if (url.origin !== self.location.origin) return
+  if (url.pathname.startsWith('/uploads/') || url.pathname.startsWith('/api/')) return
+
+  event.respondWith(
+    fetch(request)
+      .then((response) => {
+        // Свежую оболочку сохраняем, чтобы в следующий раз было что показать.
+        // Только успешный ответ: страницей 502 от упавшего прокси кэш затирать
+        // нельзя — она осталась бы там и после починки сервера.
+        if (response && response.ok && response.type === 'basic') {
+          const copy = response.clone()
+          caches.open(APP_SHELL_CACHE).then((cache) => cache.put(APP_SHELL_URL, copy)).catch(() => undefined)
+        }
+        return response
+      })
+      .catch(async () => {
+        const cached = await caches.match(APP_SHELL_URL)
+        if (cached) return cached
+        return new Response('Нет связи и нет сохранённой копии приложения.', {
+          status: 503,
+          headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+        })
+      }),
+  )
 })
 
 /**
