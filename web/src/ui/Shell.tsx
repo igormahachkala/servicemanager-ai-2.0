@@ -210,8 +210,8 @@ export function Shell() {
     nav(path, { replace: true })
   }
 
-  async function logout() {
-    await api.logoutSmaSession()
+  function logout() {
+    api.clearToken()
     queryClient.clear()
     hardRedirect('/login')
   }
@@ -297,7 +297,7 @@ export function Shell() {
           <div className="small" style={{ opacity: 0.75 }}>
             {meQ.data ? `${meQ.data.email} (${roleDisplayLabel})` : '—'}
           </div>
-          <button className="navBtn" onClick={() => { void logout() }} style={{ marginTop: 10 }}>
+          <button className="navBtn" onClick={logout} style={{ marginTop: 10 }}>
             Выйти
           </button>
         </div>

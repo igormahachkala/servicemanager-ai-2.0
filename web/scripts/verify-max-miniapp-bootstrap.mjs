@@ -278,52 +278,11 @@ async function assertRejectsWithTimeout(promise) {
 }
 
 {
-  const smaLogout = loadTsModule('src/lib/smaLogout.ts').module.exports
-  const calls = []
-  await smaLogout.runSmaLogout({
-    getToken: () => 'jwt',
-    isImpersonating: () => false,
-    revokeMaxBinding: async () => { calls.push('revoke') },
-    clearToken: () => { calls.push('clear') },
-  })
-  assert.deepEqual(calls, ['revoke', 'clear'])
-
-  calls.length = 0
-  await smaLogout.runSmaLogout({
-    getToken: () => 'jwt',
-    isImpersonating: () => true,
-    revokeMaxBinding: async () => { calls.push('revoke') },
-    clearToken: () => { calls.push('clear') },
-  })
-  assert.deepEqual(calls, ['clear'])
-
-  calls.length = 0
-  await smaLogout.runSmaLogout({
-    getToken: () => null,
-    isImpersonating: () => false,
-    revokeMaxBinding: async () => { calls.push('revoke') },
-    clearToken: () => { calls.push('clear') },
-  })
-  assert.deepEqual(calls, ['clear'])
-
-  calls.length = 0
-  await smaLogout.runSmaLogout({
-    getToken: () => 'jwt',
-    isImpersonating: () => false,
-    revokeMaxBinding: async () => { throw new Error('network') },
-    clearToken: () => { calls.push('clear') },
-  })
-  assert.deepEqual(calls, ['clear'])
-}
-
-{
   const apiSource = readFileSync(resolve(root, 'src/lib/api.ts'), 'utf8')
   const loginPageSource = readFileSync(resolve(root, 'src/views/LoginPage.tsx'), 'utf8')
   const workspaceSource = readFileSync(resolve(root, 'src/views/WorkspaceSelectorPage.tsx'), 'utf8')
   const maxTicketEntrySource = readFileSync(resolve(root, 'src/max/MaxTicketEntry.tsx'), 'utf8')
-  const shellSource = readFileSync(resolve(root, 'src/ui/Shell.tsx'), 'utf8')
-  const mobileProfileSource = readFileSync(resolve(root, 'src/mobile/MobileProfile.tsx'), 'utf8')
-  const routerSource = readFileSync(resolve(root, 'src/router.tsx'), 'utf8')
+
   assert.match(apiSource, /timeoutMs\?: number/)
   assert.match(apiSource, /AbortController/)
   assert.match(apiSource, /ApiTimeoutError/)
@@ -331,17 +290,11 @@ async function assertRejectsWithTimeout(promise) {
   assert.match(apiSource, /meWithTimeout\(timeoutMs: number\)/)
   assert.match(apiSource, /loginWithMaxInitData\(initData: string\)/)
   assert.match(apiSource, /createMaxBinding\(initData: string\)/)
-  assert.match(apiSource, /revokeMaxBinding\(\)/)
-  assert.match(apiSource, /logoutSmaSession\(\)/)
   assert.doesNotMatch(apiSource, /initDataUnsafe/)
   assert.match(loginPageSource, /api\.isApiTimeoutError\(err\)/)
   assert.match(workspaceSource, /returnTo\.startsWith\(['"]\/max['"]\)/)
-  assert.match(workspaceSource, /api\.logoutSmaSession\(\)/)
   assert.match(maxTicketEntrySource, /<Navigate to=\{target\} replace \/>/)
   assert.doesNotMatch(maxTicketEntrySource, /Открываем заявку/)
-  assert.match(shellSource, /api\.logoutSmaSession\(\)/)
-  assert.match(mobileProfileSource, /api\.logoutSmaSession\(\)/)
-  assert.doesNotMatch(routerSource, /logoutSmaSession/)
 }
 
 console.log('verify-max-miniapp-bootstrap: PASS')

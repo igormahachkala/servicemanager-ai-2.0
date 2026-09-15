@@ -110,7 +110,7 @@ export function MobileProfile() {
     const suffix = params.toString()
     const target = suffix ? `/login?${suffix}` : '/login'
 
-    await api.logoutSmaSession()
+    api.clearToken()
     queryClient.clear()
 
     if (typeof window !== 'undefined') {
@@ -255,7 +255,7 @@ export function MobileProfile() {
             </span>
             <span className="mobileProfileMenuChevron" aria-hidden><ChevronRight /></span>
           </Link>
-          <button type="button" className="mobileProfileMenuItem mobileProfileMenuItem--danger" onClick={() => { void logout() }}>
+          <button type="button" className="mobileProfileMenuItem mobileProfileMenuItem--danger" onClick={logout}>
             <span className="mobileProfileMenuIcon" aria-hidden>
               {/* Tabler logout */}
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
