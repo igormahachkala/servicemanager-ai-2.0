@@ -4030,6 +4030,65 @@ export async function createInspectionTemplate(input: {
   })
 }
 
+/**
+ * SMA-NOTIFICATION-PREFERENCES-UI-105C — личные настройки уведомлений.
+ * Каталог, группы и русские подписи приходят с бэкенда: список событий
+ * зависит от роли и контура, и дублировать эту логику на клиенте нельзя.
+ */
+export type NotificationSettingsChannel = 'IN_APP' | 'PUSH' | 'MAX'
+
+export type NotificationSettingsChannelState = {
+  channel: NotificationSettingsChannel
+  enabled: boolean
+  /** true — пользователь задал состояние сам; false — действует умолчание. */
+  isOverride: boolean
+}
+
+export type NotificationSettingsEvent = {
+  key: string
+  labelRu: string
+  descriptionRu: string
+  channels: NotificationSettingsChannelState[]
+}
+
+export type NotificationSettingsGroup = {
+  key: string
+  titleRu: string
+  events: NotificationSettingsEvent[]
+}
+
+export type NotificationSettings = {
+  role: Role
+  contours: string[]
+  channels: NotificationSettingsChannel[]
+  groups: NotificationSettingsGroup[]
+}
+
+export async function getNotificationSettings(): Promise<NotificationSettings> {
+  return request<NotificationSettings>('/notifications/preferences')
+}
+
+export async function setNotificationPreference(input: {
+  eventType: string
+  channel: NotificationSettingsChannel
+  enabled: boolean
+}): Promise<NotificationSettings> {
+  return request<NotificationSettings>('/notifications/preferences', {
+    method: 'PATCH',
+    body: input,
+  })
+}
+
+export async function clearNotificationPreference(input: {
+  eventType: string
+  channel: NotificationSettingsChannel
+}): Promise<NotificationSettings> {
+  const qs = new URLSearchParams({ eventType: input.eventType, channel: input.channel })
+  return request<NotificationSettings>('/notifications/preferences?' + qs.toString(), {
+    method: 'DELETE',
+  })
+}
+
 export async function getInspectionRuns(): Promise<InspectionRunListItem[]> {
   return request<InspectionRunListItem[]>('/inspection/runs')
 }
