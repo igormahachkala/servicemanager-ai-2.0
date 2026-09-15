@@ -1903,13 +1903,26 @@ const LOGIN_REQUEST_TIMEOUT_MS = 12_000
 /** Ошибка HTTP API с кодом ответа (для дружелюбных сообщений на мобилке). */
 export class ApiRequestError extends Error {
   readonly status: number
+  readonly payload: unknown
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, payload?: unknown) {
     super(message)
     this.name = 'ApiRequestError'
     this.status = status
+    this.payload = payload
     Object.setPrototypeOf(this, new.target.prototype)
   }
+}
+
+export function getApiDenyReason(err: unknown): string | null {
+  if (!(err instanceof ApiRequestError) || !err.payload || typeof err.payload !== 'object') return null
+  const record = err.payload as Record<string, unknown>
+  if (typeof record.reason === 'string') return record.reason
+  const message = record.message
+  if (message && typeof message === 'object' && typeof (message as { reason?: unknown }).reason === 'string') {
+    return (message as { reason: string }).reason
+  }
+  return null
 }
 
 export class ApiTimeoutError extends Error {
@@ -1981,7 +1994,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
         : String(data.message)
       : `HTTP ${res.status}`
 
-    throw new ApiRequestError(message, res.status)
+    throw new ApiRequestError(message, res.status, data)
   }
 
   return data as T
@@ -2008,6 +2021,34 @@ export async function login(input: LoginInput): Promise<LoginResponse> {
       email: input.email,
       password: input.password,
     },
+  })
+}
+
+export async function loginWithMaxInitData(initData: string): Promise<LoginResponse> {
+  return request<LoginResponse>('/auth/max', {
+    method: 'POST',
+    auth: false,
+    timeoutMs: LOGIN_REQUEST_TIMEOUT_MS,
+    body: { initData },
+  })
+}
+
+export type MaxBindingView = {
+  status: string
+  maxUserIdMasked: string
+  linkedAt: string
+  lastVerifiedAt: string | null
+}
+
+export async function getMaxBinding(): Promise<{ binding: MaxBindingView | null }> {
+  return request<{ binding: MaxBindingView | null }>('/max/binding')
+}
+
+export async function createMaxBinding(initData: string): Promise<{ created: boolean; binding: MaxBindingView }> {
+  return request<{ created: boolean; binding: MaxBindingView }>('/max/binding', {
+    method: 'POST',
+    timeoutMs: LOGIN_REQUEST_TIMEOUT_MS,
+    body: { initData },
   })
 }
 
