@@ -18,6 +18,7 @@ export {
   sanitizeInternalAppPath,
   workspacePathWithReturnTo,
 } from './returnToNavigation'
+import { runSmaLogout } from './smaLogout'
 
 export type Role =
   | 'PLATFORM_ADMIN'
@@ -2049,6 +2050,19 @@ export async function createMaxBinding(initData: string): Promise<{ created: boo
     method: 'POST',
     timeoutMs: LOGIN_REQUEST_TIMEOUT_MS,
     body: { initData },
+  })
+}
+
+export async function revokeMaxBinding(): Promise<{ ok: true; revoked: boolean }> {
+  return request<{ ok: true; revoked: boolean }>('/max/binding', { method: 'DELETE' })
+}
+
+export async function logoutSmaSession(): Promise<void> {
+  await runSmaLogout({
+    getToken,
+    isImpersonating,
+    revokeMaxBinding,
+    clearToken,
   })
 }
 

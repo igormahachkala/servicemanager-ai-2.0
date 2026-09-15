@@ -61,7 +61,7 @@ export function MobileProfile() {
     }
   }, [location.search, meQ.data])
 
-  function logout() {
+  async function logout() {
     const params = new URLSearchParams()
     params.set('next', mobilePath(location.pathname, ''))
     params.set('mode', 'mobile')
@@ -71,7 +71,7 @@ export function MobileProfile() {
     const suffix = params.toString()
     const target = suffix ? `/login?${suffix}` : '/login'
 
-    api.clearToken()
+    await api.logoutSmaSession()
     queryClient.clear()
 
     if (typeof window !== 'undefined') {
@@ -216,7 +216,7 @@ export function MobileProfile() {
             </span>
             <span className="mobileProfileMenuChevron" aria-hidden><ChevronRight /></span>
           </Link>
-          <button type="button" className="mobileProfileMenuItem mobileProfileMenuItem--danger" onClick={logout}>
+          <button type="button" className="mobileProfileMenuItem mobileProfileMenuItem--danger" onClick={() => { void logout() }}>
             <span className="mobileProfileMenuIcon" aria-hidden>
               {/* Tabler logout */}
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

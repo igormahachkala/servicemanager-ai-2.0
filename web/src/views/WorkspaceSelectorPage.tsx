@@ -64,8 +64,8 @@ export function WorkspaceSelectorPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoWorkspace])
 
-  function logout() {
-    api.clearToken()
+  async function logout() {
+    await api.logoutSmaSession()
     queryClient.clear()
     navigate(api.loginPathWithReturnTo(returnTo), { replace: true })
   }
@@ -103,7 +103,7 @@ export function WorkspaceSelectorPage() {
             </div>
           )}
 
-          <button type="button" className="ghost loginModeReset" onClick={logout}>
+          <button type="button" className="ghost loginModeReset" onClick={() => { void logout() }}>
             Войти другим аккаунтом
           </button>
         </div>
