@@ -3,6 +3,7 @@ import { createHmac } from 'node:crypto';
 import { MaxUserBindingStatus } from '@prisma/client';
 
 import { MaxBindingService, maskMaxUserId } from './max-binding.service';
+import { verifyMaxInitData } from './max-init-data';
 
 /**
  * SMA-MAX-SECURE-USER-BINDING-054.
@@ -346,5 +347,42 @@ describe('MaxBindingService', () => {
   it('masks short and long ids without leaking them', () => {
     expect(maskMaxUserId('42')).toBe('****');
     expect(maskMaxUserId('123456')).toBe('****3456');
+  });
+
+  it('silent login burns the nonce and refreshes lastVerifiedAt without creating a row', async () => {
+    const prisma = makePrisma({
+      bindings: [
+        {
+          id: 'b-existing',
+          userId: 'user-1',
+          companyId: 'company-1',
+          maxUserId: '4242',
+          status: MaxUserBindingStatus.ACTIVE,
+          linkedAt: new Date('2026-01-01'),
+          lastVerifiedAt: null,
+        },
+      ],
+    });
+    const service = new MaxBindingService(prisma);
+    const initData = buildInitData(4242);
+    const verified = verifyMaxInitData(initData, BOT_TOKEN);
+    expect(verified.valid).toBe(true);
+    if (!verified.valid) return;
+
+    const first = await service.consumeInitDataForSilentLogin(
+      verified.data.hash,
+      verified.data.authDate,
+      'user-1',
+    );
+    expect(first).toBe(true);
+    expect(prisma._bindings).toHaveLength(1);
+    expect(prisma._bindings[0].lastVerifiedAt).toBeInstanceOf(Date);
+
+    const replay = await service.consumeInitDataForSilentLogin(
+      verified.data.hash,
+      verified.data.authDate,
+      'user-1',
+    );
+    expect(replay).toBe(false);
   });
 });

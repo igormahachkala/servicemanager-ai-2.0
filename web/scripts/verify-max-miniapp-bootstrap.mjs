@@ -236,6 +236,11 @@ async function assertRejectsWithTimeout(promise) {
   assert.equal(maxBootstrap.classifyMaxAuthFailure({ status: 403 }), 'unauthenticated')
   assert.equal(maxBootstrap.classifyMaxAuthFailure(new Error('network failed')), 'temporary_error')
   assert.equal(maxBootstrap.classifyMaxAuthFailure({ name: 'ApiTimeoutError' }), 'temporary_error')
+  assert.equal(maxBootstrap.classifyMaxSessionDenied('not_bound'), 'not_bound')
+  assert.equal(maxBootstrap.classifyMaxSessionDenied('init_data_expired'), 'init_data')
+  assert.equal(maxBootstrap.classifyMaxSessionDenied('user_inactive'), 'account_unavailable')
+  assert.equal(maxBootstrap.hasMaxInitData({ detected: true, initData: 'a=1' }), true)
+  assert.equal(maxBootstrap.hasMaxInitData({ detected: true, initData: '  ' }), false)
 }
 
 {
@@ -255,12 +260,17 @@ async function assertRejectsWithTimeout(promise) {
     'authenticated',
     'context_unavailable',
     'temporary_error',
+    'account_unavailable',
+    'max_already_bound',
   ]) {
     assert.match(maxAppSource, new RegExp(`['"]${state}['"]`))
   }
   assert.match(maxAppSource, /api\.meWithTimeout\(MAX_AUTH_TIMEOUT_MS\)/)
+  assert.match(maxAppSource, /api\.loginWithMaxInitData\(initData\)/)
+  assert.match(maxAppSource, /api\.createMaxBinding\(initData\)/)
   assert.match(maxAppSource, /api\.clearToken\(\)/)
   assert.match(maxAppSource, /api\.loginPathWithReturnTo\(returnTo\)/)
+  assert.match(maxBootstrapSource, /Этот MAX-аккаунт уже привязан к другому пользователю/)
   assert.match(maxAppSource, /setRetryNonce/)
   assert.match(maxBootstrapSource, /Не удалось загрузить приложение/)
   assert.match(maxAppSource, /Повторить/)
@@ -278,6 +288,9 @@ async function assertRejectsWithTimeout(promise) {
   assert.match(apiSource, /ApiTimeoutError/)
   assert.match(apiSource, /LOGIN_REQUEST_TIMEOUT_MS/)
   assert.match(apiSource, /meWithTimeout\(timeoutMs: number\)/)
+  assert.match(apiSource, /loginWithMaxInitData\(initData: string\)/)
+  assert.match(apiSource, /createMaxBinding\(initData: string\)/)
+  assert.doesNotMatch(apiSource, /initDataUnsafe/)
   assert.match(loginPageSource, /api\.isApiTimeoutError\(err\)/)
   assert.match(workspaceSource, /returnTo\.startsWith\(['"]\/max['"]\)/)
   assert.match(maxTicketEntrySource, /<Navigate to=\{target\} replace \/>/)

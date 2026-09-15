@@ -12,15 +12,23 @@ import {
 } from './maxBridge'
 import { MaxTicketEntry } from './MaxTicketEntry'
 import {
+  MAX_ACCOUNT_UNAVAILABLE_MESSAGE,
+  MAX_ACCOUNT_UNAVAILABLE_TITLE,
+  MAX_ALREADY_BOUND_MESSAGE,
+  MAX_ALREADY_BOUND_TITLE,
   MAX_APP_ERROR_MESSAGE,
   MAX_APP_ERROR_TITLE,
   MAX_AUTH_TIMEOUT_MS,
   MAX_CONTEXT_UNAVAILABLE_MESSAGE,
   MAX_CONTEXT_UNAVAILABLE_TITLE,
   classifyMaxAuthFailure,
+  classifyMaxSessionDenied,
+  hasMaxInitData,
   hasSmaSessionToken,
-  isMaxContextAvailable,
+  isMaxUserAlreadyBound,
+  markMaxBindPending,
   resolveMaxReturnTo,
+  takeMaxBindPending,
   type MaxBootstrapState,
 } from './maxBootstrap'
 
@@ -77,7 +85,6 @@ export function MaxApp() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const latestLocationRef = useRef(location)
-  latestLocationRef.current = location
   const [bootstrapState, setBootstrapState] = useState<MaxBootstrapState>('loading_bridge')
   const [webApp, setWebApp] = useState<MaxWebApp | null>(null)
   const [returnTo, setReturnTo] = useState('/max')
@@ -85,7 +92,52 @@ export function MaxApp() {
   const loggedRef = useRef(false)
 
   useEffect(() => {
+    latestLocationRef.current = location
+  }, [location])
+
+  useEffect(() => {
     let cancelled = false
+
+    async function bindAfterLogin(initData: string): Promise<MaxBootstrapState> {
+      if (api.isImpersonating()) return 'authenticated'
+      try {
+        await api.createMaxBinding(initData)
+        return 'authenticated'
+      } catch (err) {
+        const reason = api.getApiDenyReason(err)
+        if (isMaxUserAlreadyBound(reason)) {
+          api.clearToken()
+          queryClient.clear()
+          markMaxBindPending()
+          return 'max_already_bound'
+        }
+        const failure = classifyMaxAuthFailure(err)
+        if (failure === 'unauthenticated') {
+          api.clearToken()
+          queryClient.clear()
+          markMaxBindPending()
+          return 'unauthenticated'
+        }
+        return 'temporary_error'
+      }
+    }
+
+    async function silentMaxLogin(initData: string): Promise<MaxBootstrapState> {
+      try {
+        const session = await api.loginWithMaxInitData(initData)
+        api.persistLoginSession(session)
+        return 'authenticated'
+      } catch (err) {
+        const kind = classifyMaxSessionDenied(api.getApiDenyReason(err))
+        if (kind === 'not_bound') {
+          markMaxBindPending()
+          return 'unauthenticated'
+        }
+        if (kind === 'init_data') return 'context_unavailable'
+        if (kind === 'account_unavailable') return 'account_unavailable'
+        return 'temporary_error'
+      }
+    }
 
     async function bootstrap() {
       setBootstrapState('loading_bridge')
@@ -105,33 +157,44 @@ export function MaxApp() {
       const nextReturnTo = currentMaxRoute(latestLocationRef.current, rawStartParam)
       setReturnTo(nextReturnTo)
 
-      if (!isMaxContextAvailable(envContext)) {
+      if (!hasMaxInitData(envContext)) {
         setBootstrapState('context_unavailable')
         return
       }
 
-      if (!hasSmaSessionToken(api.getToken())) {
-        setBootstrapState('unauthenticated')
-        return
-      }
-
+      const initData = (envContext.initData || '').trim()
       setBootstrapState('checking_auth')
-      try {
-        await api.meWithTimeout(MAX_AUTH_TIMEOUT_MS)
-      } catch (err) {
+
+      if (hasSmaSessionToken(api.getToken())) {
+        try {
+          await api.meWithTimeout(MAX_AUTH_TIMEOUT_MS)
+        } catch (err) {
+          if (cancelled) return
+          const failure = classifyMaxAuthFailure(err)
+          if (failure === 'unauthenticated') {
+            api.clearToken()
+            queryClient.clear()
+          } else {
+            setBootstrapState('temporary_error')
+            return
+          }
+        }
+
         if (cancelled) return
-        const failure = classifyMaxAuthFailure(err)
-        if (failure === 'unauthenticated') {
-          api.clearToken()
-          queryClient.clear()
-          setBootstrapState('unauthenticated')
+
+        if (hasSmaSessionToken(api.getToken())) {
+          if (takeMaxBindPending()) {
+            const next = await bindAfterLogin(initData)
+            if (!cancelled) setBootstrapState(next)
+            return
+          }
+          setBootstrapState('authenticated')
           return
         }
-        setBootstrapState('temporary_error')
-        return
       }
 
-      if (!cancelled) setBootstrapState('authenticated')
+      const next = await silentMaxLogin(initData)
+      if (!cancelled) setBootstrapState(next)
     }
 
     bootstrap()
@@ -188,6 +251,28 @@ export function MaxApp() {
 
   if (bootstrapState === 'unauthenticated') {
     return <Navigate to={api.loginPathWithReturnTo(returnTo)} replace />
+  }
+
+  if (bootstrapState === 'max_already_bound') {
+    return (
+      <div style={rootStyle}>
+        <h2 style={{ margin: '0 0 12px', fontSize: 20 }}>{MAX_ALREADY_BOUND_TITLE}</h2>
+        <p style={{ color: '#666', fontSize: 14, margin: '0 0 20px' }}>{MAX_ALREADY_BOUND_MESSAGE}</p>
+        <button style={btnStyle} onClick={() => navigate(api.loginPathWithReturnTo(returnTo))}>
+          Войти другим аккаунтом
+        </button>
+      </div>
+    )
+  }
+
+  if (bootstrapState === 'account_unavailable') {
+    return (
+      <div style={rootStyle}>
+        <h2 style={{ margin: '0 0 12px', fontSize: 20 }}>{MAX_ACCOUNT_UNAVAILABLE_TITLE}</h2>
+        <p style={{ color: '#666', fontSize: 14, margin: '0 0 20px' }}>{MAX_ACCOUNT_UNAVAILABLE_MESSAGE}</p>
+        <button style={btnGhostStyle} onClick={() => navigate('/m')}>Открыть ServiceManager</button>
+      </div>
+    )
   }
 
   if (bootstrapState === 'context_unavailable') {

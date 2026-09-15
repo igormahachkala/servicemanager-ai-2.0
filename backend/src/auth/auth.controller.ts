@@ -4,6 +4,7 @@ import { AuthService } from './auth.service'
 import { JwtAuthGuard } from './jwt.guard'
 import { ImpersonateDto } from './dto/impersonate.dto'
 import { LoginDto } from './dto/login.dto'
+import { CreateMaxSessionDto } from './dto/max-session.dto'
 import { LoginRateLimiterService } from './login-rate-limiter.service'
 
 @Controller('auth')
@@ -29,6 +30,12 @@ export class AuthController {
   login(@Req() req: any, @Body() dto: LoginDto) {
     this.loginRateLimiter.consume(dto.email, req)
     return this.auth.login(dto)
+  }
+
+  @Post('max')
+  loginWithMax(@Req() req: any, @Body() dto: CreateMaxSessionDto) {
+    this.loginRateLimiter.consumeIp(req)
+    return this.auth.loginWithMaxInitData(dto.initData)
   }
 
   @Post('impersonate')
