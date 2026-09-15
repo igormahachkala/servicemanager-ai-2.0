@@ -130,10 +130,22 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
     return <Navigate to={api.loginPathWithReturnTo(`${location.pathname}${location.search}${location.hash}`)} replace />
   }
 
-  // Ждём только пока запрос действительно идёт. Без сети react-query держит его
-  // приостановленным, и застывшее «Проверяем доступ…» закрыло бы техника от его же
-  // сохранённой работы.
-  if (sessionRejected || (meQ.isLoading && meQ.fetchStatus === 'fetching')) {
+  /*
+   * Заглушку показываем только при живой связи.
+   *
+   * Без сети `/auth/me` не ответит никогда: запрос уходит в повторы и висит,
+   * а экран «Проверяем доступ…» держит техника снаружи его же сохранённой
+   * работы — она в этот момент лежит на устройстве и ждёт отправки. Измерено
+   * живой приёмкой на Stage: после перезагрузки в офлайне приложение не
+   * поднималось вовсе.
+   *
+   * Рендерить оболочку без подтверждения безопасно: она ничего не решает
+   * сама. Каждый запрос по-прежнему авторизует сервер, а явный отказ сессии
+   * уводит на вход ветвью выше, когда ответ действительно придёт.
+   */
+  const connected = typeof navigator === 'undefined' ? true : navigator.onLine !== false
+
+  if (sessionRejected || (meQ.isPending && connected)) {
     return <div className="page"><div className="muted">Проверяем доступ…</div></div>
   }
 
