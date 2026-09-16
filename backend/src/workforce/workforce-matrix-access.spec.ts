@@ -105,21 +105,21 @@ describe('117P итоговый доступ на канонических ро�
     expect(allowedByRoleGrantsOnly(UserRole.STAFF, CompanyType.CLIENT)).toBe(false)
   })
 
-  it('CLIENT_ADMIN пропускается перечнем и шлюзом, а решает право', () => {
+  it('CLIENT_ADMIN проходит все три условия после 117T', () => {
     expect(endpointRoles()).toContain(UserRole.CLIENT_ADMIN)
     expect(canAccessManagementSurface({ role: UserRole.CLIENT_ADMIN, companyType: CompanyType.CLIENT })).toBe(true)
-    // Ролевого гранта у CLIENT_ADMIN нет — правку прав задача не делает.
-    expect(roleGrantsWorkforceView(UserRole.CLIENT_ADMIN, CompanyType.CLIENT)).toBe(false)
-    // Значит без персонального UserPermission он по-прежнему получает отказ,
-    // и это ровно то, что записано в решении: «если возможность есть».
-    expect(allowedByRoleGrantsOnly(UserRole.CLIENT_ADMIN, CompanyType.CLIENT)).toBe(false)
+    // 117T выдал роли ролевой грант, поэтому персональное право больше не требуется.
+    expect(roleGrantsWorkforceView(UserRole.CLIENT_ADMIN, CompanyType.CLIENT)).toBe(true)
+    expect(allowedByRoleGrantsOnly(UserRole.CLIENT_ADMIN, CompanyType.CLIENT)).toBe(true)
   })
 
-  it('каноническая матрица грантов не изменена', () => {
+  it('гранты ролей без доступа остались нетронутыми', () => {
     expect(roleGrantsWorkforceView(UserRole.TECHNICIAN, CompanyType.PROVIDER)).toBe(false)
     expect(roleGrantsWorkforceView(UserRole.CLIENT, CompanyType.CLIENT)).toBe(false)
     expect(roleGrantsWorkforceView(UserRole.STAFF, CompanyType.CLIENT)).toBe(false)
-    expect(roleGrantsWorkforceView(UserRole.CLIENT_ADMIN, CompanyType.CLIENT)).toBe(false)
+    // 117T выдал CLIENT_ADMIN право на чтение Workforce — решение владельца.
+    // Детали гранта закреплены в workforce-client-admin-parity.spec.ts.
+    expect(roleGrantsWorkforceView(UserRole.CLIENT_ADMIN, CompanyType.CLIENT)).toBe(true)
   })
 })
 

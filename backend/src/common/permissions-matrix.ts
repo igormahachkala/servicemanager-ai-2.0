@@ -83,6 +83,24 @@ export const ROLE_GRANTS: RoleGrant[] = [
       // НЕТ: ASSIGN, CLAIM, VIEW_AVAILABLE, STATUS_CHANGE
     ],
   },
+  /**
+   * SMA-CLIENT-ADMIN-WORKFORCE-READ-PARITY-117T.
+   *
+   * Первый и единственный ролевой грант CLIENT_ADMIN. Роль каноническая
+   * управленческая (canAccessManagementSurface допускает её в компании-клиенте),
+   * но в матрице грантов её не было вовсе, и раздел «Смены и трудозатраты»
+   * оставался ей недоступен, хотя управляющая часть — открыта.
+   *
+   * Выдаётся ровно одно право и только на чтение. Записи в Workforce закрыты
+   * другими правами, которых у роли нет: WORKFORCE_SHIFT_USE (открыть/закрыть
+   * смену, учёт времени по заявке), USERS_MANAGE (исправления смен),
+   * COMPANY_SETTINGS_EDIT (настройки). Ни одно из них этой задачей не выдаётся.
+   *
+   * Право само по себе доступа не открывает: маршрут проверяет пересечение
+   * перечня ролей, шлюза управления 111A и права, а компания всегда своя.
+   */
+  { role: UserRole.CLIENT_ADMIN, companyType: CompanyType.CLIENT, codes: [P.WORKFORCE_VIEW] },
+
   {
     role: UserRole.ADMIN,
     companyType: CompanyType.PROVIDER,

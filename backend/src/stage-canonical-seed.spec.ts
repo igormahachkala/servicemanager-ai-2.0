@@ -56,6 +56,8 @@ describe('canonical Stage acceptance seed plan', () => {
     expect(CANONICAL_STAGE_SEED.users).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ email: 'stage.client.admin@stage.local', role: UserRole.ADMIN }),
+        // 117T: роль CLIENT_ADMIN должна быть представлена отдельным аккаунтом.
+        expect.objectContaining({ email: 'stage.client.clientadmin@stage.local', role: UserRole.CLIENT_ADMIN }),
         expect.objectContaining({ email: 'stage.network.director@stage.local', role: UserRole.NETWORK_DIRECTOR }),
         expect.objectContaining({ email: 'stage.territorial.manager@stage.local', role: UserRole.TERRITORIAL_MANAGER }),
         expect.objectContaining({ email: 'stage.primary.admin@stage.local', role: UserRole.ADMIN }),

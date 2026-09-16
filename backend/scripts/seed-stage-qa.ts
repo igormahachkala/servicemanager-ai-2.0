@@ -86,6 +86,8 @@ const IDS = {
   },
   user: {
     clientAdmin: '20000000-0000-4000-8000-000000001001',
+    // 117T: роль CLIENT_ADMIN — управленческое чтение Workforce своей компании.
+    clientAdminRole: '20000000-0000-4000-8000-000000001004',
     networkDirector: '20000000-0000-4000-8000-000000001002',
     territorialManager: '20000000-0000-4000-8000-000000001003',
     primaryAdmin: '20000000-0000-4000-8000-000000001101',
@@ -208,6 +210,24 @@ export const CANONICAL_STAGE_SEED = {
       firstName: 'Stage Client',
       lastName: 'Admin',
       role: UserRole.ADMIN,
+      companyKey: 'client',
+      isExecutor: false,
+    },
+    /*
+     * SMA-CLIENT-ADMIN-WORKFORCE-READ-PARITY-117T.
+     *
+     * Отдельный аккаунт именно роли CLIENT_ADMIN: в каноническом наборе её не было,
+     * и проверить на Stage управленческое чтение Workforce этой ролью было нечем.
+     * Пароль берётся из того же защищённого механизма, что и у остальных
+     * (STAGE_CANONICAL_PASSWORD), в исходник ничего не кладётся.
+     */
+    {
+      key: 'clientAdminRole',
+      id: IDS.user.clientAdminRole,
+      email: 'stage.client.clientadmin@stage.local',
+      firstName: 'Stage Client',
+      lastName: 'ClientAdmin',
+      role: UserRole.CLIENT_ADMIN,
       companyKey: 'client',
       isExecutor: false,
     },

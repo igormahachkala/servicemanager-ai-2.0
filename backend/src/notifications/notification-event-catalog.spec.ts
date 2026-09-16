@@ -84,9 +84,11 @@ describe('notification event catalog', () => {
         role: UserRole.CLIENT_ADMIN,
       }),
     ).toBe(true);
+    // 117T выдал роли единственный грант — WORKFORCE_VIEW. Уведомления его
+    // не используют: каталог по-прежнему ничего к правам не добавляет.
     expect(
-      ROLE_GRANTS.some((grant) => grant.role === UserRole.CLIENT_ADMIN),
-    ).toBe(false);
+      ROLE_GRANTS.filter((grant) => grant.role === UserRole.CLIENT_ADMIN).flatMap((g) => g.codes),
+    ).toEqual(['WORKFORCE_VIEW']);
     expect(
       getSystemNotificationDefault({
         contour: NotificationContour.CLIENT,
