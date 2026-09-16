@@ -1321,6 +1321,7 @@ function reportSelect() {
         ticket: {
           select: {
             id: true,
+            ticketNumber: true,
             status: true,
             problemText: true,
           },
