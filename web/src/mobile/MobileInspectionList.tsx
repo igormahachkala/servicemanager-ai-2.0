@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { Link, useLocation, useParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQueries, useQuery } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { mobilePath } from './mobileRoute'
 
@@ -60,32 +60,31 @@ function reportStatusMod(status: api.InspectionReportStatus): string {
 export function MobileInspectionList({ standalone = false }: { standalone?: boolean }) {
   const location = useLocation()
 
+  const runsQ = useQuery({
+    queryKey: ['inspection-runs'],
+    queryFn: api.getInspectionRuns,
+  })
+
   // SMA-PATROLS-005: история обходов конкретного объекта (/m/inspection/object/:locationId).
   const params = useParams<{ locationId?: string }>()
   const objectLocationId = (params.locationId || '').trim()
   const isObjectHistory = !!objectLocationId
 
-  /**
-   * 116F: объект отбирается запросом, а не фильтрацией последних 50 записей на
-   * клиенте — иначе история объекта обрывалась, как только по компании набегало
-   * больше полусотни обходов.
-   */
-  const runsFilter = useMemo(
-    () => (isObjectHistory ? { locationId: objectLocationId, limit: 20 } : {}),
-    [isObjectHistory, objectLocationId],
-  )
-
-  const runsQ = useQuery({
-    queryKey: ['inspection-runs', runsFilter],
-    queryFn: () => api.getInspectionRuns(runsFilter),
-  })
-
   const objectRuns = useMemo(() => {
     if (!isObjectHistory) return []
     return (runsQ.data || [])
-      .slice()
+      .filter((r) => r.location?.id === objectLocationId)
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-  }, [runsQ.data, isObjectHistory])
+      .slice(0, 20)
+  }, [runsQ.data, isObjectHistory, objectLocationId])
+
+  // Список не содержит исполнителя/нарушений/созданных заявок — тянем из детали обхода.
+  const detailQs = useQueries({
+    queries: objectRuns.map((r) => ({
+      queryKey: ['inspection-run', r.id],
+      queryFn: () => api.getInspectionRun(r.id),
+    })),
+  })
 
   if (isObjectHistory) {
     const objectName = objectRuns[0]?.location?.name || 'Объект'
@@ -107,13 +106,18 @@ export function MobileInspectionList({ standalone = false }: { standalone?: bool
             <div className="mobileEmptyStateTitle">По этому объекту обходов пока нет</div>
           </div>
         ) : (
-          objectRuns.map((run) => {
-            const violations = run.summary.issueCount + run.summary.criticalCount
-            const tickets = run.summary.createdTicketsCount
-            const pb = run.performedBy
+          objectRuns.map((run, i) => {
+            const dq = detailQs[i]
+            const items = dq?.data?.items || []
+            const violations = items.filter((it) => it.status === 'ISSUE' || it.status === 'CRITICAL').length
+            const tickets = items.filter((it) => !!it.ticketId).length
+            const pb = dq?.data?.performedBy
             const performer = pb
               ? ([pb.firstName, pb.lastName].filter(Boolean).join(' ').trim() || pb.email)
-              : '—'
+              : dq?.isLoading
+                ? '…'
+                : '—'
+            const loading = dq?.isLoading
             return (
               <div key={run.id} className="mobileCard mobilePatrolCard">
                 <div className="mobilePatrolCardTop">
@@ -133,8 +137,8 @@ export function MobileInspectionList({ standalone = false }: { standalone?: bool
                   ) : null}
                 </div>
                 <div className="mobilePatrolCardMeta">
-                  <span>Нарушений: {violations}</span>
-                  <span>· Заявок создано: {tickets}</span>
+                  <span>Нарушений: {loading ? '…' : violations}</span>
+                  <span>· Заявок создано: {loading ? '…' : tickets}</span>
                 </div>
                 <Link to={mobilePath(location.pathname, `/inspection/${run.id}`)} className="mobileBtn mobileBtnGhost" style={{ textAlign: 'center', marginTop: 2 }}>
                   Открыть
@@ -164,7 +168,7 @@ export function MobileInspectionList({ standalone = false }: { standalone?: bool
         <div className="mobileCard mobileEmptyState" role="status">
           <div className="mobileEmptyStateTitle">Обходов пока нет</div>
           <p className="mobileEmptyStateHint">
-            Нажмите «Начать обход», выберите тип и доступную локацию.
+            Создайте шаблон и запустите первый обход через управленческую часть.
           </p>
         </div>
       )
@@ -195,7 +199,8 @@ export function MobileInspectionList({ standalone = false }: { standalone?: bool
 
               <div className="mobilePatrolCardMeta">
                 <span>{fmtDate(run.createdAt)}</span>
-                <span>· {run._count?.items ?? run.summary.totalItems} пунктов</span>
+                {run.template?.name ? <span>· {run.template.name}</span> : null}
+                {run._count?.items > 0 ? <span>· {run._count.items} пунктов</span> : null}
               </div>
 
               <Link to={runHref} className="mobileBtn mobileBtnGhost" style={{ textAlign: 'center', marginTop: 2 }}>
@@ -211,17 +216,9 @@ export function MobileInspectionList({ standalone = false }: { standalone?: bool
   if (standalone) {
     return (
       <div className="mobileSection">
-        <div className="mobileInspectionListHeader">
-          <div>
-            <h1 className="mobileTitle">Обходы</h1>
-            <div className="mobileSubtitle">Инспекционные обходы объектов</div>
-          </div>
-          <Link
-            to={`${mobilePath(location.pathname, '/inspection/start')}${location.search}`}
-            className="mobileBtn mobileInspectionStartLink"
-          >
-            Начать обход
-          </Link>
+        <div>
+          <h1 className="mobileTitle">Обходы</h1>
+          <div className="mobileSubtitle">Инспекционные обходы объектов</div>
         </div>
         {content}
       </div>
