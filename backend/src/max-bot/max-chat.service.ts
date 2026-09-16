@@ -69,6 +69,7 @@ export class MaxChatService {
     const prefix = payload.split(':')[0];
     if (prefix === 'today') return this.safe(() => this.today(identity));
     if (prefix === 'my') return this.safe(() => this.myTickets(identity, parseChatPage(payload, 'my')));
+    if (prefix === 'avail') return this.safe(() => this.availableTickets(identity, parseChatPage(payload, 'avail')));
     return sectionMessage('Раздел ещё не подключен.');
   }
 
@@ -99,6 +100,15 @@ export class MaxChatService {
     const page = pageSlice(mine, offset);
     const text = ['Мои заявки', '', page.slice.map(formatTicketCard).join('\n\n')].join('\n');
     const extra = page.nextOffset != null ? nextPageRows('my', page.nextOffset) : [];
+    return sectionMessage(text, extra);
+  }
+
+  private async availableTickets(identity: BoundIdentity, offset: number): Promise<MaxBotCommandResponse> {
+    const rows = await this.loadAvailable(identity);
+    if (!rows.length) return sectionMessage('Доступных заявок нет.');
+    const page = pageSlice(rows, offset);
+    const text = ['Доступные', '', page.slice.map(formatTicketCard).join('\n\n')].join('\n');
+    const extra = page.nextOffset != null ? nextPageRows('avail', page.nextOffset) : [];
     return sectionMessage(text, extra);
   }
 

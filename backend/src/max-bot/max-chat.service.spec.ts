@@ -115,3 +115,21 @@ describe('MaxChatService my tickets', () => {
     expect(next?.text).not.toContain('№1');
   });
 });
+
+describe('MaxChatService available', () => {
+  const update = { callback: { payload: 'avail', user: { user_id: 1 } }, message: { sender: { user_id: 1 } } };
+
+  it('comes from availableForTechnician, not from the mixed list', async () => {
+    const tickets = {
+      list: jest.fn().mockResolvedValue([ticket({ ticketNumber: 1 })]),
+      availableForTechnician: jest.fn().mockResolvedValue([
+        ticket({ ticketNumber: 88, status: 'NEW', assignedTechnicianId: null, problemText: 'Кран' }),
+      ]),
+    };
+    const chat = new MaxChatService(boundIdentity() as any, tickets as any);
+    const res = await chat.handleCallback(update, 'avail');
+    expect(res?.text).toContain('№88');
+    expect(res?.text).not.toContain('№1');
+    expect(tickets.list).not.toHaveBeenCalled();
+  });
+});
