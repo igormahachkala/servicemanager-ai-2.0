@@ -82,6 +82,16 @@ function makeSuite(options: { contracts?: any[]; prisma?: any } = {}) {
     location: {
       findFirst: jest.fn(async ({ where }: any) => (where.id === LOCATION.id ? { ...LOCATION } : null)),
     },
+    user: {
+      findFirst: jest.fn().mockResolvedValue({ id: providerTechnician.id }),
+    },
+    userAccessScope: {
+      findUnique: jest.fn().mockResolvedValue(null),
+    },
+    userLocationBinding: {
+      findMany: jest.fn().mockResolvedValue([]),
+    },
+    serviceContract: contractsPrisma.serviceContract,
     equipment: {
       findFirst: jest.fn().mockResolvedValue({ id: 'eq-1' }),
     },
@@ -165,6 +175,42 @@ describe('097 InspectionService.startRun', () => {
       svc.startRun(providerAdmin, { templateId: 'tpl-1', locationId: LOCATION.id } as any),
     ).rejects.toThrow(new NotFoundException('Location not found'))
     expect(prisma.inspectionRun.create).not.toHaveBeenCalled()
+  })
+
+  it('DENIES a location outside the actor user-location scope', async () => {
+    const { svc, prisma } = makeSuite({
+      prisma: {
+        userAccessScope: {
+          findUnique: jest.fn().mockResolvedValue({ locationMode: 'SELECTED_LOCATIONS' }),
+        },
+        userLocationBinding: {
+          findMany: jest.fn().mockResolvedValue([{ locationId: 'another-location' }]),
+        },
+      },
+    })
+
+    await expect(
+      svc.startRun(providerTechnician, { templateId: 'tpl-1', locationId: LOCATION.id } as any),
+    ).rejects.toThrow('Location is not available in current user scope')
+    expect(prisma.inspectionRun.create).not.toHaveBeenCalled()
+  })
+
+  it('ALLOWS a location inside the actor user-location scope', async () => {
+    const { svc, prisma } = makeSuite({
+      prisma: {
+        userAccessScope: {
+          findUnique: jest.fn().mockResolvedValue({ locationMode: 'SELECTED_LOCATIONS' }),
+        },
+        userLocationBinding: {
+          findMany: jest.fn().mockResolvedValue([{ locationId: LOCATION.id }]),
+        },
+      },
+    })
+
+    await expect(
+      svc.startRun(providerTechnician, { templateId: 'tpl-1', locationId: LOCATION.id } as any),
+    ).resolves.toMatchObject({ locationId: LOCATION.id })
+    expect(prisma.inspectionRun.create).toHaveBeenCalledTimes(1)
   })
 
   it('DENIES an expired contract', async () => {
