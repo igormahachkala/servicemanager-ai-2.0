@@ -104,9 +104,28 @@ export class WorkforceController {
    * list below; a second role list is deliberately not introduced here.
    */
   @ManagementSurface()
+  /*
+   * SMA-WORKFORCE-MATRIX-CLIENT-ADMIN-RECONCILIATION-117P — CLIENT_ADMIN.
+   *
+   * CLIENT_ADMIN проходит канонический шлюз управления (canAccessManagementSurface:
+   * в компании-клиенте допущены ADMIN и CLIENT_ADMIN), но в этом перечне ролей его
+   * не было. Получался произвольный отказ: роль, которой управляющая часть открыта,
+   * не могла открыть месячный табель своей же компании.
+   *
+   * Добавляется только имя роли. Прав это не выдаёт: доступ остаётся пересечением
+   * трёх условий — роль, шлюз управления и WORKFORCE_VIEW. В каноническую матрицу
+   * грантов CLIENT_ADMIN не входит, поэтому фактический доступ он получит только
+   * с персональным UserPermission на WORKFORCE_VIEW, как и написано в решении:
+   * «если у пользователя есть каноническая возможность WORKFORCE_VIEW».
+   *
+   * Роли ниже шлюза — NETWORK_DIRECTOR, TERRITORIAL_MANAGER — остаются закрытыми
+   * шлюзом, TECHNICIAN, CLIENT и STAFF — и перечнем, и шлюзом, и правом.
+   * Ни одна из них этой правкой не расширяется.
+   */
   @Roles(
     UserRole.PLATFORM_ADMIN,
     UserRole.ADMIN,
+    UserRole.CLIENT_ADMIN,
     UserRole.MASTER,
     UserRole.DISPATCHER,
     UserRole.NETWORK_DIRECTOR,
