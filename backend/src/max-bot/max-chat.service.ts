@@ -6,7 +6,7 @@ import { TicketsService } from '../tickets/tickets.service';
 import { WorkforceService } from '../workforce/workforce.service';
 import { extractMaxUserId, MaxIdentity, MaxIdentityService } from './max-identity.service';
 import { isChatCallbackPayload, menuMessage, nextPageRows, parseChatPage, sectionMessage } from './max-chat-keyboard';
-import { formatTicketCard, formatTime, isActiveTicket, pageSlice, sortOldestFirst } from './max-chat-format';
+import { formatRoundCard, formatTicketCard, formatTime, isActiveTicket, pageSlice, sortOldestFirst } from './max-chat-format';
 import { buildUnboundMenuModel, normalizeMaxBotUsername, renderMenuMessage } from './max-menu.builder';
 import { MaxBotCommandResponse, MaxBotUpdate } from './max-bot.types';
 
@@ -70,6 +70,7 @@ export class MaxChatService {
     if (prefix === 'today') return this.safe(() => this.today(identity));
     if (prefix === 'my') return this.safe(() => this.myTickets(identity, parseChatPage(payload, 'my')));
     if (prefix === 'avail') return this.safe(() => this.availableTickets(identity, parseChatPage(payload, 'avail')));
+    if (prefix === 'rounds') return this.safe(() => this.rounds(identity, parseChatPage(payload, 'rounds')));
     return sectionMessage('Раздел ещё не подключен.');
   }
 
@@ -109,6 +110,16 @@ export class MaxChatService {
     const page = pageSlice(rows, offset);
     const text = ['Доступные', '', page.slice.map(formatTicketCard).join('\n\n')].join('\n');
     const extra = page.nextOffset != null ? nextPageRows('avail', page.nextOffset) : [];
+    return sectionMessage(text, extra);
+  }
+
+  private async rounds(identity: BoundIdentity, offset: number): Promise<MaxBotCommandResponse> {
+    const rows = await this.loadRounds(identity);
+    if (!rows.length) return sectionMessage('Назначенных обходов нет.');
+    const timeZone = this.timeZone(await this.loadShift(identity));
+    const page = pageSlice(rows, offset);
+    const text = ['Обходы', '', page.slice.map((row) => formatRoundCard(row, timeZone)).join('\n\n')].join('\n');
+    const extra = page.nextOffset != null ? nextPageRows('rounds', page.nextOffset) : [];
     return sectionMessage(text, extra);
   }
 

@@ -133,3 +133,22 @@ describe('MaxChatService available', () => {
     expect(tickets.list).not.toHaveBeenCalled();
   });
 });
+
+describe('MaxChatService rounds', () => {
+  const update = { callback: { payload: 'rounds', user: { user_id: 1 } }, message: { sender: { user_id: 1 } } };
+
+  it('lists assigned schedules', async () => {
+    const inspection = {
+      list: jest.fn().mockResolvedValue([
+        { name: 'Холод', location: { name: 'Точка А' }, nextDueAt: '2026-09-17T00:00:00.000Z' },
+      ]),
+    };
+    const chat = new MaxChatService(boundIdentity() as any, undefined, undefined, inspection as any);
+    const res = await chat.handleCallback(update, 'rounds');
+    expect(res?.text).toContain('Холод · Точка А');
+    expect(inspection.list).toHaveBeenCalledWith(
+      { id: 'u1', companyId: 'c1', role: UserRole.TECHNICIAN },
+      { active: 'true' },
+    );
+  });
+});
