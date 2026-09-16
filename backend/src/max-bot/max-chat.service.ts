@@ -25,9 +25,12 @@ const LABEL_TO_PAYLOAD: Record<string, string> = {
   'Поиск заявки': 'find',
 };
 
+const FIND_PROMPT = 'Напишите номер заявки.';
+
 @Injectable()
 export class MaxChatService {
   private readonly botUsername = normalizeMaxBotUsername(process.env.MAX_BOT_USERNAME);
+  private readonly awaitingFind = new Set<string>();
 
   constructor(
     private readonly identity?: MaxIdentityService,
@@ -43,6 +46,7 @@ export class MaxChatService {
     if (!identity) {
       return renderMenuMessage(buildUnboundMenuModel(), this.botUsername);
     }
+    this.clearFind(identity.maxUserId);
     return menuMessage(MENU_TEXT);
   }
 
@@ -53,7 +57,19 @@ export class MaxChatService {
     if (!identity) {
       return renderMenuMessage(buildUnboundMenuModel(), this.botUsername);
     }
+    if (payload.trim() !== 'find') this.clearFind(identity.maxUserId);
     return this.dispatch(identity, payload.trim());
+  }
+
+  async tryHandleText(update: MaxBotUpdate, text: string): Promise<MaxBotCommandResponse | null> {
+    const identity = await this.resolve(update);
+    if (!identity) return null;
+    const query = text.trim();
+    const waiting = this.awaitingFind.has(identity.maxUserId);
+    const looksLikeNumber = /^\d{1,10}$/.test(query);
+    if (!waiting && !looksLikeNumber) return null;
+    this.clearFind(identity.maxUserId);
+    return this.safe(() => this.findTicket(identity, query));
   }
 
   /**
@@ -74,6 +90,10 @@ export class MaxChatService {
     if (prefix === 'shift') return this.safe(() => this.shift(identity));
     if (prefix === 'shift_open') return this.safe(() => this.openShift(identity));
     if (prefix === 'shift_close') return this.safe(() => this.closeShift(identity));
+    if (prefix === 'find') {
+      this.awaitingFind.add(identity.maxUserId);
+      return sectionMessage(FIND_PROMPT);
+    }
     return sectionMessage('Раздел ещё не подключен.');
   }
 
@@ -154,6 +174,19 @@ export class MaxChatService {
     return sectionMessage(lines.join('\n'), [[{ type: 'callback', text: 'Закрыть', payload: 'shift_close' }]]);
   }
 
+  private async findTicket(identity: BoundIdentity, query: string): Promise<MaxBotCommandResponse> {
+    if (!this.tickets) return sectionMessage('Раздел ещё не подключен.');
+    const number = Number(query.replace(/\D/g, ''));
+    if (!Number.isFinite(number) || number <= 0) {
+      this.awaitingFind.add(identity.maxUserId);
+      return sectionMessage(FIND_PROMPT);
+    }
+    const rows = await this.tickets.list(identity.companyId, identity.userId, identity.role);
+    const ticket = rows.find((row: ChatTicketLike) => row.ticketNumber === number);
+    if (!ticket) return sectionMessage('В вашем списке такой заявки нет.');
+    return sectionMessage(['Заявка', '', formatTicketCard(ticket)].join('\n'));
+  }
+
   private async loadMyTickets(identity: BoundIdentity): Promise<ChatTicketLike[]> {
     if (!this.tickets) return [];
     const rows = await this.tickets.list(identity.companyId, identity.userId, identity.role);
@@ -186,6 +219,10 @@ export class MaxChatService {
 
   private actor(identity: BoundIdentity) {
     return { id: identity.userId, companyId: identity.companyId, role: identity.role };
+  }
+
+  private clearFind(maxUserId: string) {
+    this.awaitingFind.delete(maxUserId);
   }
 
   private async safe(run: () => Promise<MaxBotCommandResponse>): Promise<MaxBotCommandResponse> {

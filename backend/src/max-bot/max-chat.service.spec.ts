@@ -185,3 +185,22 @@ describe('MaxChatService shift', () => {
     expect(buttonsOf(busy!)).toContain('Закрыть');
   });
 });
+
+describe('MaxChatService search', () => {
+  const update = { callback: { payload: 'find', user: { user_id: 1 } }, message: { sender: { user_id: 1 } } };
+
+  it('finds a ticket from the canonical list and hides out-of-scope numbers', async () => {
+    const tickets = {
+      list: jest.fn().mockResolvedValue([ticket({ ticketNumber: 421, problemText: 'Холод' })]),
+      availableForTechnician: jest.fn(),
+    };
+    const chat = new MaxChatService(boundIdentity() as any, tickets as any);
+    const prompt = await chat.handleCallback(update, 'find');
+    expect(prompt?.text).toContain('Напишите номер заявки');
+    const found = await chat.tryHandleText({ message: { text: '421', sender: { user_id: 1 } } }, '421');
+    expect(found?.text).toContain('№421');
+    expect(found?.text).not.toContain('Заявитель');
+    const missing = await chat.tryHandleText({ message: { text: '999', sender: { user_id: 1 } } }, '999');
+    expect(missing?.text).toContain('В вашем списке такой заявки нет');
+  });
+});

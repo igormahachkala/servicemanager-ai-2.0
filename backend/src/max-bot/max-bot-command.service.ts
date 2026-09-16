@@ -98,6 +98,10 @@ export class MaxBotCommandService {
       if (menuLabel) {
         return this.handleParsedCommand(menuLabel, this.dispatchChat(update, menuLabel));
       }
+      const search = this.chat ? await this.chat.tryHandleText(update, trimmed) : null;
+      if (search) {
+        return this.handleParsedCommand('(search)', search);
+      }
       if (cmd === '/start' || cmd === '/menu') {
         return this.handleParsedCommand(cmd, this.menuMessage(update));
       }
