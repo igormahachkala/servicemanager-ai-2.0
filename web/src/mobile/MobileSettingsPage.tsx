@@ -5,6 +5,7 @@ import * as api from '../lib/api'
 import { canAccessManagementDesktop, managementHomePath } from '../lib/navigation'
 import { ClientContourCard } from './ClientContourCard'
 import { mobilePath } from './mobileRoute'
+import { NotificationPreferencesPanel } from '../components/notifications/NotificationPreferencesPanel'
 
 type ManagementLink = {
   id: string
@@ -220,6 +221,11 @@ export function MobileSettingsPage() {
       <div className="mobileSubtitle">Системные и управленческие разделы</div>
 
       <ClientContourCard />
+
+      {/* 105C: те же личные настройки уведомлений, что и на десктопе. */}
+      <div className="notifPrefMobileWrap">
+        <NotificationPreferencesPanel />
+      </div>
 
       <div className="mobileCard mobileProfileMenu" style={{ marginTop: 8 }}>
         <div className="mobileProfileSectionLabel" style={{ padding: '2px 0 4px' }}>Управление</div>
