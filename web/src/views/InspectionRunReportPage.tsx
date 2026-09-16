@@ -212,7 +212,7 @@ export function InspectionRunReportPage() {
             </div>
             <div className="workActMetaCard">
               <div className="muted small">Шаблон</div>
-              <div className="workActStrong">{report.run.template.name}</div>
+              <div className="workActStrong">{report.run.title}</div>
               <div className="muted small">ID обхода: {report.run.id}</div>
             </div>
           </section>

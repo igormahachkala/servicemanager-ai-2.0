@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common'
 import {
   InspectionCheckpointResponseType,
   InspectionReportStatus,
@@ -17,7 +17,9 @@ import { PrismaService } from '../prisma/prisma.service'
 import { IdempotencyService } from '../common/idempotency/idempotency.service'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
 import { TicketsService } from '../tickets/tickets.service'
+import { assertActorCanUseLocation } from '../tickets/ticket-access.utils'
 import { TimelineService } from '../timeline/timeline.service'
+import { ShiftPolicyService } from '../workforce/shift-policy.service'
 
 import {
   assertInspectionLocationAccess,
@@ -27,6 +29,8 @@ import {
 
 import { InspectionExportService } from './inspection.export.service'
 import { CreateTemplateDto } from './dto/create-template.dto'
+import { UpdateTemplateDto } from './dto/update-template.dto'
+import { ListRunsDto } from './dto/list-runs.dto'
 import { StartRunDto } from './dto/start-run.dto'
 import { UpdateRunItemDto } from './dto/update-run-item.dto'
 import { CreateTicketFromItemDto } from './dto/create-ticket-from-item.dto'
@@ -50,6 +54,8 @@ export class InspectionService {
     private readonly serviceContracts: ServiceContractsService,
     /** 113B: optional so existing unit tests constructing this service directly keep working. */
     private readonly idempotency?: IdempotencyService,
+    /** 117B: optional in direct unit construction; runtime wires the canonical policy service. */
+    private readonly shiftPolicy?: ShiftPolicyService,
   ) {}
 
   async listTemplates(user: InspectionUserCtx) {
@@ -68,45 +74,9 @@ export class InspectionService {
   async createTemplate(user: InspectionUserCtx, dto: CreateTemplateDto) {
     assertAllowed(this.policy.canCreateTemplate(user))
 
-    const name = dto.name.trim()
-    const description = dto.description?.trim() || null
-    if (!name) throw new BadRequestException('Template name is required')
-
-    const items = dto.items
-      .map((item, index) => ({
-        title: item.title.trim(),
-        description: item.description?.trim() || null,
-        sortOrder: item.sortOrder ?? index,
-        zoneName: item.zoneName?.trim() || null,
-        zoneSortOrder: item.zoneSortOrder ?? 0,
-        checkpointSortOrder: item.checkpointSortOrder ?? item.sortOrder ?? index,
-        responseType: item.responseType ?? InspectionCheckpointResponseType.NORMAL_PROBLEM,
-        numericMin: item.numericMin ?? null,
-        numericMax: item.numericMax ?? null,
-        numericUnit: item.numericUnit?.trim() || null,
-        isRequired: item.isRequired ?? true,
-      }))
-      .sort(
-        (a, b) =>
-          a.zoneSortOrder - b.zoneSortOrder ||
-          a.checkpointSortOrder - b.checkpointSortOrder ||
-          a.sortOrder - b.sortOrder,
-      )
-
-    if (items.length === 0) throw new BadRequestException('Template must contain at least one item')
-    if (items.some((item) => !item.title)) {
-      throw new BadRequestException('Template item title is required')
-    }
-    for (const item of items) {
-      if (item.responseType !== InspectionCheckpointResponseType.NUMBER) {
-        if (item.numericMin !== null || item.numericMax !== null || item.numericUnit !== null) {
-          throw new BadRequestException('Numeric limits are allowed only for NUMBER checkpoints')
-        }
-      }
-      if (item.numericMin !== null && item.numericMax !== null && item.numericMin > item.numericMax) {
-        throw new BadRequestException('numericMin cannot be greater than numericMax')
-      }
-    }
+    const name = this.normalizeTemplateName(dto.name)
+    const description = this.normalizeTemplateDescription(dto.description)
+    const items = this.normalizeTemplateItems(dto.items)
 
     return this.prisma.inspectionTemplate.create({
       data: {
@@ -119,13 +89,110 @@ export class InspectionService {
     })
   }
 
-  async listRuns(user: InspectionUserCtx) {
+  async updateTemplate(user: InspectionUserCtx, templateId: string, dto: UpdateTemplateDto) {
+    assertAllowed(this.policy.canCreateTemplate(user))
+
+    const data: Prisma.InspectionTemplateUpdateInput = {}
+    const items = dto.items === undefined ? undefined : this.normalizeTemplateItems(dto.items)
+    if (dto.name !== undefined) data.name = this.normalizeTemplateName(dto.name)
+    if (dto.description !== undefined) {
+      data.description = this.normalizeTemplateDescription(dto.description)
+    }
+
+    if (Object.keys(data).length === 0 && items === undefined) {
+      throw new BadRequestException('At least one template field must be provided')
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const existing = await tx.inspectionTemplate.findFirst({
+        where: { id: templateId, companyId: user.companyId, isActive: true },
+        select: {
+          id: true,
+          updatedAt: true,
+          items: { select: { id: true } },
+        },
+      })
+      if (!existing) throw new NotFoundException('Inspection template not found')
+
+      if (dto.updatedAt) {
+        const expected = new Date(dto.updatedAt)
+        if (Number.isNaN(expected.getTime())) {
+          throw new BadRequestException('updatedAt is invalid')
+        }
+        if (existing.updatedAt.getTime() !== expected.getTime()) {
+          throw new ConflictException('Template has been changed. Refresh the page and try again')
+        }
+      }
+
+      if (items !== undefined) {
+        const existingItemIds = new Set(existing.items.map((item) => item.id))
+        const providedItemIds = items.map((item) => item.id).filter((id): id is string => Boolean(id))
+        if (new Set(providedItemIds).size !== providedItemIds.length) {
+          throw new BadRequestException('Template item ids must be unique')
+        }
+        const foreignItemId = providedItemIds.find((id) => !existingItemIds.has(id))
+        if (foreignItemId) {
+          throw new BadRequestException('Template item does not belong to template')
+        }
+
+        await tx.inspectionTemplateItem.deleteMany({
+          where: {
+            templateId: existing.id,
+            id: providedItemIds.length ? { notIn: providedItemIds } : undefined,
+          },
+        })
+
+        for (const item of items) {
+          const { id, ...itemData } = item
+          if (id) {
+            await tx.inspectionTemplateItem.update({
+              where: { id },
+              data: itemData,
+            })
+          } else {
+            await tx.inspectionTemplateItem.create({
+              data: {
+                ...itemData,
+                templateId: existing.id,
+              },
+            })
+          }
+        }
+      }
+
+      return tx.inspectionTemplate.update({
+        where: { id: existing.id },
+        data: Object.keys(data).length > 0 ? data : { updatedAt: new Date() },
+        select: templateSelect(),
+      })
+    })
+  }
+
+  async listRuns(user: InspectionUserCtx, filters: ListRunsDto = {}) {
     assertAllowed(this.policy.canStartRun(user))
 
+    /**
+     * 116F: фильтры истории. Каждое условие опирается на существующее поле записи
+     * и существующий индекс; ничего нового в домен ради фильтрации не вводится.
+     * Окно по времени берётся от createdAt — это и есть момент старта обхода,
+     * отдельного startedAt в модели нет.
+     */
+    const createdAt: Prisma.DateTimeFilter = {}
+    if (filters.from) createdAt.gte = new Date(filters.from)
+    if (filters.to) createdAt.lte = new Date(filters.to)
+
     const runs = await this.prisma.inspectionRun.findMany({
-      where: { companyId: user.companyId },
+      where: {
+        companyId: user.companyId,
+        ...(filters.locationId ? { locationId: filters.locationId } : {}),
+        ...(filters.performedByUserId ? { performedByUserId: filters.performedByUserId } : {}),
+        ...(filters.templateId ? { templateId: filters.templateId } : {}),
+        ...(filters.status ? { status: filters.status } : {}),
+        ...(filters.reportStatus ? { reportStatus: filters.reportStatus } : {}),
+        ...(Object.keys(createdAt).length ? { createdAt } : {}),
+      },
       orderBy: [{ createdAt: 'desc' }],
-      take: 50,
+      take: filters.limit ?? 50,
       select: runListSelect(),
     })
 
@@ -136,7 +203,8 @@ export class InspectionService {
      * fails closed the same way the single-run paths do. Runs at the actor's own locations
      * skip the check entirely, so the client-owned path issues no extra queries.
      */
-    return this.filterRunsByLocationScope(user, runs)
+    const scoped = await this.filterRunsByLocationScope(user, runs)
+    return scoped.map((run) => summarizeRunItems(run))
   }
 
   async startRun(user: InspectionUserCtx, dto: StartRunDto) {
@@ -204,6 +272,14 @@ export class InspectionService {
       location,
       notFoundMessage: 'Location not found',
     })
+
+    await assertActorCanUseLocation({
+      prisma: this.prisma,
+      actor: user,
+      scopeCompanyId: locationAccess.clientCompanyId,
+      locationId: location.id,
+    })
+    await this.assertActiveShiftForRoundMutation(user)
 
     /**
      * Equipment belongs to the company that owns the site, not to the executing company.
@@ -284,6 +360,15 @@ export class InspectionService {
     return {
       run: {
         id: run.id,
+        /**
+         * 116F: `title` — снимок названия, сделанный при запуске обхода
+         * (startRun: `dto.title || template.name`). Исторический акт обязан
+         * показывать его, а не `template.name`: шаблон редактируемый, и правка
+         * задним числом переписала бы то, что написано про завершённый обход.
+         * Живая связь с шаблоном остаётся рядом — она нужна для перехода
+         * к текущему шаблону, но не для описания истории.
+         */
+        title: run.title,
         status: run.status,
         startedAt: run.createdAt,
         completedAt: run.completedAt,
@@ -748,6 +833,7 @@ export class InspectionService {
     if (run.status === InspectionRunStatus.COMPLETED) {
       throw new BadRequestException('Inspection run is already completed')
     }
+    await this.assertActiveShiftForRoundMutation(user)
 
     const updated = await this.prisma.inspectionRun.update({
       where: { id: run.id },
@@ -759,6 +845,76 @@ export class InspectionService {
       run: updated,
       summary: buildInspectionRunSummary(updated.items),
     }
+  }
+
+  private normalizeTemplateName(value: string) {
+    const name = value.trim()
+    if (!name) throw new BadRequestException('Template name is required')
+    return name
+  }
+
+  private async assertActiveShiftForRoundMutation(user: InspectionUserCtx) {
+    await this.shiftPolicy?.assertActiveShiftForOperationalWork(user)
+  }
+
+  private normalizeTemplateDescription(value?: string | null) {
+    return value?.trim() || null
+  }
+
+  private normalizeTemplateItems(
+    source: Array<{
+      title: string
+      description?: string | null
+      sortOrder?: number
+      zoneName?: string | null
+      zoneSortOrder?: number
+      checkpointSortOrder?: number
+      responseType?: InspectionCheckpointResponseType
+      numericMin?: number | null
+      numericMax?: number | null
+      numericUnit?: string | null
+      isRequired?: boolean
+      id?: string | null
+    }>,
+  ) {
+    const items = source
+      .map((item, index) => ({
+        id: item.id?.trim() || undefined,
+        title: item.title.trim(),
+        description: item.description?.trim() || null,
+        sortOrder: item.sortOrder ?? index,
+        zoneName: item.zoneName?.trim() || null,
+        zoneSortOrder: item.zoneSortOrder ?? 0,
+        checkpointSortOrder: item.checkpointSortOrder ?? item.sortOrder ?? index,
+        responseType: item.responseType ?? InspectionCheckpointResponseType.NORMAL_PROBLEM,
+        numericMin: item.numericMin ?? null,
+        numericMax: item.numericMax ?? null,
+        numericUnit: item.numericUnit?.trim() || null,
+        isRequired: item.isRequired ?? true,
+      }))
+      .sort(
+        (a, b) =>
+          a.zoneSortOrder - b.zoneSortOrder ||
+          a.checkpointSortOrder - b.checkpointSortOrder ||
+          a.sortOrder - b.sortOrder,
+      )
+
+    if (items.length === 0) throw new BadRequestException('Template must contain at least one item')
+    if (items.some((item) => !item.title)) {
+      throw new BadRequestException('Template item title is required')
+    }
+    for (const item of items) {
+      if (item.responseType !== InspectionCheckpointResponseType.NUMBER) {
+        if (item.numericMin !== null || item.numericMax !== null || item.numericUnit !== null) {
+          throw new BadRequestException('Numeric limits are allowed only for NUMBER checkpoints')
+        }
+      }
+      if (item.numericMin !== null && item.numericMax !== null && item.numericMin > item.numericMax) {
+        throw new BadRequestException('numericMin cannot be greater than numericMax')
+      }
+    }
+
+    return items
   }
 
   /**
@@ -1000,6 +1156,15 @@ function runSelect() {
     reportStatus: true,
     reportSubmittedAt: true,
     reportReviewedAt: true,
+    /**
+     * 116F: исполнителю нужно видеть итог проверки акта на телефоне, не заходя
+     * в десктопное управление. Поля уже есть в записи — отдаём их в той же
+     * выдаче обхода, а не отдельной ручкой и не вторым резолвером доступа.
+     */
+    reportReviewComment: true,
+    reportReviewedBy: {
+      select: { id: true, email: true, firstName: true, lastName: true },
+    },
     completedAt: true,
     createdAt: true,
     updatedAt: true,
@@ -1033,6 +1198,8 @@ function runSelect() {
 function reportSelect() {
   return {
     id: true,
+    /** 116F: снимок названия обхода на момент запуска — см. runReport ниже. */
+    title: true,
     status: true,
     reportStatus: true,
     reportNumber: true,
@@ -1169,12 +1336,47 @@ function runListSelect() {
     title: true,
     status: true,
     reportStatus: true,
+    reportReviewedAt: true,
     completedAt: true,
     createdAt: true,
     updatedAt: true,
     template: { select: { id: true, name: true } },
     location: { select: { id: true, clientCompanyId: true, name: true, city: true } },
     equipment: { select: { id: true, name: true } },
+    performedBy: { select: { id: true, email: true, firstName: true, lastName: true } },
+    reportReviewedBy: { select: { id: true, email: true, firstName: true, lastName: true } },
+    /**
+     * 116F: статусы пунктов и признак заявки тянутся строкой, а не отдельными
+     * запросами. Prisma не умеет несколько именованных _count по одной связи,
+     * а мобильная история до этого добирала те же числа отдельным запросом
+     * на каждый обход — N+1 на клиенте. Поля узкие, строк на обход десятки.
+     */
+    items: { select: { status: true, ticketId: true } },
     _count: { select: { items: true } },
   } satisfies Prisma.InspectionRunSelect
+}
+
+type RunListRow = { items?: Array<{ status: InspectionRunItemStatus; ticketId: string | null }> | null }
+
+/**
+ * 116F: итог обхода считается из снимка пунктов самого обхода, а не из шаблона.
+ * Шаблон могли отредактировать после завершения — на историю это влиять не должно.
+ */
+function summarizeRunItems<T extends RunListRow>(run: T) {
+  const { items: loaded, ...rest } = run
+  // Связь может не прийти, если строку собрал не runListSelect; итог тогда пустой,
+  // а не падение на всём списке.
+  const items = loaded ?? []
+  return {
+    ...rest,
+    summary: {
+      totalItems: items.length,
+      okCount: items.filter((item) => item.status === InspectionRunItemStatus.OK).length,
+      issueCount: items.filter((item) => item.status === InspectionRunItemStatus.ISSUE).length,
+      criticalCount: items.filter((item) => item.status === InspectionRunItemStatus.CRITICAL).length,
+      skippedCount: items.filter((item) => item.status === InspectionRunItemStatus.SKIPPED).length,
+      pendingCount: items.filter((item) => item.status === InspectionRunItemStatus.PENDING).length,
+      createdTicketsCount: items.filter((item) => !!item.ticketId).length,
+    },
+  }
 }

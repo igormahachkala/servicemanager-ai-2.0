@@ -899,6 +899,60 @@ button.ghost {
   padding: 12px;
 }
 
+/* SMA-ROUND-RESULT-HISTORY-116F — история обходов */
+.inspectionRunsFilters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.inspectionRunsFilters label {
+  display: grid;
+  gap: 4px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.inspectionRunCard {
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 14px;
+}
+
+.inspectionRunMetaGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.inspectionRunSummaryRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid #eef0f4;
+  font-size: 13px;
+  color: #374151;
+}
+
+@media (max-width: 960px) {
+  .inspectionRunsFilters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .inspectionRunMetaGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .inspectionRunsFilters,
+  .inspectionRunMetaGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 960px) {
   .workActPartyGrid {
     grid-template-columns: 1fr;
