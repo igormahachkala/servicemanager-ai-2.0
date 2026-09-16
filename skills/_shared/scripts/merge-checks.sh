@@ -105,6 +105,16 @@ $label"
 prepare() {
   dir="$1"; area="$2"
   has_area "$area" || return 0
+  if [ "$area" = frontend ]; then
+    if [ ! -x "$dir/node_modules/.bin/vitest" ]; then
+      echo "-- зависимости $dir"
+      npm ci --prefix "$dir" >/dev/null 2>&1 \
+        && echo "   поставлены" \
+        || { echo "   ОТКАЗ: npm ci --prefix $dir" >&2; FAILED="$FAILED
+npm ci --prefix $dir"; }
+    fi
+    return 0
+  fi
   [ -d "$dir/node_modules" ] && return 0
   echo "-- зависимости $dir"
   npm ci --prefix "$dir" >/dev/null 2>&1 \
@@ -130,6 +140,7 @@ fi
 
 if has_area frontend; then
   prepare web frontend
+  run "frontend: test"  npm --prefix web test
   run "frontend: build" npm --prefix web run build
 fi
 

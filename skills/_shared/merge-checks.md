@@ -48,7 +48,7 @@ skills/_shared/scripts/merge-checks.sh stage 42 fix/tema-001 backend frontend
 тоже только для них: лишний npm ci занимает минуты и ничего не проверяет.
 
   backend        prisma:generate, build, test
-  frontend       build
+  frontend       test, build
   agent-runner   typecheck, build
   scripts        bash -n по каждому изменённому файлу из scripts/
   infra          на сервере: результат слияния во временный worktree,
