@@ -71,6 +71,9 @@ export class MaxChatService {
     if (prefix === 'my') return this.safe(() => this.myTickets(identity, parseChatPage(payload, 'my')));
     if (prefix === 'avail') return this.safe(() => this.availableTickets(identity, parseChatPage(payload, 'avail')));
     if (prefix === 'rounds') return this.safe(() => this.rounds(identity, parseChatPage(payload, 'rounds')));
+    if (prefix === 'shift') return this.safe(() => this.shift(identity));
+    if (prefix === 'shift_open') return this.safe(() => this.openShift(identity));
+    if (prefix === 'shift_close') return this.safe(() => this.closeShift(identity));
     return sectionMessage('Раздел ещё не подключен.');
   }
 
@@ -121,6 +124,34 @@ export class MaxChatService {
     const text = ['Обходы', '', page.slice.map((row) => formatRoundCard(row, timeZone)).join('\n\n')].join('\n');
     const extra = page.nextOffset != null ? nextPageRows('rounds', page.nextOffset) : [];
     return sectionMessage(text, extra);
+  }
+
+  private async shift(identity: BoundIdentity): Promise<MaxBotCommandResponse> {
+    return this.shiftMessage(await this.loadShift(identity));
+  }
+
+  private async openShift(identity: BoundIdentity): Promise<MaxBotCommandResponse> {
+    if (!this.workforce) return sectionMessage('Раздел ещё не подключен.');
+    return this.shiftMessage(await this.workforce.openShift(this.actor(identity)));
+  }
+
+  private async closeShift(identity: BoundIdentity): Promise<MaxBotCommandResponse> {
+    if (!this.workforce) return sectionMessage('Раздел ещё не подключен.');
+    return this.shiftMessage(await this.workforce.closeShift(this.actor(identity)));
+  }
+
+  private shiftMessage(state: ShiftState | null): MaxBotCommandResponse {
+    if (!state) return sectionMessage('Не удалось получить смену.');
+    const timeZone = this.timeZone(state);
+    if (!state.shift) {
+      return sectionMessage('Смена не открыта.', [[{ type: 'callback', text: 'Открыть', payload: 'shift_open' }]]);
+    }
+    const lines = [`Смена открыта с ${formatTime(state.shift.openedAt, timeZone)}`];
+    const running = state.runningWorkLog;
+    if (running?.ticket?.ticketNumber != null) {
+      lines.push(`В работе: №${running.ticket.ticketNumber}`);
+    }
+    return sectionMessage(lines.join('\n'), [[{ type: 'callback', text: 'Закрыть', payload: 'shift_close' }]]);
   }
 
   private async loadMyTickets(identity: BoundIdentity): Promise<ChatTicketLike[]> {

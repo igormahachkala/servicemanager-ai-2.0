@@ -152,3 +152,36 @@ describe('MaxChatService rounds', () => {
     );
   });
 });
+
+describe('MaxChatService shift', () => {
+  const update = { callback: { payload: 'shift', user: { user_id: 1 } }, message: { sender: { user_id: 1 } } };
+
+  it('offers open when closed and close when open', async () => {
+    const workforce = {
+      getMyState: jest
+        .fn()
+        .mockResolvedValueOnce({ company: { timezone: 'Europe/Moscow' }, shift: null, runningWorkLog: null })
+        .mockResolvedValue({
+          company: { timezone: 'Europe/Moscow' },
+          shift: { openedAt: '2026-09-16T05:00:00.000Z' },
+          runningWorkLog: { ticket: { ticketNumber: 12 } },
+        }),
+      openShift: jest.fn().mockResolvedValue({
+        company: { timezone: 'Europe/Moscow' },
+        shift: { openedAt: '2026-09-16T05:00:00.000Z' },
+        runningWorkLog: null,
+      }),
+      closeShift: jest.fn().mockResolvedValue({ company: { timezone: 'Europe/Moscow' }, shift: null, runningWorkLog: null }),
+    };
+    const chat = new MaxChatService(boundIdentity() as any, undefined, workforce as any);
+    const closed = await chat.handleCallback(update, 'shift');
+    expect(closed?.text).toContain('Смена не открыта');
+    expect(buttonsOf(closed!)).toContain('Открыть');
+    const opened = await chat.handleCallback(update, 'shift_open');
+    expect(workforce.openShift).toHaveBeenCalled();
+    expect(opened?.text).toContain('Смена открыта с');
+    const busy = await chat.handleCallback(update, 'shift');
+    expect(busy?.text).toContain('В работе: №12');
+    expect(buttonsOf(busy!)).toContain('Закрыть');
+  });
+});
