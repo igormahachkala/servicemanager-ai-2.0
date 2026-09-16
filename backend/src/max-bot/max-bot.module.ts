@@ -9,6 +9,7 @@ import { MaxBotController } from './max-bot.controller';
 import { MaxBotPollingService } from './max-bot-polling.service';
 import { MaxBotWebhookController } from './max-bot-webhook.controller';
 import { MaxBotService } from './max-bot.service';
+import { MaxChatService } from './max-chat.service';
 
 @Module({
   imports: [PrismaModule],
@@ -19,6 +20,7 @@ import { MaxBotService } from './max-bot.service';
     MaxBotPollingService,
     MaxIdentityService,
     MaxBindingService,
+    MaxChatService,
   ],
   // MaxIdentityService is the single bot-facing identity contract (`resolveMaxIdentity`).
   // MaxBindingService is exported for the ceremony only — nothing resolves authority here.

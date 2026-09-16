@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 
 import { PrismaService } from '../prisma/prisma.service';
+import { MaxChatService } from './max-chat.service';
+import { isChatCallbackPayload } from './max-chat-keyboard';
 import { MaxIdentityService } from './max-identity.service';
 import {
   buildUnboundMenuModel,
@@ -42,6 +44,7 @@ export class MaxBotCommandService {
   constructor(
     private readonly prisma?: PrismaService,
     private readonly identity?: MaxIdentityService,
+    private readonly chat?: MaxChatService,
   ) {
     this.botUsername = normalizeMaxBotUsername(process.env.MAX_BOT_USERNAME);
   }
@@ -91,6 +94,10 @@ export class MaxBotCommandService {
     );
 
     try {
+      const menuLabel = this.chat?.matchMenuLabel(trimmed);
+      if (menuLabel) {
+        return this.handleParsedCommand(menuLabel, this.dispatchChat(update, menuLabel));
+      }
       if (cmd === '/start' || cmd === '/menu') {
         return this.handleParsedCommand(cmd, this.menuMessage(update));
       }
@@ -146,8 +153,14 @@ export class MaxBotCommandService {
   }
 
   private async menuMessage(update: MaxBotUpdate): Promise<MaxBotCommandResponse> {
+    if (this.chat) return this.chat.handleMenu(update);
     const model = await this.menuModelFor(update);
     return renderMenuMessage(model, this.botUsername);
+  }
+
+  private async dispatchChat(update: MaxBotUpdate, payload: string): Promise<MaxBotCommandResponse> {
+    if (!this.chat) return this.menuMessage(update);
+    return (await this.chat.handleCallback(update, payload)) || this.menuMessage(update);
   }
 
   private async unknownInputMessage(update: MaxBotUpdate): Promise<MaxBotCommandResponse> {
@@ -191,6 +204,10 @@ export class MaxBotCommandService {
   }
 
   private async handleCallback(update: MaxBotUpdate, payload: string): Promise<MaxBotCommandResponse> {
+    if (this.chat && (isChatCallbackPayload(payload) || payload === 'menu')) {
+      this.logger.log({ payload }, 'max_bot_callback_handled');
+      return this.dispatchChat(update, payload);
+    }
     if (!isSafeMaxCallbackPayload(payload)) {
       this.logger.log({ payload }, 'max_bot_callback_fallback');
       return this.menuMessage(update);
