@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 
 function vendorChunk(id: string) {
@@ -17,9 +17,12 @@ function vendorChunk(id: string) {
   return undefined
 }
 
-// https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  test: {
+    environment: 'node',
+    exclude: ['**/node_modules/**', '**/dist/**', '**/offline/offline.test.ts'],
+  },
   build: {
     rollupOptions: {
       output: {
