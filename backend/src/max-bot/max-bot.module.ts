@@ -1,5 +1,8 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
+import { InspectionModule } from '../inspection/inspection.module';
 import { PrismaModule } from '../prisma/prisma.module';
+import { TicketsModule } from '../tickets/tickets.module';
+import { WorkforceModule } from '../workforce/workforce.module';
 
 import { MaxBotCommandService } from './max-bot-command.service';
 import { MaxBindingController } from './max-binding.controller';
@@ -12,7 +15,12 @@ import { MaxBotService } from './max-bot.service';
 import { MaxChatService } from './max-chat.service';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [
+    PrismaModule,
+    WorkforceModule,
+    forwardRef(() => TicketsModule),
+    forwardRef(() => InspectionModule),
+  ],
   controllers: [MaxBotController, MaxBotWebhookController, MaxBindingController],
   providers: [
     MaxBotService,

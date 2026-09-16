@@ -1,6 +1,7 @@
 import {
   isChatCallbackPayload,
   menuMessage,
+  nextPageRows,
   parseChatPage,
   sectionMessage,
   technicianMenuRows,
@@ -38,5 +39,9 @@ describe('max-chat-keyboard', () => {
       'Моя смена',
       'Мои заявки',
     ]);
+  });
+
+  it('adds Следующие as a single extra row', () => {
+    expect(nextPageRows('my', 5)).toEqual([[{ type: 'callback', text: 'Следующие', payload: 'my:5' }]]);
   });
 });

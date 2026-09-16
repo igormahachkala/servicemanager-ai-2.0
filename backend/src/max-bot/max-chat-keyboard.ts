@@ -39,6 +39,10 @@ export function footerRows(): MaxBotInlineKeyboardButton[][] {
   return [[callback('Сегодня', 'today'), callback('Моя смена', 'shift'), callback('Мои заявки', 'my')]];
 }
 
+export function nextPageRows(prefix: string, nextOffset: number): MaxBotInlineKeyboardButton[][] {
+  return [[callback('Следующие', `${prefix}:${nextOffset}`)]];
+}
+
 export function menuKeyboard(): MaxBotInlineKeyboardAttachment | null {
   return renderInlineKeyboard(technicianMenuRows());
 }

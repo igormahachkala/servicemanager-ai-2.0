@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common'
+import { Module, forwardRef } from '@nestjs/common'
 
 import { TicketsController } from './tickets.controller'
 import { TicketsService } from './tickets.service'
@@ -25,7 +25,7 @@ import { WorkforceModule } from '../workforce/workforce.module'
     TimelineModule,
     ServiceContractsModule,
     TechniciansModule,
-    NotificationsModule,
+    forwardRef(() => NotificationsModule),
     WorkforceModule,
   ],
   providers: [
