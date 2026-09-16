@@ -5,8 +5,8 @@ import { InspectionScheduleService } from '../inspection/inspection-schedule.ser
 import { TicketsService } from '../tickets/tickets.service';
 import { WorkforceService } from '../workforce/workforce.service';
 import { extractMaxUserId, MaxIdentity, MaxIdentityService } from './max-identity.service';
-import { isChatCallbackPayload, menuMessage, sectionMessage } from './max-chat-keyboard';
-import { formatTime, isActiveTicket, sortOldestFirst } from './max-chat-format';
+import { isChatCallbackPayload, menuMessage, nextPageRows, parseChatPage, sectionMessage } from './max-chat-keyboard';
+import { formatTicketCard, formatTime, isActiveTicket, pageSlice, sortOldestFirst } from './max-chat-format';
 import { buildUnboundMenuModel, normalizeMaxBotUsername, renderMenuMessage } from './max-menu.builder';
 import { MaxBotCommandResponse, MaxBotUpdate } from './max-bot.types';
 
@@ -68,6 +68,7 @@ export class MaxChatService {
   private async dispatch(identity: BoundIdentity, payload: string): Promise<MaxBotCommandResponse> {
     const prefix = payload.split(':')[0];
     if (prefix === 'today') return this.safe(() => this.today(identity));
+    if (prefix === 'my') return this.safe(() => this.myTickets(identity, parseChatPage(payload, 'my')));
     return sectionMessage('Раздел ещё не подключен.');
   }
 
@@ -90,6 +91,15 @@ export class MaxChatService {
       `Обходы: ${rounds.length}`,
     ].join('\n');
     return sectionMessage(text);
+  }
+
+  private async myTickets(identity: BoundIdentity, offset: number): Promise<MaxBotCommandResponse> {
+    const mine = await this.loadMyTickets(identity);
+    if (!mine.length) return sectionMessage('Назначенных заявок нет.');
+    const page = pageSlice(mine, offset);
+    const text = ['Мои заявки', '', page.slice.map(formatTicketCard).join('\n\n')].join('\n');
+    const extra = page.nextOffset != null ? nextPageRows('my', page.nextOffset) : [];
+    return sectionMessage(text, extra);
   }
 
   private async loadMyTickets(identity: BoundIdentity): Promise<ChatTicketLike[]> {

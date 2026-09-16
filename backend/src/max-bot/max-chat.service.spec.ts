@@ -92,3 +92,26 @@ describe('MaxChatService today', () => {
     expect(tickets.list).toHaveBeenCalledWith('c1', 'u1', UserRole.TECHNICIAN);
   });
 });
+
+describe('MaxChatService my tickets', () => {
+  const update = { callback: { payload: 'my', user: { user_id: 1 } }, message: { sender: { user_id: 1 } } };
+
+  it('shows five oldest assigned active cards and a next button', async () => {
+    const rows = Array.from({ length: 6 }, (_, index) =>
+      ticket({
+        ticketNumber: index + 1,
+        createdAt: `2026-09-${10 + index}T10:00:00.000Z`,
+      }),
+    );
+    const tickets = { list: jest.fn().mockResolvedValue(rows), availableForTechnician: jest.fn() };
+    const chat = new MaxChatService(boundIdentity() as any, tickets as any);
+    const first = await chat.handleCallback(update, 'my');
+    expect(first?.text).toContain('№1');
+    expect(first?.text).toContain('№5');
+    expect(first?.text).not.toContain('№6');
+    expect(buttonsOf(first!)).toContain('Следующие');
+    const next = await chat.handleCallback(update, 'my:5');
+    expect(next?.text).toContain('№6');
+    expect(next?.text).not.toContain('№1');
+  });
+});
