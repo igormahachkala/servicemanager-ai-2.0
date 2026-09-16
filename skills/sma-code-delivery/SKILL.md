@@ -22,6 +22,7 @@ description: "Порядок ведения задачи в этом репоз�
 <i>beta — код, развёрнутый на Stage.</i>
 <i>beta никогда не вливается в prod. Каждая задача попадает в prod своим PR.</i>
 <i>beta должна содержать prod. Соблюдение проверяется в deploy-stage и deploy-prod.</i>
+<i>Код, которого нет в prod, не лежит в beta без замка stage-busy.</i>
 <i>Доказательством является вывод команды. Память и документация доказательством не являются.</i>
 </invariants>
 
@@ -157,12 +158,20 @@ git switch -C &lt;тип&gt;/&lt;тема&gt; origin/prod
 <constraint>Одна задача — одна ветка. Коммитов в ветке может быть несколько.</constraint>
 <constraint>После слияния ветки в prod она закрыта. Доработка ведётся в новой ветке.</constraint>
 <exception name="откат слияния">
-Единственное исключение: слияние ветки в prod было отменено revert-ом.
-Тогда ветка снова открыта, исправление ведётся в ней. Порядок возврата
-описан в sma-deploy-prod (skills/sma-deploy-prod/SKILL.md), блок rollback.
+Слияние ветки в prod было отменено revert-ом. Тогда ветка снова открыта,
+исправление ведётся в ней. Порядок возврата описан в sma-deploy-prod
+(skills/sma-deploy-prod/SKILL.md), блок rollback.
 Причина: повторное слияние ветки после отката ничего не приносит,
 её коммиты остаются предками prod. Содержимое возвращает revert от revert
 в prod, после чего новые коммиты ветки сливаются обычным порядком.
+</exception>
+<exception name="откат слияния в beta">
+Слияние в beta отменено revert-ом. Ветка открыта, исправление в ней.
+Повторное слияние той же ветки в beta содержимое не вернёт: коммиты
+остаются предками beta. Возвращает revert от revert в beta, после
+него новые коммиты сливаются обычным порядком. Порядок —
+skills/sma-deploy-stage/references/rollback.md.
+Чинить отказ приёмки вторым PR поверх живого слияния в beta нельзя.
 </exception>
 <constraint>Формат: тип(скоуп): суть. Тело объясняет причину, не пересказывает diff.</constraint>
 <commit_type>
@@ -239,6 +248,9 @@ git worktree remove &lt;скратчпад&gt;/wt-&lt;тема&gt;
 <f>Удалять ветку задачи до слияния в prod.</f>
 <f>Удалять ветку, помеченную тегом keep, после слияния в prod. См. branch_keep ниже.</f>
 <f>Сливать повторно ветку, слияние которой было отменено, без revert от revert в prod. Отказа не будет: git ответит Already up to date либо принесёт только новые коммиты, а отменённое содержимое не вернётся.</f>
+<f>Сливать повторно в beta ветку, слияние которой отменено, без revert от revert в beta.</f>
+<f>Оставлять в beta код задачи, которого нет в prod, и снимать stage-busy.</f>
+<f>Чинить отказ приёмки на Stage вторым слиянием той же ветки без ревёрта из beta.</f>
 </group>
 <group name="маршрут">
 <f>Придумывать ускоренный маршрут или обход Stage при аварии. Его нет намеренно, см. блок emergency в sma-deploy-prod (skills/sma-deploy-prod/SKILL.md).</f>
@@ -312,6 +324,7 @@ git ls-remote --tags origin 'refs/tags/keep/&lt;ветка&gt;'
 <r skill="sma-agent-setup" file="skills/sma-agent-setup/SKILL.md">подготовка машины: ssh и gh</r>
 <r file="skills/_shared/secrets.md">переменные окружения и секреты</r>
 <r skill="sma-deploy-stage" file="skills/sma-deploy-stage/SKILL.md">проверки, PR в beta, развёртывание на Stage</r>
+<r file="skills/sma-deploy-stage/references/rollback.md">ревёрт слияния из beta</r>
 <r skill="sma-deploy-prod" file="skills/sma-deploy-prod/SKILL.md">проверки, PR в prod, развёртывание в Production</r>
 <r file="docs/DATABASE_MIGRATION_POLICY.md">правила изменения схемы</r>
 </related>
