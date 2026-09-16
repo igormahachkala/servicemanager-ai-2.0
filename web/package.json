@@ -24,6 +24,7 @@
     "test:equipment-history-parts": "node scripts/verify-equipment-history-parts.mjs",
     "test:offline": "rm -rf .offline-test-build && tsc -p tsconfig.offline-tests.json && node --test .offline-test-build/mobile/offline/offline.test.js",
     "test:round-report-print": "node scripts/verify-round-report-print.mjs",
+    "test:workspace-return-to": "node scripts/verify-workspace-return-to.mjs",
     "split:api": "node scripts/split-api-layer.mjs",
     "split:api:apply": "node scripts/split-api-layer.mjs --apply-barrel"
   },
