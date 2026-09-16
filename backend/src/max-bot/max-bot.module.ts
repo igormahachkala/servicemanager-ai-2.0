@@ -1,5 +1,8 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
+import { InspectionModule } from '../inspection/inspection.module';
 import { PrismaModule } from '../prisma/prisma.module';
+import { TicketsModule } from '../tickets/tickets.module';
+import { WorkforceModule } from '../workforce/workforce.module';
 
 import { MaxBotCommandService } from './max-bot-command.service';
 import { MaxBindingController } from './max-binding.controller';
@@ -9,9 +12,15 @@ import { MaxBotController } from './max-bot.controller';
 import { MaxBotPollingService } from './max-bot-polling.service';
 import { MaxBotWebhookController } from './max-bot-webhook.controller';
 import { MaxBotService } from './max-bot.service';
+import { MaxChatService } from './max-chat.service';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [
+    PrismaModule,
+    WorkforceModule,
+    forwardRef(() => TicketsModule),
+    forwardRef(() => InspectionModule),
+  ],
   controllers: [MaxBotController, MaxBotWebhookController, MaxBindingController],
   providers: [
     MaxBotService,
@@ -19,6 +28,7 @@ import { MaxBotService } from './max-bot.service';
     MaxBotPollingService,
     MaxIdentityService,
     MaxBindingService,
+    MaxChatService,
   ],
   // MaxIdentityService is the single bot-facing identity contract (`resolveMaxIdentity`).
   // MaxBindingService is exported for the ceremony only — nothing resolves authority here.
