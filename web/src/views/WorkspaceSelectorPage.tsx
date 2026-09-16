@@ -39,7 +39,7 @@ export function WorkspaceSelectorPage() {
 
   function resolvePath(ws: WorkspaceCard): string {
     /*
-     * SMA-ROUNDS-UX-PRINT-FRESH-PROD-RECONCILIATION-117D (перенос 116E).
+     * SMA-MOBILE-MANAGEMENT-NAVIGATION-116E.
      *
      * `returnTo` применяется только если он принадлежит выбранному контуру.
      * Прежде он применялся к любой карточке: техник уходил из мобильной версии

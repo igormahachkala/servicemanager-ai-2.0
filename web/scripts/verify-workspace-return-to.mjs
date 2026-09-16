@@ -1,5 +1,5 @@
 /**
- * SMA-ROUNDS-UX-PRINT-FRESH-PROD-RECONCILIATION-117D (перенос 116E).
+ * SMA-MOBILE-MANAGEMENT-NAVIGATION-116E.
  *
  * Возврат между контурами. Проверяется поведение чистых функций
  * returnToNavigation и то, что экран выбора контура ими пользуется.

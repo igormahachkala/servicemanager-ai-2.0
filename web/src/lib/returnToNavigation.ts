@@ -69,7 +69,7 @@ function sanitizeWorkspaceId(value?: string | null): WorkspaceQueryId | '' {
 }
 
 /**
- * SMA-ROUNDS-UX-PRINT-FRESH-PROD-RECONCILIATION-117D (перенос 116E).
+ * SMA-MOBILE-MANAGEMENT-NAVIGATION-116E.
  *
  * Какому контуру принадлежит внутренний путь.
  *
