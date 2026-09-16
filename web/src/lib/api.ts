@@ -15,7 +15,9 @@ export {
   getReturnToFromSearch,
   getWorkspaceFromSearch,
   loginPathWithReturnTo,
+  returnToForWorkspace,
   sanitizeInternalAppPath,
+  workspaceForInternalPath,
   workspacePathWithReturnTo,
 } from './returnToNavigation'
 import { runSmaLogout } from './smaLogout'

@@ -38,7 +38,20 @@ export function WorkspaceSelectorPage() {
   const workspaces = useMemo(() => getAvailableWorkspaces(user), [user])
 
   function resolvePath(ws: WorkspaceCard): string {
-    if (returnTo) return returnTo
+    /*
+     * SMA-MOBILE-MANAGEMENT-NAVIGATION-116E.
+     *
+     * `returnTo` применяется только если он принадлежит выбранному контуру.
+     * Прежде он применялся к любой карточке: техник уходил из мобильной версии
+     * в управленческую часть, в адресе оставался `returnTo=/m/...`, и выбор
+     * «Управленческая часть» возвращал его в мобильную. Петля, из которой
+     * в управленческую часть не попасть вовсе.
+     *
+     * Чужой `returnTo` не ошибка и не повод ругаться: человек просто выбрал
+     * другой контур, и его домашний путь — правильный ответ.
+     */
+    const ownReturnTo = api.returnToForWorkspace(returnTo, ws.id)
+    if (ownReturnTo) return ownReturnTo
     // IT Company не использует scope-параметры заявок.
     if (ws.id === 'it') return ws.to
     return api.appendScopeToPath(ws.to, scope, user)
