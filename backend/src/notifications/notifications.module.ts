@@ -1,4 +1,4 @@
-import { Module, forwardRef } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 
 import { PrismaModule } from '../prisma/prisma.module';
 import { MaxBotModule } from '../max-bot/max-bot.module';
@@ -9,7 +9,7 @@ import { NotificationsController } from './notifications.controller';
 import { NotificationsService } from './notifications.service';
 
 @Module({
-  imports: [PrismaModule, forwardRef(() => MaxBotModule), PushModule, ServiceContractsModule],
+  imports: [PrismaModule, MaxBotModule, PushModule, ServiceContractsModule],
   controllers: [NotificationsController],
   providers: [NotificationsService, NotificationPreferencesService],
   exports: [NotificationsService, NotificationPreferencesService],

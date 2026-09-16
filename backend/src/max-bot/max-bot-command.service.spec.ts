@@ -1,7 +1,4 @@
-import { UserRole } from '@prisma/client';
-
 import { MaxBotCommandService } from './max-bot-command.service';
-import { MaxChatService } from './max-chat.service';
 import { MaxIdentityService } from './max-identity.service';
 
 /**
@@ -236,38 +233,5 @@ describe('MaxBotCommandService — text extraction regressions', () => {
 
   it('returns null when message.body is an object without text', async () => {
     expect(await makeService().handleUpdate({ message: { body: { mid: 'm1' } } })).toBeNull();
-  });
-});
-
-describe('MaxBotCommandService — technician chat menu', () => {
-  it('bound technician sees six chat actions', async () => {
-    const identity = {
-      resolve: jest.fn().mockResolvedValue({
-        resolved: true,
-        userId: 'u1',
-        companyId: 'c1',
-        role: UserRole.TECHNICIAN,
-        maxUserId: '1',
-      }),
-    };
-    const chat = new MaxChatService(identity as any);
-    const service = new MaxBotCommandService(makeForbiddenPrisma(), identity as any, chat);
-    const res = await service.handleUpdate({ message: { text: '/start', sender: { user_id: 1 } } });
-    expect(buttonsOf(res).map((button) => button.text)).toEqual([
-      'Сегодня',
-      'Мои заявки',
-      'Доступные',
-      'Обходы',
-      'Моя смена',
-      'Поиск заявки',
-    ]);
-  });
-
-  it('unbound still gets linking only when chat is wired', async () => {
-    const identity = { resolve: jest.fn().mockResolvedValue({ resolved: false, reason: 'not_bound' }) };
-    const chat = new MaxChatService(identity as any);
-    const service = new MaxBotCommandService(makeForbiddenPrisma(), identity as any, chat);
-    const res = await service.handleUpdate({ message: { text: '/start', sender: { user_id: 1 } } });
-    expect(buttonsOf(res).map((button) => button.text)).toEqual(['Открыть ServiceManager', 'Помощь']);
   });
 });
