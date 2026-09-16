@@ -67,7 +67,7 @@ type ReportPayload = {
     comment?: string | null
     requiresRepair: boolean
     attachments: Array<{ originalName?: string | null; url: string }>
-    ticket?: { id: string; status: string; problemText?: string | null } | null
+    ticket?: { id: string; ticketNumber?: number | null; status: string; problemText?: string | null } | null
   }>
   summary: {
     totalItems: number
@@ -217,7 +217,7 @@ export class InspectionExportService {
         lines.push(paragraphXml(`Фото: ${item.attachments.map((a) => a.originalName || a.url).join(', ')}`))
       }
       if (item.ticket) {
-        lines.push(paragraphXml(`Заявка: #${item.ticket.id} · ${item.ticket.status} · ${item.ticket.problemText || 'Без описания'}`))
+        lines.push(paragraphXml(`Заявка: ${item.ticket.ticketNumber ? '№' + item.ticket.ticketNumber : '#' + item.ticket.id} · ${item.ticket.status} · ${item.ticket.problemText || 'Без описания'}`))
       }
       lines.push(paragraphXml(''))
     })
