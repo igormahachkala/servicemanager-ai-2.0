@@ -9,21 +9,10 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "test": "vitest run",
     "preview": "vite preview",
     "gen:pwa-icons": "node scripts/gen-pwa-icons.mjs",
-    "test:notification-navigation": "node scripts/verify-notification-navigation.mjs",
-    "test:owner-navigation": "node scripts/verify-owner-operations-navigation.mjs",
-    "test:ticket-claim-capabilities": "node scripts/verify-ticket-claim-capabilities.mjs",
-    "test:max-bootstrap": "node scripts/verify-max-miniapp-bootstrap.mjs",
-    "test:browser-storage": "node scripts/verify-browser-storage-reliability.mjs",
-    "test:mobile-rc": "node scripts/verify-mobile-rc-fixes.mjs",
-    "test:mobile-shift-gate": "node scripts/verify-mobile-shift-gate.mjs",
-    "test:rounds-location-scope": "node scripts/verify-rounds-provider-location-scope.mjs",
-    "test:equipment-v2": "node scripts/verify-equipment-v2.mjs",
-    "test:realtime-resilience": "node scripts/verify-realtime-websocket-resilience.mjs",
-    "test:equipment-history-parts": "node scripts/verify-equipment-history-parts.mjs",
     "test:offline": "rm -rf .offline-test-build && tsc -p tsconfig.offline-tests.json && node --test .offline-test-build/mobile/offline/offline.test.js",
-    "test:workspace-return-to": "node scripts/verify-workspace-return-to.mjs",
     "split:api": "node scripts/split-api-layer.mjs",
     "split:api:apply": "node scripts/split-api-layer.mjs --apply-barrel"
   },
@@ -53,7 +42,8 @@
     "globals": "^16.5.0",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.48.0",
-    "vite": "^8.0.0-beta.13"
+    "vite": "^8.0.0-beta.13",
+    "vitest": "4.1.11"
   },
   "overrides": {
     "vite": "^8.0.0-beta.13"
