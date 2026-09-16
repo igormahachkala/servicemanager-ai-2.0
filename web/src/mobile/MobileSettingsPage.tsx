@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { canAccessManagementDesktop, managementHomePath } from '../lib/navigation'
 import { ClientContourCard } from './ClientContourCard'
-import { mobilePath } from './mobileRoute'
+import { mobilePath, supportsPersonalNotificationPreferences } from './mobileRoute'
 import { NotificationPreferencesPanel } from '../components/notifications/NotificationPreferencesPanel'
 
 type ManagementLink = {
@@ -106,6 +106,7 @@ function canOpenCompanySettings(role?: api.Role | null) {
 export function MobileSettingsPage() {
   const location = useLocation()
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
+  const showPersonalNotificationPreferences = supportsPersonalNotificationPreferences(location.pathname)
 
   const currentScope = useMemo(() => {
     const params = new URLSearchParams(location.search)
@@ -222,10 +223,11 @@ export function MobileSettingsPage() {
 
       <ClientContourCard />
 
-      {/* 105C: те же личные настройки уведомлений, что и на десктопе. */}
-      <div className="notifPrefMobileWrap">
-        <NotificationPreferencesPanel />
-      </div>
+      {showPersonalNotificationPreferences ? (
+        <div className="notifPrefMobileWrap">
+          <NotificationPreferencesPanel />
+        </div>
+      ) : null}
 
       <div className="mobileCard mobileProfileMenu" style={{ marginTop: 8 }}>
         <div className="mobileProfileSectionLabel" style={{ padding: '2px 0 4px' }}>Управление</div>
