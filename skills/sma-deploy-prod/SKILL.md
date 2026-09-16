@@ -27,7 +27,8 @@ sma-deploy-stage, подтверждением служит тег stage-ok.
 Искать по имени блока: номера строк тут не приводятся, они сдвигаются
 при каждой правке.
 
-  шаг 0   сверка допуска: три проверки тега stage-ok и проверка замка
+  шаг 0   сверка допуска: три проверки тега stage-ok, замок prod свободен,
+          stage-busy этой задачи на месте
   шаг 1   определить область изменения, скрипт area-map.sh
   шаг 2   создать PR в prod, precheck на уже открытый
   шаг 3   получить результат слияния, разбор конфликта
@@ -45,8 +46,8 @@ sma-deploy-stage, подтверждением служит тег stage-ok.
   шаг 10  проверка критерия приёмки в Production
   шаг 11  восстановить инвариант beta ⊇ prod слиянием prod в beta;
           сброс beta сюда не относится, блок reset_is_not_here
-  шаг 12  закрытие задачи: снять замок, снять stage-ok, тег keep,
-          вопрос об удалении ветки
+  шаг 12  закрытие задачи: снять prod-busy и stage-busy, снять stage-ok,
+          тег keep, вопрос об удалении ветки
 
   emergency          ускоренного маршрута нет, порядок при аварии
   expected_warnings  штатный вывод compose, ошибкой не считать
@@ -120,10 +121,22 @@ skills/_shared/references/contour-lock-cases.md: возраст, ветка, PR,
 Порог для Production 2 часа. Чужой замок не снимать, блоки foreign_lock и lock_void
 справочника skills/_shared/references/contour-lock-cases.md.
 </on_lock_failure>
+<lock_check name="Stage занят этой задачей">
+git fetch --force origin 'refs/tags/stage-busy:refs/tags/stage-busy'
+git tag -l --format='%(contents)' stage-busy
+
+Замок stage-busy стоит, поле branch — ваша ветка. Код задачи в beta,
+в prod его ещё нет. Отсутствие замка или чужая ветка в теле: инвариант
+уже мог быть нарушен. Не создавать PR, не сливать, не разворачивать.
+Показать пользователю. Блок own_lock_missing справочника, если замка
+нет либо он чужой.
+</lock_check>
 <why_here>
-Проверка стоит здесь, чтобы не создавать PR и не гонять проверки на занятом
-контуре. Замок ставится позже, шагом 7: гонку между проверкой и постановкой
-ловит отказ push.
+Проверка prod-busy стоит здесь, чтобы не создавать PR и не гонять
+проверки на занятом Production. Замок Production ставится позже, шагом 7:
+гонку между проверкой и постановкой ловит отказ push.
+Проверка stage-busy подтверждает, что фича в beta всё ещё под нашим
+замком и не лежит там бесхозно.
 </why_here>
 </step>
 
@@ -397,8 +410,15 @@ skills/_shared/scripts/lock-acquire.sh --owned production &lt;ветка&gt; \
   &amp;&amp; gh pr merge &lt;номер&gt; --merge --delete-branch=false
 </command>
 <on_failure>
-Отказ с указанием, что ветка устарела — prod ушёл вперёд. Повторить с шага 3.
-Замок снять: контур занят, а слияния не было.
+Отказ с указанием, что ветка устарела — prod ушёл вперёд. Слияния в prod
+не было, в beta фича есть. Это не путь 3 для снятия замков.
+
+Два исхода, решает пользователь:
+  повторить с шага 3, замки prod-busy и stage-busy остаются;
+  ревёрт из beta, skills/sma-deploy-stage/references/rollback.md,
+  затем снять оба замка.
+
+Снимать prod-busy и оставлять код в beta нельзя.
 </on_failure>
 </step>
 
@@ -680,18 +700,23 @@ git merge-base --is-ancestor origin/&lt;ветка&gt; origin/prod
 </why_origin>
 <on_success>Ветку задачи можно удалить.</on_success>
 <release_lock>
-Снять замок Production. Выполняется первым в этом шаге: сверка шага 9
-и критерий шага 10 пройдены, контур в конечном состоянии, держать его дольше
-нечем оправдать.
+Снять prod-busy, затем stage-busy. Выполняется первым в этом шаге: сверка
+шага 9 и критерий шага 10 пройдены, код в origin/prod, в beta без замка
+он законен. Перед снятием каждого сверить владельца.
 
-git fetch --force origin 'refs/tags/prod-busy:refs/tags/prod-busy'   # --force: копия могла разойтись, блок read
+git fetch --force origin 'refs/tags/prod-busy:refs/tags/prod-busy'
 git tag -l --format='%(contents)' prod-busy     # поле branch — ваша ветка?
-
 git tag -d prod-busy
 git push origin :refs/tags/prod-busy
-
 git ls-remote --tags origin 'refs/tags/prod-busy'
-Вывод пуст — замок снят.
+Вывод пуст — prod-busy снят.
+
+git fetch --force origin 'refs/tags/stage-busy:refs/tags/stage-busy'
+git tag -l --format='%(contents)' stage-busy     # поле branch — ваша ветка?
+git tag -d stage-busy
+git push origin :refs/tags/stage-busy
+git ls-remote --tags origin 'refs/tags/stage-busy'
+Вывод пуст — stage-busy снят.
 <if name="замка нет либо он чужой">
 Не продолжать закрытие задачи и чужой замок не снимать. Блок
 own_lock_missing справочника
@@ -702,9 +727,9 @@ skills/_shared/references/contour-lock-cases.md:
 </if>
 </release_lock>
 <lock_on_rollback>
-Развёртывание не прошло и выполняется откат — замок не снимать до конца
-фазы 2 блока rollback: контур занят, пока вершина prod и работающий код
-не сведены. Порядок там же.
+Развёртывание не прошло и выполняется откат — не снимать ни prod-busy,
+ни stage-busy, пока фича не убрана и из prod, и из beta. Порядок
+в rollback.md.
 </lock_on_rollback>
 <tag_release>
 Тег stage-ok снимается: своё дело он сделал, задача прошла ворота допуска
@@ -785,7 +810,7 @@ keep/docs/skills-flow-002, введён 1 сентября 2026.
 </forbidden>
 </emergency>
 
-<ref file="skills/sma-deploy-prod/references/rollback.md">Порядок отката: две фазы, возврат ветки prod, повторное вливание, работа с тегом. Читать только при откате.</ref>
+<ref file="skills/sma-deploy-prod/references/rollback.md">Порядок отката: фазы 1 и 2 в prod, ревёрт из beta, возврат через revert от revert. Читать только при откате.</ref>
 
 <expected_warnings>
 <w>the attribute `version` is obsolete</w>
@@ -812,11 +837,14 @@ keep/docs/skills-flow-002, введён 1 сентября 2026.
 <f>Применять --remove-orphans.</f>
 <f>Менять переменные окружения на сервере.</f>
 <f>Применять миграцию с DELETE, DROP, ALTER без бэкапа и подтверждения.</f>
+<f>Снимать prod-busy, пока фича осталась в beta, а в prod её нет.</f>
+<f>Откатывать prod и оставлять то же содержимое в beta.</f>
 </forbidden>
 
 <ask_user>
 <a>Развёртывание в Production — всегда.</a>
 <a>Слияние PR в prod — всегда, отдельным вопросом до слияния, шаг 7.</a>
+<a>Слияние в prod не состоялось, фича в beta: повторить слияние либо ревёрт из beta.</a>
 <a>Начало работы по этому скилу без явной команды пользователя выкатить в Production. Тег stage-ok — допуск, а не разрешение катить.</a>
 <a>Миграция с DELETE, DROP или ALTER.</a>
 <a>Удаление ветки задачи.</a>
@@ -831,5 +859,6 @@ keep/docs/skills-flow-002, введён 1 сентября 2026.
 <r file="skills/_shared/secrets.md">переменные окружения и секреты, обязательно</r>
 <r skill="sma-code-delivery" file="skills/sma-code-delivery/SKILL.md">ветвление и работа над задачей</r>
 <r skill="sma-deploy-stage" file="skills/sma-deploy-stage/SKILL.md">проверки, PR в beta, приёмка на Stage</r>
+<r file="skills/sma-deploy-stage/references/rollback.md">ревёрт слияния из beta</r>
 <r file="docs/DATABASE_MIGRATION_POLICY.md">правила изменения схемы</r>
 </related>
