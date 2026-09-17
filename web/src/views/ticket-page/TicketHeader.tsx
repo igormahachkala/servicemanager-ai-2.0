@@ -4,12 +4,12 @@ import { TicketClaimBlock } from './TicketClaimBlock'
 
 type TicketHeaderProps = {
   ticket?: api.TicketGetOne
-  ticketId: string
   isFetching: boolean
   observerCompanyId: string
   linkedClientCompanyId: string
   contextBadge: string
   backToBoardHref: string
+  backToBoardLabel: string
   backToBoardState?: unknown
   canEditTicket: boolean
   editOpen: boolean
@@ -23,12 +23,12 @@ type TicketHeaderProps = {
 export function TicketHeader(props: TicketHeaderProps) {
   const {
     ticket,
-    ticketId,
     isFetching,
     observerCompanyId,
     linkedClientCompanyId,
     contextBadge,
     backToBoardHref,
+    backToBoardLabel,
     backToBoardState,
     canEditTicket,
     editOpen,
@@ -43,7 +43,7 @@ export function TicketHeader(props: TicketHeaderProps) {
     <>
       <div className="row">
         <h2>{title}</h2>
-        <div className="muted small">{isFetching && !ticket ? 'Загрузка…' : ticketId ? `ID: ${ticketId}` : '—'}</div>
+        <div className="muted small">{isFetching && !ticket ? 'Загрузка…' : ticket ? 'Карточка заявки' : '—'}</div>
       </div>
 
       <div className="panel" style={{ marginBottom: 12 }}>
@@ -52,14 +52,14 @@ export function TicketHeader(props: TicketHeaderProps) {
             <div className="muted small">Контекст доступа</div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 4 }}>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 999, border: '1px solid #e5e7eb', background: '#f9fafb', fontSize: 12 }}>{contextBadge}</span>
-              {observerCompanyId ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 999, border: '1px solid #e5e7eb', background: '#f9fafb', fontSize: 12 }}>companyId: {observerCompanyId}</span> : null}
-              {linkedClientCompanyId ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px', borderRadius: 999, border: '1px solid #e5e7eb', background: '#f9fafb', fontSize: 12 }}>linkedClientCompanyId: {linkedClientCompanyId}</span> : null}
+              {observerCompanyId ? <span className="muted small">Наблюдение за компанией</span> : null}
+              {linkedClientCompanyId ? <span className="muted small">Связанный клиент</span> : null}
             </div>
           </div>
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <Link to={backToBoardHref} state={backToBoardState}>
-              <button className="ghost">← Назад к доске</button>
+              <button className="ghost">{backToBoardLabel}</button>
             </Link>
 
             {canEditTicket ? (

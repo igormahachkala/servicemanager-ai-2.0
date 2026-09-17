@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { ChatMessage } from '../../lib/ticketChat'
+import { formatChatMessageAuthor, type ChatMessage } from '../../lib/ticketChat'
 
 type Props = {
   messages: ChatMessage[]
@@ -114,8 +114,8 @@ export function TicketChatPanel({ messages, loading, canSend, onSend }: Props) {
                 >
                   {msg.text}
                 </div>
-                <div className="muted small" style={{ marginTop: 2, fontSize: '0.72rem' }}>
-                  {msg.authorEmail || 'система'} · {fmt(msg.at)}
+                <div className="muted small" style={{ marginTop: 2, fontSize: '0.72rem', maxWidth: '75%', textAlign: msg.isOwn ? 'right' : 'left' }}>
+                  {formatChatMessageAuthor(msg)} · {fmt(msg.at)}
                 </div>
               </div>
             )

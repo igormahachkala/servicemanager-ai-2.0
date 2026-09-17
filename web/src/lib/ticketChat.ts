@@ -1,5 +1,11 @@
 import type { TimelineItem } from './api'
-import { identityBlockText, presentActorIdentity, presentTimelineCreator } from './ticketActorIdentity'
+import {
+  compactIdentityLabel,
+  identityBlockText,
+  presentActorIdentity,
+  presentTimelineCreator,
+  type TicketIdentityPresentation,
+} from './ticketActorIdentity'
 
 export type ChatMessage = {
   id: string
@@ -7,6 +13,7 @@ export type ChatMessage = {
   text: string
   authorId: string | null
   authorEmail: string | null
+  authorIdentity: TicketIdentityPresentation | null
   isOwn: boolean
   kind: 'comment' | 'system' | 'photo'
   /** Для kind==='photo' — id вложения (TicketAttachment) для inline-превью в ленте. */
@@ -145,6 +152,21 @@ function getSystemText(item: TimelineItem): string | null {
   return null
 }
 
+function messageActorIdentity(item: TimelineItem): TicketIdentityPresentation | null {
+  return item.actor
+    ? presentActorIdentity(item.actor, {
+        nameFallback: 'Пользователь не указан',
+        roleFallback: 'Роль не указана',
+        organizationFallback: 'Организация не указана',
+      })
+    : null
+}
+
+export function formatChatMessageAuthor(message: Pick<ChatMessage, 'authorEmail' | 'authorIdentity'>): string {
+  if (message.authorIdentity) return compactIdentityLabel(message.authorIdentity)
+  return message.authorEmail || 'система'
+}
+
 export function toChatMessages(items: TimelineItem[], meUserId: string, context?: TicketChatContext): ChatMessage[] {
   void context
   const seenStatusKeys = new Set<string>()
@@ -168,6 +190,7 @@ export function toChatMessages(items: TimelineItem[], meUserId: string, context?
           text: systemText,
           authorId: item.actor?.id ?? null,
           authorEmail: item.actor?.email ?? null,
+          authorIdentity: messageActorIdentity(item),
           isOwn: !!meUserId && item.actor?.id === meUserId,
           kind: 'photo',
           attachmentId,
@@ -189,6 +212,7 @@ export function toChatMessages(items: TimelineItem[], meUserId: string, context?
         text: systemText,
         authorId: null,
         authorEmail: null,
+        authorIdentity: null,
         isOwn: false,
         kind: 'system',
       })
@@ -204,6 +228,7 @@ export function toChatMessages(items: TimelineItem[], meUserId: string, context?
         text,
         authorId,
         authorEmail: item.actor?.email ?? null,
+        authorIdentity: messageActorIdentity(item),
         isOwn: !!meUserId && authorId === meUserId,
         kind: 'comment',
       })

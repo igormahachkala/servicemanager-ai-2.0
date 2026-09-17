@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from 'react'
-import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom'
+import { useLocation, useParams, useSearchParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { mapReason } from '../lib/assignmentExplain'
@@ -17,8 +17,9 @@ import {
 } from '../lib/boardNavigationContext'
 import { pushToast } from '../lib/appToast'
 import { logTicketActionError, mapTicketActionError } from '../lib/ticketOperationalErrors'
-import { computePrimaryTicketAction } from '../lib/ticketOperationalModel'
 import { readBackendCanClaim } from '../lib/ticketActionCapabilities'
+import { buildTicketAvailableActionDescriptors, type TicketAvailableActionKey } from '../lib/ticketAvailableActions'
+import { buildTicketBackLabel } from '../lib/ticketBackContext'
 import { toChatMessages } from '../lib/ticketChat'
 import { resolveAdminProfile } from '../lib/resolveAdminProfile'
 import {
@@ -217,6 +218,7 @@ export function TicketPage() {
   const [acceptanceFileError, setAcceptanceFileError] = useState<string | null>(null)
   const [claimError, setClaimError] = useState<string | null>(null)
   const [assignError, setAssignError] = useState<string | null>(null)
+  const [assignmentRequestError, setAssignmentRequestError] = useState<string | null>(null)
   const [statusError, setStatusError] = useState<string | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [deleteAttachmentError, setDeleteAttachmentError] = useState<string | null>(null)
@@ -480,6 +482,7 @@ export function TicketPage() {
   const clearActionErrors = () => {
     setClaimError(null)
     setAssignError(null)
+    setAssignmentRequestError(null)
     setStatusError(null)
     setUploadError(null)
     setDeleteAttachmentError(null)
@@ -525,6 +528,23 @@ export function TicketPage() {
       const raw = e?.message || String(e)
       logTicketActionError('assign_self', raw)
       setClaimError(mapTicketActionError(raw))
+    },
+  })
+
+  const requestAssignmentM = useMutation({
+    mutationFn: () => {
+      if (!canMutateTicket) throw new Error('Изменение заявки запрещено в текущем режиме видимости')
+      return api.requestTicketAssignment(ticketId, effectiveTicketScope)
+    },
+    onSuccess: async (data) => {
+      clearActionErrors()
+      pushToast(data?.alreadyRequested ? 'Запрос уже был отправлен' : 'Запрос отправлен', 'success')
+      await refreshAll()
+    },
+    onError: (e: any) => {
+      const raw = e?.message || String(e)
+      logTicketActionError('request_assignment', raw)
+      setAssignmentRequestError(mapTicketActionError(raw))
     },
   })
 
@@ -776,32 +796,44 @@ export function TicketPage() {
     return readBackendCanClaim(ticket)
   }, [ticket, executorActionsAllowed])
 
-  // Единственный источник — backend meta. Роль на фронте не проверяется.
-  const canAssignSelf = ticket?.meta?.availableActions?.canAssignSelf === true
-
   const assignmentData = assignmentCandidatesQ.data
-  const availableStatusTransitions = ticket?.meta?.availableStatusTransitions || []
-  const canTransitionTo = (status: api.TicketStatus) => availableStatusTransitions.includes(status)
-  const primaryAction = useMemo(
-    () =>
-      ticket
-        ? computePrimaryTicketAction({
-            ticket,
-            canClaim,
-            canChangeStatus,
-            availableStatusTransitions,
-          })
-        : null,
-    [ticket, canClaim, canChangeStatus, availableStatusTransitions],
-  )
+  const ticketActions = useMemo(() => buildTicketAvailableActionDescriptors(ticket), [ticket])
+  const runningTicketActionKey: TicketAvailableActionKey | null = claimM.isPending
+    ? 'canClaim'
+    : assignSelfM.isPending
+      ? 'canAssignSelf'
+      : requestAssignmentM.isPending
+        ? 'canRequestAssignment'
+        : closeReportM.isPending
+          ? 'canComplete'
+          : statusM.isPending
+            ? statusM.variables?.status === 'IN_PROGRESS'
+              ? 'canStart'
+              : statusM.variables?.status === 'CANCELED'
+                ? 'canClose'
+                : null
+            : acceptanceM.isPending
+              ? acceptanceM.variables === 'ACCEPT'
+                ? 'canAccept'
+                : acceptanceM.variables === 'REJECT'
+                  ? 'canReject'
+                  : null
+              : null
 
-  const showCancelInTechnicianBar =
-    !!ticket &&
-    canChangeStatus &&
-    canTransitionTo('CANCELED') &&
-    (!isTechnicianRole || !!ticket.meta?.availableActions?.canClose)
-
-  const technicianBarCloseHint = ticket?.meta?.availableActionHints?.canClose ?? null
+  function runTicketAction(key: TicketAvailableActionKey) {
+    clearActionErrors()
+    if (key === 'canClaim') return claimM.mutate()
+    if (key === 'canAssignSelf') return assignSelfM.mutate()
+    if (key === 'canRequestAssignment') return requestAssignmentM.mutate()
+    if (key === 'canStart') return statusM.mutate({ status: 'IN_PROGRESS' })
+    if (key === 'canComplete') {
+      setShowSubmitToAcceptanceForm(true)
+      return
+    }
+    if (key === 'canClose') return statusM.mutate({ status: 'CANCELED' })
+    if (key === 'canAccept') return acceptanceM.mutate('ACCEPT')
+    if (key === 'canReject') return acceptanceM.mutate('REJECT')
+  }
 
   const selectedCandidate = useMemo(() => {
     if (!assignmentData || !selectedTechnicianId) return null
@@ -983,19 +1015,22 @@ export function TicketPage() {
     )
   }
 
-  const showTechnicianActionBar = !!(ticket && isTechnicianRole && executorActionsAllowed)
-  const canSubmitToAcceptance = !!(ticket && executorActionsAllowed && canChangeStatus && canTransitionTo('AWAITING_ACCEPTANCE'))
+  const backToBoardLabel = useMemo(
+    () => buildTicketBackLabel({ context: boardNavContext, sourcePath: boardSourcePath, ticket }),
+    [boardNavContext, boardSourcePath, ticket],
+  )
+  const canSubmitToAcceptance = ticket?.meta?.availableActions?.canComplete === true
 
   return (
     <div>
       <TicketHeader
         ticket={ticket}
-        ticketId={ticketId}
         isFetching={ticketQ.isFetching}
         observerCompanyId={observerCompanyId}
         linkedClientCompanyId={effectiveLinkedClientCompanyId}
         contextBadge={contextBadge}
         backToBoardHref={backToBoardHref}
+        backToBoardLabel={backToBoardLabel}
         backToBoardState={backToBoardState}
         canEditTicket={canEditTicket}
         editOpen={editOpen}
@@ -1004,23 +1039,6 @@ export function TicketPage() {
         meUserId={meQ.data?.id}
         hintCanClaim={canClaim}
       />
-
-      {boardNavContext ? (
-        <div className="panel uiCard" style={{ marginBottom: 12 }}>
-          <div className="row" style={{ marginBottom: 8 }}>
-            <div style={{ fontWeight: 700 }}>Контекст доски</div>
-            <Link to={backToBoardHref} style={{ textDecoration: 'none' }}>
-              <button className="ghost">Без фильтров</button>
-            </Link>
-          </div>
-          <div className="muted small">
-            {boardNavContext.selectedStatus ? `Статус: ${statusLabel(boardNavContext.selectedStatus)} · ` : ''}
-            {boardNavContext.selectedLocationId ? `Локация: ${boardNavContext.selectedLocationId} · ` : ''}
-            {boardNavContext.selectedEquipmentId ? `Оборудование: ${boardNavContext.selectedEquipmentId} · ` : ''}
-            {boardNavContext.includeArchived ? 'Архив: включён' : 'Архив: выключен'}
-          </div>
-        </div>
-      ) : null}
 
       {ticket && shouldShowClientTicketLifecycleHint(meQ.data, ticket) ? (
         <div className="panel uiCard" style={{ marginBottom: 12, borderColor: '#c7d2fe', background: '#f8fafc' }}>
@@ -1036,7 +1054,6 @@ export function TicketPage() {
         техника, техник ведёт работу до закрытия.
       </div>
 
-      {!showTechnicianActionBar ? <InlineError message={claimError} /> : null}
       {ticketQ.isError ? (
         <div className="alert">{mapTicketActionError((ticketQ.error as any)?.message || String(ticketQ.error))}</div>
       ) : null}
@@ -1065,9 +1082,6 @@ export function TicketPage() {
               </div>
               <div className="muted small" style={{ marginTop: 4 }}>
                 создана: {fmt(ticket.createdAt)} · обновлена: {fmt(ticket.updatedAt)}
-              </div>
-              <div className="muted small" style={{ marginTop: 2 }}>
-                ID: {ticket.id}
               </div>
             </div>
 
@@ -1127,32 +1141,11 @@ export function TicketPage() {
             onChange={handleOperationalPhotoPick}
           />
           <TicketActionsPanel
-            showTechnicianActionBar={showTechnicianActionBar}
             ticket={ticket}
-            backToBoardHref={backToBoardHref}
-            primaryAction={primaryAction}
-            canClaim={canClaim}
-            canChangeStatus={canChangeStatus}
-            canTransitionTo={canTransitionTo}
-            showCancelInTechnicianBar={showCancelInTechnicianBar}
-            technicianBarCloseHint={technicianBarCloseHint}
-            claimPending={claimM.isPending}
-            statusPending={statusM.isPending}
-            newComment={newComment}
-            onNewCommentChange={setNewComment}
-            onAddComment={() => addCommentM.mutate()}
-            addCommentPending={addCommentM.isPending}
-            onClaim={() => claimM.mutate()}
-            canAssignSelf={canAssignSelf}
-            assignSelfPending={assignSelfM.isPending}
-            onAssignSelf={() => assignSelfM.mutate()}
-            onSetStatus={(input) => statusM.mutate(input)}
-            onPickOperationalPhoto={() => operationalFileInputRef.current?.click()}
-            operationalPhotoPending={uploadM.isPending}
-            hasOperationalPhotoSelected={false}
-            claimError={claimError}
-            statusError={statusError}
-            onOpenSubmitForm={canSubmitToAcceptance ? () => setShowSubmitToAcceptanceForm(true) : undefined}
+            actions={ticketActions}
+            runningActionKey={runningTicketActionKey}
+            onRunAction={runTicketAction}
+            actionError={claimError || assignmentRequestError || statusError}
             canEditTicket={canEditTicket}
             editOpen={editOpen}
             onToggleEdit={() => setEditOpen((value) => !value)}
@@ -1164,7 +1157,6 @@ export function TicketPage() {
               setChildCreateError(null)
             }}
             isTechnicianRole={isTechnicianRole}
-            onShowSubmitForm={() => setShowSubmitToAcceptanceForm(true)}
           />
         </>
       ) : null}

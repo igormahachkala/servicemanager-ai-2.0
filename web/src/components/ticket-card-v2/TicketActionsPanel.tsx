@@ -1,35 +1,13 @@
-import { TicketActionBar } from '../ticket-page/TicketActionBar'
+import { useEffect, useRef, useState } from 'react'
 import type * as api from '../../lib/api'
-import type { PrimaryTicketAction } from '../../lib/ticketOperationalModel'
+import type { TicketAvailableActionDescriptor, TicketAvailableActionKey } from '../../lib/ticketAvailableActions'
 
 export type TicketActionsPanelProps = {
-  showTechnicianActionBar: boolean
   ticket: api.TicketGetOne | null
-  backToBoardHref: string
-  primaryAction: PrimaryTicketAction | null
-  canClaim: boolean
-  canChangeStatus: boolean
-  canTransitionTo: (status: api.TicketStatus) => boolean
-  showCancelInTechnicianBar: boolean
-  technicianBarCloseHint?: string | null
-  claimPending: boolean
-  statusPending: boolean
-  newComment: string
-  onNewCommentChange: (value: string) => void
-  onAddComment: () => void
-  addCommentPending: boolean
-  onClaim: () => void
-  /** 096: «Назначить на себя» — управленческое действие, отличное от «Взять заявку». */
-  canAssignSelf?: boolean
-  assignSelfPending?: boolean
-  onAssignSelf?: () => void
-  onSetStatus: (input: api.UpdateTicketStatusInput) => void
-  onPickOperationalPhoto: () => void
-  operationalPhotoPending: boolean
-  hasOperationalPhotoSelected: boolean
-  claimError?: string | null
-  statusError?: string | null
-  onOpenSubmitForm?: () => void
+  actions: TicketAvailableActionDescriptor[]
+  runningActionKey?: TicketAvailableActionKey | null
+  onRunAction: (key: TicketAvailableActionKey) => void
+  actionError?: string | null
   canEditTicket: boolean
   editOpen: boolean
   onToggleEdit: () => void
@@ -38,37 +16,15 @@ export type TicketActionsPanelProps = {
   childCreatePending: boolean
   onToggleChildCreateForm: () => void
   isTechnicianRole: boolean
-  onShowSubmitForm: () => void
 }
 
 export function TicketActionsPanel(props: TicketActionsPanelProps) {
   const {
-    showTechnicianActionBar,
     ticket,
-    backToBoardHref,
-    primaryAction,
-    canClaim,
-    canChangeStatus,
-    canTransitionTo,
-    showCancelInTechnicianBar,
-    technicianBarCloseHint,
-    claimPending,
-    statusPending,
-    newComment,
-    onNewCommentChange,
-    onAddComment,
-    addCommentPending,
-    onClaim,
-    canAssignSelf,
-    assignSelfPending,
-    onAssignSelf,
-    onSetStatus,
-    onPickOperationalPhoto,
-    operationalPhotoPending,
-    hasOperationalPhotoSelected,
-    claimError,
-    statusError,
-    onOpenSubmitForm,
+    actions,
+    runningActionKey,
+    onRunAction,
+    actionError,
     canEditTicket,
     editOpen,
     onToggleEdit,
@@ -77,104 +33,96 @@ export function TicketActionsPanel(props: TicketActionsPanelProps) {
     childCreatePending,
     onToggleChildCreateForm,
     isTechnicianRole,
-    onShowSubmitForm,
   } = props
+  const [open, setOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement | null>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onPointerDown = (event: PointerEvent) => {
+      if (!menuRef.current?.contains(event.target as Node)) setOpen(false)
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    window.addEventListener('pointerdown', onPointerDown)
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown)
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [open])
 
   if (!ticket) return null
 
-  if (showTechnicianActionBar) {
-    return (
-      <div style={{ marginBottom: 12 }}>
-        <TicketActionBar
-          backToBoardHref={backToBoardHref}
-          primaryAction={primaryAction}
-          canClaim={canClaim}
-          canChangeStatus={canChangeStatus}
-          canTransitionTo={canTransitionTo}
-          showCancel={showCancelInTechnicianBar}
-          closeHint={technicianBarCloseHint}
-          claimPending={claimPending}
-          statusPending={statusPending}
-          newComment={newComment}
-          onNewCommentChange={onNewCommentChange}
-          onAddComment={onAddComment}
-          addCommentPending={addCommentPending}
-          onClaim={onClaim}
-          canAssignSelf={canAssignSelf}
-          assignSelfPending={assignSelfPending}
-          onAssignSelf={onAssignSelf}
-          onSetStatus={onSetStatus}
-          onPickOperationalPhoto={onPickOperationalPhoto}
-          operationalPhotoPending={operationalPhotoPending}
-          hasOperationalPhotoSelected={hasOperationalPhotoSelected}
-          claimError={claimError}
-          statusError={statusError}
-          onOpenSubmitForm={onOpenSubmitForm}
-        />
-      </div>
-    )
-  }
-
   return (
     <div className="panel" style={{ marginBottom: 12 }}>
-      <h3 style={{ marginBottom: 10 }}>Действия</h3>
-      {primaryAction ? (
-        <div style={{ marginBottom: 8 }}>
-          {primaryAction.kind === 'claim' ? (
-            <button onClick={onClaim} disabled={claimPending} style={{ width: '100%' }}>
-              {claimPending ? 'Сохраняем…' : primaryAction.label}
-            </button>
-          ) : null}
-          {primaryAction.kind === 'in_progress' ? (
-            <button onClick={() => onSetStatus({ status: 'IN_PROGRESS' })} disabled={statusPending || !canTransitionTo('IN_PROGRESS')} style={{ width: '100%' }}>
-              {statusPending ? 'Сохраняем…' : primaryAction.label}
-            </button>
-          ) : null}
-          {primaryAction.kind === 'done' ? (
-            <button onClick={onShowSubmitForm} disabled={!canTransitionTo('AWAITING_ACCEPTANCE')} style={{ width: '100%' }}>
-              {primaryAction.label}
-            </button>
+      <div className="uiActions">
+        <div ref={menuRef} style={{ position: 'relative' }}>
+          <button
+            type="button"
+            aria-haspopup="menu"
+            aria-expanded={open}
+            onClick={() => setOpen((value) => !value)}
+            disabled={actions.length === 0}
+          >
+            Действия ▾
+          </button>
+          {open ? (
+            <div
+              role="menu"
+              aria-label="Действия по заявке"
+              style={{
+                position: 'absolute',
+                zIndex: 30,
+                top: 'calc(100% + 6px)',
+                left: 0,
+                minWidth: 260,
+                maxWidth: 360,
+                display: 'grid',
+                gap: 4,
+                padding: 8,
+                background: '#fff',
+                border: '1px solid #e5e7eb',
+                borderRadius: 8,
+                boxShadow: '0 18px 40px rgba(15, 23, 42, 0.14)',
+              }}
+            >
+              {actions.map((action) => {
+                const disabled = !action.enabled || runningActionKey === action.key
+                return (
+                  <button
+                    key={action.key}
+                    type="button"
+                    role="menuitem"
+                    disabled={disabled}
+                    className={action.danger ? 'ghost danger' : 'ghost'}
+                    style={{
+                      width: '100%',
+                      textAlign: 'left',
+                      display: 'grid',
+                      gap: action.hint ? 2 : 0,
+                      justifyItems: 'start',
+                      opacity: disabled ? 0.72 : 1,
+                    }}
+                    onClick={() => {
+                      if (!action.enabled) return
+                      setOpen(false)
+                      onRunAction(action.key)
+                    }}
+                  >
+                    <span>{runningActionKey === action.key ? 'Выполняем…' : action.label}</span>
+                    {action.hint ? <span className="muted small">{action.hint}</span> : null}
+                  </button>
+                )
+              })}
+            </div>
           ) : null}
         </div>
-      ) : null}
-
-      <div className="uiActions">
-        <a href={backToBoardHref} style={{ textDecoration: 'none' }}>
-          <button className="ghost">← Назад к доске</button>
-        </a>
         {canEditTicket && !isTechnicianRole ? (
           <button className="ghost" onClick={onToggleEdit}>
             {editOpen ? 'Скрыть редактирование' : 'Редактировать заявку'}
           </button>
-        ) : null}
-        {canClaim && primaryAction?.kind !== 'claim' ? (
-          <button className="ghost" onClick={onClaim} disabled={claimPending}>
-            {claimPending ? 'Забираем…' : 'Взять заявку'}
-          </button>
-        ) : null}
-        {canAssignSelf && onAssignSelf ? (
-          <button className="ghost" data-testid="assign-self" onClick={onAssignSelf} disabled={!!assignSelfPending}>
-            {assignSelfPending ? 'Назначаем…' : 'Назначить на себя'}
-          </button>
-        ) : null}
-        {canChangeStatus ? (
-          <>
-            {primaryAction?.kind !== 'in_progress' && ticket.status !== 'AWAITING_ACCEPTANCE' ? (
-              <button className="ghost" disabled={statusPending || !canTransitionTo('IN_PROGRESS')} onClick={() => onSetStatus({ status: 'IN_PROGRESS' })}>
-                {statusPending ? 'Сохраняем…' : 'В работу'}
-              </button>
-            ) : null}
-            {primaryAction?.kind !== 'done' && canTransitionTo('AWAITING_ACCEPTANCE') ? (
-              <button className="ghost" onClick={onShowSubmitForm}>
-                Отправить на приёмку
-              </button>
-            ) : null}
-            {!isTechnicianRole ? (
-              <button className="ghost" disabled={statusPending || !canTransitionTo('CANCELED')} onClick={() => onSetStatus({ status: 'CANCELED' })}>
-                {statusPending ? 'Сохраняем…' : 'Отменить'}
-              </button>
-            ) : null}
-          </>
         ) : null}
         {canCreateChildTicket && !isTechnicianRole ? (
           <button className="ghost" onClick={onToggleChildCreateForm} disabled={childCreatePending}>
@@ -182,7 +130,8 @@ export function TicketActionsPanel(props: TicketActionsPanelProps) {
           </button>
         ) : null}
       </div>
-      {(claimError || statusError) ? <div className="alert" style={{ marginTop: 10 }}>{claimError || statusError}</div> : null}
+      {actions.length === 0 ? <div className="muted small" style={{ marginTop: 8 }}>Доступных действий сейчас нет</div> : null}
+      {actionError ? <div className="alert" style={{ marginTop: 10 }}>{actionError}</div> : null}
     </div>
   )
 }
