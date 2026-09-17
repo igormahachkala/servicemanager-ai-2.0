@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common'
 import {
   InspectionCheckpointResponseType,
   InspectionReportStatus,
@@ -225,36 +225,169 @@ export class InspectionService {
       throw new NotFoundException('Equipment not found')
     }
 
-    return this.prisma.inspectionRun.create({
-      data: {
-        companyId: user.companyId,
+    const schedule = await this.resolveScheduleForRun(user, dto, {
+      templateId: template.id,
+      locationId: location.id,
+      equipmentId: equipment?.id ?? null,
+    })
+
+    const data: Prisma.InspectionRunUncheckedCreateInput = {
+      companyId: user.companyId,
+      templateId: template.id,
+      locationId: location.id,
+      equipmentId: equipment?.id ?? null,
+      performedByUserId: user.id,
+      title: dto.title?.trim() || template.name,
+      status: InspectionRunStatus.IN_PROGRESS,
+      /**
+       * 119K: план и исполнение связываются здесь, полями, которые в схеме уже есть.
+       * Без расписания оба поля остаются пустыми — ровно как до этой задачи.
+       */
+      scheduleId: schedule?.id ?? null,
+      dueAt: schedule?.nextDueAt ?? null,
+      items: {
+        create: template.items.map((item) => ({
+          templateItemId: item.id,
+          title: item.title,
+          description: item.description,
+          sortOrder: item.sortOrder,
+          zoneName: item.zoneName,
+          zoneSortOrder: item.zoneSortOrder,
+          checkpointSortOrder: item.checkpointSortOrder,
+          responseType: item.responseType,
+          numericMin: item.numericMin,
+          numericMax: item.numericMax,
+          numericUnit: item.numericUnit,
+          isRequired: item.isRequired,
+          status: InspectionRunItemStatus.PENDING,
+          requiresRepair: false,
+        })),
+      },
+    }
+
+    if (!schedule) {
+      return this.prisma.inspectionRun.create({ data, select: runSelect() })
+    }
+
+    /**
+     * Обход и отметка в расписании пишутся одной транзакцией. Иначе возможен
+     * обход, который расписание своим не считает: техник его выполнит, а план
+     * останется незакрытым и следующий агент увидит визит непройденным.
+     */
+    const run = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.inspectionRun.create({ data, select: runSelect() })
+      await tx.inspectionSchedule.update({
+        where: { id: schedule.id },
+        data: { lastRunId: created.id, lastGeneratedAt: new Date() },
+      })
+      return created
+    })
+
+    /**
+     * Событие описывает появление обхода из плана — именно это и произошло.
+     * Отличить запуск человеком от будущего автогенератора можно по actorUserId
+     * и по полю trigger: у генератора актора нет.
+     */
+    await this.timeline.recordLegacy({
+      type: 'inspection.run_generated',
+      companyId: user.companyId,
+      entityType: 'InspectionRun',
+      entityId: run.id,
+      actorUserId: user.id,
+      payload: {
+        runId: run.id,
+        scheduleId: schedule.id,
         templateId: template.id,
         locationId: location.id,
         equipmentId: equipment?.id ?? null,
-        performedByUserId: user.id,
-        title: dto.title?.trim() || template.name,
-        status: InspectionRunStatus.IN_PROGRESS,
-        items: {
-          create: template.items.map((item) => ({
-            templateItemId: item.id,
-            title: item.title,
-            description: item.description,
-            sortOrder: item.sortOrder,
-            zoneName: item.zoneName,
-            zoneSortOrder: item.zoneSortOrder,
-            checkpointSortOrder: item.checkpointSortOrder,
-            responseType: item.responseType,
-            numericMin: item.numericMin,
-            numericMax: item.numericMax,
-            numericUnit: item.numericUnit,
-            isRequired: item.isRequired,
-            status: InspectionRunItemStatus.PENDING,
-            requiresRepair: false,
-          })),
-        },
+        dueAt: schedule.nextDueAt,
+        trigger: 'technician_start',
       },
-      select: runSelect(),
     })
+
+    return run
+  }
+
+  /**
+   * SMA-PLANNER-V1-SCHEDULE-TO-RUN-LINK-119K — проверка плана перед исполнением.
+   *
+   * Расписание не даёт доступа. Доступ к шаблону, локации и оборудованию уже
+   * решён выше каноническим порядком 097, и эта проверка его не переоткрывает:
+   * она лишь убеждается, что начинаемый обход — тот самый запланированный визит.
+   * Поэтому сверка идёт с уже разрешёнными значениями, а не с тем, что прислал
+   * клиент: подмена locationId в запросе иначе прошла бы сверку с расписанием.
+   */
+  private async resolveScheduleForRun(
+    user: InspectionUserCtx,
+    dto: StartRunDto,
+    resolved: { templateId: string; locationId: string; equipmentId: string | null },
+  ) {
+    if (!dto.scheduleId) return null
+
+    const schedule = await this.prisma.inspectionSchedule.findFirst({
+      // Компания актора: расписание чужого провайдера не существует для него,
+      // тем же фильтром, что и в самом сервисе расписаний.
+      where: { id: dto.scheduleId, companyId: user.companyId },
+      select: {
+        id: true,
+        isActive: true,
+        templateId: true,
+        locationId: true,
+        equipmentId: true,
+        assignedToUserId: true,
+        nextDueAt: true,
+      },
+    })
+    if (!schedule) throw new NotFoundException('Inspection schedule not found')
+
+    /**
+     * Техник видит и выполняет только назначенное ему. Отказ — «не найдено»,
+     * как и в InspectionScheduleService.get: существование чужого плана
+     * не является информацией, на которую техник имеет право.
+     */
+    if (
+      !this.policy.canManageSchedule(user).allowed &&
+      schedule.assignedToUserId !== user.id
+    ) {
+      throw new NotFoundException('Inspection schedule not found')
+    }
+
+    if (!schedule.isActive) {
+      throw new BadRequestException('Inspection schedule is not active')
+    }
+    if (schedule.templateId !== resolved.templateId) {
+      throw new BadRequestException('Inspection schedule has a different template')
+    }
+    if (schedule.locationId !== resolved.locationId) {
+      throw new BadRequestException('Inspection schedule has a different location')
+    }
+    if ((schedule.equipmentId ?? null) !== resolved.equipmentId) {
+      throw new BadRequestException('Inspection schedule has different equipment')
+    }
+
+    /**
+     * Повтор того же визита не должен тихо создавать второе исполнение.
+     * Признаком служит незакрытый обход этого расписания: он и есть текущее
+     * исполнение визита. Завершённый обход не блокирует — следующий визит
+     * по тому же плану законен, а у периодических расписаний он ожидаем.
+     *
+     * Отдельного механизма идемпотентности здесь не вводится: это предусловие
+     * предметной области той же формы, что и запрет второй заявки по чек-поинту
+     * ниже в этом файле.
+     */
+    const active = await this.prisma.inspectionRun.findFirst({
+      where: { scheduleId: schedule.id, status: InspectionRunStatus.IN_PROGRESS },
+      select: { id: true },
+    })
+    if (active) {
+      throw new ConflictException({
+        code: 'INSPECTION_SCHEDULE_RUN_IN_PROGRESS',
+        message: 'Обход по этому плану уже начат.',
+        runId: active.id,
+      })
+    }
+
+    return schedule
   }
 
   async getRun(user: InspectionUserCtx, runId: string) {
