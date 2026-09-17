@@ -604,21 +604,33 @@ test('сессия не открывается без пользователя',
 // параметром, поэтому проверяется именно он — тот код, который поедет на
 // устройство, — а не его тестовая копия.
 
-type ApiCall = { fn: string; key?: string; args: unknown[] }
+type ApiCall = { fn: string; key?: string; replyToId?: string; args: unknown[] }
+
+/**
+ * 121G: ключ идемпотентности у создающих операций передаётся либо строкой,
+ * либо в объекте параметров вместе с replyToId — `lib/api` принимает оба вида.
+ * Фейк разбирает оба, чтобы прежние проверки ключа остались в силе.
+ */
+function readSendOptions(value: unknown): { key?: string; replyToId?: string } {
+  if (typeof value === 'string') return { key: value }
+  const options = (value || {}) as { idempotencyKey?: string; replyToId?: string }
+  return { key: options.idempotencyKey, replyToId: options.replyToId }
+}
 
 function makeFakeApi(behaviour: Partial<Record<string, () => unknown>> = {}) {
   const calls: ApiCall[] = []
-  const run = (fn: string, key: string | undefined, args: unknown[]) => {
-    calls.push({ fn, key, args })
+  const run = (fn: string, key: string | undefined, args: unknown[], replyToId?: string) => {
+    calls.push({ fn, key, replyToId, args })
     const impl = behaviour[fn]
     return impl ? impl() : ({} as unknown)
   }
   const fake = {
-    async addTicketComment(id: string, comment: string, scope?: unknown, key?: string) {
-      return run('addTicketComment', key, [id, comment, scope]) as { ok: boolean }
+    async addTicketComment(id: string, comment: string, scope?: unknown, keyOrOptions?: unknown) {
+      const sent = readSendOptions(keyOrOptions)
+      return run('addTicketComment', sent.key, [id, comment, scope], sent.replyToId) as { ok: boolean }
     },
-    async uploadTicketAttachment(id: string, file: unknown, scope?: unknown, key?: string) {
-      return run('uploadTicketAttachment', key, [id, file, scope])
+    async uploadTicketAttachment(id: string, file: unknown, scope?: unknown, keyOrOptions?: unknown) {
+      return run('uploadTicketAttachment', readSendOptions(keyOrOptions).key, [id, file, scope])
     },
     async updateTicketStatus(id: string, input: unknown, scope?: unknown) {
       return run('updateTicketStatus', undefined, [id, input, scope])
@@ -710,6 +722,49 @@ test('113D-3. повтор после обрыва связи уходит с т
 
   assert.equal(calls.length, 2)
   assert.equal(calls[0].key, calls[1].key, 'ключ обязан пережить повтор')
+})
+
+test('121G. ответ переживает очередь и повтор: тот же ключ и та же цель', async () => {
+  let attempt = 0
+  const { calls, api } = makeFakeApi({
+    addTicketComment: () => {
+      attempt += 1
+      if (attempt === 1) throw new Error('Failed to fetch')
+      return { ok: true }
+    },
+  })
+  const { store } = makeStore()
+  const coordinator = new SyncCoordinator(store, createHttpSyncTransport(api), { useWebLocks: false })
+
+  // Ровно то тело, которое кладёт экран: прежние поля плюс цель ответа.
+  await store.enqueue({
+    kind: 'ticket.comment',
+    target: { ticketId: 'tk-1' },
+    payload: { comment: 'ответ', replyToId: 'tc-42' },
+  })
+
+  await coordinator.run()
+  const second = await coordinator.run()
+
+  assert.equal(second.synced, 1)
+  assert.equal(calls.length, 2)
+  assert.equal(calls[0].replyToId, 'tc-42', 'цель ответа уходит с первой попытки')
+  assert.equal(calls[1].replyToId, 'tc-42', 'цель ответа переживает повтор')
+  assert.equal(calls[0].key, calls[1].key, 'ключ идемпотентности при повторе тот же')
+  assert.equal((await store.listQueue()).length, 0)
+})
+
+test('121G. обычный комментарий из очереди уходит без цели ответа', async () => {
+  const { calls, api } = makeFakeApi()
+  const { store } = makeStore()
+  const coordinator = new SyncCoordinator(store, createHttpSyncTransport(api), { useWebLocks: false })
+
+  await store.enqueue({ kind: 'ticket.comment', target: { ticketId: 'tk-1' }, payload: { comment: 'обычный' } })
+  await coordinator.run()
+
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0].replyToId, undefined, 'у обычного комментария цели нет')
+  assert.ok(calls[0].key, 'ключ идемпотентности остаётся')
 })
 
 test('113D-4. заявка из обхода отдаёт реальный id, и зависимые операции идут в неё', async () => {

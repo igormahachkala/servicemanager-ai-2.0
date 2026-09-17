@@ -63,5 +63,32 @@ export function replyPreviewPresentation(replyTo: TimelineReplyPreview): { unava
 }
 
 export function buildAddTicketCommentOptions(replyTarget: ChatMessage | null): AddTicketCommentOptions | undefined {
+  /*
+   * Читается только commentId. ChatMessage.id у исторической записи собран
+   * на клиенте из времени и позиции в массиве, и подставить его сюда вместо
+   * отсутствующего commentId нельзя: сервер такой цели не найдёт, а до отказа
+   * дело дойдёт уже после отправки.
+   */
   return replyTarget?.commentId ? { replyToId: replyTarget.commentId } : undefined
+}
+
+/**
+ * SMA-TICKET-REPLY-MOBILE-UI-121G — ответ в мобильной ленте без сети.
+ *
+ * Очередь мобильного клиента уже несёт произвольную полезную нагрузку, поэтому
+ * второго вида записи не появляется: к прежнему payload добавляется replyToId,
+ * и только когда цель действительно есть. Обычный комментарий поэтому уходит
+ * в очередь ровно тем же телом, что и до этой задачи.
+ */
+export function buildOfflineTicketCommentPayload(
+  comment: string,
+  scope: unknown,
+  replyTarget: ChatMessage | null,
+): Record<string, unknown> {
+  const options = buildAddTicketCommentOptions(replyTarget)
+  return {
+    comment,
+    scope,
+    ...(options?.replyToId ? { replyToId: options.replyToId } : {}),
+  }
 }
