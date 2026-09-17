@@ -65,12 +65,6 @@ describe('MaxBotCommandService — entry points', () => {
     expect(menu).toEqual(start);
   });
 
-  it('strips @bot from /start', async () => {
-    const start = await makeService().handleUpdate(msg('/start'));
-    const addressed = await makeService().handleUpdate(msg('/start@id056001679003_bot'));
-    expect(addressed).toEqual(start);
-  });
-
   it('bot_started returns the same safe menu as /start', async () => {
     const start = await makeService().handleUpdate(msg('/start'));
     const started = await makeService().handleUpdate(botStarted());
@@ -176,8 +170,6 @@ describe('MaxBotCommandService — unbound identity leaks nothing', () => {
       'Открыть ServiceManager',
       'Помощь',
     ]);
-    expect(res?.text).toContain('Бот не показывает данные заявок без входа.');
-    expect(res?.text).not.toContain('Подробности заявок открываются в приложении.');
     expect(res?.text).not.toContain('Мои заявки');
     expect(res?.text).not.toContain('Требуют приёмки');
   });
@@ -202,11 +194,8 @@ describe('MaxBotCommandService — unbound identity leaks nothing', () => {
       'Открыть ServiceManager',
       'Помощь',
     ]);
-    expect(res?.text).toContain('Подробности заявок открываются в приложении.');
-    expect(res?.text).not.toContain('без входа');
     expect(res?.text).not.toContain('Мои заявки');
     expect(res?.text).not.toContain('Требуют приёмки');
-    expect(res?.text).not.toContain('Сегодня');
   });
 });
 

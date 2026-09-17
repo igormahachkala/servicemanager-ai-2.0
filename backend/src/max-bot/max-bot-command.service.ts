@@ -3,7 +3,6 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { MaxIdentityService } from './max-identity.service';
 import {
-  buildBoundStartMenuModel,
   buildUnboundMenuModel,
   isSafeMaxCallbackPayload,
   normalizeMaxBotUsername,
@@ -80,7 +79,7 @@ export class MaxBotCommandService {
     const trimmed = extracted.text.trim();
     const isCommand = trimmed.startsWith('/');
     const parts = trimmed.split(/\s+/);
-    const cmd = isCommand ? parts[0].toLowerCase().split('@')[0] : '';
+    const cmd = isCommand ? parts[0].toLowerCase() : '';
 
     this.logger.log(
       {
@@ -127,10 +126,12 @@ export class MaxBotCommandService {
   }
 
   /**
-   * `/start` copy for the current viewer.
+   * Menu for the current viewer.
    *
-   * Unbound: login prompt, no tenant data. Bound (any role): same two buttons,
-   * different third line. Section menus and PBAC items are a later slice.
+   * Until a binding exists every viewer resolves to the unbound menu, which carries no
+   * ticket data. Once `MaxIdentityService` can resolve a user, the bound branch will ask
+   * the canonical permission services for capabilities and render the role-aware model —
+   * the resolver boundary is already in place so that change touches only this method.
    */
   private async menuModelFor(update: MaxBotUpdate): Promise<MaxMenuModel> {
     if (!this.identity) return buildUnboundMenuModel();
@@ -139,8 +140,9 @@ export class MaxBotCommandService {
       this.logger.log({ reason: identity.reason }, 'max_bot_identity_unresolved');
       return buildUnboundMenuModel();
     }
-    this.logger.log({ role: identity.role }, 'max_bot_identity_resolved');
-    return buildBoundStartMenuModel();
+    // Role-aware rendering lands with the capability adapter (see max-menu.builder.ts).
+    // Until then a resolved user still gets the safe menu: no ticket data either way.
+    return buildUnboundMenuModel();
   }
 
   private async menuMessage(update: MaxBotUpdate): Promise<MaxBotCommandResponse> {
