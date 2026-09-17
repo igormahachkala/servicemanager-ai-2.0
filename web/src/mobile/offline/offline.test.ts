@@ -610,11 +610,34 @@ type ApiCall = { fn: string; key?: string; replyToId?: string; args: unknown[] }
  * 121G: ключ идемпотентности у создающих операций передаётся либо строкой,
  * либо в объекте параметров вместе с replyToId — `lib/api` принимает оба вида.
  * Фейк разбирает оба, чтобы прежние проверки ключа остались в силе.
+ *
+ * 122B: разбор двух видов относится только к addTicketComment. Расширенную
+ * форму принимает в `lib/api` она одна: её четвёртый параметр объявлен как
+ * `string | AddTicketCommentOptions`. У uploadTicketAttachment четвёртый
+ * параметр — `idempotencyKey?: string`, и он уходит прямо в заголовок
+ * Idempotency-Key. Объект там дал бы заголовок `[object Object]`, то есть
+ * повтор снимка сервер счёл бы новой операцией. Поэтому у фейка загрузки
+ * параметр остаётся строгой позиционной строкой, а не `unknown`: иначе
+ * расширение транспорта прошло бы мимо тестов.
  */
 function readSendOptions(value: unknown): { key?: string; replyToId?: string } {
   if (typeof value === 'string') return { key: value }
   const options = (value || {}) as { idempotencyKey?: string; replyToId?: string }
   return { key: options.idempotencyKey, replyToId: options.replyToId }
+}
+
+/**
+ * 122B: строгость позиционной строки проверяется в runtime, а не типом.
+ * Фейк доходит до транспорта через `as unknown as TransportApi` — двойное
+ * приведение стирает проверку типов, и сузить параметр недостаточно.
+ * Эта стража — то, что действительно роняет набор, если отправка вложения
+ * когда-нибудь начнёт передавать объект параметров.
+ */
+const POSITIONAL_KEY_VIOLATION = 'ключ идемпотентности передан не строкой'
+
+function positionalKey(fn: string, value?: string): string | undefined {
+  if (value === undefined || typeof value === 'string') return value
+  throw new Error(`${POSITIONAL_KEY_VIOLATION}: ${fn} получила ${typeof value}`)
 }
 
 function makeFakeApi(behaviour: Partial<Record<string, () => unknown>> = {}) {
@@ -629,8 +652,8 @@ function makeFakeApi(behaviour: Partial<Record<string, () => unknown>> = {}) {
       const sent = readSendOptions(keyOrOptions)
       return run('addTicketComment', sent.key, [id, comment, scope], sent.replyToId) as { ok: boolean }
     },
-    async uploadTicketAttachment(id: string, file: unknown, scope?: unknown, keyOrOptions?: unknown) {
-      return run('uploadTicketAttachment', readSendOptions(keyOrOptions).key, [id, file, scope])
+    async uploadTicketAttachment(id: string, file: unknown, scope?: unknown, key?: string) {
+      return run('uploadTicketAttachment', positionalKey('uploadTicketAttachment', key), [id, file, scope])
     },
     async updateTicketStatus(id: string, input: unknown, scope?: unknown) {
       return run('updateTicketStatus', undefined, [id, input, scope])
@@ -765,6 +788,61 @@ test('121G. обычный комментарий из очереди уходи
   assert.equal(calls.length, 1)
   assert.equal(calls[0].replyToId, undefined, 'у обычного комментария цели нет')
   assert.ok(calls[0].key, 'ключ идемпотентности остаётся')
+})
+
+test('122B. отправка вложения передаёт ключ позиционной строкой, а не объектом', async () => {
+  const { calls, api } = makeFakeApi()
+  const { store } = makeStore()
+  const coordinator = new SyncCoordinator(store, createHttpSyncTransport(api), { useWebLocks: false })
+
+  const created = await store.enqueue({
+    kind: 'ticket.attachment', target: { ticketId: 'tk-1' }, payload: {}, blob: new Blob(['x']),
+  })
+  if (!created.ok) throw new Error('строка не сохранилась')
+  await coordinator.run()
+
+  assert.equal(calls.length, 1)
+  assert.equal(calls[0].fn, 'uploadTicketAttachment')
+  // Именно строка: uploadTicketAttachment кладёт этот параметр прямо
+  // в заголовок Idempotency-Key, объект дал бы там «[object Object]».
+  assert.equal(typeof calls[0].key, 'string')
+  assert.equal(calls[0].key, created.item.idempotencyKey)
+  assert.equal(calls[0].replyToId, undefined, 'у вложения цели ответа нет и быть не может')
+})
+
+/**
+ * 122B, отрицательный контроль к проверке выше.
+ *
+ * Без него сужение параметра было бы украшением: двойное приведение фейка
+ * к TransportApi стирает типы, и объект вместо строки прошёл бы молча.
+ * Здесь объект подаётся намеренно — набор обязан упасть.
+ */
+test('122B, контроль. объект вместо ключа у отправки вложения роняет набор', async () => {
+  const { calls, api } = makeFakeApi()
+
+  await assert.rejects(
+    () => api.uploadTicketAttachment(
+      'tk-1',
+      new Blob(['x']),
+      undefined,
+      { idempotencyKey: 'key-1' } as unknown as string,
+    ),
+    (error: unknown) => {
+      assert.match((error as Error).message, new RegExp(POSITIONAL_KEY_VIOLATION))
+      return true
+    },
+    'расширенная форма параметров у uploadTicketAttachment обязана быть отказом',
+  )
+
+  // Строка — единственная принимаемая форма, и она отказом не становится.
+  await api.uploadTicketAttachment('tk-1', new Blob(['x']), undefined, 'key-2')
+  assert.equal(calls.at(-1)?.key, 'key-2')
+
+  // У addTicketComment расширенная форма, напротив, остаётся рабочей:
+  // контроль сужает ровно одну функцию, а не весь фейк.
+  await api.addTicketComment('tk-1', 'ответ', undefined, { idempotencyKey: 'key-3', replyToId: 'tc-42' })
+  assert.equal(calls.at(-1)?.key, 'key-3')
+  assert.equal(calls.at(-1)?.replyToId, 'tc-42')
 })
 
 test('113D-4. заявка из обхода отдаёт реальный id, и зависимые операции идут в неё', async () => {
