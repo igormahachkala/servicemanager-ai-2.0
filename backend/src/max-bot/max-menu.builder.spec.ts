@@ -2,15 +2,18 @@ import { CompanyType, UserRole } from '@prisma/client';
 
 import { PERMISSIONS } from '../common/permissions.constants';
 import {
+  buildBoundStartMenuModel,
   buildMaxStartAppDeepLink,
   buildMenuModel,
   buildMinimalMaxBotCommands,
   buildTicketStartAppPayload,
+  buildBoundStartMenuModel,
   buildUnboundMenuModel,
   renderHelpMessage,
   renderMenuKeyboard,
   renderMenuMessage,
   renderMenuText,
+  renderPersistentMenuMessage,
   renderTicketNavigationMessage,
   type MaxMenuCapabilities,
 } from './max-menu.builder';
@@ -46,9 +49,26 @@ describe('buildUnboundMenuModel', () => {
     expect(model.items.map((i) => i.id)).toEqual(['open_app', 'help']);
   });
 
+  it('bound start keeps the same two buttons and acknowledges login', () => {
+    const model = buildBoundStartMenuModel();
+    expect(model.unbound).toBe(false);
+    expect(model.items.map((i) => i.id)).toEqual(['open_app', 'help']);
+    expect(renderMenuText(model)).toContain('Подробности заявок открываются в приложении.');
+  });
+
   it('exposes no ticket destination to an unbound viewer', () => {
     const targets = buildUnboundMenuModel().items.map((i) => i.target);
     expect(targets.some((t) => t.startsWith('list_') || t.startsWith('ticket'))).toBe(false);
+  });
+});
+
+describe('buildBoundStartMenuModel', () => {
+  it('keeps the same two buttons and flips only the login line', () => {
+    const model = buildBoundStartMenuModel();
+    expect(model.unbound).toBe(false);
+    expect(model.items.map((i) => i.id)).toEqual(['open_app', 'help']);
+    expect(renderMenuText(model)).toContain('Подробности заявок открываются в приложении.');
+    expect(renderMenuText(model)).not.toContain('без входа');
   });
 });
 
@@ -288,11 +308,18 @@ describe('help and command menu helpers', () => {
     expect(raw).not.toMatch(/Принять|Отклонить|Взять|Назначить/);
   });
 
-  it('registers only minimal compatibility commands', () => {
+  it('registers start and menu hints', () => {
     expect(buildMinimalMaxBotCommands()).toEqual([
-      { name: 'start', description: 'Открыть меню' },
-      { name: 'menu', description: 'Показать меню' },
-      { name: 'help', description: 'Помощь' },
+      { name: 'start', description: 'Вход и главное меню' },
+      { name: 'menu', description: 'Главное меню' },
+    ]);
+  });
+
+  it('persistent menu is a single Меню callback', () => {
+    const message = renderPersistentMenuMessage('Сегодня');
+    expect(message.text).toBe('Сегодня');
+    expect(message.attachments?.[0]?.payload.buttons).toEqual([
+      [{ type: 'callback', text: 'Меню', payload: 'menu' }],
     ]);
   });
 });
