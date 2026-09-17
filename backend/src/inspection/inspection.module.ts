@@ -14,6 +14,5 @@ import { WorkforceModule } from '../workforce/workforce.module'
   imports: [TicketsModule, TimelineModule, ServiceContractsModule, WorkforceModule],
   controllers: [InspectionController],
   providers: [InspectionService, InspectionExportService, InspectionScheduleService],
-  exports: [InspectionService],
 })
 export class InspectionModule {}

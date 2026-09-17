@@ -3,10 +3,18 @@ import { getMaxEnvironmentContext, getWebApp, loadMaxBridgeScript } from './maxB
 
 export type MaxChatBindingSyncResult = 'bound' | 'skipped' | 'failed'
 
+function shouldLoadMaxBridge(): boolean {
+  if (typeof window === 'undefined') return false
+  if (getWebApp()) return false
+  if (window.parent !== window) return true
+  if (/MaxApp|MAX\//i.test(navigator.userAgent || '')) return true
+  return Boolean(document.querySelector('script[data-max-bridge]'))
+}
+
 /**
  * Mini App JWT is not a chat identity. Chat `/start` reads MaxUserBinding.
- * Any SMA session inside MAX can complete the ceremony: login, `/m` and `/max`.
- * Desktop without initData still skips — there is no MAX user to bind.
+ * Password login often lands on `/m`, outside MaxApp, so the bind ceremony
+ * must also run from the mobile shell and from the login page.
  */
 export async function syncMaxChatBinding(initData?: string): Promise<MaxChatBindingSyncResult> {
   if (api.isImpersonating() || !api.getToken()) return 'skipped'
@@ -15,13 +23,13 @@ export async function syncMaxChatBinding(initData?: string): Promise<MaxChatBind
   if (!payload) {
     payload = (getMaxEnvironmentContext().initData || '').trim()
   }
-  if (!payload) {
+  if (!payload && shouldLoadMaxBridge()) {
     try {
       await loadMaxBridgeScript()
     } catch {
-      // Bridge may already be present, or this is a plain browser.
+      return 'skipped'
     }
-    payload = (getMaxEnvironmentContext().initData || getWebApp()?.initData || '').trim()
+    payload = (getMaxEnvironmentContext().initData || '').trim()
   }
   if (!payload) return 'skipped'
 

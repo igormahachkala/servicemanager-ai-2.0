@@ -3,8 +3,6 @@ import { MaxBotCommandResponse, MaxBotInlineKeyboardButton } from './max-bot.typ
 
 export type TechnicianSectionPayload = 'today' | 'my' | 'avail' | 'rounds' | 'shift' | 'find';
 
-export type TechnicianShiftActionPayload = 'shift_open' | 'shift_close' | 'shift_yes' | 'shift_no';
-
 export const TECHNICIAN_SECTIONS: readonly { payload: TechnicianSectionPayload; label: string }[] = [
   { payload: 'today', label: 'Сегодня' },
   { payload: 'my', label: 'Мои заявки' },
@@ -14,8 +12,6 @@ export const TECHNICIAN_SECTIONS: readonly { payload: TechnicianSectionPayload; 
   { payload: 'find', label: 'Поиск заявки' },
 ];
 
-export const BOUND_ROLE_STUB_TEXT = 'Этот функционал в разработке';
-
 const LABEL_BY_PAYLOAD: Record<TechnicianSectionPayload, string> = Object.fromEntries(
   TECHNICIAN_SECTIONS.map((item) => [item.payload, item.label]),
 ) as Record<TechnicianSectionPayload, string>;
@@ -24,18 +20,10 @@ const PAYLOAD_BY_LABEL: Record<string, TechnicianSectionPayload> = Object.fromEn
   TECHNICIAN_SECTIONS.map((item) => [item.label, item.payload]),
 ) as Record<string, TechnicianSectionPayload>;
 
-const SECTION_PAYLOADS = new Set<string>(TECHNICIAN_SECTIONS.map((item) => item.payload));
-
-const SHIFT_ACTION_PAYLOADS = new Set<string>(['shift_open', 'shift_close', 'shift_yes', 'shift_no']);
+const PAYLOADS = new Set<string>(TECHNICIAN_SECTIONS.map((item) => item.payload));
 
 export function isTechnicianSectionPayload(payload: string): payload is TechnicianSectionPayload {
-  return SECTION_PAYLOADS.has(payload);
-}
-
-export function isTechnicianShiftActionPayload(
-  payload: string,
-): payload is TechnicianShiftActionPayload {
-  return SHIFT_ACTION_PAYLOADS.has(payload);
+  return PAYLOADS.has(payload);
 }
 
 export function technicianSectionLabel(payload: TechnicianSectionPayload): string {
@@ -46,24 +34,13 @@ export function matchTechnicianMenuLabel(text: string): TechnicianSectionPayload
   return PAYLOAD_BY_LABEL[text.trim()] ?? null;
 }
 
-function callbackButton(text: string, payload: string): MaxBotInlineKeyboardButton {
-  return { type: 'callback', text, payload };
-}
-
 function technicianMenuRows(): MaxBotInlineKeyboardButton[][] {
-  const buttons: MaxBotInlineKeyboardButton[] = TECHNICIAN_SECTIONS.map((item) =>
-    callbackButton(item.label, item.payload),
-  );
+  const buttons: MaxBotInlineKeyboardButton[] = TECHNICIAN_SECTIONS.map((item) => ({
+    type: 'callback',
+    text: item.label,
+    payload: item.payload,
+  }));
   return [buttons.slice(0, 3), buttons.slice(3, 6)];
-}
-
-/** Футер экранов техника: Сегодня / Моя смена / Мои заявки. */
-export function technicianFooterRows(): MaxBotInlineKeyboardButton[][] {
-  return [[
-    callbackButton('Сегодня', 'today'),
-    callbackButton('Моя смена', 'shift'),
-    callbackButton('Мои заявки', 'my'),
-  ]];
 }
 
 export function renderTechnicianMenuMessage(): MaxBotCommandResponse {
@@ -74,19 +51,7 @@ export function renderTechnicianMenuMessage(): MaxBotCommandResponse {
   };
 }
 
-export function renderTechnicianFooterMessage(text: string): MaxBotCommandResponse {
-  const keyboard = renderInlineKeyboard(technicianFooterRows());
-  return {
-    text,
-    ...(keyboard ? { attachments: [keyboard] } : {}),
-  };
-}
-
-/** Ещё не сделанные разделы: имя пункта и футер, без чужих заявок. */
+/** Раздел прячет шесть пунктов за одной кнопкой «Меню». */
 export function renderTechnicianSectionMessage(payload: TechnicianSectionPayload): MaxBotCommandResponse {
-  return renderTechnicianFooterMessage(technicianSectionLabel(payload));
-}
-
-export function renderBoundRoleStubMessage(): MaxBotCommandResponse {
-  return renderPersistentMenuMessage(BOUND_ROLE_STUB_TEXT);
+  return renderPersistentMenuMessage(technicianSectionLabel(payload));
 }
