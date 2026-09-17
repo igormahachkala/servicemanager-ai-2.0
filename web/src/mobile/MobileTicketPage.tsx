@@ -58,6 +58,8 @@ import { MobileModalBackdrop } from './MobileModalBackdrop'
 import { compactIdentityLabel, identityLines, presentActorIdentity, presentTicketAssignee, presentTicketCreator } from '../lib/ticketActorIdentity'
 import { MobileTicketWorkTimer } from './MobileTicketWorkTimer'
 import { canOfferTicketClaimAction, readBackendCanClaim } from '../lib/ticketActionCapabilities'
+import { dateTimeLocalToIso, formatPlannedDueAt, isoToDateTimeLocalValue } from '../lib/plannedDueAt'
+import { orderProblemCategories } from '../lib/problemCategoryOrdering'
 import {
   TICKET_MEDIA_ACCEPT,
   normalizeTicketMediaFile,
@@ -736,6 +738,7 @@ export function MobileTicketPage() {
   const [editRequesterPhone, setEditRequesterPhone] = useState('')
   const [editAddress, setEditAddress] = useState('')
   const [editPointName, setEditPointName] = useState('')
+  const [editPlannedDueAtLocal, setEditPlannedDueAtLocal] = useState('')
   const [editComment, setEditComment] = useState('')
   const [assignTechId, setAssignTechId] = useState('')
   const [assignErr, setAssignErr] = useState('')
@@ -840,6 +843,7 @@ export function MobileTicketPage() {
     setEditRequesterPhone(t.requesterPhone || '')
     setEditAddress(t.address || '')
     setEditPointName(t.pointName || '')
+    setEditPlannedDueAtLocal(isoToDateTimeLocalValue(t.plannedDueAt))
     setEditComment('')
   }, [ticketQ.data])
 
@@ -861,6 +865,7 @@ export function MobileTicketPage() {
           requesterPhone: editRequesterPhone || null,
           address: editAddress || null,
           pointName: editPointName || null,
+          plannedDueAt: dateTimeLocalToIso(editPlannedDueAtLocal),
           comment: editComment.trim() || undefined,
         },
         ticketResourceScope,
@@ -1664,6 +1669,12 @@ export function MobileTicketPage() {
               <div className="mobileDetailRow">
                 <span className="mobileDetailRowLabel"><RowIcon name="user" />Создал заявку</span>
                 <span className="mobileDetailRowValue" style={{ whiteSpace: 'pre-line' }}>{creatorLine}</span>
+              </div>
+              <div className="mobileDetailRow">
+                <span className="mobileDetailRowLabel"><RowIcon name="clock" />Срок выполнения</span>
+                <span className="mobileDetailRowValue" style={{ fontFamily: 'var(--font-mono)' }}>
+                  {formatPlannedDueAt(ticket.plannedDueAt)}
+                </span>
               </div>
               {ticket.slaDueAt ? (
                 <div className="mobileDetailRow">
@@ -2568,7 +2579,7 @@ export function MobileTicketPage() {
                   onChange={(e) => setEditProblemCategoryId(e.target.value)}
                 >
                   <option value="">Выберите категорию</option>
-                  {(editCategoriesQ.data || []).filter((row) => row.isActive !== false).map((row) => (
+                  {orderProblemCategories((editCategoriesQ.data || []).filter((row) => row.isActive !== false)).map((row) => (
                     <option key={row.id} value={row.id}>{row.name}</option>
                   ))}
                 </select>
@@ -2647,6 +2658,26 @@ export function MobileTicketPage() {
               <label className="mobileFormField">
                 Адрес
                 <input value={editAddress} disabled={updateTicketM.isPending} onChange={(e) => setEditAddress(e.target.value)} />
+              </label>
+              <label className="mobileFormField">
+                Срок выполнения
+                <input
+                  type="datetime-local"
+                  value={editPlannedDueAtLocal}
+                  disabled={updateTicketM.isPending}
+                  onChange={(e) => setEditPlannedDueAtLocal(e.target.value)}
+                />
+                {editPlannedDueAtLocal ? (
+                  <button
+                    type="button"
+                    className="mobileBtn mobileBtnSecondary"
+                    disabled={updateTicketM.isPending}
+                    onClick={() => setEditPlannedDueAtLocal('')}
+                  >
+                    Очистить срок
+                  </button>
+                ) : null}
+                <div className="mobileMeta">Не меняет SLA и сроки реакции.</div>
               </label>
               <label className="mobileFormField">
                 Комментарий
