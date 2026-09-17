@@ -307,7 +307,7 @@ export function InspectionRunPage() {
               <div>
                 <h3 style={{ margin: 0 }}>{run.title}</h3>
                 <div className="muted small" style={{ marginTop: 6 }}>
-                  Обход: {run.title} · Локация: {run.location.name}
+                  Шаблон: {run.template.name} · Локация: {run.location.name}
                   {run.location.city ? ` · ${run.location.city}` : ''}
                   {run.equipment ? ` · Оборудование: ${run.equipment.name}` : ''}
                 </div>
