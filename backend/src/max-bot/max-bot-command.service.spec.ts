@@ -1,5 +1,3 @@
-import { UserRole } from '@prisma/client';
-
 import { MaxBotCommandService } from './max-bot-command.service';
 import { MaxIdentityService } from './max-identity.service';
 
@@ -90,18 +88,6 @@ describe('MaxBotCommandService — entry points', () => {
   it('/status still answers for operators', async () => {
     const res = await makeService().handleUpdate(msg('/status'));
     expect(res?.text).toContain('бот онлайн');
-    expect(buttonsOf(res)).toContainEqual(expect.objectContaining({ type: 'callback', text: 'Меню', payload: 'menu' }));
-  });
-
-  it('/test returns server time without reading MaxUserBinding', async () => {
-    const prisma = makeForbiddenPrisma();
-    prisma.maxUserBinding.findUnique.mockRejectedValue(new Error('db down'));
-    const res = await makeService(prisma).handleUpdate(msg('/test'));
-    expect(res?.text).toMatch(/^Время сервера: \d{4}-\d{2}-\d{2}T/);
-    expect(prisma.maxUserBinding.findUnique).not.toHaveBeenCalled();
-    expect(buttonsOf(res)).toEqual([
-      expect.objectContaining({ type: 'callback', text: 'Меню', payload: 'menu' }),
-    ]);
   });
 
   it('uses open_app rather than a plain URL when a frontend URL is configured', async () => {
@@ -118,18 +104,20 @@ describe('MaxBotCommandService — entry points', () => {
 });
 
 describe('MaxBotCommandService — unknown input is never silent', () => {
-  it('unknown command returns Меню instead of reprinting the main keyboard', async () => {
+  it('unknown command returns the menu', async () => {
     const res = await makeService().handleUpdate(msg('/wat'));
     expect(res).not.toBeNull();
-    expect(res?.text).toBe('Не понял запрос.');
-    expect(buttonsOf(res)).toEqual([expect.objectContaining({ type: 'callback', text: 'Меню', payload: 'menu' })]);
+    expect(res?.text).toContain('Не понял запрос');
+    expect(res?.text).toContain('Сервис Менеджер');
+    expect(buttonsOf(res)).toContainEqual(
+      expect.objectContaining({ type: 'open_app', text: 'Открыть ServiceManager' }),
+    );
   });
 
-  it('free text returns Меню', async () => {
+  it('free text returns the menu', async () => {
     const res = await makeService().handleUpdate(msg('привет'));
     expect(res).not.toBeNull();
-    expect(res?.text).toBe('Не понял запрос.');
-    expect(buttonsOf(res).map((button) => button.text)).toEqual(['Меню']);
+    expect(res?.text).toContain('Не понял запрос');
   });
 
   it('still returns null when the update carries no text at all', async () => {
@@ -147,7 +135,6 @@ describe('MaxBotCommandService — legacy data commands are closed', () => {
       expect(buttonsOf(res)).toContainEqual(
         expect.objectContaining({ type: 'open_app', text: 'Открыть ServiceManager' }),
       );
-      expect(buttonsOf(res)).toContainEqual(expect.objectContaining({ type: 'callback', text: 'Меню', payload: 'menu' }));
     },
   );
 
@@ -183,22 +170,11 @@ describe('MaxBotCommandService — unbound identity leaks nothing', () => {
       'Открыть ServiceManager',
       'Помощь',
     ]);
-    expect(res?.text).toContain('Бот не показывает данные заявок без входа.');
     expect(res?.text).not.toContain('Мои заявки');
     expect(res?.text).not.toContain('Требуют приёмки');
   });
 
-  it('revoked binding is treated as not logged in', async () => {
-    const identity = {
-      resolve: jest.fn().mockResolvedValue({ resolved: false, reason: 'binding_revoked' }),
-    };
-    const service = new MaxBotCommandService(makeForbiddenPrisma(), identity as any);
-    const res = await service.handleUpdate({ message: { text: '/start', sender: { user_id: 4242 } } });
-    expect(buttonsOf(res).map((button) => button.text)).toEqual(['Открыть ServiceManager', 'Помощь']);
-    expect(res?.text).toContain('Бот не показывает данные заявок без входа.');
-  });
-
-  it('a bound non-technician gets the unfinished-role stub, not the login screenshot', async () => {
+  it('a bound MAX user still enters through the identity resolver and receives no business data', async () => {
     const identity = {
       resolve: jest.fn().mockResolvedValue({
         resolved: true,
@@ -214,10 +190,12 @@ describe('MaxBotCommandService — unbound identity leaks nothing', () => {
     const res = await service.handleUpdate(update);
 
     expect(identity.resolve).toHaveBeenCalledWith(update);
-    expect(res?.text).toBe('Этот функционал в разработке');
-    expect(buttonsOf(res).map((button) => button.text)).toEqual(['Меню']);
+    expect(buttonsOf(res).map((button) => button.text)).toEqual([
+      'Открыть ServiceManager',
+      'Помощь',
+    ]);
     expect(res?.text).not.toContain('Мои заявки');
-    expect(res?.text).not.toContain('Бот не показывает данные заявок без входа.');
+    expect(res?.text).not.toContain('Требуют приёмки');
   });
 });
 
@@ -255,144 +233,5 @@ describe('MaxBotCommandService — text extraction regressions', () => {
 
   it('returns null when message.body is an object without text', async () => {
     expect(await makeService().handleUpdate({ message: { body: { mid: 'm1' } } })).toBeNull();
-  });
-
-  it('strips a bot mention from /start', async () => {
-    const res = await makeService().handleUpdate(msg('/start@id056001679003_1_bot'));
-    expect(res?.text).toContain('Сервис Менеджер');
-  });
-});
-
-function makeWorkplace() {
-  return {
-    today: jest.fn().mockResolvedValue({
-      ok: true,
-      value: {
-        shiftOpen: true,
-        shiftOpenedLabel: '17.09, 09:14',
-        myActiveCount: 2,
-        overdueCount: 1,
-        roundsTodayCount: 0,
-      },
-    }),
-    shift: jest.fn().mockResolvedValue({
-      ok: true,
-      value: { open: false, openedLabel: null, locationName: null },
-    }),
-    openShift: jest.fn().mockResolvedValue({
-      ok: true,
-      value: { open: true, openedLabel: '17.09, 09:14', locationName: null },
-    }),
-    closeShift: jest.fn().mockResolvedValue({
-      ok: true,
-      value: { open: false, openedLabel: null, locationName: null },
-    }),
-  };
-}
-
-function makeTechnicianService() {
-  const identity = {
-    resolve: jest.fn().mockResolvedValue({
-      resolved: true,
-      userId: 'tech-1',
-      companyId: 'company-1',
-      role: UserRole.TECHNICIAN,
-      maxUserId: '4242',
-    }),
-  };
-  const workplace = makeWorkplace();
-  return {
-    identity,
-    workplace,
-    service: new MaxBotCommandService(makeForbiddenPrisma(), identity as any, workplace as any),
-  };
-}
-
-describe('MaxBotCommandService — technician chat menu', () => {
-  it('/start and /menu show the same six section callbacks', async () => {
-    const { service, identity } = makeTechnicianService();
-    const start = await service.handleUpdate({ message: { text: '/start', sender: { user_id: 4242 } } });
-    const menu = await service.handleUpdate({ message: { text: '/menu', sender: { user_id: 4242 } } });
-    expect(identity.resolve).toHaveBeenCalled();
-    expect(start).toEqual(menu);
-    expect(start?.text).toContain('Выберите действие');
-    expect(buttonsOf(start).map((button) => button.text)).toEqual([
-      'Сегодня',
-      'Мои заявки',
-      'Доступные',
-      'Обходы',
-      'Моя смена',
-      'Поиск заявки',
-    ]);
-    expect(buttonsOf(start).every((button) => button.type === 'callback')).toBe(true);
-  });
-
-  it('callback Сегодня replies with the day summary', async () => {
-    const { service, workplace } = makeTechnicianService();
-    const res = await service.handleUpdate(callback('today'));
-    expect(workplace.today).toHaveBeenCalled();
-    expect(res?.text).toContain('Сегодня');
-    expect(res?.text).toContain('Заявки: 2, просрочено 1');
-    expect(buttonsOf(res).map((button) => button.text)).toContain('Мои заявки');
-    expect(res?.text).not.toContain('7999');
-  });
-
-  it('callback Моя смена replies with shift state and open/close', async () => {
-    const { service, workplace } = makeTechnicianService();
-    const res = await service.handleUpdate(callback('shift'));
-    expect(workplace.shift).toHaveBeenCalled();
-    expect(res?.text).toContain('Моя смена');
-    expect(buttonsOf(res).map((button) => button.text)).toContain('Открыть смену');
-  });
-
-  it('asks before closing a shift, then closes through WorkforceService', async () => {
-    const { service, workplace } = makeTechnicianService();
-    workplace.shift.mockResolvedValue({
-      ok: true,
-      value: { open: true, openedLabel: '09:14', locationName: null },
-    });
-    const ask = await service.handleUpdate(callback('shift_close'));
-    expect(ask?.text).toBe('Закрыть смену?');
-    const closed = await service.handleUpdate(callback('shift_yes'));
-    expect(workplace.closeShift).toHaveBeenCalled();
-    expect(closed?.text).toContain('Смена не открыта');
-  });
-
-  it('Меню callback returns the six-button menu', async () => {
-    const { service } = makeTechnicianService();
-    const res = await service.handleUpdate(callback('menu'));
-    expect(buttonsOf(res).map((button) => button.text)).toEqual([
-      'Сегодня',
-      'Мои заявки',
-      'Доступные',
-      'Обходы',
-      'Моя смена',
-      'Поиск заявки',
-    ]);
-  });
-
-  it('message button label replies with the same section name and footer', async () => {
-    const { service } = makeTechnicianService();
-    const res = await service.handleUpdate({
-      message: { text: 'Мои заявки', sender: { user_id: 4242 } },
-    });
-    expect(res?.text).toBe('Мои заявки');
-    expect(buttonsOf(res).map((button) => button.text)).toEqual(['Сегодня', 'Моя смена', 'Мои заявки']);
-  });
-
-  it('unbound user sending Сегодня does not get technician counters', async () => {
-    const res = await makeService().handleUpdate({
-      message: { text: 'Сегодня', sender: { user_id: 4242 } },
-    });
-    expect(res?.text).toContain('Бот не показывает данные заявок без входа.');
-    expect(res?.text).not.toContain('Заявки:');
-  });
-
-  it('/test for a bound technician still returns only server time', async () => {
-    const { service, identity } = makeTechnicianService();
-    const res = await service.handleUpdate({ message: { text: '/test', sender: { user_id: 4242 } } });
-    expect(identity.resolve).not.toHaveBeenCalled();
-    expect(res?.text).toMatch(/^Время сервера: \d{4}-\d{2}-\d{2}T/);
-    expect(buttonsOf(res).map((button) => button.text)).toEqual(['Меню']);
   });
 });

@@ -12,7 +12,6 @@ import { getOfflineStatus } from './offline/runtime'
 import { MobileGuidedTour } from './MobileGuidedTour'
 import { MobileShiftGatePrompt } from './MobileShiftGatePrompt'
 import { getMobileRouteRoot, mobilePath } from './mobileRoute'
-import { syncMaxChatBinding } from '../max/syncMaxChatBinding'
 import './mobile.css'
 
 type MobileNavItem = {
@@ -111,10 +110,6 @@ export function MobileShell() {
   useEffect(() => {
     void registerAppShellServiceWorker()
   }, [])
-  useEffect(() => {
-    if (!meQ.data) return
-    void syncMaxChatBinding()
-  }, [meQ.data?.id])
   /**
    * Личность для офлайн-хранилища. Ответ `/auth/me` без сети не приходит —
    * react-query держит запрос приостановленным, — поэтому запасной источник
