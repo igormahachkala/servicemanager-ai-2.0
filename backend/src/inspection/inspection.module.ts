@@ -13,5 +13,6 @@ import { TimelineModule } from '../timeline/timeline.module'
   imports: [TicketsModule, TimelineModule, ServiceContractsModule],
   controllers: [InspectionController],
   providers: [InspectionService, InspectionExportService, InspectionScheduleService],
+  exports: [InspectionService],
 })
 export class InspectionModule {}
