@@ -4,7 +4,6 @@ import { UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MaxIdentity, MaxIdentityService } from './max-identity.service';
 import {
-  buildBoundStartMenuModel,
   buildUnboundMenuModel,
   isSafeMaxCallbackPayload,
   normalizeMaxBotUsername,
@@ -12,37 +11,27 @@ import {
   renderLegacyNavigationMessage,
   renderMenuMessage,
   renderPersistentMenuMessage,
-  type MaxMenuModel,
 } from './max-menu.builder';
 import {
   isTechnicianSectionPayload,
+  isTechnicianShiftActionPayload,
   matchTechnicianMenuLabel,
+  renderBoundRoleStubMessage,
   renderTechnicianMenuMessage,
   renderTechnicianSectionMessage,
+  type TechnicianSectionPayload,
+  type TechnicianShiftActionPayload,
 } from './max-technician-menu';
+import { renderCloseShiftConfirmMessage, renderTechnicianShiftMessage } from './max-technician-shift';
+import { renderTechnicianTodayMessage } from './max-technician-today';
+import { MaxTechnicianWorkplaceService } from './max-technician-workplace.service';
 import { MaxBotCommandResponse, MaxBotUpdate } from './max-bot.types';
 
-/**
- * SMA-MAX-BOT-V2-FOUNDATION-037.
- *
- * The bot answers navigation, never data.
- *
- * Three commands used to read tickets straight out of the database — `/tickets`,
- * `/ticket <n>` and `/open <n>`. None of them filtered by company, location,
- * specialization or contract, and `/ticket` returned the requester's name and phone.
- * Their only gate was "is this the configured group chat", which identifies a room and
- * not a person. That made the bot a second, weaker access resolver sitting beside the
- * accepted one.
- *
- * They are removed rather than hidden. Keeping them behind an undocumented alias would
- * have preserved the exposure while removing the discoverability that makes it auditable.
- * Ticket data now lives exclusively behind the Mini App, where the canonical resolver runs.
- */
-
-/** Commands recognised for backward compatibility. None of them read ticket data. */
 const LEGACY_DATA_COMMANDS = new Set(['/tickets', '/ticket', '/open']);
 
 const ACTION_FAILED_TEXT = 'Не удалось выполнить действие.\nПопробуйте ещё раз через минуту.';
+
+type ResolvedTechnician = Extract<MaxIdentity, { resolved: true }>;
 
 @Injectable()
 export class MaxBotCommandService {
@@ -52,6 +41,7 @@ export class MaxBotCommandService {
   constructor(
     private readonly prisma?: PrismaService,
     private readonly identity?: MaxIdentityService,
+    private readonly workplace?: MaxTechnicianWorkplaceService,
   ) {
     this.botUsername = normalizeMaxBotUsername(process.env.MAX_BOT_USERNAME);
   }
@@ -64,11 +54,7 @@ export class MaxBotCommandService {
 
     if (this.isBotStarted(update)) {
       this.logger.log(
-        {
-          update_type: this.safeString(update.update_type),
-          source: 'update_type',
-          command: '/start',
-        },
+        { update_type: this.safeString(update.update_type), source: 'update_type', command: '/start' },
         'max_bot_command_parsed',
       );
       return this.handleParsedCommand('/start', this.menuMessage(update));
@@ -77,10 +63,7 @@ export class MaxBotCommandService {
     const extracted = this.extractMessageText(update);
     if (!extracted) {
       this.logger.log(
-        {
-          update_type: this.safeString(update.update_type),
-          reason: 'missing_message_text',
-        },
+        { update_type: this.safeString(update.update_type), reason: 'missing_message_text' },
         'max_bot_command_ignored',
       );
       return null;
@@ -106,8 +89,8 @@ export class MaxBotCommandService {
       }
       if (!isCommand) {
         const section = matchTechnicianMenuLabel(trimmed);
-        if (section && (await this.isTechnicianUpdate(update))) {
-          return this.handleParsedCommand(section, renderTechnicianSectionMessage(section));
+        if (section) {
+          return this.handleParsedCommand(section, this.technicianSection(update, section));
         }
       }
       if (cmd === '/start' || cmd === '/menu') {
@@ -116,7 +99,6 @@ export class MaxBotCommandService {
       if (cmd === '/help') {
         return this.handleParsedCommand(cmd, this.helpMessage());
       }
-      // Operator diagnostic. Retained but absent from user-facing copy.
       if (cmd === '/status') {
         return this.handleParsedCommand(cmd, this.statusMessage());
       }
@@ -140,27 +122,16 @@ export class MaxBotCommandService {
     return this.unknownInputMessage();
   }
 
-  /**
-   * `/start` and `/menu` share this path. Binding is the chat login:
-   * Mini App logout revokes MaxUserBinding, so the next resolve fails closed.
-   */
-  private async menuModelFor(update: MaxBotUpdate): Promise<MaxMenuModel> {
-    if (!this.identity) return buildUnboundMenuModel();
+  private async menuMessage(update: MaxBotUpdate): Promise<MaxBotCommandResponse> {
+    if (!this.identity) return renderMenuMessage(buildUnboundMenuModel(), this.botUsername);
     const identity = await this.identity.resolve(update);
     if (!identity.resolved) {
       this.logger.log({ reason: identity.reason }, 'max_bot_identity_unresolved');
-      return buildUnboundMenuModel();
+      return renderMenuMessage(buildUnboundMenuModel(), this.botUsername);
     }
     this.logger.log({ role: identity.role }, 'max_bot_identity_resolved');
-    return buildBoundStartMenuModel();
-  }
-
-  private async menuMessage(update: MaxBotUpdate): Promise<MaxBotCommandResponse> {
-    if (await this.isTechnicianUpdate(update)) {
-      return renderTechnicianMenuMessage();
-    }
-    const model = await this.menuModelFor(update);
-    return renderMenuMessage(model, this.botUsername);
+    if (identity.role === UserRole.TECHNICIAN) return renderTechnicianMenuMessage();
+    return renderBoundRoleStubMessage();
   }
 
   private unknownInputMessage(): MaxBotCommandResponse {
@@ -171,10 +142,6 @@ export class MaxBotCommandService {
     return renderHelpMessage(this.botUsername);
   }
 
-  /**
-   * Replaces the three ticket-reading commands. Deliberately says nothing about whether
-   * any ticket exists — the reply is identical no matter what argument was passed.
-   */
   private legacyRedirectMessage(): MaxBotCommandResponse {
     return renderLegacyNavigationMessage(this.botUsername);
   }
@@ -190,7 +157,6 @@ export class MaxBotCommandService {
     return renderPersistentMenuMessage(this.statusText());
   }
 
-  /** Diagnostic for Stage: wall clock, no MaxUserBinding, same inline_keyboard as other replies. */
   private testMessage(): MaxBotCommandResponse {
     return renderPersistentMenuMessage(`Время сервера: ${new Date().toISOString()}`);
   }
@@ -205,12 +171,10 @@ export class MaxBotCommandService {
 
   private async handleCallback(update: MaxBotUpdate, payload: string): Promise<MaxBotCommandResponse> {
     if (isTechnicianSectionPayload(payload)) {
-      if (await this.isTechnicianUpdate(update)) {
-        this.logger.log({ payload }, 'max_bot_callback_handled');
-        return renderTechnicianSectionMessage(payload);
-      }
-      this.logger.log({ payload }, 'max_bot_callback_fallback');
-      return this.menuMessage(update);
+      return this.technicianSection(update, payload);
+    }
+    if (isTechnicianShiftActionPayload(payload)) {
+      return this.technicianShiftAction(update, payload);
     }
     if (!isSafeMaxCallbackPayload(payload)) {
       this.logger.log({ payload }, 'max_bot_callback_fallback');
@@ -220,14 +184,63 @@ export class MaxBotCommandService {
     return payload === 'help' ? this.helpMessage() : this.menuMessage(update);
   }
 
-  private async isTechnicianUpdate(update: MaxBotUpdate): Promise<boolean> {
-    if (!this.identity) return false;
-    const identity = await this.identity.resolve(update);
-    return this.isTechnician(identity);
+  private async technicianSection(
+    update: MaxBotUpdate,
+    payload: TechnicianSectionPayload,
+  ): Promise<MaxBotCommandResponse> {
+    const technician = await this.resolvedTechnician(update);
+    if (!technician) {
+      this.logger.log({ payload }, 'max_bot_callback_fallback');
+      return this.menuMessage(update);
+    }
+    this.logger.log({ payload }, 'max_bot_callback_handled');
+    if (payload === 'today') return this.todayMessage(technician);
+    if (payload === 'shift') return this.shiftMessage(technician);
+    return renderTechnicianSectionMessage(payload);
   }
 
-  private isTechnician(identity: MaxIdentity): boolean {
-    return identity.resolved && identity.role === UserRole.TECHNICIAN;
+  private async technicianShiftAction(
+    update: MaxBotUpdate,
+    payload: TechnicianShiftActionPayload,
+  ): Promise<MaxBotCommandResponse> {
+    const technician = await this.resolvedTechnician(update);
+    if (!technician) return this.menuMessage(update);
+    this.logger.log({ payload }, 'max_bot_callback_handled');
+    if (payload === 'shift_close') return renderCloseShiftConfirmMessage();
+    if (payload === 'shift_no') return this.shiftMessage(technician);
+    if (payload === 'shift_open') return this.mutateShift(technician, 'open');
+    return this.mutateShift(technician, 'close');
+  }
+
+  private async todayMessage(technician: ResolvedTechnician): Promise<MaxBotCommandResponse> {
+    if (!this.workplace) return renderPersistentMenuMessage(ACTION_FAILED_TEXT);
+    const result = await this.workplace.today(technician);
+    if (!result.ok) return renderPersistentMenuMessage(result.message);
+    return renderTechnicianTodayMessage(result.value);
+  }
+
+  private async shiftMessage(technician: ResolvedTechnician): Promise<MaxBotCommandResponse> {
+    if (!this.workplace) return renderPersistentMenuMessage(ACTION_FAILED_TEXT);
+    const result = await this.workplace.shift(technician);
+    if (!result.ok) return renderPersistentMenuMessage(result.message);
+    return renderTechnicianShiftMessage(result.value);
+  }
+
+  private async mutateShift(
+    technician: ResolvedTechnician,
+    action: 'open' | 'close',
+  ): Promise<MaxBotCommandResponse> {
+    if (!this.workplace) return renderPersistentMenuMessage(ACTION_FAILED_TEXT);
+    const result =
+      action === 'open' ? await this.workplace.openShift(technician) : await this.workplace.closeShift(technician);
+    if (!result.ok) return renderPersistentMenuMessage(result.message);
+    return renderTechnicianShiftMessage(result.value);
+  }
+
+  private async resolvedTechnician(update: MaxBotUpdate): Promise<ResolvedTechnician | null> {
+    if (!this.identity) return null;
+    const identity = await this.identity.resolve(update);
+    return identity.resolved && identity.role === UserRole.TECHNICIAN ? identity : null;
   }
 
   private safeString(value: unknown) {

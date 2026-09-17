@@ -29,11 +29,11 @@ describe('max-technician-menu', () => {
     expect(rows.flat().every((button) => button.type === 'callback')).toBe(true);
   });
 
-  it('section reply is the section name plus Меню, not the six buttons', () => {
-    const res = renderTechnicianSectionMessage('today');
-    expect(res.text).toBe('Сегодня');
-    expect(labelsOf(res)).toEqual(['Меню']);
-    expect(renderTechnicianSectionMessage('shift').text).toBe('Моя смена');
+  it('unfinished section reply is the section name plus the technician footer', () => {
+    const res = renderTechnicianSectionMessage('avail');
+    expect(res.text).toBe('Доступные');
+    expect(labelsOf(res)).toEqual(['Сегодня', 'Моя смена', 'Мои заявки']);
+    expect(renderTechnicianSectionMessage('find').text).toBe('Поиск заявки');
     expect(technicianSectionLabel('my')).toBe('Мои заявки');
   });
 
