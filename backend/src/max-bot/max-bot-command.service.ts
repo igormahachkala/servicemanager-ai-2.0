@@ -1,7 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { UserRole } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
-import { MaxIdentityService } from './max-identity.service';
+import { MaxIdentity, MaxIdentityService } from './max-identity.service';
 import {
   buildUnboundMenuModel,
   isSafeMaxCallbackPayload,
@@ -12,6 +13,12 @@ import {
   renderMenuText,
   type MaxMenuModel,
 } from './max-menu.builder';
+import {
+  isTechnicianSectionPayload,
+  matchTechnicianMenuLabel,
+  renderTechnicianMenuMessage,
+  renderTechnicianSectionMessage,
+} from './max-technician-menu';
 import { MaxBotCommandResponse, MaxBotUpdate } from './max-bot.types';
 
 /**
@@ -79,7 +86,7 @@ export class MaxBotCommandService {
     const trimmed = extracted.text.trim();
     const isCommand = trimmed.startsWith('/');
     const parts = trimmed.split(/\s+/);
-    const cmd = isCommand ? parts[0].toLowerCase() : '';
+    const cmd = isCommand ? parts[0].toLowerCase().split('@')[0] : '';
 
     this.logger.log(
       {
@@ -91,6 +98,12 @@ export class MaxBotCommandService {
     );
 
     try {
+      if (!isCommand) {
+        const section = matchTechnicianMenuLabel(trimmed);
+        if (section && (await this.isTechnicianUpdate(update))) {
+          return this.handleParsedCommand(section, renderTechnicianSectionMessage(section));
+        }
+      }
       if (cmd === '/start' || cmd === '/menu') {
         return this.handleParsedCommand(cmd, this.menuMessage(update));
       }
@@ -129,9 +142,8 @@ export class MaxBotCommandService {
    * Menu for the current viewer.
    *
    * Until a binding exists every viewer resolves to the unbound menu, which carries no
-   * ticket data. Once `MaxIdentityService` can resolve a user, the bound branch will ask
-   * the canonical permission services for capabilities and render the role-aware model —
-   * the resolver boundary is already in place so that change touches only this method.
+   * ticket data. A bound technician gets the six chat sections. Other resolved roles stay
+   * on the Mini App menu until their contour is built.
    */
   private async menuModelFor(update: MaxBotUpdate): Promise<MaxMenuModel> {
     if (!this.identity) return buildUnboundMenuModel();
@@ -140,19 +152,26 @@ export class MaxBotCommandService {
       this.logger.log({ reason: identity.reason }, 'max_bot_identity_unresolved');
       return buildUnboundMenuModel();
     }
-    // Role-aware rendering lands with the capability adapter (see max-menu.builder.ts).
-    // Until then a resolved user still gets the safe menu: no ticket data either way.
     return buildUnboundMenuModel();
   }
 
   private async menuMessage(update: MaxBotUpdate): Promise<MaxBotCommandResponse> {
+    if (await this.isTechnicianUpdate(update)) {
+      return renderTechnicianMenuMessage();
+    }
     const model = await this.menuModelFor(update);
     return renderMenuMessage(model, this.botUsername);
   }
 
   private async unknownInputMessage(update: MaxBotUpdate): Promise<MaxBotCommandResponse> {
     const model = await this.menuModelFor(update);
-    const menu = renderMenuMessage(model, this.botUsername);
+    const menu = await this.menuMessage(update);
+    if (await this.isTechnicianUpdate(update)) {
+      return {
+        ...menu,
+        text: `Не понял запрос. Вот что можно сделать:\n\n${menu.text}`,
+      };
+    }
     return {
       ...menu,
       text: `Не понял запрос. Вот что можно сделать:\n\n${menu.text || renderMenuText(model)}`,
@@ -191,12 +210,30 @@ export class MaxBotCommandService {
   }
 
   private async handleCallback(update: MaxBotUpdate, payload: string): Promise<MaxBotCommandResponse> {
+    if (isTechnicianSectionPayload(payload)) {
+      if (await this.isTechnicianUpdate(update)) {
+        this.logger.log({ payload }, 'max_bot_callback_handled');
+        return renderTechnicianSectionMessage(payload);
+      }
+      this.logger.log({ payload }, 'max_bot_callback_fallback');
+      return this.menuMessage(update);
+    }
     if (!isSafeMaxCallbackPayload(payload)) {
       this.logger.log({ payload }, 'max_bot_callback_fallback');
       return this.menuMessage(update);
     }
     this.logger.log({ payload }, 'max_bot_callback_handled');
     return payload === 'help' ? this.helpMessage() : this.menuMessage(update);
+  }
+
+  private async isTechnicianUpdate(update: MaxBotUpdate): Promise<boolean> {
+    if (!this.identity) return false;
+    const identity = await this.identity.resolve(update);
+    return this.isTechnician(identity);
+  }
+
+  private isTechnician(identity: MaxIdentity): boolean {
+    return identity.resolved && identity.role === UserRole.TECHNICIAN;
   }
 
   private safeString(value: unknown) {
