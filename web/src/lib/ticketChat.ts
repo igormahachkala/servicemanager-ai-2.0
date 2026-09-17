@@ -7,6 +7,7 @@ export type ChatMessage = {
   text: string
   authorId: string | null
   authorEmail: string | null
+  actor: TimelineItem['actor'] | null
   isOwn: boolean
   kind: 'comment' | 'system' | 'photo'
   /** Для kind==='photo' — id вложения (TicketAttachment) для inline-превью в ленте. */
@@ -177,6 +178,7 @@ export function toChatMessages(items: TimelineItem[], meUserId: string, context?
           text: systemText,
           authorId: item.actor?.id ?? null,
           authorEmail: item.actor?.email ?? null,
+          actor: item.actor ?? null,
           isOwn: !!meUserId && item.actor?.id === meUserId,
           kind: 'photo',
           attachmentId,
@@ -200,6 +202,7 @@ export function toChatMessages(items: TimelineItem[], meUserId: string, context?
         text: systemText,
         authorId: null,
         authorEmail: null,
+        actor: null,
         isOwn: false,
         kind: 'system',
         commentId: null,
@@ -227,6 +230,7 @@ export function toChatMessages(items: TimelineItem[], meUserId: string, context?
         text,
         authorId,
         authorEmail: item.actor?.email ?? null,
+        actor: item.actor ?? null,
         isOwn: !!meUserId && authorId === meUserId,
         kind: 'comment',
         commentId,

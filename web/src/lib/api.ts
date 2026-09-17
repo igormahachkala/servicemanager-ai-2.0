@@ -3258,16 +3258,29 @@ export async function decideTicketAcceptance(id: string, input: TicketAcceptance
  * Ключ здесь только передаётся. Создаётся он один раз при постановке в
  * очередь и больше не меняется — см. offline/store.ts.
  */
+export type AddTicketCommentOptions = {
+  replyToId?: string | null
+  idempotencyKey?: string
+}
+
+export function buildAddTicketCommentBody(comment: string, options?: AddTicketCommentOptions): { comment: string; replyToId?: string } {
+  const replyToId = (options?.replyToId || '').trim()
+  return replyToId ? { comment, replyToId } : { comment }
+}
+
 export async function addTicketComment(
   id: string,
   comment: string,
   scope?: string | TicketScopeParams,
-  idempotencyKey?: string,
+  idempotencyKeyOrOptions?: string | AddTicketCommentOptions,
 ): Promise<{ ok: boolean }> {
+  const options = typeof idempotencyKeyOrOptions === 'string'
+    ? { idempotencyKey: idempotencyKeyOrOptions }
+    : idempotencyKeyOrOptions
   return request<{ ok: boolean }>(`/tickets/${id}/comments${buildTicketScopeSuffix(scope)}`, {
     method: 'POST',
-    body: { comment },
-    headers: idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : undefined,
+    body: buildAddTicketCommentBody(comment, options),
+    headers: options?.idempotencyKey ? { 'Idempotency-Key': options.idempotencyKey } : undefined,
   })
 }
 
