@@ -1,4 +1,4 @@
-import { BadRequestException, forwardRef, HttpException, Inject, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, HttpException, Injectable, Logger } from '@nestjs/common';
 import { TicketStatus, UserRole } from '@prisma/client';
 
 import { PERMISSIONS } from '../common/permissions.constants';
@@ -28,8 +28,8 @@ export class MaxTechnicianWorkplaceService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly workforce: WorkforceService,
-    @Inject(forwardRef(() => TicketsService)) private readonly tickets: TicketsService,
-    @Inject(forwardRef(() => InspectionService)) private readonly inspection: InspectionService,
+    private readonly tickets: TicketsService,
+    private readonly inspection: InspectionService,
   ) {}
 
   async today(identity: ResolvedTechnician): Promise<WorkplaceOutcome<TechnicianTodaySummary>> {
