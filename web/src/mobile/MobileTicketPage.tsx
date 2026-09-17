@@ -40,7 +40,15 @@ import { CategoryGuidancePanel } from '../components/CategoryGuidancePanel'
 import { MobileBoardClaimFallbackHint, MobileClaimReasonHintBox } from './MobileUxHints'
 import { TicketCloseModal, type TicketCloseModalState } from './home/HomeList'
 import { MobileAttachmentThumb, mobileAttachmentLabel } from './MobileAttachmentThumb'
-import { toChatMessages } from '../lib/ticketChat'
+import { toChatMessages, type ChatMessage } from '../lib/ticketChat'
+import {
+  buildAddTicketCommentOptions,
+  buildOfflineTicketCommentPayload,
+  canReplyToChatMessage,
+  messageReplyContext,
+  replyPreviewPresentation,
+  selectReplyTarget,
+} from '../lib/ticketReplyUi'
 import { FullscreenPhotoViewer, type PhotoViewerItem } from '../components/FullscreenPhotoViewer'
 import { ProtectedUploadAnchor } from '../ui/ProtectedUploadMedia'
 import { useProtectedUploadSrcs } from '../ui/useProtectedUploadSrc'
@@ -279,6 +287,33 @@ function notificationSectionToDetailTab(value?: string | null): 'chat' | 'info' 
     default:
       return 'chat'
   }
+}
+
+/**
+ * SMA-TICKET-REPLY-MOBILE-UI-121G — предпросмотр исходного сообщения.
+ *
+ * Показывается только то, что вернул сервер в replyTo. Искать исходное
+ * сообщение в загруженной ленте нельзя: его там может не быть — лента
+ * страничная, а сообщение могло быть удалено. Недоступное исходное сообщение
+ * называется словами и не раскрывает ни автора, ни текста.
+ */
+function MobileChatReplyPreview({ replyTo }: { replyTo: NonNullable<ChatMessage['replyTo']> }) {
+  const view = replyPreviewPresentation(replyTo)
+  return (
+    <div className={`mobileChatReplyPreview${view.unavailable ? ' mobileChatReplyPreview--unavailable' : ''}`}>
+      {view.author ? <div className="mobileChatReplyPreviewAuthor">{view.author}</div> : null}
+      <div className="mobileChatReplyPreviewText">{view.preview}</div>
+    </div>
+  )
+}
+
+/** Кнопка «Ответить». Право на ответ решает общий помощник, не эта разметка. */
+function MobileChatReplyAction({ onReply }: { onReply: () => void }) {
+  return (
+    <button type="button" className="mobileChatReplyAction" onClick={onReply}>
+      Ответить
+    </button>
+  )
 }
 
 export function MobileTicketPage() {
@@ -713,6 +748,12 @@ export function MobileTicketPage() {
   const [chatText, setChatText] = useState('')
   const [chatSending, setChatSending] = useState(false)
   const [chatSendError, setChatSendError] = useState<string | null>(null)
+  /**
+   * 121G: выбранное сообщение-цель ответа. Решение о том, можно ли на него
+   * ответить, принимает общий помощник canReplyToChatMessage — тот же, что
+   * на desktop. Второй модели ответа на мобильном не появляется.
+   */
+  const [replyTarget, setReplyTarget] = useState<ChatMessage | null>(null)
   const addTicketCameraRef = useRef<HTMLInputElement | null>(null)
   const addTicketGalleryRef = useRef<HTMLInputElement | null>(null)
   // 2b: отдельные file-input'ы в композере чата (photo-tab'овские размонтированы на вкладке Чат).
@@ -1298,13 +1339,14 @@ export function MobileTicketPage() {
       const queued = await queueOffline({
         kind: 'ticket.comment',
         target: { ticketId },
-        payload: { comment: trimmed, scope: ticketResourceScope },
+        payload: buildOfflineTicketCommentPayload(trimmed, ticketResourceScope, replyTarget),
       })
       if (!queued.ok) {
         setChatSendError(`Не удалось сохранить на устройстве: ${queued.message}`)
         return
       }
       setChatText('')
+      setReplyTarget(null)
       setOfflinePendingComments((prev) => [
         ...prev,
         { queueId: queued.item.id, text: trimmed, at: queued.item.createdAt },
@@ -1315,8 +1357,16 @@ export function MobileTicketPage() {
     setChatSendError(null)
     setChatSending(true)
     try {
-      await api.addTicketComment(ticketId, trimmed, ticketResourceScope)
+      await api.addTicketComment(
+        ticketId,
+        trimmed,
+        ticketResourceScope,
+        buildAddTicketCommentOptions(replyTarget),
+      )
       setChatText('')
+      // Цель снимается только после подтверждения: при отказе ответ не должен
+      // превратиться в обычный комментарий незаметно для человека.
+      setReplyTarget(null)
       await invalidateTicketQueries()
     } catch (e: unknown) {
       setChatSendError(formatMobileMutationError(e, { operation: 'other' }))
@@ -2087,6 +2137,7 @@ export function MobileTicketPage() {
                         <div className="mobileChatMsgRow mobileChatMsgRow--out" key={msg.id}>
                           <div className="mobileChatBubbleWrap">
                             <div className="mobileChatBubble mobileChatBubble--out">
+                              {msg.replyTo ? <MobileChatReplyPreview replyTo={msg.replyTo} /> : null}
                               {msg.text}
                               <span className="mobileChatMeta mobileChatMeta--out">
                                 {timeStr}
@@ -2095,6 +2146,9 @@ export function MobileTicketPage() {
                                 </span>
                               </span>
                             </div>
+                            {canReplyToChatMessage(msg, canSendComment) ? (
+                              <MobileChatReplyAction onReply={() => setReplyTarget(selectReplyTarget(msg, canSendComment))} />
+                            ) : null}
                           </div>
                         </div>
                       )
@@ -2106,9 +2160,13 @@ export function MobileTicketPage() {
                         <div className="mobileChatBubbleWrap">
                           <div className="mobileChatAuthorName">{authorDisplay}</div>
                           <div className="mobileChatBubble mobileChatBubble--in">
+                            {msg.replyTo ? <MobileChatReplyPreview replyTo={msg.replyTo} /> : null}
                             {msg.text}
                             <span className="mobileChatMeta mobileChatMeta--in">{timeStr}</span>
                           </div>
+                          {canReplyToChatMessage(msg, canSendComment) ? (
+                            <MobileChatReplyAction onReply={() => setReplyTarget(selectReplyTarget(msg, canSendComment))} />
+                          ) : null}
                         </div>
                       </div>
                     )
@@ -2130,6 +2188,21 @@ export function MobileTicketPage() {
                     )
                   })}
                   <div ref={chatMessagesEndRef} />
+                </div>
+              ) : null}
+              {canSendComment && replyTarget ? (
+                <div className="mobileChatReplyContext">
+                  <div className="mobileChatReplyContextBody">
+                    <div className="mobileChatReplyContextAuthor">{messageReplyContext(replyTarget).author}</div>
+                    <div className="mobileChatReplyContextText">{messageReplyContext(replyTarget).preview}</div>
+                  </div>
+                  <button
+                    type="button"
+                    className="mobileChatReplyContextCancel"
+                    onClick={() => setReplyTarget(null)}
+                  >
+                    Отменить
+                  </button>
                 </div>
               ) : null}
               {canSendComment ? (

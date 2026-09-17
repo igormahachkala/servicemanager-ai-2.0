@@ -35,6 +35,32 @@ export type TransportApi = Pick<
   | 'createTicketFromInspectionItem'
 >
 
+/**
+ * SMA-TICKET-REPLY-MOBILE-UI-121G — параметры отправки из записи очереди.
+ *
+ * Решение о том, становится ли выбранное сообщение целью ответа, принимает
+ * общий помощник слоя ответа при постановке в очередь. Здесь ничего не
+ * решается: replyToId уже лежит в записи, и его надо донести до отправки
+ * вместе с ключом идемпотентности записи. Ключ при повторе не пересоздаётся —
+ * иначе повторная попытка выглядела бы для сервера новой операцией.
+ *
+ * Функция живёт в слое очереди, а не в lib/: offline-транспорт собирается
+ * отдельным узким tsconfig (только src/mobile/offline/**), и верхнеуровневый
+ * импорт из lib/ сломал бы ту сборку. lib/api подключается здесь лениво
+ * именно поэтому.
+ */
+export function offlineTicketCommentOptions(
+  payload: unknown,
+  idempotencyKey?: string,
+): { idempotencyKey?: string; replyToId?: string } {
+  const raw = (payload as { replyToId?: unknown } | null)?.replyToId
+  const replyToId = typeof raw === 'string' ? raw.trim() : ''
+  return {
+    ...(idempotencyKey ? { idempotencyKey } : {}),
+    ...(replyToId ? { replyToId } : {}),
+  }
+}
+
 /** Разбор ошибки из `lib/api`: там наружу отдаётся Error с текстом сервера. */
 function toOutcome(error: unknown): SyncOutcome {
   const message = (error as Error)?.message || String(error)
@@ -73,11 +99,16 @@ export function createHttpSyncTransport(deps?: TransportApi): SyncTransport {
           case 'ticket.comment': {
             const ticketId = ctx.ticketId || item.target.ticketId
             if (!ticketId) return { kind: 'attention', reason: 'Заявка не определена' }
+            /*
+             * 121G: параметры собираются одним помощником — ключ идемпотентности
+             * записи и replyToId, если ответ был выбран до потери сети. Второго
+             * вида записи в очереди не появляется.
+             */
             await api.addTicketComment(
               ticketId,
               String((item.payload as { comment?: string }).comment ?? ''),
               scopeOf(item),
-              key,
+              offlineTicketCommentOptions(item.payload, key),
             )
             return { kind: 'ok' }
           }
