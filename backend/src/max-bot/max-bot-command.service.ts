@@ -1,25 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { UserRole } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
-import { MaxIdentity, MaxIdentityService } from './max-identity.service';
+import { MaxIdentityService } from './max-identity.service';
 import {
-  buildBoundStartMenuModel,
   buildUnboundMenuModel,
   isSafeMaxCallbackPayload,
   normalizeMaxBotUsername,
   renderHelpMessage,
   renderLegacyNavigationMessage,
   renderMenuMessage,
-  renderPersistentMenuMessage,
+  renderMenuText,
   type MaxMenuModel,
 } from './max-menu.builder';
-import {
-  isTechnicianSectionPayload,
-  matchTechnicianMenuLabel,
-  renderTechnicianMenuMessage,
-  renderTechnicianSectionMessage,
-} from './max-technician-menu';
 import { MaxBotCommandResponse, MaxBotUpdate } from './max-bot.types';
 
 /**
@@ -41,8 +33,6 @@ import { MaxBotCommandResponse, MaxBotUpdate } from './max-bot.types';
 
 /** Commands recognised for backward compatibility. None of them read ticket data. */
 const LEGACY_DATA_COMMANDS = new Set(['/tickets', '/ticket', '/open']);
-
-const ACTION_FAILED_TEXT = 'Не удалось выполнить действие.\nПопробуйте ещё раз через минуту.';
 
 @Injectable()
 export class MaxBotCommandService {
@@ -89,7 +79,7 @@ export class MaxBotCommandService {
     const trimmed = extracted.text.trim();
     const isCommand = trimmed.startsWith('/');
     const parts = trimmed.split(/\s+/);
-    const cmd = isCommand ? parts[0].toLowerCase().split('@')[0] : '';
+    const cmd = isCommand ? parts[0].toLowerCase() : '';
 
     this.logger.log(
       {
@@ -101,12 +91,6 @@ export class MaxBotCommandService {
     );
 
     try {
-      if (!isCommand) {
-        const section = matchTechnicianMenuLabel(trimmed);
-        if (section && (await this.isTechnicianUpdate(update))) {
-          return this.handleParsedCommand(section, renderTechnicianSectionMessage(section));
-        }
-      }
       if (cmd === '/start' || cmd === '/menu') {
         return this.handleParsedCommand(cmd, this.menuMessage(update));
       }
@@ -123,9 +107,13 @@ export class MaxBotCommandService {
       }
     } catch (err) {
       this.logger.warn({ err, cmd }, 'max_bot_command_error');
-      return renderPersistentMenuMessage(ACTION_FAILED_TEXT);
+      return {
+        text: 'Не удалось выполнить действие.\nПопробуйте ещё раз через минуту.',
+      };
     }
 
+    // Anything else — unknown command or ordinary text. Previously the bot returned null
+    // and said nothing at all, which reads to a user as the bot being broken.
     this.logger.log(
       {
         update_type: this.safeString(update.update_type),
@@ -134,12 +122,16 @@ export class MaxBotCommandService {
       },
       'max_bot_command_fallback',
     );
-    return this.unknownInputMessage();
+    return this.unknownInputMessage(update);
   }
 
   /**
-   * `/start` and `/menu` share this path. Binding is the chat login:
-   * Mini App logout revokes MaxUserBinding, so the next resolve fails closed.
+   * Menu for the current viewer.
+   *
+   * Until a binding exists every viewer resolves to the unbound menu, which carries no
+   * ticket data. Once `MaxIdentityService` can resolve a user, the bound branch will ask
+   * the canonical permission services for capabilities and render the role-aware model —
+   * the resolver boundary is already in place so that change touches only this method.
    */
   private async menuModelFor(update: MaxBotUpdate): Promise<MaxMenuModel> {
     if (!this.identity) return buildUnboundMenuModel();
@@ -148,20 +140,23 @@ export class MaxBotCommandService {
       this.logger.log({ reason: identity.reason }, 'max_bot_identity_unresolved');
       return buildUnboundMenuModel();
     }
-    this.logger.log({ role: identity.role }, 'max_bot_identity_resolved');
-    return buildBoundStartMenuModel();
+    // Role-aware rendering lands with the capability adapter (see max-menu.builder.ts).
+    // Until then a resolved user still gets the safe menu: no ticket data either way.
+    return buildUnboundMenuModel();
   }
 
   private async menuMessage(update: MaxBotUpdate): Promise<MaxBotCommandResponse> {
-    if (await this.isTechnicianUpdate(update)) {
-      return renderTechnicianMenuMessage();
-    }
     const model = await this.menuModelFor(update);
     return renderMenuMessage(model, this.botUsername);
   }
 
-  private unknownInputMessage(): MaxBotCommandResponse {
-    return renderPersistentMenuMessage('Не понял запрос.');
+  private async unknownInputMessage(update: MaxBotUpdate): Promise<MaxBotCommandResponse> {
+    const model = await this.menuModelFor(update);
+    const menu = renderMenuMessage(model, this.botUsername);
+    return {
+      ...menu,
+      text: `Не понял запрос. Вот что можно сделать:\n\n${menu.text || renderMenuText(model)}`,
+    };
   }
 
   private helpMessage(): MaxBotCommandResponse {
@@ -184,7 +179,7 @@ export class MaxBotCommandService {
   }
 
   private statusMessage(): MaxBotCommandResponse {
-    return renderPersistentMenuMessage(this.statusText());
+    return { text: this.statusText() };
   }
 
   private async handleParsedCommand(
@@ -196,30 +191,12 @@ export class MaxBotCommandService {
   }
 
   private async handleCallback(update: MaxBotUpdate, payload: string): Promise<MaxBotCommandResponse> {
-    if (isTechnicianSectionPayload(payload)) {
-      if (await this.isTechnicianUpdate(update)) {
-        this.logger.log({ payload }, 'max_bot_callback_handled');
-        return renderTechnicianSectionMessage(payload);
-      }
-      this.logger.log({ payload }, 'max_bot_callback_fallback');
-      return this.menuMessage(update);
-    }
     if (!isSafeMaxCallbackPayload(payload)) {
       this.logger.log({ payload }, 'max_bot_callback_fallback');
       return this.menuMessage(update);
     }
     this.logger.log({ payload }, 'max_bot_callback_handled');
     return payload === 'help' ? this.helpMessage() : this.menuMessage(update);
-  }
-
-  private async isTechnicianUpdate(update: MaxBotUpdate): Promise<boolean> {
-    if (!this.identity) return false;
-    const identity = await this.identity.resolve(update);
-    return this.isTechnician(identity);
-  }
-
-  private isTechnician(identity: MaxIdentity): boolean {
-    return identity.resolved && identity.role === UserRole.TECHNICIAN;
   }
 
   private safeString(value: unknown) {
@@ -236,6 +213,7 @@ export class MaxBotCommandService {
       const msg = message as Record<string, unknown>;
       if (typeof msg.text === 'string') return { text: msg.text, source: 'message.text' };
       if (typeof msg.body === 'string') return { text: msg.body, source: 'message.body' };
+      // MAX webhook: message.body is an object { mid, seq, text }
       if (msg.body && typeof msg.body === 'object') {
         const bodyObj = msg.body as Record<string, unknown>;
         if (typeof bodyObj.text === 'string') return { text: bodyObj.text, source: 'message.body.text' };
