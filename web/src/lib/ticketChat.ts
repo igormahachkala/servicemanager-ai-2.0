@@ -1,4 +1,4 @@
-import type { TimelineItem } from './api'
+import type { TimelineItem, TimelineReplyPreview } from './api'
 import { identityBlockText, presentActorIdentity, presentTimelineCreator } from './ticketActorIdentity'
 
 export type ChatMessage = {
@@ -11,6 +11,15 @@ export type ChatMessage = {
   kind: 'comment' | 'system' | 'photo'
   /** Для kind==='photo' — id вложения (TicketAttachment) для inline-превью в ленте. */
   attachmentId?: string | null
+  /**
+   * SMA-TICKET-REPLY-READ-PATH-120R.
+   *
+   * Устойчивая личность сообщения. null означает историческую запись: на неё
+   * нельзя ответить, потому что ссылаться не на что. Именно по этому полю
+   * следующий срез решает, показывать ли «Ответить», — не по наличию текста.
+   */
+  commentId: string | null
+  replyTo: TimelineReplyPreview | null
 }
 
 export type TicketChatContext = {
@@ -171,6 +180,8 @@ export function toChatMessages(items: TimelineItem[], meUserId: string, context?
           isOwn: !!meUserId && item.actor?.id === meUserId,
           kind: 'photo',
           attachmentId,
+          commentId: null,
+          replyTo: null,
         })
         return acc
       }
@@ -191,6 +202,8 @@ export function toChatMessages(items: TimelineItem[], meUserId: string, context?
         authorEmail: null,
         isOwn: false,
         kind: 'system',
+        commentId: null,
+        replyTo: null,
       })
       return acc
     }
@@ -198,14 +211,26 @@ export function toChatMessages(items: TimelineItem[], meUserId: string, context?
     if (item.type === 'ticket.comment_added' || item.timelineEvent === 'COMMENT_ADDED') {
       const text: string = item.payload?.comment ?? item.payload?.text ?? item.title ?? ''
       const authorId = item.actor?.id ?? null
+      /*
+       * SMA-TICKET-REPLY-READ-PATH-120R.
+       *
+       * Личность сообщения берётся с сервера, когда она есть. Прежний
+       * `${at}-${idx}` сдвигался от появления любой более ранней записи
+       * в ленте, поэтому ссылаться на него было нельзя. Для исторических
+       * записей он остаётся — как детерминированный ключ отрисовки,
+       * но commentId у них null, и ответить на них нельзя.
+       */
+      const commentId = item.commentId ?? null
       acc.push({
-        id: `${item.at}-${idx}`,
+        id: commentId ?? `${item.at}-${idx}`,
         at: item.at,
         text,
         authorId,
         authorEmail: item.actor?.email ?? null,
         isOwn: !!meUserId && authorId === meUserId,
         kind: 'comment',
+        commentId,
+        replyTo: item.replyTo ?? null,
       })
     }
 

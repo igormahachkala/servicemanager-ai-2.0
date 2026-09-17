@@ -842,6 +842,19 @@ export type TicketGetOne = {
   }
 }
 
+/**
+ * SMA-TICKET-REPLY-READ-PATH-120R — предпросмотр исходного сообщения.
+ *
+ * Приходит уже разрешённым с сервера: отдельного запроса за целью ответа
+ * интерфейс не делает, поэтому и права на неё ему не нужно.
+ */
+export type TimelineReplyPreview = {
+  id: string
+  author: TicketActorIdentity | null
+  bodyPreview: string
+  unavailable: boolean
+}
+
 export type TimelineItem = {
   at: string
   source: 'history' | 'event' | 'status_history' | 'domain_event'
@@ -851,6 +864,13 @@ export type TimelineItem = {
   title: string
   actor: TicketActorIdentity | null
   payload: any
+  /**
+   * 120R: устойчивая личность сообщения. null — историческая запись:
+   * ответить на неё нельзя, потому что сослаться не на что.
+   * Поле необязательное: старый бэкенд его не присылает вовсе.
+   */
+  commentId?: string | null
+  replyTo?: TimelineReplyPreview | null
 }
 
 export type TimelineResponse = {

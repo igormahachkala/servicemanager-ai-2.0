@@ -463,19 +463,8 @@ export class TicketsStatusService {
         if (!replyTo) throw new NotFoundException('Reply target not found');
       }
 
-      const commentEvent = await this.timelineService.recordTx(tx, {
-        event: 'COMMENT_ADDED',
-        companyId: ticket.companyId,
-        ticketId,
-        actorUserId: user?.id ?? null,
-        payload: {
-          comment,
-          source: 'manual_comment',
-        },
-      });
-
       /**
-       * Сам комментарий как предмет предметной области. DomainEvent выше
+       * Сам комментарий как предмет предметной области. DomainEvent ниже
        * остаётся журналом и пишется по-прежнему: ничего из прежнего чтения
        * ленты не сломано, историю не переносим.
        */
@@ -488,6 +477,31 @@ export class TicketsStatusService {
           replyToId: replyTo?.id ?? null,
         },
         select: { id: true },
+      });
+
+      /**
+       * SMA-TICKET-REPLY-READ-PATH-120R — порядок здесь важен.
+       *
+       * Комментарий создаётся раньше события, чтобы событие несло его
+       * идентификатор. Это единственная надёжная связка между журналом
+       * и строкой комментария: внешнего ключа у DomainEvent нет вовсе,
+       * а сопоставлять по времени, автору и тексту — угадывание, которое
+       * ошибётся на двух одинаковых сообщениях в одну секунду.
+       *
+       * Старые события такого поля не имеют, и это ровно то, что нужно:
+       * у исторического комментария идентификатора нет, ответить на него
+       * нельзя, и переносить историю не приходится.
+       */
+      const commentEvent = await this.timelineService.recordTx(tx, {
+        event: 'COMMENT_ADDED',
+        companyId: ticket.companyId,
+        ticketId,
+        actorUserId: user?.id ?? null,
+        payload: {
+          comment,
+          source: 'manual_comment',
+          commentId: storedComment.id,
+        },
       });
 
       await this.writeStatusHistoryTx(tx, {
