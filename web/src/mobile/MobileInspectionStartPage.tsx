@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import * as api from '../lib/api'
 import { groupInspectionItemsByZone, responseTypeLabel } from '../lib/inspectionZones'
+import { mobileInspectionStartErrorMessage } from './mobileInspectionStartError'
 import { mobilePath } from './mobileRoute'
 import { useOfflineStatus } from './offline/useOffline'
 
@@ -18,16 +19,6 @@ type ClientOption = {
   id: string
   name: string
   locations?: api.LocationListItem[]
-}
-
-function startErrorMessage(error: unknown): string {
-  if (error instanceof api.ApiRequestError && error.status === 403) {
-    return 'Начать обход в выбранном контуре нельзя. Проверьте доступ к локации.'
-  }
-  if (error instanceof api.ApiRequestError && error.status === 404) {
-    return 'Шаблон или локация больше недоступны. Обновите выбор и повторите.'
-  }
-  return 'Не удалось начать обход. Проверьте соединение и повторите.'
 }
 
 function checkpointCountLabel(count: number): string {
@@ -146,7 +137,7 @@ export function MobileInspectionStartPage() {
       const destination = mobilePath(location.pathname, `/inspection/${run.id}`)
       navigate(`${destination}${params.toString() ? `?${params.toString()}` : ''}`)
     },
-    onError: (cause: unknown) => setError(startErrorMessage(cause)),
+    onError: (cause: unknown) => setError(mobileInspectionStartErrorMessage(cause)),
   })
 
   function startRun() {
