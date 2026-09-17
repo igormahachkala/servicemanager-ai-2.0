@@ -261,6 +261,7 @@ describe('MaxBotService', () => {
           commands: [
             { name: 'start', description: 'Вход и главное меню' },
             { name: 'menu', description: 'Главное меню' },
+            { name: 'test', description: 'Время сервера' },
           ],
         }),
       }),

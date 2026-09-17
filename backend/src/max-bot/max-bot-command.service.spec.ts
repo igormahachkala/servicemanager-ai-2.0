@@ -93,6 +93,17 @@ describe('MaxBotCommandService — entry points', () => {
     expect(buttonsOf(res)).toContainEqual(expect.objectContaining({ type: 'callback', text: 'Меню', payload: 'menu' }));
   });
 
+  it('/test returns server time without reading MaxUserBinding', async () => {
+    const prisma = makeForbiddenPrisma();
+    prisma.maxUserBinding.findUnique.mockRejectedValue(new Error('db down'));
+    const res = await makeService(prisma).handleUpdate(msg('/test'));
+    expect(res?.text).toMatch(/^Время сервера: \d{4}-\d{2}-\d{2}T/);
+    expect(prisma.maxUserBinding.findUnique).not.toHaveBeenCalled();
+    expect(buttonsOf(res)).toEqual([
+      expect.objectContaining({ type: 'callback', text: 'Меню', payload: 'menu' }),
+    ]);
+  });
+
   it('uses open_app rather than a plain URL when a frontend URL is configured', async () => {
     const res = await makeService().handleUpdate(msg('/start'));
     expect(res?.text).not.toContain('https://');
@@ -331,5 +342,13 @@ describe('MaxBotCommandService — technician chat menu', () => {
       message: { text: 'Сегодня', sender: { user_id: 4242 } },
     });
     expect(res?.text).toBe('Не понял запрос.');
+  });
+
+  it('/test for a bound technician still returns only server time', async () => {
+    const { service, identity } = makeTechnicianService();
+    const res = await service.handleUpdate({ message: { text: '/test', sender: { user_id: 4242 } } });
+    expect(identity.resolve).not.toHaveBeenCalled();
+    expect(res?.text).toMatch(/^Время сервера: \d{4}-\d{2}-\d{2}T/);
+    expect(buttonsOf(res).map((button) => button.text)).toEqual(['Меню']);
   });
 });

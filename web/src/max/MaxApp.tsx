@@ -127,19 +127,19 @@ export function MaxApp() {
       try {
         const { binding } = await api.getMaxBinding()
         if (binding) return 'authenticated'
-        try {
-          await api.createMaxBinding(initData)
-        } catch (err) {
-          const reason = api.getApiDenyReason(err)
-          if (isMaxUserAlreadyBound(reason)) {
-            api.clearToken()
-            queryClient.clear()
-            markMaxBindPending()
-            return 'max_already_bound'
-          }
-        }
       } catch {
-        // GET failed: Mini App stays open. /start will retry on the next fresh initData.
+        // GET is a hint. POST is the ceremony that chat `/start` reads.
+      }
+      try {
+        await api.createMaxBinding(initData)
+      } catch (err) {
+        const reason = api.getApiDenyReason(err)
+        if (isMaxUserAlreadyBound(reason)) {
+          api.clearToken()
+          queryClient.clear()
+          markMaxBindPending()
+          return 'max_already_bound'
+        }
       }
       return 'authenticated'
     }

@@ -101,6 +101,9 @@ export class MaxBotCommandService {
     );
 
     try {
+      if (cmd === '/test') {
+        return this.handleParsedCommand(cmd, this.testMessage());
+      }
       if (!isCommand) {
         const section = matchTechnicianMenuLabel(trimmed);
         if (section && (await this.isTechnicianUpdate(update))) {
@@ -185,6 +188,11 @@ export class MaxBotCommandService {
 
   private statusMessage(): MaxBotCommandResponse {
     return renderPersistentMenuMessage(this.statusText());
+  }
+
+  /** Diagnostic for Stage: wall clock, no MaxUserBinding, same inline_keyboard as other replies. */
+  private testMessage(): MaxBotCommandResponse {
+    return renderPersistentMenuMessage(`Время сервера: ${new Date().toISOString()}`);
   }
 
   private async handleParsedCommand(

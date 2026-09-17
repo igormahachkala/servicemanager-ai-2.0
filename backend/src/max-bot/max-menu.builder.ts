@@ -342,5 +342,6 @@ export function buildMinimalMaxBotCommands() {
   return [
     { name: 'start', description: 'Вход и главное меню' },
     { name: 'menu', description: 'Главное меню' },
+    { name: 'test', description: 'Время сервера' },
   ];
 }
