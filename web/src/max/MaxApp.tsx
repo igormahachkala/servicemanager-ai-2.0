@@ -122,6 +122,28 @@ export function MaxApp() {
       }
     }
 
+    async function ensureChatBinding(initData: string): Promise<MaxBootstrapState> {
+      if (api.isImpersonating()) return 'authenticated'
+      try {
+        const { binding } = await api.getMaxBinding()
+        if (binding) return 'authenticated'
+        try {
+          await api.createMaxBinding(initData)
+        } catch (err) {
+          const reason = api.getApiDenyReason(err)
+          if (isMaxUserAlreadyBound(reason)) {
+            api.clearToken()
+            queryClient.clear()
+            markMaxBindPending()
+            return 'max_already_bound'
+          }
+        }
+      } catch {
+        // GET failed: Mini App stays open. /start will retry on the next fresh initData.
+      }
+      return 'authenticated'
+    }
+
     async function silentMaxLogin(initData: string): Promise<MaxBootstrapState> {
       try {
         const session = await api.loginWithMaxInitData(initData)
@@ -188,7 +210,7 @@ export function MaxApp() {
             if (!cancelled) setBootstrapState(next)
             return
           }
-          setBootstrapState('authenticated')
+          if (!cancelled) setBootstrapState(await ensureChatBinding(initData))
           return
         }
       }

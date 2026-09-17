@@ -106,15 +106,31 @@ function has(capabilities: MaxMenuCapabilities, code: PermissionCode): boolean {
  * numbers, no company names: an unbound viewer must not be able to learn anything
  * about the tenant from the bot's replies.
  */
+const START_MENU_ITEMS: MaxMenuItem[] = [
+  { id: 'open_app', label: 'Открыть ServiceManager', target: 'app' },
+  { id: 'help', label: 'Помощь', target: 'help' },
+];
+
 export function buildUnboundMenuModel(): MaxMenuModel {
   return {
     title: MENU_TITLE,
     subtitle: MENU_SUBTITLE,
     unbound: true,
-    items: [
-      { id: 'open_app', label: 'Открыть ServiceManager', target: 'app' },
-      { id: 'help', label: 'Помощь', target: 'help' },
-    ],
+    items: [...START_MENU_ITEMS],
+  };
+}
+
+/**
+ * `/start` after MaxUserBinding resolved. Same two buttons as the unbound menu:
+ * no ticket destinations, no section callbacks. The third line of the copy is
+ * the only difference — the bot acknowledges the login without leaking tenant data.
+ */
+export function buildBoundStartMenuModel(): MaxMenuModel {
+  return {
+    title: MENU_TITLE,
+    subtitle: MENU_SUBTITLE,
+    unbound: false,
+    items: [...START_MENU_ITEMS],
   };
 }
 
