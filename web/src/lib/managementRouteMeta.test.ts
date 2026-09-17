@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 
 import {
+  MANAGEMENT_ROUTE_ALIASES,
   MANAGEMENT_ROUTES,
   MANAGEMENT_SECTION_LABELS,
   buildManagementBreadcrumbs,
@@ -37,13 +38,23 @@ describe('121A разделы и страницы', () => {
     ['/map', ['Объекты и оборудование', 'Карта']],
     ['/employees', ['Сотрудники и работа', 'Сотрудники']],
     ['/workforce', ['Сотрудники и работа', 'Смены и трудозатраты']],
-    ['/analytics', ['Аналитика', 'Аналитика']],
+    ['/analytics', ['Аналитика']],
     ['/company', ['Настройки', 'Компания']],
     ['/problem-categories', ['Настройки', 'Категории проблем']],
     ['/specializations', ['Настройки', 'Специализации']],
     ['/service-contracts', ['Настройки', 'Договоры и подрядчики']],
     ['/companies', ['Платформа', 'Компании']],
     ['/platform/permissions', ['Платформа', 'Роли и права']],
+    // 121E: входные страницы разделов больше не повторяют подпись раздела.
+    ['/dashboard', ['Главная']],
+    ['/settings', ['Настройки']],
+    ['/analytics/locations', ['Аналитика', 'По объектам']],
+    // 121E: модуль IT Company описан целиком.
+    ['/it', ['Платформа', 'IT Company']],
+    ['/it/employees', ['Платформа', 'IT Company', 'Сотрудники']],
+    ['/it/employees/ai-dev', ['Платформа', 'IT Company', 'Сотрудники', 'Сотрудник']],
+    ['/it/mission-control', ['Платформа', 'IT Company', 'Mission Control']],
+    ['/it/ai-developer', ['Платформа', 'IT Company', 'AI-разработчик']],
   ])('%s → %s', (pathname, expected) => {
     expect(labels(pathname)).toEqual(expected)
   })
@@ -275,5 +286,222 @@ describe('121A границы среза', () => {
     // Метка primaryNav только помечает; ничего не скрывает в этом срезе.
     expect(MANAGEMENT_ROUTES.some((route) => route.primaryNav)).toBe(true)
     expect(MANAGEMENT_ROUTES.some((route) => !route.primaryNav)).toBe(true)
+  })
+})
+
+// ── 121E: закрытые аудитом пробелы ─────────────────────────────────────────
+
+const here = dirname(fileURLToPath(import.meta.url))
+const readSrc = (relative: string) => readFileSync(resolve(here, '..', relative), 'utf8')
+
+/** Фактические маршруты управленческого Shell, прочитанные из роутера. */
+function actualShellRoutes(): string[] {
+  const router = readSrc('router.tsx')
+  const block = router.slice(router.indexOf('path="/"', router.indexOf('path="/m"')), router.indexOf('path="/max"'))
+  const declared = [...block.matchAll(/<Route path="([^"]+)"/g)].map((m) => `/${m[1]}`)
+  // Модуль IT Company монтируется списком в том же блоке.
+  const itRoutes = [...readSrc('it-company/routes.ts').matchAll(/path:\s*'([^']+)'/g)].map((m) => `/${m[1]}`)
+  return [...new Set([...declared, ...itRoutes])]
+}
+
+describe('121E полнота карты', () => {
+  it('1, 2. карта описывает ровно фактические маршруты Shell, включая пять IT', () => {
+    const router = new Set(actualShellRoutes())
+    const meta = new Set(MANAGEMENT_ROUTES.map((route) => route.path))
+
+    // Ни один существующий маршрут не забыт.
+    expect([...router].filter((path) => !meta.has(path))).toEqual([])
+    // Ни один маршрут не выдуман: в карте нет того, чего нет в роутере.
+    expect([...meta].filter((path) => !router.has(path))).toEqual([])
+    for (const path of ['/it', '/it/employees', '/it/employees/:slug', '/it/mission-control', '/it/ai-developer']) {
+      expect(meta.has(path)).toBe(true)
+    }
+  })
+
+  it('маршруты IT Company лежат в разделе «Платформа» и не попадают в основную навигацию', () => {
+    for (const route of MANAGEMENT_ROUTES.filter((item) => item.path.startsWith('/it'))) {
+      expect(route.section).toBe('platform')
+      // Видимость раздела решает isNavItemVisible, а не эта карта.
+      expect(route.primaryNav).toBe(false)
+    }
+  })
+})
+
+describe('121E инварианты основной навигации', () => {
+  it('3. известные алиасы остаются неосновными', () => {
+    for (const [alias, canonical] of Object.entries(MANAGEMENT_ROUTE_ALIASES)) {
+      const aliasRoute = MANAGEMENT_ROUTES.find((route) => route.path === alias)
+      const canonicalRoute = MANAGEMENT_ROUTES.find((route) => route.path === canonical)
+      expect(aliasRoute, alias).toBeDefined()
+      expect(canonicalRoute, canonical).toBeDefined()
+      expect(aliasRoute?.primaryNav, alias).toBe(false)
+    }
+    expect(Object.keys(MANAGEMENT_ROUTE_ALIASES).sort()).toEqual(['/contractors', '/objects', '/users'])
+  })
+
+  it('4. у раздела нет двух основных пунктов с одной подписью', () => {
+    const seen = new Map<string, string[]>()
+    for (const route of MANAGEMENT_ROUTES.filter((item) => item.primaryNav)) {
+      const key = `${route.section}|${route.breadcrumbLabel}`
+      seen.set(key, [...(seen.get(key) ?? []), route.path])
+    }
+    expect([...seen.entries()].filter(([, paths]) => paths.length > 1)).toEqual([])
+  })
+
+  it('проверка ловит алиас, помеченный основным', () => {
+    const broken = MANAGEMENT_ROUTES.map((route) =>
+      route.path === '/objects' ? { ...route, primaryNav: true } : route,
+    )
+    expect(validateManagementRoutes(broken).join('\n')).toMatch(/алиас помечен основным: \/objects/)
+  })
+
+  it('проверка ловит второй основной пункт с той же подписью', () => {
+    const broken = [
+      ...MANAGEMENT_ROUTES,
+      { path: '/locations-copy', section: 'objects', pageLabel: 'Точки', breadcrumbLabel: 'Точки', parentPath: null, entity: null, primaryNav: true },
+    ] as typeof MANAGEMENT_ROUTES
+    expect(validateManagementRoutes(broken).join('\n')).toMatch(/два основных пункта с одной подписью/)
+  })
+
+  it('users/employees и contractors/service-contracts различимы по этому же правилу', () => {
+    for (const alias of ['/users', '/contractors'] as const) {
+      const broken = MANAGEMENT_ROUTES.map((route) =>
+        route.path === alias ? { ...route, primaryNav: true } : route,
+      )
+      expect(validateManagementRoutes(broken).join('\n')).toMatch(new RegExp(`алиас помечен основным: ${alias}`))
+    }
+  })
+})
+
+describe('121E циклы в родителях', () => {
+  const route = (path: string, parentPath: string | null) =>
+    ({ path, section: 'tickets', pageLabel: path, breadcrumbLabel: path, parentPath, entity: null, primaryNav: false }) as never
+
+  it('5. маршрут сам себе родитель', () => {
+    expect(validateManagementRoutes([route('/a', '/a')]).join('\n')).toMatch(/цикл в родителях/)
+  })
+
+  it('6. цикл из двух звеньев', () => {
+    const problems = validateManagementRoutes([route('/a', '/b'), route('/b', '/a')])
+    expect(problems.join('\n')).toMatch(/цикл в родителях/)
+    // Один цикл называется один раз, а не по разу на каждое звено.
+    expect(problems.filter((line) => line.startsWith('цикл в родителях'))).toHaveLength(1)
+  })
+
+  it('7. цикл из трёх звеньев', () => {
+    const problems = validateManagementRoutes([route('/a', '/b'), route('/b', '/c'), route('/c', '/a')])
+    expect(problems.join('\n')).toMatch(/цикл в родителях/)
+    expect(problems.filter((line) => line.startsWith('цикл в родителях'))).toHaveLength(1)
+  })
+
+  it('верная иерархия остаётся верной', () => {
+    expect(validateManagementRoutes([route('/a', null), route('/a/b', '/a'), route('/a/b/c', '/a/b')])).toEqual([])
+    expect(validateManagementRoutes()).toEqual([])
+  })
+
+  it('построитель не зависает, даже если битая карта до него дойдёт', () => {
+    // Предохранитель построителя остаётся: цепочка обрывается, а не крутится.
+    const chain = buildManagementBreadcrumbs('/tickets/x', {})
+    expect(chain.length).toBeGreaterThan(0)
+    expect(chain.length).toBeLessThan(10)
+  })
+})
+
+describe('121E повтор подписи раздела', () => {
+  it.each([
+    ['/dashboard', ['Главная']],
+    ['/analytics', ['Аналитика']],
+    ['/settings', ['Настройки']],
+    ['/analytics/locations', ['Аналитика', 'По объектам']],
+  ])('8, 9. %s → %s', (pathname, expected) => {
+    expect(labels(pathname)).toEqual(expected)
+  })
+
+  it('одна крошка доходит до экрана: порог отрисовки опущен вместе со схлопыванием', () => {
+    // Иначе /dashboard, /analytics и /settings перестали бы показывать путь вовсе.
+    const component = readSrc('ui/Breadcrumbs.tsx')
+    expect(component).toMatch(/crumbs\.length === 0/)
+    expect(component).not.toMatch(/crumbs\.length < 2/)
+  })
+
+  it('иерархия с разными подписями не схлопывается', () => {
+    expect(labels('/board')).toEqual(['Заявки', 'Доска'])
+    expect(labels('/inspection/runs/r1/report')).toEqual(['Обходы и планирование', 'История', 'Обход', 'Акт'])
+  })
+
+  it('у схлопнутой цепочки ссылка ведёт в раздел, а не в никуда', () => {
+    const crumbs = buildManagementBreadcrumbs('/analytics/locations')
+    expect(crumbs.map((crumb) => crumb.to)).toEqual(['/analytics', null])
+  })
+})
+
+describe('121E эвристика идентификатора', () => {
+  const technical = {
+    uuid: '3f2b9a1c-5d4e-4a7b-9c8d-1e2f3a4b5c6d',
+    cuid: 'ckq1r2s3t4u5v6w7x8y9z0a1',
+    cuid2: 'clh3k2j1a0000356mfhk8t9xy',
+    ulid: '01ARZ3NDEKTSV4RRFFQ69G5FAV',
+    objectId: '507f1f77bcf86cd799439011',
+    hex32: 'a3f9c1d20b8e47f6a1b2c3d4e5f60718',
+    numeric: '12345678901234567890',
+    opaqueToken: 'aZ9kQ2mP7xR4tL8n',
+  }
+
+  it.each(Object.entries(technical))('10-14. %s остаётся техническим идентификатором', (_name, value) => {
+    expect(looksLikeOpaqueId(value)).toBe(true)
+    expect(labels('/tickets/x', { entityLabels: { '/tickets/:id': value } })).toEqual(['Заявки', 'Реестр', 'Заявка'])
+  })
+
+  it.each([
+    ['REFRIGERATOR-UNIT-7'],
+    ['chiller_unit_00042'],
+    ['Kholodilnik-2-Ufa'],
+    ['Заявка №123'],
+    ['Уфа 5'],
+    ['Холодильник 2'],
+    ['Иван Петров'],
+    ['Утренний обход Уфа 5'],
+    ['AHU-01/ROOF'],
+    ['Line 4 · Compressor B'],
+  ])('15-17. %s остаётся названием', (value) => {
+    expect(looksLikeOpaqueId(value)).toBe(false)
+    expect(labels('/equipment', { entityLabels: {} })).toEqual(['Объекты и оборудование', 'Оборудование'])
+    expect(labels('/tickets/x', { entityLabels: { '/tickets/:id': value } })).toEqual(['Заявки', 'Реестр', value])
+  })
+
+  it('номер заявки не принимается за длинный числовой идентификатор', () => {
+    for (const value of ['123', '4821', '1000000']) expect(looksLikeOpaqueId(value)).toBe(false)
+  })
+})
+
+describe('121E границы не сдвинулись', () => {
+  it('18. неизвестный маршрут по-прежнему даёт пустую цепочку', () => {
+    for (const pathname of ['/unknown', '/it/org-chart', '/nope/deep/path', '', null, undefined]) {
+      expect(buildManagementBreadcrumbs(pathname as never)).toEqual([])
+    }
+  })
+
+  it('19, 20. мобильные и MAX маршруты остаются вне этой карты', () => {
+    for (const pathname of ['/m', '/m/my', '/m/tickets/1', '/m/inspection/runs', '/max', '/max/my', '/max/tickets/1']) {
+      expect(matchManagementRoute(pathname)).toBeNull()
+      expect(buildManagementBreadcrumbs(pathname)).toEqual([])
+    }
+  })
+
+  it('21. в коде построителя не появилось ролей, прав и опоры на доступ', () => {
+    const code = readSrc('lib/managementRouteMeta.ts')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/^\s*\/\/.*$/gm, '')
+    for (const forbidden of ['canAccessManagementSurface', 'accessFlags', 'isNavItemVisible', 'TECHNICIAN', 'CLIENT_ADMIN', 'PLATFORM_ADMIN', 'NETWORK_DIRECTOR', 'SECONDARY']) {
+      expect(code, forbidden).not.toContain(forbidden)
+    }
+    expect(code).not.toMatch(/\??\.\s*role\b/)
+    expect(code).not.toMatch(/\??\.\s*permissions\b/)
+    expect(code).not.toContain('Navigate')
+    expect(code).not.toContain('redirect')
+
+    // Переданный «пользователь» не может изменить цепочку.
+    const asUser = { role: 'TECHNICIAN', canAccessManagementSurface: false, permissions: [] }
+    expect(labels('/board', { ...( { user: asUser } as never) })).toEqual(labels('/board'))
   })
 })

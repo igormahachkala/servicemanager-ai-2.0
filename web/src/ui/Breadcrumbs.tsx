@@ -26,8 +26,13 @@ export function Breadcrumbs({ entityLabels }: { entityLabels?: BuildBreadcrumbsO
     [location.pathname, location.search, location.hash, entityLabels],
   )
 
-  // Неописанный маршрут не рисует ничего — страница при этом работает.
-  if (crumbs.length < 2) return null
+  /**
+   * Неописанный маршрут не рисует ничего — страница при этом работает.
+   * 121E: одна крошка теперь законна. У входной страницы раздела подпись
+   * раздела и подпись страницы совпадают, повтор схлопывается, и остаётся
+   * ровно одно слово — его и надо показать.
+   */
+  if (crumbs.length === 0) return null
 
   return (
     <nav className="breadcrumbs" aria-label="Путь по разделам">

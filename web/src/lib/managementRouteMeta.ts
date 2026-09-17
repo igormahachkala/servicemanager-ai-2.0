@@ -135,7 +135,37 @@ export const MANAGEMENT_ROUTES: readonly ManagementRouteMeta[] = Object.freeze([
   { path: '/platform/permissions', section: 'platform', pageLabel: 'Роли и права', breadcrumbLabel: 'Роли и права', parentPath: null, entity: null, primaryNav: true },
   { path: '/platform/access-constructor', section: 'platform', pageLabel: 'Конструктор доступа', breadcrumbLabel: 'Конструктор доступа', parentPath: null, entity: null, primaryNav: false },
   { path: '/agents/engineering', section: 'platform', pageLabel: 'Engineering Agent', breadcrumbLabel: 'Engineering Agent', parentPath: null, entity: null, primaryNav: false },
+
+  /**
+   * 121E: модуль IT Company. Эти маршруты монтируются в том же управленческом
+   * Shell списком IT_COMPANY_ROUTES (router.tsx), и без них на пяти страницах
+   * цепочка просто не строилась.
+   *
+   * Подпись «IT Company» — существующая терминология продукта: так раздел
+   * назван в боковом меню (lib/navigation.ts) и на карточке главной. Второе
+   * имя для того же раздела было бы хуже, чем нерусское слово.
+   *
+   * Вложенность взята из самих страниц: AIEmployeeDetailsPage возвращает
+   * ссылкой на /it/employees, а Mission Control и AI-разработчик — на /it.
+   */
+  { path: '/it', section: 'platform', pageLabel: 'IT Company', breadcrumbLabel: 'IT Company', parentPath: null, entity: null, primaryNav: false },
+  { path: '/it/employees', section: 'platform', pageLabel: 'Сотрудники', breadcrumbLabel: 'Сотрудники', parentPath: '/it', entity: null, primaryNav: false },
+  { path: '/it/employees/:slug', section: 'platform', pageLabel: 'Сотрудник', breadcrumbLabel: 'Сотрудник', parentPath: '/it/employees', entity: 'employee', primaryNav: false },
+  { path: '/it/mission-control', section: 'platform', pageLabel: 'Mission Control', breadcrumbLabel: 'Mission Control', parentPath: '/it', entity: null, primaryNav: false },
+  { path: '/it/ai-developer', section: 'platform', pageLabel: 'AI-разработчик', breadcrumbLabel: 'AI-разработчик', parentPath: '/it', entity: null, primaryNav: false },
 ])
+
+/**
+ * 121E: алиасы и их канонические адреса.
+ *
+ * Оба пути живут в роутере и оба должны описываться, но в основной навигации
+ * место только у канонического: иначе один и тот же экран получит два пункта.
+ */
+export const MANAGEMENT_ROUTE_ALIASES: Readonly<Record<string, string>> = Object.freeze({
+  '/objects': '/locations',
+  '/users': '/employees',
+  '/contractors': '/service-contracts',
+})
 
 /**
  * Проверка целостности карты. Держится отдельной функцией, чтобы дубль пути
@@ -145,7 +175,7 @@ export const MANAGEMENT_ROUTES: readonly ManagementRouteMeta[] = Object.freeze([
 export function validateManagementRoutes(routes: readonly ManagementRouteMeta[] = MANAGEMENT_ROUTES): string[] {
   const problems: string[] = []
   const seen = new Set<string>()
-  const known = new Set(routes.map((route) => route.path))
+  const known = new Map(routes.map((route) => [route.path, route]))
 
   for (const route of routes) {
     if (seen.has(route.path)) problems.push(`дубль маршрута: ${route.path}`)
@@ -153,9 +183,87 @@ export function validateManagementRoutes(routes: readonly ManagementRouteMeta[] 
     if (route.parentPath && !known.has(route.parentPath)) {
       problems.push(`родитель не найден: ${route.path} → ${route.parentPath}`)
     }
-    if (route.parentPath === route.path) problems.push(`маршрут сам себе родитель: ${route.path}`)
     if (!route.breadcrumbLabel.trim()) problems.push(`пустая подпись крошки: ${route.path}`)
   }
+
+  problems.push(...findParentCycles(routes, known))
+  problems.push(...findPrimaryNavProblems(routes))
+
+  return problems
+}
+
+/**
+ * 121E: любой цикл в родителях, а не только «сам себе родитель».
+ *
+ * Прежняя проверка ловила /a → /a и пропускала /a → /b → /a: у обоих
+ * маршрутов родитель существовал, и ни один не ссылался на себя. Цепочка при
+ * этом обрывалась предохранителем построителя, то есть дефект жил молча.
+ * Поэтому здесь проходится вся цепочка каждого маршрута, а найденный цикл
+ * называется один раз — по наименьшему пути, чтобы один и тот же цикл не
+ * печатался столько раз, сколько в нём звеньев.
+ */
+function findParentCycles(
+  routes: readonly ManagementRouteMeta[],
+  known: Map<string, ManagementRouteMeta>,
+): string[] {
+  const reported = new Set<string>()
+  const problems: string[] = []
+
+  for (const route of routes) {
+    const path: string[] = []
+    const onPath = new Set<string>()
+    let cursor: ManagementRouteMeta | undefined = route
+
+    while (cursor) {
+      if (onPath.has(cursor.path)) {
+        const cycle = path.slice(path.indexOf(cursor.path))
+        const key = [...cycle].sort().join('|')
+        if (!reported.has(key)) {
+          reported.add(key)
+          problems.push(`цикл в родителях: ${[...cycle, cursor.path].join(' → ')}`)
+        }
+        break
+      }
+      onPath.add(cursor.path)
+      path.push(cursor.path)
+      cursor = cursor.parentPath ? known.get(cursor.parentPath) : undefined
+    }
+  }
+
+  return problems
+}
+
+/**
+ * 121E: инварианты основной навигации.
+ *
+ * primaryNav пока ничего не скрывает и не показывает — это метка для будущих
+ * срезов. Но именно поэтому ошибка в ней сейчас незаметна: пометить алиас
+ * /objects основным рядом с каноническим /locations можно было, и ни один
+ * тест этого не замечал. Когда по метке начнут строить меню, в нём появятся
+ * два пункта «Точки», ведущие в одно место.
+ */
+function findPrimaryNavProblems(routes: readonly ManagementRouteMeta[]): string[] {
+  const problems: string[] = []
+
+  for (const [path, canonical] of Object.entries(MANAGEMENT_ROUTE_ALIASES)) {
+    const alias = routes.find((route) => route.path === path)
+    if (alias?.primaryNav) {
+      problems.push(`алиас помечен основным: ${path} (канонический — ${canonical})`)
+    }
+  }
+
+  const byDestination = new Map<string, string[]>()
+  for (const route of routes) {
+    if (!route.primaryNav) continue
+    const key = `${route.section}|${route.breadcrumbLabel}`
+    byDestination.set(key, [...(byDestination.get(key) ?? []), route.path])
+  }
+  for (const [key, paths] of byDestination) {
+    if (paths.length > 1) {
+      problems.push(`два основных пункта с одной подписью: ${key} → ${paths.join(', ')}`)
+    }
+  }
+
   return problems
 }
 
@@ -210,10 +318,35 @@ export function matchManagementRoute(pathname?: string | null): ManagementRouteM
 export function looksLikeOpaqueId(value?: string | null): boolean {
   const raw = (value || '').trim()
   if (!raw) return false
+
+  // Полноценный uuid — единственная известная форма с разделителями.
   if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(raw)) return true
-  if (/^[0-9a-f]{24,}$/i.test(raw)) return true
-  // Длинная строка без пробелов из «идентификаторных» символов: cuid, ulid и подобное.
-  if (raw.length >= 16 && !/\s/.test(raw) && /^[0-9a-z_-]+$/i.test(raw)) return true
+
+  /**
+   * Остальные технические идентификаторы — один сплошной токен. Наличие
+   * разделителя поэтому исключает их все сразу, и именно на этом держится
+   * уточнение 121E: «REFRIGERATOR-UNIT-7», «chiller_unit_00042» и
+   * «Kholodilnik-2-Ufa» — названия, а не идентификаторы, и подменять их
+   * словом «Оборудование» нельзя.
+   */
+  if (/[\s._\-/]/.test(raw)) return false
+
+  // ObjectId (24) и длинный чистый hex.
+  if (raw.length >= 24 && /^[0-9a-f]+$/i.test(raw)) return true
+  // Длинный числовой идентификатор. Номера заявок короче на порядок.
+  if (raw.length >= 16 && /^[0-9]+$/.test(raw)) return true
+  // ULID: ровно 26 символов алфавита Крокфорда (без I, L, O, U).
+  if (/^[0-9A-HJKMNP-TV-Z]{26}$/.test(raw)) return true
+  // CUID v1 и CUID2: строчный токен без разделителей характерной длины.
+  if (/^c[a-z0-9]{24}$/.test(raw)) return true
+  if (/^[a-z][a-z0-9]{23,31}$/.test(raw)) return true
+  /**
+   * Прочий длинный сплошной токен из латиницы и цифр. Кириллица сюда не
+   * попадает намеренно: русское название без пробелов — это название,
+   * а идентификаторы в продукте латинские.
+   */
+  if (raw.length >= 16 && /^[0-9A-Za-z]+$/.test(raw)) return true
+
   return false
 }
 
@@ -303,5 +436,21 @@ export function buildManagementBreadcrumbs(
     crumbs.push({ label, to: isCurrent ? null : target || null })
   }
 
-  return crumbs
+  return collapseDuplicateSectionLabel(crumbs)
+}
+
+/**
+ * 121E: «Главная / Главная» — не иерархия, а повтор.
+ *
+ * У разделов, чья входная страница называется так же, как сам раздел, первые
+ * две крошки совпадали дословно: /dashboard давал «Главная / Главная»,
+ * /analytics — «Аналитика / Аналитика», /analytics/locations — «Аналитика /
+ * Аналитика / По объектам». Лишняя остаётся подпись раздела: у страницы,
+ * в отличие от неё, может быть ссылка, и она нужнее.
+ *
+ * Там, где подписи различаются, иерархия сохраняется полностью.
+ */
+function collapseDuplicateSectionLabel(crumbs: Breadcrumb[]): Breadcrumb[] {
+  if (crumbs.length < 2) return crumbs
+  return crumbs[0].label === crumbs[1].label ? crumbs.slice(1) : crumbs
 }
