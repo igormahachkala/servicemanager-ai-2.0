@@ -1130,6 +1130,12 @@ button.mobilePhotoThumbLink.mobilePhotoThumbOpen:focus-visible {
   border: 1px solid #fecaca;
 }
 
+.mobileNoticeWarn {
+  background: #fffbeb;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
 .mobileEmptyState {
   text-align: center;
   padding: 22px 14px 20px;
@@ -6394,4 +6400,141 @@ a.mobileBtn.mobileCreateTicketLink {
 .mobileQueueState--attention {
   background: #fef2f2;
   color: #991b1b;
+}
+
+/* 116B: запуск существующего обхода с мобильного рабочего места. */
+.mobileInspectionListHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mobileInspectionStartLink {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding-inline: 16px;
+}
+
+.mobileInspectionStart,
+.mobileInspectionStartGroup,
+.mobileInspectionStartField {
+  min-width: 0;
+}
+
+.mobileInspectionStartGroup {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.mobileInspectionStartGroup > legend,
+.mobileInspectionStartField > span {
+  display: block;
+  margin-bottom: 7px;
+  color: #374151;
+  font-size: 0.84rem;
+  font-weight: 700;
+}
+
+.mobileInspectionTemplateChoices,
+.mobileInspectionStartPreview,
+.mobileInspectionStartZoneGroup {
+  display: grid;
+  gap: 8px;
+}
+
+.mobileInspectionTemplateChoice {
+  width: 100%;
+  min-width: 0;
+  min-height: 64px;
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+  color: #4b5563;
+  text-align: left;
+  font: inherit;
+  overflow-wrap: anywhere;
+}
+
+.mobileInspectionTemplateChoice strong {
+  color: #111827;
+}
+
+.mobileInspectionTemplateChoice--selected {
+  border-color: #2563eb;
+  background: #eff6ff;
+  box-shadow: 0 0 0 1px #2563eb;
+}
+
+.mobileInspectionStartField select {
+  width: 100%;
+  min-width: 0;
+  min-height: 48px;
+  box-sizing: border-box;
+  padding: 10px 38px 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+  color: #111827;
+  font: inherit;
+}
+
+.mobileInspectionCurrentContext {
+  display: grid;
+  gap: 4px;
+}
+
+.mobileInspectionCurrentContext > span {
+  color: #6b7280;
+  font-size: 0.8rem;
+}
+
+.mobileInspectionStartZone {
+  font-size: 0.88rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+.mobileInspectionStartZoneGroup ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 20px;
+}
+
+.mobileInspectionStartZoneGroup li span,
+.mobileInspectionStartZoneGroup li small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.mobileInspectionStartZoneGroup li small {
+  margin-top: 2px;
+  color: #6b7280;
+}
+
+.mobileInspectionStartSubmit {
+  width: 100%;
+  min-height: 52px;
+}
+
+@media (max-width: 360px) {
+  .mobileInspectionListHeader {
+    display: grid;
+  }
+
+  .mobileInspectionStartLink {
+    width: 100%;
+  }
+}
+
+/* 120G: шапка списка обходов держит две ссылки — план на сегодня и внеплановый запуск. */
+.mobileInspectionListActions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
 }
