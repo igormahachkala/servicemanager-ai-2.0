@@ -259,9 +259,8 @@ describe('MaxBotService', () => {
         method: 'PATCH',
         body: JSON.stringify({
           commands: [
-            { name: 'start', description: 'Открыть меню' },
-            { name: 'menu', description: 'Показать меню' },
-            { name: 'help', description: 'Помощь' },
+            { name: 'start', description: 'Вход и главное меню' },
+            { name: 'menu', description: 'Главное меню' },
           ],
         }),
       }),

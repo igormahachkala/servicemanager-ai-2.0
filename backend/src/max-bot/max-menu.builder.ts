@@ -106,15 +106,30 @@ function has(capabilities: MaxMenuCapabilities, code: PermissionCode): boolean {
  * numbers, no company names: an unbound viewer must not be able to learn anything
  * about the tenant from the bot's replies.
  */
+const START_MENU_ITEMS: MaxMenuItem[] = [
+  { id: 'open_app', label: 'Открыть ServiceManager', target: 'app' },
+  { id: 'help', label: 'Помощь', target: 'help' },
+];
+
 export function buildUnboundMenuModel(): MaxMenuModel {
   return {
     title: MENU_TITLE,
     subtitle: MENU_SUBTITLE,
     unbound: true,
-    items: [
-      { id: 'open_app', label: 'Открыть ServiceManager', target: 'app' },
-      { id: 'help', label: 'Помощь', target: 'help' },
-    ],
+    items: [...START_MENU_ITEMS],
+  };
+}
+
+/**
+ * `/start` after MaxUserBinding resolved for a non-technician.
+ * Same two buttons as unbound; the third line of copy acknowledges login.
+ */
+export function buildBoundStartMenuModel(): MaxMenuModel {
+  return {
+    title: MENU_TITLE,
+    subtitle: MENU_SUBTITLE,
+    unbound: false,
+    items: [...START_MENU_ITEMS],
   };
 }
 
@@ -227,6 +242,15 @@ function callbackButton(text: string, payload: string): MaxBotInlineKeyboardButt
   return { type: 'callback', text, payload };
 }
 
+/** Permanent way back to `/start`/`/menu` from any other bot reply. */
+export function renderPersistentMenuMessage(text: string): MaxBotCommandResponse {
+  const keyboard = renderInlineKeyboard([[callbackButton('Меню', 'menu')]]);
+  return {
+    text,
+    ...(keyboard ? { attachments: [keyboard] } : {}),
+  };
+}
+
 function menuItemToButton(item: MaxMenuItem, botUsername: string): MaxBotInlineKeyboardButton | null {
   if (item.target === 'help') return callbackButton(item.label, 'help');
   if (item.target === 'link') return null;
@@ -316,8 +340,7 @@ export function isSafeMaxCallbackPayload(payload: string) {
 
 export function buildMinimalMaxBotCommands() {
   return [
-    { name: 'start', description: 'Открыть меню' },
-    { name: 'menu', description: 'Показать меню' },
-    { name: 'help', description: 'Помощь' },
+    { name: 'start', description: 'Вход и главное меню' },
+    { name: 'menu', description: 'Главное меню' },
   ];
 }
