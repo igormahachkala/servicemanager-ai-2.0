@@ -73,7 +73,7 @@ export function buildAddTicketCommentOptions(replyTarget: ChatMessage | null): A
 }
 
 /**
- * SMA-TICKET-REPLY-MOBILE-UI-121G — ответ в мобильной ленте без сети.
+ * SMA-TICKET-REPLY-MOBILE-UI-121K — ответ в мобильной ленте без сети.
  *
  * Очередь мобильного клиента уже несёт произвольную полезную нагрузку, поэтому
  * второго вида записи не появляется: к прежнему payload добавляется replyToId,

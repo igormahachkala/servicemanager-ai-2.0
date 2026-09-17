@@ -607,7 +607,7 @@ test('сессия не открывается без пользователя',
 type ApiCall = { fn: string; key?: string; replyToId?: string; args: unknown[] }
 
 /**
- * 121G: ключ идемпотентности у создающих операций передаётся либо строкой,
+ * 121K: ключ идемпотентности у создающих операций передаётся либо строкой,
  * либо в объекте параметров вместе с replyToId — `lib/api` принимает оба вида.
  * Фейк разбирает оба, чтобы прежние проверки ключа остались в силе.
  */
@@ -724,7 +724,7 @@ test('113D-3. повтор после обрыва связи уходит с т
   assert.equal(calls[0].key, calls[1].key, 'ключ обязан пережить повтор')
 })
 
-test('121G. ответ переживает очередь и повтор: тот же ключ и та же цель', async () => {
+test('121K. ответ переживает очередь и повтор: тот же ключ и та же цель', async () => {
   let attempt = 0
   const { calls, api } = makeFakeApi({
     addTicketComment: () => {
@@ -754,7 +754,7 @@ test('121G. ответ переживает очередь и повтор: то
   assert.equal((await store.listQueue()).length, 0)
 })
 
-test('121G. обычный комментарий из очереди уходит без цели ответа', async () => {
+test('121K. обычный комментарий из очереди уходит без цели ответа', async () => {
   const { calls, api } = makeFakeApi()
   const { store } = makeStore()
   const coordinator = new SyncCoordinator(store, createHttpSyncTransport(api), { useWebLocks: false })

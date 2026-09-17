@@ -36,7 +36,7 @@ export type TransportApi = Pick<
 >
 
 /**
- * SMA-TICKET-REPLY-MOBILE-UI-121G — параметры отправки из записи очереди.
+ * SMA-TICKET-REPLY-MOBILE-UI-121K — параметры отправки из записи очереди.
  *
  * Решение о том, становится ли выбранное сообщение целью ответа, принимает
  * общий помощник слоя ответа при постановке в очередь. Здесь ничего не
@@ -100,7 +100,7 @@ export function createHttpSyncTransport(deps?: TransportApi): SyncTransport {
             const ticketId = ctx.ticketId || item.target.ticketId
             if (!ticketId) return { kind: 'attention', reason: 'Заявка не определена' }
             /*
-             * 121G: параметры собираются одним помощником — ключ идемпотентности
+             * 121K: параметры собираются одним помощником — ключ идемпотентности
              * записи и replyToId, если ответ был выбран до потери сети. Второго
              * вида записи в очереди не появляется.
              */

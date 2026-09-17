@@ -42,6 +42,7 @@ import { TicketCloseModal, type TicketCloseModalState } from './home/HomeList'
 import { MobileAttachmentThumb, mobileAttachmentLabel } from './MobileAttachmentThumb'
 import { toChatMessages, type ChatMessage } from '../lib/ticketChat'
 import {
+  actorReplyLabel,
   buildAddTicketCommentOptions,
   buildOfflineTicketCommentPayload,
   canReplyToChatMessage,
@@ -290,7 +291,7 @@ function notificationSectionToDetailTab(value?: string | null): 'chat' | 'info' 
 }
 
 /**
- * SMA-TICKET-REPLY-MOBILE-UI-121G — предпросмотр исходного сообщения.
+ * SMA-TICKET-REPLY-MOBILE-UI-121K — предпросмотр исходного сообщения.
  *
  * Показывается только то, что вернул сервер в replyTo. Искать исходное
  * сообщение в загруженной ленте нельзя: его там может не быть — лента
@@ -314,6 +315,14 @@ function MobileChatReplyAction({ onReply }: { onReply: () => void }) {
       Ответить
     </button>
   )
+}
+
+function mobileChatAuthorLabel(message: ChatMessage): string {
+  return actorReplyLabel(message.actor)
+}
+
+function mobileChatAvatarText(label: string): string {
+  return (label.trim()[0] || '?').toUpperCase()
 }
 
 export function MobileTicketPage() {
@@ -749,7 +758,7 @@ export function MobileTicketPage() {
   const [chatSending, setChatSending] = useState(false)
   const [chatSendError, setChatSendError] = useState<string | null>(null)
   /**
-   * 121G: выбранное сообщение-цель ответа. Решение о том, можно ли на него
+   * 121K: выбранное сообщение-цель ответа. Решение о том, можно ли на него
    * ответить, принимает общий помощник canReplyToChatMessage — тот же, что
    * на desktop. Второй модели ответа на мобильном не появляется.
    */
@@ -2111,10 +2120,10 @@ export function MobileTicketPage() {
                             </div>
                           )
                         }
-                        const photoAuthor = msg.authorEmail ? msg.authorEmail.split('@')[0] : 'система'
+                        const photoAuthor = mobileChatAuthorLabel(msg)
                         return (
                           <div className="mobileChatMsgRow mobileChatMsgRow--in" key={msg.id}>
-                            <span className="mobileChatAvatar" aria-hidden>{(photoAuthor[0] || '?').toUpperCase()}</span>
+                            <span className="mobileChatAvatar" aria-hidden>{mobileChatAvatarText(photoAuthor)}</span>
                             <div className="mobileChatPhotoWrap">
                               <div className="mobileChatAuthorName">{photoAuthor}</div>
                               <div className="mobileChatPhotoFrame mobileChatPhotoFrame--in">
@@ -2153,10 +2162,10 @@ export function MobileTicketPage() {
                         </div>
                       )
                     }
-                    const authorDisplay = msg.authorEmail ? msg.authorEmail.split('@')[0] : 'система'
+                    const authorDisplay = mobileChatAuthorLabel(msg)
                     return (
                       <div className="mobileChatMsgRow mobileChatMsgRow--in" key={msg.id}>
-                        <span className="mobileChatAvatar" aria-hidden>{(authorDisplay[0] || '?').toUpperCase()}</span>
+                        <span className="mobileChatAvatar" aria-hidden>{mobileChatAvatarText(authorDisplay)}</span>
                         <div className="mobileChatBubbleWrap">
                           <div className="mobileChatAuthorName">{authorDisplay}</div>
                           <div className="mobileChatBubble mobileChatBubble--in">

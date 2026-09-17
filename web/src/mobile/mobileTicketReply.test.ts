@@ -19,7 +19,7 @@ import {
 } from '../lib/ticketReplyUi'
 
 /**
- * SMA-TICKET-REPLY-MOBILE-UI-121G.
+ * SMA-TICKET-REPLY-MOBILE-UI-121K.
  *
  * Мобильный ответ пользуется теми же решениями, что и desktop, поэтому здесь
  * проверяется ровно две вещи: что общие помощники дают нужный ответ, и что
@@ -64,7 +64,7 @@ function message(overrides: Partial<ChatMessage> = {}): ChatMessage {
 
 // ── 1-3. кому можно ответить ───────────────────────────────────────────────
 
-describe('121G право на ответ', () => {
+describe('121K право на ответ', () => {
   it('1. устойчивый комментарий отвечаем', () => {
     expect(canReplyToChatMessage(message(), true)).toBe(true)
     expect(selectReplyTarget(message(), true)?.commentId).toBe('tc-42')
@@ -89,7 +89,7 @@ describe('121G право на ответ', () => {
 
 // ── 6-7. что уходит на сервер ──────────────────────────────────────────────
 
-describe('121G цель ответа в запросе', () => {
+describe('121K цель ответа в запросе', () => {
   it('6. отправляется ровно выбранный commentId', () => {
     expect(buildAddTicketCommentOptions(message())).toEqual({ replyToId: 'tc-42' })
   })
@@ -133,7 +133,7 @@ describe('121G цель ответа в запросе', () => {
 
 // ── 8-9. предпросмотр исходного сообщения ──────────────────────────────────
 
-describe('121G предпросмотр исходного сообщения', () => {
+describe('121K предпросмотр исходного сообщения', () => {
   it('8. недоступное исходное сообщение называется точным текстом', () => {
     const view = replyPreviewPresentation({ id: 'tc-1', author: null, bodyPreview: '', unavailable: true })
     expect(view.unavailable).toBe(true)
@@ -169,11 +169,19 @@ describe('121G предпросмотр исходного сообщения', 
 
 // ── 10-11. личность автора ─────────────────────────────────────────────────
 
-describe('121G личность автора', () => {
+describe('121K личность автора', () => {
   it('10. имя, роль и организация берутся каноническими помощниками', () => {
     const label = messageReplyContext(message()).author
     for (const part of ['Петров Иван', 'Мастер подрядчика', 'ИП Ермаков']) expect(label).toContain(part)
     expect(label).toBe('Петров Иван · Мастер подрядчика · ИП Ермаков')
+  })
+
+  it('10. мобильная строка чата не выводит автора из email-префикса', () => {
+    const source = page()
+    expect(source).toMatch(/mobileChatAuthorLabel\(msg\)/)
+    expect(source).toMatch(/actorReplyLabel\(message\.actor\)/)
+    expect(source).not.toMatch(/authorEmail\s*\?\s*[^:]+\.split\('@'\)/)
+    expect(source).not.toMatch(/authorEmail\.split\('@'\)/)
   })
 
   /** 120L, минорный пробел: автор есть, а роли и организации у него нет. */
@@ -194,7 +202,7 @@ describe('121G личность автора', () => {
 
 // ── 14-16. офлайн ──────────────────────────────────────────────────────────
 
-describe('121G офлайн-очередь', () => {
+describe('121K офлайн-очередь', () => {
   it('14. payload несёт replyToId, когда ответ выбран', () => {
     expect(buildOfflineTicketCommentPayload('текст', { companyId: 'c-1' }, message())).toEqual({
       comment: 'текст',
@@ -234,7 +242,7 @@ describe('121G офлайн-очередь', () => {
 
 // ── 17. ровно один запрос ──────────────────────────────────────────────────
 
-describe('121G сеть', () => {
+describe('121K сеть', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
   })
@@ -300,7 +308,7 @@ describe('121G сеть', () => {
 
 // ── 4-5, 12-13. экран обращается к общим решениям ──────────────────────────
 
-describe('121G source contract мобильного экрана', () => {
+describe('121K source contract мобильного экрана', () => {
   it('4. «Ответить» и контекст над полем ввода строятся общими помощниками', () => {
     const source = page()
     expect(source).toMatch(/canReplyToChatMessage\(msg, canSendComment\)/)
