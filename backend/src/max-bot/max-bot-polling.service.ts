@@ -28,8 +28,6 @@ export class MaxBotPollingService implements OnModuleInit, OnModuleDestroy {
   onModuleInit() {
     if (!this.enabled) return;
 
-    this.registerCommandHints();
-
     if (this.webhookEnabled) {
       this.logger.log('MAX bot running in webhook mode — polling disabled');
       if (this.webhookUrl) {
@@ -65,17 +63,6 @@ export class MaxBotPollingService implements OnModuleInit, OnModuleDestroy {
       this.timer = null;
     }
     this.logger.log('MAX bot polling stopped');
-  }
-
-  private registerCommandHints() {
-    this.maxBotService
-      .registerMinimalCommandMenu()
-      .then(() => {
-        this.logger.log('MAX bot command hints registered');
-      })
-      .catch((err: unknown) => {
-        this.logger.warn({ err }, 'max_bot_commands_register_failed');
-      });
   }
 
   private async tick() {
