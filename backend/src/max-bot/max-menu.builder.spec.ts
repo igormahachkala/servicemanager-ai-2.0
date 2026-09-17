@@ -6,6 +6,7 @@ import {
   buildMenuModel,
   buildMinimalMaxBotCommands,
   buildTicketStartAppPayload,
+  buildBoundStartMenuModel,
   buildUnboundMenuModel,
   renderHelpMessage,
   renderMenuKeyboard,
@@ -49,6 +50,16 @@ describe('buildUnboundMenuModel', () => {
   it('exposes no ticket destination to an unbound viewer', () => {
     const targets = buildUnboundMenuModel().items.map((i) => i.target);
     expect(targets.some((t) => t.startsWith('list_') || t.startsWith('ticket'))).toBe(false);
+  });
+});
+
+describe('buildBoundStartMenuModel', () => {
+  it('keeps the same two buttons and flips only the login line', () => {
+    const model = buildBoundStartMenuModel();
+    expect(model.unbound).toBe(false);
+    expect(model.items.map((i) => i.id)).toEqual(['open_app', 'help']);
+    expect(renderMenuText(model)).toContain('Подробности заявок открываются в приложении.');
+    expect(renderMenuText(model)).not.toContain('без входа');
   });
 });
 
