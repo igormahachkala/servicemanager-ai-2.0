@@ -4,6 +4,7 @@ import type {
   InspectionRunStatus,
   UpdateInspectionRunItemInput,
 } from '../lib/api'
+import { mobileTicketNumberTitle } from './mobileTicketDisplay'
 
 export type EditableCheckpointStatus = Extract<InspectionRunItemStatus, 'OK' | 'ISSUE' | 'CRITICAL'>
 
@@ -120,4 +121,68 @@ export function buildCompleteCheckpointPayload(
   }
 
   return { ok: true, payload }
+}
+
+// ── связанная заявка ────────────────────────────────────────────────────────
+
+/**
+ * SMA-MOBILE-ROUND-EDIT-LINKED-TICKET-WARNING-120W.
+ *
+ * Правка чек-поинта и жизнь заявки не связаны: сервер при обновлении отметки
+ * не трогает ticketId и не меняет статус заявки. Это верно и до 120N, но
+ * пока отметку нельзя было переоткрыть, техник до этого состояния почти не
+ * доходил. Теперь «Изменить» доступно всегда, и «Норма» на пункте с живой
+ * заявкой — один тап. Поведение от этого не стало неверным, но перестало
+ * быть очевидным, и объяснить его нужно там, где решение принимается.
+ *
+ * Поэтому здесь только текст и условие показа. Ни отмены, ни закрытия, ни
+ * отвязки заявки: заявка остаётся самостоятельной сущностью.
+ */
+
+export type CheckpointLinkedTicketNotice =
+  /** Заявки нет — экран не шумит. */
+  | { kind: 'none' }
+  /** Заявка есть, результат не «Норма»: просто напоминание о независимости. */
+  | { kind: 'info'; label: string; text: string }
+  /** Заявка есть, выбрана «Норма»: противоречие на виду, предупреждаем до сохранения. */
+  | { kind: 'warning'; label: string; text: string }
+
+/**
+ * Человекочитаемое имя заявки. Канонический источник — mobileTicketNumberTitle:
+ * он даёт «Заявка #N», а без номера — «Заявка». Идентификатор в него не
+ * попадает вообще, поэтому UUID отсюда выйти не может даже при отсутствии
+ * номера (секунды между созданием заявки и обновлением обхода).
+ */
+export function checkpointLinkedTicketLabel(ticketNumber?: number | null): string {
+  return mobileTicketNumberTitle(ticketNumber)
+}
+
+export function checkpointLinkedTicketNotice(input: {
+  hasLinkedTicket: boolean
+  ticketNumber?: number | null
+  draftStatus: EditableCheckpointStatus | null
+}): CheckpointLinkedTicketNotice {
+  if (!input.hasLinkedTicket) return { kind: 'none' }
+
+  const label = checkpointLinkedTicketLabel(input.ticketNumber)
+
+  if (input.draftStatus === 'OK') {
+    return {
+      kind: 'warning',
+      label,
+      text: `По этому пункту уже создана ${lowerFirstWord(label)}. Изменение результата обхода не изменит и не отменит заявку.`,
+    }
+  }
+
+  return {
+    kind: 'info',
+    label,
+    // Утверждения о закрытии или отмене здесь быть не должно: заявка живёт
+    // своей жизнью, и правка обхода ничего с ней не делает.
+    text: `${label} создана по этому пункту и существует отдельно. Правка обхода её не изменит.`,
+  }
+}
+
+function lowerFirstWord(value: string): string {
+  return value ? `${value[0].toLocaleLowerCase('ru-RU')}${value.slice(1)}` : value
 }

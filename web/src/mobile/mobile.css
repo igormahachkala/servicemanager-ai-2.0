@@ -6438,3 +6438,23 @@ a.mobileBtn.mobileCreateTicketLink {
   background: #fef2f2;
   color: #991b1b;
 }
+
+/* 120W: заявка по чек-поинту живёт отдельно от отметки. Сообщение стоит рядом
+   с «Сохранить» — там, где принимается решение, а не в шапке карточки. */
+.mobilePatrolLinkedTicketNotice {
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  font-weight: 600;
+}
+.mobilePatrolLinkedTicketNotice--info {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+}
+.mobilePatrolLinkedTicketNotice--warning {
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  color: #92400e;
+}

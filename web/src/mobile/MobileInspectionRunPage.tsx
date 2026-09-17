@@ -19,6 +19,7 @@ import {
   canEditCheckpoint,
   checkpointDraftFromItem,
   checkpointPayloadForOfflineQueue,
+  checkpointLinkedTicketNotice,
   checkpointStateLabel,
   checkpointStatusOptions,
   type CheckpointEditorDraft,
@@ -560,6 +561,16 @@ export function MobileInspectionRunPage() {
                 const createdTicketNumber = getCreatedTicketNumber(item)
                 const createdTicketStatus = item.ticket?.status ?? null
                 const ticketQueuedOffline = pendingTicketItemIds.has(item.id)
+                /**
+                 * 120W: заявка и отметка живут отдельно. Пока редактор закрыт, говорить
+                 * об этом незачем — сообщение считается только для открытого редактора
+                 * и только когда заявка действительно есть.
+                 */
+                const linkedTicketNotice = checkpointLinkedTicketNotice({
+                  hasLinkedTicket: !!createdTicketId,
+                  ticketNumber: createdTicketNumber,
+                  draftStatus: isEditing ? editorDraft.status : null,
+                })
                 const canCreateTicket =
                   (item.status === 'ISSUE' || item.status === 'CRITICAL') && !createdTicketId && !ticketQueuedOffline
                 const previous = run.items[index - 1]
@@ -744,6 +755,15 @@ export function MobileInspectionRunPage() {
                             onChange={(event) => setEditorDraft((current) => current ? { ...current, comment: event.target.value } : current)}
                           />
                         </label>
+
+                        {linkedTicketNotice.kind !== 'none' ? (
+                          <div
+                            className={`mobilePatrolLinkedTicketNotice mobilePatrolLinkedTicketNotice--${linkedTicketNotice.kind}`}
+                            role={linkedTicketNotice.kind === 'warning' ? 'alert' : 'note'}
+                          >
+                            {linkedTicketNotice.text}
+                          </div>
+                        ) : null}
 
                         <div className="mobilePatrolItemEditorActions">
                           <button

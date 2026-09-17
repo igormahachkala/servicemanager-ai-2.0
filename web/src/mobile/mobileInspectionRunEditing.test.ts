@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import type { InspectionRunItem } from '../lib/api'
@@ -9,6 +11,8 @@ import {
   buildCompleteCheckpointPayload,
   canEditCheckpoint,
   checkpointDraftFromItem,
+  checkpointLinkedTicketLabel,
+  checkpointLinkedTicketNotice,
   checkpointPayloadForOfflineQueue,
   checkpointStatusOptions,
 } from './mobileInspectionRunEditing'
@@ -185,5 +189,146 @@ describe('120N полный offline payload', () => {
       comment: 'Итоговый комментарий',
       textValue: 'Итоговый ответ',
     })
+  })
+})
+
+// ── 120W: связанная заявка живёт отдельно от отметки ────────────────────────
+
+const UUID = '3f2b9a1c-5d4e-4a7b-9c8d-1e2f3a4b5c6d'
+const UUID_RE = /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/i
+
+describe('120W связанная заявка при правке чек-поинта', () => {
+  it('1. без связанной заявки экран молчит', () => {
+    expect(checkpointLinkedTicketNotice({ hasLinkedTicket: false, draftStatus: 'OK' })).toEqual({ kind: 'none' })
+    expect(
+      checkpointLinkedTicketNotice({ hasLinkedTicket: false, ticketNumber: 128, draftStatus: 'ISSUE' }),
+    ).toEqual({ kind: 'none' })
+  })
+
+  it('2. заявка и ISSUE: напоминание о независимости без обещания отмены', () => {
+    const notice = checkpointLinkedTicketNotice({
+      hasLinkedTicket: true,
+      ticketNumber: 128,
+      draftStatus: 'ISSUE',
+    })
+
+    expect(notice.kind).toBe('info')
+    // Ни закрытия, ни отмены здесь не происходит и обещать их нельзя.
+    expect(notice.kind === 'info' ? notice.text : '').not.toMatch(
+      /будет отмен|будет закр|отменится|закроется|автоматически/i,
+    )
+    expect(notice.kind === 'info' ? notice.text : '').toContain('Заявка #128')
+  })
+
+  it('2. то же для CRITICAL и для пустого черновика', () => {
+    for (const draftStatus of ['CRITICAL', null] as const) {
+      const notice = checkpointLinkedTicketNotice({ hasLinkedTicket: true, ticketNumber: 128, draftStatus })
+      expect(notice.kind).toBe('info')
+    }
+  })
+
+  it('3, 4. заявка и «Норма»: предупреждение с человекочитаемым номером', () => {
+    const notice = checkpointLinkedTicketNotice({
+      hasLinkedTicket: true,
+      ticketNumber: 128,
+      draftStatus: 'OK',
+    })
+
+    expect(notice.kind).toBe('warning')
+    expect(notice.kind === 'warning' ? notice.label : '').toBe('Заявка #128')
+    expect(notice.kind === 'warning' ? notice.text : '').toBe(
+      'По этому пункту уже создана заявка #128. Изменение результата обхода не изменит и не отменит заявку.',
+    )
+  })
+
+  it('5. идентификатор заявки наружу не попадает ни при каком номере', () => {
+    // Канонический источник имени принимает только номер: идентификатору
+    // взяться неоткуда даже в секунды между созданием и обновлением обхода.
+    expect(checkpointLinkedTicketLabel(128)).toBe('Заявка #128')
+    expect(checkpointLinkedTicketLabel(null)).toBe('Заявка')
+    expect(checkpointLinkedTicketLabel(undefined)).toBe('Заявка')
+    expect(checkpointLinkedTicketLabel(UUID as never)).toBe('Заявка')
+
+    for (const draftStatus of ['OK', 'ISSUE'] as const) {
+      for (const ticketNumber of [null, undefined, UUID as never]) {
+        const notice = checkpointLinkedTicketNotice({ hasLinkedTicket: true, ticketNumber, draftStatus })
+        const text = notice.kind === 'none' ? '' : notice.text
+        expect(text).not.toMatch(UUID_RE)
+        expect(text).not.toContain(UUID)
+        expect(text).toContain('аявка')
+      }
+    }
+  })
+
+  it('6, 7. сохранение остаётся доступным и payload остаётся полным', () => {
+    // Предупреждение ничего не блокирует: сборка payload о заявке не знает.
+    const current = item({ status: 'CRITICAL', requiresRepair: true, comment: 'Течь', ticketId: UUID })
+    const result = buildCompleteCheckpointPayload(current, {
+      ...checkpointDraftFromItem(current),
+      status: 'OK',
+    })
+
+    expect(result).toEqual({
+      ok: true,
+      payload: { status: 'OK', requiresRepair: false, comment: 'Течь' },
+    })
+  })
+})
+
+describe('120W source contract', () => {
+  const read = (path: string) => readFileSync(resolve(process.cwd(), path), 'utf8')
+  const page = () => read('src/mobile/MobileInspectionRunPage.tsx')
+  const logic = () => read('src/mobile/mobileInspectionRunEditing.ts')
+
+  it('8. путь сохранения не вызывает ни одной операции над заявкой', () => {
+    const source = page()
+    /**
+     * Список взят из самого api.ts: это все экспортированные функции, которые
+     * посылают POST/PATCH/DELETE на /tickets. Перечислять придуманные имена
+     * бессмысленно — проверка на отсутствие того, чего нет, ничего не значит.
+     */
+    const api = read('src/lib/api.ts')
+    const ticketMutations = [
+      'addTicketComment',
+      'assignTicket',
+      'changeTicketCategory',
+      'claimTicket',
+      'createChildTicket',
+      'createTicket',
+      'decideTicketAcceptance',
+      'deleteTicketAttachment',
+      'requestTicketAssignment',
+      'smartAssignTicket',
+      'startTicketWorkLog',
+      'stopTicketWorkLog',
+      'updateTicket',
+      'updateTicketStatus',
+    ]
+    for (const name of ticketMutations) {
+      // Функция обязана существовать, иначе проверка ниже пустая.
+      expect(api).toMatch(new RegExp(`export async function ${name}\\(`))
+      expect(source).not.toContain(`api.${name}(`)
+    }
+    // Единственная операция над заявкой на этом экране — её создание (120N).
+    expect((source.match(/api\.createTicketFromInspectionItem/g) || []).length).toBe(1)
+    // Отметка обновляется только обновлением чек-поинта, и ticketId в payload не уходит.
+    expect(source).toMatch(/api\.updateInspectionRunItem\(runId, input\.itemId, input\.payload\)/)
+    expect(logic()).not.toMatch(/payload\.ticketId|ticketId:/)
+  })
+
+  it('сообщение стоит рядом с «Сохранить» и не является модальным окном', () => {
+    const source = page()
+    const notice = source.indexOf('mobilePatrolLinkedTicketNotice')
+    const save = source.indexOf('mobilePatrolItemEditorActions')
+    expect(notice).toBeGreaterThan(-1)
+    expect(save).toBeGreaterThan(notice)
+    // В V1 подтверждения нет: сохранить «Норму» можно, прочитав предупреждение.
+    expect(source).not.toMatch(/confirmLinkedTicket|window\.confirm/)
+    expect(source).toMatch(/disabled=\{busy\}\s*\n\s*onClick=\{\(\) => saveItem\(item\)\}/)
+  })
+
+  it('без заявки сообщение не рендерится', () => {
+    expect(page()).toMatch(/linkedTicketNotice\.kind !== 'none' \? \(/)
+    expect(page()).toMatch(/hasLinkedTicket: !!createdTicketId/)
   })
 })
