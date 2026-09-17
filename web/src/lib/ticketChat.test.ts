@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { toChatMessages } from './ticketChat'
+import { formatChatMessageAuthor, toChatMessages } from './ticketChat'
 
 const actor = {
   id: 'actor-1',
@@ -38,6 +38,9 @@ describe('ticket chat identity mapping', () => {
       role: 'Мастер подрядчика',
       organization: 'ООО «Подрядчик»',
     })
+    expect(message ? formatChatMessageAuthor(message) : '').toBe(
+      'ООО «Подрядчик» · Иванов Иван · Мастер подрядчика',
+    )
   })
 
   it('falls back when actor identity is missing', () => {
@@ -56,5 +59,6 @@ describe('ticket chat identity mapping', () => {
 
     expect(message?.authorIdentity).toBeNull()
     expect(message?.authorEmail).toBeNull()
+    expect(message ? formatChatMessageAuthor(message) : '').toBe('система')
   })
 })

@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../../lib/api'
 import { canOfferTicketClaimAction } from '../../lib/ticketActionCapabilities'
+import { readBoardNavigationContextFromSearch } from '../../lib/boardNavigationContext'
 import {
   compactTicketScope,
   mobileTicketCategoryLocationFromCard,
@@ -163,17 +164,23 @@ export function MobileHome() {
 
   useLayoutEffect(() => {
     const s = location.state as MobileTicketNavState | null | undefined
-    if (!s || typeof s !== 'object') return
-    const hasTab = isMobileHomeBoardFilterTab(s.homeBoardTab)
-    const hasChips = Array.isArray(s.homeBoardChips)
-    const hasSearch = typeof s.homeBoardSearch === 'string'
+    const durable = readBoardNavigationContextFromSearch(new URLSearchParams(location.search))
+    const state = s && typeof s === 'object' ? s : null
+    const tab = state?.homeBoardTab ?? durable?.tab
+    const chips = state?.homeBoardChips ?? durable?.chips
+    const searchValue = state?.homeBoardSearch ?? durable?.search
+    const hasTab = isMobileHomeBoardFilterTab(tab)
+    const hasChips = Array.isArray(chips)
+    const hasSearch = typeof searchValue === 'string'
     if (!hasTab && !hasChips && !hasSearch) return
-    if (hasTab && s.homeBoardTab) setBoardTab(s.homeBoardTab)
+    if (hasTab) setBoardTab(tab)
     if (hasChips) {
-      setActiveChips(new Set(s.homeBoardChips!.filter((c): c is MobileHomeBoardChipId => MOBILE_HOME_BOARD_CHIP_IDS.includes(c as MobileHomeBoardChipId))))
+      setActiveChips(new Set(chips.filter((c): c is MobileHomeBoardChipId => MOBILE_HOME_BOARD_CHIP_IDS.includes(c as MobileHomeBoardChipId))))
     }
-    if (hasSearch) setSearchQuery((s.homeBoardSearch || '').slice(0, 240))
-    navigate(`${location.pathname}${location.search}`, { replace: true, state: stripMobileHomeRestoreFromNavState(s) ?? undefined })
+    if (hasSearch) setSearchQuery((searchValue || '').slice(0, 240))
+    if (state) {
+      navigate(`${location.pathname}${location.search}`, { replace: true, state: stripMobileHomeRestoreFromNavState(state) ?? undefined })
+    }
   }, [location.key, location.pathname, location.search, navigate])
 
   useEffect(() => {

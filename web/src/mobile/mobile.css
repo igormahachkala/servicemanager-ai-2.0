@@ -4132,6 +4132,22 @@ a.mobileBtn.mobileCreateTicketLink {
   background: #e2e8f0;
 }
 
+.mobileTicketBackContextLink {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  margin: -2px 0 10px 48px;
+  color: #475569;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.mobileTicketBackContextLink:active {
+  color: #1d4ed8;
+}
+
 .mobileDetailRowValue {
   font-size: 0.9rem;
   color: #111827;
@@ -5930,7 +5946,8 @@ a.mobileBtn.mobileCreateTicketLink {
   color: #475569;
 }
 .mobileSheetAction--danger .mobileSheetActionIcon { color: inherit; }
-.mobileSheetActionLabel { flex: 1; min-width: 0; }
+.mobileSheetActionLabel { flex: 1; min-width: 0; display: grid; gap: 3px; }
+.mobileSheetActionHint { color: #64748b; font-size: 0.78rem; line-height: 1.35; }
 .mobileSheetActionChevron { display: inline-flex; align-items: center; color: #d1d5db; flex-shrink: 0; }
 .mobileSheetCancel { width: 100%; margin-top: 10px; }
 

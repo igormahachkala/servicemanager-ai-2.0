@@ -3,6 +3,7 @@ import { useEffect, type ReactNode } from 'react'
 export type TicketSheetAction = {
   id: string
   label: string
+  hint?: string
   /** Имя Tabler-иконки (см. SHEET_ICONS) — рендерится в inline SVG, не эмодзи. */
   icon: string
   onClick: () => void
@@ -23,6 +24,7 @@ const SHEET_ICONS: Record<string, ReactNode> = {
   check: (<polyline points="5 12 10 17 20 7" />),
   'arrow-back-up': (<path d="M9 14l-4 -4l4 -4M5 10h11a4 4 0 1 1 0 8h-1" />),
   edit: (<><path d="M7 7h-1a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-1" /><path d="M20.385 6.585a2.1 2.1 0 0 0 -2.97 -2.97l-8.415 8.385v3h3l8.385 -8.415z" /><path d="M16 5l3 3" /></>),
+  x: (<><path d="M18 6l-12 12" /><path d="M6 6l12 12" /></>),
 }
 
 function SheetActionIcon({ name }: { name: string }) {
@@ -84,7 +86,10 @@ export function MobileTicketActionsSheet({ open, onClose, actions }: Props) {
               }}
             >
               <span className="mobileSheetActionIcon" aria-hidden><SheetActionIcon name={a.icon} /></span>
-              <span className="mobileSheetActionLabel">{a.label}</span>
+              <span className="mobileSheetActionLabel">
+                <span>{a.label}</span>
+                {a.hint ? <span className="mobileSheetActionHint">{a.hint}</span> : null}
+              </span>
               <span className="mobileSheetActionChevron" aria-hidden>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6" /></svg>
               </span>

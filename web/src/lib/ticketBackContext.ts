@@ -39,6 +39,17 @@ const LABEL_TARGETS: Record<string, string> = {
   завершенные: 'завершённым',
   отменённые: 'отменённым',
   отмененные: 'отменённым',
+  чат: 'чату',
+  уведомления: 'уведомлениям',
+}
+
+const SOURCE_TARGETS: Partial<Record<BoardSourcePath, string>> = {
+  '/tickets': 'заявкам',
+  '/board': 'заявкам',
+  '/m': 'заявкам',
+  '/m/my': 'моим заявкам',
+  '/m/chats': 'чату',
+  '/m/notifications': 'уведомлениям',
 }
 
 function clean(value: unknown): string {
@@ -81,7 +92,7 @@ function splitScopeLabel(scopeLabel?: string): { primary: string; detail: string
   return { primary: normalizeTargetLabel(safe), detail: '' }
 }
 
-function contextTarget(ctx?: BoardNavigationContext | null): string {
+function contextTarget(ctx?: BoardNavigationContext | null, sourcePath?: BoardSourcePath | null): string {
   const fromScope = splitScopeLabel(ctx?.scopeLabel).primary
   if (fromScope) return fromScope
 
@@ -91,7 +102,7 @@ function contextTarget(ctx?: BoardNavigationContext | null): string {
   }
 
   if (ctx?.selectedStatus) return STATUS_TARGETS[ctx.selectedStatus] || 'заявкам'
-  return 'заявкам'
+  return (sourcePath && SOURCE_TARGETS[sourcePath]) || 'заявкам'
 }
 
 function contextDetails(ctx: BoardNavigationContext | null | undefined, ticket?: TicketBackLabelTicket | null): string[] {
@@ -118,7 +129,7 @@ function contextDetails(ctx: BoardNavigationContext | null | undefined, ticket?:
 
 export function buildTicketBackLabel(input: BuildTicketBackLabelInput = {}): string {
   const ctx = input.context || null
-  const target = contextTarget(ctx)
+  const target = contextTarget(ctx, input.sourcePath || ctx?.sourcePath)
   const details = contextDetails(ctx, input.ticket)
   const base = `← Назад к ${target || 'заявкам'}`
   return details.length ? `${base} · ${details.join(' · ')}` : base

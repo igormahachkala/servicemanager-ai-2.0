@@ -18,11 +18,6 @@ import {
   type MobileTicketNavState,
 } from './mobileTicketDisplay'
 import {
-  MOBILE_HOME_BOARD_CHIP_LABELS,
-  MOBILE_HOME_TAB_LABELS,
-  type MobileHomeBoardChipId,
-} from './mobileHomeBoardFilters'
-import {
   getOnlineStatus,
   loadAnyTicketDetailCache,
   loadTicketDetailCache,
@@ -40,7 +35,7 @@ import { CategoryGuidancePanel } from '../components/CategoryGuidancePanel'
 import { MobileBoardClaimFallbackHint, MobileClaimReasonHintBox } from './MobileUxHints'
 import { TicketCloseModal, type TicketCloseModalState } from './home/HomeList'
 import { MobileAttachmentThumb, mobileAttachmentLabel } from './MobileAttachmentThumb'
-import { toChatMessages } from '../lib/ticketChat'
+import { formatChatMessageAuthor, toChatMessages } from '../lib/ticketChat'
 import { FullscreenPhotoViewer, type PhotoViewerItem } from '../components/FullscreenPhotoViewer'
 import { ProtectedUploadAnchor } from '../ui/ProtectedUploadMedia'
 import { useProtectedUploadSrcs } from '../ui/useProtectedUploadSrc'
@@ -49,7 +44,20 @@ import { MobileTicketActionsSheet, type TicketSheetAction } from './MobileTicket
 import { MobileModalBackdrop } from './MobileModalBackdrop'
 import { compactIdentityLabel, identityLines, presentActorIdentity, presentTicketAssignee, presentTicketCreator } from '../lib/ticketActorIdentity'
 import { MobileTicketWorkTimer } from './MobileTicketWorkTimer'
-import { canOfferTicketClaimAction, readBackendCanClaim } from '../lib/ticketActionCapabilities'
+import {
+  appendBoardNavigationContextToPath,
+  readBoardNavigationContextFromSearch,
+  type BoardSourcePath,
+} from '../lib/boardNavigationContext'
+import type { TicketAvailableActionKey } from '../lib/ticketAvailableActions'
+import {
+  buildMobileTicketBackContext,
+  buildMobileTicketBackLabel,
+  buildMobileTicketOperationalActions,
+  canQueueMobileTicketOperationalAction,
+  mobileTicketOriginFromSourcePath,
+  type MobileTicketOperationalAction,
+} from './mobileTicketUx'
 import {
   TICKET_MEDIA_ACCEPT,
   normalizeTicketMediaFile,
@@ -159,7 +167,8 @@ function ClientAcceptanceRejectModal(props: {
   )
 }
 
-function readListOrigin(location: ReturnType<typeof useLocation>): MobileTicketListOrigin {
+function readListOrigin(location: ReturnType<typeof useLocation>, sourcePath?: BoardSourcePath | null): MobileTicketListOrigin {
+  if (sourcePath) return mobileTicketOriginFromSourcePath(sourcePath)
   const raw = (location.state as MobileTicketNavState | null)?.mobileListOrigin
   if (raw === 'my') return 'my'
   if (raw === 'chat') return 'chat'
@@ -444,6 +453,30 @@ export function MobileTicketPage() {
 
   const ticket = ticketQ.data
 
+  const urlBackContext = useMemo(
+    () => readBoardNavigationContextFromSearch(new URLSearchParams(location.search)),
+    [location.search],
+  )
+  const stateBackContext = useMemo(
+    () => buildMobileTicketBackContext(navState, ticket),
+    [navState, ticket],
+  )
+  const mobileBackContext = urlBackContext ?? stateBackContext
+  const mobileBackLabel = useMemo(
+    () => buildMobileTicketBackLabel(mobileBackContext, ticket),
+    [mobileBackContext, ticket],
+  )
+
+  useEffect(() => {
+    if (urlBackContext || !navState || !ticket) return
+    const next = appendBoardNavigationContextToPath(
+      `${location.pathname}${location.search}`,
+      stateBackContext,
+    )
+    if (next === `${location.pathname}${location.search}`) return
+    navigate(next, { replace: true, state: navState })
+  }, [location.pathname, location.search, navState, navigate, stateBackContext, ticket, urlBackContext])
+
   const ticketResourceScope = useMemo<api.TicketScopeParams>(
     () =>
       resolveMobileTicketResourceScope(meQ.data, ticket, {
@@ -594,57 +627,28 @@ export function MobileTicketPage() {
 
   const isOwnCompanyClient = !observerCompanyId && ownCompanyQ.data?.type === 'CLIENT'
   const canAssignProvider = !isOwnCompanyClient && api.isProviderTicketAssignRole(meQ.data?.role)
-  const techPrimary = ticket && meQ.data?.id ? api.mobileTechnicianTicketPrimaryAction(ticket, meQ.data.id) : null
   const assigneePresent = !!(ticket?.assignedTechnicianId || ticket?.assignedTechnician)
-  const aa = ticket?.meta?.availableActions
-  const transitions = ticket?.meta?.availableStatusTransitions || []
-  const canShowTechClaimButton =
-    !!meQ.data?.id &&
-    !!ticket &&
-    canOfferTicketClaimAction(ticket)
+  const operationalActions = useMemo(() => buildMobileTicketOperationalActions(ticket), [ticket])
+  const operationalActionByKey = useMemo(
+    () => new Map(operationalActions.map((action) => [action.key, action])),
+    [operationalActions],
+  )
+  const actionEnabled = (key: TicketAvailableActionKey) => operationalActionByKey.get(key)?.enabled === true
+  const canShowTechClaimButton = actionEnabled('canClaim')
   const canShowAssignmentRequest =
-    meQ.data?.role === 'TECHNICIAN' &&
-    !!ticket &&
-    ticket.status === 'NEW' &&
-    !assigneePresent &&
-    (aa ? aa.canRequestAssignment === true : ticket.meta?.canRequestAssignment === true) &&
-    !ticket.meta?.assignmentRequestedByCurrentUser
+    actionEnabled('canRequestAssignment') &&
+    !ticket?.meta?.assignmentRequestedByCurrentUser
   const showAssignmentRequestAck =
-    meQ.data?.role === 'TECHNICIAN' &&
-    !!ticket &&
-    ticket.status === 'NEW' &&
-    !assigneePresent &&
-    (aa ? aa.canRequestAssignment === true : ticket.meta?.canRequestAssignment === true) &&
-    ticket.meta?.assignmentRequestedByCurrentUser === true
+    actionEnabled('canRequestAssignment') &&
+    ticket?.meta?.assignmentRequestedByCurrentUser === true
   const assigneeIdForMe =
     ticket && meQ.data?.id ? (ticket.assignedTechnicianId || ticket.assignedTechnician?.id || '').trim() : ''
   const isSelfAssigned = !!meQ.data?.id && assigneeIdForMe === meQ.data.id
-  const canShowTechStart =
-    !!ticket &&
-    ticket.status !== 'AWAITING_ACCEPTANCE' &&
-    (
-      (meQ.data?.role === 'TECHNICIAN' && (aa ? aa.canStart : techPrimary === 'start')) ||
-      (canAssignProvider && isSelfAssigned &&
-        (ticket.status === 'ASSIGNED' || ticket.status === 'NEW') &&
-        (aa ? aa.canStart : false))
-    )
-  const canShowComplete =
-    !!ticket &&
-    ticket.status === 'IN_PROGRESS' &&
-    isSelfAssigned &&
-    (aa ? aa.canComplete : transitions.includes('DONE')) &&
-    (meQ.data?.role === 'TECHNICIAN' || canAssignProvider)
-
-  const serverCanAccept = aa?.canAccept
-  const serverCanReject = aa?.canReject
-  const canShowClientAcceptance =
-    !!ticket &&
-    ticket.status === 'AWAITING_ACCEPTANCE' &&
-    (
-      typeof serverCanAccept === 'boolean' || typeof serverCanReject === 'boolean'
-        ? serverCanAccept === true || serverCanReject === true
-        : isOwnCompanyClient && api.isClientAcceptanceRole(meQ.data?.role)
-    )
+  const canShowTechStart = actionEnabled('canStart')
+  const canShowComplete = actionEnabled('canComplete')
+  const canShowClientAccept = actionEnabled('canAccept')
+  const canShowClientReject = actionEnabled('canReject')
+  const canShowClientAcceptance = canShowClientAccept || canShowClientReject
 
   const [detailTab, setDetailTab] = useState<'chat' | 'info' | 'photos' | 'actions'>(requestedDetailTab)
 
@@ -952,9 +956,7 @@ export function MobileTicketPage() {
       await queryClient.refetchQueries({ queryKey: ['mobile-ticket-detail', ticketId] })
     },
     onError: (e: unknown, vars: 'claim' | 'start') => {
-      const claimBlocked = ticket?.meta?.availableActions
-        ? !ticket.meta.availableActions.canClaim
-        : !readBackendCanClaim(ticket)
+      const claimBlocked = !actionEnabled('canClaim')
       setTechActionErr(
         formatMobileMutationError(e, {
           operation: vars,
@@ -1090,7 +1092,20 @@ export function MobileTicketPage() {
     },
   })
 
-  const listOrigin = readListOrigin(location)
+  const cancelM = useMutation({
+    mutationFn: async () => {
+      if (!ticket) throw new Error('Нет заявки')
+      await api.updateTicketStatus(ticket.id, { status: 'CANCELED' }, ticketResourceScope)
+    },
+    onMutate: () => setTechActionErr(''),
+    onSuccess: async () => {
+      await invalidateTicketQueries()
+      await queryClient.refetchQueries({ queryKey: ['mobile-ticket-detail', ticketId] })
+    },
+    onError: (e: unknown) => setTechActionErr(formatMobileMutationError(e, { operation: 'other' })),
+  })
+
+  const listOrigin = readListOrigin(location, mobileBackContext.sourcePath)
   // SMA-CHAT-UX-004: если пришли из чата — «Назад» возвращает в чат заявки, а не на главную.
   const backPath =
     listOrigin === 'chat'
@@ -1100,28 +1115,11 @@ export function MobileTicketPage() {
         : listOrigin === 'notifications'
           ? mobilePath(location.pathname, '/notifications')
           : mobilePath(location.pathname, '')
-  const backHref = api.appendScopeToPath(backPath, scopeNorm, meQ.data)
-  const boardTabLabel = navState?.homeBoardTab ? MOBILE_HOME_TAB_LABELS[navState.homeBoardTab] : ''
-  const boardChipLabels = useMemo(() => {
-    const chips = navState?.homeBoardChips
-    if (!Array.isArray(chips) || chips.length === 0) return []
-    return chips
-      .filter((chip): chip is MobileHomeBoardChipId => chip in MOBILE_HOME_BOARD_CHIP_LABELS)
-      .map((chip) => MOBILE_HOME_BOARD_CHIP_LABELS[chip])
-  }, [navState?.homeBoardChips])
-  const boardSearchLabel = (navState?.homeBoardSearch || '').trim()
-  const hasBoardContext = !!boardTabLabel || boardChipLabels.length > 0 || !!boardSearchLabel
-  const resetBoardContextState: MobileTicketNavState | undefined = useMemo(() => {
-    if (listOrigin !== 'home') return undefined
-    return {
-      mobileListOrigin: 'home',
-      ticketOwnerCompanyId: navState?.ticketOwnerCompanyId,
-      homeBoardTab: 'all',
-      homeBoardChips: [],
-      homeBoardSearch: '',
-    }
-  }, [listOrigin, navState?.ticketOwnerCompanyId])
-
+  const backHref = api.appendScopeToPath(
+    appendBoardNavigationContextToPath(backPath, mobileBackContext),
+    scopeNorm,
+    meQ.data,
+  )
   const ticketCompanyId = (ticket?.companyId || '').trim()
 
   const childHref = (childId: string) =>
@@ -1247,8 +1245,7 @@ export function MobileTicketPage() {
   const assignBtnLabel = assigneePresent ? 'Переназначить' : 'Назначить исполнителя'
 
   const claimBtnPending = techActionM.isPending && techActionM.variables === 'claim'
-  // Единственный источник — backend meta; ролевых проверок на фронте нет.
-  const canShowAssignSelf = ticket?.meta?.availableActions?.canAssignSelf === true
+  const canShowAssignSelf = actionEnabled('canAssignSelf')
   const startBtnPending = techActionM.isPending && techActionM.variables === 'start'
   const assignBusy = assignM.isPending
   const closeBusy = closeM.isPending
@@ -1257,19 +1254,13 @@ export function MobileTicketPage() {
   const rejectCanSubmit = !!rejectModal && rejectModal.comment.trim().length >= 3 && !rejectM.isPending
 
   const showCompleteBlockedHint =
-    (meQ.data?.role === 'TECHNICIAN' || canAssignProvider) &&
-    !!ticket &&
-    ticket.status === 'IN_PROGRESS' &&
-    isSelfAssigned &&
-    !canShowComplete
+    operationalActionByKey.get('canComplete')?.enabled === false &&
+    !!operationalActionByKey.get('canComplete')?.hint
 
   const hasTechnicianActionsBlock =
-    canShowTechClaimButton ||
-    canShowAssignmentRequest ||
+    operationalActions.length > 0 ||
     showAssignmentRequestAck ||
-    canShowTechStart ||
     showAssignButton ||
-    canShowComplete ||
     showCompleteBlockedHint
   const showTechnicianNoActionsHint =
     meQ.data?.role === 'TECHNICIAN' &&
@@ -1325,18 +1316,11 @@ export function MobileTicketPage() {
     }
   }
 
-  /**
-   * «Взять в работу» без сети. Начало работы откладывается: техник уже стоит
-   * у оборудования, и запрещать ему стартовать из-за связи бессмысленно.
-   * «Принять заявку» отложить нельзя — её может забрать другой техник, и
-   * подтвердить это способен только сервер.
-   *
-   * Сообщение об успехе печатается лишь после подтверждения записи: 113D
-   * запрещает выдавать несохранённое за сохранённое.
-   */
-  async function handleTechActionWithOfflineSupport(mode: 'claim' | 'start') {
+  async function handleOperationalAction(action: MobileTicketOperationalAction) {
+    if (!action.enabled || !ticket) return
+
     if (!getOnlineStatus()) {
-      if (mode === 'start' && ticket) {
+      if (canQueueMobileTicketOperationalAction(action.key)) {
         const queued = await queueOffline({
           kind: 'ticket.status',
           target: { ticketId: ticket.id },
@@ -1352,7 +1336,53 @@ export function MobileTicketPage() {
       setTechActionErr('Нет соединения. Действие требует подключения к сети.')
       return
     }
-    techActionM.mutate(mode)
+
+    setTechActionErr('')
+    setAcceptanceErr('')
+    setAssignmentRequestErr('')
+    if (action.key === 'canClaim') return techActionM.mutate('claim')
+    if (action.key === 'canAssignSelf') return assignSelfM.mutate()
+    if (action.key === 'canRequestAssignment') return assignmentRequestM.mutate()
+    if (action.key === 'canStart') return techActionM.mutate('start')
+    if (action.key === 'canComplete') {
+      setCloseModal({
+        ticketId: ticket.id,
+        title: `${mobileTicketNumberTitle(ticket.ticketNumber)} — ${mobileTicketCategoryLocationFromDetail(ticket)}`,
+        file: null,
+        previewUrl: '',
+        comment: '',
+        err: '',
+      })
+      return
+    }
+    if (action.key === 'canAccept') return acceptM.mutate()
+    if (action.key === 'canReject') {
+      setRejectModal({
+        ticketId: ticket.id,
+        title: `${mobileTicketNumberTitle(ticket.ticketNumber)} — ${mobileTicketCategoryLocationFromDetail(ticket)}`,
+        file: null,
+        previewUrl: '',
+        comment: '',
+        err: '',
+      })
+      return
+    }
+    if (action.key === 'canClose') return cancelM.mutate()
+  }
+
+  function handleOperationalActionByKey(key: TicketAvailableActionKey) {
+    const action = operationalActionByKey.get(key)
+    if (action) void handleOperationalAction(action)
+  }
+
+  function operationalActionPending(key: TicketAvailableActionKey): boolean {
+    if (key === 'canClaim' || key === 'canStart') return techActionM.isPending
+    if (key === 'canAssignSelf') return assignSelfM.isPending
+    if (key === 'canRequestAssignment') return assignmentRequestM.isPending
+    if (key === 'canComplete') return closeM.isPending
+    if (key === 'canAccept') return acceptM.isPending
+    if (key === 'canReject') return rejectM.isPending
+    return cancelM.isPending
   }
 
   function openChatComposer() {
@@ -1362,9 +1392,20 @@ export function MobileTicketPage() {
 
   const ticketSheetActions: TicketSheetAction[] = ticket
     ? ([
-        canShowTechClaimButton
-          ? { id: 'take', label: 'Взять в работу', icon: 'user-check', onClick: () => handleTechActionWithOfflineSupport('claim') }
-          : null,
+        ...operationalActions
+          .filter((action) => action.key !== 'canRequestAssignment' || !showAssignmentRequestAck)
+          .map((action) => ({
+            id: `operational-${action.key}`,
+            label: action.label,
+            hint: action.hint,
+            icon: action.icon,
+            danger: action.danger,
+            disabled:
+              !action.enabled ||
+              operationalActionPending(action.key) ||
+              (!isOnline && action.offline === 'online-only'),
+            onClick: () => { void handleOperationalAction(action) },
+          })),
         showAssignButton
           ? { id: 'assign', label: assignBtnLabel, icon: 'user-plus', onClick: () => { setAssignErr(''); setAssignTicketOpen(true) } }
           : null,
@@ -1376,43 +1417,6 @@ export function MobileTicketPage() {
         { id: 'chat', label: 'Чат', icon: 'messages', onClick: () => setDetailTab('chat') },
         { id: 'actions', label: 'Действия', icon: 'bolt', onClick: () => setDetailTab('actions') },
         { id: 'object', label: 'Инфо о заявке', icon: 'map-pin', onClick: () => setDetailTab('info') },
-        canShowComplete
-          ? {
-              id: 'close',
-              label: 'Отправить на приёмку',
-              icon: 'clipboard-check',
-              onClick: () =>
-                setCloseModal({
-                  ticketId: ticket.id,
-                  title: `${mobileTicketNumberTitle(ticket.ticketNumber)} — ${mobileTicketCategoryLocationFromDetail(ticket)}`,
-                  file: null,
-                  previewUrl: '',
-                  comment: '',
-                  err: '',
-                }),
-            }
-          : null,
-        canShowClientAcceptance
-          ? { id: 'accept', label: 'Принять работу', icon: 'check', onClick: () => { setAcceptanceErr(''); acceptM.mutate() } }
-          : null,
-        canShowClientAcceptance
-          ? {
-              id: 'reject',
-              label: 'Не принять работу',
-              icon: 'arrow-back-up',
-              onClick: () => {
-                setAcceptanceErr('')
-                setRejectModal({
-                  ticketId: ticket.id,
-                  title: `${mobileTicketNumberTitle(ticket.ticketNumber)} — ${mobileTicketCategoryLocationFromDetail(ticket)}`,
-                  file: null,
-                  previewUrl: '',
-                  comment: '',
-                  err: '',
-                })
-              },
-            }
-          : null,
       ].filter(Boolean) as TicketSheetAction[])
     : []
 
@@ -1457,25 +1461,13 @@ export function MobileTicketPage() {
           </button>
         ) : null}
       </div>
-
-      {hasBoardContext ? (
-        <div className="mobileCard" style={{ marginBottom: 8 }}>
-          <div className="mobileRow" style={{ marginBottom: 6 }}>
-            <strong style={{ fontSize: '0.9rem' }}>Контекст доски</strong>
-            <Link
-              to={backHref}
-              state={resetBoardContextState}
-              className="mobileBtn mobileBtnSecondary"
-              style={{ padding: '6px 10px', minHeight: 'auto' }}
-            >
-              Без фильтров
-            </Link>
-          </div>
-          {boardTabLabel ? <div className="mobileMeta">Вкладка: {boardTabLabel}</div> : null}
-          {boardChipLabels.length > 0 ? <div className="mobileMeta">Фильтры: {boardChipLabels.join(', ')}</div> : null}
-          {boardSearchLabel ? <div className="mobileMeta">Поиск: {boardSearchLabel}</div> : null}
-        </div>
-      ) : null}
+      <Link
+        to={backHref}
+        state={(location.state as MobileTicketNavState | null | undefined) ?? undefined}
+        className="mobileTicketBackContextLink"
+      >
+        {mobileBackLabel}
+      </Link>
 
       {!isOnline && ticketQ.isSuccess && ticket ? (
         <div className="mobileStaleDataBanner" role="status">
@@ -1719,35 +1711,39 @@ export function MobileTicketPage() {
               {acceptanceErr ? (
                 <div className="mobileNotice mobileNoticeError" style={{ marginBottom: 10 }}>{acceptanceErr}</div>
               ) : null}
-              <button
-                type="button"
-                className="mobileBtn mobileBtn--done"
-                style={{ width: '100%', minHeight: 48 }}
-                disabled={acceptM.isPending || rejectM.isPending || !isOnline}
-                onClick={() => { setAcceptanceErr(''); acceptM.mutate() }}
-              >
-                {acceptM.isPending ? 'Принимаем…' : 'Принять работу'}
-              </button>
-              <button
-                type="button"
-                className="mobileBtn mobileBtnSecondary"
-                style={{ width: '100%', marginTop: 8, minHeight: 48 }}
-                disabled={acceptM.isPending || rejectM.isPending || !isOnline}
-                onClick={() => {
-                  if (!ticket) return
-                  setAcceptanceErr('')
-                  setRejectModal({
-                    ticketId: ticket.id,
-                    title: `${mobileTicketNumberTitle(ticket.ticketNumber)} — ${mobileTicketCategoryLocationFromDetail(ticket)}`,
-                    file: null,
-                    previewUrl: '',
-                    comment: '',
-                    err: '',
-                  })
-                }}
-              >
-                Не принять работу
-              </button>
+              {canShowClientAccept ? (
+                <button
+                  type="button"
+                  className="mobileBtn mobileBtn--done"
+                  style={{ width: '100%', minHeight: 48 }}
+                  disabled={acceptM.isPending || rejectM.isPending || !isOnline}
+                  onClick={() => { setAcceptanceErr(''); acceptM.mutate() }}
+                >
+                  {acceptM.isPending ? 'Принимаем…' : 'Принять работу'}
+                </button>
+              ) : null}
+              {canShowClientReject ? (
+                <button
+                  type="button"
+                  className="mobileBtn mobileBtnSecondary"
+                  style={{ width: '100%', marginTop: canShowClientAccept ? 8 : 0, minHeight: 48 }}
+                  disabled={acceptM.isPending || rejectM.isPending || !isOnline}
+                  onClick={() => {
+                    if (!ticket) return
+                    setAcceptanceErr('')
+                    setRejectModal({
+                      ticketId: ticket.id,
+                      title: `${mobileTicketNumberTitle(ticket.ticketNumber)} — ${mobileTicketCategoryLocationFromDetail(ticket)}`,
+                      file: null,
+                      previewUrl: '',
+                      comment: '',
+                      err: '',
+                    })
+                  }}
+                >
+                  Не принять работу
+                </button>
+              ) : null}
             </div>
           ) : null}
 
@@ -1778,8 +1774,8 @@ export function MobileTicketPage() {
                   type="button"
                   className="mobileBtn mobileBtn--claim"
                   style={{ width: '100%' }}
-                  disabled={claimBtnPending || assignmentRequestM.isPending}
-                  onClick={() => handleTechActionWithOfflineSupport('claim')}
+                  disabled={claimBtnPending || assignmentRequestM.isPending || !isOnline}
+                  onClick={() => handleOperationalActionByKey('canClaim')}
                 >
                   {claimBtnPending ? 'Берём заявку…' : 'Взять заявку'}
                 </button>
@@ -1790,7 +1786,7 @@ export function MobileTicketPage() {
                   data-testid="assign-self"
                   className="mobileBtn mobileBtnSecondary"
                   style={{ width: '100%', marginTop: canShowTechClaimButton ? 8 : 0 }}
-                  disabled={assignSelfM.isPending}
+                  disabled={assignSelfM.isPending || !isOnline}
                   onClick={() => assignSelfM.mutate()}
                 >
                   {assignSelfM.isPending ? 'Назначаем…' : 'Назначить на себя'}
@@ -1801,7 +1797,7 @@ export function MobileTicketPage() {
                   type="button"
                   className="mobileBtn mobileBtnSecondary"
                   style={{ width: '100%', marginTop: canShowTechClaimButton ? 8 : 0 }}
-                  disabled={showAssignmentRequestAck || assignmentRequestM.isPending || techActionM.isPending}
+                  disabled={showAssignmentRequestAck || assignmentRequestM.isPending || techActionM.isPending || !isOnline}
                   onClick={() => { if (showAssignmentRequestAck) return; assignmentRequestM.mutate() }}
                 >
                   {showAssignmentRequestAck ? 'Запрос отправлен' : assignmentRequestM.isPending ? 'Отправляем запрос…' : 'Запросить назначение'}
@@ -1813,7 +1809,7 @@ export function MobileTicketPage() {
                   className="mobileBtn mobileBtn--start"
                   style={{ width: '100%' }}
                   disabled={startBtnPending || assignmentRequestM.isPending}
-                  onClick={() => handleTechActionWithOfflineSupport('start')}
+                  onClick={() => handleOperationalActionByKey('canStart')}
                 >
                   {startBtnPending ? 'Начинаем…' : 'Начать работу'}
                 </button>
@@ -2061,7 +2057,7 @@ export function MobileTicketPage() {
                             </div>
                           )
                         }
-                        const photoAuthor = msg.authorEmail ? msg.authorEmail.split('@')[0] : 'система'
+                        const photoAuthor = formatChatMessageAuthor(msg)
                         return (
                           <div className="mobileChatMsgRow mobileChatMsgRow--in" key={msg.id}>
                             <span className="mobileChatAvatar" aria-hidden>{(photoAuthor[0] || '?').toUpperCase()}</span>
@@ -2099,7 +2095,7 @@ export function MobileTicketPage() {
                         </div>
                       )
                     }
-                    const authorDisplay = msg.authorEmail ? msg.authorEmail.split('@')[0] : 'система'
+                    const authorDisplay = formatChatMessageAuthor(msg)
                     return (
                       <div className="mobileChatMsgRow mobileChatMsgRow--in" key={msg.id}>
                         <span className="mobileChatAvatar" aria-hidden>{(authorDisplay[0] || '?').toUpperCase()}</span>
@@ -2231,28 +2227,32 @@ export function MobileTicketPage() {
                     Исполнитель отправил работу на приёмку. Примите её или отправьте на доработку с комментарием.
                   </p>
                   {acceptanceErr ? <div className="mobileNotice mobileNoticeError" style={{ marginBottom: 10 }}>{acceptanceErr}</div> : null}
-                  <button
-                    type="button"
-                    className="mobileBtn mobileBtn--done"
-                    style={{ width: '100%', minHeight: 48 }}
-                    disabled={acceptM.isPending || rejectM.isPending || !isOnline}
-                    onClick={() => { setAcceptanceErr(''); acceptM.mutate() }}
-                  >
-                    {acceptM.isPending ? 'Принимаем…' : 'Принять работу'}
-                  </button>
-                  <button
-                    type="button"
-                    className="mobileBtn mobileBtnSecondary"
-                    style={{ width: '100%', marginTop: 8, minHeight: 48 }}
-                    disabled={acceptM.isPending || rejectM.isPending || !isOnline}
-                    onClick={() => {
-                      if (!ticket) return
-                      setAcceptanceErr('')
-                      setRejectModal({ ticketId: ticket.id, title: `${mobileTicketNumberTitle(ticket.ticketNumber)} — ${mobileTicketCategoryLocationFromDetail(ticket)}`, file: null, previewUrl: '', comment: '', err: '' })
-                    }}
-                  >
-                    Не принять работу
-                  </button>
+                  {canShowClientAccept ? (
+                    <button
+                      type="button"
+                      className="mobileBtn mobileBtn--done"
+                      style={{ width: '100%', minHeight: 48 }}
+                      disabled={acceptM.isPending || rejectM.isPending || !isOnline}
+                      onClick={() => { setAcceptanceErr(''); acceptM.mutate() }}
+                    >
+                      {acceptM.isPending ? 'Принимаем…' : 'Принять работу'}
+                    </button>
+                  ) : null}
+                  {canShowClientReject ? (
+                    <button
+                      type="button"
+                      className="mobileBtn mobileBtnSecondary"
+                      style={{ width: '100%', marginTop: canShowClientAccept ? 8 : 0, minHeight: 48 }}
+                      disabled={acceptM.isPending || rejectM.isPending || !isOnline}
+                      onClick={() => {
+                        if (!ticket) return
+                        setAcceptanceErr('')
+                        setRejectModal({ ticketId: ticket.id, title: `${mobileTicketNumberTitle(ticket.ticketNumber)} — ${mobileTicketCategoryLocationFromDetail(ticket)}`, file: null, previewUrl: '', comment: '', err: '' })
+                      }}
+                    >
+                      Не принять работу
+                    </button>
+                  ) : null}
                 </div>
               ) : null}
               {hasTechnicianActionsBlock ? (
@@ -2280,8 +2280,8 @@ export function MobileTicketPage() {
                       type="button"
                       className="mobileBtn mobileBtn--claim"
                       style={{ width: '100%' }}
-                      disabled={claimBtnPending || assignmentRequestM.isPending}
-                      onClick={() => handleTechActionWithOfflineSupport('claim')}
+                      disabled={claimBtnPending || assignmentRequestM.isPending || !isOnline}
+                      onClick={() => handleOperationalActionByKey('canClaim')}
                     >
                       {claimBtnPending ? 'Берём заявку…' : 'Взять заявку'}
                     </button>
@@ -2292,7 +2292,7 @@ export function MobileTicketPage() {
                       data-testid="assign-self"
                       className="mobileBtn mobileBtnSecondary"
                       style={{ width: '100%', marginTop: canShowTechClaimButton ? 8 : 0 }}
-                      disabled={assignSelfM.isPending}
+                      disabled={assignSelfM.isPending || !isOnline}
                       onClick={() => assignSelfM.mutate()}
                     >
                       {assignSelfM.isPending ? 'Назначаем…' : 'Назначить на себя'}
@@ -2303,7 +2303,7 @@ export function MobileTicketPage() {
                       type="button"
                       className="mobileBtn mobileBtnSecondary"
                       style={{ width: '100%', marginTop: canShowTechClaimButton ? 8 : 0 }}
-                      disabled={showAssignmentRequestAck || assignmentRequestM.isPending || techActionM.isPending}
+                      disabled={showAssignmentRequestAck || assignmentRequestM.isPending || techActionM.isPending || !isOnline}
                       onClick={() => { if (showAssignmentRequestAck) return; assignmentRequestM.mutate() }}
                     >
                       {showAssignmentRequestAck ? 'Запрос отправлен' : assignmentRequestM.isPending ? 'Отправляем запрос…' : 'Запросить назначение'}
@@ -2315,7 +2315,7 @@ export function MobileTicketPage() {
                       className="mobileBtn mobileBtn--start"
                       style={{ width: '100%' }}
                       disabled={startBtnPending || assignmentRequestM.isPending}
-                      onClick={() => handleTechActionWithOfflineSupport('start')}
+                      onClick={() => handleOperationalActionByKey('canStart')}
                     >
                       {startBtnPending ? 'Начинаем…' : 'Начать работу'}
                     </button>
