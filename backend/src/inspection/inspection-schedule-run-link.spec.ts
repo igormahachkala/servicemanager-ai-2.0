@@ -172,6 +172,13 @@ function makeSuite(
   const createdRuns = new Map<string, any>()
 
   const prisma: any = {
+    /**
+     * 119T: канонический доступ к локации (ticket-access) читает привязки
+     * пользователя. В 119K этот путь из startRun не вызывался; в текущем
+     * кандидате Rounds — вызывается. Заглушка стоит здесь, чтобы связь плана
+     * и обхода проверялась одинаково по обе стороны этой сверки.
+     */
+    userLocationBinding: { findMany: jest.fn().mockResolvedValue([]) },
     inspectionTemplate: {
       findFirst: jest.fn(async ({ where }: any) =>
         where.companyId === PROVIDER_ID ? { id: where.id, name: 'ТО', items: templateItems } : null,
