@@ -9,6 +9,9 @@ import {
   appendBoardNavigationContextToPath,
   readBoardNavigationContextFromSearch,
   sanitizeBoardNavigationContext,
+  saveBoardScrollPosition,
+  consumeBoardScrollPosition,
+  type BoardNavigationContext,
   type BoardSourcePath,
   type BoardTicketNavState,
 } from '../lib/boardNavigationContext'
@@ -181,11 +184,26 @@ export function BoardPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const queryClient = useQueryClient()
-  const [take, setTake] = useState(120)
-  const [selectedLocationId, setSelectedLocationId] = useState('')
-  const [selectedEquipmentId, setSelectedEquipmentId] = useState('')
-  const [selectedStatus, setSelectedStatus] = useState<api.TicketStatus | ''>('')
-  const [includeArchived, setIncludeArchived] = useState(false)
+  /*
+   * SMA-TICKET-UX-V2-EXACT-BACK-CONTEXT-119J.
+   *
+   * Фильтры поднимаются из адреса, а не из пустоты. Раньше они жили только
+   * в useState и переживали лишь переход с location.state: перезагрузка
+   * карточки заявки, приход по ссылке из уведомления или восстановление
+   * вкладки теряли контекст целиком, и «Назад» уводил на голую доску.
+   * Адрес — единственный носитель, который переживает перезагрузку.
+   */
+  const initialUrlContext = useMemo(
+    () => readBoardNavigationContextFromSearch(new URLSearchParams(location.search)),
+    // Только первичное значение: дальше состоянием владеет сам компонент.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  )
+  const [take, setTake] = useState(initialUrlContext?.take || 120)
+  const [selectedLocationId, setSelectedLocationId] = useState(initialUrlContext?.selectedLocationId || '')
+  const [selectedEquipmentId, setSelectedEquipmentId] = useState(initialUrlContext?.selectedEquipmentId || '')
+  const [selectedStatus, setSelectedStatus] = useState<api.TicketStatus | ''>(initialUrlContext?.selectedStatus || '')
+  const [includeArchived, setIncludeArchived] = useState(!!initialUrlContext?.includeArchived)
   function resetBoardFilters() {
     setSelectedLocationId('')
     setSelectedEquipmentId('')
@@ -214,6 +232,54 @@ export function BoardPage() {
     if (restore.take) setTake(restore.take)
     navigate(appendBoardNavigationContextToPath(`${location.pathname}${location.search}`, restore), { replace: true, state: undefined })
   }, [location.key, location.pathname, location.search, navigate])
+
+  /*
+   * 119J: состояние фильтров зеркалится в адрес. replace, а не push — смена
+   * фильтра не должна плодить записи в истории, иначе «Назад» из карточки
+   * начнёт отматывать фильтры по одному вместо возврата к списку.
+   */
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.search)
+    const before = searchParams.toString()
+    applyBoardNavigationContextToSearchParams(searchParams, {
+      selectedLocationId,
+      selectedEquipmentId,
+      selectedStatus,
+      includeArchived,
+      take,
+      tab: activeOperationsView,
+      chips: initialUrlContext?.chips,
+      search: initialUrlContext?.search,
+      scopeLabel: initialUrlContext?.scopeLabel,
+      sourcePath: defaultOperationsSourcePath(location.pathname),
+    })
+    const after = searchParams.toString()
+    if (after === before) return
+    navigate(`${location.pathname}${after ? `?${after}` : ''}`, { replace: true, state: location.state })
+  }, [
+    selectedLocationId,
+    selectedEquipmentId,
+    selectedStatus,
+    includeArchived,
+    take,
+    activeOperationsView,
+    location.pathname,
+    location.search,
+    location.state,
+    navigate,
+    initialUrlContext,
+  ])
+
+  /*
+   * 119J: возврат прокрутки. Ключ — сам адрес списка, поэтому разные фильтры
+   * не делят одну позицию. consume забирает значение один раз: иначе повторный
+   * заход на список дёргал бы экран к старой позиции.
+   */
+  useLayoutEffect(() => {
+    const saved = consumeBoardScrollPosition(`${location.pathname}${location.search}`)
+    if (saved === null) return
+    window.requestAnimationFrame(() => window.scrollTo({ top: saved, behavior: 'auto' }))
+  }, [location.pathname, location.search])
 
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
   const requestedCompanyId = useMemo(() => {
@@ -602,6 +668,35 @@ export function BoardPage() {
       return `/tickets/${ticket.id}?linkedClientCompanyId=${ticket.companyId}`
     }
     return `/tickets/${ticket.id}`
+  }
+
+  /*
+   * 119J: контекст едет в адресе карточки, а не только в location.state.
+   * Перезагрузка страницы заявки стирает state, а адрес переживает её —
+   * именно этот случай и ломал возврат.
+   */
+  function buildTicketHref(ticket: api.TicketCard) {
+    return appendBoardNavigationContextToPath(buildTicketLink(ticket), currentBoardContext())
+  }
+
+  function currentBoardContext(): BoardNavigationContext {
+    return {
+      selectedLocationId,
+      selectedEquipmentId,
+      selectedStatus,
+      includeArchived,
+      take,
+      tab: activeOperationsView,
+      chips: initialUrlContext?.chips,
+      search: initialUrlContext?.search,
+      scopeLabel: initialUrlContext?.scopeLabel,
+      sourcePath: defaultOperationsSourcePath(location.pathname),
+    }
+  }
+
+  /** Позицию списка запоминаем в момент ухода в карточку, а не по таймеру. */
+  function rememberBoardScroll() {
+    saveBoardScrollPosition(`${location.pathname}${location.search}`, window.scrollY || 0)
   }
 
   function buildTicketLinkState(): BoardTicketNavState | undefined {
@@ -1153,7 +1248,8 @@ export function BoardPage() {
                         />
                       </label>
                       <Link
-                        to={buildTicketLink(ticket)}
+                        to={buildTicketHref(ticket)}
+                      onClick={rememberBoardScroll}
                         state={buildTicketLinkState()}
                         style={{ textDecoration: 'none', flex: 1, minWidth: 0 }}
                       >
@@ -1228,7 +1324,7 @@ export function BoardPage() {
                           </>
                         ) : null}
                         {meQ.data?.role === 'CLIENT' ? (
-                          <Link to={buildTicketLink(ticket)} state={buildTicketLinkState()}>
+                          <Link to={buildTicketHref(ticket)} state={buildTicketLinkState()} onClick={rememberBoardScroll}>
                             <button type="button" className="ghost">Открыть</button>
                           </Link>
                         ) : null}
@@ -1247,7 +1343,8 @@ export function BoardPage() {
                                 <div>Назначен: {smartAssignByTicket[ticket.id].technicianName}</div>
                                 <div>Причина: {smartAssignByTicket[ticket.id].reason}</div>
                                 <Link
-                                  to={buildTicketLink(ticket)}
+                                  to={buildTicketHref(ticket)}
+                      onClick={rememberBoardScroll}
                                   state={buildTicketLinkState()}
                                   style={{ textDecoration: 'none' }}
                                 >

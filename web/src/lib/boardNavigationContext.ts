@@ -12,6 +12,9 @@ const BOARD_QUERY_KEYS = {
   chip: 'boardChip',
   search: 'boardSearch',
   scopeLabel: 'boardScopeLabel',
+  // 119J: откуда пришли. Без этого ключа возврат после перезагрузки карточки
+  // всегда падал на /board, даже если человек пришёл из /tickets.
+  sourcePath: 'boardFrom',
 } as const
 
 export type BoardNavigationContext = {
@@ -24,6 +27,11 @@ export type BoardNavigationContext = {
   chips?: string[]
   search?: string
   scopeLabel?: string
+  /**
+   * 119J: список-источник. Часть контекста, а не отдельная сущность: иначе
+   * при перезагрузке карточки он терялся, а остальной контекст выживал.
+   */
+  sourcePath?: BoardSourcePath
 }
 
 export type BoardSourcePath = '/tickets' | '/board'
@@ -58,6 +66,7 @@ export function sanitizeBoardNavigationContext(
     : []
   const search = normalizeText(ctx.search).slice(0, 240)
   const scopeLabel = normalizeText(ctx.scopeLabel).slice(0, 120)
+  const sourcePath = normalizeBoardSourcePath(ctx.sourcePath)
 
   if (locationId) next.selectedLocationId = locationId
   if (equipmentId) next.selectedEquipmentId = equipmentId
@@ -77,6 +86,7 @@ export function sanitizeBoardNavigationContext(
   if (chips.length > 0) next.chips = Array.from(new Set(chips))
   if (search) next.search = search
   if (scopeLabel) next.scopeLabel = scopeLabel
+  if (sourcePath) next.sourcePath = sourcePath
 
   if (
     !next.selectedLocationId &&
@@ -89,6 +99,8 @@ export function sanitizeBoardNavigationContext(
     !next.search &&
     !next.scopeLabel
   ) {
+    // sourcePath один контекстом не является: он говорит куда возвращаться,
+    // но ничего не сообщает о том, что было отфильтровано.
     return undefined
   }
   return next
@@ -105,6 +117,7 @@ export function readBoardNavigationContextFromSearch(searchParams: URLSearchPara
     chips: searchParams.getAll(BOARD_QUERY_KEYS.chip),
     search: searchParams.get(BOARD_QUERY_KEYS.search) || undefined,
     scopeLabel: searchParams.get(BOARD_QUERY_KEYS.scopeLabel) || undefined,
+    sourcePath: normalizeBoardSourcePath(searchParams.get(BOARD_QUERY_KEYS.sourcePath)),
   }
   return sanitizeBoardNavigationContext(ctx)
 }
@@ -122,9 +135,19 @@ export function applyBoardNavigationContextToSearchParams(
   searchParams.delete(BOARD_QUERY_KEYS.chip)
   searchParams.delete(BOARD_QUERY_KEYS.search)
   searchParams.delete(BOARD_QUERY_KEYS.scopeLabel)
+  searchParams.delete(BOARD_QUERY_KEYS.sourcePath)
 
   const safe = sanitizeBoardNavigationContext(ctx)
-  if (!safe) return searchParams
+  if (!safe) {
+    /*
+     * 119J: контекст пуст, но источник знать надо. Человек мог открыть заявку
+     * из нефильтрованного реестра — возврат обязан привести обратно в реестр,
+     * а не на доску. sourcePath пишется отдельно именно поэтому.
+     */
+    const onlySource = normalizeBoardSourcePath(ctx?.sourcePath)
+    if (onlySource) searchParams.set(BOARD_QUERY_KEYS.sourcePath, onlySource)
+    return searchParams
+  }
 
   if (safe.selectedLocationId) searchParams.set(BOARD_QUERY_KEYS.locationId, safe.selectedLocationId)
   if (safe.selectedEquipmentId) searchParams.set(BOARD_QUERY_KEYS.equipmentId, safe.selectedEquipmentId)
@@ -137,6 +160,7 @@ export function applyBoardNavigationContextToSearchParams(
   }
   if (safe.search) searchParams.set(BOARD_QUERY_KEYS.search, safe.search)
   if (safe.scopeLabel) searchParams.set(BOARD_QUERY_KEYS.scopeLabel, safe.scopeLabel)
+  if (safe.sourcePath) searchParams.set(BOARD_QUERY_KEYS.sourcePath, safe.sourcePath)
   return searchParams
 }
 

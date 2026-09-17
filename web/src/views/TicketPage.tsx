@@ -11,6 +11,7 @@ import { TicketHeader } from './ticket-page/TicketHeader'
 import {
   appendBoardNavigationContextToPath,
   normalizeBoardSourcePath,
+  readBoardNavigationContextFromSearch,
   sanitizeBoardNavigationContext,
   type BoardTicketNavState,
 } from '../lib/boardNavigationContext'
@@ -246,10 +247,28 @@ export function TicketPage() {
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
 
   const boardNavState = useMemo(() => location.state as BoardTicketNavState | null | undefined, [location.state])
+  /*
+   * SMA-TICKET-UX-V2-EXACT-BACK-CONTEXT-119J.
+   *
+   * Источник истины — адрес. location.state остаётся быстрым путём для
+   * обычного перехода, но переживает он только его: перезагрузка карточки,
+   * переход по ссылке из уведомления и восстановление вкладки его стирают.
+   * Раньше в этих случаях контекст терялся молча и «Назад» вёл на голую доску.
+   */
+  const urlBoardContext = useMemo(
+    () => readBoardNavigationContextFromSearch(new URLSearchParams(location.search)),
+    [location.search],
+  )
   const boardNavContext = useMemo(() => {
-    return sanitizeBoardNavigationContext(boardNavState?.boardContext)
-  }, [boardNavState])
-  const boardSourcePath = useMemo(() => normalizeBoardSourcePath(boardNavState?.sourcePath) || '/board', [boardNavState])
+    return urlBoardContext ?? sanitizeBoardNavigationContext(boardNavState?.boardContext)
+  }, [urlBoardContext, boardNavState])
+  const boardSourcePath = useMemo(
+    () =>
+      normalizeBoardSourcePath(urlBoardContext?.sourcePath) ||
+      normalizeBoardSourcePath(boardNavState?.sourcePath) ||
+      '/board',
+    [urlBoardContext, boardNavState],
+  )
   const backToBoardHref = useMemo(() => {
     const base = observerCompanyId
       ? `${boardSourcePath}?companyId=${observerCompanyId}`
