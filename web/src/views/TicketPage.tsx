@@ -1424,8 +1424,8 @@ export function TicketPage() {
             messages={chatMessages}
             loading={timelineQ.isLoading}
             canSend={canMutateTicket}
-            onSend={async (text) => {
-              await api.addTicketComment(ticketId, text, effectiveTicketScope)
+            onSend={async (text, options) => {
+              await api.addTicketComment(ticketId, text, effectiveTicketScope, options)
               await refreshAll()
             }}
           />

@@ -201,6 +201,7 @@ model Company {
   specializations              Specialization[]
   problemCategories            ProblemCategory[]
   tickets                      Ticket[]
+  ticketComments               TicketComment[]
   ticketAttachments            TicketAttachment[]
   equipment                    Equipment[]
   publicRequestLogs            PublicRequestLog[]
@@ -249,6 +250,7 @@ model User {
   updatedAt DateTime @updatedAt
 
   ticketStatusChanges         TicketStatusHistory[]      @relation("TicketStatusChangedBy")
+  ticketComments              TicketComment[]            @relation("TicketCommentAuthor")
   technicianSpecializations   TechnicianSpecialization[]
   assignedTickets             Ticket[]                   @relation("AssignedTechnician")
   createdTickets              Ticket[]                   @relation("TicketCreatedBy")
@@ -771,6 +773,7 @@ model Ticket {
   status            TicketStatus          @default(NEW)
   statusUpdatedAt   DateTime              @default(now())
   statusHistory     TicketStatusHistory[]
+  comments          TicketComment[]
   attachments       TicketAttachment[]
   partsInstalled    InstalledPart[]       @relation("InstalledPartInstalledTicket")
   partsRemoved      InstalledPart[]       @relation("InstalledPartRemovedTicket")
@@ -944,6 +947,39 @@ model TicketStatusHistory {
   @@index([ticketId, createdAt])
   @@index([toStatus, createdAt])
   @@index([changedByUserId, createdAt])
+}
+
+/// SMA-TICKET-REPLY-V1-BACKEND-FOUNDATION-120H.
+///
+/// Первая адресуемая сущность сообщения в чате заявки. До неё комментарий
+/// существовал только двумя следами — строкой DomainEvent и строкой
+/// TicketStatusHistory, — и сослаться на него было нечем: идентификатор
+/// сообщения собирался на клиенте из времени и номера в массиве.
+///
+/// DomainEvent остаётся журналом событий и продолжает писаться. Здесь лежит
+/// сам комментарий как предмет предметной области, на который можно ссылаться.
+/// Историю никуда не переносим: старые комментарии читаются как раньше.
+model TicketComment {
+  id           String   @id @default(uuid())
+  companyId    String
+  ticketId     String
+  authorUserId String?
+  body         String
+  /// Ответ на другое сообщение той же заявки. SetNull: исходное сообщение
+  /// может исчезнуть, но сам ответ остаётся — интерфейс покажет
+  /// «Исходное сообщение недоступно».
+  replyToId    String?
+  createdAt    DateTime @default(now())
+
+  company Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  ticket  Ticket          @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author  User?           @relation("TicketCommentAuthor", fields: [authorUserId], references: [id], onDelete: SetNull)
+  replyTo TicketComment?  @relation("TicketCommentReply", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies TicketComment[] @relation("TicketCommentReply")
+
+  @@index([ticketId, createdAt])
+  @@index([companyId, createdAt])
+  @@index([replyToId])
 }
 
 model PermissionBlock {
