@@ -76,6 +76,11 @@ function makeSetup(opts: {
     },
     ticketAttachment: { count: jest.fn().mockResolvedValue(0) },
     domainEvent: { count: jest.fn().mockResolvedValue(0) },
+    // 120H: комментарий стал отдельной строкой; отвечать здесь не на что.
+    ticketComment: {
+      create: jest.fn().mockResolvedValue({ id: 'tc-1' }),
+      findFirst: jest.fn().mockResolvedValue(null),
+    },
   }
 
   const prisma = {
@@ -420,6 +425,10 @@ describe('TicketsStatusService.addComment', () => {
     const tx = {
       ticket: { findFirst: jest.fn().mockResolvedValue(txTicket) },
       ticketStatusHistory: { create: jest.fn().mockResolvedValue({}) },
+      ticketComment: {
+        create: jest.fn().mockResolvedValue({ id: 'tc-1' }),
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
     }
     const prisma = {
       user: { findFirst: jest.fn().mockResolvedValue({ isExecutor }), findUnique: jest.fn().mockResolvedValue(null) },

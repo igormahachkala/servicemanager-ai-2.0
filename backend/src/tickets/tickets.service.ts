@@ -289,7 +289,7 @@ export class TicketsService {
     user: { id?: string } | any,
     role: UserRole,
     ticketId: string,
-    dto: { comment: string },
+    dto: { comment: string; replyToId?: string },
     linkedClientCompanyId?: string,
     idempotencyKey?: string | null,
   ) {
