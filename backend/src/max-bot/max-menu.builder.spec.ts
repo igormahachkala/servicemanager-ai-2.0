@@ -2,7 +2,6 @@ import { CompanyType, UserRole } from '@prisma/client';
 
 import { PERMISSIONS } from '../common/permissions.constants';
 import {
-  buildBoundStartMenuModel,
   buildMaxStartAppDeepLink,
   buildMenuModel,
   buildMinimalMaxBotCommands,
@@ -12,7 +11,6 @@ import {
   renderMenuKeyboard,
   renderMenuMessage,
   renderMenuText,
-  renderPersistentMenuMessage,
   renderTicketNavigationMessage,
   type MaxMenuCapabilities,
 } from './max-menu.builder';
@@ -46,13 +44,6 @@ describe('buildUnboundMenuModel', () => {
     const model = buildUnboundMenuModel();
     expect(model.unbound).toBe(true);
     expect(model.items.map((i) => i.id)).toEqual(['open_app', 'help']);
-  });
-
-  it('bound start keeps the same two buttons and acknowledges login', () => {
-    const model = buildBoundStartMenuModel();
-    expect(model.unbound).toBe(false);
-    expect(model.items.map((i) => i.id)).toEqual(['open_app', 'help']);
-    expect(renderMenuText(model)).toContain('Подробности заявок открываются в приложении.');
   });
 
   it('exposes no ticket destination to an unbound viewer', () => {
@@ -297,19 +288,11 @@ describe('help and command menu helpers', () => {
     expect(raw).not.toMatch(/Принять|Отклонить|Взять|Назначить/);
   });
 
-  it('registers start, menu and test hints', () => {
+  it('registers only minimal compatibility commands', () => {
     expect(buildMinimalMaxBotCommands()).toEqual([
-      { name: 'start', description: 'Вход и главное меню' },
-      { name: 'menu', description: 'Главное меню' },
-      { name: 'test', description: 'Время сервера' },
-    ]);
-  });
-
-  it('persistent menu is a single Меню callback', () => {
-    const message = renderPersistentMenuMessage('Сегодня');
-    expect(message.text).toBe('Сегодня');
-    expect(message.attachments?.[0]?.payload.buttons).toEqual([
-      [{ type: 'callback', text: 'Меню', payload: 'menu' }],
+      { name: 'start', description: 'Открыть меню' },
+      { name: 'menu', description: 'Показать меню' },
+      { name: 'help', description: 'Помощь' },
     ]);
   });
 });

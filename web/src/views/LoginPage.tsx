@@ -5,7 +5,6 @@ import * as api from '../lib/api'
 import '../assets/css/import/login-page.css'
 import { SmaBrandLogo } from '../components/SmaBrandLogo'
 import { SupportContactBlock } from '../components/SupportContactBlock'
-import { syncMaxChatBinding } from '../max/syncMaxChatBinding'
 
 type LoginPageProps = {
   onLoggedIn?: (token: string) => void
@@ -47,7 +46,6 @@ export function LoginPage({ onLoggedIn }: LoginPageProps) {
       })
 
       api.persistLoginSession(result)
-      await syncMaxChatBinding()
 
       if (onLoggedIn) {
         onLoggedIn(result.access_token)
