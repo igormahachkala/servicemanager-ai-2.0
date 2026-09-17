@@ -6,7 +6,6 @@ import { buildInspectionDocumentDate } from './inspection.report.mapper'
 type ReportPayload = {
   run: {
     id: string
-    title: string
     status: string
     startedAt: string
     completedAt?: string | null
@@ -68,7 +67,7 @@ type ReportPayload = {
     comment?: string | null
     requiresRepair: boolean
     attachments: Array<{ originalName?: string | null; url: string }>
-    ticket?: { id: string; ticketNumber?: number | null; status: string; problemText?: string | null } | null
+    ticket?: { id: string; status: string; problemText?: string | null } | null
   }>
   summary: {
     totalItems: number
@@ -191,7 +190,7 @@ export class InspectionExportService {
     lines.push(paragraphXml(`Код точки: ${report.run.location.platformCode || '—'}`))
     lines.push(paragraphXml(`Оборудование: ${report.run.equipment ? `${report.run.equipment.name} (${report.run.equipment.type})` : '—'}`))
     lines.push(paragraphXml(`Исполнитель обхода: ${formatPerson(report.run.performedBy)}`))
-    lines.push(paragraphXml(`Шаблон: ${report.run.title}`))
+    lines.push(paragraphXml(`Шаблон: ${report.run.template.name}`))
     lines.push(paragraphXml(`Начат: ${formatDocDateTime(report.run.startedAt)}`))
     lines.push(paragraphXml(`Завершен: ${formatDocDateTime(report.run.completedAt)}`))
     lines.push(paragraphXml(''))
@@ -218,7 +217,7 @@ export class InspectionExportService {
         lines.push(paragraphXml(`Фото: ${item.attachments.map((a) => a.originalName || a.url).join(', ')}`))
       }
       if (item.ticket) {
-        lines.push(paragraphXml(`Заявка: ${item.ticket.ticketNumber ? '№' + item.ticket.ticketNumber : '#' + item.ticket.id} · ${item.ticket.status} · ${item.ticket.problemText || 'Без описания'}`))
+        lines.push(paragraphXml(`Заявка: #${item.ticket.id} · ${item.ticket.status} · ${item.ticket.problemText || 'Без описания'}`))
       }
       lines.push(paragraphXml(''))
     })

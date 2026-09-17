@@ -3520,8 +3520,6 @@ export type InspectionRun = {
   reportStatus?: InspectionReportStatus
   reportSubmittedAt?: string | null
   reportReviewedAt?: string | null
-  reportReviewedBy?: InspectionRunPerson | null
-  reportReviewComment?: string | null
   completedAt?: string | null
   createdAt: string
   updatedAt: string
@@ -3557,39 +3555,11 @@ export type InspectionRun = {
   items: InspectionRunItem[]
 }
 
-export type InspectionRunPerson = {
-  id: string
-  email: string
-  firstName?: string | null
-  lastName?: string | null
-}
-
-/**
- * 116F: итог обхода, посчитанный бэкендом по снимку пунктов самого обхода.
- * Клиент больше не добирает эти числа отдельным запросом на каждую карточку.
- */
-export type InspectionRunListSummary = {
-  totalItems: number
-  okCount: number
-  issueCount: number
-  criticalCount: number
-  skippedCount: number
-  pendingCount: number
-  createdTicketsCount: number
-}
-
 export type InspectionRunListItem = {
   id: string
-  /**
-   * Снимок названия обхода на момент запуска. Для исторических записей показывать
-   * следует именно его: `template.name` — живая связь, и правка шаблона задним
-   * числом переписала бы то, что написано про вчерашний обход.
-   */
   title: string
   status: InspectionRunStatus
   reportStatus?: InspectionReportStatus
-  reportReviewedAt?: string | null
-  reportReviewedBy?: InspectionRunPerson | null
   completedAt?: string | null
   createdAt: string
   updatedAt: string
@@ -3606,22 +3576,9 @@ export type InspectionRunListItem = {
     id: string
     name: string
   } | null
-  performedBy?: InspectionRunPerson | null
-  summary: InspectionRunListSummary
   _count: {
     items: number
   }
-}
-
-export type InspectionRunsFilter = {
-  from?: string
-  to?: string
-  locationId?: string
-  performedByUserId?: string
-  templateId?: string
-  status?: InspectionRunStatus
-  reportStatus?: InspectionReportStatus
-  limit?: number
 }
 
 export type InspectionRunSummary = {
@@ -3671,8 +3628,6 @@ export type InspectionRunReportDocumentParty = {
 export type InspectionRunReport = {
   run: {
     id: string
-    /** Снимок названия обхода на момент запуска; для истории показывать его. */
-    title: string
     status: InspectionRunStatus
     startedAt: string
     completedAt?: string | null
@@ -3732,7 +3687,6 @@ export type InspectionRunReport = {
     }>
     ticket?: {
       id: string
-      ticketNumber?: number | null
       status: TicketStatus
       problemText: string
     } | null
@@ -4055,11 +4009,10 @@ export async function getInspectionTemplates(): Promise<InspectionTemplate[]> {
   return request<InspectionTemplate[]>('/inspection/templates')
 }
 
-export type SaveInspectionTemplateInput = {
+export async function createInspectionTemplate(input: {
   name: string
   description?: string
   items: Array<{
-    id?: string
     title: string
     description?: string
     sortOrder?: number
@@ -4072,31 +4025,15 @@ export type SaveInspectionTemplateInput = {
     numericUnit?: string
     isRequired?: boolean
   }>
-  updatedAt?: string
-}
-
-export async function createInspectionTemplate(input: SaveInspectionTemplateInput): Promise<InspectionTemplate> {
+}): Promise<InspectionTemplate> {
   return request<InspectionTemplate>('/inspection/templates', {
     method: 'POST',
     body: input,
   })
 }
 
-export async function updateInspectionTemplate(id: string, input: SaveInspectionTemplateInput): Promise<InspectionTemplate> {
-  return request<InspectionTemplate>('/inspection/templates/' + id, {
-    method: 'PATCH',
-    body: input,
-  })
-}
-
-export async function getInspectionRuns(filter: InspectionRunsFilter = {}): Promise<InspectionRunListItem[]> {
-  const qs = new URLSearchParams()
-  for (const [key, value] of Object.entries(filter)) {
-    if (value === undefined || value === null || value === '') continue
-    qs.set(key, String(value))
-  }
-  const suffix = qs.toString()
-  return request<InspectionRunListItem[]>('/inspection/runs' + (suffix ? `?${suffix}` : ''))
+export async function getInspectionRuns(): Promise<InspectionRunListItem[]> {
+  return request<InspectionRunListItem[]>('/inspection/runs')
 }
 
 export async function getInspectionRun(id: string): Promise<InspectionRun> {
