@@ -5,9 +5,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import { groupInspectionItemsByZone, numericConstraintLabel, responseTypeLabel } from '../lib/inspectionZones'
 
-/** Роли, у которых по канонической матрице есть LOCATIONS_MANAGE. Подсказка интерфейса: решение принимает бэкенд. */
-const MANAGER_ROLES = ['ADMIN', 'MASTER', 'DISPATCHER']
-
 function fmtDate(value?: string | null) {
   if (!value) return '—'
   try {
@@ -18,7 +15,6 @@ function fmtDate(value?: string | null) {
 }
 
 type TemplateDraftItem = {
-  id?: string
   title: string
   description: string
   zoneName: string
@@ -44,58 +40,6 @@ const emptyDraftItem = (): TemplateDraftItem => ({
   isRequired: true,
 })
 
-function templateToDraftItems(template: api.InspectionTemplate): TemplateDraftItem[] {
-  const items = template.items.map((item) => ({
-    id: item.id,
-    title: item.title || '',
-    description: item.description || '',
-    zoneName: item.zoneName || '',
-    zoneSortOrder: String(item.zoneSortOrder ?? 0),
-    checkpointSortOrder: String(item.checkpointSortOrder ?? item.sortOrder ?? 0),
-    responseType: item.responseType || 'NORMAL_PROBLEM',
-    numericMin: item.numericMin === null || item.numericMin === undefined ? '' : String(item.numericMin),
-    numericMax: item.numericMax === null || item.numericMax === undefined ? '' : String(item.numericMax),
-    numericUnit: item.numericUnit || '',
-    isRequired: item.isRequired !== false,
-  }))
-  return items.length > 0 ? items : [emptyDraftItem()]
-}
-
-function draftStateSnapshot(name: string, description: string, items: TemplateDraftItem[]) {
-  return JSON.stringify({
-    name,
-    description,
-    items: items.map((item) => ({
-      id: item.id || '',
-      title: item.title,
-      description: item.description,
-      zoneName: item.zoneName,
-      zoneSortOrder: item.zoneSortOrder,
-      checkpointSortOrder: item.checkpointSortOrder,
-      responseType: item.responseType,
-      numericMin: item.numericMin,
-      numericMax: item.numericMax,
-      numericUnit: item.numericUnit,
-      isRequired: item.isRequired,
-    })),
-  })
-}
-
-function draftHasContent(item: TemplateDraftItem) {
-  return Boolean(
-    item.title.trim() ||
-      item.description.trim() ||
-      item.zoneName.trim() ||
-      item.zoneSortOrder.trim() ||
-      item.checkpointSortOrder.trim() ||
-      item.numericMin.trim() ||
-      item.numericMax.trim() ||
-      item.numericUnit.trim() ||
-      item.responseType !== 'NORMAL_PROBLEM' ||
-      !item.isRequired,
-  )
-}
-
 function parseOptionalNumber(value: string, label: string): number | undefined {
   const trimmed = value.trim()
   if (!trimmed) return undefined
@@ -111,201 +55,6 @@ function parseOptionalInteger(value: string, label: string): number | undefined 
   return parsed
 }
 
-function buildTemplatePayload(
-  name: string,
-  description: string,
-  draftItems: TemplateDraftItem[],
-): api.SaveInspectionTemplateInput {
-  const items = draftItems
-    .map((item, index) => {
-      const title = item.title.trim()
-      if (!title) {
-        if (draftHasContent(item)) throw new Error(`Пункт ${index + 1}: укажите заголовок`)
-        return null
-      }
-
-      const isNumberCheckpoint = item.responseType === 'NUMBER'
-      const numericMin = isNumberCheckpoint ? parseOptionalNumber(item.numericMin, 'Минимум') : undefined
-      const numericMax = isNumberCheckpoint ? parseOptionalNumber(item.numericMax, 'Максимум') : undefined
-      if (numericMin !== undefined && numericMax !== undefined && numericMin > numericMax) {
-        throw new Error('Минимум не может быть больше максимума')
-      }
-
-      return {
-        id: item.id,
-        title,
-        description: item.description.trim() || undefined,
-        zoneName: item.zoneName.trim() || undefined,
-        zoneSortOrder: parseOptionalInteger(item.zoneSortOrder, 'Порядок зоны') ?? 0,
-        checkpointSortOrder: parseOptionalInteger(item.checkpointSortOrder, 'Порядок пункта') ?? index,
-        responseType: item.responseType,
-        numericMin,
-        numericMax,
-        numericUnit: isNumberCheckpoint ? item.numericUnit.trim() || undefined : undefined,
-        isRequired: item.isRequired,
-        sortOrder: index,
-      }
-    })
-    .filter((item): item is NonNullable<typeof item> => Boolean(item))
-
-  if (!name.trim()) {
-    throw new Error('Название шаблона обязательно')
-  }
-  if (items.length === 0) {
-    throw new Error('Добавьте хотя бы один пункт обхода')
-  }
-
-  return {
-    name: name.trim(),
-    description: description.trim() || undefined,
-    items,
-  }
-}
-
-function TemplateItemsEditor({
-  items,
-  onChange,
-  onAdd,
-  onRemoveLast,
-}: {
-  items: TemplateDraftItem[]
-  onChange: (index: number, patch: Partial<TemplateDraftItem>) => void
-  onAdd: () => void
-  onRemoveLast: () => void
-}) {
-  return (
-    <>
-      <div style={{ display: 'grid', gap: 10 }}>
-        {items.map((item, index) => (
-          <div key={item.id || index} className="panel" style={{ padding: 12 }}>
-            <div style={{ fontWeight: 700, marginBottom: 8 }}>Пункт {index + 1}</div>
-            <div className="form">
-              <div className="grid2" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 10 }}>
-                <label>
-                  Зона
-                  <input
-                    value={item.zoneName}
-                    onChange={(e) => onChange(index, { zoneName: e.target.value })}
-                    placeholder="Например: Зал"
-                  />
-                </label>
-                <label>
-                  Порядок зоны
-                  <input
-                    type="number"
-                    min={0}
-                    value={item.zoneSortOrder}
-                    onChange={(e) => onChange(index, { zoneSortOrder: e.target.value })}
-                    placeholder="0"
-                  />
-                </label>
-                <label>
-                  Порядок пункта
-                  <input
-                    type="number"
-                    min={0}
-                    value={item.checkpointSortOrder}
-                    onChange={(e) => onChange(index, { checkpointSortOrder: e.target.value })}
-                    placeholder={String(index)}
-                  />
-                </label>
-              </div>
-
-              <label>
-                Заголовок
-                <input
-                  value={item.title}
-                  onChange={(e) => onChange(index, { title: e.target.value })}
-                  placeholder="Например: Проверить фасад оборудования"
-                />
-              </label>
-
-              <label>
-                Комментарий для техника
-                <input
-                  value={item.description}
-                  onChange={(e) => onChange(index, { description: e.target.value })}
-                  placeholder="Что именно нужно проверить"
-                />
-              </label>
-
-              <div className="grid2" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 10 }}>
-                <label>
-                  Тип ответа
-                  <select
-                    value={item.responseType}
-                    onChange={(e) =>
-                      onChange(index, {
-                        responseType: e.target.value as api.InspectionCheckpointResponseType,
-                        numericMin: e.target.value === 'NUMBER' ? item.numericMin : '',
-                        numericMax: e.target.value === 'NUMBER' ? item.numericMax : '',
-                        numericUnit: e.target.value === 'NUMBER' ? item.numericUnit : '',
-                      })
-                    }
-                  >
-                    <option value="NORMAL_PROBLEM">Проблема/норма</option>
-                    <option value="YES_NO">Да/Нет</option>
-                    <option value="NUMBER">Число</option>
-                    <option value="TEXT">Текст</option>
-                    <option value="PHOTO">Фото</option>
-                  </select>
-                </label>
-                <label>
-                  Мин.
-                  <input
-                    type="number"
-                    value={item.numericMin}
-                    onChange={(e) => onChange(index, { numericMin: e.target.value })}
-                    disabled={item.responseType !== 'NUMBER'}
-                  />
-                </label>
-                <label>
-                  Макс.
-                  <input
-                    type="number"
-                    value={item.numericMax}
-                    onChange={(e) => onChange(index, { numericMax: e.target.value })}
-                    disabled={item.responseType !== 'NUMBER'}
-                  />
-                </label>
-                <label>
-                  Ед.
-                  <input
-                    value={item.numericUnit}
-                    onChange={(e) => onChange(index, { numericUnit: e.target.value })}
-                    disabled={item.responseType !== 'NUMBER'}
-                    placeholder="°C"
-                  />
-                </label>
-              </div>
-
-              <label className="small" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <input
-                  type="checkbox"
-                  checked={item.isRequired}
-                  onChange={(e) => onChange(index, { isRequired: e.target.checked })}
-                />
-                Обязательный пункт
-              </label>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <button type="button" className="ghost" onClick={onAdd}>
-          Добавить пункт
-        </button>
-        {items.length > 1 ? (
-          <button type="button" className="ghost" onClick={onRemoveLast}>
-            Удалить последний пункт
-          </button>
-        ) : null}
-      </div>
-    </>
-  )
-}
-
 export function InspectionTemplatesPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -314,20 +63,14 @@ export function InspectionTemplatesPage() {
   const [equipmentId, setEquipmentId] = useState('')
   const [customTitle, setCustomTitle] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState<string | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [templateName, setTemplateName] = useState('')
   const [templateDescription, setTemplateDescription] = useState('')
   const [draftItems, setDraftItems] = useState<TemplateDraftItem[]>([emptyDraftItem(), emptyDraftItem()])
-  const [editOpen, setEditOpen] = useState(false)
-  const [editName, setEditName] = useState('')
-  const [editDescription, setEditDescription] = useState('')
-  const [editItems, setEditItems] = useState<TemplateDraftItem[]>([emptyDraftItem()])
-  const [editBaseline, setEditBaseline] = useState('')
 
   const meQ = useQuery({ queryKey: ['me'], queryFn: api.me })
   const templatesQ = useQuery({ queryKey: ['inspection-templates'], queryFn: api.getInspectionTemplates })
-  const runsQ = useQuery({ queryKey: ['inspection-runs'], queryFn: () => api.getInspectionRuns() })
+  const runsQ = useQuery({ queryKey: ['inspection-runs'], queryFn: api.getInspectionRuns })
   /**
    * SMA-ROUNDS-V1-PROVIDER-CLIENT-LOCATION-SELECTOR-103B.
    *
@@ -382,7 +125,7 @@ export function InspectionTemplatesPage() {
     setEquipmentId('')
   }, [scopeCompanyId])
 
-  const canManageTemplates = MANAGER_ROLES.includes(String(meQ.data?.role || ''))
+  const canCreateTemplate = meQ.data?.role === 'ADMIN'
 
   const activeLocations = useMemo(
     () => (locationsQ.data || []).filter((item) => item.isActive !== false),
@@ -401,22 +144,6 @@ export function InspectionTemplatesPage() {
     () => (selectedTemplate ? groupInspectionItemsByZone(selectedTemplate.items) : []),
     [selectedTemplate],
   )
-  const editDirty = useMemo(
-    () => editOpen && draftStateSnapshot(editName, editDescription, editItems) !== editBaseline,
-    [editBaseline, editDescription, editItems, editName, editOpen],
-  )
-
-  useEffect(() => {
-    if (!editDirty) return
-
-    const onBeforeUnload = (event: BeforeUnloadEvent) => {
-      event.preventDefault()
-      event.returnValue = ''
-    }
-
-    window.addEventListener('beforeunload', onBeforeUnload)
-    return () => window.removeEventListener('beforeunload', onBeforeUnload)
-  }, [editDirty])
 
   const startRunM = useMutation({
     mutationFn: api.startInspectionRun,
@@ -426,19 +153,50 @@ export function InspectionTemplatesPage() {
       queryClient.setQueryData(['inspection-run', run.id], run)
       navigate('/inspection/runs/' + run.id)
     },
-    onError: (err: any) => {
-      setSuccess(null)
-      setError(err?.message || String(err))
-    },
+    onError: (err: any) => setError(err?.message || String(err)),
   })
 
   const createTemplateM = useMutation({
     mutationFn: async () => {
-      return api.createInspectionTemplate(buildTemplatePayload(templateName, templateDescription, draftItems))
+      const items = draftItems
+        .map((item, index) => {
+          const numericMin = parseOptionalNumber(item.numericMin, 'Минимум')
+          const numericMax = parseOptionalNumber(item.numericMax, 'Максимум')
+          if (numericMin !== undefined && numericMax !== undefined && numericMin > numericMax) {
+            throw new Error('Минимум не может быть больше максимума')
+          }
+
+          return {
+            title: item.title.trim(),
+            description: item.description.trim() || undefined,
+            zoneName: item.zoneName.trim() || undefined,
+            zoneSortOrder: parseOptionalInteger(item.zoneSortOrder, 'Порядок зоны') ?? 0,
+            checkpointSortOrder: parseOptionalInteger(item.checkpointSortOrder, 'Порядок пункта') ?? index,
+            responseType: item.responseType,
+            numericMin,
+            numericMax,
+            numericUnit: item.numericUnit.trim() || undefined,
+            isRequired: item.isRequired,
+            sortOrder: index,
+          }
+        })
+        .filter((item) => item.title)
+
+      if (!templateName.trim()) {
+        throw new Error('Название шаблона обязательно')
+      }
+      if (items.length === 0) {
+        throw new Error('Добавьте хотя бы один пункт обхода')
+      }
+
+      return api.createInspectionTemplate({
+        name: templateName.trim(),
+        description: templateDescription.trim() || undefined,
+        items,
+      })
     },
     onSuccess: async (template) => {
       setError(null)
-      setSuccess('Шаблон обхода создан')
       setCreateOpen(false)
       setTemplateName('')
       setTemplateDescription('')
@@ -446,32 +204,7 @@ export function InspectionTemplatesPage() {
       await queryClient.invalidateQueries({ queryKey: ['inspection-templates'] })
       setSelectedTemplateId(template.id)
     },
-    onError: (err: any) => {
-      setSuccess(null)
-      setError(err?.message || String(err))
-    },
-  })
-
-  const updateTemplateM = useMutation({
-    mutationFn: async () => {
-      if (!selectedTemplate) throw new Error('Выберите шаблон обхода')
-      return api.updateInspectionTemplate(selectedTemplate.id, {
-        ...buildTemplatePayload(editName, editDescription, editItems),
-        updatedAt: selectedTemplate.updatedAt,
-      })
-    },
-    onSuccess: async (template) => {
-      setError(null)
-      setSuccess('Шаблон обхода сохранён')
-      setEditOpen(false)
-      setEditBaseline('')
-      await queryClient.invalidateQueries({ queryKey: ['inspection-templates'] })
-      setSelectedTemplateId(template.id)
-    },
-    onError: (err: any) => {
-      setSuccess(null)
-      setError(err?.message || String(err))
-    },
+    onError: (err: any) => setError(err?.message || String(err)),
   })
 
   function startRun() {
@@ -496,55 +229,6 @@ export function InspectionTemplatesPage() {
     setDraftItems((current) => current.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)))
   }
 
-  function updateEditItem(index: number, patch: Partial<TemplateDraftItem>) {
-    setEditItems((current) => current.map((item, itemIndex) => (itemIndex === index ? { ...item, ...patch } : item)))
-  }
-
-  function confirmDiscardEdit() {
-    if (!editDirty) return true
-    return window.confirm('Есть несохранённые изменения. Продолжить без сохранения?')
-  }
-
-  function beginEditTemplate() {
-    if (!selectedTemplate) {
-      setError('Выберите шаблон обхода')
-      return
-    }
-    const items = templateToDraftItems(selectedTemplate)
-    setError(null)
-    setSuccess(null)
-    setCreateOpen(false)
-    setEditName(selectedTemplate.name || '')
-    setEditDescription(selectedTemplate.description || '')
-    setEditItems(items)
-    setEditBaseline(draftStateSnapshot(selectedTemplate.name || '', selectedTemplate.description || '', items))
-    setEditOpen(true)
-  }
-
-  function cancelEditTemplate() {
-    if (!confirmDiscardEdit()) return
-    setEditOpen(false)
-    setEditBaseline('')
-  }
-
-  function selectTemplate(templateId: string) {
-    if (templateId === selectedTemplateId) return
-    if (!confirmDiscardEdit()) return
-    setSelectedTemplateId(templateId)
-    setEditOpen(false)
-    setEditBaseline('')
-    setSuccess(null)
-  }
-
-  function toggleCreateTemplateForm() {
-    if (!createOpen && editOpen && !confirmDiscardEdit()) return
-    setCreateOpen((current) => !current)
-    if (!createOpen) {
-      setEditOpen(false)
-      setEditBaseline('')
-    }
-  }
-
   return (
     <div>
       <div className="row">
@@ -553,8 +237,8 @@ export function InspectionTemplatesPage() {
           <div className="muted small">Выберите шаблон и запустите обход по точке.</div>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {canManageTemplates ? (
-            <button type="button" className="ghost" onClick={toggleCreateTemplateForm}>
+          {canCreateTemplate ? (
+            <button type="button" className="ghost" onClick={() => setCreateOpen((current) => !current)}>
               {createOpen ? 'Скрыть форму' : 'Создать шаблон обхода'}
             </button>
           ) : null}
@@ -563,18 +247,10 @@ export function InspectionTemplatesPage() {
       </div>
 
       {error ? <div className="alert">{error}</div> : null}
-      {success ? (
-        <div
-          className="panel"
-          style={{ marginTop: 10, marginBottom: 12, borderColor: '#bbf7d0', background: '#f0fdf4', color: '#166534' }}
-        >
-          {success}
-        </div>
-      ) : null}
       {templatesQ.isError ? <div className="alert">{(templatesQ.error as any)?.message || String(templatesQ.error)}</div> : null}
       {locationsQ.isError ? <div className="alert">{(locationsQ.error as any)?.message || String(locationsQ.error)}</div> : null}
 
-      {createOpen && canManageTemplates ? (
+      {createOpen && canCreateTemplate ? (
         <div className="panel" style={{ marginBottom: 12 }}>
           <div className="row" style={{ marginBottom: 12 }}>
             <div>
@@ -594,12 +270,133 @@ export function InspectionTemplatesPage() {
               <input value={templateDescription} onChange={(e) => setTemplateDescription(e.target.value)} placeholder="Краткое описание шаблона" />
             </label>
 
-            <TemplateItemsEditor
-              items={draftItems}
-              onChange={updateDraftItem}
-              onAdd={() => setDraftItems((current) => [...current, emptyDraftItem()])}
-              onRemoveLast={() => setDraftItems((current) => current.slice(0, -1))}
-            />
+            <div style={{ display: 'grid', gap: 10 }}>
+              {draftItems.map((item, index) => (
+                <div key={index} className="card" style={{ padding: 12 }}>
+                  <div style={{ fontWeight: 700, marginBottom: 8 }}>Пункт {index + 1}</div>
+                  <div className="form">
+                    <div className="grid2" style={{ gridTemplateColumns: '1fr 120px 120px', gap: 10 }}>
+                      <label>
+                        Зона
+                        <input
+                          value={item.zoneName}
+                          onChange={(e) => updateDraftItem(index, { zoneName: e.target.value })}
+                          placeholder="Например: Зал"
+                        />
+                      </label>
+                      <label>
+                        Порядок зоны
+                        <input
+                          type="number"
+                          min={0}
+                          value={item.zoneSortOrder}
+                          onChange={(e) => updateDraftItem(index, { zoneSortOrder: e.target.value })}
+                          placeholder="0"
+                        />
+                      </label>
+                      <label>
+                        Порядок пункта
+                        <input
+                          type="number"
+                          min={0}
+                          value={item.checkpointSortOrder}
+                          onChange={(e) => updateDraftItem(index, { checkpointSortOrder: e.target.value })}
+                          placeholder={String(index)}
+                        />
+                      </label>
+                    </div>
+
+                    <label>
+                      Заголовок
+                      <input
+                        value={item.title}
+                        onChange={(e) => updateDraftItem(index, { title: e.target.value })}
+                        placeholder="Например: Проверить фасад оборудования"
+                      />
+                    </label>
+
+                    <label>
+                      Комментарий для техника
+                      <input
+                        value={item.description}
+                        onChange={(e) => updateDraftItem(index, { description: e.target.value })}
+                        placeholder="Что именно нужно проверить"
+                      />
+                    </label>
+
+                    <div className="grid2" style={{ gridTemplateColumns: '1fr 110px 110px 110px', gap: 10 }}>
+                      <label>
+                        Тип ответа
+                        <select
+                          value={item.responseType}
+                          onChange={(e) =>
+                            updateDraftItem(index, {
+                              responseType: e.target.value as api.InspectionCheckpointResponseType,
+                              numericMin: e.target.value === 'NUMBER' ? item.numericMin : '',
+                              numericMax: e.target.value === 'NUMBER' ? item.numericMax : '',
+                              numericUnit: e.target.value === 'NUMBER' ? item.numericUnit : '',
+                            })
+                          }
+                        >
+                          <option value="NORMAL_PROBLEM">Проблема/норма</option>
+                          <option value="YES_NO">Да/Нет</option>
+                          <option value="NUMBER">Число</option>
+                          <option value="TEXT">Текст</option>
+                          <option value="PHOTO">Фото</option>
+                        </select>
+                      </label>
+                      <label>
+                        Мин.
+                        <input
+                          type="number"
+                          value={item.numericMin}
+                          onChange={(e) => updateDraftItem(index, { numericMin: e.target.value })}
+                          disabled={item.responseType !== 'NUMBER'}
+                        />
+                      </label>
+                      <label>
+                        Макс.
+                        <input
+                          type="number"
+                          value={item.numericMax}
+                          onChange={(e) => updateDraftItem(index, { numericMax: e.target.value })}
+                          disabled={item.responseType !== 'NUMBER'}
+                        />
+                      </label>
+                      <label>
+                        Ед.
+                        <input
+                          value={item.numericUnit}
+                          onChange={(e) => updateDraftItem(index, { numericUnit: e.target.value })}
+                          disabled={item.responseType !== 'NUMBER'}
+                          placeholder="°C"
+                        />
+                      </label>
+                    </div>
+
+                    <label className="small" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <input
+                        type="checkbox"
+                        checked={item.isRequired}
+                        onChange={(e) => updateDraftItem(index, { isRequired: e.target.checked })}
+                      />
+                      Обязательный пункт
+                    </label>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button type="button" className="ghost" onClick={() => setDraftItems((current) => [...current, emptyDraftItem()])}>
+                Добавить пункт
+              </button>
+              {draftItems.length > 1 ? (
+                <button type="button" className="ghost" onClick={() => setDraftItems((current) => current.slice(0, -1))}>
+                  Удалить последний пункт
+                </button>
+              ) : null}
+            </div>
 
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               <button type="button" onClick={() => createTemplateM.mutate()} disabled={createTemplateM.isPending}>
@@ -615,46 +412,6 @@ export function InspectionTemplatesPage() {
                   setDraftItems([emptyDraftItem(), emptyDraftItem()])
                 }}
               >
-                Отмена
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {editOpen && selectedTemplate && canManageTemplates ? (
-        <div className="panel" style={{ marginBottom: 12 }}>
-          <div className="row" style={{ marginBottom: 12 }}>
-            <div>
-              <h3 style={{ margin: 0 }}>Редактирование шаблона</h3>
-              <div className="muted small">Изменения применятся к новым обходам. Уже выполненные обходы сохраняют свой снимок чек-листа.</div>
-            </div>
-            {editDirty ? <span className="tag">Есть изменения</span> : null}
-          </div>
-
-          <div className="form">
-            <label>
-              Название шаблона
-              <input value={editName} onChange={(e) => setEditName(e.target.value)} placeholder="Ежедневный обход точки" />
-            </label>
-
-            <label>
-              Описание
-              <input value={editDescription} onChange={(e) => setEditDescription(e.target.value)} placeholder="Краткое описание шаблона" />
-            </label>
-
-            <TemplateItemsEditor
-              items={editItems}
-              onChange={updateEditItem}
-              onAdd={() => setEditItems((current) => [...current, emptyDraftItem()])}
-              onRemoveLast={() => setEditItems((current) => current.slice(0, -1))}
-            />
-
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button type="button" onClick={() => updateTemplateM.mutate()} disabled={updateTemplateM.isPending || !editDirty}>
-                {updateTemplateM.isPending ? 'Сохраняем...' : 'Сохранить'}
-              </button>
-              <button type="button" className="ghost" onClick={cancelEditTemplate} disabled={updateTemplateM.isPending}>
                 Отмена
               </button>
             </div>
@@ -678,7 +435,7 @@ export function InspectionTemplatesPage() {
                 <button
                   key={template.id}
                   type="button"
-                  onClick={() => selectTemplate(template.id)}
+                  onClick={() => setSelectedTemplateId(template.id)}
                   className="panel"
                   style={{
                     textAlign: 'left',
@@ -700,8 +457,8 @@ export function InspectionTemplatesPage() {
                 <div className="muted small" style={{ marginBottom: 10 }}>
                   Создайте первый шаблон обхода, чтобы техники могли запускать проверки по точкам.
                 </div>
-                {canManageTemplates ? (
-                  <button type="button" className="ghost" onClick={toggleCreateTemplateForm}>
+                {canCreateTemplate ? (
+                  <button type="button" className="ghost" onClick={() => setCreateOpen(true)}>
                     Создать шаблон обхода
                   </button>
                 ) : (
@@ -713,18 +470,11 @@ export function InspectionTemplatesPage() {
         </div>
 
         <div className="panel">
-          <div className="row" style={{ marginBottom: 10 }}>
-            <h3 style={{ margin: 0 }}>Запуск обхода</h3>
-            {selectedTemplate && canManageTemplates ? (
-              <button type="button" className="ghost" onClick={beginEditTemplate}>
-                Редактировать
-              </button>
-            ) : null}
-          </div>
+          <h3 style={{ marginBottom: 10 }}>Запуск обхода</h3>
           <div className="form">
             <label>
               Шаблон
-              <select value={selectedTemplateId} onChange={(e) => selectTemplate(e.target.value)}>
+              <select value={selectedTemplateId} onChange={(e) => setSelectedTemplateId(e.target.value)}>
                 <option value="">Выберите шаблон</option>
                 {activeTemplates.map((template) => (
                   <option key={template.id} value={template.id}>{template.name}</option>
@@ -816,7 +566,7 @@ export function InspectionTemplatesPage() {
               <div className="row" style={{ marginBottom: 0, alignItems: 'center' }}>
                 <div>
                   <div style={{ fontWeight: 700 }}>{run.title}</div>
-                  <div className="muted small">{run.title} · {run.location.name} · пунктов: {run._count.items}</div>
+                  <div className="muted small">{run.template.name} · {run.location.name} · пунктов: {run._count.items}</div>
                 </div>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   <span className="tag">{run.status}</span>
