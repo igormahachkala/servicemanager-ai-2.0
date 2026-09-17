@@ -11,7 +11,7 @@ import {
   renderHelpMessage,
   renderLegacyNavigationMessage,
   renderMenuMessage,
-  renderMenuText,
+  renderPersistentMenuMessage,
   type MaxMenuModel,
 } from './max-menu.builder';
 import {
@@ -41,6 +41,8 @@ import { MaxBotCommandResponse, MaxBotUpdate } from './max-bot.types';
 
 /** Commands recognised for backward compatibility. None of them read ticket data. */
 const LEGACY_DATA_COMMANDS = new Set(['/tickets', '/ticket', '/open']);
+
+const ACTION_FAILED_TEXT = 'Не удалось выполнить действие.\nПопробуйте ещё раз через минуту.';
 
 @Injectable()
 export class MaxBotCommandService {
@@ -121,13 +123,9 @@ export class MaxBotCommandService {
       }
     } catch (err) {
       this.logger.warn({ err, cmd }, 'max_bot_command_error');
-      return {
-        text: 'Не удалось выполнить действие.\nПопробуйте ещё раз через минуту.',
-      };
+      return renderPersistentMenuMessage(ACTION_FAILED_TEXT);
     }
 
-    // Anything else — unknown command or ordinary text. Previously the bot returned null
-    // and said nothing at all, which reads to a user as the bot being broken.
     this.logger.log(
       {
         update_type: this.safeString(update.update_type),
@@ -136,14 +134,12 @@ export class MaxBotCommandService {
       },
       'max_bot_command_fallback',
     );
-    return this.unknownInputMessage(update);
+    return this.unknownInputMessage();
   }
 
   /**
-   * `/start` copy for the current viewer.
-   *
-   * Unbound: login prompt. Bound technician: six chat sections in menuMessage.
-   * Other bound roles: same two Mini App buttons, third line acknowledges login.
+   * `/start` and `/menu` share this path. Binding is the chat login:
+   * Mini App logout revokes MaxUserBinding, so the next resolve fails closed.
    */
   private async menuModelFor(update: MaxBotUpdate): Promise<MaxMenuModel> {
     if (!this.identity) return buildUnboundMenuModel();
@@ -164,19 +160,8 @@ export class MaxBotCommandService {
     return renderMenuMessage(model, this.botUsername);
   }
 
-  private async unknownInputMessage(update: MaxBotUpdate): Promise<MaxBotCommandResponse> {
-    const model = await this.menuModelFor(update);
-    const menu = await this.menuMessage(update);
-    if (await this.isTechnicianUpdate(update)) {
-      return {
-        ...menu,
-        text: `Не понял запрос. Вот что можно сделать:\n\n${menu.text}`,
-      };
-    }
-    return {
-      ...menu,
-      text: `Не понял запрос. Вот что можно сделать:\n\n${menu.text || renderMenuText(model)}`,
-    };
+  private unknownInputMessage(): MaxBotCommandResponse {
+    return renderPersistentMenuMessage('Не понял запрос.');
   }
 
   private helpMessage(): MaxBotCommandResponse {
@@ -199,7 +184,7 @@ export class MaxBotCommandService {
   }
 
   private statusMessage(): MaxBotCommandResponse {
-    return { text: this.statusText() };
+    return renderPersistentMenuMessage(this.statusText());
   }
 
   private async handleParsedCommand(
@@ -251,7 +236,6 @@ export class MaxBotCommandService {
       const msg = message as Record<string, unknown>;
       if (typeof msg.text === 'string') return { text: msg.text, source: 'message.text' };
       if (typeof msg.body === 'string') return { text: msg.body, source: 'message.body' };
-      // MAX webhook: message.body is an object { mid, seq, text }
       if (msg.body && typeof msg.body === 'object') {
         const bodyObj = msg.body as Record<string, unknown>;
         if (typeof bodyObj.text === 'string') return { text: bodyObj.text, source: 'message.body.text' };
