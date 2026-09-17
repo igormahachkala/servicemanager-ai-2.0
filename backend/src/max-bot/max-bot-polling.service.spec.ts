@@ -1,9 +1,12 @@
 import { MaxBotPollingService } from './max-bot-polling.service';
 
-function makeMockService(overrides?: Partial<{ pollUpdates: jest.Mock; registerWebhook: jest.Mock }>) {
+function makeMockService(
+  overrides?: Partial<{ pollUpdates: jest.Mock; registerWebhook: jest.Mock; registerMinimalCommandMenu: jest.Mock }>,
+) {
   return {
     pollUpdates: jest.fn().mockResolvedValue({ savedMarker: null, updates: [] }),
     registerWebhook: jest.fn().mockResolvedValue({ ok: true }),
+    registerMinimalCommandMenu: jest.fn().mockResolvedValue({ ok: true }),
     ...overrides,
   };
 }
@@ -30,6 +33,7 @@ describe('MaxBotPollingService', () => {
     service.onModuleInit();
     jest.advanceTimersByTime(10_000);
     expect(mock.pollUpdates).not.toHaveBeenCalled();
+    expect(mock.registerMinimalCommandMenu).not.toHaveBeenCalled();
     service.onModuleDestroy();
   });
 
@@ -60,6 +64,18 @@ describe('MaxBotPollingService', () => {
     await Promise.resolve();
 
     expect(mock.pollUpdates).toHaveBeenCalledTimes(3);
+    expect(mock.registerMinimalCommandMenu).toHaveBeenCalledTimes(1);
+    service.onModuleDestroy();
+  });
+
+  it('registers command hints when polling starts', async () => {
+    process.env.MAX_BOT_COMMANDS_ENABLED = 'true';
+    const mock = makeMockService();
+    const service = new MaxBotPollingService(mock as any);
+    service.onModuleInit();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(mock.registerMinimalCommandMenu).toHaveBeenCalledTimes(1);
     service.onModuleDestroy();
   });
 
@@ -167,6 +183,20 @@ describe('MaxBotPollingService', () => {
       secret: 'my-secret',
       updateTypes: ['message_created', 'message_callback', 'bot_started'],
     });
+    expect(mock.registerMinimalCommandMenu).toHaveBeenCalledTimes(1);
+    service.onModuleDestroy();
+  });
+
+  it('does not throw when command hint registration fails', async () => {
+    process.env.MAX_BOT_COMMANDS_ENABLED = 'true';
+    const mock = makeMockService({
+      registerMinimalCommandMenu: jest.fn().mockRejectedValue(new Error('commands down')),
+    });
+    const service = new MaxBotPollingService(mock as any);
+    expect(() => service.onModuleInit()).not.toThrow();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(mock.registerMinimalCommandMenu).toHaveBeenCalledTimes(1);
     service.onModuleDestroy();
   });
 
