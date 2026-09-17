@@ -37,6 +37,30 @@ import {
   buildInspectionRunSummary,
 } from './inspection.report.mapper'
 
+/**
+ * SMA-PLANNER-SCHEDULE-RUN-LINK-HARDENING-119T — ключ идемпотентности запуска по плану.
+ *
+ * Ключ обязан различать две разные вещи: повтор одного и того же запуска и
+ * законный следующий визит по тому же плану. Одного scheduleId для этого мало —
+ * он одинаков и там, и там, и повтор через сутки вернул бы вчерашний обход.
+ *
+ * Различителем служит lastRunId: до первого визита он пуст, после каждого
+ * успешного запуска указывает на созданный обход. Значит все попытки одного
+ * визита видят одно и то же значение и схлопываются в один обход, а следующий
+ * визит приходит уже с другим ключом и выполняется заново.
+ *
+ * Чего этот ключ не закрывает: запись идемпотентности уникальна в пределах
+ * (companyId, userId, operationType, key), то есть защищает одного актора.
+ * Одновременный запуск двумя разными акторами (техник и менеджер) ключами не
+ * пересекается; его ловит проверка незакрытого обхода внутри транзакции, но
+ * полностью закрыть эту гонку без частичного уникального индекса в БД нельзя.
+ * Такой миграции в этой задаче намеренно нет — она относится к слайсу
+ * генератора, где столкновение акторов становится вероятным.
+ */
+function scheduledStartKey(schedule: { id: string; lastRunId: string | null }): string {
+  return `${schedule.id}:${schedule.lastRunId ?? 'initial'}`
+}
+
 @Injectable()
 export class InspectionService {
   private readonly policy = new InspectionPolicy()
@@ -269,12 +293,90 @@ export class InspectionService {
       return this.prisma.inspectionRun.create({ data, select: runSelect() })
     }
 
+    const resolved = {
+      templateId: template.id,
+      locationId: location.id,
+      equipmentId: equipment?.id ?? null,
+    }
+
     /**
-     * Обход и отметка в расписании пишутся одной транзакцией. Иначе возможен
-     * обход, который расписание своим не считает: техник его выполнит, а план
-     * останется незакрытым и следующий агент увидит визит непройденным.
+     * 119T: повтор того же запуска не должен создавать второй обход.
+     *
+     * Механизм переиспользуется существующий — IdempotencyService (113B), уже
+     * внедрённый в этот сервис для вложений и заявок. Второго механизма здесь
+     * не заводится: ключ и отпечаток строятся по тем же правилам, что и там.
+     */
+    if (!this.idempotency) {
+      return this.createScheduledRun(user, schedule, data, resolved)
+    }
+
+    const outcome = await this.idempotency.run<any>(
+      {
+        companyId: user.companyId,
+        userId: user.id,
+        operationType: 'inspection.start_run',
+        key: scheduledStartKey(schedule),
+      },
+      /**
+       * Отпечаток — разрешённый смысл операции, а не присланный запрос. Если
+       * план успели отредактировать между попытками, шаблон/локация/оборудование
+       * изменятся, и повтор будет отклонён как другая операция, а не угадан.
+       */
+      IdempotencyService.fingerprint(resolved),
+      {
+        execute: async () => {
+          const created = await this.createScheduledRun(user, schedule, data, resolved)
+          return { result: created, entityType: 'InspectionRun', entityId: created.id }
+        },
+        /**
+         * Повтор возвращает тот же обход и не порождает ни второй строки, ни
+         * второго inspection.run_generated: событие живёт внутри execute.
+         */
+        replay: async (entityId) =>
+          this.prisma.inspectionRun.findUnique({ where: { id: entityId }, select: runSelect() }),
+      },
+    )
+
+    return outcome.result
+  }
+
+  /**
+   * SMA-PLANNER-SCHEDULE-RUN-LINK-HARDENING-119T — запись запланированного обхода.
+   *
+   * Всё, что делает визит состоявшимся, лежит здесь: проверка занятости, сама
+   * строка обхода со снимком шаблона, отметка в расписании и событие. Вызов
+   * происходит не более одного раза на ключ идемпотентности.
+   */
+  private async createScheduledRun(
+    user: InspectionUserCtx,
+    schedule: { id: string; nextDueAt: Date | null },
+    data: Prisma.InspectionRunUncheckedCreateInput,
+    resolved: { templateId: string; locationId: string; equipmentId: string | null },
+  ) {
+    /**
+     * Обход, отметка в расписании и проверка занятости идут одной транзакцией.
+     * Проверка внутри неё, а не перед ней: снаружи между чтением и вставкой
+     * оставалось окно, в которое помещался второй обход того же визита.
      */
     const run = await this.prisma.$transaction(async (tx) => {
+      const active = await tx.inspectionRun.findFirst({
+        where: { scheduleId: schedule.id, status: InspectionRunStatus.IN_PROGRESS },
+        select: { id: true },
+      })
+      if (active) {
+        /**
+         * Признак занятости — именно незакрытый обход. Завершённый не блокирует:
+         * следующий визит по тому же плану законен и у периодических расписаний
+         * ожидаем. Ответ называет уже начатый обход, чтобы клиент открыл его, а
+         * не показал тупиковую ошибку.
+         */
+        throw new ConflictException({
+          code: 'INSPECTION_SCHEDULE_RUN_IN_PROGRESS',
+          message: 'Обход по этому плану уже начат.',
+          runId: active.id,
+        })
+      }
+
       const created = await tx.inspectionRun.create({ data, select: runSelect() })
       await tx.inspectionSchedule.update({
         where: { id: schedule.id },
@@ -297,9 +399,9 @@ export class InspectionService {
       payload: {
         runId: run.id,
         scheduleId: schedule.id,
-        templateId: template.id,
-        locationId: location.id,
-        equipmentId: equipment?.id ?? null,
+        templateId: resolved.templateId,
+        locationId: resolved.locationId,
+        equipmentId: resolved.equipmentId,
         dueAt: schedule.nextDueAt,
         trigger: 'technician_start',
       },
@@ -336,6 +438,8 @@ export class InspectionService {
         equipmentId: true,
         assignedToUserId: true,
         nextDueAt: true,
+        /** 119T: отметка предыдущего визита — по ней строится ключ идемпотентности. */
+        lastRunId: true,
       },
     })
     if (!schedule) throw new NotFoundException('Inspection schedule not found')
@@ -366,27 +470,10 @@ export class InspectionService {
     }
 
     /**
-     * Повтор того же визита не должен тихо создавать второе исполнение.
-     * Признаком служит незакрытый обход этого расписания: он и есть текущее
-     * исполнение визита. Завершённый обход не блокирует — следующий визит
-     * по тому же плану законен, а у периодических расписаний он ожидаем.
-     *
-     * Отдельного механизма идемпотентности здесь не вводится: это предусловие
-     * предметной области той же формы, что и запрет второй заявки по чек-поинту
-     * ниже в этом файле.
+     * 119T: проверка «визит уже начат» переехала внутрь транзакции создания
+     * (createScheduledRun). Здесь остаётся только сверка плана: чем ближе
+     * проверка к записи, тем уже окно между ней и вставкой строки.
      */
-    const active = await this.prisma.inspectionRun.findFirst({
-      where: { scheduleId: schedule.id, status: InspectionRunStatus.IN_PROGRESS },
-      select: { id: true },
-    })
-    if (active) {
-      throw new ConflictException({
-        code: 'INSPECTION_SCHEDULE_RUN_IN_PROGRESS',
-        message: 'Обход по этому плану уже начат.',
-        runId: active.id,
-      })
-    }
-
     return schedule
   }
 

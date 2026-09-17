@@ -2,12 +2,14 @@ import { BadRequestException, ConflictException, NotFoundException } from '@nest
 import {
   InspectionRunItemStatus,
   InspectionRunStatus,
+  Prisma,
   ServiceContractLocationMode,
   ServiceContractRole,
   ServiceContractStatus,
   UserRole,
 } from '@prisma/client'
 
+import { IdempotencyService } from '../common/idempotency/idempotency.service'
 import { ServiceContractsService } from '../service-contracts/service-contracts.service'
 
 import { InspectionService } from './inspection.service'
@@ -68,7 +70,59 @@ function makeSchedule(overrides: any = {}) {
   }
 }
 
-function makeSuite(options: { contracts?: any[]; schedule?: any | null; activeRun?: any } = {}) {
+/**
+ * 119T: настоящий IdempotencyService поверх памяти. Заглушка повторяла бы
+ * собственную логику сервиса, а проверяем мы именно её — гонку за уникальным
+ * ключом и возврат прежнего результата вместо второй доменной записи.
+ */
+function makeIdempotencyStore() {
+  const rows = new Map<string, any>()
+  const keyOf = (w: any) => {
+    const k = w.companyId_userId_operationType_key ?? w
+    return `${k.companyId}|${k.userId}|${k.operationType}|${k.key}`
+  }
+  const idempotencyRecord = {
+    create: jest.fn(async ({ data }: any) => {
+      const id = keyOf(data)
+      if (rows.has(id)) {
+        throw new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+          code: 'P2002',
+          clientVersion: 'test',
+        })
+      }
+      const row = { id, ...data, updatedAt: new Date(), storageKey: null }
+      rows.set(id, row)
+      return row
+    }),
+    findUnique: jest.fn(async ({ where }: any) => rows.get(keyOf(where)) ?? null),
+    update: jest.fn(async ({ where, data }: any) => {
+      const id = keyOf(where)
+      const row = { ...rows.get(id), ...data, updatedAt: new Date() }
+      rows.set(id, row)
+      return row
+    }),
+    delete: jest.fn(async ({ where }: any) => {
+      const id = keyOf(where)
+      const row = rows.get(id)
+      rows.delete(id)
+      return row
+    }),
+    deleteMany: jest.fn(async () => ({ count: 0 })),
+  }
+  return { idempotencyRecord, rows }
+}
+
+function makeSuite(
+  options: {
+    contracts?: any[]
+    schedule?: any | null
+    activeRun?: any
+    /** 119T: без него сервис ведёт себя как до задачи — так же, как в юнит-тестах 119K. */
+    withIdempotency?: boolean
+    /** Общее хранилище ключей: два «одновременных» вызова должны делить его. */
+    store?: ReturnType<typeof makeIdempotencyStore>
+  } = {},
+) {
   const contracts = options.contracts ?? [makeContract()]
   const schedule = options.schedule === undefined ? makeSchedule() : options.schedule
 
@@ -113,6 +167,10 @@ function makeSuite(options: { contracts?: any[]; schedule?: any | null; activeRu
     items: [{ id: 'item-1', status: InspectionRunItemStatus.PENDING }],
   }
 
+  /** Каждое создание — новый обход: иначе повтор и следующий визит неразличимы. */
+  let runSeq = 0
+  const createdRuns = new Map<string, any>()
+
   const prisma: any = {
     inspectionTemplate: {
       findFirst: jest.fn(async ({ where }: any) =>
@@ -138,7 +196,13 @@ function makeSuite(options: { contracts?: any[]; schedule?: any | null; activeRu
       update: jest.fn(async ({ data }: any) => ({ id: schedule?.id, ...data })),
     },
     inspectionRun: {
-      create: jest.fn(async ({ data }: any) => ({ ...runRow, ...data })),
+      create: jest.fn(async ({ data }: any) => {
+        runSeq += 1
+        const created = { ...runRow, ...data, id: `run-${runSeq}` }
+        createdRuns.set(created.id, created)
+        return created
+      }),
+      findUnique: jest.fn(async ({ where }: any) => createdRuns.get(where.id) ?? null),
       findFirst: jest.fn(async ({ where }: any) => {
         if (where.scheduleId) return options.activeRun ?? null
         return { ...runRow, ...(options.activeRun ?? {}) }
@@ -167,9 +231,23 @@ function makeSuite(options: { contracts?: any[]; schedule?: any | null; activeRu
   const timeline = { recordLegacy: jest.fn().mockResolvedValue(undefined) } as any
   const exporter = { exportReport: jest.fn() } as any
 
-  const svc = new InspectionService(prisma, tickets, timeline, exporter, serviceContracts)
+  const store = options.store ?? makeIdempotencyStore()
+  if (options.withIdempotency || options.store) {
+    prisma.idempotencyRecord = store.idempotencyRecord
+  }
+  const idempotency =
+    options.withIdempotency || options.store ? new IdempotencyService(prisma) : undefined
 
-  return { svc, prisma, timeline }
+  const svc = new InspectionService(
+    prisma,
+    tickets,
+    timeline,
+    exporter,
+    serviceContracts,
+    idempotency,
+  )
+
+  return { svc, prisma, timeline, store, schedule }
 }
 
 const base = { templateId: 'tpl-1', locationId: LOCATION.id }
@@ -516,5 +594,147 @@ describe('119K смежное поведение обходов', () => {
       isRequired: true,
       status: InspectionRunItemStatus.PENDING,
     })
+  })
+})
+
+// ── 119T: расписание не является источником доступа ─────────────────────────
+
+describe('119T расписание сверяется с разрешённым, а не с присланным', () => {
+  /**
+   * Главное свойство связи: план подтверждает, что начинаемый обход — тот самый
+   * визит, но не расширяет доступ. Ломается оно тихо — достаточно сверить
+   * расписание с dto.locationId вместо локации, которую вернул канонический
+   * доступ. Снаружи такая подмена выглядит рабочей: оба значения совпадают,
+   * пока разрешение локации тривиально.
+   */
+  it('отказывает, когда план совпал с сырым запросом, но не с разрешённой локацией', async () => {
+    const { svc, prisma } = makeSuite({
+      schedule: makeSchedule({ locationId: OTHER_LOCATION.id }),
+    })
+    // Канонический доступ разрешил не ту локацию, что назвал запрос.
+    prisma.location.findFirst = jest.fn(async () => ({ ...LOCATION }))
+
+    await expect(
+      svc.startRun(technician, {
+        templateId: 'tpl-1',
+        locationId: OTHER_LOCATION.id,
+        scheduleId: 'sch-1',
+      } as any),
+    ).rejects.toBeInstanceOf(BadRequestException)
+
+    // Ни обхода, ни отметки в плане: подменённый запрос не стал исполнением.
+    expect(prisma.inspectionRun.create).not.toHaveBeenCalled()
+    expect(prisma.inspectionSchedule.update).not.toHaveBeenCalled()
+  })
+
+  it('план не открывает локацию, к которой у актора нет доступа', async () => {
+    // Договора нет — канонический доступ обязан отказать первым.
+    const { svc, prisma } = makeSuite({ contracts: [] })
+
+    await expect(
+      svc.startRun(technician, { ...base, scheduleId: 'sch-1' } as any),
+    ).rejects.toBeInstanceOf(NotFoundException)
+
+    // Расписание даже не читалось: доступ решается до него, а не им.
+    expect(prisma.inspectionSchedule.findFirst).not.toHaveBeenCalled()
+    expect(prisma.inspectionRun.create).not.toHaveBeenCalled()
+  })
+})
+
+// ── 119T: повтор запуска ────────────────────────────────────────────────────
+
+describe('119T идемпотентность запуска по плану', () => {
+  it('повтор возвращает тот же обход, а не создаёт второй', async () => {
+    const { svc, prisma, timeline } = makeSuite({ withIdempotency: true })
+
+    const first: any = await svc.startRun(technician, { ...base, scheduleId: 'sch-1' } as any)
+    const second: any = await svc.startRun(technician, { ...base, scheduleId: 'sch-1' } as any)
+
+    expect(second.id).toBe(first.id)
+    expect(prisma.inspectionRun.create).toHaveBeenCalledTimes(1)
+    expect(prisma.inspectionSchedule.update).toHaveBeenCalledTimes(1)
+    // Событие описывает появление обхода. Второго обхода не появилось.
+    expect(timeline.recordLegacy).toHaveBeenCalledTimes(1)
+  })
+
+  it('следующий визит по тому же плану выполняется заново', async () => {
+    const { svc, prisma, schedule } = makeSuite({ withIdempotency: true })
+
+    const first: any = await svc.startRun(technician, { ...base, scheduleId: 'sch-1' } as any)
+    // План закрыт предыдущим визитом — ключ следующего визита уже другой.
+    schedule.lastRunId = first.id
+
+    const next: any = await svc.startRun(technician, { ...base, scheduleId: 'sch-1' } as any)
+
+    expect(next.id).not.toBe(first.id)
+    expect(prisma.inspectionRun.create).toHaveBeenCalledTimes(2)
+  })
+
+  it('ключ и тип операции строятся по плану и разрешённому смыслу', async () => {
+    const { svc, store } = makeSuite({ withIdempotency: true })
+
+    await svc.startRun(technician, { ...base, scheduleId: 'sch-1' } as any)
+
+    const row: any = [...store.rows.values()][0]
+    expect(row.operationType).toBe('inspection.start_run')
+    expect(row.key).toBe('sch-1:initial')
+    expect(row.companyId).toBe(PROVIDER_ID)
+    expect(row.userId).toBe(technician.id)
+    expect(row.fingerprint).toBe(
+      IdempotencyService.fingerprint({
+        templateId: 'tpl-1',
+        locationId: LOCATION.id,
+        equipmentId: null,
+      }),
+    )
+  })
+
+  it('отредактированный план под тем же ключом отклоняется, а не угадывается', async () => {
+    const { svc, schedule } = makeSuite({ withIdempotency: true })
+
+    await svc.startRun(technician, { ...base, scheduleId: 'sch-1' } as any)
+    // Смысл операции изменился, ключ прежний: две разные операции под одним ключом.
+    schedule.equipmentId = 'eq-1'
+
+    await expect(
+      svc.startRun(technician, { ...base, equipmentId: 'eq-1', scheduleId: 'sch-1' } as any),
+    ).rejects.toMatchObject({ response: { code: 'IDEMPOTENCY_KEY_CONFLICT' } })
+  })
+
+  it('обход «от руки» идемпотентность не затрагивает', async () => {
+    const { svc, store } = makeSuite({ withIdempotency: true })
+
+    await svc.startRun(technician, { ...base } as any)
+
+    expect(store.idempotencyRecord.create).not.toHaveBeenCalled()
+  })
+
+  it('проверка занятости выполняется внутри транзакции создания', async () => {
+    const { svc, prisma } = makeSuite();
+
+    await svc.startRun(technician, { ...base, scheduleId: 'sch-1' } as any)
+
+    const txStarted = prisma.$transaction.mock.invocationCallOrder[0]
+    const guardRan = prisma.inspectionRun.findFirst.mock.invocationCallOrder[0]
+    // Снаружи между проверкой и вставкой оставалось окно на второй обход.
+    expect(guardRan).toBeGreaterThan(txStarted)
+  })
+
+  it('одновременный запуск другим актором ловится проверкой занятости', async () => {
+    /**
+     * Запись идемпотентности уникальна в пределах одного пользователя, поэтому
+     * техник и диспетчер ключами не пересекаются. Их гонку закрывает не ключ,
+     * а проверка незакрытого обхода внутри транзакции.
+     */
+    const { svc, store } = makeSuite({ withIdempotency: true, activeRun: { id: 'run-open' } })
+
+    await expect(
+      svc.startRun(dispatcher, { ...base, scheduleId: 'sch-1' } as any),
+    ).rejects.toMatchObject({
+      response: { code: 'INSPECTION_SCHEDULE_RUN_IN_PROGRESS', runId: 'run-open' },
+    })
+
+    // Отказ не съедает ключ: законный повтор после отказа должен быть возможен.
+    expect(store.idempotencyRecord.delete).toHaveBeenCalled()
   })
 })
