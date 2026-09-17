@@ -325,6 +325,26 @@ back second.
 
 ---
 
+## Machines And Deployed Environments
+
+A **machine** is a VPS. An **environment** is a git branch running in Docker. They are
+not the same thing. A clone can run Production-окружение on the Stage-машина.
+
+**Stage-машина** — VPS `194.67.92.186` (`cv7954879`).
+
+**Production-машина** — VPS `194.67.101.37` (`cv6225249`). SSH alias `sma` is this host.
+
+**Production-окружение** — branch `prod` in Docker (`sma_web`, `sma_backend`,
+`sma_postgres`, `/opt/sma-prod`).
+
+**Stage-окружение** — branch `beta` in Docker (`sma_stage_web`, `sma_stage_backend`,
+`sma_stage_postgres`, `/opt/sma-beta`).
+
+Two Production-окружение processes must not poll MAX with the same bot token at once.
+Agent-facing copy: `.cursor/rules/15-glossary-machines.mdc`.
+
+---
+
 ## Related Documents
 
 - [03 Access Model](03_ACCESS_MODEL.md) — the rules these terms describe
