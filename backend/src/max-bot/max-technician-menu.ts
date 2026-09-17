@@ -1,4 +1,4 @@
-import { renderInlineKeyboard, renderPersistentMenuMessage } from './max-menu.builder';
+import { renderInlineKeyboard } from './max-menu.builder';
 import { MaxBotCommandResponse, MaxBotInlineKeyboardButton } from './max-bot.types';
 
 export type TechnicianSectionPayload = 'today' | 'my' | 'avail' | 'rounds' | 'shift' | 'find';
@@ -43,15 +43,18 @@ function technicianMenuRows(): MaxBotInlineKeyboardButton[][] {
   return [buttons.slice(0, 3), buttons.slice(3, 6)];
 }
 
-export function renderTechnicianMenuMessage(): MaxBotCommandResponse {
+function withTechnicianKeyboard(text: string): MaxBotCommandResponse {
   const keyboard = renderInlineKeyboard(technicianMenuRows());
   return {
-    text: 'Сервис Менеджер\n\nВыберите действие.',
+    text,
     ...(keyboard ? { attachments: [keyboard] } : {}),
   };
 }
 
-/** Раздел прячет шесть пунктов за одной кнопкой «Меню». */
+export function renderTechnicianMenuMessage(): MaxBotCommandResponse {
+  return withTechnicianKeyboard('Сервис Менеджер\n\nВыберите действие.');
+}
+
 export function renderTechnicianSectionMessage(payload: TechnicianSectionPayload): MaxBotCommandResponse {
-  return renderPersistentMenuMessage(technicianSectionLabel(payload));
+  return withTechnicianKeyboard(technicianSectionLabel(payload));
 }
