@@ -30,9 +30,11 @@ import { ManagementSurface } from '../common/management-surface-access'
 import { InspectionService } from './inspection.service'
 import { InspectionScheduleService } from './inspection-schedule.service'
 import { CreateTemplateDto } from './dto/create-template.dto'
+import { UpdateTemplateDto } from './dto/update-template.dto'
 import { CreateScheduleDto } from './dto/create-schedule.dto'
 import { ListSchedulesDto } from './dto/list-schedules.dto'
 import { UpdateScheduleDto } from './dto/update-schedule.dto'
+import { ListRunsDto } from './dto/list-runs.dto'
 import { StartRunDto } from './dto/start-run.dto'
 import { UpdateRunItemDto } from './dto/update-run-item.dto'
 import { CreateTicketFromItemDto } from './dto/create-ticket-from-item.dto'
@@ -111,11 +113,19 @@ export class InspectionController {
     return this.svc.createTemplate(this.userFromRequest(req), dto)
   }
 
+  @Patch('templates/:id')
+  @ManagementSurface()
+  @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR)
+  @RequirePermission(PERMISSIONS.LOCATIONS_MANAGE)
+  updateTemplate(@Req() req: any, @Param('id') templateId: string, @Body() dto: UpdateTemplateDto) {
+    return this.svc.updateTemplate(this.userFromRequest(req), templateId, dto)
+  }
+
   @Get('runs')
   @Roles(UserRole.ADMIN, UserRole.MASTER, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR, UserRole.TECHNICIAN)
   @RequirePermission(PERMISSIONS.LOCATIONS_VIEW)
-  listRuns(@Req() req: any) {
-    return this.svc.listRuns(this.userFromRequest(req))
+  listRuns(@Req() req: any, @Query() query: ListRunsDto) {
+    return this.svc.listRuns(this.userFromRequest(req), query)
   }
 
   @Post('runs')

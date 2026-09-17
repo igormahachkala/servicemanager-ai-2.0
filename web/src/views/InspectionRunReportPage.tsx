@@ -32,6 +32,17 @@ function performerLabel(user?: { firstName?: string | null; lastName?: string | 
   return fullName || user.email
 }
 
+function itemStatusClass(status: api.InspectionRunItemStatus) {
+  if (status === 'OK') return 'workActItemStatus is-ok'
+  if (status === 'ISSUE') return 'workActItemStatus is-issue'
+  if (status === 'CRITICAL') return 'workActItemStatus is-critical'
+  return 'workActItemStatus'
+}
+
+function ticketRefLabel(ticket: { id: string; ticketNumber?: number | null }) {
+  return ticket.ticketNumber ? `Заявка №${ticket.ticketNumber}` : `Заявка #${ticket.id.slice(0, 8)}`
+}
+
 function itemStatusLabel(status: api.InspectionRunItemStatus) {
   if (status === 'PENDING') return 'Не заполнено'
   if (status === 'OK') return 'OK'
@@ -212,7 +223,7 @@ export function InspectionRunReportPage() {
             </div>
             <div className="workActMetaCard">
               <div className="muted small">Шаблон</div>
-              <div className="workActStrong">{report.run.template.name}</div>
+              <div className="workActStrong">{report.run.title}</div>
               <div className="muted small">ID обхода: {report.run.id}</div>
             </div>
           </section>
@@ -308,7 +319,7 @@ export function InspectionRunReportPage() {
                         {item.textValue ? <div className="muted small">Ответ: {item.textValue}</div> : null}
                         {item.requiresRepair ? <div className="small" style={{ marginTop: 4 }}>Требуется ремонт</div> : null}
                       </td>
-                      <td>{itemStatusLabel(item.status)}</td>
+                      <td><span className={itemStatusClass(item.status)}>{itemStatusLabel(item.status)}</span></td>
                       <td>{item.comment || '—'}</td>
                       <td>
                         {item.attachments.length ? (
@@ -328,12 +339,12 @@ export function InspectionRunReportPage() {
                       <td>
                         {item.ticket ? (
                           <div>
-                            <div className="workActStrong">{item.ticket.status}</div>
+                            <div className="workActStrong">{ticketRefLabel(item.ticket)}</div>
+                            <div className="muted small">{item.ticket.status}</div>
                             <div className="muted small">{item.ticket.problemText || 'Без описания'}</div>
                             <div className="no-print" style={{ marginTop: 8 }}>
-                              <Link to={`/tickets/${item.ticket.id}`}><button className="ghost">Открыть ticket</button></Link>
+                              <Link to={`/tickets/${item.ticket.id}`}><button className="ghost">Открыть заявку</button></Link>
                             </div>
-                            <div className="print-ticket-ref">Ticket #{item.ticket.id}</div>
                           </div>
                         ) : '—'}
                       </td>
@@ -342,6 +353,36 @@ export function InspectionRunReportPage() {
                 </tbody>
               </table>
             </div>
+          </section>
+
+          <section className="panel workActApprovalPanel">
+            <h3 style={{ marginBottom: 10 }}>Статус и подтверждение</h3>
+            <div className="workActApprovalGrid">
+              <div>
+                <div className="muted small">Итоговый статус акта</div>
+                <div className="workActStrong">{reportStatusLabel(report.reportMeta.status)}</div>
+              </div>
+              <div>
+                <div className="muted small">Обход завершен</div>
+                <div className="workActStrong">{fmtDateTime(report.run.completedAt)}</div>
+              </div>
+              <div>
+                <div className="muted small">Отправлен на подтверждение</div>
+                <div className="workActStrong">{fmtDateTime(report.reportMeta.submittedAt)}</div>
+                <div className="muted small">{report.reportMeta.submittedBy ? performerLabel(report.reportMeta.submittedBy) : '—'}</div>
+              </div>
+              <div>
+                <div className="muted small">{isRejected ? 'Возвращен' : 'Подтвержден'}</div>
+                <div className="workActStrong">{fmtDateTime(isRejected ? report.reportMeta.reviewedAt : report.reportMeta.approvedAt)}</div>
+                <div className="muted small">{report.reportMeta.reviewedBy ? performerLabel(report.reportMeta.reviewedBy) : '—'}</div>
+              </div>
+            </div>
+            {report.reportMeta.reviewComment ? (
+              <div style={{ marginTop: 10 }}>
+                <div className="muted small">Комментарий проверки</div>
+                <div className="workActWrapText">{report.reportMeta.reviewComment}</div>
+              </div>
+            ) : null}
           </section>
 
           <section className="panel workActSignaturePanel">
