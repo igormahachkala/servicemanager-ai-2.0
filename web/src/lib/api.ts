@@ -653,6 +653,7 @@ export type TicketCard = {
   priority?: TicketPriority
   createdAt: string
   slaDueAt: string | null
+  plannedDueAt?: string | null
   slaBreached: boolean
   isChild: boolean
   pointName?: string | null
@@ -745,6 +746,7 @@ export type TicketGetOne = {
   slaMinutes: number | null
   slaDueAt: string | null
   slaBreachedAt: string | null
+  plannedDueAt?: string | null
   assignedTechnicianId: string | null
   location?: {
     id: string
@@ -886,6 +888,7 @@ export type CreateTicketInput = {
   address?: string | null
   pointName?: string | null
   slaMinutes?: number | null
+  plannedDueAt?: string | null
 }
 
 export type UpdateTicketInput = {
@@ -898,6 +901,7 @@ export type UpdateTicketInput = {
   requesterPhone?: string | null
   address?: string | null
   pointName?: string | null
+  plannedDueAt?: string | null
   comment?: string | null
 }
 

@@ -2815,6 +2815,29 @@ describe('TicketsAssignmentService linked-provider create assignment contour', (
     expect(result.autoAssigned).toBe(true)
   })
 
+  it('persists plannedDueAt separately from SLA when creating a ticket', async () => {
+    const { service, tx } = makeCreateHarness()
+    const plannedDueAt = '2030-01-02T10:30:00.000Z'
+
+    await service.create(
+      providerCompanyId,
+      'admin-1',
+      UserRole.ADMIN,
+      baseDto({ plannedDueAt }) as any,
+    )
+
+    const createCall = tx.ticket.create.mock.calls.at(-1)?.[0]
+    expect(createCall).toEqual(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          plannedDueAt: new Date(plannedDueAt),
+          slaDueAt: expect.any(Date),
+        }),
+      }),
+    )
+    expect(createCall.data.slaDueAt.toISOString()).not.toBe(plannedDueAt)
+  })
+
   it('provider MASTER creates a linked-client ticket and assigns own provider employee', async () => {
     const { service, tx, resolveCreateCandidatesSpy } = makeCreateHarness()
 

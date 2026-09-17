@@ -780,6 +780,7 @@ model Ticket {
   slaMinutes    Int?
   slaDueAt      DateTime?
   slaBreachedAt DateTime?
+  plannedDueAt  DateTime?
   closedAt      DateTime?
 
   assignedTechnicianId String?
@@ -798,6 +799,7 @@ model Ticket {
   @@index([slaDueAt])
   @@index([slaBreachedAt])
   @@index([companyId, slaDueAt])
+  @@index([companyId, plannedDueAt])
   @@index([locationId])
   @@index([equipmentId])
   /// SMA-EQUIPMENT-PARTS-POLISH-110C: курсорная пагинация истории единицы

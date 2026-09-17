@@ -1,5 +1,5 @@
 import { TicketUrgency } from '@prisma/client'
-import { IsEnum, IsOptional, IsString } from 'class-validator'
+import { IsDateString, IsEnum, IsOptional, IsString } from 'class-validator'
 
 import { IsCanonicalUuid } from '../../common/validators/is-canonical-uuid.decorator'
 
@@ -43,6 +43,10 @@ export class UpdateTicketDto {
   @IsOptional()
   @IsString()
   pointName?: string
+
+  @IsOptional()
+  @IsDateString()
+  plannedDueAt?: string | null
 
   @IsOptional()
   @IsString()

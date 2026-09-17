@@ -1,4 +1,5 @@
 import type { TimelineItem } from './api'
+import { formatPlannedDueAt } from './plannedDueAt'
 import { identityBlockText, presentActorIdentity, presentTimelineCreator } from './ticketActorIdentity'
 
 export type ChatMessage = {
@@ -52,6 +53,7 @@ const FIELD_LABELS_RU: Record<string, string> = {
   requesterPhone: 'Телефон заявителя',
   address: 'Адрес',
   pointName: 'Точка',
+  plannedDueAt: 'Срок выполнения',
 }
 
 const URGENCY_RU: Record<string, string> = {
@@ -60,6 +62,10 @@ const URGENCY_RU: Record<string, string> = {
 }
 
 function formatFieldValue(field: string, value: unknown): string {
+  if (field === 'plannedDueAt') {
+    if (value === null || value === undefined || value === '') return 'не задан'
+    return formatPlannedDueAt(String(value))
+  }
   if (value === null || value === undefined || value === '') return '—'
   const text = String(value)
   if (field === 'urgency') return URGENCY_RU[text] ?? text
