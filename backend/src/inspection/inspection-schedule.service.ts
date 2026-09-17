@@ -73,7 +73,8 @@ export class InspectionScheduleService {
 
     // Same reasoning as 097's run list: the company filter cannot notice a contract that
     // lapsed after the plan was made, so out-of-scope sites are dropped here.
-    return this.filterByLocationScope(user, schedules)
+    const visible = await this.filterByLocationScope(user, schedules)
+    return visible.map(withLastRun)
   }
 
   async get(user: InspectionUserCtx, scheduleId: string) {
@@ -90,7 +91,7 @@ export class InspectionScheduleService {
     }
 
     await this.assertScheduleLocationStillInScope(user, schedule)
-    return schedule
+    return withLastRun(schedule)
   }
 
   // ── write ──────────────────────────────────────────────────────────────────
@@ -106,7 +107,7 @@ export class InspectionScheduleService {
     const startDate = this.parseStartDate(dto.startDate)
     const intervalDays = this.resolveIntervalDays(dto.frequency, dto.intervalDays)
 
-    return this.prisma.inspectionSchedule.create({
+    const created = await this.prisma.inspectionSchedule.create({
       data: {
         companyId: user.companyId,
         templateId: template.id,
@@ -126,6 +127,8 @@ export class InspectionScheduleService {
       },
       select: scheduleSelect(),
     })
+
+    return withLastRun(created)
   }
 
   async update(user: InspectionUserCtx, scheduleId: string, dto: UpdateScheduleDto) {
@@ -197,11 +200,13 @@ export class InspectionScheduleService {
     if (dto.graceDays !== undefined) data.graceDays = dto.graceDays
     if (dto.isActive !== undefined) data.isActive = dto.isActive
 
-    return this.prisma.inspectionSchedule.update({
+    const updated = await this.prisma.inspectionSchedule.update({
       where: { id: current.id },
       data,
       select: scheduleSelect(),
     })
+
+    return withLastRun(updated)
   }
 
   /**
@@ -411,10 +416,48 @@ function scheduleSelect() {
     updatedAt: true,
     template: { select: { id: true, name: true } },
     location: {
-      select: { id: true, clientCompanyId: true, name: true, city: true, platformCode: true },
+      /**
+       * 120G: адрес нужен мобильному плану на сегодня — техник едет по адресу,
+       * а не по названию площадки. Колонка в схеме уже есть, миграции нет.
+       */
+      select: {
+        id: true,
+        clientCompanyId: true,
+        name: true,
+        city: true,
+        address: true,
+        platformCode: true,
+      },
     },
     equipment: { select: { id: true, name: true, type: true } },
     assignedTo: { select: { id: true, email: true, firstName: true, lastName: true } },
     _count: { select: { runs: true } },
+    /**
+     * 120G: состояние последнего исполнения плана. Отношения lastRun в схеме
+     * нет — есть скаляр lastRunId и обратная связь runs, поэтому берётся
+     * самый свежий обход плана. Он и есть тот, на который указывает lastRunId:
+     * запись обоих идёт одной транзакцией при запуске (119T).
+     *
+     * take: 1 на вложенной связи — один дополнительный запрос на всю выборку,
+     * а не по запросу на план: Prisma грузит вложенную связь пакетом.
+     */
+    runs: {
+      orderBy: [{ createdAt: 'desc' }],
+      take: 1,
+      select: { id: true, status: true, completedAt: true },
+    },
   } satisfies Prisma.InspectionScheduleSelect
+}
+
+/**
+ * SMA-PLANNER-V1-MOBILE-TODAY-120G — привести выборку к контракту ответа.
+ *
+ * Наружу отдаётся lastRun, а не массив из одного обхода: потребителю нужно
+ * состояние визита, а не деталь того, как оно добыто.
+ */
+function withLastRun<T extends { runs?: Array<{ id: string; status: unknown; completedAt: Date | null }> }>(
+  schedule: T,
+) {
+  const { runs, ...rest } = schedule
+  return { ...rest, lastRun: runs?.[0] ?? null }
 }

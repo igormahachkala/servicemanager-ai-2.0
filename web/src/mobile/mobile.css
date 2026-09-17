@@ -6531,3 +6531,10 @@ a.mobileBtn.mobileCreateTicketLink {
     width: 100%;
   }
 }
+
+/* 120G: шапка списка обходов держит две ссылки — план на сегодня и внеплановый запуск. */
+.mobileInspectionListActions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
