@@ -899,6 +899,114 @@ button.ghost {
   padding: 12px;
 }
 
+/* SMA-NOTIFICATION-PREFERENCES-UI-105C — настройки уведомлений */
+.notifPrefIntro {
+  margin: 4px 0 14px;
+}
+
+.notifPrefContour + .notifPrefContour {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.notifPrefContourTitle {
+  margin: 0 0 12px;
+  font-size: 16px;
+}
+
+.notifPrefGroup + .notifPrefGroup {
+  margin-top: 14px;
+}
+
+.notifPrefGroupTitle {
+  margin: 0 0 6px;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6b7280;
+}
+
+.notifPrefList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.notifPrefRow {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  justify-content: space-between;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.notifPrefRowText {
+  min-width: 0;
+}
+
+.notifPrefRowLabel {
+  font-weight: 600;
+}
+
+.notifPrefRowControls {
+  display: flex;
+  gap: 14px;
+  flex-shrink: 0;
+}
+
+.notifPrefControl {
+  display: grid;
+  gap: 2px;
+  justify-items: start;
+}
+
+.notifPrefToggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.notifPrefToggle input {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.notifPrefReset {
+  padding: 0;
+  font-size: 12px;
+  background: none;
+  border: none;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.notifPrefState {
+  min-height: 16px;
+}
+
+.notifPrefMobileWrap {
+  margin-top: 8px;
+}
+
+@media (max-width: 768px) {
+  .notifPrefRow {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .notifPrefRowControls {
+    width: 100%;
+  }
+}
+
 @media (max-width: 960px) {
   .workActPartyGrid {
     grid-template-columns: 1fr;
