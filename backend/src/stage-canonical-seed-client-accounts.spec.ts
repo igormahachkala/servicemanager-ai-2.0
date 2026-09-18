@@ -1,4 +1,4 @@
-import { CompanyType, UserRole } from '@prisma/client'
+import { CompanyType, UserAccessLocationMode, UserRole } from '@prisma/client'
 
 import { ROLE_GRANTS } from './common/permissions-matrix'
 import {
@@ -23,8 +23,8 @@ import {
 const CLIENT_USER_EMAIL = 'stage.client.client@stage.local'
 const CLIENT_ADMIN_ROLE_EMAIL = 'stage.client.clientadmin@stage.local'
 
-/** Прогон останавливается сразу после пользователей: дальше идут локации. */
-const HALT_AFTER_USERS = 'stage-qa-seed-halted-after-users'
+/** Прогон останавливается после сброса scope: остальная часть сида здесь не нужна. */
+const HALT_AFTER_SCOPES = 'stage-qa-seed-halted-after-scopes'
 
 const PRE_EXISTING_EMAILS = [
   'stage.client.admin@stage.local',
@@ -62,15 +62,38 @@ type StoredUser = {
   isExecutor: boolean
 }
 
+type StoredLocationBinding = {
+  userId: string
+  companyId: string
+  locationId: string
+}
+
+function deleteRowsByUserId<T extends { userId: string }>(rows: Map<string, T>, userIds: string[]) {
+  const selected = new Set(userIds)
+  for (const [key, row] of rows) {
+    if (selected.has(row.userId)) rows.delete(key)
+  }
+}
+
 /**
  * Хранилище в памяти, а не заглушки: идемпотентность нельзя доказать моками,
- * которые ничего не помнят. Пользователи и компании живут между прогонами,
- * поэтому второй прогон видит результат первого — как и настоящая база.
+ * которые ничего не помнят. Пользователи, компании и scope-привязки живут
+ * между прогонами, поэтому второй прогон видит результат первого — как база.
  */
 function createSeedHarness() {
   const companies = new Map<string, { id: string; name: string; type: CompanyType }>()
   const users = new Map<string, StoredUser>()
   const permissionBlocks = new Map<string, string>()
+  const locations = new Map<string, any>()
+  const specializations = new Map<string, any>()
+  const categories = new Map<string, any>()
+  const contracts = new Map<string, any>()
+  const contractLocations = new Map<string, any>()
+  const contractSpecializations = new Map<string, any>()
+  const userAccessScopes = new Map<string, any>()
+  const userLocationBindings = new Map<string, StoredLocationBinding>()
+  const technicianSpecializations = new Map<string, any>()
+  const locationBindingCreateBatches: StoredLocationBinding[][] = []
   const counters = { userCreate: 0, userUpdate: 0, companyCreate: 0 }
 
   const prisma = {
@@ -126,21 +149,175 @@ function createSeedHarness() {
         return { ...data }
       },
     },
-    // Локации идут сразу за пользователями — дальше прогон не нужен.
     location: {
-      upsert: async () => {
-        throw new Error(HALT_AFTER_USERS)
+      upsert: async ({ where, update, create }: any) => {
+        const key = `${where.clientCompanyId_platformCode.clientCompanyId}|${where.clientCompanyId_platformCode.platformCode}`
+        const previous = locations.get(key)
+        const next = previous ? { ...previous, ...update } : { ...create }
+        locations.set(key, next)
+        return { id: next.id }
+      },
+    },
+    specialization: {
+      findFirst: async ({ where }: any) => {
+        if (where.id) return specializations.get(where.id) ?? null
+        return (
+          [...specializations.values()].find(
+            (row) => row.companyId === where.companyId && row.name === where.name,
+          ) ?? null
+        )
+      },
+      update: async ({ where, data }: any) => {
+        const next = {
+          ...specializations.get(where.id),
+          ...data,
+          id: where.id,
+        }
+        specializations.set(where.id, next)
+        return { id: where.id }
+      },
+      create: async ({ data }: any) => {
+        specializations.set(data.id, { ...data })
+        return { id: data.id }
+      },
+    },
+    problemCategory: {
+      upsert: async ({ where, update, create }: any) => {
+        const key = `${where.companyId_name.companyId}|${where.companyId_name.name}`
+        const previous = categories.get(key)
+        const next = previous ? { ...previous, ...update } : { ...create }
+        categories.set(key, next)
+        return { id: next.id }
+      },
+    },
+    problemCategorySpecialization: {
+      deleteMany: async ({ where }: any) => {
+        for (const [key, row] of contractSpecializations) {
+          if (row.problemCategoryId === where.problemCategoryId) contractSpecializations.delete(key)
+        }
+        return { count: 0 }
+      },
+      create: async ({ data }: any) => {
+        contractSpecializations.set(`category|${data.problemCategoryId}|${data.specializationId}`, {
+          ...data,
+        })
+        return { ...data }
+      },
+    },
+    serviceContract: {
+      upsert: async ({ where, update, create }: any) => {
+        const relation = where.clientCompanyId_providerCompanyId
+        const key = `${relation.clientCompanyId}|${relation.providerCompanyId}`
+        const previous = contracts.get(key)
+        const next = previous
+          ? { ...previous, ...update }
+          : { id: `contract-${contracts.size + 1}`, ...create }
+        contracts.set(key, next)
+        return { id: next.id }
+      },
+    },
+    serviceContractLocation: {
+      deleteMany: async ({ where }: any) => {
+        const allowed = new Set(where.locationId.notIn)
+        for (const [key, row] of contractLocations) {
+          if (row.serviceContractId === where.serviceContractId && !allowed.has(row.locationId)) {
+            contractLocations.delete(key)
+          }
+        }
+        return { count: 0 }
+      },
+      createMany: async ({ data }: any) => {
+        for (const row of data) {
+          contractLocations.set(`${row.serviceContractId}|${row.locationId}`, {
+            ...row,
+          })
+        }
+        return { count: data.length }
+      },
+    },
+    serviceContractSpecialization: {
+      deleteMany: async ({ where }: any) => {
+        const allowed = new Set(where.specializationId.notIn)
+        for (const [key, row] of contractSpecializations) {
+          if (
+            row.serviceContractId === where.serviceContractId &&
+            !allowed.has(row.specializationId)
+          ) {
+            contractSpecializations.delete(key)
+          }
+        }
+        return { count: 0 }
+      },
+      createMany: async ({ data }: any) => {
+        for (const row of data) {
+          contractSpecializations.set(`${row.serviceContractId}|${row.specializationId}`, {
+            ...row,
+          })
+        }
+        return { count: data.length }
+      },
+    },
+    userAccessScope: {
+      deleteMany: async ({ where }: any) => {
+        deleteRowsByUserId(userAccessScopes, where.userId.in)
+        return { count: 0 }
+      },
+      createMany: async ({ data }: any) => {
+        for (const row of data) userAccessScopes.set(row.userId, { ...row })
+        return { count: data.length }
+      },
+    },
+    userLocationBinding: {
+      deleteMany: async ({ where }: any) => {
+        deleteRowsByUserId(userLocationBindings, where.userId.in)
+        return { count: 0 }
+      },
+      createMany: async ({ data }: { data: StoredLocationBinding[] }) => {
+        locationBindingCreateBatches.push(data.map((row) => ({ ...row })))
+        for (const row of data) {
+          const key = `${row.userId}|${row.locationId}`
+          if (!userLocationBindings.has(key)) userLocationBindings.set(key, { ...row })
+        }
+        return { count: data.length }
+      },
+    },
+    technicianSpecialization: {
+      deleteMany: async ({ where }: any) => {
+        deleteRowsByUserId(technicianSpecializations, where.userId.in)
+        return { count: 0 }
+      },
+      createMany: async ({ data }: any) => {
+        for (const row of data) {
+          technicianSpecializations.set(`${row.userId}|${row.specializationId}`, { ...row })
+        }
+        return { count: data.length }
+      },
+    },
+    technicianClientBinding: {
+      deleteMany: async () => {
+        throw new Error(HALT_AFTER_SCOPES)
       },
     },
   } as any
 
   async function seedOnce() {
     await expect(runCanonicalStageSeed(prisma, { env: stageEnv() })).rejects.toThrow(
-      HALT_AFTER_USERS,
+      HALT_AFTER_SCOPES,
     )
   }
 
-  return { prisma, companies, users, permissionBlocks, counters, seedOnce }
+  return {
+    prisma,
+    companies,
+    users,
+    permissionBlocks,
+    userAccessScopes,
+    userLocationBindings,
+    technicianSpecializations,
+    locationBindingCreateBatches,
+    counters,
+    seedOnce,
+  }
 }
 
 function byEmail(users: Map<string, StoredUser>, email: string) {
@@ -249,6 +426,60 @@ describe('122S прогон сида', () => {
       })
       expect(after.role).toBe(before.role)
       expect(after.companyId).toBe(before.companyId)
+    }
+  })
+
+  it('повторный прогон сохраняет каждую selected-location привязку ровно один раз', async () => {
+    const harness = createSeedHarness()
+
+    await harness.seedOnce()
+    await harness.seedOnce()
+
+    const persistedPairs = [...harness.userLocationBindings.values()].map(
+      (row) => `${row.userId}|${row.locationId}`,
+    )
+    expect(new Set(persistedPairs).size).toBe(persistedPairs.length)
+    const expectedPairs = CANONICAL_STAGE_SEED.userScopes.flatMap((scope) => {
+      const user = CANONICAL_STAGE_SEED.users.find((row) => row.key === scope.userKey)!
+      const storedUser = byEmail(harness.users, user.email)!
+      return scope.locationKeys.map((locationKey) => {
+        const location = CANONICAL_STAGE_SEED.locations.find((row) => row.key === locationKey)!
+        return `${storedUser.id}|${location.id}`
+      })
+    })
+    expect([...persistedPairs].sort()).toEqual([...expectedPairs].sort())
+
+    for (const userKey of ['clientUser', 'clientAdminRole'] as const) {
+      const user = CANONICAL_STAGE_SEED.users.find((row) => row.key === userKey)!
+      const scope = CANONICAL_STAGE_SEED.userScopes.find((row) => row.userKey === userKey)!
+      const storedUser = byEmail(harness.users, user.email)!
+      const expectedLocationIds = scope.locationKeys.map(
+        (locationKey) => CANONICAL_STAGE_SEED.locations.find((row) => row.key === locationKey)!.id,
+      )
+      const stored = [...harness.userLocationBindings.values()].filter(
+        (row) => row.userId === storedUser.id,
+      )
+
+      expect(stored.map((row) => row.locationId).sort()).toEqual([...expectedLocationIds].sort())
+      expect(stored).toHaveLength(expectedLocationIds.length)
+      expect(harness.userAccessScopes.get(storedUser.id)).toMatchObject({
+        userId: storedUser.id,
+        companyId:
+          user.companyKey === 'client'
+            ? CANONICAL_STAGE_SEED.companies.find((row) => row.key === 'client')!.id
+            : undefined,
+        locationMode: UserAccessLocationMode.SELECTED_LOCATIONS,
+      })
+      expect(
+        [...harness.technicianSpecializations.values()].filter(
+          (row) => row.userId === storedUser.id,
+        ),
+      ).toEqual([])
+    }
+
+    for (const batch of harness.locationBindingCreateBatches) {
+      const requestedPairs = batch.map((row) => `${row.userId}|${row.locationId}`)
+      expect(new Set(requestedPairs).size).toBe(requestedPairs.length)
     }
   })
 
