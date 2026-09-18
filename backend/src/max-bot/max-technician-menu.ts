@@ -57,13 +57,23 @@ function technicianMenuRows(): MaxBotInlineKeyboardButton[][] {
   return [buttons.slice(0, 3), buttons.slice(3, 6)];
 }
 
-/** Футер экранов техника: Сегодня / Моя смена / Мои заявки. */
+export function technicianMenuRow(): MaxBotInlineKeyboardButton[][] {
+  return [[callbackButton('Меню', 'menu')]];
+}
+
+export function paginationRows(
+  prevPayload: string | null,
+  nextPayload: string | null,
+): MaxBotInlineKeyboardButton[][] {
+  const row: MaxBotInlineKeyboardButton[] = [];
+  if (prevPayload) row.push(callbackButton('Предыдущие', prevPayload));
+  if (nextPayload) row.push(callbackButton('Следующие', nextPayload));
+  return row.length ? [row] : [];
+}
+
+/** @deprecated экранный футер тройки заменён на Меню; оставлен для старых вызовов. */
 export function technicianFooterRows(): MaxBotInlineKeyboardButton[][] {
-  return [[
-    callbackButton('Сегодня', 'today'),
-    callbackButton('Моя смена', 'shift'),
-    callbackButton('Мои заявки', 'my'),
-  ]];
+  return technicianMenuRow();
 }
 
 export function renderTechnicianMenuMessage(): MaxBotCommandResponse {
@@ -75,7 +85,7 @@ export function renderTechnicianMenuMessage(): MaxBotCommandResponse {
 }
 
 export function renderTechnicianFooterMessage(text: string): MaxBotCommandResponse {
-  const keyboard = renderInlineKeyboard(technicianFooterRows());
+  const keyboard = renderInlineKeyboard(technicianMenuRow());
   return {
     text,
     ...(keyboard ? { attachments: [keyboard] } : {}),

@@ -48,6 +48,23 @@ describe('MaxFileClient', () => {
     expect(fetchImpl).toHaveBeenCalledWith('https://cdn.example/a.jpg');
   });
 
+  it('keeps several images from one message and drops duplicates copied onto the root', () => {
+    const image = { type: 'image', payload: { url: 'https://cdn.example/a.jpg', size: 12 } };
+    expect(
+      extractMaxIncomingMedia({
+        message: {
+          body: {
+            attachments: [
+              image,
+              { type: 'image', payload: { url: 'https://cdn.example/b.jpg', size: 8 } },
+            ],
+          },
+          attachments: [image],
+        },
+      }).map((item) => item.url),
+    ).toEqual(['https://cdn.example/a.jpg', 'https://cdn.example/b.jpg']);
+  });
+
   it('rejects files over 10 MB before download', async () => {
     const client = new MaxFileClient('https://platform-api2.max.ru', 'token', jest.fn() as any);
     await expect(

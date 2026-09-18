@@ -300,6 +300,7 @@ function makeWorkplace() {
             statusLabel: 'Назначена',
           },
         ],
+        prevOffset: null,
         nextOffset: null,
       },
     }),
@@ -360,6 +361,7 @@ function makeWorkplace() {
         ticketId: '11111111-1111-4111-8111-111111111111',
         ticketNumber: 12,
         items: [{ atLabel: '18.09, 11:00', title: 'Комментарий', detail: 'Проверил' }],
+        prevOffset: null,
         nextOffset: null,
       },
     }),
@@ -481,7 +483,7 @@ describe('MaxBotCommandService — technician chat menu', () => {
     expect(res?.text).toContain('Мои заявки');
     expect(res?.text).toContain('#12 · Назначена · Срочно');
     expect(res?.text).not.toContain('Телефон');
-    expect(buttonsOf(res).map((button) => button.text)).toContain('Открыть #12');
+    expect(buttonsOf(res).map((button) => button.text)).toContain('#12');
   });
 
   it('Открыть opens the card from getOne, Начать работу mutates through the workplace', async () => {
@@ -497,11 +499,9 @@ describe('MaxBotCommandService — technician chat menu', () => {
     expect(buttonsOf(started).map((button) => button.text)).toEqual([
       'Комментарий',
       'Фото',
-      'Завершить',
       'История',
-      'Сегодня',
-      'Моя смена',
-      'Мои заявки',
+      'Завершить',
+      'Меню',
     ]);
     const history = await service.handleUpdate(callback('tkh:11111111-1111-4111-8111-111111111111'));
     expect(workplace.ticketHistory).toHaveBeenCalled();
@@ -514,7 +514,7 @@ describe('MaxBotCommandService — technician chat menu', () => {
       message: { text: 'Мои заявки', sender: { user_id: 4242 } },
     });
     expect(res?.text).toContain('Бот не показывает данные заявок без входа.');
-    expect(res?.text).not.toContain('Открыть #');
+    expect(res?.text).not.toContain('#');
   });
 
   it('unbound user sending Сегодня does not get technician counters', async () => {

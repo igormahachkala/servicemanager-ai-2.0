@@ -1,6 +1,7 @@
 import {
   isTechnicianSectionPayload,
   matchTechnicianMenuLabel,
+  paginationRows,
   renderTechnicianMenuMessage,
   renderTechnicianSectionMessage,
   technicianSectionLabel,
@@ -32,7 +33,7 @@ describe('max-technician-menu', () => {
   it('unfinished section reply is the section name plus the technician footer', () => {
     const res = renderTechnicianSectionMessage('avail');
     expect(res.text).toBe('Доступные');
-    expect(labelsOf(res)).toEqual(['Сегодня', 'Моя смена', 'Мои заявки']);
+    expect(labelsOf(res)).toEqual(['Меню']);
     expect(renderTechnicianSectionMessage('find').text).toBe('Поиск заявки');
     expect(technicianSectionLabel('my')).toBe('Мои заявки');
   });
@@ -43,5 +44,12 @@ describe('max-technician-menu', () => {
     expect(matchTechnicianMenuLabel('привет')).toBeNull();
     expect(isTechnicianSectionPayload('today')).toBe(true);
     expect(isTechnicianSectionPayload('help')).toBe(false);
+  });
+
+  it('puts prev/next on one row and stretches a lone paging button', () => {
+    expect(paginationRows('my:0', 'my:12')[0]?.map((button) => button.text)).toEqual(['Предыдущие', 'Следующие']);
+    expect(paginationRows(null, 'my:6')).toEqual([[{ type: 'callback', text: 'Следующие', payload: 'my:6' }]]);
+    expect(paginationRows('my:0', null)).toEqual([[{ type: 'callback', text: 'Предыдущие', payload: 'my:0' }]]);
+    expect(paginationRows(null, null)).toEqual([]);
   });
 });

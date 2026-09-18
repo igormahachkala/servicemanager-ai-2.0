@@ -1,5 +1,5 @@
 import { renderInlineKeyboard } from './max-menu.builder';
-import { technicianFooterRows } from './max-technician-menu';
+import { technicianMenuRow } from './max-technician-menu';
 import { MaxBotCommandResponse, MaxBotInlineKeyboardButton } from './max-bot.types';
 
 export type TechnicianTodaySummary = {
@@ -32,7 +32,7 @@ export function renderTechnicianTodayMessage(summary: TechnicianTodaySummary): M
       callbackButton('Обходы', 'rounds'),
       callbackButton('Моя смена', 'shift'),
     ],
-    ...technicianFooterRows(),
+    ...technicianMenuRow(),
   ]);
 
   return {

@@ -1,5 +1,5 @@
 import { renderInlineKeyboard } from './max-menu.builder';
-import { technicianFooterRows } from './max-technician-menu';
+import { technicianMenuRow } from './max-technician-menu';
 import { MaxBotCommandResponse, MaxBotInlineKeyboardButton } from './max-bot.types';
 
 export type TechnicianShiftSummary = {
@@ -25,7 +25,11 @@ export function renderTechnicianShiftMessage(summary: TechnicianShiftSummary): M
     ? [callbackButton('Закрыть смену', 'shift_close')]
     : [callbackButton('Открыть смену', 'shift_open')];
 
-  const keyboard = renderInlineKeyboard([action, ...technicianFooterRows()]);
+  const keyboard = renderInlineKeyboard([
+    action,
+    [callbackButton('Сегодня', 'today'), callbackButton('Мои заявки', 'my')],
+    ...technicianMenuRow(),
+  ]);
   return {
     text: lines.join('\n'),
     ...(keyboard ? { attachments: [keyboard] } : {}),
@@ -35,6 +39,7 @@ export function renderTechnicianShiftMessage(summary: TechnicianShiftSummary): M
 export function renderCloseShiftConfirmMessage(): MaxBotCommandResponse {
   const keyboard = renderInlineKeyboard([
     [callbackButton('Да', 'shift_yes'), callbackButton('Отмена', 'shift_no')],
+    ...technicianMenuRow(),
   ]);
   return {
     text: 'Закрыть смену?',

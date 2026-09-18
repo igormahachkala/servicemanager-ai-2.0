@@ -1,10 +1,10 @@
 import { TicketStatus } from '@prisma/client';
 
 import { renderInlineKeyboard } from './max-menu.builder';
-import { BOUND_ROLE_STUB_TEXT, technicianFooterRows } from './max-technician-menu';
+import { BOUND_ROLE_STUB_TEXT, paginationRows, technicianMenuRow } from './max-technician-menu';
 import { MaxBotCommandResponse, MaxBotInlineKeyboardButton } from './max-bot.types';
 
-export const MY_TICKET_PAGE_SIZE = 5;
+export const MY_TICKET_PAGE_SIZE = 6;
 export const HISTORY_PAGE_SIZE = 5;
 
 const TICKET_STATUSES = new Set<string>(Object.values(TicketStatus));
@@ -23,6 +23,7 @@ export type TechnicianTicketListItem = {
 
 export type TechnicianTicketListPage = {
   items: TechnicianTicketListItem[];
+  prevOffset: number | null;
   nextOffset: number | null;
 };
 
@@ -51,6 +52,7 @@ export type TechnicianTicketHistoryPage = {
   ticketId: string;
   ticketNumber: number;
   items: TechnicianTicketHistoryItem[];
+  prevOffset: number | null;
   nextOffset: number | null;
 };
 
@@ -160,20 +162,19 @@ export function toTechnicianTicketCardView(ticket: Record<string, any>): Technic
 
 export function renderTechnicianTicketsListMessage(page: TechnicianTicketListPage): MaxBotCommandResponse {
   if (page.items.length === 0) {
-    return withKeyboard('Мои заявки\n\nНет назначенных заявок.', technicianFooterRows());
+    return withKeyboard('Мои заявки\n\nНет назначенных заявок.', technicianMenuRow());
   }
 
   const text = ['Мои заявки', '', page.items.map(formatListCard).join('\n\n')].join('\n');
-  const opens = page.items.map((item) =>
-    callbackButton(`Открыть #${item.ticketNumber}`, `tk:${item.id}`),
-  );
-  const extras = page.nextOffset !== null ? [callbackButton('Следующие', `my:${page.nextOffset}`)] : [];
-  const actions = [...opens, ...extras];
-  const footer = technicianFooterRows();
-  const rows =
-    actions.length + 3 <= 7
-      ? [...chunk3(actions), ...footer]
-      : [...chunk3(actions), [callbackButton('Меню', 'menu')]];
+  const opens = page.items.map((item) => callbackButton(`#${item.ticketNumber}`, `tk:${item.id}`));
+  const rows = [
+    ...chunk3(opens),
+    ...paginationRows(
+      page.prevOffset !== null ? `my:${page.prevOffset}` : null,
+      page.nextOffset !== null ? `my:${page.nextOffset}` : null,
+    ),
+    ...technicianMenuRow(),
+  ];
   return withKeyboard(text, rows);
 }
 
@@ -190,33 +191,28 @@ export function renderTechnicianTicketCardMessage(card: TechnicianTicketCardView
     `Оборудование: ${card.equipmentName}`,
   ].join('\n');
 
-  const actions: MaxBotInlineKeyboardButton[] = [];
-  if (card.canStart) actions.push(callbackButton('Начать работу', `tks:${card.id}`));
-  actions.push(callbackButton('Комментарий', `tkc:${card.id}`));
-  actions.push(callbackButton('Фото', `tkf:${card.id}`));
-  if (card.pickerTransitions.length > 0) {
-    actions.push(callbackButton('Изменить статус', `tkm:${card.id}`));
-  }
-  if (card.canComplete) actions.push(callbackButton('Завершить', `tku:${card.id}`));
-  actions.push(callbackButton('История', `tkh:${card.id}`));
-  const footer = technicianFooterRows();
-  const rows =
-    actions.length + 3 <= 7
-      ? [...chunk3(actions), ...footer]
-      : [...chunk3(actions.slice(0, 6)), [callbackButton('Меню', 'menu')]];
-  return withKeyboard(text, rows);
+  const startComment: MaxBotInlineKeyboardButton[] = [];
+  if (card.canStart) startComment.push(callbackButton('Начать работу', `tks:${card.id}`));
+  startComment.push(callbackButton('Комментарий', `tkc:${card.id}`));
+
+  const photoHistoryComplete: MaxBotInlineKeyboardButton[] = [callbackButton('Фото', `tkf:${card.id}`)];
+  photoHistoryComplete.push(callbackButton('История', `tkh:${card.id}`));
+  if (card.canComplete) photoHistoryComplete.push(callbackButton('Завершить', `tku:${card.id}`));
+
+  return withKeyboard(text, [startComment, photoHistoryComplete, ...technicianMenuRow()]);
 }
 
 export function renderCommentPromptMessage(ticketId: string, ticketNumber: number): MaxBotCommandResponse {
   return withKeyboard(`Введите комментарий к заявке #${ticketNumber}`, [
     [callbackButton('Отмена', `tk:${ticketId}`)],
+    ...technicianMenuRow(),
   ]);
 }
 
 export function renderCommentSavedMessage(ticketId: string, ticketNumber: number): MaxBotCommandResponse {
   return withKeyboard(`Комментарий добавлен к #${ticketNumber}`, [
     [callbackButton('К заявке', `tk:${ticketId}`)],
-    ...technicianFooterRows(),
+    ...technicianMenuRow(),
   ]);
 }
 
@@ -224,13 +220,10 @@ export function renderTicketStatusPickerMessage(card: TechnicianTicketCardView):
   const choices = card.pickerTransitions.map((status) =>
     callbackButton(ticketStatusLabel(status), `tkp:${card.id}:${status}`),
   );
-  const cancel = callbackButton('Отмена', `tk:${card.id}`);
-  const actions = [...choices, cancel];
-  const rows =
-    actions.length + 3 <= 7
-      ? [...chunk3(actions), ...technicianFooterRows()]
-      : chunk3(actions);
-  return withKeyboard(`Выберите действие.\nЗаявка #${card.ticketNumber}`, rows);
+  return withKeyboard(`Выберите действие.\nЗаявка #${card.ticketNumber}`, [
+    ...chunk3([...choices, callbackButton('Отмена', `tk:${card.id}`)]),
+    ...technicianMenuRow(),
+  ]);
 }
 
 export function renderTicketHistoryMessage(page: TechnicianTicketHistoryPage): MaxBotCommandResponse {
@@ -238,14 +231,14 @@ export function renderTicketHistoryMessage(page: TechnicianTicketHistoryPage): M
     page.items.length === 0
       ? 'Событий пока нет.'
       : page.items.map((item) => [item.atLabel, item.title, item.detail].filter(Boolean).join('\n')).join('\n\n');
-  const extras: MaxBotInlineKeyboardButton[] = [];
-  if (page.nextOffset !== null) extras.push(callbackButton('Следующие', `tkh:${page.ticketId}:${page.nextOffset}`));
-  extras.push(callbackButton('К заявке', `tk:${page.ticketId}`));
-  const rows =
-    extras.length + 3 <= 7
-      ? [...chunk3(extras), ...technicianFooterRows()]
-      : chunk3(extras);
-  return withKeyboard(`История #${page.ticketNumber}\n\n${body}`, rows);
+  return withKeyboard(`История #${page.ticketNumber}\n\n${body}`, [
+    ...paginationRows(
+      page.prevOffset !== null ? `tkh:${page.ticketId}:${page.prevOffset}` : null,
+      page.nextOffset !== null ? `tkh:${page.ticketId}:${page.nextOffset}` : null,
+    ),
+    [callbackButton('К заявке', `tk:${page.ticketId}`)],
+    ...technicianMenuRow(),
+  ]);
 }
 
 export function toTechnicianTicketHistoryPage(
@@ -261,6 +254,7 @@ export function toTechnicianTicketHistoryPage(
     ticketId,
     ticketNumber,
     items: slice.map(formatHistoryItem).filter((item): item is TechnicianTicketHistoryItem => item !== null),
+    prevOffset: start > 0 ? Math.max(0, start - HISTORY_PAGE_SIZE) : null,
     nextOffset: start + HISTORY_PAGE_SIZE < newestFirst.length ? start + HISTORY_PAGE_SIZE : null,
   };
 }
@@ -268,7 +262,7 @@ export function toTechnicianTicketHistoryPage(
 export function renderTicketActionStubMessage(ticketId: string): MaxBotCommandResponse {
   const keyboard = renderInlineKeyboard([
     [callbackButton('К заявке', `tk:${ticketId}`)],
-    ...technicianFooterRows(),
+    ...technicianMenuRow(),
   ]);
   return {
     text: BOUND_ROLE_STUB_TEXT,
@@ -277,7 +271,7 @@ export function renderTicketActionStubMessage(ticketId: string): MaxBotCommandRe
 }
 
 export function renderTicketUnavailableMessage(): MaxBotCommandResponse {
-  return withKeyboard('Заявка недоступна', technicianFooterRows());
+  return withKeyboard('Заявка недоступна', technicianMenuRow());
 }
 
 function formatListCard(item: TechnicianTicketListItem) {

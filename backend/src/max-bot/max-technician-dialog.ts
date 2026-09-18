@@ -1,5 +1,5 @@
 import { extractMaxUserId, MaxIdentity } from './max-identity.service';
-import { MaxFileClient, MaxIncomingMedia } from './max-file.client';
+import { DownloadedMaxFile, MaxFileClient, MaxIncomingMedia } from './max-file.client';
 import {
   renderAwaitingPhotoMessage,
   renderCompleteDoneMessage,
@@ -126,24 +126,25 @@ export class MaxTechnicianDialog {
   ): Promise<MaxBotCommandResponse | null> {
     const pending = this.wait.get(technician.maxUserId);
     if (!pending) return null;
-    const file = media[0];
-    if (!file) return this.submitText(technician, '');
+    if (media.length === 0) return this.submitText(technician, '');
     if (pending.kind === 'comment') return renderCommentPromptMessage(pending.ticketId, pending.ticketNumber);
     if (pending.kind === 'complete-text') return renderCompleteReportPrompt(pending.ticketId, pending.ticketNumber);
     if (pending.kind === 'complete-photo' && !pending.awaitingFile) {
       return renderCompletePhotoAskMessage(pending.ticketId, pending.ticketNumber);
     }
     if (!this.workplace) return renderPersistentMenuMessage(ACTION_FAILED);
-    let downloaded;
-    try {
-      downloaded = await this.files.download(file);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : ACTION_FAILED;
-      const prompt = renderPhotoPromptMessage(pending.ticketId, pending.ticketNumber, this.cancelPayload(pending));
-      return { ...prompt, text: `${message}\n\n${prompt.text}` };
+    const downloaded: DownloadedMaxFile[] = [];
+    for (const file of media) {
+      try {
+        downloaded.push(await this.files.download(file));
+      } catch (err) {
+        const message = err instanceof Error ? err.message : ACTION_FAILED;
+        const prompt = renderPhotoPromptMessage(pending.ticketId, pending.ticketNumber, this.cancelPayload(pending));
+        return { ...prompt, text: `${message}\n\n${prompt.text}` };
+      }
     }
-    if (pending.kind === 'photo') return this.savePhoto(technician, pending, downloaded);
-    return this.finishComplete(technician, pending, downloaded);
+    if (pending.kind === 'photo') return this.savePhotos(technician, pending, downloaded);
+    return this.finishCompleteWithPhotos(technician, pending, downloaded);
   }
 
   private async saveComment(
@@ -164,18 +165,39 @@ export class MaxTechnicianDialog {
     return renderCommentSavedMessage(result.value.ticketId, result.value.ticketNumber);
   }
 
-  private async savePhoto(
+  private async savePhotos(
     technician: ResolvedTechnician,
     pending: Extract<TicketWait, { kind: 'photo' }>,
-    file: { buffer: Buffer; size: number; mimetype: string; originalname: string },
+    files: DownloadedMaxFile[],
   ) {
-    const result = await this.workplace!.addMyTicketPhoto(technician, pending.ticketId, file);
-    if (!result.ok) {
-      this.wait.delete(technician.maxUserId);
-      return this.fail(result.message);
+    let last: { ticketId: string; ticketNumber: number; count: number } | null = null;
+    for (const file of files) {
+      const result = await this.workplace!.addMyTicketPhoto(technician, pending.ticketId, file);
+      if (!result.ok) {
+        this.wait.delete(technician.maxUserId);
+        return this.fail(result.message);
+      }
+      last = result.value;
     }
     this.wait.set(technician.maxUserId, pending);
-    return renderPhotoSavedMessage(result.value.ticketId, result.value.ticketNumber, result.value.count);
+    return renderPhotoSavedMessage(last!.ticketId, last!.ticketNumber, last!.count);
+  }
+
+  private async finishCompleteWithPhotos(
+    technician: ResolvedTechnician,
+    pending: Extract<TicketWait, { kind: 'complete-photo' }>,
+    files: DownloadedMaxFile[],
+  ) {
+    for (const extra of files.slice(0, -1)) {
+      const attached = await this.workplace!.addMyTicketPhoto(technician, pending.ticketId, extra);
+      if (!attached.ok) {
+        pending.awaitingFile = false;
+        this.wait.set(technician.maxUserId, pending);
+        const ask = renderCompletePhotoAskMessage(pending.ticketId, pending.ticketNumber);
+        return { ...ask, text: `${attached.message}\n\n${ask.text}` };
+      }
+    }
+    return this.finishComplete(technician, pending, files[files.length - 1]);
   }
 
   private async finishComplete(

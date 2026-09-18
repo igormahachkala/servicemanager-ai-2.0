@@ -192,6 +192,7 @@ describe('MaxTechnicianWorkplaceService', () => {
           },
         ],
         nextOffset: null,
+        prevOffset: null,
       },
     });
     expect(JSON.stringify(page)).not.toContain('7999');
@@ -200,15 +201,15 @@ describe('MaxTechnicianWorkplaceService', () => {
     });
   });
 
-  it('pages five at a time through TicketsService.list', async () => {
+  it('pages six at a time through TicketsService.list', async () => {
     const tickets = {
       list: jest.fn().mockResolvedValue(
-        Array.from({ length: 6 }, (_, i) => ({
+        Array.from({ length: 7 }, (_, i) => ({
           id: `${i}1111111-1111-4111-8111-111111111111`,
           ticketNumber: i + 1,
           assignedTechnicianId: 'tech-1',
           status: TicketStatus.ASSIGNED,
-          createdAt: `2026-09-0${i + 1}T10:00:00Z`,
+          createdAt: `2026-09-${String(i + 1).padStart(2, '0')}T10:00:00Z`,
           problemText: `t${i + 1}`,
           location: { name: 'A' },
         })),
@@ -221,11 +222,13 @@ describe('MaxTechnicianWorkplaceService', () => {
       { listRuns: jest.fn() } as any,
     );
     const first = await service.myTickets(technician, 0);
-    const second = await service.myTickets(technician, 5);
-    expect(first.ok && first.value.items.map((item) => item.ticketNumber)).toEqual([1, 2, 3, 4, 5]);
-    expect(first.ok && first.value.nextOffset).toBe(5);
-    expect(second.ok && second.value.items.map((item) => item.ticketNumber)).toEqual([6]);
+    const second = await service.myTickets(technician, 6);
+    expect(first.ok && first.value.items.map((item) => item.ticketNumber)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(first.ok && first.value.nextOffset).toBe(6);
+    expect(first.ok && first.value.prevOffset).toBeNull();
+    expect(second.ok && second.value.items.map((item) => item.ticketNumber)).toEqual([7]);
     expect(second.ok && second.value.nextOffset).toBeNull();
+    expect(second.ok && second.value.prevOffset).toBe(0);
   });
 
   it('loads a card through getOne and starts work through status + work log', async () => {
