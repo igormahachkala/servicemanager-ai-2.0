@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { TicketStatus, UserRole } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
-import { MaxIdentityService } from './max-identity.service';
+import { MaxIdentity, MaxIdentityService } from './max-identity.service';
 import {
   buildUnboundMenuModel,
   isSafeMaxCallbackPayload,
@@ -10,8 +10,7 @@ import {
   renderHelpMessage,
   renderLegacyNavigationMessage,
   renderMenuMessage,
-  renderMenuText,
-  type MaxMenuModel,
+  renderPersistentMenuMessage,
 } from './max-menu.builder';
 import {
   isTechnicianSectionPayload,
@@ -39,25 +38,11 @@ import { renderTechnicianTodayMessage } from './max-technician-today';
 import { MaxTechnicianWorkplaceService } from './max-technician-workplace.service';
 import { MaxBotCommandResponse, MaxBotUpdate } from './max-bot.types';
 
-/**
- * SMA-MAX-BOT-V2-FOUNDATION-037.
- *
- * The bot answers navigation, never data.
- *
- * Three commands used to read tickets straight out of the database — `/tickets`,
- * `/ticket <n>` and `/open <n>`. None of them filtered by company, location,
- * specialization or contract, and `/ticket` returned the requester's name and phone.
- * Their only gate was "is this the configured group chat", which identifies a room and
- * not a person. That made the bot a second, weaker access resolver sitting beside the
- * accepted one.
- *
- * They are removed rather than hidden. Keeping them behind an undocumented alias would
- * have preserved the exposure while removing the discoverability that makes it auditable.
- * Ticket data now lives exclusively behind the Mini App, where the canonical resolver runs.
- */
-
-/** Commands recognised for backward compatibility. None of them read ticket data. */
 const LEGACY_DATA_COMMANDS = new Set(['/tickets', '/ticket', '/open']);
+
+const ACTION_FAILED_TEXT = 'Не удалось выполнить действие.\nПопробуйте ещё раз через минуту.';
+
+type ResolvedTechnician = Extract<MaxIdentity, { resolved: true }>;
 
 @Injectable()
 export class MaxBotCommandService {
@@ -84,11 +69,7 @@ export class MaxBotCommandService {
     if (this.isBotStarted(update)) {
       this.dialog.clear(update);
       this.logger.log(
-        {
-          update_type: this.safeString(update.update_type),
-          source: 'update_type',
-          command: '/start',
-        },
+        { update_type: this.safeString(update.update_type), source: 'update_type', command: '/start' },
         'max_bot_command_parsed',
       );
       return this.handleParsedCommand('/start', this.menuMessage(update));
@@ -98,10 +79,7 @@ export class MaxBotCommandService {
     const extracted = this.extractMessageText(update);
     if (!extracted && media.length === 0) {
       this.logger.log(
-        {
-          update_type: this.safeString(update.update_type),
-          reason: 'missing_message_text',
-        },
+        { update_type: this.safeString(update.update_type), reason: 'missing_message_text' },
         'max_bot_command_ignored',
       );
       return null;
@@ -110,7 +88,7 @@ export class MaxBotCommandService {
     const trimmed = extracted?.text.trim() ?? '';
     const isCommand = trimmed.startsWith('/');
     const parts = trimmed.split(/\s+/);
-    const cmd = isCommand ? parts[0].toLowerCase() : '';
+    const cmd = isCommand ? parts[0].toLowerCase().split('@')[0] : '';
 
     this.logger.log(
       {
@@ -148,7 +126,6 @@ export class MaxBotCommandService {
       if (cmd === '/help') {
         return this.handleParsedCommand(cmd, this.helpMessage());
       }
-      // Operator diagnostic. Retained but absent from user-facing copy.
       if (cmd === '/status') {
         return this.handleParsedCommand(cmd, this.statusMessage());
       }
@@ -158,13 +135,9 @@ export class MaxBotCommandService {
       }
     } catch (err) {
       this.logger.warn({ err, cmd }, 'max_bot_command_error');
-      return {
-        text: 'Не удалось выполнить действие.\nПопробуйте ещё раз через минуту.',
-      };
+      return renderPersistentMenuMessage(ACTION_FAILED_TEXT);
     }
 
-    // Anything else — unknown command or ordinary text. Previously the bot returned null
-    // and said nothing at all, which reads to a user as the bot being broken.
     this.logger.log(
       {
         update_type: this.safeString(update.update_type),
@@ -173,51 +146,29 @@ export class MaxBotCommandService {
       },
       'max_bot_command_fallback',
     );
-    return this.unknownInputMessage(update);
-  }
-
-  /**
-   * Menu for the current viewer.
-   *
-   * Until a binding exists every viewer resolves to the unbound menu, which carries no
-   * ticket data. Once `MaxIdentityService` can resolve a user, the bound branch will ask
-   * the canonical permission services for capabilities and render the role-aware model —
-   * the resolver boundary is already in place so that change touches only this method.
-   */
-  private async menuModelFor(update: MaxBotUpdate): Promise<MaxMenuModel> {
-    if (!this.identity) return buildUnboundMenuModel();
-    const identity = await this.identity.resolve(update);
-    if (!identity.resolved) {
-      this.logger.log({ reason: identity.reason }, 'max_bot_identity_unresolved');
-      return buildUnboundMenuModel();
-    }
-    // Role-aware rendering lands with the capability adapter (see max-menu.builder.ts).
-    // Until then a resolved user still gets the safe menu: no ticket data either way.
-    return buildUnboundMenuModel();
+    return this.unknownInputMessage();
   }
 
   private async menuMessage(update: MaxBotUpdate): Promise<MaxBotCommandResponse> {
-    const model = await this.menuModelFor(update);
-    return renderMenuMessage(model, this.botUsername);
+    if (!this.identity) return renderMenuMessage(buildUnboundMenuModel(), this.botUsername);
+    const identity = await this.identity.resolve(update);
+    if (!identity.resolved) {
+      this.logger.log({ reason: identity.reason }, 'max_bot_identity_unresolved');
+      return renderMenuMessage(buildUnboundMenuModel(), this.botUsername);
+    }
+    this.logger.log({ role: identity.role }, 'max_bot_identity_resolved');
+    if (identity.role === UserRole.TECHNICIAN) return renderTechnicianMenuMessage();
+    return renderBoundRoleStubMessage();
   }
 
-  private async unknownInputMessage(update: MaxBotUpdate): Promise<MaxBotCommandResponse> {
-    const model = await this.menuModelFor(update);
-    const menu = renderMenuMessage(model, this.botUsername);
-    return {
-      ...menu,
-      text: `Не понял запрос. Вот что можно сделать:\n\n${menu.text || renderMenuText(model)}`,
-    };
+  private unknownInputMessage(): MaxBotCommandResponse {
+    return renderPersistentMenuMessage('Не понял запрос.');
   }
 
   private helpMessage(): MaxBotCommandResponse {
     return renderHelpMessage(this.botUsername);
   }
 
-  /**
-   * Replaces the three ticket-reading commands. Deliberately says nothing about whether
-   * any ticket exists — the reply is identical no matter what argument was passed.
-   */
   private legacyRedirectMessage(): MaxBotCommandResponse {
     return renderLegacyNavigationMessage(this.botUsername);
   }
@@ -230,7 +181,11 @@ export class MaxBotCommandService {
   }
 
   private statusMessage(): MaxBotCommandResponse {
-    return { text: this.statusText() };
+    return renderPersistentMenuMessage(this.statusText());
+  }
+
+  private testMessage(): MaxBotCommandResponse {
+    return renderPersistentMenuMessage(`Время сервера: ${new Date().toISOString()}`);
   }
 
   private async handleParsedCommand(
@@ -441,7 +396,6 @@ export class MaxBotCommandService {
       const msg = message as Record<string, unknown>;
       if (typeof msg.text === 'string') return { text: msg.text, source: 'message.text' };
       if (typeof msg.body === 'string') return { text: msg.body, source: 'message.body' };
-      // MAX webhook: message.body is an object { mid, seq, text }
       if (msg.body && typeof msg.body === 'object') {
         const bodyObj = msg.body as Record<string, unknown>;
         if (typeof bodyObj.text === 'string') return { text: bodyObj.text, source: 'message.body.text' };
