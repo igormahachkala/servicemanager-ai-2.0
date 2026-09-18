@@ -14,6 +14,7 @@ import {
   type TimelineEvent,
   type TimelineHistoryItem,
   type TimelineRecordedEventItem,
+  type TimelineReplyPreview,
 } from './timeline.types'
 
 const companyIdentitySelect = {
@@ -28,6 +29,58 @@ function readPayloadUserId(payload: Prisma.JsonValue | null, key: string): strin
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null
   const value = (payload as Record<string, unknown>)[key]
   return typeof value === 'string' && value.trim() ? value.trim() : null
+}
+
+/**
+ * SMA-TICKET-REPLY-READ-PATH-120R.
+ *
+ * Идентификатор комментария лежит в полезной нагрузке события: внешнего ключа
+ * у DomainEvent нет, и другой связки между журналом и строкой комментария
+ * не существует. У исторических событий поля нет — они и остаются
+ * без устойчивой личности.
+ */
+function readCommentId(payload: Prisma.JsonValue | null): string | null {
+  return readPayloadUserId(payload, 'commentId')
+}
+
+/** Предпросмотр ограничен по длине: лента не место для полного текста. */
+const REPLY_PREVIEW_LIMIT = 160
+
+function buildReplyPreview(
+  target:
+    | {
+        id: string
+        ticketId: string
+        companyId: string
+        body: string
+        author: NonNullable<TimelineActor> | null
+      }
+    | null
+    | undefined,
+  expected: { ticketId: string; companyId: string },
+): TimelineReplyPreview | null {
+  if (!target) return null
+
+  /*
+   * Сверка области видимости выполняется и здесь, хотя запись её уже
+   * обеспечила. Причина простая: это единственное место, где чужой текст мог
+   * бы уйти в ответ клиенту, и полагаться тут на корректность записи —
+   * значит зависеть от неё навсегда. Несовпадение не скрывается и не
+   * притворяется отсутствием ответа: сообщение помечается недоступным,
+   * а тела не отдаётся вовсе.
+   */
+  const inScope = target.ticketId === expected.ticketId && target.companyId === expected.companyId
+  const body = (target.body || '').trim()
+  if (!inScope || !body) {
+    return { id: target.id, author: null, bodyPreview: '', unavailable: true }
+  }
+
+  return {
+    id: target.id,
+    author: target.author ?? null,
+    bodyPreview: body.length > REPLY_PREVIEW_LIMIT ? `${body.slice(0, REPLY_PREVIEW_LIMIT)}…` : body,
+    unavailable: false,
+  }
 }
 
 function enrichAssignmentPayload(
@@ -237,6 +290,54 @@ export class TimelineService {
 
     const actorMap = new Map<string, NonNullable<TimelineActor>>(actors.map((actor) => [actor.id, actor]))
 
+    /**
+     * SMA-TICKET-REPLY-READ-PATH-120R — комментарии одним запросом.
+     *
+     * Идентификаторы собираются из уже загруженных событий, поэтому запрос
+     * ровно один независимо от числа сообщений в ленте. Запрос на сообщение
+     * дал бы N+1 на длинной переписке — именно того здесь и нет.
+     *
+     * Сужение по ticketId и companyId обязательно: идентификатор приходит
+     * из полезной нагрузки события, а она хранится как свободный JSON.
+     * Без сужения подложное значение в старой записи могло бы притянуть
+     * комментарий чужой заявки.
+     */
+    const commentIds = Array.from(
+      new Set(eventRows.map((row) => readCommentId(row.payload)).filter((id): id is string => !!id)),
+    )
+    const commentRows = commentIds.length
+      ? await this.prisma.ticketComment.findMany({
+          where: {
+            id: { in: commentIds },
+            ticketId,
+            companyId: readable.ticket.companyId,
+          },
+          select: {
+            id: true,
+            replyTo: {
+              select: {
+                id: true,
+                ticketId: true,
+                companyId: true,
+                body: true,
+                author: {
+                  select: {
+                    id: true,
+                    email: true,
+                    firstName: true,
+                    lastName: true,
+                    role: true,
+                    companyId: true,
+                    company: { select: companyIdentitySelect },
+                  },
+                },
+              },
+            },
+          },
+        })
+      : []
+    const commentMap = new Map(commentRows.map((row) => [row.id, row]))
+
     const history: TimelineHistoryItem[] = historyRows.map((row) => ({
       id: row.id,
       at: row.createdAt,
@@ -255,6 +356,9 @@ export class TimelineService {
         const timelineEvent = this.toTimelineEvent(row.type)
         if (!timelineEvent) return null
 
+        const commentId = readCommentId(row.payload)
+        const stored = commentId ? commentMap.get(commentId) ?? null : null
+
         return {
           id: row.id,
           ticketId: row.entityId,
@@ -264,6 +368,15 @@ export class TimelineService {
           title: this.eventTitle(row.type),
           actor: row.actorUserId ? actorMap.get(row.actorUserId) ?? null : null,
           payload: enrichAssignmentPayload(row.payload, actorMap),
+          // Только у сообщений, за которыми стоит строка TicketComment,
+          // и только если она нашлась в пределах этой заявки.
+          commentId: stored ? stored.id : null,
+          replyTo: stored
+            ? buildReplyPreview(stored.replyTo, {
+                ticketId,
+                companyId: readable.ticket.companyId,
+              })
+            : null,
         }
       })
       .filter((row): row is TimelineRecordedEventItem => row !== null)
@@ -277,6 +390,9 @@ export class TimelineService {
         title: item.title,
         actor: item.actor,
         payload: item.payload,
+        // Запись истории статусов сообщением чата не является: личности нет.
+        commentId: null,
+        replyTo: null,
       })),
       ...events.map((item) => ({
         at: item.at,
@@ -286,6 +402,8 @@ export class TimelineService {
         title: item.title,
         actor: item.actor,
         payload: item.payload,
+        commentId: item.commentId,
+        replyTo: item.replyTo,
       })),
     ].sort((a, b) => a.at.getTime() - b.at.getTime())
 
