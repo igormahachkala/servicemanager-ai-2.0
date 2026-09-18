@@ -230,6 +230,91 @@ export class MaxTechnicianWorkplaceService {
     });
   }
 
+  async addMyTicketPhoto(
+    identity: ResolvedTechnician,
+    ticketId: string,
+    file: { buffer: Buffer; size: number; mimetype: string; originalname: string },
+  ): Promise<WorkplaceOutcome<{ ticketId: string; ticketNumber: number; count: number }>> {
+    return this.run(async () => {
+      const actor = await this.actor(identity);
+      const card = await this.loadCard(identity, actor, ticketId);
+      try {
+        await this.tickets.uploadTicketAttachment(
+          identity.companyId,
+          identity.userId,
+          UserRole.TECHNICIAN,
+          ticketId,
+          file,
+          actor.accessFlags,
+        );
+      } catch (err) {
+        if (err instanceof NotFoundException || err instanceof ForbiddenException) {
+          throw new NotFoundException('Заявка недоступна');
+        }
+        throw err;
+      }
+      return { ticketId, ticketNumber: card.ticketNumber, count: await this.photoCount(identity, actor, ticketId) };
+    });
+  }
+
+  async completeMyTicket(
+    identity: ResolvedTechnician,
+    ticketId: string,
+    report: string,
+    file?: { buffer: Buffer; size: number; mimetype: string; originalname: string },
+  ): Promise<WorkplaceOutcome<TechnicianTicketCardView>> {
+    return this.run(async () => {
+      const actor = await this.actor(identity);
+      const before = await this.loadCard(identity, actor, ticketId);
+      if (!before.canComplete) return before;
+      if (file) {
+        await this.tickets.uploadTicketAttachment(
+          identity.companyId,
+          identity.userId,
+          UserRole.TECHNICIAN,
+          ticketId,
+          file,
+          actor.accessFlags,
+        );
+      }
+      try {
+        await this.tickets.updateStatus(identity.companyId, actor, UserRole.TECHNICIAN, ticketId, {
+          status: TicketStatus.DONE,
+          comment: report,
+        });
+      } catch (err) {
+        if (err instanceof NotFoundException || err instanceof ForbiddenException) {
+          throw new NotFoundException('Заявка недоступна');
+        }
+        throw err;
+      }
+      try {
+        await this.workforce.stopTicketWork(actor, ticketId);
+      } catch (err) {
+        this.logger.warn({ err }, 'max_bot_work_log_stop_failed');
+      }
+      return this.loadCard(identity, actor, ticketId);
+    });
+  }
+
+  private async photoCount(
+    identity: ResolvedTechnician,
+    actor: { id: string; companyId: string; role: UserRole; accessFlags: Record<string, boolean> },
+    ticketId: string,
+  ) {
+    const rows = await this.tickets.listAttachments(
+      identity.companyId,
+      identity.userId,
+      UserRole.TECHNICIAN,
+      ticketId,
+      actor.accessFlags,
+    );
+    return (Array.isArray(rows) ? rows : []).filter((row) => {
+      const mime = String((row as { mimeType?: string })?.mimeType || '');
+      return mime.startsWith('image/') || mime.startsWith('video/');
+    }).length;
+  }
+
   private async loadCard(
     identity: ResolvedTechnician,
     actor: { id: string; companyId: string; role: UserRole; accessFlags: Record<string, boolean> },
@@ -326,7 +411,12 @@ function isOverdue(ticket: { slaBreachedAt?: Date | null; slaDueAt?: Date | null
 }
 
 function workplaceErrorMessage(err: unknown) {
-  if (err instanceof BadRequestException) return firstHttpMessage(err) || 'Рабочая смена не открыта';
+  if (err instanceof BadRequestException) {
+    const message = firstHttpMessage(err);
+    if (message.includes('without at least 1 work report photo')) return 'Нужно хотя бы одно фото результата';
+    if (message.includes('without at least 1 comment')) return 'Нужен хотя бы один комментарий';
+    return message || 'Рабочая смена не открыта';
+  }
   if (err instanceof HttpException) return firstHttpMessage(err) || 'Не удалось выполнить действие.\nПопробуйте ещё раз через минуту.';
   return 'Не удалось выполнить действие.\nПопробуйте ещё раз через минуту.';
 }

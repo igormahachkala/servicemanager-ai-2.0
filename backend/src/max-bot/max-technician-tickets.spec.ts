@@ -141,6 +141,7 @@ describe('max-technician-tickets', () => {
     expect(buttonsOf(res).map((button) => button.text)).toEqual([
       'Начать работу',
       'Комментарий',
+      'Фото',
       'История',
       'Сегодня',
       'Моя смена',
@@ -162,7 +163,11 @@ describe('max-technician-tickets', () => {
     expect(parseTechnicianTicketAction(`tkh:${ID_OLD}`)).toEqual({ kind: 'history', ticketId: ID_OLD, offset: 0 });
     expect(parseTechnicianTicketAction(`tkh:${ID_OLD}:5`)).toEqual({ kind: 'history', ticketId: ID_OLD, offset: 5 });
     expect(parseTechnicianTicketAction(`tkc:${ID_OLD}`)).toEqual({ kind: 'comment', ticketId: ID_OLD });
-    expect(parseTechnicianTicketAction(`tku:${ID_OLD}`)).toEqual({ kind: 'stub', ticketId: ID_OLD });
+    expect(parseTechnicianTicketAction(`tkf:${ID_OLD}`)).toEqual({ kind: 'photo', ticketId: ID_OLD });
+    expect(parseTechnicianTicketAction(`tku:${ID_OLD}`)).toEqual({ kind: 'complete', ticketId: ID_OLD });
+    expect(parseTechnicianTicketAction(`tkq:${ID_OLD}`)).toEqual({ kind: 'completePhoto', ticketId: ID_OLD });
+    expect(parseTechnicianTicketAction(`tky:${ID_OLD}`)).toEqual({ kind: 'completeAsk', ticketId: ID_OLD });
+    expect(parseTechnicianTicketAction(`tkz:${ID_OLD}`)).toEqual({ kind: 'completeSkip', ticketId: ID_OLD });
     expect(parseTechnicianTicketAction('tk:not-an-id')).toBeNull();
     expect(parseTechnicianTicketAction('claim_ticket_123')).toBeNull();
   });
@@ -259,11 +264,12 @@ describe('max-technician-tickets', () => {
     expect(labels).toEqual([
       'Начать работу',
       'Комментарий',
-      'Завершить',
+      'Фото',
       'Изменить статус',
+      'Завершить',
       'История',
       'Меню',
     ]);
-    expect(labels).toHaveLength(6);
+    expect(labels).toHaveLength(7);
   });
 });

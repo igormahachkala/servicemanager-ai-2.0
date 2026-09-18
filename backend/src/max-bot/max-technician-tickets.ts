@@ -62,7 +62,11 @@ export type TechnicianTicketAction =
   | { kind: 'apply'; ticketId: string; status: TicketStatus }
   | { kind: 'history'; ticketId: string; offset: number }
   | { kind: 'comment'; ticketId: string }
-  | { kind: 'stub'; ticketId: string };
+  | { kind: 'photo'; ticketId: string }
+  | { kind: 'complete'; ticketId: string }
+  | { kind: 'completePhoto'; ticketId: string }
+  | { kind: 'completeAsk'; ticketId: string }
+  | { kind: 'completeSkip'; ticketId: string };
 
 export function parseTechnicianTicketAction(payload: string): TechnicianTicketAction | null {
   const page = payload.match(/^my:(\d+)$/);
@@ -83,8 +87,16 @@ export function parseTechnicianTicketAction(payload: string): TechnicianTicketAc
   }
   const comment = payload.match(/^tkc:(.+)$/);
   if (comment && TICKET_ID_RE.test(comment[1])) return { kind: 'comment', ticketId: comment[1] };
-  const stub = payload.match(/^tku:(.+)$/);
-  if (stub && TICKET_ID_RE.test(stub[1])) return { kind: 'stub', ticketId: stub[1] };
+  const photo = payload.match(/^tkf:(.+)$/);
+  if (photo && TICKET_ID_RE.test(photo[1])) return { kind: 'photo', ticketId: photo[1] };
+  const complete = payload.match(/^tku:(.+)$/);
+  if (complete && TICKET_ID_RE.test(complete[1])) return { kind: 'complete', ticketId: complete[1] };
+  const completePhoto = payload.match(/^tkq:(.+)$/);
+  if (completePhoto && TICKET_ID_RE.test(completePhoto[1])) return { kind: 'completePhoto', ticketId: completePhoto[1] };
+  const completeAsk = payload.match(/^tky:(.+)$/);
+  if (completeAsk && TICKET_ID_RE.test(completeAsk[1])) return { kind: 'completeAsk', ticketId: completeAsk[1] };
+  const completeSkip = payload.match(/^tkz:(.+)$/);
+  if (completeSkip && TICKET_ID_RE.test(completeSkip[1])) return { kind: 'completeSkip', ticketId: completeSkip[1] };
   return null;
 }
 
@@ -181,10 +193,11 @@ export function renderTechnicianTicketCardMessage(card: TechnicianTicketCardView
   const actions: MaxBotInlineKeyboardButton[] = [];
   if (card.canStart) actions.push(callbackButton('Начать работу', `tks:${card.id}`));
   actions.push(callbackButton('Комментарий', `tkc:${card.id}`));
-  if (card.canComplete) actions.push(callbackButton('Завершить', `tku:${card.id}`));
+  actions.push(callbackButton('Фото', `tkf:${card.id}`));
   if (card.pickerTransitions.length > 0) {
     actions.push(callbackButton('Изменить статус', `tkm:${card.id}`));
   }
+  if (card.canComplete) actions.push(callbackButton('Завершить', `tku:${card.id}`));
   actions.push(callbackButton('История', `tkh:${card.id}`));
   const footer = technicianFooterRows();
   const rows =

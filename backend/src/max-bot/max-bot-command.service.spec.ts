@@ -367,6 +367,27 @@ function makeWorkplace() {
       ok: true,
       value: { ticketId: '11111111-1111-4111-8111-111111111111', ticketNumber: 12 },
     }),
+    addMyTicketPhoto: jest.fn().mockResolvedValue({
+      ok: true,
+      value: { ticketId: '11111111-1111-4111-8111-111111111111', ticketNumber: 12, count: 1 },
+    }),
+    completeMyTicket: jest.fn().mockResolvedValue({
+      ok: true,
+      value: {
+        id: '11111111-1111-4111-8111-111111111111',
+        ticketNumber: 12,
+        locationName: 'Склад',
+        categoryName: 'Холод',
+        problemText: 'Не морозит',
+        urgencyLabel: 'Срочно',
+        statusLabel: 'Ожидает приёмки',
+        assigneeName: 'Виктор',
+        equipmentName: 'Шкаф',
+        canStart: false,
+        canComplete: false,
+        pickerTransitions: [],
+      },
+    }),
   };
 }
 
@@ -475,6 +496,7 @@ describe('MaxBotCommandService — technician chat menu', () => {
     expect(started?.text).toContain('Статус: В работе');
     expect(buttonsOf(started).map((button) => button.text)).toEqual([
       'Комментарий',
+      'Фото',
       'Завершить',
       'История',
       'Сегодня',

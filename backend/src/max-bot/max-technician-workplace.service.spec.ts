@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { TicketStatus, UserRole } from '@prisma/client';
 
 import { MaxTechnicianWorkplaceService } from './max-technician-workplace.service';
@@ -404,5 +404,96 @@ describe('MaxTechnicianWorkplaceService', () => {
       cardTicket.id,
       { comment: 'На месте' },
     );
+  });
+
+  it('uploads a work-report photo through TicketsService and counts media', async () => {
+    const cardTicket = {
+      id: '11111111-1111-4111-8111-111111111111',
+      ticketNumber: 11,
+      status: TicketStatus.IN_PROGRESS,
+      problemText: 'Капает',
+      location: { name: 'Кухня' },
+      assignedTechnician: { firstName: 'Виктор' },
+      meta: { availableActions: { canStart: false, canComplete: true }, availableStatusTransitions: [] },
+    };
+    const file = { buffer: Buffer.from('jpeg'), size: 4, mimetype: 'image/jpeg', originalname: 'photo.jpg' };
+    const tickets = {
+      getOne: jest.fn().mockResolvedValue(cardTicket),
+      uploadTicketAttachment: jest.fn().mockResolvedValue({ id: 'att-1' }),
+      listAttachments: jest.fn().mockResolvedValue([
+        { mimeType: 'image/jpeg' },
+        { mimeType: 'application/pdf' },
+      ]),
+    };
+    const service = new MaxTechnicianWorkplaceService(
+      makePrisma() as any,
+      { getMyState: jest.fn() } as any,
+      tickets as any,
+      { listRuns: jest.fn() } as any,
+    );
+
+    await expect(service.addMyTicketPhoto(technician, cardTicket.id, file)).resolves.toEqual({
+      ok: true,
+      value: { ticketId: cardTicket.id, ticketNumber: 11, count: 1 },
+    });
+    expect(tickets.uploadTicketAttachment).toHaveBeenCalledWith(
+      'company-1',
+      'tech-1',
+      UserRole.TECHNICIAN,
+      cardTicket.id,
+      file,
+      { canTechnicianViewAllCompanyTickets: false },
+    );
+  });
+
+  it('completes through updateStatus DONE plus work-log stop, and maps missing photo', async () => {
+    const cardTicket = {
+      id: '11111111-1111-4111-8111-111111111111',
+      ticketNumber: 11,
+      status: TicketStatus.IN_PROGRESS,
+      problemText: 'Капает',
+      location: { name: 'Кухня' },
+      assignedTechnician: { firstName: 'Виктор' },
+      meta: {
+        availableActions: { canStart: false, canComplete: true },
+        availableStatusTransitions: [TicketStatus.DONE],
+      },
+    };
+    const doneTicket = {
+      ...cardTicket,
+      status: TicketStatus.AWAITING_ACCEPTANCE,
+      meta: { availableActions: { canStart: false, canComplete: false }, availableStatusTransitions: [] },
+    };
+    const tickets = {
+      getOne: jest.fn().mockResolvedValueOnce(cardTicket).mockResolvedValueOnce(doneTicket),
+      updateStatus: jest.fn().mockResolvedValue({}),
+    };
+    const workforce = { getMyState: jest.fn(), stopTicketWork: jest.fn().mockResolvedValue({}) };
+    const service = new MaxTechnicianWorkplaceService(
+      makePrisma() as any,
+      workforce as any,
+      tickets as any,
+      { listRuns: jest.fn() } as any,
+    );
+
+    const done = await service.completeMyTicket(technician, cardTicket.id, 'Починил');
+    expect(tickets.updateStatus).toHaveBeenCalledWith(
+      'company-1',
+      expect.objectContaining({ id: 'tech-1' }),
+      UserRole.TECHNICIAN,
+      cardTicket.id,
+      { status: TicketStatus.DONE, comment: 'Починил' },
+    );
+    expect(workforce.stopTicketWork).toHaveBeenCalled();
+    expect(done.ok && done.value.statusLabel).toBe('Ожидает приёмки');
+
+    tickets.updateStatus.mockRejectedValueOnce(
+      new BadRequestException('Cannot complete ticket without at least 1 work report photo or video'),
+    );
+    tickets.getOne.mockResolvedValue(cardTicket);
+    await expect(service.completeMyTicket(technician, cardTicket.id, 'Починил')).resolves.toEqual({
+      ok: false,
+      message: 'Нужно хотя бы одно фото результата',
+    });
   });
 });
