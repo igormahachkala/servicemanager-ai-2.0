@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { UserRole } from '@prisma/client';
+import { TicketStatus, UserRole } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { MaxIdentity, MaxIdentityService } from './max-identity.service';
@@ -28,6 +28,8 @@ import {
   renderTechnicianTicketCardMessage,
   renderTechnicianTicketsListMessage,
   renderTicketActionStubMessage,
+  renderTicketHistoryMessage,
+  renderTicketStatusPickerMessage,
   renderTicketUnavailableMessage,
   type TechnicianTicketAction,
 } from './max-technician-tickets';
@@ -235,6 +237,9 @@ export class MaxBotCommandService {
     if (action.kind === 'list') return this.myTicketsMessage(technician, action.offset);
     if (action.kind === 'card') return this.ticketCardMessage(technician, action.ticketId);
     if (action.kind === 'start') return this.startTicketMessage(technician, action.ticketId);
+    if (action.kind === 'status') return this.ticketStatusPickerMessage(technician, action.ticketId);
+    if (action.kind === 'apply') return this.applyTicketStatusMessage(technician, action.ticketId, action.status);
+    if (action.kind === 'history') return this.ticketHistoryMessage(technician, action.ticketId, action.offset);
     return renderTicketActionStubMessage(action.ticketId);
   }
 
@@ -274,6 +279,53 @@ export class MaxBotCommandService {
         : renderPersistentMenuMessage(result.message);
     }
     return renderTechnicianTicketCardMessage(result.value);
+  }
+
+  private async ticketStatusPickerMessage(
+    technician: ResolvedTechnician,
+    ticketId: string,
+  ): Promise<MaxBotCommandResponse> {
+    if (!this.workplace) return renderPersistentMenuMessage(ACTION_FAILED_TEXT);
+    const result = await this.workplace.ticketCard(technician, ticketId);
+    if (!result.ok) {
+      return result.message === 'Заявка недоступна'
+        ? renderTicketUnavailableMessage()
+        : renderPersistentMenuMessage(result.message);
+    }
+    if (result.value.pickerTransitions.length === 0) {
+      return renderTechnicianTicketCardMessage(result.value);
+    }
+    return renderTicketStatusPickerMessage(result.value);
+  }
+
+  private async applyTicketStatusMessage(
+    technician: ResolvedTechnician,
+    ticketId: string,
+    status: TicketStatus,
+  ): Promise<MaxBotCommandResponse> {
+    if (!this.workplace) return renderPersistentMenuMessage(ACTION_FAILED_TEXT);
+    const result = await this.workplace.changeMyTicketStatus(technician, ticketId, status);
+    if (!result.ok) {
+      return result.message === 'Заявка недоступна'
+        ? renderTicketUnavailableMessage()
+        : renderPersistentMenuMessage(result.message);
+    }
+    return renderTechnicianTicketCardMessage(result.value);
+  }
+
+  private async ticketHistoryMessage(
+    technician: ResolvedTechnician,
+    ticketId: string,
+    offset: number,
+  ): Promise<MaxBotCommandResponse> {
+    if (!this.workplace) return renderPersistentMenuMessage(ACTION_FAILED_TEXT);
+    const result = await this.workplace.ticketHistory(technician, ticketId, offset);
+    if (!result.ok) {
+      return result.message === 'Заявка недоступна'
+        ? renderTicketUnavailableMessage()
+        : renderPersistentMenuMessage(result.message);
+    }
+    return renderTicketHistoryMessage(result.value);
   }
 
   private async todayMessage(technician: ResolvedTechnician): Promise<MaxBotCommandResponse> {

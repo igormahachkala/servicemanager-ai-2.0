@@ -176,6 +176,27 @@ export class TicketsService {
     )
   }
 
+  timeline(
+    companyId: string,
+    userId: string,
+    role: UserRole,
+    ticketId: string,
+    accessFlags?: AccessFlags,
+    observerCompanyId?: string,
+    linkedClientCompanyId?: string,
+  ) {
+    const scope = scopeForClient(role, linkedClientCompanyId, observerCompanyId)
+    return this.query.timeline(
+      companyId,
+      userId,
+      role,
+      ticketId,
+      accessFlags,
+      scope.linkedClientCompanyId,
+      scope.observerCompanyId,
+    )
+  }
+
   listAttachments(
     companyId: string,
     userId: string,

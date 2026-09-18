@@ -5,7 +5,10 @@ import {
   renderTechnicianTicketCardMessage,
   renderTechnicianTicketsListMessage,
   renderTicketActionStubMessage,
+  renderTicketHistoryMessage,
+  renderTicketStatusPickerMessage,
   toTechnicianTicketCardView,
+  toTechnicianTicketHistoryPage,
   toTechnicianTicketListItem,
   type TechnicianTicketListItem,
 } from './max-technician-tickets';
@@ -135,6 +138,7 @@ describe('max-technician-tickets', () => {
     expect(res.text).not.toContain('Телефон');
     expect(buttonsOf(res).map((button) => button.text)).toEqual([
       'Начать работу',
+      'История',
       'Сегодня',
       'Моя смена',
       'Мои заявки',
@@ -146,6 +150,14 @@ describe('max-technician-tickets', () => {
     expect(parseTechnicianTicketAction('my:5')).toEqual({ kind: 'list', offset: 5 });
     expect(parseTechnicianTicketAction(`tk:${ID_OLD}`)).toEqual({ kind: 'card', ticketId: ID_OLD });
     expect(parseTechnicianTicketAction(`tks:${ID_OLD}`)).toEqual({ kind: 'start', ticketId: ID_OLD });
+    expect(parseTechnicianTicketAction(`tkm:${ID_OLD}`)).toEqual({ kind: 'status', ticketId: ID_OLD });
+    expect(parseTechnicianTicketAction(`tkp:${ID_OLD}:ASSIGNED`)).toEqual({
+      kind: 'apply',
+      ticketId: ID_OLD,
+      status: TicketStatus.ASSIGNED,
+    });
+    expect(parseTechnicianTicketAction(`tkh:${ID_OLD}`)).toEqual({ kind: 'history', ticketId: ID_OLD, offset: 0 });
+    expect(parseTechnicianTicketAction(`tkh:${ID_OLD}:5`)).toEqual({ kind: 'history', ticketId: ID_OLD, offset: 5 });
     expect(parseTechnicianTicketAction(`tku:${ID_OLD}`)).toEqual({ kind: 'stub', ticketId: ID_OLD });
     expect(parseTechnicianTicketAction('tk:not-an-id')).toBeNull();
     expect(parseTechnicianTicketAction('claim_ticket_123')).toBeNull();
@@ -155,5 +167,59 @@ describe('max-technician-tickets', () => {
     const res = renderTicketActionStubMessage(ID_OLD);
     expect(res.text).toBe('Этот функционал в разработке');
     expect(buttonsOf(res)[0]).toEqual({ type: 'callback', text: 'К заявке', payload: `tk:${ID_OLD}` });
+  });
+
+  it('status picker lists leftover transitions and cancel, history hides phones', () => {
+    const card = toTechnicianTicketCardView({
+      id: ID_OLD,
+      ticketNumber: 12,
+      status: TicketStatus.IN_PROGRESS,
+      problemText: 'Капает',
+      location: { name: 'Кухня' },
+      assignedTechnician: { firstName: 'Виктор', phone: '70001112233' },
+      meta: {
+        availableActions: { canStart: false, canComplete: true },
+        availableStatusTransitions: [TicketStatus.ASSIGNED, TicketStatus.DONE, TicketStatus.CANCELED],
+      },
+    });
+    expect(card?.pickerTransitions).toEqual([TicketStatus.ASSIGNED]);
+    const picker = renderTicketStatusPickerMessage(card!);
+    expect(picker.text).toContain('Выберите действие');
+    expect(buttonsOf(picker).map((button) => button.text)).toEqual([
+      'Назначена',
+      'Отмена',
+      'Сегодня',
+      'Моя смена',
+      'Мои заявки',
+    ]);
+
+    const history = renderTicketHistoryMessage(
+      toTechnicianTicketHistoryPage(
+        ID_OLD,
+        12,
+        [
+          {
+            at: '2026-09-18T10:00:00Z',
+            timelineEvent: 'STATUS_CHANGED',
+            payload: { fromStatus: TicketStatus.ASSIGNED, toStatus: TicketStatus.IN_PROGRESS, comment: null },
+            actor: { email: 'a@b.c', firstName: 'Виктор' },
+          },
+          {
+            at: '2026-09-18T11:00:00Z',
+            timelineEvent: 'COMMENT_ADDED',
+            payload: { comment: 'Проверил на месте' },
+            actor: { email: 'a@b.c' },
+          },
+        ],
+        0,
+      ),
+    );
+    expect(history.text).toContain('История #12');
+    expect(history.text).toContain('Статус: Назначена → В работе');
+    expect(history.text).toContain('Комментарий');
+    expect(history.text).toContain('Проверил на месте');
+    expect(history.text).not.toContain('a@b.c');
+    expect(history.text).not.toContain('7000');
+    expect(buttonsOf(history).map((button) => button.text)).toContain('К заявке');
   });
 });

@@ -21,8 +21,10 @@ import { TechnicianShiftSummary } from './max-technician-shift';
 import {
   MY_TICKET_PAGE_SIZE,
   TechnicianTicketCardView,
+  TechnicianTicketHistoryPage,
   TechnicianTicketListPage,
   toTechnicianTicketCardView,
+  toTechnicianTicketHistoryPage,
   toTechnicianTicketListItem,
 } from './max-technician-tickets';
 import { TechnicianTodaySummary } from './max-technician-today';
@@ -160,6 +162,49 @@ export class MaxTechnicianWorkplaceService {
         throw err;
       }
       return this.loadCard(identity, actor, ticketId);
+    });
+  }
+
+  async changeMyTicketStatus(
+    identity: ResolvedTechnician,
+    ticketId: string,
+    status: TicketStatus,
+  ): Promise<WorkplaceOutcome<TechnicianTicketCardView>> {
+    return this.run(async () => {
+      const actor = await this.actor(identity);
+      const before = await this.loadCard(identity, actor, ticketId);
+      if (!before.pickerTransitions.includes(status)) return before;
+      try {
+        await this.tickets.updateStatus(identity.companyId, actor, UserRole.TECHNICIAN, ticketId, { status });
+      } catch (err) {
+        if (err instanceof ForbiddenException) return this.loadCard(identity, actor, ticketId);
+        throw err;
+      }
+      return this.loadCard(identity, actor, ticketId);
+    });
+  }
+
+  async ticketHistory(
+    identity: ResolvedTechnician,
+    ticketId: string,
+    offset = 0,
+  ): Promise<WorkplaceOutcome<TechnicianTicketHistoryPage>> {
+    return this.run(async () => {
+      const actor = await this.actor(identity);
+      const [card, timeline] = await Promise.all([
+        this.loadCard(identity, actor, ticketId),
+        this.tickets.timeline(
+          identity.companyId,
+          identity.userId,
+          UserRole.TECHNICIAN,
+          ticketId,
+          actor.accessFlags,
+        ),
+      ]);
+      const entries = Array.isArray((timeline as { timeline?: unknown[] })?.timeline)
+        ? ((timeline as { timeline: Record<string, any>[] }).timeline)
+        : [];
+      return toTechnicianTicketHistoryPage(ticketId, card.ticketNumber, entries, offset);
     });
   }
 

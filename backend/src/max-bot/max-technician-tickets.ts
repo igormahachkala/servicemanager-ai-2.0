@@ -5,6 +5,9 @@ import { BOUND_ROLE_STUB_TEXT, technicianFooterRows } from './max-technician-men
 import { MaxBotCommandResponse, MaxBotInlineKeyboardButton } from './max-bot.types';
 
 export const MY_TICKET_PAGE_SIZE = 5;
+export const HISTORY_PAGE_SIZE = 5;
+
+const TICKET_STATUSES = new Set<string>(Object.values(TicketStatus));
 
 const TICKET_ID_RE =
   /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
@@ -35,13 +38,29 @@ export type TechnicianTicketCardView = {
   equipmentName: string;
   canStart: boolean;
   canComplete: boolean;
-  hasOtherStatusTransitions: boolean;
+  pickerTransitions: TicketStatus[];
+};
+
+export type TechnicianTicketHistoryItem = {
+  atLabel: string;
+  title: string;
+  detail: string | null;
+};
+
+export type TechnicianTicketHistoryPage = {
+  ticketId: string;
+  ticketNumber: number;
+  items: TechnicianTicketHistoryItem[];
+  nextOffset: number | null;
 };
 
 export type TechnicianTicketAction =
   | { kind: 'list'; offset: number }
   | { kind: 'card'; ticketId: string }
   | { kind: 'start'; ticketId: string }
+  | { kind: 'status'; ticketId: string }
+  | { kind: 'apply'; ticketId: string; status: TicketStatus }
+  | { kind: 'history'; ticketId: string; offset: number }
   | { kind: 'stub'; ticketId: string };
 
 export function parseTechnicianTicketAction(payload: string): TechnicianTicketAction | null {
@@ -51,6 +70,16 @@ export function parseTechnicianTicketAction(payload: string): TechnicianTicketAc
   if (card && TICKET_ID_RE.test(card[1])) return { kind: 'card', ticketId: card[1] };
   const start = payload.match(/^tks:(.+)$/);
   if (start && TICKET_ID_RE.test(start[1])) return { kind: 'start', ticketId: start[1] };
+  const status = payload.match(/^tkm:(.+)$/);
+  if (status && TICKET_ID_RE.test(status[1])) return { kind: 'status', ticketId: status[1] };
+  const apply = payload.match(/^tkp:(.+):([A-Z_]+)$/);
+  if (apply && TICKET_ID_RE.test(apply[1]) && TICKET_STATUSES.has(apply[2])) {
+    return { kind: 'apply', ticketId: apply[1], status: apply[2] as TicketStatus };
+  }
+  const history = payload.match(/^tkh:([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})(?::(\d+))?$/);
+  if (history && TICKET_ID_RE.test(history[1])) {
+    return { kind: 'history', ticketId: history[1], offset: history[2] ? Number(history[2]) : 0 };
+  }
   const stub = payload.match(/^tku:(.+)$/);
   if (stub && TICKET_ID_RE.test(stub[1])) return { kind: 'stub', ticketId: stub[1] };
   return null;
@@ -90,11 +119,13 @@ export function toTechnicianTicketCardView(ticket: Record<string, any>): Technic
     : [];
   const canStart = actions.canStart === true;
   const canComplete = actions.canComplete === true;
-  const leftover = transitions.filter(
+  const pickerTransitions = (transitions as TicketStatus[]).filter(
     (status) =>
-      status !== TicketStatus.IN_PROGRESS &&
+      TICKET_STATUSES.has(status) &&
       status !== TicketStatus.DONE &&
-      status !== TicketStatus.CANCELED,
+      status !== TicketStatus.AWAITING_ACCEPTANCE &&
+      status !== TicketStatus.CANCELED &&
+      !(canStart && status === TicketStatus.IN_PROGRESS),
   );
   return {
     id: ticket.id,
@@ -108,7 +139,7 @@ export function toTechnicianTicketCardView(ticket: Record<string, any>): Technic
     equipmentName: textOrFallback(ticket.equipment?.name, 'Нет'),
     canStart,
     canComplete,
-    hasOtherStatusTransitions: leftover.length > 0,
+    pickerTransitions,
   };
 }
 
@@ -147,9 +178,57 @@ export function renderTechnicianTicketCardMessage(card: TechnicianTicketCardView
   const actions: MaxBotInlineKeyboardButton[] = [];
   if (card.canStart) actions.push(callbackButton('Начать работу', `tks:${card.id}`));
   if (card.canComplete) actions.push(callbackButton('Завершить', `tku:${card.id}`));
-  if (card.hasOtherStatusTransitions) actions.push(callbackButton('Изменить статус', `tku:${card.id}`));
+  if (card.pickerTransitions.length > 0) {
+    actions.push(callbackButton('Изменить статус', `tkm:${card.id}`));
+  }
+  actions.push(callbackButton('История', `tkh:${card.id}`));
   const rows = [...chunk3(actions.slice(0, 4)), ...technicianFooterRows()];
   return withKeyboard(text, rows);
+}
+
+export function renderTicketStatusPickerMessage(card: TechnicianTicketCardView): MaxBotCommandResponse {
+  const choices = card.pickerTransitions.map((status) =>
+    callbackButton(ticketStatusLabel(status), `tkp:${card.id}:${status}`),
+  );
+  const cancel = callbackButton('Отмена', `tk:${card.id}`);
+  const actions = [...choices, cancel];
+  const rows =
+    actions.length + 3 <= 7
+      ? [...chunk3(actions), ...technicianFooterRows()]
+      : chunk3(actions);
+  return withKeyboard(`Выберите действие.\nЗаявка #${card.ticketNumber}`, rows);
+}
+
+export function renderTicketHistoryMessage(page: TechnicianTicketHistoryPage): MaxBotCommandResponse {
+  const body =
+    page.items.length === 0
+      ? 'Событий пока нет.'
+      : page.items.map((item) => [item.atLabel, item.title, item.detail].filter(Boolean).join('\n')).join('\n\n');
+  const extras: MaxBotInlineKeyboardButton[] = [];
+  if (page.nextOffset !== null) extras.push(callbackButton('Следующие', `tkh:${page.ticketId}:${page.nextOffset}`));
+  extras.push(callbackButton('К заявке', `tk:${page.ticketId}`));
+  const rows =
+    extras.length + 3 <= 7
+      ? [...chunk3(extras), ...technicianFooterRows()]
+      : chunk3(extras);
+  return withKeyboard(`История #${page.ticketNumber}\n\n${body}`, rows);
+}
+
+export function toTechnicianTicketHistoryPage(
+  ticketId: string,
+  ticketNumber: number,
+  entries: Array<Record<string, any>>,
+  offset = 0,
+): TechnicianTicketHistoryPage {
+  const newestFirst = [...entries].sort((a, b) => toTime(b?.at) - toTime(a?.at));
+  const start = Number.isFinite(offset) && offset > 0 ? Math.floor(offset) : 0;
+  const slice = newestFirst.slice(start, start + HISTORY_PAGE_SIZE);
+  return {
+    ticketId,
+    ticketNumber,
+    items: slice.map(formatHistoryItem).filter((item): item is TechnicianTicketHistoryItem => item !== null),
+    nextOffset: start + HISTORY_PAGE_SIZE < newestFirst.length ? start + HISTORY_PAGE_SIZE : null,
+  };
 }
 
 export function renderTicketActionStubMessage(ticketId: string): MaxBotCommandResponse {
@@ -204,4 +283,51 @@ function textOrFallback(value: unknown, fallback: string) {
 function personName(user?: { firstName?: string | null; lastName?: string | null } | null) {
   const name = [user?.firstName, user?.lastName].filter((part) => typeof part === 'string' && part.trim()).join(' ').trim();
   return name || 'Не назначен';
+}
+
+function formatHistoryItem(entry: Record<string, any>): TechnicianTicketHistoryItem | null {
+  const title = historyTitle(entry);
+  if (!title) return null;
+  const comment = typeof entry.payload?.comment === 'string' ? clip(entry.payload.comment) : '';
+  return {
+    atLabel: formatHistoryInstant(entry.at),
+    title,
+    detail: comment || null,
+  };
+}
+
+function historyTitle(entry: Record<string, any>) {
+  const event = String(entry.timelineEvent || '');
+  if (event === 'STATUS_CHANGED') {
+    const from = ticketStatusLabel(String(entry.payload?.fromStatus || ''));
+    const to = ticketStatusLabel(String(entry.payload?.toStatus || ''));
+    return `Статус: ${from} → ${to}`;
+  }
+  if (event === 'COMMENT_ADDED') return 'Комментарий';
+  if (event === 'TICKET_CREATED') return 'Создана';
+  if (event === 'TICKET_ASSIGNED') return 'Назначена';
+  if (event === 'TICKET_CLAIMED') return 'Взята';
+  if (event === 'TICKET_ATTACHMENT_UPLOADED') return 'Вложение';
+  if (event === 'TICKET_READY_FOR_ACCEPTANCE') return 'Передана на приёмку';
+  if (event === 'SLA_WARNING') return 'SLA: предупреждение';
+  if (event === 'SLA_BREACH') return 'SLA: просрочка';
+  return typeof entry.title === 'string' && entry.title.trim() ? clip(entry.title) : null;
+}
+
+function formatHistoryInstant(value: unknown) {
+  const date = value instanceof Date ? value : new Date(String(value || ''));
+  if (!Number.isFinite(date.getTime())) return '';
+  return new Intl.DateTimeFormat('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).format(date);
+}
+
+function toTime(value: unknown) {
+  const date = value instanceof Date ? value : new Date(String(value || ''));
+  const time = date.getTime();
+  return Number.isFinite(time) ? time : 0;
 }

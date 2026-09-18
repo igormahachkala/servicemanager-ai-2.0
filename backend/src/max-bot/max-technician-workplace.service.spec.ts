@@ -296,6 +296,66 @@ describe('MaxTechnicianWorkplaceService', () => {
     expect(started.ok && started.value.canComplete).toBe(true);
   });
 
+  it('applies leftover status via updateStatus and reads history via timeline', async () => {
+    const cardTicket = {
+      id: '11111111-1111-4111-8111-111111111111',
+      ticketNumber: 11,
+      status: TicketStatus.IN_PROGRESS,
+      problemText: 'Капает',
+      location: { name: 'Кухня' },
+      assignedTechnician: { firstName: 'Виктор' },
+      meta: {
+        availableActions: { canStart: false, canComplete: true },
+        availableStatusTransitions: [TicketStatus.ASSIGNED, TicketStatus.DONE],
+      },
+    };
+    const tickets = {
+      getOne: jest.fn().mockResolvedValue(cardTicket),
+      updateStatus: jest.fn().mockResolvedValue({}),
+      timeline: jest.fn().mockResolvedValue({
+        timeline: [
+          {
+            at: '2026-09-18T11:00:00Z',
+            timelineEvent: 'COMMENT_ADDED',
+            payload: { comment: 'На месте' },
+            actor: { email: 'hide@me' },
+          },
+        ],
+      }),
+    };
+    const service = new MaxTechnicianWorkplaceService(
+      makePrisma() as any,
+      { getMyState: jest.fn() } as any,
+      tickets as any,
+      { listRuns: jest.fn() } as any,
+    );
+
+    const applied = await service.changeMyTicketStatus(technician, cardTicket.id, TicketStatus.ASSIGNED);
+    expect(tickets.updateStatus).toHaveBeenCalledWith(
+      'company-1',
+      expect.objectContaining({ id: 'tech-1' }),
+      UserRole.TECHNICIAN,
+      cardTicket.id,
+      { status: TicketStatus.ASSIGNED },
+    );
+    expect(applied.ok).toBe(true);
+
+    const skipped = await service.changeMyTicketStatus(technician, cardTicket.id, TicketStatus.DONE);
+    expect(tickets.updateStatus).toHaveBeenCalledTimes(1);
+    expect(skipped.ok).toBe(true);
+
+    const history = await service.ticketHistory(technician, cardTicket.id, 0);
+    expect(tickets.timeline).toHaveBeenCalledWith(
+      'company-1',
+      'tech-1',
+      UserRole.TECHNICIAN,
+      cardTicket.id,
+      { canTechnicianViewAllCompanyTickets: false },
+    );
+    expect(history.ok && history.value.items[0]?.title).toBe('Комментарий');
+    expect(JSON.stringify(history)).not.toContain('hide@me');
+  });
+
   it('hides missing tickets behind one message', async () => {
     const tickets = {
       getOne: jest.fn().mockRejectedValue(new NotFoundException('Ticket not found')),

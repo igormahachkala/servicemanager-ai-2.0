@@ -317,7 +317,7 @@ function makeWorkplace() {
         equipmentName: 'Шкаф',
         canStart: true,
         canComplete: false,
-        hasOtherStatusTransitions: false,
+        pickerTransitions: [],
       },
     }),
     startMyTicket: jest.fn().mockResolvedValue({
@@ -334,7 +334,33 @@ function makeWorkplace() {
         equipmentName: 'Шкаф',
         canStart: false,
         canComplete: true,
-        hasOtherStatusTransitions: false,
+        pickerTransitions: [],
+      },
+    }),
+    changeMyTicketStatus: jest.fn().mockResolvedValue({
+      ok: true,
+      value: {
+        id: '11111111-1111-4111-8111-111111111111',
+        ticketNumber: 12,
+        locationName: 'Склад',
+        categoryName: 'Холод',
+        problemText: 'Не морозит',
+        urgencyLabel: 'Срочно',
+        statusLabel: 'Назначена',
+        assigneeName: 'Виктор',
+        equipmentName: 'Шкаф',
+        canStart: true,
+        canComplete: false,
+        pickerTransitions: [],
+      },
+    }),
+    ticketHistory: jest.fn().mockResolvedValue({
+      ok: true,
+      value: {
+        ticketId: '11111111-1111-4111-8111-111111111111',
+        ticketNumber: 12,
+        items: [{ atLabel: '18.09, 11:00', title: 'Комментарий', detail: 'Проверил' }],
+        nextOffset: null,
       },
     }),
   };
@@ -443,7 +469,17 @@ describe('MaxBotCommandService — technician chat menu', () => {
     const started = await service.handleUpdate(callback('tks:11111111-1111-4111-8111-111111111111'));
     expect(workplace.startMyTicket).toHaveBeenCalled();
     expect(started?.text).toContain('Статус: В работе');
-    expect(buttonsOf(started).map((button) => button.text)).toContain('Завершить');
+    expect(buttonsOf(started).map((button) => button.text)).toEqual([
+      'Завершить',
+      'История',
+      'Сегодня',
+      'Моя смена',
+      'Мои заявки',
+    ]);
+    const history = await service.handleUpdate(callback('tkh:11111111-1111-4111-8111-111111111111'));
+    expect(workplace.ticketHistory).toHaveBeenCalled();
+    expect(history?.text).toContain('История #12');
+    expect(history?.text).toContain('Проверил');
   });
 
   it('unbound user sending Мои заявки does not get ticket rows', async () => {
