@@ -324,6 +324,44 @@ function makeWorkplace() {
         },
       },
     }),
+    availableTickets: jest.fn().mockResolvedValue({
+      ok: true,
+      value: {
+        items: [
+          {
+            id: '11111111-1111-4111-8111-111111111111',
+            ticketNumber: 12,
+            locationName: 'Склад',
+            problemText: 'Не морозит',
+            urgencyLabel: 'Срочно',
+            statusLabel: 'Новая',
+            canClaim: true,
+          },
+        ],
+        prevOffset: null,
+        nextOffset: null,
+      },
+    }),
+    claimAvailableTicket: jest.fn().mockResolvedValue({
+      ok: true,
+      value: {
+        kind: 'claimed',
+        card: {
+          id: '11111111-1111-4111-8111-111111111111',
+          ticketNumber: 12,
+          locationName: 'Склад',
+          categoryName: 'Холод',
+          problemText: 'Не морозит',
+          urgencyLabel: 'Срочно',
+          statusLabel: 'Назначена',
+          assigneeName: 'Виктор',
+          equipmentName: 'Шкаф',
+          canStart: true,
+          canComplete: false,
+          pickerTransitions: [],
+        },
+      },
+    }),
     ticketCard: jest.fn().mockResolvedValue({
       ok: true,
       value: {
@@ -442,6 +480,7 @@ describe('MaxBotCommandService — technician chat menu', () => {
     expect(buttonsOf(start).map((button) => button.text)).toEqual([
       'Сегодня',
       'Мои заявки',
+      'Доступные',
       'Моя смена',
       'Поиск заявки',
     ]);
@@ -485,6 +524,7 @@ describe('MaxBotCommandService — technician chat menu', () => {
     expect(buttonsOf(res).map((button) => button.text)).toEqual([
       'Сегодня',
       'Мои заявки',
+      'Доступные',
       'Моя смена',
       'Поиск заявки',
     ]);
@@ -541,6 +581,19 @@ describe('MaxBotCommandService — technician chat menu', () => {
     expect(found?.text).toContain('#12 · Назначена · Срочно');
     expect(found?.text).not.toContain('7999');
     expect(buttonsOf(found).map((button) => button.text)).toContain('#12');
+  });
+
+  it('Доступные lists claimable tickets and claim goes through the workplace', async () => {
+    const { service, workplace } = makeTechnicianService();
+    const list = await service.handleUpdate(callback('avail'));
+    expect(workplace.availableTickets).toHaveBeenCalled();
+    expect(list?.text).toContain('Доступные');
+    expect(list?.text).toContain('#12 · Новая · Срочно');
+    expect(buttonsOf(list).map((button) => button.text)).toEqual(['Взять #12', 'Подробнее', 'Меню']);
+    const claimed = await service.handleUpdate(callback('avc:11111111-1111-4111-8111-111111111111'));
+    expect(workplace.claimAvailableTicket).toHaveBeenCalled();
+    expect(claimed?.text).toContain('Заявка #12 назначена вам.');
+    expect(claimed?.text).toContain('Исполнитель: Виктор');
   });
 
   it('unbound user sending Мои заявки does not get ticket rows', async () => {

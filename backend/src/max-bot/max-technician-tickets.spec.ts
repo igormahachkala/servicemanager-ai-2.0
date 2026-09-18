@@ -142,6 +142,8 @@ describe('max-technician-tickets', () => {
   it('parses list paging and ticket ids, rejects junk', () => {
     expect(parseTechnicianTicketAction('my:5')).toEqual({ kind: 'list', offset: 5 });
     expect(parseTechnicianTicketAction('fn:6')).toEqual({ kind: 'findPage', offset: 6 });
+    expect(parseTechnicianTicketAction('av:6')).toEqual({ kind: 'availList', offset: 6 });
+    expect(parseTechnicianTicketAction(`avc:${ID_OLD}`)).toEqual({ kind: 'claim', ticketId: ID_OLD });
     expect(parseTechnicianTicketAction(`tk:${ID_OLD}`)).toEqual({ kind: 'card', ticketId: ID_OLD });
     expect(parseTechnicianTicketAction(`tks:${ID_OLD}`)).toEqual({ kind: 'start', ticketId: ID_OLD });
     expect(parseTechnicianTicketAction(`tkm:${ID_OLD}`)).toEqual({ kind: 'status', ticketId: ID_OLD });

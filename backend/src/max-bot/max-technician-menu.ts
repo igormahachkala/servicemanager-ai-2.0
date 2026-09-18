@@ -50,7 +50,7 @@ function callbackButton(text: string, payload: string): MaxBotInlineKeyboardButt
   return { type: 'callback', text, payload };
 }
 
-const HIDDEN_TECHNICIAN_SECTIONS = new Set<TechnicianSectionPayload>(['avail', 'rounds']);
+const HIDDEN_TECHNICIAN_SECTIONS = new Set<TechnicianSectionPayload>(['rounds']);
 
 function technicianMenuRows(): MaxBotInlineKeyboardButton[][] {
   const buttons: MaxBotInlineKeyboardButton[] = TECHNICIAN_SECTIONS.filter(

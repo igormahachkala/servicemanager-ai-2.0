@@ -283,6 +283,50 @@ describe('MaxTechnicianWorkplaceService', () => {
     expect(phone.ok && phone.value.kind === 'page' && phone.value.page.items).toEqual([]);
   });
 
+  it('lists available tickets from availableForTechnician and claims through TicketsService.claim', async () => {
+    const tickets = {
+      availableForTechnician: jest.fn().mockResolvedValue([
+        {
+          id: '11111111-1111-4111-8111-111111111111',
+          ticketNumber: 12,
+          status: TicketStatus.NEW,
+          urgency: 'URGENT',
+          problemText: 'Не морозит',
+          requesterPhone: '79990001122',
+          location: { name: 'Склад' },
+          canClaim: true,
+        },
+      ]),
+      claim: jest.fn().mockResolvedValue({
+        id: '11111111-1111-4111-8111-111111111111',
+        ticketNumber: 12,
+        status: TicketStatus.ASSIGNED,
+        problemText: 'Не морозит',
+        location: { name: 'Склад' },
+        assignedTechnician: { firstName: 'Виктор' },
+        meta: { availableActions: { canStart: true, canComplete: false }, availableStatusTransitions: [] },
+      }),
+    };
+    const service = new MaxTechnicianWorkplaceService(
+      makePrisma() as any,
+      { getMyState: jest.fn() } as any,
+      tickets as any,
+      { listRuns: jest.fn() } as any,
+    );
+    const page = await service.availableTickets(technician, 0);
+    expect(tickets.availableForTechnician).toHaveBeenCalledWith('company-1', 'tech-1');
+    expect(page.ok && page.value.items[0]).toMatchObject({ ticketNumber: 12, canClaim: true });
+    expect(JSON.stringify(page)).not.toContain('7999');
+
+    const claimed = await service.claimAvailableTicket(technician, '11111111-1111-4111-8111-111111111111');
+    expect(tickets.claim).toHaveBeenCalledWith('company-1', 'tech-1', '11111111-1111-4111-8111-111111111111');
+    expect(claimed.ok && claimed.value.kind === 'claimed' && claimed.value.card.statusLabel).toBe('Назначена');
+
+    tickets.claim.mockRejectedValueOnce(new NotFoundException('Ticket not found or not available for claim'));
+    const taken = await service.claimAvailableTicket(technician, '11111111-1111-4111-8111-111111111111');
+    expect(taken.ok && taken.value.kind).toBe('taken');
+  });
+
   it('loads a card through getOne and starts work through status + work log', async () => {
     const cardTicket = {
       id: '11111111-1111-4111-8111-111111111111',

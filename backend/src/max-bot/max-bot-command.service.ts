@@ -35,6 +35,11 @@ import {
 import { extractMaxIncomingMedia, MaxFileClient } from './max-file.client';
 import { MaxTechnicianDialog } from './max-technician-dialog';
 import { renderTechnicianTodayMessage } from './max-technician-today';
+import {
+  renderAvailableClaimedMessage,
+  renderAvailableTakenMessage,
+  renderAvailableTicketsMessage,
+} from './max-technician-available';
 import { MaxTechnicianWorkplaceService } from './max-technician-workplace.service';
 import { MaxBotCommandResponse, MaxBotUpdate } from './max-bot.types';
 
@@ -229,6 +234,7 @@ export class MaxBotCommandService {
     if (payload === 'today') return this.todayMessage(technician);
     if (payload === 'shift') return this.shiftMessage(technician);
     if (payload === 'my') return this.myTicketsMessage(technician, 0);
+    if (payload === 'avail') return this.availableTicketsMessage(technician, 0);
     if (payload === 'find') return this.dialog.beginFind(technician);
     return renderTechnicianSectionMessage(payload);
   }
@@ -254,6 +260,8 @@ export class MaxBotCommandService {
     if (!technician) return this.menuMessage(update);
     this.logger.log({ payload: action.kind }, 'max_bot_callback_handled');
     if (action.kind === 'list') return this.myTicketsMessage(technician, action.offset);
+    if (action.kind === 'availList') return this.availableTicketsMessage(technician, action.offset);
+    if (action.kind === 'claim') return this.claimAvailableMessage(technician, action.ticketId);
     if (action.kind === 'findPage') return this.dialog.pageFind(technician, action.offset);
     if (action.kind === 'card') return this.ticketCardMessage(technician, action.ticketId);
     if (action.kind === 'start') return this.startTicketMessage(technician, action.ticketId);
@@ -276,6 +284,27 @@ export class MaxBotCommandService {
     const result = await this.workplace.myTickets(technician, offset);
     if (!result.ok) return renderPersistentMenuMessage(result.message);
     return renderTechnicianTicketsListMessage(result.value);
+  }
+
+  private async availableTicketsMessage(
+    technician: ResolvedTechnician,
+    offset: number,
+  ): Promise<MaxBotCommandResponse> {
+    if (!this.workplace) return renderPersistentMenuMessage(ACTION_FAILED_TEXT);
+    const result = await this.workplace.availableTickets(technician, offset);
+    if (!result.ok) return renderPersistentMenuMessage(result.message);
+    return renderAvailableTicketsMessage(result.value);
+  }
+
+  private async claimAvailableMessage(
+    technician: ResolvedTechnician,
+    ticketId: string,
+  ): Promise<MaxBotCommandResponse> {
+    if (!this.workplace) return renderPersistentMenuMessage(ACTION_FAILED_TEXT);
+    const result = await this.workplace.claimAvailableTicket(technician, ticketId);
+    if (!result.ok) return renderPersistentMenuMessage(result.message);
+    if (result.value.kind === 'taken') return renderAvailableTakenMessage(result.value.page);
+    return renderAvailableClaimedMessage(result.value.card, renderTechnicianTicketCardMessage(result.value.card));
   }
 
   private async ticketCardMessage(

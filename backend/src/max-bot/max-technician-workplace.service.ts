@@ -28,6 +28,7 @@ import {
   toTechnicianTicketListItem,
 } from './max-technician-tickets';
 import { parseFindTicketNumber, ticketMatchesFindQuery } from './max-technician-find';
+import { TechnicianAvailablePage, toTechnicianAvailablePage } from './max-technician-available';
 import { TechnicianTodaySummary } from './max-technician-today';
 
 const ACTIVE_TICKET_STATUSES = new Set<TicketStatus>([
@@ -41,6 +42,10 @@ type ResolvedTechnician = Extract<MaxIdentity, { resolved: true }>;
 export type TechnicianTicketSearchResult =
   | { kind: 'card'; card: TechnicianTicketCardView }
   | { kind: 'page'; page: TechnicianTicketListPage };
+
+export type TechnicianTicketClaimResult =
+  | { kind: 'claimed'; card: TechnicianTicketCardView }
+  | { kind: 'taken'; page: TechnicianAvailablePage };
 
 export type WorkplaceOutcome<T> = { ok: true; value: T } | { ok: false; message: string };
 
@@ -177,6 +182,37 @@ export class MaxTechnicianWorkplaceService {
           prevOffset: start > 0 ? Math.max(0, start - MY_TICKET_PAGE_SIZE) : null,
         },
       };
+    });
+  }
+
+  async availableTickets(
+    identity: ResolvedTechnician,
+    offset = 0,
+  ): Promise<WorkplaceOutcome<TechnicianAvailablePage>> {
+    return this.run(async () => {
+      const rows = await this.tickets.availableForTechnician(identity.companyId, identity.userId);
+      return toTechnicianAvailablePage(Array.isArray(rows) ? (rows as Array<Record<string, any>>) : [], offset);
+    });
+  }
+
+  async claimAvailableTicket(
+    identity: ResolvedTechnician,
+    ticketId: string,
+  ): Promise<WorkplaceOutcome<TechnicianTicketClaimResult>> {
+    return this.run(async () => {
+      try {
+        const claimed = await this.tickets.claim(identity.companyId, identity.userId, ticketId);
+        const card = toTechnicianTicketCardView(claimed as Record<string, any>);
+        if (!card) throw new NotFoundException('Заявка недоступна');
+        return { kind: 'claimed' as const, card };
+      } catch (err) {
+        if (err instanceof NotFoundException) {
+          const page = await this.availableTickets(identity, 0);
+          if (!page.ok) throw err;
+          return { kind: 'taken' as const, page: page.value };
+        }
+        throw err;
+      }
     });
   }
 
