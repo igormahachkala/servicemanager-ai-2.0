@@ -12,6 +12,7 @@ import { MaxBotController } from './max-bot.controller';
 import { MaxBotPollingService } from './max-bot-polling.service';
 import { MaxBotWebhookController } from './max-bot-webhook.controller';
 import { MaxBotService } from './max-bot.service';
+import { MaxFileClient } from './max-file.client';
 import { MaxTechnicianWorkplaceService } from './max-technician-workplace.service';
 
 @Module({
@@ -29,6 +30,7 @@ import { MaxTechnicianWorkplaceService } from './max-technician-workplace.servic
     MaxIdentityService,
     MaxBindingService,
     MaxTechnicianWorkplaceService,
+    { provide: MaxFileClient, useFactory: () => new MaxFileClient() },
   ],
   // MaxIdentityService is the single bot-facing identity contract (`resolveMaxIdentity`).
   // MaxBindingService is exported for the ceremony only — nothing resolves authority here.
