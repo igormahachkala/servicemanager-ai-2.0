@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common'
 import {
   InspectionFrequency,
+  InspectionRunStatus,
   ServiceContractLocationMode,
   ServiceContractRole,
   ServiceContractStatus,
@@ -695,5 +696,58 @@ describe('098 schedule DELETE / DEACTIVATE', () => {
 
     await expect(svc.remove(technician, 'sched-1')).rejects.toBeInstanceOf(ForbiddenException)
     expect(prisma.inspectionSchedule.delete).not.toHaveBeenCalled()
+  })
+})
+
+// ── 120G: то, на что опирается мобильный план на сегодня ────────────────────
+
+describe('120G выборка плана для мобильного «Сегодня»', () => {
+  it('запрашивает адрес площадки и последнее исполнение плана', async () => {
+    const { svc, prisma } = makeSuite({ schedules: [scheduleRow()] })
+
+    await svc.list(technician, {})
+
+    const select = prisma.inspectionSchedule.findMany.mock.calls[0][0].select
+    // Техник едет по адресу, а не по названию площадки.
+    expect(select.location.select).toMatchObject({ address: true, name: true, city: true })
+    // Состояние визита: один самый свежий обход плана, не выборка по всем.
+    expect(select.runs).toMatchObject({
+      take: 1,
+      orderBy: [{ createdAt: 'desc' }],
+      select: { id: true, status: true, completedAt: true },
+    })
+  })
+
+  it('отдаёт последнее исполнение как lastRun, а не массивом обходов', async () => {
+    const row = scheduleRow({
+      runs: [{ id: 'run-9', status: InspectionRunStatus.IN_PROGRESS, completedAt: null }],
+    })
+    const { svc } = makeSuite({ schedules: [row] })
+
+    const [schedule]: any = await svc.list(technician, {})
+
+    expect(schedule.lastRun).toEqual({
+      id: 'run-9',
+      status: InspectionRunStatus.IN_PROGRESS,
+      completedAt: null,
+    })
+    expect(schedule.runs).toBeUndefined()
+  })
+
+  it('план без единого обхода отдаёт lastRun пустым', async () => {
+    const { svc } = makeSuite({ schedules: [scheduleRow({ runs: [] })] })
+
+    const [schedule]: any = await svc.list(technician, {})
+
+    expect(schedule.lastRun).toBeNull()
+  })
+
+  it('сортировка по ближайшему сроку остаётся первичной', async () => {
+    const { svc, prisma } = makeSuite({ schedules: [scheduleRow()] })
+
+    await svc.list(technician, {})
+
+    const orderBy = prisma.inspectionSchedule.findMany.mock.calls[0][0].orderBy
+    expect(orderBy[0]).toEqual({ nextDueAt: 'asc' })
   })
 })
