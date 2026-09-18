@@ -3745,6 +3745,11 @@ export type StartInspectionRunInput = {
   locationId: string
   equipmentId?: string
   title?: string
+  /**
+   * SMA-PLANNER-V1: запуск запланированного визита. Бэкенд связывает обход
+   * с планом и проставляет срок; без поля обход остаётся «от руки».
+   */
+  scheduleId?: string
 }
 
 export type UpdateInspectionRunItemInput = {
@@ -4238,10 +4243,18 @@ export type InspectionSchedule = {
   createdAt: string
   updatedAt: string
   template: { id: string; name: string }
-  location: { id: string; name: string; city?: string | null; platformCode?: string | null }
+  location: {
+    id: string
+    name: string
+    city?: string | null
+    address?: string | null
+    platformCode?: string | null
+  }
   equipment?: { id: string; name: string; type?: string | null } | null
   assignedTo?: { id: string; email: string; firstName?: string | null; lastName?: string | null } | null
   _count?: { runs: number }
+  /** Последнее исполнение плана: по нему определяется состояние визита. */
+  lastRun?: { id: string; status: InspectionRunStatus; completedAt?: string | null } | null
 }
 
 export type CreateInspectionScheduleInput = {

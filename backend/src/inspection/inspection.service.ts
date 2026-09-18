@@ -41,6 +41,30 @@ import {
   buildInspectionRunSummary,
 } from './inspection.report.mapper'
 
+/**
+ * SMA-PLANNER-SCHEDULE-RUN-LINK-HARDENING-119T — ключ идемпотентности запуска по плану.
+ *
+ * Ключ обязан различать две разные вещи: повтор одного и того же запуска и
+ * законный следующий визит по тому же плану. Одного scheduleId для этого мало —
+ * он одинаков и там, и там, и повтор через сутки вернул бы вчерашний обход.
+ *
+ * Различителем служит lastRunId: до первого визита он пуст, после каждого
+ * успешного запуска указывает на созданный обход. Значит все попытки одного
+ * визита видят одно и то же значение и схлопываются в один обход, а следующий
+ * визит приходит уже с другим ключом и выполняется заново.
+ *
+ * Чего этот ключ не закрывает: запись идемпотентности уникальна в пределах
+ * (companyId, userId, operationType, key), то есть защищает одного актора.
+ * Одновременный запуск двумя разными акторами (техник и менеджер) ключами не
+ * пересекается; его ловит проверка незакрытого обхода внутри транзакции, но
+ * полностью закрыть эту гонку без частичного уникального индекса в БД нельзя.
+ * Такой миграции в этой задаче намеренно нет — она относится к слайсу
+ * генератора, где столкновение акторов становится вероятным.
+ */
+function scheduledStartKey(schedule: { id: string; lastRunId: string | null }): string {
+  return `${schedule.id}:${schedule.lastRunId ?? 'initial'}`
+}
+
 @Injectable()
 export class InspectionService {
   private readonly policy = new InspectionPolicy()
@@ -301,36 +325,232 @@ export class InspectionService {
       throw new NotFoundException('Equipment not found')
     }
 
-    return this.prisma.inspectionRun.create({
-      data: {
-        companyId: user.companyId,
-        templateId: template.id,
-        locationId: location.id,
-        equipmentId: equipment?.id ?? null,
-        performedByUserId: user.id,
-        title: dto.title?.trim() || template.name,
-        status: InspectionRunStatus.IN_PROGRESS,
-        items: {
-          create: template.items.map((item) => ({
-            templateItemId: item.id,
-            title: item.title,
-            description: item.description,
-            sortOrder: item.sortOrder,
-            zoneName: item.zoneName,
-            zoneSortOrder: item.zoneSortOrder,
-            checkpointSortOrder: item.checkpointSortOrder,
-            responseType: item.responseType,
-            numericMin: item.numericMin,
-            numericMax: item.numericMax,
-            numericUnit: item.numericUnit,
-            isRequired: item.isRequired,
-            status: InspectionRunItemStatus.PENDING,
-            requiresRepair: false,
-          })),
-        },
-      },
-      select: runSelect(),
+    const schedule = await this.resolveScheduleForRun(user, dto, {
+      templateId: template.id,
+      locationId: location.id,
+      equipmentId: equipment?.id ?? null,
     })
+
+    const data: Prisma.InspectionRunUncheckedCreateInput = {
+      companyId: user.companyId,
+      templateId: template.id,
+      locationId: location.id,
+      equipmentId: equipment?.id ?? null,
+      performedByUserId: user.id,
+      title: dto.title?.trim() || template.name,
+      status: InspectionRunStatus.IN_PROGRESS,
+      /**
+       * 119K: план и исполнение связываются здесь, полями, которые в схеме уже есть.
+       * Без расписания оба поля остаются пустыми — ровно как до этой задачи.
+       */
+      scheduleId: schedule?.id ?? null,
+      dueAt: schedule?.nextDueAt ?? null,
+      items: {
+        create: template.items.map((item) => ({
+          templateItemId: item.id,
+          title: item.title,
+          description: item.description,
+          sortOrder: item.sortOrder,
+          zoneName: item.zoneName,
+          zoneSortOrder: item.zoneSortOrder,
+          checkpointSortOrder: item.checkpointSortOrder,
+          responseType: item.responseType,
+          numericMin: item.numericMin,
+          numericMax: item.numericMax,
+          numericUnit: item.numericUnit,
+          isRequired: item.isRequired,
+          status: InspectionRunItemStatus.PENDING,
+          requiresRepair: false,
+        })),
+      },
+    }
+
+    if (!schedule) {
+      return this.prisma.inspectionRun.create({ data, select: runSelect() })
+    }
+
+    const resolved = {
+      templateId: template.id,
+      locationId: location.id,
+      equipmentId: equipment?.id ?? null,
+    }
+
+    /**
+     * 119T: повтор того же запуска не должен создавать второй обход.
+     *
+     * Механизм переиспользуется существующий — IdempotencyService (113B), уже
+     * внедрённый в этот сервис для вложений и заявок. Второго механизма здесь
+     * не заводится: ключ и отпечаток строятся по тем же правилам, что и там.
+     */
+    if (!this.idempotency) {
+      return this.createScheduledRun(user, schedule, data, resolved)
+    }
+
+    const outcome = await this.idempotency.run<any>(
+      {
+        companyId: user.companyId,
+        userId: user.id,
+        operationType: 'inspection.start_run',
+        key: scheduledStartKey(schedule),
+      },
+      /**
+       * Отпечаток — разрешённый смысл операции, а не присланный запрос. Если
+       * план успели отредактировать между попытками, шаблон/локация/оборудование
+       * изменятся, и повтор будет отклонён как другая операция, а не угадан.
+       */
+      IdempotencyService.fingerprint(resolved),
+      {
+        execute: async () => {
+          const created = await this.createScheduledRun(user, schedule, data, resolved)
+          return { result: created, entityType: 'InspectionRun', entityId: created.id }
+        },
+        /**
+         * Повтор возвращает тот же обход и не порождает ни второй строки, ни
+         * второго inspection.run_generated: событие живёт внутри execute.
+         */
+        replay: async (entityId) =>
+          this.prisma.inspectionRun.findUnique({ where: { id: entityId }, select: runSelect() }),
+      },
+    )
+
+    return outcome.result
+  }
+
+  /**
+   * SMA-PLANNER-SCHEDULE-RUN-LINK-HARDENING-119T — запись запланированного обхода.
+   *
+   * Всё, что делает визит состоявшимся, лежит здесь: проверка занятости, сама
+   * строка обхода со снимком шаблона, отметка в расписании и событие. Вызов
+   * происходит не более одного раза на ключ идемпотентности.
+   */
+  private async createScheduledRun(
+    user: InspectionUserCtx,
+    schedule: { id: string; nextDueAt: Date | null },
+    data: Prisma.InspectionRunUncheckedCreateInput,
+    resolved: { templateId: string; locationId: string; equipmentId: string | null },
+  ) {
+    /**
+     * Обход, отметка в расписании и проверка занятости идут одной транзакцией.
+     * Проверка внутри неё, а не перед ней: снаружи между чтением и вставкой
+     * оставалось окно, в которое помещался второй обход того же визита.
+     */
+    const run = await this.prisma.$transaction(async (tx) => {
+      const active = await tx.inspectionRun.findFirst({
+        where: { scheduleId: schedule.id, status: InspectionRunStatus.IN_PROGRESS },
+        select: { id: true },
+      })
+      if (active) {
+        /**
+         * Признак занятости — именно незакрытый обход. Завершённый не блокирует:
+         * следующий визит по тому же плану законен и у периодических расписаний
+         * ожидаем. Ответ называет уже начатый обход, чтобы клиент открыл его, а
+         * не показал тупиковую ошибку.
+         */
+        throw new ConflictException({
+          code: 'INSPECTION_SCHEDULE_RUN_IN_PROGRESS',
+          message: 'Обход по этому плану уже начат.',
+          runId: active.id,
+        })
+      }
+
+      const created = await tx.inspectionRun.create({ data, select: runSelect() })
+      await tx.inspectionSchedule.update({
+        where: { id: schedule.id },
+        data: { lastRunId: created.id, lastGeneratedAt: new Date() },
+      })
+      return created
+    })
+
+    /**
+     * Событие описывает появление обхода из плана — именно это и произошло.
+     * Отличить запуск человеком от будущего автогенератора можно по actorUserId
+     * и по полю trigger: у генератора актора нет.
+     */
+    await this.timeline.recordLegacy({
+      type: 'inspection.run_generated',
+      companyId: user.companyId,
+      entityType: 'InspectionRun',
+      entityId: run.id,
+      actorUserId: user.id,
+      payload: {
+        runId: run.id,
+        scheduleId: schedule.id,
+        templateId: resolved.templateId,
+        locationId: resolved.locationId,
+        equipmentId: resolved.equipmentId,
+        dueAt: schedule.nextDueAt,
+        trigger: 'technician_start',
+      },
+    })
+
+    return run
+  }
+
+  /**
+   * SMA-PLANNER-V1-SCHEDULE-TO-RUN-LINK-119K — проверка плана перед исполнением.
+   *
+   * Расписание не даёт доступа. Доступ к шаблону, локации и оборудованию уже
+   * решён выше каноническим порядком 097, и эта проверка его не переоткрывает:
+   * она лишь убеждается, что начинаемый обход — тот самый запланированный визит.
+   * Поэтому сверка идёт с уже разрешёнными значениями, а не с тем, что прислал
+   * клиент: подмена locationId в запросе иначе прошла бы сверку с расписанием.
+   */
+  private async resolveScheduleForRun(
+    user: InspectionUserCtx,
+    dto: StartRunDto,
+    resolved: { templateId: string; locationId: string; equipmentId: string | null },
+  ) {
+    if (!dto.scheduleId) return null
+
+    const schedule = await this.prisma.inspectionSchedule.findFirst({
+      // Компания актора: расписание чужого провайдера не существует для него,
+      // тем же фильтром, что и в самом сервисе расписаний.
+      where: { id: dto.scheduleId, companyId: user.companyId },
+      select: {
+        id: true,
+        isActive: true,
+        templateId: true,
+        locationId: true,
+        equipmentId: true,
+        assignedToUserId: true,
+        nextDueAt: true,
+        /** 119T: отметка предыдущего визита — по ней строится ключ идемпотентности. */
+        lastRunId: true,
+      },
+    })
+    if (!schedule) throw new NotFoundException('Inspection schedule not found')
+
+    /**
+     * Техник видит и выполняет только назначенное ему. Отказ — «не найдено»,
+     * как и в InspectionScheduleService.get: существование чужого плана
+     * не является информацией, на которую техник имеет право.
+     */
+    if (
+      !this.policy.canManageSchedule(user).allowed &&
+      schedule.assignedToUserId !== user.id
+    ) {
+      throw new NotFoundException('Inspection schedule not found')
+    }
+
+    if (!schedule.isActive) {
+      throw new BadRequestException('Inspection schedule is not active')
+    }
+    if (schedule.templateId !== resolved.templateId) {
+      throw new BadRequestException('Inspection schedule has a different template')
+    }
+    if (schedule.locationId !== resolved.locationId) {
+      throw new BadRequestException('Inspection schedule has a different location')
+    }
+    if ((schedule.equipmentId ?? null) !== resolved.equipmentId) {
+      throw new BadRequestException('Inspection schedule has different equipment')
+    }
+
+    /**
+     * 119T: проверка «визит уже начат» переехала внутрь транзакции создания
+     * (createScheduledRun). Здесь остаётся только сверка плана: чем ближе
+     * проверка к записи, тем уже окно между ней и вставкой строки.
+     */
+    return schedule
   }
 
   async getRun(user: InspectionUserCtx, runId: string) {
