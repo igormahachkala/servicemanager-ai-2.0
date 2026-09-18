@@ -216,12 +216,20 @@ export function MobileInspectionList({ standalone = false }: { standalone?: bool
             <h1 className="mobileTitle">Обходы</h1>
             <div className="mobileSubtitle">Инспекционные обходы объектов</div>
           </div>
-          <Link
-            to={`${mobilePath(location.pathname, '/inspection/start')}${location.search}`}
-            className="mobileBtn mobileInspectionStartLink"
-          >
-            Начать обход
-          </Link>
+          <div className="mobileInspectionListActions">
+            <Link
+              to={mobilePath(location.pathname, '/inspection/today')}
+              className="mobileBtn mobileBtnGhost"
+            >
+              Сегодня
+            </Link>
+            <Link
+              to={`${mobilePath(location.pathname, '/inspection/start')}${location.search}`}
+              className="mobileBtn mobileInspectionStartLink"
+            >
+              Начать обход
+            </Link>
+          </div>
         </div>
         {content}
       </div>
