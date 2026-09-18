@@ -1,4 +1,13 @@
-import { BadRequestException, forwardRef, HttpException, Inject, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  forwardRef,
+  HttpException,
+  Inject,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { TicketStatus, UserRole } from '@prisma/client';
 
 import { PERMISSIONS } from '../common/permissions.constants';
@@ -9,6 +18,13 @@ import { latestCorrection, resolveEffectiveShiftTime } from '../workforce/workfo
 import { WorkforceService } from '../workforce/workforce.service';
 import { MaxIdentity } from './max-identity.service';
 import { TechnicianShiftSummary } from './max-technician-shift';
+import {
+  MY_TICKET_PAGE_SIZE,
+  TechnicianTicketCardView,
+  TechnicianTicketListPage,
+  toTechnicianTicketCardView,
+  toTechnicianTicketListItem,
+} from './max-technician-tickets';
 import { TechnicianTodaySummary } from './max-technician-today';
 
 const ACTIVE_TICKET_STATUSES = new Set<TicketStatus>([
@@ -48,10 +64,7 @@ export class MaxTechnicianWorkplaceService {
         }),
       ]);
 
-      const mine = (Array.isArray(tickets) ? tickets : []).filter(
-        (ticket) =>
-          ticket.assignedTechnicianId === identity.userId && ACTIVE_TICKET_STATUSES.has(ticket.status),
-      );
+      const mine = (Array.isArray(tickets) ? tickets : []).filter((ticket) => isMineActive(ticket, identity.userId));
       const overdueCount = mine.filter((ticket) => isOverdue(ticket, now)).length;
       const shift = shiftSummary(state, timezone);
       const roundsTodayCount = (Array.isArray(rounds) ? rounds : []).filter((run) =>
@@ -90,6 +103,88 @@ export class MaxTechnicianWorkplaceService {
       const state = await this.workforce.closeShift(actor);
       return shiftSummary(state, state.company.timezone);
     });
+  }
+
+  async myTickets(
+    identity: ResolvedTechnician,
+    offset = 0,
+  ): Promise<WorkplaceOutcome<TechnicianTicketListPage>> {
+    return this.run(async () => {
+      const actor = await this.actor(identity);
+      const tickets = await this.tickets.list(
+        identity.companyId,
+        identity.userId,
+        UserRole.TECHNICIAN,
+        undefined,
+        actor.accessFlags,
+      );
+      const mine = sortOldestFirst(
+        (Array.isArray(tickets) ? tickets : []).filter((ticket) => isMineActive(ticket, identity.userId)),
+      );
+      const start = Number.isFinite(offset) && offset > 0 ? Math.floor(offset) : 0;
+      const slice = mine.slice(start, start + MY_TICKET_PAGE_SIZE);
+      return {
+        items: slice
+          .map((ticket) => toTechnicianTicketListItem(ticket as Record<string, any>))
+          .filter((item): item is NonNullable<typeof item> => item !== null),
+        nextOffset: start + MY_TICKET_PAGE_SIZE < mine.length ? start + MY_TICKET_PAGE_SIZE : null,
+      };
+    });
+  }
+
+  async ticketCard(
+    identity: ResolvedTechnician,
+    ticketId: string,
+  ): Promise<WorkplaceOutcome<TechnicianTicketCardView>> {
+    return this.run(async () => {
+      const actor = await this.actor(identity);
+      return this.loadCard(identity, actor, ticketId);
+    });
+  }
+
+  async startMyTicket(
+    identity: ResolvedTechnician,
+    ticketId: string,
+  ): Promise<WorkplaceOutcome<TechnicianTicketCardView>> {
+    return this.run(async () => {
+      const actor = await this.actor(identity);
+      const before = await this.loadCard(identity, actor, ticketId);
+      if (!before.canStart) return before;
+      await this.tickets.updateStatus(identity.companyId, actor, UserRole.TECHNICIAN, ticketId, {
+        status: TicketStatus.IN_PROGRESS,
+      });
+      try {
+        await this.workforce.startTicketWork(actor, ticketId);
+      } catch (err) {
+        this.logger.warn({ err }, 'max_bot_work_log_start_failed');
+        throw err;
+      }
+      return this.loadCard(identity, actor, ticketId);
+    });
+  }
+
+  private async loadCard(
+    identity: ResolvedTechnician,
+    actor: { id: string; companyId: string; role: UserRole; accessFlags: Record<string, boolean> },
+    ticketId: string,
+  ): Promise<TechnicianTicketCardView> {
+    try {
+      const ticket = await this.tickets.getOne(
+        identity.companyId,
+        identity.userId,
+        UserRole.TECHNICIAN,
+        ticketId,
+        actor.accessFlags,
+      );
+      const card = toTechnicianTicketCardView(ticket as Record<string, any>);
+      if (!card) throw new NotFoundException('Заявка недоступна');
+      return card;
+    } catch (err) {
+      if (err instanceof NotFoundException || err instanceof ForbiddenException) {
+        throw new NotFoundException('Заявка недоступна');
+      }
+      throw err;
+    }
   }
 
   private async actor(identity: ResolvedTechnician) {
@@ -141,6 +236,20 @@ function inRange(value: Date | string | undefined, from: Date, to: Date) {
   if (!value) return false;
   const instant = value instanceof Date ? value : new Date(value);
   return instant >= from && instant <= to;
+}
+
+function isMineActive(ticket: { assignedTechnicianId?: string | null; status: TicketStatus }, userId: string) {
+  return ticket.assignedTechnicianId === userId && ACTIVE_TICKET_STATUSES.has(ticket.status);
+}
+
+function sortOldestFirst<T extends { createdAt?: Date | string }>(rows: T[]) {
+  return [...rows].sort((a, b) => createdAtTime(a.createdAt) - createdAtTime(b.createdAt));
+}
+
+function createdAtTime(value?: Date | string) {
+  if (!value) return 0;
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) ? time : 0;
 }
 
 function isOverdue(ticket: { slaBreachedAt?: Date | null; slaDueAt?: Date | null }, now: Date) {

@@ -1,3 +1,4 @@
+import { NotFoundException } from '@nestjs/common';
 import { TicketStatus, UserRole } from '@prisma/client';
 
 import { MaxTechnicianWorkplaceService } from './max-technician-workplace.service';
@@ -117,5 +118,197 @@ describe('MaxTechnicianWorkplaceService', () => {
     });
     expect(workforce.openShift).toHaveBeenCalled();
     expect(workforce.closeShift).toHaveBeenCalled();
+  });
+
+  it('lists assigned active tickets oldest first and drops free NEW plus phones', async () => {
+    const tickets = {
+      list: jest.fn().mockResolvedValue([
+        {
+          id: '22222222-2222-4222-8222-222222222222',
+          ticketNumber: 22,
+          assignedTechnicianId: 'tech-1',
+          status: TicketStatus.ASSIGNED,
+          createdAt: '2026-09-16T10:00:00Z',
+          urgency: 'URGENT',
+          problemText: 'Позже',
+          requesterPhone: '79990001122',
+          location: { name: 'Склад' },
+        },
+        {
+          id: '11111111-1111-4111-8111-111111111111',
+          ticketNumber: 11,
+          assignedTechnicianId: 'tech-1',
+          status: TicketStatus.IN_PROGRESS,
+          createdAt: '2026-09-15T10:00:00Z',
+          urgency: 'NOT_URGENT',
+          problemText: 'Раньше',
+          location: { name: 'Кухня' },
+        },
+        {
+          id: '99999999-9999-4999-8999-999999999999',
+          ticketNumber: 99,
+          assignedTechnicianId: null,
+          status: TicketStatus.NEW,
+          createdAt: '2026-09-14T10:00:00Z',
+          problemText: 'Свободная',
+        },
+        {
+          id: '88888888-8888-4888-8888-888888888888',
+          ticketNumber: 88,
+          assignedTechnicianId: 'tech-1',
+          status: TicketStatus.DONE,
+          createdAt: '2026-09-13T10:00:00Z',
+          problemText: 'Готово',
+        },
+      ]),
+    };
+    const service = new MaxTechnicianWorkplaceService(
+      makePrisma() as any,
+      { getMyState: jest.fn() } as any,
+      tickets as any,
+      { listRuns: jest.fn() } as any,
+    );
+
+    const page = await service.myTickets(technician, 0);
+    expect(page).toEqual({
+      ok: true,
+      value: {
+        items: [
+          {
+            id: '11111111-1111-4111-8111-111111111111',
+            ticketNumber: 11,
+            locationName: 'Кухня',
+            problemText: 'Раньше',
+            urgencyLabel: 'Не срочно',
+            statusLabel: 'В работе',
+          },
+          {
+            id: '22222222-2222-4222-8222-222222222222',
+            ticketNumber: 22,
+            locationName: 'Склад',
+            problemText: 'Позже',
+            urgencyLabel: 'Срочно',
+            statusLabel: 'Назначена',
+          },
+        ],
+        nextOffset: null,
+      },
+    });
+    expect(JSON.stringify(page)).not.toContain('7999');
+    expect(tickets.list).toHaveBeenCalledWith('company-1', 'tech-1', UserRole.TECHNICIAN, undefined, {
+      canTechnicianViewAllCompanyTickets: false,
+    });
+  });
+
+  it('pages five at a time through TicketsService.list', async () => {
+    const tickets = {
+      list: jest.fn().mockResolvedValue(
+        Array.from({ length: 6 }, (_, i) => ({
+          id: `${i}1111111-1111-4111-8111-111111111111`,
+          ticketNumber: i + 1,
+          assignedTechnicianId: 'tech-1',
+          status: TicketStatus.ASSIGNED,
+          createdAt: `2026-09-0${i + 1}T10:00:00Z`,
+          problemText: `t${i + 1}`,
+          location: { name: 'A' },
+        })),
+      ),
+    };
+    const service = new MaxTechnicianWorkplaceService(
+      makePrisma() as any,
+      { getMyState: jest.fn() } as any,
+      tickets as any,
+      { listRuns: jest.fn() } as any,
+    );
+    const first = await service.myTickets(technician, 0);
+    const second = await service.myTickets(technician, 5);
+    expect(first.ok && first.value.items.map((item) => item.ticketNumber)).toEqual([1, 2, 3, 4, 5]);
+    expect(first.ok && first.value.nextOffset).toBe(5);
+    expect(second.ok && second.value.items.map((item) => item.ticketNumber)).toEqual([6]);
+    expect(second.ok && second.value.nextOffset).toBeNull();
+  });
+
+  it('loads a card through getOne and starts work through status + work log', async () => {
+    const cardTicket = {
+      id: '11111111-1111-4111-8111-111111111111',
+      ticketNumber: 11,
+      status: TicketStatus.ASSIGNED,
+      urgency: 'URGENT',
+      problemText: 'Капает',
+      requesterPhone: '79990001122',
+      location: { name: 'Кухня' },
+      problemCategory: { name: 'Сантехника' },
+      equipment: { name: 'Кран' },
+      assignedTechnician: { firstName: 'Виктор' },
+      meta: {
+        availableActions: { canStart: true, canComplete: false, canAccept: true },
+        availableStatusTransitions: [TicketStatus.IN_PROGRESS],
+      },
+    };
+    const tickets = {
+      list: jest.fn(),
+      getOne: jest
+        .fn()
+        .mockResolvedValueOnce(cardTicket)
+        .mockResolvedValueOnce(cardTicket)
+        .mockResolvedValueOnce({
+          ...cardTicket,
+          status: TicketStatus.IN_PROGRESS,
+          meta: {
+            availableActions: { canStart: false, canComplete: true },
+            availableStatusTransitions: [TicketStatus.DONE],
+          },
+        }),
+      updateStatus: jest.fn().mockResolvedValue({}),
+    };
+    const workforce = {
+      getMyState: jest.fn(),
+      startTicketWork: jest.fn().mockResolvedValue({}),
+    };
+    const service = new MaxTechnicianWorkplaceService(
+      makePrisma() as any,
+      workforce as any,
+      tickets as any,
+      { listRuns: jest.fn() } as any,
+    );
+
+    const opened = await service.ticketCard(technician, cardTicket.id);
+    expect(opened.ok && opened.value.canStart).toBe(true);
+    expect(JSON.stringify(opened)).not.toContain('7999');
+    expect(tickets.getOne).toHaveBeenCalledWith(
+      'company-1',
+      'tech-1',
+      UserRole.TECHNICIAN,
+      cardTicket.id,
+      { canTechnicianViewAllCompanyTickets: false },
+    );
+
+    const started = await service.startMyTicket(technician, cardTicket.id);
+    expect(tickets.updateStatus).toHaveBeenCalledWith(
+      'company-1',
+      expect.objectContaining({ id: 'tech-1', role: UserRole.TECHNICIAN }),
+      UserRole.TECHNICIAN,
+      cardTicket.id,
+      { status: TicketStatus.IN_PROGRESS },
+    );
+    expect(workforce.startTicketWork).toHaveBeenCalled();
+    expect(started.ok && started.value.statusLabel).toBe('В работе');
+    expect(started.ok && started.value.canComplete).toBe(true);
+  });
+
+  it('hides missing tickets behind one message', async () => {
+    const tickets = {
+      getOne: jest.fn().mockRejectedValue(new NotFoundException('Ticket not found')),
+    };
+    const service = new MaxTechnicianWorkplaceService(
+      makePrisma() as any,
+      { getMyState: jest.fn() } as any,
+      tickets as any,
+      { listRuns: jest.fn() } as any,
+    );
+    await expect(service.ticketCard(technician, '11111111-1111-4111-8111-111111111111')).resolves.toEqual({
+      ok: false,
+      message: 'Заявка недоступна',
+    });
   });
 });

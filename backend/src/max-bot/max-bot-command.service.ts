@@ -23,6 +23,14 @@ import {
   type TechnicianShiftActionPayload,
 } from './max-technician-menu';
 import { renderCloseShiftConfirmMessage, renderTechnicianShiftMessage } from './max-technician-shift';
+import {
+  parseTechnicianTicketAction,
+  renderTechnicianTicketCardMessage,
+  renderTechnicianTicketsListMessage,
+  renderTicketActionStubMessage,
+  renderTicketUnavailableMessage,
+  type TechnicianTicketAction,
+} from './max-technician-tickets';
 import { renderTechnicianTodayMessage } from './max-technician-today';
 import { MaxTechnicianWorkplaceService } from './max-technician-workplace.service';
 import { MaxBotCommandResponse, MaxBotUpdate } from './max-bot.types';
@@ -176,6 +184,10 @@ export class MaxBotCommandService {
     if (isTechnicianShiftActionPayload(payload)) {
       return this.technicianShiftAction(update, payload);
     }
+    const ticketAction = parseTechnicianTicketAction(payload);
+    if (ticketAction) {
+      return this.technicianTicketAction(update, ticketAction);
+    }
     if (!isSafeMaxCallbackPayload(payload)) {
       this.logger.log({ payload }, 'max_bot_callback_fallback');
       return this.menuMessage(update);
@@ -196,6 +208,7 @@ export class MaxBotCommandService {
     this.logger.log({ payload }, 'max_bot_callback_handled');
     if (payload === 'today') return this.todayMessage(technician);
     if (payload === 'shift') return this.shiftMessage(technician);
+    if (payload === 'my') return this.myTicketsMessage(technician, 0);
     return renderTechnicianSectionMessage(payload);
   }
 
@@ -210,6 +223,57 @@ export class MaxBotCommandService {
     if (payload === 'shift_no') return this.shiftMessage(technician);
     if (payload === 'shift_open') return this.mutateShift(technician, 'open');
     return this.mutateShift(technician, 'close');
+  }
+
+  private async technicianTicketAction(
+    update: MaxBotUpdate,
+    action: TechnicianTicketAction,
+  ): Promise<MaxBotCommandResponse> {
+    const technician = await this.resolvedTechnician(update);
+    if (!technician) return this.menuMessage(update);
+    this.logger.log({ payload: action.kind }, 'max_bot_callback_handled');
+    if (action.kind === 'list') return this.myTicketsMessage(technician, action.offset);
+    if (action.kind === 'card') return this.ticketCardMessage(technician, action.ticketId);
+    if (action.kind === 'start') return this.startTicketMessage(technician, action.ticketId);
+    return renderTicketActionStubMessage(action.ticketId);
+  }
+
+  private async myTicketsMessage(
+    technician: ResolvedTechnician,
+    offset: number,
+  ): Promise<MaxBotCommandResponse> {
+    if (!this.workplace) return renderPersistentMenuMessage(ACTION_FAILED_TEXT);
+    const result = await this.workplace.myTickets(technician, offset);
+    if (!result.ok) return renderPersistentMenuMessage(result.message);
+    return renderTechnicianTicketsListMessage(result.value);
+  }
+
+  private async ticketCardMessage(
+    technician: ResolvedTechnician,
+    ticketId: string,
+  ): Promise<MaxBotCommandResponse> {
+    if (!this.workplace) return renderPersistentMenuMessage(ACTION_FAILED_TEXT);
+    const result = await this.workplace.ticketCard(technician, ticketId);
+    if (!result.ok) {
+      return result.message === 'Заявка недоступна'
+        ? renderTicketUnavailableMessage()
+        : renderPersistentMenuMessage(result.message);
+    }
+    return renderTechnicianTicketCardMessage(result.value);
+  }
+
+  private async startTicketMessage(
+    technician: ResolvedTechnician,
+    ticketId: string,
+  ): Promise<MaxBotCommandResponse> {
+    if (!this.workplace) return renderPersistentMenuMessage(ACTION_FAILED_TEXT);
+    const result = await this.workplace.startMyTicket(technician, ticketId);
+    if (!result.ok) {
+      return result.message === 'Заявка недоступна'
+        ? renderTicketUnavailableMessage()
+        : renderPersistentMenuMessage(result.message);
+    }
+    return renderTechnicianTicketCardMessage(result.value);
   }
 
   private async todayMessage(technician: ResolvedTechnician): Promise<MaxBotCommandResponse> {
