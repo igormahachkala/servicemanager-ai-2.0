@@ -21,7 +21,19 @@ export default defineConfig({
   plugins: [react()],
   test: {
     environment: 'node',
-    exclude: ['**/node_modules/**', '**/dist/**', '**/offline/offline.test.ts'],
+    exclude: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/offline/offline.test.ts',
+      /**
+       * Сборка офлайн-тестов: test:offline компилирует их сюда и запускает
+       * через node --test. Vitest подбирал этот .js как свой набор и падал
+       * «No test suite found» — то есть npm test ломался после test:offline,
+       * хотя оба набора зелёные. Порядок команд в проверке значения иметь
+       * не должен.
+       */
+      '**/.offline-test-build/**',
+    ],
   },
   build: {
     rollupOptions: {
