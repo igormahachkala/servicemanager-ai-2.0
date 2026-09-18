@@ -10,3 +10,7 @@ export function mobilePath(pathname: string | null | undefined, suffix: string):
   const next = suffix.startsWith('/') ? suffix : `/${suffix}`
   return `${root}${next}`
 }
+
+export function supportsPersonalNotificationPreferences(pathname?: string | null): boolean {
+  return getMobileRouteRoot(pathname) === '/m'
+}

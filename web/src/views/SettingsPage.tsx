@@ -5,6 +5,8 @@ import { BrowserNotificationsCard } from '../components/BrowserNotificationsCard
 import * as api from '../lib/api'
 import { getRoleDisplayLabel } from '../lib/resolveAdminProfile'
 
+import { NotificationPreferencesPanel } from '../components/notifications/NotificationPreferencesPanel'
+
 export function SettingsPage() {
   const meQ = useQuery({
     queryKey: ['me'],
@@ -108,6 +110,11 @@ export function SettingsPage() {
             </div>
           ) : null}
         </div>
+      </div>
+
+      {/* 105C: личные настройки уведомлений — «Настройки → Уведомления». */}
+      <div style={{ marginTop: 12 }}>
+        <NotificationPreferencesPanel />
       </div>
 
       <div className="panel" style={{ marginTop: 12 }}>
