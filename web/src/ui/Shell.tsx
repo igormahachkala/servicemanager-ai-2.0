@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
+
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
 import {
@@ -15,6 +16,7 @@ import { SmaBrandLogo } from '../components/SmaBrandLogo'
 import { canViewITCompany } from '../it-company/access'
 import { useWsInvalidation } from './useWsInvalidation'
 import { useRealtimeNotifications } from '../hooks/useRealtimeNotifications'
+import { Breadcrumbs } from './Breadcrumbs'
 
 function NavItemButton(props: { to: string; label: string; active: boolean; onNavigate?: () => void }) {
   return (
@@ -355,6 +357,13 @@ export function Shell() {
             </div>
           </div>
         ) : null}
+
+        {/*
+          121A: одна цепочка на всю управленческую часть. Стоит здесь, а не
+          на страницах: иначе каждая страница отвечала бы на вопрос «где я»
+          по-своему. Неописанный маршрут ничего не рисует.
+        */}
+        <Breadcrumbs />
 
         <main className="contentMain" ref={contentMainRef}>
           <Outlet />
