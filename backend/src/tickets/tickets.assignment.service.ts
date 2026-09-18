@@ -129,6 +129,18 @@ function computeSlaFromPriorityOrExplicitMinutes(params: {
   return { slaMinutes: mins, slaDueAt: new Date(Date.now() + mins * 60_000) };
 }
 
+function normalizePlannedDueAt(value: string | null | undefined): Date | null | undefined {
+  if (value === undefined) return undefined;
+  if (value === null) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const parsed = new Date(trimmed);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new BadRequestException('plannedDueAt must be a valid ISO date');
+  }
+  return parsed;
+}
+
 @Injectable()
 export class TicketsAssignmentService {
   private readonly logger = new Logger(TicketsAssignmentService.name);
@@ -934,6 +946,7 @@ export class TicketsAssignmentService {
       pointName: dto.pointName?.trim() || null,
       urgency: dto.urgency,
       urgencyReason: dto.urgencyReason?.trim() || null,
+      plannedDueAt: normalizePlannedDueAt(dto.plannedDueAt) ?? null,
       slaMinutes: dto.slaMinutes ?? null,
       priority: dto.priority === TicketPriority.URGENT ? TicketPriority.URGENT : TicketPriority.NORMAL,
       postCreateAction: dto.postCreateAction ?? null,
@@ -1235,6 +1248,7 @@ export class TicketsAssignmentService {
           urgency: input.urgency ?? TicketUrgency.NOT_URGENT,
           priority: input.priority,
           urgencyReason: input.urgencyReason ?? null,
+          plannedDueAt: input.plannedDueAt,
           slaMinutes,
           slaDueAt,
 
@@ -2156,6 +2170,7 @@ export class TicketsAssignmentService {
         requesterPhone: string | null;
         address: string | null;
         pointName: string | null;
+        plannedDueAt: Date | null;
       };
       after: {
         problemCategoryId?: string;
@@ -2168,6 +2183,7 @@ export class TicketsAssignmentService {
         requesterPhone?: string | null;
         address?: string | null;
         pointName?: string | null;
+        plannedDueAt?: Date | null;
       };
     },
   ): Promise<Record<string, { from: unknown; to: unknown; fromId?: string | null; toId?: string | null }>> {
@@ -2230,6 +2246,7 @@ export class TicketsAssignmentService {
     putScalar('requesterPhone', before.requesterPhone, after.requesterPhone);
     putScalar('address', before.address, after.address);
     putScalar('pointName', before.pointName, after.pointName);
+    putScalar('plannedDueAt', before.plannedDueAt, after.plannedDueAt);
 
     return changes;
   }
@@ -2280,6 +2297,7 @@ export class TicketsAssignmentService {
           : dto.equipmentId.trim();
     const normalizedProblemText = typeof dto.problemText === 'string' ? dto.problemText.trim() : undefined;
     const normalizedComment = typeof dto.comment === 'string' ? dto.comment.trim() : undefined;
+    const normalizedPlannedDueAt = normalizePlannedDueAt(dto.plannedDueAt);
 
     if (dto.problemText !== undefined && !normalizedProblemText) {
       throw new BadRequestException('problemText cannot be empty');
@@ -2329,6 +2347,7 @@ export class TicketsAssignmentService {
           requesterPhone: true,
           address: true,
           pointName: true,
+          plannedDueAt: true,
           status: true,
         },
       });
@@ -2466,6 +2485,15 @@ export class TicketsAssignmentService {
         changedFields.push('pointName');
       }
 
+      if (normalizedPlannedDueAt !== undefined) {
+        const currentMs = ticket.plannedDueAt?.getTime() ?? null;
+        const nextMs = normalizedPlannedDueAt?.getTime() ?? null;
+        if (currentMs !== nextMs) {
+          data.plannedDueAt = normalizedPlannedDueAt;
+          changedFields.push('plannedDueAt');
+        }
+      }
+
       if (changedFields.length === 0) {
         return ticket.id;
       }
@@ -2506,6 +2534,7 @@ export class TicketsAssignmentService {
           requesterPhone,
           address,
           pointName,
+          plannedDueAt: normalizedPlannedDueAt,
         },
       });
 

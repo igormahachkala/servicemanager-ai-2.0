@@ -19,6 +19,8 @@ import { logTicketActionError, mapTicketActionError } from '../lib/ticketOperati
 import { computePrimaryTicketAction } from '../lib/ticketOperationalModel'
 import { readBackendCanClaim } from '../lib/ticketActionCapabilities'
 import { toChatMessages } from '../lib/ticketChat'
+import { dateTimeLocalToIso, formatPlannedDueAt, isoToDateTimeLocalValue } from '../lib/plannedDueAt'
+import { orderProblemCategories } from '../lib/problemCategoryOrdering'
 import { resolveAdminProfile } from '../lib/resolveAdminProfile'
 import {
   MAX_TICKET_IMAGE_BYTES,
@@ -234,6 +236,7 @@ export function TicketPage() {
   const [editRequesterPhone, setEditRequesterPhone] = useState('')
   const [editAddress, setEditAddress] = useState('')
   const [editPointName, setEditPointName] = useState('')
+  const [editPlannedDueAtLocal, setEditPlannedDueAtLocal] = useState('')
   const [editComment, setEditComment] = useState('')
   const [newComment, setNewComment] = useState('')
   const [acceptanceComment, setAcceptanceComment] = useState('')
@@ -428,6 +431,7 @@ export function TicketPage() {
     setEditRequesterPhone(t.requesterPhone || '')
     setEditAddress(t.address || '')
     setEditPointName(t.pointName || '')
+    setEditPlannedDueAtLocal(isoToDateTimeLocalValue(t.plannedDueAt))
     setEditComment('')
   }, [ticketQ.data])
 
@@ -653,6 +657,7 @@ export function TicketPage() {
             requesterPhone: editRequesterPhone || null,
             address: editAddress || null,
             pointName: editPointName || null,
+            plannedDueAt: dateTimeLocalToIso(editPlannedDueAtLocal),
             comment: editComment.trim() || undefined,
           },
           effectiveTicketScope,
@@ -1056,7 +1061,8 @@ export function TicketPage() {
               <StatusPill status={ticket.status} />
               {slaState.isBreached ? <span className="tag danger">SLA нарушен</span> : null}
               {!slaState.isBreached && slaState.isAtRisk ? <span className="tag">SLA в риске</span> : null}
-              <span className="tag">срок: {ticket.slaDueAt ? fmt(ticket.slaDueAt) : '—'}</span>
+              <span className="tag">SLA: {ticket.slaDueAt ? fmt(ticket.slaDueAt) : '—'}</span>
+              <span className="tag">Срок выполнения: {formatPlannedDueAt(ticket.plannedDueAt)}</span>
             </div>
           </div>
         </div>
@@ -1223,7 +1229,7 @@ export function TicketPage() {
               Категория
               <select value={editProblemCategoryId} onChange={(e) => setEditProblemCategoryId(e.target.value)} disabled={updateTicketM.isPending}>
                 <option value="">Выберите категорию</option>
-                {(categoriesQ.data || []).filter((row) => row.isActive !== false).map((row) => (
+                {orderProblemCategories((categoriesQ.data || []).filter((row) => row.isActive !== false)).map((row) => (
                   <option key={row.id} value={row.id}>{row.name}</option>
                 ))}
               </select>
@@ -1288,6 +1294,21 @@ export function TicketPage() {
               <input value={editAddress} onChange={(e) => setEditAddress(e.target.value)} disabled={updateTicketM.isPending} />
             </label>
             <label>
+              Срок выполнения
+              <input
+                type="datetime-local"
+                value={editPlannedDueAtLocal}
+                onChange={(e) => setEditPlannedDueAtLocal(e.target.value)}
+                disabled={updateTicketM.isPending}
+              />
+              {editPlannedDueAtLocal ? (
+                <button type="button" className="ghost" onClick={() => setEditPlannedDueAtLocal('')} disabled={updateTicketM.isPending}>
+                  Очистить срок
+                </button>
+              ) : null}
+              <div className="fieldHint">Не меняет SLA и сроки реакции.</div>
+            </label>
+            <label>
               Комментарий
               <textarea value={editComment} onChange={(e) => setEditComment(e.target.value)} rows={3} disabled={updateTicketM.isPending} />
             </label>
@@ -1308,6 +1329,7 @@ export function TicketPage() {
                   setEditRequesterPhone(ticket.requesterPhone || '')
                   setEditAddress(ticket.address || '')
                   setEditPointName(ticket.pointName || '')
+                  setEditPlannedDueAtLocal(isoToDateTimeLocalValue(ticket.plannedDueAt))
                   setEditComment('')
                   setEditOpen(false)
                   setUpdateError(null)

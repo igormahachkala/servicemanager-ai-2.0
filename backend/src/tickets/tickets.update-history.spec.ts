@@ -44,6 +44,7 @@ describe('TicketsAssignmentService ticket update history', () => {
     requesterPhone: '+70000000001',
     address: 'Старый адрес',
     pointName: 'Точка А',
+    plannedDueAt: null,
   }
 
   function build(svc: any, tx: any, changedFields: string[], after: Record<string, unknown>) {
@@ -137,6 +138,33 @@ describe('TicketsAssignmentService ticket update history', () => {
 
     expect(changes.requesterName).toEqual({ from: 'Пётр', to: 'Иван' })
     expect(changes.requesterPhone).toEqual({ from: '+70000000001', to: '+70000000002' })
+  })
+
+  it('фиксирует установку, изменение и очистку срока выполнения', async () => {
+    const svc = makeService()
+    const setDueAt = new Date('2026-09-18T11:00:00.000Z')
+    const changedDueAt = new Date('2026-09-19T07:00:00.000Z')
+
+    const setChanges = await (svc as any).buildTicketUpdateChanges(makeTx(), {
+      changedFields: ['plannedDueAt'],
+      before,
+      after: { plannedDueAt: setDueAt },
+    })
+    expect(setChanges.plannedDueAt).toEqual({ from: null, to: setDueAt })
+
+    const changeChanges = await (svc as any).buildTicketUpdateChanges(makeTx(), {
+      changedFields: ['plannedDueAt'],
+      before: { ...before, plannedDueAt: setDueAt },
+      after: { plannedDueAt: changedDueAt },
+    })
+    expect(changeChanges.plannedDueAt).toEqual({ from: setDueAt, to: changedDueAt })
+
+    const clearChanges = await (svc as any).buildTicketUpdateChanges(makeTx(), {
+      changedFields: ['plannedDueAt'],
+      before: { ...before, plannedDueAt: changedDueAt },
+      after: { plannedDueAt: null },
+    })
+    expect(clearChanges.plannedDueAt).toEqual({ from: changedDueAt, to: null })
   })
 
   it('снятие оборудования фиксируется как переход в пустое значение', async () => {
