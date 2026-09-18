@@ -2815,6 +2815,69 @@ describe('TicketsAssignmentService linked-provider create assignment contour', (
     expect(result.autoAssigned).toBe(true)
   })
 
+  it('persists plannedDueAt separately from SLA when creating a ticket', async () => {
+    const { service, tx } = makeCreateHarness()
+    const plannedDueAt = '2030-01-02T10:30:00.000Z'
+
+    await service.create(
+      providerCompanyId,
+      'admin-1',
+      UserRole.ADMIN,
+      baseDto({ plannedDueAt }) as any,
+    )
+
+    const createCall = tx.ticket.create.mock.calls.at(-1)?.[0]
+    expect(createCall).toEqual(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          plannedDueAt: new Date(plannedDueAt),
+          slaDueAt: expect.any(Date),
+        }),
+      }),
+    )
+    expect(createCall.data.slaDueAt.toISOString()).not.toBe(plannedDueAt)
+  })
+
+  /*
+   * SMA-OVERNIGHT-TICKET-UX-RECONCILIATION-122B, пробел приёмки 1.
+   *
+   * Срок выполнения и SLA — разные поля, и совпадение их значений было бы
+   * тихой подменой. Тест выше показывает, что заданный срок не равен SLA.
+   * Здесь закрывается обратный случай, а он и есть опасный: SLA задан,
+   * срок не назван. Если бы срок начал выводиться из SLA, заявка получила бы
+   * договорённость, которой никто не давал, и история записала бы её как
+   * установку срока.
+   */
+  it('leaves plannedDueAt null when the ticket carries SLA only', async () => {
+    const { service, tx } = makeCreateHarness()
+
+    await service.create(
+      providerCompanyId,
+      'admin-1',
+      UserRole.ADMIN,
+      baseDto({ slaMinutes: 240, priority: 'URGENT' }) as any,
+    )
+
+    const createCall = tx.ticket.create.mock.calls.at(-1)?.[0]
+    expect(createCall.data.slaDueAt).toBeInstanceOf(Date)
+    expect(createCall.data.plannedDueAt ?? null).toBeNull()
+  })
+
+  it('leaves plannedDueAt null when plannedDueAt is an empty string', async () => {
+    const { service, tx } = makeCreateHarness()
+
+    await service.create(
+      providerCompanyId,
+      'admin-1',
+      UserRole.ADMIN,
+      baseDto({ slaMinutes: 240, plannedDueAt: '   ' }) as any,
+    )
+
+    const createCall = tx.ticket.create.mock.calls.at(-1)?.[0]
+    expect(createCall.data.slaDueAt).toBeInstanceOf(Date)
+    expect(createCall.data.plannedDueAt ?? null).toBeNull()
+  })
+
   it('provider MASTER creates a linked-client ticket and assigns own provider employee', async () => {
     const { service, tx, resolveCreateCandidatesSpy } = makeCreateHarness()
 

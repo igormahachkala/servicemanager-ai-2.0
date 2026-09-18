@@ -5,6 +5,8 @@ import * as api from '../lib/api'
 import { ProtectedUploadImg, ProtectedUploadVideo } from '../ui/ProtectedUploadMedia'
 import { CategoryGuidancePanel } from '../components/CategoryGuidancePanel'
 import { useCreateTicketFlow, type CreateSuccessResult } from '../hooks/useCreateTicketFlow'
+import { dateTimeLocalToIso } from '../lib/plannedDueAt'
+import { orderProblemCategories, reconcileCategorySelection } from '../lib/problemCategoryOrdering'
 import {
   TICKET_MEDIA_ACCEPT,
   normalizeTicketMediaFile,
@@ -65,6 +67,7 @@ export function CreateTicketPage() {
   const [address, setAddress] = useState('')
   const [pointName, setPointName] = useState('')
   const [slaMinutes, setSlaMinutes] = useState('')
+  const [plannedDueAtLocal, setPlannedDueAtLocal] = useState('')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [draftAttachment, setDraftAttachment] = useState<api.DraftTicketAttachment | null>(null)
@@ -189,10 +192,12 @@ export function CreateTicketPage() {
   )
 
   const activeCategories = useMemo(() => {
-    if (!isTechnician) return (categoriesQ.data || []).filter((row) => row.isActive !== false)
-    if (selectedTechnicianContext) return (selectedTechnicianContext.categories || []).filter((row) => row.isActive !== false)
+    if (!isTechnician) return orderProblemCategories((categoriesQ.data || []).filter((row) => row.isActive !== false))
+    if (selectedTechnicianContext) {
+      return orderProblemCategories((selectedTechnicianContext.categories || []).filter((row) => row.isActive !== false))
+    }
     if (needsTechnicianFallback && technicianFallbackQ.data?.categories && clientCompanyId === linkedClientCompanyId) {
-      return (technicianFallbackQ.data.categories || []).filter((row) => row.isActive !== false)
+      return orderProblemCategories((technicianFallbackQ.data.categories || []).filter((row) => row.isActive !== false))
     }
     return []
   }, [
@@ -256,8 +261,8 @@ export function CreateTicketPage() {
   }, [meQ.data, requesterName])
 
   useEffect(() => {
-    if (!categoryId && activeCategories.length > 0) setCategoryId(activeCategories[0].id)
-    if (categoryId && !activeCategories.some((row) => row.id === categoryId)) setCategoryId(activeCategories[0]?.id || '')
+    const reconciled = reconcileCategorySelection(categoryId, activeCategories)
+    if (reconciled !== categoryId) setCategoryId(reconciled)
   }, [activeCategories, categoryId])
 
   useEffect(() => {
@@ -384,6 +389,7 @@ export function CreateTicketPage() {
       requesterPhone: requesterPhone.trim() || undefined,
       attachmentIds: draftAttachment ? [draftAttachment.id] : [],
       comment: comment.trim() || undefined,
+      plannedDueAt: dateTimeLocalToIso(plannedDueAtLocal),
     }
 
     if (mode === 'quick') {
@@ -475,6 +481,7 @@ export function CreateTicketPage() {
     setAddress('')
     setPointName('')
     setSlaMinutes('')
+    setPlannedDueAtLocal('')
     if (draftAttachment) {
       deleteDraftM.mutate(draftAttachment.id)
     } else {
@@ -515,6 +522,7 @@ export function CreateTicketPage() {
     setAddress('')
     setPointName('')
     setSlaMinutes('')
+    setPlannedDueAtLocal('')
     setEquipmentId('')
     setPostCreateAction('leave_unassigned')
     setAssignTechnicianId('')
@@ -669,10 +677,27 @@ export function CreateTicketPage() {
             {mode === 'quick' ? 'Шаг 2. Категория *' : 'Категория *'}
             <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} disabled={isBootstrapping || noCategories}>
               {noCategories ? <option value="">Нет доступных категорий</option> : null}
+              {!noCategories ? <option value="">Выберите категорию</option> : null}
               {activeCategories.map((category) => (
                 <option key={category.id} value={category.id}>{category.name}</option>
               ))}
             </select>
+          </label>
+
+          <label>
+            Срок выполнения
+            <input
+              type="datetime-local"
+              value={plannedDueAtLocal}
+              onChange={(e) => setPlannedDueAtLocal(e.target.value)}
+              disabled={isBusy}
+            />
+            {plannedDueAtLocal ? (
+              <button type="button" className="ghost" onClick={() => setPlannedDueAtLocal('')} disabled={isBusy}>
+                Очистить срок
+              </button>
+            ) : null}
+            <div className="muted small">Договорённый срок выполнения, отдельно от SLA.</div>
           </label>
 
           {canAssignOnCreate ? (
