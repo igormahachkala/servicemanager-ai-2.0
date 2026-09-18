@@ -564,6 +564,7 @@ export class TicketsQueryService {
             createdAt: true,
             slaDueAt: true,
             slaBreachedAt: true,
+            plannedDueAt: true,
             problemText: true,
             requesterName: true,
             createdByUserId: true,
@@ -701,6 +702,7 @@ export class TicketsQueryService {
           urgencyReason: t.urgencyReason ?? null,
           createdAt: t.createdAt,
           slaDueAt: t.slaDueAt,
+          plannedDueAt: t.plannedDueAt,
           slaBreached:
             !!t.slaBreachedAt ||
             (t.slaDueAt ? nowMs > t.slaDueAt.getTime() : false),

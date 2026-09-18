@@ -9,6 +9,8 @@ import { formatMobileMutationError } from './mobileActionErrors'
 import { mobileTicketNavState } from './mobileTicketDisplay'
 import { MobilePhotoLightbox } from './MobilePhotoLightbox'
 import { mobilePath } from './mobileRoute'
+import { dateTimeLocalToIso } from '../lib/plannedDueAt'
+import { orderProblemCategories, reconcileCategorySelection } from '../lib/problemCategoryOrdering'
 import {
   TICKET_MEDIA_ACCEPT,
   normalizeTicketMediaFile,
@@ -182,8 +184,10 @@ export function MobileCreateTicket() {
   }, [clientCompanyId, isTechnician, linkedClientCompanyId, technicianContexts])
 
   const activeCategories = useMemo(() => {
-    if (isTechnician) return (selectedTechnicianContext?.categories || []).filter((row) => row.isActive !== false)
-    return (categoriesQ.data || []).filter((row) => row.isActive !== false)
+    if (isTechnician) {
+      return orderProblemCategories((selectedTechnicianContext?.categories || []).filter((row) => row.isActive !== false))
+    }
+    return orderProblemCategories((categoriesQ.data || []).filter((row) => row.isActive !== false))
   }, [categoriesQ.data, isTechnician, selectedTechnicianContext])
 
   const activeLocations = useMemo(() => {
@@ -199,6 +203,7 @@ export function MobileCreateTicket() {
   const [description, setDescription] = useState('')
   const [urgencyReason, setUrgencyReason] = useState('')
   const [slaPriority, setSlaPriority] = useState<api.TicketPriority>('NORMAL')
+  const [plannedDueAtLocal, setPlannedDueAtLocal] = useState('')
   const [draftAttachments, setDraftAttachments] = useState<api.DraftTicketAttachment[]>([])
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [draftUploadProgress, setDraftUploadProgress] = useState<{ current: number; total: number } | null>(null)
@@ -207,16 +212,15 @@ export function MobileCreateTicket() {
   const [photoPreview, setPhotoPreview] = useState<{ src: string; alt: string } | null>(null)
 
   useEffect(() => {
-    if (!categoryId && activeCategories.length > 0) setCategoryId(activeCategories[0].id)
-    if (categoryId && !activeCategories.some((row) => row.id === categoryId)) setCategoryId(activeCategories[0]?.id || '')
+    const reconciled = reconcileCategorySelection(categoryId, activeCategories)
+    if (reconciled !== categoryId) setCategoryId(reconciled)
   }, [activeCategories, categoryId])
 
   useEffect(() => {
-    if (!isTechnician) return
+    if (!isTechnician || !categoryId) return
     const sel = activeCategories.find((row) => row.id === categoryId)
     if (sel && categoryEligibleForTechnician(sel)) return
-    const firstOk = activeCategories.find((row) => categoryEligibleForTechnician(row))
-    if (firstOk) setCategoryId(firstOk.id)
+    setCategoryId('')
   }, [isTechnician, activeCategories, categoryId])
 
   const selectedCategory = useMemo(
@@ -335,6 +339,7 @@ export function MobileCreateTicket() {
         urgencyReason: urgencyReason.trim() || undefined,
         attachmentIds: draftAttachments.map((d) => d.id),
         priority: slaPriority,
+        plannedDueAt: dateTimeLocalToIso(plannedDueAtLocal),
       }
 
       const created = await api.createTicket(payload, scope)
@@ -364,6 +369,7 @@ export function MobileCreateTicket() {
       setError('')
       setDescription('')
       setSlaPriority('NORMAL')
+      setPlannedDueAtLocal('')
       setEquipmentId('')
       setPostCreateAction('leave_unassigned')
       setAssignTechnicianId('')
@@ -562,6 +568,7 @@ export function MobileCreateTicket() {
             Категория *
             <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} disabled={isBootstrapping || !activeCategories.length}>
               {activeCategories.length === 0 ? <option value="">—</option> : null}
+              {activeCategories.length > 0 ? <option value="">Выберите категорию</option> : null}
               {activeCategories.map((item) => {
                 const blocked = isTechnician && !categoryEligibleForTechnician(item)
                 return (
@@ -608,6 +615,22 @@ export function MobileCreateTicket() {
           {!isTechnician && selectedCategory?.name ? (
             <CategoryGuidancePanel categoryName={selectedCategory.name} variant="mobile" />
           ) : null}
+
+          <label>
+            Срок выполнения
+            <input
+              type="datetime-local"
+              value={plannedDueAtLocal}
+              onChange={(e) => setPlannedDueAtLocal(e.target.value)}
+              disabled={createM.isPending}
+            />
+            {plannedDueAtLocal ? (
+              <button type="button" className="ghost" onClick={() => setPlannedDueAtLocal('')} disabled={createM.isPending}>
+                Очистить срок
+              </button>
+            ) : null}
+            <div className="mobileFieldHint">Договорённый срок выполнения, отдельно от SLA.</div>
+          </label>
 
           <label>
             Срочность (SLA)
