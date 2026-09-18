@@ -88,6 +88,10 @@ const IDS = {
     clientAdmin: '20000000-0000-4000-8000-000000001001',
     networkDirector: '20000000-0000-4000-8000-000000001002',
     territorialManager: '20000000-0000-4000-8000-000000001003',
+    // clientAdmin выше — это UserRole.ADMIN внутри компании-клиента.
+    // Роли CLIENT и CLIENT_ADMIN — другие, и до 122S на Stage их не было.
+    clientUser: '20000000-0000-4000-8000-000000001004',
+    clientAdminRole: '20000000-0000-4000-8000-000000001005',
     primaryAdmin: '20000000-0000-4000-8000-000000001101',
     primaryDispatcher: '20000000-0000-4000-8000-000000001102',
     primaryMaster: '20000000-0000-4000-8000-000000001103',
@@ -228,6 +232,26 @@ export const CANONICAL_STAGE_SEED = {
       firstName: 'Stage Territorial',
       lastName: 'Manager',
       role: UserRole.TERRITORIAL_MANAGER,
+      companyKey: 'client',
+      isExecutor: false,
+    },
+    {
+      key: 'clientUser',
+      id: IDS.user.clientUser,
+      email: 'stage.client.client@stage.local',
+      firstName: 'Stage Client',
+      lastName: 'User',
+      role: UserRole.CLIENT,
+      companyKey: 'client',
+      isExecutor: false,
+    },
+    {
+      key: 'clientAdminRole',
+      id: IDS.user.clientAdminRole,
+      email: 'stage.client.clientadmin@stage.local',
+      firstName: 'Stage Client',
+      lastName: 'Role Admin',
+      role: UserRole.CLIENT_ADMIN,
       companyKey: 'client',
       isExecutor: false,
     },
@@ -402,6 +426,28 @@ export const CANONICAL_STAGE_SEED = {
       userKey: 'territorialManager' as const,
       locationKeys: ['secondary'] as LocationKey[],
       specializationKeys: ['electrical'] as SpecializationKey[],
+    },
+    /*
+     * Обе новые записи обязаны иметь непустой набор локаций.
+     * resetCanonicalUserScopes ставит locationMode = SELECTED_LOCATIONS всем,
+     * кто перечислен здесь, а SELECTED_LOCATIONS с нулём привязок трактуется
+     * как fail-closed: учётка вошла бы в систему и не увидела ни одной заявки.
+     *
+     * Специализаций нет намеренно. TechnicianSpecialization — признак
+     * исполнителя, а не сотрудника клиента; при пустом наборе
+     * resolveActorSpecializationScope даёт режим all_in_contract,
+     * то есть сужения по специализации не возникает.
+     */
+    {
+      userKey: 'clientUser' as const,
+      locationKeys: ['primary'] as LocationKey[],
+      specializationKeys: [] as SpecializationKey[],
+    },
+    {
+      // Роль уровня компании: те же три локации, что у ADMIN клиента.
+      userKey: 'clientAdminRole' as const,
+      locationKeys: ['primary', 'secondary', 'outside'] as LocationKey[],
+      specializationKeys: [] as SpecializationKey[],
     },
     {
       userKey: 'primaryAdmin' as const,
