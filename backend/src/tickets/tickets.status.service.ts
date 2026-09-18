@@ -342,7 +342,7 @@ export class TicketsStatusService {
     user: { id?: string } | any,
     role: UserRole,
     ticketId: string,
-    dto: { comment: string },
+    dto: { comment: string; replyToId?: string },
     linkedClientCompanyId?: string,
     idempotencyKey?: string | null,
   ) {
@@ -350,6 +350,7 @@ export class TicketsStatusService {
     if (!comment) {
       throw new BadRequestException('comment is required');
     }
+    const replyToId = (dto.replyToId || '').trim() || null;
 
     /**
      * SMA-OFFLINE-IDEMPOTENCY-113B — an offline queue may replay this after a lost response.
@@ -360,14 +361,20 @@ export class TicketsStatusService {
      */
     const key = IdempotencyService.normalizeKey(idempotencyKey);
     if (key && this.idempotency && user?.id) {
-      const fingerprint = IdempotencyService.fingerprint({ ticketId, comment });
+      /**
+       * 120K: replyToId входит в отпечаток. Иначе повтор того же ключа с другой
+       * целью ответа вернул бы прежний комментарий как свой, и связь оказалась
+       * бы не той, о которой просил клиент. Канонический механизм на такое
+       * расхождение отвечает конфликтом — это и нужно.
+       */
+      const fingerprint = IdempotencyService.fingerprint({ ticketId, comment, replyToId });
       const outcome = await this.idempotency.run<{ ok: boolean }>(
         { companyId, userId: user.id, operationType: 'ticket_comment', key },
         fingerprint,
         {
           execute: async () => {
             const created = await this.addCommentInternal(
-              companyId, user, role, ticketId, comment, linkedClientCompanyId,
+              companyId, user, role, ticketId, comment, linkedClientCompanyId, replyToId,
             );
             return { result: { ok: true }, entityType: 'DomainEvent', entityId: created.sourceEventId };
           },
@@ -381,7 +388,9 @@ export class TicketsStatusService {
       return outcome.result;
     }
 
-    return this.addCommentInternal(companyId, user, role, ticketId, comment, linkedClientCompanyId).then(() => ({ ok: true }));
+    return this.addCommentInternal(
+      companyId, user, role, ticketId, comment, linkedClientCompanyId, replyToId,
+    ).then(() => ({ ok: true }));
   }
 
   private async addCommentInternal(
@@ -391,6 +400,7 @@ export class TicketsStatusService {
     ticketId: string,
     comment: string,
     linkedClientCompanyId?: string,
+    replyToId?: string | null,
   ) {
 
     const access = await resolveTicketOperationAccess({
@@ -430,6 +440,58 @@ export class TicketsStatusService {
       });
       assertAllowed(decision);
 
+      /**
+       * SMA-TICKET-REPLY-V1-BACKEND-FOUNDATION-120H — цель ответа.
+       *
+       * Проверяется последней: доступ к заявке уже разрешён выше
+       * (resolveTicketOperationAccess), право комментировать — строкой выше.
+       * Порядок именно такой, потому что отказ доступа не должен ничего
+       * сообщать о существовании сообщений: актор без доступа к заявке
+       * и актор с подложным replyToId получают один и тот же ответ.
+       *
+       * Выборка сужена тремя условиями сразу, и ни одно из них не приходит
+       * от клиента: ticketId — путь запроса, companyId — компания заявки,
+       * разрешённая сервером. Ответ на сообщение другой заявки или другого
+       * арендатора поэтому просто не находится.
+       */
+      let replyTo: { id: string } | null = null;
+      if (replyToId) {
+        replyTo = await tx.ticketComment.findFirst({
+          where: { id: replyToId, ticketId, companyId: ticket.companyId },
+          select: { id: true },
+        });
+        if (!replyTo) throw new NotFoundException('Reply target not found');
+      }
+
+      /**
+       * Сам комментарий как предмет предметной области. DomainEvent ниже
+       * остаётся журналом и пишется по-прежнему: ничего из прежнего чтения
+       * ленты не сломано, историю не переносим.
+       */
+      const storedComment = await tx.ticketComment.create({
+        data: {
+          companyId: ticket.companyId,
+          ticketId,
+          authorUserId: user?.id ?? null,
+          body: comment,
+          replyToId: replyTo?.id ?? null,
+        },
+        select: { id: true },
+      });
+
+      /**
+       * SMA-TICKET-REPLY-READ-PATH-120R — порядок здесь важен.
+       *
+       * Комментарий создаётся раньше события, чтобы событие несло его
+       * идентификатор. Это единственная надёжная связка между журналом
+       * и строкой комментария: внешнего ключа у DomainEvent нет вовсе,
+       * а сопоставлять по времени, автору и тексту — угадывание, которое
+       * ошибётся на двух одинаковых сообщениях в одну секунду.
+       *
+       * Старые события такого поля не имеют, и это ровно то, что нужно:
+       * у исторического комментария идентификатора нет, ответить на него
+       * нельзя, и переносить историю не приходится.
+       */
       const commentEvent = await this.timelineService.recordTx(tx, {
         event: 'COMMENT_ADDED',
         companyId: ticket.companyId,
@@ -438,6 +500,7 @@ export class TicketsStatusService {
         payload: {
           comment,
           source: 'manual_comment',
+          commentId: storedComment.id,
         },
       });
 
@@ -455,6 +518,7 @@ export class TicketsStatusService {
         ticketNumber: ticket.ticketNumber,
         assignedTechnicianId: ticket.assignedTechnicianId,
         sourceEventId: commentEvent.id,
+        commentId: storedComment.id,
       };
     });
 
@@ -475,6 +539,6 @@ export class TicketsStatusService {
       sourceEventId: result.sourceEventId,
     });
 
-    return { sourceEventId: result.sourceEventId };
+    return { sourceEventId: result.sourceEventId, commentId: result.commentId };
   }
 }
