@@ -1762,3 +1762,59 @@ button.toastItem:active {
     margin-bottom: 0 !important;
   }
 }
+
+/* SMA-MANAGEMENT-IA-BREADCRUMBS-121A — путь по разделам над содержимым. */
+.breadcrumbs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 24px 0;
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+
+.breadcrumbsItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.breadcrumbsSection,
+.breadcrumbsLink,
+.breadcrumbsCurrent {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 320px;
+}
+
+.breadcrumbsSection {
+  color: #6b7280;
+}
+
+.breadcrumbsLink {
+  color: #2563eb;
+  text-decoration: none;
+}
+
+.breadcrumbsLink:hover {
+  text-decoration: underline;
+}
+
+.breadcrumbsCurrent {
+  color: #111827;
+  font-weight: 600;
+}
+
+.breadcrumbsSeparator {
+  color: #9ca3af;
+}
+
+/* В печать путь по разделам не идёт: это навигация, а не документ. */
+@media print {
+  .breadcrumbs {
+    display: none !important;
+  }
+}
