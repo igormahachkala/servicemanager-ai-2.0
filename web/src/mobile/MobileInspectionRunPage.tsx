@@ -49,6 +49,36 @@ type CreatedInspectionTicket = {
   ticketNumber?: number | null
 }
 
+/**
+ * 116F: длительность обхода из тех же двух отметок, что уже есть в записи.
+ * Пока обход не завершён, длительности нет — показывать растущий счётчик
+ * как «итог» было бы неверно.
+ */
+function durationLabel(startedAt?: string | null, completedAt?: string | null) {
+  if (!startedAt || !completedAt) return null
+  const from = new Date(startedAt).getTime()
+  const to = new Date(completedAt).getTime()
+  if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) return null
+  const minutes = Math.round((to - from) / 60000)
+  if (minutes < 60) return `${minutes} мин`
+  const hours = Math.floor(minutes / 60)
+  const rest = minutes % 60
+  return rest ? `${hours} ч ${rest} мин` : `${hours} ч`
+}
+
+function reviewStatusLabel(status?: api.InspectionReportStatus | null) {
+  if (status === 'DRAFT') return 'Черновик'
+  if (status === 'SUBMITTED') return 'На проверке'
+  if (status === 'APPROVED') return 'Утверждён'
+  if (status === 'REJECTED') return 'Возвращён'
+  return null
+}
+
+function reviewerLabel(person?: api.InspectionRunPerson | null) {
+  if (!person) return null
+  return [person.firstName, person.lastName].filter(Boolean).join(' ').trim() || person.email
+}
+
 export function MobileInspectionRunPage() {
   const params = useParams<{ runId: string }>()
   const runId = params.runId || ''
@@ -421,13 +451,14 @@ export function MobileInspectionRunPage() {
   const isFromCache = !runQ.data && !!cachedRun
 
   const summary = useMemo(() => {
-    if (!run) return { ok: 0, issue: 0, critical: 0, pending: 0, total: 0 }
+    if (!run) return { ok: 0, issue: 0, critical: 0, pending: 0, total: 0, tickets: 0 }
     return {
       ok: run.items.filter((i) => i.status === 'OK').length,
       issue: run.items.filter((i) => i.status === 'ISSUE').length,
       critical: run.items.filter((i) => i.status === 'CRITICAL').length,
       pending: run.items.filter((i) => i.status === 'PENDING').length,
       total: run.items.length,
+      tickets: run.items.filter((i) => !!i.ticketId).length,
     }
   }, [run])
 
@@ -499,7 +530,7 @@ export function MobileInspectionRunPage() {
                 ) : null}
                 <div className="mobilePatrolMetaRow">
                   <span className="mobilePatrolMetaLabel">Шаблон</span>
-                  <span style={{ fontSize: '0.88rem' }}>{run.template.name}</span>
+                  <span style={{ fontSize: '0.88rem' }}>{run.title}</span>
                 </div>
                 {run.performedBy ? (
                   <div className="mobilePatrolMetaRow">
@@ -519,8 +550,57 @@ export function MobileInspectionRunPage() {
                     <span style={{ fontSize: '0.88rem' }}>{fmtDateTime(run.completedAt)}</span>
                   </div>
                 ) : null}
+                {durationLabel(run.createdAt, run.completedAt) ? (
+                  <div className="mobilePatrolMetaRow">
+                    <span className="mobilePatrolMetaLabel">Длительность</span>
+                    <span style={{ fontSize: '0.88rem' }}>{durationLabel(run.createdAt, run.completedAt)}</span>
+                  </div>
+                ) : null}
+                {!isInProgress && summary.tickets > 0 ? (
+                  <div className="mobilePatrolMetaRow">
+                    <span className="mobilePatrolMetaLabel">Заявок создано</span>
+                    <span style={{ fontSize: '0.88rem' }}>{summary.tickets}</span>
+                  </div>
+                ) : null}
               </div>
             </div>
+
+            {/*
+              116F: итог проверки акта на телефоне. Это чтение уже принятого
+              решения, а не управление им: кнопок утверждения здесь нет,
+              submit/review остаются за десктопным управлением и своей ролью.
+            */}
+            {!isInProgress && reviewStatusLabel(run.reportStatus) ? (
+              <div className="mobileCard" style={{ display: 'grid', gap: 6 }}>
+                <div className="mobilePatrolMetaRow">
+                  <span className="mobilePatrolMetaLabel">Статус акта</span>
+                  <span style={{ fontSize: '0.88rem' }}>{reviewStatusLabel(run.reportStatus)}</span>
+                </div>
+                {run.reportSubmittedAt ? (
+                  <div className="mobilePatrolMetaRow">
+                    <span className="mobilePatrolMetaLabel">Отправлен</span>
+                    <span style={{ fontSize: '0.88rem' }}>{fmtDateTime(run.reportSubmittedAt)}</span>
+                  </div>
+                ) : null}
+                {run.reportReviewedAt ? (
+                  <div className="mobilePatrolMetaRow">
+                    <span className="mobilePatrolMetaLabel">{run.reportStatus === 'REJECTED' ? 'Возвращён' : 'Проверен'}</span>
+                    <span style={{ fontSize: '0.88rem' }}>{fmtDateTime(run.reportReviewedAt)}</span>
+                  </div>
+                ) : null}
+                {reviewerLabel(run.reportReviewedBy) ? (
+                  <div className="mobilePatrolMetaRow">
+                    <span className="mobilePatrolMetaLabel">Проверил</span>
+                    <span style={{ fontSize: '0.88rem' }}>{reviewerLabel(run.reportReviewedBy)}</span>
+                  </div>
+                ) : null}
+                {run.reportReviewComment ? (
+                  <div style={{ fontSize: '0.85rem', color: '#374151' }}>
+                    Комментарий проверки: {run.reportReviewComment}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
 
             {/* Progress summary */}
             <div className="mobilePatrolSummary">
