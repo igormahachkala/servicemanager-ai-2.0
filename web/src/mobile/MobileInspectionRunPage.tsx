@@ -14,6 +14,16 @@ import {
   mobileTicketStatusLabelRu,
   scopeForMobileTicketLink,
 } from './mobileTicketDisplay'
+import {
+  buildCompleteCheckpointPayload,
+  canEditCheckpoint,
+  checkpointDraftFromItem,
+  checkpointPayloadForOfflineQueue,
+  checkpointLinkedTicketNotice,
+  checkpointStateLabel,
+  checkpointStatusOptions,
+  type CheckpointEditorDraft,
+} from './mobileInspectionRunEditing'
 
 function fmtDateTime(value?: string | null): string {
   if (!value) return '—'
@@ -26,14 +36,6 @@ function fmtDateTime(value?: string | null): string {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
-}
-
-const STATUS_LABEL: Record<api.InspectionRunItemStatus, string> = {
-  PENDING: 'Ожидает',
-  OK: 'OK',
-  ISSUE: 'Нарушение',
-  CRITICAL: 'Критично',
-  SKIPPED: 'Пропущен',
 }
 
 const ITEM_MOD: Record<api.InspectionRunItemStatus, string> = {
@@ -49,6 +51,36 @@ type CreatedInspectionTicket = {
   ticketNumber?: number | null
 }
 
+/**
+ * 116F: длительность обхода из тех же двух отметок, что уже есть в записи.
+ * Пока обход не завершён, длительности нет — показывать растущий счётчик
+ * как «итог» было бы неверно.
+ */
+function durationLabel(startedAt?: string | null, completedAt?: string | null) {
+  if (!startedAt || !completedAt) return null
+  const from = new Date(startedAt).getTime()
+  const to = new Date(completedAt).getTime()
+  if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) return null
+  const minutes = Math.round((to - from) / 60000)
+  if (minutes < 60) return `${minutes} мин`
+  const hours = Math.floor(minutes / 60)
+  const rest = minutes % 60
+  return rest ? `${hours} ч ${rest} мин` : `${hours} ч`
+}
+
+function reviewStatusLabel(status?: api.InspectionReportStatus | null) {
+  if (status === 'DRAFT') return 'Черновик'
+  if (status === 'SUBMITTED') return 'На проверке'
+  if (status === 'APPROVED') return 'Утверждён'
+  if (status === 'REJECTED') return 'Возвращён'
+  return null
+}
+
+function reviewerLabel(person?: api.InspectionRunPerson | null) {
+  if (!person) return null
+  return [person.firstName, person.lastName].filter(Boolean).join(' ').trim() || person.email
+}
+
 export function MobileInspectionRunPage() {
   const params = useParams<{ runId: string }>()
   const runId = params.runId || ''
@@ -56,8 +88,8 @@ export function MobileInspectionRunPage() {
   const queryClient = useQueryClient()
 
   const [busyItemIds, setBusyItemIds] = useState<Set<string>>(new Set())
-  const [activeIssueItemId, setActiveIssueItemId] = useState<string | null>(null)
-  const [issueComment, setIssueComment] = useState('')
+  const [editingItemId, setEditingItemId] = useState<string | null>(null)
+  const [editorDraft, setEditorDraft] = useState<CheckpointEditorDraft | null>(null)
   /**
    * Категория заявки выбирается человеком.
    *
@@ -150,7 +182,7 @@ export function MobileInspectionRunPage() {
         const queued = await queueOffline({
           kind: 'checkpoint.update',
           target: { roundId: runId, checkpointId: input.itemId },
-          payload: input.payload as Record<string, unknown>,
+          payload: checkpointPayloadForOfflineQueue(input.payload),
         })
         if (!queued.ok) throw new Error(`Не удалось сохранить на устройстве: ${queued.message}`)
         // Отметка сразу видна в открытом обходе: иначе техник решит, что
@@ -159,10 +191,6 @@ export function MobileInspectionRunPage() {
         return null
       }
       return api.updateInspectionRunItem(runId, input.itemId, input.payload)
-    },
-    onSuccess: (result) => {
-      // null возвращает только офлайн-ветка: подтверждения сервера ещё нет.
-      if (result === null) flash('ok', 'Сохранено на устройстве. Отправим после восстановления связи.')
     },
   })
 
@@ -248,34 +276,44 @@ export function MobileInspectionRunPage() {
     return item.ticket?.ticketNumber ?? createdTicketsByItemId[item.id]?.ticketNumber ?? null
   }
 
-  async function markOk(itemId: string) {
-    if (busyItemIds.has(itemId)) return
-    setBusyItemIds((s) => new Set(s).add(itemId))
-    try {
-      await updateM.mutateAsync({ itemId, payload: { status: 'OK', requiresRepair: false } })
-      await invalidate()
-    } catch (err: unknown) {
-      flash('err', errorMessage(err))
-    } finally {
-      setBusyItemIds((s) => { const n = new Set(s); n.delete(itemId); return n })
-    }
+  function openItemEditor(item: api.InspectionRunItem) {
+    if (!run || !canEditCheckpoint(run.status)) return
+    setEditingItemId(item.id)
+    setEditorDraft(checkpointDraftFromItem(item))
   }
 
-  async function markIssue(itemId: string) {
-    if (busyItemIds.has(itemId)) return
-    setBusyItemIds((s) => new Set(s).add(itemId))
+  function closeItemEditor() {
+    setEditingItemId(null)
+    setEditorDraft(null)
+  }
+
+  async function saveItem(item: api.InspectionRunItem) {
+    if (!editorDraft || busyItemIds.has(item.id)) return
+    const complete = buildCompleteCheckpointPayload(item, editorDraft)
+    if (!complete.ok) {
+      flash('err', complete.message)
+      return
+    }
+
+    setBusyItemIds((current) => new Set(current).add(item.id))
     try {
-      await updateM.mutateAsync({
-        itemId,
-        payload: { status: 'ISSUE', requiresRepair: true, comment: issueComment.trim() || undefined },
-      })
+      await updateM.mutateAsync({ itemId: item.id, payload: complete.payload })
       await invalidate()
-      setActiveIssueItemId(null)
-      setIssueComment('')
+      closeItemEditor()
+      flash(
+        'ok',
+        offline.online
+          ? 'Изменения сохранены'
+          : 'Изменения сохранены на устройстве. Отправим после восстановления связи.',
+      )
     } catch (err: unknown) {
       flash('err', errorMessage(err))
     } finally {
-      setBusyItemIds((s) => { const n = new Set(s); n.delete(itemId); return n })
+      setBusyItemIds((current) => {
+        const next = new Set(current)
+        next.delete(item.id)
+        return next
+      })
     }
   }
 
@@ -421,17 +459,18 @@ export function MobileInspectionRunPage() {
   const isFromCache = !runQ.data && !!cachedRun
 
   const summary = useMemo(() => {
-    if (!run) return { ok: 0, issue: 0, critical: 0, pending: 0, total: 0 }
+    if (!run) return { ok: 0, issue: 0, critical: 0, pending: 0, total: 0, tickets: 0 }
     return {
       ok: run.items.filter((i) => i.status === 'OK').length,
       issue: run.items.filter((i) => i.status === 'ISSUE').length,
       critical: run.items.filter((i) => i.status === 'CRITICAL').length,
       pending: run.items.filter((i) => i.status === 'PENDING').length,
       total: run.items.length,
+      tickets: run.items.filter((i) => !!i.ticketId).length,
     }
   }, [run])
 
-  const isInProgress = run?.status === 'IN_PROGRESS'
+  const isInProgress = run ? canEditCheckpoint(run.status) : false
 
   return (
     <>
@@ -499,7 +538,7 @@ export function MobileInspectionRunPage() {
                 ) : null}
                 <div className="mobilePatrolMetaRow">
                   <span className="mobilePatrolMetaLabel">Шаблон</span>
-                  <span style={{ fontSize: '0.88rem' }}>{run.template.name}</span>
+                  <span style={{ fontSize: '0.88rem' }}>{run.title}</span>
                 </div>
                 {run.performedBy ? (
                   <div className="mobilePatrolMetaRow">
@@ -519,8 +558,57 @@ export function MobileInspectionRunPage() {
                     <span style={{ fontSize: '0.88rem' }}>{fmtDateTime(run.completedAt)}</span>
                   </div>
                 ) : null}
+                {durationLabel(run.createdAt, run.completedAt) ? (
+                  <div className="mobilePatrolMetaRow">
+                    <span className="mobilePatrolMetaLabel">Длительность</span>
+                    <span style={{ fontSize: '0.88rem' }}>{durationLabel(run.createdAt, run.completedAt)}</span>
+                  </div>
+                ) : null}
+                {!isInProgress && summary.tickets > 0 ? (
+                  <div className="mobilePatrolMetaRow">
+                    <span className="mobilePatrolMetaLabel">Заявок создано</span>
+                    <span style={{ fontSize: '0.88rem' }}>{summary.tickets}</span>
+                  </div>
+                ) : null}
               </div>
             </div>
+
+            {/*
+              116F: итог проверки акта на телефоне. Это чтение уже принятого
+              решения, а не управление им: кнопок утверждения здесь нет,
+              submit/review остаются за десктопным управлением и своей ролью.
+            */}
+            {!isInProgress && reviewStatusLabel(run.reportStatus) ? (
+              <div className="mobileCard" style={{ display: 'grid', gap: 6 }}>
+                <div className="mobilePatrolMetaRow">
+                  <span className="mobilePatrolMetaLabel">Статус акта</span>
+                  <span style={{ fontSize: '0.88rem' }}>{reviewStatusLabel(run.reportStatus)}</span>
+                </div>
+                {run.reportSubmittedAt ? (
+                  <div className="mobilePatrolMetaRow">
+                    <span className="mobilePatrolMetaLabel">Отправлен</span>
+                    <span style={{ fontSize: '0.88rem' }}>{fmtDateTime(run.reportSubmittedAt)}</span>
+                  </div>
+                ) : null}
+                {run.reportReviewedAt ? (
+                  <div className="mobilePatrolMetaRow">
+                    <span className="mobilePatrolMetaLabel">{run.reportStatus === 'REJECTED' ? 'Возвращён' : 'Проверен'}</span>
+                    <span style={{ fontSize: '0.88rem' }}>{fmtDateTime(run.reportReviewedAt)}</span>
+                  </div>
+                ) : null}
+                {reviewerLabel(run.reportReviewedBy) ? (
+                  <div className="mobilePatrolMetaRow">
+                    <span className="mobilePatrolMetaLabel">Проверил</span>
+                    <span style={{ fontSize: '0.88rem' }}>{reviewerLabel(run.reportReviewedBy)}</span>
+                  </div>
+                ) : null}
+                {run.reportReviewComment ? (
+                  <div style={{ fontSize: '0.85rem', color: '#374151' }}>
+                    Комментарий проверки: {run.reportReviewComment}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
 
             {/* Progress summary */}
             <div className="mobilePatrolSummary">
@@ -548,11 +636,21 @@ export function MobileInspectionRunPage() {
                 const mod = ITEM_MOD[item.status]
                 const busy = busyItemIds.has(item.id)
                 const uploadBusy = uploadBusyItemIds.has(item.id)
-                const isShowingIssueForm = activeIssueItemId === item.id
+                const isEditing = editingItemId === item.id && editorDraft !== null
                 const createdTicketId = getCreatedTicketId(item)
                 const createdTicketNumber = getCreatedTicketNumber(item)
                 const createdTicketStatus = item.ticket?.status ?? null
                 const ticketQueuedOffline = pendingTicketItemIds.has(item.id)
+                /**
+                 * 120W: заявка и отметка живут отдельно. Пока редактор закрыт, говорить
+                 * об этом незачем — сообщение считается только для открытого редактора
+                 * и только когда заявка действительно есть.
+                 */
+                const linkedTicketNotice = checkpointLinkedTicketNotice({
+                  hasLinkedTicket: !!createdTicketId,
+                  ticketNumber: createdTicketNumber,
+                  draftStatus: isEditing ? editorDraft.status : null,
+                })
                 const canCreateTicket =
                   (item.status === 'ISSUE' || item.status === 'CRITICAL') && !createdTicketId && !ticketQueuedOffline
                 const previous = run.items[index - 1]
@@ -572,7 +670,7 @@ export function MobileInspectionRunPage() {
                     <div className="mobilePatrolItemTop">
                       <div className="mobilePatrolItemTitle">{item.checkpointSortOrder + 1}. {item.title}</div>
                       <span className={`mobilePatrolItemBadge mobilePatrolItemBadge--${mod}`}>
-                        {STATUS_LABEL[item.status]}
+                        {checkpointStateLabel(item.status)}
                       </span>
                     </div>
 
@@ -622,36 +720,18 @@ export function MobileInspectionRunPage() {
 
                     {isInProgress && !busy ? (
                       <div className="mobilePatrolItemActions">
-                        {item.status !== 'OK' ? (
-                          <button
-                            type="button"
-                            className="mobileBtn"
-                            style={{ minHeight: 34, padding: '6px 14px', fontSize: '0.82rem', borderRadius: 8 }}
-                            disabled={busy}
-                            onClick={() => markOk(item.id)}
-                          >
-                            <span className="mobilePatrolBtnIcon" aria-hidden>
-                              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                                <polyline points="20 6 9 17 4 12" />
-                              </svg>
-                            </span>
-                            OK
-                          </button>
-                        ) : null}
-                        {item.status !== 'ISSUE' && item.status !== 'CRITICAL' ? (
-                          <button
-                            type="button"
-                            className="mobileBtn mobileBtnSecondary"
-                            style={{ minHeight: 34, padding: '6px 14px', fontSize: '0.82rem', borderRadius: 8 }}
-                            disabled={busy}
-                            onClick={() => {
-                              setActiveIssueItemId(isShowingIssueForm ? null : item.id)
-                              setIssueComment(item.comment || '')
-                            }}
-                          >
-                            {isShowingIssueForm ? 'Отмена' : 'Нарушение'}
-                          </button>
-                        ) : null}
+                        <button
+                          type="button"
+                          className="mobileBtn"
+                          style={{ minHeight: 34, padding: '6px 14px', fontSize: '0.82rem', borderRadius: 8 }}
+                          onClick={() => (isEditing ? closeItemEditor() : openItemEditor(item))}
+                        >
+                          {isEditing
+                            ? 'Закрыть'
+                            : item.status === 'PENDING' || item.status === 'SKIPPED'
+                              ? 'Заполнить'
+                              : 'Изменить'}
+                        </button>
                         <button
                           type="button"
                           className="mobileBtn mobileBtnSecondary"
@@ -681,25 +761,108 @@ export function MobileInspectionRunPage() {
                       <div className="mobileMeta" style={{ fontSize: '0.82rem' }}>Сохраняем…</div>
                     ) : null}
 
-                    {isShowingIssueForm ? (
-                      <div className="mobilePatrolItemIssueForm">
-                        <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#92400e' }}>Комментарий к нарушению</div>
-                        <textarea
-                          className="mobilePatrolItemIssueFormTextarea"
-                          rows={2}
-                          placeholder="Опишите нарушение…"
-                          value={issueComment}
-                          onChange={(e) => setIssueComment(e.target.value)}
-                        />
-                        <button
-                          type="button"
-                          className="mobileBtn"
-                          style={{ minHeight: 36, padding: '6px 14px', fontSize: '0.84rem', borderRadius: 8, background: '#d97706' }}
-                          disabled={busyItemIds.has(item.id)}
-                          onClick={() => markIssue(item.id)}
-                        >
-                          Подтвердить нарушение
-                        </button>
+                    {isEditing && editorDraft && isInProgress ? (
+                      <div className="mobilePatrolItemIssueForm mobilePatrolItemEditor">
+                        <div className="mobilePatrolItemEditorLabel">Результат проверки</div>
+                        <div className="mobilePatrolStatusChoices" role="group" aria-label="Результат проверки">
+                          {checkpointStatusOptions(editorDraft.status).map((option) => (
+                            <button
+                              key={option.value}
+                              type="button"
+                              className={`mobilePatrolStatusChoice${editorDraft.status === option.value ? ' mobilePatrolStatusChoice--selected' : ''}`}
+                              aria-pressed={editorDraft.status === option.value}
+                              onClick={() => setEditorDraft((current) => current ? { ...current, status: option.value } : current)}
+                            >
+                              {option.label}
+                            </button>
+                          ))}
+                        </div>
+
+                        {item.responseType === 'YES_NO' ? (
+                          <div>
+                            <div className="mobilePatrolItemEditorLabel">Ответ</div>
+                            <div className="mobilePatrolStatusChoices" role="group" aria-label="Ответ да или нет">
+                              {(['true', 'false'] as const).map((value) => (
+                                <button
+                                  key={value}
+                                  type="button"
+                                  className={`mobilePatrolStatusChoice${editorDraft.booleanValue === value ? ' mobilePatrolStatusChoice--selected' : ''}`}
+                                  aria-pressed={editorDraft.booleanValue === value}
+                                  onClick={() => setEditorDraft((current) => current ? { ...current, booleanValue: value } : current)}
+                                >
+                                  {value === 'true' ? 'Да' : 'Нет'}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
+
+                        {item.responseType === 'NUMBER' ? (
+                          <label className="mobilePatrolItemEditorLabel">
+                            Значение{item.numericUnit ? `, ${item.numericUnit}` : ''}
+                            <input
+                              className="mobileInput"
+                              type="number"
+                              inputMode="decimal"
+                              step="any"
+                              min={item.numericMin ?? undefined}
+                              max={item.numericMax ?? undefined}
+                              value={editorDraft.numberValue}
+                              onChange={(event) => setEditorDraft((current) => current ? { ...current, numberValue: event.target.value } : current)}
+                            />
+                          </label>
+                        ) : null}
+
+                        {item.responseType === 'TEXT' ? (
+                          <label className="mobilePatrolItemEditorLabel">
+                            Ответ
+                            <textarea
+                              className="mobilePatrolItemIssueFormTextarea"
+                              rows={3}
+                              value={editorDraft.textValue}
+                              onChange={(event) => setEditorDraft((current) => current ? { ...current, textValue: event.target.value } : current)}
+                            />
+                          </label>
+                        ) : null}
+
+                        <label className="mobilePatrolItemEditorLabel">
+                          Комментарий
+                          <textarea
+                            className="mobilePatrolItemIssueFormTextarea"
+                            rows={2}
+                            placeholder="Добавьте комментарий при необходимости"
+                            value={editorDraft.comment}
+                            onChange={(event) => setEditorDraft((current) => current ? { ...current, comment: event.target.value } : current)}
+                          />
+                        </label>
+
+                        {linkedTicketNotice.kind !== 'none' ? (
+                          <div
+                            className={`mobilePatrolLinkedTicketNotice mobilePatrolLinkedTicketNotice--${linkedTicketNotice.kind}`}
+                            role={linkedTicketNotice.kind === 'warning' ? 'alert' : 'note'}
+                          >
+                            {linkedTicketNotice.text}
+                          </div>
+                        ) : null}
+
+                        <div className="mobilePatrolItemEditorActions">
+                          <button
+                            type="button"
+                            className="mobileBtn"
+                            disabled={busy}
+                            onClick={() => saveItem(item)}
+                          >
+                            Сохранить
+                          </button>
+                          <button
+                            type="button"
+                            className="mobileBtn mobileBtnGhost"
+                            disabled={busy}
+                            onClick={closeItemEditor}
+                          >
+                            Закрыть
+                          </button>
+                        </div>
                       </div>
                     ) : null}
 
