@@ -30,6 +30,26 @@ export type TimelineActor = {
   } | null;
 } | null;
 
+/**
+ * SMA-TICKET-REPLY-READ-PATH-120R — предпросмотр исходного сообщения.
+ *
+ * Отдаётся уже разрешённым: интерфейсу не нужно доставать цель отдельным
+ * запросом, а значит и не нужно право на неё. Цель всегда принадлежит той же
+ * заявке, что и сам ответ, поэтому ничего сверх уже разрешённой ленты
+ * предпросмотр не открывает.
+ */
+export type TimelineReplyPreview = {
+  id: string;
+  author: TimelineActor;
+  /** Обрезанное начало исходного сообщения. Полного текста здесь нет намеренно. */
+  bodyPreview: string;
+  /**
+   * Исходное сообщение недоступно: вне области видимости либо его содержимое
+   * снято. Тела в этом случае не отдаётся вовсе — ни обрезанного, ни пустого.
+   */
+  unavailable: boolean;
+};
+
 export type TimelineHistoryItem = {
   id: string;
   at: Date;
@@ -52,6 +72,9 @@ export type TimelineRecordedEventItem = {
   title: string;
   actor: TimelineActor;
   payload: any;
+  /** 120R: заполнено только у комментариев, записанных как TicketComment. */
+  commentId: string | null;
+  replyTo: TimelineReplyPreview | null;
 };
 
 export type TimelineEntry = {
@@ -62,4 +85,11 @@ export type TimelineEntry = {
   title: string;
   actor: TimelineActor;
   payload: any;
+  /**
+   * 120R: устойчивая личность сообщения. У исторических записей она null —
+   * клиент опознаёт их как неотвечаемые. Поле присутствует всегда, чтобы
+   * «нет личности» и «поле не пришло» не приходилось различать.
+   */
+  commentId: string | null;
+  replyTo: TimelineReplyPreview | null;
 };
