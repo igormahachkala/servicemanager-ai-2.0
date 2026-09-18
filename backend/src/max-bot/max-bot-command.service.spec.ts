@@ -363,6 +363,10 @@ function makeWorkplace() {
         nextOffset: null,
       },
     }),
+    addMyTicketComment: jest.fn().mockResolvedValue({
+      ok: true,
+      value: { ticketId: '11111111-1111-4111-8111-111111111111', ticketNumber: 12 },
+    }),
   };
 }
 
@@ -470,6 +474,7 @@ describe('MaxBotCommandService — technician chat menu', () => {
     expect(workplace.startMyTicket).toHaveBeenCalled();
     expect(started?.text).toContain('Статус: В работе');
     expect(buttonsOf(started).map((button) => button.text)).toEqual([
+      'Комментарий',
       'Завершить',
       'История',
       'Сегодня',

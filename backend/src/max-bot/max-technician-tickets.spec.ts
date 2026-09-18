@@ -2,6 +2,8 @@ import { TicketStatus } from '@prisma/client';
 
 import {
   parseTechnicianTicketAction,
+  renderCommentPromptMessage,
+  renderCommentSavedMessage,
   renderTechnicianTicketCardMessage,
   renderTechnicianTicketsListMessage,
   renderTicketActionStubMessage,
@@ -138,6 +140,7 @@ describe('max-technician-tickets', () => {
     expect(res.text).not.toContain('Телефон');
     expect(buttonsOf(res).map((button) => button.text)).toEqual([
       'Начать работу',
+      'Комментарий',
       'История',
       'Сегодня',
       'Моя смена',
@@ -158,6 +161,7 @@ describe('max-technician-tickets', () => {
     });
     expect(parseTechnicianTicketAction(`tkh:${ID_OLD}`)).toEqual({ kind: 'history', ticketId: ID_OLD, offset: 0 });
     expect(parseTechnicianTicketAction(`tkh:${ID_OLD}:5`)).toEqual({ kind: 'history', ticketId: ID_OLD, offset: 5 });
+    expect(parseTechnicianTicketAction(`tkc:${ID_OLD}`)).toEqual({ kind: 'comment', ticketId: ID_OLD });
     expect(parseTechnicianTicketAction(`tku:${ID_OLD}`)).toEqual({ kind: 'stub', ticketId: ID_OLD });
     expect(parseTechnicianTicketAction('tk:not-an-id')).toBeNull();
     expect(parseTechnicianTicketAction('claim_ticket_123')).toBeNull();
@@ -221,5 +225,45 @@ describe('max-technician-tickets', () => {
     expect(history.text).not.toContain('a@b.c');
     expect(history.text).not.toContain('7000');
     expect(buttonsOf(history).map((button) => button.text)).toContain('К заявке');
+  });
+
+  it('comment prompt asks for text with cancel; saved returns to the card', () => {
+    const prompt = renderCommentPromptMessage(ID_OLD, 12);
+    expect(prompt.text).toBe('Введите комментарий к заявке #12');
+    expect(buttonsOf(prompt).map((button) => button.text)).toEqual(['Отмена']);
+    expect(buttonsOf(prompt)[0].payload).toBe(`tk:${ID_OLD}`);
+
+    const saved = renderCommentSavedMessage(ID_OLD, 12);
+    expect(saved.text).toBe('Комментарий добавлен к #12');
+    expect(buttonsOf(saved).map((button) => button.text)).toEqual([
+      'К заявке',
+      'Сегодня',
+      'Моя смена',
+      'Мои заявки',
+    ]);
+  });
+
+  it('keeps seven keys when start, comment, complete, status and history would overflow', () => {
+    const card = toTechnicianTicketCardView({
+      id: ID_OLD,
+      ticketNumber: 12,
+      status: TicketStatus.ASSIGNED,
+      problemText: 'Капает',
+      location: { name: 'Кухня' },
+      meta: {
+        availableActions: { canStart: true, canComplete: true },
+        availableStatusTransitions: [TicketStatus.ASSIGNED],
+      },
+    });
+    const labels = buttonsOf(renderTechnicianTicketCardMessage(card!)).map((button) => button.text);
+    expect(labels).toEqual([
+      'Начать работу',
+      'Комментарий',
+      'Завершить',
+      'Изменить статус',
+      'История',
+      'Меню',
+    ]);
+    expect(labels).toHaveLength(6);
   });
 });

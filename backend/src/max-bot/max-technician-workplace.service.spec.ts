@@ -371,4 +371,38 @@ describe('MaxTechnicianWorkplaceService', () => {
       message: 'Заявка недоступна',
     });
   });
+
+  it('posts a comment through TicketsService.addComment', async () => {
+    const cardTicket = {
+      id: '11111111-1111-4111-8111-111111111111',
+      ticketNumber: 11,
+      status: TicketStatus.IN_PROGRESS,
+      problemText: 'Капает',
+      location: { name: 'Кухня' },
+      assignedTechnician: { firstName: 'Виктор' },
+      meta: { availableActions: { canStart: false, canComplete: true }, availableStatusTransitions: [] },
+    };
+    const tickets = {
+      getOne: jest.fn().mockResolvedValue(cardTicket),
+      addComment: jest.fn().mockResolvedValue({ ok: true }),
+    };
+    const service = new MaxTechnicianWorkplaceService(
+      makePrisma() as any,
+      { getMyState: jest.fn() } as any,
+      tickets as any,
+      { listRuns: jest.fn() } as any,
+    );
+
+    await expect(service.addMyTicketComment(technician, cardTicket.id, 'На месте')).resolves.toEqual({
+      ok: true,
+      value: { ticketId: cardTicket.id, ticketNumber: 11 },
+    });
+    expect(tickets.addComment).toHaveBeenCalledWith(
+      'company-1',
+      expect.objectContaining({ id: 'tech-1', role: UserRole.TECHNICIAN }),
+      UserRole.TECHNICIAN,
+      cardTicket.id,
+      { comment: 'На месте' },
+    );
+  });
 });

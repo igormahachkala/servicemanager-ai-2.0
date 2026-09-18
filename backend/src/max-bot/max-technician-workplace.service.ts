@@ -208,6 +208,28 @@ export class MaxTechnicianWorkplaceService {
     });
   }
 
+  async addMyTicketComment(
+    identity: ResolvedTechnician,
+    ticketId: string,
+    comment: string,
+  ): Promise<WorkplaceOutcome<{ ticketId: string; ticketNumber: number }>> {
+    return this.run(async () => {
+      const actor = await this.actor(identity);
+      const card = await this.loadCard(identity, actor, ticketId);
+      try {
+        await this.tickets.addComment(identity.companyId, actor, UserRole.TECHNICIAN, ticketId, {
+          comment,
+        });
+      } catch (err) {
+        if (err instanceof NotFoundException || err instanceof ForbiddenException) {
+          throw new NotFoundException('Заявка недоступна');
+        }
+        throw err;
+      }
+      return { ticketId, ticketNumber: card.ticketNumber };
+    });
+  }
+
   private async loadCard(
     identity: ResolvedTechnician,
     actor: { id: string; companyId: string; role: UserRole; accessFlags: Record<string, boolean> },

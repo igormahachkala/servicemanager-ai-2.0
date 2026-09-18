@@ -61,6 +61,7 @@ export type TechnicianTicketAction =
   | { kind: 'status'; ticketId: string }
   | { kind: 'apply'; ticketId: string; status: TicketStatus }
   | { kind: 'history'; ticketId: string; offset: number }
+  | { kind: 'comment'; ticketId: string }
   | { kind: 'stub'; ticketId: string };
 
 export function parseTechnicianTicketAction(payload: string): TechnicianTicketAction | null {
@@ -80,6 +81,8 @@ export function parseTechnicianTicketAction(payload: string): TechnicianTicketAc
   if (history && TICKET_ID_RE.test(history[1])) {
     return { kind: 'history', ticketId: history[1], offset: history[2] ? Number(history[2]) : 0 };
   }
+  const comment = payload.match(/^tkc:(.+)$/);
+  if (comment && TICKET_ID_RE.test(comment[1])) return { kind: 'comment', ticketId: comment[1] };
   const stub = payload.match(/^tku:(.+)$/);
   if (stub && TICKET_ID_RE.test(stub[1])) return { kind: 'stub', ticketId: stub[1] };
   return null;
@@ -177,13 +180,31 @@ export function renderTechnicianTicketCardMessage(card: TechnicianTicketCardView
 
   const actions: MaxBotInlineKeyboardButton[] = [];
   if (card.canStart) actions.push(callbackButton('Начать работу', `tks:${card.id}`));
+  actions.push(callbackButton('Комментарий', `tkc:${card.id}`));
   if (card.canComplete) actions.push(callbackButton('Завершить', `tku:${card.id}`));
   if (card.pickerTransitions.length > 0) {
     actions.push(callbackButton('Изменить статус', `tkm:${card.id}`));
   }
   actions.push(callbackButton('История', `tkh:${card.id}`));
-  const rows = [...chunk3(actions.slice(0, 4)), ...technicianFooterRows()];
+  const footer = technicianFooterRows();
+  const rows =
+    actions.length + 3 <= 7
+      ? [...chunk3(actions), ...footer]
+      : [...chunk3(actions.slice(0, 6)), [callbackButton('Меню', 'menu')]];
   return withKeyboard(text, rows);
+}
+
+export function renderCommentPromptMessage(ticketId: string, ticketNumber: number): MaxBotCommandResponse {
+  return withKeyboard(`Введите комментарий к заявке #${ticketNumber}`, [
+    [callbackButton('Отмена', `tk:${ticketId}`)],
+  ]);
+}
+
+export function renderCommentSavedMessage(ticketId: string, ticketNumber: number): MaxBotCommandResponse {
+  return withKeyboard(`Комментарий добавлен к #${ticketNumber}`, [
+    [callbackButton('К заявке', `tk:${ticketId}`)],
+    ...technicianFooterRows(),
+  ]);
 }
 
 export function renderTicketStatusPickerMessage(card: TechnicianTicketCardView): MaxBotCommandResponse {
