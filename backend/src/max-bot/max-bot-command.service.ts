@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { TicketStatus, UserRole } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
@@ -40,6 +40,14 @@ import {
   renderAvailableTakenMessage,
   renderAvailableTicketsMessage,
 } from './max-technician-available';
+import {
+  parseTechnicianRoundAction,
+  renderRoundAfterItem,
+  renderRoundListMessage,
+  renderRoundReportMessage,
+  type TechnicianRoundAction,
+} from './max-technician-rounds';
+import { MaxTechnicianRoundsService } from './max-technician-rounds.service';
 import { MaxTechnicianWorkplaceService } from './max-technician-workplace.service';
 import { MaxBotCommandResponse, MaxBotUpdate } from './max-bot.types';
 
@@ -60,9 +68,10 @@ export class MaxBotCommandService {
     private readonly identity?: MaxIdentityService,
     private readonly workplace?: MaxTechnicianWorkplaceService,
     files: MaxFileClient = new MaxFileClient(),
+    @Optional() private readonly rounds?: MaxTechnicianRoundsService,
   ) {
     this.botUsername = normalizeMaxBotUsername(process.env.MAX_BOT_USERNAME);
-    this.dialog = new MaxTechnicianDialog(workplace, files);
+    this.dialog = new MaxTechnicianDialog(workplace, files, rounds);
   }
 
   async handleUpdate(update: MaxBotUpdate): Promise<MaxBotCommandResponse | null> {
@@ -203,7 +212,13 @@ export class MaxBotCommandService {
 
   private async handleCallback(update: MaxBotUpdate, payload: string): Promise<MaxBotCommandResponse> {
     const ticketAction = parseTechnicianTicketAction(payload);
-    if (!ticketAction || !this.dialog.keepsWait(ticketAction.kind)) this.dialog.clear(update);
+    const roundAction = parseTechnicianRoundAction(payload);
+    if (
+      (!ticketAction || !this.dialog.keepsWait(ticketAction.kind)) &&
+      (!roundAction || !this.dialog.keepsWait(roundAction.kind))
+    ) {
+      this.dialog.clear(update);
+    }
     if (isTechnicianSectionPayload(payload)) {
       return this.technicianSection(update, payload);
     }
@@ -212,6 +227,9 @@ export class MaxBotCommandService {
     }
     if (ticketAction) {
       return this.technicianTicketAction(update, ticketAction);
+    }
+    if (roundAction) {
+      return this.technicianRoundAction(update, roundAction);
     }
     if (!isSafeMaxCallbackPayload(payload)) {
       this.logger.log({ payload }, 'max_bot_callback_fallback');
@@ -236,6 +254,7 @@ export class MaxBotCommandService {
     if (payload === 'my') return this.myTicketsMessage(technician, 0);
     if (payload === 'avail') return this.availableTicketsMessage(technician, 0);
     if (payload === 'find') return this.dialog.beginFind(technician);
+    if (payload === 'rounds') return this.roundsListMessage(technician, 0);
     return renderTechnicianSectionMessage(payload);
   }
 
@@ -274,6 +293,74 @@ export class MaxBotCommandService {
     if (action.kind === 'completePhoto') return this.dialog.requestCompletePhoto(technician, action.ticketId);
     if (action.kind === 'completeAsk') return this.dialog.backToCompleteAsk(technician, action.ticketId);
     return this.dialog.skipCompletePhoto(technician, action.ticketId);
+  }
+
+  private async technicianRoundAction(
+    update: MaxBotUpdate,
+    action: TechnicianRoundAction,
+  ): Promise<MaxBotCommandResponse> {
+    const technician = await this.resolvedTechnician(update);
+    if (!technician) return this.menuMessage(update);
+    this.logger.log({ payload: action.kind }, 'max_bot_callback_handled');
+    if (action.kind === 'roundList' || action.kind === 'roundCancel') {
+      return this.roundsListMessage(technician, action.kind === 'roundList' ? action.offset : 0);
+    }
+    if (action.kind === 'roundStart') return this.roundStartMessage(technician, action.scheduleId);
+    if (action.kind === 'roundContinue' || action.kind === 'roundItem') {
+      return this.roundContinueMessage(technician, action.runId);
+    }
+    if (action.kind === 'roundOk') return this.roundOkMessage(technician, action.runId);
+    if (action.kind === 'roundProblem') return this.dialog.beginRoundIssue(technician, action.runId, 'ISSUE');
+    if (action.kind === 'roundCritical') return this.dialog.beginRoundIssue(technician, action.runId, 'CRITICAL');
+    if (action.kind === 'roundSkipPhoto') return this.dialog.skipRoundPhoto(technician, action.runId);
+    if (action.kind === 'roundCreateTicket') return this.dialog.createRoundTicket(technician, action.runId);
+    if (action.kind === 'roundNext') return this.roundNextMessage(technician, action.runId);
+    return this.roundReportMessage(technician, action.runId);
+  }
+
+  private async roundsListMessage(
+    technician: ResolvedTechnician,
+    offset: number,
+  ): Promise<MaxBotCommandResponse> {
+    if (!this.rounds) return renderPersistentMenuMessage(ACTION_FAILED_TEXT);
+    const result = await this.rounds.list(technician, offset);
+    if (!result.ok) return renderPersistentMenuMessage(result.message);
+    return renderRoundListMessage(result.value);
+  }
+
+  private async roundStartMessage(technician: ResolvedTechnician, scheduleId: string) {
+    if (!this.rounds) return renderPersistentMenuMessage(ACTION_FAILED_TEXT);
+    const result = await this.rounds.start(technician, scheduleId);
+    if (!result.ok) return renderPersistentMenuMessage(result.message);
+    return renderRoundAfterItem(result.value);
+  }
+
+  private async roundContinueMessage(technician: ResolvedTechnician, runId: string) {
+    if (!this.rounds) return renderPersistentMenuMessage(ACTION_FAILED_TEXT);
+    const result = await this.rounds.continueRun(technician, runId);
+    if (!result.ok) return renderPersistentMenuMessage(result.message);
+    return renderRoundAfterItem(result.value);
+  }
+
+  private roundOkMessage(technician: ResolvedTechnician, runId: string) {
+    if (!this.rounds) return Promise.resolve(renderPersistentMenuMessage(ACTION_FAILED_TEXT));
+    return this.rounds.markOk(technician, runId).then((result) =>
+      result.ok ? renderRoundAfterItem(result.value) : renderPersistentMenuMessage(result.message),
+    );
+  }
+
+  private roundNextMessage(technician: ResolvedTechnician, runId: string) {
+    if (!this.rounds) return Promise.resolve(renderPersistentMenuMessage(ACTION_FAILED_TEXT));
+    return this.rounds.nextItem(technician, runId).then((result) =>
+      result.ok ? renderRoundAfterItem(result.value) : renderPersistentMenuMessage(result.message),
+    );
+  }
+
+  private async roundReportMessage(technician: ResolvedTechnician, runId: string) {
+    if (!this.rounds) return renderPersistentMenuMessage(ACTION_FAILED_TEXT);
+    const result = await this.rounds.report(technician, runId);
+    if (!result.ok) return renderPersistentMenuMessage(result.message);
+    return renderRoundReportMessage(result.value);
   }
 
   private async myTicketsMessage(

@@ -27,11 +27,7 @@ export function renderTechnicianTodayMessage(summary: TechnicianTodaySummary): M
   ].join('\n');
 
   const keyboard = renderInlineKeyboard([
-    [
-      callbackButton('Мои заявки', 'my'),
-      // callbackButton('Обходы', 'rounds'),
-      callbackButton('Моя смена', 'shift'),
-    ],
+    [callbackButton('Мои заявки', 'my'), callbackButton('Обходы', 'rounds'), callbackButton('Моя смена', 'shift')],
     ...technicianMenuRow(),
   ]);
 
