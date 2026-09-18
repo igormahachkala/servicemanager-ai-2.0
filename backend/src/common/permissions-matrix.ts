@@ -83,6 +83,26 @@ export const ROLE_GRANTS: RoleGrant[] = [
       // НЕТ: ASSIGN, CLAIM, VIEW_AVAILABLE, STATUS_CHANGE
     ],
   },
+  /**
+   * SMA-WORKFORCE-CLIENT-ADMIN-FRESH-RECONCILIATION-122F.
+   *
+   * Первый и единственный ролевой грант CLIENT_ADMIN. Роль каноническая
+   * управленческая — canAccessManagementSurface допускает её в компании-клиенте
+   * наравне с ADMIN, — но в матрице грантов её не было вовсе, и раздел
+   * «Смены и трудозатраты» оставался ей закрыт при открытой управляющей части.
+   *
+   * Выдаётся ровно одно право и только на чтение. Записи закрыты другими
+   * правами, которых роль не получает: WORKFORCE_SHIFT_USE (открыть и закрыть
+   * смену, учёт времени по заявке), USERS_MANAGE (исправления смен),
+   * а настройки Workforce ограничены ролью ADMIN на самом маршруте.
+   *
+   * Право само по себе доступа не открывает: маршрут проверяет пересечение
+   * трёх независимых условий — перечень ролей, шлюз управления и право.
+   * Компания при этом всегда своя: сервис берёт actor.companyId и параметр
+   * companyId у не-PLATFORM_ADMIN игнорирует.
+   */
+  { role: UserRole.CLIENT_ADMIN, companyType: CompanyType.CLIENT, codes: [P.WORKFORCE_VIEW] },
+
   {
     role: UserRole.ADMIN,
     companyType: CompanyType.PROVIDER,

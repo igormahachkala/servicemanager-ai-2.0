@@ -214,9 +214,11 @@ describe('NotificationPreferencesService', () => {
       companyOverride: { enabled: true },
     });
 
+    // 122F выдал роли единственный грант — WORKFORCE_VIEW. Уведомления его
+    // не используют и своих грантов по-прежнему не добавляют.
     expect(
-      ROLE_GRANTS.some((grant) => grant.role === UserRole.CLIENT_ADMIN),
-    ).toBe(false);
+      ROLE_GRANTS.filter((grant) => grant.role === UserRole.CLIENT_ADMIN).flatMap((g) => g.codes),
+    ).toEqual(['WORKFORCE_VIEW']);
     await expect(
       service.resolvePreference({
         ...baseInput,

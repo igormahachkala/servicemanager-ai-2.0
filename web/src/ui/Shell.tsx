@@ -110,7 +110,16 @@ function isNavItemVisible(item: NavItem, role?: api.Role, canAccessEngineeringAg
     return fullAdmin
   }
   if (item.to === '/workforce') {
-    return role === 'ADMIN' || role === 'MASTER' || role === 'DISPATCHER' || role === 'NETWORK_DIRECTOR' || role === 'TERRITORIAL_MANAGER'
+    /*
+     * SMA-WORKFORCE-CLIENT-ADMIN-FRESH-RECONCILIATION-122F.
+     *
+     * CLIENT_ADMIN читает «Смены и трудозатраты» своей компании, поэтому раздел
+     * должен открываться ссылкой, а не вводом адреса. Это только видимость
+     * пункта меню: доступ решает бэкенд пересечением трёх условий — перечень
+     * ролей маршрута, шлюз управления и право WORKFORCE_VIEW. Прятать или
+     * показывать пункт здесь доступа не добавляет и не отнимает.
+     */
+    return role === 'ADMIN' || role === 'CLIENT_ADMIN' || role === 'MASTER' || role === 'DISPATCHER' || role === 'NETWORK_DIRECTOR' || role === 'TERRITORIAL_MANAGER'
   }
   if (item.to === '/access-constructor') {
     return fullAdmin
