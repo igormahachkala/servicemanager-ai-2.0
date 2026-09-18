@@ -68,11 +68,14 @@ export type TechnicianTicketAction =
   | { kind: 'complete'; ticketId: string }
   | { kind: 'completePhoto'; ticketId: string }
   | { kind: 'completeAsk'; ticketId: string }
-  | { kind: 'completeSkip'; ticketId: string };
+  | { kind: 'completeSkip'; ticketId: string }
+  | { kind: 'findPage'; offset: number };
 
 export function parseTechnicianTicketAction(payload: string): TechnicianTicketAction | null {
   const page = payload.match(/^my:(\d+)$/);
   if (page) return { kind: 'list', offset: Number(page[1]) };
+  const findPage = payload.match(/^fn:(\d+)$/);
+  if (findPage) return { kind: 'findPage', offset: Number(findPage[1]) };
   const card = payload.match(/^tk:(.+)$/);
   if (card && TICKET_ID_RE.test(card[1])) return { kind: 'card', ticketId: card[1] };
   const start = payload.match(/^tks:(.+)$/);

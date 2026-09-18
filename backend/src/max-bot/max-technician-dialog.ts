@@ -9,6 +9,11 @@ import {
   renderPhotoSavedMessage,
 } from './max-technician-ticket-dialogs';
 import {
+  renderFindEmptyMessage,
+  renderFindPromptMessage,
+  renderFindResultsMessage,
+} from './max-technician-find';
+import {
   renderCommentPromptMessage,
   renderCommentSavedMessage,
   renderTechnicianTicketCardMessage,
@@ -24,9 +29,10 @@ type TicketWait =
   | { kind: 'comment'; ticketId: string; ticketNumber: number }
   | { kind: 'photo'; ticketId: string; ticketNumber: number }
   | { kind: 'complete-text'; ticketId: string; ticketNumber: number }
-  | { kind: 'complete-photo'; ticketId: string; ticketNumber: number; report: string; awaitingFile: boolean };
+  | { kind: 'complete-photo'; ticketId: string; ticketNumber: number; report: string; awaitingFile: boolean }
+  | { kind: 'find'; query: string | null };
 
-const KEEP_WAIT = new Set(['comment', 'photo', 'complete', 'completePhoto', 'completeAsk', 'completeSkip']);
+const KEEP_WAIT = new Set(['comment', 'photo', 'complete', 'completePhoto', 'completeAsk', 'completeSkip', 'findPage']);
 const ACTION_FAILED = 'Не удалось выполнить действие.\nПопробуйте ещё раз через минуту.';
 
 export class MaxTechnicianDialog {
@@ -44,6 +50,17 @@ export class MaxTechnicianDialog {
   clear(update: MaxBotUpdate) {
     const maxUserId = extractMaxUserId(update);
     if (maxUserId) this.wait.delete(maxUserId);
+  }
+
+  async beginFind(technician: ResolvedTechnician) {
+    this.wait.set(technician.maxUserId, { kind: 'find', query: null });
+    return renderFindPromptMessage();
+  }
+
+  async pageFind(technician: ResolvedTechnician, offset: number) {
+    const pending = this.wait.get(technician.maxUserId);
+    if (!pending || pending.kind !== 'find' || !pending.query) return this.beginFind(technician);
+    return this.runFind(technician, pending, pending.query, offset);
   }
 
   async beginComment(technician: ResolvedTechnician, ticketId: string) {
@@ -99,6 +116,12 @@ export class MaxTechnicianDialog {
   async submitText(technician: ResolvedTechnician, text: string): Promise<MaxBotCommandResponse | null> {
     const pending = this.wait.get(technician.maxUserId);
     if (!pending) return null;
+    if (pending.kind === 'find') {
+      if (!text) return renderFindPromptMessage();
+      pending.query = text;
+      this.wait.set(technician.maxUserId, pending);
+      return this.runFind(technician, pending, text, 0);
+    }
     if (pending.kind === 'photo' || (pending.kind === 'complete-photo' && pending.awaitingFile)) {
       return renderAwaitingPhotoMessage(this.cancelPayload(pending));
     }
@@ -127,6 +150,7 @@ export class MaxTechnicianDialog {
     const pending = this.wait.get(technician.maxUserId);
     if (!pending) return null;
     if (media.length === 0) return this.submitText(technician, '');
+    if (pending.kind === 'find') return renderFindPromptMessage();
     if (pending.kind === 'comment') return renderCommentPromptMessage(pending.ticketId, pending.ticketNumber);
     if (pending.kind === 'complete-text') return renderCompleteReportPrompt(pending.ticketId, pending.ticketNumber);
     if (pending.kind === 'complete-photo' && !pending.awaitingFile) {
@@ -145,6 +169,28 @@ export class MaxTechnicianDialog {
     }
     if (pending.kind === 'photo') return this.savePhotos(technician, pending, downloaded);
     return this.finishCompleteWithPhotos(technician, pending, downloaded);
+  }
+
+  private async runFind(
+    technician: ResolvedTechnician,
+    pending: Extract<TicketWait, { kind: 'find' }>,
+    query: string,
+    offset: number,
+  ) {
+    if (!this.workplace) return renderPersistentMenuMessage(ACTION_FAILED);
+    const result = await this.workplace.searchTickets(technician, query, offset);
+    if (!result.ok) {
+      this.wait.delete(technician.maxUserId);
+      return this.fail(result.message);
+    }
+    if (result.value.kind === 'card') {
+      this.wait.delete(technician.maxUserId);
+      return renderTechnicianTicketCardMessage(result.value.card);
+    }
+    this.wait.set(technician.maxUserId, pending);
+    return result.value.page.items.length === 0
+      ? renderFindEmptyMessage()
+      : renderFindResultsMessage(result.value.page);
   }
 
   private async saveComment(
@@ -232,6 +278,7 @@ export class MaxTechnicianDialog {
   }
 
   private cancelPayload(pending: TicketWait) {
+    if (pending.kind === 'find') return 'menu';
     if (pending.kind === 'complete-photo') return `tky:${pending.ticketId}`;
     return `tk:${pending.ticketId}`;
   }

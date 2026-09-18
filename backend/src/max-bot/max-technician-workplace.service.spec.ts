@@ -231,6 +231,58 @@ describe('MaxTechnicianWorkplaceService', () => {
     expect(second.ok && second.value.prevOffset).toBe(0);
   });
 
+  it('searchTickets uses list scope, exact number opens the card, text never matches phones', async () => {
+    const tickets = {
+      list: jest.fn().mockResolvedValue([
+        {
+          id: '11111111-1111-4111-8111-111111111111',
+          ticketNumber: 12,
+          assignedTechnicianId: 'tech-1',
+          status: TicketStatus.ASSIGNED,
+          createdAt: '2026-09-01T10:00:00Z',
+          problemText: 'Не морозит',
+          requesterName: 'Иван',
+          requesterPhone: '79990001122',
+          location: { name: 'Склад', address: 'Ленина 1' },
+        },
+        {
+          id: '22222222-2222-4222-8222-222222222222',
+          ticketNumber: 22,
+          assignedTechnicianId: null,
+          status: TicketStatus.NEW,
+          createdAt: '2026-09-02T10:00:00Z',
+          problemText: 'Капает кран',
+          location: { name: 'Кухня' },
+        },
+      ]),
+      getOne: jest.fn().mockResolvedValue({
+        id: '11111111-1111-4111-8111-111111111111',
+        ticketNumber: 12,
+        status: TicketStatus.ASSIGNED,
+        problemText: 'Не морозит',
+        location: { name: 'Склад' },
+        meta: { availableActions: { canStart: true, canComplete: false }, availableStatusTransitions: [] },
+      }),
+    };
+    const service = new MaxTechnicianWorkplaceService(
+      makePrisma() as any,
+      { getMyState: jest.fn() } as any,
+      tickets as any,
+      { listRuns: jest.fn() } as any,
+    );
+    const numbered = await service.searchTickets(technician, '#12');
+    expect(numbered.ok && numbered.value.kind).toBe('card');
+    expect(numbered.ok && numbered.value.kind === 'card' && numbered.value.card.ticketNumber).toBe(12);
+    expect(tickets.getOne).toHaveBeenCalled();
+
+    const text = await service.searchTickets(technician, 'капает');
+    expect(text.ok && text.value.kind === 'page' && text.value.page.items.map((item) => item.ticketNumber)).toEqual([22]);
+    expect(JSON.stringify(text)).not.toContain('7999');
+
+    const phone = await service.searchTickets(technician, '7999');
+    expect(phone.ok && phone.value.kind === 'page' && phone.value.page.items).toEqual([]);
+  });
+
   it('loads a card through getOne and starts work through status + work log', async () => {
     const cardTicket = {
       id: '11111111-1111-4111-8111-111111111111',

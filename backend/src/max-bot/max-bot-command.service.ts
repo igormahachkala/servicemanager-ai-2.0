@@ -229,6 +229,7 @@ export class MaxBotCommandService {
     if (payload === 'today') return this.todayMessage(technician);
     if (payload === 'shift') return this.shiftMessage(technician);
     if (payload === 'my') return this.myTicketsMessage(technician, 0);
+    if (payload === 'find') return this.dialog.beginFind(technician);
     return renderTechnicianSectionMessage(payload);
   }
 
@@ -253,6 +254,7 @@ export class MaxBotCommandService {
     if (!technician) return this.menuMessage(update);
     this.logger.log({ payload: action.kind }, 'max_bot_callback_handled');
     if (action.kind === 'list') return this.myTicketsMessage(technician, action.offset);
+    if (action.kind === 'findPage') return this.dialog.pageFind(technician, action.offset);
     if (action.kind === 'card') return this.ticketCardMessage(technician, action.ticketId);
     if (action.kind === 'start') return this.startTicketMessage(technician, action.ticketId);
     if (action.kind === 'status') return this.ticketStatusPickerMessage(technician, action.ticketId);
