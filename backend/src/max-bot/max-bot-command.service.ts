@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { TicketStatus, UserRole } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { MaxIdentityService } from './max-identity.service';
@@ -12,6 +13,30 @@ import {
   renderMenuText,
   type MaxMenuModel,
 } from './max-menu.builder';
+import {
+  isTechnicianSectionPayload,
+  isTechnicianShiftActionPayload,
+  matchTechnicianMenuLabel,
+  renderBoundRoleStubMessage,
+  renderTechnicianMenuMessage,
+  renderTechnicianSectionMessage,
+  type TechnicianSectionPayload,
+  type TechnicianShiftActionPayload,
+} from './max-technician-menu';
+import { renderCloseShiftConfirmMessage, renderTechnicianShiftMessage } from './max-technician-shift';
+import {
+  parseTechnicianTicketAction,
+  renderTechnicianTicketCardMessage,
+  renderTechnicianTicketsListMessage,
+  renderTicketHistoryMessage,
+  renderTicketStatusPickerMessage,
+  renderTicketUnavailableMessage,
+  type TechnicianTicketAction,
+} from './max-technician-tickets';
+import { extractMaxIncomingMedia, MaxFileClient } from './max-file.client';
+import { MaxTechnicianDialog } from './max-technician-dialog';
+import { renderTechnicianTodayMessage } from './max-technician-today';
+import { MaxTechnicianWorkplaceService } from './max-technician-workplace.service';
 import { MaxBotCommandResponse, MaxBotUpdate } from './max-bot.types';
 
 /**
@@ -38,12 +63,16 @@ const LEGACY_DATA_COMMANDS = new Set(['/tickets', '/ticket', '/open']);
 export class MaxBotCommandService {
   private readonly logger = new Logger(MaxBotCommandService.name);
   private readonly botUsername: string;
+  private readonly dialog: MaxTechnicianDialog;
 
   constructor(
     private readonly prisma?: PrismaService,
     private readonly identity?: MaxIdentityService,
+    private readonly workplace?: MaxTechnicianWorkplaceService,
+    files: MaxFileClient = new MaxFileClient(),
   ) {
     this.botUsername = normalizeMaxBotUsername(process.env.MAX_BOT_USERNAME);
+    this.dialog = new MaxTechnicianDialog(workplace, files);
   }
 
   async handleUpdate(update: MaxBotUpdate): Promise<MaxBotCommandResponse | null> {
@@ -53,6 +82,7 @@ export class MaxBotCommandService {
     }
 
     if (this.isBotStarted(update)) {
+      this.dialog.clear(update);
       this.logger.log(
         {
           update_type: this.safeString(update.update_type),
@@ -64,8 +94,9 @@ export class MaxBotCommandService {
       return this.handleParsedCommand('/start', this.menuMessage(update));
     }
 
+    const media = extractMaxIncomingMedia(update);
     const extracted = this.extractMessageText(update);
-    if (!extracted) {
+    if (!extracted && media.length === 0) {
       this.logger.log(
         {
           update_type: this.safeString(update.update_type),
@@ -76,7 +107,7 @@ export class MaxBotCommandService {
       return null;
     }
 
-    const trimmed = extracted.text.trim();
+    const trimmed = extracted?.text.trim() ?? '';
     const isCommand = trimmed.startsWith('/');
     const parts = trimmed.split(/\s+/);
     const cmd = isCommand ? parts[0].toLowerCase() : '';
@@ -84,14 +115,34 @@ export class MaxBotCommandService {
     this.logger.log(
       {
         update_type: this.safeString(update.update_type),
-        source: extracted.source,
+        source: extracted?.source ?? 'message.media',
         command: isCommand ? cmd : '(text)',
       },
       'max_bot_command_parsed',
     );
 
     try {
+      if (cmd === '/test') {
+        return this.handleParsedCommand(cmd, this.testMessage());
+      }
+      if (!isCommand) {
+        const section = matchTechnicianMenuLabel(trimmed);
+        if (section) {
+          this.dialog.clear(update);
+          return this.handleParsedCommand(section, this.technicianSection(update, section));
+        }
+        const technician = await this.resolvedTechnician(update);
+        if (technician && media.length > 0) {
+          const mediaReply = await this.dialog.submitMedia(technician, media);
+          if (mediaReply) return this.handleParsedCommand('photo', mediaReply);
+        }
+        if (technician && (trimmed || media.length === 0)) {
+          const textReply = await this.dialog.submitText(technician, trimmed);
+          if (textReply) return this.handleParsedCommand('dialog', textReply);
+        }
+      }
       if (cmd === '/start' || cmd === '/menu') {
+        this.dialog.clear(update);
         return this.handleParsedCommand(cmd, this.menuMessage(update));
       }
       if (cmd === '/help') {
@@ -117,7 +168,7 @@ export class MaxBotCommandService {
     this.logger.log(
       {
         update_type: this.safeString(update.update_type),
-        source: extracted.source,
+        source: extracted?.source ?? 'message.media',
         reason: isCommand ? 'unknown_command' : 'free_text',
       },
       'max_bot_command_fallback',
@@ -191,12 +242,189 @@ export class MaxBotCommandService {
   }
 
   private async handleCallback(update: MaxBotUpdate, payload: string): Promise<MaxBotCommandResponse> {
+    const ticketAction = parseTechnicianTicketAction(payload);
+    if (!ticketAction || !this.dialog.keepsWait(ticketAction.kind)) this.dialog.clear(update);
+    if (isTechnicianSectionPayload(payload)) {
+      return this.technicianSection(update, payload);
+    }
+    if (isTechnicianShiftActionPayload(payload)) {
+      return this.technicianShiftAction(update, payload);
+    }
+    if (ticketAction) {
+      return this.technicianTicketAction(update, ticketAction);
+    }
     if (!isSafeMaxCallbackPayload(payload)) {
       this.logger.log({ payload }, 'max_bot_callback_fallback');
       return this.menuMessage(update);
     }
     this.logger.log({ payload }, 'max_bot_callback_handled');
     return payload === 'help' ? this.helpMessage() : this.menuMessage(update);
+  }
+
+  private async technicianSection(
+    update: MaxBotUpdate,
+    payload: TechnicianSectionPayload,
+  ): Promise<MaxBotCommandResponse> {
+    const technician = await this.resolvedTechnician(update);
+    if (!technician) {
+      this.logger.log({ payload }, 'max_bot_callback_fallback');
+      return this.menuMessage(update);
+    }
+    this.logger.log({ payload }, 'max_bot_callback_handled');
+    if (payload === 'today') return this.todayMessage(technician);
+    if (payload === 'shift') return this.shiftMessage(technician);
+    if (payload === 'my') return this.myTicketsMessage(technician, 0);
+    return renderTechnicianSectionMessage(payload);
+  }
+
+  private async technicianShiftAction(
+    update: MaxBotUpdate,
+    payload: TechnicianShiftActionPayload,
+  ): Promise<MaxBotCommandResponse> {
+    const technician = await this.resolvedTechnician(update);
+    if (!technician) return this.menuMessage(update);
+    this.logger.log({ payload }, 'max_bot_callback_handled');
+    if (payload === 'shift_close') return renderCloseShiftConfirmMessage();
+    if (payload === 'shift_no') return this.shiftMessage(technician);
+    if (payload === 'shift_open') return this.mutateShift(technician, 'open');
+    return this.mutateShift(technician, 'close');
+  }
+
+  private async technicianTicketAction(
+    update: MaxBotUpdate,
+    action: TechnicianTicketAction,
+  ): Promise<MaxBotCommandResponse> {
+    const technician = await this.resolvedTechnician(update);
+    if (!technician) return this.menuMessage(update);
+    this.logger.log({ payload: action.kind }, 'max_bot_callback_handled');
+    if (action.kind === 'list') return this.myTicketsMessage(technician, action.offset);
+    if (action.kind === 'card') return this.ticketCardMessage(technician, action.ticketId);
+    if (action.kind === 'start') return this.startTicketMessage(technician, action.ticketId);
+    if (action.kind === 'status') return this.ticketStatusPickerMessage(technician, action.ticketId);
+    if (action.kind === 'apply') return this.applyTicketStatusMessage(technician, action.ticketId, action.status);
+    if (action.kind === 'history') return this.ticketHistoryMessage(technician, action.ticketId, action.offset);
+    if (action.kind === 'comment') return this.dialog.beginComment(technician, action.ticketId);
+    if (action.kind === 'photo') return this.dialog.beginPhoto(technician, action.ticketId);
+    if (action.kind === 'complete') return this.dialog.beginComplete(technician, action.ticketId);
+    if (action.kind === 'completePhoto') return this.dialog.requestCompletePhoto(technician, action.ticketId);
+    if (action.kind === 'completeAsk') return this.dialog.backToCompleteAsk(technician, action.ticketId);
+    return this.dialog.skipCompletePhoto(technician, action.ticketId);
+  }
+
+  private async myTicketsMessage(
+    technician: ResolvedTechnician,
+    offset: number,
+  ): Promise<MaxBotCommandResponse> {
+    if (!this.workplace) return renderPersistentMenuMessage(ACTION_FAILED_TEXT);
+    const result = await this.workplace.myTickets(technician, offset);
+    if (!result.ok) return renderPersistentMenuMessage(result.message);
+    return renderTechnicianTicketsListMessage(result.value);
+  }
+
+  private async ticketCardMessage(
+    technician: ResolvedTechnician,
+    ticketId: string,
+  ): Promise<MaxBotCommandResponse> {
+    if (!this.workplace) return renderPersistentMenuMessage(ACTION_FAILED_TEXT);
+    const result = await this.workplace.ticketCard(technician, ticketId);
+    if (!result.ok) {
+      return result.message === 'Заявка недоступна'
+        ? renderTicketUnavailableMessage()
+        : renderPersistentMenuMessage(result.message);
+    }
+    return renderTechnicianTicketCardMessage(result.value);
+  }
+
+  private async startTicketMessage(
+    technician: ResolvedTechnician,
+    ticketId: string,
+  ): Promise<MaxBotCommandResponse> {
+    if (!this.workplace) return renderPersistentMenuMessage(ACTION_FAILED_TEXT);
+    const result = await this.workplace.startMyTicket(technician, ticketId);
+    if (!result.ok) {
+      return result.message === 'Заявка недоступна'
+        ? renderTicketUnavailableMessage()
+        : renderPersistentMenuMessage(result.message);
+    }
+    return renderTechnicianTicketCardMessage(result.value);
+  }
+
+  private async ticketStatusPickerMessage(
+    technician: ResolvedTechnician,
+    ticketId: string,
+  ): Promise<MaxBotCommandResponse> {
+    if (!this.workplace) return renderPersistentMenuMessage(ACTION_FAILED_TEXT);
+    const result = await this.workplace.ticketCard(technician, ticketId);
+    if (!result.ok) {
+      return result.message === 'Заявка недоступна'
+        ? renderTicketUnavailableMessage()
+        : renderPersistentMenuMessage(result.message);
+    }
+    if (result.value.pickerTransitions.length === 0) {
+      return renderTechnicianTicketCardMessage(result.value);
+    }
+    return renderTicketStatusPickerMessage(result.value);
+  }
+
+  private async applyTicketStatusMessage(
+    technician: ResolvedTechnician,
+    ticketId: string,
+    status: TicketStatus,
+  ): Promise<MaxBotCommandResponse> {
+    if (!this.workplace) return renderPersistentMenuMessage(ACTION_FAILED_TEXT);
+    const result = await this.workplace.changeMyTicketStatus(technician, ticketId, status);
+    if (!result.ok) {
+      return result.message === 'Заявка недоступна'
+        ? renderTicketUnavailableMessage()
+        : renderPersistentMenuMessage(result.message);
+    }
+    return renderTechnicianTicketCardMessage(result.value);
+  }
+
+  private async ticketHistoryMessage(
+    technician: ResolvedTechnician,
+    ticketId: string,
+    offset: number,
+  ): Promise<MaxBotCommandResponse> {
+    if (!this.workplace) return renderPersistentMenuMessage(ACTION_FAILED_TEXT);
+    const result = await this.workplace.ticketHistory(technician, ticketId, offset);
+    if (!result.ok) {
+      return result.message === 'Заявка недоступна'
+        ? renderTicketUnavailableMessage()
+        : renderPersistentMenuMessage(result.message);
+    }
+    return renderTicketHistoryMessage(result.value);
+  }
+
+  private async todayMessage(technician: ResolvedTechnician): Promise<MaxBotCommandResponse> {
+    if (!this.workplace) return renderPersistentMenuMessage(ACTION_FAILED_TEXT);
+    const result = await this.workplace.today(technician);
+    if (!result.ok) return renderPersistentMenuMessage(result.message);
+    return renderTechnicianTodayMessage(result.value);
+  }
+
+  private async shiftMessage(technician: ResolvedTechnician): Promise<MaxBotCommandResponse> {
+    if (!this.workplace) return renderPersistentMenuMessage(ACTION_FAILED_TEXT);
+    const result = await this.workplace.shift(technician);
+    if (!result.ok) return renderPersistentMenuMessage(result.message);
+    return renderTechnicianShiftMessage(result.value);
+  }
+
+  private async mutateShift(
+    technician: ResolvedTechnician,
+    action: 'open' | 'close',
+  ): Promise<MaxBotCommandResponse> {
+    if (!this.workplace) return renderPersistentMenuMessage(ACTION_FAILED_TEXT);
+    const result =
+      action === 'open' ? await this.workplace.openShift(technician) : await this.workplace.closeShift(technician);
+    if (!result.ok) return renderPersistentMenuMessage(result.message);
+    return renderTechnicianShiftMessage(result.value);
+  }
+
+  private async resolvedTechnician(update: MaxBotUpdate): Promise<ResolvedTechnician | null> {
+    if (!this.identity) return null;
+    const identity = await this.identity.resolve(update);
+    return identity.resolved && identity.role === UserRole.TECHNICIAN ? identity : null;
   }
 
   private safeString(value: unknown) {

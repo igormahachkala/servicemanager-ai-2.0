@@ -234,4 +234,280 @@ describe('MaxBotCommandService — text extraction regressions', () => {
   it('returns null when message.body is an object without text', async () => {
     expect(await makeService().handleUpdate({ message: { body: { mid: 'm1' } } })).toBeNull();
   });
+
+  it('strips a bot mention from /start', async () => {
+    const res = await makeService().handleUpdate(msg('/start@id056001679003_1_bot'));
+    expect(res?.text).toContain('Сервис Менеджер');
+  });
+});
+
+function makeWorkplace() {
+  return {
+    today: jest.fn().mockResolvedValue({
+      ok: true,
+      value: {
+        shiftOpen: true,
+        shiftOpenedLabel: '17.09, 09:14',
+        myActiveCount: 2,
+        overdueCount: 1,
+        roundsTodayCount: 0,
+      },
+    }),
+    shift: jest.fn().mockResolvedValue({
+      ok: true,
+      value: { open: false, openedLabel: null, locationName: null },
+    }),
+    openShift: jest.fn().mockResolvedValue({
+      ok: true,
+      value: { open: true, openedLabel: '17.09, 09:14', locationName: null },
+    }),
+    closeShift: jest.fn().mockResolvedValue({
+      ok: true,
+      value: { open: false, openedLabel: null, locationName: null },
+    }),
+    myTickets: jest.fn().mockResolvedValue({
+      ok: true,
+      value: {
+        items: [
+          {
+            id: '11111111-1111-4111-8111-111111111111',
+            ticketNumber: 12,
+            locationName: 'Склад',
+            problemText: 'Не морозит',
+            urgencyLabel: 'Срочно',
+            statusLabel: 'Назначена',
+          },
+        ],
+        nextOffset: null,
+      },
+    }),
+    ticketCard: jest.fn().mockResolvedValue({
+      ok: true,
+      value: {
+        id: '11111111-1111-4111-8111-111111111111',
+        ticketNumber: 12,
+        locationName: 'Склад',
+        categoryName: 'Холод',
+        problemText: 'Не морозит',
+        urgencyLabel: 'Срочно',
+        statusLabel: 'Назначена',
+        assigneeName: 'Виктор',
+        equipmentName: 'Шкаф',
+        canStart: true,
+        canComplete: false,
+        pickerTransitions: [],
+      },
+    }),
+    startMyTicket: jest.fn().mockResolvedValue({
+      ok: true,
+      value: {
+        id: '11111111-1111-4111-8111-111111111111',
+        ticketNumber: 12,
+        locationName: 'Склад',
+        categoryName: 'Холод',
+        problemText: 'Не морозит',
+        urgencyLabel: 'Срочно',
+        statusLabel: 'В работе',
+        assigneeName: 'Виктор',
+        equipmentName: 'Шкаф',
+        canStart: false,
+        canComplete: true,
+        pickerTransitions: [],
+      },
+    }),
+    changeMyTicketStatus: jest.fn().mockResolvedValue({
+      ok: true,
+      value: {
+        id: '11111111-1111-4111-8111-111111111111',
+        ticketNumber: 12,
+        locationName: 'Склад',
+        categoryName: 'Холод',
+        problemText: 'Не морозит',
+        urgencyLabel: 'Срочно',
+        statusLabel: 'Назначена',
+        assigneeName: 'Виктор',
+        equipmentName: 'Шкаф',
+        canStart: true,
+        canComplete: false,
+        pickerTransitions: [],
+      },
+    }),
+    ticketHistory: jest.fn().mockResolvedValue({
+      ok: true,
+      value: {
+        ticketId: '11111111-1111-4111-8111-111111111111',
+        ticketNumber: 12,
+        items: [{ atLabel: '18.09, 11:00', title: 'Комментарий', detail: 'Проверил' }],
+        nextOffset: null,
+      },
+    }),
+    addMyTicketComment: jest.fn().mockResolvedValue({
+      ok: true,
+      value: { ticketId: '11111111-1111-4111-8111-111111111111', ticketNumber: 12 },
+    }),
+    addMyTicketPhoto: jest.fn().mockResolvedValue({
+      ok: true,
+      value: { ticketId: '11111111-1111-4111-8111-111111111111', ticketNumber: 12, count: 1 },
+    }),
+    completeMyTicket: jest.fn().mockResolvedValue({
+      ok: true,
+      value: {
+        id: '11111111-1111-4111-8111-111111111111',
+        ticketNumber: 12,
+        locationName: 'Склад',
+        categoryName: 'Холод',
+        problemText: 'Не морозит',
+        urgencyLabel: 'Срочно',
+        statusLabel: 'Ожидает приёмки',
+        assigneeName: 'Виктор',
+        equipmentName: 'Шкаф',
+        canStart: false,
+        canComplete: false,
+        pickerTransitions: [],
+      },
+    }),
+  };
+}
+
+function makeTechnicianService() {
+  const identity = {
+    resolve: jest.fn().mockResolvedValue({
+      resolved: true,
+      userId: 'tech-1',
+      companyId: 'company-1',
+      role: UserRole.TECHNICIAN,
+      maxUserId: '4242',
+    }),
+  };
+  const workplace = makeWorkplace();
+  return {
+    identity,
+    workplace,
+    service: new MaxBotCommandService(makeForbiddenPrisma(), identity as any, workplace as any),
+  };
+}
+
+describe('MaxBotCommandService — technician chat menu', () => {
+  it('/start and /menu show the same six section callbacks', async () => {
+    const { service, identity } = makeTechnicianService();
+    const start = await service.handleUpdate({ message: { text: '/start', sender: { user_id: 4242 } } });
+    const menu = await service.handleUpdate({ message: { text: '/menu', sender: { user_id: 4242 } } });
+    expect(identity.resolve).toHaveBeenCalled();
+    expect(start).toEqual(menu);
+    expect(start?.text).toContain('Выберите действие');
+    expect(buttonsOf(start).map((button) => button.text)).toEqual([
+      'Сегодня',
+      'Мои заявки',
+      'Доступные',
+      'Обходы',
+      'Моя смена',
+      'Поиск заявки',
+    ]);
+    expect(buttonsOf(start).every((button) => button.type === 'callback')).toBe(true);
+  });
+
+  it('callback Сегодня replies with the day summary', async () => {
+    const { service, workplace } = makeTechnicianService();
+    const res = await service.handleUpdate(callback('today'));
+    expect(workplace.today).toHaveBeenCalled();
+    expect(res?.text).toContain('Сегодня');
+    expect(res?.text).toContain('Заявки: 2, просрочено 1');
+    expect(buttonsOf(res).map((button) => button.text)).toContain('Мои заявки');
+    expect(res?.text).not.toContain('7999');
+  });
+
+  it('callback Моя смена replies with shift state and open/close', async () => {
+    const { service, workplace } = makeTechnicianService();
+    const res = await service.handleUpdate(callback('shift'));
+    expect(workplace.shift).toHaveBeenCalled();
+    expect(res?.text).toContain('Моя смена');
+    expect(buttonsOf(res).map((button) => button.text)).toContain('Открыть смену');
+  });
+
+  it('asks before closing a shift, then closes through WorkforceService', async () => {
+    const { service, workplace } = makeTechnicianService();
+    workplace.shift.mockResolvedValue({
+      ok: true,
+      value: { open: true, openedLabel: '09:14', locationName: null },
+    });
+    const ask = await service.handleUpdate(callback('shift_close'));
+    expect(ask?.text).toBe('Закрыть смену?');
+    const closed = await service.handleUpdate(callback('shift_yes'));
+    expect(workplace.closeShift).toHaveBeenCalled();
+    expect(closed?.text).toContain('Смена не открыта');
+  });
+
+  it('Меню callback returns the six-button menu', async () => {
+    const { service } = makeTechnicianService();
+    const res = await service.handleUpdate(callback('menu'));
+    expect(buttonsOf(res).map((button) => button.text)).toEqual([
+      'Сегодня',
+      'Мои заявки',
+      'Доступные',
+      'Обходы',
+      'Моя смена',
+      'Поиск заявки',
+    ]);
+  });
+
+  it('message Мои заявки opens the assigned list, not a stub title', async () => {
+    const { service, workplace } = makeTechnicianService();
+    const res = await service.handleUpdate({
+      message: { text: 'Мои заявки', sender: { user_id: 4242 } },
+    });
+    expect(workplace.myTickets).toHaveBeenCalled();
+    expect(res?.text).toContain('Мои заявки');
+    expect(res?.text).toContain('#12 · Назначена · Срочно');
+    expect(res?.text).not.toContain('Телефон');
+    expect(buttonsOf(res).map((button) => button.text)).toContain('Открыть #12');
+  });
+
+  it('Открыть opens the card from getOne, Начать работу mutates through the workplace', async () => {
+    const { service, workplace } = makeTechnicianService();
+    const card = await service.handleUpdate(callback('tk:11111111-1111-4111-8111-111111111111'));
+    expect(workplace.ticketCard).toHaveBeenCalled();
+    expect(card?.text).toContain('Заявка #12');
+    expect(card?.text).toContain('Исполнитель: Виктор');
+    expect(buttonsOf(card).map((button) => button.text)).toContain('Начать работу');
+    const started = await service.handleUpdate(callback('tks:11111111-1111-4111-8111-111111111111'));
+    expect(workplace.startMyTicket).toHaveBeenCalled();
+    expect(started?.text).toContain('Статус: В работе');
+    expect(buttonsOf(started).map((button) => button.text)).toEqual([
+      'Комментарий',
+      'Фото',
+      'Завершить',
+      'История',
+      'Сегодня',
+      'Моя смена',
+      'Мои заявки',
+    ]);
+    const history = await service.handleUpdate(callback('tkh:11111111-1111-4111-8111-111111111111'));
+    expect(workplace.ticketHistory).toHaveBeenCalled();
+    expect(history?.text).toContain('История #12');
+    expect(history?.text).toContain('Проверил');
+  });
+
+  it('unbound user sending Мои заявки does not get ticket rows', async () => {
+    const res = await makeService().handleUpdate({
+      message: { text: 'Мои заявки', sender: { user_id: 4242 } },
+    });
+    expect(res?.text).toContain('Бот не показывает данные заявок без входа.');
+    expect(res?.text).not.toContain('Открыть #');
+  });
+
+  it('unbound user sending Сегодня does not get technician counters', async () => {
+    const res = await makeService().handleUpdate({
+      message: { text: 'Сегодня', sender: { user_id: 4242 } },
+    });
+    expect(res?.text).toContain('Бот не показывает данные заявок без входа.');
+    expect(res?.text).not.toContain('Заявки:');
+  });
+
+  it('/test for a bound technician still returns only server time', async () => {
+    const { service, identity } = makeTechnicianService();
+    const res = await service.handleUpdate({ message: { text: '/test', sender: { user_id: 4242 } } });
+    expect(identity.resolve).not.toHaveBeenCalled();
+    expect(res?.text).toMatch(/^Время сервера: \d{4}-\d{2}-\d{2}T/);
+    expect(buttonsOf(res).map((button) => button.text)).toEqual(['Меню']);
+  });
 });
