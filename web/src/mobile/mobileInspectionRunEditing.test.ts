@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import ts from 'typescript'
 import { describe, expect, it } from 'vitest'
 
 import type { InspectionRunItem } from '../lib/api'
@@ -197,6 +198,30 @@ describe('120N полный offline payload', () => {
 const UUID = '3f2b9a1c-5d4e-4a7b-9c8d-1e2f3a4b5c6d'
 const UUID_RE = /\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b/i
 
+function exportedTicketMutationNames(apiSource: string): string[] {
+  const sourceFile = ts.createSourceFile(
+    'api.ts',
+    apiSource,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  )
+
+  return sourceFile.statements
+    .filter((node): node is ts.FunctionDeclaration =>
+      ts.isFunctionDeclaration(node) &&
+      !!node.name &&
+      !!node.body &&
+      !!node.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword),
+    )
+    .filter((node) => {
+      const body = node.body!.getText(sourceFile)
+      return body.includes('/tickets') && /method:\s*['"](?:POST|PUT|PATCH|DELETE)['"]/.test(body)
+    })
+    .map((node) => node.name!.text)
+    .sort()
+}
+
 describe('120W связанная заявка при правке чек-поинта', () => {
   it('1. без связанной заявки экран молчит', () => {
     expect(checkpointLinkedTicketNotice({ hasLinkedTicket: false, draftStatus: 'OK' })).toEqual({ kind: 'none' })
@@ -282,13 +307,12 @@ describe('120W source contract', () => {
 
   it('8. путь сохранения не вызывает ни одной операции над заявкой', () => {
     const source = page()
-    /**
-     * Список взят из самого api.ts: это все экспортированные функции, которые
-     * посылают POST/PATCH/DELETE на /tickets. Перечислять придуманные имена
-     * бессмысленно — проверка на отсутствие того, чего нет, ничего не значит.
-     */
     const api = read('src/lib/api.ts')
-    const ticketMutations = [
+    const ticketMutations = exportedTicketMutationNames(api)
+
+    // Пинуем фактическую поверхность api.ts: новый Ticket-mutator не должен
+    // появиться незаметно и остаться вне запрета для редактора обхода.
+    expect(ticketMutations).toEqual([
       'addTicketComment',
       'assignTicket',
       'changeTicketCategory',
@@ -296,6 +320,7 @@ describe('120W source contract', () => {
       'createChildTicket',
       'createTicket',
       'decideTicketAcceptance',
+      'deleteDraftTicketAttachment',
       'deleteTicketAttachment',
       'requestTicketAssignment',
       'smartAssignTicket',
@@ -303,9 +328,11 @@ describe('120W source contract', () => {
       'stopTicketWorkLog',
       'updateTicket',
       'updateTicketStatus',
-    ]
+      'uploadDraftTicketAttachment',
+      'uploadTicketAttachment',
+    ])
+
     for (const name of ticketMutations) {
-      // Функция обязана существовать, иначе проверка ниже пустая.
       expect(api).toMatch(new RegExp(`export async function ${name}\\(`))
       expect(source).not.toContain(`api.${name}(`)
     }
