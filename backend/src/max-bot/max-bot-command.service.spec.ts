@@ -412,21 +412,14 @@ function makeTechnicianService() {
 }
 
 describe('MaxBotCommandService — technician chat menu', () => {
-  it('/start and /menu show the same six section callbacks', async () => {
+  it('/start and /menu show the same ready section callbacks', async () => {
     const { service, identity } = makeTechnicianService();
     const start = await service.handleUpdate({ message: { text: '/start', sender: { user_id: 4242 } } });
     const menu = await service.handleUpdate({ message: { text: '/menu', sender: { user_id: 4242 } } });
     expect(identity.resolve).toHaveBeenCalled();
     expect(start).toEqual(menu);
     expect(start?.text).toContain('Выберите действие');
-    expect(buttonsOf(start).map((button) => button.text)).toEqual([
-      'Сегодня',
-      'Мои заявки',
-      'Доступные',
-      'Обходы',
-      'Моя смена',
-      'Поиск заявки',
-    ]);
+    expect(buttonsOf(start).map((button) => button.text)).toEqual(['Сегодня', 'Мои заявки', 'Моя смена']);
     expect(buttonsOf(start).every((button) => button.type === 'callback')).toBe(true);
   });
 
@@ -461,17 +454,10 @@ describe('MaxBotCommandService — technician chat menu', () => {
     expect(closed?.text).toContain('Смена не открыта');
   });
 
-  it('Меню callback returns the six-button menu', async () => {
+  it('Меню callback returns the ready-section menu', async () => {
     const { service } = makeTechnicianService();
     const res = await service.handleUpdate(callback('menu'));
-    expect(buttonsOf(res).map((button) => button.text)).toEqual([
-      'Сегодня',
-      'Мои заявки',
-      'Доступные',
-      'Обходы',
-      'Моя смена',
-      'Поиск заявки',
-    ]);
+    expect(buttonsOf(res).map((button) => button.text)).toEqual(['Сегодня', 'Мои заявки', 'Моя смена']);
   });
 
   it('message Мои заявки opens the assigned list, not a stub title', async () => {

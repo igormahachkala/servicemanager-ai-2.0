@@ -29,7 +29,7 @@ export function renderTechnicianTodayMessage(summary: TechnicianTodaySummary): M
   const keyboard = renderInlineKeyboard([
     [
       callbackButton('Мои заявки', 'my'),
-      callbackButton('Обходы', 'rounds'),
+      // callbackButton('Обходы', 'rounds'),
       callbackButton('Моя смена', 'shift'),
     ],
     ...technicianMenuRow(),

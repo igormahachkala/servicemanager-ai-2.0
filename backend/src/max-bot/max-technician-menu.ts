@@ -51,10 +51,15 @@ function callbackButton(text: string, payload: string): MaxBotInlineKeyboardButt
 }
 
 function technicianMenuRows(): MaxBotInlineKeyboardButton[][] {
-  const buttons: MaxBotInlineKeyboardButton[] = TECHNICIAN_SECTIONS.map((item) =>
-    callbackButton(item.label, item.payload),
-  );
-  return [buttons.slice(0, 3), buttons.slice(3, 6)];
+  const buttons: MaxBotInlineKeyboardButton[] = [
+    callbackButton('Сегодня', 'today'),
+    callbackButton('Мои заявки', 'my'),
+    // callbackButton('Доступные', 'avail'),
+    // callbackButton('Обходы', 'rounds'),
+    callbackButton('Моя смена', 'shift'),
+    // callbackButton('Поиск заявки', 'find'),
+  ];
+  return [buttons.slice(0, 3), buttons.slice(3, 6)].filter((row) => row.length > 0);
 }
 
 export function technicianMenuRow(): MaxBotInlineKeyboardButton[][] {
