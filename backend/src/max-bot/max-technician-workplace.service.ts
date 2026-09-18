@@ -130,6 +130,7 @@ export class MaxTechnicianWorkplaceService {
           .map((ticket) => toTechnicianTicketListItem(ticket as Record<string, any>))
           .filter((item): item is NonNullable<typeof item> => item !== null),
         nextOffset: start + MY_TICKET_PAGE_SIZE < mine.length ? start + MY_TICKET_PAGE_SIZE : null,
+        prevOffset: start > 0 ? Math.max(0, start - MY_TICKET_PAGE_SIZE) : null,
       };
     });
   }

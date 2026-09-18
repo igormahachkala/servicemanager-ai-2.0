@@ -99,7 +99,7 @@ describe('MaxBotCommandService — ticket photo and complete', () => {
     const { service, workplace, files } = makeTechnicianService();
     const prompt = await service.handleUpdate(callback(`tkf:${TICKET_ID}`));
     expect(prompt?.text).toContain('Отправьте фотографию для заявки #12');
-    expect(buttonsOf(prompt).map((button) => button.text)).toEqual(['Отмена']);
+    expect(buttonsOf(prompt).map((button) => button.text)).toEqual(['Отмена', 'Меню']);
 
     const text = await service.handleUpdate(textFrom('это не фото'));
     expect(workplace.addMyTicketPhoto).not.toHaveBeenCalled();
@@ -123,7 +123,7 @@ describe('MaxBotCommandService — ticket photo and complete', () => {
 
     const ask = await service.handleUpdate(textFrom('Заменил компрессор'));
     expect(ask?.text).toContain('Добавить фото результата?');
-    expect(buttonsOf(ask).map((button) => button.text)).toEqual(['Добавить фото', 'Пропустить', 'Отмена']);
+    expect(buttonsOf(ask).map((button) => button.text)).toEqual(['Добавить фото', 'Пропустить', 'Отмена', 'Меню']);
 
     workplace.completeMyTicket.mockResolvedValueOnce({
       ok: false,
@@ -150,7 +150,7 @@ describe('MaxBotCommandService — ticket photo and complete', () => {
     );
     expect(done?.text).toContain('Статус: Ожидает приёмки');
     expect(buttonsOf(done).map((button) => button.text)).toEqual(
-      expect.arrayContaining(['К заявке', 'Мои заявки']),
+      expect.arrayContaining(['К заявке', 'Мои заявки', 'Меню']),
     );
   });
 
@@ -178,5 +178,53 @@ describe('MaxBotCommandService — ticket photo and complete', () => {
     expect(workplace.completeMyTicket).not.toHaveBeenCalled();
     expect(res?.text).toContain('Заявка #12');
     expect(buttonsOf(res).map((button) => button.text)).not.toContain('Завершить');
+  });
+
+  it('accepts several photos in one MAX message', async () => {
+    const { service, workplace, files } = makeTechnicianService();
+    workplace.addMyTicketPhoto
+      .mockResolvedValueOnce({ ok: true, value: { ticketId: TICKET_ID, ticketNumber: 12, count: 1 } })
+      .mockResolvedValueOnce({ ok: true, value: { ticketId: TICKET_ID, ticketNumber: 12, count: 2 } });
+    await service.handleUpdate(callback(`tkf:${TICKET_ID}`));
+    const saved = await service.handleUpdate({
+      message: {
+        sender: { user_id: 4242 },
+        body: {
+          attachments: [
+            { type: 'image', payload: { url: 'https://cdn.example/a.jpg', size: 12 } },
+            { type: 'image', payload: { url: 'https://cdn.example/b.jpg', size: 12 } },
+          ],
+        },
+      },
+    });
+    expect(files.download).toHaveBeenCalledTimes(2);
+    expect(workplace.addMyTicketPhoto).toHaveBeenCalledTimes(2);
+    expect(saved?.text).toContain('Всего фото: 2');
+  });
+
+  it('uploads extra complete photos then finishes with the last file', async () => {
+    const { service, workplace } = makeTechnicianService();
+    await service.handleUpdate(callback(`tku:${TICKET_ID}`));
+    await service.handleUpdate(textFrom('Заменил компрессор'));
+    await service.handleUpdate(callback(`tkq:${TICKET_ID}`));
+    const done = await service.handleUpdate({
+      message: {
+        sender: { user_id: 4242 },
+        body: {
+          attachments: [
+            { type: 'image', payload: { url: 'https://cdn.example/a.jpg', size: 12 } },
+            { type: 'image', payload: { url: 'https://cdn.example/b.jpg', size: 12 } },
+          ],
+        },
+      },
+    });
+    expect(workplace.addMyTicketPhoto).toHaveBeenCalledTimes(1);
+    expect(workplace.completeMyTicket).toHaveBeenCalledWith(
+      expect.anything(),
+      TICKET_ID,
+      'Заменил компрессор',
+      expect.objectContaining({ mimetype: 'image/jpeg' }),
+    );
+    expect(done?.text).toContain('Статус: Ожидает приёмки');
   });
 });

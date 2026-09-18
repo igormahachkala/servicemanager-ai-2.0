@@ -59,51 +59,43 @@ describe('max-technician-tickets', () => {
     expect(JSON.stringify(item)).not.toContain('7000');
   });
 
-  it('renders five cards, Open buttons, Next, and never more than seven keys', () => {
-    const items = [1, 2, 3, 4, 5].map((n) =>
+  it('renders six cards as #{id}, Next on its own row, and Menu last', () => {
+    const items = [1, 2, 3, 4, 5, 6].map((n) =>
       listItem({
         id: `${n}1111111-1111-4111-8111-111111111111`,
         ticketNumber: 10 + n,
       }),
     );
-    const res = renderTechnicianTicketsListMessage({ items, nextOffset: 5 });
+    const res = renderTechnicianTicketsListMessage({ items, prevOffset: null, nextOffset: 6 });
     expect(res.text).toContain('#11 · Назначена · Срочно');
     expect(res.text).toContain('Склад');
     expect(res.text).not.toContain('Телефон');
+    const rows = res.attachments?.[0]?.payload.buttons || [];
     const labels = buttonsOf(res).map((button) => button.text);
-    expect(labels).toEqual([
-      'Открыть #11',
-      'Открыть #12',
-      'Открыть #13',
-      'Открыть #14',
-      'Открыть #15',
-      'Следующие',
-      'Меню',
-    ]);
-    expect(labels).toHaveLength(7);
+    expect(labels).toEqual(['#11', '#12', '#13', '#14', '#15', '#16', 'Следующие', 'Меню']);
+    expect(rows[2]).toEqual([{ type: 'callback', text: 'Следующие', payload: 'my:6' }]);
+    expect(rows[rows.length - 1]).toEqual([{ type: 'callback', text: 'Меню', payload: 'menu' }]);
     expect(buttonsOf(res).every((button) => button.type === 'callback')).toBe(true);
   });
 
-  it('keeps the section footer when five-plus-next would not overflow', () => {
+  it('shows Previous on a later page and drops Next on the last page', () => {
     const res = renderTechnicianTicketsListMessage({
       items: [listItem({ ticketNumber: 8 })],
+      prevOffset: 0,
       nextOffset: null,
     });
-    expect(buttonsOf(res).map((button) => button.text)).toEqual([
-      'Открыть #8',
-      'Сегодня',
-      'Моя смена',
-      'Мои заявки',
-    ]);
+    const rows = res.attachments?.[0]?.payload.buttons || [];
+    expect(buttonsOf(res).map((button) => button.text)).toEqual(['#8', 'Предыдущие', 'Меню']);
+    expect(rows[1]).toEqual([{ type: 'callback', text: 'Предыдущие', payload: 'my:0' }]);
   });
 
   it('says the list is empty without inventing tickets', () => {
-    const res = renderTechnicianTicketsListMessage({ items: [], nextOffset: null });
+    const res = renderTechnicianTicketsListMessage({ items: [], prevOffset: null, nextOffset: null });
     expect(res.text).toContain('Нет назначенных заявок');
-    expect(buttonsOf(res).map((button) => button.text)).toEqual(['Сегодня', 'Моя смена', 'Мои заявки']);
+    expect(buttonsOf(res).map((button) => button.text)).toEqual(['Меню']);
   });
 
-  it('draws card fields and only kernel start/complete/status buttons', () => {
+  it('draws card fields and kernel buttons in the first_wave order', () => {
     const card = toTechnicianTicketCardView({
       id: ID_NEW,
       ticketNumber: 90,
@@ -138,16 +130,13 @@ describe('max-technician-tickets', () => {
     expect(res.text).toContain('Исполнитель: Виктор Иванов');
     expect(res.text).toContain('Оборудование: Смеситель');
     expect(res.text).not.toContain('Телефон');
-    expect(buttonsOf(res).map((button) => button.text)).toEqual([
-      'Начать работу',
-      'Комментарий',
-      'Фото',
-      'История',
-      'Сегодня',
-      'Моя смена',
-      'Мои заявки',
+    const rows = res.attachments?.[0]?.payload.buttons || [];
+    expect(rows.map((row) => row.map((button) => button.text))).toEqual([
+      ['Начать работу', 'Комментарий'],
+      ['Фото', 'История'],
+      ['Меню'],
     ]);
-    expect(buttonsOf(res).map((button) => button.text).join()).not.toMatch(/Принять|Отклонить|Взять/);
+    expect(buttonsOf(res).map((button) => button.text).join()).not.toMatch(/Принять|Отклонить|Взять|Изменить статус/);
   });
 
   it('parses list paging and ticket ids, rejects junk', () => {
@@ -194,13 +183,7 @@ describe('max-technician-tickets', () => {
     expect(card?.pickerTransitions).toEqual([TicketStatus.ASSIGNED]);
     const picker = renderTicketStatusPickerMessage(card!);
     expect(picker.text).toContain('Выберите действие');
-    expect(buttonsOf(picker).map((button) => button.text)).toEqual([
-      'Назначена',
-      'Отмена',
-      'Сегодня',
-      'Моя смена',
-      'Мои заявки',
-    ]);
+    expect(buttonsOf(picker).map((button) => button.text)).toEqual(['Назначена', 'Отмена', 'Меню']);
 
     const history = renderTicketHistoryMessage(
       toTechnicianTicketHistoryPage(
@@ -229,26 +212,39 @@ describe('max-technician-tickets', () => {
     expect(history.text).toContain('Проверил на месте');
     expect(history.text).not.toContain('a@b.c');
     expect(history.text).not.toContain('7000');
-    expect(buttonsOf(history).map((button) => button.text)).toContain('К заявке');
+    expect(buttonsOf(history).map((button) => button.text)).toEqual(['К заявке', 'Меню']);
+    expect(history.attachments?.[0]?.payload.buttons.at(-1)?.map((button) => button.text)).toEqual(['Меню']);
+
+    const paged = renderTicketHistoryMessage(
+      toTechnicianTicketHistoryPage(
+        ID_OLD,
+        12,
+        Array.from({ length: 6 }, (_, i) => ({
+          at: `2026-09-18T1${i}:00:00Z`,
+          timelineEvent: 'COMMENT_ADDED',
+          payload: { comment: `c${i}` },
+          actor: { email: 'a@b.c' },
+        })),
+        5,
+      ),
+    );
+    const pagedRows = paged.attachments?.[0]?.payload.buttons || [];
+    expect(buttonsOf(paged).map((button) => button.text)).toEqual(['Предыдущие', 'К заявке', 'Меню']);
+    expect(pagedRows[0]).toEqual([{ type: 'callback', text: 'Предыдущие', payload: `tkh:${ID_OLD}:0` }]);
   });
 
   it('comment prompt asks for text with cancel; saved returns to the card', () => {
     const prompt = renderCommentPromptMessage(ID_OLD, 12);
     expect(prompt.text).toBe('Введите комментарий к заявке #12');
-    expect(buttonsOf(prompt).map((button) => button.text)).toEqual(['Отмена']);
+    expect(buttonsOf(prompt).map((button) => button.text)).toEqual(['Отмена', 'Меню']);
     expect(buttonsOf(prompt)[0].payload).toBe(`tk:${ID_OLD}`);
 
     const saved = renderCommentSavedMessage(ID_OLD, 12);
     expect(saved.text).toBe('Комментарий добавлен к #12');
-    expect(buttonsOf(saved).map((button) => button.text)).toEqual([
-      'К заявке',
-      'Сегодня',
-      'Моя смена',
-      'Мои заявки',
-    ]);
+    expect(buttonsOf(saved).map((button) => button.text)).toEqual(['К заявке', 'Меню']);
   });
 
-  it('keeps seven keys when start, comment, complete, status and history would overflow', () => {
+  it('puts complete on the photo/history row and Menu last full width', () => {
     const card = toTechnicianTicketCardView({
       id: ID_OLD,
       ticketNumber: 12,
@@ -260,16 +256,11 @@ describe('max-technician-tickets', () => {
         availableStatusTransitions: [TicketStatus.ASSIGNED],
       },
     });
-    const labels = buttonsOf(renderTechnicianTicketCardMessage(card!)).map((button) => button.text);
-    expect(labels).toEqual([
-      'Начать работу',
-      'Комментарий',
-      'Фото',
-      'Изменить статус',
-      'Завершить',
-      'История',
-      'Меню',
+    const rows = renderTechnicianTicketCardMessage(card!).attachments?.[0]?.payload.buttons || [];
+    expect(rows.map((row) => row.map((button) => button.text))).toEqual([
+      ['Начать работу', 'Комментарий'],
+      ['Фото', 'История', 'Завершить'],
+      ['Меню'],
     ]);
-    expect(labels).toHaveLength(7);
   });
 });

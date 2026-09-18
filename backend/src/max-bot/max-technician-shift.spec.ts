@@ -5,7 +5,7 @@ describe('renderTechnicianShiftMessage', () => {
     const res = renderTechnicianShiftMessage({ open: false, openedLabel: null, locationName: null });
     expect(res.text).toContain('Смена не открыта');
     const labels = res.attachments?.[0]?.payload.buttons.flat().map((button) => button.text);
-    expect(labels).toEqual(['Открыть смену', 'Сегодня', 'Моя смена', 'Мои заявки']);
+    expect(labels).toEqual(['Открыть смену', 'Сегодня', 'Мои заявки', 'Меню']);
   });
 
   it('offers close and shows location when the core has one', () => {
@@ -17,7 +17,7 @@ describe('renderTechnicianShiftMessage', () => {
     expect(res.text).toContain('Открыта с 17.09, 09:14');
     expect(res.text).toContain('Объект: Склад');
     const labels = res.attachments?.[0]?.payload.buttons.flat().map((button) => button.text);
-    expect(labels).toEqual(['Закрыть смену', 'Сегодня', 'Моя смена', 'Мои заявки']);
+    expect(labels).toEqual(['Закрыть смену', 'Сегодня', 'Мои заявки', 'Меню']);
   });
 });
 
@@ -28,6 +28,7 @@ describe('renderCloseShiftConfirmMessage', () => {
     expect(res.attachments?.[0]?.payload.buttons.flat().map((button) => button.payload)).toEqual([
       'shift_yes',
       'shift_no',
+      'menu',
     ]);
   });
 });

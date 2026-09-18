@@ -51,19 +51,34 @@ function callbackButton(text: string, payload: string): MaxBotInlineKeyboardButt
 }
 
 function technicianMenuRows(): MaxBotInlineKeyboardButton[][] {
-  const buttons: MaxBotInlineKeyboardButton[] = TECHNICIAN_SECTIONS.map((item) =>
-    callbackButton(item.label, item.payload),
-  );
-  return [buttons.slice(0, 3), buttons.slice(3, 6)];
+  const buttons: MaxBotInlineKeyboardButton[] = [
+    callbackButton('Сегодня', 'today'),
+    callbackButton('Мои заявки', 'my'),
+    // callbackButton('Доступные', 'avail'),
+    // callbackButton('Обходы', 'rounds'),
+    callbackButton('Моя смена', 'shift'),
+    // callbackButton('Поиск заявки', 'find'),
+  ];
+  return [buttons.slice(0, 3), buttons.slice(3, 6)].filter((row) => row.length > 0);
 }
 
-/** Футер экранов техника: Сегодня / Моя смена / Мои заявки. */
+export function technicianMenuRow(): MaxBotInlineKeyboardButton[][] {
+  return [[callbackButton('Меню', 'menu')]];
+}
+
+export function paginationRows(
+  prevPayload: string | null,
+  nextPayload: string | null,
+): MaxBotInlineKeyboardButton[][] {
+  const row: MaxBotInlineKeyboardButton[] = [];
+  if (prevPayload) row.push(callbackButton('Предыдущие', prevPayload));
+  if (nextPayload) row.push(callbackButton('Следующие', nextPayload));
+  return row.length ? [row] : [];
+}
+
+/** @deprecated экранный футер тройки заменён на Меню; оставлен для старых вызовов. */
 export function technicianFooterRows(): MaxBotInlineKeyboardButton[][] {
-  return [[
-    callbackButton('Сегодня', 'today'),
-    callbackButton('Моя смена', 'shift'),
-    callbackButton('Мои заявки', 'my'),
-  ]];
+  return technicianMenuRow();
 }
 
 export function renderTechnicianMenuMessage(): MaxBotCommandResponse {
@@ -75,7 +90,7 @@ export function renderTechnicianMenuMessage(): MaxBotCommandResponse {
 }
 
 export function renderTechnicianFooterMessage(text: string): MaxBotCommandResponse {
-  const keyboard = renderInlineKeyboard(technicianFooterRows());
+  const keyboard = renderInlineKeyboard(technicianMenuRow());
   return {
     text,
     ...(keyboard ? { attachments: [keyboard] } : {}),

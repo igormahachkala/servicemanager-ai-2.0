@@ -25,11 +25,16 @@ export function extractMaxIncomingMedia(update: unknown): MaxIncomingMedia[] {
   const body = asRecord(message?.body);
   const lists = [body?.attachments, message?.attachments, root.attachments];
   const out: MaxIncomingMedia[] = [];
+  const seen = new Set<string>();
   for (const list of lists) {
     if (!Array.isArray(list)) continue;
     for (const item of list) {
       const media = toIncomingMedia(item);
-      if (media) out.push(media);
+      if (!media) continue;
+      const key = `${media.url ?? ''}|${media.token ?? ''}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(media);
     }
   }
   return out;
