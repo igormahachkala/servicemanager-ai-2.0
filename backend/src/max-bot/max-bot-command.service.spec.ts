@@ -304,6 +304,64 @@ function makeWorkplace() {
         nextOffset: null,
       },
     }),
+    searchTickets: jest.fn().mockResolvedValue({
+      ok: true,
+      value: {
+        kind: 'page',
+        page: {
+          items: [
+            {
+              id: '11111111-1111-4111-8111-111111111111',
+              ticketNumber: 12,
+              locationName: 'Склад',
+              problemText: 'Не морозит',
+              urgencyLabel: 'Срочно',
+              statusLabel: 'Назначена',
+            },
+          ],
+          prevOffset: null,
+          nextOffset: null,
+        },
+      },
+    }),
+    availableTickets: jest.fn().mockResolvedValue({
+      ok: true,
+      value: {
+        items: [
+          {
+            id: '11111111-1111-4111-8111-111111111111',
+            ticketNumber: 12,
+            locationName: 'Склад',
+            problemText: 'Не морозит',
+            urgencyLabel: 'Срочно',
+            statusLabel: 'Новая',
+            canClaim: true,
+          },
+        ],
+        prevOffset: null,
+        nextOffset: null,
+      },
+    }),
+    claimAvailableTicket: jest.fn().mockResolvedValue({
+      ok: true,
+      value: {
+        kind: 'claimed',
+        card: {
+          id: '11111111-1111-4111-8111-111111111111',
+          ticketNumber: 12,
+          locationName: 'Склад',
+          categoryName: 'Холод',
+          problemText: 'Не морозит',
+          urgencyLabel: 'Срочно',
+          statusLabel: 'Назначена',
+          assigneeName: 'Виктор',
+          equipmentName: 'Шкаф',
+          canStart: true,
+          canComplete: false,
+          pickerTransitions: [],
+        },
+      },
+    }),
     ticketCard: jest.fn().mockResolvedValue({
       ok: true,
       value: {
@@ -393,6 +451,60 @@ function makeWorkplace() {
   };
 }
 
+function makeRounds() {
+  const item = {
+    runId: '22222222-2222-4222-8222-222222222222',
+    itemId: '33333333-3333-4333-8333-333333333333',
+    locationName: 'Кафе',
+    index: 1,
+    total: 2,
+    equipmentName: 'Холодильник',
+    checkText: 'Уплотнитель',
+    normText: 'без трещин',
+  };
+  return {
+    list: jest.fn().mockResolvedValue({
+      ok: true,
+      value: {
+        items: [
+          {
+            scheduleId: '11111111-1111-4111-8111-111111111111',
+            runId: null,
+            timeLabel: '09:00',
+            locationName: 'Кафе',
+            name: 'Утро',
+            itemCount: 12,
+          },
+        ],
+        prevOffset: null,
+        nextOffset: null,
+      },
+    }),
+    start: jest.fn().mockResolvedValue({ ok: true, value: { kind: 'item', item } }),
+    continueRun: jest.fn().mockResolvedValue({ ok: true, value: { kind: 'item', item } }),
+    markOk: jest.fn().mockResolvedValue({
+      ok: true,
+      value: {
+        kind: 'brief',
+        brief: {
+          runId: '22222222-2222-4222-8222-222222222222',
+          okCount: 2,
+          issueCount: 0,
+          criticalCount: 0,
+          createdTicketsCount: 0,
+          durationLabel: '12 мин',
+        },
+      },
+    }),
+    nextItem: jest.fn(),
+    report: jest.fn(),
+    pendingItem: jest.fn().mockResolvedValue({ ok: true, value: item }),
+    saveIssue: jest.fn(),
+    attachPhoto: jest.fn(),
+    createTicket: jest.fn(),
+  };
+}
+
 function makeTechnicianService() {
   const identity = {
     resolve: jest.fn().mockResolvedValue({
@@ -404,10 +516,18 @@ function makeTechnicianService() {
     }),
   };
   const workplace = makeWorkplace();
+  const rounds = makeRounds();
   return {
     identity,
     workplace,
-    service: new MaxBotCommandService(makeForbiddenPrisma(), identity as any, workplace as any),
+    rounds,
+    service: new MaxBotCommandService(
+      makeForbiddenPrisma(),
+      identity as any,
+      workplace as any,
+      undefined as any,
+      rounds as any,
+    ),
   };
 }
 
@@ -419,7 +539,14 @@ describe('MaxBotCommandService — technician chat menu', () => {
     expect(identity.resolve).toHaveBeenCalled();
     expect(start).toEqual(menu);
     expect(start?.text).toContain('Выберите действие');
-    expect(buttonsOf(start).map((button) => button.text)).toEqual(['Сегодня', 'Мои заявки', 'Моя смена']);
+    expect(buttonsOf(start).map((button) => button.text)).toEqual([
+      'Сегодня',
+      'Мои заявки',
+      'Доступные',
+      'Обходы',
+      'Моя смена',
+      'Поиск заявки',
+    ]);
     expect(buttonsOf(start).every((button) => button.type === 'callback')).toBe(true);
   });
 
@@ -457,7 +584,14 @@ describe('MaxBotCommandService — technician chat menu', () => {
   it('Меню callback returns the ready-section menu', async () => {
     const { service } = makeTechnicianService();
     const res = await service.handleUpdate(callback('menu'));
-    expect(buttonsOf(res).map((button) => button.text)).toEqual(['Сегодня', 'Мои заявки', 'Моя смена']);
+    expect(buttonsOf(res).map((button) => button.text)).toEqual([
+      'Сегодня',
+      'Мои заявки',
+      'Доступные',
+      'Обходы',
+      'Моя смена',
+      'Поиск заявки',
+    ]);
   });
 
   it('message Мои заявки opens the assigned list, not a stub title', async () => {
@@ -493,6 +627,50 @@ describe('MaxBotCommandService — technician chat menu', () => {
     expect(workplace.ticketHistory).toHaveBeenCalled();
     expect(history?.text).toContain('История #12');
     expect(history?.text).toContain('Проверил');
+  });
+
+  it('Поиск заявки asks for a query, then filters through TicketsService.list', async () => {
+    const { service, workplace } = makeTechnicianService();
+    const prompt = await service.handleUpdate(callback('find'));
+    expect(prompt?.text).toContain('Напишите номер, описание, имя или адрес заявки');
+    const found = await service.handleUpdate({
+      message: { text: 'морозит', sender: { user_id: 4242 } },
+    });
+    expect(workplace.searchTickets).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'tech-1', companyId: 'company-1' }),
+      'морозит',
+      0,
+    );
+    expect(found?.text).toContain('Поиск заявки');
+    expect(found?.text).toContain('#12 · Назначена · Срочно');
+    expect(found?.text).not.toContain('7999');
+    expect(buttonsOf(found).map((button) => button.text)).toContain('#12');
+  });
+
+  it('Доступные lists claimable tickets and claim goes through the workplace', async () => {
+    const { service, workplace } = makeTechnicianService();
+    const list = await service.handleUpdate(callback('avail'));
+    expect(workplace.availableTickets).toHaveBeenCalled();
+    expect(list?.text).toContain('Доступные');
+    expect(list?.text).toContain('#12 · Новая · Срочно');
+    expect(buttonsOf(list).map((button) => button.text)).toEqual(['Взять #12', 'Подробнее', 'Меню']);
+    const claimed = await service.handleUpdate(callback('avc:11111111-1111-4111-8111-111111111111'));
+    expect(workplace.claimAvailableTicket).toHaveBeenCalled();
+    expect(claimed?.text).toContain('Заявка #12 назначена вам.');
+    expect(claimed?.text).toContain('Исполнитель: Виктор');
+  });
+
+  it('Обходы list assigned schedules and start opens the first pending item', async () => {
+    const { service, rounds } = makeTechnicianService();
+    const list = await service.handleUpdate(callback('rounds'));
+    expect(rounds.list).toHaveBeenCalled();
+    expect(list?.text).toContain('Обходы');
+    expect(list?.text).toContain('09:00 · Кафе');
+    expect(buttonsOf(list).map((button) => button.text)).toEqual(['Начать', 'Меню']);
+    const started = await service.handleUpdate(callback('rst:11111111-1111-4111-8111-111111111111'));
+    expect(rounds.start).toHaveBeenCalled();
+    expect(started?.text).toContain('Пункт 1 из 2');
+    expect(buttonsOf(started).map((button) => button.text)).toEqual(['Норма', 'Проблема', 'Критично', 'Отмена']);
   });
 
   it('unbound user sending Мои заявки does not get ticket rows', async () => {

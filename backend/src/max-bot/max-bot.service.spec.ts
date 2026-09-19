@@ -45,6 +45,7 @@ describe('MaxBotService', () => {
   it('sends a test message using the saved chat id', async () => {
     process.env.MAX_BOT_API_BASE_URL = 'https://platform-api.max.ru';
     process.env.MAX_BOT_API_TOKEN = 'test-token';
+    process.env.MAX_PUBLIC_FRONTEND_URL = 'http://194.67.101.37:4173/';
     process.env.FRONTEND_URL = 'http://194.67.101.37:4173/';
 
     global.fetch = jest.fn()

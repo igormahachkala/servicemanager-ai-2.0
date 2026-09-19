@@ -7,5 +7,6 @@ import { ServiceContractsModule } from '../service-contracts/service-contracts.m
   imports: [ServiceContractsModule],
   providers: [ProblemCategoriesService],
   controllers: [ProblemCategoriesController],
+  exports: [ProblemCategoriesService],
 })
 export class ProblemCategoriesModule {}

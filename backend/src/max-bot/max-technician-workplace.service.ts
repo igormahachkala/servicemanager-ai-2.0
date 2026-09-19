@@ -27,6 +27,8 @@ import {
   toTechnicianTicketHistoryPage,
   toTechnicianTicketListItem,
 } from './max-technician-tickets';
+import { parseFindTicketNumber, ticketMatchesFindQuery } from './max-technician-find';
+import { TechnicianAvailablePage, toTechnicianAvailablePage } from './max-technician-available';
 import { TechnicianTodaySummary } from './max-technician-today';
 
 const ACTIVE_TICKET_STATUSES = new Set<TicketStatus>([
@@ -36,6 +38,14 @@ const ACTIVE_TICKET_STATUSES = new Set<TicketStatus>([
 ]);
 
 type ResolvedTechnician = Extract<MaxIdentity, { resolved: true }>;
+
+export type TechnicianTicketSearchResult =
+  | { kind: 'card'; card: TechnicianTicketCardView }
+  | { kind: 'page'; page: TechnicianTicketListPage };
+
+export type TechnicianTicketClaimResult =
+  | { kind: 'claimed'; card: TechnicianTicketCardView }
+  | { kind: 'taken'; page: TechnicianAvailablePage };
 
 export type WorkplaceOutcome<T> = { ok: true; value: T } | { ok: false; message: string };
 
@@ -132,6 +142,77 @@ export class MaxTechnicianWorkplaceService {
         nextOffset: start + MY_TICKET_PAGE_SIZE < mine.length ? start + MY_TICKET_PAGE_SIZE : null,
         prevOffset: start > 0 ? Math.max(0, start - MY_TICKET_PAGE_SIZE) : null,
       };
+    });
+  }
+
+  async searchTickets(
+    identity: ResolvedTechnician,
+    query: string,
+    offset = 0,
+  ): Promise<WorkplaceOutcome<TechnicianTicketSearchResult>> {
+    return this.run(async () => {
+      const actor = await this.actor(identity);
+      const tickets = await this.tickets.list(
+        identity.companyId,
+        identity.userId,
+        UserRole.TECHNICIAN,
+        undefined,
+        actor.accessFlags,
+      );
+      const pool = Array.isArray(tickets) ? tickets : [];
+      const exact = parseFindTicketNumber(query);
+      if (exact !== null) {
+        const numbered = pool.filter((ticket) => ticket.ticketNumber === exact);
+        if (numbered.length === 1) {
+          return { kind: 'card' as const, card: await this.loadCard(identity, actor, numbered[0].id) };
+        }
+      }
+      const matched = sortOldestFirst(
+        pool.filter((ticket) => ticketMatchesFindQuery(ticket as Record<string, any>, query)),
+      );
+      const start = Number.isFinite(offset) && offset > 0 ? Math.floor(offset) : 0;
+      const slice = matched.slice(start, start + MY_TICKET_PAGE_SIZE);
+      return {
+        kind: 'page' as const,
+        page: {
+          items: slice
+            .map((ticket) => toTechnicianTicketListItem(ticket as Record<string, any>))
+            .filter((item): item is NonNullable<typeof item> => item !== null),
+          nextOffset: start + MY_TICKET_PAGE_SIZE < matched.length ? start + MY_TICKET_PAGE_SIZE : null,
+          prevOffset: start > 0 ? Math.max(0, start - MY_TICKET_PAGE_SIZE) : null,
+        },
+      };
+    });
+  }
+
+  async availableTickets(
+    identity: ResolvedTechnician,
+    offset = 0,
+  ): Promise<WorkplaceOutcome<TechnicianAvailablePage>> {
+    return this.run(async () => {
+      const rows = await this.tickets.availableForTechnician(identity.companyId, identity.userId);
+      return toTechnicianAvailablePage(Array.isArray(rows) ? (rows as Array<Record<string, any>>) : [], offset);
+    });
+  }
+
+  async claimAvailableTicket(
+    identity: ResolvedTechnician,
+    ticketId: string,
+  ): Promise<WorkplaceOutcome<TechnicianTicketClaimResult>> {
+    return this.run(async () => {
+      try {
+        const claimed = await this.tickets.claim(identity.companyId, identity.userId, ticketId);
+        const card = toTechnicianTicketCardView(claimed as Record<string, any>);
+        if (!card) throw new NotFoundException('Заявка недоступна');
+        return { kind: 'claimed' as const, card };
+      } catch (err) {
+        if (err instanceof NotFoundException) {
+          const page = await this.availableTickets(identity, 0);
+          if (!page.ok) throw err;
+          return { kind: 'taken' as const, page: page.value };
+        }
+        throw err;
+      }
     });
   }
 
