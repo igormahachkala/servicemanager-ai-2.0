@@ -1,6 +1,8 @@
 import {
   BadRequestException,
+  forwardRef,
   HttpException,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
@@ -33,8 +35,8 @@ export class MaxTechnicianRoundsService {
   private readonly logger = new Logger(MaxTechnicianRoundsService.name);
 
   constructor(
-    private readonly inspection: InspectionService,
-    private readonly schedules: InspectionScheduleService,
+    @Inject(forwardRef(() => InspectionService)) private readonly inspection: InspectionService,
+    @Inject(forwardRef(() => InspectionScheduleService)) private readonly schedules: InspectionScheduleService,
     private readonly workforce: WorkforceService,
     private readonly categories: ProblemCategoriesService,
   ) {}
