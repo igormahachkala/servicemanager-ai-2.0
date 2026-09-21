@@ -10,6 +10,7 @@
   snapshotStorageItems,
 } from './browserStorage'
 import { notifyRealtimeAuthChanged } from './realtimeSocket'
+import { reportApiReachability } from './apiReachability'
 export {
   currentInternalAppPath,
   getReturnToFromSearch,
@@ -2014,7 +2015,11 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
       signal: controller?.signal,
     })
     text = await res.text()
+    // Any HTTP response proves reachability. Its application status is
+    // handled below and must never be disguised as an offline failure.
+    reportApiReachability(true)
   } catch (err) {
+    reportApiReachability(false)
     if (controller?.signal.aborted || isAbortError(err)) throw new ApiTimeoutError()
     throw err
   } finally {
@@ -3261,9 +3266,10 @@ export async function decideTicketAcceptance(id: string, input: TicketAcceptance
 /**
  * SMA-MOBILE-OFFLINE-INTEGRATION-113D.
  *
- * Необязательный ключ идемпотентности. Онлайн-вызов его не передаёт и ведёт
- * себя как раньше; отложенная операция приносит ключ из очереди, и повтор
- * после обрыва не создаёт дубль (контракт 113B).
+ * Необязательный ключ идемпотентности. Обычные online-вызовы ведут себя как
+ * раньше; mobile comment резервирует ключ для первой попытки, потому что при
+ * неопределённом сетевом исходе та же операция попадёт в очередь. Отложенная
+ * операция приносит тот же ключ, и повтор не создаёт дубль (контракт 113B).
  *
  * Ключ здесь только передаётся. Создаётся он один раз при постановке в
  * очередь и больше не меняется — см. offline/store.ts.
