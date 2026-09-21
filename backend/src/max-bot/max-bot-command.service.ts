@@ -3,13 +3,6 @@ import { TicketStatus, UserRole } from '@prisma/client';
 
 import { PrismaService } from '../prisma/prisma.service';
 import { MaxIdentity, MaxIdentityService } from './max-identity.service';
-import { MaxMasterCommandService } from './max-master-command.service';
-import {
-  isMasterMenuRole,
-  matchMasterMenuLabel,
-  matchMasterSlashCommand,
-  renderMasterMenuMessage,
-} from './max-master-menu';
 import {
   buildUnboundMenuModel,
   isSafeMaxCallbackPayload,
@@ -76,7 +69,6 @@ export class MaxBotCommandService {
     private readonly workplace?: MaxTechnicianWorkplaceService,
     files: MaxFileClient = new MaxFileClient(),
     @Optional() private readonly rounds?: MaxTechnicianRoundsService,
-    @Optional() private readonly master?: MaxMasterCommandService,
   ) {
     this.botUsername = normalizeMaxBotUsername(process.env.MAX_BOT_USERNAME);
     this.dialog = new MaxTechnicianDialog(workplace, files, rounds);
@@ -90,7 +82,6 @@ export class MaxBotCommandService {
 
     if (this.isBotStarted(update)) {
       this.dialog.clear(update);
-      this.master?.clearDialog(update);
       this.logger.log(
         { update_type: this.safeString(update.update_type), source: 'update_type', command: '/start' },
         'max_bot_command_parsed',
@@ -127,15 +118,6 @@ export class MaxBotCommandService {
         return this.handleParsedCommand(cmd, this.testMessage());
       }
       if (!isCommand) {
-        const masterSection = matchMasterMenuLabel(trimmed);
-        if (masterSection) {
-          const master = await this.resolvedMaster(update);
-          if (master && this.master) {
-            this.dialog.clear(update);
-            this.master.clearDialog(update);
-            return this.handleParsedCommand(masterSection, this.master.section(master, masterSection));
-          }
-        }
         const section = matchTechnicianMenuLabel(trimmed);
         if (section) {
           this.dialog.clear(update);
@@ -146,11 +128,6 @@ export class MaxBotCommandService {
           const mediaReply = await this.dialog.submitMedia(technician, media);
           if (mediaReply) return this.handleParsedCommand('photo', mediaReply);
         }
-        const master = await this.resolvedMaster(update);
-        if (master && this.master && (trimmed || media.length === 0)) {
-          const masterReply = await this.master.submitText(master, trimmed);
-          if (masterReply) return this.handleParsedCommand('dialog', masterReply);
-        }
         if (technician && (trimmed || media.length === 0)) {
           const textReply = await this.dialog.submitText(technician, trimmed);
           if (textReply) return this.handleParsedCommand('dialog', textReply);
@@ -158,7 +135,6 @@ export class MaxBotCommandService {
       }
       if (cmd === '/start' || cmd === '/menu') {
         this.dialog.clear(update);
-        this.master?.clearDialog(update);
         return this.handleParsedCommand(cmd, this.menuMessage(update));
       }
       if (cmd === '/help') {
@@ -166,15 +142,6 @@ export class MaxBotCommandService {
       }
       if (cmd === '/status') {
         return this.handleParsedCommand(cmd, this.statusMessage());
-      }
-      const masterSlash = matchMasterSlashCommand(cmd);
-      if (masterSlash) {
-        const master = await this.resolvedMaster(update);
-        if (master && this.master) {
-          this.dialog.clear(update);
-          this.master.clearDialog(update);
-          return this.handleParsedCommand(cmd, this.master.section(master, masterSlash));
-        }
       }
       if (LEGACY_DATA_COMMANDS.has(cmd)) {
         this.logger.log({ command: cmd }, 'max_bot_legacy_command_redirected');
@@ -205,7 +172,6 @@ export class MaxBotCommandService {
     }
     this.logger.log({ role: identity.role }, 'max_bot_identity_resolved');
     if (identity.role === UserRole.TECHNICIAN) return renderTechnicianMenuMessage();
-    if (isMasterMenuRole(identity.role)) return renderMasterMenuMessage();
     return renderBoundRoleStubMessage();
   }
 
@@ -245,13 +211,6 @@ export class MaxBotCommandService {
   }
 
   private async handleCallback(update: MaxBotUpdate, payload: string): Promise<MaxBotCommandResponse> {
-    const master = await this.resolvedMaster(update);
-    if (master && this.master) {
-      this.dialog.clear(update);
-      if (payload === 'help') return this.helpMessage();
-      this.logger.log({ payload }, 'max_bot_callback_handled');
-      return this.master.handleCallback(master, update, payload);
-    }
     const ticketAction = parseTechnicianTicketAction(payload);
     const roundAction = parseTechnicianRoundAction(payload);
     if (
@@ -539,12 +498,6 @@ export class MaxBotCommandService {
     if (!this.identity) return null;
     const identity = await this.identity.resolve(update);
     return identity.resolved && identity.role === UserRole.TECHNICIAN ? identity : null;
-  }
-
-  private async resolvedMaster(update: MaxBotUpdate): Promise<ResolvedTechnician | null> {
-    if (!this.identity) return null;
-    const identity = await this.identity.resolve(update);
-    return identity.resolved && isMasterMenuRole(identity.role) ? identity : null;
   }
 
   private safeString(value: unknown) {
