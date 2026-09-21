@@ -6,21 +6,20 @@ import { Roles } from '../common/roles.decorator';
 import { RolesGuard } from '../common/roles.guard';
 
 import { CreateMaxBindingDto } from './dto/create-max-binding.dto';
+import { RevokeMaxBindingDto } from './dto/revoke-max-binding.dto';
 import { MaxBindingService } from './max-binding.service';
 
 /**
  * SMA-MAX-SECURE-USER-BINDING-054.
  *
- * Binding management for the signed-in user, and only for the signed-in user.
+ * Binding management for the signed-in user.
  *
- * Authentication is the ordinary stack — `JwtAuthGuard` + `RolesGuard`, tenant from
- * `req.user` — because the ServiceManager half of the ceremony IS an ordinary session.
- * Every role is listed: binding is identity, not privilege, so a technician has exactly as
- * much right to link their own MAX account as an admin does.
+ * Authentication is the ordinary stack — `JwtAuthGuard` + `RolesGuard`. Every role is listed:
+ * binding is identity, not privilege.
  *
- * There is no endpoint that binds, reads or revokes on behalf of another user. Adding one
- * would create an administrative path to impersonation, and the whole point of the ceremony
- * is that only the person holding both credentials can create the link.
+ * Create still only binds the JWT user. Revoke with Mini App initData unlinks this MAX
+ * account, including a row owned by another SMA user: that is «Выйти» in this chat, not
+ * an admin acting on someone else's id.
  */
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(
@@ -63,9 +62,9 @@ export class MaxBindingController {
     return { created: result.created, binding: result.binding };
   }
 
-  /** Unlink. Idempotent — safe to call when nothing is bound. */
+  /** Unlink this SMA user, and this MAX account when initData is present. Idempotent. */
   @Delete()
-  async revoke(@Req() req: any) {
-    return this.bindings.revokeBinding(req.user.id);
+  async revoke(@Req() req: any, @Body() dto: RevokeMaxBindingDto = new RevokeMaxBindingDto()) {
+    return this.bindings.revokeBinding(req.user.id, dto?.initData);
   }
 }

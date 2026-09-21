@@ -1,19 +1,21 @@
 export type SmaLogoutDeps = {
   getToken: () => string | null
   isImpersonating: () => boolean
-  revokeMaxBinding: () => Promise<unknown>
+  revokeMaxBinding: (initData?: string) => Promise<unknown>
+  getMaxInitData?: () => string
   clearToken: () => void
 }
 
 /**
- * User-initiated SMA logout. Revokes MaxUserBinding while the JWT is still valid,
- * then drops the local session. Impersonation and already-empty sessions skip revoke:
- * the JWT is not the real account, or there is nothing to authorize DELETE with.
+ * User-initiated SMA logout. The MAX chat pair is dropped only from Mini App:
+ * signed initData names this MAX person. Browser `/m` and desktop skip revoke.
+ * Impersonation and empty sessions skip too. Local session is always cleared.
  */
 export async function runSmaLogout(deps: SmaLogoutDeps): Promise<void> {
-  if (deps.getToken() && !deps.isImpersonating()) {
+  const initData = (deps.getMaxInitData?.() || '').trim()
+  if (deps.getToken() && !deps.isImpersonating() && initData) {
     try {
-      await deps.revokeMaxBinding()
+      await deps.revokeMaxBinding(initData)
     } catch {
       // Local logout still happens: a dead token must not trap the person in the app.
     }
