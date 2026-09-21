@@ -184,14 +184,42 @@ export class MaxBindingService {
    * The row is kept in REVOKED rather than deleted — the resolver must be able to tell
    * "this MAX account was deliberately unlinked" apart from "never seen", and deleting
    * would erase that distinction along with the audit trail.
+   *
+   * Mini App «Выйти» sends signed initData of this MAX person. That row is revoked,
+   * whoever the JWT user is. Browser and desktop logout do not call this with initData.
+   * initData is verified, not consumed: the same payload was already burned at bind.
    */
-  async revokeBinding(authenticatedUserId: string): Promise<MaxBindingRevokeResult> {
-    const result = await this.prisma.maxUserBinding.updateMany({
+  async revokeBinding(authenticatedUserId: string, initData?: string): Promise<MaxBindingRevokeResult> {
+    const maxUserId = this.maxUserIdFromInitData(initData);
+    let count = 0;
+
+    if (maxUserId) {
+      const byMax = await this.prisma.maxUserBinding.updateMany({
+        where: { maxUserId, status: { not: MaxUserBindingStatus.REVOKED } },
+        data: { status: MaxUserBindingStatus.REVOKED },
+      });
+      count += byMax.count;
+    }
+
+    const byUser = await this.prisma.maxUserBinding.updateMany({
       where: { userId: authenticatedUserId, status: { not: MaxUserBindingStatus.REVOKED } },
       data: { status: MaxUserBindingStatus.REVOKED },
     });
-    if (result.count > 0) this.logger.log({ count: result.count }, 'max_binding_revoked');
-    return { ok: true, revoked: result.count > 0 };
+    count += byUser.count;
+
+    if (count > 0) this.logger.log({ count }, 'max_binding_revoked');
+    return { ok: true, revoked: count > 0 };
+  }
+
+  private maxUserIdFromInitData(initData?: string): string | null {
+    const payload = (initData || '').trim();
+    if (!payload) return null;
+    const verification = verifyMaxInitData(payload, this.botToken);
+    if (!verification.valid) {
+      this.logger.warn({ reason: verification.reason }, 'max_binding_revoke_init_data_ignored');
+      return null;
+    }
+    return verification.data.maxUserId;
   }
 
   /**

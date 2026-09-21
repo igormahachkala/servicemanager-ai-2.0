@@ -81,6 +81,11 @@ export function getMaxEnvironmentContext(): MaxEnvironmentContext {
   }
 }
 
+/** Signed payload of this MAX webview, or empty outside MAX. Used by «Выйти». */
+export function readMaxInitData(): string {
+  return (getMaxEnvironmentContext().initData || getWebApp()?.initData || '').trim()
+}
+
 export type ParsedStartParam =
   | { type: 'ticket'; ticketId: string }
   | { type: 'unknown'; raw: string }

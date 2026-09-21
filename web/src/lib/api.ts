@@ -20,6 +20,7 @@ export {
   workspaceForInternalPath,
   workspacePathWithReturnTo,
 } from './returnToNavigation'
+import { readMaxInitData } from '../max/maxBridge'
 import { runSmaLogout } from './smaLogout'
 
 export type Role =
@@ -2095,8 +2096,12 @@ export async function createMaxBinding(initData: string): Promise<{ created: boo
   })
 }
 
-export async function revokeMaxBinding(): Promise<{ ok: true; revoked: boolean }> {
-  return request<{ ok: true; revoked: boolean }>('/max/binding', { method: 'DELETE' })
+export async function revokeMaxBinding(initData?: string): Promise<{ ok: true; revoked: boolean }> {
+  const payload = (initData || '').trim()
+  return request<{ ok: true; revoked: boolean }>('/max/binding', {
+    method: 'DELETE',
+    body: payload ? { initData: payload } : {},
+  })
 }
 
 export async function logoutSmaSession(): Promise<void> {
@@ -2104,6 +2109,7 @@ export async function logoutSmaSession(): Promise<void> {
     getToken,
     isImpersonating,
     revokeMaxBinding,
+    getMaxInitData: readMaxInitData,
     clearToken,
   })
 }
