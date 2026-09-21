@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
+import { offlineAwareLogout } from '../lib/offlineSessionLogout'
 import { getAvailableWorkspaces, type WorkspaceCard } from '../lib/navigation'
 import { SmaBrandLogo } from '../components/SmaBrandLogo'
 import '../assets/css/import/login-page.css'
@@ -60,6 +61,11 @@ export function WorkspaceSelectorPage() {
   // Невалидный токен — назад на логин.
   useEffect(() => {
     if (!meQ.isError) return
+    // 005: сессия отвергнута сервером, человек ничего не выбирал. Разбор
+    // очереди останавливаем, базу не трогаем: удалять чужую работу без спроса
+    // нельзя, а от отправки под другой личностью защищает сверка владельца
+    // в координаторе.
+    void offlineAwareLogout('session_lost')
     api.clearToken()
     queryClient.clear()
     navigate(api.loginPathWithReturnTo(returnTo), { replace: true })
@@ -78,6 +84,9 @@ export function WorkspaceSelectorPage() {
   }, [autoWorkspace])
 
   async function logout() {
+    // 005: осознанный выход — та же единая политика, что и везде.
+    const cleanup = await offlineAwareLogout('user_initiated')
+    if (!cleanup.proceed) return
     await api.logoutSmaSession()
     queryClient.clear()
     navigate(api.loginPathWithReturnTo(returnTo), { replace: true })

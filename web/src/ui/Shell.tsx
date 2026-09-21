@@ -3,6 +3,7 @@ import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom'
 
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from '../lib/api'
+import { offlineAwareLogout } from '../lib/offlineSessionLogout'
 import {
   canAccessMobileApp,
   mobileAppNavItem,
@@ -176,9 +177,16 @@ export function Shell() {
 
   useEffect(() => {
     if (meQ.isError) {
-      api.clearToken()
-      queryClient.clear()
-      nav(api.loginPathWithReturnTo(`${loc.pathname}${loc.search}${loc.hash}`), { replace: true })
+      // 005: сессия кончилась не по воле человека. Разбор очереди
+      // останавливается, но офлайн-база не удаляется: спросить некого,
+      // а тихо снести чужой рабочий день нельзя. Работа уйдёт, когда её
+      // владелец войдёт снова — отправку под чужой личностью не пустит
+      // сверка владельца в координаторе.
+      void offlineAwareLogout('session_lost').finally(() => {
+        api.clearToken()
+        queryClient.clear()
+        nav(api.loginPathWithReturnTo(`${loc.pathname}${loc.search}${loc.hash}`), { replace: true })
+      })
     }
   }, [loc.hash, loc.pathname, loc.search, meQ.isError, nav, queryClient])
 
@@ -213,6 +221,11 @@ export function Shell() {
   }
 
   async function logout() {
+    // 005: та же политика, что и в профиле `/m`. Десктоп и мобильная
+    // оболочка живут в одном браузере: база, открытая под `/m`, обязана
+    // уйти и при выходе отсюда.
+    const cleanup = await offlineAwareLogout('user_initiated')
+    if (!cleanup.proceed) return
     await api.logoutSmaSession()
     queryClient.clear()
     hardRedirect('/login')
