@@ -101,6 +101,7 @@ function makePrisma(options: {
         let count = 0;
         for (const row of bindings) {
           if (where.userId && row.userId !== where.userId) continue;
+          if (where.maxUserId && row.maxUserId !== where.maxUserId) continue;
           if (where.status?.not && row.status === where.status.not) continue;
           Object.assign(row, data);
           count += 1;
@@ -332,6 +333,38 @@ describe('MaxBindingService', () => {
     expect(await service.revokeBinding('user-1')).toEqual({ ok: true, revoked: true });
     expect(prisma._bindings[0].status).toBe(MaxUserBindingStatus.REVOKED);
     expect(await service.revokeBinding('user-1')).toEqual({ ok: true, revoked: false });
+  });
+
+  it('unlinks the MAX account on logout even when JWT is a different SMA user', async () => {
+    const prisma = makePrisma({
+      bindings: [
+        {
+          id: 'b-tech',
+          userId: 'user-1',
+          companyId: 'company-1',
+          maxUserId: '4242',
+          status: MaxUserBindingStatus.ACTIVE,
+          linkedAt: new Date('2026-01-01'),
+          lastVerifiedAt: null,
+        },
+      ],
+    });
+    const service = new MaxBindingService(prisma);
+
+    expect(await service.revokeBinding('user-2', buildInitData(4242))).toEqual({ ok: true, revoked: true });
+    expect(prisma._bindings[0]).toMatchObject({
+      userId: 'user-1',
+      status: MaxUserBindingStatus.REVOKED,
+    });
+  });
+
+  it('still revokes the JWT user when initData is garbage', async () => {
+    const prisma = makePrisma();
+    const service = new MaxBindingService(prisma);
+    await service.createBinding('user-1', buildInitData(4242));
+
+    expect(await service.revokeBinding('user-1', 'not-init-data')).toEqual({ ok: true, revoked: true });
+    expect(prisma._bindings[0].status).toBe(MaxUserBindingStatus.REVOKED);
   });
 
   it('hides a revoked binding from the read endpoint', async () => {
