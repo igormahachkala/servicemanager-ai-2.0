@@ -20,6 +20,7 @@ import { createHttpSyncTransport } from './transport.js'
 import { openOfflineSession, wipeOfflineSession, currentOfflineStore } from './session.js'
 import { SyncCoordinator } from './sync.js'
 import type { OfflineStore } from './store.js'
+import { identityFromToken } from './identity.js'
 import { OFFLINE_SYNC_LABEL, type OfflineQueueItem } from './types.js'
 
 export type OfflineStatus = {
@@ -31,6 +32,11 @@ export type OfflineStatus = {
   syncing: boolean
   /** Русское объяснение, если офлайн-режим недоступен. */
   unavailableReason?: string
+  /**
+   * 005: отправка остановлена до сети — чужая личность или закрытая сессия.
+   * Работа цела, но сама она не уйдёт, и интерфейс обязан это сказать.
+   */
+  blockedReason?: string
 }
 
 type Listener = (status: OfflineStatus) => void
@@ -39,6 +45,36 @@ let store: OfflineStore | null = null
 let coordinator: SyncCoordinator | null = null
 let identityKey: string | null = null
 let connectivityWatched = false
+
+/**
+ * SMA-OFFLINE-QUEUE-OWNER-IDENTITY-HARDENING-005.
+ *
+ * Поколение сессии. Растёт на каждом stopOffline — то есть при смене
+ * пользователя, выходе и размонтировании оболочки. Координатор, запущенный
+ * в прошлом поколении, сравнивает своё число с этим и останавливается перед
+ * следующей строкой: обнулить его ссылки снаружи нельзя, он держит их сам.
+ */
+let generation = 0
+
+/**
+ * 005: личность, которую предъявит запрос. Берётся из того же токена, каким
+ * уйдёт очередь, — значит расхождения между «чья работа» и «от чьего имени
+ * отправляем» быть не может.
+ *
+ * `lib/api` подключается лениво по той же причине, что и в транспорте: слой
+ * очереди собирается узким tsconfig, и верхнеуровневый импорт сломал бы ту
+ * сборку.
+ */
+async function liveIdentityNamespace(): Promise<string | null> {
+  try {
+    const api = await import('../../lib/api')
+    const identity = identityFromToken(api.getToken())
+    return identity ? `${identity.companyId}:${identity.id}` : null
+  } catch {
+    // Модуль не прочитали — доказать принадлежность нечем, значит не отправляем.
+    return null
+  }
+}
 
 /**
  * Повтор с нарастающей паузой.
@@ -150,7 +186,11 @@ export async function startOffline(identity: { id?: string | null; companyId?: s
 
   if (!opened.available || !store) return { store, status }
 
-  coordinator = new SyncCoordinator(store, createHttpSyncTransport())
+  const startedAt = generation
+  coordinator = new SyncCoordinator(store, createHttpSyncTransport(), {
+    resolveIdentity: liveIdentityNamespace,
+    isCancelled: () => generation !== startedAt,
+  })
 
   await refreshOfflineStatus()
   // Работа могла накопиться в прошлой сессии — разбираем сразу, если связь есть.
@@ -160,6 +200,10 @@ export async function startOffline(identity: { id?: string | null; companyId?: s
 
 export function stopOffline() {
   cancelRetry()
+  // 005: сначала логическая отмена, потом обнуление ссылок. Обратный порядок
+  // оставил бы идущий круг без возможности узнать, что его уже не ждут.
+  generation += 1
+  coordinator?.cancel()
   coordinator = null
   store = null
   identityKey = null
@@ -169,14 +213,23 @@ export function stopOffline() {
 export async function syncNow(): Promise<void> {
   if (!coordinator || !store) return
   emit({ syncing: true })
+  let stoppedReason: string | undefined
   try {
-    await coordinator.run()
+    const report = await coordinator.run()
+    stoppedReason = report.stoppedReason
   } finally {
     await refreshOfflineStatus()
-    emit({ syncing: false })
-    // Осталась неотправленная работа — назначаем следующий круг сами.
-    // Ждать второго события `online` нельзя: его может не быть.
-    if (status.online && status.pending > 0) scheduleRetry()
+    emit({ syncing: false, blockedReason: stoppedReason })
+    /*
+     * Осталась неотправленная работа — назначаем следующий круг сами.
+     * Ждать второго события `online` нельзя: его может не быть.
+     *
+     * 005: круг, оборванный по личности или отмене, автоповтором не лечится —
+     * его разблокирует вход нужным пользователем, а не время. Повторять
+     * каждые четыре секунды значило бы крутить цикл впустую до конца сессии.
+     */
+    if (stoppedReason) cancelRetry()
+    else if (status.online && status.pending > 0) scheduleRetry()
     else cancelRetry()
   }
 }
