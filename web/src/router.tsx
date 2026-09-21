@@ -2,6 +2,7 @@
 import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import * as api from './lib/api'
+import { offlineAwareLogout } from './lib/offlineSessionLogout'
 import { IT_COMPANY_ROUTES } from './it-company/routes'
 import { LoginPage } from './views/LoginPage'
 import { VhodPage } from './views/VhodPage'
@@ -121,6 +122,11 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 
   React.useEffect(() => {
     if (!sessionRejected) return
+    // 005: сессия отвергнута сервером, человек ничего не выбирал. Разбор
+    // очереди останавливаем, базу не трогаем: удалять чужую работу без спроса
+    // нельзя, а от отправки под другой личностью защищает сверка владельца
+    // в координаторе.
+    void offlineAwareLogout('session_lost')
     api.clearToken()
     queryClient.clear()
     navigate(api.loginPathWithReturnTo(`${location.pathname}${location.search}${location.hash}`), {
@@ -162,6 +168,11 @@ function RequireManagementAccess({ children }: { children: React.ReactNode }) {
 
   React.useEffect(() => {
     if (!meQ.isError) return
+    // 005: сессия отвергнута сервером, человек ничего не выбирал. Разбор
+    // очереди останавливаем, базу не трогаем: удалять чужую работу без спроса
+    // нельзя, а от отправки под другой личностью защищает сверка владельца
+    // в координаторе.
+    void offlineAwareLogout('session_lost')
     api.clearToken()
     queryClient.clear()
     navigate(api.loginPathWithReturnTo(`${location.pathname}${location.search}${location.hash}`), {
