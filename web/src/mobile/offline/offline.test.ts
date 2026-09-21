@@ -1129,7 +1129,8 @@ test('113D-17. неудачная попытка после возвращени
    * до нуля. Найдено живой приёмкой на Stage.
    */
   assert.match(runtime, /function scheduleRetry/, 'повтор назначается сам')
-  assert.match(runtime, /status\.online && status\.pending > 0\) scheduleRetry\(\)/, 'повтор назначается после неудачного круга')
+  assert.match(runtime, /status\.pending > 0 && canProbeConnectivity\(\)\) scheduleRetry\(\)/, 'повтор назначается после неудачного круга')
+  assert.match(runtime, /else scheduleRetry\(\)/, 'fallback при ложном online не остаётся без автоматического повтора')
   assert.match(runtime, /RETRY_STEPS_MS/, 'паузы нарастают')
   // Без сети и после выхода таймер обязан сниматься, иначе он будет будить
   // разбор очереди для чужой или уже закрытой сессии.
