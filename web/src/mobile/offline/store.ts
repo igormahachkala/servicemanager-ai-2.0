@@ -92,13 +92,27 @@ export class OfflineStore {
 
   // ── очередь ─────────────────────────────────────────────────────────────
 
+  /**
+   * 005: владелец проставляется на чтении, если строка записана до этой
+   * задачи. Миграции базы для этого не нужно — владелец известен из самого
+   * факта, что строка лежит в базе этого пространства имён. Отдельная запись
+   * на диск ради поля тоже не нужна: значение выводится однозначно и каждый
+   * раз одинаково.
+   */
+  private withOwner(item: OfflineQueueItem): OfflineQueueItem {
+    return item.owner ? item : { ...item, owner: this.namespace }
+  }
+
   async listQueue(): Promise<OfflineQueueItem[]> {
     const items = await this.driver.getAll<OfflineQueueItem>('queue')
-    return items.sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
+    return items
+      .map((item) => this.withOwner(item))
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
   }
 
   async getQueueItem(id: string): Promise<OfflineQueueItem | null> {
-    return this.driver.get<OfflineQueueItem>('queue', id)
+    const item = await this.driver.get<OfflineQueueItem>('queue', id)
+    return item ? this.withOwner(item) : null
   }
 
   /**
@@ -155,6 +169,8 @@ export class OfflineStore {
       id,
       kind: input.kind,
       idempotencyKey: input.idempotencyKey || createOfflineIdempotencyKey(input.kind),
+      // 005: владелец фиксируется вместе со строкой и дальше не меняется.
+      owner: this.namespace,
       target: input.target,
       payload: input.payload ?? {},
       blobId,
@@ -175,10 +191,13 @@ export class OfflineStore {
     return { ok: true, item }
   }
 
-  /** Обновление строки. Ключ идемпотентности не перезаписывается никогда. */
+  /**
+   * Обновление строки. Ключ идемпотентности не перезаписывается никогда.
+   * 005: владелец — тоже: у строки один автор, и смена статуса его не меняет.
+   */
   async updateQueueItem(
     id: string,
-    patch: Partial<Omit<OfflineQueueItem, 'id' | 'idempotencyKey' | 'createdAt'>>,
+    patch: Partial<Omit<OfflineQueueItem, 'id' | 'idempotencyKey' | 'createdAt' | 'owner'>>,
   ): Promise<OfflineQueueItem | null> {
     const current = await this.getQueueItem(id)
     if (!current) return null
@@ -187,6 +206,7 @@ export class OfflineStore {
       ...patch,
       id: current.id,
       idempotencyKey: current.idempotencyKey,
+      owner: current.owner ?? this.namespace,
       createdAt: current.createdAt,
       updatedAt: new Date().toISOString(),
     }
