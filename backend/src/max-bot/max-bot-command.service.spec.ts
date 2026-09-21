@@ -2,7 +2,6 @@ import { UserRole } from '@prisma/client';
 
 import { MaxBotCommandService } from './max-bot-command.service';
 import { MaxIdentityService } from './max-identity.service';
-import { MaxMasterCommandService } from './max-master-command.service';
 
 /**
  * A prisma double whose every ticket accessor throws. If any command path still reads
@@ -199,7 +198,7 @@ describe('MaxBotCommandService — unbound identity leaks nothing', () => {
     expect(res?.text).toContain('Бот не показывает данные заявок без входа.');
   });
 
-  it('a bound coordinator gets the master menu, not the login screenshot', async () => {
+  it('a bound non-technician gets the unfinished-role stub, not the login screenshot', async () => {
     const identity = {
       resolve: jest.fn().mockResolvedValue({
         resolved: true,
@@ -215,33 +214,10 @@ describe('MaxBotCommandService — unbound identity leaks nothing', () => {
     const res = await service.handleUpdate(update);
 
     expect(identity.resolve).toHaveBeenCalledWith(update);
-    expect(res?.text).toContain('Выберите действие');
-    expect(buttonsOf(res).map((button) => button.text)).toEqual([
-      'Сегодня',
-      'Заявки',
-      'Без исполнителя',
-      'Техники',
-      'Обходы',
-      'Просрочено',
-    ]);
-    expect(res?.text).not.toContain('Мои заявки');
-    expect(res?.text).not.toContain('Бот не показывает данные заявок без входа.');
-  });
-
-  it('a bound client still gets the unfinished-role stub', async () => {
-    const identity = {
-      resolve: jest.fn().mockResolvedValue({
-        resolved: true,
-        userId: 'user-1',
-        companyId: 'company-1',
-        role: 'CLIENT',
-        maxUserId: '4242',
-      }),
-    };
-    const service = new MaxBotCommandService(makeForbiddenPrisma(), identity as any);
-    const res = await service.handleUpdate(botStarted());
     expect(res?.text).toBe('Этот функционал в разработке');
     expect(buttonsOf(res).map((button) => button.text)).toEqual(['Меню']);
+    expect(res?.text).not.toContain('Мои заявки');
+    expect(res?.text).not.toContain('Бот не показывает данные заявок без входа.');
   });
 });
 
@@ -719,247 +695,5 @@ describe('MaxBotCommandService — technician chat menu', () => {
     expect(identity.resolve).not.toHaveBeenCalled();
     expect(res?.text).toMatch(/^Время сервера: \d{4}-\d{2}-\d{2}T/);
     expect(buttonsOf(res).map((button) => button.text)).toEqual(['Меню']);
-  });
-});
-
-const TICKET_ID = '11111111-1111-4111-8111-111111111111';
-const TECH_ID = '22222222-2222-4222-8222-222222222222';
-
-function makeMasterWorkplace() {
-  const ticket = {
-    id: TICKET_ID,
-    ticketNumber: 12,
-    locationName: 'Склад',
-    problemText: 'Не морозит',
-    urgencyLabel: 'Срочно',
-    statusLabel: 'Новая',
-    assigneeName: 'Не назначен',
-    categoryName: 'Холод',
-    createdLabel: '21.09, 09:00',
-    slaLabel: '21.09, 12:00',
-  };
-  return {
-    today: jest.fn().mockResolvedValue({
-      ok: true,
-      value: {
-        newCount: 2,
-        unassignedCount: 1,
-        inProgressCount: 3,
-        overdueCount: 4,
-        onShiftCount: 2,
-        roundsTodayCount: 1,
-      },
-    }),
-    listTickets: jest.fn().mockResolvedValue({
-      ok: true,
-      value: { title: 'Новые', filter: 'new', items: [ticket], prevOffset: null, nextOffset: null },
-    }),
-    unassigned: jest.fn().mockResolvedValue({
-      ok: true,
-      value: { title: 'Без исполнителя', filter: 'unassigned', items: [ticket], prevOffset: null, nextOffset: null },
-    }),
-    technicianTickets: jest.fn().mockResolvedValue({
-      ok: true,
-      value: { title: 'Заявки техника', filter: 'tech', extra: TECH_ID, items: [ticket], prevOffset: null, nextOffset: null },
-    }),
-    card: jest.fn().mockResolvedValue({
-      ok: true,
-      value: {
-        id: TICKET_ID,
-        ticketNumber: 12,
-        locationName: 'Склад',
-        equipmentName: 'Шкаф',
-        sourceLabel: null,
-        sourceRunId: null,
-        attachmentCount: 0,
-        historyPreview: '',
-        canAssign: true,
-        hasAssignee: false,
-      },
-    }),
-    history: jest.fn().mockResolvedValue({
-      ok: true,
-      value: { ticketId: TICKET_ID, ticketNumber: 12, items: ['комментарий: Проверил'], prevOffset: null, nextOffset: null },
-    }),
-    attachments: jest.fn().mockResolvedValue({
-      ok: true,
-      value: { ticketId: TICKET_ID, ticketNumber: 12, lines: [] },
-    }),
-    comment: jest.fn().mockResolvedValue({ ok: true, value: { ticketNumber: 12 } }),
-    candidates: jest.fn().mockResolvedValue({
-      ok: true,
-      value: {
-        ticketId: TICKET_ID,
-        ticketNumber: 12,
-        back: 'u',
-        hasAssignee: false,
-        assigneeName: 'Не назначен',
-        items: [{ id: TECH_ID, name: 'Иван Петров', onShift: true, activeCount: 1, specialization: 'Холод' }],
-        prevOffset: null,
-        nextOffset: null,
-      },
-    }),
-    findCandidate: jest.fn().mockResolvedValue({
-      ok: true,
-      value: {
-        ticketId: TICKET_ID,
-        ticketNumber: 12,
-        back: 'u',
-        hasAssignee: false,
-        assigneeName: 'Не назначен',
-        items: [],
-        chosen: { id: TECH_ID, name: 'Иван Петров', onShift: true, activeCount: 1, specialization: 'Холод' },
-      },
-    }),
-    assign: jest.fn().mockResolvedValue({
-      ok: true,
-      value: { ticketId: TICKET_ID, ticketNumber: 12, technicianName: 'Иван Петров' },
-    }),
-    technicians: jest.fn().mockResolvedValue({
-      ok: true,
-      value: {
-        items: [{ userId: TECH_ID, name: 'Иван Петров', openedLabel: '09:00', inProgressCount: 1, doneTodayCount: 0 }],
-        prevOffset: null,
-        nextOffset: null,
-      },
-    }),
-    rounds: jest.fn().mockResolvedValue({
-      ok: true,
-      value: {
-        items: [
-          {
-            scheduleId: TICKET_ID,
-            runId: null,
-            locationName: 'Кафе',
-            timeLabel: '09:00',
-            technicianName: 'Иван Петров',
-            statusLabel: 'не начат',
-            progressLabel: '0/4',
-          },
-        ],
-        prevOffset: null,
-        nextOffset: null,
-      },
-    }),
-    roundPending: jest.fn().mockResolvedValue({ ok: true, value: { locationName: 'Кафе' } }),
-    roundProgress: jest.fn(),
-    roundReport: jest.fn(),
-  };
-}
-
-function makeMasterService(role: UserRole = UserRole.MASTER) {
-  const identity = {
-    resolve: jest.fn().mockResolvedValue({
-      resolved: true,
-      userId: 'master-1',
-      companyId: 'company-1',
-      role,
-      maxUserId: '4242',
-    }),
-  };
-  const workplace = makeMasterWorkplace();
-  const master = new MaxMasterCommandService(workplace as any);
-  return {
-    identity,
-    workplace,
-    service: new MaxBotCommandService(
-      makeForbiddenPrisma(),
-      identity as any,
-      undefined,
-      undefined as any,
-      undefined,
-      master,
-    ),
-  };
-}
-
-describe('MaxBotCommandService — master chat menu', () => {
-  it('/start and /menu show the six coordinator sections', async () => {
-    const { service, identity } = makeMasterService();
-    const start = await service.handleUpdate({ message: { text: '/start', sender: { user_id: 4242 } } });
-    const menu = await service.handleUpdate({ message: { text: '/menu', sender: { user_id: 4242 } } });
-    expect(identity.resolve).toHaveBeenCalled();
-    expect(start).toEqual(menu);
-    expect(buttonsOf(start).map((button) => button.text)).toEqual([
-      'Сегодня',
-      'Заявки',
-      'Без исполнителя',
-      'Техники',
-      'Обходы',
-      'Просрочено',
-    ]);
-  });
-
-  it.each([UserRole.ADMIN, UserRole.DISPATCHER, UserRole.NETWORK_DIRECTOR])(
-    '%s gets the same master menu',
-    async (role) => {
-      const { service } = makeMasterService(role);
-      const res = await service.handleUpdate({ message: { text: '/start', sender: { user_id: 4242 } } });
-      expect(buttonsOf(res).map((button) => button.text)).toContain('Без исполнителя');
-    },
-  );
-
-  it('callback Сегодня replies with coordinator counters, not technician ones', async () => {
-    const { service, workplace } = makeMasterService();
-    const res = await service.handleUpdate(callback('today'));
-    expect(workplace.today).toHaveBeenCalled();
-    expect(res?.text).toContain('Новых: 2');
-    expect(res?.text).toContain('На смене: 2');
-    expect(res?.text).not.toContain('Мои заявки');
-    expect(buttonsOf(res).length).toBeLessThanOrEqual(7);
-  });
-
-  it('/tickets opens the filter, not the legacy Mini App redirect', async () => {
-    const { service } = makeMasterService();
-    const res = await service.handleUpdate({ message: { text: '/tickets', sender: { user_id: 4242 } } });
-    expect(res?.text).toBe('Какие заявки показать');
-    expect(buttonsOf(res).map((button) => button.text)).toEqual([
-      'Новые',
-      'В работе',
-      'Просрочено',
-      'Отмена',
-      'Сегодня',
-      'Без исполнителя',
-      'Просрочено',
-    ]);
-  });
-
-  it('Без исполнителя lists NEW tickets and assign goes through TicketsService', async () => {
-    const { service, workplace } = makeMasterService();
-    const list = await service.handleUpdate(callback('unassigned'));
-    expect(workplace.unassigned).toHaveBeenCalled();
-    expect(list?.text).toContain('Без исполнителя');
-    expect(buttonsOf(list).map((button) => button.text)).toEqual([
-      '#12',
-      'Назначить #12',
-      'Сегодня',
-      'Без исполнителя',
-      'Просрочено',
-    ]);
-    const candidates = await service.handleUpdate(callback(`ma:${TICKET_ID}:u`));
-    expect(workplace.candidates).toHaveBeenCalled();
-    expect(candidates?.text).toContain('Кого назначить?');
-    const assigned = await service.handleUpdate(callback(`mpk:${TICKET_ID}:${TECH_ID}:u`));
-    expect(workplace.findCandidate).toHaveBeenCalled();
-    expect(workplace.assign).toHaveBeenCalled();
-    expect(assigned?.text).toContain('Заявка #12 назначена Иван Петров');
-  });
-
-  it('message Заявки opens the filter, technician Сегодня is not used', async () => {
-    const { service, workplace } = makeMasterService();
-    const res = await service.handleUpdate({ message: { text: 'Заявки', sender: { user_id: 4242 } } });
-    expect(workplace.today).not.toHaveBeenCalled();
-    expect(res?.text).toBe('Какие заявки показать');
-  });
-
-  it('Техники and Обходы stay on the master workplace', async () => {
-    const { service, workplace } = makeMasterService();
-    const techs = await service.handleUpdate(callback('techs'));
-    expect(workplace.technicians).toHaveBeenCalled();
-    expect(techs?.text).toContain('Техники на смене');
-    const rounds = await service.handleUpdate(callback('rounds'));
-    expect(workplace.rounds).toHaveBeenCalled();
-    expect(rounds?.text).toContain('Обходы сегодня');
-    expect(rounds?.text).toContain('не начат');
   });
 });
