@@ -36,10 +36,6 @@ export default defineConfig({
     ],
   },
   build: {
-    // The Service Worker reads this manifest during install and precaches every
-    // hashed route chunk. iOS may otherwise open the shell successfully and
-    // fail only when a previously unopened lazy route is needed offline.
-    manifest: 'asset-manifest.json',
     rollupOptions: {
       output: {
         manualChunks: vendorChunk,

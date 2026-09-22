@@ -1409,7 +1409,7 @@ export function MobileTicketPage() {
         }
         return
       }
-      setTechActionErr('Для этого действия нужен интернет.')
+      setTechActionErr('Нет соединения. Действие требует подключения к сети.')
       return
     }
     techActionM.mutate(mode)
